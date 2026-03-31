@@ -61,6 +61,8 @@ impl Codegen {
         for (label, value) in &self.data {
             data_section.push_str(&format!("data ${label} = {{ b \"{value}\", b 0 }}\n"));
         }
+        // Add "w" mode string for fdopen (used in assertions)
+        data_section.push_str("data $str_w_mode = { b \"w\", b 0 }\n");
         if !data_section.is_empty() {
             self.out.push('\n');
             self.out.push_str(&data_section);
@@ -90,20 +92,21 @@ impl Codegen {
         self.out.push('\n');
     }
 
-    pub fn emit_module(&mut self, resolved: &ResolvedModule) -> Result<(), String> {
+    pub fn emit_module(&mut self, resolved: &ResolvedModule, test_mode: bool) -> Result<(), String> {
         let ns = build_namespace(resolved);
         let trusted = build_trusted_set(resolved);
         self.trusted_fns = trusted;
-        self.emit_module_recursive(resolved, &ns)
+        self.emit_module_recursive(resolved, &ns, test_mode)
     }
 
     fn emit_module_recursive(
         &mut self,
         resolved: &ResolvedModule,
         ns: &Namespace,
+        test_mode: bool,
     ) -> Result<(), String> {
         for child in resolved.imports.values() {
-            self.emit_module_recursive(child, ns)?;
+            self.emit_module_recursive(child, ns, test_mode)?;
         }
 
         for item in &resolved.ast.items {
@@ -115,7 +118,8 @@ impl Codegen {
         for item in &resolved.ast.items {
             match item {
                 Item::Fn(f) => self.emit_fn(f, ns)?,
-                Item::Use { .. } | Item::Const { .. } | Item::TypeDef { .. } => {}
+                Item::Test { body } if test_mode => self.emit_test_fn(body, ns)?,
+                Item::Use { .. } | Item::Const { .. } | Item::TypeDef { .. } | Item::Test { .. } => {}
             }
         }
         Ok(())
@@ -176,6 +180,35 @@ impl Codegen {
             self.emit("    ret");
         }
 
+        self.emit("}");
+        self.emit("");
+        Ok(())
+    }
+
+    fn emit_test_fn(&mut self, body: &[Stmt], ns: &Namespace) -> Result<(), String> {
+        static mut TEST_COUNTER: usize = 0;
+        let test_id = unsafe {
+            TEST_COUNTER += 1;
+            TEST_COUNTER
+        };
+        
+        self.locals.clear();
+        self.local_types.clear();
+        self.local_mutability.clear();
+        self.local_type_annotations.clear();
+        self.local_is_slot.clear();
+        self.defer_stack.clear();
+        self.tmp_counter = 0;
+        self.current_fn = format!("test_{}", test_id);
+
+        self.emit(&format!("export function w $test_{}() {{", test_id));
+        self.emit("@start");
+
+        for stmt in body {
+            self.emit_stmt(stmt, ns, &TypeExpr::Void)?;
+        }
+
+        self.emit("    ret 0");
         self.emit("}");
         self.emit("");
         Ok(())
@@ -440,6 +473,29 @@ impl Codegen {
                 let end_lbl = self.current_loop_end.clone()
                     .ok_or_else(|| "break used outside of loop".to_string())?;
                 self.emit(&format!("    jmp {end_lbl}"));
+            }
+            Stmt::Assert(expr) => {
+                // Evaluate the assertion expression
+                let (cond, _) = self.emit_expr(expr, ns)?;
+                
+                // Create labels for pass and fail
+                let pass_lbl = format!("@assert_pass_{}", self.tmp_counter);
+                let fail_lbl = format!("@assert_fail_{}", self.tmp_counter);
+                self.tmp_counter += 1;
+                
+                // If condition is true, jump to pass, otherwise fall through to fail
+                self.emit(&format!("    jnz {cond}, {pass_lbl}, {fail_lbl}"));
+                
+                // Fail block: print error and abort
+                self.emit(&format!("{fail_lbl}"));
+                let msg = self.intern_string("assertion failed\\n");
+                self.emit(&format!("    %stderr =l call $fdopen(w 2, l $str_w_mode)"));
+                self.emit(&format!("    call $fprintf(l %stderr, l ${msg})"));
+                self.emit(&format!("    call $fflush(l %stderr)"));
+                self.emit("    call $abort()");
+                
+                // Pass block: continue execution
+                self.emit(&format!("{pass_lbl}"));
             }
             Stmt::Match {
                 expr,
@@ -865,6 +921,7 @@ fn all_trusted_stmts(stmts: &[Stmt]) -> bool {
         Stmt::Expr(Expr::Builtin { .. }) => true,
         Stmt::Pre(_) | Stmt::Post(_) => true,
         Stmt::Val { .. } | Stmt::Return(_) | Stmt::Break | Stmt::Increment(_) => true,
+        Stmt::Assert(_) => true,  // Assertions are trusted
         Stmt::Assign { .. } => false,
         Stmt::Defer(body) => all_trusted_stmts(body),
         Stmt::If { then, elif_, else_, .. } => {

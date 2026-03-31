@@ -24,7 +24,7 @@ pub fn compile_file(input: &str, args: &Args) -> Result<String, String> {
     let dir = path.parent().unwrap_or(Path::new(".")).to_path_buf();
     let src = std::fs::read_to_string(&path).map_err(|e| format!("cannot read {input}: {e}"))?;
 
-    let resolved = resolve_module(&src, &dir, &mut HashMap::new())?;
+    let resolved = resolve_module(&src, &dir, &mut HashMap::new(), input)?;
 
     if args.emit_tokens {
         let mut lex = Lexer::new(&src);
@@ -36,7 +36,7 @@ pub fn compile_file(input: &str, args: &Args) -> Result<String, String> {
     }
 
     let mut cg = Codegen::new();
-    cg.emit_module(&resolved)?;
+    cg.emit_module(&resolved, args.test)?;
     Ok(cg.finish())
 }
 
@@ -46,10 +46,11 @@ pub fn resolve_module(
     src: &str,
     dir: &Path,
     visited: &mut HashMap<PathBuf, ()>,
+    filename: &str,
 ) -> Result<ResolvedModule, String> {
     let mut lex = Lexer::new(src);
     let tokens = lex.tokenize()?;
-    let mut parser = Parser::new(tokens);
+    let mut parser = Parser::with_filename(tokens, filename.to_string());
     let ast = parser.parse_module()?;
     let mut imports = HashMap::new();
 
@@ -66,7 +67,8 @@ pub fn resolve_module(
                 .parent()
                 .unwrap_or(Path::new("."))
                 .to_path_buf();
-            let child = resolve_module(&child_src, &child_dir, visited)?;
+            let child_filename = resolved_path.to_string_lossy().to_string();
+            let child = resolve_module(&child_src, &child_dir, visited, &child_filename)?;
             imports.insert(name.clone(), child);
         }
     }

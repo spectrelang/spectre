@@ -42,6 +42,10 @@ fn main() {
     });
 
     assemble_and_link(&asm, &binary_path);
+
+    if args.test {
+        run_tests(&binary_path);
+    }
 }
 
 /// Pipe QBE IR into `qbe` and capture the assembly output.
@@ -108,4 +112,21 @@ fn assemble_and_link(asm: &str, binary_path: &str) {
     }
 
     let _ = std::fs::remove_file(&asm_path);
+}
+
+/// Run the compiled binary in test mode.
+fn run_tests(binary_path: &str) {
+    let status = Command::new(Path::join(Path::new("./s-out/"), binary_path))
+        .status()
+        .unwrap_or_else(|e| {
+            eprintln!("error: could not run test binary: {e}");
+            process::exit(1);
+        });
+
+    if !status.success() {
+        eprintln!("tests failed");
+        process::exit(1);
+    }
+
+    println!("all tests passed");
 }

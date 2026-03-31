@@ -51,4 +51,8 @@ pub struct Args {
     /// Print the AST and exit
     #[arg(long)]
     pub emit_ast: bool,
+
+    /// Run tests in the source file
+    #[arg(long)]
+    pub test: bool,
 }
