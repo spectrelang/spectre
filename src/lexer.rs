@@ -10,10 +10,12 @@ pub enum Token {
     Return,
     If,
     Else,
+    Elif,
     Trust,
     Rely,
     Use,
     Ref,
+    For,
     Some,
     None_,
     Match,
@@ -40,6 +42,7 @@ pub enum Token {
     Star,
     Slash,
     Percent,
+    PlusPlus,
     EqEq,
     BangEq,
     Lt,
@@ -160,10 +163,12 @@ impl Lexer {
                 "return" => Token::Return,
                 "if" => Token::If,
                 "else" => Token::Else,
+                "elif" => Token::Elif,
                 "trust" => Token::Trust,
                 "rely" => Token::Rely,
                 "use" => Token::Use,
                 "ref" => Token::Ref,
+                "for" => Token::For,
                 "some" => Token::Some,
                 "none" => Token::None_,
                 "not" => Token::Not,
@@ -187,7 +192,14 @@ impl Lexer {
             ',' => Token::Comma,
             '.' => Token::Dot,
             '@' => Token::At,
-            '+' => Token::Plus,
+            '+' => {
+                if self.peek() == Some('+') {
+                    self.advance();
+                    Token::PlusPlus
+                } else {
+                    Token::Plus
+                }
+            }
             '-' => {
                 if self.peek() == Some('>') {
                     self.advance();

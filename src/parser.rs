@@ -69,8 +69,16 @@ pub enum Stmt {
     If {
         cond: Expr,
         then: Vec<Stmt>,
+        elif_: Vec<(Expr, Vec<Stmt>)>,
         else_: Option<Vec<Stmt>>,
     },
+    For {
+        init: Option<(String, Expr)>,  // var = expr
+        cond: Option<Expr>,            // None = infinite
+        post: Option<Box<Stmt>>,       // e.g. y++
+        body: Vec<Stmt>,
+    },
+    Increment(String),  // x++
     Match {
         expr: Expr,
         some_binding: String,
@@ -375,6 +383,22 @@ impl Parser {
                 self.expect(&Token::LBrace)?;
                 let then = self.parse_stmts()?;
                 self.expect(&Token::RBrace)?;
+                // collect elif chains
+                let mut elif_ = Vec::new();
+                loop {
+                    if self.peek() == &Token::Elif {
+                        self.advance();
+                        self.expect(&Token::LParen)?;
+                        let elif_cond = self.parse_expr()?;
+                        self.expect(&Token::RParen)?;
+                        self.expect(&Token::LBrace)?;
+                        let elif_body = self.parse_stmts()?;
+                        self.expect(&Token::RBrace)?;
+                        elif_.push((elif_cond, elif_body));
+                    } else {
+                        break;
+                    }
+                }
                 let else_ = if self.eat(&Token::Else) {
                     self.expect(&Token::LBrace)?;
                     let s = self.parse_stmts()?;
@@ -383,7 +407,39 @@ impl Parser {
                 } else {
                     None
                 };
-                Ok(Stmt::If { cond, then, else_ })
+                Ok(Stmt::If { cond, then, elif_, else_ })
+            }
+            Token::For => {
+                self.advance();
+                // `for {` = infinite loop
+                if self.peek() == &Token::LBrace {
+                    self.advance();
+                    let body = self.parse_stmts()?;
+                    self.expect(&Token::RBrace)?;
+                    return Ok(Stmt::For { init: None, cond: None, post: None, body });
+                }
+                // `for (init; cond; post)`
+                self.expect(&Token::LParen)?;
+                // init: `ident = expr`
+                let init_name = self.expect_ident()?;
+                self.expect(&Token::Eq)?;
+                let init_expr = self.parse_expr()?;
+                self.expect(&Token::Semicolon)?;
+                let cond = self.parse_expr()?;
+                self.expect(&Token::Semicolon)?;
+                // post: `ident++`
+                let post_name = self.expect_ident()?;
+                self.expect(&Token::PlusPlus)?;
+                self.expect(&Token::RParen)?;
+                self.expect(&Token::LBrace)?;
+                let body = self.parse_stmts()?;
+                self.expect(&Token::RBrace)?;
+                Ok(Stmt::For {
+                    init: Some((init_name.clone(), init_expr)),
+                    cond: Some(cond),
+                    post: Some(Box::new(Stmt::Increment(post_name))),
+                    body,
+                })
             }
             Token::Match => {
                 self.advance();

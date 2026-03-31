@@ -27,6 +27,7 @@ pub struct Codegen {
     locals: HashMap<String, String>,
     local_mutability: HashMap<String, bool>,
     local_type_annotations: HashMap<String, String>,
+    local_is_slot: std::collections::HashSet<String>,  // vars stored as stack slots
     type_defs: HashMap<String, Vec<Field>>,
     trusted_fns: std::collections::HashSet<String>,
     current_fn: String,
@@ -42,6 +43,7 @@ impl Codegen {
             locals: HashMap::new(),
             local_mutability: HashMap::new(),
             local_type_annotations: HashMap::new(),
+            local_is_slot: std::collections::HashSet::new(),
             type_defs: HashMap::new(),
             trusted_fns: std::collections::HashSet::new(),
             current_fn: String::new(),
@@ -117,6 +119,7 @@ impl Codegen {
         self.locals.clear();
         self.local_mutability.clear();
         self.local_type_annotations.clear();
+        self.local_is_slot.clear();
         self.tmp_counter = 0;
         self.current_fn = f.name.clone();
 
@@ -293,19 +296,40 @@ impl Codegen {
                     self.emit(&format!("{ok_lbl}"));
                 }
             }
-            Stmt::If { cond, then, else_ } => {
-                let (cond_tmp, _) = self.emit_expr(cond, ns)?;
-                let then_lbl = format!("@if_then_{}", self.tmp_counter);
-                let else_lbl = format!("@if_else_{}", self.tmp_counter);
-                let end_lbl = format!("@if_end_{}", self.tmp_counter);
+            Stmt::If { cond, then, elif_, else_ } => {
+                // Allocate one stable ID for all labels in this if/elif/else chain
+                let id = self.tmp_counter;
                 self.tmp_counter += 1;
 
-                if else_.is_some() {
-                    self.emit(&format!("    jnz {cond_tmp}, {then_lbl}, {else_lbl}"));
+                let end_lbl   = format!("@if_end_{id}");
+                let then_lbl  = format!("@if_then_{id}");
+                let first_else_lbl = if !elif_.is_empty() {
+                    format!("@elif_cond_0_{id}")
+                } else if else_.is_some() {
+                    format!("@if_else_{id}")
                 } else {
-                    self.emit(&format!("    jnz {cond_tmp}, {then_lbl}, {end_lbl}"));
-                }
+                    end_lbl.clone()
+                };
 
+                // Pre-build all elif label pairs so nothing shifts the ID
+                let elif_labels: Vec<(String, String, String)> = (0..elif_.len())
+                    .map(|i| {
+                        let cond_lbl = format!("@elif_cond_{i}_{id}");
+                        let body_lbl = format!("@elif_body_{i}_{id}");
+                        let next_lbl = if i + 1 < elif_.len() {
+                            format!("@elif_cond_{}_{id}", i + 1)
+                        } else if else_.is_some() {
+                            format!("@if_else_{id}")
+                        } else {
+                            end_lbl.clone()
+                        };
+                        (cond_lbl, body_lbl, next_lbl)
+                    })
+                    .collect();
+
+                // Emit the initial if
+                let (cond_tmp, _) = self.emit_expr(cond, ns)?;
+                self.emit(&format!("    jnz {cond_tmp}, {then_lbl}, {first_else_lbl}"));
                 self.emit(&format!("{then_lbl}"));
                 for s in then {
                     self.emit_stmt(s, ns, ret_ty)?;
@@ -314,8 +338,23 @@ impl Codegen {
                     self.emit(&format!("    jmp {end_lbl}"));
                 }
 
+                // Emit elif chains
+                for (i, (elif_cond, elif_body)) in elif_.iter().enumerate() {
+                    let (cond_lbl, body_lbl, next_lbl) = &elif_labels[i];
+                    self.emit(&format!("{cond_lbl}"));
+                    let (ec, _) = self.emit_expr(elif_cond, ns)?;
+                    self.emit(&format!("    jnz {ec}, {body_lbl}, {next_lbl}"));
+                    self.emit(&format!("{body_lbl}"));
+                    for s in elif_body {
+                        self.emit_stmt(s, ns, ret_ty)?;
+                    }
+                    if !block_is_terminated(elif_body) {
+                        self.emit(&format!("    jmp {end_lbl}"));
+                    }
+                }
+
                 if let Some(else_stmts) = else_ {
-                    self.emit(&format!("{else_lbl}"));
+                    self.emit(&format!("@if_else_{id}"));
                     for s in else_stmts {
                         self.emit_stmt(s, ns, ret_ty)?;
                     }
@@ -325,6 +364,56 @@ impl Codegen {
                 }
 
                 self.emit(&format!("{end_lbl}"));
+            }
+            Stmt::For { init, cond, post, body } => {
+                let loop_lbl  = format!("@for_loop_{}", self.tmp_counter);
+                let body_lbl  = format!("@for_body_{}", self.tmp_counter);
+                let end_lbl   = format!("@for_end_{}", self.tmp_counter);
+                self.tmp_counter += 1;
+
+                if let Some((var, init_expr)) = init {
+                    let (tmp, _) = self.emit_expr(init_expr, ns)?;
+                    let slot = self.fresh_tmp();
+                    self.emit(&format!("    {slot} =l alloc4 4"));
+                    self.emit(&format!("    storew {tmp}, {slot}"));
+                    self.locals.insert(var.clone(), slot.clone());
+                    self.local_mutability.insert(var.clone(), true);
+                    self.local_is_slot.insert(var.clone());
+                }
+
+                self.emit(&format!("    jmp {loop_lbl}"));
+                self.emit(&format!("{loop_lbl}"));
+
+                // condition check (None = infinite)
+                if let Some(cond_expr) = cond {
+                    let (ct, _) = self.emit_expr(cond_expr, ns)?;
+                    self.emit(&format!("    jnz {ct}, {body_lbl}, {end_lbl}"));
+                } else {
+                    self.emit(&format!("    jmp {body_lbl}"));
+                }
+
+                self.emit(&format!("{body_lbl}"));
+                for s in body {
+                    self.emit_stmt(s, ns, ret_ty)?;
+                }
+
+                // post (e.g. y++)
+                if let Some(post_stmt) = post {
+                    self.emit_stmt(post_stmt, ns, ret_ty)?;
+                }
+
+                self.emit(&format!("    jmp {loop_lbl}"));
+                self.emit(&format!("{end_lbl}"));
+            }
+            Stmt::Increment(var) => {
+                let slot = self.locals.get(var)
+                    .cloned()
+                    .ok_or_else(|| format!("undefined variable: {var}"))?;
+                let cur = self.fresh_tmp();
+                let inc = self.fresh_tmp();
+                self.emit(&format!("    {cur} =w loadw {slot}"));
+                self.emit(&format!("    {inc} =w add {cur}, 1"));
+                self.emit(&format!("    storew {inc}, {slot}"));
             }
             Stmt::Match {
                 expr,
@@ -441,12 +530,18 @@ impl Codegen {
                 Ok((tmp, "l"))
             }
 
-            Expr::Ident(name) => self
-                .locals
-                .get(name)
-                .cloned()
-                .map(|t| (t, "l"))
-                .ok_or_else(|| format!("undefined variable: {name}")),
+            Expr::Ident(name) => {
+                let slot_or_tmp = self.locals.get(name)
+                    .cloned()
+                    .ok_or_else(|| format!("undefined variable: {name}"))?;
+                if self.local_is_slot.contains(name) {
+                    let tmp = self.fresh_tmp();
+                    self.emit(&format!("    {tmp} =w loadw {slot_or_tmp}"));
+                    Ok((tmp, "w"))
+                } else {
+                    Ok((slot_or_tmp, "l"))
+                }
+            }
 
             Expr::Bool(b) => Ok((if *b { "1".into() } else { "0".into() }, "w")),
             Expr::None => Ok(("0".into(), "l")),
