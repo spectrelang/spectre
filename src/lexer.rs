@@ -224,8 +224,18 @@ impl Lexer {
                     Token::Gt
                 }
             }
-            '&' => Token::And,
-            '|' => Token::Or,
+            '&' => {
+                if self.peek() == Some('&') {
+                    self.advance();
+                }
+                Token::And
+            }
+            '|' => {
+                if self.peek() == Some('|') {
+                    self.advance();
+                }
+                Token::Or
+            }
             other => return Err(format!("unexpected character: {other:?}")),
         })
     }
