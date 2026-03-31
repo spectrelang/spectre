@@ -1,0 +1,3 @@
+pub fn print(arg: []char) void! = {
+    @puts(arg)
+}
