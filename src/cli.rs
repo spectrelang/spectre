@@ -3,12 +3,12 @@ use clap::Parser;
 const USAGE: &str = "\
 spectre <input> [options]
 
-    spectre simple.spr                  compile to binary (./simple)
-    spectre simple.spr -o out           compile to binary at path 'out'
-    spectre simple.spr --emit-qbe       print QBE IR and exit
-    spectre simple.spr --emit-asm       print assembly and exit
-    spectre simple.spr --emit-tokens    print token stream and exit
-    spectre simple.spr --emit-ast       print AST and exit";
+    [file].spr                  compile to binary (./file)
+    [file].spr -o out           compile to binary at path 'out'
+    [file].spr --emit-qbe       print QBE IR and exit
+    [file].spr --emit-asm       print assembly and exit
+    [file].spr --emit-tokens    print token stream and exit
+    [file].spr --emit-ast       print AST and exit";
 
 /// Spectre compiler — lowers .spr source to a native binary via QBE
 #[derive(Parser, Debug)]
