@@ -639,3 +639,208 @@ mod format_string_tests {
         assert_eq!(rewrite("hello"), "hello");
     }
 }
+
+#[cfg(test)]
+mod hoisting_and_optionals_tests {
+    use crate::codegen::Codegen;
+    use crate::module::resolve_module;
+    use crate::lexer::{Lexer, Token};
+    use crate::parser::{Expr, Item, Parser, Stmt};
+    use std::collections::HashMap;
+    use std::path::Path;
+
+    fn compile(src: &str) -> Result<String, String> {
+        let resolved = resolve_module(src, Path::new("."), &mut HashMap::new())?;
+        let mut cg = Codegen::new();
+        cg.emit_module(&resolved)?;
+        Ok(cg.finish())
+    }
+
+    fn compile_ok(src: &str) -> String {
+        compile(src).expect("expected compilation to succeed")
+    }
+
+    fn parse(src: &str) -> crate::parser::Module {
+        let tokens = Lexer::new(src).tokenize().unwrap();
+        Parser::new(tokens).parse_module().unwrap()
+    }
+
+    #[test]
+    fn lex_true_false_keywords() {
+        let toks = Lexer::new("true false").tokenize().unwrap();
+        assert_eq!(toks[0], Token::True);
+        assert_eq!(toks[1], Token::False);
+    }
+
+    #[test]
+    fn lex_match_keyword() {
+        let toks = Lexer::new("match").tokenize().unwrap();
+        assert_eq!(toks[0], Token::Match);
+    }
+
+    #[test]
+    fn lex_fat_arrow() {
+        let toks = Lexer::new("=>").tokenize().unwrap();
+        assert_eq!(toks[0], Token::FatArrow);
+    }
+
+    #[test]
+    fn lex_bang_not_fat_arrow() {
+        let toks = Lexer::new("= x").tokenize().unwrap();
+        assert_eq!(toks[0], Token::Eq);
+    }
+
+    #[test]
+    fn parse_true_literal() {
+        let m = parse("pub fn main() void! = { val x = true }");
+        let Item::Fn(f) = &m.items[0] else { panic!() };
+        let Stmt::Val { expr, .. } = &f.body[0] else { panic!() };
+        assert!(matches!(expr, Expr::Bool(true)));
+    }
+
+    #[test]
+    fn parse_false_literal() {
+        let m = parse("pub fn main() void! = { val x = false }");
+        let Item::Fn(f) = &m.items[0] else { panic!() };
+        let Stmt::Val { expr, .. } = &f.body[0] else { panic!() };
+        assert!(matches!(expr, Expr::Bool(false)));
+    }
+
+    #[test]
+    fn parse_bang_as_not() {
+        let m = parse("pub fn main() void! = { val x = !1 }");
+        let Item::Fn(f) = &m.items[0] else { panic!() };
+        let Stmt::Val { expr, .. } = &f.body[0] else { panic!() };
+        assert!(matches!(expr, Expr::UnOp { op: crate::parser::UnOp::Not, .. }));
+    }
+
+    #[test]
+    fn parse_some_expr() {
+        let m = parse("fn f() option[i32]! = { return some 42 }");
+        let Item::Fn(f) = &m.items[0] else { panic!() };
+        let Stmt::Return(Some(expr)) = &f.body[0] else { panic!() };
+        assert!(matches!(expr, Expr::Some(_)));
+    }
+
+    #[test]
+    fn parse_none_expr() {
+        let m = parse("fn f() option[i32]! = { return none }");
+        let Item::Fn(f) = &m.items[0] else { panic!() };
+        let Stmt::Return(Some(expr)) = &f.body[0] else { panic!() };
+        assert!(matches!(expr, Expr::None));
+    }
+
+    #[test]
+    fn parse_match_stmt() {
+        let m = parse(r#"
+            pub fn main() void! = {
+                val x = none
+                match x {
+                    some v => { val y = v }
+                    none => { val z = 0 }
+                }
+            }
+        "#);
+        let Item::Fn(f) = &m.items[0] else { panic!() };
+        let Stmt::Match { some_binding, .. } = &f.body[1] else { panic!("expected match stmt") };
+        assert_eq!(some_binding, "v");
+    }
+
+    #[test]
+    fn parse_match_none_arm_present() {
+        let m = parse(r#"
+            pub fn main() void! = {
+                val x = none
+                match x {
+                    some v => {}
+                    none => { val z = 0 }
+                }
+            }
+        "#);
+        let Item::Fn(f) = &m.items[0] else { panic!() };
+        let Stmt::Match { none_body, .. } = &f.body[1] else { panic!() };
+        assert!(!none_body.is_empty());
+    }
+
+    #[test]
+    fn codegen_none_returns_zero() {
+        let ir = compile_ok("fn f() option[i32]! = { return none }");
+        assert!(ir.contains("ret 0"));
+    }
+
+    #[test]
+    fn codegen_some_sign_extends_to_l() {
+        let ir = compile_ok("fn f() option[i32]! = { return some 10 }");
+        assert!(ir.contains("extsw"));
+    }
+
+    #[test]
+    fn codegen_match_emits_cnel() {
+        let ir = compile_ok(r#"
+            fn get() option[i32]! = { return none }
+            pub fn main() void! = {
+                val r = get()
+                match r {
+                    some x => { val a = x }
+                    none => { val b = 0 }
+                }
+            }
+        "#);
+        assert!(ir.contains("cnel"));
+        assert!(ir.contains("@match_some_"));
+        assert!(ir.contains("@match_none_"));
+        assert!(ir.contains("@match_end_"));
+    }
+
+    #[test]
+    fn codegen_function_hoisting_private_callee() {
+        let ir = compile_ok(r#"
+            pub fn main() void! = {
+                val r = can_fail(true)
+            }
+            fn can_fail(flag: bool) option[i32]! = {
+                return none
+            }
+        "#);
+        assert!(ir.contains("$can_fail"));
+        assert!(ir.contains("call $can_fail"));
+    }
+
+    #[test]
+    fn codegen_if_with_return_no_jmp_after_ret() {
+        let ir = compile_ok(r#"
+            fn f(x: bool) option[i32]! = {
+                if (x) { return some 1 }
+                return none
+            }
+        "#);
+        for window in ir.lines().collect::<Vec<_>>().windows(2) {
+            let a = window[0].trim();
+            let b = window[1].trim();
+            assert!(
+                !(a.starts_with("ret") && b.starts_with("jmp")),
+                "jmp after ret detected:\n  {a}\n  {b}"
+            );
+        }
+    }
+
+    #[test]
+    fn codegen_true_emits_1() {
+        let ir = compile_ok(r#"
+            pub fn main() void! = {
+                if (true) { val x = 1 }
+            }
+        "#);
+        assert!(ir.contains("jnz 1,"));
+    }
+
+    #[test]
+    fn codegen_false_emits_0() {
+        let ir = compile_ok(r#"
+            pub fn main() void! = {
+                if (false) { val x = 1 }
+            }
+        "#);
+        assert!(ir.contains("jnz 0,"));
+    }
+}
