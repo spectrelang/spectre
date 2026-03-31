@@ -1,3 +1,7 @@
-pub fn print(arg: []char) void! = {
+pub fn print(arg: ref char) void! = {
     @puts(arg)
+}
+
+pub fn put_any(fmt: ref char, args: untyped) void! = {
+    @printf(fmt, args)
 }

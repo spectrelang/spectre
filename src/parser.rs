@@ -44,8 +44,10 @@ pub struct Field {
 pub enum TypeExpr {
     Named(String),
     Slice(Box<TypeExpr>),
+    Ref(Box<TypeExpr>),
     Option(Box<TypeExpr>),
     Void,
+    Untyped,
 }
 
 #[derive(Debug, Clone)]
@@ -107,6 +109,8 @@ pub enum Expr {
     StructLit {
         fields: Vec<(String, Expr)>,
     },
+    /// Positional args pack: `{expr, expr, ...}` — used for varargs-style call arguments
+    ArgsPack(Vec<Expr>),
 }
 
 #[derive(Debug, Clone)]
@@ -249,6 +253,8 @@ impl Parser {
                     Ok(TypeExpr::Option(Box::new(inner)))
                 } else if name == "void" {
                     Ok(TypeExpr::Void)
+                } else if name == "untyped" {
+                    Ok(TypeExpr::Untyped)
                 } else {
                     Ok(TypeExpr::Named(name))
                 }
@@ -256,6 +262,11 @@ impl Parser {
             Token::Mut => {
                 self.advance();
                 self.parse_type()
+            }
+            Token::Ref => {
+                self.advance();
+                let inner = self.parse_type()?;
+                Ok(TypeExpr::Ref(Box::new(inner)))
             }
             other => Err(format!("expected type, got {other:?}")),
         }
@@ -370,10 +381,12 @@ impl Parser {
             }
             _ => {
                 let expr = self.parse_expr()?;
-                // Check for assignment: `lhs = rhs`
                 if self.eat(&Token::Eq) {
                     let value = self.parse_expr()?;
-                    Ok(Stmt::Assign { target: expr, value })
+                    Ok(Stmt::Assign {
+                        target: expr,
+                        value,
+                    })
                 } else {
                     Ok(Stmt::Expr(expr))
                 }
@@ -386,8 +399,8 @@ impl Parser {
         while self.peek() != &Token::RBrace && self.peek() != &Token::Eof {
             let contract = if let Token::Ident(name) = self.peek().clone() {
                 if self.tokens.get(self.pos + 1) == Some(&Token::Colon) {
-                    self.advance(); // consume ident
-                    self.advance(); // consume colon
+                    self.advance();
+                    self.advance();
                     let expr = self.parse_expr()?;
                     Contract {
                         label: Some(name),
@@ -597,21 +610,34 @@ impl Parser {
                 Ok(e)
             }
             Token::LBrace => {
-                // Struct literal: { ident: expr, ... }
-                // Peek ahead to distinguish from a block (which we don't use in expr position)
-                self.advance(); // consume '{'
-                let mut fields = Vec::new();
-                while self.peek() != &Token::RBrace && self.peek() != &Token::Eof {
-                    let fname = self.expect_ident()?;
-                    self.expect(&Token::Colon)?;
-                    let val = self.parse_expr()?;
-                    fields.push((fname, val));
-                    if !self.eat(&Token::Comma) {
-                        break;
+                self.advance();
+                let is_struct_lit = matches!(self.peek(), Token::Ident(_))
+                    && self.tokens.get(self.pos + 1) == Some(&Token::Colon);
+
+                if is_struct_lit {
+                    let mut fields = Vec::new();
+                    while self.peek() != &Token::RBrace && self.peek() != &Token::Eof {
+                        let fname = self.expect_ident()?;
+                        self.expect(&Token::Colon)?;
+                        let val = self.parse_expr()?;
+                        fields.push((fname, val));
+                        if !self.eat(&Token::Comma) {
+                            break;
+                        }
                     }
+                    self.expect(&Token::RBrace)?;
+                    Ok(Expr::StructLit { fields })
+                } else {
+                    let mut exprs = Vec::new();
+                    while self.peek() != &Token::RBrace && self.peek() != &Token::Eof {
+                        exprs.push(self.parse_expr()?);
+                        if !self.eat(&Token::Comma) {
+                            break;
+                        }
+                    }
+                    self.expect(&Token::RBrace)?;
+                    Ok(Expr::ArgsPack(exprs))
                 }
-                self.expect(&Token::RBrace)?;
-                Ok(Expr::StructLit { fields })
             }
             other => Err(format!("unexpected token in expression: {other:?}")),
         }

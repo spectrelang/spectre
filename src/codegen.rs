@@ -12,8 +12,10 @@ fn qbe_type(ty: &TypeExpr) -> &'static str {
             _ => "l",
         },
         TypeExpr::Slice(_) => "l",
+        TypeExpr::Ref(_) => "l",
         TypeExpr::Option(_) => "l",
         TypeExpr::Void => "w",
+        TypeExpr::Untyped => "l",
     }
 }
 
@@ -24,7 +26,6 @@ pub struct Codegen {
     tmp_counter: usize,
     locals: HashMap<String, String>,
     local_mutability: HashMap<String, bool>,
-    /// Maps local name → declared type name (for struct field resolution)
     local_type_annotations: HashMap<String, String>,
     type_defs: HashMap<String, Vec<Field>>,
 }
@@ -91,7 +92,6 @@ impl Codegen {
             self.emit_module_recursive(child, ns)?;
         }
 
-        // Collect type definitions before emitting functions
         for item in &resolved.ast.items {
             if let Item::TypeDef { name, fields } = item {
                 self.type_defs.insert(name.clone(), fields.clone());
@@ -149,25 +149,24 @@ impl Codegen {
         Ok(())
     }
 
-    fn emit_stmt(
-        &mut self,
-        stmt: &Stmt,
-        ns: &Namespace,
-        ret_ty: &TypeExpr,
-    ) -> Result<(), String> {
+    fn emit_stmt(&mut self, stmt: &Stmt, ns: &Namespace, ret_ty: &TypeExpr) -> Result<(), String> {
         match stmt {
-            Stmt::Val { name, mutable, expr, ty } => {
-                let tmp = self.emit_expr(expr, ns)?;
+            Stmt::Val {
+                name,
+                mutable,
+                expr,
+                ty,
+            } => {
+                let (tmp, _) = self.emit_expr(expr, ns)?;
                 self.locals.insert(name.clone(), tmp);
                 self.local_mutability.insert(name.clone(), *mutable);
-                // Record declared type name for struct field resolution
                 if let Some(TypeExpr::Named(type_name)) = ty {
-                    self.local_type_annotations.insert(name.clone(), type_name.clone());
+                    self.local_type_annotations
+                        .insert(name.clone(), type_name.clone());
                 }
             }
 
             Stmt::Assign { target, value } => {
-                // Mutability check: root binding must be mutable
                 if let Some(root) = expr_root_name(target) {
                     let is_mut = self.local_mutability.get(&root).copied().unwrap_or(false);
                     if !is_mut {
@@ -176,16 +175,23 @@ impl Codegen {
                         ));
                     }
                 }
-                let val_tmp = self.emit_expr(value, ns)?;
+                let (val_tmp, val_ty) = self.emit_expr(value, ns)?;
+                let store_val = if val_ty == "l" {
+                    let w = self.fresh_tmp();
+                    self.emit(&format!("    {w} =w copy {val_tmp}"));
+                    w
+                } else {
+                    val_tmp
+                };
                 let ptr = self.emit_field_ptr(target, ns)?;
-                self.emit(&format!("    storew {val_tmp}, {ptr}"));
+                self.emit(&format!("    storew {store_val}, {ptr}"));
             }
 
             Stmt::Return(None) => {
                 self.emit("    ret");
             }
             Stmt::Return(Some(expr)) => {
-                let tmp = self.emit_expr(expr, ns)?;
+                let (tmp, _) = self.emit_expr(expr, ns)?;
                 self.emit(&format!("    ret {tmp}"));
             }
             Stmt::Expr(expr) => {
@@ -193,7 +199,7 @@ impl Codegen {
             }
             Stmt::Pre(contracts) => {
                 for c in contracts {
-                    let cond = self.emit_expr(&c.expr, ns)?;
+                    let (cond, _) = self.emit_expr(&c.expr, ns)?;
                     let ok_lbl = format!("@pre_ok_{}", self.tmp_counter);
                     self.tmp_counter += 1;
                     self.emit(&format!("    jnz {cond}, {ok_lbl}, @panic"));
@@ -202,7 +208,7 @@ impl Codegen {
             }
             Stmt::Post(contracts) => {
                 for c in contracts {
-                    let cond = self.emit_expr(&c.expr, ns)?;
+                    let (cond, _) = self.emit_expr(&c.expr, ns)?;
                     let ok_lbl = format!("@post_ok_{}", self.tmp_counter);
                     self.tmp_counter += 1;
                     self.emit(&format!("    jnz {cond}, {ok_lbl}, @panic"));
@@ -210,7 +216,7 @@ impl Codegen {
                 }
             }
             Stmt::If { cond, then, else_ } => {
-                let cond_tmp = self.emit_expr(cond, ns)?;
+                let (cond_tmp, _) = self.emit_expr(cond, ns)?;
                 let then_lbl = format!("@if_then_{}", self.tmp_counter);
                 let else_lbl = format!("@if_else_{}", self.tmp_counter);
                 let end_lbl = format!("@if_end_{}", self.tmp_counter);
@@ -247,20 +253,15 @@ impl Codegen {
     fn emit_field_ptr(&mut self, expr: &Expr, ns: &Namespace) -> Result<String, String> {
         match expr {
             Expr::Field(base, field_name) => {
-                // Get the struct pointer for the base
                 let base_ptr = match base.as_ref() {
-                    Expr::Ident(name) => {
-                        self.locals
-                            .get(name)
-                            .cloned()
-                            .ok_or_else(|| format!("undefined variable: {name}"))?
-                    }
+                    Expr::Ident(name) => self
+                        .locals
+                        .get(name)
+                        .cloned()
+                        .ok_or_else(|| format!("undefined variable: {name}"))?,
                     other => self.emit_field_ptr(other, ns)?,
                 };
 
-                // Determine field index by looking up the type definition.
-                // We walk the type info stored during module collection.
-                // For now we resolve by scanning all type defs for a matching field name.
                 let offset = self.field_offset_for(base, field_name)?;
                 let ptr = self.fresh_tmp();
                 self.emit(&format!("    {ptr} =l add {base_ptr}, {offset}"));
@@ -273,7 +274,6 @@ impl Codegen {
     /// Return the byte offset of `field_name` within the struct that `base` refers to.
     /// We look up the binding's declared type annotation to find the type definition.
     fn field_offset_for(&self, base: &Expr, field_name: &str) -> Result<usize, String> {
-        // Find the type name of the base expression
         let type_name = self.infer_struct_type_name(base)?;
         let fields = self
             .type_defs
@@ -289,92 +289,189 @@ impl Codegen {
     /// Try to infer the struct type name of an expression (best-effort, ident only).
     fn infer_struct_type_name(&self, expr: &Expr) -> Result<String, String> {
         match expr {
-            Expr::Ident(name) => {
-                // Look for a type def that matches — we stored the declared type
-                // in local_type_annotations during Val emission.
-                self.local_type_annotations
-                    .get(name)
-                    .cloned()
-                    .ok_or_else(|| format!("cannot determine type of '{name}'"))
-            }
+            Expr::Ident(name) => self
+                .local_type_annotations
+                .get(name)
+                .cloned()
+                .ok_or_else(|| format!("cannot determine type of '{name}'")),
             _ => Err("cannot determine struct type for complex expression".into()),
         }
     }
 
-    fn emit_expr(&mut self, expr: &Expr, ns: &Namespace) -> Result<String, String> {
+    /// Promote a w value to l via sign-extension (needed for variadic call args).
+    fn promote_to_l(&mut self, tmp: String, ty: &'static str) -> (String, &'static str) {
+        if ty == "w" {
+            let ext = self.fresh_tmp();
+            self.emit(&format!("    {ext} =l extsw {tmp}"));
+            (ext, "l")
+        } else {
+            (tmp, ty)
+        }
+    }
+
+    fn emit_expr(&mut self, expr: &Expr, ns: &Namespace) -> Result<(String, &'static str), String> {
         match expr {
-            Expr::IntLit(n) => Ok(n.to_string()),
+            Expr::IntLit(n) => Ok((n.to_string(), "w")),
 
             Expr::StrLit(s) => {
                 let label = self.intern_string(s);
                 let tmp = self.fresh_tmp();
                 self.emit(&format!("    {tmp} =l copy ${label}"));
-                Ok(tmp)
+                Ok((tmp, "l"))
             }
 
             Expr::Ident(name) => self
                 .locals
                 .get(name)
                 .cloned()
+                .map(|t| (t, "l"))
                 .ok_or_else(|| format!("undefined variable: {name}")),
 
-            Expr::Bool(b) => Ok(if *b { "1".into() } else { "0".into() }),
-            Expr::None => Ok("0".into()),
+            Expr::Bool(b) => Ok((if *b { "1".into() } else { "0".into() }, "w")),
+            Expr::None => Ok(("0".into(), "l")),
             Expr::Some(inner) => self.emit_expr(inner, ns),
             Expr::Trust(inner) => self.emit_expr(inner, ns),
 
             Expr::Builtin { name, args } => match name.as_str() {
                 "puts" => {
-                    let arg = self.emit_expr(&args[0], ns)?;
+                    let (arg, _) = self.emit_expr(&args[0], ns)?;
                     self.emit(&format!("    call $puts(l {arg})"));
-                    Ok("0".into())
+                    Ok(("0".into(), "w"))
+                }
+                "printf" => {
+                    let fmt_tmp = if let Some(first) = args.first() {
+                        match first {
+                            Expr::StrLit(s) => {
+                                let rewritten = rewrite_format_string(s);
+                                let label = self.intern_string(&rewritten);
+                                let t = self.fresh_tmp();
+                                self.emit(&format!("    {t} =l copy ${label}"));
+                                t
+                            }
+                            other => {
+                                let (tmp, _) = self.emit_expr(other, ns)?;
+                                tmp
+                            }
+                        }
+                    } else {
+                        return Err("@printf requires at least a format argument".into());
+                    };
+                    let mut variadic_args = Vec::new();
+                    for a in args.iter().skip(1) {
+                        let (tmp, ty) = self.emit_expr(a, ns)?;
+                        let (promoted, pty) = self.promote_to_l(tmp, ty);
+                        variadic_args.push(format!("{pty} {promoted}"));
+                    }
+                    if variadic_args.is_empty() {
+                        self.emit(&format!("    call $printf(l {fmt_tmp})"));
+                    } else {
+                        self.emit(&format!(
+                            "    call $printf(l {fmt_tmp}, ..., {})",
+                            variadic_args.join(", ")
+                        ));
+                    }
+                    Ok(("0".into(), "w"))
                 }
                 other => Err(format!("unknown builtin: @{other}")),
             },
 
             Expr::Field(_base, _field_name) => {
-                // Load a field value from a struct pointer
                 let ptr = self.emit_field_ptr(expr, ns)?;
                 let tmp = self.fresh_tmp();
                 self.emit(&format!("    {tmp} =w loadw {ptr}"));
-                Ok(tmp)
+                Ok((tmp, "w"))
             }
 
             Expr::StructLit { fields } => {
-                // Allocate struct on heap: malloc(fields.len() * 8)
                 let size = fields.len() * 8;
                 let ptr = self.fresh_tmp();
                 self.emit(&format!("    {ptr} =l call $malloc(l {size})"));
                 for (i, (_fname, fexpr)) in fields.iter().enumerate() {
-                    let val = self.emit_expr(fexpr, ns)?;
+                    let (val, val_ty) = self.emit_expr(fexpr, ns)?;
                     let offset = i * 8;
                     let field_ptr = self.fresh_tmp();
                     self.emit(&format!("    {field_ptr} =l add {ptr}, {offset}"));
-                    self.emit(&format!("    storew {val}, {field_ptr}"));
+                    if val_ty == "l" {
+                        let w = self.fresh_tmp();
+                        self.emit(&format!("    {w} =w copy {val}"));
+                        self.emit(&format!("    storew {w}, {field_ptr}"));
+                    } else {
+                        self.emit(&format!("    storew {val}, {field_ptr}"));
+                    }
                 }
-                Ok(ptr)
+                Ok((ptr, "l"))
+            }
+
+            Expr::ArgsPack(exprs) => {
+                if let Some(first) = exprs.first() {
+                    self.emit_expr(first, ns)
+                } else {
+                    Ok(("0".into(), "l"))
+                }
             }
 
             Expr::Call { callee, args } => {
                 let fn_name = resolve_call_name(callee, ns)?;
+
+                if fn_name == "put_any" {
+                    let fmt_str = match args.first() {
+                        Some(Expr::StrLit(s)) => s.clone(),
+                        _ => return Err("put_any first argument must be a string literal".into()),
+                    };
+                    let rewritten = rewrite_format_string(&fmt_str);
+                    let label = self.intern_string(&rewritten);
+                    let fmt_tmp = self.fresh_tmp();
+                    self.emit(&format!("    {fmt_tmp} =l copy ${label}"));
+                    let mut variadic_args = Vec::new();
+                    for a in args.iter().skip(1) {
+                        if let Expr::ArgsPack(pack) = a {
+                            for item in pack {
+                                let (tmp, ty) = self.emit_expr(item, ns)?;
+                                let (promoted, pty) = self.promote_to_l(tmp, ty);
+                                variadic_args.push(format!("{pty} {promoted}"));
+                            }
+                        } else {
+                            let (tmp, ty) = self.emit_expr(a, ns)?;
+                            let (promoted, pty) = self.promote_to_l(tmp, ty);
+                            variadic_args.push(format!("{pty} {promoted}"));
+                        }
+                    }
+                    let result = self.fresh_tmp();
+                    if variadic_args.is_empty() {
+                        self.emit(&format!("    {result} =l call $printf(l {fmt_tmp})"));
+                    } else {
+                        self.emit(&format!(
+                            "    {result} =l call $printf(l {fmt_tmp}, ..., {})",
+                            variadic_args.join(", ")
+                        ));
+                    }
+                    return Ok((result, "l"));
+                }
+
                 let mut arg_strs = Vec::new();
                 for a in args.iter() {
-                    let tmp = self.emit_expr(a, ns)?;
-                    let ty = infer_arg_type(a);
-                    arg_strs.push(format!("{ty} {tmp}"));
+                    if let Expr::ArgsPack(pack) = a {
+                        for item in pack {
+                            let (tmp, ty) = self.emit_expr(item, ns)?;
+                            arg_strs.push(format!("{ty} {tmp}"));
+                        }
+                    } else {
+                        let (tmp, ty) = self.emit_expr(a, ns)?;
+                        arg_strs.push(format!("{ty} {tmp}"));
+                    }
                 }
                 let result = self.fresh_tmp();
                 self.emit(&format!(
                     "    {result} =l call ${fn_name}({args})",
                     args = arg_strs.join(", ")
                 ));
-                Ok(result)
+                Ok((result, "l"))
             }
 
             Expr::BinOp { op, lhs, rhs } => {
                 use crate::parser::BinOp::*;
-                let l = self.emit_expr(lhs, ns)?;
-                let r = self.emit_expr(rhs, ns)?;
+                let (l, _) = self.emit_expr(lhs, ns)?;
+                let (r, _) = self.emit_expr(rhs, ns)?;
                 let tmp = self.fresh_tmp();
                 let instr = match op {
                     Add => format!("{tmp} =w add {l}, {r}"),
@@ -392,18 +489,18 @@ impl Codegen {
                     Or => format!("{tmp} =w or {l}, {r}"),
                 };
                 self.emit(&format!("    {instr}"));
-                Ok(tmp)
+                Ok((tmp, "w"))
             }
 
             Expr::UnOp { op, expr } => {
                 use crate::parser::UnOp::*;
-                let v = self.emit_expr(expr, ns)?;
+                let (v, _) = self.emit_expr(expr, ns)?;
                 let tmp = self.fresh_tmp();
                 match op {
                     Not => self.emit(&format!("    {tmp} =w ceqw {v}, 0")),
                     Neg => self.emit(&format!("    {tmp} =w neg {v}")),
                 }
-                Ok(tmp)
+                Ok((tmp, "w"))
             }
         }
     }
@@ -458,14 +555,6 @@ fn expr_to_path(expr: &Expr) -> String {
     }
 }
 
-fn infer_arg_type(expr: &Expr) -> &'static str {
-    match expr {
-        Expr::StrLit(_) => "l",
-        Expr::IntLit(_) => "w",
-        _ => "l",
-    }
-}
-
 /// Get the root identifier name from a (possibly nested) field access expression.
 fn expr_root_name(expr: &Expr) -> Option<String> {
     match expr {
@@ -473,4 +562,36 @@ fn expr_root_name(expr: &Expr) -> Option<String> {
         Expr::Field(base, _) => expr_root_name(base),
         _ => None,
     }
+}
+
+/// Translate Spectre format specifiers to printf specifiers.
+/// {d} → %d, {s} → %s, {f} → %f, {x} → %x, etc.
+fn rewrite_format_string(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    let mut chars = s.chars().peekable();
+    while let Some(c) = chars.next() {
+        if c == '{' {
+            let mut spec = String::new();
+            let mut closed = false;
+            for inner in chars.by_ref() {
+                if inner == '}' {
+                    closed = true;
+                    break;
+                }
+                spec.push(inner);
+            }
+            if closed && !spec.is_empty() {
+                out.push('%');
+                out.push_str(&spec);
+            } else {
+                // Not a valid specifier, pass through
+                out.push('{');
+                out.push_str(&spec);
+                if !closed { /* truncated, leave as-is */ }
+            }
+        } else {
+            out.push(c);
+        }
+    }
+    out
 }
