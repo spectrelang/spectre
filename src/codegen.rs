@@ -81,13 +81,21 @@ impl Codegen {
 
     pub fn emit_module(&mut self, resolved: &ResolvedModule) -> Result<(), String> {
         let ns = build_namespace(resolved);
+        self.emit_module_recursive(resolved, &ns)
+    }
+
+    fn emit_module_recursive(&mut self, resolved: &ResolvedModule, ns: &Namespace) -> Result<(), String> {
+        // Emit imported modules first so callees are defined before callers
+        for child in resolved.imports.values() {
+            self.emit_module_recursive(child, ns)?;
+        }
 
         for item in &resolved.ast.items {
             match item {
-                Item::Fn(f) => self.emit_fn(f, &ns)?,
+                Item::Fn(f) => self.emit_fn(f, ns)?,
                 Item::Use { .. } => {}
-                Item::Const { .. } => {}   // TODO: global constants
-                Item::TypeDef { .. } => {} // TODO: struct layout
+                Item::Const { .. } => {}
+                Item::TypeDef { .. } => {}
             }
         }
         Ok(())
