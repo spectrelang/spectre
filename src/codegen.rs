@@ -113,6 +113,23 @@ impl Codegen {
         self.local_type_annotations.clear();
         self.tmp_counter = 0;
 
+        if !f.trusted {
+            let has_pre = f.body.iter().any(|s| matches!(s, Stmt::Pre(_)));
+            let has_post = f.body.iter().any(|s| matches!(s, Stmt::Post(_)));
+            let all_trusted = f.body.iter().all(|s| match s {
+                Stmt::Assign { .. } => false,
+                Stmt::Expr(Expr::Trust(_)) => true,
+                Stmt::Pre(_) | Stmt::Post(_) => true,
+                _ => false,
+            });
+            if !all_trusted && (!has_pre || !has_post) {
+                return Err(format!(
+                    "pure function '{}' must have both 'pre' and 'post' contract blocks, or consist entirely of 'trust' statements",
+                    f.name
+                ));
+            }
+        }
+
         let export = if f.public { "export " } else { "" };
         let ret_ty = match &f.ret {
             TypeExpr::Void => String::new(),
