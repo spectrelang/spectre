@@ -29,6 +29,7 @@ pub struct Codegen {
     local_type_annotations: HashMap<String, String>,
     type_defs: HashMap<String, Vec<Field>>,
     trusted_fns: std::collections::HashSet<String>,
+    current_fn: String,
 }
 
 impl Codegen {
@@ -43,6 +44,7 @@ impl Codegen {
             local_type_annotations: HashMap::new(),
             type_defs: HashMap::new(),
             trusted_fns: std::collections::HashSet::new(),
+            current_fn: String::new(),
         }
     }
 
@@ -116,6 +118,7 @@ impl Codegen {
         self.local_mutability.clear();
         self.local_type_annotations.clear();
         self.tmp_counter = 0;
+        self.current_fn = f.name.clone();
 
         if !f.trusted {
             let has_pre = f.body.iter().any(|s| matches!(s, Stmt::Pre(_)));
@@ -167,16 +170,6 @@ impl Codegen {
 
         if matches!(f.ret, TypeExpr::Void) {
             self.emit("    ret");
-        }
-
-        let has_contracts = f
-            .body
-            .iter()
-            .any(|s| matches!(s, Stmt::Pre(_) | Stmt::Post(_)));
-        if has_contracts {
-            self.emit("@panic");
-            self.emit("    call $abort()");
-            self.emit("    hlt");
         }
 
         self.emit("}");
@@ -249,8 +242,27 @@ impl Codegen {
                 for c in contracts {
                     let (cond, _) = self.emit_expr(&c.expr, ns)?;
                     let ok_lbl = format!("@pre_ok_{}", self.tmp_counter);
+                    let fail_lbl = format!("@pre_fail_{}", self.tmp_counter);
                     self.tmp_counter += 1;
-                    self.emit(&format!("    jnz {cond}, {ok_lbl}, @panic"));
+                    self.emit(&format!("    jnz {cond}, {ok_lbl}, {fail_lbl}"));
+                    // failure block: print message then abort
+                    self.emit(&format!("{fail_lbl}"));
+                    let msg = match &c.label {
+                        Some(lbl) => format!(
+                            "spectre: precondition '{}' violated in function '{}'\n",
+                            lbl, self.current_fn
+                        ),
+                        None => format!(
+                            "spectre: precondition violated in function '{}'\n",
+                            self.current_fn
+                        ),
+                    };
+                    let msg_label = self.intern_string(&msg);
+                    let msg_tmp = self.fresh_tmp();
+                    self.emit(&format!("    {msg_tmp} =l copy ${msg_label}"));
+                    self.emit(&format!("    call $dprintf(w 2, l {msg_tmp})"));
+                    self.emit("    call $abort()");
+                    self.emit("    hlt");
                     self.emit(&format!("{ok_lbl}"));
                 }
             }
@@ -258,8 +270,26 @@ impl Codegen {
                 for c in contracts {
                     let (cond, _) = self.emit_expr(&c.expr, ns)?;
                     let ok_lbl = format!("@post_ok_{}", self.tmp_counter);
+                    let fail_lbl = format!("@post_fail_{}", self.tmp_counter);
                     self.tmp_counter += 1;
-                    self.emit(&format!("    jnz {cond}, {ok_lbl}, @panic"));
+                    self.emit(&format!("    jnz {cond}, {ok_lbl}, {fail_lbl}"));
+                    self.emit(&format!("{fail_lbl}"));
+                    let msg = match &c.label {
+                        Some(lbl) => format!(
+                            "spectre: postcondition '{}' violated in function '{}'\n",
+                            lbl, self.current_fn
+                        ),
+                        None => format!(
+                            "spectre: postcondition violated in function '{}'\n",
+                            self.current_fn
+                        ),
+                    };
+                    let msg_label = self.intern_string(&msg);
+                    let msg_tmp = self.fresh_tmp();
+                    self.emit(&format!("    {msg_tmp} =l copy ${msg_label}"));
+                    self.emit(&format!("    call $dprintf(w 2, l {msg_tmp})"));
+                    self.emit("    call $abort()");
+                    self.emit("    hlt");
                     self.emit(&format!("{ok_lbl}"));
                 }
             }
