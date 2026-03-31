@@ -56,6 +56,10 @@ pub enum Stmt {
         ty: Option<TypeExpr>,
         expr: Expr,
     },
+    Assign {
+        target: Expr,
+        value: Expr,
+    },
     Return(Option<Expr>),
     Expr(Expr),
     Pre(Vec<Contract>),
@@ -99,6 +103,9 @@ pub enum Expr {
     UnOp {
         op: UnOp,
         expr: Box<Expr>,
+    },
+    StructLit {
+        fields: Vec<(String, Expr)>,
     },
 }
 
@@ -363,7 +370,13 @@ impl Parser {
             }
             _ => {
                 let expr = self.parse_expr()?;
-                Ok(Stmt::Expr(expr))
+                // Check for assignment: `lhs = rhs`
+                if self.eat(&Token::Eq) {
+                    let value = self.parse_expr()?;
+                    Ok(Stmt::Assign { target: expr, value })
+                } else {
+                    Ok(Stmt::Expr(expr))
+                }
             }
         }
     }
@@ -582,6 +595,23 @@ impl Parser {
                 let e = self.parse_expr()?;
                 self.expect(&Token::RParen)?;
                 Ok(e)
+            }
+            Token::LBrace => {
+                // Struct literal: { ident: expr, ... }
+                // Peek ahead to distinguish from a block (which we don't use in expr position)
+                self.advance(); // consume '{'
+                let mut fields = Vec::new();
+                while self.peek() != &Token::RBrace && self.peek() != &Token::Eof {
+                    let fname = self.expect_ident()?;
+                    self.expect(&Token::Colon)?;
+                    let val = self.parse_expr()?;
+                    fields.push((fname, val));
+                    if !self.eat(&Token::Comma) {
+                        break;
+                    }
+                }
+                self.expect(&Token::RBrace)?;
+                Ok(Expr::StructLit { fields })
             }
             other => Err(format!("unexpected token in expression: {other:?}")),
         }

@@ -1,5 +1,5 @@
 use crate::module::ResolvedModule;
-use crate::parser::{Expr, FnDef, Item, Module, Stmt, TypeExpr};
+use crate::parser::{Expr, Field, FnDef, Item, Stmt, TypeExpr};
 use std::collections::HashMap;
 
 fn qbe_type(ty: &TypeExpr) -> &'static str {
@@ -18,20 +18,15 @@ fn qbe_type(ty: &TypeExpr) -> &'static str {
 }
 
 pub struct Codegen {
-    /// Accumulated QBE IR text
     out: String,
-
-    /// String literal data section entries: (label, value)
     data: Vec<(String, String)>,
-
-    /// The string counter
     str_counter: usize,
-
-    /// The temporary value counter
     tmp_counter: usize,
-
-    /// Current function's local variable map: name → QBE temp name
     locals: HashMap<String, String>,
+    local_mutability: HashMap<String, bool>,
+    /// Maps local name → declared type name (for struct field resolution)
+    local_type_annotations: HashMap<String, String>,
+    type_defs: HashMap<String, Vec<Field>>,
 }
 
 impl Codegen {
@@ -42,6 +37,9 @@ impl Codegen {
             str_counter: 0,
             tmp_counter: 0,
             locals: HashMap::new(),
+            local_mutability: HashMap::new(),
+            local_type_annotations: HashMap::new(),
+            type_defs: HashMap::new(),
         }
     }
 
@@ -84,18 +82,26 @@ impl Codegen {
         self.emit_module_recursive(resolved, &ns)
     }
 
-    fn emit_module_recursive(&mut self, resolved: &ResolvedModule, ns: &Namespace) -> Result<(), String> {
-        // Emit imported modules first so callees are defined before callers
+    fn emit_module_recursive(
+        &mut self,
+        resolved: &ResolvedModule,
+        ns: &Namespace,
+    ) -> Result<(), String> {
         for child in resolved.imports.values() {
             self.emit_module_recursive(child, ns)?;
+        }
+
+        // Collect type definitions before emitting functions
+        for item in &resolved.ast.items {
+            if let Item::TypeDef { name, fields } = item {
+                self.type_defs.insert(name.clone(), fields.clone());
+            }
         }
 
         for item in &resolved.ast.items {
             match item {
                 Item::Fn(f) => self.emit_fn(f, ns)?,
-                Item::Use { .. } => {}
-                Item::Const { .. } => {}
-                Item::TypeDef { .. } => {}
+                Item::Use { .. } | Item::Const { .. } | Item::TypeDef { .. } => {}
             }
         }
         Ok(())
@@ -103,6 +109,8 @@ impl Codegen {
 
     fn emit_fn(&mut self, f: &FnDef, ns: &Namespace) -> Result<(), String> {
         self.locals.clear();
+        self.local_mutability.clear();
+        self.local_type_annotations.clear();
         self.tmp_counter = 0;
 
         let export = if f.public { "export " } else { "" };
@@ -126,7 +134,6 @@ impl Codegen {
             name = f.name,
             params = params.join(", ")
         ));
-
         self.emit("@start");
 
         for stmt in &f.body {
@@ -142,12 +149,38 @@ impl Codegen {
         Ok(())
     }
 
-    fn emit_stmt(&mut self, stmt: &Stmt, ns: &Namespace, ret_ty: &TypeExpr) -> Result<(), String> {
+    fn emit_stmt(
+        &mut self,
+        stmt: &Stmt,
+        ns: &Namespace,
+        ret_ty: &TypeExpr,
+    ) -> Result<(), String> {
         match stmt {
-            Stmt::Val { name, expr, .. } => {
+            Stmt::Val { name, mutable, expr, ty } => {
                 let tmp = self.emit_expr(expr, ns)?;
                 self.locals.insert(name.clone(), tmp);
+                self.local_mutability.insert(name.clone(), *mutable);
+                // Record declared type name for struct field resolution
+                if let Some(TypeExpr::Named(type_name)) = ty {
+                    self.local_type_annotations.insert(name.clone(), type_name.clone());
+                }
             }
+
+            Stmt::Assign { target, value } => {
+                // Mutability check: root binding must be mutable
+                if let Some(root) = expr_root_name(target) {
+                    let is_mut = self.local_mutability.get(&root).copied().unwrap_or(false);
+                    if !is_mut {
+                        return Err(format!(
+                            "cannot assign to field of immutable binding '{root}'"
+                        ));
+                    }
+                }
+                let val_tmp = self.emit_expr(value, ns)?;
+                let ptr = self.emit_field_ptr(target, ns)?;
+                self.emit(&format!("    storew {val_tmp}, {ptr}"));
+            }
+
             Stmt::Return(None) => {
                 self.emit("    ret");
             }
@@ -209,6 +242,65 @@ impl Codegen {
         Ok(())
     }
 
+    /// Compute a pointer to a field within a struct.
+    /// `expr` must be of the form `base.field` or `base.field.field...`
+    fn emit_field_ptr(&mut self, expr: &Expr, ns: &Namespace) -> Result<String, String> {
+        match expr {
+            Expr::Field(base, field_name) => {
+                // Get the struct pointer for the base
+                let base_ptr = match base.as_ref() {
+                    Expr::Ident(name) => {
+                        self.locals
+                            .get(name)
+                            .cloned()
+                            .ok_or_else(|| format!("undefined variable: {name}"))?
+                    }
+                    other => self.emit_field_ptr(other, ns)?,
+                };
+
+                // Determine field index by looking up the type definition.
+                // We walk the type info stored during module collection.
+                // For now we resolve by scanning all type defs for a matching field name.
+                let offset = self.field_offset_for(base, field_name)?;
+                let ptr = self.fresh_tmp();
+                self.emit(&format!("    {ptr} =l add {base_ptr}, {offset}"));
+                Ok(ptr)
+            }
+            _ => Err("expected field access expression for assignment target".into()),
+        }
+    }
+
+    /// Return the byte offset of `field_name` within the struct that `base` refers to.
+    /// We look up the binding's declared type annotation to find the type definition.
+    fn field_offset_for(&self, base: &Expr, field_name: &str) -> Result<usize, String> {
+        // Find the type name of the base expression
+        let type_name = self.infer_struct_type_name(base)?;
+        let fields = self
+            .type_defs
+            .get(&type_name)
+            .ok_or_else(|| format!("unknown type '{type_name}'"))?;
+        fields
+            .iter()
+            .position(|f| f.name == field_name)
+            .map(|i| i * 8)
+            .ok_or_else(|| format!("type '{type_name}' has no field '{field_name}'"))
+    }
+
+    /// Try to infer the struct type name of an expression (best-effort, ident only).
+    fn infer_struct_type_name(&self, expr: &Expr) -> Result<String, String> {
+        match expr {
+            Expr::Ident(name) => {
+                // Look for a type def that matches — we stored the declared type
+                // in local_type_annotations during Val emission.
+                self.local_type_annotations
+                    .get(name)
+                    .cloned()
+                    .ok_or_else(|| format!("cannot determine type of '{name}'"))
+            }
+            _ => Err("cannot determine struct type for complex expression".into()),
+        }
+    }
+
     fn emit_expr(&mut self, expr: &Expr, ns: &Namespace) -> Result<String, String> {
         match expr {
             Expr::IntLit(n) => Ok(n.to_string()),
@@ -220,18 +312,17 @@ impl Codegen {
                 Ok(tmp)
             }
 
-            Expr::Ident(name) => {
-                if let Some(tmp) = self.locals.get(name) {
-                    Ok(tmp.clone())
-                } else {
-                    Err(format!("undefined variable: {name}"))
-                }
-            }
+            Expr::Ident(name) => self
+                .locals
+                .get(name)
+                .cloned()
+                .ok_or_else(|| format!("undefined variable: {name}")),
 
             Expr::Bool(b) => Ok(if *b { "1".into() } else { "0".into() }),
             Expr::None => Ok("0".into()),
             Expr::Some(inner) => self.emit_expr(inner, ns),
             Expr::Trust(inner) => self.emit_expr(inner, ns),
+
             Expr::Builtin { name, args } => match name.as_str() {
                 "puts" => {
                     let arg = self.emit_expr(&args[0], ns)?;
@@ -241,16 +332,36 @@ impl Codegen {
                 other => Err(format!("unknown builtin: @{other}")),
             },
 
-            Expr::Field(base, _field) => self.emit_expr(base, ns),
+            Expr::Field(_base, _field_name) => {
+                // Load a field value from a struct pointer
+                let ptr = self.emit_field_ptr(expr, ns)?;
+                let tmp = self.fresh_tmp();
+                self.emit(&format!("    {tmp} =w loadw {ptr}"));
+                Ok(tmp)
+            }
+
+            Expr::StructLit { fields } => {
+                // Allocate struct on heap: malloc(fields.len() * 8)
+                let size = fields.len() * 8;
+                let ptr = self.fresh_tmp();
+                self.emit(&format!("    {ptr} =l call $malloc(l {size})"));
+                for (i, (_fname, fexpr)) in fields.iter().enumerate() {
+                    let val = self.emit_expr(fexpr, ns)?;
+                    let offset = i * 8;
+                    let field_ptr = self.fresh_tmp();
+                    self.emit(&format!("    {field_ptr} =l add {ptr}, {offset}"));
+                    self.emit(&format!("    storew {val}, {field_ptr}"));
+                }
+                Ok(ptr)
+            }
 
             Expr::Call { callee, args } => {
                 let fn_name = resolve_call_name(callee, ns)?;
                 let mut arg_strs = Vec::new();
-                for (i, a) in args.iter().enumerate() {
+                for a in args.iter() {
                     let tmp = self.emit_expr(a, ns)?;
                     let ty = infer_arg_type(a);
                     arg_strs.push(format!("{ty} {tmp}"));
-                    let _ = i;
                 }
                 let result = self.fresh_tmp();
                 self.emit(&format!(
@@ -332,8 +443,6 @@ fn collect_ns(module: &ResolvedModule, prefix: &str, ns: &mut Namespace) {
     }
 }
 
-/// Walk a Call's callee expression to produce a dotted path string,
-/// then look it up in the namespace.
 fn resolve_call_name(callee: &Expr, ns: &Namespace) -> Result<String, String> {
     let path = expr_to_path(callee);
     ns.get(&path)
@@ -354,5 +463,14 @@ fn infer_arg_type(expr: &Expr) -> &'static str {
         Expr::StrLit(_) => "l",
         Expr::IntLit(_) => "w",
         _ => "l",
+    }
+}
+
+/// Get the root identifier name from a (possibly nested) field access expression.
+fn expr_root_name(expr: &Expr) -> Option<String> {
+    match expr {
+        Expr::Ident(name) => Some(name.clone()),
+        Expr::Field(base, _) => expr_root_name(base),
+        _ => None,
     }
 }
