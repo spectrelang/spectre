@@ -77,7 +77,7 @@ Functions that do not contain formal contracts (or perform unverifiable side eff
 ### 3.3 Trust Propagation
 Any verified function calling a trusted function (`!`) must either:
 1.  Adopt the `!` marker itself, propagating the lack of verification up the call stack.
-2.  Use a manual override (e.g., `trust` or `rely`) to assert safety at the call site and maintain its verified status.
+2.  Use a manual override (e.g., `trust`) to assert safety at the call site and maintain its verified status.
 
 ---
 

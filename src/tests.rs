@@ -13,7 +13,7 @@ mod lexer_tests {
     #[test]
     fn keywords() {
         let toks =
-            lex("fn val mut pub type pre post return if else trust rely use ref some none not");
+            lex("fn val mut pub type pre post return if else trust use ref some none not");
         assert_eq!(toks[0], Token::Fn);
         assert_eq!(toks[1], Token::Val);
         assert_eq!(toks[2], Token::Mut);
@@ -25,12 +25,11 @@ mod lexer_tests {
         assert_eq!(toks[8], Token::If);
         assert_eq!(toks[9], Token::Else);
         assert_eq!(toks[10], Token::Trust);
-        assert_eq!(toks[11], Token::Rely);
-        assert_eq!(toks[12], Token::Use);
-        assert_eq!(toks[13], Token::Ref);
-        assert_eq!(toks[14], Token::Some);
-        assert_eq!(toks[15], Token::None_);
-        assert_eq!(toks[16], Token::Not);
+        assert_eq!(toks[11], Token::Use);
+        assert_eq!(toks[12], Token::Ref);
+        assert_eq!(toks[13], Token::Some);
+        assert_eq!(toks[14], Token::None_);
+        assert_eq!(toks[15], Token::Not);
     }
 
     #[test]
