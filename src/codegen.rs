@@ -175,6 +175,20 @@ impl Codegen {
                         ));
                     }
                 }
+                // Check that the target field itself is declared `mut`
+                if let Expr::Field(base, field_name) = target {
+                    if let Ok(type_name) = self.infer_struct_type_name(base) {
+                        if let Some(fields) = self.type_defs.get(&type_name) {
+                            if let Some(field) = fields.iter().find(|f| f.name == *field_name) {
+                                if !field.mutable {
+                                    return Err(format!(
+                                        "cannot assign to immutable field '{field_name}' of type '{type_name}'"
+                                    ));
+                                }
+                            }
+                        }
+                    }
+                }
                 let (val_tmp, val_ty) = self.emit_expr(value, ns)?;
                 let store_val = if val_ty == "l" {
                     let w = self.fresh_tmp();
