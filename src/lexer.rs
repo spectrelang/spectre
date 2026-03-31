@@ -16,6 +16,9 @@ pub enum Token {
     Ref,
     Some,
     None_,
+    Match,
+    True,
+    False,
     Ident(String),
     StringLit(String),
     IntLit(i64),
@@ -47,6 +50,7 @@ pub enum Token {
     Or,
     Not,
     Arrow,
+    FatArrow,
     Eof,
 }
 
@@ -163,6 +167,9 @@ impl Lexer {
                 "some" => Token::Some,
                 "none" => Token::None_,
                 "not" => Token::Not,
+                "match" => Token::Match,
+                "true" => Token::True,
+                "false" => Token::False,
                 _ => Token::Ident(ident),
             });
         }
@@ -196,6 +203,9 @@ impl Lexer {
                 if self.peek() == Some('=') {
                     self.advance();
                     Token::EqEq
+                } else if self.peek() == Some('>') {
+                    self.advance();
+                    Token::FatArrow
                 } else {
                     Token::Eq
                 }

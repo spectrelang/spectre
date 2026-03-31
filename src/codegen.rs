@@ -310,13 +310,56 @@ impl Codegen {
                 for s in then {
                     self.emit_stmt(s, ns, ret_ty)?;
                 }
-                self.emit(&format!("    jmp {end_lbl}"));
+                if !block_is_terminated(then) {
+                    self.emit(&format!("    jmp {end_lbl}"));
+                }
 
                 if let Some(else_stmts) = else_ {
                     self.emit(&format!("{else_lbl}"));
                     for s in else_stmts {
                         self.emit_stmt(s, ns, ret_ty)?;
                     }
+                    if !block_is_terminated(else_stmts) {
+                        self.emit(&format!("    jmp {end_lbl}"));
+                    }
+                }
+
+                self.emit(&format!("{end_lbl}"));
+            }
+            Stmt::Match {
+                expr,
+                some_binding,
+                some_body,
+                none_body,
+            } => {
+                // Evaluate the option value (none = 0, some = non-zero raw value)
+                let (val_tmp, _) = self.emit_expr(expr, ns)?;
+                let some_lbl = format!("@match_some_{}", self.tmp_counter);
+                let none_lbl = format!("@match_none_{}", self.tmp_counter);
+                let end_lbl = format!("@match_end_{}", self.tmp_counter);
+                self.tmp_counter += 1;
+
+                // Promote to l for comparison if needed
+                let cond_tmp = self.fresh_tmp();
+                self.emit(&format!("    {cond_tmp} =w cnel {val_tmp}, 0"));
+                self.emit(&format!("    jnz {cond_tmp}, {some_lbl}, {none_lbl}"));
+
+                // some arm: bind the inner value
+                self.emit(&format!("{some_lbl}"));
+                self.locals.insert(some_binding.clone(), val_tmp.clone());
+                for s in some_body {
+                    self.emit_stmt(s, ns, ret_ty)?;
+                }
+                if !block_is_terminated(some_body) {
+                    self.emit(&format!("    jmp {end_lbl}"));
+                }
+
+                // none arm
+                self.emit(&format!("{none_lbl}"));
+                for s in none_body {
+                    self.emit_stmt(s, ns, ret_ty)?;
+                }
+                if !block_is_terminated(none_body) {
                     self.emit(&format!("    jmp {end_lbl}"));
                 }
 
@@ -407,7 +450,10 @@ impl Codegen {
 
             Expr::Bool(b) => Ok((if *b { "1".into() } else { "0".into() }, "w")),
             Expr::None => Ok(("0".into(), "l")),
-            Expr::Some(inner) => self.emit_expr(inner, ns),
+            Expr::Some(inner) => {
+                let (tmp, ty) = self.emit_expr(inner, ns)?;
+                Ok(self.promote_to_l(tmp, ty))
+            }
             Expr::Trust(inner) => self.emit_expr(inner, ns),
 
             Expr::Builtin { name, args } => match name.as_str() {
@@ -584,9 +630,14 @@ impl Codegen {
     }
 }
 
+/// Returns true if the last statement in a block is a terminator (return),
+/// meaning no fall-through jump is needed.
+fn block_is_terminated(stmts: &[Stmt]) -> bool {
+    matches!(stmts.last(), Some(Stmt::Return(_)))
+}
+
 /// A flat map from dotted path (e.g. "std.io.print") → QBE function name
 type Namespace = HashMap<String, String>;
-
 fn build_namespace(resolved: &ResolvedModule) -> Namespace {
     let mut ns = HashMap::new();
     collect_ns(resolved, "", &mut ns);
@@ -629,7 +680,7 @@ fn collect_trusted(
 fn collect_ns(module: &ResolvedModule, prefix: &str, ns: &mut Namespace) {
     for item in &module.ast.items {
         match item {
-            Item::Fn(f) if f.public => {
+            Item::Fn(f) => {
                 let key = if prefix.is_empty() {
                     f.name.clone()
                 } else {

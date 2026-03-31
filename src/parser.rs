@@ -71,6 +71,12 @@ pub enum Stmt {
         then: Vec<Stmt>,
         else_: Option<Vec<Stmt>>,
     },
+    Match {
+        expr: Expr,
+        some_binding: String,
+        some_body: Vec<Stmt>,
+        none_body: Vec<Stmt>,
+    },
 }
 
 #[derive(Debug, Clone)]
@@ -379,8 +385,45 @@ impl Parser {
                 };
                 Ok(Stmt::If { cond, then, else_ })
             }
-            _ => {
+            Token::Match => {
+                self.advance();
                 let expr = self.parse_expr()?;
+                self.expect(&Token::LBrace)?;
+                let mut some_binding = None;
+                let mut some_body = None;
+                let mut none_body = None;
+                for _ in 0..2 {
+                    match self.peek().clone() {
+                        Token::Some => {
+                            self.advance();
+                            let binding = self.expect_ident()?;
+                            self.expect(&Token::FatArrow)?;
+                            self.expect(&Token::LBrace)?;
+                            let body = self.parse_stmts()?;
+                            self.expect(&Token::RBrace)?;
+                            some_binding = Some(binding);
+                            some_body = Some(body);
+                        }
+                        Token::None_ => {
+                            self.advance();
+                            self.expect(&Token::FatArrow)?;
+                            self.expect(&Token::LBrace)?;
+                            let body = self.parse_stmts()?;
+                            self.expect(&Token::RBrace)?;
+                            none_body = Some(body);
+                        }
+                        _ => break,
+                    }
+                }
+                self.expect(&Token::RBrace)?;
+                Ok(Stmt::Match {
+                    expr,
+                    some_binding: some_binding.ok_or_else(|| "match: missing 'some' arm".to_string())?,
+                    some_body: some_body.unwrap_or_default(),
+                    none_body: none_body.ok_or_else(|| "match: missing 'none' arm".to_string())?,
+                })
+            }
+            _ => {                let expr = self.parse_expr()?;
                 if self.eat(&Token::Eq) {
                     let value = self.parse_expr()?;
                     Ok(Stmt::Assign {
@@ -519,7 +562,7 @@ impl Parser {
 
     fn parse_unary(&mut self) -> Result<Expr, String> {
         match self.peek().clone() {
-            Token::Not => {
+            Token::Not | Token::Bang => {
                 self.advance();
                 Ok(Expr::UnOp {
                     op: UnOp::Not,
@@ -590,6 +633,14 @@ impl Parser {
             Token::StringLit(s) => {
                 self.advance();
                 Ok(Expr::StrLit(s))
+            }
+            Token::True => {
+                self.advance();
+                Ok(Expr::Bool(true))
+            }
+            Token::False => {
+                self.advance();
+                Ok(Expr::Bool(false))
             }
             Token::Ident(name) => {
                 self.advance();
