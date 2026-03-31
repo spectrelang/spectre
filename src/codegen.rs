@@ -27,10 +27,11 @@ pub struct Codegen {
     locals: HashMap<String, String>,
     local_mutability: HashMap<String, bool>,
     local_type_annotations: HashMap<String, String>,
-    local_is_slot: std::collections::HashSet<String>,  // vars stored as stack slots
+    local_is_slot: std::collections::HashSet<String>,
     type_defs: HashMap<String, Vec<Field>>,
     trusted_fns: std::collections::HashSet<String>,
     current_fn: String,
+    defer_stack: Vec<Vec<Stmt>>,
 }
 
 impl Codegen {
@@ -47,6 +48,7 @@ impl Codegen {
             type_defs: HashMap::new(),
             trusted_fns: std::collections::HashSet::new(),
             current_fn: String::new(),
+            defer_stack: Vec::new(),
         }
     }
 
@@ -120,6 +122,7 @@ impl Codegen {
         self.local_mutability.clear();
         self.local_type_annotations.clear();
         self.local_is_slot.clear();
+        self.defer_stack.clear();
         self.tmp_counter = 0;
         self.current_fn = f.name.clone();
 
@@ -172,6 +175,7 @@ impl Codegen {
         }
 
         if matches!(f.ret, TypeExpr::Void) {
+            self.emit_defers(ns, &f.ret)?;
             self.emit("    ret");
         }
 
@@ -232,10 +236,12 @@ impl Codegen {
             }
 
             Stmt::Return(None) => {
+                self.emit_defers(ns, ret_ty)?;
                 self.emit("    ret");
             }
             Stmt::Return(Some(expr)) => {
                 let (tmp, _) = self.emit_expr(expr, ns)?;
+                self.emit_defers(ns, ret_ty)?;
                 self.emit(&format!("    ret {tmp}"));
             }
             Stmt::Expr(expr) => {
@@ -248,7 +254,6 @@ impl Codegen {
                     let fail_lbl = format!("@pre_fail_{}", self.tmp_counter);
                     self.tmp_counter += 1;
                     self.emit(&format!("    jnz {cond}, {ok_lbl}, {fail_lbl}"));
-                    // failure block: print message then abort
                     self.emit(&format!("{fail_lbl}"));
                     let msg = match &c.label {
                         Some(lbl) => format!(
@@ -296,13 +301,17 @@ impl Codegen {
                     self.emit(&format!("{ok_lbl}"));
                 }
             }
-            Stmt::If { cond, then, elif_, else_ } => {
-                // Allocate one stable ID for all labels in this if/elif/else chain
+            Stmt::If {
+                cond,
+                then,
+                elif_,
+                else_,
+            } => {
                 let id = self.tmp_counter;
                 self.tmp_counter += 1;
 
-                let end_lbl   = format!("@if_end_{id}");
-                let then_lbl  = format!("@if_then_{id}");
+                let end_lbl = format!("@if_end_{id}");
+                let then_lbl = format!("@if_then_{id}");
                 let first_else_lbl = if !elif_.is_empty() {
                     format!("@elif_cond_0_{id}")
                 } else if else_.is_some() {
@@ -311,7 +320,6 @@ impl Codegen {
                     end_lbl.clone()
                 };
 
-                // Pre-build all elif label pairs so nothing shifts the ID
                 let elif_labels: Vec<(String, String, String)> = (0..elif_.len())
                     .map(|i| {
                         let cond_lbl = format!("@elif_cond_{i}_{id}");
@@ -327,7 +335,6 @@ impl Codegen {
                     })
                     .collect();
 
-                // Emit the initial if
                 let (cond_tmp, _) = self.emit_expr(cond, ns)?;
                 self.emit(&format!("    jnz {cond_tmp}, {then_lbl}, {first_else_lbl}"));
                 self.emit(&format!("{then_lbl}"));
@@ -365,10 +372,15 @@ impl Codegen {
 
                 self.emit(&format!("{end_lbl}"));
             }
-            Stmt::For { init, cond, post, body } => {
-                let loop_lbl  = format!("@for_loop_{}", self.tmp_counter);
-                let body_lbl  = format!("@for_body_{}", self.tmp_counter);
-                let end_lbl   = format!("@for_end_{}", self.tmp_counter);
+            Stmt::For {
+                init,
+                cond,
+                post,
+                body,
+            } => {
+                let loop_lbl = format!("@for_loop_{}", self.tmp_counter);
+                let body_lbl = format!("@for_body_{}", self.tmp_counter);
+                let end_lbl = format!("@for_end_{}", self.tmp_counter);
                 self.tmp_counter += 1;
 
                 if let Some((var, init_expr)) = init {
@@ -406,7 +418,9 @@ impl Codegen {
                 self.emit(&format!("{end_lbl}"));
             }
             Stmt::Increment(var) => {
-                let slot = self.locals.get(var)
+                let slot = self
+                    .locals
+                    .get(var)
                     .cloned()
                     .ok_or_else(|| format!("undefined variable: {var}"))?;
                 let cur = self.fresh_tmp();
@@ -415,25 +429,27 @@ impl Codegen {
                 self.emit(&format!("    {inc} =w add {cur}, 1"));
                 self.emit(&format!("    storew {inc}, {slot}"));
             }
+            Stmt::Defer(body) => {
+                self.defer_stack.push(body.clone());
+            }
             Stmt::Match {
                 expr,
                 some_binding,
                 some_body,
                 none_body,
             } => {
-                // Evaluate the option value (none = 0, some = non-zero raw value)
                 let (val_tmp, _) = self.emit_expr(expr, ns)?;
                 let some_lbl = format!("@match_some_{}", self.tmp_counter);
                 let none_lbl = format!("@match_none_{}", self.tmp_counter);
                 let end_lbl = format!("@match_end_{}", self.tmp_counter);
+
                 self.tmp_counter += 1;
 
-                // Promote to l for comparison if needed
                 let cond_tmp = self.fresh_tmp();
+
                 self.emit(&format!("    {cond_tmp} =w cnel {val_tmp}, 0"));
                 self.emit(&format!("    jnz {cond_tmp}, {some_lbl}, {none_lbl}"));
 
-                // some arm: bind the inner value
                 self.emit(&format!("{some_lbl}"));
                 self.locals.insert(some_binding.clone(), val_tmp.clone());
                 for s in some_body {
@@ -443,7 +459,6 @@ impl Codegen {
                     self.emit(&format!("    jmp {end_lbl}"));
                 }
 
-                // none arm
                 self.emit(&format!("{none_lbl}"));
                 for s in none_body {
                     self.emit_stmt(s, ns, ret_ty)?;
@@ -453,6 +468,17 @@ impl Codegen {
                 }
 
                 self.emit(&format!("{end_lbl}"));
+            }
+        }
+        Ok(())
+    }
+
+    /// Emit all deferred blocks in LIFO order (does not pop — safe to call multiple times).
+    fn emit_defers(&mut self, ns: &Namespace, ret_ty: &TypeExpr) -> Result<(), String> {
+        let defers = self.defer_stack.clone();
+        for body in defers.iter().rev() {
+            for s in body {
+                self.emit_stmt(s, ns, ret_ty)?;
             }
         }
         Ok(())
@@ -531,7 +557,9 @@ impl Codegen {
             }
 
             Expr::Ident(name) => {
-                let slot_or_tmp = self.locals.get(name)
+                let slot_or_tmp = self
+                    .locals
+                    .get(name)
                     .cloned()
                     .ok_or_else(|| format!("undefined variable: {name}"))?;
                 if self.local_is_slot.contains(name) {
@@ -556,6 +584,49 @@ impl Codegen {
                     let (arg, _) = self.emit_expr(&args[0], ns)?;
                     self.emit(&format!("    call $puts(l {arg})"));
                     Ok(("0".into(), "w"))
+                }
+                "alloc" => {
+                    let (size, size_ty) = self.emit_expr(&args[0], ns)?;
+                    let (size_l, _) = self.promote_to_l(size, size_ty);
+                    let tmp = self.fresh_tmp();
+                    self.emit(&format!("    {tmp} =l call $malloc(l {size_l})"));
+                    Ok((tmp, "l"))
+                }
+                "realloc" => {
+                    let (ptr, _) = self.emit_expr(&args[0], ns)?;
+                    let (size, size_ty) = self.emit_expr(&args[1], ns)?;
+                    let (size_l, _) = self.promote_to_l(size, size_ty);
+                    let tmp = self.fresh_tmp();
+                    self.emit(&format!("    {tmp} =l call $realloc(l {ptr}, l {size_l})"));
+                    Ok((tmp, "l"))
+                }
+                "free" => {
+                    let (ptr, _) = self.emit_expr(&args[0], ns)?;
+                    self.emit(&format!("    call $free(l {ptr})"));
+                    Ok(("0".into(), "w"))
+                }
+                "memset" => {
+                    let (ptr, _) = self.emit_expr(&args[0], ns)?;
+                    let (val, val_ty) = self.emit_expr(&args[1], ns)?;
+                    let (size, size_ty) = self.emit_expr(&args[2], ns)?;
+                    let (val_w, _) = if val_ty == "l" {
+                        let w = self.fresh_tmp();
+                        self.emit(&format!("    {w} =w copy {val}"));
+                        (w, "w")
+                    } else {
+                        (val, val_ty)
+                    };
+                    let (size_l, _) = self.promote_to_l(size, size_ty);
+                    self.emit(&format!("    call $memset(l {ptr}, w {val_w}, l {size_l})"));
+                    Ok(("0".into(), "w"))
+                }
+                "ptradd" => {
+                    let (ptr, _) = self.emit_expr(&args[0], ns)?;
+                    let (off, off_ty) = self.emit_expr(&args[1], ns)?;
+                    let (off_l, _) = self.promote_to_l(off, off_ty);
+                    let tmp = self.fresh_tmp();
+                    self.emit(&format!("    {tmp} =l add {ptr}, {off_l}"));
+                    Ok((tmp, "l"))
                 }
                 "printf" => {
                     let fmt_tmp = if let Some(first) = args.first() {

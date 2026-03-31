@@ -73,12 +73,13 @@ pub enum Stmt {
         else_: Option<Vec<Stmt>>,
     },
     For {
-        init: Option<(String, Expr)>,  // var = expr
-        cond: Option<Expr>,            // None = infinite
-        post: Option<Box<Stmt>>,       // e.g. y++
+        init: Option<(String, Expr)>, // var = expr
+        cond: Option<Expr>,           // None = infinite
+        post: Option<Box<Stmt>>,      // e.g. y++
         body: Vec<Stmt>,
     },
-    Increment(String),  // x++
+    Increment(String), // x++
+    Defer(Vec<Stmt>),
     Match {
         expr: Expr,
         some_binding: String,
@@ -383,7 +384,6 @@ impl Parser {
                 self.expect(&Token::LBrace)?;
                 let then = self.parse_stmts()?;
                 self.expect(&Token::RBrace)?;
-                // collect elif chains
                 let mut elif_ = Vec::new();
                 loop {
                     if self.peek() == &Token::Elif {
@@ -407,27 +407,33 @@ impl Parser {
                 } else {
                     None
                 };
-                Ok(Stmt::If { cond, then, elif_, else_ })
+                Ok(Stmt::If {
+                    cond,
+                    then,
+                    elif_,
+                    else_,
+                })
             }
             Token::For => {
                 self.advance();
-                // `for {` = infinite loop
                 if self.peek() == &Token::LBrace {
                     self.advance();
                     let body = self.parse_stmts()?;
                     self.expect(&Token::RBrace)?;
-                    return Ok(Stmt::For { init: None, cond: None, post: None, body });
+                    return Ok(Stmt::For {
+                        init: None,
+                        cond: None,
+                        post: None,
+                        body,
+                    });
                 }
-                // `for (init; cond; post)`
                 self.expect(&Token::LParen)?;
-                // init: `ident = expr`
                 let init_name = self.expect_ident()?;
                 self.expect(&Token::Eq)?;
                 let init_expr = self.parse_expr()?;
                 self.expect(&Token::Semicolon)?;
                 let cond = self.parse_expr()?;
                 self.expect(&Token::Semicolon)?;
-                // post: `ident++`
                 let post_name = self.expect_ident()?;
                 self.expect(&Token::PlusPlus)?;
                 self.expect(&Token::RParen)?;
@@ -440,6 +446,13 @@ impl Parser {
                     post: Some(Box::new(Stmt::Increment(post_name))),
                     body,
                 })
+            }
+            Token::Defer => {
+                self.advance();
+                self.expect(&Token::LBrace)?;
+                let body = self.parse_stmts()?;
+                self.expect(&Token::RBrace)?;
+                Ok(Stmt::Defer(body))
             }
             Token::Match => {
                 self.advance();
@@ -474,12 +487,14 @@ impl Parser {
                 self.expect(&Token::RBrace)?;
                 Ok(Stmt::Match {
                     expr,
-                    some_binding: some_binding.ok_or_else(|| "match: missing 'some' arm".to_string())?,
+                    some_binding: some_binding
+                        .ok_or_else(|| "match: missing 'some' arm".to_string())?,
                     some_body: some_body.unwrap_or_default(),
                     none_body: none_body.ok_or_else(|| "match: missing 'none' arm".to_string())?,
                 })
             }
-            _ => {                let expr = self.parse_expr()?;
+            _ => {
+                let expr = self.parse_expr()?;
                 if self.eat(&Token::Eq) {
                     let value = self.parse_expr()?;
                     Ok(Stmt::Assign {
