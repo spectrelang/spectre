@@ -7,7 +7,7 @@ type SomeType = {
 
 pub fn trusted_function(x: i32, y: i32) i32 = {
     pre {
-        x > 0 && y > 0
+        is_above_zero : x > 0 && y > 0
     }
     post {
         x < 100 && y < 100
