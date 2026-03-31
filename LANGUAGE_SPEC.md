@@ -24,7 +24,7 @@ Variables are declared using the `val` keyword. Mutability must be explicitly op
 ### 2.2 Functional Blocks
 Functions use an assignment-style syntax with braces.
 ```rust
-fn name(arg: type) return_type = {
+fn name(arg: type) ReturnType = {
     // Body
 }
 ```
