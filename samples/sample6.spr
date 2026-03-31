@@ -1,0 +1,20 @@
+val std = use("std")
+
+type SomeType = {
+    x: i32
+    y: mut i32
+}
+
+pub fn trusted_function(x: i32, y: i32) i32 = {
+    pre {
+        x > 0 && y > 0
+    }
+    post {
+        x < 100 && y < 100
+    }
+    return x + y
+}
+
+pub fn main() void = {
+    std.io.put_any("{d}", {trusted_function(1, 2)})
+}

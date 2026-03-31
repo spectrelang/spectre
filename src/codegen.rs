@@ -28,6 +28,7 @@ pub struct Codegen {
     local_mutability: HashMap<String, bool>,
     local_type_annotations: HashMap<String, String>,
     type_defs: HashMap<String, Vec<Field>>,
+    trusted_fns: std::collections::HashSet<String>,
 }
 
 impl Codegen {
@@ -41,6 +42,7 @@ impl Codegen {
             local_mutability: HashMap::new(),
             local_type_annotations: HashMap::new(),
             type_defs: HashMap::new(),
+            trusted_fns: std::collections::HashSet::new(),
         }
     }
 
@@ -80,6 +82,8 @@ impl Codegen {
 
     pub fn emit_module(&mut self, resolved: &ResolvedModule) -> Result<(), String> {
         let ns = build_namespace(resolved);
+        let trusted = build_trusted_set(resolved);
+        self.trusted_fns = trusted;
         self.emit_module_recursive(resolved, &ns)
     }
 
@@ -119,6 +123,10 @@ impl Codegen {
             let all_trusted = f.body.iter().all(|s| match s {
                 Stmt::Assign { .. } => false,
                 Stmt::Expr(Expr::Trust(_)) => true,
+                Stmt::Expr(Expr::Call { callee, .. }) => {
+                    let path = expr_to_path(callee);
+                    !path.is_empty()
+                }
                 Stmt::Pre(_) | Stmt::Post(_) => true,
                 _ => false,
             });
@@ -161,6 +169,16 @@ impl Codegen {
             self.emit("    ret");
         }
 
+        let has_contracts = f
+            .body
+            .iter()
+            .any(|s| matches!(s, Stmt::Pre(_) | Stmt::Post(_)));
+        if has_contracts {
+            self.emit("@panic");
+            self.emit("    call $abort()");
+            self.emit("    hlt");
+        }
+
         self.emit("}");
         self.emit("");
         Ok(())
@@ -192,7 +210,6 @@ impl Codegen {
                         ));
                     }
                 }
-                // Check that the target field itself is declared `mut`
                 if let Expr::Field(base, field_name) = target {
                     if let Ok(type_name) = self.infer_struct_type_name(base) {
                         if let Some(fields) = self.type_defs.get(&type_name) {
@@ -546,6 +563,39 @@ fn build_namespace(resolved: &ResolvedModule) -> Namespace {
     ns
 }
 
+fn build_trusted_set(resolved: &ResolvedModule) -> std::collections::HashSet<String> {
+    let mut trusted = std::collections::HashSet::new();
+    collect_trusted(resolved, "", &mut trusted);
+    trusted
+}
+
+fn collect_trusted(
+    module: &ResolvedModule,
+    prefix: &str,
+    trusted: &mut std::collections::HashSet<String>,
+) {
+    for item in &module.ast.items {
+        if let Item::Fn(f) = item {
+            if f.trusted {
+                let key = if prefix.is_empty() {
+                    f.name.clone()
+                } else {
+                    format!("{prefix}.{}", f.name)
+                };
+                trusted.insert(key);
+            }
+        }
+    }
+    for (import_name, child) in &module.imports {
+        let child_prefix = if prefix.is_empty() {
+            import_name.clone()
+        } else {
+            format!("{prefix}.{import_name}")
+        };
+        collect_trusted(child, &child_prefix, trusted);
+    }
+}
+
 fn collect_ns(module: &ResolvedModule, prefix: &str, ns: &mut Namespace) {
     for item in &module.ast.items {
         match item {
@@ -615,7 +665,6 @@ fn rewrite_format_string(s: &str) -> String {
                 out.push('%');
                 out.push_str(&spec);
             } else {
-                // Not a valid specifier, pass through
                 out.push('{');
                 out.push_str(&spec);
                 if !closed { /* truncated, leave as-is */ }
