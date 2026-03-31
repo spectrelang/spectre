@@ -25,6 +25,7 @@ pub struct Codegen {
     str_counter: usize,
     tmp_counter: usize,
     locals: HashMap<String, String>,
+    local_types: HashMap<String, &'static str>,
     local_mutability: HashMap<String, bool>,
     local_type_annotations: HashMap<String, String>,
     local_is_slot: std::collections::HashSet<String>,
@@ -32,6 +33,7 @@ pub struct Codegen {
     trusted_fns: std::collections::HashSet<String>,
     current_fn: String,
     defer_stack: Vec<Vec<Stmt>>,
+    current_loop_end: Option<String>,
 }
 
 impl Codegen {
@@ -42,6 +44,7 @@ impl Codegen {
             str_counter: 0,
             tmp_counter: 0,
             locals: HashMap::new(),
+            local_types: HashMap::new(),
             local_mutability: HashMap::new(),
             local_type_annotations: HashMap::new(),
             local_is_slot: std::collections::HashSet::new(),
@@ -49,6 +52,7 @@ impl Codegen {
             trusted_fns: std::collections::HashSet::new(),
             current_fn: String::new(),
             defer_stack: Vec::new(),
+            current_loop_end: None,
         }
     }
 
@@ -119,6 +123,7 @@ impl Codegen {
 
     fn emit_fn(&mut self, f: &FnDef, ns: &Namespace) -> Result<(), String> {
         self.locals.clear();
+        self.local_types.clear();
         self.local_mutability.clear();
         self.local_type_annotations.clear();
         self.local_is_slot.clear();
@@ -158,8 +163,10 @@ impl Codegen {
             .iter()
             .map(|(name, ty)| {
                 let tmp = format!("%{name}");
+                let qty = qbe_type(ty);
                 self.locals.insert(name.clone(), tmp.clone());
-                format!("{} {tmp}", qbe_type(ty))
+                self.local_types.insert(name.clone(), qty);
+                format!("{qty} {tmp}")
             })
             .collect();
 
@@ -192,8 +199,9 @@ impl Codegen {
                 expr,
                 ty,
             } => {
-                let (tmp, _) = self.emit_expr(expr, ns)?;
+                let (tmp, qty) = self.emit_expr(expr, ns)?;
                 self.locals.insert(name.clone(), tmp);
+                self.local_types.insert(name.clone(), qty);
                 self.local_mutability.insert(name.clone(), *mutable);
                 if let Some(TypeExpr::Named(type_name)) = ty {
                     self.local_type_annotations
@@ -206,9 +214,15 @@ impl Codegen {
                     let is_mut = self.local_mutability.get(&root).copied().unwrap_or(false);
                     if !is_mut {
                         return Err(format!(
-                            "cannot assign to field of immutable binding '{root}'"
+                            "cannot assign to immutable binding '{root}'"
                         ));
                     }
+                }
+                if let Expr::Ident(name) = target {
+                    let (val_tmp, val_qty) = self.emit_expr(value, ns)?;
+                    self.locals.insert(name.clone(), val_tmp);
+                    self.local_types.insert(name.clone(), val_qty);
+                    return Ok(());
                 }
                 if let Expr::Field(base, field_name) = target {
                     if let Ok(type_name) = self.infer_struct_type_name(base) {
@@ -345,7 +359,6 @@ impl Codegen {
                     self.emit(&format!("    jmp {end_lbl}"));
                 }
 
-                // Emit elif chains
                 for (i, (elif_cond, elif_body)) in elif_.iter().enumerate() {
                     let (cond_lbl, body_lbl, next_lbl) = &elif_labels[i];
                     self.emit(&format!("{cond_lbl}"));
@@ -396,7 +409,6 @@ impl Codegen {
                 self.emit(&format!("    jmp {loop_lbl}"));
                 self.emit(&format!("{loop_lbl}"));
 
-                // condition check (None = infinite)
                 if let Some(cond_expr) = cond {
                     let (ct, _) = self.emit_expr(cond_expr, ns)?;
                     self.emit(&format!("    jnz {ct}, {body_lbl}, {end_lbl}"));
@@ -405,11 +417,12 @@ impl Codegen {
                 }
 
                 self.emit(&format!("{body_lbl}"));
+                let prev_loop_end = self.current_loop_end.replace(end_lbl.clone());
                 for s in body {
                     self.emit_stmt(s, ns, ret_ty)?;
                 }
+                self.current_loop_end = prev_loop_end;
 
-                // post (e.g. y++)
                 if let Some(post_stmt) = post {
                     self.emit_stmt(post_stmt, ns, ret_ty)?;
                 }
@@ -431,6 +444,11 @@ impl Codegen {
             }
             Stmt::Defer(body) => {
                 self.defer_stack.push(body.clone());
+            }
+            Stmt::Break => {
+                let end_lbl = self.current_loop_end.clone()
+                    .ok_or_else(|| "break used outside of loop".to_string())?;
+                self.emit(&format!("    jmp {end_lbl}"));
             }
             Stmt::Match {
                 expr,
@@ -567,7 +585,8 @@ impl Codegen {
                     self.emit(&format!("    {tmp} =w loadw {slot_or_tmp}"));
                     Ok((tmp, "w"))
                 } else {
-                    Ok((slot_or_tmp, "l"))
+                    let qty = self.local_types.get(name).copied().unwrap_or("l");
+                    Ok((slot_or_tmp, qty))
                 }
             }
 
@@ -627,6 +646,19 @@ impl Codegen {
                     let tmp = self.fresh_tmp();
                     self.emit(&format!("    {tmp} =l add {ptr}, {off_l}"));
                     Ok((tmp, "l"))
+                }
+                "load" => {
+                    let (ptr, _) = self.emit_expr(&args[0], ns)?;
+                    let tmp = self.fresh_tmp();
+                    self.emit(&format!("    {tmp} =l loadl {ptr}"));
+                    Ok((tmp, "l"))
+                }
+                "store" => {
+                    let (ptr, _) = self.emit_expr(&args[0], ns)?;
+                    let (val, val_ty) = self.emit_expr(&args[1], ns)?;
+                    let (val_l, _) = self.promote_to_l(val, val_ty);
+                    self.emit(&format!("    storel {val_l}, {ptr}"));
+                    Ok(("0".into(), "w"))
                 }
                 "printf" => {
                     let fmt_tmp = if let Some(first) = args.first() {
@@ -760,26 +792,56 @@ impl Codegen {
 
             Expr::BinOp { op, lhs, rhs } => {
                 use crate::parser::BinOp::*;
-                let (l, _) = self.emit_expr(lhs, ns)?;
-                let (r, _) = self.emit_expr(rhs, ns)?;
+                let (l, l_ty) = self.emit_expr(lhs, ns)?;
+                let (r, r_ty) = self.emit_expr(rhs, ns)?;
+                let wide = l_ty == "l" || r_ty == "l";
+                let (l, r) = if wide {
+                    let (l, _) = self.promote_to_l(l, l_ty);
+                    let (r, _) = self.promote_to_l(r, r_ty);
+                    (l, r)
+                } else {
+                    (l, r)
+                };
                 let tmp = self.fresh_tmp();
-                let instr = match op {
-                    Add => format!("{tmp} =w add {l}, {r}"),
-                    Sub => format!("{tmp} =w sub {l}, {r}"),
-                    Mul => format!("{tmp} =w mul {l}, {r}"),
-                    Div => format!("{tmp} =w div {l}, {r}"),
-                    Rem => format!("{tmp} =w rem {l}, {r}"),
-                    Eq => format!("{tmp} =w ceqw {l}, {r}"),
-                    Ne => format!("{tmp} =w cnew {l}, {r}"),
-                    Lt => format!("{tmp} =w csltw {l}, {r}"),
-                    Gt => format!("{tmp} =w csgtw {l}, {r}"),
-                    Le => format!("{tmp} =w cslew {l}, {r}"),
-                    Ge => format!("{tmp} =w csgew {l}, {r}"),
-                    And => format!("{tmp} =w and {l}, {r}"),
-                    Or => format!("{tmp} =w or {l}, {r}"),
+                let instr = if wide {
+                    match op {
+                        Add => format!("{tmp} =l add {l}, {r}"),
+                        Sub => format!("{tmp} =l sub {l}, {r}"),
+                        Mul => format!("{tmp} =l mul {l}, {r}"),
+                        Div => format!("{tmp} =l div {l}, {r}"),
+                        Rem => format!("{tmp} =l rem {l}, {r}"),
+                        Eq  => format!("{tmp} =w ceql {l}, {r}"),
+                        Ne  => format!("{tmp} =w cnel {l}, {r}"),
+                        Lt  => format!("{tmp} =w csltl {l}, {r}"),
+                        Gt  => format!("{tmp} =w csgtl {l}, {r}"),
+                        Le  => format!("{tmp} =w cslel {l}, {r}"),
+                        Ge  => format!("{tmp} =w csgel {l}, {r}"),
+                        And => format!("{tmp} =l and {l}, {r}"),
+                        Or  => format!("{tmp} =l or {l}, {r}"),
+                    }
+                } else {
+                    match op {
+                        Add => format!("{tmp} =w add {l}, {r}"),
+                        Sub => format!("{tmp} =w sub {l}, {r}"),
+                        Mul => format!("{tmp} =w mul {l}, {r}"),
+                        Div => format!("{tmp} =w div {l}, {r}"),
+                        Rem => format!("{tmp} =w rem {l}, {r}"),
+                        Eq  => format!("{tmp} =w ceqw {l}, {r}"),
+                        Ne  => format!("{tmp} =w cnew {l}, {r}"),
+                        Lt  => format!("{tmp} =w csltw {l}, {r}"),
+                        Gt  => format!("{tmp} =w csgtw {l}, {r}"),
+                        Le  => format!("{tmp} =w cslew {l}, {r}"),
+                        Ge  => format!("{tmp} =w csgew {l}, {r}"),
+                        And => format!("{tmp} =w and {l}, {r}"),
+                        Or  => format!("{tmp} =w or {l}, {r}"),
+                    }
                 };
                 self.emit(&format!("    {instr}"));
-                Ok((tmp, "w"))
+                let result_ty = match op {
+                    Eq | Ne | Lt | Gt | Le | Ge => "w",
+                    _ => if wide { "l" } else { "w" },
+                };
+                Ok((tmp, result_ty))
             }
 
             Expr::UnOp { op, expr } => {

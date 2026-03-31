@@ -22,6 +22,7 @@ pub enum Token {
     True,
     False,
     Defer,
+    Break,
     Ident(String),
     StringLit(String),
     IntLit(i64),
@@ -177,6 +178,7 @@ impl Lexer {
                 "true" => Token::True,
                 "false" => Token::False,
                 "defer" => Token::Defer,
+                "break" => Token::Break,
                 _ => Token::Ident(ident),
             });
         }

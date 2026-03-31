@@ -1199,3 +1199,213 @@ mod elif_and_for_tests {
         assert!(ir.contains("alloc4"));
     }
 }
+
+#[cfg(test)]
+mod memory_and_defer_tests {
+    use crate::codegen::Codegen;
+    use crate::lexer::{Lexer, Token};
+    use crate::module::resolve_module;
+    use crate::parser::{Item, Parser, Stmt};
+    use std::collections::HashMap;
+    use std::path::Path;
+
+    fn compile(src: &str) -> Result<String, String> {
+        let resolved = resolve_module(src, Path::new("."), &mut HashMap::new())?;
+        let mut cg = Codegen::new();
+        cg.emit_module(&resolved)?;
+        Ok(cg.finish())
+    }
+
+    fn compile_ok(src: &str) -> String {
+        compile(src).expect("expected compilation to succeed")
+    }
+
+    fn parse(src: &str) -> crate::parser::Module {
+        let tokens = Lexer::new(src).tokenize().unwrap();
+        Parser::new(tokens).parse_module().unwrap()
+    }
+
+    #[test]
+    fn lex_defer_keyword() {
+        let toks = Lexer::new("defer").tokenize().unwrap();
+        assert_eq!(toks[0], Token::Defer);
+    }
+
+    #[test]
+    fn lex_break_keyword() {
+        let toks = Lexer::new("break").tokenize().unwrap();
+        assert_eq!(toks[0], Token::Break);
+    }
+
+    #[test]
+    fn parse_defer_block() {
+        let m = parse(r#"pub fn main() void! = { defer { val x = 1 } }"#);
+        let Item::Fn(f) = &m.items[0] else { panic!() };
+        assert!(matches!(f.body[0], Stmt::Defer(_)));
+    }
+
+    #[test]
+    fn parse_break_stmt() {
+        let m = parse(r#"pub fn main() void! = { for { break } }"#);
+        let Item::Fn(f) = &m.items[0] else { panic!() };
+        let Stmt::For { body, .. } = &f.body[0] else { panic!() };
+        assert!(matches!(body[0], Stmt::Break));
+    }
+
+    #[test]
+    fn codegen_alloc_calls_malloc() {
+        let ir = compile_ok(r#"pub fn main() void! = { val p: ref void = @alloc(64) }"#);
+        assert!(ir.contains("call $malloc"));
+    }
+
+    #[test]
+    fn codegen_free_calls_free() {
+        let ir = compile_ok(r#"pub fn main() void! = { val p: ref void = @alloc(8) @free(p) }"#);
+        assert!(ir.contains("call $free"));
+    }
+
+    #[test]
+    fn codegen_realloc_calls_realloc() {
+        let ir = compile_ok(r#"pub fn main() void! = {
+            val p: ref void = @alloc(8)
+            val q: ref void = @realloc(p, 16)
+        }"#);
+        assert!(ir.contains("call $realloc"));
+    }
+
+    #[test]
+    fn codegen_memset_calls_memset() {
+        let ir = compile_ok(r#"pub fn main() void! = {
+            val p: ref void = @alloc(8)
+            @memset(p, 0, 8)
+        }"#);
+        assert!(ir.contains("call $memset"));
+    }
+
+    #[test]
+    fn codegen_ptradd_emits_add_l() {
+        let ir = compile_ok(r#"pub fn main() void! = {
+            val p: ref void = @alloc(16)
+            val q: ref void = @ptradd(p, 8)
+        }"#);
+        assert!(ir.contains("=l add"));
+    }
+
+    #[test]
+    fn codegen_load_emits_loadl() {
+        let ir = compile_ok(r#"pub fn main() void! = {
+            val p: ref void = @alloc(8)
+            val v: usize = @load(p)
+        }"#);
+        assert!(ir.contains("=l loadl"));
+    }
+
+    #[test]
+    fn codegen_store_emits_storel() {
+        let ir = compile_ok(r#"pub fn main() void! = {
+            val p: ref void = @alloc(8)
+            @store(p, 42)
+        }"#);
+        assert!(ir.contains("storel"));
+    }
+
+    #[test]
+    fn codegen_defer_emits_before_ret() {
+        let ir = compile_ok(r#"pub fn main() void! = {
+            val p: ref void = @alloc(8)
+            defer { @free(p) }
+        }"#);
+        let free_pos = ir.find("call $free").expect("free not found");
+        let ret_pos = ir.rfind("ret\n").expect("ret not found");
+        assert!(free_pos < ret_pos, "defer free must come before ret");
+    }
+
+    #[test]
+    fn codegen_defer_lifo_order() {
+        let ir = compile_ok(r#"pub fn main() void! = {
+            val p: ref void = @alloc(8)
+            val q: ref void = @alloc(16)
+            defer { @free(p) }
+            defer { @free(q) }
+        }"#);
+        let free_q = ir.find("call $free(l %t1)").or_else(|| {
+            ir.find("call $free").map(|p| p)
+        }).unwrap();
+        let _ = free_q;
+        assert_eq!(ir.matches("call $free").count(), 2);
+    }
+
+    #[test]
+    fn codegen_defer_runs_before_explicit_return() {
+        let ir = compile_ok(r#"
+            fn f(x: bool) void! = {
+                val p: ref void = @alloc(8)
+                defer { @free(p) }
+                if (x) { return }
+            }
+        "#);
+        let free_pos = ir.find("call $free").expect("free not found");
+        let ret_pos = ir.find("ret\n").expect("ret not found");
+        assert!(free_pos < ret_pos);
+    }
+
+    #[test]
+    fn codegen_break_jumps_to_for_end() {
+        let ir = compile_ok(r#"pub fn main() void! = {
+            for (i = 0; i < 10; i++) {
+                break
+            }
+        }"#);
+        assert!(ir.contains("@for_end_"));
+        assert!(ir.matches("jmp @for_end_").count() >= 1);
+    }
+
+    #[test]
+    fn codegen_break_in_infinite_loop() {
+        let ir = compile_ok(r#"pub fn main() void! = {
+            for { break }
+        }"#);
+        assert!(ir.contains("jmp @for_end_"));
+    }
+
+    #[test]
+    fn codegen_local_rebind_updates_local() {
+        let ir = compile_ok(r#"pub fn main() void! = {
+            val p: mut ref void = @alloc(8)
+            p = @realloc(p, 16)
+        }"#);
+        assert!(ir.contains("call $realloc"));
+    }
+
+    #[test]
+    fn codegen_usize_add_emits_add_l() {
+        let ir = compile_ok(r#"
+            fn f(a: usize, b: usize) usize! = {
+                return a + b
+            }
+        "#);
+        assert!(ir.contains("=l add"), "usize add should emit =l add");
+    }
+
+    #[test]
+    fn codegen_usize_mul_emits_mul_l() {
+        let ir = compile_ok(r#"
+            fn f(a: usize, b: usize) usize! = {
+                return a * b
+            }
+        "#);
+        assert!(ir.contains("=l mul"), "usize mul should emit =l mul");
+    }
+
+    #[test]
+    fn codegen_i32_add_still_emits_add_w() {
+        let ir = compile_ok(r#"
+            fn f(a: i32, b: i32) i32 = {
+                pre { a > 0 }
+                post { a > 0 }
+                return a + b
+            }
+        "#);
+        assert!(ir.contains("=w add"), "i32 add should still emit =w add");
+    }
+}

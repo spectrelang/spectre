@@ -80,6 +80,7 @@ pub enum Stmt {
     },
     Increment(String), // x++
     Defer(Vec<Stmt>),
+    Break,
     Match {
         expr: Expr,
         some_binding: String,
@@ -453,6 +454,10 @@ impl Parser {
                 let body = self.parse_stmts()?;
                 self.expect(&Token::RBrace)?;
                 Ok(Stmt::Defer(body))
+            }
+            Token::Break => {
+                self.advance();
+                Ok(Stmt::Break)
             }
             Token::Match => {
                 self.advance();
