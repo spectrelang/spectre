@@ -12,7 +12,8 @@ mod lexer_tests {
 
     #[test]
     fn keywords() {
-        let toks = lex("fn val mut pub type pre post return if else trust rely use ref some none not");
+        let toks =
+            lex("fn val mut pub type pre post return if else trust rely use ref some none not");
         assert_eq!(toks[0], Token::Fn);
         assert_eq!(toks[1], Token::Val);
         assert_eq!(toks[2], Token::Mut);
@@ -195,7 +196,9 @@ mod parser_tests {
     #[test]
     fn parse_type_def() {
         let m = parse("type Point = { x: i32 y: mut i32 }");
-        let Item::TypeDef { name, fields } = &m.items[0] else { panic!() };
+        let Item::TypeDef { name, fields } = &m.items[0] else {
+            panic!()
+        };
         assert_eq!(name, "Point");
         assert_eq!(fields[0].name, "x");
         assert!(!fields[0].mutable);
@@ -207,7 +210,9 @@ mod parser_tests {
     fn parse_val_binding_immutable() {
         let m = parse("fn f() void! = { val x: i32 = 10 }");
         let Item::Fn(f) = &m.items[0] else { panic!() };
-        let Stmt::Val { name, mutable, .. } = &f.body[0] else { panic!() };
+        let Stmt::Val { name, mutable, .. } = &f.body[0] else {
+            panic!()
+        };
         assert_eq!(name, "x");
         assert!(!mutable);
     }
@@ -216,7 +221,9 @@ mod parser_tests {
     fn parse_val_binding_mutable() {
         let m = parse("fn f() void! = { val x: mut i32 = 10 }");
         let Item::Fn(f) = &m.items[0] else { panic!() };
-        let Stmt::Val { mutable, .. } = &f.body[0] else { panic!() };
+        let Stmt::Val { mutable, .. } = &f.body[0] else {
+            panic!()
+        };
         assert!(mutable);
     }
 
@@ -232,15 +239,20 @@ mod parser_tests {
     fn parse_labelled_contract() {
         let m = parse("fn f(x: i32) void = { pre { is_pos: x > 0 } post { is_pos: x > 0 } }");
         let Item::Fn(f) = &m.items[0] else { panic!() };
-        let Stmt::Pre(contracts) = &f.body[0] else { panic!() };
+        let Stmt::Pre(contracts) = &f.body[0] else {
+            panic!()
+        };
         assert_eq!(contracts[0].label.as_deref(), Some("is_pos"));
     }
 
     #[test]
     fn parse_and_in_contract() {
-        let m = parse("fn f(x: i32, y: i32) void = { pre { x > 0 && y > 0 } post { x > 0 && y > 0 } }");
+        let m =
+            parse("fn f(x: i32, y: i32) void = { pre { x > 0 && y > 0 } post { x > 0 && y > 0 } }");
         let Item::Fn(f) = &m.items[0] else { panic!() };
-        let Stmt::Pre(contracts) = &f.body[0] else { panic!() };
+        let Stmt::Pre(contracts) = &f.body[0] else {
+            panic!()
+        };
         assert!(matches!(contracts[0].expr, Expr::BinOp { .. }));
     }
 
@@ -248,7 +260,9 @@ mod parser_tests {
     fn parse_or_in_contract() {
         let m = parse("fn f(x: i32) void = { pre { x > 0 || x < 0 } post { x > 0 || x < 0 } }");
         let Item::Fn(f) = &m.items[0] else { panic!() };
-        let Stmt::Pre(contracts) = &f.body[0] else { panic!() };
+        let Stmt::Pre(contracts) = &f.body[0] else {
+            panic!()
+        };
         assert!(matches!(contracts[0].expr, Expr::BinOp { .. }));
     }
 
@@ -256,14 +270,18 @@ mod parser_tests {
     fn parse_trust_expr() {
         let m = parse("fn f() void = { trust foo() }");
         let Item::Fn(f) = &m.items[0] else { panic!() };
-        let Stmt::Expr(Expr::Trust(_)) = &f.body[0] else { panic!() };
+        let Stmt::Expr(Expr::Trust(_)) = &f.body[0] else {
+            panic!()
+        };
     }
 
     #[test]
     fn parse_if_else() {
         let m = parse("fn f(x: i32) void! = { if (x > 0) { return } else { return } }");
         let Item::Fn(f) = &m.items[0] else { panic!() };
-        let Stmt::If { else_, .. } = &f.body[0] else { panic!() };
+        let Stmt::If { else_, .. } = &f.body[0] else {
+            panic!()
+        };
         assert!(else_.is_some());
     }
 
@@ -271,7 +289,9 @@ mod parser_tests {
     fn parse_struct_literal() {
         let m = parse("fn f() void! = { val p = {x: 1, y: 2} }");
         let Item::Fn(f) = &m.items[0] else { panic!() };
-        let Stmt::Val { expr, .. } = &f.body[0] else { panic!() };
+        let Stmt::Val { expr, .. } = &f.body[0] else {
+            panic!()
+        };
         assert!(matches!(expr, Expr::StructLit { .. }));
     }
 
@@ -315,9 +335,24 @@ mod parser_tests {
     fn parse_binop_precedence_mul_over_add() {
         let m = parse("fn f() void! = { val x = 1 + 2 * 3 }");
         let Item::Fn(f) = &m.items[0] else { panic!() };
-        let Stmt::Val { expr, .. } = &f.body[0] else { panic!() };
-        let Expr::BinOp { op: crate::parser::BinOp::Add, rhs, .. } = expr else { panic!() };
-        assert!(matches!(rhs.as_ref(), Expr::BinOp { op: crate::parser::BinOp::Mul, .. }));
+        let Stmt::Val { expr, .. } = &f.body[0] else {
+            panic!()
+        };
+        let Expr::BinOp {
+            op: crate::parser::BinOp::Add,
+            rhs,
+            ..
+        } = expr
+        else {
+            panic!()
+        };
+        assert!(matches!(
+            rhs.as_ref(),
+            Expr::BinOp {
+                op: crate::parser::BinOp::Mul,
+                ..
+            }
+        ));
     }
 
     #[test]
@@ -370,11 +405,13 @@ mod codegen_tests {
 
     #[test]
     fn pure_fn_all_trust_stmts_no_contracts_required() {
-        let ir = compile_ok(r#"
+        let ir = compile_ok(
+            r#"
             pub fn print(arg: ref char) void = {
                 trust @puts(arg)
             }
-        "#);
+        "#,
+        );
         assert!(ir.contains("$print"));
     }
 
@@ -404,49 +441,57 @@ mod codegen_tests {
 
     #[test]
     fn pure_fn_with_assignment_requires_contracts() {
-        let err = compile_err(r#"
+        let err = compile_err(
+            r#"
             type T = { x: mut i32 }
             fn f(x: i32) void = {
                 val t: mut T = {x: 1}
                 t.x = 2
             }
-        "#);
+        "#,
+        );
         assert!(err.contains("pure function"));
     }
 
     #[test]
     fn immutable_binding_field_assign_errors() {
-        let err = compile_err(r#"
+        let err = compile_err(
+            r#"
             type T = { x: mut i32 }
             pub fn main() void! = {
                 val t: T = {x: 1}
                 t.x = 2
             }
-        "#);
+        "#,
+        );
         assert!(err.contains("immutable binding"));
     }
 
     #[test]
     fn immutable_field_assign_errors() {
-        let err = compile_err(r#"
+        let err = compile_err(
+            r#"
             type T = { x: i32 y: mut i32 }
             pub fn main() void! = {
                 val t: mut T = {x: 1, y: 2}
                 t.x = 10
             }
-        "#);
+        "#,
+        );
         assert!(err.contains("immutable field") && err.contains("'x'"));
     }
 
     #[test]
     fn mutable_field_assign_ok() {
-        let ir = compile_ok(r#"
+        let ir = compile_ok(
+            r#"
             type T = { x: i32 y: mut i32 }
             pub fn main() void! = {
                 val t: mut T = {x: 1, y: 2}
                 t.y = 10
             }
-        "#);
+        "#,
+        );
         assert!(ir.contains("storew"));
     }
 
@@ -466,7 +511,9 @@ mod codegen_tests {
 
     #[test]
     fn labelled_contract_includes_label_in_message() {
-        let ir = compile_ok("fn f(x: i32) i32 = { pre { is_pos: x > 0 } post { is_pos: x > 0 } return x }");
+        let ir = compile_ok(
+            "fn f(x: i32) i32 = { pre { is_pos: x > 0 } post { is_pos: x > 0 } return x }",
+        );
         assert!(ir.contains("is_pos"));
     }
 
@@ -478,24 +525,30 @@ mod codegen_tests {
 
     #[test]
     fn pre_contract_with_and() {
-        let ir = compile_ok("fn f(x: i32, y: i32) i32 = { pre { x > 0 && y > 0 } post { x > 0 } return x }");
+        let ir = compile_ok(
+            "fn f(x: i32, y: i32) i32 = { pre { x > 0 && y > 0 } post { x > 0 } return x }",
+        );
         assert!(ir.contains("and"));
     }
 
     #[test]
     fn pre_contract_with_or() {
-        let ir = compile_ok("fn f(x: i32, y: i32) i32 = { pre { x > 0 || y > 0 } post { x > 0 } return x }");
+        let ir = compile_ok(
+            "fn f(x: i32, y: i32) i32 = { pre { x > 0 || y > 0 } post { x > 0 } return x }",
+        );
         assert!(ir.contains("or"));
     }
 
     #[test]
     fn struct_literal_calls_malloc() {
-        let ir = compile_ok(r#"
+        let ir = compile_ok(
+            r#"
             type T = { x: i32 }
             pub fn main() void! = {
                 val t: T = {x: 1}
             }
-        "#);
+        "#,
+        );
         assert!(ir.contains("malloc"));
     }
 
@@ -513,19 +566,22 @@ mod codegen_tests {
 
     #[test]
     fn binop_add_emits_add() {
-        let ir = compile_ok("fn f(x: i32, y: i32) i32 = { pre { x > 0 } post { x > 0 } return x + y }");
+        let ir =
+            compile_ok("fn f(x: i32, y: i32) i32 = { pre { x > 0 } post { x > 0 } return x + y }");
         assert!(ir.contains("=w add"));
     }
 
     #[test]
     fn binop_sub_emits_sub() {
-        let ir = compile_ok("fn f(x: i32, y: i32) i32 = { pre { x > 0 } post { x > 0 } return x - y }");
+        let ir =
+            compile_ok("fn f(x: i32, y: i32) i32 = { pre { x > 0 } post { x > 0 } return x - y }");
         assert!(ir.contains("=w sub"));
     }
 
     #[test]
     fn binop_mul_emits_mul() {
-        let ir = compile_ok("fn f(x: i32, y: i32) i32 = { pre { x > 0 } post { x > 0 } return x * y }");
+        let ir =
+            compile_ok("fn f(x: i32, y: i32) i32 = { pre { x > 0 } post { x > 0 } return x * y }");
         assert!(ir.contains("=w mul"));
     }
 
@@ -549,33 +605,39 @@ mod codegen_tests {
 
     #[test]
     fn format_string_rewritten() {
-        let ir = compile_ok(r#"
+        let ir = compile_ok(
+            r#"
             pub fn put_any(fmt: ref char, args: untyped) void! = {}
             pub fn main() void! = {
                 put_any("{d}", 1)
             }
-        "#);
+        "#,
+        );
         assert!(ir.contains("b \"%d\""));
     }
 
     #[test]
     fn if_without_else_emits_branches() {
-        let ir = compile_ok(r#"
+        let ir = compile_ok(
+            r#"
             pub fn main() void! = {
                 if (1 == 1) { val x = 1 }
             }
-        "#);
+        "#,
+        );
         assert!(ir.contains("@if_then_"));
         assert!(ir.contains("@if_end_"));
     }
 
     #[test]
     fn if_with_else_emits_else_branch() {
-        let ir = compile_ok(r#"
+        let ir = compile_ok(
+            r#"
             pub fn main() void! = {
                 if (1 == 1) { val x = 1 } else { val y = 2 }
             }
-        "#);
+        "#,
+        );
         assert!(ir.contains("@if_else_"));
     }
 
@@ -587,12 +649,14 @@ mod codegen_tests {
 
     #[test]
     fn pure_fn_calling_only_fns_no_contracts_needed() {
-        let ir = compile_ok(r#"
+        let ir = compile_ok(
+            r#"
             pub fn helper() void! = {}
             pub fn main() void = {
                 helper()
             }
-        "#);
+        "#,
+        );
         assert!(ir.contains("$main"));
     }
 }
@@ -643,8 +707,8 @@ mod format_string_tests {
 #[cfg(test)]
 mod hoisting_and_optionals_tests {
     use crate::codegen::Codegen;
-    use crate::module::resolve_module;
     use crate::lexer::{Lexer, Token};
+    use crate::module::resolve_module;
     use crate::parser::{Expr, Item, Parser, Stmt};
     use std::collections::HashMap;
     use std::path::Path;
@@ -694,7 +758,9 @@ mod hoisting_and_optionals_tests {
     fn parse_true_literal() {
         let m = parse("pub fn main() void! = { val x = true }");
         let Item::Fn(f) = &m.items[0] else { panic!() };
-        let Stmt::Val { expr, .. } = &f.body[0] else { panic!() };
+        let Stmt::Val { expr, .. } = &f.body[0] else {
+            panic!()
+        };
         assert!(matches!(expr, Expr::Bool(true)));
     }
 
@@ -702,7 +768,9 @@ mod hoisting_and_optionals_tests {
     fn parse_false_literal() {
         let m = parse("pub fn main() void! = { val x = false }");
         let Item::Fn(f) = &m.items[0] else { panic!() };
-        let Stmt::Val { expr, .. } = &f.body[0] else { panic!() };
+        let Stmt::Val { expr, .. } = &f.body[0] else {
+            panic!()
+        };
         assert!(matches!(expr, Expr::Bool(false)));
     }
 
@@ -710,15 +778,25 @@ mod hoisting_and_optionals_tests {
     fn parse_bang_as_not() {
         let m = parse("pub fn main() void! = { val x = !1 }");
         let Item::Fn(f) = &m.items[0] else { panic!() };
-        let Stmt::Val { expr, .. } = &f.body[0] else { panic!() };
-        assert!(matches!(expr, Expr::UnOp { op: crate::parser::UnOp::Not, .. }));
+        let Stmt::Val { expr, .. } = &f.body[0] else {
+            panic!()
+        };
+        assert!(matches!(
+            expr,
+            Expr::UnOp {
+                op: crate::parser::UnOp::Not,
+                ..
+            }
+        ));
     }
 
     #[test]
     fn parse_some_expr() {
         let m = parse("fn f() option[i32]! = { return some 42 }");
         let Item::Fn(f) = &m.items[0] else { panic!() };
-        let Stmt::Return(Some(expr)) = &f.body[0] else { panic!() };
+        let Stmt::Return(Some(expr)) = &f.body[0] else {
+            panic!()
+        };
         assert!(matches!(expr, Expr::Some(_)));
     }
 
@@ -726,13 +804,16 @@ mod hoisting_and_optionals_tests {
     fn parse_none_expr() {
         let m = parse("fn f() option[i32]! = { return none }");
         let Item::Fn(f) = &m.items[0] else { panic!() };
-        let Stmt::Return(Some(expr)) = &f.body[0] else { panic!() };
+        let Stmt::Return(Some(expr)) = &f.body[0] else {
+            panic!()
+        };
         assert!(matches!(expr, Expr::None));
     }
 
     #[test]
     fn parse_match_stmt() {
-        let m = parse(r#"
+        let m = parse(
+            r#"
             pub fn main() void! = {
                 val x = none
                 match x {
@@ -740,15 +821,19 @@ mod hoisting_and_optionals_tests {
                     none => { val z = 0 }
                 }
             }
-        "#);
+        "#,
+        );
         let Item::Fn(f) = &m.items[0] else { panic!() };
-        let Stmt::Match { some_binding, .. } = &f.body[1] else { panic!("expected match stmt") };
+        let Stmt::Match { some_binding, .. } = &f.body[1] else {
+            panic!("expected match stmt")
+        };
         assert_eq!(some_binding, "v");
     }
 
     #[test]
     fn parse_match_none_arm_present() {
-        let m = parse(r#"
+        let m = parse(
+            r#"
             pub fn main() void! = {
                 val x = none
                 match x {
@@ -756,9 +841,12 @@ mod hoisting_and_optionals_tests {
                     none => { val z = 0 }
                 }
             }
-        "#);
+        "#,
+        );
         let Item::Fn(f) = &m.items[0] else { panic!() };
-        let Stmt::Match { none_body, .. } = &f.body[1] else { panic!() };
+        let Stmt::Match { none_body, .. } = &f.body[1] else {
+            panic!()
+        };
         assert!(!none_body.is_empty());
     }
 
@@ -776,7 +864,8 @@ mod hoisting_and_optionals_tests {
 
     #[test]
     fn codegen_match_emits_cnel() {
-        let ir = compile_ok(r#"
+        let ir = compile_ok(
+            r#"
             fn get() option[i32]! = { return none }
             pub fn main() void! = {
                 val r = get()
@@ -785,7 +874,8 @@ mod hoisting_and_optionals_tests {
                     none => { val b = 0 }
                 }
             }
-        "#);
+        "#,
+        );
         assert!(ir.contains("cnel"));
         assert!(ir.contains("@match_some_"));
         assert!(ir.contains("@match_none_"));
@@ -794,26 +884,30 @@ mod hoisting_and_optionals_tests {
 
     #[test]
     fn codegen_function_hoisting_private_callee() {
-        let ir = compile_ok(r#"
+        let ir = compile_ok(
+            r#"
             pub fn main() void! = {
                 val r = can_fail(true)
             }
             fn can_fail(flag: bool) option[i32]! = {
                 return none
             }
-        "#);
+        "#,
+        );
         assert!(ir.contains("$can_fail"));
         assert!(ir.contains("call $can_fail"));
     }
 
     #[test]
     fn codegen_if_with_return_no_jmp_after_ret() {
-        let ir = compile_ok(r#"
+        let ir = compile_ok(
+            r#"
             fn f(x: bool) option[i32]! = {
                 if (x) { return some 1 }
                 return none
             }
-        "#);
+        "#,
+        );
         for window in ir.lines().collect::<Vec<_>>().windows(2) {
             let a = window[0].trim();
             let b = window[1].trim();
@@ -826,21 +920,282 @@ mod hoisting_and_optionals_tests {
 
     #[test]
     fn codegen_true_emits_1() {
-        let ir = compile_ok(r#"
+        let ir = compile_ok(
+            r#"
             pub fn main() void! = {
                 if (true) { val x = 1 }
             }
-        "#);
+        "#,
+        );
         assert!(ir.contains("jnz 1,"));
     }
 
     #[test]
     fn codegen_false_emits_0() {
-        let ir = compile_ok(r#"
+        let ir = compile_ok(
+            r#"
             pub fn main() void! = {
                 if (false) { val x = 1 }
             }
-        "#);
+        "#,
+        );
         assert!(ir.contains("jnz 0,"));
+    }
+}
+
+#[cfg(test)]
+mod elif_and_for_tests {
+    use crate::codegen::Codegen;
+    use crate::lexer::{Lexer, Token};
+    use crate::module::resolve_module;
+    use crate::parser::{Item, Parser, Stmt};
+    use std::collections::HashMap;
+    use std::path::Path;
+
+    fn compile(src: &str) -> Result<String, String> {
+        let resolved = resolve_module(src, Path::new("."), &mut HashMap::new())?;
+        let mut cg = Codegen::new();
+        cg.emit_module(&resolved)?;
+        Ok(cg.finish())
+    }
+
+    fn compile_ok(src: &str) -> String {
+        compile(src).expect("expected compilation to succeed")
+    }
+
+    fn parse(src: &str) -> crate::parser::Module {
+        let tokens = Lexer::new(src).tokenize().unwrap();
+        Parser::new(tokens).parse_module().unwrap()
+    }
+
+    #[test]
+    fn lex_elif_keyword() {
+        let toks = Lexer::new("elif").tokenize().unwrap();
+        assert_eq!(toks[0], Token::Elif);
+    }
+
+    #[test]
+    fn lex_for_keyword() {
+        let toks = Lexer::new("for").tokenize().unwrap();
+        assert_eq!(toks[0], Token::For);
+    }
+
+    #[test]
+    fn lex_plus_plus() {
+        let toks = Lexer::new("x++").tokenize().unwrap();
+        assert_eq!(toks[0], Token::Ident("x".into()));
+        assert_eq!(toks[1], Token::PlusPlus);
+    }
+
+    #[test]
+    fn lex_plus_not_plus_plus() {
+        let toks = Lexer::new("x + y").tokenize().unwrap();
+        assert_eq!(toks[1], Token::Plus);
+    }
+
+    #[test]
+    fn parse_elif_chain() {
+        let m = parse(
+            r#"
+            pub fn main() void! = {
+                if (1 == 1) { val a = 1 }
+                elif (2 == 2) { val b = 2 }
+                elif (3 == 3) { val c = 3 }
+            }
+        "#,
+        );
+        let Item::Fn(f) = &m.items[0] else { panic!() };
+        let Stmt::If { elif_, .. } = &f.body[0] else {
+            panic!("expected if")
+        };
+        assert_eq!(elif_.len(), 2);
+    }
+
+    #[test]
+    fn parse_elif_with_else() {
+        let m = parse(
+            r#"
+            pub fn main() void! = {
+                if (1 == 1) { val a = 1 }
+                elif (2 == 2) { val b = 2 }
+                else { val c = 3 }
+            }
+        "#,
+        );
+        let Item::Fn(f) = &m.items[0] else { panic!() };
+        let Stmt::If { elif_, else_, .. } = &f.body[0] else {
+            panic!()
+        };
+        assert_eq!(elif_.len(), 1);
+        assert!(else_.is_some());
+    }
+
+    #[test]
+    fn parse_if_no_elif_still_works() {
+        let m = parse("pub fn main() void! = { if (1 == 1) { val x = 1 } }");
+        let Item::Fn(f) = &m.items[0] else { panic!() };
+        let Stmt::If { elif_, else_, .. } = &f.body[0] else {
+            panic!()
+        };
+        assert!(elif_.is_empty());
+        assert!(else_.is_none());
+    }
+
+    #[test]
+    fn parse_for_c_style() {
+        let m = parse(
+            r#"
+            pub fn main() void! = {
+                for (i = 0; i < 10; i++) { val x = i }
+            }
+        "#,
+        );
+        let Item::Fn(f) = &m.items[0] else { panic!() };
+        let Stmt::For {
+            init, cond, post, ..
+        } = &f.body[0]
+        else {
+            panic!("expected for")
+        };
+        assert!(init.is_some());
+        assert_eq!(init.as_ref().unwrap().0, "i");
+        assert!(cond.is_some());
+        assert!(post.is_some());
+    }
+
+    #[test]
+    fn parse_for_infinite() {
+        let m = parse(
+            r#"
+            pub fn main() void! = {
+                for { val x = 1 }
+            }
+        "#,
+        );
+        let Item::Fn(f) = &m.items[0] else { panic!() };
+        let Stmt::For {
+            init, cond, post, ..
+        } = &f.body[0]
+        else {
+            panic!("expected for")
+        };
+        assert!(init.is_none());
+        assert!(cond.is_none());
+        assert!(post.is_none());
+    }
+
+    #[test]
+    fn codegen_elif_labels_are_consistent() {
+        let ir = compile_ok(
+            r#"
+            pub fn main() void! = {
+                if (1 == 1) { val a = 1 }
+                elif (2 == 2) { val b = 2 }
+            }
+        "#,
+        );
+        for line in ir.lines() {
+            let line = line.trim();
+            if line.starts_with("jnz") {
+                if let Some(false_lbl) = line
+                    .split([',', ' '])
+                    .map(str::trim)
+                    .filter(|s| s.starts_with('@'))
+                    .nth(1)
+                {
+                    assert!(
+                        ir.contains(&format!("{false_lbl}\n")),
+                        "label {false_lbl} referenced but never defined"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn codegen_elif_emits_cond_labels() {
+        let ir = compile_ok(
+            r#"
+            pub fn main() void! = {
+                if (1 == 1) { val a = 1 }
+                elif (2 == 2) { val b = 2 }
+            }
+        "#,
+        );
+        assert!(ir.contains("@elif_cond_0_"));
+    }
+
+    #[test]
+    fn codegen_for_c_style_emits_loop_labels() {
+        let ir = compile_ok(
+            r#"
+            pub fn main() void! = {
+                for (i = 0; i < 10; i++) { val x = 1 }
+            }
+        "#,
+        );
+        assert!(ir.contains("@for_loop_"));
+        assert!(ir.contains("@for_body_"));
+        assert!(ir.contains("@for_end_"));
+    }
+
+    #[test]
+    fn codegen_for_c_style_emits_increment() {
+        let ir = compile_ok(
+            r#"
+            pub fn main() void! = {
+                for (i = 0; i < 10; i++) { val x = 1 }
+            }
+        "#,
+        );
+        assert!(ir.contains("=w add"));
+        assert!(ir.contains("storew"));
+    }
+
+    #[test]
+    fn codegen_for_c_style_loop_var_readable() {
+        let ir = compile_ok(
+            r#"
+            pub fn put_any(fmt: ref char, args: untyped) void! = {}
+            pub fn main() void! = {
+                for (i = 0; i < 3; i++) {
+                    put_any("{d}", i)
+                }
+            }
+        "#,
+        );
+        assert!(ir.contains("loadw"));
+    }
+
+    #[test]
+    fn codegen_for_infinite_loops_back() {
+        let ir = compile_ok(
+            r#"
+            pub fn main() void! = {
+                for { val x = 1 }
+            }
+        "#,
+        );
+        assert!(ir.contains("@for_loop_"));
+        assert!(ir.contains("@for_body_"));
+        let loop_lbl = ir
+            .lines()
+            .find(|l| l.trim().starts_with("@for_loop_"))
+            .unwrap()
+            .trim()
+            .to_string();
+        assert!(ir.contains(&format!("jmp {loop_lbl}")));
+    }
+
+    #[test]
+    fn codegen_for_init_uses_alloc4() {
+        let ir = compile_ok(
+            r#"
+            pub fn main() void! = {
+                for (i = 0; i < 5; i++) { val x = 1 }
+            }
+        "#,
+        );
+        assert!(ir.contains("alloc4"));
     }
 }
