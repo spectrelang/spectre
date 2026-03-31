@@ -14,7 +14,10 @@ fn main() {
 
     let qbe_ir = match module::compile_file(&args.input, &args) {
         Ok(ir) => ir,
-        Err(e) => { eprintln!("error: {e}"); process::exit(1); }
+        Err(e) => {
+            eprintln!("error: {e}");
+            process::exit(1);
+        }
     };
 
     if args.emit_qbe {
@@ -55,7 +58,12 @@ fn run_qbe(ir: &str) -> String {
         });
 
     use std::io::Write;
-    child.stdin.take().unwrap().write_all(ir.as_bytes()).unwrap();
+    child
+        .stdin
+        .take()
+        .unwrap()
+        .write_all(ir.as_bytes())
+        .unwrap();
 
     let out = child.wait_with_output().unwrap();
     if !out.status.success() {
@@ -77,10 +85,15 @@ fn assemble_and_link(asm: &str, binary_path: &str) {
         process::exit(1);
     });
 
+    std::fs::create_dir_all("./s-out/").unwrap_or_else(|e| {
+        eprintln!("error creating s-out directory: {e}");
+        process::exit(1);
+    });
+
     let status = Command::new("cc")
         .arg(&asm_path)
         .arg("-o")
-        .arg(binary_path)
+        .arg(Path::join(Path::new("./s-out/"), binary_path))
         .arg("-lc")
         .status()
         .unwrap_or_else(|e| {
