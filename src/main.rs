@@ -1,12 +1,12 @@
 mod cli;
-mod lexer;
-mod parser;
-mod module;
 mod codegen;
+mod lexer;
+mod module;
+mod parser;
 
-use std::process;
-use cli::Args;
 use clap::Parser;
+use cli::Args;
+use std::process;
 
 fn main() {
     let args = Args::parse();
