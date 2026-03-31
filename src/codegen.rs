@@ -134,17 +134,7 @@ impl Codegen {
         if !f.trusted {
             let has_pre = f.body.iter().any(|s| matches!(s, Stmt::Pre(_)));
             let has_post = f.body.iter().any(|s| matches!(s, Stmt::Post(_)));
-            let all_trusted = f.body.iter().all(|s| match s {
-                Stmt::Assign { .. } => false,
-                Stmt::Expr(Expr::Trust(_)) => true,
-                Stmt::Expr(Expr::Call { callee, .. }) => {
-                    let path = expr_to_path(callee);
-                    !path.is_empty()
-                }
-                Stmt::Pre(_) | Stmt::Post(_) => true,
-                _ => false,
-            });
-            if !all_trusted && (!has_pre || !has_post) {
+            if !all_trusted_stmts(&f.body) && (!has_pre || !has_post) {
                 return Err(format!(
                     "pure function '{}' must have both 'pre' and 'post' contract blocks, or consist entirely of 'trust' statements",
                     f.name
@@ -423,11 +413,12 @@ impl Codegen {
                 }
                 self.current_loop_end = prev_loop_end;
 
-                if let Some(post_stmt) = post {
-                    self.emit_stmt(post_stmt, ns, ret_ty)?;
+                if !block_is_terminated(body) {
+                    if let Some(post_stmt) = post {
+                        self.emit_stmt(post_stmt, ns, ret_ty)?;
+                    }
+                    self.emit(&format!("    jmp {loop_lbl}"));
                 }
-
-                self.emit(&format!("    jmp {loop_lbl}"));
                 self.emit(&format!("{end_lbl}"));
             }
             Stmt::Increment(var) => {
@@ -861,7 +852,32 @@ impl Codegen {
 /// Returns true if the last statement in a block is a terminator (return),
 /// meaning no fall-through jump is needed.
 fn block_is_terminated(stmts: &[Stmt]) -> bool {
-    matches!(stmts.last(), Some(Stmt::Return(_)))
+    matches!(stmts.last(), Some(Stmt::Return(_)) | Some(Stmt::Break))
+}
+
+/// Recursively checks whether a block consists entirely of "trusted" operations —
+/// i.e. no raw untrusted calls or assignments that would require contracts.
+/// Control flow constructs (if, for, match, defer) are transparent: we recurse into them.
+fn all_trusted_stmts(stmts: &[Stmt]) -> bool {
+    stmts.iter().all(|s| match s {
+        Stmt::Expr(Expr::Trust(_)) => true,
+        Stmt::Expr(Expr::Call { callee, .. }) => !expr_to_path(callee).is_empty(),
+        Stmt::Expr(Expr::Builtin { .. }) => true,
+        Stmt::Pre(_) | Stmt::Post(_) => true,
+        Stmt::Val { .. } | Stmt::Return(_) | Stmt::Break | Stmt::Increment(_) => true,
+        Stmt::Assign { .. } => false,
+        Stmt::Defer(body) => all_trusted_stmts(body),
+        Stmt::If { then, elif_, else_, .. } => {
+            all_trusted_stmts(then)
+                && elif_.iter().all(|(_, b)| all_trusted_stmts(b))
+                && else_.as_deref().map_or(true, all_trusted_stmts)
+        }
+        Stmt::For { body, .. } => all_trusted_stmts(body),
+        Stmt::Match { some_body, none_body, .. } => {
+            all_trusted_stmts(some_body) && all_trusted_stmts(none_body)
+        }
+        Stmt::Expr(_) => false,
+    })
 }
 
 /// A flat map from dotted path (e.g. "std.io.print") → QBE function name
