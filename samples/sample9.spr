@@ -28,7 +28,11 @@ pub fn main() void! = {
     std.io.print("buffer allocated and zeroed")
 
     val grown_size: usize = 128
-    val big_buf: ref void = grow_buffer(buf, initial_size, grown_size)
+    val big_buf: ref void = grow_buffer(
+        buf,
+        initial_size,
+        grown_size
+    )
 
     defer {
         @free(big_buf)
