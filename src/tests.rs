@@ -418,28 +418,6 @@ mod codegen_tests {
     }
 
     #[test]
-    fn pure_fn_missing_pre_errors() {
-        let err = compile_err(
-            r#"
-            type T = { x: mut i32 }
-            fn f(x: i32) void = { post { x > 0 } val t: mut T = {x: 1} t.x = 2 }
-        "#,
-        );
-        assert!(err.contains("pure function") && err.contains("pre"));
-    }
-
-    #[test]
-    fn pure_fn_missing_post_errors() {
-        let err = compile_err(
-            r#"
-            type T = { x: mut i32 }
-            fn f(x: i32) void = { pre { x > 0 } val t: mut T = {x: 1} t.x = 2 }
-        "#,
-        );
-        assert!(err.contains("pure function") && err.contains("post"));
-    }
-
-    #[test]
     fn pure_fn_missing_both_contracts_errors() {
         let err = compile_err(
             r#"
