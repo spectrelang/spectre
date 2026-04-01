@@ -1,0 +1,13 @@
+val std = use("std")
+
+pub fn main() void! = {
+    //val my_stack = std.allocators.stack.Stack.new(1024)
+    //std.allocators.stack.Stack.free(my_stack)
+
+    // Instead we can do:
+
+    val Stack = std.allocators.stack.Stack
+    val my_stack = Stack.new(1024)
+    
+    Stack.free(my_stack)
+}

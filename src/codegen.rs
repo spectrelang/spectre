@@ -40,6 +40,7 @@ pub struct Codegen {
     test_fns: Vec<String>,
     current_file: String,
     module_consts: HashMap<String, (String, &'static str)>,
+    type_aliases: HashMap<String, String>,
 }
 
 impl Codegen {
@@ -62,6 +63,7 @@ impl Codegen {
             test_fns: Vec::new(),
             current_file: String::new(),
             module_consts: HashMap::new(),
+            type_aliases: HashMap::new(),
         }
     }
 
@@ -189,6 +191,7 @@ impl Codegen {
         self.local_type_annotations.clear();
         self.local_is_slot.clear();
         self.defer_stack.clear();
+        self.type_aliases.clear();
         self.tmp_counter = 0;
 
         for (name, (val, ty)) in &self.module_consts.clone() {
@@ -267,6 +270,7 @@ impl Codegen {
         self.local_type_annotations.clear();
         self.local_is_slot.clear();
         self.defer_stack.clear();
+        self.type_aliases.clear();
         self.tmp_counter = 0;
         self.current_fn = format!("test_{}", test_id);
 
@@ -315,6 +319,13 @@ impl Codegen {
                 expr,
                 ty,
             } => {
+                let path = expr_to_path(expr);
+                if !path.is_empty() && is_namespace_prefix(&path, ns) {
+                    let expanded = expand_alias_path(&path, &self.type_aliases);
+                    self.type_aliases.insert(name.clone(), expanded);
+                    return Ok(());
+                }
+
                 let (tmp, qty) = self.emit_expr(expr, ns)?;
                 self.locals.insert(name.clone(), tmp);
                 self.local_types.insert(name.clone(), qty);
@@ -864,7 +875,7 @@ impl Codegen {
             }
 
             Expr::Call { callee, args, line } => {
-                let fn_name = resolve_call_name(callee, ns)
+                let fn_name = resolve_call_name(callee, ns, &self.type_aliases.clone())
                     .map_err(|e| format!("{}:{}: {}", self.current_file, line, e))?;
 
                 if fn_name == "put_any" {
@@ -1127,9 +1138,14 @@ fn collect_ns(module: &ResolvedModule, prefix: &str, ns: &mut Namespace) {
     }
 }
 
-fn resolve_call_name(callee: &Expr, ns: &Namespace) -> Result<String, String> {
+fn resolve_call_name(
+    callee: &Expr,
+    ns: &Namespace,
+    aliases: &HashMap<String, String>,
+) -> Result<String, String> {
     let path = expr_to_path(callee);
-    ns.get(&path)
+    let expanded = expand_alias_path(&path, aliases);
+    ns.get(&expanded)
         .cloned()
         .ok_or_else(|| format!("unknown function: {path}"))
 }
@@ -1140,6 +1156,30 @@ fn expr_to_path(expr: &Expr) -> String {
         Expr::Field(base, field) => format!("{}.{field}", expr_to_path(base)),
         _ => String::new(),
     }
+}
+
+/// Expand the leading segment of a dotted path through the alias map.
+/// e.g. "Stack.new" with alias Stack="std.allocators.stack.Stack" → "std.allocators.stack.Stack.new"
+fn expand_alias_path(path: &str, aliases: &HashMap<String, String>) -> String {
+    let (head, tail) = match path.find('.') {
+        Some(i) => (&path[..i], Some(&path[i + 1..])),
+        None => (path, None),
+    };
+    if let Some(expanded_head) = aliases.get(head) {
+        match tail {
+            Some(rest) => format!("{expanded_head}.{rest}"),
+            None => expanded_head.clone(),
+        }
+    } else {
+        path.to_string()
+    }
+}
+
+/// Returns true if `path` (or any prefix of it) matches a key in the namespace,
+/// meaning it refers to a namespace segment rather than a concrete runtime value.
+fn is_namespace_prefix(path: &str, ns: &Namespace) -> bool {
+    ns.keys()
+        .any(|k| k == path || k.starts_with(&format!("{path}.")))
 }
 
 /// Get the root identifier name from a (possibly nested) field access expression.
