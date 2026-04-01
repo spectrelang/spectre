@@ -69,3 +69,23 @@ pub fn arena_reset(arena: ref void) void! = {
     @memset(buf, 0, cap)
     @store(@ptradd(arena, 8), 0)
 }
+
+test {
+    val arena = arena_new(64)
+
+    assert arena_cap(arena) == 64
+    assert arena_used(arena) == 0
+    assert arena_remaining(arena) == 64
+
+    val a1 = arena_alloc(arena, 8)
+    assert a1 != none
+    assert arena_used(arena) == 8
+    assert arena_remaining(arena) == 56
+
+    val a2 = arena_alloc(arena, 16)
+    assert a2 != none
+    assert arena_used(arena) == 24
+    assert arena_remaining(arena) == 40
+
+    arena_free(arena)
+}

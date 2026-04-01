@@ -127,6 +127,4 @@ fn run_tests(binary_path: &str) {
         eprintln!("tests failed");
         process::exit(1);
     }
-
-    println!("all tests passed");
 }
