@@ -1,4 +1,5 @@
 /// An arena hands out memory from a single large block.
+///
 /// Individual allocations cannot be freed — the whole arena is freed at once.
 /// This is ideal for request-scoped or phase-scoped allocations.
 ///
