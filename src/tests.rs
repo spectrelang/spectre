@@ -362,16 +362,14 @@ mod parser_tests {
 #[cfg(test)]
 mod codegen_tests {
     use crate::codegen::Codegen;
-    use crate::lexer::Lexer;
     use crate::module::resolve_module;
-    use crate::parser::Parser;
     use std::collections::HashMap;
     use std::path::Path;
 
     fn compile(src: &str) -> Result<String, String> {
-        let resolved = resolve_module(src, Path::new("."), &mut HashMap::new())?;
+        let resolved = resolve_module(src, Path::new("."), &mut HashMap::new(), "")?;
         let mut cg = Codegen::new();
-        cg.emit_module(&resolved)?;
+        cg.emit_module(&resolved, false)?;
         Ok(cg.finish())
     }
 
@@ -686,9 +684,9 @@ mod format_string_tests {
             r#"pub fn put_any(f: ref char, a: untyped) void! = {{}}
                pub fn main() void! = {{ put_any("{fmt}", 1) }}"#
         );
-        let resolved = resolve_module(&src, Path::new("."), &mut HashMap::new()).unwrap();
+        let resolved = resolve_module(&src, Path::new("."), &mut HashMap::new(), "").unwrap();
         let mut cg = Codegen::new();
-        cg.emit_module(&resolved).unwrap();
+        cg.emit_module(&resolved, false).unwrap();
         let ir = cg.finish();
         let marker = "b \"";
         let start = ir.find(marker).unwrap() + marker.len();
@@ -720,16 +718,16 @@ mod format_string_tests {
 #[cfg(test)]
 mod hoisting_and_optionals_tests {
     use crate::codegen::Codegen;
-    use crate::lexer::{Lexer, Token};
+    use crate::lexer::{Lexer, TokenKind};
     use crate::module::resolve_module;
     use crate::parser::{Expr, Item, Parser, Stmt};
     use std::collections::HashMap;
     use std::path::Path;
 
     fn compile(src: &str) -> Result<String, String> {
-        let resolved = resolve_module(src, Path::new("."), &mut HashMap::new())?;
+        let resolved = resolve_module(src, Path::new("."), &mut HashMap::new(), "")?;
         let mut cg = Codegen::new();
-        cg.emit_module(&resolved)?;
+        cg.emit_module(&resolved, false)?;
         Ok(cg.finish())
     }
 
@@ -745,26 +743,26 @@ mod hoisting_and_optionals_tests {
     #[test]
     fn lex_true_false_keywords() {
         let toks = Lexer::new("true false").tokenize().unwrap();
-        assert_eq!(toks[0], Token::True);
-        assert_eq!(toks[1], Token::False);
+        assert_eq!(toks[0].kind, TokenKind::True);
+        assert_eq!(toks[1].kind, TokenKind::False);
     }
 
     #[test]
     fn lex_match_keyword() {
         let toks = Lexer::new("match").tokenize().unwrap();
-        assert_eq!(toks[0], Token::Match);
+        assert_eq!(toks[0].kind, TokenKind::Match);
     }
 
     #[test]
     fn lex_fat_arrow() {
         let toks = Lexer::new("=>").tokenize().unwrap();
-        assert_eq!(toks[0], Token::FatArrow);
+        assert_eq!(toks[0].kind, TokenKind::FatArrow);
     }
 
     #[test]
     fn lex_bang_not_fat_arrow() {
         let toks = Lexer::new("= x").tokenize().unwrap();
-        assert_eq!(toks[0], Token::Eq);
+        assert_eq!(toks[0].kind, TokenKind::Eq);
     }
 
     #[test]
@@ -959,16 +957,16 @@ mod hoisting_and_optionals_tests {
 #[cfg(test)]
 mod elif_and_for_tests {
     use crate::codegen::Codegen;
-    use crate::lexer::{Lexer, Token};
+    use crate::lexer::{Lexer, TokenKind};
     use crate::module::resolve_module;
     use crate::parser::{Item, Parser, Stmt};
     use std::collections::HashMap;
     use std::path::Path;
 
     fn compile(src: &str) -> Result<String, String> {
-        let resolved = resolve_module(src, Path::new("."), &mut HashMap::new())?;
+        let resolved = resolve_module(src, Path::new("."), &mut HashMap::new(), "")?;
         let mut cg = Codegen::new();
-        cg.emit_module(&resolved)?;
+        cg.emit_module(&resolved, false)?;
         Ok(cg.finish())
     }
 
@@ -984,26 +982,26 @@ mod elif_and_for_tests {
     #[test]
     fn lex_elif_keyword() {
         let toks = Lexer::new("elif").tokenize().unwrap();
-        assert_eq!(toks[0], Token::Elif);
+        assert_eq!(toks[0].kind, TokenKind::Elif);
     }
 
     #[test]
     fn lex_for_keyword() {
         let toks = Lexer::new("for").tokenize().unwrap();
-        assert_eq!(toks[0], Token::For);
+        assert_eq!(toks[0].kind, TokenKind::For);
     }
 
     #[test]
     fn lex_plus_plus() {
         let toks = Lexer::new("x++").tokenize().unwrap();
-        assert_eq!(toks[0], Token::Ident("x".into()));
-        assert_eq!(toks[1], Token::PlusPlus);
+        assert_eq!(toks[0].kind, TokenKind::Ident("x".into()));
+        assert_eq!(toks[1].kind, TokenKind::PlusPlus);
     }
 
     #[test]
     fn lex_plus_not_plus_plus() {
         let toks = Lexer::new("x + y").tokenize().unwrap();
-        assert_eq!(toks[1], Token::Plus);
+        assert_eq!(toks[1].kind, TokenKind::Plus);
     }
 
     #[test]
@@ -1216,16 +1214,16 @@ mod elif_and_for_tests {
 #[cfg(test)]
 mod memory_and_defer_tests {
     use crate::codegen::Codegen;
-    use crate::lexer::{Lexer, Token};
+    use crate::lexer::{Lexer, TokenKind};
     use crate::module::resolve_module;
     use crate::parser::{Item, Parser, Stmt};
     use std::collections::HashMap;
     use std::path::Path;
 
     fn compile(src: &str) -> Result<String, String> {
-        let resolved = resolve_module(src, Path::new("."), &mut HashMap::new())?;
+        let resolved = resolve_module(src, Path::new("."), &mut HashMap::new(), "")?;
         let mut cg = Codegen::new();
-        cg.emit_module(&resolved)?;
+        cg.emit_module(&resolved, false)?;
         Ok(cg.finish())
     }
 
@@ -1241,13 +1239,13 @@ mod memory_and_defer_tests {
     #[test]
     fn lex_defer_keyword() {
         let toks = Lexer::new("defer").tokenize().unwrap();
-        assert_eq!(toks[0], Token::Defer);
+        assert_eq!(toks[0].kind, TokenKind::Defer);
     }
 
     #[test]
     fn lex_break_keyword() {
         let toks = Lexer::new("break").tokenize().unwrap();
-        assert_eq!(toks[0], Token::Break);
+        assert_eq!(toks[0].kind, TokenKind::Break);
     }
 
     #[test]
