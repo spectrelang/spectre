@@ -339,12 +339,39 @@ impl Codegen {
                 }
 
                 let (tmp, qty) = self.emit_expr(expr, ns)?;
-                self.locals.insert(name.clone(), tmp);
-                self.local_types.insert(name.clone(), qty);
-                self.local_mutability.insert(name.clone(), *mutable);
+                if *mutable && qty != "d" {
+                    // Use declared type annotation to determine slot width if available
+                    let slot_qty = if let Some(TypeExpr::Named(type_name)) = ty {
+                        qbe_type(&TypeExpr::Named(type_name.clone()))
+                    } else {
+                        qty
+                    };
+                    let slot = self.fresh_tmp();
+                    self.emit(&format!("    {slot} =l alloc8 8"));
+                    if slot_qty == "l" {
+                        let (tmp_l, _) = self.promote_to_l(tmp, qty);
+                        self.emit(&format!("    storel {tmp_l}, {slot}"));
+                    } else {
+                        self.emit(&format!("    storew {tmp}, {slot}"));
+                    }
+                    self.locals.insert(name.clone(), slot.clone());
+                    self.local_types.insert(name.clone(), slot_qty);
+                    self.local_mutability.insert(name.clone(), true);
+                    self.local_is_slot.insert(name.clone());
+                    if slot_qty == "l" {
+                        self.local_type_annotations.insert(name.clone(), "__slot_l".to_string());
+                    }
+                } else {
+                    self.locals.insert(name.clone(), tmp);
+                    self.local_types.insert(name.clone(), qty);
+                    self.local_mutability.insert(name.clone(), *mutable);
+                }
                 if let Some(TypeExpr::Named(type_name)) = ty {
-                    self.local_type_annotations
-                        .insert(name.clone(), type_name.clone());
+                    // Don't overwrite __slot_l marker for mutable slot variables
+                    if !self.local_is_slot.contains(name) {
+                        self.local_type_annotations
+                            .insert(name.clone(), type_name.clone());
+                    }
                 }
             }
 
@@ -363,7 +390,13 @@ impl Codegen {
                             .get(name)
                             .cloned()
                             .ok_or_else(|| format!("undefined variable: {name}"))?;
-                        self.emit(&format!("    storew {val_tmp}, {slot}"));
+                        let is_l_slot = self.local_type_annotations.get(name).map(|s| s == "__slot_l").unwrap_or(false);
+                        if is_l_slot {
+                            let (val_l, _) = self.promote_to_l(val_tmp, val_qty);
+                            self.emit(&format!("    storel {val_l}, {slot}"));
+                        } else {
+                            self.emit(&format!("    storew {val_tmp}, {slot}"));
+                        }
                     } else {
                         self.locals.insert(name.clone(), val_tmp);
                         self.local_types.insert(name.clone(), val_qty);
@@ -582,11 +615,18 @@ impl Codegen {
                     .get(var)
                     .cloned()
                     .ok_or_else(|| format!("undefined variable: {var}"))?;
+                let is_l_slot = self.local_type_annotations.get(var).map(|s| s == "__slot_l").unwrap_or(false);
                 let cur = self.fresh_tmp();
                 let inc = self.fresh_tmp();
-                self.emit(&format!("    {cur} =w loadw {slot}"));
-                self.emit(&format!("    {inc} =w add {cur}, 1"));
-                self.emit(&format!("    storew {inc}, {slot}"));
+                if is_l_slot {
+                    self.emit(&format!("    {cur} =l loadl {slot}"));
+                    self.emit(&format!("    {inc} =l add {cur}, 1"));
+                    self.emit(&format!("    storel {inc}, {slot}"));
+                } else {
+                    self.emit(&format!("    {cur} =w loadw {slot}"));
+                    self.emit(&format!("    {inc} =w add {cur}, 1"));
+                    self.emit(&format!("    storew {inc}, {slot}"));
+                }
             }
             Stmt::Defer(body) => {
                 self.defer_stack.push(body.clone());
@@ -750,8 +790,14 @@ impl Codegen {
                     })?;
                 if self.local_is_slot.contains(name) {
                     let tmp = self.fresh_tmp();
-                    self.emit(&format!("    {tmp} =w loadw {slot_or_tmp}"));
-                    Ok((tmp, "w"))
+                    let is_l_slot = self.local_type_annotations.get(name).map(|s| s == "__slot_l").unwrap_or(false);
+                    if is_l_slot {
+                        self.emit(&format!("    {tmp} =l loadl {slot_or_tmp}"));
+                        Ok((tmp, "l"))
+                    } else {
+                        self.emit(&format!("    {tmp} =w loadw {slot_or_tmp}"));
+                        Ok((tmp, "w"))
+                    }
                 } else {
                     let qty = self.local_types.get(name).copied().unwrap_or("l");
                     Ok((slot_or_tmp, qty))

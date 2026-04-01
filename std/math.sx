@@ -121,9 +121,7 @@ pub fn pow(base: i64, exp: usize) i64 = {
 
     for (i = 0; i < exp; i++) {
         result = result * base
-        i = i + 1
     }
-
     post {
         !(exp == 0) || result == 1
         !(exp == 1) || result == base
@@ -141,7 +139,7 @@ pub fn gcd(a: i64, b: i64) i64 = {
     val y: mut i64 = abs(b)
 
     for {
-        if (y == 0) {
+        if (y <= 0) {
             break
         }
         val t = y
@@ -210,7 +208,6 @@ pub fn sqrt(x: f64) f64 = {
 
     for (i = 0; i < 20; i++) {
         guess = 0.5 * (guess + x / guess)
-        i = i + 1
     }
 
     return guess
@@ -256,7 +253,6 @@ pub fn approx_eq(a: f64, b: f64, eps: f64) bool = {
 
 test {
     assert clamp(10, 0, 5) == 5
-
     assert gcd(48, 18) == 6
     assert lcm(6, 8) == 24
 
