@@ -1138,8 +1138,8 @@ mod elif_and_for_tests {
             }
         "#,
         );
-        assert!(ir.contains("=w add"));
-        assert!(ir.contains("storew"));
+        assert!(ir.contains("=l add"));
+        assert!(ir.contains("storel"));
     }
 
     #[test]
@@ -1154,7 +1154,7 @@ mod elif_and_for_tests {
             }
         "#,
         );
-        assert!(ir.contains("loadw"));
+        assert!(ir.contains("loadl"));
     }
 
     #[test]
@@ -1178,7 +1178,7 @@ mod elif_and_for_tests {
     }
 
     #[test]
-    fn codegen_for_init_uses_alloc4() {
+    fn codegen_for_init_uses_alloc8() {
         let ir = compile_ok(
             r#"
             pub fn main() void! = {
@@ -1186,7 +1186,7 @@ mod elif_and_for_tests {
             }
         "#,
         );
-        assert!(ir.contains("alloc4"));
+        assert!(ir.contains("alloc8"));
     }
 }
 

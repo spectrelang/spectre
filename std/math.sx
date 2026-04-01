@@ -240,11 +240,14 @@ pub fn lerp(a: f64, b: f64, t: f64) f64 = {
     return a + (b - a) * t
 }
 
+val std = use("std")
+
 /// Check approximate equality
 pub fn approx_eq(a: f64, b: f64, eps: f64) bool = {
     pre {
         positive_epsilon: eps > 0.0
     }
+    
     return fabs(a - b) <= eps
 }
 
@@ -254,7 +257,8 @@ test {
     assert lcm(6, 8) == 24
 
     val s = sqrt(25.0)
-    assert approx_eq(s, 5.0, 0.0001)
+    std.io.put_any("{f}", {s})
+    assert approx_eq(s, 5.0, 0.00001)
 
     val x = lerp(0.0, 10.0, 0.5)
     assert approx_eq(x, 5.0, 0.0001)

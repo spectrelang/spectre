@@ -33,6 +33,7 @@ pub struct Codegen {
     local_type_annotations: HashMap<String, String>,
     local_is_slot: std::collections::HashSet<String>,
     local_slot_is_l: std::collections::HashSet<String>,
+    local_slot_is_d: std::collections::HashSet<String>,
     type_defs: HashMap<String, Vec<Field>>,
     trusted_fns: std::collections::HashSet<String>,
     current_fn: String,
@@ -58,6 +59,7 @@ impl Codegen {
             local_type_annotations: HashMap::new(),
             local_is_slot: std::collections::HashSet::new(),
             local_slot_is_l: std::collections::HashSet::new(),
+            local_slot_is_d: std::collections::HashSet::new(),
             type_defs: HashMap::new(),
             trusted_fns: std::collections::HashSet::new(),
             current_fn: String::new(),
@@ -205,6 +207,7 @@ impl Codegen {
         self.local_type_annotations.clear();
         self.local_is_slot.clear();
         self.local_slot_is_l.clear();
+        self.local_slot_is_d.clear();
         self.defer_stack.clear();
         self.type_aliases.clear();
         self.tmp_counter = 0;
@@ -285,6 +288,7 @@ impl Codegen {
         self.local_type_annotations.clear();
         self.local_is_slot.clear();
         self.local_slot_is_l.clear();
+        self.local_slot_is_d.clear();
         self.defer_stack.clear();
         self.type_aliases.clear();
         self.tmp_counter = 0;
@@ -343,7 +347,7 @@ impl Codegen {
                 }
 
                 let (tmp, qty) = self.emit_expr(expr, ns)?;
-                if *mutable && qty != "d" {
+                if *mutable {
                     // Use declared type annotation to determine slot width if available
                     let slot_qty = if let Some(TypeExpr::Named(type_name)) = ty {
                         qbe_type(&TypeExpr::Named(type_name.clone()))
@@ -352,7 +356,9 @@ impl Codegen {
                     };
                     let slot = self.fresh_tmp();
                     self.emit(&format!("    {slot} =l alloc8 8"));
-                    if slot_qty == "l" {
+                    if slot_qty == "d" {
+                        self.emit(&format!("    stored {tmp}, {slot}"));
+                    } else if slot_qty == "l" {
                         let (tmp_l, _) = self.promote_to_l(tmp, qty);
                         self.emit(&format!("    storel {tmp_l}, {slot}"));
                     } else {
@@ -364,6 +370,8 @@ impl Codegen {
                     self.local_is_slot.insert(name.clone());
                     if slot_qty == "l" {
                         self.local_slot_is_l.insert(name.clone());
+                    } else if slot_qty == "d" {
+                        self.local_slot_is_d.insert(name.clone());
                     }
                 } else {
                     self.locals.insert(name.clone(), tmp);
@@ -391,8 +399,11 @@ impl Codegen {
                             .get(name)
                             .cloned()
                             .ok_or_else(|| format!("undefined variable: {name}"))?;
+                        let is_d_slot = self.local_slot_is_d.contains(name);
                         let is_l_slot = self.local_slot_is_l.contains(name);
-                        if is_l_slot {
+                        if is_d_slot {
+                            self.emit(&format!("    stored {val_tmp}, {slot}"));
+                        } else if is_l_slot {
                             let (val_l, _) = self.promote_to_l(val_tmp, val_qty);
                             self.emit(&format!("    storel {val_l}, {slot}"));
                         } else {
@@ -576,13 +587,15 @@ impl Codegen {
                 self.tmp_counter += 1;
 
                 if let Some((var, init_expr)) = init {
-                    let (tmp, _) = self.emit_expr(init_expr, ns)?;
+                    let (tmp, qty) = self.emit_expr(init_expr, ns)?;
                     let slot = self.fresh_tmp();
-                    self.emit(&format!("    {slot} =l alloc4 4"));
-                    self.emit(&format!("    storew {tmp}, {slot}"));
+                    self.emit(&format!("    {slot} =l alloc8 8"));
+                    let (tmp_l, _) = self.promote_to_l(tmp, qty);
+                    self.emit(&format!("    storel {tmp_l}, {slot}"));
                     self.locals.insert(var.clone(), slot.clone());
                     self.local_mutability.insert(var.clone(), true);
                     self.local_is_slot.insert(var.clone());
+                    self.local_slot_is_l.insert(var.clone());
                 }
 
                 self.emit(&format!("    jmp {loop_lbl}"));
@@ -791,8 +804,12 @@ impl Codegen {
                     })?;
                 if self.local_is_slot.contains(name) {
                     let tmp = self.fresh_tmp();
+                    let is_d_slot = self.local_slot_is_d.contains(name);
                     let is_l_slot = self.local_slot_is_l.contains(name);
-                    if is_l_slot {
+                    if is_d_slot {
+                        self.emit(&format!("    {tmp} =d loadd {slot_or_tmp}"));
+                        Ok((tmp, "d"))
+                    } else if is_l_slot {
                         self.emit(&format!("    {tmp} =l loadl {slot_or_tmp}"));
                         Ok((tmp, "l"))
                     } else {
