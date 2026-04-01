@@ -240,6 +240,16 @@ pub fn lerp(a: f64, b: f64, t: f64) f64 = {
     return a + (b - a) * t
 }
 
+/// Is this number even?
+pub fn is_even(x: i64) bool = {
+    return x % 2 == 0
+}
+
+/// Is this number odd?
+pub fn is_odd(x: i64) bool = {
+    return x % 2 != 0
+}
+
 /// Check approximate equality
 pub fn approx_eq(a: f64, b: f64, eps: f64) bool = {
     pre {
