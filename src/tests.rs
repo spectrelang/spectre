@@ -1191,6 +1191,88 @@ mod elif_and_for_tests {
 }
 
 #[cfg(test)]
+mod float_mut_and_for_regression_tests {
+    use crate::codegen::Codegen;
+    use crate::module::resolve_module;
+    use std::collections::HashMap;
+    use std::path::Path;
+
+    fn compile(src: &str) -> Result<String, String> {
+        let resolved = resolve_module(src, Path::new("."), &mut HashMap::new(), "")?;
+        let mut cg = Codegen::new();
+        cg.emit_module(&resolved, false)?;
+        Ok(cg.finish())
+    }
+
+    fn compile_ok(src: &str) -> String {
+        compile(src).expect("expected compilation to succeed")
+    }
+
+    #[test]
+    fn mut_f64_uses_stored_and_loadd() {
+        let ir = compile_ok(
+            r#"
+            pub fn identity(x: f64) f64 = { return x }
+            pub fn main() void! = {
+                val x: mut f64 = 1.0
+                x = 2.0
+                val y = identity(x)
+            }
+        "#,
+        );
+        assert!(ir.contains("stored"), "mutable f64 should use stored");
+        assert!(ir.contains("loadd"), "mutable f64 should use loadd");
+    }
+
+    #[test]
+    fn mut_f64_assignment_in_loop_updates_value() {
+        let ir = compile_ok(
+            r#"
+            pub fn sqrt_approx(x: f64) f64! = {
+                val guess: mut f64 = x
+                val i: mut usize = 0
+                for (i = 0; i < 5; i++) {
+                    guess = 0.5 * (guess + x / guess)
+                }
+                return guess
+            }
+        "#,
+        );
+        assert!(ir.contains("stored"), "loop body must store updated guess");
+        assert!(ir.contains("loadd"), "loop body must load guess each iteration");
+    }
+
+    #[test]
+    fn for_loop_counter_uses_alloc8_and_storel() {
+        let ir = compile_ok(
+            r#"
+            pub fn main() void! = {
+                for (i = 0; i < 10; i++) { val x = 1 }
+            }
+        "#,
+        );
+        assert!(ir.contains("alloc8"), "for-loop counter slot must be 8 bytes");
+        assert!(ir.contains("storel"), "for-loop counter must use storel");
+        assert!(ir.contains("loadl"), "for-loop counter must use loadl");
+        assert!(!ir.contains("alloc4"), "alloc4 is wrong for a usize counter");
+    }
+
+    // Regression: for-loop counter increment must be 64-bit (=l add, not =w add)
+    #[test]
+    fn for_loop_increment_is_64bit() {
+        let ir = compile_ok(
+            r#"
+            pub fn main() void! = {
+                for (i = 0; i < 10; i++) { val x = 1 }
+            }
+        "#,
+        );
+        assert!(ir.contains("=l add"), "i++ must emit =l add, not =w add");
+        assert!(!ir.contains("=w add"), "=w add is wrong for usize increment");
+    }
+}
+
+#[cfg(test)]
 mod memory_and_defer_tests {
     use crate::codegen::Codegen;
     use crate::lexer::{Lexer, TokenKind};

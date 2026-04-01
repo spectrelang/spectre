@@ -1,0 +1,4 @@
+pub fn main() void! = {
+    val x: mut f64 = 1.0
+    x = 2.0
+}
