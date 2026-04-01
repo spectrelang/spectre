@@ -363,15 +363,15 @@ impl Codegen {
                     }
                 }
                 let (val_tmp, val_ty) = self.emit_expr(value, ns)?;
-                let store_val = if val_ty == "l" {
-                    let w = self.fresh_tmp();
-                    self.emit(&format!("    {w} =w copy {val_tmp}"));
-                    w
+                let store_val = if val_ty == "w" {
+                    let ext = self.fresh_tmp();
+                    self.emit(&format!("    {ext} =l extsw {val_tmp}"));
+                    ext
                 } else {
                     val_tmp
                 };
                 let ptr = self.emit_field_ptr(target, ns)?;
-                self.emit(&format!("    storew {store_val}, {ptr}"));
+                self.emit(&format!("    storel {store_val}, {ptr}"));
             }
 
             Stmt::Return(None) => {
@@ -842,8 +842,8 @@ impl Codegen {
             Expr::Field(_base, _field_name) => {
                 let ptr = self.emit_field_ptr(expr, ns)?;
                 let tmp = self.fresh_tmp();
-                self.emit(&format!("    {tmp} =w loadw {ptr}"));
-                Ok((tmp, "w"))
+                self.emit(&format!("    {tmp} =l loadl {ptr}"));
+                Ok((tmp, "l"))
             }
 
             Expr::StructLit { fields } => {
@@ -856,11 +856,11 @@ impl Codegen {
                     let field_ptr = self.fresh_tmp();
                     self.emit(&format!("    {field_ptr} =l add {ptr}, {offset}"));
                     if val_ty == "l" {
-                        let w = self.fresh_tmp();
-                        self.emit(&format!("    {w} =w copy {val}"));
-                        self.emit(&format!("    storew {w}, {field_ptr}"));
+                        self.emit(&format!("    storel {val}, {field_ptr}"));
                     } else {
-                        self.emit(&format!("    storew {val}, {field_ptr}"));
+                        let ext = self.fresh_tmp();
+                        self.emit(&format!("    {ext} =l extsw {val}"));
+                        self.emit(&format!("    storel {ext}, {field_ptr}"));
                     }
                 }
                 Ok((ptr, "l"))

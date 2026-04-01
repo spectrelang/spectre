@@ -503,7 +503,7 @@ mod codegen_tests {
             }
         "#,
         );
-        assert!(ir.contains("storew"));
+        assert!(ir.contains("storel"));
     }
 
     #[test]
@@ -1593,7 +1593,7 @@ mod method_namespace_tests {
             }
         "#,
         );
-        assert!(ir.contains("loadw"));
+        assert!(ir.contains("loadl"));
     }
 
     #[test]
