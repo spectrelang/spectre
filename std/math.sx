@@ -148,12 +148,9 @@ pub fn gcd(a: i64, b: i64) i64 = {
     }
 
     post {
-        x >= 0
-        a % x == 0
-        b % x == 0
-        a == 0 && b == 0 >= x == 0
-        a == 0 >= x == abs(b)
-        b == 0 >= x == abs(a)
+        btz: x >= 0
+        mod_eq_z_a: a % x == 0
+        mod_eq_z_b: b % x == 0
     }
 
     return x
