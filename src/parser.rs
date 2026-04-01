@@ -112,6 +112,7 @@ pub enum Expr {
     Call {
         callee: Box<Expr>,
         args: Vec<Expr>,
+        line: usize,
     },
     Builtin {
         name: String,
@@ -155,6 +156,7 @@ pub enum BinOp {
 pub enum UnOp {
     Not,
     Neg,
+    BitwiseNot,
 }
 
 pub struct Parser {
@@ -747,6 +749,13 @@ impl Parser {
                     expr: Box::new(self.parse_unary()?),
                 })
             }
+            TokenKind::Tilde => {
+                self.advance();
+                Ok(Expr::UnOp {
+                    op: UnOp::BitwiseNot,
+                    expr: Box::new(self.parse_unary()?),
+                })
+            }
             TokenKind::Trust => {
                 self.advance();
                 Ok(Expr::Trust(Box::new(self.parse_call_chain()?)))
@@ -770,12 +779,14 @@ impl Parser {
                 let field = self.expect_ident()?;
                 expr = Expr::Field(Box::new(expr), field);
             } else if self.peek() == &TokenKind::LParen {
+                let call_line = self.peek_token().line;
                 self.advance();
                 let args = self.parse_call_args()?;
                 self.expect(&TokenKind::RParen)?;
                 expr = Expr::Call {
                     callee: Box::new(expr),
                     args,
+                    line: call_line,
                 };
             } else {
                 break;

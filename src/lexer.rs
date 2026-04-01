@@ -57,6 +57,7 @@ pub enum TokenKind {
     Not,
     Arrow,
     FatArrow,
+    Tilde,
     Eof,
 }
 
@@ -289,6 +290,7 @@ impl Lexer {
                 }
                 TokenKind::Or
             }
+            '~' => TokenKind::Tilde,
             other => return Err(format!("unexpected character: {other:?}")),
         })
     }

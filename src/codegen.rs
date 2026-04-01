@@ -106,7 +106,7 @@ impl Codegen {
         let ns = build_namespace(resolved);
         let trusted = build_trusted_set(resolved);
         self.trusted_fns = trusted;
-        self.emit_module_recursive(resolved, &ns, test_mode)?;
+        self.emit_module_recursive(resolved, &ns, test_mode, true)?;
         if test_mode {
             self.emit_test_main()?;
         }
@@ -118,9 +118,10 @@ impl Codegen {
         resolved: &ResolvedModule,
         ns: &Namespace,
         test_mode: bool,
+        is_root: bool,
     ) -> Result<(), String> {
         for child in resolved.imports.values() {
-            self.emit_module_recursive(child, ns, test_mode)?;
+            self.emit_module_recursive(child, ns, test_mode, false)?;
         }
 
         let prev_file = self.current_file.clone();
@@ -153,7 +154,7 @@ impl Codegen {
                     }
                     self.emit_fn(f, &local_ns)?
                 }
-                Item::Test { body } if test_mode => self.emit_test_fn(body, &local_ns)?,
+                Item::Test { body } if test_mode && is_root => self.emit_test_fn(body, &local_ns)?,
                 Item::Use { .. }
                 | Item::Const { .. }
                 | Item::TypeDef { .. }
@@ -835,8 +836,9 @@ impl Codegen {
                 }
             }
 
-            Expr::Call { callee, args } => {
-                let fn_name = resolve_call_name(callee, ns)?;
+            Expr::Call { callee, args, line } => {
+                let fn_name = resolve_call_name(callee, ns)
+                    .map_err(|e| format!("{}:{}: {}", self.current_file, line, e))?;
 
                 if fn_name == "put_any" {
                     let fmt_str = match args.first() {
@@ -960,6 +962,11 @@ impl Codegen {
                 match op {
                     Not => self.emit(&format!("    {tmp} =w ceqw {v}, 0")),
                     Neg => self.emit(&format!("    {tmp} =w neg {v}")),
+                    BitwiseNot => {
+                        let (v_l, _) = self.promote_to_l(v, "w");
+                        self.emit(&format!("    {tmp} =l xor {v_l}, -1"));
+                        return Ok((tmp, "l"));
+                    }
                 }
                 Ok((tmp, "w"))
             }
