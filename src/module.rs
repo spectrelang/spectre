@@ -49,6 +49,9 @@ pub fn resolve_module(
     let mut parser = Parser::with_filename(tokens, filename.to_string());
     let ast = parser.parse_module()?;
     let mut imports = HashMap::new();
+    let self_path = PathBuf::from(filename);
+    
+    visited.insert(self_path, ());
 
     for item in &ast.items {
         if let Item::Use { name, path } = item {

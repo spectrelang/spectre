@@ -86,9 +86,11 @@ pub fn (Arena) reset(arena: Self) void! = {
     @store(@ptradd(arena, 8), 0)
 }
 
+val std = use("std")
+
 test {
     val arena = Arena.new(64)
-
+    std.io.print("done making new arena")
     assert Arena.cap(arena) == 64
     assert Arena.used(arena) == 0
     assert Arena.remaining(arena) == 64
