@@ -5,12 +5,15 @@ use std::collections::HashMap;
 fn qbe_type(ty: &TypeExpr) -> &'static str {
     match ty {
         TypeExpr::Named(n) => match n.as_str() {
-            "i32" | "u32" | "bool" => "w",
-            "i64" | "u64" | "usize" => "l",
+            "i32" | "u32" => "w",
+            "i64" | "u64" | "usize" | "isize" => "l",
+            "i8" | "u8" | "i16" | "u16" | "bool" => "w",
             "f32" => "s",
             "f64" => "d",
+            "ptr" | "rawptr" => "l",
             _ => "l",
         },
+
         TypeExpr::Slice(_) => "l",
         TypeExpr::Ref(_) => "l",
         TypeExpr::Option(_) => "l",
