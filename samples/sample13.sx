@@ -1,0 +1,18 @@
+val std = use("std")
+
+type SomeType = {
+    x: i32
+    y: i32
+}
+
+pub fn (SomeType) do_some_thing(s: Self, times: usize) void! = {
+    for (i = 0; i < times; i++) {
+        std.io.put_any("{d}, {d}", {s.x, s.y})
+    }
+}
+
+pub fn main() i32! = {
+    val x: SomeType = {x: 10, y: 40}
+    SomeType.do_some_thing(x, 20)
+    return 0
+}

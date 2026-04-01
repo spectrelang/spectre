@@ -29,6 +29,7 @@ pub enum Item {
 #[derive(Debug, Clone)]
 pub struct FnDef {
     pub public: bool,
+    pub namespace: Option<String>,
     pub name: String,
     pub params: Vec<(String, TypeExpr)>,
     pub ret: TypeExpr,
@@ -231,7 +232,6 @@ impl Parser {
     }
 
     fn parse_item(&mut self) -> Result<Item, String> {
-        // Check for test block first
         if let TokenKind::Test = self.peek() {
             return self.parse_test();
         }
@@ -264,9 +264,30 @@ impl Parser {
 
     fn parse_fn(&mut self, public: bool) -> Result<Item, String> {
         self.expect(&TokenKind::Fn)?;
+
+        let namespace = if self.peek() == &TokenKind::LParen {
+            let is_ns = matches!(
+                self.tokens.get(self.pos + 1).map(|t| &t.kind),
+                Some(TokenKind::Ident(_))
+            ) && matches!(
+                self.tokens.get(self.pos + 2).map(|t| &t.kind),
+                Some(TokenKind::RParen)
+            );
+            if is_ns {
+                self.advance();
+                let type_name = self.expect_ident()?;
+                self.expect(&TokenKind::RParen)?;
+                Some(type_name)
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
         let name = self.expect_ident()?;
         self.expect(&TokenKind::LParen)?;
-        let params = self.parse_params()?;
+        let params = self.parse_params_with_self(namespace.as_deref())?;
         self.expect(&TokenKind::RParen)?;
         let (ret, trusted) = self.parse_ret_type()?;
         self.expect(&TokenKind::Eq)?;
@@ -275,6 +296,7 @@ impl Parser {
         self.expect(&TokenKind::RBrace)?;
         Ok(Item::Fn(FnDef {
             public,
+            namespace,
             name,
             params,
             ret,
@@ -284,11 +306,27 @@ impl Parser {
     }
 
     fn parse_params(&mut self) -> Result<Vec<(String, TypeExpr)>, String> {
+        self.parse_params_with_self(None)
+    }
+
+    fn parse_params_with_self(
+        &mut self,
+        self_type: Option<&str>,
+    ) -> Result<Vec<(String, TypeExpr)>, String> {
         let mut params = Vec::new();
         while self.peek() != &TokenKind::RParen {
             let name = self.expect_ident()?;
             self.expect(&TokenKind::Colon)?;
             let ty = self.parse_type()?;
+            let ty = if let (Some(type_name), TypeExpr::Named(n)) = (self_type, &ty) {
+                if n == "Self" {
+                    TypeExpr::Named(type_name.to_string())
+                } else {
+                    ty
+                }
+            } else {
+                ty
+            };
             params.push((name, ty));
             if !self.eat(&TokenKind::Comma) {
                 break;

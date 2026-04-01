@@ -129,15 +129,28 @@ impl Codegen {
             }
         }
 
+        let mut local_ns = ns.clone();
+        for item in &resolved.ast.items {
+            if let Item::Fn(f) = item {
+                if f.namespace.is_some() && !f.public {
+                    let local_key = match &f.namespace {
+                        Some(type_name) => format!("{type_name}.{}", f.name),
+                        None => f.name.clone(),
+                    };
+                    local_ns.insert(local_key, fn_qbe_name(f));
+                }
+            }
+        }
+
         for item in &resolved.ast.items {
             match item {
                 Item::Fn(f) => {
                     if test_mode && f.name == "main" {
                         continue;
                     }
-                    self.emit_fn(f, ns)?
+                    self.emit_fn(f, &local_ns)?
                 }
-                Item::Test { body } if test_mode => self.emit_test_fn(body, ns)?,
+                Item::Test { body } if test_mode => self.emit_test_fn(body, &local_ns)?,
                 Item::Use { .. }
                 | Item::Const { .. }
                 | Item::TypeDef { .. }
@@ -157,7 +170,9 @@ impl Codegen {
         self.local_is_slot.clear();
         self.defer_stack.clear();
         self.tmp_counter = 0;
-        self.current_fn = f.name.clone();
+
+        let qbe_name = fn_qbe_name(f);
+        self.current_fn = qbe_name.clone();
 
         if !f.trusted {
             let has_pre = f.body.iter().any(|s| matches!(s, Stmt::Pre(_)));
@@ -165,7 +180,7 @@ impl Codegen {
             if !all_trusted_stmts(&f.body) && (!has_pre || !has_post) {
                 return Err(format!(
                     "pure function '{}' must have both 'pre' and 'post' contract blocks, or consist entirely of 'trust' statements",
-                    f.name
+                    qbe_name
                 ));
             }
         }
@@ -184,13 +199,17 @@ impl Codegen {
                 let qty = qbe_type(ty);
                 self.locals.insert(name.clone(), tmp.clone());
                 self.local_types.insert(name.clone(), qty);
+                if let TypeExpr::Named(type_name) = ty {
+                    self.local_type_annotations
+                        .insert(name.clone(), type_name.clone());
+                }
                 format!("{qty} {tmp}")
             })
             .collect();
 
         self.emit(&format!(
             "{export}function {ret_ty}${name}({params}) {{",
-            name = f.name,
+            name = qbe_name,
             params = params.join(", ")
         ));
         self.emit("@start");
@@ -1003,10 +1022,14 @@ fn collect_trusted(
     for item in &module.ast.items {
         if let Item::Fn(f) = item {
             if f.trusted {
+                let local_key = match &f.namespace {
+                    Some(type_name) => format!("{type_name}.{}", f.name),
+                    None => f.name.clone(),
+                };
                 let key = if prefix.is_empty() {
-                    f.name.clone()
+                    local_key
                 } else {
-                    format!("{prefix}.{}", f.name)
+                    format!("{prefix}.{local_key}")
                 };
                 trusted.insert(key);
             }
@@ -1022,16 +1045,36 @@ fn collect_trusted(
     }
 }
 
+/// Compute the QBE-level symbol name for a function.
+/// Namespaced methods are mangled: `SomeType__method_name`
+fn fn_qbe_name(f: &FnDef) -> String {
+    match &f.namespace {
+        Some(type_name) => format!("{}__{}", type_name, f.name),
+        None => f.name.clone(),
+    }
+}
+
 fn collect_ns(module: &ResolvedModule, prefix: &str, ns: &mut Namespace) {
     for item in &module.ast.items {
         match item {
             Item::Fn(f) => {
-                let key = if prefix.is_empty() {
-                    f.name.clone()
-                } else {
-                    format!("{prefix}.{}", f.name)
+                // Private namespaced functions are not in the global namespace.
+                // They are injected into a per-module local namespace during emission
+                // so that public methods can call them, but user code cannot.
+                if f.namespace.is_some() && !f.public {
+                    continue;
+                }
+                let qbe = fn_qbe_name(f);
+                let local_key = match &f.namespace {
+                    Some(type_name) => format!("{type_name}.{}", f.name),
+                    None => f.name.clone(),
                 };
-                ns.insert(key, f.name.clone());
+                let key = if prefix.is_empty() {
+                    local_key
+                } else {
+                    format!("{prefix}.{local_key}")
+                };
+                ns.insert(key, qbe);
             }
             _ => {}
         }
