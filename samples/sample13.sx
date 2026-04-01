@@ -7,7 +7,7 @@ type SomeType = {
 
 pub fn (SomeType) do_some_thing(s: Self, times: usize) void! = {
     for (i = 0; i < times; i++) {
-        std.io.put_any("{d}, {d}", {s.x, s.y})
+        std.io.put_any("{d}, {d}\n", {s.x, s.y})
     }
 }
 
