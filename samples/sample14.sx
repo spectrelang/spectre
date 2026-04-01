@@ -1,0 +1,5 @@
+val std = use("std")
+
+pub fn main() void! = {
+	std.io.put_any("{d} {s}", {1, "asdf"})	
+}
