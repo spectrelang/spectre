@@ -41,6 +41,7 @@ pub struct Codegen {
     current_file: String,
     module_consts: HashMap<String, (String, &'static str)>,
     type_aliases: HashMap<String, String>,
+    fn_ret_types: HashMap<String, &'static str>,
 }
 
 impl Codegen {
@@ -64,6 +65,7 @@ impl Codegen {
             current_file: String::new(),
             module_consts: HashMap::new(),
             type_aliases: HashMap::new(),
+            fn_ret_types: HashMap::new(),
         }
     }
 
@@ -110,6 +112,7 @@ impl Codegen {
         let ns = build_namespace(resolved);
         let trusted = build_trusted_set(resolved);
         self.trusted_fns = trusted;
+        self.fn_ret_types = build_ret_types(resolved);
         self.emit_module_recursive(resolved, &ns, test_mode, true)?;
         if test_mode {
             self.emit_test_main()?;
@@ -144,7 +147,10 @@ impl Codegen {
                     crate::parser::Expr::IntLit(n) => (n.to_string(), "l"),
                     crate::parser::Expr::FloatLit(f) => (format!("d_{f}"), "d"),
                     crate::parser::Expr::Bool(b) => (if *b { "1" } else { "0" }.to_string(), "w"),
-                    crate::parser::Expr::UnOp { op: crate::parser::UnOp::Neg, expr } => match expr.as_ref() {
+                    crate::parser::Expr::UnOp {
+                        op: crate::parser::UnOp::Neg,
+                        expr,
+                    } => match expr.as_ref() {
                         crate::parser::Expr::IntLit(n) => (format!("-{n}"), "l"),
                         crate::parser::Expr::FloatLit(f) => (format!("d_-{f}"), "d"),
                         _ => continue,
@@ -351,8 +357,17 @@ impl Codegen {
                 }
                 if let Expr::Ident(name) = target {
                     let (val_tmp, val_qty) = self.emit_expr(value, ns)?;
-                    self.locals.insert(name.clone(), val_tmp);
-                    self.local_types.insert(name.clone(), val_qty);
+                    if self.local_is_slot.contains(name) {
+                        let slot = self
+                            .locals
+                            .get(name)
+                            .cloned()
+                            .ok_or_else(|| format!("undefined variable: {name}"))?;
+                        self.emit(&format!("    storew {val_tmp}, {slot}"));
+                    } else {
+                        self.locals.insert(name.clone(), val_tmp);
+                        self.local_types.insert(name.clone(), val_qty);
+                    }
                     return Ok(());
                 }
                 if let Expr::Field(base, field_name) = target {
@@ -370,9 +385,8 @@ impl Codegen {
                 }
                 let (val_tmp, val_ty) = self.emit_expr(value, ns)?;
                 let store_val = if val_ty == "w" {
-                    let ext = self.fresh_tmp();
-                    self.emit(&format!("    {ext} =l extsw {val_tmp}"));
-                    ext
+                    let (promoted, _) = self.promote_to_l(val_tmp, val_ty);
+                    promoted
                 } else {
                     val_tmp
                 };
@@ -703,13 +717,17 @@ impl Codegen {
 
     /// Promote a w value to l via sign-extension (needed for variadic call args).
     fn promote_to_l(&mut self, tmp: String, ty: &'static str) -> (String, &'static str) {
-        if ty == "w" {
-            let ext = self.fresh_tmp();
-            self.emit(&format!("    {ext} =l extsw {tmp}"));
-            (ext, "l")
-        } else {
-            (tmp, ty)
+        if ty == "d" || ty == "l" {
+            return (tmp, ty);
         }
+        let ext = self.fresh_tmp();
+        let is_literal = tmp.starts_with(|c: char| c.is_ascii_digit() || c == '-');
+        if is_literal {
+            self.emit(&format!("    {ext} =l copy {tmp}"));
+        } else {
+            self.emit(&format!("    {ext} =l extsw {tmp}"));
+        }
+        (ext, "l")
     }
 
     fn emit_expr(&mut self, expr: &Expr, ns: &Namespace) -> Result<(String, &'static str), String> {
@@ -866,8 +884,7 @@ impl Codegen {
                     if val_ty == "l" {
                         self.emit(&format!("    storel {val}, {field_ptr}"));
                     } else {
-                        let ext = self.fresh_tmp();
-                        self.emit(&format!("    {ext} =l extsw {val}"));
+                        let (ext, _) = self.promote_to_l(val, val_ty);
                         self.emit(&format!("    storel {ext}, {field_ptr}"));
                     }
                 }
@@ -934,17 +951,46 @@ impl Codegen {
                     }
                 }
                 let result = self.fresh_tmp();
+                let ret_ty = self
+                    .fn_ret_types
+                    .get(fn_name.as_str())
+                    .copied()
+                    .unwrap_or("l");
                 self.emit(&format!(
-                    "    {result} =l call ${fn_name}({args})",
+                    "    {result} ={ret_ty} call ${fn_name}({args})",
                     args = arg_strs.join(", ")
                 ));
-                Ok((result, "l"))
+                Ok((result, ret_ty))
             }
 
             Expr::BinOp { op, lhs, rhs } => {
                 use crate::parser::BinOp::*;
                 let (l, l_ty) = self.emit_expr(lhs, ns)?;
                 let (r, r_ty) = self.emit_expr(rhs, ns)?;
+                let tmp = self.fresh_tmp();
+                if l_ty == "d" || r_ty == "d" {
+                    let instr = match op {
+                        Add => format!("{tmp} =d add {l}, {r}"),
+                        Sub => format!("{tmp} =d sub {l}, {r}"),
+                        Mul => format!("{tmp} =d mul {l}, {r}"),
+                        Div => format!("{tmp} =d div {l}, {r}"),
+                        Rem => format!("{tmp} =d rem {l}, {r}"),
+                        Eq => format!("{tmp} =w ceqd {l}, {r}"),
+                        Ne => format!("{tmp} =w cned {l}, {r}"),
+                        Lt => format!("{tmp} =w cltd {l}, {r}"),
+                        Gt => format!("{tmp} =w cgtd {l}, {r}"),
+                        Le => format!("{tmp} =w cled {l}, {r}"),
+                        Ge => format!("{tmp} =w cged {l}, {r}"),
+                        And => format!("{tmp} =d and {l}, {r}"),
+                        Or => format!("{tmp} =d or {l}, {r}"),
+                    };
+                    self.emit(&format!("    {instr}"));
+                    let result_ty = match op {
+                        Eq | Ne | Lt | Gt | Le | Ge => "w",
+                        _ => "d",
+                    };
+                    return Ok((tmp, result_ty));
+                }
                 let wide = l_ty == "l" || r_ty == "l";
                 let (l, r) = if wide {
                     let (l, _) = self.promote_to_l(l, l_ty);
@@ -953,7 +999,6 @@ impl Codegen {
                 } else {
                     (l, r)
                 };
-                let tmp = self.fresh_tmp();
                 let instr = if wide {
                     match op {
                         Add => format!("{tmp} =l add {l}, {r}"),
@@ -1003,18 +1048,29 @@ impl Codegen {
 
             Expr::UnOp { op, expr } => {
                 use crate::parser::UnOp::*;
-                let (v, _) = self.emit_expr(expr, ns)?;
+                let (v, v_ty) = self.emit_expr(expr, ns)?;
                 let tmp = self.fresh_tmp();
                 match op {
-                    Not => self.emit(&format!("    {tmp} =w ceqw {v}, 0")),
-                    Neg => self.emit(&format!("    {tmp} =w neg {v}")),
+                    Not => {
+                        self.emit(&format!("    {tmp} =w ceqw {v}, 0"));
+                        Ok((tmp, "w"))
+                    }
+                    Neg => {
+                        if v_ty == "w" {
+                            self.emit(&format!("    {tmp} =w neg {v}"));
+                            let (promoted, _) = self.promote_to_l(tmp, "w");
+                            Ok((promoted, "l"))
+                        } else {
+                            self.emit(&format!("    {tmp} ={v_ty} neg {v}"));
+                            Ok((tmp, v_ty))
+                        }
+                    }
                     BitwiseNot => {
-                        let (v_l, _) = self.promote_to_l(v, "w");
+                        let (v_l, _) = self.promote_to_l(v, v_ty);
                         self.emit(&format!("    {tmp} =l xor {v_l}, -1"));
-                        return Ok((tmp, "l"));
+                        Ok((tmp, "l"))
                     }
                 }
-                Ok((tmp, "w"))
             }
         }
     }
@@ -1062,6 +1118,24 @@ fn build_namespace(resolved: &ResolvedModule) -> Namespace {
     let mut ns = HashMap::new();
     collect_ns(resolved, "", &mut ns);
     ns
+}
+
+fn build_ret_types(resolved: &ResolvedModule) -> HashMap<String, &'static str> {
+    let mut map = HashMap::new();
+    collect_ret_types(resolved, &mut map);
+    map
+}
+
+fn collect_ret_types(module: &ResolvedModule, map: &mut HashMap<String, &'static str>) {
+    for item in &module.ast.items {
+        if let Item::Fn(f) = item {
+            let qbe = fn_qbe_name(f);
+            map.insert(qbe, qbe_type(&f.ret));
+        }
+    }
+    for child in module.imports.values() {
+        collect_ret_types(child, map);
+    }
 }
 
 fn build_trusted_set(resolved: &ResolvedModule) -> std::collections::HashSet<String> {

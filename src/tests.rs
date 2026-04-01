@@ -848,7 +848,8 @@ mod hoisting_and_optionals_tests {
     #[test]
     fn codegen_some_sign_extends_to_l() {
         let ir = compile_ok("fn f() option[i32]! = { return some 10 }");
-        assert!(ir.contains("extsw"));
+        // literal wrapped in some: promoted via copy or extsw to l
+        assert!(ir.contains("=l copy") || ir.contains("extsw"));
     }
 
     #[test]

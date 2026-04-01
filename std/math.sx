@@ -1,0 +1,268 @@
+pub val PI: f64 = 3.14159265358979323846
+pub val TAU: f64 = 6.28318530717958647692
+pub val E: f64 = 2.71828182845904523536
+pub val SQRT2: f64 = 1.41421356237309504880
+pub val SQRT3: f64 = 1.73205080756887729353
+pub val INV_SQRT2: f64 = 0.70710678118654752440
+pub val LN2: f64 = 0.69314718055994530942
+pub val LN10: f64 = 2.30258509299404568402
+pub val LOG2E: f64 = 1.44269504088896340736
+pub val LOG10E: f64 = 0.43429448190325182765
+pub val F64_EPSILON: f64 = 2.2204460492503131e-16
+pub val F64_MAX: f64 = 1.7976931348623157e+308
+pub val F64_MIN_POS: f64 = 2.2250738585072014e-308
+pub val I64_MAX: i64 = 9223372036854775807
+pub val I64_MIN: i64 = -9223372036854775808
+
+/// Absolute value of a 64-bit signed integer.
+pub fn abs_i64(x: i64) i64 = {
+    pre { not_min: x != I64_MIN }
+    post { result_nonneg: abs_i64(x) >= 0 }
+    if (x < 0) {
+        return 0 - x
+    }
+    return x
+}
+
+/// Minimum of two i64 values.
+pub fn min_i64(a: i64, b: i64) i64 = {
+    post {
+        le_a: min_i64(a, b) <= a
+        le_b: min_i64(a, b) <= b
+    }
+    if (a < b) {
+        return a
+    }
+    return b
+}
+
+/// Maximum of two i64 values.
+pub fn max_i64(a: i64, b: i64) i64 = {
+    post {
+        ge_a: max_i64(a, b) >= a
+        ge_b: max_i64(a, b) >= b
+    }
+    if (a > b) {
+        return a
+    }
+    return b
+}
+
+/// Clamp `x` to [lo, hi].
+pub fn clamp_i64(x: i64, lo: i64, hi: i64) i64 = {
+    pre { valid_range: lo <= hi }
+    post {
+        at_least_lo: clamp_i64(x, lo, hi) >= lo
+        at_most_hi:  clamp_i64(x, lo, hi) <= hi
+    }
+    if (x < lo) {
+        return lo
+    }
+    if (x > hi) {
+        return hi
+    }
+    return x
+}
+
+/// Sign of an i64: returns -1, 0, or 1.
+pub fn sign_i64(x: i64) i64 = {
+    post {
+        valid_sign: sign_i64(x) == -1 || sign_i64(x) == 0 || sign_i64(x) == 1
+    }
+    if (x < 0) {
+        return -1
+    }
+    if (x > 0) {
+        return 1
+    }
+    return 0
+}
+
+pub fn rem(a: i64, b: i64) i64 = {
+    pre {
+        non_zero_divisor: b != 0
+    }
+    return a % b
+}
+
+/// Absolute value
+pub fn abs(x: i64) i64 = {
+    if (x < 0) {
+        return -x
+    }
+    return x
+}
+
+/// Min / Max
+pub fn min(a: i64, b: i64) i64 = {
+    if (a < b) { return a }
+    return b
+}
+
+pub fn max(a: i64, b: i64) i64 = {
+    if (a > b) { return a }
+    return b
+}
+
+/// Clamp value into [lo, hi]
+pub fn clamp(x: i64, lo: i64, hi: i64) i64 = {
+    pre {
+        valid_range: lo <= hi
+    }
+    if (x < lo) { return lo }
+    if (x > hi) { return hi }
+    return x
+}
+
+/// Power (integer, simple loop)
+pub fn pow(base: i64, exp: usize) i64 = {
+    val result: mut i64 = 1
+    val i: mut usize = 0
+
+    for (i = 0; i < exp; i++) {
+        result = result * base
+        i = i + 1
+    }
+
+    post {
+        !(exp == 0) || result == 1
+        !(exp == 1) || result == base
+        !(base == 0 && exp > 0) || result == 0
+        !(base < 0 && exp % 2 == 0) || result >= 0
+        !(base < 0 && exp % 2 == 1) || result <= 0
+    }
+
+    return result
+}
+
+/// Greatest Common Divisor (Euclidean)
+pub fn gcd(a: i64, b: i64) i64 = {
+    val x: mut i64 = abs(a)
+    val y: mut i64 = abs(b)
+
+    for {
+        if (y == 0) {
+            break
+        }
+        val t = y
+        y = x % y
+        x = t
+    }
+
+    post {
+        x >= 0
+        a % x == 0
+        b % x == 0
+        a == 0 && b == 0 >= x == 0
+        a == 0 >= x == abs(b)
+        b == 0 >= x == abs(a)
+    }
+
+    return x
+}
+
+/// Least Common Multiple
+pub fn lcm(a: i64, b: i64) i64 = {
+    pre {
+        non_zero: a != 0 && b != 0
+    }
+    return (a / gcd(a, b)) * b
+}
+
+pub fn fmin(a: f64, b: f64) f64 = {
+    if (a < b) { return a }
+    return b
+}
+
+pub fn fmax(a: f64, b: f64) f64 = {
+    if (a > b) { return a }
+    return b
+}
+
+pub fn fabs(x: f64) f64 = {
+    if (x < 0.0) {
+        return -x
+    }
+    return x
+}
+
+pub fn fclamp(x: f64, lo: f64, hi: f64) f64 = {
+    pre {
+        valid_range: lo <= hi
+    }
+    if (x < lo) { return lo }
+    if (x > hi) { return hi }
+    return x
+}
+
+/// Square root using Newton's method
+pub fn sqrt(x: f64) f64 = {
+    pre {
+        non_negative: x >= 0.0
+    }
+
+    if (x == 0.0) {
+        return 0.0
+    }
+
+    val guess: mut f64 = x
+    val i: mut usize = 0
+
+    for (i = 0; i < 20; i++) {
+        guess = 0.5 * (guess + x / guess)
+        i = i + 1
+    }
+
+    return guess
+}
+
+pub fn fpow(base: f64, exp: usize) f64 = {
+    val result: mut f64 = 1.0
+    val b: mut f64 = base
+    val e: mut usize = exp
+    for {
+        if (e == 0) {
+            break
+        }
+        if (e % 2 == 1) {
+            result = result * b
+        }
+        b = b * b
+        e = e / 2
+    }
+    post {
+        !(exp == 0) || result == 1.0
+        !(exp == 1) || result == base
+        !(base == 0.0 && exp > 0) || result == 0.0
+    }
+    return result
+}
+
+/// Linear interpolation
+pub fn lerp(a: f64, b: f64, t: f64) f64 = {
+    pre {
+        t_in_range: t >= 0.0 && t <= 1.0
+    }
+    return a + (b - a) * t
+}
+
+/// Check approximate equality
+pub fn approx_eq(a: f64, b: f64, eps: f64) bool = {
+    pre {
+        positive_epsilon: eps > 0.0
+    }
+    return fabs(a - b) <= eps
+}
+
+test {
+    assert clamp(10, 0, 5) == 5
+
+    assert gcd(48, 18) == 6
+    assert lcm(6, 8) == 24
+
+    val s = sqrt(25.0)
+    assert approx_eq(s, 5.0, 0.0001)
+
+    val x = lerp(0.0, 10.0, 0.5)
+    assert approx_eq(x, 5.0, 0.0001)
+}
