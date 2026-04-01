@@ -107,6 +107,6 @@ type Point = {
 ---
 
 ## 5. Implementation Strategy
-* **File Extension**: `.spr`
+* **File Extension**: `.st`
 * **Lowering**: Contracts are currently lowered to runtime branches (`br_if`). If a condition fails, the program panics to prevent undefined behavior.
 * **Future Scope**: Static analysis and range-tracking to elide runtime checks where mathematical proof is possible.

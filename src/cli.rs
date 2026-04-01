@@ -3,19 +3,19 @@ use clap::Parser;
 const USAGE: &str = "\
 spectre <input> [options]
 
-    [file].spr                  compile to binary (./file)
-    [file].spr -o out           compile to binary at path 'out'
-    [file].spr --emit-qbe       print QBE IR and exit
-    [file].spr --emit-asm       print assembly and exit
-    [file].spr --emit-tokens    print token stream and exit
-    [file].spr --emit-ast       print AST and exit";
+    [file].st                  compile to binary (./file)
+    [file].st -o out           compile to binary at path 'out'
+    [file].st --emit-qbe       print QBE IR and exit
+    [file].st --emit-asm       print assembly and exit
+    [file].st --emit-tokens    print token stream and exit
+    [file].st --emit-ast       print AST and exit";
 
-/// Spectre compiler — lowers .spr source to a native binary via QBE
+/// Spectre compiler — lowers .st source to a native binary via QBE
 #[derive(Parser, Debug)]
 #[command(
     name = "spectre",
     version,
-    about = "Spectre compiler — lowers .spr source to a native binary via QBE",
+    about = "Spectre compiler — lowers .st source to a native binary via QBE",
     override_usage = USAGE,
     help_template = "\
 {name} v{version}
@@ -29,7 +29,7 @@ options:
 "
 )]
 pub struct Args {
-    /// Source file to compile (.spr)
+    /// Source file to compile (.st)
     pub input: String,
 
     /// Output binary path (default: input filename without extension)

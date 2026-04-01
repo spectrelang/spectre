@@ -1,5 +1,5 @@
 val std = use("std")
-val some_other_module = use("some_other_module.spr")
+val some_other_module = use("some_other_module.st")
 
 type Point = {
 	x: mut i32
@@ -23,7 +23,7 @@ fn some_function(some_arg: i32, some_other_arg: usize) void = {
 		z_is_thi : z == 30
 	}
 
-	std.io.print("{d} {d}", {x, y})
+	std.io.put_any("{d} {d}", {x, y})
 }
 
 pub val some_constant = 1000
