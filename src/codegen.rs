@@ -39,6 +39,7 @@ pub struct Codegen {
     current_loop_end: Option<String>,
     test_fns: Vec<String>,
     current_file: String,
+    module_consts: HashMap<String, (String, &'static str)>,
 }
 
 impl Codegen {
@@ -60,6 +61,7 @@ impl Codegen {
             current_loop_end: None,
             test_fns: Vec::new(),
             current_file: String::new(),
+            module_consts: HashMap::new(),
         }
     }
 
@@ -133,6 +135,18 @@ impl Codegen {
             }
         }
 
+        self.module_consts.clear();
+        for item in &resolved.ast.items {
+            if let Item::Const { name, expr, .. } = item {
+                let (val, ty) = match expr {
+                    crate::parser::Expr::IntLit(n) => (n.to_string(), "l"),
+                    crate::parser::Expr::Bool(b) => (if *b { "1" } else { "0" }.to_string(), "w"),
+                    _ => continue,
+                };
+                self.module_consts.insert(name.clone(), (val, ty));
+            }
+        }
+
         let mut local_ns = ns.clone();
         for item in &resolved.ast.items {
             if let Item::Fn(f) = item {
@@ -154,7 +168,9 @@ impl Codegen {
                     }
                     self.emit_fn(f, &local_ns)?
                 }
-                Item::Test { body } if test_mode && is_root => self.emit_test_fn(body, &local_ns)?,
+                Item::Test { body } if test_mode && is_root => {
+                    self.emit_test_fn(body, &local_ns)?
+                }
                 Item::Use { .. }
                 | Item::Const { .. }
                 | Item::TypeDef { .. }
@@ -174,6 +190,12 @@ impl Codegen {
         self.local_is_slot.clear();
         self.defer_stack.clear();
         self.tmp_counter = 0;
+
+        for (name, (val, ty)) in &self.module_consts.clone() {
+            self.locals.insert(name.clone(), val.clone());
+            self.local_types.insert(name.clone(), ty);
+            self.local_mutability.insert(name.clone(), false);
+        }
 
         let qbe_name = fn_qbe_name(f);
         self.current_fn = qbe_name.clone();
@@ -247,6 +269,12 @@ impl Codegen {
         self.defer_stack.clear();
         self.tmp_counter = 0;
         self.current_fn = format!("test_{}", test_id);
+
+        for (name, (val, ty)) in &self.module_consts.clone() {
+            self.locals.insert(name.clone(), val.clone());
+            self.local_types.insert(name.clone(), ty);
+            self.local_mutability.insert(name.clone(), false);
+        }
 
         self.emit(&format!("export function w $test_{}() {{", test_id));
         self.emit("@start");
@@ -679,11 +707,10 @@ impl Codegen {
             }
 
             Expr::Ident(name) => {
-                let slot_or_tmp = self
-                    .locals
-                    .get(name)
-                    .cloned()
-                    .ok_or_else(|| format!("undefined variable: {name}"))?;
+                let slot_or_tmp =
+                    self.locals.get(name).cloned().ok_or_else(|| {
+                        format!("{}: undefined variable: {name}", self.current_file)
+                    })?;
                 if self.local_is_slot.contains(name) {
                     let tmp = self.fresh_tmp();
                     self.emit(&format!("    {tmp} =w loadw {slot_or_tmp}"));

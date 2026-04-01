@@ -382,6 +382,9 @@ impl Parser {
     fn parse_val_item(&mut self, public: bool) -> Result<Item, String> {
         self.expect(&TokenKind::Val)?;
         let name = self.expect_ident()?;
+        if self.eat(&TokenKind::Colon) {
+            self.parse_type()?;
+        }
         self.expect(&TokenKind::Eq)?;
 
         if self.peek() == &TokenKind::Use {
@@ -762,7 +765,7 @@ impl Parser {
             }
             TokenKind::Some => {
                 self.advance();
-                Ok(Expr::Some(Box::new(self.parse_call_chain()?)))
+                Ok(Expr::Some(Box::new(self.parse_unary()?)))
             }
             TokenKind::None_ => {
                 self.advance();
