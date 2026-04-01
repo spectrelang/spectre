@@ -133,7 +133,7 @@ impl Lexer {
                     break;
                 }
                 Some(c) => {
-                    let kind = self.next_token(c)?;
+                    let kind = self.next_token(c).map_err(|e| format!("{}:{}: {}", line, col, e))?;
                     tokens.push(Token { kind, line, col });
                 }
             }

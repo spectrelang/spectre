@@ -335,7 +335,7 @@ impl Parser {
                 let inner = self.parse_type()?;
                 Ok(TypeExpr::Ref(Box::new(inner)))
             }
-            other => Err(format!("expected type, got {other:?}")),
+            other => Err(self.error(&format!("expected type, got {other:?}"))),
         }
     }
 
@@ -573,8 +573,7 @@ impl Parser {
         let mut contracts = Vec::new();
         while self.peek() != &TokenKind::RBrace && self.peek() != &TokenKind::Eof {
             let contract = if let TokenKind::Ident(name) = self.peek().clone() {
-                if &self.tokens.get(self.pos + 1).unwrap().kind == Some(&TokenKind::Colon).unwrap()
-                {
+                if self.tokens.get(self.pos + 1).map(|t| &t.kind) == Some(&TokenKind::Colon) {
                     self.advance();
                     self.advance();
                     let expr = self.parse_expr()?;
@@ -796,8 +795,7 @@ impl Parser {
             TokenKind::LBrace => {
                 self.advance();
                 let is_struct_lit = matches!(self.peek(), TokenKind::Ident(_))
-                    && &self.tokens.get(self.pos + 1).unwrap().kind
-                        == Some(&TokenKind::Colon).unwrap();
+                    && self.tokens.get(self.pos + 1).map(|t| &t.kind) == Some(&TokenKind::Colon);
 
                 if is_struct_lit {
                     let mut fields = Vec::new();
@@ -824,7 +822,7 @@ impl Parser {
                     Ok(Expr::ArgsPack(exprs))
                 }
             }
-            other => Err(format!("unexpected token in expression: {other:?}")),
+            other => Err(self.error(&format!("unexpected token in expression: {other:?}"))),
         }
     }
 
@@ -834,7 +832,7 @@ impl Parser {
                 self.advance();
                 Ok(s)
             }
-            other => Err(format!("expected identifier, got {other:?}")),
+            other => Err(self.error(&format!("expected identifier, got {other:?}"))),
         }
     }
 
@@ -844,7 +842,7 @@ impl Parser {
                 self.advance();
                 Ok(s)
             }
-            other => Err(format!("expected string literal, got {other:?}")),
+            other => Err(self.error(&format!("expected string literal, got {other:?}"))),
         }
     }
 }

@@ -28,7 +28,7 @@ pub fn compile_file(input: &str, args: &Args) -> Result<String, String> {
 
     if args.emit_tokens {
         let mut lex = Lexer::new(&src);
-        let tokens = lex.tokenize().map_err(|e| e)?;
+        let tokens = lex.tokenize().map_err(|e| format!("{input}: {e}"))?;
         return Ok(format!("{tokens:#?}"));
     }
     if args.emit_ast {
@@ -49,7 +49,7 @@ pub fn resolve_module(
     filename: &str,
 ) -> Result<ResolvedModule, String> {
     let mut lex = Lexer::new(src);
-    let tokens = lex.tokenize()?;
+    let tokens = lex.tokenize().map_err(|e| format!("{filename}:{e}"))?;
     let mut parser = Parser::with_filename(tokens, filename.to_string());
     let ast = parser.parse_module()?;
     let mut imports = HashMap::new();
