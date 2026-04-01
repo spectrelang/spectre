@@ -84,7 +84,7 @@ pub enum Stmt {
     Increment(String), // x++
     Defer(Vec<Stmt>),
     Break,
-    Assert(Expr),
+    Assert(Expr, usize),
     Match {
         expr: Expr,
         some_binding: String,
@@ -512,8 +512,9 @@ impl Parser {
             }
             TokenKind::Assert => {
                 self.advance();
+                let line = self.peek_token().line;
                 let expr = self.parse_expr()?;
-                Ok(Stmt::Assert(expr))
+                Ok(Stmt::Assert(expr, line))
             }
             TokenKind::Match => {
                 self.advance();

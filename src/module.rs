@@ -8,14 +8,10 @@ use crate::parser::{Item, Module, Parser};
 
 /// A fully-resolved module: its parsed AST plus a map of imported sub-modules.
 pub struct ResolvedModule {
-    /// The current module
     pub ast: Module,
-
-    /// name → resolved child module
     pub imports: HashMap<String, ResolvedModule>,
-
-    /// The directory this module lives in (used to resolve relative imports)
     pub dir: PathBuf,
+    pub filename: String,
 }
 
 /// Entry point: compile a .st file to QBE IR.
@@ -77,6 +73,7 @@ pub fn resolve_module(
         ast,
         imports,
         dir: dir.to_path_buf(),
+        filename: filename.to_string(),
     })
 }
 

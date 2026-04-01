@@ -34,7 +34,8 @@ pub struct Codegen {
     current_fn: String,
     defer_stack: Vec<Vec<Stmt>>,
     current_loop_end: Option<String>,
-    test_fns: Vec<String>,  // names of emitted test functions, in order
+    test_fns: Vec<String>,
+    current_file: String,
 }
 
 impl Codegen {
@@ -55,6 +56,7 @@ impl Codegen {
             defer_stack: Vec::new(),
             current_loop_end: None,
             test_fns: Vec::new(),
+            current_file: String::new(),
         }
     }
 
@@ -63,7 +65,6 @@ impl Codegen {
         for (label, value) in &self.data {
             data_section.push_str(&format!("data ${label} = {{ b \"{value}\", b 0 }}\n"));
         }
-        // Add "w" mode string for fdopen (used in assertions)
         data_section.push_str("data $str_w_mode = { b \"w\", b 0 }\n");
         if !data_section.is_empty() {
             self.out.push('\n');
@@ -94,7 +95,11 @@ impl Codegen {
         self.out.push('\n');
     }
 
-    pub fn emit_module(&mut self, resolved: &ResolvedModule, test_mode: bool) -> Result<(), String> {
+    pub fn emit_module(
+        &mut self,
+        resolved: &ResolvedModule,
+        test_mode: bool,
+    ) -> Result<(), String> {
         let ns = build_namespace(resolved);
         let trusted = build_trusted_set(resolved);
         self.trusted_fns = trusted;
@@ -115,6 +120,9 @@ impl Codegen {
             self.emit_module_recursive(child, ns, test_mode)?;
         }
 
+        let prev_file = self.current_file.clone();
+        self.current_file = resolved.filename.clone();
+
         for item in &resolved.ast.items {
             if let Item::TypeDef { name, fields } = item {
                 self.type_defs.insert(name.clone(), fields.clone());
@@ -124,16 +132,20 @@ impl Codegen {
         for item in &resolved.ast.items {
             match item {
                 Item::Fn(f) => {
-                    // In test mode, skip the user's main — we emit our own
                     if test_mode && f.name == "main" {
                         continue;
                     }
                     self.emit_fn(f, ns)?
                 }
                 Item::Test { body } if test_mode => self.emit_test_fn(body, ns)?,
-                Item::Use { .. } | Item::Const { .. } | Item::TypeDef { .. } | Item::Test { .. } => {}
+                Item::Use { .. }
+                | Item::Const { .. }
+                | Item::TypeDef { .. }
+                | Item::Test { .. } => {}
             }
         }
+
+        self.current_file = prev_file;
         Ok(())
     }
 
@@ -203,7 +215,7 @@ impl Codegen {
             TEST_COUNTER += 1;
             TEST_COUNTER
         };
-        
+
         self.locals.clear();
         self.local_types.clear();
         self.local_mutability.clear();
@@ -266,9 +278,7 @@ impl Codegen {
                 if let Some(root) = expr_root_name(target) {
                     let is_mut = self.local_mutability.get(&root).copied().unwrap_or(false);
                     if !is_mut {
-                        return Err(format!(
-                            "cannot assign to immutable binding '{root}'"
-                        ));
+                        return Err(format!("cannot assign to immutable binding '{root}'"));
                     }
                 }
                 if let Expr::Ident(name) = target {
@@ -500,31 +510,25 @@ impl Codegen {
                 self.defer_stack.push(body.clone());
             }
             Stmt::Break => {
-                let end_lbl = self.current_loop_end.clone()
+                let end_lbl = self
+                    .current_loop_end
+                    .clone()
                     .ok_or_else(|| "break used outside of loop".to_string())?;
                 self.emit(&format!("    jmp {end_lbl}"));
             }
-            Stmt::Assert(expr) => {
-                // Evaluate the assertion expression
+            Stmt::Assert(expr, line) => {
                 let (cond, _) = self.emit_expr(expr, ns)?;
-                
-                // Create labels for pass and fail
                 let pass_lbl = format!("@assert_pass_{}", self.tmp_counter);
                 let fail_lbl = format!("@assert_fail_{}", self.tmp_counter);
                 self.tmp_counter += 1;
-                
-                // If condition is true, jump to pass, otherwise fall through to fail
                 self.emit(&format!("    jnz {cond}, {pass_lbl}, {fail_lbl}"));
-                
-                // Fail block: print error and abort
                 self.emit(&format!("{fail_lbl}"));
-                let msg = self.intern_string("assertion failed\n");
+                let msg = format!("{}:{}: assertion failed\n", self.current_file, line);
+                let msg_lbl = self.intern_string(&msg);
                 self.emit(&format!("    %stderr =l call $fdopen(w 2, l $str_w_mode)"));
-                self.emit(&format!("    call $fprintf(l %stderr, l ${msg})"));
+                self.emit(&format!("    call $fprintf(l %stderr, l ${msg_lbl})"));
                 self.emit(&format!("    call $fflush(l %stderr)"));
                 self.emit("    call $abort()");
-                
-                // Pass block: continue execution
                 self.emit(&format!("{pass_lbl}"));
             }
             Stmt::Match {
@@ -887,14 +891,14 @@ impl Codegen {
                         Mul => format!("{tmp} =l mul {l}, {r}"),
                         Div => format!("{tmp} =l div {l}, {r}"),
                         Rem => format!("{tmp} =l rem {l}, {r}"),
-                        Eq  => format!("{tmp} =w ceql {l}, {r}"),
-                        Ne  => format!("{tmp} =w cnel {l}, {r}"),
-                        Lt  => format!("{tmp} =w csltl {l}, {r}"),
-                        Gt  => format!("{tmp} =w csgtl {l}, {r}"),
-                        Le  => format!("{tmp} =w cslel {l}, {r}"),
-                        Ge  => format!("{tmp} =w csgel {l}, {r}"),
+                        Eq => format!("{tmp} =w ceql {l}, {r}"),
+                        Ne => format!("{tmp} =w cnel {l}, {r}"),
+                        Lt => format!("{tmp} =w csltl {l}, {r}"),
+                        Gt => format!("{tmp} =w csgtl {l}, {r}"),
+                        Le => format!("{tmp} =w cslel {l}, {r}"),
+                        Ge => format!("{tmp} =w csgel {l}, {r}"),
                         And => format!("{tmp} =l and {l}, {r}"),
-                        Or  => format!("{tmp} =l or {l}, {r}"),
+                        Or => format!("{tmp} =l or {l}, {r}"),
                     }
                 } else {
                     match op {
@@ -903,20 +907,26 @@ impl Codegen {
                         Mul => format!("{tmp} =w mul {l}, {r}"),
                         Div => format!("{tmp} =w div {l}, {r}"),
                         Rem => format!("{tmp} =w rem {l}, {r}"),
-                        Eq  => format!("{tmp} =w ceqw {l}, {r}"),
-                        Ne  => format!("{tmp} =w cnew {l}, {r}"),
-                        Lt  => format!("{tmp} =w csltw {l}, {r}"),
-                        Gt  => format!("{tmp} =w csgtw {l}, {r}"),
-                        Le  => format!("{tmp} =w cslew {l}, {r}"),
-                        Ge  => format!("{tmp} =w csgew {l}, {r}"),
+                        Eq => format!("{tmp} =w ceqw {l}, {r}"),
+                        Ne => format!("{tmp} =w cnew {l}, {r}"),
+                        Lt => format!("{tmp} =w csltw {l}, {r}"),
+                        Gt => format!("{tmp} =w csgtw {l}, {r}"),
+                        Le => format!("{tmp} =w cslew {l}, {r}"),
+                        Ge => format!("{tmp} =w csgew {l}, {r}"),
                         And => format!("{tmp} =w and {l}, {r}"),
-                        Or  => format!("{tmp} =w or {l}, {r}"),
+                        Or => format!("{tmp} =w or {l}, {r}"),
                     }
                 };
                 self.emit(&format!("    {instr}"));
                 let result_ty = match op {
                     Eq | Ne | Lt | Gt | Le | Ge => "w",
-                    _ => if wide { "l" } else { "w" },
+                    _ => {
+                        if wide {
+                            "l"
+                        } else {
+                            "w"
+                        }
+                    }
                 };
                 Ok((tmp, result_ty))
             }
@@ -951,18 +961,22 @@ fn all_trusted_stmts(stmts: &[Stmt]) -> bool {
         Stmt::Expr(Expr::Builtin { .. }) => true,
         Stmt::Pre(_) | Stmt::Post(_) => true,
         Stmt::Val { .. } | Stmt::Return(_) | Stmt::Break | Stmt::Increment(_) => true,
-        Stmt::Assert(_) => true,  // Assertions are trusted
+        Stmt::Assert(..) => true,
         Stmt::Assign { .. } => false,
         Stmt::Defer(body) => all_trusted_stmts(body),
-        Stmt::If { then, elif_, else_, .. } => {
+        Stmt::If {
+            then, elif_, else_, ..
+        } => {
             all_trusted_stmts(then)
                 && elif_.iter().all(|(_, b)| all_trusted_stmts(b))
                 && else_.as_deref().map_or(true, all_trusted_stmts)
         }
         Stmt::For { body, .. } => all_trusted_stmts(body),
-        Stmt::Match { some_body, none_body, .. } => {
-            all_trusted_stmts(some_body) && all_trusted_stmts(none_body)
-        }
+        Stmt::Match {
+            some_body,
+            none_body,
+            ..
+        } => all_trusted_stmts(some_body) && all_trusted_stmts(none_body),
         Stmt::Expr(_) => false,
     })
 }

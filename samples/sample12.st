@@ -7,5 +7,6 @@ pub fn main() i32 = {
 }
 
 test {
+    assert add(1, 2) == 3
     assert add(1, 2) == 4
 }
