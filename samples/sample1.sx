@@ -1,5 +1,5 @@
 val std = use("std")
-val some_other_module = use("some_other_module.st")
+val some_other_module = use("some_other_module.sx")
 
 type Point = {
 	x: mut i32

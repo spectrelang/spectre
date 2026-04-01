@@ -14,7 +14,7 @@ pub struct ResolvedModule {
     pub filename: String,
 }
 
-/// Entry point: compile a .st file to QBE IR.
+/// Entry point: compile a .sx file to QBE IR.
 pub fn compile_file(input: &str, args: &Args) -> Result<String, String> {
     let path = PathBuf::from(input);
     let dir = path.parent().unwrap_or(Path::new(".")).to_path_buf();
@@ -80,13 +80,13 @@ pub fn resolve_module(
 /// Turn a use-path string into a filesystem path.
 ///
 /// Rules:
-///   "std"        -> <workspace>/std/std.st   (stdlib shorthand)
-///   "io.st"      -> <current_dir>/io.st
-///   "foo/bar.st" -> <current_dir>/foo/bar.st
+///   "std"        -> <workspace>/std/std.sx   (stdlib shorthand)
+///   "io.sx"      -> <current_dir>/io.sx
+///   "foo/bar.sx" -> <current_dir>/foo/bar.sx
 fn resolve_use_path(path: &str, dir: &Path) -> PathBuf {
-    if !path.ends_with(".st") {
+    if !path.ends_with(".sx") {
         let workspace_root = find_workspace_root(dir);
-        workspace_root.join(path).join(format!("{path}.st"))
+        workspace_root.join(path).join(format!("{path}.sx"))
     } else {
         dir.join(path)
     }
