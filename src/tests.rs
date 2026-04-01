@@ -1451,3 +1451,198 @@ mod memory_and_defer_tests {
         assert!(ir.contains("=w add"), "i32 add should still emit =w add");
     }
 }
+
+#[cfg(test)]
+mod method_namespace_tests {
+    use crate::codegen::Codegen;
+    use crate::lexer::Lexer;
+    use crate::module::resolve_module;
+    use crate::parser::{FnDef, Item, Parser, TypeExpr};
+    use std::collections::HashMap;
+    use std::path::Path;
+
+    fn compile(src: &str) -> Result<String, String> {
+        let resolved = resolve_module(src, Path::new("."), &mut HashMap::new(), "")?;
+        let mut cg = Codegen::new();
+        cg.emit_module(&resolved, false)?;
+        Ok(cg.finish())
+    }
+
+    fn compile_ok(src: &str) -> String {
+        compile(src).expect("expected compilation to succeed")
+    }
+
+    fn parse(src: &str) -> crate::parser::Module {
+        let tokens = Lexer::new(src).tokenize().unwrap();
+        Parser::new(tokens).parse_module().unwrap()
+    }
+
+    #[test]
+    fn parse_method_fn_has_namespace() {
+        let m = parse("pub fn (SomeType) do_thing(s: SomeType) void! = {}");
+        let Item::Fn(FnDef {
+            namespace, name, ..
+        }) = &m.items[0]
+        else {
+            panic!()
+        };
+        assert_eq!(namespace.as_deref(), Some("SomeType"));
+        assert_eq!(name, "do_thing");
+    }
+
+    #[test]
+    fn parse_self_resolves_to_receiver_type() {
+        let m = parse("pub fn (SomeType) do_thing(s: Self) void! = {}");
+        let Item::Fn(FnDef { params, .. }) = &m.items[0] else {
+            panic!()
+        };
+        assert!(matches!(&params[0].1, TypeExpr::Named(n) if n == "SomeType"));
+    }
+
+    #[test]
+    fn parse_regular_fn_has_no_namespace() {
+        let m = parse("pub fn foo() void! = {}");
+        let Item::Fn(FnDef { namespace, .. }) = &m.items[0] else {
+            panic!()
+        };
+        assert!(namespace.is_none());
+    }
+
+    #[test]
+    fn parse_private_method_fn() {
+        let m = parse("fn (SomeType) helper(s: SomeType) void! = {}");
+        let Item::Fn(FnDef {
+            public, namespace, ..
+        }) = &m.items[0]
+        else {
+            panic!()
+        };
+        assert!(!public);
+        assert_eq!(namespace.as_deref(), Some("SomeType"));
+    }
+
+    #[test]
+    fn method_fn_emits_mangled_name() {
+        let ir = compile_ok(
+            r#"
+            type SomeType = { x: i32 }
+            pub fn (SomeType) do_thing(s: SomeType) void! = {}
+        "#,
+        );
+        assert!(
+            ir.contains("$SomeType__do_thing"),
+            "expected mangled QBE name"
+        );
+    }
+
+    #[test]
+    fn public_method_is_exported() {
+        let ir = compile_ok(
+            r#"
+            type SomeType = { x: i32 }
+            pub fn (SomeType) do_thing(s: SomeType) void! = {}
+        "#,
+        );
+        assert!(
+            ir.contains("export function"),
+            "public method should be exported"
+        );
+        assert!(ir.contains("$SomeType__do_thing"));
+    }
+
+    #[test]
+    fn private_method_is_not_exported() {
+        let ir = compile_ok(
+            r#"
+            type SomeType = { x: i32 }
+            fn (SomeType) helper(s: SomeType) void! = {}
+        "#,
+        );
+        assert!(
+            !ir.contains("export function $SomeType__helper"),
+            "private method must not be exported"
+        );
+        assert!(
+            ir.contains("function $SomeType__helper"),
+            "private method should still be emitted"
+        );
+    }
+
+    #[test]
+    fn method_callable_via_type_dot_name() {
+        let ir = compile_ok(
+            r#"
+            type SomeType = { x: i32 }
+            pub fn (SomeType) do_thing(s: SomeType) void! = {}
+            pub fn main() void! = {
+                val x: SomeType = {x: 10}
+                SomeType.do_thing(x)
+            }
+        "#,
+        );
+        assert!(ir.contains("call $SomeType__do_thing"));
+    }
+
+    #[test]
+    fn self_param_field_access_works() {
+        let ir = compile_ok(
+            r#"
+            type Point = { x: i32 y: i32 }
+            pub fn (Point) get_x(p: Self) i32! = {
+                return p.x
+            }
+        "#,
+        );
+        assert!(ir.contains("loadw"));
+    }
+
+    #[test]
+    fn public_method_calls_private_method() {
+        let ir = compile_ok(
+            r#"
+            type SomeType = { x: i32 }
+            fn (SomeType) helper(s: SomeType) void! = {}
+            pub fn (SomeType) do_thing(s: SomeType) void! = {
+                SomeType.helper(s)
+            }
+        "#,
+        );
+        assert!(ir.contains("call $SomeType__helper"));
+    }
+
+    #[test]
+    fn same_module_can_call_private_method() {
+        let ir = compile_ok(
+            r#"
+            type SomeType = { x: i32 }
+            fn (SomeType) secret(s: SomeType) void! = {}
+            pub fn main() void! = {
+                val x: SomeType = {x: 1}
+                SomeType.secret(x)
+            }
+        "#,
+        );
+        assert!(ir.contains("call $SomeType__secret"));
+    }
+
+    #[test]
+    fn sample13_compiles() {
+        let ir = compile_ok(
+            r#"
+            type SomeType = { x: i32 y: i32 }
+            pub fn (SomeType) do_some_thing(s: Self, times: usize) void! = {
+                val i: mut usize = 0
+                for (i = 0; i < times; i++) {
+                    val _x = s.x
+                }
+            }
+            pub fn main() void! = {
+                val x: SomeType = {x: 10, y: 40}
+                SomeType.do_some_thing(x, 20)
+            }
+        "#,
+        );
+        assert!(ir.contains("$SomeType__do_some_thing"));
+        assert!(ir.contains("call $SomeType__do_some_thing"));
+    }
+}
