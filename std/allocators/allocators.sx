@@ -1,2 +1,0 @@
-pub val arena = use("arena.sx")
-pub val stack = use("stack.sx")
