@@ -142,7 +142,13 @@ impl Codegen {
             if let Item::Const { name, expr, .. } = item {
                 let (val, ty) = match expr {
                     crate::parser::Expr::IntLit(n) => (n.to_string(), "l"),
+                    crate::parser::Expr::FloatLit(f) => (format!("d_{f}"), "d"),
                     crate::parser::Expr::Bool(b) => (if *b { "1" } else { "0" }.to_string(), "w"),
+                    crate::parser::Expr::UnOp { op: crate::parser::UnOp::Neg, expr } => match expr.as_ref() {
+                        crate::parser::Expr::IntLit(n) => (format!("-{n}"), "l"),
+                        crate::parser::Expr::FloatLit(f) => (format!("d_-{f}"), "d"),
+                        _ => continue,
+                    },
                     _ => continue,
                 };
                 self.module_consts.insert(name.clone(), (val, ty));
@@ -206,9 +212,9 @@ impl Codegen {
         if !f.trusted {
             let has_pre = f.body.iter().any(|s| matches!(s, Stmt::Pre(_)));
             let has_post = f.body.iter().any(|s| matches!(s, Stmt::Post(_)));
-            if !all_trusted_stmts(&f.body) && (!has_pre || !has_post) {
+            if !all_trusted_stmts(&f.body) && !has_pre && !has_post {
                 return Err(format!(
-                    "pure function '{}' must have both 'pre' and 'post' contract blocks, or consist entirely of 'trust' statements",
+                    "pure function '{}' must have at least one 'pre' or 'post' contract block, or consist entirely of 'trust' statements",
                     qbe_name
                 ));
             }
@@ -709,6 +715,8 @@ impl Codegen {
     fn emit_expr(&mut self, expr: &Expr, ns: &Namespace) -> Result<(String, &'static str), String> {
         match expr {
             Expr::IntLit(n) => Ok((n.to_string(), "w")),
+
+            Expr::FloatLit(f) => Ok((format!("d_{f}"), "d")),
 
             Expr::StrLit(s) => {
                 let label = self.intern_string(s);

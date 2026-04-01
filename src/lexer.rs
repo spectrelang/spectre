@@ -27,6 +27,7 @@ pub enum TokenKind {
     Ident(String),
     StringLit(String),
     IntLit(i64),
+    FloatLit(f64),
     LParen,
     RParen,
     LBrace,
@@ -169,7 +170,32 @@ impl Lexer {
             while self.peek().map(|x| x.is_ascii_digit()).unwrap_or(false) {
                 n.push(self.advance().unwrap());
             }
-            return Ok(TokenKind::IntLit(n.parse().unwrap()));
+            let is_float = self.peek() == Some('.')
+                || self.peek() == Some('e')
+                || self.peek() == Some('E');
+            if is_float {
+                if self.peek() == Some('.') {
+                    n.push(self.advance().unwrap());
+                    while self.peek().map(|x| x.is_ascii_digit()).unwrap_or(false) {
+                        n.push(self.advance().unwrap());
+                    }
+                }
+                if self.peek() == Some('e') || self.peek() == Some('E') {
+                    n.push(self.advance().unwrap());
+                    if self.peek() == Some('+') || self.peek() == Some('-') {
+                        n.push(self.advance().unwrap());
+                    }
+                    while self.peek().map(|x| x.is_ascii_digit()).unwrap_or(false) {
+                        n.push(self.advance().unwrap());
+                    }
+                }
+                return n.parse::<f64>()
+                    .map(TokenKind::FloatLit)
+                    .map_err(|e| format!("invalid float literal '{n}': {e}"));
+            }
+            return n.parse::<u64>()
+                .map(|v| TokenKind::IntLit(v as i64))
+                .map_err(|e| format!("invalid integer literal '{n}': {e}"));
         }
 
         if c.is_alphabetic() || c == '_' {

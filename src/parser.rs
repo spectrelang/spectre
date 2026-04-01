@@ -103,6 +103,7 @@ pub struct Contract {
 #[derive(Debug, Clone)]
 pub enum Expr {
     IntLit(i64),
+    FloatLit(f64),
     StrLit(String),
     Ident(String),
     Bool(bool),
@@ -814,6 +815,10 @@ impl Parser {
             TokenKind::IntLit(n) => {
                 self.advance();
                 Ok(Expr::IntLit(n))
+            }
+            TokenKind::FloatLit(f) => {
+                self.advance();
+                Ok(Expr::FloatLit(f))
             }
             TokenKind::StringLit(s) => {
                 self.advance();
