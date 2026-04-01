@@ -3,17 +3,18 @@
 /// This is ideal for request-scoped or phase-scoped allocations.
 ///
 /// Layout of an Arena struct (3 fields × 8 bytes each):
-///   offset 0:  buf    — ref void, pointer to the backing block
-///   offset 8:  offset — usize, current bump position (bytes used)
+///   offset 0 : buf    — ref void, pointer to the backing block
+///   offset 8 : offset — usize, current bump position (bytes used)
 ///   offset 16: cap    — usize, total capacity in bytes
 
-/// Alignment helper: round up to the nearest 8-byte boundary.
-fn align8(n: usize) usize! = {
-    return (n + 7) - ((n + 7) - ((n + 7) / 8) * 8)
+type Arena = {
+    buf:    ref void
+    offset: usize
+    cap:    usize
 }
 
 /// Create a new arena backed by a block of `capacity` bytes.
-pub fn arena_new(capacity: usize) ref void! = {
+pub fn (Arena) new(capacity: usize) ref void! = {
     val header: ref void = @alloc(24)
     val buf: ref void = @alloc(capacity)
     @memset(buf, 0, capacity)
@@ -24,7 +25,7 @@ pub fn arena_new(capacity: usize) ref void! = {
 }
 
 /// Free the entire arena and its backing block.
-pub fn arena_free(arena: ref void) void! = {
+pub fn (Arena) free(arena: Self) void! = {
     val buf: ref void = @load(arena)
     @free(buf)
     @free(arena)
@@ -32,7 +33,7 @@ pub fn arena_free(arena: ref void) void! = {
 
 /// Allocate `size` bytes from the arena.
 /// Returns none if there is not enough space remaining.
-pub fn arena_alloc(arena: ref void, size: usize) option[ref void]! = {
+pub fn (Arena) alloc(arena: Self, size: usize) option[ref void]! = {
     val off: usize = @load(@ptradd(arena, 8))
     val cap: usize = @load(@ptradd(arena, 16))
     val aligned: usize = (size + 7) - ((size + 7) - ((size + 7) / 8) * 8)
@@ -46,24 +47,24 @@ pub fn arena_alloc(arena: ref void, size: usize) option[ref void]! = {
 }
 
 /// Return the number of bytes currently used.
-pub fn arena_used(arena: ref void) usize! = {
+pub fn (Arena) used(arena: Self) usize! = {
     return @load(@ptradd(arena, 8))
 }
 
 /// Return the total capacity in bytes.
-pub fn arena_cap(arena: ref void) usize! = {
+pub fn (Arena) cap(arena: Self) usize! = {
     return @load(@ptradd(arena, 16))
 }
 
 /// Return the number of bytes remaining.
-pub fn arena_remaining(arena: ref void) usize! = {
+pub fn (Arena) remaining(arena: Self) usize! = {
     val off: usize = @load(@ptradd(arena, 8))
     val cap: usize = @load(@ptradd(arena, 16))
     return cap - off
 }
 
 /// Reset the arena — all previously allocated pointers become invalid.
-pub fn arena_reset(arena: ref void) void! = {
+pub fn (Arena) reset(arena: Self) void! = {
     val buf: ref void = @load(arena)
     val cap: usize = @load(@ptradd(arena, 16))
     @memset(buf, 0, cap)
@@ -71,21 +72,21 @@ pub fn arena_reset(arena: ref void) void! = {
 }
 
 test {
-    val arena = arena_new(64)
+    val arena = Arena.new(64)
 
-    assert arena_cap(arena) == 64
-    assert arena_used(arena) == 0
-    assert arena_remaining(arena) == 64
+    assert Arena.cap(arena) == 64
+    assert Arena.used(arena) == 0
+    assert Arena.remaining(arena) == 64
 
-    val a1 = arena_alloc(arena, 8)
+    val a1 = Arena.alloc(arena, 8)
     assert a1 != none
-    assert arena_used(arena) == 8
-    assert arena_remaining(arena) == 56
+    assert Arena.used(arena) == 8
+    assert Arena.remaining(arena) == 56
 
-    val a2 = arena_alloc(arena, 16)
+    val a2 = Arena.alloc(arena, 16)
     assert a2 != none
-    assert arena_used(arena) == 24
-    assert arena_remaining(arena) == 40
+    assert Arena.used(arena) == 24
+    assert Arena.remaining(arena) == 40
 
-    arena_free(arena)
+    Arena.free(arena)
 }
