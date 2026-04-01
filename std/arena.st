@@ -45,24 +45,24 @@ pub fn arena_alloc(arena: ref void, size: usize) option[ref void]! = {
     return some ptr
 }
 
-// Return the number of bytes currently used.
+/// Return the number of bytes currently used.
 pub fn arena_used(arena: ref void) usize! = {
     return @load(@ptradd(arena, 8))
 }
 
-// Return the total capacity in bytes.
+/// Return the total capacity in bytes.
 pub fn arena_cap(arena: ref void) usize! = {
     return @load(@ptradd(arena, 16))
 }
 
-// Return the number of bytes remaining.
+/// Return the number of bytes remaining.
 pub fn arena_remaining(arena: ref void) usize! = {
     val off: usize = @load(@ptradd(arena, 8))
     val cap: usize = @load(@ptradd(arena, 16))
     return cap - off
 }
 
-// Reset the arena — all previously allocated pointers become invalid.
+/// Reset the arena — all previously allocated pointers become invalid.
 pub fn arena_reset(arena: ref void) void! = {
     val buf: ref void = @load(arena)
     val cap: usize = @load(@ptradd(arena, 16))
