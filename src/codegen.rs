@@ -34,6 +34,7 @@ pub struct Codegen {
     current_fn: String,
     defer_stack: Vec<Vec<Stmt>>,
     current_loop_end: Option<String>,
+    test_fns: Vec<String>,  // names of emitted test functions, in order
 }
 
 impl Codegen {
@@ -53,6 +54,7 @@ impl Codegen {
             current_fn: String::new(),
             defer_stack: Vec::new(),
             current_loop_end: None,
+            test_fns: Vec::new(),
         }
     }
 
@@ -96,7 +98,11 @@ impl Codegen {
         let ns = build_namespace(resolved);
         let trusted = build_trusted_set(resolved);
         self.trusted_fns = trusted;
-        self.emit_module_recursive(resolved, &ns, test_mode)
+        self.emit_module_recursive(resolved, &ns, test_mode)?;
+        if test_mode {
+            self.emit_test_main()?;
+        }
+        Ok(())
     }
 
     fn emit_module_recursive(
@@ -117,7 +123,13 @@ impl Codegen {
 
         for item in &resolved.ast.items {
             match item {
-                Item::Fn(f) => self.emit_fn(f, ns)?,
+                Item::Fn(f) => {
+                    // In test mode, skip the user's main — we emit our own
+                    if test_mode && f.name == "main" {
+                        continue;
+                    }
+                    self.emit_fn(f, ns)?
+                }
                 Item::Test { body } if test_mode => self.emit_test_fn(body, ns)?,
                 Item::Use { .. } | Item::Const { .. } | Item::TypeDef { .. } | Item::Test { .. } => {}
             }
@@ -208,6 +220,24 @@ impl Codegen {
             self.emit_stmt(stmt, ns, &TypeExpr::Void)?;
         }
 
+        self.emit("    ret 0");
+        self.emit("}");
+        self.emit("");
+        self.test_fns.push(format!("test_{}", test_id));
+        Ok(())
+    }
+
+    fn emit_test_main(&mut self) -> Result<(), String> {
+        let fns = self.test_fns.clone();
+        self.emit("export function w $main() {");
+        self.emit("@start");
+        for name in &fns {
+            self.emit(&format!("    call ${name}()"));
+        }
+        let ok_lbl = self.intern_string("all tests passed\n");
+        let ok_tmp = self.fresh_tmp();
+        self.emit(&format!("    {ok_tmp} =l copy ${ok_lbl}"));
+        self.emit(&format!("    call $printf(l {ok_tmp})"));
         self.emit("    ret 0");
         self.emit("}");
         self.emit("");
@@ -488,7 +518,7 @@ impl Codegen {
                 
                 // Fail block: print error and abort
                 self.emit(&format!("{fail_lbl}"));
-                let msg = self.intern_string("assertion failed\\n");
+                let msg = self.intern_string("assertion failed\n");
                 self.emit(&format!("    %stderr =l call $fdopen(w 2, l $str_w_mode)"));
                 self.emit(&format!("    call $fprintf(l %stderr, l ${msg})"));
                 self.emit(&format!("    call $fflush(l %stderr)"));
