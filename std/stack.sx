@@ -1,0 +1,85 @@
+/// A Stack Allocator allows for LIFO (Last-In, First-Out) memory management.
+///
+/// You can "save" the current position and "restore" to it later.
+///
+/// Layout (identical to Arena for binary compatibility):
+///    offset 0:  buf    — ref void
+///    offset 8:  offset — usize
+///    offset 16: cap    — usize
+type Stack = {
+    buf: ref void
+    offset: usize
+    cap: usize
+}
+
+/// Create a new stack allocator.
+pub fn (Stack) new(capacity: usize) ref void! = {
+    pre { capacity_positive: capacity > 0 }
+    val header: ref void = @alloc(24)
+    val buf: ref void = @alloc(capacity)
+    @store(header, buf)
+    @store(@ptradd(header, 8), 0)
+    @store(@ptradd(header, 16), capacity)
+    return header
+}
+
+/// Allocate memory from the stack.
+pub fn (Stack) alloc(stack: Self, size: usize) option[ref void] = {
+    pre { size_positive: size > 0 }
+
+    val off: usize = trust @load(@ptradd(stack, 8))
+    val cap: usize = trust @load(@ptradd(stack, 16))
+    val aligned: usize = (size + 7) & ~7
+    
+    if (off + aligned > cap) {
+        return none
+    }
+    
+    val buf: ref void = trust @load(stack)
+    val ptr: ref void = trust @ptradd(buf, off)
+    
+    trust @store(@ptradd(stack, 8), off + aligned)
+    return some ptr
+}
+
+/// Capture the current state of the stack.
+/// The returned usize is a "marker" or "checkpoint".
+pub fn (Stack) save(stack: Self) usize = {
+    return trust @load(@ptradd(stack, 8))
+}
+
+/// Restore the stack to a previous checkpoint.
+/// This effectively "frees" everything allocated after the 'save' call.
+pub fn (Stack) restore(stack: Self, checkpoint: usize) void = {
+    pre { 
+        valid_checkpoint: checkpoint <= trust @load(@ptradd(stack, 16))
+        no_rewind_past_zero: checkpoint >= 0 
+    }
+    // Hmm...
+    trust @store(@ptradd(stack, 8), checkpoint)
+}
+
+/// Free the underlying memory.
+pub fn (Stack) free(stack: Self) void! = {
+    val buf: ref void = @load(stack)
+    @free(buf)
+    @free(stack)
+}
+
+test {
+    val stack = Stack.new(1024)
+    val p1 = Stack.alloc(stack, 100)
+    val marker = Stack.save(stack)
+    val tmp1 = Stack.alloc(stack, 200)
+    val tmp2 = Stack.alloc(stack, 200)
+
+    assert Stack.save(stack) > marker
+    
+    Stack.restore(stack, marker)
+    
+    val p2 = Stack.alloc(stack, 50)
+
+    assert p2 == tmp1
+ 
+    Stack.free(stack)
+}
