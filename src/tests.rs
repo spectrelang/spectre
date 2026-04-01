@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod lexer_tests {
-    use crate::lexer::{Lexer, Token};
+    use crate::lexer::{Lexer, Token, TokenKind};
 
     fn lex(src: &str) -> Vec<Token> {
         Lexer::new(src).tokenize().unwrap()
@@ -12,119 +12,118 @@ mod lexer_tests {
 
     #[test]
     fn keywords() {
-        let toks =
-            lex("fn val mut pub type pre post return if else trust use ref some none not");
-        assert_eq!(toks[0], Token::Fn);
-        assert_eq!(toks[1], Token::Val);
-        assert_eq!(toks[2], Token::Mut);
-        assert_eq!(toks[3], Token::Pub);
-        assert_eq!(toks[4], Token::Type);
-        assert_eq!(toks[5], Token::Pre);
-        assert_eq!(toks[6], Token::Post);
-        assert_eq!(toks[7], Token::Return);
-        assert_eq!(toks[8], Token::If);
-        assert_eq!(toks[9], Token::Else);
-        assert_eq!(toks[10], Token::Trust);
-        assert_eq!(toks[11], Token::Use);
-        assert_eq!(toks[12], Token::Ref);
-        assert_eq!(toks[13], Token::Some);
-        assert_eq!(toks[14], Token::None_);
-        assert_eq!(toks[15], Token::Not);
+        let toks = lex("fn val mut pub type pre post return if else trust use ref some none not");
+        assert_eq!(toks[0].kind, TokenKind::Fn);
+        assert_eq!(toks[1].kind, TokenKind::Val);
+        assert_eq!(toks[2].kind, TokenKind::Mut);
+        assert_eq!(toks[3].kind, TokenKind::Pub);
+        assert_eq!(toks[4].kind, TokenKind::Type);
+        assert_eq!(toks[5].kind, TokenKind::Pre);
+        assert_eq!(toks[6].kind, TokenKind::Post);
+        assert_eq!(toks[7].kind, TokenKind::Return);
+        assert_eq!(toks[8].kind, TokenKind::If);
+        assert_eq!(toks[9].kind, TokenKind::Else);
+        assert_eq!(toks[10].kind, TokenKind::Trust);
+        assert_eq!(toks[11].kind, TokenKind::Use);
+        assert_eq!(toks[12].kind, TokenKind::Ref);
+        assert_eq!(toks[13].kind, TokenKind::Some);
+        assert_eq!(toks[14].kind, TokenKind::None_);
+        assert_eq!(toks[15].kind, TokenKind::Not);
     }
 
     #[test]
     fn integer_literal() {
         let toks = lex("42 0 1000");
-        assert_eq!(toks[0], Token::IntLit(42));
-        assert_eq!(toks[1], Token::IntLit(0));
-        assert_eq!(toks[2], Token::IntLit(1000));
+        assert_eq!(toks[0].kind, TokenKind::IntLit(42));
+        assert_eq!(toks[1].kind, TokenKind::IntLit(0));
+        assert_eq!(toks[2].kind, TokenKind::IntLit(1000));
     }
 
     #[test]
     fn string_literal() {
         let toks = lex(r#""hello" "world""#);
-        assert_eq!(toks[0], Token::StringLit("hello".into()));
-        assert_eq!(toks[1], Token::StringLit("world".into()));
+        assert_eq!(toks[0].kind, TokenKind::StringLit("hello".into()));
+        assert_eq!(toks[1].kind, TokenKind::StringLit("world".into()));
     }
 
     #[test]
     fn string_escape_sequences() {
         let toks = lex(r#""\n\t\"\\""#);
-        assert_eq!(toks[0], Token::StringLit("\n\t\"\\".into()));
+        assert_eq!(toks[0].kind, TokenKind::StringLit("\n\t\"\\".into()));
     }
 
     #[test]
     fn operators_single_and_double() {
         let toks = lex("= == ! != < <= > >= & && | ||");
-        assert_eq!(toks[0], Token::Eq);
-        assert_eq!(toks[1], Token::EqEq);
-        assert_eq!(toks[2], Token::Bang);
-        assert_eq!(toks[3], Token::BangEq);
-        assert_eq!(toks[4], Token::Lt);
-        assert_eq!(toks[5], Token::LtEq);
-        assert_eq!(toks[6], Token::Gt);
-        assert_eq!(toks[7], Token::GtEq);
-        assert_eq!(toks[8], Token::And);
-        assert_eq!(toks[9], Token::And);
-        assert_eq!(toks[10], Token::Or);
-        assert_eq!(toks[11], Token::Or);
+        assert_eq!(toks[0].kind, TokenKind::Eq);
+        assert_eq!(toks[1].kind, TokenKind::EqEq);
+        assert_eq!(toks[2].kind, TokenKind::Bang);
+        assert_eq!(toks[3].kind, TokenKind::BangEq);
+        assert_eq!(toks[4].kind, TokenKind::Lt);
+        assert_eq!(toks[5].kind, TokenKind::LtEq);
+        assert_eq!(toks[6].kind, TokenKind::Gt);
+        assert_eq!(toks[7].kind, TokenKind::GtEq);
+        assert_eq!(toks[8].kind, TokenKind::And);
+        assert_eq!(toks[9].kind, TokenKind::And);
+        assert_eq!(toks[10].kind, TokenKind::Or);
+        assert_eq!(toks[11].kind, TokenKind::Or);
     }
 
     #[test]
     fn double_ampersand_is_single_and_token() {
         let toks = lex("a && b");
-        assert_eq!(toks[0], Token::Ident("a".into()));
-        assert_eq!(toks[1], Token::And);
-        assert_eq!(toks[2], Token::Ident("b".into()));
+        assert_eq!(toks[0].kind, TokenKind::Ident("a".into()));
+        assert_eq!(toks[1].kind, TokenKind::And);
+        assert_eq!(toks[2].kind, TokenKind::Ident("b".into()));
     }
 
     #[test]
     fn double_pipe_is_single_or_token() {
         let toks = lex("a || b");
-        assert_eq!(toks[0], Token::Ident("a".into()));
-        assert_eq!(toks[1], Token::Or);
-        assert_eq!(toks[2], Token::Ident("b".into()));
+        assert_eq!(toks[0].kind, TokenKind::Ident("a".into()));
+        assert_eq!(toks[1].kind, TokenKind::Or);
+        assert_eq!(toks[2].kind, TokenKind::Ident("b".into()));
     }
 
     #[test]
     fn arrow_token() {
         let toks = lex("->");
-        assert_eq!(toks[0], Token::Arrow);
+        assert_eq!(toks[0].kind, TokenKind::Arrow);
     }
 
     #[test]
     fn punctuation() {
         let toks = lex("( ) { } [ ] : ; , . @ + - * / %");
-        assert_eq!(toks[0], Token::LParen);
-        assert_eq!(toks[1], Token::RParen);
-        assert_eq!(toks[2], Token::LBrace);
-        assert_eq!(toks[3], Token::RBrace);
-        assert_eq!(toks[4], Token::LBracket);
-        assert_eq!(toks[5], Token::RBracket);
-        assert_eq!(toks[6], Token::Colon);
-        assert_eq!(toks[7], Token::Semicolon);
-        assert_eq!(toks[8], Token::Comma);
-        assert_eq!(toks[9], Token::Dot);
-        assert_eq!(toks[10], Token::At);
-        assert_eq!(toks[11], Token::Plus);
-        assert_eq!(toks[12], Token::Minus);
-        assert_eq!(toks[13], Token::Star);
-        assert_eq!(toks[14], Token::Slash);
-        assert_eq!(toks[15], Token::Percent);
+        assert_eq!(toks[0].kind, TokenKind::LParen);
+        assert_eq!(toks[1].kind, TokenKind::RParen);
+        assert_eq!(toks[2].kind, TokenKind::LBrace);
+        assert_eq!(toks[3].kind, TokenKind::RBrace);
+        assert_eq!(toks[4].kind, TokenKind::LBracket);
+        assert_eq!(toks[5].kind, TokenKind::RBracket);
+        assert_eq!(toks[6].kind, TokenKind::Colon);
+        assert_eq!(toks[7].kind, TokenKind::Semicolon);
+        assert_eq!(toks[8].kind, TokenKind::Comma);
+        assert_eq!(toks[9].kind, TokenKind::Dot);
+        assert_eq!(toks[10].kind, TokenKind::At);
+        assert_eq!(toks[11].kind, TokenKind::Plus);
+        assert_eq!(toks[12].kind, TokenKind::Minus);
+        assert_eq!(toks[13].kind, TokenKind::Star);
+        assert_eq!(toks[14].kind, TokenKind::Slash);
+        assert_eq!(toks[15].kind, TokenKind::Percent);
     }
 
     #[test]
     fn comments_are_skipped() {
         let toks = lex("42 // this is a comment\n99");
-        assert_eq!(toks[0], Token::IntLit(42));
-        assert_eq!(toks[1], Token::IntLit(99));
-        assert_eq!(toks[2], Token::Eof);
+        assert_eq!(toks[0].kind, TokenKind::IntLit(42));
+        assert_eq!(toks[1].kind, TokenKind::IntLit(99));
+        assert_eq!(toks[2].kind, TokenKind::Eof);
     }
 
     #[test]
     fn eof_at_end() {
         let toks = lex("x");
-        assert_eq!(*toks.last().unwrap(), Token::Eof);
+        assert_eq!(toks.last().unwrap().kind, TokenKind::Eof);
     }
 
     #[test]
@@ -140,8 +139,8 @@ mod lexer_tests {
     #[test]
     fn identifier_with_underscore() {
         let toks = lex("some_var _private");
-        assert_eq!(toks[0], Token::Ident("some_var".into()));
-        assert_eq!(toks[1], Token::Ident("_private".into()));
+        assert_eq!(toks[0].kind, TokenKind::Ident("some_var".into()));
+        assert_eq!(toks[1].kind, TokenKind::Ident("_private".into()));
     }
 }
 
@@ -422,28 +421,34 @@ mod codegen_tests {
 
     #[test]
     fn pure_fn_missing_pre_errors() {
-        let err = compile_err(r#"
+        let err = compile_err(
+            r#"
             type T = { x: mut i32 }
             fn f(x: i32) void = { post { x > 0 } val t: mut T = {x: 1} t.x = 2 }
-        "#);
+        "#,
+        );
         assert!(err.contains("pure function") && err.contains("pre"));
     }
 
     #[test]
     fn pure_fn_missing_post_errors() {
-        let err = compile_err(r#"
+        let err = compile_err(
+            r#"
             type T = { x: mut i32 }
             fn f(x: i32) void = { pre { x > 0 } val t: mut T = {x: 1} t.x = 2 }
-        "#);
+        "#,
+        );
         assert!(err.contains("pure function") && err.contains("post"));
     }
 
     #[test]
     fn pure_fn_missing_both_contracts_errors() {
-        let err = compile_err(r#"
+        let err = compile_err(
+            r#"
             type T = { x: mut i32 }
             fn f(x: i32) void = { val t: mut T = {x: 1} t.x = 2 }
-        "#);
+        "#,
+        );
         assert!(err.contains("pure function"));
     }
 
@@ -1256,7 +1261,9 @@ mod memory_and_defer_tests {
     fn parse_break_stmt() {
         let m = parse(r#"pub fn main() void! = { for { break } }"#);
         let Item::Fn(f) = &m.items[0] else { panic!() };
-        let Stmt::For { body, .. } = &f.body[0] else { panic!() };
+        let Stmt::For { body, .. } = &f.body[0] else {
+            panic!()
+        };
         assert!(matches!(body[0], Stmt::Break));
     }
 
@@ -1274,55 +1281,67 @@ mod memory_and_defer_tests {
 
     #[test]
     fn codegen_realloc_calls_realloc() {
-        let ir = compile_ok(r#"pub fn main() void! = {
+        let ir = compile_ok(
+            r#"pub fn main() void! = {
             val p: ref void = @alloc(8)
             val q: ref void = @realloc(p, 16)
-        }"#);
+        }"#,
+        );
         assert!(ir.contains("call $realloc"));
     }
 
     #[test]
     fn codegen_memset_calls_memset() {
-        let ir = compile_ok(r#"pub fn main() void! = {
+        let ir = compile_ok(
+            r#"pub fn main() void! = {
             val p: ref void = @alloc(8)
             @memset(p, 0, 8)
-        }"#);
+        }"#,
+        );
         assert!(ir.contains("call $memset"));
     }
 
     #[test]
     fn codegen_ptradd_emits_add_l() {
-        let ir = compile_ok(r#"pub fn main() void! = {
+        let ir = compile_ok(
+            r#"pub fn main() void! = {
             val p: ref void = @alloc(16)
             val q: ref void = @ptradd(p, 8)
-        }"#);
+        }"#,
+        );
         assert!(ir.contains("=l add"));
     }
 
     #[test]
     fn codegen_load_emits_loadl() {
-        let ir = compile_ok(r#"pub fn main() void! = {
+        let ir = compile_ok(
+            r#"pub fn main() void! = {
             val p: ref void = @alloc(8)
             val v: usize = @load(p)
-        }"#);
+        }"#,
+        );
         assert!(ir.contains("=l loadl"));
     }
 
     #[test]
     fn codegen_store_emits_storel() {
-        let ir = compile_ok(r#"pub fn main() void! = {
+        let ir = compile_ok(
+            r#"pub fn main() void! = {
             val p: ref void = @alloc(8)
             @store(p, 42)
-        }"#);
+        }"#,
+        );
         assert!(ir.contains("storel"));
     }
 
     #[test]
     fn codegen_defer_emits_before_ret() {
-        let ir = compile_ok(r#"pub fn main() void! = {
+        let ir = compile_ok(
+            r#"pub fn main() void! = {
             val p: ref void = @alloc(8)
             defer { @free(p) }
-        }"#);
+        }"#,
+        );
         let free_pos = ir.find("call $free").expect("free not found");
         let ret_pos = ir.rfind("ret\n").expect("ret not found");
         assert!(free_pos < ret_pos, "defer free must come before ret");
@@ -1330,28 +1349,33 @@ mod memory_and_defer_tests {
 
     #[test]
     fn codegen_defer_lifo_order() {
-        let ir = compile_ok(r#"pub fn main() void! = {
+        let ir = compile_ok(
+            r#"pub fn main() void! = {
             val p: ref void = @alloc(8)
             val q: ref void = @alloc(16)
             defer { @free(p) }
             defer { @free(q) }
-        }"#);
-        let free_q = ir.find("call $free(l %t1)").or_else(|| {
-            ir.find("call $free").map(|p| p)
-        }).unwrap();
+        }"#,
+        );
+        let free_q = ir
+            .find("call $free(l %t1)")
+            .or_else(|| ir.find("call $free").map(|p| p))
+            .unwrap();
         let _ = free_q;
         assert_eq!(ir.matches("call $free").count(), 2);
     }
 
     #[test]
     fn codegen_defer_runs_before_explicit_return() {
-        let ir = compile_ok(r#"
+        let ir = compile_ok(
+            r#"
             fn f(x: bool) void! = {
                 val p: ref void = @alloc(8)
                 defer { @free(p) }
                 if (x) { return }
             }
-        "#);
+        "#,
+        );
         let free_pos = ir.find("call $free").expect("free not found");
         let ret_pos = ir.find("ret\n").expect("ret not found");
         assert!(free_pos < ret_pos);
@@ -1359,61 +1383,73 @@ mod memory_and_defer_tests {
 
     #[test]
     fn codegen_break_jumps_to_for_end() {
-        let ir = compile_ok(r#"pub fn main() void! = {
+        let ir = compile_ok(
+            r#"pub fn main() void! = {
             for (i = 0; i < 10; i++) {
                 break
             }
-        }"#);
+        }"#,
+        );
         assert!(ir.contains("@for_end_"));
         assert!(ir.matches("jmp @for_end_").count() >= 1);
     }
 
     #[test]
     fn codegen_break_in_infinite_loop() {
-        let ir = compile_ok(r#"pub fn main() void! = {
+        let ir = compile_ok(
+            r#"pub fn main() void! = {
             for { break }
-        }"#);
+        }"#,
+        );
         assert!(ir.contains("jmp @for_end_"));
     }
 
     #[test]
     fn codegen_local_rebind_updates_local() {
-        let ir = compile_ok(r#"pub fn main() void! = {
+        let ir = compile_ok(
+            r#"pub fn main() void! = {
             val p: mut ref void = @alloc(8)
             p = @realloc(p, 16)
-        }"#);
+        }"#,
+        );
         assert!(ir.contains("call $realloc"));
     }
 
     #[test]
     fn codegen_usize_add_emits_add_l() {
-        let ir = compile_ok(r#"
+        let ir = compile_ok(
+            r#"
             fn f(a: usize, b: usize) usize! = {
                 return a + b
             }
-        "#);
+        "#,
+        );
         assert!(ir.contains("=l add"), "usize add should emit =l add");
     }
 
     #[test]
     fn codegen_usize_mul_emits_mul_l() {
-        let ir = compile_ok(r#"
+        let ir = compile_ok(
+            r#"
             fn f(a: usize, b: usize) usize! = {
                 return a * b
             }
-        "#);
+        "#,
+        );
         assert!(ir.contains("=l mul"), "usize mul should emit =l mul");
     }
 
     #[test]
     fn codegen_i32_add_still_emits_add_w() {
-        let ir = compile_ok(r#"
+        let ir = compile_ok(
+            r#"
             fn f(a: i32, b: i32) i32 = {
                 pre { a > 0 }
                 post { a > 0 }
                 return a + b
             }
-        "#);
+        "#,
+        );
         assert!(ir.contains("=w add"), "i32 add should still emit =w add");
     }
 }
