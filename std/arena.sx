@@ -1,20 +1,20 @@
 /// An arena hands out memory from a single large block.
-///
 /// Individual allocations cannot be freed — the whole arena is freed at once.
 /// This is ideal for request-scoped or phase-scoped allocations.
 ///
 /// Layout of an Arena struct (3 fields × 8 bytes each):
-///   offset 0 : buf    — ref void, pointer to the backing block
-///   offset 8 : offset — usize, current bump position (bytes used)
+///   offset 0:  buf    — ref void, pointer to the backing block
+///   offset 8:  offset — usize, current bump position (bytes used)
 ///   offset 16: cap    — usize, total capacity in bytes
 
 type Arena = {
-    buf:    ref void
+    buf: ref void
     offset: usize
-    cap:    usize
+    cap: usize
 }
 
 /// Create a new arena backed by a block of `capacity` bytes.
+/// Capacity must be > 0.
 pub fn (Arena) new(capacity: usize) ref void! = {
     val header: ref void = @alloc(24)
     val buf: ref void = @alloc(capacity)
@@ -33,17 +33,23 @@ pub fn (Arena) free(arena: Self) void! = {
 }
 
 /// Allocate `size` bytes from the arena.
-/// Returns none if there is not enough space remaining.
-pub fn (Arena) alloc(arena: Self, size: usize) option[ref void]! = {
-    val off: usize = @load(@ptradd(arena, 8))
-    val cap: usize = @load(@ptradd(arena, 16))
+/// Requires size > 0. Returns none if there is not enough space remaining.
+pub fn (Arena) alloc(arena: Self, size: usize) option[ref void] = {
+    pre {
+        size_positive : size > 0
+    }
+    val off: usize = trust @load(@ptradd(arena, 8))
+    val cap: usize = trust @load(@ptradd(arena, 16))
     val aligned: usize = (size + 7) - ((size + 7) - ((size + 7) / 8) * 8)
     if (off + aligned > cap) {
         return none
     }
-    val buf: ref void = @load(arena)
-    val ptr: ref void = @ptradd(buf, off)
-    @store(@ptradd(arena, 8), off + aligned)
+    val buf: ref void = trust @load(arena)
+    val ptr: ref void = trust @ptradd(buf, off)
+    trust @store(@ptradd(arena, 8), off + aligned)
+    post {
+        size_positive : size > 0
+    }
     return some ptr
 }
 
@@ -58,9 +64,16 @@ pub fn (Arena) cap(arena: Self) usize! = {
 }
 
 /// Return the number of bytes remaining.
-pub fn (Arena) remaining(arena: Self) usize! = {
-    val off: usize = @load(@ptradd(arena, 8))
-    val cap: usize = @load(@ptradd(arena, 16))
+/// Contracts: used <= cap, so the subtraction never underflows.
+pub fn (Arena) remaining(arena: Self) usize = {
+    pre {
+        used_le_cap : @load(@ptradd(arena, 8)) <= @load(@ptradd(arena, 16))
+    }
+    val off: usize = trust @load(@ptradd(arena, 8))
+    val cap: usize = trust @load(@ptradd(arena, 16))
+    post {
+        used_le_cap : off <= cap
+    }
     return cap - off
 }
 

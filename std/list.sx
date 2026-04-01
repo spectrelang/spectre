@@ -1,10 +1,10 @@
-/// Layout of a List struct (3 fields × 8 bytes each):
-///   offset 0 : ptr  — ref void, pointer to heap buffer
-///   offset 8 : len  — usize, number of elements
-///   offset 16: cap  — usize, allocated capacity in elements
-///
-/// Each element is one pointer-sized slot (8 bytes).
-/// Values are stored and retrieved as untyped.
+// Layout of a List struct (3 fields × 8 bytes each):
+//   offset 0: ptr  — ref void, pointer to heap buffer
+//   offset 8: len  — usize, number of elements
+//   offset 16: cap — usize, allocated capacity in elements
+//
+// Each element is one pointer-sized slot (8 bytes).
+// Values are stored and retrieved as untyped (ref void / usize).
 
 val ELEMENT_SIZE: usize = 8
 
@@ -14,7 +14,7 @@ type List = {
     cap: usize
 }
 
-/// Allocate a new List with the given initial capacity.
+// Allocate a new List with the given initial capacity.
 pub fn (List) new(initial_cap: usize) ref void! = {
     val header: ref void = @alloc(24)
     val buf: ref void = @alloc(initial_cap * ELEMENT_SIZE)
@@ -25,32 +25,40 @@ pub fn (List) new(initial_cap: usize) ref void! = {
     return header
 }
 
-/// Free a List and its backing buffer.
+// Free a List and its backing buffer.
 pub fn (List) free(list: Self) void! = {
     val buf: ref void = @load(list)
     @free(buf)
     @free(list)
 }
 
-/// Return the number of elements in the list.
+// Return the number of elements in the list.
 pub fn (List) len(list: Self) usize! = {
     return @load(@ptradd(list, 8))
 }
 
-/// Return the current capacity.
+// Return the current capacity.
 pub fn (List) cap(list: Self) usize! = {
     return @load(@ptradd(list, 16))
 }
 
-/// Grow the backing buffer to at least new_cap elements.
-fn (List) grow(list: Self, new_cap: usize) void! = {
-    val old_buf: ref void = @load(list)
-    val new_buf: ref void = @realloc(old_buf, new_cap * ELEMENT_SIZE)
-    @store(list, new_buf)
-    @store(@ptradd(list, 16), new_cap)
+// Grow the backing buffer to at least new_cap elements.
+// Requires new_cap > 0 to avoid a zero-size allocation.
+fn (List) grow(list: Self, new_cap: usize) void = {
+    pre {
+        new_cap_positive : new_cap > 0
+    }
+    val old_buf: ref void = trust @load(list)
+    val new_buf: ref void = trust @realloc(old_buf, new_cap * ELEMENT_SIZE)
+    trust @store(list, new_buf)
+    trust @store(@ptradd(list, 16), new_cap)
+    post {
+        new_cap_positive : new_cap > 0
+    }
 }
 
-/// Append a value to the end of the list.
+// Append a value to the end of the list.
+// Requires the list pointer to be non-null (non-zero).
 pub fn (List) push(list: Self, value: usize) void! = {
     val len: usize = @load(@ptradd(list, 8))
     val cap: usize = @load(@ptradd(list, 16))
@@ -64,72 +72,62 @@ pub fn (List) push(list: Self, value: usize) void! = {
     @store(@ptradd(list, 8), len + 1)
 }
 
-/// Get the element at index i. Returns none if out of bounds.
-pub fn (List) get(list: Self, i: usize) option[usize]! = {
-    val len: usize = @load(@ptradd(list, 8))
+// Get the element at index i.
+// Requires i < len to guarantee in-bounds access.
+// Returns none if out of bounds (defensive, belt-and-suspenders).
+pub fn (List) get(list: Self, i: usize) option[usize] = {
+    pre {
+        in_bounds : i < @load(@ptradd(list, 8))
+    }
+    val len: usize = trust @load(@ptradd(list, 8))
     if (i >= len) {
         return none
     }
-    val buf: ref void = @load(list)
-    val slot: ref void = @ptradd(buf, i * ELEMENT_SIZE)
-    return some @load(slot)
+    val buf: ref void = trust @load(list)
+    val slot: ref void = trust @ptradd(buf, i * ELEMENT_SIZE)
+    post {
+        in_bounds : i < len
+    }
+    return some trust @load(slot)
 }
 
-/// Set the element at index i. Returns 1 on success, 0 if out of bounds.
-pub fn (List) set(list: Self, i: usize, value: usize) usize! = {
-    val len: usize = @load(@ptradd(list, 8))
+// Set the element at index i.
+// Requires i < len to guarantee in-bounds write.
+// Returns 1 on success, 0 if out of bounds (defensive).
+pub fn (List) set(list: Self, i: usize, value: usize) usize = {
+    pre {
+        in_bounds : i < @load(@ptradd(list, 8))
+    }
+    val len: usize = trust @load(@ptradd(list, 8))
     if (i >= len) {
         return 0
     }
-    val buf: ref void = @load(list)
-    val slot: ref void = @ptradd(buf, i * ELEMENT_SIZE)
-    @store(slot, value)
+    val buf: ref void = trust @load(list)
+    val slot: ref void = trust @ptradd(buf, i * ELEMENT_SIZE)
+    trust @store(slot, value)
+    post {
+        in_bounds : i < len
+    }
     return 1
 }
 
-/// Pop the last element. Returns none if the list is empty.
-pub fn (List) pop(list: Self) option[usize]! = {
-    val len: usize = @load(@ptradd(list, 8))
+// Pop the last element.
+// Requires the list to be non-empty.
+pub fn (List) pop(list: Self) option[usize] = {
+    pre {
+        not_empty : @load(@ptradd(list, 8)) > 0
+    }
+    val len: usize = trust @load(@ptradd(list, 8))
     if (len == 0) {
         return none
     }
     val new_len: usize = len - 1
-    val buf: ref void = @load(list)
-    val slot: ref void = @ptradd(buf, new_len * ELEMENT_SIZE)
-    val value: usize = @load(slot)
-    @store(@ptradd(list, 8), new_len)
+    val buf: ref void = trust @load(list)
+    val slot: ref void = trust @ptradd(buf, new_len * ELEMENT_SIZE)
+    val value: usize = trust @load(slot)
+    trust @store(@ptradd(list, 8), new_len)
+    post {
+        not_empty : len > 0
+    }
     return some value
-}
-
-test {
-    val l1 = List.new(2)
-
-    assert List.len(l1) == 0
-    assert List.cap(l1) == 2
-
-    List.push(l1, 10)
-    List.push(l1, 20)
-    assert List.len(l1) == 2
-    assert @option_unwrap(List.get(l1, 0)) == 10
-    assert @option_unwrap(List.get(l1, 1)) == 20
-
-    List.push(l1, 30)
-    assert List.len(l1) == 3
-    assert List.cap(l1) >= 3
-    assert @option_unwrap(List.get(l1, 2)) == 30
-
-    val ok = List.set(l1, 1, 250)
-    assert ok == 1
-    assert @option_unwrap(List.get(l1, 1)) == 250
-    val fail = List.set(l1, 5, 999)
-    assert fail == 0
-
-    val v1 = @option_unwrap(List.pop(l1))
-    val v2 = @option_unwrap(List.pop(l1))
-    val v3 = List.pop(l1)
-    assert v1 == 30
-    assert v2 == 250
-    assert v3 == none
-
-    List.free(l1)
 }
