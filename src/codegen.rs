@@ -32,6 +32,7 @@ pub struct Codegen {
     local_mutability: HashMap<String, bool>,
     local_type_annotations: HashMap<String, String>,
     local_is_slot: std::collections::HashSet<String>,
+    local_slot_is_l: std::collections::HashSet<String>,
     type_defs: HashMap<String, Vec<Field>>,
     trusted_fns: std::collections::HashSet<String>,
     current_fn: String,
@@ -56,6 +57,7 @@ impl Codegen {
             local_mutability: HashMap::new(),
             local_type_annotations: HashMap::new(),
             local_is_slot: std::collections::HashSet::new(),
+            local_slot_is_l: std::collections::HashSet::new(),
             type_defs: HashMap::new(),
             trusted_fns: std::collections::HashSet::new(),
             current_fn: String::new(),
@@ -202,6 +204,7 @@ impl Codegen {
         self.local_mutability.clear();
         self.local_type_annotations.clear();
         self.local_is_slot.clear();
+        self.local_slot_is_l.clear();
         self.defer_stack.clear();
         self.type_aliases.clear();
         self.tmp_counter = 0;
@@ -281,6 +284,7 @@ impl Codegen {
         self.local_mutability.clear();
         self.local_type_annotations.clear();
         self.local_is_slot.clear();
+        self.local_slot_is_l.clear();
         self.defer_stack.clear();
         self.type_aliases.clear();
         self.tmp_counter = 0;
@@ -359,7 +363,7 @@ impl Codegen {
                     self.local_mutability.insert(name.clone(), true);
                     self.local_is_slot.insert(name.clone());
                     if slot_qty == "l" {
-                        self.local_type_annotations.insert(name.clone(), "__slot_l".to_string());
+                        self.local_slot_is_l.insert(name.clone());
                     }
                 } else {
                     self.locals.insert(name.clone(), tmp);
@@ -367,11 +371,8 @@ impl Codegen {
                     self.local_mutability.insert(name.clone(), *mutable);
                 }
                 if let Some(TypeExpr::Named(type_name)) = ty {
-                    // Don't overwrite __slot_l marker for mutable slot variables
-                    if !self.local_is_slot.contains(name) {
-                        self.local_type_annotations
-                            .insert(name.clone(), type_name.clone());
-                    }
+                    self.local_type_annotations
+                        .insert(name.clone(), type_name.clone());
                 }
             }
 
@@ -390,7 +391,7 @@ impl Codegen {
                             .get(name)
                             .cloned()
                             .ok_or_else(|| format!("undefined variable: {name}"))?;
-                        let is_l_slot = self.local_type_annotations.get(name).map(|s| s == "__slot_l").unwrap_or(false);
+                        let is_l_slot = self.local_slot_is_l.contains(name);
                         if is_l_slot {
                             let (val_l, _) = self.promote_to_l(val_tmp, val_qty);
                             self.emit(&format!("    storel {val_l}, {slot}"));
@@ -615,7 +616,7 @@ impl Codegen {
                     .get(var)
                     .cloned()
                     .ok_or_else(|| format!("undefined variable: {var}"))?;
-                let is_l_slot = self.local_type_annotations.get(var).map(|s| s == "__slot_l").unwrap_or(false);
+                let is_l_slot = self.local_slot_is_l.contains(var);
                 let cur = self.fresh_tmp();
                 let inc = self.fresh_tmp();
                 if is_l_slot {
@@ -790,7 +791,7 @@ impl Codegen {
                     })?;
                 if self.local_is_slot.contains(name) {
                     let tmp = self.fresh_tmp();
-                    let is_l_slot = self.local_type_annotations.get(name).map(|s| s == "__slot_l").unwrap_or(false);
+                    let is_l_slot = self.local_slot_is_l.contains(name);
                     if is_l_slot {
                         self.emit(&format!("    {tmp} =l loadl {slot_or_tmp}"));
                         Ok((tmp, "l"))
