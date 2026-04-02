@@ -35,6 +35,9 @@ fn check_fn(f: &FnDef, filename: &str, errors: &mut Vec<String>) {
 
     let param_names: HashSet<String> = f.params.iter().map(|(n, _)| n.clone()).collect();
 
+    let mut scope_stack: Vec<HashSet<String>> = vec![param_names.clone()];
+    check_shadowing_in_stmts(&f.body, &mut scope_stack, &f.name, filename, errors);
+
     for (name, is_mutable) in &declared {
         if !for_vars.contains(name) && *is_mutable && !mutated.contains(name) {
             errors.push(format!(
@@ -49,6 +52,91 @@ fn check_fn(f: &FnDef, filename: &str, errors: &mut Vec<String>) {
                 f.name
             ));
         }
+    }
+}
+
+fn check_shadowing_in_stmts(
+    stmts: &[Stmt],
+    scope_stack: &mut Vec<HashSet<String>>,
+    fn_name: &str,
+    filename: &str,
+    errors: &mut Vec<String>,
+) {
+    for stmt in stmts {
+        check_shadowing_in_stmt(stmt, scope_stack, fn_name, filename, errors);
+    }
+}
+
+fn check_shadowing_in_stmt(
+    stmt: &Stmt,
+    scope_stack: &mut Vec<HashSet<String>>,
+    fn_name: &str,
+    filename: &str,
+    errors: &mut Vec<String>,
+) {
+    match stmt {
+        Stmt::Val { name, .. } => {
+            let shadowed = scope_stack.iter().any(|s| s.contains(name));
+            if shadowed {
+                errors.push(format!(
+                    "{filename}: in function '{fn_name}': '{name}' shadows an existing declaration"
+                ));
+            }
+            if let Some(top) = scope_stack.last_mut() {
+                top.insert(name.clone());
+            }
+        }
+        Stmt::For { init, body, .. } => {
+            scope_stack.push(HashSet::new());
+            if let Some((var, _)) = init {
+                if let Some(top) = scope_stack.last_mut() {
+                    top.insert(var.clone());
+                }
+            }
+            check_shadowing_in_stmts(body, scope_stack, fn_name, filename, errors);
+            scope_stack.pop();
+        }
+        Stmt::If { then, elif_, else_, .. } => {
+            scope_stack.push(HashSet::new());
+            check_shadowing_in_stmts(then, scope_stack, fn_name, filename, errors);
+            scope_stack.pop();
+            for (_, b) in elif_ {
+                scope_stack.push(HashSet::new());
+                check_shadowing_in_stmts(b, scope_stack, fn_name, filename, errors);
+                scope_stack.pop();
+            }
+            if let Some(b) = else_ {
+                scope_stack.push(HashSet::new());
+                check_shadowing_in_stmts(b, scope_stack, fn_name, filename, errors);
+                scope_stack.pop();
+            }
+        }
+        Stmt::Match { some_binding, some_body, none_body, .. } => {
+            scope_stack.push(HashSet::new());
+            let shadowed = scope_stack.iter().rev().skip(1).any(|s| s.contains(some_binding));
+            if shadowed {
+                errors.push(format!(
+                    "{filename}: in function '{fn_name}': '{some_binding}' shadows an existing declaration"
+                ));
+            }
+            if let Some(top) = scope_stack.last_mut() {
+                top.insert(some_binding.clone());
+            }
+            check_shadowing_in_stmts(some_body, scope_stack, fn_name, filename, errors);
+            scope_stack.pop();
+            scope_stack.push(HashSet::new());
+            check_shadowing_in_stmts(none_body, scope_stack, fn_name, filename, errors);
+            scope_stack.pop();
+        }
+        Stmt::Defer(body)
+        | Stmt::When { body, .. }
+        | Stmt::WhenIs { body, .. }
+        | Stmt::Otherwise { body } => {
+            scope_stack.push(HashSet::new());
+            check_shadowing_in_stmts(body, scope_stack, fn_name, filename, errors);
+            scope_stack.pop();
+        }
+        _ => {}
     }
 }
 
