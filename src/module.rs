@@ -46,6 +46,7 @@ pub fn compile_file(input: &str, args: &Args) -> Result<(String, Vec<String>, Ve
 }
 
 /// Collect link libs:
+///
 /// - Always include libs declared in the root module itself.
 /// - For each imported child module, only include its libs (recursively) if
 ///   that import is actually referenced somewhere in the root's AST.
