@@ -884,5 +884,5 @@ test {
     reverse(rv)
     assert(equals(rv, from("dcba")))
 
-    std.io.print("string tests passed")
+    std.io.put("string tests passed")
 }

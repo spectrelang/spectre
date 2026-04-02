@@ -63,8 +63,8 @@ test {
     assert uuid1 != 0
     assert uuid2 != 0
     
-    std.io.print(uuid1)
-    std.io.print(uuid2)
+    std.io.put(uuid1)
+    std.io.put(uuid2)
     
     @free(uuid1)
     @free(uuid2)

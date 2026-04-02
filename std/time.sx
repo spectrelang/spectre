@@ -211,7 +211,7 @@ test {
     assert DateTime.after(dt, dt2)  == true
     assert DateTime.equals(dt, dt)  == true
 
-    std.io.put_any("year: %lld\n", {DateTime.year(dt)})
+    std.io.print("year: %lld\n", {DateTime.year(dt)})
 
     DateTime.free(dt)
     DateTime.free(dt2)

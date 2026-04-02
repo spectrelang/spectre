@@ -8,7 +8,7 @@ type SomeType = {
 
 pub fn (SomeType) do_some_thing(s: Self, times: usize) void! = {
     for (i = 0; i < times; i++) {
-        std.io.put_any("{d}, {d} - {s}\n", {s.x, s.y, s.z})
+        std.io.print("{d}, {d} - {s}\n", {s.x, s.y, s.z})
     }
 }
 

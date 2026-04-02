@@ -6,13 +6,13 @@ union SomeUnion = {
 
 fn some_function(x: SomeUnion) void! = {
     when x is i32 {
-        std.io.print("hi inty int int")
+        std.io.put("hi inty int int")
     }
     when x is i64 {
-        std.io.print("hi bigger inty int")
+        std.io.put("hi bigger inty int")
     }
     otherwise {
-        std.io.print("hi something else")
+        std.io.put("hi something else")
     }
 }
 

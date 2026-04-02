@@ -602,9 +602,9 @@ mod codegen_tests {
     fn format_string_rewritten() {
         let ir = compile_ok(
             r#"
-            pub fn put_any(fmt: ref char, args: untyped) void! = {}
+            pub fn print(fmt: ref char, args: untyped) void! = {}
             pub fn main() void! = {
-                put_any("{d}", 1)
+                print("{d}", 1)
             }
         "#,
         );
@@ -665,8 +665,8 @@ mod format_string_tests {
 
     fn rewrite(fmt: &str) -> String {
         let src = format!(
-            r#"pub fn put_any(f: ref char, a: untyped) void! = {{}}
-               pub fn main() void! = {{ put_any("{fmt}", 1) }}"#
+            r#"pub fn print(f: ref char, a: untyped) void! = {{}}
+               pub fn main() void! = {{ print("{fmt}", 1) }}"#
         );
         let resolved = resolve_module(&src, Path::new("."), &mut HashMap::new(), "", None).unwrap();
         let mut cg = Codegen::new();
@@ -1151,10 +1151,10 @@ mod elif_and_for_tests {
     fn codegen_for_c_style_loop_var_readable() {
         let ir = compile_ok(
             r#"
-            pub fn put_any(fmt: ref char, args: untyped) void! = {}
+            pub fn print(fmt: ref char, args: untyped) void! = {}
             pub fn main() void! = {
                 for (i = 0; i < 3; i++) {
-                    put_any("{d}", i)
+                    print("{d}", i)
                 }
             }
         "#,

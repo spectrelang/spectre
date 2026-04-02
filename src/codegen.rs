@@ -1545,10 +1545,10 @@ impl Codegen {
                     }
                 }
 
-                if fn_name == "put_any" {
+                if fn_name == "print" {
                     let fmt_str = match args.first() {
                         Some(Expr::StrLit(s)) => s.clone(),
-                        _ => return Err("put_any first argument must be a string literal".into()),
+                        _ => return Err("print first argument must be a string literal".into()),
                     };
                     let rewritten = rewrite_format_string(&fmt_str);
                     let label = self.intern_string(&rewritten);

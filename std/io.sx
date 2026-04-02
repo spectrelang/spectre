@@ -1,5 +1,5 @@
 /// Print a string followed by a newline to stdout.
-pub fn print(arg: ref char) void = {
+pub fn put(arg: ref char) void = {
     trust @puts(arg)
 }
 
@@ -7,17 +7,17 @@ pub fn print(arg: ref char) void = {
 ///
 /// This trusts an unsafe printf call for the sake of making debugging pure 
 /// functions easier, use with caution.
-pub fn put_any(fmt: ref char, args: untyped) void = {
+pub fn print(fmt: ref char, args: untyped) void = {
     trust @printf(fmt, args)
 }
 
 /// Print a string to stderr followed by a newline (fd 2).
-pub fn eprint(msg: ref char) void! = {
+pub fn eput(msg: ref char) void! = {
     @dprintf(2, "%s\n", msg)
 }
 
 /// Print a string to stderr followed by a newline (fd 2).
-pub fn eprint_any(fmt: ref char, args: untyped) void! = {
+pub fn eprint(fmt: ref char, args: untyped) void! = {
     @dprintf(2, fmt, args)
 }
 
@@ -37,5 +37,5 @@ pub fn read_line(buf: mut ref char, max_len: i64) ref char! = {
 test {
     val buffer: mut ref char = ""
     val result = read_line(buffer, 100)
-    put_any("{s}", result)
+    print("{s}", result)
 }

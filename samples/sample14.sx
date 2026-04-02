@@ -1,10 +1,10 @@
 val std = use("std")
 
 pub fn do_some_thing() void = {
-	std.io.print("hello, world")
+	std.io.put("hello, world")
 }
 
 pub fn main() void! = {
 	do_some_thing()
-	std.io.put_any("{d} {s}", {1, "asdf"})	
+	std.io.print("{d} {s}", {1, "asdf"})	
 }

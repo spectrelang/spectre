@@ -4,7 +4,7 @@ pub fn safe_func(x: i32, y: i32) void = {
     guarded pre {
         is_safe: x > 10 && y > 10   
     }
-    trust std.io.print("here i go, doing some thing")
+    trust std.io.put("here i go, doing some thing")
 }
 
 pub fn main() void = {

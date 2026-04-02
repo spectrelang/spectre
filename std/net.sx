@@ -323,7 +323,7 @@ test {
     val status: i64 = Http.status(resp)
     val body_ptr: ref char = Http.body(resp)
 
-    std.io.put_any("{d} {s}", {status, body_ptr})
+    std.io.print("{d} {s}", {status, body_ptr})
 
     val body_len: i64 = Http.body_len(resp)
 
