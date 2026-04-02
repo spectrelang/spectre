@@ -1,0 +1,77 @@
+/// Cryptographically secure random number generation and UUID v4 generation.
+///
+/// Backed by arc4random_buf(3) — available on macOS, BSD, and Linux (glibc >= 2.36).
+/// No seeding is required; the OS manages entropy automatically.
+
+val std = use("std")
+
+/// Fill `buf` with `len` cryptographically secure random bytes.
+pub fn random_bytes(buf: ref void, len: usize) void! = {
+    trust @arc4random_buf(buf, len)
+}
+
+/// Return a cryptographically secure random u64.
+pub fn random_u64() u64! = {
+    val buf: ref void = @alloc(8)
+    trust @arc4random_buf(buf, 8)
+    val result: u64 = trust @load(buf)
+    @free(buf)
+    return result
+}
+
+/// Return a cryptographically secure random u32 in [0, upper_bound) without modulo bias.
+/// Requires upper_bound > 0.
+pub fn random_u32_below(upper_bound: u32) u32! = {
+    return trust @arc4random_uniform(upper_bound)
+}
+
+/// Allocate and return a null-terminated UUID v4 string (37 bytes: 36 chars + null).
+/// The caller is responsible for freeing the returned pointer.
+///
+/// Format: xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx  (RFC 4122)
+pub fn random_uuid() ref char! = {
+    val rnd: ref void = @alloc(16)
+    trust @arc4random_buf(rnd, 16)
+
+    val hi: u64 = trust @load(rnd)
+    val lo: u64 = trust @load(@ptradd(rnd, 8))
+
+    /// Set version = 4: clear bits 15-12 of time_hi_and_version, set bit 14.
+    val hi_v: u64 = (hi & 0xffffffffffff0fff) | 0x0000000000004000
+
+    /// Set variant = 0b10: clear bits 63-62 of clock_seq_hi_and_reserved, set bit 63.
+    val lo_v: u64 = (lo & 0x3fffffffffffffff) | 0x8000000000000000
+
+    val out: ref char = @alloc(37)
+    trust @snprintf(out, 37, "{08llx}-{04llx}-{04llx}-{04llx}-{012llx}",
+        (hi_v >> 32) & 0xffffffff,
+        (hi_v >> 16) & 0xffff,
+        hi_v & 0xffff,
+        (lo_v >> 48) & 0xffff,
+        lo_v & 0xffffffffffff)
+
+    @free(rnd)
+    return out
+}
+
+test {
+    /// random_u64 should return a non-zero value with overwhelming probability.
+    val r1 = random_u64()
+    val r2 = random_u64()
+    assert r1 != r2
+
+    /// random_u32_below should stay within bounds.
+    val r3 = random_u32_below(100)
+    assert r3 >= 0
+    assert r3 < 100
+
+    /// random_uuid should return a non-null pointer and produce distinct UUIDs.
+    val uuid1 = random_uuid()
+    val uuid2 = random_uuid()
+    assert uuid1 != 0
+    assert uuid2 != 0
+    std.io.print(uuid1)
+    std.io.print(uuid2)
+    @free(uuid1)
+    @free(uuid2)
+}

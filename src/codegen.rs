@@ -184,13 +184,11 @@ impl Codegen {
         let mut local_ns = ns.clone();
         for item in &resolved.ast.items {
             if let Item::Fn(f) = item {
-                if f.namespace.is_some() && !f.public {
-                    let local_key = match &f.namespace {
-                        Some(type_name) => format!("{type_name}.{}", f.name),
-                        None => f.name.clone(),
-                    };
-                    local_ns.insert(local_key, fn_qbe_name(f));
-                }
+                let local_key = match &f.namespace {
+                    Some(type_name) => format!("{type_name}.{}", f.name),
+                    None => f.name.clone(),
+                };
+                local_ns.insert(local_key, fn_qbe_name(f));
             }
         }
 
@@ -1066,6 +1064,63 @@ impl Codegen {
                     self.emit(&format!("    {tmp} =l call $sx_stdin()"));
                     Ok((tmp, "l"))
                 }
+                "arc4random_buf" => {
+                    let (buf, _) = self.emit_expr(&args[0], ns)?;
+                    let (len, len_ty) = self.emit_expr(&args[1], ns)?;
+                    let (len_l, _) = self.promote_to_l(len, len_ty);
+                    self.emit(&format!("    call $arc4random_buf(l {buf}, l {len_l})"));
+                    Ok(("0".into(), "w"))
+                }
+                "arc4random_uniform" => {
+                    let (bound, bound_ty) = self.emit_expr(&args[0], ns)?;
+                    let (bound_w, _) = if bound_ty == "l" {
+                        let w = self.fresh_tmp();
+                        self.emit(&format!("    {w} =w copy {bound}"));
+                        (w, "w")
+                    } else {
+                        (bound, bound_ty)
+                    };
+                    let tmp = self.fresh_tmp();
+                    self.emit(&format!("    {tmp} =w call $arc4random_uniform(w {bound_w})"));
+                    Ok((tmp, "w"))
+                }
+                "snprintf" => {
+                    if args.len() < 3 {
+                        return Err("@snprintf requires buf, size, and format arguments".into());
+                    }
+                    let (buf, _) = self.emit_expr(&args[0], ns)?;
+                    let (size, size_ty) = self.emit_expr(&args[1], ns)?;
+                    let (size_l, _) = self.promote_to_l(size, size_ty);
+                    let fmt_tmp = match &args[2] {
+                        Expr::StrLit(s) => {
+                            let rewritten = rewrite_format_string(s);
+                            let label = self.intern_string(&rewritten);
+                            let t = self.fresh_tmp();
+                            self.emit(&format!("    {t} =l copy ${label}"));
+                            t
+                        }
+                        other => {
+                            let (tmp, _) = self.emit_expr(other, ns)?;
+                            tmp
+                        }
+                    };
+                    let mut variadic_args = Vec::new();
+                    for a in args.iter().skip(3) {
+                        let (tmp, ty) = self.emit_expr(a, ns)?;
+                        let (promoted, pty) = self.promote_to_l(tmp, ty);
+                        variadic_args.push(format!("{pty} {promoted}"));
+                    }
+                    let result = self.fresh_tmp();
+                    if variadic_args.is_empty() {
+                        self.emit(&format!("    {result} =w call $snprintf(l {buf}, l {size_l}, l {fmt_tmp})"));
+                    } else {
+                        self.emit(&format!(
+                            "    {result} =w call $snprintf(l {buf}, l {size_l}, l {fmt_tmp}, ..., {})",
+                            variadic_args.join(", ")
+                        ));
+                    }
+                    Ok((result, "w"))
+                }
                 other => Err(format!("unknown builtin: @{other}")),
             },
 
@@ -1187,6 +1242,7 @@ impl Codegen {
                         Ge => format!("{tmp} =w cged {l}, {r}"),
                         And => format!("{tmp} =d and {l}, {r}"),
                         Or => format!("{tmp} =d or {l}, {r}"),
+                        _ => return Err("bitwise/shift ops not supported on f64".into()),
                     };
                     self.emit(&format!("    {instr}"));
                     let result_ty = match op {
@@ -1218,6 +1274,10 @@ impl Codegen {
                         Ge => format!("{tmp} =w csgel {l}, {r}"),
                         And => format!("{tmp} =l and {l}, {r}"),
                         Or => format!("{tmp} =l or {l}, {r}"),
+                        BitAnd => format!("{tmp} =l and {l}, {r}"),
+                        BitOr => format!("{tmp} =l or {l}, {r}"),
+                        Shl => format!("{tmp} =l shl {l}, {r}"),
+                        Shr => format!("{tmp} =l shr {l}, {r}"),
                     }
                 } else {
                     match op {
@@ -1234,6 +1294,10 @@ impl Codegen {
                         Ge => format!("{tmp} =w csgew {l}, {r}"),
                         And => format!("{tmp} =w and {l}, {r}"),
                         Or => format!("{tmp} =w or {l}, {r}"),
+                        BitAnd => format!("{tmp} =w and {l}, {r}"),
+                        BitOr => format!("{tmp} =w or {l}, {r}"),
+                        Shl => format!("{tmp} =w shl {l}, {r}"),
+                        Shr => format!("{tmp} =w shr {l}, {r}"),
                     }
                 };
                 self.emit(&format!("    {instr}"));
@@ -1246,8 +1310,7 @@ impl Codegen {
                             "w"
                         }
                     }
-                };
-                Ok((tmp, result_ty))
+                };                Ok((tmp, result_ty))
             }
 
             Expr::UnOp { op, expr } => {

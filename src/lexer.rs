@@ -56,6 +56,10 @@ pub enum TokenKind {
     GtEq,
     And,
     Or,
+    BitAnd,
+    BitOr,
+    Shl,
+    Shr,
     Not,
     Arrow,
     FatArrow,
@@ -168,6 +172,16 @@ impl Lexer {
 
         if c.is_ascii_digit() {
             let mut n = String::new();
+            if c == '0' && self.src.get(self.pos + 1).copied() == Some('x') {
+                self.advance();
+                self.advance();
+                while self.peek().map(|x| x.is_ascii_hexdigit()).unwrap_or(false) {
+                    n.push(self.advance().unwrap());
+                }
+                return u64::from_str_radix(&n, 16)
+                    .map(|v| TokenKind::IntLit(v as i64))
+                    .map_err(|e| format!("invalid hex literal '0x{n}': {e}"));
+            }
             while self.peek().map(|x| x.is_ascii_digit()).unwrap_or(false) {
                 n.push(self.advance().unwrap());
             }
@@ -290,33 +304,43 @@ impl Lexer {
                     TokenKind::Bang
                 }
             }
-            '<' => {
-                if self.peek() == Some('=') {
-                    self.advance();
-                    TokenKind::LtEq
-                } else {
-                    TokenKind::Lt
-                }
-            }
             '>' => {
                 if self.peek() == Some('=') {
                     self.advance();
                     TokenKind::GtEq
+                } else if self.peek() == Some('>') {
+                    self.advance();
+                    TokenKind::Shr
                 } else {
                     TokenKind::Gt
+                }
+            }
+            '<' => {
+                if self.peek() == Some('=') {
+                    self.advance();
+                    TokenKind::LtEq
+                } else if self.peek() == Some('<') {
+                    self.advance();
+                    TokenKind::Shl
+                } else {
+                    TokenKind::Lt
                 }
             }
             '&' => {
                 if self.peek() == Some('&') {
                     self.advance();
+                    TokenKind::And
+                } else {
+                    TokenKind::BitAnd
                 }
-                TokenKind::And
             }
             '|' => {
                 if self.peek() == Some('|') {
                     self.advance();
+                    TokenKind::Or
+                } else {
+                    TokenKind::BitOr
                 }
-                TokenKind::Or
             }
             '~' => TokenKind::Tilde,
             other => return Err(format!("unexpected character: {other:?}")),

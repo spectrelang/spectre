@@ -156,6 +156,10 @@ pub enum BinOp {
     Ge,
     And,
     Or,
+    BitAnd,
+    BitOr,
+    Shl,
+    Shr,
 }
 
 #[derive(Debug, Clone)]
@@ -667,12 +671,59 @@ impl Parser {
     }
 
     fn parse_and(&mut self) -> Result<Expr, String> {
-        let mut lhs = self.parse_cmp()?;
+        let mut lhs = self.parse_bitor()?;
         while self.peek() == &TokenKind::And {
+            self.advance();
+            let rhs = self.parse_bitor()?;
+            lhs = Expr::BinOp {
+                op: BinOp::And,
+                lhs: Box::new(lhs),
+                rhs: Box::new(rhs),
+            };
+        }
+        Ok(lhs)
+    }
+
+    fn parse_bitor(&mut self) -> Result<Expr, String> {
+        let mut lhs = self.parse_bitand()?;
+        while self.peek() == &TokenKind::BitOr {
+            self.advance();
+            let rhs = self.parse_bitand()?;
+            lhs = Expr::BinOp {
+                op: BinOp::BitOr,
+                lhs: Box::new(lhs),
+                rhs: Box::new(rhs),
+            };
+        }
+        Ok(lhs)
+    }
+
+    fn parse_bitand(&mut self) -> Result<Expr, String> {
+        let mut lhs = self.parse_shift()?;
+        while self.peek() == &TokenKind::BitAnd {
+            self.advance();
+            let rhs = self.parse_shift()?;
+            lhs = Expr::BinOp {
+                op: BinOp::BitAnd,
+                lhs: Box::new(lhs),
+                rhs: Box::new(rhs),
+            };
+        }
+        Ok(lhs)
+    }
+
+    fn parse_shift(&mut self) -> Result<Expr, String> {
+        let mut lhs = self.parse_cmp()?;
+        loop {
+            let op = match self.peek() {
+                TokenKind::Shl => BinOp::Shl,
+                TokenKind::Shr => BinOp::Shr,
+                _ => break,
+            };
             self.advance();
             let rhs = self.parse_cmp()?;
             lhs = Expr::BinOp {
-                op: BinOp::And,
+                op,
                 lhs: Box::new(lhs),
                 rhs: Box::new(rhs),
             };
