@@ -32,7 +32,7 @@ pub fn compile_file(input: &str, args: &Args) -> Result<String, String> {
     }
 
     let mut cg = Codegen::new();
-    cg.emit_module(&resolved, args.test)?;
+    cg.emit_module(&resolved, args.test, args.release)?;
     Ok(cg.finish())
 }
 
@@ -50,7 +50,7 @@ pub fn resolve_module(
     let ast = parser.parse_module()?;
     let mut imports = HashMap::new();
     let self_path = PathBuf::from(filename);
-    
+
     visited.insert(self_path, ());
 
     for item in &ast.items {

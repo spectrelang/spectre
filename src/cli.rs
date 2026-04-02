@@ -8,7 +8,8 @@ spectre <input> [options]
     [file].sx --emit-qbe       print QBE IR and exit
     [file].sx --emit-asm       print assembly and exit
     [file].sx --emit-tokens    print token stream and exit
-    [file].sx --emit-ast       print AST and exit";
+    [file].sx --emit-ast       print AST and exit
+    [file].sx --release        build in release mode, runtime safety checks off";
 
 /// Spectre compiler — lowers .sx source to a native binary via QBE
 #[derive(Parser, Debug)]
@@ -55,6 +56,10 @@ pub struct Args {
     /// Run tests in the source file
     #[arg(long)]
     pub test: bool,
+
+    /// Omit all runtime safety checks from generated code
+    #[arg(long)]
+    pub release: bool,
 }
 
 /// All platforms the compiler knows about.

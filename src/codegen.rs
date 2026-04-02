@@ -46,6 +46,7 @@ pub struct Codegen {
     type_aliases: HashMap<String, String>,
     fn_ret_types: HashMap<String, &'static str>,
     platform: Platform,
+    release: bool,
 }
 
 impl Codegen {
@@ -73,6 +74,7 @@ impl Codegen {
             type_aliases: HashMap::new(),
             fn_ret_types: HashMap::new(),
             platform: Platform::current(),
+            release: false,
         }
     }
 
@@ -131,7 +133,9 @@ impl Codegen {
         &mut self,
         resolved: &ResolvedModule,
         test_mode: bool,
+        release: bool,
     ) -> Result<(), String> {
+        self.release = release;
         let ns = build_namespace(resolved);
         let trusted = build_trusted_set(resolved);
         self.trusted_fns = trusted;
@@ -248,7 +252,7 @@ impl Codegen {
             }
         }
 
-        if !f.trusted {
+        if !f.trusted && !self.release {
             let has_pre = f.body.iter().any(|s| matches!(s, Stmt::Pre(_)));
             let has_post = f.body.iter().any(|s| matches!(s, Stmt::Post(_)));
             if !all_trusted_stmts(&f.body) && !has_pre && !has_post {
@@ -478,57 +482,61 @@ impl Codegen {
                 self.emit_expr(expr, ns)?;
             }
             Stmt::Pre(contracts) => {
-                for c in contracts {
-                    let (cond, _) = self.emit_expr(&c.expr, ns)?;
-                    let ok_lbl = format!("@pre_ok_{}", self.tmp_counter);
-                    let fail_lbl = format!("@pre_fail_{}", self.tmp_counter);
-                    self.tmp_counter += 1;
-                    self.emit(&format!("    jnz {cond}, {ok_lbl}, {fail_lbl}"));
-                    self.emit(&format!("{fail_lbl}"));
-                    let msg = match &c.label {
-                        Some(lbl) => format!(
-                            "spectre: precondition '{}' violated in function '{}'\n",
-                            lbl, self.current_fn
-                        ),
-                        None => format!(
-                            "spectre: precondition violated in function '{}'\n",
-                            self.current_fn
-                        ),
-                    };
-                    let msg_label = self.intern_string(&msg);
-                    let msg_tmp = self.fresh_tmp();
-                    self.emit(&format!("    {msg_tmp} =l copy ${msg_label}"));
-                    self.emit(&format!("    call $dprintf(w 2, l {msg_tmp})"));
-                    self.emit("    call $abort()");
-                    self.emit("    hlt");
-                    self.emit(&format!("{ok_lbl}"));
+                if !self.release {
+                    for c in contracts {
+                        let (cond, _) = self.emit_expr(&c.expr, ns)?;
+                        let ok_lbl = format!("@pre_ok_{}", self.tmp_counter);
+                        let fail_lbl = format!("@pre_fail_{}", self.tmp_counter);
+                        self.tmp_counter += 1;
+                        self.emit(&format!("    jnz {cond}, {ok_lbl}, {fail_lbl}"));
+                        self.emit(&format!("{fail_lbl}"));
+                        let msg = match &c.label {
+                            Some(lbl) => format!(
+                                "spectre: precondition '{}' violated in function '{}'\n",
+                                lbl, self.current_fn
+                            ),
+                            None => format!(
+                                "spectre: precondition violated in function '{}'\n",
+                                self.current_fn
+                            ),
+                        };
+                        let msg_label = self.intern_string(&msg);
+                        let msg_tmp = self.fresh_tmp();
+                        self.emit(&format!("    {msg_tmp} =l copy ${msg_label}"));
+                        self.emit(&format!("    call $dprintf(w 2, l {msg_tmp})"));
+                        self.emit("    call $abort()");
+                        self.emit("    hlt");
+                        self.emit(&format!("{ok_lbl}"));
+                    }
                 }
             }
             Stmt::Post(contracts) => {
-                for c in contracts {
-                    let (cond, _) = self.emit_expr(&c.expr, ns)?;
-                    let ok_lbl = format!("@post_ok_{}", self.tmp_counter);
-                    let fail_lbl = format!("@post_fail_{}", self.tmp_counter);
-                    self.tmp_counter += 1;
-                    self.emit(&format!("    jnz {cond}, {ok_lbl}, {fail_lbl}"));
-                    self.emit(&format!("{fail_lbl}"));
-                    let msg = match &c.label {
-                        Some(lbl) => format!(
-                            "spectre: postcondition '{}' violated in function '{}'\n",
-                            lbl, self.current_fn
-                        ),
-                        None => format!(
-                            "spectre: postcondition violated in function '{}'\n",
-                            self.current_fn
-                        ),
-                    };
-                    let msg_label = self.intern_string(&msg);
-                    let msg_tmp = self.fresh_tmp();
-                    self.emit(&format!("    {msg_tmp} =l copy ${msg_label}"));
-                    self.emit(&format!("    call $dprintf(w 2, l {msg_tmp})"));
-                    self.emit("    call $abort()");
-                    self.emit("    hlt");
-                    self.emit(&format!("{ok_lbl}"));
+                if !self.release {
+                    for c in contracts {
+                        let (cond, _) = self.emit_expr(&c.expr, ns)?;
+                        let ok_lbl = format!("@post_ok_{}", self.tmp_counter);
+                        let fail_lbl = format!("@post_fail_{}", self.tmp_counter);
+                        self.tmp_counter += 1;
+                        self.emit(&format!("    jnz {cond}, {ok_lbl}, {fail_lbl}"));
+                        self.emit(&format!("{fail_lbl}"));
+                        let msg = match &c.label {
+                            Some(lbl) => format!(
+                                "spectre: postcondition '{}' violated in function '{}'\n",
+                                lbl, self.current_fn
+                            ),
+                            None => format!(
+                                "spectre: postcondition violated in function '{}'\n",
+                                self.current_fn
+                            ),
+                        };
+                        let msg_label = self.intern_string(&msg);
+                        let msg_tmp = self.fresh_tmp();
+                        self.emit(&format!("    {msg_tmp} =l copy ${msg_label}"));
+                        self.emit(&format!("    call $dprintf(w 2, l {msg_tmp})"));
+                        self.emit("    call $abort()");
+                        self.emit("    hlt");
+                        self.emit(&format!("{ok_lbl}"));
+                    }
                 }
             }
             Stmt::If {
