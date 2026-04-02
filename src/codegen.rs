@@ -36,15 +36,18 @@ pub struct Codegen {
     local_slot_is_l: std::collections::HashSet<String>,
     local_slot_is_d: std::collections::HashSet<String>,
     type_defs: HashMap<String, Vec<Field>>,
+    union_defs: HashMap<String, Vec<TypeExpr>>,
     trusted_fns: std::collections::HashSet<String>,
     current_fn: String,
     defer_stack: Vec<Vec<Stmt>>,
     current_loop_end: Option<String>,
+    when_chain_end: Option<String>,
     test_fns: Vec<String>,
     current_file: String,
     module_consts: HashMap<String, (String, &'static str)>,
     type_aliases: HashMap<String, String>,
     fn_ret_types: HashMap<String, &'static str>,
+    fn_param_types: HashMap<String, Vec<TypeExpr>>,
     platform: Platform,
     release: bool,
 }
@@ -64,15 +67,18 @@ impl Codegen {
             local_slot_is_l: std::collections::HashSet::new(),
             local_slot_is_d: std::collections::HashSet::new(),
             type_defs: HashMap::new(),
+            union_defs: HashMap::new(),
             trusted_fns: std::collections::HashSet::new(),
             current_fn: String::new(),
             defer_stack: Vec::new(),
             current_loop_end: None,
+            when_chain_end: None,
             test_fns: Vec::new(),
             current_file: String::new(),
             module_consts: HashMap::new(),
             type_aliases: HashMap::new(),
             fn_ret_types: HashMap::new(),
+            fn_param_types: HashMap::new(),
             platform: Platform::current(),
             release: false,
         }
@@ -140,6 +146,7 @@ impl Codegen {
         let trusted = build_trusted_set(resolved);
         self.trusted_fns = trusted;
         self.fn_ret_types = build_ret_types(resolved);
+        self.fn_param_types = build_param_types(resolved);
         self.emit_module_recursive(resolved, &ns, test_mode, true)?;
         if test_mode {
             self.emit_test_main()?;
@@ -164,6 +171,9 @@ impl Codegen {
         for item in &resolved.ast.items {
             if let Item::TypeDef { name, fields } = item {
                 self.type_defs.insert(name.clone(), fields.clone());
+            }
+            if let Item::UnionDef { name, variants } = item {
+                self.union_defs.insert(name.clone(), variants.clone());
             }
         }
 
@@ -213,6 +223,7 @@ impl Codegen {
                 Item::Use { .. }
                 | Item::Const { .. }
                 | Item::TypeDef { .. }
+                | Item::UnionDef { .. }
                 | Item::Test { .. } => {}
             }
         }
@@ -231,6 +242,7 @@ impl Codegen {
         self.local_slot_is_d.clear();
         self.defer_stack.clear();
         self.type_aliases.clear();
+        self.when_chain_end = None;
         self.tmp_counter = 0;
 
         for (name, (val, ty)) in &self.module_consts.clone() {
@@ -322,6 +334,7 @@ impl Codegen {
         self.local_slot_is_d.clear();
         self.defer_stack.clear();
         self.type_aliases.clear();
+        self.when_chain_end = None;
         self.tmp_counter = 0;
         self.current_fn = format!("test_{}", test_id);
 
@@ -696,6 +709,44 @@ impl Codegen {
                     }
                 }
             }
+            Stmt::WhenIs { expr, ty, body } => {
+                let chain_end = if let Some(lbl) = &self.when_chain_end {
+                    lbl.clone()
+                } else {
+                    let lbl = format!("@when_end_{}", self.tmp_counter);
+                    self.tmp_counter += 1;
+                    self.when_chain_end = Some(lbl.clone());
+                    lbl
+                };
+
+                let tag_index = self.resolve_union_tag(expr, ty)?;
+                let body_lbl = format!("@when_body_{}", self.tmp_counter);
+                let skip_lbl = format!("@when_skip_{}", self.tmp_counter);
+                self.tmp_counter += 1;
+
+                let (union_ptr, _) = self.emit_expr(expr, ns)?;
+                let tag_tmp = self.fresh_tmp();
+                self.emit(&format!("    {tag_tmp} =w loadw {union_ptr}"));
+                let cond_tmp = self.fresh_tmp();
+                self.emit(&format!("    {cond_tmp} =w ceqw {tag_tmp}, {tag_index}"));
+                self.emit(&format!("    jnz {cond_tmp}, {body_lbl}, {skip_lbl}"));
+                self.emit(&format!("{body_lbl}"));
+                for s in body {
+                    self.emit_stmt(s, ns, ret_ty)?;
+                }
+                if !block_is_terminated(body) {
+                    self.emit(&format!("    jmp {chain_end}"));
+                }
+                self.emit(&format!("{skip_lbl}"));
+            }
+            Stmt::Otherwise { body } => {
+                for s in body {
+                    self.emit_stmt(s, ns, ret_ty)?;
+                }
+                if let Some(lbl) = self.when_chain_end.take() {
+                    self.emit(&format!("{lbl}"));
+                }
+            }
             Stmt::Assert(expr, line) => {
                 let (cond, _) = self.emit_expr(expr, ns)?;
                 let pass_lbl = format!("@assert_pass_{}", self.tmp_counter);
@@ -811,6 +862,20 @@ impl Codegen {
                 .ok_or_else(|| format!("cannot determine type of '{name}'")),
             _ => Err("cannot determine struct type for complex expression".into()),
         }
+    }
+
+    /// Resolve the tag index for `ty` within the union type of `expr`.
+    /// Returns the 0-based variant index.
+    fn resolve_union_tag(&self, expr: &Expr, ty: &TypeExpr) -> Result<usize, String> {
+        let union_name = self.infer_struct_type_name(expr)?;
+        let variants = self
+            .union_defs
+            .get(&union_name)
+            .ok_or_else(|| format!("'{union_name}' is not a union type"))?;
+        variants
+            .iter()
+            .position(|v| type_expr_matches(v, ty))
+            .ok_or_else(|| format!("type is not a variant of union '{union_name}'"))
     }
 
     /// Promote a w value to l via sign-extension (needed for variadic call args).
@@ -1257,7 +1322,7 @@ impl Codegen {
                 }
 
                 let mut arg_strs = Vec::new();
-                for a in args.iter() {
+                for (i, a) in args.iter().enumerate() {
                     if let Expr::ArgsPack(pack) = a {
                         for item in pack {
                             let (tmp, ty) = self.emit_expr(item, ns)?;
@@ -1265,7 +1330,35 @@ impl Codegen {
                         }
                     } else {
                         let (tmp, ty) = self.emit_expr(a, ns)?;
-                        arg_strs.push(format!("{ty} {tmp}"));
+                        let param_types = self.fn_param_types.get(&fn_name).cloned();
+                        let wrapped = if let Some(ref ptypes) = param_types {
+                            if let Some(TypeExpr::Named(union_name)) = ptypes.get(i) {
+                                if let Some(variants) = self.union_defs.get(union_name).cloned() {
+                                    let arg_type_name = match a {
+                                        Expr::Ident(n) => self.local_type_annotations.get(n).cloned(),
+                                        _ => None,
+                                    };
+                                    let tag = arg_type_name.as_deref()
+                                        .and_then(|atn| variants.iter().position(|v| {
+                                            matches!(v, TypeExpr::Named(n) if n == atn)
+                                                || matches!(v, TypeExpr::Ref(_) if atn == "ref")
+                                        }));
+                                    if let Some(tag_idx) = tag {
+                                        let ptr = self.fresh_tmp();
+                                        self.emit(&format!("    {ptr} =l call $malloc(l 16)"));
+                                        self.emit(&format!("    storew {tag_idx}, {ptr}"));
+                                        let val_ptr = self.fresh_tmp();
+                                        self.emit(&format!("    {val_ptr} =l add {ptr}, 8"));
+                                        let (val_l, _) = self.promote_to_l(tmp.clone(), ty);
+                                        self.emit(&format!("    storel {val_l}, {val_ptr}"));
+                                        Some(format!("l {ptr}"))
+                                    } else {
+                                        None
+                                    }
+                                } else { None }
+                            } else { None }
+                        } else { None };
+                        arg_strs.push(wrapped.unwrap_or_else(|| format!("{ty} {tmp}")));
                     }
                 }
                 let result = self.fresh_tmp();
@@ -1482,6 +1575,8 @@ fn all_trusted_stmts(stmts: &[Stmt]) -> bool {
             ..
         } => all_trusted_stmts(some_body) && all_trusted_stmts(none_body),
         Stmt::When { body, .. } => all_trusted_stmts(body),
+        Stmt::WhenIs { body, .. } => all_trusted_stmts(body),
+        Stmt::Otherwise { body } => all_trusted_stmts(body),
         Stmt::Expr(_) => false,
     })
 }
@@ -1525,6 +1620,10 @@ fn find_bare_builtin_in_stmt(stmt: &Stmt) -> Option<String> {
                 .or_else(|| find_bare_builtin_in_stmts(none_body))
         }
         Stmt::When { body, .. } => find_bare_builtin_in_stmts(body),
+        Stmt::WhenIs { expr, body, .. } => {
+            find_bare_builtin_in_expr(expr).or_else(|| find_bare_builtin_in_stmts(body))
+        }
+        Stmt::Otherwise { body } => find_bare_builtin_in_stmts(body),
         Stmt::Increment(_) | Stmt::Break => None,
     }
 }
@@ -1574,6 +1673,24 @@ fn collect_ret_types(module: &ResolvedModule, map: &mut HashMap<String, &'static
     }
     for child in module.imports.values() {
         collect_ret_types(child, map);
+    }
+}
+
+fn build_param_types(resolved: &ResolvedModule) -> HashMap<String, Vec<TypeExpr>> {
+    let mut map = HashMap::new();
+    collect_param_types(resolved, &mut map);
+    map
+}
+
+fn collect_param_types(module: &ResolvedModule, map: &mut HashMap<String, Vec<TypeExpr>>) {
+    for item in &module.ast.items {
+        if let Item::Fn(f) = item {
+            let qbe = fn_qbe_name(f);
+            map.insert(qbe, f.params.iter().map(|(_, ty)| ty.clone()).collect());
+        }
+    }
+    for child in module.imports.values() {
+        collect_param_types(child, map);
     }
 }
 
@@ -1709,6 +1826,18 @@ fn expr_root_name(expr: &Expr) -> Option<String> {
         Expr::Ident(name) => Some(name.clone()),
         Expr::Field(base, _) => expr_root_name(base),
         _ => None,
+    }
+}
+
+/// Check if two TypeExpr values refer to the same type (for union variant matching).
+fn type_expr_matches(a: &TypeExpr, b: &TypeExpr) -> bool {
+    match (a, b) {
+        (TypeExpr::Named(x), TypeExpr::Named(y)) => x == y,
+        (TypeExpr::Ref(x), TypeExpr::Ref(y)) => type_expr_matches(x, y),
+        (TypeExpr::Slice(x), TypeExpr::Slice(y)) => type_expr_matches(x, y),
+        (TypeExpr::Option(x), TypeExpr::Option(y)) => type_expr_matches(x, y),
+        (TypeExpr::Void, TypeExpr::Void) => true,
+        _ => false,
     }
 }
 

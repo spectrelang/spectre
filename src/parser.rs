@@ -16,6 +16,10 @@ pub enum Item {
         name: String,
         fields: Vec<Field>,
     },
+    UnionDef {
+        name: String,
+        variants: Vec<TypeExpr>,
+    },
     Const {
         public: bool,
         name: String,
@@ -94,6 +98,16 @@ pub enum Stmt {
     },
     When {
         platform: String,
+        body: Vec<Stmt>,
+    },
+    /// `when <expr> is <type> { ... }` — union type dispatch
+    WhenIs {
+        expr: Expr,
+        ty: TypeExpr,
+        body: Vec<Stmt>,
+    },
+    /// `otherwise { ... }` — fallback for union when/is chains
+    Otherwise {
         body: Vec<Stmt>,
     },
 }
@@ -258,6 +272,7 @@ impl Parser {
             TokenKind::Fn => self.parse_fn(public),
             TokenKind::Val => self.parse_val_item(public),
             TokenKind::Type => self.parse_type_def(),
+            TokenKind::Union => self.parse_union_def(),
             TokenKind::Use => self.parse_use(),
             other => Err(self.error(&format!("unexpected token at top level: {other:?}"))),
         }
@@ -434,6 +449,22 @@ impl Parser {
         Ok(Item::TypeDef { name, fields })
     }
 
+    fn parse_union_def(&mut self) -> Result<Item, String> {
+        self.expect(&TokenKind::Union)?;
+        let name = self.expect_ident()?;
+        self.expect(&TokenKind::Eq)?;
+        self.expect(&TokenKind::LBrace)?;
+        let mut variants = Vec::new();
+        while self.peek() != &TokenKind::RBrace && self.peek() != &TokenKind::Eof {
+            variants.push(self.parse_type()?);
+            if !self.eat(&TokenKind::BitOr) {
+                break;
+            }
+        }
+        self.expect(&TokenKind::RBrace)?;
+        Ok(Item::UnionDef { name, variants })
+    }
+
     fn parse_stmts(&mut self) -> Result<Vec<Stmt>, String> {
         let mut stmts = Vec::new();
         while self.peek() != &TokenKind::RBrace && self.peek() != &TokenKind::Eof {
@@ -569,11 +600,30 @@ impl Parser {
             }
             TokenKind::When => {
                 self.advance();
-                let platform = self.expect_ident()?;
+                let is_when_is = matches!(self.peek(), TokenKind::Ident(_))
+                    && self.tokens.get(self.pos + 1).map(|t| &t.kind) == Some(&TokenKind::Is);
+                if is_when_is {
+                    let expr = self.parse_expr()?;
+                    self.expect(&TokenKind::Is)?;
+                    let ty = self.parse_type()?;
+                    self.expect(&TokenKind::LBrace)?;
+                    let body = self.parse_stmts()?;
+                    self.expect(&TokenKind::RBrace)?;
+                    Ok(Stmt::WhenIs { expr, ty, body })
+                } else {
+                    let platform = self.expect_ident()?;
+                    self.expect(&TokenKind::LBrace)?;
+                    let body = self.parse_stmts()?;
+                    self.expect(&TokenKind::RBrace)?;
+                    Ok(Stmt::When { platform, body })
+                }
+            }
+            TokenKind::Otherwise => {
+                self.advance();
                 self.expect(&TokenKind::LBrace)?;
                 let body = self.parse_stmts()?;
                 self.expect(&TokenKind::RBrace)?;
-                Ok(Stmt::When { platform, body })
+                Ok(Stmt::Otherwise { body })
             }
             TokenKind::Assert => {
                 self.advance();
