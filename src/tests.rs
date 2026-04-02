@@ -647,7 +647,7 @@ mod codegen_tests {
             r#"
             pub fn helper() void! = {}
             pub fn main() void = {
-                helper()
+                trust helper()
             }
         "#,
         );

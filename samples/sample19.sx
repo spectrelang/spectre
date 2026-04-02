@@ -16,8 +16,8 @@ fn some_function(x: SomeUnion) void! = {
     }
 }
 
-pub fn main() void! = {
+pub fn main() void = {
     val x: i32 = 12
     val y: ref char = "hello"
-    some_function(y)
+    trust some_function(y)
 }

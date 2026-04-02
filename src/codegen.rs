@@ -51,6 +51,8 @@ pub struct Codegen {
     fn_param_types: HashMap<String, Vec<TypeExpr>>,
     platform: Platform,
     release: bool,
+    current_fn_trusted: bool,
+    in_trust_expr: bool,
 }
 
 impl Codegen {
@@ -83,6 +85,8 @@ impl Codegen {
             fn_param_types: HashMap::new(),
             platform: Platform::current(),
             release: false,
+            current_fn_trusted: false,
+            in_trust_expr: false,
         }
     }
 
@@ -259,6 +263,7 @@ impl Codegen {
 
         let qbe_name = fn_qbe_name(f);
         self.current_fn = qbe_name.clone();
+        self.current_fn_trusted = f.trusted;
 
         if !f.trusted {
             if let Some(builtin_name) = find_bare_builtin_in_stmts(&f.body) {
@@ -343,6 +348,7 @@ impl Codegen {
         self.when_chain_end = None;
         self.tmp_counter = 0;
         self.current_fn = format!("test_{}", test_id);
+        self.current_fn_trusted = true;
 
         for (name, (val, ty)) in &self.module_consts.clone() {
             self.locals.insert(name.clone(), val.clone());
@@ -943,7 +949,12 @@ impl Codegen {
                 let (tmp, ty) = self.emit_expr(inner, ns)?;
                 Ok(self.promote_to_l(tmp, ty))
             }
-            Expr::Trust(inner) => self.emit_expr(inner, ns),
+            Expr::Trust(inner) => {
+                self.in_trust_expr = true;
+                let result = self.emit_expr(inner, ns);
+                self.in_trust_expr = false;
+                result
+            }
 
             Expr::Builtin { name, args } => match name.as_str() {
                 "puts" => {
@@ -1303,6 +1314,17 @@ impl Codegen {
             Expr::Call { callee, args, line } => {
                 let fn_name = resolve_call_name(callee, ns, &self.type_aliases.clone())
                     .map_err(|e| format!("{}:{}: {}", self.current_file, line, e))?;
+
+                if !self.current_fn_trusted && !self.in_trust_expr {
+                    if self.trusted_fns.contains(&fn_name) {
+                        return Err(format!(
+                            "{}:{}: pure function '{}' calls impure function '{}' — \
+                             wrap the call with 'trust' or mark the caller as impure with '!'",
+                            self.current_file, line, self.current_fn, fn_name
+                        ));
+                    }
+                }
+                self.in_trust_expr = false;
 
                 if fn_name == "put_any" {
                     let fmt_str = match args.first() {
