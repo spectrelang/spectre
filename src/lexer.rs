@@ -32,6 +32,7 @@ pub enum TokenKind {
     Enum,
     Extern,
     Link,
+    Guarded,
     Ident(String),
     StringLit(String),
     IntLit(i64),
@@ -267,6 +268,7 @@ impl Lexer {
                 "enum" => TokenKind::Enum,
                 "extern" => TokenKind::Extern,
                 "link" => TokenKind::Link,
+                "guarded" => TokenKind::Guarded,
                 _ => TokenKind::Ident(ident),
             });
         }

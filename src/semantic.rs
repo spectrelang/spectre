@@ -110,7 +110,7 @@ fn collect_used_in_stmt(stmt: &Stmt, used: &mut HashSet<String>) {
         Stmt::Return(Some(e)) => collect_used_in_expr(e, used),
         Stmt::Return(None) => {}
         Stmt::Expr(e) => collect_used_in_expr(e, used),
-        Stmt::Pre(cs) | Stmt::Post(cs) => {
+        Stmt::Pre(cs) | Stmt::Post(cs) | Stmt::GuardedPre(cs) | Stmt::GuardedPost(cs) => {
             for c in cs {
                 collect_used_in_expr(&c.expr, used);
             }

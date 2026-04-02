@@ -294,8 +294,8 @@ impl Codegen {
         }
 
         if !f.trusted && !self.release {
-            let has_pre = f.body.iter().any(|s| matches!(s, Stmt::Pre(_)));
-            let has_post = f.body.iter().any(|s| matches!(s, Stmt::Post(_)));
+            let has_pre = f.body.iter().any(|s| matches!(s, Stmt::Pre(_) | Stmt::GuardedPre(_)));
+            let has_post = f.body.iter().any(|s| matches!(s, Stmt::Post(_) | Stmt::GuardedPost(_)));
             if !all_trusted_stmts(&f.body) && !has_pre && !has_post {
                 return Err(format!(
                     "pure function '{}' must have at least one 'pre' or 'post' contract block, or consist entirely of 'trust' statements",
@@ -580,6 +580,60 @@ impl Codegen {
                         self.emit("    hlt");
                         self.emit(&format!("{ok_lbl}"));
                     }
+                }
+            }
+            Stmt::GuardedPre(contracts) => {
+                for c in contracts {
+                    let (cond, _) = self.emit_expr(&c.expr, ns)?;
+                    let ok_lbl = format!("@pre_ok_{}", self.tmp_counter);
+                    let fail_lbl = format!("@pre_fail_{}", self.tmp_counter);
+                    self.tmp_counter += 1;
+                    self.emit(&format!("    jnz {cond}, {ok_lbl}, {fail_lbl}"));
+                    self.emit(&format!("{fail_lbl}"));
+                    let msg = match &c.label {
+                        Some(lbl) => format!(
+                            "spectre: precondition '{}' violated in function '{}'\n",
+                            lbl, self.current_fn
+                        ),
+                        None => format!(
+                            "spectre: precondition violated in function '{}'\n",
+                            self.current_fn
+                        ),
+                    };
+                    let msg_label = self.intern_string(&msg);
+                    let msg_tmp = self.fresh_tmp();
+                    self.emit(&format!("    {msg_tmp} =l copy ${msg_label}"));
+                    self.emit(&format!("    call $dprintf(w 2, l {msg_tmp})"));
+                    self.emit("    call $abort()");
+                    self.emit("    hlt");
+                    self.emit(&format!("{ok_lbl}"));
+                }
+            }
+            Stmt::GuardedPost(contracts) => {
+                for c in contracts {
+                    let (cond, _) = self.emit_expr(&c.expr, ns)?;
+                    let ok_lbl = format!("@post_ok_{}", self.tmp_counter);
+                    let fail_lbl = format!("@post_fail_{}", self.tmp_counter);
+                    self.tmp_counter += 1;
+                    self.emit(&format!("    jnz {cond}, {ok_lbl}, {fail_lbl}"));
+                    self.emit(&format!("{fail_lbl}"));
+                    let msg = match &c.label {
+                        Some(lbl) => format!(
+                            "spectre: postcondition '{}' violated in function '{}'\n",
+                            lbl, self.current_fn
+                        ),
+                        None => format!(
+                            "spectre: postcondition violated in function '{}'\n",
+                            self.current_fn
+                        ),
+                    };
+                    let msg_label = self.intern_string(&msg);
+                    let msg_tmp = self.fresh_tmp();
+                    self.emit(&format!("    {msg_tmp} =l copy ${msg_label}"));
+                    self.emit(&format!("    call $dprintf(w 2, l {msg_tmp})"));
+                    self.emit("    call $abort()");
+                    self.emit("    hlt");
+                    self.emit(&format!("{ok_lbl}"));
                 }
             }
             Stmt::If {
@@ -1474,6 +1528,23 @@ impl Codegen {
                 }
                 self.in_trust_expr = false;
 
+                if let Some(param_types) = self.fn_param_types.get(fn_name.as_str()) {
+                    let is_variadic = self.variadic_fns.contains_key(fn_name.as_str());
+                    let expected = param_types.len();
+                    let got = args.len();
+                    if !is_variadic && got != expected {
+                        return Err(format!(
+                            "{}:{}: call to '{}' expects {} argument{}, got {}",
+                            self.current_file,
+                            line,
+                            fn_name,
+                            expected,
+                            if expected == 1 { "" } else { "s" },
+                            got
+                        ));
+                    }
+                }
+
                 if fn_name == "put_any" {
                     let fmt_str = match args.first() {
                         Some(Expr::StrLit(s)) => s.clone(),
@@ -1829,15 +1900,13 @@ fn block_is_terminated(stmts: &[Stmt]) -> bool {
     matches!(stmts.last(), Some(Stmt::Return(_)) | Some(Stmt::Break))
 }
 
-/// Recursively checks whether a block consists entirely of "trusted" operations —
-/// i.e. no raw untrusted calls or assignments that would require contracts.
-/// Control flow constructs (if, for, match, defer) are transparent: we recurse into them.
+/// Recursively checks whether a block consists entirely of "trusted" operations.
 fn all_trusted_stmts(stmts: &[Stmt]) -> bool {
     stmts.iter().all(|s| match s {
         Stmt::Expr(Expr::Trust(_)) => true,
         Stmt::Expr(Expr::Call { callee, .. }) => !expr_to_path(callee).is_empty(),
         Stmt::Expr(Expr::Builtin { .. }) => true,
-        Stmt::Pre(_) | Stmt::Post(_) => true,
+        Stmt::Pre(_) | Stmt::Post(_) | Stmt::GuardedPre(_) | Stmt::GuardedPost(_) => true,
         Stmt::Val { .. }
         | Stmt::Return(_)
         | Stmt::Break
@@ -1887,6 +1956,9 @@ fn find_bare_builtin_in_stmt(stmt: &Stmt) -> Option<String> {
             .iter()
             .find_map(|c| find_bare_builtin_in_expr(&c.expr)),
         Stmt::Post(contracts) => contracts
+            .iter()
+            .find_map(|c| find_bare_builtin_in_expr(&c.expr)),
+        Stmt::GuardedPre(contracts) | Stmt::GuardedPost(contracts) => contracts
             .iter()
             .find_map(|c| find_bare_builtin_in_expr(&c.expr)),
         Stmt::Assert(expr, _) => find_bare_builtin_in_expr(expr),

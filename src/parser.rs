@@ -107,6 +107,8 @@ pub enum Stmt {
     Expr(Expr),
     Pre(Vec<Contract>),
     Post(Vec<Contract>),
+    GuardedPre(Vec<Contract>),
+    GuardedPost(Vec<Contract>),
     If {
         cond: Expr,
         then: Vec<Stmt>,
@@ -664,6 +666,28 @@ impl Parser {
                 let contracts = self.parse_contracts()?;
                 self.expect(&TokenKind::RBrace)?;
                 Ok(Stmt::Post(contracts))
+            }
+            TokenKind::Guarded => {
+                self.advance();
+                match self.peek().clone() {
+                    TokenKind::Pre => {
+                        self.advance();
+                        self.expect(&TokenKind::LBrace)?;
+                        let contracts = self.parse_contracts()?;
+                        self.expect(&TokenKind::RBrace)?;
+                        Ok(Stmt::GuardedPre(contracts))
+                    }
+                    TokenKind::Post => {
+                        self.advance();
+                        self.expect(&TokenKind::LBrace)?;
+                        let contracts = self.parse_contracts()?;
+                        self.expect(&TokenKind::RBrace)?;
+                        Ok(Stmt::GuardedPost(contracts))
+                    }
+                    other => Err(self.error(&format!(
+                        "'guarded' must be followed by 'pre' or 'post', got {other:?}"
+                    ))),
+                }
             }
             TokenKind::If => {
                 self.advance();
