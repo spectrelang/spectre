@@ -239,6 +239,16 @@ impl Codegen {
         self.current_fn = qbe_name.clone();
 
         if !f.trusted {
+            if let Some(builtin_name) = find_bare_builtin_in_stmts(&f.body) {
+                return Err(format!(
+                    "function '{}': builtin '@{}' called without 'trust' — \
+                     either wrap the call with 'trust @{}(...)' or mark the function as unsafe with '!'",
+                    qbe_name, builtin_name, builtin_name
+                ));
+            }
+        }
+
+        if !f.trusted {
             let has_pre = f.body.iter().any(|s| matches!(s, Stmt::Pre(_)));
             let has_post = f.body.iter().any(|s| matches!(s, Stmt::Post(_)));
             if !all_trusted_stmts(&f.body) && !has_pre && !has_post {
@@ -1450,8 +1460,73 @@ fn all_trusted_stmts(stmts: &[Stmt]) -> bool {
     })
 }
 
-/// A flat map from dotted path (e.g. "std.io.print") → QBE function name
 type Namespace = HashMap<String, String>;
+
+/// Returns the name of the first bare (non-trusted) builtin found in a statement list,
+/// or None if all builtins are properly wrapped with `trust`.
+fn find_bare_builtin_in_stmts(stmts: &[Stmt]) -> Option<String> {
+    stmts.iter().find_map(find_bare_builtin_in_stmt)
+}
+
+fn find_bare_builtin_in_stmt(stmt: &Stmt) -> Option<String> {
+    match stmt {
+        Stmt::Expr(expr) => find_bare_builtin_in_expr(expr),
+        Stmt::Val { expr, .. } => find_bare_builtin_in_expr(expr),
+        Stmt::Assign { value, .. } => find_bare_builtin_in_expr(value),
+        Stmt::Return(Some(expr)) => find_bare_builtin_in_expr(expr),
+        Stmt::Return(None) => None,
+        Stmt::Pre(contracts) => contracts.iter().find_map(|c| find_bare_builtin_in_expr(&c.expr)),
+        Stmt::Post(contracts) => contracts.iter().find_map(|c| find_bare_builtin_in_expr(&c.expr)),
+        Stmt::Assert(expr, _) => find_bare_builtin_in_expr(expr),
+        Stmt::Defer(body) => find_bare_builtin_in_stmts(body),
+        Stmt::If { cond, then, elif_, else_ } => {
+            find_bare_builtin_in_expr(cond)
+                .or_else(|| find_bare_builtin_in_stmts(then))
+                .or_else(|| elif_.iter().find_map(|(e, b)| {
+                    find_bare_builtin_in_expr(e).or_else(|| find_bare_builtin_in_stmts(b))
+                }))
+                .or_else(|| else_.as_deref().and_then(find_bare_builtin_in_stmts))
+        }
+        Stmt::For { init, cond, post, body } => {
+            init.as_ref().and_then(|(_, e)| find_bare_builtin_in_expr(e))
+                .or_else(|| cond.as_ref().and_then(find_bare_builtin_in_expr))
+                .or_else(|| post.as_deref().and_then(find_bare_builtin_in_stmt))
+                .or_else(|| find_bare_builtin_in_stmts(body))
+        }
+        Stmt::Match { expr, some_body, none_body, .. } => {
+            find_bare_builtin_in_expr(expr)
+                .or_else(|| find_bare_builtin_in_stmts(some_body))
+                .or_else(|| find_bare_builtin_in_stmts(none_body))
+        }
+        Stmt::When { body, .. } => find_bare_builtin_in_stmts(body),
+        Stmt::Increment(_) | Stmt::Break => None,
+    }
+}
+
+fn find_bare_builtin_in_expr(expr: &Expr) -> Option<String> {
+    match expr {
+        Expr::Trust(_) => None,
+        Expr::Builtin { name, .. } => Some(name.clone()),
+        Expr::Call { callee, args, .. } => {
+            find_bare_builtin_in_expr(callee)
+                .or_else(|| args.iter().find_map(find_bare_builtin_in_expr))
+        }
+        Expr::BinOp { lhs, rhs, .. } => {
+            find_bare_builtin_in_expr(lhs).or_else(|| find_bare_builtin_in_expr(rhs))
+        }
+        Expr::UnOp { expr, .. } | Expr::Cast { expr, .. } | Expr::Some(expr) => {
+            find_bare_builtin_in_expr(expr)
+        }
+        Expr::Field(base, _) => find_bare_builtin_in_expr(base),
+        Expr::StructLit { fields } => {
+            fields.iter().find_map(|(_, e)| find_bare_builtin_in_expr(e))
+        }
+        Expr::ArgsPack(exprs) => exprs.iter().find_map(find_bare_builtin_in_expr),
+        Expr::IntLit(_) | Expr::FloatLit(_) | Expr::StrLit(_)
+        | Expr::Ident(_) | Expr::Bool(_) | Expr::None => None,
+    }
+}
+
 fn build_namespace(resolved: &ResolvedModule) -> Namespace {
     let mut ns = HashMap::new();
     collect_ns(resolved, "", &mut ns);
