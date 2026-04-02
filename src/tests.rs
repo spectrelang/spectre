@@ -2658,3 +2658,246 @@ mod extern_fn_tests {
         assert!(!public, "extern fn without pub should be private");
     }
 }
+
+#[cfg(test)]
+mod link_tests {
+    use crate::cli::Platform;
+    use crate::lexer::{Lexer, TokenKind};
+    use crate::module::{collect_used_libs, resolve_module};
+    use crate::parser::{Item, Parser};
+    use std::collections::HashMap;
+    use std::path::Path;
+
+    fn parse(src: &str) -> crate::parser::Module {
+        let tokens = Lexer::new(src).tokenize().unwrap();
+        Parser::new(tokens).parse_module().unwrap()
+    }
+
+    fn parse_err(src: &str) -> String {
+        let tokens = Lexer::new(src).tokenize().unwrap();
+        Parser::new(tokens).parse_module().unwrap_err()
+    }
+
+    #[test]
+    fn lex_link_keyword() {
+        let toks = Lexer::new("link").tokenize().unwrap();
+        assert_eq!(toks[0].kind, TokenKind::Link);
+    }
+
+    #[test]
+    fn lex_link_not_confused_with_ident() {
+        let toks = Lexer::new("linkage").tokenize().unwrap();
+        assert!(matches!(toks[0].kind, TokenKind::Ident(_)));
+    }
+
+    #[test]
+    fn parse_link_item() {
+        let m = parse(r#"link "curl""#);
+        let Item::Link { lib } = &m.items[0] else {
+            panic!("expected Item::Link, got {:?}", m.items[0])
+        };
+        assert_eq!(lib, "curl");
+    }
+
+    #[test]
+    fn parse_multiple_link_items() {
+        let m = parse("link \"curl\"\nlink \"ssl\"");
+        assert_eq!(m.items.len(), 2);
+        let Item::Link { lib: lib0 } = &m.items[0] else { panic!() };
+        let Item::Link { lib: lib1 } = &m.items[1] else { panic!() };
+        assert_eq!(lib0, "curl");
+        assert_eq!(lib1, "ssl");
+    }
+
+    #[test]
+    fn parse_link_when_item() {
+        let m = parse(
+            r#"when darwin {
+                link "-framework CoreFoundation"
+                link "-framework Security"
+            }"#,
+        );
+        let Item::LinkWhen { platform, libs } = &m.items[0] else {
+            panic!("expected Item::LinkWhen, got {:?}", m.items[0])
+        };
+        assert_eq!(platform, "darwin");
+        assert_eq!(libs.len(), 2);
+        assert_eq!(libs[0], "-framework CoreFoundation");
+        assert_eq!(libs[1], "-framework Security");
+    }
+
+    #[test]
+    fn parse_link_when_empty_block() {
+        let m = parse("when linux { }");
+        let Item::LinkWhen { platform, libs } = &m.items[0] else {
+            panic!("expected Item::LinkWhen")
+        };
+        assert_eq!(platform, "linux");
+        assert!(libs.is_empty());
+    }
+
+    #[test]
+    fn parse_link_when_non_link_body_errors() {
+        let err = parse_err("when linux { val x = 1 }");
+        assert!(err.contains("expected 'link'"), "got: {err}");
+    }
+
+    #[test]
+    fn parse_link_and_link_when_together() {
+        let m = parse(
+            r#"link "curl"
+               when darwin { link "-framework CoreFoundation" }"#,
+        );
+        assert_eq!(m.items.len(), 2);
+        assert!(matches!(m.items[0], Item::Link { .. }));
+        assert!(matches!(m.items[1], Item::LinkWhen { .. }));
+    }
+
+    #[test]
+    fn resolved_module_collects_plain_links() {
+        let resolved =
+            resolve_module(r#"link "curl""#, Path::new("."), &mut HashMap::new(), "test.sx")
+                .unwrap();
+        assert_eq!(resolved.links, vec!["curl"]);
+    }
+
+    #[test]
+    fn resolved_module_collects_multiple_plain_links() {
+        let resolved = resolve_module(
+            "link \"curl\"\nlink \"ssl\"",
+            Path::new("."),
+            &mut HashMap::new(),
+            "test.sx",
+        )
+        .unwrap();
+        assert_eq!(resolved.links, vec!["curl", "ssl"]);
+    }
+
+    #[test]
+    fn resolved_module_link_when_matching_platform_included() {
+        let platform_name = match Platform::current() {
+            Platform::Darwin => "darwin",
+            Platform::Linux => "linux",
+            Platform::Windows => "windows",
+            Platform::FreeBsd => "freebsd",
+            Platform::OpenBsd => "openbsd",
+            Platform::NetBsd => "netbsd",
+            Platform::DragonFlyBsd => "dragonflybsd",
+            _ => "linux",
+        };
+        let src = format!("when {platform_name} {{ link \"platform_lib\" }}");
+        let resolved =
+            resolve_module(&src, Path::new("."), &mut HashMap::new(), "test.sx").unwrap();
+        assert!(
+            resolved.links.contains(&"platform_lib".to_string()),
+            "expected platform_lib in links for platform {platform_name}, got {:?}",
+            resolved.links
+        );
+    }
+
+    #[test]
+    fn resolved_module_link_when_non_matching_platform_excluded() {
+        let other = match Platform::current() {
+            Platform::Darwin => "linux",
+            _ => "darwin",
+        };
+        let src = format!("when {other} {{ link \"other_platform_lib\" }}");
+        let resolved =
+            resolve_module(&src, Path::new("."), &mut HashMap::new(), "test.sx").unwrap();
+        assert!(
+            !resolved.links.contains(&"other_platform_lib".to_string()),
+            "other_platform_lib should not be linked on this platform, got {:?}",
+            resolved.links
+        );
+    }
+
+    #[test]
+    fn resolved_module_unknown_platform_excluded() {
+        let resolved = resolve_module(
+            r#"when unknownos { link "ghost_lib" }"#,
+            Path::new("."),
+            &mut HashMap::new(),
+            "test.sx",
+        )
+        .unwrap();
+        assert!(
+            !resolved.links.contains(&"ghost_lib".to_string()),
+            "unknown platform should not produce links"
+        );
+    }
+
+    #[test]
+    fn collect_used_libs_includes_root_own_links() {
+        let resolved =
+            resolve_module(r#"link "curl""#, Path::new("."), &mut HashMap::new(), "test.sx")
+                .unwrap();
+        let libs = collect_used_libs(&resolved);
+        assert!(libs.contains(&"curl".to_string()));
+    }
+
+    #[test]
+    fn collect_used_libs_deduplicates() {
+        let resolved = resolve_module(
+            "link \"curl\"\nlink \"curl\"",
+            Path::new("."),
+            &mut HashMap::new(),
+            "test.sx",
+        )
+        .unwrap();
+        let libs = collect_used_libs(&resolved);
+        assert_eq!(libs.iter().filter(|l| *l == "curl").count(), 1);
+    }
+
+    fn build_cc_args(libs: &[&str]) -> Vec<String> {
+        let mut args: Vec<String> = Vec::new();
+        for lib in libs {
+            if lib.starts_with('-') {
+                for part in lib.split_whitespace() {
+                    args.push(part.to_string());
+                }
+            } else {
+                args.push(format!("-l{lib}"));
+            }
+        }
+        args
+    }
+
+    #[test]
+    fn plain_lib_gets_dash_l_prefix() {
+        let args = build_cc_args(&["curl"]);
+        assert_eq!(args, vec!["-lcurl"]);
+    }
+
+    #[test]
+    fn framework_flag_is_split_not_prefixed() {
+        let args = build_cc_args(&["-framework CoreFoundation"]);
+        assert_eq!(args, vec!["-framework", "CoreFoundation"]);
+    }
+
+    #[test]
+    fn multiple_frameworks_each_split() {
+        let args = build_cc_args(&[
+            "-framework CoreFoundation",
+            "-framework Security",
+        ]);
+        assert_eq!(
+            args,
+            vec!["-framework", "CoreFoundation", "-framework", "Security"]
+        );
+    }
+
+    #[test]
+    fn mixed_plain_and_framework() {
+        let args = build_cc_args(&["curl", "-framework CoreFoundation", "ssl"]);
+        assert_eq!(
+            args,
+            vec!["-lcurl", "-framework", "CoreFoundation", "-lssl"]
+        );
+    }
+
+    #[test]
+    fn raw_flag_without_space_passed_as_single_arg() {
+        let args = build_cc_args(&["-lsomething"]);
+        assert_eq!(args, vec!["-lsomething"]);
+    }
+}

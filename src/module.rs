@@ -49,7 +49,7 @@ pub fn compile_file(input: &str, args: &Args) -> Result<(String, Vec<String>, Ve
 /// - Always include libs declared in the root module itself.
 /// - For each imported child module, only include its libs (recursively) if
 ///   that import is actually referenced somewhere in the root's AST.
-fn collect_used_libs(root: &ResolvedModule) -> Vec<String> {
+pub fn collect_used_libs(root: &ResolvedModule) -> Vec<String> {
     let mut libs: Vec<String> = Vec::new();
     let mut seen: HashSet<String> = HashSet::new();
 
