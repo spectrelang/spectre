@@ -49,6 +49,11 @@ pub enum Item {
     Link {
         lib: String,
     },
+    /// `when <platform> { link "..." ... }` — platform-conditional link flags
+    LinkWhen {
+        platform: String,
+        libs: Vec<String>,
+    },
 }
 
 #[derive(Debug, Clone)]
@@ -287,11 +292,27 @@ impl Parser {
             return self.parse_test();
         }
 
-        // `link "libname"` — no pub prefix needed
         if self.peek() == &TokenKind::Link {
             self.advance();
             let lib = self.expect_string()?;
             return Ok(Item::Link { lib });
+        }
+
+        if self.peek() == &TokenKind::When {
+            self.advance();
+            let platform = self.expect_ident()?;
+            self.expect(&TokenKind::LBrace)?;
+            let mut libs = Vec::new();
+            while self.peek() != &TokenKind::RBrace && self.peek() != &TokenKind::Eof {
+                if self.peek() == &TokenKind::Link {
+                    self.advance();
+                    libs.push(self.expect_string()?);
+                } else {
+                    return Err(self.error("expected 'link' inside top-level 'when' block"));
+                }
+            }
+            self.expect(&TokenKind::RBrace)?;
+            return Ok(Item::LinkWhen { platform, libs });
         }
 
         let public = self.eat(&TokenKind::Pub);

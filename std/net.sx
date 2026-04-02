@@ -3,6 +3,17 @@
 
 link "curl"
 
+when darwin {
+    link "-framework CoreFoundation"
+    link "-framework Security"
+    link "-framework SystemConfiguration"
+    link "-framework CFNetwork"
+    link "-lz"
+    link "-lldap"
+    link "-L/opt/homebrew/Cellar/libnghttp2/1.68.1/lib"
+    link "-lnghttp2"
+}
+
 extern (C) fn curl_easy_init()                                          ref void! = "curl_easy_init"
 extern (C) fn curl_easy_cleanup(handle: ref void)                       void!     = "curl_easy_cleanup"
 extern (C) fn curl_easy_setopt(handle: ref void, opt: i64, vl: ref void) i64!    = "curl_easy_setopt"
@@ -315,6 +326,8 @@ pub fn (TcpServer) fd(server: ref void) i32! = {
     return @load(server)
 }
 
+val std = use("std")
+
 test {
     Http.init()
     Http.cleanup()
@@ -325,6 +338,9 @@ test {
     val status: i64 = Http.status(resp)
     val body_ptr: ref char = Http.body(resp)
     val body_len: i64 = Http.body_len(resp)
+
+    std.io.put_any("{d}", status)
+    
     assert status > 0
     assert body_ptr != none
     assert body_len >= 0

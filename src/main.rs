@@ -108,7 +108,13 @@ fn assemble_and_link(asm: &str, binary_path: &str, libs: &[String]) {
         .arg("-lc");
 
     for lib in libs {
-        cmd.arg(format!("-l{lib}"));
+        if lib.starts_with('-') {
+            for part in lib.split_whitespace() {
+                cmd.arg(part);
+            }
+        } else {
+            cmd.arg(format!("-l{lib}"));
+        }
     }
 
     let status = cmd.status().unwrap_or_else(|e| {

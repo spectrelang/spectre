@@ -13,7 +13,6 @@ pub struct ResolvedModule {
     pub imports: HashMap<String, ResolvedModule>,
     pub dir: PathBuf,
     pub filename: String,
-    /// Libraries declared with `link "..."` in this module's source.
     pub links: Vec<String>,
 }
 
@@ -22,7 +21,6 @@ pub fn compile_file(input: &str, args: &Args) -> Result<(String, Vec<String>, Ve
     let path = PathBuf::from(input);
     let dir = path.parent().unwrap_or(Path::new(".")).to_path_buf();
     let src = std::fs::read_to_string(&path).map_err(|e| format!("cannot read {input}: {e}"))?;
-
     let resolved = resolve_module(&src, &dir, &mut HashMap::new(), input)?;
 
     if args.emit_tokens {
@@ -39,10 +37,9 @@ pub fn compile_file(input: &str, args: &Args) -> Result<(String, Vec<String>, Ve
         return Err(sem_errors.join("\n"));
     }
 
-    // Collect link libs only from modules that are directly accessed by the root.
     let libs = collect_used_libs(&resolved);
-
     let mut cg = Codegen::new();
+
     cg.emit_module(&resolved, args.test, args.release)?;
     let warnings = cg.warnings.clone();
     Ok((cg.finish(), warnings, libs))
@@ -63,7 +60,6 @@ fn collect_used_libs(root: &ResolvedModule) -> Vec<String> {
         }
     }
 
-    // For child imports, only pull in libs if the import is actually used.
     let used_imports = used_import_names(&root.ast, &root.imports);
     for name in &used_imports {
         if let Some(child) = root.imports.get(name) {
@@ -80,14 +76,12 @@ fn collect_libs_recursive(
     libs: &mut Vec<String>,
     seen: &mut HashSet<String>,
 ) {
-    // Own links
     for lib in &module.links {
         if seen.insert(lib.clone()) {
             libs.push(lib.clone());
         }
     }
 
-    // Recurse into imports that are actually used by this module
     let used = used_import_names(&module.ast, &module.imports);
     for name in &used {
         if let Some(child) = module.imports.get(name) {
@@ -258,9 +252,22 @@ pub fn resolve_module(
         }
     }
 
-    // Collect `link "..."` declarations from this module's own source.
-    let links: Vec<String> = ast.items.iter().filter_map(|item| {
-        if let Item::Link { lib } = item { Some(lib.clone()) } else { None }
+    let current_platform = crate::cli::Platform::current();
+    let links: Vec<String> = ast.items.iter().flat_map(|item| -> Vec<String> {
+        match item {
+            Item::Link { lib } => vec![lib.clone()],
+            Item::LinkWhen { platform, libs } => {
+                if crate::cli::Platform::from_str(platform)
+                    .map(|p| p == current_platform)
+                    .unwrap_or(false)
+                {
+                    libs.clone()
+                } else {
+                    vec![]
+                }
+            }
+            _ => vec![],
+        }
     }).collect();
 
     Ok(ResolvedModule {

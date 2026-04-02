@@ -241,6 +241,7 @@ impl Codegen {
                 | Item::EnumDef { .. }
                 | Item::ExternFn { .. }
                 | Item::Link { .. }
+                | Item::LinkWhen { .. }
                 | Item::Test { .. } => {}
             }
         }
