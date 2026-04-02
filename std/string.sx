@@ -233,9 +233,9 @@ pub fn ends_with(s: ref void, suffix: ref void) bool = {
 
     val sp: ref void = trust @load(s)
     val sup: ref void = trust @load(suffix)
-
     val offset: i64 = sl - sul
     val i: mut i64 = 0
+
     for {
         if (i >= sul) {
             break
@@ -277,7 +277,6 @@ pub fn (StringBuilder) new() ref void! = {
 pub fn (StringBuilder) append(sb: Self, s: ref void) void! = {
     val other_ptr: ref void = @load(s)
     val other_len: i64 = @load(@ptradd(s, 8))
-
     val l: i64 = @load(@ptradd(sb, 8))
     val new_len: i64 = l + other_len
 
