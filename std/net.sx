@@ -1,6 +1,3 @@
-/// HTTP client : libcurl easy interface (cross-platform)
-/// TCP server  : native BSD sockets (POSIX) with platform-specific
-
 link "curl"
 
 when darwin {
