@@ -1,0 +1,4 @@
+pub fn some_func() void = {
+    pre { always: 1 == 1 }
+    @puts("hello")
+}
