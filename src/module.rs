@@ -5,6 +5,7 @@ use crate::cli::Args;
 use crate::codegen::Codegen;
 use crate::lexer::Lexer;
 use crate::parser::{Item, Module, Parser};
+use crate::semantic;
 
 /// A fully-resolved module: its parsed AST plus a map of imported sub-modules.
 pub struct ResolvedModule {
@@ -29,6 +30,11 @@ pub fn compile_file(input: &str, args: &Args) -> Result<(String, Vec<String>), S
     }
     if args.emit_ast {
         return Ok((format!("{:#?}", resolved.ast), vec![]));
+    }
+
+    let sem_errors = semantic::check_module(&resolved);
+    if !sem_errors.is_empty() {
+        return Err(sem_errors.join("\n"));
     }
 
     let mut cg = Codegen::new();

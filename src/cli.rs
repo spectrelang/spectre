@@ -11,12 +11,11 @@ spectre <input> [options]
     [file].sx --emit-ast       print AST and exit
     [file].sx --release        build in release mode, runtime safety checks off";
 
-/// Spectre compiler — lowers .sx source to a native binary via QBE
 #[derive(Parser, Debug)]
 #[command(
     name = "spectre",
     version,
-    about = "Spectre compiler — lowers .sx source to a native binary via QBE",
+    about = "Spectre Compiler — lowers .sx source to a native binary",
     override_usage = USAGE,
     help_template = "\
 {name} v{version}

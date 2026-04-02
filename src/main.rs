@@ -3,6 +3,7 @@ mod codegen;
 mod lexer;
 mod module;
 mod parser;
+mod semantic;
 mod tests;
 
 use clap::Parser;
