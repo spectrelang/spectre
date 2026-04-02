@@ -127,8 +127,8 @@ pub fn (DateTime) is_leap_year(dt: Self) bool! = {
 
 /// Return the number of days in the month of this DateTime.
 pub fn (DateTime) days_in_month(dt: Self) i64! = {
-    val mo:   i64 = trust DateTime.month(dt)
-    val leap: bool = trust DateTime.is_leap_year(dt)
+    val mo:   i64  = DateTime.month(dt)
+    val leap: bool = DateTime.is_leap_year(dt)
 
     if (mo == 2) {
         if (leap) { return 29 }
