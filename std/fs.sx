@@ -30,11 +30,11 @@ pub type File = {
 /// Open a file.  mode is a C fopen mode string: "r", "w", "a", "rb", etc.
 /// Returns none if the file could not be opened.
 pub fn open(path: ref char, mode: ref char) option[ref void]! = {
-    val ptr: ref void = fopen(path, mode)
+    val ptr: mut ref void = fopen(path, mode)
     if (ptr == 0) {
         return none
     }
-    val f: ref void = @alloc(8)
+    val f: mut ref void = @alloc(8)
     @store(f, ptr)
     return some f
 }
@@ -56,9 +56,9 @@ pub fn read_all(path: ref char) option[ref char]! = {
         some f => {
             val ptr: ref void = @load(f)
             fseek(ptr, 0, 2)          // SEEK_END = 2
-            val size: i64 = ftell(ptr)
+            val size: mut i64 = ftell(ptr)
             rewind(ptr)
-            val buf: ref void = @alloc(size + 1)
+            val buf: mut ref void = @alloc(size + 1)
             fread(buf, 1, size as usize, ptr)
             @store8(@ptradd(buf, size), 0)
             close(f)
@@ -214,12 +214,12 @@ pub fn config_dir() option[ref char]! = {
     when linux {
         val xdg: ref char = getenv("XDG_CONFIG_HOME")
         if (xdg != 0) { return some xdg }
-        val h: ref char = getenv("HOME")
+        val h: mut ref char = getenv("HOME")
         if (h == 0) { return none }
-        val hl: i64 = strlen(h)
-        val suffix: ref char = "/.config"
-        val sl: i64 = strlen(suffix)
-        val buf: ref char = @alloc(hl + sl + 1)
+        val hl: mut i64 = strlen(h)
+        val suffix: mut ref char = "/.config"
+        val sl: mut i64 = strlen(suffix)
+        val buf: mut ref char = @alloc(hl + sl + 1)
         @memcpy(buf, h, hl)
         @memcpy(@ptradd(buf, hl), suffix, sl)
         @store8(@ptradd(buf, hl + sl), 0)
@@ -228,12 +228,12 @@ pub fn config_dir() option[ref char]! = {
     when macos {
         val xdg: ref char = getenv("XDG_CONFIG_HOME")
         if (xdg != 0) { return some xdg }
-        val h: ref char = getenv("HOME")
+        val h: mut ref char = getenv("HOME")
         if (h == 0) { return none }
-        val hl: i64 = strlen(h)
-        val suffix: ref char = "/.config"
-        val sl: i64 = strlen(suffix)
-        val buf: ref char = @alloc(hl + sl + 1)
+        val hl: mut i64 = strlen(h)
+        val suffix: mut ref char = "/.config"
+        val sl: mut i64 = strlen(suffix)
+        val buf: mut ref char = @alloc(hl + sl + 1)
         @memcpy(buf, h, hl)
         @memcpy(@ptradd(buf, hl), suffix, sl)
         @store8(@ptradd(buf, hl + sl), 0)
