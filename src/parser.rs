@@ -92,6 +92,10 @@ pub enum Stmt {
         some_body: Vec<Stmt>,
         none_body: Vec<Stmt>,
     },
+    When {
+        platform: String,
+        body: Vec<Stmt>,
+    },
 }
 
 #[derive(Debug, Clone)]
@@ -562,6 +566,14 @@ impl Parser {
             TokenKind::Break => {
                 self.advance();
                 Ok(Stmt::Break)
+            }
+            TokenKind::When => {
+                self.advance();
+                let platform = self.expect_ident()?;
+                self.expect(&TokenKind::LBrace)?;
+                let body = self.parse_stmts()?;
+                self.expect(&TokenKind::RBrace)?;
+                Ok(Stmt::When { platform, body })
             }
             TokenKind::Assert => {
                 self.advance();

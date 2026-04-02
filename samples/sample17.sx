@@ -1,0 +1,19 @@
+val std = use("std")
+
+pub fn main() void! = {
+    when windows {
+        std.io.print("hi windows")
+    }
+    when linux {
+
+    }
+    when dragonflybsd {
+
+    }
+    when netbsd {
+
+    }
+    when darwin {
+        std.io.print("hi macos")
+    }
+}

@@ -25,6 +25,7 @@ pub enum TokenKind {
     As,
     Test,
     Assert,
+    When,
     Ident(String),
     StringLit(String),
     IntLit(i64),
@@ -249,6 +250,7 @@ impl Lexer {
                 "as" => TokenKind::As,
                 "test" => TokenKind::Test,
                 "assert" => TokenKind::Assert,
+                "when" => TokenKind::When,
                 _ => TokenKind::Ident(ident),
             });
         }

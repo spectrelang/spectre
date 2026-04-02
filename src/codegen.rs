@@ -1,3 +1,4 @@
+use crate::cli::Platform;
 use crate::module::ResolvedModule;
 use crate::parser::{Expr, Field, FnDef, Item, Stmt, TypeExpr};
 use std::collections::HashMap;
@@ -44,6 +45,7 @@ pub struct Codegen {
     module_consts: HashMap<String, (String, &'static str)>,
     type_aliases: HashMap<String, String>,
     fn_ret_types: HashMap<String, &'static str>,
+    platform: Platform,
 }
 
 impl Codegen {
@@ -70,6 +72,7 @@ impl Codegen {
             module_consts: HashMap::new(),
             type_aliases: HashMap::new(),
             fn_ret_types: HashMap::new(),
+            platform: Platform::current(),
         }
     }
 
@@ -664,6 +667,16 @@ impl Codegen {
                     .clone()
                     .ok_or_else(|| "break used outside of loop".to_string())?;
                 self.emit(&format!("    jmp {end_lbl}"));
+            }
+            Stmt::When { platform, body } => {
+                let matches = Platform::from_str(platform)
+                    .map(|p| p == self.platform)
+                    .unwrap_or(false);
+                if matches {
+                    for s in body {
+                        self.emit_stmt(s, ns, ret_ty)?;
+                    }
+                }
             }
             Stmt::Assert(expr, line) => {
                 let (cond, _) = self.emit_expr(expr, ns)?;
@@ -1421,6 +1434,7 @@ fn all_trusted_stmts(stmts: &[Stmt]) -> bool {
             none_body,
             ..
         } => all_trusted_stmts(some_body) && all_trusted_stmts(none_body),
+        Stmt::When { body, .. } => all_trusted_stmts(body),
         Stmt::Expr(_) => false,
     })
 }

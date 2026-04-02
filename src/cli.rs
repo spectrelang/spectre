@@ -56,3 +56,80 @@ pub struct Args {
     #[arg(long)]
     pub test: bool,
 }
+
+/// All platforms the compiler knows about.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Platform {
+    Linux,
+    Darwin,
+    Windows,
+    FreeBsd,
+    OpenBsd,
+    NetBsd,
+    DragonFlyBsd,
+    Solaris,
+    Illumos,
+    Plan9,
+    Haiku,
+    Android,
+    Fuchsia,
+    Redox,
+    Unknown,
+}
+
+impl Platform {
+    /// Detect the platform at compile time from Rust's cfg flags.
+    pub fn current() -> Self {
+        #[cfg(target_os = "linux")]
+        return Platform::Linux;
+        #[cfg(target_os = "macos")]
+        return Platform::Darwin;
+        #[cfg(target_os = "windows")]
+        return Platform::Windows;
+        #[cfg(target_os = "freebsd")]
+        return Platform::FreeBsd;
+        #[cfg(target_os = "openbsd")]
+        return Platform::OpenBsd;
+        #[cfg(target_os = "netbsd")]
+        return Platform::NetBsd;
+        #[cfg(target_os = "dragonfly")]
+        return Platform::DragonFlyBsd;
+        #[cfg(target_os = "solaris")]
+        return Platform::Solaris;
+        #[cfg(target_os = "illumos")]
+        return Platform::Illumos;
+        #[cfg(target_os = "plan9")]
+        return Platform::Plan9;
+        #[cfg(target_os = "haiku")]
+        return Platform::Haiku;
+        #[cfg(target_os = "android")]
+        return Platform::Android;
+        #[cfg(target_os = "fuchsia")]
+        return Platform::Fuchsia;
+        #[cfg(target_os = "redox")]
+        return Platform::Redox;
+        #[allow(unreachable_code)]
+        Platform::Unknown
+    }
+
+    /// Parse a platform name from a `when` clause identifier.
+    pub fn from_str(s: &str) -> Option<Self> {
+        match s {
+            "linux" => Some(Platform::Linux),
+            "darwin" | "macos" => Some(Platform::Darwin),
+            "windows" => Some(Platform::Windows),
+            "freebsd" => Some(Platform::FreeBsd),
+            "openbsd" => Some(Platform::OpenBsd),
+            "netbsd" => Some(Platform::NetBsd),
+            "dragonflybsd" | "dragonfly" => Some(Platform::DragonFlyBsd),
+            "solaris" => Some(Platform::Solaris),
+            "illumos" => Some(Platform::Illumos),
+            "plan9" => Some(Platform::Plan9),
+            "haiku" => Some(Platform::Haiku),
+            "android" => Some(Platform::Android),
+            "fuchsia" => Some(Platform::Fuchsia),
+            "redox" => Some(Platform::Redox),
+            _ => None,
+        }
+    }
+}
