@@ -969,7 +969,9 @@ impl Codegen {
                         (size, size_ty)
                     };
                     let tmp = self.fresh_tmp();
-                    self.emit(&format!("    {tmp} =l call $fgets(l {buf}, w {size_w}, l {stream})"));
+                    self.emit(&format!(
+                        "    {tmp} =l call $fgets(l {buf}, w {size_w}, l {stream})"
+                    ));
                     Ok((tmp, "l"))
                 }
                 "fputs" => {
@@ -1005,7 +1007,9 @@ impl Codegen {
                     }
                     let result = self.fresh_tmp();
                     if variadic_args.is_empty() {
-                        self.emit(&format!("    {result} =w call $fprintf(l {stream}, l {fmt_tmp})"));
+                        self.emit(&format!(
+                            "    {result} =w call $fprintf(l {stream}, l {fmt_tmp})"
+                        ));
                     } else {
                         self.emit(&format!(
                             "    {result} =w call $fprintf(l {stream}, l {fmt_tmp}, ..., {})",
@@ -1053,7 +1057,9 @@ impl Codegen {
                     }
                     let result = self.fresh_tmp();
                     if variadic_args.is_empty() {
-                        self.emit(&format!("    {result} =w call $dprintf(w {fd_w}, l {fmt_tmp})"));
+                        self.emit(&format!(
+                            "    {result} =w call $dprintf(w {fd_w}, l {fmt_tmp})"
+                        ));
                     } else {
                         self.emit(&format!(
                             "    {result} =w call $dprintf(w {fd_w}, l {fmt_tmp}, ..., {})",
@@ -1094,7 +1100,9 @@ impl Codegen {
                         (bound, bound_ty)
                     };
                     let tmp = self.fresh_tmp();
-                    self.emit(&format!("    {tmp} =w call $arc4random_uniform(w {bound_w})"));
+                    self.emit(&format!(
+                        "    {tmp} =w call $arc4random_uniform(w {bound_w})"
+                    ));
                     Ok((tmp, "w"))
                 }
                 "snprintf" => {
@@ -1125,7 +1133,9 @@ impl Codegen {
                     }
                     let result = self.fresh_tmp();
                     if variadic_args.is_empty() {
-                        self.emit(&format!("    {result} =w call $snprintf(l {buf}, l {size_l}, l {fmt_tmp})"));
+                        self.emit(&format!(
+                            "    {result} =w call $snprintf(l {buf}, l {size_l}, l {fmt_tmp})"
+                        ));
                     } else {
                         self.emit(&format!(
                             "    {result} =w call $snprintf(l {buf}, l {size_l}, l {fmt_tmp}, ..., {})",
@@ -1323,7 +1333,8 @@ impl Codegen {
                             "w"
                         }
                     }
-                };                Ok((tmp, result_ty))
+                };
+                Ok((tmp, result_ty))
             }
 
             Expr::UnOp { op, expr } => {
