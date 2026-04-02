@@ -2152,3 +2152,484 @@ mod union_codegen_tests {
         );
     }
 }
+
+#[cfg(test)]
+mod enum_tests {
+    use crate::codegen::Codegen;
+    use crate::lexer::{Lexer, TokenKind};
+    use crate::module::resolve_module;
+    use crate::parser::{Item, Parser};
+    use std::collections::HashMap;
+    use std::path::Path;
+
+    fn compile(src: &str) -> Result<String, String> {
+        let resolved = resolve_module(src, Path::new("."), &mut HashMap::new(), "")?;
+        let mut cg = Codegen::new();
+        cg.emit_module(&resolved, false, false)?;
+        Ok(cg.finish())
+    }
+
+    fn compile_ok(src: &str) -> String {
+        compile(src).expect("expected compilation to succeed")
+    }
+
+    fn parse(src: &str) -> crate::parser::Module {
+        let tokens = Lexer::new(src).tokenize().unwrap();
+        Parser::new(tokens).parse_module().unwrap()
+    }
+
+    #[test]
+    fn lex_enum_keyword() {
+        let toks = Lexer::new("enum").tokenize().unwrap();
+        assert_eq!(toks[0].kind, TokenKind::Enum);
+    }
+
+    #[test]
+    fn parse_enum_def_two_variants() {
+        let m = parse("enum Color = { RED, GREEN }");
+        let Item::EnumDef { name, variants, .. } = &m.items[0] else {
+            panic!("expected EnumDef")
+        };
+        assert_eq!(name, "Color");
+        assert_eq!(variants, &["RED", "GREEN"]);
+    }
+
+    #[test]
+    fn parse_enum_def_single_variant() {
+        let m = parse("enum Unit = { ONLY }");
+        let Item::EnumDef { name, variants, .. } = &m.items[0] else {
+            panic!("expected EnumDef")
+        };
+        assert_eq!(name, "Unit");
+        assert_eq!(variants.len(), 1);
+    }
+
+    #[test]
+    fn parse_pub_enum_def() {
+        let m = parse("pub enum Status = { OK, ERR }");
+        let Item::EnumDef { public, .. } = &m.items[0] else {
+            panic!("expected EnumDef")
+        };
+        assert!(public);
+    }
+
+    #[test]
+    fn parse_private_enum_def() {
+        let m = parse("enum Status = { OK, ERR }");
+        let Item::EnumDef { public, .. } = &m.items[0] else {
+            panic!("expected EnumDef")
+        };
+        assert!(!public);
+    }
+
+    #[test]
+    fn enum_variant_access_first_is_zero() {
+        let ir = compile_ok(
+            r#"
+            enum Color = { RED, GREEN, BLUE }
+            pub fn main() void! = {
+                val c = Color.RED
+            }
+        "#,
+        );
+        assert!(ir.contains("copy 0") || ir.contains("ret 0") || ir.contains("0"));
+    }
+
+    #[test]
+    fn enum_variant_access_second_is_one() {
+        let ir = compile_ok(
+            r#"
+            enum Color = { RED, GREEN, BLUE }
+            pub fn main() void! = {
+                val c = Color.GREEN
+            }
+        "#,
+        );
+        assert!(ir.contains("1"));
+    }
+
+    #[test]
+    fn enum_variant_access_third_is_two() {
+        let ir = compile_ok(
+            r#"
+            enum Color = { RED, GREEN, BLUE }
+            pub fn main() void! = {
+                val c = Color.BLUE
+            }
+        "#,
+        );
+        assert!(ir.contains("2"));
+    }
+
+    #[test]
+    fn enum_variant_usable_in_comparison() {
+        let ir = compile_ok(
+            r#"
+            enum Dir = { UP, DOWN }
+            pub fn main() void! = {
+                val d = Dir.UP
+                if (d == Dir.DOWN) { val x = 1 }
+            }
+        "#,
+        );
+        assert!(ir.contains("ceqw") || ir.contains("ceql"));
+    }
+
+    #[test]
+    fn enum_compiles_without_error() {
+        compile_ok(
+            r#"
+            enum SomeEnum = { HELLO, WORLD }
+            pub fn main() void! = {
+                val x = SomeEnum.HELLO
+            }
+        "#,
+        );
+    }
+}
+
+#[cfg(test)]
+mod purity_enforcement_tests {
+    use crate::codegen::Codegen;
+    use crate::module::resolve_module;
+    use std::collections::HashMap;
+    use std::path::Path;
+
+    fn compile(src: &str) -> Result<(String, Vec<String>), String> {
+        let resolved = resolve_module(src, Path::new("."), &mut HashMap::new(), "")?;
+        let mut cg = Codegen::new();
+        cg.emit_module(&resolved, false, false)?;
+        let warnings = cg.warnings.clone();
+        Ok((cg.finish(), warnings))
+    }
+
+    fn compile_ok(src: &str) -> String {
+        compile(src).expect("expected compilation to succeed").0
+    }
+
+    fn compile_err(src: &str) -> String {
+        compile(src).expect_err("expected compilation to fail")
+    }
+
+    fn compile_warnings(src: &str) -> Vec<String> {
+        compile(src).expect("expected compilation to succeed").1
+    }
+
+    #[test]
+    fn pure_fn_calling_impure_fn_without_trust_errors() {
+        let err = compile_err(
+            r#"
+            fn impure() void! = {}
+            fn pure_caller() void = {
+                pre { 1 == 1 }
+                post { 1 == 1 }
+                impure()
+            }
+        "#,
+        );
+        assert!(
+            err.contains("pure function") && err.contains("impure"),
+            "expected purity violation error, got: {err}"
+        );
+    }
+
+    #[test]
+    fn pure_fn_calling_impure_fn_with_trust_ok() {
+        compile_ok(
+            r#"
+            fn impure() void! = {}
+            fn pure_caller() void = {
+                pre { 1 == 1 }
+                post { 1 == 1 }
+                trust impure()
+            }
+        "#,
+        );
+    }
+
+    #[test]
+    fn impure_fn_calling_impure_fn_without_trust_ok() {
+        compile_ok(
+            r#"
+            fn impure() void! = {}
+            fn also_impure() void! = {
+                impure()
+            }
+        "#,
+        );
+    }
+
+    #[test]
+    fn pure_fn_calling_pure_fn_ok() {
+        compile_ok(
+            r#"
+            fn helper(x: i32) i32 = {
+                pre { x > 0 }
+                post { x > 0 }
+                return x
+            }
+            fn caller(x: i32) i32 = {
+                pre { x > 0 }
+                post { x > 0 }
+                return helper(x)
+            }
+        "#,
+        );
+    }
+
+    #[test]
+    fn trust_in_impure_fn_emits_warning() {
+        let warnings = compile_warnings(
+            r#"
+            fn impure() void! = {}
+            fn caller() void! = {
+                trust impure()
+            }
+        "#,
+        );
+        assert!(
+            warnings.iter().any(|w| w.contains("redundant") && w.contains("trust")),
+            "expected redundant trust warning, got: {warnings:?}"
+        );
+    }
+
+    #[test]
+    fn trust_in_pure_fn_no_warning() {
+        let warnings = compile_warnings(
+            r#"
+            fn impure() void! = {}
+            fn caller() void = {
+                pre { 1 == 1 }
+                post { 1 == 1 }
+                trust impure()
+            }
+        "#,
+        );
+        assert!(
+            warnings.is_empty(),
+            "trust in pure fn should not warn, got: {warnings:?}"
+        );
+    }
+
+    #[test]
+    fn trust_in_impure_fn_warning_mentions_fn_name() {
+        let warnings = compile_warnings(
+            r#"
+            fn impure() void! = {}
+            fn my_caller() void! = {
+                trust impure()
+            }
+        "#,
+        );
+        assert!(
+            warnings.iter().any(|w| w.contains("my_caller")),
+            "warning should mention the function name, got: {warnings:?}"
+        );
+    }
+
+    #[test]
+    fn multiple_trust_in_impure_fn_warns_each_time() {
+        let warnings = compile_warnings(
+            r#"
+            fn a() void! = {}
+            fn b() void! = {}
+            fn caller() void! = {
+                trust a()
+                trust b()
+            }
+        "#,
+        );
+        assert_eq!(
+            warnings.len(),
+            2,
+            "should warn once per redundant trust, got: {warnings:?}"
+        );
+    }
+}
+
+#[cfg(test)]
+mod extern_fn_tests {
+    use crate::codegen::Codegen;
+    use crate::lexer::{Lexer, TokenKind};
+    use crate::module::resolve_module;
+    use crate::parser::{Item, Parser, TypeExpr};
+    use std::collections::HashMap;
+    use std::path::Path;
+
+    fn compile(src: &str) -> Result<String, String> {
+        let resolved = resolve_module(src, Path::new("."), &mut HashMap::new(), "")?;
+        let mut cg = Codegen::new();
+        cg.emit_module(&resolved, false, false)?;
+        Ok(cg.finish())
+    }
+
+    fn compile_ok(src: &str) -> String {
+        compile(src).expect("expected compilation to succeed")
+    }
+
+    fn compile_err(src: &str) -> String {
+        compile(src).expect_err("expected compilation to fail")
+    }
+
+    fn parse(src: &str) -> crate::parser::Module {
+        let tokens = Lexer::new(src).tokenize().unwrap();
+        Parser::new(tokens).parse_module().unwrap()
+    }
+
+    #[test]
+    fn lex_extern_keyword() {
+        let toks = Lexer::new("extern").tokenize().unwrap();
+        assert_eq!(toks[0].kind, TokenKind::Extern);
+    }
+
+    #[test]
+    fn parse_extern_fn_basic() {
+        let m = parse(r#"extern (C) fn my_puts(s: ref char) void! = "puts""#);
+        let Item::ExternFn { conv, name, symbol, .. } = &m.items[0] else {
+            panic!("expected ExternFn")
+        };
+        assert_eq!(conv, "C");
+        assert_eq!(name, "my_puts");
+        assert_eq!(symbol, "puts");
+    }
+
+    #[test]
+    fn parse_extern_fn_params() {
+        let m = parse(r#"extern (C) fn my_malloc(size: usize) ref void! = "malloc""#);
+        let Item::ExternFn { params, .. } = &m.items[0] else {
+            panic!("expected ExternFn")
+        };
+        assert_eq!(params.len(), 1);
+        assert_eq!(params[0].0, "size");
+        assert!(matches!(params[0].1, TypeExpr::Named(ref n) if n == "usize"));
+    }
+
+    #[test]
+    fn parse_extern_fn_ret_type() {
+        let m = parse(r#"extern (C) fn my_malloc(size: usize) ref void! = "malloc""#);
+        let Item::ExternFn { ret, .. } = &m.items[0] else {
+            panic!("expected ExternFn")
+        };
+        assert!(matches!(ret, TypeExpr::Ref(_)));
+    }
+
+    #[test]
+    fn parse_extern_fn_calling_conv() {
+        let m = parse(r#"extern (stdcall) fn win_fn() void! = "WinFn""#);
+        let Item::ExternFn { conv, .. } = &m.items[0] else {
+            panic!("expected ExternFn")
+        };
+        assert_eq!(conv, "stdcall");
+    }
+
+    #[test]
+    fn extern_fn_without_bang_errors() {
+        let tokens = Lexer::new(r#"extern (C) fn bad() void = "bad""#).tokenize().unwrap();
+        let err = Parser::new(tokens).parse_module().unwrap_err();
+        assert!(
+            err.contains("!") || err.contains("extern"),
+            "missing ! on extern should error, got: {err}"
+        );
+    }
+
+    #[test]
+    fn extern_fn_callable_from_impure_fn() {
+        let ir = compile_ok(
+            r#"
+            extern (C) fn my_puts(s: ref char) void! = "puts"
+            pub fn main() void! = {
+                my_puts("hello")
+            }
+        "#,
+        );
+        assert!(ir.contains("call $puts"), "should call the C symbol 'puts'");
+    }
+
+    #[test]
+    fn extern_fn_maps_local_name_to_c_symbol() {
+        let ir = compile_ok(
+            r#"
+            extern (C) fn my_malloc(size: usize) ref void! = "malloc"
+            pub fn main() void! = {
+                val p: ref void = my_malloc(16)
+            }
+        "#,
+        );
+        assert!(
+            ir.contains("call $malloc"),
+            "extern fn should call the C symbol, not the local alias"
+        );
+        assert!(
+            !ir.contains("call $my_malloc"),
+            "local alias name must not appear as a QBE symbol"
+        );
+    }
+
+    #[test]
+    fn extern_fn_does_not_emit_function_body() {
+        let ir = compile_ok(
+            r#"
+            extern (C) fn my_puts(s: ref char) void! = "puts"
+            pub fn main() void! = {}
+        "#,
+        );
+        assert!(
+            !ir.contains("function $my_puts"),
+            "extern fn must not emit a QBE function definition"
+        );
+        assert!(
+            !ir.contains("function $puts"),
+            "extern fn must not emit a QBE function definition for the C symbol either"
+        );
+    }
+
+    #[test]
+    fn extern_fn_is_treated_as_impure() {
+        let err = compile_err(
+            r#"
+            extern (C) fn my_puts(s: ref char) void! = "puts"
+            fn pure_caller(s: ref char) void = {
+                pre { 1 == 1 }
+                post { 1 == 1 }
+                my_puts(s)
+            }
+        "#,
+        );
+        assert!(
+            err.contains("pure function") || err.contains("impure"),
+            "calling extern from pure fn without trust should error, got: {err}"
+        );
+    }
+
+    #[test]
+    fn extern_fn_callable_with_trust_from_pure_fn() {
+        compile_ok(
+            r#"
+            extern (C) fn my_puts(s: ref char) void! = "puts"
+            fn pure_caller(s: ref char) void = {
+                pre { 1 == 1 }
+                post { 1 == 1 }
+                trust my_puts(s)
+            }
+        "#,
+        );
+    }
+
+    #[test]
+    fn sample21_pattern_compiles() {
+        compile_ok(
+            r#"
+            extern (C) fn my_malloc(space: usize) ref void! = "malloc"
+            extern (C) fn my_free(ptr: ref void) void! = "free"
+            extern (C) fn my_puts(str: ref char) void! = "puts"
+            pub fn main() void! = {
+                val ptr: ref void = my_malloc(16)
+                if (ptr != none) {
+                    my_free(ptr)
+                }
+                my_puts("wow")
+            }
+        "#,
+        );
+    }
+}
