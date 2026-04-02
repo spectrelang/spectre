@@ -1136,6 +1136,52 @@ impl Codegen {
                     }
                 }
             }
+
+            Expr::Cast { expr, ty } => {
+                let (v, v_ty) = self.emit_expr(expr, ns)?;
+                let target_ty = qbe_type(ty);
+                let tmp = self.fresh_tmp();
+                match (v_ty, target_ty) {
+                    // same type — no-op copy
+                    (a, b) if a == b => {
+                        self.emit(&format!("    {tmp} ={b} copy {v}"));
+                        Ok((tmp, target_ty))
+                    }
+                    // f64 -> i64/usize
+                    ("d", "l") => {
+                        self.emit(&format!("    {tmp} =l dtosi {v}"));
+                        Ok((tmp, "l"))
+                    }
+                    // i64/usize -> f64
+                    ("l", "d") => {
+                        self.emit(&format!("    {tmp} =d sltof {v}"));
+                        Ok((tmp, "d"))
+                    }
+                    // i32 -> f64
+                    ("w", "d") => {
+                        let (v_l, _) = self.promote_to_l(v, "w");
+                        self.emit(&format!("    {tmp} =d sltof {v_l}"));
+                        Ok((tmp, "d"))
+                    }
+                    // f64 -> i32
+                    ("d", "w") => {
+                        self.emit(&format!("    {tmp} =w dtosi {v}"));
+                        Ok((tmp, "w"))
+                    }
+                    // i32 -> i64
+                    ("w", "l") => {
+                        let (promoted, _) = self.promote_to_l(v, "w");
+                        self.emit(&format!("    {tmp} =l copy {promoted}"));
+                        Ok((tmp, "l"))
+                    }
+                    // i64 -> i32
+                    ("l", "w") => {
+                        self.emit(&format!("    {tmp} =w copy {v}"));
+                        Ok((tmp, "w"))
+                    }
+                    (from, to) => Err(format!("unsupported cast from {from} to {to}")),
+                }
+            }
         }
     }
 }

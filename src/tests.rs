@@ -1707,3 +1707,97 @@ mod method_namespace_tests {
         assert!(ir.contains("call $SomeType__do_some_thing"));
     }
 }
+
+#[cfg(test)]
+mod cast_tests {
+    use crate::codegen::Codegen;
+    use crate::module::resolve_module;
+    use std::collections::HashMap;
+    use std::path::Path;
+
+    fn compile(src: &str) -> Result<String, String> {
+        let resolved = resolve_module(src, Path::new("."), &mut HashMap::new(), "")?;
+        let mut cg = Codegen::new();
+        cg.emit_module(&resolved, false)?;
+        Ok(cg.finish())
+    }
+
+    fn compile_ok(src: &str) -> String {
+        compile(src).expect("expected compilation to succeed")
+    }
+
+    fn compile_err(src: &str) -> String {
+        compile(src).expect_err("expected compilation to fail")
+    }
+
+    #[test]
+    fn cast_f64_to_i64_emits_dtosi() {
+        let ir = compile_ok(
+            r#"
+            pub fn f(x: f64) i64 = {
+                return x as i64
+            }
+        "#,
+        );
+        assert!(ir.contains("dtosi"), "f64->i64 cast should emit dtosi");
+    }
+
+    #[test]
+    fn cast_i64_to_f64_emits_sltof() {
+        let ir = compile_ok(
+            r#"
+            pub fn f(x: i64) f64 = {
+                return x as f64
+            }
+        "#,
+        );
+        assert!(ir.contains("sltof"), "i64->f64 cast should emit sltof");
+    }
+
+    #[test]
+    fn cast_chained_f64_i64_f64() {
+        // (x as i64) as f64 — the pattern used by trunc()
+        let ir = compile_ok(
+            r#"
+            pub fn trunc(x: f64) f64 = {
+                return (x as i64) as f64
+            }
+        "#,
+        );
+        assert!(ir.contains("dtosi"), "first cast should emit dtosi");
+        assert!(ir.contains("sltof"), "second cast should emit sltof");
+    }
+
+    #[test]
+    fn cast_used_in_expression() {
+        // floor-style: compare original with cast-and-back value
+        let ir = compile_ok(
+            r#"
+            pub fn floor(x: f64) f64 = {
+                val i = x as i64
+                if (x < (i as f64)) {
+                    return (i - 1) as f64
+                }
+                return i as f64
+            }
+        "#,
+        );
+        assert!(ir.contains("dtosi"));
+        assert!(ir.contains("sltof"));
+    }
+
+    #[test]
+    fn as_is_lexed_as_keyword() {
+        use crate::lexer::{Lexer, TokenKind};
+        let toks = Lexer::new("x as i64").tokenize().unwrap();
+        assert_eq!(toks[1].kind, TokenKind::As);
+    }
+
+    #[test]
+    fn as_does_not_conflict_with_ident_starting_with_as() {
+        use crate::lexer::{Lexer, TokenKind};
+        let toks = Lexer::new("asset assign").tokenize().unwrap();
+        assert!(matches!(toks[0].kind, TokenKind::Ident(_)));
+        assert!(matches!(toks[1].kind, TokenKind::Ident(_)));
+    }
+}

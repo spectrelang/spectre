@@ -134,6 +134,11 @@ pub enum Expr {
     },
     /// Positional args pack: `{expr, expr, ...}` — used for varargs-style call arguments
     ArgsPack(Vec<Expr>),
+    /// Type cast: `expr as TypeName`
+    Cast {
+        expr: Box<Expr>,
+        ty: TypeExpr,
+    },
 }
 
 #[derive(Debug, Clone)]
@@ -718,7 +723,7 @@ impl Parser {
     }
 
     fn parse_mul(&mut self) -> Result<Expr, String> {
-        let mut lhs = self.parse_unary()?;
+        let mut lhs = self.parse_cast()?;
         loop {
             let op = match self.peek() {
                 TokenKind::Star => BinOp::Mul,
@@ -727,7 +732,7 @@ impl Parser {
                 _ => break,
             };
             self.advance();
-            let rhs = self.parse_unary()?;
+            let rhs = self.parse_cast()?;
             lhs = Expr::BinOp {
                 op,
                 lhs: Box::new(lhs),
@@ -735,6 +740,18 @@ impl Parser {
             };
         }
         Ok(lhs)
+    }
+
+    fn parse_cast(&mut self) -> Result<Expr, String> {
+        let mut expr = self.parse_unary()?;
+        while self.eat(&TokenKind::As) {
+            let ty = self.parse_type()?;
+            expr = Expr::Cast {
+                expr: Box::new(expr),
+                ty,
+            };
+        }
+        Ok(expr)
     }
 
     fn parse_unary(&mut self) -> Result<Expr, String> {

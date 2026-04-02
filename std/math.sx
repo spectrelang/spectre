@@ -190,6 +190,30 @@ pub fn fclamp(x: f64, lo: f64, hi: f64) f64 = {
     return x
 }
 
+pub fn floor(x: f64) f64 = {
+    val i = x as i64
+    if (x < (i as f64)) {
+        return (i - 1) as f64
+    }
+    return i as f64
+}
+
+pub fn ceil(x: f64) f64 = {
+    val i = x as i64
+    if (x > (i as f64)) {
+        return (i + 1) as f64
+    }
+    return i as f64
+}
+
+pub fn trunc(x: f64) f64 = {
+    return (x as i64) as f64
+}
+
+pub fn fract(x: f64) f64 = {
+    return x - floor(x)
+}
+
 /// Square root using Newton's method
 pub fn sqrt(x: f64) f64 = {
     pre {
