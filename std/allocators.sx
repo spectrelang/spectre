@@ -36,7 +36,7 @@ pub fn (Arena) free(arena: Self) void! = {
 ///
 /// Requires size > 0. Returns none if there is not enough space remaining.
 pub fn (Arena) alloc(arena: Self, size: usize) option[ref void] = {
-    pre {
+    guarded pre {
         pre_size_positive : size > 0
     }
     val off: usize = trust @load(@ptradd(arena, 8))
