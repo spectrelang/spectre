@@ -33,6 +33,7 @@ pub fn (Arena) free(arena: Self) void! = {
 }
 
 /// Allocate `size` bytes from the arena.
+///
 /// Requires size > 0. Returns none if there is not enough space remaining.
 pub fn (Arena) alloc(arena: Self, size: usize) option[ref void] = {
     pre {
