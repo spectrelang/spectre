@@ -8,6 +8,7 @@ pub struct Module {
 #[derive(Debug, Clone)]
 pub enum Item {
     Use {
+        public: bool,
         name: String,
         path: String,
     },
@@ -362,7 +363,7 @@ impl Parser {
         self.expect(&TokenKind::Use)?;
         let name = self.expect_ident()?;
         let path = self.expect_string()?;
-        Ok(Item::Use { name, path })
+        Ok(Item::Use { public: false, name, path })
     }
 
     fn parse_extern_fn(&mut self, public: bool) -> Result<Item, String> {
@@ -556,7 +557,7 @@ impl Parser {
             self.expect(&TokenKind::LParen)?;
             let path = self.expect_string()?;
             self.expect(&TokenKind::RParen)?;
-            return Ok(Item::Use { name, path });
+            return Ok(Item::Use { public, name, path });
         }
 
         let expr = self.parse_expr()?;

@@ -372,7 +372,7 @@ mod codegen_tests {
     use std::path::Path;
 
     fn compile(src: &str) -> Result<String, String> {
-        let resolved = resolve_module(src, Path::new("."), &mut HashMap::new(), "")?;
+        let resolved = resolve_module(src, Path::new("."), &mut HashMap::new(), "", None)?;
         let mut cg = Codegen::new();
         cg.emit_module(&resolved, false, false)?;
         Ok(cg.finish())
@@ -668,7 +668,7 @@ mod format_string_tests {
             r#"pub fn put_any(f: ref char, a: untyped) void! = {{}}
                pub fn main() void! = {{ put_any("{fmt}", 1) }}"#
         );
-        let resolved = resolve_module(&src, Path::new("."), &mut HashMap::new(), "").unwrap();
+        let resolved = resolve_module(&src, Path::new("."), &mut HashMap::new(), "", None).unwrap();
         let mut cg = Codegen::new();
         cg.emit_module(&resolved, false, false).unwrap();
         let ir = cg.finish();
@@ -709,7 +709,7 @@ mod hoisting_and_optionals_tests {
     use std::path::Path;
 
     fn compile(src: &str) -> Result<String, String> {
-        let resolved = resolve_module(src, Path::new("."), &mut HashMap::new(), "")?;
+        let resolved = resolve_module(src, Path::new("."), &mut HashMap::new(), "", None)?;
         let mut cg = Codegen::new();
         cg.emit_module(&resolved, false, false)?;
         Ok(cg.finish())
@@ -948,7 +948,7 @@ mod elif_and_for_tests {
     use std::path::Path;
 
     fn compile(src: &str) -> Result<String, String> {
-        let resolved = resolve_module(src, Path::new("."), &mut HashMap::new(), "")?;
+        let resolved = resolve_module(src, Path::new("."), &mut HashMap::new(), "", None)?;
         let mut cg = Codegen::new();
         cg.emit_module(&resolved, false, false)?;
         Ok(cg.finish())
@@ -1203,7 +1203,7 @@ mod float_mut_and_for_regression_tests {
     use std::path::Path;
 
     fn compile(src: &str) -> Result<String, String> {
-        let resolved = resolve_module(src, Path::new("."), &mut HashMap::new(), "")?;
+        let resolved = resolve_module(src, Path::new("."), &mut HashMap::new(), "", None)?;
         let mut cg = Codegen::new();
         cg.emit_module(&resolved, false, false)?;
         Ok(cg.finish())
@@ -1298,7 +1298,7 @@ mod memory_and_defer_tests {
     use std::path::Path;
 
     fn compile(src: &str) -> Result<String, String> {
-        let resolved = resolve_module(src, Path::new("."), &mut HashMap::new(), "")?;
+        let resolved = resolve_module(src, Path::new("."), &mut HashMap::new(), "", None)?;
         let mut cg = Codegen::new();
         cg.emit_module(&resolved, false, false)?;
         Ok(cg.finish())
@@ -1539,7 +1539,7 @@ mod method_namespace_tests {
     use std::path::Path;
 
     fn compile(src: &str) -> Result<String, String> {
-        let resolved = resolve_module(src, Path::new("."), &mut HashMap::new(), "")?;
+        let resolved = resolve_module(src, Path::new("."), &mut HashMap::new(), "", None)?;
         let mut cg = Codegen::new();
         cg.emit_module(&resolved, false, false)?;
         Ok(cg.finish())
@@ -1732,7 +1732,7 @@ mod cast_tests {
     use std::path::Path;
 
     fn compile(src: &str) -> Result<String, String> {
-        let resolved = resolve_module(src, Path::new("."), &mut HashMap::new(), "")?;
+        let resolved = resolve_module(src, Path::new("."), &mut HashMap::new(), "", None)?;
         let mut cg = Codegen::new();
         cg.emit_module(&resolved, false, false)?;
         Ok(cg.finish())
@@ -1822,7 +1822,7 @@ mod union_codegen_tests {
     use std::path::Path;
 
     fn compile(src: &str) -> Result<String, String> {
-        let resolved = resolve_module(src, Path::new("."), &mut HashMap::new(), "")?;
+        let resolved = resolve_module(src, Path::new("."), &mut HashMap::new(), "", None)?;
         let mut cg = Codegen::new();
         cg.emit_module(&resolved, false, false)?;
         Ok(cg.finish())
@@ -2164,7 +2164,7 @@ mod enum_tests {
     use std::path::Path;
 
     fn compile(src: &str) -> Result<String, String> {
-        let resolved = resolve_module(src, Path::new("."), &mut HashMap::new(), "")?;
+        let resolved = resolve_module(src, Path::new("."), &mut HashMap::new(), "", None)?;
         let mut cg = Codegen::new();
         cg.emit_module(&resolved, false, false)?;
         Ok(cg.finish())
@@ -2297,7 +2297,7 @@ mod purity_enforcement_tests {
     use std::path::Path;
 
     fn compile(src: &str) -> Result<(String, Vec<String>), String> {
-        let resolved = resolve_module(src, Path::new("."), &mut HashMap::new(), "")?;
+        let resolved = resolve_module(src, Path::new("."), &mut HashMap::new(), "", None)?;
         let mut cg = Codegen::new();
         cg.emit_module(&resolved, false, false)?;
         let warnings = cg.warnings.clone();
@@ -2389,7 +2389,9 @@ mod purity_enforcement_tests {
         "#,
         );
         assert!(
-            warnings.iter().any(|w| w.contains("redundant") && w.contains("trust")),
+            warnings
+                .iter()
+                .any(|w| w.contains("redundant") && w.contains("trust")),
             "expected redundant trust warning, got: {warnings:?}"
         );
     }
@@ -2458,7 +2460,7 @@ mod extern_fn_tests {
     use std::path::Path;
 
     fn compile(src: &str) -> Result<String, String> {
-        let resolved = resolve_module(src, Path::new("."), &mut HashMap::new(), "")?;
+        let resolved = resolve_module(src, Path::new("."), &mut HashMap::new(), "", None)?;
         let mut cg = Codegen::new();
         cg.emit_module(&resolved, false, false)?;
         Ok(cg.finish())
@@ -2486,7 +2488,10 @@ mod extern_fn_tests {
     #[test]
     fn parse_extern_fn_basic() {
         let m = parse(r#"extern (C) fn my_puts(s: ref char) void! = "puts""#);
-        let Item::ExternFn { conv, name, symbol, .. } = &m.items[0] else {
+        let Item::ExternFn {
+            conv, name, symbol, ..
+        } = &m.items[0]
+        else {
             panic!("expected ExternFn")
         };
         assert_eq!(conv, "C");
@@ -2525,7 +2530,9 @@ mod extern_fn_tests {
 
     #[test]
     fn extern_fn_without_bang_errors() {
-        let tokens = Lexer::new(r#"extern (C) fn bad() void = "bad""#).tokenize().unwrap();
+        let tokens = Lexer::new(r#"extern (C) fn bad() void = "bad""#)
+            .tokenize()
+            .unwrap();
         let err = Parser::new(tokens).parse_module().unwrap_err();
         assert!(
             err.contains("!") || err.contains("extern"),
@@ -2704,8 +2711,12 @@ mod link_tests {
     fn parse_multiple_link_items() {
         let m = parse("link \"curl\"\nlink \"ssl\"");
         assert_eq!(m.items.len(), 2);
-        let Item::Link { lib: lib0 } = &m.items[0] else { panic!() };
-        let Item::Link { lib: lib1 } = &m.items[1] else { panic!() };
+        let Item::Link { lib: lib0 } = &m.items[0] else {
+            panic!()
+        };
+        let Item::Link { lib: lib1 } = &m.items[1] else {
+            panic!()
+        };
         assert_eq!(lib0, "curl");
         assert_eq!(lib1, "ssl");
     }
@@ -2756,9 +2767,14 @@ mod link_tests {
 
     #[test]
     fn resolved_module_collects_plain_links() {
-        let resolved =
-            resolve_module(r#"link "curl""#, Path::new("."), &mut HashMap::new(), "test.sx")
-                .unwrap();
+        let resolved = resolve_module(
+            r#"link "curl""#,
+            Path::new("."),
+            &mut HashMap::new(),
+            "test.sx",
+            None,
+        )
+        .unwrap();
         assert_eq!(resolved.links, vec!["curl"]);
     }
 
@@ -2769,6 +2785,7 @@ mod link_tests {
             Path::new("."),
             &mut HashMap::new(),
             "test.sx",
+            None,
         )
         .unwrap();
         assert_eq!(resolved.links, vec!["curl", "ssl"]);
@@ -2788,7 +2805,7 @@ mod link_tests {
         };
         let src = format!("when {platform_name} {{ link \"platform_lib\" }}");
         let resolved =
-            resolve_module(&src, Path::new("."), &mut HashMap::new(), "test.sx").unwrap();
+            resolve_module(&src, Path::new("."), &mut HashMap::new(), "test.sx", None).unwrap();
         assert!(
             resolved.links.contains(&"platform_lib".to_string()),
             "expected platform_lib in links for platform {platform_name}, got {:?}",
@@ -2804,7 +2821,7 @@ mod link_tests {
         };
         let src = format!("when {other} {{ link \"other_platform_lib\" }}");
         let resolved =
-            resolve_module(&src, Path::new("."), &mut HashMap::new(), "test.sx").unwrap();
+            resolve_module(&src, Path::new("."), &mut HashMap::new(), "test.sx", None).unwrap();
         assert!(
             !resolved.links.contains(&"other_platform_lib".to_string()),
             "other_platform_lib should not be linked on this platform, got {:?}",
@@ -2819,6 +2836,7 @@ mod link_tests {
             Path::new("."),
             &mut HashMap::new(),
             "test.sx",
+            None,
         )
         .unwrap();
         assert!(
@@ -2829,9 +2847,14 @@ mod link_tests {
 
     #[test]
     fn collect_used_libs_includes_root_own_links() {
-        let resolved =
-            resolve_module(r#"link "curl""#, Path::new("."), &mut HashMap::new(), "test.sx")
-                .unwrap();
+        let resolved = resolve_module(
+            r#"link "curl""#,
+            Path::new("."),
+            &mut HashMap::new(),
+            "test.sx",
+            None,
+        )
+        .unwrap();
         let libs = collect_used_libs(&resolved);
         assert!(libs.contains(&"curl".to_string()));
     }
@@ -2843,6 +2866,7 @@ mod link_tests {
             Path::new("."),
             &mut HashMap::new(),
             "test.sx",
+            None,
         )
         .unwrap();
         let libs = collect_used_libs(&resolved);
@@ -2877,10 +2901,7 @@ mod link_tests {
 
     #[test]
     fn multiple_frameworks_each_split() {
-        let args = build_cc_args(&[
-            "-framework CoreFoundation",
-            "-framework Security",
-        ]);
+        let args = build_cc_args(&["-framework CoreFoundation", "-framework Security"]);
         assert_eq!(
             args,
             vec!["-framework", "CoreFoundation", "-framework", "Security"]
@@ -2922,7 +2943,7 @@ mod postfix_and_assign_op_tests {
     }
 
     fn compile(src: &str) -> Result<String, String> {
-        let resolved = resolve_module(src, Path::new("."), &mut HashMap::new(), "")?;
+        let resolved = resolve_module(src, Path::new("."), &mut HashMap::new(), "", None)?;
         let mut cg = Codegen::new();
         cg.emit_module(&resolved, false, false)?;
         Ok(cg.finish())
@@ -2999,7 +3020,9 @@ mod postfix_and_assign_op_tests {
     fn parse_decrement_name() {
         let m = parse("pub fn main() void! = { val j: mut i64 = 10 j-- }");
         let Item::Fn(f) = &m.items[0] else { panic!() };
-        let Stmt::Decrement(name) = &f.body[1] else { panic!() };
+        let Stmt::Decrement(name) = &f.body[1] else {
+            panic!()
+        };
         assert_eq!(name, "j");
     }
 
@@ -3007,7 +3030,9 @@ mod postfix_and_assign_op_tests {
     fn parse_add_assign_name_and_expr() {
         let m = parse("pub fn main() void! = { val n: mut i64 = 0 n += 42 }");
         let Item::Fn(f) = &m.items[0] else { panic!() };
-        let Stmt::AddAssign(name, _) = &f.body[1] else { panic!() };
+        let Stmt::AddAssign(name, _) = &f.body[1] else {
+            panic!()
+        };
         assert_eq!(name, "n");
     }
 
@@ -3063,7 +3088,7 @@ mod zero_init_tests {
     }
 
     fn compile(src: &str) -> Result<String, String> {
-        let resolved = resolve_module(src, Path::new("."), &mut HashMap::new(), "")?;
+        let resolved = resolve_module(src, Path::new("."), &mut HashMap::new(), "", None)?;
         let mut cg = Codegen::new();
         cg.emit_module(&resolved, false, false)?;
         Ok(cg.finish())
@@ -3081,24 +3106,24 @@ mod zero_init_tests {
     fn parse_zero_init_expr() {
         let m = parse("type Point = { x: i64 y: i64 } pub fn main() void! = { val p = Point{} }");
         let Item::Fn(f) = &m.items[1] else { panic!() };
-        let Stmt::Val { expr, .. } = &f.body[0] else { panic!() };
+        let Stmt::Val { expr, .. } = &f.body[0] else {
+            panic!()
+        };
         assert!(matches!(expr, Expr::ZeroInit(name) if name == "Point"));
     }
 
     #[test]
     fn codegen_zero_init_uses_stack_alloc() {
-        let ir = compile_ok(
-            "type Point = { x: i64 y: i64 } pub fn main() void! = { val p = Point{} }",
-        );
+        let ir =
+            compile_ok("type Point = { x: i64 y: i64 } pub fn main() void! = { val p = Point{} }");
         assert!(ir.contains("alloc8"));
         assert!(!ir.contains("malloc"));
     }
 
     #[test]
     fn codegen_zero_init_calls_memset_zero() {
-        let ir = compile_ok(
-            "type Point = { x: i64 y: i64 } pub fn main() void! = { val p = Point{} }",
-        );
+        let ir =
+            compile_ok("type Point = { x: i64 y: i64 } pub fn main() void! = { val p = Point{} }");
         assert!(ir.contains("memset"));
         assert!(ir.contains(", w 0,"));
     }
