@@ -344,5 +344,7 @@ test {
     std.io.put_any("{s}", {cstr(result)})
     StringBuilder.free(sb)
 
+    assert(len(from("Hello")) == 5)
+
     std.io.print("it worked")
 }
