@@ -872,7 +872,9 @@ impl Codegen {
                 self.emit(&format!("    jnz {cond_tmp}, {some_lbl}, {none_lbl}"));
 
                 self.emit(&format!("{some_lbl}"));
-                self.locals.insert(some_binding.clone(), val_tmp.clone());
+                let unwrapped = self.fresh_tmp();
+                self.emit(&format!("    {unwrapped} =l sub {val_tmp}, 1"));
+                self.locals.insert(some_binding.clone(), unwrapped);
                 for s in some_body {
                     self.emit_stmt(s, ns, ret_ty)?;
                 }
@@ -1026,7 +1028,10 @@ impl Codegen {
             Expr::None => Ok(("0".into(), "l")),
             Expr::Some(inner) => {
                 let (tmp, ty) = self.emit_expr(inner, ns)?;
-                Ok(self.promote_to_l(tmp, ty))
+                let (tmp_l, _) = self.promote_to_l(tmp, ty);
+                let result = self.fresh_tmp();
+                self.emit(&format!("    {result} =l add {tmp_l}, 1"));
+                Ok((result, "l"))
             }
             Expr::Trust(inner) => {
                 if self.current_fn_trusted {
@@ -1091,6 +1096,25 @@ impl Codegen {
                     let tmp = self.fresh_tmp();
                     self.emit(&format!("    {tmp} =l call $memcpy(l {dst}, l {src}, l {size_l})"));
                     Ok((tmp, "l"))
+                }
+                "load8" => {
+                    let (ptr, _) = self.emit_expr(&args[0], ns)?;
+                    let tmp = self.fresh_tmp();
+                    self.emit(&format!("    {tmp} =w loadub {ptr}"));
+                    Ok((tmp, "w"))
+                }
+                "store8" => {
+                    let (ptr, _) = self.emit_expr(&args[0], ns)?;
+                    let (val, val_ty) = self.emit_expr(&args[1], ns)?;
+                    let val_w = if val_ty == "l" {
+                        let w = self.fresh_tmp();
+                        self.emit(&format!("    {w} =w copy {val}"));
+                        w
+                    } else {
+                        val
+                    };
+                    self.emit(&format!("    storeb {val_w}, {ptr}"));
+                    Ok(("0".into(), "w"))
                 }
                 "ptradd" => {
                     let (ptr, _) = self.emit_expr(&args[0], ns)?;

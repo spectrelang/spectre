@@ -13,7 +13,7 @@ pub type String = {
 pub fn new() ref void! = {
     val s: ref void = @alloc(24)
     val buf: ref void = @alloc(1)
-    @store(buf, 0)
+    @store8(buf, 0)
     @store(s, buf)
     @store(@ptradd(s, 8), 0)
     @store(@ptradd(s, 16), 1)
@@ -25,7 +25,7 @@ pub fn from(cstr: ref char) ref void! = {
     val l: i64 = strlen(cstr)
     val buf: ref void = @alloc(l + 1)
     @memcpy(buf, cstr, l)
-    @store(@ptradd(buf, l), 0)
+    @store8(@ptradd(buf, l), 0)
 
     val s: ref void = @alloc(24)
     @store(s, buf)
@@ -75,7 +75,7 @@ pub fn push_cstr(s: ref void, other: ref char) void! = {
     val ptr: ref void = @load(s)
     @memcpy(@ptradd(ptr, l), other, add_len)
 
-    @store(@ptradd(ptr, new_len), 0)
+    @store8(@ptradd(ptr, new_len), 0)
     @store(@ptradd(s, 8), new_len)
 }
 
@@ -92,7 +92,7 @@ pub fn push(s: ref void, other: ref void) void! = {
     val ptr: ref void = @load(s)
     @memcpy(@ptradd(ptr, l), other_ptr, other_len)
 
-    @store(@ptradd(ptr, new_len), 0)
+    @store8(@ptradd(ptr, new_len), 0)
     @store(@ptradd(s, 8), new_len)
 }
 
@@ -103,7 +103,7 @@ pub fn clone(s: ref void) ref void! = {
     val buf: ref void = @alloc(l + 1)
 
     @memcpy(buf, ptr, l)
-    @store(@ptradd(buf, l), 0)
+    @store8(@ptradd(buf, l), 0)
 
     val out: ref void = @alloc(24)
     @store(out, buf)
@@ -124,11 +124,11 @@ pub fn reverse(s: ref void) void! = {
         if (i < j) {
             break
         }
-        val a: u8 = @load(@ptradd(ptr, i))
-        val b: u8 = @load(@ptradd(ptr, j))
+        val a: u8 = @load8(@ptradd(ptr, i))
+        val b: u8 = @load8(@ptradd(ptr, j))
 
-        @store(@ptradd(ptr, i), b)
-        @store(@ptradd(ptr, j), a)
+        @store8(@ptradd(ptr, i), b)
+        @store8(@ptradd(ptr, j), a)
 
         i--
         j--
@@ -150,7 +150,7 @@ pub fn reserve(s: ref void, cap: i64) void! = {
 /// Clear contents (set length to 0, keep allocation)
 pub fn clear(s: ref void) void! = {
     val ptr: ref void = @load(s)
-    @store(ptr, 0)
+    @store8(ptr, 0)
     @store(@ptradd(s, 8), 0)
 }
 
@@ -162,8 +162,8 @@ pub fn push_char(s: ref void, c: u8) void! = {
     ensure_cap(s, new_len + 1)
 
     val ptr: ref void = @load(s)
-    @store(@ptradd(ptr, l), c)
-    @store(@ptradd(ptr, new_len), 0)
+    @store8(@ptradd(ptr, l), c)
+    @store8(@ptradd(ptr, new_len), 0)
     @store(@ptradd(s, 8), new_len)
 }
 
@@ -181,7 +181,7 @@ pub fn get(s: ref void, i: i64) option[u8] = {
     post {
         i_nonneg: i >= 0
     }
-    return some trust @load(@ptradd(ptr, i))
+    return some trust @load8(@ptradd(ptr, i))
 }
 
 /// Set byte at index i (no-op if out of bounds)
@@ -191,7 +191,7 @@ pub fn set(s: ref void, i: i64, c: u8) void! = {
         return
     }
     val ptr: ref void = @load(s)
-    @store(@ptradd(ptr, i), c)
+    @store8(@ptradd(ptr, i), c)
 }
 
 /// Return a new heap String containing bytes [start, end)
@@ -215,7 +215,7 @@ pub fn slice(s: ref void, start: i64, end: i64) ref void! = {
     val src_ptr: ref void = @load(s)
     val buf: ref void = @alloc(slice_len + 1)
     @memcpy(buf, @ptradd(src_ptr, real_start), slice_len)
-    @store(@ptradd(buf, slice_len), 0)
+    @store8(@ptradd(buf, slice_len), 0)
 
     val out: ref void = @alloc(24)
     @store(out, buf)
@@ -256,8 +256,8 @@ pub fn find(s: ref void, sub: ref void) option[i64] = {
             if (j >= subl) {
                 break
             }
-            val a: u8 = trust @load(@ptradd(sp, i + j))
-            val b: u8 = trust @load(@ptradd(subp, j))
+            val a: u8 = trust @load8(@ptradd(sp, i + j))
+            val b: u8 = trust @load8(@ptradd(subp, j))
             if (a != b) {
                 matched = 0
                 break
@@ -307,10 +307,10 @@ pub fn to_upper(s: ref void) void! = {
         if (i >= l) {
             break
         }
-        val c: u8 = @load(@ptradd(ptr, i))
+        val c: u8 = @load8(@ptradd(ptr, i))
         if (c >= 97) {
             if (c <= 122) {
-                @store(@ptradd(ptr, i), c - 32)
+                @store8(@ptradd(ptr, i), c - 32)
             }
         }
         i++
@@ -326,10 +326,10 @@ pub fn to_lower(s: ref void) void! = {
         if (i >= l) {
             break
         }
-        val c: u8 = @load(@ptradd(ptr, i))
+        val c: u8 = @load8(@ptradd(ptr, i))
         if (c >= 65) {
             if (c <= 90) {
-                @store(@ptradd(ptr, i), c + 32)
+                @store8(@ptradd(ptr, i), c + 32)
             }
         }
         i++
@@ -345,7 +345,7 @@ pub fn trim_left(s: ref void) void! = {
         if (start >= l) {
             break
         }
-        val c: u8 = @load(@ptradd(ptr, start))
+        val c: u8 = @load8(@ptradd(ptr, start))
         if (c != 32) {
             if (c != 9) {
                 if (c != 10) {
@@ -362,7 +362,7 @@ pub fn trim_left(s: ref void) void! = {
     }
     val new_len: i64 = l - start
     @memcpy(ptr, @ptradd(ptr, start), new_len)
-    @store(@ptradd(ptr, new_len), 0)
+    @store8(@ptradd(ptr, new_len), 0)
     @store(@ptradd(s, 8), new_len)
 }
 
@@ -374,7 +374,7 @@ pub fn trim_right(s: ref void) void! = {
         if (l <= 0) {
             break
         }
-        val c: u8 = @load(@ptradd(ptr, l - 1))
+        val c: u8 = @load8(@ptradd(ptr, l - 1))
         if (c != 32) {
             if (c != 9) {
                 if (c != 10) {
@@ -386,7 +386,7 @@ pub fn trim_right(s: ref void) void! = {
         }
         l--
     }
-    @store(@ptradd(ptr, l), 0)
+    @store8(@ptradd(ptr, l), 0)
     @store(@ptradd(s, 8), l)
 }
 
@@ -426,8 +426,8 @@ pub fn replace(s: ref void, from: ref void, to: ref void) ref void! = {
                 if (j >= froml) {
                     break
                 }
-                val a: u8 = @load(@ptradd(sp, i + j))
-                val b: u8 = @load(@ptradd(fromp, j))
+                val a: u8 = @load8(@ptradd(sp, i + j))
+                val b: u8 = @load8(@ptradd(fromp, j))
                 if (a != b) {
                     matched = 0
                     break
@@ -440,16 +440,16 @@ pub fn replace(s: ref void, from: ref void, to: ref void) ref void! = {
                 ensure_cap(out, new_len + 1)
                 val out_ptr: ref void = @load(out)
                 @memcpy(@ptradd(out_ptr, out_l), top, tol)
-                @store(@ptradd(out_ptr, new_len), 0)
+                @store8(@ptradd(out_ptr, new_len), 0)
                 @store(@ptradd(out, 8), new_len)
                 i += froml
             } else {
-                val c: u8 = @load(@ptradd(sp, i))
+                val c: u8 = @load8(@ptradd(sp, i))
                 push_char(out, c)
                 i++
             }
         } else {
-            val c: u8 = @load(@ptradd(sp, i))
+            val c: u8 = @load8(@ptradd(sp, i))
             push_char(out, c)
             i++
         }
@@ -485,8 +485,8 @@ pub fn split(s: ref void, delim: ref void) ref void! = {
                 if (j >= dl) {
                     break
                 }
-                val a: u8 = @load(@ptradd(sp, i + j))
-                val b: u8 = @load(@ptradd(dp, j))
+                val a: u8 = @load8(@ptradd(sp, i + j))
+                val b: u8 = @load8(@ptradd(dp, j))
                 if (a != b) {
                     matched = 0
                     break
@@ -538,8 +538,8 @@ pub fn equals(x: ref void, y: ref void) bool = {
         if (i >= lx) {
             break
         }
-        val a: u8 = trust @load(@ptradd(px, i))
-        val b: u8 = trust @load(@ptradd(py, i))
+        val a: u8 = trust @load8(@ptradd(px, i))
+        val b: u8 = trust @load8(@ptradd(py, i))
         if (a != b) {
             return false
         }
@@ -575,8 +575,8 @@ pub fn starts_with(s: ref void, prefix: ref void) bool = {
         if (i >= pl) {
             break
         }
-        val a: u8 = trust @load(@ptradd(sp, i))
-        val b: u8 = trust @load(@ptradd(pp, i))
+        val a: u8 = trust @load8(@ptradd(sp, i))
+        val b: u8 = trust @load8(@ptradd(pp, i))
         if (a != b) {
             return false
         }
@@ -613,8 +613,8 @@ pub fn ends_with(s: ref void, suffix: ref void) bool = {
         if (i >= sul) {
             break
         }
-        val a: u8 = trust @load(@ptradd(sp, offset + i))
-        val b: u8 = trust @load(@ptradd(sup, i))
+        val a: u8 = trust @load8(@ptradd(sp, offset + i))
+        val b: u8 = trust @load8(@ptradd(sup, i))
         if (a != b) {
             return false
         }
@@ -639,7 +639,7 @@ pub type StringBuilder = {
 pub fn (StringBuilder) new() ref void! = {
     val s: ref void = @alloc(24)
     val buf: ref void = @alloc(64)
-    @store(buf, 0)
+    @store8(buf, 0)
     @store(s, buf)
     @store(@ptradd(s, 8), 0)
     @store(@ptradd(s, 16), 64)
@@ -684,7 +684,7 @@ pub fn (StringBuilder) build(sb: Self) ref void! = {
     val buf: ref void = @alloc(l + 1)
 
     @memcpy(buf, ptr, l)
-    @store(@ptradd(buf, l), 0)
+    @store8(@ptradd(buf, l), 0)
 
     val out: ref void = @alloc(24)
 
@@ -710,36 +710,187 @@ pub fn (StringBuilder) append_char(sb: Self, c: u8) void! = {
     ensure_cap(sb, new_len + 1)
 
     val ptr: ref void = @load(sb)
-    @store(@ptradd(ptr, l), c)
-    @store(@ptradd(ptr, new_len), 0)
+    @store8(@ptradd(ptr, l), c)
+    @store8(@ptradd(ptr, new_len), 0)
     @store(@ptradd(sb, 8), new_len)
 }
 
 /// Clear the builder (reset length to 0, keep allocation)
 pub fn (StringBuilder) clear(sb: Self) void! = {
     val ptr: ref void = @load(sb)
-    @store(ptr, 0)
+    @store8(ptr, 0)
     @store(@ptradd(sb, 8), 0)
 }
 
 val std = use("std")
 
 test {
-    val s = from("hello ")
-    val t = from("world\n")
-    val joined = concat(s, t)
-    std.io.put_any("{s}", {cstr(joined)})
+    // --- basic creation ---
+    val empty = new()
+    assert(len(empty) == 0)
 
-    assert equals(from("hello world\n"), joined)
+    val s = from("hello")
+    assert(len(s) == 5)
+    assert(equals(s, from("hello")))
 
+    // --- push / push_cstr ---
+    val a = from("foo")
+    push_cstr(a, "bar")
+    assert(equals(a, from("foobar")))
+
+    val b = from("foo")
+    val c = from("bar")
+    push(b, c)
+    assert(equals(b, from("foobar")))
+
+    // --- push_char ---
+    val pc = from("ab")
+    push_char(pc, 99) // 'c'
+    assert(equals(pc, from("abc")))
+
+    // --- clone ---
+    val orig = from("clone me")
+    val copy = clone(orig)
+    assert(equals(orig, copy))
+    set(copy, 0, 88) // 'X'
+    assert(!equals(orig, copy)) // ensure deep copy
+
+    // --- clear ---
+    val cl = from("something")
+    clear(cl)
+    assert(len(cl) == 0)
+    assert(equals(cl, from("")))
+
+    // --- get ---
+    val g = from("abc")
+    val g0 = get(g, 0)
+    val g1 = get(g, 1)
+    val g2 = get(g, 2)
+    val g3 = get(g, 3)
+
+    match g0 { some v => { assert(v == 97) } none => { assert(false) } }
+    match g1 { some v => { assert(v == 98) } none => { assert(false) } }
+    match g2 { some v => { assert(v == 99) } none => { assert(false) } }
+    match g3 { some _ => { assert(false) } none => {} }
+
+    // --- set ---
+    val st = from("abc")
+    set(st, 1, 120) // 'x'
+    assert(equals(st, from("axc")))
+    set(st, 99, 121) // OOB no-op
+    assert(equals(st, from("axc")))
+
+    // --- slice ---
+    val sl = from("hello world")
+    assert(equals(slice(sl, 0, 5), from("hello")))
+    assert(equals(slice(sl, 6, 11), from("world")))
+    assert(equals(slice(sl, -5, 5), from("hello")))
+    assert(equals(slice(sl, 6, 999), from("world")))
+    assert(equals(slice(sl, 5, 5), from("")))
+
+    // --- find ---
+    val f = from("abc abc abc")
+    match find(f, from("abc")) {
+        some i => { assert(i == 0) }
+        none => { assert(false) }
+    }
+    match find(f, from("bca")) {
+        some _ => { assert(false) }
+        none => {}
+    }
+    match find(f, from("")) {
+        some i => { assert(i == 0) }
+        none => { assert(false) }
+    }
+
+    // --- contains ---
+    assert(contains(f, from("abc")))
+    assert(!contains(f, from("zzz")))
+
+    // --- starts_with / ends_with ---
+    val se = from("foobar")
+    assert(starts_with(se, from("foo")))
+    assert(!starts_with(se, from("bar")))
+    assert(ends_with(se, from("bar")))
+    assert(!ends_with(se, from("foo")))
+
+    // --- case conversion ---
+    val up = from("abcXYZ")
+    to_upper(up)
+    assert(equals(up, from("ABCXYZ")))
+
+    val low = from("ABCxyz")
+    to_lower(low)
+    assert(equals(low, from("abcxyz")))
+
+    // --- trim ---
+    val tr = from("  \t hello \n ")
+    trim(tr)
+    assert(equals(tr, from("hello")))
+
+    val tl = from("   hello")
+    trim_left(tl)
+    assert(equals(tl, from("hello")))
+
+    val trr = from("hello   ")
+    trim_right(trr)
+    assert(equals(trr, from("hello")))
+
+    // --- replace ---
+    val rep = from("foo bar foo")
+    val rep2 = replace(rep, from("foo"), from("baz"))
+    assert(equals(rep2, from("baz bar baz")))
+
+    val rep3 = replace(rep, from("xxx"), from("yyy"))
+    assert(equals(rep3, from("foo bar foo")))
+
+    // --- split ---
+    val sp = from("a,b,c")
+    val parts = split(sp, from(","))
+
+    assert(std.list.List.len(parts) == 3)
+    assert(equals(std.list.List.get(parts, 0), from("a")))
+    assert(equals(std.list.List.get(parts, 1), from("b")))
+    assert(equals(std.list.List.get(parts, 2), from("c")))
+
+    // edge: trailing delim
+    val sp2 = from("a,b,")
+    val parts2 = split(sp2, from(","))
+    assert(std.list.List.len(parts2) == 3)
+    assert(equals(std.list.List.get(parts2, 2), from("")))
+
+    // --- concat ---
+    val ca = from("foo")
+    val cb = from("bar")
+    val cc = concat(ca, cb)
+    assert(equals(cc, from("foobar")))
+
+    // --- reserve ---
+    val rs = from("abc")
+    reserve(rs, 100)
+    push_cstr(rs, "def")
+    assert(equals(rs, from("abcdef")))
+
+    // --- StringBuilder ---
     val sb = StringBuilder.new()
-    StringBuilder.append_cstr(sb, "foo ")
-    StringBuilder.append_cstr(sb, "bar\n")
-    val result = StringBuilder.build(sb)
-    std.io.put_any("{s}", {cstr(result)})
+    StringBuilder.append_cstr(sb, "hello")
+    StringBuilder.append(sb, from(" "))
+    StringBuilder.append_cstr(sb, "world")
+    StringBuilder.append_char(sb, 33) // '!'
+
+    val built = StringBuilder.build(sb)
+    assert(equals(built, from("hello world!")))
+
+    StringBuilder.clear(sb)
+    val built2 = StringBuilder.build(sb)
+    assert(equals(built2, from("")))
+
     StringBuilder.free(sb)
 
-    assert(len(from("Hello")) == 5)
+    // --- reverse (NOTE: will fail until bug is fixed) ---
+    val rv = from("abcd")
+    reverse(rv)
+    assert(equals(rv, from("dcba")))
 
-    std.io.print("it worked")
+    std.io.print("string tests passed")
 }
