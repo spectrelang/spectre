@@ -848,7 +848,6 @@ mod hoisting_and_optionals_tests {
     #[test]
     fn codegen_some_sign_extends_to_l() {
         let ir = compile_ok("fn f() option[i32]! = { return some 10 }");
-        // literal wrapped in some: promoted via copy or extsw to l
         assert!(ir.contains("=l copy") || ir.contains("extsw"));
     }
 
@@ -1266,7 +1265,6 @@ mod float_mut_and_for_regression_tests {
         );
     }
 
-    // Regression: for-loop counter increment must be 64-bit (=l add, not =w add)
     #[test]
     fn for_loop_increment_is_64bit() {
         let ir = compile_ok(
@@ -1764,7 +1762,6 @@ mod cast_tests {
 
     #[test]
     fn cast_chained_f64_i64_f64() {
-        // (x as i64) as f64 — the pattern used by trunc()
         let ir = compile_ok(
             r#"
             pub fn trunc(x: f64) f64 = {
@@ -1778,7 +1775,6 @@ mod cast_tests {
 
     #[test]
     fn cast_used_in_expression() {
-        // floor-style: compare original with cast-and-back value
         let ir = compile_ok(
             r#"
             pub fn floor(x: f64) f64 = {
@@ -1807,5 +1803,312 @@ mod cast_tests {
         let toks = Lexer::new("asset assign").tokenize().unwrap();
         assert!(matches!(toks[0].kind, TokenKind::Ident(_)));
         assert!(matches!(toks[1].kind, TokenKind::Ident(_)));
+    }
+}
+
+#[cfg(test)]
+mod union_codegen_tests {
+    use crate::codegen::Codegen;
+    use crate::lexer::{Lexer, TokenKind};
+    use crate::module::resolve_module;
+    use crate::parser::{Item, Parser, Stmt, TypeExpr};
+    use std::collections::HashMap;
+    use std::path::Path;
+
+    fn compile(src: &str) -> Result<String, String> {
+        let resolved = resolve_module(src, Path::new("."), &mut HashMap::new(), "")?;
+        let mut cg = Codegen::new();
+        cg.emit_module(&resolved, false, false)?;
+        Ok(cg.finish())
+    }
+
+    fn compile_ok(src: &str) -> String {
+        compile(src).expect("expected compilation to succeed")
+    }
+
+    fn compile_err(src: &str) -> String {
+        compile(src).expect_err("expected compilation to fail")
+    }
+
+    fn parse(src: &str) -> crate::parser::Module {
+        let tokens = Lexer::new(src).tokenize().unwrap();
+        Parser::new(tokens).parse_module().unwrap()
+    }
+
+    #[test]
+    fn lex_union_keyword() {
+        let toks = Lexer::new("union").tokenize().unwrap();
+        assert_eq!(toks[0].kind, TokenKind::Union);
+    }
+
+    #[test]
+    fn lex_when_keyword() {
+        let toks = Lexer::new("when").tokenize().unwrap();
+        assert_eq!(toks[0].kind, TokenKind::When);
+    }
+
+    #[test]
+    fn lex_is_keyword() {
+        let toks = Lexer::new("is").tokenize().unwrap();
+        assert_eq!(toks[0].kind, TokenKind::Is);
+    }
+
+    #[test]
+    fn lex_otherwise_keyword() {
+        let toks = Lexer::new("otherwise").tokenize().unwrap();
+        assert_eq!(toks[0].kind, TokenKind::Otherwise);
+    }
+
+    #[test]
+    fn parse_union_def_two_variants() {
+        let m = parse("union Shape = { i32 | i64 }");
+        let Item::UnionDef { name, variants } = &m.items[0] else {
+            panic!("expected UnionDef")
+        };
+        assert_eq!(name, "Shape");
+        assert_eq!(variants.len(), 2);
+        assert!(matches!(&variants[0], TypeExpr::Named(n) if n == "i32"));
+        assert!(matches!(&variants[1], TypeExpr::Named(n) if n == "i64"));
+    }
+
+    #[test]
+    fn parse_union_def_three_variants() {
+        let m = parse("union U = { i32 | i64 | ref char }");
+        let Item::UnionDef { name, variants } = &m.items[0] else {
+            panic!("expected UnionDef")
+        };
+        assert_eq!(name, "U");
+        assert_eq!(variants.len(), 3);
+    }
+
+    #[test]
+    fn parse_when_is_stmt() {
+        let m = parse(
+            r#"
+            union U = { i32 | i64 }
+            fn f(x: U) void! = {
+                when x is i32 { val a = 1 }
+            }
+        "#,
+        );
+        let Item::Fn(f) = &m.items[1] else { panic!() };
+        assert!(matches!(f.body[0], Stmt::WhenIs { .. }));
+    }
+
+    #[test]
+    fn parse_when_is_captures_type() {
+        let m = parse(
+            r#"
+            union U = { i32 | i64 }
+            fn f(x: U) void! = {
+                when x is i64 { val a = 1 }
+            }
+        "#,
+        );
+        let Item::Fn(f) = &m.items[1] else { panic!() };
+        let Stmt::WhenIs { ty, .. } = &f.body[0] else {
+            panic!()
+        };
+        assert!(matches!(ty, TypeExpr::Named(n) if n == "i64"));
+    }
+
+    #[test]
+    fn parse_otherwise_stmt() {
+        let m = parse(
+            r#"
+            union U = { i32 | i64 }
+            fn f(x: U) void! = {
+                when x is i32 { val a = 1 }
+                otherwise { val b = 2 }
+            }
+        "#,
+        );
+        let Item::Fn(f) = &m.items[1] else { panic!() };
+        assert!(matches!(f.body[1], Stmt::Otherwise { .. }));
+    }
+
+    #[test]
+    fn union_def_compiles_without_error() {
+        compile_ok("union U = { i32 | i64 }");
+    }
+
+    #[test]
+    fn union_fn_param_wraps_with_malloc() {
+        let ir = compile_ok(
+            r#"
+            union U = { i32 | i64 }
+            fn consume(x: U) void! = {
+                when x is i32 { val a = 1 }
+                otherwise {}
+            }
+            pub fn main() void! = {
+                val v: i32 = 42
+                consume(v)
+            }
+        "#,
+        );
+        assert!(ir.contains("call $malloc"), "union arg should be heap-allocated");
+    }
+
+    #[test]
+    fn union_fn_param_stores_tag() {
+        let ir = compile_ok(
+            r#"
+            union U = { i32 | i64 }
+            fn consume(x: U) void! = {
+                when x is i32 { val a = 1 }
+                otherwise {}
+            }
+            pub fn main() void! = {
+                val v: i32 = 42
+                consume(v)
+            }
+        "#,
+        );
+        assert!(ir.contains("storew 0,"), "first variant tag should be 0");
+    }
+
+    #[test]
+    fn union_fn_param_second_variant_tag_is_1() {
+        let ir = compile_ok(
+            r#"
+            union U = { i32 | i64 }
+            fn consume(x: U) void! = {
+                when x is i64 { val a = 1 }
+                otherwise {}
+            }
+            pub fn main() void! = {
+                val v: i64 = 99
+                consume(v)
+            }
+        "#,
+        );
+        assert!(ir.contains("storew 1,"), "second variant tag should be 1");
+    }
+
+    #[test]
+    fn union_fn_param_stores_value_after_tag() {
+        let ir = compile_ok(
+            r#"
+            union U = { i32 | i64 }
+            fn consume(x: U) void! = {
+                when x is i32 { val a = 1 }
+                otherwise {}
+            }
+            pub fn main() void! = {
+                val v: i32 = 7
+                consume(v)
+            }
+        "#,
+        );
+        assert!(ir.contains("=l add") && ir.contains("storel"), "value should be stored at offset 8");
+    }
+
+    #[test]
+    fn when_is_emits_loadw_for_tag() {
+        let ir = compile_ok(
+            r#"
+            union U = { i32 | i64 }
+            fn f(x: U) void! = {
+                when x is i32 { val a = 1 }
+                otherwise {}
+            }
+            pub fn main() void! = {}
+        "#,
+        );
+        assert!(ir.contains("=w loadw"), "when/is must load tag as word");
+    }
+
+    #[test]
+    fn when_is_emits_ceqw_for_tag_comparison() {
+        let ir = compile_ok(
+            r#"
+            union U = { i32 | i64 }
+            fn f(x: U) void! = {
+                when x is i32 { val a = 1 }
+                otherwise {}
+            }
+            pub fn main() void! = {}
+        "#,
+        );
+        assert!(ir.contains("=w ceqw"), "when/is must compare tag with ceqw");
+    }
+
+    #[test]
+    fn when_is_emits_body_and_skip_labels() {
+        let ir = compile_ok(
+            r#"
+            union U = { i32 | i64 }
+            fn f(x: U) void! = {
+                when x is i32 { val a = 1 }
+                otherwise {}
+            }
+            pub fn main() void! = {}
+        "#,
+        );
+        assert!(ir.contains("@when_body_"), "when body label must be emitted");
+        assert!(ir.contains("@when_skip_"), "when skip label must be emitted");
+    }
+
+    #[test]
+    fn when_is_chain_emits_shared_end_label() {
+        let ir = compile_ok(
+            r#"
+            union U = { i32 | i64 }
+            fn f(x: U) void! = {
+                when x is i32 { val a = 1 }
+                when x is i64 { val b = 2 }
+                otherwise {}
+            }
+            pub fn main() void! = {}
+        "#,
+        );
+        assert!(ir.contains("@when_end_"), "when chain must emit a shared end label");
+    }
+
+    #[test]
+    fn when_is_chain_two_variants_both_checked() {
+        let ir = compile_ok(
+            r#"
+            union U = { i32 | i64 }
+            fn f(x: U) void! = {
+                when x is i32 { val a = 1 }
+                when x is i64 { val b = 2 }
+                otherwise {}
+            }
+            pub fn main() void! = {}
+        "#,
+        );
+        assert_eq!(ir.matches("ceqw").count(), 2, "two variants need two tag comparisons");
+    }
+
+    #[test]
+    fn when_is_unknown_variant_errors() {
+        let err = compile_err(
+            r#"
+            union U = { i32 | i64 }
+            fn f(x: U) void! = {
+                when x is bool { val a = 1 }
+                otherwise {}
+            }
+            pub fn main() void! = {}
+        "#,
+        );
+        assert!(err.contains("not a variant"), "unknown variant should error");
+    }
+
+    #[test]
+    fn when_is_non_union_type_errors() {
+        let err = compile_err(
+            r#"
+            type T = { x: i32 }
+            fn f(x: T) void! = {
+                when x is i32 { val a = 1 }
+                otherwise {}
+            }
+            pub fn main() void! = {}
+        "#,
+        );
+        assert!(err.contains("not a union type"), "struct used as union should error");
     }
 }
