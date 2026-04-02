@@ -1,4 +1,4 @@
-pub fn takes_ref(buf: ref i32) void! = {
+pub fn takes_ref(buf: ref i32) void = {
     deref(buf) = 42
 }
 

@@ -297,6 +297,13 @@ impl Codegen {
                     qbe_name, builtin_name, builtin_name
                 ));
             }
+            if find_bare_deref_assign_in_stmts(&f.body) {
+                return Err(format!(
+                    "function '{}': 'deref(...) = ...' used without 'trust' — \
+                     wrap the assignment with 'trust deref(...) = ...' or mark the function as unsafe with '!'",
+                    qbe_name
+                ));
+            }
         }
 
         if !f.trusted && !self.release {
@@ -466,7 +473,12 @@ impl Codegen {
             }
 
             Stmt::Assign { target, value } => {
-                if let Expr::Deref(ptr_expr) = target {
+                let deref_target = match target {
+                    Expr::Deref(inner) => Some(inner.as_ref()),
+                    Expr::Trust(inner) => if let Expr::Deref(d) = inner.as_ref() { Some(d.as_ref()) } else { None },
+                    _ => None,
+                };
+                if let Some(ptr_expr) = deref_target {
                     let (ptr, _) = self.emit_expr(ptr_expr, ns)?;
                     let (val_tmp, val_ty) = self.emit_expr(value, ns)?;
                     match val_ty {
@@ -1957,7 +1969,7 @@ fn all_trusted_stmts(stmts: &[Stmt]) -> bool {
         | Stmt::AddAssign(..)
         | Stmt::SubAssign(..) => true,
         Stmt::Assert(..) => true,
-        Stmt::Assign { .. } => false,
+        Stmt::Assign { target, .. } => matches!(target, Expr::Deref(_) | Expr::Trust(_)),
         Stmt::Defer(body) => all_trusted_stmts(body),
         Stmt::If {
             then, elif_, else_, ..
@@ -2076,6 +2088,32 @@ fn find_bare_builtin_in_expr(expr: &Expr) -> Option<String> {
         | Expr::Bool(_)
         | Expr::None => None,
         Expr::ZeroInit(_) => None,
+    }
+}
+
+/// Returns true if any statement is a bare (non-trusted) deref-assign: `deref(...) = ...`
+fn find_bare_deref_assign_in_stmts(stmts: &[Stmt]) -> bool {
+    stmts.iter().any(|s| find_bare_deref_assign_in_stmt(s))
+}
+
+fn find_bare_deref_assign_in_stmt(stmt: &Stmt) -> bool {
+    match stmt {
+        Stmt::Assign { target, .. } => matches!(target, Expr::Deref(_)),
+        Stmt::If { then, elif_, else_, .. } => {
+            find_bare_deref_assign_in_stmts(then)
+                || elif_.iter().any(|(_, b)| find_bare_deref_assign_in_stmts(b))
+                || else_.as_deref().map_or(false, find_bare_deref_assign_in_stmts)
+        }
+        Stmt::For { body, .. } => find_bare_deref_assign_in_stmts(body),
+        Stmt::Match { some_body, none_body, .. } => {
+            find_bare_deref_assign_in_stmts(some_body)
+                || find_bare_deref_assign_in_stmts(none_body)
+        }
+        Stmt::Defer(body)
+        | Stmt::When { body, .. }
+        | Stmt::WhenIs { body, .. }
+        | Stmt::Otherwise { body } => find_bare_deref_assign_in_stmts(body),
+        _ => false,
     }
 }
 
