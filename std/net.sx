@@ -45,7 +45,7 @@ pub val CURLOPT_WRITEDATA     = 10001
 pub val CURLOPT_HTTPHEADER    = 10023
 pub val CURLOPT_POSTFIELDS    = 10015
 pub val CURLOPT_CUSTOMREQUEST = 10036
-pub val CURLINFO_RESPONSE_CODE = 2097154   // 0x200002
+pub val CURLINFO_RESPONSE_CODE = 2097154
 pub val CURL_GLOBAL_DEFAULT   = 3
 pub val AF_INET               = 2
 pub val IPPROTO_TCP           = 6
@@ -248,16 +248,10 @@ pub fn (TcpServer) listen(port: i32) ref void! = {
     setsockopt(fd, sol_socket, so_reuseaddr, one, 4)
     @free(one)
 
-    // Build sockaddr_in (16 bytes):
-    //   [0..1]  sin_family  (i16) = AF_INET (2)
-    //   [2..3]  sin_port    (i16) = htons(port)
-    //   [4..7]  sin_addr    (i32) = INADDR_ANY (0)
-    //   [8..15] sin_zero    (pad)
     val address: ref void = @alloc(16)
     memset(address, 0, 16)
-    // sin_family = 2 (AF_INET) stored as 16-bit in first 2 bytes
     @store(address, 2)
-    // sin_port — store htons(port) into bytes 2-3
+
     val net_port: i32 = htons(port)
     val port_ptr: ref void = @ptradd(address, 2)
     @store(port_ptr, net_port)
