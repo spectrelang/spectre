@@ -203,7 +203,7 @@ fn collect_used_imports_in_expr(
             collect_used_imports_in_expr(lhs, imports, used);
             collect_used_imports_in_expr(rhs, imports, used);
         }
-        Expr::UnOp { expr, .. } | Expr::Cast { expr, .. } | Expr::Some(expr) | Expr::Trust(expr) => {
+        Expr::UnOp { expr, .. } | Expr::Cast { expr, .. } | Expr::Some(expr) | Expr::Trust(expr) | Expr::Addr(expr) | Expr::Deref(expr) => {
             collect_used_imports_in_expr(expr, imports, used);
         }
         Expr::StructLit { fields } => {

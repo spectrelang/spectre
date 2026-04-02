@@ -80,6 +80,11 @@ pub enum TypeExpr {
     Slice(Box<TypeExpr>),
     Ref(Box<TypeExpr>),
     Option(Box<TypeExpr>),
+    /// `fn(T, T) R` — function pointer type
+    FnPtr {
+        params: Vec<TypeExpr>,
+        ret: Box<TypeExpr>,
+    },
     Void,
     Untyped,
 }
@@ -183,6 +188,10 @@ pub enum Expr {
         expr: Box<Expr>,
         ty: TypeExpr,
     },
+    /// `addr(expr)` — take the address of a function or variable
+    Addr(Box<Expr>),
+    /// `deref(expr)` — dereference a pointer
+    Deref(Box<Expr>),
 }
 
 #[derive(Debug, Clone)]
@@ -455,6 +464,24 @@ impl Parser {
                 self.expect(&TokenKind::RBracket)?;
                 let inner = self.parse_type()?;
                 Ok(TypeExpr::Slice(Box::new(inner)))
+            }
+            // `fn(T, T) R` — function pointer type
+            TokenKind::Fn => {
+                self.advance();
+                self.expect(&TokenKind::LParen)?;
+                let mut params = Vec::new();
+                while self.peek() != &TokenKind::RParen && self.peek() != &TokenKind::Eof {
+                    params.push(self.parse_type()?);
+                    if !self.eat(&TokenKind::Comma) {
+                        break;
+                    }
+                }
+                self.expect(&TokenKind::RParen)?;
+                let ret = self.parse_type()?;
+                Ok(TypeExpr::FnPtr {
+                    params,
+                    ret: Box::new(ret),
+                })
             }
             TokenKind::Ident(name) => {
                 self.advance();
@@ -1056,6 +1083,20 @@ impl Parser {
             }
             TokenKind::Ident(name) => {
                 self.advance();
+                // addr(expr) — take address of a function or variable
+                if name == "addr" {
+                    self.expect(&TokenKind::LParen)?;
+                    let inner = self.parse_expr()?;
+                    self.expect(&TokenKind::RParen)?;
+                    return Ok(Expr::Addr(Box::new(inner)));
+                }
+                // deref(expr) — dereference a pointer
+                if name == "deref" {
+                    self.expect(&TokenKind::LParen)?;
+                    let inner = self.parse_expr()?;
+                    self.expect(&TokenKind::RParen)?;
+                    return Ok(Expr::Deref(Box::new(inner)));
+                }
                 Ok(Expr::Ident(name))
             }
             TokenKind::At => {

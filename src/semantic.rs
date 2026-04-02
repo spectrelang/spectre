@@ -184,7 +184,9 @@ fn collect_used_in_expr(expr: &Expr, used: &mut HashSet<String>) {
         Expr::UnOp { expr, .. }
         | Expr::Cast { expr, .. }
         | Expr::Some(expr)
-        | Expr::Trust(expr) => {
+        | Expr::Trust(expr)
+        | Expr::Addr(expr)
+        | Expr::Deref(expr) => {
             collect_used_in_expr(expr, used);
         }
         Expr::Field(base, _) => collect_used_in_expr(base, used),

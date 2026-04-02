@@ -14,10 +14,10 @@ fn qbe_type(ty: &TypeExpr) -> &'static str {
             "ptr" | "rawptr" => "l",
             _ => "l",
         },
-
         TypeExpr::Slice(_) => "l",
         TypeExpr::Ref(_) => "l",
         TypeExpr::Option(_) => "l",
+        TypeExpr::FnPtr { .. } => "l",
         TypeExpr::Void => "w",
         TypeExpr::Untyped => "l",
     }
@@ -1327,6 +1327,35 @@ impl Codegen {
             }
 
             Expr::Call { callee, args, line } => {
+                let callee_path = expr_to_path(callee);
+                let is_local_fnptr = !callee_path.is_empty()
+                    && !callee_path.contains('.')
+                    && self.locals.contains_key(&callee_path)
+                    && !ns.contains_key(&callee_path);
+
+                if is_local_fnptr {
+                    let (ptr, _) = self.emit_expr(callee, ns)?;
+                    self.in_trust_expr = false;
+                    let mut arg_strs = Vec::new();
+                    for a in args.iter() {
+                        if let Expr::ArgsPack(pack) = a {
+                            for item in pack {
+                                let (tmp, ty) = self.emit_expr(item, ns)?;
+                                arg_strs.push(format!("{ty} {tmp}"));
+                            }
+                        } else {
+                            let (tmp, ty) = self.emit_expr(a, ns)?;
+                            arg_strs.push(format!("{ty} {tmp}"));
+                        }
+                    }
+                    let result = self.fresh_tmp();
+                    self.emit(&format!(
+                        "    {result} =l call {ptr}({args})",
+                        args = arg_strs.join(", ")
+                    ));
+                    return Ok((result, "l"));
+                }
+
                 let fn_name = resolve_call_name(callee, ns, &self.type_aliases.clone())
                     .map_err(|e| format!("{}:{}: {}", self.current_file, line, e))?;
 
@@ -1602,6 +1631,42 @@ impl Codegen {
                     (from, to) => Err(format!("unsupported cast from {from} to {to}")),
                 }
             }
+
+            Expr::Addr(inner) => {
+                let tmp = self.fresh_tmp();
+                match inner.as_ref() {
+                    Expr::Ident(name) => {
+                        if let Some(qbe_name) = ns.get(name) {
+                            self.emit(&format!("    {tmp} =l copy ${qbe_name}"));
+                            return Ok((tmp, "l"));
+                        }
+                        if self.local_is_slot.contains(name) {
+                            let slot = self.locals.get(name).cloned()
+                                .ok_or_else(|| format!("undefined variable: {name}"))?;
+                            self.emit(&format!("    {tmp} =l copy {slot}"));
+                            return Ok((tmp, "l"));
+                        }
+                        Err(format!("cannot take address of immutable binding '{name}' — declare it as 'mut' or use a function name"))
+                    }
+                    other => {
+                        let path = expr_to_path(other);
+                        let expanded = expand_alias_path(&path, &self.type_aliases.clone());
+                        if let Some(qbe_name) = ns.get(&expanded) {
+                            self.emit(&format!("    {tmp} =l copy ${qbe_name}"));
+                            Ok((tmp, "l"))
+                        } else {
+                            Err(format!("addr(): '{path}' is not a known function"))
+                        }
+                    }
+                }
+            }
+
+            Expr::Deref(inner) => {
+                let (ptr, _) = self.emit_expr(inner, ns)?;
+                let tmp = self.fresh_tmp();
+                self.emit(&format!("    {tmp} =l loadl {ptr}"));
+                Ok((tmp, "l"))
+            }
         }
     }
 }
@@ -1718,9 +1783,11 @@ fn find_bare_builtin_in_expr(expr: &Expr) -> Option<String> {
         Expr::BinOp { lhs, rhs, .. } => {
             find_bare_builtin_in_expr(lhs).or_else(|| find_bare_builtin_in_expr(rhs))
         }
-        Expr::UnOp { expr, .. } | Expr::Cast { expr, .. } | Expr::Some(expr) => {
-            find_bare_builtin_in_expr(expr)
-        }
+        Expr::UnOp { expr, .. }
+        | Expr::Cast { expr, .. }
+        | Expr::Some(expr)
+        | Expr::Addr(expr)
+        | Expr::Deref(expr) => find_bare_builtin_in_expr(expr),
         Expr::Field(base, _) => find_bare_builtin_in_expr(base),
         Expr::StructLit { fields } => fields
             .iter()
