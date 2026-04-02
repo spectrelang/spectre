@@ -142,6 +142,380 @@ pub fn concat(a: ref void, b: ref void) ref void! = {
     return out
 }
 
+/// Reserve at least cap bytes of capacity
+pub fn reserve(s: ref void, cap: i64) void! = {
+    ensure_cap(s, cap)
+}
+
+/// Clear contents (set length to 0, keep allocation)
+pub fn clear(s: ref void) void! = {
+    val ptr: ref void = @load(s)
+    @store(ptr, 0)
+    @store(@ptradd(s, 8), 0)
+}
+
+/// Append a single byte character
+pub fn push_char(s: ref void, c: u8) void! = {
+    val l: i64 = @load(@ptradd(s, 8))
+    val new_len: i64 = l + 1
+
+    ensure_cap(s, new_len + 1)
+
+    val ptr: ref void = @load(s)
+    @store(@ptradd(ptr, l), c)
+    @store(@ptradd(ptr, new_len), 0)
+    @store(@ptradd(s, 8), new_len)
+}
+
+/// Get byte at index i — returns none if out of bounds
+pub fn get(s: ref void, i: i64) option[u8] = {
+    pre {
+        s_not_null: s != 0
+        i_nonneg:   i >= 0
+    }
+    val l: i64 = trust @load(@ptradd(s, 8))
+    if (i >= l) {
+        return none
+    }
+    val ptr: ref void = trust @load(s)
+    post {
+        i_nonneg: i >= 0
+    }
+    return some trust @load(@ptradd(ptr, i))
+}
+
+/// Set byte at index i (no-op if out of bounds)
+pub fn set(s: ref void, i: i64, c: u8) void! = {
+    val l: i64 = @load(@ptradd(s, 8))
+    if (i >= l) {
+        return
+    }
+    val ptr: ref void = @load(s)
+    @store(@ptradd(ptr, i), c)
+}
+
+/// Return a new heap String containing bytes [start, end)
+pub fn slice(s: ref void, start: i64, end: i64) ref void! = {
+    val l: i64 = @load(@ptradd(s, 8))
+
+    val real_start: mut i64 = start
+    val real_end: mut i64 = end
+    if (real_start < 0) {
+        real_start = 0
+    }
+    if (real_end > l) {
+        real_end = l
+    }
+
+    val slice_len: mut i64 = real_end - real_start
+    if (slice_len < 0) {
+        slice_len = 0
+    }
+
+    val src_ptr: ref void = @load(s)
+    val buf: ref void = @alloc(slice_len + 1)
+    @memcpy(buf, @ptradd(src_ptr, real_start), slice_len)
+    @store(@ptradd(buf, slice_len), 0)
+
+    val out: ref void = @alloc(24)
+    @store(out, buf)
+    @store(@ptradd(out, 8), slice_len)
+    @store(@ptradd(out, 16), slice_len + 1)
+    return out
+}
+
+/// Find first occurrence of sub in s — returns some(index) or none
+pub fn find(s: ref void, sub: ref void) option[i64] = {
+    pre {
+        s_not_null:   s != 0
+        sub_not_null: sub != 0
+    }
+
+    val sl: i64 = trust @load(@ptradd(s, 8))
+    val subl: i64 = trust @load(@ptradd(sub, 8))
+
+    if (subl == 0) {
+        return some 0
+    }
+    if (subl > sl) {
+        return none
+    }
+
+    val sp: ref void = trust @load(s)
+    val subp: ref void = trust @load(sub)
+
+    val limit: i64 = sl - subl
+    val i: mut i64 = 0
+    for {
+        if (i > limit) {
+            break
+        }
+        val j: mut i64 = 0
+        val matched: mut i64 = 1
+        for {
+            if (j >= subl) {
+                break
+            }
+            val a: u8 = trust @load(@ptradd(sp, i + j))
+            val b: u8 = trust @load(@ptradd(subp, j))
+            if (a != b) {
+                matched = 0
+                break
+            }
+            j++
+        }
+        if (matched != 0) {
+            return some i
+        }
+        i++
+    }
+
+    post {
+        s_not_null: s != 0
+    }
+
+    return none
+}
+
+/// Returns true if sub appears anywhere in s
+pub fn contains(s: ref void, sub: ref void) bool = {
+    pre {
+        s_not_null:   s != 0
+        sub_not_null: sub != 0
+    }
+
+    val result = trust find(s, sub)
+    val found: mut i64 = 0
+    match result {
+        some _ => { found = 1 }
+        none   => { found = 0 }
+    }
+
+    post {
+        s_not_null: s != 0
+    }
+
+    return found != 0
+}
+
+/// Convert to uppercase in place
+pub fn to_upper(s: ref void) void! = {
+    val l: i64 = @load(@ptradd(s, 8))
+    val ptr: ref void = @load(s)
+    val i: mut i64 = 0
+    for {
+        if (i >= l) {
+            break
+        }
+        val c: u8 = @load(@ptradd(ptr, i))
+        if (c >= 97) {
+            if (c <= 122) {
+                @store(@ptradd(ptr, i), c - 32)
+            }
+        }
+        i++
+    }
+}
+
+/// Convert to lowercase in place
+pub fn to_lower(s: ref void) void! = {
+    val l: i64 = @load(@ptradd(s, 8))
+    val ptr: ref void = @load(s)
+    val i: mut i64 = 0
+    for {
+        if (i >= l) {
+            break
+        }
+        val c: u8 = @load(@ptradd(ptr, i))
+        if (c >= 65) {
+            if (c <= 90) {
+                @store(@ptradd(ptr, i), c + 32)
+            }
+        }
+        i++
+    }
+}
+
+/// Trim leading whitespace in place
+pub fn trim_left(s: ref void) void! = {
+    val l: i64 = @load(@ptradd(s, 8))
+    val ptr: ref void = @load(s)
+    val start: mut i64 = 0
+    for {
+        if (start >= l) {
+            break
+        }
+        val c: u8 = @load(@ptradd(ptr, start))
+        if (c != 32) {
+            if (c != 9) {
+                if (c != 10) {
+                    if (c != 13) {
+                        break
+                    }
+                }
+            }
+        }
+        start++
+    }
+    if (start == 0) {
+        return
+    }
+    val new_len: i64 = l - start
+    @memcpy(ptr, @ptradd(ptr, start), new_len)
+    @store(@ptradd(ptr, new_len), 0)
+    @store(@ptradd(s, 8), new_len)
+}
+
+/// Trim trailing whitespace in place
+pub fn trim_right(s: ref void) void! = {
+    val l: mut i64 = @load(@ptradd(s, 8))
+    val ptr: ref void = @load(s)
+    for {
+        if (l <= 0) {
+            break
+        }
+        val c: u8 = @load(@ptradd(ptr, l - 1))
+        if (c != 32) {
+            if (c != 9) {
+                if (c != 10) {
+                    if (c != 13) {
+                        break
+                    }
+                }
+            }
+        }
+        l--
+    }
+    @store(@ptradd(ptr, l), 0)
+    @store(@ptradd(s, 8), l)
+}
+
+/// Trim leading and trailing whitespace in place
+pub fn trim(s: ref void) void! = {
+    trim_right(s)
+    trim_left(s)
+}
+
+/// Return a new String with all occurrences of `from` replaced by `to`
+pub fn replace(s: ref void, from: ref void, to: ref void) ref void! = {
+    val sl: i64 = @load(@ptradd(s, 8))
+    val froml: i64 = @load(@ptradd(from, 8))
+    val tol: i64 = @load(@ptradd(to, 8))
+
+    val out: ref void = new()
+
+    if (froml == 0) {
+        push(out, s)
+        return out
+    }
+
+    val sp: ref void = @load(s)
+    val fromp: ref void = @load(from)
+    val top: ref void = @load(to)
+
+    val i: mut i64 = 0
+    for {
+        if (i >= sl) {
+            break
+        }
+        val limit: i64 = sl - froml
+        if (i <= limit) {
+            val j: mut i64 = 0
+            val matched: mut i64 = 1
+            for {
+                if (j >= froml) {
+                    break
+                }
+                val a: u8 = @load(@ptradd(sp, i + j))
+                val b: u8 = @load(@ptradd(fromp, j))
+                if (a != b) {
+                    matched = 0
+                    break
+                }
+                j++
+            }
+            if (matched != 0) {
+                val out_l: i64 = @load(@ptradd(out, 8))
+                val new_len: i64 = out_l + tol
+                ensure_cap(out, new_len + 1)
+                val out_ptr: ref void = @load(out)
+                @memcpy(@ptradd(out_ptr, out_l), top, tol)
+                @store(@ptradd(out_ptr, new_len), 0)
+                @store(@ptradd(out, 8), new_len)
+                i += froml
+            } else {
+                val c: u8 = @load(@ptradd(sp, i))
+                push_char(out, c)
+                i++
+            }
+        } else {
+            val c: u8 = @load(@ptradd(sp, i))
+            push_char(out, c)
+            i++
+        }
+    }
+
+    return out
+}
+
+val std = use("std")
+
+/// Split s by delim — returns a List of heap-allocated Strings
+pub fn split(s: ref void, delim: ref void) ref void! = {
+    val result: ref void = std.list.List.new(8)
+
+    val sl: i64 = @load(@ptradd(s, 8))
+    val dl: i64 = @load(@ptradd(delim, 8))
+    val sp: ref void = @load(s)
+    val dp: ref void = @load(delim)
+
+    val seg_start: mut i64 = 0
+    val i: mut i64 = 0
+
+    for {
+        if (i > sl) {
+            break
+        }
+
+        val is_delim: mut i64 = 0
+        if (i <= sl - dl) {
+            val j: mut i64 = 0
+            val matched: mut i64 = 1
+            for {
+                if (j >= dl) {
+                    break
+                }
+                val a: u8 = @load(@ptradd(sp, i + j))
+                val b: u8 = @load(@ptradd(dp, j))
+                if (a != b) {
+                    matched = 0
+                    break
+                }
+                j++
+            }
+            if (matched != 0) {
+                is_delim = 1
+            }
+        }
+
+        if (is_delim != 0) {
+            val seg: ref void = slice(s, seg_start, i)
+            std.list.List.push(result, seg)
+            seg_start = i + dl
+            i += dl
+        } else {
+            if (i == sl) {
+                val seg: ref void = slice(s, seg_start, sl)
+                std.list.List.push(result, seg)
+                break
+            }
+            i++
+        }
+    }
+
+    return result
+}
+
 /// Check if two strings are equal
 pub fn equals(x: ref void, y: ref void) bool = {
     pre {
@@ -326,6 +700,26 @@ pub fn (StringBuilder) free(sb: Self) void! = {
     val ptr: ref void = @load(sb)
     @free(ptr)
     @free(sb)
+}
+
+/// Append a single byte character
+pub fn (StringBuilder) append_char(sb: Self, c: u8) void! = {
+    val l: i64 = @load(@ptradd(sb, 8))
+    val new_len: i64 = l + 1
+
+    ensure_cap(sb, new_len + 1)
+
+    val ptr: ref void = @load(sb)
+    @store(@ptradd(ptr, l), c)
+    @store(@ptradd(ptr, new_len), 0)
+    @store(@ptradd(sb, 8), new_len)
+}
+
+/// Clear the builder (reset length to 0, keep allocation)
+pub fn (StringBuilder) clear(sb: Self) void! = {
+    val ptr: ref void = @load(sb)
+    @store(ptr, 0)
+    @store(@ptradd(sb, 8), 0)
 }
 
 val std = use("std")
