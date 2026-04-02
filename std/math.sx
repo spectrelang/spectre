@@ -148,9 +148,9 @@ pub fn gcd(a: i64, b: i64) i64 = {
     }
 
     post {
-        btz: x >= 0
-        mod_eq_z_a: a % x == 0
-        mod_eq_z_b: b % x == 0
+        nonneg: x >= 0
+        !(x == 0) || (a == 0 && b == 0)
+        !(x != 0) || (a % x == 0 && b % x == 0)
     }
 
     return x
@@ -161,7 +161,7 @@ pub fn lcm(a: i64, b: i64) i64 = {
     pre {
         non_zero: a != 0 && b != 0
     }
-    return (a / gcd(a, b)) * b
+    return abs((a / gcd(a, b)) * b)
 }
 
 pub fn fmin(a: f64, b: f64) f64 = {
