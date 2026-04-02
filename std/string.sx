@@ -1,3 +1,5 @@
+val std = use("std")
+
 extern (C) fn strlen(s: ref char) i64! = "strlen"
 
 /// This is a classic string type.
@@ -458,7 +460,6 @@ pub fn replace(s: ref void, from: ref void, to: ref void) ref void! = {
     return out
 }
 
-val std = use("std")
 
 /// Split s by delim — returns a List of heap-allocated Strings
 pub fn split(s: ref void, delim: ref void) ref void! = {
@@ -721,8 +722,6 @@ pub fn (StringBuilder) clear(sb: Self) void! = {
     @store8(ptr, 0)
     @store(@ptradd(sb, 8), 0)
 }
-
-val std = use("std")
 
 test {
     val empty = new()
