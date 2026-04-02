@@ -1,0 +1,10 @@
+val std = use("std")
+
+enum SomeEnum = {
+    HELLO,
+    WORLD
+}
+
+pub fn main() void! = {
+    std.io.put_any("{d}", {SomeEnum.HELLO})
+}

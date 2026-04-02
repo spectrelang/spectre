@@ -194,7 +194,12 @@ mod parser_tests {
     #[test]
     fn parse_type_def() {
         let m = parse("type Point = { x: i32 y: mut i32 }");
-        let Item::TypeDef { name, fields } = &m.items[0] else {
+        let Item::TypeDef {
+            name,
+            fields,
+            public: _,
+        } = &m.items[0]
+        else {
             panic!()
         };
         assert_eq!(name, "Point");
@@ -1862,7 +1867,12 @@ mod union_codegen_tests {
     #[test]
     fn parse_union_def_two_variants() {
         let m = parse("union Shape = { i32 | i64 }");
-        let Item::UnionDef { name, variants } = &m.items[0] else {
+        let Item::UnionDef {
+            name,
+            variants,
+            public: _,
+        } = &m.items[0]
+        else {
             panic!("expected UnionDef")
         };
         assert_eq!(name, "Shape");
@@ -1874,7 +1884,12 @@ mod union_codegen_tests {
     #[test]
     fn parse_union_def_three_variants() {
         let m = parse("union U = { i32 | i64 | ref char }");
-        let Item::UnionDef { name, variants } = &m.items[0] else {
+        let Item::UnionDef {
+            name,
+            variants,
+            public: _,
+        } = &m.items[0]
+        else {
             panic!("expected UnionDef")
         };
         assert_eq!(name, "U");
@@ -1947,7 +1962,10 @@ mod union_codegen_tests {
             }
         "#,
         );
-        assert!(ir.contains("call $malloc"), "union arg should be heap-allocated");
+        assert!(
+            ir.contains("call $malloc"),
+            "union arg should be heap-allocated"
+        );
     }
 
     #[test]
@@ -2001,7 +2019,10 @@ mod union_codegen_tests {
             }
         "#,
         );
-        assert!(ir.contains("=l add") && ir.contains("storel"), "value should be stored at offset 8");
+        assert!(
+            ir.contains("=l add") && ir.contains("storel"),
+            "value should be stored at offset 8"
+        );
     }
 
     #[test]
@@ -2046,8 +2067,14 @@ mod union_codegen_tests {
             pub fn main() void! = {}
         "#,
         );
-        assert!(ir.contains("@when_body_"), "when body label must be emitted");
-        assert!(ir.contains("@when_skip_"), "when skip label must be emitted");
+        assert!(
+            ir.contains("@when_body_"),
+            "when body label must be emitted"
+        );
+        assert!(
+            ir.contains("@when_skip_"),
+            "when skip label must be emitted"
+        );
     }
 
     #[test]
@@ -2063,7 +2090,10 @@ mod union_codegen_tests {
             pub fn main() void! = {}
         "#,
         );
-        assert!(ir.contains("@when_end_"), "when chain must emit a shared end label");
+        assert!(
+            ir.contains("@when_end_"),
+            "when chain must emit a shared end label"
+        );
     }
 
     #[test]
@@ -2079,7 +2109,11 @@ mod union_codegen_tests {
             pub fn main() void! = {}
         "#,
         );
-        assert_eq!(ir.matches("ceqw").count(), 2, "two variants need two tag comparisons");
+        assert_eq!(
+            ir.matches("ceqw").count(),
+            2,
+            "two variants need two tag comparisons"
+        );
     }
 
     #[test]
@@ -2094,7 +2128,10 @@ mod union_codegen_tests {
             pub fn main() void! = {}
         "#,
         );
-        assert!(err.contains("not a variant"), "unknown variant should error");
+        assert!(
+            err.contains("not a variant"),
+            "unknown variant should error"
+        );
     }
 
     #[test]
@@ -2109,6 +2146,9 @@ mod union_codegen_tests {
             pub fn main() void! = {}
         "#,
         );
-        assert!(err.contains("not a union type"), "struct used as union should error");
+        assert!(
+            err.contains("not a union type"),
+            "struct used as union should error"
+        );
     }
 }

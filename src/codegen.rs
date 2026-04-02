@@ -37,6 +37,7 @@ pub struct Codegen {
     local_slot_is_d: std::collections::HashSet<String>,
     type_defs: HashMap<String, Vec<Field>>,
     union_defs: HashMap<String, Vec<TypeExpr>>,
+    enum_defs: HashMap<String, Vec<String>>,
     trusted_fns: std::collections::HashSet<String>,
     current_fn: String,
     defer_stack: Vec<Vec<Stmt>>,
@@ -68,6 +69,7 @@ impl Codegen {
             local_slot_is_d: std::collections::HashSet::new(),
             type_defs: HashMap::new(),
             union_defs: HashMap::new(),
+            enum_defs: HashMap::new(),
             trusted_fns: std::collections::HashSet::new(),
             current_fn: String::new(),
             defer_stack: Vec::new(),
@@ -169,11 +171,14 @@ impl Codegen {
         self.current_file = resolved.filename.clone();
 
         for item in &resolved.ast.items {
-            if let Item::TypeDef { name, fields } = item {
+            if let Item::TypeDef { name, fields, .. } = item {
                 self.type_defs.insert(name.clone(), fields.clone());
             }
-            if let Item::UnionDef { name, variants } = item {
+            if let Item::UnionDef { name, variants, .. } = item {
                 self.union_defs.insert(name.clone(), variants.clone());
+            }
+            if let Item::EnumDef { name, variants, .. } = item {
+                self.enum_defs.insert(name.clone(), variants.clone());
             }
         }
 
@@ -224,6 +229,7 @@ impl Codegen {
                 | Item::Const { .. }
                 | Item::TypeDef { .. }
                 | Item::UnionDef { .. }
+                | Item::EnumDef { .. }
                 | Item::Test { .. } => {}
             }
         }
@@ -1249,6 +1255,18 @@ impl Codegen {
             },
 
             Expr::Field(_base, _field_name) => {
+                if let Expr::Ident(enum_name) = _base.as_ref() {
+                    if let Some(variants) = self.enum_defs.get(enum_name.as_str()).cloned() {
+                        let idx =
+                            variants
+                                .iter()
+                                .position(|v| v == _field_name)
+                                .ok_or_else(|| {
+                                    format!("enum '{enum_name}' has no variant '{_field_name}'")
+                                })?;
+                        return Ok((idx.to_string(), "w"));
+                    }
+                }
                 let ptr = self.emit_field_ptr(expr, ns)?;
                 let tmp = self.fresh_tmp();
                 self.emit(&format!("    {tmp} =l loadl {ptr}"));
@@ -1335,14 +1353,17 @@ impl Codegen {
                             if let Some(TypeExpr::Named(union_name)) = ptypes.get(i) {
                                 if let Some(variants) = self.union_defs.get(union_name).cloned() {
                                     let arg_type_name = match a {
-                                        Expr::Ident(n) => self.local_type_annotations.get(n).cloned(),
+                                        Expr::Ident(n) => {
+                                            self.local_type_annotations.get(n).cloned()
+                                        }
                                         _ => None,
                                     };
-                                    let tag = arg_type_name.as_deref()
-                                        .and_then(|atn| variants.iter().position(|v| {
+                                    let tag = arg_type_name.as_deref().and_then(|atn| {
+                                        variants.iter().position(|v| {
                                             matches!(v, TypeExpr::Named(n) if n == atn)
                                                 || matches!(v, TypeExpr::Ref(_) if atn == "ref")
-                                        }));
+                                        })
+                                    });
                                     if let Some(tag_idx) = tag {
                                         let ptr = self.fresh_tmp();
                                         self.emit(&format!("    {ptr} =l call $malloc(l 16)"));
@@ -1355,9 +1376,15 @@ impl Codegen {
                                     } else {
                                         None
                                     }
-                                } else { None }
-                            } else { None }
-                        } else { None };
+                                } else {
+                                    None
+                                }
+                            } else {
+                                None
+                            }
+                        } else {
+                            None
+                        };
                         arg_strs.push(wrapped.unwrap_or_else(|| format!("{ty} {tmp}")));
                     }
                 }
@@ -1596,29 +1623,46 @@ fn find_bare_builtin_in_stmt(stmt: &Stmt) -> Option<String> {
         Stmt::Assign { value, .. } => find_bare_builtin_in_expr(value),
         Stmt::Return(Some(expr)) => find_bare_builtin_in_expr(expr),
         Stmt::Return(None) => None,
-        Stmt::Pre(contracts) => contracts.iter().find_map(|c| find_bare_builtin_in_expr(&c.expr)),
-        Stmt::Post(contracts) => contracts.iter().find_map(|c| find_bare_builtin_in_expr(&c.expr)),
+        Stmt::Pre(contracts) => contracts
+            .iter()
+            .find_map(|c| find_bare_builtin_in_expr(&c.expr)),
+        Stmt::Post(contracts) => contracts
+            .iter()
+            .find_map(|c| find_bare_builtin_in_expr(&c.expr)),
         Stmt::Assert(expr, _) => find_bare_builtin_in_expr(expr),
         Stmt::Defer(body) => find_bare_builtin_in_stmts(body),
-        Stmt::If { cond, then, elif_, else_ } => {
-            find_bare_builtin_in_expr(cond)
-                .or_else(|| find_bare_builtin_in_stmts(then))
-                .or_else(|| elif_.iter().find_map(|(e, b)| {
+        Stmt::If {
+            cond,
+            then,
+            elif_,
+            else_,
+        } => find_bare_builtin_in_expr(cond)
+            .or_else(|| find_bare_builtin_in_stmts(then))
+            .or_else(|| {
+                elif_.iter().find_map(|(e, b)| {
                     find_bare_builtin_in_expr(e).or_else(|| find_bare_builtin_in_stmts(b))
-                }))
-                .or_else(|| else_.as_deref().and_then(find_bare_builtin_in_stmts))
-        }
-        Stmt::For { init, cond, post, body } => {
-            init.as_ref().and_then(|(_, e)| find_bare_builtin_in_expr(e))
-                .or_else(|| cond.as_ref().and_then(find_bare_builtin_in_expr))
-                .or_else(|| post.as_deref().and_then(find_bare_builtin_in_stmt))
-                .or_else(|| find_bare_builtin_in_stmts(body))
-        }
-        Stmt::Match { expr, some_body, none_body, .. } => {
-            find_bare_builtin_in_expr(expr)
-                .or_else(|| find_bare_builtin_in_stmts(some_body))
-                .or_else(|| find_bare_builtin_in_stmts(none_body))
-        }
+                })
+            })
+            .or_else(|| else_.as_deref().and_then(find_bare_builtin_in_stmts)),
+        Stmt::For {
+            init,
+            cond,
+            post,
+            body,
+        } => init
+            .as_ref()
+            .and_then(|(_, e)| find_bare_builtin_in_expr(e))
+            .or_else(|| cond.as_ref().and_then(find_bare_builtin_in_expr))
+            .or_else(|| post.as_deref().and_then(find_bare_builtin_in_stmt))
+            .or_else(|| find_bare_builtin_in_stmts(body)),
+        Stmt::Match {
+            expr,
+            some_body,
+            none_body,
+            ..
+        } => find_bare_builtin_in_expr(expr)
+            .or_else(|| find_bare_builtin_in_stmts(some_body))
+            .or_else(|| find_bare_builtin_in_stmts(none_body)),
         Stmt::When { body, .. } => find_bare_builtin_in_stmts(body),
         Stmt::WhenIs { expr, body, .. } => {
             find_bare_builtin_in_expr(expr).or_else(|| find_bare_builtin_in_stmts(body))
@@ -1632,10 +1676,8 @@ fn find_bare_builtin_in_expr(expr: &Expr) -> Option<String> {
     match expr {
         Expr::Trust(_) => None,
         Expr::Builtin { name, .. } => Some(name.clone()),
-        Expr::Call { callee, args, .. } => {
-            find_bare_builtin_in_expr(callee)
-                .or_else(|| args.iter().find_map(find_bare_builtin_in_expr))
-        }
+        Expr::Call { callee, args, .. } => find_bare_builtin_in_expr(callee)
+            .or_else(|| args.iter().find_map(find_bare_builtin_in_expr)),
         Expr::BinOp { lhs, rhs, .. } => {
             find_bare_builtin_in_expr(lhs).or_else(|| find_bare_builtin_in_expr(rhs))
         }
@@ -1643,12 +1685,16 @@ fn find_bare_builtin_in_expr(expr: &Expr) -> Option<String> {
             find_bare_builtin_in_expr(expr)
         }
         Expr::Field(base, _) => find_bare_builtin_in_expr(base),
-        Expr::StructLit { fields } => {
-            fields.iter().find_map(|(_, e)| find_bare_builtin_in_expr(e))
-        }
+        Expr::StructLit { fields } => fields
+            .iter()
+            .find_map(|(_, e)| find_bare_builtin_in_expr(e)),
         Expr::ArgsPack(exprs) => exprs.iter().find_map(find_bare_builtin_in_expr),
-        Expr::IntLit(_) | Expr::FloatLit(_) | Expr::StrLit(_)
-        | Expr::Ident(_) | Expr::Bool(_) | Expr::None => None,
+        Expr::IntLit(_)
+        | Expr::FloatLit(_)
+        | Expr::StrLit(_)
+        | Expr::Ident(_)
+        | Expr::Bool(_)
+        | Expr::None => None,
     }
 }
 

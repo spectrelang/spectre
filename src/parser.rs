@@ -13,12 +13,19 @@ pub enum Item {
     },
     Fn(FnDef),
     TypeDef {
+        public: bool,
         name: String,
         fields: Vec<Field>,
     },
     UnionDef {
+        public: bool,
         name: String,
         variants: Vec<TypeExpr>,
+    },
+    EnumDef {
+        public: bool,
+        name: String,
+        variants: Vec<String>,
     },
     Const {
         public: bool,
@@ -271,8 +278,9 @@ impl Parser {
         match self.peek().clone() {
             TokenKind::Fn => self.parse_fn(public),
             TokenKind::Val => self.parse_val_item(public),
-            TokenKind::Type => self.parse_type_def(),
-            TokenKind::Union => self.parse_union_def(),
+            TokenKind::Type => self.parse_type_def(public),
+            TokenKind::Union => self.parse_union_def(public),
+            TokenKind::Enum => self.parse_enum_def(public),
             TokenKind::Use => self.parse_use(),
             other => Err(self.error(&format!("unexpected token at top level: {other:?}"))),
         }
@@ -428,7 +436,7 @@ impl Parser {
         Ok(Item::Const { public, name, expr })
     }
 
-    fn parse_type_def(&mut self) -> Result<Item, String> {
+    fn parse_type_def(&mut self, public: bool) -> Result<Item, String> {
         self.expect(&TokenKind::Type)?;
         let name = self.expect_ident()?;
         self.expect(&TokenKind::Eq)?;
@@ -446,10 +454,10 @@ impl Parser {
             });
         }
         self.expect(&TokenKind::RBrace)?;
-        Ok(Item::TypeDef { name, fields })
+        Ok(Item::TypeDef { public, name, fields })
     }
 
-    fn parse_union_def(&mut self) -> Result<Item, String> {
+    fn parse_union_def(&mut self, public: bool) -> Result<Item, String> {
         self.expect(&TokenKind::Union)?;
         let name = self.expect_ident()?;
         self.expect(&TokenKind::Eq)?;
@@ -462,7 +470,23 @@ impl Parser {
             }
         }
         self.expect(&TokenKind::RBrace)?;
-        Ok(Item::UnionDef { name, variants })
+        Ok(Item::UnionDef { public, name, variants })
+    }
+
+    fn parse_enum_def(&mut self, public: bool) -> Result<Item, String> {
+        self.expect(&TokenKind::Enum)?;
+        let name = self.expect_ident()?;
+        self.expect(&TokenKind::Eq)?;
+        self.expect(&TokenKind::LBrace)?;
+        let mut variants = Vec::new();
+        while self.peek() != &TokenKind::RBrace && self.peek() != &TokenKind::Eof {
+            variants.push(self.expect_ident()?);
+            if !self.eat(&TokenKind::Comma) {
+                break;
+            }
+        }
+        self.expect(&TokenKind::RBrace)?;
+        Ok(Item::EnumDef { public, name, variants })
     }
 
     fn parse_stmts(&mut self) -> Result<Vec<Stmt>, String> {

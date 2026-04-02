@@ -29,6 +29,7 @@ pub enum TokenKind {
     Otherwise,
     Is,
     Union,
+    Enum,
     Ident(String),
     StringLit(String),
     IntLit(i64),
@@ -257,6 +258,7 @@ impl Lexer {
                 "otherwise" => TokenKind::Otherwise,
                 "is" => TokenKind::Is,
                 "union" => TokenKind::Union,
+                "enum" => TokenKind::Enum,
                 _ => TokenKind::Ident(ident),
             });
         }
