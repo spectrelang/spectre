@@ -79,10 +79,26 @@ impl Codegen {
             data_section.push_str(&format!("data ${label} = {{ b \"{value}\", b 0 }}\n"));
         }
         data_section.push_str("data $str_w_mode = { b \"w\", b 0 }\n");
+        data_section.push_str("data $str_r_mode = { b \"r\", b 0 }\n");
+
+        let stream_wrappers = concat!(
+            "function l $sx_stdout() {\n@start\n",
+            "    %r =l call $fdopen(w 1, l $str_w_mode)\n",
+            "    ret %r\n}\n",
+            "function l $sx_stderr() {\n@start\n",
+            "    %r =l call $fdopen(w 2, l $str_w_mode)\n",
+            "    ret %r\n}\n",
+            "function l $sx_stdin() {\n@start\n",
+            "    %r =l call $fdopen(w 0, l $str_r_mode)\n",
+            "    ret %r\n}\n",
+        );
+
         if !data_section.is_empty() {
             self.out.push('\n');
             self.out.push_str(&data_section);
         }
+        self.out.push('\n');
+        self.out.push_str(stream_wrappers);
         self.out
     }
 
@@ -348,7 +364,6 @@ impl Codegen {
 
                 let (tmp, qty) = self.emit_expr(expr, ns)?;
                 if *mutable {
-                    // Use declared type annotation to determine slot width if available
                     let slot_qty = if let Some(TypeExpr::Named(type_name)) = ty {
                         qbe_type(&TypeExpr::Named(type_name.clone()))
                     } else {
@@ -925,6 +940,131 @@ impl Codegen {
                         ));
                     }
                     Ok(("0".into(), "w"))
+                }
+                "getchar" => {
+                    let tmp = self.fresh_tmp();
+                    self.emit(&format!("    {tmp} =w call $getchar()"));
+                    Ok((tmp, "w"))
+                }
+                "fgets" => {
+                    let (buf, _) = self.emit_expr(&args[0], ns)?;
+                    let (size, size_ty) = self.emit_expr(&args[1], ns)?;
+                    let (stream, _) = self.emit_expr(&args[2], ns)?;
+                    let (size_w, _) = if size_ty == "l" {
+                        let w = self.fresh_tmp();
+                        self.emit(&format!("    {w} =w copy {size}"));
+                        (w, "w")
+                    } else {
+                        (size, size_ty)
+                    };
+                    let tmp = self.fresh_tmp();
+                    self.emit(&format!("    {tmp} =l call $fgets(l {buf}, w {size_w}, l {stream})"));
+                    Ok((tmp, "l"))
+                }
+                "fputs" => {
+                    let (s, _) = self.emit_expr(&args[0], ns)?;
+                    let (stream, _) = self.emit_expr(&args[1], ns)?;
+                    let tmp = self.fresh_tmp();
+                    self.emit(&format!("    {tmp} =w call $fputs(l {s}, l {stream})"));
+                    Ok((tmp, "w"))
+                }
+                "fprintf" => {
+                    if args.len() < 2 {
+                        return Err("@fprintf requires stream and format arguments".into());
+                    }
+                    let (stream, _) = self.emit_expr(&args[0], ns)?;
+                    let fmt_tmp = match &args[1] {
+                        Expr::StrLit(s) => {
+                            let rewritten = rewrite_format_string(s);
+                            let label = self.intern_string(&rewritten);
+                            let t = self.fresh_tmp();
+                            self.emit(&format!("    {t} =l copy ${label}"));
+                            t
+                        }
+                        other => {
+                            let (tmp, _) = self.emit_expr(other, ns)?;
+                            tmp
+                        }
+                    };
+                    let mut variadic_args = Vec::new();
+                    for a in args.iter().skip(2) {
+                        let (tmp, ty) = self.emit_expr(a, ns)?;
+                        let (promoted, pty) = self.promote_to_l(tmp, ty);
+                        variadic_args.push(format!("{pty} {promoted}"));
+                    }
+                    let result = self.fresh_tmp();
+                    if variadic_args.is_empty() {
+                        self.emit(&format!("    {result} =w call $fprintf(l {stream}, l {fmt_tmp})"));
+                    } else {
+                        self.emit(&format!(
+                            "    {result} =w call $fprintf(l {stream}, l {fmt_tmp}, ..., {})",
+                            variadic_args.join(", ")
+                        ));
+                    }
+                    Ok((result, "w"))
+                }
+                "fflush" => {
+                    let (stream, _) = self.emit_expr(&args[0], ns)?;
+                    let tmp = self.fresh_tmp();
+                    self.emit(&format!("    {tmp} =w call $fflush(l {stream})"));
+                    Ok((tmp, "w"))
+                }
+                "dprintf" => {
+                    if args.len() < 2 {
+                        return Err("@dprintf requires fd and format arguments".into());
+                    }
+                    let (fd, fd_ty) = self.emit_expr(&args[0], ns)?;
+                    let (fd_w, _) = if fd_ty == "l" {
+                        let w = self.fresh_tmp();
+                        self.emit(&format!("    {w} =w copy {fd}"));
+                        (w, "w")
+                    } else {
+                        (fd, fd_ty)
+                    };
+                    let fmt_tmp = match &args[1] {
+                        Expr::StrLit(s) => {
+                            let rewritten = rewrite_format_string(s);
+                            let label = self.intern_string(&rewritten);
+                            let t = self.fresh_tmp();
+                            self.emit(&format!("    {t} =l copy ${label}"));
+                            t
+                        }
+                        other => {
+                            let (tmp, _) = self.emit_expr(other, ns)?;
+                            tmp
+                        }
+                    };
+                    let mut variadic_args = Vec::new();
+                    for a in args.iter().skip(2) {
+                        let (tmp, ty) = self.emit_expr(a, ns)?;
+                        let (promoted, pty) = self.promote_to_l(tmp, ty);
+                        variadic_args.push(format!("{pty} {promoted}"));
+                    }
+                    let result = self.fresh_tmp();
+                    if variadic_args.is_empty() {
+                        self.emit(&format!("    {result} =w call $dprintf(w {fd_w}, l {fmt_tmp})"));
+                    } else {
+                        self.emit(&format!(
+                            "    {result} =w call $dprintf(w {fd_w}, l {fmt_tmp}, ..., {})",
+                            variadic_args.join(", ")
+                        ));
+                    }
+                    Ok((result, "w"))
+                }
+                "stdout" => {
+                    let tmp = self.fresh_tmp();
+                    self.emit(&format!("    {tmp} =l call $sx_stdout()"));
+                    Ok((tmp, "l"))
+                }
+                "stderr" => {
+                    let tmp = self.fresh_tmp();
+                    self.emit(&format!("    {tmp} =l call $sx_stderr()"));
+                    Ok((tmp, "l"))
+                }
+                "stdin" => {
+                    let tmp = self.fresh_tmp();
+                    self.emit(&format!("    {tmp} =l call $sx_stdin()"));
+                    Ok((tmp, "l"))
                 }
                 other => Err(format!("unknown builtin: @{other}")),
             },
