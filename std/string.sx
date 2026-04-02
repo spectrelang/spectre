@@ -297,8 +297,8 @@ pub fn (StringBuilder) append_cstr(sb: Self, cstr: ref char) void! = {
     ensure_cap(sb, new_len + 1)
 
     val ptr: ref void = @load(sb)
-    @memcpy(@ptradd(ptr, l), cstr, add_len)
 
+    @memcpy(@ptradd(ptr, l), cstr, add_len)
     @store(@ptradd(ptr, new_len), 0)
     @store(@ptradd(sb, 8), new_len)
 }
@@ -307,15 +307,17 @@ pub fn (StringBuilder) append_cstr(sb: Self, cstr: ref char) void! = {
 pub fn (StringBuilder) build(sb: Self) ref void! = {
     val l: i64 = @load(@ptradd(sb, 8))
     val ptr: ref void = @load(sb)
-
     val buf: ref void = @alloc(l + 1)
+
     @memcpy(buf, ptr, l)
     @store(@ptradd(buf, l), 0)
 
     val out: ref void = @alloc(24)
+
     @store(out, buf)
     @store(@ptradd(out, 8), l)
     @store(@ptradd(out, 16), l + 1)
+    
     return out
 }
 
