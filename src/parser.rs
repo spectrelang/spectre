@@ -36,6 +36,7 @@ pub enum Item {
         body: Vec<Stmt>,
     },
     ExternFn {
+        public: bool,
         /// Calling convention, e.g. "C", "stdcall", "fastcall"
         conv: String,
         name: String,
@@ -281,11 +282,12 @@ impl Parser {
         if let TokenKind::Test = self.peek() {
             return self.parse_test();
         }
-        if let TokenKind::Extern = self.peek() {
-            return self.parse_extern_fn();
-        }
 
         let public = self.eat(&TokenKind::Pub);
+
+        if let TokenKind::Extern = self.peek() {
+            return self.parse_extern_fn(public);
+        }
 
         match self.peek().clone() {
             TokenKind::Fn => self.parse_fn(public),
@@ -313,7 +315,7 @@ impl Parser {
         Ok(Item::Use { name, path })
     }
 
-    fn parse_extern_fn(&mut self) -> Result<Item, String> {
+    fn parse_extern_fn(&mut self, public: bool) -> Result<Item, String> {
         self.expect(&TokenKind::Extern)?;
         self.expect(&TokenKind::LParen)?;
         let conv = self.expect_ident()?;
@@ -332,7 +334,7 @@ impl Parser {
         }
         self.expect(&TokenKind::Eq)?;
         let symbol = self.expect_string()?;
-        Ok(Item::ExternFn { conv, name, params, ret, symbol })
+        Ok(Item::ExternFn { public, conv, name, params, ret, symbol })
     }
 
     fn parse_fn(&mut self, public: bool) -> Result<Item, String> {

@@ -2632,4 +2632,29 @@ mod extern_fn_tests {
         "#,
         );
     }
+
+    #[test]
+    fn parse_pub_extern_fn() {
+        let tokens = Lexer::new(r#"pub extern (C) fn my_puts(s: ref char) void! = "puts""#)
+            .tokenize()
+            .unwrap();
+        let m = Parser::new(tokens).parse_module().unwrap();
+        let Item::ExternFn { public, name, .. } = &m.items[0] else {
+            panic!("expected ExternFn")
+        };
+        assert!(public, "pub extern fn should be public");
+        assert_eq!(name, "my_puts");
+    }
+
+    #[test]
+    fn parse_private_extern_fn() {
+        let tokens = Lexer::new(r#"extern (C) fn my_puts(s: ref char) void! = "puts""#)
+            .tokenize()
+            .unwrap();
+        let m = Parser::new(tokens).parse_module().unwrap();
+        let Item::ExternFn { public, .. } = &m.items[0] else {
+            panic!("expected ExternFn")
+        };
+        assert!(!public, "extern fn without pub should be private");
+    }
 }

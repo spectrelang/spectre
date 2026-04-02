@@ -1848,7 +1848,10 @@ fn collect_ns(module: &ResolvedModule, prefix: &str, ns: &mut Namespace) {
                 };
                 ns.insert(key, qbe);
             }
-            Item::ExternFn { name, symbol, .. } => {
+            Item::ExternFn { name, symbol, public, .. } => {
+                if !public {
+                    continue;
+                }
                 let key = if prefix.is_empty() {
                     name.clone()
                 } else {
