@@ -226,7 +226,8 @@ fn collect_used_in_expr(expr: &Expr, used: &mut HashSet<String>) {
         | Expr::FloatLit(_)
         | Expr::StrLit(_)
         | Expr::Bool(_)
-        | Expr::None => {}
+        | Expr::None
+        | Expr::ZeroInit(_) => {}
     }
 }
 

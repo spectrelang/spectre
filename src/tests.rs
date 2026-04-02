@@ -534,7 +534,7 @@ mod codegen_tests {
     }
 
     #[test]
-    fn struct_literal_calls_malloc() {
+    fn struct_literal_uses_stack_alloc() {
         let ir = compile_ok(
             r#"
             type T = { x: i32 }
@@ -543,7 +543,8 @@ mod codegen_tests {
             }
         "#,
         );
-        assert!(ir.contains("malloc"));
+        assert!(ir.contains("alloc8"));
+        assert!(!ir.contains("malloc"));
     }
 
     #[test]
@@ -2899,5 +2900,212 @@ mod link_tests {
     fn raw_flag_without_space_passed_as_single_arg() {
         let args = build_cc_args(&["-lsomething"]);
         assert_eq!(args, vec!["-lsomething"]);
+    }
+}
+
+#[cfg(test)]
+mod postfix_and_assign_op_tests {
+    use crate::codegen::Codegen;
+    use crate::lexer::{Lexer, TokenKind};
+    use crate::module::resolve_module;
+    use crate::parser::{Item, Parser, Stmt};
+    use std::collections::HashMap;
+    use std::path::Path;
+
+    fn lex(src: &str) -> Vec<crate::lexer::Token> {
+        Lexer::new(src).tokenize().unwrap()
+    }
+
+    fn parse(src: &str) -> crate::parser::Module {
+        let tokens = Lexer::new(src).tokenize().unwrap();
+        Parser::new(tokens).parse_module().unwrap()
+    }
+
+    fn compile(src: &str) -> Result<String, String> {
+        let resolved = resolve_module(src, Path::new("."), &mut HashMap::new(), "")?;
+        let mut cg = Codegen::new();
+        cg.emit_module(&resolved, false, false)?;
+        Ok(cg.finish())
+    }
+
+    fn compile_ok(src: &str) -> String {
+        compile(src).expect("expected compilation to succeed")
+    }
+
+    #[test]
+    fn lex_minus_minus() {
+        let toks = lex("x--");
+        assert_eq!(toks[0].kind, TokenKind::Ident("x".into()));
+        assert_eq!(toks[1].kind, TokenKind::MinusMinus);
+    }
+
+    #[test]
+    fn lex_plus_eq() {
+        let toks = lex("x += 1");
+        assert_eq!(toks[0].kind, TokenKind::Ident("x".into()));
+        assert_eq!(toks[1].kind, TokenKind::PlusEq);
+        assert_eq!(toks[2].kind, TokenKind::IntLit(1));
+    }
+
+    #[test]
+    fn lex_minus_eq() {
+        let toks = lex("x -= 1");
+        assert_eq!(toks[0].kind, TokenKind::Ident("x".into()));
+        assert_eq!(toks[1].kind, TokenKind::MinusEq);
+        assert_eq!(toks[2].kind, TokenKind::IntLit(1));
+    }
+
+    #[test]
+    fn lex_minus_not_minus_minus() {
+        let toks = lex("x - y");
+        assert_eq!(toks[1].kind, TokenKind::Minus);
+    }
+
+    #[test]
+    fn lex_arrow_not_minus_minus() {
+        let toks = lex("->");
+        assert_eq!(toks[0].kind, TokenKind::Arrow);
+    }
+
+    #[test]
+    fn parse_postfix_increment() {
+        let m = parse("pub fn main() void! = { val x: mut i64 = 0 x++ }");
+        let Item::Fn(f) = &m.items[0] else { panic!() };
+        assert!(matches!(f.body[1], Stmt::Increment(_)));
+    }
+
+    #[test]
+    fn parse_postfix_decrement() {
+        let m = parse("pub fn main() void! = { val x: mut i64 = 0 x-- }");
+        let Item::Fn(f) = &m.items[0] else { panic!() };
+        assert!(matches!(f.body[1], Stmt::Decrement(_)));
+    }
+
+    #[test]
+    fn parse_add_assign() {
+        let m = parse("pub fn main() void! = { val x: mut i64 = 0 x += 5 }");
+        let Item::Fn(f) = &m.items[0] else { panic!() };
+        assert!(matches!(f.body[1], Stmt::AddAssign(_, _)));
+    }
+
+    #[test]
+    fn parse_sub_assign() {
+        let m = parse("pub fn main() void! = { val x: mut i64 = 0 x -= 3 }");
+        let Item::Fn(f) = &m.items[0] else { panic!() };
+        assert!(matches!(f.body[1], Stmt::SubAssign(_, _)));
+    }
+
+    #[test]
+    fn parse_decrement_name() {
+        let m = parse("pub fn main() void! = { val j: mut i64 = 10 j-- }");
+        let Item::Fn(f) = &m.items[0] else { panic!() };
+        let Stmt::Decrement(name) = &f.body[1] else { panic!() };
+        assert_eq!(name, "j");
+    }
+
+    #[test]
+    fn parse_add_assign_name_and_expr() {
+        let m = parse("pub fn main() void! = { val n: mut i64 = 0 n += 42 }");
+        let Item::Fn(f) = &m.items[0] else { panic!() };
+        let Stmt::AddAssign(name, _) = &f.body[1] else { panic!() };
+        assert_eq!(name, "n");
+    }
+
+    #[test]
+    fn codegen_increment_emits_add() {
+        let ir = compile_ok("pub fn main() void! = { val x: mut i64 = 0 x++ }");
+        assert!(ir.contains("=l add") || ir.contains("=w add"));
+    }
+
+    #[test]
+    fn codegen_decrement_emits_sub() {
+        let ir = compile_ok("pub fn main() void! = { val x: mut i64 = 0 x-- }");
+        assert!(ir.contains("=l sub") || ir.contains("=w sub"));
+    }
+
+    #[test]
+    fn codegen_add_assign_emits_add() {
+        let ir = compile_ok("pub fn main() void! = { val x: mut i64 = 0 x += 10 }");
+        assert!(ir.contains("=l add") || ir.contains("=w add"));
+    }
+
+    #[test]
+    fn codegen_sub_assign_emits_sub() {
+        let ir = compile_ok("pub fn main() void! = { val x: mut i64 = 0 x -= 3 }");
+        assert!(ir.contains("=l sub") || ir.contains("=w sub"));
+    }
+
+    #[test]
+    fn codegen_decrement_stores_back() {
+        let ir = compile_ok("pub fn main() void! = { val x: mut i64 = 5 x-- }");
+        assert!(ir.contains("storel") || ir.contains("storew"));
+    }
+
+    #[test]
+    fn codegen_add_assign_stores_back() {
+        let ir = compile_ok("pub fn main() void! = { val x: mut i64 = 0 x += 7 }");
+        assert!(ir.contains("storel") || ir.contains("storew"));
+    }
+}
+
+#[cfg(test)]
+mod zero_init_tests {
+    use crate::codegen::Codegen;
+    use crate::lexer::Lexer;
+    use crate::module::resolve_module;
+    use crate::parser::{Expr, Item, Parser, Stmt};
+    use std::collections::HashMap;
+    use std::path::Path;
+
+    fn parse(src: &str) -> crate::parser::Module {
+        let tokens = Lexer::new(src).tokenize().unwrap();
+        Parser::new(tokens).parse_module().unwrap()
+    }
+
+    fn compile(src: &str) -> Result<String, String> {
+        let resolved = resolve_module(src, Path::new("."), &mut HashMap::new(), "")?;
+        let mut cg = Codegen::new();
+        cg.emit_module(&resolved, false, false)?;
+        Ok(cg.finish())
+    }
+
+    fn compile_ok(src: &str) -> String {
+        compile(src).expect("expected compilation to succeed")
+    }
+
+    fn compile_err(src: &str) -> String {
+        compile(src).expect_err("expected compilation to fail")
+    }
+
+    #[test]
+    fn parse_zero_init_expr() {
+        let m = parse("type Point = { x: i64 y: i64 } pub fn main() void! = { val p = Point{} }");
+        let Item::Fn(f) = &m.items[1] else { panic!() };
+        let Stmt::Val { expr, .. } = &f.body[0] else { panic!() };
+        assert!(matches!(expr, Expr::ZeroInit(name) if name == "Point"));
+    }
+
+    #[test]
+    fn codegen_zero_init_uses_stack_alloc() {
+        let ir = compile_ok(
+            "type Point = { x: i64 y: i64 } pub fn main() void! = { val p = Point{} }",
+        );
+        assert!(ir.contains("alloc8"));
+        assert!(!ir.contains("malloc"));
+    }
+
+    #[test]
+    fn codegen_zero_init_calls_memset_zero() {
+        let ir = compile_ok(
+            "type Point = { x: i64 y: i64 } pub fn main() void! = { val p = Point{} }",
+        );
+        assert!(ir.contains("memset"));
+        assert!(ir.contains(", w 0,"));
+    }
+
+    #[test]
+    fn codegen_zero_init_unknown_type_errors() {
+        let err = compile_err("pub fn main() void! = { val p = Ghost{} }");
+        assert!(err.contains("unknown type") || err.contains("Ghost"));
     }
 }

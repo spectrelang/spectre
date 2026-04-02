@@ -1366,7 +1366,7 @@ impl Codegen {
             Expr::StructLit { fields } => {
                 let size = fields.len() * 8;
                 let ptr = self.fresh_tmp();
-                self.emit(&format!("    {ptr} =l call $malloc(l {size})"));
+                self.emit(&format!("    {ptr} =l alloc8 {size}"));
                 for (i, (_fname, fexpr)) in fields.iter().enumerate() {
                     let (val, val_ty) = self.emit_expr(fexpr, ns)?;
                     let offset = i * 8;
@@ -1752,6 +1752,21 @@ impl Codegen {
                 }
             }
 
+            Expr::ZeroInit(type_name) => {
+                let n_fields = self
+                    .type_defs
+                    .get(type_name.as_str())
+                    .map(|f| f.len())
+                    .ok_or_else(|| format!("unknown type '{type_name}' in zero-init"))?;
+                let size = n_fields * 8;
+                let ptr = self.fresh_tmp();
+                self.emit(&format!("    {ptr} =l alloc8 {size}"));
+                if size > 0 {
+                    self.emit(&format!("    call $memset(l {ptr}, w 0, l {size})"));
+                }
+                Ok((ptr, "l"))
+            }
+
             Expr::Deref(inner) => {
                 let (ptr, _) = self.emit_expr(inner, ns)?;
                 let tmp = self.fresh_tmp();
@@ -1890,6 +1905,7 @@ fn find_bare_builtin_in_expr(expr: &Expr) -> Option<String> {
         | Expr::Ident(_)
         | Expr::Bool(_)
         | Expr::None => None,
+        Expr::ZeroInit(_) => None,
     }
 }
 

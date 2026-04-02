@@ -188,6 +188,8 @@ pub enum Expr {
     },
     /// Positional args pack: `{expr, expr, ...}` — used for varargs-style call arguments
     ArgsPack(Vec<Expr>),
+    /// `TypeName{}` — zero-initialize all fields of a named struct type
+    ZeroInit(String),
     /// Type cast: `expr as TypeName`
     Cast {
         expr: Box<Expr>,
@@ -1162,6 +1164,14 @@ impl Parser {
                     let inner = self.parse_expr()?;
                     self.expect(&TokenKind::RParen)?;
                     return Ok(Expr::Deref(Box::new(inner)));
+                }
+                // TypeName{} — zero-initialize all fields
+                if self.peek() == &TokenKind::LBrace
+                    && self.tokens.get(self.pos + 1).map(|t| &t.kind) == Some(&TokenKind::RBrace)
+                {
+                    self.advance(); // consume {
+                    self.advance(); // consume }
+                    return Ok(Expr::ZeroInit(name));
                 }
                 Ok(Expr::Ident(name))
             }
