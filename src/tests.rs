@@ -369,7 +369,7 @@ mod codegen_tests {
     fn compile(src: &str) -> Result<String, String> {
         let resolved = resolve_module(src, Path::new("."), &mut HashMap::new(), "")?;
         let mut cg = Codegen::new();
-        cg.emit_module(&resolved, false)?;
+        cg.emit_module(&resolved, false, false)?;
         Ok(cg.finish())
     }
 
@@ -664,7 +664,7 @@ mod format_string_tests {
         );
         let resolved = resolve_module(&src, Path::new("."), &mut HashMap::new(), "").unwrap();
         let mut cg = Codegen::new();
-        cg.emit_module(&resolved, false).unwrap();
+        cg.emit_module(&resolved, false, false).unwrap();
         let ir = cg.finish();
         let marker = "b \"";
         let start = ir.find(marker).unwrap() + marker.len();
@@ -705,7 +705,7 @@ mod hoisting_and_optionals_tests {
     fn compile(src: &str) -> Result<String, String> {
         let resolved = resolve_module(src, Path::new("."), &mut HashMap::new(), "")?;
         let mut cg = Codegen::new();
-        cg.emit_module(&resolved, false)?;
+        cg.emit_module(&resolved, false, false)?;
         Ok(cg.finish())
     }
 
@@ -945,7 +945,7 @@ mod elif_and_for_tests {
     fn compile(src: &str) -> Result<String, String> {
         let resolved = resolve_module(src, Path::new("."), &mut HashMap::new(), "")?;
         let mut cg = Codegen::new();
-        cg.emit_module(&resolved, false)?;
+        cg.emit_module(&resolved, false, false)?;
         Ok(cg.finish())
     }
 
@@ -1200,7 +1200,7 @@ mod float_mut_and_for_regression_tests {
     fn compile(src: &str) -> Result<String, String> {
         let resolved = resolve_module(src, Path::new("."), &mut HashMap::new(), "")?;
         let mut cg = Codegen::new();
-        cg.emit_module(&resolved, false)?;
+        cg.emit_module(&resolved, false, false)?;
         Ok(cg.finish())
     }
 
@@ -1239,7 +1239,10 @@ mod float_mut_and_for_regression_tests {
         "#,
         );
         assert!(ir.contains("stored"), "loop body must store updated guess");
-        assert!(ir.contains("loadd"), "loop body must load guess each iteration");
+        assert!(
+            ir.contains("loadd"),
+            "loop body must load guess each iteration"
+        );
     }
 
     #[test]
@@ -1251,10 +1254,16 @@ mod float_mut_and_for_regression_tests {
             }
         "#,
         );
-        assert!(ir.contains("alloc8"), "for-loop counter slot must be 8 bytes");
+        assert!(
+            ir.contains("alloc8"),
+            "for-loop counter slot must be 8 bytes"
+        );
         assert!(ir.contains("storel"), "for-loop counter must use storel");
         assert!(ir.contains("loadl"), "for-loop counter must use loadl");
-        assert!(!ir.contains("alloc4"), "alloc4 is wrong for a usize counter");
+        assert!(
+            !ir.contains("alloc4"),
+            "alloc4 is wrong for a usize counter"
+        );
     }
 
     // Regression: for-loop counter increment must be 64-bit (=l add, not =w add)
@@ -1268,7 +1277,10 @@ mod float_mut_and_for_regression_tests {
         "#,
         );
         assert!(ir.contains("=l add"), "i++ must emit =l add, not =w add");
-        assert!(!ir.contains("=w add"), "=w add is wrong for usize increment");
+        assert!(
+            !ir.contains("=w add"),
+            "=w add is wrong for usize increment"
+        );
     }
 }
 
@@ -1284,7 +1296,7 @@ mod memory_and_defer_tests {
     fn compile(src: &str) -> Result<String, String> {
         let resolved = resolve_module(src, Path::new("."), &mut HashMap::new(), "")?;
         let mut cg = Codegen::new();
-        cg.emit_module(&resolved, false)?;
+        cg.emit_module(&resolved, false, false)?;
         Ok(cg.finish())
     }
 
@@ -1525,7 +1537,7 @@ mod method_namespace_tests {
     fn compile(src: &str) -> Result<String, String> {
         let resolved = resolve_module(src, Path::new("."), &mut HashMap::new(), "")?;
         let mut cg = Codegen::new();
-        cg.emit_module(&resolved, false)?;
+        cg.emit_module(&resolved, false, false)?;
         Ok(cg.finish())
     }
 
@@ -1718,16 +1730,12 @@ mod cast_tests {
     fn compile(src: &str) -> Result<String, String> {
         let resolved = resolve_module(src, Path::new("."), &mut HashMap::new(), "")?;
         let mut cg = Codegen::new();
-        cg.emit_module(&resolved, false)?;
+        cg.emit_module(&resolved, false, false)?;
         Ok(cg.finish())
     }
 
     fn compile_ok(src: &str) -> String {
         compile(src).expect("expected compilation to succeed")
-    }
-
-    fn compile_err(src: &str) -> String {
-        compile(src).expect_err("expected compilation to fail")
     }
 
     #[test]
