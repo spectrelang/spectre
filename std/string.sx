@@ -725,7 +725,6 @@ pub fn (StringBuilder) clear(sb: Self) void! = {
 val std = use("std")
 
 test {
-    // --- basic creation ---
     val empty = new()
     assert(len(empty) == 0)
 
@@ -733,7 +732,6 @@ test {
     assert(len(s) == 5)
     assert(equals(s, from("hello")))
 
-    // --- push / push_cstr ---
     val a = from("foo")
     push_cstr(a, "bar")
     assert(equals(a, from("foobar")))
@@ -743,25 +741,21 @@ test {
     push(b, c)
     assert(equals(b, from("foobar")))
 
-    // --- push_char ---
     val pc = from("ab")
     push_char(pc, 99) // 'c'
     assert(equals(pc, from("abc")))
 
-    // --- clone ---
     val orig = from("clone me")
     val copy = clone(orig)
     assert(equals(orig, copy))
     set(copy, 0, 88) // 'X'
-    assert(!equals(orig, copy)) // ensure deep copy
+    assert(!equals(orig, copy))
 
-    // --- clear ---
     val cl = from("something")
     clear(cl)
     assert(len(cl) == 0)
     assert(equals(cl, from("")))
 
-    // --- get ---
     val g = from("abc")
     val g0 = get(g, 0)
     val g1 = get(g, 1)
@@ -773,14 +767,12 @@ test {
     match g2 { some v => { assert(v == 99) } none => { assert(false) } }
     match g3 { some _ => { assert(false) } none => {} }
 
-    // --- set ---
     val st = from("abc")
     set(st, 1, 120) // 'x'
     assert(equals(st, from("axc")))
     set(st, 99, 121) // OOB no-op
     assert(equals(st, from("axc")))
 
-    // --- slice ---
     val sl = from("hello world")
     assert(equals(slice(sl, 0, 5), from("hello")))
     assert(equals(slice(sl, 6, 11), from("world")))
@@ -788,7 +780,6 @@ test {
     assert(equals(slice(sl, 6, 999), from("world")))
     assert(equals(slice(sl, 5, 5), from("")))
 
-    // --- find ---
     val f = from("abc abc abc")
     match find(f, from("abc")) {
         some i => { assert(i == 0) }
@@ -803,18 +794,15 @@ test {
         none => { assert(false) }
     }
 
-    // --- contains ---
     assert(contains(f, from("abc")))
     assert(!contains(f, from("zzz")))
 
-    // --- starts_with / ends_with ---
     val se = from("foobar")
     assert(starts_with(se, from("foo")))
     assert(!starts_with(se, from("bar")))
     assert(ends_with(se, from("bar")))
     assert(!ends_with(se, from("foo")))
 
-    // --- case conversion ---
     val up = from("abcXYZ")
     to_upper(up)
     assert(equals(up, from("ABCXYZ")))
@@ -823,7 +811,6 @@ test {
     to_lower(low)
     assert(equals(low, from("abcxyz")))
 
-    // --- trim ---
     val tr = from("  \t hello \n ")
     trim(tr)
     assert(equals(tr, from("hello")))
@@ -836,7 +823,6 @@ test {
     trim_right(trr)
     assert(equals(trr, from("hello")))
 
-    // --- replace ---
     val rep = from("foo bar foo")
     val rep2 = replace(rep, from("foo"), from("baz"))
     assert(equals(rep2, from("baz bar baz")))
@@ -844,7 +830,6 @@ test {
     val rep3 = replace(rep, from("xxx"), from("yyy"))
     assert(equals(rep3, from("foo bar foo")))
 
-    // --- split ---
     val sp = from("a,b,c")
     val parts = split(sp, from(","))
 
@@ -853,25 +838,21 @@ test {
     assert(equals(std.list.List.get(parts, 1), from("b")))
     assert(equals(std.list.List.get(parts, 2), from("c")))
 
-    // edge: trailing delim
     val sp2 = from("a,b,")
     val parts2 = split(sp2, from(","))
     assert(std.list.List.len(parts2) == 3)
     assert(equals(std.list.List.get(parts2, 2), from("")))
 
-    // --- concat ---
     val ca = from("foo")
     val cb = from("bar")
     val cc = concat(ca, cb)
     assert(equals(cc, from("foobar")))
 
-    // --- reserve ---
     val rs = from("abc")
     reserve(rs, 100)
     push_cstr(rs, "def")
     assert(equals(rs, from("abcdef")))
 
-    // --- StringBuilder ---
     val sb = StringBuilder.new()
     StringBuilder.append_cstr(sb, "hello")
     StringBuilder.append(sb, from(" "))
@@ -887,7 +868,6 @@ test {
 
     StringBuilder.free(sb)
 
-    // --- reverse (NOTE: will fail until bug is fixed) ---
     val rv = from("abcd")
     reverse(rv)
     assert(equals(rv, from("dcba")))
