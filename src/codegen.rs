@@ -1154,6 +1154,24 @@ impl Codegen {
                     }
                     Ok((result, "w"))
                 }
+                "gettimeofday" => {
+                    let (tv, _) = self.emit_expr(&args[0], ns)?;
+                    let tz = if args.len() > 1 {
+                        let (t, _) = self.emit_expr(&args[1], ns)?;
+                        t
+                    } else {
+                        "0".into()
+                    };
+                    let tmp = self.fresh_tmp();
+                    self.emit(&format!("    {tmp} =w call $gettimeofday(l {tv}, l {tz})"));
+                    Ok((tmp, "w"))
+                }
+                "localtime" => {
+                    let (timep, _) = self.emit_expr(&args[0], ns)?;
+                    let tmp = self.fresh_tmp();
+                    self.emit(&format!("    {tmp} =l call $localtime(l {timep})"));
+                    Ok((tmp, "l"))
+                }
                 other => Err(format!("unknown builtin: @{other}")),
             },
 

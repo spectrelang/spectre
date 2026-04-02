@@ -77,7 +77,7 @@ pub fn (List) push(list: Self, value: usize) void! = {
 // Returns none if out of bounds (defensive, belt-and-suspenders).
 pub fn (List) get(list: Self, i: usize) option[usize] = {
     pre {
-        in_bounds : i < @load(@ptradd(list, 8))
+        in_bounds : i < trust @load(@ptradd(list, 8))
     }
     val len: usize = trust @load(@ptradd(list, 8))
     if (i >= len) {
@@ -96,7 +96,7 @@ pub fn (List) get(list: Self, i: usize) option[usize] = {
 // Returns 1 on success, 0 if out of bounds (defensive).
 pub fn (List) set(list: Self, i: usize, value: usize) usize = {
     pre {
-        in_bounds : i < @load(@ptradd(list, 8))
+        in_bounds : i < trust @load(@ptradd(list, 8))
     }
     val len: usize = trust @load(@ptradd(list, 8))
     if (i >= len) {
@@ -115,7 +115,7 @@ pub fn (List) set(list: Self, i: usize, value: usize) usize = {
 // Requires the list to be non-empty.
 pub fn (List) pop(list: Self) option[usize] = {
     pre {
-        not_empty : @load(@ptradd(list, 8)) > 0
+        not_empty : trust @load(@ptradd(list, 8)) > 0
     }
     val len: usize = trust @load(@ptradd(list, 8))
     if (len == 0) {

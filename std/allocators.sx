@@ -64,7 +64,7 @@ pub fn (Arena) cap(arena: Self) usize! = {
 /// Contracts: used <= cap, so the subtraction never underflows.
 pub fn (Arena) remaining(arena: Self) usize = {
     pre {
-        used_le_cap : @load(@ptradd(arena, 8)) <= @load(@ptradd(arena, 16))
+        used_le_cap : trust @load(@ptradd(arena, 8)) <= trust @load(@ptradd(arena, 16))
     }
     val off: usize = trust @load(@ptradd(arena, 8))
     val cap: usize = trust @load(@ptradd(arena, 16))
