@@ -5,22 +5,22 @@
 val std = use("std")
 
 /// Fill `buf` with `len` cryptographically secure random bytes.
-pub fn random_bytes(buf: ref void, len: usize) void! = {
+pub fn random_bytes(buf: ref void, len: usize) void = {
     trust @arc4random_buf(buf, len)
 }
 
 /// Return a cryptographically secure random u64.
-pub fn random_u64() u64! = {
-    val buf: ref void = @alloc(8)
+pub fn random_u64() u64 = {
+    val buf: ref void = trust @alloc(8)
     trust @arc4random_buf(buf, 8)
     val result: u64 = trust @load(buf)
-    @free(buf)
+    trust @free(buf)
     return result
 }
 
 /// Return a cryptographically secure random u32 in [0, upper_bound) without modulo bias.
 /// Requires upper_bound > 0.
-pub fn random_u32_below(upper_bound: u32) u32! = {
+pub fn random_u32_below(upper_bound: u32) u32 = {
     return trust @arc4random_uniform(upper_bound)
 }
 
@@ -30,15 +30,15 @@ pub fn random_u32_below(upper_bound: u32) u32! = {
 /// Format: xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx  (RFC 4122)
 pub fn random_uuid() ref char! = {
     val rnd: ref void = @alloc(16)
-    trust @arc4random_buf(rnd, 16)
+    @arc4random_buf(rnd, 16)
 
-    val hi: u64 = trust @load(rnd)
-    val lo: u64 = trust @load(@ptradd(rnd, 8))
+    val hi: u64 = @load(rnd)
+    val lo: u64 = @load(@ptradd(rnd, 8))
     val hi_v: u64 = (hi & 0xffffffffffff0fff) | 0x0000000000004000
     val lo_v: u64 = (lo & 0x3fffffffffffffff) | 0x8000000000000000
     val out: ref char = @alloc(37)
 
-    trust @snprintf(out, 37, "{08llx}-{04llx}-{04llx}-{04llx}-{012llx}",
+    @snprintf(out, 37, "{08llx}-{04llx}-{04llx}-{04llx}-{012llx}",
         (hi_v >> 32) & 0xffffffff,
         (hi_v >> 16) & 0xffff,
         hi_v & 0xffff,

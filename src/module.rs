@@ -15,7 +15,7 @@ pub struct ResolvedModule {
 }
 
 /// Entry point: compile a .sx file to QBE IR.
-pub fn compile_file(input: &str, args: &Args) -> Result<String, String> {
+pub fn compile_file(input: &str, args: &Args) -> Result<(String, Vec<String>), String> {
     let path = PathBuf::from(input);
     let dir = path.parent().unwrap_or(Path::new(".")).to_path_buf();
     let src = std::fs::read_to_string(&path).map_err(|e| format!("cannot read {input}: {e}"))?;
@@ -25,15 +25,16 @@ pub fn compile_file(input: &str, args: &Args) -> Result<String, String> {
     if args.emit_tokens {
         let mut lex = Lexer::new(&src);
         let tokens = lex.tokenize().map_err(|e| format!("{input}: {e}"))?;
-        return Ok(format!("{tokens:#?}"));
+        return Ok((format!("{tokens:#?}"), vec![]));
     }
     if args.emit_ast {
-        return Ok(format!("{:#?}", resolved.ast));
+        return Ok((format!("{:#?}", resolved.ast), vec![]));
     }
 
     let mut cg = Codegen::new();
     cg.emit_module(&resolved, args.test, args.release)?;
-    Ok(cg.finish())
+    let warnings = cg.warnings.clone();
+    Ok((cg.finish(), warnings))
 }
 
 /// Recursively parse and resolve a module from source text.

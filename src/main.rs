@@ -14,7 +14,12 @@ fn main() {
     let args = Args::parse();
 
     let qbe_ir = match module::compile_file(&args.input, &args) {
-        Ok(ir) => ir,
+        Ok((ir, warnings)) => {
+            for w in &warnings {
+                eprintln!("warning: {w}");
+            }
+            ir
+        }
         Err(e) => {
             eprintln!("error: {e}");
             process::exit(1);

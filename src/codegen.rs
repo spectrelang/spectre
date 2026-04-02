@@ -53,6 +53,7 @@ pub struct Codegen {
     release: bool,
     current_fn_trusted: bool,
     in_trust_expr: bool,
+    pub warnings: Vec<String>,
 }
 
 impl Codegen {
@@ -87,6 +88,7 @@ impl Codegen {
             release: false,
             current_fn_trusted: false,
             in_trust_expr: false,
+            warnings: Vec::new(),
         }
     }
 
@@ -950,6 +952,13 @@ impl Codegen {
                 Ok(self.promote_to_l(tmp, ty))
             }
             Expr::Trust(inner) => {
+                if self.current_fn_trusted {
+                    self.warnings.push(format!(
+                        "{}: redundant 'trust' in impure function '{}' — \
+                         the function is already marked '!' so 'trust' has no effect",
+                        self.current_file, self.current_fn
+                    ));
+                }
                 self.in_trust_expr = true;
                 let result = self.emit_expr(inner, ns);
                 self.in_trust_expr = false;

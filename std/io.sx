@@ -7,31 +7,31 @@ pub fn print(arg: ref char) void = {
 ///
 /// This trusts an unsafe printf call for the sake of making debugging pure 
 /// functions easier, use with caution.
-pub fn put_any(fmt: ref char, args: untyped) void! = {
+pub fn put_any(fmt: ref char, args: untyped) void = {
     trust @printf(fmt, args)
 }
 
 /// Print a string to stderr followed by a newline (fd 2).
 pub fn eprint(msg: ref char) void! = {
-    trust @dprintf(2, "%s\n", msg)
+    @dprintf(2, "%s\n", msg)
 }
 
 /// Print a string to stderr followed by a newline (fd 2).
 pub fn eprint_any(fmt: ref char, args: untyped) void! = {
-    trust @dprintf(2, fmt, args)
+    @dprintf(2, fmt, args)
 }
 
 /// Read a single character from stdin. 
 /// Returns -1 on EOF.
 pub fn read_key() i32! = {
-    return trust @getchar()
+    return @getchar()
 }
 
 /// Read a line from stdin into buf.
 /// (at most max_len bytes, including null terminator).
 /// Returns buf on success, or a null pointer on EOF/error.
 pub fn read_line(buf: mut ref char, max_len: i64) ref char! = {
-    return trust @fgets(buf, max_len, @stdin())
+    return @fgets(buf, max_len, @stdin())
 }
 
 test {
