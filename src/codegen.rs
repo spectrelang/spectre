@@ -1083,6 +1083,15 @@ impl Codegen {
                     self.emit(&format!("    call $memset(l {ptr}, w {val_w}, l {size_l})"));
                     Ok(("0".into(), "w"))
                 }
+                "memcpy" => {
+                    let (dst, _) = self.emit_expr(&args[0], ns)?;
+                    let (src, _) = self.emit_expr(&args[1], ns)?;
+                    let (size, size_ty) = self.emit_expr(&args[2], ns)?;
+                    let (size_l, _) = self.promote_to_l(size, size_ty);
+                    let tmp = self.fresh_tmp();
+                    self.emit(&format!("    {tmp} =l call $memcpy(l {dst}, l {src}, l {size_l})"));
+                    Ok((tmp, "l"))
+                }
                 "ptradd" => {
                     let (ptr, _) = self.emit_expr(&args[0], ns)?;
                     let (off, off_ty) = self.emit_expr(&args[1], ns)?;

@@ -1,5 +1,4 @@
 extern (C) fn strlen(s: ref char) i64! = "strlen"
-extern (C) fn memcpy(dst: ref void, src: ref void, len: i64) ref void! = "memcpy"
 
 /// This is a classic string type.
 ///
@@ -25,7 +24,7 @@ pub fn new() ref void! = {
 pub fn from(cstr: ref char) ref void! = {
     val l: i64 = strlen(cstr)
     val buf: ref void = @alloc(l + 1)
-    memcpy(buf, cstr, l)
+    @memcpy(buf, cstr, l)
     @store(@ptradd(buf, l), 0)
 
     val s: ref void = @alloc(24)
@@ -74,7 +73,7 @@ pub fn push_cstr(s: ref void, other: ref char) void! = {
     ensure_cap(s, new_len + 1)
 
     val ptr: ref void = @load(s)
-    memcpy(@ptradd(ptr, l), other, add_len)
+    @memcpy(@ptradd(ptr, l), other, add_len)
 
     @store(@ptradd(ptr, new_len), 0)
     @store(@ptradd(s, 8), new_len)
@@ -91,7 +90,7 @@ pub fn push(s: ref void, other: ref void) void! = {
     ensure_cap(s, new_len + 1)
 
     val ptr: ref void = @load(s)
-    memcpy(@ptradd(ptr, l), other_ptr, other_len)
+    @memcpy(@ptradd(ptr, l), other_ptr, other_len)
 
     @store(@ptradd(ptr, new_len), 0)
     @store(@ptradd(s, 8), new_len)
@@ -101,9 +100,9 @@ pub fn push(s: ref void, other: ref void) void! = {
 pub fn clone(s: ref void) ref void! = {
     val l: i64 = @load(@ptradd(s, 8))
     val ptr: ref void = @load(s)
-
     val buf: ref void = @alloc(l + 1)
-    memcpy(buf, ptr, l)
+
+    @memcpy(buf, ptr, l)
     @store(@ptradd(buf, l), 0)
 
     val out: ref void = @alloc(24)
@@ -283,7 +282,7 @@ pub fn (StringBuilder) append(sb: Self, s: ref void) void! = {
     ensure_cap(sb, new_len + 1)
 
     val ptr: ref void = @load(sb)
-    memcpy(@ptradd(ptr, l), other_ptr, other_len)
+    @memcpy(@ptradd(ptr, l), other_ptr, other_len)
 
     @store(@ptradd(ptr, new_len), 0)
     @store(@ptradd(sb, 8), new_len)
@@ -298,7 +297,7 @@ pub fn (StringBuilder) append_cstr(sb: Self, cstr: ref char) void! = {
     ensure_cap(sb, new_len + 1)
 
     val ptr: ref void = @load(sb)
-    memcpy(@ptradd(ptr, l), cstr, add_len)
+    @memcpy(@ptradd(ptr, l), cstr, add_len)
 
     @store(@ptradd(ptr, new_len), 0)
     @store(@ptradd(sb, 8), new_len)
@@ -310,7 +309,7 @@ pub fn (StringBuilder) build(sb: Self) ref void! = {
     val ptr: ref void = @load(sb)
 
     val buf: ref void = @alloc(l + 1)
-    memcpy(buf, ptr, l)
+    @memcpy(buf, ptr, l)
     @store(@ptradd(buf, l), 0)
 
     val out: ref void = @alloc(24)
