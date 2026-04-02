@@ -3134,3 +3134,106 @@ mod zero_init_tests {
         assert!(err.contains("unknown type") || err.contains("Ghost"));
     }
 }
+
+#[cfg(test)]
+mod shadowing_tests {
+    use crate::codegen::Codegen;
+    use crate::module::resolve_module;
+    use crate::semantic;
+    use std::collections::HashMap;
+    use std::path::Path;
+
+    fn compile(src: &str) -> Result<String, String> {
+        let resolved = resolve_module(src, Path::new("."), &mut HashMap::new(), "", None)?;
+        let sem_errors = semantic::check_module(&resolved);
+        if !sem_errors.is_empty() {
+            return Err(sem_errors.join("\n"));
+        }
+        let mut cg = Codegen::new();
+        cg.emit_module(&resolved, false, false)?;
+        Ok(cg.finish())
+    }
+
+    fn compile_ok(src: &str) -> String {
+        compile(src).expect("expected compilation to succeed")
+    }
+
+    fn compile_err(src: &str) -> String {
+        compile(src).expect_err("expected compilation to fail")
+    }
+
+    #[test]
+    fn local_shadows_param_errors() {
+        let err = compile_err(
+            r#"pub fn foo(x: i32) void! = {
+                val x: i32 = 1
+            }"#,
+        );
+        assert!(err.contains("shadows"), "expected shadow error, got: {err}");
+        assert!(err.contains("'x'"), "expected variable name in error, got: {err}");
+    }
+
+    #[test]
+    fn local_shadows_local_same_scope_errors() {
+        let err = compile_err(
+            r#"pub fn main() void! = {
+                val x = 1
+                val x = 2
+            }"#,
+        );
+        assert!(err.contains("shadows"), "expected shadow error, got: {err}");
+        assert!(err.contains("'x'"), "expected variable name in error, got: {err}");
+    }
+
+    #[test]
+    fn local_shadows_local_in_nested_scope_errors() {
+        let err = compile_err(
+            r#"pub fn main() void! = {
+                val x = 1
+                if (x) {
+                    val x = 2
+                }
+            }"#,
+        );
+        assert!(err.contains("shadows"), "expected shadow error, got: {err}");
+    }
+
+    #[test]
+    fn distinct_names_in_nested_scope_ok() {
+        compile_ok(
+            r#"
+            fn do_thing(z: i32) void = {}
+
+            pub fn main() void! = {
+                val x = 1
+                if (x) {
+                    val y = 2
+                    do_thing(y)
+                }
+            }"#,
+        );
+    }
+
+    #[test]
+    fn distinct_names_no_shadow_ok() {
+        compile_ok(
+            r#"
+            fn do_thing(z: i32) void = {}
+
+            pub fn foo(x: i32, y: i32) void! = {
+                val z: i32 = 1
+                do_thing(z)
+            }"#,
+        );
+    }
+
+    #[test]
+    fn shadow_error_mentions_function_name() {
+        let err = compile_err(
+            r#"pub fn my_func(x: i32) void! = {
+                val x: i32 = 0
+            }"#,
+        );
+        assert!(err.contains("my_func"), "expected function name in error, got: {err}");
+    }
+}
