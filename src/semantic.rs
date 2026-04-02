@@ -22,7 +22,7 @@ fn check_module_recursive(resolved: &ResolvedModule, errors: &mut Vec<String>) {
 }
 
 fn check_fn(f: &FnDef, filename: &str, errors: &mut Vec<String>) {
-    let mut declared: HashMap<String, bool> = HashMap::new(); // name -> mutable
+    let mut declared: HashMap<String, bool> = HashMap::new();
     let mut for_vars: HashSet<String> = HashSet::new();
 
     collect_declarations(&f.body, &mut declared, &mut for_vars);
