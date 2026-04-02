@@ -253,22 +253,22 @@ pub fn resolve_module(
     }
 
     let current_platform = crate::cli::Platform::current();
-    let links: Vec<String> = ast.items.iter().flat_map(|item| -> Vec<String> {
-        match item {
-            Item::Link { lib } => vec![lib.clone()],
-            Item::LinkWhen { platform, libs } => {
-                if crate::cli::Platform::from_str(platform)
-                    .map(|p| p == current_platform)
-                    .unwrap_or(false)
-                {
-                    libs.clone()
-                } else {
-                    vec![]
-                }
+    let mut links: Vec<String> = Vec::new();
+    for item in &ast.items {
+        if let Item::LinkWhen { platform, libs } = item {
+            if crate::cli::Platform::from_str(platform)
+                .map(|p| p == current_platform)
+                .unwrap_or(false)
+            {
+                links.extend(libs.iter().cloned());
             }
-            _ => vec![],
         }
-    }).collect();
+    }
+    for item in &ast.items {
+        if let Item::Link { lib } = item {
+            links.push(lib.clone());
+        }
+    }
 
     Ok(ResolvedModule {
         ast,

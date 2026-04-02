@@ -41,6 +41,8 @@ pub enum Item {
         conv: String,
         name: String,
         params: Vec<(String, TypeExpr)>,
+        /// Number of fixed parameters before the variadic `...` (None = not variadic)
+        variadic_after: Option<usize>,
         ret: TypeExpr,
         /// The external symbol name, e.g. "malloc"
         symbol: String,
@@ -364,7 +366,7 @@ impl Parser {
         self.expect(&TokenKind::Fn)?;
         let name = self.expect_ident()?;
         self.expect(&TokenKind::LParen)?;
-        let params = self.parse_params()?;
+        let (params, variadic_after) = self.parse_extern_params()?;
         self.expect(&TokenKind::RParen)?;
         let (ret, trusted) = self.parse_ret_type()?;
         if !trusted {
@@ -375,7 +377,30 @@ impl Parser {
         }
         self.expect(&TokenKind::Eq)?;
         let symbol = self.expect_string()?;
-        Ok(Item::ExternFn { public, conv, name, params, ret, symbol })
+        Ok(Item::ExternFn { public, conv, name, params, variadic_after, ret, symbol })
+    }
+
+    /// Parse extern function parameters, recognising a trailing `...` for variadic functions.
+    /// Returns the parameter list and the index after which variadic args begin (if any).
+    fn parse_extern_params(&mut self) -> Result<(Vec<(String, TypeExpr)>, Option<usize>), String> {
+        let mut params = Vec::new();
+        let mut variadic_after = None;
+        while self.peek() != &TokenKind::RParen {
+            // Check for `...` variadic marker
+            if self.peek() == &TokenKind::DotDotDot {
+                self.advance();
+                variadic_after = Some(params.len());
+                break;
+            }
+            let name = self.expect_ident()?;
+            self.expect(&TokenKind::Colon)?;
+            let ty = self.parse_type()?;
+            params.push((name, ty));
+            if !self.eat(&TokenKind::Comma) {
+                break;
+            }
+        }
+        Ok((params, variadic_after))
     }
 
     fn parse_fn(&mut self, public: bool) -> Result<Item, String> {

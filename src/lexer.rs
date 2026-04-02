@@ -46,6 +46,7 @@ pub enum TokenKind {
     Semicolon,
     Comma,
     Dot,
+    DotDotDot,
     Eq,
     Bang,
     At,
@@ -278,7 +279,15 @@ impl Lexer {
             ':' => TokenKind::Colon,
             ';' => TokenKind::Semicolon,
             ',' => TokenKind::Comma,
-            '.' => TokenKind::Dot,
+            '.' => {
+                if self.peek() == Some('.') && self.src.get(self.pos + 1) == Some(&'.') {
+                    self.advance();
+                    self.advance();
+                    TokenKind::DotDotDot
+                } else {
+                    TokenKind::Dot
+                }
+            }
             '@' => TokenKind::At,
             '+' => {
                 if self.peek() == Some('+') {

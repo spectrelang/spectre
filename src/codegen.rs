@@ -49,6 +49,7 @@ pub struct Codegen {
     type_aliases: HashMap<String, String>,
     fn_ret_types: HashMap<String, &'static str>,
     fn_param_types: HashMap<String, Vec<TypeExpr>>,
+    variadic_fns: HashMap<String, usize>,
     platform: Platform,
     release: bool,
     current_fn_trusted: bool,
@@ -84,6 +85,7 @@ impl Codegen {
             type_aliases: HashMap::new(),
             fn_ret_types: HashMap::new(),
             fn_param_types: HashMap::new(),
+            variadic_fns: HashMap::new(),
             platform: Platform::current(),
             release: false,
             current_fn_trusted: false,
@@ -155,6 +157,7 @@ impl Codegen {
         self.trusted_fns = trusted;
         self.fn_ret_types = build_ret_types(resolved);
         self.fn_param_types = build_param_types(resolved);
+        self.variadic_fns = build_variadic_set(resolved);
         self.emit_module_recursive(resolved, &ns, test_mode, true)?;
         if test_mode {
             self.emit_test_main()?;
@@ -1451,7 +1454,21 @@ impl Codegen {
                         } else {
                             None
                         };
-                        arg_strs.push(wrapped.unwrap_or_else(|| format!("{ty} {tmp}")));
+                        let final_arg = wrapped.unwrap_or_else(|| {
+                            if ty == "l" {
+                                if let Some(ref ptypes) = self.fn_param_types.get(&fn_name).cloned() {
+                                    if let Some(pt) = ptypes.get(i) {
+                                        if qbe_type(pt) == "w" {
+                                            let w = self.fresh_tmp();
+                                            self.emit(&format!("    {w} =w copy {tmp}"));
+                                            return format!("w {w}");
+                                        }
+                                    }
+                                }
+                            }
+                            format!("{ty} {tmp}")
+                        });
+                        arg_strs.push(final_arg);
                     }
                 }
                 let result = self.fresh_tmp();
@@ -1460,9 +1477,22 @@ impl Codegen {
                     .get(fn_name.as_str())
                     .copied()
                     .unwrap_or("l");
+                let args_str = if let Some(&fixed) = self.variadic_fns.get(fn_name.as_str()) {
+                    if arg_strs.len() > fixed {
+                        let (fixed_args, var_args) = arg_strs.split_at(fixed);
+                        if fixed_args.is_empty() {
+                            format!("..., {}", var_args.join(", "))
+                        } else {
+                            format!("{}, ..., {}", fixed_args.join(", "), var_args.join(", "))
+                        }
+                    } else {
+                        arg_strs.join(", ")
+                    }
+                } else {
+                    arg_strs.join(", ")
+                };
                 self.emit(&format!(
-                    "    {result} ={ret_ty} call ${fn_name}({args})",
-                    args = arg_strs.join(", ")
+                    "    {result} ={ret_ty} call ${fn_name}({args_str})"
                 ));
                 Ok((result, ret_ty))
             }
@@ -1847,6 +1877,23 @@ fn collect_param_types(module: &ResolvedModule, map: &mut HashMap<String, Vec<Ty
     }
     for child in module.imports.values() {
         collect_param_types(child, map);
+    }
+}
+
+fn build_variadic_set(resolved: &ResolvedModule) -> HashMap<String, usize> {
+    let mut map = HashMap::new();
+    collect_variadic(resolved, &mut map);
+    map
+}
+
+fn collect_variadic(module: &ResolvedModule, map: &mut HashMap<String, usize>) {
+    for item in &module.ast.items {
+        if let Item::ExternFn { symbol, variadic_after: Some(n), .. } = item {
+            map.insert(symbol.clone(), *n);
+        }
+    }
+    for child in module.imports.values() {
+        collect_variadic(child, map);
     }
 }
 

@@ -4,6 +4,7 @@
 link "curl"
 
 when darwin {
+    link "-L/opt/homebrew/opt/curl/lib"
     link "-framework CoreFoundation"
     link "-framework Security"
     link "-framework SystemConfiguration"
@@ -16,9 +17,9 @@ when darwin {
 
 extern (C) fn curl_easy_init()                                          ref void! = "curl_easy_init"
 extern (C) fn curl_easy_cleanup(handle: ref void)                       void!     = "curl_easy_cleanup"
-extern (C) fn curl_easy_setopt(handle: ref void, opt: i64, vl: ref void) i64!    = "curl_easy_setopt"
+extern (C) fn curl_easy_setopt(handle: ref void, opt: i32, ...)         i64!      = "curl_easy_setopt"
 extern (C) fn curl_easy_perform(handle: ref void)                       i64!      = "curl_easy_perform"
-extern (C) fn curl_easy_getinfo(handle: ref void, info: i64, out: ref void) i64!  = "curl_easy_getinfo"
+extern (C) fn curl_easy_getinfo(handle: ref void, info: i32, ...)       i64!      = "curl_easy_getinfo"
 extern (C) fn curl_slist_append(list: ref void, str: ref char)          ref void! = "curl_slist_append"
 extern (C) fn curl_slist_free_all(list: ref void)                       void!     = "curl_slist_free_all"
 extern (C) fn curl_global_init(flags: i64)                              i64!      = "curl_global_init"
@@ -36,6 +37,7 @@ extern (C) fn htons(port: i32)                                         i32!  = "
 extern (C) fn htonl(value: i32)                                        i32!  = "htonl"
 extern (C) fn setsockopt(fd: i32, level: i32, opt: i32, vl: ref void, len: i32) i32! = "setsockopt"
 extern (C) fn memset(ptr: ref void, vl: i32, len: i64)                 ref void! = "memset"
+extern (C) fn memcpy(dst: ref void, src: ref void, len: i64)            ref void! = "memcpy"
 
 pub val CURLOPT_URL           = 10002
 pub val CURLOPT_WRITEFUNCTION = 20011
@@ -66,40 +68,24 @@ type Response = {
 ///   offset  8 : len  (i64)      — bytes written so far
 ///   offset 16 : cap  (i64)      — allocated capacity
 pub fn curl_write_cb(ptr: ref void, size: i64, nmemb: i64, userdata: ref void) i64! = {
-    val total: i64 = size * nmemb
+    val total: i64        = size * nmemb
     val buf_ptr: ref void = @load(userdata)
     val buf_len: i64      = @load(@ptradd(userdata, 8))
     val buf_cap: i64      = @load(@ptradd(userdata, 16))
     val new_len: i64      = buf_len + total
 
-    // Grow the buffer if needed (double until it fits, plus null terminator).
-    val needed: i64 = new_len + 1
-    val new_cap: mut i64 = buf_cap
-    for {
-        if (new_cap >= needed) { break }
-        new_cap = new_cap * 2
-    }
-    val grown: mut ref void = buf_ptr
-    if (new_cap != buf_cap) {
-        grown = @realloc(buf_ptr, new_cap)
+    if (new_len + 1 > buf_cap) {
+        val new_cap: i64    = (new_len + 1) * 2
+        val grown: ref void = @realloc(buf_ptr, new_cap)
+        @store(userdata,              grown)
         @store(@ptradd(userdata, 16), new_cap)
-        @store(userdata, grown)
+        memcpy(@ptradd(grown, buf_len), ptr, total)
+        @store(@ptradd(grown, new_len), 0)
+    } else {
+        memcpy(@ptradd(buf_ptr, buf_len), ptr, total)
+        @store(@ptradd(buf_ptr, new_len), 0)
     }
 
-    // Copy the incoming bytes into the buffer at offset buf_len.
-    val dst: ref void = @ptradd(grown, buf_len)
-    @memset(dst, 0, total)
-    // Byte-by-byte copy via ptradd/load/store.
-    val i: mut i64 = 0
-    for {
-        if (i >= total) { break }
-        val byte: i64 = @load(@ptradd(ptr, i))
-        @store(@ptradd(dst, i), byte)
-        i = i + 1
-    }
-
-    // Null-terminate.
-    @store(@ptradd(grown, new_len), 0)
     @store(@ptradd(userdata, 8), new_len)
     return total
 }
@@ -338,7 +324,6 @@ val std = use("std")
 
 test {
     Http.init()
-    Http.cleanup()
 
     val url: ref char = "https://example.com"
     val resp: ref void = Http.get(url)
@@ -364,4 +349,5 @@ test {
     assert listen_port == 8080
 
     TcpServer.close(server)
+    Http.cleanup()
 }
