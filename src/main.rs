@@ -14,12 +14,12 @@ use std::process::{self, Command};
 fn main() {
     let args = Args::parse();
 
-    let qbe_ir = match module::compile_file(&args.input, &args) {
-        Ok((ir, warnings)) => {
+    let (qbe_ir, warnings, libs) = match module::compile_file(&args.input, &args) {
+        Ok((ir, warnings, libs)) => {
             for w in &warnings {
                 eprintln!("warning: {w}");
             }
-            ir
+            (ir, warnings, libs)
         }
         Err(e) => {
             eprintln!("error: {e}");
@@ -47,7 +47,7 @@ fn main() {
             .into_owned()
     });
 
-    assemble_and_link(&asm, &binary_path);
+    assemble_and_link(&asm, &binary_path, &libs);
 
     if args.test {
         run_tests(&binary_path);
@@ -85,7 +85,7 @@ fn run_qbe(ir: &str) -> String {
 }
 
 /// Write assembly to a temp file, then invoke `cc` to assemble and link.
-fn assemble_and_link(asm: &str, binary_path: &str) {
+fn assemble_and_link(asm: &str, binary_path: &str, libs: &[String]) {
     use std::env;
 
     let tmp_dir = env::temp_dir();
@@ -101,16 +101,20 @@ fn assemble_and_link(asm: &str, binary_path: &str) {
         process::exit(1);
     });
 
-    let status = Command::new("cc")
-        .arg(&asm_path)
+    let mut cmd = Command::new("cc");
+    cmd.arg(&asm_path)
         .arg("-o")
         .arg(Path::join(Path::new("./s-out/"), binary_path))
-        .arg("-lc")
-        .status()
-        .unwrap_or_else(|e| {
-            eprintln!("error: could not run 'cc': {e}");
-            process::exit(1);
-        });
+        .arg("-lc");
+
+    for lib in libs {
+        cmd.arg(format!("-l{lib}"));
+    }
+
+    let status = cmd.status().unwrap_or_else(|e| {
+        eprintln!("error: could not run 'cc': {e}");
+        process::exit(1);
+    });
 
     if !status.success() {
         eprintln!("error: assembler/linker failed");

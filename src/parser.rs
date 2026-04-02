@@ -45,6 +45,10 @@ pub enum Item {
         /// The external symbol name, e.g. "malloc"
         symbol: String,
     },
+    /// `link "libname"` — request the linker to link an external library
+    Link {
+        lib: String,
+    },
 }
 
 #[derive(Debug, Clone)]
@@ -281,6 +285,13 @@ impl Parser {
     fn parse_item(&mut self) -> Result<Item, String> {
         if let TokenKind::Test = self.peek() {
             return self.parse_test();
+        }
+
+        // `link "libname"` — no pub prefix needed
+        if self.peek() == &TokenKind::Link {
+            self.advance();
+            let lib = self.expect_string()?;
+            return Ok(Item::Link { lib });
         }
 
         let public = self.eat(&TokenKind::Pub);

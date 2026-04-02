@@ -240,6 +240,7 @@ impl Codegen {
                 | Item::UnionDef { .. }
                 | Item::EnumDef { .. }
                 | Item::ExternFn { .. }
+                | Item::Link { .. }
                 | Item::Test { .. } => {}
             }
         }
