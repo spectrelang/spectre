@@ -121,7 +121,7 @@ pub fn reverse(s: ref void) void! = {
     val j: mut i64 = l - 1
 
     for {
-        if (i < j) {
+        if (i >= j) {
             break
         }
         val a: u8 = @load8(@ptradd(ptr, i))
@@ -130,7 +130,7 @@ pub fn reverse(s: ref void) void! = {
         @store8(@ptradd(ptr, i), b)
         @store8(@ptradd(ptr, j), a)
 
-        i--
+        i++
         j--
     }
 }
@@ -834,14 +834,26 @@ test {
     val parts = split(sp, from(","))
 
     assert(std.list.List.len(parts) == 3)
-    assert(equals(std.list.List.get(parts, 0), from("a")))
-    assert(equals(std.list.List.get(parts, 1), from("b")))
-    assert(equals(std.list.List.get(parts, 2), from("c")))
+    match std.list.List.get(parts, 0) {
+        some v => { assert(equals(v, from("a"))) }
+        none => { assert(false) }
+    }
+    match std.list.List.get(parts, 1) {
+        some v => { assert(equals(v, from("b"))) }
+        none => { assert(false) }
+    }
+    match std.list.List.get(parts, 2) {
+        some v => { assert(equals(v, from("c"))) }
+        none => { assert(false) }
+    }
 
     val sp2 = from("a,b,")
     val parts2 = split(sp2, from(","))
     assert(std.list.List.len(parts2) == 3)
-    assert(equals(std.list.List.get(parts2, 2), from("")))
+    match std.list.List.get(parts2, 2) {
+        some v => { assert(equals(v, from(""))) }
+        none => { assert(false) }
+    }
 
     val ca = from("foo")
     val cb = from("bar")
