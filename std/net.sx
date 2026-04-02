@@ -228,15 +228,15 @@ pub fn (Http) free_headers(list: ref void) void! = {
 /// Create a TCP server bound to `port` and start listening.
 /// Returns a heap-allocated server handle; caller must call TcpServer.close().
 pub fn (TcpServer) listen(port: i32) ref void! = {
-    // SOCK_STREAM value differs per platform
-    val sock_stream: mut i32 = 1
-    when linux    { sock_stream = 1 }
-    when darwin   { sock_stream = 1 }
-    when netbsd   { sock_stream = 1 }
-    when freebsd  { sock_stream = 1 }
-    when openbsd  { sock_stream = 1 }
-    when dragonflybsd { sock_stream = 1 }
-    when windows  { sock_stream = 1 }
+    val sock_stream: i32 = 1
+
+    // when linux        { sock_stream = 1 }
+    // when darwin       { sock_stream = 1 }
+    // when netbsd       { sock_stream = 1 }
+    // when freebsd      { sock_stream = 1 }
+    // when openbsd      { sock_stream = 1 }
+    // when dragonflybsd { sock_stream = 1 }
+    // when windows      { sock_stream = 1 }
 
     val fd: i32 = socket(AF_INET, sock_stream, IPPROTO_TCP)
 
@@ -340,7 +340,7 @@ test {
     val body_len: i64 = Http.body_len(resp)
 
     std.io.put_any("{d}", status)
-    
+
     assert status > 0
     assert body_ptr != none
     assert body_len >= 0
