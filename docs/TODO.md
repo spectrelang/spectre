@@ -1,0 +1,5 @@
+- string-to-int and int-to-string conv
+- string-to-float and float-to-string conv
+- dynamic arrays of structs
+- error propagation syntax
+- tagged union pattern matching on structs

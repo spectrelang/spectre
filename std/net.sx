@@ -66,14 +66,14 @@ type Response = {
 ///   offset 16 : cap  (i64)      — allocated capacity
 pub fn curl_write_cb(ptr: ref void, size: i64, nmemb: i64, userdata: ref void) i64! = {
     val total: i64        = size * nmemb
-    val buf_ptr: ref void = @load(userdata)
-    val buf_len: i64      = @load(@ptradd(userdata, 8))
+    val buf_ptr: mut ref void = @load(userdata)
+    val buf_len: mut i64      = @load(@ptradd(userdata, 8))
     val buf_cap: i64      = @load(@ptradd(userdata, 16))
-    val new_len: i64      = buf_len + total
+    val new_len: mut i64      = buf_len + total
 
     if (new_len + 1 > buf_cap) {
-        val new_cap: i64    = (new_len + 1) * 2
-        val grown: ref void = @realloc(buf_ptr, new_cap)
+        val new_cap: mut i64    = (new_len + 1) * 2
+        val grown: mut ref void = @realloc(buf_ptr, new_cap)
         @store(userdata,              grown)
         @store(@ptradd(userdata, 16), new_cap)
         memcpy(@ptradd(grown, buf_len), ptr, total)
@@ -88,8 +88,8 @@ pub fn curl_write_cb(ptr: ref void, size: i64, nmemb: i64, userdata: ref void) i
 }
 
 fn buf_new() ref void! = {
-    val b: ref void   = @alloc(24)
-    val data: ref void = @alloc(256)
+    val b: mut ref void   = @alloc(24)
+    val data: mut ref void = @alloc(256)
     @store(b,                data)
     @store(@ptradd(b, 8),  0)
     @store(@ptradd(b, 16), 256)
@@ -98,24 +98,24 @@ fn buf_new() ref void! = {
 
 /// Perform a curl request, capturing the response body via the write callback.
 /// Returns a heap-allocated Response (24 bytes).
-fn do_request(handle: ref void) ref void! = {
-    val buf: ref void = buf_new()
+fn do_request(handle: mut ref void) ref void! = {
+    val buf: mut ref void = buf_new()
 
     curl_easy_setopt(handle, CURLOPT_WRITEFUNCTION, addr(curl_write_cb))
     curl_easy_setopt(handle, CURLOPT_WRITEDATA,     buf)
     curl_easy_perform(handle)
 
-    val status_slot: ref void = @alloc(8)
+    val status_slot: mut ref void = @alloc(8)
     @store(status_slot, 0)
     curl_easy_getinfo(handle, CURLINFO_RESPONSE_CODE, status_slot)
-    val status: i64 = @load(status_slot)
+    val status: mut i64 = @load(status_slot)
     @free(status_slot)
 
-    val body_ptr: ref void = @load(buf)
-    val body_len: i64      = @load(@ptradd(buf, 8))
+    val body_ptr: mut ref void = @load(buf)
+    val body_len: mut i64      = @load(@ptradd(buf, 8))
     @free(buf)
 
-    val resp: ref void = @alloc(24)
+    val resp: mut ref void = @alloc(24)
     @store(resp,              body_ptr)
     @store(@ptradd(resp, 8),  status)
     @store(@ptradd(resp, 16), body_len)
@@ -135,7 +135,7 @@ pub fn (Http) cleanup() void! = {
 /// Perform an HTTP GET request.
 /// Returns a heap-allocated Response; caller must call Http.free_response().
 pub fn (Http) get(url: ref char) ref void! = {
-    val handle: ref void = curl_easy_init()
+    val handle: mut ref void = curl_easy_init()
     curl_easy_setopt(handle, CURLOPT_URL, url)
     val resp: ref void = do_request(handle)
     curl_easy_cleanup(handle)
@@ -145,7 +145,7 @@ pub fn (Http) get(url: ref char) ref void! = {
 /// Perform an HTTP POST request with a body string.
 /// Returns a heap-allocated Response; caller must call Http.free_response().
 pub fn (Http) post_request(url: ref char, body: ref char, content_type: ref char) ref void! = {
-    val handle: ref void = curl_easy_init()
+    val handle: mut ref void = curl_easy_init()
     val headers: ref void = curl_slist_append(none, content_type)
 
     curl_easy_setopt(handle, CURLOPT_URL, url)
@@ -161,7 +161,7 @@ pub fn (Http) post_request(url: ref char, body: ref char, content_type: ref char
 
 /// Perform an arbitrary HTTP request (GET, POST, PUT, DELETE, PATCH …).
 pub fn (Http) request(method: ref char, url: ref char, body: ref char, headers: ref void) ref void! = {
-    val handle: ref void = curl_easy_init()
+    val handle: mut ref void = curl_easy_init()
 
     curl_easy_setopt(handle, CURLOPT_URL, url)
     curl_easy_setopt(handle, CURLOPT_CUSTOMREQUEST, method)
@@ -180,7 +180,7 @@ pub fn (Http) request(method: ref char, url: ref char, body: ref char, headers: 
 
 /// Free a Response returned by Http.get / Http.post / Http.request.
 pub fn (Http) free_response(resp: ref void) void! = {
-    val body: ref void = @load(resp)
+    val body: mut ref void = @load(resp)
     @free(body)
     @free(resp)
 }
@@ -229,10 +229,10 @@ pub fn (TcpServer) listen(port: i32) ref void! = {
     // when dragonflybsd { sock_stream = 1 }
     // when windows      { sock_stream = 1 }
 
-    val fd: i32 = socket(AF_INET, sock_stream, IPPROTO_TCP)
-
+    val fd: mut i32 = socket(AF_INET, sock_stream, IPPROTO_TCP)
     val sol_socket:   mut i32 = 1
     val so_reuseaddr: mut i32 = 2
+
     when linux        { sol_socket = 1  so_reuseaddr = 2  }
     when darwin       { sol_socket = 65535  so_reuseaddr = 4  }
     when netbsd       { sol_socket = 65535  so_reuseaddr = 4  }
@@ -240,24 +240,24 @@ pub fn (TcpServer) listen(port: i32) ref void! = {
     when openbsd      { sol_socket = 65535  so_reuseaddr = 4  }
     when dragonflybsd { sol_socket = 65535  so_reuseaddr = 4  }
 
-    val one: ref void = @alloc(4)
+    val one: mut ref void = @alloc(4)
     @store(one, 1)
     setsockopt(fd, sol_socket, so_reuseaddr, one, 4)
     @free(one)
 
-    val address: ref void = @alloc(16)
+    val address: mut ref void = @alloc(16)
     memset(address, 0, 16)
     @store(address, 2)
 
-    val net_port: i32 = htons(port)
-    val port_ptr: ref void = @ptradd(address, 2)
+    val net_port: mut i32 = htons(port)
+    val port_ptr: mut ref void = @ptradd(address, 2)
     @store(port_ptr, net_port)
 
     bind(fd, address, 16)
     listen(fd, 128)
     @free(address)
 
-    val handle: ref void = @alloc(16)
+    val handle: mut ref void = @alloc(16)
     @store(handle, fd)
     @store(@ptradd(handle, 8), port)
     return handle
@@ -267,8 +267,8 @@ pub fn (TcpServer) listen(port: i32) ref void! = {
 /// Returns the client socket fd, or -1 on error.
 pub fn (TcpServer) accept(server: ref void) i32! = {
     val fd: i32 = @load(server)
-    val client_addr: ref void = @alloc(16)
-    val addrlen: ref void     = @alloc(8)
+    val client_addr: mut ref void = @alloc(16)
+    val addrlen: mut ref void     = @alloc(8)
     @store(addrlen, 16)
     memset(client_addr, 0, 16)
     val client_fd: i32 = accept(fd, client_addr, addrlen)
