@@ -221,6 +221,7 @@ pub enum BinOp {
     Or,
     BitAnd,
     BitOr,
+    BitXor,
     Shl,
     Shr,
 }
@@ -959,12 +960,26 @@ impl Parser {
     }
 
     fn parse_bitor(&mut self) -> Result<Expr, String> {
-        let mut lhs = self.parse_bitand()?;
+        let mut lhs = self.parse_bitxor()?;
         while self.peek() == &TokenKind::BitOr {
+            self.advance();
+            let rhs = self.parse_bitxor()?;
+            lhs = Expr::BinOp {
+                op: BinOp::BitOr,
+                lhs: Box::new(lhs),
+                rhs: Box::new(rhs),
+            };
+        }
+        Ok(lhs)
+    }
+
+    fn parse_bitxor(&mut self) -> Result<Expr, String> {
+        let mut lhs = self.parse_bitand()?;
+        while self.peek() == &TokenKind::BitXor {
             self.advance();
             let rhs = self.parse_bitand()?;
             lhs = Expr::BinOp {
-                op: BinOp::BitOr,
+                op: BinOp::BitXor,
                 lhs: Box::new(lhs),
                 rhs: Box::new(rhs),
             };

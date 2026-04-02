@@ -70,6 +70,7 @@ pub enum TokenKind {
     Or,
     BitAnd,
     BitOr,
+    BitXor,
     Shl,
     Shr,
     Not,
@@ -379,6 +380,7 @@ impl Lexer {
                     TokenKind::BitOr
                 }
             }
+            '^' => TokenKind::BitXor,
             '~' => TokenKind::Tilde,
             other => return Err(format!("unexpected character: {other:?}")),
         })

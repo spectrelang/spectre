@@ -1435,6 +1435,28 @@ impl Codegen {
                     self.emit(&format!("    {tmp} =l call $localtime(l {timep})"));
                     Ok((tmp, "l"))
                 }
+                "call" => {
+                    if args.is_empty() {
+                        return Err("@call requires at least a function pointer argument".into());
+                    }
+                    let (fn_ptr, _) = self.emit_expr(&args[0], ns)?;
+                    let mut call_args = Vec::new();
+                    for a in args.iter().skip(1) {
+                        let (tmp, ty) = self.emit_expr(a, ns)?;
+                        let (promoted, pty) = self.promote_to_l(tmp, ty);
+                        call_args.push(format!("{pty} {promoted}"));
+                    }
+                    let tmp = self.fresh_tmp();
+                    if call_args.is_empty() {
+                        self.emit(&format!("    {tmp} =l call {fn_ptr}()"));
+                    } else {
+                        self.emit(&format!(
+                            "    {tmp} =l call {fn_ptr}({})",
+                            call_args.join(", ")
+                        ));
+                    }
+                    Ok((tmp, "l"))
+                }
                 other => Err(format!("unknown builtin: @{other}")),
             },
 
@@ -1724,6 +1746,7 @@ impl Codegen {
                         Or => format!("{tmp} =l or {l}, {r}"),
                         BitAnd => format!("{tmp} =l and {l}, {r}"),
                         BitOr => format!("{tmp} =l or {l}, {r}"),
+                        BitXor => format!("{tmp} =l xor {l}, {r}"),
                         Shl => format!("{tmp} =l shl {l}, {r}"),
                         Shr => format!("{tmp} =l shr {l}, {r}"),
                     }
@@ -1744,6 +1767,7 @@ impl Codegen {
                         Or => format!("{tmp} =w or {l}, {r}"),
                         BitAnd => format!("{tmp} =w and {l}, {r}"),
                         BitOr => format!("{tmp} =w or {l}, {r}"),
+                        BitXor => format!("{tmp} =w xor {l}, {r}"),
                         Shl => format!("{tmp} =w shl {l}, {r}"),
                         Shr => format!("{tmp} =w shr {l}, {r}"),
                     }
