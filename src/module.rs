@@ -183,8 +183,6 @@ fn collect_used_imports_in_expr(
             }
         }
         Expr::Field(base, _) => {
-            // The root of a dotted path like `std.net.Http.get` is an Ident.
-            // Mark it used, then recurse to catch nested calls.
             if let Expr::Ident(name) = base.as_ref() {
                 if imports.contains_key(name) {
                     used.insert(name.clone());
