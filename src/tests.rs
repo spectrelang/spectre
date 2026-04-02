@@ -63,9 +63,9 @@ mod lexer_tests {
         assert_eq!(toks[5].kind, TokenKind::LtEq);
         assert_eq!(toks[6].kind, TokenKind::Gt);
         assert_eq!(toks[7].kind, TokenKind::GtEq);
-        assert_eq!(toks[8].kind, TokenKind::And);
+        assert_eq!(toks[8].kind, TokenKind::BitAnd);
         assert_eq!(toks[9].kind, TokenKind::And);
-        assert_eq!(toks[10].kind, TokenKind::Or);
+        assert_eq!(toks[10].kind, TokenKind::BitOr);
         assert_eq!(toks[11].kind, TokenKind::Or);
     }
 
