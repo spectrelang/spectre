@@ -120,6 +120,9 @@ pub enum Stmt {
         body: Vec<Stmt>,
     },
     Increment(String), // x++
+    Decrement(String), // x--
+    AddAssign(String, Expr), // x += expr
+    SubAssign(String, Expr), // x -= expr
     Defer(Vec<Stmt>),
     Break,
     Assert(Expr, usize),
@@ -719,7 +722,19 @@ impl Parser {
                 let cond = self.parse_expr()?;
                 self.expect(&TokenKind::Semicolon)?;
                 let post_name = self.expect_ident()?;
-                self.expect(&TokenKind::PlusPlus)?;
+                let post_stmt = if self.eat(&TokenKind::PlusPlus) {
+                    Stmt::Increment(post_name)
+                } else if self.eat(&TokenKind::MinusMinus) {
+                    Stmt::Decrement(post_name.clone())
+                } else if self.eat(&TokenKind::PlusEq) {
+                    let v = self.parse_expr()?;
+                    Stmt::AddAssign(post_name, v)
+                } else if self.eat(&TokenKind::MinusEq) {
+                    let v = self.parse_expr()?;
+                    Stmt::SubAssign(post_name, v)
+                } else {
+                    return Err("expected '++', '--', '+=', or '-=' in for loop post".to_string());
+                };
                 self.expect(&TokenKind::RParen)?;
                 self.expect(&TokenKind::LBrace)?;
                 let body = self.parse_stmts()?;
@@ -727,7 +742,7 @@ impl Parser {
                 Ok(Stmt::For {
                     init: Some((init_name.clone(), init_expr)),
                     cond: Some(cond),
-                    post: Some(Box::new(Stmt::Increment(post_name))),
+                    post: Some(Box::new(post_stmt)),
                     body,
                 })
             }
@@ -822,6 +837,32 @@ impl Parser {
                         target: expr,
                         value,
                     })
+                } else if self.eat(&TokenKind::PlusPlus) {
+                    if let Expr::Ident(name) = expr {
+                        Ok(Stmt::Increment(name))
+                    } else {
+                        Err("'++' can only be applied to a variable".to_string())
+                    }
+                } else if self.eat(&TokenKind::MinusMinus) {
+                    if let Expr::Ident(name) = expr {
+                        Ok(Stmt::Decrement(name))
+                    } else {
+                        Err("'--' can only be applied to a variable".to_string())
+                    }
+                } else if self.eat(&TokenKind::PlusEq) {
+                    if let Expr::Ident(name) = expr {
+                        let value = self.parse_expr()?;
+                        Ok(Stmt::AddAssign(name, value))
+                    } else {
+                        Err("'+=' can only be applied to a variable".to_string())
+                    }
+                } else if self.eat(&TokenKind::MinusEq) {
+                    if let Expr::Ident(name) = expr {
+                        let value = self.parse_expr()?;
+                        Ok(Stmt::SubAssign(name, value))
+                    } else {
+                        Err("'-=' can only be applied to a variable".to_string())
+                    }
                 } else {
                     Ok(Stmt::Expr(expr))
                 }

@@ -712,6 +712,67 @@ impl Codegen {
                     self.emit(&format!("    storew {inc}, {slot}"));
                 }
             }
+            Stmt::Decrement(var) => {
+                let slot = self
+                    .locals
+                    .get(var)
+                    .cloned()
+                    .ok_or_else(|| format!("undefined variable: {var}"))?;
+                let is_l_slot = self.local_slot_is_l.contains(var);
+                let cur = self.fresh_tmp();
+                let dec = self.fresh_tmp();
+                if is_l_slot {
+                    self.emit(&format!("    {cur} =l loadl {slot}"));
+                    self.emit(&format!("    {dec} =l sub {cur}, 1"));
+                    self.emit(&format!("    storel {dec}, {slot}"));
+                } else {
+                    self.emit(&format!("    {cur} =w loadw {slot}"));
+                    self.emit(&format!("    {dec} =w sub {cur}, 1"));
+                    self.emit(&format!("    storew {dec}, {slot}"));
+                }
+            }
+            Stmt::AddAssign(var, expr) => {
+                let slot = self
+                    .locals
+                    .get(var)
+                    .cloned()
+                    .ok_or_else(|| format!("undefined variable: {var}"))?;
+                let is_l_slot = self.local_slot_is_l.contains(var);
+                let (rhs, _) = self.emit_expr(expr, ns)?;
+                let cur = self.fresh_tmp();
+                let res = self.fresh_tmp();
+                if is_l_slot {
+                    self.emit(&format!("    {cur} =l loadl {slot}"));
+                    let (rhs_l, _) = self.promote_to_l(rhs, "w");
+                    self.emit(&format!("    {res} =l add {cur}, {rhs_l}"));
+                    self.emit(&format!("    storel {res}, {slot}"));
+                } else {
+                    self.emit(&format!("    {cur} =w loadw {slot}"));
+                    self.emit(&format!("    {res} =w add {cur}, {rhs}"));
+                    self.emit(&format!("    storew {res}, {slot}"));
+                }
+            }
+            Stmt::SubAssign(var, expr) => {
+                let slot = self
+                    .locals
+                    .get(var)
+                    .cloned()
+                    .ok_or_else(|| format!("undefined variable: {var}"))?;
+                let is_l_slot = self.local_slot_is_l.contains(var);
+                let (rhs, _) = self.emit_expr(expr, ns)?;
+                let cur = self.fresh_tmp();
+                let res = self.fresh_tmp();
+                if is_l_slot {
+                    self.emit(&format!("    {cur} =l loadl {slot}"));
+                    let (rhs_l, _) = self.promote_to_l(rhs, "w");
+                    self.emit(&format!("    {res} =l sub {cur}, {rhs_l}"));
+                    self.emit(&format!("    storel {res}, {slot}"));
+                } else {
+                    self.emit(&format!("    {cur} =w loadw {slot}"));
+                    self.emit(&format!("    {res} =w sub {cur}, {rhs}"));
+                    self.emit(&format!("    storew {res}, {slot}"));
+                }
+            }
             Stmt::Defer(body) => {
                 self.defer_stack.push(body.clone());
             }
@@ -1716,7 +1777,7 @@ fn all_trusted_stmts(stmts: &[Stmt]) -> bool {
         Stmt::Expr(Expr::Call { callee, .. }) => !expr_to_path(callee).is_empty(),
         Stmt::Expr(Expr::Builtin { .. }) => true,
         Stmt::Pre(_) | Stmt::Post(_) => true,
-        Stmt::Val { .. } | Stmt::Return(_) | Stmt::Break | Stmt::Increment(_) => true,
+        Stmt::Val { .. } | Stmt::Return(_) | Stmt::Break | Stmt::Increment(_) | Stmt::Decrement(_) | Stmt::AddAssign(..) | Stmt::SubAssign(..) => true,
         Stmt::Assert(..) => true,
         Stmt::Assign { .. } => false,
         Stmt::Defer(body) => all_trusted_stmts(body),
@@ -1800,7 +1861,7 @@ fn find_bare_builtin_in_stmt(stmt: &Stmt) -> Option<String> {
             find_bare_builtin_in_expr(expr).or_else(|| find_bare_builtin_in_stmts(body))
         }
         Stmt::Otherwise { body } => find_bare_builtin_in_stmts(body),
-        Stmt::Increment(_) | Stmt::Break => None,
+        Stmt::Increment(_) | Stmt::Decrement(_) | Stmt::AddAssign(..) | Stmt::SubAssign(..) | Stmt::Break => None,
     }
 }
 

@@ -142,6 +142,17 @@ fn collect_used_in_stmt(stmt: &Stmt, used: &mut HashSet<String>) {
         Stmt::Increment(name) => {
             used.insert(name.clone());
         }
+        Stmt::Decrement(name) => {
+            used.insert(name.clone());
+        }
+        Stmt::AddAssign(name, expr) => {
+            used.insert(name.clone());
+            collect_used_in_expr(expr, used);
+        }
+        Stmt::SubAssign(name, expr) => {
+            used.insert(name.clone());
+            collect_used_in_expr(expr, used);
+        }
         Stmt::Defer(body)
         | Stmt::When { body, .. }
         | Stmt::Otherwise { body } => {
@@ -233,6 +244,15 @@ fn collect_mutated_in_stmt(stmt: &Stmt, mutated: &mut HashSet<String>) {
             }
         }
         Stmt::Increment(name) => {
+            mutated.insert(name.clone());
+        }
+        Stmt::Decrement(name) => {
+            mutated.insert(name.clone());
+        }
+        Stmt::AddAssign(name, _) => {
+            mutated.insert(name.clone());
+        }
+        Stmt::SubAssign(name, _) => {
             mutated.insert(name.clone());
         }
         Stmt::If { then, elif_, else_, .. } => {

@@ -56,6 +56,9 @@ pub enum TokenKind {
     Slash,
     Percent,
     PlusPlus,
+    MinusMinus,
+    PlusEq,
+    MinusEq,
     EqEq,
     BangEq,
     Lt,
@@ -293,6 +296,9 @@ impl Lexer {
                 if self.peek() == Some('+') {
                     self.advance();
                     TokenKind::PlusPlus
+                } else if self.peek() == Some('=') {
+                    self.advance();
+                    TokenKind::PlusEq
                 } else {
                     TokenKind::Plus
                 }
@@ -301,6 +307,12 @@ impl Lexer {
                 if self.peek() == Some('>') {
                     self.advance();
                     TokenKind::Arrow
+                } else if self.peek() == Some('-') {
+                    self.advance();
+                    TokenKind::MinusMinus
+                } else if self.peek() == Some('=') {
+                    self.advance();
+                    TokenKind::MinusEq
                 } else {
                     TokenKind::Minus
                 }
