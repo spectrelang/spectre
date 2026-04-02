@@ -30,6 +30,7 @@ pub enum TokenKind {
     Is,
     Union,
     Enum,
+    Extern,
     Ident(String),
     StringLit(String),
     IntLit(i64),
@@ -259,6 +260,7 @@ impl Lexer {
                 "is" => TokenKind::Is,
                 "union" => TokenKind::Union,
                 "enum" => TokenKind::Enum,
+                "extern" => TokenKind::Extern,
                 _ => TokenKind::Ident(ident),
             });
         }

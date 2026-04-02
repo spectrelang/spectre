@@ -218,6 +218,9 @@ impl Codegen {
                 };
                 local_ns.insert(local_key, fn_qbe_name(f));
             }
+            if let Item::ExternFn { name, symbol, .. } = item {
+                local_ns.insert(name.clone(), symbol.clone());
+            }
         }
 
         for item in &resolved.ast.items {
@@ -236,6 +239,7 @@ impl Codegen {
                 | Item::TypeDef { .. }
                 | Item::UnionDef { .. }
                 | Item::EnumDef { .. }
+                | Item::ExternFn { .. }
                 | Item::Test { .. } => {}
             }
         }
@@ -1743,9 +1747,10 @@ fn build_ret_types(resolved: &ResolvedModule) -> HashMap<String, &'static str> {
 
 fn collect_ret_types(module: &ResolvedModule, map: &mut HashMap<String, &'static str>) {
     for item in &module.ast.items {
-        if let Item::Fn(f) = item {
-            let qbe = fn_qbe_name(f);
-            map.insert(qbe, qbe_type(&f.ret));
+        match item {
+            Item::Fn(f) => { map.insert(fn_qbe_name(f), qbe_type(&f.ret)); }
+            Item::ExternFn { symbol, ret, .. } => { map.insert(symbol.clone(), qbe_type(ret)); }
+            _ => {}
         }
     }
     for child in module.imports.values() {
@@ -1761,9 +1766,14 @@ fn build_param_types(resolved: &ResolvedModule) -> HashMap<String, Vec<TypeExpr>
 
 fn collect_param_types(module: &ResolvedModule, map: &mut HashMap<String, Vec<TypeExpr>>) {
     for item in &module.ast.items {
-        if let Item::Fn(f) = item {
-            let qbe = fn_qbe_name(f);
-            map.insert(qbe, f.params.iter().map(|(_, ty)| ty.clone()).collect());
+        match item {
+            Item::Fn(f) => {
+                map.insert(fn_qbe_name(f), f.params.iter().map(|(_, ty)| ty.clone()).collect());
+            }
+            Item::ExternFn { symbol, params, .. } => {
+                map.insert(symbol.clone(), params.iter().map(|(_, ty)| ty.clone()).collect());
+            }
+            _ => {}
         }
     }
     for child in module.imports.values() {
@@ -1783,19 +1793,21 @@ fn collect_trusted(
     trusted: &mut std::collections::HashSet<String>,
 ) {
     for item in &module.ast.items {
-        if let Item::Fn(f) = item {
-            if f.trusted {
+        match item {
+            Item::Fn(f) if f.trusted => {
                 let local_key = match &f.namespace {
                     Some(type_name) => format!("{type_name}.{}", f.name),
                     None => f.name.clone(),
                 };
-                let key = if prefix.is_empty() {
-                    local_key
-                } else {
-                    format!("{prefix}.{local_key}")
-                };
+                let key = if prefix.is_empty() { local_key } else { format!("{prefix}.{local_key}") };
                 trusted.insert(key);
             }
+            Item::ExternFn { name, symbol, .. } => {
+                let key = if prefix.is_empty() { name.clone() } else { format!("{prefix}.{name}") };
+                trusted.insert(key);
+                trusted.insert(symbol.clone());
+            }
+            _ => {}
         }
     }
     for (import_name, child) in &module.imports {
@@ -1821,9 +1833,6 @@ fn collect_ns(module: &ResolvedModule, prefix: &str, ns: &mut Namespace) {
     for item in &module.ast.items {
         match item {
             Item::Fn(f) => {
-                // Private namespaced functions are not in the global namespace.
-                // They are injected into a per-module local namespace during emission
-                // so that public methods can call them, but user code cannot.
                 if f.namespace.is_some() && !f.public {
                     continue;
                 }
@@ -1838,6 +1847,14 @@ fn collect_ns(module: &ResolvedModule, prefix: &str, ns: &mut Namespace) {
                     format!("{prefix}.{local_key}")
                 };
                 ns.insert(key, qbe);
+            }
+            Item::ExternFn { name, symbol, .. } => {
+                let key = if prefix.is_empty() {
+                    name.clone()
+                } else {
+                    format!("{prefix}.{name}")
+                };
+                ns.insert(key, symbol.clone());
             }
             _ => {}
         }

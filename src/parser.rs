@@ -35,6 +35,15 @@ pub enum Item {
     Test {
         body: Vec<Stmt>,
     },
+    ExternFn {
+        /// Calling convention, e.g. "C", "stdcall", "fastcall"
+        conv: String,
+        name: String,
+        params: Vec<(String, TypeExpr)>,
+        ret: TypeExpr,
+        /// The external symbol name, e.g. "malloc"
+        symbol: String,
+    },
 }
 
 #[derive(Debug, Clone)]
@@ -272,6 +281,9 @@ impl Parser {
         if let TokenKind::Test = self.peek() {
             return self.parse_test();
         }
+        if let TokenKind::Extern = self.peek() {
+            return self.parse_extern_fn();
+        }
 
         let public = self.eat(&TokenKind::Pub);
 
@@ -299,6 +311,28 @@ impl Parser {
         let name = self.expect_ident()?;
         let path = self.expect_string()?;
         Ok(Item::Use { name, path })
+    }
+
+    fn parse_extern_fn(&mut self) -> Result<Item, String> {
+        self.expect(&TokenKind::Extern)?;
+        self.expect(&TokenKind::LParen)?;
+        let conv = self.expect_ident()?;
+        self.expect(&TokenKind::RParen)?;
+        self.expect(&TokenKind::Fn)?;
+        let name = self.expect_ident()?;
+        self.expect(&TokenKind::LParen)?;
+        let params = self.parse_params()?;
+        self.expect(&TokenKind::RParen)?;
+        let (ret, trusted) = self.parse_ret_type()?;
+        if !trusted {
+            return Err(self.error(&format!(
+                "extern fn '{name}': return type must be marked '!' — \
+                 extern functions cannot be formally verified"
+            )));
+        }
+        self.expect(&TokenKind::Eq)?;
+        let symbol = self.expect_string()?;
+        Ok(Item::ExternFn { conv, name, params, ret, symbol })
     }
 
     fn parse_fn(&mut self, public: bool) -> Result<Item, String> {
