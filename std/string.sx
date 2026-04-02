@@ -1,7 +1,9 @@
 extern (C) fn strlen(s: ref char) i64! = "strlen"
 extern (C) fn memcpy(dst: ref void, src: ref void, len: i64) ref void! = "memcpy"
 
-/// String (owned heap string)
+/// This is a classic string type.
+///
+/// An owned heap string: ptr, len, cap — each 8 bytes.
 pub type String = {
     ptr: ref char
     len: i64
@@ -9,7 +11,7 @@ pub type String = {
 }
 
 /// Create empty string
-pub fn (String) new() ref void! = {
+pub fn new() ref void! = {
     val s: ref void = @alloc(24)
     val buf: ref void = @alloc(1)
     @store(buf, 0)
@@ -19,8 +21,8 @@ pub fn (String) new() ref void! = {
     return s
 }
 
-/// Create from raw string (ref char)
-pub fn (String) from(cstr: ref char) ref void! = {
+/// Create from raw C string
+pub fn from(cstr: ref char) ref void! = {
     val l: i64 = strlen(cstr)
     val buf: ref void = @alloc(l + 1)
     memcpy(buf, cstr, l)
@@ -34,92 +36,90 @@ pub fn (String) from(cstr: ref char) ref void! = {
 }
 
 /// Free string
-pub fn (String) free(s: Self) void! = {
+pub fn string_free(s: ref void) void! = {
     val ptr: ref void = @load(s)
     @free(ptr)
     @free(s)
 }
 
 /// Length
-pub fn (String) len(s: Self) i64! = {
+pub fn len(s: ref void) i64! = {
     return @load(@ptradd(s, 8))
 }
 
 /// Raw pointer
-pub fn (String) cstr(s: Self) ref char! = {
+pub fn cstr(s: ref void) ref char! = {
     return @load(s)
 }
 
-/// Ensure capacity
+/// Ensure capacity (private helper)
 fn ensure_cap(s: ref void, needed: i64) void! = {
     val cap: i64 = @load(@ptradd(s, 16))
     if (needed <= cap) {
         return
     }
-
     val new_cap: i64 = needed * 2
     val old_ptr: ref void = @load(s)
     val new_ptr: ref void = @realloc(old_ptr, new_cap)
-
     @store(s, new_ptr)
     @store(@ptradd(s, 16), new_cap)
 }
 
-/// Append C string
-pub fn (String) push_cstr(s: Self, other: ref char) void! = {
-    val len: i64 = @load(@ptradd(s, 8))
+/// Append a C string in place
+pub fn push_cstr(s: ref void, other: ref char) void! = {
+    val l: i64 = @load(@ptradd(s, 8))
     val add_len: i64 = strlen(other)
-    val new_len: i64 = len + add_len
+    val new_len: i64 = l + add_len
 
     ensure_cap(s, new_len + 1)
 
     val ptr: ref void = @load(s)
-    memcpy(@ptradd(ptr, len), other, add_len)
+    memcpy(@ptradd(ptr, l), other, add_len)
 
     @store(@ptradd(ptr, new_len), 0)
     @store(@ptradd(s, 8), new_len)
 }
 
-/// Append another String
-pub fn (String) push(s: Self, other: Self) void! = {
+/// Append another String in place
+pub fn push(s: ref void, other: ref void) void! = {
     val other_ptr: ref void = @load(other)
     val other_len: i64 = @load(@ptradd(other, 8))
 
-    val len: i64 = @load(@ptradd(s, 8))
-    val new_len: i64 = len + other_len
+    val l: i64 = @load(@ptradd(s, 8))
+    val new_len: i64 = l + other_len
 
     ensure_cap(s, new_len + 1)
 
     val ptr: ref void = @load(s)
-    memcpy(@ptradd(ptr, len), other_ptr, other_len)
+    memcpy(@ptradd(ptr, l), other_ptr, other_len)
 
     @store(@ptradd(ptr, new_len), 0)
     @store(@ptradd(s, 8), new_len)
 }
 
-/// Clone
-pub fn (String) clone(s: Self) ref void! = {
-    val len: i64 = @load(@ptradd(s, 8))
+/// Clone — returns a new heap-allocated String
+pub fn clone(s: ref void) ref void! = {
+    val l: i64 = @load(@ptradd(s, 8))
     val ptr: ref void = @load(s)
 
-    val buf: ref void = @alloc(len + 1)
-    memcpy(buf, ptr, len)
-    @store(@ptradd(buf, len), 0)
+    val buf: ref void = @alloc(l + 1)
+    memcpy(buf, ptr, l)
+    @store(@ptradd(buf, l), 0)
 
     val out: ref void = @alloc(24)
     @store(out, buf)
-    @store(@ptradd(out, 8), len)
-    @store(@ptradd(out, 16), len + 1)
+    @store(@ptradd(out, 8), l)
+    @store(@ptradd(out, 16), l + 1)
     return out
 }
 
-/// Reverse (in place)
-pub fn (String) reverse(s: Self) void! = {
+/// Reverse in place
+pub fn reverse(s: ref void) void! = {
     val ptr: ref void = @load(s)
-    val len: i64 = @load(@ptradd(s, 8))
+    val l: i64 = @load(@ptradd(s, 8))
 
     val i: mut i64 = 0
-    val j: mut i64 = len - 1
+    val j: mut i64 = l - 1
 
     for {
         if (i < j) {
@@ -136,16 +136,214 @@ pub fn (String) reverse(s: Self) void! = {
     }
 }
 
-/// Concat (returns new string)
-pub fn (String) concat(a: Self, b: Self) String! = {
-    val out: ref void = String.clone(a)
-    String.push(out, b)
+/// Concat — returns a new heap-allocated String
+pub fn concat(a: ref void, b: ref void) ref void! = {
+    val out: ref void = clone(a)
+    push(out, b)
     return out
+}
+
+/// Check if two strings are equal
+pub fn equals(x: ref void, y: ref void) bool = {
+    pre {
+        x_not_null: x != 0
+        y_not_null: y != 0
+    }
+
+    val lx: i64 = trust @load(@ptradd(x, 8))
+    val ly: i64 = trust @load(@ptradd(y, 8))
+
+    if (lx != ly) {
+        return false
+    }
+
+    val px: ref void = trust @load(x)
+    val py: ref void = trust @load(y)
+
+    val i: mut i64 = 0
+    for {
+        if (i >= lx) {
+            break
+        }
+        val a: u8 = trust @load(@ptradd(px, i))
+        val b: u8 = trust @load(@ptradd(py, i))
+        if (a != b) {
+            return false
+        }
+        i++
+    }
+
+    post {
+        same_length: lx == ly
+    }
+
+    return true
+}
+
+/// Check if s starts with prefix
+pub fn starts_with(s: ref void, prefix: ref void) bool = {
+    pre {
+        s_not_null:      s != 0
+        prefix_not_null: prefix != 0
+    }
+
+    val sl: i64 = trust @load(@ptradd(s, 8))
+    val pl: i64 = trust @load(@ptradd(prefix, 8))
+
+    if (pl > sl) {
+        return false
+    }
+
+    val sp: ref void = trust @load(s)
+    val pp: ref void = trust @load(prefix)
+
+    val i: mut i64 = 0
+    for {
+        if (i >= pl) {
+            break
+        }
+        val a: u8 = trust @load(@ptradd(sp, i))
+        val b: u8 = trust @load(@ptradd(pp, i))
+        if (a != b) {
+            return false
+        }
+        i++
+    }
+
+    post {
+        prefix_fits: pl <= sl
+    }
+
+    return true
+}
+
+/// Check if s ends with suffix
+pub fn ends_with(s: ref void, suffix: ref void) bool = {
+    pre {
+        s_not_null:      s != 0
+        suffix_not_null: suffix != 0
+    }
+
+    val sl: i64 = trust @load(@ptradd(s, 8))
+    val sul: i64 = trust @load(@ptradd(suffix, 8))
+
+    if (sul > sl) {
+        return false
+    }
+
+    val sp: ref void = trust @load(s)
+    val sup: ref void = trust @load(suffix)
+
+    val offset: i64 = sl - sul
+    val i: mut i64 = 0
+    for {
+        if (i >= sul) {
+            break
+        }
+        val a: u8 = trust @load(@ptradd(sp, offset + i))
+        val b: u8 = trust @load(@ptradd(sup, i))
+        if (a != b) {
+            return false
+        }
+        i++
+    }
+
+    post {
+        suffix_fits: sul <= sl
+    }
+
+    return true
+}
+
+/// The almighty String builder
+pub type StringBuilder = {
+    ptr: ref char
+    len: i64
+    cap: i64
+}
+
+/// Create a new empty StringBuilder
+pub fn (StringBuilder) new() ref void! = {
+    val s: ref void = @alloc(24)
+    val buf: ref void = @alloc(64)
+    @store(buf, 0)
+    @store(s, buf)
+    @store(@ptradd(s, 8), 0)
+    @store(@ptradd(s, 16), 64)
+    return s
+}
+
+/// Append a String to the builder
+pub fn (StringBuilder) append(sb: Self, s: ref void) void! = {
+    val other_ptr: ref void = @load(s)
+    val other_len: i64 = @load(@ptradd(s, 8))
+
+    val l: i64 = @load(@ptradd(sb, 8))
+    val new_len: i64 = l + other_len
+
+    ensure_cap(sb, new_len + 1)
+
+    val ptr: ref void = @load(sb)
+    memcpy(@ptradd(ptr, l), other_ptr, other_len)
+
+    @store(@ptradd(ptr, new_len), 0)
+    @store(@ptradd(sb, 8), new_len)
+}
+
+/// Append a C string to the builder
+pub fn (StringBuilder) append_cstr(sb: Self, cstr: ref char) void! = {
+    val l: i64 = @load(@ptradd(sb, 8))
+    val add_len: i64 = strlen(cstr)
+    val new_len: i64 = l + add_len
+
+    ensure_cap(sb, new_len + 1)
+
+    val ptr: ref void = @load(sb)
+    memcpy(@ptradd(ptr, l), cstr, add_len)
+
+    @store(@ptradd(ptr, new_len), 0)
+    @store(@ptradd(sb, 8), new_len)
+}
+
+/// Build — returns a new heap-allocated String with the accumulated content
+pub fn (StringBuilder) build(sb: Self) ref void! = {
+    val l: i64 = @load(@ptradd(sb, 8))
+    val ptr: ref void = @load(sb)
+
+    val buf: ref void = @alloc(l + 1)
+    memcpy(buf, ptr, l)
+    @store(@ptradd(buf, l), 0)
+
+    val out: ref void = @alloc(24)
+    @store(out, buf)
+    @store(@ptradd(out, 8), l)
+    @store(@ptradd(out, 16), l + 1)
+    return out
+}
+
+/// Free the StringBuilder's internal buffer and header
+pub fn (StringBuilder) free(sb: Self) void! = {
+    val ptr: ref void = @load(sb)
+    @free(ptr)
+    @free(sb)
 }
 
 val std = use("std")
 
 test {
-    val x: mut String = String.concat(String.from("hello "), String.from("world\n"))
-    std.io.put_any("{s}", {String.cstr(x)})
+    val s = from("hello ")
+    val t = from("world\n")
+    val joined = concat(s, t)
+    std.io.put_any("{s}", {cstr(joined)})
+
+    assert equals(from("hello world\n"), joined)
+
+    val sb = StringBuilder.new()
+    StringBuilder.append_cstr(sb, "foo ")
+    StringBuilder.append_cstr(sb, "bar\n")
+    val result = StringBuilder.build(sb)
+    std.io.put_any("{s}", {cstr(result)})
+    StringBuilder.free(sb)
+
+    std.io.print("it worked")
 }
