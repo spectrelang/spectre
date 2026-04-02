@@ -276,6 +276,13 @@ impl Codegen {
         self.current_fn = qbe_name.clone();
         self.current_fn_trusted = f.trusted;
 
+        if RESERVED_SYMBOLS.contains(&qbe_name.as_str()) {
+            return Err(format!(
+                "{}: function '{}' collides with a reserved symbol used by the runtime — rename it",
+                self.current_file, qbe_name
+            ));
+        }
+
         if !f.trusted {
             if let Some(builtin_name) = find_bare_builtin_in_stmts(&f.body) {
                 return Err(format!(
@@ -1517,7 +1524,8 @@ impl Codegen {
                         };
                         let final_arg = wrapped.unwrap_or_else(|| {
                             if ty == "l" {
-                                if let Some(ref ptypes) = self.fn_param_types.get(&fn_name).cloned() {
+                                if let Some(ref ptypes) = self.fn_param_types.get(&fn_name).cloned()
+                                {
                                     if let Some(pt) = ptypes.get(i) {
                                         if qbe_type(pt) == "w" {
                                             let w = self.fresh_tmp();
@@ -1732,12 +1740,17 @@ impl Codegen {
                             return Ok((tmp, "l"));
                         }
                         if self.local_is_slot.contains(name) {
-                            let slot = self.locals.get(name).cloned()
+                            let slot = self
+                                .locals
+                                .get(name)
+                                .cloned()
                                 .ok_or_else(|| format!("undefined variable: {name}"))?;
                             self.emit(&format!("    {tmp} =l copy {slot}"));
                             return Ok((tmp, "l"));
                         }
-                        Err(format!("cannot take address of immutable binding '{name}' — declare it as 'mut' or use a function name"))
+                        Err(format!(
+                            "cannot take address of immutable binding '{name}' — declare it as 'mut' or use a function name"
+                        ))
                     }
                     other => {
                         let path = expr_to_path(other);
@@ -1792,7 +1805,13 @@ fn all_trusted_stmts(stmts: &[Stmt]) -> bool {
         Stmt::Expr(Expr::Call { callee, .. }) => !expr_to_path(callee).is_empty(),
         Stmt::Expr(Expr::Builtin { .. }) => true,
         Stmt::Pre(_) | Stmt::Post(_) => true,
-        Stmt::Val { .. } | Stmt::Return(_) | Stmt::Break | Stmt::Increment(_) | Stmt::Decrement(_) | Stmt::AddAssign(..) | Stmt::SubAssign(..) => true,
+        Stmt::Val { .. }
+        | Stmt::Return(_)
+        | Stmt::Break
+        | Stmt::Increment(_)
+        | Stmt::Decrement(_)
+        | Stmt::AddAssign(..)
+        | Stmt::SubAssign(..) => true,
         Stmt::Assert(..) => true,
         Stmt::Assign { .. } => false,
         Stmt::Defer(body) => all_trusted_stmts(body),
@@ -1876,7 +1895,11 @@ fn find_bare_builtin_in_stmt(stmt: &Stmt) -> Option<String> {
             find_bare_builtin_in_expr(expr).or_else(|| find_bare_builtin_in_stmts(body))
         }
         Stmt::Otherwise { body } => find_bare_builtin_in_stmts(body),
-        Stmt::Increment(_) | Stmt::Decrement(_) | Stmt::AddAssign(..) | Stmt::SubAssign(..) | Stmt::Break => None,
+        Stmt::Increment(_)
+        | Stmt::Decrement(_)
+        | Stmt::AddAssign(..)
+        | Stmt::SubAssign(..)
+        | Stmt::Break => None,
     }
 }
 
@@ -1924,8 +1947,12 @@ fn build_ret_types(resolved: &ResolvedModule) -> HashMap<String, &'static str> {
 fn collect_ret_types(module: &ResolvedModule, map: &mut HashMap<String, &'static str>) {
     for item in &module.ast.items {
         match item {
-            Item::Fn(f) => { map.insert(fn_qbe_name(f), qbe_type(&f.ret)); }
-            Item::ExternFn { symbol, ret, .. } => { map.insert(symbol.clone(), qbe_type(ret)); }
+            Item::Fn(f) => {
+                map.insert(fn_qbe_name(f), qbe_type(&f.ret));
+            }
+            Item::ExternFn { symbol, ret, .. } => {
+                map.insert(symbol.clone(), qbe_type(ret));
+            }
             _ => {}
         }
     }
@@ -1944,10 +1971,16 @@ fn collect_param_types(module: &ResolvedModule, map: &mut HashMap<String, Vec<Ty
     for item in &module.ast.items {
         match item {
             Item::Fn(f) => {
-                map.insert(fn_qbe_name(f), f.params.iter().map(|(_, ty)| ty.clone()).collect());
+                map.insert(
+                    fn_qbe_name(f),
+                    f.params.iter().map(|(_, ty)| ty.clone()).collect(),
+                );
             }
             Item::ExternFn { symbol, params, .. } => {
-                map.insert(symbol.clone(), params.iter().map(|(_, ty)| ty.clone()).collect());
+                map.insert(
+                    symbol.clone(),
+                    params.iter().map(|(_, ty)| ty.clone()).collect(),
+                );
             }
             _ => {}
         }
@@ -1965,7 +1998,12 @@ fn build_variadic_set(resolved: &ResolvedModule) -> HashMap<String, usize> {
 
 fn collect_variadic(module: &ResolvedModule, map: &mut HashMap<String, usize>) {
     for item in &module.ast.items {
-        if let Item::ExternFn { symbol, variadic_after: Some(n), .. } = item {
+        if let Item::ExternFn {
+            symbol,
+            variadic_after: Some(n),
+            ..
+        } = item
+        {
             map.insert(symbol.clone(), *n);
         }
     }
@@ -1992,11 +2030,19 @@ fn collect_trusted(
                     Some(type_name) => format!("{type_name}.{}", f.name),
                     None => f.name.clone(),
                 };
-                let key = if prefix.is_empty() { local_key } else { format!("{prefix}.{local_key}") };
+                let key = if prefix.is_empty() {
+                    local_key
+                } else {
+                    format!("{prefix}.{local_key}")
+                };
                 trusted.insert(key);
             }
             Item::ExternFn { name, symbol, .. } => {
-                let key = if prefix.is_empty() { name.clone() } else { format!("{prefix}.{name}") };
+                let key = if prefix.is_empty() {
+                    name.clone()
+                } else {
+                    format!("{prefix}.{name}")
+                };
                 trusted.insert(key);
                 trusted.insert(symbol.clone());
             }
@@ -2022,6 +2068,36 @@ fn fn_qbe_name(f: &FnDef) -> String {
     }
 }
 
+/// Symbols emitted directly by builtins or the runtime — user functions must not collide.
+const RESERVED_SYMBOLS: &[&str] = &[
+    "malloc",
+    "realloc",
+    "free",
+    "memset",
+    "memcpy",
+    "printf",
+    "fprintf",
+    "dprintf",
+    "snprintf",
+    "puts",
+    "fputs",
+    "fgets",
+    "fflush",
+    "fdopen",
+    "fopen",
+    "fclose",
+    "getchar",
+    "abort",
+    "strlen",
+    "gettimeofday",
+    "localtime",
+    "arc4random_buf",
+    "arc4random_uniform",
+    "sx_stdout",
+    "sx_stderr",
+    "sx_stdin",
+];
+
 fn collect_ns(module: &ResolvedModule, prefix: &str, ns: &mut Namespace) {
     for item in &module.ast.items {
         match item {
@@ -2041,7 +2117,12 @@ fn collect_ns(module: &ResolvedModule, prefix: &str, ns: &mut Namespace) {
                 };
                 ns.insert(key, qbe);
             }
-            Item::ExternFn { name, symbol, public, .. } => {
+            Item::ExternFn {
+                name,
+                symbol,
+                public,
+                ..
+            } => {
                 if !public {
                     continue;
                 }
