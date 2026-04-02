@@ -1,0 +1,23 @@
+val std = use("std")
+
+union SomeUnion = {
+    i32 | i64 | ref char
+}
+
+fn some_function(x: SomeUnion) void! = {
+    when x is i32 {
+        std.io.print("hi inty int int")
+    }
+    when x is i64 {
+        std.io.print("hi bigger inty int")
+    }
+    otherwise {
+        std.io.print("hi something else")
+    }
+}
+
+pub fn main() void! = {
+    val x: i32 = 12
+    val y: ref char = "hello"
+    some_function(y)
+}
