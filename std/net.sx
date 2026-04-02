@@ -36,16 +36,16 @@ extern (C) fn setsockopt(fd: i32, level: i32, opt: i32, vl: ref void, len: i32) 
 extern (C) fn memset(ptr: ref void, vl: i32, len: i64)                 ref void! = "memset"
 extern (C) fn memcpy(dst: ref void, src: ref void, len: i64)           ref void! = "memcpy"
 
-pub val CURLOPT_URL           = 10002
-pub val CURLOPT_WRITEFUNCTION = 20011
-pub val CURLOPT_WRITEDATA     = 10001
-pub val CURLOPT_HTTPHEADER    = 10023
-pub val CURLOPT_POSTFIELDS    = 10015
-pub val CURLOPT_CUSTOMREQUEST = 10036
+pub val CURLOPT_URL            = 10002
+pub val CURLOPT_WRITEFUNCTION  = 20011
+pub val CURLOPT_WRITEDATA      = 10001
+pub val CURLOPT_HTTPHEADER     = 10023
+pub val CURLOPT_POSTFIELDS     = 10015
+pub val CURLOPT_CUSTOMREQUEST  = 10036
 pub val CURLINFO_RESPONSE_CODE = 2097154
-pub val CURL_GLOBAL_DEFAULT   = 3
-pub val AF_INET               = 2
-pub val IPPROTO_TCP           = 6
+pub val CURL_GLOBAL_DEFAULT    = 3
+pub val AF_INET                = 2
+pub val IPPROTO_TCP            = 6
 
 /// A heap-allocated HTTP response.
 /// Layout (8 bytes each field):
