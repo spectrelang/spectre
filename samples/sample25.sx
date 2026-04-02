@@ -1,0 +1,11 @@
+pub fn takes_ref(buf: ref i32) void! = {
+    deref(buf) = 42
+}
+
+val std = use("std")
+
+pub fn main() void! = {
+    val y: mut i32 = 30
+    takes_ref(addr(y))
+    std.io.print("{d}", {y})
+}

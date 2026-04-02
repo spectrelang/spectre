@@ -23,6 +23,12 @@ fn qbe_type(ty: &TypeExpr) -> &'static str {
     }
 }
 
+/// Returns true if a parameter type is a `ref` (possibly wrapped in other modifiers),
+/// meaning the parameter can be assigned through inside the function body.
+fn is_ref_param_type(ty: &TypeExpr) -> bool {
+    matches!(ty, TypeExpr::Ref(_))
+}
+
 pub struct Codegen {
     out: String,
     data: Vec<(String, String)>,
@@ -318,6 +324,8 @@ impl Codegen {
                 let qty = qbe_type(ty);
                 self.locals.insert(name.clone(), tmp.clone());
                 self.local_types.insert(name.clone(), qty);
+                let is_mutable = is_ref_param_type(ty);
+                self.local_mutability.insert(name.clone(), is_mutable);
                 if let TypeExpr::Named(type_name) = ty {
                     self.local_type_annotations
                         .insert(name.clone(), type_name.clone());
@@ -458,6 +466,16 @@ impl Codegen {
             }
 
             Stmt::Assign { target, value } => {
+                if let Expr::Deref(ptr_expr) = target {
+                    let (ptr, _) = self.emit_expr(ptr_expr, ns)?;
+                    let (val_tmp, val_ty) = self.emit_expr(value, ns)?;
+                    match val_ty {
+                        "d" => self.emit(&format!("    stored {val_tmp}, {ptr}")),
+                        "l" => self.emit(&format!("    storel {val_tmp}, {ptr}")),
+                        _ => self.emit(&format!("    storew {val_tmp}, {ptr}")),
+                    }
+                    return Ok(());
+                }
                 if let Some(root) = expr_root_name(target) {
                     let is_mut = self.local_mutability.get(&root).copied().unwrap_or(false);
                     if !is_mut {
@@ -2197,7 +2215,7 @@ fn fn_qbe_name(f: &FnDef) -> String {
     }
 }
 
-/// Symbols emitted directly by builtins or the runtime — user functions must not collide.
+/// Symbols emitted directly by builtins or the runtime.
 const RESERVED_SYMBOLS: &[&str] = &[
     "malloc",
     "realloc",
@@ -2297,7 +2315,6 @@ fn expr_to_path(expr: &Expr) -> String {
 }
 
 /// Expand the leading segment of a dotted path through the alias map.
-/// e.g. "Stack.new" with alias Stack="std.allocators.stack.Stack" → "std.allocators.stack.Stack.new"
 fn expand_alias_path(path: &str, aliases: &HashMap<String, String>) -> String {
     let (head, tail) = match path.find('.') {
         Some(i) => (&path[..i], Some(&path[i + 1..])),
