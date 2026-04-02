@@ -14,11 +14,12 @@
 ///   offset 8:  key   — usize
 ///   offset 16: value — usize
 
+val std = use("std")
+
 val BUCKET_SIZE: usize = 24
 val BUCKET_EMPTY: usize = 0
 val BUCKET_LIVE: usize = 1
 val BUCKET_DEAD: usize = 2
-
 val MAP_HEADER_SIZE: usize = 32
 
 pub type Map = {
@@ -31,22 +32,6 @@ pub type Map = {
 /// Default identity hash for integer keys.
 pub fn hash_identity(key: usize) usize = {
     return key
-}
-
-/// FNV-1a hash for pointer-sized keys treated as raw integers.
-pub fn hash_fnv(key: usize) usize! = {
-    val FNV_OFFSET: usize = 14695981039346656037
-    val FNV_PRIME: usize = 1099511628211
-    val h: mut usize = FNV_OFFSET
-    val k: mut usize = key
-    val i: mut usize = 0
-    for (i = 0; i < 8; i++) {
-        val byte: usize = k & 255
-        h = h ^ byte
-        h = h * FNV_PRIME
-        k = k >> 8
-    }
-    return h
 }
 
 /// Allocate a new Map with the given initial capacity and hash function.
@@ -242,8 +227,6 @@ pub fn (Map) clear(map: Self) void! = {
     @memset(buckets, 0, cap * BUCKET_SIZE)
     @store(@ptradd(map, 8), 0)
 }
-
-val std = use("std")
 
 test {
     val m = Map.new(8, addr(hash_identity))
