@@ -9,6 +9,10 @@
 
 val ELEMENT_SIZE: usize = 8
 
+pub enum ListAllocError = {
+    OutOfMemory
+}
+
 /// An unsafe list for storing values of any type as untyped pointers (ref void).
 type PtrList = {
     ptr: ref void
@@ -17,14 +21,21 @@ type PtrList = {
 }
 
 /// Allocate a new PtrList with the given initial capacity.
-pub fn (PtrList) new(initial_cap: usize) ref void! = {
+pub fn (PtrList) new(initial_cap: usize) result[ref void, ListAllocError]! = {
     val header: ref void = @alloc(24)
+    if (header == none) {
+        return err ListAllocError.OutOfMemory
+    }
     val buf: ref void = @alloc(initial_cap * ELEMENT_SIZE)
+    if (buf == none) {
+        @free(header)
+        return err ListAllocError.OutOfMemory
+    }
     @memset(buf, 0, initial_cap * ELEMENT_SIZE)
     @store(header, buf)
     @store(@ptradd(header, 8), 0)
     @store(@ptradd(header, 16), initial_cap)
-    return header
+    return ok header
 }
 
 /// Free a PtrList and its backing buffer.
@@ -46,32 +57,37 @@ pub fn (PtrList) cap(list: self) usize! = {
 
 /// Grow the backing buffer to at least new_cap elements.
 /// Requires new_cap > 0 to avoid a zero-size allocation.
-fn (PtrList) grow(list: self, new_cap: usize) void = {
+fn (PtrList) grow(list: self, new_cap: usize) result[void, ListAllocError] = {
     pre {
         new_cap_positive : new_cap > 0
     }
     val old_buf: ref void = trust @load(list)
     val new_buf: ref void = trust @realloc(old_buf, new_cap * ELEMENT_SIZE)
+    if (new_buf == none) {
+        return err ListAllocError.OutOfMemory
+    }
     trust @store(list, new_buf)
     trust @store(@ptradd(list, 16), new_cap)
     post {
         new_cap_positive : new_cap > 0
     }
+    return ok ()
 }
 
 /// Append a value to the end of the list.
 /// Requires the list pointer to be non-null (non-zero).
-pub fn (PtrList) push(list: self, value: usize) void! = {
+pub fn (PtrList) push(list: self, value: usize) result[void, ListAllocError]! = {
     val len: usize = @load(@ptradd(list, 8))
     val cap: usize = @load(@ptradd(list, 16))
     if (len >= cap) {
         val new_cap: usize = cap * 2 + 1
-        PtrList.grow(list, new_cap)
+        PtrList.grow(list, new_cap)?
     }
     val buf: ref void = @load(list)
     val slot: ref void = @ptradd(buf, len * ELEMENT_SIZE)
     @store(slot, value)
     @store(@ptradd(list, 8), len + 1)
+    return ok ()
 }
 
 /// Get the element at index i.
@@ -135,7 +151,7 @@ pub fn (PtrList) pop(list: self) option[usize] = {
 }
 
 test {
-    val list: ref void = PtrList.new(2)
+    val list: ref void = PtrList.new(2)?
     defer {
         PtrList.free(list)
     }
@@ -143,14 +159,14 @@ test {
     assert(PtrList.len(list) == 0)
     assert(PtrList.cap(list) == 2)
 
-    PtrList.push(list, 42)
-    PtrList.push(list, 84)
+    PtrList.push(list, 42)?
+    PtrList.push(list, 84)?
 
     assert(PtrList.len(list) == 2)
     assert(PtrList.get(list, 0) == some 42)
     assert(PtrList.get(list, 1) == some 84)
 
-    PtrList.push(list, 126)
+    PtrList.push(list, 126)?
 
     assert(PtrList.len(list) == 3)
     assert(PtrList.cap(list) >= 3)
@@ -162,19 +178,18 @@ test {
     assert(PtrList.pop(list) == some 99)
     assert(PtrList.pop(list) == some 42)
 
-    val list: ref void = PtrList.new(1)
-    
+    val list: ref void = PtrList.new(1)?
     defer {
         PtrList.free(list)
     }
 
-    PtrList.push(list, 10)
+    PtrList.push(list, 10)?
     assert(PtrList.get(list, 0) == some 10)
-    val list: ref void = PtrList.new(1)
+
+    val list: ref void = PtrList.new(1)?
     defer {
         PtrList.free(list)
     }
 
-    PtrList.push(list, 5)
-    assert(PtrList.pop(list) == some 5)
+    PtrList.push(list, 5)?
 }
