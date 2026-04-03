@@ -16,6 +16,8 @@ pub enum Platform = {
 extern (C) fn env(name: ref char) ref char! = "env"
 extern (C) fn uname() ref void! = "uname"
 
+// So, before we can get this to work, we need support for opaque types.
+
 pub fn get_current_platform() Platform! = {
     val os = env("OS")
     if (os == "Windows_NT") {
