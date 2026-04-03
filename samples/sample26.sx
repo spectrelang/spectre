@@ -1,18 +1,18 @@
-pub error ParseError = {
-    empty
-    invalid_digit
+pub enum ParseError = {
+    Empty
+    InvalidDigit
 }
 
 extern (C) fn strlen(s: ref char) i64! = "strlen"
 
 pub fn string_to_i64(s: ref char) result[i64, ParseError]! = {
     if (s == 0) {
-        return err ParseError.empty
+        return err ParseError.Empty
     }
 
     val len: i64 = strlen(s)
     if (len == 0) {
-        return err ParseError.empty
+        return err ParseError.Empty
     }
 
     val neg: bool = @load8(s) == 45
@@ -26,7 +26,7 @@ pub fn string_to_i64(s: ref char) result[i64, ParseError]! = {
         val c: u8 = @load8(@ptradd(s, i))
 
         if (c < 48 || c > 57) {
-            return err ParseError.invalid_digit
+            return err ParseError.InvalidDigit
         }
 
         result = result * 10 + (c - 48) as i64
@@ -65,10 +65,10 @@ pub fn main() result[void, ParseError]! = {
         }
         err e => {
             match e {
-                ParseError.empty => {
-                    std.io.put("error: empty input")
+                ParseError.Empty => {
+                    std.io.put("error: Empty input")
                 }
-                ParseError.invalid_digit => {
+                ParseError.InvalidDigit => {
                     std.io.put("error: invalid digit")
                 }
             }
