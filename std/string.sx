@@ -81,8 +81,8 @@ pub fn push_cstr(s: ref void, other: ref char) void! = {
     ensure_cap(s, new_len + 1)
 
     val ptr: ref void = @load(s)
-    @memcpy(@ptradd(ptr, l), other, add_len)
 
+    @memcpy(@ptradd(ptr, l), other, add_len)
     @store8(@ptradd(ptr, new_len), 0)
     @store(@ptradd(s, 8), new_len)
 }
