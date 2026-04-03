@@ -165,12 +165,17 @@ fn collect_used_imports_in_stmt(
             if let Some(s) = post { collect_used_imports_in_stmt(s, imports, used); }
             for s in body { collect_used_imports_in_stmt(s, imports, used); }
         }
-        Stmt::Defer(body) | Stmt::When { body, .. } | Stmt::Otherwise { body } => {
+        Stmt::Defer(body) | Stmt::When { body, .. } => {
             for s in body { collect_used_imports_in_stmt(s, imports, used); }
         }
-        Stmt::WhenIs { expr, body, .. } => {
+        Stmt::MatchUnion { expr, arms, else_body } => {
             collect_used_imports_in_expr(expr, imports, used);
-            for s in body { collect_used_imports_in_stmt(s, imports, used); }
+            for (_, body) in arms {
+                for s in body { collect_used_imports_in_stmt(s, imports, used); }
+            }
+            if let Some(body) = else_body {
+                for s in body { collect_used_imports_in_stmt(s, imports, used); }
+            }
         }
         Stmt::Match { expr, some_body, none_body, .. } => {
             collect_used_imports_in_expr(expr, imports, used);
@@ -370,11 +375,13 @@ fn stmt_references_name(stmt: &crate::parser::Stmt, name: &str) -> bool {
                 || post.as_ref().map_or(false, |s| stmt_references_name(s, name))
                 || body.iter().any(|s| stmt_references_name(s, name))
         }
-        Stmt::Defer(body) | Stmt::When { body, .. } | Stmt::Otherwise { body } => {
+        Stmt::Defer(body) | Stmt::When { body, .. } => {
             body.iter().any(|s| stmt_references_name(s, name))
         }
-        Stmt::WhenIs { expr, body, .. } => {
-            expr_references_name(expr, name) || body.iter().any(|s| stmt_references_name(s, name))
+        Stmt::MatchUnion { expr, arms, else_body } => {
+            expr_references_name(expr, name)
+                || arms.iter().any(|(_, b)| b.iter().any(|s| stmt_references_name(s, name)))
+                || else_body.as_ref().map_or(false, |b| b.iter().any(|s| stmt_references_name(s, name)))
         }
         Stmt::Match { expr, some_body, none_body, .. } => {
             expr_references_name(expr, name)
@@ -478,12 +485,17 @@ fn collect_needed_subnames_in_stmt(
             if let Some(s) = post { collect_needed_subnames_in_stmt(s, import_name, needed); }
             for s in body { collect_needed_subnames_in_stmt(s, import_name, needed); }
         }
-        Stmt::Defer(body) | Stmt::When { body, .. } | Stmt::Otherwise { body } => {
+        Stmt::Defer(body) | Stmt::When { body, .. } => {
             for s in body { collect_needed_subnames_in_stmt(s, import_name, needed); }
         }
-        Stmt::WhenIs { expr, body, .. } => {
+        Stmt::MatchUnion { expr, arms, else_body } => {
             collect_needed_subnames_in_expr(expr, import_name, needed);
-            for s in body { collect_needed_subnames_in_stmt(s, import_name, needed); }
+            for (_, body) in arms {
+                for s in body { collect_needed_subnames_in_stmt(s, import_name, needed); }
+            }
+            if let Some(body) = else_body {
+                for s in body { collect_needed_subnames_in_stmt(s, import_name, needed); }
+            }
         }
         Stmt::Match { expr, some_body, none_body, .. } => {
             collect_needed_subnames_in_expr(expr, import_name, needed);

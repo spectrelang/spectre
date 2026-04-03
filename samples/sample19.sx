@@ -5,19 +5,34 @@ union SomeUnion = {
 }
 
 fn some_function(x: SomeUnion) void! = {
-    when x is i32 {
-        std.io.put("hi inty int int")
-    }
-    when x is i64 {
-        std.io.put("hi bigger inty int")
-    }
-    otherwise {
-        std.io.put("hi something else")
+    match x {
+        i32 => {
+            std.io.put("hi inty int int")
+        }
+        i64 => {
+            std.io.put("hi bigger inty int")
+        }
+        else => {
+            std.io.put("hi something else")
+        }
     }
 }
 
+// Old: should no longer compile:
+//
+// fn some_function(x: SomeUnion) void! = {
+//     when x is i32 {
+//         std.io.put("hi inty int int")
+//     }
+//     when x is i64 {
+//         std.io.put("hi bigger inty int")
+//     }
+//     otherwise {
+//         std.io.put("hi something else")
+//     }
+// }
+
 pub fn main() void = {
-    val x: i32 = 12
     val y: ref char = "hello"
     trust some_function(y)
 }

@@ -193,10 +193,20 @@ fn check_shadowing_in_stmt(
                 scope_stack.pop();
             }
         }
+        Stmt::MatchUnion { arms, else_body, .. } => {
+            for (_, body) in arms {
+                scope_stack.push(HashSet::new());
+                check_shadowing_in_stmts(body, scope_stack, fn_name, filename, errors);
+                scope_stack.pop();
+            }
+            if let Some(body) = else_body {
+                scope_stack.push(HashSet::new());
+                check_shadowing_in_stmts(body, scope_stack, fn_name, filename, errors);
+                scope_stack.pop();
+            }
+        }
         Stmt::Defer(body)
-        | Stmt::When { body, .. }
-        | Stmt::WhenIs { body, .. }
-        | Stmt::Otherwise { body } => {
+        | Stmt::When { body, .. } => {
             scope_stack.push(HashSet::new());
             check_shadowing_in_stmts(body, scope_stack, fn_name, filename, errors);
             scope_stack.pop();
@@ -247,10 +257,16 @@ fn collect_declarations(
                     collect_declarations(body, declared, for_vars);
                 }
             }
+            Stmt::MatchUnion { arms, else_body, .. } => {
+                for (_, body) in arms {
+                    collect_declarations(body, declared, for_vars);
+                }
+                if let Some(body) = else_body {
+                    collect_declarations(body, declared, for_vars);
+                }
+            }
             Stmt::Defer(body)
-            | Stmt::When { body, .. }
-            | Stmt::WhenIs { body, .. }
-            | Stmt::Otherwise { body } => {
+            | Stmt::When { body, .. } => {
                 collect_declarations(body, declared, for_vars);
             }
             _ => {}
@@ -318,12 +334,7 @@ fn collect_used_in_stmt(stmt: &Stmt, used: &mut HashSet<String>) {
             collect_used_in_expr(expr, used);
         }
         Stmt::Defer(body)
-        | Stmt::When { body, .. }
-        | Stmt::Otherwise { body } => {
-            collect_used_in_stmts(body, used);
-        }
-        Stmt::WhenIs { expr, body, .. } => {
-            collect_used_in_expr(expr, used);
+        | Stmt::When { body, .. } => {
             collect_used_in_stmts(body, used);
         }
         Stmt::Match { expr, some_binding, some_body, none_body } => {
@@ -342,6 +353,15 @@ fn collect_used_in_stmt(stmt: &Stmt, used: &mut HashSet<String>) {
         Stmt::MatchEnum { expr, arms } => {
             collect_used_in_expr(expr, used);
             for (_, body) in arms {
+                collect_used_in_stmts(body, used);
+            }
+        }
+        Stmt::MatchUnion { expr, arms, else_body } => {
+            collect_used_in_expr(expr, used);
+            for (_, body) in arms {
+                collect_used_in_stmts(body, used);
+            }
+            if let Some(body) = else_body {
                 collect_used_in_stmts(body, used);
             }
         }
@@ -473,10 +493,17 @@ fn collect_mutated_in_stmt(stmt: &Stmt, mutated: &mut HashSet<String>) {
                 collect_mutated_in_stmts(body, mutated);
             }
         }
+        Stmt::MatchUnion { expr, arms, else_body } => {
+            collect_addr_deref_in_expr(expr, mutated);
+            for (_, body) in arms {
+                collect_mutated_in_stmts(body, mutated);
+            }
+            if let Some(body) = else_body {
+                collect_mutated_in_stmts(body, mutated);
+            }
+        }
         Stmt::Defer(body)
-        | Stmt::When { body, .. }
-        | Stmt::WhenIs { body, .. }
-        | Stmt::Otherwise { body } => {
+        | Stmt::When { body, .. } => {
             collect_mutated_in_stmts(body, mutated);
         }
         _ => {}
@@ -551,10 +578,16 @@ fn collect_var_types(stmts: &[Stmt], map: &mut HashMap<String, TypeExpr>) {
                     collect_var_types(body, map);
                 }
             }
+            Stmt::MatchUnion { arms, else_body, .. } => {
+                for (_, body) in arms {
+                    collect_var_types(body, map);
+                }
+                if let Some(body) = else_body {
+                    collect_var_types(body, map);
+                }
+            }
             Stmt::Defer(body)
-            | Stmt::When { body, .. }
-            | Stmt::WhenIs { body, .. }
-            | Stmt::Otherwise { body } => collect_var_types(body, map),
+            | Stmt::When { body, .. } => collect_var_types(body, map),
             _ => {}
         }
     }
@@ -620,10 +653,17 @@ fn collect_ref_used_in_stmt(
                 collect_ref_used_in_stmts(body, fn_lookup, out);
             }
         }
+        Stmt::MatchUnion { expr, arms, else_body } => {
+            collect_ref_used_in_expr(expr, fn_lookup, out);
+            for (_, body) in arms {
+                collect_ref_used_in_stmts(body, fn_lookup, out);
+            }
+            if let Some(body) = else_body {
+                collect_ref_used_in_stmts(body, fn_lookup, out);
+            }
+        }
         Stmt::Defer(body)
-        | Stmt::When { body, .. }
-        | Stmt::WhenIs { body, .. }
-        | Stmt::Otherwise { body } => {
+        | Stmt::When { body, .. } => {
             collect_ref_used_in_stmts(body, fn_lookup, out);
         }
         _ => {}
@@ -721,10 +761,16 @@ fn collect_var_mutability(stmts: &[Stmt], map: &mut HashMap<String, bool>) {
                     collect_var_mutability(body, map);
                 }
             }
+            Stmt::MatchUnion { arms, else_body, .. } => {
+                for (_, body) in arms {
+                    collect_var_mutability(body, map);
+                }
+                if let Some(body) = else_body {
+                    collect_var_mutability(body, map);
+                }
+            }
             Stmt::Defer(body)
-            | Stmt::When { body, .. }
-            | Stmt::WhenIs { body, .. }
-            | Stmt::Otherwise { body } => {
+            | Stmt::When { body, .. } => {
                 collect_var_mutability(body, map);
             }
             _ => {}
@@ -818,10 +864,17 @@ fn check_immutable_args_in_stmt(
                 check_immutable_args_in_stmts(body, var_mut, var_types, fn_lookup, fn_name, filename, errors);
             }
         }
+        Stmt::MatchUnion { expr, arms, else_body } => {
+            check_immutable_args_in_expr(expr, var_mut, var_types, fn_lookup, fn_name, filename, errors);
+            for (_, body) in arms {
+                check_immutable_args_in_stmts(body, var_mut, var_types, fn_lookup, fn_name, filename, errors);
+            }
+            if let Some(body) = else_body {
+                check_immutable_args_in_stmts(body, var_mut, var_types, fn_lookup, fn_name, filename, errors);
+            }
+        }
         Stmt::Defer(body)
-        | Stmt::When { body, .. }
-        | Stmt::WhenIs { body, .. }
-        | Stmt::Otherwise { body } => {
+        | Stmt::When { body, .. } => {
             check_immutable_args_in_stmts(body, var_mut, var_types, fn_lookup, fn_name, filename, errors);
         }
         _ => {}

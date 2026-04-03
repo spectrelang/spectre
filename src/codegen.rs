@@ -49,7 +49,6 @@ pub struct Codegen {
     current_fn: String,
     defer_stack: Vec<Vec<Stmt>>,
     current_loop_end: Option<String>,
-    when_chain_end: Option<String>,
     test_fns: Vec<String>,
     current_file: String,
     module_consts: HashMap<String, (String, &'static str)>,
@@ -86,7 +85,6 @@ impl Codegen {
             current_fn: String::new(),
             defer_stack: Vec::new(),
             current_loop_end: None,
-            when_chain_end: None,
             test_fns: Vec::new(),
             current_file: String::new(),
             module_consts: HashMap::new(),
@@ -272,7 +270,6 @@ impl Codegen {
         self.local_slot_is_d.clear();
         self.defer_stack.clear();
         self.type_aliases.clear();
-        self.when_chain_end = None;
         self.tmp_counter = 0;
 
         for (name, (val, ty)) in &self.module_consts.clone() {
@@ -380,7 +377,6 @@ impl Codegen {
         self.local_slot_is_d.clear();
         self.defer_stack.clear();
         self.type_aliases.clear();
-        self.when_chain_end = None;
         self.tmp_counter = 0;
         self.current_fn = format!("test_{}", test_id);
         self.current_fn_trusted = true;
@@ -884,39 +880,38 @@ impl Codegen {
                     self.emit_stmts(body, ns, ret_ty)?;
                 }
             }
-            Stmt::WhenIs { expr, ty, body } => {
-                let chain_end = if let Some(lbl) = &self.when_chain_end {
-                    lbl.clone()
-                } else {
-                    let lbl = format!("@when_end_{}", self.tmp_counter);
-                    self.tmp_counter += 1;
-                    self.when_chain_end = Some(lbl.clone());
-                    lbl
-                };
-
-                let tag_index = self.resolve_union_tag(expr, ty)?;
-                let body_lbl = format!("@when_body_{}", self.tmp_counter);
-                let skip_lbl = format!("@when_skip_{}", self.tmp_counter);
+            Stmt::MatchUnion { expr, arms, else_body } => {
+                let end_lbl = format!("@union_end_{}", self.tmp_counter);
                 self.tmp_counter += 1;
 
                 let (union_ptr, _) = self.emit_expr(expr, ns)?;
                 let tag_tmp = self.fresh_tmp();
                 self.emit(&format!("    {tag_tmp} =w loadw {union_ptr}"));
-                let cond_tmp = self.fresh_tmp();
-                self.emit(&format!("    {cond_tmp} =w ceqw {tag_tmp}, {tag_index}"));
-                self.emit(&format!("    jnz {cond_tmp}, {body_lbl}, {skip_lbl}"));
-                self.emit(&format!("{body_lbl}"));
-                self.emit_stmts(body, ns, ret_ty)?;
-                if !block_is_terminated(body) {
-                    self.emit(&format!("    jmp {chain_end}"));
+
+                for (i, (ty, body)) in arms.iter().enumerate() {
+                    let tag_index = self.resolve_union_tag(expr, ty)?;
+                    let body_lbl = format!("@union_arm_{i}_{}", self.tmp_counter - 1);
+                    let skip_lbl = format!("@union_skip_{i}_{}", self.tmp_counter - 1);
+
+                    let cond_tmp = self.fresh_tmp();
+                    self.emit(&format!("    {cond_tmp} =w ceqw {tag_tmp}, {tag_index}"));
+                    self.emit(&format!("    jnz {cond_tmp}, {body_lbl}, {skip_lbl}"));
+                    self.emit(&format!("{body_lbl}"));
+                    self.emit_stmts(body, ns, ret_ty)?;
+                    if !block_is_terminated(body) {
+                        self.emit(&format!("    jmp {end_lbl}"));
+                    }
+                    self.emit(&format!("{skip_lbl}"));
                 }
-                self.emit(&format!("{skip_lbl}"));
-            }
-            Stmt::Otherwise { body } => {
-                self.emit_stmts(body, ns, ret_ty)?;
-                if let Some(lbl) = self.when_chain_end.take() {
-                    self.emit(&format!("{lbl}"));
+
+                if let Some(body) = else_body {
+                    self.emit_stmts(body, ns, ret_ty)?;
+                    if !block_is_terminated(body) {
+                        self.emit(&format!("    jmp {end_lbl}"));
+                    }
                 }
+
+                self.emit(&format!("{end_lbl}"));
             }
             Stmt::Assert(expr, line) => {
                 let (cond, _) = self.emit_expr(expr, ns)?;
@@ -2112,9 +2107,11 @@ fn all_trusted_stmts(stmts: &[Stmt]) -> bool {
             all_trusted_stmts(ok_body) && all_trusted_stmts(err_body)
         }
         Stmt::MatchEnum { arms, .. } => arms.iter().all(|(_, b)| all_trusted_stmts(b)),
+        Stmt::MatchUnion { arms, else_body, .. } => {
+            arms.iter().all(|(_, b)| all_trusted_stmts(b))
+                && else_body.as_deref().map_or(true, all_trusted_stmts)
+        }
         Stmt::When { body, .. } => all_trusted_stmts(body),
-        Stmt::WhenIs { body, .. } => all_trusted_stmts(body),
-        Stmt::Otherwise { body } => all_trusted_stmts(body),
         Stmt::Expr(_) => false,    })
 }
 
@@ -2185,10 +2182,12 @@ fn find_bare_builtin_in_stmt(stmt: &Stmt) -> Option<String> {
             find_bare_builtin_in_expr(expr)
                 .or_else(|| arms.iter().find_map(|(_, b)| find_bare_builtin_in_stmts(b)))
         }
-        Stmt::When { body, .. } => find_bare_builtin_in_stmts(body),        Stmt::WhenIs { expr, body, .. } => {
-            find_bare_builtin_in_expr(expr).or_else(|| find_bare_builtin_in_stmts(body))
+        Stmt::MatchUnion { expr, arms, else_body } => {
+            find_bare_builtin_in_expr(expr)
+                .or_else(|| arms.iter().find_map(|(_, b)| find_bare_builtin_in_stmts(b)))
+                .or_else(|| else_body.as_deref().and_then(find_bare_builtin_in_stmts))
         }
-        Stmt::Otherwise { body } => find_bare_builtin_in_stmts(body),
+        Stmt::When { body, .. } => find_bare_builtin_in_stmts(body),        
         Stmt::Increment(_)
         | Stmt::Decrement(_)
         | Stmt::AddAssign(..)
@@ -2254,10 +2253,12 @@ fn find_bare_deref_assign_in_stmt(stmt: &Stmt) -> bool {
         Stmt::MatchEnum { arms, .. } => {
             arms.iter().any(|(_, b)| find_bare_deref_assign_in_stmts(b))
         }
+        Stmt::MatchUnion { arms, else_body, .. } => {
+            arms.iter().any(|(_, b)| find_bare_deref_assign_in_stmts(b))
+                || else_body.as_deref().map_or(false, find_bare_deref_assign_in_stmts)
+        }
         Stmt::Defer(body)
-        | Stmt::When { body, .. }
-        | Stmt::WhenIs { body, .. }
-        | Stmt::Otherwise { body } => find_bare_deref_assign_in_stmts(body),
+        | Stmt::When { body, .. } => find_bare_deref_assign_in_stmts(body),
         _ => false,
     }
 }

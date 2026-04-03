@@ -1854,18 +1854,6 @@ mod union_codegen_tests {
     }
 
     #[test]
-    fn lex_is_keyword() {
-        let toks = Lexer::new("is").tokenize().unwrap();
-        assert_eq!(toks[0].kind, TokenKind::Is);
-    }
-
-    #[test]
-    fn lex_otherwise_keyword() {
-        let toks = Lexer::new("otherwise").tokenize().unwrap();
-        assert_eq!(toks[0].kind, TokenKind::Otherwise);
-    }
-
-    #[test]
     fn parse_union_def_two_variants() {
         let m = parse("union Shape = { i32 | i64 }");
         let Item::UnionDef {
@@ -1903,12 +1891,12 @@ mod union_codegen_tests {
             r#"
             union U = { i32 | i64 }
             fn f(x: U) void! = {
-                when x is i32 { val a = 1 }
+                match x { i32 => { val a = 1 } else => {} }
             }
         "#,
         );
         let Item::Fn(f) = &m.items[1] else { panic!() };
-        assert!(matches!(f.body[0], Stmt::WhenIs { .. }));
+        assert!(matches!(f.body[0], Stmt::MatchUnion { .. }));
     }
 
     #[test]
@@ -1917,15 +1905,15 @@ mod union_codegen_tests {
             r#"
             union U = { i32 | i64 }
             fn f(x: U) void! = {
-                when x is i64 { val a = 1 }
+                match x { i64 => { val a = 1 } else => {} }
             }
         "#,
         );
         let Item::Fn(f) = &m.items[1] else { panic!() };
-        let Stmt::WhenIs { ty, .. } = &f.body[0] else {
+        let Stmt::MatchUnion { arms, .. } = &f.body[0] else {
             panic!()
         };
-        assert!(matches!(ty, TypeExpr::Named(n) if n == "i64"));
+        assert!(matches!(&arms[0].0, TypeExpr::Named(n) if n == "i64"));
     }
 
     #[test]
@@ -1934,13 +1922,15 @@ mod union_codegen_tests {
             r#"
             union U = { i32 | i64 }
             fn f(x: U) void! = {
-                when x is i32 { val a = 1 }
-                otherwise { val b = 2 }
+                match x { i32 => { val a = 1 } else => { val b = 2 } }
             }
         "#,
         );
         let Item::Fn(f) = &m.items[1] else { panic!() };
-        assert!(matches!(f.body[1], Stmt::Otherwise { .. }));
+        let Stmt::MatchUnion { else_body, .. } = &f.body[0] else {
+            panic!()
+        };
+        assert!(else_body.is_some());
     }
 
     #[test]
@@ -1954,8 +1944,7 @@ mod union_codegen_tests {
             r#"
             union U = { i32 | i64 }
             fn consume(x: U) void! = {
-                when x is i32 { val a = 1 }
-                otherwise {}
+                match x { i32 => { val a = 1 } else => {} }
             }
             pub fn main() void! = {
                 val v: i32 = 42
@@ -1975,8 +1964,7 @@ mod union_codegen_tests {
             r#"
             union U = { i32 | i64 }
             fn consume(x: U) void! = {
-                when x is i32 { val a = 1 }
-                otherwise {}
+                match x { i32 => { val a = 1 } else => {} }
             }
             pub fn main() void! = {
                 val v: i32 = 42
@@ -1993,8 +1981,7 @@ mod union_codegen_tests {
             r#"
             union U = { i32 | i64 }
             fn consume(x: U) void! = {
-                when x is i64 { val a = 1 }
-                otherwise {}
+                match x { i64 => { val a = 1 } else => {} }
             }
             pub fn main() void! = {
                 val v: i64 = 99
@@ -2011,8 +1998,7 @@ mod union_codegen_tests {
             r#"
             union U = { i32 | i64 }
             fn consume(x: U) void! = {
-                when x is i32 { val a = 1 }
-                otherwise {}
+                match x { i32 => { val a = 1 } else => {} }
             }
             pub fn main() void! = {
                 val v: i32 = 7
@@ -2032,13 +2018,12 @@ mod union_codegen_tests {
             r#"
             union U = { i32 | i64 }
             fn f(x: U) void! = {
-                when x is i32 { val a = 1 }
-                otherwise {}
+                match x { i32 => { val a = 1 } else => {} }
             }
             pub fn main() void! = {}
         "#,
         );
-        assert!(ir.contains("=w loadw"), "when/is must load tag as word");
+        assert!(ir.contains("=w loadw"), "match union must load tag as word");
     }
 
     #[test]
@@ -2047,13 +2032,12 @@ mod union_codegen_tests {
             r#"
             union U = { i32 | i64 }
             fn f(x: U) void! = {
-                when x is i32 { val a = 1 }
-                otherwise {}
+                match x { i32 => { val a = 1 } else => {} }
             }
             pub fn main() void! = {}
         "#,
         );
-        assert!(ir.contains("=w ceqw"), "when/is must compare tag with ceqw");
+        assert!(ir.contains("=w ceqw"), "match union must compare tag with ceqw");
     }
 
     #[test]
@@ -2062,19 +2046,18 @@ mod union_codegen_tests {
             r#"
             union U = { i32 | i64 }
             fn f(x: U) void! = {
-                when x is i32 { val a = 1 }
-                otherwise {}
+                match x { i32 => { val a = 1 } else => {} }
             }
             pub fn main() void! = {}
         "#,
         );
         assert!(
-            ir.contains("@when_body_"),
-            "when body label must be emitted"
+            ir.contains("@union_arm_"),
+            "union arm label must be emitted"
         );
         assert!(
-            ir.contains("@when_skip_"),
-            "when skip label must be emitted"
+            ir.contains("@union_skip_"),
+            "union skip label must be emitted"
         );
     }
 
@@ -2084,16 +2067,14 @@ mod union_codegen_tests {
             r#"
             union U = { i32 | i64 }
             fn f(x: U) void! = {
-                when x is i32 { val a = 1 }
-                when x is i64 { val b = 2 }
-                otherwise {}
+                match x { i32 => { val a = 1 } i64 => { val b = 2 } else => {} }
             }
             pub fn main() void! = {}
         "#,
         );
         assert!(
-            ir.contains("@when_end_"),
-            "when chain must emit a shared end label"
+            ir.contains("@union_end_"),
+            "match union must emit a shared end label"
         );
     }
 
@@ -2103,9 +2084,7 @@ mod union_codegen_tests {
             r#"
             union U = { i32 | i64 }
             fn f(x: U) void! = {
-                when x is i32 { val a = 1 }
-                when x is i64 { val b = 2 }
-                otherwise {}
+                match x { i32 => { val a = 1 } i64 => { val b = 2 } else => {} }
             }
             pub fn main() void! = {}
         "#,
@@ -2123,8 +2102,7 @@ mod union_codegen_tests {
             r#"
             union U = { i32 | i64 }
             fn f(x: U) void! = {
-                when x is bool { val a = 1 }
-                otherwise {}
+                match x { bool => { val a = 1 } else => {} }
             }
             pub fn main() void! = {}
         "#,
@@ -2141,8 +2119,7 @@ mod union_codegen_tests {
             r#"
             type T = { x: i32 }
             fn f(x: T) void! = {
-                when x is i32 { val a = 1 }
-                otherwise {}
+                match x { i32 => { val a = 1 } else => {} }
             }
             pub fn main() void! = {}
         "#,
@@ -3170,7 +3147,10 @@ mod shadowing_tests {
             }"#,
         );
         assert!(err.contains("shadows"), "expected shadow error, got: {err}");
-        assert!(err.contains("'x'"), "expected variable name in error, got: {err}");
+        assert!(
+            err.contains("'x'"),
+            "expected variable name in error, got: {err}"
+        );
     }
 
     #[test]
@@ -3182,7 +3162,10 @@ mod shadowing_tests {
             }"#,
         );
         assert!(err.contains("shadows"), "expected shadow error, got: {err}");
-        assert!(err.contains("'x'"), "expected variable name in error, got: {err}");
+        assert!(
+            err.contains("'x'"),
+            "expected variable name in error, got: {err}"
+        );
     }
 
     #[test]
@@ -3234,6 +3217,9 @@ mod shadowing_tests {
                 val x: i32 = 0
             }"#,
         );
-        assert!(err.contains("my_func"), "expected function name in error, got: {err}");
+        assert!(
+            err.contains("my_func"),
+            "expected function name in error, got: {err}"
+        );
     }
 }

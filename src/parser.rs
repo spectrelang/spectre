@@ -154,15 +154,11 @@ pub enum Stmt {
         platform: String,
         body: Vec<Stmt>,
     },
-    /// `when <expr> is <type> { ... }` — union type dispatch
-    WhenIs {
+    /// `match expr { TypeName => { ... } else => { ... } }` — union type dispatch
+    MatchUnion {
         expr: Expr,
-        ty: TypeExpr,
-        body: Vec<Stmt>,
-    },
-    /// `otherwise { ... }` — fallback for union when/is chains
-    Otherwise {
-        body: Vec<Stmt>,
+        arms: Vec<(TypeExpr, Vec<Stmt>)>,
+        else_body: Option<Vec<Stmt>>,
     },
 }
 
@@ -827,30 +823,11 @@ impl Parser {
             }
             TokenKind::When => {
                 self.advance();
-                let is_when_is = matches!(self.peek(), TokenKind::Ident(_))
-                    && self.tokens.get(self.pos + 1).map(|t| &t.kind) == Some(&TokenKind::Is);
-                if is_when_is {
-                    let expr = self.parse_expr()?;
-                    self.expect(&TokenKind::Is)?;
-                    let ty = self.parse_type()?;
-                    self.expect(&TokenKind::LBrace)?;
-                    let body = self.parse_stmts()?;
-                    self.expect(&TokenKind::RBrace)?;
-                    Ok(Stmt::WhenIs { expr, ty, body })
-                } else {
-                    let platform = self.expect_ident()?;
-                    self.expect(&TokenKind::LBrace)?;
-                    let body = self.parse_stmts()?;
-                    self.expect(&TokenKind::RBrace)?;
-                    Ok(Stmt::When { platform, body })
-                }
-            }
-            TokenKind::Otherwise => {
-                self.advance();
+                let platform = self.expect_ident()?;
                 self.expect(&TokenKind::LBrace)?;
                 let body = self.parse_stmts()?;
                 self.expect(&TokenKind::RBrace)?;
-                Ok(Stmt::Otherwise { body })
+                Ok(Stmt::When { platform, body })
             }
             TokenKind::Assert => {
                 self.advance();
@@ -864,10 +841,17 @@ impl Parser {
                 self.expect(&TokenKind::LBrace)?;
 
                 // Need to fucking look AHEAD to see if this is a result match (ok/err) or option match (some/none)
-                // or an enum match (EnumType.Variant => ...)
+                // ...or an enum match (EnumType.Variant => ...)
+                // ...or a union match (TypeName => ...)
                 let is_result_match = matches!(self.peek(), TokenKind::Ok | TokenKind::Err);
                 let is_enum_match = !is_result_match && matches!(self.peek(), TokenKind::Ident(_))
                     && self.tokens.get(self.pos + 1).map(|t| &t.kind) == Some(&TokenKind::Dot);
+                let is_union_match = !is_result_match && !is_enum_match && (
+                    matches!(self.peek(), TokenKind::Ref)
+                    || (matches!(self.peek(), TokenKind::Ident(_))
+                        && self.tokens.get(self.pos + 1).map(|t| &t.kind) == Some(&TokenKind::FatArrow))
+                    || (matches!(self.peek(), TokenKind::Else))
+                );
 
                 if is_result_match {
                     let mut ok_binding = None;
@@ -922,6 +906,27 @@ impl Parser {
                     }
                     self.expect(&TokenKind::RBrace)?;
                     Ok(Stmt::MatchEnum { expr, arms })
+                } else if is_union_match {
+                    let mut arms: Vec<(TypeExpr, Vec<Stmt>)> = Vec::new();
+                    let mut else_body = None;
+                    while self.peek() != &TokenKind::RBrace && self.peek() != &TokenKind::Eof {
+                        if self.peek() == &TokenKind::Else {
+                            self.advance();
+                            self.expect(&TokenKind::FatArrow)?;
+                            self.expect(&TokenKind::LBrace)?;
+                            else_body = Some(self.parse_stmts()?);
+                            self.expect(&TokenKind::RBrace)?;
+                            break;
+                        }
+                        let ty = self.parse_type()?;
+                        self.expect(&TokenKind::FatArrow)?;
+                        self.expect(&TokenKind::LBrace)?;
+                        let body = self.parse_stmts()?;
+                        self.expect(&TokenKind::RBrace)?;
+                        arms.push((ty, body));
+                    }
+                    self.expect(&TokenKind::RBrace)?;
+                    Ok(Stmt::MatchUnion { expr, arms, else_body })
                 } else {
                     let mut some_binding = None;
                     let mut some_body = None;
