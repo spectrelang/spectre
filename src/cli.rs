@@ -136,4 +136,28 @@ impl Platform {
             _ => None,
         }
     }
+
+    /// Returns true if this platform matches the given `when` clause name.
+    /// Handles both specific platform names and group aliases:
+    ///   "posix"   — Linux, macOS, *BSD, Solaris, Illumos, Haiku, Android, Redox
+    ///   "windows" — Windows only (also works as a specific name)
+    pub fn matches_name(self, name: &str) -> bool {
+        match name {
+            "posix" => matches!(
+                self,
+                Platform::Linux
+                    | Platform::Darwin
+                    | Platform::FreeBsd
+                    | Platform::OpenBsd
+                    | Platform::NetBsd
+                    | Platform::DragonFlyBsd
+                    | Platform::Solaris
+                    | Platform::Illumos
+                    | Platform::Haiku
+                    | Platform::Android
+                    | Platform::Redox
+            ),
+            _ => Platform::from_str(name).map_or(false, |p| p == self),
+        }
+    }
 }

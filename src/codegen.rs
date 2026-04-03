@@ -348,9 +348,7 @@ impl Codegen {
         ));
         self.emit("@start");
 
-        for stmt in &f.body {
-            self.emit_stmt(stmt, ns, &f.ret)?;
-        }
+        self.emit_stmts(&f.body, ns, &f.ret)?;
 
         if matches!(f.ret, TypeExpr::Void) {
             self.emit_defers(ns, &f.ret)?;
@@ -392,9 +390,7 @@ impl Codegen {
         self.emit(&format!("export function w $test_{}() {{", test_id));
         self.emit("@start");
 
-        for stmt in body {
-            self.emit_stmt(stmt, ns, &TypeExpr::Void)?;
-        }
+        self.emit_stmts(body, ns, &TypeExpr::Void)?;
 
         self.emit("    ret 0");
         self.emit("}");
@@ -417,6 +413,18 @@ impl Codegen {
         self.emit("    ret 0");
         self.emit("}");
         self.emit("");
+        Ok(())
+    }
+
+    fn emit_stmts(&mut self, stmts: &[Stmt], ns: &Namespace, ret_ty: &TypeExpr) -> Result<(), String> {
+        for stmt in stmts {
+            self.emit_stmt(stmt, ns, ret_ty)?;
+            if let Stmt::When { platform, body } = stmt {
+                if self.platform.matches_name(platform) && block_is_terminated(body) {
+                    return Ok(());
+                }
+            }
+        }
         Ok(())
     }
 
@@ -703,9 +711,7 @@ impl Codegen {
                 let (cond_tmp, _) = self.emit_expr(cond, ns)?;
                 self.emit(&format!("    jnz {cond_tmp}, {then_lbl}, {first_else_lbl}"));
                 self.emit(&format!("{then_lbl}"));
-                for s in then {
-                    self.emit_stmt(s, ns, ret_ty)?;
-                }
+                self.emit_stmts(then, ns, ret_ty)?;
                 if !block_is_terminated(then) {
                     self.emit(&format!("    jmp {end_lbl}"));
                 }
@@ -716,9 +722,7 @@ impl Codegen {
                     let (ec, _) = self.emit_expr(elif_cond, ns)?;
                     self.emit(&format!("    jnz {ec}, {body_lbl}, {next_lbl}"));
                     self.emit(&format!("{body_lbl}"));
-                    for s in elif_body {
-                        self.emit_stmt(s, ns, ret_ty)?;
-                    }
+                    self.emit_stmts(elif_body, ns, ret_ty)?;
                     if !block_is_terminated(elif_body) {
                         self.emit(&format!("    jmp {end_lbl}"));
                     }
@@ -726,9 +730,7 @@ impl Codegen {
 
                 if let Some(else_stmts) = else_ {
                     self.emit(&format!("@if_else_{id}"));
-                    for s in else_stmts {
-                        self.emit_stmt(s, ns, ret_ty)?;
-                    }
+                    self.emit_stmts(else_stmts, ns, ret_ty)?;
                     if !block_is_terminated(else_stmts) {
                         self.emit(&format!("    jmp {end_lbl}"));
                     }
@@ -771,9 +773,7 @@ impl Codegen {
 
                 self.emit(&format!("{body_lbl}"));
                 let prev_loop_end = self.current_loop_end.replace(end_lbl.clone());
-                for s in body {
-                    self.emit_stmt(s, ns, ret_ty)?;
-                }
+                self.emit_stmts(body, ns, ret_ty)?;
                 self.current_loop_end = prev_loop_end;
 
                 if !block_is_terminated(body) {
@@ -875,13 +875,9 @@ impl Codegen {
                 self.emit(&format!("    jmp {end_lbl}"));
             }
             Stmt::When { platform, body } => {
-                let matches = Platform::from_str(platform)
-                    .map(|p| p == self.platform)
-                    .unwrap_or(false);
+                let matches = self.platform.matches_name(platform);
                 if matches {
-                    for s in body {
-                        self.emit_stmt(s, ns, ret_ty)?;
-                    }
+                    self.emit_stmts(body, ns, ret_ty)?;
                 }
             }
             Stmt::WhenIs { expr, ty, body } => {
@@ -906,18 +902,14 @@ impl Codegen {
                 self.emit(&format!("    {cond_tmp} =w ceqw {tag_tmp}, {tag_index}"));
                 self.emit(&format!("    jnz {cond_tmp}, {body_lbl}, {skip_lbl}"));
                 self.emit(&format!("{body_lbl}"));
-                for s in body {
-                    self.emit_stmt(s, ns, ret_ty)?;
-                }
+                self.emit_stmts(body, ns, ret_ty)?;
                 if !block_is_terminated(body) {
                     self.emit(&format!("    jmp {chain_end}"));
                 }
                 self.emit(&format!("{skip_lbl}"));
             }
             Stmt::Otherwise { body } => {
-                for s in body {
-                    self.emit_stmt(s, ns, ret_ty)?;
-                }
+                self.emit_stmts(body, ns, ret_ty)?;
                 if let Some(lbl) = self.when_chain_end.take() {
                     self.emit(&format!("{lbl}"));
                 }
@@ -959,22 +951,25 @@ impl Codegen {
                 let unwrapped = self.fresh_tmp();
                 self.emit(&format!("    {unwrapped} =l sub {val_tmp}, 1"));
                 self.locals.insert(some_binding.clone(), unwrapped);
-                for s in some_body {
-                    self.emit_stmt(s, ns, ret_ty)?;
-                }
-                if !block_is_terminated(some_body) {
+                self.emit_stmts(some_body, ns, ret_ty)?;
+                let some_terminated = block_is_terminated(some_body);
+                if !some_terminated {
                     self.emit(&format!("    jmp {end_lbl}"));
                 }
 
                 self.emit(&format!("{none_lbl}"));
-                for s in none_body {
-                    self.emit_stmt(s, ns, ret_ty)?;
-                }
-                if !block_is_terminated(none_body) {
+                self.emit_stmts(none_body, ns, ret_ty)?;
+                let none_terminated = block_is_terminated(none_body);
+                if !none_terminated {
                     self.emit(&format!("    jmp {end_lbl}"));
                 }
 
-                self.emit(&format!("{end_lbl}"));
+                // Only emit the end label if at least one arm falls through to it.
+                // If both arms terminate (return/break), the label would be an empty
+                // block with no terminator, which is invalid QBE.
+                if !some_terminated || !none_terminated {
+                    self.emit(&format!("{end_lbl}"));
+                }
             }
         }
         Ok(())
@@ -984,9 +979,7 @@ impl Codegen {
     fn emit_defers(&mut self, ns: &Namespace, ret_ty: &TypeExpr) -> Result<(), String> {
         let defers = self.defer_stack.clone();
         for body in defers.iter().rev() {
-            for s in body {
-                self.emit_stmt(s, ns, ret_ty)?;
-            }
+            self.emit_stmts(body, ns, ret_ty)?;
         }
         Ok(())
     }

@@ -14,6 +14,7 @@ pub struct ResolvedModule {
     pub dir: PathBuf,
     pub filename: String,
     pub links: Vec<String>,
+    pub warnings: Vec<String>,
 }
 
 /// Entry point: compile a .sx file to QBE IR.
@@ -41,8 +42,17 @@ pub fn compile_file(input: &str, args: &Args) -> Result<(String, Vec<String>, Ve
     let mut cg = Codegen::new();
 
     cg.emit_module(&resolved, args.test, args.release)?;
-    let warnings = cg.warnings.clone();
+    let mut warnings = cg.warnings.clone();
+    collect_parse_warnings(&resolved, &mut warnings);
     Ok((cg.finish(), warnings, libs))
+}
+
+/// Recursively collect parser warnings from a resolved module tree.
+fn collect_parse_warnings(resolved: &ResolvedModule, out: &mut Vec<String>) {
+    out.extend(resolved.warnings.iter().cloned());
+    for child in resolved.imports.values() {
+        collect_parse_warnings(child, out);
+    }
 }
 
 /// Collect link libs:
@@ -229,6 +239,7 @@ pub fn resolve_module(
     let tokens = lex.tokenize().map_err(|e| format!("{filename}:{e}"))?;
     let mut parser = Parser::with_filename(tokens, filename.to_string());
     let ast = parser.parse_module()?;
+    let parse_warnings = parser.warnings;
     let mut imports = HashMap::new();
     let self_path = PathBuf::from(filename);
 
@@ -292,10 +303,7 @@ pub fn resolve_module(
     let mut links: Vec<String> = Vec::new();
     for item in &ast.items {
         if let Item::LinkWhen { platform, libs } = item {
-            if crate::cli::Platform::from_str(platform)
-                .map(|p| p == current_platform)
-                .unwrap_or(false)
-            {
+            if current_platform.matches_name(platform) {
                 links.extend(libs.iter().cloned());
             }
         }
@@ -312,6 +320,7 @@ pub fn resolve_module(
         dir: dir.to_path_buf(),
         filename: filename.to_string(),
         links,
+        warnings: parse_warnings,
     })
 }
 

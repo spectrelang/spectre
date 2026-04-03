@@ -237,6 +237,7 @@ pub struct Parser {
     tokens: Vec<Token>,
     pos: usize,
     filename: String,
+    pub warnings: Vec<String>,
 }
 
 impl Parser {
@@ -245,6 +246,7 @@ impl Parser {
             tokens,
             pos: 0,
             filename: String::new(),
+            warnings: Vec::new(),
         }
     }
 
@@ -253,6 +255,7 @@ impl Parser {
             tokens,
             pos: 0,
             filename,
+            warnings: Vec::new(),
         }
     }
 
@@ -395,7 +398,6 @@ impl Parser {
         let mut params = Vec::new();
         let mut variadic_after = None;
         while self.peek() != &TokenKind::RParen {
-            // Check for `...` variadic marker
             if self.peek() == &TokenKind::DotDotDot {
                 self.advance();
                 variadic_after = Some(params.len());
@@ -499,7 +501,6 @@ impl Parser {
                 let inner = self.parse_type()?;
                 Ok(TypeExpr::Slice(Box::new(inner)))
             }
-            // `fn(T, T) R` — function pointer type
             TokenKind::Fn => {
                 self.advance();
                 self.expect(&TokenKind::LParen)?;
@@ -534,6 +535,17 @@ impl Parser {
             }
             TokenKind::Mut => {
                 self.advance();
+                if self.peek() == &TokenKind::Ref {
+                    let tok = self.peek_token();
+                    let loc = if self.filename.is_empty() {
+                        format!("{}:{}", tok.line, tok.col)
+                    } else {
+                        format!("{}:{}:{}", self.filename, tok.line, tok.col)
+                    };
+                    self.warnings.push(format!(
+                        "{loc}: 'mut ref' is redundant because references are mutable by definition; use 'ref' instead"
+                    ));
+                }
                 self.parse_type()
             }
             TokenKind::Ref => {

@@ -88,12 +88,15 @@ fn check_fn(f: &FnDef, filename: &str, fn_lookup: &HashMap<String, &Vec<(String,
     }
 
     let mut var_mutability: HashMap<String, bool> = HashMap::new();
-    for (pname, _) in &f.params {
+    let mut var_types: HashMap<String, TypeExpr> = HashMap::new();
+    for (pname, pty) in &f.params {
         var_mutability.insert(pname.clone(), true);
+        var_types.insert(pname.clone(), pty.clone());
     }
     collect_var_mutability(&f.body, &mut var_mutability);
+    collect_var_types(&f.body, &mut var_types);
 
-    check_immutable_args_in_stmts(&f.body, &var_mutability, fn_lookup, &f.name, filename, errors);
+    check_immutable_args_in_stmts(&f.body, &var_mutability, &var_types, fn_lookup, &f.name, filename, errors);
 }
 
 fn check_shadowing_in_stmts(
@@ -465,6 +468,30 @@ fn expr_root_name(expr: &Expr) -> Option<String> {
     }
 }
 
+/// Build a flat map of variable name -> declared TypeExpr from `val` declarations.
+fn collect_var_types(stmts: &[Stmt], map: &mut HashMap<String, TypeExpr>) {
+    for stmt in stmts {
+        match stmt {
+            Stmt::Val { name, ty: Some(ty), .. } => { map.insert(name.clone(), ty.clone()); }
+            Stmt::For { body, .. } => collect_var_types(body, map),
+            Stmt::If { then, elif_, else_, .. } => {
+                collect_var_types(then, map);
+                for (_, b) in elif_ { collect_var_types(b, map); }
+                if let Some(b) = else_ { collect_var_types(b, map); }
+            }
+            Stmt::Match { some_body, none_body, .. } => {
+                collect_var_types(some_body, map);
+                collect_var_types(none_body, map);
+            }
+            Stmt::Defer(body)
+            | Stmt::When { body, .. }
+            | Stmt::WhenIs { body, .. }
+            | Stmt::Otherwise { body } => collect_var_types(body, map),
+            _ => {}
+        }
+    }
+}
+
 /// Collect variable names that are passed to builtins or to `ref` parameters.
 /// These are considered "effectively mutated" for the purposes of the mut-but-never-mutated check.
 fn collect_ref_used_in_stmts(
@@ -617,19 +644,21 @@ fn collect_var_mutability(stmts: &[Stmt], map: &mut HashMap<String, bool>) {
 fn check_immutable_args_in_stmts(
     stmts: &[Stmt],
     var_mut: &HashMap<String, bool>,
+    var_types: &HashMap<String, TypeExpr>,
     fn_lookup: &HashMap<String, &Vec<(String, TypeExpr)>>,
     fn_name: &str,
     filename: &str,
     errors: &mut Vec<String>,
 ) {
     for stmt in stmts {
-        check_immutable_args_in_stmt(stmt, var_mut, fn_lookup, fn_name, filename, errors);
+        check_immutable_args_in_stmt(stmt, var_mut, var_types, fn_lookup, fn_name, filename, errors);
     }
 }
 
 fn check_immutable_args_in_stmt(
     stmt: &Stmt,
     var_mut: &HashMap<String, bool>,
+    var_types: &HashMap<String, TypeExpr>,
     fn_lookup: &HashMap<String, &Vec<(String, TypeExpr)>>,
     fn_name: &str,
     filename: &str,
@@ -637,59 +666,59 @@ fn check_immutable_args_in_stmt(
 ) {
     match stmt {
         Stmt::Val { expr, .. } => {
-            check_immutable_args_in_expr(expr, var_mut, fn_lookup, fn_name, filename, errors);
+            check_immutable_args_in_expr(expr, var_mut, var_types, fn_lookup, fn_name, filename, errors);
         }
         Stmt::Assign { target, value } => {
-            check_immutable_args_in_expr(target, var_mut, fn_lookup, fn_name, filename, errors);
-            check_immutable_args_in_expr(value, var_mut, fn_lookup, fn_name, filename, errors);
+            check_immutable_args_in_expr(target, var_mut, var_types, fn_lookup, fn_name, filename, errors);
+            check_immutable_args_in_expr(value, var_mut, var_types, fn_lookup, fn_name, filename, errors);
         }
         Stmt::Return(Some(e)) => {
-            check_immutable_args_in_expr(e, var_mut, fn_lookup, fn_name, filename, errors);
+            check_immutable_args_in_expr(e, var_mut, var_types, fn_lookup, fn_name, filename, errors);
         }
         Stmt::Expr(e) => {
-            check_immutable_args_in_expr(e, var_mut, fn_lookup, fn_name, filename, errors);
+            check_immutable_args_in_expr(e, var_mut, var_types, fn_lookup, fn_name, filename, errors);
         }
         Stmt::Pre(cs) | Stmt::Post(cs) | Stmt::GuardedPre(cs) | Stmt::GuardedPost(cs) => {
             for c in cs {
-                check_immutable_args_in_expr(&c.expr, var_mut, fn_lookup, fn_name, filename, errors);
+                check_immutable_args_in_expr(&c.expr, var_mut, var_types, fn_lookup, fn_name, filename, errors);
             }
         }
         Stmt::Assert(e, _) => {
-            check_immutable_args_in_expr(e, var_mut, fn_lookup, fn_name, filename, errors);
+            check_immutable_args_in_expr(e, var_mut, var_types, fn_lookup, fn_name, filename, errors);
         }
         Stmt::If { cond, then, elif_, else_, .. } => {
-            check_immutable_args_in_expr(cond, var_mut, fn_lookup, fn_name, filename, errors);
-            check_immutable_args_in_stmts(then, var_mut, fn_lookup, fn_name, filename, errors);
+            check_immutable_args_in_expr(cond, var_mut, var_types, fn_lookup, fn_name, filename, errors);
+            check_immutable_args_in_stmts(then, var_mut, var_types, fn_lookup, fn_name, filename, errors);
             for (ec, eb) in elif_ {
-                check_immutable_args_in_expr(ec, var_mut, fn_lookup, fn_name, filename, errors);
-                check_immutable_args_in_stmts(eb, var_mut, fn_lookup, fn_name, filename, errors);
+                check_immutable_args_in_expr(ec, var_mut, var_types, fn_lookup, fn_name, filename, errors);
+                check_immutable_args_in_stmts(eb, var_mut, var_types, fn_lookup, fn_name, filename, errors);
             }
             if let Some(b) = else_ {
-                check_immutable_args_in_stmts(b, var_mut, fn_lookup, fn_name, filename, errors);
+                check_immutable_args_in_stmts(b, var_mut, var_types, fn_lookup, fn_name, filename, errors);
             }
         }
         Stmt::For { init, cond, post, body } => {
             if let Some((_, e)) = init {
-                check_immutable_args_in_expr(e, var_mut, fn_lookup, fn_name, filename, errors);
+                check_immutable_args_in_expr(e, var_mut, var_types, fn_lookup, fn_name, filename, errors);
             }
             if let Some(e) = cond {
-                check_immutable_args_in_expr(e, var_mut, fn_lookup, fn_name, filename, errors);
+                check_immutable_args_in_expr(e, var_mut, var_types, fn_lookup, fn_name, filename, errors);
             }
             if let Some(s) = post {
-                check_immutable_args_in_stmt(s, var_mut, fn_lookup, fn_name, filename, errors);
+                check_immutable_args_in_stmt(s, var_mut, var_types, fn_lookup, fn_name, filename, errors);
             }
-            check_immutable_args_in_stmts(body, var_mut, fn_lookup, fn_name, filename, errors);
+            check_immutable_args_in_stmts(body, var_mut, var_types, fn_lookup, fn_name, filename, errors);
         }
         Stmt::Match { expr, some_body, none_body, .. } => {
-            check_immutable_args_in_expr(expr, var_mut, fn_lookup, fn_name, filename, errors);
-            check_immutable_args_in_stmts(some_body, var_mut, fn_lookup, fn_name, filename, errors);
-            check_immutable_args_in_stmts(none_body, var_mut, fn_lookup, fn_name, filename, errors);
+            check_immutable_args_in_expr(expr, var_mut, var_types, fn_lookup, fn_name, filename, errors);
+            check_immutable_args_in_stmts(some_body, var_mut, var_types, fn_lookup, fn_name, filename, errors);
+            check_immutable_args_in_stmts(none_body, var_mut, var_types, fn_lookup, fn_name, filename, errors);
         }
         Stmt::Defer(body)
         | Stmt::When { body, .. }
         | Stmt::WhenIs { body, .. }
         | Stmt::Otherwise { body } => {
-            check_immutable_args_in_stmts(body, var_mut, fn_lookup, fn_name, filename, errors);
+            check_immutable_args_in_stmts(body, var_mut, var_types, fn_lookup, fn_name, filename, errors);
         }
         _ => {}
     }
@@ -698,6 +727,7 @@ fn check_immutable_args_in_stmt(
 fn check_immutable_args_in_expr(
     expr: &Expr,
     var_mut: &HashMap<String, bool>,
+    var_types: &HashMap<String, TypeExpr>,
     fn_lookup: &HashMap<String, &Vec<(String, TypeExpr)>>,
     fn_name: &str,
     filename: &str,
@@ -706,25 +736,29 @@ fn check_immutable_args_in_expr(
     match expr {
         Expr::Builtin { name, args } => {
             for arg in args {
-                if let Some(var_name) = immutable_ident(arg, var_mut) {
+                // If the variable is already a ref/pointer type, passing it to a builtin
+                // is just passing a pointer value — the binding itself isn't mutated.
+                if let Some(var_name) = immutable_non_ref_ident(arg, var_mut, var_types) {
                     errors.push(format!(
                         "{filename}: in function '{fn_name}': \
                          immutable variable '{var_name}' cannot be passed to builtin '@{name}'; \
                          declare it as 'val {var_name}: mut <type>' to allow this"
                     ));
                 }
-                check_immutable_args_in_expr(arg, var_mut, fn_lookup, fn_name, filename, errors);
+                check_immutable_args_in_expr(arg, var_mut, var_types, fn_lookup, fn_name, filename, errors);
             }
         }
         Expr::Call { callee, args, .. } => {
-            check_immutable_args_in_expr(callee, var_mut, fn_lookup, fn_name, filename, errors);
+            check_immutable_args_in_expr(callee, var_mut, var_types, fn_lookup, fn_name, filename, errors);
 
             let callee_path = expr_to_call_path(callee);
             if let Some(params) = callee_path.as_deref().and_then(|p| fn_lookup.get(p)) {
                 for (i, arg) in args.iter().enumerate() {
                     if let Some((_, param_ty)) = params.get(i) {
                         if is_ref_type(param_ty) {
-                            if let Some(var_name) = immutable_ident(arg, var_mut) {
+                            // Only flag if the argument's own type is NOT already a ref/pointer.
+                            // Passing a ref void to a ref void param is just forwarding a pointer.
+                            if let Some(var_name) = immutable_non_ref_ident(arg, var_mut, var_types) {
                                 errors.push(format!(
                                     "{filename}: in function '{fn_name}': \
                                      immutable variable '{var_name}' cannot be passed to a 'ref' parameter; \
@@ -733,17 +767,17 @@ fn check_immutable_args_in_expr(
                             }
                         }
                     }
-                    check_immutable_args_in_expr(arg, var_mut, fn_lookup, fn_name, filename, errors);
+                    check_immutable_args_in_expr(arg, var_mut, var_types, fn_lookup, fn_name, filename, errors);
                 }
             } else {
                 for arg in args {
-                    check_immutable_args_in_expr(arg, var_mut, fn_lookup, fn_name, filename, errors);
+                    check_immutable_args_in_expr(arg, var_mut, var_types, fn_lookup, fn_name, filename, errors);
                 }
             }
         }
         Expr::BinOp { lhs, rhs, .. } => {
-            check_immutable_args_in_expr(lhs, var_mut, fn_lookup, fn_name, filename, errors);
-            check_immutable_args_in_expr(rhs, var_mut, fn_lookup, fn_name, filename, errors);
+            check_immutable_args_in_expr(lhs, var_mut, var_types, fn_lookup, fn_name, filename, errors);
+            check_immutable_args_in_expr(rhs, var_mut, var_types, fn_lookup, fn_name, filename, errors);
         }
         Expr::UnOp { expr, .. }
         | Expr::Cast { expr, .. }
@@ -751,38 +785,54 @@ fn check_immutable_args_in_expr(
         | Expr::Trust(expr)
         | Expr::Addr(expr)
         | Expr::Deref(expr) => {
-            check_immutable_args_in_expr(expr, var_mut, fn_lookup, fn_name, filename, errors);
+            check_immutable_args_in_expr(expr, var_mut, var_types, fn_lookup, fn_name, filename, errors);
         }
         Expr::Field(base, _) => {
-            check_immutable_args_in_expr(base, var_mut, fn_lookup, fn_name, filename, errors);
+            check_immutable_args_in_expr(base, var_mut, var_types, fn_lookup, fn_name, filename, errors);
         }
         Expr::StructLit { fields } => {
             for (_, e) in fields {
-                check_immutable_args_in_expr(e, var_mut, fn_lookup, fn_name, filename, errors);
+                check_immutable_args_in_expr(e, var_mut, var_types, fn_lookup, fn_name, filename, errors);
             }
         }
         Expr::ArgsPack(exprs) => {
             for e in exprs {
-                check_immutable_args_in_expr(e, var_mut, fn_lookup, fn_name, filename, errors);
+                check_immutable_args_in_expr(e, var_mut, var_types, fn_lookup, fn_name, filename, errors);
             }
         }
         _ => {}
     }
 }
 
-/// If `expr` is an `Ident` that maps to an immutable variable, return its name.
-fn immutable_ident<'a>(expr: &'a Expr, var_mut: &HashMap<String, bool>) -> Option<&'a str> {
+/// If `expr` is an immutable `Ident` whose declared type is NOT a ref/pointer, return its name.
+/// Variables that are already ref/pointer types can be freely passed to ref parameters or builtins
+/// because doing so passes the pointer value — it doesn't mutate the binding itself.
+fn immutable_non_ref_ident<'a>(
+    expr: &'a Expr,
+    var_mut: &HashMap<String, bool>,
+    var_types: &HashMap<String, TypeExpr>,
+) -> Option<&'a str> {
     if let Expr::Ident(name) = expr {
-        match var_mut.get(name.as_str()) {
-            Some(false) => Some(name.as_str()),
-            _ => None,
+        if var_mut.get(name.as_str()) == Some(&false) {
+            // If we have no type info, assume it could be a pointer — don't flag it.
+            // If we do have type info and it's a pointer/ref type, also don't flag it.
+            let is_ptr = var_types.get(name.as_str())
+                .map_or(true, is_pointer_type);
+            if !is_ptr {
+                return Some(name.as_str());
+            }
         }
-    } else {
-        None
     }
+    None
 }
 
-/// Returns true if the type is or contains a `ref`.
+/// Returns true if the type is a reference, slice, or untyped pointer — i.e. already a pointer value.
+fn is_pointer_type(ty: &TypeExpr) -> bool {
+    matches!(ty, TypeExpr::Ref(_) | TypeExpr::Slice(_) | TypeExpr::Untyped)
+        || matches!(ty, TypeExpr::Named(n) if n == "ptr" || n == "rawptr")
+}
+
+/// Returns true if the type is a `ref`.
 fn is_ref_type(ty: &TypeExpr) -> bool {
     matches!(ty, TypeExpr::Ref(_))
 }

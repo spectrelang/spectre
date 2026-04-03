@@ -11,14 +11,6 @@ extern (C) fn rename(old: ref char, new: ref char) i32! = "rename"
 extern (C) fn strlen(s: ref char) i64! = "strlen"
 extern (C) fn getcwd(buf: ref char, size: usize) ref char! = "getcwd"
 extern (C) fn getenv(name: ref char) ref char! = "getenv"
-
-when linux {
-    link "c"
-}
-when macos {
-    link "c"
-}
-
 extern (C) fn mkdir(path: ref char, mode: u32) i32! = "mkdir"
 extern (C) fn rmdir(path: ref char) i32! = "rmdir"
 
@@ -30,11 +22,11 @@ pub type File = {
 /// Open a file.  mode is a C fopen mode string: "r", "w", "a", "rb", etc.
 /// Returns none if the file could not be opened.
 pub fn open(path: ref char, mode: ref char) option[ref void]! = {
-    val ptr: mut ref void = fopen(path, mode)
+    val ptr: ref void = fopen(path, mode)
     if (ptr == 0) {
         return none
     }
-    val f: mut ref void = @alloc(8)
+    val f: ref void = @alloc(8)
     @store(f, ptr)
     return some f
 }
@@ -58,7 +50,7 @@ pub fn read_all(path: ref char) option[ref char]! = {
             fseek(ptr, 0, 2)          // SEEK_END = 2
             val size: mut i64 = ftell(ptr)
             rewind(ptr)
-            val buf: mut ref void = @alloc(size + 1)
+            val buf: ref void = @alloc(size + 1)
             fread(buf, 1, size as usize, ptr)
             @store8(@ptradd(buf, size), 0)
             close(f)
@@ -70,7 +62,7 @@ pub fn read_all(path: ref char) option[ref char]! = {
 /// Read the next line from an open file handle into buf (max max_len bytes).
 /// Strips the trailing newline if present.
 /// Returns true if a line was read, false on EOF.
-pub fn read_line(f: ref void, buf: mut ref char, max_len: i64) bool! = {
+pub fn read_line(f: ref void, buf: ref char, max_len: i64) bool! = {
     val ptr: ref void = @load(f)
     val result: ref void = @fgets(buf, max_len, ptr)
     if (result == 0) {
@@ -102,7 +94,7 @@ pub fn write(f: ref void, data: ref char) void! = {
 /// Write a string followed by a newline.
 pub fn write_line(f: ref void, data: ref char) void! = {
     write(f, data)
-    val nl: mut ref char = "\n"
+    val nl: ref char = "\n"
     val ptr: ref void = @load(f)
     fwrite(nl, 1, 1, ptr)
 }
@@ -173,15 +165,17 @@ pub fn cwd() option[ref char]! = {
 /// Return the system temporary directory.
 /// Falls back to "/tmp" on POSIX if TMPDIR is not set.
 pub fn temp_dir() ref char! = {
-    when linux {
+    when posix {
         val t: ref char = getenv("TMPDIR")
         if (t != 0) { return t }
         return "/tmp"
     }
-    when macos {
-        val t: ref char = getenv("TMPDIR")
+    when windows {
+        val t: ref char = getenv("TEMP")
         if (t != 0) { return t }
-        return "/tmp"
+        val t2: ref char = getenv("TMP")
+        if (t2 != 0) { return t2 }
+        return "C:\\Windows\\Temp"
     }
     return "/tmp"
 }
@@ -189,58 +183,45 @@ pub fn temp_dir() ref char! = {
 /// Return the current user's home directory.
 /// Uses HOME on POSIX, USERPROFILE on Windows.
 pub fn home_dir() option[ref char]! = {
-    when linux {
+    when posix {
         val h: ref char = getenv("HOME")
         if (h != 0) { return some h }
         return none
     }
-    when macos {
-        val h: ref char = getenv("HOME")
+    when windows {
+        val h: ref char = getenv("USERPROFILE")
         if (h != 0) { return some h }
+        val h2: ref char = getenv("HOMEDRIVE")
+        if (h2 != 0) { return some h2 }
         return none
     }
-    // Windows fallback
-    val h: ref char = getenv("USERPROFILE")
-    if (h != 0) { return some h }
     return none
 }
 
 /// Return the platform configuration directory.
-///   Linux/macOS: $XDG_CONFIG_HOME or $HOME/.config
-///   Windows:     %APPDATA%
+///   POSIX:   $XDG_CONFIG_HOME, or $HOME/.config
+///   Windows: %APPDATA%
 /// Returns none if no suitable directory can be determined.
 /// The returned string is heap-allocated and must be freed by the caller.
 pub fn config_dir() option[ref char]! = {
-    when linux {
+    when posix {
         val xdg: ref char = getenv("XDG_CONFIG_HOME")
         if (xdg != 0) { return some xdg }
-        val h: mut ref char = getenv("HOME")
+        val h: ref char = getenv("HOME")
         if (h == 0) { return none }
         val hl: mut i64 = strlen(h)
-        val suffix: mut ref char = "/.config"
+        val suffix: ref char = "/.config"
         val sl: mut i64 = strlen(suffix)
-        val buf: mut ref char = @alloc(hl + sl + 1)
+        val buf: ref char = @alloc(hl + sl + 1)
         @memcpy(buf, h, hl)
         @memcpy(@ptradd(buf, hl), suffix, sl)
         @store8(@ptradd(buf, hl + sl), 0)
         return some buf
     }
-    when macos {
-        val xdg: ref char = getenv("XDG_CONFIG_HOME")
-        if (xdg != 0) { return some xdg }
-        val h: mut ref char = getenv("HOME")
-        if (h == 0) { return none }
-        val hl: mut i64 = strlen(h)
-        val suffix: mut ref char = "/.config"
-        val sl: mut i64 = strlen(suffix)
-        val buf: mut ref char = @alloc(hl + sl + 1)
-        @memcpy(buf, h, hl)
-        @memcpy(@ptradd(buf, hl), suffix, sl)
-        @store8(@ptradd(buf, hl + sl), 0)
-        return some buf
+    when windows {
+        val appdata: ref char = getenv("APPDATA")
+        if (appdata != 0) { return some appdata }
+        return none
     }
-    // Windows
-    val appdata: ref char = getenv("APPDATA")
-    if (appdata != 0) { return some appdata }
     return none
 }
