@@ -1,5 +1,5 @@
 pub val io = use("io.sx")
-pub val list = use("list.sx")
+pub val collections = use("collections.sx")
 pub val math = use("math.sx")
 pub val allocators = use("allocators.sx")
 pub val time = use("time.sx")
