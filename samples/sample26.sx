@@ -1,0 +1,79 @@
+pub error ParseError = {
+    empty
+    invalid_digit
+}
+
+extern (C) fn strlen(s: ref char) i64! = "strlen"
+
+pub fn string_to_i64(s: ref char) result[i64, ParseError]! = {
+    if (s == 0) {
+        return err ParseError.empty
+    }
+
+    val len: i64 = strlen(s)
+    if (len == 0) {
+        return err ParseError.empty
+    }
+
+    val neg: bool = @load8(s) == 45
+    val start: i64 = if (neg) { 1 } else { 0 }
+    val result: mut i64 = 0
+    val i: mut i64 = start
+
+    for {
+        if (i >= len) { break }
+
+        val c: u8 = @load8(@ptradd(s, i))
+
+        if (c < 48 || c > 57) {
+            return err ParseError.invalid_digit
+        }
+
+        result = result * 10 + (c - 48) as i64
+        i++
+    }
+
+    if (neg) {
+        result = -result
+    }
+
+    return ok result
+}
+
+pub fn add_two_strings(a: ref char, b: ref char) result[i64, ParseError]! = {
+    // `?` propagation:
+    // desugars to:
+    // match string_to_i64(a) {
+    //     ok v => v
+    //     err e => return err e
+    // }
+
+    val x = string_to_i64(a)?
+    val y = string_to_i64(b)?
+
+    return ok (x + y)
+}
+
+val std = use("std")
+
+pub fn main() result[void, ParseError]! = {
+    val r = add_two_strings("123", "456")
+
+    match r {
+        ok v => {
+            std.io.print("sum = {d}", {v})
+        }
+        err e => {
+            match e {
+                ParseError.empty => {
+                    std.io.put("error: empty input")
+                }
+                ParseError.invalid_digit => {
+                    std.io.put("error: invalid digit")
+                }
+            }
+        }
+    }
+
+    return ok ()
+}
