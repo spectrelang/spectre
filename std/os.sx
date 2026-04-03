@@ -1,0 +1,66 @@
+extern (C) fn getenv(name: ref char) ref char! = "getenv"
+extern (C) fn fopen(path: ref char, mode: ref char) ref void! = "fopen"
+extern (C) fn fclose(file: ref void) i32! = "fclose"
+extern (C) fn fread(ptr: ref void, size: i64, nmemb: i64, file: ref void) i64! = "fread"
+extern (C) fn fwrite(ptr: ref void, size: i64, nmemb: i64, file: ref void) i64! = "fwrite"
+extern (C) fn remove(path: ref char) i32! = "remove"
+extern (C) fn rename(oldpath: ref char, newpath: ref char) i32! = "rename"
+
+/// Get an environment variable. Returns none if not found.
+pub fn env(var: ref char) option[ref char] = {
+    val val_ptr: ref char = trust getenv(var)
+    if val_ptr == none {
+        return none
+    }
+    return some val_ptr
+}
+
+/// File handle wrapper.
+pub type File = {
+    handle: ref void
+}
+
+/// Open a file in the given mode ("r", "w", "a", etc.)
+pub fn open(path: ref char, mode: ref char) option[File] = {
+    pre {
+        mode != ""
+    }
+    val f: ref void = trust fopen(path, mode)
+    if f == none {
+        return none
+    }
+    return some File{handle: f}
+}
+
+/// Close a file.
+pub fn close(file: File) void! = {
+    fclose(file.handle)
+}
+
+/// Read up to `size` bytes from a file. Returns a heap buffer and the number of bytes read.
+pub fn read(file: File, size: i64) ref void! = {
+    pre { size > 0 }
+    val buf: ref void = @alloc(size)
+    fread(buf, 1, size, file.handle)
+    return buf
+}
+
+/// Write `size` bytes from a buffer to a file.
+pub fn write(file: File, buf: ref void, size: i64) i64! = {
+    pre { size > 0 }
+    return fwrite(buf, 1, size, file.handle)
+}
+
+/// Delete a file from the filesystem. Returns 0 on success.
+pub fn delete(path: ref char) i32! = {
+    return remove(path)
+}
+
+/// Rename a file. Returns 0 on success.
+pub fn rename_file(oldpath: ref char, newpath: ref char) i32! = {
+    return rename(oldpath, newpath)
+}
+
+test {
+
+}
