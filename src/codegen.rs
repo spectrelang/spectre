@@ -1342,6 +1342,54 @@ impl Codegen {
                 }
                 self.emit(&format!("{end_lbl}"));
             }
+            Stmt::MatchString { expr, arms, else_body } => {
+                let (str_ptr, _) = self.emit_expr(expr, ns)?;
+                let id = self.tmp_counter;
+                self.tmp_counter += 1;
+                let end_lbl = format!("@match_string_end_{id}");
+
+                let n = arms.len();
+                for (i, (pattern, body)) in arms.iter().enumerate() {
+                    let body_lbl = format!("@match_string_arm_{id}_{i}");
+                    let next_lbl = if i + 1 < n {
+                        format!("@match_string_next_{id}_{i}")
+                    } else {
+                        if else_body.is_some() {
+                            format!("@match_string_else_{id}")
+                        } else {
+                            end_lbl.clone()
+                        }
+                    };
+
+                    let pattern_label = self.intern_string(pattern);
+                    let cmp_result = self.fresh_tmp();
+                    self.emit(&format!("    {cmp_result} =w call $strcmp(l {str_ptr}, l ${pattern_label})"));
+                    
+                    let cond = self.fresh_tmp();
+                    self.emit(&format!("    {cond} =w ceqw {cmp_result}, 0"));
+                    self.emit(&format!("    jnz {cond}, {body_lbl}, {next_lbl}"));
+                    self.emit(&format!("{body_lbl}"));
+                    self.emit_stmts(body, ns, ret_ty)?;
+                    if !block_is_terminated(body) {
+                        self.emit(&format!("    jmp {end_lbl}"));
+                    }
+                    if i + 1 < n {
+                        self.emit(&format!("@match_string_next_{id}_{i}"));
+                    }
+                }
+
+                if let Some(body) = else_body {
+                    if n > 0 {
+                        self.emit(&format!("@match_string_else_{id}"));
+                    }
+                    self.emit_stmts(body, ns, ret_ty)?;
+                    if !block_is_terminated(body) {
+                        self.emit(&format!("    jmp {end_lbl}"));
+                    }
+                }
+
+                self.emit(&format!("{end_lbl}"));
+            }
         }
         Ok(())
     }
@@ -2986,6 +3034,10 @@ fn all_trusted_stmts(stmts: &[Stmt]) -> bool {
             arms.iter().all(|(_, b)| all_trusted_stmts(b))
                 && else_body.as_deref().map_or(true, all_trusted_stmts)
         }
+        Stmt::MatchString { arms, else_body, .. } => {
+            arms.iter().all(|(_, b)| all_trusted_stmts(b))
+                && else_body.as_deref().map_or(true, all_trusted_stmts)
+        }
         Stmt::When { body, .. } => all_trusted_stmts(body),
         Stmt::Expr(_) => false,    })
 }
@@ -3060,6 +3112,11 @@ fn find_bare_builtin_in_stmt(stmt: &Stmt) -> Option<String> {
                 .or_else(|| arms.iter().find_map(|(_, b)| find_bare_builtin_in_stmts(b)))
         }
         Stmt::MatchUnion { expr, arms, else_body } => {
+            find_bare_builtin_in_expr(expr)
+                .or_else(|| arms.iter().find_map(|(_, b)| find_bare_builtin_in_stmts(b)))
+                .or_else(|| else_body.as_deref().and_then(find_bare_builtin_in_stmts))
+        }
+        Stmt::MatchString { expr, arms, else_body } => {
             find_bare_builtin_in_expr(expr)
                 .or_else(|| arms.iter().find_map(|(_, b)| find_bare_builtin_in_stmts(b)))
                 .or_else(|| else_body.as_deref().and_then(find_bare_builtin_in_stmts))
@@ -3300,6 +3357,7 @@ const RESERVED_SYMBOLS: &[&str] = &[
     "getchar",
     "abort",
     "strlen",
+    "strcmp",
     "gettimeofday",
     "localtime",
     "arc4random_buf",

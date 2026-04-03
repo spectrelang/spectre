@@ -197,6 +197,15 @@ fn collect_used_imports_in_stmt(
                 for s in body { collect_used_imports_in_stmt(s, imports, used); }
             }
         }
+        Stmt::MatchString { expr, arms, else_body } => {
+            collect_used_imports_in_expr(expr, imports, used);
+            for (_, body) in arms {
+                for s in body { collect_used_imports_in_stmt(s, imports, used); }
+            }
+            if let Some(body) = else_body {
+                for s in body { collect_used_imports_in_stmt(s, imports, used); }
+            }
+        }
         _ => {}
     }
 }
@@ -405,6 +414,11 @@ fn stmt_references_name(stmt: &crate::parser::Stmt, name: &str) -> bool {
             expr_references_name(expr, name)
                 || arms.iter().any(|(_, b)| b.iter().any(|s| stmt_references_name(s, name)))
         }
+        Stmt::MatchString { expr, arms, else_body } => {
+            expr_references_name(expr, name)
+                || arms.iter().any(|(_, b)| b.iter().any(|s| stmt_references_name(s, name)))
+                || else_body.as_ref().map_or(false, |b| b.iter().any(|s| stmt_references_name(s, name)))
+        }
         _ => false,
     }
 }
@@ -522,6 +536,15 @@ fn collect_needed_subnames_in_stmt(
         Stmt::MatchEnum { expr, arms } => {
             collect_needed_subnames_in_expr(expr, import_name, needed);
             for (_, body) in arms {
+                for s in body { collect_needed_subnames_in_stmt(s, import_name, needed); }
+            }
+        }
+        Stmt::MatchString { expr, arms, else_body } => {
+            collect_needed_subnames_in_expr(expr, import_name, needed);
+            for (_, body) in arms {
+                for s in body { collect_needed_subnames_in_stmt(s, import_name, needed); }
+            }
+            if let Some(body) = else_body {
                 for s in body { collect_needed_subnames_in_stmt(s, import_name, needed); }
             }
         }

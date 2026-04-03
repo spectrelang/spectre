@@ -183,6 +183,12 @@ pub enum Stmt {
         arms: Vec<(TypeExpr, Vec<Stmt>)>,
         else_body: Option<Vec<Stmt>>,
     },
+    /// `match expr { "string" => { ... } ... }` — match on string/char pointer value
+    MatchString {
+        expr: Expr,
+        arms: Vec<(String, Vec<Stmt>)>, // (string_literal, body)
+        else_body: Option<Vec<Stmt>>,
+    },
 }
 
 #[derive(Debug, Clone)]
@@ -952,10 +958,13 @@ impl Parser {
                 // Need to fucking look AHEAD to see if this is a result match (ok/err) or option match (some/none)
                 // ...or an enum match (EnumType.Variant => ...)
                 // ...or a union match (TypeName => ...)
+                // ...or a string match ("string" => ...)
                 let is_result_match = matches!(self.peek(), TokenKind::Ok | TokenKind::Err);
                 let is_enum_match = !is_result_match && matches!(self.peek(), TokenKind::Ident(_))
                     && self.tokens.get(self.pos + 1).map(|t| &t.kind) == Some(&TokenKind::Dot);
-                let is_union_match = !is_result_match && !is_enum_match && (
+                let is_string_match = !is_result_match && !is_enum_match
+                    && matches!(self.peek(), TokenKind::StringLit(_));
+                let is_union_match = !is_result_match && !is_enum_match && !is_string_match && (
                     matches!(self.peek(), TokenKind::Ref)
                     || (matches!(self.peek(), TokenKind::Ident(_))
                         && self.tokens.get(self.pos + 1).map(|t| &t.kind) == Some(&TokenKind::FatArrow))
@@ -1015,6 +1024,33 @@ impl Parser {
                     }
                     self.expect(&TokenKind::RBrace)?;
                     Ok(Stmt::MatchEnum { expr, arms })
+                } else if is_string_match {
+                    let mut arms: Vec<(String, Vec<Stmt>)> = Vec::new();
+                    let mut else_body = None;
+                    while self.peek() != &TokenKind::RBrace && self.peek() != &TokenKind::Eof {
+                        if self.peek() == &TokenKind::Else {
+                            self.advance();
+                            self.expect(&TokenKind::FatArrow)?;
+                            self.expect(&TokenKind::LBrace)?;
+                            else_body = Some(self.parse_stmts()?);
+                            self.expect(&TokenKind::RBrace)?;
+                            break;
+                        }
+                        let pattern = match self.peek().clone() {
+                            TokenKind::StringLit(s) => {
+                                self.advance();
+                                s
+                            }
+                            _ => break,
+                        };
+                        self.expect(&TokenKind::FatArrow)?;
+                        self.expect(&TokenKind::LBrace)?;
+                        let body = self.parse_stmts()?;
+                        self.expect(&TokenKind::RBrace)?;
+                        arms.push((pattern, body));
+                    }
+                    self.expect(&TokenKind::RBrace)?;
+                    Ok(Stmt::MatchString { expr, arms, else_body })
                 } else if is_union_match {
                     let mut arms: Vec<(TypeExpr, Vec<Stmt>)> = Vec::new();
                     let mut else_body = None;

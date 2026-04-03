@@ -79,46 +79,43 @@ pub fn get_current_platform() Platform! = {
     val r = uname(addr(buf))
 
     if (r == 0) {
-        match uname_buf.sysname {
+        match buf.sysname {
             "Windows" => {
-                return Platform.Windows,
+                return Platform.Windows
             }
             "Linux" => {
-                return Platform.Linux,
+                return Platform.Linux
             }
             "Darwin" => {
-                return Platform.Darwin,
+                return Platform.Darwin
             }
             "NetBSD" => {
-                return Platform.NetBSD,
+                return Platform.NetBSD
             }
             "DragonflyBSD" => {
-                return Platform.DragonflyBSD,
+                return Platform.DragonflyBSD
             }
             "FreeBSD" => {
-                return Platform.FreeBSD,
+                return Platform.FreeBSD
             }
             "OpenBSD" => {
-                return Platform.OpenBSD,
+                return Platform.OpenBSD
             }
             "Android" => {
-                return Platform.Android,
+                return Platform.Android
             }
             "Haiku" => {
-                return Platform.Haiku,
+                return Platform.Haiku
             }
             "Redox" => {
-                return Platform.Redox,
+                return Platform.Redox
             }
             "Plan9" => {
-                return Platform.Plan9,
-            }
-            _ => {
-                return Platform.Unknown,
+                return Platform.Plan9
             }
         }
-        return Platform.Unknown
     }
+    return Platform.Unknown
 }
 
 test {

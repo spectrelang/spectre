@@ -220,6 +220,18 @@ fn check_shadowing_in_stmt(
                 scope_stack.pop();
             }
         }
+        Stmt::MatchString { arms, else_body, .. } => {
+            for (_, body) in arms {
+                scope_stack.push(HashSet::new());
+                check_shadowing_in_stmts(body, scope_stack, fn_name, filename, errors);
+                scope_stack.pop();
+            }
+            if let Some(body) = else_body {
+                scope_stack.push(HashSet::new());
+                check_shadowing_in_stmts(body, scope_stack, fn_name, filename, errors);
+                scope_stack.pop();
+            }
+        }
         Stmt::Defer(body)
         | Stmt::When { body, .. } => {
             scope_stack.push(HashSet::new());
@@ -277,6 +289,14 @@ fn collect_declarations(
                 }
             }
             Stmt::MatchUnion { arms, else_body, .. } => {
+                for (_, body) in arms {
+                    collect_declarations(body, declared, for_vars);
+                }
+                if let Some(body) = else_body {
+                    collect_declarations(body, declared, for_vars);
+                }
+            }
+            Stmt::MatchString { arms, else_body, .. } => {
                 for (_, body) in arms {
                     collect_declarations(body, declared, for_vars);
                 }
@@ -381,6 +401,15 @@ fn collect_used_in_stmt(stmt: &Stmt, used: &mut HashSet<String>) {
             }
         }
         Stmt::MatchUnion { expr, arms, else_body } => {
+            collect_used_in_expr(expr, used);
+            for (_, body) in arms {
+                collect_used_in_stmts(body, used);
+            }
+            if let Some(body) = else_body {
+                collect_used_in_stmts(body, used);
+            }
+        }
+        Stmt::MatchString { expr, arms, else_body } => {
             collect_used_in_expr(expr, used);
             for (_, body) in arms {
                 collect_used_in_stmts(body, used);
@@ -536,6 +565,15 @@ fn collect_mutated_in_stmt(stmt: &Stmt, mutated: &mut HashSet<String>) {
                 collect_mutated_in_stmts(body, mutated);
             }
         }
+        Stmt::MatchString { expr, arms, else_body } => {
+            collect_addr_deref_in_expr(expr, mutated);
+            for (_, body) in arms {
+                collect_mutated_in_stmts(body, mutated);
+            }
+            if let Some(body) = else_body {
+                collect_mutated_in_stmts(body, mutated);
+            }
+        }
         Stmt::Defer(body)
         | Stmt::When { body, .. } => {
             collect_mutated_in_stmts(body, mutated);
@@ -621,6 +659,14 @@ fn collect_var_types(stmts: &[Stmt], map: &mut HashMap<String, TypeExpr>) {
                     collect_var_types(body, map);
                 }
             }
+            Stmt::MatchString { arms, else_body, .. } => {
+                for (_, body) in arms {
+                    collect_var_types(body, map);
+                }
+                if let Some(body) = else_body {
+                    collect_var_types(body, map);
+                }
+            }
             Stmt::Defer(body)
             | Stmt::When { body, .. } => collect_var_types(body, map),
             _ => {}
@@ -693,6 +739,15 @@ fn collect_ref_used_in_stmt(
             }
         }
         Stmt::MatchUnion { expr, arms, else_body } => {
+            collect_ref_used_in_expr(expr, fn_lookup, out);
+            for (_, body) in arms {
+                collect_ref_used_in_stmts(body, fn_lookup, out);
+            }
+            if let Some(body) = else_body {
+                collect_ref_used_in_stmts(body, fn_lookup, out);
+            }
+        }
+        Stmt::MatchString { expr, arms, else_body } => {
             collect_ref_used_in_expr(expr, fn_lookup, out);
             for (_, body) in arms {
                 collect_ref_used_in_stmts(body, fn_lookup, out);
@@ -811,6 +866,14 @@ fn collect_var_mutability(stmts: &[Stmt], map: &mut HashMap<String, bool>) {
                     collect_var_mutability(body, map);
                 }
             }
+            Stmt::MatchString { arms, else_body, .. } => {
+                for (_, body) in arms {
+                    collect_var_mutability(body, map);
+                }
+                if let Some(body) = else_body {
+                    collect_var_mutability(body, map);
+                }
+            }
             Stmt::Defer(body)
             | Stmt::When { body, .. } => {
                 collect_var_mutability(body, map);
@@ -907,6 +970,15 @@ fn check_immutable_args_in_stmt(
             }
         }
         Stmt::MatchUnion { expr, arms, else_body } => {
+            check_immutable_args_in_expr(expr, var_mut, var_types, fn_lookup, fn_name, filename, errors);
+            for (_, body) in arms {
+                check_immutable_args_in_stmts(body, var_mut, var_types, fn_lookup, fn_name, filename, errors);
+            }
+            if let Some(body) = else_body {
+                check_immutable_args_in_stmts(body, var_mut, var_types, fn_lookup, fn_name, filename, errors);
+            }
+        }
+        Stmt::MatchString { expr, arms, else_body } => {
             check_immutable_args_in_expr(expr, var_mut, var_types, fn_lookup, fn_name, filename, errors);
             for (_, body) in arms {
                 check_immutable_args_in_stmts(body, var_mut, var_types, fn_lookup, fn_name, filename, errors);
@@ -1131,6 +1203,15 @@ fn check_call_arg_types_in_stmt(
             }
         }
         Stmt::MatchUnion { expr, arms, else_body } => {
+            check_call_arg_types_in_expr(expr, var_types, fn_lookup, fn_name, filename, errors);
+            for (_, body) in arms {
+                check_call_arg_types(body, var_types, fn_lookup, fn_name, filename, errors);
+            }
+            if let Some(body) = else_body {
+                check_call_arg_types(body, var_types, fn_lookup, fn_name, filename, errors);
+            }
+        }
+        Stmt::MatchString { expr, arms, else_body } => {
             check_call_arg_types_in_expr(expr, var_types, fn_lookup, fn_name, filename, errors);
             for (_, body) in arms {
                 check_call_arg_types(body, var_types, fn_lookup, fn_name, filename, errors);
