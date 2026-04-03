@@ -1,0 +1,10 @@
+fn do_some_thing() i32 = {
+    if false {
+        return 2
+    }
+    // Should error, since this code path doesnt return a value.
+}
+
+pub fn main() void! = {
+    do_some_thing()
+}
