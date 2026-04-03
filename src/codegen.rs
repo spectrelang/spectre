@@ -1795,6 +1795,8 @@ impl Codegen {
                 "args" => {
                     let tmp = self.fresh_tmp();
                     self.emit(&format!("    {tmp} =l call $sx_get_args()"));
+                    self.local_type_annotations
+                        .insert(tmp.clone(), "list[ref char]".to_string());
                     Ok((tmp, "l"))
                 }
 

@@ -63,14 +63,12 @@ pub fn rename_file(oldpath: ref char, newpath: ref char) i32! = {
     return rename(oldpath, newpath)
 }
 
-val std = use("std")
-
 /// Get command-line arguments as a List of strings.
-///
-/// The list is heap-allocated; free it with PtrList.free when done.
-pub fn get_args() ref std.collections.PtrList! = {
+pub fn get_args() list[ref char]! = {
     return @args()
 }
+
+val std = use("std")
 
 test {
     val path = "test_file.txt"

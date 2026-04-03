@@ -2,16 +2,7 @@ val std = use("std")
 
 pub fn main() void! = {
     val args = std.os.get_args()
-    val n = std.collections.PtrList.len(args)
-    std.io.print("argc: %lld\n", {n})
-    val i: mut usize = 0
-    for i = 0; i < n; i++ {
-        val arg_opt = std.collections.PtrList.get(args, i)
-        match arg_opt {
-            some v => {
-                std.io.print("  arg[{lld}]: %s\n", {i, v})
-            }
-            none => {}
-        }
+    for arg in args {
+        std.io.print("arg: {s}\n", {arg})
     }
 }

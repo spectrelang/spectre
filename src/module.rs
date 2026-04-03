@@ -165,6 +165,10 @@ fn collect_used_imports_in_stmt(
             if let Some(s) = post { collect_used_imports_in_stmt(s, imports, used); }
             for s in body { collect_used_imports_in_stmt(s, imports, used); }
         }
+        Stmt::ForIn { iterable, body, .. } => {
+            collect_used_imports_in_expr(iterable, imports, used);
+            for s in body { collect_used_imports_in_stmt(s, imports, used); }
+        }
         Stmt::Defer(body) | Stmt::When { body, .. } => {
             for s in body { collect_used_imports_in_stmt(s, imports, used); }
         }
@@ -375,6 +379,10 @@ fn stmt_references_name(stmt: &crate::parser::Stmt, name: &str) -> bool {
                 || post.as_ref().map_or(false, |s| stmt_references_name(s, name))
                 || body.iter().any(|s| stmt_references_name(s, name))
         }
+        Stmt::ForIn { iterable, body, .. } => {
+            expr_references_name(iterable, name)
+                || body.iter().any(|s| stmt_references_name(s, name))
+        }
         Stmt::Defer(body) | Stmt::When { body, .. } => {
             body.iter().any(|s| stmt_references_name(s, name))
         }
@@ -483,6 +491,10 @@ fn collect_needed_subnames_in_stmt(
             if let Some((_, e)) = init { collect_needed_subnames_in_expr(e, import_name, needed); }
             if let Some(e) = cond { collect_needed_subnames_in_expr(e, import_name, needed); }
             if let Some(s) = post { collect_needed_subnames_in_stmt(s, import_name, needed); }
+            for s in body { collect_needed_subnames_in_stmt(s, import_name, needed); }
+        }
+        Stmt::ForIn { iterable, body, .. } => {
+            collect_needed_subnames_in_expr(iterable, import_name, needed);
             for s in body { collect_needed_subnames_in_stmt(s, import_name, needed); }
         }
         Stmt::Defer(body) | Stmt::When { body, .. } => {
