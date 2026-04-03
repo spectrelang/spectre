@@ -1,5 +1,5 @@
-- string-to-int and int-to-string conv      NOT DONE
-- string-to-float and float-to-string conv  NOT DONE
+- string-to-int and int-to-string conv      DONE
+- string-to-float and float-to-string conv  DONE
 - dynamic arrays of structs                 NOT DONE
 - error propagation syntax                  DONE
 - tagged union pattern matching on structs  NOT DONE
