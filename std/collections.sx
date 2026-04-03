@@ -135,5 +135,46 @@ pub fn (PtrList) pop(list: self) option[usize] = {
 }
 
 test {
-    assert true
+    val list: ref void = PtrList.new(2)
+    defer {
+        PtrList.free(list)
+    }
+
+    assert(PtrList.len(list) == 0)
+    assert(PtrList.cap(list) == 2)
+
+    PtrList.push(list, 42)
+    PtrList.push(list, 84)
+
+    assert(PtrList.len(list) == 2)
+    assert(PtrList.get(list, 0) == some 42)
+    assert(PtrList.get(list, 1) == some 84)
+
+    PtrList.push(list, 126)
+
+    assert(PtrList.len(list) == 3)
+    assert(PtrList.cap(list) >= 3)
+    assert(PtrList.get(list, 2) == some 126)
+    assert(PtrList.set(list, 1, 99) == 1)
+    assert(PtrList.get(list, 1) == some 99)
+    assert(PtrList.pop(list) == some 126)
+    assert(PtrList.len(list) == 2)
+    assert(PtrList.pop(list) == some 99)
+    assert(PtrList.pop(list) == some 42)
+
+    val list: ref void = PtrList.new(1)
+    
+    defer {
+        PtrList.free(list)
+    }
+
+    PtrList.push(list, 10)
+    assert(PtrList.get(list, 0) == some 10)
+    val list: ref void = PtrList.new(1)
+    defer {
+        PtrList.free(list)
+    }
+
+    PtrList.push(list, 5)
+    assert(PtrList.pop(list) == some 5)
 }
