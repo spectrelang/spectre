@@ -30,7 +30,7 @@ pub fn read_key() i32! = {
 /// Read a line from stdin into buf.
 /// (at most max_len bytes, including null terminator).
 /// Returns buf on success, or a null pointer on EOF/error.
-pub fn read_line(buf: mut ref char, max_len: i64) ref char! = {
+pub fn read_line(buf: ref char, max_len: i64) ref char! = {
     return @fgets(buf, max_len, @stdin())
 }
 
