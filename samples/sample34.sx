@@ -1,0 +1,21 @@
+val std = use("std")
+
+fn get_platform_name() ref char = {
+    return "Linux"
+}
+
+test {
+    val platform = get_platform_name()
+    
+    match platform {
+        "Windows" => {
+            std.io.put("Running on Windows")
+        }
+        "Linux" => {
+            std.io.put("Running on Linux")
+        }
+        "Darwin" => {
+            std.io.put("Running on macOS")
+        }
+    }
+}
