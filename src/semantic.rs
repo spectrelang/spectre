@@ -16,12 +16,13 @@ fn check_module_recursive(resolved: &ResolvedModule, errors: &mut Vec<String>) {
     }
 
     let fn_lookup = build_fn_lookup(resolved);
+    let fn_ret_lookup = build_fn_ret_lookup(resolved);
     let type_lookup = build_type_lookup(resolved);
     let union_lookup = build_union_lookup(resolved);
 
     for item in &resolved.ast.items {
         if let Item::Fn(f) = item {
-            check_fn(f, &resolved.filename, &fn_lookup, &type_lookup, &union_lookup, errors);
+            check_fn(f, &resolved.filename, &fn_lookup, &fn_ret_lookup, &type_lookup, &union_lookup, errors);
         }
     }
 }
@@ -47,6 +48,32 @@ fn build_fn_lookup<'a>(resolved: &'a ResolvedModule) -> HashMap<String, &'a Vec<
                     None => format!("{mod_name}.{}", f.name),
                 };
                 map.insert(key, &f.params);
+            }
+        }
+    }
+    map
+}
+
+/// Build a map from qualified function path to its return type.
+fn build_fn_ret_lookup<'a>(resolved: &'a ResolvedModule) -> HashMap<String, &'a TypeExpr> {
+    let mut map = HashMap::new();
+    for item in &resolved.ast.items {
+        if let Item::Fn(f) = item {
+            let key = match &f.namespace {
+                Some(ns) => format!("{ns}.{}", f.name),
+                None => f.name.clone(),
+            };
+            map.insert(key, &f.ret);
+        }
+    }
+    for (mod_name, child) in &resolved.imports {
+        for item in &child.ast.items {
+            if let Item::Fn(f) = item {
+                let key = match &f.namespace {
+                    Some(ns) => format!("{mod_name}.{ns}.{}", f.name),
+                    None => format!("{mod_name}.{}", f.name),
+                };
+                map.insert(key, &f.ret);
             }
         }
     }
@@ -95,7 +122,7 @@ fn build_union_lookup<'a>(resolved: &'a ResolvedModule) -> HashMap<String, &'a V
     map
 }
 
-fn check_fn(f: &FnDef, filename: &str, fn_lookup: &HashMap<String, &Vec<(String, TypeExpr)>>, type_lookup: &HashMap<String, &Vec<Field>>, union_lookup: &HashMap<String, &Vec<TypeExpr>>, errors: &mut Vec<String>) {
+fn check_fn(f: &FnDef, filename: &str, fn_lookup: &HashMap<String, &Vec<(String, TypeExpr)>>, fn_ret_lookup: &HashMap<String, &TypeExpr>, type_lookup: &HashMap<String, &Vec<Field>>, union_lookup: &HashMap<String, &Vec<TypeExpr>>, errors: &mut Vec<String>) {
     let mut declared: HashMap<String, bool> = HashMap::new();
     let mut for_vars: HashSet<String> = HashSet::new();
 
@@ -141,7 +168,8 @@ fn check_fn(f: &FnDef, filename: &str, fn_lookup: &HashMap<String, &Vec<(String,
     collect_var_types(&f.body, &mut var_types);
 
     check_immutable_args_in_stmts(&f.body, &var_mutability, &var_types, fn_lookup, &f.name, filename, errors);
-    check_call_arg_types(&f.body, &var_types, fn_lookup, type_lookup, union_lookup, &f.name, filename, errors);
+    check_call_arg_types(&f.body, &var_types, fn_lookup, fn_ret_lookup, type_lookup, union_lookup, &f.name, filename, errors);
+    check_type_annotations(&f.body, &var_types, fn_ret_lookup, type_lookup, union_lookup, &f.name, filename, errors);
 
     if !matches!(f.ret, TypeExpr::Void) {
         check_return_paths(&f.body, &f.name, &f.ret, filename, errors);
@@ -1207,8 +1235,6 @@ fn check_immutable_args_in_expr(
 }
 
 /// If `expr` is an immutable `Ident` whose declared type is NOT a ref/pointer, return its name.
-/// Variables that are already ref/pointer types can be freely passed to ref parameters or builtins
-/// because doing so passes the pointer value — it doesn't mutate the binding itself.
 fn immutable_non_ref_ident<'a>(
     expr: &'a Expr,
     var_mut: &HashMap<String, bool>,
@@ -1216,8 +1242,6 @@ fn immutable_non_ref_ident<'a>(
 ) -> Option<&'a str> {
     if let Expr::Ident(name) = expr {
         if var_mut.get(name.as_str()) == Some(&false) {
-            // If we have no type info, assume it could be a pointer — don't flag it.
-            // If we do have type info and it's a pointer/ref type, also don't flag it.
             let is_ptr = var_types.get(name.as_str())
                 .map_or(true, is_pointer_type);
             if !is_ptr {
@@ -1256,6 +1280,7 @@ fn check_call_arg_types(
     stmts: &[Stmt],
     var_types: &HashMap<String, TypeExpr>,
     fn_lookup: &HashMap<String, &Vec<(String, TypeExpr)>>,
+    fn_ret_lookup: &HashMap<String, &TypeExpr>,
     type_lookup: &HashMap<String, &Vec<Field>>,
     union_lookup: &HashMap<String, &Vec<TypeExpr>>,
     fn_name: &str,
@@ -1263,7 +1288,7 @@ fn check_call_arg_types(
     errors: &mut Vec<String>,
 ) {
     for stmt in stmts {
-        check_call_arg_types_in_stmt(stmt, var_types, fn_lookup, type_lookup, union_lookup, fn_name, filename, errors);
+        check_call_arg_types_in_stmt(stmt, var_types, fn_lookup, fn_ret_lookup, type_lookup, union_lookup, fn_name, filename, errors);
     }
 }
 
@@ -1271,6 +1296,7 @@ fn check_call_arg_types_in_stmt(
     stmt: &Stmt,
     var_types: &HashMap<String, TypeExpr>,
     fn_lookup: &HashMap<String, &Vec<(String, TypeExpr)>>,
+    fn_ret_lookup: &HashMap<String, &TypeExpr>,
     type_lookup: &HashMap<String, &Vec<Field>>,
     union_lookup: &HashMap<String, &Vec<TypeExpr>>,
     fn_name: &str,
@@ -1279,81 +1305,81 @@ fn check_call_arg_types_in_stmt(
 ) {
     match stmt {
         Stmt::Val { expr, .. } => {
-            check_call_arg_types_in_expr(expr, var_types, fn_lookup, type_lookup, union_lookup, fn_name, filename, errors);
+            check_call_arg_types_in_expr(expr, var_types, fn_lookup, fn_ret_lookup, type_lookup, union_lookup, fn_name, filename, errors);
         }
         Stmt::Assign { target, value } => {
-            check_call_arg_types_in_expr(target, var_types, fn_lookup, type_lookup, union_lookup, fn_name, filename, errors);
-            check_call_arg_types_in_expr(value, var_types, fn_lookup, type_lookup, union_lookup, fn_name, filename, errors);
+            check_call_arg_types_in_expr(target, var_types, fn_lookup, fn_ret_lookup, type_lookup, union_lookup, fn_name, filename, errors);
+            check_call_arg_types_in_expr(value, var_types, fn_lookup, fn_ret_lookup, type_lookup, union_lookup, fn_name, filename, errors);
         }
         Stmt::Return(Some(e)) => {
-            check_call_arg_types_in_expr(e, var_types, fn_lookup, type_lookup, union_lookup, fn_name, filename, errors);
+            check_call_arg_types_in_expr(e, var_types, fn_lookup, fn_ret_lookup, type_lookup, union_lookup, fn_name, filename, errors);
         }
         Stmt::Expr(e) => {
-            check_call_arg_types_in_expr(e, var_types, fn_lookup, type_lookup, union_lookup, fn_name, filename, errors);
+            check_call_arg_types_in_expr(e, var_types, fn_lookup, fn_ret_lookup, type_lookup, union_lookup, fn_name, filename, errors);
         }
         Stmt::If { cond, then, elif_, else_, .. } => {
-            check_call_arg_types_in_expr(cond, var_types, fn_lookup, type_lookup, union_lookup, fn_name, filename, errors);
-            check_call_arg_types(then, var_types, fn_lookup, type_lookup, union_lookup, fn_name, filename, errors);
+            check_call_arg_types_in_expr(cond, var_types, fn_lookup, fn_ret_lookup, type_lookup, union_lookup, fn_name, filename, errors);
+            check_call_arg_types(then, var_types, fn_lookup, fn_ret_lookup, type_lookup, union_lookup, fn_name, filename, errors);
             for (ec, eb) in elif_ {
-                check_call_arg_types_in_expr(ec, var_types, fn_lookup, type_lookup, union_lookup, fn_name, filename, errors);
-                check_call_arg_types(eb, var_types, fn_lookup, type_lookup, union_lookup, fn_name, filename, errors);
+                check_call_arg_types_in_expr(ec, var_types, fn_lookup, fn_ret_lookup, type_lookup, union_lookup, fn_name, filename, errors);
+                check_call_arg_types(eb, var_types, fn_lookup, fn_ret_lookup, type_lookup, union_lookup, fn_name, filename, errors);
             }
             if let Some(b) = else_ {
-                check_call_arg_types(b, var_types, fn_lookup, type_lookup, union_lookup, fn_name, filename, errors);
+                check_call_arg_types(b, var_types, fn_lookup, fn_ret_lookup, type_lookup, union_lookup, fn_name, filename, errors);
             }
         }
         Stmt::For { init, cond, post, body } => {
             if let Some((_, e)) = init {
-                check_call_arg_types_in_expr(e, var_types, fn_lookup, type_lookup, union_lookup, fn_name, filename, errors);
+                check_call_arg_types_in_expr(e, var_types, fn_lookup, fn_ret_lookup, type_lookup, union_lookup, fn_name, filename, errors);
             }
             if let Some(e) = cond {
-                check_call_arg_types_in_expr(e, var_types, fn_lookup, type_lookup, union_lookup, fn_name, filename, errors);
+                check_call_arg_types_in_expr(e, var_types, fn_lookup, fn_ret_lookup, type_lookup, union_lookup, fn_name, filename, errors);
             }
             if let Some(s) = post {
-                check_call_arg_types_in_stmt(s, var_types, fn_lookup, type_lookup, union_lookup, fn_name, filename, errors);
+                check_call_arg_types_in_stmt(s, var_types, fn_lookup, fn_ret_lookup, type_lookup, union_lookup, fn_name, filename, errors);
             }
-            check_call_arg_types(body, var_types, fn_lookup, type_lookup, union_lookup, fn_name, filename, errors);
+            check_call_arg_types(body, var_types, fn_lookup, fn_ret_lookup, type_lookup, union_lookup, fn_name, filename, errors);
         }
         Stmt::ForIn { iterable, body, .. } => {
-            check_call_arg_types_in_expr(iterable, var_types, fn_lookup, type_lookup, union_lookup, fn_name, filename, errors);
-            check_call_arg_types(body, var_types, fn_lookup, type_lookup, union_lookup, fn_name, filename, errors);
+            check_call_arg_types_in_expr(iterable, var_types, fn_lookup, fn_ret_lookup, type_lookup, union_lookup, fn_name, filename, errors);
+            check_call_arg_types(body, var_types, fn_lookup, fn_ret_lookup, type_lookup, union_lookup, fn_name, filename, errors);
         }
         Stmt::Match { expr, some_body, none_body, .. } => {
-            check_call_arg_types_in_expr(expr, var_types, fn_lookup, type_lookup, union_lookup, fn_name, filename, errors);
-            check_call_arg_types(some_body, var_types, fn_lookup, type_lookup, union_lookup, fn_name, filename, errors);
-            check_call_arg_types(none_body, var_types, fn_lookup, type_lookup, union_lookup, fn_name, filename, errors);
+            check_call_arg_types_in_expr(expr, var_types, fn_lookup, fn_ret_lookup, type_lookup, union_lookup, fn_name, filename, errors);
+            check_call_arg_types(some_body, var_types, fn_lookup, fn_ret_lookup, type_lookup, union_lookup, fn_name, filename, errors);
+            check_call_arg_types(none_body, var_types, fn_lookup, fn_ret_lookup, type_lookup, union_lookup, fn_name, filename, errors);
         }
         Stmt::MatchResult { expr, ok_body, err_body, .. } => {
-            check_call_arg_types_in_expr(expr, var_types, fn_lookup, type_lookup, union_lookup, fn_name, filename, errors);
-            check_call_arg_types(ok_body, var_types, fn_lookup, type_lookup, union_lookup, fn_name, filename, errors);
-            check_call_arg_types(err_body, var_types, fn_lookup, type_lookup, union_lookup, fn_name, filename, errors);
+            check_call_arg_types_in_expr(expr, var_types, fn_lookup, fn_ret_lookup, type_lookup, union_lookup, fn_name, filename, errors);
+            check_call_arg_types(ok_body, var_types, fn_lookup, fn_ret_lookup, type_lookup, union_lookup, fn_name, filename, errors);
+            check_call_arg_types(err_body, var_types, fn_lookup, fn_ret_lookup, type_lookup, union_lookup, fn_name, filename, errors);
         }
         Stmt::MatchEnum { expr, arms } => {
-            check_call_arg_types_in_expr(expr, var_types, fn_lookup, type_lookup, union_lookup, fn_name, filename, errors);
+            check_call_arg_types_in_expr(expr, var_types, fn_lookup, fn_ret_lookup, type_lookup, union_lookup, fn_name, filename, errors);
             for (_, body) in arms {
-                check_call_arg_types(body, var_types, fn_lookup, type_lookup, union_lookup, fn_name, filename, errors);
+                check_call_arg_types(body, var_types, fn_lookup, fn_ret_lookup, type_lookup, union_lookup, fn_name, filename, errors);
             }
         }
         Stmt::MatchUnion { expr, arms, else_body } => {
-            check_call_arg_types_in_expr(expr, var_types, fn_lookup, type_lookup, union_lookup, fn_name, filename, errors);
+            check_call_arg_types_in_expr(expr, var_types, fn_lookup, fn_ret_lookup, type_lookup, union_lookup, fn_name, filename, errors);
             for (_, body) in arms {
-                check_call_arg_types(body, var_types, fn_lookup, type_lookup, union_lookup, fn_name, filename, errors);
+                check_call_arg_types(body, var_types, fn_lookup, fn_ret_lookup, type_lookup, union_lookup, fn_name, filename, errors);
             }
             if let Some(body) = else_body {
-                check_call_arg_types(body, var_types, fn_lookup, type_lookup, union_lookup, fn_name, filename, errors);
+                check_call_arg_types(body, var_types, fn_lookup, fn_ret_lookup, type_lookup, union_lookup, fn_name, filename, errors);
             }
         }
         Stmt::MatchString { expr, arms, else_body } => {
-            check_call_arg_types_in_expr(expr, var_types, fn_lookup, type_lookup, union_lookup, fn_name, filename, errors);
+            check_call_arg_types_in_expr(expr, var_types, fn_lookup, fn_ret_lookup, type_lookup, union_lookup, fn_name, filename, errors);
             for (_, body) in arms {
-                check_call_arg_types(body, var_types, fn_lookup, type_lookup, union_lookup, fn_name, filename, errors);
+                check_call_arg_types(body, var_types, fn_lookup, fn_ret_lookup, type_lookup, union_lookup, fn_name, filename, errors);
             }
             if let Some(body) = else_body {
-                check_call_arg_types(body, var_types, fn_lookup, type_lookup, union_lookup, fn_name, filename, errors);
+                check_call_arg_types(body, var_types, fn_lookup, fn_ret_lookup, type_lookup, union_lookup, fn_name, filename, errors);
             }
         }
         Stmt::Defer(body) | Stmt::When { body, .. } => {
-            check_call_arg_types(body, var_types, fn_lookup, type_lookup, union_lookup, fn_name, filename, errors);
+            check_call_arg_types(body, var_types, fn_lookup, fn_ret_lookup, type_lookup, union_lookup, fn_name, filename, errors);
         }
         _ => {}
     }
@@ -1363,6 +1389,7 @@ fn check_call_arg_types_in_expr(
     expr: &Expr,
     var_types: &HashMap<String, TypeExpr>,
     fn_lookup: &HashMap<String, &Vec<(String, TypeExpr)>>,
+    fn_ret_lookup: &HashMap<String, &TypeExpr>,
     type_lookup: &HashMap<String, &Vec<Field>>,
     union_lookup: &HashMap<String, &Vec<TypeExpr>>,
     fn_name: &str,
@@ -1372,7 +1399,7 @@ fn check_call_arg_types_in_expr(
     match expr {
         Expr::Call { callee, args, .. } => {
             for arg in args {
-                check_call_arg_types_in_expr(arg, var_types, fn_lookup, type_lookup, union_lookup, fn_name, filename, errors);
+                check_call_arg_types_in_expr(arg, var_types, fn_lookup, fn_ret_lookup, type_lookup, union_lookup, fn_name, filename, errors);
             }
 
             let callee_path = expr_to_call_path(callee);
@@ -1381,7 +1408,7 @@ fn check_call_arg_types_in_expr(
                     for (i, arg) in args.iter().enumerate() {
                         if i < param_types.len() {
                             let (_, expected_type) = &param_types[i];
-                            if let Some(actual_type) = infer_expr_type(arg, var_types, type_lookup) {
+                            if let Some(actual_type) = infer_expr_type(arg, var_types, type_lookup, fn_ret_lookup) {
                                 if !types_compatible(expected_type, &actual_type, union_lookup) {
                                     let arg_desc = match arg {
                                         Expr::Ident(n) => format!("'{n}'"),
@@ -1404,16 +1431,16 @@ fn check_call_arg_types_in_expr(
                 }
             }
 
-            check_call_arg_types_in_expr(callee, var_types, fn_lookup, type_lookup, union_lookup, fn_name, filename, errors);
+            check_call_arg_types_in_expr(callee, var_types, fn_lookup, fn_ret_lookup, type_lookup, union_lookup, fn_name, filename, errors);
         }
         Expr::Builtin { args, .. } => {
             for arg in args {
-                check_call_arg_types_in_expr(arg, var_types, fn_lookup, type_lookup, union_lookup, fn_name, filename, errors);
+                check_call_arg_types_in_expr(arg, var_types, fn_lookup, fn_ret_lookup, type_lookup, union_lookup, fn_name, filename, errors);
             }
         }
         Expr::BinOp { lhs, rhs, .. } => {
-            check_call_arg_types_in_expr(lhs, var_types, fn_lookup, type_lookup, union_lookup, fn_name, filename, errors);
-            check_call_arg_types_in_expr(rhs, var_types, fn_lookup, type_lookup, union_lookup, fn_name, filename, errors);
+            check_call_arg_types_in_expr(lhs, var_types, fn_lookup, fn_ret_lookup, type_lookup, union_lookup, fn_name, filename, errors);
+            check_call_arg_types_in_expr(rhs, var_types, fn_lookup, fn_ret_lookup, type_lookup, union_lookup, fn_name, filename, errors);
         }
         Expr::UnOp { expr, .. }
         | Expr::Cast { expr, .. }
@@ -1424,24 +1451,24 @@ fn check_call_arg_types_in_expr(
         | Expr::Trust(expr)
         | Expr::Addr(expr)
         | Expr::Deref(expr) => {
-            check_call_arg_types_in_expr(expr, var_types, fn_lookup, type_lookup, union_lookup, fn_name, filename, errors);
+            check_call_arg_types_in_expr(expr, var_types, fn_lookup, fn_ret_lookup, type_lookup, union_lookup, fn_name, filename, errors);
         }
         Expr::Field(base, _) => {
-            check_call_arg_types_in_expr(base, var_types, fn_lookup, type_lookup, union_lookup, fn_name, filename, errors);
+            check_call_arg_types_in_expr(base, var_types, fn_lookup, fn_ret_lookup, type_lookup, union_lookup, fn_name, filename, errors);
         }
         Expr::StructLit { fields } => {
             for (_, e) in fields {
-                check_call_arg_types_in_expr(e, var_types, fn_lookup, type_lookup, union_lookup, fn_name, filename, errors);
+                check_call_arg_types_in_expr(e, var_types, fn_lookup, fn_ret_lookup, type_lookup, union_lookup, fn_name, filename, errors);
             }
         }
         Expr::ListLit(elems) => {
             for e in elems {
-                check_call_arg_types_in_expr(e, var_types, fn_lookup, type_lookup, union_lookup, fn_name, filename, errors);
+                check_call_arg_types_in_expr(e, var_types, fn_lookup, fn_ret_lookup, type_lookup, union_lookup, fn_name, filename, errors);
             }
         }
         Expr::ArgsPack(exprs) => {
             for e in exprs {
-                check_call_arg_types_in_expr(e, var_types, fn_lookup, type_lookup, union_lookup, fn_name, filename, errors);
+                check_call_arg_types_in_expr(e, var_types, fn_lookup, fn_ret_lookup, type_lookup, union_lookup, fn_name, filename, errors);
             }
         }
         _ => {}
@@ -1449,7 +1476,7 @@ fn check_call_arg_types_in_expr(
 }
 
 /// Infer the type of an expression based on variable types and literal kinds.
-fn infer_expr_type(expr: &Expr, var_types: &HashMap<String, TypeExpr>, type_lookup: &HashMap<String, &Vec<Field>>) -> Option<TypeExpr> {
+fn infer_expr_type(expr: &Expr, var_types: &HashMap<String, TypeExpr>, type_lookup: &HashMap<String, &Vec<Field>>, fn_ret_lookup: &HashMap<String, &TypeExpr>) -> Option<TypeExpr> {
     match expr {
         Expr::Ident(name) => var_types.get(name).cloned(),
         Expr::IntLit(_) => Some(TypeExpr::Named("i32".to_string())),
@@ -1458,10 +1485,10 @@ fn infer_expr_type(expr: &Expr, var_types: &HashMap<String, TypeExpr>, type_look
         Expr::Bool(_) => Some(TypeExpr::Named("bool".to_string())),
         Expr::None => Some(TypeExpr::Option(Box::new(TypeExpr::Untyped))),
         Expr::Some(inner) => {
-            infer_expr_type(inner, var_types, type_lookup).map(|t| TypeExpr::Option(Box::new(t)))
+            infer_expr_type(inner, var_types, type_lookup, fn_ret_lookup).map(|t| TypeExpr::Option(Box::new(t)))
         }
         Expr::OkVal(inner) | Expr::ErrVal(inner) => {
-            infer_expr_type(inner, var_types, type_lookup)
+            infer_expr_type(inner, var_types, type_lookup, fn_ret_lookup)
         }
         Expr::Cast { ty, .. } => Some(ty.clone()),
         Expr::ZeroInit(ty) => Some(TypeExpr::Named(ty.clone())),
@@ -1473,14 +1500,14 @@ fn infer_expr_type(expr: &Expr, var_types: &HashMap<String, TypeExpr>, type_look
                 }
                 BinOp::Add | BinOp::Sub | BinOp::Mul | BinOp::Div | BinOp::Rem
                 | BinOp::And | BinOp::Or | BinOp::BitAnd | BinOp::BitOr | BinOp::BitXor | BinOp::Shl | BinOp::Shr => {
-                    infer_expr_type(lhs, var_types, type_lookup)
+                    infer_expr_type(lhs, var_types, type_lookup, fn_ret_lookup)
                 }
             }
         }
         Expr::UnOp { op, expr } => {
             use crate::parser::UnOp;
             match op {
-                UnOp::Neg | UnOp::BitwiseNot => infer_expr_type(expr, var_types, type_lookup),
+                UnOp::Neg | UnOp::BitwiseNot => infer_expr_type(expr, var_types, type_lookup, fn_ret_lookup),
                 UnOp::Not => Some(TypeExpr::Named("bool".to_string())),
             }
         }
@@ -1495,14 +1522,14 @@ fn infer_expr_type(expr: &Expr, var_types: &HashMap<String, TypeExpr>, type_look
             None
         }
         Expr::Addr(inner) => {
-            if let Some(ty) = infer_expr_type(inner, var_types, type_lookup) {
+            if let Some(ty) = infer_expr_type(inner, var_types, type_lookup, fn_ret_lookup) {
                 Some(TypeExpr::Ref(Box::new(ty)))
             } else {
                 None
             }
         }
         Expr::Field(base, field) => {
-            if let Some(base_type) = infer_expr_type(base, var_types, type_lookup) {
+            if let Some(base_type) = infer_expr_type(base, var_types, type_lookup, fn_ret_lookup) {
                 if let TypeExpr::Named(ref type_name) = base_type {
                     if let Some(fields) = type_lookup.get(type_name) {
                         for f in *fields {
@@ -1514,13 +1541,19 @@ fn infer_expr_type(expr: &Expr, var_types: &HashMap<String, TypeExpr>, type_look
                 }
             }
             // Whatever: just return the base type
-            infer_expr_type(base, var_types, type_lookup)
+            infer_expr_type(base, var_types, type_lookup, fn_ret_lookup)
         }
-        Expr::Call { .. } => {
-            None
+        Expr::Call { callee, .. } => {
+            let callee_path = expr_to_call_path(callee)?;
+            fn_ret_lookup.get(&callee_path).map(|ret_ty| (**ret_ty).clone())
         }
-        Expr::Builtin { .. } => {
-            None
+        Expr::Builtin { name, .. } => {
+            match name.as_str() {
+                "alloc" | "realloc" | "ptradd" => Some(TypeExpr::Ref(Box::new(TypeExpr::Named("void".to_string())))),
+                "load" | "load8" | "loadf" => None,
+                "store" | "store8" | "storef" | "memset" | "memcpy" | "free" => Some(TypeExpr::Void),
+                _ => None,
+            }
         }
         Expr::ListLit(_) => {
             Some(TypeExpr::List(Box::new(TypeExpr::Untyped)))
@@ -1532,7 +1565,7 @@ fn infer_expr_type(expr: &Expr, var_types: &HashMap<String, TypeExpr>, type_look
             None
         }
         Expr::Try(inner) | Expr::Trust(inner) => {
-            infer_expr_type(inner, var_types, type_lookup)
+            infer_expr_type(inner, var_types, type_lookup, fn_ret_lookup)
         }
     }
 }
@@ -1621,4 +1654,191 @@ fn type_to_string(ty: &TypeExpr) -> String {
         TypeExpr::Void => "void".to_string(),
         TypeExpr::Untyped => "untyped".to_string(),
     }
+}
+
+/// Check that explicit type annotations on `val` declarations match the inferred type.
+/// This catches bugs like `val x: ref void = PtrList.new(8)` where new() returns `result[...]`.
+fn check_type_annotations(
+    stmts: &[Stmt],
+    var_types: &HashMap<String, TypeExpr>,
+    fn_ret_lookup: &HashMap<String, &TypeExpr>,
+    type_lookup: &HashMap<String, &Vec<Field>>,
+    union_lookup: &HashMap<String, &Vec<TypeExpr>>,
+    fn_name: &str,
+    filename: &str,
+    errors: &mut Vec<String>,
+) {
+    for stmt in stmts {
+        match stmt {
+            Stmt::Val { name, ty: Some(declared_ty), expr, .. } => {
+                if let Some(inferred) = infer_expr_type(expr, var_types, type_lookup, fn_ret_lookup) {
+                    if !types_compatible_for_annotation(declared_ty, &inferred, union_lookup) {
+                        errors.push(format!(
+                            "{filename}: in function '{fn_name}': type mismatch for '{name}': \
+                             declared '{declared}', but expression has type '{inferred}'",
+                            declared = type_to_string(declared_ty),
+                            inferred = type_to_string(&inferred)
+                        ));
+                    }
+                }
+                check_type_annotations_in_expr(expr, var_types, fn_ret_lookup, type_lookup, union_lookup, fn_name, filename, errors);
+            }
+            Stmt::If { cond, then, elif_, else_ } => {
+                check_type_annotations_in_expr(cond, var_types, fn_ret_lookup, type_lookup, union_lookup, fn_name, filename, errors);
+                for s in then {
+                    check_type_annotations(std::slice::from_ref(s), var_types, fn_ret_lookup, type_lookup, union_lookup, fn_name, filename, errors);
+                }
+                for (e, b) in elif_ {
+                    check_type_annotations_in_expr(e, var_types, fn_ret_lookup, type_lookup, union_lookup, fn_name, filename, errors);
+                    for s in b {
+                        check_type_annotations(std::slice::from_ref(s), var_types, fn_ret_lookup, type_lookup, union_lookup, fn_name, filename, errors);
+                    }
+                }
+                if let Some(else_body) = else_ {
+                    for s in else_body {
+                        check_type_annotations(std::slice::from_ref(s), var_types, fn_ret_lookup, type_lookup, union_lookup, fn_name, filename, errors);
+                    }
+                }
+            }
+            Stmt::For { init: Some((_, init_expr)), cond: Some(cond), post: Some(post), body } => {
+                check_type_annotations_in_expr(init_expr, var_types, fn_ret_lookup, type_lookup, union_lookup, fn_name, filename, errors);
+                check_type_annotations_in_expr(cond, var_types, fn_ret_lookup, type_lookup, union_lookup, fn_name, filename, errors);
+                check_type_annotations(std::slice::from_ref(post), var_types, fn_ret_lookup, type_lookup, union_lookup, fn_name, filename, errors);
+                for s in body {
+                    check_type_annotations(std::slice::from_ref(s), var_types, fn_ret_lookup, type_lookup, union_lookup, fn_name, filename, errors);
+                }
+            }
+            Stmt::For { init: None, cond: Some(cond), post: Some(post), body } => {
+                check_type_annotations_in_expr(cond, var_types, fn_ret_lookup, type_lookup, union_lookup, fn_name, filename, errors);
+                check_type_annotations(std::slice::from_ref(post), var_types, fn_ret_lookup, type_lookup, union_lookup, fn_name, filename, errors);
+                for s in body {
+                    check_type_annotations(std::slice::from_ref(s), var_types, fn_ret_lookup, type_lookup, union_lookup, fn_name, filename, errors);
+                }
+            }
+            Stmt::For { init: Some((_, init_expr)), cond: None, post: Some(post), body } => {
+                check_type_annotations_in_expr(init_expr, var_types, fn_ret_lookup, type_lookup, union_lookup, fn_name, filename, errors);
+                check_type_annotations(std::slice::from_ref(post), var_types, fn_ret_lookup, type_lookup, union_lookup, fn_name, filename, errors);
+                for s in body {
+                    check_type_annotations(std::slice::from_ref(s), var_types, fn_ret_lookup, type_lookup, union_lookup, fn_name, filename, errors);
+                }
+            }
+            Stmt::For { init: None, cond: None, post: Some(post), body } => {
+                check_type_annotations(std::slice::from_ref(post), var_types, fn_ret_lookup, type_lookup, union_lookup, fn_name, filename, errors);
+                for s in body {
+                    check_type_annotations(std::slice::from_ref(s), var_types, fn_ret_lookup, type_lookup, union_lookup, fn_name, filename, errors);
+                }
+            }
+            Stmt::ForIn { iterable, body, .. } => {
+                check_type_annotations_in_expr(iterable, var_types, fn_ret_lookup, type_lookup, union_lookup, fn_name, filename, errors);
+                for s in body {
+                    check_type_annotations(std::slice::from_ref(s), var_types, fn_ret_lookup, type_lookup, union_lookup, fn_name, filename, errors);
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
+fn check_type_annotations_in_expr(
+    expr: &Expr,
+    var_types: &HashMap<String, TypeExpr>,
+    fn_ret_lookup: &HashMap<String, &TypeExpr>,
+    type_lookup: &HashMap<String, &Vec<Field>>,
+    union_lookup: &HashMap<String, &Vec<TypeExpr>>,
+    fn_name: &str,
+    filename: &str,
+    errors: &mut Vec<String>,
+) {
+    match expr {
+        Expr::Call { args, .. } => {
+            for a in args {
+                check_type_annotations_in_expr(a, var_types, fn_ret_lookup, type_lookup, union_lookup, fn_name, filename, errors);
+            }
+        }
+        Expr::Some(inner) | Expr::OkVal(inner) | Expr::ErrVal(inner)
+        | Expr::Trust(inner) | Expr::Try(inner) | Expr::Addr(inner) | Expr::Deref(inner)
+        | Expr::Cast { expr: inner, .. } => {
+            check_type_annotations_in_expr(inner, var_types, fn_ret_lookup, type_lookup, union_lookup, fn_name, filename, errors);
+        }
+        Expr::BinOp { lhs, rhs, .. } => {
+            check_type_annotations_in_expr(lhs, var_types, fn_ret_lookup, type_lookup, union_lookup, fn_name, filename, errors);
+            check_type_annotations_in_expr(rhs, var_types, fn_ret_lookup, type_lookup, union_lookup, fn_name, filename, errors);
+        }
+        Expr::UnOp { expr: inner, .. } => {
+            check_type_annotations_in_expr(inner, var_types, fn_ret_lookup, type_lookup, union_lookup, fn_name, filename, errors);
+        }
+        Expr::StructLit { fields, .. } => {
+            for (_, e) in fields {
+                check_type_annotations_in_expr(e, var_types, fn_ret_lookup, type_lookup, union_lookup, fn_name, filename, errors);
+            }
+        }
+        Expr::ListLit(items) => {
+            for e in items {
+                check_type_annotations_in_expr(e, var_types, fn_ret_lookup, type_lookup, union_lookup, fn_name, filename, errors);
+            }
+        }
+        Expr::Field(base, _) => {
+            check_type_annotations_in_expr(base, var_types, fn_ret_lookup, type_lookup, union_lookup, fn_name, filename, errors);
+        }
+        Expr::ArgsPack(items) => {
+            for e in items {
+                check_type_annotations_in_expr(e, var_types, fn_ret_lookup, type_lookup, union_lookup, fn_name, filename, errors);
+            }
+        }
+        _ => {}
+    }
+}
+
+/// Check if a declared type is compatible with the inferred expression type.
+/// More permissive than strict equality (allows ptr/ref compatibility, int widening, etc.)
+fn types_compatible_for_annotation(declared: &TypeExpr, inferred: &TypeExpr, union_lookup: &HashMap<String, &Vec<TypeExpr>>) -> bool {
+    if type_eq(declared, inferred) {
+        return true;
+    }
+    if type_to_string(declared) == type_to_string(inferred) {
+        return true;
+    }
+    match (declared, inferred) {
+        (TypeExpr::Named(a), TypeExpr::Named(b)) => {
+            let int_types = ["i8", "u8", "i16", "u16", "i32", "u32", "i64", "u64", "isize", "usize"];
+            if int_types.contains(&a.as_str()) && int_types.contains(&b.as_str()) {
+                return true;
+            }
+            if a == "ptr" || a == "rawptr" {
+                if b == "ptr" || b == "rawptr" {
+                    return true;
+                }
+            }
+            false
+        }
+        (TypeExpr::Ref(inner_d), TypeExpr::Ref(inner_i)) => types_compatible_for_annotation(inner_d, inner_i, union_lookup),
+        (TypeExpr::Named(a), TypeExpr::Ref(inner)) if a == "ptr" || a == "rawptr" || a == "void" => {
+            types_compatible_for_annotation(&TypeExpr::Named(a.clone()), inner, union_lookup)
+        }
+        (TypeExpr::Option(d), TypeExpr::Option(i)) => types_compatible_for_annotation(d, i, union_lookup),
+        (TypeExpr::Named(name), _) => {
+            if let Some(variants) = union_lookup.get(name) {
+                matches_union_variant(variants, inferred, union_lookup)
+            } else {
+                false
+            }
+        }
+        _ => false,
+    }
+}
+
+fn matches_union_variant(variants: &[TypeExpr], ty: &TypeExpr, union_lookup: &HashMap<String, &Vec<TypeExpr>>) -> bool {
+    for v in variants {
+        if type_eq(v, ty) {
+            return true;
+        }
+        if let TypeExpr::Named(name) = v {
+            if let Some(inner_variants) = union_lookup.get(name) {
+                if matches_union_variant(inner_variants, ty, union_lookup) {
+                    return true;
+                }
+            }
+        }
+    }
+    false
 }

@@ -787,7 +787,7 @@ fn rewrite_fmt(fmt: ref char) ref void! = {
 ///
 /// Example: format("{s} {d}", {name, age})
 pub fn format(fmt: ref char, args: untyped) ref void! = {
-    val rfmt: ref char = rewrite_fmt(fmt)
+    val rfmt: ref void = rewrite_fmt(fmt)
     val buf: ref void = @alloc(4096)
     val written: mut i64 = @snprintf(buf, 4096, rfmt, args) as i64
     @free(rfmt)
