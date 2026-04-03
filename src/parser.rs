@@ -83,6 +83,8 @@ pub enum TypeExpr {
     Slice(Box<TypeExpr>),
     Ref(Box<TypeExpr>),
     Option(Box<TypeExpr>),
+    /// `list[T]` — dynamic list type with element type T
+    List(Box<TypeExpr>),
     /// `result[T, E]` — result type with ok payload T and err payload E
     Result(Box<TypeExpr>, Box<TypeExpr>),
     /// `fn(T, T) R` — function pointer type
@@ -122,6 +124,12 @@ pub enum Stmt {
         init: Option<(String, Expr)>, // var = expr
         cond: Option<Expr>,           // None = infinite
         post: Option<Box<Stmt>>,      // e.g. y++
+        body: Vec<Stmt>,
+    },
+    /// `for x in iterable { ... }` — for-in loop over a list
+    ForIn {
+        binding: String,
+        iterable: Expr,
         body: Vec<Stmt>,
     },
     Increment(String), // x++
@@ -207,6 +215,8 @@ pub enum Expr {
     StructLit {
         fields: Vec<(String, Expr)>,
     },
+    /// List literal: `[expr, expr, ...]` or `[]`
+    ListLit(Vec<Expr>),
     /// Positional args pack: `{expr, expr, ...}` — used for varargs-style call arguments
     ArgsPack(Vec<Expr>),
     /// `TypeName{}` — zero-initialize all fields of a named struct type
@@ -550,6 +560,11 @@ impl Parser {
                     let err_ty = self.parse_type()?;
                     self.expect(&TokenKind::RBracket)?;
                     Ok(TypeExpr::Result(Box::new(ok_ty), Box::new(err_ty)))
+                } else if name == "list" {
+                    self.expect(&TokenKind::LBracket)?;
+                    let inner = self.parse_type()?;
+                    self.expect(&TokenKind::RBracket)?;
+                    Ok(TypeExpr::List(Box::new(inner)))
                 } else if name == "void" {
                     Ok(TypeExpr::Void)
                 } else if name == "untyped" {
@@ -787,7 +802,21 @@ impl Parser {
                     });
                 }
                 let has_paren = self.eat(&TokenKind::LParen);
-                let init_name = self.expect_ident()?;
+
+                let first_name = self.expect_ident()?;
+                if self.eat(&TokenKind::In) {
+                    let iterable = self.parse_expr()?;
+                    if has_paren { self.expect(&TokenKind::RParen)?; }
+                    self.expect(&TokenKind::LBrace)?;
+                    let body = self.parse_stmts()?;
+                    self.expect(&TokenKind::RBrace)?;
+                    return Ok(Stmt::ForIn {
+                        binding: first_name,
+                        iterable,
+                        body,
+                    });
+                }
+
                 self.expect(&TokenKind::Eq)?;
                 let init_expr = self.parse_expr()?;
                 self.expect(&TokenKind::Semicolon)?;
@@ -812,7 +841,7 @@ impl Parser {
                 let body = self.parse_stmts()?;
                 self.expect(&TokenKind::RBrace)?;
                 Ok(Stmt::For {
-                    init: Some((init_name.clone(), init_expr)),
+                    init: Some((first_name.clone(), init_expr)),
                     cond: Some(cond),
                     post: Some(Box::new(post_stmt)),
                     body,
@@ -1362,6 +1391,18 @@ impl Parser {
                     return Ok(Expr::StructLit { fields });
                 }
                 Ok(Expr::Ident(name))
+            }
+            TokenKind::LBracket => {
+                self.advance();
+                let mut elems = Vec::new();
+                while self.peek() != &TokenKind::RBracket && self.peek() != &TokenKind::Eof {
+                    elems.push(self.parse_expr()?);
+                    if !self.eat(&TokenKind::Comma) {
+                        break;
+                    }
+                }
+                self.expect(&TokenKind::RBracket)?;
+                Ok(Expr::ListLit(elems))
             }
             TokenKind::At => {
                 self.advance();

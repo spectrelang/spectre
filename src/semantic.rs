@@ -140,6 +140,20 @@ fn check_shadowing_in_stmt(
             check_shadowing_in_stmts(body, scope_stack, fn_name, filename, errors);
             scope_stack.pop();
         }
+        Stmt::ForIn { binding, body, .. } => {
+            scope_stack.push(HashSet::new());
+            let shadowed = scope_stack.iter().rev().skip(1).any(|s| s.contains(binding));
+            if shadowed {
+                errors.push(format!(
+                    "{filename}: in function '{fn_name}': '{binding}' shadows an existing declaration"
+                ));
+            }
+            if let Some(top) = scope_stack.last_mut() {
+                top.insert(binding.clone());
+            }
+            check_shadowing_in_stmts(body, scope_stack, fn_name, filename, errors);
+            scope_stack.pop();
+        }
         Stmt::If { then, elif_, else_, .. } => {
             scope_stack.push(HashSet::new());
             check_shadowing_in_stmts(then, scope_stack, fn_name, filename, errors);
@@ -232,6 +246,10 @@ fn collect_declarations(
                 }
                 collect_declarations(body, declared, for_vars);
             }
+            Stmt::ForIn { binding, body, .. } => {
+                declared.insert(binding.clone(), false);
+                collect_declarations(body, declared, for_vars);
+            }
             Stmt::If { then, elif_, else_, .. } => {
                 collect_declarations(then, declared, for_vars);
                 for (_, b) in elif_ {
@@ -317,6 +335,11 @@ fn collect_used_in_stmt(stmt: &Stmt, used: &mut HashSet<String>) {
             if let Some(s) = post {
                 collect_used_in_stmt(s, used);
             }
+            collect_used_in_stmts(body, used);
+        }
+        Stmt::ForIn { binding, iterable, body } => {
+            collect_used_in_expr(iterable, used);
+            used.insert(binding.clone());
             collect_used_in_stmts(body, used);
         }
         Stmt::Increment(name) => {
@@ -417,6 +440,11 @@ fn collect_used_in_expr(expr: &Expr, used: &mut HashSet<String>) {
                 collect_used_in_expr(e, used);
             }
         }
+        Expr::ListLit(elems) => {
+            for e in elems {
+                collect_used_in_expr(e, used);
+            }
+        }
         Expr::ArgsPack(exprs) => {
             for e in exprs {
                 collect_used_in_expr(e, used);
@@ -476,6 +504,10 @@ fn collect_mutated_in_stmt(stmt: &Stmt, mutated: &mut HashSet<String>) {
             if let Some(s) = post {
                 collect_mutated_in_stmt(s, mutated);
             }
+            collect_mutated_in_stmts(body, mutated);
+        }
+        Stmt::ForIn { iterable, body, .. } => {
+            collect_addr_deref_in_expr(iterable, mutated);
             collect_mutated_in_stmts(body, mutated);
         }
         Stmt::Match { expr, some_body, none_body, .. } => {
@@ -561,6 +593,7 @@ fn collect_var_types(stmts: &[Stmt], map: &mut HashMap<String, TypeExpr>) {
         match stmt {
             Stmt::Val { name, ty: Some(ty), .. } => { map.insert(name.clone(), ty.clone()); }
             Stmt::For { body, .. } => collect_var_types(body, map),
+            Stmt::ForIn { body, .. } => collect_var_types(body, map),
             Stmt::If { then, elif_, else_, .. } => {
                 collect_var_types(then, map);
                 for (_, b) in elif_ { collect_var_types(b, map); }
@@ -636,6 +669,10 @@ fn collect_ref_used_in_stmt(
             if let Some((_, e)) = init { collect_ref_used_in_expr(e, fn_lookup, out); }
             if let Some(e) = cond { collect_ref_used_in_expr(e, fn_lookup, out); }
             if let Some(s) = post { collect_ref_used_in_stmt(s, fn_lookup, out); }
+            collect_ref_used_in_stmts(body, fn_lookup, out);
+        }
+        Stmt::ForIn { iterable, body, .. } => {
+            collect_ref_used_in_expr(iterable, fn_lookup, out);
             collect_ref_used_in_stmts(body, fn_lookup, out);
         }
         Stmt::Match { expr, some_body, none_body, .. } => {
@@ -719,6 +756,9 @@ fn collect_ref_used_in_expr(
         Expr::Field(base, _) => collect_ref_used_in_expr(base, fn_lookup, out),
         Expr::StructLit { fields } => {
             for (_, e) in fields { collect_ref_used_in_expr(e, fn_lookup, out); }
+        }
+        Expr::ListLit(elems) => {
+            for e in elems { collect_ref_used_in_expr(e, fn_lookup, out); }
         }
         Expr::ArgsPack(exprs) => {
             for e in exprs { collect_ref_used_in_expr(e, fn_lookup, out); }

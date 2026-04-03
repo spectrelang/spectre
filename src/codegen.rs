@@ -17,6 +17,7 @@ fn qbe_type(ty: &TypeExpr) -> &'static str {
         TypeExpr::Slice(_) => "l",
         TypeExpr::Ref(_) => "l",
         TypeExpr::Option(_) => "l",
+        TypeExpr::List(_) => "l",
         TypeExpr::Result(_, _) => "l",
         TypeExpr::FnPtr { .. } => "l",
         TypeExpr::Void => "w",
@@ -856,6 +857,68 @@ impl Codegen {
                 if let Some(post_stmt) = post {
                     self.emit_stmt(post_stmt, ns, ret_ty)?;
                 }
+                self.emit(&format!("    jmp {loop_lbl}"));
+                self.emit(&format!("{end_lbl}"));
+            }
+            Stmt::ForIn { binding, iterable, body } => {
+                let loop_lbl = format!("@forin_loop_{}", self.tmp_counter);
+                let body_lbl = format!("@forin_body_{}", self.tmp_counter);
+                let end_lbl = format!("@forin_end_{}", self.tmp_counter);
+                let cont_lbl = format!("@forin_cont_{}", self.tmp_counter);
+                self.tmp_counter += 1;
+
+                let (list_ptr, _) = self.emit_expr(iterable, ns)?;
+                let idx_slot = self.fresh_tmp();
+
+                self.emit(&format!("    {idx_slot} =l alloc8 8"));
+                self.emit(&format!("    storel 0, {idx_slot}"));
+
+                let len_slot = self.fresh_tmp();
+
+                self.emit(&format!("    {len_slot} =l add {list_ptr}, 8"));
+                self.emit(&format!("    jmp {loop_lbl}"));
+                self.emit(&format!("{loop_lbl}"));
+
+                let idx_val = self.fresh_tmp();
+                let len_val = self.fresh_tmp();
+
+                self.emit(&format!("    {idx_val} =l loadl {idx_slot}"));
+                self.emit(&format!("    {len_val} =l loadl {len_slot}"));
+
+                let cond = self.fresh_tmp();
+
+                self.emit(&format!("    {cond} =w csltl {idx_val}, {len_val}"));
+                self.emit(&format!("    jnz {cond}, {body_lbl}, {end_lbl}"));
+                self.emit(&format!("{body_lbl}"));
+
+                let buf = self.fresh_tmp();
+                self.emit(&format!("    {buf} =l loadl {list_ptr}"));
+                let elem_off = self.fresh_tmp();
+                self.emit(&format!("    {elem_off} =l mul {idx_val}, 8"));
+                let elem_ptr = self.fresh_tmp();
+                self.emit(&format!("    {elem_ptr} =l add {buf}, {elem_off}"));
+                let elem_val = self.fresh_tmp();
+                self.emit(&format!("    {elem_val} =l loadl {elem_ptr}"));
+
+                self.locals.insert(binding.clone(), elem_val.clone());
+                self.local_types.insert(binding.clone(), "l");
+                self.local_mutability.insert(binding.clone(), false);
+
+                let prev_loop_end = self.current_loop_end.replace(end_lbl.clone());
+                let prev_loop_cont = self.current_loop_continue.replace(cont_lbl.clone());
+                
+                self.emit_stmts(body, ns, ret_ty)?;
+                self.current_loop_end = prev_loop_end;
+                self.current_loop_continue = prev_loop_cont;
+
+                if !block_is_terminated(body) {
+                    self.emit(&format!("    jmp {cont_lbl}"));
+                }
+                self.emit(&format!("{cont_lbl}"));
+                
+                let new_idx = self.fresh_tmp();
+                self.emit(&format!("    {new_idx} =l add {idx_val}, 1"));
+                self.emit(&format!("    storel {new_idx}, {idx_slot}"));
                 self.emit(&format!("    jmp {loop_lbl}"));
                 self.emit(&format!("{end_lbl}"));
             }
@@ -1734,6 +1797,315 @@ impl Codegen {
                     self.emit(&format!("    {tmp} =l call $sx_get_args()"));
                     Ok((tmp, "l"))
                 }
+
+                "append" => {
+                    if args.len() != 2 {
+                        return Err("@append(list, value) requires exactly 2 arguments".into());
+                    }
+                    let (list_ptr, _) = self.emit_expr(&args[0], ns)?;
+                    let (val, val_ty) = self.emit_expr(&args[1], ns)?;
+
+                    let len_slot = self.fresh_tmp();
+                    let cap_slot = self.fresh_tmp();
+                    let buf_slot = self.fresh_tmp();
+                    self.emit(&format!("    {len_slot} =l add {list_ptr}, 8"));
+                    self.emit(&format!("    {cap_slot} =l add {list_ptr}, 16"));
+
+                    let len_val = self.fresh_tmp();
+                    let cap_val = self.fresh_tmp();
+                    self.emit(&format!("    {len_val} =l loadl {len_slot}"));
+                    self.emit(&format!("    {cap_val} =l loadl {cap_slot}"));
+
+                    let need_grow = self.fresh_tmp();
+                    let grow_lbl = format!("@append_grow_{}", self.tmp_counter);
+                    let no_grow_lbl = format!("@append_nogrow_{}", self.tmp_counter);
+                    self.tmp_counter += 1;
+                    self.emit(&format!("    {need_grow} =w csgel {len_val}, {cap_val}"));
+                    self.emit(&format!("    jnz {need_grow}, {grow_lbl}, {no_grow_lbl}"));
+                    self.emit(&format!("{grow_lbl}"));
+                    let new_cap = self.fresh_tmp();
+                    self.emit(&format!("    {new_cap} =l mul {cap_val}, 2"));
+                    let new_cap = format!("{new_cap}");
+                    self.emit(&format!("    {new_cap} =l add {new_cap}, 1"));
+                    let old_buf = self.fresh_tmp();
+                    let new_buf = self.fresh_tmp();
+                    self.emit(&format!("    {old_buf} =l loadl {list_ptr}"));
+                    self.emit(&format!("    {new_buf} =l call $realloc(l {old_buf}, l {new_cap})"));
+                    self.emit(&format!("    storel {new_buf}, {list_ptr}"));
+                    self.emit(&format!("    storel {new_cap}, {cap_slot}"));
+                    self.emit(&format!("    jmp {no_grow_lbl}"));
+                    self.emit(&format!("{no_grow_lbl}"));
+
+                    let buf = self.fresh_tmp();
+                    let off = self.fresh_tmp();
+                    let elem_ptr = self.fresh_tmp();
+                    self.emit(&format!("    {buf} =l loadl {list_ptr}"));
+                    self.emit(&format!("    {off} =l mul {len_val}, 8"));
+                    self.emit(&format!("    {elem_ptr} =l add {buf}, {off}"));
+                    let (store_val, _) = self.promote_to_l(val, val_ty);
+                    self.emit(&format!("    storel {store_val}, {elem_ptr}"));
+
+                    let new_len = self.fresh_tmp();
+                    self.emit(&format!("    {new_len} =l add {len_val}, 1"));
+                    self.emit(&format!("    storel {new_len}, {len_slot}"));
+
+                    Ok(("0".into(), "w"))
+                }
+
+                "get" => {
+                    if args.len() != 2 {
+                        return Err("@get(list, index) requires exactly 2 arguments".into());
+                    }
+                    let (list_ptr, _) = self.emit_expr(&args[0], ns)?;
+                    let (idx, idx_ty) = self.emit_expr(&args[1], ns)?;
+                    let (idx_l, _) = self.promote_to_l(idx, idx_ty);
+
+                    let len_slot = self.fresh_tmp();
+                    let len_val = self.fresh_tmp();
+                    self.emit(&format!("    {len_slot} =l add {list_ptr}, 8"));
+                    self.emit(&format!("    {len_val} =l loadl {len_slot}"));
+
+                    let in_bounds = self.fresh_tmp();
+                    let some_lbl = format!("@get_some_{}", self.tmp_counter);
+                    let none_lbl = format!("@get_none_{}", self.tmp_counter);
+                    let end_lbl = format!("@get_end_{}", self.tmp_counter);
+                    self.tmp_counter += 1;
+                    self.emit(&format!("    {in_bounds} =w csltl {idx_l}, {len_val}"));
+                    self.emit(&format!("    jnz {in_bounds}, {some_lbl}, {none_lbl}"));
+
+                    self.emit(&format!("{some_lbl}"));
+                    let buf = self.fresh_tmp();
+                    let off = self.fresh_tmp();
+                    let elem_ptr = self.fresh_tmp();
+                    let elem_val = self.fresh_tmp();
+                    let result = self.fresh_tmp();
+                    self.emit(&format!("    {buf} =l loadl {list_ptr}"));
+                    self.emit(&format!("    {off} =l mul {idx_l}, 8"));
+                    self.emit(&format!("    {elem_ptr} =l add {buf}, {off}"));
+                    self.emit(&format!("    {elem_val} =l loadl {elem_ptr}"));
+                    self.emit(&format!("    {result} =l add {elem_val}, 1"));
+                    self.emit(&format!("    jmp {end_lbl}"));
+
+                    self.emit(&format!("{none_lbl}"));
+                    let result_none = self.fresh_tmp();
+                    self.emit(&format!("    {result_none} =l copy 0"));
+                    self.emit(&format!("    jmp {end_lbl}"));
+
+                    self.emit(&format!("{end_lbl}"));
+
+                    Ok((format!("{result}"), "l"))
+                }
+
+                "len" => {
+                    if args.len() != 1 {
+                        return Err("@len(list) requires exactly 1 argument".into());
+                    }
+                    let (list_ptr, _) = self.emit_expr(&args[0], ns)?;
+                    let len_slot = self.fresh_tmp();
+                    let len_val = self.fresh_tmp();
+                    self.emit(&format!("    {len_slot} =l add {list_ptr}, 8"));
+                    self.emit(&format!("    {len_val} =l loadl {len_slot}"));
+                    Ok((len_val, "l"))
+                }
+
+                "remove" => {
+                    if args.len() != 2 {
+                        return Err("@remove(list, index) requires exactly 2 arguments".into());
+                    }
+                    let (list_ptr, _) = self.emit_expr(&args[0], ns)?;
+                    let (idx, idx_ty) = self.emit_expr(&args[1], ns)?;
+                    let (idx_l, _) = self.promote_to_l(idx, idx_ty);
+
+                    let len_slot = self.fresh_tmp();
+                    let cap_slot = self.fresh_tmp();
+                    let len_val = self.fresh_tmp();
+                    self.emit(&format!("    {len_slot} =l add {list_ptr}, 8"));
+                    self.emit(&format!("    {cap_slot} =l add {list_ptr}, 16"));
+                    self.emit(&format!("    {len_val} =l loadl {len_slot}"));
+
+                    let buf = self.fresh_tmp();
+                    let off = self.fresh_tmp();
+                    let elem_ptr = self.fresh_tmp();
+                    let elem_val = self.fresh_tmp();
+                    self.emit(&format!("    {buf} =l loadl {list_ptr}"));
+                    self.emit(&format!("    {off} =l mul {idx_l}, 8"));
+                    self.emit(&format!("    {elem_ptr} =l add {buf}, {off}"));
+                    self.emit(&format!("    {elem_val} =l loadl {elem_ptr}"));
+
+                    let shift_loop = format!("@remove_shift_{}", self.tmp_counter);
+                    let shift_body = format!("@remove_shift_body_{}", self.tmp_counter);
+                    let shift_end = format!("@remove_shift_end_{}", self.tmp_counter);
+                    self.tmp_counter += 1;
+
+                    let shift_idx = self.fresh_tmp();
+                    self.emit(&format!("    {shift_idx} =l copy {idx_l}"));
+                    self.emit(&format!("    jmp {shift_loop}"));
+                    self.emit(&format!("{shift_loop}"));
+                    let one_past_end = self.fresh_tmp();
+                    let should_shift = self.fresh_tmp();
+                    self.emit(&format!("    {one_past_end} =l sub {len_val}, 1"));
+                    self.emit(&format!("    {should_shift} =w csltl {shift_idx}, {one_past_end}"));
+                    self.emit(&format!("    jnz {should_shift}, {shift_body}, {shift_end}"));
+                    self.emit(&format!("{shift_body}"));
+                    let src_off = self.fresh_tmp();
+                    let dst_off = self.fresh_tmp();
+                    let src_ptr = self.fresh_tmp();
+                    let dst_ptr = self.fresh_tmp();
+                    let src_val = self.fresh_tmp();
+                    self.emit(&format!("    {src_off} =l add {shift_idx}, 1"));
+                    self.emit(&format!("    {src_off} =l mul {src_off}, 8"));
+                    self.emit(&format!("    {dst_off} =l mul {shift_idx}, 8"));
+                    self.emit(&format!("    {src_ptr} =l add {buf}, {src_off}"));
+                    self.emit(&format!("    {dst_ptr} =l add {buf}, {dst_off}"));
+                    self.emit(&format!("    {src_val} =l loadl {src_ptr}"));
+                    self.emit(&format!("    storel {src_val}, {dst_ptr}"));
+                    let shift_idx_new = self.fresh_tmp();
+                    self.emit(&format!("    {shift_idx_new} =l add {shift_idx}, 1"));
+                    self.emit(&format!("    {shift_idx} =l copy {shift_idx_new}"));
+                    self.emit(&format!("    jmp {shift_loop}"));
+                    self.emit(&format!("{shift_end}"));
+
+                    let new_len = self.fresh_tmp();
+                    self.emit(&format!("    {new_len} =l sub {len_val}, 1"));
+                    self.emit(&format!("    storel {new_len}, {len_slot}"));
+
+                    Ok((elem_val, "l"))
+                }
+
+                "insert" => {
+                    if args.len() != 3 {
+                        return Err("@insert(list, index, value) requires exactly 3 arguments".into());
+                    }
+                    let (list_ptr, _) = self.emit_expr(&args[0], ns)?;
+                    let (idx, idx_ty) = self.emit_expr(&args[1], ns)?;
+                    let (idx_l, _) = self.promote_to_l(idx, idx_ty);
+                    let (val, val_ty) = self.emit_expr(&args[2], ns)?;
+                    let (val_l, _) = self.promote_to_l(val, val_ty);
+
+                    let len_slot = self.fresh_tmp();
+                    let cap_slot = self.fresh_tmp();
+                    let len_val = self.fresh_tmp();
+                    let cap_val = self.fresh_tmp();
+                    self.emit(&format!("    {len_slot} =l add {list_ptr}, 8"));
+                    self.emit(&format!("    {cap_slot} =l add {list_ptr}, 16"));
+                    self.emit(&format!("    {len_val} =l loadl {len_slot}"));
+                    self.emit(&format!("    {cap_val} =l loadl {cap_slot}"));
+
+                    let need_grow = self.fresh_tmp();
+                    let grow_lbl = format!("@insert_grow_{}", self.tmp_counter);
+                    let no_grow_lbl = format!("@insert_nogrow_{}", self.tmp_counter);
+                    self.tmp_counter += 1;
+                    self.emit(&format!("    {need_grow} =w csgel {len_val}, {cap_val}"));
+                    self.emit(&format!("    jnz {need_grow}, {grow_lbl}, {no_grow_lbl}"));
+                    self.emit(&format!("{grow_lbl}"));
+                    let new_cap = self.fresh_tmp();
+                    self.emit(&format!("    {new_cap} =l mul {cap_val}, 2"));
+                    let new_cap2 = self.fresh_tmp();
+                    self.emit(&format!("    {new_cap2} =l add {new_cap}, 1"));
+                    let old_buf = self.fresh_tmp();
+                    let new_buf = self.fresh_tmp();
+                    self.emit(&format!("    {old_buf} =l loadl {list_ptr}"));
+                    self.emit(&format!("    {new_buf} =l call $realloc(l {old_buf}, l {new_cap2})"));
+                    self.emit(&format!("    storel {new_buf}, {list_ptr}"));
+                    self.emit(&format!("    storel {new_cap2}, {cap_slot}"));
+                    self.emit(&format!("    jmp {no_grow_lbl}"));
+                    self.emit(&format!("{no_grow_lbl}"));
+
+                    let shift_loop = format!("@insert_shift_{}", self.tmp_counter);
+                    let shift_body = format!("@insert_shift_body_{}", self.tmp_counter);
+                    let shift_end = format!("@insert_shift_end_{}", self.tmp_counter);
+                    self.tmp_counter += 1;
+
+                    let shift_idx = self.fresh_tmp();
+                    self.emit(&format!("    {shift_idx} =l sub {len_val}, 1"));
+                    self.emit(&format!("    jmp {shift_loop}"));
+                    self.emit(&format!("{shift_loop}"));
+                    let should_shift = self.fresh_tmp();
+                    self.emit(&format!("    {should_shift} =w cslel {idx_l}, {shift_idx}"));
+                    self.emit(&format!("    jnz {should_shift}, {shift_body}, {shift_end}"));
+                    self.emit(&format!("{shift_body}"));
+                    let src_off = self.fresh_tmp();
+                    let dst_off = self.fresh_tmp();
+                    let src_ptr = self.fresh_tmp();
+                    let dst_ptr = self.fresh_tmp();
+                    let src_val = self.fresh_tmp();
+                    self.emit(&format!("    {src_off} =l mul {shift_idx}, 8"));
+                    self.emit(&format!("    {dst_off} =l add {shift_idx}, 1"));
+                    self.emit(&format!("    {dst_off} =l mul {dst_off}, 8"));
+                    let buf2 = self.fresh_tmp();
+                    self.emit(&format!("    {buf2} =l loadl {list_ptr}"));
+                    self.emit(&format!("    {src_ptr} =l add {buf2}, {src_off}"));
+                    self.emit(&format!("    {dst_ptr} =l add {buf2}, {dst_off}"));
+                    self.emit(&format!("    {src_val} =l loadl {src_ptr}"));
+                    self.emit(&format!("    storel {src_val}, {dst_ptr}"));
+                    let shift_idx_new = self.fresh_tmp();
+                    self.emit(&format!("    {shift_idx_new} =l sub {shift_idx}, 1"));
+                    self.emit(&format!("    {shift_idx} =l copy {shift_idx_new}"));
+                    self.emit(&format!("    jmp {shift_loop}"));
+                    self.emit(&format!("{shift_end}"));
+
+                    // Store value at idx
+                    let buf3 = self.fresh_tmp();
+                    let elem_off = self.fresh_tmp();
+                    let elem_ptr = self.fresh_tmp();
+                    self.emit(&format!("    {buf3} =l loadl {list_ptr}"));
+                    self.emit(&format!("    {elem_off} =l mul {idx_l}, 8"));
+                    self.emit(&format!("    {elem_ptr} =l add {buf3}, {elem_off}"));
+                    self.emit(&format!("    storel {val_l}, {elem_ptr}"));
+
+                    // len = len + 1
+                    let new_len = self.fresh_tmp();
+                    self.emit(&format!("    {new_len} =l add {len_val}, 1"));
+                    self.emit(&format!("    storel {new_len}, {len_slot}"));
+
+                    Ok(("0".into(), "w"))
+                }
+
+                "reserve" => {
+                    if args.len() != 2 {
+                        return Err("@reserve(list, capacity) requires exactly 2 arguments".into());
+                    }
+                    let (list_ptr, _) = self.emit_expr(&args[0], ns)?;
+                    let (new_cap, new_cap_ty) = self.emit_expr(&args[1], ns)?;
+                    let (new_cap_l, _) = self.promote_to_l(new_cap, new_cap_ty);
+
+                    let cap_slot = self.fresh_tmp();
+                    let cur_cap = self.fresh_tmp();
+                    self.emit(&format!("    {cap_slot} =l add {list_ptr}, 16"));
+                    self.emit(&format!("    {cur_cap} =l loadl {cap_slot}"));
+
+                    let need_grow = self.fresh_tmp();
+                    let grow_lbl = format!("@reserve_grow_{}", self.tmp_counter);
+                    let end_lbl = format!("@reserve_end_{}", self.tmp_counter);
+                    self.tmp_counter += 1;
+                    self.emit(&format!("    {need_grow} =w csgtl {new_cap_l}, {cur_cap}"));
+                    self.emit(&format!("    jnz {need_grow}, {grow_lbl}, {end_lbl}"));
+                    self.emit(&format!("{grow_lbl}"));
+                    let old_buf = self.fresh_tmp();
+                    let new_buf = self.fresh_tmp();
+                    let new_bytes = self.fresh_tmp();
+                    self.emit(&format!("    {old_buf} =l loadl {list_ptr}"));
+                    self.emit(&format!("    {new_bytes} =l mul {new_cap_l}, 8"));
+                    self.emit(&format!("    {new_buf} =l call $realloc(l {old_buf}, l {new_bytes})"));
+                    self.emit(&format!("    storel {new_buf}, {list_ptr}"));
+                    self.emit(&format!("    storel {new_cap_l}, {cap_slot}"));
+                    self.emit(&format!("{end_lbl}"));
+
+                    Ok(("0".into(), "w"))
+                }
+
+                "capacity" => {
+                    if args.len() != 1 {
+                        return Err("@capacity(list) requires exactly 1 argument".into());
+                    }
+                    let (list_ptr, _) = self.emit_expr(&args[0], ns)?;
+                    let cap_slot = self.fresh_tmp();
+                    let cap_val = self.fresh_tmp();
+                    self.emit(&format!("    {cap_slot} =l add {list_ptr}, 16"));
+                    self.emit(&format!("    {cap_val} =l loadl {cap_slot}"));
+                    Ok((cap_val, "l"))
+                }
+
                 other => Err(format!("unknown builtin: @{other}")),
             },
 
@@ -1773,6 +2145,38 @@ impl Codegen {
                     }
                 }
                 Ok((ptr, "l"))
+            }
+
+            Expr::ListLit(elems) => {
+                let cap = if elems.is_empty() { 1 } else { elems.len() };
+                let hdr_ptr = self.fresh_tmp();
+                let buf_ptr = self.fresh_tmp();
+                self.emit(&format!("    {hdr_ptr} =l call $malloc(l 24)"));
+                self.emit(&format!("    {buf_ptr} =l call $malloc(l {})", cap * 8));
+
+                self.emit(&format!("    storel {buf_ptr}, {hdr_ptr}"));
+                let len_slot = self.fresh_tmp();
+                let cap_slot = self.fresh_tmp();
+                self.emit(&format!("    {len_slot} =l add {hdr_ptr}, 8"));
+                self.emit(&format!("    {cap_slot} =l add {hdr_ptr}, 16"));
+                self.emit(&format!("    storel {}, {len_slot}", elems.len()));
+                self.emit(&format!("    storel {cap}, {cap_slot}"));
+
+                for (i, elem) in elems.iter().enumerate() {
+                    let (val, val_ty) = self.emit_expr(elem, ns)?;
+                    let off = self.fresh_tmp();
+                    let elem_ptr = self.fresh_tmp();
+                    self.emit(&format!("    {off} =l mul {}, 8", i));
+                    self.emit(&format!("    {elem_ptr} =l add {buf_ptr}, {off}"));
+                    if val_ty == "d" {
+                        self.emit(&format!("    stored {val}, {elem_ptr}"));
+                    } else {
+                        let (val_l, _) = self.promote_to_l(val, val_ty);
+                        self.emit(&format!("    storel {val_l}, {elem_ptr}"));
+                    }
+                }
+
+                Ok((hdr_ptr, "l"))
             }
 
             Expr::ArgsPack(exprs) => {
@@ -2273,6 +2677,7 @@ fn all_trusted_stmts(stmts: &[Stmt]) -> bool {
                 && else_.as_deref().map_or(true, all_trusted_stmts)
         }
         Stmt::For { body, .. } => all_trusted_stmts(body),
+        Stmt::ForIn { body, .. } => all_trusted_stmts(body),
         Stmt::Match {
             some_body,
             none_body,
@@ -2340,6 +2745,8 @@ fn find_bare_builtin_in_stmt(stmt: &Stmt) -> Option<String> {
             .or_else(|| cond.as_ref().and_then(find_bare_builtin_in_expr))
             .or_else(|| post.as_deref().and_then(find_bare_builtin_in_stmt))
             .or_else(|| find_bare_builtin_in_stmts(body)),
+        Stmt::ForIn { iterable, body, .. } => find_bare_builtin_in_expr(iterable)
+            .or_else(|| find_bare_builtin_in_stmts(body)),
         Stmt::Match {
             expr,
             some_body,
@@ -2393,6 +2800,7 @@ fn find_bare_builtin_in_expr(expr: &Expr) -> Option<String> {
         Expr::StructLit { fields } => fields
             .iter()
             .find_map(|(_, e)| find_bare_builtin_in_expr(e)),
+        Expr::ListLit(elems) => elems.iter().find_map(find_bare_builtin_in_expr),
         Expr::ArgsPack(exprs) => exprs.iter().find_map(find_bare_builtin_in_expr),
         Expr::IntLit(_)
         | Expr::FloatLit(_)
@@ -2418,6 +2826,7 @@ fn find_bare_deref_assign_in_stmt(stmt: &Stmt) -> bool {
                 || else_.as_deref().map_or(false, find_bare_deref_assign_in_stmts)
         }
         Stmt::For { body, .. } => find_bare_deref_assign_in_stmts(body),
+        Stmt::ForIn { body, .. } => find_bare_deref_assign_in_stmts(body),
         Stmt::Match { some_body, none_body, .. } => {
             find_bare_deref_assign_in_stmts(some_body)
                 || find_bare_deref_assign_in_stmts(none_body)

@@ -3,12 +3,12 @@ val std = use("std")
 pub fn some_function() void! = {
     val xs: mut list[i32] = [1, 2, 3, 4]
     for x in xs {
-        std.io.print("{d}", {x})
+        std.io.print("{d}\n", {x})
     }
 
     val ys: list[ref char] = ["hello", "world"]
     for y in ys {
-        std.io.print("{s}", {y})
+        std.io.print("{s}\n", {y})
     }
 
     val zs: mut list[i64] = []
@@ -20,8 +20,8 @@ pub fn some_function() void! = {
     match one_x {
         some xv => {
             val len = @len(xs)
-            std.io.print("and the length of this list is {d}", {len})
-            val removed: i32 = @remove(xs, 1)
+            std.io.print("and the length of this list is {d}\n", {len})
+            @remove(xs, 1)
             @insert(xs, 1, 99) // at position 1 in xs, insert 99.
         }
         none => {
@@ -32,7 +32,7 @@ pub fn some_function() void! = {
     @reserve(xs, 100)
     val cap: usize = @capacity(xs)
 
-    std.io.print("{d}", {cap})
+    std.io.print("{d}\n", {cap})
 }
 
 pub fn main() void! = {
