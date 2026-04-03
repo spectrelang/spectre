@@ -2,6 +2,10 @@ val std = use("std")
 
 extern (C) fn strlen(s: ref char) i64! = "strlen"
 
+union SbOrPtr = {
+    StringBuilder | ref void
+}
+
 /// This is a classic string type.
 ///
 /// An owned heap string: ptr, len, cap — each 8 bytes.
@@ -54,7 +58,7 @@ pub fn cstr(s: ref void) ref char! = {
 }
 
 /// Ensure capacity (private helper)
-fn ensure_cap(s: ref void, needed: i64) void! = {
+fn ensure_cap(s: SbOrPtr, needed: i64) void! = {
     val cap: i64 = @load(@ptradd(s, 16))
     if (needed <= cap) {
         return
@@ -654,7 +658,7 @@ pub fn (StringBuilder) append(sb: self, s: ref void) void! = {
     val l: mut i64 = @load(@ptradd(sb, 8))
     val new_len: mut i64 = l + other_len
 
-    ensure_cap(sb.ptr, new_len + 1)
+    ensure_cap(sb, new_len + 1)
 
     val ptr: ref void = @load(sb)
 
@@ -669,7 +673,7 @@ pub fn (StringBuilder) append_cstr(sb: self, cstr: ref char) void! = {
     val add_len: mut i64 = strlen(cstr)
     val new_len: mut i64 = l + add_len
 
-    ensure_cap(sb.ptr, new_len + 1)
+    ensure_cap(sb, new_len + 1)
 
     val ptr: ref void = @load(sb)
 
@@ -708,7 +712,7 @@ pub fn (StringBuilder) append_char(sb: self, c: u8) void! = {
     val l: mut i64 = @load(@ptradd(sb, 8))
     val new_len: mut i64 = l + 1
 
-    ensure_cap(sb.ptr, new_len + 1)
+    ensure_cap(sb, new_len + 1)
 
     val ptr: ref void = @load(sb)
     @store8(@ptradd(ptr, l), c)
@@ -905,11 +909,13 @@ test {
     std.io.put("hi3.2")
 
     val rep3 = replace(rep, from("xxx"), from("yyy"))
+    std.io.put("hi3.2.1")
     assert(equals(rep3, from("foo bar foo")))
-
+    std.io.put("hi3.2.2")
     val sp = from("a,b,c")
+    std.io.put("hi3.2.3")
     val parts = split(sp, from(","))
-    std.io.put("hi3.2")
+    std.io.put("hi3.3")
 
     assert(std.collections.PtrList.len(parts) == 3)
     match std.collections.PtrList.get(parts, 0) {
