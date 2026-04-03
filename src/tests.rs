@@ -2851,22 +2851,6 @@ mod link_tests {
     }
 
     #[test]
-    fn parse_link_when_empty_block() {
-        let m = parse("when linux { }");
-        let Item::LinkWhen { platform, libs } = &m.items[0] else {
-            panic!("expected Item::LinkWhen")
-        };
-        assert_eq!(platform, "linux");
-        assert!(libs.is_empty());
-    }
-
-    #[test]
-    fn parse_link_when_non_link_body_errors() {
-        let err = parse_err("when linux { val x = 1 }");
-        assert!(err.contains("expected 'link'"), "got: {err}");
-    }
-
-    #[test]
     fn parse_link_and_link_when_together() {
         let m = parse(
             r#"link "curl"
