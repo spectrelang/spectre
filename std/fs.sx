@@ -151,7 +151,8 @@ pub fn rmdir_path(path: ref char) bool! = {
 }
 
 /// Return the current working directory as a heap-allocated string.
-/// Returns none on failure.  Caller must free the result.
+/// Returns none on failure. 
+/// Caller must free the result.
 pub fn cwd() option[ref char] = {
     val buf: ref char = trust @alloc(4096)
     val result: ref char = trust getcwd(buf, 4096)
