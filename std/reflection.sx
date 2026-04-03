@@ -1,0 +1,39 @@
+pub enum Platform = {
+    Windows,
+    Linux,
+    Darwin,
+    NetBSD,
+    DragonflyBSD,
+    FreeBSD,
+    OpenBSD,
+    Android,
+    Haiku,
+    Redox,
+    Plan9,
+    Unknown,
+}
+
+extern (C) fn env(name: ref char) ref char! = "env"
+extern (C) fn uname() ref void! = "uname"
+
+pub fn get_current_platform() Platform! = {
+    val os = env("OS")
+    if (os == "Windows_NT") {
+        return Platform.Windows
+    }
+
+    val uname = uname()
+    match uname.sysname {
+        "Linux" => Platform.Linux,
+        "Darwin" => Platform.Darwin,
+        "NetBSD" => Platform.NetBSD,
+        "DragonflyBSD" => Platform.DragonflyBSD,
+        "FreeBSD" => Platform.FreeBSD,
+        "OpenBSD" => Platform.OpenBSD,
+        "Android" => Platform.Android,
+        "Haiku" => Platform.Haiku,
+        "Redox" => Platform.Redox,
+        "Plan9" => Platform.Plan9,
+        _ => Platform.Unknown,
+    }
+}
