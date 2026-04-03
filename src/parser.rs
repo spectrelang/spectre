@@ -18,6 +18,12 @@ pub enum Item {
         name: String,
         fields: Vec<Field>,
     },
+    /// `extern type Name = { ... }` — foreign/opaque type from external libraries
+    ExternTypeDef {
+        public: bool,
+        name: String,
+        fields: Vec<Field>,
+    },
     UnionDef {
         public: bool,
         name: String,
@@ -369,7 +375,12 @@ impl Parser {
         let public = self.eat(&TokenKind::Pub);
 
         if let TokenKind::Extern = self.peek() {
-            return self.parse_extern_fn(public);
+            self.advance();
+            if self.peek() == &TokenKind::Type {
+                return self.parse_extern_type(public);
+            } else {
+                return self.parse_extern_fn_after_extern(public);
+            }
         }
 
         match self.peek().clone() {
@@ -398,8 +409,7 @@ impl Parser {
         Ok(Item::Use { public: false, name, path })
     }
 
-    fn parse_extern_fn(&mut self, public: bool) -> Result<Item, String> {
-        self.expect(&TokenKind::Extern)?;
+    fn parse_extern_fn_after_extern(&mut self, public: bool) -> Result<Item, String> {
         self.expect(&TokenKind::LParen)?;
         let conv = self.expect_ident()?;
         self.expect(&TokenKind::RParen)?;
@@ -418,6 +428,32 @@ impl Parser {
         self.expect(&TokenKind::Eq)?;
         let symbol = self.expect_string()?;
         Ok(Item::ExternFn { public, conv, name, params, variadic_after, ret, symbol })
+    }
+
+    fn parse_extern_fn(&mut self, public: bool) -> Result<Item, String> {
+        self.expect(&TokenKind::Extern)?;
+        self.parse_extern_fn_after_extern(public)
+    }
+
+    fn parse_extern_type(&mut self, public: bool) -> Result<Item, String> {
+        self.expect(&TokenKind::Type)?;
+        let name = self.expect_ident()?;
+        self.expect(&TokenKind::Eq)?;
+        self.expect(&TokenKind::LBrace)?;
+        let mut fields = Vec::new();
+        while self.peek() != &TokenKind::RBrace {
+            let fname = self.expect_ident()?;
+            self.expect(&TokenKind::Colon)?;
+            let mutable = self.eat(&TokenKind::Mut);
+            let ty = self.parse_type()?;
+            fields.push(Field {
+                name: fname,
+                mutable,
+                ty,
+            });
+        }
+        self.expect(&TokenKind::RBrace)?;
+        Ok(Item::ExternTypeDef { public, name, fields })
     }
 
     /// Parse extern function parameters, recognising a trailing `...` for variadic functions.

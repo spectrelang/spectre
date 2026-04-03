@@ -13,10 +13,16 @@ pub enum Platform = {
     Unknown,
 }
 
-extern (C) fn env(name: ref char) ref char! = "env"
-extern (C) fn uname() ref void! = "uname"
+extern type UnameResult = {
+    sysname: ref char
+    nodename: ref char
+    release: ref char
+    version: ref char
+    machine: ref char
+}
 
-// So, before we can get this to work, we need support for opaque types.
+extern (C) fn env(name: ref char) ref char! = "env"
+extern (C) fn uname(buf: ref UnameResult) i32! = "uname"
 
 pub fn get_current_platform() Platform! = {
     val os = env("OS")
@@ -24,18 +30,38 @@ pub fn get_current_platform() Platform! = {
         return Platform.Windows
     }
 
-    val uname = uname()
-    match uname.sysname {
-        "Linux" => Platform.Linux,
-        "Darwin" => Platform.Darwin,
-        "NetBSD" => Platform.NetBSD,
-        "DragonflyBSD" => Platform.DragonflyBSD,
-        "FreeBSD" => Platform.FreeBSD,
-        "OpenBSD" => Platform.OpenBSD,
-        "Android" => Platform.Android,
-        "Haiku" => Platform.Haiku,
-        "Redox" => Platform.Redox,
-        "Plan9" => Platform.Plan9,
-        _ => Platform.Unknown,
+    val uname_buf: mut UnameResult = {
+        sysname: 0,
+        nodename: 0,
+        release: 0,
+        version: 0,
+        machine: 0
     }
+    
+    val result = uname(addr(uname_buf))
+    if (result != 0) {
+        return Platform.Unknown
+    }
+    return Platform.Darwin
+    
+    // match uname_buf.sysname {
+    //     "Linux" => Platform.Linux,
+    //     "Darwin" => Platform.Darwin,
+    //     "NetBSD" => Platform.NetBSD,
+    //     "DragonflyBSD" => Platform.DragonflyBSD,
+    //     "FreeBSD" => Platform.FreeBSD,
+    //     "OpenBSD" => Platform.OpenBSD,
+    //     "Android" => Platform.Android,
+    //     "Haiku" => Platform.Haiku,
+    //     "Redox" => Platform.Redox,
+    //     "Plan9" => Platform.Plan9,
+    //     _ => Platform.Unknown,
+    // }
+}
+
+val std = use("std")
+
+test {
+    val platform = get_current_platform()
+    std.io.print("Current platform: {d}", {platform})
 }

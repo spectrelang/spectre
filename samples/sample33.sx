@@ -1,0 +1,32 @@
+extern type UnameResult = {
+    sysname: ref char
+    nodename: ref char
+    release: ref char
+    version: ref char
+    machine: ref char
+}
+
+val std = use("std")
+extern (C) fn uname(buf: ref UnameResult) i32! = "uname"
+
+pub fn main() void! = {
+    std.io.put("hi1")
+
+    val buf: mut UnameResult = {
+        sysname: 0,
+        nodename: 0,
+        release: 0,
+        version: 0,
+        machine: 0
+    }
+    std.io.put("hi2")
+    
+    val r = uname(addr(buf))
+    std.io.put("hi3")
+    
+    std.io.print("uname returned: {d}", {r})
+    // if (r == 0) {
+    //     std.io.print("sysname: {s}", {buf.sysname})
+    //     std.io.print("release: {s}", {buf.release})
+    // }
+}

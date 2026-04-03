@@ -44,6 +44,7 @@ pub struct Codegen {
     local_slot_is_l: std::collections::HashSet<String>,
     local_slot_is_d: std::collections::HashSet<String>,
     type_defs: HashMap<String, Vec<Field>>,
+    extern_type_defs: HashMap<String, Vec<Field>>,
     union_defs: HashMap<String, Vec<TypeExpr>>,
     enum_defs: HashMap<String, Vec<String>>,
     trusted_fns: std::collections::HashSet<String>,
@@ -82,6 +83,7 @@ impl Codegen {
             local_slot_is_l: std::collections::HashSet::new(),
             local_slot_is_d: std::collections::HashSet::new(),
             type_defs: HashMap::new(),
+            extern_type_defs: HashMap::new(),
             union_defs: HashMap::new(),
             enum_defs: HashMap::new(),
             trusted_fns: std::collections::HashSet::new(),
@@ -241,6 +243,9 @@ impl Codegen {
             if let Item::TypeDef { name, fields, .. } = item {
                 self.type_defs.insert(name.clone(), fields.clone());
             }
+            if let Item::ExternTypeDef { name, fields, .. } = item {
+                self.extern_type_defs.insert(name.clone(), fields.clone());
+            }
             if let Item::UnionDef { name, variants, .. } = item {
                 self.union_defs.insert(name.clone(), variants.clone());
             }
@@ -308,6 +313,7 @@ impl Codegen {
                 Item::Use { .. }
                 | Item::Const { .. }
                 | Item::TypeDef { .. }
+                | Item::ExternTypeDef { .. }
                 | Item::UnionDef { .. }
                 | Item::EnumDef { .. }
                 | Item::ExternFn { .. }
@@ -599,7 +605,9 @@ impl Codegen {
                 }
                 if let Expr::Field(base, field_name) = target {
                     if let Ok(type_name) = self.infer_struct_type_name(base) {
-                        if let Some(fields) = self.type_defs.get(&type_name) {
+                        let fields = self.type_defs.get(&type_name)
+                            .or_else(|| self.extern_type_defs.get(&type_name));
+                        if let Some(fields) = fields {
                             if let Some(field) = fields.iter().find(|f| f.name == *field_name) {
                                 if !field.mutable {
                                     return Err(format!(
@@ -1256,9 +1264,8 @@ impl Codegen {
     /// We look up the binding's declared type annotation to find the type definition.
     fn field_offset_for(&self, base: &Expr, field_name: &str) -> Result<usize, String> {
         let type_name = self.infer_struct_type_name(base)?;
-        let fields = self
-            .type_defs
-            .get(&type_name)
+        let fields = self.type_defs.get(&type_name)
+            .or_else(|| self.extern_type_defs.get(&type_name))
             .ok_or_else(|| format!("unknown type '{type_name}'"))?;
         fields
             .iter()
