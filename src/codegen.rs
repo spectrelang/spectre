@@ -125,8 +125,8 @@ pub struct Codegen {
     fn_ret_types: HashMap<String, &'static str>,
     fn_param_types: HashMap<String, Vec<TypeExpr>>,
     variadic_fns: HashMap<String, usize>,
-    /// Functions that return result[void, E] — the ok variant has no value.
     result_void_ok: std::collections::HashSet<String>,
+    fn_ptr_consts: HashMap<String, String>,
     platform: Platform,
     release: bool,
     current_fn_trusted: bool,
@@ -169,6 +169,7 @@ impl Codegen {
             fn_param_types: HashMap::new(),
             variadic_fns: HashMap::new(),
             result_void_ok: std::collections::HashSet::new(),
+            fn_ptr_consts: HashMap::new(),
             platform: Platform::current(),
             release: false,
             current_fn_trusted: false,
@@ -392,9 +393,13 @@ impl Codegen {
         for item in &items {
             if let Item::Const { name, expr, .. } = item {
                 let path = expr_to_path(expr);
-                if !path.is_empty() && is_namespace_prefix(&path, ns) {
-                    let expanded = expand_alias_path(&path, &self.module_aliases.clone());
-                    self.module_aliases.insert(name.clone(), expanded);
+                if !path.is_empty() {
+                    let expanded = expand_alias_path(&path, &self.module_aliases);
+                    if let Some(qbe_name) = ns.get(&expanded) {
+                        self.fn_ptr_consts.insert(name.clone(), qbe_name.clone());
+                    } else if is_namespace_prefix(&path, ns) {
+                        self.module_aliases.insert(name.clone(), expanded);
+                    }
                 }
             }
         }
@@ -556,6 +561,14 @@ impl Codegen {
             self.emit("    %sx_argc_val =l extsw %argc");
             self.emit("    storel %sx_argc_val, $sx_argc_store");
             self.emit("    storel %argv, $sx_argv_store");
+        }
+
+        for (name, qbe_name) in self.fn_ptr_consts.clone() {
+            let tmp = self.fresh_tmp();
+            self.emit(&format!("    {tmp} =l copy ${qbe_name}"));
+            self.locals.insert(name.clone(), tmp);
+            self.local_types.insert(name.clone(), "l");
+            self.local_mutability.insert(name.clone(), false);
         }
 
         self.emit_stmts(&f.body, ns, &f.ret)?;
@@ -1588,27 +1601,31 @@ impl Codegen {
             }
 
             Expr::Ident(name) => {
-                let slot_or_tmp =
-                    self.locals.get(name).cloned().ok_or_else(|| {
-                        format!("{}: undefined variable: {name}", self.current_file)
-                    })?;
-                if self.local_is_slot.contains(name) {
-                    let tmp = self.fresh_tmp();
-                    let is_d_slot = self.local_slot_is_d.contains(name);
-                    let is_l_slot = self.local_slot_is_l.contains(name);
-                    if is_d_slot {
-                        self.emit(&format!("    {tmp} =d loadd {slot_or_tmp}"));
-                        Ok((tmp, "d"))
-                    } else if is_l_slot {
-                        self.emit(&format!("    {tmp} =l loadl {slot_or_tmp}"));
-                        Ok((tmp, "l"))
+                if let Some(slot_or_tmp) = self.locals.get(name).cloned() {
+                    if self.local_is_slot.contains(name) {
+                        let tmp = self.fresh_tmp();
+                        let is_d_slot = self.local_slot_is_d.contains(name);
+                        let is_l_slot = self.local_slot_is_l.contains(name);
+                        if is_d_slot {
+                            self.emit(&format!("    {tmp} =d loadd {slot_or_tmp}"));
+                            Ok((tmp, "d"))
+                        } else if is_l_slot {
+                            self.emit(&format!("    {tmp} =l loadl {slot_or_tmp}"));
+                            Ok((tmp, "l"))
+                        } else {
+                            self.emit(&format!("    {tmp} =w loadw {slot_or_tmp}"));
+                            Ok((tmp, "w"))
+                        }
                     } else {
-                        self.emit(&format!("    {tmp} =w loadw {slot_or_tmp}"));
-                        Ok((tmp, "w"))
+                        let qty = self.local_types.get(name).copied().unwrap_or("l");
+                        Ok((slot_or_tmp, qty))
                     }
+                } else if let Some(qbe_name) = ns.get(name) {
+                    let tmp = self.fresh_tmp();
+                    self.emit(&format!("    {tmp} =l copy ${qbe_name}"));
+                    Ok((tmp, "l"))
                 } else {
-                    let qty = self.local_types.get(name).copied().unwrap_or("l");
-                    Ok((slot_or_tmp, qty))
+                    Err(format!("{}: undefined variable: {name}", self.current_file))
                 }
             }
 
