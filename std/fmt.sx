@@ -21,7 +21,7 @@ pub fn i64_to_string(x: i64) ref char! = {
     val neg: bool = x < 0
     val n: mut i64 = 0
     
-    if (neg) { n = -x } else { n = x }
+    if neg { n = -x } else { n = x }
 
     val tmp: mut i64 = n
     val digits: mut i64 = 0
@@ -45,14 +45,14 @@ pub fn i64_to_string(x: i64) ref char! = {
     val i: mut i64 = total - 1
 
     for {
-        if (n == 0) { break }
+        if n == 0 { break }
         val d: i64 = n % 10
         @store8(@ptradd(buf, i), (48 + d) as u8)
         n = n / 10
         i--
     }
 
-    if (neg) {
+    if neg {
         @store8(buf, 45)
     }
 
@@ -68,14 +68,14 @@ pub fn string_to_i64(s: ref char) result[i64, ParseIntError]! = {
     }
 
     val len: i64 = strlen(s)
-    if (len == 0) {
+    if len == 0 {
         return err ParseIntError.Empty
     }
 
     val neg: bool = @load8(s) == 45
     val start: mut i64 = 0
     
-    if (neg) { start = 1 } else { start = 0 }
+    if neg { start = 1 } else { start = 0 }
 
     if start >= len {
         return err ParseIntError.InvalidDigit
@@ -85,10 +85,10 @@ pub fn string_to_i64(s: ref char) result[i64, ParseIntError]! = {
     val i: mut i64 = start
 
     for {
-        if (i >= len) { break }
+        if i >= len { break }
 
         val c: u8 = @load8(@ptradd(s, i))
-        if (c < 48 || c > 57) {
+        if c < 48 || c > 57 {
             return err ParseIntError.InvalidDigit
         }
 
@@ -103,7 +103,7 @@ pub fn string_to_i64(s: ref char) result[i64, ParseIntError]! = {
         i++
     }
 
-    if (neg) {
+    if neg {
         acc = -acc
     }
 
@@ -184,9 +184,9 @@ pub fn string_to_f64(s: ref char) result[f64, ParseFloatError]! = {
     val neg: bool = @load8(s) == 45
     val start: mut i64 = 0
     
-    if (neg) { start = 1 }
+    if neg { start = 1 }
 
-    if (start >= len) {
+    if start >= len {
         return err ParseFloatError.Invalid
     }
 
