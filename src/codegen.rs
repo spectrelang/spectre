@@ -15,6 +15,7 @@ fn qbe_type(ty: &TypeExpr) -> &'static str {
             _ => "l",
         },
         TypeExpr::Slice(_) => "l",
+        TypeExpr::FixedArray(_, _) => "a",
         TypeExpr::Ref(_) => "l",
         TypeExpr::Option(_) => "l",
         TypeExpr::List(_) => "l",
@@ -23,6 +24,68 @@ fn qbe_type(ty: &TypeExpr) -> &'static str {
         TypeExpr::Void => "w",
         TypeExpr::Untyped => "l",
     }
+}
+
+/// Compute the byte size of a type, used for fixed array layout.
+fn type_byte_size(ty: &TypeExpr) -> u64 {
+    match ty {
+        TypeExpr::Named(n) => match n.as_str() {
+            "i8" | "u8" | "char" => 1,
+            "i16" | "u16" => 2,
+            "i32" | "u32" => 4,
+            "i64" | "u64" | "usize" | "isize" | "ptr" | "rawptr" => 8,
+            "f32" => 4,
+            "f64" => 8,
+            _ => 8,
+        },
+        TypeExpr::Slice(_) => 16,
+        TypeExpr::FixedArray(count, elem_ty) => {
+            let elem_size = type_byte_size(elem_ty);
+            count * elem_size
+        }
+        TypeExpr::Ref(_) => 8,
+        TypeExpr::Option(_) => 8,
+        TypeExpr::List(_) => 24,
+        TypeExpr::Result(_, _) => 16,
+        TypeExpr::FnPtr { .. } => 8,
+        TypeExpr::Void => 0,
+        TypeExpr::Untyped => 8,
+    }
+}
+
+/// Compute the alignment requirement of a type in bytes.
+fn type_alignment(ty: &TypeExpr) -> u64 {
+    match ty {
+        TypeExpr::Named(n) => match n.as_str() {
+            "i8" | "u8" | "char" => 1,
+            "i16" | "u16" => 2,
+            "i32" | "u32" | "f32" => 4,
+            "i64" | "u64" | "usize" | "isize" | "f64" | "ptr" | "rawptr" => 8,
+            _ => 8,
+        },
+        TypeExpr::Slice(_) => 8,
+        TypeExpr::FixedArray(_, elem_ty) => type_alignment(elem_ty),
+        TypeExpr::Ref(_) => 8,
+        TypeExpr::Option(_) => 8,
+        TypeExpr::List(_) => 8,
+        TypeExpr::Result(_, _) => 8,
+        TypeExpr::FnPtr { .. } => 8,
+        TypeExpr::Void => 1,
+        TypeExpr::Untyped => 8,
+    }
+}
+
+/// Round up to nearest multiple of `align`.
+fn align_to(n: u64, align: u64) -> u64 {
+    if align == 0 {
+        return n;
+    }
+    (n + align - 1) / align * align
+}
+
+/// Round up to nearest multiple of 8 for alignment.
+fn align8(n: u64) -> u64 {
+    align_to(n, 8)
 }
 
 /// Returns true if a parameter type is a `ref` (possibly wrapped in other modifiers),
@@ -47,6 +110,8 @@ pub struct Codegen {
     extern_type_defs: HashMap<String, Vec<Field>>,
     union_defs: HashMap<String, Vec<TypeExpr>>,
     enum_defs: HashMap<String, Vec<String>>,
+    fixed_array_types: HashMap<String, String>,
+    fixed_array_counter: usize,
     trusted_fns: std::collections::HashSet<String>,
     current_fn: String,
     defer_stack: Vec<Vec<Stmt>>,
@@ -86,6 +151,8 @@ impl Codegen {
             extern_type_defs: HashMap::new(),
             union_defs: HashMap::new(),
             enum_defs: HashMap::new(),
+            fixed_array_types: HashMap::new(),
+            fixed_array_counter: 0,
             trusted_fns: std::collections::HashSet::new(),
             current_fn: String::new(),
             defer_stack: Vec::new(),
@@ -109,6 +176,20 @@ impl Codegen {
     }
 
     pub fn finish(mut self) -> String {
+        let mut type_section = String::new();
+        for (key, qbe_label) in &self.fixed_array_types {
+            let parts: Vec<&str> = key.split('_').collect();
+            let count: u64 = parts.get(1).and_then(|s| s.parse().ok()).unwrap_or(1);
+            let elem_size: u64 = parts.get(2).and_then(|s| s.parse().ok()).unwrap_or(8);
+            let total_bytes = count * elem_size;
+            let aligned_bytes = align8(total_bytes);
+            let num_slots = (aligned_bytes / 8) as usize;
+
+            let members: Vec<&str> = (0..num_slots).map(|_| "l").collect();
+            let type_def = members.join(" ");
+            type_section.push_str(&format!("type {} = {{ {} }}\n", qbe_label, type_def));
+        }
+
         let mut data_section = String::new();
         for (label, value) in &self.data {
             data_section.push_str(&format!("data ${label} = {{ b \"{value}\", b 0 }}\n"));
@@ -170,6 +251,10 @@ impl Codegen {
             "}\n",
         );
 
+        if !type_section.is_empty() {
+            self.out.push_str(&type_section);
+            self.out.push('\n');
+        }
         if !data_section.is_empty() {
             self.out.push('\n');
             self.out.push_str(&data_section);
@@ -203,6 +288,29 @@ impl Codegen {
     fn emit(&mut self, s: &str) {
         self.out.push_str(s);
         self.out.push('\n');
+    }
+
+    /// Get or create a QBE type label for a fixed array type.
+    /// Returns the QBE type reference (e.g., ":fa_0") and the aligned byte size.
+    #[allow(dead_code)]
+    fn get_or_create_fixed_array_type(&mut self, count: u64, elem_ty: &TypeExpr) -> (String, u64) {
+        let elem_size = type_byte_size(elem_ty);
+        let total_bytes = count * elem_size;
+        let aligned_bytes = align8(total_bytes);
+        let key = format!("fa_{count}_{elem_size}");
+        if let Some(label) = self.fixed_array_types.get(&key) {
+            return (label.clone(), aligned_bytes);
+        }
+
+        let label = format!(":fa_{}", self.fixed_array_counter);
+        self.fixed_array_counter += 1;
+
+        let num_slots = (aligned_bytes / 8) as usize;
+        let members: Vec<&str> = (0..num_slots).map(|_| "l").collect();
+        let type_def = members.join(" ");
+        self.fixed_array_types.insert(key, label.clone());
+
+        (label, aligned_bytes)
     }
 
     pub fn emit_module(
@@ -1243,11 +1351,30 @@ impl Codegen {
         match expr {
             Expr::Field(base, field_name) => {
                 let base_ptr = match base.as_ref() {
-                    Expr::Ident(name) => self
-                        .locals
-                        .get(name)
-                        .cloned()
-                        .ok_or_else(|| format!("undefined variable: {name}"))?,
+                    Expr::Ident(name) => {
+                        let slot = self
+                            .locals
+                            .get(name)
+                            .cloned()
+                            .ok_or_else(|| format!("undefined variable: {name}"))?;
+                        if self.local_is_slot.contains(name) {
+                            let is_struct_slot = self.local_type_annotations.get(name)
+                                .map(|type_name| {
+                                    self.type_defs.contains_key(type_name)
+                                        || self.extern_type_defs.contains_key(type_name)
+                                })
+                                .unwrap_or(false);
+                            if is_struct_slot {
+                                let ptr = self.fresh_tmp();
+                                self.emit(&format!("    {ptr} =l loadl {slot}"));
+                                ptr
+                            } else {
+                                slot
+                            }
+                        } else {
+                            slot
+                        }
+                    }
                     other => self.emit_field_ptr(other, ns)?,
                 };
 
@@ -1267,11 +1394,23 @@ impl Codegen {
         let fields = self.type_defs.get(&type_name)
             .or_else(|| self.extern_type_defs.get(&type_name))
             .ok_or_else(|| format!("unknown type '{type_name}'"))?;
-        fields
-            .iter()
-            .position(|f| f.name == field_name)
-            .map(|i| i * 8)
-            .ok_or_else(|| format!("type '{type_name}' has no field '{field_name}'"))
+        
+        let has_fixed_arrays = fields.iter().any(|f| matches!(f.ty, TypeExpr::FixedArray(_, _)));
+        
+        let mut offset: usize = 0;
+        for field in fields {
+            if field.name == field_name {
+                return Ok(offset);
+            }
+            let field_size = type_byte_size(&field.ty);
+            if has_fixed_arrays {
+                let align = type_alignment(&field.ty);
+                offset = align_to(offset as u64, align) as usize + field_size as usize;
+            } else {
+                offset += 8;
+            }
+        }
+        Err(format!("type '{type_name}' has no field '{field_name}'"))
     }
 
     /// Try to infer the struct type name of an expression (best-effort, ident only).
@@ -1284,6 +1423,38 @@ impl Codegen {
                 .ok_or_else(|| format!("cannot determine type of '{name}'")),
             _ => Err("cannot determine struct type for complex expression".into()),
         }
+    }
+
+    /// Try to infer the type of a field within a struct.
+    fn infer_field_type(&self, base: &Expr, field_name: &str) -> Option<TypeExpr> {
+        let type_name = self.infer_struct_type_name(base).ok()?;
+        let fields = self.type_defs.get(&type_name)
+            .or_else(|| self.extern_type_defs.get(&type_name))?;
+        fields.iter().find(|f| f.name == field_name).map(|f| f.ty.clone())
+    }
+
+    /// Try to infer the struct type name from a struct literal by matching field names.
+    fn infer_struct_type_from_lit(&self, fields: &[(String, Expr)]) -> Option<String> {
+        if fields.is_empty() {
+            return None;
+        }
+        let first_field_name = &fields[0].0;
+        
+        for type_name in self.type_defs.keys().chain(self.extern_type_defs.keys()) {
+            let field_defs = self.type_defs.get(type_name)
+                .or_else(|| self.extern_type_defs.get(type_name));
+            if let Some(field_defs) = field_defs {
+                if field_defs.iter().any(|f| f.name == *first_field_name) {
+                    let matches = fields.iter().all(|(fname, _)| 
+                        field_defs.iter().any(|f| f.name == *fname)
+                    );
+                    if matches {
+                        return Some(type_name.clone());
+                    }
+                }
+            }
+        }
+        None
     }
 
     /// Resolve the tag index for `ty` within the union type of `expr`.
@@ -2132,25 +2303,97 @@ impl Codegen {
                     }
                 }
                 let ptr = self.emit_field_ptr(expr, ns)?;
-                let tmp = self.fresh_tmp();
-                self.emit(&format!("    {tmp} =l loadl {ptr}"));
-                Ok((tmp, "l"))
+                
+                let is_fixed_array_field = self.infer_field_type(_base, _field_name)
+                    .map(|ty| matches!(ty, TypeExpr::FixedArray(_, _)))
+                    .unwrap_or(false);
+                
+                if is_fixed_array_field {
+                    Ok((ptr, "l"))
+                } else {
+                    let tmp = self.fresh_tmp();
+                    self.emit(&format!("    {tmp} =l loadl {ptr}"));
+                    Ok((tmp, "l"))
+                }
             }
 
             Expr::StructLit { fields } => {
-                let size = fields.len() * 8;
-                let ptr = self.fresh_tmp();
-                self.emit(&format!("    {ptr} =l alloc8 {size}"));
-                for (i, (_fname, fexpr)) in fields.iter().enumerate() {
-                    let (val, val_ty) = self.emit_expr(fexpr, ns)?;
-                    let offset = i * 8;
-                    let field_ptr = self.fresh_tmp();
-                    self.emit(&format!("    {field_ptr} =l add {ptr}, {offset}"));
-                    if val_ty == "l" {
-                        self.emit(&format!("    storel {val}, {field_ptr}"));
+                let (total_size, field_defs_opt) = if let Some(type_name) = self.infer_struct_type_from_lit(fields) {
+                    if let Some(field_defs) = self.type_defs.get(&type_name)
+                        .or_else(|| self.extern_type_defs.get(&type_name)) {
+                        let has_fixed_arrays = field_defs.iter().any(|f| matches!(f.ty, TypeExpr::FixedArray(_, _)));
+                        
+                        let mut size: usize = 0;
+                        for field in field_defs {
+                            let field_size = type_byte_size(&field.ty);
+                            if has_fixed_arrays {
+                                let align = type_alignment(&field.ty);
+                                size = align_to(size as u64, align) as usize + field_size as usize;
+                            } else {
+                                size += align8(field_size) as usize;
+                            }
+                        }
+                        (size, Some(field_defs.clone()))
                     } else {
-                        let (ext, _) = self.promote_to_l(val, val_ty);
-                        self.emit(&format!("    storel {ext}, {field_ptr}"));
+                        (fields.len() * 8, None)
+                    }
+                } else {
+                    (fields.len() * 8, None)
+                };
+
+                let ptr = self.fresh_tmp();
+                self.emit(&format!("    {ptr} =l alloc8 {total_size}"));
+
+                let (field_offsets, field_types): (Vec<usize>, Vec<Option<TypeExpr>>) = if let Some(ref field_defs) = field_defs_opt {
+                    let has_fixed_arrays = field_defs.iter().any(|f| matches!(f.ty, TypeExpr::FixedArray(_, _)));
+                    let mut offsets = Vec::new();
+                    let mut types = Vec::new();
+                    let mut offset: usize = 0;
+                    for field in field_defs {
+                        offsets.push(offset);
+                        types.push(Some(field.ty.clone()));
+                        let field_size = type_byte_size(&field.ty);
+                        if has_fixed_arrays {
+                            let align = type_alignment(&field.ty);
+                            offset = align_to(offset as u64, align) as usize + field_size as usize;
+                        } else {
+                            offset += align8(field_size) as usize;
+                        }
+                    }
+                    (offsets, types)
+                } else {
+                    (
+                        (0..fields.len()).map(|i| i * 8).collect(),
+                        (0..fields.len()).map(|_| None).collect(),
+                    )
+                };
+
+                for (i, (_fname, fexpr)) in fields.iter().enumerate() {
+                    let offset = field_offsets.get(i).copied().unwrap_or(i * 8);
+                    let field_type = field_types.get(i).and_then(|t| t.clone());
+                    
+                    if let Some(TypeExpr::FixedArray(count, elem_ty)) = &field_type {
+                        let elem_size = type_byte_size(elem_ty);
+                        let field_byte_size = count * elem_size;
+                        let field_ptr = self.fresh_tmp();
+                        self.emit(&format!("    {field_ptr} =l add {ptr}, {offset}"));
+                        
+                        if let Expr::IntLit(0) = fexpr {
+                            self.emit(&format!("    call $memset(l {field_ptr}, w 0, l {field_byte_size})"));
+                        } else {
+                            let (val, _) = self.emit_expr(fexpr, ns)?;
+                            self.emit(&format!("    call $memcpy(l {field_ptr}, l {val}, l {field_byte_size})"));
+                        }
+                    } else {
+                        let (val, val_ty) = self.emit_expr(fexpr, ns)?;
+                        let field_ptr = self.fresh_tmp();
+                        self.emit(&format!("    {field_ptr} =l add {ptr}, {offset}"));
+                        if val_ty == "l" {
+                            self.emit(&format!("    storel {val}, {field_ptr}"));
+                        } else {
+                            let (ext, _) = self.promote_to_l(val, val_ty);
+                            self.emit(&format!("    storel {ext}, {field_ptr}"));
+                        }
                     }
                 }
                 Ok((ptr, "l"))
@@ -2609,7 +2852,19 @@ impl Codegen {
                                 .get(name)
                                 .cloned()
                                 .ok_or_else(|| format!("undefined variable: {name}"))?;
-                            self.emit(&format!("    {tmp} =l copy {slot}"));
+                            // Check if this slot holds a struct type (stored as a pointer).
+                            // If so, load the pointer from the slot; otherwise return the slot address.
+                            let is_struct_slot = self.local_type_annotations.get(name)
+                                .map(|type_name| {
+                                    self.type_defs.contains_key(type_name)
+                                        || self.extern_type_defs.contains_key(type_name)
+                                })
+                                .unwrap_or(false);
+                            if is_struct_slot {
+                                self.emit(&format!("    {tmp} =l loadl {slot}"));
+                            } else {
+                                self.emit(&format!("    {tmp} =l copy {slot}"));
+                            }
                             return Ok((tmp, "l"));
                         }
                         Err(format!(
@@ -2630,12 +2885,23 @@ impl Codegen {
             }
 
             Expr::ZeroInit(type_name) => {
-                let n_fields = self
-                    .type_defs
-                    .get(type_name.as_str())
-                    .map(|f| f.len())
-                    .ok_or_else(|| format!("unknown type '{type_name}' in zero-init"))?;
-                let size = n_fields * 8;
+                let size = if let Some(field_defs) = self.type_defs.get(type_name.as_str())
+                    .or_else(|| self.extern_type_defs.get(type_name.as_str())) {
+                    let has_fixed_arrays = field_defs.iter().any(|f| matches!(f.ty, TypeExpr::FixedArray(_, _)));
+                    let mut total: usize = 0;
+                    for field in field_defs {
+                        let field_size = type_byte_size(&field.ty);
+                        if has_fixed_arrays {
+                            let align = type_alignment(&field.ty);
+                            total = align_to(total as u64, align) as usize + field_size as usize;
+                        } else {
+                            total += align8(field_size) as usize;
+                        }
+                    }
+                    total
+                } else {
+                    return Err(format!("unknown type '{type_name}' in zero-init"));
+                };
                 let ptr = self.fresh_tmp();
                 self.emit(&format!("    {ptr} =l alloc8 {size}"));
                 if size > 0 {
@@ -3131,6 +3397,9 @@ fn type_expr_matches(a: &TypeExpr, b: &TypeExpr) -> bool {
         (TypeExpr::Ref(x), TypeExpr::Ref(y)) => type_expr_matches(x, y),
         (TypeExpr::Slice(x), TypeExpr::Slice(y)) => type_expr_matches(x, y),
         (TypeExpr::Option(x), TypeExpr::Option(y)) => type_expr_matches(x, y),
+        (TypeExpr::FixedArray(a_count, a_elem), TypeExpr::FixedArray(b_count, b_elem)) => {
+            a_count == b_count && type_expr_matches(a_elem, b_elem)
+        }
         (TypeExpr::Void, TypeExpr::Void) => true,
         _ => false,
     }

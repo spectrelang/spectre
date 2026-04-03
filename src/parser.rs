@@ -86,7 +86,10 @@ pub struct Field {
 #[derive(Debug, Clone)]
 pub enum TypeExpr {
     Named(String),
+    /// `[T]` — slice type (fat pointer: data + length)
     Slice(Box<TypeExpr>),
+    /// `[N]T` — fixed-size array of N elements of type T (inline, no indirection)
+    FixedArray(u64, Box<TypeExpr>),
     Ref(Box<TypeExpr>),
     Option(Box<TypeExpr>),
     /// `list[T]` — dynamic list type with element type T
@@ -561,9 +564,23 @@ impl Parser {
         match self.peek().clone() {
             TokenKind::LBracket => {
                 self.advance();
-                self.expect(&TokenKind::RBracket)?;
-                let inner = self.parse_type()?;
-                Ok(TypeExpr::Slice(Box::new(inner)))
+                // Check if this is `[N]T` (fixed array) or `[]T` (slice)
+                if self.peek() == &TokenKind::RBracket {
+                    // `[]T` — slice type
+                    self.advance();
+                    let inner = self.parse_type()?;
+                    Ok(TypeExpr::Slice(Box::new(inner)))
+                } else {
+                    // `[N]T` — fixed-size array
+                    if let TokenKind::IntLit(n) = self.peek().clone() {
+                        self.advance();
+                        self.expect(&TokenKind::RBracket)?;
+                        let inner = self.parse_type()?;
+                        Ok(TypeExpr::FixedArray(n as u64, Box::new(inner)))
+                    } else {
+                        Err(self.error("expected integer or ']' after '[' in type"))
+                    }
+                }
             }
             TokenKind::Fn => {
                 self.advance();

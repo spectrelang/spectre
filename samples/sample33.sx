@@ -1,9 +1,9 @@
 extern type UnameResult = {
-    sysname: ref char
-    nodename: ref char
-    release: ref char
-    version: ref char
-    machine: ref char
+    sysname: [65]char
+    nodename: [65]char
+    release: [65]char
+    version: [65]char
+    machine: [65]char
 }
 
 val std = use("std")
@@ -25,8 +25,9 @@ pub fn main() void! = {
     std.io.put("hi3")
     
     std.io.print("uname returned: {d}", {r})
-    // if (r == 0) {
-    //     std.io.print("sysname: {s}", {buf.sysname})
-    //     std.io.print("release: {s}", {buf.release})
-    // }
+
+    if (r == 0) {
+        std.io.print("sysname: {s}", {buf.sysname})
+        std.io.print("release: {s}", {buf.release})
+    }
 }

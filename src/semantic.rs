@@ -1365,6 +1365,7 @@ fn type_to_string(ty: &TypeExpr) -> String {
     match ty {
         TypeExpr::Named(n) => n.clone(),
         TypeExpr::Slice(t) => format!("slice[{}]", type_to_string(t)),
+        TypeExpr::FixedArray(count, elem) => format!("[{}]{}", count, type_to_string(elem)),
         TypeExpr::Ref(t) => format!("ref {}", type_to_string(t)),
         TypeExpr::Option(t) => format!("option[{}]", type_to_string(t)),
         TypeExpr::List(t) => format!("list[{}]", type_to_string(t)),
