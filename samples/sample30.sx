@@ -35,6 +35,7 @@ pub fn some_function() void! = {
     std.io.print("{d}\n", {cap})
 }
 
-pub fn main() void! = {
+pub fn main() i32! = {
     some_function()
+    return 0
 }
