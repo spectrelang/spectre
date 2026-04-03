@@ -1,4 +1,4 @@
-/// Layout of a List struct (3 fields × 8 bytes each):
+/// Layout of a PtrList struct (3 fields × 8 bytes each):
 ///
 ///   offset 0 : ptr  — ref void, pointer to heap buffer
 ///   offset 8 : len  — usize, number of elements
@@ -10,14 +10,14 @@
 val ELEMENT_SIZE: usize = 8
 
 /// An unsafe list for storing values of any type as untyped pointers (ref void).
-type List = {
+type PtrList = {
     ptr: ref void
     len: usize
     cap: usize
 }
 
-/// Allocate a new List with the given initial capacity.
-pub fn (List) new(initial_cap: usize) ref void! = {
+/// Allocate a new PtrList with the given initial capacity.
+pub fn (PtrList) new(initial_cap: usize) ref void! = {
     val header: ref void = @alloc(24)
     val buf: ref void = @alloc(initial_cap * ELEMENT_SIZE)
     @memset(buf, 0, initial_cap * ELEMENT_SIZE)
@@ -27,26 +27,26 @@ pub fn (List) new(initial_cap: usize) ref void! = {
     return header
 }
 
-/// Free a List and its backing buffer.
-pub fn (List) free(list: self) void! = {
+/// Free a PtrList and its backing buffer.
+pub fn (PtrList) free(list: self) void! = {
     val buf: ref void = @load(list)
     @free(buf)
     @free(list)
 }
 
 /// Return the number of elements in the list.
-pub fn (List) len(list: self) usize! = {
+pub fn (PtrList) len(list: self) usize! = {
     return @load(@ptradd(list, 8))
 }
 
 /// Return the current capacity.
-pub fn (List) cap(list: self) usize! = {
+pub fn (PtrList) cap(list: self) usize! = {
     return @load(@ptradd(list, 16))
 }
 
 /// Grow the backing buffer to at least new_cap elements.
 /// Requires new_cap > 0 to avoid a zero-size allocation.
-fn (List) grow(list: self, new_cap: usize) void = {
+fn (PtrList) grow(list: self, new_cap: usize) void = {
     pre {
         new_cap_positive : new_cap > 0
     }
@@ -61,12 +61,12 @@ fn (List) grow(list: self, new_cap: usize) void = {
 
 /// Append a value to the end of the list.
 /// Requires the list pointer to be non-null (non-zero).
-pub fn (List) push(list: self, value: usize) void! = {
+pub fn (PtrList) push(list: self, value: usize) void! = {
     val len: usize = @load(@ptradd(list, 8))
     val cap: usize = @load(@ptradd(list, 16))
     if (len >= cap) {
         val new_cap: usize = cap * 2 + 1
-        List.grow(list, new_cap)
+        PtrList.grow(list, new_cap)
     }
     val buf: ref void = @load(list)
     val slot: ref void = @ptradd(buf, len * ELEMENT_SIZE)
@@ -77,7 +77,7 @@ pub fn (List) push(list: self, value: usize) void! = {
 /// Get the element at index i.
 /// Requires i < len to guarantee in-bounds access.
 /// Returns none if out of bounds (defensive, belt-and-suspenders).
-pub fn (List) get(list: self, i: usize) option[usize] = {
+pub fn (PtrList) get(list: self, i: usize) option[usize] = {
     pre {
         in_bounds : i < trust @load(@ptradd(list, 8))
     }
@@ -96,7 +96,7 @@ pub fn (List) get(list: self, i: usize) option[usize] = {
 /// Set the element at index i.
 /// Requires i < len to guarantee in-bounds write.
 /// Returns 1 on success, 0 if out of bounds (defensive).
-pub fn (List) set(list: self, i: usize, value: usize) usize = {
+pub fn (PtrList) set(list: self, i: usize, value: usize) usize = {
     pre {
         in_bounds : i < trust @load(@ptradd(list, 8))
     }
@@ -115,7 +115,7 @@ pub fn (List) set(list: self, i: usize, value: usize) usize = {
 
 /// Pop the last element.
 /// Requires the list to be non-empty.
-pub fn (List) pop(list: self) option[usize] = {
+pub fn (PtrList) pop(list: self) option[usize] = {
     pre {
         not_empty : trust @load(@ptradd(list, 8)) > 0
     }

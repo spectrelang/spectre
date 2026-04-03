@@ -67,8 +67,8 @@ val std = use("std")
 
 /// Get command-line arguments as a List of strings.
 ///
-/// The list is heap-allocated; free it with List.free when done.
-pub fn get_args() ref std.list.List! = {
+/// The list is heap-allocated; free it with PtrList.free when done.
+pub fn get_args() ref std.collections.PtrList! = {
     return @args()
 }
 

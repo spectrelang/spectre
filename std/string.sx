@@ -463,7 +463,7 @@ pub fn replace(s: ref void, from: ref void, to: ref void) ref void! = {
 
 /// Split s by delim — returns a List of heap-allocated Strings
 pub fn split(s: ref void, delim: ref void) ref void! = {
-    val result: ref void = std.list.List.new(8)
+    val result: ref void = std.collections.PtrList.new(8)
 
     val sl: i64 = @load(@ptradd(s, 8))
     val dl: i64 = @load(@ptradd(delim, 8))
@@ -501,13 +501,13 @@ pub fn split(s: ref void, delim: ref void) ref void! = {
 
         if (is_delim != 0) {
             val seg: ref void = slice(s, seg_start, i)
-            std.list.List.push(result, seg)
+            std.collections.PtrList.push(result, seg)
             seg_start = i + dl
             i += dl
         } else {
             if (i == sl) {
                 val seg: ref void = slice(s, seg_start, sl)
-                std.list.List.push(result, seg)
+                std.collections.PtrList.push(result, seg)
                 break
             }
             i++
@@ -905,24 +905,24 @@ test {
     val sp = from("a,b,c")
     val parts = split(sp, from(","))
 
-    assert(std.list.List.len(parts) == 3)
-    match std.list.List.get(parts, 0) {
+    assert(std.collections.PtrList.len(parts) == 3)
+    match std.collections.PtrList.get(parts, 0) {
         some v => { assert(equals(v, from("a"))) }
         none => { assert(false) }
     }
-    match std.list.List.get(parts, 1) {
+    match std.collections.PtrList.get(parts, 1) {
         some v => { assert(equals(v, from("b"))) }
         none => { assert(false) }
     }
-    match std.list.List.get(parts, 2) {
+    match std.collections.PtrList.get(parts, 2) {
         some v => { assert(equals(v, from("c"))) }
         none => { assert(false) }
     }
 
     val sp2 = from("a,b,")
     val parts2 = split(sp2, from(","))
-    assert(std.list.List.len(parts2) == 3)
-    match std.list.List.get(parts2, 2) {
+    assert(std.collections.PtrList.len(parts2) == 3)
+    match std.collections.PtrList.get(parts2, 2) {
         some v => { assert(equals(v, from(""))) }
         none => { assert(false) }
     }
