@@ -24,10 +24,10 @@ pub fn main() void! = {
     val r = uname(addr(buf))
     std.io.put("hi3")
     
-    std.io.print("uname returned: {d}", {r})
+    std.io.print("uname returned: {d}\n", {r})
 
     if (r == 0) {
-        std.io.print("sysname: {s}", {buf.sysname})
-        std.io.print("release: {s}", {buf.release})
+        std.io.print("sysname: {s}\n", {buf.sysname})
+        std.io.print("release: {s}\n", {buf.release})
     }
 }
