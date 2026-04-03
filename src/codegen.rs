@@ -125,12 +125,58 @@ impl Codegen {
             "    ret %r\n}\n",
         );
 
+        let args_globals = concat!(
+            "data $sx_argc_store = { l 0 }\n",
+            "data $sx_argv_store = { l 0 }\n",
+        );
+        let get_args_fn = concat!(
+            "function l $sx_get_args() {\n@start\n",
+            "    %argc =l loadl $sx_argc_store\n",
+            "    %argv =l loadl $sx_argv_store\n",
+            // allocate List header (24 bytes)
+            "    %hdr =l call $malloc(l 24)\n",
+            // allocate backing buffer: argc * 8 bytes
+            "    %cap =l mul %argc, 8\n",
+            "    %buf =l call $malloc(l %cap)\n",
+            // store ptr, len=0, cap=argc
+            "    storel %buf, %hdr\n",
+            "    %len_slot =l add %hdr, 8\n",
+            "    storel 0, %len_slot\n",
+            "    %cap_slot =l add %hdr, 16\n",
+            "    storel %argc, %cap_slot\n",
+            // loop: push each argv[i] into the list
+            "    %i =l copy 0\n",
+            "@args_loop\n",
+            "    %done =l csgtl %i, %argc\n",
+            "    jnz %done, @args_done, @args_body\n",
+            "@args_body\n",
+            "    %off =l mul %i, 8\n",
+            "    %slot =l add %argv, %off\n",
+            "    %str =l loadl %slot\n",
+            // push: get current len, store str at buf[len], increment len
+            "    %cur_len =l loadl %len_slot\n",
+            "    %boff =l mul %cur_len, 8\n",
+            "    %bslot =l add %buf, %boff\n",
+            "    storel %str, %bslot\n",
+            "    %new_len =l add %cur_len, 1\n",
+            "    storel %new_len, %len_slot\n",
+            "    %i =l add %i, 1\n",
+            "    jmp @args_loop\n",
+            "@args_done\n",
+            "    ret %hdr\n",
+            "}\n",
+        );
+
         if !data_section.is_empty() {
             self.out.push('\n');
             self.out.push_str(&data_section);
         }
         self.out.push('\n');
         self.out.push_str(stream_wrappers);
+        self.out.push('\n');
+        self.out.push_str(args_globals);
+        self.out.push('\n');
+        self.out.push_str(get_args_fn);
         self.out
     }
 
@@ -359,9 +405,19 @@ impl Codegen {
         self.emit(&format!(
             "{export}function {ret_ty}${name}({params}) {{",
             name = qbe_name,
-            params = params.join(", ")
+            params = if qbe_name == "main" {
+                "w %argc, l %argv".to_string()
+            } else {
+                params.join(", ")
+            }
         ));
         self.emit("@start");
+
+        if qbe_name == "main" {
+            self.emit("    %sx_argc_val =l extsw %argc");
+            self.emit("    storel %sx_argc_val, $sx_argc_store");
+            self.emit("    storel %argv, $sx_argv_store");
+        }
 
         self.emit_stmts(&f.body, ns, &f.ret)?;
 
@@ -1671,6 +1727,11 @@ impl Codegen {
                             call_args.join(", ")
                         ));
                     }
+                    Ok((tmp, "l"))
+                }
+                "args" => {
+                    let tmp = self.fresh_tmp();
+                    self.emit(&format!("    {tmp} =l call $sx_get_args()"));
                     Ok((tmp, "l"))
                 }
                 other => Err(format!("unknown builtin: @{other}")),

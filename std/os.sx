@@ -65,6 +65,12 @@ pub fn rename_file(oldpath: ref char, newpath: ref char) i32! = {
 
 val std = use("std")
 
+/// Get command-line arguments as a List of strings.
+/// The list is heap-allocated; free it with List.free when done.
+pub fn get_args() ref void! = {
+    return @args()
+}
+
 test {
     val path = "test_file.txt"
     val content = "Hello World"
