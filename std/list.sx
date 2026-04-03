@@ -121,7 +121,7 @@ pub fn (List) pop(list: Self) option[usize] = {
     if (len == 0) {
         return none
     }
-    val new_len: usize = len - 1
+    val new_len: mut usize = len - 1
     val buf: ref void = trust @load(list)
     val slot: ref void = trust @ptradd(buf, new_len * ELEMENT_SIZE)
     val value: usize = trust @load(slot)
