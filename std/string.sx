@@ -2,6 +2,8 @@ val std = use("std")
 
 extern (C) fn strlen(s: ref char) i64! = "strlen"
 
+/// A string builder or a raw pointer, used internally in ensure_cap
+/// to avoid double-loading the pointer and capacity fields.
 union SbOrPtr = {
     StringBuilder | ref void
 }
