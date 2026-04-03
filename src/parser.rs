@@ -555,7 +555,14 @@ impl Parser {
                 } else if name == "untyped" {
                     Ok(TypeExpr::Untyped)
                 } else {
-                    Ok(TypeExpr::Named(name))
+                    let mut full_name = name;
+                    while self.peek() == &TokenKind::Dot {
+                        self.advance();
+                        let segment = self.expect_ident()?;
+                        full_name.push('.');
+                        full_name.push_str(&segment);
+                    }
+                    Ok(TypeExpr::Named(full_name))
                 }
             }
             TokenKind::Mut => {
