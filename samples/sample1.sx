@@ -15,7 +15,7 @@ fn some_function(some_arg: i32, some_other_arg: usize) void = {
 	val x: i32 = 10                          // This cannot change
 	val y: i32 = 20                          // Neither can this...
 	val z: i32 = 30                          // Or this.
-	val a: mut []char = "This can change"    // But this can.
+	//val a: mut []char = "This can change"  // But this can.
 	
 	post {
 		x_is_ten : x == 10
