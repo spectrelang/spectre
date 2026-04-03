@@ -2878,7 +2878,7 @@ impl Codegen {
                             self.emit(&format!("    {tmp} =l copy ${qbe_name}"));
                             Ok((tmp, "l"))
                         } else {
-                            Err(format!("addr(): '{path}' is not a known function"))
+                            Err(format!("addr(): address-of operator only supports function names or mutable variables, got {other:?}"))
                         }
                     }
                 }
