@@ -654,7 +654,7 @@ pub fn (StringBuilder) append(sb: self, s: ref void) void! = {
     val l: mut i64 = @load(@ptradd(sb, 8))
     val new_len: mut i64 = l + other_len
 
-    ensure_cap(sb, new_len + 1)
+    ensure_cap(sb.ptr, new_len + 1)
 
     val ptr: ref void = @load(sb)
 
@@ -669,7 +669,7 @@ pub fn (StringBuilder) append_cstr(sb: self, cstr: ref char) void! = {
     val add_len: mut i64 = strlen(cstr)
     val new_len: mut i64 = l + add_len
 
-    ensure_cap(sb, new_len + 1)
+    ensure_cap(sb.ptr, new_len + 1)
 
     val ptr: ref void = @load(sb)
 
@@ -708,7 +708,7 @@ pub fn (StringBuilder) append_char(sb: self, c: u8) void! = {
     val l: mut i64 = @load(@ptradd(sb, 8))
     val new_len: mut i64 = l + 1
 
-    ensure_cap(sb, new_len + 1)
+    ensure_cap(sb.ptr, new_len + 1)
 
     val ptr: ref void = @load(sb)
     @store8(@ptradd(ptr, l), c)
@@ -800,6 +800,7 @@ test {
     val empty = new()
     assert(len(empty) == 0)
 
+    std.io.put("hi")
     val s = from("hello")
     assert(len(s) == 5)
     assert(equals(s, from("hello")))
@@ -834,6 +835,7 @@ test {
     val g2 = get(g, 2)
     val g3 = get(g, 3)
 
+    std.io.put("hi2")
     match g0 { some v => { assert(v == 97) } none => { assert(false) } }
     match g1 { some v => { assert(v == 98) } none => { assert(false) } }
     match g2 { some v => { assert(v == 99) } none => { assert(false) } }
@@ -883,6 +885,7 @@ test {
     to_lower(low)
     assert(equals(low, from("abcxyz")))
 
+    std.io.put("hi3")
     val tr = from("  \t hello \n ")
     trim(tr)
     assert(equals(tr, from("hello")))
@@ -891,6 +894,7 @@ test {
     trim_left(tl)
     assert(equals(tl, from("hello")))
 
+    std.io.put("hi3.1")
     val trr = from("hello   ")
     trim_right(trr)
     assert(equals(trr, from("hello")))
@@ -898,12 +902,14 @@ test {
     val rep = from("foo bar foo")
     val rep2 = replace(rep, from("foo"), from("baz"))
     assert(equals(rep2, from("baz bar baz")))
+    std.io.put("hi3.2")
 
     val rep3 = replace(rep, from("xxx"), from("yyy"))
     assert(equals(rep3, from("foo bar foo")))
 
     val sp = from("a,b,c")
     val parts = split(sp, from(","))
+    std.io.put("hi3.2")
 
     assert(std.collections.PtrList.len(parts) == 3)
     match std.collections.PtrList.get(parts, 0) {
@@ -927,6 +933,7 @@ test {
         none => { assert(false) }
     }
 
+    std.io.put("hi4")
     val ca = from("foo")
     val cb = from("bar")
     val cc = concat(ca, cb)
