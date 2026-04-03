@@ -1,7 +1,8 @@
 /// Layout of a List struct (3 fields × 8 bytes each):
-///   offset 0: ptr  — ref void, pointer to heap buffer
-///   offset 8: len  — usize, number of elements
-///   offset 16: cap — usize, allocated capacity in elements
+///
+///   offset 0 : ptr  — ref void, pointer to heap buffer
+///   offset 8 : len  — usize, number of elements
+///   offset 16: cap  — usize, allocated capacity in elements
 ///
 /// Each element is one pointer-sized slot (8 bytes).
 /// Values are stored and retrieved as untyped (ref void / usize).
