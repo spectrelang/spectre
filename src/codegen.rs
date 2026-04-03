@@ -17,6 +17,7 @@ fn qbe_type(ty: &TypeExpr) -> &'static str {
         TypeExpr::Slice(_) => "l",
         TypeExpr::Ref(_) => "l",
         TypeExpr::Option(_) => "l",
+        TypeExpr::Result(_, _) => "l",
         TypeExpr::FnPtr { .. } => "l",
         TypeExpr::Void => "w",
         TypeExpr::Untyped => "l",
@@ -60,6 +61,7 @@ pub struct Codegen {
     release: bool,
     current_fn_trusted: bool,
     in_trust_expr: bool,
+    current_fn_ret: TypeExpr,
     pub warnings: Vec<String>,
 }
 
@@ -96,6 +98,7 @@ impl Codegen {
             release: false,
             current_fn_trusted: false,
             in_trust_expr: false,
+            current_fn_ret: TypeExpr::Void,
             warnings: Vec::new(),
         }
     }
@@ -281,6 +284,7 @@ impl Codegen {
         let qbe_name = fn_qbe_name(f);
         self.current_fn = qbe_name.clone();
         self.current_fn_trusted = f.trusted;
+        self.current_fn_ret = f.ret.clone();
 
         if RESERVED_SYMBOLS.contains(&qbe_name.as_str()) {
             return Err(format!(
@@ -959,17 +963,91 @@ impl Codegen {
 
                 self.emit(&format!("{none_lbl}"));
                 self.emit_stmts(none_body, ns, ret_ty)?;
+                
                 let none_terminated = block_is_terminated(none_body);
                 if !none_terminated {
                     self.emit(&format!("    jmp {end_lbl}"));
                 }
-
-                // Only emit the end label if at least one arm falls through to it.
-                // If both arms terminate (return/break), the label would be an empty
-                // block with no terminator, which is invalid QBE.
                 if !some_terminated || !none_terminated {
                     self.emit(&format!("{end_lbl}"));
                 }
+            }
+
+            Stmt::MatchResult {
+                expr,
+                ok_binding,
+                ok_body,
+                err_binding,
+                err_body,
+            } => {
+                let (res_ptr, _) = self.emit_expr(expr, ns)?;
+                let tag_tmp = self.fresh_tmp();
+                self.emit(&format!("    {tag_tmp} =l loadl {res_ptr}"));
+                let ok_lbl = format!("@match_ok_{}", self.tmp_counter);
+                let err_lbl = format!("@match_err_{}", self.tmp_counter);
+                let end_lbl = format!("@match_result_end_{}", self.tmp_counter);
+                self.tmp_counter += 1;
+                let is_ok = self.fresh_tmp();
+                self.emit(&format!("    {is_ok} =w ceql {tag_tmp}, 0"));
+                self.emit(&format!("    jnz {is_ok}, {ok_lbl}, {err_lbl}"));
+
+                self.emit(&format!("{ok_lbl}"));
+                let val_ptr = self.fresh_tmp();
+                self.emit(&format!("    {val_ptr} =l add {res_ptr}, 8"));
+                let ok_val = self.fresh_tmp();
+                self.emit(&format!("    {ok_val} =l loadl {val_ptr}"));
+                self.locals.insert(ok_binding.clone(), ok_val);
+                self.emit_stmts(ok_body, ns, ret_ty)?;
+                let ok_terminated = block_is_terminated(ok_body);
+                if !ok_terminated {
+                    self.emit(&format!("    jmp {end_lbl}"));
+                }
+
+                self.emit(&format!("{err_lbl}"));
+                let err_val_ptr = self.fresh_tmp();
+                self.emit(&format!("    {err_val_ptr} =l add {res_ptr}, 8"));
+                let err_val = self.fresh_tmp();
+                self.emit(&format!("    {err_val} =l loadl {err_val_ptr}"));
+                self.locals.insert(err_binding.clone(), err_val);
+                self.emit_stmts(err_body, ns, ret_ty)?;
+                let err_terminated = block_is_terminated(err_body);
+                if !err_terminated {
+                    self.emit(&format!("    jmp {end_lbl}"));
+                }
+
+                if !ok_terminated || !err_terminated {
+                    self.emit(&format!("{end_lbl}"));
+                }
+            }
+
+            Stmt::MatchEnum { expr, arms } => {
+                let (val_tmp, _) = self.emit_expr(expr, ns)?;
+                let id = self.tmp_counter;
+                self.tmp_counter += 1;
+                let end_lbl = format!("@match_enum_end_{id}");
+
+                let n = arms.len();
+                for (i, (variant_name, body)) in arms.iter().enumerate() {
+                    let variant_idx = self.find_enum_variant_index(variant_name);
+                    let body_lbl = format!("@match_enum_arm_{id}_{i}");
+                    let next_lbl = if i + 1 < n {
+                        format!("@match_enum_next_{id}_{i}")
+                    } else {
+                        end_lbl.clone()
+                    };
+                    let cond = self.fresh_tmp();
+                    self.emit(&format!("    {cond} =w ceql {val_tmp}, {variant_idx}"));
+                    self.emit(&format!("    jnz {cond}, {body_lbl}, {next_lbl}"));
+                    self.emit(&format!("{body_lbl}"));
+                    self.emit_stmts(body, ns, ret_ty)?;
+                    if !block_is_terminated(body) {
+                        self.emit(&format!("    jmp {end_lbl}"));
+                    }
+                    if i + 1 < n {
+                        self.emit(&format!("@match_enum_next_{id}_{i}"));
+                    }
+                }
+                self.emit(&format!("{end_lbl}"));
             }
         }
         Ok(())
@@ -982,6 +1060,16 @@ impl Codegen {
             self.emit_stmts(body, ns, ret_ty)?;
         }
         Ok(())
+    }
+
+    /// Find the index of an enum variant by name, searching all known enum definitions.
+    fn find_enum_variant_index(&self, variant_name: &str) -> usize {
+        for variants in self.enum_defs.values() {
+            if let Some(idx) = variants.iter().position(|v| v == variant_name) {
+                return idx;
+            }
+        }
+        0
     }
 
     /// Compute a pointer to a field within a struct.
@@ -1109,6 +1197,49 @@ impl Codegen {
                 let result = self.fresh_tmp();
                 self.emit(&format!("    {result} =l add {tmp_l}, 1"));
                 Ok((result, "l"))
+            }
+            Expr::OkVal(inner) => {
+                let (val, val_ty) = self.emit_expr(inner, ns)?;
+                let (val_l, _) = self.promote_to_l(val, val_ty);
+                let ptr = self.fresh_tmp();
+                self.emit(&format!("    {ptr} =l call $malloc(l 16)"));
+                self.emit(&format!("    storel 0, {ptr}"));
+                let val_ptr = self.fresh_tmp();
+                self.emit(&format!("    {val_ptr} =l add {ptr}, 8"));
+                self.emit(&format!("    storel {val_l}, {val_ptr}"));
+                Ok((ptr, "l"))
+            }
+            Expr::ErrVal(inner) => {
+                let (val, val_ty) = self.emit_expr(inner, ns)?;
+                let (val_l, _) = self.promote_to_l(val, val_ty);
+                let ptr = self.fresh_tmp();
+                self.emit(&format!("    {ptr} =l call $malloc(l 16)"));
+                self.emit(&format!("    storel 1, {ptr}"));
+                let val_ptr = self.fresh_tmp();
+                self.emit(&format!("    {val_ptr} =l add {ptr}, 8"));
+                self.emit(&format!("    storel {val_l}, {val_ptr}"));
+                Ok((ptr, "l"))
+            }
+            Expr::Try(inner) => {
+                let (res_ptr, _) = self.emit_expr(inner, ns)?;
+                let tag_tmp = self.fresh_tmp();
+                self.emit(&format!("    {tag_tmp} =l loadl {res_ptr}"));
+                let ok_lbl = format!("@try_ok_{}", self.tmp_counter);
+                let err_lbl = format!("@try_err_{}", self.tmp_counter);
+                self.tmp_counter += 1;
+                let is_ok = self.fresh_tmp();
+                self.emit(&format!("    {is_ok} =w ceql {tag_tmp}, 0"));
+                self.emit(&format!("    jnz {is_ok}, {ok_lbl}, {err_lbl}"));
+                self.emit(&format!("{err_lbl}"));
+                let fn_ret = self.current_fn_ret.clone();
+                self.emit_defers(ns, &fn_ret)?;
+                self.emit(&format!("    ret {res_ptr}"));
+                self.emit(&format!("{ok_lbl}"));
+                let val_ptr = self.fresh_tmp();
+                self.emit(&format!("    {val_ptr} =l add {res_ptr}, 8"));
+                let val = self.fresh_tmp();
+                self.emit(&format!("    {val} =l loadl {val_ptr}"));
+                Ok((val, "l"))
             }
             Expr::Trust(inner) => {
                 if self.current_fn_trusted {
@@ -1977,11 +2108,14 @@ fn all_trusted_stmts(stmts: &[Stmt]) -> bool {
             none_body,
             ..
         } => all_trusted_stmts(some_body) && all_trusted_stmts(none_body),
+        Stmt::MatchResult { ok_body, err_body, .. } => {
+            all_trusted_stmts(ok_body) && all_trusted_stmts(err_body)
+        }
+        Stmt::MatchEnum { arms, .. } => arms.iter().all(|(_, b)| all_trusted_stmts(b)),
         Stmt::When { body, .. } => all_trusted_stmts(body),
         Stmt::WhenIs { body, .. } => all_trusted_stmts(body),
         Stmt::Otherwise { body } => all_trusted_stmts(body),
-        Stmt::Expr(_) => false,
-    })
+        Stmt::Expr(_) => false,    })
 }
 
 type Namespace = HashMap<String, String>;
@@ -2042,8 +2176,16 @@ fn find_bare_builtin_in_stmt(stmt: &Stmt) -> Option<String> {
         } => find_bare_builtin_in_expr(expr)
             .or_else(|| find_bare_builtin_in_stmts(some_body))
             .or_else(|| find_bare_builtin_in_stmts(none_body)),
-        Stmt::When { body, .. } => find_bare_builtin_in_stmts(body),
-        Stmt::WhenIs { expr, body, .. } => {
+        Stmt::MatchResult { expr, ok_body, err_body, .. } => {
+            find_bare_builtin_in_expr(expr)
+                .or_else(|| find_bare_builtin_in_stmts(ok_body))
+                .or_else(|| find_bare_builtin_in_stmts(err_body))
+        }
+        Stmt::MatchEnum { expr, arms } => {
+            find_bare_builtin_in_expr(expr)
+                .or_else(|| arms.iter().find_map(|(_, b)| find_bare_builtin_in_stmts(b)))
+        }
+        Stmt::When { body, .. } => find_bare_builtin_in_stmts(body),        Stmt::WhenIs { expr, body, .. } => {
             find_bare_builtin_in_expr(expr).or_else(|| find_bare_builtin_in_stmts(body))
         }
         Stmt::Otherwise { body } => find_bare_builtin_in_stmts(body),
@@ -2067,6 +2209,9 @@ fn find_bare_builtin_in_expr(expr: &Expr) -> Option<String> {
         Expr::UnOp { expr, .. }
         | Expr::Cast { expr, .. }
         | Expr::Some(expr)
+        | Expr::OkVal(expr)
+        | Expr::ErrVal(expr)
+        | Expr::Try(expr)
         | Expr::Addr(expr)
         | Expr::Deref(expr) => find_bare_builtin_in_expr(expr),
         Expr::Field(base, _) => find_bare_builtin_in_expr(base),
@@ -2101,6 +2246,13 @@ fn find_bare_deref_assign_in_stmt(stmt: &Stmt) -> bool {
         Stmt::Match { some_body, none_body, .. } => {
             find_bare_deref_assign_in_stmts(some_body)
                 || find_bare_deref_assign_in_stmts(none_body)
+        }
+        Stmt::MatchResult { ok_body, err_body, .. } => {
+            find_bare_deref_assign_in_stmts(ok_body)
+                || find_bare_deref_assign_in_stmts(err_body)
+        }
+        Stmt::MatchEnum { arms, .. } => {
+            arms.iter().any(|(_, b)| find_bare_deref_assign_in_stmts(b))
         }
         Stmt::Defer(body)
         | Stmt::When { body, .. }

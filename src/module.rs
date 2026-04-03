@@ -177,6 +177,17 @@ fn collect_used_imports_in_stmt(
             for s in some_body { collect_used_imports_in_stmt(s, imports, used); }
             for s in none_body { collect_used_imports_in_stmt(s, imports, used); }
         }
+        Stmt::MatchResult { expr, ok_body, err_body, .. } => {
+            collect_used_imports_in_expr(expr, imports, used);
+            for s in ok_body { collect_used_imports_in_stmt(s, imports, used); }
+            for s in err_body { collect_used_imports_in_stmt(s, imports, used); }
+        }
+        Stmt::MatchEnum { expr, arms } => {
+            collect_used_imports_in_expr(expr, imports, used);
+            for (_, body) in arms {
+                for s in body { collect_used_imports_in_stmt(s, imports, used); }
+            }
+        }
         _ => {}
     }
 }
@@ -211,7 +222,7 @@ fn collect_used_imports_in_expr(
             collect_used_imports_in_expr(lhs, imports, used);
             collect_used_imports_in_expr(rhs, imports, used);
         }
-        Expr::UnOp { expr, .. } | Expr::Cast { expr, .. } | Expr::Some(expr) | Expr::Trust(expr) | Expr::Addr(expr) | Expr::Deref(expr) => {
+        Expr::UnOp { expr, .. } | Expr::Cast { expr, .. } | Expr::Some(expr) | Expr::OkVal(expr) | Expr::ErrVal(expr) | Expr::Try(expr) | Expr::Trust(expr) | Expr::Addr(expr) | Expr::Deref(expr) => {
             collect_used_imports_in_expr(expr, imports, used);
         }
         Expr::StructLit { fields } => {
@@ -370,6 +381,15 @@ fn stmt_references_name(stmt: &crate::parser::Stmt, name: &str) -> bool {
                 || some_body.iter().any(|s| stmt_references_name(s, name))
                 || none_body.iter().any(|s| stmt_references_name(s, name))
         }
+        Stmt::MatchResult { expr, ok_body, err_body, .. } => {
+            expr_references_name(expr, name)
+                || ok_body.iter().any(|s| stmt_references_name(s, name))
+                || err_body.iter().any(|s| stmt_references_name(s, name))
+        }
+        Stmt::MatchEnum { expr, arms } => {
+            expr_references_name(expr, name)
+                || arms.iter().any(|(_, b)| b.iter().any(|s| stmt_references_name(s, name)))
+        }
         _ => false,
     }
 }
@@ -388,10 +408,9 @@ fn expr_references_name(expr: &Expr, name: &str) -> bool {
         }
         Expr::Builtin { args, .. } => args.iter().any(|a| expr_references_name(a, name)),
         Expr::BinOp { lhs, rhs, .. } => expr_references_name(lhs, name) || expr_references_name(rhs, name),
-        Expr::UnOp { expr, .. } | Expr::Cast { expr, .. } | Expr::Some(expr) | Expr::Trust(expr) | Expr::Addr(expr) | Expr::Deref(expr) => {
+        Expr::UnOp { expr, .. } | Expr::Cast { expr, .. } | Expr::Some(expr) | Expr::OkVal(expr) | Expr::ErrVal(expr) | Expr::Try(expr) | Expr::Trust(expr) | Expr::Addr(expr) | Expr::Deref(expr) => {
             expr_references_name(expr, name)
         }
-        Expr::StructLit { fields } => fields.iter().any(|(_, e)| expr_references_name(e, name)),
         Expr::ArgsPack(exprs) => exprs.iter().any(|e| expr_references_name(e, name)),
         _ => false,
     }
@@ -471,6 +490,17 @@ fn collect_needed_subnames_in_stmt(
             for s in some_body { collect_needed_subnames_in_stmt(s, import_name, needed); }
             for s in none_body { collect_needed_subnames_in_stmt(s, import_name, needed); }
         }
+        Stmt::MatchResult { expr, ok_body, err_body, .. } => {
+            collect_needed_subnames_in_expr(expr, import_name, needed);
+            for s in ok_body { collect_needed_subnames_in_stmt(s, import_name, needed); }
+            for s in err_body { collect_needed_subnames_in_stmt(s, import_name, needed); }
+        }
+        Stmt::MatchEnum { expr, arms } => {
+            collect_needed_subnames_in_expr(expr, import_name, needed);
+            for (_, body) in arms {
+                for s in body { collect_needed_subnames_in_stmt(s, import_name, needed); }
+            }
+        }
         _ => {}
     }
 }
@@ -496,7 +526,7 @@ fn collect_needed_subnames_in_expr(expr: &Expr, import_name: &str, needed: &mut 
             collect_needed_subnames_in_expr(lhs, import_name, needed);
             collect_needed_subnames_in_expr(rhs, import_name, needed);
         }
-        Expr::UnOp { expr, .. } | Expr::Cast { expr, .. } | Expr::Some(expr) | Expr::Trust(expr) | Expr::Addr(expr) | Expr::Deref(expr) => {
+        Expr::UnOp { expr, .. } | Expr::Cast { expr, .. } | Expr::Some(expr) | Expr::OkVal(expr) | Expr::ErrVal(expr) | Expr::Try(expr) | Expr::Trust(expr) | Expr::Addr(expr) | Expr::Deref(expr) => {
             collect_needed_subnames_in_expr(expr, import_name, needed);
         }
         Expr::StructLit { fields } => {

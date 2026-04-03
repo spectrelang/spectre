@@ -17,6 +17,8 @@ pub enum TokenKind {
     For,
     Some,
     None_,
+    Ok,
+    Err,
     Match,
     True,
     False,
@@ -77,6 +79,7 @@ pub enum TokenKind {
     Arrow,
     FatArrow,
     Tilde,
+    Question,
     Eof,
 }
 
@@ -253,6 +256,8 @@ impl Lexer {
                 "for" => TokenKind::For,
                 "some" => TokenKind::Some,
                 "none" => TokenKind::None_,
+                "ok" => TokenKind::Ok,
+                "err" => TokenKind::Err,
                 "not" => TokenKind::Not,
                 "match" => TokenKind::Match,
                 "true" => TokenKind::True,
@@ -382,6 +387,7 @@ impl Lexer {
             }
             '^' => TokenKind::BitXor,
             '~' => TokenKind::Tilde,
+            '?' => TokenKind::Question,
             other => return Err(format!("unexpected character: {other:?}")),
         })
     }

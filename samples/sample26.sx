@@ -1,5 +1,5 @@
 pub enum ParseError = {
-    Empty
+    Empty,
     InvalidDigit
 }
 
@@ -16,7 +16,12 @@ pub fn string_to_i64(s: ref char) result[i64, ParseError]! = {
     }
 
     val neg: bool = @load8(s) == 45
-    val start: i64 = if (neg) { 1 } else { 0 }
+    val start: mut i64 = 0
+    if (neg) { 
+        start = 1 
+    } else { 
+        start = 0 
+    }
     val result: mut i64 = 0
     val i: mut i64 = start
 

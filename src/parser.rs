@@ -83,6 +83,8 @@ pub enum TypeExpr {
     Slice(Box<TypeExpr>),
     Ref(Box<TypeExpr>),
     Option(Box<TypeExpr>),
+    /// `result[T, E]` — result type with ok payload T and err payload E
+    Result(Box<TypeExpr>, Box<TypeExpr>),
     /// `fn(T, T) R` — function pointer type
     FnPtr {
         params: Vec<TypeExpr>,
@@ -135,6 +137,19 @@ pub enum Stmt {
         some_body: Vec<Stmt>,
         none_body: Vec<Stmt>,
     },
+    /// `match expr { ok v => { ... } err e => { ... } }` — match on result type
+    MatchResult {
+        expr: Expr,
+        ok_binding: String,
+        ok_body: Vec<Stmt>,
+        err_binding: String,
+        err_body: Vec<Stmt>,
+    },
+    /// `match expr { EnumType.Variant => { ... } ... }` — match on enum value
+    MatchEnum {
+        expr: Expr,
+        arms: Vec<(String, Vec<Stmt>)>, // (variant_name, body)
+    },
     When {
         platform: String,
         body: Vec<Stmt>,
@@ -166,6 +181,12 @@ pub enum Expr {
     Bool(bool),
     Some(Box<Expr>),
     None,
+    /// `ok expr` — wrap a value in the ok variant of result
+    OkVal(Box<Expr>),
+    /// `err expr` — wrap a value in the err variant of result
+    ErrVal(Box<Expr>),
+    /// `expr?` — propagate error: if err, return err; if ok, unwrap
+    Try(Box<Expr>),
     Field(Box<Expr>, String),
     Call {
         callee: Box<Expr>,
@@ -525,6 +546,13 @@ impl Parser {
                     let inner = self.parse_type()?;
                     self.expect(&TokenKind::RBracket)?;
                     Ok(TypeExpr::Option(Box::new(inner)))
+                } else if name == "result" {
+                    self.expect(&TokenKind::LBracket)?;
+                    let ok_ty = self.parse_type()?;
+                    self.expect(&TokenKind::Comma)?;
+                    let err_ty = self.parse_type()?;
+                    self.expect(&TokenKind::RBracket)?;
+                    Ok(TypeExpr::Result(Box::new(ok_ty), Box::new(err_ty)))
                 } else if name == "void" {
                     Ok(TypeExpr::Void)
                 } else if name == "untyped" {
@@ -834,40 +862,102 @@ impl Parser {
                 self.advance();
                 let expr = self.parse_expr()?;
                 self.expect(&TokenKind::LBrace)?;
-                let mut some_binding = None;
-                let mut some_body = None;
-                let mut none_body = None;
-                for _ in 0..2 {
-                    match self.peek().clone() {
-                        TokenKind::Some => {
-                            self.advance();
-                            let binding = self.expect_ident()?;
-                            self.expect(&TokenKind::FatArrow)?;
-                            self.expect(&TokenKind::LBrace)?;
-                            let body = self.parse_stmts()?;
-                            self.expect(&TokenKind::RBrace)?;
-                            some_binding = Some(binding);
-                            some_body = Some(body);
+
+                // Need to fucking look AHEAD to see if this is a result match (ok/err) or option match (some/none)
+                // or an enum match (EnumType.Variant => ...)
+                let is_result_match = matches!(self.peek(), TokenKind::Ok | TokenKind::Err);
+                let is_enum_match = !is_result_match && matches!(self.peek(), TokenKind::Ident(_))
+                    && self.tokens.get(self.pos + 1).map(|t| &t.kind) == Some(&TokenKind::Dot);
+
+                if is_result_match {
+                    let mut ok_binding = None;
+                    let mut ok_body = None;
+                    let mut err_binding = None;
+                    let mut err_body = None;
+                    for _ in 0..2 {
+                        match self.peek().clone() {
+                            TokenKind::Ok => {
+                                self.advance();
+                                let binding = self.expect_ident()?;
+                                self.expect(&TokenKind::FatArrow)?;
+                                self.expect(&TokenKind::LBrace)?;
+                                let body = self.parse_stmts()?;
+                                self.expect(&TokenKind::RBrace)?;
+                                ok_binding = Some(binding);
+                                ok_body = Some(body);
+                            }
+                            TokenKind::Err => {
+                                self.advance();
+                                let binding = self.expect_ident()?;
+                                self.expect(&TokenKind::FatArrow)?;
+                                self.expect(&TokenKind::LBrace)?;
+                                let body = self.parse_stmts()?;
+                                self.expect(&TokenKind::RBrace)?;
+                                err_binding = Some(binding);
+                                err_body = Some(body);
+                            }
+                            _ => break,
                         }
-                        TokenKind::None_ => {
-                            self.advance();
-                            self.expect(&TokenKind::FatArrow)?;
-                            self.expect(&TokenKind::LBrace)?;
-                            let body = self.parse_stmts()?;
-                            self.expect(&TokenKind::RBrace)?;
-                            none_body = Some(body);
-                        }
-                        _ => break,
                     }
+                    self.expect(&TokenKind::RBrace)?;
+                    Ok(Stmt::MatchResult {
+                        expr,
+                        ok_binding: ok_binding.ok_or_else(|| "match: missing 'ok' arm".to_string())?,
+                        ok_body: ok_body.unwrap_or_default(),
+                        err_binding: err_binding.ok_or_else(|| "match: missing 'err' arm".to_string())?,
+                        err_body: err_body.unwrap_or_default(),
+                    })
+                } else if is_enum_match {
+                    let mut arms = Vec::new();
+                    while self.peek() != &TokenKind::RBrace && self.peek() != &TokenKind::Eof {
+                        // Parse `EnumType.Variant => { ... }`
+                        let _enum_type = self.expect_ident()?;
+                        self.expect(&TokenKind::Dot)?;
+                        let variant = self.expect_ident()?;
+                        self.expect(&TokenKind::FatArrow)?;
+                        self.expect(&TokenKind::LBrace)?;
+                        let body = self.parse_stmts()?;
+                        self.expect(&TokenKind::RBrace)?;
+                        arms.push((variant, body));
+                    }
+                    self.expect(&TokenKind::RBrace)?;
+                    Ok(Stmt::MatchEnum { expr, arms })
+                } else {
+                    let mut some_binding = None;
+                    let mut some_body = None;
+                    let mut none_body = None;
+                    for _ in 0..2 {
+                        match self.peek().clone() {
+                            TokenKind::Some => {
+                                self.advance();
+                                let binding = self.expect_ident()?;
+                                self.expect(&TokenKind::FatArrow)?;
+                                self.expect(&TokenKind::LBrace)?;
+                                let body = self.parse_stmts()?;
+                                self.expect(&TokenKind::RBrace)?;
+                                some_binding = Some(binding);
+                                some_body = Some(body);
+                            }
+                            TokenKind::None_ => {
+                                self.advance();
+                                self.expect(&TokenKind::FatArrow)?;
+                                self.expect(&TokenKind::LBrace)?;
+                                let body = self.parse_stmts()?;
+                                self.expect(&TokenKind::RBrace)?;
+                                none_body = Some(body);
+                            }
+                            _ => break,
+                        }
+                    }
+                    self.expect(&TokenKind::RBrace)?;
+                    Ok(Stmt::Match {
+                        expr,
+                        some_binding: some_binding
+                            .ok_or_else(|| "match: missing 'some' arm".to_string())?,
+                        some_body: some_body.unwrap_or_default(),
+                        none_body: none_body.ok_or_else(|| "match: missing 'none' arm".to_string())?,
+                    })
                 }
-                self.expect(&TokenKind::RBrace)?;
-                Ok(Stmt::Match {
-                    expr,
-                    some_binding: some_binding
-                        .ok_or_else(|| "match: missing 'some' arm".to_string())?,
-                    some_body: some_body.unwrap_or_default(),
-                    none_body: none_body.ok_or_else(|| "match: missing 'none' arm".to_string())?,
-                })
             }
             _ => {
                 let expr = self.parse_expr()?;
@@ -1141,6 +1231,14 @@ impl Parser {
                 self.advance();
                 Ok(Expr::None)
             }
+            TokenKind::Ok => {
+                self.advance();
+                Ok(Expr::OkVal(Box::new(self.parse_unary()?)))
+            }
+            TokenKind::Err => {
+                self.advance();
+                Ok(Expr::ErrVal(Box::new(self.parse_unary()?)))
+            }
             _ => self.parse_call_chain(),
         }
     }
@@ -1161,6 +1259,8 @@ impl Parser {
                     args,
                     line: call_line,
                 };
+            } else if self.eat(&TokenKind::Question) {
+                expr = Expr::Try(Box::new(expr));
             } else {
                 break;
             }
@@ -1237,6 +1337,11 @@ impl Parser {
             }
             TokenKind::LParen => {
                 self.advance();
+                // `()` — unit/void literal
+                if self.peek() == &TokenKind::RParen {
+                    self.advance();
+                    return Ok(Expr::IntLit(0));
+                }
                 let e = self.parse_expr()?;
                 self.expect(&TokenKind::RParen)?;
                 Ok(e)

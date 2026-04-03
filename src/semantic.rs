@@ -172,6 +172,27 @@ fn check_shadowing_in_stmt(
             check_shadowing_in_stmts(none_body, scope_stack, fn_name, filename, errors);
             scope_stack.pop();
         }
+        Stmt::MatchResult { ok_binding, ok_body, err_binding, err_body, .. } => {
+            scope_stack.push(HashSet::new());
+            if let Some(top) = scope_stack.last_mut() {
+                top.insert(ok_binding.clone());
+            }
+            check_shadowing_in_stmts(ok_body, scope_stack, fn_name, filename, errors);
+            scope_stack.pop();
+            scope_stack.push(HashSet::new());
+            if let Some(top) = scope_stack.last_mut() {
+                top.insert(err_binding.clone());
+            }
+            check_shadowing_in_stmts(err_body, scope_stack, fn_name, filename, errors);
+            scope_stack.pop();
+        }
+        Stmt::MatchEnum { arms, .. } => {
+            for (_, body) in arms {
+                scope_stack.push(HashSet::new());
+                check_shadowing_in_stmts(body, scope_stack, fn_name, filename, errors);
+                scope_stack.pop();
+            }
+        }
         Stmt::Defer(body)
         | Stmt::When { body, .. }
         | Stmt::WhenIs { body, .. }
@@ -214,6 +235,17 @@ fn collect_declarations(
                 declared.insert(some_binding.clone(), false);
                 collect_declarations(some_body, declared, for_vars);
                 collect_declarations(none_body, declared, for_vars);
+            }
+            Stmt::MatchResult { ok_binding, ok_body, err_binding, err_body, .. } => {
+                declared.insert(ok_binding.clone(), false);
+                declared.insert(err_binding.clone(), false);
+                collect_declarations(ok_body, declared, for_vars);
+                collect_declarations(err_body, declared, for_vars);
+            }
+            Stmt::MatchEnum { arms, .. } => {
+                for (_, body) in arms {
+                    collect_declarations(body, declared, for_vars);
+                }
             }
             Stmt::Defer(body)
             | Stmt::When { body, .. }
@@ -300,6 +332,19 @@ fn collect_used_in_stmt(stmt: &Stmt, used: &mut HashSet<String>) {
             collect_used_in_stmts(some_body, used);
             collect_used_in_stmts(none_body, used);
         }
+        Stmt::MatchResult { expr, ok_binding, ok_body, err_binding, err_body } => {
+            collect_used_in_expr(expr, used);
+            used.insert(ok_binding.clone());
+            used.insert(err_binding.clone());
+            collect_used_in_stmts(ok_body, used);
+            collect_used_in_stmts(err_body, used);
+        }
+        Stmt::MatchEnum { expr, arms } => {
+            collect_used_in_expr(expr, used);
+            for (_, body) in arms {
+                collect_used_in_stmts(body, used);
+            }
+        }
         Stmt::Break => {}
     }
 }
@@ -327,13 +372,15 @@ fn collect_used_in_expr(expr: &Expr, used: &mut HashSet<String>) {
         Expr::UnOp { expr, .. }
         | Expr::Cast { expr, .. }
         | Expr::Some(expr)
+        | Expr::OkVal(expr)
+        | Expr::ErrVal(expr)
+        | Expr::Try(expr)
         | Expr::Trust(expr)
         | Expr::Addr(expr)
         | Expr::Deref(expr) => {
             collect_used_in_expr(expr, used);
         }
-        Expr::Field(base, _) => collect_used_in_expr(base, used),
-        Expr::Call { callee, args, .. } => {
+        Expr::Field(base, _) => collect_used_in_expr(base, used),        Expr::Call { callee, args, .. } => {
             collect_used_in_expr(callee, used);
             for a in args {
                 collect_used_in_expr(a, used);
@@ -415,6 +462,17 @@ fn collect_mutated_in_stmt(stmt: &Stmt, mutated: &mut HashSet<String>) {
             collect_mutated_in_stmts(some_body, mutated);
             collect_mutated_in_stmts(none_body, mutated);
         }
+        Stmt::MatchResult { expr, ok_body, err_body, .. } => {
+            collect_addr_deref_in_expr(expr, mutated);
+            collect_mutated_in_stmts(ok_body, mutated);
+            collect_mutated_in_stmts(err_body, mutated);
+        }
+        Stmt::MatchEnum { expr, arms } => {
+            collect_addr_deref_in_expr(expr, mutated);
+            for (_, body) in arms {
+                collect_mutated_in_stmts(body, mutated);
+            }
+        }
         Stmt::Defer(body)
         | Stmt::When { body, .. }
         | Stmt::WhenIs { body, .. }
@@ -424,8 +482,6 @@ fn collect_mutated_in_stmt(stmt: &Stmt, mutated: &mut HashSet<String>) {
         _ => {}
     }
 }
-
-/// Walk an expression and mark any variable directly wrapped in `addr()` or `deref()` as mutated.
 fn collect_addr_deref_in_expr(expr: &Expr, mutated: &mut HashSet<String>) {
     match expr {
         Expr::Addr(inner) | Expr::Deref(inner) => {
@@ -448,6 +504,9 @@ fn collect_addr_deref_in_expr(expr: &Expr, mutated: &mut HashSet<String>) {
         Expr::UnOp { expr, .. }
         | Expr::Cast { expr, .. }
         | Expr::Some(expr)
+        | Expr::OkVal(expr)
+        | Expr::ErrVal(expr)
+        | Expr::Try(expr)
         | Expr::Trust(expr)
         | Expr::Field(expr, _) => collect_addr_deref_in_expr(expr, mutated),
         Expr::StructLit { fields } => {
@@ -482,6 +541,15 @@ fn collect_var_types(stmts: &[Stmt], map: &mut HashMap<String, TypeExpr>) {
             Stmt::Match { some_body, none_body, .. } => {
                 collect_var_types(some_body, map);
                 collect_var_types(none_body, map);
+            }
+            Stmt::MatchResult { ok_body, err_body, .. } => {
+                collect_var_types(ok_body, map);
+                collect_var_types(err_body, map);
+            }
+            Stmt::MatchEnum { arms, .. } => {
+                for (_, body) in arms {
+                    collect_var_types(body, map);
+                }
             }
             Stmt::Defer(body)
             | Stmt::When { body, .. }
@@ -541,6 +609,17 @@ fn collect_ref_used_in_stmt(
             collect_ref_used_in_stmts(some_body, fn_lookup, out);
             collect_ref_used_in_stmts(none_body, fn_lookup, out);
         }
+        Stmt::MatchResult { expr, ok_body, err_body, .. } => {
+            collect_ref_used_in_expr(expr, fn_lookup, out);
+            collect_ref_used_in_stmts(ok_body, fn_lookup, out);
+            collect_ref_used_in_stmts(err_body, fn_lookup, out);
+        }
+        Stmt::MatchEnum { expr, arms } => {
+            collect_ref_used_in_expr(expr, fn_lookup, out);
+            for (_, body) in arms {
+                collect_ref_used_in_stmts(body, fn_lookup, out);
+            }
+        }
         Stmt::Defer(body)
         | Stmt::When { body, .. }
         | Stmt::WhenIs { body, .. }
@@ -590,6 +669,9 @@ fn collect_ref_used_in_expr(
         Expr::UnOp { expr, .. }
         | Expr::Cast { expr, .. }
         | Expr::Some(expr)
+        | Expr::OkVal(expr)
+        | Expr::ErrVal(expr)
+        | Expr::Try(expr)
         | Expr::Trust(expr)
         | Expr::Addr(expr)
         | Expr::Deref(expr) => collect_ref_used_in_expr(expr, fn_lookup, out),
@@ -627,6 +709,17 @@ fn collect_var_mutability(stmts: &[Stmt], map: &mut HashMap<String, bool>) {
                 map.insert(some_binding.clone(), false);
                 collect_var_mutability(some_body, map);
                 collect_var_mutability(none_body, map);
+            }
+            Stmt::MatchResult { ok_binding, ok_body, err_binding, err_body, .. } => {
+                map.insert(ok_binding.clone(), false);
+                map.insert(err_binding.clone(), false);
+                collect_var_mutability(ok_body, map);
+                collect_var_mutability(err_body, map);
+            }
+            Stmt::MatchEnum { arms, .. } => {
+                for (_, body) in arms {
+                    collect_var_mutability(body, map);
+                }
             }
             Stmt::Defer(body)
             | Stmt::When { body, .. }
@@ -714,6 +807,17 @@ fn check_immutable_args_in_stmt(
             check_immutable_args_in_stmts(some_body, var_mut, var_types, fn_lookup, fn_name, filename, errors);
             check_immutable_args_in_stmts(none_body, var_mut, var_types, fn_lookup, fn_name, filename, errors);
         }
+        Stmt::MatchResult { expr, ok_body, err_body, .. } => {
+            check_immutable_args_in_expr(expr, var_mut, var_types, fn_lookup, fn_name, filename, errors);
+            check_immutable_args_in_stmts(ok_body, var_mut, var_types, fn_lookup, fn_name, filename, errors);
+            check_immutable_args_in_stmts(err_body, var_mut, var_types, fn_lookup, fn_name, filename, errors);
+        }
+        Stmt::MatchEnum { expr, arms } => {
+            check_immutable_args_in_expr(expr, var_mut, var_types, fn_lookup, fn_name, filename, errors);
+            for (_, body) in arms {
+                check_immutable_args_in_stmts(body, var_mut, var_types, fn_lookup, fn_name, filename, errors);
+            }
+        }
         Stmt::Defer(body)
         | Stmt::When { body, .. }
         | Stmt::WhenIs { body, .. }
@@ -782,6 +886,9 @@ fn check_immutable_args_in_expr(
         Expr::UnOp { expr, .. }
         | Expr::Cast { expr, .. }
         | Expr::Some(expr)
+        | Expr::OkVal(expr)
+        | Expr::ErrVal(expr)
+        | Expr::Try(expr)
         | Expr::Trust(expr)
         | Expr::Addr(expr)
         | Expr::Deref(expr) => {
