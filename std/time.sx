@@ -49,7 +49,7 @@ pub fn (DateTime) free(dt: Self) void! = {
 pub fn (DateTime) now() ref void = {
     val ts: ref void = trust @alloc(16)
     trust @gettimeofday(ts, 0)
-    val secs:  i64 = trust @load(ts)
+    val secs:  mut i64 = trust @load(ts)
     val usecs: i64 = trust @load(@ptradd(ts, 8))
     trust @free(ts)
 
