@@ -6,7 +6,7 @@ pub enum ParseError = {
 extern (C) fn strlen(s: ref char) i64! = "strlen"
 
 pub fn string_to_i64(s: ref char) result[i64, ParseError]! = {
-    if (s == 0) {
+    if (s == none) {
         return err ParseError.Empty
     }
 
