@@ -261,8 +261,8 @@ test {
         some v => { assert(v == 999) }
         none   => { assert(false) }
     }
-    assert Map.len(m) == 3
 
+    assert Map.len(m) == 3
     assert Map.contains(m, 2)
     assert !Map.contains(m, 42)
 
