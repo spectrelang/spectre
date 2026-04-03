@@ -1177,6 +1177,22 @@ impl Codegen {
         (ext, "l")
     }
 
+    /// Best-effort check: is this expression float-typed?
+    /// Used to decide whether to use loadd/ceqd vs loadl/ceql for Result payload comparison.
+    fn expr_is_float(&self, expr: &Expr) -> bool {
+        match expr {
+            Expr::FloatLit(_) => true,
+            Expr::Cast { ty, .. } => matches!(ty, TypeExpr::Named(n) if n == "f64"),
+            Expr::Ident(name) => {
+                self.local_slot_is_d.contains(name)
+                    || self.local_types.get(name).copied() == Some("d")
+                    || self.local_type_annotations.get(name).map_or(false, |t| t == "f64")
+            }
+            Expr::OkVal(inner) | Expr::ErrVal(inner) => self.expr_is_float(inner),
+            _ => false,
+        }
+    }
+
     fn emit_expr(&mut self, expr: &Expr, ns: &Namespace) -> Result<(String, &'static str), String> {
         match expr {
             Expr::IntLit(n) => Ok((n.to_string(), "w")),
@@ -1882,6 +1898,52 @@ impl Codegen {
 
             Expr::BinOp { op, lhs, rhs } => {
                 use crate::parser::BinOp::*;
+
+                let lhs_is_result = matches!(lhs.as_ref(), Expr::OkVal(_) | Expr::ErrVal(_));
+                let rhs_is_result = matches!(rhs.as_ref(), Expr::OkVal(_) | Expr::ErrVal(_));
+                if (lhs_is_result || rhs_is_result) && matches!(op, Eq | Ne) {
+                    let result_literal = if lhs_is_result { lhs } else { rhs };
+                    let payload_is_float = match result_literal.as_ref() {
+                        Expr::OkVal(inner) | Expr::ErrVal(inner) => self.expr_is_float(inner),
+                        _ => false,
+                    };
+                    let (l, _) = self.emit_expr(lhs, ns)?;
+                    let (r, _) = self.emit_expr(rhs, ns)?;
+                    let result = self.fresh_tmp();
+                    let l_tag = self.fresh_tmp();
+                    let r_tag = self.fresh_tmp();
+                    self.emit(&format!("    {l_tag} =l loadl {l}"));
+                    self.emit(&format!("    {r_tag} =l loadl {r}"));
+                    let tags_eq = self.fresh_tmp();
+                    self.emit(&format!("    {tags_eq} =w ceql {l_tag}, {r_tag}"));
+                    let l_val_ptr = self.fresh_tmp();
+                    let r_val_ptr = self.fresh_tmp();
+                    self.emit(&format!("    {l_val_ptr} =l add {l}, 8"));
+                    self.emit(&format!("    {r_val_ptr} =l add {r}, 8"));
+                    let vals_eq = self.fresh_tmp();
+                    if payload_is_float {
+                        let l_val = self.fresh_tmp();
+                        let r_val = self.fresh_tmp();
+                        self.emit(&format!("    {l_val} =d loadd {l_val_ptr}"));
+                        self.emit(&format!("    {r_val} =d loadd {r_val_ptr}"));
+                        self.emit(&format!("    {vals_eq} =w ceqd {l_val}, {r_val}"));
+                    } else {
+                        let l_val = self.fresh_tmp();
+                        let r_val = self.fresh_tmp();
+                        self.emit(&format!("    {l_val} =l loadl {l_val_ptr}"));
+                        self.emit(&format!("    {r_val} =l loadl {r_val_ptr}"));
+                        self.emit(&format!("    {vals_eq} =w ceql {l_val}, {r_val}"));
+                    }
+                    let both = self.fresh_tmp();
+                    self.emit(&format!("    {both} =w and {tags_eq}, {vals_eq}"));
+                    if matches!(op, Ne) {
+                        self.emit(&format!("    {result} =w ceqw {both}, 0"));
+                    } else {
+                        self.emit(&format!("    {result} =w copy {both}"));
+                    }
+                    return Ok((result, "w"));
+                }
+
                 let (l, l_ty) = self.emit_expr(lhs, ns)?;
                 let (r, r_ty) = self.emit_expr(rhs, ns)?;
                 let tmp = self.fresh_tmp();

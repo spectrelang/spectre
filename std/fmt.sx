@@ -120,11 +120,18 @@ pub fn f64_to_string(x: f64) ref char! = {
         abs = x
     }
 
-    val int_part: i64 = abs as i64
+    val int_part: mut i64 = abs as i64
     val frac_part: f64 = abs - (int_part as f64)
-    val int_str: ref char = i64_to_string(int_part)
+    val int_str: mut ref char = i64_to_string(int_part)
     val scale: i64 = 1000000
-    val frac_i: i64 = (frac_part * scale as f64) as i64
+    val frac_i: mut i64 = (frac_part * scale as f64 + 0.5) as i64
+
+    if frac_i >= scale {
+        frac_i = 0
+        int_part++
+        @free(int_str)
+        int_str = i64_to_string(int_part)
+    }
     val frac_buf: ref char = @alloc(7)
     val j: mut i64 = 5
     val tmp: mut i64 = frac_i
@@ -234,6 +241,94 @@ pub fn string_to_f64(s: ref char) result[f64, ParseFloatError]! = {
     return ok result
 }
 
+fn test_i64_roundtrip(x: i64) void! = {
+    val s = i64_to_string(x)
+    val parsed = string_to_i64(s)
+    assert parsed == ok x
+    @free(s)
+}
+
+fn test_f64_roundtrip(x: f64) void! = {
+    val s = f64_to_string(x)
+    val parsed = string_to_f64(s)
+    assert parsed == ok x
+    @free(s)
+}
+
+val std = use("std")
+
 test {
-    assert true
+    val s: mut ref char = ""
+
+    s = i64_to_string(0)
+    
+    match string_to_i64(s) {
+        ok v => {
+            std.io.print("worked: {d}\n", {v})
+        }
+        err v => {
+            match v {
+                ParseIntError.Empty => {
+                    std.io.put("empty string")
+                }
+                ParseIntError.InvalidDigit => {
+                    std.io.put("invalid digit")
+                }
+                ParseIntError.Overflow => {
+                    std.io.put("overflow.")
+                }
+            }
+        }
+    }
+
+    assert string_to_i64(s) == ok 0
+
+    @free(s)
+
+    s = i64_to_string(12345)
+    assert string_to_i64(s) == ok 12345
+    @free(s)
+
+    s = i64_to_string(-9876)
+    assert string_to_i64(s) == ok -9876
+    @free(s)
+
+    assert string_to_i64("0") == ok 0
+    assert string_to_i64("42") == ok 42
+    assert string_to_i64("-42") == ok -42
+    assert string_to_i64("") == err ParseIntError.Empty
+    assert string_to_i64("-") == err ParseIntError.InvalidDigit
+    assert string_to_i64("12a3") == err ParseIntError.InvalidDigit
+
+    test_i64_roundtrip(0)
+    test_i64_roundtrip(1)
+    test_i64_roundtrip(-1)
+    test_i64_roundtrip(123456)
+    test_i64_roundtrip(-654321)
+
+    s = f64_to_string(0.0)
+    assert string_to_f64(s) == ok 0.0
+    @free(s)
+
+    s = f64_to_string(123.456789)
+    assert string_to_f64(s) == ok 123.456789
+    @free(s)
+
+    s = f64_to_string(-3.14)
+    assert string_to_f64(s) == ok -3.14
+    @free(s)
+
+    assert string_to_f64("0") == ok 0.0
+    assert string_to_f64("10.5") == ok 10.5
+    assert string_to_f64("-0.25") == ok -0.25
+
+    assert string_to_f64("") == err ParseFloatError.Empty
+    assert string_to_f64("-") == err ParseFloatError.Invalid
+    assert string_to_f64("1.2.3") == err ParseFloatError.Invalid
+    assert string_to_f64("abc") == err ParseFloatError.Invalid
+
+    test_f64_roundtrip(0.0)
+    test_f64_roundtrip(1.5)
+    test_f64_roundtrip(-2.75)
+    test_f64_roundtrip(123.000001)
 }
