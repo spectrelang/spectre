@@ -49,6 +49,7 @@ pub struct Codegen {
     current_fn: String,
     defer_stack: Vec<Vec<Stmt>>,
     current_loop_end: Option<String>,
+    current_loop_continue: Option<String>,
     test_fns: Vec<String>,
     current_file: String,
     module_consts: HashMap<String, (String, &'static str)>,
@@ -85,6 +86,7 @@ impl Codegen {
             current_fn: String::new(),
             defer_stack: Vec::new(),
             current_loop_end: None,
+            current_loop_continue: None,
             test_fns: Vec::new(),
             current_file: String::new(),
             module_consts: HashMap::new(),
@@ -747,6 +749,7 @@ impl Codegen {
                 let loop_lbl = format!("@for_loop_{}", self.tmp_counter);
                 let body_lbl = format!("@for_body_{}", self.tmp_counter);
                 let end_lbl = format!("@for_end_{}", self.tmp_counter);
+                let cont_lbl = format!("@for_cont_{}", self.tmp_counter);
                 self.tmp_counter += 1;
 
                 if let Some((var, init_expr)) = init {
@@ -773,15 +776,19 @@ impl Codegen {
 
                 self.emit(&format!("{body_lbl}"));
                 let prev_loop_end = self.current_loop_end.replace(end_lbl.clone());
+                let prev_loop_cont = self.current_loop_continue.replace(cont_lbl.clone());
                 self.emit_stmts(body, ns, ret_ty)?;
                 self.current_loop_end = prev_loop_end;
+                self.current_loop_continue = prev_loop_cont;
 
                 if !block_is_terminated(body) {
-                    if let Some(post_stmt) = post {
-                        self.emit_stmt(post_stmt, ns, ret_ty)?;
-                    }
-                    self.emit(&format!("    jmp {loop_lbl}"));
+                    self.emit(&format!("    jmp {cont_lbl}"));
                 }
+                self.emit(&format!("{cont_lbl}"));
+                if let Some(post_stmt) = post {
+                    self.emit_stmt(post_stmt, ns, ret_ty)?;
+                }
+                self.emit(&format!("    jmp {loop_lbl}"));
                 self.emit(&format!("{end_lbl}"));
             }
             Stmt::Increment(var) => {
@@ -873,6 +880,13 @@ impl Codegen {
                     .clone()
                     .ok_or_else(|| "break used outside of loop".to_string())?;
                 self.emit(&format!("    jmp {end_lbl}"));
+            }
+            Stmt::Continue => {
+                let cont_lbl = self
+                    .current_loop_continue
+                    .clone()
+                    .ok_or_else(|| "continue used outside of loop".to_string())?;
+                self.emit(&format!("    jmp {cont_lbl}"));
             }
             Stmt::When { platform, body } => {
                 let matches = self.platform.matches_name(platform);
@@ -975,6 +989,16 @@ impl Codegen {
                 err_binding,
                 err_body,
             } => {
+                // this is a best effort type scenario
+                let ok_is_float = if let Expr::Ident(name) = expr {
+                    self.local_type_annotations
+                        .get(name)
+                        .map(|ann| ann.starts_with("result[f64") || ann == "f64")
+                        .unwrap_or(false)
+                } else {
+                    false
+                };
+
                 let (res_ptr, _) = self.emit_expr(expr, ns)?;
                 let tag_tmp = self.fresh_tmp();
                 self.emit(&format!("    {tag_tmp} =l loadl {res_ptr}"));
@@ -990,8 +1014,15 @@ impl Codegen {
                 let val_ptr = self.fresh_tmp();
                 self.emit(&format!("    {val_ptr} =l add {res_ptr}, 8"));
                 let ok_val = self.fresh_tmp();
-                self.emit(&format!("    {ok_val} =l loadl {val_ptr}"));
-                self.locals.insert(ok_binding.clone(), ok_val);
+                if ok_is_float {
+                    self.emit(&format!("    {ok_val} =d loadd {val_ptr}"));
+                    self.locals.insert(ok_binding.clone(), ok_val.clone());
+                    self.local_types.insert(ok_binding.clone(), "d");
+                } else {
+                    self.emit(&format!("    {ok_val} =l loadl {val_ptr}"));
+                    self.locals.insert(ok_binding.clone(), ok_val.clone());
+                    self.local_types.insert(ok_binding.clone(), "l");
+                }
                 self.emit_stmts(ok_body, ns, ret_ty)?;
                 let ok_terminated = block_is_terminated(ok_body);
                 if !ok_terminated {
@@ -1195,24 +1226,32 @@ impl Codegen {
             }
             Expr::OkVal(inner) => {
                 let (val, val_ty) = self.emit_expr(inner, ns)?;
-                let (val_l, _) = self.promote_to_l(val, val_ty);
                 let ptr = self.fresh_tmp();
                 self.emit(&format!("    {ptr} =l call $malloc(l 16)"));
                 self.emit(&format!("    storel 0, {ptr}"));
                 let val_ptr = self.fresh_tmp();
                 self.emit(&format!("    {val_ptr} =l add {ptr}, 8"));
-                self.emit(&format!("    storel {val_l}, {val_ptr}"));
+                if val_ty == "d" {
+                    self.emit(&format!("    stored {val}, {val_ptr}"));
+                } else {
+                    let (val_l, _) = self.promote_to_l(val, val_ty);
+                    self.emit(&format!("    storel {val_l}, {val_ptr}"));
+                }
                 Ok((ptr, "l"))
             }
             Expr::ErrVal(inner) => {
                 let (val, val_ty) = self.emit_expr(inner, ns)?;
-                let (val_l, _) = self.promote_to_l(val, val_ty);
                 let ptr = self.fresh_tmp();
                 self.emit(&format!("    {ptr} =l call $malloc(l 16)"));
                 self.emit(&format!("    storel 1, {ptr}"));
                 let val_ptr = self.fresh_tmp();
                 self.emit(&format!("    {val_ptr} =l add {ptr}, 8"));
-                self.emit(&format!("    storel {val_l}, {val_ptr}"));
+                if val_ty == "d" {
+                    self.emit(&format!("    stored {val}, {val_ptr}"));
+                } else {
+                    let (val_l, _) = self.promote_to_l(val, val_ty);
+                    self.emit(&format!("    storel {val_l}, {val_ptr}"));
+                }
                 Ok((ptr, "l"))
             }
             Expr::Try(inner) => {
@@ -2070,7 +2109,7 @@ impl Codegen {
 /// Returns true if the last statement in a block is a terminator (return),
 /// meaning no fall-through jump is needed.
 fn block_is_terminated(stmts: &[Stmt]) -> bool {
-    matches!(stmts.last(), Some(Stmt::Return(_)) | Some(Stmt::Break))
+    matches!(stmts.last(), Some(Stmt::Return(_)) | Some(Stmt::Break) | Some(Stmt::Continue))
 }
 
 /// Recursively checks whether a block consists entirely of "trusted" operations.
@@ -2083,6 +2122,7 @@ fn all_trusted_stmts(stmts: &[Stmt]) -> bool {
         Stmt::Val { .. }
         | Stmt::Return(_)
         | Stmt::Break
+        | Stmt::Continue
         | Stmt::Increment(_)
         | Stmt::Decrement(_)
         | Stmt::AddAssign(..)
@@ -2192,7 +2232,8 @@ fn find_bare_builtin_in_stmt(stmt: &Stmt) -> Option<String> {
         | Stmt::Decrement(_)
         | Stmt::AddAssign(..)
         | Stmt::SubAssign(..)
-        | Stmt::Break => None,
+        | Stmt::Break
+        | Stmt::Continue => None,
     }
 }
 

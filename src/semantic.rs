@@ -366,6 +366,7 @@ fn collect_used_in_stmt(stmt: &Stmt, used: &mut HashSet<String>) {
             }
         }
         Stmt::Break => {}
+        Stmt::Continue => {}
     }
 }
 

@@ -1,0 +1,240 @@
+pub enum ParseIntError = {
+    Empty,
+    InvalidDigit,
+    Overflow
+}
+
+pub enum ParseFloatError = {
+    Empty,
+    Invalid,
+    Overflow
+}
+
+pub fn i64_to_string(x: i64) ref char! = {
+    if x == 0 {
+        val buf: ref char = @alloc(2)
+        @store8(buf, 48)
+        @store8(@ptradd(buf, 1), 0)
+        return buf
+    }
+
+    val neg: bool = x < 0
+    val n: mut i64 = 0
+    
+    if (neg) { n = -x } else { n = x }
+
+    val tmp: mut i64 = n
+    val digits: mut i64 = 0
+
+    for {
+        if tmp == 0 { break }
+        tmp = tmp / 10
+        digits++
+    }
+
+    val offset: mut i64 = 0
+
+    if neg {
+        offset = 1
+    } else {
+        offset = 0
+    }
+
+    val total: mut i64 = digits + offset
+    val buf: ref char = @alloc(total + 1)
+    val i: mut i64 = total - 1
+
+    for {
+        if (n == 0) { break }
+        val d: i64 = n % 10
+        @store8(@ptradd(buf, i), (48 + d) as u8)
+        n = n / 10
+        i--
+    }
+
+    if (neg) {
+        @store8(buf, 45)
+    }
+
+    @store8(@ptradd(buf, total), 0)
+    return buf
+}
+
+extern (C) fn strlen(s: ref char) i64! = "strlen"
+
+pub fn string_to_i64(s: ref char) result[i64, ParseIntError]! = {
+    guarded pre {
+        non_null: s != 0
+    }
+
+    val len: i64 = strlen(s)
+    if (len == 0) {
+        return err ParseIntError.Empty
+    }
+
+    val neg: bool = @load8(s) == 45
+    val start: mut i64 = 0
+    
+    if (neg) { start = 1 } else { start = 0 }
+
+    if start >= len {
+        return err ParseIntError.InvalidDigit
+    }
+
+    val acc: mut i64 = 0
+    val i: mut i64 = start
+
+    for {
+        if (i >= len) { break }
+
+        val c: u8 = @load8(@ptradd(s, i))
+        if (c < 48 || c > 57) {
+            return err ParseIntError.InvalidDigit
+        }
+
+        val digit: i64 = (c - 48) as i64
+
+        pre {
+            no_overflow:
+                acc <= (9223372036854775807 - digit) / 10
+        }
+
+        acc = acc * 10 + digit
+        i++
+    }
+
+    if (neg) {
+        acc = -acc
+    }
+
+    return ok acc
+}
+
+pub fn f64_to_string(x: f64) ref char! = {
+    val neg: bool = x < 0.0
+    val abs: mut f64 = 0.0
+
+    if neg {
+        abs = -x
+    } else {
+        abs = x
+    }
+
+    val int_part: i64 = abs as i64
+    val frac_part: f64 = abs - (int_part as f64)
+    val int_str: ref char = i64_to_string(int_part)
+    val scale: i64 = 1000000
+    val frac_i: i64 = (frac_part * scale as f64) as i64
+    val frac_buf: ref char = @alloc(7)
+    val j: mut i64 = 5
+    val tmp: mut i64 = frac_i
+
+    for {
+        if j < 0 { break }
+        val d: i64 = tmp % 10
+        @store8(@ptradd(frac_buf, j), (48 + d) as u8)
+        tmp = tmp / 10
+        j--
+    }
+    @store8(@ptradd(frac_buf, 6), 0)
+
+    val int_len: mut i64 = strlen(int_str)
+    val offset_x: mut i64 = 0
+
+    if neg {
+        offset_x = 1
+    }
+
+    val total: i64 = int_len + 1 + 6 + offset_x
+    val buf: ref char = @alloc(total + 1)
+    val pos: mut i64 = 0
+
+    if neg {
+        @store8(buf, 45)
+        pos++
+    }
+
+    @memcpy(@ptradd(buf, pos), int_str, int_len)
+    pos += int_len
+
+    @store8(@ptradd(buf, pos), 46)
+    pos++
+
+    @memcpy(@ptradd(buf, pos), frac_buf, 6)
+    pos += 6
+
+    @store8(@ptradd(buf, pos), 0)
+
+    @free(int_str)
+    @free(frac_buf)
+
+    return buf
+}
+
+pub fn string_to_f64(s: ref char) result[f64, ParseFloatError]! = {
+    guarded pre {
+        non_null: s != 0
+    }
+
+    val len: i64 = strlen(s)
+    if len == 0 {
+        return err ParseFloatError.Empty
+    }
+
+    val neg: bool = @load8(s) == 45
+    val start: mut i64 = 0
+    
+    if (neg) { start = 1 }
+
+    if (start >= len) {
+        return err ParseFloatError.Invalid
+    }
+
+    val int_part: mut i64 = 0
+    val frac_part: mut f64 = 0.0
+    val frac_div: mut f64 = 1.0
+    val i: mut i64 = start
+    val seen_dot: mut bool = false
+
+    for {
+        if i >= len { break }
+
+        val c: u8 = @load8(@ptradd(s, i))
+
+        if c == 46 {
+            if seen_dot {
+                return err ParseFloatError.Invalid
+            }
+            seen_dot = true
+            i++
+            continue
+        }
+
+        if c < 48 || c > 57 {
+            return err ParseFloatError.Invalid
+        }
+
+        val digit: i64 = (c - 48) as i64
+
+        if !seen_dot {
+            int_part = int_part * 10 + digit
+        } else {
+            frac_div = frac_div * 10.0
+            frac_part = frac_part + (digit as f64) / frac_div
+        }
+
+        i++
+    }
+
+    val result: f64 = (int_part as f64) + frac_part
+
+    if neg {
+        return ok (-result)
+    }
+
+    return ok result
+}
+
+test {
+    assert true
+}

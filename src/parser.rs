@@ -130,6 +130,7 @@ pub enum Stmt {
     SubAssign(String, Expr), // x -= expr
     Defer(Vec<Stmt>),
     Break,
+    Continue,
     Assert(Expr, usize),
     Match {
         expr: Expr,
@@ -820,6 +821,10 @@ impl Parser {
             TokenKind::Break => {
                 self.advance();
                 Ok(Stmt::Break)
+            }
+            TokenKind::Continue => {
+                self.advance();
+                Ok(Stmt::Continue)
             }
             TokenKind::When => {
                 self.advance();
