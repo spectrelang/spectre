@@ -657,8 +657,8 @@ pub fn (StringBuilder) append(sb: self, s: ref void) void! = {
     ensure_cap(sb, new_len + 1)
 
     val ptr: ref void = @load(sb)
-    @memcpy(@ptradd(ptr, l), other_ptr, other_len)
 
+    @memcpy(@ptradd(ptr, l), other_ptr, other_len)
     @store(@ptradd(ptr, new_len), 0)
     @store(@ptradd(sb, 8), new_len)
 }
