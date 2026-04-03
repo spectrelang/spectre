@@ -98,6 +98,90 @@ fn check_fn(f: &FnDef, filename: &str, fn_lookup: &HashMap<String, &Vec<(String,
 
     check_immutable_args_in_stmts(&f.body, &var_mutability, &var_types, fn_lookup, &f.name, filename, errors);
     check_call_arg_types(&f.body, &var_types, fn_lookup, &f.name, filename, errors);
+
+    if !matches!(f.ret, TypeExpr::Void) {
+        check_return_paths(&f.body, &f.name, &f.ret, filename, errors);
+    }
+}
+
+/// Check that all control flow paths in a function body end with a `return` statement
+/// (or `match`/`if` where all branches return).
+fn check_return_paths(
+    stmts: &[Stmt],
+    fn_name: &str,
+    ret_type: &TypeExpr,
+    filename: &str,
+    errors: &mut Vec<String>,
+) {
+    if !all_paths_return(stmts) {
+        let ret_str = type_to_string(ret_type);
+        errors.push(format!(
+            "{filename}: in function '{fn_name}': not all code paths return a value (expected '{ret_str}')"
+        ));
+    }
+}
+
+/// Returns true if all control flow paths through these statements end with a return
+/// (or a construct where all branches return, like a complete if/else or match).
+fn all_paths_return(stmts: &[Stmt]) -> bool {
+    let mut i = 0;
+    let len = stmts.len();
+
+    while i < len {
+        let stmt = &stmts[i];
+
+        if let Stmt::Return(_) = stmt {
+            return true;
+        }
+
+        if let Stmt::If { then, elif_, else_, .. } = stmt {
+            let then_returns = all_paths_return(then);
+            let all_elif_return = elif_.iter().all(|(_, body)| all_paths_return(body));
+            let else_returns = else_.as_ref().map_or(false, |b| all_paths_return(b));
+
+            if then_returns && all_elif_return && else_returns {
+                return true;
+            }
+        }
+
+        if let Stmt::Match { some_body, none_body, .. } = stmt {
+            if all_paths_return(some_body) && all_paths_return(none_body) {
+                return true;
+            }
+        }
+
+        if let Stmt::MatchResult { ok_body, err_body, .. } = stmt {
+            if all_paths_return(ok_body) && all_paths_return(err_body) {
+                return true;
+            }
+        }
+
+        if let Stmt::MatchEnum { arms, .. } = stmt {
+            if arms.iter().all(|(_, body)| all_paths_return(body)) {
+                return true;
+            }
+        }
+
+        if let Stmt::MatchUnion { arms, else_body, .. } = stmt {
+            let arms_return = arms.iter().all(|(_, body)| all_paths_return(body));
+            let else_return = else_body.as_ref().map_or(false, |b| all_paths_return(b));
+            if arms_return && else_return {
+                return true;
+            }
+        }
+
+        if let Stmt::MatchString { arms, else_body, .. } = stmt {
+            let arms_return = arms.iter().all(|(_, body)| all_paths_return(body));
+            let else_return = else_body.as_ref().map_or(false, |b| all_paths_return(b));
+            if arms_return && else_return {
+                return true;
+            }
+        }
+
+        i += 1;
+    }
+
+    false
 }
 
 fn check_shadowing_in_stmts(

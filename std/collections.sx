@@ -1,4 +1,4 @@
-/// Layout of a PtrList struct (3 fields × 8 bytes each):
+/// Layout of a PtrList struct (3 fields * 8 bytes each):
 ///
 ///   offset 0 : ptr  — ref void, pointer to heap buffer
 ///   offset 8 : len  — usize, number of elements
