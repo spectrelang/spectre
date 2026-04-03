@@ -3358,3 +3358,136 @@ mod shadowing_tests {
         );
     }
 }
+
+#[cfg(test)]
+mod f64_result_codegen_tests {
+    use crate::codegen::Codegen;
+    use crate::module::resolve_module;
+    use std::collections::HashMap;
+    use std::path::Path;
+
+    fn compile(src: &str) -> Result<String, String> {
+        let resolved = resolve_module(src, Path::new("."), &mut HashMap::new(), "", None)?;
+        let mut cg = Codegen::new();
+        cg.emit_module(&resolved, false, false)?;
+        Ok(cg.finish())
+    }
+
+    fn compile_ok(src: &str) -> String {
+        compile(src).expect("expected compilation to succeed")
+    }
+
+    #[test]
+    fn return_ok_f64_emits_stored_not_storel() {
+        let ir = compile_ok(
+            r#"
+            enum MyErr = { Bad }
+            fn parse(x: f64) result[f64, MyErr]! = {
+                return ok x
+            }
+        "#,
+        );
+        assert!(
+            ir.contains("stored"),
+            "return ok f64 must emit 'stored', got IR:\n{ir}"
+        );
+    }
+
+    #[test]
+    fn return_ok_f64_does_not_emit_storel_for_value() {
+        let ir = compile_ok(
+            r#"
+            enum MyErr = { Bad }
+            fn parse(x: f64) result[f64, MyErr]! = {
+                return ok x
+            }
+        "#,
+        );
+        let add_pos = ir.find("=l add").expect("expected offset add in IR");
+        let after_add = &ir[add_pos..];
+        let next_store = after_add.find("store").expect("expected store after offset");
+        assert!(
+            after_add[next_store..].starts_with("stored"),
+            "store after offset must be 'stored' for f64, got: {}",
+            &after_add[next_store..next_store + 10]
+        );
+    }
+
+    #[test]
+    fn return_ok_negated_f64_compiles() {
+        compile_ok(
+            r#"
+            enum MyErr = { Bad }
+            fn negate_result(x: f64) result[f64, MyErr]! = {
+                return ok (-x)
+            }
+        "#,
+        );
+    }
+
+    #[test]
+    fn return_ok_negated_f64_emits_stored() {
+        let ir = compile_ok(
+            r#"
+            enum MyErr = { Bad }
+            fn negate_result(x: f64) result[f64, MyErr]! = {
+                return ok (-x)
+            }
+        "#,
+        );
+        assert!(
+            ir.contains("stored"),
+            "return ok (-f64) must emit 'stored'"
+        );
+    }
+
+    #[test]
+    fn return_err_f64_result_compiles() {
+        compile_ok(
+            r#"
+            enum MyErr = { Bad }
+            fn always_err(x: f64) result[f64, MyErr]! = {
+                return err MyErr.Bad
+            }
+        "#,
+        );
+    }
+
+    #[test]
+    fn return_ok_i64_still_emits_storel() {
+        let ir = compile_ok(
+            r#"
+            enum MyErr = { Bad }
+            fn wrap(x: i64) result[i64, MyErr]! = {
+                return ok x
+            }
+        "#,
+        );
+        assert!(
+            ir.contains("storel"),
+            "return ok i64 must still emit 'storel'"
+        );
+        assert!(
+            !ir.contains("stored"),
+            "return ok i64 must not emit 'stored'"
+        );
+    }
+
+    #[test]
+    fn f64_result_fn_with_continue_compiles() {
+        compile_ok(
+            r#"
+            enum ParseErr = { Invalid }
+            fn scan(n: i64) result[f64, ParseErr]! = {
+                val acc: mut f64 = 0.0
+                val i: mut i64 = 0
+                for (i = 0; i < n; i++) {
+                    if i == 5 { continue }
+                    acc = acc + 1.0
+                }
+                return ok acc
+            }
+        "#,
+        );
+    }
+}
