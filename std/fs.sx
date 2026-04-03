@@ -19,7 +19,7 @@ pub type File = {
     ptr: ref void
 }
 
-/// Open a file.  mode is a C fopen mode string: "r", "w", "a", "rb", etc.
+/// Open a file. Here, mode is a C fopen mode string: "r", "w", "a", "rb", etc.
 /// Returns none if the file could not be opened.
 pub fn open(path: ref char, mode: ref char) option[ref void]! = {
     val ptr: ref void = fopen(path, mode)
