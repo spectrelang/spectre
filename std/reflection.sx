@@ -13,23 +13,61 @@ pub enum Platform = {
     Unknown,
 }
 
-extern type UnameResult = {
-    sysname: ref char
-    nodename: ref char
-    release: ref char
-    version: ref char
-    machine: ref char
+when darwin {
+    extern type UnameResult = {
+        sysname: [256]char
+        nodename: [256]char
+        release: [256]char
+        version: [256]char
+        machine: [256]char
+    }
 }
 
-extern (C) fn env(name: ref char) ref char! = "env"
+when linux {
+    extern type UnameResult = {
+        sysname: [65]char
+        nodename: [65]char
+        release: [65]char
+        version: [65]char
+        machine: [65]char
+    }
+}
+
+when freebsd {
+    extern type UnameResult = {
+        sysname: [256]char
+        nodename: [256]char
+        release: [256]char
+        version: [256]char
+        machine: [256]char
+    }
+}
+
+when openbsd {
+    extern type UnameResult = {
+        sysname: [256]char
+        nodename: [256]char
+        release: [256]char
+        version: [256]char
+        machine: [256]char
+    }
+}
+
+when netbsd {
+    extern type UnameResult = {
+        sysname: [32]char
+        nodename: [256]char
+        release: [256]char
+        version: [256]char
+        machine: [256]char
+    }
+}
+
+val std = use("std")
+
 extern (C) fn uname(buf: ref UnameResult) i32! = "uname"
 
 pub fn get_current_platform() Platform! = {
-    val os = env("OS")
-    if (os == "Windows_NT") {
-        return Platform.Windows
-    }
-
     val uname_buf: mut UnameResult = {
         sysname: 0,
         nodename: 0,
@@ -42,8 +80,31 @@ pub fn get_current_platform() Platform! = {
     if (result != 0) {
         return Platform.Unknown
     }
-    return Platform.Darwin
     
+    std.io.print("uname sysname: {d}\n", {uname_buf.sysname})
+
+    val buf: mut UnameResult = {
+        sysname: 0,
+        nodename: 0,
+        release: 0,
+        version: 0,
+        machine: 0
+    }
+
+    std.io.put("hi2")
+
+    val r = uname(addr(buf))
+
+    std.io.put("hi3")
+    std.io.print("uname returned: {d}\n", {r})
+
+    if (r == 0) {
+        std.io.print("sysname: {s}\n", {buf.sysname})
+        std.io.print("release: {s}\n", {buf.release})
+    }
+
+    return Platform.Darwin
+
     // match uname_buf.sysname {
     //     "Linux" => Platform.Linux,
     //     "Darwin" => Platform.Darwin,
