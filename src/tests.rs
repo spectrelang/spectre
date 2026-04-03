@@ -3490,3 +3490,402 @@ mod f64_result_codegen_tests {
         );
     }
 }
+
+#[cfg(test)]
+mod list_tests {
+    use crate::codegen::Codegen;
+    use crate::lexer::{Lexer, TokenKind};
+    use crate::module::resolve_module;
+    use crate::parser::{Expr, Item, Parser, Stmt, TypeExpr};
+    use std::collections::HashMap;
+    use std::path::Path;
+
+    fn compile(src: &str) -> Result<String, String> {
+        let resolved = resolve_module(src, Path::new("."), &mut HashMap::new(), "", None)?;
+        let mut cg = Codegen::new();
+        cg.emit_module(&resolved, false, false)?;
+        Ok(cg.finish())
+    }
+
+    fn compile_ok(src: &str) -> String {
+        compile(src).expect("expected compilation to succeed")
+    }
+
+    fn compile_err(src: &str) -> String {
+        compile(src).expect_err("expected compilation to fail")
+    }
+
+    fn parse(src: &str) -> crate::parser::Module {
+        let tokens = Lexer::new(src).tokenize().unwrap();
+        Parser::new(tokens).parse_module().unwrap()
+    }
+
+    #[test]
+    fn lex_in_keyword() {
+        let toks = Lexer::new("in").tokenize().unwrap();
+        assert_eq!(toks[0].kind, TokenKind::In);
+    }
+
+    #[test]
+    fn parse_list_type() {
+        let m = parse("fn f(xs: list[i32]) void! = {}");
+        let Item::Fn(f) = &m.items[0] else { panic!() };
+        assert!(matches!(f.params[0].1, TypeExpr::List(_)));
+    }
+
+    #[test]
+    fn parse_list_ref_type() {
+        let m = parse("fn f(xs: list[ref char]) void! = {}");
+        let Item::Fn(f) = &m.items[0] else { panic!() };
+        assert!(matches!(f.params[0].1, TypeExpr::List(_)));
+    }
+
+    #[test]
+    fn parse_list_i64_type() {
+        let m = parse("fn f(xs: list[i64]) void! = {}");
+        let Item::Fn(f) = &m.items[0] else { panic!() };
+        assert!(matches!(f.params[0].1, TypeExpr::List(_)));
+    }
+
+    #[test]
+    fn parse_empty_list_literal() {
+        let m = parse("fn f() void! = { val xs: mut list[i64] = [] }");
+        let Item::Fn(f) = &m.items[0] else { panic!() };
+        let Stmt::Val { expr, .. } = &f.body[0] else { panic!() };
+        assert!(matches!(expr, Expr::ListLit(elems) if elems.is_empty()));
+    }
+
+    #[test]
+    fn parse_list_literal_with_elements() {
+        let m = parse("fn f() void! = { val xs = [1, 2, 3, 4] }");
+        let Item::Fn(f) = &m.items[0] else { panic!() };
+        let Stmt::Val { expr, .. } = &f.body[0] else { panic!() };
+        let Expr::ListLit(elems) = expr else { panic!() };
+        assert_eq!(elems.len(), 4);
+    }
+
+    #[test]
+    fn parse_for_in_loop() {
+        let m = parse(
+            r#"
+            fn f() void! = {
+                val xs = [1, 2, 3]
+                for x in xs {
+                    val y = x
+                }
+            }
+        "#,
+        );
+        let Item::Fn(f) = &m.items[0] else { panic!() };
+        let Stmt::ForIn { binding, iterable, body } = &f.body[1] else {
+            panic!("expected ForIn statement");
+        };
+        assert_eq!(binding, "x");
+        assert!(matches!(iterable, Expr::Ident(s) if s == "xs"));
+        assert_eq!(body.len(), 1);
+    }
+
+    #[test]
+    fn parse_list_type_annotation_on_val() {
+        let m = parse("fn f() void! = { val xs: mut list[i32] = [1, 2, 3] }");
+        let Item::Fn(f) = &m.items[0] else { panic!() };
+        let Stmt::Val { ty, .. } = &f.body[0] else { panic!() };
+        let Some(TypeExpr::List(_)) = ty else {
+            panic!("expected list[i32] type annotation");
+        };
+    }
+
+    #[test]
+    fn list_type_maps_to_l() {
+        let ir = compile_ok(
+            r#"
+            pub fn main() void! = {
+                val xs: list[i32] = [1, 2]
+            }
+        "#,
+        );
+        assert!(ir.contains("$main"));
+    }
+
+    #[test]
+    fn empty_list_literal_emits_malloc() {
+        let ir = compile_ok(
+            r#"
+            pub fn main() void! = {
+                val xs: mut list[i64] = []
+            }
+        "#,
+        );
+        assert!(ir.contains("malloc"));
+    }
+
+    #[test]
+    fn list_literal_with_elements_emits_malloc_and_stores() {
+        let ir = compile_ok(
+            r#"
+            pub fn main() void! = {
+                val xs = [10, 20, 30]
+            }
+        "#,
+        );
+        assert!(ir.contains("malloc"));
+        assert!(ir.contains("storel 3"));
+    }
+
+    #[test]
+    fn for_in_loop_emits_loop_labels_and_index() {
+        let ir = compile_ok(
+            r#"
+            pub fn main() void! = {
+                val xs = [1, 2, 3]
+                for x in xs {
+                    val y = x
+                }
+            }
+        "#,
+        );
+        assert!(ir.contains("@forin_loop_"));
+        assert!(ir.contains("@forin_body_"));
+        assert!(ir.contains("@forin_end_"));
+        assert!(ir.contains("alloc8 8"));
+    }
+
+    #[test]
+    fn append_builtin_compiles() {
+        let ir = compile_ok(
+            r#"
+            pub fn main() void! = {
+                val xs: mut list[i64] = []
+                trust @append(xs, 42)
+            }
+        "#,
+        );
+        assert!(ir.contains("$realloc"));
+        assert!(ir.contains("storel"));
+    }
+
+    #[test]
+    fn get_builtin_compiles() {
+        let ir = compile_ok(
+            r#"
+            pub fn main() void! = {
+                val xs = [1, 2, 3]
+                val one = @get(xs, 0)
+            }
+        "#,
+        );
+        assert!(ir.contains("csltl"));
+    }
+
+    #[test]
+    fn len_builtin_compiles() {
+        let ir = compile_ok(
+            r#"
+            pub fn main() void! = {
+                val xs = [1, 2, 3]
+                val n = @len(xs)
+            }
+        "#,
+        );
+        assert!(ir.contains("loadl"));
+    }
+
+    #[test]
+    fn remove_builtin_compiles() {
+        let ir = compile_ok(
+            r#"
+            pub fn main() void! = {
+                val xs: mut list[i64] = [1, 2, 3]
+                val r = @remove(xs, 1)
+            }
+        "#,
+        );
+        assert!(ir.contains("@remove_shift"));
+    }
+
+    #[test]
+    fn insert_builtin_compiles() {
+        let ir = compile_ok(
+            r#"
+            pub fn main() void! = {
+                val xs: mut list[i64] = [1, 2, 3]
+                trust @insert(xs, 1, 99)
+            }
+        "#,
+        );
+        assert!(ir.contains("@insert_shift"));
+    }
+
+    #[test]
+    fn reserve_builtin_compiles() {
+        let ir = compile_ok(
+            r#"
+            pub fn main() void! = {
+                val xs: mut list[i64] = [1, 2, 3]
+                trust @reserve(xs, 100)
+            }
+        "#,
+        );
+        assert!(ir.contains("$realloc"));
+    }
+
+    #[test]
+    fn capacity_builtin_compiles() {
+        let ir = compile_ok(
+            r#"
+            pub fn main() void! = {
+                val xs = [1, 2, 3]
+                val c = @capacity(xs)
+            }
+        "#,
+        );
+        assert!(ir.contains("loadl"));
+    }
+
+    #[test]
+    fn list_of_ref_char_compiles() {
+        let ir = compile_ok(
+            r#"
+            pub fn main() void! = {
+                val ys: list[ref char] = ["hello", "world"]
+            }
+        "#,
+        );
+        assert!(ir.contains("malloc"));
+    }
+
+    #[test]
+    fn sample30_full_compiles() {
+        compile_ok(
+            r#"
+            pub fn some_function() void! = {
+                val xs: mut list[i32] = [1, 2, 3, 4]
+                for x in xs {
+                    val y = x
+                }
+                val ys: list[ref char] = ["hello", "world"]
+                for y in ys {
+                    val z = y
+                }
+                val zs: mut list[i64] = []
+                trust @append(zs, 20)
+                val one_x = @get(xs, 0)
+                match one_x {
+                    some xv => {
+                        val len = @len(xs)
+                        val removed: i32 = @remove(xs, 1)
+                        trust @insert(xs, 1, 99)
+                    }
+                    none => {}
+                }
+                trust @reserve(xs, 100)
+                val cap: usize = @capacity(xs)
+            }
+            pub fn main() void! = {
+                some_function()
+            }
+        "#,
+        );
+    }
+
+    #[test]
+    fn list_with_strings_in_literal_compiles() {
+        let ir = compile_ok(
+            r#"
+            pub fn main() void! = {
+                val ys = ["hello", "world"]
+            }
+        "#,
+        );
+        assert!(ir.contains("malloc"));
+    }
+
+    #[test]
+    fn for_in_with_break_compiles() {
+        let ir = compile_ok(
+            r#"
+            pub fn main() void! = {
+                val xs = [1, 2, 3, 4]
+                for x in xs {
+                    if x == 2 { break }
+                }
+            }
+        "#,
+        );
+        assert!(ir.contains("@forin_"));
+    }
+
+    #[test]
+    fn for_in_with_continue_compiles() {
+        let ir = compile_ok(
+            r#"
+            pub fn main() void! = {
+                val xs = [1, 2, 3, 4]
+                for x in xs {
+                    if x == 2 { continue }
+                }
+            }
+        "#,
+        );
+        assert!(ir.contains("@forin_cont_"));
+    }
+
+    #[test]
+    fn nested_list_type_annotation_compiles() {
+        compile_ok(
+            r#"
+            pub fn main() void! = {
+                val xs: list[ref char] = ["a"]
+                val ys: mut list[i32] = [1]
+            }
+        "#,
+        );
+    }
+
+    #[test]
+    fn list_type_in_return_type_compiles() {
+        compile_ok(
+            r#"
+            fn get_list() list[i32]! = {
+                val xs = [1, 2, 3]
+                return xs
+            }
+            pub fn main() void! = {
+                val xs = get_list()
+            }
+        "#,
+        );
+    }
+
+    #[test]
+    fn list_with_if_inside_for_in_body_compiles() {
+        compile_ok(
+            r#"
+            pub fn main() void! = {
+                val xs = [1, 2, 3]
+                for x in xs {
+                    if x > 1 {
+                        val y = 10
+                    }
+                }
+            }
+        "#,
+        );
+    }
+
+    #[test]
+    fn list_append_grows_when_needed() {
+        let ir = compile_ok(
+            r#"
+            pub fn main() void! = {
+                val xs: mut list[i64] = []
+                trust @append(xs, 1)
+                trust @append(xs, 2)
+                trust @append(xs, 3)
+            }
+        "#,
+        );
+        assert!(ir.contains("@append_grow"));
+        assert!(ir.contains("$realloc"));
+    }
+}
