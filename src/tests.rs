@@ -3873,3 +3873,235 @@ mod list_tests {
         assert!(ir.contains("$realloc"));
     }
 }
+
+mod fixed_array_regression_tests {
+    use crate::codegen::Codegen;
+    use crate::module::resolve_module;
+    use std::collections::HashMap;
+    use std::path::Path;
+
+    fn compile(src: &str) -> Result<String, String> {
+        let resolved = resolve_module(src, Path::new("."), &mut HashMap::new(), "", None)?;
+        let mut cg = Codegen::new();
+        cg.emit_module(&resolved, false, false)?;
+        Ok(cg.finish())
+    }
+
+    fn compile_ok(src: &str) -> String {
+        compile(src).expect("expected compilation to succeed")
+    }
+
+    fn compile_err(src: &str) -> String {
+        compile(src).expect_err("expected compilation to fail")
+    }
+
+    #[test]
+    fn fixed_array_field_contiguous_no_padding() {
+        let ir = compile_ok(
+            r#"
+            extern type Buf3 = {
+                a: [65]char
+                b: [65]char
+                c: [65]char
+            }
+
+            pub fn main() void! = {
+                val x: mut Buf3 = { a: 0, b: 0, c: 0 }
+            }
+        "#,
+        );
+        assert!(ir.contains("alloc8 195"));
+        assert!(ir.contains("add %t"));
+        assert!(ir.contains("memset(l %t"));
+    }
+
+    #[test]
+    fn fixed_array_struct_addr_loads_from_slot() {
+        let ir = compile_ok(
+            r#"
+            extern type MyBuf = {
+                data: [65]char
+            }
+
+            extern (C) fn process(buf: ref MyBuf) i32! = "process"
+
+            pub fn main() void! = {
+                val buf: mut MyBuf = { data: 0 }
+                val r = process(addr(buf))
+            }
+        "#,
+        );
+        assert!(ir.contains("loadl"));
+    }
+
+    #[test]
+    fn fixed_array_field_offset_contiguous() {
+        let ir = compile_ok(
+            r#"
+            extern type UnameResult = {
+                sysname: [65]char
+                nodename: [65]char
+                release: [65]char
+                version: [65]char
+                machine: [65]char
+            }
+
+            pub fn main() void! = {
+                val buf: mut UnameResult = {
+                    sysname: 0,
+                    nodename: 0,
+                    release: 0,
+                    version: 0,
+                    machine: 0
+                }
+                val s = buf.release
+            }
+        "#,
+        );
+        assert!(ir.contains("add") && ir.contains("130"));
+    }
+
+    #[test]
+    fn when_darwin_type_declared() {
+        let ir = compile_ok(
+            r#"
+            when darwin {
+                extern type Buf = {
+                    data: [256]char
+                }
+            }
+
+            pub fn main() void! = {
+            }
+        "#,
+        );
+        assert!(ir.contains("$main"));
+    }
+
+    #[test]
+    fn when_non_matching_platform_type_omitted() {
+        let ir = compile_ok(
+            r#"
+            when linux {
+                extern type LinuxOnlyBuf = {
+                    data: [65]char
+                }
+            }
+
+            pub fn main() void! = {
+            }
+        "#,
+        );
+        assert!(ir.contains("$main"));
+    }
+
+    #[test]
+    fn when_val_const_declared() {
+        let ir = compile_ok(
+            r#"
+            when darwin {
+                val DARWIN_ONLY = 1
+            }
+
+            when linux {
+                val LINUX_ONLY = 1
+            }
+
+            pub fn main() void! = {
+            }
+        "#,
+        );
+        assert!(ir.contains("$main"));
+    }
+
+    #[test]
+    fn when_extern_fn_declared() {
+        let ir = compile_ok(
+            r#"
+            when darwin {
+                extern (C) fn darwin_specific() i32! = "darwin_fn"
+            }
+
+            pub fn main() void! = {
+            }
+        "#,
+        );
+        assert!(ir.contains("$main"));
+    }
+
+    #[test]
+    fn fixed_array_zero_init_uses_correct_size() {
+        let ir = compile_ok(
+            r#"
+            type MyType = {
+                data: [65]char
+                extra: [65]char
+            }
+
+            pub fn main() void! = {
+                val x = MyType{}
+            }
+        "#,
+        );
+        assert!(ir.contains("alloc8 130"));
+        assert!(ir.contains("memset(l %t"));
+        assert!(ir.contains("w 0, l 130"));
+    }
+
+    #[test]
+    fn fixed_array_single_char_array() {
+        let ir = compile_ok(
+            r#"
+            extern type SingleChar = {
+                c: [1]char
+            }
+
+            pub fn main() void! = {
+                val x: mut SingleChar = { c: 0 }
+            }
+        "#,
+        );
+        assert!(ir.contains("alloc8 8") || ir.contains("alloc8 1"));
+    }
+
+    #[test]
+    fn fixed_array_multiple_platform_types_only_one_emitted() {
+        let ir = compile_ok(
+            r#"
+            when darwin {
+                extern type UnameResult = {
+                    sysname: [256]char
+                }
+            }
+
+            when linux {
+                extern type UnameResult = {
+                    sysname: [65]char
+                }
+            }
+
+            pub fn main() void! = {
+                val buf: mut UnameResult = { sysname: 0 }
+            }
+        "#,
+        );
+        assert!(ir.contains("alloc8 256"));
+    }
+
+    #[test]
+    fn fixed_array_struct_literal_zeroes_all_bytes() {
+        let ir = compile_ok(
+            r#"
+            type BigBuf = {
+                data: [128]char
+            }
+
+            pub fn main() void! = {
+                val buf: mut BigBuf = { data: 0 }
+            }
+        "#,
+        );
+        assert!(ir.contains("memset(l %t"));
+        assert!(ir.contains("w 0, l 128"));
+    }
+}
