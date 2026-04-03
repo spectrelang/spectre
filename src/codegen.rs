@@ -125,6 +125,8 @@ pub struct Codegen {
     fn_ret_types: HashMap<String, &'static str>,
     fn_param_types: HashMap<String, Vec<TypeExpr>>,
     variadic_fns: HashMap<String, usize>,
+    /// Functions that return result[void, E] — the ok variant has no value.
+    result_void_ok: std::collections::HashSet<String>,
     platform: Platform,
     release: bool,
     current_fn_trusted: bool,
@@ -166,6 +168,7 @@ impl Codegen {
             fn_ret_types: HashMap::new(),
             fn_param_types: HashMap::new(),
             variadic_fns: HashMap::new(),
+            result_void_ok: std::collections::HashSet::new(),
             platform: Platform::current(),
             release: false,
             current_fn_trusted: false,
@@ -326,6 +329,7 @@ impl Codegen {
         self.fn_ret_types = build_ret_types(resolved);
         self.fn_param_types = build_param_types(resolved);
         self.variadic_fns = build_variadic_set(resolved);
+        self.result_void_ok = build_result_void_ok(resolved);
         self.emit_module_recursive(resolved, &ns, test_mode, true)?;
         if test_mode {
             self.emit_test_main()?;
@@ -1103,12 +1107,12 @@ impl Codegen {
                     .cloned()
                     .ok_or_else(|| format!("undefined variable: {var}"))?;
                 let is_l_slot = self.local_slot_is_l.contains(var);
-                let (rhs, _) = self.emit_expr(expr, ns)?;
+                let (rhs, rhs_ty) = self.emit_expr(expr, ns)?;
                 let cur = self.fresh_tmp();
                 let res = self.fresh_tmp();
                 if is_l_slot {
                     self.emit(&format!("    {cur} =l loadl {slot}"));
-                    let (rhs_l, _) = self.promote_to_l(rhs, "w");
+                    let (rhs_l, _) = self.promote_to_l(rhs, rhs_ty);
                     self.emit(&format!("    {res} =l add {cur}, {rhs_l}"));
                     self.emit(&format!("    storel {res}, {slot}"));
                 } else {
@@ -1124,12 +1128,12 @@ impl Codegen {
                     .cloned()
                     .ok_or_else(|| format!("undefined variable: {var}"))?;
                 let is_l_slot = self.local_slot_is_l.contains(var);
-                let (rhs, _) = self.emit_expr(expr, ns)?;
+                let (rhs, rhs_ty) = self.emit_expr(expr, ns)?;
                 let cur = self.fresh_tmp();
                 let res = self.fresh_tmp();
                 if is_l_slot {
                     self.emit(&format!("    {cur} =l loadl {slot}"));
-                    let (rhs_l, _) = self.promote_to_l(rhs, "w");
+                    let (rhs_l, _) = self.promote_to_l(rhs, rhs_ty);
                     self.emit(&format!("    {res} =l sub {cur}, {rhs_l}"));
                     self.emit(&format!("    storel {res}, {slot}"));
                 } else {
@@ -1662,11 +1666,29 @@ impl Codegen {
                 self.emit_defers(ns, &fn_ret)?;
                 self.emit(&format!("    ret {res_ptr}"));
                 self.emit(&format!("{ok_lbl}"));
-                let val_ptr = self.fresh_tmp();
-                self.emit(&format!("    {val_ptr} =l add {res_ptr}, 8"));
-                let val = self.fresh_tmp();
-                self.emit(&format!("    {val} =l loadl {val_ptr}"));
-                Ok((val, "l"))
+
+                // Check if the inner call returns result[void, E] — if so, no value to extract.
+                let is_void_ok = match inner.as_ref() {
+                    Expr::Call { callee, .. } => {
+                        if let Ok(name) = resolve_call_name(callee, ns, &self.type_aliases) {
+                            self.result_void_ok.contains(&name)
+                        } else {
+                            false
+                        }
+                    }
+                    _ => false,
+                };
+
+                if is_void_ok {
+                    // result[void, E]: no ok value, return a dummy
+                    Ok(("0".into(), "w"))
+                } else {
+                    let val_ptr = self.fresh_tmp();
+                    self.emit(&format!("    {val_ptr} =l add {res_ptr}, 8"));
+                    let val = self.fresh_tmp();
+                    self.emit(&format!("    {val} =l loadl {val_ptr}"));
+                    Ok((val, "l"))
+                }
             }
             Expr::Trust(inner) => {
                 if self.current_fn_trusted {
@@ -2650,6 +2672,17 @@ impl Codegen {
                             None
                         };
                         let final_arg = wrapped.unwrap_or_else(|| {
+                            // Check if we need to promote w -> l
+                            if ty == "w" {
+                                if let Some(ref ptypes) = self.fn_param_types.get(&fn_name).cloned() {
+                                    if let Some(pt) = ptypes.get(i) {
+                                        if qbe_type(pt) == "l" {
+                                            let (promoted, _) = self.promote_to_l(tmp, ty);
+                                            return format!("l {promoted}");
+                                        }
+                                    }
+                                }
+                            }
                             if ty == "l" {
                                 if let Some(ref ptypes) = self.fn_param_types.get(&fn_name).cloned()
                                 {
@@ -3277,6 +3310,42 @@ fn collect_variadic(module: &ResolvedModule, map: &mut HashMap<String, usize>) {
     }
     for child in module.imports.values() {
         collect_variadic(child, map);
+    }
+}
+
+fn build_result_void_ok(resolved: &ResolvedModule) -> std::collections::HashSet<String> {
+    let mut set = std::collections::HashSet::new();
+    collect_result_void_ok(resolved, &mut set);
+    set
+}
+
+fn collect_result_void_ok(module: &ResolvedModule, set: &mut std::collections::HashSet<String>) {
+    for item in &module.ast.items {
+        match item {
+            Item::Fn(f) => {
+                if is_result_void_ok(&f.ret) {
+                    set.insert(fn_qbe_name(f));
+                }
+            }
+            Item::ExternFn { symbol, ret, .. } => {
+                if is_result_void_ok(ret) {
+                    set.insert(symbol.clone());
+                }
+            }
+            _ => {}
+        }
+    }
+    for child in module.imports.values() {
+        collect_result_void_ok(child, set);
+    }
+}
+
+/// Check if a TypeExpr is result[void, ...]
+fn is_result_void_ok(ty: &TypeExpr) -> bool {
+    if let TypeExpr::Result(ok_ty, _) = ty {
+        matches!(ok_ty.as_ref(), TypeExpr::Void)
+    } else {
+        false
     }
 }
 

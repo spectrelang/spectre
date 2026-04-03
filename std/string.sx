@@ -469,7 +469,7 @@ pub fn replace(s: ref void, from: ref void, to: ref void) ref void! = {
 
 /// Split s by delim — returns a List of heap-allocated Strings
 pub fn split(s: ref void, delim: ref void) ref void! = {
-    val result: ref void = std.collections.PtrList.new(8)
+    val result: ref void = std.collections.PtrList.new(8)?
 
     val sl: i64 = @load(@ptradd(s, 8))
     val dl: i64 = @load(@ptradd(delim, 8))
@@ -507,13 +507,13 @@ pub fn split(s: ref void, delim: ref void) ref void! = {
 
         if (is_delim != 0) {
             val seg: ref void = slice(s, seg_start, i)
-            std.collections.PtrList.push(result, seg)
+            std.collections.PtrList.push(result, seg)?
             seg_start = i + dl
             i += dl
         } else {
             if (i == sl) {
                 val seg: ref void = slice(s, seg_start, sl)
-                std.collections.PtrList.push(result, seg)
+                std.collections.PtrList.push(result, seg)?
                 break
             }
             i++
