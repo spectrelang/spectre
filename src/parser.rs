@@ -729,9 +729,9 @@ impl Parser {
             }
             TokenKind::If => {
                 self.advance();
-                self.expect(&TokenKind::LParen)?;
+                let has_paren = self.eat(&TokenKind::LParen);
                 let cond = self.parse_expr()?;
-                self.expect(&TokenKind::RParen)?;
+                if has_paren { self.expect(&TokenKind::RParen)?; }
                 self.expect(&TokenKind::LBrace)?;
                 let then = self.parse_stmts()?;
                 self.expect(&TokenKind::RBrace)?;
@@ -739,9 +739,9 @@ impl Parser {
                 loop {
                     if self.peek() == &TokenKind::Elif {
                         self.advance();
-                        self.expect(&TokenKind::LParen)?;
+                        let elif_has_paren = self.eat(&TokenKind::LParen);
                         let elif_cond = self.parse_expr()?;
-                        self.expect(&TokenKind::RParen)?;
+                        if elif_has_paren { self.expect(&TokenKind::RParen)?; }
                         self.expect(&TokenKind::LBrace)?;
                         let elif_body = self.parse_stmts()?;
                         self.expect(&TokenKind::RBrace)?;
@@ -778,7 +778,7 @@ impl Parser {
                         body,
                     });
                 }
-                self.expect(&TokenKind::LParen)?;
+                let has_paren = self.eat(&TokenKind::LParen);
                 let init_name = self.expect_ident()?;
                 self.expect(&TokenKind::Eq)?;
                 let init_expr = self.parse_expr()?;
@@ -799,7 +799,7 @@ impl Parser {
                 } else {
                     return Err("expected '++', '--', '+=', or '-=' in for loop post".to_string());
                 };
-                self.expect(&TokenKind::RParen)?;
+                if has_paren { self.expect(&TokenKind::RParen)?; }
                 self.expect(&TokenKind::LBrace)?;
                 let body = self.parse_stmts()?;
                 self.expect(&TokenKind::RBrace)?;
