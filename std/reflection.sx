@@ -120,8 +120,6 @@ pub fn get_current_platform() Platform! = {
     // }
 }
 
-val std = use("std")
-
 test {
     val platform = get_current_platform()
     std.io.print("Current platform: {d}", {platform})
