@@ -53,6 +53,7 @@ pub struct Codegen {
     test_fns: Vec<String>,
     current_file: String,
     module_consts: HashMap<String, (String, &'static str)>,
+    module_aliases: HashMap<String, String>,
     type_aliases: HashMap<String, String>,
     fn_ret_types: HashMap<String, &'static str>,
     fn_param_types: HashMap<String, Vec<TypeExpr>>,
@@ -90,6 +91,7 @@ impl Codegen {
             test_fns: Vec::new(),
             current_file: String::new(),
             module_consts: HashMap::new(),
+            module_aliases: HashMap::new(),
             type_aliases: HashMap::new(),
             fn_ret_types: HashMap::new(),
             fn_param_types: HashMap::new(),
@@ -221,6 +223,16 @@ impl Codegen {
             }
         }
 
+        for item in &resolved.ast.items {
+            if let Item::Const { name, expr, .. } = item {
+                let path = expr_to_path(expr);
+                if !path.is_empty() && is_namespace_prefix(&path, ns) {
+                    let expanded = expand_alias_path(&path, &self.module_aliases.clone());
+                    self.module_aliases.insert(name.clone(), expanded);
+                }
+            }
+        }
+
         let mut local_ns = ns.clone();
         for item in &resolved.ast.items {
             if let Item::Fn(f) = item {
@@ -271,7 +283,7 @@ impl Codegen {
         self.local_slot_is_l.clear();
         self.local_slot_is_d.clear();
         self.defer_stack.clear();
-        self.type_aliases.clear();
+        self.type_aliases = self.module_aliases.clone();
         self.tmp_counter = 0;
 
         for (name, (val, ty)) in &self.module_consts.clone() {
@@ -378,7 +390,7 @@ impl Codegen {
         self.local_slot_is_l.clear();
         self.local_slot_is_d.clear();
         self.defer_stack.clear();
-        self.type_aliases.clear();
+        self.type_aliases = self.module_aliases.clone();
         self.tmp_counter = 0;
         self.current_fn = format!("test_{}", test_id);
         self.current_fn_trusted = true;

@@ -1,0 +1,6 @@
+val std = use("std")
+val hi = std.io
+
+pub fn main() void! = {
+    hi.put("hello, world")
+}
