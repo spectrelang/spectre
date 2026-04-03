@@ -1335,6 +1335,25 @@ impl Parser {
                     self.advance(); // consume }
                     return Ok(Expr::ZeroInit(name));
                 }
+                // TypeName{field: val, ...} — named struct literal
+                if self.peek() == &TokenKind::LBrace
+                    && matches!(self.tokens.get(self.pos + 1).map(|t| &t.kind), Some(TokenKind::Ident(_)))
+                    && self.tokens.get(self.pos + 2).map(|t| &t.kind) == Some(&TokenKind::Colon)
+                {
+                    self.advance(); // consume {
+                    let mut fields = Vec::new();
+                    while self.peek() != &TokenKind::RBrace && self.peek() != &TokenKind::Eof {
+                        let fname = self.expect_ident()?;
+                        self.expect(&TokenKind::Colon)?;
+                        let val = self.parse_expr()?;
+                        fields.push((fname, val));
+                        if !self.eat(&TokenKind::Comma) {
+                            break;
+                        }
+                    }
+                    self.expect(&TokenKind::RBrace)?;
+                    return Ok(Expr::StructLit { fields });
+                }
                 Ok(Expr::Ident(name))
             }
             TokenKind::At => {
