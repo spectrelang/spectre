@@ -347,7 +347,9 @@ impl Codegen {
         let prev_file = self.current_file.clone();
         self.current_file = resolved.filename.clone();
 
-        for item in &resolved.ast.items {
+        let items = self.flatten_items(&resolved.ast.items);
+
+        for item in &items {
             if let Item::TypeDef { name, fields, .. } = item {
                 self.type_defs.insert(name.clone(), fields.clone());
             }
@@ -363,7 +365,7 @@ impl Codegen {
         }
 
         self.module_consts.clear();
-        for item in &resolved.ast.items {
+        for item in &items {
             if let Item::Const { name, expr, .. } = item {
                 let (val, ty) = match expr {
                     crate::parser::Expr::IntLit(n) => (n.to_string(), "l"),
@@ -383,7 +385,7 @@ impl Codegen {
             }
         }
 
-        for item in &resolved.ast.items {
+        for item in &items {
             if let Item::Const { name, expr, .. } = item {
                 let path = expr_to_path(expr);
                 if !path.is_empty() && is_namespace_prefix(&path, ns) {
@@ -394,7 +396,7 @@ impl Codegen {
         }
 
         let mut local_ns = ns.clone();
-        for item in &resolved.ast.items {
+        for item in &items {
             if let Item::Fn(f) = item {
                 let local_key = match &f.namespace {
                     Some(type_name) => format!("{type_name}.{}", f.name),
@@ -407,7 +409,7 @@ impl Codegen {
             }
         }
 
-        for item in &resolved.ast.items {
+        for item in &items {
             match item {
                 Item::Fn(f) => {
                     if test_mode && f.name == "main" {
@@ -427,12 +429,30 @@ impl Codegen {
                 | Item::ExternFn { .. }
                 | Item::Link { .. }
                 | Item::LinkWhen { .. }
+                | Item::WhenItems { .. }
                 | Item::Test { .. } => {}
             }
         }
 
         self.current_file = prev_file;
         Ok(())
+    }
+
+    fn flatten_items<'a>(&self, items: &'a [Item]) -> Vec<&'a Item> {
+        let mut result = Vec::new();
+        for item in items {
+            match item {
+                Item::WhenItems { platform, items: block_items } => {
+                    if self.platform.matches_name(platform) {
+                        for bi in block_items {
+                            result.push(bi);
+                        }
+                    }
+                }
+                other => result.push(other),
+            }
+        }
+        result
     }
 
     fn emit_fn(&mut self, f: &FnDef, ns: &Namespace) -> Result<(), String> {

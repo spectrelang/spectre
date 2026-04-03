@@ -63,6 +63,11 @@ pub enum Item {
         platform: String,
         libs: Vec<String>,
     },
+    /// `when <platform> { ... items ... }` — platform-conditional item declarations
+    WhenItems {
+        platform: String,
+        items: Vec<Item>,
+    },
 }
 
 #[derive(Debug, Clone)]
@@ -362,17 +367,27 @@ impl Parser {
             self.advance();
             let platform = self.expect_ident()?;
             self.expect(&TokenKind::LBrace)?;
-            let mut libs = Vec::new();
-            while self.peek() != &TokenKind::RBrace && self.peek() != &TokenKind::Eof {
-                if self.peek() == &TokenKind::Link {
-                    self.advance();
-                    libs.push(self.expect_string()?);
-                } else {
-                    return Err(self.error("expected 'link' inside top-level 'when' block"));
+            let is_link_only = matches!(self.peek(), TokenKind::Link);
+            if is_link_only {
+                let mut libs = Vec::new();
+                while self.peek() != &TokenKind::RBrace && self.peek() != &TokenKind::Eof {
+                    if self.peek() == &TokenKind::Link {
+                        self.advance();
+                        libs.push(self.expect_string()?);
+                    } else {
+                        return Err(self.error("expected 'link' inside top-level 'when' block"));
+                    }
                 }
+                self.expect(&TokenKind::RBrace)?;
+                return Ok(Item::LinkWhen { platform, libs });
+            } else {
+                let mut items = Vec::new();
+                while self.peek() != &TokenKind::RBrace && self.peek() != &TokenKind::Eof {
+                    items.push(self.parse_item()?);
+                }
+                self.expect(&TokenKind::RBrace)?;
+                return Ok(Item::WhenItems { platform, items });
             }
-            self.expect(&TokenKind::RBrace)?;
-            return Ok(Item::LinkWhen { platform, libs });
         }
 
         let public = self.eat(&TokenKind::Pub);
