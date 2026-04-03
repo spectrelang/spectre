@@ -68,21 +68,6 @@ val std = use("std")
 extern (C) fn uname(buf: ref UnameResult) i32! = "uname"
 
 pub fn get_current_platform() Platform! = {
-    val uname_buf: mut UnameResult = {
-        sysname: 0,
-        nodename: 0,
-        release: 0,
-        version: 0,
-        machine: 0
-    }
-    
-    val result = uname(addr(uname_buf))
-    if (result != 0) {
-        return Platform.Unknown
-    }
-    
-    std.io.print("uname sysname: {d}\n", {uname_buf.sysname})
-
     val buf: mut UnameResult = {
         sysname: 0,
         nodename: 0,
@@ -91,33 +76,49 @@ pub fn get_current_platform() Platform! = {
         machine: 0
     }
 
-    std.io.put("hi2")
-
     val r = uname(addr(buf))
 
-    std.io.put("hi3")
-    std.io.print("uname returned: {d}\n", {r})
-
     if (r == 0) {
-        std.io.print("sysname: {s}\n", {buf.sysname})
-        std.io.print("release: {s}\n", {buf.release})
+        match uname_buf.sysname {
+            "Windows" => {
+                return Platform.Windows,
+            }
+            "Linux" => {
+                return Platform.Linux,
+            }
+            "Darwin" => {
+                return Platform.Darwin,
+            }
+            "NetBSD" => {
+                return Platform.NetBSD,
+            }
+            "DragonflyBSD" => {
+                return Platform.DragonflyBSD,
+            }
+            "FreeBSD" => {
+                return Platform.FreeBSD,
+            }
+            "OpenBSD" => {
+                return Platform.OpenBSD,
+            }
+            "Android" => {
+                return Platform.Android,
+            }
+            "Haiku" => {
+                return Platform.Haiku,
+            }
+            "Redox" => {
+                return Platform.Redox,
+            }
+            "Plan9" => {
+                return Platform.Plan9,
+            }
+            _ => {
+                return Platform.Unknown,
+            }
+        }
+        return Platform.Unknown
     }
-
-    return Platform.Darwin
-
-    // match uname_buf.sysname {
-    //     "Linux" => Platform.Linux,
-    //     "Darwin" => Platform.Darwin,
-    //     "NetBSD" => Platform.NetBSD,
-    //     "DragonflyBSD" => Platform.DragonflyBSD,
-    //     "FreeBSD" => Platform.FreeBSD,
-    //     "OpenBSD" => Platform.OpenBSD,
-    //     "Android" => Platform.Android,
-    //     "Haiku" => Platform.Haiku,
-    //     "Redox" => Platform.Redox,
-    //     "Plan9" => Platform.Plan9,
-    //     _ => Platform.Unknown,
-    // }
 }
 
 test {
