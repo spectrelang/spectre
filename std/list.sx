@@ -9,6 +9,7 @@
 
 val ELEMENT_SIZE: usize = 8
 
+/// An unsafe list for storing values of any type as untyped pointers (ref void).
 type List = {
     ptr: ref void
     len: usize
