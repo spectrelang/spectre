@@ -2129,6 +2129,141 @@ mod union_codegen_tests {
             "struct used as union should error"
         );
     }
+
+    #[test]
+    fn match_union_no_else_compiles() {
+        compile_ok(
+            r#"
+            union U = { i32 | i64 }
+            fn f(x: U) void! = {
+                match x {
+                    i32 => { val a = 1 }
+                    i64 => { val b = 2 }
+                }
+            }
+            pub fn main() void! = {}
+        "#,
+        );
+    }
+
+    #[test]
+    fn match_union_else_only_compiles() {
+        compile_ok(
+            r#"
+            union U = { i32 | i64 }
+            fn f(x: U) void! = {
+                match x { else => { val a = 0 } }
+            }
+            pub fn main() void! = {}
+        "#,
+        );
+    }
+
+    #[test]
+    fn match_union_emits_end_label() {
+        let ir = compile_ok(
+            r#"
+            union U = { i32 | i64 }
+            fn f(x: U) void! = {
+                match x {
+                    i32 => { val a = 1 }
+                    i64 => { val b = 2 }
+                }
+            }
+            pub fn main() void! = {}
+        "#,
+        );
+        assert!(ir.contains("@union_end_"), "match union must emit an end label");
+    }
+
+    #[test]
+    fn match_union_single_arm_one_ceqw() {
+        let ir = compile_ok(
+            r#"
+            union U = { i32 | i64 }
+            fn f(x: U) void! = {
+                match x { i32 => { val a = 1 } }
+            }
+            pub fn main() void! = {}
+        "#,
+        );
+        assert_eq!(ir.matches("ceqw").count(), 1, "single arm needs one tag comparison");
+    }
+
+    #[test]
+    fn match_union_three_arms_three_ceqw() {
+        let ir = compile_ok(
+            r#"
+            union U = { i32 | i64 | ref char }
+            fn f(x: U) void! = {
+                match x {
+                    i32 => { val a = 1 }
+                    i64 => { val b = 2 }
+                    ref char => { val c = 3 }
+                }
+            }
+            pub fn main() void! = {}
+        "#,
+        );
+        assert_eq!(ir.matches("ceqw").count(), 3, "three arms need three tag comparisons");
+    }
+
+    #[test]
+    fn match_union_else_body_emitted() {
+        let ir = compile_ok(
+            r#"
+            union U = { i32 | i64 }
+            fn f(x: U) void! = {
+                match x {
+                    i32 => { val a = 1 }
+                    else => { val b = 99 }
+                }
+            }
+            pub fn main() void! = {}
+        "#,
+        );
+        assert!(ir.contains("@union_end_"));
+        assert_eq!(ir.matches("ceqw").count(), 1);
+    }
+
+    #[test]
+    fn parse_match_union_arms_count() {
+        let m = parse(
+            r#"
+            union U = { i32 | i64 | ref char }
+            fn f(x: U) void! = {
+                match x {
+                    i32 => { val a = 1 }
+                    i64 => { val b = 2 }
+                    ref char => { val c = 3 }
+                    else => {}
+                }
+            }
+        "#,
+        );
+        let Item::Fn(f) = &m.items[1] else { panic!() };
+        let Stmt::MatchUnion { arms, else_body, .. } = &f.body[0] else { panic!() };
+        assert_eq!(arms.len(), 3);
+        assert!(else_body.is_some());
+    }
+
+    #[test]
+    fn match_union_ref_variant_tag_is_correct() {
+        let ir = compile_ok(
+            r#"
+            union U = { i32 | i64 | ref char }
+            fn f(x: U) void! = {
+                match x { ref char => { val a = 1 } }
+            }
+            pub fn main() void! = {
+                val s: ref char = "hi"
+                trust f(s)
+            }
+        "#,
+        );
+        assert!(ir.contains("ceqw %t"), "tag comparison must be emitted");
+        assert!(ir.contains(", 2"), "ref char is variant index 2");
+    }
 }
 
 #[cfg(test)]
