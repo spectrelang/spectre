@@ -648,7 +648,7 @@ pub fn (StringBuilder) new() ref void! = {
 }
 
 /// Append a String to the builder
-pub fn (StringBuilder) append(sb: Self, s: ref void) void! = {
+pub fn (StringBuilder) append(sb: self, s: ref void) void! = {
     val other_ptr: ref void = @load(s)
     val other_len: mut i64 = @load(@ptradd(s, 8))
     val l: mut i64 = @load(@ptradd(sb, 8))
@@ -664,7 +664,7 @@ pub fn (StringBuilder) append(sb: Self, s: ref void) void! = {
 }
 
 /// Append a C string to the builder
-pub fn (StringBuilder) append_cstr(sb: Self, cstr: ref char) void! = {
+pub fn (StringBuilder) append_cstr(sb: self, cstr: ref char) void! = {
     val l: mut i64 = @load(@ptradd(sb, 8))
     val add_len: mut i64 = strlen(cstr)
     val new_len: mut i64 = l + add_len
@@ -679,7 +679,7 @@ pub fn (StringBuilder) append_cstr(sb: Self, cstr: ref char) void! = {
 }
 
 /// Build — returns a new heap-allocated String with the accumulated content
-pub fn (StringBuilder) build(sb: Self) ref void! = {
+pub fn (StringBuilder) build(sb: self) ref void! = {
     val l: mut i64 = @load(@ptradd(sb, 8))
     val ptr: ref void = @load(sb)
     val buf: ref void = @alloc(l + 1)
@@ -697,14 +697,14 @@ pub fn (StringBuilder) build(sb: Self) ref void! = {
 }
 
 /// Free the StringBuilder's internal buffer and header
-pub fn (StringBuilder) free(sb: Self) void! = {
+pub fn (StringBuilder) free(sb: self) void! = {
     val ptr: ref void = @load(sb)
     @free(ptr)
     @free(sb)
 }
 
 /// Append a single byte character
-pub fn (StringBuilder) append_char(sb: Self, c: u8) void! = {
+pub fn (StringBuilder) append_char(sb: self, c: u8) void! = {
     val l: mut i64 = @load(@ptradd(sb, 8))
     val new_len: mut i64 = l + 1
 
@@ -717,7 +717,7 @@ pub fn (StringBuilder) append_char(sb: Self, c: u8) void! = {
 }
 
 /// Clear the builder (reset length to 0, keep allocation)
-pub fn (StringBuilder) clear(sb: Self) void! = {
+pub fn (StringBuilder) clear(sb: self) void! = {
     val ptr: ref void = @load(sb)
     @store8(ptr, 0)
     @store(@ptradd(sb, 8), 0)

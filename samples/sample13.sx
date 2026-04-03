@@ -6,7 +6,7 @@ type SomeType = {
     z: ref char
 }
 
-pub fn (SomeType) do_some_thing(s: Self, times: usize) void! = {
+pub fn (SomeType) do_some_thing(s: self, times: usize) void! = {
     for (i = 0; i < times; i++) {
         std.io.print("{d}, {d} - {s}\n", {s.x, s.y, s.z})
     }

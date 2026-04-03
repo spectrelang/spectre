@@ -1569,7 +1569,7 @@ mod method_namespace_tests {
 
     #[test]
     fn parse_self_resolves_to_receiver_type() {
-        let m = parse("pub fn (SomeType) do_thing(s: Self) void! = {}");
+        let m = parse("pub fn (SomeType) do_thing(s: self) void! = {}");
         let Item::Fn(FnDef { params, .. }) = &m.items[0] else {
             panic!()
         };
@@ -1665,7 +1665,7 @@ mod method_namespace_tests {
         let ir = compile_ok(
             r#"
             type Point = { x: i32 y: i32 }
-            pub fn (Point) get_x(p: Self) i32! = {
+            pub fn (Point) get_x(p: self) i32! = {
                 return p.x
             }
         "#,
@@ -1707,7 +1707,7 @@ mod method_namespace_tests {
         let ir = compile_ok(
             r#"
             type SomeType = { x: i32 y: i32 }
-            pub fn (SomeType) do_some_thing(s: Self, times: usize) void! = {
+            pub fn (SomeType) do_some_thing(s: self, times: usize) void! = {
                 val i: mut usize = 0
                 for (i = 0; i < times; i++) {
                     val _x = s.x

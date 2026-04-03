@@ -489,7 +489,7 @@ impl Parser {
             self.expect(&TokenKind::Colon)?;
             let ty = self.parse_type()?;
             let ty = if let (Some(type_name), TypeExpr::Named(n)) = (self_type, &ty) {
-                if n == "Self" {
+                if n == "self" {
                     TypeExpr::Named(type_name.to_string())
                 } else {
                     ty

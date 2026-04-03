@@ -26,7 +26,7 @@ pub fn (Arena) new(capacity: usize) ref void! = {
 }
 
 /// Free the entire arena and its backing block.
-pub fn (Arena) free(arena: Self) void! = {
+pub fn (Arena) free(arena: self) void! = {
     val buf: mut ref void = @load(arena)
     @free(buf)
     @free(arena)
@@ -35,7 +35,7 @@ pub fn (Arena) free(arena: Self) void! = {
 /// Allocate `size` bytes from the arena.
 ///
 /// Requires size > 0. Returns none if there is not enough space remaining.
-pub fn (Arena) alloc(arena: Self, size: usize) option[ref void] = {
+pub fn (Arena) alloc(arena: self, size: usize) option[ref void] = {
     guarded pre {
         pre_size_positive : size > 0
     }
@@ -52,18 +52,18 @@ pub fn (Arena) alloc(arena: Self, size: usize) option[ref void] = {
 }
 
 /// Return the number of bytes currently used.
-pub fn (Arena) used(arena: Self) usize! = {
+pub fn (Arena) used(arena: self) usize! = {
     return @load(@ptradd(arena, 8))
 }
 
 /// Return the total capacity in bytes.
-pub fn (Arena) cap(arena: Self) usize! = {
+pub fn (Arena) cap(arena: self) usize! = {
     return @load(@ptradd(arena, 16))
 }
 
 /// Return the number of bytes remaining.
 /// Contracts: used <= cap, so the subtraction never underflows.
-pub fn (Arena) remaining(arena: Self) usize = {
+pub fn (Arena) remaining(arena: self) usize = {
     pre {
         used_le_cap : trust @load(@ptradd(arena, 8)) <= trust @load(@ptradd(arena, 16))
     }
@@ -76,7 +76,7 @@ pub fn (Arena) remaining(arena: Self) usize = {
 }
 
 /// Reset the arena — all previously allocated pointers become invalid.
-pub fn (Arena) reset(arena: Self) void! = {
+pub fn (Arena) reset(arena: self) void! = {
     val buf: mut ref void = @load(arena)
     val cap: mut usize = @load(@ptradd(arena, 16))
     @memset(buf, 0, cap)
@@ -131,7 +131,7 @@ pub fn (Stack) new(capacity: usize) ref void! = {
 }
 
 /// Allocate memory from the stack.
-pub fn (Stack) alloc(stack: Self, size: usize) option[ref void] = {
+pub fn (Stack) alloc(stack: self, size: usize) option[ref void] = {
     pre { size_positive: size > 0 }
 
     val off: mut usize = trust @load(@ptradd(stack, 8))
@@ -151,13 +151,13 @@ pub fn (Stack) alloc(stack: Self, size: usize) option[ref void] = {
 
 /// Capture the current state of the stack.
 /// The returned usize is a "marker" or "checkpoint".
-pub fn (Stack) save(stack: Self) usize = {
+pub fn (Stack) save(stack: self) usize = {
     return trust @load(@ptradd(stack, 8))
 }
 
 /// Restore the stack to a previous checkpoint.
 /// This effectively "frees" everything allocated after the 'save' call.
-pub fn (Stack) restore(stack: Self, checkpoint: usize) void = {
+pub fn (Stack) restore(stack: self, checkpoint: usize) void = {
     pre { 
         valid_checkpoint: checkpoint <= trust @load(@ptradd(stack, 16))
         no_rewind_past_zero: checkpoint >= 0 
@@ -167,7 +167,7 @@ pub fn (Stack) restore(stack: Self, checkpoint: usize) void = {
 }
 
 /// Free the underlying memory.
-pub fn (Stack) free(stack: Self) void! = {
+pub fn (Stack) free(stack: self) void! = {
     val buf: mut ref void = @load(stack)
     @free(buf)
     @free(stack)

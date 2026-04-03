@@ -26,25 +26,25 @@ pub fn (List) new(initial_cap: usize) ref void! = {
 }
 
 /// Free a List and its backing buffer.
-pub fn (List) free(list: Self) void! = {
+pub fn (List) free(list: self) void! = {
     val buf: ref void = @load(list)
     @free(buf)
     @free(list)
 }
 
 /// Return the number of elements in the list.
-pub fn (List) len(list: Self) usize! = {
+pub fn (List) len(list: self) usize! = {
     return @load(@ptradd(list, 8))
 }
 
 /// Return the current capacity.
-pub fn (List) cap(list: Self) usize! = {
+pub fn (List) cap(list: self) usize! = {
     return @load(@ptradd(list, 16))
 }
 
 /// Grow the backing buffer to at least new_cap elements.
 /// Requires new_cap > 0 to avoid a zero-size allocation.
-fn (List) grow(list: Self, new_cap: usize) void = {
+fn (List) grow(list: self, new_cap: usize) void = {
     pre {
         new_cap_positive : new_cap > 0
     }
@@ -59,7 +59,7 @@ fn (List) grow(list: Self, new_cap: usize) void = {
 
 /// Append a value to the end of the list.
 /// Requires the list pointer to be non-null (non-zero).
-pub fn (List) push(list: Self, value: usize) void! = {
+pub fn (List) push(list: self, value: usize) void! = {
     val len: usize = @load(@ptradd(list, 8))
     val cap: usize = @load(@ptradd(list, 16))
     if (len >= cap) {
@@ -75,7 +75,7 @@ pub fn (List) push(list: Self, value: usize) void! = {
 /// Get the element at index i.
 /// Requires i < len to guarantee in-bounds access.
 /// Returns none if out of bounds (defensive, belt-and-suspenders).
-pub fn (List) get(list: Self, i: usize) option[usize] = {
+pub fn (List) get(list: self, i: usize) option[usize] = {
     pre {
         in_bounds : i < trust @load(@ptradd(list, 8))
     }
@@ -94,7 +94,7 @@ pub fn (List) get(list: Self, i: usize) option[usize] = {
 /// Set the element at index i.
 /// Requires i < len to guarantee in-bounds write.
 /// Returns 1 on success, 0 if out of bounds (defensive).
-pub fn (List) set(list: Self, i: usize, value: usize) usize = {
+pub fn (List) set(list: self, i: usize, value: usize) usize = {
     pre {
         in_bounds : i < trust @load(@ptradd(list, 8))
     }
@@ -113,7 +113,7 @@ pub fn (List) set(list: Self, i: usize, value: usize) usize = {
 
 /// Pop the last element.
 /// Requires the list to be non-empty.
-pub fn (List) pop(list: Self) option[usize] = {
+pub fn (List) pop(list: self) option[usize] = {
     pre {
         not_empty : trust @load(@ptradd(list, 8)) > 0
     }
