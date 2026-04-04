@@ -8,6 +8,7 @@ use crate::parser::{Expr, Item, Module, Parser};
 use crate::semantic;
 
 /// A fully-resolved module: its parsed AST plus a map of imported sub-modules.
+#[derive(Clone)]
 pub struct ResolvedModule {
     pub ast: Module,
     pub imports: HashMap<String, ResolvedModule>,
@@ -22,7 +23,7 @@ pub fn compile_file(input: &str, args: &Args) -> Result<(String, Vec<String>, Ve
     let path = PathBuf::from(input);
     let dir = path.parent().unwrap_or(Path::new(".")).to_path_buf();
     let src = std::fs::read_to_string(&path).map_err(|e| format!("cannot read {input}: {e}"))?;
-    let resolved = resolve_module(&src, &dir, &mut HashMap::new(), input, None)?;
+    let resolved = resolve_module(&src, &dir, &mut HashMap::new(), &mut HashSet::new(), input, None)?;
 
     if args.emit_tokens {
         let mut lex = Lexer::new(&src);
@@ -255,12 +256,11 @@ fn collect_used_imports_in_expr(
 
 /// Recursively parse and resolve a module from source text.
 /// Only imports that are actually referenced in the AST are loaded.
-/// `visited` prevents infinite loops on circular imports.
-/// `needed_children`: when `Some`, only load child imports whose names are in this set.
 pub fn resolve_module(
     src: &str,
     dir: &Path,
-    visited: &mut HashMap<PathBuf, ()>,
+    cache: &mut HashMap<PathBuf, ResolvedModule>,
+    in_progress: &mut HashSet<PathBuf>,
     filename: &str,
     needed_children: Option<&HashSet<String>>,
 ) -> Result<ResolvedModule, String> {
@@ -272,7 +272,7 @@ pub fn resolve_module(
     let mut imports = HashMap::new();
     let self_path = PathBuf::from(filename);
 
-    visited.insert(self_path, ());
+    in_progress.insert(self_path.clone());
 
     let declared_uses: HashMap<String, PathBuf> = ast
         .items
@@ -304,10 +304,15 @@ pub fn resolve_module(
             }
         }
 
-        if visited.contains_key(resolved_path) {
+        if let Some(cached) = cache.get(resolved_path) {
+            imports.insert(name.clone(), cached.clone());
             continue;
         }
-        visited.insert(resolved_path.clone(), ());
+
+        if in_progress.contains(resolved_path) {
+            continue;
+        }
+
         let child_src = std::fs::read_to_string(resolved_path)
             .map_err(|e| format!("cannot load module '{}': {e}", resolved_path.display()))?;
         let child_dir = resolved_path
@@ -316,17 +321,26 @@ pub fn resolve_module(
             .to_path_buf();
         let child_filename = resolved_path.to_string_lossy().to_string();
 
-        let needed_grandchildren = collect_needed_subnames(&ast, name);
+        let needed_grandchildren = collect_needed_subnames_transitive(
+            &ast,
+            name,
+            &declared_uses,
+            dir,
+            in_progress,
+        );
 
         let child = resolve_module(
             &child_src,
             &child_dir,
-            visited,
+            cache,
+            in_progress,
             &child_filename,
             Some(&needed_grandchildren),
         )?;
         imports.insert(name.clone(), child);
     }
+
+    in_progress.remove(&self_path);
 
     let current_platform = crate::cli::Platform::current();
     let mut links: Vec<String> = Vec::new();
@@ -343,17 +357,17 @@ pub fn resolve_module(
         }
     }
 
-    Ok(ResolvedModule {
+    let resolved = ResolvedModule {
         ast,
         imports,
         dir: dir.to_path_buf(),
         filename: filename.to_string(),
         links,
         warnings: parse_warnings,
-    })
+    };
+    cache.insert(self_path, resolved.clone());
+    Ok(resolved)
 }
-
-/// Returns true if `name` appears as an Ident or as the base of a Field anywhere in the AST.
 fn ast_references_name(ast: &Module, name: &str) -> bool {
     ast.items.iter().any(|item| item_references_name(item, name))
 }
@@ -452,6 +466,98 @@ fn collect_needed_subnames(ast: &Module, import_name: &str) -> HashSet<String> {
     for item in &ast.items {
         collect_needed_subnames_in_item(item, import_name, &mut needed);
     }
+    needed
+}
+
+/// Like `collect_needed_subnames`, but also transitively expands through the ASTs of the
+/// needed children. This handles cases where a child module (e.g. string.sx) uses a sibling
+/// (e.g. std.collections) that the parent didn't directly reference.
+fn collect_needed_subnames_transitive(
+    ast: &Module,
+    import_name: &str,
+    declared_uses: &HashMap<String, PathBuf>,
+    dir: &Path,
+    in_progress: &HashSet<PathBuf>,
+) -> HashSet<String> {
+    let mut needed = collect_needed_subnames(ast, import_name);
+    let mut visited_for_expansion: HashSet<String> = HashSet::new();
+    let mut changed = true;
+
+    while changed {
+        changed = false;
+        let current: Vec<String> = needed.iter().cloned().collect();
+        for sub_name in current {
+            if visited_for_expansion.contains(&sub_name) {
+                continue;
+            }
+            visited_for_expansion.insert(sub_name.clone());
+
+            let import_path = match declared_uses.get(import_name) {
+                Some(p) => p,
+                None => continue,
+            };
+            let import_dir = import_path.parent().unwrap_or(Path::new("."));
+
+            let import_src = match std::fs::read_to_string(import_path) {
+                Ok(s) => s,
+                Err(_) => continue,
+            };
+            let sub_path = {
+                let mut lex = Lexer::new(&import_src);
+                let tokens = match lex.tokenize() {
+                    Ok(t) => t,
+                    Err(_) => continue,
+                };
+                let mut parser = Parser::with_filename(tokens, import_path.to_string_lossy().to_string());
+                let import_ast = match parser.parse_module() {
+                    Ok(a) => a,
+                    Err(_) => continue,
+                };
+                import_ast.items.iter().find_map(|item| {
+                    if let Item::Use { name, path, .. } = item {
+                        if name == &sub_name {
+                            Some(resolve_use_path(path, import_dir))
+                        } else {
+                            None
+                        }
+                    } else {
+                        None
+                    }
+                })
+            };
+
+            let sub_path = match sub_path {
+                Some(p) => p,
+                None => continue,
+            };
+
+            if in_progress.contains(&sub_path) {
+                continue;
+            }
+
+            let sub_src = match std::fs::read_to_string(&sub_path) {
+                Ok(s) => s,
+                Err(_) => continue,
+            };
+            let mut lex = Lexer::new(&sub_src);
+            let tokens = match lex.tokenize() {
+                Ok(t) => t,
+                Err(_) => continue,
+            };
+            let mut parser = Parser::with_filename(tokens, sub_path.to_string_lossy().to_string());
+            let sub_ast = match parser.parse_module() {
+                Ok(a) => a,
+                Err(_) => continue,
+            };
+
+            for extra in collect_needed_subnames(&sub_ast, import_name) {
+                if needed.insert(extra) {
+                    changed = true;
+                }
+            }
+        }
+    }
+
     needed
 }
 

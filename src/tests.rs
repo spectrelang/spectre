@@ -368,11 +368,11 @@ mod parser_tests {
 mod codegen_tests {
     use crate::codegen::Codegen;
     use crate::module::resolve_module;
-    use std::collections::HashMap;
+    use std::collections::{HashMap, HashSet};
     use std::path::Path;
 
     fn compile(src: &str) -> Result<String, String> {
-        let resolved = resolve_module(src, Path::new("."), &mut HashMap::new(), "", None)?;
+        let resolved = resolve_module(src, Path::new("."), &mut HashMap::new(), &mut HashSet::new(), "", None)?;
         let mut cg = Codegen::new();
         cg.emit_module(&resolved, false, false)?;
         Ok(cg.finish())
@@ -660,7 +660,7 @@ mod codegen_tests {
 mod format_string_tests {
     use crate::codegen::Codegen;
     use crate::module::resolve_module;
-    use std::collections::HashMap;
+    use std::collections::{HashMap, HashSet};
     use std::path::Path;
 
     fn rewrite(fmt: &str) -> String {
@@ -668,7 +668,7 @@ mod format_string_tests {
             r#"pub fn print(f: ref char, a: untyped) void! = {{}}
                pub fn main() void! = {{ print("{fmt}", 1) }}"#
         );
-        let resolved = resolve_module(&src, Path::new("."), &mut HashMap::new(), "", None).unwrap();
+        let resolved = resolve_module(&src, Path::new("."), &mut HashMap::new(), &mut HashSet::new(), "", None).unwrap();
         let mut cg = Codegen::new();
         cg.emit_module(&resolved, false, false).unwrap();
         let ir = cg.finish();
@@ -705,11 +705,11 @@ mod hoisting_and_optionals_tests {
     use crate::lexer::{Lexer, TokenKind};
     use crate::module::resolve_module;
     use crate::parser::{Expr, Item, Parser, Stmt};
-    use std::collections::HashMap;
+    use std::collections::{HashMap, HashSet};
     use std::path::Path;
 
     fn compile(src: &str) -> Result<String, String> {
-        let resolved = resolve_module(src, Path::new("."), &mut HashMap::new(), "", None)?;
+        let resolved = resolve_module(src, Path::new("."), &mut HashMap::new(), &mut HashSet::new(), "", None)?;
         let mut cg = Codegen::new();
         cg.emit_module(&resolved, false, false)?;
         Ok(cg.finish())
@@ -944,11 +944,11 @@ mod elif_and_for_tests {
     use crate::lexer::{Lexer, TokenKind};
     use crate::module::resolve_module;
     use crate::parser::{Item, Parser, Stmt};
-    use std::collections::HashMap;
+    use std::collections::{HashMap, HashSet};
     use std::path::Path;
 
     fn compile(src: &str) -> Result<String, String> {
-        let resolved = resolve_module(src, Path::new("."), &mut HashMap::new(), "", None)?;
+        let resolved = resolve_module(src, Path::new("."), &mut HashMap::new(), &mut HashSet::new(), "", None)?;
         let mut cg = Codegen::new();
         cg.emit_module(&resolved, false, false)?;
         Ok(cg.finish())
@@ -1199,11 +1199,11 @@ mod elif_and_for_tests {
 mod float_mut_and_for_regression_tests {
     use crate::codegen::Codegen;
     use crate::module::resolve_module;
-    use std::collections::HashMap;
+    use std::collections::{HashMap, HashSet};
     use std::path::Path;
 
     fn compile(src: &str) -> Result<String, String> {
-        let resolved = resolve_module(src, Path::new("."), &mut HashMap::new(), "", None)?;
+        let resolved = resolve_module(src, Path::new("."), &mut HashMap::new(), &mut HashSet::new(), "", None)?;
         let mut cg = Codegen::new();
         cg.emit_module(&resolved, false, false)?;
         Ok(cg.finish())
@@ -1294,11 +1294,11 @@ mod memory_and_defer_tests {
     use crate::lexer::{Lexer, TokenKind};
     use crate::module::resolve_module;
     use crate::parser::{Item, Parser, Stmt};
-    use std::collections::HashMap;
+    use std::collections::{HashMap, HashSet};
     use std::path::Path;
 
     fn compile(src: &str) -> Result<String, String> {
-        let resolved = resolve_module(src, Path::new("."), &mut HashMap::new(), "", None)?;
+        let resolved = resolve_module(src, Path::new("."), &mut HashMap::new(), &mut HashSet::new(), "", None)?;
         let mut cg = Codegen::new();
         cg.emit_module(&resolved, false, false)?;
         Ok(cg.finish())
@@ -1535,11 +1535,11 @@ mod method_namespace_tests {
     use crate::lexer::Lexer;
     use crate::module::resolve_module;
     use crate::parser::{FnDef, Item, Parser, TypeExpr};
-    use std::collections::HashMap;
+    use std::collections::{HashMap, HashSet};
     use std::path::Path;
 
     fn compile(src: &str) -> Result<String, String> {
-        let resolved = resolve_module(src, Path::new("."), &mut HashMap::new(), "", None)?;
+        let resolved = resolve_module(src, Path::new("."), &mut HashMap::new(), &mut HashSet::new(), "", None)?;
         let mut cg = Codegen::new();
         cg.emit_module(&resolved, false, false)?;
         Ok(cg.finish())
@@ -1728,11 +1728,11 @@ mod method_namespace_tests {
 mod cast_tests {
     use crate::codegen::Codegen;
     use crate::module::resolve_module;
-    use std::collections::HashMap;
+    use std::collections::{HashMap, HashSet};
     use std::path::Path;
 
     fn compile(src: &str) -> Result<String, String> {
-        let resolved = resolve_module(src, Path::new("."), &mut HashMap::new(), "", None)?;
+        let resolved = resolve_module(src, Path::new("."), &mut HashMap::new(), &mut HashSet::new(), "", None)?;
         let mut cg = Codegen::new();
         cg.emit_module(&resolved, false, false)?;
         Ok(cg.finish())
@@ -1818,11 +1818,11 @@ mod union_codegen_tests {
     use crate::lexer::{Lexer, TokenKind};
     use crate::module::resolve_module;
     use crate::parser::{Item, Parser, Stmt, TypeExpr};
-    use std::collections::HashMap;
+    use std::collections::{HashMap, HashSet};
     use std::path::Path;
 
     fn compile(src: &str) -> Result<String, String> {
-        let resolved = resolve_module(src, Path::new("."), &mut HashMap::new(), "", None)?;
+        let resolved = resolve_module(src, Path::new("."), &mut HashMap::new(), &mut HashSet::new(), "", None)?;
         let mut cg = Codegen::new();
         cg.emit_module(&resolved, false, false)?;
         Ok(cg.finish())
@@ -2272,11 +2272,11 @@ mod enum_tests {
     use crate::lexer::{Lexer, TokenKind};
     use crate::module::resolve_module;
     use crate::parser::{Item, Parser};
-    use std::collections::HashMap;
+    use std::collections::{HashMap, HashSet};
     use std::path::Path;
 
     fn compile(src: &str) -> Result<String, String> {
-        let resolved = resolve_module(src, Path::new("."), &mut HashMap::new(), "", None)?;
+        let resolved = resolve_module(src, Path::new("."), &mut HashMap::new(), &mut HashSet::new(), "", None)?;
         let mut cg = Codegen::new();
         cg.emit_module(&resolved, false, false)?;
         Ok(cg.finish())
@@ -2405,11 +2405,11 @@ mod enum_tests {
 mod purity_enforcement_tests {
     use crate::codegen::Codegen;
     use crate::module::resolve_module;
-    use std::collections::HashMap;
+    use std::collections::{HashMap, HashSet};
     use std::path::Path;
 
     fn compile(src: &str) -> Result<(String, Vec<String>), String> {
-        let resolved = resolve_module(src, Path::new("."), &mut HashMap::new(), "", None)?;
+        let resolved = resolve_module(src, Path::new("."), &mut HashMap::new(), &mut HashSet::new(), "", None)?;
         let mut cg = Codegen::new();
         cg.emit_module(&resolved, false, false)?;
         let warnings = cg.warnings.clone();
@@ -2568,11 +2568,11 @@ mod extern_fn_tests {
     use crate::lexer::{Lexer, TokenKind};
     use crate::module::resolve_module;
     use crate::parser::{Item, Parser, TypeExpr};
-    use std::collections::HashMap;
+    use std::collections::{HashMap, HashSet};
     use std::path::Path;
 
     fn compile(src: &str) -> Result<String, String> {
-        let resolved = resolve_module(src, Path::new("."), &mut HashMap::new(), "", None)?;
+        let resolved = resolve_module(src, Path::new("."), &mut HashMap::new(), &mut HashSet::new(), "", None)?;
         let mut cg = Codegen::new();
         cg.emit_module(&resolved, false, false)?;
         Ok(cg.finish())
@@ -2785,7 +2785,7 @@ mod link_tests {
     use crate::lexer::{Lexer, TokenKind};
     use crate::module::{collect_used_libs, resolve_module};
     use crate::parser::{Item, Parser};
-    use std::collections::HashMap;
+    use std::collections::{HashMap, HashSet};
     use std::path::Path;
 
     fn parse(src: &str) -> crate::parser::Module {
@@ -2867,6 +2867,7 @@ mod link_tests {
             r#"link "curl""#,
             Path::new("."),
             &mut HashMap::new(),
+            &mut HashSet::new(),
             "test.sx",
             None,
         )
@@ -2880,6 +2881,7 @@ mod link_tests {
             "link \"curl\"\nlink \"ssl\"",
             Path::new("."),
             &mut HashMap::new(),
+            &mut HashSet::new(),
             "test.sx",
             None,
         )
@@ -2901,7 +2903,7 @@ mod link_tests {
         };
         let src = format!("when {platform_name} {{ link \"platform_lib\" }}");
         let resolved =
-            resolve_module(&src, Path::new("."), &mut HashMap::new(), "test.sx", None).unwrap();
+            resolve_module(&src, Path::new("."), &mut HashMap::new(), &mut HashSet::new(), "test.sx", None).unwrap();
         assert!(
             resolved.links.contains(&"platform_lib".to_string()),
             "expected platform_lib in links for platform {platform_name}, got {:?}",
@@ -2917,7 +2919,7 @@ mod link_tests {
         };
         let src = format!("when {other} {{ link \"other_platform_lib\" }}");
         let resolved =
-            resolve_module(&src, Path::new("."), &mut HashMap::new(), "test.sx", None).unwrap();
+            resolve_module(&src, Path::new("."), &mut HashMap::new(), &mut HashSet::new(), "test.sx", None).unwrap();
         assert!(
             !resolved.links.contains(&"other_platform_lib".to_string()),
             "other_platform_lib should not be linked on this platform, got {:?}",
@@ -2931,6 +2933,7 @@ mod link_tests {
             r#"when unknownos { link "ghost_lib" }"#,
             Path::new("."),
             &mut HashMap::new(),
+            &mut HashSet::new(),
             "test.sx",
             None,
         )
@@ -2947,6 +2950,7 @@ mod link_tests {
             r#"link "curl""#,
             Path::new("."),
             &mut HashMap::new(),
+            &mut HashSet::new(),
             "test.sx",
             None,
         )
@@ -2961,6 +2965,7 @@ mod link_tests {
             "link \"curl\"\nlink \"curl\"",
             Path::new("."),
             &mut HashMap::new(),
+            &mut HashSet::new(),
             "test.sx",
             None,
         )
@@ -3026,7 +3031,7 @@ mod postfix_and_assign_op_tests {
     use crate::lexer::{Lexer, TokenKind};
     use crate::module::resolve_module;
     use crate::parser::{Item, Parser, Stmt};
-    use std::collections::HashMap;
+    use std::collections::{HashMap, HashSet};
     use std::path::Path;
 
     fn lex(src: &str) -> Vec<crate::lexer::Token> {
@@ -3039,7 +3044,7 @@ mod postfix_and_assign_op_tests {
     }
 
     fn compile(src: &str) -> Result<String, String> {
-        let resolved = resolve_module(src, Path::new("."), &mut HashMap::new(), "", None)?;
+        let resolved = resolve_module(src, Path::new("."), &mut HashMap::new(), &mut HashSet::new(), "", None)?;
         let mut cg = Codegen::new();
         cg.emit_module(&resolved, false, false)?;
         Ok(cg.finish())
@@ -3175,7 +3180,7 @@ mod zero_init_tests {
     use crate::lexer::Lexer;
     use crate::module::resolve_module;
     use crate::parser::{Expr, Item, Parser, Stmt};
-    use std::collections::HashMap;
+    use std::collections::{HashMap, HashSet};
     use std::path::Path;
 
     fn parse(src: &str) -> crate::parser::Module {
@@ -3184,7 +3189,7 @@ mod zero_init_tests {
     }
 
     fn compile(src: &str) -> Result<String, String> {
-        let resolved = resolve_module(src, Path::new("."), &mut HashMap::new(), "", None)?;
+        let resolved = resolve_module(src, Path::new("."), &mut HashMap::new(), &mut HashSet::new(), "", None)?;
         let mut cg = Codegen::new();
         cg.emit_module(&resolved, false, false)?;
         Ok(cg.finish())
@@ -3235,11 +3240,11 @@ mod shadowing_tests {
     use crate::codegen::Codegen;
     use crate::module::resolve_module;
     use crate::semantic;
-    use std::collections::HashMap;
+    use std::collections::{HashMap, HashSet};
     use std::path::Path;
 
     fn compile(src: &str) -> Result<String, String> {
-        let resolved = resolve_module(src, Path::new("."), &mut HashMap::new(), "", None)?;
+        let resolved = resolve_module(src, Path::new("."), &mut HashMap::new(), &mut HashSet::new(), "", None)?;
         let sem_errors = semantic::check_module(&resolved);
         if !sem_errors.is_empty() {
             return Err(sem_errors.join("\n"));
@@ -3346,11 +3351,11 @@ mod shadowing_tests {
 mod f64_result_codegen_tests {
     use crate::codegen::Codegen;
     use crate::module::resolve_module;
-    use std::collections::HashMap;
+    use std::collections::{HashMap, HashSet};
     use std::path::Path;
 
     fn compile(src: &str) -> Result<String, String> {
-        let resolved = resolve_module(src, Path::new("."), &mut HashMap::new(), "", None)?;
+        let resolved = resolve_module(src, Path::new("."), &mut HashMap::new(), &mut HashSet::new(), "", None)?;
         let mut cg = Codegen::new();
         cg.emit_module(&resolved, false, false)?;
         Ok(cg.finish())
@@ -3481,11 +3486,11 @@ mod list_tests {
     use crate::lexer::{Lexer, TokenKind};
     use crate::module::resolve_module;
     use crate::parser::{Expr, Item, Parser, Stmt, TypeExpr};
-    use std::collections::HashMap;
+    use std::collections::{HashMap, HashSet};
     use std::path::Path;
 
     fn compile(src: &str) -> Result<String, String> {
-        let resolved = resolve_module(src, Path::new("."), &mut HashMap::new(), "", None)?;
+        let resolved = resolve_module(src, Path::new("."), &mut HashMap::new(), &mut HashSet::new(), "", None)?;
         let mut cg = Codegen::new();
         cg.emit_module(&resolved, false, false)?;
         Ok(cg.finish())
@@ -3877,11 +3882,11 @@ mod list_tests {
 mod fixed_array_regression_tests {
     use crate::codegen::Codegen;
     use crate::module::resolve_module;
-    use std::collections::HashMap;
+    use std::collections::{HashMap, HashSet};
     use std::path::Path;
 
     fn compile(src: &str) -> Result<String, String> {
-        let resolved = resolve_module(src, Path::new("."), &mut HashMap::new(), "", None)?;
+        let resolved = resolve_module(src, Path::new("."), &mut HashMap::new(), &mut HashSet::new(), "", None)?;
         let mut cg = Codegen::new();
         cg.emit_module(&resolved, false, false)?;
         Ok(cg.finish())
