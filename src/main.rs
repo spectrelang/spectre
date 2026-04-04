@@ -79,15 +79,16 @@ fn run_qbe(ir: &str) -> String {
             process::exit(1);
         });
 
-    use std::io::Write;
-    child
-        .stdin
-        .take()
-        .unwrap()
-        .write_all(ir.as_bytes())
-        .unwrap();
+    let mut stdin = child.stdin.take().unwrap();
+    let ir_bytes = ir.as_bytes().to_vec();
+    let writer = std::thread::spawn(move || {
+        use std::io::Write;
+        stdin.write_all(&ir_bytes).unwrap();
+    });
 
     let out = child.wait_with_output().unwrap();
+    writer.join().unwrap();
+
     if !out.status.success() {
         eprintln!("qbe error:\n{}", String::from_utf8_lossy(&out.stderr));
         process::exit(1);
@@ -143,12 +144,15 @@ fn assemble_and_link(asm: &str, binary_path: &str, libs: &[String]) {
 
 /// Run the compiled binary in test mode.
 fn run_tests(binary_path: &str) {
-    let status = Command::new(Path::join(Path::new("./s-out/"), binary_path))
+    let full_path = Path::join(Path::new("./s-out/"), binary_path);
+    eprintln!("[spectre] running test binary: {}", full_path.display());
+    let status = Command::new(&full_path)
         .status()
         .unwrap_or_else(|e| {
             eprintln!("error: could not run test binary: {e}");
             process::exit(1);
         });
+    eprintln!("[spectre] test binary exited with: {status}");
 
     if !status.success() {
         eprintln!("tests failed");
