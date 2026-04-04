@@ -57,8 +57,8 @@ pub fn (Arena) alloc(arena: self, size: usize) option[ref void] = {
     guarded pre {
         pre_size_positive : size > 0
     }
-    val off: mut usize = trust @load(@ptradd(arena, 8))
-    val cap: usize = trust @load(@ptradd(arena, 16))
+    val off: mut usize = trust @load(@ptradd(arena, 8)) as usize
+    val cap: usize = trust @load(@ptradd(arena, 16)) as usize
     val aligned: usize = (size + 7) - ((size + 7) - ((size + 7) / 8) * 8)
     if (off + aligned > cap) {
         return none
@@ -71,12 +71,12 @@ pub fn (Arena) alloc(arena: self, size: usize) option[ref void] = {
 
 /// Return the number of bytes currently used.
 pub fn (Arena) used(arena: self) usize! = {
-    return @load(@ptradd(arena, 8))
+    return @load(@ptradd(arena, 8)) as usize
 }
 
 /// Return the total capacity in bytes.
 pub fn (Arena) cap(arena: self) usize! = {
-    return @load(@ptradd(arena, 16))
+    return @load(@ptradd(arena, 16)) as usize
 }
 
 /// Return the number of bytes remaining.
@@ -85,8 +85,8 @@ pub fn (Arena) remaining(arena: self) usize = {
     pre {
         used_le_cap : trust @load(@ptradd(arena, 8)) <= trust @load(@ptradd(arena, 16))
     }
-    val off: usize = trust @load(@ptradd(arena, 8))
-    val cap: usize = trust @load(@ptradd(arena, 16))
+    val off: usize = trust @load(@ptradd(arena, 8)) as usize
+    val cap: usize = trust @load(@ptradd(arena, 16)) as usize
     post {
         used_le_cap : off <= cap
     }
@@ -151,8 +151,8 @@ pub fn (Stack) new(capacity: usize) ref void! = {
 pub fn (Stack) alloc(stack: self, size: usize) option[ref void] = {
     pre { size_positive: size > 0 }
 
-    val off: mut usize = trust @load(@ptradd(stack, 8))
-    val cap: usize = trust @load(@ptradd(stack, 16))
+    val off: mut usize = trust @load(@ptradd(stack, 8)) as usize
+    val cap: usize = trust @load(@ptradd(stack, 16)) as usize
     val aligned: usize = (size + 7) & ~7
     
     if (off + aligned > cap) {
@@ -169,7 +169,7 @@ pub fn (Stack) alloc(stack: self, size: usize) option[ref void] = {
 /// Capture the current state of the stack.
 /// The returned usize is a "marker" or "checkpoint".
 pub fn (Stack) save(stack: self) usize = {
-    return trust @load(@ptradd(stack, 8))
+    return trust @load(@ptradd(stack, 8)) as usize
 }
 
 /// Restore the stack to a previous checkpoint.
