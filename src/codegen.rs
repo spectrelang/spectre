@@ -1657,6 +1657,10 @@ impl Codegen {
                             slot
                         }
                     }
+                    Expr::Cast { expr: inner, .. } => {
+                        let (tmp, _) = self.emit_expr(inner, ns)?;
+                        tmp
+                    }
                     other => self.emit_field_ptr(other, ns)?,
                 };
 
