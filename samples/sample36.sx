@@ -1,0 +1,7 @@
+val std = use("std")
+
+pub fn main() void! = {
+    val hello: ref char = "hello world"
+    val fmt_string: ref char = @fmt("{d} {d} {s}", {12, 14, hello})
+    std.io.print("{s}", {fmt_string})
+}
