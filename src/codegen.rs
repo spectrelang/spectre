@@ -3288,6 +3288,11 @@ impl Codegen {
                         ))
                     }
                     other => {
+                        if matches!(other, Expr::Field(_, _)) {
+                            let field_ptr = self.emit_field_ptr(other, ns)?;
+                            self.emit(&format!("    {tmp} =l copy {field_ptr}"));
+                            return Ok((tmp, "l"));
+                        }
                         let path = expr_to_path(other);
                         let expanded = expand_alias_path(&path, &self.type_aliases.clone());
                         if let Some(qbe_name) = ns.get(&expanded) {
