@@ -2401,7 +2401,12 @@ fn infer_expr_type(
             "store" | "store8" | "storef" | "memset" | "memcpy" | "free" => Some(TypeExpr::Void),
             _ => None,
         },
-        Expr::ListLit(_) => Some(TypeExpr::List(Box::new(TypeExpr::Untyped))),
+        Expr::ListLit(items) => {
+            let elem_ty = items.first()
+                .and_then(|e| infer_expr_type(e, var_types, type_lookup, fn_ret_lookup))
+                .unwrap_or(TypeExpr::Untyped);
+            Some(TypeExpr::List(Box::new(elem_ty)))
+        }
         Expr::StructLit { .. } => None,
         Expr::ArgsPack(_) => None,
         Expr::Try(inner) | Expr::Trust(inner) => {
@@ -3083,6 +3088,12 @@ fn types_compatible_for_annotation(
         }
         (TypeExpr::Named(a), TypeExpr::Ref(_)) if a == "ptr" || a == "rawptr" => true,
         (TypeExpr::Option(d), TypeExpr::Option(i)) => {
+            types_compatible_for_annotation(d, i, union_lookup)
+        }
+        (TypeExpr::List(d), TypeExpr::List(i)) => {
+            if matches!(i.as_ref(), TypeExpr::Untyped) {
+                return true;
+            }
             types_compatible_for_annotation(d, i, union_lookup)
         }
         (TypeExpr::Named(name), _) => {
