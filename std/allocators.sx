@@ -101,7 +101,6 @@ pub fn (Arena) reset(arena: self) void! = {
     @store(@ptradd(arena, 8), 0)
 }
 
-
 test {
     val arena = Arena.new(64)?
 
