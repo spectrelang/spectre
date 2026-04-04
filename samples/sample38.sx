@@ -36,6 +36,7 @@ pub fn (Stack) print_top(s: mut self) void = {
 
 pub fn main() void! = {
     val s: mut Stack = {data: [], len: 0}
+    @reserve(s.data, 10)
     Stack.push(s, 10)
     Stack.push(s, 20)
     Stack.push(s, 30)

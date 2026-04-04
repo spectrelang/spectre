@@ -1584,7 +1584,7 @@ impl Codegen {
                 let align = type_alignment(&field.ty);
                 offset = align_to(offset as u64, align) as usize + field_size as usize;
             } else {
-                offset += 8;
+                offset += align8(field_size) as usize;
             }
         }
         Err(format!("type '{type_name}' has no field '{field_name}'"))
