@@ -8,7 +8,7 @@ union SbOrPtr = {
     StringBuilder | ref void
 }
 
-/// This is a classic string type.
+/// This is the classic string type.
 ///
 /// An owned heap string: ptr, len, cap — each 8 bytes.
 pub type String = {
@@ -51,17 +51,17 @@ pub fn string_free(s: ref void) void! = {
 
 /// Length
 pub fn len(s: ref void) i64! = {
-    return @load(@ptradd(s, 8))
+    return @load(@ptradd(s, 8)) as i64
 }
 
 /// Raw pointer
 pub fn cstr(s: ref void) ref char! = {
-    return @load(s)
+    return @load(s) as ref char
 }
 
 /// Ensure capacity (private helper)
 fn ensure_cap(s: SbOrPtr, needed: i64) void! = {
-    val cap: i64 = @load(@ptradd(s, 16))
+    val cap: i64 = @load(@ptradd(s, 16)) as i64
     if (needed <= cap) {
         return
     }
@@ -74,7 +74,7 @@ fn ensure_cap(s: SbOrPtr, needed: i64) void! = {
 
 /// Append a C string in place
 pub fn push_cstr(s: ref void, other: ref char) void! = {
-    val l: mut i64 = @load(@ptradd(s, 8))
+    val l: mut i64 = @load(@ptradd(s, 8)) as i64
     val add_len: mut i64 = strlen(other)
     val new_len: mut i64 = l + add_len
 
@@ -90,23 +90,23 @@ pub fn push_cstr(s: ref void, other: ref char) void! = {
 /// Append another String in place
 pub fn push(s: ref void, other: ref void) void! = {
     val other_ptr: ref void = @load(other)
-    val other_len: mut i64 = @load(@ptradd(other, 8))
+    val other_len: mut i64 = @load(@ptradd(other, 8)) as i64
 
-    val l: mut i64 = @load(@ptradd(s, 8))
+    val l: mut i64 = @load(@ptradd(s, 8)) as i64
     val new_len: mut i64 = l + other_len
 
     ensure_cap(s, new_len + 1)
 
     val ptr: ref void = @load(s)
-    @memcpy(@ptradd(ptr, l), other_ptr, other_len)
 
+    @memcpy(@ptradd(ptr, l), other_ptr, other_len)
     @store8(@ptradd(ptr, new_len), 0)
     @store(@ptradd(s, 8), new_len)
 }
 
 /// Clone — returns a new heap-allocated String
 pub fn clone(s: ref void) ref void! = {
-    val l: mut i64 = @load(@ptradd(s, 8))
+    val l: mut i64 = @load(@ptradd(s, 8)) as i64
     val ptr: ref void = @load(s)
     val buf: ref void = @alloc(l + 1)
 
@@ -114,16 +114,18 @@ pub fn clone(s: ref void) ref void! = {
     @store8(@ptradd(buf, l), 0)
 
     val out: ref void = @alloc(24)
+
     @store(out, buf)
     @store(@ptradd(out, 8), l)
     @store(@ptradd(out, 16), l + 1)
+
     return out
 }
 
 /// Reverse in place
 pub fn reverse(s: ref void) void! = {
     val ptr: ref void = @load(s)
-    val l: i64 = @load(@ptradd(s, 8))
+    val l: i64 = @load(@ptradd(s, 8)) as i64
 
     val i: mut i64 = 0
     val j: mut i64 = l - 1
@@ -132,8 +134,8 @@ pub fn reverse(s: ref void) void! = {
         if (i >= j) {
             break
         }
-        val a: mut u8 = @load8(@ptradd(ptr, i))
-        val b: mut u8 = @load8(@ptradd(ptr, j))
+        val a: mut u8 = @load8(@ptradd(ptr, i)) as u8
+        val b: mut u8 = @load8(@ptradd(ptr, j)) as u8
 
         @store8(@ptradd(ptr, i), b)
         @store8(@ptradd(ptr, j), a)
@@ -164,7 +166,7 @@ pub fn clear(s: ref void) void! = {
 
 /// Append a single byte character
 pub fn push_char(s: ref void, c: u8) void! = {
-    val l: mut i64 = @load(@ptradd(s, 8))
+    val l: mut i64 = @load(@ptradd(s, 8)) as i64
     val new_len: mut i64 = l + 1
 
     ensure_cap(s, new_len + 1)
@@ -181,7 +183,7 @@ pub fn get(s: ref void, i: i64) option[u8] = {
         s_not_null: s != 0
         i_nonneg:   i >= 0
     }
-    val l: i64 = trust @load(@ptradd(s, 8))
+    val l: i64 = trust @load(@ptradd(s, 8)) as i64
     if (i >= l) {
         return none
     }
@@ -194,7 +196,7 @@ pub fn get(s: ref void, i: i64) option[u8] = {
 
 /// Set byte at index i (no-op if out of bounds)
 pub fn set(s: ref void, i: i64, c: u8) void! = {
-    val l: i64 = @load(@ptradd(s, 8))
+    val l: i64 = @load(@ptradd(s, 8)) as i64
     if (i >= l) {
         return
     }
@@ -204,7 +206,7 @@ pub fn set(s: ref void, i: i64, c: u8) void! = {
 
 /// Return a new heap String containing bytes [start, end)
 pub fn slice(s: ref void, start: i64, end: i64) ref void! = {
-    val l: i64 = @load(@ptradd(s, 8))
+    val l: i64 = @load(@ptradd(s, 8)) as i64
 
     val real_start: mut i64 = start
     val real_end: mut i64 = end
@@ -239,8 +241,8 @@ pub fn find(s: ref void, sub: ref void) option[i64] = {
         sub_not_null: sub != 0
     }
 
-    val sl: i64 = trust @load(@ptradd(s, 8))
-    val subl: i64 = trust @load(@ptradd(sub, 8))
+    val sl: i64 = trust @load(@ptradd(s, 8)) as i64
+    val subl: i64 = trust @load(@ptradd(sub, 8)) as i64
 
     if (subl == 0) {
         return some 0
@@ -308,14 +310,14 @@ pub fn contains(s: ref void, sub: ref void) bool = {
 
 /// Convert to uppercase in place
 pub fn to_upper(s: ref void) void! = {
-    val l: i64 = @load(@ptradd(s, 8))
+    val l: i64 = @load(@ptradd(s, 8)) as i64
     val ptr: ref void = @load(s)
     val i: mut i64 = 0
     for {
         if (i >= l) {
             break
         }
-        val c: u8 = @load8(@ptradd(ptr, i))
+        val c: u8 = @load8(@ptradd(ptr, i)) as u8
         if (c >= 97) {
             if (c <= 122) {
                 @store8(@ptradd(ptr, i), c - 32)
@@ -327,14 +329,14 @@ pub fn to_upper(s: ref void) void! = {
 
 /// Convert to lowercase in place
 pub fn to_lower(s: ref void) void! = {
-    val l: i64 = @load(@ptradd(s, 8))
+    val l: i64 = @load(@ptradd(s, 8)) as i64
     val ptr: ref void = @load(s)
     val i: mut i64 = 0
     for {
         if (i >= l) {
             break
         }
-        val c: u8 = @load8(@ptradd(ptr, i))
+        val c: u8 = @load8(@ptradd(ptr, i)) as u8
         if (c >= 65) {
             if (c <= 90) {
                 @store8(@ptradd(ptr, i), c + 32)
@@ -346,7 +348,7 @@ pub fn to_lower(s: ref void) void! = {
 
 /// Trim leading whitespace in place
 pub fn trim_left(s: ref void) void! = {
-    val l: i64 = @load(@ptradd(s, 8))
+    val l: i64 = @load(@ptradd(s, 8)) as i64
     val ptr: ref void = @load(s)
     val start: mut i64 = 0
     for {
@@ -376,13 +378,13 @@ pub fn trim_left(s: ref void) void! = {
 
 /// Trim trailing whitespace in place
 pub fn trim_right(s: ref void) void! = {
-    val l: mut i64 = @load(@ptradd(s, 8))
+    val l: mut i64 = @load(@ptradd(s, 8)) as i64
     val ptr: ref void = @load(s)
     for {
         if (l <= 0) {
             break
         }
-        val c: u8 = @load8(@ptradd(ptr, l - 1))
+        val c: u8 = @load8(@ptradd(ptr, l - 1)) as u8
         if (c != 32) {
             if (c != 9) {
                 if (c != 10) {
@@ -406,9 +408,9 @@ pub fn trim(s: ref void) void! = {
 
 /// Return a new String with all occurrences of `from` replaced by `to`
 pub fn replace(s: ref void, from: ref void, to: ref void) ref void! = {
-    val sl: i64 = @load(@ptradd(s, 8))
-    val froml: i64 = @load(@ptradd(from, 8))
-    val tol: mut i64 = @load(@ptradd(to, 8))
+    val sl: i64 = @load(@ptradd(s, 8)) as i64
+    val froml: i64 = @load(@ptradd(from, 8)) as i64
+    val tol: mut i64 = @load(@ptradd(to, 8)) as i64
 
     val out: ref void = new()
 
@@ -434,8 +436,8 @@ pub fn replace(s: ref void, from: ref void, to: ref void) ref void! = {
                 if (j >= froml) {
                     break
                 }
-                val a: u8 = @load8(@ptradd(sp, i + j))
-                val b: u8 = @load8(@ptradd(fromp, j))
+                val a: u8 = @load8(@ptradd(sp, i + j)) as u8
+                val b: u8 = @load8(@ptradd(fromp, j)) as u8
                 if (a != b) {
                     matched = 0
                     break
@@ -443,7 +445,7 @@ pub fn replace(s: ref void, from: ref void, to: ref void) ref void! = {
                 j++
             }
             if (matched != 0) {
-                val out_l: mut i64 = @load(@ptradd(out, 8))
+                val out_l: mut i64 = @load(@ptradd(out, 8)) as i64
                 val new_len: mut i64 = out_l + tol
                 ensure_cap(out, new_len + 1)
                 val out_ptr: ref void = @load(out)
@@ -452,12 +454,12 @@ pub fn replace(s: ref void, from: ref void, to: ref void) ref void! = {
                 @store(@ptradd(out, 8), new_len)
                 i += froml
             } else {
-                val c: u8 = @load8(@ptradd(sp, i))
+                val c: u8 = @load8(@ptradd(sp, i)) as u8
                 push_char(out, c)
                 i++
             }
         } else {
-            val c: u8 = @load8(@ptradd(sp, i))
+            val c: u8 = @load8(@ptradd(sp, i)) as u8
             push_char(out, c)
             i++
         }
@@ -471,8 +473,8 @@ pub fn replace(s: ref void, from: ref void, to: ref void) ref void! = {
 pub fn split(s: ref void, delim: ref void) ref void! = {
     val result: ref void = std.collections.PtrList.new(8)?
 
-    val sl: i64 = @load(@ptradd(s, 8))
-    val dl: i64 = @load(@ptradd(delim, 8))
+    val sl: i64 = @load(@ptradd(s, 8)) as i64
+    val dl: i64 = @load(@ptradd(delim, 8)) as i64
     val sp: ref void = @load(s)
     val dp: ref void = @load(delim)
 
@@ -492,8 +494,8 @@ pub fn split(s: ref void, delim: ref void) ref void! = {
                 if (j >= dl) {
                     break
                 }
-                val a: u8 = @load8(@ptradd(sp, i + j))
-                val b: u8 = @load8(@ptradd(dp, j))
+                val a: u8 = @load8(@ptradd(sp, i + j)) as u8
+                val b: u8 = @load8(@ptradd(dp, j)) as u8
                 if (a != b) {
                     matched = 0
                     break
@@ -524,14 +526,14 @@ pub fn split(s: ref void, delim: ref void) ref void! = {
 }
 
 /// Check if two strings are equal
-pub fn equals(x: ref void, y: ref void) bool = {
+pub fn equals(x: String, y: String) bool = {
     pre {
         x_not_null: x != 0
         y_not_null: y != 0
     }
 
-    val lx: i64 = trust @load(@ptradd(x, 8))
-    val ly: i64 = trust @load(@ptradd(y, 8))
+    val lx: i64 = trust @load(@ptradd(x, 8)) as i64
+    val ly: i64 = trust @load(@ptradd(y, 8)) as i64
 
     if (lx != ly) {
         return false
@@ -567,8 +569,8 @@ pub fn starts_with(s: ref void, prefix: ref void) bool = {
         prefix_not_null: prefix != 0
     }
 
-    val sl: i64 = trust @load(@ptradd(s, 8))
-    val pl: i64 = trust @load(@ptradd(prefix, 8))
+    val sl: i64 = trust @load(@ptradd(s, 8)) as i64
+    val pl: i64 = trust @load(@ptradd(prefix, 8)) as i64
 
     if (pl > sl) {
         return false
@@ -604,8 +606,8 @@ pub fn ends_with(s: ref void, suffix: ref void) bool = {
         suffix_not_null: suffix != 0
     }
 
-    val sl: i64 = trust @load(@ptradd(s, 8))
-    val sul: i64 = trust @load(@ptradd(suffix, 8))
+    val sl: i64 = trust @load(@ptradd(s, 8)) as i64
+    val sul: i64 = trust @load(@ptradd(suffix, 8)) as i64
 
     if (sul > sl) {
         return false
@@ -656,8 +658,8 @@ pub fn (StringBuilder) new() ref void! = {
 /// Append a String to the builder
 pub fn (StringBuilder) append(sb: self, s: ref void) void! = {
     val other_ptr: ref void = @load(s)
-    val other_len: mut i64 = @load(@ptradd(s, 8))
-    val l: mut i64 = @load(@ptradd(sb, 8))
+    val other_len: mut i64 = @load(@ptradd(s, 8)) as i64
+    val l: mut i64 = @load(@ptradd(sb, 8)) as i64
     val new_len: mut i64 = l + other_len
 
     ensure_cap(sb, new_len + 1)
@@ -671,7 +673,7 @@ pub fn (StringBuilder) append(sb: self, s: ref void) void! = {
 
 /// Append a C string to the builder
 pub fn (StringBuilder) append_cstr(sb: self, cstr: ref char) void! = {
-    val l: mut i64 = @load(@ptradd(sb, 8))
+    val l: mut i64 = @load(@ptradd(sb, 8)) as i64
     val add_len: mut i64 = strlen(cstr)
     val new_len: mut i64 = l + add_len
 
@@ -686,7 +688,7 @@ pub fn (StringBuilder) append_cstr(sb: self, cstr: ref char) void! = {
 
 /// Build — returns a new heap-allocated String with the accumulated content
 pub fn (StringBuilder) build(sb: self) ref void! = {
-    val l: mut i64 = @load(@ptradd(sb, 8))
+    val l: mut i64 = @load(@ptradd(sb, 8)) as i64
     val ptr: ref void = @load(sb)
     val buf: ref void = @alloc(l + 1)
 
@@ -711,7 +713,7 @@ pub fn (StringBuilder) free(sb: self) void! = {
 
 /// Append a single byte character
 pub fn (StringBuilder) append_char(sb: self, c: u8) void! = {
-    val l: mut i64 = @load(@ptradd(sb, 8))
+    val l: mut i64 = @load(@ptradd(sb, 8)) as i64
     val new_len: mut i64 = l + 1
 
     ensure_cap(sb, new_len + 1)
@@ -739,7 +741,7 @@ fn rewrite_fmt(fmt: ref char) ref void! = {
         if (i >= fmtlen) {
             break
         }
-        val c: mut u8 = @load8(@ptradd(fmt, i))
+        val c: mut u8 = @load8(@ptradd(fmt, i)) as u8
         if (c == 123) { // '{'
             val j: mut i64 = i + 1
             val found: mut i64 = 0
@@ -747,7 +749,7 @@ fn rewrite_fmt(fmt: ref char) ref void! = {
                 if (j >= fmtlen) {
                     break
                 }
-                val inner: u8 = @load8(@ptradd(fmt, j))
+                val inner: u8 = @load8(@ptradd(fmt, j)) as u8
                 if (inner == 125) { // '}'
                     found = 1
                     break
@@ -762,7 +764,7 @@ fn rewrite_fmt(fmt: ref char) ref void! = {
                     if (k >= j) {
                         break
                     }
-                    val sc: mut u8 = @load8(@ptradd(fmt, k))
+                    val sc: mut u8 = @load8(@ptradd(fmt, k)) as u8
                     @store8(@ptradd(buf, out_i), sc)
                     out_i++
                     k++
