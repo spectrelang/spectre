@@ -495,3 +495,215 @@ test {
 
     std.io.put("list tests passed")
 }
+
+/// A hash map with ref char (C string) keys and usize values.
+/// Built on top of Map using a djb2 string hash.
+
+extern (C) fn strlen(s: ref char) i64! = "strlen"
+
+/// Casts the string pointer to usize for use as a Map key seed, then hashes
+/// the actual bytes so distinct strings with the same address never collide.
+pub fn hash_string(key: usize) usize = {
+    pre {
+        key > 0
+    }
+    val s: ref char = key as ref char
+    val h: mut usize = 5381
+    val i: mut i64 = 0
+    for {
+        val c: u8 = trust @load8(@ptradd(s, i))
+        if (c == 0) { break }
+        h = (h * 33) - ((h * 33) / 4294967296) * 4294967296
+        h = h - (h / 4294967296) * 4294967296
+        val cu: usize = c as usize
+        h = h - ((h - cu) / 4294967296) * 4294967296
+        h = h + cu
+        i++
+    }
+    return h
+}
+
+/// Compare two null-terminated C strings for equality.
+fn str_eq(a: ref char, b: ref char) bool! = {
+    val i: mut i64 = 0
+    for {
+        val ca: u8 = @load8(@ptradd(a, i))
+        val cb: u8 = @load8(@ptradd(b, i))
+        if (ca != cb) { return false }
+        if (ca == 0)  { return true  }
+        i++
+    }
+    return true
+}
+
+/// Allocate a new StringMap with the given initial capacity.
+pub fn (StringMap) new(initial_cap: usize) ref void! = {
+    return Map.new(initial_cap, addr(hash_string))
+}
+
+/// Insert or update a string key with a usize value.
+///
+/// The key is copied onto the heap; the copy is owned by the map.
+pub fn (StringMap) set(map: self, key: ref char, value: usize) void! = {
+    val cap: usize = @load(@ptradd(map, 16)) as usize
+    val buckets: ref void = @load(map)
+    val kl: mut i64 = strlen(key)
+    val hash_fn: ref void = @load(@ptradd(map, 24))
+    val h: usize = @call(hash_fn, key as usize)
+    val start: usize = h - (h / cap) * cap
+    val i: mut usize = 0
+
+    for (i = 0; i < cap; i++) {
+        val idx: usize = (start + i) - ((start + i) / cap) * cap
+        val slot: ref void = @ptradd(buckets, idx * MAP_BUCKET_SIZE)
+        val state: usize = @load(slot) as usize
+        if (state == MAP_BUCKET_EMPTY) {
+            break
+        }
+        if (state == MAP_BUCKET_LIVE) {
+            val existing_key: ref char = @load(@ptradd(slot, 8)) as ref char
+            if (str_eq(existing_key, key)) {
+                @store(@ptradd(slot, 16), value)
+                return
+            }
+        }
+    }
+    val copy: ref void = @alloc(kl + 1)
+    @memcpy(copy, key, kl)
+    @store8(@ptradd(copy, kl), 0)
+    Map.set(map, copy as usize, value)
+}
+
+/// Look up a string key. Returns some(value) or none.
+pub fn (StringMap) get(map: self, key: ref char) option[usize]! = {
+    val cap: usize = @load(@ptradd(map, 16)) as usize
+    val buckets: ref void = @load(map)
+    val hash_fn: ref void = @load(@ptradd(map, 24))
+    val h: usize = @call(hash_fn, key as usize)
+    val start: usize = h - (h / cap) * cap
+    val i: mut usize = 0
+
+    for (i = 0; i < cap; i++) {
+        val idx: usize = (start + i) - ((start + i) / cap) * cap
+        val slot: ref void = @ptradd(buckets, idx * MAP_BUCKET_SIZE)
+        val state: usize = @load(slot) as usize
+        if (state == MAP_BUCKET_EMPTY) {
+            return none
+        }
+        if (state == MAP_BUCKET_LIVE) {
+            val existing_key: ref char = @load(@ptradd(slot, 8)) as ref char
+            if (str_eq(existing_key, key)) {
+                return some (@load(@ptradd(slot, 16)) as usize)
+            }
+        }
+    }
+
+    return none
+}
+
+/// Check if a string key exists.
+pub fn (StringMap) contains(map: self, key: ref char) bool! = {
+    val result = StringMap.get(map, key)
+    match result {
+        some _ => { return true  }
+        none   => { return false }
+    }
+}
+
+/// Remove a string key. Returns 1 if found and removed, 0 otherwise.
+pub fn (StringMap) delete(map: self, key: ref char) usize! = {
+    val cap: usize = @load(@ptradd(map, 16)) as usize
+    val buckets: ref void = @load(map)
+    val hash_fn: ref void = @load(@ptradd(map, 24))
+    val h: usize = @call(hash_fn, key as usize)
+    val start: usize = h - (h / cap) * cap
+    val i: mut usize = 0
+
+    for (i = 0; i < cap; i++) {
+        val idx: usize = (start + i) - ((start + i) / cap) * cap
+        val slot: ref void = @ptradd(buckets, idx * MAP_BUCKET_SIZE)
+        val state: usize = @load(slot) as usize
+        if (state == MAP_BUCKET_EMPTY) {
+            return 0
+        }
+        if (state == MAP_BUCKET_LIVE) {
+            val existing_key: ref char = @load(@ptradd(slot, 8)) as ref char
+            if (str_eq(existing_key, key)) {
+                @free(existing_key)
+                @store(slot, MAP_BUCKET_DEAD)
+                @store(@ptradd(map, 8), @load(@ptradd(map, 8)) - 1)
+                return 1
+            }
+        }
+    }
+
+    return 0
+}
+
+/// Return the number of live entries.
+pub fn (StringMap) len(map: self) usize! = {
+    return Map.len(map)
+}
+
+/// Free all heap-copied keys, then free the map itself.
+pub fn (StringMap) free(map: self) void! = {
+    val cap: usize = @load(@ptradd(map, 16)) as usize
+    val buckets: ref void = @load(map)
+    val i: mut usize = 0
+    for (i = 0; i < cap; i++) {
+        val slot: ref void = @ptradd(buckets, i * MAP_BUCKET_SIZE)
+        val state: usize = @load(slot) as usize
+        if (state == MAP_BUCKET_LIVE) {
+            val k: ref char = @load(@ptradd(slot, 8)) as ref char
+            @free(k)
+        }
+    }
+    Map.free(map)
+}
+
+test {
+    val m = StringMap.new(8)
+
+    assert StringMap.len(m) == 0
+
+    StringMap.set(m, "hello", 1)
+    StringMap.set(m, "world", 2)
+    StringMap.set(m, "foo",   3)
+
+    assert StringMap.len(m) == 3
+    assert StringMap.contains(m, "hello")
+    assert StringMap.contains(m, "world")
+    assert !StringMap.contains(m, "bar")
+
+    match StringMap.get(m, "hello") {
+        some v => { assert(v == 1) }
+        none   => { assert(false) }
+    }
+    match StringMap.get(m, "world") {
+        some v => { assert(v == 2) }
+        none   => { assert(false) }
+    }
+    match StringMap.get(m, "missing") {
+        some _ => { assert(false) }
+        none   => {}
+    }
+
+    StringMap.set(m, "hello", 99)
+    match StringMap.get(m, "hello") {
+        some v => { assert(v == 99) }
+        none   => { assert(false) }
+    }
+    assert StringMap.len(m) == 3
+
+    val deleted = StringMap.delete(m, "world")
+    assert deleted == 1
+    assert StringMap.len(m) == 2
+    assert !StringMap.contains(m, "world")
+
+    val not_deleted = StringMap.delete(m, "world")
+    assert not_deleted == 0
+
+    StringMap.free(m)
+
+    std.io.put("string map tests passed")
+}

@@ -13,6 +13,65 @@ extern (C) fn getcwd(buf: ref char, size: usize) ref char! = "getcwd"
 extern (C) fn getenv(name: ref char) ref char! = "getenv"
 extern (C) fn mkdir(path: ref char, mode: u32) i32! = "mkdir"
 extern (C) fn rmdir(path: ref char) i32! = "rmdir"
+extern (C) fn opendir(path: ref char) ref void! = "opendir"
+extern (C) fn closedir(dir: ref void) i32! = "closedir"
+extern (C) fn readdir(dir: ref void) ref Dirent! = "readdir"
+extern (C) fn strdup(s: ref char) ref char! = "strdup"
+
+when linux {
+    extern type Dirent = {
+        d_ino:    u64
+        d_off:    i64
+        d_reclen: u16
+        d_type:   u8
+        d_name:   [256]char
+    }
+}
+
+when darwin {
+    extern type Dirent = {
+        d_ino:    u64
+        d_seekoff: u64
+        d_reclen: u16
+        d_namlen: u16
+        d_type:   u8
+        d_name:   [1024]char
+    }
+}
+
+when freebsd {
+    extern type Dirent = {
+        d_fileno: u64
+        d_off:    i64
+        d_reclen: u16
+        d_type:   u8
+        d_pad0:   u8
+        d_namlen: u16
+        d_pad1:   u16
+        d_name:   [256]char
+    }
+}
+
+when openbsd {
+    extern type Dirent = {
+        d_fileno: u64
+        d_off:    i64
+        d_reclen: u16
+        d_type:   u8
+        d_namlen: u8
+        d_name:   [256]char
+    }
+}
+
+when netbsd {
+    extern type Dirent = {
+        d_fileno: u64
+        d_reclen: u16
+        d_namlen: u16
+        d_type:   u8
+        d_name:   [512]char
+    }
+}
 
 /// Opaque file handle — wraps a C FILE*.
 pub type File = {
@@ -227,37 +286,186 @@ pub fn config_dir() option[ref char]! = {
     return none
 }
 
-// val std = use("std")
+val std = use("std")
 
-// test {
-//     val path: ref char = "test_file.txt"
-//     val success = write_all(path, "Hello, Spectre!")
-//     assert success
+test {
+    val path: ref char = "test_file.txt"
+    val success = write_all(path, "Hello, Spectre!")
+    assert success
 
-//     val content_opt = read_all(path)
-//     match content_opt {
-//         none => { assert false }
-//         some content => {
-//             assert strcmp(content, "Hello, Spectre!") == 0
-//             @free(content)
-//         }
-//     }
+    val content_opt = read_all(path)
+    match content_opt {
+        none => { assert false }
+        some content => {
+            assert std.string.compare(content, "Hello, Spectre!") == 0
+            @free(content)
+        }
+    }
 
-//     val append_ok = append_all(path, " More text.")
-//     assert append_ok
+    val append_ok = append_all(path, " More text.")
+    assert append_ok
 
-//     val content2_opt = read_all(path)
-//     match content2_opt {
-//         none => { assert false }
-//         some content2 => {
-//             assert strcmp(content2, "Hello, Spectre! More text.") == 0
-//             @free(content2)
-//         }
-//     }
+    val content2_opt = read_all(path)
+    match content2_opt {
+        none => { assert false }
+        some content2 => {
+            assert std.string.compare(content2, "Hello, Spectre! More text.") == 0
+            @free(content2)
+        }
+    }
 
-//     val rename_ok = rename_path(path, "test_file2.txt")
-//     assert rename_ok
+    val overwrite_ok = write_all(path, "Overwritten.")
+    assert overwrite_ok
 
-//     val delete_ok = delete("test_file2.txt")
-//     assert delete_ok
-// }
+    val content3_opt = read_all(path)
+    match content3_opt {
+        none => { assert false }
+        some content3 => {
+            assert std.string.compare(content3, "Overwritten.") == 0
+            @free(content3)
+        }
+    }
+
+    val rename_ok = rename_path(path, "test_file2.txt")
+    assert rename_ok
+
+    val gone_opt = read_all(path)
+    match gone_opt {
+        none => {}
+        some _ => { assert false }
+    }
+
+    val delete_ok = delete("test_file2.txt")
+    assert delete_ok
+
+    val delete_missing = delete("test_file2.txt")
+    assert !delete_missing
+
+    val lpath: ref char = "test_lines.txt"
+    val wh_opt = open(lpath, "w")
+    match wh_opt {
+        none => { assert false }
+        some wh => {
+            write_line(wh, "line one")
+            write_line(wh, "line two")
+            close(wh)
+        }
+    }
+
+    val rh_opt = open(lpath, "r")
+    match rh_opt {
+        none => { assert false }
+        some rh => {
+            val buf: ref char = @alloc(128)
+            val got1 = read_line(rh, buf, 128)
+            assert got1
+            assert std.string.compare(buf, "line one") == 0
+
+            val got2 = read_line(rh, buf, 128)
+            assert got2
+            assert std.string.compare(buf, "line two") == 0
+
+            val got3 = read_line(rh, buf, 128)
+            assert !got3
+
+            @free(buf)
+            close(rh)
+        }
+    }
+    delete(lpath)
+
+    val dpath: ref char = "test_walk_dir"
+    val mkdir_ok = mkdir_path(dpath)
+    assert mkdir_ok
+
+    write_all("test_walk_dir/a.txt", "a")
+    write_all("test_walk_dir/b.txt", "b")
+
+    val entries_opt = walk_dir(dpath)
+    match entries_opt {
+        none => { assert false }
+        some entries => {
+            val count: mut i64 = 0
+            for entry in entries {
+                count++
+                @free(entry)
+            }
+            assert count == 2
+        }
+    }
+
+    val bad_opt = walk_dir("__no_such_dir__")
+    match bad_opt {
+        none => {}
+        some _ => { assert false }
+    }
+
+    delete("test_walk_dir/a.txt")
+    delete("test_walk_dir/b.txt")
+    val rmdir_ok = rmdir_path(dpath)
+    assert rmdir_ok
+
+    val cwd_opt = cwd()
+    match cwd_opt {
+        none => { assert false }
+        some dir => {
+            val l: i64 = strlen(dir)
+            assert l > 0
+            @free(dir)
+        }
+    }
+
+    std.io.put("fs tests passed")
+}
+
+/// Walk a directory and return an iterable list[ref char] of entry names.
+///
+/// Usage:
+///   val entries = walk_dir("/some/path")?
+///   for entry in entries {
+///       std.io.print("{s}\n", {entry})
+///   }
+pub fn walk_dir(path: ref char) option[list[ref char]]! = {
+    val dir: ref void = opendir(path)
+    if (dir == 0) {
+        return none
+    }
+
+    val result: mut list[ref char] = []
+
+    for {
+        val entry: ref Dirent = readdir(dir)
+        if (entry == 0) {
+            break
+        }
+
+        val name: ref char = addr(entry.d_name) as ref char
+
+        val c0: u8 = @load8(name)
+        if (c0 == 46) {  // '.'
+            val c1: u8 = @load8(@ptradd(name, 1))
+            if (c1 == 0) {
+                // just "."
+            } else {
+                if (c1 == 46) {  // second '.'
+                    val c2: u8 = @load8(@ptradd(name, 2))
+                    if (c2 == 0) {
+                        // ".."
+                    } else {
+                        val copy: ref char = @strdup(name)
+                        @append(result, copy)
+                    }
+                } else {
+                    val copy: ref char = @strdup(name)
+                    @append(result, copy)
+                }
+            }
+        } else {
+            val copy: ref char = @strdup(name)
+            @append(result, copy)
+        }
+    }
+
+    closedir(dir)
+    return some result
+}

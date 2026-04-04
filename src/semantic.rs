@@ -2140,9 +2140,13 @@ fn check_call_arg_types_in_expr(
 
             let callee_path = expr_to_call_path(callee);
             if let Some(fn_path) = callee_path {
+                let is_namespaced_call = fn_path.contains('.');
                 if let Some(param_types) = fn_lookup.get(&fn_path) {
                     for (i, arg) in args.iter().enumerate() {
                         if i < param_types.len() {
+                            if i == 0 && is_namespaced_call {
+                                continue;
+                            }
                             let (_, expected_type) = &param_types[i];
                             if let Some(actual_type) =
                                 infer_expr_type(arg, var_types, type_lookup, fn_ret_lookup)

@@ -2774,7 +2774,11 @@ impl Codegen {
                 }
                 self.in_trust_expr = false;
 
-                if let Some(param_types) = self.fn_param_types.get(fn_name.as_str()) {
+                let call_path = {
+                    let raw = expr_to_path(callee);
+                    expand_alias_path(&raw, &self.type_aliases)
+                };
+                if let Some(param_types) = self.fn_param_types.get(call_path.as_str()) {
                     let is_variadic = self.variadic_fns.contains_key(fn_name.as_str());
                     let expected = param_types.len();
                     let got = args.len();
@@ -2907,7 +2911,7 @@ impl Codegen {
                         }
                     } else {
                         let (tmp, ty) = self.emit_expr(a, ns)?;
-                        let param_types = self.fn_param_types.get(&fn_name).cloned();
+                        let param_types = self.fn_param_types.get(call_path.as_str()).cloned();
                         let wrapped = if let Some(ref ptypes) = param_types {
                             if let Some(TypeExpr::Named(union_name)) = ptypes.get(i) {
                                 if let Some(variants) = self.union_defs.get(union_name).cloned() {
@@ -2982,7 +2986,7 @@ impl Codegen {
                         let final_arg = wrapped.unwrap_or_else(|| {
                             // Check if we need to promote w -> l
                             if ty == "w" {
-                                if let Some(ref ptypes) = self.fn_param_types.get(&fn_name).cloned()
+                                if let Some(ref ptypes) = self.fn_param_types.get(call_path.as_str()).cloned()
                                 {
                                     if let Some(pt) = ptypes.get(i) {
                                         if qbe_type(pt) == "l" {
@@ -2993,7 +2997,7 @@ impl Codegen {
                                 }
                             }
                             if ty == "l" {
-                                if let Some(ref ptypes) = self.fn_param_types.get(&fn_name).cloned()
+                                if let Some(ref ptypes) = self.fn_param_types.get(call_path.as_str()).cloned()
                                 {
                                     if let Some(pt) = ptypes.get(i) {
                                         if qbe_type(pt) == "w" {
@@ -3629,13 +3633,27 @@ fn build_param_types(resolved: &ResolvedModule) -> HashMap<String, Vec<TypeExpr>
 }
 
 fn collect_param_types(module: &ResolvedModule, map: &mut HashMap<String, Vec<TypeExpr>>) {
+    collect_param_types_with_prefix(module, "", map);
+}
+
+fn collect_param_types_with_prefix(
+    module: &ResolvedModule,
+    prefix: &str,
+    map: &mut HashMap<String, Vec<TypeExpr>>,
+) {
     for item in &module.ast.items {
         match item {
             Item::Fn(f) => {
-                map.insert(
-                    fn_qbe_name(f),
-                    f.params.iter().map(|(_, ty)| ty.clone()).collect(),
-                );
+                let local_key = match &f.namespace {
+                    Some(type_name) => format!("{type_name}.{}", f.name),
+                    None => f.name.clone(),
+                };
+                let key = if prefix.is_empty() {
+                    local_key
+                } else {
+                    format!("{prefix}.{local_key}")
+                };
+                map.insert(key, f.params.iter().map(|(_, ty)| ty.clone()).collect());
             }
             Item::ExternFn { symbol, params, .. } => {
                 map.insert(
@@ -3646,8 +3664,13 @@ fn collect_param_types(module: &ResolvedModule, map: &mut HashMap<String, Vec<Ty
             _ => {}
         }
     }
-    for child in module.imports.values() {
-        collect_param_types(child, map);
+    for (import_name, child) in &module.imports {
+        let child_prefix = if prefix.is_empty() {
+            import_name.clone()
+        } else {
+            format!("{prefix}.{import_name}")
+        };
+        collect_param_types_with_prefix(child, &child_prefix, map);
     }
 }
 
