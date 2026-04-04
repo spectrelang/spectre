@@ -44,8 +44,8 @@ pub fn compare(a: StrOrRefChar, b: StrOrRefChar) i64! = {
             return strcmp(aptr, bptr)
         }
         String => {
-            val aptr: ref char = @load(@ptradd(a, 0))
-            val bptr: ref char = @load(@ptradd(b, 0))
+            val aptr: ref char = @load(@load(a))
+            val bptr: ref char = @load(@load(b))
             return strcmp(aptr, bptr)
         }
     }
@@ -53,7 +53,7 @@ pub fn compare(a: StrOrRefChar, b: StrOrRefChar) i64! = {
 }
 
 /// Create from raw C string
-pub fn from(cstr: ref char) ref void! = {
+pub fn from(cstr: ref char) String! = {
     val l: mut i64 = strlen(cstr)
     val buf: ref void = @alloc(l + 1)
     @memcpy(buf, cstr, l)
@@ -63,7 +63,7 @@ pub fn from(cstr: ref char) ref void! = {
     @store(s, buf)
     @store(@ptradd(s, 8), l)
     @store(@ptradd(s, 16), l + 1)
-    return s
+    return s as String
 }
 
 /// Free string

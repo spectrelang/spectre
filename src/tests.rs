@@ -389,7 +389,7 @@ mod codegen_tests {
     #[test]
     fn trusted_fn_emits_export() {
         let ir = compile_ok("pub fn main() void! = {}");
-        assert!(ir.contains("export function $main"));
+        assert!(ir.contains("export function w $main"));
     }
 
     #[test]
@@ -556,7 +556,7 @@ mod codegen_tests {
     #[test]
     fn void_fn_emits_ret_without_value() {
         let ir = compile_ok("pub fn main() void! = {}");
-        assert!(ir.contains("ret\n"));
+        assert!(ir.contains("ret 0\n"));
     }
 
     #[test]
@@ -1418,7 +1418,7 @@ mod memory_and_defer_tests {
         }"#,
         );
         let free_pos = ir.find("call $free").expect("free not found");
-        let ret_pos = ir.rfind("ret\n").expect("ret not found");
+        let ret_pos = ir.rfind("ret 0\n").expect("ret not found");
         assert!(free_pos < ret_pos, "defer free must come before ret");
     }
 

@@ -132,6 +132,7 @@ pub struct Codegen {
     module_aliases: HashMap<String, String>,
     type_aliases: HashMap<String, String>,
     fn_ret_types: HashMap<String, &'static str>,
+    fn_ret_type_exprs: HashMap<String, TypeExpr>,
     fn_param_types: HashMap<String, Vec<TypeExpr>>,
     variadic_fns: HashMap<String, usize>,
     result_void_ok: std::collections::HashSet<String>,
@@ -175,6 +176,7 @@ impl Codegen {
             module_aliases: HashMap::new(),
             type_aliases: HashMap::new(),
             fn_ret_types: HashMap::new(),
+            fn_ret_type_exprs: HashMap::new(),
             fn_param_types: HashMap::new(),
             variadic_fns: HashMap::new(),
             result_void_ok: std::collections::HashSet::new(),
@@ -337,6 +339,7 @@ impl Codegen {
         let trusted = build_trusted_set(resolved);
         self.trusted_fns = trusted;
         self.fn_ret_types = build_ret_types(resolved);
+        self.fn_ret_type_exprs = build_ret_type_exprs(resolved);
         self.fn_param_types = build_param_types(resolved);
         self.variadic_fns = build_variadic_set(resolved);
         self.result_void_ok = build_result_void_ok(resolved);
@@ -560,6 +563,18 @@ impl Codegen {
             })
             .collect();
 
+        let union_params: Vec<(String, String)> = f
+            .params
+            .iter()
+            .filter_map(|(name, ty)| {
+                if let TypeExpr::Named(type_name) = ty {
+                    if self.union_defs.contains_key(type_name.as_str()) {
+                        return Some((name.clone(), format!("%{name}")));
+                    }
+                }
+                None
+            })
+            .collect();
         self.emit(&format!(
             "{export}function {ret_ty}${name}({params}) {{",
             name = qbe_name,
@@ -1203,6 +1218,15 @@ impl Codegen {
                 let tag_tmp = self.fresh_tmp();
                 self.emit(&format!("    {tag_tmp} =w loadw {union_ptr}"));
 
+                let union_locals: Vec<(String, String)> = self.locals
+                    .iter()
+                    .filter(|(name, _)| {
+                        self.local_type_annotations.get(*name)
+                            .map_or(false, |t| self.union_defs.contains_key(t.as_str()))
+                    })
+                    .map(|(n, v)| (n.clone(), v.clone()))
+                    .collect();
+
                 for (i, (ty, body)) in arms.iter().enumerate() {
                     let tag_index = self.resolve_union_tag(expr, ty)?;
                     let body_lbl = format!("@union_arm_{i}_{}", self.tmp_counter - 1);
@@ -1212,7 +1236,21 @@ impl Codegen {
                     self.emit(&format!("    {cond_tmp} =w ceqw {tag_tmp}, {tag_index}"));
                     self.emit(&format!("    jnz {cond_tmp}, {body_lbl}, {skip_lbl}"));
                     self.emit(&format!("{body_lbl}"));
+
+                    let mut saved: Vec<(String, String)> = Vec::new();
+                    for (name, orig) in &union_locals {
+                        let payload = self.fresh_tmp();
+                        self.emit(&format!("    {payload} =l add {orig}, 8"));
+                        saved.push((name.clone(), orig.clone()));
+                        self.locals.insert(name.clone(), payload);
+                    }
+
                     self.emit_stmts(body, ns, ret_ty)?;
+
+                    for (name, orig) in saved {
+                        self.locals.insert(name, orig);
+                    }
+
                     if !block_is_terminated(body) {
                         self.emit(&format!("    jmp {end_lbl}"));
                     }
@@ -2802,6 +2840,26 @@ impl Codegen {
                                         Expr::StrLit(_) => Some("ref char".to_string()),
                                         Expr::Bool(_) => Some("bool".to_string()),
                                         Expr::Cast { ty, .. } => Some(crate::codegen::type_to_annotation_string(ty)),
+                                        Expr::Call { callee, .. } => {
+                                            let path = expr_to_path(callee);
+                                            let expanded = expand_alias_path(&path, &self.module_aliases);
+                                            ns.get(&expanded)
+                                                .and_then(|qbe_fn| self.fn_ret_type_exprs.get(qbe_fn))
+                                                .map(type_to_annotation_string)
+                                                .filter(|s| !s.is_empty())
+                                        }
+                                        Expr::Trust(inner) => {
+                                            if let Expr::Call { callee, .. } = inner.as_ref() {
+                                                let path = expr_to_path(callee);
+                                                let expanded = expand_alias_path(&path, &self.module_aliases);
+                                                ns.get(&expanded)
+                                                    .and_then(|qbe_fn| self.fn_ret_type_exprs.get(qbe_fn))
+                                                    .map(type_to_annotation_string)
+                                                    .filter(|s| !s.is_empty())
+                                            } else {
+                                                None
+                                            }
+                                        }
                                         _ => None,
                                     };
                                     let tag = arg_type_name.as_deref().and_then(|atn| {
@@ -3405,6 +3463,23 @@ fn build_ret_types(resolved: &ResolvedModule) -> HashMap<String, &'static str> {
     let mut map = HashMap::new();
     collect_ret_types(resolved, &mut map);
     map
+}
+
+fn build_ret_type_exprs(resolved: &ResolvedModule) -> HashMap<String, TypeExpr> {
+    let mut map = HashMap::new();
+    collect_ret_type_exprs(resolved, &mut map);
+    map
+}
+
+fn collect_ret_type_exprs(module: &ResolvedModule, map: &mut HashMap<String, TypeExpr>) {
+    for item in &module.ast.items {
+        if let Item::Fn(f) = item {
+            map.insert(fn_qbe_name(f), f.ret.clone());
+        }
+    }
+    for child in module.imports.values() {
+        collect_ret_type_exprs(child, map);
+    }
 }
 
 fn collect_ret_types(module: &ResolvedModule, map: &mut HashMap<String, &'static str>) {
