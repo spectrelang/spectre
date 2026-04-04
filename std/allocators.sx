@@ -96,7 +96,7 @@ pub fn (Arena) remaining(arena: self) usize = {
 /// Reset the arena — all previously allocated pointers become invalid.
 pub fn (Arena) reset(arena: self) void! = {
     val buf: mut ref void = @load(arena)
-    val cap: mut usize = @load(@ptradd(arena, 16))
+    val cap: mut usize = @load(@ptradd(arena, 16)) as usize
     @memset(buf, 0, cap)
     @store(@ptradd(arena, 8), 0)
 }

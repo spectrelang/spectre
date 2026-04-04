@@ -217,6 +217,7 @@ fn check_fn(
         union_lookup,
         &f.name,
         filename,
+        &f.ret,
         errors,
     );
 
@@ -2394,7 +2395,7 @@ fn infer_expr_type(
             "alloc" | "realloc" | "ptradd" => {
                 Some(TypeExpr::Ref(Box::new(TypeExpr::Named("void".to_string()))))
             }
-            "load" | "load8" | "loadf" => None,
+            "load" | "load8" | "loadf" => Some(TypeExpr::Untyped),
             "store" | "store8" | "storef" | "memset" | "memcpy" | "free" => Some(TypeExpr::Void),
             _ => None,
         },
@@ -2516,6 +2517,7 @@ fn check_type_annotations(
     union_lookup: &HashMap<String, &Vec<TypeExpr>>,
     fn_name: &str,
     filename: &str,
+    fn_ret_type: &TypeExpr,
     errors: &mut Vec<String>,
 ) {
     for stmt in stmts {
@@ -2539,6 +2541,77 @@ fn check_type_annotations(
                 }
                 check_type_annotations_in_expr(
                     expr,
+                    var_types,
+                    fn_ret_lookup,
+                    type_lookup,
+                    union_lookup,
+                    fn_name,
+                    filename,
+                    errors,
+                );
+            }
+            Stmt::Return(Some(ret_expr)) => {
+                let expected_inner: Option<TypeExpr> = match ret_expr {
+                    Expr::OkVal(_) => {
+                        if let TypeExpr::Result(ok_ty, _) = fn_ret_type {
+                            Some((**ok_ty).clone())
+                        } else {
+                            None
+                        }
+                    }
+                    Expr::ErrVal(_) => {
+                        if let TypeExpr::Result(_, err_ty) = fn_ret_type {
+                            Some((**err_ty).clone())
+                        } else {
+                            None
+                        }
+                    }
+                    _ => None,
+                };
+
+                let inner_expr = match ret_expr {
+                    Expr::OkVal(inner) | Expr::ErrVal(inner) => inner.as_ref(),
+                    other => other,
+                };
+
+                if let Some(expected) = expected_inner {
+                    if !matches!(expected, TypeExpr::Void) {
+                        if let Some(inferred) =
+                            infer_expr_type(inner_expr, var_types, type_lookup, fn_ret_lookup)
+                        {
+                            if !types_compatible_for_annotation(&expected, &inferred, union_lookup)
+                            {
+                                errors.push(format!(
+                                    "{filename}: in function '{fn_name}': return type mismatch: \
+                                     expected '{expected}', but expression has type '{inferred}'",
+                                    expected = type_to_string(&expected),
+                                    inferred = type_to_string(&inferred)
+                                ));
+                            }
+                        }
+                    }
+                } else if !matches!(fn_ret_type, TypeExpr::Result(_, _)) {
+                    if !matches!(ret_expr, Expr::None) {
+                        if let Some(inferred) =
+                            infer_expr_type(ret_expr, var_types, type_lookup, fn_ret_lookup)
+                        {
+                            if !types_compatible_for_annotation(
+                                fn_ret_type,
+                                &inferred,
+                                union_lookup,
+                            ) {
+                                errors.push(format!(
+                                    "{filename}: in function '{fn_name}': return type mismatch: \
+                                     expected '{expected}', but expression has type '{inferred}'",
+                                    expected = type_to_string(fn_ret_type),
+                                    inferred = type_to_string(&inferred)
+                                ));
+                            }
+                        }
+                    }
+                }
+                check_type_annotations_in_expr(
+                    ret_expr,
                     var_types,
                     fn_ret_lookup,
                     type_lookup,
@@ -2573,6 +2646,7 @@ fn check_type_annotations(
                         union_lookup,
                         fn_name,
                         filename,
+                        fn_ret_type,
                         errors,
                     );
                 }
@@ -2596,6 +2670,7 @@ fn check_type_annotations(
                             union_lookup,
                             fn_name,
                             filename,
+                            fn_ret_type,
                             errors,
                         );
                     }
@@ -2610,6 +2685,7 @@ fn check_type_annotations(
                             union_lookup,
                             fn_name,
                             filename,
+                            fn_ret_type,
                             errors,
                         );
                     }
@@ -2649,6 +2725,7 @@ fn check_type_annotations(
                     union_lookup,
                     fn_name,
                     filename,
+                    fn_ret_type,
                     errors,
                 );
                 for s in body {
@@ -2660,6 +2737,7 @@ fn check_type_annotations(
                         union_lookup,
                         fn_name,
                         filename,
+                        fn_ret_type,
                         errors,
                     );
                 }
@@ -2688,6 +2766,7 @@ fn check_type_annotations(
                     union_lookup,
                     fn_name,
                     filename,
+                    fn_ret_type,
                     errors,
                 );
                 for s in body {
@@ -2699,6 +2778,7 @@ fn check_type_annotations(
                         union_lookup,
                         fn_name,
                         filename,
+                        fn_ret_type,
                         errors,
                     );
                 }
@@ -2727,6 +2807,7 @@ fn check_type_annotations(
                     union_lookup,
                     fn_name,
                     filename,
+                    fn_ret_type,
                     errors,
                 );
                 for s in body {
@@ -2738,6 +2819,7 @@ fn check_type_annotations(
                         union_lookup,
                         fn_name,
                         filename,
+                        fn_ret_type,
                         errors,
                     );
                 }
@@ -2756,6 +2838,7 @@ fn check_type_annotations(
                     union_lookup,
                     fn_name,
                     filename,
+                    fn_ret_type,
                     errors,
                 );
                 for s in body {
@@ -2767,6 +2850,7 @@ fn check_type_annotations(
                         union_lookup,
                         fn_name,
                         filename,
+                        fn_ret_type,
                         errors,
                     );
                 }
@@ -2791,6 +2875,7 @@ fn check_type_annotations(
                         union_lookup,
                         fn_name,
                         filename,
+                        fn_ret_type,
                         errors,
                     );
                 }
@@ -2967,9 +3052,11 @@ fn types_compatible_for_annotation(
         (TypeExpr::Ref(inner_d), TypeExpr::Ref(inner_i)) => {
             types_compatible_for_annotation(inner_d, inner_i, union_lookup)
         }
-        (TypeExpr::Named(a), TypeExpr::Ref(inner))
-            if a == "ptr" || a == "rawptr" || a == "void" =>
-        {
+        (TypeExpr::Ref(inner), TypeExpr::Untyped) => {
+            matches!(inner.as_ref(), TypeExpr::Named(n) if n == "void")
+                || matches!(inner.as_ref(), TypeExpr::Void)
+        }
+        (TypeExpr::Named(a), TypeExpr::Ref(inner)) if a == "ptr" || a == "rawptr" => {
             types_compatible_for_annotation(&TypeExpr::Named(a.clone()), inner, union_lookup)
         }
         (TypeExpr::Named(a), TypeExpr::Ref(_)) if a == "ptr" || a == "rawptr" => true,

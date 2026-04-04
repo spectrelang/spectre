@@ -47,12 +47,12 @@ pub fn (PtrList) free(list: self) void! = {
 
 /// Return the number of elements in the list.
 pub fn (PtrList) len(list: self) usize! = {
-    return @load(@ptradd(list, 8))
+    return @load(@ptradd(list, 8)) as usize
 }
 
 /// Return the current capacity.
 pub fn (PtrList) cap(list: self) usize! = {
-    return @load(@ptradd(list, 16))
+    return @load(@ptradd(list, 16)) as usize
 }
 
 /// Grow the backing buffer to at least new_cap elements.
@@ -77,8 +77,8 @@ fn (PtrList) grow(list: self, new_cap: usize) result[void, ListAllocError] = {
 /// Append a value to the end of the list.
 /// Requires the list pointer to be non-null (non-zero).
 pub fn (PtrList) push(list: self, value: usize) result[void, ListAllocError]! = {
-    val len: usize = @load(@ptradd(list, 8))
-    val cap: usize = @load(@ptradd(list, 16))
+    val len: usize = @load(@ptradd(list, 8)) as usize
+    val cap: usize = @load(@ptradd(list, 16)) as usize
     if (len >= cap) {
         val new_cap: usize = cap * 2 + 1
         PtrList.grow(list, new_cap)?
@@ -97,7 +97,7 @@ pub fn (PtrList) get(list: self, i: usize) option[usize] = {
     pre {
         in_bounds : i < trust @load(@ptradd(list, 8))
     }
-    val len: usize = trust @load(@ptradd(list, 8))
+    val len: usize = trust @load(@ptradd(list, 8)) as usize
     if (i >= len) {
         return none
     }
@@ -106,7 +106,7 @@ pub fn (PtrList) get(list: self, i: usize) option[usize] = {
     post {
         in_bounds : i < len
     }
-    return some trust @load(slot)
+    return some (trust @load(slot) as usize)
 }
 
 /// Set the element at index i.
@@ -116,7 +116,7 @@ pub fn (PtrList) set(list: self, i: usize, value: usize) usize = {
     pre {
         in_bounds : i < trust @load(@ptradd(list, 8))
     }
-    val len: usize = trust @load(@ptradd(list, 8))
+    val len: usize = trust @load(@ptradd(list, 8)) as usize
     if (i >= len) {
         return 0
     }
@@ -135,14 +135,14 @@ pub fn (PtrList) pop(list: self) option[usize] = {
     pre {
         not_empty : trust @load(@ptradd(list, 8)) > 0
     }
-    val len: usize = trust @load(@ptradd(list, 8))
+    val len: usize = trust @load(@ptradd(list, 8)) as usize
     if (len == 0) {
         return none
     }
     val new_len: mut usize = len - 1
     val buf: ref void = trust @load(list)
     val slot: ref void = trust @ptradd(buf, new_len * ELEMENT_SIZE)
-    val value: usize = trust @load(slot)
+    val value: usize = trust @load(slot) as usize
     trust @store(@ptradd(list, 8), new_len)
     post {
         not_empty : len > 0
@@ -211,12 +211,12 @@ pub fn (Map) free(map: self) void! = {
 
 /// Return the number of live entries.
 pub fn (Map) len(map: self) usize! = {
-    return @load(@ptradd(map, 8))
+    return @load(@ptradd(map, 8)) as usize
 }
 
 /// Return the current bucket capacity.
 pub fn (Map) cap(map: self) usize! = {
-    return @load(@ptradd(map, 16))
+    return @load(@ptradd(map, 16)) as usize
 }
 
 /// Internal: grow the map to new_cap buckets and rehash all live entries.
@@ -225,7 +225,7 @@ fn (Map) grow(map: self, new_cap: usize) void! = {
         new_cap_positive: new_cap > 0
     }
     val old_buckets: ref void = @load(map)
-    val old_cap: usize = @load(@ptradd(map, 16))
+    val old_cap: usize = @load(@ptradd(map, 16)) as usize
     val new_buckets: ref void = @alloc(new_cap * MAP_BUCKET_SIZE)
     @memset(new_buckets, 0, new_cap * MAP_BUCKET_SIZE)
 
@@ -236,10 +236,10 @@ fn (Map) grow(map: self, new_cap: usize) void! = {
     val i: mut usize = 0
     for (i = 0; i < old_cap; i++) {
         val slot: ref void = @ptradd(old_buckets, i * MAP_BUCKET_SIZE)
-        val state: usize = @load(slot)
+        val state: usize = @load(slot) as usize
         if (state == MAP_BUCKET_LIVE) {
-            val k: usize = @load(@ptradd(slot, 8))
-            val v: usize = @load(@ptradd(slot, 16))
+            val k: usize = @load(@ptradd(slot, 8)) as usize
+            val v: usize = @load(@ptradd(slot, 16)) as usize
             Map.set(map, k, v)
         }
     }
@@ -250,15 +250,15 @@ fn (Map) grow(map: self, new_cap: usize) void! = {
 /// Insert or update a key-value pair.
 /// Grows the map (2x + 1) when load factor exceeds 70%.
 pub fn (Map) set(map: self, key: usize, value: usize) void! = {
-    val len: usize = @load(@ptradd(map, 8))
-    val cap: usize = @load(@ptradd(map, 16))
+    val len: usize = @load(@ptradd(map, 8)) as usize
+    val cap: usize = @load(@ptradd(map, 16)) as usize
 
     if (len * 10 >= cap * 7) {
         val new_cap: usize = cap * 2 + 1
         Map.grow(map, new_cap)
     }
 
-    val cur_cap: usize = @load(@ptradd(map, 16))
+    val cur_cap: usize = @load(@ptradd(map, 16)) as usize
     val buckets: ref void = @load(map)
     val hash_fn: ref void = @load(@ptradd(map, 24))
     val h: usize = @call(hash_fn, key)
@@ -268,7 +268,7 @@ pub fn (Map) set(map: self, key: usize, value: usize) void! = {
     for (i = 0; i < cur_cap; i++) {
         val idx: usize = (start + i) - ((start + i) / cur_cap) * cur_cap
         val slot: ref void = @ptradd(buckets, idx * MAP_BUCKET_SIZE)
-        val state: usize = @load(slot)
+        val state: usize = @load(slot) as usize
 
         if (state == MAP_BUCKET_EMPTY) {
             @store(slot, MAP_BUCKET_LIVE)
@@ -279,7 +279,7 @@ pub fn (Map) set(map: self, key: usize, value: usize) void! = {
         }
 
         if (state == MAP_BUCKET_LIVE) {
-            val existing_key: usize = @load(@ptradd(slot, 8))
+            val existing_key: usize = @load(@ptradd(slot, 8)) as usize
             if (existing_key == key) {
                 @store(@ptradd(slot, 16), value)
                 return
@@ -293,7 +293,7 @@ pub fn (Map) get(map: self, key: usize) option[usize] = {
     pre {
         map_not_null: map != 0
     }
-    val cap: usize = trust @load(@ptradd(map, 16))
+    val cap: usize = trust @load(@ptradd(map, 16)) as usize
     val buckets: ref void = trust @load(map)
     val hash_fn: ref void = trust @load(@ptradd(map, 24))
     val h: usize = trust @call(hash_fn, key)
@@ -303,16 +303,16 @@ pub fn (Map) get(map: self, key: usize) option[usize] = {
     for (i = 0; i < cap; i++) {
         val idx: usize = (start + i) - ((start + i) / cap) * cap
         val slot: ref void = trust @ptradd(buckets, idx * MAP_BUCKET_SIZE)
-        val state: usize = trust @load(slot)
+        val state: usize = trust @load(slot) as usize
 
         if (state == MAP_BUCKET_EMPTY) {
             return none
         }
 
         if (state == MAP_BUCKET_LIVE) {
-            val existing_key: usize = trust @load(@ptradd(slot, 8))
+            val existing_key: usize = trust @load(@ptradd(slot, 8)) as usize
             if (existing_key == key) {
-                return some trust @load(@ptradd(slot, 16))
+                return some (trust @load(@ptradd(slot, 16)) as usize)
             }
         }
     }
@@ -326,7 +326,7 @@ pub fn (Map) get(map: self, key: usize) option[usize] = {
 
 /// Remove a key. Returns 1 if the key was present, 0 otherwise.
 pub fn (Map) delete(map: self, key: usize) usize! = {
-    val cap: usize = @load(@ptradd(map, 16))
+    val cap: usize = @load(@ptradd(map, 16)) as usize
     val buckets: ref void = @load(map)
     val hash_fn: ref void = @load(@ptradd(map, 24))
     val h: usize = @call(hash_fn, key)
@@ -336,14 +336,14 @@ pub fn (Map) delete(map: self, key: usize) usize! = {
     for (i = 0; i < cap; i++) {
         val idx: usize = (start + i) - ((start + i) / cap) * cap
         val slot: ref void = @ptradd(buckets, idx * MAP_BUCKET_SIZE)
-        val state: usize = @load(slot)
+        val state: usize = @load(slot) as usize
 
         if (state == MAP_BUCKET_EMPTY) {
             return 0
         }
 
         if (state == MAP_BUCKET_LIVE) {
-            val existing_key: usize = @load(@ptradd(slot, 8))
+            val existing_key: usize = @load(@ptradd(slot, 8)) as usize
             if (existing_key == key) {
                 @store(slot, MAP_BUCKET_DEAD)
                 @store(@ptradd(map, 8), @load(@ptradd(map, 8)) - 1)
@@ -374,7 +374,7 @@ pub fn (Map) contains(map: self, key: usize) bool = {
 
 /// Clear all entries (reset to empty, keep allocation).
 pub fn (Map) clear(map: self) void! = {
-    val cap: usize = @load(@ptradd(map, 16))
+    val cap: usize = @load(@ptradd(map, 16)) as usize
     val buckets: ref void = @load(map)
     @memset(buckets, 0, cap * MAP_BUCKET_SIZE)
     @store(@ptradd(map, 8), 0)

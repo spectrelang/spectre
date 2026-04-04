@@ -189,7 +189,7 @@ pub fn get(s: ref void, i: i64) option[u8] = {
     post {
         i_nonneg: i >= 0
     }
-    return some trust @load8(@ptradd(ptr, i))
+    return some (trust @load8(@ptradd(ptr, i)) as u8)
 }
 
 /// Set byte at index i (no-op if out of bounds)

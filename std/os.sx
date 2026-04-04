@@ -111,10 +111,10 @@ pub fn exec(cmd: ref char) result[String, ProcessError]! = {
     @free(buf)
     pclose(pipe)
 
-    val out: ref void = std.string.StringBuilder.build(sb)
+    val out: String = std.string.StringBuilder.build(sb)
     std.string.StringBuilder.free(sb)
 
-    return ok (out as String)
+    return ok out
 }
 
 /// Execute and trim output.
