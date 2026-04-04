@@ -9,9 +9,7 @@ spectre <input> [options]
     [file].sx --emit-asm       print assembly and exit
     [file].sx --emit-tokens    print token stream and exit
     [file].sx --emit-ast       print AST and exit
-    [file].sx --release        build in release mode, runtime safety checks off
-    --help                     show this help message
-    --version                  show the current version of the spectre compiler";
+    [file].sx --release        build in release mode, runtime safety checks off";
 
 #[derive(Parser, Debug)]
 #[command(
