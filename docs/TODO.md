@@ -3,3 +3,5 @@
 - dynamic arrays of structs                 DONE
 - error propagation syntax                  DONE
 - tagged union pattern matching on structs  DONE
+- file/dir iteration in fs.sx               NOT DONE
+- proper maps with string keys              NOT DONE
