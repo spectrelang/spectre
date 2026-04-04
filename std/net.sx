@@ -65,10 +65,10 @@ type Response = {
 ///   offset  8 : len  (i64)      — bytes written so far
 ///   offset 16 : cap  (i64)      — allocated capacity
 pub fn curl_write_cb(ptr: ref void, size: i64, nmemb: i64, userdata: ref void) i64! = {
-    val total: i64        = size * nmemb
+    val total: i64            = size * nmemb
     val buf_ptr: mut ref void = @load(userdata)
-    val buf_len: mut i64      = @load(@ptradd(userdata, 8))
-    val buf_cap: i64      = @load(@ptradd(userdata, 16))
+    val buf_len: mut i64      = @load(@ptradd(userdata, 8)) as i64
+    val buf_cap: i64          = @load(@ptradd(userdata, 16)) as i64
     val new_len: mut i64      = buf_len + total
 
     if (new_len + 1 > buf_cap) {
@@ -108,11 +108,11 @@ fn do_request(handle: ref void) ref void! = {
     val status_slot: mut ref void = @alloc(8)
     @store(status_slot, 0)
     curl_easy_getinfo(handle, CURLINFO_RESPONSE_CODE, status_slot)
-    val status: mut i64 = @load(status_slot)
+    val status: mut i64 = @load(status_slot) as i64
     @free(status_slot)
 
     val body_ptr: mut ref void = @load(buf)
-    val body_len: mut i64      = @load(@ptradd(buf, 8))
+    val body_len: mut i64      = @load(@ptradd(buf, 8)) as i64
     @free(buf)
 
     val resp: mut ref void = @alloc(24)
@@ -187,17 +187,17 @@ pub fn (Http) free_response(resp: ref void) void! = {
 
 /// Read the HTTP status code from a Response.
 pub fn (Http) status(resp: ref void) i64! = {
-    return @load(@ptradd(resp, 8))
+    return @load(@ptradd(resp, 8)) as i64
 }
 
 /// Read the body pointer from a Response.
 pub fn (Http) body(resp: ref void) ref char! = {
-    return @load(resp)
+    return @load(resp) as ref char
 }
 
 /// Read the body length from a Response.
 pub fn (Http) body_len(resp: ref void) i64! = {
-    return @load(@ptradd(resp, 16))
+    return @load(@ptradd(resp, 16)) as i64
 }
 
 /// Build a curl slist header list from a single "Key: Value" string.
@@ -266,7 +266,7 @@ pub fn (TcpServer) listen(port: i32) ref void! = {
 /// Accept the next incoming connection.
 /// Returns the client socket fd, or -1 on error.
 pub fn (TcpServer) accept(server: ref void) i32! = {
-    val fd: i32 = @load(server)
+    val fd: i32 = @load(server) as i32
     val client_addr: mut ref void = @alloc(16)
     val addrlen: mut ref void     = @alloc(8)
     @store(addrlen, 16)
@@ -296,19 +296,19 @@ pub fn (TcpServer) close_client(client_fd: i32) void! = {
 
 /// Shut down and free the server handle.
 pub fn (TcpServer) close(server: ref void) void! = {
-    val fd: i32 = @load(server)
+    val fd: i32 = @load(server) as i32
     close(fd)
     @free(server)
 }
 
 /// Read the listening port from a server handle.
 pub fn (TcpServer) port(server: ref void) i64! = {
-    return @load(@ptradd(server, 8))
+    return @load(@ptradd(server, 8)) as i64
 }
 
 /// Read the listening fd from a server handle.
 pub fn (TcpServer) fd(server: ref void) i32! = {
-    return @load(server)
+    return @load(server) as i32
 }
 
 val std = use("std")
