@@ -32,6 +32,13 @@ pub fn type_to_annotation_string(ty: &TypeExpr) -> String {
     match ty {
         TypeExpr::Named(n) => n.clone(),
         TypeExpr::Ref(inner) => format!("ref {}", type_to_annotation_string(inner)),
+        TypeExpr::Option(inner) => format!("option[{}]", type_to_annotation_string(inner)),
+        TypeExpr::List(inner) => format!("list[{}]", type_to_annotation_string(inner)),
+        TypeExpr::Result(ok, err) => format!(
+            "result[{}, {}]",
+            type_to_annotation_string(ok),
+            type_to_annotation_string(err)
+        ),
         _ => String::new(),
     }
 }
@@ -586,14 +593,9 @@ impl Codegen {
                 let is_mutable = is_ref_param_type(ty);
                 self.local_mutability.insert(name.clone(), is_mutable);
                 let inner_ty = if let TypeExpr::Mut(inner) = ty { inner.as_ref() } else { ty };
-                if let TypeExpr::Named(type_name) = inner_ty {
-                    self.local_type_annotations
-                        .insert(name.clone(), type_name.clone());
-                } else if let TypeExpr::Ref(pointee) = inner_ty {
-                    if let TypeExpr::Named(type_name) = pointee.as_ref() {
-                        self.local_type_annotations
-                            .insert(name.clone(), type_name.clone());
-                    }
+                let ann = type_to_annotation_string(inner_ty);
+                if !ann.is_empty() {
+                    self.local_type_annotations.insert(name.clone(), ann);
                 }
                 format!("{qty} {tmp}")
             })
@@ -760,14 +762,36 @@ impl Codegen {
                 }
                 if let Some(ty) = ty {
                     let inner_ty = if let TypeExpr::Mut(inner) = ty { inner.as_ref() } else { ty };
-                    if let TypeExpr::Named(type_name) = inner_ty {
-                        self.local_type_annotations
-                            .insert(name.clone(), type_name.clone());
-                    } else if let TypeExpr::Ref(pointee) = inner_ty {
-                        if let TypeExpr::Named(type_name) = pointee.as_ref() {
-                            self.local_type_annotations
-                                .insert(name.clone(), type_name.clone());
+                    let ann = type_to_annotation_string(inner_ty);
+                    if !ann.is_empty() {
+                        self.local_type_annotations.insert(name.clone(), ann);
+                    }
+                } else {
+                    let inferred = match expr {
+                        Expr::Call { callee, .. } => {
+                            let path = expr_to_path(callee);
+                            let expanded = expand_alias_path(&path, &self.module_aliases);
+                            ns.get(&expanded)
+                                .and_then(|qbe_fn| self.fn_ret_type_exprs.get(qbe_fn))
+                                .map(type_to_annotation_string)
+                                .filter(|s| !s.is_empty())
                         }
+                        Expr::Trust(inner) => {
+                            if let Expr::Call { callee, .. } = inner.as_ref() {
+                                let path = expr_to_path(callee);
+                                let expanded = expand_alias_path(&path, &self.module_aliases);
+                                ns.get(&expanded)
+                                    .and_then(|qbe_fn| self.fn_ret_type_exprs.get(qbe_fn))
+                                    .map(type_to_annotation_string)
+                                    .filter(|s| !s.is_empty())
+                            } else {
+                                None
+                            }
+                        }
+                        _ => None,
+                    };
+                    if let Some(ann) = inferred {
+                        self.local_type_annotations.insert(name.clone(), ann);
                     }
                 }
             }
@@ -825,7 +849,8 @@ impl Codegen {
                     return Ok(());
                 }
                 if let Expr::Field(base, field_name) = target {
-                    if let Ok(type_name) = self.infer_struct_type_name(base) {
+                    if let Ok(raw) = self.infer_struct_type_name(base) {
+                        let type_name = raw.strip_prefix("ref ").unwrap_or(&raw).to_string();
                         let fields = self
                             .type_defs
                             .get(&type_name)
@@ -1359,6 +1384,54 @@ impl Codegen {
                 let unwrapped = self.fresh_tmp();
                 self.emit(&format!("    {unwrapped} =l sub {val_tmp}, 1"));
                 self.locals.insert(some_binding.clone(), unwrapped);
+                let inner_type_name: Option<String> = match expr {
+                    Expr::Call { callee, .. } => {
+                        let path = expr_to_path(callee);
+                        let expanded = expand_alias_path(&path, &self.module_aliases);
+                        ns.get(&expanded)
+                            .and_then(|qbe_fn| self.fn_ret_type_exprs.get(qbe_fn))
+                            .and_then(|ret| {
+                                if let TypeExpr::Option(inner) = ret {
+                                    Some(type_to_annotation_string(inner))
+                                } else {
+                                    None
+                                }
+                            })
+                    }
+                    Expr::Trust(inner_expr) => {
+                        if let Expr::Call { callee, .. } = inner_expr.as_ref() {
+                            let path = expr_to_path(callee);
+                            let expanded = expand_alias_path(&path, &self.module_aliases);
+                            ns.get(&expanded)
+                                .and_then(|qbe_fn| self.fn_ret_type_exprs.get(qbe_fn))
+                                .and_then(|ret| {
+                                    if let TypeExpr::Option(inner) = ret {
+                                        Some(type_to_annotation_string(inner))
+                                    } else {
+                                        None
+                                    }
+                                })
+                        } else {
+                            None
+                        }
+                    }
+                    Expr::Ident(name) => {
+                        self.local_type_annotations.get(name).and_then(|ann| {
+                            if ann.starts_with("option[") && ann.ends_with(']') {
+                                Some(ann[7..ann.len() - 1].to_string())
+                            } else {
+                                None
+                            }
+                        })
+                    }
+                    _ => None,
+                };
+                if let Some(type_name) = inner_type_name {
+                    if !type_name.is_empty() {
+                        self.local_type_annotations
+                            .insert(some_binding.clone(), type_name);
+                    }
+                }
                 self.emit_stmts(some_body, ns, ret_ty)?;
                 let some_terminated = block_is_terminated(some_body);
                 if !some_terminated {
@@ -1563,7 +1636,8 @@ impl Codegen {
                             let is_struct_slot = self
                                 .local_type_annotations
                                 .get(name)
-                                .map(|type_name| {
+                                .map(|ann| {
+                                    let type_name = ann.strip_prefix("ref ").unwrap_or(ann);
                                     self.type_defs.contains_key(type_name)
                                         || self.extern_type_defs.contains_key(type_name)
                                 })
@@ -1594,7 +1668,11 @@ impl Codegen {
     /// Return the byte offset of `field_name` within the struct that `base` refers to.
     /// We look up the binding's declared type annotation to find the type definition.
     fn field_offset_for(&self, base: &Expr, field_name: &str) -> Result<usize, String> {
-        let type_name = self.infer_struct_type_name(base)?;
+        let raw_type_name = self.infer_struct_type_name(base)?;
+        let type_name = raw_type_name
+            .strip_prefix("ref ")
+            .unwrap_or(&raw_type_name)
+            .to_string();
         let fields = self
             .type_defs
             .get(&type_name)
@@ -1635,7 +1713,8 @@ impl Codegen {
 
     /// Try to infer the type of a field within a struct.
     fn infer_field_type(&self, base: &Expr, field_name: &str) -> Option<TypeExpr> {
-        let type_name = self.infer_struct_type_name(base).ok()?;
+        let raw = self.infer_struct_type_name(base).ok()?;
+        let type_name = raw.strip_prefix("ref ").unwrap_or(&raw).to_string();
         let fields = self
             .type_defs
             .get(&type_name)
@@ -3302,7 +3381,8 @@ impl Codegen {
                             let is_struct_slot = self
                                 .local_type_annotations
                                 .get(name)
-                                .map(|type_name| {
+                                .map(|ann| {
+                                    let type_name = ann.strip_prefix("ref ").unwrap_or(ann);
                                     self.type_defs.contains_key(type_name)
                                         || self.extern_type_defs.contains_key(type_name)
                                 })
