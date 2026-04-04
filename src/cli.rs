@@ -9,17 +9,18 @@ spectre <input> [options]
     [file].sx --emit-asm       print assembly and exit
     [file].sx --emit-tokens    print token stream and exit
     [file].sx --emit-ast       print AST and exit
-    [file].sx --release        build in release mode, runtime safety checks off";
+    [file].sx --release        build in release mode, runtime safety checks off
+    --help                     show this help message
+    --version                  show the current version of the spectre compiler";
 
 #[derive(Parser, Debug)]
 #[command(
-    name = "spectre",
+    name = "Spectre",
     version,
-    about = "Spectre Compiler — lowers .sx source to a native binary",
+    about = "Spectre Compiler",
     override_usage = USAGE,
     help_template = "\
-{name} v{version}
-{about}
+{about} v{version}
 
 usage:
   {usage}
@@ -30,7 +31,7 @@ options:
 )]
 pub struct Args {
     /// Source file to compile (.sx)
-    pub input: String,
+    pub input: Option<String>,
 
     /// Output binary path (default: input filename without extension)
     #[arg(short, long, value_name = "FILE")]
@@ -59,6 +60,10 @@ pub struct Args {
     /// Omit all runtime safety checks from generated code
     #[arg(long)]
     pub release: bool,
+
+    /// Print the version of the compiler
+    #[arg(long, short)]
+    pub version: bool,
 }
 
 /// All platforms the compiler knows about.
@@ -102,8 +107,6 @@ impl Platform {
         return Platform::Solaris;
         #[cfg(target_os = "illumos")]
         return Platform::Illumos;
-        #[cfg(target_os = "plan9")]
-        return Platform::Plan9;
         #[cfg(target_os = "haiku")]
         return Platform::Haiku;
         #[cfg(target_os = "android")]

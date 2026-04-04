@@ -1,4 +1,4 @@
-# Language Specification: Spectre (v0.1.0)
+# Language Specification: Spectre (v0.0.1)
 
 Spectre is a systems-level, contract-based programming language designed for formal verification and safety. 
 

@@ -14,7 +14,18 @@ use std::process::{self, Command};
 fn main() {
     let args = Args::parse();
 
-    let (qbe_ir, warnings, libs) = match module::compile_file(&args.input, &args) {
+    if args.version {
+        println!("{}", env!("CARGO_PKG_VERSION"));
+        return;
+    }
+
+    let input = args.input.as_ref().unwrap_or_else(|| {
+        eprintln!("error: no input file provided");
+        eprintln!("usage: spectre <input> [options]");
+        process::exit(1);
+    });
+
+    let (qbe_ir, .., libs) = match module::compile_file(input, &args) {
         Ok((ir, warnings, libs)) => {
             for w in &warnings {
                 eprintln!("warning: {w}");
@@ -40,7 +51,7 @@ fn main() {
     }
 
     let binary_path = args.output.clone().unwrap_or_else(|| {
-        Path::new(&args.input)
+        Path::new(input)
             .file_stem()
             .unwrap_or_default()
             .to_string_lossy()
