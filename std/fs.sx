@@ -154,7 +154,7 @@ pub fn rmdir_path(path: ref char) bool! = {
 /// Returns none on failure. 
 /// Caller must free the result.
 pub fn cwd() option[ref char] = {
-    val buf: ref char = trust @alloc(4096)
+    val buf: ref char = trust @alloc(4096) as ref char
     val result: ref char = trust getcwd(buf, 4096)
     if (result == 0) {
         trust @free(buf)
