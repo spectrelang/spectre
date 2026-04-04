@@ -452,16 +452,16 @@ pub fn walk_dir(path: ref char) option[list[ref char]]! = {
                     if (c2 == 0) {
                         // ".."
                     } else {
-                        val copy: ref char = @strdup(name)
+                        val copy: ref char = strdup(name)
                         @append(result, copy)
                     }
                 } else {
-                    val copy: ref char = @strdup(name)
+                    val copy: ref char = strdup(name)
                     @append(result, copy)
                 }
             }
         } else {
-            val copy: ref char = @strdup(name)
+            val copy: ref char = strdup(name)
             @append(result, copy)
         }
     }

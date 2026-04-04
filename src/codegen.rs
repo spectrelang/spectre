@@ -571,6 +571,11 @@ impl Codegen {
                 if let TypeExpr::Named(type_name) = inner_ty {
                     self.local_type_annotations
                         .insert(name.clone(), type_name.clone());
+                } else if let TypeExpr::Ref(pointee) = inner_ty {
+                    if let TypeExpr::Named(type_name) = pointee.as_ref() {
+                        self.local_type_annotations
+                            .insert(name.clone(), type_name.clone());
+                    }
                 }
                 format!("{qty} {tmp}")
             })
@@ -735,9 +740,17 @@ impl Codegen {
                     self.local_types.insert(name.clone(), qty);
                     self.local_mutability.insert(name.clone(), *mutable);
                 }
-                if let Some(TypeExpr::Named(type_name)) = ty {
-                    self.local_type_annotations
-                        .insert(name.clone(), type_name.clone());
+                if let Some(ty) = ty {
+                    let inner_ty = if let TypeExpr::Mut(inner) = ty { inner.as_ref() } else { ty };
+                    if let TypeExpr::Named(type_name) = inner_ty {
+                        self.local_type_annotations
+                            .insert(name.clone(), type_name.clone());
+                    } else if let TypeExpr::Ref(pointee) = inner_ty {
+                        if let TypeExpr::Named(type_name) = pointee.as_ref() {
+                            self.local_type_annotations
+                                .insert(name.clone(), type_name.clone());
+                        }
+                    }
                 }
             }
 
