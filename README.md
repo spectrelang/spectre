@@ -21,47 +21,51 @@ Another example, with a simple demonstration of the trust system and pre/postcon
 
 ```spectre
 val std = use("std")
-val some_other_module = use("some_other_module.sx")
 
-type Point = {
-	x: mut i32
-	y: mut i32
+type Stack = {
+    data: mut list[i32]
+    len:  mut usize
 }
 
-fn some_function(some_arg: i32, some_other_arg: usize) void = {
-	pre {
-		is_bigger_than_ten      : some_arg > 10
-		is_bigger_than_twenty   : some_other_arg > 20
-	}
-
-	val x: i32 = 10                          // This cannot change.
-	val y: i32 = 20                          // Neither can this.
-	val z: i32 = 30                          // Or this.
-
-	post {
-		x_is_ten : x == 10
-		y_is_twe : y == 20
-		z_is_thi : z == 30
-	}
-
-	std.io.print("{d} {d}", {x, y})
+pub fn (Stack) push(s: mut self, vl: i32) void = {
+    pre {
+        not_full: s.len < trust @capacity(s.data)
+    }
+    trust @append(s.data, vl)
+    s.len = s.len + 1
 }
 
-pub val some_constant = 1000
-
-fn pure_function() void = {
-	trust std.io.put("This is trusted now, and can therefore run in a pure function")
+pub fn (Stack) pop(s: mut self) option[i32] = {
+    pre { not_empty: s.len > 0 }
+    val top = trust @get(s.data, s.len - 1)
+    trust @remove(s.data, s.len - 1)
+    s.len = s.len - 1
+    return top
 }
 
-fn can_fail(should_fail: bool) option[i32]! = {
-	if (should_fail) {
-		return some 10
-	}
-	return none
+pub fn (Stack) peek(s: mut self) option[i32] = {
+    pre { not_empty: s.len > 0 }
+    return trust @get(s.data, s.len - 1)
 }
 
-pub fn some_other_function() void! = {
-	std.io.put("This is some function...without any preconds, postconds, or invariants. Thus the return type is marked !")
+pub fn (Stack) print_top(s: mut self) void = {
+    guarded pre { has_items: s.len > 0 }
+    match Stack.peek(s) {
+        some v => { trust std.io.print("top: {d}\n", {v}) }
+        none   => {}
+    }
+}
+
+pub fn main() void! = {
+    val s: mut Stack = {data: [], len: 0}
+    @reserve(s.data, 10)
+    Stack.push(s, 10)
+    Stack.push(s, 20)
+    Stack.push(s, 30)
+    Stack.print_top(s)
+    assert Stack.pop(s) == some 30
+    assert Stack.pop(s) == some 20
+    assert Stack.pop(s) == some 10
 }
 ```
 
