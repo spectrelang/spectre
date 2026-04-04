@@ -1481,7 +1481,7 @@ fn infer_expr_type(expr: &Expr, var_types: &HashMap<String, TypeExpr>, type_look
         Expr::Ident(name) => var_types.get(name).cloned(),
         Expr::IntLit(_) => Some(TypeExpr::Named("i32".to_string())),
         Expr::FloatLit(_) => Some(TypeExpr::Named("f64".to_string())),
-        Expr::StrLit(_) => Some(TypeExpr::Named("ptr".to_string())),
+        Expr::StrLit(_) => Some(TypeExpr::Ref(Box::new(TypeExpr::Named("char".to_string())))),
         Expr::Bool(_) => Some(TypeExpr::Named("bool".to_string())),
         Expr::None => Some(TypeExpr::Option(Box::new(TypeExpr::Untyped))),
         Expr::Some(inner) => {
@@ -1815,6 +1815,7 @@ fn types_compatible_for_annotation(declared: &TypeExpr, inferred: &TypeExpr, uni
         (TypeExpr::Named(a), TypeExpr::Ref(inner)) if a == "ptr" || a == "rawptr" || a == "void" => {
             types_compatible_for_annotation(&TypeExpr::Named(a.clone()), inner, union_lookup)
         }
+        (TypeExpr::Named(a), TypeExpr::Ref(_)) if a == "ptr" || a == "rawptr" => true,
         (TypeExpr::Option(d), TypeExpr::Option(i)) => types_compatible_for_annotation(d, i, union_lookup),
         (TypeExpr::Named(name), _) => {
             if let Some(variants) = union_lookup.get(name) {
