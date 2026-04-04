@@ -1997,6 +1997,63 @@ impl Codegen {
                     ));
                     Ok((tmp, "w"))
                 }
+                "fmt" => {
+                    if args.is_empty() {
+                        return Err("@fmt requires a format string argument".into());
+                    }
+                    let fmt_tmp = match &args[0] {
+                        Expr::StrLit(s) => {
+                            let rewritten = rewrite_format_string(s);
+                            let label = self.intern_string(&rewritten);
+                            let t = self.fresh_tmp();
+                            self.emit(&format!("    {t} =l copy ${label}"));
+                            t
+                        }
+                        other => {
+                            let (tmp, _) = self.emit_expr(other, ns)?;
+                            tmp
+                        }
+                    };
+                    let mut variadic_args = Vec::new();
+                    for a in args.iter().skip(1) {
+                        if let Expr::ArgsPack(pack) = a {
+                            for item in pack {
+                                let (tmp, ty) = self.emit_expr(item, ns)?;
+                                let (promoted, pty) = self.promote_to_l(tmp, ty);
+                                variadic_args.push(format!("{pty} {promoted}"));
+                            }
+                        } else {
+                            let (tmp, ty) = self.emit_expr(a, ns)?;
+                            let (promoted, pty) = self.promote_to_l(tmp, ty);
+                            variadic_args.push(format!("{pty} {promoted}"));
+                        }
+                    }
+                    let buf = self.fresh_tmp();
+                    self.emit(&format!("    {buf} =l call $malloc(l 4096)"));
+                    let written_w = self.fresh_tmp();
+                    if variadic_args.is_empty() {
+                        self.emit(&format!(
+                            "    {written_w} =w call $snprintf(l {buf}, l 4096, l {fmt_tmp})"
+                        ));
+                    } else {
+                        self.emit(&format!(
+                            "    {written_w} =w call $snprintf(l {buf}, l 4096, l {fmt_tmp}, ..., {})",
+                            variadic_args.join(", ")
+                        ));
+                    }
+                    let written = self.fresh_tmp();
+                    self.emit(&format!("    {written} =l extsw {written_w}"));
+                    let copy_size = self.fresh_tmp();
+                    self.emit(&format!("    {copy_size} =l add {written}, 1"));
+                    let copy = self.fresh_tmp();
+                    self.emit(&format!("    {copy} =l call $malloc(l {copy_size})"));
+                    self.emit(&format!("    call $memcpy(l {copy}, l {buf}, l {written})"));
+                    let nul_ptr = self.fresh_tmp();
+                    self.emit(&format!("    {nul_ptr} =l add {copy}, {written}"));
+                    self.emit(&format!("    storeb 0, {nul_ptr}"));
+                    self.emit(&format!("    call $free(l {buf})"));
+                    Ok((copy, "l"))
+                }
                 "snprintf" => {
                     if args.len() < 3 {
                         return Err("@snprintf requires buf, size, and format arguments".into());

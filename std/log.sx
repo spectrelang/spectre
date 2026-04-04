@@ -2,7 +2,7 @@ val std = use("std")
 
 fn get_time_string() ref char = {
     val dt: DateTime = std.time.DateTime.now()
-    val s: ref void = std.string.format("{d}-{d}-{d} {d}:{d}:{d}", {
+    return trust @fmt("{d}-{d}-{d} {d}:{d}:{d}", {
         std.time.DateTime.year(dt), 
         std.time.DateTime.month(dt), 
         std.time.DateTime.day(dt),
@@ -10,7 +10,6 @@ fn get_time_string() ref char = {
         std.time.DateTime.minute(dt),
         std.time.DateTime.second(dt)}
     )
-    return std.string.cstr(s)
 }
 
 pub fn info(msg: ref char) void! = {
