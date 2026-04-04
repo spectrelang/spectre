@@ -1,0 +1,8 @@
+val std = use("std")
+
+pub fn main() void! = {
+    val xs: list[ref char] = ["hello", "world", "this", "is", "a", "test"]
+    for x in xs {
+        std.io.print("{s}\n", {x})
+    }
+}
