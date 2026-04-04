@@ -2826,7 +2826,7 @@ impl Codegen {
                     }
                 }
 
-                if fn_name == "print" {
+                if fn_name == "print" || fn_name.ends_with("__print") {
                     let fmt_str = match args.first() {
                         Some(Expr::StrLit(s)) => s.clone(),
                         _ => return Err("print first argument must be a string literal".into()),
@@ -2861,7 +2861,7 @@ impl Codegen {
                     return Ok((result, "l"));
                 }
 
-                if fn_name == "format" {
+                if fn_name == "format" || fn_name.ends_with("__format") {
                     let fmt_arg = match args.first() {
                         Some(a) => a,
                         None => return Err("format requires a format string argument".into()),

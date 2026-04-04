@@ -297,6 +297,7 @@ test {
     match content_opt {
         none => { assert false }
         some content => {
+            std.io.print("{s}", {content})
             assert std.string.compare(content, "Hello, Spectre!") == 0
             @free(content)
         }
