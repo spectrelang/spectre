@@ -554,8 +554,7 @@ impl Codegen {
             } else {
                 params.join(", ")
             }
-        ));
-        self.emit("@start");
+        ));        self.emit("@start");
 
         if qbe_name == "main" {
             self.emit("    %sx_argc_val =l extsw %argc");
@@ -2634,6 +2633,76 @@ impl Codegen {
                         ));
                     }
                     return Ok((result, "l"));
+                }
+
+                if fn_name == "format" {
+                    let fmt_arg = match args.first() {
+                        Some(a) => a,
+                        None => return Err("format requires a format string argument".into()),
+                    };
+                    let fmt_tmp = match fmt_arg {
+                        Expr::StrLit(s) => {
+                            let rewritten = rewrite_format_string(s);
+                            let label = self.intern_string(&rewritten);
+                            let t = self.fresh_tmp();
+                            self.emit(&format!("    {t} =l copy ${label}"));
+                            t
+                        }
+                        other => {
+                            let (raw, _) = self.emit_expr(other, ns)?;
+                            let t = self.fresh_tmp();
+                            self.emit(&format!("    {t} =l call $rewrite_fmt(l {raw})"));
+                            t
+                        }
+                    };
+                    let mut variadic_args = Vec::new();
+                    for a in args.iter().skip(1) {
+                        if let Expr::ArgsPack(pack) = a {
+                            for item in pack {
+                                let (tmp, ty) = self.emit_expr(item, ns)?;
+                                let (promoted, pty) = self.promote_to_l(tmp, ty);
+                                variadic_args.push(format!("{pty} {promoted}"));
+                            }
+                        } else {
+                            let (tmp, ty) = self.emit_expr(a, ns)?;
+                            let (promoted, pty) = self.promote_to_l(tmp, ty);
+                            variadic_args.push(format!("{pty} {promoted}"));
+                        }
+                    }
+                    let buf = self.fresh_tmp();
+                    let size = self.fresh_tmp();
+                    self.emit(&format!("    {buf} =l call $malloc(l 4096)"));
+                    self.emit(&format!("    {size} =l copy 4096"));
+                    let written_w = self.fresh_tmp();
+                    if variadic_args.is_empty() {
+                        self.emit(&format!("    {written_w} =w call $snprintf(l {buf}, l {size}, l {fmt_tmp})"));
+                    } else {
+                        self.emit(&format!(
+                            "    {written_w} =w call $snprintf(l {buf}, l {size}, l {fmt_tmp}, ..., {})",
+                            variadic_args.join(", ")
+                        ));
+                    }
+                    let written = self.fresh_tmp();
+                    self.emit(&format!("    {written} =l extsw {written_w}"));
+                    let copy_size = self.fresh_tmp();
+                    self.emit(&format!("    {copy_size} =l add {written}, 1"));
+                    let copy = self.fresh_tmp();
+                    self.emit(&format!("    {copy} =l call $malloc(l {copy_size})"));
+                    self.emit(&format!("    call $memcpy(l {copy}, l {buf}, l {written})"));
+                    let nul_ptr = self.fresh_tmp();
+                    self.emit(&format!("    {nul_ptr} =l add {copy}, {written}"));
+                    self.emit(&format!("    storeb 0, {nul_ptr}"));
+                    self.emit(&format!("    call $free(l {buf})"));
+                    let hdr = self.fresh_tmp();
+                    self.emit(&format!("    {hdr} =l call $malloc(l 24)"));
+                    self.emit(&format!("    storel {copy}, {hdr}"));
+                    let len_ptr = self.fresh_tmp();
+                    self.emit(&format!("    {len_ptr} =l add {hdr}, 8"));
+                    self.emit(&format!("    storel {written}, {len_ptr}"));
+                    let cap_ptr = self.fresh_tmp();
+                    self.emit(&format!("    {cap_ptr} =l add {hdr}, 16"));
+                    self.emit(&format!("    storel {copy_size}, {cap_ptr}"));
+                    return Ok((hdr, "l"));
                 }
 
                 let mut arg_strs = Vec::new();
