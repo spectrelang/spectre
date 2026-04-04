@@ -13,10 +13,12 @@ type Arena = {
     cap: usize
 }
 
+val std = use("std")
+
 /// Create a new arena backed by a block of `capacity` bytes.
 /// Capacity must be > 0.
-pub fn (Arena) new(capacity: usize) ref void! = {
-    val header: mut ref void = @alloc(24)
+pub fn (Arena) new(capacity: usize) Arena! = {
+    val header: mut Arena = @alloc(24) as Arena
     val buf: mut ref void = @alloc(capacity)
     @memset(buf, 0, capacity)
     @store(header, buf)
@@ -83,7 +85,6 @@ pub fn (Arena) reset(arena: self) void! = {
     @store(@ptradd(arena, 8), 0)
 }
 
-val std = use("std")
 
 test {
     val arena = Arena.new(64)
