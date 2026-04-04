@@ -1351,7 +1351,7 @@ pub fn parse_item(p: ref Parser) result[ref Node, ref char]! = {
         p_expect(p, lexer.TK_RBRACE)?
         val nwi: ref Node = make_node(NK_WHEN_ITEMS, line)
         nwi.d0 = plat as i64
-        val wil: mut list[ref Node] = witems
+        val wil: list[ref Node] = witems
         nwi.d1 = addr(wil) as i64
         return ok nwi
     }
