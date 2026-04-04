@@ -701,7 +701,16 @@ fn collect_needed_subnames_in_expr(expr: &Expr, import_name: &str, needed: &mut 
 fn resolve_use_path(path: &str, dir: &Path) -> PathBuf {
     if !path.ends_with(".sx") {
         let workspace_root = find_workspace_root(dir);
-        workspace_root.join(path).join(format!("{path}.sx"))
+        let candidate = workspace_root.join(path).join(format!("{path}.sx"));
+        if candidate.exists() {
+            return candidate;
+        }
+        if let Ok(exe) = std::env::current_exe() {
+            if let Some(exe_dir) = exe.parent() {
+                return exe_dir.join(path).join(format!("{path}.sx"));
+            }
+        }
+        candidate
     } else {
         dir.join(path)
     }
