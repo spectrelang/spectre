@@ -1,3 +1,7 @@
+val std = use("std")
+
+extern (C) fn localtime(timep: ref i64) ref void! = "localtime"
+
 /// A DateTime holds a calendar date and wall-clock time.
 type DateTime = {
     year:   i64
@@ -19,7 +23,7 @@ pub fn (DateTime) new(
     minute: i64, 
     second: i64, 
     millis: i64
-) ref void! = {
+) DateTime! = {
     pre {
         valid_month  : month  >= 1  && month  <= 12
         valid_day    : day    >= 1  && day    <= 31
@@ -46,22 +50,22 @@ pub fn (DateTime) free(dt: self) void! = {
 
 /// Return the current local time as a DateTime.
 /// Wraps the C `localtime` / `gettimeofday` pair.
-pub fn (DateTime) now() ref void = {
+pub fn (DateTime) now() DateTime = {
     val ts: ref void = trust @alloc(16)
+
     trust @gettimeofday(ts, 0)
-    val secs:  mut i64 = trust @load(ts)
     val usecs: i64 = trust @load(@ptradd(ts, 8))
+    val tm: ref void = trust localtime(ts)
+
     trust @free(ts)
 
-    val tm: ref void = trust @localtime(@ptradd(secs, 0))
-    val year:   i64 = trust @load(@ptradd(tm, 20))
-    val month:  i64 = trust @load(@ptradd(tm, 16))
-    val day:    i64 = trust @load(@ptradd(tm, 12))
-    val hour:   i64 = trust @load(@ptradd(tm, 8))
-    val minute: i64 = trust @load(@ptradd(tm, 4))
-    val second: i64 = trust @load(@ptradd(tm, 0))
+    val year:   i64 = (trust @load(@ptradd(tm, 20))) & 0xFFFFFFFF
+    val month:  i64 = (trust @load(@ptradd(tm, 16))) & 0xFFFFFFFF
+    val day:    i64 = (trust @load(@ptradd(tm, 12))) & 0xFFFFFFFF
+    val hour:   i64 = (trust @load(@ptradd(tm, 8))) & 0xFFFFFFFF
+    val minute: i64 = (trust @load(@ptradd(tm, 4))) & 0xFFFFFFFF
+    val second: i64 = (trust @load(@ptradd(tm, 0))) & 0xFFFFFFFF
     val millis: i64 = usecs / 1000
-
     return DateTime.new(year + 1900, month + 1, day, hour, minute, second, millis)
 }
 
@@ -188,7 +192,6 @@ pub fn (DateTime) diff_seconds(a: self, b: self) i64 = {
     return ua - ub
 }
 
-val std = use("std")
 
 test {
     val dt = DateTime.new(2026, 4, 2, 14, 30, 0, 0)

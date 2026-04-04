@@ -2049,12 +2049,6 @@ impl Codegen {
                     self.emit(&format!("    {tmp} =w call $gettimeofday(l {tv}, l {tz})"));
                     Ok((tmp, "w"))
                 }
-                "localtime" => {
-                    let (timep, _) = self.emit_expr(&args[0], ns)?;
-                    let tmp = self.fresh_tmp();
-                    self.emit(&format!("    {tmp} =l call $localtime(l {timep})"));
-                    Ok((tmp, "l"))
-                }
                 "call" => {
                     if args.is_empty() {
                         return Err("@call requires at least a function pointer argument".into());
@@ -3445,7 +3439,6 @@ const RESERVED_SYMBOLS: &[&str] = &[
     "strlen",
     "strcmp",
     "gettimeofday",
-    "localtime",
     "arc4random_buf",
     "arc4random_uniform",
     "sx_stdout",
