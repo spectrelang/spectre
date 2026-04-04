@@ -121,7 +121,7 @@ fn lx_peek(l: ref Lexer) i64! = {
 }
 
 fn lx_peek2(l: ref Lexer) i64! = {
-    val p: i64 = l.pos + 1
+    val p: mut i64 = l.pos + 1
     if p >= l.len { return -1 }
     return @load8(@ptradd(l.src, p)) as i64
 }
@@ -142,18 +142,22 @@ fn lx_advance(l: ref Lexer) i64! = {
 fn is_alpha(c: i64) bool! = {
     return (c >= 65 && c <= 90) || (c >= 97 && c <= 122) || c == 95
 }
+
 fn is_digit(c: i64) bool! = { return c >= 48 && c <= 57 }
+
 fn is_alnum(c: i64) bool! = { return is_alpha(c) || is_digit(c) }
+
 fn is_hex(c: i64) bool! = {
     return is_digit(c) || (c >= 65 && c <= 70) || (c >= 97 && c <= 102)
 }
+
 fn is_space(c: i64) bool! = {
     return c == 32 || c == 9 || c == 10 || c == 13
 }
 
-// Copy substring [start, end) from src into a fresh heap buffer.
+// Copy substring [start, end] from src into a fresh heap buffer.
 fn substr(src: ref char, start: i64, end: i64) ref char! = {
-    val n: i64 = end - start
+    val n: mut i64 = end - start
     val buf: ref char = @alloc(n + 1) as ref char
     @memcpy(buf, @ptradd(src, start), n)
     @store8(@ptradd(buf, n), 0)
@@ -374,4 +378,8 @@ pub fn tokenize(src: ref char) result[list[ref Token], ref char]! = {
     }
 
     return ok tokens
+}
+
+test {
+    assert true
 }
