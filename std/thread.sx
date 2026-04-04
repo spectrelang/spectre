@@ -65,7 +65,7 @@ pub fn (Thread) new(entry: fn(ref void) ref void, arg: ref void) result[ref void
 ///
 /// A thread can only be joined once. Subsequent calls will return AlreadyJoined.
 pub fn (Thread) join(thread: self) result[ref void, ThreadError]! = {
-    val already_joined: bool = @load(@ptradd(thread, 8))
+    val already_joined: bool = @load(@ptradd(thread, 8)) as bool
     if (already_joined) {
         return err ThreadError.AlreadyJoined
     }
@@ -96,14 +96,14 @@ pub fn (Thread) join(thread: self) result[ref void, ThreadError]! = {
         @store(@ptradd(thread, 8), true)
         CloseHandle(h)
     }
-    return ok 0
+    return ok 0 as ref void
 }
 
 /// Detach a thread, allowing it to run independently.
 /// Detached threads automatically release resources when they complete.
 /// Returns an error if detachment fails.
 pub fn (Thread) detach(thread: self) result[void, ThreadError]! = {
-    val already_joined: bool = @load(@ptradd(thread, 8))
+    val already_joined: bool = @load(@ptradd(thread, 8)) as bool
     if (already_joined) {
         return err ThreadError.AlreadyJoined
     }
@@ -177,7 +177,7 @@ when windows {
 
 /// Create and initialize a new mutex.
 /// Returns the mutex handle or none on failure.
-pub fn (Mutex) new() ref void! = {
+pub fn (Mutex) new() option[ref void]! = {
     val size: mut usize = 8
     val m: ref void = @alloc(size)
     @memset(m, 0, size)
@@ -231,7 +231,7 @@ val std = use("std")
 
 fn thread_test_entry(arg: ref void) ref void = {
     val c: ref void = arg
-    val old_val: i64 = trust @load(c)
+    val old_val: i64 = trust @load(c) as i64
     trust @store(c, old_val + 1)
     return c
 }
