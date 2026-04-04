@@ -1529,8 +1529,6 @@ fn gen_match_union(ctx: ref void, stmt: ref parser.Node) void! = {
     @free(endbuf)
 }
 
-// ─── Top-level item codegen ───────────────────────────────────────────────────
-
 fn gen_fn(ctx: ref void, fn_node: ref parser.Node) void! = {
     val public: i64 = fn_node.d0 as i64
     val ns: ref char = fn_node.d1 as ref char
@@ -1538,9 +1536,8 @@ fn gen_fn(ctx: ref void, fn_node: ref parser.Node) void! = {
     val params: ref void = fn_node.d3 as ref void
     val ret_ty: ref parser.Node = fn_node.d4 as ref parser.Node
     val body: ref parser.Node = fn_node.d5 as ref parser.Node
-
-    // Build mangled name: namespace__name or just name
     val mangled: ref char = @alloc(256) as ref char
+
     if ns != 0 as ref char {
         @snprintf(mangled, 256, "%s__%s", {ns, name})
     } else {
@@ -1549,12 +1546,11 @@ fn gen_fn(ctx: ref void, fn_node: ref parser.Node) void! = {
 
     cg_set_fn_name(ctx, mangled)
 
-    // Emit function signature
     val export_kw: ref char = ""
     if public == 1 { export_kw = "export " }
     val ret_qt: ref char = qbe_type_of(ret_ty)
-
     val sig_buf: ref char = @alloc(512) as ref char
+
     @snprintf(sig_buf, 512, "%sfunction %s $%s(", {export_kw, ret_qt, mangled})
     emit(ctx, sig_buf)
     @free(sig_buf)
