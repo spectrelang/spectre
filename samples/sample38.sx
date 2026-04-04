@@ -35,7 +35,7 @@ pub fn (Stack) print_top(s: mut self) void = {
         has_items: s.len > 0 
     }
     match Stack.peek(s) {
-        some v => { std.io.print("top: {d}\n", {v}) }
+        some v => { trust std.io.print("top: {d}\n", {v}) }
         none   => {}
     }
 }
