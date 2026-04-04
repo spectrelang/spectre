@@ -13,9 +13,19 @@ fn get_time_string() ref char = {
 }
 
 pub fn info(msg: ref char) void! = {
-    std.io.print("[INFO] {s}: {s}\n", {get_time_string(), msg})
+    std.io.print("{s} [INFO] {s}\n", {get_time_string(), msg})
+}
+
+pub fn warn(msg: ref char) void! = {
+    std.io.print("{s} [WARN] {s}\n", {get_time_string(), msg})
+}
+
+pub fn debug(msg: ref char) void! = {
+    std.io.print("{s} [DEBUG] {s}\n", {get_time_string(), msg})
 }
 
 test {
-    info("this is some info message")
+    info("This is some info message")
+    warn("This is some warning")
+    debug("This is a debug")
 }
