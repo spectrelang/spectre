@@ -2395,7 +2395,9 @@ fn infer_expr_type(
             "alloc" | "realloc" | "ptradd" => {
                 Some(TypeExpr::Ref(Box::new(TypeExpr::Named("void".to_string()))))
             }
-            "load" | "load8" | "loadf" => Some(TypeExpr::Untyped),
+            "load" => Some(TypeExpr::Untyped),
+            "load8" => Some(TypeExpr::Named("u8".to_string())),
+            "loadf" => Some(TypeExpr::Named("f64".to_string())),
             "store" | "store8" | "storef" | "memset" | "memcpy" | "free" => Some(TypeExpr::Void),
             _ => None,
         },
@@ -2841,6 +2843,26 @@ fn check_type_annotations(
                     fn_ret_type,
                     errors,
                 );
+                for s in body {
+                    check_type_annotations(
+                        std::slice::from_ref(s),
+                        var_types,
+                        fn_ret_lookup,
+                        type_lookup,
+                        union_lookup,
+                        fn_name,
+                        filename,
+                        fn_ret_type,
+                        errors,
+                    );
+                }
+            }
+            Stmt::For {
+                init: None,
+                cond: None,
+                post: None,
+                body,
+            } => {
                 for s in body {
                     check_type_annotations(
                         std::slice::from_ref(s),
