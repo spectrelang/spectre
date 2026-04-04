@@ -1,6 +1,8 @@
-## Spectre
+# Spectre
 
-This repository contains the compiler for the Spectre Programming Language. Spectre is a statically typed, contract-based language aiming to offer low-level control in combination with explicit correctness. At the same time, it aims to not be too verbose, to the point of unusability, and strikes a balance between the two to enable explicit, trustworthy code to be written.
+This repository contains the compiler for the Spectre Programming Language.
+
+Spectre is a statically typed, contract-based language aiming to offer low-level control in combination with explicit correctness. At the same time, it is not too verbose, in the interest of usability, and strikes a balance between the two to enable explicit, trustworthy code to be written.
 
 The complete documentation can be found at https://spectre-docs.pages.dev.
 
