@@ -527,6 +527,11 @@ impl Codegen {
             TypeExpr::Void => String::new(),
             ty => format!("{} ", qbe_type(ty)),
         };
+        let ret_ty = if qbe_name == "main" {
+            "w ".to_string()
+        } else {
+            ret_ty
+        };
 
         let params: Vec<String> = f
             .params
@@ -574,7 +579,11 @@ impl Codegen {
 
         if matches!(f.ret, TypeExpr::Void) {
             self.emit_defers(ns, &f.ret)?;
-            self.emit("    ret");
+            if qbe_name == "main" {
+                self.emit("    ret 0");
+            } else {
+                self.emit("    ret");
+            }
         }
 
         self.emit("}");
