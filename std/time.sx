@@ -40,7 +40,7 @@ pub fn (DateTime) new(
     @store(@ptradd(ptr, 32), minute)
     @store(@ptradd(ptr, 40), second)
     @store(@ptradd(ptr, 48), millis)
-    return ptr
+    return ptr as DateTime
 }
 
 /// Free a heap-allocated DateTime.
@@ -54,54 +54,54 @@ pub fn (DateTime) now() DateTime = {
     val ts: ref void = trust @alloc(16)
 
     trust @gettimeofday(ts, 0)
-    val usecs: i64 = trust @load(@ptradd(ts, 8))
+    val usecs: i64 = trust @load(@ptradd(ts, 8)) as i64
     val tm: ref void = trust localtime(ts)
 
     trust @free(ts)
 
-    val year:   i64 = (trust @load(@ptradd(tm, 20))) & 0xFFFFFFFF
-    val month:  i64 = (trust @load(@ptradd(tm, 16))) & 0xFFFFFFFF
-    val day:    i64 = (trust @load(@ptradd(tm, 12))) & 0xFFFFFFFF
-    val hour:   i64 = (trust @load(@ptradd(tm, 8))) & 0xFFFFFFFF
-    val minute: i64 = (trust @load(@ptradd(tm, 4))) & 0xFFFFFFFF
-    val second: i64 = (trust @load(@ptradd(tm, 0))) & 0xFFFFFFFF
+    val year:   i64 = ((trust @load(@ptradd(tm, 20))) & 0xFFFFFFFF) as i64
+    val month:  i64 = ((trust @load(@ptradd(tm, 16))) & 0xFFFFFFFF) as i64
+    val day:    i64 = ((trust @load(@ptradd(tm, 12))) & 0xFFFFFFFF) as i64
+    val hour:   i64 = ((trust @load(@ptradd(tm, 8))) & 0xFFFFFFFF) as i64
+    val minute: i64 = ((trust @load(@ptradd(tm, 4))) & 0xFFFFFFFF) as i64
+    val second: i64 = ((trust @load(@ptradd(tm, 0))) & 0xFFFFFFFF) as i64
     val millis: i64 = usecs / 1000
     return DateTime.new(year + 1900, month + 1, day, hour, minute, second, millis)
 }
 
 /// Read the year field.
 pub fn (DateTime) year(dt: self) i64! = {
-    return @load(@ptradd(dt, 0))
+    return @load(@ptradd(dt, 0)) as i64
 }
 
 /// Read the month field (1–12).
 pub fn (DateTime) month(dt: self) i64! = {
-    return @load(@ptradd(dt, 8))
+    return @load(@ptradd(dt, 8)) as i64
 }
 
 /// Read the day field (1–31).
 pub fn (DateTime) day(dt: self) i64! = {
-    return @load(@ptradd(dt, 16))
+    return @load(@ptradd(dt, 16)) as i64
 }
 
 /// Read the hour field (0–23).
 pub fn (DateTime) hour(dt: self) i64! = {
-    return @load(@ptradd(dt, 24))
+    return @load(@ptradd(dt, 24)) as i64
 }
 
 /// Read the minute field (0–59).
 pub fn (DateTime) minute(dt: self) i64! = {
-    return @load(@ptradd(dt, 32))
+    return @load(@ptradd(dt, 32)) as i64
 }
 
 /// Read the second field (0–59).
 pub fn (DateTime) second(dt: self) i64! = {
-    return @load(@ptradd(dt, 40))
+    return @load(@ptradd(dt, 40)) as i64
 }
 
 /// Read the milliseconds field (0–999).
 pub fn (DateTime) millis(dt: self) i64! = {
-    return @load(@ptradd(dt, 48))
+    return @load(@ptradd(dt, 48)) as i64
 }
 
 /// Convert a DateTime to a Unix timestamp (seconds since epoch).
