@@ -26,6 +26,15 @@ fn qbe_type(ty: &TypeExpr) -> &'static str {
     }
 }
 
+/// Convert a TypeExpr to the annotation string used for union variant tag matching.
+pub fn type_to_annotation_string(ty: &TypeExpr) -> String {
+    match ty {
+        TypeExpr::Named(n) => n.clone(),
+        TypeExpr::Ref(inner) => format!("ref {}", type_to_annotation_string(inner)),
+        _ => String::new(),
+    }
+}
+
 /// Compute the byte size of a type, used for fixed array layout.
 fn type_byte_size(ty: &TypeExpr) -> u64 {
     match ty {
@@ -2788,12 +2797,19 @@ impl Codegen {
                                         Expr::Ident(n) => {
                                             self.local_type_annotations.get(n).cloned()
                                         }
+                                        Expr::IntLit(_) => Some("i32".to_string()),
+                                        Expr::FloatLit(_) => Some("f64".to_string()),
+                                        Expr::StrLit(_) => Some("ref char".to_string()),
+                                        Expr::Bool(_) => Some("bool".to_string()),
+                                        Expr::Cast { ty, .. } => Some(crate::codegen::type_to_annotation_string(ty)),
                                         _ => None,
                                     };
                                     let tag = arg_type_name.as_deref().and_then(|atn| {
                                         variants.iter().position(|v| {
                                             matches!(v, TypeExpr::Named(n) if n == atn)
+                                                || matches!(v, TypeExpr::Ref(inner) if atn == "ref char" && matches!(inner.as_ref(), TypeExpr::Named(n) if n == "char"))
                                                 || matches!(v, TypeExpr::Ref(_) if atn == "ref")
+                                                || type_to_annotation_string(v) == atn
                                         })
                                     });
                                     if let Some(tag_idx) = tag {

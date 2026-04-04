@@ -33,6 +33,5 @@ fn some_function(x: SomeUnion) void! = {
 // }
 
 pub fn main() void = {
-    val y: ref char = "hello"
-    trust some_function(y)
+    trust some_function(12)
 }
