@@ -4280,3 +4280,108 @@ mod union_tests {
         assert!(ir.contains("storew 1,"), "expected tag 1 for ref char");
     }
 }
+
+#[cfg(test)]
+mod union_wrapping_regression_tests {
+    use crate::codegen::Codegen;
+    use crate::module::resolve_module;
+    use std::collections::{HashMap, HashSet};
+    use std::path::Path;
+
+    fn compile(src: &str) -> Result<String, String> {
+        let resolved = resolve_module(
+            src,
+            Path::new("."),
+            &mut HashMap::new(),
+            &mut HashSet::new(),
+            "",
+            None,
+        )?;
+        let mut cg = Codegen::new();
+        cg.emit_module(&resolved, false, false)?;
+        Ok(cg.finish())
+    }
+
+    fn compile_ok(src: &str) -> String {
+        compile(src).expect("expected compilation to succeed")
+    }
+
+    #[test]
+    fn match_some_ref_char_binding_gets_union_tag() {
+        let ir = compile_ok(r#"
+            union StrOrPtr = { i32 | ref char }
+            fn consume(x: StrOrPtr) i32! = { return 0 }
+            fn maybe() option[ref char]! = { return none }
+            pub fn main() void! = {
+                val opt = maybe()
+                match opt {
+                    some s => { trust consume(s) }
+                    none => {}
+                }
+            }
+        "#);
+        assert!(
+            ir.contains("call $malloc(l 16)"),
+            "expected union box allocation for ref char binding"
+        );
+        assert!(
+            ir.contains("storew 1,"),
+            "expected tag 1 for ref char variant"
+        );
+    }
+
+    #[test]
+    fn explicit_ref_char_annotation_gets_correct_union_tag() {
+        let ir = compile_ok(r#"
+            union Wrap = { i32 | ref char }
+            fn use_wrap(w: Wrap) i32! = { return 0 }
+            pub fn main() void! = {
+                val s: ref char = "hello"
+                trust use_wrap(s)
+            }
+        "#);
+        assert!(
+            ir.contains("storew 1,"),
+            "explicit ref char var should get tag 1 in union"
+        );
+    }
+
+    #[test]
+    fn field_access_on_ref_extern_type_compiles() {
+        let ir = compile_ok(r#"
+            extern type Node = {
+                value: i32
+                next: ref void
+            }
+            extern (C) fn get_node() ref Node! = "get_node"
+            pub fn main() void! = {
+                val n: ref Node = trust get_node()
+                val v = n.value
+            }
+        "#);
+        assert!(ir.contains("$main"), "should compile without unknown type error");
+    }
+
+    #[test]
+    fn type_annotation_string_covers_option_list_result() {
+        use crate::codegen::type_to_annotation_string;
+        use crate::parser::TypeExpr;
+
+        let opt = TypeExpr::Option(Box::new(TypeExpr::Ref(Box::new(TypeExpr::Named(
+            "char".into(),
+        )))));
+        assert_eq!(type_to_annotation_string(&opt), "option[ref char]");
+
+        let list = TypeExpr::List(Box::new(TypeExpr::Named("i32".into())));
+        assert_eq!(type_to_annotation_string(&list), "list[i32]");
+
+        let result = TypeExpr::Result(
+            Box::new(TypeExpr::Named("bool".into())),
+            Box::new(TypeExpr::Named("i32".into())),
+        );
+        assert_eq!(type_to_annotation_string(&result), "result[bool, i32]");
+        assert!(!type_to_annotation_string(&opt).is_empty());
+        assert!(!type_to_annotation_string(&list).is_empty());
+        assert!(!type_to_annotation_string(&result).is_empty());
+    }
+}
