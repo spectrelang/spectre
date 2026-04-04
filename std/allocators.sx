@@ -7,24 +7,40 @@
 ///   offset 0:  buf    — ref void, pointer to the backing block
 ///   offset 8:  offset — usize, current bump position (bytes used)
 ///   offset 16: cap    — usize, total capacity in bytes
-type Arena = {
+pub type Arena = {
     buf: ref void
     offset: usize
     cap: usize
+}
+
+pub enum ArenaError = {
+    OutOfMemory
 }
 
 val std = use("std")
 
 /// Create a new arena backed by a block of `capacity` bytes.
 /// Capacity must be > 0.
-pub fn (Arena) new(capacity: usize) Arena! = {
-    val header: mut Arena = @alloc(24) as Arena
-    val buf: mut ref void = @alloc(capacity)
+pub fn (Arena) new(capacity: usize) result[Arena, ArenaError]! = {
+    pre { capacity_positive: capacity > 0 }
+
+    val header: ref void = @alloc(24)
+    if (header == none) {
+        return err ArenaError.OutOfMemory
+    }
+
+    val buf: ref void = @alloc(capacity)
+    if (buf == none) {
+        @free(header)
+        return err ArenaError.OutOfMemory
+    }
+
     @memset(buf, 0, capacity)
     @store(header, buf)
     @store(@ptradd(header, 8), 0)
     @store(@ptradd(header, 16), capacity)
-    return header
+
+    return ok (header as Arena)
 }
 
 /// Free the entire arena and its backing block.
@@ -87,7 +103,8 @@ pub fn (Arena) reset(arena: self) void! = {
 
 
 test {
-    val arena = Arena.new(64)
+    val arena = Arena.new(64)?
+
     std.io.put("done making new arena")
     assert Arena.cap(arena) == 64
     assert Arena.used(arena) == 0
