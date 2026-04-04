@@ -14,12 +14,9 @@ spectre <input> [options]
 #[derive(Parser, Debug)]
 #[command(
     name = "Spectre",
-    version,
     about = "Spectre Compiler",
     override_usage = USAGE,
     help_template = "\
-{about} v{version}
-
 usage:
   {usage}
 
