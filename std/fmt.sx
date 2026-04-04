@@ -12,7 +12,7 @@ pub enum ParseFloatError = {
 
 pub fn i64_to_string(x: i64) ref char! = {
     if x == 0 {
-        val buf: ref char = @alloc(2)
+        val buf: ref char = @alloc(2) as ref char
         @store8(buf, 48)
         @store8(@ptradd(buf, 1), 0)
         return buf
@@ -41,7 +41,7 @@ pub fn i64_to_string(x: i64) ref char! = {
     }
 
     val total: mut i64 = digits + offset
-    val buf: ref char = @alloc(total + 1)
+    val buf: ref char = @alloc(total + 1) as ref char
     val i: mut i64 = total - 1
 
     for {
@@ -132,7 +132,7 @@ pub fn f64_to_string(x: f64) ref char! = {
         @free(int_str)
         int_str = i64_to_string(int_part)
     }
-    val frac_buf: ref char = @alloc(7)
+    val frac_buf: ref char = @alloc(7) as ref char
     val j: mut i64 = 5
     val tmp: mut i64 = frac_i
 
@@ -153,7 +153,7 @@ pub fn f64_to_string(x: f64) ref char! = {
     }
 
     val total: i64 = int_len + 1 + 6 + offset_x
-    val buf: ref char = @alloc(total + 1)
+    val buf: ref char = @alloc(total + 1) as ref char
     val pos: mut i64 = 0
 
     if neg {
