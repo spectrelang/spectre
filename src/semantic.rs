@@ -2376,7 +2376,11 @@ fn infer_expr_type(
         }
         Expr::Field(base, field) => {
             if let Some(base_type) = infer_expr_type(base, var_types, type_lookup, fn_ret_lookup) {
-                if let TypeExpr::Named(ref type_name) = base_type {
+                let inner_type = match &base_type {
+                    TypeExpr::Ref(inner) => inner.as_ref(),
+                    other => other,
+                };
+                if let TypeExpr::Named(type_name) = inner_type {
                     if let Some(fields) = type_lookup.get(type_name) {
                         for f in *fields {
                             if f.name == *field {

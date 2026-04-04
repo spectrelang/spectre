@@ -4108,7 +4108,14 @@ mod fixed_array_regression_tests {
             }
         "#,
         );
+        #[cfg(target_os = "macos")]
         assert!(ir.contains("alloc8 256"));
+        #[cfg(target_os = "linux")]
+        assert!(ir.contains("alloc8 65"));
+        #[cfg(target_os = "macos")]
+        assert!(!ir.contains("alloc8 65"));
+        #[cfg(target_os = "linux")]
+        assert!(!ir.contains("alloc8 256"));
     }
 
     #[test]
