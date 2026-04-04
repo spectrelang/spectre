@@ -105,14 +105,13 @@ type Lexer = {
 }
 
 pub fn lexer_new(src: ref char) ref Lexer! = {
-    val l: mut Lexer = {
-        src:  src,
-        len:  std.string.len(src),
-        pos:  0,
-        line: 1,
-        col:  1
-    }
-    return addr(l) as ref Lexer
+    val l: ref Lexer = @alloc(@sizeof(Lexer)) as ref Lexer
+    l.src  = src
+    l.len  = std.string.len(src)
+    l.pos  = 0
+    l.line = 1
+    l.col  = 1
+    return l
 }
 
 fn lx_peek(l: ref Lexer) i64! = {
@@ -262,25 +261,29 @@ fn lex_number(l: ref Lexer, line: i64, col: i64) ref Token! = {
 
 pub fn tokenize(src: ref char) result[list[ref Token], ref char]! = {
     val l: ref Lexer = lexer_new(src)
+    @dprintf(2, "tokenize: lexer_new done\n", {})
     val tokens: mut list[ref Token] = []
-
+    @dprintf(2, "tokenize: list init done\n", {})
+    @dprintf(2, "tokenize: entering main loop\n", {})
     for {
         // skip whitespace
+        @dprintf(2, "tokenize: top of loop pos=%lld\n", {l.pos})
         for { if !is_space(lx_peek(l)) { break } lx_advance(l) }
         // skip line comments
         if lx_peek(l) == 47 && lx_peek2(l) == 47 {
             for { val c: i64 = lx_peek(l) if c == -1 || c == 10 { break } lx_advance(l) }
             continue
         }
-
         val line: i64 = l.line
         val col:  i64 = l.col
+
         val c: i64 = lx_peek(l)
 
         if c == -1 {
             @append(tokens, make_tok(TK_EOF, line, col, 0 as ref char))
             break
         }
+
         lx_advance(l)
 
         if c == 34 {
@@ -400,8 +403,9 @@ fn tok_text(tokens: list[ref Token], i: i64) ref char! = {
 }
 
 test {
-    // keywords produce the right token kinds
+    @dprintf(2, "test: starting r1\n", {})
     val r1 = tokenize("fn val mut pub return if else for")
+    @dprintf(2, "test: r1 done\n", {})
     match r1 {
         err _ => { assert false }
         ok toks => {
@@ -417,6 +421,7 @@ test {
         }
     }
 
+    @dprintf(2, "test: starting r2\n", {})
     // identifiers are not confused with keywords
     val r2 = tokenize("foobar hello_world _x")
     match r2 {
@@ -430,6 +435,7 @@ test {
         }
     }
 
+    @dprintf(2, "test: starting r3\n", {})
     // integer and float literals
     val r3 = tokenize("42 3.14 0xff")
     match r3 {
@@ -443,6 +449,7 @@ test {
         }
     }
 
+    @dprintf(2, "test: starting r4\n", {})
     // string literal contents are captured
     val r4 = tokenize("\"hello\"")
     match r4 {

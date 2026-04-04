@@ -2407,6 +2407,7 @@ fn infer_expr_type(
             "load8" => Some(TypeExpr::Named("u8".to_string())),
             "loadf" => Some(TypeExpr::Named("f64".to_string())),
             "store" | "store8" | "storef" | "memset" | "memcpy" | "free" => Some(TypeExpr::Void),
+            "sizeof" => Some(TypeExpr::Named("i64".to_string())),
             _ => None,
         },
         Expr::ListLit(items) => {

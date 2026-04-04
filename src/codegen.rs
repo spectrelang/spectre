@@ -1959,6 +1959,36 @@ impl Codegen {
                     self.emit(&format!("    {tmp} =l call $malloc(l {size_l})"));
                     Ok((tmp, "l"))
                 }
+                "sizeof" => {
+                    let type_name = match &args[0] {
+                        Expr::Ident(n) => n.clone(),
+                        other => return Err(format!("@sizeof expects a type name, got {other:?}")),
+                    };
+                    let size = if let Some(fields) = self.type_defs.get(&type_name)
+                        .or_else(|| self.extern_type_defs.get(&type_name))
+                    {
+                        let has_fixed_arrays = fields.iter().any(|f| matches!(f.ty, TypeExpr::FixedArray(_, _)));
+                        let mut total: u64 = 0;
+                        for field in fields {
+                            let field_size = type_byte_size(&field.ty);
+                            if has_fixed_arrays {
+                                let align = type_alignment(&field.ty);
+                                total = align_to(total, align) + field_size;
+                            } else {
+                                total += align8(field_size);
+                            }
+                        }
+                        total
+                    } else {
+                        match type_name.as_str() {
+                            "i8" | "u8" | "char" => 1,
+                            "i16" | "u16" => 2,
+                            "i32" | "u32" | "f32" | "bool" => 4,
+                            _ => 8,
+                        }
+                    };
+                    Ok((size.to_string(), "l"))
+                }
                 "realloc" => {
                     let (ptr, _) = self.emit_expr(&args[0], ns)?;
                     let (size, size_ty) = self.emit_expr(&args[1], ns)?;
