@@ -76,7 +76,7 @@ pub fn get_args() list[ref char]! = {
 }
 
 /// Execute some subprocess.
-pub fn exec(cmd: ref char) result[ref void, ProcessError]! = {
+pub fn exec(cmd: ref char) result[String, ProcessError]! = {
     val pipe: ref void = popen(cmd, "r")
     if (pipe == none) {
         return err ProcessError.FailedToStart
@@ -114,7 +114,7 @@ pub fn exec(cmd: ref char) result[ref void, ProcessError]! = {
     val out: ref void = std.string.StringBuilder.build(sb)
     std.string.StringBuilder.free(sb)
 
-    return ok out
+    return ok (out as String)
 }
 
 /// Execute and trim output.
