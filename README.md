@@ -28,7 +28,7 @@ type Stack = {
 }
 
 pub fn (Stack) push(s: mut self, vl: i32) void = {
-    pre {
+    guarded pre {
         not_full: s.len < trust @capacity(s.data)
     }
     trust @append(s.data, vl)
@@ -36,7 +36,9 @@ pub fn (Stack) push(s: mut self, vl: i32) void = {
 }
 
 pub fn (Stack) pop(s: mut self) option[i32] = {
-    pre { not_empty: s.len > 0 }
+    pre { 
+		not_empty: s.len > 0
+	}
     val top = trust @get(s.data, s.len - 1)
     trust @remove(s.data, s.len - 1)
     s.len = s.len - 1
@@ -44,12 +46,16 @@ pub fn (Stack) pop(s: mut self) option[i32] = {
 }
 
 pub fn (Stack) peek(s: mut self) option[i32] = {
-    pre { not_empty: s.len > 0 }
+    pre { 
+		not_empty: s.len > 0 
+	}
     return trust @get(s.data, s.len - 1)
 }
 
 pub fn (Stack) print_top(s: mut self) void = {
-    guarded pre { has_items: s.len > 0 }
+    guarded pre { 
+		has_items: s.len > 0 
+	}
     match Stack.peek(s) {
         some v => { trust std.io.print("top: {d}\n", {v}) }
         none   => {}
