@@ -1,0 +1,46 @@
+val std = use("std")
+
+type Stack = {
+    data: mut list[i32]
+    len:  mut usize
+}
+
+pub fn (Stack) push(s: mut self, vl: i32) void = {
+    pre {
+        not_full: s.len < trust @capacity(s.data)
+    }
+    trust @append(s.data, vl)
+    s.len = s.len + 1
+}
+
+pub fn (Stack) pop(s: mut self) option[i32] = {
+    pre { not_empty: s.len > 0 }
+    val top = trust @get(s.data, s.len - 1)
+    trust @remove(s.data, s.len - 1)
+    s.len = s.len - 1
+    return top
+}
+
+pub fn (Stack) peek(s: mut self) option[i32] = {
+    pre { not_empty: s.len > 0 }
+    return trust @get(s.data, s.len - 1)
+}
+
+pub fn (Stack) print_top(s: mut self) void = {
+    guarded pre { has_items: s.len > 0 }
+    match Stack.peek(s) {
+        some v => { trust std.io.print("top: {d}\n", {v}) }
+        none   => {}
+    }
+}
+
+pub fn main() void! = {
+    val s: mut Stack = {data: [], len: 0}
+    Stack.push(s, 10)
+    Stack.push(s, 20)
+    Stack.push(s, 30)
+    Stack.print_top(s)
+    assert Stack.pop(s) == some 30
+    assert Stack.pop(s) == some 20
+    assert Stack.pop(s) == some 10
+}
