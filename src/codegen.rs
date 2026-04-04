@@ -145,6 +145,7 @@ pub struct Codegen {
     current_fn_trusted: bool,
     in_trust_expr: bool,
     current_fn_ret: TypeExpr,
+    current_module_prefix: String,
     pub warnings: Vec<String>,
 }
 
@@ -189,6 +190,7 @@ impl Codegen {
             current_fn_trusted: false,
             in_trust_expr: false,
             current_fn_ret: TypeExpr::Void,
+            current_module_prefix: String::new(),
             warnings: Vec::new(),
         }
     }
@@ -346,7 +348,7 @@ impl Codegen {
         self.fn_param_types = build_param_types(resolved);
         self.variadic_fns = build_variadic_set(resolved);
         self.result_void_ok = build_result_void_ok(resolved);
-        self.emit_module_recursive(resolved, &ns, test_mode, true)?;
+        self.emit_module_recursive(resolved, &ns, test_mode, true, "")?;
         if test_mode {
             self.emit_test_main()?;
         }
@@ -359,13 +361,21 @@ impl Codegen {
         ns: &Namespace,
         test_mode: bool,
         is_root: bool,
+        module_prefix: &str,
     ) -> Result<(), String> {
-        for child in resolved.imports.values() {
-            self.emit_module_recursive(child, ns, test_mode, false)?;
+        for (import_name, child) in &resolved.imports {
+            let child_prefix = if module_prefix.is_empty() {
+                import_name.clone()
+            } else {
+                format!("{module_prefix}__{import_name}")
+            };
+            self.emit_module_recursive(child, ns, test_mode, false, &child_prefix)?;
         }
 
         let prev_file = self.current_file.clone();
+        let prev_prefix = self.current_module_prefix.clone();
         self.current_file = resolved.filename.clone();
+        self.current_module_prefix = module_prefix.to_string();
 
         let items = self.flatten_items(&resolved.ast.items);
 
@@ -426,7 +436,7 @@ impl Codegen {
                     Some(type_name) => format!("{type_name}.{}", f.name),
                     None => f.name.clone(),
                 };
-                local_ns.insert(local_key, fn_qbe_name(f));
+                local_ns.insert(local_key, fn_qbe_name_prefixed(f, module_prefix));
             }
             if let Item::ExternFn { name, symbol, .. } = item {
                 local_ns.insert(name.clone(), symbol.clone());
@@ -459,6 +469,7 @@ impl Codegen {
         }
 
         self.current_file = prev_file;
+        self.current_module_prefix = prev_prefix;
         Ok(())
     }
 
@@ -500,7 +511,14 @@ impl Codegen {
             self.local_mutability.insert(name.clone(), false);
         }
 
-        let qbe_name = fn_qbe_name(f);
+        let qbe_name = {
+            let base = fn_qbe_name(f);
+            if self.current_module_prefix.is_empty() || base == "main" {
+                base
+            } else {
+                format!("{}__{}", self.current_module_prefix, base)
+            }
+        };
         self.current_fn = qbe_name.clone();
         self.current_fn_trusted = f.trusted;
         self.current_fn_ret = f.ret.clone();
@@ -3617,21 +3635,42 @@ fn build_ret_type_exprs(resolved: &ResolvedModule) -> HashMap<String, TypeExpr> 
 }
 
 fn collect_ret_type_exprs(module: &ResolvedModule, map: &mut HashMap<String, TypeExpr>) {
+    collect_ret_type_exprs_prefixed(module, "", map);
+}
+
+fn collect_ret_type_exprs_prefixed(
+    module: &ResolvedModule,
+    prefix: &str,
+    map: &mut HashMap<String, TypeExpr>,
+) {
     for item in &module.ast.items {
         if let Item::Fn(f) = item {
-            map.insert(fn_qbe_name(f), f.ret.clone());
+            map.insert(fn_qbe_name_prefixed(f, prefix), f.ret.clone());
         }
     }
-    for child in module.imports.values() {
-        collect_ret_type_exprs(child, map);
+    for (import_name, child) in &module.imports {
+        let child_prefix = if prefix.is_empty() {
+            import_name.clone()
+        } else {
+            format!("{prefix}__{import_name}")
+        };
+        collect_ret_type_exprs_prefixed(child, &child_prefix, map);
     }
 }
 
 fn collect_ret_types(module: &ResolvedModule, map: &mut HashMap<String, &'static str>) {
+    collect_ret_types_prefixed(module, "", map);
+}
+
+fn collect_ret_types_prefixed(
+    module: &ResolvedModule,
+    prefix: &str,
+    map: &mut HashMap<String, &'static str>,
+) {
     for item in &module.ast.items {
         match item {
             Item::Fn(f) => {
-                map.insert(fn_qbe_name(f), qbe_type(&f.ret));
+                map.insert(fn_qbe_name_prefixed(f, prefix), qbe_type(&f.ret));
             }
             Item::ExternFn { symbol, ret, .. } => {
                 map.insert(symbol.clone(), qbe_type(ret));
@@ -3639,8 +3678,13 @@ fn collect_ret_types(module: &ResolvedModule, map: &mut HashMap<String, &'static
             _ => {}
         }
     }
-    for child in module.imports.values() {
-        collect_ret_types(child, map);
+    for (import_name, child) in &module.imports {
+        let child_prefix = if prefix.is_empty() {
+            import_name.clone()
+        } else {
+            format!("{prefix}__{import_name}")
+        };
+        collect_ret_types_prefixed(child, &child_prefix, map);
     }
 }
 
@@ -3721,11 +3765,19 @@ fn build_result_void_ok(resolved: &ResolvedModule) -> std::collections::HashSet<
 }
 
 fn collect_result_void_ok(module: &ResolvedModule, set: &mut std::collections::HashSet<String>) {
+    collect_result_void_ok_prefixed(module, "", set);
+}
+
+fn collect_result_void_ok_prefixed(
+    module: &ResolvedModule,
+    prefix: &str,
+    set: &mut std::collections::HashSet<String>,
+) {
     for item in &module.ast.items {
         match item {
             Item::Fn(f) => {
                 if is_result_void_ok(&f.ret) {
-                    set.insert(fn_qbe_name(f));
+                    set.insert(fn_qbe_name_prefixed(f, prefix));
                 }
             }
             Item::ExternFn { symbol, ret, .. } => {
@@ -3736,8 +3788,13 @@ fn collect_result_void_ok(module: &ResolvedModule, set: &mut std::collections::H
             _ => {}
         }
     }
-    for child in module.imports.values() {
-        collect_result_void_ok(child, set);
+    for (import_name, child) in &module.imports {
+        let child_prefix = if prefix.is_empty() {
+            import_name.clone()
+        } else {
+            format!("{prefix}__{import_name}")
+        };
+        collect_result_void_ok_prefixed(child, &child_prefix, set);
     }
 }
 
@@ -3797,12 +3854,19 @@ fn collect_trusted(
     }
 }
 
-/// Compute the QBE-level symbol name for a function.
-/// Namespaced methods are mangled: `SomeType__method_name`
 fn fn_qbe_name(f: &FnDef) -> String {
-    match &f.namespace {
+    fn_qbe_name_prefixed(f, "")
+}
+
+fn fn_qbe_name_prefixed(f: &FnDef, module_prefix: &str) -> String {
+    let base = match &f.namespace {
         Some(type_name) => format!("{}__{}", type_name, f.name),
         None => f.name.clone(),
+    };
+    if module_prefix.is_empty() || base == "main" {
+        base
+    } else {
+        format!("{module_prefix}__{base}")
     }
 }
 
@@ -3837,13 +3901,22 @@ const RESERVED_SYMBOLS: &[&str] = &[
 ];
 
 fn collect_ns(module: &ResolvedModule, prefix: &str, ns: &mut Namespace) {
+    collect_ns_with_qbe_prefix(module, prefix, prefix, ns);
+}
+
+fn collect_ns_with_qbe_prefix(
+    module: &ResolvedModule,
+    prefix: &str,
+    qbe_prefix: &str,
+    ns: &mut Namespace,
+) {
     for item in &module.ast.items {
         match item {
             Item::Fn(f) => {
                 if f.namespace.is_some() && !f.public {
                     continue;
                 }
-                let qbe = fn_qbe_name(f);
+                let qbe = fn_qbe_name_prefixed(f, qbe_prefix);
                 let local_key = match &f.namespace {
                     Some(type_name) => format!("{type_name}.{}", f.name),
                     None => f.name.clone(),
@@ -3881,7 +3954,12 @@ fn collect_ns(module: &ResolvedModule, prefix: &str, ns: &mut Namespace) {
         } else {
             format!("{prefix}.{import_name}")
         };
-        collect_ns(child, &child_prefix, ns);
+        let child_qbe_prefix = if qbe_prefix.is_empty() {
+            import_name.clone()
+        } else {
+            format!("{qbe_prefix}__{import_name}")
+        };
+        collect_ns_with_qbe_prefix(child, &child_prefix, &child_qbe_prefix, ns);
     }
 }
 
