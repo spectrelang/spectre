@@ -1,10 +1,5 @@
 val std = use("std")
 
-type Stack = {
-    data: mut list[i32]
-    len:  mut usize
-}
-
 pub fn (Stack) push(s: mut self, vl: i32) void = {
     pre {
         not_full: s.len < trust @capacity(s.data)
@@ -21,6 +16,11 @@ pub fn (Stack) pop(s: mut self) option[i32] = {
     trust @remove(s.data, s.len - 1)
     s.len = s.len - 1
     return top
+}
+
+type Stack = {
+    data: mut list[i32]
+    len:  mut usize
 }
 
 pub fn (Stack) peek(s: mut self) option[i32] = {
