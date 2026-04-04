@@ -18,7 +18,6 @@ pub enum Item {
         name: String,
         fields: Vec<Field>,
     },
-    /// `extern type Name = { ... }` — foreign/opaque type from external libraries
     ExternTypeDef {
         public: bool,
         name: String,
@@ -90,23 +89,41 @@ pub struct Field {
 
 #[derive(Debug, Clone)]
 pub enum TypeExpr {
+    /// Some named type
     Named(String),
+
     /// `[T]` — slice type (fat pointer: data + length)
+    
     Slice(Box<TypeExpr>),
+    
     /// `[N]T` — fixed-size array of N elements of type T (inline, no indirection)
     FixedArray(u64, Box<TypeExpr>),
+    
+    /// Some ref type
     Ref(Box<TypeExpr>),
+
+    /// Some optional type
     Option(Box<TypeExpr>),
+
     /// `list[T]` — dynamic list type with element type T
     List(Box<TypeExpr>),
+    
     /// `result[T, E]` — result type with ok payload T and err payload E
     Result(Box<TypeExpr>, Box<TypeExpr>),
+    
     /// `fn(T, T) R` — function pointer type
     FnPtr {
         params: Vec<TypeExpr>,
         ret: Box<TypeExpr>,
     },
+    
+    /// `mut T` — mutable parameter (e.g. `s: mut self`)
+    Mut(Box<TypeExpr>),
+    
+    /// The void type
     Void,
+
+    /// The untyped (nothing) type
     Untyped,
 }
 
@@ -557,6 +574,7 @@ impl Parser {
         while self.peek() != &TokenKind::RParen {
             let name = self.expect_ident()?;
             self.expect(&TokenKind::Colon)?;
+            let is_mut = self.eat(&TokenKind::Mut);
             let ty = self.parse_type()?;
             let ty = if let (Some(type_name), TypeExpr::Named(n)) = (self_type, &ty) {
                 if n == "self" {
@@ -567,6 +585,7 @@ impl Parser {
             } else {
                 ty
             };
+            let ty = if is_mut { TypeExpr::Mut(Box::new(ty)) } else { ty };
             params.push((name, ty));
             if !self.eat(&TokenKind::Comma) {
                 break;

@@ -184,7 +184,7 @@ fn check_fn(
     let mut var_types: HashMap<String, TypeExpr> = HashMap::new();
     for (pname, pty) in &f.params {
         var_mutability.insert(pname.clone(), true);
-        var_types.insert(pname.clone(), pty.clone());
+        var_types.insert(pname.clone(), unwrap_mut(pty).clone());
     }
     collect_var_mutability(&f.body, &mut var_mutability);
     collect_var_types(&f.body, &mut var_types);
@@ -1635,9 +1635,9 @@ fn is_pointer_type(ty: &TypeExpr) -> bool {
     ) || matches!(ty, TypeExpr::Named(n) if n == "ptr" || n == "rawptr")
 }
 
-/// Returns true if the type is a `ref`.
+/// Returns true if the type is a `ref` or `mut T` (mutable self parameter).
 fn is_ref_type(ty: &TypeExpr) -> bool {
-    matches!(ty, TypeExpr::Ref(_))
+    matches!(ty, TypeExpr::Ref(_) | TypeExpr::Mut(_))
 }
 
 /// Convert a callee expression to a dotted path string for fn_lookup resolution.
@@ -2415,6 +2415,11 @@ fn infer_expr_type(
     }
 }
 
+/// Strip a `Mut` wrapper if present, returning the inner type.
+fn unwrap_mut(ty: &TypeExpr) -> &TypeExpr {
+    if let TypeExpr::Mut(inner) = ty { inner.as_ref() } else { ty }
+}
+
 /// Check if two types are compatible for function call argument passing.
 /// This is conservative: we only allow exact matches or very close types.
 fn types_compatible(
@@ -2422,6 +2427,8 @@ fn types_compatible(
     actual: &TypeExpr,
     union_lookup: &HashMap<String, &Vec<TypeExpr>>,
 ) -> bool {
+    let expected = unwrap_mut(expected);
+    let actual = unwrap_mut(actual);
     if type_eq(expected, actual) {
         return true;
     }
@@ -2468,6 +2475,8 @@ fn types_compatible(
 
 /// Check if two TypeExpr values are exactly equal.
 fn type_eq(a: &TypeExpr, b: &TypeExpr) -> bool {
+    let a = unwrap_mut(a);
+    let b = unwrap_mut(b);
     match (a, b) {
         (TypeExpr::Named(a), TypeExpr::Named(b)) => a == b,
         (TypeExpr::Slice(a), TypeExpr::Slice(b)) => type_eq(a, b),
@@ -2511,6 +2520,7 @@ fn type_to_string(ty: &TypeExpr) -> String {
         }
         TypeExpr::Void => "void".to_string(),
         TypeExpr::Untyped => "untyped".to_string(),
+        TypeExpr::Mut(t) => format!("mut {}", type_to_string(t)),
     }
 }
 

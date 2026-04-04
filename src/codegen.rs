@@ -21,6 +21,7 @@ fn qbe_type(ty: &TypeExpr) -> &'static str {
         TypeExpr::List(_) => "l",
         TypeExpr::Result(_, _) => "l",
         TypeExpr::FnPtr { .. } => "l",
+        TypeExpr::Mut(inner) => qbe_type(inner),
         TypeExpr::Void => "w",
         TypeExpr::Untyped => "l",
     }
@@ -57,6 +58,7 @@ fn type_byte_size(ty: &TypeExpr) -> u64 {
         TypeExpr::List(_) => 24,
         TypeExpr::Result(_, _) => 16,
         TypeExpr::FnPtr { .. } => 8,
+        TypeExpr::Mut(inner) => type_byte_size(inner),
         TypeExpr::Void => 0,
         TypeExpr::Untyped => 8,
     }
@@ -79,6 +81,7 @@ fn type_alignment(ty: &TypeExpr) -> u64 {
         TypeExpr::List(_) => 8,
         TypeExpr::Result(_, _) => 8,
         TypeExpr::FnPtr { .. } => 8,
+        TypeExpr::Mut(inner) => type_alignment(inner),
         TypeExpr::Void => 1,
         TypeExpr::Untyped => 8,
     }
@@ -100,7 +103,7 @@ fn align8(n: u64) -> u64 {
 /// Returns true if a parameter type is a `ref` (possibly wrapped in other modifiers),
 /// meaning the parameter can be assigned through inside the function body.
 fn is_ref_param_type(ty: &TypeExpr) -> bool {
-    matches!(ty, TypeExpr::Ref(_))
+    matches!(ty, TypeExpr::Ref(_) | TypeExpr::Mut(_))
 }
 
 pub struct Codegen {
@@ -564,7 +567,8 @@ impl Codegen {
                 self.local_types.insert(name.clone(), qty);
                 let is_mutable = is_ref_param_type(ty);
                 self.local_mutability.insert(name.clone(), is_mutable);
-                if let TypeExpr::Named(type_name) = ty {
+                let inner_ty = if let TypeExpr::Mut(inner) = ty { inner.as_ref() } else { ty };
+                if let TypeExpr::Named(type_name) = inner_ty {
                     self.local_type_annotations
                         .insert(name.clone(), type_name.clone());
                 }
