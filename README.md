@@ -62,3 +62,7 @@ pub fn some_other_function() void! = {
 	std.io.put("This is some function...without any preconds, postconds, or invariants. Thus the return type is marked !")
 }
 ```
+
+## License
+
+GPL-3.0-only - (C) Navid M - 2026
