@@ -1,0 +1,64 @@
+val std = use("std")
+val lexer = use("lexer.sx")
+val parser = use("parser.sx")
+val sema = use("sema.sx")
+val codegen = use("codegen.sx")
+
+pub fn main() void! = {
+    val args = std.os.get_args()
+    val argc: i64 = @len(args) as i64
+
+    if argc < 2 {
+        std.io.put("usage: sxc <input.sx>")
+        return
+    }
+
+    val input_opt = @get(args, 1)
+    val input: ref char = ""
+    match input_opt {
+        some a => { input = a as ref char }
+        none   => { std.io.put("error: no input file") return }
+    }
+
+    val src_opt = std.fs.read_all(input)
+    val src: ref char = ""
+    match src_opt {
+        some s => { src = s as ref char }
+        none   => {
+            std.io.print("error: could not read '%s'\n", {input})
+            return
+        }
+    }
+
+    val lex_result = lexer.tokenize(src)
+    val tokens: mut list[ref lexer.Token] = []
+    match lex_result {
+        ok t  => { tokens = t }
+        err e => {
+            std.io.print("lex error: %s\n", {e})
+            return
+        }
+    }
+
+    val parse_result = parser.parse_module(tokens, input)
+    val items: mut list[ref parser.Node] = []
+    match parse_result {
+        ok i  => { items = i }
+        err e => {
+            std.io.print("parse error: %s\n", {e})
+            return
+        }
+    }
+
+    val errors: mut list[ref char] = sema.check_module(items, input)
+    val nerrors: i64 = @len(errors) as i64
+    if nerrors > 0 {
+        for e in errors {
+            std.io.print("error: %s\n", {e})
+        }
+        return
+    }
+
+    val qbe_ir: ref char = codegen.gen_module(items)
+    std.io.print("%s", {qbe_ir})
+}
