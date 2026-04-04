@@ -322,7 +322,7 @@ impl Codegen {
 
         let num_slots = (aligned_bytes / 8) as usize;
         let members: Vec<&str> = (0..num_slots).map(|_| "l").collect();
-        let type_def = members.join(" ");
+        members.join(" ");
         self.fixed_array_types.insert(key, label.clone());
 
         (label, aligned_bytes)
@@ -463,7 +463,10 @@ impl Codegen {
         let mut result = Vec::new();
         for item in items {
             match item {
-                Item::WhenItems { platform, items: block_items } => {
+                Item::WhenItems {
+                    platform,
+                    items: block_items,
+                } => {
                     if self.platform.matches_name(platform) {
                         for bi in block_items {
                             result.push(bi);
@@ -524,8 +527,14 @@ impl Codegen {
         }
 
         if !f.trusted && !self.release {
-            let has_pre = f.body.iter().any(|s| matches!(s, Stmt::Pre(_) | Stmt::GuardedPre(_)));
-            let has_post = f.body.iter().any(|s| matches!(s, Stmt::Post(_) | Stmt::GuardedPost(_)));
+            let has_pre = f
+                .body
+                .iter()
+                .any(|s| matches!(s, Stmt::Pre(_) | Stmt::GuardedPre(_)));
+            let has_post = f
+                .body
+                .iter()
+                .any(|s| matches!(s, Stmt::Post(_) | Stmt::GuardedPost(_)));
             if !all_trusted_stmts(&f.body) && !has_pre && !has_post {
                 return Err(format!(
                     "pure function '{}' must have at least one 'pre' or 'post' contract block, or consist entirely of 'trust' statements",
@@ -563,18 +572,6 @@ impl Codegen {
             })
             .collect();
 
-        let union_params: Vec<(String, String)> = f
-            .params
-            .iter()
-            .filter_map(|(name, ty)| {
-                if let TypeExpr::Named(type_name) = ty {
-                    if self.union_defs.contains_key(type_name.as_str()) {
-                        return Some((name.clone(), format!("%{name}")));
-                    }
-                }
-                None
-            })
-            .collect();
         self.emit(&format!(
             "{export}function {ret_ty}${name}({params}) {{",
             name = qbe_name,
@@ -583,7 +580,8 @@ impl Codegen {
             } else {
                 params.join(", ")
             }
-        ));        self.emit("@start");
+        ));
+        self.emit("@start");
 
         if qbe_name == "main" {
             self.emit("    %sx_argc_val =l extsw %argc");
@@ -670,7 +668,12 @@ impl Codegen {
         Ok(())
     }
 
-    fn emit_stmts(&mut self, stmts: &[Stmt], ns: &Namespace, ret_ty: &TypeExpr) -> Result<(), String> {
+    fn emit_stmts(
+        &mut self,
+        stmts: &[Stmt],
+        ns: &Namespace,
+        ret_ty: &TypeExpr,
+    ) -> Result<(), String> {
         for stmt in stmts {
             self.emit_stmt(stmt, ns, ret_ty)?;
             if let Stmt::When { platform, body } = stmt {
@@ -737,7 +740,13 @@ impl Codegen {
             Stmt::Assign { target, value } => {
                 let deref_target = match target {
                     Expr::Deref(inner) => Some(inner.as_ref()),
-                    Expr::Trust(inner) => if let Expr::Deref(d) = inner.as_ref() { Some(d.as_ref()) } else { None },
+                    Expr::Trust(inner) => {
+                        if let Expr::Deref(d) = inner.as_ref() {
+                            Some(d.as_ref())
+                        } else {
+                            None
+                        }
+                    }
                     _ => None,
                 };
                 if let Some(ptr_expr) = deref_target {
@@ -782,7 +791,9 @@ impl Codegen {
                 }
                 if let Expr::Field(base, field_name) = target {
                     if let Ok(type_name) = self.infer_struct_type_name(base) {
-                        let fields = self.type_defs.get(&type_name)
+                        let fields = self
+                            .type_defs
+                            .get(&type_name)
                             .or_else(|| self.extern_type_defs.get(&type_name));
                         if let Some(fields) = fields {
                             if let Some(field) = fields.iter().find(|f| f.name == *field_name) {
@@ -1045,7 +1056,11 @@ impl Codegen {
                 self.emit(&format!("    jmp {loop_lbl}"));
                 self.emit(&format!("{end_lbl}"));
             }
-            Stmt::ForIn { binding, iterable, body } => {
+            Stmt::ForIn {
+                binding,
+                iterable,
+                body,
+            } => {
                 let loop_lbl = format!("@forin_loop_{}", self.tmp_counter);
                 let body_lbl = format!("@forin_body_{}", self.tmp_counter);
                 let end_lbl = format!("@forin_end_{}", self.tmp_counter);
@@ -1091,7 +1106,7 @@ impl Codegen {
 
                 let prev_loop_end = self.current_loop_end.replace(end_lbl.clone());
                 let prev_loop_cont = self.current_loop_continue.replace(cont_lbl.clone());
-                
+
                 self.emit_stmts(body, ns, ret_ty)?;
                 self.current_loop_end = prev_loop_end;
                 self.current_loop_continue = prev_loop_cont;
@@ -1100,7 +1115,7 @@ impl Codegen {
                     self.emit(&format!("    jmp {cont_lbl}"));
                 }
                 self.emit(&format!("{cont_lbl}"));
-                
+
                 let new_idx = self.fresh_tmp();
                 self.emit(&format!("    {new_idx} =l add {idx_val}, 1"));
                 self.emit(&format!("    storel {new_idx}, {idx_slot}"));
@@ -1210,7 +1225,11 @@ impl Codegen {
                     self.emit_stmts(body, ns, ret_ty)?;
                 }
             }
-            Stmt::MatchUnion { expr, arms, else_body } => {
+            Stmt::MatchUnion {
+                expr,
+                arms,
+                else_body,
+            } => {
                 let end_lbl = format!("@union_end_{}", self.tmp_counter);
                 self.tmp_counter += 1;
 
@@ -1218,10 +1237,12 @@ impl Codegen {
                 let tag_tmp = self.fresh_tmp();
                 self.emit(&format!("    {tag_tmp} =w loadw {union_ptr}"));
 
-                let union_locals: Vec<(String, String)> = self.locals
+                let union_locals: Vec<(String, String)> = self
+                    .locals
                     .iter()
                     .filter(|(name, _)| {
-                        self.local_type_annotations.get(*name)
+                        self.local_type_annotations
+                            .get(*name)
                             .map_or(false, |t| self.union_defs.contains_key(t.as_str()))
                     })
                     .map(|(n, v)| (n.clone(), v.clone()))
@@ -1311,7 +1332,7 @@ impl Codegen {
 
                 self.emit(&format!("{none_lbl}"));
                 self.emit_stmts(none_body, ns, ret_ty)?;
-                
+
                 let none_terminated = block_is_terminated(none_body);
                 if !none_terminated {
                     self.emit(&format!("    jmp {end_lbl}"));
@@ -1414,7 +1435,11 @@ impl Codegen {
                 }
                 self.emit(&format!("{end_lbl}"));
             }
-            Stmt::MatchString { expr, arms, else_body } => {
+            Stmt::MatchString {
+                expr,
+                arms,
+                else_body,
+            } => {
                 let (str_ptr, _) = self.emit_expr(expr, ns)?;
                 let id = self.tmp_counter;
                 self.tmp_counter += 1;
@@ -1435,8 +1460,10 @@ impl Codegen {
 
                     let pattern_label = self.intern_string(pattern);
                     let cmp_result = self.fresh_tmp();
-                    self.emit(&format!("    {cmp_result} =w call $strcmp(l {str_ptr}, l ${pattern_label})"));
-                    
+                    self.emit(&format!(
+                        "    {cmp_result} =w call $strcmp(l {str_ptr}, l ${pattern_label})"
+                    ));
+
                     let cond = self.fresh_tmp();
                     self.emit(&format!("    {cond} =w ceqw {cmp_result}, 0"));
                     self.emit(&format!("    jnz {cond}, {body_lbl}, {next_lbl}"));
@@ -1498,7 +1525,9 @@ impl Codegen {
                             .cloned()
                             .ok_or_else(|| format!("undefined variable: {name}"))?;
                         if self.local_is_slot.contains(name) {
-                            let is_struct_slot = self.local_type_annotations.get(name)
+                            let is_struct_slot = self
+                                .local_type_annotations
+                                .get(name)
                                 .map(|type_name| {
                                     self.type_defs.contains_key(type_name)
                                         || self.extern_type_defs.contains_key(type_name)
@@ -1531,12 +1560,16 @@ impl Codegen {
     /// We look up the binding's declared type annotation to find the type definition.
     fn field_offset_for(&self, base: &Expr, field_name: &str) -> Result<usize, String> {
         let type_name = self.infer_struct_type_name(base)?;
-        let fields = self.type_defs.get(&type_name)
+        let fields = self
+            .type_defs
+            .get(&type_name)
             .or_else(|| self.extern_type_defs.get(&type_name))
             .ok_or_else(|| format!("unknown type '{type_name}'"))?;
-        
-        let has_fixed_arrays = fields.iter().any(|f| matches!(f.ty, TypeExpr::FixedArray(_, _)));
-        
+
+        let has_fixed_arrays = fields
+            .iter()
+            .any(|f| matches!(f.ty, TypeExpr::FixedArray(_, _)));
+
         let mut offset: usize = 0;
         for field in fields {
             if field.name == field_name {
@@ -1568,9 +1601,14 @@ impl Codegen {
     /// Try to infer the type of a field within a struct.
     fn infer_field_type(&self, base: &Expr, field_name: &str) -> Option<TypeExpr> {
         let type_name = self.infer_struct_type_name(base).ok()?;
-        let fields = self.type_defs.get(&type_name)
+        let fields = self
+            .type_defs
+            .get(&type_name)
             .or_else(|| self.extern_type_defs.get(&type_name))?;
-        fields.iter().find(|f| f.name == field_name).map(|f| f.ty.clone())
+        fields
+            .iter()
+            .find(|f| f.name == field_name)
+            .map(|f| f.ty.clone())
     }
 
     /// Try to infer the struct type name from a struct literal by matching field names.
@@ -1579,15 +1617,17 @@ impl Codegen {
             return None;
         }
         let first_field_name = &fields[0].0;
-        
+
         for type_name in self.type_defs.keys().chain(self.extern_type_defs.keys()) {
-            let field_defs = self.type_defs.get(type_name)
+            let field_defs = self
+                .type_defs
+                .get(type_name)
                 .or_else(|| self.extern_type_defs.get(type_name));
             if let Some(field_defs) = field_defs {
                 if field_defs.iter().any(|f| f.name == *first_field_name) {
-                    let matches = fields.iter().all(|(fname, _)| 
-                        field_defs.iter().any(|f| f.name == *fname)
-                    );
+                    let matches = fields
+                        .iter()
+                        .all(|(fname, _)| field_defs.iter().any(|f| f.name == *fname));
                     if matches {
                         return Some(type_name.clone());
                     }
@@ -1635,7 +1675,10 @@ impl Codegen {
             Expr::Ident(name) => {
                 self.local_slot_is_d.contains(name)
                     || self.local_types.get(name).copied() == Some("d")
-                    || self.local_type_annotations.get(name).map_or(false, |t| t == "f64")
+                    || self
+                        .local_type_annotations
+                        .get(name)
+                        .map_or(false, |t| t == "f64")
             }
             Expr::OkVal(inner) | Expr::ErrVal(inner) => self.expr_is_float(inner),
             _ => false,
@@ -1823,7 +1866,9 @@ impl Codegen {
                     let (size, size_ty) = self.emit_expr(&args[2], ns)?;
                     let (size_l, _) = self.promote_to_l(size, size_ty);
                     let tmp = self.fresh_tmp();
-                    self.emit(&format!("    {tmp} =l call $memcpy(l {dst}, l {src}, l {size_l})"));
+                    self.emit(&format!(
+                        "    {tmp} =l call $memcpy(l {dst}, l {src}, l {size_l})"
+                    ));
                     Ok((tmp, "l"))
                 }
                 "load8" => {
@@ -2200,7 +2245,6 @@ impl Codegen {
 
                     let len_slot = self.fresh_tmp();
                     let cap_slot = self.fresh_tmp();
-                    let buf_slot = self.fresh_tmp();
                     self.emit(&format!("    {len_slot} =l add {list_ptr}, 8"));
                     self.emit(&format!("    {cap_slot} =l add {list_ptr}, 16"));
 
@@ -2223,7 +2267,9 @@ impl Codegen {
                     let old_buf = self.fresh_tmp();
                     let new_buf = self.fresh_tmp();
                     self.emit(&format!("    {old_buf} =l loadl {list_ptr}"));
-                    self.emit(&format!("    {new_buf} =l call $realloc(l {old_buf}, l {new_cap})"));
+                    self.emit(&format!(
+                        "    {new_buf} =l call $realloc(l {old_buf}, l {new_cap})"
+                    ));
                     self.emit(&format!("    storel {new_buf}, {list_ptr}"));
                     self.emit(&format!("    storel {new_cap}, {cap_slot}"));
                     self.emit(&format!("    jmp {no_grow_lbl}"));
@@ -2337,8 +2383,12 @@ impl Codegen {
                     let one_past_end = self.fresh_tmp();
                     let should_shift = self.fresh_tmp();
                     self.emit(&format!("    {one_past_end} =l sub {len_val}, 1"));
-                    self.emit(&format!("    {should_shift} =w csltl {shift_idx}, {one_past_end}"));
-                    self.emit(&format!("    jnz {should_shift}, {shift_body}, {shift_end}"));
+                    self.emit(&format!(
+                        "    {should_shift} =w csltl {shift_idx}, {one_past_end}"
+                    ));
+                    self.emit(&format!(
+                        "    jnz {should_shift}, {shift_body}, {shift_end}"
+                    ));
                     self.emit(&format!("{shift_body}"));
                     let src_off = self.fresh_tmp();
                     let dst_off = self.fresh_tmp();
@@ -2367,7 +2417,9 @@ impl Codegen {
 
                 "insert" => {
                     if args.len() != 3 {
-                        return Err("@insert(list, index, value) requires exactly 3 arguments".into());
+                        return Err(
+                            "@insert(list, index, value) requires exactly 3 arguments".into()
+                        );
                     }
                     let (list_ptr, _) = self.emit_expr(&args[0], ns)?;
                     let (idx, idx_ty) = self.emit_expr(&args[1], ns)?;
@@ -2398,7 +2450,9 @@ impl Codegen {
                     let old_buf = self.fresh_tmp();
                     let new_buf = self.fresh_tmp();
                     self.emit(&format!("    {old_buf} =l loadl {list_ptr}"));
-                    self.emit(&format!("    {new_buf} =l call $realloc(l {old_buf}, l {new_cap2})"));
+                    self.emit(&format!(
+                        "    {new_buf} =l call $realloc(l {old_buf}, l {new_cap2})"
+                    ));
                     self.emit(&format!("    storel {new_buf}, {list_ptr}"));
                     self.emit(&format!("    storel {new_cap2}, {cap_slot}"));
                     self.emit(&format!("    jmp {no_grow_lbl}"));
@@ -2415,7 +2469,9 @@ impl Codegen {
                     self.emit(&format!("{shift_loop}"));
                     let should_shift = self.fresh_tmp();
                     self.emit(&format!("    {should_shift} =w cslel {idx_l}, {shift_idx}"));
-                    self.emit(&format!("    jnz {should_shift}, {shift_body}, {shift_end}"));
+                    self.emit(&format!(
+                        "    jnz {should_shift}, {shift_body}, {shift_end}"
+                    ));
                     self.emit(&format!("{shift_body}"));
                     let src_off = self.fresh_tmp();
                     let dst_off = self.fresh_tmp();
@@ -2479,7 +2535,9 @@ impl Codegen {
                     let new_bytes = self.fresh_tmp();
                     self.emit(&format!("    {old_buf} =l loadl {list_ptr}"));
                     self.emit(&format!("    {new_bytes} =l mul {new_cap_l}, 8"));
-                    self.emit(&format!("    {new_buf} =l call $realloc(l {old_buf}, l {new_bytes})"));
+                    self.emit(&format!(
+                        "    {new_buf} =l call $realloc(l {old_buf}, l {new_bytes})"
+                    ));
                     self.emit(&format!("    storel {new_buf}, {list_ptr}"));
                     self.emit(&format!("    storel {new_cap_l}, {cap_slot}"));
                     self.emit(&format!("{end_lbl}"));
@@ -2516,11 +2574,12 @@ impl Codegen {
                     }
                 }
                 let ptr = self.emit_field_ptr(expr, ns)?;
-                
-                let is_fixed_array_field = self.infer_field_type(_base, _field_name)
+
+                let is_fixed_array_field = self
+                    .infer_field_type(_base, _field_name)
                     .map(|ty| matches!(ty, TypeExpr::FixedArray(_, _)))
                     .unwrap_or(false);
-                
+
                 if is_fixed_array_field {
                     Ok((ptr, "l"))
                 } else {
@@ -2531,11 +2590,18 @@ impl Codegen {
             }
 
             Expr::StructLit { fields } => {
-                let (total_size, field_defs_opt) = if let Some(type_name) = self.infer_struct_type_from_lit(fields) {
-                    if let Some(field_defs) = self.type_defs.get(&type_name)
-                        .or_else(|| self.extern_type_defs.get(&type_name)) {
-                        let has_fixed_arrays = field_defs.iter().any(|f| matches!(f.ty, TypeExpr::FixedArray(_, _)));
-                        
+                let (total_size, field_defs_opt) = if let Some(type_name) =
+                    self.infer_struct_type_from_lit(fields)
+                {
+                    if let Some(field_defs) = self
+                        .type_defs
+                        .get(&type_name)
+                        .or_else(|| self.extern_type_defs.get(&type_name))
+                    {
+                        let has_fixed_arrays = field_defs
+                            .iter()
+                            .any(|f| matches!(f.ty, TypeExpr::FixedArray(_, _)));
+
                         let mut size: usize = 0;
                         for field in field_defs {
                             let field_size = type_byte_size(&field.ty);
@@ -2557,45 +2623,53 @@ impl Codegen {
                 let ptr = self.fresh_tmp();
                 self.emit(&format!("    {ptr} =l alloc8 {total_size}"));
 
-                let (field_offsets, field_types): (Vec<usize>, Vec<Option<TypeExpr>>) = if let Some(ref field_defs) = field_defs_opt {
-                    let has_fixed_arrays = field_defs.iter().any(|f| matches!(f.ty, TypeExpr::FixedArray(_, _)));
-                    let mut offsets = Vec::new();
-                    let mut types = Vec::new();
-                    let mut offset: usize = 0;
-                    for field in field_defs {
-                        offsets.push(offset);
-                        types.push(Some(field.ty.clone()));
-                        let field_size = type_byte_size(&field.ty);
-                        if has_fixed_arrays {
-                            let align = type_alignment(&field.ty);
-                            offset = align_to(offset as u64, align) as usize + field_size as usize;
-                        } else {
-                            offset += align8(field_size) as usize;
+                let (field_offsets, field_types): (Vec<usize>, Vec<Option<TypeExpr>>) =
+                    if let Some(ref field_defs) = field_defs_opt {
+                        let has_fixed_arrays = field_defs
+                            .iter()
+                            .any(|f| matches!(f.ty, TypeExpr::FixedArray(_, _)));
+                        let mut offsets = Vec::new();
+                        let mut types = Vec::new();
+                        let mut offset: usize = 0;
+                        for field in field_defs {
+                            offsets.push(offset);
+                            types.push(Some(field.ty.clone()));
+                            let field_size = type_byte_size(&field.ty);
+                            if has_fixed_arrays {
+                                let align = type_alignment(&field.ty);
+                                offset =
+                                    align_to(offset as u64, align) as usize + field_size as usize;
+                            } else {
+                                offset += align8(field_size) as usize;
+                            }
                         }
-                    }
-                    (offsets, types)
-                } else {
-                    (
-                        (0..fields.len()).map(|i| i * 8).collect(),
-                        (0..fields.len()).map(|_| None).collect(),
-                    )
-                };
+                        (offsets, types)
+                    } else {
+                        (
+                            (0..fields.len()).map(|i| i * 8).collect(),
+                            (0..fields.len()).map(|_| None).collect(),
+                        )
+                    };
 
                 for (i, (_fname, fexpr)) in fields.iter().enumerate() {
                     let offset = field_offsets.get(i).copied().unwrap_or(i * 8);
                     let field_type = field_types.get(i).and_then(|t| t.clone());
-                    
+
                     if let Some(TypeExpr::FixedArray(count, elem_ty)) = &field_type {
                         let elem_size = type_byte_size(elem_ty);
                         let field_byte_size = count * elem_size;
                         let field_ptr = self.fresh_tmp();
                         self.emit(&format!("    {field_ptr} =l add {ptr}, {offset}"));
-                        
+
                         if let Expr::IntLit(0) = fexpr {
-                            self.emit(&format!("    call $memset(l {field_ptr}, w 0, l {field_byte_size})"));
+                            self.emit(&format!(
+                                "    call $memset(l {field_ptr}, w 0, l {field_byte_size})"
+                            ));
                         } else {
                             let (val, _) = self.emit_expr(fexpr, ns)?;
-                            self.emit(&format!("    call $memcpy(l {field_ptr}, l {val}, l {field_byte_size})"));
+                            self.emit(&format!(
+                                "    call $memcpy(l {field_ptr}, l {val}, l {field_byte_size})"
+                            ));
                         }
                     } else {
                         let (val, val_ty) = self.emit_expr(fexpr, ns)?;
@@ -2788,7 +2862,9 @@ impl Codegen {
                     self.emit(&format!("    {size} =l copy 4096"));
                     let written_w = self.fresh_tmp();
                     if variadic_args.is_empty() {
-                        self.emit(&format!("    {written_w} =w call $snprintf(l {buf}, l {size}, l {fmt_tmp})"));
+                        self.emit(&format!(
+                            "    {written_w} =w call $snprintf(l {buf}, l {size}, l {fmt_tmp})"
+                        ));
                     } else {
                         self.emit(&format!(
                             "    {written_w} =w call $snprintf(l {buf}, l {size}, l {fmt_tmp}, ..., {})",
@@ -2839,21 +2915,29 @@ impl Codegen {
                                         Expr::FloatLit(_) => Some("f64".to_string()),
                                         Expr::StrLit(_) => Some("ref char".to_string()),
                                         Expr::Bool(_) => Some("bool".to_string()),
-                                        Expr::Cast { ty, .. } => Some(crate::codegen::type_to_annotation_string(ty)),
+                                        Expr::Cast { ty, .. } => {
+                                            Some(crate::codegen::type_to_annotation_string(ty))
+                                        }
                                         Expr::Call { callee, .. } => {
                                             let path = expr_to_path(callee);
-                                            let expanded = expand_alias_path(&path, &self.module_aliases);
+                                            let expanded =
+                                                expand_alias_path(&path, &self.module_aliases);
                                             ns.get(&expanded)
-                                                .and_then(|qbe_fn| self.fn_ret_type_exprs.get(qbe_fn))
+                                                .and_then(|qbe_fn| {
+                                                    self.fn_ret_type_exprs.get(qbe_fn)
+                                                })
                                                 .map(type_to_annotation_string)
                                                 .filter(|s| !s.is_empty())
                                         }
                                         Expr::Trust(inner) => {
                                             if let Expr::Call { callee, .. } = inner.as_ref() {
                                                 let path = expr_to_path(callee);
-                                                let expanded = expand_alias_path(&path, &self.module_aliases);
+                                                let expanded =
+                                                    expand_alias_path(&path, &self.module_aliases);
                                                 ns.get(&expanded)
-                                                    .and_then(|qbe_fn| self.fn_ret_type_exprs.get(qbe_fn))
+                                                    .and_then(|qbe_fn| {
+                                                        self.fn_ret_type_exprs.get(qbe_fn)
+                                                    })
                                                     .map(type_to_annotation_string)
                                                     .filter(|s| !s.is_empty())
                                             } else {
@@ -2894,7 +2978,8 @@ impl Codegen {
                         let final_arg = wrapped.unwrap_or_else(|| {
                             // Check if we need to promote w -> l
                             if ty == "w" {
-                                if let Some(ref ptypes) = self.fn_param_types.get(&fn_name).cloned() {
+                                if let Some(ref ptypes) = self.fn_param_types.get(&fn_name).cloned()
+                                {
                                     if let Some(pt) = ptypes.get(i) {
                                         if qbe_type(pt) == "l" {
                                             let (promoted, _) = self.promote_to_l(tmp, ty);
@@ -3175,7 +3260,9 @@ impl Codegen {
                                 .ok_or_else(|| format!("undefined variable: {name}"))?;
                             // Check if this slot holds a struct type (stored as a pointer).
                             // If so, load the pointer from the slot; otherwise return the slot address.
-                            let is_struct_slot = self.local_type_annotations.get(name)
+                            let is_struct_slot = self
+                                .local_type_annotations
+                                .get(name)
                                 .map(|type_name| {
                                     self.type_defs.contains_key(type_name)
                                         || self.extern_type_defs.contains_key(type_name)
@@ -3199,16 +3286,23 @@ impl Codegen {
                             self.emit(&format!("    {tmp} =l copy ${qbe_name}"));
                             Ok((tmp, "l"))
                         } else {
-                            Err(format!("addr(): address-of operator only supports function names or mutable variables, got {other:?}"))
+                            Err(format!(
+                                "addr(): address-of operator only supports function names or mutable variables, got {other:?}"
+                            ))
                         }
                     }
                 }
             }
 
             Expr::ZeroInit(type_name) => {
-                let size = if let Some(field_defs) = self.type_defs.get(type_name.as_str())
-                    .or_else(|| self.extern_type_defs.get(type_name.as_str())) {
-                    let has_fixed_arrays = field_defs.iter().any(|f| matches!(f.ty, TypeExpr::FixedArray(_, _)));
+                let size = if let Some(field_defs) = self
+                    .type_defs
+                    .get(type_name.as_str())
+                    .or_else(|| self.extern_type_defs.get(type_name.as_str()))
+                {
+                    let has_fixed_arrays = field_defs
+                        .iter()
+                        .any(|f| matches!(f.ty, TypeExpr::FixedArray(_, _)));
                     let mut total: usize = 0;
                     for field in field_defs {
                         let field_size = type_byte_size(&field.ty);
@@ -3244,7 +3338,10 @@ impl Codegen {
 /// Returns true if the last statement in a block is a terminator (return),
 /// meaning no fall-through jump is needed.
 fn block_is_terminated(stmts: &[Stmt]) -> bool {
-    matches!(stmts.last(), Some(Stmt::Return(_)) | Some(Stmt::Break) | Some(Stmt::Continue))
+    matches!(
+        stmts.last(),
+        Some(Stmt::Return(_)) | Some(Stmt::Break) | Some(Stmt::Continue)
+    )
 }
 
 /// Recursively checks whether a block consists entirely of "trusted" operations.
@@ -3279,20 +3376,25 @@ fn all_trusted_stmts(stmts: &[Stmt]) -> bool {
             none_body,
             ..
         } => all_trusted_stmts(some_body) && all_trusted_stmts(none_body),
-        Stmt::MatchResult { ok_body, err_body, .. } => {
-            all_trusted_stmts(ok_body) && all_trusted_stmts(err_body)
-        }
+        Stmt::MatchResult {
+            ok_body, err_body, ..
+        } => all_trusted_stmts(ok_body) && all_trusted_stmts(err_body),
         Stmt::MatchEnum { arms, .. } => arms.iter().all(|(_, b)| all_trusted_stmts(b)),
-        Stmt::MatchUnion { arms, else_body, .. } => {
+        Stmt::MatchUnion {
+            arms, else_body, ..
+        } => {
             arms.iter().all(|(_, b)| all_trusted_stmts(b))
                 && else_body.as_deref().map_or(true, all_trusted_stmts)
         }
-        Stmt::MatchString { arms, else_body, .. } => {
+        Stmt::MatchString {
+            arms, else_body, ..
+        } => {
             arms.iter().all(|(_, b)| all_trusted_stmts(b))
                 && else_body.as_deref().map_or(true, all_trusted_stmts)
         }
         Stmt::When { body, .. } => all_trusted_stmts(body),
-        Stmt::Expr(_) => false,    })
+        Stmt::Expr(_) => false,
+    })
 }
 
 type Namespace = HashMap<String, String>;
@@ -3345,8 +3447,9 @@ fn find_bare_builtin_in_stmt(stmt: &Stmt) -> Option<String> {
             .or_else(|| cond.as_ref().and_then(find_bare_builtin_in_expr))
             .or_else(|| post.as_deref().and_then(find_bare_builtin_in_stmt))
             .or_else(|| find_bare_builtin_in_stmts(body)),
-        Stmt::ForIn { iterable, body, .. } => find_bare_builtin_in_expr(iterable)
-            .or_else(|| find_bare_builtin_in_stmts(body)),
+        Stmt::ForIn { iterable, body, .. } => {
+            find_bare_builtin_in_expr(iterable).or_else(|| find_bare_builtin_in_stmts(body))
+        }
         Stmt::Match {
             expr,
             some_body,
@@ -3355,26 +3458,31 @@ fn find_bare_builtin_in_stmt(stmt: &Stmt) -> Option<String> {
         } => find_bare_builtin_in_expr(expr)
             .or_else(|| find_bare_builtin_in_stmts(some_body))
             .or_else(|| find_bare_builtin_in_stmts(none_body)),
-        Stmt::MatchResult { expr, ok_body, err_body, .. } => {
-            find_bare_builtin_in_expr(expr)
-                .or_else(|| find_bare_builtin_in_stmts(ok_body))
-                .or_else(|| find_bare_builtin_in_stmts(err_body))
-        }
-        Stmt::MatchEnum { expr, arms } => {
-            find_bare_builtin_in_expr(expr)
-                .or_else(|| arms.iter().find_map(|(_, b)| find_bare_builtin_in_stmts(b)))
-        }
-        Stmt::MatchUnion { expr, arms, else_body } => {
-            find_bare_builtin_in_expr(expr)
-                .or_else(|| arms.iter().find_map(|(_, b)| find_bare_builtin_in_stmts(b)))
-                .or_else(|| else_body.as_deref().and_then(find_bare_builtin_in_stmts))
-        }
-        Stmt::MatchString { expr, arms, else_body } => {
-            find_bare_builtin_in_expr(expr)
-                .or_else(|| arms.iter().find_map(|(_, b)| find_bare_builtin_in_stmts(b)))
-                .or_else(|| else_body.as_deref().and_then(find_bare_builtin_in_stmts))
-        }
-        Stmt::When { body, .. } => find_bare_builtin_in_stmts(body),        
+        Stmt::MatchResult {
+            expr,
+            ok_body,
+            err_body,
+            ..
+        } => find_bare_builtin_in_expr(expr)
+            .or_else(|| find_bare_builtin_in_stmts(ok_body))
+            .or_else(|| find_bare_builtin_in_stmts(err_body)),
+        Stmt::MatchEnum { expr, arms } => find_bare_builtin_in_expr(expr)
+            .or_else(|| arms.iter().find_map(|(_, b)| find_bare_builtin_in_stmts(b))),
+        Stmt::MatchUnion {
+            expr,
+            arms,
+            else_body,
+        } => find_bare_builtin_in_expr(expr)
+            .or_else(|| arms.iter().find_map(|(_, b)| find_bare_builtin_in_stmts(b)))
+            .or_else(|| else_body.as_deref().and_then(find_bare_builtin_in_stmts)),
+        Stmt::MatchString {
+            expr,
+            arms,
+            else_body,
+        } => find_bare_builtin_in_expr(expr)
+            .or_else(|| arms.iter().find_map(|(_, b)| find_bare_builtin_in_stmts(b)))
+            .or_else(|| else_body.as_deref().and_then(find_bare_builtin_in_stmts)),
+        Stmt::When { body, .. } => find_bare_builtin_in_stmts(body),
         Stmt::Increment(_)
         | Stmt::Decrement(_)
         | Stmt::AddAssign(..)
@@ -3425,30 +3533,41 @@ fn find_bare_deref_assign_in_stmts(stmts: &[Stmt]) -> bool {
 fn find_bare_deref_assign_in_stmt(stmt: &Stmt) -> bool {
     match stmt {
         Stmt::Assign { target, .. } => matches!(target, Expr::Deref(_)),
-        Stmt::If { then, elif_, else_, .. } => {
+        Stmt::If {
+            then, elif_, else_, ..
+        } => {
             find_bare_deref_assign_in_stmts(then)
-                || elif_.iter().any(|(_, b)| find_bare_deref_assign_in_stmts(b))
-                || else_.as_deref().map_or(false, find_bare_deref_assign_in_stmts)
+                || elif_
+                    .iter()
+                    .any(|(_, b)| find_bare_deref_assign_in_stmts(b))
+                || else_
+                    .as_deref()
+                    .map_or(false, find_bare_deref_assign_in_stmts)
         }
         Stmt::For { body, .. } => find_bare_deref_assign_in_stmts(body),
         Stmt::ForIn { body, .. } => find_bare_deref_assign_in_stmts(body),
-        Stmt::Match { some_body, none_body, .. } => {
-            find_bare_deref_assign_in_stmts(some_body)
-                || find_bare_deref_assign_in_stmts(none_body)
+        Stmt::Match {
+            some_body,
+            none_body,
+            ..
+        } => {
+            find_bare_deref_assign_in_stmts(some_body) || find_bare_deref_assign_in_stmts(none_body)
         }
-        Stmt::MatchResult { ok_body, err_body, .. } => {
-            find_bare_deref_assign_in_stmts(ok_body)
-                || find_bare_deref_assign_in_stmts(err_body)
-        }
+        Stmt::MatchResult {
+            ok_body, err_body, ..
+        } => find_bare_deref_assign_in_stmts(ok_body) || find_bare_deref_assign_in_stmts(err_body),
         Stmt::MatchEnum { arms, .. } => {
             arms.iter().any(|(_, b)| find_bare_deref_assign_in_stmts(b))
         }
-        Stmt::MatchUnion { arms, else_body, .. } => {
+        Stmt::MatchUnion {
+            arms, else_body, ..
+        } => {
             arms.iter().any(|(_, b)| find_bare_deref_assign_in_stmts(b))
-                || else_body.as_deref().map_or(false, find_bare_deref_assign_in_stmts)
+                || else_body
+                    .as_deref()
+                    .map_or(false, find_bare_deref_assign_in_stmts)
         }
-        Stmt::Defer(body)
-        | Stmt::When { body, .. } => find_bare_deref_assign_in_stmts(body),
+        Stmt::Defer(body) | Stmt::When { body, .. } => find_bare_deref_assign_in_stmts(body),
         _ => false,
     }
 }
