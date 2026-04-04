@@ -244,12 +244,14 @@ test {
     defer {
         Thread.free(t)
     }
+    std.io.put("it worked :D")
+
     val _result = Thread.join(t)?
 
     val final_val: i64 = @load(counter)
     assert final_val == 1
 
-    /// Test mutex lock/unlock.
+
     val m = Mutex.new()?
     defer {
         Mutex.free(m)
@@ -258,11 +260,9 @@ test {
     Mutex.lock(m)
     Mutex.unlock(m)
 
-    /// Test thread ID retrieval.
     val tid = current_thread_id()?
     assert tid > 0
 
-    /// Test thread yield.
     yield_thread()
 
     @free(counter)
