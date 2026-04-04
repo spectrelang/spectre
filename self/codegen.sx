@@ -1591,8 +1591,6 @@ fn gen_fn(ctx: ref void, fn_node: ref parser.Node) void! = {
             match p2_opt {
                 some param2 => {
                     val pname2: ref char = (param2 as ref parser.Node).d0 as ref char
-                    val pty2: ref parser.Node = (param2 as ref parser.Node).d1 as ref parser.Node
-                    val pqt2: ref char = qbe_type_of(pty2)
                     val pbuf2: ref char = @alloc(128) as ref char
                     val slot: i64 = fresh_tmp(ctx)
                     @snprintf(pbuf2, 128,
