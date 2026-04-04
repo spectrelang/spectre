@@ -788,6 +788,10 @@ impl Codegen {
                                 None
                             }
                         }
+                        Expr::Cast { ty, .. } => {
+                            let ann = type_to_annotation_string(ty);
+                            if ann.is_empty() { None } else { Some(ann) }
+                        }
                         _ => None,
                     };
                     if let Some(ann) = inferred {
@@ -1661,7 +1665,11 @@ impl Codegen {
                 self.emit(&format!("    {ptr} =l add {base_ptr}, {offset}"));
                 Ok(ptr)
             }
-            _ => Err("expected field access expression for assignment target".into()),
+            _ => Err(format!(
+                "in function '{}': expected field access (e.g. `x.field`) as assignment target, \
+                 but got: {:?}",
+                self.current_fn, expr
+            )),
         }
     }
 
@@ -1707,6 +1715,7 @@ impl Codegen {
                 .get(name)
                 .cloned()
                 .ok_or_else(|| format!("cannot determine type of '{name}'")),
+            Expr::Cast { ty, .. } => Ok(type_to_annotation_string(ty)),
             _ => Err("cannot determine struct type for complex expression".into()),
         }
     }

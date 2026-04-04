@@ -380,6 +380,188 @@ pub fn tokenize(src: ref char) result[list[ref Token], ref char]! = {
     return ok tokens
 }
 
+fn tok_kind(tokens: list[ref Token], i: i64) i64! = {
+    val opt = @get(tokens, i as usize)
+    match opt {
+        some t => {
+            val z = t as ref Token
+            return z.kind
+        }
+        none   => { return TK_EOF }
+    }
+}
+
+fn tok_text(tokens: list[ref Token], i: i64) ref char! = {
+    val opt = @get(tokens, i as usize)
+    match opt {
+        some t => { return (t as ref Token).text }
+        none   => { return 0 as ref char }
+    }
+}
+
 test {
-    assert true
+    // keywords produce the right token kinds
+    val r1 = tokenize("fn val mut pub return if else for")
+    match r1 {
+        err _ => { assert false }
+        ok toks => {
+            assert tok_kind(toks, 0) == TK_FN
+            assert tok_kind(toks, 1) == TK_VAL
+            assert tok_kind(toks, 2) == TK_MUT
+            assert tok_kind(toks, 3) == TK_PUB
+            assert tok_kind(toks, 4) == TK_RETURN
+            assert tok_kind(toks, 5) == TK_IF
+            assert tok_kind(toks, 6) == TK_ELSE
+            assert tok_kind(toks, 7) == TK_FOR
+            assert tok_kind(toks, 8) == TK_EOF
+        }
+    }
+
+    // identifiers are not confused with keywords
+    val r2 = tokenize("foobar hello_world _x")
+    match r2 {
+        err _ => { assert false }
+        ok toks => {
+            assert tok_kind(toks, 0) == TK_IDENT
+            assert tok_kind(toks, 1) == TK_IDENT
+            assert tok_kind(toks, 2) == TK_IDENT
+            assert std.string.compare(tok_text(toks, 0), "foobar") == 0
+            assert std.string.compare(tok_text(toks, 1), "hello_world") == 0
+        }
+    }
+
+    // integer and float literals
+    val r3 = tokenize("42 3.14 0xff")
+    match r3 {
+        err _ => { assert false }
+        ok toks => {
+            assert tok_kind(toks, 0) == TK_INT
+            assert tok_kind(toks, 1) == TK_FLOAT
+            assert tok_kind(toks, 2) == TK_INT
+            assert std.string.compare(tok_text(toks, 0), "42") == 0
+            assert std.string.compare(tok_text(toks, 2), "0xff") == 0
+        }
+    }
+
+    // string literal contents are captured
+    val r4 = tokenize("\"hello\"")
+    match r4 {
+        err _ => { assert false }
+        ok toks => {
+            assert tok_kind(toks, 0) == TK_STR
+            assert std.string.compare(tok_text(toks, 0), "hello") == 0
+        }
+    }
+
+    // string escape sequences
+    val r5 = tokenize("\"line1\\nline2\"")
+    match r5 {
+        err _ => { assert false }
+        ok toks => {
+            assert tok_kind(toks, 0) == TK_STR
+            // text should contain a real newline (ascii 10)
+            val text: ref char = tok_text(toks, 0)
+            assert @load8(@ptradd(text, 5)) as i64 == 10
+        }
+    }
+
+    // multi-char operators
+    val r6 = tokenize("== != <= >= && || ++ -- -> => << >>")
+    match r6 {
+        err _ => { assert false }
+        ok toks => {
+            assert tok_kind(toks, 0)  == TK_EQEQ
+            assert tok_kind(toks, 1)  == TK_BANGEQ
+            assert tok_kind(toks, 2)  == TK_LTEQ
+            assert tok_kind(toks, 3)  == TK_GTEQ
+            assert tok_kind(toks, 4)  == TK_AND
+            assert tok_kind(toks, 5)  == TK_OR
+            assert tok_kind(toks, 6)  == TK_PLUSPLUS
+            assert tok_kind(toks, 7)  == TK_MINUSMINUS
+            assert tok_kind(toks, 8)  == TK_ARROW
+            assert tok_kind(toks, 9)  == TK_FATARROW
+            assert tok_kind(toks, 10) == TK_SHL
+            assert tok_kind(toks, 11) == TK_SHR
+        }
+    }
+
+    // single-char punctuation
+    val r7 = tokenize("( ) { } [ ] : , . @ ~ ?")
+    match r7 {
+        err _ => { assert false }
+        ok toks => {
+            assert tok_kind(toks, 0)  == TK_LPAREN
+            assert tok_kind(toks, 1)  == TK_RPAREN
+            assert tok_kind(toks, 2)  == TK_LBRACE
+            assert tok_kind(toks, 3)  == TK_RBRACE
+            assert tok_kind(toks, 4)  == TK_LBRACKET
+            assert tok_kind(toks, 5)  == TK_RBRACKET
+            assert tok_kind(toks, 6)  == TK_COLON
+            assert tok_kind(toks, 7)  == TK_COMMA
+            assert tok_kind(toks, 8)  == TK_DOT
+            assert tok_kind(toks, 9)  == TK_AT
+            assert tok_kind(toks, 10) == TK_TILDE
+            assert tok_kind(toks, 11) == TK_QUESTION
+        }
+    }
+
+    // ... is a single token
+    val r8 = tokenize("...")
+    match r8 {
+        err _ => { assert false }
+        ok toks => {
+            assert tok_kind(toks, 0) == TK_DOTDOTDOT
+            assert tok_kind(toks, 1) == TK_EOF
+        }
+    }
+
+    // line comments are skipped
+    val r9 = tokenize("fn // this is a comment\nval")
+    match r9 {
+        err _ => { assert false }
+        ok toks => {
+            assert tok_kind(toks, 0) == TK_FN
+            assert tok_kind(toks, 1) == TK_VAL
+            assert tok_kind(toks, 2) == TK_EOF
+        }
+    }
+
+    val r10 = tokenize("fn\nval")
+    match r10 {
+        err _ => { assert false }
+        ok toks => {
+            val opt0 = @get(toks, 0 as usize)
+            val opt1 = @get(toks, 1 as usize)
+            match opt0 {
+                some t => {
+                    val tok0: ref Token = t as ref Token
+                    assert tok0.line == 1
+                    assert tok0.col  == 1
+                }
+                none => { assert false }
+            }
+            match opt1 {
+                some t => {
+                    val tok1: ref Token = t as ref Token
+                    assert tok1.line == 2
+                }
+                none => { assert false }
+            }
+        }
+    }
+
+    val r11 = tokenize("")
+    match r11 {
+        err _ => { assert false }
+        ok toks => {
+            assert @len(toks) as i64 == 1
+            assert tok_kind(toks, 0) == TK_EOF
+        }
+    }
+
+    val r12 = tokenize("#")
+    match r12 {
+        ok _  => { assert false }
+        err _ => { assert true }
+    }
 }
