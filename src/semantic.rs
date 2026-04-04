@@ -1519,8 +1519,6 @@ fn check_immutable_args_in_expr(
     match expr {
         Expr::Builtin { name, args } => {
             for arg in args {
-                // If the variable is already a ref/pointer type, passing it to a builtin
-                // is just passing a pointer value — the binding itself isn't mutated.
                 if let Some(var_name) = immutable_non_ref_ident(arg, var_mut, var_types) {
                     errors.push(format!(
                         "{filename}: in function '{fn_name}': \
