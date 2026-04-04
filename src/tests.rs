@@ -3940,6 +3940,24 @@ mod fixed_array_regression_tests {
     }
 
     #[test]
+    fn struct_field_offset_after_list_field() {
+        let ir = compile_ok(
+            r#"
+            type Stack = {
+                data: mut list[i32]
+                len:  mut usize
+            }
+
+            pub fn main() void! = {
+                val s: mut Stack = {data: [], len: 0}
+                s.len = 1
+            }
+        "#,
+        );
+        assert!(ir.contains("add %") && ir.contains(", 24"));
+    }
+
+    #[test]
     fn fixed_array_field_offset_contiguous() {
         let ir = compile_ok(
             r#"
