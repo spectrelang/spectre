@@ -24,8 +24,13 @@ pub fn debug(msg: ref char) void! = {
     std.io.print("{s} [DEBUG] {s}\n", {get_time_string(), msg})
 }
 
+pub fn error(msg: ref char) void! = {
+    std.io.print("{s} [ERROR] {s}\n", {get_time_string(), msg})
+}
+
 test {
     info("This is some info message")
     warn("This is some warning")
     debug("This is a debug")
+    error("This is an error")
 }
