@@ -53,7 +53,7 @@ else
     )
 
     log "Installing QBE to ${BIN_DIR}..."
-    install -m 0755 "$QBE_DIR/qbe" "$BIN_DIR/qbe"
+    /usr/bin/install -m 0755 "$QBE_DIR/qbe" "$BIN_DIR/qbe"
 fi
 
 log "Installing Spectre..."
@@ -74,7 +74,7 @@ log "Building Spectre (release)..."
 )
 
 log "Installing Spectre binary..."
-install -m 0755 \
+/usr/bin/install -m 0755 \
     "$SPECTRE_DIR/target/release/spectre" \
     "$BIN_DIR/spectre"
 
