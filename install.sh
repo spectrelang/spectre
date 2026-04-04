@@ -118,8 +118,5 @@ echo "  - spectre -> ${BIN_DIR}/spectre"
 echo "  - stdlib  -> ${BIN_DIR}/std"
 echo "  - qbe     -> ${BIN_DIR}/qbe"
 echo
-echo "Ensure your Spectre runtime looks for std at:"
-echo "  ${BIN_DIR}/std"
-echo
 echo "Verify with:"
 echo "  spectre --help"
