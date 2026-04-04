@@ -226,3 +226,38 @@ pub fn config_dir() option[ref char]! = {
     }
     return none
 }
+
+// val std = use("std")
+
+// test {
+//     val path: ref char = "test_file.txt"
+//     val success = write_all(path, "Hello, Spectre!")
+//     assert success
+
+//     val content_opt = read_all(path)
+//     match content_opt {
+//         none => { assert false }
+//         some content => {
+//             assert strcmp(content, "Hello, Spectre!") == 0
+//             @free(content)
+//         }
+//     }
+
+//     val append_ok = append_all(path, " More text.")
+//     assert append_ok
+
+//     val content2_opt = read_all(path)
+//     match content2_opt {
+//         none => { assert false }
+//         some content2 => {
+//             assert strcmp(content2, "Hello, Spectre! More text.") == 0
+//             @free(content2)
+//         }
+//     }
+
+//     val rename_ok = rename_path(path, "test_file2.txt")
+//     assert rename_ok
+
+//     val delete_ok = delete("test_file2.txt")
+//     assert delete_ok
+// }

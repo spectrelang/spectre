@@ -1,6 +1,7 @@
 val std = use("std")
 
 extern (C) fn strlen(s: ref char) i64! = "strlen"
+extern (C) fn strcmp(a: ref char, b: ref char) i64! = "strcmp"
 
 /// A string builder or a raw pointer, used internally in ensure_cap
 /// to avoid double-loading the pointer and capacity fields.
@@ -27,6 +28,29 @@ pub fn new() ref void! = {
     @store(@ptradd(s, 16), 1)
     return s
 }
+
+/// Internal.
+/// 
+/// Either a String or a raw pointer to a String.
+// union StrOrRefChar = {
+//     String | ref char
+// }
+
+// pub fn compare(a: StrOrRefChar, b: StrOrRefChar) i64! = {
+//     match a {
+//         ref char => {
+//             val aptr: ref char = @load(a)
+//             val bptr: ref char = @load(b)
+//             return strcmp(aptr, bptr)
+//         }
+//         String => {
+//             val aptr: ref char = @load(@ptradd(a, 0))
+//             val bptr: ref char = @load(@ptradd(b, 0))
+//             return strcmp(aptr, bptr)
+//         }
+//     }
+//     return -2
+// }
 
 /// Create from raw C string
 pub fn from(cstr: ref char) ref void! = {
@@ -976,4 +1000,6 @@ test {
     std.io.put("string tests passed")
 
     std.io.print("{s}", {cstr(format("hello {d}", {1}))})
+
+    std.io.print("comparison: {d}\n", {compare(from("abc"), from("abc"))})
 }
