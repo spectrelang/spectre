@@ -11,6 +11,7 @@ pub enum Item {
         public: bool,
         name: String,
         path: String,
+        imports: Option<Vec<String>>,
     },
     Fn(FnDef),
     TypeDef {
@@ -445,9 +446,39 @@ impl Parser {
 
     fn parse_use(&mut self) -> Result<Item, String> {
         self.expect(&TokenKind::Use)?;
-        let name = self.expect_ident()?;
-        let path = self.expect_string()?;
-        Ok(Item::Use { public: false, name, path })
+        if self.peek() == &TokenKind::LParen {
+            self.advance();
+            let path = self.expect_string()?;
+            self.expect(&TokenKind::RParen)?;
+            self.expect(&TokenKind::Colon)?;
+            let mut imports = Vec::new();
+            loop {
+                imports.push(self.expect_ident()?);
+                if !self.eat(&TokenKind::Comma) {
+                    break;
+                }
+            }
+            // Use filename as the name for the module binding
+            let name = std::path::Path::new(&path)
+                .file_stem()
+                .map(|s| s.to_string_lossy().to_string())
+                .unwrap_or_else(|| path.clone());
+            Ok(Item::Use {
+                public: false,
+                name,
+                path,
+                imports: Some(imports),
+            })
+        } else {
+            let name = self.expect_ident()?;
+            let path = self.expect_string()?;
+            Ok(Item::Use {
+                public: false,
+                name,
+                path,
+                imports: None,
+            })
+        }
     }
 
     fn parse_extern_fn_after_extern(&mut self, public: bool) -> Result<Item, String> {
@@ -710,7 +741,12 @@ impl Parser {
             self.expect(&TokenKind::LParen)?;
             let path = self.expect_string()?;
             self.expect(&TokenKind::RParen)?;
-            return Ok(Item::Use { public, name, path });
+            return Ok(Item::Use {
+                public,
+                name,
+                path,
+                imports: None,
+            });
         }
 
         let expr = self.parse_expr()?;

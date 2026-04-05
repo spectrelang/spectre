@@ -11,10 +11,6 @@ pub fn check_module(resolved: &ResolvedModule) -> Vec<String> {
 }
 
 fn check_module_recursive(resolved: &ResolvedModule, errors: &mut Vec<String>) {
-    for child in resolved.imports.values() {
-        check_module_recursive(child, errors);
-    }
-
     let fn_lookup = build_fn_lookup(resolved);
     let fn_ret_lookup = build_fn_ret_lookup(resolved);
     let type_lookup = build_type_lookup(resolved);
@@ -34,6 +30,7 @@ fn check_module_recursive(resolved: &ResolvedModule, errors: &mut Vec<String>) {
         }
     }
 }
+
 
 /// Build a map from qualified function path (e.g. "foo", "mod.foo") to its parameter list.
 /// This is used to check whether a call passes an immutable value to a `ref` parameter.

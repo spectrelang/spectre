@@ -1,6 +1,6 @@
 use crate::cli::Platform;
 use crate::module::ResolvedModule;
-use crate::parser::{Expr, Field, FnDef, Item, Stmt, TypeExpr};
+use crate::parser::{Expr, Field, FnDef, Item, Stmt, TypeExpr, UnOp};
 use std::collections::HashMap;
 
 fn qbe_type(ty: &TypeExpr) -> &'static str {
@@ -347,7 +347,12 @@ impl Codegen {
         release: bool,
     ) -> Result<(), String> {
         self.release = release;
-        let ns = build_namespace(resolved);
+        self.current_file = resolved.filename.clone();
+        self.current_module_prefix = "".to_string();
+
+        let mut ns = HashMap::new();
+        collect_ns(resolved, &mut ns);
+
         let trusted = build_trusted_set(resolved);
         self.trusted_fns = trusted;
         self.fn_ret_types = build_ret_types(resolved);
@@ -355,65 +360,42 @@ impl Codegen {
         self.fn_param_types = build_param_types(resolved);
         self.variadic_fns = build_variadic_set(resolved);
         self.result_void_ok = build_result_void_ok(resolved);
-        self.emit_module_recursive(resolved, &ns, test_mode, true, "")?;
-        if test_mode {
-            self.emit_test_main()?;
-        }
-        Ok(())
-    }
-
-    fn emit_module_recursive(
-        &mut self,
-        resolved: &ResolvedModule,
-        ns: &Namespace,
-        test_mode: bool,
-        is_root: bool,
-        module_prefix: &str,
-    ) -> Result<(), String> {
-        for (import_name, child) in &resolved.imports {
-            let child_prefix = if module_prefix.is_empty() {
-                import_name.clone()
-            } else {
-                format!("{module_prefix}__{import_name}")
-            };
-            self.emit_module_recursive(child, ns, test_mode, false, &child_prefix)?;
-        }
-
-        let prev_file = self.current_file.clone();
-        let prev_prefix = self.current_module_prefix.clone();
-        self.current_file = resolved.filename.clone();
-        self.current_module_prefix = module_prefix.to_string();
 
         let items = self.flatten_items(&resolved.ast.items);
 
+        // First pass: collect definitions
         for item in &items {
-            if let Item::TypeDef { name, fields, .. } = item {
-                self.type_defs.insert(name.clone(), fields.clone());
-            }
-            if let Item::ExternTypeDef { name, fields, .. } = item {
-                self.extern_type_defs.insert(name.clone(), fields.clone());
-            }
-            if let Item::UnionDef { name, variants, .. } = item {
-                self.union_defs.insert(name.clone(), variants.clone());
-            }
-            if let Item::EnumDef { name, variants, .. } = item {
-                self.enum_defs.insert(name.clone(), variants.clone());
+            match item {
+                Item::TypeDef { name, fields, .. } => {
+                    self.type_defs.insert(name.clone(), fields.clone());
+                }
+                Item::ExternTypeDef { name, fields, .. } => {
+                    self.extern_type_defs.insert(name.clone(), fields.clone());
+                }
+                Item::UnionDef { name, variants, .. } => {
+                    self.union_defs.insert(name.clone(), variants.clone());
+                }
+                Item::EnumDef { name, variants, .. } => {
+                    self.enum_defs.insert(name.clone(), variants.clone());
+                }
+                _ => {}
             }
         }
 
+        // Second pass: collect constants
         self.module_consts.clear();
         for item in &items {
             if let Item::Const { name, expr, .. } = item {
                 let (val, ty) = match expr {
-                    crate::parser::Expr::IntLit(n) => (n.to_string(), "l"),
-                    crate::parser::Expr::FloatLit(f) => (format!("d_{f}"), "d"),
-                    crate::parser::Expr::Bool(b) => (if *b { "1" } else { "0" }.to_string(), "w"),
-                    crate::parser::Expr::UnOp {
-                        op: crate::parser::UnOp::Neg,
+                    Expr::IntLit(n) => (n.to_string(), "l"),
+                    Expr::FloatLit(f) => (format!("d_{f}"), "d"),
+                    Expr::Bool(b) => (if *b { "1" } else { "0" }.to_string(), "w"),
+                    Expr::UnOp {
+                        op: UnOp::Neg,
                         expr,
                     } => match expr.as_ref() {
-                        crate::parser::Expr::IntLit(n) => (format!("-{n}"), "l"),
-                        crate::parser::Expr::FloatLit(f) => (format!("d_-{f}"), "d"),
+                        Expr::IntLit(n) => (format!("-{n}"), "l"),
+                        Expr::FloatLit(f) => (format!("d_-{f}"), "d"),
                         _ => continue,
                     },
                     _ => continue,
@@ -422,6 +404,7 @@ impl Codegen {
             }
         }
 
+        // Third pass: collect function pointers
         for item in &items {
             if let Item::Const { name, expr, .. } = item {
                 let path = expr_to_path(expr);
@@ -429,54 +412,50 @@ impl Codegen {
                     let expanded = expand_alias_path(&path, &self.module_aliases);
                     if let Some(qbe_name) = ns.get(&expanded) {
                         self.fn_ptr_consts.insert(name.clone(), qbe_name.clone());
-                    } else if is_namespace_prefix(&path, ns) {
+                    } else if is_namespace_prefix(&path, &ns) {
                         self.module_aliases.insert(name.clone(), expanded);
                     }
                 }
             }
         }
 
-        let mut local_ns = ns.clone();
-        for item in &items {
-            if let Item::Fn(f) = item {
-                let local_key = match &f.namespace {
-                    Some(type_name) => format!("{type_name}.{}", f.name),
-                    None => f.name.clone(),
-                };
-                local_ns.insert(local_key, fn_qbe_name_prefixed(f, module_prefix));
-            }
-            if let Item::ExternFn { name, symbol, .. } = item {
-                local_ns.insert(name.clone(), symbol.clone());
-            }
-        }
-
+        // Fourth pass: emit items
         for item in &items {
             match item {
                 Item::Fn(f) => {
                     if test_mode && f.name == "main" {
                         continue;
                     }
-                    self.emit_fn(f, &local_ns)?
+                    self.emit_fn(f, &ns)?
                 }
-                Item::Test { body } if test_mode && is_root => {
-                    self.emit_test_fn(body, &local_ns)?
+                Item::Test { body } if test_mode => {
+                    self.emit_test_fn(body, &ns)?
                 }
-                Item::Use { .. }
-                | Item::Const { .. }
-                | Item::TypeDef { .. }
-                | Item::ExternTypeDef { .. }
-                | Item::UnionDef { .. }
-                | Item::EnumDef { .. }
-                | Item::ExternFn { .. }
-                | Item::Link { .. }
-                | Item::LinkWhen { .. }
-                | Item::WhenItems { .. }
-                | Item::Test { .. } => {}
+                Item::ExternFn { .. } | Item::Link { .. } | Item::LinkWhen { .. } | Item::ExternTypeDef { .. } | Item::TypeDef { .. } | Item::UnionDef { .. } | Item::EnumDef { .. } | Item::Const { .. } => {
+                    self.emit_item(item, &ns)?
+                }
+                _ => {}
             }
         }
 
-        self.current_file = prev_file;
-        self.current_module_prefix = prev_prefix;
+        if test_mode {
+            self.emit_test_main()?;
+        }
+        Ok(())
+    }
+
+    fn emit_item(&mut self, item: &Item, ns: &Namespace) -> Result<(), String> {
+        match item {
+            Item::Fn(f) => self.emit_fn(f, ns)?,
+            Item::WhenItems { platform, items } => {
+                if self.platform.matches_name(platform) {
+                    for i in items {
+                        self.emit_item(i, ns)?;
+                    }
+                }
+            }
+            _ => {}
+        }
         Ok(())
     }
 
@@ -3749,9 +3728,10 @@ fn find_bare_deref_assign_in_stmt(stmt: &Stmt) -> bool {
 
 fn build_namespace(resolved: &ResolvedModule) -> Namespace {
     let mut ns = HashMap::new();
-    collect_ns(resolved, "", &mut ns);
+    collect_ns(resolved, &mut ns);
     ns
 }
+
 
 fn build_ret_types(resolved: &ResolvedModule) -> HashMap<String, &'static str> {
     let mut map = HashMap::new();
@@ -4031,68 +4011,32 @@ const RESERVED_SYMBOLS: &[&str] = &[
     "sx_stdin",
 ];
 
-fn collect_ns(module: &ResolvedModule, prefix: &str, ns: &mut Namespace) {
-    collect_ns_with_qbe_prefix(module, prefix, prefix, ns);
-}
-
-fn collect_ns_with_qbe_prefix(
-    module: &ResolvedModule,
-    prefix: &str,
-    qbe_prefix: &str,
-    ns: &mut Namespace,
-) {
+fn collect_ns(module: &ResolvedModule, ns: &mut Namespace) {
     for item in &module.ast.items {
         match item {
             Item::Fn(f) => {
-                if f.namespace.is_some() && !f.public {
-                    continue;
-                }
-                let qbe = fn_qbe_name_prefixed(f, qbe_prefix);
-                let local_key = match &f.namespace {
-                    Some(type_name) => format!("{type_name}.{}", f.name),
-                    None => f.name.clone(),
-                };
-                let key = if prefix.is_empty() {
-                    local_key
+                let qbe = if let Some(type_name) = &f.namespace {
+                    format!("{type_name}__{}", f.name)
                 } else {
-                    format!("{prefix}.{local_key}")
+                    f.name.clone()
                 };
-                ns.insert(key, qbe);
+                let key = if let Some(type_name) = &f.namespace {
+                    format!("{type_name}.{}", f.name)
+                } else {
+                    f.name.clone()
+                };
+                ns.insert(key, qbe.clone());
+                // Also insert the qbe name itself as a key for already-prefixed calls
+                ns.insert(qbe.clone(), qbe);
             }
-            Item::ExternFn {
-                name,
-                symbol,
-                public,
-                ..
-            } => {
-                if !public {
-                    continue;
-                }
-                let key = if prefix.is_empty() {
-                    name.clone()
-                } else {
-                    format!("{prefix}.{name}")
-                };
-                ns.insert(key, symbol.clone());
+            Item::ExternFn { name, symbol, .. } => {
+                ns.insert(name.clone(), symbol.clone());
             }
             _ => {}
         }
     }
-
-    for (import_name, child) in &module.imports {
-        let child_prefix = if prefix.is_empty() {
-            import_name.clone()
-        } else {
-            format!("{prefix}.{import_name}")
-        };
-        let child_qbe_prefix = if qbe_prefix.is_empty() {
-            import_name.clone()
-        } else {
-            format!("{qbe_prefix}__{import_name}")
-        };
-        collect_ns_with_qbe_prefix(child, &child_prefix, &child_qbe_prefix, ns);
-    }
 }
+
 
 fn resolve_call_name(
     callee: &Expr,
