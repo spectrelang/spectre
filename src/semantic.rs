@@ -2441,9 +2441,18 @@ fn infer_expr_type(
         }
         Expr::StructLit { .. } => None,
         Expr::ArgsPack(_) => None,
-        Expr::Try(inner) | Expr::Trust(inner) => {
-            infer_expr_type(inner, var_types, type_lookup, fn_ret_lookup)
+        Expr::Try(inner) => {
+            if let Some(ty) = infer_expr_type(inner, var_types, type_lookup, fn_ret_lookup) {
+                match ty {
+                    TypeExpr::Result(ok, _) => Some((*ok).clone()),
+                    TypeExpr::Option(ok) => Some((*ok).clone()),
+                    other => Some(other),
+                }
+            } else {
+                None
+            }
         }
+        Expr::Trust(inner) => infer_expr_type(inner, var_types, type_lookup, fn_ret_lookup),
     }
 }
 

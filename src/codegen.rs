@@ -370,6 +370,9 @@ impl Codegen {
         is_root: bool,
         module_prefix: &str,
     ) -> Result<(), String> {
+        if !module_prefix.is_empty() {
+            println!("--- emit_module_recursive: prefix='{}' file='{}'", module_prefix, resolved.filename);
+        }
         for (import_name, child) in &resolved.imports {
             let child_prefix = if module_prefix.is_empty() {
                 import_name.clone()
@@ -420,6 +423,17 @@ impl Codegen {
                 };
                 self.module_consts.insert(name.clone(), (val, ty));
             }
+        }
+
+        self.module_aliases.clear();
+        for (import_name, _) in &resolved.imports {
+            let expanded = if module_prefix.is_empty() {
+                import_name.clone()
+            } else {
+                format!("{module_prefix}.{import_name}")
+            };
+            self.module_aliases.insert(import_name.clone(), expanded.clone());
+            println!("  alias: {} -> {}", import_name, expanded);
         }
 
         for item in &items {
@@ -4101,9 +4115,15 @@ fn resolve_call_name(
 ) -> Result<String, String> {
     let path = expr_to_path(callee);
     let expanded = expand_alias_path(&path, aliases);
+    if path.contains("collections") {
+        println!("resolve_call_name: path='{}' expanded='{}'", path, expanded);
+    }
     ns.get(&expanded)
         .cloned()
-        .ok_or_else(|| format!("unknown function: {path}"))
+        .ok_or_else(|| {
+            println!("FAILED to resolve '{}'. Namespace keys: {:?}", expanded, ns.keys().collect::<Vec<_>>());
+            format!("unknown function: {path}")
+        })
 }
 
 fn expr_to_path(expr: &Expr) -> String {

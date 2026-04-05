@@ -500,7 +500,7 @@ pub fn replace(s: ref void, from: ref void, to: ref void) ref void! = {
 
 
 /// Split s by delim — returns a List of heap-allocated Strings
-pub fn split(s: ref void, delim: ref void) ref void! = {
+pub fn split(s: ref void, delim: ref void) result[ref void, ListAllocError]! = {
     val result: ref void = collections.PtrList.new(8)?
 
     val sl: i64 = @load(@ptradd(s, 8)) as i64
@@ -948,7 +948,7 @@ test {
     io.put("hi3.2.2")
     val sp = from("a,b,c")
     io.put("hi3.2.3")
-    val parts = split(sp, from(","))
+    val parts = split(sp, from(","))?
     io.put("hi3.3")
 
     assert(collections.PtrList.len(parts) == 3)
@@ -966,7 +966,7 @@ test {
     }
 
     val sp2 = from("a,b,")
-    val parts2 = split(sp2, from(","))
+    val parts2 = split(sp2, from(","))?
     assert(collections.PtrList.len(parts2) == 3)
     match collections.PtrList.get(parts2, 2) {
         some v => { assert(equals(v, from(""))) }

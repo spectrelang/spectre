@@ -296,14 +296,14 @@ pub fn resolve_module(
     }
 
     for (name, resolved_path) in &declared_uses {
-        if let Some(needed) = needed_children {
-            if !needed.contains(name) {
-                continue;
-            }
+        let is_needed = if let Some(needed) = needed_children {
+            needed.contains(name)
         } else {
-            if !locally_referenced.contains(name) {
-                continue;
-            }
+            false
+        };
+
+        if !is_needed && !locally_referenced.contains(name) {
+            continue;
         }
 
         if let Some(cached) = cache.get(resolved_path) {

@@ -111,7 +111,7 @@ pub fn exec(cmd: ref char) result[String, ProcessError]! = {
     @free(buf)
     pclose(pipe)
 
-    val out: String = string.StringBuilder.build(sb)
+    val out: String = string.StringBuilder.build(sb) as String
     string.StringBuilder.free(sb)
 
     return ok out
