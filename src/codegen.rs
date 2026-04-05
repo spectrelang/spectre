@@ -3896,7 +3896,10 @@ fn all_trusted_stmts(stmts: &[Stmt]) -> bool {
         | Stmt::AddAssign(..)
         | Stmt::SubAssign(..) => true,
         Stmt::Assert(..) => true,
-        Stmt::Assign { target, .. } => matches!(target, Expr::Deref(_) | Expr::Trust(_)),
+        Stmt::Assign { target, .. } => matches!(
+            target,
+            Expr::Ident(_) | Expr::Field(..) | Expr::Deref(_) | Expr::Trust(_)
+        ),
         Stmt::Defer(body) => all_trusted_stmts(body),
         Stmt::If {
             then, elif_, else_, ..
