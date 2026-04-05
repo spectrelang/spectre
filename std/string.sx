@@ -7,7 +7,7 @@ extern (C) fn strcmp(a: ref char, b: ref char) i64! = "strcmp"
 /// A string builder or a raw pointer, used internally in ensure_cap
 /// to avoid double-loading the pointer and capacity fields.
 union SbOrPtr = {
-    StringBuilder | ref void
+    StrBuilder(StringBuilder) | Ptr(ref void)
 }
 
 /// This is the classic string type.
@@ -34,17 +34,16 @@ pub fn new() ref void! = {
 /// 
 /// Either a String or a raw pointer to a String.
 union StrOrRefChar = {
-    String | ref char
+    Str(String) | RefChar(ref char)
 }
 
 pub fn compare(a: StrOrRefChar, b: StrOrRefChar) i64! = {
     match a {
-        ref char => {
-            val aptr: ref char = @load(a)
+        RefChar aptr => {
             val bptr: ref char = @load(b)
             return strcmp(aptr, bptr)
         }
-        String => {
+        Str _ => {
             val aptr: ref char = @load(@load(a))
             val bptr: ref char = @load(@load(b))
             return strcmp(aptr, bptr)
@@ -91,24 +90,39 @@ pub fn cstr(s: ref void) ref char! = {
 
 /// Ensure capacity (private helper)
 fn ensure_cap(s: SbOrPtr, needed: i64) void! = {
-    val cap: i64 = @load(@ptradd(s, 16)) as i64
-    if (needed <= cap) {
-        return
+    match s {
+        Ptr ptr => {
+            val cap: i64 = @load(@ptradd(ptr, 16)) as i64
+            if (needed <= cap) {
+                return
+            }
+            val new_cap: mut i64 = needed * 2
+            val old_ptr: ref void = @load(ptr)
+            val new_ptr: ref void = @realloc(old_ptr, new_cap)
+            @store(ptr, new_ptr)
+            @store(@ptradd(ptr, 16), new_cap)
+        }
+        StrBuilder sb => {
+            val cap: i64 = @load(@ptradd(sb, 16)) as i64
+            if (needed <= cap) {
+                return
+            }
+            val new_cap: mut i64 = needed * 2
+            val old_ptr: ref void = @load(sb)
+            val new_ptr: ref void = @realloc(old_ptr, new_cap)
+            @store(sb, new_ptr)
+            @store(@ptradd(sb, 16), new_cap)
+        }
     }
-    val new_cap: mut i64 = needed * 2
-    val old_ptr: ref void = @load(s)
-    val new_ptr: ref void = @realloc(old_ptr, new_cap)
-    @store(s, new_ptr)
-    @store(@ptradd(s, 16), new_cap)
 }
 
 /// Append a C string in place
-pub fn push_cstr(s: ref void, other: ref char) void! = {
+pub fn push_cstr(s: String, other: ref char) void! = {
     val l: mut i64 = @load(@ptradd(s, 8)) as i64
     val add_len: mut i64 = strlen(other)
     val new_len: mut i64 = l + add_len
 
-    ensure_cap(s, new_len + 1)
+    ensure_cap(Str(s), new_len + 1)
 
     val ptr: ref void = @load(s)
 
@@ -125,7 +139,7 @@ pub fn push(s: ref void, other: ref void) void! = {
     val l: mut i64 = @load(@ptradd(s, 8)) as i64
     val new_len: mut i64 = l + other_len
 
-    ensure_cap(s, new_len + 1)
+    ensure_cap(Ptr(s), new_len + 1)
 
     val ptr: ref void = @load(s)
 
@@ -184,7 +198,7 @@ pub fn concat(a: ref void, b: ref void) ref void! = {
 
 /// Reserve at least cap bytes of capacity
 pub fn reserve(s: ref void, cap: i64) void! = {
-    ensure_cap(s, cap)
+    ensure_cap(Ptr(s), cap)
 }
 
 /// Clear contents (set length to 0, keep allocation)
@@ -199,7 +213,7 @@ pub fn push_char(s: ref void, c: u8) void! = {
     val l: mut i64 = @load(@ptradd(s, 8)) as i64
     val new_len: mut i64 = l + 1
 
-    ensure_cap(s, new_len + 1)
+    ensure_cap(Ptr(s), new_len + 1)
 
     val ptr: ref void = @load(s)
     @store8(@ptradd(ptr, l), c)
@@ -477,7 +491,7 @@ pub fn replace(s: ref void, from: ref void, to: ref void) ref void! = {
             if (matched != 0) {
                 val out_l: mut i64 = @load(@ptradd(out, 8)) as i64
                 val new_len: mut i64 = out_l + tol
-                ensure_cap(out, new_len + 1)
+                ensure_cap(Ptr(out), new_len + 1)
                 val out_ptr: ref void = @load(out)
                 @memcpy(@ptradd(out_ptr, out_l), top, tol)
                 @store8(@ptradd(out_ptr, new_len), 0)
@@ -692,7 +706,7 @@ pub fn (StringBuilder) append(sb: self, s: ref void) void! = {
     val l: mut i64 = @load(@ptradd(sb, 8)) as i64
     val new_len: mut i64 = l + other_len
 
-    ensure_cap(sb, new_len + 1)
+    ensure_cap(StrBuilder(sb), new_len + 1)
 
     val ptr: ref void = @load(sb)
 
@@ -707,7 +721,7 @@ pub fn (StringBuilder) append_cstr(sb: self, cstr: ref char) void! = {
     val add_len: mut i64 = strlen(cstr)
     val new_len: mut i64 = l + add_len
 
-    ensure_cap(sb, new_len + 1)
+    ensure_cap(StrBuilder(sb), new_len + 1)
 
     val ptr: ref void = @load(sb)
 
@@ -746,7 +760,7 @@ pub fn (StringBuilder) append_char(sb: self, c: u8) void! = {
     val l: mut i64 = @load(@ptradd(sb, 8)) as i64
     val new_len: mut i64 = l + 1
 
-    ensure_cap(sb, new_len + 1)
+    ensure_cap(StrBuilder(sb), new_len + 1)
 
     val ptr: ref void = @load(sb)
     @store8(@ptradd(ptr, l), c)
@@ -935,11 +949,18 @@ test {
 
     stdio.put("hi3.1")
     val trr = from("hello   ")
+    stdio.put("hi3.1.1")
+
     trim_right(trr)
+    stdio.put("hi3.1.2")
     assert(equals(trr, from("hello")))
+    stdio.put("hi3.1.3")
 
     val rep = from("foo bar foo")
+    stdio.put("hi3.1.4" )
+
     val rep2 = replace(rep, from("foo"), from("baz"))
+    stdio.put("hi3.1.5")
     assert(equals(rep2, from("baz bar baz")))
     stdio.put("hi3.2")
 
