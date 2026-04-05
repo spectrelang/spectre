@@ -73,9 +73,14 @@ pub fn string_free(s: ref void) void! = {
     @free(s)
 }
 
-/// Length
-pub fn len(s: ref void) i64! = {
+/// Length of a String
+pub fn len(s: String) i64! = {
     return @load(@ptradd(s, 8)) as i64
+}
+
+/// Length of a raw char pointer
+pub fn len_raw(s: ref char) i64! = {
+    return strlen(s)
 }
 
 /// Raw pointer
