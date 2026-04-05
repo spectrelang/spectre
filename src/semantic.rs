@@ -1202,8 +1202,13 @@ fn collect_ref_used_in_expr(
         | Expr::ErrVal(expr)
         | Expr::Try(expr)
         | Expr::Trust(expr)
-        | Expr::Addr(expr)
         | Expr::Deref(expr) => collect_ref_used_in_expr(expr, fn_lookup, out),
+        Expr::Addr(inner) => {
+            if let Expr::Ident(name) = inner.as_ref() {
+                out.insert(name.clone());
+            }
+            collect_ref_used_in_expr(inner, fn_lookup, out);
+        }
         Expr::Field(base, _) => collect_ref_used_in_expr(base, fn_lookup, out),
         Expr::StructLit { fields } => {
             for (_, e) in fields {

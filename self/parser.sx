@@ -110,7 +110,6 @@ fn make_node(kind: i64, line: i64) ref Node! = {
     return addr(n) as ref Node
 }
 
-// ─── Parser ───────────────────────────────────────────────────────────────────
 type Parser = {
     tokens:   mut list[ref lexer.Token]
     pos:      mut i64
@@ -133,7 +132,7 @@ fn p_peek(p: ref Parser) ref lexer.Token! = {
     }
 }
 
-fn p_peek_kind(p: ref Parser) i64! = { return p_peek(p).kind }
+fn p_peek_kind(p: ref Parser) i64! = { return p_peek(p).kind as i64 }
 
 fn p_peek2_kind(p: ref Parser) i64! = {
     val opt = @get(p.tokens, (p.pos + 1) as usize)
@@ -164,7 +163,7 @@ fn p_eat(p: ref Parser, kind: i64) bool! = {
     return false
 }
 
-fn p_line(p: ref Parser) i64! = { return p_peek(p).line }
+fn p_line(p: ref Parser) i64! = { return p_peek(p).line as i64 }
 
 fn p_error(p: ref Parser, msg: ref char) ref char! = {
     val t: ref lexer.Token = p_peek(p)
@@ -1267,7 +1266,7 @@ fn parse_enum_def_item(p: ref Parser, public: i64) result[ref Node, ref char]! =
     p_expect(p, lexer.TK_RBRACE)?
     val ne: ref Node = make_node(NK_ENUMDEF, line)
     ne.d0 = public ne.d1 = name as i64
-    val vl: list[ref char] = variants
+    val vl: mut list[ref char] = variants
     ne.d2 = addr(vl) as i64
     return ok ne
 }
@@ -1321,7 +1320,7 @@ fn parse_extern_fn_item(p: ref Parser, public: i64) result[ref Node, ref char]! 
     val nef: ref Node = make_node(NK_EXTERN_FN, line)
     nef.d0 = public nef.d1 = name as i64 nef.d2 = symbol as i64
     nef.d3 = conv as i64
-    val pl: list[ref Node] = params
+    val pl: mut list[ref Node] = params
     nef.d4 = addr(pl) as i64 nef.d5 = ret_ty as i64
     return ok nef
 }
@@ -1351,7 +1350,7 @@ pub fn parse_item(p: ref Parser) result[ref Node, ref char]! = {
         p_expect(p, lexer.TK_RBRACE)?
         val nwi: ref Node = make_node(NK_WHEN_ITEMS, line)
         nwi.d0 = plat as i64
-        val wil: list[ref Node] = witems
+        val wil: mut list[ref Node] = witems
         nwi.d1 = addr(wil) as i64
         return ok nwi
     }
