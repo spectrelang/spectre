@@ -1685,10 +1685,13 @@ impl Codegen {
             .strip_prefix("ref ")
             .unwrap_or(&raw_type_name)
             .to_string();
+        let bare_name = type_name.rsplit('.').next().unwrap_or(&type_name).to_string();
         let fields = self
             .type_defs
             .get(&type_name)
             .or_else(|| self.extern_type_defs.get(&type_name))
+            .or_else(|| self.type_defs.get(&bare_name))
+            .or_else(|| self.extern_type_defs.get(&bare_name))
             .ok_or_else(|| format!("unknown type '{type_name}'"))?;
 
         let has_fixed_arrays = fields
@@ -1728,10 +1731,13 @@ impl Codegen {
     fn infer_field_type(&self, base: &Expr, field_name: &str) -> Option<TypeExpr> {
         let raw = self.infer_struct_type_name(base).ok()?;
         let type_name = raw.strip_prefix("ref ").unwrap_or(&raw).to_string();
+        let bare_name = type_name.rsplit('.').next().unwrap_or(&type_name).to_string();
         let fields = self
             .type_defs
             .get(&type_name)
-            .or_else(|| self.extern_type_defs.get(&type_name))?;
+            .or_else(|| self.extern_type_defs.get(&type_name))
+            .or_else(|| self.type_defs.get(&bare_name))
+            .or_else(|| self.extern_type_defs.get(&bare_name))?;
         fields
             .iter()
             .find(|f| f.name == field_name)

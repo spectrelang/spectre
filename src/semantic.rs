@@ -2401,7 +2401,10 @@ fn infer_expr_type(
                     other => other,
                 };
                 if let TypeExpr::Named(type_name) = inner_type {
-                    if let Some(fields) = type_lookup.get(type_name) {
+                    let bare_name = type_name.rsplit('.').next().unwrap_or(type_name);
+                    let fields = type_lookup.get(type_name.as_str())
+                        .or_else(|| type_lookup.get(bare_name));
+                    if let Some(fields) = fields {
                         for f in *fields {
                             if f.name == *field {
                                 return Some(f.ty.clone());

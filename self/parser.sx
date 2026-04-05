@@ -1287,7 +1287,7 @@ fn parse_union_def_item(p: ref Parser, public: i64) result[ref Node, ref char]! 
     p_expect(p, lexer.TK_RBRACE)?
     val nu: ref Node = make_node(NK_UNIONDEF, line)
     nu.d0 = public nu.d1 = name as i64
-    val vl: list[ref Node] = variants
+    val vl: mut list[ref Node] = variants
     nu.d2 = addr(vl) as i64
     return ok nu
 }
