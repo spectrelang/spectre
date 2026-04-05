@@ -1,4 +1,4 @@
-val std = use("std")
+val io = use("io.sx")
 
 pub enum ThreadError = {
     CreateFailed,
@@ -244,7 +244,7 @@ test {
     defer {
         Thread.free(t)
     }
-    std.io.put("it worked :D")
+    io.put("it worked :D")
 
     val _result = Thread.join(t)?
 

@@ -1,4 +1,4 @@
-val std = use("std")
+val io = use("io.sx")
 
 extern (C) fn localtime(timep: ref i64) ref void! = "localtime"
 
@@ -214,7 +214,7 @@ test {
     assert DateTime.after(dt, dt2)  == true
     assert DateTime.equals(dt, dt)  == true
 
-    std.io.print("year: %lld\n", {DateTime.year(dt)})
+    io.print("year: {d}\n", {DateTime.year(dt)})
 
     DateTime.free(dt)
     DateTime.free(dt2)

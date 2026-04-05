@@ -271,7 +271,9 @@ pub fn resolve_module(
     let parse_warnings = parser.warnings;
     let mut imports = HashMap::new();
     let self_path = PathBuf::from(filename);
-
+    if in_progress.contains(&self_path) {
+        return Err(format!("cyclic import detected: {filename}"));
+    }
     in_progress.insert(self_path.clone());
 
     let declared_uses: HashMap<String, PathBuf> = ast
@@ -309,9 +311,6 @@ pub fn resolve_module(
             continue;
         }
 
-        if in_progress.contains(resolved_path) {
-            continue;
-        }
 
         let child_src = std::fs::read_to_string(resolved_path)
             .map_err(|e| format!("cannot load module '{}': {e}", resolved_path.display()))?;

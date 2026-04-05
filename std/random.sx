@@ -2,7 +2,7 @@
 ///
 /// No seeding is required; the OS manages entropy automatically.
 
-val std = use("std")
+val io = use("io.sx")
 
 /// Fill `buf` with `len` cryptographically secure random bytes.
 pub fn random_bytes(buf: ref void, len: usize) void = {
@@ -63,8 +63,8 @@ test {
     assert uuid1 != 0
     assert uuid2 != 0
     
-    std.io.put(uuid1)
-    std.io.put(uuid2)
+    io.put(uuid1)
+    io.put(uuid2)
     
     @free(uuid1)
     @free(uuid2)

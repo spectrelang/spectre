@@ -1,4 +1,5 @@
-val std = use("std")
+val collections = use("collections.sx")
+val io = use("io.sx")
 
 extern (C) fn strlen(s: ref char) i64! = "strlen"
 extern (C) fn strcmp(a: ref char, b: ref char) i64! = "strcmp"
@@ -500,7 +501,7 @@ pub fn replace(s: ref void, from: ref void, to: ref void) ref void! = {
 
 /// Split s by delim — returns a List of heap-allocated Strings
 pub fn split(s: ref void, delim: ref void) ref void! = {
-    val result: ref void = std.collections.PtrList.new(8)?
+    val result: ref void = collections.PtrList.new(8)?
 
     val sl: i64 = @load(@ptradd(s, 8)) as i64
     val dl: i64 = @load(@ptradd(delim, 8)) as i64
@@ -538,13 +539,13 @@ pub fn split(s: ref void, delim: ref void) ref void! = {
 
         if (is_delim != 0) {
             val seg: ref void = slice(s, seg_start, i)
-            std.collections.PtrList.push(result, seg)?
+            collections.PtrList.push(result, seg as usize)?
             seg_start = i + dl
             i += dl
         } else {
             if (i == sl) {
                 val seg: ref void = slice(s, seg_start, sl)
-                std.collections.PtrList.push(result, seg)?
+                collections.PtrList.push(result, seg as usize)?
                 break
             }
             i++
@@ -837,7 +838,7 @@ test {
     val empty = new()
     assert(len(empty) == 0)
 
-    std.io.put("hi")
+    io.put("hi")
     val s = from("hello")
     assert(len(s) == 5)
     assert(equals(s, from("hello")))
@@ -872,7 +873,7 @@ test {
     val g2 = get(g, 2)
     val g3 = get(g, 3)
 
-    std.io.put("hi2")
+    io.put("hi2")
     match g0 { some v => { assert(v == 97) } none => { assert(false) } }
     match g1 { some v => { assert(v == 98) } none => { assert(false) } }
     match g2 { some v => { assert(v == 99) } none => { assert(false) } }
@@ -922,7 +923,7 @@ test {
     to_lower(low)
     assert(equals(low, from("abcxyz")))
 
-    std.io.put("hi3")
+    io.put("hi3")
     val tr = from("  \t hello \n ")
     trim(tr)
     assert(equals(tr, from("hello")))
@@ -931,7 +932,7 @@ test {
     trim_left(tl)
     assert(equals(tl, from("hello")))
 
-    std.io.put("hi3.1")
+    io.put("hi3.1")
     val trr = from("hello   ")
     trim_right(trr)
     assert(equals(trr, from("hello")))
@@ -939,40 +940,40 @@ test {
     val rep = from("foo bar foo")
     val rep2 = replace(rep, from("foo"), from("baz"))
     assert(equals(rep2, from("baz bar baz")))
-    std.io.put("hi3.2")
+    io.put("hi3.2")
 
     val rep3 = replace(rep, from("xxx"), from("yyy"))
-    std.io.put("hi3.2.1")
+    io.put("hi3.2.1")
     assert(equals(rep3, from("foo bar foo")))
-    std.io.put("hi3.2.2")
+    io.put("hi3.2.2")
     val sp = from("a,b,c")
-    std.io.put("hi3.2.3")
+    io.put("hi3.2.3")
     val parts = split(sp, from(","))
-    std.io.put("hi3.3")
+    io.put("hi3.3")
 
-    assert(std.collections.PtrList.len(parts) == 3)
-    match std.collections.PtrList.get(parts, 0) {
+    assert(collections.PtrList.len(parts) == 3)
+    match collections.PtrList.get(parts, 0) {
         some v => { assert(equals(v, from("a"))) }
         none => { assert(false) }
     }
-    match std.collections.PtrList.get(parts, 1) {
+    match collections.PtrList.get(parts, 1) {
         some v => { assert(equals(v, from("b"))) }
         none => { assert(false) }
     }
-    match std.collections.PtrList.get(parts, 2) {
+    match collections.PtrList.get(parts, 2) {
         some v => { assert(equals(v, from("c"))) }
         none => { assert(false) }
     }
 
     val sp2 = from("a,b,")
     val parts2 = split(sp2, from(","))
-    assert(std.collections.PtrList.len(parts2) == 3)
-    match std.collections.PtrList.get(parts2, 2) {
+    assert(collections.PtrList.len(parts2) == 3)
+    match collections.PtrList.get(parts2, 2) {
         some v => { assert(equals(v, from(""))) }
         none => { assert(false) }
     }
 
-    std.io.put("hi4")
+    io.put("hi4")
     val ca = from("foo")
     val cb = from("bar")
     val cc = concat(ca, cb)
@@ -1002,9 +1003,9 @@ test {
     reverse(rv)
     assert(equals(rv, from("dcba")))
 
-    std.io.put("string tests passed")
+    io.put("string tests passed")
 
-    std.io.print("{s}", {cstr(format("hello {d}", {1}))})
+    io.print("{s}", {cstr(format("hello {d}", {1}))})
 
-    std.io.print("comparison: {d}\n", {compare(from("abc"), from("abc"))})
+    io.print("comparison: {d}\n", {compare(from("abc"), from("abc"))})
 }

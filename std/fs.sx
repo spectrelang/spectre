@@ -286,7 +286,8 @@ pub fn config_dir() option[ref char]! = {
     return none
 }
 
-val std = use("std")
+val io = use("io.sx")
+val string = use("string.sx")
 
 test {
     val path: ref char = "test_file.txt"
@@ -297,8 +298,8 @@ test {
     match content_opt {
         none => { assert false }
         some content => {
-            std.io.print("{s} {d}\n", {content, std.string.compare(content, "Hello, Spectre!")})
-            assert std.string.compare(content, "Hello, Spectre!") == 0
+            io.print("{s} {d}\n", {content, string.compare(content, "Hello, Spectre!")})
+            assert string.compare(content, "Hello, Spectre!") == 0
             @free(content)
         }
     }
@@ -310,7 +311,7 @@ test {
     match content2_opt {
         none => { assert false }
         some content2 => {
-            assert std.string.compare(content2, "Hello, Spectre! More text.") == 0
+            assert string.compare(content2, "Hello, Spectre! More text.") == 0
             @free(content2)
         }
     }
@@ -322,7 +323,7 @@ test {
     match content3_opt {
         none => { assert false }
         some content3 => {
-            assert std.string.compare(content3, "Overwritten.") == 0
+            assert string.compare(content3, "Overwritten.") == 0
             @free(content3)
         }
     }
@@ -360,11 +361,11 @@ test {
             val buf: ref char = @alloc(128)
             val got1 = read_line(rh, buf, 128)
             assert got1
-            assert std.string.compare(buf, "line one") == 0
+            assert string.compare(buf, "line one") == 0
 
             val got2 = read_line(rh, buf, 128)
             assert got2
-            assert std.string.compare(buf, "line two") == 0
+            assert string.compare(buf, "line two") == 0
 
             val got3 = read_line(rh, buf, 128)
             assert !got3
@@ -416,7 +417,7 @@ test {
         }
     }
 
-    std.io.put("fs tests passed")
+    io.put("fs tests passed")
 }
 
 /// Walk a directory and return an iterable list[ref char] of entry names.

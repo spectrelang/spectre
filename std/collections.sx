@@ -166,7 +166,7 @@ pub fn (PtrList) pop(list: self) option[usize] = {
 ///   offset 8:  key   — usize
 ///   offset 16: value — usize
 
-val std = use("std")
+val io = use("io.sx")
 
 val MAP_BUCKET_SIZE: usize = 24
 val MAP_BUCKET_EMPTY: usize = 0
@@ -705,5 +705,5 @@ test {
 
     StringMap.free(m)
 
-    std.io.put("string map tests passed")
+    io.put("string map tests passed")
 }

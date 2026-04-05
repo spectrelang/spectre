@@ -1,31 +1,32 @@
-val std = use("std")
+val time = use("time.sx")
+val io = use("io.sx")
 
 fn get_time_string() ref char = {
-    val dt: DateTime = std.time.DateTime.now()
+    val dt: DateTime = time.DateTime.now()
     return trust @fmt("{d}-{d}-{d} {d}:{d}:{d}", {
-        std.time.DateTime.year(dt), 
-        std.time.DateTime.month(dt), 
-        std.time.DateTime.day(dt),
-        std.time.DateTime.hour(dt), 
-        std.time.DateTime.minute(dt),
-        std.time.DateTime.second(dt)}
+        time.DateTime.year(dt), 
+        time.DateTime.month(dt), 
+        time.DateTime.day(dt),
+        time.DateTime.hour(dt), 
+        time.DateTime.minute(dt),
+        time.DateTime.second(dt)}
     )
 }
 
 pub fn info(msg: ref char) void! = {
-    std.io.print("{s} [INFO] {s}\n", {get_time_string(), msg})
+    io.print("{s} [{s}] {s}\n", {get_time_string(), "INFO", msg})
 }
 
 pub fn warn(msg: ref char) void! = {
-    std.io.print("{s} [WARN] {s}\n", {get_time_string(), msg})
+    io.print("{s} [{s}] {s}\n", {get_time_string(), "WARN", msg})
 }
 
 pub fn debug(msg: ref char) void! = {
-    std.io.print("{s} [DEBUG] {s}\n", {get_time_string(), msg})
+    io.print("{s} [{s}] {s}\n", {get_time_string(), "DEBUG", msg})
 }
 
 pub fn error(msg: ref char) void! = {
-    std.io.print("{s} [ERROR] {s}\n", {get_time_string(), msg})
+    io.print("{s} [{s}] {s}\n", {get_time_string(), "ERROR", msg})
 }
 
 test {

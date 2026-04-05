@@ -17,7 +17,7 @@ pub enum ArenaError = {
     OutOfMemory
 }
 
-val std = use("std")
+val io = use("io.sx")
 
 /// Create a new arena backed by a block of `capacity` bytes.
 /// Capacity must be > 0.
@@ -104,7 +104,7 @@ pub fn (Arena) reset(arena: self) void! = {
 test {
     val arena = Arena.new(64)?
 
-    std.io.put("done making new arena")
+    io.put("done making new arena")
     assert Arena.cap(arena) == 64
     assert Arena.used(arena) == 0
     assert Arena.remaining(arena) == 64

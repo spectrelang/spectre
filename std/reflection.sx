@@ -63,7 +63,7 @@ when netbsd {
     }
 }
 
-val std = use("std")
+val io = use("io.sx")
 
 extern (C) fn uname(buf: ref UnameResult) i32! = "uname"
 
@@ -120,5 +120,5 @@ pub fn get_current_platform() Platform! = {
 
 test {
     val platform = get_current_platform()
-    std.io.print("Current platform: {d}", {platform})
+    io.print("Current platform: {d}\n", {platform})
 }

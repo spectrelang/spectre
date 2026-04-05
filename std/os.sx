@@ -82,7 +82,7 @@ pub fn exec(cmd: ref char) result[String, ProcessError]! = {
         return err ProcessError.FailedToStart
     }
 
-    val sb: ref void = std.string.StringBuilder.new()
+    val sb: ref void = string.StringBuilder.new()
     val buf_size: mut i64 = 1024
     val buf: ref void = @alloc(buf_size)
 
@@ -103,7 +103,7 @@ pub fn exec(cmd: ref char) result[String, ProcessError]! = {
         for {
             if (i >= n) { break }
             val c: u8 = @load8(@ptradd(buf, i))
-            std.string.StringBuilder.append_char(sb, c)
+            string.StringBuilder.append_char(sb, c)
             i++
         }
     }
@@ -111,8 +111,8 @@ pub fn exec(cmd: ref char) result[String, ProcessError]! = {
     @free(buf)
     pclose(pipe)
 
-    val out: String = std.string.StringBuilder.build(sb)
-    std.string.StringBuilder.free(sb)
+    val out: String = string.StringBuilder.build(sb)
+    string.StringBuilder.free(sb)
 
     return ok out
 }
@@ -122,7 +122,7 @@ pub fn exec_trim(cmd: ref char) result[ref void, ProcessError]! = {
     val res = exec(cmd)?
     match res {
         ok s => {
-            std.string.trim(s)
+            string.trim(s)
             return ok s
         }
         err e => {
@@ -131,7 +131,8 @@ pub fn exec_trim(cmd: ref char) result[ref void, ProcessError]! = {
     }
 }
 
-val std = use("std")
+val string = use("string.sx")
+val io = use("io.sx")
 
 test {
     val path = "test_file.txt"
@@ -150,7 +151,7 @@ test {
     assert exists(path) == true
     val new_path = "test_file_renamed.txt"
     rename_file(path, new_path)
-    std.io.put("hi8")
+    io.put("hi8")
     assert exists(path) == false
     assert exists(new_path) == true
     delete(new_path)
@@ -159,7 +160,7 @@ test {
     val res = exec("echo hello")
     match res {
         ok s => {
-            std.io.print("{s}", {std.string.cstr(s)})
+            io.print("{s}", {string.cstr(s)})
         }
         err _ => {
             assert(false)

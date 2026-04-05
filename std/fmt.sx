@@ -255,7 +255,7 @@ fn test_f64_roundtrip(x: f64) void! = {
     @free(s)
 }
 
-val std = use("std")
+val io = use("io.sx")
 
 test {
     val s: mut ref char = ""
