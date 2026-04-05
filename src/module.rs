@@ -23,7 +23,7 @@ pub fn compile_file(input: &str, args: &Args) -> Result<(String, Vec<String>, Ve
     let path = PathBuf::from(input);
     let dir = path.parent().unwrap_or(Path::new(".")).to_path_buf();
     let src = std::fs::read_to_string(&path).map_err(|e| format!("cannot read {input}: {e}"))?;
-    let resolved = resolve_module(&src, &dir, &mut HashMap::new(), &mut HashSet::new(), input, None)?;
+    let resolved = resolve_module(&src, &dir, &mut HashMap::new(), &mut Vec::new(), input, None)?;
 
     if args.emit_tokens {
         let mut lex = Lexer::new(&src);
@@ -260,7 +260,7 @@ pub fn resolve_module(
     src: &str,
     dir: &Path,
     cache: &mut HashMap<PathBuf, ResolvedModule>,
-    in_progress: &mut HashSet<PathBuf>,
+    in_progress: &mut Vec<PathBuf>,
     filename: &str,
     needed_children: Option<&HashSet<String>>,
 ) -> Result<ResolvedModule, String> {
@@ -271,10 +271,17 @@ pub fn resolve_module(
     let parse_warnings = parser.warnings;
     let mut imports = HashMap::new();
     let self_path = PathBuf::from(filename);
-    if in_progress.contains(&self_path) {
-        return Err(format!("cyclic import detected: {filename}"));
+    if let Some(cycle_start) = in_progress.iter().position(|p| p == &self_path) {
+        let chain: Vec<String> = in_progress[cycle_start..]
+            .iter()
+            .map(|p| p.display().to_string())
+            .collect();
+        let cycle_str = chain.join(" -> ");
+        return Err(format!(
+            "cyclic import detected: {cycle_str} -> {filename}"
+        ));
     }
-    in_progress.insert(self_path.clone());
+    in_progress.push(self_path.clone());
 
     let declared_uses: HashMap<String, PathBuf> = ast
         .items
@@ -343,7 +350,7 @@ pub fn resolve_module(
         imports.insert(name.clone(), child);
     }
 
-    in_progress.remove(&self_path);
+    in_progress.retain(|p| p != &self_path);
 
     let current_platform = crate::cli::Platform::current();
     let mut links: Vec<String> = Vec::new();
@@ -480,7 +487,7 @@ fn collect_needed_subnames_transitive(
     import_name: &str,
     declared_uses: &HashMap<String, PathBuf>,
     dir: &Path,
-    in_progress: &HashSet<PathBuf>,
+    in_progress: &[PathBuf],
 ) -> HashSet<String> {
     let mut needed = collect_needed_subnames(ast, import_name);
     let mut visited_for_expansion: HashSet<String> = HashSet::new();
