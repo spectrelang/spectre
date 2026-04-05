@@ -19,11 +19,21 @@ pub struct ResolvedModule {
 }
 
 /// Entry point: compile a .sx file to QBE IR.
-pub fn compile_file(input: &str, args: &Args) -> Result<(String, Vec<String>, Vec<String>), String> {
+pub fn compile_file(
+    input: &str,
+    args: &Args,
+) -> Result<(String, Vec<String>, Vec<String>), String> {
     let path = PathBuf::from(input);
     let dir = path.parent().unwrap_or(Path::new(".")).to_path_buf();
     let src = std::fs::read_to_string(&path).map_err(|e| format!("cannot read {input}: {e}"))?;
-    let resolved = resolve_module(&src, &dir, &mut HashMap::new(), &mut Vec::new(), input, None)?;
+    let resolved = resolve_module(
+        &src,
+        &dir,
+        &mut HashMap::new(),
+        &mut Vec::new(),
+        input,
+        None,
+    )?;
 
     if args.emit_tokens {
         let mut lex = Lexer::new(&src);
@@ -146,69 +156,142 @@ fn collect_used_imports_in_stmt(
         Stmt::Return(Some(e)) => collect_used_imports_in_expr(e, imports, used),
         Stmt::Expr(e) => collect_used_imports_in_expr(e, imports, used),
         Stmt::Pre(cs) | Stmt::Post(cs) => {
-            for c in cs { collect_used_imports_in_expr(&c.expr, imports, used); }
+            for c in cs {
+                collect_used_imports_in_expr(&c.expr, imports, used);
+            }
         }
         Stmt::Assert(e, _) => collect_used_imports_in_expr(e, imports, used),
-        Stmt::If { cond, then, elif_, else_, .. } => {
+        Stmt::If {
+            cond,
+            then,
+            elif_,
+            else_,
+            ..
+        } => {
             collect_used_imports_in_expr(cond, imports, used);
-            for s in then { collect_used_imports_in_stmt(s, imports, used); }
+            for s in then {
+                collect_used_imports_in_stmt(s, imports, used);
+            }
             for (ec, eb) in elif_ {
                 collect_used_imports_in_expr(ec, imports, used);
-                for s in eb { collect_used_imports_in_stmt(s, imports, used); }
+                for s in eb {
+                    collect_used_imports_in_stmt(s, imports, used);
+                }
             }
             if let Some(b) = else_ {
-                for s in b { collect_used_imports_in_stmt(s, imports, used); }
+                for s in b {
+                    collect_used_imports_in_stmt(s, imports, used);
+                }
             }
         }
-        Stmt::For { init, cond, post, body } => {
-            if let Some((_, e)) = init { collect_used_imports_in_expr(e, imports, used); }
-            if let Some(e) = cond { collect_used_imports_in_expr(e, imports, used); }
-            if let Some(s) = post { collect_used_imports_in_stmt(s, imports, used); }
-            for s in body { collect_used_imports_in_stmt(s, imports, used); }
+        Stmt::For {
+            init,
+            cond,
+            post,
+            body,
+        } => {
+            if let Some((_, e)) = init {
+                collect_used_imports_in_expr(e, imports, used);
+            }
+            if let Some(e) = cond {
+                collect_used_imports_in_expr(e, imports, used);
+            }
+            if let Some(s) = post {
+                collect_used_imports_in_stmt(s, imports, used);
+            }
+            for s in body {
+                collect_used_imports_in_stmt(s, imports, used);
+            }
         }
         Stmt::ForIn { iterable, body, .. } => {
             collect_used_imports_in_expr(iterable, imports, used);
-            for s in body { collect_used_imports_in_stmt(s, imports, used); }
+            for s in body {
+                collect_used_imports_in_stmt(s, imports, used);
+            }
         }
         Stmt::Defer(body) => {
-            for s in body { collect_used_imports_in_stmt(s, imports, used); }
+            for s in body {
+                collect_used_imports_in_stmt(s, imports, used);
+            }
         }
-        Stmt::When { body, otherwise, .. } => {
-            for s in body { collect_used_imports_in_stmt(s, imports, used); }
-            for s in otherwise { collect_used_imports_in_stmt(s, imports, used); }
+        Stmt::When {
+            body, otherwise, ..
+        } => {
+            for s in body {
+                collect_used_imports_in_stmt(s, imports, used);
+            }
+            for s in otherwise {
+                collect_used_imports_in_stmt(s, imports, used);
+            }
         }
-        Stmt::MatchUnion { expr, arms, else_body } => {
+        Stmt::MatchUnion {
+            expr,
+            arms,
+            else_body,
+        } => {
             collect_used_imports_in_expr(expr, imports, used);
             for (_, body) in arms {
-                for s in body { collect_used_imports_in_stmt(s, imports, used); }
+                for s in body {
+                    collect_used_imports_in_stmt(s, imports, used);
+                }
             }
             if let Some(body) = else_body {
-                for s in body { collect_used_imports_in_stmt(s, imports, used); }
+                for s in body {
+                    collect_used_imports_in_stmt(s, imports, used);
+                }
             }
         }
-        Stmt::Match { expr, some_body, none_body, .. } => {
+        Stmt::Match {
+            expr,
+            some_body,
+            none_body,
+            ..
+        } => {
             collect_used_imports_in_expr(expr, imports, used);
-            for s in some_body { collect_used_imports_in_stmt(s, imports, used); }
-            for s in none_body { collect_used_imports_in_stmt(s, imports, used); }
+            for s in some_body {
+                collect_used_imports_in_stmt(s, imports, used);
+            }
+            for s in none_body {
+                collect_used_imports_in_stmt(s, imports, used);
+            }
         }
-        Stmt::MatchResult { expr, ok_body, err_body, .. } => {
+        Stmt::MatchResult {
+            expr,
+            ok_body,
+            err_body,
+            ..
+        } => {
             collect_used_imports_in_expr(expr, imports, used);
-            for s in ok_body { collect_used_imports_in_stmt(s, imports, used); }
-            for s in err_body { collect_used_imports_in_stmt(s, imports, used); }
+            for s in ok_body {
+                collect_used_imports_in_stmt(s, imports, used);
+            }
+            for s in err_body {
+                collect_used_imports_in_stmt(s, imports, used);
+            }
         }
         Stmt::MatchEnum { expr, arms } => {
             collect_used_imports_in_expr(expr, imports, used);
             for (_, body) in arms {
-                for s in body { collect_used_imports_in_stmt(s, imports, used); }
+                for s in body {
+                    collect_used_imports_in_stmt(s, imports, used);
+                }
             }
         }
-        Stmt::MatchString { expr, arms, else_body } => {
+        Stmt::MatchString {
+            expr,
+            arms,
+            else_body,
+        } => {
             collect_used_imports_in_expr(expr, imports, used);
             for (_, body) in arms {
-                for s in body { collect_used_imports_in_stmt(s, imports, used); }
+                for s in body {
+                    collect_used_imports_in_stmt(s, imports, used);
+                }
             }
             if let Some(body) = else_body {
-                for s in body { collect_used_imports_in_stmt(s, imports, used); }
+                for s in body {
+                    collect_used_imports_in_stmt(s, imports, used);
+                }
             }
         }
         _ => {}
@@ -236,23 +319,39 @@ fn collect_used_imports_in_expr(
         }
         Expr::Call { callee, args, .. } => {
             collect_used_imports_in_expr(callee, imports, used);
-            for a in args { collect_used_imports_in_expr(a, imports, used); }
+            for a in args {
+                collect_used_imports_in_expr(a, imports, used);
+            }
         }
         Expr::Builtin { args, .. } => {
-            for a in args { collect_used_imports_in_expr(a, imports, used); }
+            for a in args {
+                collect_used_imports_in_expr(a, imports, used);
+            }
         }
         Expr::BinOp { lhs, rhs, .. } => {
             collect_used_imports_in_expr(lhs, imports, used);
             collect_used_imports_in_expr(rhs, imports, used);
         }
-        Expr::UnOp { expr, .. } | Expr::Cast { expr, .. } | Expr::Some(expr) | Expr::OkVal(expr) | Expr::ErrVal(expr) | Expr::Try(expr) | Expr::Trust(expr) | Expr::Addr(expr) | Expr::Deref(expr) => {
+        Expr::UnOp { expr, .. }
+        | Expr::Cast { expr, .. }
+        | Expr::Some(expr)
+        | Expr::OkVal(expr)
+        | Expr::ErrVal(expr)
+        | Expr::Try(expr)
+        | Expr::Trust(expr)
+        | Expr::Addr(expr)
+        | Expr::Deref(expr) => {
             collect_used_imports_in_expr(expr, imports, used);
         }
         Expr::StructLit { fields } => {
-            for (_, e) in fields { collect_used_imports_in_expr(e, imports, used); }
+            for (_, e) in fields {
+                collect_used_imports_in_expr(e, imports, used);
+            }
         }
         Expr::ArgsPack(exprs) => {
-            for e in exprs { collect_used_imports_in_expr(e, imports, used); }
+            for e in exprs {
+                collect_used_imports_in_expr(e, imports, used);
+            }
         }
         _ => {}
     }
@@ -281,9 +380,7 @@ pub fn resolve_module(
             .map(|p| p.display().to_string())
             .collect();
         let cycle_str = chain.join(" -> ");
-        return Err(format!(
-            "cyclic import detected: {cycle_str} -> {filename}"
-        ));
+        return Err(format!("cyclic import detected: {cycle_str} -> {filename}"));
     }
     in_progress.push(self_path.clone());
 
@@ -317,13 +414,8 @@ pub fn resolve_module(
             continue;
         }
 
-        let needed_grandchildren = collect_needed_subnames_transitive(
-            &ast,
-            name,
-            &declared_uses,
-            dir,
-            in_progress,
-        );
+        let needed_grandchildren =
+            collect_needed_subnames_transitive(&ast, name, &declared_uses, dir, in_progress);
 
         if let Some(cached) = cache.get(resolved_path) {
             let missing = needed_grandchildren
@@ -383,7 +475,9 @@ pub fn resolve_module(
     Ok(resolved)
 }
 fn ast_references_name(ast: &Module, name: &str) -> bool {
-    ast.items.iter().any(|item| item_references_name(item, name))
+    ast.items
+        .iter()
+        .any(|item| item_references_name(item, name))
 }
 
 fn item_references_name(item: &Item, name: &str) -> bool {
@@ -399,57 +493,108 @@ fn stmt_references_name(stmt: &crate::parser::Stmt, name: &str) -> bool {
     use crate::parser::Stmt;
     match stmt {
         Stmt::Val { expr, .. } => expr_references_name(expr, name),
-        Stmt::Assign { target, value } => expr_references_name(target, name) || expr_references_name(value, name),
+        Stmt::Assign { target, value } => {
+            expr_references_name(target, name) || expr_references_name(value, name)
+        }
         Stmt::Return(Some(e)) => expr_references_name(e, name),
         Stmt::Expr(e) => expr_references_name(e, name),
         Stmt::Pre(cs) | Stmt::Post(cs) => cs.iter().any(|c| expr_references_name(&c.expr, name)),
         Stmt::Assert(e, _) => expr_references_name(e, name),
-        Stmt::If { cond, then, elif_, else_, .. } => {
+        Stmt::If {
+            cond,
+            then,
+            elif_,
+            else_,
+            ..
+        } => {
             expr_references_name(cond, name)
                 || then.iter().any(|s| stmt_references_name(s, name))
-                || elif_.iter().any(|(ec, eb)| expr_references_name(ec, name) || eb.iter().any(|s| stmt_references_name(s, name)))
-                || else_.as_ref().map_or(false, |b| b.iter().any(|s| stmt_references_name(s, name)))
+                || elif_.iter().any(|(ec, eb)| {
+                    expr_references_name(ec, name)
+                        || eb.iter().any(|s| stmt_references_name(s, name))
+                })
+                || else_
+                    .as_ref()
+                    .map_or(false, |b| b.iter().any(|s| stmt_references_name(s, name)))
         }
-        Stmt::For { init, cond, post, body } => {
-            init.as_ref().map_or(false, |(_, e)| expr_references_name(e, name))
-                || cond.as_ref().map_or(false, |e| expr_references_name(e, name))
-                || post.as_ref().map_or(false, |s| stmt_references_name(s, name))
+        Stmt::For {
+            init,
+            cond,
+            post,
+            body,
+        } => {
+            init.as_ref()
+                .map_or(false, |(_, e)| expr_references_name(e, name))
+                || cond
+                    .as_ref()
+                    .map_or(false, |e| expr_references_name(e, name))
+                || post
+                    .as_ref()
+                    .map_or(false, |s| stmt_references_name(s, name))
                 || body.iter().any(|s| stmt_references_name(s, name))
         }
         Stmt::ForIn { iterable, body, .. } => {
             expr_references_name(iterable, name)
                 || body.iter().any(|s| stmt_references_name(s, name))
         }
-        Stmt::Defer(body) => {
-            body.iter().any(|s| stmt_references_name(s, name))
-        }
-        Stmt::When { body, otherwise, .. } => {
+        Stmt::Defer(body) => body.iter().any(|s| stmt_references_name(s, name)),
+        Stmt::When {
+            body, otherwise, ..
+        } => {
             body.iter().any(|s| stmt_references_name(s, name))
                 || otherwise.iter().any(|s| stmt_references_name(s, name))
         }
-        Stmt::MatchUnion { expr, arms, else_body } => {
+        Stmt::MatchUnion {
+            expr,
+            arms,
+            else_body,
+        } => {
             expr_references_name(expr, name)
-                || arms.iter().any(|(_, b)| b.iter().any(|s| stmt_references_name(s, name)))
-                || else_body.as_ref().map_or(false, |b| b.iter().any(|s| stmt_references_name(s, name)))
+                || arms
+                    .iter()
+                    .any(|(_, b)| b.iter().any(|s| stmt_references_name(s, name)))
+                || else_body
+                    .as_ref()
+                    .map_or(false, |b| b.iter().any(|s| stmt_references_name(s, name)))
         }
-        Stmt::Match { expr, some_body, none_body, .. } => {
+        Stmt::Match {
+            expr,
+            some_body,
+            none_body,
+            ..
+        } => {
             expr_references_name(expr, name)
                 || some_body.iter().any(|s| stmt_references_name(s, name))
                 || none_body.iter().any(|s| stmt_references_name(s, name))
         }
-        Stmt::MatchResult { expr, ok_body, err_body, .. } => {
+        Stmt::MatchResult {
+            expr,
+            ok_body,
+            err_body,
+            ..
+        } => {
             expr_references_name(expr, name)
                 || ok_body.iter().any(|s| stmt_references_name(s, name))
                 || err_body.iter().any(|s| stmt_references_name(s, name))
         }
         Stmt::MatchEnum { expr, arms } => {
             expr_references_name(expr, name)
-                || arms.iter().any(|(_, b)| b.iter().any(|s| stmt_references_name(s, name)))
+                || arms
+                    .iter()
+                    .any(|(_, b)| b.iter().any(|s| stmt_references_name(s, name)))
         }
-        Stmt::MatchString { expr, arms, else_body } => {
+        Stmt::MatchString {
+            expr,
+            arms,
+            else_body,
+        } => {
             expr_references_name(expr, name)
-                || arms.iter().any(|(_, b)| b.iter().any(|s| stmt_references_name(s, name)))
-                || else_body.as_ref().map_or(false, |b| b.iter().any(|s| stmt_references_name(s, name)))
+                || arms
+                    .iter()
+                    .any(|(_, b)| b.iter().any(|s| stmt_references_name(s, name)))
+                || else_body
+                    .as_ref()
+                    .map_or(false, |b| b.iter().any(|s| stmt_references_name(s, name)))
         }
         _ => false,
     }
@@ -460,7 +605,9 @@ fn expr_references_name(expr: &Expr, name: &str) -> bool {
         Expr::Ident(n) => n == name,
         Expr::Field(base, _) => {
             if let Expr::Ident(n) = base.as_ref() {
-                if n == name { return true; }
+                if n == name {
+                    return true;
+                }
             }
             expr_references_name(base, name)
         }
@@ -468,10 +615,18 @@ fn expr_references_name(expr: &Expr, name: &str) -> bool {
             expr_references_name(callee, name) || args.iter().any(|a| expr_references_name(a, name))
         }
         Expr::Builtin { args, .. } => args.iter().any(|a| expr_references_name(a, name)),
-        Expr::BinOp { lhs, rhs, .. } => expr_references_name(lhs, name) || expr_references_name(rhs, name),
-        Expr::UnOp { expr, .. } | Expr::Cast { expr, .. } | Expr::Some(expr) | Expr::OkVal(expr) | Expr::ErrVal(expr) | Expr::Try(expr) | Expr::Trust(expr) | Expr::Addr(expr) | Expr::Deref(expr) => {
-            expr_references_name(expr, name)
+        Expr::BinOp { lhs, rhs, .. } => {
+            expr_references_name(lhs, name) || expr_references_name(rhs, name)
         }
+        Expr::UnOp { expr, .. }
+        | Expr::Cast { expr, .. }
+        | Expr::Some(expr)
+        | Expr::OkVal(expr)
+        | Expr::ErrVal(expr)
+        | Expr::Try(expr)
+        | Expr::Trust(expr)
+        | Expr::Addr(expr)
+        | Expr::Deref(expr) => expr_references_name(expr, name),
         Expr::ArgsPack(exprs) => exprs.iter().any(|e| expr_references_name(e, name)),
         _ => false,
     }
@@ -526,7 +681,8 @@ fn collect_needed_subnames_transitive(
                     Ok(t) => t,
                     Err(_) => continue,
                 };
-                let mut parser = Parser::with_filename(tokens, import_path.to_string_lossy().to_string());
+                let mut parser =
+                    Parser::with_filename(tokens, import_path.to_string_lossy().to_string());
                 let import_ast = match parser.parse_module() {
                     Ok(a) => a,
                     Err(_) => continue,
@@ -611,69 +767,142 @@ fn collect_needed_subnames_in_stmt(
         Stmt::Return(Some(e)) => collect_needed_subnames_in_expr(e, import_name, needed),
         Stmt::Expr(e) => collect_needed_subnames_in_expr(e, import_name, needed),
         Stmt::Pre(cs) | Stmt::Post(cs) => {
-            for c in cs { collect_needed_subnames_in_expr(&c.expr, import_name, needed); }
+            for c in cs {
+                collect_needed_subnames_in_expr(&c.expr, import_name, needed);
+            }
         }
         Stmt::Assert(e, _) => collect_needed_subnames_in_expr(e, import_name, needed),
-        Stmt::If { cond, then, elif_, else_, .. } => {
+        Stmt::If {
+            cond,
+            then,
+            elif_,
+            else_,
+            ..
+        } => {
             collect_needed_subnames_in_expr(cond, import_name, needed);
-            for s in then { collect_needed_subnames_in_stmt(s, import_name, needed); }
+            for s in then {
+                collect_needed_subnames_in_stmt(s, import_name, needed);
+            }
             for (ec, eb) in elif_ {
                 collect_needed_subnames_in_expr(ec, import_name, needed);
-                for s in eb { collect_needed_subnames_in_stmt(s, import_name, needed); }
+                for s in eb {
+                    collect_needed_subnames_in_stmt(s, import_name, needed);
+                }
             }
             if let Some(b) = else_ {
-                for s in b { collect_needed_subnames_in_stmt(s, import_name, needed); }
+                for s in b {
+                    collect_needed_subnames_in_stmt(s, import_name, needed);
+                }
             }
         }
-        Stmt::For { init, cond, post, body } => {
-            if let Some((_, e)) = init { collect_needed_subnames_in_expr(e, import_name, needed); }
-            if let Some(e) = cond { collect_needed_subnames_in_expr(e, import_name, needed); }
-            if let Some(s) = post { collect_needed_subnames_in_stmt(s, import_name, needed); }
-            for s in body { collect_needed_subnames_in_stmt(s, import_name, needed); }
+        Stmt::For {
+            init,
+            cond,
+            post,
+            body,
+        } => {
+            if let Some((_, e)) = init {
+                collect_needed_subnames_in_expr(e, import_name, needed);
+            }
+            if let Some(e) = cond {
+                collect_needed_subnames_in_expr(e, import_name, needed);
+            }
+            if let Some(s) = post {
+                collect_needed_subnames_in_stmt(s, import_name, needed);
+            }
+            for s in body {
+                collect_needed_subnames_in_stmt(s, import_name, needed);
+            }
         }
         Stmt::ForIn { iterable, body, .. } => {
             collect_needed_subnames_in_expr(iterable, import_name, needed);
-            for s in body { collect_needed_subnames_in_stmt(s, import_name, needed); }
+            for s in body {
+                collect_needed_subnames_in_stmt(s, import_name, needed);
+            }
         }
         Stmt::Defer(body) => {
-            for s in body { collect_needed_subnames_in_stmt(s, import_name, needed); }
+            for s in body {
+                collect_needed_subnames_in_stmt(s, import_name, needed);
+            }
         }
-        Stmt::When { body, otherwise, .. } => {
-            for s in body { collect_needed_subnames_in_stmt(s, import_name, needed); }
-            for s in otherwise { collect_needed_subnames_in_stmt(s, import_name, needed); }
+        Stmt::When {
+            body, otherwise, ..
+        } => {
+            for s in body {
+                collect_needed_subnames_in_stmt(s, import_name, needed);
+            }
+            for s in otherwise {
+                collect_needed_subnames_in_stmt(s, import_name, needed);
+            }
         }
-        Stmt::MatchUnion { expr, arms, else_body } => {
+        Stmt::MatchUnion {
+            expr,
+            arms,
+            else_body,
+        } => {
             collect_needed_subnames_in_expr(expr, import_name, needed);
             for (_, body) in arms {
-                for s in body { collect_needed_subnames_in_stmt(s, import_name, needed); }
+                for s in body {
+                    collect_needed_subnames_in_stmt(s, import_name, needed);
+                }
             }
             if let Some(body) = else_body {
-                for s in body { collect_needed_subnames_in_stmt(s, import_name, needed); }
+                for s in body {
+                    collect_needed_subnames_in_stmt(s, import_name, needed);
+                }
             }
         }
-        Stmt::Match { expr, some_body, none_body, .. } => {
+        Stmt::Match {
+            expr,
+            some_body,
+            none_body,
+            ..
+        } => {
             collect_needed_subnames_in_expr(expr, import_name, needed);
-            for s in some_body { collect_needed_subnames_in_stmt(s, import_name, needed); }
-            for s in none_body { collect_needed_subnames_in_stmt(s, import_name, needed); }
+            for s in some_body {
+                collect_needed_subnames_in_stmt(s, import_name, needed);
+            }
+            for s in none_body {
+                collect_needed_subnames_in_stmt(s, import_name, needed);
+            }
         }
-        Stmt::MatchResult { expr, ok_body, err_body, .. } => {
+        Stmt::MatchResult {
+            expr,
+            ok_body,
+            err_body,
+            ..
+        } => {
             collect_needed_subnames_in_expr(expr, import_name, needed);
-            for s in ok_body { collect_needed_subnames_in_stmt(s, import_name, needed); }
-            for s in err_body { collect_needed_subnames_in_stmt(s, import_name, needed); }
+            for s in ok_body {
+                collect_needed_subnames_in_stmt(s, import_name, needed);
+            }
+            for s in err_body {
+                collect_needed_subnames_in_stmt(s, import_name, needed);
+            }
         }
         Stmt::MatchEnum { expr, arms } => {
             collect_needed_subnames_in_expr(expr, import_name, needed);
             for (_, body) in arms {
-                for s in body { collect_needed_subnames_in_stmt(s, import_name, needed); }
+                for s in body {
+                    collect_needed_subnames_in_stmt(s, import_name, needed);
+                }
             }
         }
-        Stmt::MatchString { expr, arms, else_body } => {
+        Stmt::MatchString {
+            expr,
+            arms,
+            else_body,
+        } => {
             collect_needed_subnames_in_expr(expr, import_name, needed);
             for (_, body) in arms {
-                for s in body { collect_needed_subnames_in_stmt(s, import_name, needed); }
+                for s in body {
+                    collect_needed_subnames_in_stmt(s, import_name, needed);
+                }
             }
             if let Some(body) = else_body {
-                for s in body { collect_needed_subnames_in_stmt(s, import_name, needed); }
+                for s in body {
+                    collect_needed_subnames_in_stmt(s, import_name, needed);
+                }
             }
         }
         _ => {}
@@ -692,23 +921,39 @@ fn collect_needed_subnames_in_expr(expr: &Expr, import_name: &str, needed: &mut 
         }
         Expr::Call { callee, args, .. } => {
             collect_needed_subnames_in_expr(callee, import_name, needed);
-            for a in args { collect_needed_subnames_in_expr(a, import_name, needed); }
+            for a in args {
+                collect_needed_subnames_in_expr(a, import_name, needed);
+            }
         }
         Expr::Builtin { args, .. } => {
-            for a in args { collect_needed_subnames_in_expr(a, import_name, needed); }
+            for a in args {
+                collect_needed_subnames_in_expr(a, import_name, needed);
+            }
         }
         Expr::BinOp { lhs, rhs, .. } => {
             collect_needed_subnames_in_expr(lhs, import_name, needed);
             collect_needed_subnames_in_expr(rhs, import_name, needed);
         }
-        Expr::UnOp { expr, .. } | Expr::Cast { expr, .. } | Expr::Some(expr) | Expr::OkVal(expr) | Expr::ErrVal(expr) | Expr::Try(expr) | Expr::Trust(expr) | Expr::Addr(expr) | Expr::Deref(expr) => {
+        Expr::UnOp { expr, .. }
+        | Expr::Cast { expr, .. }
+        | Expr::Some(expr)
+        | Expr::OkVal(expr)
+        | Expr::ErrVal(expr)
+        | Expr::Try(expr)
+        | Expr::Trust(expr)
+        | Expr::Addr(expr)
+        | Expr::Deref(expr) => {
             collect_needed_subnames_in_expr(expr, import_name, needed);
         }
         Expr::StructLit { fields } => {
-            for (_, e) in fields { collect_needed_subnames_in_expr(e, import_name, needed); }
+            for (_, e) in fields {
+                collect_needed_subnames_in_expr(e, import_name, needed);
+            }
         }
         Expr::ArgsPack(exprs) => {
-            for e in exprs { collect_needed_subnames_in_expr(e, import_name, needed); }
+            for e in exprs {
+                collect_needed_subnames_in_expr(e, import_name, needed);
+            }
         }
         _ => {}
     }
