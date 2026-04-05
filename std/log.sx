@@ -1,32 +1,66 @@
 val time = use("time.sx")
 val stdio = use("stdio.sx")
 
+val colors: mut bool = true
+
 fn get_time_string() ref char = {
     val dt: DateTime = time.DateTime.now()
     return trust @fmt("{d}-{d}-{d} {d}:{d}:{d}", {
-        time.DateTime.year(dt), 
-        time.DateTime.month(dt), 
+        time.DateTime.year(dt),
+        time.DateTime.month(dt),
         time.DateTime.day(dt),
-        time.DateTime.hour(dt), 
+        time.DateTime.hour(dt),
         time.DateTime.minute(dt),
         time.DateTime.second(dt)}
     )
 }
 
 pub fn info(msg: ref char) void! = {
-    stdio.print("{s} [{s}] {s}\n", {get_time_string(), "INFO", msg})
+    if colors {
+        stdio.print(
+            "\x1b[32m{s} \x1b[0m[\x1b[32m{s}\x1b[0m] \x1b[32m{s}\x1b[0m\n", {get_time_string(), "INFO", msg}
+        )
+    } else {
+        stdio.print(
+            "{s} [{s}] {s}\n", {get_time_string(), "INFO", msg}
+        )
+    }
 }
 
 pub fn warn(msg: ref char) void! = {
-    stdio.print("{s} [{s}] {s}\n", {get_time_string(), "WARN", msg})
+    if colors {
+        stdio.print(
+            "\x1b[33m{s} \x1b[0m[\x1b[33m{s}\x1b[0m] \x1b[33m{s}\x1b[0m\n", {get_time_string(), "WARN", msg}
+        )
+    } else {
+        stdio.print(
+            "{s} [{s}] {s}\n", {get_time_string(), "WARN", msg}
+        )
+    }
 }
 
 pub fn debug(msg: ref char) void! = {
-    stdio.print("{s} [{s}] {s}\n", {get_time_string(), "DEBUG", msg})
+    if colors {
+        stdio.print(
+            "\x1b[34m{s} \x1b[0m[\x1b[34m{s}\x1b[0m] \x1b[34m{s}\x1b[0m\n", {get_time_string(), "DEBUG", msg}
+        )
+    } else {
+        stdio.print(
+            "{s} [{s}] {s}\n", {get_time_string(), "DEBUG", msg}
+        )
+    }
 }
 
 pub fn error(msg: ref char) void! = {
-    stdio.print("{s} [{s}] {s}\n", {get_time_string(), "ERROR", msg})
+    if colors {
+        stdio.print(
+            "\x1b[31m{s} \x1b[0m[\x1b[31m{s}\x1b[0m] \x1b[31m{s}\x1b[0m\n", {get_time_string(), "ERROR", msg}
+        )
+    } else {
+        stdio.print(
+            "{s} [{s}] {s}\n", {get_time_string(), "ERROR", msg}
+        )
+    }
 }
 
 test {

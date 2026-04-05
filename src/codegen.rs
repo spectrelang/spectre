@@ -308,10 +308,20 @@ impl Codegen {
     fn intern_string(&mut self, s: &str) -> String {
         let label = format!("str{}", self.str_counter);
         self.str_counter += 1;
-        let escaped = s
-            .replace('\\', "\\\\")
-            .replace('"', "\\\"")
-            .replace('\n', "\\n");
+        let mut escaped = String::new();
+        for b in s.as_bytes() {
+            match b {
+                b'\\' => escaped.push_str("\\\\"),
+                b'\"' => escaped.push_str("\\\""),
+                b'\n' => escaped.push_str("\\n"),
+                b'\r' => escaped.push_str("\\r"),
+                b'\t' => escaped.push_str("\\t"),
+                32..=126 => escaped.push(*b as char),
+                _ => {
+                    escaped.push_str(&format!("\\{:03o}", b));
+                }
+            }
+        }
         self.data.push((label.clone(), escaped));
         label
     }

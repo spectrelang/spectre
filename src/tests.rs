@@ -53,6 +53,12 @@ mod lexer_tests {
     }
 
     #[test]
+    fn string_hex_escape() {
+        let toks = lex(r#""\x1b[32m""#);
+        assert_eq!(toks[0].kind, TokenKind::StringLit("\u{001b}[32m".into()));
+    }
+
+    #[test]
     fn operators_single_and_double() {
         let toks = lex("= == ! != < <= > >= & && | ||");
         assert_eq!(toks[0].kind, TokenKind::Eq);
@@ -669,6 +675,12 @@ mod codegen_tests {
     fn string_literal_interned_as_data() {
         let ir = compile_ok(r#"pub fn main() void! = { val s = "hello" }"#, false);
         assert!(ir.contains("b \"hello\""));
+    }
+
+    #[test]
+    fn string_literal_hex_escape_to_octal() {
+        let ir = compile_ok(r#"pub fn main() void! = { val s = "\x1b" }"#, false);
+        assert!(ir.contains("b \"\\033\""));
     }
 
     #[test]

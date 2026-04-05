@@ -175,10 +175,22 @@ impl Lexer {
                     Some('"') => break,
                     Some('\\') => match self.advance() {
                         Some('n') => s.push('\n'),
+                        Some('r') => s.push('\r'),
                         Some('t') => s.push('\t'),
                         Some('"') => s.push('"'),
                         Some('\\') => s.push('\\'),
-                        Some(x) => s.push(x),
+                        Some('x') => {
+                            let h1 = self.advance().ok_or("unterminated hex escape")?;
+                            let h2 = self.advance().ok_or("unterminated hex escape")?;
+                            let hex = format!("{}{}", h1, h2);
+                            let byte = u8::from_str_radix(&hex, 16)
+                                .map_err(|_| format!("invalid hex escape '\\x{}'", hex))?;
+                            s.push(byte as char);
+                        }
+                        Some(x) => {
+                            s.push('\\');
+                            s.push(x);
+                        }
                         None => return Err("unterminated escape".into()),
                     },
                     Some(ch) => s.push(ch),
