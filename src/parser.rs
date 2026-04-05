@@ -38,9 +38,11 @@ pub enum Item {
         name: String,
         variants: Vec<String>,
     },
-    Const {
+    Global {
         public: bool,
         name: String,
+        ty: Option<TypeExpr>,
+        mutable: bool,
         expr: Expr,
     },
     Test {
@@ -770,9 +772,13 @@ impl Parser {
     fn parse_val_item(&mut self, public: bool) -> Result<Item, String> {
         self.expect(&TokenKind::Val)?;
         let name = self.expect_ident()?;
-        if self.eat(&TokenKind::Colon) {
-            self.parse_type()?;
-        }
+        let (mutable, ty) = if self.eat(&TokenKind::Colon) {
+            let m = self.eat(&TokenKind::Mut);
+            let t = self.parse_type()?;
+            (m, Some(t))
+        } else {
+            (false, None)
+        };
         self.expect(&TokenKind::Eq)?;
 
         if self.peek() == &TokenKind::Use {
@@ -784,7 +790,13 @@ impl Parser {
         }
 
         let expr = self.parse_expr()?;
-        Ok(Item::Const { public, name, expr })
+        Ok(Item::Global {
+            public,
+            name,
+            ty,
+            mutable,
+            expr,
+        })
     }
 
     fn parse_type_def(&mut self, public: bool) -> Result<Item, String> {

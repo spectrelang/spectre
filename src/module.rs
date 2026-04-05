@@ -136,7 +136,7 @@ fn collect_used_imports_in_item(
                 collect_used_imports_in_stmt(stmt, imports, used);
             }
         }
-        Item::Const { expr, .. } => collect_used_imports_in_expr(expr, imports, used),
+        Item::Global { expr, .. } => collect_used_imports_in_expr(expr, imports, used),
         _ => {}
     }
 }
@@ -501,7 +501,7 @@ fn item_references_name(item: &Item, name: &str) -> bool {
     match item {
         Item::Fn(f) => f.body.iter().any(|s| stmt_references_name(s, name)),
         Item::Test { body } => body.iter().any(|s| stmt_references_name(s, name)),
-        Item::Const { expr, .. } => expr_references_name(expr, name),
+        Item::Global { expr, .. } => expr_references_name(expr, name),
         _ => false,
     }
 }
@@ -777,7 +777,7 @@ fn collect_needed_subnames_in_item(item: &Item, import_name: &str, needed: &mut 
                 collect_needed_subnames_in_stmt(stmt, import_name, needed);
             }
         }
-        Item::Const { expr, .. } => collect_needed_subnames_in_expr(expr, import_name, needed),
+        Item::Global { expr, .. } => collect_needed_subnames_in_expr(expr, import_name, needed),
         _ => {}
     }
 }

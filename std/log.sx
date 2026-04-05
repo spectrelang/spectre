@@ -1,7 +1,11 @@
 val time = use("time.sx")
 val stdio = use("stdio.sx")
 
-pub val colors: mut bool = true
+val colors: mut bool = true
+
+pub fn set_colors(c: bool) void! = {
+    colors = c
+}
 
 fn get_time_string() ref char = {
     val dt: DateTime = time.DateTime.now()

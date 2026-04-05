@@ -1,0 +1,7 @@
+val std = use("std")
+
+pub fn main() void! = {
+    std.log.info("Hi")
+    std.log.set_colors(false)
+    std.log.info("Hi")
+}

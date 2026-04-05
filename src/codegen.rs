@@ -140,6 +140,8 @@ pub struct Codegen {
     test_fns: Vec<String>,
     current_file: String,
     module_consts: HashMap<String, (String, &'static str)>,
+    module_globals: HashMap<String, (String, &'static str, Option<String>)>, // name -> (qbe_label, qbe_type, annotation)
+    global_data: Vec<String>,
     cross_module_consts: HashMap<String, (String, &'static str)>,
     module_aliases: HashMap<String, String>,
     type_aliases: HashMap<String, String>,
@@ -187,6 +189,8 @@ impl Codegen {
             test_fns: Vec::new(),
             current_file: String::new(),
             module_consts: HashMap::new(),
+            module_globals: HashMap::new(),
+            global_data: Vec::new(),
             cross_module_consts: HashMap::new(),
             module_aliases: HashMap::new(),
             type_aliases: HashMap::new(),
@@ -222,6 +226,10 @@ impl Codegen {
         }
 
         let mut data_section = String::new();
+        for line in &self.global_data {
+            data_section.push_str(line);
+            data_section.push('\n');
+        }
         for (label, value) in &self.data {
             data_section.push_str(&format!("data ${label} = {{ b \"{value}\", b 0 }}\n"));
         }
@@ -428,23 +436,70 @@ impl Codegen {
         }
 
         self.module_consts.clear();
+        self.module_globals.clear();
         for item in &items {
-            if let Item::Const { name, expr, .. } = item {
-                let (val, ty) = match expr {
-                    crate::parser::Expr::IntLit(n) => (n.to_string(), "l"),
-                    crate::parser::Expr::FloatLit(f) => (format!("d_{f}"), "d"),
-                    crate::parser::Expr::Bool(b) => (if *b { "1" } else { "0" }.to_string(), "w"),
-                    crate::parser::Expr::UnOp {
-                        op: crate::parser::UnOp::Neg,
-                        expr,
-                    } => match expr.as_ref() {
-                        crate::parser::Expr::IntLit(n) => (format!("-{n}"), "l"),
-                        crate::parser::Expr::FloatLit(f) => (format!("d_-{f}"), "d"),
-                        _ => continue,
-                    },
-                    _ => continue,
+            if let Item::Global {
+                public,
+                name,
+                ty: type_expr,
+                mutable,
+                expr,
+            } = item
+            {
+                let qbe_label = if module_prefix.is_empty() {
+                    name.clone()
+                } else {
+                    format!("{module_prefix}__{name}")
                 };
-                self.module_consts.insert(name.clone(), (val, ty));
+
+                let qty = if let Some(te) = type_expr {
+                    qbe_type(te)
+                } else {
+                    match expr {
+                        crate::parser::Expr::IntLit(_) => "l",
+                        crate::parser::Expr::FloatLit(_) => "d",
+                        crate::parser::Expr::Bool(_) => "w",
+                        _ => "l",
+                    }
+                };
+
+                if !*mutable {
+                    let maybe_const_val = match expr {
+                        crate::parser::Expr::IntLit(n) => Some(n.to_string()),
+                        crate::parser::Expr::FloatLit(f) => Some(format!("d_{f}")),
+                        crate::parser::Expr::Bool(b) => Some(if *b { "1" } else { "0" }.to_string()),
+                        crate::parser::Expr::UnOp {
+                            op: crate::parser::UnOp::Neg,
+                            expr,
+                        } => match expr.as_ref() {
+                            crate::parser::Expr::IntLit(n) => Some(format!("-{n}")),
+                            crate::parser::Expr::FloatLit(f) => Some(format!("d_-{f}")),
+                            _ => None,
+                        },
+                        _ => None,
+                    };
+                    if let Some(val) = maybe_const_val {
+                        self.module_consts.insert(name.clone(), (val, qty));
+                        continue;
+                    }
+                }
+
+                let init_val = match expr {
+                    crate::parser::Expr::IntLit(n) => n.to_string(),
+                    crate::parser::Expr::FloatLit(f) => format!("d_{f}"),
+                    crate::parser::Expr::Bool(b) => {
+                        if *b { "1" } else { "0" }.to_string()
+                    }
+                    _ => "0".to_string(),
+                };
+
+                let export = if *public { "export " } else { "" };
+                let line = format!("{export}data ${qbe_label} = {{ {qty} {init_val} }}");
+                self.global_data.push(line);
+
+                let ann = type_expr.as_ref().map(type_to_annotation_string);
+                self.module_globals
+                    .insert(name.clone(), (qbe_label.clone(), qty, ann));
             }
         }
 
@@ -461,7 +516,7 @@ impl Codegen {
         }
 
         for item in &items {
-            if let Item::Const { name, expr, .. } = item {
+            if let Item::Global { name, expr, .. } = item {
                 let path = expr_to_path(expr);
                 if !path.is_empty() {
                     let expanded = expand_alias_path(&path, &self.module_aliases);
@@ -475,6 +530,9 @@ impl Codegen {
         }
 
         let mut local_ns = ns.clone();
+        for (name, (qbe_label, _, _)) in &self.module_globals {
+            local_ns.insert(name.clone(), qbe_label.clone());
+        }
         for item in &items {
             if let Item::Fn(f) = item {
                 let local_key = match &f.namespace {
@@ -500,7 +558,7 @@ impl Codegen {
                     self.emit_test_fn(body, &local_ns)?
                 }
                 Item::Use { .. }
-                | Item::Const { .. }
+                | Item::Global { .. }
                 | Item::TypeDef { .. }
                 | Item::ExternTypeDef { .. }
                 | Item::UnionDef { .. }
@@ -554,6 +612,22 @@ impl Codegen {
             self.locals.insert(name.clone(), val.clone());
             self.local_types.insert(name.clone(), ty);
             self.local_mutability.insert(name.clone(), false);
+        }
+
+        for (name, (label, ty, ann)) in &self.module_globals.clone() {
+            let label_with_sigil = format!("${label}");
+            self.locals.insert(name.clone(), label_with_sigil);
+            self.local_types.insert(name.clone(), ty);
+            self.local_mutability.insert(name.clone(), true);
+            self.local_is_slot.insert(name.clone());
+            if *ty == "l" {
+                self.local_slot_is_l.insert(name.clone());
+            } else if *ty == "d" {
+                self.local_slot_is_d.insert(name.clone());
+            }
+            if let Some(a) = ann {
+                self.local_type_annotations.insert(name.clone(), a.clone());
+            }
         }
 
         let qbe_name = {
@@ -4101,11 +4175,15 @@ fn collect_cross_module_consts(
     platform: Platform,
 ) {
     for item in flatten_ast_items(&module.ast.items, platform) {
-        if let Item::Const {
-            name, expr, public, ..
+        if let Item::Global {
+            name,
+            expr,
+            public,
+            mutable,
+            ..
         } = item
         {
-            if !prefix.is_empty() && !public {
+            if *mutable || (!prefix.is_empty() && !public) {
                 continue;
             }
             let val_ty: Option<(String, &'static str)> = match expr {
@@ -4466,6 +4544,26 @@ fn collect_ns_with_qbe_prefix(
                     format!("{prefix}.{name}")
                 };
                 ns.insert(key, symbol.clone());
+            }
+            Item::Global {
+                name,
+                public,
+                ..
+            } => {
+                if !public {
+                    continue;
+                }
+                let qbe = if qbe_prefix.is_empty() {
+                    name.clone()
+                } else {
+                    format!("{qbe_prefix}__{name}")
+                };
+                let key = if prefix.is_empty() {
+                    name.clone()
+                } else {
+                    format!("{prefix}.{name}")
+                };
+                ns.insert(key, qbe);
             }
             _ => {}
         }
