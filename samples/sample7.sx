@@ -7,7 +7,7 @@ pub fn main() void! = {
             std.stdio.print("hooray: {d}", {x})
         }
         none => {
-            std.stdio.put(":(")
+            std.stdio.puts(":(")
         }
     }
 }

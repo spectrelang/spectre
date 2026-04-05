@@ -9,7 +9,7 @@ pub fn main() void! = {
     val argc: i64 = @len(args) as i64
 
     if argc < 2 {
-        std.stdio.put("usage: sxc <input.sx>")
+        std.stdio.puts("usage: sxc <input.sx>")
         return
     }
 
@@ -17,7 +17,7 @@ pub fn main() void! = {
     val input: ref char = ""
     match input_opt {
         some a => { input = a as ref char }
-        none   => { std.stdio.put("error: no input file") return }
+        none   => { std.stdio.puts("error: no input file") return }
     }
 
     val src_opt = std.fs.read_all(input)

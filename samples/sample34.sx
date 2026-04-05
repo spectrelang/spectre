@@ -9,13 +9,13 @@ test {
     
     match platform {
         "Windows" => {
-            std.stdio.put("Running on Windows")
+            std.stdio.puts("Running on Windows")
         }
         "Linux" => {
-            std.stdio.put("Running on Linux")
+            std.stdio.puts("Running on Linux")
         }
         "Darwin" => {
-            std.stdio.put("Running on macOS")
+            std.stdio.puts("Running on macOS")
         }
     }
 }

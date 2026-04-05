@@ -2,7 +2,7 @@ val std = use("std")
 
 pub fn main() void = {
     for {
-        std.stdio.put("its cool")
+        std.stdio.puts("its cool")
         break
     }
 }

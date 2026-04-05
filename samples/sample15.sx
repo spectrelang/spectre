@@ -11,6 +11,6 @@ pub fn main() i32! = {
     
     Stack.free(my_stack)
     
-    std.stdio.put("freed.")
+    std.stdio.puts("freed.")
     return 0
 }

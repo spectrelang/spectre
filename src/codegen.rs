@@ -4395,7 +4395,6 @@ const RESERVED_SYMBOLS: &[&str] = &[
     "fprintf",
     "dprintf",
     "snprintf",
-    "puts",
     "fputs",
     "fgets",
     "fflush",

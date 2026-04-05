@@ -417,7 +417,7 @@ test {
         }
     }
 
-    stdio.put("fs tests passed")
+    stdio.puts("fs tests passed")
 }
 
 /// Walk a directory and return an iterable list[ref char] of entry names.

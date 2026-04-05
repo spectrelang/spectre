@@ -28,7 +28,7 @@ fn some_function(some_arg: i32, some_other_arg: usize) void = {
 pub val some_constant = 1000
 
 fn pure_function() void = {
-	trust std.stdio.put("This is trusted now, and can therefore run in a pure function")	
+	trust std.stdio.puts("This is trusted now, and can therefore run in a pure function")	
 }
 
 fn can_fail(should_fail: bool) option[i32]! = {
@@ -39,5 +39,5 @@ fn can_fail(should_fail: bool) option[i32]! = {
 }
 
 pub fn some_other_function() void! = {
-	std.stdio.put("This is some function...without any preconds, postconds, or invariants. Thus the return type is marked !")
+	std.stdio.puts("This is some function...without any preconds, postconds, or invariants. Thus the return type is marked !")
 }

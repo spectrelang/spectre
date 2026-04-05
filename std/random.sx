@@ -63,8 +63,8 @@ test {
     assert uuid1 != 0
     assert uuid2 != 0
     
-    stdio.put(uuid1)
-    stdio.put(uuid2)
+    stdio.puts(uuid1)
+    stdio.puts(uuid2)
     
     @free(uuid1)
     @free(uuid2)

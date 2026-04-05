@@ -253,13 +253,13 @@ test {
     defer {
         Thread.free(t)
     }
-    stdio.put("it worked :D")
+    stdio.puts("it worked :D")
 
     val _result = Thread.join(t)?
-    stdio.put("it worked :D2")
+    stdio.puts("it worked :D2")
 
     val final_val: i64 = @load(counter)
-    stdio.put("it worked :D3")
+    stdio.puts("it worked :D3")
 
     assert final_val == 1
 
@@ -269,10 +269,10 @@ test {
             defer {
                 Mutex.free(m)
             }
-            stdio.put("it worked :D4")
+            stdio.puts("it worked :D4")
 
             Mutex.lock(m)
-            stdio.put("it worked :D5")
+            stdio.puts("it worked :D5")
 
             Mutex.unlock(m)
         }

@@ -446,7 +446,7 @@ test {
     Map.free(m)
     Map.free(big)
 
-    stdio.put("map tests passed")
+    stdio.puts("map tests passed")
 }
 
 
@@ -493,7 +493,7 @@ test {
 
     PtrList.push(list, 5)?
 
-    stdio.put("list tests passed")
+    stdio.puts("list tests passed")
 }
 
 /// A hash map with ref char (C string) keys and usize values.
@@ -705,5 +705,5 @@ test {
 
     StringMap.free(m)
 
-    stdio.put("string map tests passed")
+    stdio.puts("string map tests passed")
 }

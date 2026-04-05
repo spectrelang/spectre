@@ -1,5 +1,5 @@
 /// Print a string followed by a newline to stdout.
-pub fn put(arg: ref char) void = {
+pub fn puts(arg: ref char) void = {
     trust @puts(arg)
 }
 
@@ -12,7 +12,7 @@ pub fn print(fmt: ref char, args: untyped) void = {
 }
 
 /// Print a string to stderr followed by a newline (fd 2).
-pub fn eput(msg: ref char) void! = {
+pub fn eputs(msg: ref char) void! = {
     @dprintf(2, "%s\n", msg)
 }
 

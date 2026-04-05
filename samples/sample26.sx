@@ -71,10 +71,10 @@ pub fn main() result[void, ParseError]! = {
         err e => {
             match e {
                 ParseError.Empty => {
-                    std.stdio.put("error: Empty input")
+                    std.stdio.puts("error: Empty input")
                 }
                 ParseError.InvalidDigit => {
-                    std.stdio.put("error: invalid digit")
+                    std.stdio.puts("error: invalid digit")
                 }
             }
         }

@@ -25,32 +25,32 @@ pub fn main() void! = {
     for x in examples {
         match x {
             Int32 a => {
-                std.stdio.put("Matched Int32")
+                std.stdio.puts("Matched Int32")
                 std.stdio.print("Value: {d}\n", {a})
             }
 
             Int64 b => {
-                std.stdio.put("Matched Int64 (big int)")
+                std.stdio.puts("Matched Int64 (big int)")
                 std.stdio.print("Value: {lld}\n", {b})
             }
 
             ChrPtr ptr => {
-                std.stdio.put("Matched raw char pointer")
+                std.stdio.puts("Matched raw char pointer")
                 std.stdio.print("Value: {s}\n", {ptr})
             }
 
             Str s => {
-                std.stdio.put("Matched constructed string")
+                std.stdio.puts("Matched constructed string")
                 std.stdio.print("String: {d} {s}\n", {s.len, s.cstr})
             }
 
             Pair z, y => {
-                std.stdio.put("Matched a pair of ints")
+                std.stdio.puts("Matched a pair of ints")
                 std.stdio.print("Values: {d} and {d}\n", {z, y})
             }
 
             else => {
-                std.stdio.put("Unknown variant")
+                std.stdio.puts("Unknown variant")
             }
         }
     }

@@ -25,7 +25,7 @@ pub fn some_function() void! = {
             @insert(xs, 1, 99) // at position 1 in xs, insert 99.
         }
         none => {
-            std.stdio.put(":(")
+            std.stdio.puts(":(")
         }
     }
 

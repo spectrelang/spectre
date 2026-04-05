@@ -151,7 +151,7 @@ test {
     assert exists(path) == true
     val new_path = "test_file_renamed.txt"
     rename_file(path, new_path)
-    stdio.put("hi8")
+    stdio.puts("hi8")
     assert exists(path) == false
     assert exists(new_path) == true
     delete(new_path)

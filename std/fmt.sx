@@ -269,13 +269,13 @@ test {
         err v => {
             match v {
                 ParseIntError.Empty => {
-                    stdio.put("empty string")
+                    stdio.puts("empty string")
                 }
                 ParseIntError.InvalidDigit => {
-                    stdio.put("invalid digit")
+                    stdio.puts("invalid digit")
                 }
                 ParseIntError.Overflow => {
-                    stdio.put("overflow.")
+                    stdio.puts("overflow.")
                 }
             }
         }

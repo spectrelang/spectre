@@ -104,7 +104,7 @@ pub fn (Arena) reset(arena: self) void! = {
 test {
     val arena = Arena.new(64)?
 
-    stdio.put("done making new arena")
+    stdio.puts("done making new arena")
     assert Arena.cap(arena) == 64
     assert Arena.used(arena) == 0
     assert Arena.remaining(arena) == 64

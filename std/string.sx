@@ -851,7 +851,7 @@ test {
     val empty = new()
     assert(len(empty) == 0)
 
-    stdio.put("hi")
+    stdio.puts("hi")
     val s = from("hello")
     assert(len(s) == 5)
     assert(equals(s, from("hello")))
@@ -863,12 +863,12 @@ test {
     val c = from("bar")
     push(b, c)
     assert(equals(b, from("foobar")))
-    stdio.put("hi1.3")
+    stdio.puts("hi1.3")
 
     val pc = from("ab")
     push_char(pc, 99) // 'c'
     assert(equals(pc, from("abc")))
-    stdio.put("hi1.4")
+    stdio.puts("hi1.4")
 
     val orig = from("clone me")
     val copy = clone(orig)
@@ -887,7 +887,7 @@ test {
     val g2 = get(g, 2)
     val g3 = get(g, 3)
 
-    stdio.put("hi2")
+    stdio.puts("hi2")
     match g0 { some v => { assert(v == 97) } none => { assert(false) } }
     match g1 { some v => { assert(v == 98) } none => { assert(false) } }
     match g2 { some v => { assert(v == 99) } none => { assert(false) } }
@@ -937,7 +937,7 @@ test {
     to_lower(low)
     assert(equals(low, from("abcxyz")))
 
-    stdio.put("hi3")
+    stdio.puts("hi3")
     val tr = from("  \t hello \n ")
     trim(tr)
     assert(equals(tr, from("hello")))
@@ -946,31 +946,31 @@ test {
     trim_left(tl)
     assert(equals(tl, from("hello")))
 
-    stdio.put("hi3.1")
+    stdio.puts("hi3.1")
     val trr = from("hello   ")
-    stdio.put("hi3.1.1")
+    stdio.puts("hi3.1.1")
 
     trim_right(trr)
-    stdio.put("hi3.1.2")
+    stdio.puts("hi3.1.2")
     assert(equals(trr, from("hello")))
-    stdio.put("hi3.1.3")
+    stdio.puts("hi3.1.3")
 
     val rep = from("foo bar foo")
-    stdio.put("hi3.1.4" )
+    stdio.puts("hi3.1.4" )
 
     val rep2 = replace(rep, from("foo"), from("baz"))
-    stdio.put("hi3.1.5")
+    stdio.puts("hi3.1.5")
     assert(equals(rep2, from("baz bar baz")))
-    stdio.put("hi3.2")
+    stdio.puts("hi3.2")
 
     val rep3 = replace(rep, from("xxx"), from("yyy"))
-    stdio.put("hi3.2.1")
+    stdio.puts("hi3.2.1")
     assert(equals(rep3, from("foo bar foo")))
-    stdio.put("hi3.2.2")
+    stdio.puts("hi3.2.2")
     val sp = from("a,b,c")
-    stdio.put("hi3.2.3")
+    stdio.puts("hi3.2.3")
     val parts = split(sp, from(","))?
-    stdio.put("hi3.3")
+    stdio.puts("hi3.3")
 
     assert(collections.PtrList.len(parts) == 3)
     match collections.PtrList.get(parts, 0) {
@@ -994,7 +994,7 @@ test {
         none => { assert(false) }
     }
 
-    stdio.put("hi4")
+    stdio.puts("hi4")
     val ca = from("foo")
     val cb = from("bar")
     val cc = concat(ca, cb)
@@ -1024,7 +1024,7 @@ test {
     reverse(rv)
     assert(equals(rv, from("dcba")))
 
-    stdio.put("string tests passed")
+    stdio.puts("string tests passed")
 
     stdio.print("{s}", {cstr(format("hello {d}", {1}))})
 

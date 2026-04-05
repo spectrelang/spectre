@@ -2,7 +2,7 @@ val std = use("std")
 
 pub fn main() void! = {
     when windows {
-        std.stdio.put("hi windows")
+        std.stdio.puts("hi windows")
     }
     when linux {
 
@@ -14,6 +14,6 @@ pub fn main() void! = {
 
     }
     when darwin {
-        std.stdio.put("hi macos")
+        std.stdio.puts("hi macos")
     }
 }

@@ -1,7 +1,7 @@
 val std = use("std")
 
 pub fn do_some_thing() void = {
-	std.stdio.put("hello, world")
+	std.stdio.puts("hello, world")
 }
 
 pub fn main() void! = {
