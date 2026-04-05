@@ -368,11 +368,18 @@ mod parser_tests {
 mod codegen_tests {
     use crate::codegen::Codegen;
     use crate::module::resolve_module;
-    use std::collections::{HashMap, HashSet};
+    use std::collections::HashMap;
     use std::path::Path;
 
     fn compile(src: &str) -> Result<String, String> {
-        let resolved = resolve_module(src, Path::new("."), &mut HashMap::new(), &mut Vec::new(), "", None)?;
+        let resolved = resolve_module(
+            src,
+            Path::new("."),
+            &mut HashMap::new(),
+            &mut Vec::new(),
+            "",
+            None,
+        )?;
         let mut cg = Codegen::new();
         cg.emit_module(&resolved, false, false)?;
         Ok(cg.finish())
@@ -660,7 +667,7 @@ mod codegen_tests {
 mod format_string_tests {
     use crate::codegen::Codegen;
     use crate::module::resolve_module;
-    use std::collections::{HashMap, HashSet};
+    use std::collections::HashMap;
     use std::path::Path;
 
     fn rewrite(fmt: &str) -> String {
@@ -668,7 +675,15 @@ mod format_string_tests {
             r#"pub fn print(f: ref char, a: untyped) void! = {{}}
                pub fn main() void! = {{ print("{fmt}", 1) }}"#
         );
-        let resolved = resolve_module(&src, Path::new("."), &mut HashMap::new(), &mut Vec::new(), "", None).unwrap();
+        let resolved = resolve_module(
+            &src,
+            Path::new("."),
+            &mut HashMap::new(),
+            &mut Vec::new(),
+            "",
+            None,
+        )
+        .unwrap();
         let mut cg = Codegen::new();
         cg.emit_module(&resolved, false, false).unwrap();
         let ir = cg.finish();
@@ -705,11 +720,18 @@ mod hoisting_and_optionals_tests {
     use crate::lexer::{Lexer, TokenKind};
     use crate::module::resolve_module;
     use crate::parser::{Expr, Item, Parser, Stmt};
-    use std::collections::{HashMap, HashSet};
+    use std::collections::HashMap;
     use std::path::Path;
 
     fn compile(src: &str) -> Result<String, String> {
-        let resolved = resolve_module(src, Path::new("."), &mut HashMap::new(), &mut Vec::new(), "", None)?;
+        let resolved = resolve_module(
+            src,
+            Path::new("."),
+            &mut HashMap::new(),
+            &mut Vec::new(),
+            "",
+            None,
+        )?;
         let mut cg = Codegen::new();
         cg.emit_module(&resolved, false, false)?;
         Ok(cg.finish())
@@ -944,11 +966,18 @@ mod elif_and_for_tests {
     use crate::lexer::{Lexer, TokenKind};
     use crate::module::resolve_module;
     use crate::parser::{Item, Parser, Stmt};
-    use std::collections::{HashMap, HashSet};
+    use std::collections::HashMap;
     use std::path::Path;
 
     fn compile(src: &str) -> Result<String, String> {
-        let resolved = resolve_module(src, Path::new("."), &mut HashMap::new(), &mut Vec::new(), "", None)?;
+        let resolved = resolve_module(
+            src,
+            Path::new("."),
+            &mut HashMap::new(),
+            &mut Vec::new(),
+            "",
+            None,
+        )?;
         let mut cg = Codegen::new();
         cg.emit_module(&resolved, false, false)?;
         Ok(cg.finish())
@@ -1199,11 +1228,18 @@ mod elif_and_for_tests {
 mod float_mut_and_for_regression_tests {
     use crate::codegen::Codegen;
     use crate::module::resolve_module;
-    use std::collections::{HashMap, HashSet};
+    use std::collections::HashMap;
     use std::path::Path;
 
     fn compile(src: &str) -> Result<String, String> {
-        let resolved = resolve_module(src, Path::new("."), &mut HashMap::new(), &mut Vec::new(), "", None)?;
+        let resolved = resolve_module(
+            src,
+            Path::new("."),
+            &mut HashMap::new(),
+            &mut Vec::new(),
+            "",
+            None,
+        )?;
         let mut cg = Codegen::new();
         cg.emit_module(&resolved, false, false)?;
         Ok(cg.finish())
@@ -1294,11 +1330,18 @@ mod memory_and_defer_tests {
     use crate::lexer::{Lexer, TokenKind};
     use crate::module::resolve_module;
     use crate::parser::{Item, Parser, Stmt};
-    use std::collections::{HashMap, HashSet};
+    use std::collections::HashMap;
     use std::path::Path;
 
     fn compile(src: &str) -> Result<String, String> {
-        let resolved = resolve_module(src, Path::new("."), &mut HashMap::new(), &mut Vec::new(), "", None)?;
+        let resolved = resolve_module(
+            src,
+            Path::new("."),
+            &mut HashMap::new(),
+            &mut Vec::new(),
+            "",
+            None,
+        )?;
         let mut cg = Codegen::new();
         cg.emit_module(&resolved, false, false)?;
         Ok(cg.finish())
@@ -1535,11 +1578,18 @@ mod method_namespace_tests {
     use crate::lexer::Lexer;
     use crate::module::resolve_module;
     use crate::parser::{FnDef, Item, Parser, TypeExpr};
-    use std::collections::{HashMap, HashSet};
+    use std::collections::HashMap;
     use std::path::Path;
 
     fn compile(src: &str) -> Result<String, String> {
-        let resolved = resolve_module(src, Path::new("."), &mut HashMap::new(), &mut Vec::new(), "", None)?;
+        let resolved = resolve_module(
+            src,
+            Path::new("."),
+            &mut HashMap::new(),
+            &mut Vec::new(),
+            "",
+            None,
+        )?;
         let mut cg = Codegen::new();
         cg.emit_module(&resolved, false, false)?;
         Ok(cg.finish())
@@ -1728,11 +1778,18 @@ mod method_namespace_tests {
 mod cast_tests {
     use crate::codegen::Codegen;
     use crate::module::resolve_module;
-    use std::collections::{HashMap, HashSet};
+    use std::collections::HashMap;
     use std::path::Path;
 
     fn compile(src: &str) -> Result<String, String> {
-        let resolved = resolve_module(src, Path::new("."), &mut HashMap::new(), &mut Vec::new(), "", None)?;
+        let resolved = resolve_module(
+            src,
+            Path::new("."),
+            &mut HashMap::new(),
+            &mut Vec::new(),
+            "",
+            None,
+        )?;
         let mut cg = Codegen::new();
         cg.emit_module(&resolved, false, false)?;
         Ok(cg.finish())
@@ -1818,11 +1875,18 @@ mod union_codegen_tests {
     use crate::lexer::{Lexer, TokenKind};
     use crate::module::resolve_module;
     use crate::parser::{Item, Parser, Stmt, TypeExpr};
-    use std::collections::{HashMap, HashSet};
+    use std::collections::HashMap;
     use std::path::Path;
 
     fn compile(src: &str) -> Result<String, String> {
-        let resolved = resolve_module(src, Path::new("."), &mut HashMap::new(), &mut Vec::new(), "", None)?;
+        let resolved = resolve_module(
+            src,
+            Path::new("."),
+            &mut HashMap::new(),
+            &mut Vec::new(),
+            "",
+            None,
+        )?;
         let mut cg = Codegen::new();
         cg.emit_module(&resolved, false, false)?;
         Ok(cg.finish())
@@ -2037,7 +2101,10 @@ mod union_codegen_tests {
             pub fn main() void! = {}
         "#,
         );
-        assert!(ir.contains("=w ceqw"), "match union must compare tag with ceqw");
+        assert!(
+            ir.contains("=w ceqw"),
+            "match union must compare tag with ceqw"
+        );
     }
 
     #[test]
@@ -2173,7 +2240,10 @@ mod union_codegen_tests {
             pub fn main() void! = {}
         "#,
         );
-        assert!(ir.contains("@union_end_"), "match union must emit an end label");
+        assert!(
+            ir.contains("@union_end_"),
+            "match union must emit an end label"
+        );
     }
 
     #[test]
@@ -2187,7 +2257,11 @@ mod union_codegen_tests {
             pub fn main() void! = {}
         "#,
         );
-        assert_eq!(ir.matches("ceqw").count(), 1, "single arm needs one tag comparison");
+        assert_eq!(
+            ir.matches("ceqw").count(),
+            1,
+            "single arm needs one tag comparison"
+        );
     }
 
     #[test]
@@ -2205,7 +2279,11 @@ mod union_codegen_tests {
             pub fn main() void! = {}
         "#,
         );
-        assert_eq!(ir.matches("ceqw").count(), 3, "three arms need three tag comparisons");
+        assert_eq!(
+            ir.matches("ceqw").count(),
+            3,
+            "three arms need three tag comparisons"
+        );
     }
 
     #[test]
@@ -2242,7 +2320,12 @@ mod union_codegen_tests {
         "#,
         );
         let Item::Fn(f) = &m.items[1] else { panic!() };
-        let Stmt::MatchUnion { arms, else_body, .. } = &f.body[0] else { panic!() };
+        let Stmt::MatchUnion {
+            arms, else_body, ..
+        } = &f.body[0]
+        else {
+            panic!()
+        };
         assert_eq!(arms.len(), 3);
         assert!(else_body.is_some());
     }
@@ -2272,11 +2355,18 @@ mod enum_tests {
     use crate::lexer::{Lexer, TokenKind};
     use crate::module::resolve_module;
     use crate::parser::{Item, Parser};
-    use std::collections::{HashMap, HashSet};
+    use std::collections::HashMap;
     use std::path::Path;
 
     fn compile(src: &str) -> Result<String, String> {
-        let resolved = resolve_module(src, Path::new("."), &mut HashMap::new(), &mut Vec::new(), "", None)?;
+        let resolved = resolve_module(
+            src,
+            Path::new("."),
+            &mut HashMap::new(),
+            &mut Vec::new(),
+            "",
+            None,
+        )?;
         let mut cg = Codegen::new();
         cg.emit_module(&resolved, false, false)?;
         Ok(cg.finish())
@@ -2405,11 +2495,18 @@ mod enum_tests {
 mod purity_enforcement_tests {
     use crate::codegen::Codegen;
     use crate::module::resolve_module;
-    use std::collections::{HashMap, HashSet};
+    use std::collections::HashMap;
     use std::path::Path;
 
     fn compile(src: &str) -> Result<(String, Vec<String>), String> {
-        let resolved = resolve_module(src, Path::new("."), &mut HashMap::new(), &mut Vec::new(), "", None)?;
+        let resolved = resolve_module(
+            src,
+            Path::new("."),
+            &mut HashMap::new(),
+            &mut Vec::new(),
+            "",
+            None,
+        )?;
         let mut cg = Codegen::new();
         cg.emit_module(&resolved, false, false)?;
         let warnings = cg.warnings.clone();
@@ -2568,11 +2665,18 @@ mod extern_fn_tests {
     use crate::lexer::{Lexer, TokenKind};
     use crate::module::resolve_module;
     use crate::parser::{Item, Parser, TypeExpr};
-    use std::collections::{HashMap, HashSet};
+    use std::collections::HashMap;
     use std::path::Path;
 
     fn compile(src: &str) -> Result<String, String> {
-        let resolved = resolve_module(src, Path::new("."), &mut HashMap::new(), &mut Vec::new(), "", None)?;
+        let resolved = resolve_module(
+            src,
+            Path::new("."),
+            &mut HashMap::new(),
+            &mut Vec::new(),
+            "",
+            None,
+        )?;
         let mut cg = Codegen::new();
         cg.emit_module(&resolved, false, false)?;
         Ok(cg.finish())
@@ -2785,17 +2889,12 @@ mod link_tests {
     use crate::lexer::{Lexer, TokenKind};
     use crate::module::{collect_used_libs, resolve_module};
     use crate::parser::{Item, Parser};
-    use std::collections::{HashMap, HashSet};
+    use std::collections::HashMap;
     use std::path::Path;
 
     fn parse(src: &str) -> crate::parser::Module {
         let tokens = Lexer::new(src).tokenize().unwrap();
         Parser::new(tokens).parse_module().unwrap()
-    }
-
-    fn parse_err(src: &str) -> String {
-        let tokens = Lexer::new(src).tokenize().unwrap();
-        Parser::new(tokens).parse_module().unwrap_err()
     }
 
     #[test]
@@ -2902,8 +3001,15 @@ mod link_tests {
             _ => "linux",
         };
         let src = format!("when {platform_name} {{ link \"platform_lib\" }}");
-        let resolved =
-            resolve_module(&src, Path::new("."), &mut HashMap::new(), &mut Vec::new(), "test.sx", None).unwrap();
+        let resolved = resolve_module(
+            &src,
+            Path::new("."),
+            &mut HashMap::new(),
+            &mut Vec::new(),
+            "test.sx",
+            None,
+        )
+        .unwrap();
         assert!(
             resolved.links.contains(&"platform_lib".to_string()),
             "expected platform_lib in links for platform {platform_name}, got {:?}",
@@ -2918,8 +3024,15 @@ mod link_tests {
             _ => "darwin",
         };
         let src = format!("when {other} {{ link \"other_platform_lib\" }}");
-        let resolved =
-            resolve_module(&src, Path::new("."), &mut HashMap::new(), &mut Vec::new(), "test.sx", None).unwrap();
+        let resolved = resolve_module(
+            &src,
+            Path::new("."),
+            &mut HashMap::new(),
+            &mut Vec::new(),
+            "test.sx",
+            None,
+        )
+        .unwrap();
         assert!(
             !resolved.links.contains(&"other_platform_lib".to_string()),
             "other_platform_lib should not be linked on this platform, got {:?}",
@@ -3031,7 +3144,7 @@ mod postfix_and_assign_op_tests {
     use crate::lexer::{Lexer, TokenKind};
     use crate::module::resolve_module;
     use crate::parser::{Item, Parser, Stmt};
-    use std::collections::{HashMap, HashSet};
+    use std::collections::HashMap;
     use std::path::Path;
 
     fn lex(src: &str) -> Vec<crate::lexer::Token> {
@@ -3044,7 +3157,14 @@ mod postfix_and_assign_op_tests {
     }
 
     fn compile(src: &str) -> Result<String, String> {
-        let resolved = resolve_module(src, Path::new("."), &mut HashMap::new(), &mut Vec::new(), "", None)?;
+        let resolved = resolve_module(
+            src,
+            Path::new("."),
+            &mut HashMap::new(),
+            &mut Vec::new(),
+            "",
+            None,
+        )?;
         let mut cg = Codegen::new();
         cg.emit_module(&resolved, false, false)?;
         Ok(cg.finish())
@@ -3180,7 +3300,7 @@ mod zero_init_tests {
     use crate::lexer::Lexer;
     use crate::module::resolve_module;
     use crate::parser::{Expr, Item, Parser, Stmt};
-    use std::collections::{HashMap, HashSet};
+    use std::collections::HashMap;
     use std::path::Path;
 
     fn parse(src: &str) -> crate::parser::Module {
@@ -3189,7 +3309,14 @@ mod zero_init_tests {
     }
 
     fn compile(src: &str) -> Result<String, String> {
-        let resolved = resolve_module(src, Path::new("."), &mut HashMap::new(), &mut Vec::new(), "", None)?;
+        let resolved = resolve_module(
+            src,
+            Path::new("."),
+            &mut HashMap::new(),
+            &mut Vec::new(),
+            "",
+            None,
+        )?;
         let mut cg = Codegen::new();
         cg.emit_module(&resolved, false, false)?;
         Ok(cg.finish())
@@ -3240,11 +3367,18 @@ mod shadowing_tests {
     use crate::codegen::Codegen;
     use crate::module::resolve_module;
     use crate::semantic;
-    use std::collections::{HashMap, HashSet};
+    use std::collections::HashMap;
     use std::path::Path;
 
     fn compile(src: &str) -> Result<String, String> {
-        let resolved = resolve_module(src, Path::new("."), &mut HashMap::new(), &mut Vec::new(), "", None)?;
+        let resolved = resolve_module(
+            src,
+            Path::new("."),
+            &mut HashMap::new(),
+            &mut Vec::new(),
+            "",
+            None,
+        )?;
         let sem_errors = semantic::check_module(&resolved);
         if !sem_errors.is_empty() {
             return Err(sem_errors.join("\n"));
@@ -3351,11 +3485,18 @@ mod shadowing_tests {
 mod f64_result_codegen_tests {
     use crate::codegen::Codegen;
     use crate::module::resolve_module;
-    use std::collections::{HashMap, HashSet};
+    use std::collections::HashMap;
     use std::path::Path;
 
     fn compile(src: &str) -> Result<String, String> {
-        let resolved = resolve_module(src, Path::new("."), &mut HashMap::new(), &mut Vec::new(), "", None)?;
+        let resolved = resolve_module(
+            src,
+            Path::new("."),
+            &mut HashMap::new(),
+            &mut Vec::new(),
+            "",
+            None,
+        )?;
         let mut cg = Codegen::new();
         cg.emit_module(&resolved, false, false)?;
         Ok(cg.finish())
@@ -3393,7 +3534,9 @@ mod f64_result_codegen_tests {
         );
         let add_pos = ir.find("=l add").expect("expected offset add in IR");
         let after_add = &ir[add_pos..];
-        let next_store = after_add.find("store").expect("expected store after offset");
+        let next_store = after_add
+            .find("store")
+            .expect("expected store after offset");
         assert!(
             after_add[next_store..].starts_with("stored"),
             "store after offset must be 'stored' for f64, got: {}",
@@ -3423,10 +3566,7 @@ mod f64_result_codegen_tests {
             }
         "#,
         );
-        assert!(
-            ir.contains("stored"),
-            "return ok (-f64) must emit 'stored'"
-        );
+        assert!(ir.contains("stored"), "return ok (-f64) must emit 'stored'");
     }
 
     #[test]
@@ -3486,11 +3626,18 @@ mod list_tests {
     use crate::lexer::{Lexer, TokenKind};
     use crate::module::resolve_module;
     use crate::parser::{Expr, Item, Parser, Stmt, TypeExpr};
-    use std::collections::{HashMap, HashSet};
+    use std::collections::HashMap;
     use std::path::Path;
 
     fn compile(src: &str) -> Result<String, String> {
-        let resolved = resolve_module(src, Path::new("."), &mut HashMap::new(), &mut Vec::new(), "", None)?;
+        let resolved = resolve_module(
+            src,
+            Path::new("."),
+            &mut HashMap::new(),
+            &mut Vec::new(),
+            "",
+            None,
+        )?;
         let mut cg = Codegen::new();
         cg.emit_module(&resolved, false, false)?;
         Ok(cg.finish())
@@ -3498,10 +3645,6 @@ mod list_tests {
 
     fn compile_ok(src: &str) -> String {
         compile(src).expect("expected compilation to succeed")
-    }
-
-    fn compile_err(src: &str) -> String {
-        compile(src).expect_err("expected compilation to fail")
     }
 
     fn parse(src: &str) -> crate::parser::Module {
@@ -3540,7 +3683,9 @@ mod list_tests {
     fn parse_empty_list_literal() {
         let m = parse("fn f() void! = { val xs: mut list[i64] = [] }");
         let Item::Fn(f) = &m.items[0] else { panic!() };
-        let Stmt::Val { expr, .. } = &f.body[0] else { panic!() };
+        let Stmt::Val { expr, .. } = &f.body[0] else {
+            panic!()
+        };
         assert!(matches!(expr, Expr::ListLit(elems) if elems.is_empty()));
     }
 
@@ -3548,7 +3693,9 @@ mod list_tests {
     fn parse_list_literal_with_elements() {
         let m = parse("fn f() void! = { val xs = [1, 2, 3, 4] }");
         let Item::Fn(f) = &m.items[0] else { panic!() };
-        let Stmt::Val { expr, .. } = &f.body[0] else { panic!() };
+        let Stmt::Val { expr, .. } = &f.body[0] else {
+            panic!()
+        };
         let Expr::ListLit(elems) = expr else { panic!() };
         assert_eq!(elems.len(), 4);
     }
@@ -3566,7 +3713,12 @@ mod list_tests {
         "#,
         );
         let Item::Fn(f) = &m.items[0] else { panic!() };
-        let Stmt::ForIn { binding, iterable, body } = &f.body[1] else {
+        let Stmt::ForIn {
+            binding,
+            iterable,
+            body,
+        } = &f.body[1]
+        else {
             panic!("expected ForIn statement");
         };
         assert_eq!(binding, "x");
@@ -3578,7 +3730,9 @@ mod list_tests {
     fn parse_list_type_annotation_on_val() {
         let m = parse("fn f() void! = { val xs: mut list[i32] = [1, 2, 3] }");
         let Item::Fn(f) = &m.items[0] else { panic!() };
-        let Stmt::Val { ty, .. } = &f.body[0] else { panic!() };
+        let Stmt::Val { ty, .. } = &f.body[0] else {
+            panic!()
+        };
         let Some(TypeExpr::List(_)) = ty else {
             panic!("expected list[i32] type annotation");
         };
@@ -3882,11 +4036,18 @@ mod list_tests {
 mod fixed_array_regression_tests {
     use crate::codegen::Codegen;
     use crate::module::resolve_module;
-    use std::collections::{HashMap, HashSet};
+    use std::collections::HashMap;
     use std::path::Path;
 
     fn compile(src: &str) -> Result<String, String> {
-        let resolved = resolve_module(src, Path::new("."), &mut HashMap::new(), &mut Vec::new(), "", None)?;
+        let resolved = resolve_module(
+            src,
+            Path::new("."),
+            &mut HashMap::new(),
+            &mut Vec::new(),
+            "",
+            None,
+        )?;
         let mut cg = Codegen::new();
         cg.emit_module(&resolved, false, false)?;
         Ok(cg.finish())
@@ -4140,11 +4301,18 @@ mod fixed_array_regression_tests {
 mod union_tests {
     use crate::codegen::Codegen;
     use crate::module::resolve_module;
-    use std::collections::{HashMap, HashSet};
+    use std::collections::HashMap;
     use std::path::Path;
 
     fn compile(src: &str) -> Result<String, String> {
-        let resolved = resolve_module(src, Path::new("."), &mut HashMap::new(), &mut Vec::new(), "", None)?;
+        let resolved = resolve_module(
+            src,
+            Path::new("."),
+            &mut HashMap::new(),
+            &mut Vec::new(),
+            "",
+            None,
+        )?;
         let mut cg = Codegen::new();
         cg.emit_module(&resolved, false, false)?;
         Ok(cg.finish())
@@ -4158,42 +4326,54 @@ mod union_tests {
     fn parse_union_def() {
         use crate::lexer::Lexer;
         use crate::parser::{Item, Parser};
-        let tokens = Lexer::new("union Foo = { i32 | ref char }").tokenize().unwrap();
+        let tokens = Lexer::new("union Foo = { i32 | ref char }")
+            .tokenize()
+            .unwrap();
         let m = Parser::new(tokens).parse_module().unwrap();
-        let Item::UnionDef { name, variants, .. } = &m.items[0] else { panic!() };
+        let Item::UnionDef { name, variants, .. } = &m.items[0] else {
+            panic!()
+        };
         assert_eq!(name, "Foo");
         assert_eq!(variants.len(), 2);
     }
 
     #[test]
     fn union_param_emits_tagged_struct_at_call_site_intlit() {
-        let ir = compile_ok(r#"
+        let ir = compile_ok(
+            r#"
             union U = { i32 | i64 }
             fn consume(x: U) void! = {}
             pub fn main() void! = {
                 trust consume(42)
             }
-        "#);
-        assert!(ir.contains("call $malloc(l 16)"), "expected malloc for union wrapping");
+        "#,
+        );
+        assert!(
+            ir.contains("call $malloc(l 16)"),
+            "expected malloc for union wrapping"
+        );
         assert!(ir.contains("storew 0,"), "expected tag 0 stored for i32");
     }
 
     #[test]
     fn union_param_emits_tagged_struct_at_call_site_cast() {
-        let ir = compile_ok(r#"
+        let ir = compile_ok(
+            r#"
             union U = { i32 | i64 }
             fn consume(x: U) void! = {}
             pub fn main() void! = {
                 trust consume(42 as i64)
             }
-        "#);
+        "#,
+        );
         assert!(ir.contains("call $malloc(l 16)"));
         assert!(ir.contains("storew 1,"), "expected tag 1 stored for i64");
     }
 
     #[test]
     fn union_match_emits_tag_check() {
-        let ir = compile_ok(r#"
+        let ir = compile_ok(
+            r#"
             union U = { i32 | i64 }
             fn describe(x: U) void! = {
                 match x {
@@ -4202,7 +4382,8 @@ mod union_tests {
                 }
             }
             pub fn main() void! = {}
-        "#);
+        "#,
+        );
         assert!(ir.contains("=w loadw"), "expected tag load");
         assert!(ir.contains("=w ceqw"), "expected tag comparison");
         assert!(ir.contains("@union_arm_"), "expected union arm label");
@@ -4211,7 +4392,8 @@ mod union_tests {
 
     #[test]
     fn union_match_arm_order_matches_variant_order() {
-        let ir = compile_ok(r#"
+        let ir = compile_ok(
+            r#"
             union U = { i32 | ref char }
             fn f(x: U) void! = {
                 match x {
@@ -4220,16 +4402,25 @@ mod union_tests {
                 }
             }
             pub fn main() void! = {}
-        "#);
-        assert!(ir.contains("ceqw %t1, 1") || ir.contains("ceqw %t2, 1") || ir.contains("ceqw %t3, 1"),
-            "ref char arm should check tag == 1");
-        assert!(ir.contains("ceqw %t1, 0") || ir.contains("ceqw %t2, 0") || ir.contains("ceqw %t3, 0") || ir.contains("ceqw %t4, 0"),
-            "i32 arm should check tag == 0");
+        "#,
+        );
+        assert!(
+            ir.contains("ceqw %t1, 1") || ir.contains("ceqw %t2, 1") || ir.contains("ceqw %t3, 1"),
+            "ref char arm should check tag == 1"
+        );
+        assert!(
+            ir.contains("ceqw %t1, 0")
+                || ir.contains("ceqw %t2, 0")
+                || ir.contains("ceqw %t3, 0")
+                || ir.contains("ceqw %t4, 0"),
+            "i32 arm should check tag == 0"
+        );
     }
 
     #[test]
     fn union_match_rebinds_locals_to_payload() {
-        let ir = compile_ok(r#"
+        let ir = compile_ok(
+            r#"
             union U = { i32 | i64 }
             fn f(x: U) void! = {
                 match x {
@@ -4238,14 +4429,18 @@ mod union_tests {
                 }
             }
             pub fn main() void! = {}
-        "#);
-        assert!(ir.contains("=l add %x, 8") || ir.contains("add %x, 8"),
-            "expected payload rebinding (add param, 8) inside union arm");
+        "#,
+        );
+        assert!(
+            ir.contains("=l add %x, 8") || ir.contains("add %x, 8"),
+            "expected payload rebinding (add param, 8) inside union arm"
+        );
     }
 
     #[test]
     fn union_else_arm_emits_fallthrough() {
-        let ir = compile_ok(r#"
+        let ir = compile_ok(
+            r#"
             union U = { i32 | i64 | ref char }
             fn f(x: U) void! = {
                 match x {
@@ -4254,13 +4449,15 @@ mod union_tests {
                 }
             }
             pub fn main() void! = {}
-        "#);
+        "#,
+        );
         assert!(ir.contains("@union_end_"));
     }
 
     #[test]
     fn union_multiple_params_all_rebound_in_arm() {
-        let ir = compile_ok(r#"
+        let ir = compile_ok(
+            r#"
             union U = { i32 | i64 }
             fn f(a: U, b: U) void! = {
                 match a {
@@ -4269,20 +4466,23 @@ mod union_tests {
                 }
             }
             pub fn main() void! = {}
-        "#);
+        "#,
+        );
         assert!(ir.contains("add %a, 8"), "expected %a rebound to payload");
         assert!(ir.contains("add %b, 8"), "expected %b rebound to payload");
     }
 
     #[test]
     fn union_strlit_arg_gets_correct_tag() {
-        let ir = compile_ok(r#"
+        let ir = compile_ok(
+            r#"
             union U = { i32 | ref char }
             fn consume(x: U) void! = {}
             pub fn main() void! = {
                 trust consume("hello")
             }
-        "#);
+        "#,
+        );
         assert!(ir.contains("call $malloc(l 16)"));
         assert!(ir.contains("storew 1,"), "expected tag 1 for ref char");
     }
@@ -4292,7 +4492,7 @@ mod union_tests {
 mod union_wrapping_regression_tests {
     use crate::codegen::Codegen;
     use crate::module::resolve_module;
-    use std::collections::{HashMap, HashSet};
+    use std::collections::HashMap;
     use std::path::Path;
 
     fn compile(src: &str) -> Result<String, String> {
@@ -4315,7 +4515,8 @@ mod union_wrapping_regression_tests {
 
     #[test]
     fn match_some_ref_char_binding_gets_union_tag() {
-        let ir = compile_ok(r#"
+        let ir = compile_ok(
+            r#"
             union StrOrPtr = { i32 | ref char }
             fn consume(x: StrOrPtr) i32! = { return 0 }
             fn maybe() option[ref char]! = { return none }
@@ -4326,7 +4527,8 @@ mod union_wrapping_regression_tests {
                     none => {}
                 }
             }
-        "#);
+        "#,
+        );
         assert!(
             ir.contains("call $malloc(l 16)"),
             "expected union box allocation for ref char binding"
@@ -4339,14 +4541,16 @@ mod union_wrapping_regression_tests {
 
     #[test]
     fn explicit_ref_char_annotation_gets_correct_union_tag() {
-        let ir = compile_ok(r#"
+        let ir = compile_ok(
+            r#"
             union Wrap = { i32 | ref char }
             fn use_wrap(w: Wrap) i32! = { return 0 }
             pub fn main() void! = {
                 val s: ref char = "hello"
                 trust use_wrap(s)
             }
-        "#);
+        "#,
+        );
         assert!(
             ir.contains("storew 1,"),
             "explicit ref char var should get tag 1 in union"
@@ -4355,7 +4559,8 @@ mod union_wrapping_regression_tests {
 
     #[test]
     fn field_access_on_ref_extern_type_compiles() {
-        let ir = compile_ok(r#"
+        let ir = compile_ok(
+            r#"
             extern type Node = {
                 value: i32
                 next: ref void
@@ -4365,8 +4570,12 @@ mod union_wrapping_regression_tests {
                 val n: ref Node = trust get_node()
                 val v = n.value
             }
-        "#);
-        assert!(ir.contains("$main"), "should compile without unknown type error");
+        "#,
+        );
+        assert!(
+            ir.contains("$main"),
+            "should compile without unknown type error"
+        );
     }
 
     #[test]
