@@ -3,7 +3,7 @@ val stdio = use("stdio.sx")
 
 val colors: mut bool = true
 
-pub fn set_colors(c: bool) void! = {
+pub fn set_colors(c: bool) void = {
     colors = c
 }
 
