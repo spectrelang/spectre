@@ -22,7 +22,7 @@ fn qbe_type(ty: &TypeExpr) -> &'static str {
         TypeExpr::Result(_, _) => "l",
         TypeExpr::FnPtr { .. } => "l",
         TypeExpr::Mut(inner) => qbe_type(inner),
-        TypeExpr::Void => "w",
+        TypeExpr::Void => "",
         TypeExpr::Untyped => "l",
     }
 }
@@ -139,6 +139,7 @@ pub struct Codegen {
     test_fns: Vec<String>,
     current_file: String,
     module_consts: HashMap<String, (String, &'static str)>,
+    cross_module_consts: HashMap<String, (String, &'static str)>,
     module_aliases: HashMap<String, String>,
     type_aliases: HashMap<String, String>,
     fn_ret_types: HashMap<String, &'static str>,
@@ -184,6 +185,7 @@ impl Codegen {
             test_fns: Vec::new(),
             current_file: String::new(),
             module_consts: HashMap::new(),
+            cross_module_consts: HashMap::new(),
             module_aliases: HashMap::new(),
             type_aliases: HashMap::new(),
             fn_ret_types: HashMap::new(),
@@ -355,6 +357,7 @@ impl Codegen {
         self.fn_param_types = build_param_types(resolved);
         self.variadic_fns = build_variadic_set(resolved);
         self.result_void_ok = build_result_void_ok(resolved);
+        self.cross_module_consts = build_cross_module_consts(resolved);
         self.emit_module_recursive(resolved, &ns, test_mode, true, "")?;
         if test_mode {
             self.emit_test_main()?;
@@ -426,11 +429,12 @@ impl Codegen {
         }
 
         self.module_aliases.clear();
+        let ns_prefix = module_prefix.replace("__", ".");
         for (import_name, _) in &resolved.imports {
-            let expanded = if module_prefix.is_empty() {
+            let expanded = if ns_prefix.is_empty() {
                 import_name.clone()
             } else {
-                format!("{module_prefix}.{import_name}")
+                format!("{ns_prefix}.{import_name}")
             };
             self.module_aliases.insert(import_name.clone(), expanded.clone());
             println!("  alias: {} -> {}", import_name, expanded);
@@ -849,7 +853,7 @@ impl Codegen {
                             .locals
                             .get(name)
                             .cloned()
-                            .ok_or_else(|| format!("undefined variable: {name}"))?;
+                            .ok_or_else(|| format!("{}: in fn '{}': undefined variable in assignment target: '{name}'", self.current_file, self.current_fn))?;
                         let is_d_slot = self.local_slot_is_d.contains(name);
                         let is_l_slot = self.local_slot_is_l.contains(name);
                         if is_d_slot {
@@ -1205,7 +1209,7 @@ impl Codegen {
                     .locals
                     .get(var)
                     .cloned()
-                    .ok_or_else(|| format!("undefined variable: {var}"))?;
+                    .ok_or_else(|| format!("{}: in fn '{}': undefined variable in '{}++': '{var}'", self.current_file, self.current_fn, var))?;
                 let is_l_slot = self.local_slot_is_l.contains(var);
                 let cur = self.fresh_tmp();
                 let inc = self.fresh_tmp();
@@ -1224,7 +1228,7 @@ impl Codegen {
                     .locals
                     .get(var)
                     .cloned()
-                    .ok_or_else(|| format!("undefined variable: {var}"))?;
+                    .ok_or_else(|| format!("{}: in fn '{}': undefined variable in '{}--': '{var}'", self.current_file, self.current_fn, var))?;
                 let is_l_slot = self.local_slot_is_l.contains(var);
                 let cur = self.fresh_tmp();
                 let dec = self.fresh_tmp();
@@ -1243,7 +1247,7 @@ impl Codegen {
                     .locals
                     .get(var)
                     .cloned()
-                    .ok_or_else(|| format!("undefined variable: {var}"))?;
+                    .ok_or_else(|| format!("{}: in fn '{}': undefined variable in '{var} +=': '{var}'", self.current_file, self.current_fn))?;
                 let is_l_slot = self.local_slot_is_l.contains(var);
                 let (rhs, rhs_ty) = self.emit_expr(expr, ns)?;
                 let cur = self.fresh_tmp();
@@ -1264,7 +1268,7 @@ impl Codegen {
                     .locals
                     .get(var)
                     .cloned()
-                    .ok_or_else(|| format!("undefined variable: {var}"))?;
+                    .ok_or_else(|| format!("{}: in fn '{}': undefined variable in '{var} -=': '{var}'", self.current_file, self.current_fn))?;
                 let is_l_slot = self.local_slot_is_l.contains(var);
                 let (rhs, rhs_ty) = self.emit_expr(expr, ns)?;
                 let cur = self.fresh_tmp();
@@ -1649,7 +1653,7 @@ impl Codegen {
                             .locals
                             .get(name)
                             .cloned()
-                            .ok_or_else(|| format!("undefined variable: {name}"))?;
+                            .ok_or_else(|| format!("{}: in fn '{}': undefined variable in field access '.{}': '{name}'", self.current_file, self.current_fn, field_name))?;
                         if self.local_is_slot.contains(name) {
                             let is_struct_slot = self
                                 .local_type_annotations
@@ -2752,6 +2756,11 @@ impl Codegen {
                         return Ok((idx.to_string(), "w"));
                     }
                 }
+                let path = expr_to_path(expr);
+                let expanded = expand_alias_path(&path, &self.type_aliases);
+                if let Some((val, ty)) = self.cross_module_consts.get(&expanded).cloned() {
+                    return Ok((val, ty));
+                }
                 let ptr = self.emit_field_ptr(expr, ns)?;
 
                 let is_fixed_array_field = self
@@ -3208,10 +3217,15 @@ impl Codegen {
                 } else {
                     arg_strs.join(", ")
                 };
-                self.emit(&format!(
-                    "    {result} ={ret_ty} call ${fn_name}({args_str})"
-                ));
-                Ok((result, ret_ty))
+                if ret_ty.is_empty() {
+                    self.emit(&format!("    call ${fn_name}({args_str})"));
+                    Ok(("".into(), ""))
+                } else {
+                    self.emit(&format!(
+                        "    {result} ={ret_ty} call ${fn_name}({args_str})"
+                    ));
+                    Ok((result, ret_ty))
+                }
             }
 
             Expr::BinOp { op, lhs, rhs } => {
@@ -3440,7 +3454,7 @@ impl Codegen {
                                 .locals
                                 .get(name)
                                 .cloned()
-                                .ok_or_else(|| format!("undefined variable: {name}"))?;
+                                .ok_or_else(|| format!("{}: in fn '{}': undefined variable in addr-of: '{name}'", self.current_file, self.current_fn))?;
                             // Check if this slot holds a struct type (stored as a pointer).
                             // If so, load the pointer from the slot; otherwise return the slot address.
                             let is_struct_slot = self
@@ -3767,6 +3781,60 @@ fn build_namespace(resolved: &ResolvedModule) -> Namespace {
     ns
 }
 
+fn build_cross_module_consts(
+    resolved: &ResolvedModule,
+) -> HashMap<String, (String, &'static str)> {
+    let mut map = HashMap::new();
+    collect_cross_module_consts(resolved, "", &mut map);
+    map
+}
+
+fn collect_cross_module_consts(
+    module: &ResolvedModule,
+    prefix: &str,
+    map: &mut HashMap<String, (String, &'static str)>,
+) {
+    for item in &module.ast.items {
+        if let Item::Const { name, expr, public, .. } = item {
+            if !prefix.is_empty() && !public {
+                continue;
+            }
+            let val_ty: Option<(String, &'static str)> = match expr {
+                crate::parser::Expr::IntLit(n) => Some((n.to_string(), "l")),
+                crate::parser::Expr::FloatLit(f) => Some((format!("d_{f}"), "d")),
+                crate::parser::Expr::Bool(b) => {
+                    Some((if *b { "1" } else { "0" }.to_string(), "w"))
+                }
+                crate::parser::Expr::UnOp {
+                    op: crate::parser::UnOp::Neg,
+                    expr,
+                } => match expr.as_ref() {
+                    crate::parser::Expr::IntLit(n) => Some((format!("-{n}"), "l")),
+                    crate::parser::Expr::FloatLit(f) => Some((format!("d_-{f}"), "d")),
+                    _ => None,
+                },
+                _ => None,
+            };
+            if let Some(val_ty) = val_ty {
+                let key = if prefix.is_empty() {
+                    name.clone()
+                } else {
+                    format!("{prefix}.{name}")
+                };
+                map.insert(key, val_ty);
+            }
+        }
+    }
+    for (import_name, child) in &module.imports {
+        let child_prefix = if prefix.is_empty() {
+            import_name.clone()
+        } else {
+            format!("{prefix}.{import_name}")
+        };
+        collect_cross_module_consts(child, &child_prefix, map);
+    }
+}
+
 fn build_ret_types(resolved: &ResolvedModule) -> HashMap<String, &'static str> {
     let mut map = HashMap::new();
     collect_ret_types(resolved, &mut map);
@@ -4055,6 +4123,7 @@ fn collect_ns_with_qbe_prefix(
     qbe_prefix: &str,
     ns: &mut Namespace,
 ) {
+    println!("collect_ns: prefix='{}' file='{}' imports={:?}", prefix, module.filename, module.imports.keys().collect::<Vec<_>>());
     for item in &module.ast.items {
         match item {
             Item::Fn(f) => {
@@ -4071,6 +4140,7 @@ fn collect_ns_with_qbe_prefix(
                 } else {
                     format!("{prefix}.{local_key}")
                 };
+                println!("  ns insert: key='{}' qbe='{}'", key, qbe);
                 ns.insert(key, qbe);
             }
             Item::ExternFn {

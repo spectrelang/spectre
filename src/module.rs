@@ -306,11 +306,23 @@ pub fn resolve_module(
             continue;
         }
 
-        if let Some(cached) = cache.get(resolved_path) {
-            imports.insert(name.clone(), cached.clone());
-            continue;
-        }
+        let needed_grandchildren = collect_needed_subnames_transitive(
+            &ast,
+            name,
+            &declared_uses,
+            dir,
+            in_progress,
+        );
 
+        if let Some(cached) = cache.get(resolved_path) {
+            let missing = needed_grandchildren
+                .iter()
+                .any(|sub| !cached.imports.contains_key(sub));
+            if !missing {
+                imports.insert(name.clone(), cached.clone());
+                continue;
+            }
+        }
 
         let child_src = std::fs::read_to_string(resolved_path)
             .map_err(|e| format!("cannot load module '{}': {e}", resolved_path.display()))?;
@@ -319,14 +331,6 @@ pub fn resolve_module(
             .unwrap_or(Path::new("."))
             .to_path_buf();
         let child_filename = resolved_path.to_string_lossy().to_string();
-
-        let needed_grandchildren = collect_needed_subnames_transitive(
-            &ast,
-            name,
-            &declared_uses,
-            dir,
-            in_progress,
-        );
 
         let child = resolve_module(
             &child_src,
