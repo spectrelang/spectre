@@ -12,6 +12,16 @@ when darwin {
     link "-lnghttp2"
 }
 
+when linux {
+    link "-lcurl"
+    link "-lz"
+    link "-lssl"
+    link "-lcrypto"
+    link "-lnghttp2"
+    link "-lbrotlidec"
+    link "-lbrotlicommon"
+}
+
 extern (C) fn curl_easy_init()                                    ref void! = "curl_easy_init"
 extern (C) fn curl_easy_cleanup(handle: ref void)                 void!     = "curl_easy_cleanup"
 extern (C) fn curl_easy_setopt(handle: ref void, opt: i32, ...)   i64!      = "curl_easy_setopt"
