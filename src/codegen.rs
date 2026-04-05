@@ -433,7 +433,8 @@ impl Codegen {
             } else {
                 format!("{ns_prefix}.{import_name}")
             };
-            self.module_aliases.insert(import_name.clone(), expanded.clone());
+            self.module_aliases
+                .insert(import_name.clone(), expanded.clone());
         }
 
         for item in &items {
@@ -606,7 +607,11 @@ impl Codegen {
                 self.local_types.insert(name.clone(), qty);
                 let is_mutable = is_ref_param_type(ty);
                 self.local_mutability.insert(name.clone(), is_mutable);
-                let inner_ty = if let TypeExpr::Mut(inner) = ty { inner.as_ref() } else { ty };
+                let inner_ty = if let TypeExpr::Mut(inner) = ty {
+                    inner.as_ref()
+                } else {
+                    ty
+                };
                 let ann = type_to_annotation_string(inner_ty);
                 if !ann.is_empty() {
                     self.local_type_annotations.insert(name.clone(), ann);
@@ -775,7 +780,11 @@ impl Codegen {
                     self.local_mutability.insert(name.clone(), *mutable);
                 }
                 if let Some(ty) = ty {
-                    let inner_ty = if let TypeExpr::Mut(inner) = ty { inner.as_ref() } else { ty };
+                    let inner_ty = if let TypeExpr::Mut(inner) = ty {
+                        inner.as_ref()
+                    } else {
+                        ty
+                    };
                     let ann = type_to_annotation_string(inner_ty);
                     if !ann.is_empty() {
                         self.local_type_annotations.insert(name.clone(), ann);
@@ -845,11 +854,12 @@ impl Codegen {
                 if let Expr::Ident(name) = target {
                     let (val_tmp, val_qty) = self.emit_expr(value, ns)?;
                     if self.local_is_slot.contains(name) {
-                        let slot = self
-                            .locals
-                            .get(name)
-                            .cloned()
-                            .ok_or_else(|| format!("{}: in fn '{}': undefined variable in assignment target: '{name}'", self.current_file, self.current_fn))?;
+                        let slot = self.locals.get(name).cloned().ok_or_else(|| {
+                            format!(
+                                "{}: in fn '{}': undefined variable in assignment target: '{name}'",
+                                self.current_file, self.current_fn
+                            )
+                        })?;
                         let is_d_slot = self.local_slot_is_d.contains(name);
                         let is_l_slot = self.local_slot_is_l.contains(name);
                         if is_d_slot {
@@ -1201,11 +1211,12 @@ impl Codegen {
                 self.emit(&format!("{end_lbl}"));
             }
             Stmt::Increment(var) => {
-                let slot = self
-                    .locals
-                    .get(var)
-                    .cloned()
-                    .ok_or_else(|| format!("{}: in fn '{}': undefined variable in '{}++': '{var}'", self.current_file, self.current_fn, var))?;
+                let slot = self.locals.get(var).cloned().ok_or_else(|| {
+                    format!(
+                        "{}: in fn '{}': undefined variable in '{}++': '{var}'",
+                        self.current_file, self.current_fn, var
+                    )
+                })?;
                 let is_l_slot = self.local_slot_is_l.contains(var);
                 let cur = self.fresh_tmp();
                 let inc = self.fresh_tmp();
@@ -1220,11 +1231,12 @@ impl Codegen {
                 }
             }
             Stmt::Decrement(var) => {
-                let slot = self
-                    .locals
-                    .get(var)
-                    .cloned()
-                    .ok_or_else(|| format!("{}: in fn '{}': undefined variable in '{}--': '{var}'", self.current_file, self.current_fn, var))?;
+                let slot = self.locals.get(var).cloned().ok_or_else(|| {
+                    format!(
+                        "{}: in fn '{}': undefined variable in '{}--': '{var}'",
+                        self.current_file, self.current_fn, var
+                    )
+                })?;
                 let is_l_slot = self.local_slot_is_l.contains(var);
                 let cur = self.fresh_tmp();
                 let dec = self.fresh_tmp();
@@ -1239,11 +1251,12 @@ impl Codegen {
                 }
             }
             Stmt::AddAssign(var, expr) => {
-                let slot = self
-                    .locals
-                    .get(var)
-                    .cloned()
-                    .ok_or_else(|| format!("{}: in fn '{}': undefined variable in '{var} +=': '{var}'", self.current_file, self.current_fn))?;
+                let slot = self.locals.get(var).cloned().ok_or_else(|| {
+                    format!(
+                        "{}: in fn '{}': undefined variable in '{var} +=': '{var}'",
+                        self.current_file, self.current_fn
+                    )
+                })?;
                 let is_l_slot = self.local_slot_is_l.contains(var);
                 let (rhs, rhs_ty) = self.emit_expr(expr, ns)?;
                 let cur = self.fresh_tmp();
@@ -1260,11 +1273,12 @@ impl Codegen {
                 }
             }
             Stmt::SubAssign(var, expr) => {
-                let slot = self
-                    .locals
-                    .get(var)
-                    .cloned()
-                    .ok_or_else(|| format!("{}: in fn '{}': undefined variable in '{var} -=': '{var}'", self.current_file, self.current_fn))?;
+                let slot = self.locals.get(var).cloned().ok_or_else(|| {
+                    format!(
+                        "{}: in fn '{}': undefined variable in '{var} -=': '{var}'",
+                        self.current_file, self.current_fn
+                    )
+                })?;
                 let is_l_slot = self.local_slot_is_l.contains(var);
                 let (rhs, rhs_ty) = self.emit_expr(expr, ns)?;
                 let cur = self.fresh_tmp();
@@ -1433,15 +1447,13 @@ impl Codegen {
                             None
                         }
                     }
-                    Expr::Ident(name) => {
-                        self.local_type_annotations.get(name).and_then(|ann| {
-                            if ann.starts_with("option[") && ann.ends_with(']') {
-                                Some(ann[7..ann.len() - 1].to_string())
-                            } else {
-                                None
-                            }
-                        })
-                    }
+                    Expr::Ident(name) => self.local_type_annotations.get(name).and_then(|ann| {
+                        if ann.starts_with("option[") && ann.ends_with(']') {
+                            Some(ann[7..ann.len() - 1].to_string())
+                        } else {
+                            None
+                        }
+                    }),
                     _ => None,
                 };
                 if let Some(type_name) = inner_type_name {
@@ -1699,7 +1711,11 @@ impl Codegen {
             .strip_prefix("ref ")
             .unwrap_or(&raw_type_name)
             .to_string();
-        let bare_name = type_name.rsplit('.').next().unwrap_or(&type_name).to_string();
+        let bare_name = type_name
+            .rsplit('.')
+            .next()
+            .unwrap_or(&type_name)
+            .to_string();
         let fields = self
             .type_defs
             .get(&type_name)
@@ -1745,7 +1761,11 @@ impl Codegen {
     fn infer_field_type(&self, base: &Expr, field_name: &str) -> Option<TypeExpr> {
         let raw = self.infer_struct_type_name(base).ok()?;
         let type_name = raw.strip_prefix("ref ").unwrap_or(&raw).to_string();
-        let bare_name = type_name.rsplit('.').next().unwrap_or(&type_name).to_string();
+        let bare_name = type_name
+            .rsplit('.')
+            .next()
+            .unwrap_or(&type_name)
+            .to_string();
         let fields = self
             .type_defs
             .get(&type_name)
@@ -1984,10 +2004,14 @@ impl Codegen {
                         Expr::Ident(n) => n.clone(),
                         other => return Err(format!("@sizeof expects a type name, got {other:?}")),
                     };
-                    let size = if let Some(fields) = self.type_defs.get(&type_name)
+                    let size = if let Some(fields) = self
+                        .type_defs
+                        .get(&type_name)
                         .or_else(|| self.extern_type_defs.get(&type_name))
                     {
-                        let has_fixed_arrays = fields.iter().any(|f| matches!(f.ty, TypeExpr::FixedArray(_, _)));
+                        let has_fixed_arrays = fields
+                            .iter()
+                            .any(|f| matches!(f.ty, TypeExpr::FixedArray(_, _)));
                         let mut total: u64 = 0;
                         for field in fields {
                             let field_size = type_byte_size(&field.ty);
@@ -3097,35 +3121,29 @@ impl Codegen {
                                 if let Some(variants) = self.union_defs.get(union_name).cloned() {
                                     let all_ptr_sized = variants.iter().all(|v| {
                                         matches!(v, TypeExpr::Ref(_))
-                                            || matches!(v, TypeExpr::Named(_))
+                                            || matches!(v, TypeExpr::Named(n) if {
+                                                let primitives = ["i8","i16","i32","i64","u8","u16","u32","u64","usize","isize","f32","f64","bool","char","void"];
+                                                !primitives.contains(&n.as_str())
+                                                    && (self.type_defs.contains_key(n)
+                                                        || self.union_defs.contains_key(n)
+                                                        || self.extern_type_defs.contains_key(n))
+                                            })
                                     });
                                     if all_ptr_sized {
                                         None
                                     } else {
-                                    let arg_type_name = match a {
-                                        Expr::Ident(n) => {
-                                            self.local_type_annotations.get(n).cloned()
-                                        }
-                                        Expr::IntLit(_) => Some("i32".to_string()),
-                                        Expr::FloatLit(_) => Some("f64".to_string()),
-                                        Expr::StrLit(_) => Some("ref char".to_string()),
-                                        Expr::Bool(_) => Some("bool".to_string()),
-                                        Expr::Cast { ty, .. } => {
-                                            Some(crate::codegen::type_to_annotation_string(ty))
-                                        }
-                                        Expr::Call { callee, .. } => {
-                                            let path = expr_to_path(callee);
-                                            let expanded =
-                                                expand_alias_path(&path, &self.module_aliases);
-                                            ns.get(&expanded)
-                                                .and_then(|qbe_fn| {
-                                                    self.fn_ret_type_exprs.get(qbe_fn)
-                                                })
-                                                .map(type_to_annotation_string)
-                                                .filter(|s| !s.is_empty())
-                                        }
-                                        Expr::Trust(inner) => {
-                                            if let Expr::Call { callee, .. } = inner.as_ref() {
+                                        let arg_type_name = match a {
+                                            Expr::Ident(n) => {
+                                                self.local_type_annotations.get(n).cloned()
+                                            }
+                                            Expr::IntLit(_) => Some("i32".to_string()),
+                                            Expr::FloatLit(_) => Some("f64".to_string()),
+                                            Expr::StrLit(_) => Some("ref char".to_string()),
+                                            Expr::Bool(_) => Some("bool".to_string()),
+                                            Expr::Cast { ty, .. } => {
+                                                Some(crate::codegen::type_to_annotation_string(ty))
+                                            }
+                                            Expr::Call { callee, .. } => {
                                                 let path = expr_to_path(callee);
                                                 let expanded =
                                                     expand_alias_path(&path, &self.module_aliases);
@@ -3135,13 +3153,27 @@ impl Codegen {
                                                     })
                                                     .map(type_to_annotation_string)
                                                     .filter(|s| !s.is_empty())
-                                            } else {
-                                                None
                                             }
-                                        }
-                                        _ => None,
-                                    };
-                                    let tag = arg_type_name.as_deref().and_then(|atn| {
+                                            Expr::Trust(inner) => {
+                                                if let Expr::Call { callee, .. } = inner.as_ref() {
+                                                    let path = expr_to_path(callee);
+                                                    let expanded = expand_alias_path(
+                                                        &path,
+                                                        &self.module_aliases,
+                                                    );
+                                                    ns.get(&expanded)
+                                                        .and_then(|qbe_fn| {
+                                                            self.fn_ret_type_exprs.get(qbe_fn)
+                                                        })
+                                                        .map(type_to_annotation_string)
+                                                        .filter(|s| !s.is_empty())
+                                                } else {
+                                                    None
+                                                }
+                                            }
+                                            _ => None,
+                                        };
+                                        let tag = arg_type_name.as_deref().and_then(|atn| {
                                         variants.iter().position(|v| {
                                             matches!(v, TypeExpr::Named(n) if n == atn)
                                                 || matches!(v, TypeExpr::Ref(inner) if atn == "ref char" && matches!(inner.as_ref(), TypeExpr::Named(n) if n == "char"))
@@ -3149,18 +3181,18 @@ impl Codegen {
                                                 || type_to_annotation_string(v) == atn
                                         })
                                     });
-                                    if let Some(tag_idx) = tag {
-                                        let ptr = self.fresh_tmp();
-                                        self.emit(&format!("    {ptr} =l call $malloc(l 16)"));
-                                        self.emit(&format!("    storew {tag_idx}, {ptr}"));
-                                        let val_ptr = self.fresh_tmp();
-                                        self.emit(&format!("    {val_ptr} =l add {ptr}, 8"));
-                                        let (val_l, _) = self.promote_to_l(tmp.clone(), ty);
-                                        self.emit(&format!("    storel {val_l}, {val_ptr}"));
-                                        Some(format!("l {ptr}"))
-                                    } else {
-                                        None
-                                    }
+                                        if let Some(tag_idx) = tag {
+                                            let ptr = self.fresh_tmp();
+                                            self.emit(&format!("    {ptr} =l call $malloc(l 16)"));
+                                            self.emit(&format!("    storew {tag_idx}, {ptr}"));
+                                            let val_ptr = self.fresh_tmp();
+                                            self.emit(&format!("    {val_ptr} =l add {ptr}, 8"));
+                                            let (val_l, _) = self.promote_to_l(tmp.clone(), ty);
+                                            self.emit(&format!("    storel {val_l}, {val_ptr}"));
+                                            Some(format!("l {ptr}"))
+                                        } else {
+                                            None
+                                        }
                                     }
                                 } else {
                                     None
@@ -3174,7 +3206,8 @@ impl Codegen {
                         let final_arg = wrapped.unwrap_or_else(|| {
                             // Check if we need to promote w -> l
                             if ty == "w" {
-                                if let Some(ref ptypes) = self.fn_param_types.get(call_path.as_str()).cloned()
+                                if let Some(ref ptypes) =
+                                    self.fn_param_types.get(call_path.as_str()).cloned()
                                 {
                                     if let Some(pt) = ptypes.get(i) {
                                         if qbe_type(pt) == "l" {
@@ -3185,7 +3218,8 @@ impl Codegen {
                                 }
                             }
                             if ty == "l" {
-                                if let Some(ref ptypes) = self.fn_param_types.get(call_path.as_str()).cloned()
+                                if let Some(ref ptypes) =
+                                    self.fn_param_types.get(call_path.as_str()).cloned()
                                 {
                                     if let Some(pt) = ptypes.get(i) {
                                         if qbe_type(pt) == "w" {
@@ -3454,11 +3488,12 @@ impl Codegen {
                             return Ok((tmp, "l"));
                         }
                         if self.local_is_slot.contains(name) {
-                            let slot = self
-                                .locals
-                                .get(name)
-                                .cloned()
-                                .ok_or_else(|| format!("{}: in fn '{}': undefined variable in addr-of: '{name}'", self.current_file, self.current_fn))?;
+                            let slot = self.locals.get(name).cloned().ok_or_else(|| {
+                                format!(
+                                    "{}: in fn '{}': undefined variable in addr-of: '{name}'",
+                                    self.current_file, self.current_fn
+                                )
+                            })?;
                             // Check if this slot holds a struct type (stored as a pointer).
                             // If so, load the pointer from the slot; otherwise return the slot address.
                             let is_struct_slot = self
@@ -3785,9 +3820,7 @@ fn build_namespace(resolved: &ResolvedModule) -> Namespace {
     ns
 }
 
-fn build_cross_module_consts(
-    resolved: &ResolvedModule,
-) -> HashMap<String, (String, &'static str)> {
+fn build_cross_module_consts(resolved: &ResolvedModule) -> HashMap<String, (String, &'static str)> {
     let mut map = HashMap::new();
     collect_cross_module_consts(resolved, "", &mut map);
     map
@@ -3799,16 +3832,17 @@ fn collect_cross_module_consts(
     map: &mut HashMap<String, (String, &'static str)>,
 ) {
     for item in &module.ast.items {
-        if let Item::Const { name, expr, public, .. } = item {
+        if let Item::Const {
+            name, expr, public, ..
+        } = item
+        {
             if !prefix.is_empty() && !public {
                 continue;
             }
             let val_ty: Option<(String, &'static str)> = match expr {
                 crate::parser::Expr::IntLit(n) => Some((n.to_string(), "l")),
                 crate::parser::Expr::FloatLit(f) => Some((format!("d_{f}"), "d")),
-                crate::parser::Expr::Bool(b) => {
-                    Some((if *b { "1" } else { "0" }.to_string(), "w"))
-                }
+                crate::parser::Expr::Bool(b) => Some((if *b { "1" } else { "0" }.to_string(), "w")),
                 crate::parser::Expr::UnOp {
                     op: crate::parser::UnOp::Neg,
                     expr,
@@ -4189,9 +4223,7 @@ fn resolve_call_name(
     let expanded = expand_alias_path(&path, aliases);
     ns.get(&expanded)
         .cloned()
-        .ok_or_else(|| {
-            format!("unknown function: {path}")
-        })
+        .ok_or_else(|| format!("unknown function: {path}"))
 }
 
 fn expr_to_path(expr: &Expr) -> String {
