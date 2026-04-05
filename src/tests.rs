@@ -385,11 +385,11 @@ mod codegen_tests {
         Ok(cg.finish())
     }
 
-    fn compile_ok(src: &str) -> String {
+    pub fn compile_ok(src: &str) -> String {
         compile(src).expect("expected compilation to succeed")
     }
 
-    fn compile_err(src: &str) -> String {
+    pub fn compile_err(src: &str) -> String {
         compile(src).expect_err("expected compilation to fail")
     }
 
@@ -4599,5 +4599,105 @@ mod union_wrapping_regression_tests {
         assert!(!type_to_annotation_string(&opt).is_empty());
         assert!(!type_to_annotation_string(&list).is_empty());
         assert!(!type_to_annotation_string(&result).is_empty());
+    }
+}
+
+#[cfg(test)]
+mod tagged_union_tests {
+    use crate::tests::codegen_tests::{compile_ok, compile_err};
+
+    #[test]
+    fn tagged_union_def_and_match_ok() {
+        compile_ok(r#"
+            union SomeUnion = {
+                Int32(i32) 
+                | Pair(i32, i32)
+            }
+            pub fn main() void! = {
+                val x: SomeUnion = Int32(42)
+                match x {
+                    Int32 a => {
+                        trust @puts("int")
+                        val _ = a
+                    }
+                    Pair a, b => {
+                        trust @puts("pair")
+                        val _ = a
+                        val _ = b
+                    }
+                }
+            }
+        "#);
+    }
+
+    #[test]
+    fn tagged_union_match_unused_binding_errors() {
+        let err = compile_err(r#"
+            union SomeUnion = {
+                Int32(i32) 
+            }
+            pub fn main() void! = {
+                val x: SomeUnion = Int32(42)
+                match x {
+                    Int32 a => {
+                        trust @puts("int")
+                    }
+                }
+            }
+        "#);
+        assert!(err.contains("variable 'a' is declared but never used"));
+    }
+
+    #[test]
+    fn tagged_union_match_discard_ok() {
+        compile_ok(r#"
+            union SomeUnion = {
+                Int32(i32) 
+            }
+            pub fn main() void! = {
+                val x: SomeUnion = Int32(42)
+                match x {
+                    Int32 _ => {
+                        trust @puts("int")
+                    }
+                }
+            }
+        "#);
+    }
+    
+    #[test]
+    fn sample41_style_tagged_union_test() {
+        compile_ok(r#"
+            type String = {
+                cstr: ref char
+                len: mut i32
+            }
+
+            union SomeUnion = {
+                Int32(i32) 
+                | Int64(i64) 
+                | ChrPtr(ref char) 
+                | Str(String)
+                | Pair(i32, i32)
+            }
+
+            pub fn main() void! = {
+                val x: SomeUnion = Pair(5, 10)
+
+                match x {
+                    Int32 a => {
+                        val _ = a
+                    }
+                    Int64 _ => {
+                    }
+                    Str _ => {
+                    }
+                    Pair _, _ => { 
+                    }
+                    else => {
+                    }
+                }
+            }
+        "#);
     }
 }
