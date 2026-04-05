@@ -294,6 +294,23 @@ fn collect_used_imports_in_stmt(
                 }
             }
         }
+        Stmt::MatchTaggedUnion {
+            expr,
+            arms,
+            else_body,
+        } => {
+            collect_used_imports_in_expr(expr, imports, used);
+            for (_, _, body) in arms {
+                for s in body {
+                    collect_used_imports_in_stmt(s, imports, used);
+                }
+            }
+            if let Some(body) = else_body {
+                for s in body {
+                    collect_used_imports_in_stmt(s, imports, used);
+                }
+            }
+        }
         _ => {}
     }
 }
@@ -592,6 +609,19 @@ fn stmt_references_name(stmt: &crate::parser::Stmt, name: &str) -> bool {
                 || arms
                     .iter()
                     .any(|(_, b)| b.iter().any(|s| stmt_references_name(s, name)))
+                || else_body
+                    .as_ref()
+                    .map_or(false, |b| b.iter().any(|s| stmt_references_name(s, name)))
+        }
+        Stmt::MatchTaggedUnion {
+            expr,
+            arms,
+            else_body,
+        } => {
+            expr_references_name(expr, name)
+                || arms
+                    .iter()
+                    .any(|(_, _, b)| b.iter().any(|s| stmt_references_name(s, name)))
                 || else_body
                     .as_ref()
                     .map_or(false, |b| b.iter().any(|s| stmt_references_name(s, name)))
@@ -895,6 +925,23 @@ fn collect_needed_subnames_in_stmt(
         } => {
             collect_needed_subnames_in_expr(expr, import_name, needed);
             for (_, body) in arms {
+                for s in body {
+                    collect_needed_subnames_in_stmt(s, import_name, needed);
+                }
+            }
+            if let Some(body) = else_body {
+                for s in body {
+                    collect_needed_subnames_in_stmt(s, import_name, needed);
+                }
+            }
+        }
+        Stmt::MatchTaggedUnion {
+            expr,
+            arms,
+            else_body,
+        } => {
+            collect_needed_subnames_in_expr(expr, import_name, needed);
+            for (_, _, body) in arms {
                 for s in body {
                     collect_needed_subnames_in_stmt(s, import_name, needed);
                 }

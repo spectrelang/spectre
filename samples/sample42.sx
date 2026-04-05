@@ -1,3 +1,5 @@
+val std = use("std")
+
 type String = {
     cstr: ref char
     len: mut i32
@@ -19,36 +21,36 @@ pub fn main() void! = {
         Str({ cstr: "world", len: 5 }),
         Pair(5, 10)
     ]
-
+    
     for x in examples {
         match x {
             Int32 a => {
-                @puts("Matched Int32")
-                @printf("Value: %d\n", a)
+                std.stdio.put("Matched Int32")
+                std.stdio.print("Value: {d}\n", {a})
             }
 
             Int64 b => {
-                @puts("Matched Int64 (big int)")
-                @printf("Value: %lld\n", b)
+                std.stdio.put("Matched Int64 (big int)")
+                std.stdio.print("Value: {lld}\n", {b})
             }
 
             ChrPtr ptr => {
-                @puts("Matched raw char pointer")
-                @printf("Value: %s\n", ptr)
+                std.stdio.put("Matched raw char pointer")
+                std.stdio.print("Value: {s}\n", {ptr})
             }
 
             Str s => {
-                @puts("Matched constructed string")
-                @printf("String: %.*s\n", s.len, s.cstr)
+                std.stdio.put("Matched constructed string")
+                std.stdio.print("String: {d} {s}\n", {s.len, s.cstr})
             }
 
             Pair z, y => {
-                @puts("Matched a pair of ints")
-                @printf("Values: %d and %d\n", z, y)
+                std.stdio.put("Matched a pair of ints")
+                std.stdio.print("Values: {d} and {d}\n", {z, y})
             }
 
             else => {
-                @puts("Unknown variant")
+                std.stdio.put("Unknown variant")
             }
         }
     }
