@@ -1,5 +1,4 @@
 val std = use("std")
-val alloc = std.allocators
 
 pub val TK_FN        : i64 = 1
 pub val TK_VAL       : i64 = 2
@@ -90,7 +89,7 @@ pub type Token = {
 }
 
 fn make_tok(l: ref Lexer, kind: i64, line: i64, col: i64, text: ref char) ref Token! = {
-    val slot = alloc.Arena.alloc(l.arena, @sizeof(Token) as usize)
+    val slot = std.allocators.Arena.alloc(l.arena, @sizeof(Token) as usize)
     match slot {
         none => {
             // arena full — fall back to heap
@@ -124,7 +123,7 @@ type Lexer = {
 pub fn lexer_new(src: ref char) ref Lexer! = {
     val slen: i64 = std.string.len_raw(src)
     val arena_cap: mut usize = (slen * 64 + 8192) as usize
-    val arena_res = alloc.Arena.new(arena_cap)
+    val arena_res = std.allocators.Arena.new(arena_cap)
     val arena: mut ref void = 0 as ref void
 
     match arena_res {
