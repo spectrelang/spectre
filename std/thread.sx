@@ -38,7 +38,7 @@ pub fn (Thread) new(entry: fn(ref void) ref void, arg: ref void) result[ref void
     val entry_addr: usize = entry as usize
 
     when posix {
-        val rc: i32 = pthread_create(handle, 0, entry_addr, arg)
+        val rc: i32 = pthread_create(handle, 0 as ref void, entry_addr, arg)
         if (rc != 0) {
             @free(handle)
             return err ThreadError.CreateFailed
@@ -192,7 +192,7 @@ pub fn (Mutex) new() option[ref void]! = {
     @memset(m, 0, MUTEX_SIZE)
 
     when posix {
-        val rc: i32 = pthread_mutex_init(m, 0)
+        val rc: i32 = pthread_mutex_init(m, 0 as ref void)
         if (rc != 0) {
             @free(m)
             return none
@@ -264,18 +264,24 @@ test {
     assert final_val == 1
 
 
-    val m = Mutex.new()?
-    defer {
-        Mutex.free(m)
+    match Mutex.new() {
+        some m => {
+            defer {
+                Mutex.free(m)
+            }
+            stdio.put("it worked :D4")
+
+            Mutex.lock(m)
+            stdio.put("it worked :D5")
+
+            Mutex.unlock(m)
+        }
+        none => {
+            assert 0 == 1
+        }
     }
-    stdio.put("it worked :D4")
 
-    Mutex.lock(m)
-    stdio.put("it worked :D5")
-
-    Mutex.unlock(m)
-
-    val tid = current_thread_id()?
+    val tid = current_thread_id()
     assert tid > 0
 
     yield_thread()

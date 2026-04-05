@@ -352,12 +352,12 @@ impl Codegen {
         let ns = build_namespace(resolved);
         let trusted = build_trusted_set(resolved);
         self.trusted_fns = trusted;
-        self.fn_ret_types = build_ret_types(resolved);
-        self.fn_ret_type_exprs = build_ret_type_exprs(resolved);
-        self.fn_param_types = build_param_types(resolved);
-        self.variadic_fns = build_variadic_set(resolved);
-        self.result_void_ok = build_result_void_ok(resolved);
-        self.cross_module_consts = build_cross_module_consts(resolved);
+        self.fn_ret_types = build_ret_types(resolved, self.platform);
+        self.fn_ret_type_exprs = build_ret_type_exprs(resolved, self.platform);
+        self.fn_param_types = build_param_types(resolved, self.platform);
+        self.variadic_fns = build_variadic_set(resolved, self.platform);
+        self.result_void_ok = build_result_void_ok(resolved, self.platform);
+        self.cross_module_consts = build_cross_module_consts(resolved, self.platform);
         self.emit_module_recursive(resolved, &ns, test_mode, true, "")?;
         if test_mode {
             self.emit_test_main()?;
@@ -3837,9 +3837,30 @@ fn build_namespace(resolved: &ResolvedModule) -> Namespace {
     ns
 }
 
-fn build_cross_module_consts(resolved: &ResolvedModule) -> HashMap<String, (String, &'static str)> {
+/// Flatten a slice of items, resolving `WhenItems` branches for the given platform.
+/// First matching branch wins; falls back to `otherwise` if none match.
+fn flatten_ast_items<'a>(items: &'a [Item], platform: Platform) -> Vec<&'a Item> {
+    let mut result = Vec::new();
+    for item in items {
+        match item {
+            Item::WhenItems { platform: p, items: block_items, or_when, otherwise } => {
+                if platform.matches_name(p) {
+                    for bi in block_items { result.extend(flatten_ast_items(std::slice::from_ref(bi), platform)); }
+                } else if let Some((_, ow_items)) = or_when.iter().find(|(op, _)| platform.matches_name(op)) {
+                    for bi in ow_items { result.extend(flatten_ast_items(std::slice::from_ref(bi), platform)); }
+                } else {
+                    for bi in otherwise { result.extend(flatten_ast_items(std::slice::from_ref(bi), platform)); }
+                }
+            }
+            other => result.push(other),
+        }
+    }
+    result
+}
+
+fn build_cross_module_consts(resolved: &ResolvedModule, platform: Platform) -> HashMap<String, (String, &'static str)> {
     let mut map = HashMap::new();
-    collect_cross_module_consts(resolved, "", &mut map);
+    collect_cross_module_consts(resolved, "", &mut map, platform);
     map
 }
 
@@ -3847,8 +3868,9 @@ fn collect_cross_module_consts(
     module: &ResolvedModule,
     prefix: &str,
     map: &mut HashMap<String, (String, &'static str)>,
+    platform: Platform,
 ) {
-    for item in &module.ast.items {
+    for item in flatten_ast_items(&module.ast.items, platform) {
         if let Item::Const {
             name, expr, public, ..
         } = item
@@ -3886,32 +3908,33 @@ fn collect_cross_module_consts(
         } else {
             format!("{prefix}.{import_name}")
         };
-        collect_cross_module_consts(child, &child_prefix, map);
+        collect_cross_module_consts(child, &child_prefix, map, platform);
     }
 }
 
-fn build_ret_types(resolved: &ResolvedModule) -> HashMap<String, &'static str> {
+fn build_ret_types(resolved: &ResolvedModule, platform: Platform) -> HashMap<String, &'static str> {
     let mut map = HashMap::new();
-    collect_ret_types(resolved, &mut map);
+    collect_ret_types(resolved, &mut map, platform);
     map
 }
 
-fn build_ret_type_exprs(resolved: &ResolvedModule) -> HashMap<String, TypeExpr> {
+fn build_ret_type_exprs(resolved: &ResolvedModule, platform: Platform) -> HashMap<String, TypeExpr> {
     let mut map = HashMap::new();
-    collect_ret_type_exprs(resolved, &mut map);
+    collect_ret_type_exprs(resolved, &mut map, platform);
     map
 }
 
-fn collect_ret_type_exprs(module: &ResolvedModule, map: &mut HashMap<String, TypeExpr>) {
-    collect_ret_type_exprs_prefixed(module, "", map);
+fn collect_ret_type_exprs(module: &ResolvedModule, map: &mut HashMap<String, TypeExpr>, platform: Platform) {
+    collect_ret_type_exprs_prefixed(module, "", map, platform);
 }
 
 fn collect_ret_type_exprs_prefixed(
     module: &ResolvedModule,
     prefix: &str,
     map: &mut HashMap<String, TypeExpr>,
+    platform: Platform,
 ) {
-    for item in &module.ast.items {
+    for item in flatten_ast_items(&module.ast.items, platform) {
         if let Item::Fn(f) = item {
             map.insert(fn_qbe_name_prefixed(f, prefix), f.ret.clone());
         }
@@ -3922,20 +3945,21 @@ fn collect_ret_type_exprs_prefixed(
         } else {
             format!("{prefix}__{import_name}")
         };
-        collect_ret_type_exprs_prefixed(child, &child_prefix, map);
+        collect_ret_type_exprs_prefixed(child, &child_prefix, map, platform);
     }
 }
 
-fn collect_ret_types(module: &ResolvedModule, map: &mut HashMap<String, &'static str>) {
-    collect_ret_types_prefixed(module, "", map);
+fn collect_ret_types(module: &ResolvedModule, map: &mut HashMap<String, &'static str>, platform: Platform) {
+    collect_ret_types_prefixed(module, "", map, platform);
 }
 
 fn collect_ret_types_prefixed(
     module: &ResolvedModule,
     prefix: &str,
     map: &mut HashMap<String, &'static str>,
+    platform: Platform,
 ) {
-    for item in &module.ast.items {
+    for item in flatten_ast_items(&module.ast.items, platform) {
         match item {
             Item::Fn(f) => {
                 map.insert(fn_qbe_name_prefixed(f, prefix), qbe_type(&f.ret));
@@ -3952,26 +3976,27 @@ fn collect_ret_types_prefixed(
         } else {
             format!("{prefix}__{import_name}")
         };
-        collect_ret_types_prefixed(child, &child_prefix, map);
+        collect_ret_types_prefixed(child, &child_prefix, map, platform);
     }
 }
 
-fn build_param_types(resolved: &ResolvedModule) -> HashMap<String, Vec<TypeExpr>> {
+fn build_param_types(resolved: &ResolvedModule, platform: Platform) -> HashMap<String, Vec<TypeExpr>> {
     let mut map = HashMap::new();
-    collect_param_types(resolved, &mut map);
+    collect_param_types(resolved, &mut map, platform);
     map
 }
 
-fn collect_param_types(module: &ResolvedModule, map: &mut HashMap<String, Vec<TypeExpr>>) {
-    collect_param_types_with_prefix(module, "", map);
+fn collect_param_types(module: &ResolvedModule, map: &mut HashMap<String, Vec<TypeExpr>>, platform: Platform) {
+    collect_param_types_with_prefix(module, "", map, platform);
 }
 
 fn collect_param_types_with_prefix(
     module: &ResolvedModule,
     prefix: &str,
     map: &mut HashMap<String, Vec<TypeExpr>>,
+    platform: Platform,
 ) {
-    for item in &module.ast.items {
+    for item in flatten_ast_items(&module.ast.items, platform) {
         match item {
             Item::Fn(f) => {
                 let local_key = match &f.namespace {
@@ -4000,18 +4025,18 @@ fn collect_param_types_with_prefix(
         } else {
             format!("{prefix}.{import_name}")
         };
-        collect_param_types_with_prefix(child, &child_prefix, map);
+        collect_param_types_with_prefix(child, &child_prefix, map, platform);
     }
 }
 
-fn build_variadic_set(resolved: &ResolvedModule) -> HashMap<String, usize> {
+fn build_variadic_set(resolved: &ResolvedModule, platform: Platform) -> HashMap<String, usize> {
     let mut map = HashMap::new();
-    collect_variadic(resolved, &mut map);
+    collect_variadic(resolved, &mut map, platform);
     map
 }
 
-fn collect_variadic(module: &ResolvedModule, map: &mut HashMap<String, usize>) {
-    for item in &module.ast.items {
+fn collect_variadic(module: &ResolvedModule, map: &mut HashMap<String, usize>, platform: Platform) {
+    for item in flatten_ast_items(&module.ast.items, platform) {
         if let Item::ExternFn {
             symbol,
             variadic_after: Some(n),
@@ -4022,26 +4047,27 @@ fn collect_variadic(module: &ResolvedModule, map: &mut HashMap<String, usize>) {
         }
     }
     for child in module.imports.values() {
-        collect_variadic(child, map);
+        collect_variadic(child, map, platform);
     }
 }
 
-fn build_result_void_ok(resolved: &ResolvedModule) -> std::collections::HashSet<String> {
+fn build_result_void_ok(resolved: &ResolvedModule, platform: Platform) -> std::collections::HashSet<String> {
     let mut set = std::collections::HashSet::new();
-    collect_result_void_ok(resolved, &mut set);
+    collect_result_void_ok(resolved, &mut set, platform);
     set
 }
 
-fn collect_result_void_ok(module: &ResolvedModule, set: &mut std::collections::HashSet<String>) {
-    collect_result_void_ok_prefixed(module, "", set);
+fn collect_result_void_ok(module: &ResolvedModule, set: &mut std::collections::HashSet<String>, platform: Platform) {
+    collect_result_void_ok_prefixed(module, "", set, platform);
 }
 
 fn collect_result_void_ok_prefixed(
     module: &ResolvedModule,
     prefix: &str,
     set: &mut std::collections::HashSet<String>,
+    platform: Platform,
 ) {
-    for item in &module.ast.items {
+    for item in flatten_ast_items(&module.ast.items, platform) {
         match item {
             Item::Fn(f) => {
                 if is_result_void_ok(&f.ret) {
@@ -4062,7 +4088,7 @@ fn collect_result_void_ok_prefixed(
         } else {
             format!("{prefix}__{import_name}")
         };
-        collect_result_void_ok_prefixed(child, &child_prefix, set);
+        collect_result_void_ok_prefixed(child, &child_prefix, set, platform);
     }
 }
 

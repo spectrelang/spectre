@@ -264,18 +264,18 @@ test {
     
     match string_to_i64(s) {
         ok v => {
-            std.stdio.print("worked: {d}\n", {v})
+            stdio.print("worked: {d}\n", {v})
         }
         err v => {
             match v {
                 ParseIntError.Empty => {
-                    std.stdio.put("empty string")
+                    stdio.put("empty string")
                 }
                 ParseIntError.InvalidDigit => {
-                    std.stdio.put("invalid digit")
+                    stdio.put("invalid digit")
                 }
                 ParseIntError.Overflow => {
-                    std.stdio.put("overflow.")
+                    stdio.put("overflow.")
                 }
             }
         }
