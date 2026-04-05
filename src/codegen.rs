@@ -3095,6 +3095,13 @@ impl Codegen {
                         let wrapped = if let Some(ref ptypes) = param_types {
                             if let Some(TypeExpr::Named(union_name)) = ptypes.get(i) {
                                 if let Some(variants) = self.union_defs.get(union_name).cloned() {
+                                    let all_ptr_sized = variants.iter().all(|v| {
+                                        matches!(v, TypeExpr::Ref(_))
+                                            || matches!(v, TypeExpr::Named(_))
+                                    });
+                                    if all_ptr_sized {
+                                        None
+                                    } else {
                                     let arg_type_name = match a {
                                         Expr::Ident(n) => {
                                             self.local_type_annotations.get(n).cloned()
@@ -3153,6 +3160,7 @@ impl Codegen {
                                         Some(format!("l {ptr}"))
                                     } else {
                                         None
+                                    }
                                     }
                                 } else {
                                     None

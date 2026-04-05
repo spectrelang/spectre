@@ -842,7 +842,6 @@ test {
     val s = from("hello")
     assert(len(s) == 5)
     assert(equals(s, from("hello")))
-
     val a = from("foo")
     push_cstr(a, "bar")
     assert(equals(a, from("foobar")))
@@ -851,10 +850,12 @@ test {
     val c = from("bar")
     push(b, c)
     assert(equals(b, from("foobar")))
+    io.put("hi1.3")
 
     val pc = from("ab")
     push_char(pc, 99) // 'c'
     assert(equals(pc, from("abc")))
+    io.put("hi1.4")
 
     val orig = from("clone me")
     val copy = clone(orig)
