@@ -385,30 +385,56 @@ mod codegen_tests {
         Ok(cg.finish())
     }
 
-    pub fn compile_ok(src: &str) -> String {
-        compile(src).expect("expected compilation to succeed")
+    fn compile_sem_check(src: &str) -> Result<String, String> {
+        let resolved = resolve_module(
+            src,
+            Path::new("."),
+            &mut HashMap::new(),
+            &mut Vec::new(),
+            "",
+            None,
+        )?;
+        let sem_errors = crate::semantic::check_module(&resolved);
+        if !sem_errors.is_empty() {
+            return Err(sem_errors.join("\n"));
+        }
+        let mut cg = Codegen::new();
+        cg.emit_module(&resolved, false, false)?;
+        Ok(cg.finish())
     }
 
-    pub fn compile_err(src: &str) -> String {
-        compile(src).expect_err("expected compilation to fail")
+    pub fn compile_ok(src: &str, sem_check: bool) -> String {
+        if sem_check {
+            compile_sem_check(src).expect("expected compilation to succeed")
+        } else {
+            compile(src).expect("expected compilation to succeed")
+        }
+    }
+
+    pub fn compile_err(src: &str, sem_check: bool) -> String {
+        if sem_check {
+            compile_sem_check(src).expect_err("expected compilation to fail")
+        } else {
+            compile(src).expect_err("expected compilation to fail")
+        }
     }
 
     #[test]
     fn trusted_fn_emits_export() {
-        let ir = compile_ok("pub fn main() void! = {}");
+        let ir = compile_ok("pub fn main() void! = {}", false);
         assert!(ir.contains("export function w $main"));
     }
 
     #[test]
     fn private_fn_no_export() {
-        let ir = compile_ok("fn helper() void! = {}");
+        let ir = compile_ok("fn helper() void! = {}", false);
         assert!(!ir.contains("export function $helper"));
         assert!(ir.contains("function $helper"));
     }
 
     #[test]
     fn trusted_fn_no_contracts_required() {
-        compile_ok("pub fn main() void! = {}");
+        compile_ok("pub fn main() void! = {}", false);
     }
 
     #[test]
@@ -419,13 +445,18 @@ mod codegen_tests {
                 trust @puts(arg)
             }
         "#,
+            false,
         );
         assert!(ir.contains("$print"));
     }
 
     #[test]
     fn pure_fn_with_pre_post_ok() {
-        let ir = compile_ok("fn f(x: i32) i32 = { pre { x > 0 } post { x > 0 } return x }");
+        let ir = compile_ok(
+            "fn f(x: i32) i32 = { pre { x > 0 } post { x > 0 } return x }",
+            false,
+        );
+
         assert!(ir.contains("$f"));
     }
 
@@ -436,6 +467,7 @@ mod codegen_tests {
             type T = { x: mut i32 }
             fn f(x: i32) void = { val t: mut T = {x: 1} t.x = 2 }
         "#,
+            false,
         );
         assert!(err.contains("pure function"));
     }
@@ -450,6 +482,7 @@ mod codegen_tests {
                 t.x = 2
             }
         "#,
+            false,
         );
         assert!(err.contains("pure function"));
     }
@@ -464,6 +497,7 @@ mod codegen_tests {
                 t.x = 2
             }
         "#,
+            false,
         );
         assert!(err.contains("immutable binding"));
     }
@@ -478,6 +512,7 @@ mod codegen_tests {
                 t.x = 10
             }
         "#,
+            false,
         );
         assert!(err.contains("immutable field") && err.contains("'x'"));
     }
@@ -492,13 +527,18 @@ mod codegen_tests {
                 t.y = 10
             }
         "#,
+            false,
         );
         assert!(ir.contains("storel"));
     }
 
     #[test]
     fn pre_contract_emits_dprintf_on_fail() {
-        let ir = compile_ok("fn f(x: i32) i32 = { pre { x > 0 } post { x > 0 } return x }");
+        let ir = compile_ok(
+            "fn f(x: i32) i32 = { pre { x > 0 } post { x > 0 } return x }",
+            false,
+        );
+
         assert!(ir.contains("dprintf"));
         assert!(ir.contains("precondition"));
         assert!(ir.contains("abort"));
@@ -506,7 +546,10 @@ mod codegen_tests {
 
     #[test]
     fn post_contract_emits_dprintf_on_fail() {
-        let ir = compile_ok("fn f(x: i32) i32 = { pre { x > 0 } post { x > 0 } return x }");
+        let ir = compile_ok(
+            "fn f(x: i32) i32 = { pre { x > 0 } post { x > 0 } return x }",
+            false,
+        );
         assert!(ir.contains("postcondition"));
     }
 
@@ -514,13 +557,17 @@ mod codegen_tests {
     fn labelled_contract_includes_label_in_message() {
         let ir = compile_ok(
             "fn f(x: i32) i32 = { pre { is_pos: x > 0 } post { is_pos: x > 0 } return x }",
+            false,
         );
         assert!(ir.contains("is_pos"));
     }
 
     #[test]
     fn contract_message_includes_fn_name() {
-        let ir = compile_ok("fn my_func(x: i32) i32 = { pre { x > 0 } post { x > 0 } return x }");
+        let ir = compile_ok(
+            "fn my_func(x: i32) i32 = { pre { x > 0 } post { x > 0 } return x }",
+            false,
+        );
         assert!(ir.contains("my_func"));
     }
 
@@ -528,6 +575,7 @@ mod codegen_tests {
     fn pre_contract_with_and() {
         let ir = compile_ok(
             "fn f(x: i32, y: i32) i32 = { pre { x > 0 && y > 0 } post { x > 0 } return x }",
+            false,
         );
         assert!(ir.contains("and"));
     }
@@ -536,6 +584,7 @@ mod codegen_tests {
     fn pre_contract_with_or() {
         let ir = compile_ok(
             "fn f(x: i32, y: i32) i32 = { pre { x > 0 || y > 0 } post { x > 0 } return x }",
+            false,
         );
         assert!(ir.contains("or"));
     }
@@ -549,6 +598,7 @@ mod codegen_tests {
                 val t: T = {x: 1}
             }
         "#,
+            false,
         );
         println!("{:?}", ir);
         assert!(ir.contains("alloc8"));
@@ -556,52 +606,68 @@ mod codegen_tests {
 
     #[test]
     fn return_value_emits_ret() {
-        let ir = compile_ok("fn f(x: i32) i32 = { pre { x > 0 } post { x > 0 } return x }");
+        let ir = compile_ok(
+            "fn f(x: i32) i32 = { pre { x > 0 } post { x > 0 } return x }",
+            false,
+        );
         assert!(ir.contains("ret %x"));
     }
 
     #[test]
     fn void_fn_emits_ret_without_value() {
-        let ir = compile_ok("pub fn main() void! = {}");
+        let ir = compile_ok("pub fn main() void! = {}", false);
         assert!(ir.contains("ret 0\n"));
     }
 
     #[test]
     fn binop_add_emits_add() {
-        let ir =
-            compile_ok("fn f(x: i32, y: i32) i32 = { pre { x > 0 } post { x > 0 } return x + y }");
+        let ir = compile_ok(
+            "fn f(x: i32, y: i32) i32 = { pre { x > 0 } post { x > 0 } return x + y }",
+            false,
+        );
+
         assert!(ir.contains("=w add"));
     }
 
     #[test]
     fn binop_sub_emits_sub() {
-        let ir =
-            compile_ok("fn f(x: i32, y: i32) i32 = { pre { x > 0 } post { x > 0 } return x - y }");
+        let ir = compile_ok(
+            "fn f(x: i32, y: i32) i32 = { pre { x > 0 } post { x > 0 } return x - y }",
+            false,
+        );
         assert!(ir.contains("=w sub"));
     }
 
     #[test]
     fn binop_mul_emits_mul() {
-        let ir =
-            compile_ok("fn f(x: i32, y: i32) i32 = { pre { x > 0 } post { x > 0 } return x * y }");
+        let ir = compile_ok(
+            "fn f(x: i32, y: i32) i32 = { pre { x > 0 } post { x > 0 } return x * y }",
+            false,
+        );
         assert!(ir.contains("=w mul"));
     }
 
     #[test]
     fn unop_neg_emits_neg() {
-        let ir = compile_ok("fn f(x: i32) i32 = { pre { x > 0 } post { x > 0 } return -x }");
+        let ir = compile_ok(
+            "fn f(x: i32) i32 = { pre { x > 0 } post { x > 0 } return -x }",
+            false,
+        );
         assert!(ir.contains("=w neg"));
     }
 
     #[test]
     fn unop_not_emits_ceqw() {
-        let ir = compile_ok("fn f(x: i32) i32 = { pre { x > 0 } post { x > 0 } return not x }");
+        let ir = compile_ok(
+            "fn f(x: i32) i32 = { pre { x > 0 } post { x > 0 } return not x }",
+            false,
+        );
         assert!(ir.contains("=w ceqw"));
     }
 
     #[test]
     fn string_literal_interned_as_data() {
-        let ir = compile_ok(r#"pub fn main() void! = { val s = "hello" }"#);
+        let ir = compile_ok(r#"pub fn main() void! = { val s = "hello" }"#, false);
         assert!(ir.contains("b \"hello\""));
     }
 
@@ -614,6 +680,7 @@ mod codegen_tests {
                 print("{d}", 1)
             }
         "#,
+            false,
         );
         assert!(ir.contains("b \"%d\""));
     }
@@ -626,6 +693,7 @@ mod codegen_tests {
                 if (1 == 1) { val x = 1 }
             }
         "#,
+            false,
         );
         assert!(ir.contains("@if_then_"));
         assert!(ir.contains("@if_end_"));
@@ -639,13 +707,14 @@ mod codegen_tests {
                 if (1 == 1) { val x = 1 } else { val y = 2 }
             }
         "#,
+            false,
         );
         assert!(ir.contains("@if_else_"));
     }
 
     #[test]
     fn undefined_variable_errors() {
-        let err = compile_err("pub fn main() void! = { val x = undefined_var }");
+        let err = compile_err("pub fn main() void! = { val x = undefined_var }", false);
         assert!(err.contains("undefined variable"));
     }
 
@@ -658,6 +727,7 @@ mod codegen_tests {
                 trust helper()
             }
         "#,
+            false,
         );
         assert!(ir.contains("$main"));
     }
@@ -4604,11 +4674,12 @@ mod union_wrapping_regression_tests {
 
 #[cfg(test)]
 mod tagged_union_tests {
-    use crate::tests::codegen_tests::{compile_ok, compile_err};
+    use crate::tests::codegen_tests::{compile_err, compile_ok};
 
     #[test]
     fn tagged_union_def_and_match_ok() {
-        compile_ok(r#"
+        compile_ok(
+            r#"
             union SomeUnion = {
                 Int32(i32) 
                 | Pair(i32, i32)
@@ -4627,12 +4698,15 @@ mod tagged_union_tests {
                     }
                 }
             }
-        "#);
+        "#,
+            false,
+        );
     }
 
     #[test]
     fn tagged_union_match_unused_binding_errors() {
-        let err = compile_err(r#"
+        let err = compile_err(
+            r#"
             union SomeUnion = {
                 Int32(i32) 
             }
@@ -4644,13 +4718,16 @@ mod tagged_union_tests {
                     }
                 }
             }
-        "#);
+        "#,
+            true,
+        );
         assert!(err.contains("variable 'a' is declared but never used"));
     }
 
     #[test]
     fn tagged_union_match_discard_ok() {
-        compile_ok(r#"
+        compile_ok(
+            r#"
             union SomeUnion = {
                 Int32(i32) 
             }
@@ -4662,12 +4739,15 @@ mod tagged_union_tests {
                     }
                 }
             }
-        "#);
+        "#,
+            false,
+        );
     }
-    
+
     #[test]
     fn sample41_style_tagged_union_test() {
-        compile_ok(r#"
+        compile_ok(
+            r#"
             type String = {
                 cstr: ref char
                 len: mut i32
@@ -4698,6 +4778,8 @@ mod tagged_union_tests {
                     }
                 }
             }
-        "#);
+        "#,
+            false,
+        );
     }
 }
