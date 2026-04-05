@@ -128,6 +128,7 @@ pub struct Codegen {
     type_defs: HashMap<String, Vec<Field>>,
     extern_type_defs: HashMap<String, Vec<Field>>,
     union_defs: HashMap<String, Vec<TypeExpr>>,
+    tagged_union_defs: HashMap<String, Vec<(String, Vec<TypeExpr>)>>,
     enum_defs: HashMap<String, Vec<String>>,
     fixed_array_types: HashMap<String, String>,
     fixed_array_counter: usize,
@@ -174,6 +175,7 @@ impl Codegen {
             type_defs: HashMap::new(),
             extern_type_defs: HashMap::new(),
             union_defs: HashMap::new(),
+            tagged_union_defs: HashMap::new(),
             enum_defs: HashMap::new(),
             fixed_array_types: HashMap::new(),
             fixed_array_counter: 0,
@@ -399,6 +401,9 @@ impl Codegen {
             if let Item::UnionDef { name, variants, .. } = item {
                 self.union_defs.insert(name.clone(), variants.clone());
             }
+            if let Item::TaggedUnionDef { name, variants, .. } = item {
+                self.tagged_union_defs.insert(name.clone(), variants.clone());
+            }
             if let Item::EnumDef { name, variants, .. } = item {
                 self.enum_defs.insert(name.clone(), variants.clone());
             }
@@ -481,6 +486,7 @@ impl Codegen {
                 | Item::TypeDef { .. }
                 | Item::ExternTypeDef { .. }
                 | Item::UnionDef { .. }
+                | Item::TaggedUnionDef { .. }
                 | Item::EnumDef { .. }
                 | Item::ExternFn { .. }
                 | Item::Link { .. }
@@ -1390,6 +1396,96 @@ impl Codegen {
 
                 self.emit(&format!("{end_lbl}"));
             }
+            Stmt::MatchTaggedUnion {
+                expr,
+                arms,
+                else_body,
+            } => {
+                let end_lbl = format!("@tunion_end_{}", self.tmp_counter);
+                self.tmp_counter += 1;
+
+                let (union_ptr, _) = self.emit_expr(expr, ns)?;
+                let tag_tmp = self.fresh_tmp();
+                self.emit(&format!("    {tag_tmp} =l loadl {union_ptr}"));
+
+                let union_name = self.infer_struct_type_name(expr)?;
+                let variants = self
+                    .tagged_union_defs
+                    .get(&union_name)
+                    .cloned()
+                    .ok_or_else(|| format!("'{union_name}' is not a tagged union type"))?;
+
+                for (i, (variant_name, bindings, body)) in arms.iter().enumerate() {
+                    let tag_index = variants
+                        .iter()
+                        .position(|(n, _)| n == variant_name)
+                        .ok_or_else(|| {
+                            format!("variant '{variant_name}' not found in tagged union '{union_name}'")
+                        })?;
+
+                    let body_lbl = format!("@tunion_arm_{i}_{}", self.tmp_counter - 1);
+                    let skip_lbl = format!("@tunion_skip_{i}_{}", self.tmp_counter - 1);
+
+                    let cond_tmp = self.fresh_tmp();
+                    self.emit(&format!("    {cond_tmp} =w ceql {tag_tmp}, {tag_index}"));
+                    self.emit(&format!("    jnz {cond_tmp}, {body_lbl}, {skip_lbl}"));
+                    self.emit(&format!("{body_lbl}"));
+
+                    let variant_fields = &variants[tag_index].1;
+                    let mut bound_names: Vec<String> = Vec::new();
+                    for (j, binding) in bindings.iter().enumerate() {
+                        if binding != "_" {
+                            let offset = 8 + j * 8;
+                            let field_ptr = self.fresh_tmp();
+                            self.emit(&format!("    {field_ptr} =l add {union_ptr}, {offset}"));
+                            let field_ty = variant_fields.get(j);
+                            let loaded = self.fresh_tmp();
+                            match field_ty {
+                                Some(TypeExpr::Named(n))
+                                    if matches!(
+                                        n.as_str(),
+                                        "i8" | "i16" | "i32" | "u8" | "u16" | "u32" | "bool" | "char"
+                                    ) =>
+                                {
+                                    self.emit(&format!("    {loaded} =w loadw {field_ptr}"));
+                                    self.local_types.insert(binding.clone(), "w");
+                                }
+                                Some(TypeExpr::Named(n)) if n == "f64" || n == "f32" => {
+                                    self.emit(&format!("    {loaded} =d loadd {field_ptr}"));
+                                    self.local_types.insert(binding.clone(), "d");
+                                }
+                                _ => {
+                                    self.emit(&format!("    {loaded} =l loadl {field_ptr}"));
+                                    self.local_types.insert(binding.clone(), "l");
+                                }
+                            }
+                            self.locals.insert(binding.clone(), loaded.clone());
+                            bound_names.push(binding.clone());
+                        }
+                    }
+
+                    self.emit_stmts(body, ns, ret_ty)?;
+
+                    for name in &bound_names {
+                        self.locals.remove(name);
+                        self.local_types.remove(name);
+                    }
+
+                    if !block_is_terminated(body) {
+                        self.emit(&format!("    jmp {end_lbl}"));
+                    }
+                    self.emit(&format!("{skip_lbl}"));
+                }
+
+                if let Some(body) = else_body {
+                    self.emit_stmts(body, ns, ret_ty)?;
+                    if !block_is_terminated(body) {
+                        self.emit(&format!("    jmp {end_lbl}"));
+                    }
+                }
+
+                self.emit(&format!("{end_lbl}"));
+            }
             Stmt::Assert(expr, line) => {
                 let (cond, _) = self.emit_expr(expr, ns)?;
                 let pass_lbl = format!("@assert_pass_{}", self.tmp_counter);
@@ -1810,6 +1906,24 @@ impl Codegen {
                         return Some(type_name.clone());
                     }
                 }
+            }
+        }
+        None
+    }
+
+    /// Search all tagged union defs for a variant with the given name.
+    /// Returns (union_name, tag_index, field_types) if found.
+    fn find_tagged_union_variant(
+        &self,
+        variant_name: &str,
+    ) -> Option<(String, usize, Vec<TypeExpr>)> {
+        for (union_name, variants) in &self.tagged_union_defs {
+            if let Some((idx, (_, fields))) = variants
+                .iter()
+                .enumerate()
+                .find(|(_, (n, _))| n == variant_name)
+            {
+                return Some((union_name.clone(), idx, fields.clone()));
             }
         }
         None
@@ -2947,6 +3061,45 @@ impl Codegen {
 
             Expr::Call { callee, args, line } => {
                 let callee_path = expr_to_path(callee);
+
+                if !callee_path.is_empty() && !callee_path.contains('.') {
+                    if let Some((union_name, tag_index, field_types)) =
+                        self.find_tagged_union_variant(&callee_path)
+                    {
+                        let n_fields = field_types.len();
+                        let total_size = 8 + n_fields * 8;
+                        let ptr = self.fresh_tmp();
+                        self.emit(&format!("    {ptr} =l alloc8 {total_size}"));
+                        self.emit(&format!("    storel {tag_index}, {ptr}"));
+                        for (j, arg) in args.iter().enumerate() {
+                            let (val, val_ty) = self.emit_expr(arg, ns)?;
+                            let offset = 8 + j * 8;
+                            let field_ptr = self.fresh_tmp();
+                            self.emit(&format!("    {field_ptr} =l add {ptr}, {offset}"));
+                            let ft = field_types.get(j);
+                            match ft {
+                                Some(TypeExpr::Named(n))
+                                    if matches!(
+                                        n.as_str(),
+                                        "i8" | "i16" | "i32" | "u8" | "u16" | "u32" | "bool" | "char"
+                                    ) =>
+                                {
+                                    self.emit(&format!("    storew {val}, {field_ptr}"));
+                                }
+                                Some(TypeExpr::Named(n)) if n == "f64" || n == "f32" => {
+                                    self.emit(&format!("    stored {val}, {field_ptr}"));
+                                }
+                                _ => {
+                                    let (val_l, _) = self.promote_to_l(val, val_ty);
+                                    self.emit(&format!("    storel {val_l}, {field_ptr}"));
+                                }
+                            }
+                        }
+                        let _ = union_name;
+                        return Ok((ptr, "l"));
+                    }
+                }
+
                 let is_local_fnptr = !callee_path.is_empty()
                     && !callee_path.contains('.')
                     && self.locals.contains_key(&callee_path)
@@ -3639,6 +3792,12 @@ fn all_trusted_stmts(stmts: &[Stmt]) -> bool {
             arms.iter().all(|(_, b)| all_trusted_stmts(b))
                 && else_body.as_deref().map_or(true, all_trusted_stmts)
         }
+        Stmt::MatchTaggedUnion {
+            arms, else_body, ..
+        } => {
+            arms.iter().all(|(_, _, b)| all_trusted_stmts(b))
+                && else_body.as_deref().map_or(true, all_trusted_stmts)
+        }
         Stmt::MatchString {
             arms, else_body, ..
         } => {
@@ -3730,6 +3889,13 @@ fn find_bare_builtin_in_stmt(stmt: &Stmt) -> Option<String> {
         } => find_bare_builtin_in_expr(expr)
             .or_else(|| arms.iter().find_map(|(_, b)| find_bare_builtin_in_stmts(b)))
             .or_else(|| else_body.as_deref().and_then(find_bare_builtin_in_stmts)),
+        Stmt::MatchTaggedUnion {
+            expr,
+            arms,
+            else_body,
+        } => find_bare_builtin_in_expr(expr)
+            .or_else(|| arms.iter().find_map(|(_, _, b)| find_bare_builtin_in_stmts(b)))
+            .or_else(|| else_body.as_deref().and_then(find_bare_builtin_in_stmts)),
         Stmt::MatchString {
             expr,
             arms,
@@ -3819,6 +3985,14 @@ fn find_bare_deref_assign_in_stmt(stmt: &Stmt) -> bool {
             arms, else_body, ..
         } => {
             arms.iter().any(|(_, b)| find_bare_deref_assign_in_stmts(b))
+                || else_body
+                    .as_deref()
+                    .map_or(false, find_bare_deref_assign_in_stmts)
+        }
+        Stmt::MatchTaggedUnion {
+            arms, else_body, ..
+        } => {
+            arms.iter().any(|(_, _, b)| find_bare_deref_assign_in_stmts(b))
                 || else_body
                     .as_deref()
                     .map_or(false, find_bare_deref_assign_in_stmts)

@@ -316,6 +316,17 @@ fn all_paths_return(stmts: &[Stmt]) -> bool {
             }
         }
 
+        if let Stmt::MatchTaggedUnion {
+            arms, else_body, ..
+        } = stmt
+        {
+            let arms_return = arms.iter().all(|(_, _, body)| all_paths_return(body));
+            let else_return = else_body.as_ref().map_or(false, |b| all_paths_return(b));
+            if arms_return && else_return {
+                return true;
+            }
+        }
+
         if let Stmt::MatchString {
             arms, else_body, ..
         } = stmt
@@ -476,6 +487,20 @@ fn check_shadowing_in_stmt(
                 scope_stack.pop();
             }
         }
+        Stmt::MatchTaggedUnion {
+            arms, else_body, ..
+        } => {
+            for (_, _, body) in arms {
+                scope_stack.push(HashSet::new());
+                check_shadowing_in_stmts(body, scope_stack, fn_name, filename, errors);
+                scope_stack.pop();
+            }
+            if let Some(body) = else_body {
+                scope_stack.push(HashSet::new());
+                check_shadowing_in_stmts(body, scope_stack, fn_name, filename, errors);
+                scope_stack.pop();
+            }
+        }
         Stmt::MatchString {
             arms, else_body, ..
         } => {
@@ -570,6 +595,16 @@ fn collect_declarations(
                 arms, else_body, ..
             } => {
                 for (_, body) in arms {
+                    collect_declarations(body, declared, for_vars);
+                }
+                if let Some(body) = else_body {
+                    collect_declarations(body, declared, for_vars);
+                }
+            }
+            Stmt::MatchTaggedUnion {
+                arms, else_body, ..
+            } => {
+                for (_, _, body) in arms {
                     collect_declarations(body, declared, for_vars);
                 }
                 if let Some(body) = else_body {
@@ -721,6 +756,24 @@ fn collect_used_in_stmt(stmt: &Stmt, used: &mut HashSet<String>) {
         } => {
             collect_used_in_expr(expr, used);
             for (_, body) in arms {
+                collect_used_in_stmts(body, used);
+            }
+            if let Some(body) = else_body {
+                collect_used_in_stmts(body, used);
+            }
+        }
+        Stmt::MatchTaggedUnion {
+            expr,
+            arms,
+            else_body,
+        } => {
+            collect_used_in_expr(expr, used);
+            for (_, bindings, body) in arms {
+                for b in bindings {
+                    if b != "_" {
+                        used.insert(b.clone());
+                    }
+                }
                 collect_used_in_stmts(body, used);
             }
             if let Some(body) = else_body {
@@ -916,6 +969,19 @@ fn collect_mutated_in_stmt(stmt: &Stmt, mutated: &mut HashSet<String>) {
                 collect_mutated_in_stmts(body, mutated);
             }
         }
+        Stmt::MatchTaggedUnion {
+            expr,
+            arms,
+            else_body,
+        } => {
+            collect_addr_deref_in_expr(expr, mutated);
+            for (_, _, body) in arms {
+                collect_mutated_in_stmts(body, mutated);
+            }
+            if let Some(body) = else_body {
+                collect_mutated_in_stmts(body, mutated);
+            }
+        }
         Stmt::MatchString {
             expr,
             arms,
@@ -1037,6 +1103,16 @@ fn collect_var_types(stmts: &[Stmt], map: &mut HashMap<String, TypeExpr>) {
                 arms, else_body, ..
             } => {
                 for (_, body) in arms {
+                    collect_var_types(body, map);
+                }
+                if let Some(body) = else_body {
+                    collect_var_types(body, map);
+                }
+            }
+            Stmt::MatchTaggedUnion {
+                arms, else_body, ..
+            } => {
+                for (_, _, body) in arms {
                     collect_var_types(body, map);
                 }
                 if let Some(body) = else_body {
@@ -1165,6 +1241,19 @@ fn collect_ref_used_in_stmt(
         } => {
             collect_ref_used_in_expr(expr, fn_lookup, out);
             for (_, body) in arms {
+                collect_ref_used_in_stmts(body, fn_lookup, out);
+            }
+            if let Some(body) = else_body {
+                collect_ref_used_in_stmts(body, fn_lookup, out);
+            }
+        }
+        Stmt::MatchTaggedUnion {
+            expr,
+            arms,
+            else_body,
+        } => {
+            collect_ref_used_in_expr(expr, fn_lookup, out);
+            for (_, _, body) in arms {
                 collect_ref_used_in_stmts(body, fn_lookup, out);
             }
             if let Some(body) = else_body {
@@ -1323,6 +1412,16 @@ fn collect_var_mutability(stmts: &[Stmt], map: &mut HashMap<String, bool>) {
                 arms, else_body, ..
             } => {
                 for (_, body) in arms {
+                    collect_var_mutability(body, map);
+                }
+                if let Some(body) = else_body {
+                    collect_var_mutability(body, map);
+                }
+            }
+            Stmt::MatchTaggedUnion {
+                arms, else_body, ..
+            } => {
+                for (_, _, body) in arms {
                     collect_var_mutability(body, map);
                 }
                 if let Some(body) = else_body {
@@ -1517,6 +1616,25 @@ fn check_immutable_args_in_stmt(
                 expr, var_mut, var_types, fn_lookup, fn_name, filename, errors,
             );
             for (_, body) in arms {
+                check_immutable_args_in_stmts(
+                    body, var_mut, var_types, fn_lookup, fn_name, filename, errors,
+                );
+            }
+            if let Some(body) = else_body {
+                check_immutable_args_in_stmts(
+                    body, var_mut, var_types, fn_lookup, fn_name, filename, errors,
+                );
+            }
+        }
+        Stmt::MatchTaggedUnion {
+            expr,
+            arms,
+            else_body,
+        } => {
+            check_immutable_args_in_expr(
+                expr, var_mut, var_types, fn_lookup, fn_name, filename, errors,
+            );
+            for (_, _, body) in arms {
                 check_immutable_args_in_stmts(
                     body, var_mut, var_types, fn_lookup, fn_name, filename, errors,
                 );
@@ -2121,6 +2239,49 @@ fn check_call_arg_types_in_stmt(
                 );
             }
         }
+        Stmt::MatchTaggedUnion {
+            expr,
+            arms,
+            else_body,
+        } => {
+            check_call_arg_types_in_expr(
+                expr,
+                var_types,
+                fn_lookup,
+                fn_ret_lookup,
+                type_lookup,
+                union_lookup,
+                fn_name,
+                filename,
+                errors,
+            );
+            for (_, _, body) in arms {
+                check_call_arg_types(
+                    body,
+                    var_types,
+                    fn_lookup,
+                    fn_ret_lookup,
+                    type_lookup,
+                    union_lookup,
+                    fn_name,
+                    filename,
+                    errors,
+                );
+            }
+            if let Some(body) = else_body {
+                check_call_arg_types(
+                    body,
+                    var_types,
+                    fn_lookup,
+                    fn_ret_lookup,
+                    type_lookup,
+                    union_lookup,
+                    fn_name,
+                    filename,
+                    errors,
+                );
+            }
+        }
         Stmt::MatchString {
             expr,
             arms,
@@ -2457,6 +2618,11 @@ fn check_try_in_stmt(
         Stmt::MatchUnion { expr, arms, else_body } => {
             check_try_in_expr(expr, var_types, fn_ret_lookup, type_lookup, fn_name, filename, errors);
             for (_, b) in arms { check_try_usage(b, var_types, fn_ret_lookup, type_lookup, fn_name, filename, errors); }
+            if let Some(b) = else_body { check_try_usage(b, var_types, fn_ret_lookup, type_lookup, fn_name, filename, errors); }
+        }
+        Stmt::MatchTaggedUnion { expr, arms, else_body } => {
+            check_try_in_expr(expr, var_types, fn_ret_lookup, type_lookup, fn_name, filename, errors);
+            for (_, _, b) in arms { check_try_usage(b, var_types, fn_ret_lookup, type_lookup, fn_name, filename, errors); }
             if let Some(b) = else_body { check_try_usage(b, var_types, fn_ret_lookup, type_lookup, fn_name, filename, errors); }
         }
         _ => {}

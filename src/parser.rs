@@ -28,6 +28,11 @@ pub enum Item {
         name: String,
         variants: Vec<TypeExpr>,
     },
+    TaggedUnionDef {
+        public: bool,
+        name: String,
+        variants: Vec<(String, Vec<TypeExpr>)>,
+    },
     EnumDef {
         public: bool,
         name: String,
@@ -205,6 +210,13 @@ pub enum Stmt {
     MatchUnion {
         expr: Expr,
         arms: Vec<(TypeExpr, Vec<Stmt>)>,
+        else_body: Option<Vec<Stmt>>,
+    },
+    /// `match expr { Variant binding => { ... } else => { ... } }` — tagged union dispatch
+    MatchTaggedUnion {
+        expr: Expr,
+        /// (variant_name, bindings, body) — bindings are variable names or "_" to discard
+        arms: Vec<(String, Vec<String>, Vec<Stmt>)>,
         else_body: Option<Vec<Stmt>>,
     },
     /// `match expr { "string" => { ... } ... }` — match on string/char pointer value
@@ -805,19 +817,56 @@ impl Parser {
         let name = self.expect_ident()?;
         self.expect(&TokenKind::Eq)?;
         self.expect(&TokenKind::LBrace)?;
-        let mut variants = Vec::new();
-        while self.peek() != &TokenKind::RBrace && self.peek() != &TokenKind::Eof {
-            variants.push(self.parse_type()?);
-            if !self.eat(&TokenKind::BitOr) {
-                break;
+
+        let is_tagged = matches!(self.peek(), TokenKind::Ident(_))
+            && self.tokens.get(self.pos + 1).map(|t| &t.kind) == Some(&TokenKind::LParen);
+
+        if is_tagged {
+            let mut variants: Vec<(String, Vec<TypeExpr>)> = Vec::new();
+            while self.peek() != &TokenKind::RBrace && self.peek() != &TokenKind::Eof {
+                let variant_name = self.expect_ident()?;
+                self.expect(&TokenKind::LParen)?;
+                let mut fields = Vec::new();
+                while self.peek() != &TokenKind::RParen && self.peek() != &TokenKind::Eof {
+                    fields.push(self.parse_type()?);
+                    if !self.eat(&TokenKind::Comma) {
+                        break;
+                    }
+                }
+                self.expect(&TokenKind::RParen)?;
+                variants.push((variant_name, fields));
+                if !self.eat(&TokenKind::BitOr) {
+                    break;
+                }
             }
+            self.expect(&TokenKind::RBrace)?;
+            Ok(Item::TaggedUnionDef {
+                public,
+                name,
+                variants,
+            })
+        } else {
+            let mut variants = Vec::new();
+            while self.peek() != &TokenKind::RBrace && self.peek() != &TokenKind::Eof {
+                let ty = self.parse_type()?;
+                if !is_primitive_type(&ty) {
+                    return Err(format!(
+                        "union '{name}': non-primitive type in untagged union — \
+                         use tagged union syntax instead: `VariantName(Type)`"
+                    ));
+                }
+                variants.push(ty);
+                if !self.eat(&TokenKind::BitOr) {
+                    break;
+                }
+            }
+            self.expect(&TokenKind::RBrace)?;
+            Ok(Item::UnionDef {
+                public,
+                name,
+                variants,
+            })
         }
-        self.expect(&TokenKind::RBrace)?;
-        Ok(Item::UnionDef {
-            public,
-            name,
-            variants,
-        })
     }
 
     fn parse_enum_def(&mut self, public: bool) -> Result<Item, String> {
@@ -1097,6 +1146,15 @@ impl Parser {
                             && self.tokens.get(self.pos + 1).map(|t| &t.kind)
                                 == Some(&TokenKind::FatArrow))
                         || (matches!(self.peek(), TokenKind::Else)));
+                let is_tagged_union_match = !is_result_match
+                    && !is_enum_match
+                    && !is_string_match
+                    && !is_union_match
+                    && (matches!(self.peek(), TokenKind::Ident(_))
+                        && matches!(
+                            self.tokens.get(self.pos + 1).map(|t| &t.kind),
+                            Some(TokenKind::Ident(_))
+                        ));
 
                 if is_result_match {
                     let mut ok_binding = None;
@@ -1141,7 +1199,6 @@ impl Parser {
                 } else if is_enum_match {
                     let mut arms = Vec::new();
                     while self.peek() != &TokenKind::RBrace && self.peek() != &TokenKind::Eof {
-                        // Parse `EnumType.Variant => { ... }`
                         let _enum_type = self.expect_ident()?;
                         self.expect(&TokenKind::Dot)?;
                         let variant = self.expect_ident()?;
@@ -1205,6 +1262,42 @@ impl Parser {
                     }
                     self.expect(&TokenKind::RBrace)?;
                     Ok(Stmt::MatchUnion {
+                        expr,
+                        arms,
+                        else_body,
+                    })
+                } else if is_tagged_union_match {
+                    let mut arms: Vec<(String, Vec<String>, Vec<Stmt>)> = Vec::new();
+                    let mut else_body = None;
+                    while self.peek() != &TokenKind::RBrace && self.peek() != &TokenKind::Eof {
+                        if self.peek() == &TokenKind::Else {
+                            self.advance();
+                            self.expect(&TokenKind::FatArrow)?;
+                            self.expect(&TokenKind::LBrace)?;
+                            else_body = Some(self.parse_stmts()?);
+                            self.expect(&TokenKind::RBrace)?;
+                            break;
+                        }
+                        let variant_name = self.expect_ident()?;
+                        let mut bindings = Vec::new();
+                        while self.peek() != &TokenKind::FatArrow
+                            && self.peek() != &TokenKind::RBrace
+                            && self.peek() != &TokenKind::Eof
+                        {
+                            let b = self.expect_ident()?;
+                            bindings.push(b);
+                            if !self.eat(&TokenKind::Comma) {
+                                break;
+                            }
+                        }
+                        self.expect(&TokenKind::FatArrow)?;
+                        self.expect(&TokenKind::LBrace)?;
+                        let body = self.parse_stmts()?;
+                        self.expect(&TokenKind::RBrace)?;
+                        arms.push((variant_name, bindings, body));
+                    }
+                    self.expect(&TokenKind::RBrace)?;
+                    Ok(Stmt::MatchTaggedUnion {
                         expr,
                         arms,
                         else_body,
@@ -1720,5 +1813,21 @@ impl Parser {
             }
             other => Err(self.error(&format!("expected string literal, got {other:?}"))),
         }
+    }
+}
+
+/// Returns true if `ty` is a primitive type that can appear in an untagged union.
+pub fn is_primitive_type(ty: &TypeExpr) -> bool {
+    match ty {
+        TypeExpr::Named(n) => matches!(
+            n.as_str(),
+            "i8" | "i16" | "i32" | "i64"
+                | "u8" | "u16" | "u32" | "u64"
+                | "usize" | "isize"
+                | "f32" | "f64"
+                | "bool" | "char" | "void"
+        ),
+        TypeExpr::Ref(_) => true,
+        _ => false,
     }
 }
