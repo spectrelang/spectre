@@ -1,4 +1,5 @@
 val std = use("std")
+val alloc = std.allocators
 
 // ─── Token kinds ──────────────────────────────────────────────────────────────
 pub val TK_FN        : i64 = 1
@@ -90,27 +91,57 @@ pub type Token = {
     text: mut ref char   // ident/string text, or null
 }
 
-fn make_tok(kind: i64, line: i64, col: i64, text: ref char) ref Token! = {
-    val t: mut Token = {kind: kind, line: line, col: col, text: text}
-    return addr(t) as ref Token
+fn make_tok(l: ref Lexer, kind: i64, line: i64, col: i64, text: ref char) ref Token! = {
+    val slot = alloc.Arena.alloc(l.arena, @sizeof(Token) as usize)
+    match slot {
+        none => {
+            // arena full — fall back to heap
+            val t: mut ref Token = @alloc(@sizeof(Token)) as ref Token
+            t.kind = kind
+            t.line = line
+            t.col  = col
+            t.text = text
+            return t
+        }
+        some ptr => {
+            val t: mut ref Token = ptr as ref Token
+            t.kind = kind
+            t.line = line
+            t.col  = col
+            t.text = text
+            return t
+        }
+    }
 }
 
 // ─── Lexer ────────────────────────────────────────────────────────────────────
 type Lexer = {
-    src:  mut ref char
-    len:  mut i64
-    pos:  mut i64
-    line: mut i64
-    col:  mut i64
+    src:   mut ref char
+    len:   mut i64
+    pos:   mut i64
+    line:  mut i64
+    col:   mut i64
+    arena: mut ref void
 }
 
 pub fn lexer_new(src: ref char) ref Lexer! = {
-    val l: ref Lexer = @alloc(@sizeof(Lexer)) as ref Lexer
-    l.src  = src
-    l.len  = std.string.len(src)
-    l.pos  = 0
-    l.line = 1
-    l.col  = 1
+    val slen: i64 = std.string.len(src)
+    val arena_cap: mut usize = (slen * 2 * @sizeof(Token) + 4096) as usize
+    val arena_res = alloc.Arena.new(arena_cap)
+    val arena: mut ref void = 0 as ref void
+
+    match arena_res {
+        ok a  => { arena = a }
+        err _ => { arena = @alloc(arena_cap) }
+    }
+    
+    val l: mut ref Lexer = @alloc(@sizeof(Lexer)) as ref Lexer
+    l.src   = src
+    l.len   = slen
+    l.pos   = 0
+    l.line  = 1
+    l.col   = 1
+    l.arena = arena
     return l
 }
 
@@ -239,7 +270,7 @@ fn lex_number(l: ref Lexer, line: i64, col: i64) ref Token! = {
     if first == 48 && lx_peek(l) == 120 {
         lx_advance(l)
         for { if !is_hex(lx_peek(l)) { break } lx_advance(l) }
-        return make_tok(TK_INT, line, col, substr(l.src, start, l.pos))
+        return make_tok(l, TK_INT, line, col, substr(l.src, start, l.pos))
     }
     for { if !is_digit(lx_peek(l)) { break } lx_advance(l) }
     if lx_peek(l) == 46 || lx_peek(l) == 101 || lx_peek(l) == 69 {
@@ -255,19 +286,15 @@ fn lex_number(l: ref Lexer, line: i64, col: i64) ref Token! = {
         }
     }
     val text: ref char = substr(l.src, start, l.pos)
-    if is_float { return make_tok(TK_FLOAT, line, col, text) }
-    return make_tok(TK_INT, line, col, text)
+    if is_float { return make_tok(l, TK_FLOAT, line, col, text) }
+    return make_tok(l, TK_INT, line, col, text)
 }
 
 pub fn tokenize(src: ref char) result[list[ref Token], ref char]! = {
     val l: ref Lexer = lexer_new(src)
-    @dprintf(2, "tokenize: lexer_new done\n", {})
     val tokens: mut list[ref Token] = []
-    @dprintf(2, "tokenize: list init done\n", {})
-    @dprintf(2, "tokenize: entering main loop\n", {})
     for {
         // skip whitespace
-        @dprintf(2, "tokenize: top of loop pos=%lld\n", {l.pos})
         for { if !is_space(lx_peek(l)) { break } lx_advance(l) }
         // skip line comments
         if lx_peek(l) == 47 && lx_peek2(l) == 47 {
@@ -280,14 +307,14 @@ pub fn tokenize(src: ref char) result[list[ref Token], ref char]! = {
         val c: i64 = lx_peek(l)
 
         if c == -1 {
-            @append(tokens, make_tok(TK_EOF, line, col, 0 as ref char))
+            @append(tokens, make_tok(l, TK_EOF, line, col, 0 as ref char))
             break
         }
 
         lx_advance(l)
 
         if c == 34 {
-            @append(tokens, make_tok(TK_STR, line, col, lex_string(l)))
+            @append(tokens, make_tok(l, TK_STR, line, col, lex_string(l)))
             continue
         }
         if is_digit(c) {
@@ -298,80 +325,80 @@ pub fn tokenize(src: ref char) result[list[ref Token], ref char]! = {
             val start: i64 = l.pos - 1
             for { if !is_alnum(lx_peek(l)) { break } lx_advance(l) }
             val text: ref char = substr(l.src, start, l.pos)
-            @append(tokens, make_tok(keyword_kind(text), line, col, text))
+            @append(tokens, make_tok(l, keyword_kind(text), line, col, text))
             continue
         }
 
-        if c == 40  { @append(tokens, make_tok(TK_LPAREN,    line, col, 0 as ref char)) continue }
-        if c == 41  { @append(tokens, make_tok(TK_RPAREN,    line, col, 0 as ref char)) continue }
-        if c == 123 { @append(tokens, make_tok(TK_LBRACE,    line, col, 0 as ref char)) continue }
-        if c == 125 { @append(tokens, make_tok(TK_RBRACE,    line, col, 0 as ref char)) continue }
-        if c == 91  { @append(tokens, make_tok(TK_LBRACKET,  line, col, 0 as ref char)) continue }
-        if c == 93  { @append(tokens, make_tok(TK_RBRACKET,  line, col, 0 as ref char)) continue }
-        if c == 58  { @append(tokens, make_tok(TK_COLON,     line, col, 0 as ref char)) continue }
-        if c == 59  { @append(tokens, make_tok(TK_SEMICOLON, line, col, 0 as ref char)) continue }
-        if c == 44  { @append(tokens, make_tok(TK_COMMA,     line, col, 0 as ref char)) continue }
-        if c == 64  { @append(tokens, make_tok(TK_AT,        line, col, 0 as ref char)) continue }
-        if c == 126 { @append(tokens, make_tok(TK_TILDE,     line, col, 0 as ref char)) continue }
-        if c == 63  { @append(tokens, make_tok(TK_QUESTION,  line, col, 0 as ref char)) continue }
-        if c == 37  { @append(tokens, make_tok(TK_PERCENT,   line, col, 0 as ref char)) continue }
-        if c == 94  { @append(tokens, make_tok(TK_BITXOR,    line, col, 0 as ref char)) continue }
-        if c == 42  { @append(tokens, make_tok(TK_STAR,      line, col, 0 as ref char)) continue }
+        if c == 40  { @append(tokens, make_tok(l, TK_LPAREN,    line, col, 0 as ref char)) continue }
+        if c == 41  { @append(tokens, make_tok(l, TK_RPAREN,    line, col, 0 as ref char)) continue }
+        if c == 123 { @append(tokens, make_tok(l, TK_LBRACE,    line, col, 0 as ref char)) continue }
+        if c == 125 { @append(tokens, make_tok(l, TK_RBRACE,    line, col, 0 as ref char)) continue }
+        if c == 91  { @append(tokens, make_tok(l, TK_LBRACKET,  line, col, 0 as ref char)) continue }
+        if c == 93  { @append(tokens, make_tok(l, TK_RBRACKET,  line, col, 0 as ref char)) continue }
+        if c == 58  { @append(tokens, make_tok(l, TK_COLON,     line, col, 0 as ref char)) continue }
+        if c == 59  { @append(tokens, make_tok(l, TK_SEMICOLON, line, col, 0 as ref char)) continue }
+        if c == 44  { @append(tokens, make_tok(l, TK_COMMA,     line, col, 0 as ref char)) continue }
+        if c == 64  { @append(tokens, make_tok(l, TK_AT,        line, col, 0 as ref char)) continue }
+        if c == 126 { @append(tokens, make_tok(l, TK_TILDE,     line, col, 0 as ref char)) continue }
+        if c == 63  { @append(tokens, make_tok(l, TK_QUESTION,  line, col, 0 as ref char)) continue }
+        if c == 37  { @append(tokens, make_tok(l, TK_PERCENT,   line, col, 0 as ref char)) continue }
+        if c == 94  { @append(tokens, make_tok(l, TK_BITXOR,    line, col, 0 as ref char)) continue }
+        if c == 42  { @append(tokens, make_tok(l, TK_STAR,      line, col, 0 as ref char)) continue }
 
         if c == 46 {
             if lx_peek(l) == 46 && lx_peek2(l) == 46 {
                 lx_advance(l) lx_advance(l)
-                @append(tokens, make_tok(TK_DOTDOTDOT, line, col, 0 as ref char))
+                @append(tokens, make_tok(l, TK_DOTDOTDOT, line, col, 0 as ref char))
             } else {
-                @append(tokens, make_tok(TK_DOT, line, col, 0 as ref char))
+                @append(tokens, make_tok(l, TK_DOT, line, col, 0 as ref char))
             }
             continue
         }
         if c == 43 {
-            if lx_peek(l) == 43      { lx_advance(l) @append(tokens, make_tok(TK_PLUSPLUS, line, col, 0 as ref char)) }
-            elif lx_peek(l) == 61    { lx_advance(l) @append(tokens, make_tok(TK_PLUSEQ,   line, col, 0 as ref char)) }
-            else                     { @append(tokens, make_tok(TK_PLUS, line, col, 0 as ref char)) }
+            if lx_peek(l) == 43      { lx_advance(l) @append(tokens, make_tok(l, TK_PLUSPLUS, line, col, 0 as ref char)) }
+            elif lx_peek(l) == 61    { lx_advance(l) @append(tokens, make_tok(l, TK_PLUSEQ,   line, col, 0 as ref char)) }
+            else                     { @append(tokens, make_tok(l, TK_PLUS, line, col, 0 as ref char)) }
             continue
         }
         if c == 45 {
-            if lx_peek(l) == 62      { lx_advance(l) @append(tokens, make_tok(TK_ARROW,      line, col, 0 as ref char)) }
-            elif lx_peek(l) == 45    { lx_advance(l) @append(tokens, make_tok(TK_MINUSMINUS, line, col, 0 as ref char)) }
-            elif lx_peek(l) == 61    { lx_advance(l) @append(tokens, make_tok(TK_MINUSEQ,    line, col, 0 as ref char)) }
-            else                     { @append(tokens, make_tok(TK_MINUS, line, col, 0 as ref char)) }
+            if lx_peek(l) == 62      { lx_advance(l) @append(tokens, make_tok(l, TK_ARROW,      line, col, 0 as ref char)) }
+            elif lx_peek(l) == 45    { lx_advance(l) @append(tokens, make_tok(l, TK_MINUSMINUS, line, col, 0 as ref char)) }
+            elif lx_peek(l) == 61    { lx_advance(l) @append(tokens, make_tok(l, TK_MINUSEQ,    line, col, 0 as ref char)) }
+            else                     { @append(tokens, make_tok(l, TK_MINUS, line, col, 0 as ref char)) }
             continue
         }
-        if c == 47 { @append(tokens, make_tok(TK_SLASH, line, col, 0 as ref char)) continue }
+        if c == 47 { @append(tokens, make_tok(l, TK_SLASH, line, col, 0 as ref char)) continue }
         if c == 61 {
-            if lx_peek(l) == 61      { lx_advance(l) @append(tokens, make_tok(TK_EQEQ,    line, col, 0 as ref char)) }
-            elif lx_peek(l) == 62    { lx_advance(l) @append(tokens, make_tok(TK_FATARROW, line, col, 0 as ref char)) }
-            else                     { @append(tokens, make_tok(TK_EQ, line, col, 0 as ref char)) }
+            if lx_peek(l) == 61      { lx_advance(l) @append(tokens, make_tok(l, TK_EQEQ,    line, col, 0 as ref char)) }
+            elif lx_peek(l) == 62    { lx_advance(l) @append(tokens, make_tok(l, TK_FATARROW, line, col, 0 as ref char)) }
+            else                     { @append(tokens, make_tok(l, TK_EQ, line, col, 0 as ref char)) }
             continue
         }
         if c == 33 {
-            if lx_peek(l) == 61      { lx_advance(l) @append(tokens, make_tok(TK_BANGEQ, line, col, 0 as ref char)) }
-            else                     { @append(tokens, make_tok(TK_BANG, line, col, 0 as ref char)) }
+            if lx_peek(l) == 61      { lx_advance(l) @append(tokens, make_tok(l, TK_BANGEQ, line, col, 0 as ref char)) }
+            else                     { @append(tokens, make_tok(l, TK_BANG, line, col, 0 as ref char)) }
             continue
         }
         if c == 60 {
-            if lx_peek(l) == 61      { lx_advance(l) @append(tokens, make_tok(TK_LTEQ, line, col, 0 as ref char)) }
-            elif lx_peek(l) == 60    { lx_advance(l) @append(tokens, make_tok(TK_SHL,  line, col, 0 as ref char)) }
-            else                     { @append(tokens, make_tok(TK_LT, line, col, 0 as ref char)) }
+            if lx_peek(l) == 61      { lx_advance(l) @append(tokens, make_tok(l, TK_LTEQ, line, col, 0 as ref char)) }
+            elif lx_peek(l) == 60    { lx_advance(l) @append(tokens, make_tok(l, TK_SHL,  line, col, 0 as ref char)) }
+            else                     { @append(tokens, make_tok(l, TK_LT, line, col, 0 as ref char)) }
             continue
         }
         if c == 62 {
-            if lx_peek(l) == 61      { lx_advance(l) @append(tokens, make_tok(TK_GTEQ, line, col, 0 as ref char)) }
-            elif lx_peek(l) == 62    { lx_advance(l) @append(tokens, make_tok(TK_SHR,  line, col, 0 as ref char)) }
-            else                     { @append(tokens, make_tok(TK_GT, line, col, 0 as ref char)) }
+            if lx_peek(l) == 61      { lx_advance(l) @append(tokens, make_tok(l, TK_GTEQ, line, col, 0 as ref char)) }
+            elif lx_peek(l) == 62    { lx_advance(l) @append(tokens, make_tok(l, TK_SHR,  line, col, 0 as ref char)) }
+            else                     { @append(tokens, make_tok(l, TK_GT, line, col, 0 as ref char)) }
             continue
         }
         if c == 38 {
-            if lx_peek(l) == 38      { lx_advance(l) @append(tokens, make_tok(TK_AND,    line, col, 0 as ref char)) }
-            else                     { @append(tokens, make_tok(TK_BITAND, line, col, 0 as ref char)) }
+            if lx_peek(l) == 38      { lx_advance(l) @append(tokens, make_tok(l, TK_AND,    line, col, 0 as ref char)) }
+            else                     { @append(tokens, make_tok(l, TK_BITAND, line, col, 0 as ref char)) }
             continue
         }
         if c == 124 {
-            if lx_peek(l) == 124     { lx_advance(l) @append(tokens, make_tok(TK_OR,    line, col, 0 as ref char)) }
-            else                     { @append(tokens, make_tok(TK_BITOR, line, col, 0 as ref char)) }
+            if lx_peek(l) == 124     { lx_advance(l) @append(tokens, make_tok(l, TK_OR,    line, col, 0 as ref char)) }
+            else                     { @append(tokens, make_tok(l, TK_BITOR, line, col, 0 as ref char)) }
             continue
         }
 
@@ -403,9 +430,7 @@ fn tok_text(tokens: list[ref Token], i: i64) ref char! = {
 }
 
 test {
-    @dprintf(2, "test: starting r1\n", {})
     val r1 = tokenize("fn val mut pub return if else for")
-    @dprintf(2, "test: r1 done\n", {})
     match r1 {
         err _ => { assert false }
         ok toks => {
@@ -421,7 +446,6 @@ test {
         }
     }
 
-    @dprintf(2, "test: starting r2\n", {})
     // identifiers are not confused with keywords
     val r2 = tokenize("foobar hello_world _x")
     match r2 {
@@ -435,7 +459,6 @@ test {
         }
     }
 
-    @dprintf(2, "test: starting r3\n", {})
     // integer and float literals
     val r3 = tokenize("42 3.14 0xff")
     match r3 {
@@ -449,7 +472,6 @@ test {
         }
     }
 
-    @dprintf(2, "test: starting r4\n", {})
     // string literal contents are captured
     val r4 = tokenize("\"hello\"")
     match r4 {

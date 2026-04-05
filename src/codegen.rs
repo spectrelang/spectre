@@ -2424,8 +2424,10 @@ impl Codegen {
                     let old_buf = self.fresh_tmp();
                     let new_buf = self.fresh_tmp();
                     self.emit(&format!("    {old_buf} =l loadl {list_ptr}"));
+                    let new_cap_bytes = self.fresh_tmp();
+                    self.emit(&format!("    {new_cap_bytes} =l mul {new_cap}, 8"));
                     self.emit(&format!(
-                        "    {new_buf} =l call $realloc(l {old_buf}, l {new_cap})"
+                        "    {new_buf} =l call $realloc(l {old_buf}, l {new_cap_bytes})"
                     ));
                     self.emit(&format!("    storel {new_buf}, {list_ptr}"));
                     self.emit(&format!("    storel {new_cap}, {cap_slot}"));
