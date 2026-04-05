@@ -33,7 +33,7 @@ pub fn new() ref void! = {
 /// Internal.
 /// 
 /// Either a String or a raw pointer to a String.
-union StrOrRefChar = {
+pub union StrOrRefChar = {
     Str(String) | RefChar(ref char)
 }
 

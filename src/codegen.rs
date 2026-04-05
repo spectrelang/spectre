@@ -128,7 +128,7 @@ pub struct Codegen {
     type_defs: HashMap<String, Vec<Field>>,
     extern_type_defs: HashMap<String, Vec<Field>>,
     union_defs: HashMap<String, Vec<TypeExpr>>,
-    tagged_union_defs: HashMap<String, Vec<(String, Vec<TypeExpr>)>>,
+    tagged_union_defs: HashMap<String, (String, bool, Vec<(String, Vec<TypeExpr>)>)>,
     enum_defs: HashMap<String, Vec<String>>,
     fixed_array_types: HashMap<String, String>,
     fixed_array_counter: usize,
@@ -401,8 +401,16 @@ impl Codegen {
             if let Item::UnionDef { name, variants, .. } = item {
                 self.union_defs.insert(name.clone(), variants.clone());
             }
-            if let Item::TaggedUnionDef { name, variants, .. } = item {
-                self.tagged_union_defs.insert(name.clone(), variants.clone());
+            if let Item::TaggedUnionDef {
+                public,
+                name,
+                variants,
+            } = item
+            {
+                self.tagged_union_defs.insert(
+                    name.clone(),
+                    (module_prefix.to_string(), *public, variants.clone()),
+                );
             }
             if let Item::EnumDef { name, variants, .. } = item {
                 self.enum_defs.insert(name.clone(), variants.clone());
@@ -1409,11 +1417,12 @@ impl Codegen {
                 self.emit(&format!("    {tag_tmp} =l loadl {union_ptr}"));
 
                 let union_name = self.infer_struct_type_name(expr)?;
-                let variants = self
+                let variants_info = self
                     .tagged_union_defs
                     .get(&union_name)
                     .cloned()
                     .ok_or_else(|| format!("'{union_name}' is not a tagged union type"))?;
+                let variants = variants_info.2;
 
                 for (i, (variant_name, bindings, body)) in arms.iter().enumerate() {
                     let tag_index = variants
@@ -1917,14 +1926,34 @@ impl Codegen {
         &self,
         path: &str,
     ) -> Option<(String, usize, Vec<TypeExpr>)> {
-        let variant_name = path.rsplit('.').next().unwrap_or(path);
-        for (union_name, variants) in &self.tagged_union_defs {
-            if let Some((idx, (_, fields))) = variants
-                .iter()
-                .enumerate()
-                .find(|(_, (n, _))| n == variant_name)
-            {
-                return Some((union_name.clone(), idx, fields.clone()));
+        let dot_pos = path.rfind('.');
+        let prefix = dot_pos.map(|p| &path[..p]);
+        let variant_name = dot_pos.map(|p| &path[p + 1..]).unwrap_or(path);
+
+        for (union_name, (u_mod, u_pub, variants)) in &self.tagged_union_defs {
+            if let Some(p) = prefix {
+                if u_mod == p {
+                    if !u_pub && (p != self.current_module_prefix) {
+                        continue;
+                    }
+                    if let Some((idx, (_, fields))) = variants
+                        .iter()
+                        .enumerate()
+                        .find(|(_, (n, _))| n == variant_name)
+                    {
+                        return Some((union_name.clone(), idx, fields.clone()));
+                    }
+                }
+            } else {
+                if let Some((idx, (_, fields))) = variants
+                    .iter()
+                    .enumerate()
+                    .find(|(_, (n, _))| n == variant_name)
+                {
+                    if u_mod == &self.current_module_prefix || *u_pub {
+                        return Some((union_name.clone(), idx, fields.clone()));
+                    }
+                }
             }
         }
         None
