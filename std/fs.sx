@@ -294,7 +294,7 @@ test {
     val success = write_all(path, "Hello, Spectre!")
     assert success
 
-    val content_opt = read_all(path)
+    val content_opt: option[ref char] = read_all(path)
     match content_opt {
         none => { assert false }
         some content => {
