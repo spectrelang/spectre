@@ -1915,8 +1915,9 @@ impl Codegen {
     /// Returns (union_name, tag_index, field_types) if found.
     fn find_tagged_union_variant(
         &self,
-        variant_name: &str,
+        path: &str,
     ) -> Option<(String, usize, Vec<TypeExpr>)> {
+        let variant_name = path.rsplit('.').next().unwrap_or(path);
         for (union_name, variants) in &self.tagged_union_defs {
             if let Some((idx, (_, fields))) = variants
                 .iter()
@@ -3062,7 +3063,7 @@ impl Codegen {
             Expr::Call { callee, args, line } => {
                 let callee_path = expr_to_path(callee);
 
-                if !callee_path.is_empty() && !callee_path.contains('.') {
+                if !callee_path.is_empty() {
                     if let Some((union_name, tag_index, field_types)) =
                         self.find_tagged_union_variant(&callee_path)
                     {

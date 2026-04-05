@@ -299,7 +299,7 @@ test {
         none => { assert false }
         some content => {
             stdio.print("{s} {d}\n", {content, string.compare(content, "Hello, Spectre!")})
-            assert string.compare(content, "Hello, Spectre!") == 0
+            assert string.compare(string.RefChar(content), "Hello, Spectre!") == 0
             @free(content)
         }
     }
@@ -311,7 +311,7 @@ test {
     match content2_opt {
         none => { assert false }
         some content2 => {
-            assert string.compare(content2, "Hello, Spectre! More text.") == 0
+            assert string.compare(string.RefChar(content2), "Hello, Spectre! More text.") == 0
             @free(content2)
         }
     }
