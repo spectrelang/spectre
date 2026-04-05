@@ -1,0 +1,37 @@
+type String = {
+    cstr: ref char
+    len: mut i32
+}
+
+union SomeUnion = {
+    Int32(i32) 
+    | Int64(i64) 
+    | ChrPtr(ref char) 
+    | Str(String)
+    | Pair(i32, i32)
+}
+
+pub fn main() void! = {
+    val x: SomeUnion = Pair(5, 10)
+
+    match x {
+        Int32 a => {
+            @puts("This is an int")
+            // Can do something with a here...
+            // since we're not using a, this should error.
+        }
+        Int64 _ => {
+            @puts("This is an int64, big int")
+            // _ means discard this, ideally if we dont discard, and dont use the value,
+        }
+        Str _ => {
+            @puts("This is a constructed string")
+        }
+        Pair _, _ => { // Support for destructuring
+            @puts("This is a pair of ints")
+        }
+        else => {
+            @puts("This is a raw string")
+        }
+    }
+}
