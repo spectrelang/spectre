@@ -1267,7 +1267,7 @@ fn parse_enum_def_item(p: ref Parser, public: i64) result[ref Node, ref char]! =
     p_expect(p, lexer.TK_RBRACE)?
     val ne: ref Node = make_node(NK_ENUMDEF, line)
     ne.d0 = public ne.d1 = name as i64
-    val vl: mut list[ref char] = variants
+    val vl: list[ref char] = variants
     ne.d2 = addr(vl) as i64
     return ok ne
 }
@@ -1288,7 +1288,7 @@ fn parse_union_def_item(p: ref Parser, public: i64) result[ref Node, ref char]! 
     p_expect(p, lexer.TK_RBRACE)?
     val nu: ref Node = make_node(NK_UNIONDEF, line)
     nu.d0 = public nu.d1 = name as i64
-    val vl: mut list[ref Node] = variants
+    val vl: list[ref Node] = variants
     nu.d2 = addr(vl) as i64
     return ok nu
 }
@@ -1321,7 +1321,7 @@ fn parse_extern_fn_item(p: ref Parser, public: i64) result[ref Node, ref char]! 
     val nef: ref Node = make_node(NK_EXTERN_FN, line)
     nef.d0 = public nef.d1 = name as i64 nef.d2 = symbol as i64
     nef.d3 = conv as i64
-    val pl: mut list[ref Node] = params
+    val pl: list[ref Node] = params
     nef.d4 = addr(pl) as i64 nef.d5 = ret_ty as i64
     return ok nef
 }

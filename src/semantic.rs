@@ -1581,10 +1581,25 @@ fn check_immutable_args_in_expr(
         | Expr::ErrVal(expr)
         | Expr::Try(expr)
         | Expr::Trust(expr)
-        | Expr::Addr(expr)
         | Expr::Deref(expr) => {
             check_immutable_args_in_expr(
                 expr, var_mut, var_types, fn_lookup, fn_name, filename, errors,
+            );
+        }
+        Expr::Addr(inner) => {
+            if let Expr::Ident(var_name) = inner.as_ref() {
+                if let Some(&is_mut) = var_mut.get(var_name) {
+                    if !is_mut {
+                        errors.push(format!(
+                            "{filename}: in function '{fn_name}': \
+                             cannot take address of immutable variable '{var_name}'; \
+                             declare it as 'val {var_name}: mut <type>' to allow this"
+                        ));
+                    }
+                }
+            }
+            check_immutable_args_in_expr(
+                inner, var_mut, var_types, fn_lookup, fn_name, filename, errors,
             );
         }
         Expr::Field(base, _) => {
