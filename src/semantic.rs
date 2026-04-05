@@ -224,6 +224,16 @@ fn check_fn(
     if !matches!(f.ret, TypeExpr::Void) {
         check_return_paths(&f.body, &f.name, &f.ret, filename, errors);
     }
+
+    check_try_usage(
+        &f.body,
+        &var_types,
+        fn_ret_lookup,
+        type_lookup,
+        &f.name,
+        filename,
+        errors,
+    );
 }
 
 /// Check that all control flow paths in a function body end with a `return` statement
@@ -2370,6 +2380,136 @@ fn check_call_arg_types_in_expr(
                     errors,
                 );
             }
+        }
+        _ => {}
+    }
+}
+
+/// Check that `?` (Try) is only applied to `result[T, E]` expressions.
+fn check_try_usage(
+    stmts: &[Stmt],
+    var_types: &HashMap<String, TypeExpr>,
+    fn_ret_lookup: &HashMap<String, &TypeExpr>,
+    type_lookup: &HashMap<String, &Vec<Field>>,
+    fn_name: &str,
+    filename: &str,
+    errors: &mut Vec<String>,
+) {
+    for stmt in stmts {
+        check_try_in_stmt(stmt, var_types, fn_ret_lookup, type_lookup, fn_name, filename, errors);
+    }
+}
+
+fn check_try_in_stmt(
+    stmt: &Stmt,
+    var_types: &HashMap<String, TypeExpr>,
+    fn_ret_lookup: &HashMap<String, &TypeExpr>,
+    type_lookup: &HashMap<String, &Vec<Field>>,
+    fn_name: &str,
+    filename: &str,
+    errors: &mut Vec<String>,
+) {
+    match stmt {
+        Stmt::Val { expr, .. } | Stmt::Assign { value: expr, .. } | Stmt::Expr(expr) | Stmt::Return(Some(expr)) => {
+            check_try_in_expr(expr, var_types, fn_ret_lookup, type_lookup, fn_name, filename, errors);
+        }
+        Stmt::If { cond, then, elif_, else_, .. } => {
+            check_try_in_expr(cond, var_types, fn_ret_lookup, type_lookup, fn_name, filename, errors);
+            check_try_usage(then, var_types, fn_ret_lookup, type_lookup, fn_name, filename, errors);
+            for (c, b) in elif_ {
+                check_try_in_expr(c, var_types, fn_ret_lookup, type_lookup, fn_name, filename, errors);
+                check_try_usage(b, var_types, fn_ret_lookup, type_lookup, fn_name, filename, errors);
+            }
+            if let Some(b) = else_ { check_try_usage(b, var_types, fn_ret_lookup, type_lookup, fn_name, filename, errors); }
+        }
+        Stmt::For { init, cond, post, body } => {
+            if let Some((_, e)) = init { check_try_in_expr(e, var_types, fn_ret_lookup, type_lookup, fn_name, filename, errors); }
+            if let Some(e) = cond { check_try_in_expr(e, var_types, fn_ret_lookup, type_lookup, fn_name, filename, errors); }
+            if let Some(s) = post { check_try_in_stmt(s, var_types, fn_ret_lookup, type_lookup, fn_name, filename, errors); }
+            check_try_usage(body, var_types, fn_ret_lookup, type_lookup, fn_name, filename, errors);
+        }
+        Stmt::ForIn { iterable, body, .. } => {
+            check_try_in_expr(iterable, var_types, fn_ret_lookup, type_lookup, fn_name, filename, errors);
+            check_try_usage(body, var_types, fn_ret_lookup, type_lookup, fn_name, filename, errors);
+        }
+        Stmt::Defer(body) | Stmt::When { body, .. } => {
+            check_try_usage(body, var_types, fn_ret_lookup, type_lookup, fn_name, filename, errors);
+        }
+        Stmt::Match { expr, some_body, none_body, .. } => {
+            check_try_in_expr(expr, var_types, fn_ret_lookup, type_lookup, fn_name, filename, errors);
+            check_try_usage(some_body, var_types, fn_ret_lookup, type_lookup, fn_name, filename, errors);
+            check_try_usage(none_body, var_types, fn_ret_lookup, type_lookup, fn_name, filename, errors);
+        }
+        Stmt::MatchResult { expr, ok_body, err_body, .. } => {
+            check_try_in_expr(expr, var_types, fn_ret_lookup, type_lookup, fn_name, filename, errors);
+            check_try_usage(ok_body, var_types, fn_ret_lookup, type_lookup, fn_name, filename, errors);
+            check_try_usage(err_body, var_types, fn_ret_lookup, type_lookup, fn_name, filename, errors);
+        }
+        Stmt::MatchEnum { expr, arms, .. } | Stmt::MatchString { expr, arms, else_body: None, .. } => {
+            check_try_in_expr(expr, var_types, fn_ret_lookup, type_lookup, fn_name, filename, errors);
+            for (_, b) in arms { check_try_usage(b, var_types, fn_ret_lookup, type_lookup, fn_name, filename, errors); }
+        }
+        Stmt::MatchString { expr, arms, else_body: Some(eb) } => {
+            check_try_in_expr(expr, var_types, fn_ret_lookup, type_lookup, fn_name, filename, errors);
+            for (_, b) in arms { check_try_usage(b, var_types, fn_ret_lookup, type_lookup, fn_name, filename, errors); }
+            check_try_usage(eb, var_types, fn_ret_lookup, type_lookup, fn_name, filename, errors);
+        }
+        Stmt::MatchUnion { expr, arms, else_body } => {
+            check_try_in_expr(expr, var_types, fn_ret_lookup, type_lookup, fn_name, filename, errors);
+            for (_, b) in arms { check_try_usage(b, var_types, fn_ret_lookup, type_lookup, fn_name, filename, errors); }
+            if let Some(b) = else_body { check_try_usage(b, var_types, fn_ret_lookup, type_lookup, fn_name, filename, errors); }
+        }
+        _ => {}
+    }
+}
+
+fn check_try_in_expr(
+    expr: &Expr,
+    var_types: &HashMap<String, TypeExpr>,
+    fn_ret_lookup: &HashMap<String, &TypeExpr>,
+    type_lookup: &HashMap<String, &Vec<Field>>,
+    fn_name: &str,
+    filename: &str,
+    errors: &mut Vec<String>,
+) {
+    match expr {
+        Expr::Try(inner) => {
+            check_try_in_expr(inner, var_types, fn_ret_lookup, type_lookup, fn_name, filename, errors);
+            if let Some(ty) = infer_expr_type(inner, var_types, type_lookup, fn_ret_lookup) {
+                if !matches!(ty, TypeExpr::Result(_, _)) {
+                    let ty_str = type_to_string(&ty);
+                    errors.push(format!(
+                        "{filename}: in function '{fn_name}': '?' can only be used on 'result[T, E]' expressions, got '{ty_str}'"
+                    ));
+                }
+            }
+        }
+        Expr::BinOp { lhs, rhs, .. } => {
+            check_try_in_expr(lhs, var_types, fn_ret_lookup, type_lookup, fn_name, filename, errors);
+            check_try_in_expr(rhs, var_types, fn_ret_lookup, type_lookup, fn_name, filename, errors);
+        }
+        Expr::UnOp { expr: inner, .. } | Expr::Trust(inner) | Expr::Some(inner)
+        | Expr::OkVal(inner) | Expr::ErrVal(inner) | Expr::Addr(inner) | Expr::Deref(inner) => {
+            check_try_in_expr(inner, var_types, fn_ret_lookup, type_lookup, fn_name, filename, errors);
+        }
+        Expr::Field(base, _) => {
+            check_try_in_expr(base, var_types, fn_ret_lookup, type_lookup, fn_name, filename, errors);
+        }
+        Expr::Call { callee, args, .. } => {
+            check_try_in_expr(callee, var_types, fn_ret_lookup, type_lookup, fn_name, filename, errors);
+            for a in args { check_try_in_expr(a, var_types, fn_ret_lookup, type_lookup, fn_name, filename, errors); }
+        }
+        Expr::Cast { expr: inner, .. } => {
+            check_try_in_expr(inner, var_types, fn_ret_lookup, type_lookup, fn_name, filename, errors);
+        }
+        Expr::ListLit(items) | Expr::ArgsPack(items) => {
+            for i in items { check_try_in_expr(i, var_types, fn_ret_lookup, type_lookup, fn_name, filename, errors); }
+        }
+        Expr::StructLit { fields } => {
+            for (_, e) in fields { check_try_in_expr(e, var_types, fn_ret_lookup, type_lookup, fn_name, filename, errors); }
+        }
+        Expr::Builtin { args, .. } => {
+            for a in args { check_try_in_expr(a, var_types, fn_ret_lookup, type_lookup, fn_name, filename, errors); }
         }
         _ => {}
     }
