@@ -298,8 +298,8 @@ test {
     match content_opt {
         none => { assert false }
         some content => {
-            stdio.print("{s} {d}\n", {content, string.compare(content, "Hello, Spectre!")})
-            assert string.compare(string.RefChar(content), "Hello, Spectre!") == 0
+            stdio.print("{s} {d}\n", {content, string.compare(string.RefChar(content), string.RefChar("Hello, Spectre!"))})
+            assert string.compare(string.RefChar(content), string.RefChar("Hello, Spectre!")) == 0
             @free(content)
         }
     }
@@ -311,7 +311,7 @@ test {
     match content2_opt {
         none => { assert false }
         some content2 => {
-            assert string.compare(string.RefChar(content2), "Hello, Spectre! More text.") == 0
+            assert string.compare(string.RefChar(content2), string.RefChar("Hello, Spectre! More text.")) == 0
             @free(content2)
         }
     }
@@ -323,7 +323,7 @@ test {
     match content3_opt {
         none => { assert false }
         some content3 => {
-            assert string.compare(content3, "Overwritten.") == 0
+            assert string.compare(string.RefChar(content3), string.RefChar("Overwritten.")) == 0
             @free(content3)
         }
     }
@@ -361,11 +361,11 @@ test {
             val buf: ref char = @alloc(128)
             val got1 = read_line(rh, buf, 128)
             assert got1
-            assert string.compare(buf, "line one") == 0
+            assert string.compare(string.RefChar(buf), string.RefChar("line one")) == 0
 
             val got2 = read_line(rh, buf, 128)
             assert got2
-            assert string.compare(buf, "line two") == 0
+            assert string.compare(string.RefChar(buf), string.RefChar("line two")) == 0
 
             val got3 = read_line(rh, buf, 128)
             assert !got3

@@ -1469,6 +1469,10 @@ impl Codegen {
                                 }
                             }
                             self.locals.insert(binding.clone(), loaded.clone());
+                            if let Some(ty) = field_ty {
+                                let ann = type_to_annotation_string(ty);
+                                self.local_type_annotations.insert(binding.clone(), ann);
+                            }
                             bound_names.push(binding.clone());
                         }
                     }
@@ -1478,6 +1482,7 @@ impl Codegen {
                     for name in &bound_names {
                         self.locals.remove(name);
                         self.local_types.remove(name);
+                        self.local_type_annotations.remove(name);
                     }
 
                     if !block_is_terminated(body) {

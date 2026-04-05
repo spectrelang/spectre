@@ -38,18 +38,17 @@ pub union StrOrRefChar = {
 }
 
 pub fn compare(a: StrOrRefChar, b: StrOrRefChar) i64! = {
+    val aptr: mut ref char = ""
     match a {
-        RefChar aptr => {
-            val bptr: ref char = @load(b)
-            return strcmp(aptr, bptr)
-        }
-        Str _ => {
-            val aptr: ref char = @load(@load(a))
-            val bptr: ref char = @load(@load(b))
-            return strcmp(aptr, bptr)
-        }
+        RefChar p => { aptr = p }
+        Str s     => { aptr = s.ptr }
     }
-    return -2
+    val bptr: mut ref char = ""
+    match b {
+        RefChar p => { bptr = p }
+        Str s     => { bptr = s.ptr }
+    }
+    return strcmp(aptr, bptr)
 }
 
 /// Create from raw C string
