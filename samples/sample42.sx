@@ -1,0 +1,55 @@
+type String = {
+    cstr: ref char
+    len: mut i32
+}
+
+union SomeUnion = {
+    Int32(i32)
+  | Int64(i64)
+  | ChrPtr(ref char)
+  | Str(String)
+  | Pair(i32, i32)
+}
+
+pub fn main() void! = {
+    val examples: list[SomeUnion] = [
+        Int32(42),
+        Int64(1234567890123),
+        ChrPtr("hello"),
+        Str({ cstr: "world", len: 5 }),
+        Pair(5, 10)
+    ]
+
+    for x in examples {
+        match x {
+            Int32 a => {
+                @puts("Matched Int32")
+                @printf("Value: %d\n", a)
+            }
+
+            Int64 b => {
+                @puts("Matched Int64 (big int)")
+                @printf("Value: %lld\n", b)
+            }
+
+            ChrPtr ptr => {
+                @puts("Matched raw char pointer")
+                @printf("Value: %s\n", ptr)
+            }
+
+            Str s => {
+                @puts("Matched constructed string")
+                @printf("String: %.*s\n", s.len, s.cstr)
+            }
+
+            Pair z, y => {
+                @puts("Matched a pair of ints")
+                @printf("Values: %d and %d\n", z, y)
+            }
+
+            else => {
+                @puts("Unknown variant")
+            }
+        }
+    }
+}

@@ -1178,6 +1178,13 @@ impl Codegen {
                 self.tmp_counter += 1;
 
                 let (list_ptr, _) = self.emit_expr(iterable, ns)?;
+                let list_ty_full = self.infer_struct_type_name(iterable).unwrap_or_default();
+                let element_ty = if list_ty_full.starts_with("list[") && list_ty_full.ends_with(']') {
+                    Some(list_ty_full[5..list_ty_full.len() - 1].to_string())
+                } else {
+                    None
+                };
+
                 let idx_slot = self.fresh_tmp();
 
                 self.emit(&format!("    {idx_slot} =l alloc8 8"));
@@ -1213,6 +1220,9 @@ impl Codegen {
                 self.locals.insert(binding.clone(), elem_val.clone());
                 self.local_types.insert(binding.clone(), "l");
                 self.local_mutability.insert(binding.clone(), false);
+                if let Some(ref et) = element_ty {
+                    self.local_type_annotations.insert(binding.clone(), et.clone());
+                }
 
                 let prev_loop_end = self.current_loop_end.replace(end_lbl.clone());
                 let prev_loop_cont = self.current_loop_continue.replace(cont_lbl.clone());
@@ -1220,6 +1230,7 @@ impl Codegen {
                 self.emit_stmts(body, ns, ret_ty)?;
                 self.current_loop_end = prev_loop_end;
                 self.current_loop_continue = prev_loop_cont;
+                self.local_type_annotations.remove(binding);
 
                 if !block_is_terminated(body) {
                     self.emit(&format!("    jmp {cont_lbl}"));
