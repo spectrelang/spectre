@@ -114,7 +114,6 @@ fn make_tok(l: ref Lexer, kind: i64, line: i64, col: i64, text: ref char) ref To
     }
 }
 
-// ─── Lexer ────────────────────────────────────────────────────────────────────
 type Lexer = {
     src:   mut ref char
     len:   mut i64
