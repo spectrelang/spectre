@@ -4,16 +4,16 @@ pub fn main() void! = {
     val x: i32 = 20
 
     if (x < 30) {
-        std.io.put("good")
+        std.stdio.put("good")
     } elif (x < 10) {
-        std.io.put("what...?")
+        std.stdio.put("what...?")
     }
 
     for (y = 0; y < 10; y++) {
-        std.io.print("{d}\n", {y})
+        std.stdio.print("{d}\n", {y})
     }
 
 //    for {
-//        std.io.put("infinite loop")
+//        std.stdio.put("infinite loop")
 //    }
 }

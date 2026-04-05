@@ -7,5 +7,5 @@ val std = use("std")
 pub fn main() void! = {
     val y: mut i32 = 30
     takes_ref(addr(y))
-    std.io.print("{d}", {y})
+    std.stdio.print("{d}", {y})
 }

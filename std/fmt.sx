@@ -255,7 +255,7 @@ fn test_f64_roundtrip(x: f64) void! = {
     @free(s)
 }
 
-val io = use("io.sx")
+val stdio = use("stdio.sx")
 
 test {
     val s: mut ref char = ""
@@ -264,18 +264,18 @@ test {
     
     match string_to_i64(s) {
         ok v => {
-            std.io.print("worked: {d}\n", {v})
+            std.stdio.print("worked: {d}\n", {v})
         }
         err v => {
             match v {
                 ParseIntError.Empty => {
-                    std.io.put("empty string")
+                    std.stdio.put("empty string")
                 }
                 ParseIntError.InvalidDigit => {
-                    std.io.put("invalid digit")
+                    std.stdio.put("invalid digit")
                 }
                 ParseIntError.Overflow => {
-                    std.io.put("overflow.")
+                    std.stdio.put("overflow.")
                 }
             }
         }

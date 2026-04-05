@@ -2,11 +2,11 @@ val std = use("std")
 
 pub fn some_function(x: i32, y: i32) void! = {
     val x: ref char = "im shadowing the parameter, hehehe >:)" // should error
-    std.io.print("{d}", {x})
+    std.stdio.print("{d}", {x})
 }
 
 pub fn main() void! = {
     val x = 1
     val x = 2 // should error
-    std.io.print("{d}", {x})
+    std.stdio.print("{d}", {x})
 }

@@ -16,5 +16,5 @@ pub fn trusted_function(x: i32, y: i32) i32 = {
 }
 
 pub fn main() void = {
-    std.io.print("{d}", {trusted_function(1, -2)})
+    std.stdio.print("{d}", {trusted_function(1, -2)})
 }

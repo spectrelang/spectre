@@ -12,7 +12,7 @@ val std = use("std")
 pub fn main() void! = {
     val xs: list[ref char] = ["hello", "world", "this", "is", "a", "test"]
     for x in xs {
-        std.io.print("{s}\n", {x})
+        std.stdio.print("{s}\n", {x})
     }
 }
 ```
@@ -57,7 +57,7 @@ pub fn (Stack) print_top(s: mut self) void = {
 		has_items: s.len > 0 
 	}
     match Stack.peek(s) {
-        some v => { trust std.io.print("top: {d}\n", {v}) }
+        some v => { trust std.stdio.print("top: {d}\n", {v}) }
         none   => {}
     }
 }

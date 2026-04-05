@@ -4,10 +4,10 @@ pub fn main() void! = {
     val result = can_fail(true)
     match result {
         some x => {
-            std.io.print("hooray: {d}", {x})
+            std.stdio.print("hooray: {d}", {x})
         }
         none => {
-            std.io.put(":(")
+            std.stdio.put(":(")
         }
     }
 }

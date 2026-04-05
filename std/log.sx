@@ -1,5 +1,5 @@
 val time = use("time.sx")
-val io = use("io.sx")
+val stdio = use("stdio.sx")
 
 fn get_time_string() ref char = {
     val dt: DateTime = time.DateTime.now()
@@ -14,19 +14,19 @@ fn get_time_string() ref char = {
 }
 
 pub fn info(msg: ref char) void! = {
-    io.print("{s} [{s}] {s}\n", {get_time_string(), "INFO", msg})
+    stdio.print("{s} [{s}] {s}\n", {get_time_string(), "INFO", msg})
 }
 
 pub fn warn(msg: ref char) void! = {
-    io.print("{s} [{s}] {s}\n", {get_time_string(), "WARN", msg})
+    stdio.print("{s} [{s}] {s}\n", {get_time_string(), "WARN", msg})
 }
 
 pub fn debug(msg: ref char) void! = {
-    io.print("{s} [{s}] {s}\n", {get_time_string(), "DEBUG", msg})
+    stdio.print("{s} [{s}] {s}\n", {get_time_string(), "DEBUG", msg})
 }
 
 pub fn error(msg: ref char) void! = {
-    io.print("{s} [{s}] {s}\n", {get_time_string(), "ERROR", msg})
+    stdio.print("{s} [{s}] {s}\n", {get_time_string(), "ERROR", msg})
 }
 
 test {

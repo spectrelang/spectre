@@ -66,15 +66,15 @@ pub fn main() result[void, ParseError]! = {
 
     match r {
         ok v => {
-            std.io.print("sum = {d}", {v})
+            std.stdio.print("sum = {d}", {v})
         }
         err e => {
             match e {
                 ParseError.Empty => {
-                    std.io.put("error: Empty input")
+                    std.stdio.put("error: Empty input")
                 }
                 ParseError.InvalidDigit => {
-                    std.io.put("error: invalid digit")
+                    std.stdio.put("error: invalid digit")
                 }
             }
         }

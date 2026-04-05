@@ -12,7 +12,7 @@ fn print_file_info(fh: FileHandle) void! = {
     val fd = fh.fd
     val flags = fh.flags
     val p = fh.path
-    std.io.print("fd={d}, flags={d}, path={s}", {fd, flags, p})
+    std.stdio.print("fd={d}, flags={d}, path={s}", {fd, flags, p})
 }
 
 pub fn main() void! = {
@@ -32,5 +32,5 @@ pub fn main() void! = {
 
     mutable_fh.fd = 200
     val got = extern_get_fd_ptr(addr(mutable_fh))
-    std.io.print("updated fd: {d}, got: {d}", {mutable_fh.fd, got})
+    std.stdio.print("updated fd: {d}, got: {d}", {mutable_fh.fd, got})
 }

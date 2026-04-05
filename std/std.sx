@@ -1,4 +1,4 @@
-pub val io = use("io.sx")
+pub val stdio = use("stdio.sx")
 pub val collections = use("collections.sx")
 pub val math = use("math.sx")
 pub val allocators = use("allocators.sx")

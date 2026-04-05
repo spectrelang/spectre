@@ -1,5 +1,5 @@
 val std = use("std")
 
 pub fn main() void! = {
-    std.io.put("Hello, world.")
+    std.stdio.put("Hello, world.")
 }

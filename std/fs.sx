@@ -286,7 +286,7 @@ pub fn config_dir() option[ref char]! = {
     return none
 }
 
-val io = use("io.sx")
+val stdio = use("stdio.sx")
 val string = use("string.sx")
 
 test {
@@ -298,7 +298,7 @@ test {
     match content_opt {
         none => { assert false }
         some content => {
-            io.print("{s} {d}\n", {content, string.compare(content, "Hello, Spectre!")})
+            stdio.print("{s} {d}\n", {content, string.compare(content, "Hello, Spectre!")})
             assert string.compare(content, "Hello, Spectre!") == 0
             @free(content)
         }
@@ -417,7 +417,7 @@ test {
         }
     }
 
-    io.put("fs tests passed")
+    stdio.put("fs tests passed")
 }
 
 /// Walk a directory and return an iterable list[ref char] of entry names.
@@ -425,7 +425,7 @@ test {
 /// Usage:
 ///   val entries = walk_dir("/some/path")?
 ///   for entry in entries {
-///       std.io.print("{s}\n", {entry})
+///       std.stdio.print("{s}\n", {entry})
 ///   }
 pub fn walk_dir(path: ref char) option[list[ref char]]! = {
     val dir: ref void = opendir(path)

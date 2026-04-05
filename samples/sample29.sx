@@ -3,6 +3,6 @@ val std = use("std")
 pub fn main() void! = {
     val args = std.os.get_args()
     for arg in args {
-        std.io.print("arg: {s}\n", {arg})
+        std.stdio.print("arg: {s}\n", {arg})
     }
 }

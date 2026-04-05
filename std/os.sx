@@ -132,7 +132,7 @@ pub fn exec_trim(cmd: ref char) result[ref void, ProcessError]! = {
 }
 
 val string = use("string.sx")
-val io = use("io.sx")
+val stdio = use("stdio.sx")
 
 test {
     val path = "test_file.txt"
@@ -151,7 +151,7 @@ test {
     assert exists(path) == true
     val new_path = "test_file_renamed.txt"
     rename_file(path, new_path)
-    io.put("hi8")
+    stdio.put("hi8")
     assert exists(path) == false
     assert exists(new_path) == true
     delete(new_path)
@@ -160,7 +160,7 @@ test {
     val res = exec("echo hello")
     match res {
         ok s => {
-            io.print("{s}", {string.cstr(s)})
+            stdio.print("{s}", {string.cstr(s)})
         }
         err _ => {
             assert(false)

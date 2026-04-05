@@ -25,7 +25,7 @@ pub fn main() void! = {
     val initial_size: usize = 64
     val buf: ref void = make_buffer(initial_size)
 
-    std.io.put("buffer allocated and zeroed")
+    std.stdio.put("buffer allocated and zeroed")
 
     val grown_size: usize = 128
     val big_buf: ref void = grow_buffer(
@@ -36,8 +36,8 @@ pub fn main() void! = {
 
     defer {
         @free(big_buf)
-        std.io.put("buffer freed")
+        std.stdio.put("buffer freed")
     }
 
-    std.io.print("grew buffer to {d} bytes\n", {grown_size})
+    std.stdio.print("grew buffer to {d} bytes\n", {grown_size})
 }

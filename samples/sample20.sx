@@ -6,5 +6,5 @@ enum SomeEnum = {
 }
 
 pub fn main() void! = {
-    std.io.print("{d}", {SomeEnum.HELLO})
+    std.stdio.print("{d}", {SomeEnum.HELLO})
 }

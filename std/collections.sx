@@ -7,7 +7,7 @@
 /// Each element is one pointer-sized slot (8 bytes).
 /// Values are stored and retrieved as untyped (ref void / usize).
 
-val io = use("io.sx")
+val stdio = use("stdio.sx")
 
 val ELEMENT_SIZE: usize = 8
 
@@ -446,7 +446,7 @@ test {
     Map.free(m)
     Map.free(big)
 
-    io.put("map tests passed")
+    stdio.put("map tests passed")
 }
 
 
@@ -493,7 +493,7 @@ test {
 
     PtrList.push(list, 5)?
 
-    io.put("list tests passed")
+    stdio.put("list tests passed")
 }
 
 /// A hash map with ref char (C string) keys and usize values.
@@ -705,5 +705,5 @@ test {
 
     StringMap.free(m)
 
-    io.put("string map tests passed")
+    stdio.put("string map tests passed")
 }

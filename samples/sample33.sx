@@ -52,7 +52,7 @@ val std = use("std")
 extern (C) fn uname(buf: ref UnameResult) i32! = "uname"
 
 pub fn main() void! = {
-    std.io.put("hi1")
+    std.stdio.put("hi1")
 
     val buf: mut UnameResult = {
         sysname: 0,
@@ -61,15 +61,15 @@ pub fn main() void! = {
         version: 0,
         machine: 0
     }
-    std.io.put("hi2")
+    std.stdio.put("hi2")
 
     val r = uname(addr(buf))
-    std.io.put("hi3")
+    std.stdio.put("hi3")
 
-    std.io.print("uname returned: {d}\n", {r})
+    std.stdio.print("uname returned: {d}\n", {r})
 
     if (r == 0) {
-        std.io.print("sysname: {s}\n", {buf.sysname})
-        std.io.print("release: {s}\n", {buf.release})
+        std.stdio.print("sysname: {s}\n", {buf.sysname})
+        std.stdio.print("release: {s}\n", {buf.release})
     }
 }

@@ -706,7 +706,7 @@ fn collect_needed_subnames_in_expr(expr: &Expr, import_name: &str, needed: &mut 
 ///
 /// Rules:
 ///   "std"        -> <workspace>/std/std.sx (special case)
-///   "io.sx"      -> <current_dir>/io.sx
+///   "stdio.sx"      -> <current_dir>/stdio.sx
 ///   "foo/bar.sx" -> <current_dir>/foo/bar.sx
 fn resolve_use_path(path: &str, dir: &Path) -> PathBuf {
     if !path.ends_with(".sx") {

@@ -7,13 +7,13 @@ union SomeUnion = {
 fn some_function(x: SomeUnion) void! = {
     match x {
         i32 => {
-            std.io.put("hi inty int int")
+            std.stdio.put("hi inty int int")
         }
         i64 => {
-            std.io.put("hi bigger inty int")
+            std.stdio.put("hi bigger inty int")
         }
         else => {
-            std.io.put("hi something else")
+            std.stdio.put("hi something else")
         }
     }
 }
@@ -22,13 +22,13 @@ fn some_function(x: SomeUnion) void! = {
 //
 // fn some_function(x: SomeUnion) void! = {
 //     when x is i32 {
-//         std.io.put("hi inty int int")
+//         std.stdio.put("hi inty int int")
 //     }
 //     when x is i64 {
-//         std.io.put("hi bigger inty int")
+//         std.stdio.put("hi bigger inty int")
 //     }
 //     otherwise {
-//         std.io.put("hi something else")
+//         std.stdio.put("hi something else")
 //     }
 // }
 

@@ -1,5 +1,5 @@
 val collections = use("collections.sx")
-val io = use("io.sx")
+val stdio = use("stdio.sx")
 
 extern (C) fn strlen(s: ref char) i64! = "strlen"
 extern (C) fn strcmp(a: ref char, b: ref char) i64! = "strcmp"
@@ -838,7 +838,7 @@ test {
     val empty = new()
     assert(len(empty) == 0)
 
-    io.put("hi")
+    stdio.put("hi")
     val s = from("hello")
     assert(len(s) == 5)
     assert(equals(s, from("hello")))
@@ -850,12 +850,12 @@ test {
     val c = from("bar")
     push(b, c)
     assert(equals(b, from("foobar")))
-    io.put("hi1.3")
+    stdio.put("hi1.3")
 
     val pc = from("ab")
     push_char(pc, 99) // 'c'
     assert(equals(pc, from("abc")))
-    io.put("hi1.4")
+    stdio.put("hi1.4")
 
     val orig = from("clone me")
     val copy = clone(orig)
@@ -874,7 +874,7 @@ test {
     val g2 = get(g, 2)
     val g3 = get(g, 3)
 
-    io.put("hi2")
+    stdio.put("hi2")
     match g0 { some v => { assert(v == 97) } none => { assert(false) } }
     match g1 { some v => { assert(v == 98) } none => { assert(false) } }
     match g2 { some v => { assert(v == 99) } none => { assert(false) } }
@@ -924,7 +924,7 @@ test {
     to_lower(low)
     assert(equals(low, from("abcxyz")))
 
-    io.put("hi3")
+    stdio.put("hi3")
     val tr = from("  \t hello \n ")
     trim(tr)
     assert(equals(tr, from("hello")))
@@ -933,7 +933,7 @@ test {
     trim_left(tl)
     assert(equals(tl, from("hello")))
 
-    io.put("hi3.1")
+    stdio.put("hi3.1")
     val trr = from("hello   ")
     trim_right(trr)
     assert(equals(trr, from("hello")))
@@ -941,16 +941,16 @@ test {
     val rep = from("foo bar foo")
     val rep2 = replace(rep, from("foo"), from("baz"))
     assert(equals(rep2, from("baz bar baz")))
-    io.put("hi3.2")
+    stdio.put("hi3.2")
 
     val rep3 = replace(rep, from("xxx"), from("yyy"))
-    io.put("hi3.2.1")
+    stdio.put("hi3.2.1")
     assert(equals(rep3, from("foo bar foo")))
-    io.put("hi3.2.2")
+    stdio.put("hi3.2.2")
     val sp = from("a,b,c")
-    io.put("hi3.2.3")
+    stdio.put("hi3.2.3")
     val parts = split(sp, from(","))?
-    io.put("hi3.3")
+    stdio.put("hi3.3")
 
     assert(collections.PtrList.len(parts) == 3)
     match collections.PtrList.get(parts, 0) {
@@ -974,7 +974,7 @@ test {
         none => { assert(false) }
     }
 
-    io.put("hi4")
+    stdio.put("hi4")
     val ca = from("foo")
     val cb = from("bar")
     val cc = concat(ca, cb)
@@ -1004,9 +1004,9 @@ test {
     reverse(rv)
     assert(equals(rv, from("dcba")))
 
-    io.put("string tests passed")
+    stdio.put("string tests passed")
 
-    io.print("{s}", {cstr(format("hello {d}", {1}))})
+    stdio.print("{s}", {cstr(format("hello {d}", {1}))})
 
-    io.print("comparison: {d}\n", {compare(from("abc"), from("abc"))})
+    stdio.print("comparison: {d}\n", {compare(from("abc"), from("abc"))})
 }
