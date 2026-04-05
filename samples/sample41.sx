@@ -23,6 +23,7 @@ pub fn main() void! = {
         Int64 _ => {
             @puts("This is an int64, big int")
             // _ means discard this, ideally if we dont discard, and dont use the value,
+            // it should error
         }
         Str _ => {
             @puts("This is a constructed string")
