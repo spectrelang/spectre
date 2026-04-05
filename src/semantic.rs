@@ -480,9 +480,17 @@ fn check_shadowing_in_stmt(
                 scope_stack.pop();
             }
         }
-        Stmt::Defer(body) | Stmt::When { body, .. } => {
+        Stmt::Defer(body) => {
             scope_stack.push(HashSet::new());
             check_shadowing_in_stmts(body, scope_stack, fn_name, filename, errors);
+            scope_stack.pop();
+        }
+        Stmt::When { body, otherwise, .. } => {
+            scope_stack.push(HashSet::new());
+            check_shadowing_in_stmts(body, scope_stack, fn_name, filename, errors);
+            scope_stack.pop();
+            scope_stack.push(HashSet::new());
+            check_shadowing_in_stmts(otherwise, scope_stack, fn_name, filename, errors);
             scope_stack.pop();
         }
         _ => {}
@@ -568,8 +576,12 @@ fn collect_declarations(
                     collect_declarations(body, declared, for_vars);
                 }
             }
-            Stmt::Defer(body) | Stmt::When { body, .. } => {
+            Stmt::Defer(body) => {
                 collect_declarations(body, declared, for_vars);
+            }
+            Stmt::When { body, otherwise, .. } => {
+                collect_declarations(body, declared, for_vars);
+                collect_declarations(otherwise, declared, for_vars);
             }
             _ => {}
         }
@@ -655,8 +667,12 @@ fn collect_used_in_stmt(stmt: &Stmt, used: &mut HashSet<String>) {
             used.insert(name.clone());
             collect_used_in_expr(expr, used);
         }
-        Stmt::Defer(body) | Stmt::When { body, .. } => {
+        Stmt::Defer(body) => {
             collect_used_in_stmts(body, used);
+        }
+        Stmt::When { body, otherwise, .. } => {
+            collect_used_in_stmts(body, used);
+            collect_used_in_stmts(otherwise, used);
         }
         Stmt::Match {
             expr,
@@ -903,8 +919,12 @@ fn collect_mutated_in_stmt(stmt: &Stmt, mutated: &mut HashSet<String>) {
                 collect_mutated_in_stmts(body, mutated);
             }
         }
-        Stmt::Defer(body) | Stmt::When { body, .. } => {
+        Stmt::Defer(body) => {
             collect_mutated_in_stmts(body, mutated);
+        }
+        Stmt::When { body, otherwise, .. } => {
+            collect_mutated_in_stmts(body, mutated);
+            collect_mutated_in_stmts(otherwise, mutated);
         }
         _ => {}
     }
@@ -1023,7 +1043,11 @@ fn collect_var_types(stmts: &[Stmt], map: &mut HashMap<String, TypeExpr>) {
                     collect_var_types(body, map);
                 }
             }
-            Stmt::Defer(body) | Stmt::When { body, .. } => collect_var_types(body, map),
+            Stmt::Defer(body) => collect_var_types(body, map),
+            Stmt::When { body, otherwise, .. } => {
+                collect_var_types(body, map);
+                collect_var_types(otherwise, map);
+            }
             _ => {}
         }
     }
@@ -1150,8 +1174,12 @@ fn collect_ref_used_in_stmt(
                 collect_ref_used_in_stmts(body, fn_lookup, out);
             }
         }
-        Stmt::Defer(body) | Stmt::When { body, .. } => {
+        Stmt::Defer(body) => {
             collect_ref_used_in_stmts(body, fn_lookup, out);
+        }
+        Stmt::When { body, otherwise, .. } => {
+            collect_ref_used_in_stmts(body, fn_lookup, out);
+            collect_ref_used_in_stmts(otherwise, fn_lookup, out);
         }
         _ => {}
     }
@@ -1301,8 +1329,12 @@ fn collect_var_mutability(stmts: &[Stmt], map: &mut HashMap<String, bool>) {
                     collect_var_mutability(body, map);
                 }
             }
-            Stmt::Defer(body) | Stmt::When { body, .. } => {
+            Stmt::Defer(body) => {
                 collect_var_mutability(body, map);
+            }
+            Stmt::When { body, otherwise, .. } => {
+                collect_var_mutability(body, map);
+                collect_var_mutability(otherwise, map);
             }
             _ => {}
         }
@@ -1504,9 +1536,17 @@ fn check_immutable_args_in_stmt(
                 );
             }
         }
-        Stmt::Defer(body) | Stmt::When { body, .. } => {
+        Stmt::Defer(body) => {
             check_immutable_args_in_stmts(
                 body, var_mut, var_types, fn_lookup, fn_name, filename, errors,
+            );
+        }
+        Stmt::When { body, otherwise, .. } => {
+            check_immutable_args_in_stmts(
+                body, var_mut, var_types, fn_lookup, fn_name, filename, errors,
+            );
+            check_immutable_args_in_stmts(
+                otherwise, var_mut, var_types, fn_lookup, fn_name, filename, errors,
             );
         }
         _ => {}
@@ -2114,7 +2154,7 @@ fn check_call_arg_types_in_stmt(
                 );
             }
         }
-        Stmt::Defer(body) | Stmt::When { body, .. } => {
+        Stmt::Defer(body) => {
             check_call_arg_types(
                 body,
                 var_types,
@@ -2125,6 +2165,14 @@ fn check_call_arg_types_in_stmt(
                 fn_name,
                 filename,
                 errors,
+            );
+        }
+        Stmt::When { body, otherwise, .. } => {
+            check_call_arg_types(
+                body, var_types, fn_lookup, fn_ret_lookup, type_lookup, union_lookup, fn_name, filename, errors,
+            );
+            check_call_arg_types(
+                otherwise, var_types, fn_lookup, fn_ret_lookup, type_lookup, union_lookup, fn_name, filename, errors,
             );
         }
         _ => {}

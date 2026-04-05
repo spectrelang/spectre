@@ -177,21 +177,19 @@ when windows {
     extern (C) fn LeaveCriticalSection(lpCriticalSection: ref void) void! = "LeaveCriticalSection"
 }
 
+when linux {
+    val MUTEX_SIZE: usize = 40
+} or when darwin {
+    val MUTEX_SIZE: usize = 64
+} otherwise {
+    val MUTEX_SIZE: usize = 8
+}
+
 /// Create and initialize a new mutex.
 /// Returns the mutex handle or none on failure.
 pub fn (Mutex) new() option[ref void]! = {
-    val size: mut usize = 8
-    when linux {
-        size = 40
-    }
-    when darwin {
-        size = 64
-    }
-    when freebsd {
-        size = 8
-    }
-    val m: ref void = @alloc(size)
-    @memset(m, 0, size)
+    val m: ref void = @alloc(MUTEX_SIZE)
+    @memset(m, 0, MUTEX_SIZE)
 
     when posix {
         val rc: i32 = pthread_mutex_init(m, 0)

@@ -499,14 +499,13 @@ impl Codegen {
         let mut result = Vec::new();
         for item in items {
             match item {
-                Item::WhenItems {
-                    platform,
-                    items: block_items,
-                } => {
+                Item::WhenItems { platform, items: block_items, or_when, otherwise } => {
                     if self.platform.matches_name(platform) {
-                        for bi in block_items {
-                            result.push(bi);
-                        }
+                        for bi in block_items { result.push(bi); }
+                    } else if let Some((_, ow_items)) = or_when.iter().find(|(p, _)| self.platform.matches_name(p)) {
+                        for bi in ow_items { result.push(bi); }
+                    } else {
+                        for bi in otherwise { result.push(bi); }
                     }
                 }
                 other => result.push(other),
@@ -724,8 +723,17 @@ impl Codegen {
     ) -> Result<(), String> {
         for stmt in stmts {
             self.emit_stmt(stmt, ns, ret_ty)?;
-            if let Stmt::When { platform, body } = stmt {
-                if self.platform.matches_name(platform) && block_is_terminated(body) {
+            if let Stmt::When { platform, body, or_when, otherwise } = stmt {
+                let active = if self.platform.matches_name(platform) {
+                    Some(body.as_slice())
+                } else if let Some((_, b)) = or_when.iter().find(|(p, _)| self.platform.matches_name(p)) {
+                    Some(b.as_slice())
+                } else if !otherwise.is_empty() {
+                    Some(otherwise.as_slice())
+                } else {
+                    None
+                };
+                if active.map_or(false, block_is_terminated) {
                     return Ok(());
                 }
             }
@@ -1311,10 +1319,13 @@ impl Codegen {
                     .ok_or_else(|| "continue used outside of loop".to_string())?;
                 self.emit(&format!("    jmp {cont_lbl}"));
             }
-            Stmt::When { platform, body } => {
-                let matches = self.platform.matches_name(platform);
-                if matches {
+            Stmt::When { platform, body, or_when, otherwise } => {
+                if self.platform.matches_name(platform) {
                     self.emit_stmts(body, ns, ret_ty)?;
+                } else if let Some((_, ow_body)) = or_when.iter().find(|(p, _)| self.platform.matches_name(p)) {
+                    self.emit_stmts(ow_body, ns, ret_ty)?;
+                } else if !otherwise.is_empty() {
+                    self.emit_stmts(otherwise, ns, ret_ty)?;
                 }
             }
             Stmt::MatchUnion {
@@ -3634,7 +3645,9 @@ fn all_trusted_stmts(stmts: &[Stmt]) -> bool {
             arms.iter().all(|(_, b)| all_trusted_stmts(b))
                 && else_body.as_deref().map_or(true, all_trusted_stmts)
         }
-        Stmt::When { body, .. } => all_trusted_stmts(body),
+        Stmt::When { body, otherwise, .. } => {
+            all_trusted_stmts(body) && all_trusted_stmts(otherwise)
+        }
         Stmt::Expr(_) => false,
     })
 }
@@ -3724,7 +3737,8 @@ fn find_bare_builtin_in_stmt(stmt: &Stmt) -> Option<String> {
         } => find_bare_builtin_in_expr(expr)
             .or_else(|| arms.iter().find_map(|(_, b)| find_bare_builtin_in_stmts(b)))
             .or_else(|| else_body.as_deref().and_then(find_bare_builtin_in_stmts)),
-        Stmt::When { body, .. } => find_bare_builtin_in_stmts(body),
+        Stmt::When { body, otherwise, .. } => find_bare_builtin_in_stmts(body)
+            .or_else(|| find_bare_builtin_in_stmts(otherwise)),
         Stmt::Increment(_)
         | Stmt::Decrement(_)
         | Stmt::AddAssign(..)
@@ -3809,7 +3823,10 @@ fn find_bare_deref_assign_in_stmt(stmt: &Stmt) -> bool {
                     .as_deref()
                     .map_or(false, find_bare_deref_assign_in_stmts)
         }
-        Stmt::Defer(body) | Stmt::When { body, .. } => find_bare_deref_assign_in_stmts(body),
+        Stmt::Defer(body) => find_bare_deref_assign_in_stmts(body),
+        Stmt::When { body, otherwise, .. } => {
+            find_bare_deref_assign_in_stmts(body) || find_bare_deref_assign_in_stmts(otherwise)
+        }
         _ => false,
     }
 }

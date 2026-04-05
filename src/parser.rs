@@ -63,9 +63,14 @@ pub enum Item {
         libs: Vec<String>,
     },
     /// `when <platform> { ... items ... }` — platform-conditional item declarations
+    /// Supports `or when <platform> { }` chaining and a final `otherwise { }` fallback
     WhenItems {
         platform: String,
         items: Vec<Item>,
+        /// Additional branches checked in order if the first doesn't match
+        or_when: Vec<(String, Vec<Item>)>,
+        /// Items to use if no branch matched
+        otherwise: Vec<Item>,
     },
 }
 
@@ -93,12 +98,11 @@ pub enum TypeExpr {
     Named(String),
 
     /// `[T]` — slice type (fat pointer: data + length)
-    
     Slice(Box<TypeExpr>),
-    
+
     /// `[N]T` — fixed-size array of N elements of type T (inline, no indirection)
     FixedArray(u64, Box<TypeExpr>),
-    
+
     /// Some ref type
     Ref(Box<TypeExpr>),
 
@@ -107,19 +111,19 @@ pub enum TypeExpr {
 
     /// `list[T]` — dynamic list type with element type T
     List(Box<TypeExpr>),
-    
+
     /// `result[T, E]` — result type with ok payload T and err payload E
     Result(Box<TypeExpr>, Box<TypeExpr>),
-    
+
     /// `fn(T, T) R` — function pointer type
     FnPtr {
         params: Vec<TypeExpr>,
         ret: Box<TypeExpr>,
     },
-    
+
     /// `mut T` — mutable parameter (e.g. `s: mut self`)
     Mut(Box<TypeExpr>),
-    
+
     /// The void type
     Void,
 
@@ -163,8 +167,8 @@ pub enum Stmt {
         iterable: Expr,
         body: Vec<Stmt>,
     },
-    Increment(String), // x++
-    Decrement(String), // x--
+    Increment(String),       // x++
+    Decrement(String),       // x--
     AddAssign(String, Expr), // x += expr
     SubAssign(String, Expr), // x -= expr
     Defer(Vec<Stmt>),
@@ -190,9 +194,12 @@ pub enum Stmt {
         expr: Expr,
         arms: Vec<(String, Vec<Stmt>)>, // (variant_name, body)
     },
+    /// `when <platform> { ... }` — platform-conditional statements
     When {
         platform: String,
         body: Vec<Stmt>,
+        or_when: Vec<(String, Vec<Stmt>)>,
+        otherwise: Vec<Stmt>,
     },
     /// `match expr { TypeName => { ... } else => { ... } }` — union type dispatch
     MatchUnion {
@@ -403,14 +410,45 @@ impl Parser {
                 }
                 self.expect(&TokenKind::RBrace)?;
                 return Ok(Item::LinkWhen { platform, libs });
-            } else {
-                let mut items = Vec::new();
+            }
+            let mut items = Vec::new();
+            while self.peek() != &TokenKind::RBrace && self.peek() != &TokenKind::Eof {
+                items.push(self.parse_item()?);
+            }
+            self.expect(&TokenKind::RBrace)?;
+            let mut or_when: Vec<(String, Vec<Item>)> = Vec::new();
+            while self.peek() == &TokenKind::Ident("or".to_string()) {
+                if self.tokens.get(self.pos + 1).map(|t| &t.kind) != Some(&TokenKind::When) {
+                    break;
+                }
+                self.advance();
+                self.advance();
+                let ow_platform = self.expect_ident()?;
+                self.expect(&TokenKind::LBrace)?;
+                let mut ow_items = Vec::new();
                 while self.peek() != &TokenKind::RBrace && self.peek() != &TokenKind::Eof {
-                    items.push(self.parse_item()?);
+                    ow_items.push(self.parse_item()?);
                 }
                 self.expect(&TokenKind::RBrace)?;
-                return Ok(Item::WhenItems { platform, items });
+                or_when.push((ow_platform, ow_items));
             }
+            let otherwise = if self.eat(&TokenKind::Otherwise) {
+                self.expect(&TokenKind::LBrace)?;
+                let mut ow = Vec::new();
+                while self.peek() != &TokenKind::RBrace && self.peek() != &TokenKind::Eof {
+                    ow.push(self.parse_item()?);
+                }
+                self.expect(&TokenKind::RBrace)?;
+                ow
+            } else {
+                Vec::new()
+            };
+            return Ok(Item::WhenItems {
+                platform,
+                items,
+                or_when,
+                otherwise,
+            });
         }
 
         let public = self.eat(&TokenKind::Pub);
@@ -447,7 +485,11 @@ impl Parser {
         self.expect(&TokenKind::Use)?;
         let name = self.expect_ident()?;
         let path = self.expect_string()?;
-        Ok(Item::Use { public: false, name, path })
+        Ok(Item::Use {
+            public: false,
+            name,
+            path,
+        })
     }
 
     fn parse_extern_fn_after_extern(&mut self, public: bool) -> Result<Item, String> {
@@ -468,7 +510,15 @@ impl Parser {
         }
         self.expect(&TokenKind::Eq)?;
         let symbol = self.expect_string()?;
-        Ok(Item::ExternFn { public, conv, name, params, variadic_after, ret, symbol })
+        Ok(Item::ExternFn {
+            public,
+            conv,
+            name,
+            params,
+            variadic_after,
+            ret,
+            symbol,
+        })
     }
 
     fn parse_extern_fn(&mut self, public: bool) -> Result<Item, String> {
@@ -494,7 +544,11 @@ impl Parser {
             });
         }
         self.expect(&TokenKind::RBrace)?;
-        Ok(Item::ExternTypeDef { public, name, fields })
+        Ok(Item::ExternTypeDef {
+            public,
+            name,
+            fields,
+        })
     }
 
     /// Parse extern function parameters, recognising a trailing `...` for variadic functions.
@@ -585,7 +639,11 @@ impl Parser {
             } else {
                 ty
             };
-            let ty = if is_mut { TypeExpr::Mut(Box::new(ty)) } else { ty };
+            let ty = if is_mut {
+                TypeExpr::Mut(Box::new(ty))
+            } else {
+                ty
+            };
             params.push((name, ty));
             if !self.eat(&TokenKind::Comma) {
                 break;
@@ -735,7 +793,11 @@ impl Parser {
             });
         }
         self.expect(&TokenKind::RBrace)?;
-        Ok(Item::TypeDef { public, name, fields })
+        Ok(Item::TypeDef {
+            public,
+            name,
+            fields,
+        })
     }
 
     fn parse_union_def(&mut self, public: bool) -> Result<Item, String> {
@@ -751,7 +813,11 @@ impl Parser {
             }
         }
         self.expect(&TokenKind::RBrace)?;
-        Ok(Item::UnionDef { public, name, variants })
+        Ok(Item::UnionDef {
+            public,
+            name,
+            variants,
+        })
     }
 
     fn parse_enum_def(&mut self, public: bool) -> Result<Item, String> {
@@ -767,7 +833,11 @@ impl Parser {
             }
         }
         self.expect(&TokenKind::RBrace)?;
-        Ok(Item::EnumDef { public, name, variants })
+        Ok(Item::EnumDef {
+            public,
+            name,
+            variants,
+        })
     }
 
     fn parse_stmts(&mut self) -> Result<Vec<Stmt>, String> {
@@ -847,7 +917,9 @@ impl Parser {
                 self.advance();
                 let has_paren = self.eat(&TokenKind::LParen);
                 let cond = self.parse_expr()?;
-                if has_paren { self.expect(&TokenKind::RParen)?; }
+                if has_paren {
+                    self.expect(&TokenKind::RParen)?;
+                }
                 self.expect(&TokenKind::LBrace)?;
                 let then = self.parse_stmts()?;
                 self.expect(&TokenKind::RBrace)?;
@@ -857,7 +929,9 @@ impl Parser {
                         self.advance();
                         let elif_has_paren = self.eat(&TokenKind::LParen);
                         let elif_cond = self.parse_expr()?;
-                        if elif_has_paren { self.expect(&TokenKind::RParen)?; }
+                        if elif_has_paren {
+                            self.expect(&TokenKind::RParen)?;
+                        }
                         self.expect(&TokenKind::LBrace)?;
                         let elif_body = self.parse_stmts()?;
                         self.expect(&TokenKind::RBrace)?;
@@ -899,7 +973,9 @@ impl Parser {
                 let first_name = self.expect_ident()?;
                 if self.eat(&TokenKind::In) {
                     let iterable = self.parse_expr()?;
-                    if has_paren { self.expect(&TokenKind::RParen)?; }
+                    if has_paren {
+                        self.expect(&TokenKind::RParen)?;
+                    }
                     self.expect(&TokenKind::LBrace)?;
                     let body = self.parse_stmts()?;
                     self.expect(&TokenKind::RBrace)?;
@@ -929,7 +1005,9 @@ impl Parser {
                 } else {
                     return Err("expected '++', '--', '+=', or '-=' in for loop post".to_string());
                 };
-                if has_paren { self.expect(&TokenKind::RParen)?; }
+                if has_paren {
+                    self.expect(&TokenKind::RParen)?;
+                }
                 self.expect(&TokenKind::LBrace)?;
                 let body = self.parse_stmts()?;
                 self.expect(&TokenKind::RBrace)?;
@@ -961,7 +1039,33 @@ impl Parser {
                 self.expect(&TokenKind::LBrace)?;
                 let body = self.parse_stmts()?;
                 self.expect(&TokenKind::RBrace)?;
-                Ok(Stmt::When { platform, body })
+                let mut or_when: Vec<(String, Vec<Stmt>)> = Vec::new();
+                while self.peek() == &TokenKind::Ident("or".to_string()) {
+                    if self.tokens.get(self.pos + 1).map(|t| &t.kind) != Some(&TokenKind::When) {
+                        break;
+                    }
+                    self.advance();
+                    self.advance();
+                    let ow_platform = self.expect_ident()?;
+                    self.expect(&TokenKind::LBrace)?;
+                    let ow_body = self.parse_stmts()?;
+                    self.expect(&TokenKind::RBrace)?;
+                    or_when.push((ow_platform, ow_body));
+                }
+                let otherwise = if self.eat(&TokenKind::Otherwise) {
+                    self.expect(&TokenKind::LBrace)?;
+                    let ow = self.parse_stmts()?;
+                    self.expect(&TokenKind::RBrace)?;
+                    ow
+                } else {
+                    Vec::new()
+                };
+                Ok(Stmt::When {
+                    platform,
+                    body,
+                    or_when,
+                    otherwise,
+                })
             }
             TokenKind::Assert => {
                 self.advance();
@@ -979,16 +1083,20 @@ impl Parser {
                 // ...or a union match (TypeName => ...)
                 // ...or a string match ("string" => ...)
                 let is_result_match = matches!(self.peek(), TokenKind::Ok | TokenKind::Err);
-                let is_enum_match = !is_result_match && matches!(self.peek(), TokenKind::Ident(_))
+                let is_enum_match = !is_result_match
+                    && matches!(self.peek(), TokenKind::Ident(_))
                     && self.tokens.get(self.pos + 1).map(|t| &t.kind) == Some(&TokenKind::Dot);
-                let is_string_match = !is_result_match && !is_enum_match
+                let is_string_match = !is_result_match
+                    && !is_enum_match
                     && matches!(self.peek(), TokenKind::StringLit(_));
-                let is_union_match = !is_result_match && !is_enum_match && !is_string_match && (
-                    matches!(self.peek(), TokenKind::Ref)
-                    || (matches!(self.peek(), TokenKind::Ident(_))
-                        && self.tokens.get(self.pos + 1).map(|t| &t.kind) == Some(&TokenKind::FatArrow))
-                    || (matches!(self.peek(), TokenKind::Else))
-                );
+                let is_union_match = !is_result_match
+                    && !is_enum_match
+                    && !is_string_match
+                    && (matches!(self.peek(), TokenKind::Ref)
+                        || (matches!(self.peek(), TokenKind::Ident(_))
+                            && self.tokens.get(self.pos + 1).map(|t| &t.kind)
+                                == Some(&TokenKind::FatArrow))
+                        || (matches!(self.peek(), TokenKind::Else)));
 
                 if is_result_match {
                     let mut ok_binding = None;
@@ -1023,9 +1131,11 @@ impl Parser {
                     self.expect(&TokenKind::RBrace)?;
                     Ok(Stmt::MatchResult {
                         expr,
-                        ok_binding: ok_binding.ok_or_else(|| "match: missing 'ok' arm".to_string())?,
+                        ok_binding: ok_binding
+                            .ok_or_else(|| "match: missing 'ok' arm".to_string())?,
                         ok_body: ok_body.unwrap_or_default(),
-                        err_binding: err_binding.ok_or_else(|| "match: missing 'err' arm".to_string())?,
+                        err_binding: err_binding
+                            .ok_or_else(|| "match: missing 'err' arm".to_string())?,
                         err_body: err_body.unwrap_or_default(),
                     })
                 } else if is_enum_match {
@@ -1069,7 +1179,11 @@ impl Parser {
                         arms.push((pattern, body));
                     }
                     self.expect(&TokenKind::RBrace)?;
-                    Ok(Stmt::MatchString { expr, arms, else_body })
+                    Ok(Stmt::MatchString {
+                        expr,
+                        arms,
+                        else_body,
+                    })
                 } else if is_union_match {
                     let mut arms: Vec<(TypeExpr, Vec<Stmt>)> = Vec::new();
                     let mut else_body = None;
@@ -1090,7 +1204,11 @@ impl Parser {
                         arms.push((ty, body));
                     }
                     self.expect(&TokenKind::RBrace)?;
-                    Ok(Stmt::MatchUnion { expr, arms, else_body })
+                    Ok(Stmt::MatchUnion {
+                        expr,
+                        arms,
+                        else_body,
+                    })
                 } else {
                     let mut some_binding = None;
                     let mut some_body = None;
@@ -1124,7 +1242,8 @@ impl Parser {
                         some_binding: some_binding
                             .ok_or_else(|| "match: missing 'some' arm".to_string())?,
                         some_body: some_body.unwrap_or_default(),
-                        none_body: none_body.ok_or_else(|| "match: missing 'none' arm".to_string())?,
+                        none_body: none_body
+                            .ok_or_else(|| "match: missing 'none' arm".to_string())?,
                     })
                 }
             }
@@ -1496,7 +1615,10 @@ impl Parser {
                 }
                 // TypeName{field: val, ...} — named struct literal
                 if self.peek() == &TokenKind::LBrace
-                    && matches!(self.tokens.get(self.pos + 1).map(|t| &t.kind), Some(TokenKind::Ident(_)))
+                    && matches!(
+                        self.tokens.get(self.pos + 1).map(|t| &t.kind),
+                        Some(TokenKind::Ident(_))
+                    )
                     && self.tokens.get(self.pos + 2).map(|t| &t.kind) == Some(&TokenKind::Colon)
                 {
                     self.advance(); // consume {

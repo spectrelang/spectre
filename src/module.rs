@@ -170,8 +170,12 @@ fn collect_used_imports_in_stmt(
             collect_used_imports_in_expr(iterable, imports, used);
             for s in body { collect_used_imports_in_stmt(s, imports, used); }
         }
-        Stmt::Defer(body) | Stmt::When { body, .. } => {
+        Stmt::Defer(body) => {
             for s in body { collect_used_imports_in_stmt(s, imports, used); }
+        }
+        Stmt::When { body, otherwise, .. } => {
+            for s in body { collect_used_imports_in_stmt(s, imports, used); }
+            for s in otherwise { collect_used_imports_in_stmt(s, imports, used); }
         }
         Stmt::MatchUnion { expr, arms, else_body } => {
             collect_used_imports_in_expr(expr, imports, used);
@@ -416,8 +420,12 @@ fn stmt_references_name(stmt: &crate::parser::Stmt, name: &str) -> bool {
             expr_references_name(iterable, name)
                 || body.iter().any(|s| stmt_references_name(s, name))
         }
-        Stmt::Defer(body) | Stmt::When { body, .. } => {
+        Stmt::Defer(body) => {
             body.iter().any(|s| stmt_references_name(s, name))
+        }
+        Stmt::When { body, otherwise, .. } => {
+            body.iter().any(|s| stmt_references_name(s, name))
+                || otherwise.iter().any(|s| stmt_references_name(s, name))
         }
         Stmt::MatchUnion { expr, arms, else_body } => {
             expr_references_name(expr, name)
@@ -627,8 +635,12 @@ fn collect_needed_subnames_in_stmt(
             collect_needed_subnames_in_expr(iterable, import_name, needed);
             for s in body { collect_needed_subnames_in_stmt(s, import_name, needed); }
         }
-        Stmt::Defer(body) | Stmt::When { body, .. } => {
+        Stmt::Defer(body) => {
             for s in body { collect_needed_subnames_in_stmt(s, import_name, needed); }
+        }
+        Stmt::When { body, otherwise, .. } => {
+            for s in body { collect_needed_subnames_in_stmt(s, import_name, needed); }
+            for s in otherwise { collect_needed_subnames_in_stmt(s, import_name, needed); }
         }
         Stmt::MatchUnion { expr, arms, else_body } => {
             collect_needed_subnames_in_expr(expr, import_name, needed);
