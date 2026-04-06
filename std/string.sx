@@ -37,6 +37,11 @@ pub union StrOrRChar = {
     Str(String) | RChar(ref char)
 }
 
+/// Compare two raw strings.
+pub fn rchar_eq(a: ref char, b: ref char) i64 = {
+    return trust compare(RChar(a), RChar(b))
+}
+
 pub fn compare(a: StrOrRChar, b: StrOrRChar) i64! = {
     val aptr: mut ref char = ""
     match a {
