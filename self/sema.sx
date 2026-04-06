@@ -69,7 +69,7 @@ fn scope_lookup(ctx: ref SemaCtx, name: ref char) i64! = {
                     match e_opt {
                         some e => {
                             val entry: ref ScopeEntry = e as ref ScopeEntry
-                            if std.string.compare(entry.name, name) == 0 {
+                            if std.string.compare(std.string.RChar(entry.name), std.string.RChar(name)) == 0 {
                                 return entry.mutable
                             }
                         }
