@@ -581,7 +581,7 @@ fn resolve_callee_name(node: ref parser.Node) ref char! = {
         return node.d0 as ref char
     }
     if k == parser.NK_FIELD {
-        val base: ref char = resolve_callee_name(node.d0 as ref void)
+        val base: ref char = resolve_callee_name(node.d0 as ref parser.Node)
         val field: ref char = node.d1 as ref char
         val buf: ref char = @alloc(256) as ref char
         @snprintf(buf, 256, "%s__%s", {base, field})
