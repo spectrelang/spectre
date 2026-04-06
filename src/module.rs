@@ -1009,12 +1009,25 @@ fn collect_needed_subnames_in_expr(expr: &Expr, import_name: &str, needed: &mut 
 /// Turn a use-path string into a filesystem path.
 ///
 /// Rules:
-///   "std"        -> <workspace>/std/std.sx (special case)
+///   "std"           -> <workspace>/std/std.sx
+///   "std/string"    -> <workspace>/std/string.sx
 ///   "stdio.sx"      -> <current_dir>/stdio.sx
-///   "foo/bar.sx" -> <current_dir>/foo/bar.sx
+///   "foo/bar.sx"    -> <current_dir>/foo/bar.sx
 fn resolve_use_path(path: &str, dir: &Path) -> PathBuf {
     if !path.ends_with(".sx") {
         let workspace_root = find_workspace_root(dir);
+        if path.contains('/') {
+            let candidate = workspace_root.join(format!("{path}.sx"));
+            if candidate.exists() {
+                return candidate;
+            }
+            if let Ok(exe) = std::env::current_exe() {
+                if let Some(exe_dir) = exe.parent() {
+                    return exe_dir.join(format!("{path}.sx"));
+                }
+            }
+            return candidate;
+        }
         let candidate = workspace_root.join(path).join(format!("{path}.sx"));
         if candidate.exists() {
             return candidate;
