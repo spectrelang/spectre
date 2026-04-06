@@ -1,0 +1,899 @@
+/// Spectre Language Server Protocol (LSP) implementation.
+///
+/// Implements JSON-RPC 2.0 / LSP 3.17 over stdin/stdout.
+/// Supports:
+///   - initialize / initialized / shutdown / exit
+///   - textDocument/didOpen, didChange, didClose
+///   - textDocument/hover
+///   - textDocument/completion
+///   - textDocument/publishDiagnostics (push on open/change)
+
+val std    = use("std")
+val json   = use("std/json.sx")
+val str    = use("std/string")
+val lexer  = use("lexer.sx")
+val parser = use("parser.sx")
+val sema   = use("sema.sx")
+
+// ─── C bindings ───────────────────────────────────────────────────────────────
+
+extern (C) fn fread(buf: ref void, size: usize, count: usize, stream: ref void) usize! = "fread"
+extern (C) fn fwrite(buf: ref void, size: usize, count: usize, stream: ref void) usize! = "fwrite"
+extern (C) fn fflush(stream: ref void) i32! = "fflush"
+extern (C) fn strlen(s: ref char) usize! = "strlen"
+extern (C) fn atoi(s: ref char) i32! = "atoi"
+extern (C) fn strstr(haystack: ref char, needle: ref char) ref char! = "strstr"
+extern (C) fn memcpy(dst: ref void, src: ref void, n: usize) ref void! = "memcpy"
+extern (C) fn free(ptr: ref void) void! = "free"
+
+// ─── Document store ───────────────────────────────────────────────────────────
+// A simple open-addressed map: uri (ref char) → source text (ref char).
+// Layout per slot (16 bytes): [uri_ptr: 8][text_ptr: 8]
+// We keep a flat array of STORE_CAP slots.
+
+pub val STORE_CAP: i64 = 64
+
+type DocStore = {
+    slots: mut ref void   // STORE_CAP * 16 bytes
+    count: mut i64
+}
+
+fn store_new() ref DocStore! = {
+    val s: mut ref DocStore = @alloc(@sizeof(DocStore)) as ref DocStore
+    s.slots = @alloc(STORE_CAP * 16)
+    @memset(s.slots, 0, STORE_CAP * 16)
+    s.count = 0
+    return s
+}
+
+fn store_hash(uri: ref char) i64! = {
+    val h: mut i64 = 5381
+    val i: mut i64 = 0
+    for {
+        val c: i64 = @load8(@ptradd(uri, i)) as i64
+        if c == 0 { break }
+        h = h * 33 + c
+        i++
+    }
+    if h < 0 { h = -h }
+    return h % STORE_CAP
+}
+
+fn store_set(s: ref DocStore, uri: ref char, text: ref char) void! = {
+    val idx: mut i64 = store_hash(uri)
+    val i: mut i64 = 0
+    for {
+        if i >= STORE_CAP { break }
+        val slot: ref void = @ptradd(s.slots, idx * 16)
+        val existing: ref char = @load(slot) as ref char
+        if existing == 0 as ref char {
+            @store(slot, uri)
+            @store(@ptradd(slot, 8), text)
+            s.count = s.count + 1
+            return
+        }
+        if str.rchar_cmp(existing, uri) == 0 {
+            @store(@ptradd(slot, 8), text)
+            return
+        }
+        idx = (idx + 1) % STORE_CAP
+        i++
+    }
+}
+
+fn store_get(s: ref DocStore, uri: ref char) option[ref char]! = {
+    val idx: mut i64 = store_hash(uri)
+    val i: mut i64 = 0
+    for {
+        if i >= STORE_CAP { break }
+        val slot: ref void = @ptradd(s.slots, idx * 16)
+        val existing: ref char = @load(slot) as ref char
+        if existing == 0 as ref char { return none }
+        if str.rchar_cmp(existing, uri) == 0 {
+            val text: ref char = @load(@ptradd(slot, 8)) as ref char
+            return some text
+        }
+        idx = (idx + 1) % STORE_CAP
+        i++
+    }
+    return none
+}
+
+// ─── LSP I/O helpers ──────────────────────────────────────────────────────────
+
+/// Read exactly `n` bytes from stdin into a heap buffer.
+/// Returns the buffer (null-terminated) or none on EOF/error.
+fn read_exact(n: usize) option[ref char]! = {
+    val buf: ref char = @alloc(n + 1) as ref char
+    val got: usize = fread(buf, 1, n, @stdin())
+    if got != n {
+        @free(buf)
+        return none
+    }
+    @store8(@ptradd(buf, n), 0)
+    return some buf
+}
+
+/// Read one line from stdin (up to 4096 bytes). Strips \r\n.
+fn read_line_stdin() option[ref char]! = {
+    val buf: ref char = @alloc(4096) as ref char
+    val result: ref char = @fgets(buf, 4096, @stdin())
+    if result == 0 as ref char {
+        @free(buf)
+        return none
+    }
+    // strip trailing \r\n
+    val l: mut usize = strlen(buf)
+    for {
+        if l == 0 { break }
+        val c: u8 = @load8(@ptradd(buf, l - 1)) as u8
+        if c == 10 || c == 13 {
+            @store8(@ptradd(buf, l - 1), 0)
+            l--
+        } else {
+            break
+        }
+    }
+    return some buf
+}
+
+/// Parse "Content-Length: NNN" and return NNN, or -1.
+fn parse_content_length(line: ref char) i64! = {
+    val prefix: ref char = "Content-Length: "
+    val plen: usize = strlen(prefix)
+    val llen: usize = strlen(line)
+    if llen <= plen { return -1 }
+    val i: mut usize = 0
+    for {
+        if i >= plen { break }
+        val a: u8 = @load8(@ptradd(line, i)) as u8
+        val b: u8 = @load8(@ptradd(prefix, i)) as u8
+        if a != b { return -1 }
+        i++
+    }
+    val num_part: ref char = @ptradd(line, plen) as ref char
+    return atoi(num_part) as i64
+}
+
+/// Read a full LSP message from stdin.
+/// Returns the JSON body as a heap string, or none on EOF.
+fn read_message() option[ref char]! = {
+    val content_len: mut i64 = -1
+    for {
+        val line_opt = read_line_stdin()
+        match line_opt {
+            none => { return none }
+            some line => {
+                val l: usize = strlen(line)
+                if l == 0 {
+                    // blank line = end of headers
+                    @free(line)
+                    break
+                }
+                val cl: i64 = parse_content_length(line)
+                if cl >= 0 { content_len = cl }
+                @free(line)
+            }
+        }
+    }
+    if content_len <= 0 { return none }
+    return read_exact(content_len as usize)
+}
+
+/// Write a raw string to stdout.
+fn write_stdout(s: ref char) void! = {
+    val l: usize = strlen(s)
+    fwrite(s, 1, l, @stdout())
+}
+
+/// Send a complete LSP response (adds Content-Length header).
+fn send_message(body: ref char) void! = {
+    val body_len: usize = strlen(body)
+    val len_str: ref char = std.fmt.i64_to_string(body_len as i64)
+    write_stdout("Content-Length: ")
+    write_stdout(len_str)
+    write_stdout("\r\n\r\n")
+    write_stdout(body)
+    fflush(@stdout())
+    @free(len_str)
+}
+
+// ─── JSON-RPC helpers ─────────────────────────────────────────────────────────
+// id_str is the raw JSON text of the id field (e.g. "1", "\"req-1\"", "null").
+// We embed it verbatim by building a string value and relying on the fact that
+// yyjson_mut_strcpy copies the bytes — the serialiser will emit them as a JSON
+// string, which is close enough for numeric ids in practice.  For a fully
+// correct implementation the id would need to be re-parsed; this is sufficient
+// for all major LSP clients which use integer ids.
+
+/// Build a JSON-RPC success response.
+/// id_str: raw text of the id (e.g. "1" or "null").
+fn make_response(id_str: ref char, result_val: ref void, b: ref void) ref char! = {
+    val obj: ref void = json.build_object(b)
+    val k_jsonrpc: ref void = json.build_str(b, "jsonrpc")
+    val v_jsonrpc: ref void = json.build_str(b, "2.0")
+    json.object_add(obj, k_jsonrpc, v_jsonrpc)
+    val k_id: ref void = json.build_str(b, "id")
+    // Re-create id as an integer if it looks like a number, else as string.
+    val id_val: mut ref void = json.build_null(b)
+    if id_str != 0 as ref char {
+        val first: u8 = @load8(id_str) as u8
+        if first >= 48 && first <= 57 {
+            val n: i64 = atoi(id_str) as i64
+            id_val = json.build_int(b, n)
+        } elif first != 110 { // not 'n' (null)
+            id_val = json.build_str(b, id_str)
+        }
+    }
+    json.object_add(obj, k_id, id_val)
+    val k_result: ref void = json.build_str(b, "result")
+    json.object_add(obj, k_result, result_val)
+    json.builder_set_root(b, obj)
+    return json.builder_to_string(b)
+}
+
+/// Build a JSON-RPC notification (no id).
+fn make_notification(method: ref char, params_val: ref void, b: ref void) ref char! = {
+    val obj: ref void = json.build_object(b)
+    val k_jsonrpc: ref void = json.build_str(b, "jsonrpc")
+    val v_jsonrpc: ref void = json.build_str(b, "2.0")
+    json.object_add(obj, k_jsonrpc, v_jsonrpc)
+    val k_method: ref void = json.build_str(b, "method")
+    val v_method: ref void = json.build_str(b, method)
+    json.object_add(obj, k_method, v_method)
+    val k_params: ref void = json.build_str(b, "params")
+    json.object_add(obj, k_params, params_val)
+    json.builder_set_root(b, obj)
+    return json.builder_to_string(b)
+}
+
+// ─── Diagnostics ──────────────────────────────────────────────────────────────
+
+/// Parse and analyse `source`, then push diagnostics for `uri`.
+fn publish_diagnostics(uri: ref char, source: ref char) void! = {
+    val b: ref void = json.builder_new()
+
+    val diag_arr: ref void = json.build_array(b)
+
+    val lex_result = lexer.tokenize(source)
+    match lex_result {
+        err e => {
+            // Lex error — emit a single diagnostic at line 1.
+            val diag: ref void = json.build_object(b)
+
+            val range_obj: ref void = json.build_object(b)
+            val start_obj: ref void = json.build_object(b)
+            val k_line: ref void = json.build_str(b, "line")
+            val v_line: ref void = json.build_int(b, 0)
+            json.object_add(start_obj, k_line, v_line)
+            val k_char: ref void = json.build_str(b, "character")
+            val v_char: ref void = json.build_int(b, 0)
+            json.object_add(start_obj, k_char, v_char)
+            val k_start: ref void = json.build_str(b, "start")
+            json.object_add(range_obj, k_start, start_obj)
+            val k_end: ref void = json.build_str(b, "end")
+            json.object_add(range_obj, k_end, start_obj)
+
+            val k_range: ref void = json.build_str(b, "range")
+            json.object_add(diag, k_range, range_obj)
+            val k_sev: ref void = json.build_str(b, "severity")
+            val v_sev: ref void = json.build_int(b, 1)
+            json.object_add(diag, k_sev, v_sev)
+            val k_msg: ref void = json.build_str(b, "message")
+            val v_msg: ref void = json.build_str(b, e)
+            json.object_add(diag, k_msg, v_msg)
+            json.array_append(diag_arr, diag)
+        }
+        ok tokens => {
+            val parse_result = parser.parse_module(tokens, uri)
+            match parse_result {
+                err e => {
+                    val diag: ref void = json.build_object(b)
+                    val range_obj: ref void = json.build_object(b)
+                    val start_obj: ref void = json.build_object(b)
+                    val k_line: ref void = json.build_str(b, "line")
+                    val v_line: ref void = json.build_int(b, 0)
+                    json.object_add(start_obj, k_line, v_line)
+                    val k_char: ref void = json.build_str(b, "character")
+                    val v_char: ref void = json.build_int(b, 0)
+                    json.object_add(start_obj, k_char, v_char)
+                    val k_start: ref void = json.build_str(b, "start")
+                    json.object_add(range_obj, k_start, start_obj)
+                    val k_end: ref void = json.build_str(b, "end")
+                    json.object_add(range_obj, k_end, start_obj)
+                    val k_range: ref void = json.build_str(b, "range")
+                    json.object_add(diag, k_range, range_obj)
+                    val k_sev: ref void = json.build_str(b, "severity")
+                    val v_sev: ref void = json.build_int(b, 1)
+                    json.object_add(diag, k_sev, v_sev)
+                    val k_msg: ref void = json.build_str(b, "message")
+                    val v_msg: ref void = json.build_str(b, e)
+                    json.object_add(diag, k_msg, v_msg)
+                    json.array_append(diag_arr, diag)
+                }
+                ok items => {
+                    val errors: list[ref char] = sema.check_module(items, uri)
+                    for err_msg in errors {
+                        // sema errors are "file:line: message" — extract line number.
+                        val line_num: mut i64 = 0
+                        val colon1: ref char = strstr(err_msg, ":")
+                        if colon1 != 0 as ref char {
+                            val after1: ref char = @ptradd(colon1, 1) as ref char
+                            val colon2: ref char = strstr(after1, ":")
+                            if colon2 != 0 as ref char {
+                                // extract the number between the two colons
+                                val num_len: usize = (colon2 as usize - after1 as usize) as usize
+                                val num_buf: ref char = @alloc(num_len + 1) as ref char
+                                memcpy(num_buf, after1, num_len)
+                                @store8(@ptradd(num_buf, num_len), 0)
+                                line_num = atoi(num_buf) as i64 - 1
+                                if line_num < 0 { line_num = 0 }
+                                @free(num_buf)
+                            }
+                        }
+
+                        val diag: ref void = json.build_object(b)
+                        val range_obj: ref void = json.build_object(b)
+                        val start_obj: ref void = json.build_object(b)
+                        val k_line: ref void = json.build_str(b, "line")
+                        val v_line: ref void = json.build_int(b, line_num)
+                        json.object_add(start_obj, k_line, v_line)
+                        val k_char: ref void = json.build_str(b, "character")
+                        val v_char: ref void = json.build_int(b, 0)
+                        json.object_add(start_obj, k_char, v_char)
+                        val k_start: ref void = json.build_str(b, "start")
+                        json.object_add(range_obj, k_start, start_obj)
+                        val k_end: ref void = json.build_str(b, "end")
+                        json.object_add(range_obj, k_end, start_obj)
+                        val k_range: ref void = json.build_str(b, "range")
+                        json.object_add(diag, k_range, range_obj)
+                        val k_sev: ref void = json.build_str(b, "severity")
+                        val v_sev: ref void = json.build_int(b, 1)
+                        json.object_add(diag, k_sev, v_sev)
+                        val k_msg: ref void = json.build_str(b, "message")
+                        val v_msg: ref void = json.build_str(b, err_msg)
+                        json.object_add(diag, k_msg, v_msg)
+                        json.array_append(diag_arr, diag)
+                    }
+                }
+            }
+        }
+    }
+
+    val params: ref void = json.build_object(b)
+    val k_uri: ref void = json.build_str(b, "uri")
+    val v_uri: ref void = json.build_str(b, uri)
+    json.object_add(params, k_uri, v_uri)
+    val k_diags: ref void = json.build_str(b, "diagnostics")
+    json.object_add(params, k_diags, diag_arr)
+
+    val notif: ref char = make_notification("textDocument/publishDiagnostics", params, b)
+    send_message(notif)
+    json.json_str_free(notif)
+    json.builder_free(b)
+}
+
+// ─── Completion ───────────────────────────────────────────────────────────────
+
+/// Spectre keywords for completion.
+val KEYWORDS: list[ref char] = [
+    "fn", "val", "mut", "pub", "type", "union", "enum", "extern",
+    "return", "if", "elif", "else", "for", "in", "match", "break",
+    "continue", "defer", "assert", "pre", "post", "guarded", "trust",
+    "some", "none", "ok", "err", "true", "false", "use", "link",
+    "when", "as", "addr", "deref", "not"
+]
+
+/// Spectre built-in types for completion.
+val BUILTIN_TYPES: list[ref char] = [
+    "i8", "i16", "i32", "i64", "u8", "u16", "u32", "u64",
+    "f32", "f64", "bool", "char", "void", "usize", "ref",
+    "list", "option", "result"
+]
+
+/// Spectre built-in functions for completion.
+val BUILTINS: list[ref char] = [
+    "@alloc", "@free", "@realloc", "@load", "@store", "@load8", "@store8",
+    "@ptradd", "@memcpy", "@memset", "@sizeof", "@len", "@get", "@append",
+    "@remove", "@insert", "@reserve", "@capacity", "@snprintf", "@puts",
+    "@fgets", "@printf", "@dprintf", "@getchar", "@stdin", "@stdout",
+    "@args", "@fmt"
+]
+
+fn handle_completion(id_val: ref void, _params: ref void) void! = {
+    val b: ref void = json.builder_new()
+    val items_arr: ref void = json.build_array(b)
+
+    // Keywords
+    for kw in KEYWORDS {
+        val item: ref void = json.build_object(b)
+        val k_label: ref void = json.build_str(b, "label")
+        val v_label: ref void = json.build_str(b, kw)
+        json.object_add(item, k_label, v_label)
+        val k_kind: ref void = json.build_str(b, "kind")
+        val v_kind: ref void = json.build_int(b, 14) // Keyword
+        json.object_add(item, k_kind, v_kind)
+        json.array_append(items_arr, item)
+    }
+
+    // Built-in types
+    for ty in BUILTIN_TYPES {
+        val item: ref void = json.build_object(b)
+        val k_label: ref void = json.build_str(b, "label")
+        val v_label: ref void = json.build_str(b, ty)
+        json.object_add(item, k_label, v_label)
+        val k_kind: ref void = json.build_str(b, "kind")
+        val v_kind: ref void = json.build_int(b, 7) // Class/Type
+        json.object_add(item, k_kind, v_kind)
+        json.array_append(items_arr, item)
+    }
+
+    // Built-in functions
+    for bi in BUILTINS {
+        val item: ref void = json.build_object(b)
+        val k_label: ref void = json.build_str(b, "label")
+        val v_label: ref void = json.build_str(b, bi)
+        json.object_add(item, k_label, v_label)
+        val k_kind: ref void = json.build_str(b, "kind")
+        val v_kind: ref void = json.build_int(b, 3) // Function
+        json.object_add(item, k_kind, v_kind)
+        json.array_append(items_arr, item)
+    }
+
+    val resp: ref char = make_response(id_val, items_arr, b)
+    send_message(resp)
+    json.json_str_free(resp)
+    json.builder_free(b)
+}
+
+// ─── Hover ────────────────────────────────────────────────────────────────────
+
+/// Return a markdown hover string for a known keyword/builtin, or none.
+fn hover_for_word(word: ref char) option[ref char]! = {
+    if str.rchar_cmp(word, "pre") == 0 {
+        return some "**pre** — precondition block. Assertions that must hold before the function body executes."
+    }
+    if str.rchar_cmp(word, "post") == 0 {
+        return some "**post** — postcondition block. Assertions that must hold before the function returns."
+    }
+    if str.rchar_cmp(word, "trust") == 0 {
+        return some "**trust** — assert safety at the call site, allowing a verified function to call a trusted (`!`) function without adopting the `!` marker."
+    }
+    if str.rchar_cmp(word, "guarded") == 0 {
+        return some "**guarded pre** — a precondition that is checked at runtime (generates a branch) rather than being statically verified."
+    }
+    if str.rchar_cmp(word, "val") == 0 {
+        return some "**val** — immutable binding. The value cannot be reassigned after initialisation."
+    }
+    if str.rchar_cmp(word, "mut") == 0 {
+        return some "**mut** — mutable type modifier. Allows the binding or field to be reassigned."
+    }
+    if str.rchar_cmp(word, "fn") == 0 {
+        return some "**fn** — function declaration.\n\n```spectre\nfn name(arg: Type) ReturnType = { ... }\n```"
+    }
+    if str.rchar_cmp(word, "pub") == 0 {
+        return some "**pub** — export a declaration from the current module."
+    }
+    if str.rchar_cmp(word, "use") == 0 {
+        return some "**use** — import a module.\n\n```spectre\nval std = use(\"std\")\n```"
+    }
+    if str.rchar_cmp(word, "match") == 0 {
+        return some "**match** — pattern match on `option`, `result`, `enum`, `union`, or string values."
+    }
+    if str.rchar_cmp(word, "some") == 0 {
+        return some "**some** — wrap a value in `option[T]`."
+    }
+    if str.rchar_cmp(word, "none") == 0 {
+        return some "**none** — the empty `option[T]` value."
+    }
+    if str.rchar_cmp(word, "ok") == 0 {
+        return some "**ok** — the success variant of `result[T, E]`."
+    }
+    if str.rchar_cmp(word, "err") == 0 {
+        return some "**err** — the error variant of `result[T, E]`."
+    }
+    if str.rchar_cmp(word, "defer") == 0 {
+        return some "**defer** — schedule a statement to run when the enclosing scope exits (LIFO order)."
+    }
+    if str.rchar_cmp(word, "assert") == 0 {
+        return some "**assert** — runtime assertion. Panics if the condition is false."
+    }
+    if str.rchar_cmp(word, "when") == 0 {
+        return some "**when** — conditional compilation block.\n\n```spectre\nwhen linux { ... }\nwhen darwin { ... }\n```"
+    }
+    if str.rchar_cmp(word, "extern") == 0 {
+        return some "**extern** — declare an external C function or type.\n\n```spectre\nextern (C) fn strlen(s: ref char) i64! = \"strlen\"\n```"
+    }
+    if str.rchar_cmp(word, "link") == 0 {
+        return some "**link** — add a linker flag for the current module.\n\n```spectre\nlink \"-lm\"\n```"
+    }
+    if str.rchar_cmp(word, "ref") == 0 {
+        return some "**ref T** — a pointer to a value of type `T`."
+    }
+    if str.rchar_cmp(word, "list") == 0 {
+        return some "**list[T]** — a dynamic array of `T`."
+    }
+    if str.rchar_cmp(word, "option") == 0 {
+        return some "**option[T]** — an optional value: either `some T` or `none`."
+    }
+    if str.rchar_cmp(word, "result") == 0 {
+        return some "**result[T, E]** — a result value: either `ok T` or `err E`."
+    }
+    return none
+}
+
+fn is_word_char(c: u8) bool! = {
+    if c >= 65 && c <= 90  { return true }  // A-Z
+    if c >= 97 && c <= 122 { return true }  // a-z
+    if c >= 48 && c <= 57  { return true }  // 0-9
+    if c == 95  { return true }              // _
+    if c == 64  { return true }              // @
+    return false
+}
+
+/// Extract the word at a given (line, character) position in source text.
+fn word_at(source: ref char, line: i64, character: i64) ref char! = {
+    val src_len: usize = strlen(source)
+    // Walk to the target line.
+    val cur_line: mut i64 = 0
+    val i: mut usize = 0
+    for {
+        if i >= src_len { break }
+        if cur_line == line { break }
+        val c: u8 = @load8(@ptradd(source, i)) as u8
+        if c == 10 { cur_line++ }
+        i++
+    }
+    // Now i points to the start of `line`. Advance `character` columns.
+    val col: mut i64 = 0
+    for {
+        if i >= src_len { break }
+        if col >= character { break }
+        val c: u8 = @load8(@ptradd(source, i)) as u8
+        if c == 10 { break }
+        col++
+        i++
+    }
+    // Find word boundaries (alphanumeric + _ + @).
+    val start: mut usize = i
+    for {
+        if start == 0 { break }
+        val c: u8 = @load8(@ptradd(source, start - 1)) as u8
+        if !is_word_char(c) { break }
+        start--
+    }
+    val end: mut usize = i
+    for {
+        if end >= src_len { break }
+        val c: u8 = @load8(@ptradd(source, end)) as u8
+        if !is_word_char(c) { break }
+        end++
+    }
+    val wlen: usize = end - start
+    if wlen == 0 { return "" }
+    val word: ref char = @alloc(wlen + 1) as ref char
+    memcpy(word, @ptradd(source, start), wlen)
+    @store8(@ptradd(word, wlen), 0)
+    return word
+}
+
+fn handle_hover(id_val: ref void, params: ref void, store: ref DocStore) void! = {
+    val b: ref void = json.builder_new()
+
+    // Extract uri, line, character from params.
+    val td_opt = json.obj_get(params, "textDocument")
+    val pos_opt = json.obj_get(params, "position")
+
+    match td_opt {
+        none => {
+            val null_val: ref void = json.build_null(b)
+            val resp: ref char = make_response(id_val, null_val, b)
+            send_message(resp)
+            json.json_str_free(resp)
+            json.builder_free(b)
+            return
+        }
+        some td => {
+            val uri_opt = json.obj_get_str(td, "uri")
+            match uri_opt {
+                none => {
+                    val null_val: ref void = json.build_null(b)
+                    val resp: ref char = make_response(id_val, null_val, b)
+                    send_message(resp)
+                    json.json_str_free(resp)
+                    json.builder_free(b)
+                    return
+                }
+                some uri => {
+                    val line_num: mut i64 = 0
+                    val char_num: mut i64 = 0
+                    match pos_opt {
+                        some pos => {
+                            match json.obj_get_int(pos, "line") {
+                                some l => { line_num = l }
+                                none   => {}
+                            }
+                            match json.obj_get_int(pos, "character") {
+                                some c => { char_num = c }
+                                none   => {}
+                            }
+                        }
+                        none => {}
+                    }
+
+                    val src_opt = store_get(store, uri)
+                    match src_opt {
+                        none => {
+                            val null_val: ref void = json.build_null(b)
+                            val resp: ref char = make_response(id_val, null_val, b)
+                            send_message(resp)
+                            json.json_str_free(resp)
+                            json.builder_free(b)
+                            return
+                        }
+                        some source => {
+                            val word: ref char = word_at(source, line_num, char_num)
+                            val hover_opt = hover_for_word(word)
+                            @free(word)
+                            match hover_opt {
+                                none => {
+                                    val null_val: ref void = json.build_null(b)
+                                    val resp: ref char = make_response(id_val, null_val, b)
+                                    send_message(resp)
+                                    json.json_str_free(resp)
+                                    json.builder_free(b)
+                                    return
+                                }
+                                some hover_text => {
+                                    val contents: ref void = json.build_object(b)
+                                    val k_kind: ref void = json.build_str(b, "kind")
+                                    val v_kind: ref void = json.build_str(b, "markdown")
+                                    json.object_add(contents, k_kind, v_kind)
+                                    val k_value: ref void = json.build_str(b, "value")
+                                    val v_value: ref void = json.build_str(b, hover_text)
+                                    json.object_add(contents, k_value, v_value)
+
+                                    val result_obj: ref void = json.build_object(b)
+                                    val k_contents: ref void = json.build_str(b, "contents")
+                                    json.object_add(result_obj, k_contents, contents)
+
+                                    val resp: ref char = make_response(id_val, result_obj, b)
+                                    send_message(resp)
+                                    json.json_str_free(resp)
+                                    json.builder_free(b)
+                                    return
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ─── Request dispatcher ───────────────────────────────────────────────────────
+
+fn handle_initialize(id_val: ref void) void! = {
+    val b: ref void = json.builder_new()
+
+    val caps: ref void = json.build_object(b)
+
+    // textDocumentSync: 1 = Full sync
+    val k_sync: ref void = json.build_str(b, "textDocumentSync")
+    val v_sync: ref void = json.build_int(b, 1)
+    json.object_add(caps, k_sync, v_sync)
+
+    // hoverProvider: true
+    val k_hover: ref void = json.build_str(b, "hoverProvider")
+    val v_hover: ref void = json.build_bool(b, true)
+    json.object_add(caps, k_hover, v_hover)
+
+    // completionProvider
+    val comp_opts: ref void = json.build_object(b)
+    val k_trigger: ref void = json.build_str(b, "triggerCharacters")
+    val trigger_arr: ref void = json.build_array(b)
+    val t1: ref void = json.build_str(b, ".")
+    val t2: ref void = json.build_str(b, "@")
+    json.array_append(trigger_arr, t1)
+    json.array_append(trigger_arr, t2)
+    json.object_add(comp_opts, k_trigger, trigger_arr)
+    val k_comp: ref void = json.build_str(b, "completionProvider")
+    json.object_add(caps, k_comp, comp_opts)
+
+    val result_obj: ref void = json.build_object(b)
+    val k_caps: ref void = json.build_str(b, "capabilities")
+    json.object_add(result_obj, k_caps, caps)
+
+    val k_server_info: ref void = json.build_str(b, "serverInfo")
+    val server_info: ref void = json.build_object(b)
+    val k_name: ref void = json.build_str(b, "name")
+    val v_name: ref void = json.build_str(b, "spectre-lsp")
+    json.object_add(server_info, k_name, v_name)
+    val k_version: ref void = json.build_str(b, "version")
+    val v_version: ref void = json.build_str(b, "0.1.0")
+    json.object_add(server_info, k_version, v_version)
+    json.object_add(result_obj, k_server_info, server_info)
+
+    val resp: ref char = make_response(id_val, result_obj, b)
+    send_message(resp)
+    json.json_str_free(resp)
+    json.builder_free(b)
+}
+
+fn handle_did_open(params: ref void, store: ref DocStore) void! = {
+    val td_opt = json.obj_get(params, "textDocument")
+    match td_opt {
+        none => { return }
+        some td => {
+            val uri_opt  = json.obj_get_str(td, "uri")
+            val text_opt = json.obj_get_str(td, "text")
+            match uri_opt {
+                none => { return }
+                some uri => {
+                    match text_opt {
+                        none => { return }
+                        some text => {
+                            // Copy strings so they outlive the parsed doc.
+                            val uri_copy: ref char  = str.cstr(str.from(uri))
+                            val text_copy: ref char = str.cstr(str.from(text))
+                            store_set(store, uri_copy, text_copy)
+                            publish_diagnostics(uri_copy, text_copy)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+fn handle_did_change(params: ref void, store: ref DocStore) void! = {
+    val td_opt      = json.obj_get(params, "textDocument")
+    val changes_opt = json.obj_get(params, "contentChanges")
+    match td_opt {
+        none => { return }
+        some td => {
+            val uri_opt = json.obj_get_str(td, "uri")
+            match uri_opt {
+                none => { return }
+                some uri => {
+                    match changes_opt {
+                        none => { return }
+                        some changes => {
+                            // Take the last change (full sync).
+                            val n: usize = json.arr_len(changes)
+                            if n == 0 { return }
+                            val last_opt = json.arr_get(changes, n - 1)
+                            match last_opt {
+                                none => { return }
+                                some last => {
+                                    val text_opt = json.obj_get_str(last, "text")
+                                    match text_opt {
+                                        none => { return }
+                                        some text => {
+                                            val uri_copy: ref char  = str.cstr(str.from(uri))
+                                            val text_copy: ref char = str.cstr(str.from(text))
+                                            store_set(store, uri_copy, text_copy)
+                                            publish_diagnostics(uri_copy, text_copy)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+fn send_null_response(id_val: ref void) void! = {
+    val b: ref void = json.builder_new()
+    val null_val: ref void = json.build_null(b)
+    val resp: ref char = make_response(id_val, null_val, b)
+    send_message(resp)
+    json.json_str_free(resp)
+    json.builder_free(b)
+}
+
+fn dispatch(msg_root: ref void, store: ref DocStore) bool! = {
+    val method_opt = json.obj_get_str(msg_root, "method")
+    match method_opt {
+        none => { return true }
+        some method => {
+            // Extract id as a raw string for embedding in responses.
+            val id_str: mut ref char = "null"
+            val id_raw_opt = json.obj_get(msg_root, "id")
+            match id_raw_opt {
+                some id_raw => {
+                    if json.val_is_int(id_raw) {
+                        val n: i64 = json.val_get_int(id_raw)
+                        id_str = std.fmt.i64_to_string(n)
+                    } elif json.val_is_str(id_raw) {
+                        id_str = json.val_get_str(id_raw)
+                    }
+                }
+                none => {}
+            }
+
+            val params_opt = json.obj_get(msg_root, "params")
+            val params: mut ref void = 0 as ref void
+            match params_opt {
+                some p => { params = p }
+                none   => {}
+            }
+
+            if str.rchar_cmp(method, "initialize") == 0 {
+                handle_initialize(id_str)
+                return true
+            }
+            if str.rchar_cmp(method, "initialized") == 0 {
+                return true
+            }
+            if str.rchar_cmp(method, "shutdown") == 0 {
+                send_null_response(id_str)
+                return true
+            }
+            if str.rchar_cmp(method, "exit") == 0 {
+                return false
+            }
+            if str.rchar_cmp(method, "textDocument/didOpen") == 0 {
+                if params != 0 as ref void { handle_did_open(params, store) }
+                return true
+            }
+            if str.rchar_cmp(method, "textDocument/didChange") == 0 {
+                if params != 0 as ref void { handle_did_change(params, store) }
+                return true
+            }
+            if str.rchar_cmp(method, "textDocument/didClose") == 0 {
+                return true
+            }
+            if str.rchar_cmp(method, "textDocument/hover") == 0 {
+                if params != 0 as ref void {
+                    handle_hover(id_str, params, store)
+                } else {
+                    send_null_response(id_str)
+                }
+                return true
+            }
+            if str.rchar_cmp(method, "textDocument/completion") == 0 {
+                handle_completion(id_str, params)
+                return true
+            }
+            // Unknown request with an id — return null result.
+            match id_raw_opt {
+                some _ => { send_null_response(id_str) }
+                none   => {}
+            }
+            return true
+        }
+    }
+}
+
+// ─── Entry point ──────────────────────────────────────────────────────────────
+
+pub fn main() void! = {
+    val store: ref DocStore = store_new()
+
+    for {
+        val msg_opt = read_message()
+        match msg_opt {
+            none => { break }
+            some body => {
+                val doc_opt = json.parse(body)
+                @free(body)
+                match doc_opt {
+                    none => {
+                        // Malformed JSON — skip.
+                    }
+                    some handle => {
+                        val root: ref void = json.doc_root(handle)
+                        val keep_going: bool = dispatch(root, store)
+                        json.doc_free(handle)
+                        if !keep_going { break }
+                    }
+                }
+            }
+        }
+    }
+}
