@@ -1498,3 +1498,245 @@ pub fn parse_module(tokens: list[ref lexer.Token], filename: ref char) result[li
     }
     return ok items
 }
+
+fn parse_src(src: ref char) result[list[ref Node], ref char]! = {
+    val r = lexer.tokenize(src)
+    match r {
+        err e => { return err e }
+        ok toks => { return parse_module(toks, "<test>") }
+    }
+}
+
+fn parse_expr_src(src: ref char) result[ref Node, ref char]! = {
+    val r = lexer.tokenize(src)
+    match r {
+        err e => { return err e }
+        ok toks => {
+            val p: ref Parser = parser_new(toks, "<test>")
+            return parse_expr(p)
+        }
+    }
+}
+
+test {
+    @puts("parser 1")
+    val r1 = parse_expr_src("42")
+    match r1 {
+        err _ => { assert false }
+        ok n  => {
+            assert n.kind == NK_INT_LIT
+            assert std.string.compare(n.d0 as ref char, "42") == 0
+        }
+    }
+
+    @puts("parser 2")
+    val r2 = parse_expr_src("3.14")
+    match r2 {
+        err _ => { assert false }
+        ok n  => { assert n.kind == NK_FLOAT_LIT }
+    }
+
+    @puts("parser 3")
+    val r3 = parse_expr_src("\"hello\"")
+    match r3 {
+        err _ => { assert false }
+        ok n  => {
+            assert n.kind == NK_STR_LIT
+            assert std.string.compare(n.d0 as ref char, "hello") == 0
+        }
+    }
+
+    @puts("parser 4")
+    val r4t = parse_expr_src("true")
+    match r4t {
+        err _ => { assert false }
+        ok n  => { assert n.kind == NK_BOOL assert n.d0 == 1 }
+    }
+    val r4f = parse_expr_src("false")
+    match r4f {
+        err _ => { assert false }
+        ok n  => { assert n.kind == NK_BOOL assert n.d0 == 0 }
+    }
+
+    @puts("parser 5")
+    val r5 = parse_expr_src("foo")
+    match r5 {
+        err _ => { assert false }
+        ok n  => {
+            assert n.kind == NK_IDENT
+            assert std.string.compare(n.d0 as ref char, "foo") == 0
+        }
+    }
+
+    @puts("parser 6")
+    val r6 = parse_expr_src("1 + 2")
+    match r6 {
+        err _ => { assert false }
+        ok n  => {
+            assert n.kind == NK_BINOP
+            assert n.d0 == OP_ADD
+            val lhs: ref Node = n.d1 as ref Node
+            val rhs: ref Node = n.d2 as ref Node
+            assert lhs.kind == NK_INT_LIT
+            assert rhs.kind == NK_INT_LIT
+        }
+    }
+
+    @puts("parser 7")
+    val r7 = parse_expr_src("a == b")
+    match r7 {
+        err _ => { assert false }
+        ok n  => {
+            assert n.kind == NK_BINOP
+            assert n.d0 == OP_EQ
+        }
+    }
+
+    @puts("parser 8")
+    val r8 = parse_expr_src("-x")
+    match r8 {
+        err _ => { assert false }
+        ok n  => {
+            assert n.kind == NK_UNOP
+            assert n.d0 == UOP_NEG
+        }
+    }
+
+    @puts("parser 9")
+    val r9 = parse_expr_src("!flag")
+    match r9 {
+        err _ => { assert false }
+        ok n  => {
+            assert n.kind == NK_UNOP
+            assert n.d0 == UOP_NOT
+        }
+    }
+
+    @puts("parser 10")
+    val r10 = parse_expr_src("obj.field")
+    match r10 {
+        err _ => { assert false }
+        ok n  => {
+            assert n.kind == NK_FIELD
+            val base: ref Node = n.d0 as ref Node
+            assert base.kind == NK_IDENT
+            assert std.string.compare(n.d1 as ref char, "field") == 0
+        }
+    }
+
+    @puts("parser 11")
+    val r11 = parse_expr_src("foo(1, 2)")
+    match r11 {
+        err _ => { assert false }
+        ok n  => { assert n.kind == NK_CALL }
+    }
+
+    @puts("parser 12")
+    val r12 = parse_expr_src("x as i64")
+    match r12 {
+        err _ => { assert false }
+        ok n  => { assert n.kind == NK_CAST }
+    }
+
+    @puts("parser 13")
+    val r13 = parse_expr_src("[1, 2, 3]")
+    match r13 {
+        err _ => { assert false }
+        ok n  => { assert n.kind == NK_LIST_LIT }
+    }
+
+    @puts("parser 14")
+    val r14 = parse_expr_src("none")
+    match r14 {
+        err _ => { assert false }
+        ok n  => { assert n.kind == NK_NONE }
+    }
+
+    @puts("parser 15")
+    val r15 = parse_src("val x = 10")
+    match r15 {
+        err _ => { assert false }
+        ok items => {
+            assert @len(items) as i64 == 1
+            val opt15 = @get(items, 0 as usize)
+            match opt15 {
+                none   => { assert false }
+                some v => {
+                    val item: ref Node = v as ref Node
+                    assert item.kind == NK_CONST
+                }
+            }
+        }
+    }
+
+    @puts("parser 16")
+    val r16 = parse_src("fn add(a: i64, b: i64) i64! = { return a + b }")
+    match r16 {
+        err _ => { assert false }
+        ok items => {
+            assert @len(items) as i64 == 1
+            val opt16 = @get(items, 0 as usize)
+            match opt16 {
+                none   => { assert false }
+                some v => {
+                    val item: ref Node = v as ref Node
+                    assert item.kind == NK_FN
+                    assert item.d0 == 0  // not public
+                }
+            }
+        }
+    }
+
+    @puts("parser 17")
+    val r17 = parse_src("pub fn greet() void! = { }")
+    match r17 {
+        err _ => { assert false }
+        ok items => {
+            val opt17 = @get(items, 0 as usize)
+            match opt17 {
+                none   => { assert false }
+                some v => {
+                    val item: ref Node = v as ref Node
+                    assert item.kind == NK_FN
+                    assert item.d0 == 1  // public
+                }
+            }
+        }
+    }
+
+    @puts("parser 18")
+    val r18 = parse_src("type Point = { x: i64, y: i64 }")
+    match r18 {
+        err _ => { assert false }
+        ok items => {
+            val opt18 = @get(items, 0 as usize)
+            match opt18 {
+                none   => { assert false }
+                some v => {
+                    val item: ref Node = v as ref Node
+                    assert item.kind == NK_TYPEDEF
+                }
+            }
+        }
+    }
+
+    @puts("parser 19")
+    val r19 = parse_expr_src("2 + 3 * 4")
+    match r19 {
+        err _ => { assert false }
+        ok n  => {
+            assert n.kind == NK_BINOP
+            assert n.d0 == OP_ADD
+            val rhs: ref Node = n.d2 as ref Node
+            assert rhs.kind == NK_BINOP
+            assert rhs.d0 == OP_MUL
+        }
+    }
+
+    @puts("parser 20")
+    val r20 = parse_src("fn (")
+    match r20 {
+        ok _  => { assert false }
+        err _ => { assert true }
+    }
+}

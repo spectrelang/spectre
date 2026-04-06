@@ -1709,46 +1709,16 @@ impl Codegen {
                 let unwrapped = self.fresh_tmp();
                 self.emit(&format!("    {unwrapped} =l sub {val_tmp}, 1"));
                 self.locals.insert(some_binding.clone(), unwrapped);
-                let inner_type_name: Option<String> = match expr {
-                    Expr::Call { callee, .. } => {
-                        let path = expr_to_path(callee);
-                        let expanded = expand_alias_path(&path, &self.module_aliases);
-                        ns.get(&expanded)
-                            .and_then(|qbe_fn| self.fn_ret_type_exprs.get(qbe_fn))
-                            .and_then(|ret| {
-                                if let TypeExpr::Option(inner) = ret {
-                                    Some(type_to_annotation_string(inner))
-                                } else {
-                                    None
-                                }
-                            })
-                    }
-                    Expr::Trust(inner_expr) => {
-                        if let Expr::Call { callee, .. } = inner_expr.as_ref() {
-                            let path = expr_to_path(callee);
-                            let expanded = expand_alias_path(&path, &self.module_aliases);
-                            ns.get(&expanded)
-                                .and_then(|qbe_fn| self.fn_ret_type_exprs.get(qbe_fn))
-                                .and_then(|ret| {
-                                    if let TypeExpr::Option(inner) = ret {
-                                        Some(type_to_annotation_string(inner))
-                                    } else {
-                                        None
-                                    }
-                                })
-                        } else {
-                            None
-                        }
-                    }
-                    Expr::Ident(name) => self.local_type_annotations.get(name).and_then(|ann| {
+                let inner_type_name: Option<String> = self
+                    .infer_struct_type_name_with_ns_opt(expr, Some(ns))
+                    .ok()
+                    .and_then(|ann| {
                         if ann.starts_with("option[") && ann.ends_with(']') {
                             Some(ann[7..ann.len() - 1].to_string())
                         } else {
                             None
                         }
-                    }),
-                    _ => None,
-                };
+                    });
                 if let Some(type_name) = inner_type_name {
                     if !type_name.is_empty() {
                         self.local_type_annotations
@@ -1760,6 +1730,8 @@ impl Codegen {
                 if !some_terminated {
                     self.emit(&format!("    jmp {end_lbl}"));
                 }
+                self.locals.remove(some_binding);
+                self.local_type_annotations.remove(some_binding);
 
                 self.emit(&format!("{none_lbl}"));
                 self.emit_stmts(none_body, ns, ret_ty)?;
@@ -1780,15 +1752,46 @@ impl Codegen {
                 err_binding,
                 err_body,
             } => {
-                // this is a best effort type scenario
-                let ok_is_float = if let Expr::Ident(name) = expr {
-                    self.local_type_annotations
-                        .get(name)
-                        .map(|ann| ann.starts_with("result[f64") || ann == "f64")
-                        .unwrap_or(false)
-                } else {
-                    false
-                };
+                let result_ann = self.infer_struct_type_name_with_ns_opt(expr, Some(ns)).ok();
+                let (ok_inner_ann, err_inner_ann): (Option<String>, Option<String>) =
+                    if let Some(ref ann) = result_ann {
+                        if ann.starts_with("result[") && ann.ends_with(']') {
+                            let inner = &ann[7..ann.len() - 1];
+                            let mut depth = 0usize;
+                            let mut split_pos = None;
+                            for (i, ch) in inner.char_indices() {
+                                match ch {
+                                    '[' => depth += 1,
+                                    ']' => depth = depth.saturating_sub(1),
+                                    ',' if depth == 0 => { split_pos = Some(i); break; }
+                                    _ => {}
+                                }
+                            }
+                            if let Some(pos) = split_pos {
+                                (Some(inner[..pos].trim().to_string()),
+                                 Some(inner[pos + 1..].trim().to_string()))
+                            } else {
+                                (None, None)
+                            }
+                        } else {
+                            (None, None)
+                        }
+                    } else {
+                        (None, None)
+                    };
+
+                let ok_is_float = ok_inner_ann.as_deref()
+                    .map(|a| a == "f64" || a == "f32")
+                    .unwrap_or_else(|| {
+                        if let Expr::Ident(name) = expr {
+                            self.local_type_annotations
+                                .get(name)
+                                .map(|ann| ann.starts_with("result[f64") || ann == "f64")
+                                .unwrap_or(false)
+                        } else {
+                            false
+                        }
+                    });
 
                 let (res_ptr, _) = self.emit_expr(expr, ns)?;
                 let tag_tmp = self.fresh_tmp();
@@ -1814,11 +1817,17 @@ impl Codegen {
                     self.locals.insert(ok_binding.clone(), ok_val.clone());
                     self.local_types.insert(ok_binding.clone(), "l");
                 }
+                if let Some(ann) = ok_inner_ann {
+                    if !ann.is_empty() {
+                        self.local_type_annotations.insert(ok_binding.clone(), ann);
+                    }
+                }
                 self.emit_stmts(ok_body, ns, ret_ty)?;
                 let ok_terminated = block_is_terminated(ok_body);
                 if !ok_terminated {
                     self.emit(&format!("    jmp {end_lbl}"));
                 }
+                self.local_type_annotations.remove(ok_binding);
 
                 self.emit(&format!("{err_lbl}"));
                 let err_val_ptr = self.fresh_tmp();
@@ -1826,11 +1835,17 @@ impl Codegen {
                 let err_val = self.fresh_tmp();
                 self.emit(&format!("    {err_val} =l loadl {err_val_ptr}"));
                 self.locals.insert(err_binding.clone(), err_val);
+                if let Some(ann) = err_inner_ann {
+                    if !ann.is_empty() {
+                        self.local_type_annotations.insert(err_binding.clone(), ann);
+                    }
+                }
                 self.emit_stmts(err_body, ns, ret_ty)?;
                 let err_terminated = block_is_terminated(err_body);
                 if !err_terminated {
                     self.emit(&format!("    jmp {end_lbl}"));
                 }
+                self.local_type_annotations.remove(err_binding);
 
                 if !ok_terminated || !err_terminated {
                     self.emit(&format!("{end_lbl}"));
@@ -2054,8 +2069,12 @@ impl Codegen {
         Err(format!("type '{type_name}' has no field '{field_name}'"))
     }
 
-    /// Try to infer the struct type name of an expression (best-effort, ident only).
+    /// Try to infer the struct type name of an expression (best-effort).
     fn infer_struct_type_name(&self, expr: &Expr) -> Result<String, String> {
+        self.infer_struct_type_name_with_ns_opt(expr, None)
+    }
+
+    fn infer_struct_type_name_with_ns_opt(&self, expr: &Expr, ns: Option<&Namespace>) -> Result<String, String> {
         match expr {
             Expr::Ident(name) => self
                 .local_type_annotations
@@ -2068,28 +2087,32 @@ impl Codegen {
                     .ok_or_else(|| format!("cannot determine type of field '{field_name}'"))?;
                 Ok(type_to_annotation_string(&field_ty))
             }
-            _ => Err(format!("cannot determine struct type for complex expression {:?}", expr).into()),
+            Expr::Call { callee, .. } => {
+                if let Some(ns) = ns {
+                    let path = expr_to_path(callee);
+                    if !path.is_empty() {
+                        let expanded = expand_alias_path(&path, &self.module_aliases);
+                        if let Some(qbe_fn) = ns.get(&expanded) {
+                            if let Some(ret_ty) = self.fn_ret_type_exprs.get(qbe_fn.as_str()) {
+                                let ann = type_to_annotation_string(ret_ty);
+                                if !ann.is_empty() {
+                                    return Ok(ann);
+                                }
+                            }
+                        }
+                    }
+                }
+                Err(format!("cannot determine struct type for call expression {:?}", expr))
+            }
+            Expr::Trust(inner) => self.infer_struct_type_name_with_ns_opt(inner, ns),
+            _ => Err(format!("cannot determine struct type for complex expression {:?}", expr)),
         }
     }
 
     /// Like `infer_struct_type_name` but also handles `Call` expressions by looking up
     /// the callee's return type via the namespace and `fn_ret_type_exprs`.
     fn infer_tagged_union_name_with_ns(&self, expr: &Expr, ns: &Namespace) -> Result<String, String> {
-        if let Expr::Call { callee, .. } = expr {
-            let path = expr_to_path(callee);
-            if !path.is_empty() {
-                let expanded = expand_alias_path(&path, &self.type_aliases);
-                if let Some(qbe_fn) = ns.get(&expanded) {
-                    if let Some(ret_ty) = self.fn_ret_type_exprs.get(qbe_fn.as_str()) {
-                        let ann = type_to_annotation_string(ret_ty);
-                        if !ann.is_empty() {
-                            return Ok(ann);
-                        }
-                    }
-                }
-            }
-        }
-        self.infer_struct_type_name(expr)
+        self.infer_struct_type_name_with_ns_opt(expr, Some(ns))
     }
 
     /// Try to infer the type of a field within a struct.
