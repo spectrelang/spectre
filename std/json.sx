@@ -43,6 +43,21 @@ extern (C) fn yyjson_obj_iter_get_val(iter_val: ref void) ref void! = "sx_yyjson
 extern (C) fn free(ptr: ref void) void! = "free"
 extern (C) fn strlen(s: ref char) usize! = "strlen"
 
+extern (C) fn yyjson_mut_doc_free(doc: ref void) void! = "sx_yyjson_mut_doc_free"
+extern (C) fn yyjson_mut_write_opts(doc: ref void, flg: u32, alc: ref void, len: ref usize, error: ref void) ref char! = "sx_yyjson_mut_write_opts"
+
+extern (C) fn yyjson_mut_null(doc: ref void) ref void! = "sx_yyjson_mut_null"
+extern (C) fn yyjson_mut_bool(doc: ref void, v: bool) ref void! = "sx_yyjson_mut_bool"
+extern (C) fn yyjson_mut_int(doc: ref void, v: i64) ref void! = "sx_yyjson_mut_int"
+extern (C) fn yyjson_mut_uint(doc: ref void, v: u64) ref void! = "sx_yyjson_mut_uint"
+extern (C) fn yyjson_mut_real(doc: ref void, v: f64) ref void! = "sx_yyjson_mut_real"
+extern (C) fn yyjson_mut_strcpy(doc: ref void, value: ref char) ref void! = "sx_yyjson_mut_strcpy"
+extern (C) fn yyjson_mut_arr(doc: ref void) ref void! = "sx_yyjson_mut_arr"
+extern (C) fn yyjson_mut_obj(doc: ref void) ref void! = "sx_yyjson_mut_obj"
+extern (C) fn yyjson_mut_arr_append(arr: ref void, value: ref void) bool! = "sx_yyjson_mut_arr_append"
+extern (C) fn yyjson_mut_obj_add(obj: ref void, key: ref void, value: ref void) bool! = "sx_yyjson_mut_obj_add"
+extern (C) fn yyjson_mut_doc_set_root(doc: ref void, value: ref void) void! = "sx_yyjson_mut_doc_set_root"
+
 pub type JsonDoc = {
     ptr: ref void
 }

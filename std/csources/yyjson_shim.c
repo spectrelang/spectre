@@ -144,3 +144,68 @@ char *sx_yyjson_write_opts(void *doc, uint32_t flg, void *alc, size_t *len, void
     return yyjson_write_opts((yyjson_doc *)doc, (yyjson_write_flag)flg, (const yyjson_alc *)alc, len,
                              (yyjson_write_err *)err);
 }
+
+void sx_yyjson_mut_doc_free(void *doc)
+{
+    yyjson_mut_doc_free((yyjson_mut_doc *)doc);
+}
+
+char *sx_yyjson_mut_write_opts(void *doc, unsigned int flg, void *alc, size_t *len, void *error)
+{
+    return yyjson_mut_write_opts((yyjson_mut_doc *)doc, flg, (const yyjson_alc *)alc, len, NULL);
+}
+
+void *sx_yyjson_mut_null(void *doc)
+{
+    return yyjson_mut_null((yyjson_mut_doc *)doc);
+}
+
+void *sx_yyjson_mut_bool(void *doc, bool v)
+{
+    return yyjson_mut_bool((yyjson_mut_doc *)doc, v);
+}
+
+void *sx_yyjson_mut_int(void *doc, int64_t v)
+{
+    return yyjson_mut_int((yyjson_mut_doc *)doc, v);
+}
+
+void *sx_yyjson_mut_uint(void *doc, uint64_t v)
+{
+    return yyjson_mut_uint((yyjson_mut_doc *)doc, v);
+}
+
+void *sx_yyjson_mut_real(void *doc, double v)
+{
+    return yyjson_mut_real((yyjson_mut_doc *)doc, v);
+}
+
+void *sx_yyjson_mut_strcpy(void *doc, const char *s)
+{
+    return yyjson_mut_strcpy((yyjson_mut_doc *)doc, s);
+}
+
+void *sx_yyjson_mut_arr(void *doc)
+{
+    return yyjson_mut_arr((yyjson_mut_doc *)doc);
+}
+
+void *sx_yyjson_mut_obj(void *doc)
+{
+    return yyjson_mut_obj((yyjson_mut_doc *)doc);
+}
+
+bool sx_yyjson_mut_arr_append(void *arr, void *value)
+{
+    return yyjson_mut_arr_append((yyjson_mut_val *)arr, (yyjson_mut_val *)value);
+}
+
+bool sx_yyjson_mut_obj_add(void *obj, void *key, void *value)
+{
+    return yyjson_mut_obj_add((yyjson_mut_val *)obj, (yyjson_mut_val *)key, (yyjson_mut_val *)value);
+}
+
+void sx_yyjson_mut_doc_set_root(void *doc, void *value)
+{
+    yyjson_mut_doc_set_root((yyjson_mut_doc *)doc, (yyjson_mut_val *)value);
+}
