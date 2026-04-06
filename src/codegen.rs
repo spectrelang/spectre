@@ -966,7 +966,7 @@ impl Codegen {
                 if let Some(root) = expr_root_name(target) {
                     let is_mut = self.local_mutability.get(&root).copied().unwrap_or(false);
                     if !is_mut {
-                        return Err(format!("cannot assign to immutable binding '{root}'"));
+                        return Err(format!("cannot assign to immutable binding '{root}' at '{target :?}'"));
                     }
                 }
                 if let Expr::Ident(name) = target {
