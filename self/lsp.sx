@@ -27,7 +27,7 @@ extern (C) fn free(ptr: ref void) void! = "free"
 pub val STORE_CAP: i64 = 64
 
 type DocStore = {
-    slots: mut ref void   // STORE_CAP * 16 bytes
+    slots: mut ref void
     count: mut i64
 }
 
@@ -92,8 +92,6 @@ fn store_get(s: ref DocStore, uri: ref char) option[ref char]! = {
     return none
 }
 
-// ─── LSP I/O helpers ──────────────────────────────────────────────────────────
-
 /// Read exactly `n` bytes from stdin into a heap buffer.
 /// Returns the buffer (null-terminated) or none on EOF/error.
 fn read_exact(n: usize) option[ref char]! = {
@@ -133,7 +131,7 @@ fn read_line_stdin() option[ref char]! = {
 /// Parse "Content-Length: NNN" and return NNN, or -1.
 fn parse_content_length(line: ref char) i64! = {
     val prefix: ref char = "Content-Length: "
-    val plen: usize = strlen(prefix)
+    val plen: mut usize = strlen(prefix)
     val llen: usize = strlen(line)
     if llen <= plen { return -1 }
     val i: mut usize = 0
@@ -191,14 +189,6 @@ fn send_message(body: ref char) void! = {
     @free(len_str)
 }
 
-// ─── JSON-RPC helpers ─────────────────────────────────────────────────────────
-// id_str is the raw JSON text of the id field (e.g. "1", "\"req-1\"", "null").
-// We embed it verbatim by building a string value and relying on the fact that
-// yyjson_mut_strcpy copies the bytes — the serialiser will emit them as a JSON
-// string, which is close enough for numeric ids in practice.  For a fully
-// correct implementation the id would need to be re-parsed; this is sufficient
-// for all major LSP clients which use integer ids.
-
 /// Build a JSON-RPC success response.
 /// id_str: raw text of the id (e.g. "1" or "null").
 fn make_response(id_str: ref char, result_val: ref void, b: ref void) ref char! = {
@@ -239,8 +229,6 @@ fn make_notification(method: ref char, params_val: ref void, b: ref void) ref ch
     json.builder_set_root(b, obj)
     return json.builder_to_string(b)
 }
-
-// ─── Diagnostics ──────────────────────────────────────────────────────────────
 
 /// Parse and analyse `source`, then push diagnostics for `uri`.
 fn publish_diagnostics(uri: ref char, source: ref char) void! = {
@@ -397,7 +385,6 @@ fn handle_completion(id_val: ref void, _params: ref void) void! = {
     val b: ref void = json.builder_new()
     val items_arr: ref void = json.build_array(b)
 
-    // Keywords
     for kw in KEYWORDS {
         val item: ref void = json.build_object(b)
         val k_label: ref void = json.build_str(b, "label")
@@ -409,7 +396,6 @@ fn handle_completion(id_val: ref void, _params: ref void) void! = {
         json.array_append(items_arr, item)
     }
 
-    // Built-in types
     for ty in BUILTIN_TYPES {
         val item: ref void = json.build_object(b)
         val k_label: ref void = json.build_str(b, "label")
@@ -421,7 +407,6 @@ fn handle_completion(id_val: ref void, _params: ref void) void! = {
         json.array_append(items_arr, item)
     }
 
-    // Built-in functions
     for bi in BUILTINS {
         val item: ref void = json.build_object(b)
         val k_label: ref void = json.build_str(b, "label")
@@ -433,7 +418,7 @@ fn handle_completion(id_val: ref void, _params: ref void) void! = {
         json.array_append(items_arr, item)
     }
 
-    val resp: ref char = make_response(id_val, items_arr, b)
+    val resp: ref char = make_response(id_val as ref char, items_arr, b)
     send_message(resp)
     json.json_str_free(resp)
     json.builder_free(b)
@@ -562,7 +547,7 @@ fn word_at(source: ref char, line: i64, character: i64) ref char! = {
         if !is_word_char(c) { break }
         end++
     }
-    val wlen: usize = end - start
+    val wlen: mut usize = end - start
     if wlen == 0 { return "" }
     val word: ref char = @alloc(wlen + 1) as ref char
     memcpy(word, @ptradd(source, start), wlen)
@@ -572,15 +557,13 @@ fn word_at(source: ref char, line: i64, character: i64) ref char! = {
 
 fn handle_hover(id_val: ref void, params: ref void, store: ref DocStore) void! = {
     val b: ref void = json.builder_new()
-
-    // Extract uri, line, character from params.
     val td_opt = json.obj_get(params, "textDocument")
     val pos_opt = json.obj_get(params, "position")
 
     match td_opt {
         none => {
             val null_val: ref void = json.build_null(b)
-            val resp: ref char = make_response(id_val, null_val, b)
+            val resp: ref char = make_response(id_val as ref char, null_val, b)
             send_message(resp)
             json.json_str_free(resp)
             json.builder_free(b)
@@ -591,7 +574,7 @@ fn handle_hover(id_val: ref void, params: ref void, store: ref DocStore) void! =
             match uri_opt {
                 none => {
                     val null_val: ref void = json.build_null(b)
-                    val resp: ref char = make_response(id_val, null_val, b)
+                    val resp: ref char = make_response(id_val as ref char, null_val, b)
                     send_message(resp)
                     json.json_str_free(resp)
                     json.builder_free(b)
@@ -650,7 +633,7 @@ fn handle_hover(id_val: ref void, params: ref void, store: ref DocStore) void! =
                                     val k_contents: ref void = json.build_str(b, "contents")
                                     json.object_add(result_obj, k_contents, contents)
 
-                                    val resp: ref char = make_response(id_val, result_obj, b)
+                                    val resp: ref char = make_response(id_val as ref char, result_obj, b)
                                     send_message(resp)
                                     json.json_str_free(resp)
                                     json.builder_free(b)
@@ -665,24 +648,18 @@ fn handle_hover(id_val: ref void, params: ref void, store: ref DocStore) void! =
     }
 }
 
-// ─── Request dispatcher ───────────────────────────────────────────────────────
-
 fn handle_initialize(id_val: ref void) void! = {
     val b: ref void = json.builder_new()
-
     val caps: ref void = json.build_object(b)
-
-    // textDocumentSync: 1 = Full sync
     val k_sync: ref void = json.build_str(b, "textDocumentSync")
     val v_sync: ref void = json.build_int(b, 1)
+
     json.object_add(caps, k_sync, v_sync)
 
-    // hoverProvider: true
     val k_hover: ref void = json.build_str(b, "hoverProvider")
     val v_hover: ref void = json.build_bool(b, true)
     json.object_add(caps, k_hover, v_hover)
 
-    // completionProvider
     val comp_opts: ref void = json.build_object(b)
     val k_trigger: ref void = json.build_str(b, "triggerCharacters")
     val trigger_arr: ref void = json.build_array(b)
