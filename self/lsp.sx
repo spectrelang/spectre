@@ -1,6 +1,7 @@
 /// Spectre Language Server Protocol (LSP) implementation.
 ///
 /// Implements JSON-RPC 2.0 / LSP 3.17 over stdin/stdout.
+///
 /// Supports:
 ///   - initialize / initialized / shutdown / exit
 ///   - textDocument/didOpen, didChange, didClose
