@@ -2072,6 +2072,10 @@ impl Codegen {
 
     /// Search all tagged union defs for a variant with the given name.
     /// Returns (union_name, tag_index, field_types) if found.
+    ///
+    /// Scoping rules:
+    /// - Qualified (`module.Variant`): only search the named module.
+    /// - Unqualified (`Variant`): current module takes priority over public imports.
     fn find_tagged_union_variant(
         &self,
         path: &str,
@@ -2080,8 +2084,8 @@ impl Codegen {
         let prefix = dot_pos.map(|p| &path[..p]);
         let variant_name = dot_pos.map(|p| &path[p + 1..]).unwrap_or(path);
 
-        for (union_name, (u_mod, u_pub, variants)) in &self.tagged_union_defs {
-            if let Some(p) = prefix {
+        if let Some(p) = prefix {
+            for (union_name, (u_mod, u_pub, variants)) in &self.tagged_union_defs {
                 if u_mod == p || u_mod.replace("__", ".") == p {
                     if !u_pub && (p != self.current_module_prefix && *u_mod != self.current_module_prefix) {
                         continue;
@@ -2094,15 +2098,29 @@ impl Codegen {
                         return Some((union_name.clone(), idx, fields.clone()));
                     }
                 }
-            } else {
+            }
+            return None;
+        }
+
+        for (union_name, (u_mod, _, variants)) in &self.tagged_union_defs {
+            if u_mod == &self.current_module_prefix {
                 if let Some((idx, (_, fields))) = variants
                     .iter()
                     .enumerate()
                     .find(|(_, (n, _))| n == variant_name)
                 {
-                    if u_mod == &self.current_module_prefix || *u_pub {
-                        return Some((union_name.clone(), idx, fields.clone()));
-                    }
+                    return Some((union_name.clone(), idx, fields.clone()));
+                }
+            }
+        }
+        for (union_name, (u_mod, u_pub, variants)) in &self.tagged_union_defs {
+            if *u_pub && u_mod != &self.current_module_prefix {
+                if let Some((idx, (_, fields))) = variants
+                    .iter()
+                    .enumerate()
+                    .find(|(_, (n, _))| n == variant_name)
+                {
+                    return Some((union_name.clone(), idx, fields.clone()));
                 }
             }
         }
