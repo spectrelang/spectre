@@ -19,6 +19,7 @@ fn check_module_recursive(resolved: &ResolvedModule, errors: &mut Vec<String>) {
     let fn_ret_lookup = build_fn_ret_lookup(resolved);
     let type_lookup = build_type_lookup(resolved);
     let union_lookup = build_union_lookup(resolved);
+    let method_set = build_method_set(resolved);
 
     for item in &resolved.ast.items {
         if let Item::Fn(f) = item {
@@ -29,6 +30,7 @@ fn check_module_recursive(resolved: &ResolvedModule, errors: &mut Vec<String>) {
                 &fn_ret_lookup,
                 &type_lookup,
                 &union_lookup,
+                &method_set,
                 errors,
             );
         }
@@ -41,53 +43,112 @@ fn build_fn_lookup<'a>(
     resolved: &'a ResolvedModule,
 ) -> HashMap<String, &'a Vec<(String, TypeExpr)>> {
     let mut map = HashMap::new();
+    collect_fn_lookup(resolved, "", &mut map);
+    map
+}
+
+fn collect_fn_lookup<'a>(
+    resolved: &'a ResolvedModule,
+    prefix: &str,
+    map: &mut HashMap<String, &'a Vec<(String, TypeExpr)>>,
+) {
     for item in &resolved.ast.items {
         if let Item::Fn(f) = item {
             let key = match &f.namespace {
-                Some(ns) => format!("{ns}.{}", f.name),
-                None => f.name.clone(),
+                Some(ns) => {
+                    if prefix.is_empty() { format!("{ns}.{}", f.name) }
+                    else { format!("{prefix}.{ns}.{}", f.name) }
+                }
+                None => {
+                    if prefix.is_empty() { f.name.clone() }
+                    else { format!("{prefix}.{}", f.name) }
+                }
             };
             map.insert(key, &f.params);
         }
     }
     for (mod_name, child) in &resolved.imports {
-        for item in &child.ast.items {
-            if let Item::Fn(f) = item {
-                let key = match &f.namespace {
-                    Some(ns) => format!("{mod_name}.{ns}.{}", f.name),
-                    None => format!("{mod_name}.{}", f.name),
-                };
-                map.insert(key, &f.params);
-            }
-        }
+        let child_prefix = if prefix.is_empty() {
+            mod_name.clone()
+        } else {
+            format!("{prefix}.{mod_name}")
+        };
+        collect_fn_lookup(child, &child_prefix, map);
     }
-    map
 }
 
-/// Build a map from qualified function path to its return type.
-fn build_fn_ret_lookup<'a>(resolved: &'a ResolvedModule) -> HashMap<String, &'a TypeExpr> {
-    let mut map = HashMap::new();
+/// Build a set of qualified method paths — functions that have a namespace (i.e. a receiver).
+/// Used to distinguish `Type.method(self, ...)` from `mod.free_fn(...)` when checking args.
+fn build_method_set(resolved: &ResolvedModule) -> HashSet<String> {
+    let mut set = HashSet::new();
+    collect_method_set(resolved, "", &mut set);
+    set
+}
+
+fn collect_method_set(resolved: &ResolvedModule, prefix: &str, set: &mut HashSet<String>) {
     for item in &resolved.ast.items {
         if let Item::Fn(f) = item {
-            let key = match &f.namespace {
-                Some(ns) => format!("{ns}.{}", f.name),
-                None => f.name.clone(),
-            };
-            map.insert(key, &f.ret);
+            if let Some(ns) = &f.namespace {
+                let key = if prefix.is_empty() {
+                    format!("{ns}.{}", f.name)
+                } else {
+                    format!("{prefix}.{ns}.{}", f.name)
+                };
+                set.insert(key);
+            }
         }
     }
     for (mod_name, child) in &resolved.imports {
-        for item in &child.ast.items {
-            if let Item::Fn(f) = item {
-                let key = match &f.namespace {
-                    Some(ns) => format!("{mod_name}.{ns}.{}", f.name),
-                    None => format!("{mod_name}.{}", f.name),
+        let child_prefix = if prefix.is_empty() {
+            mod_name.clone()
+        } else {
+            format!("{prefix}.{mod_name}")
+        };
+        collect_method_set(child, &child_prefix, set);
+    }
+}
+
+/// Build a map from qualified function path to its return type.
+fn build_fn_ret_lookup(resolved: &ResolvedModule) -> HashMap<String, TypeExpr> {
+    let mut map = HashMap::new();
+    collect_fn_ret_lookup(resolved, "", &mut map);
+    map
+}
+
+fn collect_fn_ret_lookup(resolved: &ResolvedModule, prefix: &str, map: &mut HashMap<String, TypeExpr>) {
+    for item in &resolved.ast.items {
+        if let Item::Fn(f) = item {
+            let key = match &f.namespace {
+                Some(ns) => {
+                    if prefix.is_empty() { format!("{ns}.{}", f.name) }
+                    else { format!("{prefix}.{ns}.{}", f.name) }
+                }
+                None => {
+                    if prefix.is_empty() { f.name.clone() }
+                    else { format!("{prefix}.{}", f.name) }
+                }
+            };
+            map.insert(key, f.ret.clone());
+        }
+        if let Item::TaggedUnionDef { name, variants, .. } = item {
+            for (variant_name, _) in variants {
+                let key = if prefix.is_empty() {
+                    variant_name.clone()
+                } else {
+                    format!("{prefix}.{variant_name}")
                 };
-                map.insert(key, &f.ret);
+                map.insert(key, TypeExpr::Named(name.clone()));
             }
         }
     }
-    map
+    for (mod_name, child) in &resolved.imports {
+        let child_prefix = if prefix.is_empty() {
+            mod_name.clone()
+        } else {
+            format!("{prefix}.{mod_name}")
+        };
+        collect_fn_ret_lookup(child, &child_prefix, map);
+    }
 }
 
 /// Build a map from type name (e.g. "StringBuilder", "String") to its field definitions.
@@ -136,9 +197,10 @@ fn check_fn(
     f: &FnDef,
     filename: &str,
     fn_lookup: &HashMap<String, &Vec<(String, TypeExpr)>>,
-    fn_ret_lookup: &HashMap<String, &TypeExpr>,
+    fn_ret_lookup: &HashMap<String, TypeExpr>,
     type_lookup: &HashMap<String, &Vec<Field>>,
     union_lookup: &HashMap<String, &Vec<TypeExpr>>,
+    method_set: &HashSet<String>,
     errors: &mut Vec<String>,
 ) {
     let mut declared: HashMap<String, bool> = HashMap::new();
@@ -205,6 +267,7 @@ fn check_fn(
         fn_ret_lookup,
         type_lookup,
         union_lookup,
+        method_set,
         &f.name,
         filename,
         errors,
@@ -1975,9 +2038,10 @@ fn check_call_arg_types(
     stmts: &[Stmt],
     var_types: &HashMap<String, TypeExpr>,
     fn_lookup: &HashMap<String, &Vec<(String, TypeExpr)>>,
-    fn_ret_lookup: &HashMap<String, &TypeExpr>,
+    fn_ret_lookup: &HashMap<String, TypeExpr>,
     type_lookup: &HashMap<String, &Vec<Field>>,
     union_lookup: &HashMap<String, &Vec<TypeExpr>>,
+    method_set: &HashSet<String>,
     fn_name: &str,
     filename: &str,
     errors: &mut Vec<String>,
@@ -1990,6 +2054,7 @@ fn check_call_arg_types(
             fn_ret_lookup,
             type_lookup,
             union_lookup,
+            method_set,
             fn_name,
             filename,
             errors,
@@ -2001,9 +2066,10 @@ fn check_call_arg_types_in_stmt(
     stmt: &Stmt,
     var_types: &HashMap<String, TypeExpr>,
     fn_lookup: &HashMap<String, &Vec<(String, TypeExpr)>>,
-    fn_ret_lookup: &HashMap<String, &TypeExpr>,
+    fn_ret_lookup: &HashMap<String, TypeExpr>,
     type_lookup: &HashMap<String, &Vec<Field>>,
     union_lookup: &HashMap<String, &Vec<TypeExpr>>,
+    method_set: &HashSet<String>,
     fn_name: &str,
     filename: &str,
     errors: &mut Vec<String>,
@@ -2017,6 +2083,7 @@ fn check_call_arg_types_in_stmt(
                 fn_ret_lookup,
                 type_lookup,
                 union_lookup,
+                method_set,
                 fn_name,
                 filename,
                 errors,
@@ -2030,6 +2097,7 @@ fn check_call_arg_types_in_stmt(
                 fn_ret_lookup,
                 type_lookup,
                 union_lookup,
+                method_set,
                 fn_name,
                 filename,
                 errors,
@@ -2041,6 +2109,7 @@ fn check_call_arg_types_in_stmt(
                 fn_ret_lookup,
                 type_lookup,
                 union_lookup,
+                method_set,
                 fn_name,
                 filename,
                 errors,
@@ -2054,6 +2123,7 @@ fn check_call_arg_types_in_stmt(
                 fn_ret_lookup,
                 type_lookup,
                 union_lookup,
+                method_set,
                 fn_name,
                 filename,
                 errors,
@@ -2067,6 +2137,7 @@ fn check_call_arg_types_in_stmt(
                 fn_ret_lookup,
                 type_lookup,
                 union_lookup,
+                method_set,
                 fn_name,
                 filename,
                 errors,
@@ -2086,6 +2157,7 @@ fn check_call_arg_types_in_stmt(
                 fn_ret_lookup,
                 type_lookup,
                 union_lookup,
+                method_set,
                 fn_name,
                 filename,
                 errors,
@@ -2097,6 +2169,7 @@ fn check_call_arg_types_in_stmt(
                 fn_ret_lookup,
                 type_lookup,
                 union_lookup,
+                method_set,
                 fn_name,
                 filename,
                 errors,
@@ -2109,6 +2182,7 @@ fn check_call_arg_types_in_stmt(
                     fn_ret_lookup,
                     type_lookup,
                     union_lookup,
+                    method_set,
                     fn_name,
                     filename,
                     errors,
@@ -2120,6 +2194,7 @@ fn check_call_arg_types_in_stmt(
                     fn_ret_lookup,
                     type_lookup,
                     union_lookup,
+                    method_set,
                     fn_name,
                     filename,
                     errors,
@@ -2133,6 +2208,7 @@ fn check_call_arg_types_in_stmt(
                     fn_ret_lookup,
                     type_lookup,
                     union_lookup,
+                    method_set,
                     fn_name,
                     filename,
                     errors,
@@ -2153,6 +2229,7 @@ fn check_call_arg_types_in_stmt(
                     fn_ret_lookup,
                     type_lookup,
                     union_lookup,
+                    method_set,
                     fn_name,
                     filename,
                     errors,
@@ -2166,6 +2243,7 @@ fn check_call_arg_types_in_stmt(
                     fn_ret_lookup,
                     type_lookup,
                     union_lookup,
+                    method_set,
                     fn_name,
                     filename,
                     errors,
@@ -2179,6 +2257,7 @@ fn check_call_arg_types_in_stmt(
                     fn_ret_lookup,
                     type_lookup,
                     union_lookup,
+                    method_set,
                     fn_name,
                     filename,
                     errors,
@@ -2191,6 +2270,7 @@ fn check_call_arg_types_in_stmt(
                 fn_ret_lookup,
                 type_lookup,
                 union_lookup,
+                method_set,
                 fn_name,
                 filename,
                 errors,
@@ -2204,6 +2284,7 @@ fn check_call_arg_types_in_stmt(
                 fn_ret_lookup,
                 type_lookup,
                 union_lookup,
+                method_set,
                 fn_name,
                 filename,
                 errors,
@@ -2215,6 +2296,7 @@ fn check_call_arg_types_in_stmt(
                 fn_ret_lookup,
                 type_lookup,
                 union_lookup,
+                method_set,
                 fn_name,
                 filename,
                 errors,
@@ -2233,6 +2315,7 @@ fn check_call_arg_types_in_stmt(
                 fn_ret_lookup,
                 type_lookup,
                 union_lookup,
+                method_set,
                 fn_name,
                 filename,
                 errors,
@@ -2244,6 +2327,7 @@ fn check_call_arg_types_in_stmt(
                 fn_ret_lookup,
                 type_lookup,
                 union_lookup,
+                method_set,
                 fn_name,
                 filename,
                 errors,
@@ -2255,6 +2339,7 @@ fn check_call_arg_types_in_stmt(
                 fn_ret_lookup,
                 type_lookup,
                 union_lookup,
+                method_set,
                 fn_name,
                 filename,
                 errors,
@@ -2273,6 +2358,7 @@ fn check_call_arg_types_in_stmt(
                 fn_ret_lookup,
                 type_lookup,
                 union_lookup,
+                method_set,
                 fn_name,
                 filename,
                 errors,
@@ -2284,6 +2370,7 @@ fn check_call_arg_types_in_stmt(
                 fn_ret_lookup,
                 type_lookup,
                 union_lookup,
+                method_set,
                 fn_name,
                 filename,
                 errors,
@@ -2295,6 +2382,7 @@ fn check_call_arg_types_in_stmt(
                 fn_ret_lookup,
                 type_lookup,
                 union_lookup,
+                method_set,
                 fn_name,
                 filename,
                 errors,
@@ -2308,6 +2396,7 @@ fn check_call_arg_types_in_stmt(
                 fn_ret_lookup,
                 type_lookup,
                 union_lookup,
+                method_set,
                 fn_name,
                 filename,
                 errors,
@@ -2320,6 +2409,7 @@ fn check_call_arg_types_in_stmt(
                     fn_ret_lookup,
                     type_lookup,
                     union_lookup,
+                    method_set,
                     fn_name,
                     filename,
                     errors,
@@ -2338,6 +2428,7 @@ fn check_call_arg_types_in_stmt(
                 fn_ret_lookup,
                 type_lookup,
                 union_lookup,
+                method_set,
                 fn_name,
                 filename,
                 errors,
@@ -2350,6 +2441,7 @@ fn check_call_arg_types_in_stmt(
                     fn_ret_lookup,
                     type_lookup,
                     union_lookup,
+                    method_set,
                     fn_name,
                     filename,
                     errors,
@@ -2363,6 +2455,7 @@ fn check_call_arg_types_in_stmt(
                     fn_ret_lookup,
                     type_lookup,
                     union_lookup,
+                    method_set,
                     fn_name,
                     filename,
                     errors,
@@ -2381,6 +2474,7 @@ fn check_call_arg_types_in_stmt(
                 fn_ret_lookup,
                 type_lookup,
                 union_lookup,
+                method_set,
                 fn_name,
                 filename,
                 errors,
@@ -2393,6 +2487,7 @@ fn check_call_arg_types_in_stmt(
                     fn_ret_lookup,
                     type_lookup,
                     union_lookup,
+                    method_set,
                     fn_name,
                     filename,
                     errors,
@@ -2406,6 +2501,7 @@ fn check_call_arg_types_in_stmt(
                     fn_ret_lookup,
                     type_lookup,
                     union_lookup,
+                    method_set,
                     fn_name,
                     filename,
                     errors,
@@ -2424,6 +2520,7 @@ fn check_call_arg_types_in_stmt(
                 fn_ret_lookup,
                 type_lookup,
                 union_lookup,
+                method_set,
                 fn_name,
                 filename,
                 errors,
@@ -2436,6 +2533,7 @@ fn check_call_arg_types_in_stmt(
                     fn_ret_lookup,
                     type_lookup,
                     union_lookup,
+                    method_set,
                     fn_name,
                     filename,
                     errors,
@@ -2449,6 +2547,7 @@ fn check_call_arg_types_in_stmt(
                     fn_ret_lookup,
                     type_lookup,
                     union_lookup,
+                    method_set,
                     fn_name,
                     filename,
                     errors,
@@ -2463,6 +2562,7 @@ fn check_call_arg_types_in_stmt(
                 fn_ret_lookup,
                 type_lookup,
                 union_lookup,
+                method_set,
                 fn_name,
                 filename,
                 errors,
@@ -2478,6 +2578,7 @@ fn check_call_arg_types_in_stmt(
                 fn_ret_lookup,
                 type_lookup,
                 union_lookup,
+                method_set,
                 fn_name,
                 filename,
                 errors,
@@ -2489,6 +2590,7 @@ fn check_call_arg_types_in_stmt(
                 fn_ret_lookup,
                 type_lookup,
                 union_lookup,
+                method_set,
                 fn_name,
                 filename,
                 errors,
@@ -2502,9 +2604,10 @@ fn check_call_arg_types_in_expr(
     expr: &Expr,
     var_types: &HashMap<String, TypeExpr>,
     fn_lookup: &HashMap<String, &Vec<(String, TypeExpr)>>,
-    fn_ret_lookup: &HashMap<String, &TypeExpr>,
+    fn_ret_lookup: &HashMap<String, TypeExpr>,
     type_lookup: &HashMap<String, &Vec<Field>>,
     union_lookup: &HashMap<String, &Vec<TypeExpr>>,
+    method_set: &HashSet<String>,
     fn_name: &str,
     filename: &str,
     errors: &mut Vec<String>,
@@ -2519,6 +2622,7 @@ fn check_call_arg_types_in_expr(
                     fn_ret_lookup,
                     type_lookup,
                     union_lookup,
+                    method_set,
                     fn_name,
                     filename,
                     errors,
@@ -2527,11 +2631,11 @@ fn check_call_arg_types_in_expr(
 
             let callee_path = expr_to_call_path(callee);
             if let Some(fn_path) = callee_path {
-                let is_namespaced_call = fn_path.contains('.');
+                let is_method_call = method_set.contains(&fn_path);
                 if let Some(param_types) = fn_lookup.get(&fn_path) {
                     for (i, arg) in args.iter().enumerate() {
                         if i < param_types.len() {
-                            if i == 0 && is_namespaced_call {
+                            if i == 0 && is_method_call {
                                 continue;
                             }
                             let (_, expected_type) = &param_types[i];
@@ -2567,6 +2671,7 @@ fn check_call_arg_types_in_expr(
                 fn_ret_lookup,
                 type_lookup,
                 union_lookup,
+                method_set,
                 fn_name,
                 filename,
                 errors,
@@ -2581,6 +2686,7 @@ fn check_call_arg_types_in_expr(
                     fn_ret_lookup,
                     type_lookup,
                     union_lookup,
+                    method_set,
                     fn_name,
                     filename,
                     errors,
@@ -2595,6 +2701,7 @@ fn check_call_arg_types_in_expr(
                 fn_ret_lookup,
                 type_lookup,
                 union_lookup,
+                method_set,
                 fn_name,
                 filename,
                 errors,
@@ -2606,6 +2713,7 @@ fn check_call_arg_types_in_expr(
                 fn_ret_lookup,
                 type_lookup,
                 union_lookup,
+                method_set,
                 fn_name,
                 filename,
                 errors,
@@ -2627,6 +2735,7 @@ fn check_call_arg_types_in_expr(
                 fn_ret_lookup,
                 type_lookup,
                 union_lookup,
+                method_set,
                 fn_name,
                 filename,
                 errors,
@@ -2640,6 +2749,7 @@ fn check_call_arg_types_in_expr(
                 fn_ret_lookup,
                 type_lookup,
                 union_lookup,
+                method_set,
                 fn_name,
                 filename,
                 errors,
@@ -2654,6 +2764,7 @@ fn check_call_arg_types_in_expr(
                     fn_ret_lookup,
                     type_lookup,
                     union_lookup,
+                    method_set,
                     fn_name,
                     filename,
                     errors,
@@ -2669,6 +2780,7 @@ fn check_call_arg_types_in_expr(
                     fn_ret_lookup,
                     type_lookup,
                     union_lookup,
+                    method_set,
                     fn_name,
                     filename,
                     errors,
@@ -2684,6 +2796,7 @@ fn check_call_arg_types_in_expr(
                     fn_ret_lookup,
                     type_lookup,
                     union_lookup,
+                    method_set,
                     fn_name,
                     filename,
                     errors,
@@ -2698,7 +2811,7 @@ fn check_call_arg_types_in_expr(
 fn check_try_usage(
     stmts: &[Stmt],
     var_types: &HashMap<String, TypeExpr>,
-    fn_ret_lookup: &HashMap<String, &TypeExpr>,
+    fn_ret_lookup: &HashMap<String, TypeExpr>,
     type_lookup: &HashMap<String, &Vec<Field>>,
     fn_name: &str,
     filename: &str,
@@ -2720,7 +2833,7 @@ fn check_try_usage(
 fn check_try_in_stmt(
     stmt: &Stmt,
     var_types: &HashMap<String, TypeExpr>,
-    fn_ret_lookup: &HashMap<String, &TypeExpr>,
+    fn_ret_lookup: &HashMap<String, TypeExpr>,
     type_lookup: &HashMap<String, &Vec<Field>>,
     fn_name: &str,
     filename: &str,
@@ -3090,7 +3203,7 @@ fn check_try_in_stmt(
 fn check_try_in_expr(
     expr: &Expr,
     var_types: &HashMap<String, TypeExpr>,
-    fn_ret_lookup: &HashMap<String, &TypeExpr>,
+    fn_ret_lookup: &HashMap<String, TypeExpr>,
     type_lookup: &HashMap<String, &Vec<Field>>,
     fn_name: &str,
     filename: &str,
@@ -3245,7 +3358,7 @@ fn infer_expr_type(
     expr: &Expr,
     var_types: &HashMap<String, TypeExpr>,
     type_lookup: &HashMap<String, &Vec<Field>>,
-    fn_ret_lookup: &HashMap<String, &TypeExpr>,
+    fn_ret_lookup: &HashMap<String, TypeExpr>,
 ) -> Option<TypeExpr> {
     match expr {
         Expr::Ident(name) => var_types.get(name).cloned(),
@@ -3334,7 +3447,7 @@ fn infer_expr_type(
             let callee_path = expr_to_call_path(callee)?;
             fn_ret_lookup
                 .get(&callee_path)
-                .map(|ret_ty| (**ret_ty).clone())
+                .cloned()
         }
         Expr::Builtin { name, .. } => match name.as_str() {
             "alloc" | "realloc" | "ptradd" => {
@@ -3489,7 +3602,7 @@ fn type_to_string(ty: &TypeExpr) -> String {
 fn check_type_annotations(
     stmts: &[Stmt],
     var_types: &HashMap<String, TypeExpr>,
-    fn_ret_lookup: &HashMap<String, &TypeExpr>,
+    fn_ret_lookup: &HashMap<String, TypeExpr>,
     type_lookup: &HashMap<String, &Vec<Field>>,
     union_lookup: &HashMap<String, &Vec<TypeExpr>>,
     fn_name: &str,
@@ -3885,7 +3998,7 @@ fn check_type_annotations(
 fn check_type_annotations_in_expr(
     expr: &Expr,
     var_types: &HashMap<String, TypeExpr>,
-    fn_ret_lookup: &HashMap<String, &TypeExpr>,
+    fn_ret_lookup: &HashMap<String, TypeExpr>,
     type_lookup: &HashMap<String, &Vec<Field>>,
     union_lookup: &HashMap<String, &Vec<TypeExpr>>,
     fn_name: &str,

@@ -1,0 +1,7 @@
+val std = use("std")
+
+pub fn main() void! = {
+    std.string.compare(std.string.RChar("hello"), std.string.RChar("world")) // should NOT error
+    std.string.compare("hello", "world") // should error
+
+}
