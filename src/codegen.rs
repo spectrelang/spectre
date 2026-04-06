@@ -1591,9 +1591,16 @@ impl Codegen {
                     if !block_is_terminated(body) {
                         self.emit(&format!("    jmp {end_lbl}"));
                     }
+                } else {
+                    self.emit(&format!("    jmp {end_lbl}"));
                 }
 
-                self.emit(&format!("{end_lbl}"));
+                let all_arms_terminate = arms.iter().all(|(_, _, body)| block_is_terminated(body));
+                let else_terminates = else_body.as_ref().map_or(false, |b| block_is_terminated(b));
+                let end_reachable = !all_arms_terminate || !else_terminates || else_body.is_none();
+                if end_reachable {
+                    self.emit(&format!("{end_lbl}"));
+                }
             }
             Stmt::Assert(expr, line) => {
                 let (cond, _) = self.emit_expr(expr, ns)?;
@@ -3879,10 +3886,29 @@ impl Codegen {
 /// Returns true if the last statement in a block is a terminator (return),
 /// meaning no fall-through jump is needed.
 fn block_is_terminated(stmts: &[Stmt]) -> bool {
-    matches!(
-        stmts.last(),
-        Some(Stmt::Return(_)) | Some(Stmt::Break) | Some(Stmt::Continue)
-    )
+    match stmts.last() {
+        Some(Stmt::Return(_)) | Some(Stmt::Break) | Some(Stmt::Continue) => true,
+        Some(Stmt::MatchTaggedUnion { arms, else_body, .. }) => {
+            let all_arms = arms.iter().all(|(_, _, body)| block_is_terminated(body));
+            let else_term = else_body.as_ref().map_or(false, |b| block_is_terminated(b));
+            all_arms && else_term
+        }
+        Some(Stmt::MatchResult { ok_body, err_body, .. }) => {
+            block_is_terminated(ok_body) && block_is_terminated(err_body)
+        }
+        Some(Stmt::Match { some_body, none_body, .. }) => {
+            block_is_terminated(some_body) && block_is_terminated(none_body)
+        }
+        Some(Stmt::MatchEnum { arms, .. }) => {
+            arms.iter().all(|(_, body)| block_is_terminated(body))
+        }
+        Some(Stmt::MatchUnion { arms, else_body, .. }) => {
+            let all_arms = arms.iter().all(|(_, body)| block_is_terminated(body));
+            let else_term = else_body.as_ref().map_or(false, |b| block_is_terminated(b));
+            all_arms && else_term
+        }
+        _ => false,
+    }
 }
 
 /// Recursively checks whether a block consists entirely of "trusted" operations.
