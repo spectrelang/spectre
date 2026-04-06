@@ -601,7 +601,7 @@ fn handle_hover(id_val: ref void, params: ref void, store: ref DocStore) void! =
                     match src_opt {
                         none => {
                             val null_val: ref void = json.build_null(b)
-                            val resp: ref char = make_response(id_val, null_val, b)
+                            val resp: ref char = make_response(id_val as ref char, null_val, b)
                             send_message(resp)
                             json.json_str_free(resp)
                             json.builder_free(b)
@@ -614,7 +614,7 @@ fn handle_hover(id_val: ref void, params: ref void, store: ref DocStore) void! =
                             match hover_opt {
                                 none => {
                                     val null_val: ref void = json.build_null(b)
-                                    val resp: ref char = make_response(id_val, null_val, b)
+                                    val resp: ref char = make_response(id_val as ref char, null_val, b)
                                     send_message(resp)
                                     json.json_str_free(resp)
                                     json.builder_free(b)
@@ -685,7 +685,7 @@ fn handle_initialize(id_val: ref void) void! = {
     json.object_add(server_info, k_version, v_version)
     json.object_add(result_obj, k_server_info, server_info)
 
-    val resp: ref char = make_response(id_val, result_obj, b)
+    val resp: ref char = make_response(id_val as ref char, result_obj, b)
     send_message(resp)
     json.json_str_free(resp)
     json.builder_free(b)
