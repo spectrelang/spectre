@@ -1674,7 +1674,7 @@ test {
     match r16 {
         err e => { 
             std.stdio.print("{s}", {e})
-            assert false 
+            assert false
         }
         ok items => {
             assert @len(items) as i64 == 1
