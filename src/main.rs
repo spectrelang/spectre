@@ -125,7 +125,7 @@ fn assemble_and_link(asm: &str, binary_path: &str, libs: &[String], show_cmd: bo
                 cmd.arg(part);
             }
         } else {
-            cmd.arg(format!("-l{lib}"));
+            cmd.arg(lib);
         }
     }
 
@@ -150,12 +150,10 @@ fn assemble_and_link(asm: &str, binary_path: &str, libs: &[String], show_cmd: bo
 fn run_tests(binary_path: &str) {
     let full_path = Path::join(Path::new("./s-out/"), binary_path);
     eprintln!("[spectre] running test binary: {}", full_path.display());
-    let status = Command::new(&full_path)
-        .status()
-        .unwrap_or_else(|e| {
-            eprintln!("error: could not run test binary: {e}");
-            process::exit(1);
-        });
+    let status = Command::new(&full_path).status().unwrap_or_else(|e| {
+        eprintln!("error: could not run test binary: {e}");
+        process::exit(1);
+    });
     eprintln!("[spectre] test binary exited with: {status}");
 
     if !status.success() {

@@ -1,4 +1,4 @@
-link "curl"
+link "-lcurl"
 
 when darwin {
     link "-L/opt/homebrew/opt/curl/lib"
