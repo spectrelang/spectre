@@ -1,3 +1,5 @@
+link "__sx__internal__json__"
+
 when posix {
     link "-L/usr/local/lib"
     link "-lyyjson"

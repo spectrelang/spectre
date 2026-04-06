@@ -2,3 +2,4 @@
 /s-out
 .DS_Store
 .q*
+*.o

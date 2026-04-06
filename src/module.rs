@@ -1,5 +1,5 @@
-use std::collections::{HashMap, HashSet};
 use indexmap::IndexMap;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
 use crate::cli::Args;
@@ -478,6 +478,24 @@ pub fn resolve_module(
     for item in &ast.items {
         if let Item::Link { lib } = item {
             links.push(lib.clone());
+        }
+    }
+
+    for lib in &mut links {
+        if *lib == "__sx__internal__json__" {
+            if let Ok(exe) = std::env::current_exe() {
+                if let Some(exe_dir) = exe.parent() {
+                    let shim_path = exe_dir.join("std").join("csources").join("yyjson_shim.o");
+                    if shim_path.exists() {
+                        *lib = shim_path.to_string_lossy().to_string();
+                    } else {
+                        eprintln!(
+                            "warning: yyjson_shim.o not found at expected path: {}",
+                            shim_path.display()
+                        );
+                    }
+                }
+            }
         }
     }
 
