@@ -659,7 +659,6 @@ fn gen_builtin(ctx: ref void, expr: ref parser.Node) ref char! = {
         emit(ctx, buf)
     } elif str.rchar_cmp(name, "printf") == 0 {
         val fmt: ref char = get_arg(0)
-        val fargs: ref char = get_arg(1)
         @snprintf(buf, 512, "    %%t%lld =w call $printf(l %s, ...)\n", {tmp, fmt})
         emit(ctx, buf)
     } elif str.rchar_cmp(name, "snprintf") == 0 {
@@ -821,7 +820,6 @@ fn gen_try(ctx: ref void, expr: ref parser.Node) ref char! = {
     val tag_tmp: i64 = fresh_tmp(ctx)
     val ok_lbl: i64 = fresh_lbl(ctx)
     val err_lbl: i64 = fresh_lbl(ctx)
-    val end_lbl: i64 = fresh_lbl(ctx)
     val buf: ref char = @alloc(512) as ref char
     @snprintf(buf, 512,
         "    %%t%lld =w loadw %s\n    jnz %%t%lld, @lbl%lld, @lbl%lld\n@lbl%lld\n",
@@ -829,7 +827,6 @@ fn gen_try(ctx: ref void, expr: ref parser.Node) ref char! = {
     emit(ctx, buf)
     @free(buf)
     // err branch: return the result as-is
-    val fn_name: ref char = cg_fn_name(ctx)
     val rbuf: ref char = @alloc(128) as ref char
     @snprintf(rbuf, 128, "    ret %s\n@lbl%lld\n", {inner, ok_lbl})
     emit(ctx, rbuf)
@@ -847,8 +844,6 @@ fn gen_try(ctx: ref void, expr: ref parser.Node) ref char! = {
     return res
 }
 
-// ─── Statement codegen ────────────────────────────────────────────────────────
-
 fn gen_stmts(ctx: ref void, stmts: ref parser.Node) void! = {
     if stmts == 0 as ref parser.Node { return }
     val len: i64 = @len(stmts) as i64
@@ -857,7 +852,7 @@ fn gen_stmts(ctx: ref void, stmts: ref parser.Node) void! = {
         if i >= len { break }
         val s_opt = @get(stmts, i as usize)
         match s_opt {
-            some s => { gen_stmt(ctx, s as ref void) }
+            some s => { gen_stmt(ctx, s as ref parser.Node) }
             none => {}
         }
         i++
@@ -867,7 +862,6 @@ fn gen_stmts(ctx: ref void, stmts: ref parser.Node) void! = {
 fn gen_stmt(ctx: ref void, stmt: ref parser.Node) void! = {
     if stmt == 0 as ref parser.Node { return }
     val k: i64 = stmt.kind
-    val line: i64 = stmt.line
 
     if k == parser.NK_VAL {
         val name: ref char = stmt.d0 as ref char
@@ -884,7 +878,7 @@ fn gen_stmt(ctx: ref void, stmt: ref parser.Node) void! = {
 
     if k == parser.NK_ASSIGN {
         val target: ref void = stmt.d0 as ref void
-        val value: ref void = stmt.d1 as ref void
+        val value: ref parser.Node = stmt.d1 as ref parser.Node
         val val_tmp2: ref char = gen_expr(ctx, value)
         val tk: i64 = target.kind
         if tk == parser.NK_IDENT {
@@ -1133,8 +1127,6 @@ fn gen_if_stmt(ctx: ref void, stmt: ref parser.Node) void! = {
     
     if has_else { 
         jmp_false = else_lbl 
-    } else { 
-        end_lbl 
     }
 
     val buf: ref char = @alloc(128) as ref char
