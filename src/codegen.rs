@@ -1,8 +1,8 @@
 use crate::cli::Platform;
 use crate::module::ResolvedModule;
 use crate::parser::{Expr, Field, FnDef, Item, Stmt, TypeExpr};
-use std::collections::HashMap;
 use indexmap::IndexMap;
+use std::collections::HashMap;
 
 fn qbe_type(ty: &TypeExpr) -> &'static str {
     match ty {
@@ -160,6 +160,7 @@ pub struct Codegen {
     current_module_prefix: String,
     current_fn_returns_tagged_union: bool,
     pub warnings: Vec<String>,
+    unknown_functions: Vec<(String, usize, String)>,
 }
 
 impl Codegen {
@@ -210,6 +211,7 @@ impl Codegen {
             current_module_prefix: String::new(),
             current_fn_returns_tagged_union: false,
             warnings: Vec::new(),
+            unknown_functions: Vec::new(),
         }
     }
 
@@ -386,6 +388,15 @@ impl Codegen {
         if test_mode {
             self.emit_test_main()?;
         }
+
+        if !self.unknown_functions.is_empty() {
+            let mut errors = Vec::new();
+            for (file, line, fn_name) in &self.unknown_functions {
+                errors.push(format!("{file}:{line}: unknown function '{fn_name}'"));
+            }
+            return Err(errors.join("\n"));
+        }
+
         Ok(())
     }
 
@@ -429,7 +440,8 @@ impl Codegen {
                 variants,
             } = item
             {
-                self.tagged_union_defs.entry(name.clone())
+                self.tagged_union_defs
+                    .entry(name.clone())
                     .or_insert_with(|| (module_prefix.to_string(), *public, variants.clone()));
             }
             if let Item::EnumDef { name, variants, .. } = item {
@@ -469,7 +481,9 @@ impl Codegen {
                     let maybe_const_val = match expr {
                         crate::parser::Expr::IntLit(n) => Some(n.to_string()),
                         crate::parser::Expr::FloatLit(f) => Some(format!("d_{f}")),
-                        crate::parser::Expr::Bool(b) => Some(if *b { "1" } else { "0" }.to_string()),
+                        crate::parser::Expr::Bool(b) => {
+                            Some(if *b { "1" } else { "0" }.to_string())
+                        }
                         crate::parser::Expr::UnOp {
                             op: crate::parser::UnOp::Neg,
                             expr,
@@ -489,9 +503,7 @@ impl Codegen {
                 let init_val = match expr {
                     crate::parser::Expr::IntLit(n) => n.to_string(),
                     crate::parser::Expr::FloatLit(f) => format!("d_{f}"),
-                    crate::parser::Expr::Bool(b) => {
-                        if *b { "1" } else { "0" }.to_string()
-                    }
+                    crate::parser::Expr::Bool(b) => if *b { "1" } else { "0" }.to_string(),
                     _ => "0".to_string(),
                 };
 
@@ -583,13 +595,26 @@ impl Codegen {
         let mut result = Vec::new();
         for item in items {
             match item {
-                Item::WhenItems { platform, items: block_items, or_when, otherwise } => {
+                Item::WhenItems {
+                    platform,
+                    items: block_items,
+                    or_when,
+                    otherwise,
+                } => {
                     if self.platform.matches_name(platform) {
-                        for bi in block_items { result.push(bi); }
-                    } else if let Some((_, ow_items)) = or_when.iter().find(|(p, _)| self.platform.matches_name(p)) {
-                        for bi in ow_items { result.push(bi); }
+                        for bi in block_items {
+                            result.push(bi);
+                        }
+                    } else if let Some((_, ow_items)) =
+                        or_when.iter().find(|(p, _)| self.platform.matches_name(p))
+                    {
+                        for bi in ow_items {
+                            result.push(bi);
+                        }
                     } else {
-                        for bi in otherwise { result.push(bi); }
+                        for bi in otherwise {
+                            result.push(bi);
+                        }
                     }
                 }
                 other => result.push(other),
@@ -729,14 +754,21 @@ impl Codegen {
             "w %argc, l %argv".to_string()
         } else if ret_union_name.is_some() {
             let rest = params.join(", ");
-            if rest.is_empty() { "l %__ret".to_string() } else { format!("l %__ret, {rest}") }
+            if rest.is_empty() {
+                "l %__ret".to_string()
+            } else {
+                format!("l %__ret, {rest}")
+            }
         } else {
             params.join(", ")
         };
 
         self.current_fn_returns_tagged_union = ret_union_name.is_some();
 
-        self.emit(&format!("{export}function {ret_ty}${name}({params_str}) {{", name = qbe_name));
+        self.emit(&format!(
+            "{export}function {ret_ty}${name}({params_str}) {{",
+            name = qbe_name
+        ));
         self.emit("@start");
 
         if qbe_name == "main" {
@@ -833,10 +865,18 @@ impl Codegen {
     ) -> Result<(), String> {
         for stmt in stmts {
             self.emit_stmt(stmt, ns, ret_ty)?;
-            if let Stmt::When { platform, body, or_when, otherwise } = stmt {
+            if let Stmt::When {
+                platform,
+                body,
+                or_when,
+                otherwise,
+            } = stmt
+            {
                 let active = if self.platform.matches_name(platform) {
                     Some(body.as_slice())
-                } else if let Some((_, b)) = or_when.iter().find(|(p, _)| self.platform.matches_name(p)) {
+                } else if let Some((_, b)) =
+                    or_when.iter().find(|(p, _)| self.platform.matches_name(p))
+                {
                     Some(b.as_slice())
                 } else if !otherwise.is_empty() {
                     Some(otherwise.as_slice())
@@ -932,7 +972,13 @@ impl Codegen {
                         Expr::Try(inner) => {
                             let call = match inner.as_ref() {
                                 Expr::Call { .. } => Some(inner.as_ref()),
-                                Expr::Trust(t) => if let Expr::Call { .. } = t.as_ref() { Some(t.as_ref()) } else { None },
+                                Expr::Trust(t) => {
+                                    if let Expr::Call { .. } = t.as_ref() {
+                                        Some(t.as_ref())
+                                    } else {
+                                        None
+                                    }
+                                }
                                 _ => None,
                             };
                             call.and_then(|c| {
@@ -941,18 +987,16 @@ impl Codegen {
                                     let expanded = expand_alias_path(&path, &self.module_aliases);
                                     ns.get(&expanded)
                                         .and_then(|qbe_fn| self.fn_ret_type_exprs.get(qbe_fn))
-                                        .and_then(|ret_ty| {
-                                            match ret_ty {
-                                                TypeExpr::Result(ok_ty, _) => {
-                                                    let ann = type_to_annotation_string(ok_ty);
-                                                    if ann.is_empty() { None } else { Some(ann) }
-                                                }
-                                                TypeExpr::Option(inner_ty) => {
-                                                    let ann = type_to_annotation_string(inner_ty);
-                                                    if ann.is_empty() { None } else { Some(ann) }
-                                                }
-                                                _ => None,
+                                        .and_then(|ret_ty| match ret_ty {
+                                            TypeExpr::Result(ok_ty, _) => {
+                                                let ann = type_to_annotation_string(ok_ty);
+                                                if ann.is_empty() { None } else { Some(ann) }
                                             }
+                                            TypeExpr::Option(inner_ty) => {
+                                                let ann = type_to_annotation_string(inner_ty);
+                                                if ann.is_empty() { None } else { Some(ann) }
+                                            }
+                                            _ => None,
                                         })
                                 } else {
                                     None
@@ -996,7 +1040,9 @@ impl Codegen {
                 if let Some(root) = expr_root_name(target) {
                     let is_mut = self.local_mutability.get(&root).copied().unwrap_or(false);
                     if !is_mut {
-                        return Err(format!("cannot assign to immutable binding '{root}' at '{target :?}'"));
+                        return Err(format!(
+                            "cannot assign to immutable binding '{root}' at '{target :?}'"
+                        ));
                     }
                 }
                 if let Expr::Ident(name) = target {
@@ -1046,16 +1092,32 @@ impl Codegen {
                 let ptr = self.emit_field_ptr(target, ns)?;
                 let is_tu_assign = if let Expr::Field(base, field_name) = target {
                     self.infer_field_type(base, field_name)
-                        .and_then(|ty| if let TypeExpr::Named(n) = ty { Some(n) } else { None })
+                        .and_then(|ty| {
+                            if let TypeExpr::Named(n) = ty {
+                                Some(n)
+                            } else {
+                                None
+                            }
+                        })
                         .map(|n| self.is_tagged_union_type(&n))
                         .unwrap_or(false)
-                } else { false };
+                } else {
+                    false
+                };
                 if is_tu_assign {
                     let union_name = if let Expr::Field(base, field_name) = target {
                         self.infer_field_type(base, field_name)
-                            .and_then(|ty| if let TypeExpr::Named(n) = ty { Some(n) } else { None })
+                            .and_then(|ty| {
+                                if let TypeExpr::Named(n) = ty {
+                                    Some(n)
+                                } else {
+                                    None
+                                }
+                            })
                             .unwrap_or_default()
-                    } else { String::new() };
+                    } else {
+                        String::new()
+                    };
                     let size = self.tagged_union_inline_size(&union_name);
                     self.emit(&format!("    call $memcpy(l {ptr}, l {val_tmp}, l {size})"));
                 } else {
@@ -1331,7 +1393,8 @@ impl Codegen {
 
                 let (list_ptr, _) = self.emit_expr(iterable, ns)?;
                 let list_ty_full = self.infer_struct_type_name(iterable).unwrap_or_default();
-                let element_ty = if list_ty_full.starts_with("list[") && list_ty_full.ends_with(']') {
+                let element_ty = if list_ty_full.starts_with("list[") && list_ty_full.ends_with(']')
+                {
                     Some(list_ty_full[5..list_ty_full.len() - 1].to_string())
                 } else {
                     None
@@ -1373,7 +1436,8 @@ impl Codegen {
                 self.local_types.insert(binding.clone(), "l");
                 self.local_mutability.insert(binding.clone(), false);
                 if let Some(ref et) = element_ty {
-                    self.local_type_annotations.insert(binding.clone(), et.clone());
+                    self.local_type_annotations
+                        .insert(binding.clone(), et.clone());
                 }
 
                 let prev_loop_end = self.current_loop_end.replace(end_lbl.clone());
@@ -1496,10 +1560,17 @@ impl Codegen {
                     .ok_or_else(|| "continue used outside of loop".to_string())?;
                 self.emit(&format!("    jmp {cont_lbl}"));
             }
-            Stmt::When { platform, body, or_when, otherwise } => {
+            Stmt::When {
+                platform,
+                body,
+                or_when,
+                otherwise,
+            } => {
                 if self.platform.matches_name(platform) {
                     self.emit_stmts(body, ns, ret_ty)?;
-                } else if let Some((_, ow_body)) = or_when.iter().find(|(p, _)| self.platform.matches_name(p)) {
+                } else if let Some((_, ow_body)) =
+                    or_when.iter().find(|(p, _)| self.platform.matches_name(p))
+                {
                     self.emit_stmts(ow_body, ns, ret_ty)?;
                 } else if !otherwise.is_empty() {
                     self.emit_stmts(otherwise, ns, ret_ty)?;
@@ -1580,7 +1651,11 @@ impl Codegen {
                 self.emit(&format!("    {tag_tmp} =l loadl {union_ptr}"));
 
                 let union_name = self.infer_tagged_union_name_with_ns(expr, ns)?;
-                let union_bare = union_name.rsplit('.').next().unwrap_or(&union_name).to_string();
+                let union_bare = union_name
+                    .rsplit('.')
+                    .next()
+                    .unwrap_or(&union_name)
+                    .to_string();
                 let variants_info = self
                     .tagged_union_defs
                     .get(&union_name)
@@ -1594,7 +1669,9 @@ impl Codegen {
                         .iter()
                         .position(|(n, _)| n == variant_name)
                         .ok_or_else(|| {
-                            format!("variant '{variant_name}' not found in tagged union '{union_name}'")
+                            format!(
+                                "variant '{variant_name}' not found in tagged union '{union_name}'"
+                            )
                         })?;
 
                     let body_lbl = format!("@tunion_arm_{i}_{}", self.tmp_counter - 1);
@@ -1618,7 +1695,13 @@ impl Codegen {
                                 Some(TypeExpr::Named(n))
                                     if matches!(
                                         n.as_str(),
-                                        "i8" | "i16" | "i32" | "u8" | "u16" | "u32" | "bool" | "char"
+                                        "i8" | "i16"
+                                            | "i32"
+                                            | "u8"
+                                            | "u16"
+                                            | "u32"
+                                            | "bool"
+                                            | "char"
                                     ) =>
                                 {
                                     self.emit(&format!("    {loaded} =w loadw {field_ptr}"));
@@ -1763,13 +1846,18 @@ impl Codegen {
                                 match ch {
                                     '[' => depth += 1,
                                     ']' => depth = depth.saturating_sub(1),
-                                    ',' if depth == 0 => { split_pos = Some(i); break; }
+                                    ',' if depth == 0 => {
+                                        split_pos = Some(i);
+                                        break;
+                                    }
                                     _ => {}
                                 }
                             }
                             if let Some(pos) = split_pos {
-                                (Some(inner[..pos].trim().to_string()),
-                                 Some(inner[pos + 1..].trim().to_string()))
+                                (
+                                    Some(inner[..pos].trim().to_string()),
+                                    Some(inner[pos + 1..].trim().to_string()),
+                                )
                             } else {
                                 (None, None)
                             }
@@ -1780,7 +1868,8 @@ impl Codegen {
                         (None, None)
                     };
 
-                let ok_is_float = ok_inner_ann.as_deref()
+                let ok_is_float = ok_inner_ann
+                    .as_deref()
                     .map(|a| a == "f64" || a == "f32")
                     .unwrap_or_else(|| {
                         if let Expr::Ident(name) = expr {
@@ -1972,7 +2061,9 @@ impl Codegen {
                         self.emit(&format!("    {tmp} =l copy ${qbe_name}"));
                         return Ok(tmp);
                     }
-                    if let Some((val, _)) = self.cross_module_consts.get(&expanded)
+                    if let Some((val, _)) = self
+                        .cross_module_consts
+                        .get(&expanded)
                         .or_else(|| self.cross_module_consts.get(bare))
                         .cloned()
                     {
@@ -2074,7 +2165,11 @@ impl Codegen {
         self.infer_struct_type_name_with_ns_opt(expr, None)
     }
 
-    fn infer_struct_type_name_with_ns_opt(&self, expr: &Expr, ns: Option<&Namespace>) -> Result<String, String> {
+    fn infer_struct_type_name_with_ns_opt(
+        &self,
+        expr: &Expr,
+        ns: Option<&Namespace>,
+    ) -> Result<String, String> {
         match expr {
             Expr::Ident(name) => self
                 .local_type_annotations
@@ -2083,7 +2178,8 @@ impl Codegen {
                 .ok_or_else(|| format!("cannot determine type of '{name}' at expression {expr:?}")),
             Expr::Cast { ty, .. } => Ok(type_to_annotation_string(ty)),
             Expr::Field(base, field_name) => {
-                let field_ty = self.infer_field_type(base, field_name)
+                let field_ty = self
+                    .infer_field_type(base, field_name)
                     .ok_or_else(|| format!("cannot determine type of field '{field_name}'"))?;
                 Ok(type_to_annotation_string(&field_ty))
             }
@@ -2102,16 +2198,26 @@ impl Codegen {
                         }
                     }
                 }
-                Err(format!("cannot determine struct type for call expression {:?}", expr))
+                Err(format!(
+                    "cannot determine struct type for call expression {:?}",
+                    expr
+                ))
             }
             Expr::Trust(inner) => self.infer_struct_type_name_with_ns_opt(inner, ns),
-            _ => Err(format!("cannot determine struct type for complex expression {:?}", expr)),
+            _ => Err(format!(
+                "cannot determine struct type for complex expression {:?}",
+                expr
+            )),
         }
     }
 
     /// Like `infer_struct_type_name` but also handles `Call` expressions by looking up
     /// the callee's return type via the namespace and `fn_ret_type_exprs`.
-    fn infer_tagged_union_name_with_ns(&self, expr: &Expr, ns: &Namespace) -> Result<String, String> {
+    fn infer_tagged_union_name_with_ns(
+        &self,
+        expr: &Expr,
+        ns: &Namespace,
+    ) -> Result<String, String> {
         self.infer_struct_type_name_with_ns_opt(expr, Some(ns))
     }
 
@@ -2168,21 +2274,21 @@ impl Codegen {
     /// Scoping rules:
     /// - Qualified (`module.Variant`): only search the named module.
     /// - Unqualified (`Variant`): current module takes priority over public imports.
-    fn find_tagged_union_variant(
-        &self,
-        path: &str,
-    ) -> Option<(String, usize, Vec<TypeExpr>)> {
+    fn find_tagged_union_variant(&self, path: &str) -> Option<(String, usize, Vec<TypeExpr>)> {
         let dot_pos = path.rfind('.');
         let prefix = dot_pos.map(|p| &path[..p]);
         let variant_name = dot_pos.map(|p| &path[p + 1..]).unwrap_or(path);
 
         let mod_matches = |a: &str, b: &str| -> bool {
-            if a == b { return true; }
+            if a == b {
+                return true;
+            }
             let a_dot = a.replace("__", ".");
             let b_dot = b.replace("__", ".");
-            if a_dot == b_dot { return true; }
-            a_dot.ends_with(&format!(".{b_dot}"))
-                || b_dot.ends_with(&format!(".{a_dot}"))
+            if a_dot == b_dot {
+                return true;
+            }
+            a_dot.ends_with(&format!(".{b_dot}")) || b_dot.ends_with(&format!(".{a_dot}"))
         };
 
         if let Some(p) = prefix {
@@ -2243,7 +2349,11 @@ impl Codegen {
     /// Each payload field is 8 bytes (all values are pointer-sized in QBE).
     fn tagged_union_inline_size(&self, union_name: &str) -> u64 {
         if let Some((_, _, variants)) = self.tagged_union_defs.get(union_name) {
-            let max_fields = variants.iter().map(|(_, fields)| fields.len()).max().unwrap_or(0);
+            let max_fields = variants
+                .iter()
+                .map(|(_, fields)| fields.len())
+                .max()
+                .unwrap_or(0);
             8 + (max_fields as u64) * 8
         } else {
             8
@@ -2417,8 +2527,15 @@ impl Codegen {
 
                 // Check if the inner call returns result[void, E] — if so, no value to extract.
                 let is_void_ok = match inner.as_ref() {
-                    Expr::Call { callee, .. } => {
-                        if let Ok(name) = resolve_call_name(callee, ns, &self.type_aliases) {
+                    Expr::Call { callee, line, .. } => {
+                        if let Some(name) = resolve_call_name(
+                            callee,
+                            ns,
+                            &self.type_aliases,
+                            &mut self.unknown_functions,
+                            &self.current_file,
+                            *line,
+                        ) {
                             self.result_void_ok.contains(&name)
                         } else {
                             false
@@ -2489,10 +2606,15 @@ impl Codegen {
                             }
                         }
                         total
-                    } else if let Some(size) = self.tagged_union_defs.get(&type_name).map(|(_, _, variants)| {
-                        let max_fields = variants.iter().map(|(_, f)| f.len()).max().unwrap_or(0);
-                        8 + (max_fields as u64) * 8
-                    }) {
+                    } else if let Some(size) =
+                        self.tagged_union_defs
+                            .get(&type_name)
+                            .map(|(_, _, variants)| {
+                                let max_fields =
+                                    variants.iter().map(|(_, f)| f.len()).max().unwrap_or(0);
+                                8 + (max_fields as u64) * 8
+                            })
+                    {
                         size
                     } else {
                         match type_name.as_str() {
@@ -3281,7 +3403,13 @@ impl Codegen {
                     .unwrap_or(false);
                 let is_tagged_union_field = field_ty
                     .as_ref()
-                    .and_then(|ty| if let TypeExpr::Named(n) = ty { Some(n.clone()) } else { None })
+                    .and_then(|ty| {
+                        if let TypeExpr::Named(n) = ty {
+                            Some(n.clone())
+                        } else {
+                            None
+                        }
+                    })
                     .map(|n| self.is_tagged_union_type(&n))
                     .unwrap_or(false);
 
@@ -3366,10 +3494,14 @@ impl Codegen {
                         let field_ptr = self.fresh_tmp();
                         self.emit(&format!("    {field_ptr} =l add {ptr}, {offset}"));
                         if let Expr::IntLit(0) = fexpr {
-                            self.emit(&format!("    call $memset(l {field_ptr}, w 0, l {field_byte_size})"));
+                            self.emit(&format!(
+                                "    call $memset(l {field_ptr}, w 0, l {field_byte_size})"
+                            ));
                         } else {
                             let (val, _) = self.emit_expr(fexpr, ns)?;
-                            self.emit(&format!("    call $memcpy(l {field_ptr}, l {val}, l {field_byte_size})"));
+                            self.emit(&format!(
+                                "    call $memcpy(l {field_ptr}, l {val}, l {field_byte_size})"
+                            ));
                         }
                     } else if let Some(TypeExpr::Named(ref n)) = field_type {
                         if self.is_tagged_union_type(n) {
@@ -3377,7 +3509,9 @@ impl Codegen {
                             let field_ptr = self.fresh_tmp();
                             self.emit(&format!("    {field_ptr} =l add {ptr}, {offset}"));
                             let (val, _) = self.emit_expr(fexpr, ns)?;
-                            self.emit(&format!("    call $memcpy(l {field_ptr}, l {val}, l {union_size})"));
+                            self.emit(&format!(
+                                "    call $memcpy(l {field_ptr}, l {val}, l {union_size})"
+                            ));
                         } else {
                             let (val, val_ty) = self.emit_expr(fexpr, ns)?;
                             let field_ptr = self.fresh_tmp();
@@ -3467,7 +3601,13 @@ impl Codegen {
                                 Some(TypeExpr::Named(n))
                                     if matches!(
                                         n.as_str(),
-                                        "i8" | "i16" | "i32" | "u8" | "u16" | "u32" | "bool" | "char"
+                                        "i8" | "i16"
+                                            | "i32"
+                                            | "u8"
+                                            | "u16"
+                                            | "u32"
+                                            | "bool"
+                                            | "char"
                                     ) =>
                                 {
                                     self.emit(&format!("    storew {val}, {field_ptr}"));
@@ -3514,8 +3654,17 @@ impl Codegen {
                     return Ok((result, "l"));
                 }
 
-                let fn_name = resolve_call_name(callee, ns, &self.type_aliases.clone())
-                    .map_err(|e| format!("{}:{}: {}", self.current_file, line, e))?;
+                let fn_name = match resolve_call_name(
+                    callee,
+                    ns,
+                    &self.type_aliases.clone(),
+                    &mut self.unknown_functions,
+                    &self.current_file,
+                    *line,
+                ) {
+                    Some(name) => name,
+                    None => "unknown".to_string(),
+                };
 
                 if !self.current_fn_trusted && !self.in_trust_expr {
                     if self.trusted_fns.contains(&fn_name) {
@@ -3549,7 +3698,10 @@ impl Codegen {
                     }
                 }
 
-                if fn_name == "print" || fn_name.ends_with("__print") || fn_name.ends_with("__eprint") {
+                if fn_name == "print"
+                    || fn_name.ends_with("__print")
+                    || fn_name.ends_with("__eprint")
+                {
                     let fmt_str = match args.first() {
                         Some(Expr::StrLit(s)) => s.clone(),
                         _ => return Err("print first argument must be a string literal".into()),
@@ -3795,7 +3947,13 @@ impl Codegen {
                 let callee_ret_union = self
                     .fn_ret_type_exprs
                     .get(fn_name.as_str())
-                    .and_then(|ty| if let TypeExpr::Named(n) = ty { Some(n.clone()) } else { None })
+                    .and_then(|ty| {
+                        if let TypeExpr::Named(n) = ty {
+                            Some(n.clone())
+                        } else {
+                            None
+                        }
+                    })
                     .filter(|n| self.is_tagged_union_type(n));
 
                 let (ret_slot, args_str) = if let Some(ref union_name) = callee_ret_union {
@@ -3805,20 +3963,38 @@ impl Codegen {
                     let base = if let Some(&fixed) = self.variadic_fns.get(fn_name.as_str()) {
                         if arg_strs.len() > fixed {
                             let (fa, va) = arg_strs.split_at(fixed);
-                            if fa.is_empty() { format!("..., {}", va.join(", ")) }
-                            else { format!("{}, ..., {}", fa.join(", "), va.join(", ")) }
-                        } else { arg_strs.join(", ") }
-                    } else { arg_strs.join(", ") };
-                    let full = if base.is_empty() { format!("l {slot}") } else { format!("l {slot}, {base}") };
+                            if fa.is_empty() {
+                                format!("..., {}", va.join(", "))
+                            } else {
+                                format!("{}, ..., {}", fa.join(", "), va.join(", "))
+                            }
+                        } else {
+                            arg_strs.join(", ")
+                        }
+                    } else {
+                        arg_strs.join(", ")
+                    };
+                    let full = if base.is_empty() {
+                        format!("l {slot}")
+                    } else {
+                        format!("l {slot}, {base}")
+                    };
                     (Some(slot), full)
                 } else {
                     let s = if let Some(&fixed) = self.variadic_fns.get(fn_name.as_str()) {
                         if arg_strs.len() > fixed {
                             let (fa, va) = arg_strs.split_at(fixed);
-                            if fa.is_empty() { format!("..., {}", va.join(", ")) }
-                            else { format!("{}, ..., {}", fa.join(", "), va.join(", ")) }
-                        } else { arg_strs.join(", ") }
-                    } else { arg_strs.join(", ") };
+                            if fa.is_empty() {
+                                format!("..., {}", va.join(", "))
+                            } else {
+                                format!("{}, ..., {}", fa.join(", "), va.join(", "))
+                            }
+                        } else {
+                            arg_strs.join(", ")
+                        }
+                    } else {
+                        arg_strs.join(", ")
+                    };
                     (None, s)
                 };
 
@@ -3829,7 +4005,9 @@ impl Codegen {
                     self.emit(&format!("    {result} =l call ${fn_name}({args_str})"));
                     Ok((slot, "l"))
                 } else {
-                    self.emit(&format!("    {result} ={ret_ty} call ${fn_name}({args_str})"));
+                    self.emit(&format!(
+                        "    {result} ={ret_ty} call ${fn_name}({args_str})"
+                    ));
                     Ok((result, ret_ty))
                 }
             }
@@ -4150,21 +4328,27 @@ impl Codegen {
 fn block_is_terminated(stmts: &[Stmt]) -> bool {
     match stmts.last() {
         Some(Stmt::Return(_)) | Some(Stmt::Break) | Some(Stmt::Continue) => true,
-        Some(Stmt::MatchTaggedUnion { arms, else_body, .. }) => {
+        Some(Stmt::MatchTaggedUnion {
+            arms, else_body, ..
+        }) => {
             let all_arms = arms.iter().all(|(_, _, body)| block_is_terminated(body));
             let else_term = else_body.as_ref().map_or(false, |b| block_is_terminated(b));
             all_arms && else_term
         }
-        Some(Stmt::MatchResult { ok_body, err_body, .. }) => {
-            block_is_terminated(ok_body) && block_is_terminated(err_body)
-        }
-        Some(Stmt::Match { some_body, none_body, .. }) => {
-            block_is_terminated(some_body) && block_is_terminated(none_body)
-        }
+        Some(Stmt::MatchResult {
+            ok_body, err_body, ..
+        }) => block_is_terminated(ok_body) && block_is_terminated(err_body),
+        Some(Stmt::Match {
+            some_body,
+            none_body,
+            ..
+        }) => block_is_terminated(some_body) && block_is_terminated(none_body),
         Some(Stmt::MatchEnum { arms, .. }) => {
             arms.iter().all(|(_, body)| block_is_terminated(body))
         }
-        Some(Stmt::MatchUnion { arms, else_body, .. }) => {
+        Some(Stmt::MatchUnion {
+            arms, else_body, ..
+        }) => {
             let all_arms = arms.iter().all(|(_, body)| block_is_terminated(body));
             let else_term = else_body.as_ref().map_or(false, |b| block_is_terminated(b));
             all_arms && else_term
@@ -4230,9 +4414,9 @@ fn all_trusted_stmts(stmts: &[Stmt]) -> bool {
             arms.iter().all(|(_, b)| all_trusted_stmts(b))
                 && else_body.as_deref().map_or(true, all_trusted_stmts)
         }
-        Stmt::When { body, otherwise, .. } => {
-            all_trusted_stmts(body) && all_trusted_stmts(otherwise)
-        }
+        Stmt::When {
+            body, otherwise, ..
+        } => all_trusted_stmts(body) && all_trusted_stmts(otherwise),
         Stmt::Expr(_) => false,
     })
 }
@@ -4320,7 +4504,10 @@ fn find_bare_builtin_in_stmt(stmt: &Stmt) -> Option<String> {
             arms,
             else_body,
         } => find_bare_builtin_in_expr(expr)
-            .or_else(|| arms.iter().find_map(|(_, _, b)| find_bare_builtin_in_stmts(b)))
+            .or_else(|| {
+                arms.iter()
+                    .find_map(|(_, _, b)| find_bare_builtin_in_stmts(b))
+            })
             .or_else(|| else_body.as_deref().and_then(find_bare_builtin_in_stmts)),
         Stmt::MatchString {
             expr,
@@ -4329,8 +4516,9 @@ fn find_bare_builtin_in_stmt(stmt: &Stmt) -> Option<String> {
         } => find_bare_builtin_in_expr(expr)
             .or_else(|| arms.iter().find_map(|(_, b)| find_bare_builtin_in_stmts(b)))
             .or_else(|| else_body.as_deref().and_then(find_bare_builtin_in_stmts)),
-        Stmt::When { body, otherwise, .. } => find_bare_builtin_in_stmts(body)
-            .or_else(|| find_bare_builtin_in_stmts(otherwise)),
+        Stmt::When {
+            body, otherwise, ..
+        } => find_bare_builtin_in_stmts(body).or_else(|| find_bare_builtin_in_stmts(otherwise)),
         Stmt::Increment(_)
         | Stmt::Decrement(_)
         | Stmt::AddAssign(..)
@@ -4418,15 +4606,16 @@ fn find_bare_deref_assign_in_stmt(stmt: &Stmt) -> bool {
         Stmt::MatchTaggedUnion {
             arms, else_body, ..
         } => {
-            arms.iter().any(|(_, _, b)| find_bare_deref_assign_in_stmts(b))
+            arms.iter()
+                .any(|(_, _, b)| find_bare_deref_assign_in_stmts(b))
                 || else_body
                     .as_deref()
                     .map_or(false, find_bare_deref_assign_in_stmts)
         }
         Stmt::Defer(body) => find_bare_deref_assign_in_stmts(body),
-        Stmt::When { body, otherwise, .. } => {
-            find_bare_deref_assign_in_stmts(body) || find_bare_deref_assign_in_stmts(otherwise)
-        }
+        Stmt::When {
+            body, otherwise, ..
+        } => find_bare_deref_assign_in_stmts(body) || find_bare_deref_assign_in_stmts(otherwise),
         _ => false,
     }
 }
@@ -4443,13 +4632,26 @@ fn flatten_ast_items<'a>(items: &'a [Item], platform: Platform) -> Vec<&'a Item>
     let mut result = Vec::new();
     for item in items {
         match item {
-            Item::WhenItems { platform: p, items: block_items, or_when, otherwise } => {
+            Item::WhenItems {
+                platform: p,
+                items: block_items,
+                or_when,
+                otherwise,
+            } => {
                 if platform.matches_name(p) {
-                    for bi in block_items { result.extend(flatten_ast_items(std::slice::from_ref(bi), platform)); }
-                } else if let Some((_, ow_items)) = or_when.iter().find(|(op, _)| platform.matches_name(op)) {
-                    for bi in ow_items { result.extend(flatten_ast_items(std::slice::from_ref(bi), platform)); }
+                    for bi in block_items {
+                        result.extend(flatten_ast_items(std::slice::from_ref(bi), platform));
+                    }
+                } else if let Some((_, ow_items)) =
+                    or_when.iter().find(|(op, _)| platform.matches_name(op))
+                {
+                    for bi in ow_items {
+                        result.extend(flatten_ast_items(std::slice::from_ref(bi), platform));
+                    }
                 } else {
-                    for bi in otherwise { result.extend(flatten_ast_items(std::slice::from_ref(bi), platform)); }
+                    for bi in otherwise {
+                        result.extend(flatten_ast_items(std::slice::from_ref(bi), platform));
+                    }
                 }
             }
             other => result.push(other),
@@ -4458,7 +4660,10 @@ fn flatten_ast_items<'a>(items: &'a [Item], platform: Platform) -> Vec<&'a Item>
     result
 }
 
-fn build_cross_module_consts(resolved: &ResolvedModule, platform: Platform) -> HashMap<String, (String, &'static str)> {
+fn build_cross_module_consts(
+    resolved: &ResolvedModule,
+    platform: Platform,
+) -> HashMap<String, (String, &'static str)> {
     let mut map = HashMap::new();
     collect_cross_module_consts(resolved, "", &mut map, platform);
     map
@@ -4522,13 +4727,20 @@ fn build_ret_types(resolved: &ResolvedModule, platform: Platform) -> HashMap<Str
     map
 }
 
-fn build_ret_type_exprs(resolved: &ResolvedModule, platform: Platform) -> HashMap<String, TypeExpr> {
+fn build_ret_type_exprs(
+    resolved: &ResolvedModule,
+    platform: Platform,
+) -> HashMap<String, TypeExpr> {
     let mut map = HashMap::new();
     collect_ret_type_exprs(resolved, &mut map, platform);
     map
 }
 
-fn collect_ret_type_exprs(module: &ResolvedModule, map: &mut HashMap<String, TypeExpr>, platform: Platform) {
+fn collect_ret_type_exprs(
+    module: &ResolvedModule,
+    map: &mut HashMap<String, TypeExpr>,
+    platform: Platform,
+) {
     collect_ret_type_exprs_prefixed(module, "", map, platform);
 }
 
@@ -4553,7 +4765,11 @@ fn collect_ret_type_exprs_prefixed(
     }
 }
 
-fn collect_ret_types(module: &ResolvedModule, map: &mut HashMap<String, &'static str>, platform: Platform) {
+fn collect_ret_types(
+    module: &ResolvedModule,
+    map: &mut HashMap<String, &'static str>,
+    platform: Platform,
+) {
     collect_ret_types_prefixed(module, "", map, platform);
 }
 
@@ -4584,13 +4800,20 @@ fn collect_ret_types_prefixed(
     }
 }
 
-fn build_param_types(resolved: &ResolvedModule, platform: Platform) -> HashMap<String, Vec<TypeExpr>> {
+fn build_param_types(
+    resolved: &ResolvedModule,
+    platform: Platform,
+) -> HashMap<String, Vec<TypeExpr>> {
     let mut map = HashMap::new();
     collect_param_types(resolved, &mut map, platform);
     map
 }
 
-fn collect_param_types(module: &ResolvedModule, map: &mut HashMap<String, Vec<TypeExpr>>, platform: Platform) {
+fn collect_param_types(
+    module: &ResolvedModule,
+    map: &mut HashMap<String, Vec<TypeExpr>>,
+    platform: Platform,
+) {
     collect_param_types_with_prefix(module, "", map, platform);
 }
 
@@ -4655,13 +4878,20 @@ fn collect_variadic(module: &ResolvedModule, map: &mut HashMap<String, usize>, p
     }
 }
 
-fn build_result_void_ok(resolved: &ResolvedModule, platform: Platform) -> std::collections::HashSet<String> {
+fn build_result_void_ok(
+    resolved: &ResolvedModule,
+    platform: Platform,
+) -> std::collections::HashSet<String> {
     let mut set = std::collections::HashSet::new();
     collect_result_void_ok(resolved, &mut set, platform);
     set
 }
 
-fn collect_result_void_ok(module: &ResolvedModule, set: &mut std::collections::HashSet<String>, platform: Platform) {
+fn collect_result_void_ok(
+    module: &ResolvedModule,
+    set: &mut std::collections::HashSet<String>,
+    platform: Platform,
+) {
     collect_result_void_ok_prefixed(module, "", set, platform);
 }
 
@@ -4807,7 +5037,12 @@ fn collect_tagged_unions(
     defs: &mut IndexMap<String, (String, bool, Vec<(String, Vec<TypeExpr>)>)>,
 ) {
     for item in &module.ast.items {
-        if let Item::TaggedUnionDef { public, name, variants } = item {
+        if let Item::TaggedUnionDef {
+            public,
+            name,
+            variants,
+        } = item
+        {
             defs.entry(name.clone())
                 .or_insert_with(|| (qbe_prefix.to_string(), *public, variants.clone()));
         }
@@ -4862,11 +5097,7 @@ fn collect_ns_with_qbe_prefix(
                 };
                 ns.insert(key, symbol.clone());
             }
-            Item::Global {
-                name,
-                public,
-                ..
-            } => {
+            Item::Global { name, public, .. } => {
                 if !public {
                     continue;
                 }
@@ -4905,12 +5136,19 @@ fn resolve_call_name(
     callee: &Expr,
     ns: &Namespace,
     aliases: &HashMap<String, String>,
-) -> Result<String, String> {
+    unknown_fns: &mut Vec<(String, usize, String)>,
+    current_file: &str,
+    line: usize,
+) -> Option<String> {
     let path = expr_to_path(callee);
     let expanded = expand_alias_path(&path, aliases);
-    ns.get(&expanded)
-        .cloned()
-        .ok_or_else(|| format!("unknown function: {path}"))
+    match ns.get(&expanded).cloned() {
+        Some(name) => Some(name),
+        None => {
+            unknown_fns.push((current_file.to_string(), line, path));
+            None
+        }
+    }
 }
 
 fn expr_to_path(expr: &Expr) -> String {
@@ -4940,8 +5178,7 @@ fn expand_alias_path(path: &str, aliases: &HashMap<String, String>) -> String {
 /// Returns true if `path` (or any prefix of it) matches a key in the namespace,
 /// meaning it refers to a namespace segment rather than a concrete runtime value.
 fn is_namespace_prefix(path: &str, ns: &Namespace) -> bool {
-    ns.keys()
-        .any(|k| k.starts_with(&format!("{path}.")))
+    ns.keys().any(|k| k.starts_with(&format!("{path}.")))
 }
 
 /// Get the root identifier name from a (possibly nested) field access expression.
