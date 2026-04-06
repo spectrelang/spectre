@@ -1303,6 +1303,7 @@ fn parse_fn_item(p: ref Parser, public: i64) result[ref Node, ref char]! = {
     }
     p_expect_rparen(p)?
     val ret_ty = parse_type(p)?
+    p_eat_fn(p, kind_is_bang)
     p_expect_eq(p)?
     p_expect_lbrace(p)?
     val body = parse_stmts(p)?
