@@ -3293,7 +3293,7 @@ impl Codegen {
                     }
                 }
 
-                if fn_name == "print" || fn_name.ends_with("__print") {
+                if fn_name == "print" || fn_name.ends_with("__print") || fn_name.ends_with("__eprint") {
                     let fmt_str = match args.first() {
                         Some(Expr::StrLit(s)) => s.clone(),
                         _ => return Err("print first argument must be a string literal".into()),

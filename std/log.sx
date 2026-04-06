@@ -1,10 +1,30 @@
+extern (C) fn isatty(fd: i32) i32! = "isatty"
+
 val time = use("time.sx")
 val stdio = use("stdio.sx")
+val os = use("os.sx")
 
-val colors: mut bool = true
+pub enum Level = {
+    Debug,
+    Info,
+    Warn,
+    Error,
+    Fatal
+}
+
+val colors: mut bool = isatty(1) != 0
+val min_level: mut Level = Level.Debug
 
 pub fn set_colors(c: bool) void = {
     colors = c
+}
+
+pub fn set_level(l: Level) void = {
+    min_level = l
+}
+
+fn should_log(l: Level) bool = {
+    return (l as i32) >= (min_level as i32)
 }
 
 fn get_time_string() ref char = {
@@ -19,57 +39,77 @@ fn get_time_string() ref char = {
     )
 }
 
-pub fn info(msg: ref char) void! = {
+fn log_out(msg: ref char, label: ref char, color: ref char) void! = {
+    val ts = get_time_string()
     if colors {
         stdio.print(
-            "\x1b[32m{s} \x1b[0m[\x1b[32m{s}\x1b[0m] \x1b[32m{s}\x1b[0m\n", {get_time_string(), "INFO", msg}
+            "{s}{s}\x1b[0m [{s}{s}\x1b[0m] {s}{s}\x1b[0m\n", {color, ts, color, label, color, msg}
         )
     } else {
         stdio.print(
-            "{s} [{s}] {s}\n", {get_time_string(), "INFO", msg}
+            "{s} [{s}] {s}\n", {ts, label, msg}
         )
     }
 }
 
-pub fn warn(msg: ref char) void! = {
+fn log_err(msg: ref char, label: ref char, color: ref char) void! = {
+    val ts = get_time_string()
     if colors {
-        stdio.print(
-            "\x1b[33m{s} \x1b[0m[\x1b[33m{s}\x1b[0m] \x1b[33m{s}\x1b[0m\n", {get_time_string(), "WARN", msg}
+        stdio.eprint(
+            "{s}{s}\x1b[0m [{s}{s}\x1b[0m] {s}{s}\x1b[0m\n", {color, ts, color, label, color, msg}
         )
     } else {
-        stdio.print(
-            "{s} [{s}] {s}\n", {get_time_string(), "WARN", msg}
+        stdio.eprint(
+            "{s} [{s}] {s}\n", {ts, label, msg}
         )
     }
 }
 
 pub fn debug(msg: ref char) void! = {
-    if colors {
-        stdio.print(
-            "\x1b[34m{s} \x1b[0m[\x1b[34m{s}\x1b[0m] \x1b[34m{s}\x1b[0m\n", {get_time_string(), "DEBUG", msg}
-        )
-    } else {
-        stdio.print(
-            "{s} [{s}] {s}\n", {get_time_string(), "DEBUG", msg}
-        )
+    if !should_log(Level.Debug) {
+        return
     }
+    log_out(msg, "DEBUG", "\x1b[34m")
+}
+
+pub fn info(msg: ref char) void! = {
+    if !should_log(Level.Info) {
+        return
+    }
+    log_out(msg, "INFO", "\x1b[32m")
+}
+
+pub fn warn(msg: ref char) void! = {
+    if !should_log(Level.Warn) {
+        return
+    }
+    log_err(msg, "WARN", "\x1b[33m")
 }
 
 pub fn error(msg: ref char) void! = {
-    if colors {
-        stdio.print(
-            "\x1b[31m{s} \x1b[0m[\x1b[31m{s}\x1b[0m] \x1b[31m{s}\x1b[0m\n", {get_time_string(), "ERROR", msg}
-        )
-    } else {
-        stdio.print(
-            "{s} [{s}] {s}\n", {get_time_string(), "ERROR", msg}
-        )
+    if !should_log(Level.Error) {
+        return
     }
+    log_err(msg, "ERROR", "\x1b[31m")
+}
+
+pub fn fatal(msg: ref char) void! = {
+    log_err(msg, "FATAL", "\x1b[31m")
+    os.exit(1)
 }
 
 test {
+    set_colors(false)
+    set_level(Level.Debug)
+    debug("This is a debug")
     info("This is some info message")
     warn("This is some warning")
-    debug("This is a debug")
     error("This is an error")
+    set_level(Level.Warn)
+    set_colors(true)
+    debug("This should not appear")
+    info("This should not appear")
+    warn("This should appear")
+    error("This should appear")
+    fatal("this is fatal")
 }
