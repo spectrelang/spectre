@@ -52,6 +52,10 @@ pub struct Args {
     /// Print the version of the compiler
     #[arg(long, short)]
     pub version: bool,
+
+    /// Show the cc command used for linking
+    #[arg(long)]
+    pub show_cmd: bool,
 }
 
 /// All platforms the compiler knows about.

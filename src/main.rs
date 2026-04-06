@@ -58,7 +58,7 @@ fn main() {
             .into_owned()
     });
 
-    assemble_and_link(&asm, &binary_path, &libs);
+    assemble_and_link(&asm, &binary_path, &libs, args.show_cmd);
 
     if args.test {
         run_tests(&binary_path);
@@ -97,7 +97,7 @@ fn run_qbe(ir: &str) -> String {
 }
 
 /// Write assembly to a temp file, then invoke `cc` to assemble and link.
-fn assemble_and_link(asm: &str, binary_path: &str, libs: &[String]) {
+fn assemble_and_link(asm: &str, binary_path: &str, libs: &[String], show_cmd: bool) {
     use std::env;
 
     let tmp_dir = env::temp_dir();
@@ -127,6 +127,10 @@ fn assemble_and_link(asm: &str, binary_path: &str, libs: &[String]) {
         } else {
             cmd.arg(format!("-l{lib}"));
         }
+    }
+
+    if show_cmd {
+        println!("cc {:?}", cmd.get_args());
     }
 
     let status = cmd.status().unwrap_or_else(|e| {
