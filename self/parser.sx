@@ -1673,7 +1673,7 @@ test {
     val r16 = parse_src("fn add(a: i64, b: i64) i64! = { return a + b }")
     match r16 {
         err e => { 
-            std.stdio.print("{s}", {e})
+            std.stdio.print("{s}\n", {e})
             assert false
         }
         ok items => {
