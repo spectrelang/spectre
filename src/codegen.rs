@@ -240,17 +240,37 @@ impl Codegen {
         }
         data_section.push_str("data $str_w_mode = { b \"w\", b 0 }\n");
         data_section.push_str("data $str_r_mode = { b \"r\", b 0 }\n");
+        data_section.push_str("data $sx_stdin_ptr = { l 0 }\n");
+        data_section.push_str("data $sx_stdout_ptr = { l 0 }\n");
+        data_section.push_str("data $sx_stderr_ptr = { l 0 }\n");
 
         let stream_wrappers = concat!(
             "function l $sx_stdout() {\n@start\n",
+            "    %p =l loadl $sx_stdout_ptr\n",
+            "    %c =w cnel %p, 0\n",
+            "    jnz %c, @done, @init\n@init\n",
             "    %r =l call $fdopen(w 1, l $str_w_mode)\n",
-            "    ret %r\n}\n",
+            "    storel %r, $sx_stdout_ptr\n",
+            "    ret %r\n@done\n",
+            "    ret %p\n}\n",
+            
             "function l $sx_stderr() {\n@start\n",
+            "    %p =l loadl $sx_stderr_ptr\n",
+            "    %c =w cnel %p, 0\n",
+            "    jnz %c, @done, @init\n@init\n",
             "    %r =l call $fdopen(w 2, l $str_w_mode)\n",
-            "    ret %r\n}\n",
+            "    storel %r, $sx_stderr_ptr\n",
+            "    ret %r\n@done\n",
+            "    ret %p\n}\n",
+            
             "function l $sx_stdin() {\n@start\n",
+            "    %p =l loadl $sx_stdin_ptr\n",
+            "    %c =w cnel %p, 0\n",
+            "    jnz %c, @done, @init\n@init\n",
             "    %r =l call $fdopen(w 0, l $str_r_mode)\n",
-            "    ret %r\n}\n",
+            "    storel %r, $sx_stdin_ptr\n",
+            "    ret %r\n@done\n",
+            "    ret %p\n}\n",
         );
 
         let args_globals = concat!(
