@@ -792,7 +792,7 @@ impl Codegen {
 
         self.emit_stmts(&f.body, ns, &f.ret)?;
 
-        if matches!(f.ret, TypeExpr::Void) {
+        if matches!(f.ret, TypeExpr::Void) && !block_is_terminated(&f.body) {
             self.emit_defers(ns, &f.ret)?;
             if qbe_name == "main" {
                 self.emit("    ret 0");
@@ -4364,6 +4364,21 @@ fn block_is_terminated(stmts: &[Stmt]) -> bool {
             let all_arms = arms.iter().all(|(_, body)| block_is_terminated(body));
             let else_term = else_body.as_ref().map_or(false, |b| block_is_terminated(b));
             all_arms && else_term
+        }
+        Some(Stmt::MatchString {
+            arms, else_body, ..
+        }) => {
+            let all_arms = arms.iter().all(|(_, body)| block_is_terminated(body));
+            let else_term = else_body.as_ref().map_or(false, |b| block_is_terminated(b));
+            all_arms && else_term
+        }
+        Some(Stmt::If {
+            then, elif_, else_, ..
+        }) => {
+            let then_term = block_is_terminated(then);
+            let elif_term = elif_.iter().all(|(_, body)| block_is_terminated(body));
+            let else_term = else_.as_ref().map_or(false, |b| block_is_terminated(b));
+            then_term && elif_term && else_term
         }
         _ => false,
     }
