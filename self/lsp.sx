@@ -704,9 +704,8 @@ fn handle_did_open(params: ref void, store: ref DocStore) void! = {
                     match text_opt {
                         none => { return }
                         some text => {
-                            // Copy strings so they outlive the parsed doc.
-                            val uri_copy: ref char  = str.cstr(str.from(uri))
-                            val text_copy: ref char = str.cstr(str.from(text))
+                            val uri_copy: ref char  = str.cstr(str.from(uri) as ref void)
+                            val text_copy: ref char = str.cstr(str.from(text) as ref void)
                             store_set(store, uri_copy, text_copy)
                             publish_diagnostics(uri_copy, text_copy)
                         }
