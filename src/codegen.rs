@@ -2,6 +2,7 @@ use crate::cli::Platform;
 use crate::module::ResolvedModule;
 use crate::parser::{Expr, Field, FnDef, Item, Stmt, TypeExpr};
 use std::collections::HashMap;
+use indexmap::IndexMap;
 
 fn qbe_type(ty: &TypeExpr) -> &'static str {
     match ty {
@@ -128,7 +129,7 @@ pub struct Codegen {
     type_defs: HashMap<String, Vec<Field>>,
     extern_type_defs: HashMap<String, Vec<Field>>,
     union_defs: HashMap<String, Vec<TypeExpr>>,
-    tagged_union_defs: HashMap<String, (String, bool, Vec<(String, Vec<TypeExpr>)>)>,
+    tagged_union_defs: IndexMap<String, (String, bool, Vec<(String, Vec<TypeExpr>)>)>,
     enum_defs: HashMap<String, Vec<String>>,
     fixed_array_types: HashMap<String, String>,
     fixed_array_counter: usize,
@@ -178,7 +179,7 @@ impl Codegen {
             type_defs: HashMap::new(),
             extern_type_defs: HashMap::new(),
             union_defs: HashMap::new(),
-            tagged_union_defs: HashMap::new(),
+            tagged_union_defs: IndexMap::new(),
             enum_defs: HashMap::new(),
             fixed_array_types: HashMap::new(),
             fixed_array_counter: 0,
@@ -380,6 +381,7 @@ impl Codegen {
         self.variadic_fns = build_variadic_set(resolved, self.platform);
         self.result_void_ok = build_result_void_ok(resolved, self.platform);
         self.cross_module_consts = build_cross_module_consts(resolved, self.platform);
+        collect_tagged_unions(resolved, "", &mut self.tagged_union_defs);
         self.emit_module_recursive(resolved, &ns, test_mode, true, "")?;
         if test_mode {
             self.emit_test_main()?;
@@ -427,10 +429,8 @@ impl Codegen {
                 variants,
             } = item
             {
-                self.tagged_union_defs.insert(
-                    name.clone(),
-                    (module_prefix.to_string(), *public, variants.clone()),
-                );
+                self.tagged_union_defs.entry(name.clone())
+                    .or_insert_with(|| (module_prefix.to_string(), *public, variants.clone()));
             }
             if let Item::EnumDef { name, variants, .. } = item {
                 self.enum_defs.insert(name.clone(), variants.clone());
@@ -2176,22 +2176,26 @@ impl Codegen {
         let prefix = dot_pos.map(|p| &path[..p]);
         let variant_name = dot_pos.map(|p| &path[p + 1..]).unwrap_or(path);
 
+        let mod_matches = |a: &str, b: &str| -> bool {
+            if a == b { return true; }
+            let a_dot = a.replace("__", ".");
+            let b_dot = b.replace("__", ".");
+            if a_dot == b_dot { return true; }
+            a_dot.ends_with(&format!(".{b_dot}"))
+                || b_dot.ends_with(&format!(".{a_dot}"))
+        };
+
         if let Some(p) = prefix {
             let mut found: Option<(String, usize, Vec<TypeExpr>)> = None;
             let mut found_exact = false;
             for (union_name, (u_mod, u_pub, variants)) in &self.tagged_union_defs {
                 let u_mod_dot = u_mod.replace("__", ".");
                 let exact = u_mod == p || u_mod_dot == p;
-                let suffix = !exact
-                    && (u_mod_dot.ends_with(&format!(".{p}"))
-                        || p.ends_with(&format!(".{u_mod_dot}")));
+                let suffix = !exact && mod_matches(u_mod, p);
                 if !exact && !suffix {
                     continue;
                 }
-                if !u_pub
-                    && (p != self.current_module_prefix
-                        && *u_mod != self.current_module_prefix)
-                {
+                if !u_pub && !mod_matches(u_mod, &self.current_module_prefix) {
                     continue;
                 }
                 if let Some((idx, (_, fields))) = variants
@@ -2211,7 +2215,7 @@ impl Codegen {
         }
 
         for (union_name, (u_mod, _, variants)) in &self.tagged_union_defs {
-            if u_mod == &self.current_module_prefix {
+            if mod_matches(u_mod, &self.current_module_prefix) {
                 if let Some((idx, (_, fields))) = variants
                     .iter()
                     .enumerate()
@@ -2222,7 +2226,7 @@ impl Codegen {
             }
         }
         for (union_name, (u_mod, u_pub, variants)) in &self.tagged_union_defs {
-            if *u_pub && u_mod != &self.current_module_prefix {
+            if *u_pub && !mod_matches(u_mod, &self.current_module_prefix) {
                 if let Some((idx, (_, fields))) = variants
                     .iter()
                     .enumerate()
@@ -4795,6 +4799,27 @@ const RESERVED_SYMBOLS: &[&str] = &[
 
 fn collect_ns(module: &ResolvedModule, prefix: &str, ns: &mut Namespace) {
     collect_ns_with_qbe_prefix(module, prefix, prefix, ns);
+}
+
+fn collect_tagged_unions(
+    module: &ResolvedModule,
+    qbe_prefix: &str,
+    defs: &mut IndexMap<String, (String, bool, Vec<(String, Vec<TypeExpr>)>)>,
+) {
+    for item in &module.ast.items {
+        if let Item::TaggedUnionDef { public, name, variants } = item {
+            defs.entry(name.clone())
+                .or_insert_with(|| (qbe_prefix.to_string(), *public, variants.clone()));
+        }
+    }
+    for (import_name, child) in &module.imports {
+        let child_prefix = if qbe_prefix.is_empty() {
+            import_name.clone()
+        } else {
+            format!("{qbe_prefix}__{import_name}")
+        };
+        collect_tagged_unions(child, &child_prefix, defs);
+    }
 }
 
 fn collect_ns_with_qbe_prefix(

@@ -6,7 +6,7 @@ extern (C) fn strcmp(a: ref char, b: ref char) i64! = "strcmp"
 
 /// A string builder or a raw pointer, used internally in ensure_cap
 /// to avoid double-loading the pointer and capacity fields.
-union SbOrPtr = {
+pub union SbOrPtr = {
     StrBuilder(StringBuilder) | Ptr(ref void)
 }
 

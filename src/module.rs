@@ -1,4 +1,5 @@
 use std::collections::{HashMap, HashSet};
+use indexmap::IndexMap;
 use std::path::{Path, PathBuf};
 
 use crate::cli::Args;
@@ -11,7 +12,7 @@ use crate::semantic;
 #[derive(Clone)]
 pub struct ResolvedModule {
     pub ast: Module,
-    pub imports: HashMap<String, ResolvedModule>,
+    pub imports: IndexMap<String, ResolvedModule>,
     pub dir: PathBuf,
     pub filename: String,
     pub links: Vec<String>,
@@ -112,7 +113,7 @@ fn collect_libs_recursive(
 }
 
 /// Return the set of import binding names that are referenced anywhere in `ast`.
-fn used_import_names(ast: &Module, imports: &HashMap<String, ResolvedModule>) -> HashSet<String> {
+fn used_import_names(ast: &Module, imports: &IndexMap<String, ResolvedModule>) -> HashSet<String> {
     let mut used = HashSet::new();
     for item in &ast.items {
         collect_used_imports_in_item(item, imports, &mut used);
@@ -122,7 +123,7 @@ fn used_import_names(ast: &Module, imports: &HashMap<String, ResolvedModule>) ->
 
 fn collect_used_imports_in_item(
     item: &Item,
-    imports: &HashMap<String, ResolvedModule>,
+    imports: &IndexMap<String, ResolvedModule>,
     used: &mut HashSet<String>,
 ) {
     match item {
@@ -143,7 +144,7 @@ fn collect_used_imports_in_item(
 
 fn collect_used_imports_in_stmt(
     stmt: &crate::parser::Stmt,
-    imports: &HashMap<String, ResolvedModule>,
+    imports: &IndexMap<String, ResolvedModule>,
     used: &mut HashSet<String>,
 ) {
     use crate::parser::Stmt;
@@ -317,7 +318,7 @@ fn collect_used_imports_in_stmt(
 
 fn collect_used_imports_in_expr(
     expr: &Expr,
-    imports: &HashMap<String, ResolvedModule>,
+    imports: &IndexMap<String, ResolvedModule>,
     used: &mut HashSet<String>,
 ) {
     match expr {
@@ -389,7 +390,7 @@ pub fn resolve_module(
     let mut parser = Parser::with_filename(tokens, filename.to_string());
     let ast = parser.parse_module()?;
     let parse_warnings = parser.warnings;
-    let mut imports = HashMap::new();
+    let mut imports = IndexMap::new();
     let self_path = PathBuf::from(filename);
     if let Some(cycle_start) = in_progress.iter().position(|p| p == &self_path) {
         let chain: Vec<String> = in_progress[cycle_start..]
@@ -401,7 +402,7 @@ pub fn resolve_module(
     }
     in_progress.push(self_path.clone());
 
-    let declared_uses: HashMap<String, PathBuf> = ast
+    let declared_uses: IndexMap<String, PathBuf> = ast
         .items
         .iter()
         .filter_map(|item| {
@@ -678,7 +679,7 @@ fn collect_needed_subnames(ast: &Module, import_name: &str) -> HashSet<String> {
 fn collect_needed_subnames_transitive(
     ast: &Module,
     import_name: &str,
-    declared_uses: &HashMap<String, PathBuf>,
+    declared_uses: &IndexMap<String, PathBuf>,
     dir: &Path,
     in_progress: &[PathBuf],
 ) -> HashSet<String> {
