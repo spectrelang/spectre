@@ -1,4 +1,5 @@
 val std = use("std")
+val str = use("std/string")
 val parser = use("parser.sx")
 
 // ─── QBE IR code generator ────────────────────────────────────────────────────
@@ -20,7 +21,7 @@ val parser = use("parser.sx")
 fn cg_new() ref void! = {
     val ctx: ref void = @alloc(64)
     @memset(ctx, 0, 64)
-    val sb: ref void = std.string.StringBuilder.new()
+    val sb: ref void = str.StringBuilder.new()
     @store(@ptradd(ctx, 0), sb as usize)
     val strs: mut list[ref char] = []
     val sl: ref void = @alloc(24)
@@ -64,12 +65,12 @@ fn fresh_lbl(ctx: ref void) i64! = {
 }
 
 fn emit(ctx: ref void, s: ref char) void! = {
-    std.string.StringBuilder.append_cstr(cg_sb(ctx), s)
+    str.StringBuilder.append_cstr(cg_sb(ctx), s)
 }
 
 fn emitln(ctx: ref void, s: ref char) void! = {
-    std.string.StringBuilder.append_cstr(cg_sb(ctx), s)
-    std.string.StringBuilder.append_char(cg_sb(ctx), 10)
+    str.StringBuilder.append_cstr(cg_sb(ctx), s)
+    str.StringBuilder.append_char(cg_sb(ctx), 10)
 }
 
 fn emit_fmt(ctx: ref void, fmt: ref char, args: untyped) void! = {
@@ -95,13 +96,13 @@ fn qbe_type_of(ty: ref parser.Node) ref char! = {
     if k == parser.TY_FIXED_ARR { return "a" }
     if k == parser.TY_NAMED {
         val name: ref char = ty.d0 as ref char
-        if std.string.rchar_eq(name, "i32") || std.string.rchar_eq(name, "u32") { return "w" }
-        if std.string.rchar_eq(name, "i8")  || std.string.rchar_eq(name, "u8")  { return "w" }
-        if std.string.rchar_eq(name, "i16") || std.string.rchar_eq(name, "u16") { return "w" }
-        if std.string.rchar_eq(name, "bool") { return "w" }
-        if std.string.rchar_eq(name, "f32") { return "s" }
-        if std.string.rchar_eq(name, "f64") { return "d" }
-        if std.string.rchar_eq(name, "char") { return "w" }
+        if str.rchar_cmp(name, "i32") || str.rchar_cmp(name, "u32") { return "w" }
+        if str.rchar_cmp(name, "i8")  || str.rchar_cmp(name, "u8")  { return "w" }
+        if str.rchar_cmp(name, "i16") || str.rchar_cmp(name, "u16") { return "w" }
+        if str.rchar_cmp(name, "bool") { return "w" }
+        if str.rchar_cmp(name, "f32") { return "s" }
+        if str.rchar_cmp(name, "f64") { return "d" }
+        if str.rchar_cmp(name, "char") { return "w" }
         return "l"
     }
     return "l"
@@ -114,10 +115,10 @@ fn type_size(ty: ref parser.Node) i64! = {
     if k == parser.TY_MUT     { return type_size(ty.d0 as ref parser.Node) }
     if k == parser.TY_NAMED {
         val name: ref char = ty.d0 as ref char
-        if std.string.rchar_eq(name, "i8") || std.string.rchar_eq(name, "u8") || std.string.rchar_eq(name, "char") { return 1 }
-        if std.string.rchar_eq(name, "i16") || std.string.rchar_eq(name, "u16") { return 2 }
-        if std.string.rchar_eq(name, "i32") || std.string.rchar_eq(name, "u32") || std.string.rchar_eq(name, "f32") { return 4 }
-        if std.string.rchar_eq(name, "bool") { return 4 }
+        if str.rchar_cmp(name, "i8") || str.rchar_cmp(name, "u8") || str.rchar_cmp(name, "char") { return 1 }
+        if str.rchar_cmp(name, "i16") || str.rchar_cmp(name, "u16") { return 2 }
+        if str.rchar_cmp(name, "i32") || str.rchar_cmp(name, "u32") || str.rchar_cmp(name, "f32") { return 4 }
+        if str.rchar_cmp(name, "bool") { return 4 }
         return 8
     }
     if k == parser.TY_FIXED_ARR {
@@ -139,7 +140,7 @@ fn intern_string(ctx: ref void, s: ref char) i64! = {
         val s_opt = @get(strs, i as usize)
         match s_opt {
             some existing => {
-                if std.string.rchar_eq(existing as ref char, s) { return i }
+                if str.rchar_cmp(existing as ref char, s) { return i }
             }
             none => {}
         }
@@ -601,124 +602,122 @@ fn gen_builtin(ctx: ref void, expr: ref parser.Node) ref char! = {
     val name: ref char = expr.d0 as ref char
     val args: ref void = expr.d1 as ref void
 
-
     val tmp: i64 = fresh_tmp(ctx)
     val buf: ref char = @alloc(512) as ref char
 
-    if std.string.compare(name, "alloc") == 0 {
+    if str.rchar_cmp(name, "alloc") == 0 {
         val sz: ref char = get_arg(0)
         @snprintf(buf, 512, "    %%t%lld =l call $malloc(l %s)\n", {tmp, sz})
         emit(ctx, buf)
-    } elif std.string.compare(name, "free") == 0 {
+    } elif str.rchar_cmp(name, "free") == 0 {
         val ptr: ref char = get_arg(0)
         @snprintf(buf, 512, "    call $free(l %s)\n    %%t%lld =l copy 0\n", {ptr, tmp})
         emit(ctx, buf)
-    } elif std.string.compare(name, "realloc") == 0 {
+    } elif str.rchar_cmp(name, "realloc") == 0 {
         val ptr2: ref char = get_arg(0)
         val sz2: ref char = get_arg(1)
         @snprintf(buf, 512, "    %%t%lld =l call $realloc(l %s, l %s)\n", {tmp, ptr2, sz2})
         emit(ctx, buf)
-    } elif std.string.compare(name, "memcpy") == 0 {
+    } elif str.rchar_cmp(name, "memcpy") == 0 {
         val dst: ref char = get_arg(0)
         val src: ref char = get_arg(1)
         val len: ref char = get_arg(2)
         @snprintf(buf, 512, "    call $memcpy(l %s, l %s, l %s)\n    %%t%lld =l copy 0\n", {dst, src, len, tmp})
         emit(ctx, buf)
-    } elif std.string.compare(name, "memset") == 0 {
+    } elif str.rchar_cmp(name, "memset") == 0 {
         val dst2: ref char = get_arg(0)
         val val2: ref char = get_arg(1)
         val len2: ref char = get_arg(2)
         @snprintf(buf, 512, "    call $memset(l %s, w %s, l %s)\n    %%t%lld =l copy 0\n", {dst2, val2, len2, tmp})
         emit(ctx, buf)
-    } elif std.string.compare(name, "load") == 0 {
+    } elif str.rchar_cmp(name, "load") == 0 {
         val ptr3: ref char = get_arg(0)
         @snprintf(buf, 512, "    %%t%lld =l loadl %s\n", {tmp, ptr3})
         emit(ctx, buf)
-    } elif std.string.compare(name, "store") == 0 {
+    } elif str.rchar_cmp(name, "store") == 0 {
         val ptr4: ref char = get_arg(0)
         val val3: ref char = get_arg(1)
         @snprintf(buf, 512, "    storel %s, %s\n    %%t%lld =l copy 0\n", {val3, ptr4, tmp})
         emit(ctx, buf)
-    } elif std.string.compare(name, "load8") == 0 {
+    } elif str.rchar_cmp(name, "load8") == 0 {
         val ptr5: ref char = get_arg(0)
         @snprintf(buf, 512, "    %%t%lld =w loadub %s\n", {tmp, ptr5})
         emit(ctx, buf)
-    } elif std.string.compare(name, "store8") == 0 {
+    } elif str.rchar_cmp(name, "store8") == 0 {
         val ptr6: ref char = get_arg(0)
         val val4: ref char = get_arg(1)
         @snprintf(buf, 512, "    storeb %s, %s\n    %%t%lld =l copy 0\n", {val4, ptr6, tmp})
         emit(ctx, buf)
-    } elif std.string.compare(name, "ptradd") == 0 {
+    } elif str.rchar_cmp(name, "ptradd") == 0 {
         val ptr7: ref char = get_arg(0)
         val off: ref char = get_arg(1)
         @snprintf(buf, 512, "    %%t%lld =l add %s, %s\n", {tmp, ptr7, off})
         emit(ctx, buf)
-    } elif std.string.compare(name, "puts") == 0 {
+    } elif str.rchar_cmp(name, "puts") == 0 {
         val s: ref char = get_arg(0)
         @snprintf(buf, 512, "    %%t%lld =w call $puts(l %s)\n", {tmp, s})
         emit(ctx, buf)
-    } elif std.string.compare(name, "printf") == 0 {
+    } elif str.rchar_cmp(name, "printf") == 0 {
         val fmt: ref char = get_arg(0)
         val fargs: ref char = get_arg(1)
         @snprintf(buf, 512, "    %%t%lld =w call $printf(l %s, ...)\n", {tmp, fmt})
         emit(ctx, buf)
-    } elif std.string.compare(name, "snprintf") == 0 {
+    } elif str.rchar_cmp(name, "snprintf") == 0 {
         val sbuf: ref char = get_arg(0)
         val ssz: ref char = get_arg(1)
         val sfmt: ref char = get_arg(2)
         @snprintf(buf, 512, "    %%t%lld =w call $snprintf(l %s, l %s, l %s, ...)\n", {tmp, sbuf, ssz, sfmt})
         emit(ctx, buf)
-    } elif std.string.compare(name, "strlen") == 0 {
+    } elif str.rchar_cmp(name, "strlen") == 0 {
         val s2: ref char = get_arg(0)
         @snprintf(buf, 512, "    %%t%lld =l call $strlen(l %s)\n", {tmp, s2})
         emit(ctx, buf)
-    } elif std.string.compare(name, "strcmp") == 0 {
+    } elif str.rchar_cmp(name, "strcmp") == 0 {
         val a: ref char = get_arg(0)
         val b: ref char = get_arg(1)
         @snprintf(buf, 512, "    %%t%lld =l call $strcmp(l %s, l %s)\n", {tmp, a, b})
         emit(ctx, buf)
-    } elif std.string.compare(name, "atoi") == 0 {
+    } elif str.rchar_cmp(name, "atoi") == 0 {
         val s3: ref char = get_arg(0)
         @snprintf(buf, 512, "    %%t%lld =l call $atoi(l %s)\n", {tmp, s3})
         emit(ctx, buf)
-    } elif std.string.compare(name, "append") == 0 {
+    } elif str.rchar_cmp(name, "append") == 0 {
         // list append: call runtime __sx_list_append(list_ptr, value)
         val lst: ref char = get_arg(0)
         val val5: ref char = get_arg(1)
         @snprintf(buf, 512, "    call $__sx_list_append(l %s, l %s)\n    %%t%lld =l copy 0\n", {lst, val5, tmp})
         emit(ctx, buf)
-    } elif std.string.compare(name, "len") == 0 {
+    } elif str.rchar_cmp(name, "len") == 0 {
         val lst2: ref char = get_arg(0)
         @snprintf(buf, 512, "    %%t%lld =l call $__sx_list_len(l %s)\n", {tmp, lst2})
         emit(ctx, buf)
-    } elif std.string.compare(name, "get") == 0 {
+    } elif str.rchar_cmp(name, "get") == 0 {
         val lst3: ref char = get_arg(0)
         val idx: ref char = get_arg(1)
         @snprintf(buf, 512, "    %%t%lld =l call $__sx_list_get(l %s, l %s)\n", {tmp, lst3, idx})
         emit(ctx, buf)
-    } elif std.string.compare(name, "remove") == 0 {
+    } elif str.rchar_cmp(name, "remove") == 0 {
         val lst4: ref char = get_arg(0)
         val idx2: ref char = get_arg(1)
         @snprintf(buf, 512, "    call $__sx_list_remove(l %s, l %s)\n    %%t%lld =l copy 0\n", {lst4, idx2, tmp})
         emit(ctx, buf)
-    } elif std.string.compare(name, "reserve") == 0 {
+    } elif str.rchar_cmp(name, "reserve") == 0 {
         val lst5: ref char = get_arg(0)
         val cap: ref char = get_arg(1)
         @snprintf(buf, 512, "    call $__sx_list_reserve(l %s, l %s)\n    %%t%lld =l copy 0\n", {lst5, cap, tmp})
         emit(ctx, buf)
-    } elif std.string.compare(name, "capacity") == 0 {
+    } elif str.rchar_cmp(name, "capacity") == 0 {
         val lst6: ref char = get_arg(0)
         @snprintf(buf, 512, "    %%t%lld =l call $__sx_list_capacity(l %s)\n", {tmp, lst6})
         emit(ctx, buf)
-    } elif std.string.compare(name, "fmt") == 0 {
+    } elif str.rchar_cmp(name, "fmt") == 0 {
         val fmt2: ref char = get_arg(0)
         @snprintf(buf, 512, "    %%t%lld =l call $__sx_fmt(l %s, ...)\n", {tmp, fmt2})
         emit(ctx, buf)
-    } elif std.string.compare(name, "args") == 0 {
+    } elif str.rchar_cmp(name, "args") == 0 {
         @snprintf(buf, 512, "    %%t%lld =l call $__sx_get_args()\n", {tmp})
         emit(ctx, buf)
     } else {
-        // generic builtin passthrough
         @snprintf(buf, 512, "    %%t%lld =l call $%s(", {tmp, name})
         emit(ctx, buf)
         if args != 0 as ref void {
@@ -1471,14 +1470,13 @@ fn gen_match_str(ctx: ref void, stmt: ref parser.Node) void! = {
 }
 
 fn gen_match_union(ctx: ref void, stmt: ref parser.Node) void! = {
-    // Union match: load tag word at offset 0, dispatch
     val expr: ref char = gen_expr(ctx, stmt.d0 as ref parser.Node)
     val arms: ref void = stmt.d1 as ref void
     val else_body: ref void = stmt.d2 as ref void
     val end_lbl: i64 = fresh_lbl(ctx)
     val tag: i64 = fresh_tmp(ctx)
-
     val tbuf: ref char = @alloc(64) as ref char
+
     @snprintf(tbuf, 64, "    %%t%lld =w loadw %s\n", {tag, expr})
     emit(ctx, tbuf)
     @free(tbuf)
@@ -1690,8 +1688,8 @@ pub fn gen_module(items: list[ref parser.Node]) ref char! = {
 
     emit_string_data(ctx)
 
-    val built: ref void = std.string.StringBuilder.build(cg_sb(ctx))
-    val result: ref char = std.string.cstr(built)
-    std.string.StringBuilder.free(cg_sb(ctx))
+    val built: ref void = str.StringBuilder.build(cg_sb(ctx))
+    val result: ref char = str.cstr(built)
+    str.StringBuilder.free(cg_sb(ctx))
     return result
 }

@@ -38,7 +38,7 @@ pub union StrOrRChar = {
 }
 
 /// Compare two raw strings.
-pub fn rchar_eq(a: ref char, b: ref char) i64 = {
+pub fn rchar_cmp(a: ref char, b: ref char) i64 = {
     pre {
         a != none
         b != none
