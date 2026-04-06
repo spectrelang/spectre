@@ -1,0 +1,8 @@
+val std = use("std")
+
+pub fn main() void! = {
+    std.stdio.puts(`
+Hello, world.
+This is a multiline string.
+    `)
+}

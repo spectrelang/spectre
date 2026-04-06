@@ -199,6 +199,19 @@ impl Lexer {
             return Ok(TokenKind::StringLit(s));
         }
 
+        if c == '`' {
+            self.advance();
+            let mut s = String::new();
+            loop {
+                match self.advance() {
+                    None => return Err("unterminated multiline string literal".into()),
+                    Some('`') => break,
+                    Some(ch) => s.push(ch),
+                }
+            }
+            return Ok(TokenKind::StringLit(s));
+        }
+
         if c.is_ascii_digit() {
             let mut n = String::new();
             if c == '0' && self.src.get(self.pos + 1).copied() == Some('x') {
