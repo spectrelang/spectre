@@ -469,15 +469,16 @@ pub fn resolve_module(
     let current_platform = crate::cli::Platform::current();
     let mut links: Vec<String> = Vec::new();
     for item in &ast.items {
-        if let Item::LinkWhen { platform, libs } = item {
-            if current_platform.matches_name(platform) {
-                links.extend(libs.iter().cloned());
+        match item {
+            Item::LinkWhen { platform, libs } => {
+                if current_platform.matches_name(platform) {
+                    links.extend(libs.iter().cloned());
+                }
             }
-        }
-    }
-    for item in &ast.items {
-        if let Item::Link { lib } = item {
-            links.push(lib.clone());
+            Item::Link { lib } => {
+                links.push(lib.clone());
+            }
+            _ => {}
         }
     }
 
