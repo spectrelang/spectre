@@ -1918,6 +1918,23 @@ impl Codegen {
     fn emit_field_ptr(&mut self, expr: &Expr, ns: &Namespace) -> Result<String, String> {
         match expr {
             Expr::Field(base, field_name) => {
+                let full_path = expr_to_path(expr);
+                if !full_path.is_empty() {
+                    let expanded = expand_alias_path(&full_path, &self.type_aliases);
+                    let bare = expanded.rsplit('.').next().unwrap_or(&expanded);
+                    if let Some(qbe_name) = ns.get(&expanded).or_else(|| ns.get(bare)) {
+                        let tmp = self.fresh_tmp();
+                        self.emit(&format!("    {tmp} =l copy ${qbe_name}"));
+                        return Ok(tmp);
+                    }
+                    if let Some((val, _)) = self.cross_module_consts.get(&expanded)
+                        .or_else(|| self.cross_module_consts.get(bare))
+                        .cloned()
+                    {
+                        return Ok(val);
+                    }
+                }
+
                 let base_ptr = match base.as_ref() {
                     Expr::Ident(name) => {
                         let slot = self
@@ -3177,6 +3194,14 @@ impl Codegen {
                 let expanded = expand_alias_path(&path, &self.type_aliases);
                 if let Some((val, ty)) = self.cross_module_consts.get(&expanded).cloned() {
                     return Ok((val, ty));
+                }
+                if let Some(qbe_name) = ns.get(&expanded).or_else(|| {
+                    let bare = expanded.rsplit('.').next().unwrap_or(&expanded);
+                    ns.get(bare)
+                }) {
+                    let tmp = self.fresh_tmp();
+                    self.emit(&format!("    {tmp} =l copy ${qbe_name}"));
+                    return Ok((tmp, "l"));
                 }
                 let ptr = self.emit_field_ptr(expr, ns)?;
 
