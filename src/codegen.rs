@@ -4881,7 +4881,7 @@ fn expand_alias_path(path: &str, aliases: &HashMap<String, String>) -> String {
 /// meaning it refers to a namespace segment rather than a concrete runtime value.
 fn is_namespace_prefix(path: &str, ns: &Namespace) -> bool {
     ns.keys()
-        .any(|k| k == path || k.starts_with(&format!("{path}.")))
+        .any(|k| k.starts_with(&format!("{path}.")))
 }
 
 /// Get the root identifier name from a (possibly nested) field access expression.
