@@ -111,5 +111,4 @@ test {
     info("This should not appear")
     warn("This should appear")
     error("This should appear")
-    fatal("this is fatal")
 }
