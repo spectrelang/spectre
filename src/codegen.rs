@@ -929,6 +929,36 @@ impl Codegen {
                                 None
                             }
                         }
+                        Expr::Try(inner) => {
+                            let call = match inner.as_ref() {
+                                Expr::Call { .. } => Some(inner.as_ref()),
+                                Expr::Trust(t) => if let Expr::Call { .. } = t.as_ref() { Some(t.as_ref()) } else { None },
+                                _ => None,
+                            };
+                            call.and_then(|c| {
+                                if let Expr::Call { callee, .. } = c {
+                                    let path = expr_to_path(callee);
+                                    let expanded = expand_alias_path(&path, &self.module_aliases);
+                                    ns.get(&expanded)
+                                        .and_then(|qbe_fn| self.fn_ret_type_exprs.get(qbe_fn))
+                                        .and_then(|ret_ty| {
+                                            match ret_ty {
+                                                TypeExpr::Result(ok_ty, _) => {
+                                                    let ann = type_to_annotation_string(ok_ty);
+                                                    if ann.is_empty() { None } else { Some(ann) }
+                                                }
+                                                TypeExpr::Option(inner_ty) => {
+                                                    let ann = type_to_annotation_string(inner_ty);
+                                                    if ann.is_empty() { None } else { Some(ann) }
+                                                }
+                                                _ => None,
+                                            }
+                                        })
+                                } else {
+                                    None
+                                }
+                            })
+                        }
                         Expr::Cast { ty, .. } => {
                             let ann = type_to_annotation_string(ty);
                             if ann.is_empty() { None } else { Some(ann) }
@@ -2031,7 +2061,7 @@ impl Codegen {
                 .local_type_annotations
                 .get(name)
                 .cloned()
-                .ok_or_else(|| format!("cannot determine type of '{name}'")),
+                .ok_or_else(|| format!("cannot determine type of '{name}' at expression {expr:?}")),
             Expr::Cast { ty, .. } => Ok(type_to_annotation_string(ty)),
             Expr::Field(base, field_name) => {
                 let field_ty = self.infer_field_type(base, field_name)
