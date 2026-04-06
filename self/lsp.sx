@@ -729,7 +729,6 @@ fn handle_did_change(params: ref void, store: ref DocStore) void! = {
                     match changes_opt {
                         none => { return }
                         some changes => {
-                            // Take the last change (full sync).
                             val n: usize = json.arr_len(changes)
                             if n == 0 { return }
                             val last_opt = json.arr_get(changes, n - 1)
@@ -740,8 +739,8 @@ fn handle_did_change(params: ref void, store: ref DocStore) void! = {
                                     match text_opt {
                                         none => { return }
                                         some text => {
-                                            val uri_copy: ref char  = str.cstr(str.from(uri))
-                                            val text_copy: ref char = str.cstr(str.from(text))
+                                            val uri_copy: ref char  = str.cstr(str.from(uri) as ref void)
+                                            val text_copy: ref char = str.cstr(str.from(text) as ref void)
                                             store_set(store, uri_copy, text_copy)
                                             publish_diagnostics(uri_copy, text_copy)
                                         }
@@ -759,7 +758,7 @@ fn handle_did_change(params: ref void, store: ref DocStore) void! = {
 fn send_null_response(id_val: ref void) void! = {
     val b: ref void = json.builder_new()
     val null_val: ref void = json.build_null(b)
-    val resp: ref char = make_response(id_val, null_val, b)
+    val resp: ref char = make_response(id_val as ref char, null_val, b)
     send_message(resp)
     json.json_str_free(resp)
     json.builder_free(b)
@@ -770,7 +769,6 @@ fn dispatch(msg_root: ref void, store: ref DocStore) bool! = {
     match method_opt {
         none => { return true }
         some method => {
-            // Extract id as a raw string for embedding in responses.
             val id_str: mut ref char = "null"
             val id_raw_opt = json.obj_get(msg_root, "id")
             match id_raw_opt {
@@ -778,7 +776,7 @@ fn dispatch(msg_root: ref void, store: ref DocStore) bool! = {
                     if json.val_is_int(id_raw) {
                         val n: i64 = json.val_get_int(id_raw)
                         id_str = std.fmt.i64_to_string(n)
-                    } elif json.val_is_str(id_raw) {
+                    } elif json.val_is_str(id_raw as ref void) {
                         id_str = json.val_get_str(id_raw)
                     }
                 }
@@ -793,14 +791,14 @@ fn dispatch(msg_root: ref void, store: ref DocStore) bool! = {
             }
 
             if str.rchar_cmp(method, "initialize") == 0 {
-                handle_initialize(id_str)
+                handle_initialize(id_str as ref void)
                 return true
             }
             if str.rchar_cmp(method, "initialized") == 0 {
                 return true
             }
             if str.rchar_cmp(method, "shutdown") == 0 {
-                send_null_response(id_str)
+                send_null_response(id_str as ref void)
                 return true
             }
             if str.rchar_cmp(method, "exit") == 0 {
@@ -819,27 +817,24 @@ fn dispatch(msg_root: ref void, store: ref DocStore) bool! = {
             }
             if str.rchar_cmp(method, "textDocument/hover") == 0 {
                 if params != 0 as ref void {
-                    handle_hover(id_str, params, store)
+                    handle_hover(id_str as ref void, params, store)
                 } else {
-                    send_null_response(id_str)
+                    send_null_response(id_str as ref void)
                 }
                 return true
             }
             if str.rchar_cmp(method, "textDocument/completion") == 0 {
-                handle_completion(id_str, params)
+                handle_completion(id_str as ref void, params)
                 return true
             }
-            // Unknown request with an id — return null result.
             match id_raw_opt {
-                some _ => { send_null_response(id_str) }
+                some _ => { send_null_response(id_str as ref void) }
                 none   => {}
             }
             return true
         }
     }
 }
-
-// ─── Entry point ──────────────────────────────────────────────────────────────
 
 pub fn main() void! = {
     val store: ref DocStore = store_new()
