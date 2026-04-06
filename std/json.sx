@@ -1,13 +1,14 @@
-link "-lyyjson"
+when posix {
+    link "-L/usr/local/lib"
+    link "-lyyjson"
+}
 
 val str = use("string.sx")
 val stdio = use("stdio.sx")
 val fmt = use("fmt.sx")
 
-// ─── yyjson C bindings ────────────────────────────────────────────────────────
-
-/// Parse a JSON string. Returns opaque yyjson_doc* or null on error.
-extern (C) fn yyjson_read(dat: ref char, len: usize, flg: u32) ref void! = "yyjson_read"
+/// Parse a JSON string via the real exported entry point.
+extern (C) fn yyjson_read_opts(dat: ref char, len: usize, flg: u32, alc: ref void, err: ref void) ref void! = "yyjson_read_opts"
 
 /// Free a parsed document.
 extern (C) fn yyjson_doc_free(doc: ref void) void! = "yyjson_doc_free"
@@ -15,101 +16,68 @@ extern (C) fn yyjson_doc_free(doc: ref void) void! = "yyjson_doc_free"
 /// Get the root value of a document.
 extern (C) fn yyjson_doc_get_root(doc: ref void) ref void! = "yyjson_doc_get_root"
 
-/// Serialise a document to a newly-allocated string (caller must free).
-extern (C) fn yyjson_write(doc: ref void, flg: u32, len: ref usize) ref char! = "yyjson_write"
+/// Serialise a document to string via the real exported entry point.
+extern (C) fn yyjson_write_opts(doc: ref void, flg: u32, alc: ref void, len: ref usize, err: ref void) ref char! = "yyjson_write_opts"
 
-/// Serialise a value to a newly-allocated string (caller must free).
-extern (C) fn yyjson_val_write(value: ref void, flg: u32, len: ref usize) ref char! = "yyjson_val_write"
+/// Serialise a value to string.
+extern (C) fn yyjson_val_write_opts(val: ref void, flg: u32, alc: ref void, len: ref usize, err: ref void) ref char! = "yyjson_val_write_opts"
 
-// ─── Type predicates ──────────────────────────────────────────────────────────
-extern (C) fn yyjson_is_null(value: ref void)  bool! = "yyjson_is_null"
-extern (C) fn yyjson_is_true(value: ref void)  bool! = "yyjson_is_true"
-extern (C) fn yyjson_is_false(value: ref void) bool! = "yyjson_is_false"
-extern (C) fn yyjson_is_bool(value: ref void)  bool! = "yyjson_is_bool"
-extern (C) fn yyjson_is_uint(value: ref void)  bool! = "yyjson_is_uint"
-extern (C) fn yyjson_is_sint(value: ref void)  bool! = "yyjson_is_sint"
-extern (C) fn yyjson_is_int(value: ref void)   bool! = "yyjson_is_int"
-extern (C) fn yyjson_is_real(value: ref void)  bool! = "yyjson_is_real"
-extern (C) fn yyjson_is_num(value: ref void)   bool! = "yyjson_is_num"
-extern (C) fn yyjson_is_str(value: ref void)   bool! = "yyjson_is_str"
-extern (C) fn yyjson_is_arr(value: ref void)   bool! = "yyjson_is_arr"
-extern (C) fn yyjson_is_obj(value: ref void)   bool! = "yyjson_is_obj"
-
-// ─── Value accessors ──────────────────────────────────────────────────────────
-extern (C) fn yyjson_get_bool(value: ref void)  bool!  = "yyjson_get_bool"
-extern (C) fn yyjson_get_uint(value: ref void)  u64!   = "yyjson_get_uint"
-extern (C) fn yyjson_get_sint(value: ref void)  i64!   = "yyjson_get_sint"
-extern (C) fn yyjson_get_int(value: ref void)   i64!   = "yyjson_get_int"
-extern (C) fn yyjson_get_real(value: ref void)  f64!   = "yyjson_get_real"
-extern (C) fn yyjson_get_num(value: ref void)   f64!   = "yyjson_get_num"
-extern (C) fn yyjson_get_str(value: ref void)   ref char! = "yyjson_get_str"
-extern (C) fn yyjson_get_len(value: ref void)   usize! = "yyjson_get_len"
-extern (C) fn yyjson_get_type_desc(value: ref void) ref char! = "yyjson_get_type_desc"
-
-// ─── Array accessors ──────────────────────────────────────────────────────────
-extern (C) fn yyjson_arr_size(arr: ref void)          usize!   = "yyjson_arr_size"
+extern (C) fn yyjson_get_type(val: ref void) u8! = "yyjson_get_type"
+extern (C) fn yyjson_get_subtype(val: ref void) u8! = "yyjson_get_subtype"
+extern (C) fn yyjson_get_tag(val: ref void) u8! = "yyjson_get_tag"
+extern (C) fn yyjson_get_type_desc(val: ref void) ref char! = "yyjson_get_type_desc"
+extern (C) fn yyjson_get_raw(val: ref void) ref char! = "yyjson_get_raw"
+extern (C) fn yyjson_get_bool(val: ref void) bool! = "yyjson_get_bool"
+extern (C) fn yyjson_get_uint(val: ref void) u64! = "yyjson_get_uint"
+extern (C) fn yyjson_get_sint(val: ref void) i64! = "yyjson_get_sint"
+extern (C) fn yyjson_get_int(val: ref void) i64! = "yyjson_get_int"
+extern (C) fn yyjson_get_real(val: ref void) f64! = "yyjson_get_real"
+extern (C) fn yyjson_get_num(val: ref void) f64! = "yyjson_get_num"
+extern (C) fn yyjson_get_str(val: ref void) ref char! = "yyjson_get_str"
+extern (C) fn yyjson_get_len(val: ref void) usize! = "yyjson_get_len"
+extern (C) fn yyjson_arr_size(arr: ref void) usize! = "yyjson_arr_size"
 extern (C) fn yyjson_arr_get(arr: ref void, idx: usize) ref void! = "yyjson_arr_get"
-extern (C) fn yyjson_arr_get_first(arr: ref void)     ref void! = "yyjson_arr_get_first"
-extern (C) fn yyjson_arr_get_last(arr: ref void)      ref void! = "yyjson_arr_get_last"
-
-// ─── Array iterator ───────────────────────────────────────────────────────────
-// yyjson_arr_iter is a small struct (24 bytes on 64-bit).
+extern (C) fn yyjson_arr_get_first(arr: ref void) ref void! = "yyjson_arr_get_first"
+extern (C) fn yyjson_arr_get_last(arr: ref void) ref void! = "yyjson_arr_get_last"
 extern (C) fn yyjson_arr_iter_init(arr: ref void, iter: ref void) bool! = "yyjson_arr_iter_init"
-extern (C) fn yyjson_arr_iter_next(iter: ref void)                ref void! = "yyjson_arr_iter_next"
-
-// ─── Object accessors ─────────────────────────────────────────────────────────
-extern (C) fn yyjson_obj_size(obj: ref void)                    usize!    = "yyjson_obj_size"
-extern (C) fn yyjson_obj_get(obj: ref void, key: ref char)      ref void! = "yyjson_obj_get"
+extern (C) fn yyjson_arr_iter_next(iter: ref void) ref void! = "yyjson_arr_iter_next"
+extern (C) fn yyjson_obj_size(obj: ref void) usize! = "yyjson_obj_size"
+extern (C) fn yyjson_obj_get(obj: ref void, key: ref char) ref void! = "yyjson_obj_get"
 extern (C) fn yyjson_obj_getn(obj: ref void, key: ref char, key_len: usize) ref void! = "yyjson_obj_getn"
-
-// ─── Object iterator ──────────────────────────────────────────────────────────
-// yyjson_obj_iter is a small struct (32 bytes on 64-bit).
 extern (C) fn yyjson_obj_iter_init(obj: ref void, iter: ref void) bool! = "yyjson_obj_iter_init"
-extern (C) fn yyjson_obj_iter_next(iter: ref void)                ref void! = "yyjson_obj_iter_next"
-extern (C) fn yyjson_obj_iter_get_val(key: ref void)              ref void! = "yyjson_obj_iter_get_val"
+extern (C) fn yyjson_obj_iter_next(iter: ref void) ref void! = "yyjson_obj_iter_next"
+extern (C) fn yyjson_obj_iter_get_val(key: ref void) ref void! = "yyjson_obj_iter_get_val"
+extern (C) fn yyjson_mut_doc_new(alc: ref void) ref void! = "yyjson_mut_doc_new"
+extern (C) fn yyjson_mut_doc_free(doc: ref void) void! = "yyjson_mut_doc_free"
+extern (C) fn yyjson_mut_doc_set_root(doc: ref void, val: ref void) void! = "yyjson_mut_doc_set_root"
+extern (C) fn yyjson_mut_write_opts(doc: ref void, flg: u32, alc: ref void, len: ref usize, err: ref void) ref char! = "yyjson_mut_write_opts"
+extern (C) fn yyjson_mut_raw(doc: ref void, val: ref char) ref void! = "yyjson_mut_raw"
+extern (C) fn yyjson_mut_null(doc: ref void) ref void! = "yyjson_mut_null"
+extern (C) fn yyjson_mut_true(doc: ref void) ref void! = "yyjson_mut_true"
+extern (C) fn yyjson_mut_false(doc: ref void) ref void! = "yyjson_mut_false"
+extern (C) fn yyjson_mut_bool(doc: ref void, val: bool) ref void! = "yyjson_mut_bool"
+extern (C) fn yyjson_mut_uint(doc: ref void, val: u64) ref void! = "yyjson_mut_uint"
+extern (C) fn yyjson_mut_sint(doc: ref void, val: i64) ref void! = "yyjson_mut_sint"
+extern (C) fn yyjson_mut_int(doc: ref void, val: i64) ref void! = "yyjson_mut_int"
+extern (C) fn yyjson_mut_real(doc: ref void, val: f64) ref void! = "yyjson_mut_real"
+extern (C) fn yyjson_mut_str(doc: ref void, val: ref char) ref void! = "yyjson_mut_str"
+extern (C) fn yyjson_mut_strcpy(doc: ref void, val: ref char) ref void! = "yyjson_mut_strcpy"
+extern (C) fn yyjson_mut_arr(doc: ref void) ref void! = "yyjson_mut_arr"
+extern (C) fn yyjson_mut_obj(doc: ref void) ref void! = "yyjson_mut_obj"
+extern (C) fn yyjson_mut_arr_append(arr: ref void, val: ref void) bool! = "yyjson_mut_arr_append"
+extern (C) fn yyjson_mut_obj_add(obj: ref void, key: ref void, val: ref void) bool! = "yyjson_mut_obj_add"
 
-// ─── Mutable document (for building JSON) ─────────────────────────────────────
-extern (C) fn yyjson_mut_doc_new(alc: ref void)                   ref void! = "yyjson_mut_doc_new"
-extern (C) fn yyjson_mut_doc_free(doc: ref void)                  void!     = "yyjson_mut_doc_free"
-extern (C) fn yyjson_mut_doc_set_root(doc: ref void, value: ref void) void!   = "yyjson_mut_doc_set_root"
-extern (C) fn yyjson_mut_doc_write(doc: ref void, flg: u32, len: ref usize) ref char! = "yyjson_mut_doc_write"
-
-// ─── Mutable value constructors ───────────────────────────────────────────────
-extern (C) fn yyjson_mut_null(doc: ref void)                      ref void! = "yyjson_mut_null"
-extern (C) fn yyjson_mut_true(doc: ref void)                      ref void! = "yyjson_mut_true"
-extern (C) fn yyjson_mut_false(doc: ref void)                     ref void! = "yyjson_mut_false"
-extern (C) fn yyjson_mut_bool(doc: ref void, value: bool)           ref void! = "yyjson_mut_bool"
-extern (C) fn yyjson_mut_uint(doc: ref void, value: u64)            ref void! = "yyjson_mut_uint"
-extern (C) fn yyjson_mut_sint(doc: ref void, value: i64)            ref void! = "yyjson_mut_sint"
-extern (C) fn yyjson_mut_int(doc: ref void, value: i64)             ref void! = "yyjson_mut_int"
-extern (C) fn yyjson_mut_real(doc: ref void, value: f64)            ref void! = "yyjson_mut_real"
-extern (C) fn yyjson_mut_strcpy(doc: ref void, value: ref char)     ref void! = "yyjson_mut_strcpy"
-extern (C) fn yyjson_mut_arr(doc: ref void)                       ref void! = "yyjson_mut_arr"
-extern (C) fn yyjson_mut_obj(doc: ref void)                       ref void! = "yyjson_mut_obj"
-
-// ─── Mutable array modification ───────────────────────────────────────────────
-extern (C) fn yyjson_mut_arr_append(arr: ref void, value: ref void) bool! = "yyjson_mut_arr_append"
-
-// ─── Mutable object modification ──────────────────────────────────────────────
-extern (C) fn yyjson_mut_obj_add(obj: ref void, key: ref void, value: ref void) bool! = "yyjson_mut_obj_add"
-
-// ─── libc free (for strings returned by yyjson_write) ─────────────────────────
 extern (C) fn free(ptr: ref void) void! = "free"
 extern (C) fn strlen(s: ref char) usize! = "strlen"
 
-// ─── Public types ─────────────────────────────────────────────────────────────
-
-/// Opaque handle to a parsed (immutable) JSON document.
 pub type JsonDoc = {
     ptr: ref void
 }
 
-/// Opaque handle to a mutable JSON document being built.
 pub type JsonBuilder = {
     ptr: ref void
 }
 
-/// A JSON value kind discriminant.
 pub enum JsonKind = {
     Null,
     Bool,
@@ -122,10 +90,17 @@ pub enum JsonKind = {
     Unknown
 }
 
-/// Parse a JSON string. Returns none if the input is invalid.
+fn _type_of(value: ref void) u8! = {
+    return yyjson_get_type(value)
+}
+
+fn _subtype_of(value: ref void) u8! = {
+    return yyjson_get_subtype(value)
+}
+
 pub fn parse(input: ref char) option[ref void]! = {
     val len: usize = strlen(input)
-    val doc: ref void = yyjson_read(input, len, 0)
+    val doc: ref void = yyjson_read_opts(input, len, 0, 0 as ref void, 0 as ref void)
     if doc == 0 as ref void {
         return none
     }
@@ -134,62 +109,57 @@ pub fn parse(input: ref char) option[ref void]! = {
     return some handle
 }
 
-/// Free a document returned by parse().
 pub fn doc_free(handle: ref void) void! = {
     val doc: ref void = @load(handle)
     yyjson_doc_free(doc)
     @free(handle)
 }
 
-/// Get the root value of a parsed document.
 pub fn doc_root(handle: ref void) ref void! = {
     val doc: ref void = @load(handle)
     return yyjson_doc_get_root(doc)
 }
 
-/// Serialise a parsed document back to a JSON string.
-/// The returned string is heap-allocated; caller must free it with json_str_free().
 pub fn doc_to_string(handle: ref void) ref char! = {
     val doc: ref void = @load(handle)
     val len_slot: mut usize = 0
-    val s: ref char = yyjson_write(doc, 0, addr(len_slot))
+    val s: ref char = yyjson_write_opts(doc, 0, 0 as ref void, addr(len_slot), 0 as ref void)
     return s
 }
 
-/// Free a string returned by doc_to_string() or val_to_string().
 pub fn json_str_free(s: ref char) void! = {
     free(s)
 }
 
-// ─── Value inspection ─────────────────────────────────────────────────────────
-
 pub fn val_kind(value: ref void) JsonKind! = {
-    if yyjson_is_null(value)  { return JsonKind.Null }
-    if yyjson_is_bool(value)  { return JsonKind.Bool }
-    if yyjson_is_sint(value)  { return JsonKind.Int }
-    if yyjson_is_uint(value)  { return JsonKind.UInt }
-    if yyjson_is_real(value)  { return JsonKind.Float }
-    if yyjson_is_str(value)   { return JsonKind.Str }
-    if yyjson_is_arr(value)   { return JsonKind.Array }
-    if yyjson_is_obj(value)   { return JsonKind.Object }
+    val t: u8 = _type_of(value)
+    if t == 2 { return JsonKind.Null }
+    if t == 3 { return JsonKind.Bool }
+    if t == 4 {
+        val s: u8 = _subtype_of(value)
+        if s == 8  { return JsonKind.Int }
+        if s == 16 { return JsonKind.Float }
+        return JsonKind.UInt
+    }
+    if t == 5 { return JsonKind.Str }
+    if t == 6 { return JsonKind.Array }
+    if t == 7 { return JsonKind.Object }
     return JsonKind.Unknown
 }
 
-pub fn val_is_null(value: ref void)   bool! = { return yyjson_is_null(value) }
-pub fn val_is_bool(value: ref void)   bool! = { return yyjson_is_bool(value) }
-pub fn val_is_int(value: ref void)    bool! = { return yyjson_is_int(value) }
-pub fn val_is_float(value: ref void)  bool! = { return yyjson_is_real(value) }
-pub fn val_is_str(value: ref void)    bool! = { return yyjson_is_str(value) }
-pub fn val_is_array(value: ref void)  bool! = { return yyjson_is_arr(value) }
-pub fn val_is_object(value: ref void) bool! = { return yyjson_is_obj(value) }
+pub fn val_is_null(value: ref void)   bool! = { return _type_of(value) == 2 }
+pub fn val_is_bool(value: ref void)   bool! = { return _type_of(value) == 3 }
+pub fn val_is_int(value: ref void)    bool! = { return _type_of(value) == 4 }
+pub fn val_is_float(value: ref void)  bool! = { return _type_of(value) == 4 && _subtype_of(value) == 16 }
+pub fn val_is_str(value: ref void)    bool! = { return _type_of(value) == 5 }
+pub fn val_is_array(value: ref void)  bool! = { return _type_of(value) == 6 }
+pub fn val_is_object(value: ref void) bool! = { return _type_of(value) == 7 }
 
-pub fn val_get_bool(value: ref void)  bool!    = { return yyjson_get_bool(value) }
-pub fn val_get_int(value: ref void)   i64!     = { return yyjson_get_sint(value) }
-pub fn val_get_uint(value: ref void)  u64!     = { return yyjson_get_uint(value) }
-pub fn val_get_float(value: ref void) f64!     = { return yyjson_get_real(value) }
+pub fn val_get_bool(value: ref void)  bool!     = { return yyjson_get_bool(value) }
+pub fn val_get_int(value: ref void)   i64!      = { return yyjson_get_sint(value) }
+pub fn val_get_uint(value: ref void)  u64!      = { return yyjson_get_uint(value) }
+pub fn val_get_float(value: ref void) f64!      = { return yyjson_get_real(value) }
 pub fn val_get_str(value: ref void)   ref char! = { return yyjson_get_str(value) }
-
-// ─── Array helpers ────────────────────────────────────────────────────────────
 
 pub fn arr_len(arr: ref void) usize! = {
     return yyjson_arr_size(arr)
@@ -200,8 +170,6 @@ pub fn arr_get(arr: ref void, idx: usize) option[ref void]! = {
     if v == 0 as ref void { return none }
     return some v
 }
-
-// ─── Object helpers ───────────────────────────────────────────────────────────
 
 pub fn obj_len(obj: ref void) usize! = {
     return yyjson_obj_size(obj)
@@ -216,27 +184,24 @@ pub fn obj_get(obj: ref void, key: ref char) option[ref void]! = {
 pub fn obj_get_str(obj: ref void, key: ref char) option[ref char]! = {
     val v: ref void = yyjson_obj_get(obj, key)
     if v == 0 as ref void { return none }
-    if !yyjson_is_str(v) { return none }
+    if _type_of(v) != 5 { return none }
     return some yyjson_get_str(v)
 }
 
 pub fn obj_get_int(obj: ref void, key: ref char) option[i64]! = {
     val v: ref void = yyjson_obj_get(obj, key)
     if v == 0 as ref void { return none }
-    if !yyjson_is_int(v) { return none }
+    if _type_of(v) != 4 { return none }
     return some yyjson_get_sint(v)
 }
 
 pub fn obj_get_bool(obj: ref void, key: ref char) option[bool]! = {
     val v: ref void = yyjson_obj_get(obj, key)
     if v == 0 as ref void { return none }
-    if !yyjson_is_bool(v) { return none }
+    if _type_of(v) != 3 { return none }
     return some yyjson_get_bool(v)
 }
 
-// ─── Builder API ──────────────────────────────────────────────────────────────
-
-/// Create a new mutable JSON document for building.
 pub fn builder_new() ref void! = {
     val doc: ref void = yyjson_mut_doc_new(0 as ref void)
     val handle: ref void = @alloc(8)
@@ -244,26 +209,22 @@ pub fn builder_new() ref void! = {
     return handle
 }
 
-/// Free a builder.
 pub fn builder_free(handle: ref void) void! = {
     val doc: ref void = @load(handle)
     yyjson_mut_doc_free(doc)
     @free(handle)
 }
 
-/// Serialise a builder to a JSON string. Caller must free with json_str_free().
 pub fn builder_to_string(handle: ref void) ref char! = {
     val doc: ref void = @load(handle)
     val len_slot: mut usize = 0
-    return yyjson_mut_doc_write(doc, 0, addr(len_slot))
+    return yyjson_mut_write_opts(doc, 0, 0 as ref void, addr(len_slot), 0 as ref void)
 }
 
-/// Serialise a builder to a pretty-printed JSON string. Caller must free with json_str_free().
 pub fn builder_to_string_pretty(handle: ref void) ref char! = {
     val doc: ref void = @load(handle)
     val len_slot: mut usize = 0
-    // YYJSON_WRITE_PRETTY = 1
-    return yyjson_mut_doc_write(doc, 1, addr(len_slot))
+    return yyjson_mut_write_opts(doc, 1, 0 as ref void, addr(len_slot), 0 as ref void)
 }
 
 pub fn build_null(handle: ref void) ref void! = {
@@ -306,25 +267,20 @@ pub fn build_object(handle: ref void) ref void! = {
     return yyjson_mut_obj(doc)
 }
 
-/// Append a value to a mutable array.
 pub fn array_append(arr: ref void, value: ref void) bool! = {
     return yyjson_mut_arr_append(arr, value)
 }
 
-/// Add a key-value pair to a mutable object.
-/// key_val must be a mutable string value created with build_str().
 pub fn object_add(obj: ref void, key_val: ref void, value: ref void) bool! = {
     return yyjson_mut_obj_add(obj, key_val, value)
 }
 
-/// Set the root value of a builder document.
 pub fn builder_set_root(handle: ref void, value: ref void) void! = {
     val doc: ref void = @load(handle)
     yyjson_mut_doc_set_root(doc, value)
 }
 
 test {
-    // ── parse round-trip ──────────────────────────────────────────────────────
     val input: ref char = `{"name":"Alice","age":30,"active":true,"score":9.5}`
     val doc_opt = parse(input)
     match doc_opt {
@@ -350,7 +306,6 @@ test {
         }
     }
 
-    // ── array parsing ─────────────────────────────────────────────────────────
     val arr_input: ref char = `[1,2,3]`
     val arr_opt = parse(arr_input)
     match arr_opt {
@@ -368,7 +323,6 @@ test {
         }
     }
 
-    // ── builder ───────────────────────────────────────────────────────────────
     val b: ref void = builder_new()
     val obj: ref void = build_object(b)
     val k1: ref void = build_str(b, "hello")
