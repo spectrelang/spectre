@@ -407,6 +407,7 @@ fn kind_is_at(k: TokenKind)       bool! = { match k { At()       => { return tru
 fn kind_is_question(k: TokenKind) bool! = { match k { Question() => { return true } else => { return false } } }
 
 test {
+    @puts("1")
     val r1 = tokenize("fn val mut pub return if else for")
     match r1 {
         err _ => { assert false }
@@ -423,6 +424,7 @@ test {
         }
     }
 
+    @puts("2")
     val r2 = tokenize("foobar hello_world _x")
     match r2 {
         err _ => { assert false }
@@ -430,11 +432,13 @@ test {
             assert kind_is_ident(tok_kind(toks, 0))
             assert kind_is_ident(tok_kind(toks, 1))
             assert kind_is_ident(tok_kind(toks, 2))
-            assert std.string.compare(tok_text(toks, 0), "foobar") == 0
-            assert std.string.compare(tok_text(toks, 1), "hello_world") == 0
+            assert std.string.compare(std.string.RChar(tok_text(toks, 0)), std.string.RChar("foobar")) == 0
+            assert std.string.compare(std.string.RChar(tok_text(toks, 1)), std.string.RChar("hello_world")) == 0
         }
     }
 
+
+    @puts("3")
     val r3 = tokenize("42 3.14 0xff")
     match r3 {
         err _ => { assert false }
@@ -447,6 +451,8 @@ test {
         }
     }
 
+
+    @puts("4")
     val r4 = tokenize("\"hello\"")
     match r4 {
         err _ => { assert false }
@@ -456,6 +462,8 @@ test {
         }
     }
 
+
+    @puts("5")
     val r5 = tokenize("\"line1\\nline2\"")
     match r5 {
         err _ => { assert false }

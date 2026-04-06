@@ -157,6 +157,7 @@ pub struct Codegen {
     in_trust_expr: bool,
     current_fn_ret: TypeExpr,
     current_module_prefix: String,
+    current_fn_returns_tagged_union: bool,
     pub warnings: Vec<String>,
 }
 
@@ -206,6 +207,7 @@ impl Codegen {
             in_trust_expr: false,
             current_fn_ret: TypeExpr::Void,
             current_module_prefix: String::new(),
+            current_fn_returns_tagged_union: false,
             warnings: Vec::new(),
         }
     }
@@ -684,14 +686,20 @@ impl Codegen {
         }
 
         let export = if f.public { "export " } else { "" };
-        let ret_ty = match &f.ret {
-            TypeExpr::Void => String::new(),
-            ty => format!("{} ", qbe_type(ty)),
+        let ret_union_name = match &f.ret {
+            TypeExpr::Named(n) if self.is_tagged_union_type(n) => Some(n.clone()),
+            _ => None,
         };
+
         let ret_ty = if qbe_name == "main" {
             "w ".to_string()
+        } else if ret_union_name.is_some() {
+            "l ".to_string()
         } else {
-            ret_ty
+            match &f.ret {
+                TypeExpr::Void => String::new(),
+                ty => format!("{} ", qbe_type(ty)),
+            }
         };
 
         let params: Vec<String> = f
@@ -717,15 +725,18 @@ impl Codegen {
             })
             .collect();
 
-        self.emit(&format!(
-            "{export}function {ret_ty}${name}({params}) {{",
-            name = qbe_name,
-            params = if qbe_name == "main" {
-                "w %argc, l %argv".to_string()
-            } else {
-                params.join(", ")
-            }
-        ));
+        let params_str = if qbe_name == "main" {
+            "w %argc, l %argv".to_string()
+        } else if ret_union_name.is_some() {
+            let rest = params.join(", ");
+            if rest.is_empty() { "l %__ret".to_string() } else { format!("l %__ret, {rest}") }
+        } else {
+            params.join(", ")
+        };
+
+        self.current_fn_returns_tagged_union = ret_union_name.is_some();
+
+        self.emit(&format!("{export}function {ret_ty}${name}({params_str}) {{", name = qbe_name));
         self.emit("@start");
 
         if qbe_name == "main" {
@@ -753,6 +764,7 @@ impl Codegen {
             }
         }
 
+        self.current_fn_returns_tagged_union = false;
         self.emit("}");
         self.emit("");
         Ok(())
@@ -1001,14 +1013,30 @@ impl Codegen {
                     }
                 }
                 let (val_tmp, val_ty) = self.emit_expr(value, ns)?;
-                let store_val = if val_ty == "w" {
-                    let (promoted, _) = self.promote_to_l(val_tmp, val_ty);
-                    promoted
-                } else {
-                    val_tmp
-                };
                 let ptr = self.emit_field_ptr(target, ns)?;
-                self.emit(&format!("    storel {store_val}, {ptr}"));
+                let is_tu_assign = if let Expr::Field(base, field_name) = target {
+                    self.infer_field_type(base, field_name)
+                        .and_then(|ty| if let TypeExpr::Named(n) = ty { Some(n) } else { None })
+                        .map(|n| self.is_tagged_union_type(&n))
+                        .unwrap_or(false)
+                } else { false };
+                if is_tu_assign {
+                    let union_name = if let Expr::Field(base, field_name) = target {
+                        self.infer_field_type(base, field_name)
+                            .and_then(|ty| if let TypeExpr::Named(n) = ty { Some(n) } else { None })
+                            .unwrap_or_default()
+                    } else { String::new() };
+                    let size = self.tagged_union_inline_size(&union_name);
+                    self.emit(&format!("    call $memcpy(l {ptr}, l {val_tmp}, l {size})"));
+                } else {
+                    let store_val = if val_ty == "w" {
+                        let (promoted, _) = self.promote_to_l(val_tmp, val_ty);
+                        promoted
+                    } else {
+                        val_tmp
+                    };
+                    self.emit(&format!("    storel {store_val}, {ptr}"));
+                }
             }
 
             Stmt::Return(None) => {
@@ -1018,7 +1046,17 @@ impl Codegen {
             Stmt::Return(Some(expr)) => {
                 let (tmp, _) = self.emit_expr(expr, ns)?;
                 self.emit_defers(ns, ret_ty)?;
-                self.emit(&format!("    ret {tmp}"));
+                if self.current_fn_returns_tagged_union {
+                    let union_name = match ret_ty {
+                        TypeExpr::Named(n) => n.clone(),
+                        _ => String::new(),
+                    };
+                    let size = self.tagged_union_inline_size(&union_name);
+                    self.emit(&format!("    call $memcpy(l %__ret, l {tmp}, l {size})"));
+                    self.emit("    ret %__ret");
+                } else {
+                    self.emit(&format!("    ret {tmp}"));
+                }
             }
             Stmt::Expr(expr) => {
                 self.emit_expr(expr, ns)?;
@@ -1956,7 +1994,7 @@ impl Codegen {
             if field.name == field_name {
                 return Ok(offset);
             }
-            let field_size = type_byte_size(&field.ty);
+            let field_size = self.type_byte_size_ctx(&field.ty);
             if has_fixed_arrays {
                 let align = type_alignment(&field.ty);
                 offset = align_to(offset as u64, align) as usize + field_size as usize;
@@ -2069,6 +2107,37 @@ impl Codegen {
             }
         }
         None
+    }
+
+    /// Compute the inline byte size of a tagged union: 8 (tag) + max payload across all variants.
+    /// Each payload field is 8 bytes (all values are pointer-sized in QBE).
+    fn tagged_union_inline_size(&self, union_name: &str) -> u64 {
+        if let Some((_, _, variants)) = self.tagged_union_defs.get(union_name) {
+            let max_fields = variants.iter().map(|(_, fields)| fields.len()).max().unwrap_or(0);
+            8 + (max_fields as u64) * 8
+        } else {
+            8
+        }
+    }
+
+    /// Returns true if the given type name refers to a tagged union.
+    fn is_tagged_union_type(&self, type_name: &str) -> bool {
+        self.tagged_union_defs.contains_key(type_name)
+    }
+
+    /// Like type_byte_size but resolves named tagged union types to their inline size.
+    fn type_byte_size_ctx(&self, ty: &TypeExpr) -> u64 {
+        match ty {
+            TypeExpr::Named(n) => {
+                if let Some((_, _, variants)) = self.tagged_union_defs.get(n.as_str()) {
+                    let max_fields = variants.iter().map(|(_, f)| f.len()).max().unwrap_or(0);
+                    return 8 + (max_fields as u64) * 8;
+                }
+                type_byte_size(ty)
+            }
+            TypeExpr::Mut(inner) => self.type_byte_size_ctx(inner),
+            other => type_byte_size(other),
+        }
     }
 
     /// Resolve the tag index for `ty` within the union type of `expr`.
@@ -2281,7 +2350,7 @@ impl Codegen {
                             .any(|f| matches!(f.ty, TypeExpr::FixedArray(_, _)));
                         let mut total: u64 = 0;
                         for field in fields {
-                            let field_size = type_byte_size(&field.ty);
+                            let field_size = self.type_byte_size_ctx(&field.ty);
                             if has_fixed_arrays {
                                 let align = type_alignment(&field.ty);
                                 total = align_to(total, align) + field_size;
@@ -2290,6 +2359,11 @@ impl Codegen {
                             }
                         }
                         total
+                    } else if let Some(size) = self.tagged_union_defs.get(&type_name).map(|(_, _, variants)| {
+                        let max_fields = variants.iter().map(|(_, f)| f.len()).max().unwrap_or(0);
+                        8 + (max_fields as u64) * 8
+                    }) {
+                        size
                     } else {
                         match type_name.as_str() {
                             "i8" | "u8" | "char" => 1,
@@ -3050,12 +3124,18 @@ impl Codegen {
                 }
                 let ptr = self.emit_field_ptr(expr, ns)?;
 
-                let is_fixed_array_field = self
-                    .infer_field_type(_base, _field_name)
+                let field_ty = self.infer_field_type(_base, _field_name);
+                let is_fixed_array_field = field_ty
+                    .as_ref()
                     .map(|ty| matches!(ty, TypeExpr::FixedArray(_, _)))
                     .unwrap_or(false);
+                let is_tagged_union_field = field_ty
+                    .as_ref()
+                    .and_then(|ty| if let TypeExpr::Named(n) = ty { Some(n.clone()) } else { None })
+                    .map(|n| self.is_tagged_union_type(&n))
+                    .unwrap_or(false);
 
-                if is_fixed_array_field {
+                if is_fixed_array_field || is_tagged_union_field {
                     Ok((ptr, "l"))
                 } else {
                     let tmp = self.fresh_tmp();
@@ -3079,7 +3159,7 @@ impl Codegen {
 
                         let mut size: usize = 0;
                         for field in field_defs {
-                            let field_size = type_byte_size(&field.ty);
+                            let field_size = self.type_byte_size_ctx(&field.ty);
                             if has_fixed_arrays {
                                 let align = type_alignment(&field.ty);
                                 size = align_to(size as u64, align) as usize + field_size as usize;
@@ -3109,7 +3189,7 @@ impl Codegen {
                         for field in field_defs {
                             offsets.push(offset);
                             types.push(Some(field.ty.clone()));
-                            let field_size = type_byte_size(&field.ty);
+                            let field_size = self.type_byte_size_ctx(&field.ty);
                             if has_fixed_arrays {
                                 let align = type_alignment(&field.ty);
                                 offset =
@@ -3135,16 +3215,29 @@ impl Codegen {
                         let field_byte_size = count * elem_size;
                         let field_ptr = self.fresh_tmp();
                         self.emit(&format!("    {field_ptr} =l add {ptr}, {offset}"));
-
                         if let Expr::IntLit(0) = fexpr {
-                            self.emit(&format!(
-                                "    call $memset(l {field_ptr}, w 0, l {field_byte_size})"
-                            ));
+                            self.emit(&format!("    call $memset(l {field_ptr}, w 0, l {field_byte_size})"));
                         } else {
                             let (val, _) = self.emit_expr(fexpr, ns)?;
-                            self.emit(&format!(
-                                "    call $memcpy(l {field_ptr}, l {val}, l {field_byte_size})"
-                            ));
+                            self.emit(&format!("    call $memcpy(l {field_ptr}, l {val}, l {field_byte_size})"));
+                        }
+                    } else if let Some(TypeExpr::Named(ref n)) = field_type {
+                        if self.is_tagged_union_type(n) {
+                            let union_size = self.tagged_union_inline_size(n);
+                            let field_ptr = self.fresh_tmp();
+                            self.emit(&format!("    {field_ptr} =l add {ptr}, {offset}"));
+                            let (val, _) = self.emit_expr(fexpr, ns)?;
+                            self.emit(&format!("    call $memcpy(l {field_ptr}, l {val}, l {union_size})"));
+                        } else {
+                            let (val, val_ty) = self.emit_expr(fexpr, ns)?;
+                            let field_ptr = self.fresh_tmp();
+                            self.emit(&format!("    {field_ptr} =l add {ptr}, {offset}"));
+                            if val_ty == "l" {
+                                self.emit(&format!("    storel {val}, {field_ptr}"));
+                            } else {
+                                let (ext, _) = self.promote_to_l(val, val_ty);
+                                self.emit(&format!("    storel {ext}, {field_ptr}"));
+                            }
                         }
                     } else {
                         let (val, val_ty) = self.emit_expr(fexpr, ns)?;
@@ -3209,9 +3302,9 @@ impl Codegen {
                         self.find_tagged_union_variant(&callee_path)
                     {
                         let n_fields = field_types.len();
-                        let total_size = 8 + n_fields * 8;
+                        let inline_size = self.tagged_union_inline_size(&union_name);
                         let ptr = self.fresh_tmp();
-                        self.emit(&format!("    {ptr} =l call $malloc(l {total_size})"));
+                        self.emit(&format!("    {ptr} =l alloc8 {inline_size}"));
                         self.emit(&format!("    storel {tag_index}, {ptr}"));
                         for (j, arg) in args.iter().enumerate() {
                             let (val, val_ty) = self.emit_expr(arg, ns)?;
@@ -3547,27 +3640,45 @@ impl Codegen {
                     .get(fn_name.as_str())
                     .copied()
                     .unwrap_or("l");
-                let args_str = if let Some(&fixed) = self.variadic_fns.get(fn_name.as_str()) {
-                    if arg_strs.len() > fixed {
-                        let (fixed_args, var_args) = arg_strs.split_at(fixed);
-                        if fixed_args.is_empty() {
-                            format!("..., {}", var_args.join(", "))
-                        } else {
-                            format!("{}, ..., {}", fixed_args.join(", "), var_args.join(", "))
-                        }
-                    } else {
-                        arg_strs.join(", ")
-                    }
+
+                let callee_ret_union = self
+                    .fn_ret_type_exprs
+                    .get(fn_name.as_str())
+                    .and_then(|ty| if let TypeExpr::Named(n) = ty { Some(n.clone()) } else { None })
+                    .filter(|n| self.is_tagged_union_type(n));
+
+                let (ret_slot, args_str) = if let Some(ref union_name) = callee_ret_union {
+                    let size = self.tagged_union_inline_size(union_name);
+                    let slot = self.fresh_tmp();
+                    self.emit(&format!("    {slot} =l alloc8 {size}"));
+                    let base = if let Some(&fixed) = self.variadic_fns.get(fn_name.as_str()) {
+                        if arg_strs.len() > fixed {
+                            let (fa, va) = arg_strs.split_at(fixed);
+                            if fa.is_empty() { format!("..., {}", va.join(", ")) }
+                            else { format!("{}, ..., {}", fa.join(", "), va.join(", ")) }
+                        } else { arg_strs.join(", ") }
+                    } else { arg_strs.join(", ") };
+                    let full = if base.is_empty() { format!("l {slot}") } else { format!("l {slot}, {base}") };
+                    (Some(slot), full)
                 } else {
-                    arg_strs.join(", ")
+                    let s = if let Some(&fixed) = self.variadic_fns.get(fn_name.as_str()) {
+                        if arg_strs.len() > fixed {
+                            let (fa, va) = arg_strs.split_at(fixed);
+                            if fa.is_empty() { format!("..., {}", va.join(", ")) }
+                            else { format!("{}, ..., {}", fa.join(", "), va.join(", ")) }
+                        } else { arg_strs.join(", ") }
+                    } else { arg_strs.join(", ") };
+                    (None, s)
                 };
+
                 if ret_ty.is_empty() {
                     self.emit(&format!("    call ${fn_name}({args_str})"));
                     Ok(("".into(), ""))
+                } else if let Some(slot) = ret_slot {
+                    self.emit(&format!("    {result} =l call ${fn_name}({args_str})"));
+                    Ok((slot, "l"))
                 } else {
-                    self.emit(&format!(
-                        "    {result} ={ret_ty} call ${fn_name}({args_str})"
-                    ));
+                    self.emit(&format!("    {result} ={ret_ty} call ${fn_name}({args_str})"));
                     Ok((result, ret_ty))
                 }
             }
