@@ -65,13 +65,20 @@ fn main() {
     }
 }
 
-/// Pipe QBE IR into `qbe` and capture the assembly output.
+/// Run QBE on the IR and capture the assembly output.
 fn run_qbe(ir: &str) -> String {
-    let mut child = Command::new("qbe")
-        .stdin(process::Stdio::piped())
+    let tmp_dir = std::env::temp_dir();
+    let ir_path = tmp_dir.join("spectre_ir.ssa");
+    std::fs::write(&ir_path, ir).unwrap_or_else(|e| {
+        eprintln!("error writing temp QBE IR: {e}");
+        process::exit(1);
+    });
+
+    let out = Command::new("qbe")
+        .arg(&ir_path)
         .stdout(process::Stdio::piped())
         .stderr(process::Stdio::piped())
-        .spawn()
+        .output()
         .unwrap_or_else(|e| {
             eprintln!("error: could not run 'qbe': {e}");
             eprintln!("       make sure QBE is installed and on your PATH");
@@ -79,15 +86,7 @@ fn run_qbe(ir: &str) -> String {
             process::exit(1);
         });
 
-    let mut stdin = child.stdin.take().unwrap();
-    let ir_bytes = ir.as_bytes().to_vec();
-    let writer = std::thread::spawn(move || {
-        use std::io::Write;
-        stdin.write_all(&ir_bytes).unwrap();
-    });
-
-    let out = child.wait_with_output().unwrap();
-    writer.join().unwrap();
+    let _ = std::fs::remove_file(&ir_path);
 
     if !out.status.success() {
         eprintln!("qbe error:\n{}", String::from_utf8_lossy(&out.stderr));

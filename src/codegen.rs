@@ -129,7 +129,7 @@ pub struct Codegen {
     type_defs: HashMap<String, Vec<Field>>,
     extern_type_defs: HashMap<String, Vec<Field>>,
     union_defs: HashMap<String, Vec<TypeExpr>>,
-    tagged_union_defs: IndexMap<String, (String, bool, Vec<(String, Vec<TypeExpr>)>)>,
+    tagged_union_defs: IndexMap<String, (Vec<String>, bool, Vec<(String, Vec<TypeExpr>)>)>,
     enum_defs: HashMap<String, Vec<String>>,
     fixed_array_types: HashMap<String, String>,
     fixed_array_counter: usize,
@@ -442,7 +442,12 @@ impl Codegen {
             {
                 self.tagged_union_defs
                     .entry(name.clone())
-                    .or_insert_with(|| (module_prefix.to_string(), *public, variants.clone()));
+                    .and_modify(|entry| {
+                        if !entry.0.contains(&module_prefix.to_string()) {
+                            entry.0.push(module_prefix.to_string());
+                        }
+                    })
+                    .or_insert_with(|| (vec![module_prefix.to_string()], *public, variants.clone()));
             }
             if let Item::EnumDef { name, variants, .. } = item {
                 self.enum_defs.insert(name.clone(), variants.clone());
@@ -2294,14 +2299,21 @@ impl Codegen {
         if let Some(p) = prefix {
             let mut found: Option<(String, usize, Vec<TypeExpr>)> = None;
             let mut found_exact = false;
-            for (union_name, (u_mod, u_pub, variants)) in &self.tagged_union_defs {
-                let u_mod_dot = u_mod.replace("__", ".");
-                let exact = u_mod == p || u_mod_dot == p;
-                let suffix = !exact && mod_matches(u_mod, p);
-                if !exact && !suffix {
+            for (union_name, (u_mods, u_pub, variants)) in &self.tagged_union_defs {
+                let any_match = u_mods.iter().any(|u_mod| {
+                    let u_mod_dot = u_mod.replace("__", ".");
+                    let exact = u_mod == p || u_mod_dot == p;
+                    let suffix = !exact && mod_matches(u_mod, p);
+                    exact || suffix
+                });
+                let any_exact = u_mods.iter().any(|u_mod| {
+                    let u_mod_dot = u_mod.replace("__", ".");
+                    u_mod == p || u_mod_dot == p
+                });
+                if !any_match {
                     continue;
                 }
-                if !u_pub && !mod_matches(u_mod, &self.current_module_prefix) {
+                if !u_pub && !u_mods.iter().any(|u_mod| mod_matches(u_mod, &self.current_module_prefix)) {
                     continue;
                 }
                 if let Some((idx, (_, fields))) = variants
@@ -2309,7 +2321,7 @@ impl Codegen {
                     .enumerate()
                     .find(|(_, (n, _))| n == variant_name)
                 {
-                    if exact && !found_exact {
+                    if any_exact && !found_exact {
                         found = Some((union_name.clone(), idx, fields.clone()));
                         found_exact = true;
                     } else if !found_exact && found.is_none() {
@@ -2320,8 +2332,8 @@ impl Codegen {
             return found;
         }
 
-        for (union_name, (u_mod, _, variants)) in &self.tagged_union_defs {
-            if mod_matches(u_mod, &self.current_module_prefix) {
+        for (union_name, (u_mods, _, variants)) in &self.tagged_union_defs {
+            if u_mods.iter().any(|u_mod| mod_matches(u_mod, &self.current_module_prefix)) {
                 if let Some((idx, (_, fields))) = variants
                     .iter()
                     .enumerate()
@@ -2331,8 +2343,8 @@ impl Codegen {
                 }
             }
         }
-        for (union_name, (u_mod, u_pub, variants)) in &self.tagged_union_defs {
-            if *u_pub && !mod_matches(u_mod, &self.current_module_prefix) {
+        for (union_name, (u_mods, u_pub, variants)) in &self.tagged_union_defs {
+            if *u_pub && !u_mods.iter().any(|u_mod| mod_matches(u_mod, &self.current_module_prefix)) {
                 if let Some((idx, (_, fields))) = variants
                     .iter()
                     .enumerate()
@@ -5034,7 +5046,7 @@ fn collect_ns(module: &ResolvedModule, prefix: &str, ns: &mut Namespace) {
 fn collect_tagged_unions(
     module: &ResolvedModule,
     qbe_prefix: &str,
-    defs: &mut IndexMap<String, (String, bool, Vec<(String, Vec<TypeExpr>)>)>,
+    defs: &mut IndexMap<String, (Vec<String>, bool, Vec<(String, Vec<TypeExpr>)>)>,
 ) {
     for item in &module.ast.items {
         if let Item::TaggedUnionDef {
@@ -5044,7 +5056,12 @@ fn collect_tagged_unions(
         } = item
         {
             defs.entry(name.clone())
-                .or_insert_with(|| (qbe_prefix.to_string(), *public, variants.clone()));
+                .and_modify(|entry| {
+                    if !entry.0.contains(&qbe_prefix.to_string()) {
+                        entry.0.push(qbe_prefix.to_string());
+                    }
+                })
+                .or_insert_with(|| (vec![qbe_prefix.to_string()], *public, variants.clone()));
         }
     }
     for (import_name, child) in &module.imports {
