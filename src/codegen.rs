@@ -1969,6 +1969,11 @@ impl Codegen {
                 .cloned()
                 .ok_or_else(|| format!("cannot determine type of '{name}'")),
             Expr::Cast { ty, .. } => Ok(type_to_annotation_string(ty)),
+            Expr::Field(base, field_name) => {
+                let field_ty = self.infer_field_type(base, field_name)
+                    .ok_or_else(|| format!("cannot determine type of field '{field_name}'"))?;
+                Ok(type_to_annotation_string(&field_ty))
+            }
             _ => Err(format!("cannot determine struct type for complex expression {:?}", expr).into()),
         }
     }
