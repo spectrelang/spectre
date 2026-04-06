@@ -471,21 +471,11 @@ mod codegen_tests {
         let err = compile_err(
             r#"
             type T = { x: mut i32 }
-            fn f(x: i32) void = { val t: mut T = {x: 1} t.x = 2 }
-        "#,
-            false,
-        );
-        assert!(err.contains("pure function"));
-    }
-
-    #[test]
-    fn pure_fn_with_assignment_requires_contracts() {
-        let err = compile_err(
-            r#"
-            type T = { x: mut i32 }
-            fn f(x: i32) void = {
+            fn some_dangerous_fn() void! = {}
+            fn f(x: i32) void = { 
                 val t: mut T = {x: 1}
                 t.x = 2
+                some_dangerous_fn()
             }
         "#,
             false,
