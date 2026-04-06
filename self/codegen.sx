@@ -1,10 +1,6 @@
 val std = use("std")
 val parser = use("parser.sx")
 
-fn str_eq(a: ref char, b: ref char) bool! = {
-    return std.string.compare(a, b) == 0
-}
-
 // ─── QBE IR code generator ────────────────────────────────────────────────────
 // Generates QBE intermediate representation from the AST.
 // Subset: handles functions, basic types, arithmetic, control flow,
@@ -99,13 +95,13 @@ fn qbe_type_of(ty: ref parser.Node) ref char! = {
     if k == parser.TY_FIXED_ARR { return "a" }
     if k == parser.TY_NAMED {
         val name: ref char = ty.d0 as ref char
-        if str_eq(name, "i32") || str_eq(name, "u32") { return "w" }
-        if str_eq(name, "i8")  || str_eq(name, "u8")  { return "w" }
-        if str_eq(name, "i16") || str_eq(name, "u16") { return "w" }
-        if str_eq(name, "bool") { return "w" }
-        if str_eq(name, "f32") { return "s" }
-        if str_eq(name, "f64") { return "d" }
-        if str_eq(name, "char") { return "w" }
+        if std.string.rchar_eq(name, "i32") || std.string.rchar_eq(name, "u32") { return "w" }
+        if std.string.rchar_eq(name, "i8")  || std.string.rchar_eq(name, "u8")  { return "w" }
+        if std.string.rchar_eq(name, "i16") || std.string.rchar_eq(name, "u16") { return "w" }
+        if std.string.rchar_eq(name, "bool") { return "w" }
+        if std.string.rchar_eq(name, "f32") { return "s" }
+        if std.string.rchar_eq(name, "f64") { return "d" }
+        if std.string.rchar_eq(name, "char") { return "w" }
         return "l"
     }
     return "l"
@@ -118,10 +114,10 @@ fn type_size(ty: ref parser.Node) i64! = {
     if k == parser.TY_MUT     { return type_size(ty.d0 as ref parser.Node) }
     if k == parser.TY_NAMED {
         val name: ref char = ty.d0 as ref char
-        if str_eq(name, "i8") || str_eq(name, "u8") || str_eq(name, "char") { return 1 }
-        if str_eq(name, "i16") || str_eq(name, "u16") { return 2 }
-        if str_eq(name, "i32") || str_eq(name, "u32") || str_eq(name, "f32") { return 4 }
-        if str_eq(name, "bool") { return 4 }
+        if std.string.rchar_eq(name, "i8") || std.string.rchar_eq(name, "u8") || std.string.rchar_eq(name, "char") { return 1 }
+        if std.string.rchar_eq(name, "i16") || std.string.rchar_eq(name, "u16") { return 2 }
+        if std.string.rchar_eq(name, "i32") || std.string.rchar_eq(name, "u32") || std.string.rchar_eq(name, "f32") { return 4 }
+        if std.string.rchar_eq(name, "bool") { return 4 }
         return 8
     }
     if k == parser.TY_FIXED_ARR {
@@ -143,7 +139,7 @@ fn intern_string(ctx: ref void, s: ref char) i64! = {
         val s_opt = @get(strs, i as usize)
         match s_opt {
             some existing => {
-                if str_eq(existing as ref char, s) { return i }
+                if std.string.rchar_eq(existing as ref char, s) { return i }
             }
             none => {}
         }
@@ -170,7 +166,7 @@ fn emit_string_data(ctx: ref void) void! = {
                 val sptr: ref char = s as ref char
                 val j: mut i64 = 0
                 for {
-                    val c: u8 = @load8(@ptradd(sptr, j))
+                    val c: mut u8 = @load8(@ptradd(sptr, j))
                     if c == 0 { break }
                     if c == 10 {
                         emit(ctx, "\\n")
@@ -196,9 +192,6 @@ fn emit_string_data(ctx: ref void) void! = {
         i++
     }
 }
-
-// ─── Expression codegen ───────────────────────────────────────────────────────
-// Returns the QBE temporary name (ref char) holding the result.
 
 fn gen_expr(ctx: ref void, expr: ref parser.Node) ref char! = {
     if expr == 0 as ref parser.Node { return "0" }
