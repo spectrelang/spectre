@@ -294,8 +294,6 @@ fn kind_is_int(k: lexer.TokenKind) bool! = { match k { Int _ => { return true } 
 fn kind_is_float(k: lexer.TokenKind) bool! = { match k { Float _ => { return true } else => { return false } } }
 fn kind_is_dotdotdot(k: lexer.TokenKind) bool! = { match k { DotDotDot() => { return true } else => { return false } } }
 
-// ─── Type parsing ─────────────────────────────────────────────────────────────
-
 pub fn parse_type(p: ref Parser) result[ref Node, ref char]! = {
     val line: i64 = p_line(p)
 
@@ -411,8 +409,6 @@ pub fn parse_type(p: ref Parser) result[ref Node, ref char]! = {
 
     return err p_error(p, "expected type")
 }
-
-// ─── Expression parsing ───────────────────────────────────────────────────────
 
 pub fn parse_expr(p: ref Parser) result[ref Node, ref char]! = { return parse_or(p) }
 
@@ -799,8 +795,6 @@ fn parse_primary(p: ref Parser) result[ref Node, ref char]! = {
 
     return err p_error(p, "expected expression")
 }
-
-// ─── Statement parsing ────────────────────────────────────────────────────────
 
 fn parse_contracts(p: ref Parser) result[list[ref Node], ref char]! = {
     val contracts: mut list[ref Node] = []
@@ -1214,9 +1208,9 @@ fn parse_match_stmt(p: ref Parser, line: i64) result[ref Node, ref char]! = {
         return ok nms
     }
 
-    // union / tagged-union match
     val uarms: mut list[ref Node] = []
     val u_else: mut ref Node = 0 as ref Node
+
     for {
         if lexer.kind_is_rbrace(p_peek_kind(p)) { break }
         if kind_is_else(p_peek_kind(p)) {
@@ -1242,6 +1236,7 @@ fn parse_match_stmt(p: ref Parser, line: i64) result[ref Node, ref char]! = {
         uarm.d1 = addr(uabl) as i64
         @append(uarms, uarm)
     }
+
     p_expect_rbrace(p)?
     val nmu: mut ref Node = make_node(NK_MATCH_UNION, line)
     nmu.d0 = expr as i64
@@ -1260,8 +1255,6 @@ pub fn parse_stmts(p: ref Parser) result[list[ref Node], ref char]! = {
     }
     return ok stmts
 }
-
-// ─── Top-level item parsing ───────────────────────────────────────────────────
 
 fn parse_fn_item(p: ref Parser, public: i64) result[ref Node, ref char]! = {
     val line: i64 = p_line(p)
