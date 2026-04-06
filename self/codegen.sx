@@ -868,8 +868,8 @@ fn gen_stmt(ctx: ref void, stmt: ref parser.Node) void! = {
         val mutable: i64 = stmt.d1 as i64
         val expr: ref void = stmt.d3 as ref void
         val val_tmp: ref char = gen_expr(ctx, expr)
-        // allocate a stack slot and store
         val buf: ref char = @alloc(256) as ref char
+
         @snprintf(buf, 256, "    %%%s =l alloc8 8\n    storel %s, %%%s\n", {name, val_tmp, name})
         emit(ctx, buf)
         @free(buf)
