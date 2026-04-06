@@ -3519,10 +3519,17 @@ fn types_compatible(
                     return true;
                 }
             }
-            if let Some(variants) = union_lookup.get(a) {
-                for variant in *variants {
-                    if types_compatible(variant, &TypeExpr::Named(b.clone()), union_lookup) {
-                        return true;
+            if named_types_eq(a, b) {
+                return true;
+            }
+            let a_base = a.rsplit('.').next().unwrap_or(a);
+            for (union_name, variants) in union_lookup.iter() {
+                let union_base = union_name.rsplit('.').next().unwrap_or(union_name);
+                if union_base == a_base || union_name == a {
+                    for variant in *variants {
+                        if types_compatible(variant, &TypeExpr::Named(b.clone()), union_lookup) {
+                            return true;
+                        }
                     }
                 }
             }
@@ -3546,12 +3553,28 @@ fn types_compatible(
     }
 }
 
+/// Two named types are equal if their strings match exactly, or if one is the
+/// unqualified suffix of the other (e.g. "TokenKind" == "lexer.TokenKind").
+fn named_types_eq(a: &str, b: &str) -> bool {
+    if a == b {
+        return true;
+    }
+    let a_base = a.rsplit('.').next().unwrap_or(a);
+    let b_base = b.rsplit('.').next().unwrap_or(b);
+    if a_base == b_base {
+        if a.contains('.') || b.contains('.') {
+            return true;
+        }
+    }
+    false
+}
+
 /// Check if two TypeExpr values are exactly equal.
 fn type_eq(a: &TypeExpr, b: &TypeExpr) -> bool {
     let a = unwrap_mut(a);
     let b = unwrap_mut(b);
     match (a, b) {
-        (TypeExpr::Named(a), TypeExpr::Named(b)) => a == b,
+        (TypeExpr::Named(a), TypeExpr::Named(b)) => named_types_eq(a, b),
         (TypeExpr::Slice(a), TypeExpr::Slice(b)) => type_eq(a, b),
         (TypeExpr::Ref(a), TypeExpr::Ref(b)) => type_eq(a, b),
         (TypeExpr::Option(a), TypeExpr::Option(b)) => type_eq(a, b),

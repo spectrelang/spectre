@@ -3316,8 +3316,9 @@ impl Codegen {
                 let callee_path = expr_to_path(callee);
 
                 if !callee_path.is_empty() {
+                    let expanded_callee_path = expand_alias_path(&callee_path, &self.type_aliases);
                     if let Some((union_name, tag_index, field_types)) =
-                        self.find_tagged_union_variant(&callee_path)
+                        self.find_tagged_union_variant(&expanded_callee_path)
                     {
                         let n_fields = field_types.len();
                         let inline_size = self.tagged_union_inline_size(&union_name);
