@@ -3211,7 +3211,7 @@ impl Codegen {
                         let n_fields = field_types.len();
                         let total_size = 8 + n_fields * 8;
                         let ptr = self.fresh_tmp();
-                        self.emit(&format!("    {ptr} =l alloc8 {total_size}"));
+                        self.emit(&format!("    {ptr} =l call $malloc(l {total_size})"));
                         self.emit(&format!("    storel {tag_index}, {ptr}"));
                         for (j, arg) in args.iter().enumerate() {
                             let (val, val_ty) = self.emit_expr(arg, ns)?;
