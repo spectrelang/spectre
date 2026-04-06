@@ -9,13 +9,11 @@
 ///   - textDocument/publishDiagnostics (push on open/change)
 
 val std    = use("std")
-val json   = use("std/json.sx")
+val json   = use("std/json")
 val str    = use("std/string")
 val lexer  = use("lexer.sx")
 val parser = use("parser.sx")
 val sema   = use("sema.sx")
-
-// ─── C bindings ───────────────────────────────────────────────────────────────
 
 extern (C) fn fread(buf: ref void, size: usize, count: usize, stream: ref void) usize! = "fread"
 extern (C) fn fwrite(buf: ref void, size: usize, count: usize, stream: ref void) usize! = "fwrite"
@@ -25,11 +23,6 @@ extern (C) fn atoi(s: ref char) i32! = "atoi"
 extern (C) fn strstr(haystack: ref char, needle: ref char) ref char! = "strstr"
 extern (C) fn memcpy(dst: ref void, src: ref void, n: usize) ref void! = "memcpy"
 extern (C) fn free(ptr: ref void) void! = "free"
-
-// ─── Document store ───────────────────────────────────────────────────────────
-// A simple open-addressed map: uri (ref char) → source text (ref char).
-// Layout per slot (16 bytes): [uri_ptr: 8][text_ptr: 8]
-// We keep a flat array of STORE_CAP slots.
 
 pub val STORE_CAP: i64 = 64
 
