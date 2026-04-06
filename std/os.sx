@@ -9,6 +9,8 @@ extern (C) fn access(path: ref char, mode: i32) i32! = "access"
 extern (C) fn popen(cmd: ref char, mode: ref char) ref void! = "popen"
 extern (C) fn pclose(pipe: ref void) i32! = "pclose"
 
+pub extern (C) fn exit(code: i32) void! = "exit"
+
 pub enum ProcessError = {
     FailedToStart,
     ReadFailed
@@ -166,4 +168,6 @@ test {
             assert(false)
         }
     }
+
+    exit(0)
 }
