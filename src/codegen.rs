@@ -2032,8 +2032,8 @@ impl Codegen {
 
         for (union_name, (u_mod, u_pub, variants)) in &self.tagged_union_defs {
             if let Some(p) = prefix {
-                if u_mod == p {
-                    if !u_pub && (p != self.current_module_prefix) {
+                if u_mod == p || u_mod.replace("__", ".") == p {
+                    if !u_pub && (p != self.current_module_prefix && *u_mod != self.current_module_prefix) {
                         continue;
                     }
                     if let Some((idx, (_, fields))) = variants

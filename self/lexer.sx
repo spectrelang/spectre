@@ -191,7 +191,7 @@ fn substr(src: ref char, start: i64, end: i64) ref char! = {
 }
 
 fn str_eq(a: ref char, b: ref char) bool! = {
-    return std.string.compare(a, b) == 0
+    return std.string.compare(std.string.RChar(a), std.string.RChar(b)) == 0
 }
 
 fn keyword_kind(s: ref char) i64! = {
@@ -430,6 +430,14 @@ test {
     match r1 {
         err _ => { assert false }
         ok toks => {
+            std.stdio.print("{d}\n", {tok_kind(toks, 1)})
+            std.stdio.print("{d}\n", {tok_kind(toks, 2)})
+            std.stdio.print("{d}\n", {tok_kind(toks, 3)})
+            std.stdio.print("{d}\n", {tok_kind(toks, 4)})
+            std.stdio.print("{d}\n", {tok_kind(toks, 5)})
+            std.stdio.print("{d}\n", {tok_kind(toks, 6)})
+            std.stdio.print("{d}\n", {tok_kind(toks, 7)})
+            std.stdio.print("{d}\n", {tok_kind(toks, 8)})
             assert tok_kind(toks, 0) == TK_FN
             assert tok_kind(toks, 1) == TK_VAL
             assert tok_kind(toks, 2) == TK_MUT
