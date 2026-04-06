@@ -38,6 +38,11 @@ bool sx_yyjson_get_bool(void *v)
     return yyjson_get_bool((yyjson_val *)v);
 }
 
+void *sx_yyjson_mut_doc_new(void *alc)
+{
+    return (void *)yyjson_mut_doc_new((const yyjson_alc *)alc);
+}
+
 uint64_t sx_yyjson_get_uint(void *v)
 {
     return yyjson_get_uint((yyjson_val *)v);
@@ -116,4 +121,26 @@ void *sx_yyjson_obj_iter_next(void *iter)
 void *sx_yyjson_obj_iter_get_val(void *iter_val)
 {
     return (void *)yyjson_obj_iter_get_val((yyjson_val *)iter_val);
+}
+
+void *sx_yyjson_read_opts(const char *dat, size_t len, uint32_t flg, void *alc, void *err)
+{
+    return (void *)yyjson_read_opts((char *)dat, len, (yyjson_read_flag)flg, (const yyjson_alc *)alc,
+                                    (yyjson_read_err *)err);
+}
+
+void sx_yyjson_doc_free(void *doc)
+{
+    yyjson_doc_free((yyjson_doc *)doc);
+}
+
+void *sx_yyjson_doc_get_root(void *doc)
+{
+    return (void *)yyjson_doc_get_root((yyjson_doc *)doc);
+}
+
+char *sx_yyjson_write_opts(void *doc, uint32_t flg, void *alc, size_t *len, void *err)
+{
+    return yyjson_write_opts((yyjson_doc *)doc, (yyjson_write_flag)flg, (const yyjson_alc *)alc, len,
+                             (yyjson_write_err *)err);
 }
