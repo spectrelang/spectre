@@ -1,15 +1,8 @@
 use clap::Parser;
 
 const USAGE: &str = "\
-spectre <input> [options]
-
-    [file].sx                  compile to binary (./file)
-    [file].sx -o out           compile to binary at path 'out'
-    [file].sx --emit-qbe       print QBE IR and exit
-    [file].sx --emit-asm       print assembly and exit
-    [file].sx --emit-tokens    print token stream and exit
-    [file].sx --emit-ast       print AST and exit
-    [file].sx --release        build in release mode, runtime safety checks off";
+spectre <input.sx> [options]
+";
 
 #[derive(Parser, Debug)]
 #[command(

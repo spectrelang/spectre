@@ -865,8 +865,7 @@ fn gen_stmt(ctx: ref void, stmt: ref parser.Node) void! = {
 
     if k == parser.NK_VAL {
         val name: ref char = stmt.d0 as ref char
-        val mutable: i64 = stmt.d1 as i64
-        val expr: ref void = stmt.d3 as ref void
+        val expr: ref parser.Node = stmt.d3 as ref parser.Node
         val val_tmp: ref char = gen_expr(ctx, expr)
         val buf: ref char = @alloc(256) as ref char
 
@@ -904,8 +903,8 @@ fn gen_stmt(ctx: ref void, stmt: ref parser.Node) void! = {
     }
 
     if k == parser.NK_RETURN {
-        val expr2: ref void = stmt.d0 as ref void
-        if expr2 == 0 as ref void {
+        val expr2: ref parser.Node = stmt.d0 as ref parser.Node
+        if expr2 == 0 as ref parser.Node {
             emitln(ctx, "    ret 0")
         } else {
             val rv: ref char = gen_expr(ctx, expr2)
