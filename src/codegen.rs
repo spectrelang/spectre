@@ -2979,6 +2979,8 @@ impl Codegen {
                     let none_lbl = format!("@get_none_{}", self.tmp_counter);
                     let end_lbl = format!("@get_end_{}", self.tmp_counter);
                     self.tmp_counter += 1;
+                    let result_slot = self.fresh_tmp();
+                    self.emit(&format!("    {result_slot} =l alloc8 8"));
                     self.emit(&format!("    {in_bounds} =w csltl {idx_l}, {len_val}"));
                     self.emit(&format!("    jnz {in_bounds}, {some_lbl}, {none_lbl}"));
 
@@ -2987,22 +2989,24 @@ impl Codegen {
                     let off = self.fresh_tmp();
                     let elem_ptr = self.fresh_tmp();
                     let elem_val = self.fresh_tmp();
-                    let result = self.fresh_tmp();
+                    let some_val = self.fresh_tmp();
                     self.emit(&format!("    {buf} =l loadl {list_ptr}"));
                     self.emit(&format!("    {off} =l mul {idx_l}, 8"));
                     self.emit(&format!("    {elem_ptr} =l add {buf}, {off}"));
                     self.emit(&format!("    {elem_val} =l loadl {elem_ptr}"));
-                    self.emit(&format!("    {result} =l add {elem_val}, 1"));
+                    self.emit(&format!("    {some_val} =l add {elem_val}, 1"));
+                    self.emit(&format!("    storel {some_val}, {result_slot}"));
                     self.emit(&format!("    jmp {end_lbl}"));
 
                     self.emit(&format!("{none_lbl}"));
-                    let result_none = self.fresh_tmp();
-                    self.emit(&format!("    {result_none} =l copy 0"));
+                    self.emit(&format!("    storel 0, {result_slot}"));
                     self.emit(&format!("    jmp {end_lbl}"));
 
                     self.emit(&format!("{end_lbl}"));
+                    let result = self.fresh_tmp();
+                    self.emit(&format!("    {result} =l loadl {result_slot}"));
 
-                    Ok((format!("{result}"), "l"))
+                    Ok((result, "l"))
                 }
 
                 "len" => {
