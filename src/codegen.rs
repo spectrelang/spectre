@@ -1969,7 +1969,7 @@ impl Codegen {
                 .cloned()
                 .ok_or_else(|| format!("cannot determine type of '{name}'")),
             Expr::Cast { ty, .. } => Ok(type_to_annotation_string(ty)),
-            _ => Err("cannot determine struct type for complex expression".into()),
+            _ => Err(format!("cannot determine struct type for complex expression {:?}", expr).into()),
         }
     }
 

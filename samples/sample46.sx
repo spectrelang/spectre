@@ -1,0 +1,8 @@
+val str = use("std/string")
+val stdio = use("std/stdio")
+val some_mod = use("./submod/sub.sx")
+
+pub fn main() void! = {
+    some_mod.some_function()
+    stdio.print("{d}", {str.compare(str.RChar("hi"), str.RChar("hi"))})
+}

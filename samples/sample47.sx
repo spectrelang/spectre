@@ -1,0 +1,7 @@
+union SomeUnion = {
+    Fn() | Thing()
+}
+
+pub fn main() void! = {
+    
+}

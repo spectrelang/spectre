@@ -1166,6 +1166,7 @@ impl Parser {
                         && matches!(
                             self.tokens.get(self.pos + 1).map(|t| &t.kind),
                             Some(TokenKind::Ident(_))
+                            | Some(TokenKind::LParen)
                         ));
 
                 if is_result_match {
@@ -1292,14 +1293,19 @@ impl Parser {
                         }
                         let variant_name = self.expect_ident()?;
                         let mut bindings = Vec::new();
-                        while self.peek() != &TokenKind::FatArrow
-                            && self.peek() != &TokenKind::RBrace
-                            && self.peek() != &TokenKind::Eof
-                        {
-                            let b = self.expect_ident()?;
-                            bindings.push(b);
-                            if !self.eat(&TokenKind::Comma) {
-                                break;
+                        if self.peek() == &TokenKind::LParen {
+                            self.advance();
+                            self.expect(&TokenKind::RParen)?;
+                        } else {
+                            while self.peek() != &TokenKind::FatArrow
+                                && self.peek() != &TokenKind::RBrace
+                                && self.peek() != &TokenKind::Eof
+                            {
+                                let b = self.expect_ident()?;
+                                bindings.push(b);
+                                if !self.eat(&TokenKind::Comma) {
+                                    break;
+                                }
                             }
                         }
                         self.expect(&TokenKind::FatArrow)?;

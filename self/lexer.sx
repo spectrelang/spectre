@@ -1,103 +1,44 @@
 val std = use("std")
 
-pub val TK_FN        : i64 = 1
-pub val TK_VAL       : i64 = 2
-pub val TK_MUT       : i64 = 3
-pub val TK_PUB       : i64 = 4
-pub val TK_TYPE      : i64 = 5
-pub val TK_PRE       : i64 = 6
-pub val TK_POST      : i64 = 7
-pub val TK_RETURN    : i64 = 8
-pub val TK_IF        : i64 = 9
-pub val TK_ELSE      : i64 = 10
-pub val TK_ELIF      : i64 = 11
-pub val TK_TRUST     : i64 = 12
-pub val TK_USE       : i64 = 13
-pub val TK_REF       : i64 = 14
-pub val TK_FOR       : i64 = 15
-pub val TK_IN        : i64 = 16
-pub val TK_SOME      : i64 = 17
-pub val TK_NONE      : i64 = 18
-pub val TK_OK        : i64 = 19
-pub val TK_ERR       : i64 = 20
-pub val TK_MATCH     : i64 = 21
-pub val TK_TRUE      : i64 = 22
-pub val TK_FALSE     : i64 = 23
-pub val TK_DEFER     : i64 = 24
-pub val TK_BREAK     : i64 = 25
-pub val TK_CONTINUE  : i64 = 26
-pub val TK_AS        : i64 = 27
-pub val TK_ASSERT    : i64 = 28
-pub val TK_WHEN      : i64 = 29
-pub val TK_UNION     : i64 = 30
-pub val TK_ENUM      : i64 = 31
-pub val TK_EXTERN    : i64 = 32
-pub val TK_LINK      : i64 = 33
-pub val TK_GUARDED   : i64 = 34
-pub val TK_NOT       : i64 = 35
-pub val TK_IDENT     : i64 = 50
-pub val TK_STR       : i64 = 51
-pub val TK_INT       : i64 = 52
-pub val TK_FLOAT     : i64 = 53
-pub val TK_LPAREN    : i64 = 100
-pub val TK_RPAREN    : i64 = 101
-pub val TK_LBRACE    : i64 = 102
-pub val TK_RBRACE    : i64 = 103
-pub val TK_LBRACKET  : i64 = 104
-pub val TK_RBRACKET  : i64 = 105
-pub val TK_COLON     : i64 = 106
-pub val TK_SEMICOLON : i64 = 107
-pub val TK_COMMA     : i64 = 108
-pub val TK_DOT       : i64 = 109
-pub val TK_DOTDOTDOT : i64 = 110
-pub val TK_EQ        : i64 = 111
-pub val TK_BANG      : i64 = 112
-pub val TK_AT        : i64 = 113
-pub val TK_PLUS      : i64 = 114
-pub val TK_MINUS     : i64 = 115
-pub val TK_STAR      : i64 = 116
-pub val TK_SLASH     : i64 = 117
-pub val TK_PERCENT   : i64 = 118
-pub val TK_PLUSPLUS  : i64 = 119
-pub val TK_MINUSMINUS: i64 = 120
-pub val TK_PLUSEQ    : i64 = 121
-pub val TK_MINUSEQ   : i64 = 122
-pub val TK_EQEQ      : i64 = 123
-pub val TK_BANGEQ    : i64 = 124
-pub val TK_LT        : i64 = 125
-pub val TK_GT        : i64 = 126
-pub val TK_LTEQ      : i64 = 127
-pub val TK_GTEQ      : i64 = 128
-pub val TK_AND       : i64 = 129
-pub val TK_OR        : i64 = 130
-pub val TK_BITAND    : i64 = 131
-pub val TK_BITOR     : i64 = 132
-pub val TK_BITXOR    : i64 = 133
-pub val TK_SHL       : i64 = 134
-pub val TK_SHR       : i64 = 135
-pub val TK_ARROW     : i64 = 136
-pub val TK_FATARROW  : i64 = 137
-pub val TK_TILDE     : i64 = 138
-pub val TK_QUESTION  : i64 = 139
-pub val TK_EOF       : i64 = 200
-
-pub type Token = {
-    kind: mut i64
-    line: mut i64
-    col:  mut i64
-    text: mut ref char   // ident/string text, or null
+pub union TokenKind = {
+    Fn()        | Val()       | Mut()      | Pub()      | Type()
+  | Pre()       | Post()      | Return()   | If()       | Else()
+  | Elif()      | Trust()     | Use()      | Ref()      | For()
+  | In()        | Some()      | None()     | Ok()       | Err()
+  | Match()     | True()      | False()    | Defer()    | Break()
+  | Continue()  | As()        | Assert()   | When()     | Union()
+  | Enum()      | Extern()    | Link()     | Guarded()  | Not()
+  | Ident(ref char)
+  | Str(ref char)
+  | Int(ref char)
+  | Float(ref char)
+  | LParen()    | RParen()    | LBrace()   | RBrace()
+  | LBracket()  | RBracket()  | Colon()    | Semicolon()
+  | Comma()     | Dot()       | DotDotDot()
+  | Eq()        | Bang()      | At()       | Plus()     | Minus()
+  | Star()      | Slash()     | Percent()  | PlusPlus() | MinusMinus()
+  | PlusEq()    | MinusEq()   | EqEq()     | BangEq()
+  | Lt()        | Gt()        | LtEq()     | GtEq()
+  | And()       | Or()        | BitAnd()   | BitOr()    | BitXor()
+  | Shl()       | Shr()       | Arrow()    | FatArrow() | Tilde()
+  | Question()
+  | Eof()
 }
 
-fn make_tok(l: ref Lexer, kind: i64, line: i64, col: i64, text: ref char) ref Token! = {
+pub type Token = {
+    kind: mut TokenKind
+    line: mut i64
+    col:  mut i64
+}
+
+fn make_tok(l: ref Lexer, kind: TokenKind, line: i64, col: i64) ref Token! = {
     val slot = std.allocators.Arena.alloc(l.arena, @sizeof(Token) as usize)
     match slot {
         none => {
-            // arena full — fall back to heap
             val t: mut ref Token = @alloc(@sizeof(Token)) as ref Token
             t.kind = kind
             t.line = line
             t.col  = col
-            t.text = text
             return t
         }
         some ptr => {
@@ -105,7 +46,6 @@ fn make_tok(l: ref Lexer, kind: i64, line: i64, col: i64, text: ref char) ref To
             t.kind = kind
             t.line = line
             t.col  = col
-            t.text = text
             return t
         }
     }
@@ -181,7 +121,6 @@ fn is_space(c: i64) bool! = {
     return c == 32 || c == 9 || c == 10 || c == 13
 }
 
-// Copy substring [start, end] from src into a fresh heap buffer.
 fn substr(src: ref char, start: i64, end: i64) ref char! = {
     val n: mut i64 = end - start
     val buf: ref char = @alloc(n + 1) as ref char
@@ -194,43 +133,43 @@ fn str_eq(a: ref char, b: ref char) bool! = {
     return std.string.compare(std.string.RChar(a), std.string.RChar(b)) == 0
 }
 
-fn keyword_kind(s: ref char) i64! = {
-    if str_eq(s, "fn")       { return TK_FN }
-    if str_eq(s, "val")      { return TK_VAL }
-    if str_eq(s, "mut")      { return TK_MUT }
-    if str_eq(s, "pub")      { return TK_PUB }
-    if str_eq(s, "type")     { return TK_TYPE }
-    if str_eq(s, "pre")      { return TK_PRE }
-    if str_eq(s, "post")     { return TK_POST }
-    if str_eq(s, "return")   { return TK_RETURN }
-    if str_eq(s, "if")       { return TK_IF }
-    if str_eq(s, "else")     { return TK_ELSE }
-    if str_eq(s, "elif")     { return TK_ELIF }
-    if str_eq(s, "trust")    { return TK_TRUST }
-    if str_eq(s, "use")      { return TK_USE }
-    if str_eq(s, "ref")      { return TK_REF }
-    if str_eq(s, "for")      { return TK_FOR }
-    if str_eq(s, "in")       { return TK_IN }
-    if str_eq(s, "some")     { return TK_SOME }
-    if str_eq(s, "none")     { return TK_NONE }
-    if str_eq(s, "ok")       { return TK_OK }
-    if str_eq(s, "err")      { return TK_ERR }
-    if str_eq(s, "match")    { return TK_MATCH }
-    if str_eq(s, "true")     { return TK_TRUE }
-    if str_eq(s, "false")    { return TK_FALSE }
-    if str_eq(s, "defer")    { return TK_DEFER }
-    if str_eq(s, "break")    { return TK_BREAK }
-    if str_eq(s, "continue") { return TK_CONTINUE }
-    if str_eq(s, "as")       { return TK_AS }
-    if str_eq(s, "assert")   { return TK_ASSERT }
-    if str_eq(s, "when")     { return TK_WHEN }
-    if str_eq(s, "union")    { return TK_UNION }
-    if str_eq(s, "enum")     { return TK_ENUM }
-    if str_eq(s, "extern")   { return TK_EXTERN }
-    if str_eq(s, "link")     { return TK_LINK }
-    if str_eq(s, "guarded")  { return TK_GUARDED }
-    if str_eq(s, "not")      { return TK_NOT }
-    return TK_IDENT
+fn keyword_kind(s: ref char) TokenKind! = {
+    if str_eq(s, "fn")       { return Fn() }
+    if str_eq(s, "val")      { return Val() }
+    if str_eq(s, "mut")      { return Mut() }
+    if str_eq(s, "pub")      { return Pub() }
+    if str_eq(s, "type")     { return Type() }
+    if str_eq(s, "pre")      { return Pre() }
+    if str_eq(s, "post")     { return Post() }
+    if str_eq(s, "return")   { return Return() }
+    if str_eq(s, "if")       { return If() }
+    if str_eq(s, "else")     { return Else() }
+    if str_eq(s, "elif")     { return Elif() }
+    if str_eq(s, "trust")    { return Trust() }
+    if str_eq(s, "use")      { return Use() }
+    if str_eq(s, "ref")      { return Ref() }
+    if str_eq(s, "for")      { return For() }
+    if str_eq(s, "in")       { return In() }
+    if str_eq(s, "some")     { return Some() }
+    if str_eq(s, "none")     { return None() }
+    if str_eq(s, "ok")       { return Ok() }
+    if str_eq(s, "err")      { return Err() }
+    if str_eq(s, "match")    { return Match() }
+    if str_eq(s, "true")     { return True() }
+    if str_eq(s, "false")    { return False() }
+    if str_eq(s, "defer")    { return Defer() }
+    if str_eq(s, "break")    { return Break() }
+    if str_eq(s, "continue") { return Continue() }
+    if str_eq(s, "as")       { return As() }
+    if str_eq(s, "assert")   { return Assert() }
+    if str_eq(s, "when")     { return When() }
+    if str_eq(s, "union")    { return Union() }
+    if str_eq(s, "enum")     { return Enum() }
+    if str_eq(s, "extern")   { return Extern() }
+    if str_eq(s, "link")     { return Link() }
+    if str_eq(s, "guarded")  { return Guarded() }
+    if str_eq(s, "not")      { return Not() }
+    return Ident(s)
 }
 
 fn lex_string(l: ref Lexer) ref char! = {
@@ -266,7 +205,7 @@ fn lex_number(l: ref Lexer, line: i64, col: i64) ref Token! = {
     if first == 48 && lx_peek(l) == 120 {
         lx_advance(l)
         for { if !is_hex(lx_peek(l)) { break } lx_advance(l) }
-        return make_tok(l, TK_INT, line, col, substr(l.src, start, l.pos))
+        return make_tok(l, Int(substr(l.src, start, l.pos)), line, col)
     }
     for { if !is_digit(lx_peek(l)) { break } lx_advance(l) }
     if lx_peek(l) == 46 || lx_peek(l) == 101 || lx_peek(l) == 69 {
@@ -282,35 +221,32 @@ fn lex_number(l: ref Lexer, line: i64, col: i64) ref Token! = {
         }
     }
     val text: ref char = substr(l.src, start, l.pos)
-    if is_float { return make_tok(l, TK_FLOAT, line, col, text) }
-    return make_tok(l, TK_INT, line, col, text)
+    if is_float { return make_tok(l, Float(text), line, col) }
+    return make_tok(l, Int(text), line, col)
 }
 
 pub fn tokenize(src: ref char) result[list[ref Token], ref char]! = {
     val l: ref Lexer = lexer_new(src)
     val tokens: mut list[ref Token] = []
     for {
-        // skip whitespace
         for { if !is_space(lx_peek(l)) { break } lx_advance(l) }
-        // skip line comments
         if lx_peek(l) == 47 && lx_peek2(l) == 47 {
             for { val c: i64 = lx_peek(l) if c == -1 || c == 10 { break } lx_advance(l) }
             continue
         }
         val line: i64 = l.line
         val col:  i64 = l.col
-
         val c: i64 = lx_peek(l)
 
         if c == -1 {
-            @append(tokens, make_tok(l, TK_EOF, line, col, 0 as ref char))
+            @append(tokens, make_tok(l, Eof(), line, col))
             break
         }
 
         lx_advance(l)
 
         if c == 34 {
-            @append(tokens, make_tok(l, TK_STR, line, col, lex_string(l)))
+            @append(tokens, make_tok(l, Str(lex_string(l)), line, col))
             continue
         }
         if is_digit(c) {
@@ -321,80 +257,80 @@ pub fn tokenize(src: ref char) result[list[ref Token], ref char]! = {
             val start: i64 = l.pos - 1
             for { if !is_alnum(lx_peek(l)) { break } lx_advance(l) }
             val text: ref char = substr(l.src, start, l.pos)
-            @append(tokens, make_tok(l, keyword_kind(text), line, col, text))
+            @append(tokens, make_tok(l, keyword_kind(text), line, col))
             continue
         }
 
-        if c == 40  { @append(tokens, make_tok(l, TK_LPAREN,    line, col, 0 as ref char)) continue }
-        if c == 41  { @append(tokens, make_tok(l, TK_RPAREN,    line, col, 0 as ref char)) continue }
-        if c == 123 { @append(tokens, make_tok(l, TK_LBRACE,    line, col, 0 as ref char)) continue }
-        if c == 125 { @append(tokens, make_tok(l, TK_RBRACE,    line, col, 0 as ref char)) continue }
-        if c == 91  { @append(tokens, make_tok(l, TK_LBRACKET,  line, col, 0 as ref char)) continue }
-        if c == 93  { @append(tokens, make_tok(l, TK_RBRACKET,  line, col, 0 as ref char)) continue }
-        if c == 58  { @append(tokens, make_tok(l, TK_COLON,     line, col, 0 as ref char)) continue }
-        if c == 59  { @append(tokens, make_tok(l, TK_SEMICOLON, line, col, 0 as ref char)) continue }
-        if c == 44  { @append(tokens, make_tok(l, TK_COMMA,     line, col, 0 as ref char)) continue }
-        if c == 64  { @append(tokens, make_tok(l, TK_AT,        line, col, 0 as ref char)) continue }
-        if c == 126 { @append(tokens, make_tok(l, TK_TILDE,     line, col, 0 as ref char)) continue }
-        if c == 63  { @append(tokens, make_tok(l, TK_QUESTION,  line, col, 0 as ref char)) continue }
-        if c == 37  { @append(tokens, make_tok(l, TK_PERCENT,   line, col, 0 as ref char)) continue }
-        if c == 94  { @append(tokens, make_tok(l, TK_BITXOR,    line, col, 0 as ref char)) continue }
-        if c == 42  { @append(tokens, make_tok(l, TK_STAR,      line, col, 0 as ref char)) continue }
+        if c == 40  { @append(tokens, make_tok(l, LParen(),    line, col)) continue }
+        if c == 41  { @append(tokens, make_tok(l, RParen(),    line, col)) continue }
+        if c == 123 { @append(tokens, make_tok(l, LBrace(),    line, col)) continue }
+        if c == 125 { @append(tokens, make_tok(l, RBrace(),    line, col)) continue }
+        if c == 91  { @append(tokens, make_tok(l, LBracket(),  line, col)) continue }
+        if c == 93  { @append(tokens, make_tok(l, RBracket(),  line, col)) continue }
+        if c == 58  { @append(tokens, make_tok(l, Colon(),     line, col)) continue }
+        if c == 59  { @append(tokens, make_tok(l, Semicolon(), line, col)) continue }
+        if c == 44  { @append(tokens, make_tok(l, Comma(),     line, col)) continue }
+        if c == 64  { @append(tokens, make_tok(l, At(),        line, col)) continue }
+        if c == 126 { @append(tokens, make_tok(l, Tilde(),     line, col)) continue }
+        if c == 63  { @append(tokens, make_tok(l, Question(),  line, col)) continue }
+        if c == 37  { @append(tokens, make_tok(l, Percent(),   line, col)) continue }
+        if c == 94  { @append(tokens, make_tok(l, BitXor(),    line, col)) continue }
+        if c == 42  { @append(tokens, make_tok(l, Star(),      line, col)) continue }
 
         if c == 46 {
             if lx_peek(l) == 46 && lx_peek2(l) == 46 {
                 lx_advance(l) lx_advance(l)
-                @append(tokens, make_tok(l, TK_DOTDOTDOT, line, col, 0 as ref char))
+                @append(tokens, make_tok(l, DotDotDot(), line, col))
             } else {
-                @append(tokens, make_tok(l, TK_DOT, line, col, 0 as ref char))
+                @append(tokens, make_tok(l, Dot(), line, col))
             }
             continue
         }
         if c == 43 {
-            if lx_peek(l) == 43      { lx_advance(l) @append(tokens, make_tok(l, TK_PLUSPLUS, line, col, 0 as ref char)) }
-            elif lx_peek(l) == 61    { lx_advance(l) @append(tokens, make_tok(l, TK_PLUSEQ,   line, col, 0 as ref char)) }
-            else                     { @append(tokens, make_tok(l, TK_PLUS, line, col, 0 as ref char)) }
+            if lx_peek(l) == 43      { lx_advance(l) @append(tokens, make_tok(l, PlusPlus(), line, col)) }
+            elif lx_peek(l) == 61    { lx_advance(l) @append(tokens, make_tok(l, PlusEq(),   line, col)) }
+            else                     { @append(tokens, make_tok(l, Plus(), line, col)) }
             continue
         }
         if c == 45 {
-            if lx_peek(l) == 62      { lx_advance(l) @append(tokens, make_tok(l, TK_ARROW,      line, col, 0 as ref char)) }
-            elif lx_peek(l) == 45    { lx_advance(l) @append(tokens, make_tok(l, TK_MINUSMINUS, line, col, 0 as ref char)) }
-            elif lx_peek(l) == 61    { lx_advance(l) @append(tokens, make_tok(l, TK_MINUSEQ,    line, col, 0 as ref char)) }
-            else                     { @append(tokens, make_tok(l, TK_MINUS, line, col, 0 as ref char)) }
+            if lx_peek(l) == 62      { lx_advance(l) @append(tokens, make_tok(l, Arrow(),      line, col)) }
+            elif lx_peek(l) == 45    { lx_advance(l) @append(tokens, make_tok(l, MinusMinus(), line, col)) }
+            elif lx_peek(l) == 61    { lx_advance(l) @append(tokens, make_tok(l, MinusEq(),    line, col)) }
+            else                     { @append(tokens, make_tok(l, Minus(), line, col)) }
             continue
         }
-        if c == 47 { @append(tokens, make_tok(l, TK_SLASH, line, col, 0 as ref char)) continue }
+        if c == 47 { @append(tokens, make_tok(l, Slash(), line, col)) continue }
         if c == 61 {
-            if lx_peek(l) == 61      { lx_advance(l) @append(tokens, make_tok(l, TK_EQEQ,    line, col, 0 as ref char)) }
-            elif lx_peek(l) == 62    { lx_advance(l) @append(tokens, make_tok(l, TK_FATARROW, line, col, 0 as ref char)) }
-            else                     { @append(tokens, make_tok(l, TK_EQ, line, col, 0 as ref char)) }
+            if lx_peek(l) == 61      { lx_advance(l) @append(tokens, make_tok(l, EqEq(),    line, col)) }
+            elif lx_peek(l) == 62    { lx_advance(l) @append(tokens, make_tok(l, FatArrow(), line, col)) }
+            else                     { @append(tokens, make_tok(l, Eq(), line, col)) }
             continue
         }
         if c == 33 {
-            if lx_peek(l) == 61      { lx_advance(l) @append(tokens, make_tok(l, TK_BANGEQ, line, col, 0 as ref char)) }
-            else                     { @append(tokens, make_tok(l, TK_BANG, line, col, 0 as ref char)) }
+            if lx_peek(l) == 61      { lx_advance(l) @append(tokens, make_tok(l, BangEq(), line, col)) }
+            else                     { @append(tokens, make_tok(l, Bang(), line, col)) }
             continue
         }
         if c == 60 {
-            if lx_peek(l) == 61      { lx_advance(l) @append(tokens, make_tok(l, TK_LTEQ, line, col, 0 as ref char)) }
-            elif lx_peek(l) == 60    { lx_advance(l) @append(tokens, make_tok(l, TK_SHL,  line, col, 0 as ref char)) }
-            else                     { @append(tokens, make_tok(l, TK_LT, line, col, 0 as ref char)) }
+            if lx_peek(l) == 61      { lx_advance(l) @append(tokens, make_tok(l, LtEq(), line, col)) }
+            elif lx_peek(l) == 60    { lx_advance(l) @append(tokens, make_tok(l, Shl(),  line, col)) }
+            else                     { @append(tokens, make_tok(l, Lt(), line, col)) }
             continue
         }
         if c == 62 {
-            if lx_peek(l) == 61      { lx_advance(l) @append(tokens, make_tok(l, TK_GTEQ, line, col, 0 as ref char)) }
-            elif lx_peek(l) == 62    { lx_advance(l) @append(tokens, make_tok(l, TK_SHR,  line, col, 0 as ref char)) }
-            else                     { @append(tokens, make_tok(l, TK_GT, line, col, 0 as ref char)) }
+            if lx_peek(l) == 61      { lx_advance(l) @append(tokens, make_tok(l, GtEq(), line, col)) }
+            elif lx_peek(l) == 62    { lx_advance(l) @append(tokens, make_tok(l, Shr(),  line, col)) }
+            else                     { @append(tokens, make_tok(l, Gt(), line, col)) }
             continue
         }
         if c == 38 {
-            if lx_peek(l) == 38      { lx_advance(l) @append(tokens, make_tok(l, TK_AND,    line, col, 0 as ref char)) }
-            else                     { @append(tokens, make_tok(l, TK_BITAND, line, col, 0 as ref char)) }
+            if lx_peek(l) == 38      { lx_advance(l) @append(tokens, make_tok(l, And(),    line, col)) }
+            else                     { @append(tokens, make_tok(l, BitAnd(), line, col)) }
             continue
         }
         if c == 124 {
-            if lx_peek(l) == 124     { lx_advance(l) @append(tokens, make_tok(l, TK_OR,    line, col, 0 as ref char)) }
-            else                     { @append(tokens, make_tok(l, TK_BITOR, line, col, 0 as ref char)) }
+            if lx_peek(l) == 124     { lx_advance(l) @append(tokens, make_tok(l, Or(),    line, col)) }
+            else                     { @append(tokens, make_tok(l, BitOr(), line, col)) }
             continue
         }
 
@@ -406,156 +342,183 @@ pub fn tokenize(src: ref char) result[list[ref Token], ref char]! = {
     return ok tokens
 }
 
-fn tok_kind(tokens: list[ref Token], i: i64) i64! = {
+pub fn tok_kind(tokens: list[ref Token], i: i64) TokenKind! = {
     val opt = @get(tokens, i as usize)
     match opt {
-        some t => {
-            val z = t as ref Token
-            return z.kind
-        }
-        none   => { return TK_EOF }
+        some t => { return (t as ref Token).kind }
+        none   => { return Eof() }
     }
 }
 
-fn tok_text(tokens: list[ref Token], i: i64) ref char! = {
+// Extract text payload from Ident/Str/Int/Float variants, null otherwise.
+pub fn tok_text(tokens: list[ref Token], i: i64) ref char! = {
     val opt = @get(tokens, i as usize)
     match opt {
-        some t => { return (t as ref Token).text }
-        none   => { return 0 as ref char }
+        some t => {
+            val tok: ref Token = t as ref Token
+            match tok.kind {
+                Ident s  => { return s }
+                Str s    => { return s }
+                Int s    => { return s }
+                Float s  => { return s }
+                else     => { return 0 as ref char }
+            }
+        }
+        none => { return 0 as ref char }
     }
 }
+
+fn kind_is_fn(k: TokenKind)       bool! = { match k { Fn()       => { return true } else => { return false } } }
+fn kind_is_val(k: TokenKind)      bool! = { match k { Val()      => { return true } else => { return false } } }
+fn kind_is_mut(k: TokenKind)      bool! = { match k { Mut()      => { return true } else => { return false } } }
+fn kind_is_pub(k: TokenKind)      bool! = { match k { Pub()      => { return true } else => { return false } } }
+fn kind_is_return(k: TokenKind)   bool! = { match k { Return()   => { return true } else => { return false } } }
+fn kind_is_if(k: TokenKind)       bool! = { match k { If()       => { return true } else => { return false } } }
+fn kind_is_else(k: TokenKind)     bool! = { match k { Else()     => { return true } else => { return false } } }
+fn kind_is_for(k: TokenKind)      bool! = { match k { For()      => { return true } else => { return false } } }
+fn kind_is_eof(k: TokenKind)      bool! = { match k { Eof()      => { return true } else => { return false } } }
+fn kind_is_ident(k: TokenKind)    bool! = { match k { Ident _   => { return true } else => { return false } } }
+fn kind_is_str(k: TokenKind)      bool! = { match k { Str _     => { return true } else => { return false } } }
+fn kind_is_int(k: TokenKind)      bool! = { match k { Int _     => { return true } else => { return false } } }
+fn kind_is_float(k: TokenKind)    bool! = { match k { Float _   => { return true } else => { return false } } }
+fn kind_is_eqeq(k: TokenKind)     bool! = { match k { EqEq()     => { return true } else => { return false } } }
+fn kind_is_bangeq(k: TokenKind)   bool! = { match k { BangEq()   => { return true } else => { return false } } }
+fn kind_is_lteq(k: TokenKind)     bool! = { match k { LtEq()     => { return true } else => { return false } } }
+fn kind_is_gteq(k: TokenKind)     bool! = { match k { GtEq()     => { return true } else => { return false } } }
+fn kind_is_and(k: TokenKind)      bool! = { match k { And()      => { return true } else => { return false } } }
+fn kind_is_or(k: TokenKind)       bool! = { match k { Or()       => { return true } else => { return false } } }
+fn kind_is_plusplus(k: TokenKind) bool! = { match k { PlusPlus() => { return true } else => { return false } } }
+fn kind_is_minusminus(k: TokenKind) bool! = { match k { MinusMinus() => { return true } else => { return false } } }
+fn kind_is_arrow(k: TokenKind)    bool! = { match k { Arrow()    => { return true } else => { return false } } }
+fn kind_is_fatarrow(k: TokenKind) bool! = { match k { FatArrow() => { return true } else => { return false } } }
+fn kind_is_shl(k: TokenKind)      bool! = { match k { Shl()      => { return true } else => { return false } } }
+fn kind_is_shr(k: TokenKind)      bool! = { match k { Shr()      => { return true } else => { return false } } }
+fn kind_is_lparen(k: TokenKind)   bool! = { match k { LParen()   => { return true } else => { return false } } }
+fn kind_is_rparen(k: TokenKind)   bool! = { match k { RParen()   => { return true } else => { return false } } }
+fn kind_is_lbrace(k: TokenKind)   bool! = { match k { LBrace()   => { return true } else => { return false } } }
+fn kind_is_rbrace(k: TokenKind)   bool! = { match k { RBrace()   => { return true } else => { return false } } }
+fn kind_is_lbracket(k: TokenKind) bool! = { match k { LBracket() => { return true } else => { return false } } }
+fn kind_is_rbracket(k: TokenKind) bool! = { match k { RBracket() => { return true } else => { return false } } }
+fn kind_is_colon(k: TokenKind)    bool! = { match k { Colon()    => { return true } else => { return false } } }
+fn kind_is_comma(k: TokenKind)    bool! = { match k { Comma()    => { return true } else => { return false } } }
+fn kind_is_dot(k: TokenKind)      bool! = { match k { Dot()      => { return true } else => { return false } } }
+fn kind_is_dotdotdot(k: TokenKind) bool! = { match k { DotDotDot() => { return true } else => { return false } } }
+fn kind_is_at(k: TokenKind)       bool! = { match k { At()       => { return true } else => { return false } } }
+fn kind_is_question(k: TokenKind) bool! = { match k { Question() => { return true } else => { return false } } }
 
 test {
     val r1 = tokenize("fn val mut pub return if else for")
     match r1 {
         err _ => { assert false }
         ok toks => {
-            std.stdio.print("{d}\n", {tok_kind(toks, 1)})
-            std.stdio.print("{d}\n", {tok_kind(toks, 2)})
-            std.stdio.print("{d}\n", {tok_kind(toks, 3)})
-            std.stdio.print("{d}\n", {tok_kind(toks, 4)})
-            std.stdio.print("{d}\n", {tok_kind(toks, 5)})
-            std.stdio.print("{d}\n", {tok_kind(toks, 6)})
-            std.stdio.print("{d}\n", {tok_kind(toks, 7)})
-            std.stdio.print("{d}\n", {tok_kind(toks, 8)})
-            assert tok_kind(toks, 0) == TK_FN
-            assert tok_kind(toks, 1) == TK_VAL
-            assert tok_kind(toks, 2) == TK_MUT
-            assert tok_kind(toks, 3) == TK_PUB
-            assert tok_kind(toks, 4) == TK_RETURN
-            assert tok_kind(toks, 5) == TK_IF
-            assert tok_kind(toks, 6) == TK_ELSE
-            assert tok_kind(toks, 7) == TK_FOR
-            assert tok_kind(toks, 8) == TK_EOF
+            assert kind_is_fn(tok_kind(toks, 0))
+            assert kind_is_val(tok_kind(toks, 1))
+            assert kind_is_mut(tok_kind(toks, 2))
+            assert kind_is_pub(tok_kind(toks, 3))
+            assert kind_is_return(tok_kind(toks, 4))
+            assert kind_is_if(tok_kind(toks, 5))
+            assert kind_is_else(tok_kind(toks, 6))
+            assert kind_is_for(tok_kind(toks, 7))
+            assert kind_is_eof(tok_kind(toks, 8))
         }
     }
 
-    // identifiers are not confused with keywords
     val r2 = tokenize("foobar hello_world _x")
     match r2 {
         err _ => { assert false }
         ok toks => {
-            assert tok_kind(toks, 0) == TK_IDENT
-            assert tok_kind(toks, 1) == TK_IDENT
-            assert tok_kind(toks, 2) == TK_IDENT
+            assert kind_is_ident(tok_kind(toks, 0))
+            assert kind_is_ident(tok_kind(toks, 1))
+            assert kind_is_ident(tok_kind(toks, 2))
             assert std.string.compare(tok_text(toks, 0), "foobar") == 0
             assert std.string.compare(tok_text(toks, 1), "hello_world") == 0
         }
     }
 
-    // integer and float literals
     val r3 = tokenize("42 3.14 0xff")
     match r3 {
         err _ => { assert false }
         ok toks => {
-            assert tok_kind(toks, 0) == TK_INT
-            assert tok_kind(toks, 1) == TK_FLOAT
-            assert tok_kind(toks, 2) == TK_INT
+            assert kind_is_int(tok_kind(toks, 0))
+            assert kind_is_float(tok_kind(toks, 1))
+            assert kind_is_int(tok_kind(toks, 2))
             assert std.string.compare(tok_text(toks, 0), "42") == 0
             assert std.string.compare(tok_text(toks, 2), "0xff") == 0
         }
     }
 
-    // string literal contents are captured
     val r4 = tokenize("\"hello\"")
     match r4 {
         err _ => { assert false }
         ok toks => {
-            assert tok_kind(toks, 0) == TK_STR
+            assert kind_is_str(tok_kind(toks, 0))
             assert std.string.compare(tok_text(toks, 0), "hello") == 0
         }
     }
 
-    // string escape sequences
     val r5 = tokenize("\"line1\\nline2\"")
     match r5 {
         err _ => { assert false }
         ok toks => {
-            assert tok_kind(toks, 0) == TK_STR
-            // text should contain a real newline (ascii 10)
+            assert kind_is_str(tok_kind(toks, 0))
             val text: ref char = tok_text(toks, 0)
             assert @load8(@ptradd(text, 5)) as i64 == 10
         }
     }
 
-    // multi-char operators
     val r6 = tokenize("== != <= >= && || ++ -- -> => << >>")
     match r6 {
         err _ => { assert false }
         ok toks => {
-            assert tok_kind(toks, 0)  == TK_EQEQ
-            assert tok_kind(toks, 1)  == TK_BANGEQ
-            assert tok_kind(toks, 2)  == TK_LTEQ
-            assert tok_kind(toks, 3)  == TK_GTEQ
-            assert tok_kind(toks, 4)  == TK_AND
-            assert tok_kind(toks, 5)  == TK_OR
-            assert tok_kind(toks, 6)  == TK_PLUSPLUS
-            assert tok_kind(toks, 7)  == TK_MINUSMINUS
-            assert tok_kind(toks, 8)  == TK_ARROW
-            assert tok_kind(toks, 9)  == TK_FATARROW
-            assert tok_kind(toks, 10) == TK_SHL
-            assert tok_kind(toks, 11) == TK_SHR
+            assert kind_is_eqeq(tok_kind(toks, 0))
+            assert kind_is_bangeq(tok_kind(toks, 1))
+            assert kind_is_lteq(tok_kind(toks, 2))
+            assert kind_is_gteq(tok_kind(toks, 3))
+            assert kind_is_and(tok_kind(toks, 4))
+            assert kind_is_or(tok_kind(toks, 5))
+            assert kind_is_plusplus(tok_kind(toks, 6))
+            assert kind_is_minusminus(tok_kind(toks, 7))
+            assert kind_is_arrow(tok_kind(toks, 8))
+            assert kind_is_fatarrow(tok_kind(toks, 9))
+            assert kind_is_shl(tok_kind(toks, 10))
+            assert kind_is_shr(tok_kind(toks, 11))
         }
     }
 
-    // single-char punctuation
     val r7 = tokenize("( ) { } [ ] : , . @ ~ ?")
     match r7 {
         err _ => { assert false }
         ok toks => {
-            assert tok_kind(toks, 0)  == TK_LPAREN
-            assert tok_kind(toks, 1)  == TK_RPAREN
-            assert tok_kind(toks, 2)  == TK_LBRACE
-            assert tok_kind(toks, 3)  == TK_RBRACE
-            assert tok_kind(toks, 4)  == TK_LBRACKET
-            assert tok_kind(toks, 5)  == TK_RBRACKET
-            assert tok_kind(toks, 6)  == TK_COLON
-            assert tok_kind(toks, 7)  == TK_COMMA
-            assert tok_kind(toks, 8)  == TK_DOT
-            assert tok_kind(toks, 9)  == TK_AT
-            assert tok_kind(toks, 10) == TK_TILDE
-            assert tok_kind(toks, 11) == TK_QUESTION
+            assert kind_is_lparen(tok_kind(toks, 0))
+            assert kind_is_rparen(tok_kind(toks, 1))
+            assert kind_is_lbrace(tok_kind(toks, 2))
+            assert kind_is_rbrace(tok_kind(toks, 3))
+            assert kind_is_lbracket(tok_kind(toks, 4))
+            assert kind_is_rbracket(tok_kind(toks, 5))
+            assert kind_is_colon(tok_kind(toks, 6))
+            assert kind_is_comma(tok_kind(toks, 7))
+            assert kind_is_dot(tok_kind(toks, 8))
+            assert kind_is_at(tok_kind(toks, 9))
+            assert kind_is_question(tok_kind(toks, 11))
         }
     }
 
-    // ... is a single token
     val r8 = tokenize("...")
     match r8 {
         err _ => { assert false }
         ok toks => {
-            assert tok_kind(toks, 0) == TK_DOTDOTDOT
-            assert tok_kind(toks, 1) == TK_EOF
+            assert kind_is_dotdotdot(tok_kind(toks, 0))
+            assert kind_is_eof(tok_kind(toks, 1))
         }
     }
 
-    // line comments are skipped
     val r9 = tokenize("fn // this is a comment\nval")
     match r9 {
         err _ => { assert false }
         ok toks => {
-            assert tok_kind(toks, 0) == TK_FN
-            assert tok_kind(toks, 1) == TK_VAL
-            assert tok_kind(toks, 2) == TK_EOF
+            assert kind_is_fn(tok_kind(toks, 0))
+            assert kind_is_val(tok_kind(toks, 1))
+            assert kind_is_eof(tok_kind(toks, 2))
         }
     }
 
@@ -588,7 +551,7 @@ test {
         err _ => { assert false }
         ok toks => {
             assert @len(toks) as i64 == 1
-            assert tok_kind(toks, 0) == TK_EOF
+            assert kind_is_eof(tok_kind(toks, 0))
         }
     }
 
