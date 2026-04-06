@@ -93,7 +93,6 @@ pub val UOP_NEG  : i64 = 2
 pub val UOP_BNOT : i64 = 3
 
 // ─── AST Node ─────────────────────────────────────────────────────────────────
-// A generic 8-slot node. Slots hold i64/ref char/ref void depending on node kind.
 pub type Node = {
     kind: mut i64
     line: mut i64
@@ -106,8 +105,20 @@ pub type Node = {
 }
 
 fn make_node(kind: i64, line: i64) ref Node! = {
-    val n: mut Node = {kind: kind, line: line, d0: 0, d1: 0, d2: 0, d3: 0, d4: 0, d5: 0}
-    return addr(n) as ref Node
+    val n: mut ref Node = @alloc(@sizeof(Node)) as ref Node
+    n.kind = kind
+    n.line = line
+    n.d0 = 0
+    n.d1 = 0
+    n.d2 = 0
+    n.d3 = 0
+    n.d4 = 0
+    n.d5 = 0
+    return n
+}
+
+fn str_eq(a: ref char, b: ref char) bool! = {
+    return std.string.compare(std.string.RChar(a), std.string.RChar(b)) == 0
 }
 
 type Parser = {
@@ -117,108 +128,202 @@ type Parser = {
 }
 
 pub fn parser_new(tokens: list[ref lexer.Token], filename: ref char) ref Parser! = {
-    val p: mut Parser = {tokens: tokens, pos: 0, filename: filename}
-    return addr(p) as ref Parser
+    val p: mut ref Parser = @alloc(@sizeof(Parser)) as ref Parser
+    p.tokens   = tokens
+    p.pos      = 0
+    p.filename = filename
+    return p
 }
 
-fn p_peek(p: ref Parser) ref lexer.Token! = {
+// ─── Token access helpers ─────────────────────────────────────────────────────
+
+fn p_peek_kind(p: ref Parser) lexer.TokenKind! = {
+    return lexer.tok_kind(p.tokens, p.pos)
+}
+
+fn p_peek2_kind(p: ref Parser) lexer.TokenKind! = {
+    return lexer.tok_kind(p.tokens, p.pos + 1)
+}
+
+fn p_peek3_kind(p: ref Parser) lexer.TokenKind! = {
+    return lexer.tok_kind(p.tokens, p.pos + 2)
+}
+
+fn p_peek_line(p: ref Parser) i64! = {
     val opt = @get(p.tokens, p.pos as usize)
     match opt {
-        some t => { return t as ref lexer.Token }
-        none   => {
-            val eof: mut lexer.Token = {kind: lexer.TK_EOF, line: 0, col: 0, text: 0 as ref char}
-            return addr(eof) as ref lexer.Token
-        }
+        some t => { return (t as ref lexer.Token).line }
+        none   => { return 0 }
     }
 }
 
-fn p_peek_kind(p: ref Parser) i64! = { return p_peek(p).kind as i64 }
-
-fn p_peek2_kind(p: ref Parser) i64! = {
-    val opt = @get(p.tokens, (p.pos + 1) as usize)
-    match opt {
-        some t => { return (t as ref lexer.Token).kind }
-        none   => { return lexer.TK_EOF }
-    }
+fn p_advance(p: ref Parser) lexer.TokenKind! = {
+    val k: lexer.TokenKind = p_peek_kind(p)
+    if p.pos + 1 < @len(p.tokens) as i64 { p.pos = p.pos + 1 }
+    return k
 }
 
-fn p_peek3_kind(p: ref Parser) i64! = {
-    val opt = @get(p.tokens, (p.pos + 2) as usize)
-    match opt {
-        some t => { return (t as ref lexer.Token).kind }
-        none   => { return lexer.TK_EOF }
-    }
+fn p_advance_text(p: ref Parser) ref char! = {
+    val txt: ref char = lexer.tok_text(p.tokens, p.pos)
+    if p.pos + 1 < @len(p.tokens) as i64 { p.pos = p.pos + 1 }
+    return txt
 }
 
-fn p_advance(p: ref Parser) ref lexer.Token! = {
-    val t: ref lexer.Token = p_peek(p)
-    if p.pos + 1 < @len(p.tokens) as i64 {
-        p.pos = p.pos + 1
-    }
-    return t
-}
-
-fn p_eat(p: ref Parser, kind: i64) bool! = {
-    if p_peek_kind(p) == kind { p_advance(p) return true }
-    return false
-}
-
-fn p_line(p: ref Parser) i64! = { return p_peek(p).line as i64 }
+fn p_line(p: ref Parser) i64! = { return p_peek_line(p) }
 
 fn p_error(p: ref Parser, msg: ref char) ref char! = {
-    val t: ref lexer.Token = p_peek(p)
+    val line: i64 = p_peek_line(p)
     val buf: ref char = @alloc(512) as ref char
-    @snprintf(buf, 512, "%s:%lld:%lld: %s", {p.filename, t.line, t.col, msg})
+    @snprintf(buf, 512, "%s:%lld: %s", {p.filename, line, msg})
     return buf
 }
 
-fn p_expect(p: ref Parser, kind: i64) result[ref lexer.Token, ref char]! = {
-    if p_peek_kind(p) == kind { return ok p_advance(p) }
+fn p_eat_fn(p: ref Parser, is_kind: fn(lexer.TokenKind) bool) bool! = {
+    if is_kind(p_peek_kind(p)) { p_advance(p) return true }
+    return false
+}
+
+fn p_expect_kind(p: ref Parser, is_kind: fn(lexer.TokenKind) bool, name: ref char) result[ref char, ref char]! = {
+    if is_kind(p_peek_kind(p)) {
+        val txt: ref char = lexer.tok_text(p.tokens, p.pos)
+        p_advance(p)
+        return ok txt
+    }
     val msg: ref char = @alloc(128) as ref char
-    @snprintf(msg, 128, "expected token %lld, got %lld", {kind, p_peek_kind(p)})
+    @snprintf(msg, 128, "expected %s", {name})
     return err p_error(p, msg)
 }
 
 fn p_expect_ident(p: ref Parser) result[ref char, ref char]! = {
-    if p_peek_kind(p) == lexer.TK_IDENT { return ok p_advance(p).text }
-    return err p_error(p, "expected identifier")
+    match p_peek_kind(p) {
+        Ident _ => {
+            val txt: ref char = lexer.tok_text(p.tokens, p.pos)
+            p_advance(p)
+            return ok txt
+        }
+        else => { return err p_error(p, "expected identifier") }
+    }
 }
 
 fn p_expect_string(p: ref Parser) result[ref char, ref char]! = {
-    if p_peek_kind(p) == lexer.TK_STR { return ok p_advance(p).text }
-    return err p_error(p, "expected string literal")
+    match p_peek_kind(p) {
+        Str _ => {
+            val txt: ref char = lexer.tok_text(p.tokens, p.pos)
+            p_advance(p)
+            return ok txt
+        }
+        else => { return err p_error(p, "expected string literal") }
+    }
 }
 
-fn str_eq(a: ref char, b: ref char) bool! = {
-    return std.string.compare(a, b) == 0
+fn p_expect_int_text(p: ref Parser) result[ref char, ref char]! = {
+    match p_peek_kind(p) {
+        Int _ => {
+            val txt: ref char = lexer.tok_text(p.tokens, p.pos)
+            p_advance(p)
+            return ok txt
+        }
+        else => { return err p_error(p, "expected integer literal") }
+    }
 }
+
+// Consume a specific zero-payload variant; returns err if not matched.
+fn p_expect_lbrace(p: ref Parser)   result[ref char, ref char]! = { return p_expect_kind(p, lexer.kind_is_lbrace,   "'{'" ) }
+fn p_expect_rbrace(p: ref Parser)   result[ref char, ref char]! = { return p_expect_kind(p, lexer.kind_is_rbrace,   "'}'" ) }
+fn p_expect_lparen(p: ref Parser)   result[ref char, ref char]! = { return p_expect_kind(p, lexer.kind_is_lparen,   "'('" ) }
+fn p_expect_rparen(p: ref Parser)   result[ref char, ref char]! = { return p_expect_kind(p, lexer.kind_is_rparen,   "')'" ) }
+fn p_expect_lbracket(p: ref Parser) result[ref char, ref char]! = { return p_expect_kind(p, lexer.kind_is_lbracket, "'['" ) }
+fn p_expect_rbracket(p: ref Parser) result[ref char, ref char]! = { return p_expect_kind(p, lexer.kind_is_rbracket, "']'" ) }
+fn p_expect_colon(p: ref Parser)    result[ref char, ref char]! = { return p_expect_kind(p, lexer.kind_is_colon,    "':'" ) }
+fn p_expect_comma(p: ref Parser)    result[ref char, ref char]! = { return p_expect_kind(p, lexer.kind_is_comma,    "','" ) }
+fn p_expect_eq(p: ref Parser)       result[ref char, ref char]! = { return p_expect_kind(p, lexer.kind_is_eq,       "'='" ) }
+fn p_expect_fatarrow(p: ref Parser) result[ref char, ref char]! = { return p_expect_kind(p, lexer.kind_is_fatarrow, "'=>'") }
+fn p_expect_semicolon(p: ref Parser) result[ref char, ref char]! = { return p_expect_kind(p, lexer.kind_is_semicolon, "';'") }
+fn p_expect_dot(p: ref Parser)      result[ref char, ref char]! = { return p_expect_kind(p, lexer.kind_is_dot,      "'.'" ) }
+
+fn kind_is_eq(k: lexer.TokenKind) bool! = { match k { Eq() => { return true } else => { return false } } }
+fn kind_is_semicolon(k: lexer.TokenKind) bool! = { match k { Semicolon() => { return true } else => { return false } } }
+fn kind_is_pluseq(k: lexer.TokenKind) bool! = { match k { PlusEq() => { return true } else => { return false } } }
+fn kind_is_minuseq(k: lexer.TokenKind) bool! = { match k { MinusEq() => { return true } else => { return false } } }
+fn kind_is_bang(k: lexer.TokenKind) bool! = { match k { Bang() => { return true } else => { return false } } }
+fn kind_is_minus(k: lexer.TokenKind) bool! = { match k { Minus() => { return true } else => { return false } } }
+fn kind_is_tilde(k: lexer.TokenKind) bool! = { match k { Tilde() => { return true } else => { return false } } }
+fn kind_is_star(k: lexer.TokenKind) bool! = { match k { Star() => { return true } else => { return false } } }
+fn kind_is_slash(k: lexer.TokenKind) bool! = { match k { Slash() => { return true } else => { return false } } }
+fn kind_is_percent(k: lexer.TokenKind) bool! = { match k { Percent() => { return true } else => { return false } } }
+fn kind_is_plus(k: lexer.TokenKind) bool! = { match k { Plus() => { return true } else => { return false } } }
+fn kind_is_lt(k: lexer.TokenKind) bool! = { match k { Lt() => { return true } else => { return false } } }
+fn kind_is_gt(k: lexer.TokenKind) bool! = { match k { Gt() => { return true } else => { return false } } }
+fn kind_is_bitand(k: lexer.TokenKind) bool! = { match k { BitAnd() => { return true } else => { return false } } }
+fn kind_is_bitor(k: lexer.TokenKind) bool! = { match k { BitOr() => { return true } else => { return false } } }
+fn kind_is_bitxor(k: lexer.TokenKind) bool! = { match k { BitXor() => { return true } else => { return false } } }
+fn kind_is_as(k: lexer.TokenKind) bool! = { match k { As() => { return true } else => { return false } } }
+fn kind_is_trust(k: lexer.TokenKind) bool! = { match k { Trust() => { return true } else => { return false } } }
+fn kind_is_some(k: lexer.TokenKind) bool! = { match k { Some() => { return true } else => { return false } } }
+fn kind_is_none(k: lexer.TokenKind) bool! = { match k { None() => { return true } else => { return false } } }
+fn kind_is_ok(k: lexer.TokenKind) bool! = { match k { Ok() => { return true } else => { return false } } }
+fn kind_is_err(k: lexer.TokenKind) bool! = { match k { Err() => { return true } else => { return false } } }
+fn kind_is_true(k: lexer.TokenKind) bool! = { match k { True() => { return true } else => { return false } } }
+fn kind_is_false(k: lexer.TokenKind) bool! = { match k { False() => { return true } else => { return false } } }
+fn kind_is_fn(k: lexer.TokenKind) bool! = { match k { Fn() => { return true } else => { return false } } }
+fn kind_is_val(k: lexer.TokenKind) bool! = { match k { Val() => { return true } else => { return false } } }
+fn kind_is_mut(k: lexer.TokenKind) bool! = { match k { Mut() => { return true } else => { return false } } }
+fn kind_is_pub(k: lexer.TokenKind) bool! = { match k { Pub() => { return true } else => { return false } } }
+fn kind_is_type(k: lexer.TokenKind) bool! = { match k { Type() => { return true } else => { return false } } }
+fn kind_is_pre(k: lexer.TokenKind) bool! = { match k { Pre() => { return true } else => { return false } } }
+fn kind_is_post(k: lexer.TokenKind) bool! = { match k { Post() => { return true } else => { return false } } }
+fn kind_is_return(k: lexer.TokenKind) bool! = { match k { Return() => { return true } else => { return false } } }
+fn kind_is_if(k: lexer.TokenKind) bool! = { match k { If() => { return true } else => { return false } } }
+fn kind_is_elif(k: lexer.TokenKind) bool! = { match k { Elif() => { return true } else => { return false } } }
+fn kind_is_else(k: lexer.TokenKind) bool! = { match k { Else() => { return true } else => { return false } } }
+fn kind_is_for(k: lexer.TokenKind) bool! = { match k { For() => { return true } else => { return false } } }
+fn kind_is_in(k: lexer.TokenKind) bool! = { match k { In() => { return true } else => { return false } } }
+fn kind_is_match(k: lexer.TokenKind) bool! = { match k { Match() => { return true } else => { return false } } }
+fn kind_is_defer(k: lexer.TokenKind) bool! = { match k { Defer() => { return true } else => { return false } } }
+fn kind_is_break(k: lexer.TokenKind) bool! = { match k { Break() => { return true } else => { return false } } }
+fn kind_is_continue(k: lexer.TokenKind) bool! = { match k { Continue() => { return true } else => { return false } } }
+fn kind_is_assert(k: lexer.TokenKind) bool! = { match k { Assert() => { return true } else => { return false } } }
+fn kind_is_when(k: lexer.TokenKind) bool! = { match k { When() => { return true } else => { return false } } }
+fn kind_is_union(k: lexer.TokenKind) bool! = { match k { Union() => { return true } else => { return false } } }
+fn kind_is_enum(k: lexer.TokenKind) bool! = { match k { Enum() => { return true } else => { return false } } }
+fn kind_is_extern(k: lexer.TokenKind) bool! = { match k { Extern() => { return true } else => { return false } } }
+fn kind_is_link(k: lexer.TokenKind) bool! = { match k { Link() => { return true } else => { return false } } }
+fn kind_is_guarded(k: lexer.TokenKind) bool! = { match k { Guarded() => { return true } else => { return false } } }
+fn kind_is_not(k: lexer.TokenKind) bool! = { match k { Not() => { return true } else => { return false } } }
+fn kind_is_ref(k: lexer.TokenKind) bool! = { match k { Ref() => { return true } else => { return false } } }
+fn kind_is_use(k: lexer.TokenKind) bool! = { match k { Use() => { return true } else => { return false } } }
+fn kind_is_eof(k: lexer.TokenKind) bool! = { match k { Eof() => { return true } else => { return false } } }
+fn kind_is_ident(k: lexer.TokenKind) bool! = { match k { Ident _ => { return true } else => { return false } } }
+fn kind_is_str(k: lexer.TokenKind) bool! = { match k { Str _ => { return true } else => { return false } } }
+fn kind_is_int(k: lexer.TokenKind) bool! = { match k { Int _ => { return true } else => { return false } } }
+fn kind_is_float(k: lexer.TokenKind) bool! = { match k { Float _ => { return true } else => { return false } } }
+fn kind_is_dotdotdot(k: lexer.TokenKind) bool! = { match k { DotDotDot() => { return true } else => { return false } } }
 
 // ─── Type parsing ─────────────────────────────────────────────────────────────
 
 pub fn parse_type(p: ref Parser) result[ref Node, ref char]! = {
     val line: i64 = p_line(p)
-    val k: i64 = p_peek_kind(p)
 
-    if k == lexer.TK_LBRACKET {
+    if lexer.kind_is_lbracket(p_peek_kind(p)) {
         p_advance(p)
-        if p_peek_kind(p) == lexer.TK_RBRACKET {
+        if lexer.kind_is_rbracket(p_peek_kind(p)) {
             p_advance(p)
             val inner = parse_type(p)?
             val n: ref Node = make_node(TY_SLICE, line)
             n.d0 = inner as i64
             return ok n
         }
-        if p_peek_kind(p) != lexer.TK_INT {
+        if !kind_is_int(p_peek_kind(p)) {
             return err p_error(p, "expected integer size in fixed array type")
         }
-        val sz_text: ref char = p_advance(p).text
+        val sz_text: ref char = p_advance_text(p)
         val sz_res = std.fmt.string_to_i64(sz_text)
         val sz: mut i64 = 0
         match sz_res {
             ok v  => { sz = v }
             err _ => { return err p_error(p, "invalid array size") }
         }
-        p_expect(p, lexer.TK_RBRACKET)?
+        p_expect_rbracket(p)?
         val inner2 = parse_type(p)?
         val n2: ref Node = make_node(TY_FIXED_ARR, line)
         n2.d0 = sz
@@ -226,7 +331,7 @@ pub fn parse_type(p: ref Parser) result[ref Node, ref char]! = {
         return ok n2
     }
 
-    if k == lexer.TK_REF {
+    if kind_is_ref(p_peek_kind(p)) {
         p_advance(p)
         val inner3 = parse_type(p)?
         val n3: ref Node = make_node(TY_REF, line)
@@ -234,7 +339,7 @@ pub fn parse_type(p: ref Parser) result[ref Node, ref char]! = {
         return ok n3
     }
 
-    if k == lexer.TK_MUT {
+    if kind_is_mut(p_peek_kind(p)) {
         p_advance(p)
         val inner4 = parse_type(p)?
         val n4: ref Node = make_node(TY_MUT, line)
@@ -242,17 +347,17 @@ pub fn parse_type(p: ref Parser) result[ref Node, ref char]! = {
         return ok n4
     }
 
-    if k == lexer.TK_FN {
+    if kind_is_fn(p_peek_kind(p)) {
         p_advance(p)
-        p_expect(p, lexer.TK_LPAREN)?
+        p_expect_lparen(p)?
         val params: mut list[ref Node] = []
         for {
-            if p_peek_kind(p) == lexer.TK_RPAREN { break }
+            if lexer.kind_is_rparen(p_peek_kind(p)) { break }
             val pt = parse_type(p)?
             @append(params, pt)
-            if !p_eat(p, lexer.TK_COMMA) { break }
+            if !p_eat_fn(p, lexer.kind_is_comma) { break }
         }
-        p_expect(p, lexer.TK_RPAREN)?
+        p_expect_rparen(p)?
         val ret = parse_type(p)?
         val nfp: ref Node = make_node(TY_FNPTR, line)
         val plist: mut list[ref Node] = params
@@ -261,42 +366,41 @@ pub fn parse_type(p: ref Parser) result[ref Node, ref char]! = {
         return ok nfp
     }
 
-    if k == lexer.TK_IDENT {
-        val name: ref char = p_advance(p).text
+    if kind_is_ident(p_peek_kind(p)) {
+        val name: ref char = p_advance_text(p)
         if str_eq(name, "void")    { return ok make_node(TY_VOID,    line) }
         if str_eq(name, "untyped") { return ok make_node(TY_UNTYPED, line) }
         if str_eq(name, "option") {
-            p_expect(p, lexer.TK_LBRACKET)?
+            p_expect_lbracket(p)?
             val inner5 = parse_type(p)?
-            p_expect(p, lexer.TK_RBRACKET)?
+            p_expect_rbracket(p)?
             val no: ref Node = make_node(TY_OPTION, line)
             no.d0 = inner5 as i64
             return ok no
         }
         if str_eq(name, "result") {
-            p_expect(p, lexer.TK_LBRACKET)?
+            p_expect_lbracket(p)?
             val ok_ty = parse_type(p)?
-            p_expect(p, lexer.TK_COMMA)?
+            p_expect_comma(p)?
             val err_ty = parse_type(p)?
-            p_expect(p, lexer.TK_RBRACKET)?
+            p_expect_rbracket(p)?
             val nr: ref Node = make_node(TY_RESULT, line)
             nr.d0 = ok_ty as i64
             nr.d1 = err_ty as i64
             return ok nr
         }
         if str_eq(name, "list") {
-            p_expect(p, lexer.TK_LBRACKET)?
+            p_expect_lbracket(p)?
             val inner6 = parse_type(p)?
-            p_expect(p, lexer.TK_RBRACKET)?
+            p_expect_rbracket(p)?
             val nl: ref Node = make_node(TY_LIST, line)
             nl.d0 = inner6 as i64
             return ok nl
         }
-        // possibly dotted: Foo.Bar
         val sb: ref void = std.string.StringBuilder.new()
         std.string.StringBuilder.append_cstr(sb, name)
         for {
-            if p_peek_kind(p) != lexer.TK_DOT { break }
+            if !lexer.kind_is_dot(p_peek_kind(p)) { break }
             p_advance(p)
             val seg = p_expect_ident(p)?
             std.string.StringBuilder.append_char(sb, 46)
@@ -319,197 +423,197 @@ pub fn parse_expr(p: ref Parser) result[ref Node, ref char]! = { return parse_or
 
 fn parse_or(p: ref Parser) result[ref Node, ref char]! = {
     val lhs = parse_and(p)?
-    val result: mut ref Node = lhs
+    val res: mut ref Node = lhs
     for {
-        if p_peek_kind(p) != lexer.TK_OR { break }
+        if !lexer.kind_is_or(p_peek_kind(p)) { break }
         val line: i64 = p_line(p) p_advance(p)
         val rhs = parse_and(p)?
         val n: ref Node = make_node(NK_BINOP, line)
-        n.d0 = OP_OR n.d1 = result as i64 n.d2 = rhs as i64
-        result = n
+        n.d0 = OP_OR n.d1 = res as i64 n.d2 = rhs as i64
+        res = n
     }
-    return ok result
+    return ok res
 }
 
 fn parse_and(p: ref Parser) result[ref Node, ref char]! = {
     val lhs = parse_cmp(p)?
-    val result: mut ref Node = lhs
+    val res: mut ref Node = lhs
     for {
-        if p_peek_kind(p) != lexer.TK_AND { break }
+        if !lexer.kind_is_and(p_peek_kind(p)) { break }
         val line: i64 = p_line(p) p_advance(p)
         val rhs = parse_cmp(p)?
         val n: ref Node = make_node(NK_BINOP, line)
-        n.d0 = OP_AND n.d1 = result as i64 n.d2 = rhs as i64
-        result = n
+        n.d0 = OP_AND n.d1 = res as i64 n.d2 = rhs as i64
+        res = n
     }
-    return ok result
+    return ok res
 }
 
 fn parse_cmp(p: ref Parser) result[ref Node, ref char]! = {
     val lhs = parse_bitor(p)?
-    val result: mut ref Node = lhs
+    val res: mut ref Node = lhs
     for {
-        val k: i64 = p_peek_kind(p)
+        val k: lexer.TokenKind = p_peek_kind(p)
         val op: mut i64 = 0
-        if k == lexer.TK_EQEQ  { op = OP_EQ }
-        elif k == lexer.TK_BANGEQ { op = OP_NE }
-        elif k == lexer.TK_LT   { op = OP_LT }
-        elif k == lexer.TK_GT   { op = OP_GT }
-        elif k == lexer.TK_LTEQ { op = OP_LE }
-        elif k == lexer.TK_GTEQ { op = OP_GE }
+        if lexer.kind_is_eqeq(k)   { op = OP_EQ }
+        elif lexer.kind_is_bangeq(k) { op = OP_NE }
+        elif kind_is_lt(k)           { op = OP_LT }
+        elif kind_is_gt(k)           { op = OP_GT }
+        elif lexer.kind_is_lteq(k)   { op = OP_LE }
+        elif lexer.kind_is_gteq(k)   { op = OP_GE }
         if op == 0 { break }
         val line: i64 = p_line(p) p_advance(p)
         val rhs = parse_bitor(p)?
         val n: ref Node = make_node(NK_BINOP, line)
-        n.d0 = op n.d1 = result as i64 n.d2 = rhs as i64
-        result = n
+        n.d0 = op n.d1 = res as i64 n.d2 = rhs as i64
+        res = n
     }
-    return ok result
+    return ok res
 }
 
 fn parse_bitor(p: ref Parser) result[ref Node, ref char]! = {
     val lhs = parse_bitxor(p)?
-    val result: mut ref Node = lhs
+    val res: mut ref Node = lhs
     for {
-        if p_peek_kind(p) != lexer.TK_BITOR { break }
+        if !kind_is_bitor(p_peek_kind(p)) { break }
         val line: i64 = p_line(p) p_advance(p)
         val rhs = parse_bitxor(p)?
         val n: ref Node = make_node(NK_BINOP, line)
-        n.d0 = OP_BOR n.d1 = result as i64 n.d2 = rhs as i64
-        result = n
+        n.d0 = OP_BOR n.d1 = res as i64 n.d2 = rhs as i64
+        res = n
     }
-    return ok result
+    return ok res
 }
 
 fn parse_bitxor(p: ref Parser) result[ref Node, ref char]! = {
     val lhs = parse_bitand(p)?
-    val result: mut ref Node = lhs
+    val res: mut ref Node = lhs
     for {
-        if p_peek_kind(p) != lexer.TK_BITXOR { break }
+        if !kind_is_bitxor(p_peek_kind(p)) { break }
         val line: i64 = p_line(p) p_advance(p)
         val rhs = parse_bitand(p)?
         val n: ref Node = make_node(NK_BINOP, line)
-        n.d0 = OP_BXOR n.d1 = result as i64 n.d2 = rhs as i64
-        result = n
+        n.d0 = OP_BXOR n.d1 = res as i64 n.d2 = rhs as i64
+        res = n
     }
-    return ok result
+    return ok res
 }
 
 fn parse_bitand(p: ref Parser) result[ref Node, ref char]! = {
     val lhs = parse_shift(p)?
-    val result: mut ref Node = lhs
+    val res: mut ref Node = lhs
     for {
-        if p_peek_kind(p) != lexer.TK_BITAND { break }
+        if !kind_is_bitand(p_peek_kind(p)) { break }
         val line: i64 = p_line(p) p_advance(p)
         val rhs = parse_shift(p)?
         val n: ref Node = make_node(NK_BINOP, line)
-        n.d0 = OP_BAND n.d1 = result as i64 n.d2 = rhs as i64
-        result = n
+        n.d0 = OP_BAND n.d1 = res as i64 n.d2 = rhs as i64
+        res = n
     }
-    return ok result
+    return ok res
 }
 
 fn parse_shift(p: ref Parser) result[ref Node, ref char]! = {
     val lhs = parse_add(p)?
-    val result: mut ref Node = lhs
+    val res: mut ref Node = lhs
     for {
-        val k: i64 = p_peek_kind(p)
+        val k: lexer.TokenKind = p_peek_kind(p)
         val op: mut i64 = 0
-        if k == lexer.TK_SHL { op = OP_SHL }
-        elif k == lexer.TK_SHR { op = OP_SHR }
+        if lexer.kind_is_shl(k) { op = OP_SHL }
+        elif lexer.kind_is_shr(k) { op = OP_SHR }
         if op == 0 { break }
         val line: i64 = p_line(p) p_advance(p)
         val rhs = parse_add(p)?
         val n: ref Node = make_node(NK_BINOP, line)
-        n.d0 = op n.d1 = result as i64 n.d2 = rhs as i64
-        result = n
+        n.d0 = op n.d1 = res as i64 n.d2 = rhs as i64
+        res = n
     }
-    return ok result
+    return ok res
 }
 
 fn parse_add(p: ref Parser) result[ref Node, ref char]! = {
     val lhs = parse_mul(p)?
-    val result: mut ref Node = lhs
+    val res: mut ref Node = lhs
     for {
-        val k: i64 = p_peek_kind(p)
+        val k: lexer.TokenKind = p_peek_kind(p)
         val op: mut i64 = 0
-        if k == lexer.TK_PLUS  { op = OP_ADD }
-        elif k == lexer.TK_MINUS { op = OP_SUB }
+        if kind_is_plus(k)  { op = OP_ADD }
+        elif kind_is_minus(k) { op = OP_SUB }
         if op == 0 { break }
         val line: i64 = p_line(p) p_advance(p)
         val rhs = parse_mul(p)?
         val n: ref Node = make_node(NK_BINOP, line)
-        n.d0 = op n.d1 = result as i64 n.d2 = rhs as i64
-        result = n
+        n.d0 = op n.d1 = res as i64 n.d2 = rhs as i64
+        res = n
     }
-    return ok result
+    return ok res
 }
 
 fn parse_mul(p: ref Parser) result[ref Node, ref char]! = {
     val lhs = parse_unary(p)?
-    val result: mut ref Node = lhs
+    val res: mut ref Node = lhs
     for {
-        val k: i64 = p_peek_kind(p)
+        val k: lexer.TokenKind = p_peek_kind(p)
         val op: mut i64 = 0
-        if k == lexer.TK_STAR    { op = OP_MUL }
-        elif k == lexer.TK_SLASH   { op = OP_DIV }
-        elif k == lexer.TK_PERCENT { op = OP_REM }
+        if kind_is_star(k)    { op = OP_MUL }
+        elif kind_is_slash(k)   { op = OP_DIV }
+        elif kind_is_percent(k) { op = OP_REM }
         if op == 0 { break }
         val line: i64 = p_line(p) p_advance(p)
         val rhs = parse_unary(p)?
         val n: ref Node = make_node(NK_BINOP, line)
-        n.d0 = op n.d1 = result as i64 n.d2 = rhs as i64
-        result = n
+        n.d0 = op n.d1 = res as i64 n.d2 = rhs as i64
+        res = n
     }
-    return ok result
+    return ok res
 }
 
 fn parse_unary(p: ref Parser) result[ref Node, ref char]! = {
     val line: i64 = p_line(p)
-    val k: i64 = p_peek_kind(p)
-    if k == lexer.TK_BANG || k == lexer.TK_NOT {
+    val k: lexer.TokenKind = p_peek_kind(p)
+    if kind_is_bang(k) || kind_is_not(k) {
         p_advance(p)
         val inner = parse_unary(p)?
         val n: ref Node = make_node(NK_UNOP, line)
         n.d0 = UOP_NOT n.d1 = inner as i64
         return ok n
     }
-    if k == lexer.TK_MINUS {
+    if kind_is_minus(k) {
         p_advance(p)
         val inner2 = parse_unary(p)?
         val n2: ref Node = make_node(NK_UNOP, line)
         n2.d0 = UOP_NEG n2.d1 = inner2 as i64
         return ok n2
     }
-    if k == lexer.TK_TILDE {
+    if kind_is_tilde(k) {
         p_advance(p)
         val inner3 = parse_unary(p)?
         val n3: ref Node = make_node(NK_UNOP, line)
         n3.d0 = UOP_BNOT n3.d1 = inner3 as i64
         return ok n3
     }
-    if k == lexer.TK_TRUST {
+    if kind_is_trust(k) {
         p_advance(p)
         val inner4 = parse_unary(p)?
         val n4: ref Node = make_node(NK_TRUST, line)
         n4.d0 = inner4 as i64
         return ok n4
     }
-    if k == lexer.TK_SOME {
+    if kind_is_some(k) {
         p_advance(p)
         val inner5 = parse_unary(p)?
         val n5: ref Node = make_node(NK_SOME, line)
         n5.d0 = inner5 as i64
         return ok n5
     }
-    if k == lexer.TK_OK {
+    if kind_is_ok(k) {
         p_advance(p)
         val inner6 = parse_unary(p)?
         val n6: ref Node = make_node(NK_OK_VAL, line)
         n6.d0 = inner6 as i64
         return ok n6
     }
-    if k == lexer.TK_ERR {
+    if kind_is_err(k) {
         p_advance(p)
         val inner7 = parse_unary(p)?
         val n7: ref Node = make_node(NK_ERR_VAL, line)
@@ -521,149 +625,147 @@ fn parse_unary(p: ref Parser) result[ref Node, ref char]! = {
 
 fn parse_postfix(p: ref Parser) result[ref Node, ref char]! = {
     val base = parse_primary(p)?
-    val result: mut ref Node = base
+    val res: mut ref Node = base
     for {
-        val k: i64 = p_peek_kind(p)
+        val k: lexer.TokenKind = p_peek_kind(p)
         val line: i64 = p_line(p)
-        if k == lexer.TK_DOT {
+        if lexer.kind_is_dot(k) {
             p_advance(p)
             val field = p_expect_ident(p)?
             val n: ref Node = make_node(NK_FIELD, line)
-            n.d0 = result as i64 n.d1 = field as i64
-            result = n
+            n.d0 = res as i64 n.d1 = field as i64
+            res = n
             continue
         }
-        if k == lexer.TK_LPAREN {
+        if lexer.kind_is_lparen(k) {
             p_advance(p)
             val args: mut list[ref Node] = []
             for {
-                if p_peek_kind(p) == lexer.TK_RPAREN { break }
+                if lexer.kind_is_rparen(p_peek_kind(p)) { break }
                 val arg = parse_expr(p)?
                 @append(args, arg)
-                if !p_eat(p, lexer.TK_COMMA) { break }
+                if !p_eat_fn(p, lexer.kind_is_comma) { break }
             }
-            p_expect(p, lexer.TK_RPAREN)?
+            p_expect_rparen(p)?
             val n2: ref Node = make_node(NK_CALL, line)
-            n2.d0 = result as i64
+            n2.d0 = res as i64
             val alist: mut list[ref Node] = args
             n2.d1 = addr(alist) as i64
-            result = n2
+            res = n2
             continue
         }
-        if k == lexer.TK_QUESTION {
+        if lexer.kind_is_question(k) {
             p_advance(p)
             val n3: ref Node = make_node(NK_TRY, line)
-            n3.d0 = result as i64
-            result = n3
+            n3.d0 = res as i64
+            res = n3
             continue
         }
-        if k == lexer.TK_AS {
+        if kind_is_as(k) {
             p_advance(p)
             val ty = parse_type(p)?
             val n4: ref Node = make_node(NK_CAST, line)
-            n4.d0 = result as i64 n4.d1 = ty as i64
-            result = n4
+            n4.d0 = res as i64 n4.d1 = ty as i64
+            res = n4
             continue
         }
         break
     }
-    return ok result
+    return ok res
 }
 
 fn parse_primary(p: ref Parser) result[ref Node, ref char]! = {
     val line: i64 = p_line(p)
-    val k: i64 = p_peek_kind(p)
+    val k: lexer.TokenKind = p_peek_kind(p)
 
-    if k == lexer.TK_INT {
+    if kind_is_int(k) {
         val n: ref Node = make_node(NK_INT_LIT, line)
-        n.d0 = p_advance(p).text as i64
+        n.d0 = p_advance_text(p) as i64
         return ok n
     }
-    if k == lexer.TK_FLOAT {
+    if kind_is_float(k) {
         val n2: ref Node = make_node(NK_FLOAT_LIT, line)
-        n2.d0 = p_advance(p).text as i64
+        n2.d0 = p_advance_text(p) as i64
         return ok n2
     }
-    if k == lexer.TK_STR {
+    if kind_is_str(k) {
         val n3: ref Node = make_node(NK_STR_LIT, line)
-        n3.d0 = p_advance(p).text as i64
+        n3.d0 = p_advance_text(p) as i64
         return ok n3
     }
-    if k == lexer.TK_TRUE  { p_advance(p) val n4: ref Node = make_node(NK_BOOL, line) n4.d0 = 1 return ok n4 }
-    if k == lexer.TK_FALSE { p_advance(p) val n5: ref Node = make_node(NK_BOOL, line) n5.d0 = 0 return ok n5 }
-    if k == lexer.TK_NONE  { p_advance(p) return ok make_node(NK_NONE, line) }
+    if kind_is_true(k)  { p_advance(p) val n4: ref Node = make_node(NK_BOOL, line) n4.d0 = 1 return ok n4 }
+    if kind_is_false(k) { p_advance(p) val n5: ref Node = make_node(NK_BOOL, line) n5.d0 = 0 return ok n5 }
+    if kind_is_none(k)  { p_advance(p) return ok make_node(NK_NONE, line) }
 
-    if k == lexer.TK_LPAREN {
+    if lexer.kind_is_lparen(k) {
         p_advance(p)
         val inner = parse_expr(p)?
-        p_expect(p, lexer.TK_RPAREN)?
+        p_expect_rparen(p)?
         return ok inner
     }
 
-    if k == lexer.TK_LBRACE {
+    if lexer.kind_is_lbrace(k) {
         p_advance(p)
-        // struct literal: { name: expr, ... }
-        if p_peek_kind(p) == lexer.TK_IDENT && p_peek2_kind(p) == lexer.TK_COLON {
+        if kind_is_ident(p_peek_kind(p)) && lexer.kind_is_colon(p_peek2_kind(p)) {
             val fields: mut list[ref Node] = []
             for {
-                if p_peek_kind(p) == lexer.TK_RBRACE { break }
+                if lexer.kind_is_rbrace(p_peek_kind(p)) { break }
                 val fname = p_expect_ident(p)?
-                p_expect(p, lexer.TK_COLON)?
+                p_expect_colon(p)?
                 val fval = parse_expr(p)?
                 val pair: ref Node = make_node(NK_FIELD, line)
                 pair.d0 = fname as i64 pair.d1 = fval as i64
                 @append(fields, pair)
-                p_eat(p, lexer.TK_COMMA)
+                p_eat_fn(p, lexer.kind_is_comma)
             }
-            p_expect(p, lexer.TK_RBRACE)?
+            p_expect_rbrace(p)?
             val ns: ref Node = make_node(NK_STRUCT_LIT, line)
             val flist: mut list[ref Node] = fields
             ns.d0 = addr(flist) as i64
             return ok ns
         }
-        // args pack: { expr, ... }
         val elems: mut list[ref Node] = []
         for {
-            if p_peek_kind(p) == lexer.TK_RBRACE { break }
+            if lexer.kind_is_rbrace(p_peek_kind(p)) { break }
             val e = parse_expr(p)?
             @append(elems, e)
-            if !p_eat(p, lexer.TK_COMMA) { break }
+            if !p_eat_fn(p, lexer.kind_is_comma) { break }
         }
-        p_expect(p, lexer.TK_RBRACE)?
+        p_expect_rbrace(p)?
         val na: ref Node = make_node(NK_ARGS_PACK, line)
         val elist: mut list[ref Node] = elems
         na.d0 = addr(elist) as i64
         return ok na
     }
 
-    if k == lexer.TK_LBRACKET {
+    if lexer.kind_is_lbracket(k) {
         p_advance(p)
         val elems2: mut list[ref Node] = []
         for {
-            if p_peek_kind(p) == lexer.TK_RBRACKET { break }
+            if lexer.kind_is_rbracket(p_peek_kind(p)) { break }
             val e2 = parse_expr(p)?
             @append(elems2, e2)
-            if !p_eat(p, lexer.TK_COMMA) { break }
+            if !p_eat_fn(p, lexer.kind_is_comma) { break }
         }
-        p_expect(p, lexer.TK_RBRACKET)?
+        p_expect_rbracket(p)?
         val nl: ref Node = make_node(NK_LIST_LIT, line)
         val elist2: mut list[ref Node] = elems2
         nl.d0 = addr(elist2) as i64
         return ok nl
     }
 
-    if k == lexer.TK_AT {
+    if lexer.kind_is_at(k) {
         p_advance(p)
         val bname = p_expect_ident(p)?
-        p_expect(p, lexer.TK_LPAREN)?
+        p_expect_lparen(p)?
         val bargs: mut list[ref Node] = []
         for {
-            if p_peek_kind(p) == lexer.TK_RPAREN { break }
+            if lexer.kind_is_rparen(p_peek_kind(p)) { break }
             val ba = parse_expr(p)?
             @append(bargs, ba)
-            if !p_eat(p, lexer.TK_COMMA) { break }
+            if !p_eat_fn(p, lexer.kind_is_comma) { break }
         }
-        p_expect(p, lexer.TK_RPAREN)?
+        p_expect_rparen(p)?
         val nb: ref Node = make_node(NK_BUILTIN, line)
         nb.d0 = bname as i64
         val blist: mut list[ref Node] = bargs
@@ -671,25 +773,25 @@ fn parse_primary(p: ref Parser) result[ref Node, ref char]! = {
         return ok nb
     }
 
-    if k == lexer.TK_IDENT {
-        val name: ref char = p_advance(p).text
-        if str_eq(name, "addr") && p_peek_kind(p) == lexer.TK_LPAREN {
+    if kind_is_ident(k) {
+        val name: ref char = p_advance_text(p)
+        if str_eq(name, "addr") && lexer.kind_is_lparen(p_peek_kind(p)) {
             p_advance(p)
             val inner2 = parse_expr(p)?
-            p_expect(p, lexer.TK_RPAREN)?
+            p_expect_rparen(p)?
             val na2: ref Node = make_node(NK_ADDR, line)
             na2.d0 = inner2 as i64
             return ok na2
         }
-        if str_eq(name, "deref") && p_peek_kind(p) == lexer.TK_LPAREN {
+        if str_eq(name, "deref") && lexer.kind_is_lparen(p_peek_kind(p)) {
             p_advance(p)
             val inner3 = parse_expr(p)?
-            p_expect(p, lexer.TK_RPAREN)?
+            p_expect_rparen(p)?
             val nd: ref Node = make_node(NK_DEREF, line)
             nd.d0 = inner3 as i64
             return ok nd
         }
-        if p_peek_kind(p) == lexer.TK_LBRACE && p_peek2_kind(p) == lexer.TK_RBRACE {
+        if lexer.kind_is_lbrace(p_peek_kind(p)) && lexer.kind_is_rbrace(p_peek2_kind(p)) {
             p_advance(p) p_advance(p)
             val nz: ref Node = make_node(NK_ZERO_INIT, line)
             nz.d0 = name as i64
@@ -708,11 +810,11 @@ fn parse_primary(p: ref Parser) result[ref Node, ref char]! = {
 fn parse_contracts(p: ref Parser) result[list[ref Node], ref char]! = {
     val contracts: mut list[ref Node] = []
     for {
-        if p_peek_kind(p) == lexer.TK_RBRACE { break }
+        if lexer.kind_is_rbrace(p_peek_kind(p)) { break }
         val line: i64 = p_line(p)
         val label: mut ref char = 0 as ref char
-        if p_peek_kind(p) == lexer.TK_IDENT && p_peek2_kind(p) == lexer.TK_COLON {
-            label = p_advance(p).text
+        if kind_is_ident(p_peek_kind(p)) && lexer.kind_is_colon(p_peek2_kind(p)) {
+            label = p_advance_text(p)
             p_advance(p)
         }
         val expr = parse_expr(p)?
@@ -725,89 +827,89 @@ fn parse_contracts(p: ref Parser) result[list[ref Node], ref char]! = {
 
 pub fn parse_stmt(p: ref Parser) result[ref Node, ref char]! = {
     val line: i64 = p_line(p)
-    val k: i64 = p_peek_kind(p)
+    val k: lexer.TokenKind = p_peek_kind(p)
 
-    if k == lexer.TK_VAL {
+    if kind_is_val(k) {
         p_advance(p)
         val name = p_expect_ident(p)?
         val mutable: mut i64 = 0
         val ty: mut ref Node = 0 as ref Node
-        if p_eat(p, lexer.TK_COLON) {
-            if p_eat(p, lexer.TK_MUT) { mutable = 1 }
+        if p_eat_fn(p, lexer.kind_is_colon) {
+            if p_eat_fn(p, kind_is_mut) { mutable = 1 }
             ty = parse_type(p)?
         }
-        p_expect(p, lexer.TK_EQ)?
+        p_expect_eq(p)?
         val expr = parse_expr(p)?
         val n: ref Node = make_node(NK_VAL, line)
         n.d0 = name as i64 n.d1 = mutable n.d2 = ty as i64 n.d3 = expr as i64
         return ok n
     }
 
-    if k == lexer.TK_RETURN {
+    if kind_is_return(k) {
         p_advance(p)
         val n2: ref Node = make_node(NK_RETURN, line)
-        if p_peek_kind(p) != lexer.TK_RBRACE && p_peek_kind(p) != lexer.TK_EOF {
+        if !lexer.kind_is_rbrace(p_peek_kind(p)) && !kind_is_eof(p_peek_kind(p)) {
             n2.d0 = parse_expr(p)? as i64
         }
         return ok n2
     }
 
-    if k == lexer.TK_PRE {
+    if kind_is_pre(k) {
         p_advance(p)
-        p_expect(p, lexer.TK_LBRACE)?
+        p_expect_lbrace(p)?
         val cs = parse_contracts(p)?
-        p_expect(p, lexer.TK_RBRACE)?
+        p_expect_rbrace(p)?
         val n3: ref Node = make_node(NK_PRE, line)
         val clist: mut list[ref Node] = cs
         n3.d0 = addr(clist) as i64
         return ok n3
     }
 
-    if k == lexer.TK_POST {
+    if kind_is_post(k) {
         p_advance(p)
-        p_expect(p, lexer.TK_LBRACE)?
+        p_expect_lbrace(p)?
         val cs2 = parse_contracts(p)?
-        p_expect(p, lexer.TK_RBRACE)?
+        p_expect_rbrace(p)?
         val n4: ref Node = make_node(NK_POST, line)
         val clist2: mut list[ref Node] = cs2
         n4.d0 = addr(clist2) as i64
         return ok n4
     }
 
-    if k == lexer.TK_GUARDED {
+    if kind_is_guarded(k) {
         p_advance(p)
-        val sub: i64 = p_peek_kind(p)
-        if sub != lexer.TK_PRE && sub != lexer.TK_POST {
+        val sub: lexer.TokenKind = p_peek_kind(p)
+        if !kind_is_pre(sub) && !kind_is_post(sub) {
             return err p_error(p, "expected 'pre' or 'post' after 'guarded'")
         }
         p_advance(p)
-        p_expect(p, lexer.TK_LBRACE)?
+        p_expect_lbrace(p)?
         val cs3 = parse_contracts(p)?
-        p_expect(p, lexer.TK_RBRACE)?
+        p_expect_rbrace(p)?
         val n5: ref Node = make_node(NK_GUARDED_PRE, line)
         val clist3: mut list[ref Node] = cs3
         n5.d0 = addr(clist3) as i64
         return ok n5
     }
 
-    if k == lexer.TK_IF {
+    if kind_is_if(k) {
         p_advance(p)
-        val has_paren: bool = p_eat(p, lexer.TK_LPAREN)
+        val has_paren: bool = p_eat_fn(p, lexer.kind_is_lparen)
         val cond = parse_expr(p)?
-        if has_paren { p_expect(p, lexer.TK_RPAREN)? }
-        p_expect(p, lexer.TK_LBRACE)?
+        if has_paren { p_expect_rparen(p)? }
+        p_expect_lbrace(p)?
         val then_body = parse_stmts(p)?
-        p_expect(p, lexer.TK_RBRACE)?
+        p_expect_rbrace(p)?
         val elif_list: mut list[ref Node] = []
         for {
-            if p_peek_kind(p) != lexer.TK_ELIF { break }
+            if !kind_is_elif(p_peek_kind(p)) { break }
             val el: i64 = p_line(p) p_advance(p)
-            val ehp: bool = p_eat(p, lexer.TK_LPAREN)
+            val ehp: bool = p_eat_fn(p, lexer.kind_is_lparen)
             val econd = parse_expr(p)?
-            if ehp { p_expect(p, lexer.TK_RPAREN)? }
-            p_expect(p, lexer.TK_LBRACE)?
+            if ehp { p_expect_rparen(p)? }
+            p_expect_lbrace(p)?
             val ebody = parse_stmts(p)?
-            p_expect(p, lexer.TK_RBRACE)?
+            p_expect_rbrace(p)?
             val ep: ref Node = make_node(NK_IF, el)
             ep.d0 = econd as i64
             val tb: mut list[ref Node] = ebody
@@ -815,10 +917,10 @@ pub fn parse_stmt(p: ref Parser) result[ref Node, ref char]! = {
             @append(elif_list, ep)
         }
         val else_body: mut ref Node = 0 as ref Node
-        if p_eat(p, lexer.TK_ELSE) {
-            p_expect(p, lexer.TK_LBRACE)?
+        if p_eat_fn(p, kind_is_else) {
+            p_expect_lbrace(p)?
             val eb = parse_stmts(p)?
-            p_expect(p, lexer.TK_RBRACE)?
+            p_expect_rbrace(p)?
             val ebl: mut list[ref Node] = eb
             val ebnode: ref Node = make_node(NK_IF, line)
             ebnode.d0 = addr(ebl) as i64
@@ -834,56 +936,56 @@ pub fn parse_stmt(p: ref Parser) result[ref Node, ref char]! = {
         return ok nif
     }
 
-    if k == lexer.TK_FOR {
+    if kind_is_for(k) {
         p_advance(p)
-        if p_peek_kind(p) == lexer.TK_LBRACE {
+        if lexer.kind_is_lbrace(p_peek_kind(p)) {
             p_advance(p)
             val body = parse_stmts(p)?
-            p_expect(p, lexer.TK_RBRACE)?
+            p_expect_rbrace(p)?
             val nf: ref Node = make_node(NK_FOR, line)
             val bl: mut list[ref Node] = body
             nf.d4 = addr(bl) as i64
             return ok nf
         }
-        val has_paren2: bool = p_eat(p, lexer.TK_LPAREN)
+        val has_paren2: bool = p_eat_fn(p, lexer.kind_is_lparen)
         val first_name = p_expect_ident(p)?
-        if p_eat(p, lexer.TK_IN) {
+        if p_eat_fn(p, kind_is_in) {
             val iter = parse_expr(p)?
-            if has_paren2 { p_expect(p, lexer.TK_RPAREN)? }
-            p_expect(p, lexer.TK_LBRACE)?
+            if has_paren2 { p_expect_rparen(p)? }
+            p_expect_lbrace(p)?
             val fi_body = parse_stmts(p)?
-            p_expect(p, lexer.TK_RBRACE)?
+            p_expect_rbrace(p)?
             val nfi: ref Node = make_node(NK_FORIN, line)
             nfi.d0 = first_name as i64 nfi.d1 = iter as i64
             val fibl: mut list[ref Node] = fi_body
             nfi.d2 = addr(fibl) as i64
             return ok nfi
         }
-        p_expect(p, lexer.TK_EQ)?
+        p_expect_eq(p)?
         val init_expr = parse_expr(p)?
-        p_expect(p, lexer.TK_SEMICOLON)?
+        p_expect_semicolon(p)?
         val cond2 = parse_expr(p)?
-        p_expect(p, lexer.TK_SEMICOLON)?
+        p_expect_semicolon(p)?
         val post_name = p_expect_ident(p)?
-        val post_kind: i64 = p_peek_kind(p)
+        val post_kind: lexer.TokenKind = p_peek_kind(p)
         val post_node: mut ref Node = 0 as ref Node
-        if post_kind == lexer.TK_PLUSPLUS {
+        if lexer.kind_is_plusplus(post_kind) {
             p_advance(p)
             val pn: ref Node = make_node(NK_INCREMENT, line)
             pn.d0 = post_name as i64
             post_node = pn
-        } elif post_kind == lexer.TK_MINUSMINUS {
+        } elif lexer.kind_is_minusminus(post_kind) {
             p_advance(p)
             val pn2: ref Node = make_node(NK_DECREMENT, line)
             pn2.d0 = post_name as i64
             post_node = pn2
-        } elif post_kind == lexer.TK_PLUSEQ {
+        } elif kind_is_pluseq(post_kind) {
             p_advance(p)
             val pv = parse_expr(p)?
             val pn3: ref Node = make_node(NK_ADD_ASSIGN, line)
             pn3.d0 = post_name as i64 pn3.d1 = pv as i64
             post_node = pn3
-        } elif post_kind == lexer.TK_MINUSEQ {
+        } elif kind_is_minuseq(post_kind) {
             p_advance(p)
             val pv2 = parse_expr(p)?
             val pn4: ref Node = make_node(NK_SUB_ASSIGN, line)
@@ -892,10 +994,10 @@ pub fn parse_stmt(p: ref Parser) result[ref Node, ref char]! = {
         } else {
             return err p_error(p, "expected '++', '--', '+=', or '-=' in for loop")
         }
-        if has_paren2 { p_expect(p, lexer.TK_RPAREN)? }
-        p_expect(p, lexer.TK_LBRACE)?
+        if has_paren2 { p_expect_rparen(p)? }
+        p_expect_lbrace(p)?
         val for_body = parse_stmts(p)?
-        p_expect(p, lexer.TK_RBRACE)?
+        p_expect_rbrace(p)?
         val nfor: ref Node = make_node(NK_FOR, line)
         nfor.d0 = first_name as i64 nfor.d1 = init_expr as i64
         nfor.d2 = cond2 as i64 nfor.d3 = post_node as i64
@@ -904,21 +1006,21 @@ pub fn parse_stmt(p: ref Parser) result[ref Node, ref char]! = {
         return ok nfor
     }
 
-    if k == lexer.TK_DEFER {
+    if kind_is_defer(k) {
         p_advance(p)
-        p_expect(p, lexer.TK_LBRACE)?
+        p_expect_lbrace(p)?
         val db = parse_stmts(p)?
-        p_expect(p, lexer.TK_RBRACE)?
+        p_expect_rbrace(p)?
         val nd: ref Node = make_node(NK_DEFER, line)
         val dbl: mut list[ref Node] = db
         nd.d0 = addr(dbl) as i64
         return ok nd
     }
 
-    if k == lexer.TK_BREAK    { p_advance(p) return ok make_node(NK_BREAK, line) }
-    if k == lexer.TK_CONTINUE { p_advance(p) return ok make_node(NK_CONTINUE, line) }
+    if kind_is_break(k)    { p_advance(p) return ok make_node(NK_BREAK, line) }
+    if kind_is_continue(k) { p_advance(p) return ok make_node(NK_CONTINUE, line) }
 
-    if k == lexer.TK_ASSERT {
+    if kind_is_assert(k) {
         p_advance(p)
         val ae = parse_expr(p)?
         val na: ref Node = make_node(NK_ASSERT, line)
@@ -926,12 +1028,12 @@ pub fn parse_stmt(p: ref Parser) result[ref Node, ref char]! = {
         return ok na
     }
 
-    if k == lexer.TK_WHEN {
+    if kind_is_when(k) {
         p_advance(p)
         val plat = p_expect_ident(p)?
-        p_expect(p, lexer.TK_LBRACE)?
+        p_expect_lbrace(p)?
         val wb = parse_stmts(p)?
-        p_expect(p, lexer.TK_RBRACE)?
+        p_expect_rbrace(p)?
         val nw: ref Node = make_node(NK_WHEN_STMT, line)
         nw.d0 = plat as i64
         val wbl: mut list[ref Node] = wb
@@ -939,32 +1041,32 @@ pub fn parse_stmt(p: ref Parser) result[ref Node, ref char]! = {
         return ok nw
     }
 
-    if k == lexer.TK_MATCH { return parse_match_stmt(p, line) }
+    if kind_is_match(k) { return parse_match_stmt(p, line) }
 
     val expr3 = parse_expr(p)?
-    if p_eat(p, lexer.TK_EQ) {
+    if p_eat_fn(p, kind_is_eq) {
         val rhs = parse_expr(p)?
         val na2: ref Node = make_node(NK_ASSIGN, line)
         na2.d0 = expr3 as i64 na2.d1 = rhs as i64
         return ok na2
     }
-    if p_eat(p, lexer.TK_PLUSPLUS) {
+    if p_eat_fn(p, lexer.kind_is_plusplus) {
         val ni: ref Node = make_node(NK_INCREMENT, line)
         ni.d0 = expr3 as i64
         return ok ni
     }
-    if p_eat(p, lexer.TK_MINUSMINUS) {
+    if p_eat_fn(p, lexer.kind_is_minusminus) {
         val nd2: ref Node = make_node(NK_DECREMENT, line)
         nd2.d0 = expr3 as i64
         return ok nd2
     }
-    if p_eat(p, lexer.TK_PLUSEQ) {
+    if p_eat_fn(p, kind_is_pluseq) {
         val rv = parse_expr(p)?
         val naa: ref Node = make_node(NK_ADD_ASSIGN, line)
         naa.d0 = expr3 as i64 naa.d1 = rv as i64
         return ok naa
     }
-    if p_eat(p, lexer.TK_MINUSEQ) {
+    if p_eat_fn(p, kind_is_minuseq) {
         val rv2 = parse_expr(p)?
         val nsa: ref Node = make_node(NK_SUB_ASSIGN, line)
         nsa.d0 = expr3 as i64 nsa.d1 = rv2 as i64
@@ -978,102 +1080,102 @@ pub fn parse_stmt(p: ref Parser) result[ref Node, ref char]! = {
 fn parse_match_stmt(p: ref Parser, line: i64) result[ref Node, ref char]! = {
     p_advance(p)
     val expr = parse_expr(p)?
-    p_expect(p, lexer.TK_LBRACE)?
-    val k: i64 = p_peek_kind(p)
+    p_expect_lbrace(p)?
+    val k: lexer.TokenKind = p_peek_kind(p)
 
-    if k == lexer.TK_OK || k == lexer.TK_ERR {
+    if kind_is_ok(k) || kind_is_err(k) {
         val ok_bind: mut ref char = 0 as ref char
         val ok_body: mut ref Node = 0 as ref Node
         val err_bind: mut ref char = 0 as ref char
         val err_body: mut ref Node = 0 as ref Node
         for i = 0; i < 2; i++ {
-            val ck: i64 = p_peek_kind(p)
-            if ck == lexer.TK_OK {
+            val ck: lexer.TokenKind = p_peek_kind(p)
+            if kind_is_ok(ck) {
                 p_advance(p)
                 ok_bind = p_expect_ident(p)?
-                p_expect(p, lexer.TK_FATARROW)?
-                p_expect(p, lexer.TK_LBRACE)?
+                p_expect_fatarrow(p)?
+                p_expect_lbrace(p)?
                 val ob = parse_stmts(p)?
-                p_expect(p, lexer.TK_RBRACE)?
+                p_expect_rbrace(p)?
                 val obl: mut list[ref Node] = ob
                 val obn: ref Node = make_node(NK_MATCH_RES, line)
                 obn.d0 = addr(obl) as i64
                 ok_body = obn
-            } elif ck == lexer.TK_ERR {
+            } elif kind_is_err(ck) {
                 p_advance(p)
                 err_bind = p_expect_ident(p)?
-                p_expect(p, lexer.TK_FATARROW)?
-                p_expect(p, lexer.TK_LBRACE)?
+                p_expect_fatarrow(p)?
+                p_expect_lbrace(p)?
                 val eb = parse_stmts(p)?
-                p_expect(p, lexer.TK_RBRACE)?
+                p_expect_rbrace(p)?
                 val ebl: mut list[ref Node] = eb
                 val ebn: ref Node = make_node(NK_MATCH_RES, line)
                 ebn.d0 = addr(ebl) as i64
                 err_body = ebn
             }
         }
-        p_expect(p, lexer.TK_RBRACE)?
+        p_expect_rbrace(p)?
         val nm: ref Node = make_node(NK_MATCH_RES, line)
         nm.d0 = expr as i64 nm.d1 = ok_bind as i64
         nm.d2 = ok_body as i64 nm.d3 = err_bind as i64 nm.d4 = err_body as i64
         return ok nm
     }
 
-    if k == lexer.TK_SOME || k == lexer.TK_NONE {
+    if kind_is_some(k) || kind_is_none(k) {
         val some_bind: mut ref char = 0 as ref char
         val some_body: mut ref Node = 0 as ref Node
         val none_body: mut ref Node = 0 as ref Node
         for i = 0; i < 2; i++ {
-            val ck2: i64 = p_peek_kind(p)
-            if ck2 == lexer.TK_SOME {
+            val ck2: lexer.TokenKind = p_peek_kind(p)
+            if kind_is_some(ck2) {
                 p_advance(p)
                 some_bind = p_expect_ident(p)?
-                p_expect(p, lexer.TK_FATARROW)?
-                p_expect(p, lexer.TK_LBRACE)?
+                p_expect_fatarrow(p)?
+                p_expect_lbrace(p)?
                 val sb = parse_stmts(p)?
-                p_expect(p, lexer.TK_RBRACE)?
+                p_expect_rbrace(p)?
                 val sbl: mut list[ref Node] = sb
                 val sbn: ref Node = make_node(NK_MATCH_OPT, line)
                 sbn.d0 = addr(sbl) as i64
                 some_body = sbn
-            } elif ck2 == lexer.TK_NONE {
+            } elif kind_is_none(ck2) {
                 p_advance(p)
-                p_expect(p, lexer.TK_FATARROW)?
-                p_expect(p, lexer.TK_LBRACE)?
+                p_expect_fatarrow(p)?
+                p_expect_lbrace(p)?
                 val nb = parse_stmts(p)?
-                p_expect(p, lexer.TK_RBRACE)?
+                p_expect_rbrace(p)?
                 val nbl: mut list[ref Node] = nb
                 val nbn: ref Node = make_node(NK_MATCH_OPT, line)
                 nbn.d0 = addr(nbl) as i64
                 none_body = nbn
             }
         }
-        p_expect(p, lexer.TK_RBRACE)?
+        p_expect_rbrace(p)?
         val nmo: ref Node = make_node(NK_MATCH_OPT, line)
         nmo.d0 = expr as i64 nmo.d1 = some_bind as i64
         nmo.d2 = some_body as i64 nmo.d3 = none_body as i64
         return ok nmo
     }
 
-    if k == lexer.TK_IDENT && p_peek2_kind(p) == lexer.TK_DOT {
+    if kind_is_ident(k) && lexer.kind_is_dot(p_peek2_kind(p)) {
         val arms: mut list[ref Node] = []
         for {
-            if p_peek_kind(p) == lexer.TK_RBRACE { break }
+            if lexer.kind_is_rbrace(p_peek_kind(p)) { break }
             val el: i64 = p_line(p)
             p_expect_ident(p)?
-            p_expect(p, lexer.TK_DOT)?
+            p_expect_dot(p)?
             val variant = p_expect_ident(p)?
-            p_expect(p, lexer.TK_FATARROW)?
-            p_expect(p, lexer.TK_LBRACE)?
+            p_expect_fatarrow(p)?
+            p_expect_lbrace(p)?
             val ab = parse_stmts(p)?
-            p_expect(p, lexer.TK_RBRACE)?
+            p_expect_rbrace(p)?
             val arm: ref Node = make_node(NK_MATCH_ENUM, el)
             arm.d0 = variant as i64
             val abl: mut list[ref Node] = ab
             arm.d1 = addr(abl) as i64
             @append(arms, arm)
         }
-        p_expect(p, lexer.TK_RBRACE)?
+        p_expect_rbrace(p)?
         val nme: ref Node = make_node(NK_MATCH_ENUM, line)
         nme.d0 = expr as i64
         val al: mut list[ref Node] = arms
@@ -1081,35 +1183,35 @@ fn parse_match_stmt(p: ref Parser, line: i64) result[ref Node, ref char]! = {
         return ok nme
     }
 
-    if k == lexer.TK_STR {
+    if kind_is_str(k) {
         val sarms: mut list[ref Node] = []
         val else_body: mut ref Node = 0 as ref Node
         for {
-            if p_peek_kind(p) == lexer.TK_RBRACE { break }
-            if p_peek_kind(p) == lexer.TK_ELSE {
+            if lexer.kind_is_rbrace(p_peek_kind(p)) { break }
+            if kind_is_else(p_peek_kind(p)) {
                 p_advance(p)
-                p_expect(p, lexer.TK_FATARROW)?
-                p_expect(p, lexer.TK_LBRACE)?
+                p_expect_fatarrow(p)?
+                p_expect_lbrace(p)?
                 val eb2 = parse_stmts(p)?
-                p_expect(p, lexer.TK_RBRACE)?
+                p_expect_rbrace(p)?
                 val ebl2: mut list[ref Node] = eb2
                 val ebn2: ref Node = make_node(NK_MATCH_STR, line)
                 ebn2.d0 = addr(ebl2) as i64
                 else_body = ebn2
                 break
             }
-            val sv: ref char = p_advance(p).text
-            p_expect(p, lexer.TK_FATARROW)?
-            p_expect(p, lexer.TK_LBRACE)?
+            val sv: ref char = p_advance_text(p)
+            p_expect_fatarrow(p)?
+            p_expect_lbrace(p)?
             val sab = parse_stmts(p)?
-            p_expect(p, lexer.TK_RBRACE)?
+            p_expect_rbrace(p)?
             val sarm: ref Node = make_node(NK_MATCH_STR, p_line(p))
             sarm.d0 = sv as i64
             val sabl: mut list[ref Node] = sab
             sarm.d1 = addr(sabl) as i64
             @append(sarms, sarm)
         }
-        p_expect(p, lexer.TK_RBRACE)?
+        p_expect_rbrace(p)?
         val nms: ref Node = make_node(NK_MATCH_STR, line)
         nms.d0 = expr as i64
         val sal: mut list[ref Node] = sarms
@@ -1117,16 +1219,17 @@ fn parse_match_stmt(p: ref Parser, line: i64) result[ref Node, ref char]! = {
         return ok nms
     }
 
+    // union / tagged-union match
     val uarms: mut list[ref Node] = []
     val u_else: mut ref Node = 0 as ref Node
     for {
-        if p_peek_kind(p) == lexer.TK_RBRACE { break }
-        if p_peek_kind(p) == lexer.TK_ELSE {
+        if lexer.kind_is_rbrace(p_peek_kind(p)) { break }
+        if kind_is_else(p_peek_kind(p)) {
             p_advance(p)
-            p_expect(p, lexer.TK_FATARROW)?
-            p_expect(p, lexer.TK_LBRACE)?
+            p_expect_fatarrow(p)?
+            p_expect_lbrace(p)?
             val ueb = parse_stmts(p)?
-            p_expect(p, lexer.TK_RBRACE)?
+            p_expect_rbrace(p)?
             val uebl: mut list[ref Node] = ueb
             val uebn: ref Node = make_node(NK_MATCH_UNION, line)
             uebn.d0 = addr(uebl) as i64
@@ -1134,17 +1237,17 @@ fn parse_match_stmt(p: ref Parser, line: i64) result[ref Node, ref char]! = {
             break
         }
         val uty = parse_type(p)?
-        p_expect(p, lexer.TK_FATARROW)?
-        p_expect(p, lexer.TK_LBRACE)?
+        p_expect_fatarrow(p)?
+        p_expect_lbrace(p)?
         val uab = parse_stmts(p)?
-        p_expect(p, lexer.TK_RBRACE)?
+        p_expect_rbrace(p)?
         val uarm: ref Node = make_node(NK_MATCH_UNION, p_line(p))
         uarm.d0 = uty as i64
         val uabl: mut list[ref Node] = uab
         uarm.d1 = addr(uabl) as i64
         @append(uarms, uarm)
     }
-    p_expect(p, lexer.TK_RBRACE)?
+    p_expect_rbrace(p)?
     val nmu: ref Node = make_node(NK_MATCH_UNION, line)
     nmu.d0 = expr as i64
     val ual: mut list[ref Node] = uarms
@@ -1155,8 +1258,8 @@ fn parse_match_stmt(p: ref Parser, line: i64) result[ref Node, ref char]! = {
 pub fn parse_stmts(p: ref Parser) result[list[ref Node], ref char]! = {
     val stmts: mut list[ref Node] = []
     for {
-        if p_peek_kind(p) == lexer.TK_RBRACE { break }
-        if p_peek_kind(p) == lexer.TK_EOF    { break }
+        if lexer.kind_is_rbrace(p_peek_kind(p)) { break }
+        if kind_is_eof(p_peek_kind(p))           { break }
         val s = parse_stmt(p)?
         @append(stmts, s)
     }
@@ -1167,23 +1270,23 @@ pub fn parse_stmts(p: ref Parser) result[list[ref Node], ref char]! = {
 
 fn parse_fn_item(p: ref Parser, public: i64) result[ref Node, ref char]! = {
     val line: i64 = p_line(p)
-    p_expect(p, lexer.TK_FN)?
+    p_expect_kind(p, kind_is_fn, "fn")?
     val ns: mut ref char = 0 as ref char
-    if p_peek_kind(p) == lexer.TK_LPAREN {
-        if p_peek2_kind(p) == lexer.TK_IDENT && p_peek3_kind(p) == lexer.TK_RPAREN {
+    if lexer.kind_is_lparen(p_peek_kind(p)) {
+        if kind_is_ident(p_peek2_kind(p)) && lexer.kind_is_rparen(p_peek3_kind(p)) {
             p_advance(p)
             ns = p_expect_ident(p)?
-            p_expect(p, lexer.TK_RPAREN)?
+            p_expect_rparen(p)?
         }
     }
     val name = p_expect_ident(p)?
-    p_expect(p, lexer.TK_LPAREN)?
+    p_expect_lparen(p)?
     val params: mut list[ref Node] = []
     for {
-        if p_peek_kind(p) == lexer.TK_RPAREN { break }
+        if lexer.kind_is_rparen(p_peek_kind(p)) { break }
         val pname = p_expect_ident(p)?
-        p_expect(p, lexer.TK_COLON)?
-        val is_mut: bool = p_eat(p, lexer.TK_MUT)
+        p_expect_colon(p)?
+        val is_mut: bool = p_eat_fn(p, kind_is_mut)
         val pty = parse_type(p)?
         val actual_ty: mut ref Node = pty
         if ns != 0 as ref char && pty.kind == TY_NAMED {
@@ -1201,14 +1304,14 @@ fn parse_fn_item(p: ref Parser, public: i64) result[ref Node, ref char]! = {
         val param: ref Node = make_node(NK_VAL, line)
         param.d0 = pname as i64 param.d1 = actual_ty as i64
         @append(params, param)
-        if !p_eat(p, lexer.TK_COMMA) { break }
+        if !p_eat_fn(p, lexer.kind_is_comma) { break }
     }
-    p_expect(p, lexer.TK_RPAREN)?
+    p_expect_rparen(p)?
     val ret_ty = parse_type(p)?
-    p_expect(p, lexer.TK_EQ)?
-    p_expect(p, lexer.TK_LBRACE)?
+    p_expect_eq(p)?
+    p_expect_lbrace(p)?
     val body = parse_stmts(p)?
-    p_expect(p, lexer.TK_RBRACE)?
+    p_expect_rbrace(p)?
     val nfn: ref Node = make_node(NK_FN, line)
     nfn.d0 = public nfn.d1 = ns as i64 nfn.d2 = name as i64
     val pl: mut list[ref Node] = params
@@ -1221,28 +1324,26 @@ fn parse_fn_item(p: ref Parser, public: i64) result[ref Node, ref char]! = {
 
 fn parse_type_def_item(p: ref Parser, public: i64, is_extern: i64) result[ref Node, ref char]! = {
     val line: i64 = p_line(p)
-    p_expect(p, lexer.TK_TYPE)?
+    p_expect_kind(p, kind_is_type, "type")?
     val name = p_expect_ident(p)?
-    p_expect(p, lexer.TK_EQ)?
-    p_expect(p, lexer.TK_LBRACE)?
+    p_expect_eq(p)?
+    p_expect_lbrace(p)?
     val fields: mut list[ref Node] = []
     for {
-        if p_peek_kind(p) == lexer.TK_RBRACE { break }
+        if lexer.kind_is_rbrace(p_peek_kind(p)) { break }
         val fname = p_expect_ident(p)?
-        p_expect(p, lexer.TK_COLON)?
+        p_expect_colon(p)?
         val fmut: mut i64 = 0
-        if p_eat(p, lexer.TK_MUT) { fmut = 1 }
+        if p_eat_fn(p, kind_is_mut) { fmut = 1 }
         val fty = parse_type(p)?
         val fnode: ref Node = make_node(NK_VAL, line)
         fnode.d0 = fname as i64 fnode.d1 = fmut fnode.d2 = fty as i64
         @append(fields, fnode)
-        p_eat(p, lexer.TK_COMMA)
+        p_eat_fn(p, lexer.kind_is_comma)
     }
-    p_expect(p, lexer.TK_RBRACE)?
-    val nk: mut i64 = NK_TYPEDEF 
-    if is_extern == 1 { 
-        nk = NK_EXTERN_TYPE 
-    }
+    p_expect_rbrace(p)?
+    val nk: mut i64 = NK_TYPEDEF
+    if is_extern == 1 { nk = NK_EXTERN_TYPE }
     val nt: ref Node = make_node(nk, line)
     nt.d0 = public nt.d1 = name as i64
     val fl: mut list[ref Node] = fields
@@ -1252,18 +1353,18 @@ fn parse_type_def_item(p: ref Parser, public: i64, is_extern: i64) result[ref No
 
 fn parse_enum_def_item(p: ref Parser, public: i64) result[ref Node, ref char]! = {
     val line: i64 = p_line(p)
-    p_expect(p, lexer.TK_ENUM)?
+    p_expect_kind(p, kind_is_enum, "enum")?
     val name = p_expect_ident(p)?
-    p_expect(p, lexer.TK_EQ)?
-    p_expect(p, lexer.TK_LBRACE)?
+    p_expect_eq(p)?
+    p_expect_lbrace(p)?
     val variants: mut list[ref char] = []
     for {
-        if p_peek_kind(p) == lexer.TK_RBRACE { break }
+        if lexer.kind_is_rbrace(p_peek_kind(p)) { break }
         val v = p_expect_ident(p)?
         @append(variants, v)
-        if !p_eat(p, lexer.TK_COMMA) { break }
+        if !p_eat_fn(p, lexer.kind_is_comma) { break }
     }
-    p_expect(p, lexer.TK_RBRACE)?
+    p_expect_rbrace(p)?
     val ne: ref Node = make_node(NK_ENUMDEF, line)
     ne.d0 = public ne.d1 = name as i64
     val vl: mut list[ref char] = variants
@@ -1273,18 +1374,18 @@ fn parse_enum_def_item(p: ref Parser, public: i64) result[ref Node, ref char]! =
 
 fn parse_union_def_item(p: ref Parser, public: i64) result[ref Node, ref char]! = {
     val line: i64 = p_line(p)
-    p_expect(p, lexer.TK_UNION)?
+    p_expect_kind(p, kind_is_union, "union")?
     val name = p_expect_ident(p)?
-    p_expect(p, lexer.TK_EQ)?
-    p_expect(p, lexer.TK_LBRACE)?
+    p_expect_eq(p)?
+    p_expect_lbrace(p)?
     val variants: mut list[ref Node] = []
     for {
-        if p_peek_kind(p) == lexer.TK_RBRACE { break }
+        if lexer.kind_is_rbrace(p_peek_kind(p)) { break }
         val vty = parse_type(p)?
         @append(variants, vty)
-        if !p_eat(p, lexer.TK_BITOR) { break }
+        if !p_eat_fn(p, kind_is_bitor) { break }
     }
-    p_expect(p, lexer.TK_RBRACE)?
+    p_expect_rbrace(p)?
     val nu: ref Node = make_node(NK_UNIONDEF, line)
     nu.d0 = public nu.d1 = name as i64
     val vl: mut list[ref Node] = variants
@@ -1294,28 +1395,28 @@ fn parse_union_def_item(p: ref Parser, public: i64) result[ref Node, ref char]! 
 
 fn parse_extern_fn_item(p: ref Parser, public: i64) result[ref Node, ref char]! = {
     val line: i64 = p_line(p)
-    p_expect(p, lexer.TK_LPAREN)?
+    p_expect_lparen(p)?
     val conv = p_expect_ident(p)?
-    p_expect(p, lexer.TK_RPAREN)?
-    p_expect(p, lexer.TK_FN)?
+    p_expect_rparen(p)?
+    p_expect_kind(p, kind_is_fn, "fn")?
     val name = p_expect_ident(p)?
-    p_expect(p, lexer.TK_LPAREN)?
+    p_expect_lparen(p)?
     val params: mut list[ref Node] = []
     for {
-        if p_peek_kind(p) == lexer.TK_RPAREN { break }
-        if p_peek_kind(p) == lexer.TK_DOTDOTDOT { p_advance(p) break }
+        if lexer.kind_is_rparen(p_peek_kind(p)) { break }
+        if kind_is_dotdotdot(p_peek_kind(p)) { p_advance(p) break }
         val pname = p_expect_ident(p)?
-        p_expect(p, lexer.TK_COLON)?
+        p_expect_colon(p)?
         val pty = parse_type(p)?
         val param: ref Node = make_node(NK_VAL, line)
         param.d0 = pname as i64 param.d1 = pty as i64
         @append(params, param)
-        if !p_eat(p, lexer.TK_COMMA) { break }
+        if !p_eat_fn(p, lexer.kind_is_comma) { break }
     }
-    p_expect(p, lexer.TK_RPAREN)?
+    p_expect_rparen(p)?
     val ret_ty = parse_type(p)?
-    p_eat(p, lexer.TK_BANG)
-    p_expect(p, lexer.TK_EQ)?
+    p_eat_fn(p, kind_is_bang)
+    p_expect_eq(p)?
     val symbol = p_expect_string(p)?
     val nef: ref Node = make_node(NK_EXTERN_FN, line)
     nef.d0 = public nef.d1 = name as i64 nef.d2 = symbol as i64
@@ -1327,9 +1428,9 @@ fn parse_extern_fn_item(p: ref Parser, public: i64) result[ref Node, ref char]! 
 
 pub fn parse_item(p: ref Parser) result[ref Node, ref char]! = {
     val line: i64 = p_line(p)
-    val k: i64 = p_peek_kind(p)
+    val k: lexer.TokenKind = p_peek_kind(p)
 
-    if k == lexer.TK_LINK {
+    if kind_is_link(k) {
         p_advance(p)
         val lib = p_expect_string(p)?
         val nl: ref Node = make_node(NK_LINK, line)
@@ -1337,17 +1438,17 @@ pub fn parse_item(p: ref Parser) result[ref Node, ref char]! = {
         return ok nl
     }
 
-    if k == lexer.TK_WHEN {
+    if kind_is_when(k) {
         p_advance(p)
         val plat = p_expect_ident(p)?
-        p_expect(p, lexer.TK_LBRACE)?
+        p_expect_lbrace(p)?
         val witems: mut list[ref Node] = []
         for {
-            if p_peek_kind(p) == lexer.TK_RBRACE { break }
+            if lexer.kind_is_rbrace(p_peek_kind(p)) { break }
             val wi = parse_item(p)?
             @append(witems, wi)
         }
-        p_expect(p, lexer.TK_RBRACE)?
+        p_expect_rbrace(p)?
         val nwi: ref Node = make_node(NK_WHEN_ITEMS, line)
         nwi.d0 = plat as i64
         val wil: mut list[ref Node] = witems
@@ -1355,30 +1456,30 @@ pub fn parse_item(p: ref Parser) result[ref Node, ref char]! = {
         return ok nwi
     }
 
-    val public: mut i64 = 0 
-    if p_eat(p, lexer.TK_PUB) { public = 1 }
-    val k2: i64 = p_peek_kind(p)
+    val public: mut i64 = 0
+    if p_eat_fn(p, kind_is_pub) { public = 1 }
+    val k2: lexer.TokenKind = p_peek_kind(p)
 
-    if k2 == lexer.TK_EXTERN {
+    if kind_is_extern(k2) {
         p_advance(p)
-        if p_peek_kind(p) == lexer.TK_TYPE { return parse_type_def_item(p, public, 1) }
+        if kind_is_type(p_peek_kind(p)) { return parse_type_def_item(p, public, 1) }
         return parse_extern_fn_item(p, public)
     }
-    if k2 == lexer.TK_FN    { return parse_fn_item(p, public) }
-    if k2 == lexer.TK_TYPE  { return parse_type_def_item(p, public, 0) }
-    if k2 == lexer.TK_ENUM  { return parse_enum_def_item(p, public) }
-    if k2 == lexer.TK_UNION { return parse_union_def_item(p, public) }
+    if kind_is_fn(k2)    { return parse_fn_item(p, public) }
+    if kind_is_type(k2)  { return parse_type_def_item(p, public, 0) }
+    if kind_is_enum(k2)  { return parse_enum_def_item(p, public) }
+    if kind_is_union(k2) { return parse_union_def_item(p, public) }
 
-    if k2 == lexer.TK_VAL {
+    if kind_is_val(k2) {
         p_advance(p)
         val vname = p_expect_ident(p)?
-        if p_eat(p, lexer.TK_COLON) { parse_type(p)? }
-        p_expect(p, lexer.TK_EQ)?
-        if p_peek_kind(p) == lexer.TK_USE {
+        if p_eat_fn(p, lexer.kind_is_colon) { parse_type(p)? }
+        p_expect_eq(p)?
+        if kind_is_use(p_peek_kind(p)) {
             p_advance(p)
-            p_expect(p, lexer.TK_LPAREN)?
+            p_expect_lparen(p)?
             val path = p_expect_string(p)?
-            p_expect(p, lexer.TK_RPAREN)?
+            p_expect_rparen(p)?
             val nu: ref Node = make_node(NK_USE, line)
             nu.d0 = public nu.d1 = vname as i64 nu.d2 = path as i64
             return ok nu
@@ -1396,7 +1497,7 @@ pub fn parse_module(tokens: list[ref lexer.Token], filename: ref char) result[li
     val p: ref Parser = parser_new(tokens, filename)
     val items: mut list[ref Node] = []
     for {
-        if p_peek_kind(p) == lexer.TK_EOF { break }
+        if kind_is_eof(p_peek_kind(p)) { break }
         val item = parse_item(p)?
         @append(items, item)
     }
