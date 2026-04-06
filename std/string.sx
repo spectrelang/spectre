@@ -50,12 +50,12 @@ pub fn compare(a: StrOrRChar, b: StrOrRChar) i64! = {
     val aptr: mut ref char = ""
     match a {
         RChar p => { aptr = p }
-        Str s     => { aptr = s.ptr }
+        Str s   => { aptr = s.ptr }
     }
     val bptr: mut ref char = ""
     match b {
         RChar p => { bptr = p }
-        Str s     => { bptr = s.ptr }
+        Str s   => { bptr = s.ptr }
     }
     return strcmp(aptr, bptr)
 }
