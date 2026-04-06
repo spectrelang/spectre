@@ -1,7 +1,6 @@
 val std = use("std")
 val lexer = use("lexer.sx")
 
-// ─── Node kinds ───────────────────────────────────────────────────────────────
 pub val NK_FN         : i64 = 1
 pub val NK_USE        : i64 = 2
 pub val NK_TYPEDEF    : i64 = 3
@@ -92,7 +91,6 @@ pub val UOP_NOT  : i64 = 1
 pub val UOP_NEG  : i64 = 2
 pub val UOP_BNOT : i64 = 3
 
-// ─── AST Node ─────────────────────────────────────────────────────────────────
 pub type Node = {
     kind: mut i64
     line: mut i64
@@ -134,8 +132,6 @@ pub fn parser_new(tokens: list[ref lexer.Token], filename: ref char) ref Parser!
     p.filename = filename
     return p
 }
-
-// ─── Token access helpers ─────────────────────────────────────────────────────
 
 fn p_peek_kind(p: ref Parser) lexer.TokenKind! = {
     return lexer.tok_kind(p.tokens, p.pos)
@@ -227,7 +223,6 @@ fn p_expect_int_text(p: ref Parser) result[ref char, ref char]! = {
     }
 }
 
-// Consume a specific zero-payload variant; returns err if not matched.
 fn p_expect_lbrace(p: ref Parser)   result[ref char, ref char]! = { return p_expect_kind(p, lexer.kind_is_lbrace,   "'{'" ) }
 fn p_expect_rbrace(p: ref Parser)   result[ref char, ref char]! = { return p_expect_kind(p, lexer.kind_is_rbrace,   "'}'" ) }
 fn p_expect_lparen(p: ref Parser)   result[ref char, ref char]! = { return p_expect_kind(p, lexer.kind_is_lparen,   "'('" ) }
