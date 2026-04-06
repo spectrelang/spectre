@@ -99,7 +99,7 @@ fn scope_defined_local(ctx: ref SemaCtx, name: ref char) bool! = {
                 match e_opt {
                     some e => {
                         val entry: ref ScopeEntry = e as ref ScopeEntry
-                        if std.string.compare(entry.name, name) == 0 { return true }
+                        if std.string.compare(std.string.RChar(entry.name), std.string.RChar(name)) == 0 { return true }
                     }
                     none => {}
                 }
@@ -112,7 +112,7 @@ fn scope_defined_local(ctx: ref SemaCtx, name: ref char) bool! = {
 }
 
 fn str_eq(a: ref char, b: ref char) bool! = {
-    return std.string.compare(a, b) == 0
+    return std.string.compare(std.string.RChar(a), std.string.RChar(b)) == 0
 }
 
 fn check_expr(ctx: ref SemaCtx, expr: ref parser.Node, filename: ref char) void! = {
