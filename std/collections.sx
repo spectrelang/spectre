@@ -707,3 +707,223 @@ test {
 
     stdio.puts("string map tests passed")
 }
+
+/// An insertion-order preserving map with ref char keys and usize values.
+///
+/// Implemented as a StringMap for O(1) lookup plus a PtrList of keys
+/// to track insertion order.
+
+val IMAP_HEADER_SIZE: usize = 16
+
+/// Allocate a new IndexMap with the given initial capacity.
+pub fn (IndexMap) new(initial_cap: usize) ref void! = {
+    val header: ref void = @alloc(IMAP_HEADER_SIZE)
+    val inner = StringMap.new(initial_cap)
+    val keys: mut ref void = 0 as ref void
+    val keys_res = PtrList.new(initial_cap)
+    match keys_res {
+        ok k  => { keys = k }
+        err _ => {
+            val fallback = PtrList.new(1)
+            match fallback {
+                ok k  => { keys = k }
+                err _ => {}
+            }
+        }
+    }
+    @store(header, inner)
+    @store(@ptradd(header, 8), keys)
+    return header
+}
+
+/// Insert or update a key-value pair, preserving insertion order for new keys.
+pub fn (IndexMap) set(map: self, key: ref char, value: usize) void! = {
+    val inner: ref void = @load(map)
+    val keys:  ref void = @load(@ptradd(map, 8))
+    val already = StringMap.contains(inner, key)
+    StringMap.set(inner, key, value)
+    if !already {
+        val kl: mut i64 = strlen(key)
+        val copy: ref void = @alloc(kl + 1)
+        @memcpy(copy, key, kl)
+        @store8(@ptradd(copy, kl), 0)
+        val push_res = PtrList.push(keys, copy as usize)
+        match push_res {
+            ok _  => {}
+            err _ => {}
+        }
+    }
+}
+
+/// Look up a key. Returns some(value) or none.
+pub fn (IndexMap) get(map: self, key: ref char) option[usize]! = {
+    val inner: ref void = @load(map)
+    return StringMap.get(inner, key)
+}
+
+/// Check if a key exists.
+pub fn (IndexMap) contains(map: self, key: ref char) bool! = {
+    val inner: ref void = @load(map)
+    return StringMap.contains(inner, key)
+}
+
+/// Remove a key. Returns 1 if found, 0 otherwise.
+/// Note: removal marks the key as a tombstone in the ordered list (sets to 0).
+pub fn (IndexMap) delete(map: self, key: ref char) usize! = {
+    val inner: ref void = @load(map)
+    val keys:  ref void = @load(@ptradd(map, 8))
+    val removed = StringMap.delete(inner, key)
+    if removed == 1 {
+        val n: usize = PtrList.len(keys)
+        val i: mut usize = 0
+        for (i = 0; i < n; i++) {
+            match PtrList.get(keys, i) {
+                none   => {}
+                some p => {
+                    if p != 0 {
+                        val k: ref char = p as ref char
+                        if str_eq(k, key) {
+                            @free(k)
+                            PtrList.set(keys, i, 0)
+                            break
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return removed
+}
+
+/// Return the number of live entries.
+pub fn (IndexMap) len(map: self) usize! = {
+    val inner: ref void = @load(map)
+    return StringMap.len(inner)
+}
+
+/// Iterate in insertion order. Calls callback(key, value) for each live entry.
+pub fn (IndexMap) each(map: self, cb: fn(ref char, usize) void) void! = {
+    val inner: ref void = @load(map)
+    val keys:  ref void = @load(@ptradd(map, 8))
+    val n: usize = PtrList.len(keys)
+    val i: mut usize = 0
+    for (i = 0; i < n; i++) {
+        match PtrList.get(keys, i) {
+            none   => {}
+            some p => {
+                if p != 0 {
+                    val k: ref char = p as ref char
+                    match StringMap.get(inner, k) {
+                        none   => {}
+                        some v => { cb(k, v) }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// Get the i-th key in insertion order (skipping tombstones).
+/// Returns none if out of range.
+pub fn (IndexMap) key_at(map: self, i: usize) option[ref char]! = {
+    val keys: ref void = @load(@ptradd(map, 8))
+    val n: usize = PtrList.len(keys)
+    val live: mut usize = 0
+    val j: mut usize = 0
+    for (j = 0; j < n; j++) {
+        match PtrList.get(keys, j) {
+            none   => {}
+            some p => {
+                if p != 0 {
+                    if live == i { return some (p as ref char) }
+                    live++
+                }
+            }
+        }
+    }
+    return none
+}
+
+/// Free the IndexMap and all owned key copies.
+pub fn (IndexMap) free(map: self) void! = {
+    val inner: ref void = @load(map)
+    val keys:  ref void = @load(@ptradd(map, 8))
+    val n: usize = PtrList.len(keys)
+    val i: mut usize = 0
+    for (i = 0; i < n; i++) {
+        match PtrList.get(keys, i) {
+            none   => {}
+            some p => { if p != 0 { @free(p as ref void) } }
+        }
+    }
+    PtrList.free(keys)
+    StringMap.free(inner)
+    @free(map)
+}
+
+test {
+    val m = IndexMap.new(8)
+
+    assert IndexMap.len(m) == 0
+
+    IndexMap.set(m, "c", 3)
+    IndexMap.set(m, "a", 1)
+    IndexMap.set(m, "b", 2)
+
+    assert IndexMap.len(m) == 3
+    assert IndexMap.contains(m, "a")
+    assert IndexMap.contains(m, "b")
+    assert IndexMap.contains(m, "c")
+    assert !IndexMap.contains(m, "z")
+
+    match IndexMap.get(m, "a") {
+        some v => { assert v == 1 }
+        none   => { assert false }
+    }
+    match IndexMap.get(m, "b") {
+        some v => { assert v == 2 }
+        none   => { assert false }
+    }
+    match IndexMap.get(m, "c") {
+        some v => { assert v == 3 }
+        none   => { assert false }
+    }
+
+    IndexMap.set(m, "a", 99)
+    match IndexMap.get(m, "a") {
+        some v => { assert v == 99 }
+        none   => { assert false }
+    }
+    assert IndexMap.len(m) == 3
+
+    match IndexMap.key_at(m, 0) {
+        some k => { assert str_eq(k, "c") }
+        none   => { assert false }
+    }
+    match IndexMap.key_at(m, 1) {
+        some k => { assert str_eq(k, "a") }
+        none   => { assert false }
+    }
+    match IndexMap.key_at(m, 2) {
+        some k => { assert str_eq(k, "b") }
+        none   => { assert false }
+    }
+
+    val deleted = IndexMap.delete(m, "a")
+    assert deleted == 1
+    assert IndexMap.len(m) == 2
+    assert !IndexMap.contains(m, "a")
+
+    match IndexMap.key_at(m, 0) {
+        some k => { assert str_eq(k, "c") }
+        none   => { assert false }
+    }
+    match IndexMap.key_at(m, 1) {
+        some k => { assert str_eq(k, "b") }
+        none   => { assert false }
+    }
+
+    IndexMap.free(m)
+
+    stdio.puts("index map tests passed")
+}
