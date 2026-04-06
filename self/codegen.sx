@@ -196,8 +196,8 @@ fn emit_string_data(ctx: ref void) void! = {
 
 fn gen_expr(ctx: ref void, expr: ref parser.Node) ref char! = {
     if expr == 0 as ref parser.Node { return "0" }
+
     val k: i64 = expr.kind
-    val line: i64 = expr.line
 
     if k == parser.NK_INT_LIT {
         val text: ref char = expr.d0 as ref char
@@ -341,7 +341,7 @@ fn gen_expr(ctx: ref void, expr: ref parser.Node) ref char! = {
 
     if k == parser.NK_CAST {
         val inner3: ref char = gen_expr(ctx, expr.d0 as ref parser.Node)
-        val ty: ref void = expr.d1 as ref void
+        val ty: ref parser.Node = expr.d1 as ref parser.Node
         val qt: ref char = qbe_type_of(ty)
         val tmp7: i64 = fresh_tmp(ctx)
         val buf12: ref char = @alloc(128) as ref char
@@ -354,7 +354,7 @@ fn gen_expr(ctx: ref void, expr: ref parser.Node) ref char! = {
     }
 
     if k == parser.NK_ADDR {
-        val inner4: ref void = expr.d0 as ref void
+        val inner4: ref parser.Node = expr.d0 as ref parser.Node
         if inner4.kind == parser.NK_IDENT {
             val iname: ref char = inner4.d0 as ref char
             val res10: ref char = @alloc(32) as ref char
@@ -499,7 +499,7 @@ fn gen_field(ctx: ref void, expr: ref parser.Node) ref char! = {
 }
 
 fn gen_call(ctx: ref void, expr: ref parser.Node) ref char! = {
-    val callee_node: ref void = expr.d0 as ref void
+    val callee_node: ref parser.Node = expr.d0 as ref parser.Node
     val args_list: ref void = expr.d1 as ref void
 
     // Resolve callee name
@@ -515,7 +515,7 @@ fn gen_call(ctx: ref void, expr: ref parser.Node) ref char! = {
             val arg_opt = @get(args_list, ai as usize)
             match arg_opt {
                 some arg => {
-                    val arg_node: ref void = arg as ref void
+                    val arg_node: ref parser.Node = arg as ref parser.Node
                     val ak: i64 = arg_node.kind
                     // Unpack args pack
                     if ak == parser.NK_ARGS_PACK {
@@ -575,8 +575,8 @@ fn gen_call(ctx: ref void, expr: ref parser.Node) ref char! = {
     return res
 }
 
-fn resolve_callee_name(node: ref void) ref char! = {
-    val k: i64 = node.kind
+fn resolve_callee_name(node: ref parser.Node) ref char! = {
+    val k: i64 = node.kind as i64
     if k == parser.NK_IDENT {
         return node.d0 as ref char
     }
