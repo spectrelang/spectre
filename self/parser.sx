@@ -1672,7 +1672,10 @@ test {
     @puts("parser 16")
     val r16 = parse_src("fn add(a: i64, b: i64) i64! = { return a + b }")
     match r16 {
-        err _ => { assert false }
+        err e => { 
+            std.stdio.print("{s}", {e})
+            assert false 
+        }
         ok items => {
             assert @len(items) as i64 == 1
             val opt16 = @get(items, 0 as usize)

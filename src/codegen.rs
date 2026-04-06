@@ -2845,9 +2845,17 @@ impl Codegen {
                     };
                     let mut variadic_args = Vec::new();
                     for a in args.iter().skip(3) {
-                        let (tmp, ty) = self.emit_expr(a, ns)?;
-                        let (promoted, pty) = self.promote_to_l(tmp, ty);
-                        variadic_args.push(format!("{pty} {promoted}"));
+                        if let Expr::ArgsPack(pack) = a {
+                            for pa in pack {
+                                let (tmp, ty) = self.emit_expr(pa, ns)?;
+                                let (promoted, pty) = self.promote_to_l(tmp, ty);
+                                variadic_args.push(format!("{pty} {promoted}"));
+                            }
+                        } else {
+                            let (tmp, ty) = self.emit_expr(a, ns)?;
+                            let (promoted, pty) = self.promote_to_l(tmp, ty);
+                            variadic_args.push(format!("{pty} {promoted}"));
+                        }
                     }
                     let result = self.fresh_tmp();
                     if variadic_args.is_empty() {
