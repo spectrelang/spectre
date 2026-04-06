@@ -1549,10 +1549,12 @@ impl Codegen {
                 let tag_tmp = self.fresh_tmp();
                 self.emit(&format!("    {tag_tmp} =l loadl {union_ptr}"));
 
-                let union_name = self.infer_struct_type_name(expr)?;
+                let union_name = self.infer_tagged_union_name_with_ns(expr, ns)?;
+                let union_bare = union_name.rsplit('.').next().unwrap_or(&union_name).to_string();
                 let variants_info = self
                     .tagged_union_defs
                     .get(&union_name)
+                    .or_else(|| self.tagged_union_defs.get(&union_bare))
                     .cloned()
                     .ok_or_else(|| format!("'{union_name}' is not a tagged union type"))?;
                 let variants = variants_info.2;
@@ -2023,6 +2025,26 @@ impl Codegen {
         }
     }
 
+    /// Like `infer_struct_type_name` but also handles `Call` expressions by looking up
+    /// the callee's return type via the namespace and `fn_ret_type_exprs`.
+    fn infer_tagged_union_name_with_ns(&self, expr: &Expr, ns: &Namespace) -> Result<String, String> {
+        if let Expr::Call { callee, .. } = expr {
+            let path = expr_to_path(callee);
+            if !path.is_empty() {
+                let expanded = expand_alias_path(&path, &self.type_aliases);
+                if let Some(qbe_fn) = ns.get(&expanded) {
+                    if let Some(ret_ty) = self.fn_ret_type_exprs.get(qbe_fn.as_str()) {
+                        let ann = type_to_annotation_string(ret_ty);
+                        if !ann.is_empty() {
+                            return Ok(ann);
+                        }
+                    }
+                }
+            }
+        }
+        self.infer_struct_type_name(expr)
+    }
+
     /// Try to infer the type of a field within a struct.
     fn infer_field_type(&self, base: &Expr, field_name: &str) -> Option<TypeExpr> {
         let raw = self.infer_struct_type_name(base).ok()?;
@@ -2085,21 +2107,37 @@ impl Codegen {
         let variant_name = dot_pos.map(|p| &path[p + 1..]).unwrap_or(path);
 
         if let Some(p) = prefix {
+            let mut found: Option<(String, usize, Vec<TypeExpr>)> = None;
+            let mut found_exact = false;
             for (union_name, (u_mod, u_pub, variants)) in &self.tagged_union_defs {
-                if u_mod == p || u_mod.replace("__", ".") == p {
-                    if !u_pub && (p != self.current_module_prefix && *u_mod != self.current_module_prefix) {
-                        continue;
-                    }
-                    if let Some((idx, (_, fields))) = variants
-                        .iter()
-                        .enumerate()
-                        .find(|(_, (n, _))| n == variant_name)
-                    {
-                        return Some((union_name.clone(), idx, fields.clone()));
+                let u_mod_dot = u_mod.replace("__", ".");
+                let exact = u_mod == p || u_mod_dot == p;
+                let suffix = !exact
+                    && (u_mod_dot.ends_with(&format!(".{p}"))
+                        || p.ends_with(&format!(".{u_mod_dot}")));
+                if !exact && !suffix {
+                    continue;
+                }
+                if !u_pub
+                    && (p != self.current_module_prefix
+                        && *u_mod != self.current_module_prefix)
+                {
+                    continue;
+                }
+                if let Some((idx, (_, fields))) = variants
+                    .iter()
+                    .enumerate()
+                    .find(|(_, (n, _))| n == variant_name)
+                {
+                    if exact && !found_exact {
+                        found = Some((union_name.clone(), idx, fields.clone()));
+                        found_exact = true;
+                    } else if !found_exact && found.is_none() {
+                        found = Some((union_name.clone(), idx, fields.clone()));
                     }
                 }
             }
-            return None;
+            return found;
         }
 
         for (union_name, (u_mod, _, variants)) in &self.tagged_union_defs {
