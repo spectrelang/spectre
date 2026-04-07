@@ -167,6 +167,9 @@ fn collect_seen(m: ref ResolvedModule, seen: ref void) void! = {
         val s_opt = @get(seen as list[String], fi as usize)
         match s_opt {
             some s => {
+                if s == 0 {
+                    continue
+                }
                 if str.equals(s, m.filename) { return }
             }
             none => {}
@@ -204,6 +207,9 @@ pub fn flatten_modules(
         val s_opt = @get(seen as list[String], si as usize)
         match s_opt {
             some s => {
+                if s == 0 {
+                    continue
+                }
                 if str.equals(s, m.filename) { return }
             }
             none => {}
