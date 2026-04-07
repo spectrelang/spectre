@@ -60,14 +60,12 @@ pub fn main() void! = {
     }
 
     val qbe_ir: ref char = codegen.gen_module(items)
-
     // val output_opt = @get(args, 2)
     val output: ref char = "a.out"
-
     val qbe_file = "/tmp/spectre_output.ssa"
     val asm_file = "/tmp/spectre_output.s"
-
     val qbe_f = std.os.open(qbe_file, "w")
+
     match qbe_f {
         some f => {
             std.os.write(f, qbe_ir as ref void, std.string.len_raw(qbe_ir) as i64)
