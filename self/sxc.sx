@@ -97,6 +97,7 @@ pub fn main() void! = {
     val emit_qbe: mut bool = false
     val emit_asm: mut bool = false
     val show_cmd: mut bool = false
+    val output_name: mut ref char = ""
     val arg_i: mut i64 = 2
 
     for {
@@ -107,10 +108,18 @@ pub fn main() void! = {
         match arg_opt {
             some arg_val => {
                 val arg: ref char = arg_val as ref char
-                
+
                 if std.string.rchar_cmp(arg, "-o") == 0 || std.string.rchar_cmp(arg, "--output") == 0 {
-                    val next_i: i64 = arg_i + 1
+                    val next_i: mut i64 = arg_i + 1
                     if (next_i < argc) {
+                        val next_opt = @get(args, next_i)
+                        match next_opt {
+                            some v => { output_name = v as ref char }
+                            none => { 
+                                std.stdio.puts("error: -o requires a value")
+                                return 
+                            }
+                        }
                         arg_i = next_i + 1
                     } else {
                         std.stdio.puts("error: -o requires a value")
@@ -165,13 +174,19 @@ pub fn main() void! = {
     }
 
     val qbe_ir: ref char = codegen.gen_module(items)
-    
+
     if emit_qbe != 0 {
         std.stdio.puts(qbe_ir)
         return
     }
+
+    val binary_name: mut ref char = ""
     
-    val binary_name = get_name_without_ext(input)
+    if std.string.rchar_cmp(output_name, "") == 0 {
+        binary_name = get_name_without_ext(input)
+    } else {
+        binary_name = output_name
+    }
 
     val qbe_file = "/tmp/spectre_output.ssa"
     val asm_file = "/tmp/spectre_output.s"
