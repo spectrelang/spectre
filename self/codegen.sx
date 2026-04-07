@@ -2,12 +2,10 @@ val std = use("std")
 val str = use("std/string")
 val parser = use("parser.sx")
 
-// ─── QBE IR code generator ────────────────────────────────────────────────────
 // Generates QBE intermediate representation from the AST.
 // Subset: handles functions, basic types, arithmetic, control flow,
 // function calls, struct literals, list operations, and builtins.
 
-// ─── Codegen context ──────────────────────────────────────────────────────────
 // Heap layout (8 fields × 8 bytes = 64 bytes):
 //   offset  0: output buffer (ref void — StringBuilder)
 //   offset  8: tmp counter (i64)
@@ -879,7 +877,7 @@ fn gen_stmt(ctx: ref void, stmt: ref parser.Node) void! = {
         val target: ref void = stmt.d0 as ref void
         val value: ref parser.Node = stmt.d1 as ref parser.Node
         val val_tmp2: ref char = gen_expr(ctx, value)
-        val tk: i64 = target.kind
+        val tk: i64 = target.kind as i64
         if tk == parser.NK_IDENT {
             val tname: ref char = target.d0 as ref char
             val buf2: ref char = @alloc(128) as ref char
@@ -1205,7 +1203,7 @@ fn gen_for_stmt(ctx: ref void, stmt: ref parser.Node) void! = {
 
     val cond_node: ref void = stmt.d2 as ref void
     if cond_node != 0 as ref void {
-        val cond: ref char = gen_expr(ctx, cond_node)
+        val cond: ref char = gen_expr(ctx, cond_node as ref parser.Node)
         val cbuf: ref char = @alloc(128) as ref char
         @snprintf(cbuf, 128, "    jnz %s, @lbl%lld, @lbl%lld\n@lbl%lld\n",
             {cond, body_lbl, break_lbl, body_lbl})
