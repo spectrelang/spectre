@@ -1740,13 +1740,13 @@ pub fn gen_module_resolved(root: ref module.ResolvedModule) ref char! = {
 
     val out_prefixes: mut list[ref char] = []
     val out_items:    mut list[ref void] = []
-    val seen:         mut list[String] = []
+    val seen:         list[String] = []
 
     module.flatten_modules(
         root, "",
-        addr(out_prefixes) as ref void,
-        addr(out_items)    as ref void,
-        addr(seen)         as ref void
+        out_prefixes as ref void,
+        out_items    as ref void,
+        seen         as ref void
     )
 
     val layers: i64 = @len(out_prefixes) as i64
