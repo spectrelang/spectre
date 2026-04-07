@@ -5,6 +5,7 @@ pub fn some_function() void = {
     match str.getr(x, 1) {
         some v => {
             trust @printf("{c}", {v})
+            trust @printf("{c}", {'a'})
         }
         none => {
             trust @printf("wtf", {})

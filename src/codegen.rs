@@ -2529,6 +2529,8 @@ impl Codegen {
         match expr {
             Expr::IntLit(n) => Ok((n.to_string(), "w")),
 
+            Expr::CharLit(b) => Ok(((*b as i64).to_string(), "w")),
+
             Expr::FloatLit(f) => Ok((format!("d_{f}"), "d")),
 
             Expr::StrLit(s) => {
@@ -4676,6 +4678,7 @@ fn find_bare_builtin_in_expr(expr: &Expr) -> Option<String> {
         Expr::ArgsPack(exprs) => exprs.iter().find_map(find_bare_builtin_in_expr),
         Expr::IntLit(_)
         | Expr::FloatLit(_)
+        | Expr::CharLit(_)
         | Expr::StrLit(_)
         | Expr::Ident(_)
         | Expr::Bool(_)

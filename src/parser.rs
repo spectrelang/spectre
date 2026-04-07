@@ -240,6 +240,7 @@ pub enum Expr {
     IntLit(i64),
     FloatLit(f64),
     StrLit(String),
+    CharLit(u8),
     Ident(String),
     Bool(bool),
     Some(Box<Expr>),
@@ -1693,6 +1694,10 @@ impl Parser {
             TokenKind::StringLit(s) => {
                 self.advance();
                 Ok(Expr::StrLit(s))
+            }
+            TokenKind::CharLit(b) => {
+                self.advance();
+                Ok(Expr::CharLit(b))
             }
             TokenKind::True => {
                 self.advance();

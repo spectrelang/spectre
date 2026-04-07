@@ -40,6 +40,7 @@ pub enum TokenKind {
     StringLit(String),
     IntLit(i64),
     FloatLit(f64),
+    CharLit(u8),
     LParen,
     RParen,
     LBrace,
@@ -210,6 +211,37 @@ impl Lexer {
                 }
             }
             return Ok(TokenKind::StringLit(s));
+        }
+
+        if c == '\'' {
+            self.advance();
+            let byte = match self.advance() {
+                Some('\\') => match self.advance() {
+                    Some('n')  => b'\n',
+                    Some('r')  => b'\r',
+                    Some('t')  => b'\t',
+                    Some('\'') => b'\'',
+                    Some('\\') => b'\\',
+                    Some('0')  => b'\0',
+                    Some('x') => {
+                        let h1 = self.advance().ok_or("unterminated hex escape in char literal")?;
+                        let h2 = self.advance().ok_or("unterminated hex escape in char literal")?;
+                        let hex = format!("{h1}{h2}");
+                        u8::from_str_radix(&hex, 16)
+                            .map_err(|_| format!("invalid hex escape '\\x{hex}' in char literal"))?
+                    }
+                    Some(x) => return Err(format!("unknown escape '\\{x}' in char literal")),
+                    None => return Err("unterminated char literal".into()),
+                },
+                Some(ch) if ch.is_ascii() => ch as u8,
+                Some(ch) => return Err(format!("non-ASCII character {ch:?} in char literal")),
+                None => return Err("unterminated char literal".into()),
+            };
+            match self.advance() {
+                Some('\'') => {}
+                _ => return Err("char literal must contain exactly one character".into()),
+            }
+            return Ok(TokenKind::CharLit(byte));
         }
 
         if c.is_ascii_digit() {

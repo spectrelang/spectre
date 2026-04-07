@@ -1040,6 +1040,7 @@ fn collect_used_in_expr(expr: &Expr, used: &mut HashSet<String>) {
         }
         Expr::IntLit(_)
         | Expr::FloatLit(_)
+        | Expr::CharLit(_)
         | Expr::StrLit(_)
         | Expr::Bool(_)
         | Expr::None
@@ -3573,6 +3574,7 @@ fn infer_expr_type(
         Expr::IntLit(_) => Some(TypeExpr::Named("i32".to_string())),
         Expr::FloatLit(_) => Some(TypeExpr::Named("f64".to_string())),
         Expr::StrLit(_) => Some(TypeExpr::Ref(Box::new(TypeExpr::Named("char".to_string())))),
+        Expr::CharLit(_) => Some(TypeExpr::Named("u8".to_string())),
         Expr::Bool(_) => Some(TypeExpr::Named("bool".to_string())),
         Expr::None => Some(TypeExpr::Option(Box::new(TypeExpr::Untyped))),
         Expr::Some(inner) => infer_expr_type(inner, var_types, type_lookup, fn_ret_lookup)
