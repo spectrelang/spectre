@@ -81,7 +81,7 @@ pub fn main() void! = {
 
     val qbe_cmd = @fmt("qbe -o {s} {s}", {asm_file, qbe_file})
     val qbe_res = std.os.exec(qbe_cmd)
-    std.stdio.print("{}", {qbe_cmd})
+    std.stdio.print("{s}", {qbe_cmd})
     match qbe_res {
         ok _ => {}
         err e => {
@@ -92,7 +92,7 @@ pub fn main() void! = {
     }
 
     val cc_cmd = @fmt("cc -o {s} {s}", {output, asm_file})
-    std.stdio.print("\nCC_CMD: %s", {cc_cmd})
+    std.stdio.print("\n{s}", {cc_cmd})
     val cc_res = std.os.exec(cc_cmd)
     match cc_res {
         ok _ => {
