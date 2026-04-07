@@ -31,11 +31,11 @@ fn cg_new() ref void! = {
 }
 
 fn cg_sb(ctx: ref void)      ref void! = { return @load(@ptradd(ctx, 0))  as ref void }
-fn cg_tmp(ctx: ref void)     i64!     = { return @load(@ptradd(ctx, 8))  as i64 }
-fn cg_lbl(ctx: ref void)     i64!     = { return @load(@ptradd(ctx, 16)) as i64 }
+fn cg_tmp(ctx: ref void)     i64!      = { return @load(@ptradd(ctx, 8))  as i64 }
+fn cg_lbl(ctx: ref void)     i64!      = { return @load(@ptradd(ctx, 16)) as i64 }
 fn cg_fn_name(ctx: ref void) ref char! = { return @load(@ptradd(ctx, 24)) as ref char }
 fn cg_strs(ctx: ref void)    ref void! = { return @load(@ptradd(ctx, 32)) as ref void }
-fn cg_str_cnt(ctx: ref void) i64!    = { return @load(@ptradd(ctx, 40)) as i64 }
+fn cg_str_cnt(ctx: ref void) i64!      = { return @load(@ptradd(ctx, 40)) as i64 }
 fn cg_tdefs(ctx: ref void)   ref void! = { return @load(@ptradd(ctx, 48)) as ref void }
 fn cg_edefs(ctx: ref void)   ref void! = { return @load(@ptradd(ctx, 56)) as ref void }
 
