@@ -2127,16 +2127,16 @@ impl Codegen {
                             .cloned()
                             .ok_or_else(|| format!("{}: in fn '{}': undefined variable in field access '.{}': '{name}'", self.current_file, self.current_fn, field_name))?;
                         if self.local_is_slot.contains(name) {
-                            let is_struct_slot = self
+                            let is_ref_slot = self
                                 .local_type_annotations
                                 .get(name)
                                 .map(|ann| {
-                                    let type_name = ann.strip_prefix("ref ").unwrap_or(ann);
-                                    self.type_defs.contains_key(type_name)
-                                        || self.extern_type_defs.contains_key(type_name)
+                                    ann.starts_with("ref ")
+                                        || self.type_defs.contains_key(ann.as_str())
+                                        || self.extern_type_defs.contains_key(ann.as_str())
                                 })
                                 .unwrap_or(false);
-                            if is_struct_slot {
+                            if is_ref_slot {
                                 let ptr = self.fresh_tmp();
                                 self.emit(&format!("    {ptr} =l loadl {slot}"));
                                 ptr

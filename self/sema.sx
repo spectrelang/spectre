@@ -50,6 +50,23 @@ fn scope_define(ctx: ref SemaCtx, name: ref char, mutable: i64) void! = {
     }
 }
 
+/// Walks a chain of NK_FIELD nodes down to the root NK_IDENT, returning it (or null if none).
+fn find_root_ident(node: ref parser.Node) ref parser.Node! = {
+    val cur: mut ref parser.Node = node
+    for {
+        val dbuf2: ref char = @alloc(64) as ref char
+        @snprintf(dbuf2, 64, "DEBUG find_root_ident: kind=%lld NK_IDENT=%lld NK_FIELD=%lld", {cur.kind, parser.NK_IDENT, parser.NK_FIELD})
+        std.stdio.puts(dbuf2)
+        if cur.kind == parser.NK_IDENT { return cur }
+        if cur.kind == parser.NK_FIELD {
+            cur = cur.d0 as ref parser.Node
+        } else {
+            return 0 as ref parser.Node
+        }
+    }
+    return 0 as ref parser.Node
+}
+
 /// Returns mutable flag (0 or 1) or -1 if not found.
 fn scope_lookup(ctx: ref SemaCtx, name: ref char) i64! = {
     val len: i64 = @len(ctx.scopes) as i64
@@ -236,14 +253,35 @@ fn check_stmt(ctx: ref SemaCtx, stmt: ref parser.Node, filename: ref char) void!
     if k == parser.NK_ASSIGN {
         check_expr(ctx, stmt.d1 as ref parser.Node, filename)
         val target: ref parser.Node = stmt.d0 as ref parser.Node
+        std.stdio.puts("DEBUG: NK_ASSIGN hit")
         if target.kind == parser.NK_IDENT {
+            std.stdio.puts("DEBUG: target is NK_IDENT")
             val tname: ref char = target.d0 as ref char
             if scope_lookup(ctx, tname) == 0 {
                 val buf: ref char = @alloc(256) as ref char
                 @snprintf(buf, 256, "%s:%lld: cannot assign to immutable '%s'", {filename, line, tname})
                 add_error(ctx, buf)
             }
+        } elif target.kind == parser.NK_FIELD {
+            std.stdio.puts("DEBUG: target is NK_FIELD")
+            val root: ref parser.Node = find_root_ident(target)
+            if root != 0 as ref parser.Node {
+                val tname: ref char = root.d0 as ref char
+                val lkup: i64 = scope_lookup(ctx, tname)
+                std.stdio.puts(tname)
+                val dbuf: ref char = @alloc(64) as ref char
+                @snprintf(dbuf, 64, "DEBUG: scope_lookup returned %lld", {lkup})
+                std.stdio.puts(dbuf)
+                if lkup == 0 {
+                    val buf: ref char = @alloc(256) as ref char
+                    @snprintf(buf, 256, "%s:%lld: cannot assign to field of immutable '%s'", {filename, line, tname})
+                    add_error(ctx, buf)
+                }
+            } else {
+                check_expr(ctx, target, filename)
+            }
         } else {
+            std.stdio.puts("DEBUG: target is something else")
             check_expr(ctx, target, filename)
         }
         return
@@ -388,6 +426,16 @@ fn check_stmt(ctx: ref SemaCtx, stmt: ref parser.Node, filename: ref char) void!
                 @snprintf(buf2, 256, "%s:%lld: cannot mutate immutable '%s'", {filename, line, tname2})
                 add_error(ctx, buf2)
             }
+        } elif target2.kind == parser.NK_FIELD {
+            val root2: ref parser.Node = find_root_ident(target2)
+            if root2 != 0 as ref parser.Node {
+                val tname2: ref char = root2.d0 as ref char
+                if scope_lookup(ctx, tname2) == 0 {
+                    val buf2: ref char = @alloc(256) as ref char
+                    @snprintf(buf2, 256, "%s:%lld: cannot mutate field of immutable '%s'", {filename, line, tname2})
+                    add_error(ctx, buf2)
+                }
+            }
         }
         return
     }
@@ -401,6 +449,16 @@ fn check_stmt(ctx: ref SemaCtx, stmt: ref parser.Node, filename: ref char) void!
                 val buf3: ref char = @alloc(256) as ref char
                 @snprintf(buf3, 256, "%s:%lld: cannot mutate immutable '%s'", {filename, line, tname3})
                 add_error(ctx, buf3)
+            }
+        } elif target3.kind == parser.NK_FIELD {
+            val root3: ref parser.Node = find_root_ident(target3)
+            if root3 != 0 as ref parser.Node {
+                val tname3: ref char = root3.d0 as ref char
+                if scope_lookup(ctx, tname3) == 0 {
+                    val buf3: ref char = @alloc(256) as ref char
+                    @snprintf(buf3, 256, "%s:%lld: cannot mutate field of immutable '%s'", {filename, line, tname3})
+                    add_error(ctx, buf3)
+                }
             }
         }
         return
