@@ -52,6 +52,29 @@ pub fn type_to_annotation_string(ty: &TypeExpr) -> String {
     }
 }
 
+/// Parse a type annotation string back into a TypeExpr (best-effort, handles common cases).
+pub fn parse_type_annotation(s: &str) -> TypeExpr {
+    let s = s.trim();
+    if s.starts_with("list[") && s.ends_with(']') {
+        let inner = &s[5..s.len() - 1];
+        return TypeExpr::List(Box::new(parse_type_annotation(inner)));
+    }
+    if s.starts_with("option[") && s.ends_with(']') {
+        let inner = &s[7..s.len() - 1];
+        return TypeExpr::Option(Box::new(parse_type_annotation(inner)));
+    }
+    if s.starts_with("ref ") {
+        return TypeExpr::Ref(Box::new(parse_type_annotation(&s[4..])));
+    }
+    if s.starts_with("mut ") {
+        return TypeExpr::Mut(Box::new(parse_type_annotation(&s[4..])));
+    }
+    if s == "void" {
+        return TypeExpr::Void;
+    }
+    TypeExpr::Named(s.to_string())
+}
+
 /// Compute the byte size of a type, used for fixed array layout.
 fn type_byte_size(ty: &TypeExpr) -> u64 {
     match ty {
@@ -1447,6 +1470,7 @@ impl Codegen {
                 } else {
                     None
                 };
+                let stride = self.list_elem_stride(iterable);
 
                 let idx_slot = self.fresh_tmp();
 
@@ -1474,7 +1498,7 @@ impl Codegen {
                 let buf = self.fresh_tmp();
                 self.emit(&format!("    {buf} =l loadl {list_ptr}"));
                 let elem_off = self.fresh_tmp();
-                self.emit(&format!("    {elem_off} =l mul {idx_val}, 8"));
+                self.emit(&format!("    {elem_off} =l mul {idx_val}, {stride}"));
                 let elem_ptr = self.fresh_tmp();
                 self.emit(&format!("    {elem_ptr} =l add {buf}, {elem_off}"));
                 let elem_val = self.fresh_tmp();
@@ -2317,6 +2341,46 @@ impl Codegen {
             .map(|f| f.ty.clone())
     }
 
+    /// Infer the element TypeExpr of a list expression.
+    fn infer_list_elem_type(&self, expr: &Expr) -> TypeExpr {
+        let ann = match expr {
+            Expr::Cast { ty, .. } => {
+                if let TypeExpr::List(elem) = ty {
+                    return *elem.clone();
+                }
+                type_to_annotation_string(ty)
+            }
+            Expr::Ident(name) => self
+                .local_type_annotations
+                .get(name)
+                .cloned()
+                .unwrap_or_default(),
+            Expr::Field(base, field_name) => {
+                if let Some(ft) = self.infer_field_type(base, field_name) {
+                    if let TypeExpr::List(elem) = ft {
+                        return *elem;
+                    }
+                    type_to_annotation_string(&ft)
+                } else {
+                    String::new()
+                }
+            }
+            _ => String::new(),
+        };
+        if ann.starts_with("list[") && ann.ends_with(']') {
+            parse_type_annotation(&ann[5..ann.len() - 1])
+        } else {
+            TypeExpr::Named("ref void".to_string())
+        }
+    }
+
+    /// Return the element stride in bytes for a list expression, aligned to 8.
+    fn list_elem_stride(&self, expr: &Expr) -> u64 {
+        let elem_ty = self.infer_list_elem_type(expr);
+        let size = self.type_byte_size_ctx(&elem_ty);
+        ((size + 7) / 8) * 8
+    }
+
     /// Try to infer the struct type name from a struct literal by matching field names.
     fn infer_struct_type_from_lit(&self, fields: &[(String, Expr)]) -> Option<String> {
         if fields.is_empty() {
@@ -3144,6 +3208,7 @@ impl Codegen {
                     if args.len() != 2 {
                         return Err("@append(list, value) requires exactly 2 arguments".into());
                     }
+                    let stride = self.list_elem_stride(&args[0]);
                     let (list_ptr, _) = self.emit_list_ptr(&args[0], ns)?;
                     let (val, val_ty) = self.emit_expr(&args[1], ns)?;
 
@@ -3172,7 +3237,7 @@ impl Codegen {
                     let new_buf = self.fresh_tmp();
                     self.emit(&format!("    {old_buf} =l loadl {list_ptr}"));
                     let new_cap_bytes = self.fresh_tmp();
-                    self.emit(&format!("    {new_cap_bytes} =l mul {new_cap}, 8"));
+                    self.emit(&format!("    {new_cap_bytes} =l mul {new_cap}, {stride}"));
                     self.emit(&format!(
                         "    {new_buf} =l call $realloc(l {old_buf}, l {new_cap_bytes})"
                     ));
@@ -3185,7 +3250,7 @@ impl Codegen {
                     let off = self.fresh_tmp();
                     let elem_ptr = self.fresh_tmp();
                     self.emit(&format!("    {buf} =l loadl {list_ptr}"));
-                    self.emit(&format!("    {off} =l mul {len_val}, 8"));
+                    self.emit(&format!("    {off} =l mul {len_val}, {stride}"));
                     self.emit(&format!("    {elem_ptr} =l add {buf}, {off}"));
                     let (store_val, _) = self.promote_to_l(val, val_ty);
                     self.emit(&format!("    storel {store_val}, {elem_ptr}"));
@@ -3201,6 +3266,7 @@ impl Codegen {
                     if args.len() != 2 {
                         return Err("@get(list, index) requires exactly 2 arguments".into());
                     }
+                    let stride = self.list_elem_stride(&args[0]);
                     let (list_ptr, _) = self.emit_list_ptr(&args[0], ns)?;
                     let (idx, idx_ty) = self.emit_expr(&args[1], ns)?;
                     let (idx_l, _) = self.promote_to_l(idx, idx_ty);
@@ -3227,7 +3293,7 @@ impl Codegen {
                     let elem_val = self.fresh_tmp();
                     let some_val = self.fresh_tmp();
                     self.emit(&format!("    {buf} =l loadl {list_ptr}"));
-                    self.emit(&format!("    {off} =l mul {idx_l}, 8"));
+                    self.emit(&format!("    {off} =l mul {idx_l}, {stride}"));
                     self.emit(&format!("    {elem_ptr} =l add {buf}, {off}"));
                     self.emit(&format!("    {elem_val} =l loadl {elem_ptr}"));
                     self.emit(&format!("    {some_val} =l add {elem_val}, 1"));
@@ -3261,6 +3327,7 @@ impl Codegen {
                     if args.len() != 2 {
                         return Err("@remove(list, index) requires exactly 2 arguments".into());
                     }
+                    let stride = self.list_elem_stride(&args[0]);
                     let (list_ptr, _) = self.emit_list_ptr(&args[0], ns)?;
                     let (idx, idx_ty) = self.emit_expr(&args[1], ns)?;
                     let (idx_l, _) = self.promote_to_l(idx, idx_ty);
@@ -3277,7 +3344,7 @@ impl Codegen {
                     let elem_ptr = self.fresh_tmp();
                     let elem_val = self.fresh_tmp();
                     self.emit(&format!("    {buf} =l loadl {list_ptr}"));
-                    self.emit(&format!("    {off} =l mul {idx_l}, 8"));
+                    self.emit(&format!("    {off} =l mul {idx_l}, {stride}"));
                     self.emit(&format!("    {elem_ptr} =l add {buf}, {off}"));
                     self.emit(&format!("    {elem_val} =l loadl {elem_ptr}"));
 
@@ -3306,8 +3373,8 @@ impl Codegen {
                     let dst_ptr = self.fresh_tmp();
                     let src_val = self.fresh_tmp();
                     self.emit(&format!("    {src_off} =l add {shift_idx}, 1"));
-                    self.emit(&format!("    {src_off} =l mul {src_off}, 8"));
-                    self.emit(&format!("    {dst_off} =l mul {shift_idx}, 8"));
+                    self.emit(&format!("    {src_off} =l mul {src_off}, {stride}"));
+                    self.emit(&format!("    {dst_off} =l mul {shift_idx}, {stride}"));
                     self.emit(&format!("    {src_ptr} =l add {buf}, {src_off}"));
                     self.emit(&format!("    {dst_ptr} =l add {buf}, {dst_off}"));
                     self.emit(&format!("    {src_val} =l loadl {src_ptr}"));
@@ -3331,6 +3398,7 @@ impl Codegen {
                             "@insert(list, index, value) requires exactly 3 arguments".into()
                         );
                     }
+                    let stride = self.list_elem_stride(&args[0]);
                     let (list_ptr, _) = self.emit_list_ptr(&args[0], ns)?;
                     let (idx, idx_ty) = self.emit_expr(&args[1], ns)?;
                     let (idx_l, _) = self.promote_to_l(idx, idx_ty);
@@ -3360,8 +3428,10 @@ impl Codegen {
                     let old_buf = self.fresh_tmp();
                     let new_buf = self.fresh_tmp();
                     self.emit(&format!("    {old_buf} =l loadl {list_ptr}"));
+                    let new_cap2_bytes = self.fresh_tmp();
+                    self.emit(&format!("    {new_cap2_bytes} =l mul {new_cap2}, {stride}"));
                     self.emit(&format!(
-                        "    {new_buf} =l call $realloc(l {old_buf}, l {new_cap2})"
+                        "    {new_buf} =l call $realloc(l {old_buf}, l {new_cap2_bytes})"
                     ));
                     self.emit(&format!("    storel {new_buf}, {list_ptr}"));
                     self.emit(&format!("    storel {new_cap2}, {cap_slot}"));
@@ -3388,9 +3458,9 @@ impl Codegen {
                     let src_ptr = self.fresh_tmp();
                     let dst_ptr = self.fresh_tmp();
                     let src_val = self.fresh_tmp();
-                    self.emit(&format!("    {src_off} =l mul {shift_idx}, 8"));
+                    self.emit(&format!("    {src_off} =l mul {shift_idx}, {stride}"));
                     self.emit(&format!("    {dst_off} =l add {shift_idx}, 1"));
-                    self.emit(&format!("    {dst_off} =l mul {dst_off}, 8"));
+                    self.emit(&format!("    {dst_off} =l mul {dst_off}, {stride}"));
                     let buf2 = self.fresh_tmp();
                     self.emit(&format!("    {buf2} =l loadl {list_ptr}"));
                     self.emit(&format!("    {src_ptr} =l add {buf2}, {src_off}"));
@@ -3408,7 +3478,7 @@ impl Codegen {
                     let elem_off = self.fresh_tmp();
                     let elem_ptr = self.fresh_tmp();
                     self.emit(&format!("    {buf3} =l loadl {list_ptr}"));
-                    self.emit(&format!("    {elem_off} =l mul {idx_l}, 8"));
+                    self.emit(&format!("    {elem_off} =l mul {idx_l}, {stride}"));
                     self.emit(&format!("    {elem_ptr} =l add {buf3}, {elem_off}"));
                     self.emit(&format!("    storel {val_l}, {elem_ptr}"));
 
@@ -3424,6 +3494,7 @@ impl Codegen {
                     if args.len() != 2 {
                         return Err("@reserve(list, capacity) requires exactly 2 arguments".into());
                     }
+                    let stride = self.list_elem_stride(&args[0]);
                     let (list_ptr, _) = self.emit_list_ptr(&args[0], ns)?;
                     let (new_cap, new_cap_ty) = self.emit_expr(&args[1], ns)?;
                     let (new_cap_l, _) = self.promote_to_l(new_cap, new_cap_ty);
@@ -3444,7 +3515,7 @@ impl Codegen {
                     let new_buf = self.fresh_tmp();
                     let new_bytes = self.fresh_tmp();
                     self.emit(&format!("    {old_buf} =l loadl {list_ptr}"));
-                    self.emit(&format!("    {new_bytes} =l mul {new_cap_l}, 8"));
+                    self.emit(&format!("    {new_bytes} =l mul {new_cap_l}, {stride}"));
                     self.emit(&format!(
                         "    {new_buf} =l call $realloc(l {old_buf}, l {new_bytes})"
                     ));

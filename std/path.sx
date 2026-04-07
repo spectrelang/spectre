@@ -1,8 +1,9 @@
-val std = use("std")
+val str = use("std/string")
+val stdio = use("std/stdio")
 val allocators = use("std/allocators")
 
 pub fn get_name_without_ext(arena: ref allocators.Arena, path: ref char) ref char = {
-    val len: i64 = std.string.len_raw(path)
+    val len: i64 = str.len_raw(path)
     val last_slash: mut i64 = -1
     val i: mut i64 = 0
 
@@ -11,7 +12,7 @@ pub fn get_name_without_ext(arena: ref allocators.Arena, path: ref char) ref cha
             break
         }
         val c: mut u8 = '\0'
-        match std.string.byte_at(path, i) {
+        match str.byte_at(path, i) {
             some v => {
                 c = v
             }
@@ -33,7 +34,7 @@ pub fn get_name_without_ext(arena: ref allocators.Arena, path: ref char) ref cha
             break
         }
         val c: mut u8 = '\0'
-        match std.string.byte_at(path, filename_start + j) {
+        match str.byte_at(path, filename_start + j) {
             some v => {
                 c = v
             }
@@ -60,7 +61,7 @@ pub fn get_name_without_ext(arena: ref allocators.Arena, path: ref char) ref cha
             buf = b
         }
         none => {
-            std.stdio.puts("error: out of memory")
+            stdio.puts("error: out of memory")
             return ""
         }
     }
@@ -72,8 +73,8 @@ pub fn get_name_without_ext(arena: ref allocators.Arena, path: ref char) ref cha
 
 /// Join dir + "/" + name, returning a heap-allocated string.
 pub fn join(dir: ref char, name: ref char) ref char! = {
-    val dlen: mut i64 = std.string.len_raw(dir)
-    val nlen: i64 = std.string.len_raw(name)
+    val dlen: mut i64 = str.len_raw(dir)
+    val nlen: i64 = str.len_raw(name)
     val buf: ref char = @alloc(dlen + nlen + 2) as ref char
     @memcpy(buf as ref void, dir as ref void, dlen as usize)
     @store8(@ptradd(buf as ref void, dlen), '/')
@@ -85,7 +86,7 @@ pub fn join(dir: ref char, name: ref char) ref char! = {
 /// Return the directory part of a path (everything up to and including last '/').
 /// Returns "." if no slash found.
 pub fn dir(path: ref char) ref char! = {
-    val len: i64 = std.string.len_raw(path)
+    val len: i64 = str.len_raw(path)
     val last_slash: mut i64 = -1
     val i: mut i64 = 0
     for {
