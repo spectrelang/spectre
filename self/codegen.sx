@@ -481,11 +481,10 @@ fn gen_unop(ctx: ref void, expr: ref parser.Node) ref char! = {
     return res
 }
 
+// TODO: track struct layouts.
 fn gen_field(ctx: ref void, expr: ref parser.Node) ref char! = {
     val base: ref char = gen_expr(ctx, expr.d0 as ref parser.Node)
     val field_name: ref char = expr.d1 as ref char
-    // We don't have full type info here, so we emit a comment and load from offset 0
-    // A real implementation would track struct layouts.
     val tmp: i64 = fresh_tmp(ctx)
     val buf: ref char = @alloc(256) as ref char
     @snprintf(buf, 256, "    # field access .%s\n    %%t%lld =l loadl %s\n", {field_name, tmp, base})
@@ -499,12 +498,9 @@ fn gen_field(ctx: ref void, expr: ref parser.Node) ref char! = {
 fn gen_call(ctx: ref void, expr: ref parser.Node) ref char! = {
     val callee_node: ref parser.Node = expr.d0 as ref parser.Node
     val args_list: ref void = expr.d1 as ref void
-
-    // Resolve callee name
     val callee_name: ref char = resolve_callee_name(callee_node)
-
-    // Generate args
     val arg_tmps: mut list[ref char] = []
+
     if args_list != 0 as ref void {
         val alen: i64 = @len(args_list) as i64
         val ai: mut i64 = 0
@@ -515,7 +511,6 @@ fn gen_call(ctx: ref void, expr: ref parser.Node) ref char! = {
                 some arg => {
                     val arg_node: ref parser.Node = arg as ref parser.Node
                     val ak: i64 = arg_node.kind
-                    // Unpack args pack
                     if ak == parser.NK_ARGS_PACK {
                         val pack: ref void = arg_node.d0 as ref void
                         val plen: i64 = @len(pack) as i64
@@ -749,7 +744,6 @@ fn gen_builtin(ctx: ref void, expr: ref parser.Node) ref char! = {
 fn gen_list_lit(ctx: ref void, expr: ref parser.Node) ref char! = {
     val elems: ref void = expr.d0 as ref void
     val tmp: i64 = fresh_tmp(ctx)
-    // Allocate a list header (24 bytes: ptr/len/cap)
     val buf: ref char = @alloc(256) as ref char
     @snprintf(buf, 256, "    %%t%lld =l call $__sx_list_new(l 8)\n", {tmp})
     emit(ctx, buf)
@@ -946,7 +940,6 @@ fn gen_stmt(ctx: ref void, stmt: ref parser.Node) void! = {
     }
 
     if k == parser.NK_DEFER {
-        // Defer: emit body inline at end of function (simplified: emit now)
         gen_stmts(ctx, stmt.d0 as ref parser.Node)
         return
     }
