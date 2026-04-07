@@ -24,37 +24,6 @@ pub fn new_resolved(items: list[ref parser.Node], filename: ref char, dir: ref c
     return m
 }
 
-/// Join dir + "/" + name, returning a heap-allocated string.
-fn path_join(dir: ref char, name: ref char) ref char! = {
-    val dlen: mut i64 = str.len_raw(dir)
-    val nlen: i64 = str.len_raw(name)
-    val buf: ref char = @alloc(dlen + nlen + 2) as ref char
-    @memcpy(buf as ref void, dir as ref void, dlen as usize)
-    @store8(@ptradd(buf as ref void, dlen), '/')
-    @memcpy(@ptradd(buf as ref void, dlen + 1), name as ref void, nlen as usize)
-    @store8(@ptradd(buf as ref void, dlen + nlen + 1), 0)
-    return buf
-}
-
-/// Return the directory part of a path (everything up to and including last '/').
-/// Returns "." if no slash found.
-fn path_dir(path: ref char) ref char! = {
-    val len: i64 = str.len_raw(path)
-    val last_slash: mut i64 = -1
-    val i: mut i64 = 0
-    for {
-        if i >= len { break }
-        val c: u8 = @load8(@ptradd(path as ref void, i))
-        if c == 47 { last_slash = i }
-        i++
-    }
-    if last_slash < 0 { return "." }
-    val buf: ref char = @alloc(last_slash + 2) as ref char
-    @memcpy(buf as ref void, path as ref void, (last_slash + 1) as usize)
-    @store8(@ptradd(buf as ref void, last_slash + 1), 0)
-    return buf
-}
-
 /// Check if a file exists by trying to open it.
 fn file_exists(path: ref char) bool! = {
     val f = std.fs.open(path, "r")
@@ -72,11 +41,11 @@ fn find_workspace_root(start_dir: ref char) ref char! = {
     for {
         if limit <= 0 { break }
         limit--
-        val cargo = path_join(cur, "Cargo.toml")
+        val cargo = std.path.join(cur, "Cargo.toml")
         if file_exists(cargo) { return cur }
-        val spectre_mod = path_join(cur, "spectre.mod")
+        val spectre_mod = std.path.join(cur, "spectre.mod")
         if file_exists(spectre_mod) { return cur }
-        val parent = path_dir(cur)
+        val parent = std.path.dir(cur)
         if str.rchar_cmp(parent, cur) == 0 { break }
         if str.rchar_cmp(parent, ".") == 0 { break }
         cur = parent
@@ -93,7 +62,7 @@ pub fn resolve_use_path(use_path: ref char, file_dir: ref char, exe_dir: ref cha
         val c1: u8 = @load8(@ptradd(use_path as ref void, plen - 2))
         val c2: u8 = @load8(@ptradd(use_path as ref void, plen - 1))
         if c0 == 46 && c1 == 115 && c2 == 120 {
-            return path_join(file_dir, use_path)
+            return std.path.join(file_dir, use_path)
         }
     }
 
@@ -109,14 +78,14 @@ pub fn resolve_use_path(use_path: ref char, file_dir: ref char, exe_dir: ref cha
     }
 
     if has_slash {
-        val candidate = path_join(workspace, @fmt("{s}.sx", {use_path}))
+        val candidate = std.path.join(workspace, @fmt("{s}.sx", {use_path}))
         if file_exists(candidate) { return candidate }
-        return path_join(exe_dir, @fmt("{s}.sx", {use_path}))
+        return std.path.join(exe_dir, @fmt("{s}.sx", {use_path}))
     }
 
-    val candidate2 = path_join(workspace, @fmt("{s}/{s}.sx", {use_path, use_path}))
+    val candidate2 = std.path.join(workspace, @fmt("{s}/{s}.sx", {use_path, use_path}))
     if file_exists(candidate2) { return candidate2 }
-    return path_join(exe_dir, @fmt("{s}/{s}.sx", {use_path, use_path}))
+    return std.path.join(exe_dir, @fmt("{s}/{s}.sx", {use_path, use_path}))
 }
 
 fn in_progress_contains(in_progress: list[ref char], path: ref char) bool! = {
@@ -158,7 +127,7 @@ pub fn resolve_module(
         err e => { return err @fmt("{s}: parse error: {s}", {path, e}) }
     }
 
-    val file_dir = path_dir(path)
+    val file_dir = std.path.dir(path)
     val m: ref ResolvedModule = new_resolved(items, path, file_dir)
     val next_progress: mut list[ref char] = []
 
