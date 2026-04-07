@@ -261,6 +261,21 @@ pub fn get(s: ref void, i: i64) option[u8] = {
     return some (trust @load8(@ptradd(ptr, i)) as u8)
 }
 
+/// Get byte at index i from raw char pointer — returns none if out of bounds
+pub fn getr(s: ref char, i: i64) option[u8] = {
+    guarded pre {
+        i_nonneg: i >= 0
+    }
+    if (s == none) {
+        return none
+    }
+    val l: i64 = trust strlen(s)
+    if (i >= l) {
+        return none
+    }
+    return some (trust @load8(@ptradd(s, i)) as u8)
+}
+
 /// Set byte at index i (no-op if out of bounds)
 pub fn set(s: ref void, i: i64, c: u8) void! = {
     val l: i64 = @load(@ptradd(s, 8)) as i64

@@ -2307,7 +2307,7 @@ fn check_call_arg_types_in_stmt(
             expr,
             some_body,
             none_body,
-            ..
+            some_binding,
         } => {
             check_call_arg_types_in_expr(
                 expr,
@@ -2321,9 +2321,17 @@ fn check_call_arg_types_in_stmt(
                 filename,
                 errors,
             );
+            let mut some_var_types = var_types.clone();
+            if let Some(inferred) = infer_expr_type(expr, var_types, type_lookup, fn_ret_lookup) {
+                let inner = match inferred {
+                    TypeExpr::Option(inner) => *inner,
+                    other => other,
+                };
+                some_var_types.insert(some_binding.clone(), inner);
+            }
             check_call_arg_types(
                 some_body,
-                var_types,
+                &some_var_types,
                 fn_lookup,
                 fn_ret_lookup,
                 type_lookup,
@@ -2601,6 +2609,139 @@ fn check_call_arg_types_in_stmt(
     }
 }
 
+/// Parse the specifier letters out of a Spectre format string.
+fn parse_format_specifiers(fmt: &str) -> Vec<char> {
+    let mut specs = Vec::new();
+    let bytes = fmt.as_bytes();
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] == b'{' {
+            let start = i + 1;
+            let mut j = start;
+            while j < bytes.len() && bytes[j] != b'}' {
+                j += 1;
+            }
+            if j < bytes.len() {
+                let inner = &fmt[start..j];
+                if let Some(c) = inner.chars().last() {
+                    if c.is_ascii_alphabetic() {
+                        specs.push(c);
+                    }
+                }
+                i = j + 1;
+                continue;
+            }
+        } else if bytes[i] == b'%' && i + 1 < bytes.len() {
+            let mut j = i + 1;
+            while j < bytes.len()
+                && (bytes[j] == b'-'
+                    || bytes[j] == b'+'
+                    || bytes[j] == b' '
+                    || bytes[j] == b'0'
+                    || bytes[j] == b'#'
+                    || bytes[j].is_ascii_digit()
+                    || bytes[j] == b'.'
+                    || bytes[j] == b'l'
+                    || bytes[j] == b'h'
+                    || bytes[j] == b'z'
+                    || bytes[j] == b'L')
+            {
+                j += 1;
+            }
+            if j < bytes.len() && bytes[j] != b'%' {
+                specs.push(bytes[j] as char);
+            }
+            i = j + 1;
+            continue;
+        }
+        i += 1;
+    }
+    specs
+}
+
+/// Return true if `ty` is an integer-ish type (i8..u64, bool, char).
+fn is_integer_type(ty: &TypeExpr) -> bool {
+    if let TypeExpr::Named(n) = ty {
+        matches!(
+            n.as_str(),
+            "i8" | "u8" | "i16" | "u16" | "i32" | "u32" | "i64" | "u64"
+                | "isize" | "usize" | "bool" | "char"
+        )
+    } else {
+        false
+    }
+}
+
+/// Return true if `ty` is a float type.
+fn is_float_type(ty: &TypeExpr) -> bool {
+    if let TypeExpr::Named(n) = ty {
+        matches!(n.as_str(), "f32" | "f64")
+    } else {
+        false
+    }
+}
+
+/// Check that the args in an ArgsPack (or bare args list) match the specifiers
+/// extracted from a format string literal.  Pushes errors into `errors`.
+fn check_format_args(
+    fmt_str: &str,
+    pack_args: &[Expr],
+    var_types: &HashMap<String, TypeExpr>,
+    type_lookup: &HashMap<String, &Vec<Field>>,
+    fn_ret_lookup: &HashMap<String, TypeExpr>,
+    fn_name: &str,
+    filename: &str,
+    errors: &mut Vec<String>,
+) {
+    let specs = parse_format_specifiers(fmt_str);
+    if specs.len() != pack_args.len() {
+        errors.push(format!(
+            "{filename}: in function '{fn_name}': format string has {} specifier{} but {} argument{} provided",
+            specs.len(),
+            if specs.len() == 1 { "" } else { "s" },
+            pack_args.len(),
+            if pack_args.len() == 1 { "" } else { "s" },
+        ));
+        return;
+    }
+    for (spec, arg) in specs.iter().zip(pack_args.iter()) {
+        let Some(ty) = infer_expr_type(arg, var_types, type_lookup, fn_ret_lookup) else {
+            continue;
+        };
+        let ok = match spec {
+            's' => is_pointer_type(&ty),
+            'd' | 'i' | 'u' | 'o' | 'x' | 'X' => is_integer_type(&ty),
+            'f' | 'e' | 'g' | 'F' | 'E' | 'G' => is_float_type(&ty),
+            'c' => is_integer_type(&ty),
+            'p' => is_pointer_type(&ty),
+            'l' => is_integer_type(&ty) || is_float_type(&ty),
+            _ => true,
+        };
+        if !ok {
+            let arg_desc = match arg {
+                Expr::Ident(n) => format!("'{n}'"),
+                Expr::IntLit(_) => "integer literal".to_string(),
+                Expr::FloatLit(_) => "float literal".to_string(),
+                Expr::StrLit(_) => "string literal".to_string(),
+                _ => "expression".to_string(),
+            };
+            errors.push(format!(
+                "{filename}: in function '{fn_name}': \
+                 format specifier '%{spec}' expects {} but argument {arg_desc} has type '{}'",
+                match spec {
+                    's' => "ref char (a string pointer)",
+                    'd' | 'i' | 'u' | 'o' | 'x' | 'X' => "an integer",
+                    'f' | 'e' | 'g' | 'F' | 'E' | 'G' => "a float",
+                    'c' => "a char/integer",
+                    'p' => "a pointer",
+                    _ => "a compatible type",
+                },
+                type_to_string(&ty),
+            ));
+        }
+    }
+}
+
 fn check_call_arg_types_in_expr(
     expr: &Expr,
     var_types: &HashMap<String, TypeExpr>,
@@ -2677,8 +2818,74 @@ fn check_call_arg_types_in_expr(
                 filename,
                 errors,
             );
+
+            if let Some(fn_path) = expr_to_call_path(callee) {
+                let is_print_like = fn_path == "print"
+                    || fn_path.ends_with(".print")
+                    || fn_path.ends_with("__print")
+                    || fn_path.ends_with(".eprint")
+                    || fn_path.ends_with("__eprint")
+                    || fn_path == "format"
+                    || fn_path.ends_with(".format")
+                    || fn_path.ends_with("__format");
+                if is_print_like {
+                    if let Some(Expr::StrLit(fmt_str)) = args.first() {
+                        let fmt_str = fmt_str.clone();
+                        let mut pack_args: Vec<Expr> = Vec::new();
+                        for a in args.iter().skip(1) {
+                            if let Expr::ArgsPack(pack) = a {
+                                pack_args.extend(pack.iter().cloned());
+                            } else {
+                                pack_args.push(a.clone());
+                            }
+                        }
+                        check_format_args(
+                            &fmt_str,
+                            &pack_args,
+                            var_types,
+                            type_lookup,
+                            fn_ret_lookup,
+                            fn_name,
+                            filename,
+                            errors,
+                        );
+                    }
+                }
+            }
         }
-        Expr::Builtin { args, .. } => {
+        Expr::Builtin { name, args } => {
+            // Format specifier type-checking for @printf and @fmt
+            let (fmt_arg_idx, pack_arg_idx): (Option<usize>, usize) = match name.as_str() {
+                "printf" => (Some(0), 1),
+                "fmt"    => (Some(0), 1),
+                "fprintf" | "dprintf" => (Some(1), 2),
+                _ => (None, 0),
+            };
+            if let Some(fi) = fmt_arg_idx {
+                if let Some(Expr::StrLit(fmt_str)) = args.get(fi) {
+                    let fmt_str = fmt_str.clone();
+                    // Collect the pack args (everything after the format string, flattened)
+                    let mut pack_args: Vec<&Expr> = Vec::new();
+                    for a in args.iter().skip(pack_arg_idx) {
+                        if let Expr::ArgsPack(pack) = a {
+                            pack_args.extend(pack.iter());
+                        } else {
+                            pack_args.push(a);
+                        }
+                    }
+                    let pack_owned: Vec<Expr> = pack_args.into_iter().cloned().collect();
+                    check_format_args(
+                        &fmt_str,
+                        &pack_owned,
+                        var_types,
+                        type_lookup,
+                        fn_ret_lookup,
+                        fn_name,
+                        filename,
+                        errors,
+                    );
+                }
+            }
             for arg in args {
                 check_call_arg_types_in_expr(
                     arg,
