@@ -1,10 +1,10 @@
-val std = use("std")
+val stdio = use("std/stdio")
 
 pub fn do_some_thing() void = {
-	std.stdio.puts("hello, world")
+	stdio.puts("hello, world")
 }
 
 pub fn main() void! = {
 	do_some_thing()
-	std.stdio.print("{d} {s}", {1, "asdf"})	
+	stdio.print("{d} {s}", {1, "asdf"})	
 }
