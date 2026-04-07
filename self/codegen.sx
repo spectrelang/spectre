@@ -2217,6 +2217,151 @@ pub fn gen_module_resolved(root: ref module.ResolvedModule) ref char! = {
     return result
 }
 
+/// Emit a single test block as a numbered function. Returns the function name.
+fn gen_test_fn(ctx: ref void, body_stmts: ref parser.Node, test_id: i64) void! = {
+    cg_dvars_clear(ctx)
+    val fname: ref char = @fmt("__sx_test_%lld", {test_id})
+    val hdr: ref char = @fmt("export function w $%s() {\n@start\n", {fname})
+    emit(ctx, hdr)
+    gen_stmts(ctx, body_stmts)
+    emitln(ctx, "    ret 0")
+    emitln(ctx, "}")
+    emitln(ctx, "")
+}
+
+/// Emit a $main that calls all collected test functions and prints a summary.
+fn gen_test_main(ctx: ref void, test_ids: list[i64]) void! = {
+    emitln(ctx, "export function w $main() {")
+    emitln(ctx, "@start")
+    val tlen: i64 = @len(test_ids) as i64
+    val ti: mut i64 = 0
+    for {
+        if ti >= tlen { break }
+        val id_opt = @get(test_ids, ti as usize)
+        match id_opt {
+            some id => {
+                val call: ref char = @fmt("    call $__sx_test_%lld()\n", {id as i64})
+                emit(ctx, call)
+            }
+            none => {}
+        }
+        ti++
+    }
+    val ok_idx: i64 = intern_string(ctx, "all tests passed\n")
+    val ok_tmp: i64 = fresh_tmp(ctx)
+    val ok_buf: ref char = @alloc(128) as ref char
+    @snprintf(ok_buf, 128, "    %%t%lld =l copy $__str%lld\n    call $printf(l %%t%lld)\n    ret 0\n}\n\n",
+        {ok_tmp, ok_idx, ok_tmp})
+    emit(ctx, ok_buf)
+    @free(ok_buf)
+}
+
+/// Entry point for --test mode: emits test blocks from root module only,
+/// suppresses main(), and emits a test runner $main.
+pub fn gen_module_resolved_test(root: ref module.ResolvedModule) ref char! = {
+    val ctx: ref void = cg_new()
+    emit_runtime_helpers(ctx)
+
+    val out_prefixes: mut list[ref char] = []
+    val out_items:    mut list[ref void] = []
+    val seen:         list[String] = []
+
+    module.flatten_modules(
+        root, "",
+        out_prefixes as ref void,
+        out_items    as ref void,
+        seen         as ref void
+    )
+
+    val layers: i64 = @len(out_prefixes) as i64
+    val li: mut i64 = 0
+    for {
+        if li >= layers { break }
+        val pfx_opt   = @get(out_prefixes, li as usize)
+        val items_opt = @get(out_items,    li as usize)
+        match pfx_opt {
+            some pfx => {
+                match items_opt {
+                    some items_ptr => {
+                        val items: list[ref parser.Node] = items_ptr as list[ref parser.Node]
+                        val is_root: bool = str.rchar_cmp(pfx as ref char, "") == 0
+                        if is_root {
+                            gen_items_with_prefix_skip_main(ctx, items, "")
+                        } else {
+                            gen_items_with_prefix(ctx, items, pfx as ref char)
+                        }
+                    }
+                    none => {}
+                }
+            }
+            none => {}
+        }
+        li++
+    }
+
+    val test_ids: mut list[i64] = []
+    val test_counter: mut i64 = 0
+    val root_items: mut list[ref parser.Node] = root.items
+    val rlen: i64 = @len(root_items) as i64
+    val ri: mut i64 = 0
+    for {
+        if ri >= rlen { break }
+        val item_opt = @get(root_items, ri as usize)
+        match item_opt {
+            some item => {
+                val node: ref parser.Node = item as ref parser.Node
+                if node.kind == parser.NK_TEST {
+                    test_counter++
+                    @append(test_ids, test_counter)
+                    gen_test_fn(ctx, node.d0 as ref parser.Node, test_counter)
+                }
+            }
+            none => {}
+        }
+        ri++
+    }
+
+    gen_test_main(ctx, test_ids)
+    emit_string_data(ctx)
+
+    val built: ref void = str.StringBuilder.build(cg_sb(ctx))
+    val result: ref char = str.cstr(built)
+    str.StringBuilder.free(cg_sb(ctx))
+    return result
+}
+
+/// Kinda like gen_items_with_prefix but skips NK_FN named "main" and handles NK_TEST.
+fn gen_items_with_prefix_skip_main(ctx: ref void, items: list[ref parser.Node], mod_prefix: ref char) void! = {
+    val ilen: i64 = @len(items) as i64
+    val i: mut i64 = 0
+    for {
+        if i >= ilen { break }
+        val item_opt = @get(items, i as usize)
+        match item_opt {
+            some item => {
+                val node: ref parser.Node = item as ref parser.Node
+                val k: i64 = node.kind
+                if k == parser.NK_FN {
+                    val fname: ref char = node.d2 as ref char
+                    if str.rchar_cmp(fname, "main") != 0 {
+                        gen_fn_prefixed(ctx, node, mod_prefix)
+                    }
+                } elif k == parser.NK_EXTERN_FN {
+                    gen_extern_fn(ctx, node)
+                } elif k == parser.NK_ENUMDEF {
+                    gen_enum_def_prefixed(ctx, node, mod_prefix)
+                } elif k == parser.NK_TYPEDEF {
+                    val tname: ref char = node.d1 as ref char
+                    val tfields: ref void = node.d2 as ref void
+                    cg_register_struct(ctx, tname, tfields)
+                }
+            }
+            none => {}
+        }
+        i++
+    }
+}
+
 // Main entry: generate QBE IR for a module (single-file, no imports).
 pub fn gen_module(items: list[ref parser.Node]) ref char! = {
     val ctx: ref void = cg_new()

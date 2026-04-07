@@ -61,6 +61,7 @@ pub fn main() void! = {
     val emit_qbe: mut bool = false
     val emit_asm: mut bool = false
     val show_cmd: mut bool = false
+    val test_mode: mut bool = false
     val output_name: mut ref char = ""
     val arg_i: mut i64 = 2
 
@@ -100,6 +101,9 @@ pub fn main() void! = {
                 } elif std.string.rchar_cmp(arg, "--show-cmd") == 0 {
                     show_cmd = true
                     arg_i++
+                } elif std.string.rchar_cmp(arg, "--test") == 0 {
+                    test_mode = true
+                    arg_i++
                 } else {
                     arg_i++
                 }
@@ -133,7 +137,12 @@ pub fn main() void! = {
         return
     }
 
-    val qbe_ir: ref char = codegen.gen_module_resolved(root_mod)
+    val qbe_ir: mut ref char = ""
+    if test_mode {
+        qbe_ir = codegen.gen_module_resolved_test(root_mod)
+    } else {
+        qbe_ir = codegen.gen_module_resolved(root_mod)
+    }
 
     if emit_qbe != 0 {
         std.stdio.puts(qbe_ir)
@@ -199,6 +208,27 @@ pub fn main() void! = {
     val output_specified: bool = std.string.rchar_cmp(output_name, "") != 0
     val cc_cmd: mut ref char = ""
     val success_msg: mut ref char = ""
+
+    if test_mode {
+        val test_bin: ref char = "/tmp/spectre_test_bin"
+        cc_cmd = @fmt("cc -o {s} {s}", {test_bin, asm_file})
+        val cc_res2 = std.os.exec(cc_cmd)
+        match cc_res2 {
+            ok _ => {
+                std.stdio.print("[spectre] running tests for: {s}\n", {input})
+                val run_res = std.os.exec(test_bin)
+                match run_res {
+                    ok _ => {}
+                    err _ => { std.stdio.puts("tests failed") }
+                }
+            }
+            err _ => { std.stdio.puts("error: cc compilation failed") }
+        }
+        std.os.delete(qbe_file)
+        std.os.delete(asm_file)
+        allocators.Arena.free(arena)
+        return
+    }
 
     if output_specified != 0 {
         cc_cmd = @fmt("cc -o {s} {s}", {binary_name, asm_file})
