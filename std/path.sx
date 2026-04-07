@@ -1,0 +1,75 @@
+val std = use("std")
+val allocators = use("std/allocators")
+
+pub fn get_name_without_ext(arena: ref allocators.Arena, path: ref char) ref char = {
+    val len: i64 = std.string.len_raw(path)
+    val last_slash: mut i64 = -1
+    val i: mut i64 = 0
+
+    for {
+        if (i >= len) {
+            break
+        }
+        val c: mut u8 = '\0'
+        match std.string.byte_at(path, i) {
+            some v => {
+                c = v
+            }
+            none => {}
+        } 
+        if (c == 47) {
+            last_slash = i
+        }
+        i++
+    }
+
+    val filename_start: mut i64 = last_slash + 1
+    val filename_len: i64 = len - filename_start
+    val last_dot: mut i64 = -1
+    val j: mut i64 = 0
+
+    for {
+        if (j >= filename_len) {
+            break
+        }
+        val c: mut u8 = '\0'
+        match std.string.byte_at(path, filename_start + j) {
+            some v => {
+                c = v
+            }
+            none => {}
+        }
+        if (c == 46) {
+            last_dot = j
+        }
+        j++
+    }
+
+    val name_len: mut i64 = 0
+
+    if (last_dot >= 0) {
+        name_len = last_dot
+    } else {
+        name_len = filename_len
+    }
+    
+    val buf_opt = allocators.Arena.alloc(arena, name_len + 1)
+    val buf: mut ref void = 0 as ref void
+    match buf_opt {
+        some b => {
+            buf = b
+        }
+        none => {
+            std.stdio.puts("error: out of memory")
+            return ""
+        }
+    }
+    trust @memcpy(buf, @ptradd(path, filename_start), name_len)
+    trust @store8(@ptradd(buf, name_len), 0)
+
+    return buf as ref char
+}
+
+test {
+    
+}
