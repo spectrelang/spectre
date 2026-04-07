@@ -26,7 +26,7 @@ fn get_name_without_ext(arena: ref allocators.Arena, path: ref char) ref char = 
         if (i >= len) {
             break
         }
-        val c: mut u8 = 'a'
+        val c: mut u8 = '\0'
         match std.string.byte_at(path, i) {
             some v => {
                 c = v
@@ -48,7 +48,13 @@ fn get_name_without_ext(arena: ref allocators.Arena, path: ref char) ref char = 
         if (j >= filename_len) {
             break
         }
-        val c: u8 = trust @load8(@ptradd(path, filename_start + j)) as u8
+        val c: mut u8 = '\0'
+        match std.string.byte_at(path, filename_start + j) {
+            some v => {
+                c = v
+            }
+            none => {}
+        }
         if (c == 46) {
             last_dot = j
         }
