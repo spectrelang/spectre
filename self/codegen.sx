@@ -1740,7 +1740,7 @@ pub fn gen_module_resolved(root: ref module.ResolvedModule) ref char! = {
 
     val out_prefixes: mut list[ref char] = []
     val out_items:    mut list[ref void] = []
-    val seen:         mut list[ref char] = []
+    val seen:         mut list[String] = []
 
     module.flatten_modules(
         root, "",

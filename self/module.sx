@@ -9,11 +9,11 @@ pub type ResolvedModule = {
     items:          mut list[ref parser.Node]
     import_names:   mut list[ref char]
     import_modules: mut list[ref void]   // list[ref ResolvedModule]
-    filename:       mut ref char
-    dir:            mut ref char
+    filename:       mut String
+    dir:            mut String
 }
 
-pub fn new_resolved(items: list[ref parser.Node], filename: ref char, dir: ref char) ref ResolvedModule! = {
+pub fn new_resolved(items: list[ref parser.Node], filename: String, dir: String) ref ResolvedModule! = {
     val m: mut ref ResolvedModule = @alloc(@sizeof(ResolvedModule)) as ref ResolvedModule
     @memset(m as ref void, 0, @sizeof(ResolvedModule) as usize)
     m.items          = items
@@ -127,8 +127,8 @@ pub fn resolve_module(
         err e => { return err @fmt("{s}: parse error: {s}", {path, e}) }
     }
 
-    val file_dir = std.path.dir(path)
-    val m: ref ResolvedModule = new_resolved(items, path, file_dir)
+    val file_dir = str.from(std.path.dir(path))
+    val m: ref ResolvedModule = new_resolved(items, str.from(path), file_dir)
     val next_progress: mut list[ref char] = []
 
     for p in in_progress { @append(next_progress, p) }
@@ -139,7 +139,7 @@ pub fn resolve_module(
         if node.kind == parser.NK_USE {
             val import_name: ref char = node.d1 as ref char
             val use_path:    ref char = node.d2 as ref char
-            val resolved_path = resolve_use_path(use_path, file_dir, exe_dir)
+            val resolved_path = resolve_use_path(use_path, str.cstr(file_dir), exe_dir)
 
             val child_result = resolve_module(resolved_path, next_progress, exe_dir)
             match child_result {
@@ -160,14 +160,14 @@ pub fn resolve_module(
 /// Collect all unique filenames in the resolved module tree (depth-first).
 /// Used to avoid emitting the same module twice.
 fn collect_seen(m: ref ResolvedModule, seen: ref void) void! = {
-    val mlen: i64 = @len(seen as list[ref char]) as i64
+    val mlen: i64 = @len(seen as list[String]) as i64
     val fi: mut i64 = 0
     for {
         if fi >= mlen { break }
-        val s_opt = @get(seen as list[ref char], fi as usize)
+        val s_opt = @get(seen as list[String], fi as usize)
         match s_opt {
             some s => {
-                if str.rchar_cmp(s as ref char, m.filename) == 0 { return }
+                if str.equals(s, m.filename) { return }
             }
             none => {}
         }
@@ -184,7 +184,7 @@ fn collect_seen(m: ref ResolvedModule, seen: ref void) void! = {
         }
         ci++
     }
-    @append(seen as list[ref char], m.filename)
+    @append(seen as list[String], m.filename)
 }
 
 /// Flatten the resolved module tree into an ordered list of (prefix, items) pairs,
@@ -195,16 +195,16 @@ pub fn flatten_modules(
     prefix: ref char,
     out_prefixes: ref void,   // list[ref char]
     out_items:    ref void,   // list[ref void]  (list[ref parser.Node] boxed)
-    seen:         ref void    // list[ref char]  (filenames already emitted)
+    seen:         ref void    // list[String]  (filenames already emitted)
 ) void! = {
-    val slen: i64 = @len(seen as list[ref char]) as i64
+    val slen: i64 = @len(seen as list[String]) as i64
     val si: mut i64 = 0
     for {
         if si >= slen { break }
-        val s_opt = @get(seen as list[ref char], si as usize)
+        val s_opt = @get(seen as list[String], si as usize)
         match s_opt {
             some s => {
-                if str.rchar_cmp(s as ref char, m.filename) == 0 { return }
+                if str.equals(s, m.filename) { return }
             }
             none => {}
         }
@@ -243,7 +243,7 @@ pub fn flatten_modules(
         ci++
     }
 
-    @append(seen as list[ref char], m.filename)
+    @append(seen as list[String], m.filename)
     val items_copy: ref void = @alloc(24)
     @memcpy(items_copy, addr(m.items) as ref void, 24 as usize)
     @append(out_prefixes as list[ref char], prefix)
