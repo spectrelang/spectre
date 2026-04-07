@@ -94,7 +94,6 @@ pub fn main() void! = {
         }
     }
 
-    val output_opt: mut ref char = ""
     val emit_qbe: mut bool = false
     val emit_asm: mut bool = false
     val show_cmd: mut bool = false
@@ -110,13 +109,8 @@ pub fn main() void! = {
                 val arg: ref char = arg_val as ref char
                 
                 if std.string.rchar_cmp(arg, "-o") == 0 || std.string.rchar_cmp(arg, "--output") == 0 {
-                    val next_i: mut i64 = arg_i + 1
+                    val next_i: i64 = arg_i + 1
                     if (next_i < argc) {
-                        val next_opt = @get(args, next_i)
-                        match next_opt {
-                            some v => { output_opt = v as ref char }
-                            none => {}
-                        }
                         arg_i = next_i + 1
                     } else {
                         std.stdio.puts("error: -o requires a value")
@@ -177,13 +171,7 @@ pub fn main() void! = {
         return
     }
     
-    val binary_name: mut ref char = "" 
-    
-    if (output_opt != "") {
-        binary_name = output_opt
-    } else {
-        binary_name = get_name_without_ext(input)
-    }
+    val binary_name = get_name_without_ext(input)
 
     val qbe_file = "/tmp/spectre_output.ssa"
     val asm_file = "/tmp/spectre_output.s"
