@@ -1,0 +1,282 @@
+val std    = use("std")
+val str    = use("std/string")
+val parser = use("parser.sx")
+val lexer  = use("lexer.sx")
+
+/// A resolved module: its parsed items plus a map of named child imports.
+/// Stored as parallel lists: import_names[i] <-> import_modules[i].
+pub type ResolvedModule = {
+    items:          mut list[ref parser.Node]
+    import_names:   mut list[ref char]
+    import_modules: mut list[ref void]   // list[ref ResolvedModule]
+    filename:       mut ref char
+    dir:            mut ref char
+}
+
+pub fn new_resolved(items: list[ref parser.Node], filename: ref char, dir: ref char) ref ResolvedModule! = {
+    val m: mut ref ResolvedModule = @alloc(@sizeof(ResolvedModule)) as ref ResolvedModule
+    @memset(m as ref void, 0, @sizeof(ResolvedModule) as usize)
+    m.items          = items
+    m.filename       = filename
+    m.dir            = dir
+    m.import_names   = []
+    m.import_modules = []
+    return m
+}
+
+/// Join dir + "/" + name, returning a heap-allocated string.
+fn path_join(dir: ref char, name: ref char) ref char! = {
+    val dlen: mut i64 = str.len_raw(dir)
+    val nlen: i64 = str.len_raw(name)
+    val buf: ref char = @alloc(dlen + nlen + 2) as ref char
+    @memcpy(buf as ref void, dir as ref void, dlen as usize)
+    @store8(@ptradd(buf as ref void, dlen), 47)  // '/'
+    @memcpy(@ptradd(buf as ref void, dlen + 1), name as ref void, nlen as usize)
+    @store8(@ptradd(buf as ref void, dlen + nlen + 1), 0)
+    return buf
+}
+
+/// Return the directory part of a path (everything up to and including last '/').
+/// Returns "." if no slash found.
+fn path_dir(path: ref char) ref char! = {
+    val len: i64 = str.len_raw(path)
+    val last_slash: mut i64 = -1
+    val i: mut i64 = 0
+    for {
+        if i >= len { break }
+        val c: u8 = @load8(@ptradd(path as ref void, i))
+        if c == 47 { last_slash = i }
+        i++
+    }
+    if last_slash < 0 { return "." }
+    val buf: ref char = @alloc(last_slash + 2) as ref char
+    @memcpy(buf as ref void, path as ref void, (last_slash + 1) as usize)
+    @store8(@ptradd(buf as ref void, last_slash + 1), 0)
+    return buf
+}
+
+/// Check if a file exists by trying to open it.
+fn file_exists(path: ref char) bool! = {
+    val f = std.fs.open(path, "r")
+    match f {
+        some h => { std.fs.close(h) return true }
+        none   => { return false }
+    }
+}
+
+/// Walk up from `start_dir` looking for a directory containing "Cargo.toml".
+/// Returns the workspace root, or `start_dir` if not found.
+fn find_workspace_root(start_dir: ref char) ref char! = {
+    val cur: mut ref char = start_dir
+    val limit: mut i64 = 32
+    for {
+        if limit <= 0 { break }
+        limit--
+        val cargo = path_join(cur, "Cargo.toml")
+        if file_exists(cargo) { return cur }
+        val spectre_mod = path_join(cur, "spectre.mod")
+        if file_exists(spectre_mod) { return cur }
+        val parent = path_dir(cur)
+        if str.rchar_cmp(parent, cur) == 0 { break }
+        if str.rchar_cmp(parent, ".") == 0 { break }
+        cur = parent
+    }
+    return start_dir
+}
+
+/// Resolve a use-path string relative to the current file's directory.
+pub fn resolve_use_path(use_path: ref char, file_dir: ref char, exe_dir: ref char) ref char! = {
+    val plen: i64 = str.len_raw(use_path)
+
+    if plen >= 3 {
+        val c0: u8 = @load8(@ptradd(use_path as ref void, plen - 3))
+        val c1: u8 = @load8(@ptradd(use_path as ref void, plen - 2))
+        val c2: u8 = @load8(@ptradd(use_path as ref void, plen - 1))
+        if c0 == 46 && c1 == 115 && c2 == 120 {
+            return path_join(file_dir, use_path)
+        }
+    }
+
+    val workspace = find_workspace_root(file_dir)
+    val has_slash: mut bool = false
+    val si: mut i64 = 0
+
+    for {
+        if si >= plen { break }
+        val c: u8 = @load8(@ptradd(use_path as ref void, si))
+        if c == 47 { has_slash = true break }
+        si++
+    }
+
+    if has_slash {
+        val candidate = path_join(workspace, @fmt("{s}.sx", {use_path}))
+        if file_exists(candidate) { return candidate }
+        return path_join(exe_dir, @fmt("{s}.sx", {use_path}))
+    }
+
+    val candidate2 = path_join(workspace, @fmt("{s}/{s}.sx", {use_path, use_path}))
+    if file_exists(candidate2) { return candidate2 }
+    return path_join(exe_dir, @fmt("{s}/{s}.sx", {use_path, use_path}))
+}
+
+fn in_progress_contains(in_progress: list[ref char], path: ref char) bool! = {
+    for p in in_progress {
+        if str.rchar_cmp(p, path) == 0 { return true }
+    }
+    return false
+}
+
+/// Recursively resolve a module from its source path.
+pub fn resolve_module(
+    path:        ref char,
+    in_progress: list[ref char],
+    exe_dir:     ref char
+) result[ref ResolvedModule, ref char]! = {
+
+    if in_progress_contains(in_progress, path) {
+        return err @fmt("cyclic import: {s}", {path})
+    }
+
+    val src_opt = std.fs.read_all(path)
+    val src: mut ref char = ""
+    match src_opt {
+        some s => { src = s as ref char }
+        none   => { return err @fmt("cannot read module: {s}", {path}) }
+    }
+
+    val lex_result = lexer.tokenize(src)
+    val tokens: mut list[ref lexer.Token] = []
+    match lex_result {
+        ok t  => { tokens = t }
+        err e => { return err @fmt("{s}: lex error: {s}", {path, e}) }
+    }
+
+    val parse_result = parser.parse_module(tokens, path)
+    val items: mut list[ref parser.Node] = []
+    match parse_result {
+        ok i  => { items = i }
+        err e => { return err @fmt("{s}: parse error: {s}", {path, e}) }
+    }
+
+    val file_dir = path_dir(path)
+    val m: ref ResolvedModule = new_resolved(items, path, file_dir)
+    val next_progress: mut list[ref char] = []
+
+    for p in in_progress { @append(next_progress, p) }
+    @append(next_progress, path)
+
+    for item in items {
+        val node: ref parser.Node = item
+        if node.kind == parser.NK_USE {
+            val import_name: ref char = node.d1 as ref char
+            val use_path:    ref char = node.d2 as ref char
+            val resolved_path = resolve_use_path(use_path, file_dir, exe_dir)
+
+            val child_result = resolve_module(resolved_path, next_progress, exe_dir)
+            match child_result {
+                ok child => {
+                    @append(m.import_names,   import_name)
+                    @append(m.import_modules, child as ref void)
+                }
+                err e => {
+                    std.stdio.print("warning: could not resolve import '{s}': {s}\n", {import_name, e})
+                }
+            }
+        }
+    }
+
+    return ok m
+}
+
+/// Collect all unique filenames in the resolved module tree (depth-first).
+/// Used to avoid emitting the same module twice.
+fn collect_seen(m: ref ResolvedModule, seen: ref void) void! = {
+    val mlen: i64 = @len(seen as list[ref char]) as i64
+    val fi: mut i64 = 0
+    for {
+        if fi >= mlen { break }
+        val s_opt = @get(seen as list[ref char], fi as usize)
+        match s_opt {
+            some s => {
+                if str.rchar_cmp(s as ref char, m.filename) == 0 { return }
+            }
+            none => {}
+        }
+        fi++
+    }
+    val clen: i64 = @len(m.import_modules) as i64
+    val ci: mut i64 = 0
+    for {
+        if ci >= clen { break }
+        val c_opt = @get(m.import_modules, ci as usize)
+        match c_opt {
+            some c => { collect_seen(c as ref ResolvedModule, seen) }
+            none   => {}
+        }
+        ci++
+    }
+    @append(seen as list[ref char], m.filename)
+}
+
+/// Flatten the resolved module tree into an ordered list of (prefix, items) pairs,
+/// children before parents, no duplicates.
+/// `prefix` is the mangled module prefix (e.g. "std__stdio"), empty for root.
+pub fn flatten_modules(
+    m:      ref ResolvedModule,
+    prefix: ref char,
+    out_prefixes: ref void,   // list[ref char]
+    out_items:    ref void,   // list[ref void]  (list[ref parser.Node] boxed)
+    seen:         ref void    // list[ref char]  (filenames already emitted)
+) void! = {
+    val slen: i64 = @len(seen as list[ref char]) as i64
+    val si: mut i64 = 0
+    for {
+        if si >= slen { break }
+        val s_opt = @get(seen as list[ref char], si as usize)
+        match s_opt {
+            some s => {
+                if str.rchar_cmp(s as ref char, m.filename) == 0 { return }
+            }
+            none => {}
+        }
+        si++
+    }
+
+    val clen: i64 = @len(m.import_modules) as i64
+    val ci: mut i64 = 0
+    for {
+        if ci >= clen { break }
+        val name_opt = @get(m.import_names, ci as usize)
+        val mod_opt  = @get(m.import_modules, ci as usize)
+        match name_opt {
+            some name => {
+                match mod_opt {
+                    some child => {
+                        val child_prefix: mut ref char = ""
+                        if str.rchar_cmp(prefix, "") == 0 {
+                            child_prefix = name as ref char
+                        } else {
+                            child_prefix = @fmt("{s}__{s}", {prefix, name as ref char})
+                        }
+                        flatten_modules(
+                            child as ref ResolvedModule,
+                            child_prefix,
+                            out_prefixes,
+                            out_items,
+                            seen
+                        )
+                    }
+                    none => {}
+                }
+            }
+            none => {}
+        }
+        ci++
+    }
+
+    @append(seen as list[ref char], m.filename)
+    val items_copy: ref void = @alloc(24)
+    @memcpy(items_copy, addr(m.items) as ref void, 24 as usize)
+    @append(out_prefixes as list[ref char], prefix)
+    @append(out_items as list[ref void], items_copy)
+}

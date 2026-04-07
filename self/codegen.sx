@@ -1,12 +1,14 @@
-val std = use("std")
-val str = use("std/string")
+val std    = use("std")
+val str    = use("std/string")
 val parser = use("parser.sx")
+val module = use("module.sx")
 
 // Generates QBE intermediate representation from the AST.
 // Subset: handles functions, basic types, arithmetic, control flow,
 // function calls, struct literals, list operations, and builtins.
 
 // Heap layout (8 fields × 8 bytes = 64 bytes):
+//
 //   offset  0: output buffer (ref void — StringBuilder)
 //   offset  8: tmp counter (i64)
 //   offset 16: label counter (i64)
@@ -71,8 +73,6 @@ fn emit_fmt(ctx: ref void, fmt: ref char, args: untyped) void! = {
     emit(ctx, buf)
     @free(buf)
 }
-
-// ─── Type helpers ─────────────────────────────────────────────────────────────
 
 fn qbe_type_of(ty: ref parser.Node) ref char! = {
     if ty == 0 as ref parser.Node { return "l" }
@@ -1493,18 +1493,29 @@ fn gen_match_union(ctx: ref void, stmt: ref parser.Node) void! = {
 }
 
 fn gen_fn(ctx: ref void, fn_node: ref parser.Node) void! = {
+    gen_fn_prefixed(ctx, fn_node, "")
+}
+
+fn gen_fn_prefixed(ctx: ref void, fn_node: ref parser.Node, mod_prefix: ref char) void! = {
     val public: i64 = fn_node.d0 as i64
     val ns: ref char = fn_node.d1 as ref char
     val name: ref char = fn_node.d2 as ref char
     val params: ref void = fn_node.d3 as ref void
     val ret_ty: ref parser.Node = fn_node.d4 as ref parser.Node
     val body: ref parser.Node = fn_node.d5 as ref parser.Node
-    val mangled: ref char = @alloc(256) as ref char
+    val mangled: ref char = @alloc(512) as ref char
+    val base: ref char = @alloc(256) as ref char
 
     if ns != 0 as ref char {
-        @snprintf(mangled, 256, "%s__%s", {ns, name})
+        @snprintf(base, 256, "%s__%s", {ns, name})
     } else {
-        @snprintf(mangled, 256, "%s", {name})
+        @snprintf(base, 256, "%s", {name})
+    }
+
+    if str.rchar_cmp(mod_prefix, "") == 0 {
+        @snprintf(mangled, 512, "%s", {base})
+    } else {
+        @snprintf(mangled, 512, "%s__%s", {mod_prefix, base})
     }
 
     cg_set_fn_name(ctx, mangled)
@@ -1544,7 +1555,6 @@ fn gen_fn(ctx: ref void, fn_node: ref parser.Node) void! = {
     emitln(ctx, ") {")
     emitln(ctx, "@start")
 
-    // Allocate stack slots for params (so they can be mutated)
     if params != 0 as ref void {
         val plen2: i64 = @len(params) as i64
         val pi2: mut i64 = 0
@@ -1570,15 +1580,12 @@ fn gen_fn(ctx: ref void, fn_node: ref parser.Node) void! = {
 
     gen_stmts(ctx, body)
 
-    // Ensure function ends with a return
     emitln(ctx, "    ret 0")
     emitln(ctx, "}")
     emitln(ctx, "")
 }
 
 fn gen_extern_fn(ctx: ref void, item: ref parser.Node) void! = {
-    // extern fns don't need IR — they're linked externally
-    // but we may need to emit a declaration comment
     val name: ref char = item.d1 as ref char
     val buf: ref char = @alloc(128) as ref char
     @snprintf(buf, 128, "# extern fn %s\n", {name})
@@ -1587,7 +1594,10 @@ fn gen_extern_fn(ctx: ref void, item: ref parser.Node) void! = {
 }
 
 fn gen_enum_def(ctx: ref void, item: ref parser.Node) void! = {
-    // Enums are just integer constants; emit data for each variant
+    gen_enum_def_prefixed(ctx, item, "")
+}
+
+fn gen_enum_def_prefixed(ctx: ref void, item: ref parser.Node, mod_prefix: ref char) void! = {
     val name: ref char = item.d1 as ref char
     val variants: ref void = item.d2 as ref void
     if variants == 0 as ref void { return }
@@ -1599,8 +1609,12 @@ fn gen_enum_def(ctx: ref void, item: ref parser.Node) void! = {
         match v_opt {
             some v => {
                 val vname: ref char = v as ref char
-                val buf: ref char = @alloc(128) as ref char
-                @snprintf(buf, 128, "data $%s__%s = { l %lld }\n", {name, vname, vi})
+                val buf: ref char = @alloc(256) as ref char
+                if str.rchar_cmp(mod_prefix, "") == 0 {
+                    @snprintf(buf, 256, "data $%s__%s = { l %lld }\n", {name, vname, vi})
+                } else {
+                    @snprintf(buf, 256, "data $%s__%s__%s = { l %lld }\n", {mod_prefix, name, vname, vi})
+                }
                 emit(ctx, buf)
                 @free(buf)
             }
@@ -1693,7 +1707,78 @@ function l $sx_get_args() {
 `)
 }
 
-// Main entry: generate QBE IR for a module.
+/// Emit all items from one module layer, using `mod_prefix` for name mangling.
+fn gen_items_with_prefix(ctx: ref void, items: list[ref parser.Node], mod_prefix: ref char) void! = {
+    val ilen: i64 = @len(items) as i64
+    val i: mut i64 = 0
+    for {
+        if i >= ilen { break }
+        val item_opt = @get(items, i as usize)
+        match item_opt {
+            some item => {
+                val node: ref parser.Node = item as ref parser.Node
+                val k: i64 = node.kind
+                if k == parser.NK_FN {
+                    gen_fn_prefixed(ctx, node, mod_prefix)
+                } elif k == parser.NK_EXTERN_FN {
+                    gen_extern_fn(ctx, node)
+                } elif k == parser.NK_ENUMDEF {
+                    gen_enum_def_prefixed(ctx, node, mod_prefix)
+                }
+            }
+            none => {}
+        }
+        i++
+    }
+}
+
+/// Main entry for the resolved module tree.
+/// Flattens children depth-first, emits each layer with its mangled prefix.
+pub fn gen_module_resolved(root: ref module.ResolvedModule) ref char! = {
+    val ctx: ref void = cg_new()
+    emit_runtime_helpers(ctx)
+
+    val out_prefixes: mut list[ref char] = []
+    val out_items:    mut list[ref void] = []
+    val seen:         mut list[ref char] = []
+
+    module.flatten_modules(
+        root, "",
+        addr(out_prefixes) as ref void,
+        addr(out_items)    as ref void,
+        addr(seen)         as ref void
+    )
+
+    val layers: i64 = @len(out_prefixes) as i64
+    val li: mut i64 = 0
+    for {
+        if li >= layers { break }
+        val pfx_opt   = @get(out_prefixes, li as usize)
+        val items_opt = @get(out_items,    li as usize)
+        match pfx_opt {
+            some pfx => {
+                match items_opt {
+                    some items_ptr => {
+                        val items: list[ref parser.Node] = @load(items_ptr as ref void) as list[ref parser.Node]
+                        gen_items_with_prefix(ctx, items, pfx as ref char)
+                    }
+                    none => {}
+                }
+            }
+            none => {}
+        }
+        li++
+    }
+
+    emit_string_data(ctx)
+
+    val built: ref void = str.StringBuilder.build(cg_sb(ctx))
+    val result: ref char = str.cstr(built)
+    str.StringBuilder.free(cg_sb(ctx))
+    return result
+}
+
+// Main entry: generate QBE IR for a module (single-file, no imports).
 pub fn gen_module(items: list[ref parser.Node]) ref char! = {
     val ctx: ref void = cg_new()
 
@@ -1709,13 +1794,12 @@ pub fn gen_module(items: list[ref parser.Node]) ref char! = {
             some item => {
                 val k: i64 = (item as ref parser.Node).kind
                 if k == parser.NK_FN {
-                    gen_fn(ctx, item as ref parser.Node)
+                    gen_fn_prefixed(ctx, item as ref parser.Node, "")
                 } elif k == parser.NK_EXTERN_FN {
                     gen_extern_fn(ctx, item as ref parser.Node)
                 } elif k == parser.NK_ENUMDEF {
-                    gen_enum_def(ctx, item as ref parser.Node)
+                    gen_enum_def_prefixed(ctx, item as ref parser.Node, "")
                 }
-                // typedef, uniondef, const, use — no direct IR needed
             }
             none => {}
         }

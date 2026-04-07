@@ -4,6 +4,7 @@ val lexer = use("lexer.sx")
 val parser = use("parser.sx")
 val sema = use("sema.sx")
 val codegen = use("codegen.sx")
+val module = use("module.sx")
 
 fn print_usage() void = {
     std.stdio.puts("usage:")
@@ -116,9 +117,8 @@ pub fn main() void! = {
     }
 
     val src_opt = std.fs.read_all(input)
-    val src: mut ref char = ""
     match src_opt {
-        some s => { src = s as ref char }
+        some _ => {}
         none   => {
             std.stdio.print("error: could not read '%s'\n", {input})
             allocators.Arena.free(arena)
@@ -178,29 +178,20 @@ pub fn main() void! = {
         }
     }
 
-    val lex_result = lexer.tokenize(src)
-    val tokens: mut list[ref lexer.Token] = []
-    match lex_result {
-        ok t  => { tokens = t }
+    // Resolve the module tree (loads all imports recursively)
+    val exe_dir: ref char = "."   // sxc lives next to std/ in s-out/
+    val resolve_result = module.resolve_module(input, [], exe_dir)
+    val root_mod: mut ref module.ResolvedModule = 0 as ref module.ResolvedModule
+    match resolve_result {
+        ok m  => { root_mod = m }
         err e => {
-            std.stdio.print("lex error: %s\n", {e})
+            std.stdio.print("error: %s\n", {e})
             allocators.Arena.free(arena)
             return
         }
     }
 
-    val parse_result = parser.parse_module(tokens, input)
-    val items: mut list[ref parser.Node] = []
-    match parse_result {
-        ok i  => { items = i }
-        err e => {
-            std.stdio.print("parse error: %s\n", {e})
-            allocators.Arena.free(arena)
-            return
-        }
-    }
-
-    val errors: mut list[ref char] = sema.check_module(items, input)
+    val errors: mut list[ref char] = sema.check_module(root_mod.items, input)
     val nerrors: i64 = @len(errors) as i64
     if nerrors > 0 {
         for e in errors {
@@ -210,7 +201,7 @@ pub fn main() void! = {
         return
     }
 
-    val qbe_ir: ref char = codegen.gen_module(items)
+    val qbe_ir: ref char = codegen.gen_module_resolved(root_mod)
 
     if emit_qbe != 0 {
         std.stdio.puts(qbe_ir)
