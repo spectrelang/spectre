@@ -262,7 +262,11 @@ fn check_expr(ctx: ref SemaCtx, expr: ref parser.Node, filename: ref char) void!
         check_expr(ctx, expr.d2 as ref parser.Node, filename)
         return
     }
-    if k == parser.NK_UNOP || k == parser.NK_TRUST || k == parser.NK_SOME ||
+    if k == parser.NK_UNOP {
+        check_expr(ctx, expr.d1 as ref parser.Node, filename)
+        return
+    }
+    if k == parser.NK_TRUST || k == parser.NK_SOME ||
        k == parser.NK_OK_VAL || k == parser.NK_ERR_VAL || k == parser.NK_TRY {
         check_expr(ctx, expr.d0 as ref parser.Node, filename)
         return
@@ -449,7 +453,7 @@ fn check_stmt(ctx: ref SemaCtx, stmt: ref parser.Node, filename: ref char) void!
         return
     }
 
-    if k == parser.NK_PRE || k == parser.NK_POST || k == parser.NK_GUARDED_PRE {
+    if k == parser.NK_PRE || k == parser.NK_POST || k == parser.NK_GUARDED_PRE || k == parser.NK_GUARDED_POST {
         val clist: ref void = stmt.d0 as ref void
         if clist != 0 as ref void {
             for c in clist as list[ref parser.Node] {

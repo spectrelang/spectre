@@ -24,6 +24,7 @@ pub val NK_ASSERT     : i64 = 29
 pub val NK_PRE        : i64 = 30
 pub val NK_POST       : i64 = 31
 pub val NK_GUARDED_PRE: i64 = 32
+pub val NK_GUARDED_POST: i64 = 45
 pub val NK_EXPR_STMT  : i64 = 33
 pub val NK_MATCH_OPT  : i64 = 34
 pub val NK_MATCH_RES  : i64 = 35
@@ -879,11 +880,14 @@ pub fn parse_stmt(p: ref Parser) result[ref Node, ref char]! = {
         if !kind_is_pre(sub) && !kind_is_post(sub) {
             return err p_error(p, "expected 'pre' or 'post' after 'guarded'")
         }
+        val is_post: bool = kind_is_post(sub)
         p_advance(p)
         p_expect_lbrace(p)?
         val cs3 = parse_contracts(p)?
         p_expect_rbrace(p)?
-        val n5: mut ref Node = make_node(NK_GUARDED_PRE, line)
+        val nk5: mut i64 = NK_GUARDED_PRE
+        if is_post { nk5 = NK_GUARDED_POST }
+        val n5: mut ref Node = make_node(nk5, line)
         val clist3: list[ref Node] = cs3
         n5.d0 = clist3 as i64
         return ok n5

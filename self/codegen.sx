@@ -1235,66 +1235,69 @@ fn gen_stmt(ctx: ref void, stmt: ref parser.Node) void! = {
     if k == parser.NK_ASSERT {
         val cond: ref char = gen_expr(ctx, stmt.d0 as ref parser.Node)
         val ok_lbl: i64 = fresh_lbl(ctx)
+        val fail_lbl: i64 = fresh_lbl(ctx)
         val buf6: ref char = @alloc(128) as ref char
-        @snprintf(buf6, 128, "    jnz %s, @lbl%lld, @assert_fail\n@lbl%lld\n", {cond, ok_lbl, ok_lbl})
+        @snprintf(buf6, 128, "    jnz %s, @lbl%lld, @lbl%lld\n@lbl%lld\n", {cond, ok_lbl, fail_lbl, fail_lbl})
         emit(ctx, buf6)
         @free(buf6)
+        val msg_idx: i64 = intern_string(ctx, "spectre: assertion failed\n")
+        val msg_tmp: i64 = fresh_tmp(ctx)
+        val abuf: ref char = @alloc(256) as ref char
+        @snprintf(abuf, 256,
+            "    %%t%lld =l copy $__str%lld\n    call $dprintf(w 2, l %%t%lld)\n    call $abort()\n    hlt\n@lbl%lld\n",
+            {msg_tmp, msg_idx, msg_tmp, ok_lbl})
+        emit(ctx, abuf)
+        @free(abuf)
         return
     }
 
-    if k == parser.NK_PRE || k == parser.NK_GUARDED_PRE {
-        // Emit runtime checks for guarded pre; skip for regular pre (static only)
-        if k == parser.NK_GUARDED_PRE {
-            val clist: ref void = stmt.d0 as ref void
-            if clist != 0 as ref void {
-                val clen: i64 = @len(clist) as i64
-                val ci: mut i64 = 0
-                for {
-                    if ci >= clen { break }
-                    val c_opt = @get(clist, ci as usize)
-                    match c_opt {
-                        some c => {
-                            val cexpr: ref parser.Node = (c as ref parser.Node).d1 as ref parser.Node
-                            val cv: ref char = gen_expr(ctx, cexpr)
-                            val ok_lbl2: i64 = fresh_lbl(ctx)
-                            val buf7: ref char = @alloc(128) as ref char
-                            @snprintf(buf7, 128, "    jnz %s, @lbl%lld, @assert_fail\n@lbl%lld\n",
-                                {cv, ok_lbl2, ok_lbl2})
-                            emit(ctx, buf7)
-                            @free(buf7)
-                        }
-                        none => {}
-                    }
-                    ci++
-                }
-            }
-        }
-        return
-    }
-
-    if k == parser.NK_POST {
-        // post conditions: emit runtime checks
-        val clist2: ref void = stmt.d0 as ref void
-        if clist2 != 0 as ref void {
-            val clen2: i64 = @len(clist2) as i64
-            val ci2: mut i64 = 0
+    if k == parser.NK_PRE || k == parser.NK_GUARDED_PRE ||
+       k == parser.NK_POST || k == parser.NK_GUARDED_POST {
+        val is_pre: bool = k == parser.NK_PRE || k == parser.NK_GUARDED_PRE
+        val kind_str: mut ref char = "precondition"
+        if !is_pre { kind_str = "postcondition" }
+        val fn_name: ref char = cg_fn_name(ctx)
+        val clist: ref void = stmt.d0 as ref void
+        if clist != 0 as ref void {
+            val clen: i64 = @len(clist) as i64
+            val ci: mut i64 = 0
             for {
-                if ci2 >= clen2 { break }
-                val c2_opt = @get(clist2, ci2 as usize)
-                match c2_opt {
-                    some c2 => {
-                        val cexpr2: ref parser.Node = (c2 as ref parser.Node).d1 as ref parser.Node
-                        val cv2: ref char = gen_expr(ctx, cexpr2)
-                        val ok_lbl3: i64 = fresh_lbl(ctx)
-                        val buf8: ref char = @alloc(128) as ref char
-                        @snprintf(buf8, 128, "    jnz %s, @lbl%lld, @assert_fail\n@lbl%lld\n",
-                            {cv2, ok_lbl3, ok_lbl3})
-                        emit(ctx, buf8)
-                        @free(buf8)
+                if ci >= clen { break }
+                val c_opt = @get(clist, ci as usize)
+                match c_opt {
+                    some c => {
+                        val cnode: ref parser.Node = c as ref parser.Node
+                        val label: ref char = cnode.d0 as ref char
+                        val cexpr: ref parser.Node = cnode.d1 as ref parser.Node
+                        val cv: ref char = gen_expr(ctx, cexpr)
+                        val ok_lbl: i64 = fresh_lbl(ctx)
+                        val fail_lbl: i64 = fresh_lbl(ctx)
+                        val jbuf: ref char = @alloc(128) as ref char
+                        @snprintf(jbuf, 128, "    jnz %s, @lbl%lld, @lbl%lld\n@lbl%lld\n",
+                            {cv, ok_lbl, fail_lbl, fail_lbl})
+                        emit(ctx, jbuf)
+                        @free(jbuf)
+                        val msg_buf: ref char = @alloc(512) as ref char
+                        if label != 0 as ref char {
+                            @snprintf(msg_buf, 512, "spectre: %s '%s' violated in function '%s'\n",
+                                {kind_str, label, fn_name})
+                        } else {
+                            @snprintf(msg_buf, 512, "spectre: %s violated in function '%s'\n",
+                                {kind_str, fn_name})
+                        }
+                        val msg_idx: i64 = intern_string(ctx, msg_buf)
+                        @free(msg_buf)
+                        val msg_tmp: i64 = fresh_tmp(ctx)
+                        val call_buf: ref char = @alloc(256) as ref char
+                        @snprintf(call_buf, 256,
+                            "    %%t%lld =l copy $__str%lld\n    call $dprintf(w 2, l %%t%lld)\n    call $abort()\n    hlt\n@lbl%lld\n",
+                            {msg_tmp, msg_idx, msg_tmp, ok_lbl})
+                        emit(ctx, call_buf)
+                        @free(call_buf)
                     }
                     none => {}
                 }
-                ci2++
+                ci++
             }
         }
         return
