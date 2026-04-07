@@ -288,6 +288,8 @@ pub enum Expr {
     Addr(Box<Expr>),
     /// `deref(expr)` — dereference a pointer
     Deref(Box<Expr>),
+    /// `@sizeof(TypeExpr)` — size of a type (supports generic types like list[T])
+    SizeofType(TypeExpr),
 }
 
 #[derive(Debug, Clone)]
@@ -1764,6 +1766,11 @@ impl Parser {
                 self.advance();
                 let name = self.expect_ident()?;
                 self.expect(&TokenKind::LParen)?;
+                if name == "sizeof" {
+                    let ty = self.parse_type()?;
+                    self.expect(&TokenKind::RParen)?;
+                    return Ok(Expr::SizeofType(ty));
+                }
                 let args = self.parse_call_args()?;
                 self.expect(&TokenKind::RParen)?;
                 Ok(Expr::Builtin { name, args })

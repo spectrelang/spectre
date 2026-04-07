@@ -3424,6 +3424,11 @@ impl Codegen {
                 other => Err(format!("unknown builtin: @{other}")),
             },
 
+            Expr::SizeofType(ty) => {
+                let size = self.type_byte_size_ctx(ty);
+                Ok((size.to_string(), "l"))
+            }
+
             Expr::Field(_base, _field_name) => {
                 if let Expr::Ident(enum_name) = _base.as_ref() {
                     if let Some(variants) = self.enum_defs.get(enum_name.as_str()).cloned() {
@@ -4629,6 +4634,7 @@ fn find_bare_builtin_in_expr(expr: &Expr) -> Option<String> {
         | Expr::Bool(_)
         | Expr::None => None,
         Expr::ZeroInit(_) => None,
+        Expr::SizeofType(_) => None,
     }
 }
 

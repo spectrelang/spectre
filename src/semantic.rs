@@ -1043,6 +1043,7 @@ fn collect_used_in_expr(expr: &Expr, used: &mut HashSet<String>) {
         | Expr::StrLit(_)
         | Expr::Bool(_)
         | Expr::None
+        | Expr::SizeofType(_)
         | Expr::ZeroInit(_) => {}
     }
 }
@@ -3460,7 +3461,7 @@ fn infer_expr_type(
             "sizeof" => Some(TypeExpr::Named("i64".to_string())),
             _ => None,
         },
-        Expr::ListLit(items) => {
+        Expr::SizeofType(_) => Some(TypeExpr::Named("i64".to_string())),        Expr::ListLit(items) => {
             let elem_ty = items
                 .first()
                 .and_then(|e| infer_expr_type(e, var_types, type_lookup, fn_ret_lookup))
