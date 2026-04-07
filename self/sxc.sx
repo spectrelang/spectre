@@ -26,7 +26,7 @@ fn get_name_without_ext(path: ref char) ref char = {
             break
         }
         val c: u8 = trust @load8(@ptradd(path, i)) as u8
-        if (c == 47) { // '/'
+        if (c == 47) {
             last_slash = i
         }
         i++
