@@ -1,4 +1,4 @@
-val std = use("std")
+val stdio = use("std/stdio")
 
 /// Allocates a zeroed buffer of `size` bytes.
 /// Returns ref void — raw memory with no type attached.
@@ -25,7 +25,7 @@ pub fn main() void! = {
     val initial_size: usize = 64
     val buf: ref void = make_buffer(initial_size)
 
-    std.stdio.puts("buffer allocated and zeroed")
+    stdio.puts("buffer allocated and zeroed")
 
     val grown_size: usize = 128
     val big_buf: ref void = grow_buffer(
@@ -36,8 +36,8 @@ pub fn main() void! = {
 
     defer {
         @free(big_buf)
-        std.stdio.puts("buffer freed")
+        stdio.puts("buffer freed")
     }
 
-    std.stdio.print("grew buffer to {d} bytes\n", {grown_size})
+    stdio.print("grew buffer to {d} bytes\n", {grown_size})
 }
