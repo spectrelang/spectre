@@ -303,7 +303,7 @@ impl Codegen {
             // loop: push each argv[i] into the list
             "    %i =l copy 0\n",
             "@args_loop\n",
-            "    %done =l csgtl %i, %argc\n",
+            "    %done =l csgel %i, %argc\n",
             "    jnz %done, @args_done, @args_body\n",
             "@args_body\n",
             "    %off =l mul %i, 8\n",
