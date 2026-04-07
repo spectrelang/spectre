@@ -2,7 +2,7 @@ val str = use("std/string")
 
 pub fn some_function() void = {
     val x: ref char = "hello, this is a string"
-    match str.getr(x, 1) {
+    match str.byte_at(x, 1) {
         some v => {
             trust @printf("{c}", {v})
             trust @printf("{c}", {'a'})

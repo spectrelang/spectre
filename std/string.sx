@@ -262,7 +262,7 @@ pub fn get(s: ref void, i: i64) option[u8] = {
 }
 
 /// Get byte at index i from raw char pointer — returns none if out of bounds
-pub fn getr(s: ref char, i: i64) option[u8] = {
+pub fn byte_at(s: ref char, i: i64) option[u8] = {
     guarded pre {
         i_nonneg: i >= 0
     }
