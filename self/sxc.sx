@@ -4,12 +4,71 @@ val parser = use("parser.sx")
 val sema = use("sema.sx")
 val codegen = use("codegen.sx")
 
+fn print_usage() void = {
+    std.stdio.puts("usage:")
+    std.stdio.puts("  sxc <input.sx> [options]")
+    std.stdio.puts("")
+    std.stdio.puts("options:")
+    std.stdio.puts("  -o, --output <FILE>  Output binary path (default: input filename without extension)")
+    std.stdio.puts("  --emit-qbe           Print QBE IR to stdout and exit")
+    std.stdio.puts("  --emit-asm           Print assembly to stdout and exit")
+    std.stdio.puts("  --show-cmd           Show the cc command used for linking")
+    std.stdio.puts("  -h, --help           Print this help message")
+}
+
+fn get_name_without_ext(path: ref char) ref char = {
+    val len: i64 = std.string.len_raw(path)
+    val last_slash: mut i64 = -1
+    val i: mut i64 = 0
+
+    for {
+        if (i >= len) {
+            break
+        }
+        val c: u8 = trust @load8(@ptradd(path, i)) as u8
+        if (c == 47) { // '/'
+            last_slash = i
+        }
+        i++
+    }
+    
+    val filename_start: mut i64 = last_slash + 1
+    val filename_len: i64 = len - filename_start    
+    val last_dot: mut i64 = -1
+    val j: mut i64 = 0
+
+    for {
+        if (j >= filename_len) {
+            break
+        }
+        val c: u8 = trust @load8(@ptradd(path, filename_start + j)) as u8
+        if (c == 46) {
+            last_dot = j
+        }
+        j++
+    }
+    
+    val name_len: mut i64 = 0
+
+    if (last_dot >= 0) {
+        name_len = last_dot
+    } else {
+        name_len = filename_len
+    }
+    val buf: ref void = trust @alloc(name_len + 1)
+    trust @memcpy(buf, @ptradd(path, filename_start), name_len)
+    trust @store8(@ptradd(buf, name_len), 0)
+    
+    return buf as ref char
+}
+
 pub fn main() void! = {
     val args = std.os.get_args()
     val argc: i64 = @len(args) as i64
 
-    if argc < 3 {
-        std.stdio.puts("usage: sxc <input.sx>")
+    if argc < 2 {
+        std.stdio.puts("error: no input file provided")
+        print_usage()
         return
     }
 
@@ -20,6 +79,11 @@ pub fn main() void! = {
         none   => { std.stdio.puts("error: no input file") return }
     }
 
+    if std.string.rchar_cmp(input, "-h") == 0 || std.string.rchar_cmp(input, "--help") == 0 {
+        print_usage()
+        return
+    }
+
     val src_opt = std.fs.read_all(input)
     val src: mut ref char = ""
     match src_opt {
@@ -27,6 +91,53 @@ pub fn main() void! = {
         none   => {
             std.stdio.print("error: could not read '%s'\n", {input})
             return
+        }
+    }
+
+    val output_opt: mut ref char = ""
+    val emit_qbe: mut i64 = 0
+    val emit_asm: mut i64 = 0
+    val show_cmd: mut i64 = 0
+    val arg_i: mut i64 = 2
+
+    for {
+        if (arg_i >= argc) {
+            break
+        }
+        val arg_opt = @get(args, arg_i)
+        match arg_opt {
+            some arg_val => {
+                val arg: ref char = arg_val as ref char
+                
+                if std.string.rchar_cmp(arg, "-o") == 0 || std.string.rchar_cmp(arg, "--output") == 0 {
+                    val next_i: mut i64 = arg_i + 1
+                    if (next_i < argc) {
+                        val next_opt = @get(args, next_i)
+                        match next_opt {
+                            some v => { output_opt = v as ref char }
+                            none => {}
+                        }
+                        arg_i = next_i + 1
+                    } else {
+                        std.stdio.puts("error: -o requires a value")
+                        return
+                    }
+                } elif std.string.rchar_cmp(arg, "--emit-qbe") == 0 {
+                    emit_qbe = 1
+                    arg_i++
+                } elif std.string.rchar_cmp(arg, "--emit-asm") == 0 {
+                    emit_asm = 1
+                    arg_i++
+                } elif std.string.rchar_cmp(arg, "--show-cmd") == 0 {
+                    show_cmd = 1
+                    arg_i++
+                } else {
+                    arg_i++
+                }
+            }
+            none => {
+                arg_i++
+            }
         }
     }
 
@@ -60,8 +171,20 @@ pub fn main() void! = {
     }
 
     val qbe_ir: ref char = codegen.gen_module(items)
-    // val output_opt = @get(args, 2)
-    val output: ref char = "a.out"
+    
+    if emit_qbe != 0 {
+        std.stdio.puts(qbe_ir)
+        return
+    }
+    
+    val binary_name: mut ref char = "" 
+    
+    if (output_opt != "") {
+        binary_name = output_opt
+    } else {
+        binary_name = get_name_without_ext(input)
+    }
+
     val qbe_file = "/tmp/spectre_output.ssa"
     val asm_file = "/tmp/spectre_output.s"
     val qbe_f = std.os.open(qbe_file, "w")
@@ -79,7 +202,9 @@ pub fn main() void! = {
 
     val qbe_cmd = @fmt("qbe -o {s} {s}", {asm_file, qbe_file})
     val qbe_res = std.os.exec(qbe_cmd)
-    std.stdio.print("{s}", {qbe_cmd})
+    if show_cmd != 0 {
+        std.stdio.print("{s}\n", {qbe_cmd})
+    }
     match qbe_res {
         ok _ => {}
         err e => {
@@ -89,21 +214,40 @@ pub fn main() void! = {
         }
     }
 
-    val cc_cmd = @fmt("cc -o {s} {s}", {output, asm_file})
-    std.stdio.print("\n{s}", {cc_cmd})
+    if emit_asm != 0 {
+        val asm_opt = std.fs.read_all(asm_file)
+        match asm_opt {
+            some asm_content => {
+                std.stdio.puts(asm_content as ref char)
+            }
+            none => {
+                std.stdio.puts("error: could not read assembly output")
+            }
+        }
+        std.os.delete(qbe_file)
+        std.os.delete(asm_file)
+        return
+    }
+
+    std.os.exec("mkdir -p ./s-out")
+
+    val cc_cmd = @fmt("cc -o ./s-out/{s} {s}", {binary_name, asm_file})
+    if show_cmd != 0 {
+        std.stdio.print("{s}\n", {cc_cmd})
+    }
     val cc_res = std.os.exec(cc_cmd)
     match cc_res {
         ok _ => {
-            std.stdio.print("\ncompiled: %s\n", {output})
+            std.stdio.print("compiled: ./s-out/{s}\n", {binary_name})
         }
         err e => {
-            std.stdio.puts("\nerror: cc assembly failed")
-            //std.os.delete(qbe_file)
+            std.stdio.puts("\nerror: cc compilation failed")
+            std.os.delete(qbe_file)
             std.os.delete(asm_file)
             return
         }
     }
 
-    // std.os.delete(qbe_file)
+    std.os.delete(qbe_file)
     std.os.delete(asm_file)
 }

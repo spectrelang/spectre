@@ -3,3 +3,5 @@
 .DS_Store
 .q*
 *.o
+*.s
+*.out

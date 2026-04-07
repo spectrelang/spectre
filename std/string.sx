@@ -39,9 +39,10 @@ pub union StrOrRChar = {
 
 /// Compare two raw strings.
 pub fn rchar_cmp(a: ref char, b: ref char) i64 = {
-    pre {
-        a != none
-        b != none
+    if a == none && b == none {
+        return 0
+    } elif a == none || b == none {
+        return -1
     }
     return trust compare(RChar(a), RChar(b))
 }
