@@ -966,6 +966,9 @@ impl Codegen {
                         self.local_slot_is_d.insert(name.clone());
                     }
                 } else {
+                    self.local_is_slot.remove(name);
+                    self.local_slot_is_l.remove(name);
+                    self.local_slot_is_d.remove(name);
                     self.locals.insert(name.clone(), tmp);
                     self.local_types.insert(name.clone(), qty);
                     self.local_mutability.insert(name.clone(), *mutable);

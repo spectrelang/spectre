@@ -26,7 +26,13 @@ fn get_name_without_ext(arena: ref allocators.Arena, path: ref char) ref char = 
         if (i >= len) {
             break
         }
-        val c: u8 = trust @load8(@ptradd(path, i)) as u8
+        val c: mut u8 = 'a'
+        match std.string.byte_at(path, i) {
+            some v => {
+                c = v
+            }
+            none => {}
+        } 
         if (c == 47) {
             last_slash = i
         }
