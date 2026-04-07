@@ -8,20 +8,20 @@ pub fn main() void! = {
     val args = std.os.get_args()
     val argc: i64 = @len(args) as i64
 
-    if argc < 2 {
+    if argc < 3 {
         std.stdio.puts("usage: sxc <input.sx>")
         return
     }
 
     val input_opt = @get(args, 1)
-    val input: ref char = ""
+    val input: mut ref char = ""
     match input_opt {
         some a => { input = a as ref char }
         none   => { std.stdio.puts("error: no input file") return }
     }
 
     val src_opt = std.fs.read_all(input)
-    val src: ref char = ""
+    val src: mut ref char = ""
     match src_opt {
         some s => { src = s as ref char }
         none   => {
