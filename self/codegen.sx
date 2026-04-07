@@ -1213,10 +1213,9 @@ fn gen_for_stmt(ctx: ref void, stmt: ref parser.Node) void! = {
 
     gen_stmts(ctx, stmt.d4 as ref parser.Node)
 
-    // post step
     val post_step: ref void = stmt.d3 as ref void
     if post_step != 0 as ref void {
-        gen_stmt(ctx, post_step)
+        gen_stmt(ctx, post_step as ref parser.Node)
     }
 
     val jbuf: ref char = @alloc(64) as ref char
@@ -1252,7 +1251,6 @@ fn gen_forin_stmt(ctx: ref void, stmt: ref parser.Node) void! = {
     emit(ctx, buf2)
     @free(buf2)
 
-    // get element
     val elem: i64 = fresh_tmp(ctx)
     val buf3: ref char = @alloc(256) as ref char
     @snprintf(buf3, 256,
@@ -1261,9 +1259,8 @@ fn gen_forin_stmt(ctx: ref void, stmt: ref parser.Node) void! = {
     emit(ctx, buf3)
     @free(buf3)
 
-    gen_stmts(ctx, body)
+    gen_stmts(ctx, body as ref parser.Node)
 
-    // increment index
     val nxt: i64 = fresh_tmp(ctx)
     val buf4: ref char = @alloc(128) as ref char
     @snprintf(buf4, 128,
@@ -1301,14 +1298,14 @@ fn gen_match_opt(ctx: ref void, stmt: ref parser.Node) void! = {
         emit(ctx, vbuf)
         @free(vbuf)
     }
-    gen_stmts(ctx, some_body)
+    gen_stmts(ctx, some_body as ref parser.Node)
 
     val jbuf: ref char = @alloc(64) as ref char
     @snprintf(jbuf, 64, "    jmp @lbl%lld\n@lbl%lld\n", {end_lbl, none_lbl})
     emit(ctx, jbuf)
     @free(jbuf)
 
-    gen_stmts(ctx, none_body)
+    gen_stmts(ctx, none_body as ref parser.Node)
 
     val endbuf: ref char = @alloc(32) as ref char
     @snprintf(endbuf, 32, "    jmp @lbl%lld\n@lbl%lld\n", {end_lbl, end_lbl})
@@ -1345,7 +1342,7 @@ fn gen_match_res(ctx: ref void, stmt: ref parser.Node) void! = {
         emit(ctx, vbuf)
         @free(vbuf)
     }
-    gen_stmts(ctx, ok_body)
+    gen_stmts(ctx, ok_body as ref parser.Node)
 
     val jbuf: ref char = @alloc(64) as ref char
     @snprintf(jbuf, 64, "    jmp @lbl%lld\n@lbl%lld\n", {end_lbl, err_lbl})
@@ -1362,7 +1359,7 @@ fn gen_match_res(ctx: ref void, stmt: ref parser.Node) void! = {
         emit(ctx, vbuf2)
         @free(vbuf2)
     }
-    gen_stmts(ctx, err_body)
+    gen_stmts(ctx, err_body as ref parser.Node)
 
     val endbuf: ref char = @alloc(32) as ref char
     @snprintf(endbuf, 32, "    jmp @lbl%lld\n@lbl%lld\n", {end_lbl, end_lbl})
@@ -1387,7 +1384,6 @@ fn gen_match_enum(ctx: ref void, stmt: ref parser.Node) void! = {
             some arm => {
                 val body_lbl: i64 = fresh_lbl(ctx)
                 val next_lbl: i64 = fresh_lbl(ctx)
-                // enum values are just integers; we compare by index
                 val cmp: i64 = fresh_tmp(ctx)
                 val buf: ref char = @alloc(256) as ref char
                 @snprintf(buf, 256,
@@ -1395,7 +1391,7 @@ fn gen_match_enum(ctx: ref void, stmt: ref parser.Node) void! = {
                     {cmp, expr, ai, cmp, body_lbl, next_lbl, body_lbl})
                 emit(ctx, buf)
                 @free(buf)
-                gen_stmts(ctx, (arm as ref parser.Node).d1 as ref void)
+                gen_stmts(ctx, (arm as ref parser.Node).d1 as ref parser.Node)
                 val jbuf: ref char = @alloc(64) as ref char
                 @snprintf(jbuf, 64, "    jmp @lbl%lld\n@lbl%lld\n", {end_lbl, next_lbl})
                 emit(ctx, jbuf)
@@ -1414,7 +1410,7 @@ fn gen_match_enum(ctx: ref void, stmt: ref parser.Node) void! = {
 fn gen_match_str(ctx: ref void, stmt: ref parser.Node) void! = {
     val expr: ref char = gen_expr(ctx, stmt.d0 as ref parser.Node)
     val arms: ref void = stmt.d1 as ref void
-    val else_body: ref void = stmt.d2 as ref void
+    val else_body: ref parser.Node = stmt.d2 as ref parser.Node
     val end_lbl: i64 = fresh_lbl(ctx)
 
     if arms != 0 as ref void {
@@ -1436,7 +1432,7 @@ fn gen_match_str(ctx: ref void, stmt: ref parser.Node) void! = {
                         {cmp, expr, pat_idx, cmp, cmp, cmp, body_lbl, next_lbl, body_lbl})
                     emit(ctx, buf)
                     @free(buf)
-                    gen_stmts(ctx, (arm as ref parser.Node).d1 as ref void)
+                    gen_stmts(ctx, (arm as ref parser.Node).d1 as ref parser.Node)
                     val jbuf: ref char = @alloc(64) as ref char
                     @snprintf(jbuf, 64, "    jmp @lbl%lld\n@lbl%lld\n", {end_lbl, next_lbl})
                     emit(ctx, jbuf)
@@ -1487,7 +1483,7 @@ fn gen_match_union(ctx: ref void, stmt: ref parser.Node) void! = {
                         {cmp, tag, ai, cmp, body_lbl, next_lbl, body_lbl})
                     emit(ctx, buf)
                     @free(buf)
-                    gen_stmts(ctx, (arm as ref parser.Node).d1 as ref void)
+                    gen_stmts(ctx, (arm as ref parser.Node).d1 as ref parser.Node)
                     val jbuf: ref char = @alloc(64) as ref char
                     @snprintf(jbuf, 64, "    jmp @lbl%lld\n@lbl%lld\n", {end_lbl, next_lbl})
                     emit(ctx, jbuf)
@@ -1500,7 +1496,7 @@ fn gen_match_union(ctx: ref void, stmt: ref parser.Node) void! = {
     }
 
     if else_body != 0 as ref void {
-        gen_stmts(ctx, else_body)
+        gen_stmts(ctx, else_body as ref parser.Node)
     }
 
     val endbuf: ref char = @alloc(32) as ref char
