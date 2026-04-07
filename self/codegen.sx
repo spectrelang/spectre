@@ -1326,8 +1326,13 @@ fn gen_stmt(ctx: ref void, stmt: ref parser.Node) void! = {
 
     if k == parser.NK_INCREMENT {
         val target2: ref parser.Node = stmt.d0 as ref parser.Node
+        val tname2: mut ref char = 0 as ref char
         if target2.kind == parser.NK_IDENT {
-            val tname2: ref char = target2.d0 as ref char
+            tname2 = target2.d0 as ref char
+        } else {
+            tname2 = stmt.d0 as ref char
+        }
+        if tname2 != 0 as ref char {
             val cur: i64 = fresh_tmp(ctx)
             val nxt: i64 = fresh_tmp(ctx)
             val buf9: ref char = @alloc(256) as ref char
@@ -1341,8 +1346,13 @@ fn gen_stmt(ctx: ref void, stmt: ref parser.Node) void! = {
 
     if k == parser.NK_DECREMENT {
         val target3: ref parser.Node = stmt.d0 as ref parser.Node
+        val tname3: mut ref char = 0 as ref char
         if target3.kind == parser.NK_IDENT {
-            val tname3: ref char = target3.d0 as ref char
+            tname3 = target3.d0 as ref char
+        } else {
+            tname3 = stmt.d0 as ref char
+        }
+        if tname3 != 0 as ref char {
             val cur2: i64 = fresh_tmp(ctx)
             val nxt2: i64 = fresh_tmp(ctx)
             val buf10: ref char = @alloc(256) as ref char
@@ -1357,8 +1367,13 @@ fn gen_stmt(ctx: ref void, stmt: ref parser.Node) void! = {
     if k == parser.NK_ADD_ASSIGN {
         val target4: ref parser.Node = stmt.d0 as ref parser.Node
         val rhs: ref char = gen_expr(ctx, stmt.d1 as ref parser.Node)
+        val tname4: mut ref char = 0 as ref char
         if target4.kind == parser.NK_IDENT {
-            val tname4: ref char = target4.d0 as ref char
+            tname4 = target4.d0 as ref char
+        } else {
+            tname4 = stmt.d0 as ref char
+        }
+        if tname4 != 0 as ref char {
             val cur3: i64 = fresh_tmp(ctx)
             val nxt3: i64 = fresh_tmp(ctx)
             val buf11: ref char = @alloc(256) as ref char
@@ -1373,8 +1388,13 @@ fn gen_stmt(ctx: ref void, stmt: ref parser.Node) void! = {
     if k == parser.NK_SUB_ASSIGN {
         val target5: ref parser.Node = stmt.d0 as ref parser.Node
         val rhs2: ref char = gen_expr(ctx, stmt.d1 as ref parser.Node)
+        val tname5: mut ref char = 0 as ref char
         if target5.kind == parser.NK_IDENT {
-            val tname5: ref char = target5.d0 as ref char
+            tname5 = target5.d0 as ref char
+        } else {
+            tname5 = stmt.d0 as ref char
+        }
+        if tname5 != 0 as ref char {
             val cur4: i64 = fresh_tmp(ctx)
             val nxt4: i64 = fresh_tmp(ctx)
             val buf12: ref char = @alloc(256) as ref char
