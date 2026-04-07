@@ -239,13 +239,13 @@ fn qbe_type_of(ty: ref parser.Node) ref char! = {
     if k == parser.TY_FIXED_ARR { return "a" }
     if k == parser.TY_NAMED {
         val name: ref char = ty.d0 as ref char
-        if str.rchar_cmp(name, "i32") || str.rchar_cmp(name, "u32") { return "w" }
-        if str.rchar_cmp(name, "i8")  || str.rchar_cmp(name, "u8")  { return "w" }
-        if str.rchar_cmp(name, "i16") || str.rchar_cmp(name, "u16") { return "w" }
-        if str.rchar_cmp(name, "bool") { return "w" }
-        if str.rchar_cmp(name, "f32") { return "s" }
-        if str.rchar_cmp(name, "f64") { return "d" }
-        if str.rchar_cmp(name, "char") { return "w" }
+        if str.rchar_cmp(name, "i32") == 0 || str.rchar_cmp(name, "u32") == 0 { return "w" }
+        if str.rchar_cmp(name, "i8")  == 0 || str.rchar_cmp(name, "u8")  == 0 { return "w" }
+        if str.rchar_cmp(name, "i16") == 0 || str.rchar_cmp(name, "u16") == 0 { return "w" }
+        if str.rchar_cmp(name, "bool") == 0 { return "w" }
+        if str.rchar_cmp(name, "f32") == 0 { return "s" }
+        if str.rchar_cmp(name, "f64") == 0 { return "d" }
+        if str.rchar_cmp(name, "char") == 0 { return "w" }
         return "l"
     }
     return "l"
@@ -257,11 +257,6 @@ fn type_size(ty: ref parser.Node) i64! = {
     if k == parser.TY_VOID    { return 0 }
     if k == parser.TY_MUT     { return type_size(ty.d0 as ref parser.Node) }
     if k == parser.TY_NAMED {
-        val name: ref char = ty.d0 as ref char
-        if str.rchar_cmp(name, "i8") || str.rchar_cmp(name, "u8") || str.rchar_cmp(name, "char") { return 1 }
-        if str.rchar_cmp(name, "i16") || str.rchar_cmp(name, "u16") { return 2 }
-        if str.rchar_cmp(name, "i32") || str.rchar_cmp(name, "u32") || str.rchar_cmp(name, "f32") { return 4 }
-        if str.rchar_cmp(name, "bool") { return 4 }
         return 8
     }
     if k == parser.TY_FIXED_ARR {
@@ -686,7 +681,20 @@ fn gen_field(ctx: ref void, expr: ref parser.Node) ref char! = {
         }
     }
 
-    val base: ref char = gen_expr(ctx, base_expr)
+    val base: mut ref char = 0 as ref char
+    if base_expr.kind == parser.NK_IDENT {
+        val base_name2: ref char = base_expr.d0 as ref char
+        val dqt: ref char = cg_direct_type(ctx, base_name2)
+        if str.rchar_cmp(dqt, "") != 0 {
+            val direct_buf: ref char = @alloc(32) as ref char
+            @snprintf(direct_buf, 32, "%%%s", {base_name2})
+            base = direct_buf
+        }
+    }
+    if base == 0 as ref char {
+        base = gen_expr(ctx, base_expr)
+    }
+
     val tmp: i64 = fresh_tmp(ctx)
     val buf: ref char = @alloc(256) as ref char
     if offset == 0 {
@@ -712,7 +720,11 @@ fn gen_field(ctx: ref void, expr: ref parser.Node) ref char! = {
 fn gen_call(ctx: ref void, expr: ref parser.Node) ref char! = {
     val callee_node: ref parser.Node = expr.d0 as ref parser.Node
     val args_list: ref void = expr.d1 as ref void
-    val callee_name: ref char = resolve_callee_name(callee_node)
+    val callee_raw: ref char = resolve_callee_name(callee_node)
+    val callee_name: ref char = @alloc(256) as ref char
+
+    @snprintf(callee_name, 256, "%s", {callee_raw})
+
     val arg_tmps: mut list[ref char] = []
 
     if args_list != 0 as ref void {
@@ -754,7 +766,7 @@ fn gen_call(ctx: ref void, expr: ref parser.Node) ref char! = {
 
     val tmp: i64 = fresh_tmp(ctx)
 
-    val call_buf: ref char = @alloc(4096) as ref char
+    val call_buf: ref char = @alloc(8192) as ref char
     val call_pos: mut i64 = 0
     val hdr: ref char = @alloc(256) as ref char
     @snprintf(hdr, 256, "    %%t%lld =l call $%s(", {tmp, callee_name})
@@ -1991,6 +2003,11 @@ fn gen_fn_prefixed(ctx: ref void, fn_node: ref parser.Node, mod_prefix: ref char
                         @free(pbuf2)
                     } else {
                         cg_dvars_add(ctx, pname2, qbe_type_of(pty2))
+                        // Register struct-typed params so field access works
+                        if ptk == parser.TY_NAMED {
+                            val tname: ref char = pty2.d0 as ref char
+                            cg_register_local_type(ctx, pname2, tname)
+                        }
                     }
                 }
                 none => {}

@@ -771,7 +771,7 @@ pub fn (StringBuilder) append(sb: self, s: ref void) void! = {
     val ptr: ref void = @load(sb)
 
     @memcpy(@ptradd(ptr, l), other_ptr, other_len)
-    @store(@ptradd(ptr, new_len), 0)
+    @store8(@ptradd(ptr, new_len), 0)
     @store(@ptradd(sb, 8), new_len)
 }
 
@@ -786,7 +786,7 @@ pub fn (StringBuilder) append_cstr(sb: self, cstr: ref char) void! = {
     val ptr: ref void = @load(sb)
 
     @memcpy(@ptradd(ptr, l), cstr, add_len)
-    @store(@ptradd(ptr, new_len), 0)
+    @store8(@ptradd(ptr, new_len), 0)
     @store(@ptradd(sb, 8), new_len)
 }
 
