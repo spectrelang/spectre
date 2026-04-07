@@ -30,7 +30,7 @@ fn path_join(dir: ref char, name: ref char) ref char! = {
     val nlen: i64 = str.len_raw(name)
     val buf: ref char = @alloc(dlen + nlen + 2) as ref char
     @memcpy(buf as ref void, dir as ref void, dlen as usize)
-    @store8(@ptradd(buf as ref void, dlen), 47)  // '/'
+    @store8(@ptradd(buf as ref void, dlen), '/')
     @memcpy(@ptradd(buf as ref void, dlen + 1), name as ref void, nlen as usize)
     @store8(@ptradd(buf as ref void, dlen + nlen + 1), 0)
     return buf
