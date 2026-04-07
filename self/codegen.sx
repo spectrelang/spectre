@@ -1759,7 +1759,7 @@ pub fn gen_module_resolved(root: ref module.ResolvedModule) ref char! = {
             some pfx => {
                 match items_opt {
                     some items_ptr => {
-                        val items: list[ref parser.Node] = @load(items_ptr as ref void) as list[ref parser.Node]
+                        val items: list[ref parser.Node] = items_ptr as list[ref parser.Node]
                         gen_items_with_prefix(ctx, items, pfx as ref char)
                     }
                     none => {}
