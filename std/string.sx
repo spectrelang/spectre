@@ -1057,6 +1057,11 @@ test {
     reverse(rv)
     assert(equals(rv, from("dcba")))
 
+
+    val s = from("Hello world")
+    val out = trim_suffix(s, from("world"))
+    assert(equals(out, from("Hello ")))
+
     stdio.puts("string tests passed")
 
     stdio.print("{s}", {cstr(format("hello {d}", {1}))})
