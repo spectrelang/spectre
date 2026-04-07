@@ -533,10 +533,15 @@ fn gen_call(ctx: ref void, expr: ref parser.Node) ref char! = {
     }
 
     val tmp: i64 = fresh_tmp(ctx)
-    val buf: ref char = @alloc(1024) as ref char
-    @snprintf(buf, 1024, "    %%t%lld =l call $%s(", {tmp, callee_name})
-    emit(ctx, buf)
-    @free(buf)
+
+    val call_buf: ref char = @alloc(4096) as ref char
+    val call_pos: mut i64 = 0
+    val hdr: ref char = @alloc(256) as ref char
+    @snprintf(hdr, 256, "    %%t%lld =l call $%s(", {tmp, callee_name})
+    val hdr_len: mut i64 = str.len_raw(hdr)
+    @memcpy(@ptradd(call_buf as ref void, call_pos), hdr as ref void, hdr_len)
+    call_pos = call_pos + hdr_len
+    @free(hdr)
 
     val tlen: i64 = @len(arg_tmps) as i64
     val ti: mut i64 = 0
@@ -546,16 +551,24 @@ fn gen_call(ctx: ref void, expr: ref parser.Node) ref char! = {
         match t_opt {
             some t => {
                 val tbuf: ref char = @alloc(64) as ref char
-                if ti > 0 { emit(ctx, ", ") }
+                if ti > 0 {
+                    @memcpy(@ptradd(call_buf as ref void, call_pos), ", " as ref void, 2)
+                    call_pos = call_pos + 2
+                }
                 @snprintf(tbuf, 64, "l %s", {t as ref char})
-                emit(ctx, tbuf)
+                val tlen2: mut i64 = str.len_raw(tbuf)
+                @memcpy(@ptradd(call_buf as ref void, call_pos), tbuf as ref void, tlen2)
+                call_pos = call_pos + tlen2
                 @free(tbuf)
             }
             none => {}
         }
         ti++
     }
-    emitln(ctx, ")")
+    @store8(@ptradd(call_buf as ref void, call_pos), 41) // ')'
+    call_pos = call_pos + 1
+    @store8(@ptradd(call_buf as ref void, call_pos), 0)
+    emitln(ctx, call_buf)
 
     val res: ref char = @alloc(16) as ref char
     @snprintf(res, 16, "%%t%lld", {tmp})
@@ -704,29 +717,45 @@ fn gen_builtin(ctx: ref void, expr: ref parser.Node) ref char! = {
         @snprintf(buf, 512, "    %%t%lld =l call $__sx_get_args()\n", {tmp})
         emit(ctx, buf)
     } else {
-        @snprintf(buf, 512, "    %%t%lld =l call $%s(", {tmp, name})
-        emit(ctx, buf)
+        val call_sb: ref void = str.StringBuilder.new()
+        val hdr2: ref void = str.format("    %%t%lld =l call $%s(", {tmp, name})
+        str.StringBuilder.append(call_sb, hdr2)
         if args != 0 as ref void {
             val alen: i64 = @len(args) as i64
             val ai: mut i64 = 0
+            val arg_tmps2: mut list[ref char] = []
             for {
                 if ai >= alen { break }
                 val a_opt = @get(args, ai as usize)
                 match a_opt {
                     some a => {
                         val at: ref char = gen_expr(ctx, a as ref parser.Node)
-                        val tbuf: ref char = @alloc(64) as ref char
-                        if ai > 0 { emit(ctx, ", ") }
-                        @snprintf(tbuf, 64, "l %s", {at})
-                        emit(ctx, tbuf)
-                        @free(tbuf)
+                        @append(arg_tmps2, at)
                     }
                     none => {}
                 }
                 ai++
             }
+            val tlen3: i64 = @len(arg_tmps2) as i64
+            val ti3: mut i64 = 0
+            for {
+                if ti3 >= tlen3 { break }
+                val t3_opt = @get(arg_tmps2, ti3 as usize)
+                match t3_opt {
+                    some t3 => {
+                        if ti3 > 0 { str.StringBuilder.append_cstr(call_sb, ", ") }
+                        val tbuf3: ref void = str.format("l %s", {t3 as ref char})
+                        str.StringBuilder.append(call_sb, tbuf3)
+                    }
+                    none => {}
+                }
+                ti3++
+            }
         }
-        emitln(ctx, ")")
+        str.StringBuilder.append_cstr(call_sb, ")")
+        val call_line2: ref void = str.StringBuilder.build(call_sb)
+        str.StringBuilder.free(call_sb)
+        emitln(ctx, str.cstr(call_line2))
     }
 
     @free(buf)
