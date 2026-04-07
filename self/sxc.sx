@@ -10,9 +10,9 @@ fn print_usage() void = {
     std.stdio.puts("")
     std.stdio.puts("options:")
     std.stdio.puts("  -o, --output <FILE>  Output binary path (default: input filename without extension)")
-    std.stdio.puts("  --emit-qbe           Print QBE IR to stdout and exit")
+    std.stdio.puts("  --emit-qbe           Print IR to stdout and exit")
     std.stdio.puts("  --emit-asm           Print assembly to stdout and exit")
-    std.stdio.puts("  --show-cmd           Show the cc command used for linking")
+    std.stdio.puts("  --show-cmd           Show the command used for linking")
     std.stdio.puts("  -h, --help           Print this help message")
 }
 
