@@ -295,7 +295,8 @@ fn kind_is_not(k: lexer.TokenKind) bool! = { match k { Not() => { return true } 
 fn kind_is_ref(k: lexer.TokenKind) bool! = { match k { Ref() => { return true } else => { return false } } }
 fn kind_is_use(k: lexer.TokenKind) bool! = { match k { Use() => { return true } else => { return false } } }
 fn kind_is_test(k: lexer.TokenKind) bool! = { match k { Test() => { return true } else => { return false } } }
-fn kind_is_eof(k: lexer.TokenKind) bool! = { match k { Eof() => { return true } else => { return false } } }fn kind_is_ident(k: lexer.TokenKind) bool! = { match k { Ident _ => { return true } else => { return false } } }
+fn kind_is_eof(k: lexer.TokenKind) bool! = { match k { Eof() => { return true } else => { return false } } }
+fn kind_is_ident(k: lexer.TokenKind) bool! = { match k { Ident _ => { return true } else => { return false } } }
 fn kind_is_str(k: lexer.TokenKind) bool! = { match k { Str _ => { return true } else => { return false } } }
 fn kind_is_int(k: lexer.TokenKind) bool! = { match k { Int _ => { return true } else => { return false } } }
 fn kind_is_float(k: lexer.TokenKind) bool! = { match k { Float _ => { return true } else => { return false } } }
