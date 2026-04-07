@@ -95,9 +95,9 @@ pub fn main() void! = {
     }
 
     val output_opt: mut ref char = ""
-    val emit_qbe: mut i64 = 0
-    val emit_asm: mut i64 = 0
-    val show_cmd: mut i64 = 0
+    val emit_qbe: mut bool = false
+    val emit_asm: mut bool = false
+    val show_cmd: mut bool = false
     val arg_i: mut i64 = 2
 
     for {
@@ -123,13 +123,13 @@ pub fn main() void! = {
                         return
                     }
                 } elif std.string.rchar_cmp(arg, "--emit-qbe") == 0 {
-                    emit_qbe = 1
+                    emit_qbe = true
                     arg_i++
                 } elif std.string.rchar_cmp(arg, "--emit-asm") == 0 {
-                    emit_asm = 1
+                    emit_asm = true
                     arg_i++
                 } elif std.string.rchar_cmp(arg, "--show-cmd") == 0 {
-                    show_cmd = 1
+                    show_cmd = true
                     arg_i++
                 } else {
                     arg_i++
