@@ -232,16 +232,27 @@ pub fn main() void! = {
         return
     }
 
-    std.os.exec("mkdir -p ./s-out")
+    val output_specified: bool = std.string.rchar_cmp(output_name, "") != 0
+    val cc_cmd: mut ref char = ""
+    val success_msg: mut ref char = ""
 
-    val cc_cmd = @fmt("cc -o ./s-out/{s} {s}", {binary_name, asm_file})
+    if output_specified != 0 {
+        cc_cmd = @fmt("cc -o {s} {s}", {binary_name, asm_file})
+        success_msg = @fmt("compiled: {s}\n", {binary_name})
+    } else {
+        std.os.exec("mkdir -p ./s-out")
+        cc_cmd = @fmt("cc -o ./s-out/{s} {s}", {binary_name, asm_file})
+        success_msg = @fmt("compiled: ./s-out/{s}\n", {binary_name})
+    }
+
     if show_cmd != 0 {
         std.stdio.print("{s}\n", {cc_cmd})
     }
+
     val cc_res = std.os.exec(cc_cmd)
     match cc_res {
         ok _ => {
-            std.stdio.print("compiled: ./s-out/{s}\n", {binary_name})
+            std.stdio.print("{s}", {success_msg})
         }
         err e => {
             std.stdio.puts("\nerror: cc compilation failed")
