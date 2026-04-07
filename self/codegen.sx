@@ -1593,11 +1593,20 @@ fn gen_fn_prefixed(ctx: ref void, fn_node: ref parser.Node, mod_prefix: ref char
             match p2_opt {
                 some param2 => {
                     val pname2: ref char = (param2 as ref parser.Node).d0 as ref char
-                    val pbuf2: ref char = @alloc(128) as ref char
+                    val pty2: ref parser.Node = (param2 as ref parser.Node).d1 as ref parser.Node
+                    val pqt2: ref char = qbe_type_of(pty2)
+                    val pbuf2: ref char = @alloc(192) as ref char
                     val slot: i64 = fresh_tmp(ctx)
-                    @snprintf(pbuf2, 128,
-                        "    %%t%lld =l alloc8 8\n    storel %%%s, %%t%lld\n    %%%s =l copy %%t%lld\n",
-                        {slot, pname2, slot, pname2, slot})
+                    if str.rchar_cmp(pqt2, "w") == 0 {
+                        val ext: i64 = fresh_tmp(ctx)
+                        @snprintf(pbuf2, 192,
+                            "    %%t%lld =l alloc8 8\n    %%t%lld =l extsw %%%s\n    storel %%t%lld, %%t%lld\n    %%%s =l copy %%t%lld\n",
+                            {slot, ext, pname2, ext, slot, pname2, slot})
+                    } else {
+                        @snprintf(pbuf2, 192,
+                            "    %%t%lld =l alloc8 8\n    storel %%%s, %%t%lld\n    %%%s =l copy %%t%lld\n",
+                            {slot, pname2, slot, pname2, slot})
+                    }
                     emit(ctx, pbuf2)
                     @free(pbuf2)
                 }
