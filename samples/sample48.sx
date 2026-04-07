@@ -1,0 +1,17 @@
+val str = use("std/string")
+
+pub fn some_function() void = {
+    val x: ref char = "hello, this is a string"
+    match str.getr(x, 1) {
+        some v => {
+            trust @printf("{c}", {v})
+        }
+        none => {
+            trust @printf("wtf", {})
+        }
+    }
+}
+
+pub fn main() void = {
+    some_function()
+}
