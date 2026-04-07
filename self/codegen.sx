@@ -21,18 +21,12 @@ fn cg_new() ref void! = {
     @memset(ctx, 0, 64)
     val sb: ref void = str.StringBuilder.new()
     @store(@ptradd(ctx, 0), sb as usize)
-    val strs: mut list[ref char] = []
-    val sl: ref void = @alloc(24)
-    @memcpy(sl, addr(strs) as ref void, 24)
-    @store(@ptradd(ctx, 32), sl as usize)
-    val tdefs: mut list[ref void] = []
-    val tl: ref void = @alloc(24)
-    @memcpy(tl, addr(tdefs) as ref void, 24)
-    @store(@ptradd(ctx, 48), tl as usize)
-    val edefs: mut list[ref void] = []
-    val el: ref void = @alloc(24)
-    @memcpy(el, addr(edefs) as ref void, 24)
-    @store(@ptradd(ctx, 56), el as usize)
+    val strs: list[ref char] = []
+    @store(@ptradd(ctx, 32), strs as usize)
+    val tdefs: list[ref void] = []
+    @store(@ptradd(ctx, 48), tdefs as usize)
+    val edefs: list[ref void] = []
+    @store(@ptradd(ctx, 56), edefs as usize)
     return ctx
 }
 
