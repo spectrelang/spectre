@@ -288,10 +288,6 @@ pub fn main() void! = {
         }
         err e => {
             std.stdio.puts("\nerror: cc compilation failed")
-            std.os.delete(qbe_file)
-            std.os.delete(asm_file)
-            allocators.Arena.free(arena)
-            return
         }
     }
 
