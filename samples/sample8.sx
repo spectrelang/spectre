@@ -1,16 +1,16 @@
-val std = use("std")
+val stdio = use("std/stdio")
 
 pub fn main() void! = {
     val x: i32 = 20
 
     if (x < 30) {
-        std.stdio.puts("good")
+        stdio.puts("good")
     } elif (x < 10) {
-        std.stdio.puts("what...?")
+        stdio.puts("what...?")
     }
 
     for (y = 0; y < 10; y++) {
-        std.stdio.print("{d}\n", {y})
+        stdio.print("{d}\n", {y})
     }
 
 //    for {
