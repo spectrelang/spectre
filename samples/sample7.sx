@@ -1,13 +1,13 @@
-val std = use("std")
+val stdio = use("std/stdio")
 
 pub fn main() void! = {
     val result = can_fail(true)
     match result {
         some x => {
-            std.stdio.print("hooray: {d}", {x})
+            stdio.print("hooray: {d}", {x})
         }
         none => {
-            std.stdio.puts(":(")
+            stdio.puts(":(")
         }
     }
 }
