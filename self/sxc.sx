@@ -1,4 +1,5 @@
 val std = use("std")
+val allocators = use("std/allocators")
 val lexer = use("lexer.sx")
 val parser = use("parser.sx")
 val sema = use("sema.sx")
@@ -16,7 +17,7 @@ fn print_usage() void = {
     std.stdio.puts("  -h, --help           Print this help message")
 }
 
-fn get_name_without_ext(path: ref char) ref char = {
+fn get_name_without_ext(arena: ref allocators.Arena, path: ref char) ref char = {
     val len: i64 = std.string.len_raw(path)
     val last_slash: mut i64 = -1
     val i: mut i64 = 0
@@ -31,9 +32,9 @@ fn get_name_without_ext(path: ref char) ref char = {
         }
         i++
     }
-    
+
     val filename_start: mut i64 = last_slash + 1
-    val filename_len: i64 = len - filename_start    
+    val filename_len: i64 = len - filename_start
     val last_dot: mut i64 = -1
     val j: mut i64 = 0
 
@@ -47,7 +48,7 @@ fn get_name_without_ext(path: ref char) ref char = {
         }
         j++
     }
-    
+
     val name_len: mut i64 = 0
 
     if (last_dot >= 0) {
@@ -55,20 +56,33 @@ fn get_name_without_ext(path: ref char) ref char = {
     } else {
         name_len = filename_len
     }
-    val buf: ref void = trust @alloc(name_len + 1)
+    
+    val buf_opt = allocators.Arena.alloc(arena, name_len + 1)
+    val buf: mut ref void = 0 as ref void
+    match buf_opt {
+        some b => {
+            buf = b
+        }
+        none => {
+            std.stdio.puts("error: out of memory")
+            return ""
+        }
+    }
     trust @memcpy(buf, @ptradd(path, filename_start), name_len)
     trust @store8(@ptradd(buf, name_len), 0)
-    
+
     return buf as ref char
 }
 
 pub fn main() void! = {
+    val arena = allocators.Arena.new(65536)?
     val args = std.os.get_args()
     val argc: i64 = @len(args) as i64
 
     if argc < 2 {
         std.stdio.puts("error: no input file provided")
         print_usage()
+        allocators.Arena.free(arena)
         return
     }
 
@@ -76,11 +90,16 @@ pub fn main() void! = {
     val input: mut ref char = ""
     match input_opt {
         some a => { input = a as ref char }
-        none   => { std.stdio.puts("error: no input file") return }
+        none   => { 
+            std.stdio.puts("error: no input file")
+            allocators.Arena.free(arena)
+            return 
+        }
     }
 
     if std.string.rchar_cmp(input, "-h") == 0 || std.string.rchar_cmp(input, "--help") == 0 {
         print_usage()
+        allocators.Arena.free(arena)
         return
     }
 
@@ -90,6 +109,7 @@ pub fn main() void! = {
         some s => { src = s as ref char }
         none   => {
             std.stdio.print("error: could not read '%s'\n", {input})
+            allocators.Arena.free(arena)
             return
         }
     }
@@ -115,14 +135,16 @@ pub fn main() void! = {
                         val next_opt = @get(args, next_i)
                         match next_opt {
                             some v => { output_name = v as ref char }
-                            none => { 
+                            none => {
                                 std.stdio.puts("error: -o requires a value")
-                                return 
+                                allocators.Arena.free(arena)
+                                return
                             }
                         }
                         arg_i = next_i + 1
                     } else {
                         std.stdio.puts("error: -o requires a value")
+                        allocators.Arena.free(arena)
                         return
                     }
                 } elif std.string.rchar_cmp(arg, "--emit-qbe") == 0 {
@@ -150,6 +172,7 @@ pub fn main() void! = {
         ok t  => { tokens = t }
         err e => {
             std.stdio.print("lex error: %s\n", {e})
+            allocators.Arena.free(arena)
             return
         }
     }
@@ -160,6 +183,7 @@ pub fn main() void! = {
         ok i  => { items = i }
         err e => {
             std.stdio.print("parse error: %s\n", {e})
+            allocators.Arena.free(arena)
             return
         }
     }
@@ -170,6 +194,7 @@ pub fn main() void! = {
         for e in errors {
             std.stdio.print("error: %s\n", {e})
         }
+        allocators.Arena.free(arena)
         return
     }
 
@@ -177,13 +202,14 @@ pub fn main() void! = {
 
     if emit_qbe != 0 {
         std.stdio.puts(qbe_ir)
+        allocators.Arena.free(arena)
         return
     }
 
     val binary_name: mut ref char = ""
-    
+
     if std.string.rchar_cmp(output_name, "") == 0 {
-        binary_name = get_name_without_ext(input)
+        binary_name = get_name_without_ext(arena, input)
     } else {
         binary_name = output_name
     }
@@ -199,6 +225,7 @@ pub fn main() void! = {
         }
         none => {
             std.stdio.puts("\nerror: could not write QBE IR")
+            allocators.Arena.free(arena)
             return
         }
     }
@@ -213,6 +240,7 @@ pub fn main() void! = {
         err e => {
             std.stdio.puts("\nerror: qbe compilation failed")
             std.os.delete(qbe_file)
+            allocators.Arena.free(arena)
             return
         }
     }
@@ -229,6 +257,7 @@ pub fn main() void! = {
         }
         std.os.delete(qbe_file)
         std.os.delete(asm_file)
+        allocators.Arena.free(arena)
         return
     }
 
@@ -258,10 +287,12 @@ pub fn main() void! = {
             std.stdio.puts("\nerror: cc compilation failed")
             std.os.delete(qbe_file)
             std.os.delete(asm_file)
+            allocators.Arena.free(arena)
             return
         }
     }
 
     std.os.delete(qbe_file)
     std.os.delete(asm_file)
+    allocators.Arena.free(arena)
 }
