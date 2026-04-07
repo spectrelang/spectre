@@ -466,12 +466,18 @@ fn check_stmt(ctx: ref SemaCtx, stmt: ref parser.Node, filename: ref char) void!
     if k == parser.NK_MATCH_OPT {
         check_expr(ctx, stmt.d0 as ref parser.Node, filename)
         val some_bind: ref char = stmt.d1 as ref char
+        val some_body_node: ref parser.Node = stmt.d2 as ref parser.Node
+        val none_body_node: ref parser.Node = stmt.d3 as ref parser.Node
         push_scope(ctx)
         if some_bind != 0 as ref char { scope_define(ctx, some_bind, 0, 0 as ref char) }
-        check_stmts(ctx, stmt.d2 as ref void, filename)
+        if some_body_node != 0 as ref parser.Node {
+            check_stmts(ctx, some_body_node.d0 as ref void, filename)
+        }
         pop_scope(ctx)
         push_scope(ctx)
-        check_stmts(ctx, stmt.d3 as ref void, filename)
+        if none_body_node != 0 as ref parser.Node {
+            check_stmts(ctx, none_body_node.d0 as ref void, filename)
+        }
         pop_scope(ctx)
         return
     }
@@ -479,14 +485,20 @@ fn check_stmt(ctx: ref SemaCtx, stmt: ref parser.Node, filename: ref char) void!
     if k == parser.NK_MATCH_RES {
         check_expr(ctx, stmt.d0 as ref parser.Node, filename)
         val ok_bind: ref char = stmt.d1 as ref char
+        val ok_body_node: ref parser.Node = stmt.d2 as ref parser.Node
         push_scope(ctx)
         if ok_bind != 0 as ref char { scope_define(ctx, ok_bind, 0, 0 as ref char) }
-        check_stmts(ctx, stmt.d2 as ref void, filename)
+        if ok_body_node != 0 as ref parser.Node {
+            check_stmts(ctx, ok_body_node.d0 as ref void, filename)
+        }
         pop_scope(ctx)
         val err_bind: ref char = stmt.d3 as ref char
+        val err_body_node: ref parser.Node = stmt.d4 as ref parser.Node
         push_scope(ctx)
         if err_bind != 0 as ref char { scope_define(ctx, err_bind, 0, 0 as ref char) }
-        check_stmts(ctx, stmt.d4 as ref void, filename)
+        if err_body_node != 0 as ref parser.Node {
+            check_stmts(ctx, err_body_node.d0 as ref void, filename)
+        }
         pop_scope(ctx)
         return
     }
