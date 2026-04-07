@@ -614,8 +614,32 @@ pub fn equals(x: String, y: String) bool = {
     return true
 }
 
+/// If s starts with prefix, return s without it, otherwise clone
+pub fn trim_prefix(s: String, prefix: String) String! = {
+    if (!starts_with(s, prefix)) {
+        return clone(s as ref void) as String
+    }
+
+    val pl: i64 = @load(@ptradd(prefix, 8)) as i64
+    val sl: i64 = @load(@ptradd(s, 8)) as i64
+
+    return slice(s as ref void, pl, sl) as String
+}
+
+/// If s ends with suffix, return s without it, otherwise clone
+pub fn trim_suffix(s: String, suffix: String) String! = {
+    if (!ends_with(s, suffix)) {
+        return clone(s as ref void) as String
+    }
+
+    val sl: i64 = @load(@ptradd(s, 8)) as i64
+    val sul: i64 = @load(@ptradd(suffix, 8)) as i64
+
+    return slice(s as ref void, 0, sl - sul) as String
+}
+
 /// Check if s starts with prefix
-pub fn starts_with(s: ref void, prefix: ref void) bool = {
+pub fn starts_with(s: String, prefix: String) bool = {
     pre {
         s_not_null:      s != 0
         prefix_not_null: prefix != 0
@@ -652,7 +676,7 @@ pub fn starts_with(s: ref void, prefix: ref void) bool = {
 }
 
 /// Check if s ends with suffix
-pub fn ends_with(s: ref void, suffix: ref void) bool = {
+pub fn ends_with(s: String, suffix: String) bool = {
     pre {
         s_not_null:      s != 0
         suffix_not_null: suffix != 0
