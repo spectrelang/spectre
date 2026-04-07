@@ -2498,7 +2498,7 @@ impl Codegen {
                     self.emit(&format!("    {tmp} =l copy ${qbe_name}"));
                     Ok((tmp, "l"))
                 } else {
-                    Err(format!("{}: undefined variable: {name}", self.current_file))
+                    Err(format!("{}: undefined variable: {name} at expression {expr:?}", self.current_file))
                 }
             }
 
