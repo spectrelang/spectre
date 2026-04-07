@@ -33,6 +33,7 @@ pub fn type_to_annotation_string(ty: &TypeExpr) -> String {
     match ty {
         TypeExpr::Named(n) => n.clone(),
         TypeExpr::Ref(inner) => format!("ref {}", type_to_annotation_string(inner)),
+        TypeExpr::Mut(inner) => type_to_annotation_string(inner),
         TypeExpr::Option(inner) => format!("option[{}]", type_to_annotation_string(inner)),
         TypeExpr::List(inner) => format!("list[{}]", type_to_annotation_string(inner)),
         TypeExpr::Result(ok, err) => format!(
@@ -40,7 +41,14 @@ pub fn type_to_annotation_string(ty: &TypeExpr) -> String {
             type_to_annotation_string(ok),
             type_to_annotation_string(err)
         ),
-        _ => String::new(),
+        TypeExpr::Slice(inner) => format!("slice[{}]", type_to_annotation_string(inner)),
+        TypeExpr::FnPtr { params, ret } => {
+            let param_strs: Vec<String> = params.iter().map(type_to_annotation_string).collect();
+            format!("fn({}) {}", param_strs.join(", "), type_to_annotation_string(ret))
+        }
+        TypeExpr::FixedArray(n, inner) => format!("[{}]{}", n, type_to_annotation_string(inner)),
+        TypeExpr::Void => "void".to_string(),
+        TypeExpr::Untyped => String::new(),
     }
 }
 
@@ -2147,11 +2155,23 @@ impl Codegen {
     /// Return the byte offset of `field_name` within the struct that `base` refers to.
     /// We look up the binding's declared type annotation to find the type definition.
     fn field_offset_for(&self, base: &Expr, field_name: &str) -> Result<usize, String> {
-        let raw_type_name = self.infer_struct_type_name(base)?;
+        let raw_type_name = self.infer_struct_type_name(base).map_err(|e| {
+            format!(
+                "in function '{}': cannot resolve type for field access '.{}' on {:?}: {}",
+                self.current_fn, field_name, base, e
+            )
+        })?;
         let type_name = raw_type_name
             .strip_prefix("ref ")
             .unwrap_or(&raw_type_name)
             .to_string();
+        if type_name.is_empty() {
+            return Err(format!(
+                "in function '{}': cannot determine struct type for field access '.{}' on {:?} \
+                 (type annotation is missing or unresolved — make sure the variable has an explicit type annotation)",
+                self.current_fn, field_name, base
+            ));
+        }
         let bare_name = type_name
             .rsplit('.')
             .next()
@@ -2163,7 +2183,11 @@ impl Codegen {
             .or_else(|| self.extern_type_defs.get(&type_name))
             .or_else(|| self.type_defs.get(&bare_name))
             .or_else(|| self.extern_type_defs.get(&bare_name))
-            .ok_or_else(|| format!("unknown type '{type_name}'"))?;
+            .ok_or_else(|| format!(
+                "in function '{}': unknown type '{}' for field access '.{}' on {:?} \
+                 (type is not defined in this module or its imports)",
+                self.current_fn, type_name, field_name, base
+            ))?;
 
         let has_fixed_arrays = fields
             .iter()

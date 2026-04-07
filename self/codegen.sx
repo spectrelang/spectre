@@ -874,7 +874,7 @@ fn gen_stmt(ctx: ref void, stmt: ref parser.Node) void! = {
     }
 
     if k == parser.NK_ASSIGN {
-        val target: ref void = stmt.d0 as ref void
+        val target: ref parser.Node = stmt.d0 as ref parser.Node
         val value: ref parser.Node = stmt.d1 as ref parser.Node
         val val_tmp2: ref char = gen_expr(ctx, value)
         val tk: i64 = target.kind as i64
@@ -1052,7 +1052,7 @@ fn gen_stmt(ctx: ref void, stmt: ref parser.Node) void! = {
     }
 
     if k == parser.NK_INCREMENT {
-        val target2: ref void = stmt.d0 as ref void
+        val target2: ref parser.Node = stmt.d0 as ref parser.Node
         if target2.kind == parser.NK_IDENT {
             val tname2: ref char = target2.d0 as ref char
             val cur: i64 = fresh_tmp(ctx)
@@ -1067,7 +1067,7 @@ fn gen_stmt(ctx: ref void, stmt: ref parser.Node) void! = {
     }
 
     if k == parser.NK_DECREMENT {
-        val target3: ref void = stmt.d0 as ref void
+        val target3: ref parser.Node = stmt.d0 as ref parser.Node
         if target3.kind == parser.NK_IDENT {
             val tname3: ref char = target3.d0 as ref char
             val cur2: i64 = fresh_tmp(ctx)
@@ -1082,7 +1082,7 @@ fn gen_stmt(ctx: ref void, stmt: ref parser.Node) void! = {
     }
 
     if k == parser.NK_ADD_ASSIGN {
-        val target4: ref void = stmt.d0 as ref void
+        val target4: ref parser.Node = stmt.d0 as ref parser.Node
         val rhs: ref char = gen_expr(ctx, stmt.d1 as ref parser.Node)
         if target4.kind == parser.NK_IDENT {
             val tname4: ref char = target4.d0 as ref char
@@ -1098,7 +1098,7 @@ fn gen_stmt(ctx: ref void, stmt: ref parser.Node) void! = {
     }
 
     if k == parser.NK_SUB_ASSIGN {
-        val target5: ref void = stmt.d0 as ref void
+        val target5: ref parser.Node = stmt.d0 as ref parser.Node
         val rhs2: ref char = gen_expr(ctx, stmt.d1 as ref parser.Node)
         if target5.kind == parser.NK_IDENT {
             val tname5: ref char = target5.d0 as ref char
@@ -1522,7 +1522,7 @@ fn gen_fn(ctx: ref void, fn_node: ref parser.Node) void! = {
 
     cg_set_fn_name(ctx, mangled)
 
-    val export_kw: ref char = ""
+    val export_kw: mut ref char = ""
     if public == 1 { export_kw = "export " }
     val ret_qt: ref char = qbe_type_of(ret_ty)
     val sig_buf: ref char = @alloc(512) as ref char
