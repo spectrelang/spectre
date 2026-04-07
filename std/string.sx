@@ -524,12 +524,10 @@ pub fn replace(s: ref void, from: ref void, to: ref void) ref void! = {
 /// Split s by delim — returns a List of heap-allocated Strings
 pub fn split(s: ref void, delim: ref void) result[ref void, ListAllocError]! = {
     val result: ref void = collections.PtrList.new(8)?
-
     val sl: i64 = @load(@ptradd(s, 8)) as i64
     val dl: i64 = @load(@ptradd(delim, 8)) as i64
     val sp: ref void = @load(s)
     val dp: ref void = @load(delim)
-
     val seg_start: mut i64 = 0
     val i: mut i64 = 0
 
