@@ -54,8 +54,6 @@ fn scope_define(ctx: ref SemaCtx, name: ref char, mutable: i64) void! = {
 fn find_root_ident(node: ref parser.Node) ref parser.Node! = {
     val cur: mut ref parser.Node = node
     for {
-        val dbuf2: ref char = @alloc(64) as ref char
-        std.stdio.puts(dbuf2)
         if cur.kind == parser.NK_IDENT { return cur }
         if cur.kind == parser.NK_FIELD {
             cur = cur.d0 as ref parser.Node
@@ -264,9 +262,6 @@ fn check_stmt(ctx: ref SemaCtx, stmt: ref parser.Node, filename: ref char) void!
             if root != 0 as ref parser.Node {
                 val tname: ref char = root.d0 as ref char
                 val lkup: i64 = scope_lookup(ctx, tname)
-                std.stdio.puts(tname)
-                val dbuf: ref char = @alloc(64) as ref char
-                std.stdio.puts(dbuf)
                 if lkup == 0 {
                     val buf: ref char = @alloc(256) as ref char
                     @snprintf(buf, 256, "%s:%lld: cannot assign to field of immutable '%s'", {filename, line, tname})
