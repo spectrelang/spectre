@@ -15,12 +15,8 @@ type SemaCtx = {
 }
 
 fn sema_new() ref SemaCtx! = {
-    val ctx: mut ref SemaCtx = @alloc(@sizeof(SemaCtx)) as ref SemaCtx
-    ctx.errors     = []
-    ctx.warnings   = []
-    ctx.fn_names   = []
-    ctx.type_names = []
-    ctx.scopes     = []
+    val ctx: ref SemaCtx = @alloc(@sizeof(SemaCtx)) as ref SemaCtx
+    @memset(ctx as ref void, 0, @sizeof(SemaCtx) as usize)
     return ctx
 }
 
@@ -30,7 +26,7 @@ fn add_error(ctx: ref SemaCtx, msg: ref char) void! = {
 
 fn push_scope(ctx: ref SemaCtx) void! = {
     val frame: ref list[ref ScopeEntry] = @alloc(@sizeof(list[ref ScopeEntry])) as ref list[ref ScopeEntry]
-    deref(frame) = []
+    @memset(frame as ref void, 0, @sizeof(list[ref ScopeEntry]) as usize)
     @append(ctx.scopes, frame as ref void)
 }
 

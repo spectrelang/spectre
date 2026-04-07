@@ -1154,15 +1154,27 @@ impl Codegen {
                     let size = self.tagged_union_inline_size(&union_name);
                     self.emit(&format!("    call $memcpy(l {ptr}, l {val_tmp}, l {size})"));
                 } else {
-                    let store_val = if val_ty == "w" {
-                        let (promoted, _) = self.promote_to_l(val_tmp, val_ty);
-                        promoted
+                    let field_ty_write = if let Expr::Field(base, field_name) = target {
+                        self.infer_field_type(base, field_name)
                     } else {
-                        val_tmp
+                        None
                     };
-                    self.emit(&format!("    storel {store_val}, {ptr}"));
-                }
-            }
+                    let field_size_write = field_ty_write
+                        .as_ref()
+                        .map(|ty| self.type_byte_size_ctx(ty))
+                        .unwrap_or(8);
+                    if field_size_write > 8 {
+                        self.emit(&format!("    call $memcpy(l {ptr}, l {val_tmp}, l {field_size_write})"));
+                    } else {
+                        let store_val = if val_ty == "w" {
+                            let (promoted, _) = self.promote_to_l(val_tmp, val_ty);
+                            promoted
+                        } else {
+                            val_tmp
+                        };
+                        self.emit(&format!("    storel {store_val}, {ptr}"));
+                    }
+                }            }
 
             Stmt::Return(None) => {
                 self.emit_defers(ns, ret_ty)?;
@@ -1424,7 +1436,7 @@ impl Codegen {
                 let cont_lbl = format!("@forin_cont_{}", self.tmp_counter);
                 self.tmp_counter += 1;
 
-                let (list_ptr, _) = self.emit_expr(iterable, ns)?;
+                let (list_ptr, _) = self.emit_list_ptr(iterable, ns)?;
                 let list_ty_full = self.infer_struct_type_name(iterable).unwrap_or_default();
                 let element_ty = if list_ty_full.starts_with("list[") && list_ty_full.ends_with(']')
                 {
@@ -2152,10 +2164,21 @@ impl Codegen {
         }
     }
 
+    /// Emit a pointer to a list value.
+    fn emit_list_ptr(&mut self, expr: &Expr, ns: &Namespace) -> Result<(String, &'static str), String> {
+        if let Expr::Field(base, field_name) = expr {
+            let field_ty = self.infer_field_type(base, field_name);
+            if matches!(field_ty, Some(TypeExpr::List(_))) {
+                let ptr = self.emit_field_ptr(expr, ns)?;
+                return Ok((ptr, "l"));
+            }
+        }
+        self.emit_expr(expr, ns)
+    }
+
     /// Return the byte offset of `field_name` within the struct that `base` refers to.
     /// We look up the binding's declared type annotation to find the type definition.
-    fn field_offset_for(&self, base: &Expr, field_name: &str) -> Result<usize, String> {
-        let raw_type_name = self.infer_struct_type_name(base).map_err(|e| {
+    fn field_offset_for(&self, base: &Expr, field_name: &str) -> Result<usize, String> {        let raw_type_name = self.infer_struct_type_name(base).map_err(|e| {
             format!(
                 "in function '{}': cannot resolve type for field access '.{}' on {:?}: {}",
                 self.current_fn, field_name, base, e
@@ -2428,6 +2451,24 @@ impl Codegen {
                 if let Some((_, _, variants)) = self.tagged_union_defs.get(n.as_str()) {
                     let max_fields = variants.iter().map(|(_, f)| f.len()).max().unwrap_or(0);
                     return 8 + (max_fields as u64) * 8;
+                }
+                if let Some(fields) = self.type_defs.get(n.as_str())
+                    .or_else(|| self.extern_type_defs.get(n.as_str()))
+                {
+                    let has_fixed_arrays = fields
+                        .iter()
+                        .any(|f| matches!(f.ty, TypeExpr::FixedArray(_, _)));
+                    let mut total: u64 = 0;
+                    for field in fields {
+                        let field_size = self.type_byte_size_ctx(&field.ty.clone());
+                        if has_fixed_arrays {
+                            let align = type_alignment(&field.ty);
+                            total = align_to(total, align) + field_size;
+                        } else {
+                            total += align8(field_size);
+                        }
+                    }
+                    return total;
                 }
                 type_byte_size(ty)
             }
@@ -3098,7 +3139,7 @@ impl Codegen {
                     if args.len() != 2 {
                         return Err("@append(list, value) requires exactly 2 arguments".into());
                     }
-                    let (list_ptr, _) = self.emit_expr(&args[0], ns)?;
+                    let (list_ptr, _) = self.emit_list_ptr(&args[0], ns)?;
                     let (val, val_ty) = self.emit_expr(&args[1], ns)?;
 
                     let len_slot = self.fresh_tmp();
@@ -3155,7 +3196,7 @@ impl Codegen {
                     if args.len() != 2 {
                         return Err("@get(list, index) requires exactly 2 arguments".into());
                     }
-                    let (list_ptr, _) = self.emit_expr(&args[0], ns)?;
+                    let (list_ptr, _) = self.emit_list_ptr(&args[0], ns)?;
                     let (idx, idx_ty) = self.emit_expr(&args[1], ns)?;
                     let (idx_l, _) = self.promote_to_l(idx, idx_ty);
 
@@ -3203,7 +3244,7 @@ impl Codegen {
                     if args.len() != 1 {
                         return Err("@len(list) requires exactly 1 argument".into());
                     }
-                    let (list_ptr, _) = self.emit_expr(&args[0], ns)?;
+                    let (list_ptr, _) = self.emit_list_ptr(&args[0], ns)?;
                     let len_slot = self.fresh_tmp();
                     let len_val = self.fresh_tmp();
                     self.emit(&format!("    {len_slot} =l add {list_ptr}, 8"));
@@ -3215,7 +3256,7 @@ impl Codegen {
                     if args.len() != 2 {
                         return Err("@remove(list, index) requires exactly 2 arguments".into());
                     }
-                    let (list_ptr, _) = self.emit_expr(&args[0], ns)?;
+                    let (list_ptr, _) = self.emit_list_ptr(&args[0], ns)?;
                     let (idx, idx_ty) = self.emit_expr(&args[1], ns)?;
                     let (idx_l, _) = self.promote_to_l(idx, idx_ty);
 
@@ -3285,7 +3326,7 @@ impl Codegen {
                             "@insert(list, index, value) requires exactly 3 arguments".into()
                         );
                     }
-                    let (list_ptr, _) = self.emit_expr(&args[0], ns)?;
+                    let (list_ptr, _) = self.emit_list_ptr(&args[0], ns)?;
                     let (idx, idx_ty) = self.emit_expr(&args[1], ns)?;
                     let (idx_l, _) = self.promote_to_l(idx, idx_ty);
                     let (val, val_ty) = self.emit_expr(&args[2], ns)?;
@@ -3378,7 +3419,7 @@ impl Codegen {
                     if args.len() != 2 {
                         return Err("@reserve(list, capacity) requires exactly 2 arguments".into());
                     }
-                    let (list_ptr, _) = self.emit_expr(&args[0], ns)?;
+                    let (list_ptr, _) = self.emit_list_ptr(&args[0], ns)?;
                     let (new_cap, new_cap_ty) = self.emit_expr(&args[1], ns)?;
                     let (new_cap_l, _) = self.promote_to_l(new_cap, new_cap_ty);
 
@@ -3413,7 +3454,7 @@ impl Codegen {
                     if args.len() != 1 {
                         return Err("@capacity(list) requires exactly 1 argument".into());
                     }
-                    let (list_ptr, _) = self.emit_expr(&args[0], ns)?;
+                    let (list_ptr, _) = self.emit_list_ptr(&args[0], ns)?;
                     let cap_slot = self.fresh_tmp();
                     let cap_val = self.fresh_tmp();
                     self.emit(&format!("    {cap_slot} =l add {list_ptr}, 16"));
@@ -3474,7 +3515,13 @@ impl Codegen {
                     .map(|n| self.is_tagged_union_type(&n))
                     .unwrap_or(false);
 
-                if is_fixed_array_field || is_tagged_union_field {
+                let field_size = field_ty
+                    .as_ref()
+                    .map(|ty| self.type_byte_size_ctx(ty))
+                    .unwrap_or(8);
+                let is_multiword = field_size > 8;
+
+                if is_fixed_array_field || is_tagged_union_field || is_multiword {
                     Ok((ptr, "l"))
                 } else {
                     let tmp = self.fresh_tmp();
