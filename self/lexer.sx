@@ -8,6 +8,7 @@ pub union TokenKind = {
   | Match()     | True()      | False()    | Defer()    | Break()
   | Continue()  | As()        | Assert()   | When()     | Union()
   | Enum()      | Extern()    | Link()     | Guarded()  | Not()
+  | Test()
   | Ident(ref char)
   | Str(ref char)
   | Int(ref char)
@@ -169,6 +170,7 @@ fn keyword_kind(s: ref char) TokenKind! = {
     if str_eq(s, "link")     { return Link() }
     if str_eq(s, "guarded")  { return Guarded() }
     if str_eq(s, "not")      { return Not() }
+    if str_eq(s, "test")     { return Test() }
     return Ident(s)
 }
 

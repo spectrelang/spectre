@@ -35,6 +35,7 @@ pub val NK_INCREMENT  : i64 = 40
 pub val NK_DECREMENT  : i64 = 41
 pub val NK_ADD_ASSIGN : i64 = 42
 pub val NK_SUB_ASSIGN : i64 = 43
+pub val NK_TEST       : i64 = 44
 pub val NK_INT_LIT    : i64 = 60
 pub val NK_FLOAT_LIT  : i64 = 61
 pub val NK_STR_LIT    : i64 = 62
@@ -293,8 +294,8 @@ fn kind_is_guarded(k: lexer.TokenKind) bool! = { match k { Guarded() => { return
 fn kind_is_not(k: lexer.TokenKind) bool! = { match k { Not() => { return true } else => { return false } } }
 fn kind_is_ref(k: lexer.TokenKind) bool! = { match k { Ref() => { return true } else => { return false } } }
 fn kind_is_use(k: lexer.TokenKind) bool! = { match k { Use() => { return true } else => { return false } } }
-fn kind_is_eof(k: lexer.TokenKind) bool! = { match k { Eof() => { return true } else => { return false } } }
-fn kind_is_ident(k: lexer.TokenKind) bool! = { match k { Ident _ => { return true } else => { return false } } }
+fn kind_is_test(k: lexer.TokenKind) bool! = { match k { Test() => { return true } else => { return false } } }
+fn kind_is_eof(k: lexer.TokenKind) bool! = { match k { Eof() => { return true } else => { return false } } }fn kind_is_ident(k: lexer.TokenKind) bool! = { match k { Ident _ => { return true } else => { return false } } }
 fn kind_is_str(k: lexer.TokenKind) bool! = { match k { Str _ => { return true } else => { return false } } }
 fn kind_is_int(k: lexer.TokenKind) bool! = { match k { Int _ => { return true } else => { return false } } }
 fn kind_is_float(k: lexer.TokenKind) bool! = { match k { Float _ => { return true } else => { return false } } }
@@ -1433,7 +1434,18 @@ pub fn parse_item(p: ref Parser) result[ref Node, ref char]! = {
         return ok nl
     }
 
-    if kind_is_when(k) {
+    if kind_is_test(k) {
+        p_advance(p)
+        p_expect_lbrace(p)?
+        val tbody = parse_stmts(p)?
+        p_expect_rbrace(p)?
+        val nt: mut ref Node = make_node(NK_TEST, line)
+        val tlist: list[ref Node] = tbody
+        nt.d0 = tlist as i64
+        return ok nt
+    }
+
+    if kind_is_when(k) {        
         p_advance(p)
         val plat = p_expect_ident(p)?
         p_expect_lbrace(p)?
