@@ -60,5 +60,52 @@ pub fn main() void! = {
     }
 
     val qbe_ir: ref char = codegen.gen_module(items)
-    std.stdio.print("%s", {qbe_ir})
+
+    // val output_opt = @get(args, 2)
+    val output: ref char = "a.out"
+
+    val qbe_file = "/tmp/spectre_output.ssa"
+    val asm_file = "/tmp/spectre_output.s"
+
+    val qbe_f = std.os.open(qbe_file, "w")
+    match qbe_f {
+        some f => {
+            std.os.write(f, qbe_ir as ref void, std.string.len_raw(qbe_ir) as i64)
+            std.os.close(f)
+        }
+        none => {
+            std.stdio.puts("\nerror: could not write QBE IR")
+            return
+        }
+    }
+
+    val qbe_cmd = @fmt("qbe -o {s} {s}", {asm_file, qbe_file})
+    val qbe_res = std.os.exec(qbe_cmd)
+    std.stdio.print("{}", {qbe_cmd})
+    match qbe_res {
+        ok _ => {}
+        err e => {
+            std.stdio.puts("\nerror: qbe compilation failed")
+            std.os.delete(qbe_file)
+            return
+        }
+    }
+
+    val cc_cmd = @fmt("cc -o {s} {s}", {output, asm_file})
+    std.stdio.print("\nCC_CMD: %s", {cc_cmd})
+    val cc_res = std.os.exec(cc_cmd)
+    match cc_res {
+        ok _ => {
+            std.stdio.print("\ncompiled: %s\n", {output})
+        }
+        err e => {
+            std.stdio.puts("\nerror: cc assembly failed")
+            //std.os.delete(qbe_file)
+            std.os.delete(asm_file)
+            return
+        }
+    }
+
+    // std.os.delete(qbe_file)
+    std.os.delete(asm_file)
 }
