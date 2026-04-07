@@ -1,4 +1,4 @@
-val std = use("std")
+val stdio = use("std/stdio")
 
 type SomeType = {
     x: i32
@@ -8,7 +8,7 @@ type SomeType = {
 
 pub fn (SomeType) do_some_thing(s: self, times: usize) void! = {
     for (i = 0; i < times; i++) {
-        std.stdio.print("{d}, {d} - {s}\n", {s.x, s.y, s.z})
+        stdio.print("{d}, {d} - {s}\n", {s.x, s.y, s.z})
     }
 }
 
