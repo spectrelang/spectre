@@ -3,24 +3,26 @@ val str    = use("std/string")
 val parser = use("parser.sx")
 val module = use("module.sx")
 
-// Generates QBE intermediate representation from the AST.
-// Subset: handles functions, basic types, arithmetic, control flow,
-// function calls, struct literals, list operations, and builtins.
+/// Generates QBE intermediate representation from the AST.
+/// Subset: handles functions, basic types, arithmetic, control flow,
+/// function calls, struct literals, list operations, and builtins.
 
-// Heap layout (8 fields × 8 bytes = 64 bytes):
-//
-//   offset  0: output buffer (ref void — StringBuilder)
-//   offset  8: tmp counter (i64)
-//   offset 16: label counter (i64)
-//   offset 24: current function name (ref char)
-//   offset 32: string literals list (ref void — list[ref char])
-//   offset 40: string counter (i64)
-//   offset 48: type defs list (ref void — list[ref void])
-//   offset 56: enum defs list (ref void — list[ref void])
+/// Heap layout (10 fields × 8 bytes = 80 bytes):
+///
+///   offset  0: output buffer (ref void — StringBuilder)
+///   offset  8: tmp counter (i64)
+///   offset 16: label counter (i64)
+///   offset 24: current function name (ref char)
+///   offset 32: string literals list (ref void — list[ref char])
+///   offset 40: string counter (i64)
+///   offset 48: type defs list (ref void — list[ref void])
+///   offset 56: enum defs list (ref void — list[ref void])
+///   offset 64: direct vars names list (ref void — list[ref char])
+///   offset 72: direct vars qtypes list (ref void — list[ref char])
 
 fn cg_new() ref void! = {
-    val ctx: ref void = @alloc(64)
-    @memset(ctx, 0, 64)
+    val ctx: ref void = @alloc(80)
+    @memset(ctx, 0, 80)
     val sb: ref void = str.StringBuilder.new()
     @store(@ptradd(ctx, 0), sb as usize)
     val strs: list[ref char] = []
@@ -29,6 +31,10 @@ fn cg_new() ref void! = {
     @store(@ptradd(ctx, 48), tdefs as usize)
     val edefs: list[ref void] = []
     @store(@ptradd(ctx, 56), edefs as usize)
+    val dvars: list[ref char] = []
+    @store(@ptradd(ctx, 64), dvars as usize)
+    val dqtypes: list[ref char] = []
+    @store(@ptradd(ctx, 72), dqtypes as usize)
     return ctx
 }
 
@@ -45,6 +51,47 @@ fn cg_set_tmp(ctx: ref void, v: i64) void! = { @store(@ptradd(ctx, 8),  v as usi
 fn cg_set_lbl(ctx: ref void, v: i64) void! = { @store(@ptradd(ctx, 16), v as usize) }
 fn cg_set_fn_name(ctx: ref void, v: ref char) void! = { @store(@ptradd(ctx, 24), v as usize) }
 fn cg_set_str_cnt(ctx: ref void, v: i64) void! = { @store(@ptradd(ctx, 40), v as usize) }
+
+fn cg_dvars(ctx: ref void) ref void! = { return @load(@ptradd(ctx, 64)) as ref void }
+
+fn cg_dvars_clear(ctx: ref void) void! = {
+    val empty: list[ref char] = []
+    @store(@ptradd(ctx, 64), empty as usize)
+    val empty2: list[ref char] = []
+    @store(@ptradd(ctx, 72), empty2 as usize)
+}
+
+fn cg_dvars_add(ctx: ref void, name: ref char, qtype: ref char) void! = {
+    @append(cg_dvars(ctx) as list[ref char], name)
+    val qtypes: ref void = @load(@ptradd(ctx, 72)) as ref void
+    @append(qtypes as list[ref char], qtype)
+}
+
+/// Returns an empty ref char, i.e. "" if not direct, else the qbe type ("w" or "l")
+fn cg_direct_type(ctx: ref void, name: ref char) ref char! = {
+    val dv: ref void = cg_dvars(ctx)
+    val dlen: i64 = @len(dv as list[ref char]) as i64
+    val di: mut i64 = 0
+    for {
+        if di >= dlen { break }
+        val d_opt = @get(dv as list[ref char], di as usize)
+        match d_opt {
+            some d => {
+                if str.rchar_cmp(d as ref char, name) == 0 {
+                    val qtypes: ref void = @load(@ptradd(ctx, 72)) as ref void
+                    val q_opt = @get(qtypes as list[ref char], di as usize)
+                    match q_opt {
+                        some q => { return q as ref char }
+                        none   => { return "l" }
+                    }
+                }
+            }
+            none => {}
+        }
+        di++
+    }
+    return ""
+}
 
 fn fresh_tmp(ctx: ref void) i64! = {
     val n: i64 = cg_tmp(ctx)
@@ -255,7 +302,16 @@ fn gen_expr(ctx: ref void, expr: ref parser.Node) ref char! = {
         val name: ref char = expr.d0 as ref char
         val tmp6: i64 = fresh_tmp(ctx)
         val buf6: ref char = @alloc(128) as ref char
-        @snprintf(buf6, 128, "    %%t%lld =l loadl %%%s\n", {tmp6, name})
+        val dqt: ref char = cg_direct_type(ctx, name)
+        if str.rchar_cmp(dqt, "") != 0 {
+            if str.rchar_cmp(dqt, "w") == 0 {
+                @snprintf(buf6, 128, "    %%t%lld =l extsw %%%s\n", {tmp6, name})
+            } else {
+                @snprintf(buf6, 128, "    %%t%lld =l copy %%%s\n", {tmp6, name})
+            }
+        } else {
+            @snprintf(buf6, 128, "    %%t%lld =l loadl %%%s\n", {tmp6, name})
+        }
         emit(ctx, buf6)
         @free(buf6)
         val res6: ref char = @alloc(16) as ref char
@@ -1584,6 +1640,8 @@ fn gen_fn_prefixed(ctx: ref void, fn_node: ref parser.Node, mod_prefix: ref char
     emitln(ctx, ") {")
     emitln(ctx, "@start")
 
+    cg_dvars_clear(ctx)
+
     if params != 0 as ref void {
         val plen2: i64 = @len(params) as i64
         val pi2: mut i64 = 0
@@ -1594,21 +1652,19 @@ fn gen_fn_prefixed(ctx: ref void, fn_node: ref parser.Node, mod_prefix: ref char
                 some param2 => {
                     val pname2: ref char = (param2 as ref parser.Node).d0 as ref char
                     val pty2: ref parser.Node = (param2 as ref parser.Node).d1 as ref parser.Node
-                    val pqt2: ref char = qbe_type_of(pty2)
-                    val pbuf2: ref char = @alloc(192) as ref char
-                    val slot: i64 = fresh_tmp(ctx)
-                    if str.rchar_cmp(pqt2, "w") == 0 {
-                        val ext: i64 = fresh_tmp(ctx)
-                        @snprintf(pbuf2, 192,
-                            "    %%t%lld =l alloc8 8\n    %%t%lld =l extsw %%%s\n    storel %%t%lld, %%t%lld\n    %%%s =l copy %%t%lld\n",
-                            {slot, ext, pname2, ext, slot, pname2, slot})
-                    } else {
-                        @snprintf(pbuf2, 192,
+                    val ptk: i64 = pty2.kind
+                    val is_ref: bool = ptk == parser.TY_REF || ptk == parser.TY_MUT
+                    if is_ref {
+                        val pbuf2: ref char = @alloc(128) as ref char
+                        val slot: i64 = fresh_tmp(ctx)
+                        @snprintf(pbuf2, 128,
                             "    %%t%lld =l alloc8 8\n    storel %%%s, %%t%lld\n    %%%s =l copy %%t%lld\n",
                             {slot, pname2, slot, pname2, slot})
+                        emit(ctx, pbuf2)
+                        @free(pbuf2)
+                    } else {
+                        cg_dvars_add(ctx, pname2, qbe_type_of(pty2))
                     }
-                    emit(ctx, pbuf2)
-                    @free(pbuf2)
                 }
                 none => {}
             }
