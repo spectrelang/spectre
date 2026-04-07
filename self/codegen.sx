@@ -1609,7 +1609,21 @@ fn gen_fn_prefixed(ctx: ref void, fn_node: ref parser.Node, mod_prefix: ref char
 
     gen_stmts(ctx, body)
 
-    emitln(ctx, "    ret 0")
+    val blen: i64 = @len(body) as i64
+    val needs_ret: mut bool = true
+    if blen > 0 {
+        val last_opt = @get(body, (blen - 1) as usize)
+        match last_opt {
+            some last => {
+                val lk: i64 = (last as ref parser.Node).kind
+                if lk == parser.NK_RETURN { needs_ret = false }
+            }
+            none => {}
+        }
+    }
+    if needs_ret {
+        emitln(ctx, "    ret 0")
+    }
     emitln(ctx, "}")
     emitln(ctx, "")
 }
