@@ -4785,3 +4785,66 @@ mod tagged_union_tests {
         );
     }
 }
+
+#[cfg(test)]
+mod get_args_regression_tests {
+    use crate::codegen::Codegen;
+    use crate::module::resolve_module;
+    use std::collections::HashMap;
+    use std::path::Path;
+
+    fn compile_ok(src: &str) -> String {
+        let resolved = resolve_module(
+            src,
+            Path::new("."),
+            &mut HashMap::new(),
+            &mut Vec::new(),
+            "",
+            None,
+        )
+        .expect("expected compilation to succeed");
+        let mut cg = Codegen::new();
+        cg.emit_module(&resolved, false, false)
+            .expect("expected codegen to succeed");
+        cg.finish()
+    }
+
+    #[test]
+    fn get_args_loop_uses_csgel_not_csgtl() {
+        let ir = compile_ok("pub fn main() void! = {}");
+        assert!(
+            ir.contains("csgel %i, %argc"),
+            "sx_get_args loop should use csgel (>=) to avoid off-by-one heap write;\
+             got IR:\n{ir}"
+        );
+        assert!(
+            !ir.contains("csgtl %i, %argc"),
+            "sx_get_args loop must not use csgtl (>) — that causes an off-by-one \
+             heap corruption when argc args are passed"
+        );
+    }
+
+    #[test]
+    fn get_option_encoding_roundtrip() {
+        let ir = compile_ok(
+            r#"
+            pub fn main() void! = {
+                val items: list[ref char] = ["hello", "world"]
+                val opt = @get(items, 0)
+                match opt {
+                    some v => { val _ = v }
+                    none   => {}
+                }
+            }
+            "#,
+        );
+        assert!(
+            ir.contains("=l add") && ir.contains(", 1"),
+            "expected @get to encode some as ptr+1"
+        );
+        assert!(
+            ir.contains("=l sub") && ir.contains(", 1"),
+            "expected match some to decode ptr+1 back to ptr via sub 1"
+        );
+    }
+}
