@@ -19,7 +19,6 @@ fn print_usage() void = {
     std.stdio.puts("  -h, --help           Print this help message")
 }
 
-
 pub fn main() void! = {
     val arena = allocators.Arena.new(65536)?
     val args = std.os.get_args()
