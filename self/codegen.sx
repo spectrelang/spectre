@@ -588,7 +588,7 @@ fn resolve_callee_name(node: ref parser.Node) ref char! = {
     return "unknown"
 }
 
-fn get_arg(i: i64, args: ref void) ref char! = {
+fn get_arg(ctx: ref void, args: ref void, i: i64) ref char! = {
     val opt = @get(args, i as usize)
     match opt {
         some a => { return gen_expr(ctx, a as ref parser.Node) }
@@ -604,111 +604,111 @@ fn gen_builtin(ctx: ref void, expr: ref parser.Node) ref char! = {
     val buf: ref char = @alloc(512) as ref char
 
     if str.rchar_cmp(name, "alloc") == 0 {
-        val sz: ref char = get_arg(0)
+        val sz: ref char = get_arg(ctx, args, 0)
         @snprintf(buf, 512, "    %%t%lld =l call $malloc(l %s)\n", {tmp, sz})
         emit(ctx, buf)
     } elif str.rchar_cmp(name, "free") == 0 {
-        val ptr: ref char = get_arg(0)
+        val ptr: ref char = get_arg(ctx, args, 0)
         @snprintf(buf, 512, "    call $free(l %s)\n    %%t%lld =l copy 0\n", {ptr, tmp})
         emit(ctx, buf)
     } elif str.rchar_cmp(name, "realloc") == 0 {
-        val ptr2: ref char = get_arg(0)
-        val sz2: ref char = get_arg(1)
+        val ptr2: ref char = get_arg(ctx, args, 0)
+        val sz2: ref char = get_arg(ctx, args, 1)
         @snprintf(buf, 512, "    %%t%lld =l call $realloc(l %s, l %s)\n", {tmp, ptr2, sz2})
         emit(ctx, buf)
     } elif str.rchar_cmp(name, "memcpy") == 0 {
-        val dst: ref char = get_arg(0)
-        val src: ref char = get_arg(1)
-        val len: ref char = get_arg(2)
+        val dst: ref char = get_arg(ctx, args, 0)
+        val src: ref char = get_arg(ctx, args, 1)
+        val len: ref char = get_arg(ctx, args, 2)
         @snprintf(buf, 512, "    call $memcpy(l %s, l %s, l %s)\n    %%t%lld =l copy 0\n", {dst, src, len, tmp})
         emit(ctx, buf)
     } elif str.rchar_cmp(name, "memset") == 0 {
-        val dst2: ref char = get_arg(0)
-        val val2: ref char = get_arg(1)
-        val len2: ref char = get_arg(2)
+        val dst2: ref char = get_arg(ctx, args, 0)
+        val val2: ref char = get_arg(ctx, args, 1)
+        val len2: ref char = get_arg(ctx, args, 2)
         @snprintf(buf, 512, "    call $memset(l %s, w %s, l %s)\n    %%t%lld =l copy 0\n", {dst2, val2, len2, tmp})
         emit(ctx, buf)
     } elif str.rchar_cmp(name, "load") == 0 {
-        val ptr3: ref char = get_arg(0)
+        val ptr3: ref char = get_arg(ctx, args, 0)
         @snprintf(buf, 512, "    %%t%lld =l loadl %s\n", {tmp, ptr3})
         emit(ctx, buf)
     } elif str.rchar_cmp(name, "store") == 0 {
-        val ptr4: ref char = get_arg(0)
-        val val3: ref char = get_arg(1)
+        val ptr4: ref char = get_arg(ctx, args, 0)
+        val val3: ref char = get_arg(ctx, args, 1)
         @snprintf(buf, 512, "    storel %s, %s\n    %%t%lld =l copy 0\n", {val3, ptr4, tmp})
         emit(ctx, buf)
     } elif str.rchar_cmp(name, "load8") == 0 {
-        val ptr5: ref char = get_arg(0)
+        val ptr5: ref char = get_arg(ctx, args, 0)
         @snprintf(buf, 512, "    %%t%lld =w loadub %s\n", {tmp, ptr5})
         emit(ctx, buf)
     } elif str.rchar_cmp(name, "store8") == 0 {
-        val ptr6: ref char = get_arg(0)
-        val val4: ref char = get_arg(1)
+        val ptr6: ref char = get_arg(ctx, args, 0)
+        val val4: ref char = get_arg(ctx, args, 1)
         @snprintf(buf, 512, "    storeb %s, %s\n    %%t%lld =l copy 0\n", {val4, ptr6, tmp})
         emit(ctx, buf)
     } elif str.rchar_cmp(name, "ptradd") == 0 {
-        val ptr7: ref char = get_arg(0)
-        val off: ref char = get_arg(1)
+        val ptr7: ref char = get_arg(ctx, args, 0)
+        val off: ref char = get_arg(ctx, args, 1)
         @snprintf(buf, 512, "    %%t%lld =l add %s, %s\n", {tmp, ptr7, off})
         emit(ctx, buf)
     } elif str.rchar_cmp(name, "puts") == 0 {
-        val s: ref char = get_arg(0)
+        val s: ref char = get_arg(ctx, args, 0)
         @snprintf(buf, 512, "    %%t%lld =w call $puts(l %s)\n", {tmp, s})
         emit(ctx, buf)
     } elif str.rchar_cmp(name, "printf") == 0 {
-        val fmt: ref char = get_arg(0)
+        val fmt: ref char = get_arg(ctx, args, 0)
         @snprintf(buf, 512, "    %%t%lld =w call $printf(l %s, ...)\n", {tmp, fmt})
         emit(ctx, buf)
     } elif str.rchar_cmp(name, "snprintf") == 0 {
-        val sbuf: ref char = get_arg(0)
-        val ssz: ref char = get_arg(1)
-        val sfmt: ref char = get_arg(2)
+        val sbuf: ref char = get_arg(ctx, args, 0)
+        val ssz: ref char = get_arg(ctx, args, 1)
+        val sfmt: ref char = get_arg(ctx, args, 2)
         @snprintf(buf, 512, "    %%t%lld =w call $snprintf(l %s, l %s, l %s, ...)\n", {tmp, sbuf, ssz, sfmt})
         emit(ctx, buf)
     } elif str.rchar_cmp(name, "strlen") == 0 {
-        val s2: ref char = get_arg(0)
+        val s2: ref char = get_arg(ctx, args, 0)
         @snprintf(buf, 512, "    %%t%lld =l call $strlen(l %s)\n", {tmp, s2})
         emit(ctx, buf)
     } elif str.rchar_cmp(name, "strcmp") == 0 {
-        val a: ref char = get_arg(0)
-        val b: ref char = get_arg(1)
+        val a: ref char = get_arg(ctx, args, 0)
+        val b: ref char = get_arg(ctx, args, 1)
         @snprintf(buf, 512, "    %%t%lld =l call $strcmp(l %s, l %s)\n", {tmp, a, b})
         emit(ctx, buf)
     } elif str.rchar_cmp(name, "atoi") == 0 {
-        val s3: ref char = get_arg(0)
+        val s3: ref char = get_arg(ctx, args, 0)
         @snprintf(buf, 512, "    %%t%lld =l call $atoi(l %s)\n", {tmp, s3})
         emit(ctx, buf)
     } elif str.rchar_cmp(name, "append") == 0 {
         // list append: call runtime __sx_list_append(list_ptr, value)
-        val lst: ref char = get_arg(0)
-        val val5: ref char = get_arg(1)
+        val lst: ref char = get_arg(ctx, args, 0)
+        val val5: ref char = get_arg(ctx, args, 1)
         @snprintf(buf, 512, "    call $__sx_list_append(l %s, l %s)\n    %%t%lld =l copy 0\n", {lst, val5, tmp})
         emit(ctx, buf)
     } elif str.rchar_cmp(name, "len") == 0 {
-        val lst2: ref char = get_arg(0)
+        val lst2: ref char = get_arg(ctx, args, 0)
         @snprintf(buf, 512, "    %%t%lld =l call $__sx_list_len(l %s)\n", {tmp, lst2})
         emit(ctx, buf)
     } elif str.rchar_cmp(name, "get") == 0 {
-        val lst3: ref char = get_arg(0)
-        val idx: ref char = get_arg(1)
+        val lst3: ref char = get_arg(ctx, args, 0)
+        val idx: ref char = get_arg(ctx, args, 1)
         @snprintf(buf, 512, "    %%t%lld =l call $__sx_list_get(l %s, l %s)\n", {tmp, lst3, idx})
         emit(ctx, buf)
     } elif str.rchar_cmp(name, "remove") == 0 {
-        val lst4: ref char = get_arg(0)
-        val idx2: ref char = get_arg(1)
+        val lst4: ref char = get_arg(ctx, args, 0)
+        val idx2: ref char = get_arg(ctx, args, 1)
         @snprintf(buf, 512, "    call $__sx_list_remove(l %s, l %s)\n    %%t%lld =l copy 0\n", {lst4, idx2, tmp})
         emit(ctx, buf)
     } elif str.rchar_cmp(name, "reserve") == 0 {
-        val lst5: ref char = get_arg(0)
-        val cap: ref char = get_arg(1)
+        val lst5: ref char = get_arg(ctx, args, 0)
+        val cap: ref char = get_arg(ctx, args, 1)
         @snprintf(buf, 512, "    call $__sx_list_reserve(l %s, l %s)\n    %%t%lld =l copy 0\n", {lst5, cap, tmp})
         emit(ctx, buf)
     } elif str.rchar_cmp(name, "capacity") == 0 {
-        val lst6: ref char = get_arg(0)
+        val lst6: ref char = get_arg(ctx, args, 0)
         @snprintf(buf, 512, "    %%t%lld =l call $__sx_list_capacity(l %s)\n", {tmp, lst6})
         emit(ctx, buf)
     } elif str.rchar_cmp(name, "fmt") == 0 {
-        val fmt2: ref char = get_arg(0)
+        val fmt2: ref char = get_arg(ctx, args, 0)
         @snprintf(buf, 512, "    %%t%lld =l call $__sx_fmt(l %s, ...)\n", {tmp, fmt2})
         emit(ctx, buf)
     } elif str.rchar_cmp(name, "args") == 0 {
