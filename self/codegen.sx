@@ -264,6 +264,44 @@ fn cg_is_fn(ctx: ref void, name: ref char) bool! = {
     return false
 }
 
+/// Returns the mangled function name for a bare name, or 0 if not found.
+///
+/// Tries exact match first, then suffix match (e.g. "hash_string" -> "collections__hash_string").
+fn cg_resolve_fn_name(ctx: ref void, name: ref char) ref char! = {
+    val names: ref void = cg_fn_names(ctx)
+    val nlen: i64 = @len(names as list[ref char]) as i64
+    val namelen: i64 = str.len_raw(name)
+    val suffix: ref char = @alloc(namelen + 3) as ref char
+    @snprintf(suffix, namelen + 3, "__%s", {name})
+    val ni: mut i64 = 0
+    val found: mut ref char = 0 as ref char
+    for {
+        if ni >= nlen { break }
+        val n_opt = @get(names as list[ref char], ni as usize)
+        match n_opt {
+            some n => {
+                val candidate: ref char = n as ref char
+                if str.rchar_cmp(candidate, name) == 0 {
+                    @free(suffix)
+                    return candidate
+                }
+                val clen: i64 = str.len_raw(candidate)
+                val slen: i64 = namelen + 2
+                if clen > slen {
+                    val tail: ref char = @ptradd(candidate, clen - slen) as ref char
+                    if str.rchar_cmp(tail, suffix) == 0 {
+                        found = candidate
+                    }
+                }
+            }
+            none => {}
+        }
+        ni++
+    }
+    @free(suffix)
+    return found
+}
+
 /// Register a function's mangled name and its param list for call-site type checking.
 fn cg_register_fn(ctx: ref void, mangled: ref char, params: ref void) void! = {
     @append(cg_fn_names(ctx) as list[ref char], mangled)
@@ -921,9 +959,10 @@ fn gen_expr(ctx: ref void, expr: ref parser.Node) ref char! = {
         val inner4: ref parser.Node = expr.d0 as ref parser.Node
         if inner4.kind == parser.NK_IDENT {
             val iname: ref char = inner4.d0 as ref char
-            if cg_is_fn(ctx, iname) {
-                val res_fn: ref char = @alloc(64) as ref char
-                @snprintf(res_fn, 64, "$%s", {iname})
+            val resolved_fn: ref char = cg_resolve_fn_name(ctx, iname)
+            if resolved_fn != 0 as ref char {
+                val res_fn: ref char = @alloc(256) as ref char
+                @snprintf(res_fn, 256, "$%s", {resolved_fn})
                 return res_fn
             }
             val res10: ref char = @alloc(32) as ref char
@@ -1288,15 +1327,16 @@ fn gen_call(ctx: ref void, expr: ref parser.Node) ref char! = {
     val call_buf: ref char = @alloc(8192) as ref char
     val call_pos: mut i64 = 0
     val hdr: ref char = @alloc(256) as ref char
-    val is_fn_ptr: bool = !cg_is_fn(ctx, callee_name) && ext_sym == 0 as ref char &&
-                          callee_node.kind == parser.NK_IDENT
+    val resolved_callee: ref char = cg_resolve_fn_name(ctx, callee_name)
+    val is_fn_ptr: bool = resolved_callee == 0 as ref char 
+        && ext_sym == 0 as ref char 
+        && callee_node.kind == parser.NK_IDENT
+    
     if is_fn_ptr {
         val dqt: ref char = cg_direct_type(ctx, callee_name)
         if str.rchar_cmp(dqt, "") != 0 {
-            // Direct param, so use the damn register directly
             @snprintf(hdr, 256, "    %%t%lld =l call %%%s(", {tmp, callee_name})
         } else {
-            // Stack slot, so load the pointer first
             val ptr_tmp: i64 = fresh_tmp(ctx)
             val load_buf: ref char = @alloc(64) as ref char
             @snprintf(load_buf, 64, "    %%t%lld =l loadl %%%s\n", {ptr_tmp, callee_name})
@@ -1305,7 +1345,11 @@ fn gen_call(ctx: ref void, expr: ref parser.Node) ref char! = {
             @snprintf(hdr, 256, "    %%t%lld =l call %%t%lld(", {tmp, ptr_tmp})
         }
     } else {
-        @snprintf(hdr, 256, "    %%t%lld =l call $%s(", {tmp, callee_name})
+        val effective_name: mut ref char = callee_name
+        if resolved_callee != 0 as ref char {
+            effective_name = resolved_callee
+        }
+        @snprintf(hdr, 256, "    %%t%lld =l call $%s(", {tmp, effective_name})
     }
     val hdr_len: mut i64 = str.len_raw(hdr)
     @memcpy(@ptradd(call_buf as ref void, call_pos), hdr as ref void, hdr_len)
