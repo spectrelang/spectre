@@ -3219,8 +3219,56 @@ function l $sx_get_args() {
 `)
 }
 
+/// Pre-registration pass: register all function names and tagged union variants
+/// before emitting any code, so forward references resolve correctly.
+fn preregister_items(ctx: ref void, items: list[ref parser.Node], mod_prefix: ref char) void! = {
+    val ilen: i64 = @len(items) as i64
+    val i: mut i64 = 0
+    for {
+        if i >= ilen { break }
+        val item_opt = @get(items, i as usize)
+        match item_opt {
+            some item => {
+                val node: ref parser.Node = item as ref parser.Node
+                val k: i64 = node.kind
+                if k == parser.NK_FN {
+                    val ns: ref char = node.d1 as ref char
+                    val name: ref char = node.d2 as ref char
+                    val params: ref void = node.d3 as ref void
+                    val base: ref char = @alloc(256) as ref char
+                    if ns != 0 as ref char {
+                        @snprintf(base, 256, "%s__%s", {ns, name})
+                    } else {
+                        @snprintf(base, 256, "%s", {name})
+                    }
+                    val mangled: ref char = @alloc(512) as ref char
+                    if str.rchar_cmp(mod_prefix, "") == 0 {
+                        @snprintf(mangled, 512, "%s", {base})
+                    } else {
+                        @snprintf(mangled, 512, "%s__%s", {mod_prefix, base})
+                    }
+                    if params != 0 as ref void {
+                        cg_register_fn(ctx, mangled, params)
+                    }
+                } elif k == parser.NK_TAGGED_UNIONDEF {
+                    gen_tagged_union_def(ctx, node, mod_prefix)
+                } elif k == parser.NK_WHEN_ITEMS {
+                    val plat: ref char = node.d0 as ref char
+                    if platform_matches(plat) {
+                        val witems: list[ref parser.Node] = node.d1 as list[ref parser.Node]
+                        preregister_items(ctx, witems, mod_prefix)
+                    }
+                }
+            }
+            none => {}
+        }
+        i++
+    }
+}
+
 /// Emit all items from one module layer, using `mod_prefix` for name mangling.
 fn gen_items_with_prefix(ctx: ref void, items: list[ref parser.Node], mod_prefix: ref char) void! = {
+    preregister_items(ctx, items, mod_prefix)
     val ilen: i64 = @len(items) as i64
     val i: mut i64 = 0
     for {
@@ -3441,6 +3489,7 @@ pub fn gen_module_resolved_test(root: ref module.ResolvedModule) ref char! = {
 
 /// Kinda like gen_items_with_prefix but skips NK_FN named "main" and handles NK_TEST.
 fn gen_items_with_prefix_skip_main(ctx: ref void, items: list[ref parser.Node], mod_prefix: ref char) void! = {
+    preregister_items(ctx, items, mod_prefix)
     val ilen: i64 = @len(items) as i64
     val i: mut i64 = 0
     for {
@@ -3461,6 +3510,8 @@ fn gen_items_with_prefix_skip_main(ctx: ref void, items: list[ref parser.Node], 
                     gen_enum_def_prefixed(ctx, node, mod_prefix)
                 } elif k == parser.NK_UNIONDEF {
                     gen_union_def_prefixed(ctx, node, mod_prefix)
+                } elif k == parser.NK_TAGGED_UNIONDEF {
+                    gen_tagged_union_def(ctx, node, mod_prefix)
                 } elif k == parser.NK_TYPEDEF {
                     val tname: ref char = node.d1 as ref char
                     val tfields: ref void = node.d2 as ref void
