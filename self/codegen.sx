@@ -1604,7 +1604,7 @@ fn gen_builtin(ctx: ref void, expr: ref parser.Node) ref char! = {
     val name: ref char = expr.d0 as ref char
     val args: ref void = expr.d1 as ref void
 
-    val tmp: i64 = fresh_tmp(ctx)
+    val tmp: mut i64 = fresh_tmp(ctx)
     val buf: ref char = @alloc(512) as ref char
 
     if str.rchar_cmp(name, "alloc") == 0 {
@@ -1793,34 +1793,373 @@ fn gen_builtin(ctx: ref void, expr: ref parser.Node) ref char! = {
         @snprintf(buf, 512, "    %%t%lld =l call $atoi(l %s)\n", {tmp, s3})
         emit(ctx, buf)
     } elif str.rchar_cmp(name, "append") == 0 {
-        // list append: call runtime __sx_list_append(list_ptr, value)
         val lst: ref char = get_arg(ctx, args, 0)
         val val5: ref char = get_arg(ctx, args, 1)
-        @snprintf(buf, 512, "    call $__sx_list_append(l %s, l %s)\n    %%t%lld =l copy 0\n", {lst, val5, tmp})
+        
+        val len_slot: i64 = fresh_tmp(ctx)
+        val cap_slot: i64 = fresh_tmp(ctx)
+        val buf_app1: ref char = @alloc(256) as ref char
+        @snprintf(buf_app1, 256, "    %%t%lld =l add %s, 8\n    %%t%lld =l add %s, 16\n", {len_slot, lst, cap_slot, lst})
+        emit(ctx, buf_app1)
+        @free(buf_app1)
+        
+        val len_val: i64 = fresh_tmp(ctx)
+        val cap_val: i64 = fresh_tmp(ctx)
+        val buf_app2: ref char = @alloc(256) as ref char
+        @snprintf(buf_app2, 256, "    %%t%lld =l loadl %%t%lld\n    %%t%lld =l loadl %%t%lld\n", {len_val, len_slot, cap_val, cap_slot})
+        emit(ctx, buf_app2)
+        @free(buf_app2)
+        
+        val need_grow: i64 = fresh_tmp(ctx)
+        val grow_lbl: i64 = fresh_lbl(ctx)
+        val no_grow_lbl: i64 = fresh_lbl(ctx)
+        val buf_app3: ref char = @alloc(256) as ref char
+        @snprintf(buf_app3, 256, "    %%t%lld =w csgel %%t%lld, %%t%lld\n    jnz %%t%lld, @lbl%lld, @lbl%lld\n", {need_grow, len_val, cap_val, need_grow, grow_lbl, no_grow_lbl})
+        emit(ctx, buf_app3)
+        @free(buf_app3)
+        
+        val buf_app4: ref char = @alloc(64) as ref char
+        @snprintf(buf_app4, 64, "@lbl%lld\n", {grow_lbl})
+        emit(ctx, buf_app4)
+        @free(buf_app4)
+        
+        val new_cap: i64 = fresh_tmp(ctx)
+        val buf_app5: ref char = @alloc(256) as ref char
+        @snprintf(buf_app5, 256, "    %%t%lld =l mul %%t%lld, 2\n    %%t%lld =l add %%t%lld, 1\n", {new_cap, cap_val, new_cap, new_cap})
+        emit(ctx, buf_app5)
+        @free(buf_app5)
+        
+        val old_buf: i64 = fresh_tmp(ctx)
+        val new_buf: i64 = fresh_tmp(ctx)
+        val new_cap_bytes: i64 = fresh_tmp(ctx)
+        val buf_app6: ref char = @alloc(512) as ref char
+        @snprintf(buf_app6, 512, "    %%t%lld =l loadl %s\n    %%t%lld =l mul %%t%lld, 8\n    %%t%lld =l call $realloc(l %%t%lld, l %%t%lld)\n    storel %%t%lld, %s\n    storel %%t%lld, %%t%lld\n    jmp @lbl%lld\n",
+            {old_buf, lst, new_cap_bytes, new_cap, new_buf, old_buf, new_cap_bytes, new_buf, lst, new_cap, cap_slot, no_grow_lbl})
+        emit(ctx, buf_app6)
+        @free(buf_app6)
+        
+        val buf_app7: ref char = @alloc(64) as ref char
+        @snprintf(buf_app7, 64, "@lbl%lld\n", {no_grow_lbl})
+        emit(ctx, buf_app7)
+        @free(buf_app7)
+        
+        val buf_tmp: i64 = fresh_tmp(ctx)
+        val off: i64 = fresh_tmp(ctx)
+        val elem_ptr: i64 = fresh_tmp(ctx)
+        val buf_app8: ref char = @alloc(512) as ref char
+        @snprintf(buf_app8, 512, "    %%t%lld =l loadl %s\n    %%t%lld =l mul %%t%lld, 8\n    %%t%lld =l add %%t%lld, %%t%lld\n    storel %s, %%t%lld\n",
+            {buf_tmp, lst, off, len_val, elem_ptr, buf_tmp, off, val5, elem_ptr})
+        emit(ctx, buf_app8)
+        @free(buf_app8)
+        
+        val new_len: i64 = fresh_tmp(ctx)
+        val buf_app9: ref char = @alloc(256) as ref char
+        @snprintf(buf_app9, 256, "    %%t%lld =l add %%t%lld, 1\n    storel %%t%lld, %%t%lld\n", {new_len, len_val, new_len, len_slot})
+        emit(ctx, buf_app9)
+        @free(buf_app9)
+        
+        @snprintf(buf, 512, "    %%t%lld =l copy 0\n", {tmp})
         emit(ctx, buf)
     } elif str.rchar_cmp(name, "len") == 0 {
         val lst2: ref char = get_arg(ctx, args, 0)
-        @snprintf(buf, 512, "    %%t%lld =l call $__sx_list_len(l %s)\n", {tmp, lst2})
+        val len_slot: i64 = fresh_tmp(ctx)
+        val len_val: i64 = fresh_tmp(ctx)
+        @snprintf(buf, 512, "    %%t%lld =l add %s, 8\n    %%t%lld =l loadl %%t%lld\n", {len_slot, lst2, len_val, len_slot})
         emit(ctx, buf)
+        tmp = len_val
     } elif str.rchar_cmp(name, "get") == 0 {
         val lst3: ref char = get_arg(ctx, args, 0)
         val idx: ref char = get_arg(ctx, args, 1)
-        @snprintf(buf, 512, "    %%t%lld =l call $__sx_list_get(l %s, l %s)\n", {tmp, lst3, idx})
-        emit(ctx, buf)
+        
+        val len_slot: i64 = fresh_tmp(ctx)
+        val len_val: i64 = fresh_tmp(ctx)
+        val buf_get1: ref char = @alloc(256) as ref char
+        @snprintf(buf_get1, 256, "    %%t%lld =l add %s, 8\n    %%t%lld =l loadl %%t%lld\n", {len_slot, lst3, len_val, len_slot})
+        emit(ctx, buf_get1)
+        @free(buf_get1)
+        
+        val in_bounds: i64 = fresh_tmp(ctx)
+        val some_lbl: i64 = fresh_lbl(ctx)
+        val none_lbl: i64 = fresh_lbl(ctx)
+        val end_lbl: i64 = fresh_lbl(ctx)
+        val result_slot: i64 = fresh_tmp(ctx)
+        
+        val buf_get2: ref char = @alloc(256) as ref char
+        @snprintf(buf_get2, 256, "    %%t%lld =l alloc8 8\n    %%t%lld =w csltl %s, %%t%lld\n    jnz %%t%lld, @lbl%lld, @lbl%lld\n",
+            {result_slot, in_bounds, idx, len_val, in_bounds, some_lbl, none_lbl})
+        emit(ctx, buf_get2)
+        @free(buf_get2)
+        
+        val buf_get3: ref char = @alloc(64) as ref char
+        @snprintf(buf_get3, 64, "@lbl%lld\n", {some_lbl})
+        emit(ctx, buf_get3)
+        @free(buf_get3)
+        
+        val buf_get_tmp: i64 = fresh_tmp(ctx)
+        val off: i64 = fresh_tmp(ctx)
+        val elem_ptr: i64 = fresh_tmp(ctx)
+        val elem_val: i64 = fresh_tmp(ctx)
+        val some_val: i64 = fresh_tmp(ctx)
+        
+        val buf_get4: ref char = @alloc(512) as ref char
+        @snprintf(buf_get4, 512, "    %%t%lld =l loadl %s\n    %%t%lld =l mul %s, 8\n    %%t%lld =l add %%t%lld, %%t%lld\n    %%t%lld =l loadl %%t%lld\n    %%t%lld =l add %%t%lld, 1\n    storel %%t%lld, %%t%lld\n    jmp @lbl%lld\n",
+            {buf_get_tmp, lst3, off, idx, elem_ptr, buf_get_tmp, off, elem_val, elem_ptr, some_val, elem_val, some_val, result_slot, end_lbl})
+        emit(ctx, buf_get4)
+        @free(buf_get4)
+        
+        val buf_get5: ref char = @alloc(128) as ref char
+        @snprintf(buf_get5, 128, "@lbl%lld\n    storel 0, %%t%lld\n    jmp @lbl%lld\n", {none_lbl, result_slot, end_lbl})
+        emit(ctx, buf_get5)
+        @free(buf_get5)
+        
+        val buf_get6: ref char = @alloc(128) as ref char
+        @snprintf(buf_get6, 128, "@lbl%lld\n    %%t%lld =l loadl %%t%lld\n", {end_lbl, tmp, result_slot})
+        emit(ctx, buf_get6)
+        @free(buf_get6)
     } elif str.rchar_cmp(name, "remove") == 0 {
         val lst4: ref char = get_arg(ctx, args, 0)
         val idx2: ref char = get_arg(ctx, args, 1)
-        @snprintf(buf, 512, "    call $__sx_list_remove(l %s, l %s)\n    %%t%lld =l copy 0\n", {lst4, idx2, tmp})
+        
+        val len_slot: i64 = fresh_tmp(ctx)
+        val len_val: i64 = fresh_tmp(ctx)
+        val buf_rem1: ref char = @alloc(256) as ref char
+        @snprintf(buf_rem1, 256, "    %%t%lld =l add %s, 8\n    %%t%lld =l loadl %%t%lld\n", {len_slot, lst4, len_val, len_slot})
+        emit(ctx, buf_rem1)
+        @free(buf_rem1)
+        
+        val buf_tmp: i64 = fresh_tmp(ctx)
+        val off: i64 = fresh_tmp(ctx)
+        val elem_ptr: i64 = fresh_tmp(ctx)
+        val elem_val: i64 = fresh_tmp(ctx)
+        val buf_rem2: ref char = @alloc(512) as ref char
+        @snprintf(buf_rem2, 512, "    %%t%lld =l loadl %s\n    %%t%lld =l mul %s, 8\n    %%t%lld =l add %%t%lld, %%t%lld\n    %%t%lld =l loadl %%t%lld\n",
+            {buf_tmp, lst4, off, idx2, elem_ptr, buf_tmp, off, elem_val, elem_ptr})
+        emit(ctx, buf_rem2)
+        @free(buf_rem2)
+        
+        val shift_loop: i64 = fresh_lbl(ctx)
+        val shift_body: i64 = fresh_lbl(ctx)
+        val shift_end: i64 = fresh_lbl(ctx)
+        val shift_idx: i64 = fresh_tmp(ctx)
+        
+        val buf_rem3: ref char = @alloc(256) as ref char
+        @snprintf(buf_rem3, 256, "    %%t%lld =l copy %s\n    jmp @lbl%lld\n", {shift_idx, idx2, shift_loop})
+        emit(ctx, buf_rem3)
+        @free(buf_rem3)
+        
+        val buf_rem4: ref char = @alloc(64) as ref char
+        @snprintf(buf_rem4, 64, "@lbl%lld\n", {shift_loop})
+        emit(ctx, buf_rem4)
+        @free(buf_rem4)
+        
+        val one_past_end: i64 = fresh_tmp(ctx)
+        val should_shift: i64 = fresh_tmp(ctx)
+        val buf_rem5: ref char = @alloc(256) as ref char
+        @snprintf(buf_rem5, 256, "    %%t%lld =l sub %%t%lld, 1\n    %%t%lld =w csltl %%t%lld, %%t%lld\n    jnz %%t%lld, @lbl%lld, @lbl%lld\n",
+            {one_past_end, len_val, should_shift, shift_idx, one_past_end, should_shift, shift_body, shift_end})
+        emit(ctx, buf_rem5)
+        @free(buf_rem5)
+        
+        val buf_rem6: ref char = @alloc(64) as ref char
+        @snprintf(buf_rem6, 64, "@lbl%lld\n", {shift_body})
+        emit(ctx, buf_rem6)
+        @free(buf_rem6)
+        
+        val src_off: i64 = fresh_tmp(ctx)
+        val dst_off: i64 = fresh_tmp(ctx)
+        val src_ptr: i64 = fresh_tmp(ctx)
+        val dst_ptr: i64 = fresh_tmp(ctx)
+        val src_val: i64 = fresh_tmp(ctx)
+        val buf_rem7: ref char = @alloc(512) as ref char
+        @snprintf(buf_rem7, 512, "    %%t%lld =l add %%t%lld, 1\n    %%t%lld =l mul %%t%lld, 8\n    %%t%lld =l mul %%t%lld, 8\n    %%t%lld =l add %%t%lld, %%t%lld\n    %%t%lld =l add %%t%lld, %%t%lld\n    %%t%lld =l loadl %%t%lld\n    storel %%t%lld, %%t%lld\n",
+            {src_off, shift_idx, src_off, src_off, dst_off, shift_idx, src_ptr, buf_tmp, src_off, dst_ptr, buf_tmp, dst_off, src_val, src_ptr, src_val, dst_ptr})
+        emit(ctx, buf_rem7)
+        @free(buf_rem7)
+        
+        val shift_idx_new: i64 = fresh_tmp(ctx)
+        val buf_rem8: ref char = @alloc(256) as ref char
+        @snprintf(buf_rem8, 256, "    %%t%lld =l add %%t%lld, 1\n    %%t%lld =l copy %%t%lld\n    jmp @lbl%lld\n",
+            {shift_idx_new, shift_idx, shift_idx, shift_idx_new, shift_loop})
+        emit(ctx, buf_rem8)
+        @free(buf_rem8)
+        
+        val buf_rem9: ref char = @alloc(64) as ref char
+        @snprintf(buf_rem9, 64, "@lbl%lld\n", {shift_end})
+        emit(ctx, buf_rem9)
+        @free(buf_rem9)
+        
+        val new_len: i64 = fresh_tmp(ctx)
+        val buf_rem10: ref char = @alloc(256) as ref char
+        @snprintf(buf_rem10, 256, "    %%t%lld =l sub %%t%lld, 1\n    storel %%t%lld, %%t%lld\n", {new_len, len_val, new_len, len_slot})
+        emit(ctx, buf_rem10)
+        @free(buf_rem10)
+        
+        tmp = elem_val
+    } elif str.rchar_cmp(name, "insert") == 0 {
+        val lst_ins: ref char = get_arg(ctx, args, 0)
+        val idx_ins: ref char = get_arg(ctx, args, 1)
+        val val_ins: ref char = get_arg(ctx, args, 2)
+        
+        val len_slot: i64 = fresh_tmp(ctx)
+        val cap_slot: i64 = fresh_tmp(ctx)
+        val len_val: i64 = fresh_tmp(ctx)
+        val cap_val: i64 = fresh_tmp(ctx)
+        val buf_ins1: ref char = @alloc(512) as ref char
+        @snprintf(buf_ins1, 512, "    %%t%lld =l add %s, 8\n    %%t%lld =l add %s, 16\n    %%t%lld =l loadl %%t%lld\n    %%t%lld =l loadl %%t%lld\n",
+            {len_slot, lst_ins, cap_slot, lst_ins, len_val, len_slot, cap_val, cap_slot})
+        emit(ctx, buf_ins1)
+        @free(buf_ins1)
+        
+        val need_grow: i64 = fresh_tmp(ctx)
+        val grow_lbl: i64 = fresh_lbl(ctx)
+        val no_grow_lbl: i64 = fresh_lbl(ctx)
+        val buf_ins2: ref char = @alloc(256) as ref char
+        @snprintf(buf_ins2, 256, "    %%t%lld =w csgel %%t%lld, %%t%lld\n    jnz %%t%lld, @lbl%lld, @lbl%lld\n", {need_grow, len_val, cap_val, need_grow, grow_lbl, no_grow_lbl})
+        emit(ctx, buf_ins2)
+        @free(buf_ins2)
+        
+        val buf_ins3: ref char = @alloc(64) as ref char
+        @snprintf(buf_ins3, 64, "@lbl%lld\n", {grow_lbl})
+        emit(ctx, buf_ins3)
+        @free(buf_ins3)
+        
+        val new_cap: i64 = fresh_tmp(ctx)
+        val new_cap2: i64 = fresh_tmp(ctx)
+        val buf_ins4: ref char = @alloc(256) as ref char
+        @snprintf(buf_ins4, 256, "    %%t%lld =l mul %%t%lld, 2\n    %%t%lld =l add %%t%lld, 1\n", {new_cap, cap_val, new_cap2, new_cap})
+        emit(ctx, buf_ins4)
+        @free(buf_ins4)
+        
+        val old_buf: i64 = fresh_tmp(ctx)
+        val new_buf: i64 = fresh_tmp(ctx)
+        val new_cap2_bytes: i64 = fresh_tmp(ctx)
+        val buf_ins5: ref char = @alloc(512) as ref char
+        @snprintf(buf_ins5, 512, "    %%t%lld =l loadl %s\n    %%t%lld =l mul %%t%lld, 8\n    %%t%lld =l call $realloc(l %%t%lld, l %%t%lld)\n    storel %%t%lld, %s\n    storel %%t%lld, %%t%lld\n    jmp @lbl%lld\n",
+            {old_buf, lst_ins, new_cap2_bytes, new_cap2, new_buf, old_buf, new_cap2_bytes, new_buf, lst_ins, new_cap2, cap_slot, no_grow_lbl})
+        emit(ctx, buf_ins5)
+        @free(buf_ins5)
+        
+        val buf_ins6: ref char = @alloc(64) as ref char
+        @snprintf(buf_ins6, 64, "@lbl%lld\n", {no_grow_lbl})
+        emit(ctx, buf_ins6)
+        @free(buf_ins6)
+        
+        val shift_loop: i64 = fresh_lbl(ctx)
+        val shift_body: i64 = fresh_lbl(ctx)
+        val shift_end: i64 = fresh_lbl(ctx)
+        val shift_idx: i64 = fresh_tmp(ctx)
+        
+        val buf_ins7: ref char = @alloc(256) as ref char
+        @snprintf(buf_ins7, 256, "    %%t%lld =l sub %%t%lld, 1\n    jmp @lbl%lld\n", {shift_idx, len_val, shift_loop})
+        emit(ctx, buf_ins7)
+        @free(buf_ins7)
+        
+        val buf_ins8: ref char = @alloc(64) as ref char
+        @snprintf(buf_ins8, 64, "@lbl%lld\n", {shift_loop})
+        emit(ctx, buf_ins8)
+        @free(buf_ins8)
+        
+        val should_shift: i64 = fresh_tmp(ctx)
+        val buf_ins9: ref char = @alloc(256) as ref char
+        @snprintf(buf_ins9, 256, "    %%t%lld =w cslel %s, %%t%lld\n    jnz %%t%lld, @lbl%lld, @lbl%lld\n",
+            {should_shift, idx_ins, shift_idx, should_shift, shift_body, shift_end})
+        emit(ctx, buf_ins9)
+        @free(buf_ins9)
+        
+        val buf_ins10: ref char = @alloc(64) as ref char
+        @snprintf(buf_ins10, 64, "@lbl%lld\n", {shift_body})
+        emit(ctx, buf_ins10)
+        @free(buf_ins10)
+        
+        val src_off: i64 = fresh_tmp(ctx)
+        val dst_off: i64 = fresh_tmp(ctx)
+        val src_ptr: i64 = fresh_tmp(ctx)
+        val dst_ptr: i64 = fresh_tmp(ctx)
+        val src_val: i64 = fresh_tmp(ctx)
+        val buf2: i64 = fresh_tmp(ctx)
+        val buf_ins11: ref char = @alloc(512) as ref char
+        @snprintf(buf_ins11, 512, "    %%t%lld =l mul %%t%lld, 8\n    %%t%lld =l add %%t%lld, 1\n    %%t%lld =l mul %%t%lld, 8\n    %%t%lld =l loadl %s\n    %%t%lld =l add %%t%lld, %%t%lld\n    %%t%lld =l add %%t%lld, %%t%lld\n    %%t%lld =l loadl %%t%lld\n    storel %%t%lld, %%t%lld\n",
+            {src_off, shift_idx, dst_off, shift_idx, dst_off, dst_off, buf2, lst_ins, src_ptr, buf2, src_off, dst_ptr, buf2, dst_off, src_val, src_ptr, src_val, dst_ptr})
+        emit(ctx, buf_ins11)
+        @free(buf_ins11)
+        
+        val shift_idx_new: i64 = fresh_tmp(ctx)
+        val buf_ins12: ref char = @alloc(256) as ref char
+        @snprintf(buf_ins12, 256, "    %%t%lld =l sub %%t%lld, 1\n    %%t%lld =l copy %%t%lld\n    jmp @lbl%lld\n",
+            {shift_idx_new, shift_idx, shift_idx, shift_idx_new, shift_loop})
+        emit(ctx, buf_ins12)
+        @free(buf_ins12)
+        
+        val buf_ins13: ref char = @alloc(64) as ref char
+        @snprintf(buf_ins13, 64, "@lbl%lld\n", {shift_end})
+        emit(ctx, buf_ins13)
+        @free(buf_ins13)
+        
+        val buf3: i64 = fresh_tmp(ctx)
+        val elem_off: i64 = fresh_tmp(ctx)
+        val elem_ptr: i64 = fresh_tmp(ctx)
+        val buf_ins14: ref char = @alloc(512) as ref char
+        @snprintf(buf_ins14, 512, "    %%t%lld =l loadl %s\n    %%t%lld =l mul %s, 8\n    %%t%lld =l add %%t%lld, %%t%lld\n    storel %s, %%t%lld\n",
+            {buf3, lst_ins, elem_off, idx_ins, elem_ptr, buf3, elem_off, val_ins, elem_ptr})
+        emit(ctx, buf_ins14)
+        @free(buf_ins14)
+        
+        val new_len: i64 = fresh_tmp(ctx)
+        val buf_ins15: ref char = @alloc(256) as ref char
+        @snprintf(buf_ins15, 256, "    %%t%lld =l add %%t%lld, 1\n    storel %%t%lld, %%t%lld\n", {new_len, len_val, new_len, len_slot})
+        emit(ctx, buf_ins15)
+        @free(buf_ins15)
+        
+        @snprintf(buf, 512, "    %%t%lld =l copy 0\n", {tmp})
         emit(ctx, buf)
     } elif str.rchar_cmp(name, "reserve") == 0 {
         val lst5: ref char = get_arg(ctx, args, 0)
         val cap: ref char = get_arg(ctx, args, 1)
-        @snprintf(buf, 512, "    call $__sx_list_reserve(l %s, l %s)\n    %%t%lld =l copy 0\n", {lst5, cap, tmp})
+        
+        val cap_slot: i64 = fresh_tmp(ctx)
+        val cur_cap: i64 = fresh_tmp(ctx)
+        val buf_res1: ref char = @alloc(256) as ref char
+        @snprintf(buf_res1, 256, "    %%t%lld =l add %s, 16\n    %%t%lld =l loadl %%t%lld\n", {cap_slot, lst5, cur_cap, cap_slot})
+        emit(ctx, buf_res1)
+        @free(buf_res1)
+        
+        val need_grow: i64 = fresh_tmp(ctx)
+        val grow_lbl: i64 = fresh_lbl(ctx)
+        val end_lbl: i64 = fresh_lbl(ctx)
+        val buf_res2: ref char = @alloc(256) as ref char
+        @snprintf(buf_res2, 256, "    %%t%lld =w csgtl %s, %%t%lld\n    jnz %%t%lld, @lbl%lld, @lbl%lld\n",
+            {need_grow, cap, cur_cap, need_grow, grow_lbl, end_lbl})
+        emit(ctx, buf_res2)
+        @free(buf_res2)
+        
+        val buf_res3: ref char = @alloc(64) as ref char
+        @snprintf(buf_res3, 64, "@lbl%lld\n", {grow_lbl})
+        emit(ctx, buf_res3)
+        @free(buf_res3)
+        
+        val old_buf: i64 = fresh_tmp(ctx)
+        val new_buf: i64 = fresh_tmp(ctx)
+        val new_bytes: i64 = fresh_tmp(ctx)
+        val buf_res4: ref char = @alloc(512) as ref char
+        @snprintf(buf_res4, 512, "    %%t%lld =l loadl %s\n    %%t%lld =l mul %s, 8\n    %%t%lld =l call $realloc(l %%t%lld, l %%t%lld)\n    storel %%t%lld, %s\n    storel %s, %%t%lld\n",
+            {old_buf, lst5, new_bytes, cap, new_buf, old_buf, new_bytes, new_buf, lst5, cap, cap_slot})
+        emit(ctx, buf_res4)
+        @free(buf_res4)
+        
+        val buf_res5: ref char = @alloc(64) as ref char
+        @snprintf(buf_res5, 64, "@lbl%lld\n", {end_lbl})
+        emit(ctx, buf_res5)
+        @free(buf_res5)
+        
+        @snprintf(buf, 512, "    %%t%lld =l copy 0\n", {tmp})
         emit(ctx, buf)
     } elif str.rchar_cmp(name, "capacity") == 0 {
         val lst6: ref char = get_arg(ctx, args, 0)
-        @snprintf(buf, 512, "    %%t%lld =l call $__sx_list_capacity(l %s)\n", {tmp, lst6})
+        val cap_slot: i64 = fresh_tmp(ctx)
+        val cap_val: i64 = fresh_tmp(ctx)
+        @snprintf(buf, 512, "    %%t%lld =l add %s, 16\n    %%t%lld =l loadl %%t%lld\n", {cap_slot, lst6, cap_val, cap_slot})
         emit(ctx, buf)
+        tmp = cap_val
     } elif str.rchar_cmp(name, "fmt") == 0 {
         val fmt2: ref char = get_arg(ctx, args, 0)
         @snprintf(buf, 512, "    %%t%lld =l call $__sx_fmt(l %s, ...)\n", {tmp, fmt2})
@@ -1907,32 +2246,85 @@ fn gen_builtin(ctx: ref void, expr: ref parser.Node) ref char! = {
 
 fn gen_list_lit(ctx: ref void, expr: ref parser.Node) ref char! = {
     val elems: ref void = expr.d0 as ref void
-    val tmp: i64 = fresh_tmp(ctx)
-    val buf: ref char = @alloc(256) as ref char
-    @snprintf(buf, 256, "    %%t%lld =l call $__sx_list_new(l 8)\n", {tmp})
-    emit(ctx, buf)
-    @free(buf)
+    val elen: mut i64 = 0
+    if elems != 0 as ref void { elen = @len(elems) as i64 }
+    
+    val cap: mut i64 = 1
+    if elen > 0 { cap = elen }
+    
+    val hdr_ptr: i64 = fresh_tmp(ctx)
+    val buf_ptr: i64 = fresh_tmp(ctx)
+    val buf1: ref char = @alloc(128) as ref char
+    @snprintf(buf1, 128, "    %%t%lld =l call $malloc(l 24)\n", {hdr_ptr})
+    emit(ctx, buf1)
+    @free(buf1)
+    
+    val buf2: ref char = @alloc(128) as ref char
+    @snprintf(buf2, 128, "    %%t%lld =l call $malloc(l %lld)\n", {buf_ptr, cap * 8})
+    emit(ctx, buf2)
+    @free(buf2)
+    
+    val buf3: ref char = @alloc(128) as ref char
+    @snprintf(buf3, 128, "    storel %%t%lld, %%t%lld\n", {buf_ptr, hdr_ptr})
+    emit(ctx, buf3)
+    @free(buf3)
+    
+    val len_slot: i64 = fresh_tmp(ctx)
+    val cap_slot: i64 = fresh_tmp(ctx)
+    val buf4: ref char = @alloc(128) as ref char
+    @snprintf(buf4, 128, "    %%t%lld =l add %%t%lld, 8\n", {len_slot, hdr_ptr})
+    emit(ctx, buf4)
+    @free(buf4)
+    
+    val buf5: ref char = @alloc(128) as ref char
+    @snprintf(buf5, 128, "    %%t%lld =l add %%t%lld, 16\n", {cap_slot, hdr_ptr})
+    emit(ctx, buf5)
+    @free(buf5)
+    
+    val buf6: ref char = @alloc(128) as ref char
+    @snprintf(buf6, 128, "    storel %lld, %%t%lld\n", {elen, len_slot})
+    emit(ctx, buf6)
+    @free(buf6)
+    
+    val buf7: ref char = @alloc(128) as ref char
+    @snprintf(buf7, 128, "    storel %lld, %%t%lld\n", {cap, cap_slot})
+    emit(ctx, buf7)
+    @free(buf7)
+    
     if elems != 0 as ref void {
-        val elen: i64 = @len(elems) as i64
         val ei: mut i64 = 0
         for {
             if ei >= elen { break }
             val e_opt = @get(elems, ei as usize)
             match e_opt {
                 some e => {
-                    val et: ref char = gen_expr(ctx, e as ref parser.Node)
-                    val abuf: ref char = @alloc(128) as ref char
-                    @snprintf(abuf, 128, "    call $__sx_list_append(l %%t%lld, l %s)\n", {tmp, et})
-                    emit(ctx, abuf)
-                    @free(abuf)
+                    val val_tmp: ref char = gen_expr(ctx, e as ref parser.Node)
+                    val off: i64 = fresh_tmp(ctx)
+                    val elem_ptr: i64 = fresh_tmp(ctx)
+                    
+                    val buf8: ref char = @alloc(128) as ref char
+                    @snprintf(buf8, 128, "    %%t%lld =l mul %lld, 8\n", {off, ei})
+                    emit(ctx, buf8)
+                    @free(buf8)
+                    
+                    val buf9: ref char = @alloc(128) as ref char
+                    @snprintf(buf9, 128, "    %%t%lld =l add %%t%lld, %%t%lld\n", {elem_ptr, buf_ptr, off})
+                    emit(ctx, buf9)
+                    @free(buf9)
+                    
+                    val buf10: ref char = @alloc(128) as ref char
+                    @snprintf(buf10, 128, "    storel %s, %%t%lld\n", {val_tmp, elem_ptr})
+                    emit(ctx, buf10)
+                    @free(buf10)
                 }
                 none => {}
             }
             ei++
         }
     }
+    
     val res: ref char = @alloc(16) as ref char
-    @snprintf(res, 16, "%%t%lld", {tmp})
+    @snprintf(res, 16, "%%t%lld", {hdr_ptr})
     return res
 }
 
