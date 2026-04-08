@@ -1086,8 +1086,8 @@ test {
     assert(equals(rv, from("dcba")))
 
 
-    val s = from("Hello world")
-    val out = trim_suffix(s, from("world"))
+    val s2 = from("Hello world")
+    val out = trim_suffix(s2, from("world"))
     assert(equals(out, from("Hello ")))
 
     stdio.puts("string tests passed")
