@@ -3078,10 +3078,11 @@ fn gen_forin_stmt(ctx: ref void, stmt: ref parser.Node) void! = {
     cg_set_break_lbl(ctx, break_lbl)
     cg_set_cont_lbl(ctx, loop_lbl)
 
+    val len_slot: i64 = fresh_tmp(ctx)
     val buf: ref char = @alloc(512) as ref char
     @snprintf(buf, 512,
-        "    %%t%lld =l alloc8 8\n    storel 0, %%t%lld\n    %%t%lld =l call $__sx_list_len(l %s)\n@lbl%lld\n",
-        {idx, idx, len, iter, loop_lbl})
+        "    %%t%lld =l alloc8 8\n    storel 0, %%t%lld\n    %%t%lld =l add %s, 8\n    %%t%lld =l loadl %%t%lld\n@lbl%lld\n",
+        {idx, idx, len_slot, iter, len, len_slot, loop_lbl})
     emit(ctx, buf)
     @free(buf)
 
@@ -3094,15 +3095,18 @@ fn gen_forin_stmt(ctx: ref void, stmt: ref parser.Node) void! = {
     emit(ctx, buf2)
     @free(buf2)
 
+    val buf_tmp: i64 = fresh_tmp(ctx)
+    val off: i64 = fresh_tmp(ctx)
+    val elem_ptr: i64 = fresh_tmp(ctx)
     val elem: i64 = fresh_tmp(ctx)
     val binding_tmp: i64 = fresh_tmp(ctx)
     val binding_qbe: ref char = @alloc(32) as ref char
     @snprintf(binding_qbe, 32, "%lld", {binding_tmp})
     
-    val buf3: ref char = @alloc(256) as ref char
-    @snprintf(buf3, 256,
-        "    %%t%lld =l call $__sx_list_get(l %s, l %%t%lld)\n    %%t%lld =l alloc8 8\n    storel %%t%lld, %%t%lld\n",
-        {elem, iter, cur_idx, binding_tmp, elem, binding_tmp})
+    val buf3: ref char = @alloc(512) as ref char
+    @snprintf(buf3, 512,
+        "    %%t%lld =l loadl %s\n    %%t%lld =l mul %%t%lld, 8\n    %%t%lld =l add %%t%lld, %%t%lld\n    %%t%lld =l loadl %%t%lld\n    %%t%lld =l alloc8 8\n    storel %%t%lld, %%t%lld\n",
+        {buf_tmp, iter, off, cur_idx, elem_ptr, buf_tmp, off, elem, elem_ptr, binding_tmp, elem, binding_tmp})
     emit(ctx, buf3)
     @free(buf3)
     
