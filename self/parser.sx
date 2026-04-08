@@ -48,6 +48,7 @@ pub val NK_SOME       : i64 = 65
 pub val NK_NONE       : i64 = 66
 pub val NK_OK_VAL     : i64 = 67
 pub val NK_ERR_VAL    : i64 = 68
+pub val NK_CHAR_LIT   : i64 = 69
 pub val NK_TRY        : i64 = 69
 pub val NK_FIELD      : i64 = 70
 pub val NK_CALL       : i64 = 71
@@ -303,6 +304,8 @@ fn kind_is_ident(k: lexer.TokenKind) bool! = { match k { Ident _ => { return tru
 fn kind_is_str(k: lexer.TokenKind) bool! = { match k { Str _ => { return true } else => { return false } } }
 fn kind_is_int(k: lexer.TokenKind) bool! = { match k { Int _ => { return true } else => { return false } } }
 fn kind_is_float(k: lexer.TokenKind) bool! = { match k { Float _ => { return true } else => { return false } } }
+fn kind_is_char(k: lexer.TokenKind) bool! = { match k { CharLit _ => { return true } else => { return false } } }
+fn kind_char_val(k: lexer.TokenKind) i64! = { match k { CharLit v => { return v } else => { return 0 } } }
 fn kind_is_dotdotdot(k: lexer.TokenKind) bool! = { match k { DotDotDot() => { return true } else => { return false } } }
 
 pub fn parse_type(p: ref Parser) result[ref Node, ref char]! = {
@@ -704,6 +707,13 @@ fn parse_primary(p: ref Parser) result[ref Node, ref char]! = {
     if kind_is_true(k)  { p_advance(p) val n4: mut ref Node = make_node(NK_BOOL, line) n4.d0 = 1 return ok n4 }
     if kind_is_false(k) { p_advance(p) val n5: mut ref Node = make_node(NK_BOOL, line) n5.d0 = 0 return ok n5 }
     if kind_is_none(k)  { p_advance(p) return ok make_node(NK_NONE, line) }
+    if kind_is_char(k) {
+        val char_val: i64 = kind_char_val(k)
+        p_advance(p)
+        val nc: mut ref Node = make_node(NK_CHAR_LIT, line)
+        nc.d0 = char_val
+        return ok nc
+    }
 
     if lexer.kind_is_lparen(k) {
         p_advance(p)

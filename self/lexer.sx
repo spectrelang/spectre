@@ -13,6 +13,7 @@ pub union TokenKind = {
   | Str(ref char)
   | Int(ref char)
   | Float(ref char)
+  | CharLit(i64)
   | LParen()    | RParen()    | LBrace()   | RBrace()
   | LBracket()  | RBracket()  | Colon()    | Semicolon()
   | Comma()     | Dot()       | DotDotDot()
@@ -249,6 +250,23 @@ pub fn tokenize(src: ref char) result[list[ref Token], ref char]! = {
 
         if c == 34 {
             @append(tokens, make_tok(l, Str(lex_string(l)), line, col))
+            continue
+        }
+        if c == 39 {
+            val ch: i64 = lx_advance(l)
+            val char_val: mut i64 = ch
+            if ch == 92 {
+                val esc: i64 = lx_advance(l)
+                if esc == 110      { char_val = 10 }
+                elif esc == 116    { char_val = 9  }
+                elif esc == 114    { char_val = 13 }
+                elif esc == 48     { char_val = 0  }
+                elif esc == 39     { char_val = 39 }
+                elif esc == 92     { char_val = 92 }
+                else               { char_val = esc }
+            }
+            lx_advance(l)
+            @append(tokens, make_tok(l, CharLit(char_val), line, col))
             continue
         }
         if is_digit(c) {

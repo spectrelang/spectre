@@ -317,6 +317,11 @@ fn check_expr(ctx: ref SemaCtx, expr: ref parser.Node, filename: ref char) void!
     val k: i64 = expr.kind
     val line: i64 = expr.line
 
+    if k == parser.NK_INT_LIT || k == parser.NK_FLOAT_LIT || k == parser.NK_STR_LIT ||
+       k == parser.NK_BOOL    || k == parser.NK_NONE       || k == parser.NK_CHAR_LIT {
+        return
+    }
+
     if k == parser.NK_IDENT {
         val name: ref char = expr.d0 as ref char
         val has_dot: mut bool = false
@@ -519,7 +524,14 @@ fn check_stmt(ctx: ref SemaCtx, stmt: ref parser.Node, filename: ref char) void!
         val init_name: ref char = stmt.d0 as ref char
         if init_name != 0 as ref char {
             check_expr(ctx, stmt.d1 as ref parser.Node, filename)
-            scope_define(ctx, init_name, 1, 0 as ref char)
+            if scope_lookup(ctx, init_name) != -1 {
+                val buf: ref char = @alloc(256) as ref char
+                @snprintf(buf, 256, "%s:%lld: for loop variable '%s' shadows an existing variable; declare it only in the for loop",
+                    {filename, line, init_name})
+                add_error(ctx, buf)
+            } else {
+                scope_define(ctx, init_name, 1, 0 as ref char)
+            }
         }
         check_expr(ctx, stmt.d2 as ref parser.Node, filename)
         check_stmts(ctx, stmt.d4 as ref void, filename)

@@ -733,6 +733,18 @@ fn gen_expr(ctx: ref void, expr: ref parser.Node) ref char! = {
         return res4
     }
 
+    if k == parser.NK_CHAR_LIT {
+        val cv: i64 = expr.d0 as i64
+        val tmp_c: i64 = fresh_tmp(ctx)
+        val buf_c: ref char = @alloc(64) as ref char
+        @snprintf(buf_c, 64, "    %%t%lld =l copy %lld\n", {tmp_c, cv})
+        emit(ctx, buf_c)
+        @free(buf_c)
+        val res_c: ref char = @alloc(16) as ref char
+        @snprintf(res_c, 16, "%%t%lld", {tmp_c})
+        return res_c
+    }
+
     if k == parser.NK_NONE {
         val tmp5: i64 = fresh_tmp(ctx)
         val buf5: ref char = @alloc(64) as ref char
