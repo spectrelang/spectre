@@ -76,10 +76,12 @@ fn platform_matches(name: ref char) bool! = {
 ///   offset 200: current loop continue label (i64, -1 = none)
 ///   offset 208: module const names  (ref void — list[ref char])
 ///   offset 216: module const values (ref void — list[ref char])
+///   offset 224: defer stack (ref void — list[ref void])
+///   offset 232: hoisted slot names (ref void — list[ref char]) — mut val names pre-alloc'd at @start
 
 fn cg_new() ref void! = {
-    val ctx: ref void = @alloc(232)
-    @memset(ctx, 0, 232)
+    val ctx: ref void = @alloc(240)
+    @memset(ctx, 0, 240)
     val sb: ref void = str.StringBuilder.new()
     @store(@ptradd(ctx, 0), sb as usize)
     val strs: list[ref char] = []
@@ -128,6 +130,8 @@ fn cg_new() ref void! = {
     @store(@ptradd(ctx, 216), mc_vals as usize)
     val defer_stack: list[ref void] = []
     @store(@ptradd(ctx, 224), defer_stack as usize)
+    val hoisted_slots: list[ref char] = []
+    @store(@ptradd(ctx, 232), hoisted_slots as usize)
     return ctx
 }
 
@@ -162,8 +166,31 @@ fn cg_break_lbl(ctx: ref void)  i64!      = { return @load(@ptradd(ctx, 192)) as
 fn cg_cont_lbl(ctx: ref void)   i64!      = { return @load(@ptradd(ctx, 200)) as i64 }
 fn cg_set_break_lbl(ctx: ref void, v: i64) void! = { @store(@ptradd(ctx, 192), v as usize) }
 fn cg_set_cont_lbl(ctx: ref void, v: i64)  void! = { @store(@ptradd(ctx, 200), v as usize) }
-
 fn cg_defer_stack(ctx: ref void) ref void! = { return @load(@ptradd(ctx, 224)) as ref void }
+fn cg_hoisted_slots(ctx: ref void) ref void! = { return @load(@ptradd(ctx, 232)) as ref void }
+
+fn cg_hoisted_slots_clear(ctx: ref void) void! = {
+    val empty: list[ref char] = []
+    @store(@ptradd(ctx, 232), empty as usize)
+}
+
+fn cg_is_hoisted(ctx: ref void, name: ref char) bool! = {
+    val slots: ref void = cg_hoisted_slots(ctx)
+    val nlen: i64 = @len(slots as list[ref char]) as i64
+    val ni: mut i64 = 0
+    for {
+        if ni >= nlen { break }
+        val n_opt = @get(slots as list[ref char], ni as usize)
+        match n_opt {
+            some n => {
+                if str.rchar_cmp(n as ref char, name) == 0 { return true }
+            }
+            none => {}
+        }
+        ni++
+    }
+    return false
+}
 
 fn cg_defer_push(ctx: ref void, body: ref parser.Node) void! = {
     val stack: ref void = cg_defer_stack(ctx)
@@ -1886,6 +1913,7 @@ fn gen_stmt(ctx: ref void, stmt: ref parser.Node) void! = {
 
     if k == parser.NK_VAL {
         val name: ref char = stmt.d0 as ref char
+        val mutable: i64 = stmt.d1 as i64
         val ty_node: ref parser.Node = stmt.d2 as ref parser.Node
         val expr: ref parser.Node = stmt.d3 as ref parser.Node
         val val_tmp: ref char = gen_expr(ctx, expr)
@@ -1899,12 +1927,30 @@ fn gen_stmt(ctx: ref void, stmt: ref parser.Node) void! = {
             }
         }
 
-        val store_op: mut ref char = "storel"
-        val ltype2: ref char = cg_local_type(ctx, name)
-        if str.rchar_cmp(ltype2, "f64") == 0 { store_op = "stored" }
-        elif str.rchar_cmp(ltype2, "f32") == 0 { store_op = "stores" }
-        elif is_word_type_name(ltype2) { store_op = "storew" }
-        @snprintf(buf, 256, "    %%%s =l alloc8 8\n    %s %s, %%%s\n", {name, store_op, val_tmp, name})
+        if mutable != 0 && cg_is_hoisted(ctx, name) {
+            val ltype2: ref char = cg_local_type(ctx, name)
+            val store_op: mut ref char = "storel"
+            if str.rchar_cmp(ltype2, "f64") == 0 { store_op = "stored" }
+            elif str.rchar_cmp(ltype2, "f32") == 0 { store_op = "stores" }
+            @snprintf(buf, 256, "    %s %s, %%%s\n", {store_op, val_tmp, name})
+            emit(ctx, buf)
+            @free(buf)
+            return
+        }
+
+        if mutable == 0 {
+            @snprintf(buf, 256, "    %%%s =l copy %s\n", {name, val_tmp})
+            emit(ctx, buf)
+            @free(buf)
+            cg_dvars_add(ctx, name, "l")
+            return
+        }
+
+        val store_op2: mut ref char = "storel"
+        val ltype3: ref char = cg_local_type(ctx, name)
+        if str.rchar_cmp(ltype3, "f64") == 0 { store_op2 = "stored" }
+        elif str.rchar_cmp(ltype3, "f32") == 0 { store_op2 = "stores" }
+        @snprintf(buf, 256, "    %%%s =l alloc8 8\n    %s %s, %%%s\n", {name, store_op2, val_tmp, name})
         emit(ctx, buf)
         @free(buf)
         return
@@ -2898,11 +2944,10 @@ fn gen_match_tagged_union(ctx: ref void, stmt: ref parser.Node) void! = {
                                     if str.rchar_cmp(bname, "_") != 0 {
                                         val offset: i64 = 8 + bi * 8
                                         val payload_ptr: i64 = fresh_tmp(ctx)
-                                        val payload_val: i64 = fresh_tmp(ctx)
                                         val bbuf: ref char = @alloc(256) as ref char
                                         @snprintf(bbuf, 256,
-                                            "    %%t%lld =l add %s, %lld\n    %%t%lld =l loadl %%t%lld\n    %%%s =l copy %%t%lld\n",
-                                            {payload_ptr, expr, offset, payload_val, payload_ptr, bname, payload_val})
+                                            "    %%t%lld =l add %s, %lld\n    %%%s =l loadl %%t%lld\n",
+                                            {payload_ptr, expr, offset, bname, payload_ptr})
                                         emit(ctx, bbuf)
                                         @free(bbuf)
                                         cg_dvars_add(ctx, bname, "l")
@@ -2943,6 +2988,93 @@ fn gen_match_tagged_union(ctx: ref void, stmt: ref parser.Node) void! = {
 
 fn gen_fn(ctx: ref void, fn_node: ref parser.Node) void! = {
     gen_fn_prefixed(ctx, fn_node, "")
+}
+
+/// Walk all statements recursively and emit alloc8 for every mut val at function entry.
+/// This ensures QBE sees ALL stack slots in the entry block and can handle them correctly.
+fn hoist_mut_vals(ctx: ref void, stmts: ref parser.Node) void! = {
+    if stmts == 0 as ref parser.Node { return }
+    val len: i64 = @len(stmts) as i64
+    val i: mut i64 = 0
+    for {
+        if i >= len { break }
+        val s_opt = @get(stmts, i as usize)
+        match s_opt {
+            some s => {
+                val stmt: ref parser.Node = s as ref parser.Node
+                val k: i64 = stmt.kind
+                if k == parser.NK_VAL {
+                    val mutable: i64 = stmt.d1 as i64
+                    if mutable != 0 {
+                        val name: ref char = stmt.d0 as ref char
+                        val ty_node: ref parser.Node = stmt.d2 as ref parser.Node
+                        val buf: ref char = @alloc(128) as ref char
+                        @snprintf(buf, 128, "    %%%s =l alloc8 8\n", {name})
+                        emit(ctx, buf)
+                        @free(buf)
+                        @append(cg_hoisted_slots(ctx) as list[ref char], name)
+                        if ty_node != 0 as ref parser.Node {
+                            if ty_node.kind == parser.TY_NAMED {
+                                val tname2: ref char = ty_node.d0 as ref char
+                                cg_register_local_type(ctx, name, tname2)
+                            }
+                        }
+                    }
+                } elif k == parser.NK_IF {
+                    hoist_mut_vals(ctx, stmt.d1 as ref parser.Node)
+                    val elif_list: ref void = stmt.d2 as ref void
+                    if elif_list != 0 as ref void {
+                        val elen: i64 = @len(elif_list) as i64
+                        val ei: mut i64 = 0
+                        for {
+                            if ei >= elen { break }
+                            val e_opt = @get(elif_list, ei as usize)
+                            match e_opt {
+                                some e => {
+                                    hoist_mut_vals(ctx, (e as ref parser.Node).d1 as ref parser.Node)
+                                }
+                                none => {}
+                            }
+                            ei++
+                        }
+                    }
+                    val else_node: ref parser.Node = stmt.d3 as ref parser.Node
+                    if else_node != 0 as ref parser.Node {
+                        hoist_mut_vals(ctx, else_node.d0 as ref parser.Node)
+                    }
+                } elif k == parser.NK_FOR {
+                    hoist_mut_vals(ctx, stmt.d4 as ref parser.Node)
+                } elif k == parser.NK_FORIN {
+                    hoist_mut_vals(ctx, stmt.d2 as ref parser.Node)
+                } elif k == parser.NK_MATCH_UNION || k == parser.NK_MATCH_ENUM ||
+                       k == parser.NK_MATCH_TAGGED_UNION {
+                    val arms: ref void = stmt.d1 as ref void
+                    if arms != 0 as ref void {
+                        val alen: i64 = @len(arms) as i64
+                        val ai: mut i64 = 0
+                        for {
+                            if ai >= alen { break }
+                            val arm_opt = @get(arms, ai as usize)
+                            match arm_opt {
+                                some arm => {
+                                    val arm_node: ref parser.Node = arm as ref parser.Node
+                                    if k == parser.NK_MATCH_TAGGED_UNION {
+                                        hoist_mut_vals(ctx, arm_node.d2 as ref parser.Node)
+                                    } else {
+                                        hoist_mut_vals(ctx, arm_node.d1 as ref parser.Node)
+                                    }
+                                }
+                                none => {}
+                            }
+                            ai++
+                        }
+                    }
+                }
+            }
+            none => {}
+        }
+        i++
+    }
 }
 
 fn gen_fn_prefixed(ctx: ref void, fn_node: ref parser.Node, mod_prefix: ref char) void! = {
@@ -3009,6 +3141,7 @@ fn gen_fn_prefixed(ctx: ref void, fn_node: ref parser.Node, mod_prefix: ref char
     emitln(ctx, "@start")
 
     cg_dvars_clear(ctx)
+    cg_hoisted_slots_clear(ctx)
 
     if params != 0 as ref void {
         val plen2: i64 = @len(params) as i64
@@ -3045,8 +3178,8 @@ fn gen_fn_prefixed(ctx: ref void, fn_node: ref parser.Node, mod_prefix: ref char
         }
     }
 
+    hoist_mut_vals(ctx, body)
     gen_stmts(ctx, body)
-
     val blen: i64 = @len(body) as i64
     val needs_ret: mut bool = true
     if blen > 0 {
