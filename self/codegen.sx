@@ -844,17 +844,17 @@ fn gen_binop(ctx: ref void, expr: ref parser.Node) ref char! = {
     elif op == parser.OP_MUL { @snprintf(buf, 256, "    %%t%lld =l mul %s, %s\n",  {tmp, lhs, rhs}) }
     elif op == parser.OP_DIV { @snprintf(buf, 256, "    %%t%lld =l div %s, %s\n",  {tmp, lhs, rhs}) }
     elif op == parser.OP_REM { @snprintf(buf, 256, "    %%t%lld =l rem %s, %s\n",  {tmp, lhs, rhs}) }
-    elif op == parser.OP_EQ  { @snprintf(buf, 256, "    %%t%lld =w ceql %s, %s\n", {tmp, lhs_l, rhs_l}) }
-    elif op == parser.OP_NE  { @snprintf(buf, 256, "    %%t%lld =w cnel %s, %s\n", {tmp, lhs_l, rhs_l}) }
-    elif op == parser.OP_LT  { @snprintf(buf, 256, "    %%t%lld =w csltl %s, %s\n",{tmp, lhs_l, rhs_l}) }
-    elif op == parser.OP_GT  { @snprintf(buf, 256, "    %%t%lld =w csgtl %s, %s\n",{tmp, lhs_l, rhs_l}) }
-    elif op == parser.OP_LE  { @snprintf(buf, 256, "    %%t%lld =w cslel %s, %s\n",{tmp, lhs_l, rhs_l}) }
-    elif op == parser.OP_GE  { @snprintf(buf, 256, "    %%t%lld =w csgel %s, %s\n",{tmp, lhs_l, rhs_l}) }
+    elif op == parser.OP_EQ  { @snprintf(buf, 256, "    %%t%lld =l ceql %s, %s\n", {tmp, lhs_l, rhs_l}) }
+    elif op == parser.OP_NE  { @snprintf(buf, 256, "    %%t%lld =l cnel %s, %s\n", {tmp, lhs_l, rhs_l}) }
+    elif op == parser.OP_LT  { @snprintf(buf, 256, "    %%t%lld =l csltl %s, %s\n",{tmp, lhs_l, rhs_l}) }
+    elif op == parser.OP_GT  { @snprintf(buf, 256, "    %%t%lld =l csgtl %s, %s\n",{tmp, lhs_l, rhs_l}) }
+    elif op == parser.OP_LE  { @snprintf(buf, 256, "    %%t%lld =l cslel %s, %s\n",{tmp, lhs_l, rhs_l}) }
+    elif op == parser.OP_GE  { @snprintf(buf, 256, "    %%t%lld =l csgel %s, %s\n",{tmp, lhs_l, rhs_l}) }
     elif op == parser.OP_AND {
-        @snprintf(buf, 256, "    %%t%lld =w and %s, %s\n", {tmp, lhs, rhs})
+        @snprintf(buf, 256, "    %%t%lld =l and %s, %s\n", {tmp, lhs, rhs})
     }
     elif op == parser.OP_OR {
-        @snprintf(buf, 256, "    %%t%lld =w or %s, %s\n", {tmp, lhs, rhs})
+        @snprintf(buf, 256, "    %%t%lld =l or %s, %s\n", {tmp, lhs, rhs})
     }
     elif op == parser.OP_BAND { @snprintf(buf, 256, "    %%t%lld =l and %s, %s\n", {tmp, lhs, rhs}) }
     elif op == parser.OP_BOR  { @snprintf(buf, 256, "    %%t%lld =l or %s, %s\n",  {tmp, lhs, rhs}) }
@@ -876,7 +876,7 @@ fn gen_unop(ctx: ref void, expr: ref parser.Node) ref char! = {
     val tmp: i64 = fresh_tmp(ctx)
     val buf: ref char = @alloc(128) as ref char
     if op == parser.UOP_NOT {
-        @snprintf(buf, 128, "    %%t%lld =w ceqw %s, 0\n", {tmp, inner})
+        @snprintf(buf, 128, "    %%t%lld =l ceqw %s, 0\n", {tmp, inner})
     } elif op == parser.UOP_NEG {
         @snprintf(buf, 128, "    %%t%lld =l neg %s\n", {tmp, inner})
     } elif op == parser.UOP_BNOT {
@@ -1230,7 +1230,12 @@ fn gen_builtin(ctx: ref void, expr: ref parser.Node) ref char! = {
         emit(ctx, buf)
     } elif str.rchar_cmp(name, "load8") == 0 {
         val ptr5: ref char = get_arg(ctx, args, 0)
-        @snprintf(buf, 512, "    %%t%lld =w loadub %s\n", {tmp, ptr5})
+        val w_tmp: i64 = fresh_tmp(ctx)
+        val wbuf: ref char = @alloc(64) as ref char
+        @snprintf(wbuf, 64, "    %%t%lld =w loadub %s\n", {w_tmp, ptr5})
+        emit(ctx, wbuf)
+        @free(wbuf)
+        @snprintf(buf, 512, "    %%t%lld =l extsw %%t%lld\n", {tmp, w_tmp})
         emit(ctx, buf)
     } elif str.rchar_cmp(name, "store8") == 0 {
         val ptr6: ref char = get_arg(ctx, args, 0)
@@ -1577,14 +1582,7 @@ fn gen_stmt(ctx: ref void, stmt: ref parser.Node) void! = {
             }
         }
 
-        val promoted: i64 = fresh_tmp(ctx)
-        val pbuf: ref char = @alloc(64) as ref char
-        @snprintf(pbuf, 64, "    %%t%lld =l extsw %s\n", {promoted, val_tmp})
-        emit(ctx, pbuf)
-        @free(pbuf)
-        val promoted_s: ref char = @alloc(16) as ref char
-        @snprintf(promoted_s, 16, "%%t%lld", {promoted})
-        @snprintf(buf, 256, "    %%%s =l alloc8 8\n    storel %s, %%%s\n", {name, promoted_s, name})
+        @snprintf(buf, 256, "    %%%s =l alloc8 8\n    storel %s, %%%s\n", {name, val_tmp, name})
         emit(ctx, buf)
         @free(buf)
         return
