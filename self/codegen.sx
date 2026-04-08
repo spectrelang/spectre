@@ -1879,13 +1879,7 @@ fn gen_stmt(ctx: ref void, stmt: ref parser.Node) void! = {
         val node: ref parser.Node = stmt as ref parser.Node
         val fn_name: ref char = cg_fn_name(ctx)
         val msg_buf: ref char = @alloc(512) as ref char
-        if fn_name != 0 as ref char {
-            @snprintf(msg_buf, 512, "spectre: assertion failed at %s, line %lld\n",
-                {fn_name, node.line})
-        } else {
-            @snprintf(msg_buf, 512, "spectre: assertion failed at line %lld\n",
-                {node.line})
-        }
+        @snprintf(msg_buf, 512, "spectre: assertion failed at line %lld\n", {node.line})
         val msg_idx: i64 = intern_string(ctx, msg_buf)
         @free(msg_buf)
         val msg_tmp: i64 = fresh_tmp(ctx)
