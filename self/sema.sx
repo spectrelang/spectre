@@ -522,6 +522,29 @@ fn check_stmt(ctx: ref SemaCtx, stmt: ref parser.Node, filename: ref char) void!
         return
     }
 
+    if k == parser.NK_MATCH_TAGGED_UNION {
+        check_expr(ctx, stmt.d0 as ref parser.Node, filename)
+        val tu_arms: ref void = stmt.d1 as ref void
+        if tu_arms != 0 as ref void {
+            for tu_arm in tu_arms as list[ref parser.Node] {
+                push_scope(ctx)
+                val binding: ref char = tu_arm.d1 as ref char
+                if binding != 0 as ref char {
+                    scope_define(ctx, binding, 0, 0 as ref char)
+                }
+                check_stmts(ctx, tu_arm.d2 as ref void, filename)
+                pop_scope(ctx)
+            }
+        }
+        val tu_else: ref parser.Node = stmt.d2 as ref parser.Node
+        if tu_else != 0 as ref parser.Node {
+            push_scope(ctx)
+            check_stmts(ctx, tu_else.d0 as ref void, filename)
+            pop_scope(ctx)
+        }
+        return
+    }
+
     if k == parser.NK_WHEN_STMT {
         push_scope(ctx)
         check_stmts(ctx, stmt.d1 as ref void, filename)
@@ -603,7 +626,7 @@ pub fn check_module(items: list[ref parser.Node], filename: ref char) list[ref c
             @append(ctx.fn_names, item.d2 as ref char)
         }
         if k == parser.NK_TYPEDEF || k == parser.NK_EXTERN_TYPE ||
-           k == parser.NK_ENUMDEF || k == parser.NK_UNIONDEF {
+           k == parser.NK_ENUMDEF || k == parser.NK_UNIONDEF || k == parser.NK_TAGGED_UNIONDEF {
             @append(ctx.type_names, item.d1 as ref char)
             if k == parser.NK_TYPEDEF {
                 @append(ctx.type_defs, item as ref void)

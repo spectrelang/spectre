@@ -1,4 +1,4 @@
-val std = use("std")
+val stdio = use("std/stdio")
 
 type String = {
     cstr: ref char
@@ -25,32 +25,32 @@ pub fn main() void! = {
     for x in examples {
         match x {
             Int32 a => {
-                std.stdio.puts("Matched Int32")
-                std.stdio.print("Value: {d}\n", {a})
+                stdio.puts("Matched Int32")
+                stdio.print("Value: {d}\n", {a})
             }
 
             Int64 b => {
-                std.stdio.puts("Matched Int64 (big int)")
-                std.stdio.print("Value: {lld}\n", {b})
+                stdio.puts("Matched Int64 (big int)")
+                stdio.print("Value: {lld}\n", {b})
             }
 
             ChrPtr ptr => {
-                std.stdio.puts("Matched raw char pointer")
-                std.stdio.print("Value: {s}\n", {ptr})
+                stdio.puts("Matched raw char pointer")
+                stdio.print("Value: {s}\n", {ptr})
             }
 
             Str s => {
-                std.stdio.puts("Matched constructed string")
-                std.stdio.print("String: {d} {s}\n", {s.len, s.cstr})
+                stdio.puts("Matched constructed string")
+                stdio.print("String: {d} {s}\n", {s.len, s.cstr})
             }
 
             Pair z, y => {
-                std.stdio.puts("Matched a pair of ints")
-                std.stdio.print("Values: {d} and {d}\n", {z, y})
+                stdio.puts("Matched a pair of ints")
+                stdio.print("Values: {d} and {d}\n", {z, y})
             }
 
             else => {
-                std.stdio.puts("Unknown variant")
+                stdio.puts("Unknown variant")
             }
         }
     }

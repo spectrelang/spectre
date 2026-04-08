@@ -5,12 +5,13 @@ pub val NK_FN         : i64 = 1
 pub val NK_USE        : i64 = 2
 pub val NK_TYPEDEF    : i64 = 3
 pub val NK_ENUMDEF    : i64 = 4
-pub val NK_UNIONDEF   : i64 = 5
-pub val NK_CONST      : i64 = 6
-pub val NK_EXTERN_FN  : i64 = 7
-pub val NK_EXTERN_TYPE: i64 = 8
-pub val NK_LINK       : i64 = 9
-pub val NK_WHEN_ITEMS : i64 = 10
+pub val NK_UNIONDEF        : i64 = 5
+pub val NK_CONST           : i64 = 6
+pub val NK_EXTERN_FN       : i64 = 7
+pub val NK_EXTERN_TYPE     : i64 = 8
+pub val NK_LINK            : i64 = 9
+pub val NK_WHEN_ITEMS      : i64 = 10
+pub val NK_TAGGED_UNIONDEF : i64 = 11
 pub val NK_VAL        : i64 = 20
 pub val NK_ASSIGN     : i64 = 21
 pub val NK_RETURN     : i64 = 22
@@ -37,6 +38,7 @@ pub val NK_DECREMENT  : i64 = 41
 pub val NK_ADD_ASSIGN : i64 = 42
 pub val NK_SUB_ASSIGN : i64 = 43
 pub val NK_TEST       : i64 = 44
+pub val NK_MATCH_TAGGED_UNION: i64 = 46
 pub val NK_INT_LIT    : i64 = 60
 pub val NK_FLOAT_LIT  : i64 = 61
 pub val NK_STR_LIT    : i64 = 62
@@ -1222,6 +1224,44 @@ fn parse_match_stmt(p: ref Parser, line: i64) result[ref Node, ref char]! = {
 
     val uarms: mut list[ref Node] = []
     val u_else: mut ref Node = 0 as ref Node
+    val is_tagged_union_match: bool = kind_is_ident(p_peek_kind(p)) && kind_is_ident(p_peek2_kind(p))
+
+    if is_tagged_union_match {
+        for {
+            if lexer.kind_is_rbrace(p_peek_kind(p)) { break }
+            if kind_is_else(p_peek_kind(p)) {
+                p_advance(p)
+                p_expect_fatarrow(p)?
+                p_expect_lbrace(p)?
+                val ueb2 = parse_stmts(p)?
+                p_expect_rbrace(p)?
+                val uebl2: list[ref Node] = ueb2
+                val uebn2: mut ref Node = make_node(NK_MATCH_TAGGED_UNION, line)
+                uebn2.d0 = uebl2 as i64
+                u_else = uebn2
+                break
+            }
+            val tline: i64 = p_line(p)
+            val vname = p_expect_ident(p)?
+            val binding = p_expect_ident(p)?
+            p_expect_fatarrow(p)?
+            p_expect_lbrace(p)?
+            val tab = parse_stmts(p)?
+            p_expect_rbrace(p)?
+            val tarm: mut ref Node = make_node(NK_MATCH_TAGGED_UNION, tline)
+            tarm.d0 = vname as i64
+            tarm.d1 = binding as i64
+            val tabl: list[ref Node] = tab
+            tarm.d2 = tabl as i64
+            @append(uarms, tarm)
+        }
+        p_expect_rbrace(p)?
+        val ntmu: mut ref Node = make_node(NK_MATCH_TAGGED_UNION, line)
+        ntmu.d0 = expr as i64
+        val tual: list[ref Node] = uarms
+        ntmu.d1 = tual as i64 ntmu.d2 = u_else as i64
+        return ok ntmu
+    }
 
     for {
         if lexer.kind_is_rbrace(p_peek_kind(p)) { break }
@@ -1379,6 +1419,32 @@ fn parse_union_def_item(p: ref Parser, public: i64) result[ref Node, ref char]! 
     val name = p_expect_ident(p)?
     p_expect_eq(p)?
     p_expect_lbrace(p)?
+
+    val is_tagged: bool = kind_is_ident(p_peek_kind(p)) && lexer.kind_is_lparen(p_peek2_kind(p))
+
+    if is_tagged {
+        val variants: mut list[ref Node] = []
+        for {
+            if lexer.kind_is_rbrace(p_peek_kind(p)) { break }
+            val vline: i64 = p_line(p)
+            val vname = p_expect_ident(p)?
+            p_expect_lparen(p)?
+            val vty = parse_type(p)?
+            p_expect_rparen(p)?
+            val vnode: mut ref Node = make_node(NK_VAL, vline)
+            vnode.d0 = vname as i64
+            vnode.d1 = vty as i64
+            @append(variants, vnode)
+            if !p_eat_fn(p, kind_is_bitor) { break }
+        }
+        p_expect_rbrace(p)?
+        val ntu: mut ref Node = make_node(NK_TAGGED_UNIONDEF, line)
+        ntu.d0 = public ntu.d1 = name as i64
+        val vl: list[ref Node] = variants
+        ntu.d2 = vl as i64
+        return ok ntu
+    }
+
     val variants: mut list[ref Node] = []
     for {
         if lexer.kind_is_rbrace(p_peek_kind(p)) { break }
@@ -1389,8 +1455,8 @@ fn parse_union_def_item(p: ref Parser, public: i64) result[ref Node, ref char]! 
     p_expect_rbrace(p)?
     val nu: mut ref Node = make_node(NK_UNIONDEF, line)
     nu.d0 = public nu.d1 = name as i64
-    val vl: list[ref Node] = variants
-    nu.d2 = vl as i64
+    val vl2: list[ref Node] = variants
+    nu.d2 = vl2 as i64
     return ok nu
 }
 
