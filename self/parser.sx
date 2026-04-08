@@ -1316,7 +1316,7 @@ pub fn parse_stmts(p: ref Parser) result[list[ref Node], ref char]! = {
     val stmts: mut list[ref Node] = []
     for {
         if lexer.kind_is_rbrace(p_peek_kind(p)) { break }
-        if kind_is_eof(p_peek_kind(p))           { break }
+        if kind_is_eof(p_peek_kind(p))          { break }
         val s = parse_stmt(p)?
         @append(stmts, s)
     }
