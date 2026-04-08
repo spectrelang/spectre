@@ -1588,10 +1588,17 @@ fn expr_qtype(ctx: ref void, node: ref parser.Node) ref char! = {
     if node == 0 as ref parser.Node { return "l" }
     val k: i64 = node.kind
     if k == parser.NK_FLOAT_LIT { return "d" }
+    if k == parser.NK_INT_LIT { return "l" }
     if k == parser.NK_IDENT {
-        val ltype: ref char = cg_local_type(ctx, node.d0 as ref char)
+        val vname: ref char = node.d0 as ref char
+        val dqt: ref char = cg_direct_type(ctx, vname)
+        if str.rchar_cmp(dqt, "") != 0 { return dqt }
+        val ltype: ref char = cg_local_type(ctx, vname)
         if str.rchar_cmp(ltype, "f64") == 0 { return "d" }
         if str.rchar_cmp(ltype, "f32") == 0 { return "s" }
+        if str.rchar_cmp(ltype, "i32") == 0 { return "w" }
+        if str.rchar_cmp(ltype, "u32") == 0 { return "w" }
+        if str.rchar_cmp(ltype, "bool") == 0 { return "w" }
     }
     if k == parser.NK_CAST {
         val ty: ref parser.Node = node.d1 as ref parser.Node
@@ -1794,7 +1801,15 @@ fn gen_builtin(ctx: ref void, expr: ref parser.Node) ref char! = {
         emit(ctx, buf)
     } elif str.rchar_cmp(name, "append") == 0 {
         val lst: ref char = get_arg(ctx, args, 0)
+        val val5_node_opt = @get(args, 1)
+        val val5_qtype: mut ref char = "l"
         val val5: ref char = get_arg(ctx, args, 1)
+        match val5_node_opt {
+            some vn => {
+                val5_qtype = expr_qtype(ctx, vn as ref parser.Node)
+            }
+            none => {}
+        }
         
         val len_slot: i64 = fresh_tmp(ctx)
         val cap_slot: i64 = fresh_tmp(ctx)
@@ -1846,11 +1861,31 @@ fn gen_builtin(ctx: ref void, expr: ref parser.Node) ref char! = {
         val buf_tmp: i64 = fresh_tmp(ctx)
         val off: i64 = fresh_tmp(ctx)
         val elem_ptr: i64 = fresh_tmp(ctx)
-        val buf_app8: ref char = @alloc(512) as ref char
-        @snprintf(buf_app8, 512, "    %%t%lld =l loadl %s\n    %%t%lld =l mul %%t%lld, 8\n    %%t%lld =l add %%t%lld, %%t%lld\n    storel %s, %%t%lld\n",
-            {buf_tmp, lst, off, len_val, elem_ptr, buf_tmp, off, val5, elem_ptr})
-        emit(ctx, buf_app8)
-        @free(buf_app8)
+        val buf_app8a: ref char = @alloc(256) as ref char
+        @snprintf(buf_app8a, 256, "    %%t%lld =l loadl %s\n    %%t%lld =l mul %%t%lld, 8\n    %%t%lld =l add %%t%lld, %%t%lld\n",
+            {buf_tmp, lst, off, len_val, elem_ptr, buf_tmp, off})
+        emit(ctx, buf_app8a)
+        @free(buf_app8a)
+        val store_val: mut ref char = val5
+        if str.rchar_cmp(val5_qtype, "w") == 0 {
+            val ext_tmp: i64 = fresh_tmp(ctx)
+            val ext_buf: ref char = @alloc(64) as ref char
+            val first_ch: i64 = @load8(@ptradd(val5 as ref void, 0)) as i64
+            if ((first_ch >= 48 && first_ch <= 57) || first_ch == 45) {
+                @snprintf(ext_buf, 64, "    %%t%lld =l copy %s\n", {ext_tmp, val5})
+            } else {
+                @snprintf(ext_buf, 64, "    %%t%lld =l extsw %s\n", {ext_tmp, val5})
+            }
+            emit(ctx, ext_buf)
+            @free(ext_buf)
+            val sv: ref char = @alloc(16) as ref char
+            @snprintf(sv, 16, "%%t%lld", {ext_tmp})
+            store_val = sv
+        }
+        val buf_app8b: ref char = @alloc(64) as ref char
+        @snprintf(buf_app8b, 64, "    storel %s, %%t%lld\n", {store_val, elem_ptr})
+        emit(ctx, buf_app8b)
+        @free(buf_app8b)
         
         val new_len: i64 = fresh_tmp(ctx)
         val buf_app9: ref char = @alloc(256) as ref char
