@@ -1,4 +1,4 @@
-val std = use("std")
+val stdio = use("std/stdio")
 
 pub fn (Stack) push(s: mut self, vl: i32) void = {
     pre {
@@ -35,7 +35,7 @@ pub fn (Stack) print_top(s: mut self) void = {
         has_items: s.len > 0 
     }
     match Stack.peek(s) {
-        some v => { trust std.stdio.print("top: {d}\n", {v}) }
+        some v => { trust stdio.print("top: {d}\n", {v}) }
         none   => {}
     }
 }
