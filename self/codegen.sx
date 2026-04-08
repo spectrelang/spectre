@@ -1747,7 +1747,8 @@ fn gen_struct_lit(ctx: ref void, expr: ref parser.Node) ref char! = {
 
 fn gen_try(ctx: ref void, expr: ref parser.Node) ref char! = {
     // expr? — if tag==0 (ok), unwrap value; if tag==1 (err), return result as-is
-    val inner: ref char = gen_expr(ctx, expr.d0 as ref parser.Node)
+    val inner_node: ref parser.Node = expr.d0 as ref parser.Node
+    val inner: ref char = gen_expr(ctx, inner_node)
     val tag_tmp: i64 = fresh_tmp(ctx)
     val ok_lbl: i64 = fresh_lbl(ctx)
     val err_lbl: i64 = fresh_lbl(ctx)

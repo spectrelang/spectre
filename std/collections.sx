@@ -845,7 +845,6 @@ pub fn (IndexMap) key_at(map: self, i: usize) option[ref char]! = {
     val keys: ref void = @load(@ptradd(map, 8))
     val n: usize = PtrList.len(keys)
     val live: mut usize = 0
-    val j: mut usize = 0
     for (j = 0; j < n; j++) {
         match PtrList.get(keys, j) {
             none   => {}

@@ -48,6 +48,10 @@ echo "Failed      : $failed"
 echo "Skipped     : $skipped"
 echo
 
+
+echo "Extra tests:"
+"$COMPILER" ./std/collections.sx --test
+
 if [ $failed -ne 0 ]; then
     exit 1
 fi
