@@ -2167,6 +2167,15 @@ fn gen_builtin(ctx: ref void, expr: ref parser.Node) ref char! = {
     } elif str.rchar_cmp(name, "args") == 0 {
         @snprintf(buf, 512, "    %%t%lld =l call $__sx_get_args()\n", {tmp})
         emit(ctx, buf)
+    } elif str.rchar_cmp(name, "stdin") == 0 {
+        @snprintf(buf, 512, "    %%t%lld =l call $sx_stdin()\n", {tmp})
+        emit(ctx, buf)
+    } elif str.rchar_cmp(name, "stdout") == 0 {
+        @snprintf(buf, 512, "    %%t%lld =l call $sx_stdout()\n", {tmp})
+        emit(ctx, buf)
+    } elif str.rchar_cmp(name, "stderr") == 0 {
+        @snprintf(buf, 512, "    %%t%lld =l call $sx_stderr()\n", {tmp})
+        emit(ctx, buf)
     } elif str.rchar_cmp(name, "call") == 0 {
         val fn_ptr: ref char = get_arg(ctx, args, 0)
         val call_sb2: ref void = str.StringBuilder.new()
