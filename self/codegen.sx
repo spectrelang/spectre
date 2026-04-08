@@ -176,6 +176,25 @@ fn cg_const_val(ctx: ref void, name: ref char) ref char! = {
     return ""
 }
 
+/// Returns true if name is a registered function.
+fn cg_is_fn(ctx: ref void, name: ref char) bool! = {
+    val names: ref void = cg_fn_names(ctx)
+    val nlen: i64 = @len(names as list[ref char]) as i64
+    val ni: mut i64 = 0
+    for {
+        if ni >= nlen { break }
+        val n_opt = @get(names as list[ref char], ni as usize)
+        match n_opt {
+            some n => {
+                if str.rchar_cmp(n as ref char, name) == 0 { return true }
+            }
+            none => {}
+        }
+        ni++
+    }
+    return false
+}
+
 /// Register a function's mangled name and its param list for call-site type checking.
 fn cg_register_fn(ctx: ref void, mangled: ref char, params: ref void) void! = {
     @append(cg_fn_names(ctx) as list[ref char], mangled)
@@ -820,6 +839,11 @@ fn gen_expr(ctx: ref void, expr: ref parser.Node) ref char! = {
         val inner4: ref parser.Node = expr.d0 as ref parser.Node
         if inner4.kind == parser.NK_IDENT {
             val iname: ref char = inner4.d0 as ref char
+            if cg_is_fn(ctx, iname) {
+                val res_fn: ref char = @alloc(64) as ref char
+                @snprintf(res_fn, 64, "$%s", {iname})
+                return res_fn
+            }
             val res10: ref char = @alloc(32) as ref char
             @snprintf(res10, 32, "%%%s", {iname})
             return res10
@@ -2002,6 +2026,12 @@ fn block_ends_with_terminator(stmts: ref parser.Node) bool! = {
     }
 }
 
+/// Like block_ends_with_terminator but takes a body wrapper node (d0 = stmts list).
+fn body_ends_with_terminator(body_node: ref parser.Node) bool! = {
+    if body_node == 0 as ref parser.Node { return false }
+    return block_ends_with_terminator(body_node.d0 as ref parser.Node)
+}
+
 fn gen_if_stmt(ctx: ref void, stmt: ref parser.Node) void! = {
     val then_lbl: i64 = fresh_lbl(ctx)
     val end_lbl: i64 = fresh_lbl(ctx)
@@ -2295,8 +2325,13 @@ fn gen_match_opt(ctx: ref void, stmt: ref parser.Node) void! = {
     }
 
     val jbuf: ref char = @alloc(64) as ref char
-    @snprintf(jbuf, 64, "    jmp @lbl%lld\n@lbl%lld\n", {end_lbl, none_lbl})
-    emit(ctx, jbuf)
+    if !body_ends_with_terminator(some_body_node) {
+        @snprintf(jbuf, 64, "    jmp @lbl%lld\n@lbl%lld\n", {end_lbl, none_lbl})
+        emit(ctx, jbuf)
+    } else {
+        @snprintf(jbuf, 64, "@lbl%lld\n", {none_lbl})
+        emit(ctx, jbuf)
+    }
     @free(jbuf)
 
     if none_body_node != 0 as ref parser.Node {
@@ -2304,8 +2339,13 @@ fn gen_match_opt(ctx: ref void, stmt: ref parser.Node) void! = {
     }
 
     val endbuf: ref char = @alloc(32) as ref char
-    @snprintf(endbuf, 32, "    jmp @lbl%lld\n@lbl%lld\n", {end_lbl, end_lbl})
-    emit(ctx, endbuf)
+    if !body_ends_with_terminator(none_body_node) {
+        @snprintf(endbuf, 32, "    jmp @lbl%lld\n@lbl%lld\n", {end_lbl, end_lbl})
+        emit(ctx, endbuf)
+    } else {
+        @snprintf(endbuf, 32, "@lbl%lld\n", {end_lbl})
+        emit(ctx, endbuf)
+    }
     @free(endbuf)
 }
 
@@ -2345,8 +2385,13 @@ fn gen_match_res(ctx: ref void, stmt: ref parser.Node) void! = {
     }
 
     val jbuf: ref char = @alloc(64) as ref char
-    @snprintf(jbuf, 64, "    jmp @lbl%lld\n@lbl%lld\n", {end_lbl, err_lbl})
-    emit(ctx, jbuf)
+    if !body_ends_with_terminator(ok_body_node) {
+        @snprintf(jbuf, 64, "    jmp @lbl%lld\n@lbl%lld\n", {end_lbl, err_lbl})
+        emit(ctx, jbuf)
+    } else {
+        @snprintf(jbuf, 64, "@lbl%lld\n", {err_lbl})
+        emit(ctx, jbuf)
+    }
     @free(jbuf)
 
     if err_bind != 0 as ref char {
@@ -2365,8 +2410,13 @@ fn gen_match_res(ctx: ref void, stmt: ref parser.Node) void! = {
     }
 
     val endbuf: ref char = @alloc(32) as ref char
-    @snprintf(endbuf, 32, "    jmp @lbl%lld\n@lbl%lld\n", {end_lbl, end_lbl})
-    emit(ctx, endbuf)
+    if !body_ends_with_terminator(err_body_node) {
+        @snprintf(endbuf, 32, "    jmp @lbl%lld\n@lbl%lld\n", {end_lbl, end_lbl})
+        emit(ctx, endbuf)
+    } else {
+        @snprintf(endbuf, 32, "@lbl%lld\n", {end_lbl})
+        emit(ctx, endbuf)
+    }
     @free(endbuf)
 }
 
@@ -2396,7 +2446,11 @@ fn gen_match_enum(ctx: ref void, stmt: ref parser.Node) void! = {
                 @free(buf)
                 gen_stmts(ctx, (arm as ref parser.Node).d1 as ref parser.Node)
                 val jbuf: ref char = @alloc(64) as ref char
-                @snprintf(jbuf, 64, "    jmp @lbl%lld\n@lbl%lld\n", {end_lbl, next_lbl})
+                if !block_ends_with_terminator((arm as ref parser.Node).d1 as ref parser.Node) {
+                    @snprintf(jbuf, 64, "    jmp @lbl%lld\n@lbl%lld\n", {end_lbl, next_lbl})
+                } else {
+                    @snprintf(jbuf, 64, "@lbl%lld\n", {next_lbl})
+                }
                 emit(ctx, jbuf)
                 @free(jbuf)
             }
@@ -2437,7 +2491,11 @@ fn gen_match_str(ctx: ref void, stmt: ref parser.Node) void! = {
                     @free(buf)
                     gen_stmts(ctx, (arm as ref parser.Node).d1 as ref parser.Node)
                     val jbuf: ref char = @alloc(64) as ref char
-                    @snprintf(jbuf, 64, "    jmp @lbl%lld\n@lbl%lld\n", {end_lbl, next_lbl})
+                    if !block_ends_with_terminator((arm as ref parser.Node).d1 as ref parser.Node) {
+                        @snprintf(jbuf, 64, "    jmp @lbl%lld\n@lbl%lld\n", {end_lbl, next_lbl})
+                    } else {
+                        @snprintf(jbuf, 64, "@lbl%lld\n", {next_lbl})
+                    }
                     emit(ctx, jbuf)
                     @free(jbuf)
                 }
@@ -2524,7 +2582,11 @@ fn gen_match_union(ctx: ref void, stmt: ref parser.Node) void! = {
                     @free(buf)
                     gen_stmts(ctx, arm_node.d1 as ref parser.Node)
                     val jbuf: ref char = @alloc(64) as ref char
-                    @snprintf(jbuf, 64, "    jmp @lbl%lld\n@lbl%lld\n", {end_lbl, next_lbl})
+                    if !block_ends_with_terminator(arm_node.d1 as ref parser.Node) {
+                        @snprintf(jbuf, 64, "    jmp @lbl%lld\n@lbl%lld\n", {end_lbl, next_lbl})
+                    } else {
+                        @snprintf(jbuf, 64, "@lbl%lld\n", {next_lbl})
+                    }
                     emit(ctx, jbuf)
                     @free(jbuf)
                 }
@@ -2623,7 +2685,11 @@ fn gen_match_tagged_union(ctx: ref void, stmt: ref parser.Node) void! = {
 
                     gen_stmts(ctx, arm_node.d2 as ref parser.Node)
                     val jbuf: ref char = @alloc(64) as ref char
-                    @snprintf(jbuf, 64, "    jmp @lbl%lld\n@lbl%lld\n", {end_lbl, next_lbl})
+                    if !block_ends_with_terminator(arm_node.d2 as ref parser.Node) {
+                        @snprintf(jbuf, 64, "    jmp @lbl%lld\n@lbl%lld\n", {end_lbl, next_lbl})
+                    } else {
+                        @snprintf(jbuf, 64, "@lbl%lld\n", {next_lbl})
+                    }
                     emit(ctx, jbuf)
                     @free(jbuf)
                 }
