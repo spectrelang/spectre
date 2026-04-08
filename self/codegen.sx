@@ -645,7 +645,14 @@ fn gen_expr(ctx: ref void, expr: ref parser.Node) ref char! = {
                 @snprintf(buf6, 128, "    %%t%lld =l copy %%%s\n", {tmp6, name})
             }
         } else {
-            @snprintf(buf6, 128, "    %%t%lld =l loadl %%%s\n", {tmp6, name})
+            val ltype: ref char = cg_local_type(ctx, name)
+            if str.rchar_cmp(ltype, "f64") == 0 {
+                @snprintf(buf6, 128, "    %%t%lld =d loadd %%%s\n", {tmp6, name})
+            } elif str.rchar_cmp(ltype, "f32") == 0 {
+                @snprintf(buf6, 128, "    %%t%lld =s loads %%%s\n", {tmp6, name})
+            } else {
+                @snprintf(buf6, 128, "    %%t%lld =l loadl %%%s\n", {tmp6, name})
+            }
         }
         emit(ctx, buf6)
         @free(buf6)
@@ -1582,7 +1589,11 @@ fn gen_stmt(ctx: ref void, stmt: ref parser.Node) void! = {
             }
         }
 
-        @snprintf(buf, 256, "    %%%s =l alloc8 8\n    storel %s, %%%s\n", {name, val_tmp, name})
+        val store_op: mut ref char = "storel"
+        val ltype2: ref char = cg_local_type(ctx, name)
+        if str.rchar_cmp(ltype2, "f64") == 0 { store_op = "stored" }
+        elif str.rchar_cmp(ltype2, "f32") == 0 { store_op = "stores" }
+        @snprintf(buf, 256, "    %%%s =l alloc8 8\n    %s %s, %%%s\n", {name, store_op, val_tmp, name})
         emit(ctx, buf)
         @free(buf)
         return
@@ -1596,7 +1607,11 @@ fn gen_stmt(ctx: ref void, stmt: ref parser.Node) void! = {
         if tk == parser.NK_IDENT {
             val tname: ref char = target.d0 as ref char
             val buf2: ref char = @alloc(128) as ref char
-            @snprintf(buf2, 128, "    storel %s, %%%s\n", {val_tmp2, tname})
+            val ltype3: ref char = cg_local_type(ctx, tname)
+            val store_op2: mut ref char = "storel"
+            if str.rchar_cmp(ltype3, "f64") == 0 { store_op2 = "stored" }
+            elif str.rchar_cmp(ltype3, "f32") == 0 { store_op2 = "stores" }
+            @snprintf(buf2, 128, "    %s %s, %%%s\n", {store_op2, val_tmp2, tname})
             emit(ctx, buf2)
             @free(buf2)
         } elif tk == parser.NK_FIELD {
