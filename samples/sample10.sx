@@ -1,8 +1,8 @@
-val std = use("std")
+val stdio = use("std/stdio")
 
 pub fn main() void = {
     for {
-        std.stdio.puts("its cool")
+        stdio.puts("its cool")
         break
     }
 }
