@@ -1,6 +1,6 @@
-val std = use("std")
+val stdio = use("std/stdio")
 
 pub fn main() void! = {
 	val x: mut i32 = 100
-	std.stdio.print("{d}", {@sizeof(x)})
+	stdio.print("{d}", {@sizeof(x)})
 }
