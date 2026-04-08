@@ -1100,9 +1100,8 @@ fn parse_match_stmt(p: ref Parser, line: i64) result[ref Node, ref char]! = {
     p_advance(p)
     val expr = parse_expr(p)?
     p_expect_lbrace(p)?
-    val k: lexer.TokenKind = p_peek_kind(p)
 
-    if kind_is_ok(k) || kind_is_err(k) {
+    if kind_is_ok(p_peek_kind(p)) || kind_is_err(p_peek_kind(p)) {
         val ok_bind: mut ref char = 0 as ref char
         val ok_body: mut ref Node = 0 as ref Node
         val err_bind: mut ref char = 0 as ref char
@@ -1140,7 +1139,7 @@ fn parse_match_stmt(p: ref Parser, line: i64) result[ref Node, ref char]! = {
         return ok nm
     }
 
-    if kind_is_some(k) || kind_is_none(k) {
+    if kind_is_some(p_peek_kind(p)) || kind_is_none(p_peek_kind(p)) {
         val some_bind: mut ref char = 0 as ref char
         val some_body: mut ref Node = 0 as ref Node
         val none_body: mut ref Node = 0 as ref Node
@@ -1176,7 +1175,7 @@ fn parse_match_stmt(p: ref Parser, line: i64) result[ref Node, ref char]! = {
         return ok nmo
     }
 
-    if kind_is_ident(k) && lexer.kind_is_dot(p_peek2_kind(p)) {
+    if kind_is_ident(p_peek_kind(p)) && lexer.kind_is_dot(p_peek2_kind(p)) {
         val arms: mut list[ref Node] = []
         for {
             if lexer.kind_is_rbrace(p_peek_kind(p)) { break }
@@ -1202,7 +1201,7 @@ fn parse_match_stmt(p: ref Parser, line: i64) result[ref Node, ref char]! = {
         return ok nme
     }
 
-    if kind_is_str(k) {
+    if kind_is_str(p_peek_kind(p)) {
         val sarms: mut list[ref Node] = []
         val else_body: mut ref Node = 0 as ref Node
         for {

@@ -1,4 +1,4 @@
-val std = use("std")
+val stdio = use("std/stdio")
 
 fn get_platform_name() ref char = {
     return "Linux"
@@ -9,13 +9,13 @@ test {
     
     match platform {
         "Windows" => {
-            std.stdio.puts("Running on Windows")
+            stdio.puts("Running on Windows")
         }
         "Linux" => {
-            std.stdio.puts("Running on Linux")
+            stdio.puts("Running on Linux")
         }
         "Darwin" => {
-            std.stdio.puts("Running on macOS")
+            stdio.puts("Running on macOS")
         }
     }
 }
