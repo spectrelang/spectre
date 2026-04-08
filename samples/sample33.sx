@@ -48,11 +48,11 @@ when netbsd {
     }
 }
 
-val std = use("std")
+val stdio = use("std/stdio")
 extern (C) fn uname(buf: ref UnameResult) i32! = "uname"
 
 pub fn main() void! = {
-    std.stdio.puts("hi1")
+    stdio.puts("hi1")
 
     val buf: mut UnameResult = {
         sysname: 0,
@@ -61,15 +61,15 @@ pub fn main() void! = {
         version: 0,
         machine: 0
     }
-    std.stdio.puts("hi2")
+    stdio.puts("hi2")
 
     val r = uname(addr(buf))
-    std.stdio.puts("hi3")
+    stdio.puts("hi3")
 
-    std.stdio.print("uname returned: {d}\n", {r})
+    stdio.print("uname returned: {d}\n", {r})
 
     if (r == 0) {
-        std.stdio.print("sysname: {s}\n", {buf.sysname})
-        std.stdio.print("release: {s}\n", {buf.release})
+        stdio.print("sysname: {s}\n", {buf.sysname})
+        stdio.print("release: {s}\n", {buf.release})
     }
 }
