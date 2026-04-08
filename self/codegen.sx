@@ -1206,14 +1206,106 @@ fn gen_builtin(ctx: ref void, expr: ref parser.Node) ref char! = {
         emit(ctx, buf)
     } elif str.rchar_cmp(name, "printf") == 0 {
         val fmt: ref char = get_arg(ctx, args, 0)
-        @snprintf(buf, 512, "    %%t%lld =w call $printf(l %s, ...)\n", {tmp, fmt})
-        emit(ctx, buf)
+        val call_buf2: ref char = @alloc(4096) as ref char
+        val call_pos2: mut i64 = 0
+        val hdr2: ref char = @alloc(256) as ref char
+        @snprintf(hdr2, 256, "    %%t%lld =w call $printf(l %s, ...", {tmp, fmt})
+        val hdr2_len: mut i64 = str.len_raw(hdr2 as ref char)
+        @memcpy(@ptradd(call_buf2 as ref void, call_pos2), hdr2 as ref void, hdr2_len)
+        call_pos2 = call_pos2 + hdr2_len
+        @free(hdr2)
+        if args != 0 as ref void {
+            val alen2: i64 = @len(args) as i64
+            if alen2 > 1 {
+                val pack_opt = @get(args, 1)
+                match pack_opt {
+                    some pack_node => {
+                        val pn: ref parser.Node = pack_node as ref parser.Node
+                        if pn.kind == parser.NK_ARGS_PACK {
+                            val pack: ref void = pn.d0 as ref void
+                            val plen2: i64 = @len(pack) as i64
+                            val pi2: mut i64 = 0
+                            for {
+                                if pi2 >= plen2 { break }
+                                val pe_opt = @get(pack, pi2 as usize)
+                                match pe_opt {
+                                    some pe => {
+                                        val pv: ref char = gen_expr(ctx, pe as ref parser.Node)
+                                        val pbuf2: ref char = @alloc(64) as ref char
+                                        @snprintf(pbuf2, 64, ", l %s", {pv})
+                                        val pbuf2_len: mut i64 = str.len_raw(pbuf2)
+                                        @memcpy(@ptradd(call_buf2 as ref void, call_pos2), pbuf2 as ref void, pbuf2_len)
+                                        call_pos2 = call_pos2 + pbuf2_len
+                                        @free(pbuf2)
+                                    }
+                                    none => {}
+                                }
+                                pi2++
+                            }
+                        }
+                    }
+                    none => {}
+                }
+            }
+        }
+        @store8(@ptradd(call_buf2 as ref void, call_pos2), 41) // ')'
+        call_pos2++
+        @store8(@ptradd(call_buf2 as ref void, call_pos2), 10) // '\n'
+        call_pos2++
+        @store8(@ptradd(call_buf2 as ref void, call_pos2), 0)
+        emit(ctx, call_buf2)
     } elif str.rchar_cmp(name, "snprintf") == 0 {
         val sbuf: ref char = get_arg(ctx, args, 0)
         val ssz: ref char = get_arg(ctx, args, 1)
         val sfmt: ref char = get_arg(ctx, args, 2)
-        @snprintf(buf, 512, "    %%t%lld =w call $snprintf(l %s, l %s, l %s, ...)\n", {tmp, sbuf, ssz, sfmt})
-        emit(ctx, buf)
+        val scall_buf: ref char = @alloc(4096) as ref char
+        val scall_pos: mut i64 = 0
+        val shdr: ref char = @alloc(256) as ref char
+        @snprintf(shdr, 256, "    %%t%lld =w call $snprintf(l %s, l %s, l %s, ...", {tmp, sbuf, ssz, sfmt})
+        val shdr_len: mut i64 = str.len_raw(shdr)
+        @memcpy(@ptradd(scall_buf as ref void, scall_pos), shdr as ref void, shdr_len)
+        scall_pos = scall_pos + shdr_len
+        @free(shdr)
+        if args != 0 as ref void {
+            val salen: i64 = @len(args) as i64
+            if salen > 3 {
+                val spack_opt = @get(args, 3)
+                match spack_opt {
+                    some spack_node => {
+                        val spn: ref parser.Node = spack_node as ref parser.Node
+                        if spn.kind == parser.NK_ARGS_PACK {
+                            val spack: ref void = spn.d0 as ref void
+                            val splen: i64 = @len(spack) as i64
+                            val spi: mut i64 = 0
+                            for {
+                                if spi >= splen { break }
+                                val spe_opt = @get(spack, spi as usize)
+                                match spe_opt {
+                                    some spe => {
+                                        val spv: ref char = gen_expr(ctx, spe as ref parser.Node)
+                                        val spbuf: mut ref char = @alloc(64) as ref char
+                                        @snprintf(spbuf, 64, ", l %s", {spv})
+                                        val spbuf_len: mut i64 = str.len_raw(spbuf)
+                                        @memcpy(@ptradd(scall_buf as ref void, scall_pos), spbuf as ref void, spbuf_len)
+                                        scall_pos = scall_pos + spbuf_len
+                                        @free(spbuf)
+                                    }
+                                    none => {}
+                                }
+                                spi++
+                            }
+                        }
+                    }
+                    none => {}
+                }
+            }
+        }
+        @store8(@ptradd(scall_buf as ref void, scall_pos), 41)
+        scall_pos++
+        @store8(@ptradd(scall_buf as ref void, scall_pos), 10)
+        scall_pos++
+        @store8(@ptradd(scall_buf as ref void, scall_pos), 0)
+        emit(ctx, scall_buf)
     } elif str.rchar_cmp(name, "strlen") == 0 {
         val s2: ref char = get_arg(ctx, args, 0)
         @snprintf(buf, 512, "    %%t%lld =l call $strlen(l %s)\n", {tmp, s2})
@@ -1265,7 +1357,7 @@ fn gen_builtin(ctx: ref void, expr: ref parser.Node) ref char! = {
         emit(ctx, buf)
     } else {
         val call_sb: ref void = str.StringBuilder.new()
-        val hdr2: ref void = str.format("    %%t%lld =l call $%s(", {tmp, name})
+        val hdr2: mut ref void = str.format("    %%t%lld =l call $%s(", {tmp, name})
         str.StringBuilder.append(call_sb, hdr2)
         if args != 0 as ref void {
             val alen: i64 = @len(args) as i64

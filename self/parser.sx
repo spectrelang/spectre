@@ -1224,7 +1224,8 @@ fn parse_match_stmt(p: ref Parser, line: i64) result[ref Node, ref char]! = {
 
     val uarms: mut list[ref Node] = []
     val u_else: mut ref Node = 0 as ref Node
-    val is_tagged_union_match: bool = kind_is_ident(p_peek_kind(p)) && kind_is_ident(p_peek2_kind(p))
+    val is_tagged_union_match: bool = kind_is_ident(p_peek_kind(p)) &&
+        (kind_is_ident(p_peek2_kind(p)) || lexer.kind_is_lparen(p_peek2_kind(p)))
 
     if is_tagged_union_match {
         for {
@@ -1244,12 +1245,18 @@ fn parse_match_stmt(p: ref Parser, line: i64) result[ref Node, ref char]! = {
             val tline: i64 = p_line(p)
             val vname = p_expect_ident(p)?
             val bindings: mut list[ref char] = []
-            for {
-                if lexer.kind_is_fatarrow(p_peek_kind(p)) { break }
-                if lexer.kind_is_rbrace(p_peek_kind(p)) { break }
-                val b = p_expect_ident(p)?
-                @append(bindings, b)
-                if !p_eat_fn(p, lexer.kind_is_comma) { break }
+
+            if lexer.kind_is_lparen(p_peek_kind(p)) {
+                p_advance(p)
+                p_expect_rparen(p)?
+            } else {
+                for {
+                    if lexer.kind_is_fatarrow(p_peek_kind(p)) { break }
+                    if lexer.kind_is_rbrace(p_peek_kind(p)) { break }
+                    val b = p_expect_ident(p)?
+                    @append(bindings, b)
+                    if !p_eat_fn(p, lexer.kind_is_comma) { break }
+                }
             }
             p_expect_fatarrow(p)?
             p_expect_lbrace(p)?

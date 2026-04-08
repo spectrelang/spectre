@@ -28,8 +28,9 @@ pub fn main() void! = {
         Str _ => {
             @puts("This is a constructed string")
         }
-        Pair _, _ => { // Support for destructuring
+        Pair a, b => { // Support for destructuring
             @puts("This is a pair of ints")
+            @printf("{d} {d}\n", {a, b})
         }
         else => {
             @puts("This is a raw string")

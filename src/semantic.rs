@@ -2794,10 +2794,13 @@ fn check_call_arg_types_in_expr(
                                         Expr::Bool(_) => "boolean literal".to_string(),
                                         _ => "expression".to_string(),
                                     };
+                                    let (param_name, _) = &param_types[i];
                                     errors.push(format!(
                                         "{filename}: in function '{fn_name}': \
-                                         cannot pass {arg_desc} of type '{}' to parameter of type '{}'",
+                                         cannot pass {arg_desc} of type '{}' to parameter '{param_name}' (#{}) of '{}', expected type '{}'",
                                         type_to_string(&actual_type),
+                                        i + 1,
+                                        fn_path,
                                         type_to_string(expected_type)
                                     ));
                                 }
