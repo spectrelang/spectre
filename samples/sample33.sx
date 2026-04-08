@@ -52,6 +52,9 @@ val stdio = use("std/stdio")
 extern (C) fn uname(buf: ref UnameResult) i32! = "uname"
 
 pub fn main() void! = {
+    when linux {
+        stdio.puts("linux")
+    }
     stdio.puts("hi1")
 
     val buf: mut UnameResult = {

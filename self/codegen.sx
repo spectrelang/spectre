@@ -489,6 +489,7 @@ fn cg_lookup_union(ctx: ref void, union_name: ref char) ref void! = {
 /// Compute byte offset of a named field. Returns -1 if not found.
 fn field_offset(fields: ref void, field_name: ref char) i64! = {
     val flen: i64 = @len(fields as list[ref void]) as i64
+    val has_fa: bool = fields_have_fixed_arr(fields)
     val offset: mut i64 = 0
     val fi: mut i64 = 0
     for {
@@ -498,9 +499,19 @@ fn field_offset(fields: ref void, field_name: ref char) i64! = {
             some f => {
                 val fnode: ref parser.Node = f as ref parser.Node
                 val fname: ref char = fnode.d0 as ref char
-                if str.rchar_cmp(fname, field_name) == 0 { return offset }
                 val fty: ref parser.Node = fnode.d2 as ref parser.Node
-                offset = offset + type_size(fty)
+                if has_fa {
+                    val align: i64 = type_align(fty)
+                    offset = align_to(offset, align)
+                }
+                if str.rchar_cmp(fname, field_name) == 0 { return offset }
+                val fsize: i64 = type_size(fty)
+                if has_fa {
+                    offset = offset + fsize
+                } else {
+                    val aligned_size: i64 = align_to(fsize, 8)
+                    offset = offset + aligned_size
+                }
             }
             none => {}
         }
@@ -727,6 +738,15 @@ fn type_size(ty: ref parser.Node) i64! = {
     if k == parser.TY_VOID    { return 0 }
     if k == parser.TY_MUT     { return type_size(ty.d0 as ref parser.Node) }
     if k == parser.TY_NAMED {
+        val tname: ref char = ty.d0 as ref char
+        if str.rchar_cmp(tname, "i8")   == 0 { return 1 }
+        if str.rchar_cmp(tname, "u8")   == 0 { return 1 }
+        if str.rchar_cmp(tname, "char") == 0 { return 1 }
+        if str.rchar_cmp(tname, "i16")  == 0 { return 2 }
+        if str.rchar_cmp(tname, "u16")  == 0 { return 2 }
+        if str.rchar_cmp(tname, "i32")  == 0 { return 4 }
+        if str.rchar_cmp(tname, "u32")  == 0 { return 4 }
+        if str.rchar_cmp(tname, "f32")  == 0 { return 4 }
         return 8
     }
     if k == parser.TY_FIXED_ARR {
@@ -736,6 +756,52 @@ fn type_size(ty: ref parser.Node) i64! = {
     }
     if k == parser.TY_LIST { return 24 }
     return 8
+}
+
+fn type_align(ty: ref parser.Node) i64! = {
+    if ty == 0 as ref parser.Node { return 8 }
+    val k: i64 = ty.kind
+    if k == parser.TY_MUT { return type_align(ty.d0 as ref parser.Node) }
+    if k == parser.TY_NAMED {
+        val tname: ref char = ty.d0 as ref char
+        if str.rchar_cmp(tname, "i8")   == 0 { return 1 }
+        if str.rchar_cmp(tname, "u8")   == 0 { return 1 }
+        if str.rchar_cmp(tname, "char") == 0 { return 1 }
+        if str.rchar_cmp(tname, "i16")  == 0 { return 2 }
+        if str.rchar_cmp(tname, "u16")  == 0 { return 2 }
+        if str.rchar_cmp(tname, "i32")  == 0 { return 4 }
+        if str.rchar_cmp(tname, "u32")  == 0 { return 4 }
+        if str.rchar_cmp(tname, "f32")  == 0 { return 4 }
+        return 8
+    }
+    if k == parser.TY_FIXED_ARR { return type_align(ty.d1 as ref parser.Node) }
+    return 8
+}
+
+fn align_to(n: i64, align: i64) i64! = {
+    if align <= 1 { return n }
+    return (n + align - 1) / align * align
+}
+
+fn fields_have_fixed_arr(fields: ref void) bool! = {
+    val flen: i64 = @len(fields as list[ref void]) as i64
+    val fi: mut i64 = 0
+    for {
+        if fi >= flen { break }
+        val f_opt = @get(fields as list[ref void], fi as usize)
+        match f_opt {
+            some f => {
+                val fnode: ref parser.Node = f as ref parser.Node
+                val fty: ref parser.Node = fnode.d2 as ref parser.Node
+                if fty != 0 as ref parser.Node {
+                    if fty.kind == parser.TY_FIXED_ARR { return true }
+                }
+            }
+            none => {}
+        }
+        fi++
+    }
+    return false
 }
 
 /// Intern a string literal, return its global label index.
@@ -1325,9 +1391,47 @@ fn gen_field(ctx: ref void, expr: ref parser.Node) ref char! = {
         base = gen_expr(ctx, base_expr)
     }
 
+    val field_is_fa: mut bool = false
+    if base_expr.kind == parser.NK_IDENT {
+        val base_name3: ref char = base_expr.d0 as ref char
+        val local_type2: ref char = cg_local_type(ctx, base_name3)
+        if str.rchar_cmp(local_type2, "") != 0 {
+            val fields2: ref void = cg_lookup_struct(ctx, local_type2)
+            if fields2 != 0 as ref void {
+                val sflen3: i64 = @len(fields2 as list[ref void]) as i64
+                val sfi3: mut i64 = 0
+                for {
+                    if sfi3 >= sflen3 { break }
+                    val sf3_opt = @get(fields2 as list[ref void], sfi3 as usize)
+                    match sf3_opt {
+                        some sf3 => {
+                            val sfn3: ref parser.Node = sf3 as ref parser.Node
+                            val sfname3: ref char = sfn3.d0 as ref char
+                            if str.rchar_cmp(sfname3, field_name) == 0 {
+                                val sfty3: ref parser.Node = sfn3.d2 as ref parser.Node
+                                if sfty3 != 0 as ref parser.Node && sfty3.kind == parser.TY_FIXED_ARR {
+                                    field_is_fa = true
+                                }
+                                sfi3 = sflen3 // break
+                            }
+                        }
+                        none => {}
+                    }
+                    sfi3++
+                }
+            }
+        }
+    }
+
     val tmp: i64 = fresh_tmp(ctx)
     val buf: ref char = @alloc(256) as ref char
-    if offset == 0 {
+    if field_is_fa {
+        if offset == 0 {
+            @snprintf(buf, 256, "    %%t%lld =l copy %s\n", {tmp, base})
+        } else {
+            @snprintf(buf, 256, "    %%t%lld =l add %s, %lld\n", {tmp, base, offset})
+        }
+    } elif offset == 0 {
         @snprintf(buf, 256, "    %%t%lld =l loadl %s\n", {tmp, base})
     } else {
         val ptr_tmp: i64 = fresh_tmp(ctx)
@@ -2505,6 +2609,7 @@ fn gen_struct_lit(ctx: ref void, expr: ref parser.Node) ref char! = {
     val size: mut i64 = flen * 8
     if struct_fields != 0 as ref void {
         val sflen: i64 = @len(struct_fields as list[ref void]) as i64
+        val has_fa: bool = fields_have_fixed_arr(struct_fields)
         val total: mut i64 = 0
         val sfi: mut i64 = 0
         for {
@@ -2514,7 +2619,13 @@ fn gen_struct_lit(ctx: ref void, expr: ref parser.Node) ref char! = {
                 some sf => {
                     val sfnode: ref parser.Node = sf as ref parser.Node
                     val sfty: ref parser.Node = sfnode.d2 as ref parser.Node
-                    total = total + type_size(sfty)
+                    val fsize: i64 = type_size(sfty)
+                    if has_fa {
+                        val align: i64 = type_align(sfty)
+                        total = align_to(total, align) + fsize
+                    } else {
+                        total = total + align_to(fsize, 8)
+                    }
                 }
                 none => {}
             }
@@ -2536,22 +2647,65 @@ fn gen_struct_lit(ctx: ref void, expr: ref parser.Node) ref char! = {
             some f => {
                 val fnode: ref parser.Node = f as ref parser.Node
                 val fname: ref char = fnode.d0 as ref char
-                val fval: ref char = gen_expr(ctx, fnode.d1 as ref parser.Node)
+                val fexpr_node: ref parser.Node = fnode.d1 as ref parser.Node
                 val off: mut i64 = fi * 8
+                val fty_node: mut ref parser.Node = 0 as ref parser.Node
                 if struct_fields != 0 as ref void {
                     val real_off: i64 = field_offset(struct_fields, fname)
                     if real_off >= 0 { off = real_off }
+                    val sflen2: i64 = @len(struct_fields as list[ref void]) as i64
+                    val sfi2: mut i64 = 0
+                    for {
+                        if sfi2 >= sflen2 { break }
+                        val sf2_opt = @get(struct_fields as list[ref void], sfi2 as usize)
+                        match sf2_opt {
+                            some sf2 => {
+                                val sfn2: ref parser.Node = sf2 as ref parser.Node
+                                val sfname2: ref char = sfn2.d0 as ref char
+                                if str.rchar_cmp(sfname2, fname) == 0 {
+                                    fty_node = sfn2.d2 as ref parser.Node
+                                    sfi2 = sflen2 // break
+                                }
+                            }
+                            none => {}
+                        }
+                        sfi2++
+                    }
                 }
-                val fbuf: ref char = @alloc(128) as ref char
-                val off_tmp: i64 = fresh_tmp(ctx)
-                if off == 0 {
-                    @snprintf(fbuf, 128, "    storel %s, %%t%lld\n", {fval, tmp})
+                val is_fa: bool = fty_node != 0 as ref parser.Node && fty_node.kind == parser.TY_FIXED_ARR
+                if is_fa {
+                    val fa_size: i64 = type_size(fty_node)
+                    val off_tmp2: i64 = fresh_tmp(ctx)
+                    val fbuf2: ref char = @alloc(256) as ref char
+                    @snprintf(fbuf2, 256, "    %%t%lld =l add %%t%lld, %lld\n", {off_tmp2, tmp, off})
+                    emit(ctx, fbuf2)
+                    @free(fbuf2)
+                    val is_zero: bool = fexpr_node.kind == parser.NK_INT_LIT && str.rchar_cmp(fexpr_node.d0 as ref char, "0") == 0
+                    if is_zero {
+                        val fbuf3: ref char = @alloc(128) as ref char
+                        @snprintf(fbuf3, 128, "    call $memset(l %%t%lld, w 0, l %lld)\n", {off_tmp2, fa_size})
+                        emit(ctx, fbuf3)
+                        @free(fbuf3)
+                    } else {
+                        val fval2: ref char = gen_expr(ctx, fexpr_node)
+                        val fbuf3: ref char = @alloc(128) as ref char
+                        @snprintf(fbuf3, 128, "    call $memcpy(l %%t%lld, l %s, l %lld)\n", {off_tmp2, fval2, fa_size})
+                        emit(ctx, fbuf3)
+                        @free(fbuf3)
+                    }
                 } else {
-                    @snprintf(fbuf, 128, "    %%t%lld =l add %%t%lld, %lld\n    storel %s, %%t%lld\n",
-                        {off_tmp, tmp, off, fval, off_tmp})
+                    val fval: ref char = gen_expr(ctx, fexpr_node)
+                    val fbuf: ref char = @alloc(128) as ref char
+                    val off_tmp: i64 = fresh_tmp(ctx)
+                    if off == 0 {
+                        @snprintf(fbuf, 128, "    storel %s, %%t%lld\n", {fval, tmp})
+                    } else {
+                        @snprintf(fbuf, 128, "    %%t%lld =l add %%t%lld, %lld\n    storel %s, %%t%lld\n",
+                            {off_tmp, tmp, off, fval, off_tmp})
+                    }
+                    emit(ctx, fbuf)
+                    @free(fbuf)
                 }
-                emit(ctx, fbuf)
-                @free(fbuf)
             }
             none => {}
         }
