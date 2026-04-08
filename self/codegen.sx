@@ -33,11 +33,12 @@ val module = use("module.sx")
 ///   offset 184: tagged union field type nodes (ref void — list[ref void])
 ///   offset 192: current loop break label (i64, -1 = none)
 ///   offset 200: current loop continue label (i64, -1 = none)
-///   offset 152: (reserved)
+///   offset 208: module const names  (ref void — list[ref char])
+///   offset 216: module const values (ref void — list[ref char])
 
 fn cg_new() ref void! = {
-    val ctx: ref void = @alloc(208)
-    @memset(ctx, 0, 208)
+    val ctx: ref void = @alloc(224)
+    @memset(ctx, 0, 224)
     val sb: ref void = str.StringBuilder.new()
     @store(@ptradd(ctx, 0), sb as usize)
     val strs: list[ref char] = []
@@ -80,6 +81,10 @@ fn cg_new() ref void! = {
     @store(@ptradd(ctx, 184), tv_fields as usize)
     @store(@ptradd(ctx, 192), -1 as usize)
     @store(@ptradd(ctx, 200), -1 as usize)
+    val mc_names: list[ref char] = []
+    @store(@ptradd(ctx, 208), mc_names as usize)
+    val mc_vals: list[ref char] = []
+    @store(@ptradd(ctx, 216), mc_vals as usize)
     return ctx
 }
 
@@ -114,6 +119,62 @@ fn cg_break_lbl(ctx: ref void)  i64!      = { return @load(@ptradd(ctx, 192)) as
 fn cg_cont_lbl(ctx: ref void)   i64!      = { return @load(@ptradd(ctx, 200)) as i64 }
 fn cg_set_break_lbl(ctx: ref void, v: i64) void! = { @store(@ptradd(ctx, 192), v as usize) }
 fn cg_set_cont_lbl(ctx: ref void, v: i64)  void! = { @store(@ptradd(ctx, 200), v as usize) }
+
+fn cg_mc_names(ctx: ref void) ref void! = { return @load(@ptradd(ctx, 208)) as ref void }
+fn cg_mc_vals(ctx: ref void)  ref void! = { return @load(@ptradd(ctx, 216)) as ref void }
+
+fn cg_register_module_const(ctx: ref void, name: ref char, val_str: ref char) void! = {
+    @append(cg_mc_names(ctx) as list[ref char], name)
+    @append(cg_mc_vals(ctx)  as list[ref char], val_str)
+}
+
+/// Inject all module-level constants as direct vars so they resolve inline.
+fn cg_inject_module_consts(ctx: ref void) void! = {
+    val names: ref void = cg_mc_names(ctx)
+    val vals:  ref void = cg_mc_vals(ctx)
+    val nlen: i64 = @len(names as list[ref char]) as i64
+    val ni: mut i64 = 0
+    for {
+        if ni >= nlen { break }
+        val n_opt = @get(names as list[ref char], ni as usize)
+        val v_opt = @get(vals  as list[ref char], ni as usize)
+        match n_opt {
+            some n => {
+                match v_opt {
+                    some v => { cg_dvars_add(ctx, n as ref char, v as ref char) }
+                    none => {}
+                }
+            }
+            none => {}
+        }
+        ni++
+    }
+}
+
+/// Look up a module-level constant value by name. Returns "" if not found.
+fn cg_const_val(ctx: ref void, name: ref char) ref char! = {
+    val names: ref void = cg_mc_names(ctx)
+    val nlen: i64 = @len(names as list[ref char]) as i64
+    val ni: mut i64 = 0
+    for {
+        if ni >= nlen { break }
+        val n_opt = @get(names as list[ref char], ni as usize)
+        match n_opt {
+            some n => {
+                if str.rchar_cmp(n as ref char, name) == 0 {
+                    val v_opt = @get(cg_mc_vals(ctx) as list[ref char], ni as usize)
+                    match v_opt {
+                        some v => { return v as ref char }
+                        none   => { return "" }
+                    }
+                }
+            }
+            none => {}
+        }
+        ni++
+    }
+    return ""
+}
 
 /// Register a function's mangled name and its param list for call-site type checking.
 fn cg_register_fn(ctx: ref void, mangled: ref char, params: ref void) void! = {
@@ -637,21 +698,26 @@ fn gen_expr(ctx: ref void, expr: ref parser.Node) ref char! = {
         val name: ref char = expr.d0 as ref char
         val tmp6: i64 = fresh_tmp(ctx)
         val buf6: ref char = @alloc(128) as ref char
-        val dqt: ref char = cg_direct_type(ctx, name)
-        if str.rchar_cmp(dqt, "") != 0 {
-            if str.rchar_cmp(dqt, "w") == 0 {
-                @snprintf(buf6, 128, "    %%t%lld =l extsw %%%s\n", {tmp6, name})
-            } else {
-                @snprintf(buf6, 128, "    %%t%lld =l copy %%%s\n", {tmp6, name})
-            }
+        val cval: ref char = cg_const_val(ctx, name)
+        if str.rchar_cmp(cval, "") != 0 {
+            @snprintf(buf6, 128, "    %%t%lld =l copy %s\n", {tmp6, cval})
         } else {
-            val ltype: ref char = cg_local_type(ctx, name)
-            if str.rchar_cmp(ltype, "f64") == 0 {
-                @snprintf(buf6, 128, "    %%t%lld =d loadd %%%s\n", {tmp6, name})
-            } elif str.rchar_cmp(ltype, "f32") == 0 {
-                @snprintf(buf6, 128, "    %%t%lld =s loads %%%s\n", {tmp6, name})
+            val dqt: ref char = cg_direct_type(ctx, name)
+            if str.rchar_cmp(dqt, "") != 0 {
+                if str.rchar_cmp(dqt, "w") == 0 {
+                    @snprintf(buf6, 128, "    %%t%lld =l extsw %%%s\n", {tmp6, name})
+                } else {
+                    @snprintf(buf6, 128, "    %%t%lld =l copy %%%s\n", {tmp6, name})
+                }
             } else {
-                @snprintf(buf6, 128, "    %%t%lld =l loadl %%%s\n", {tmp6, name})
+                val ltype: ref char = cg_local_type(ctx, name)
+                if str.rchar_cmp(ltype, "f64") == 0 {
+                    @snprintf(buf6, 128, "    %%t%lld =d loadd %%%s\n", {tmp6, name})
+                } elif str.rchar_cmp(ltype, "f32") == 0 {
+                    @snprintf(buf6, 128, "    %%t%lld =s loads %%%s\n", {tmp6, name})
+                } else {
+                    @snprintf(buf6, 128, "    %%t%lld =l loadl %%%s\n", {tmp6, name})
+                }
             }
         }
         emit(ctx, buf6)
@@ -2938,6 +3004,23 @@ fn gen_items_with_prefix(ctx: ref void, items: list[ref parser.Node], mod_prefix
                     val tname: ref char = node.d1 as ref char
                     val tfields: ref void = node.d2 as ref void
                     cg_register_struct(ctx, tname, tfields)
+                } elif k == parser.NK_CONST {
+                    val cname: ref char = node.d1 as ref char
+                    val cexpr: ref parser.Node = node.d2 as ref parser.Node
+                    if cexpr != 0 as ref parser.Node {
+                        if cexpr.kind == parser.NK_INT_LIT {
+                            cg_register_module_const(ctx, cname, cexpr.d0 as ref char)
+                        } elif cexpr.kind == parser.NK_FLOAT_LIT {
+                            cg_register_module_const(ctx, cname, cexpr.d0 as ref char)
+                        } elif cexpr.kind == parser.NK_BOOL {
+                            val bval: i64 = cexpr.d0 as i64
+                            if bval != 0 {
+                                cg_register_module_const(ctx, cname, "1")
+                            } else {
+                                cg_register_module_const(ctx, cname, "0")
+                            }
+                        }
+                    }
                 }
             }
             none => {}
@@ -3131,6 +3214,23 @@ fn gen_items_with_prefix_skip_main(ctx: ref void, items: list[ref parser.Node], 
                     val tname: ref char = node.d1 as ref char
                     val tfields: ref void = node.d2 as ref void
                     cg_register_struct(ctx, tname, tfields)
+                } elif k == parser.NK_CONST {
+                    val cname: ref char = node.d1 as ref char
+                    val cexpr: ref parser.Node = node.d2 as ref parser.Node
+                    if cexpr != 0 as ref parser.Node {
+                        if cexpr.kind == parser.NK_INT_LIT {
+                            cg_register_module_const(ctx, cname, cexpr.d0 as ref char)
+                        } elif cexpr.kind == parser.NK_FLOAT_LIT {
+                            cg_register_module_const(ctx, cname, cexpr.d0 as ref char)
+                        } elif cexpr.kind == parser.NK_BOOL {
+                            val bval2: i64 = cexpr.d0 as i64
+                            if bval2 != 0 {
+                                cg_register_module_const(ctx, cname, "1")
+                            } else {
+                                cg_register_module_const(ctx, cname, "0")
+                            }
+                        }
+                    }
                 }
             }
             none => {}
