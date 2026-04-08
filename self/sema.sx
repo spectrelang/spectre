@@ -221,6 +221,84 @@ fn str_eq(a: ref char, b: ref char) bool! = {
     return std.string.compare(std.string.RChar(a), std.string.RChar(b)) == 0
 }
 
+/// Returns true if `name` is referenced as an identifier anywhere in `stmts`.
+fn stmts_use_name(stmts: ref void, name: ref char) bool! = {
+    if stmts == 0 as ref void { return false }
+    for s in stmts as list[ref parser.Node] {
+        if expr_uses_name(s, name) { return true }
+    }
+    return false
+}
+
+fn expr_uses_name(node: ref parser.Node, name: ref char) bool! = {
+    if node == 0 as ref parser.Node { return false }
+    val k: i64 = node.kind
+    if k == parser.NK_IDENT {
+        return str_eq(node.d0 as ref char, name)
+    }
+    if k == parser.NK_BINOP || k == parser.NK_ASSIGN || k == parser.NK_ADD_ASSIGN || k == parser.NK_SUB_ASSIGN {
+        return expr_uses_name(node.d1 as ref parser.Node, name) ||
+               expr_uses_name(node.d2 as ref parser.Node, name)
+    }
+    if k == parser.NK_UNOP || k == parser.NK_TRUST || k == parser.NK_SOME ||
+       k == parser.NK_OK_VAL || k == parser.NK_ERR_VAL || k == parser.NK_TRY ||
+       k == parser.NK_ADDR || k == parser.NK_DEREF || k == parser.NK_CAST ||
+       k == parser.NK_RETURN || k == parser.NK_EXPR_STMT || k == parser.NK_ASSERT {
+        return expr_uses_name(node.d0 as ref parser.Node, name)
+    }
+    if k == parser.NK_FIELD {
+        return expr_uses_name(node.d0 as ref parser.Node, name)
+    }
+    if k == parser.NK_CALL {
+        if expr_uses_name(node.d0 as ref parser.Node, name) { return true }
+        val cargs: ref void = node.d1 as ref void
+        if cargs != 0 as ref void {
+            for carg in cargs as list[ref parser.Node] {
+                if expr_uses_name(carg, name) { return true }
+            }
+        }
+        return false
+    }
+    if k == parser.NK_BUILTIN {
+        val bargs: ref void = node.d1 as ref void
+        if bargs != 0 as ref void {
+            for barg in bargs as list[ref parser.Node] {
+                if expr_uses_name(barg, name) { return true }
+            }
+        }
+        return false
+    }
+    if k == parser.NK_VAL {
+        return expr_uses_name(node.d3 as ref parser.Node, name)
+    }
+    if k == parser.NK_IF {
+        if expr_uses_name(node.d0 as ref parser.Node, name) { return true }
+        if stmts_use_name(node.d1 as ref void, name) { return true }
+        val elif_list: ref void = node.d2 as ref void
+        if elif_list != 0 as ref void {
+            for ep in elif_list as list[ref parser.Node] {
+                if expr_uses_name(ep.d0 as ref parser.Node, name) { return true }
+                if stmts_use_name(ep.d1 as ref void, name) { return true }
+            }
+        }
+        return stmts_use_name(node.d3 as ref void, name)
+    }
+    if k == parser.NK_FOR || k == parser.NK_FORIN {
+        if stmts_use_name(node.d2 as ref void, name) { return true }
+        return stmts_use_name(node.d4 as ref void, name)
+    }
+    if k == parser.NK_LIST_LIT || k == parser.NK_ARGS_PACK || k == parser.NK_STRUCT_LIT {
+        val elist: ref void = node.d0 as ref void
+        if elist != 0 as ref void {
+            for e in elist as list[ref parser.Node] {
+                if expr_uses_name(e, name) { return true }
+            }
+        }
+        return false
+    }
+    return false
+}
+
 fn check_expr(ctx: ref SemaCtx, expr: ref parser.Node, filename: ref char) void! = {
     if expr == 0 as ref parser.Node { return }
     val k: i64 = expr.kind
@@ -536,7 +614,20 @@ fn check_stmt(ctx: ref SemaCtx, stmt: ref parser.Node, filename: ref char) void!
                         }
                     }
                 }
-                check_stmts(ctx, tu_arm.d2 as ref void, filename)
+                val arm_body: ref void = tu_arm.d2 as ref void
+                check_stmts(ctx, arm_body, filename)
+                if bindings != 0 as ref void {
+                    for bname2 in bindings as list[ref char] {
+                        if std.string.compare(std.string.RChar(bname2), std.string.RChar("_")) != 0 {
+                            if !stmts_use_name(arm_body, bname2) {
+                                val buf: ref char = @alloc(256) as ref char
+                                @snprintf(buf, 256, "%s:%lld: match binding '%s' is captured but never used (use '_' to discard)",
+                                    {filename, tu_arm.line, bname2})
+                                add_error(ctx, buf)
+                            }
+                        }
+                    }
+                }
                 pop_scope(ctx)
             }
         }
