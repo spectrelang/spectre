@@ -16,6 +16,7 @@ fn print_usage() void = {
     std.stdio.puts("  --emit-qbe           Print IR to stdout and exit")
     std.stdio.puts("  --emit-asm           Print assembly to stdout and exit")
     std.stdio.puts("  --show-cmd           Show the command used for linking")
+    std.stdio.puts("  --test               Run the unit tests in the current file")
     std.stdio.puts("  -h, --help           Print this help message")
 }
 
