@@ -938,28 +938,37 @@ fn gen_call(ctx: ref void, expr: ref parser.Node) ref char! = {
     val tv_tag: i64 = cg_lookup_tv(ctx, callee_name, tv_owner_slot, tv_field_slot)
 
     if tv_tag >= 0 {
+        val n_args: mut i64 = 0
+        if args_list != 0 as ref void { n_args = @len(args_list) as i64 }
+        val alloc_size: i64 = 8 + n_args * 8
         val ptr: i64 = fresh_tmp(ctx)
         val pbuf: ref char = @alloc(64) as ref char
-        @snprintf(pbuf, 64, "    %%t%lld =l alloc8 16\n    storel %lld, %%t%lld\n", {ptr, tv_tag, ptr})
+        @snprintf(pbuf, 64, "    %%t%lld =l alloc8 %lld\n    storel %lld, %%t%lld\n",
+            {ptr, alloc_size, tv_tag, ptr})
         emit(ctx, pbuf)
         @free(pbuf)
-        val field_val: mut ref char = "0"
         if args_list != 0 as ref void {
             val flen: i64 = @len(args_list) as i64
-            if flen > 0 {
-                val fa_opt = @get(args_list, 0)
+            val fi: mut i64 = 0
+            for {
+                if fi >= flen { break }
+                val fa_opt = @get(args_list, fi as usize)
                 match fa_opt {
-                    some fa => { field_val = gen_expr(ctx, fa as ref parser.Node) }
+                    some fa => {
+                        val field_val: ref char = gen_expr(ctx, fa as ref parser.Node)
+                        val offset: i64 = 8 + fi * 8
+                        val fptr: i64 = fresh_tmp(ctx)
+                        val fbuf: ref char = @alloc(128) as ref char
+                        @snprintf(fbuf, 128, "    %%t%lld =l add %%t%lld, %lld\n    storel %s, %%t%lld\n",
+                            {fptr, ptr, offset, field_val, fptr})
+                        emit(ctx, fbuf)
+                        @free(fbuf)
+                    }
                     none => {}
                 }
+                fi++
             }
         }
-        val fbuf: ref char = @alloc(128) as ref char
-        val fptr: i64 = fresh_tmp(ctx)
-        @snprintf(fbuf, 128, "    %%t%lld =l add %%t%lld, 8\n    storel %s, %%t%lld\n",
-            {fptr, ptr, field_val, fptr})
-        emit(ctx, fbuf)
-        @free(fbuf)
         @free(tv_owner_slot)
         @free(tv_field_slot)
         val tv_res: ref char = @alloc(16) as ref char
@@ -2266,7 +2275,7 @@ fn gen_match_union(ctx: ref void, stmt: ref parser.Node) void! = {
 
 /// Tagged union match: `match expr { VariantName binding => { ... } ... }`
 /// Node layout: d0=expr, d1=list[arm], d2=else_arm
-/// Arm layout: d0=variant_name(ref char), d1=binding(ref char), d2=body stmts list
+/// Arm layout: d0=variant_name(ref char), d1=list[ref char] bindings, d2=body stmts list
 fn gen_match_tagged_union(ctx: ref void, stmt: ref parser.Node) void! = {
     val expr_node: ref parser.Node = stmt.d0 as ref parser.Node
     val expr: ref char = gen_expr(ctx, expr_node)
@@ -2290,7 +2299,7 @@ fn gen_match_tagged_union(ctx: ref void, stmt: ref parser.Node) void! = {
                 some arm => {
                     val arm_node: ref parser.Node = arm as ref parser.Node
                     val vname: ref char = arm_node.d0 as ref char
-                    val binding: ref char = arm_node.d1 as ref char
+                    val bindings: ref void = arm_node.d1 as ref void
 
                     val owner_slot: ref void = @alloc(8)
                     val field_slot: ref void = @alloc(8)
@@ -2312,16 +2321,32 @@ fn gen_match_tagged_union(ctx: ref void, stmt: ref parser.Node) void! = {
                     emit(ctx, buf)
                     @free(buf)
 
-                    if binding != 0 as ref char {
-                        val payload_ptr: i64 = fresh_tmp(ctx)
-                        val payload_val: i64 = fresh_tmp(ctx)
-                        val bbuf: ref char = @alloc(256) as ref char
-                        @snprintf(bbuf, 256,
-                            "    %%t%lld =l add %s, 8\n    %%t%lld =l loadl %%t%lld\n    %%%s =l copy %%t%lld\n",
-                            {payload_ptr, expr, payload_val, payload_ptr, binding, payload_val})
-                        emit(ctx, bbuf)
-                        @free(bbuf)
-                        cg_dvars_add(ctx, binding, "l")
+                    if bindings != 0 as ref void {
+                        val blen: i64 = @len(bindings as list[ref char]) as i64
+                        val bi: mut i64 = 0
+                        for {
+                            if bi >= blen { break }
+                            val b_opt = @get(bindings as list[ref char], bi as usize)
+                            match b_opt {
+                                some b => {
+                                    val bname: ref char = b as ref char
+                                    if str.rchar_cmp(bname, "_") != 0 {
+                                        val offset: i64 = 8 + bi * 8
+                                        val payload_ptr: i64 = fresh_tmp(ctx)
+                                        val payload_val: i64 = fresh_tmp(ctx)
+                                        val bbuf: ref char = @alloc(256) as ref char
+                                        @snprintf(bbuf, 256,
+                                            "    %%t%lld =l add %s, %lld\n    %%t%lld =l loadl %%t%lld\n    %%%s =l copy %%t%lld\n",
+                                            {payload_ptr, expr, offset, payload_val, payload_ptr, bname, payload_val})
+                                        emit(ctx, bbuf)
+                                        @free(bbuf)
+                                        cg_dvars_add(ctx, bname, "l")
+                                    }
+                                }
+                                none => {}
+                            }
+                            bi++
+                        }
                     }
 
                     gen_stmts(ctx, arm_node.d2 as ref parser.Node)

@@ -1243,14 +1243,22 @@ fn parse_match_stmt(p: ref Parser, line: i64) result[ref Node, ref char]! = {
             }
             val tline: i64 = p_line(p)
             val vname = p_expect_ident(p)?
-            val binding = p_expect_ident(p)?
+            val bindings: mut list[ref char] = []
+            for {
+                if lexer.kind_is_fatarrow(p_peek_kind(p)) { break }
+                if lexer.kind_is_rbrace(p_peek_kind(p)) { break }
+                val b = p_expect_ident(p)?
+                @append(bindings, b)
+                if !p_eat_fn(p, lexer.kind_is_comma) { break }
+            }
             p_expect_fatarrow(p)?
             p_expect_lbrace(p)?
             val tab = parse_stmts(p)?
             p_expect_rbrace(p)?
             val tarm: mut ref Node = make_node(NK_MATCH_TAGGED_UNION, tline)
             tarm.d0 = vname as i64
-            tarm.d1 = binding as i64
+            val bl: list[ref char] = bindings
+            tarm.d1 = bl as i64
             val tabl: list[ref Node] = tab
             tarm.d2 = tabl as i64
             @append(uarms, tarm)
@@ -1429,11 +1437,18 @@ fn parse_union_def_item(p: ref Parser, public: i64) result[ref Node, ref char]! 
             val vline: i64 = p_line(p)
             val vname = p_expect_ident(p)?
             p_expect_lparen(p)?
-            val vty = parse_type(p)?
+            val vtypes: mut list[ref Node] = []
+            for {
+                if lexer.kind_is_rparen(p_peek_kind(p)) { break }
+                val vty = parse_type(p)?
+                @append(vtypes, vty)
+                if !p_eat_fn(p, lexer.kind_is_comma) { break }
+            }
             p_expect_rparen(p)?
             val vnode: mut ref Node = make_node(NK_VAL, vline)
             vnode.d0 = vname as i64
-            vnode.d1 = vty as i64
+            val vtl: list[ref Node] = vtypes
+            vnode.d1 = vtl as i64
             @append(variants, vnode)
             if !p_eat_fn(p, kind_is_bitor) { break }
         }

@@ -528,9 +528,13 @@ fn check_stmt(ctx: ref SemaCtx, stmt: ref parser.Node, filename: ref char) void!
         if tu_arms != 0 as ref void {
             for tu_arm in tu_arms as list[ref parser.Node] {
                 push_scope(ctx)
-                val binding: ref char = tu_arm.d1 as ref char
-                if binding != 0 as ref char {
-                    scope_define(ctx, binding, 0, 0 as ref char)
+                val bindings: ref void = tu_arm.d1 as ref void
+                if bindings != 0 as ref void {
+                    for bname in bindings as list[ref char] {
+                        if std.string.compare(std.string.RChar(bname), std.string.RChar("_")) != 0 {
+                            scope_define(ctx, bname, 0, 0 as ref char)
+                        }
+                    }
                 }
                 check_stmts(ctx, tu_arm.d2 as ref void, filename)
                 pop_scope(ctx)
@@ -630,6 +634,14 @@ pub fn check_module(items: list[ref parser.Node], filename: ref char) list[ref c
             @append(ctx.type_names, item.d1 as ref char)
             if k == parser.NK_TYPEDEF {
                 @append(ctx.type_defs, item as ref void)
+            }
+            if k == parser.NK_TAGGED_UNIONDEF {
+                val tvariants: ref void = item.d2 as ref void
+                if tvariants != 0 as ref void {
+                    for tv in tvariants as list[ref parser.Node] {
+                        @append(ctx.fn_names, tv.d0 as ref char)
+                    }
+                }
             }
         }
         if k == parser.NK_EXTERN_FN {
