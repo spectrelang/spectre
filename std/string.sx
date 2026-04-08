@@ -338,12 +338,14 @@ pub fn find(s: ref void, sub: ref void) option[i64] = {
 
     val limit: i64 = sl - subl
     val i: mut i64 = 0
+    val j: mut i64 = 0
+    val matched: mut i64 = 0
     for {
         if (i > limit) {
             break
         }
-        val j: mut i64 = 0
-        val matched: mut i64 = 1
+        j = 0
+        matched = 1
         for {
             if (j >= subl) {
                 break
@@ -506,20 +508,30 @@ pub fn replace(s: ref void, from: ref void, to: ref void) ref void! = {
     val top: ref void = @load(to)
 
     val i: mut i64 = 0
+    val j: mut i64 = 0
+    val matched: mut i64 = 0
+    val limit: mut i64 = 0
+    val a: mut u8 = 0
+    val b: mut u8 = 0
+    val out_l: mut i64 = 0
+    val new_len: mut i64 = 0
+    val out_ptr: mut ref void = 0 as ref void
+    val c: mut u8 = 0
+    
     for {
         if (i >= sl) {
             break
         }
-        val limit: i64 = sl - froml
+        limit = sl - froml
         if (i <= limit) {
-            val j: mut i64 = 0
-            val matched: mut i64 = 1
+            j = 0
+            matched = 1
             for {
                 if (j >= froml) {
                     break
                 }
-                val a: u8 = @load8(@ptradd(sp, i + j)) as u8
-                val b: u8 = @load8(@ptradd(fromp, j)) as u8
+                a = @load8(@ptradd(sp, i + j)) as u8
+                b = @load8(@ptradd(fromp, j)) as u8
                 if (a != b) {
                     matched = 0
                     break
@@ -527,21 +539,21 @@ pub fn replace(s: ref void, from: ref void, to: ref void) ref void! = {
                 j++
             }
             if (matched != 0) {
-                val out_l: mut i64 = @load(@ptradd(out, 8)) as i64
-                val new_len: mut i64 = out_l + tol
+                out_l = @load(@ptradd(out, 8)) as i64
+                new_len = out_l + tol
                 ensure_cap(Ptr(out), new_len + 1)
-                val out_ptr: ref void = @load(out)
+                out_ptr = @load(out)
                 @memcpy(@ptradd(out_ptr, out_l), top, tol)
                 @store8(@ptradd(out_ptr, new_len), 0)
                 @store(@ptradd(out, 8), new_len)
                 i += froml
             } else {
-                val c: u8 = @load8(@ptradd(sp, i)) as u8
+                c = @load8(@ptradd(sp, i)) as u8
                 push_char(out, c)
                 i++
             }
         } else {
-            val c: u8 = @load8(@ptradd(sp, i)) as u8
+            c = @load8(@ptradd(sp, i)) as u8
             push_char(out, c)
             i++
         }
@@ -560,6 +572,8 @@ pub fn split(s: ref void, delim: ref void) result[ref void, ListAllocError]! = {
     val dp: ref void = @load(delim)
     val seg_start: mut i64 = 0
     val i: mut i64 = 0
+    val j: mut i64 = 0
+    val matched: mut i64 = 0
 
     for {
         if (i > sl) {
@@ -568,8 +582,8 @@ pub fn split(s: ref void, delim: ref void) result[ref void, ListAllocError]! = {
 
         val is_delim: mut i64 = 0
         if (i <= sl - dl) {
-            val j: mut i64 = 0
-            val matched: mut i64 = 1
+            j = 0
+            matched = 1
             for {
                 if (j >= dl) {
                     break
