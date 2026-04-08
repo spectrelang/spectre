@@ -1412,7 +1412,7 @@ fn gen_builtin(ctx: ref void, expr: ref parser.Node) ref char! = {
         emit(ctx, buf)
     } elif str.rchar_cmp(name, "puts") == 0 {
         val s: ref char = get_arg(ctx, args, 0)
-        @snprintf(buf, 512, "    %%t%lld =w call $puts(l %s)\n", {tmp, s})
+        @snprintf(buf, 512, "    %%t%lld =w call $puts(l %s)\n    call $fflush(l 0)\n", {tmp, s})
         emit(ctx, buf)
     } elif str.rchar_cmp(name, "printf") == 0 {
         val fmt: ref char = get_arg(ctx, args, 0)

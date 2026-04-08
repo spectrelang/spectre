@@ -218,13 +218,10 @@ pub fn main() i32! = {
         match cc_res2 {
             ok _ => {
                 std.stdio.print("[spectre] running tests for: {s}\n", {input})
-                val run_res = std.os.exec(test_bin)
-                match run_res {
-                    ok _ => {}
-                    err _ => { 
-                        std.stdio.puts("tests failed")
-                        exit_code = 1
-                    }
+                val run_res = std.os.run(test_bin)
+                if run_res != 0 {
+                    std.stdio.print("[spectre] test binary exited with: {s}\n", {"non-zero exit"})
+                    exit_code = 1
                 }
             }
             err _ => { 

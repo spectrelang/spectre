@@ -383,6 +383,7 @@ pub fn (Map) clear(map: self) void! = {
 }
 
 test {
+    @puts("STARTING 2")
     val m = Map.new(8, addr(hash_identity))
 
     assert Map.len(m) == 0
@@ -664,47 +665,69 @@ pub fn (StringMap) free(map: self) void! = {
 }
 
 test {
+    @puts("sm: new")
     val m = StringMap.new(8)
 
+    @puts("sm: len==0")
     assert StringMap.len(m) == 0
 
+    @puts("sm: set hello")
     StringMap.set(m, "hello", 1)
+    @puts("sm: set world")
     StringMap.set(m, "world", 2)
+    @puts("sm: set foo")
     StringMap.set(m, "foo",   3)
 
+    @puts("sm: len==3")
     assert StringMap.len(m) == 3
+    @puts("sm: contains hello")
     assert StringMap.contains(m, "hello")
+    @puts("sm: contains world")
     assert StringMap.contains(m, "world")
+    @puts("sm: !contains bar")
     assert !StringMap.contains(m, "bar")
 
+    @puts("sm: get hello")
     match StringMap.get(m, "hello") {
         some v => { assert(v == 1) }
         none   => { assert(false) }
     }
+    @puts("sm: get world")
     match StringMap.get(m, "world") {
         some v => { assert(v == 2) }
         none   => { assert(false) }
     }
+    @puts("sm: get missing")
     match StringMap.get(m, "missing") {
         some _ => { assert(false) }
         none   => {}
     }
 
+    @puts("sm: update hello=99")
     StringMap.set(m, "hello", 99)
+    @puts("sm: get hello==99")
     match StringMap.get(m, "hello") {
         some v => { assert(v == 99) }
         none   => { assert(false) }
     }
+    @puts("sm: len==3 again")
     assert StringMap.len(m) == 3
 
+    @puts("sm: delete world")
     val deleted = StringMap.delete(m, "world")
+    @puts("sm: assert deleted==1")
     assert deleted == 1
+    @puts("sm: len==2")
     assert StringMap.len(m) == 2
+    @puts("sm: !contains world")
     assert !StringMap.contains(m, "world")
 
+    @puts("sm: delete world again")
     val not_deleted = StringMap.delete(m, "world")
+    @puts("sm: assert not_deleted==0")
     assert not_deleted == 0
 
+    @puts("sm: free")
     StringMap.free(m)
 
     stdio.puts("string map tests passed")

@@ -8,6 +8,7 @@ extern (C) fn rename(oldpath: ref char, newpath: ref char) i32! = "rename"
 extern (C) fn access(path: ref char, mode: i32) i32! = "access"
 extern (C) fn popen(cmd: ref char, mode: ref char) ref void! = "popen"
 extern (C) fn pclose(pipe: ref void) i32! = "pclose"
+extern (C) fn system(cmd: ref char) i32! = "system"
 
 pub extern (C) fn exit(code: i32) void! = "exit"
 
@@ -77,7 +78,12 @@ pub fn get_args() list[ref char]! = {
     return @args()
 }
 
-/// Execute some subprocess.
+/// Execute a command inheriting stdout/stderr (no capture). Returns exit code.
+pub fn run(cmd: ref char) i32! = {
+    return system(cmd)
+}
+
+/// Execute some subprocess, capturing its output.
 pub fn exec(cmd: ref char) result[String, ProcessError]! = {
     val pipe: ref void = popen(cmd, "r")
     if (pipe == none) {
