@@ -825,7 +825,6 @@ pub fn (StringBuilder) build(sb: self) ref void! = {
 pub fn (StringBuilder) free(sb: self) void! = {
     val ptr: ref void = @load(sb)
     @free(ptr)
-    @free(sb)
 }
 
 /// Append a single byte character
