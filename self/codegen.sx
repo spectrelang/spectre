@@ -727,7 +727,7 @@ fn intern_string(ctx: ref void, s: ref char) i64! = {
     return idx
 }
 
-// Emit all interned string data sections.
+/// Emit all interned string data sections.
 fn emit_string_data(ctx: ref void) void! = {
     val strs: ref void = cg_strs(ctx)
     val len: i64 = @len(strs) as i64
