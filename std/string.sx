@@ -495,17 +495,21 @@ pub fn replace(s: ref void, from: ref void, to: ref void) ref void! = {
     val sl: i64 = @load(@ptradd(s, 8)) as i64
     val froml: i64 = @load(@ptradd(from, 8)) as i64
     val tol: mut i64 = @load(@ptradd(to, 8)) as i64
-
     val out: ref void = new()
 
+    @puts("1")
     if (froml == 0) {
+        @puts("2")
+
         push(out, s)
         return out
     }
+    @puts("3")
 
     val sp: ref void = @load(s)
     val fromp: ref void = @load(from)
     val top: ref void = @load(to)
+    @puts("4")
 
     val i: mut i64 = 0
     val j: mut i64 = 0
@@ -519,7 +523,12 @@ pub fn replace(s: ref void, from: ref void, to: ref void) ref void! = {
     val c: mut u8 = 0
     
     for {
+        @puts("5")
+        @printf("i:%lld sl:%lld\n", {i, sl})
+
         if (i >= sl) {
+            @puts("6")
+
             break
         }
         limit = sl - froml
@@ -527,6 +536,9 @@ pub fn replace(s: ref void, from: ref void, to: ref void) ref void! = {
             j = 0
             matched = 1
             for {
+                @puts("7")
+                @printf("froml:{d}\nj:{d}\n", {froml, j})
+
                 if (j >= froml) {
                     break
                 }
@@ -538,7 +550,10 @@ pub fn replace(s: ref void, from: ref void, to: ref void) ref void! = {
                 }
                 j++
             }
+            @printf("after inner loop, matched:%lld\n", {matched})
             if (matched != 0) {
+                @puts("8")
+
                 out_l = @load(@ptradd(out, 8)) as i64
                 new_len = out_l + tol
                 ensure_cap(Ptr(out), new_len + 1)
@@ -548,14 +563,20 @@ pub fn replace(s: ref void, from: ref void, to: ref void) ref void! = {
                 @store(@ptradd(out, 8), new_len)
                 i += froml
             } else {
+                @puts("else branch 1")
+                @printf("i before increment: %lld\n", {i})
                 c = @load8(@ptradd(sp, i)) as u8
                 push_char(out, c)
                 i++
+                @printf("i after increment: %lld\n", {i})
             }
         } else {
+            @puts("else branch 2")
+            @printf("i before increment: %lld\n", {i})
             c = @load8(@ptradd(sp, i)) as u8
             push_char(out, c)
             i++
+            @printf("i after increment: %lld\n", {i})
         }
     }
 

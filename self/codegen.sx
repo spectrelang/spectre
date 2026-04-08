@@ -2018,7 +2018,9 @@ fn gen_stmt(ctx: ref void, stmt: ref parser.Node) void! = {
             cg_mark_as_slot(ctx, name)
         } else {
             val tmp_num: ref char = @alloc(32) as ref char
-            if str.starts_with(str.from(val_tmp), str.from("%t")) {
+            val c0: u8 = @load8(val_tmp) as u8
+            val c1: u8 = @load8(val_tmp + 1) as u8
+            if c0 == 37 && c1 == 116 {
                 @snprintf(tmp_num, 32, "%s", {val_tmp + 2})
                 cg_register_local_var(ctx, name, tmp_num)
             } else {
@@ -2422,7 +2424,7 @@ fn gen_if_stmt(ctx: ref void, stmt: ref parser.Node) void! = {
     val end_lbl: i64 = fresh_lbl(ctx)
     val has_else: bool = stmt.d3 != 0
     val elif_list: ref void = stmt.d2 as ref void
-    val has_elif: bool = elif_list != 0 as ref void
+    val has_elif: bool = elif_list != 0 as ref void && @len(elif_list as list[ref void]) > 0
 
     // Determine where the main if/false branch jumps.
     // If there are elifs, we need to pre-allocate their condition labels so we
