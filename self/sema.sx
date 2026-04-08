@@ -731,7 +731,15 @@ pub fn check_module(items: list[ref parser.Node], filename: ref char) list[ref c
     for item in items {
         val k: i64 = item.kind
         if k == parser.NK_FN {
-            @append(ctx.fn_names, item.d2 as ref char)
+            val fn_ns: ref char = item.d1 as ref char
+            val fn_nm: ref char = item.d2 as ref char
+            if fn_ns != 0 as ref char {
+                val buf: ref char = @alloc(256) as ref char
+                @snprintf(buf, 256, "%s.%s", {fn_ns, fn_nm})
+                @append(ctx.fn_names, buf)
+            } else {
+                @append(ctx.fn_names, fn_nm)
+            }
         }
         if k == parser.NK_TYPEDEF || k == parser.NK_EXTERN_TYPE ||
            k == parser.NK_ENUMDEF || k == parser.NK_UNIONDEF || k == parser.NK_TAGGED_UNIONDEF {
