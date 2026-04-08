@@ -1171,8 +1171,38 @@ fn gen_binop(ctx: ref void, expr: ref parser.Node) ref char! = {
     val rhs: ref char = gen_expr(ctx, expr.d2 as ref parser.Node)
     val tmp: i64 = fresh_tmp(ctx)
     val buf: ref char = @alloc(256) as ref char
-    val lhs_l: ref char = lhs
-    val rhs_l: ref char = rhs
+    val lhs_l: mut ref char = lhs
+    val rhs_l: mut ref char = rhs
+
+    if op == parser.OP_EQ || op == parser.OP_NE || op == parser.OP_LT || 
+       op == parser.OP_GT || op == parser.OP_LE || op == parser.OP_GE {
+        if @load8(lhs) == 37 {
+            val lhs_name: ref char = @ptradd(lhs, 1) as ref char
+            val lhs_qtype: ref char = cg_direct_type(ctx, lhs_name)
+            if str.rchar_cmp(lhs_qtype, "w") == 0 {
+                val ext_tmp: i64 = fresh_tmp(ctx)
+                val ext_buf: ref char = @alloc(128) as ref char
+                @snprintf(ext_buf, 128, "    %%t%lld =l extsw %s\n", {ext_tmp, lhs})
+                emit(ctx, ext_buf)
+                @free(ext_buf)
+                lhs_l = @alloc(16) as ref char
+                @snprintf(lhs_l, 16, "%%t%lld", {ext_tmp})
+            }
+        }
+        if @load8(rhs) == 37 {
+            val rhs_name: ref char = @ptradd(rhs, 1) as ref char
+            val rhs_qtype: ref char = cg_direct_type(ctx, rhs_name)
+            if str.rchar_cmp(rhs_qtype, "w") == 0 {
+                val ext_tmp: i64 = fresh_tmp(ctx)
+                val ext_buf: ref char = @alloc(128) as ref char
+                @snprintf(ext_buf, 128, "    %%t%lld =l extsw %s\n", {ext_tmp, rhs})
+                emit(ctx, ext_buf)
+                @free(ext_buf)
+                rhs_l = @alloc(16) as ref char
+                @snprintf(rhs_l, 16, "%%t%lld", {ext_tmp})
+            }
+        }
+    }
 
     if op == parser.OP_ADD  { @snprintf(buf, 256, "    %%t%lld =l add %s, %s\n",  {tmp, lhs, rhs}) }
     elif op == parser.OP_SUB { @snprintf(buf, 256, "    %%t%lld =l sub %s, %s\n",  {tmp, lhs, rhs}) }

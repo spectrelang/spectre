@@ -51,6 +51,8 @@ echo
 
 echo "Extra tests:"
 "$COMPILER" ./std/collections.sx --test
+"$COMPILER" ./std/string.sx --test
+"$COMPILER" ./std/stdio.sx --test
 
 if [ $failed -ne 0 ]; then
     exit 1
