@@ -660,7 +660,7 @@ fn type_size(ty: ref parser.Node) i64! = {
     return 8
 }
 
-// Intern a string literal, return its global label index.
+/// Intern a string literal, return its global label index.
 fn rewrite_fmt(s: ref char) ref char! = {
     val slen: i64 = str.len_raw(s)
     val out: ref char = @alloc(slen * 2 + 1) as ref char
