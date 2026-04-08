@@ -1,4 +1,4 @@
-val std = use("std/stdio")
+val stdio = use("std/stdio")
 
 enum SomeEnum = {
     HELLO,

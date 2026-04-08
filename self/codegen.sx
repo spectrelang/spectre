@@ -7,7 +7,7 @@ val module = use("module.sx")
 /// Subset: handles functions, basic types, arithmetic, control flow,
 /// function calls, struct literals, list operations, and builtins.
 
-/// Heap layout (14 fields × 8 bytes = 112 bytes):
+/// Heap layout (16 fields × 8 bytes = 128 bytes):
 ///
 ///   offset  0: output buffer (ref void — StringBuilder)
 ///   offset  8: tmp counter (i64)
@@ -23,10 +23,12 @@ val module = use("module.sx")
 ///   offset 88: struct field lists (ref void — list[ref void])
 ///   offset 96: local var names (ref void — list[ref char])
 ///   offset 104: local var type names (ref void — list[ref char])
+///   offset 112: union type names (ref void — list[ref char])
+///   offset 120: union variant lists (ref void — list[ref void])  each entry: list[ref char] of type-name strings
 
 fn cg_new() ref void! = {
-    val ctx: ref void = @alloc(112)
-    @memset(ctx, 0, 112)
+    val ctx: ref void = @alloc(128)
+    @memset(ctx, 0, 128)
     val sb: ref void = str.StringBuilder.new()
     @store(@ptradd(ctx, 0), sb as usize)
     val strs: list[ref char] = []
@@ -47,6 +49,10 @@ fn cg_new() ref void! = {
     @store(@ptradd(ctx, 96), lnames as usize)
     val ltypes: list[ref char] = []
     @store(@ptradd(ctx, 104), ltypes as usize)
+    val unames: list[ref char] = []
+    @store(@ptradd(ctx, 112), unames as usize)
+    val uvariants: list[ref void] = []
+    @store(@ptradd(ctx, 120), uvariants as usize)
     return ctx
 }
 
@@ -67,6 +73,8 @@ fn cg_set_str_cnt(ctx: ref void, v: i64) void! = { @store(@ptradd(ctx, 40), v as
 fn cg_dvars(ctx: ref void) ref void! = { return @load(@ptradd(ctx, 64)) as ref void }
 fn cg_snames(ctx: ref void) ref void! = { return @load(@ptradd(ctx, 80)) as ref void }
 fn cg_sfields(ctx: ref void) ref void! = { return @load(@ptradd(ctx, 88)) as ref void }
+fn cg_unames(ctx: ref void) ref void! = { return @load(@ptradd(ctx, 112)) as ref void }
+fn cg_uvariants(ctx: ref void) ref void! = { return @load(@ptradd(ctx, 120)) as ref void }
 
 /// Register a struct type's field list by name.
 fn cg_register_struct(ctx: ref void, type_name: ref char, fields: ref void) void! = {
@@ -88,6 +96,37 @@ fn cg_lookup_struct(ctx: ref void, type_name: ref char) ref void! = {
                     val f_opt = @get(cg_sfields(ctx) as list[ref void], ni as usize)
                     match f_opt {
                         some f => { return f as ref void }
+                        none   => { return 0 as ref void }
+                    }
+                }
+            }
+            none => {}
+        }
+        ni++
+    }
+    return 0 as ref void
+}
+
+/// Register a union type's variant type-name list.
+fn cg_register_union(ctx: ref void, union_name: ref char, variants: ref void) void! = {
+    @append(cg_unames(ctx) as list[ref char], union_name)
+    @append(cg_uvariants(ctx) as list[ref void], variants)
+}
+
+/// Look up the variant list for a union type. Returns 0 if not found.
+fn cg_lookup_union(ctx: ref void, union_name: ref char) ref void! = {
+    val names: ref void = cg_unames(ctx)
+    val nlen: i64 = @len(names as list[ref char]) as i64
+    val ni: mut i64 = 0
+    for {
+        if ni >= nlen { break }
+        val n_opt = @get(names as list[ref char], ni as usize)
+        match n_opt {
+            some n => {
+                if str.rchar_cmp(n as ref char, union_name) == 0 {
+                    val v_opt = @get(cg_uvariants(ctx) as list[ref void], ni as usize)
+                    match v_opt {
+                        some v => { return v as ref void }
                         none   => { return 0 as ref void }
                     }
                 }
@@ -671,9 +710,23 @@ fn gen_field(ctx: ref void, expr: ref parser.Node) ref char! = {
 
     if base_expr.kind == parser.NK_IDENT {
         val base_name: ref char = base_expr.d0 as ref char
-        val type_name: ref char = cg_local_type(ctx, base_name)
-        if str.rchar_cmp(type_name, "") != 0 {
-            val fields: ref void = cg_lookup_struct(ctx, type_name)
+        val dqt_check: ref char = cg_direct_type(ctx, base_name)
+        val local_type: ref char = cg_local_type(ctx, base_name)
+        val is_local: bool = str.rchar_cmp(dqt_check, "") != 0 || str.rchar_cmp(local_type, "") != 0
+
+        if !is_local {
+            val tmp: i64 = fresh_tmp(ctx)
+            val buf: ref char = @alloc(256) as ref char
+            @snprintf(buf, 256, "    %%t%lld =l loadl $%s__%s\n", {tmp, base_name, field_name})
+            emit(ctx, buf)
+            @free(buf)
+            val res: ref char = @alloc(16) as ref char
+            @snprintf(res, 16, "%%t%lld", {tmp})
+            return res
+        }
+
+        if str.rchar_cmp(local_type, "") != 0 {
+            val fields: ref void = cg_lookup_struct(ctx, local_type)
             if fields != 0 as ref void {
                 val off: i64 = field_offset(fields, field_name)
                 if off >= 0 { offset = off }
@@ -1866,7 +1919,8 @@ fn gen_match_str(ctx: ref void, stmt: ref parser.Node) void! = {
 }
 
 fn gen_match_union(ctx: ref void, stmt: ref parser.Node) void! = {
-    val expr: ref char = gen_expr(ctx, stmt.d0 as ref parser.Node)
+    val expr_node: ref parser.Node = stmt.d0 as ref parser.Node
+    val expr: ref char = gen_expr(ctx, expr_node)
     val arms: ref void = stmt.d1 as ref void
     val else_body: ref void = stmt.d2 as ref void
     val end_lbl: i64 = fresh_lbl(ctx)
@@ -1877,6 +1931,15 @@ fn gen_match_union(ctx: ref void, stmt: ref parser.Node) void! = {
     emit(ctx, tbuf)
     @free(tbuf)
 
+    val union_variants: mut ref void = 0 as ref void
+    if expr_node.kind == parser.NK_IDENT {
+        val ename: ref char = expr_node.d0 as ref char
+        val local_ty: ref char = cg_local_type(ctx, ename)
+        if str.rchar_cmp(local_ty, "") != 0 {
+            union_variants = cg_lookup_union(ctx, local_ty)
+        }
+    }
+
     if arms != 0 as ref void {
         val alen: i64 = @len(arms) as i64
         val ai: mut i64 = 0
@@ -1885,16 +1948,42 @@ fn gen_match_union(ctx: ref void, stmt: ref parser.Node) void! = {
             val arm_opt = @get(arms, ai as usize)
             match arm_opt {
                 some arm => {
+                    val arm_node: ref parser.Node = arm as ref parser.Node
+                    val arm_ty: ref parser.Node = arm_node.d0 as ref parser.Node
+                    val tag_idx: mut i64 = ai
+
+                    if union_variants != 0 as ref void && arm_ty != 0 as ref parser.Node {
+                        if arm_ty.kind == parser.TY_NAMED {
+                            val arm_tname: ref char = arm_ty.d0 as ref char
+                            val vlen: i64 = @len(union_variants) as i64
+                            val vi: mut i64 = 0
+                            for {
+                                if vi >= vlen { break }
+                                val v_opt = @get(union_variants, vi as usize)
+                                match v_opt {
+                                    some v => {
+                                        if str.rchar_cmp(v as ref char, arm_tname) == 0 {
+                                            tag_idx = vi
+                                            break
+                                        }
+                                    }
+                                    none => {}
+                                }
+                                vi++
+                            }
+                        }
+                    }
+
                     val body_lbl: i64 = fresh_lbl(ctx)
                     val next_lbl: i64 = fresh_lbl(ctx)
                     val cmp: i64 = fresh_tmp(ctx)
                     val buf: ref char = @alloc(256) as ref char
                     @snprintf(buf, 256,
                         "    %%t%lld =w ceqw %%t%lld, %lld\n    jnz %%t%lld, @lbl%lld, @lbl%lld\n@lbl%lld\n",
-                        {cmp, tag, ai, cmp, body_lbl, next_lbl, body_lbl})
+                        {cmp, tag, tag_idx, cmp, body_lbl, next_lbl, body_lbl})
                     emit(ctx, buf)
                     @free(buf)
-                    gen_stmts(ctx, (arm as ref parser.Node).d1 as ref parser.Node)
+                    gen_stmts(ctx, arm_node.d1 as ref parser.Node)
                     val jbuf: ref char = @alloc(64) as ref char
                     @snprintf(jbuf, 64, "    jmp @lbl%lld\n@lbl%lld\n", {end_lbl, next_lbl})
                     emit(ctx, jbuf)
@@ -1907,7 +1996,8 @@ fn gen_match_union(ctx: ref void, stmt: ref parser.Node) void! = {
     }
 
     if else_body != 0 as ref void {
-        gen_stmts(ctx, else_body as ref parser.Node)
+        val else_node: ref parser.Node = else_body as ref parser.Node
+        gen_stmts(ctx, else_node.d0 as ref parser.Node)
     }
 
     val endbuf: ref char = @alloc(32) as ref char
@@ -2049,6 +2139,45 @@ fn gen_enum_def(ctx: ref void, item: ref parser.Node) void! = {
     gen_enum_def_prefixed(ctx, item, "")
 }
 
+fn gen_union_def(ctx: ref void, item: ref parser.Node) void! = {
+    gen_union_def_prefixed(ctx, item, "")
+}
+
+fn gen_union_def_prefixed(ctx: ref void, item: ref parser.Node, mod_prefix: ref char) void! = {
+    val name: ref char = item.d1 as ref char
+    val variants: ref void = item.d2 as ref void
+    if variants == 0 as ref void { return }
+    val vlen: i64 = @len(variants) as i64
+    val vnames: mut list[ref char] = []
+    val vi: mut i64 = 0
+    for {
+        if vi >= vlen { break }
+        val v_opt = @get(variants, vi as usize)
+        match v_opt {
+            some v => {
+                val vty: ref parser.Node = v as ref parser.Node
+                val tname: mut ref char = "unknown"
+                if vty.kind == parser.TY_NAMED {
+                    tname = vty.d0 as ref char
+                } elif vty.kind == parser.TY_REF {
+                    tname = "ref"
+                }
+                @append(vnames, tname)
+            }
+            none => {}
+        }
+        vi++
+    }
+    val mangled_name: ref char = @alloc(256) as ref char
+    if str.rchar_cmp(mod_prefix, "") == 0 {
+        @snprintf(mangled_name, 256, "%s", {name})
+    } else {
+        @snprintf(mangled_name, 256, "%s__%s", {mod_prefix, name})
+    }
+    val vl: list[ref char] = vnames
+    cg_register_union(ctx, mangled_name, vl as ref void)
+}
+
 fn gen_enum_def_prefixed(ctx: ref void, item: ref parser.Node, mod_prefix: ref char) void! = {
     val name: ref char = item.d1 as ref char
     val variants: ref void = item.d2 as ref void
@@ -2063,11 +2192,29 @@ fn gen_enum_def_prefixed(ctx: ref void, item: ref parser.Node, mod_prefix: ref c
                 val vname: ref char = v as ref char
                 val buf: ref char = @alloc(256) as ref char
                 if str.rchar_cmp(mod_prefix, "") == 0 {
-                    @snprintf(buf, 256, "data $%s__%s = { l %lld }\n", {name, vname, vi})
+                    @snprintf(buf, 256, "data $%s__%s = ", {name, vname})
                 } else {
-                    @snprintf(buf, 256, "data $%s__%s__%s = { l %lld }\n", {mod_prefix, name, vname, vi})
+                    @snprintf(buf, 256, "data $%s__%s__%s = ", {mod_prefix, name, vname})
                 }
                 emit(ctx, buf)
+                val vbuf: ref char = @alloc(64) as ref char
+                @snprintf(vbuf, 64, "{ l %lld }", {vi})
+                val open_brace: ref char = @alloc(2) as ref char
+                @store8(open_brace as ref void, 123)
+                @store8(@ptradd(open_brace as ref void, 1), 0)
+                emit(ctx, open_brace)
+                @free(open_brace)
+                val inner: ref char = @alloc(32) as ref char
+                @snprintf(inner, 32, " l %lld ", {vi})
+                emit(ctx, inner)
+                @free(inner)
+                val close_brace: ref char = @alloc(3) as ref char
+                @store8(close_brace as ref void, 125)
+                @store8(@ptradd(close_brace as ref void, 1), 10)
+                @store8(@ptradd(close_brace as ref void, 2), 0)
+                emit(ctx, close_brace)
+                @free(close_brace)
+                @free(vbuf)
                 @free(buf)
             }
             none => {}
@@ -2176,6 +2323,8 @@ fn gen_items_with_prefix(ctx: ref void, items: list[ref parser.Node], mod_prefix
                     gen_extern_fn(ctx, node)
                 } elif k == parser.NK_ENUMDEF {
                     gen_enum_def_prefixed(ctx, node, mod_prefix)
+                } elif k == parser.NK_UNIONDEF {
+                    gen_union_def_prefixed(ctx, node, mod_prefix)
                 } elif k == parser.NK_TYPEDEF {
                     val tname: ref char = node.d1 as ref char
                     val tfields: ref void = node.d2 as ref void
@@ -2367,6 +2516,8 @@ fn gen_items_with_prefix_skip_main(ctx: ref void, items: list[ref parser.Node], 
                     gen_extern_fn(ctx, node)
                 } elif k == parser.NK_ENUMDEF {
                     gen_enum_def_prefixed(ctx, node, mod_prefix)
+                } elif k == parser.NK_UNIONDEF {
+                    gen_union_def_prefixed(ctx, node, mod_prefix)
                 } elif k == parser.NK_TYPEDEF {
                     val tname: ref char = node.d1 as ref char
                     val tfields: ref void = node.d2 as ref void

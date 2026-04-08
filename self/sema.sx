@@ -513,10 +513,10 @@ fn check_stmt(ctx: ref SemaCtx, stmt: ref parser.Node, filename: ref char) void!
                 pop_scope(ctx)
             }
         }
-        val else_body2: ref void = stmt.d2 as ref void
-        if else_body2 != 0 as ref void {
+        val else_node: ref parser.Node = stmt.d2 as ref parser.Node
+        if else_node != 0 as ref parser.Node {
             push_scope(ctx)
-            check_stmts(ctx, else_body2, filename)
+            check_stmts(ctx, else_node.d0 as ref void, filename)
             pop_scope(ctx)
         }
         return
