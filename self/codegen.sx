@@ -1331,6 +1331,68 @@ fn gen_field(ctx: ref void, expr: ref parser.Node) ref char! = {
     return res
 }
 
+/// Returns the address of a field (or list variable) without loading its value.
+/// Used by list builtins (@append, @len, @get, etc.) that need the list header address.
+fn gen_list_ptr(ctx: ref void, expr: ref parser.Node) ref char! = {
+    if expr == 0 as ref parser.Node { return "0" }
+    if expr.kind == parser.NK_FIELD {
+        val base_expr: ref parser.Node = expr.d0 as ref parser.Node
+        val field_name: ref char = expr.d1 as ref char
+        val offset: mut i64 = 0
+        if base_expr.kind == parser.NK_IDENT {
+            val base_name: ref char = base_expr.d0 as ref char
+            val local_type: ref char = cg_local_type(ctx, base_name)
+            if str.rchar_cmp(local_type, "") != 0 {
+                val fields: ref void = cg_lookup_struct(ctx, local_type)
+                if fields != 0 as ref void {
+                    val off: i64 = field_offset(fields, field_name)
+                    if off >= 0 { offset = off }
+                }
+            }
+        }
+        val base: mut ref char = 0 as ref char
+        if base_expr.kind == parser.NK_IDENT {
+            val base_name2: ref char = base_expr.d0 as ref char
+            val dqt: ref char = cg_direct_type(ctx, base_name2)
+            if str.rchar_cmp(dqt, "") != 0 {
+                val direct_buf: ref char = @alloc(32) as ref char
+                @snprintf(direct_buf, 32, "%%%s", {base_name2})
+                base = direct_buf
+            }
+        }
+        if base == 0 as ref char {
+            base = gen_expr(ctx, base_expr)
+        }
+        if offset == 0 {
+            return base
+        }
+        val ptr_tmp: i64 = fresh_tmp(ctx)
+        val buf: ref char = @alloc(128) as ref char
+        @snprintf(buf, 128, "    %%t%lld =l add %s, %lld\n", {ptr_tmp, base, offset})
+        emit(ctx, buf)
+        @free(buf)
+        val res: ref char = @alloc(16) as ref char
+        @snprintf(res, 16, "%%t%lld", {ptr_tmp})
+        return res
+    }
+    if expr.kind == parser.NK_IDENT {
+        val vname: ref char = expr.d0 as ref char
+        val qbe_var: ref char = cg_lookup_local_var(ctx, vname)
+        if str.rchar_cmp(qbe_var, "") != 0 && cg_is_slot(ctx, vname) {
+            val res: ref char = @alloc(16) as ref char
+            @snprintf(res, 16, "%%t%s", {qbe_var})
+            return res
+        }
+        val dqt: ref char = cg_direct_type(ctx, vname)
+        if str.rchar_cmp(dqt, "") != 0 {
+            val res2: ref char = @alloc(32) as ref char
+            @snprintf(res2, 32, "%%%s", {vname})
+            return res2
+        }
+    }
+    return gen_expr(ctx, expr)
+}
+
 fn gen_call(ctx: ref void, expr: ref parser.Node) ref char! = {
     val callee_node: ref parser.Node = expr.d0 as ref parser.Node
     val args_list: ref void = expr.d1 as ref void
@@ -1583,6 +1645,15 @@ fn get_arg(ctx: ref void, args: ref void, i: i64) ref char! = {
     }
 }
 
+/// Like get_arg but returns the address of the list header (for list builtins).
+fn get_list_arg(ctx: ref void, args: ref void, i: i64) ref char! = {
+    val opt = @get(args, i as usize)
+    match opt {
+        some a => { return gen_list_ptr(ctx, a as ref parser.Node) }
+        none => { return "0" }
+    }
+}
+
 /// Returns the QBE type ("d", "s", or "l") for an expression node without generating code.
 fn expr_qtype(ctx: ref void, node: ref parser.Node) ref char! = {
     if node == 0 as ref parser.Node { return "l" }
@@ -1800,7 +1871,7 @@ fn gen_builtin(ctx: ref void, expr: ref parser.Node) ref char! = {
         @snprintf(buf, 512, "    %%t%lld =l call $atoi(l %s)\n", {tmp, s3})
         emit(ctx, buf)
     } elif str.rchar_cmp(name, "append") == 0 {
-        val lst: ref char = get_arg(ctx, args, 0)
+        val lst: ref char = get_list_arg(ctx, args, 0)
         val val5_node_opt = @get(args, 1)
         val val5_qtype: mut ref char = "l"
         val val5: ref char = get_arg(ctx, args, 1)
@@ -1896,14 +1967,14 @@ fn gen_builtin(ctx: ref void, expr: ref parser.Node) ref char! = {
         @snprintf(buf, 512, "    %%t%lld =l copy 0\n", {tmp})
         emit(ctx, buf)
     } elif str.rchar_cmp(name, "len") == 0 {
-        val lst2: ref char = get_arg(ctx, args, 0)
+        val lst2: ref char = get_list_arg(ctx, args, 0)
         val len_slot: i64 = fresh_tmp(ctx)
         val len_val: i64 = fresh_tmp(ctx)
         @snprintf(buf, 512, "    %%t%lld =l add %s, 8\n    %%t%lld =l loadl %%t%lld\n", {len_slot, lst2, len_val, len_slot})
         emit(ctx, buf)
         tmp = len_val
     } elif str.rchar_cmp(name, "get") == 0 {
-        val lst3: ref char = get_arg(ctx, args, 0)
+        val lst3: ref char = get_list_arg(ctx, args, 0)
         val idx: ref char = get_arg(ctx, args, 1)
         
         val len_slot: i64 = fresh_tmp(ctx)
@@ -1952,7 +2023,7 @@ fn gen_builtin(ctx: ref void, expr: ref parser.Node) ref char! = {
         emit(ctx, buf_get6)
         @free(buf_get6)
     } elif str.rchar_cmp(name, "remove") == 0 {
-        val lst4: ref char = get_arg(ctx, args, 0)
+        val lst4: ref char = get_list_arg(ctx, args, 0)
         val idx2: ref char = get_arg(ctx, args, 1)
         
         val len_slot: i64 = fresh_tmp(ctx)
@@ -2031,7 +2102,7 @@ fn gen_builtin(ctx: ref void, expr: ref parser.Node) ref char! = {
         
         tmp = elem_val
     } elif str.rchar_cmp(name, "insert") == 0 {
-        val lst_ins: ref char = get_arg(ctx, args, 0)
+        val lst_ins: ref char = get_list_arg(ctx, args, 0)
         val idx_ins: ref char = get_arg(ctx, args, 1)
         val val_ins: ref char = get_arg(ctx, args, 2)
         
@@ -2148,7 +2219,7 @@ fn gen_builtin(ctx: ref void, expr: ref parser.Node) ref char! = {
         @snprintf(buf, 512, "    %%t%lld =l copy 0\n", {tmp})
         emit(ctx, buf)
     } elif str.rchar_cmp(name, "reserve") == 0 {
-        val lst5: ref char = get_arg(ctx, args, 0)
+        val lst5: ref char = get_list_arg(ctx, args, 0)
         val cap: ref char = get_arg(ctx, args, 1)
         
         val cap_slot: i64 = fresh_tmp(ctx)
@@ -2189,7 +2260,7 @@ fn gen_builtin(ctx: ref void, expr: ref parser.Node) ref char! = {
         @snprintf(buf, 512, "    %%t%lld =l copy 0\n", {tmp})
         emit(ctx, buf)
     } elif str.rchar_cmp(name, "capacity") == 0 {
-        val lst6: ref char = get_arg(ctx, args, 0)
+        val lst6: ref char = get_list_arg(ctx, args, 0)
         val cap_slot: i64 = fresh_tmp(ctx)
         val cap_val: i64 = fresh_tmp(ctx)
         @snprintf(buf, 512, "    %%t%lld =l add %s, 16\n    %%t%lld =l loadl %%t%lld\n", {cap_slot, lst6, cap_val, cap_slot})
@@ -3677,6 +3748,12 @@ fn gen_fn_prefixed(ctx: ref void, fn_node: ref parser.Node, mod_prefix: ref char
                     if ptk == parser.TY_NAMED {
                         val tname: ref char = pty2.d0 as ref char
                         cg_register_local_type(ctx, pname2, tname)
+                    } elif ptk == parser.TY_MUT {
+                        val inner: ref parser.Node = pty2.d0 as ref parser.Node
+                        if inner != 0 as ref parser.Node && inner.kind == parser.TY_NAMED {
+                            val tname2: ref char = inner.d0 as ref char
+                            cg_register_local_type(ctx, pname2, tname2)
+                        }
                     }
                 }
                 none => {}
@@ -3948,6 +4025,14 @@ fn preregister_items(ctx: ref void, items: list[ref parser.Node], mod_prefix: re
                     gen_tagged_union_def(ctx, node, mod_prefix)
                 } elif k == parser.NK_ENUMDEF {
                     gen_enum_def_prefixed(ctx, node, mod_prefix)
+                } elif k == parser.NK_TYPEDEF {
+                    val tname: ref char = node.d1 as ref char
+                    val tfields: ref void = node.d2 as ref void
+                    cg_register_struct(ctx, tname, tfields)
+                } elif k == parser.NK_EXTERN_TYPE {
+                    val etname: ref char = node.d1 as ref char
+                    val etfields: ref void = node.d2 as ref void
+                    cg_register_struct(ctx, etname, etfields)
                 } elif k == parser.NK_WHEN_ITEMS {
                     val plat: ref char = node.d0 as ref char
                     if platform_matches(plat) {
