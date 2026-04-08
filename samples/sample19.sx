@@ -18,20 +18,6 @@ fn some_function(x: SomeUnion) void! = {
     }
 }
 
-// Old: should no longer compile:
-//
-// fn some_function(x: SomeUnion) void! = {
-//     when x is i32 {
-//         std.stdio.puts("hi inty int int")
-//     }
-//     when x is i64 {
-//         std.stdio.puts("hi bigger inty int")
-//     }
-//     otherwise {
-//         std.stdio.puts("hi something else")
-//     }
-// }
-
 pub fn main() void = {
     trust some_function(12)
 }
