@@ -1129,7 +1129,15 @@ fn gen_field(ctx: ref void, expr: ref parser.Node) ref char! = {
         if !is_local {
             val tmp: i64 = fresh_tmp(ctx)
             val buf: ref char = @alloc(256) as ref char
-            @snprintf(buf, 256, "    %%t%lld =l loadl $%s__%s\n", {tmp, base_name, field_name})
+            val enum_key: ref char = @alloc(512) as ref char
+            @snprintf(enum_key, 512, "%s__%s", {base_name, field_name})
+            val const_val: ref char = cg_const_val(ctx, enum_key)
+            @free(enum_key)
+            if str.rchar_cmp(const_val, "") != 0 {
+                @snprintf(buf, 256, "    %%t%lld =l copy %s\n", {tmp, const_val})
+            } else {
+                @snprintf(buf, 256, "    %%t%lld =l loadl $%s__%s\n", {tmp, base_name, field_name})
+            }
             emit(ctx, buf)
             @free(buf)
             val res: ref char = @alloc(16) as ref char
@@ -3142,41 +3150,37 @@ fn gen_union_def_prefixed(ctx: ref void, item: ref parser.Node, mod_prefix: ref 
 fn gen_enum_def_prefixed(ctx: ref void, item: ref parser.Node, mod_prefix: ref char) void! = {
     val name: ref char = item.d1 as ref char
     val variants: ref void = item.d2 as ref void
+    
     if variants == 0 as ref void { return }
+    
     val vlen: i64 = @len(variants) as i64
     val vi: mut i64 = 0
+
     for {
         if vi >= vlen { break }
         val v_opt = @get(variants, vi as usize)
         match v_opt {
             some v => {
                 val vname: ref char = v as ref char
-                val buf: ref char = @alloc(256) as ref char
+                val const_key: ref char = @alloc(512) as ref char
+                val idx_str: ref char = @alloc(32) as ref char
+
+                @snprintf(idx_str, 32, "%lld", {vi})
+
                 if str.rchar_cmp(mod_prefix, "") == 0 {
-                    @snprintf(buf, 256, "data $%s__%s = ", {name, vname})
+                    @snprintf(const_key, 512, "%s__%s", {name, vname})
                 } else {
-                    @snprintf(buf, 256, "data $%s__%s__%s = ", {mod_prefix, name, vname})
+                    @snprintf(const_key, 512, "%s__%s__%s", {mod_prefix, name, vname})
                 }
-                emit(ctx, buf)
-                val vbuf: ref char = @alloc(64) as ref char
-                @snprintf(vbuf, 64, "{ l %lld }", {vi})
-                val open_brace: ref char = @alloc(2) as ref char
-                @store8(open_brace as ref void, 123)
-                @store8(@ptradd(open_brace as ref void, 1), 0)
-                emit(ctx, open_brace)
-                @free(open_brace)
-                val inner: ref char = @alloc(32) as ref char
-                @snprintf(inner, 32, " l %lld ", {vi})
-                emit(ctx, inner)
-                @free(inner)
-                val close_brace: ref char = @alloc(3) as ref char
-                @store8(close_brace as ref void, 125)
-                @store8(@ptradd(close_brace as ref void, 1), 10)
-                @store8(@ptradd(close_brace as ref void, 2), 0)
-                emit(ctx, close_brace)
-                @free(close_brace)
-                @free(vbuf)
-                @free(buf)
+
+                cg_register_module_const(ctx, const_key, idx_str)
+                if str.rchar_cmp(mod_prefix, "") != 0 {
+                    val bare_key: ref char = @alloc(256) as ref char
+                    @snprintf(bare_key, 256, "%s__%s", {name, vname})
+                    val idx_str2: ref char = @alloc(32) as ref char
+                    @snprintf(idx_str2, 32, "%lld", {vi})
+                    cg_register_module_const(ctx, bare_key, idx_str2)
+                }
             }
             none => {}
         }
@@ -3300,6 +3304,8 @@ fn preregister_items(ctx: ref void, items: list[ref parser.Node], mod_prefix: re
                     }
                 } elif k == parser.NK_TAGGED_UNIONDEF {
                     gen_tagged_union_def(ctx, node, mod_prefix)
+                } elif k == parser.NK_ENUMDEF {
+                    gen_enum_def_prefixed(ctx, node, mod_prefix)
                 } elif k == parser.NK_WHEN_ITEMS {
                     val plat: ref char = node.d0 as ref char
                     if platform_matches(plat) {
