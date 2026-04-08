@@ -37,8 +37,8 @@ val module = use("module.sx")
 ///   offset 216: module const values (ref void — list[ref char])
 
 fn cg_new() ref void! = {
-    val ctx: ref void = @alloc(224)
-    @memset(ctx, 0, 224)
+    val ctx: ref void = @alloc(232)
+    @memset(ctx, 0, 232)
     val sb: ref void = str.StringBuilder.new()
     @store(@ptradd(ctx, 0), sb as usize)
     val strs: list[ref char] = []
@@ -85,6 +85,8 @@ fn cg_new() ref void! = {
     @store(@ptradd(ctx, 208), mc_names as usize)
     val mc_vals: list[ref char] = []
     @store(@ptradd(ctx, 216), mc_vals as usize)
+    val defer_stack: list[ref void] = []
+    @store(@ptradd(ctx, 224), defer_stack as usize)
     return ctx
 }
 
@@ -119,6 +121,34 @@ fn cg_break_lbl(ctx: ref void)  i64!      = { return @load(@ptradd(ctx, 192)) as
 fn cg_cont_lbl(ctx: ref void)   i64!      = { return @load(@ptradd(ctx, 200)) as i64 }
 fn cg_set_break_lbl(ctx: ref void, v: i64) void! = { @store(@ptradd(ctx, 192), v as usize) }
 fn cg_set_cont_lbl(ctx: ref void, v: i64)  void! = { @store(@ptradd(ctx, 200), v as usize) }
+
+fn cg_defer_stack(ctx: ref void) ref void! = { return @load(@ptradd(ctx, 224)) as ref void }
+
+fn cg_defer_push(ctx: ref void, body: ref parser.Node) void! = {
+    val stack: ref void = cg_defer_stack(ctx)
+    @append(stack as list[ref void], body as ref void)
+}
+
+fn cg_defer_clear(ctx: ref void) void! = {
+    val empty: list[ref void] = []
+    @store(@ptradd(ctx, 224), empty as usize)
+}
+
+/// Emit all deferred statements in LIFO order.
+fn cg_emit_defers(ctx: ref void) void! = {
+    val stack: ref void = cg_defer_stack(ctx)
+    val n: i64 = @len(stack as list[ref void]) as i64
+    val i: mut i64 = n - 1
+    for {
+        if i < 0 { break }
+        val d_opt = @get(stack as list[ref void], i as usize)
+        match d_opt {
+            some d => { gen_stmts(ctx, d as ref parser.Node) }
+            none   => {}
+        }
+        i--
+    }
+}
 
 fn cg_mc_names(ctx: ref void) ref void! = { return @load(@ptradd(ctx, 208)) as ref void }
 fn cg_mc_vals(ctx: ref void)  ref void! = { return @load(@ptradd(ctx, 216)) as ref void }
@@ -402,6 +432,7 @@ fn cg_dvars_clear(ctx: ref void) void! = {
     @store(@ptradd(ctx, 96), empty3 as usize)
     val empty4: list[ref char] = []
     @store(@ptradd(ctx, 104), empty4 as usize)
+    cg_defer_clear(ctx)
 }
 
 fn cg_register_local_type(ctx: ref void, name: ref char, type_name: ref char) void! = {
@@ -1814,9 +1845,11 @@ fn gen_stmt(ctx: ref void, stmt: ref parser.Node) void! = {
     if k == parser.NK_RETURN {
         val expr2: ref parser.Node = stmt.d0 as ref parser.Node
         if expr2 == 0 as ref parser.Node {
+            cg_emit_defers(ctx)
             emitln(ctx, "    ret 0")
         } else {
             val rv: ref char = gen_expr(ctx, expr2)
+            cg_emit_defers(ctx)
             val buf5: ref char = @alloc(64) as ref char
             @snprintf(buf5, 64, "    ret %s\n", {rv})
             emit(ctx, buf5)
@@ -1864,7 +1897,7 @@ fn gen_stmt(ctx: ref void, stmt: ref parser.Node) void! = {
     }
 
     if k == parser.NK_DEFER {
-        gen_stmts(ctx, stmt.d0 as ref parser.Node)
+        cg_defer_push(ctx, stmt.d0 as ref parser.Node)
         return
     }
 
@@ -1885,7 +1918,7 @@ fn gen_stmt(ctx: ref void, stmt: ref parser.Node) void! = {
         val msg_tmp: i64 = fresh_tmp(ctx)
         val abuf: ref char = @alloc(256) as ref char
         @snprintf(abuf, 256,
-            "    %%t%lld =l copy $__str%lld\n    call $dprintf(w 2, l %%t%lld)\n    call $abort()\n    hlt\n@lbl%lld\n",
+            "    %%t%lld =l copy $__str%lld\n    call $dprintf(w 2, l %%t%lld)\n    call $fflush(l 0)\n    call $abort()\n    hlt\n@lbl%lld\n",
             {msg_tmp, msg_idx, msg_tmp, ok_lbl})
         emit(ctx, abuf)
         @free(abuf)
@@ -1931,7 +1964,7 @@ fn gen_stmt(ctx: ref void, stmt: ref parser.Node) void! = {
                         val msg_tmp: i64 = fresh_tmp(ctx)
                         val call_buf: ref char = @alloc(256) as ref char
                         @snprintf(call_buf, 256,
-                            "    %%t%lld =l copy $__str%lld\n    call $dprintf(w 2, l %%t%lld)\n    call $abort()\n    hlt\n@lbl%lld\n",
+                            "    %%t%lld =l copy $__str%lld\n    call $dprintf(w 2, l %%t%lld)\n    call $fflush(l 0)\n    call $abort()\n    hlt\n@lbl%lld\n",
                             {msg_tmp, msg_idx, msg_tmp, ok_lbl})
                         emit(ctx, call_buf)
                         @free(call_buf)
@@ -2881,6 +2914,7 @@ fn gen_fn_prefixed(ctx: ref void, fn_node: ref parser.Node, mod_prefix: ref char
         }
     }
     if needs_ret {
+        cg_emit_defers(ctx)
         emitln(ctx, "    ret 0")
     }
     emitln(ctx, "}")
@@ -3200,6 +3234,7 @@ fn gen_test_fn(ctx: ref void, body_stmts: ref parser.Node, test_id: i64) void! =
     val hdr: ref char = @fmt("export function w $%s() {\n@start\n", {fname})
     emit(ctx, hdr)
     gen_stmts(ctx, body_stmts)
+    cg_emit_defers(ctx)
     emitln(ctx, "    ret 0")
     emitln(ctx, "}")
     emitln(ctx, "")
