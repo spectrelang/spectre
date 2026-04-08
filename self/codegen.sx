@@ -61,6 +61,10 @@ fn cg_new() ref void! = {
     @store(@ptradd(ctx, 128), fn_names as usize)
     val fn_params: list[ref void] = []
     @store(@ptradd(ctx, 136), fn_params as usize)
+    val ext_names: list[ref char] = []
+    @store(@ptradd(ctx, 144), ext_names as usize)
+    val ext_syms: list[ref char] = []
+    @store(@ptradd(ctx, 152), ext_syms as usize)
     return ctx
 }
 
@@ -85,6 +89,8 @@ fn cg_unames(ctx: ref void) ref void! = { return @load(@ptradd(ctx, 112)) as ref
 fn cg_uvariants(ctx: ref void) ref void! = { return @load(@ptradd(ctx, 120)) as ref void }
 fn cg_fn_names(ctx: ref void) ref void! = { return @load(@ptradd(ctx, 128)) as ref void }
 fn cg_fn_params(ctx: ref void) ref void! = { return @load(@ptradd(ctx, 136)) as ref void }
+fn cg_extern_names(ctx: ref void) ref void! = { return @load(@ptradd(ctx, 144)) as ref void }
+fn cg_extern_syms(ctx: ref void)  ref void! = { return @load(@ptradd(ctx, 152)) as ref void }
 
 /// Register a function's mangled name and its param list for call-site type checking.
 fn cg_register_fn(ctx: ref void, mangled: ref char, params: ref void) void! = {
@@ -115,6 +121,37 @@ fn cg_lookup_fn_params(ctx: ref void, mangled: ref char) ref void! = {
         ni++
     }
     return 0 as ref void
+}
+
+/// Register an extern function: maps its declared name to its C symbol.
+fn cg_register_extern(ctx: ref void, name: ref char, symbol: ref char) void! = {
+    @append(cg_extern_names(ctx) as list[ref char], name)
+    @append(cg_extern_syms(ctx)  as list[ref char], symbol)
+}
+
+/// Look up the C symbol for an extern function name. Returns 0 if not found.
+fn cg_lookup_extern_symbol(ctx: ref void, name: ref char) ref char! = {
+    val names: ref void = cg_extern_names(ctx)
+    val nlen: i64 = @len(names as list[ref char]) as i64
+    val ni: mut i64 = 0
+    for {
+        if ni >= nlen { break }
+        val n_opt = @get(names as list[ref char], ni as usize)
+        match n_opt {
+            some n => {
+                if str.rchar_cmp(n as ref char, name) == 0 {
+                    val s_opt = @get(cg_extern_syms(ctx) as list[ref char], ni as usize)
+                    match s_opt {
+                        some s => { return s as ref char }
+                        none   => { return 0 as ref char }
+                    }
+                }
+            }
+            none => {}
+        }
+        ni++
+    }
+    return 0 as ref char
 }
 
 /// Register a struct type's field list by name.
@@ -818,6 +855,11 @@ fn gen_call(ctx: ref void, expr: ref parser.Node) ref char! = {
     val callee_name: ref char = @alloc(256) as ref char
 
     @snprintf(callee_name, 256, "%s", {callee_raw})
+
+    val ext_sym: ref char = cg_lookup_extern_symbol(ctx, callee_name)
+    if ext_sym != 0 as ref char {
+        @snprintf(callee_name, 256, "%s", {ext_sym})
+    }
 
     val arg_tmps: mut list[ref char] = []
 
@@ -2236,10 +2278,12 @@ fn gen_fn_prefixed(ctx: ref void, fn_node: ref parser.Node, mod_prefix: ref char
 
 fn gen_extern_fn(ctx: ref void, item: ref parser.Node) void! = {
     val name: ref char = item.d1 as ref char
-    val buf: ref char = @alloc(128) as ref char
-    @snprintf(buf, 128, "# extern fn %s\n", {name})
-    emit(ctx, buf)
-    @free(buf)
+    val symbol: ref char = item.d2 as ref char
+    val params: ref void = item.d4 as ref void
+    cg_register_extern(ctx, name, symbol)
+    if params != 0 as ref void {
+        cg_register_fn(ctx, symbol, params)
+    }
 }
 
 fn gen_enum_def(ctx: ref void, item: ref parser.Node) void! = {
