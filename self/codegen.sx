@@ -4,9 +4,7 @@ val parser = use("parser.sx")
 val module = use("module.sx")
 
 /// Generates QBE intermediate representation from the AST.
-/// Subset: handles functions, basic types, arithmetic, control flow,
-/// function calls, struct literals, list operations, and builtins.
-
+///
 /// Heap layout (24 fields × 8 bytes = 192 bytes):
 ///
 ///   offset  0: output buffer (ref void — StringBuilder)

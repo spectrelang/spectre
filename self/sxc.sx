@@ -20,7 +20,7 @@ fn print_usage() void = {
     std.stdio.puts("  -h, --help           Print this help message")
 }
 
-pub fn main() void! = {
+pub fn main() i32! = {
     val arena = allocators.Arena.new(65536)?
     val args = std.os.get_args()
     val argc: i64 = @len(args) as i64
@@ -29,7 +29,7 @@ pub fn main() void! = {
         std.stdio.puts("error: no input file provided")
         print_usage()
         allocators.Arena.free(arena)
-        return
+        return 1
     }
 
     val input_opt = @get(args, 1)
@@ -39,14 +39,14 @@ pub fn main() void! = {
         none   => { 
             std.stdio.puts("error: no input file")
             allocators.Arena.free(arena)
-            return 
+            return 1
         }
     }
 
     if std.string.rchar_cmp(input, "-h") == 0 || std.string.rchar_cmp(input, "--help") == 0 {
         print_usage()
         allocators.Arena.free(arena)
-        return
+        return 0
     }
 
     val src_opt = std.fs.read_all(input)
@@ -55,7 +55,7 @@ pub fn main() void! = {
         none   => {
             std.stdio.print("error: could not read '%s'\n", {input})
             allocators.Arena.free(arena)
-            return
+            return 1
         }
     }
 
@@ -84,14 +84,14 @@ pub fn main() void! = {
                             none => {
                                 std.stdio.puts("error: -o requires a value")
                                 allocators.Arena.free(arena)
-                                return
+                                return 1
                             }
                         }
                         arg_i = next_i + 1
                     } else {
                         std.stdio.puts("error: -o requires a value")
                         allocators.Arena.free(arena)
-                        return
+                        return 1
                     }
                 } elif std.string.rchar_cmp(arg, "--emit-qbe") == 0 {
                     emit_qbe = true
@@ -115,16 +115,16 @@ pub fn main() void! = {
         }
     }
 
-    // Resolve the module tree (loads all imports recursively)
-    val exe_dir: ref char = "."   // sxc lives next to std/ in s-out/
+    val exe_dir: ref char = "."
     val resolve_result = module.resolve_module(input, [], exe_dir)
     val root_mod: mut ref module.ResolvedModule = 0 as ref module.ResolvedModule
+
     match resolve_result {
         ok m  => { root_mod = m }
         err e => {
             std.stdio.print("error: %s\n", {e})
             allocators.Arena.free(arena)
-            return
+            return 1
         }
     }
 
@@ -135,7 +135,7 @@ pub fn main() void! = {
             std.stdio.print("error: %s\n", {e})
         }
         allocators.Arena.free(arena)
-        return
+        return 1
     }
 
     val qbe_ir: mut ref char = ""
@@ -148,7 +148,7 @@ pub fn main() void! = {
     if emit_qbe != 0 {
         std.stdio.puts(qbe_ir)
         allocators.Arena.free(arena)
-        return
+        return 0
     }
 
     val binary_name: mut ref char = ""
@@ -171,7 +171,7 @@ pub fn main() void! = {
         none => {
             std.stdio.puts("\nerror: could not write QBE IR")
             allocators.Arena.free(arena)
-            return
+            return 1
         }
     }
 
@@ -186,7 +186,7 @@ pub fn main() void! = {
             std.stdio.puts("\nerror: qbe compilation failed")
             std.os.delete(qbe_file)
             allocators.Arena.free(arena)
-            return
+            return 1
         }
     }
 
@@ -203,12 +203,13 @@ pub fn main() void! = {
         std.os.delete(qbe_file)
         std.os.delete(asm_file)
         allocators.Arena.free(arena)
-        return
+        return 0
     }
 
     val output_specified: bool = std.string.rchar_cmp(output_name, "") != 0
     val cc_cmd: mut ref char = ""
     val success_msg: mut ref char = ""
+    val exit_code: mut i32 = 0
 
     if test_mode {
         val test_bin: ref char = "/tmp/spectre_test_bin"
@@ -220,15 +221,21 @@ pub fn main() void! = {
                 val run_res = std.os.exec(test_bin)
                 match run_res {
                     ok _ => {}
-                    err _ => { std.stdio.puts("tests failed") }
+                    err _ => { 
+                        std.stdio.puts("tests failed")
+                        exit_code = 1
+                    }
                 }
             }
-            err _ => { std.stdio.puts("error: cc compilation failed") }
+            err _ => { 
+                std.stdio.puts("error: cc compilation failed")
+                exit_code = 1
+            }
         }
         std.os.delete(qbe_file)
         std.os.delete(asm_file)
         allocators.Arena.free(arena)
-        return
+        return exit_code
     }
 
     if output_specified != 0 {
@@ -257,4 +264,6 @@ pub fn main() void! = {
     std.os.delete(qbe_file)
     std.os.delete(asm_file)
     allocators.Arena.free(arena)
+
+    return 0
 }
