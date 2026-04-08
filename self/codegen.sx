@@ -1621,6 +1621,15 @@ fn gen_builtin(ctx: ref void, expr: ref parser.Node) ref char! = {
         scall_pos++
         @store8(@ptradd(scall_buf as ref void, scall_pos), 0)
         emit(ctx, scall_buf)
+        val sext_tmp: i64 = fresh_tmp(ctx)
+        val sext_buf: ref char = @alloc(64) as ref char
+        @snprintf(sext_buf, 64, "    %%t%lld =l extsw %%t%lld\n", {sext_tmp, tmp})
+        emit(ctx, sext_buf)
+        @free(sext_buf)
+        @free(buf)
+        val sres: ref char = @alloc(16) as ref char
+        @snprintf(sres, 16, "%%t%lld", {sext_tmp})
+        return sres
     } elif str.rchar_cmp(name, "strlen") == 0 {
         val s2: ref char = get_arg(ctx, args, 0)
         @snprintf(buf, 512, "    %%t%lld =l call $strlen(l %s)\n", {tmp, s2})
