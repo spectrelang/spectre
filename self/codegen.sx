@@ -811,20 +811,38 @@ fn gen_binop(ctx: ref void, expr: ref parser.Node) ref char! = {
     val rhs: ref char = gen_expr(ctx, expr.d2 as ref parser.Node)
     val tmp: i64 = fresh_tmp(ctx)
     val buf: ref char = @alloc(256) as ref char
+    val is_cmp: bool = op == parser.OP_EQ || op == parser.OP_NE ||
+                       op == parser.OP_LT || op == parser.OP_GT ||
+                       op == parser.OP_LE || op == parser.OP_GE
+    val lhs_l: mut ref char = lhs
+    val rhs_l: mut ref char = rhs
+    if is_cmp {
+        val pl: i64 = fresh_tmp(ctx)
+        val pr: i64 = fresh_tmp(ctx)
+        val pbuf: ref char = @alloc(128) as ref char
+        @snprintf(pbuf, 128, "    %%t%lld =l extsw %s\n    %%t%lld =l extsw %s\n", {pl, lhs, pr, rhs})
+        emit(ctx, pbuf)
+        @free(pbuf)
+        val lhs_buf: ref char = @alloc(16) as ref char
+        val rhs_buf: ref char = @alloc(16) as ref char
+        @snprintf(lhs_buf, 16, "%%t%lld", {pl})
+        @snprintf(rhs_buf, 16, "%%t%lld", {pr})
+        lhs_l = lhs_buf
+        rhs_l = rhs_buf
+    }
 
     if op == parser.OP_ADD  { @snprintf(buf, 256, "    %%t%lld =l add %s, %s\n",  {tmp, lhs, rhs}) }
     elif op == parser.OP_SUB { @snprintf(buf, 256, "    %%t%lld =l sub %s, %s\n",  {tmp, lhs, rhs}) }
     elif op == parser.OP_MUL { @snprintf(buf, 256, "    %%t%lld =l mul %s, %s\n",  {tmp, lhs, rhs}) }
     elif op == parser.OP_DIV { @snprintf(buf, 256, "    %%t%lld =l div %s, %s\n",  {tmp, lhs, rhs}) }
     elif op == parser.OP_REM { @snprintf(buf, 256, "    %%t%lld =l rem %s, %s\n",  {tmp, lhs, rhs}) }
-    elif op == parser.OP_EQ  { @snprintf(buf, 256, "    %%t%lld =w ceql %s, %s\n", {tmp, lhs, rhs}) }
-    elif op == parser.OP_NE  { @snprintf(buf, 256, "    %%t%lld =w cnel %s, %s\n", {tmp, lhs, rhs}) }
-    elif op == parser.OP_LT  { @snprintf(buf, 256, "    %%t%lld =w csltl %s, %s\n",{tmp, lhs, rhs}) }
-    elif op == parser.OP_GT  { @snprintf(buf, 256, "    %%t%lld =w csgtl %s, %s\n",{tmp, lhs, rhs}) }
-    elif op == parser.OP_LE  { @snprintf(buf, 256, "    %%t%lld =w cslel %s, %s\n",{tmp, lhs, rhs}) }
-    elif op == parser.OP_GE  { @snprintf(buf, 256, "    %%t%lld =w csgel %s, %s\n",{tmp, lhs, rhs}) }
+    elif op == parser.OP_EQ  { @snprintf(buf, 256, "    %%t%lld =w ceql %s, %s\n", {tmp, lhs_l, rhs_l}) }
+    elif op == parser.OP_NE  { @snprintf(buf, 256, "    %%t%lld =w cnel %s, %s\n", {tmp, lhs_l, rhs_l}) }
+    elif op == parser.OP_LT  { @snprintf(buf, 256, "    %%t%lld =w csltl %s, %s\n",{tmp, lhs_l, rhs_l}) }
+    elif op == parser.OP_GT  { @snprintf(buf, 256, "    %%t%lld =w csgtl %s, %s\n",{tmp, lhs_l, rhs_l}) }
+    elif op == parser.OP_LE  { @snprintf(buf, 256, "    %%t%lld =w cslel %s, %s\n",{tmp, lhs_l, rhs_l}) }
+    elif op == parser.OP_GE  { @snprintf(buf, 256, "    %%t%lld =w csgel %s, %s\n",{tmp, lhs_l, rhs_l}) }
     elif op == parser.OP_AND {
-        // short-circuit: lhs && rhs
         @snprintf(buf, 256, "    %%t%lld =w and %s, %s\n", {tmp, lhs, rhs})
     }
     elif op == parser.OP_OR {
