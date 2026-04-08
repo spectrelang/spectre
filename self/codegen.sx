@@ -942,7 +942,17 @@ fn gen_expr(ctx: ref void, expr: ref parser.Node) ref char! = {
                 if cg_is_slot(ctx, name) {
                     val tmp_load: i64 = fresh_tmp(ctx)
                     val buf_load: ref char = @alloc(128) as ref char
-                    @snprintf(buf_load, 128, "    %%t%lld =l loadl %%t%s\n", {tmp_load, qbe_var})
+                    val ltype_slot: ref char = cg_local_type(ctx, name)
+                    if is_word_type_name(ltype_slot) {
+                        val w_tmp_load: i64 = fresh_tmp(ctx)
+                        val buf_w_load: ref char = @alloc(128) as ref char
+                        @snprintf(buf_w_load, 128, "    %%t%lld =w loadw %%t%s\n", {w_tmp_load, qbe_var})
+                        emit(ctx, buf_w_load)
+                        @free(buf_w_load)
+                        @snprintf(buf_load, 128, "    %%t%lld =l extsw %%t%lld\n", {tmp_load, w_tmp_load})
+                    } else {
+                        @snprintf(buf_load, 128, "    %%t%lld =l loadl %%t%s\n", {tmp_load, qbe_var})
+                    }
                     emit(ctx, buf_load)
                     @free(buf_load)
                     val res_load: ref char = @alloc(16) as ref char
