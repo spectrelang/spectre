@@ -2610,10 +2610,11 @@ fn gen_match_str(ctx: ref void, stmt: ref parser.Node) void! = {
                     val body_lbl: i64 = fresh_lbl(ctx)
                     val next_lbl: i64 = fresh_lbl(ctx)
                     val cmp: i64 = fresh_tmp(ctx)
+                    val cmp2: i64 = fresh_tmp(ctx)
                     val buf: ref char = @alloc(256) as ref char
                     @snprintf(buf, 256,
                         "    %%t%lld =l call $strcmp(l %s, l $__str%lld)\n    %%t%lld =w ceql %%t%lld, 0\n    jnz %%t%lld, @lbl%lld, @lbl%lld\n@lbl%lld\n",
-                        {cmp, expr, pat_idx, cmp, cmp, cmp, body_lbl, next_lbl, body_lbl})
+                        {cmp, expr, pat_idx, cmp2, cmp, cmp2, body_lbl, next_lbl, body_lbl})
                     emit(ctx, buf)
                     @free(buf)
                     gen_stmts(ctx, (arm as ref parser.Node).d1 as ref parser.Node)
