@@ -1,14 +1,14 @@
-val std = use("std")
+val stdio = use("std/stdio")
 
 pub fn some_function() void! = {
     val xs: mut list[i32] = [1, 2, 3, 4]
     for x in xs {
-        std.stdio.print("{d}\n", {x})
+        stdio.print("{d}\n", {x})
     }
 
     val ys: list[ref char] = ["hello", "world"]
     for y in ys {
-        std.stdio.print("{s}\n", {y})
+        stdio.print("{s}\n", {y})
     }
 
     val zs: mut list[i64] = []
@@ -20,19 +20,19 @@ pub fn some_function() void! = {
     match one_x {
         some xv => {
             val len = @len(xs)
-            std.stdio.print("and the length of this list is {d}\n", {len})
+            stdio.print("and the length of this list is {d}\n", {len})
             @remove(xs, 1)
             @insert(xs, 1, 99) // at position 1 in xs, insert 99.
         }
         none => {
-            std.stdio.puts(":(")
+            stdio.puts(":(")
         }
     }
 
     @reserve(xs, 100)
     val cap: usize = @capacity(xs)
 
-    std.stdio.print("{d}\n", {cap})
+    stdio.print("{d}\n", {cap})
 }
 
 pub fn main() i32! = {
