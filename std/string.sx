@@ -370,13 +370,13 @@ pub fn find(s: ref void, sub: ref void) option[i64] = {
 }
 
 /// Returns true if sub appears anywhere in s
-pub fn contains(s: ref void, sub: ref void) bool = {
+pub fn contains(s: String, sub: String) bool = {
     pre {
         s_not_null:   s != 0
         sub_not_null: sub != 0
     }
 
-    val result = trust find(s, sub)
+    val result = trust find(s as ref void, sub as ref void)
     val found: mut i64 = 0
     match result {
         some _ => { found = 1 }

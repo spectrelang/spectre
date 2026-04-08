@@ -175,15 +175,26 @@ pub fn main() i32! = {
         }
     }
 
-    val qbe_cmd = @fmt("qbe -o {s} {s}", {asm_file, qbe_file})
+    val qbe_cmd = @fmt("qbe -o {s} {s} 2>&1", {asm_file, qbe_file})
     val qbe_res = std.os.exec(qbe_cmd)
     if show_cmd != 0 {
         std.stdio.print("{s}\n", {qbe_cmd})
     }
     match qbe_res {
-        ok _ => {}
+        ok v => {
+            val vstr: ref char = std.string.cstr(v)
+            if std.string.len_raw(vstr) > 0 {
+                std.stdio.print("%s", {vstr})
+            }
+            if std.string.starts_with(v, std.string.from("qbe:")) {
+                std.stdio.puts("error: qbe compilation failed")
+                std.os.delete(qbe_file)
+                allocators.Arena.free(arena)
+                return 1
+            }
+        }
         err e => {
-            std.stdio.puts("\nerror: qbe compilation failed")
+            std.stdio.puts("\nerror: failed to run qbe")
             std.os.delete(qbe_file)
             allocators.Arena.free(arena)
             return 1
