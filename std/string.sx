@@ -497,19 +497,14 @@ pub fn replace(s: ref void, from: ref void, to: ref void) ref void! = {
     val tol: mut i64 = @load(@ptradd(to, 8)) as i64
     val out: ref void = new()
 
-    @puts("1")
     if (froml == 0) {
-        @puts("2")
-
         push(out, s)
         return out
     }
-    @puts("3")
 
     val sp: ref void = @load(s)
     val fromp: ref void = @load(from)
     val top: ref void = @load(to)
-    @puts("4")
 
     val i: mut i64 = 0
     val j: mut i64 = 0
@@ -523,66 +518,43 @@ pub fn replace(s: ref void, from: ref void, to: ref void) ref void! = {
     val c: mut u8 = 0
     
     for {
-        @puts("5")
-        @printf("i:%lld sl:%lld\n", {i, sl})
-
         if (i >= sl) {
-            @puts("6")
-
             break
         }
         limit = sl - froml
         if (i <= limit) {
             j = 0
             matched = 1
-            @printf("Set matched=1 before inner loop\n", {})
             for {
-                @puts("7")
-                @printf("froml:{d}\nj:{d}\n", {froml, j})
-
                 if (j >= froml) {
                     break
                 }
                 a = @load8(@ptradd(sp, i + j)) as u8
                 b = @load8(@ptradd(fromp, j)) as u8
-                @printf("Comparing a=%d b=%d at i+j=%lld\n", {a, b, i+j})
                 if (a != b) {
                     matched = 0
-                    @printf("Mismatch! Set matched=0\n", {})
                     break
                 }
                 j++
             }
-            @printf("after inner loop, matched:%lld\n", {matched})
             if (matched != 0) {
-                @puts("8")
-                @printf("About to replace at i=%lld, froml=%lld, tol=%lld\n", {i, froml, tol})
-
                 out_l = @load(@ptradd(out, 8)) as i64
                 new_len = out_l + tol
-                @printf("out_l=%lld, new_len=%lld\n", {out_l, new_len})
                 ensure_cap(Ptr(out), new_len + 1)
                 out_ptr = @load(out)
-                @printf("Copying from top=%p to out_ptr+%lld=%p, length=%lld\n", {top, out_l, @ptradd(out_ptr, out_l), tol})
                 @memcpy(@ptradd(out_ptr, out_l), top, tol)
                 @store8(@ptradd(out_ptr, new_len), 0)
                 @store(@ptradd(out, 8), new_len)
                 i += froml
             } else {
-                @puts("else branch 1")
-                @printf("i before increment: %lld\n", {i})
                 c = @load8(@ptradd(sp, i)) as u8
                 push_char(out, c)
                 i++
-                @printf("i after increment: %lld\n", {i})
             }
         } else {
-            @puts("else branch 2")
-            @printf("i before increment: %lld\n", {i})
             c = @load8(@ptradd(sp, i)) as u8
             push_char(out, c)
             i++
-            @printf("i after increment: %lld\n", {i})
         }
     }
 
@@ -1062,8 +1034,6 @@ test {
 
     val rep2 = replace(rep, from("foo"), from("baz"))
     stdio.puts("hi3.1.5")
-    stdio.print("rep2: {s}\n", {cstr(rep2)})
-    stdio.print("expected: baz bar baz\n", {})
     assert(equals(rep2, from("baz bar baz")))
     stdio.puts("hi3.2")
 
