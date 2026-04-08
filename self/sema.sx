@@ -791,6 +791,11 @@ pub fn check_module(items: list[ref parser.Node], filename: ref char) list[ref c
         if item2.kind == parser.NK_FN {
             check_fn(ctx, item2, filename)
         }
+        if item2.kind == parser.NK_TEST {
+            push_scope(ctx)
+            check_stmts(ctx, item2.d0 as ref void, filename)
+            pop_scope(ctx)
+        }
     }
 
     return ctx.errors

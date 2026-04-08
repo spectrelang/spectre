@@ -480,20 +480,20 @@ test {
     assert(PtrList.pop(list) == some 99)
     assert(PtrList.pop(list) == some 42)
 
-    val list: ref void = PtrList.new(1)?
+    val list2: ref void = PtrList.new(1)?
     defer {
-        PtrList.free(list)
+        PtrList.free(list2)
     }
 
-    PtrList.push(list, 10)?
-    assert(PtrList.get(list, 0) == some 10)
+    PtrList.push(list2, 10)?
+    assert(PtrList.get(list2, 0) == some 10)
 
-    val list: ref void = PtrList.new(1)?
+    val list3: ref void = PtrList.new(1)?
     defer {
-        PtrList.free(list)
+        PtrList.free(list3)
     }
 
-    PtrList.push(list, 5)?
+    PtrList.push(list3, 5)?
 
     stdio.puts("list tests passed")
 }
@@ -714,6 +714,7 @@ test {
 ///
 /// Implemented as a StringMap for O(1) lookup plus a PtrList of keys
 /// to track insertion order.
+type IndexMap = {}
 
 val IMAP_HEADER_SIZE: usize = 16
 
