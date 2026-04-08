@@ -774,6 +774,38 @@ pub fn check_module(items: list[ref parser.Node], filename: ref char) list[ref c
         if k == parser.NK_CONST || k == parser.NK_USE {
             @append(ctx.fn_names, item.d1 as ref char)
         }
+        if k == parser.NK_WHEN_ITEMS {
+            val witems: ref void = item.d1 as ref void
+            if witems != 0 as ref void {
+                for wi in witems as list[ref parser.Node] {
+                    val wk: i64 = wi.kind
+                    if wk == parser.NK_FN {
+                        val wfn_ns: ref char = wi.d1 as ref char
+                        val wfn_nm: ref char = wi.d2 as ref char
+                        if wfn_ns != 0 as ref char {
+                            val wbuf: ref char = @alloc(256) as ref char
+                            @snprintf(wbuf, 256, "%s.%s", {wfn_ns, wfn_nm})
+                            @append(ctx.fn_names, wbuf)
+                        } else {
+                            @append(ctx.fn_names, wfn_nm)
+                        }
+                    }
+                    if wk == parser.NK_TYPEDEF || wk == parser.NK_EXTERN_TYPE ||
+                       wk == parser.NK_ENUMDEF || wk == parser.NK_UNIONDEF || wk == parser.NK_TAGGED_UNIONDEF {
+                        @append(ctx.type_names, wi.d1 as ref char)
+                        if wk == parser.NK_TYPEDEF {
+                            @append(ctx.type_defs, wi as ref void)
+                        }
+                    }
+                    if wk == parser.NK_EXTERN_FN {
+                        @append(ctx.fn_names, wi.d1 as ref char)
+                    }
+                    if wk == parser.NK_CONST || wk == parser.NK_USE {
+                        @append(ctx.fn_names, wi.d1 as ref char)
+                    }
+                }
+            }
+        }
     }
 
     val fnlen: i64 = @len(ctx.fn_names) as i64
@@ -807,6 +839,16 @@ pub fn check_module(items: list[ref parser.Node], filename: ref char) list[ref c
             push_scope(ctx)
             check_stmts(ctx, item2.d0 as ref void, filename)
             pop_scope(ctx)
+        }
+        if item2.kind == parser.NK_WHEN_ITEMS {
+            val witems2: ref void = item2.d1 as ref void
+            if witems2 != 0 as ref void {
+                for wi2 in witems2 as list[ref parser.Node] {
+                    if wi2.kind == parser.NK_FN {
+                        check_fn(ctx, wi2, filename)
+                    }
+                }
+            }
         }
     }
 

@@ -1,11 +1,11 @@
-val std = use("std")
+val stdio = use("std/stdio")
 
 pub fn main() void! = {
     when windows {
-        std.stdio.puts("hi windows")
+        stdio.puts("hi windows")
     }
     when linux {
-
+        stdio.puts("hi linux")
     }
     when dragonflybsd {
 
@@ -14,6 +14,6 @@ pub fn main() void! = {
 
     }
     when darwin {
-        std.stdio.puts("hi macos")
+        stdio.puts("hi macos")
     }
 }

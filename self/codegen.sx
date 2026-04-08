@@ -2,6 +2,45 @@ val std    = use("std")
 val str    = use("std/string")
 val parser = use("parser.sx")
 val module = use("module.sx")
+val reflection = use("std/reflection")
+
+/// Returns the current platform name as a lowercase string (e.g. "linux", "darwin").
+fn current_platform_name() ref char! = {
+    val p = reflection.get_current_platform()
+    match p {
+        Platform.Linux        => { return "linux" }
+        Platform.Darwin       => { return "darwin" }
+        Platform.FreeBSD      => { return "freebsd" }
+        Platform.OpenBSD      => { return "openbsd" }
+        Platform.NetBSD       => { return "netbsd" }
+        Platform.DragonflyBSD => { return "dragonflybsd" }
+        Platform.Windows      => { return "windows" }
+        Platform.Android      => { return "android" }
+        Platform.Haiku        => { return "haiku" }
+        Platform.Redox        => { return "redox" }
+        Platform.Plan9        => { return "plan9" }
+    }
+    return "unknown"
+}
+
+/// Returns true if the given when-clause name matches the current platform.
+/// Handles group aliases: "posix" matches linux/darwin/*bsd/haiku/android/redox.
+fn platform_matches(name: ref char) bool! = {
+    val cur: ref char = current_platform_name()
+    if str.rchar_cmp(name, cur) == 0 { return true }
+    if str.rchar_cmp(name, "posix") == 0 {
+        if str.rchar_cmp(cur, "linux")        == 0 { return true }
+        if str.rchar_cmp(cur, "darwin")       == 0 { return true }
+        if str.rchar_cmp(cur, "freebsd")      == 0 { return true }
+        if str.rchar_cmp(cur, "openbsd")      == 0 { return true }
+        if str.rchar_cmp(cur, "netbsd")       == 0 { return true }
+        if str.rchar_cmp(cur, "dragonflybsd") == 0 { return true }
+        if str.rchar_cmp(cur, "haiku")        == 0 { return true }
+        if str.rchar_cmp(cur, "android")      == 0 { return true }
+        if str.rchar_cmp(cur, "redox")        == 0 { return true }
+    }
+    return false
+}
 
 /// Generates QBE intermediate representation from the AST.
 ///
@@ -2004,8 +2043,10 @@ fn gen_stmt(ctx: ref void, stmt: ref parser.Node) void! = {
     }
 
     if k == parser.NK_WHEN_STMT {
-        // platform conditional: emit body (we compile for current platform)
-        gen_stmts(ctx, stmt.d1 as ref parser.Node)
+        val plat: ref char = stmt.d0 as ref char
+        if platform_matches(plat) {
+            gen_stmts(ctx, stmt.d1 as ref parser.Node)
+        }
         return
     }
 
@@ -3157,6 +3198,16 @@ fn gen_items_with_prefix(ctx: ref void, items: list[ref parser.Node], mod_prefix
                     val tname: ref char = node.d1 as ref char
                     val tfields: ref void = node.d2 as ref void
                     cg_register_struct(ctx, tname, tfields)
+                } elif k == parser.NK_EXTERN_TYPE {
+                    val etname: ref char = node.d1 as ref char
+                    val etfields: ref void = node.d2 as ref void
+                    cg_register_struct(ctx, etname, etfields)
+                } elif k == parser.NK_WHEN_ITEMS {
+                    val plat: ref char = node.d0 as ref char
+                    if platform_matches(plat) {
+                        val witems: list[ref parser.Node] = node.d1 as list[ref parser.Node]
+                        gen_items_with_prefix(ctx, witems, mod_prefix)
+                    }
                 } elif k == parser.NK_CONST {
                     val cname: ref char = node.d1 as ref char
                     val cexpr: ref parser.Node = node.d2 as ref parser.Node
@@ -3368,6 +3419,16 @@ fn gen_items_with_prefix_skip_main(ctx: ref void, items: list[ref parser.Node], 
                     val tname: ref char = node.d1 as ref char
                     val tfields: ref void = node.d2 as ref void
                     cg_register_struct(ctx, tname, tfields)
+                } elif k == parser.NK_EXTERN_TYPE {
+                    val etname: ref char = node.d1 as ref char
+                    val etfields: ref void = node.d2 as ref void
+                    cg_register_struct(ctx, etname, etfields)
+                } elif k == parser.NK_WHEN_ITEMS {
+                    val plat: ref char = node.d0 as ref char
+                    if platform_matches(plat) {
+                        val witems: list[ref parser.Node] = node.d1 as list[ref parser.Node]
+                        gen_items_with_prefix_skip_main(ctx, witems, mod_prefix)
+                    }
                 } elif k == parser.NK_CONST {
                     val cname: ref char = node.d1 as ref char
                     val cexpr: ref parser.Node = node.d2 as ref parser.Node
