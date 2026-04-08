@@ -1099,6 +1099,22 @@ fn gen_expr(ctx: ref void, expr: ref parser.Node) ref char! = {
                 @snprintf(res_fn, 256, "$%s", {resolved_fn})
                 return res_fn
             }
+            val qbe_var_addr: ref char = cg_lookup_local_var(ctx, iname)
+            if str.rchar_cmp(qbe_var_addr, "") != 0 {
+                if cg_is_slot(ctx, iname) {
+                    val tmp_addr: i64 = fresh_tmp(ctx)
+                    val buf_addr: ref char = @alloc(128) as ref char
+                    @snprintf(buf_addr, 128, "    %%t%lld =l loadl %%t%s\n", {tmp_addr, qbe_var_addr})
+                    emit(ctx, buf_addr)
+                    @free(buf_addr)
+                    val res_addr: ref char = @alloc(16) as ref char
+                    @snprintf(res_addr, 16, "%%t%lld", {tmp_addr})
+                    return res_addr
+                }
+                val res10: ref char = @alloc(32) as ref char
+                @snprintf(res10, 32, "%%t%s", {qbe_var_addr})
+                return res10
+            }
             val res10: ref char = @alloc(32) as ref char
             @snprintf(res10, 32, "%%%s", {iname})
             return res10
