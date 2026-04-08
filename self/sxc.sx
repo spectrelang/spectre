@@ -187,7 +187,7 @@ pub fn main() i32! = {
                 std.stdio.print("%s", {vstr})
             }
             if std.string.starts_with(v, std.string.from("qbe:")) {
-                std.stdio.puts("error: qbe compilation failed")
+                std.stdio.puts("error: qbe stage failed")
                 std.os.delete(qbe_file)
                 allocators.Arena.free(arena)
                 return 1
