@@ -1,7 +1,7 @@
-val std = use("std")
+val log = use("std/log")
 
 pub fn main() void! = {
-    std.log.info("Hi")
-    std.log.set_colors(false)
-    std.log.info("Hi")
+    log.info("Hi")
+    log.set_colors(false)
+    log.info("Hi")
 }

@@ -1,8 +1,14 @@
 val stdio = use("std/stdio")
 
 pub fn main() void! = {
-    stdio.puts(`
-Hello, world.
-This is a multiline string.
-    `)
+// old syntax, should no longer compile:
+//     stdio.puts(`
+// Hello, world.
+// This is a multiline string.
+//     `)
+
+    stdio.puts(
+        \\Hello, world.
+        \\This is a multiline string.
+    )
 }

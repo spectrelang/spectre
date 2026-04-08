@@ -248,19 +248,30 @@ pub fn tokenize(src: ref char) result[list[ref Token], ref char]! = {
 
         lx_advance(l)
 
-        if c == 96 {
+        if c == 92 && lx_peek(l) == 92 {
+            lx_advance(l)
             val buf: ref char = @alloc(4096) as ref char
             val i: mut i64 = 0
             for {
-                val ch: i64 = lx_advance(l)
-                if ch == -1 {
-                    val errbuf: ref char = @alloc(64) as ref char
-                    @snprintf(errbuf, 64, "unterminated multiline string literal at %lld:%lld", {line, col})
-                    return err errbuf
+                for {
+                    val ch: i64 = lx_peek(l)
+                    if ch == -1 || ch == 10 { break }
+                    lx_advance(l)
+                    @store8(@ptradd(buf, i), ch as u8)
+                    i++
                 }
-                if ch == 96 { break }
-                @store8(@ptradd(buf, i), ch as u8)
-                i++
+                if lx_peek(l) == 10 {
+                    lx_advance(l)
+                }
+                for { if !is_space(lx_peek(l)) || lx_peek(l) == 10 { break } lx_advance(l) }
+                if lx_peek(l) == 92 && lx_peek2(l) == 92 {
+                    @store8(@ptradd(buf, i), 10)
+                    i++
+                    lx_advance(l)
+                    lx_advance(l)
+                } else {
+                    break
+                }
             }
             @store8(@ptradd(buf, i), 0)
             val result: ref char = @alloc(i + 1) as ref char
