@@ -181,6 +181,8 @@ pub type Map = {
     hash_fn: ref void
 }
 
+pub type StringMap = {}
+
 /// Default identity hash for integer keys.
 pub fn hash_identity(key: usize) usize = {
     return key
