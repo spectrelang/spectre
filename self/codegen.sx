@@ -46,6 +46,8 @@ fn platform_matches(name: ref char) bool! = {
 ///
 /// Heap layout (26 fields × 8 bytes = 208 bytes):
 ///
+/// TODO: Refactor to use dot notation here and not this fucking shit
+///
 ///   offset  0: output buffer (ref void — StringBuilder)
 ///   offset  8: tmp counter (i64)
 ///   offset 16: label counter (i64)
