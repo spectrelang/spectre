@@ -1,4 +1,4 @@
-val std = use("std")
+val std = use("std/stdio")
 
 enum SomeEnum = {
     HELLO,
@@ -6,5 +6,5 @@ enum SomeEnum = {
 }
 
 pub fn main() void! = {
-    std.stdio.print("{d}", {SomeEnum.HELLO})
+    stdio.print("{d}", {SomeEnum.HELLO})
 }

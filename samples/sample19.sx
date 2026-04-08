@@ -1,4 +1,4 @@
-val std = use("std")
+val stdio = use("std/stdio")
 
 union SomeUnion = {
     i32 | i64 | ref char
@@ -7,13 +7,13 @@ union SomeUnion = {
 fn some_function(x: SomeUnion) void! = {
     match x {
         i32 => {
-            std.stdio.puts("hi inty int int")
+            stdio.puts("hi inty int int")
         }
         i64 => {
-            std.stdio.puts("hi bigger inty int")
+            stdio.puts("hi bigger inty int")
         }
         else => {
-            std.stdio.puts("hi something else")
+            stdio.puts("hi something else")
         }
     }
 }
