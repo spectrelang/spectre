@@ -652,8 +652,7 @@ fn gen_expr(ctx: ref void, expr: ref parser.Node) ref char! = {
         return gen_expr(ctx, expr.d0 as ref parser.Node)
     }
 
-    if k == parser.NK_SOME || k == parser.NK_OK_VAL {
-        // option/result some: encode as value + 1 (none = 0)
+    if k == parser.NK_SOME {
         val inner: ref char = gen_expr(ctx, expr.d0 as ref parser.Node)
         val tmp_some: i64 = fresh_tmp(ctx)
         val buf_some: ref char = @alloc(64) as ref char
@@ -665,13 +664,32 @@ fn gen_expr(ctx: ref void, expr: ref parser.Node) ref char! = {
         return res7
     }
 
+    if k == parser.NK_OK_VAL {
+        val ptr_ok: i64 = fresh_tmp(ctx)
+        val buf_ok: ref char = @alloc(64) as ref char
+        @snprintf(buf_ok, 64, "    %%t%lld =l call $malloc(l 16)\n    storel 0, %%t%lld\n", {ptr_ok, ptr_ok})
+        emit(ctx, buf_ok)
+        @free(buf_ok)
+        if expr.d0 != 0 {
+            val inner_ok: ref char = gen_expr(ctx, expr.d0 as ref parser.Node)
+            val off_ok: i64 = fresh_tmp(ctx)
+            val vbuf_ok: ref char = @alloc(128) as ref char
+            @snprintf(vbuf_ok, 128, "    %%t%lld =l add %%t%lld, 8\n    storel %s, %%t%lld\n",
+                {off_ok, ptr_ok, inner_ok, off_ok})
+            emit(ctx, vbuf_ok)
+            @free(vbuf_ok)
+        }
+        val res_ok: ref char = @alloc(16) as ref char
+        @snprintf(res_ok, 16, "%%t%lld", {ptr_ok})
+        return res_ok
+    }
+
     if k == parser.NK_ERR_VAL {
-        // result err: encode as value + 1 with tag=0 (ok=non-zero)
-        // TODO: stop using same heap struct as before for result types
+        // result err: [tag=1:l][value:l]
         val inner2: ref char = gen_expr(ctx, expr.d0 as ref parser.Node)
         val ptr3: i64 = fresh_tmp(ctx)
-        val buf10: ref char = @alloc(128) as ref char
-        @snprintf(buf10, 128, "    %%t%lld =l alloc8 16\n    storel 0, %%t%lld\n", {ptr3, ptr3})
+        val buf10: ref char = @alloc(64) as ref char
+        @snprintf(buf10, 64, "    %%t%lld =l call $malloc(l 16)\n    storel 1, %%t%lld\n", {ptr3, ptr3})
         emit(ctx, buf10)
         @free(buf10)
         val off2: i64 = fresh_tmp(ctx)
@@ -1469,27 +1487,28 @@ fn gen_struct_lit(ctx: ref void, expr: ref parser.Node) ref char! = {
 }
 
 fn gen_try(ctx: ref void, expr: ref parser.Node) ref char! = {
-    // expr? — if result is err, return err; if ok, unwrap
+    // expr? — if tag==0 (ok), unwrap value; if tag==1 (err), return result as-is
     val inner: ref char = gen_expr(ctx, expr.d0 as ref parser.Node)
     val tag_tmp: i64 = fresh_tmp(ctx)
     val ok_lbl: i64 = fresh_lbl(ctx)
     val err_lbl: i64 = fresh_lbl(ctx)
-    val buf: ref char = @alloc(512) as ref char
-    @snprintf(buf, 512,
-        "    %%t%lld =w loadw %s\n    jnz %%t%lld, @lbl%lld, @lbl%lld\n@lbl%lld\n",
-        {tag_tmp, inner, tag_tmp, ok_lbl, err_lbl, err_lbl})
+    val is_ok: i64 = fresh_tmp(ctx)
+    val buf: ref char = @alloc(256) as ref char
+    @snprintf(buf, 256,
+        "    %%t%lld =l loadl %s\n    %%t%lld =w ceql %%t%lld, 0\n    jnz %%t%lld, @lbl%lld, @lbl%lld\n@lbl%lld\n",
+        {tag_tmp, inner, is_ok, tag_tmp, is_ok, ok_lbl, err_lbl, err_lbl})
     emit(ctx, buf)
     @free(buf)
-    
+
     // err branch: return the result as-is
-    val rbuf: ref char = @alloc(128) as ref char
-    @snprintf(rbuf, 128, "    ret %s\n@lbl%lld\n", {inner, ok_lbl})
+    val rbuf: ref char = @alloc(64) as ref char
+    @snprintf(rbuf, 64, "    ret %s\n@lbl%lld\n", {inner, ok_lbl})
     emit(ctx, rbuf)
     @free(rbuf)
 
     // ok branch: load value at offset 8
-    val val_tmp: i64 = fresh_tmp(ctx)
     val off_tmp: i64 = fresh_tmp(ctx)
+    val val_tmp: i64 = fresh_tmp(ctx)
     val vbuf: ref char = @alloc(128) as ref char
     @snprintf(vbuf, 128, "    %%t%lld =l add %s, 8\n    %%t%lld =l loadl %%t%lld\n",
         {off_tmp, inner, val_tmp, off_tmp})
@@ -1967,8 +1986,8 @@ fn gen_if_stmt(ctx: ref void, stmt: ref parser.Node) void! = {
         @snprintf(ebuf2, 32, "@lbl%lld\n", {else_lbl})
         emit(ctx, ebuf2)
         @free(ebuf2)
-        gen_stmts(ctx, stmt.d3 as ref parser.Node)
-        if !block_ends_with_terminator(stmt.d3 as ref parser.Node) {
+        gen_stmts(ctx, (stmt.d3 as ref parser.Node).d0 as ref parser.Node)
+        if !block_ends_with_terminator((stmt.d3 as ref parser.Node).d0 as ref parser.Node) {
             val ejbuf3: ref char = @alloc(64) as ref char
             @snprintf(ejbuf3, 64, "    jmp @lbl%lld\n", {end_lbl})
             emit(ctx, ejbuf3)
@@ -2144,28 +2163,32 @@ fn gen_match_res(ctx: ref void, stmt: ref parser.Node) void! = {
     val err_body_node: ref parser.Node = stmt.d4 as ref parser.Node
 
     val tag: i64 = fresh_tmp(ctx)
+    val is_ok: i64 = fresh_tmp(ctx)
     val ok_lbl: i64 = fresh_lbl(ctx)
     val err_lbl: i64 = fresh_lbl(ctx)
     val end_lbl: i64 = fresh_lbl(ctx)
-
     val buf: ref char = @alloc(256) as ref char
+
     @snprintf(buf, 256,
-        "    %%t%lld =w loadw %s\n    jnz %%t%lld, @lbl%lld, @lbl%lld\n@lbl%lld\n",
-        {tag, expr, tag, ok_lbl, err_lbl, ok_lbl})
+        "    %%t%lld =l loadl %s\n    %%t%lld =w ceql %%t%lld, 0\n    jnz %%t%lld, @lbl%lld, @lbl%lld\n@lbl%lld\n",
+        {tag, expr, is_ok, tag, is_ok, ok_lbl, err_lbl, ok_lbl})
     emit(ctx, buf)
     @free(buf)
 
     if ok_bind != 0 as ref char {
-        val val_tmp: i64 = fresh_tmp(ctx)
-        val off_tmp: i64 = fresh_tmp(ctx)
+        val off_ok: i64 = fresh_tmp(ctx)
+        val val_ok: i64 = fresh_tmp(ctx)
         val vbuf: ref char = @alloc(256) as ref char
         @snprintf(vbuf, 256,
-            "    %%t%lld =l add %s, 8\n    %%t%lld =l loadl %%t%lld\n    %%%s =l alloc8 8\n    storel %%t%lld, %%%s\n",
-            {off_tmp, expr, val_tmp, off_tmp, ok_bind, val_tmp, ok_bind})
+            "    %%t%lld =l add %s, 8\n    %%t%lld =l loadl %%t%lld\n    %%%s =l copy %%t%lld\n",
+            {off_ok, expr, val_ok, off_ok, ok_bind, val_ok})
         emit(ctx, vbuf)
         @free(vbuf)
+        cg_dvars_add(ctx, ok_bind, "l")
     }
-    gen_stmts(ctx, ok_body_node.d0 as ref parser.Node)
+    if ok_body_node != 0 as ref parser.Node {
+        gen_stmts(ctx, ok_body_node.d0 as ref parser.Node)
+    }
 
     val jbuf: ref char = @alloc(64) as ref char
     @snprintf(jbuf, 64, "    jmp @lbl%lld\n@lbl%lld\n", {end_lbl, err_lbl})
@@ -2173,16 +2196,19 @@ fn gen_match_res(ctx: ref void, stmt: ref parser.Node) void! = {
     @free(jbuf)
 
     if err_bind != 0 as ref char {
-        val val_tmp2: i64 = fresh_tmp(ctx)
-        val off_tmp2: i64 = fresh_tmp(ctx)
+        val off_err: i64 = fresh_tmp(ctx)
+        val val_err: i64 = fresh_tmp(ctx)
         val vbuf2: ref char = @alloc(256) as ref char
         @snprintf(vbuf2, 256,
-            "    %%t%lld =l add %s, 8\n    %%t%lld =l loadl %%t%lld\n    %%%s =l alloc8 8\n    storel %%t%lld, %%%s\n",
-            {off_tmp2, expr, val_tmp2, off_tmp2, err_bind, val_tmp2, err_bind})
+            "    %%t%lld =l add %s, 8\n    %%t%lld =l loadl %%t%lld\n    %%%s =l copy %%t%lld\n",
+            {off_err, expr, val_err, off_err, err_bind, val_err})
         emit(ctx, vbuf2)
         @free(vbuf2)
+        cg_dvars_add(ctx, err_bind, "l")
     }
-    gen_stmts(ctx, err_body_node.d0 as ref parser.Node)
+    if err_body_node != 0 as ref parser.Node {
+        gen_stmts(ctx, err_body_node.d0 as ref parser.Node)
+    }
 
     val endbuf: ref char = @alloc(32) as ref char
     @snprintf(endbuf, 32, "    jmp @lbl%lld\n@lbl%lld\n", {end_lbl, end_lbl})

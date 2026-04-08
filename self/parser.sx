@@ -610,6 +610,12 @@ fn parse_unary(p: ref Parser) result[ref Node, ref char]! = {
     }
     if kind_is_ok(k) {
         p_advance(p)
+        if lexer.kind_is_lparen(p_peek_kind(p)) && lexer.kind_is_rparen(p_peek2_kind(p)) {
+            p_advance(p) p_advance(p)
+            val n6: mut ref Node = make_node(NK_OK_VAL, line)
+            n6.d0 = 0
+            return ok n6
+        }
         val inner6 = parse_unary(p)?
         val n6: mut ref Node = make_node(NK_OK_VAL, line)
         n6.d0 = inner6 as i64

@@ -59,22 +59,22 @@ pub fn add_two_strings(a: ref char, b: ref char) result[i64, ParseError]! = {
     return ok (x + y)
 }
 
-val std = use("std")
+val stdio = use("std/stdio")
 
 pub fn main() result[void, ParseError]! = {
     val r = add_two_strings("123", "456")
 
     match r {
         ok v => {
-            std.stdio.print("sum = {d}", {v})
+            stdio.print("sum = {d}", {v})
         }
         err e => {
             match e {
                 ParseError.Empty => {
-                    std.stdio.puts("error: Empty input")
+                    stdio.puts("error: Empty input")
                 }
                 ParseError.InvalidDigit => {
-                    std.stdio.puts("error: invalid digit")
+                    stdio.puts("error: invalid digit")
                 }
             }
         }

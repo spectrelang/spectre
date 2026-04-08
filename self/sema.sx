@@ -236,9 +236,13 @@ fn expr_uses_name(node: ref parser.Node, name: ref char) bool! = {
     if k == parser.NK_IDENT {
         return str_eq(node.d0 as ref char, name)
     }
-    if k == parser.NK_BINOP || k == parser.NK_ASSIGN || k == parser.NK_ADD_ASSIGN || k == parser.NK_SUB_ASSIGN {
+    if k == parser.NK_BINOP {
         return expr_uses_name(node.d1 as ref parser.Node, name) ||
                expr_uses_name(node.d2 as ref parser.Node, name)
+    }
+    if k == parser.NK_ASSIGN || k == parser.NK_ADD_ASSIGN || k == parser.NK_SUB_ASSIGN {
+        return expr_uses_name(node.d0 as ref parser.Node, name) ||
+               expr_uses_name(node.d1 as ref parser.Node, name)
     }
     if k == parser.NK_UNOP || k == parser.NK_TRUST || k == parser.NK_SOME ||
        k == parser.NK_OK_VAL || k == parser.NK_ERR_VAL || k == parser.NK_TRY ||
@@ -274,18 +278,27 @@ fn expr_uses_name(node: ref parser.Node, name: ref char) bool! = {
     if k == parser.NK_IF {
         if expr_uses_name(node.d0 as ref parser.Node, name) { return true }
         if stmts_use_name(node.d1 as ref void, name) { return true }
-        val elif_list: ref void = node.d2 as ref void
-        if elif_list != 0 as ref void {
-            for ep in elif_list as list[ref parser.Node] {
+        val elif_list2: ref void = node.d2 as ref void
+        if elif_list2 != 0 as ref void {
+            for ep in elif_list2 as list[ref parser.Node] {
                 if expr_uses_name(ep.d0 as ref parser.Node, name) { return true }
                 if stmts_use_name(ep.d1 as ref void, name) { return true }
             }
         }
-        return stmts_use_name(node.d3 as ref void, name)
+        val else_node: ref parser.Node = node.d3 as ref parser.Node
+        if else_node != 0 as ref parser.Node {
+            return stmts_use_name(else_node.d0 as ref void, name)
+        }
+        return false
     }
-    if k == parser.NK_FOR || k == parser.NK_FORIN {
-        if stmts_use_name(node.d2 as ref void, name) { return true }
+    if k == parser.NK_FOR {
+        if expr_uses_name(node.d1 as ref parser.Node, name) { return true }
+        if expr_uses_name(node.d2 as ref parser.Node, name) { return true }
         return stmts_use_name(node.d4 as ref void, name)
+    }
+    if k == parser.NK_FORIN {
+        if expr_uses_name(node.d1 as ref parser.Node, name) { return true }
+        return stmts_use_name(node.d2 as ref void, name)
     }
     if k == parser.NK_LIST_LIT || k == parser.NK_ARGS_PACK || k == parser.NK_STRUCT_LIT {
         val elist: ref void = node.d0 as ref void
@@ -495,7 +508,7 @@ fn check_stmt(ctx: ref SemaCtx, stmt: ref parser.Node, filename: ref char) void!
         val else_body: ref void = stmt.d3 as ref void
         if else_body != 0 as ref void {
             push_scope(ctx)
-            check_stmts(ctx, else_body, filename)
+            check_stmts(ctx, (stmt.d3 as ref parser.Node).d0 as ref void, filename)
             pop_scope(ctx)
         }
         return
