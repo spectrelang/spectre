@@ -1,7 +1,7 @@
-val std = use("std")
+val stdio = use("std/stdio")
 
 pub fn main() void! = {
-    std.stdio.puts(`
+    stdio.puts(`
 Hello, world.
 This is a multiline string.
     `)
