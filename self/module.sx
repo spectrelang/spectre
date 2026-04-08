@@ -196,9 +196,9 @@ fn collect_seen(m: ref ResolvedModule, seen: ref void) void! = {
 pub fn flatten_modules(
     m:      ref ResolvedModule,
     prefix: ref char,
-    out_prefixes: ref void,   // list[ref char]
-    out_items:    ref void,   // list[ref void]  (list[ref parser.Node] boxed)
-    seen:         ref void    // list[String]  (filenames already emitted)
+    out_prefixes: list[ref char],
+    out_items:    list[ref void], 
+    seen:         list[String]  
 ) void! = {
     val slen: i64 = @len(seen as list[String]) as i64
     val si: mut i64 = 0

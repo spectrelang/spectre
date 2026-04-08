@@ -2870,9 +2870,9 @@ pub fn gen_module_resolved(root: ref module.ResolvedModule) ref char! = {
 
     module.flatten_modules(
         root, "",
-        out_prefixes as ref void,
-        out_items    as ref void,
-        seen         as ref void
+        out_prefixes,
+        out_items,
+        seen
     )
 
     val layers: i64 = @len(out_prefixes) as i64
@@ -2955,9 +2955,9 @@ pub fn gen_module_resolved_test(root: ref module.ResolvedModule) ref char! = {
 
     module.flatten_modules(
         root, "",
-        out_prefixes as ref void,
-        out_items    as ref void,
-        seen         as ref void
+        out_prefixes,
+        out_items,
+        seen
     )
 
     val layers: i64 = @len(out_prefixes) as i64
