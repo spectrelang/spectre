@@ -1194,6 +1194,23 @@ fn get_arg(ctx: ref void, args: ref void, i: i64) ref char! = {
     }
 }
 
+/// Returns the QBE type ("d", "s", or "l") for an expression node without generating code.
+fn expr_qtype(ctx: ref void, node: ref parser.Node) ref char! = {
+    if node == 0 as ref parser.Node { return "l" }
+    val k: i64 = node.kind
+    if k == parser.NK_FLOAT_LIT { return "d" }
+    if k == parser.NK_IDENT {
+        val ltype: ref char = cg_local_type(ctx, node.d0 as ref char)
+        if str.rchar_cmp(ltype, "f64") == 0 { return "d" }
+        if str.rchar_cmp(ltype, "f32") == 0 { return "s" }
+    }
+    if k == parser.NK_CAST {
+        val ty: ref parser.Node = node.d1 as ref parser.Node
+        return qbe_type_of(ty)
+    }
+    return "l"
+}
+
 fn gen_builtin(ctx: ref void, expr: ref parser.Node) ref char! = {
     val name: ref char = expr.d0 as ref char
     val args: ref void = expr.d1 as ref void
@@ -1284,9 +1301,11 @@ fn gen_builtin(ctx: ref void, expr: ref parser.Node) ref char! = {
                                 val pe_opt = @get(pack, pi2 as usize)
                                 match pe_opt {
                                     some pe => {
-                                        val pv: ref char = gen_expr(ctx, pe as ref parser.Node)
+                                        val pe_node: ref parser.Node = pe as ref parser.Node
+                                        val pqt: ref char = expr_qtype(ctx, pe_node)
+                                        val pv: ref char = gen_expr(ctx, pe_node)
                                         val pbuf2: ref char = @alloc(64) as ref char
-                                        @snprintf(pbuf2, 64, ", l %s", {pv})
+                                        @snprintf(pbuf2, 64, ", %s %s", {pqt, pv})
                                         val pbuf2_len: mut i64 = str.len_raw(pbuf2)
                                         @memcpy(@ptradd(call_buf2 as ref void, call_pos2), pbuf2 as ref void, pbuf2_len)
                                         call_pos2 = call_pos2 + pbuf2_len
@@ -1336,9 +1355,11 @@ fn gen_builtin(ctx: ref void, expr: ref parser.Node) ref char! = {
                                 val spe_opt = @get(spack, spi as usize)
                                 match spe_opt {
                                     some spe => {
-                                        val spv: ref char = gen_expr(ctx, spe as ref parser.Node)
+                                        val spe_node: ref parser.Node = spe as ref parser.Node
+                                        val spqt: ref char = expr_qtype(ctx, spe_node)
+                                        val spv: ref char = gen_expr(ctx, spe_node)
                                         val spbuf: mut ref char = @alloc(64) as ref char
-                                        @snprintf(spbuf, 64, ", l %s", {spv})
+                                        @snprintf(spbuf, 64, ", %s %s", {spqt, spv})
                                         val spbuf_len: mut i64 = str.len_raw(spbuf)
                                         @memcpy(@ptradd(scall_buf as ref void, scall_pos), spbuf as ref void, spbuf_len)
                                         scall_pos = scall_pos + spbuf_len
