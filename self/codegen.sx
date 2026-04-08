@@ -2447,7 +2447,66 @@ fn gen_struct_lit(ctx: ref void, expr: ref parser.Node) ref char! = {
     val fields: ref void = expr.d0 as ref void
     val flen: mut i64 = 0
     if fields != 0 as ref void { flen = @len(fields) as i64 }
-    val size: i64 = flen * 8
+
+    val struct_fields: mut ref void = 0 as ref void
+    if flen > 0 {
+        val f0_opt = @get(fields, 0)
+        match f0_opt {
+            some f0 => {
+                val fname0: ref char = (f0 as ref parser.Node).d0 as ref char
+                val snames: ref void = cg_snames(ctx)
+                val slen: i64 = @len(snames as list[ref char]) as i64
+                val si: mut i64 = 0
+                for {
+                    if si >= slen { break }
+                    val sn_opt = @get(snames as list[ref char], si as usize)
+                    match sn_opt {
+                        some sn => {
+                            val sf_opt = @get(cg_sfields(ctx) as list[ref void], si as usize)
+                            match sf_opt {
+                                some sf => {
+                                    val sfields: ref void = sf as ref void
+                                    val off: i64 = field_offset(sfields, fname0)
+                                    if off >= 0 {
+                                        struct_fields = sfields
+                                        si = slen // break
+                                    }
+                                }
+                                none => {}
+                            }
+                        }
+                        none => {}
+                    }
+                    si++
+                }
+            }
+            none => {}
+        }
+    }
+
+    // Compute the total allocation size using the actual field sizes
+    // (instead of some arbitrary number)
+    val size: mut i64 = flen * 8
+    if struct_fields != 0 as ref void {
+        val sflen: i64 = @len(struct_fields as list[ref void]) as i64
+        val total: mut i64 = 0
+        val sfi: mut i64 = 0
+        for {
+            if sfi >= sflen { break }
+            val sf_opt = @get(struct_fields as list[ref void], sfi as usize)
+            match sf_opt {
+                some sf => {
+                    val sfnode: ref parser.Node = sf as ref parser.Node
+                    val sfty: ref parser.Node = sfnode.d2 as ref parser.Node
+                    total = total + type_size(sfty)
+                }
+                none => {}
+            }
+            sfi++
+        }
+        size = total
+    }
+
     val tmp: i64 = fresh_tmp(ctx)
     val buf: ref char = @alloc(128) as ref char
     @snprintf(buf, 128, "    %%t%lld =l call $malloc(l %lld)\n", {tmp, size})
@@ -2459,12 +2518,22 @@ fn gen_struct_lit(ctx: ref void, expr: ref parser.Node) ref char! = {
         val f_opt = @get(fields, fi as usize)
         match f_opt {
             some f => {
-                val fval: ref char = gen_expr(ctx, (f as ref parser.Node).d1 as ref parser.Node)
-                val off: i64 = fi * 8
+                val fnode: ref parser.Node = f as ref parser.Node
+                val fname: ref char = fnode.d0 as ref char
+                val fval: ref char = gen_expr(ctx, fnode.d1 as ref parser.Node)
+                val off: mut i64 = fi * 8
+                if struct_fields != 0 as ref void {
+                    val real_off: i64 = field_offset(struct_fields, fname)
+                    if real_off >= 0 { off = real_off }
+                }
                 val fbuf: ref char = @alloc(128) as ref char
                 val off_tmp: i64 = fresh_tmp(ctx)
-                @snprintf(fbuf, 128, "    %%t%lld =l add %%t%lld, %lld\n    storel %s, %%t%lld\n",
-                    {off_tmp, tmp, off, fval, off_tmp})
+                if off == 0 {
+                    @snprintf(fbuf, 128, "    storel %s, %%t%lld\n", {fval, tmp})
+                } else {
+                    @snprintf(fbuf, 128, "    %%t%lld =l add %%t%lld, %lld\n    storel %s, %%t%lld\n",
+                        {off_tmp, tmp, off, fval, off_tmp})
+                }
                 emit(ctx, fbuf)
                 @free(fbuf)
             }
