@@ -1569,7 +1569,14 @@ fn gen_stmt(ctx: ref void, stmt: ref parser.Node) void! = {
             }
         }
 
-        @snprintf(buf, 256, "    %%%s =l alloc8 8\n    storel %s, %%%s\n", {name, val_tmp, name})
+        val promoted: i64 = fresh_tmp(ctx)
+        val pbuf: ref char = @alloc(64) as ref char
+        @snprintf(pbuf, 64, "    %%t%lld =l extsw %s\n", {promoted, val_tmp})
+        emit(ctx, pbuf)
+        @free(pbuf)
+        val promoted_s: ref char = @alloc(16) as ref char
+        @snprintf(promoted_s, 16, "%%t%lld", {promoted})
+        @snprintf(buf, 256, "    %%%s =l alloc8 8\n    storel %s, %%%s\n", {name, promoted_s, name})
         emit(ctx, buf)
         @free(buf)
         return
