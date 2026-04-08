@@ -8,7 +8,7 @@ val lexer  = use("lexer.sx")
 pub type ResolvedModule = {
     items:          mut list[ref parser.Node]
     import_names:   mut list[ref char]
-    import_modules: mut list[ref void]   // list[ref ResolvedModule]
+    import_modules: mut list[ref ResolvedModule]
     filename:       mut String
     dir:            mut String
 }
