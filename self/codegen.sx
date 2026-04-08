@@ -1223,7 +1223,18 @@ fn gen_call(ctx: ref void, expr: ref parser.Node) ref char! = {
     val call_buf: ref char = @alloc(8192) as ref char
     val call_pos: mut i64 = 0
     val hdr: ref char = @alloc(256) as ref char
-    @snprintf(hdr, 256, "    %%t%lld =l call $%s(", {tmp, callee_name})
+    val is_fn_ptr: bool = !cg_is_fn(ctx, callee_name) && ext_sym == 0 as ref char &&
+                          callee_node.kind == parser.NK_IDENT
+    if is_fn_ptr {
+        val ptr_tmp: i64 = fresh_tmp(ctx)
+        val load_buf: ref char = @alloc(64) as ref char
+        @snprintf(load_buf, 64, "    %%t%lld =l loadl %%%s\n", {ptr_tmp, callee_name})
+        emit(ctx, load_buf)
+        @free(load_buf)
+        @snprintf(hdr, 256, "    %%t%lld =l call %%t%lld(", {tmp, ptr_tmp})
+    } else {
+        @snprintf(hdr, 256, "    %%t%lld =l call $%s(", {tmp, callee_name})
+    }
     val hdr_len: mut i64 = str.len_raw(hdr)
     @memcpy(@ptradd(call_buf as ref void, call_pos), hdr as ref void, hdr_len)
     call_pos = call_pos + hdr_len
