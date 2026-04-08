@@ -1226,12 +1226,19 @@ fn gen_call(ctx: ref void, expr: ref parser.Node) ref char! = {
     val is_fn_ptr: bool = !cg_is_fn(ctx, callee_name) && ext_sym == 0 as ref char &&
                           callee_node.kind == parser.NK_IDENT
     if is_fn_ptr {
-        val ptr_tmp: i64 = fresh_tmp(ctx)
-        val load_buf: ref char = @alloc(64) as ref char
-        @snprintf(load_buf, 64, "    %%t%lld =l loadl %%%s\n", {ptr_tmp, callee_name})
-        emit(ctx, load_buf)
-        @free(load_buf)
-        @snprintf(hdr, 256, "    %%t%lld =l call %%t%lld(", {tmp, ptr_tmp})
+        val dqt: ref char = cg_direct_type(ctx, callee_name)
+        if str.rchar_cmp(dqt, "") != 0 {
+            // Direct param, so use the damn register directly
+            @snprintf(hdr, 256, "    %%t%lld =l call %%%s(", {tmp, callee_name})
+        } else {
+            // Stack slot, so load the pointer first
+            val ptr_tmp: i64 = fresh_tmp(ctx)
+            val load_buf: ref char = @alloc(64) as ref char
+            @snprintf(load_buf, 64, "    %%t%lld =l loadl %%%s\n", {ptr_tmp, callee_name})
+            emit(ctx, load_buf)
+            @free(load_buf)
+            @snprintf(hdr, 256, "    %%t%lld =l call %%t%lld(", {tmp, ptr_tmp})
+        }
     } else {
         @snprintf(hdr, 256, "    %%t%lld =l call $%s(", {tmp, callee_name})
     }
@@ -1531,6 +1538,35 @@ fn gen_builtin(ctx: ref void, expr: ref parser.Node) ref char! = {
     } elif str.rchar_cmp(name, "args") == 0 {
         @snprintf(buf, 512, "    %%t%lld =l call $__sx_get_args()\n", {tmp})
         emit(ctx, buf)
+    } elif str.rchar_cmp(name, "call") == 0 {
+        val fn_ptr: ref char = get_arg(ctx, args, 0)
+        val call_sb2: ref void = str.StringBuilder.new()
+        val hdr3: ref void = str.format("    %%t%lld =l call %s(", {tmp, fn_ptr})
+        str.StringBuilder.append(call_sb2, hdr3)
+        if args != 0 as ref void {
+            val alen3: i64 = @len(args) as i64
+            val ai3: mut i64 = 1
+            val first3: mut bool = true
+            for {
+                if ai3 >= alen3 { break }
+                val a3_opt = @get(args, ai3 as usize)
+                match a3_opt {
+                    some a3 => {
+                        val at3: ref char = gen_expr(ctx, a3 as ref parser.Node)
+                        if !first3 { str.StringBuilder.append_cstr(call_sb2, ", ") }
+                        val tbuf4: ref void = str.format("l %s", {at3})
+                        str.StringBuilder.append(call_sb2, tbuf4)
+                        first3 = false
+                    }
+                    none => {}
+                }
+                ai3++
+            }
+        }
+        str.StringBuilder.append_cstr(call_sb2, ")\n")
+        val call_line3: ref void = str.StringBuilder.build(call_sb2)
+        str.StringBuilder.free(call_sb2)
+        emit(ctx, str.cstr(call_line3))
     } else {
         val call_sb: ref void = str.StringBuilder.new()
         val hdr2: mut ref void = str.format("    %%t%lld =l call $%s(", {tmp, name})
