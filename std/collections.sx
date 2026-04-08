@@ -235,7 +235,6 @@ fn (Map) grow(map: self, new_cap: usize) void! = {
     @store(@ptradd(map, 8), 0)
     @store(@ptradd(map, 16), new_cap)
 
-    val i: mut usize = 0
     for (i = 0; i < old_cap; i++) {
         val slot: ref void = @ptradd(old_buckets, i * MAP_BUCKET_SIZE)
         val state: usize = @load(slot) as usize
@@ -265,7 +264,6 @@ pub fn (Map) set(map: self, key: usize, value: usize) void! = {
     val hash_fn: ref void = @load(@ptradd(map, 24))
     val h: usize = @call(hash_fn, key)
     val start: usize = h - (h / cur_cap) * cur_cap
-    val i: mut usize = 0
 
     for (i = 0; i < cur_cap; i++) {
         val idx: usize = (start + i) - ((start + i) / cur_cap) * cur_cap
@@ -300,7 +298,6 @@ pub fn (Map) get(map: self, key: usize) option[usize] = {
     val hash_fn: ref void = trust @load(@ptradd(map, 24))
     val h: usize = trust @call(hash_fn, key)
     val start: usize = h - (h / cap) * cap
-    val i: mut usize = 0
 
     for (i = 0; i < cap; i++) {
         val idx: usize = (start + i) - ((start + i) / cap) * cap
@@ -333,7 +330,6 @@ pub fn (Map) delete(map: self, key: usize) usize! = {
     val hash_fn: ref void = @load(@ptradd(map, 24))
     val h: usize = @call(hash_fn, key)
     val start: usize = h - (h / cap) * cap
-    val i: mut usize = 0
 
     for (i = 0; i < cap; i++) {
         val idx: usize = (start + i) - ((start + i) / cap) * cap
@@ -434,7 +430,7 @@ test {
     assert !Map.contains(m, 1)
 
     val big = Map.new(4, addr(hash_identity))
-    val i: mut usize = 0
+
     for (i = 0; i < 20; i++) {
         Map.set(big, i, i * 10)
     }
@@ -554,7 +550,6 @@ pub fn (StringMap) set(map: self, key: ref char, value: usize) void! = {
     val hash_fn: ref void = @load(@ptradd(map, 24))
     val h: usize = @call(hash_fn, key as usize)
     val start: usize = h - (h / cap) * cap
-    val i: mut usize = 0
 
     for (i = 0; i < cap; i++) {
         val idx: usize = (start + i) - ((start + i) / cap) * cap
@@ -584,7 +579,6 @@ pub fn (StringMap) get(map: self, key: ref char) option[usize]! = {
     val hash_fn: ref void = @load(@ptradd(map, 24))
     val h: usize = @call(hash_fn, key as usize)
     val start: usize = h - (h / cap) * cap
-    val i: mut usize = 0
 
     for (i = 0; i < cap; i++) {
         val idx: usize = (start + i) - ((start + i) / cap) * cap
@@ -620,7 +614,6 @@ pub fn (StringMap) delete(map: self, key: ref char) usize! = {
     val hash_fn: ref void = @load(@ptradd(map, 24))
     val h: usize = @call(hash_fn, key as usize)
     val start: usize = h - (h / cap) * cap
-    val i: mut usize = 0
 
     for (i = 0; i < cap; i++) {
         val idx: usize = (start + i) - ((start + i) / cap) * cap
@@ -652,7 +645,6 @@ pub fn (StringMap) len(map: self) usize! = {
 pub fn (StringMap) free(map: self) void! = {
     val cap: usize = @load(@ptradd(map, 16)) as usize
     val buckets: ref void = @load(map)
-    val i: mut usize = 0
     for (i = 0; i < cap; i++) {
         val slot: ref void = @ptradd(buckets, i * MAP_BUCKET_SIZE)
         val state: usize = @load(slot) as usize
@@ -801,7 +793,6 @@ pub fn (IndexMap) delete(map: self, key: ref char) usize! = {
     val removed = StringMap.delete(inner, key)
     if removed == 1 {
         val n: usize = PtrList.len(keys)
-        val i: mut usize = 0
         for (i = 0; i < n; i++) {
             match PtrList.get(keys, i) {
                 none   => {}
@@ -832,7 +823,6 @@ pub fn (IndexMap) each(map: self, cb: fn(ref char, usize) void) void! = {
     val inner: ref void = @load(map)
     val keys:  ref void = @load(@ptradd(map, 8))
     val n: usize = PtrList.len(keys)
-    val i: mut usize = 0
     for (i = 0; i < n; i++) {
         match PtrList.get(keys, i) {
             none   => {}
@@ -875,7 +865,6 @@ pub fn (IndexMap) free(map: self) void! = {
     val inner: ref void = @load(map)
     val keys:  ref void = @load(@ptradd(map, 8))
     val n: usize = PtrList.len(keys)
-    val i: mut usize = 0
     for (i = 0; i < n; i++) {
         match PtrList.get(keys, i) {
             none   => {}

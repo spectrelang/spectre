@@ -947,25 +947,8 @@ fn gen_binop(ctx: ref void, expr: ref parser.Node) ref char! = {
     val rhs: ref char = gen_expr(ctx, expr.d2 as ref parser.Node)
     val tmp: i64 = fresh_tmp(ctx)
     val buf: ref char = @alloc(256) as ref char
-    val is_cmp: bool = op == parser.OP_EQ || op == parser.OP_NE ||
-                       op == parser.OP_LT || op == parser.OP_GT ||
-                       op == parser.OP_LE || op == parser.OP_GE
-    val lhs_l: mut ref char = lhs
-    val rhs_l: mut ref char = rhs
-    if is_cmp {
-        val pl: i64 = fresh_tmp(ctx)
-        val pr: i64 = fresh_tmp(ctx)
-        val pbuf: ref char = @alloc(128) as ref char
-        @snprintf(pbuf, 128, "    %%t%lld =l extsw %s\n    %%t%lld =l extsw %s\n", {pl, lhs, pr, rhs})
-        emit(ctx, pbuf)
-        @free(pbuf)
-        val lhs_buf: ref char = @alloc(16) as ref char
-        val rhs_buf: ref char = @alloc(16) as ref char
-        @snprintf(lhs_buf, 16, "%%t%lld", {pl})
-        @snprintf(rhs_buf, 16, "%%t%lld", {pr})
-        lhs_l = lhs_buf
-        rhs_l = rhs_buf
-    }
+    val lhs_l: ref char = lhs
+    val rhs_l: ref char = rhs
 
     if op == parser.OP_ADD  { @snprintf(buf, 256, "    %%t%lld =l add %s, %s\n",  {tmp, lhs, rhs}) }
     elif op == parser.OP_SUB { @snprintf(buf, 256, "    %%t%lld =l sub %s, %s\n",  {tmp, lhs, rhs}) }
@@ -2269,7 +2252,13 @@ fn gen_for_stmt(ctx: ref void, stmt: ref parser.Node) void! = {
     if init_name != 0 as ref char {
         val init_val: ref char = gen_expr(ctx, stmt.d1 as ref parser.Node)
         val buf: ref char = @alloc(128) as ref char
-        @snprintf(buf, 128, "    %%%s =l alloc8 8\n    storel %s, %%%s\n", {init_name, init_val, init_name})
+        val already_local: bool = str.rchar_cmp(cg_local_type(ctx, init_name), "") != 0
+        val already_direct: bool = str.rchar_cmp(cg_direct_type(ctx, init_name), "") != 0
+        if already_local || already_direct {
+            @snprintf(buf, 128, "    storel %s, %%%s\n", {init_val, init_name})
+        } else {
+            @snprintf(buf, 128, "    %%%s =l alloc8 8\n    storel %s, %%%s\n", {init_name, init_val, init_name})
+        }
         emit(ctx, buf)
         @free(buf)
     }
