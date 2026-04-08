@@ -604,6 +604,19 @@ fn emit_fmt(ctx: ref void, fmt: ref char, args: untyped) void! = {
     @free(buf)
 }
 
+/// Returns true if the type name maps to QBE word type (w).
+fn is_word_type_name(name: ref char) bool! = {
+    if str.rchar_cmp(name, "u8")   == 0 { return true }
+    if str.rchar_cmp(name, "i8")   == 0 { return true }
+    if str.rchar_cmp(name, "u16")  == 0 { return true }
+    if str.rchar_cmp(name, "i16")  == 0 { return true }
+    if str.rchar_cmp(name, "u32")  == 0 { return true }
+    if str.rchar_cmp(name, "i32")  == 0 { return true }
+    if str.rchar_cmp(name, "bool") == 0 { return true }
+    if str.rchar_cmp(name, "char") == 0 { return true }
+    return false
+}
+
 fn qbe_type_of(ty: ref parser.Node) ref char! = {
     if ty == 0 as ref parser.Node { return "l" }
     val k: i64 = ty.kind
@@ -854,6 +867,13 @@ fn gen_expr(ctx: ref void, expr: ref parser.Node) ref char! = {
                     @snprintf(buf6, 128, "    %%t%lld =d loadd %%%s\n", {tmp6, name})
                 } elif str.rchar_cmp(ltype, "f32") == 0 {
                     @snprintf(buf6, 128, "    %%t%lld =s loads %%%s\n", {tmp6, name})
+                } elif is_word_type_name(ltype) {
+                    val w_tmp6: i64 = fresh_tmp(ctx)
+                    val buf6b: ref char = @alloc(128) as ref char
+                    @snprintf(buf6b, 128, "    %%t%lld =w loadw %%%s\n", {w_tmp6, name})
+                    emit(ctx, buf6b)
+                    @free(buf6b)
+                    @snprintf(buf6, 128, "    %%t%lld =l extsw %%t%lld\n", {tmp6, w_tmp6})
                 } else {
                     @snprintf(buf6, 128, "    %%t%lld =l loadl %%%s\n", {tmp6, name})
                 }
@@ -945,6 +965,9 @@ fn gen_expr(ctx: ref void, expr: ref parser.Node) ref char! = {
         val inner3: ref char = gen_expr(ctx, expr.d0 as ref parser.Node)
         val ty: ref parser.Node = expr.d1 as ref parser.Node
         val qt: ref char = qbe_type_of(ty)
+        if str.rchar_cmp(qt, "w") == 0 {
+            return inner3
+        }
         val tmp7: i64 = fresh_tmp(ctx)
         val buf12: ref char = @alloc(128) as ref char
         @snprintf(buf12, 128, "    %%t%lld =%s copy %s\n", {tmp7, qt, inner3})
@@ -1861,6 +1884,7 @@ fn gen_stmt(ctx: ref void, stmt: ref parser.Node) void! = {
         val ltype2: ref char = cg_local_type(ctx, name)
         if str.rchar_cmp(ltype2, "f64") == 0 { store_op = "stored" }
         elif str.rchar_cmp(ltype2, "f32") == 0 { store_op = "stores" }
+        elif is_word_type_name(ltype2) { store_op = "storew" }
         @snprintf(buf, 256, "    %%%s =l alloc8 8\n    %s %s, %%%s\n", {name, store_op, val_tmp, name})
         emit(ctx, buf)
         @free(buf)
@@ -1879,6 +1903,7 @@ fn gen_stmt(ctx: ref void, stmt: ref parser.Node) void! = {
             val store_op2: mut ref char = "storel"
             if str.rchar_cmp(ltype3, "f64") == 0 { store_op2 = "stored" }
             elif str.rchar_cmp(ltype3, "f32") == 0 { store_op2 = "stores" }
+            elif is_word_type_name(ltype3) { store_op2 = "storew" }
             @snprintf(buf2, 128, "    %s %s, %%%s\n", {store_op2, val_tmp2, tname})
             emit(ctx, buf2)
             @free(buf2)
@@ -2107,8 +2132,15 @@ fn gen_stmt(ctx: ref void, stmt: ref parser.Node) void! = {
             val cur: i64 = fresh_tmp(ctx)
             val nxt: i64 = fresh_tmp(ctx)
             val buf9: ref char = @alloc(256) as ref char
-            @snprintf(buf9, 256, "    %%t%lld =l loadl %%%s\n    %%t%lld =l add %%t%lld, 1\n    storel %%t%lld, %%%s\n",
-                {cur, tname2, nxt, cur, nxt, tname2})
+            val ltype_inc: ref char = cg_local_type(ctx, tname2)
+            if is_word_type_name(ltype_inc) {
+                val w_cur: i64 = fresh_tmp(ctx)
+                @snprintf(buf9, 256, "    %%t%lld =w loadw %%%s\n    %%t%lld =l extsw %%t%lld\n    %%t%lld =l add %%t%lld, 1\n    storew %%t%lld, %%%s\n",
+                    {w_cur, tname2, cur, w_cur, nxt, cur, nxt, tname2})
+            } else {
+                @snprintf(buf9, 256, "    %%t%lld =l loadl %%%s\n    %%t%lld =l add %%t%lld, 1\n    storel %%t%lld, %%%s\n",
+                    {cur, tname2, nxt, cur, nxt, tname2})
+            }
             emit(ctx, buf9)
             @free(buf9)
         }
@@ -2127,8 +2159,15 @@ fn gen_stmt(ctx: ref void, stmt: ref parser.Node) void! = {
             val cur2: i64 = fresh_tmp(ctx)
             val nxt2: i64 = fresh_tmp(ctx)
             val buf10: ref char = @alloc(256) as ref char
-            @snprintf(buf10, 256, "    %%t%lld =l loadl %%%s\n    %%t%lld =l sub %%t%lld, 1\n    storel %%t%lld, %%%s\n",
-                {cur2, tname3, nxt2, cur2, nxt2, tname3})
+            val ltype_dec: ref char = cg_local_type(ctx, tname3)
+            if is_word_type_name(ltype_dec) {
+                val w_cur2: i64 = fresh_tmp(ctx)
+                @snprintf(buf10, 256, "    %%t%lld =w loadw %%%s\n    %%t%lld =l extsw %%t%lld\n    %%t%lld =l sub %%t%lld, 1\n    storew %%t%lld, %%%s\n",
+                    {w_cur2, tname3, cur2, w_cur2, nxt2, cur2, nxt2, tname3})
+            } else {
+                @snprintf(buf10, 256, "    %%t%lld =l loadl %%%s\n    %%t%lld =l sub %%t%lld, 1\n    storel %%t%lld, %%%s\n",
+                    {cur2, tname3, nxt2, cur2, nxt2, tname3})
+            }
             emit(ctx, buf10)
             @free(buf10)
         }
