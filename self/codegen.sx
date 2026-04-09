@@ -1,8 +1,8 @@
 val std        = use("std")
 val str        = use("std/string")
+val reflection = use("std/reflection")
 val parser     = use("parser.sx")
 val module     = use("module.sx")
-val reflection = use("std/reflection")
 
 /// Returns the current platform name as a lowercase string (e.g. "linux", "darwin").
 fn current_platform_name() ref char! = {
