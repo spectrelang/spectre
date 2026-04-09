@@ -206,7 +206,6 @@ fn cg_break_lbl(ctx: ref CgCtx) i64! = { return ctx.break_lbl }
 fn cg_cont_lbl(ctx: ref CgCtx) i64! = { return ctx.cont_lbl }
 fn cg_set_break_lbl(ctx: ref CgCtx, v: i64) void! = { ctx.break_lbl = v }
 fn cg_set_cont_lbl(ctx: ref CgCtx, v: i64) void! = { ctx.cont_lbl = v }
-
 fn cg_defer_stack(ctx: ref CgCtx) ref void! = { return ctx.defer_stack as ref void }
 
 fn cg_defer_push(ctx: ref CgCtx, body: ref parser.Node) void! = {
