@@ -42,141 +42,114 @@ fn platform_matches(name: ref char) bool! = {
     return false
 }
 
-/// Generates QBE intermediate representation from the AST.
-///
-/// Heap layout (26 fields × 8 bytes = 208 bytes):
-///
-/// TODO: Refactor to use dot notation here and not this fucking shit
-///
-///   offset  0: output buffer (ref void — StringBuilder)
-///   offset  8: tmp counter (i64)
-///   offset 16: label counter (i64)
-///   offset 24: current function name (ref char)
-///   offset 32: string literals list (ref void — list[ref char])
-///   offset 40: string counter (i64)
-///   offset 48: type defs list (ref void — list[ref void])
-///   offset 56: enum defs list (ref void — list[ref void])
-///   offset 64: direct vars names list (ref void — list[ref char])
-///   offset 72: direct vars qtypes list (ref void — list[ref char])
-///   offset 80: struct type names (ref void — list[ref char])
-///   offset 88: struct field lists (ref void — list[ref void])
-///   offset 96: local var names (ref void — list[ref char])
-///   offset 104: local var type names (ref void — list[ref char])
-///   offset 112: union type names (ref void — list[ref char])
-///   offset 120: union variant lists (ref void — list[ref void])
-///   offset 128: fn names (ref void — list[ref char])  mangled function names
-///   offset 136: fn param lists (ref void — list[ref void])  each: list[ref parser.Node] params
-///   offset 144: extern fn names (ref void — list[ref char])
-///   offset 152: extern fn symbols (ref void — list[ref char])
-///   offset 160: tagged union variant names (ref void — list[ref char])  e.g. "StrBuilder"
-///   offset 168: tagged union owner names  (ref void — list[ref char])  e.g. "SbOrPtr"
-///   offset 176: tagged union tag indices  (ref void — list[i64])
-///   offset 184: tagged union field type nodes (ref void — list[ref void])
-///   offset 192: current loop break label (i64, -1 = none)
-///   offset 200: current loop continue label (i64, -1 = none)
-///   offset 208: module const names  (ref void — list[ref char])
-///   offset 216: module const values (ref void — list[ref char])
-///   offset 224: defer stack (ref void — list[ref void])
-///   offset 232: local var source names (ref void — list[ref char])
-///   offset 240: local var QBE names (ref void — list[ref char])
-///   offset 248: local var slot names (ref void — list[ref char])
-///   offset 256: global var source names (ref void — list[ref char])
-///   offset 264: global var QBE labels  (ref void — list[ref char])  e.g. "log__colors"
-///   offset 272: global var QBE types   (ref void — list[ref char])  e.g. "w" or "l"
+/// Codegen context
+pub type CgCtx = {
+    sb: ref void
+    tmp: i64
+    lbl: i64
+    fn_name: ref char
+    strs: list[ref char]
+    str_cnt: i64
+    tdefs: list[ref void]
+    edefs: list[ref void]
+    dvars: list[ref char]
+    dqtypes: list[ref char]
+    snames: list[ref char]
+    sfields: list[ref void]
+    lnames: list[ref char]
+    ltypes: list[ref char]
+    unames: list[ref char]
+    uvariants: list[ref void]
+    fn_names: list[ref char]
+    fn_params: list[ref void]
+    ext_names: list[ref char]
+    ext_syms: list[ref char]
+    tv_names: list[ref char]
+    tv_owners: list[ref char]
+    tv_tags: list[i64]
+    tv_fields: list[ref void]
+    break_lbl: i64
+    cont_lbl: i64
+    mc_names: list[ref char]
+    mc_vals: list[ref char]
+    defer_stack: list[ref void]
+    local_src_names: list[ref char]
+    local_qbe_names: list[ref char]
+    local_slot_names: list[ref char]
+    global_src_names: list[ref char]
+    global_labels: list[ref char]
+    global_qtypes: list[ref char]
+}
 
-fn cg_new() ref void! = {
-    val ctx: ref void = @alloc(280)
-    @memset(ctx, 0, 280)
-    val sb: ref void = str.StringBuilder.new()
-    @store(@ptradd(ctx, 0), sb as usize)
-    val strs: list[ref char] = []
-    @store(@ptradd(ctx, 32), strs as usize)
-    val tdefs: list[ref void] = []
-    @store(@ptradd(ctx, 48), tdefs as usize)
-    val edefs: list[ref void] = []
-    @store(@ptradd(ctx, 56), edefs as usize)
-    val dvars: list[ref char] = []
-    @store(@ptradd(ctx, 64), dvars as usize)
-    val dqtypes: list[ref char] = []
-    @store(@ptradd(ctx, 72), dqtypes as usize)
-    val snames: list[ref char] = []
-    @store(@ptradd(ctx, 80), snames as usize)
-    val sfields: list[ref void] = []
-    @store(@ptradd(ctx, 88), sfields as usize)
-    val lnames: list[ref char] = []
-    @store(@ptradd(ctx, 96), lnames as usize)
-    val ltypes: list[ref char] = []
-    @store(@ptradd(ctx, 104), ltypes as usize)
-    val unames: list[ref char] = []
-    @store(@ptradd(ctx, 112), unames as usize)
-    val uvariants: list[ref void] = []
-    @store(@ptradd(ctx, 120), uvariants as usize)
-    val fn_names: list[ref char] = []
-    @store(@ptradd(ctx, 128), fn_names as usize)
-    val fn_params: list[ref void] = []
-    @store(@ptradd(ctx, 136), fn_params as usize)
-    val ext_names: list[ref char] = []
-    @store(@ptradd(ctx, 144), ext_names as usize)
-    val ext_syms: list[ref char] = []
-    @store(@ptradd(ctx, 152), ext_syms as usize)
-    val tv_names: list[ref char] = []
-    @store(@ptradd(ctx, 160), tv_names as usize)
-    val tv_owners: list[ref char] = []
-    @store(@ptradd(ctx, 168), tv_owners as usize)
-    val tv_tags: list[i64] = []
-    @store(@ptradd(ctx, 176), tv_tags as usize)
-    val tv_fields: list[ref void] = []
-    @store(@ptradd(ctx, 184), tv_fields as usize)
-    @store(@ptradd(ctx, 192), -1 as usize)
-    @store(@ptradd(ctx, 200), -1 as usize)
-    val mc_names: list[ref char] = []
-    @store(@ptradd(ctx, 208), mc_names as usize)
-    val mc_vals: list[ref char] = []
-    @store(@ptradd(ctx, 216), mc_vals as usize)
-    val defer_stack: list[ref void] = []
-    @store(@ptradd(ctx, 224), defer_stack as usize)
-    val local_src_names: list[ref char] = []
-    @store(@ptradd(ctx, 232), local_src_names as usize)
-    val local_qbe_names: list[ref char] = []
-    @store(@ptradd(ctx, 240), local_qbe_names as usize)
-    val global_src_names: list[ref char] = []
-    @store(@ptradd(ctx, 256), global_src_names as usize)
-    val global_labels: list[ref char] = []
-    @store(@ptradd(ctx, 264), global_labels as usize)
-    val global_qtypes: list[ref char] = []
-    @store(@ptradd(ctx, 272), global_qtypes as usize)
+fn cg_new() ref CgCtx! = {
+    val ctx: ref CgCtx = @alloc(sizeof(CgCtx)) as ref CgCtx
+    ctx.sb = str.StringBuilder.new()
+    ctx.tmp = 0
+    ctx.lbl = 0
+    ctx.fn_name = 0 as ref char
+    ctx.strs = []
+    ctx.str_cnt = 0
+    ctx.tdefs = []
+    ctx.edefs = []
+    ctx.dvars = []
+    ctx.dqtypes = []
+    ctx.snames = []
+    ctx.sfields = []
+    ctx.lnames = []
+    ctx.ltypes = []
+    ctx.unames = []
+    ctx.uvariants = []
+    ctx.fn_names = []
+    ctx.fn_params = []
+    ctx.ext_names = []
+    ctx.ext_syms = []
+    ctx.tv_names = []
+    ctx.tv_owners = []
+    ctx.tv_tags = []
+    ctx.tv_fields = []
+    ctx.break_lbl = -1
+    ctx.cont_lbl = -1
+    ctx.mc_names = []
+    ctx.mc_vals = []
+    ctx.defer_stack = []
+    ctx.local_src_names = []
+    ctx.local_qbe_names = []
+    ctx.local_slot_names = []
+    ctx.global_src_names = []
+    ctx.global_labels = []
+    ctx.global_qtypes = []
     return ctx
 }
 
-fn cg_sb(ctx: ref void)      ref void! = { return @load(@ptradd(ctx, 0))  as ref void }
-fn cg_tmp(ctx: ref void)     i64!      = { return @load(@ptradd(ctx, 8))  as i64 }
-fn cg_lbl(ctx: ref void)     i64!      = { return @load(@ptradd(ctx, 16)) as i64 }
-fn cg_fn_name(ctx: ref void) ref char! = { return @load(@ptradd(ctx, 24)) as ref char }
-fn cg_strs(ctx: ref void)    ref void! = { return @load(@ptradd(ctx, 32)) as ref void }
-fn cg_str_cnt(ctx: ref void) i64!      = { return @load(@ptradd(ctx, 40)) as i64 }
-fn cg_tdefs(ctx: ref void)   ref void! = { return @load(@ptradd(ctx, 48)) as ref void }
-fn cg_edefs(ctx: ref void)   ref void! = { return @load(@ptradd(ctx, 56)) as ref void }
+fn cg_sb(ctx: ref CgCtx)      ref void! = { return @load(@ptradd(ctx, 0))  as ref void }
+fn cg_tmp(ctx: ref CgCtx)     i64!      = { return @load(@ptradd(ctx, 8))  as i64 }
+fn cg_lbl(ctx: ref CgCtx)     i64!      = { return @load(@ptradd(ctx, 16)) as i64 }
+fn cg_fn_name(ctx: ref CgCtx) ref char! = { return @load(@ptradd(ctx, 24)) as ref char }
+fn cg_strs(ctx: ref CgCtx)    ref void! = { return @load(@ptradd(ctx, 32)) as ref void }
+fn cg_str_cnt(ctx: ref CgCtx) i64!      = { return @load(@ptradd(ctx, 40)) as i64 }
+fn cg_tdefs(ctx: ref CgCtx)   ref void! = { return @load(@ptradd(ctx, 48)) as ref void }
+fn cg_edefs(ctx: ref CgCtx)   ref void! = { return @load(@ptradd(ctx, 56)) as ref void }
 
-fn cg_set_tmp(ctx: ref void, v: i64) void! = { @store(@ptradd(ctx, 8),  v as usize) }
-fn cg_set_lbl(ctx: ref void, v: i64) void! = { @store(@ptradd(ctx, 16), v as usize) }
-fn cg_set_fn_name(ctx: ref void, v: ref char) void! = { @store(@ptradd(ctx, 24), v as usize) }
-fn cg_set_str_cnt(ctx: ref void, v: i64) void! = { @store(@ptradd(ctx, 40), v as usize) }
+fn cg_set_tmp(ctx: ref CgCtx, v: i64) void! = { @store(@ptradd(ctx, 8),  v as usize) }
+fn cg_set_lbl(ctx: ref CgCtx, v: i64) void! = { @store(@ptradd(ctx, 16), v as usize) }
+fn cg_set_fn_name(ctx: ref CgCtx, v: ref char) void! = { @store(@ptradd(ctx, 24), v as usize) }
+fn cg_set_str_cnt(ctx: ref CgCtx, v: i64) void! = { @store(@ptradd(ctx, 40), v as usize) }
 
-fn cg_dvars(ctx: ref void) ref void! = { return @load(@ptradd(ctx, 64)) as ref void }
-fn cg_snames(ctx: ref void) ref void! = { return @load(@ptradd(ctx, 80)) as ref void }
+fn cg_dvars(ctx: ref CgCtx) ref void! = { return @load(@ptradd(ctx, 64)) as ref void }
+fn cg_snames(ctx: ref CgCtx) ref void! = { return @load(@ptradd(ctx, 80)) as ref void }
 
-fn cg_global_src_names(ctx: ref void) ref void! = { return @load(@ptradd(ctx, 256)) as ref void }
-fn cg_global_labels(ctx: ref void)    ref void! = { return @load(@ptradd(ctx, 264)) as ref void }
-fn cg_global_qtypes(ctx: ref void)    ref void! = { return @load(@ptradd(ctx, 272)) as ref void }
+fn cg_global_src_names(ctx: ref CgCtx) ref void! = { return @load(@ptradd(ctx, 256)) as ref void }
+fn cg_global_labels(ctx: ref CgCtx)    ref void! = { return @load(@ptradd(ctx, 264)) as ref void }
+fn cg_global_qtypes(ctx: ref CgCtx)    ref void! = { return @load(@ptradd(ctx, 272)) as ref void }
 
-fn cg_register_global(ctx: ref void, src_name: ref char, label: ref char, qtype: ref char) void! = {
+fn cg_register_global(ctx: ref CgCtx, src_name: ref char, label: ref char, qtype: ref char) void! = {
     @append(cg_global_src_names(ctx) as list[ref char], src_name)
     @append(cg_global_labels(ctx)    as list[ref char], label)
     @append(cg_global_qtypes(ctx)    as list[ref char], qtype)
 }
 
 /// Look up a global by source name. Returns ("", "") if not found.
-fn cg_lookup_global(ctx: ref void, src_name: ref char, out_label: ref char, out_qtype: ref char) bool! = {
+fn cg_lookup_global(ctx: ref CgCtx, src_name: ref char, out_label: ref char, out_qtype: ref char) bool! = {
     val names: ref void = cg_global_src_names(ctx)
     val len: i64 = @len(names) as i64
     val i: mut i64 = 0
@@ -209,36 +182,37 @@ fn cg_lookup_global(ctx: ref void, src_name: ref char, out_label: ref char, out_
     }
     return false
 }
-fn cg_sfields(ctx: ref void) ref void! = { return @load(@ptradd(ctx, 88)) as ref void }
-fn cg_unames(ctx: ref void) ref void! = { return @load(@ptradd(ctx, 112)) as ref void }
-fn cg_uvariants(ctx: ref void) ref void! = { return @load(@ptradd(ctx, 120)) as ref void }
-fn cg_fn_names(ctx: ref void) ref void! = { return @load(@ptradd(ctx, 128)) as ref void }
-fn cg_fn_params(ctx: ref void) ref void! = { return @load(@ptradd(ctx, 136)) as ref void }
-fn cg_extern_names(ctx: ref void) ref void! = { return @load(@ptradd(ctx, 144)) as ref void }
-fn cg_extern_syms(ctx: ref void)  ref void! = { return @load(@ptradd(ctx, 152)) as ref void }
-fn cg_tv_names(ctx: ref void)   ref void! = { return @load(@ptradd(ctx, 160)) as ref void }
-fn cg_tv_owners(ctx: ref void)  ref void! = { return @load(@ptradd(ctx, 168)) as ref void }
-fn cg_tv_tags(ctx: ref void)    ref void! = { return @load(@ptradd(ctx, 176)) as ref void }
-fn cg_tv_fields(ctx: ref void)  ref void! = { return @load(@ptradd(ctx, 184)) as ref void }
-fn cg_break_lbl(ctx: ref void)  i64!      = { return @load(@ptradd(ctx, 192)) as i64 }
-fn cg_cont_lbl(ctx: ref void)   i64!      = { return @load(@ptradd(ctx, 200)) as i64 }
-fn cg_set_break_lbl(ctx: ref void, v: i64) void! = { @store(@ptradd(ctx, 192), v as usize) }
-fn cg_set_cont_lbl(ctx: ref void, v: i64)  void! = { @store(@ptradd(ctx, 200), v as usize) }
 
-fn cg_defer_stack(ctx: ref void) ref void! = { return @load(@ptradd(ctx, 224)) as ref void }
+fn cg_sfields(ctx: ref CgCtx) ref void! = { return @load(@ptradd(ctx, 88)) as ref void }
+fn cg_unames(ctx: ref CgCtx) ref void! = { return @load(@ptradd(ctx, 112)) as ref void }
+fn cg_uvariants(ctx: ref CgCtx) ref void! = { return @load(@ptradd(ctx, 120)) as ref void }
+fn cg_fn_names(ctx: ref CgCtx) ref void! = { return @load(@ptradd(ctx, 128)) as ref void }
+fn cg_fn_params(ctx: ref CgCtx) ref void! = { return @load(@ptradd(ctx, 136)) as ref void }
+fn cg_extern_names(ctx: ref CgCtx) ref void! = { return @load(@ptradd(ctx, 144)) as ref void }
+fn cg_extern_syms(ctx: ref CgCtx)  ref void! = { return @load(@ptradd(ctx, 152)) as ref void }
+fn cg_tv_names(ctx: ref CgCtx)   ref void! = { return @load(@ptradd(ctx, 160)) as ref void }
+fn cg_tv_owners(ctx: ref CgCtx)  ref void! = { return @load(@ptradd(ctx, 168)) as ref void }
+fn cg_tv_tags(ctx: ref CgCtx)    ref void! = { return @load(@ptradd(ctx, 176)) as ref void }
+fn cg_tv_fields(ctx: ref CgCtx)  ref void! = { return @load(@ptradd(ctx, 184)) as ref void }
+fn cg_break_lbl(ctx: ref CgCtx)  i64!      = { return @load(@ptradd(ctx, 192)) as i64 }
+fn cg_cont_lbl(ctx: ref CgCtx)   i64!      = { return @load(@ptradd(ctx, 200)) as i64 }
+fn cg_set_break_lbl(ctx: ref CgCtx, v: i64) void! = { @store(@ptradd(ctx, 192), v as usize) }
+fn cg_set_cont_lbl(ctx: ref CgCtx, v: i64)  void! = { @store(@ptradd(ctx, 200), v as usize) }
 
-fn cg_defer_push(ctx: ref void, body: ref parser.Node) void! = {
+fn cg_defer_stack(ctx: ref CgCtx) ref void! = { return @load(@ptradd(ctx, 224)) as ref void }
+
+fn cg_defer_push(ctx: ref CgCtx, body: ref parser.Node) void! = {
     val stack: ref void = cg_defer_stack(ctx)
     @append(stack as list[ref void], body as ref void)
 }
 
-fn cg_defer_clear(ctx: ref void) void! = {
+fn cg_defer_clear(ctx: ref CgCtx) void! = {
     val empty: list[ref void] = []
     @store(@ptradd(ctx, 224), empty as usize)
 }
 
 /// Emit all deferred statements in LIFO order.
-fn cg_emit_defers(ctx: ref void) void! = {
+fn cg_emit_defers(ctx: ref CgCtx) void! = {
     val stack: ref void = cg_defer_stack(ctx)
     val n: i64 = @len(stack as list[ref void]) as i64
     val i: mut i64 = n - 1
@@ -253,8 +227,8 @@ fn cg_emit_defers(ctx: ref void) void! = {
     }
 }
 
-fn cg_mc_names(ctx: ref void) ref void! = { return @load(@ptradd(ctx, 208)) as ref void }
-fn cg_mc_vals(ctx: ref void)  ref void! = { return @load(@ptradd(ctx, 216)) as ref void }
+fn cg_mc_names(ctx: ref CgCtx) ref void! = { return @load(@ptradd(ctx, 208)) as ref void }
+fn cg_mc_vals(ctx: ref CgCtx)  ref void! = { return @load(@ptradd(ctx, 216)) as ref void }
 
 fn cg_register_module_const(ctx: ref void, name: ref char, val_str: ref char) void! = {
     @append(cg_mc_names(ctx) as list[ref char], name)
@@ -285,7 +259,7 @@ fn cg_inject_module_consts(ctx: ref void) void! = {
 }
 
 /// Look up a module-level constant value by name. Returns "" if not found.
-fn cg_const_val(ctx: ref void, name: ref char) ref char! = {
+fn cg_const_val(ctx: ref CgCtx, name: ref char) ref char! = {
     val names: ref void = cg_mc_names(ctx)
     val nlen: i64 = @len(names as list[ref char]) as i64
     val ni: mut i64 = 0
@@ -310,7 +284,7 @@ fn cg_const_val(ctx: ref void, name: ref char) ref char! = {
 }
 
 /// Returns true if name is a registered function.
-fn cg_is_fn(ctx: ref void, name: ref char) bool! = {
+fn cg_is_fn(ctx: ref CgCtx, name: ref char) bool! = {
     val names: ref void = cg_fn_names(ctx)
     val nlen: i64 = @len(names as list[ref char]) as i64
     val ni: mut i64 = 0
@@ -480,7 +454,7 @@ fn cg_lookup_tv(ctx: ref void, vname: ref char, out_owner: ref void, out_field_t
 }
 
 /// Register a struct type's field list by name.
-fn cg_register_struct(ctx: ref void, type_name: ref char, fields: ref void) void! = {
+fn cg_register_struct(ctx: ref CgCtx, type_name: ref char, fields: ref void) void! = {
     @append(cg_snames(ctx) as list[ref char], type_name)
     @append(cg_sfields(ctx) as list[ref void], fields)
 }
@@ -767,7 +741,7 @@ fn emit(ctx: ref void, s: ref char) void! = {
     str.StringBuilder.append_cstr(cg_sb(ctx), s)
 }
 
-fn emitln(ctx: ref void, s: ref char) void! = {
+fn emitln(ctx: ref CgCtx, s: ref char) void! = {
     str.StringBuilder.append_cstr(cg_sb(ctx), s)
     str.StringBuilder.append_char(cg_sb(ctx), 10)
 }
@@ -4808,7 +4782,7 @@ fn gen_enum_def_prefixed(ctx: ref void, item: ref parser.Node, mod_prefix: ref c
 }
 
 /// Generate the assert_fail handler and any needed runtime helpers.
-fn emit_runtime_helpers(ctx: ref void) void! = {
+fn emit_runtime_helpers(ctx: ref CgCtx) void! = {
     emitln(ctx, `
 data $str_w_mode = { b "w", b 0 }
 data $str_r_mode = { b "r", b 0 }
@@ -5099,7 +5073,7 @@ fn gen_items_with_prefix(ctx: ref void, items: list[ref parser.Node], mod_prefix
 /// Main entry for the resolved module tree.
 /// Flattens children depth-first, emits each layer with its mangled prefix.
 pub fn gen_module_resolved(root: ref module.ResolvedModule) ref char! = {
-    val ctx: ref void = cg_new()
+    val ctx: ref CgCtx = cg_new()
     emit_runtime_helpers(ctx)
 
     val out_prefixes: mut list[ref char] = []

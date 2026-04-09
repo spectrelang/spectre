@@ -2632,7 +2632,25 @@ impl Codegen {
                     self.emit(&format!("    {tmp} =l copy ${qbe_name}"));
                     Ok((tmp, "l"))
                 } else {
-                    Err(format!("{}: undefined variable: {name} at expression {expr:?}", self.current_file))
+                    let context = if !self.current_fn.is_empty() {
+                        format!(" in function '{}'", self.current_fn)
+                    } else {
+                        String::new()
+                    };
+                    
+                    // Check if it might be a type name being used as a value
+                    let hint = if self.type_defs.contains_key(name) 
+                        || self.union_defs.contains_key(name)
+                        || self.tagged_union_defs.contains_key(name)
+                        || self.enum_defs.contains_key(name)
+                        || self.type_aliases.contains_key(name) {
+                        format!("\n  hint: '{}' is a type name, not a variable. Did you mean to use it in a type annotation or with sizeof?", name)
+                    } else {
+                        String::new()
+                    };
+                    
+                    Err(format!("{}: undefined variable '{}'{}{}", 
+                        self.current_file, name, context, hint))
                 }
             }
 
