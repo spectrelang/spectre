@@ -4755,6 +4755,33 @@ fn gen_test_fn(ctx: ref void, body_stmts: ref parser.Node, test_id: i64) void! =
     val fname: ref char = @fmt("__sx_test_%lld", {test_id})
     val hdr: ref char = @fmt("export function w $%s() {\n@start\n", {fname})
     emit(ctx, hdr)
+    val gnames_list: ref void = cg_global_src_names(ctx)
+    val glen: i64 = @len(gnames_list) as i64
+    val gi: mut i64 = 0
+    for {
+        if gi >= glen { break }
+        val gn_opt = @get(gnames_list, gi as usize)
+        match gn_opt {
+            some gn => {
+                val glbl_buf: ref char = @alloc(256) as ref char
+                val gqt_buf: ref char = @alloc(8) as ref char
+                val found: bool = cg_lookup_global(ctx, gn as ref char, glbl_buf, gqt_buf)
+                if found {
+                    val dollar_label: ref char = @alloc(260) as ref char
+                    @snprintf(dollar_label, 260, "$%s", {glbl_buf})
+                    cg_register_local_var(ctx, gn as ref char, dollar_label)
+                    cg_mark_as_slot(ctx, gn as ref char)
+                    if str.rchar_cmp(gqt_buf, "w") == 0 {
+                        cg_register_local_type(ctx, gn as ref char, "bool")
+                    }
+                }
+                @free(glbl_buf)
+                @free(gqt_buf)
+            }
+            none => {}
+        }
+        gi++
+    }
     gen_stmts(ctx, body_stmts)
     cg_emit_defers(ctx)
     emitln(ctx, "    ret 0")
@@ -4918,6 +4945,39 @@ fn gen_items_with_prefix_skip_main(ctx: ref void, items: list[ref parser.Node], 
                                 cg_register_module_const(ctx, cname, "0")
                             }
                         }
+                    }
+                } elif k == parser.NK_VAL {
+                    val gname: ref char = node.d0 as ref char
+                    val gmut: i64 = node.d1 as i64
+                    val gty_node: ref parser.Node = node.d2 as ref parser.Node
+                    val gexpr: ref parser.Node = node.d3 as ref parser.Node
+                    if gmut != 0 {
+                        val gqtype: mut ref char = "l"
+                        if gty_node != 0 as ref parser.Node {
+                            gqtype = qbe_type_of(gty_node)
+                        } elif gexpr != 0 as ref parser.Node {
+                            if gexpr.kind == parser.NK_BOOL { gqtype = "w" }
+                        }
+                        val ginit: mut ref char = "0"
+                        if gexpr != 0 as ref parser.Node {
+                            if gexpr.kind == parser.NK_BOOL {
+                                val bv: i64 = gexpr.d0 as i64
+                                if bv != 0 { ginit = "1" } else { ginit = "0" }
+                            } elif gexpr.kind == parser.NK_INT_LIT {
+                                ginit = gexpr.d0 as ref char
+                            }
+                        }
+                        val glabel: ref char = @alloc(512) as ref char
+                        if str.rchar_cmp(mod_prefix, "") == 0 {
+                            @snprintf(glabel, 512, "%s", {gname})
+                        } else {
+                            @snprintf(glabel, 512, "%s__%s", {mod_prefix, gname})
+                        }
+                        val data_buf: ref char = @alloc(256) as ref char
+                        @snprintf(data_buf, 256, "data $%s = \{ %s %s \}\n", {glabel, gqtype, ginit})
+                        emit(ctx, data_buf)
+                        @free(data_buf)
+                        cg_register_global(ctx, gname, glabel, gqtype)
                     }
                 }
             }
