@@ -2568,7 +2568,98 @@ fn gen_builtin(ctx: ref void, expr: ref parser.Node) ref char! = {
         tmp = cap_val
     } elif str.rchar_cmp(name, "fmt") == 0 {
         val fmt2: ref char = get_arg(ctx, args, 0)
-        @snprintf(buf, 512, "    %%t%lld =l call $__sx_fmt(l %s, ...)\n", {tmp, fmt2})
+        val fmt_buf: i64 = fresh_tmp(ctx)
+        val fmt_written_w: i64 = fresh_tmp(ctx)
+        val fmt_written: i64 = fresh_tmp(ctx)
+        val fmt_copy_size: i64 = fresh_tmp(ctx)
+        val fmt_copy: i64 = fresh_tmp(ctx)
+        val fmt_nul: i64 = fresh_tmp(ctx)
+        val fmt_call_buf: ref char = @alloc(4096) as ref char
+        val fmt_call_pos: mut i64 = 0
+        val fmt_hdr: ref char = @alloc(256) as ref char
+    
+        @snprintf(fmt_hdr, 256, "    %%t%lld =l call $malloc(l 4096)\n", {fmt_buf})
+        val fmt_hdr_len: mut i64 = str.len_raw(fmt_hdr)
+        @memcpy(@ptradd(fmt_call_buf as ref void, fmt_call_pos), fmt_hdr as ref void, fmt_hdr_len)
+        fmt_call_pos = fmt_call_pos + fmt_hdr_len
+        @free(fmt_hdr)
+        emit(ctx, fmt_call_buf)
+        fmt_call_pos = 0
+
+        val snp_hdr: ref char = @alloc(256) as ref char
+        @snprintf(snp_hdr, 256, "    %%t%lld =w call $snprintf(l %%t%lld, l 4096, l %s", {fmt_written_w, fmt_buf, fmt2})
+        val snp_hdr_len: mut i64 = str.len_raw(snp_hdr)
+        @memcpy(@ptradd(fmt_call_buf as ref void, fmt_call_pos), snp_hdr as ref void, snp_hdr_len)
+        fmt_call_pos = fmt_call_pos + snp_hdr_len
+        @free(snp_hdr)
+
+        if args != 0 as ref void {
+            val falen: i64 = @len(args) as i64
+            if falen > 1 {
+                val fpack_opt = @get(args, 1)
+                match fpack_opt {
+                    some fpack_node => {
+                        val fpn: ref parser.Node = fpack_node as ref parser.Node
+                        if fpn.kind == parser.NK_ARGS_PACK {
+                            val fpack: ref void = fpn.d0 as ref void
+                            val fplen: i64 = @len(fpack) as i64
+                            if fplen > 0 {
+                                val sep_buf: ref char = @alloc(8) as ref char
+                                @snprintf(sep_buf, 8, ", ...,")
+                                val sep_len: mut i64 = str.len_raw(sep_buf)
+                                @memcpy(@ptradd(fmt_call_buf as ref void, fmt_call_pos), sep_buf as ref void, sep_len)
+                                fmt_call_pos = fmt_call_pos + sep_len
+                                @free(sep_buf)
+                                val fpi: mut i64 = 0
+                                for {
+                                    if fpi >= fplen { break }
+                                    val fpe_opt = @get(fpack, fpi as usize)
+                                    match fpe_opt {
+                                        some fpe => {
+                                            val fpe_node: ref parser.Node = fpe as ref parser.Node
+                                            val fpqt: ref char = expr_qtype(ctx, fpe_node)
+                                            val fpv: ref char = gen_expr(ctx, fpe_node)
+                                            val fpbuf: ref char = @alloc(64) as ref char
+                                            if fpi == 0 {
+                                                @snprintf(fpbuf, 64, " %s %s", {fpqt, fpv})
+                                            } else {
+                                                @snprintf(fpbuf, 64, ", %s %s", {fpqt, fpv})
+                                            }
+                                            val fpbuf_len: mut i64 = str.len_raw(fpbuf)
+                                            @memcpy(@ptradd(fmt_call_buf as ref void, fmt_call_pos), fpbuf as ref void, fpbuf_len)
+                                            fmt_call_pos = fmt_call_pos + fpbuf_len
+                                            @free(fpbuf)
+                                        }
+                                        none => {}
+                                    }
+                                    fpi++
+                                }
+                            }
+                        }
+                    }
+                    none => {}
+                }
+            }
+        }
+        @store8(@ptradd(fmt_call_buf as ref void, fmt_call_pos), 41) // ')'
+        fmt_call_pos++
+        @store8(@ptradd(fmt_call_buf as ref void, fmt_call_pos), 10) // '\n'
+        fmt_call_pos++
+        @store8(@ptradd(fmt_call_buf as ref void, fmt_call_pos), 0)
+        emit(ctx, fmt_call_buf)
+        // extsw, malloc copy, memcpy, nul-terminate, free buf
+        val tail_buf: ref char = @alloc(512) as ref char
+        @snprintf(tail_buf, 512, "    %%t%lld =l extsw %%t%lld\n    %%t%lld =l add %%t%lld, 1\n    %%t%lld =l call $malloc(l %%t%lld)\n    call $memcpy(l %%t%lld, l %%t%lld, l %%t%lld)\n    %%t%lld =l add %%t%lld, %%t%lld\n    storeb 0, %%t%lld\n    call $free(l %%t%lld)\n",
+            {fmt_written, fmt_written_w,
+             fmt_copy_size, fmt_written,
+             fmt_copy, fmt_copy_size,
+             fmt_copy, fmt_buf, fmt_written,
+             fmt_nul, fmt_copy, fmt_written,
+             fmt_nul,
+             fmt_buf})
+        emit(ctx, tail_buf)
+        @free(tail_buf)
+        @snprintf(buf, 512, "    %%t%lld =l copy %%t%lld\n", {tmp, fmt_copy})
         emit(ctx, buf)
     } elif str.rchar_cmp(name, "args") == 0 {
         @snprintf(buf, 512, "    %%t%lld =l call $__sx_get_args()\n", {tmp})
@@ -4446,6 +4537,18 @@ function l $sx_get_args() {
     jmp @args_loop
 @args_done
     ret %hdr
+}
+
+function l $__sx_get_args() {
+@start
+    %r =l call $sx_get_args()
+    ret %r
+}
+
+function w $os__exit(w %code) {
+@start
+    call $exit(w %code)
+    ret 0
 }
 `)
 }
