@@ -4,7 +4,7 @@ fn get_platform_name() ref char = {
     return "Linux"
 }
 
-test {
+pub fn main() void = {
     val platform = get_platform_name()
     
     match platform {
