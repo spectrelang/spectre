@@ -774,6 +774,9 @@ pub fn check_module(items: list[ref parser.Node], filename: ref char) list[ref c
         if k == parser.NK_CONST || k == parser.NK_USE {
             @append(ctx.fn_names, item.d1 as ref char)
         }
+        if k == parser.NK_VAL {
+            @append(ctx.fn_names, item.d0 as ref char)
+        }
         if k == parser.NK_WHEN_ITEMS {
             val witems: ref void = item.d1 as ref void
             if witems != 0 as ref void {
@@ -802,6 +805,9 @@ pub fn check_module(items: list[ref parser.Node], filename: ref char) list[ref c
                     }
                     if wk == parser.NK_CONST || wk == parser.NK_USE {
                         @append(ctx.fn_names, wi.d1 as ref char)
+                    }
+                    if wk == parser.NK_VAL {
+                        @append(ctx.fn_names, wi.d0 as ref char)
                     }
                 }
             }
