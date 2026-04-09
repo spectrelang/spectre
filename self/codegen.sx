@@ -44,45 +44,45 @@ fn platform_matches(name: ref char) bool! = {
 
 /// Codegen context
 pub type CgCtx = {
-    sb: ref void
-    tmp: i64
-    lbl: i64
-    fn_name: ref char
-    strs: list[ref char]
-    str_cnt: i64
-    tdefs: list[ref void]
-    edefs: list[ref void]
-    dvars: list[ref char]
-    dqtypes: list[ref char]
-    snames: list[ref char]
-    sfields: list[ref void]
-    lnames: list[ref char]
-    ltypes: list[ref char]
-    unames: list[ref char]
-    uvariants: list[ref void]
-    fn_names: list[ref char]
-    fn_params: list[ref void]
-    ext_names: list[ref char]
-    ext_syms: list[ref char]
-    tv_names: list[ref char]
-    tv_owners: list[ref char]
-    tv_tags: list[i64]
-    tv_fields: list[ref void]
-    break_lbl: i64
-    cont_lbl: i64
-    mc_names: list[ref char]
-    mc_vals: list[ref char]
-    defer_stack: list[ref void]
-    local_src_names: list[ref char]
-    local_qbe_names: list[ref char]
-    local_slot_names: list[ref char]
-    global_src_names: list[ref char]
-    global_labels: list[ref char]
-    global_qtypes: list[ref char]
+    sb: mut ref void
+    tmp: mut i64
+    lbl: mut i64
+    fn_name: mut ref char
+    strs: mut list[ref char]
+    str_cnt: mut i64
+    tdefs: mut list[ref void]
+    edefs: mut list[ref void]
+    dvars: mut list[ref char]
+    dqtypes: mut list[ref char]
+    snames: mut list[ref char]
+    sfields: mut list[ref void]
+    lnames: mut list[ref char]
+    ltypes: mut list[ref char]
+    unames: mut list[ref char]
+    uvariants:mut list[ref void]
+    fn_names: mut list[ref char]
+    fn_params: mut list[ref void]
+    ext_names: mut list[ref char]
+    ext_syms: mut list[ref char]
+    tv_names: mut list[ref char]
+    tv_owners: mut list[ref char]
+    tv_tags: mut list[i64]
+    tv_fields: mut list[ref void]
+    break_lbl: mut i64
+    cont_lbl: mut i64
+    mc_names: mut list[ref char]
+    mc_vals: mut list[ref char]
+    defer_stack: mut list[ref void]
+    local_src_names: mut list[ref char]
+    local_qbe_names: mut list[ref char]
+    local_slot_names: mut list[ref char]
+    global_src_names: mut list[ref char]
+    global_labels: mut list[ref char]
+    global_qtypes: mut list[ref char]
 }
 
 fn cg_new() ref CgCtx! = {
-    val ctx: mut ref CgCtx = @alloc(sizeof(CgCtx)) as ref CgCtx
+    val ctx: mut ref CgCtx = @alloc(@sizeof(CgCtx)) as ref CgCtx
     ctx.sb = str.StringBuilder.new()
     ctx.tmp = 0
     ctx.lbl = 0
