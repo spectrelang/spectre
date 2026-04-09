@@ -187,6 +187,23 @@ fn lex_string(l: ref Lexer) ref char! = {
             elif esc == 116    { @store8(@ptradd(buf, i), 9) }
             elif esc == 34     { @store8(@ptradd(buf, i), 34) }
             elif esc == 92     { @store8(@ptradd(buf, i), 92) }
+            elif esc == 120 {  // '\x' hex escape: read exactly 2 hex digits
+                val h1: i64 = lx_advance(l)
+                val h2: i64 = lx_advance(l)
+                val d1: mut i64 = 0
+                if h1 >= 97 { 
+                    d1 = h1 - 87 
+                } elif h1 >= 65 {
+                    d1 = h1 - 55 
+                } else {
+                    d1 = h1 - 48 
+                }
+                val d2: mut i64 = 0
+                if h2 >= 97 { d2 = h2 - 87 } 
+                elif h2 >= 65 { d2 = h2 - 55 } 
+                else { d2 = h2 - 48 }
+                @store8(@ptradd(buf, i), (d1 * 16 + d2) as u8)
+            }
             else               { @store8(@ptradd(buf, i), esc as u8) }
         } else {
             @store8(@ptradd(buf, i), c as u8)

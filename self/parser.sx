@@ -1588,7 +1588,12 @@ pub fn parse_item(p: ref Parser) result[ref Node, ref char]! = {
     if kind_is_val(k2) {
         p_advance(p)
         val vname = p_expect_ident(p)?
-        if p_eat_fn(p, lexer.kind_is_colon) { parse_type(p)? }
+        val vmut: mut i64 = 0
+        val vty: mut ref Node = 0 as ref Node
+        if p_eat_fn(p, lexer.kind_is_colon) {
+            if p_eat_fn(p, kind_is_mut) { vmut = 1 }
+            vty = parse_type(p)?
+        }
         p_expect_eq(p)?
         if kind_is_use(p_peek_kind(p)) {
             p_advance(p)
@@ -1600,6 +1605,11 @@ pub fn parse_item(p: ref Parser) result[ref Node, ref char]! = {
             return ok nu
         }
         val vexpr = parse_expr(p)?
+        if vmut != 0 {
+            val nv: mut ref Node = make_node(NK_VAL, line)
+            nv.d0 = vname as i64 nv.d1 = 1 nv.d2 = vty as i64 nv.d3 = vexpr as i64
+            return ok nv
+        }
         val nc: mut ref Node = make_node(NK_CONST, line)
         nc.d0 = public nc.d1 = vname as i64 nc.d2 = vexpr as i64
         return ok nc

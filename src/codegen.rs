@@ -5413,11 +5413,20 @@ fn type_expr_matches(a: &TypeExpr, b: &TypeExpr) -> bool {
 
 /// Translate Spectre format specifiers to printf specifiers.
 /// {d} → %d, {s} → %s, {f} → %f, {x} → %x, etc.
+/// \{ and \} are escape sequences that emit literal { and } without triggering format expansion.
 fn rewrite_format_string(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
     let mut chars = s.chars().peekable();
     while let Some(c) = chars.next() {
-        if c == '{' {
+        if c == '\\' {
+            match chars.peek() {
+                Some('{') | Some('}') => {
+                    out.push(*chars.peek().unwrap());
+                    chars.next();
+                }
+                _ => out.push(c),
+            }
+        } else if c == '{' {
             let mut spec = String::new();
             let mut closed = false;
             for inner in chars.by_ref() {
