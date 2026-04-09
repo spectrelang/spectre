@@ -1,0 +1,2 @@
+- The self-hosted compiler needs to track function return types in addition to parameters to generate correct QBE call instructions with the right return type
+- The start of ./self/codegen.sx needs a complete refactoring
