@@ -62,6 +62,7 @@ pub type CgCtx = {
     uvariants:mut list[ref void]
     fn_names: mut list[ref char]
     fn_params: mut list[ref void]
+    fn_rets: mut list[ref void]
     ext_names: mut list[ref char]
     ext_syms: mut list[ref char]
     ext_rets: mut list[ref void]
@@ -102,6 +103,7 @@ fn cg_new() ref CgCtx! = {
     ctx.uvariants = []
     ctx.fn_names = []
     ctx.fn_params = []
+    ctx.fn_rets = []
     ctx.ext_names = []
     ctx.ext_syms = []
     ctx.ext_rets = []
@@ -197,6 +199,7 @@ fn cg_unames(ctx: ref CgCtx) ref void! = { return ctx.unames as ref void }
 fn cg_uvariants(ctx: ref CgCtx) ref void! = { return ctx.uvariants as ref void }
 fn cg_fn_names(ctx: ref CgCtx) ref void! = { return ctx.fn_names as ref void }
 fn cg_fn_params(ctx: ref CgCtx) ref void! = { return ctx.fn_params as ref void }
+fn cg_fn_rets(ctx: ref CgCtx) ref void! = { return ctx.fn_rets as ref void }
 fn cg_extern_names(ctx: ref CgCtx) ref void! = { return ctx.ext_names as ref void }
 fn cg_extern_syms(ctx: ref CgCtx) ref void! = { return ctx.ext_syms as ref void }
 fn cg_ext_rets(ctx: ref CgCtx) ref void! = { return ctx.ext_rets as ref void }
@@ -349,9 +352,10 @@ fn cg_resolve_fn_name(ctx: ref CgCtx, name: ref char) ref char! = {
 }
 
 /// Register a function's mangled name and its param list for call-site type checking.
-fn cg_register_fn(ctx: ref CgCtx, mangled: ref char, params: ref void) void! = {
+fn cg_register_fn(ctx: ref CgCtx, mangled: ref char, params: ref void, ret_ty: ref void) void! = {
     @append(cg_fn_names(ctx) as list[ref char], mangled)
     @append(cg_fn_params(ctx) as list[ref void], params)
+    @append(cg_fn_rets(ctx) as list[ref void], ret_ty)
 }
 
 /// Look up param list for a mangled function name. Returns 0 if not found.
@@ -368,6 +372,31 @@ fn cg_lookup_fn_params(ctx: ref CgCtx, mangled: ref char) ref void! = {
                     val p_opt = @get(cg_fn_params(ctx) as list[ref void], ni as usize)
                     match p_opt {
                         some p => { return p as ref void }
+                        none   => { return 0 as ref void }
+                    }
+                }
+            }
+            none => {}
+        }
+        ni++
+    }
+    return 0 as ref void
+}
+
+/// Look up the return type for a mangled function name. Returns 0 if not found.
+fn cg_lookup_fn_ret(ctx: ref CgCtx, mangled: ref char) ref void! = {
+    val names: ref void = cg_fn_names(ctx)
+    val nlen: i64 = @len(names as list[ref char]) as i64
+    val ni: mut i64 = 0
+    for {
+        if ni >= nlen { break }
+        val n_opt = @get(names as list[ref char], ni as usize)
+        match n_opt {
+            some n => {
+                if str.rchar_cmp(n as ref char, mangled) == 0 {
+                    val r_opt = @get(cg_fn_rets(ctx) as list[ref void], ni as usize)
+                    match r_opt {
+                        some r => { return r as ref void }
                         none   => { return 0 as ref void }
                     }
                 }
@@ -2081,6 +2110,15 @@ fn gen_call(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
     val ret_qtype: mut ref char = "l"  // default to long/pointer
     if ext_sym != 0 as ref char {
         val ret_ty: ref void = cg_lookup_ext_ret(ctx, callee_raw)
+        if ret_ty != 0 as ref void {
+            ret_qtype = qbe_type_of(ret_ty as ref parser.Node)
+        }
+    } else {
+        val lookup_name: mut ref char = callee_name
+        if resolved_callee != 0 as ref char {
+            lookup_name = resolved_callee
+        }
+        val ret_ty: ref void = cg_lookup_fn_ret(ctx, lookup_name)
         if ret_ty != 0 as ref void {
             ret_qtype = qbe_type_of(ret_ty as ref parser.Node)
         }
@@ -4596,7 +4634,7 @@ fn gen_fn_prefixed(ctx: ref CgCtx, fn_node: ref parser.Node, mod_prefix: ref cha
     cg_set_fn_name(ctx, mangled)
 
     if params != 0 as ref void {
-        cg_register_fn(ctx, mangled, params)
+        cg_register_fn(ctx, mangled, params, ret_ty as ref void)
     }
 
     val export_kw: mut ref char = ""
@@ -4758,7 +4796,7 @@ fn gen_extern_fn(ctx: ref CgCtx, item: ref parser.Node) void! = {
     val ret_ty: ref void = item.d5 as ref void
     cg_register_extern(ctx, name, symbol, ret_ty)
     if params != 0 as ref void {
-        cg_register_fn(ctx, symbol, params)
+        cg_register_fn(ctx, symbol, params, ret_ty)
     }
 }
 
@@ -4957,6 +4995,7 @@ fn preregister_items(ctx: ref CgCtx, items: list[ref parser.Node], mod_prefix: r
                     val ns: ref char = node.d1 as ref char
                     val name: ref char = node.d2 as ref char
                     val params: ref void = node.d3 as ref void
+                    val ret_ty: ref void = node.d4 as ref void
                     val base: ref char = @alloc(256) as ref char
                     if ns != 0 as ref char {
                         @snprintf(base, 256, "%s__%s", {ns, name})
@@ -4970,7 +5009,7 @@ fn preregister_items(ctx: ref CgCtx, items: list[ref parser.Node], mod_prefix: r
                         @snprintf(mangled, 512, "%s__%s", {mod_prefix, base})
                     }
                     if params != 0 as ref void {
-                        cg_register_fn(ctx, mangled, params)
+                        cg_register_fn(ctx, mangled, params, ret_ty)
                     }
                 } elif k == parser.NK_TAGGED_UNIONDEF {
                     gen_tagged_union_def(ctx, node, mod_prefix)
@@ -5117,7 +5156,28 @@ fn gen_items_with_prefix(ctx: ref CgCtx, items: list[ref parser.Node], mod_prefi
                         if cexpr.kind == parser.NK_INT_LIT {
                             cg_register_module_const(ctx, cname, cexpr.d0 as ref char)
                         } elif cexpr.kind == parser.NK_FLOAT_LIT {
-                            cg_register_module_const(ctx, cname, cexpr.d0 as ref char)
+                            val ftext: ref char = cexpr.d0 as ref char
+                            val fval: ref char = @alloc(128) as ref char
+                            @snprintf(fval, 128, "d_%s", {ftext})
+                            cg_register_module_const(ctx, cname, fval)
+                        } elif cexpr.kind == parser.NK_UNOP {
+                            val uop: i64 = cexpr.d0 as i64
+                            val inner: ref parser.Node = cexpr.d1 as ref parser.Node
+                            if inner != 0 as ref parser.Node {
+                                if uop == parser.UOP_NEG {
+                                    if inner.kind == parser.NK_INT_LIT {
+                                        val itext: ref char = inner.d0 as ref char
+                                        val ival: ref char = @alloc(128) as ref char
+                                        @snprintf(ival, 128, "-%s", {itext})
+                                        cg_register_module_const(ctx, cname, ival)
+                                    } elif inner.kind == parser.NK_FLOAT_LIT {
+                                        val ftext2: ref char = inner.d0 as ref char
+                                        val fval2: ref char = @alloc(128) as ref char
+                                        @snprintf(fval2, 128, "d_-%s", {ftext2})
+                                        cg_register_module_const(ctx, cname, fval2)
+                                    }
+                                }
+                            }
                         } elif cexpr.kind == parser.NK_BOOL {
                             val bval: i64 = cexpr.d0 as i64
                             if bval != 0 {
@@ -5390,7 +5450,28 @@ fn gen_items_with_prefix_skip_main(ctx: ref CgCtx, items: list[ref parser.Node],
                         if cexpr.kind == parser.NK_INT_LIT {
                             cg_register_module_const(ctx, cname, cexpr.d0 as ref char)
                         } elif cexpr.kind == parser.NK_FLOAT_LIT {
-                            cg_register_module_const(ctx, cname, cexpr.d0 as ref char)
+                            val ftext3: ref char = cexpr.d0 as ref char
+                            val fval3: ref char = @alloc(128) as ref char
+                            @snprintf(fval3, 128, "d_%s", {ftext3})
+                            cg_register_module_const(ctx, cname, fval3)
+                        } elif cexpr.kind == parser.NK_UNOP {
+                            val uop2: i64 = cexpr.d0 as i64
+                            val inner2: ref parser.Node = cexpr.d1 as ref parser.Node
+                            if inner2 != 0 as ref parser.Node {
+                                if uop2 == parser.UOP_NEG {
+                                    if inner2.kind == parser.NK_INT_LIT {
+                                        val itext2: ref char = inner2.d0 as ref char
+                                        val ival2: ref char = @alloc(128) as ref char
+                                        @snprintf(ival2, 128, "-%s", {itext2})
+                                        cg_register_module_const(ctx, cname, ival2)
+                                    } elif inner2.kind == parser.NK_FLOAT_LIT {
+                                        val ftext4: ref char = inner2.d0 as ref char
+                                        val fval4: ref char = @alloc(128) as ref char
+                                        @snprintf(fval4, 128, "d_-%s", {ftext4})
+                                        cg_register_module_const(ctx, cname, fval4)
+                                    }
+                                }
+                            }
                         } elif cexpr.kind == parser.NK_BOOL {
                             val bval2: i64 = cexpr.d0 as i64
                             if bval2 != 0 {

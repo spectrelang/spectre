@@ -1,8 +1,9 @@
-val std = use("std")
+val stdio = use("std/stdio")
+val os = use("std/os")
 
 pub fn main() void! = {
-    val args = std.os.get_args()
+    val args = os.get_args()
     for arg in args {
-        std.stdio.print("arg: {s}\n", {arg})
+        stdio.print("arg: {s}\n", {arg})
     }
 }
