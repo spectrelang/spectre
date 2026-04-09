@@ -101,7 +101,6 @@ pub fn resolve_module(
     in_progress: list[ref char],
     exe_dir:     ref char
 ) result[ref ResolvedModule, ref char]! = {
-
     if in_progress_contains(in_progress, path) {
         return err @fmt("cyclic import: {s}", {path})
     }
