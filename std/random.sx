@@ -4,15 +4,20 @@
 
 val stdio = use("stdio.sx")
 
+when posix {
+    extern (C) fn arc4random_buf(buf: ref void, len: usize) void! = "arc4random_buf"
+    extern (C) fn arc4random_uniform(upper_bound: u32) u32! = "arc4random_uniform"
+}
+
 /// Fill `buf` with `len` cryptographically secure random bytes.
 pub fn random_bytes(buf: ref void, len: usize) void = {
-    trust @arc4random_buf(buf, len)
+    arc4random_buf(buf, len)
 }
 
 /// Return a cryptographically secure random u64.
 pub fn random_u64() u64 = {
     val buf: ref void = trust @alloc(8)
-    trust @arc4random_buf(buf, 8)
+    trust arc4random_buf(buf, 8)
     val result: u64 = trust @load(buf) as u64
     trust @free(buf)
     return result
@@ -21,7 +26,7 @@ pub fn random_u64() u64 = {
 /// Return a cryptographically secure random u32 in [0, upper_bound) without modulo bias.
 /// Requires upper_bound > 0.
 pub fn random_u32_below(upper_bound: u32) u32 = {
-    return trust @arc4random_uniform(upper_bound) as u32
+    return trust arc4random_uniform(upper_bound)
 }
 
 /// Allocate and return a null-terminated UUID v4 string (37 bytes: 36 chars + null).

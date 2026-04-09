@@ -1557,12 +1557,12 @@ fn gen_binop(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
         elif op == parser.OP_MUL { @snprintf(buf, 256, "    %%t%lld =l mul %s, %s\n",  {tmp, lhs, rhs}) }
         elif op == parser.OP_DIV { @snprintf(buf, 256, "    %%t%lld =l div %s, %s\n",  {tmp, lhs, rhs}) }
         elif op == parser.OP_REM { @snprintf(buf, 256, "    %%t%lld =l rem %s, %s\n",  {tmp, lhs, rhs}) }
-        elif op == parser.OP_EQ  { @snprintf(buf, 256, "    %%t%lld =l ceql %s, %s\n", {tmp, lhs_l, rhs_l}) }
-        elif op == parser.OP_NE  { @snprintf(buf, 256, "    %%t%lld =l cnel %s, %s\n", {tmp, lhs_l, rhs_l}) }
-        elif op == parser.OP_LT  { @snprintf(buf, 256, "    %%t%lld =l csltl %s, %s\n",{tmp, lhs_l, rhs_l}) }
-        elif op == parser.OP_GT  { @snprintf(buf, 256, "    %%t%lld =l csgtl %s, %s\n",{tmp, lhs_l, rhs_l}) }
-        elif op == parser.OP_LE  { @snprintf(buf, 256, "    %%t%lld =l cslel %s, %s\n",{tmp, lhs_l, rhs_l}) }
-        elif op == parser.OP_GE  { @snprintf(buf, 256, "    %%t%lld =l csgel %s, %s\n",{tmp, lhs_l, rhs_l}) }
+        elif op == parser.OP_EQ  { @snprintf(buf, 256, "    %%t%lld =w ceql %s, %s\n", {tmp, lhs_l, rhs_l}) }
+        elif op == parser.OP_NE  { @snprintf(buf, 256, "    %%t%lld =w cnel %s, %s\n", {tmp, lhs_l, rhs_l}) }
+        elif op == parser.OP_LT  { @snprintf(buf, 256, "    %%t%lld =w csltl %s, %s\n",{tmp, lhs_l, rhs_l}) }
+        elif op == parser.OP_GT  { @snprintf(buf, 256, "    %%t%lld =w csgtl %s, %s\n",{tmp, lhs_l, rhs_l}) }
+        elif op == parser.OP_LE  { @snprintf(buf, 256, "    %%t%lld =w cslel %s, %s\n",{tmp, lhs_l, rhs_l}) }
+        elif op == parser.OP_GE  { @snprintf(buf, 256, "    %%t%lld =w csgel %s, %s\n",{tmp, lhs_l, rhs_l}) }
         elif op == parser.OP_AND {
             @snprintf(buf, 256, "    %%t%lld =l and %s, %s\n", {tmp, lhs, rhs})
         }
@@ -1593,7 +1593,7 @@ fn gen_unop(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
     val is_float: bool = expr_is_float(ctx, inner_expr)
 
     if op == parser.UOP_NOT {
-        @snprintf(buf, 128, "    %%t%lld =l ceqw %s, 0\n", {tmp, inner})
+        @snprintf(buf, 128, "    %%t%lld =w ceqw %s, 0\n", {tmp, inner})
     } elif op == parser.UOP_NEG {
         if is_float {
             @snprintf(buf, 128, "    %%t%lld =d neg %s\n", {tmp, inner})
