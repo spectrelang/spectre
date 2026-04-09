@@ -145,7 +145,6 @@ fn cg_set_str_cnt(ctx: ref CgCtx, v: i64) void! = {
 
 fn cg_dvars(ctx: ref CgCtx) ref void! = { return ctx.dvars as ref void }
 fn cg_snames(ctx: ref CgCtx) ref void! = { return ctx.snames as ref void }
-
 fn cg_global_src_names(ctx: ref CgCtx) ref void! = { return ctx.global_src_names as ref void }
 fn cg_global_labels(ctx: ref CgCtx)    ref void! = { return ctx.global_labels as ref void }
 fn cg_global_qtypes(ctx: ref CgCtx)    ref void! = { return ctx.global_qtypes as ref void }
