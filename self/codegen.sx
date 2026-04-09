@@ -64,6 +64,7 @@ pub type CgCtx = {
     fn_params: mut list[ref void]
     ext_names: mut list[ref char]
     ext_syms: mut list[ref char]
+    ext_rets: mut list[ref void]
     tv_names: mut list[ref char]
     tv_owners: mut list[ref char]
     tv_tags: mut list[i64]
@@ -103,6 +104,7 @@ fn cg_new() ref CgCtx! = {
     ctx.fn_params = []
     ctx.ext_names = []
     ctx.ext_syms = []
+    ctx.ext_rets = []
     ctx.tv_names = []
     ctx.tv_owners = []
     ctx.tv_tags = []
@@ -197,6 +199,7 @@ fn cg_fn_names(ctx: ref CgCtx) ref void! = { return ctx.fn_names as ref void }
 fn cg_fn_params(ctx: ref CgCtx) ref void! = { return ctx.fn_params as ref void }
 fn cg_extern_names(ctx: ref CgCtx) ref void! = { return ctx.ext_names as ref void }
 fn cg_extern_syms(ctx: ref CgCtx) ref void! = { return ctx.ext_syms as ref void }
+fn cg_ext_rets(ctx: ref CgCtx) ref void! = { return ctx.ext_rets as ref void }
 fn cg_tv_names(ctx: ref CgCtx) ref void! = { return ctx.tv_names as ref void }
 fn cg_tv_owners(ctx: ref CgCtx) ref void! = { return ctx.tv_owners as ref void }
 fn cg_tv_tags(ctx: ref CgCtx) ref void! = { return ctx.tv_tags as ref void }
@@ -376,10 +379,11 @@ fn cg_lookup_fn_params(ctx: ref CgCtx, mangled: ref char) ref void! = {
     return 0 as ref void
 }
 
-/// Register an extern function: maps its declared name to its C symbol.
-fn cg_register_extern(ctx: ref CgCtx, name: ref char, symbol: ref char) void! = {
+/// Register an extern function: maps its declared name to its C symbol and stores return type.
+fn cg_register_extern(ctx: ref CgCtx, name: ref char, symbol: ref char, ret_ty: ref void) void! = {
     @append(cg_extern_names(ctx) as list[ref char], name)
     @append(cg_extern_syms(ctx)  as list[ref char], symbol)
+    @append(cg_ext_rets(ctx)     as list[ref void], ret_ty)
 }
 
 /// Look up the C symbol for an extern function name. Returns 0 if not found.
@@ -405,6 +409,31 @@ fn cg_lookup_extern_symbol(ctx: ref CgCtx, name: ref char) ref char! = {
         ni++
     }
     return 0 as ref char
+}
+
+/// Look up the return type for an extern function name. Returns 0 if not found.
+fn cg_lookup_ext_ret(ctx: ref CgCtx, name: ref char) ref void! = {
+    val names: ref void = cg_extern_names(ctx)
+    val nlen: i64 = @len(names as list[ref char]) as i64
+    val ni: mut i64 = 0
+    for {
+        if ni >= nlen { break }
+        val n_opt = @get(names as list[ref char], ni as usize)
+        match n_opt {
+            some n => {
+                if str.rchar_cmp(n as ref char, name) == 0 {
+                    val r_opt = @get(cg_ext_rets(ctx) as list[ref void], ni as usize)
+                    match r_opt {
+                        some r => { return r as ref void }
+                        none   => { return 0 as ref void }
+                    }
+                }
+            }
+            none => {}
+        }
+        ni++
+    }
+    return 0 as ref void
 }
 
 /// Register a tagged union variant: variant_name -> (union_name, tag_index, field_type_node).
@@ -1155,9 +1184,35 @@ fn gen_expr(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
 
     if k == parser.NK_SOME {
         val inner: ref char = gen_expr(ctx, expr.d0 as ref parser.Node)
+        val inner_node: ref parser.Node = expr.d0 as ref parser.Node   
+        val needs_extend: mut bool = false
+        if inner_node != 0 as ref parser.Node && inner_node.kind == parser.NK_CALL {
+            val callee_node: ref parser.Node = inner_node.d0 as ref parser.Node
+            val callee_name: ref char = resolve_callee_name(callee_node)
+            val ext_sym: ref char = cg_lookup_extern_symbol(ctx, callee_name)
+            if ext_sym != 0 as ref char {
+                val ret_ty: ref void = cg_lookup_ext_ret(ctx, callee_name)
+                if ret_ty != 0 as ref void {
+                    val ret_qtype: ref char = qbe_type_of(ret_ty as ref parser.Node)
+                    if str.rchar_cmp(ret_qtype, "w") == 0 || str.rchar_cmp(ret_qtype, "s") == 0 {
+                        needs_extend = true
+                    }
+                }
+            }
+        }
+        
         val tmp_some: i64 = fresh_tmp(ctx)
-        val buf_some: ref char = @alloc(64) as ref char
-        @snprintf(buf_some, 64, "    %%t%lld =l add %s, 1\n", {tmp_some, inner})
+        val buf_some: ref char = @alloc(128) as ref char
+        if needs_extend != 0 {
+            val ext_tmp: i64 = fresh_tmp(ctx)
+            val ext_buf: ref char = @alloc(64) as ref char
+            @snprintf(ext_buf, 64, "    %%t%lld =l extuw %s\n", {ext_tmp, inner})
+            emit(ctx, ext_buf)
+            @free(ext_buf)
+            @snprintf(buf_some, 128, "    %%t%lld =l add %%t%lld, 1\n", {tmp_some, ext_tmp})
+        } else {
+            @snprintf(buf_some, 64, "    %%t%lld =l add %s, 1\n", {tmp_some, inner})
+        }
         emit(ctx, buf_some)
         @free(buf_some)
         val res7: ref char = @alloc(16) as ref char
@@ -1949,7 +2004,7 @@ fn gen_call(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
         }
     }
 
-    val tmp: i64 = fresh_tmp(ctx)
+    val tmp: mut i64 = fresh_tmp(ctx)
     val resolved_callee: ref char = cg_resolve_fn_name(ctx, callee_name)
     val effective_callee: mut ref char = ""
     if resolved_callee != 0 as ref char { effective_callee = resolved_callee } else { effective_callee = callee_name }
@@ -2023,24 +2078,32 @@ fn gen_call(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
         && ext_sym == 0 as ref char
         && callee_node.kind == parser.NK_IDENT
 
+    val ret_qtype: mut ref char = "l"  // default to long/pointer
+    if ext_sym != 0 as ref char {
+        val ret_ty: ref void = cg_lookup_ext_ret(ctx, callee_raw)
+        if ret_ty != 0 as ref void {
+            ret_qtype = qbe_type_of(ret_ty as ref parser.Node)
+        }
+    }
+
     if is_fn_ptr {
         val dqt: ref char = cg_direct_type(ctx, callee_name)
         if str.rchar_cmp(dqt, "") != 0 {
-            @snprintf(hdr, 256, "    %%t%lld =l call %%%s(", {tmp, callee_name})
+            @snprintf(hdr, 256, "    %%t%lld =%s call %%%s(", {tmp, ret_qtype, callee_name})
         } else {
             val ptr_tmp: i64 = fresh_tmp(ctx)
             val load_buf: ref char = @alloc(64) as ref char
             @snprintf(load_buf, 64, "    %%t%lld =l loadl %%%s\n", {ptr_tmp, callee_name})
             emit(ctx, load_buf)
             @free(load_buf)
-            @snprintf(hdr, 256, "    %%t%lld =l call %%t%lld(", {tmp, ptr_tmp})
+            @snprintf(hdr, 256, "    %%t%lld =%s call %%t%lld(", {tmp, ret_qtype, ptr_tmp})
         }
     } else {
         val effective_name: mut ref char = callee_name
         if resolved_callee != 0 as ref char {
             effective_name = resolved_callee
         }
-        @snprintf(hdr, 256, "    %%t%lld =l call $%s(", {tmp, effective_name})
+        @snprintf(hdr, 256, "    %%t%lld =%s call $%s(", {tmp, ret_qtype, effective_name})
     }
     val hdr_len: mut i64 = str.len_raw(hdr)
     @memcpy(@ptradd(call_buf as ref void, call_pos), hdr as ref void, hdr_len)
@@ -2093,6 +2156,21 @@ fn gen_call(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
     call_pos = call_pos + 1
     @store8(@ptradd(call_buf as ref void, call_pos), 0)
     emitln(ctx, call_buf)
+
+    if ext_sym != 0 as ref char {
+        val ret_ty2: ref void = cg_lookup_ext_ret(ctx, callee_raw)
+        if ret_ty2 != 0 as ref void {
+            val ret_qtype2: ref char = qbe_type_of(ret_ty2 as ref parser.Node)
+            if str.rchar_cmp(ret_qtype2, "w") == 0 {
+                val ext_tmp: i64 = fresh_tmp(ctx)
+                val ext_buf: ref char = @alloc(64) as ref char
+                @snprintf(ext_buf, 64, "    %%t%lld =l extsw %%t%lld\n", {ext_tmp, tmp})
+                emit(ctx, ext_buf)
+                @free(ext_buf)
+                tmp = ext_tmp
+            }
+        }
+    }
 
     val res: ref char = @alloc(16) as ref char
     @snprintf(res, 16, "%%t%lld", {tmp})
@@ -4677,7 +4755,8 @@ fn gen_extern_fn(ctx: ref CgCtx, item: ref parser.Node) void! = {
     val name: ref char = item.d1 as ref char
     val symbol: ref char = item.d2 as ref char
     val params: ref void = item.d4 as ref void
-    cg_register_extern(ctx, name, symbol)
+    val ret_ty: ref void = item.d5 as ref void
+    cg_register_extern(ctx, name, symbol, ret_ty)
     if params != 0 as ref void {
         cg_register_fn(ctx, symbol, params)
     }

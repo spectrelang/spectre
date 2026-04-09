@@ -1,6 +1,5 @@
-val std = use("std")
-val hi = std.io
+val stdio = use("std/stdio")
 
 pub fn main() void! = {
-    hi.puts("hello, world")
+    stdio.puts("hello, world")
 }
