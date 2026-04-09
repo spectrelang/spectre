@@ -117,8 +117,6 @@ pub fn clamp(x: i64, lo: i64, hi: i64) i64 = {
 /// Power (integer, simple loop)
 pub fn pow(base: i64, exp: usize) i64 = {
     val result: mut i64 = 1
-    val i: mut usize = 0
-
     for (i = 0; i < exp; i++) {
         result = result * base
     }
@@ -129,7 +127,6 @@ pub fn pow(base: i64, exp: usize) i64 = {
         !(base < 0 && exp % 2 == 0) || result >= 0
         !(base < 0 && exp % 2 == 1) || result <= 0
     }
-
     return result
 }
 
@@ -225,7 +222,6 @@ pub fn sqrt(x: f64) f64 = {
     }
 
     val guess: mut f64 = x
-    val i: mut usize = 0
 
     for (i = 0; i < 20; i++) {
         guess = 0.5 * (guess + x / guess)
