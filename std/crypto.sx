@@ -6,7 +6,6 @@ pub fn hash_fnv(key: usize) usize! = {
     val FNV_PRIME: usize = 1099511628211
     val h: mut usize = FNV_OFFSET
     val k: mut usize = key
-    val i: mut usize = 0
     for (i = 0; i < 8; i++) {
         val byte: usize = k & 255
         h = h ^ byte
