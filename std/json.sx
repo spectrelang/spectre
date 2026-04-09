@@ -269,7 +269,7 @@ pub fn builder_set_root(handle: ref void, value: ref void) void! = {
 }
 
 test {
-    val input: ref char = `{"name":"Alice","age":30,"active":true,"score":9.5}`
+    val input: ref char = \\{"name":"Alice","age":30,"active":true,"score":9.5}
     val doc_opt = parse(input)
     match doc_opt {
         none => { assert false }
@@ -294,7 +294,7 @@ test {
         }
     }
 
-    val arr_input: ref char = `[1,2,3]`
+    val arr_input: ref char = \\[1,2,3]
     val arr_opt = parse(arr_input)
     match arr_opt {
         none => { assert false }
