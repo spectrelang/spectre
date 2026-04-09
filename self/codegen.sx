@@ -3032,9 +3032,11 @@ fn gen_builtin(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
                 val a3_opt = @get(args, ai3 as usize)
                 match a3_opt {
                     some a3 => {
-                        val at3: ref char = gen_expr(ctx, a3 as ref parser.Node)
+                        val a3_node: ref parser.Node = a3 as ref parser.Node
+                        val at3: ref char = gen_expr(ctx, a3_node)
                         if !first3 { str.StringBuilder.append_cstr(call_sb2, ", ") }
-                        val tbuf4: ref void = str.format("l %s", {at3})
+                        val qtype3: ref char = expr_qtype(ctx, a3_node)
+                        val tbuf4: ref void = str.format("%s %s", {qtype3, at3})
                         str.StringBuilder.append(call_sb2, tbuf4)
                         first3 = false
                     }
@@ -3054,14 +3056,38 @@ fn gen_builtin(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
         if args != 0 as ref void {
             val alen: i64 = @len(args) as i64
             val ai: mut i64 = 0
+            val arg_nodes: mut list[ref parser.Node] = []
             val arg_tmps2: mut list[ref char] = []
             for {
                 if ai >= alen { break }
                 val a_opt = @get(args, ai as usize)
                 match a_opt {
                     some a => {
-                        val at: ref char = gen_expr(ctx, a as ref parser.Node)
-                        @append(arg_tmps2, at)
+                        val a_node: ref parser.Node = a as ref parser.Node
+                        val ak: i64 = a_node.kind
+                        if ak == parser.NK_ARGS_PACK {
+                            val pack: ref void = a_node.d0 as ref void
+                            val plen: i64 = @len(pack) as i64
+                            val pi: mut i64 = 0
+                            for {
+                                if pi >= plen { break }
+                                val pe_opt = @get(pack, pi as usize)
+                                match pe_opt {
+                                    some pe => {
+                                        val pe_node: ref parser.Node = pe as ref parser.Node
+                                        val at: ref char = gen_expr(ctx, pe_node)
+                                        @append(arg_nodes, pe_node)
+                                        @append(arg_tmps2, at)
+                                    }
+                                    none => {}
+                                }
+                                pi++
+                            }
+                        } else {
+                            val at: ref char = gen_expr(ctx, a_node)
+                            @append(arg_nodes, a_node)
+                            @append(arg_tmps2, at)
+                        }
                     }
                     none => {}
                 }
@@ -3072,10 +3098,21 @@ fn gen_builtin(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
             for {
                 if ti3 >= tlen3 { break }
                 val t3_opt = @get(arg_tmps2, ti3 as usize)
+                val n_opt = @get(arg_nodes, ti3 as usize)
                 match t3_opt {
                     some t3 => {
                         if ti3 > 0 { str.StringBuilder.append_cstr(call_sb, ", ") }
-                        val tbuf3: ref void = str.format("l %s", {t3 as ref char})
+                        val qtype: mut ref char = "l"
+                        match n_opt {
+                            some n => {
+                                val qt: ref char = expr_qtype(ctx, n as ref parser.Node)
+                                if str.rchar_cmp(qt, "") != 0 {
+                                    qtype = qt
+                                }
+                            }
+                            none => {}
+                        }
+                        val tbuf3: ref void = str.format("%s %s", {qtype, t3 as ref char})
                         str.StringBuilder.append(call_sb, tbuf3)
                     }
                     none => {}
