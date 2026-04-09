@@ -5,3 +5,5 @@
 *.o
 *.s
 *.out
+*.ssa
+.vscode
