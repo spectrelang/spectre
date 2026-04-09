@@ -1662,6 +1662,62 @@ fn gen_call(ctx: ref void, expr: ref parser.Node) ref char! = {
 
     val tv_tag: i64 = cg_lookup_tv(ctx, callee_name, tv_owner_slot, tv_field_slot)
 
+    if tv_tag < 0 {
+        val sep_pos: mut i64 = -1
+        val scan_i: mut i64 = 0
+        for {
+            val sc: u8 = @load8(@ptradd(callee_name as ref void, scan_i))
+            if sc == 0 { break }
+            val sc2: u8 = @load8(@ptradd(callee_name as ref void, scan_i + 1))
+            if sc == 95 && sc2 == 95 { sep_pos = scan_i } // '__'
+            scan_i++
+        }
+        if sep_pos >= 0 {
+            val bare_name: ref char = @ptradd(callee_name as ref void, sep_pos + 2) as ref char
+            @store(tv_owner_slot, 0)
+            @store(tv_field_slot, 0)
+            val tv_tag2: i64 = cg_lookup_tv(ctx, bare_name, tv_owner_slot, tv_field_slot)
+            if tv_tag2 >= 0 {
+                val n_args2: mut i64 = 0
+                if args_list != 0 as ref void { n_args2 = @len(args_list) as i64 }
+                val alloc_size2: i64 = 8 + n_args2 * 8
+                val ptr2: i64 = fresh_tmp(ctx)
+                val pbuf2: ref char = @alloc(64) as ref char
+                @snprintf(pbuf2, 64, "    %%t%lld =l alloc8 %lld\n    storel %lld, %%t%lld\n",
+                    {ptr2, alloc_size2, tv_tag2, ptr2})
+                emit(ctx, pbuf2)
+                @free(pbuf2)
+                if args_list != 0 as ref void {
+                    val flen2: i64 = @len(args_list) as i64
+                    val fi2: mut i64 = 0
+                    for {
+                        if fi2 >= flen2 { break }
+                        val fa2_opt = @get(args_list, fi2 as usize)
+                        match fa2_opt {
+                            some fa2 => {
+                                val field_val2: ref char = gen_expr(ctx, fa2 as ref parser.Node)
+                                val offset2: i64 = 8 + fi2 * 8
+                                val fptr2: i64 = fresh_tmp(ctx)
+                                val fbuf2: ref char = @alloc(128) as ref char
+                                @snprintf(fbuf2, 128, "    %%t%lld =l add %%t%lld, %lld\n    storel %s, %%t%lld\n",
+                                    {fptr2, ptr2, offset2, field_val2, fptr2})
+                                emit(ctx, fbuf2)
+                                @free(fbuf2)
+                            }
+                            none => {}
+                        }
+                        fi2++
+                    }
+                }
+                @free(tv_owner_slot)
+                @free(tv_field_slot)
+                val tv_res2: ref char = @alloc(16) as ref char
+                @snprintf(tv_res2, 16, "%%t%lld", {ptr2})
+                return tv_res2
+            }
+        }
+    }
+
     if tv_tag >= 0 {
         val n_args: mut i64 = 0
         if args_list != 0 as ref void { n_args = @len(args_list) as i64 }
@@ -4357,6 +4413,11 @@ fn gen_tagged_union_def(ctx: ref void, item: ref parser.Node, mod_prefix: ref ch
                 val vname: ref char = vnode.d0 as ref char
                 val vty: ref void = vnode.d1 as ref void
                 cg_register_tv(ctx, vname, mangled_name, vi, vty)
+                if str.rchar_cmp(mod_prefix, "") != 0 {
+                    val prefixed_vname: ref char = @alloc(256) as ref char
+                    @snprintf(prefixed_vname, 256, "%s__%s", {mod_prefix, vname})
+                    cg_register_tv(ctx, prefixed_vname, mangled_name, vi, vty)
+                }
             }
             none => {}
         }
