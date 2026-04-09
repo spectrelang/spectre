@@ -1564,10 +1564,10 @@ fn gen_binop(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
         elif op == parser.OP_LE  { @snprintf(buf, 256, "    %%t%lld =w cslel %s, %s\n",{tmp, lhs_l, rhs_l}) }
         elif op == parser.OP_GE  { @snprintf(buf, 256, "    %%t%lld =w csgel %s, %s\n",{tmp, lhs_l, rhs_l}) }
         elif op == parser.OP_AND {
-            @snprintf(buf, 256, "    %%t%lld =l and %s, %s\n", {tmp, lhs, rhs})
+            @snprintf(buf, 256, "    %%t%lld =w and %s, %s\n", {tmp, lhs, rhs})
         }
         elif op == parser.OP_OR {
-            @snprintf(buf, 256, "    %%t%lld =l or %s, %s\n", {tmp, lhs, rhs})
+            @snprintf(buf, 256, "    %%t%lld =w or %s, %s\n", {tmp, lhs, rhs})
         }
         elif op == parser.OP_BAND { @snprintf(buf, 256, "    %%t%lld =l and %s, %s\n", {tmp, lhs, rhs}) }
         elif op == parser.OP_BOR  { @snprintf(buf, 256, "    %%t%lld =l or %s, %s\n",  {tmp, lhs, rhs}) }

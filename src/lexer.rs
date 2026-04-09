@@ -167,6 +167,64 @@ impl Lexer {
     }
 
     fn next_token(&mut self, c: char) -> Result<TokenKind, String> {
+        if c == '\\' && self.src.get(self.pos + 1) == Some(&'\\') {
+            self.advance();
+            self.advance();
+            
+            let mut lines = Vec::new();
+            let mut current_line = String::new();
+            
+            loop {
+                match self.peek() {
+                    None | Some('\n') => {
+                        lines.push(current_line.clone());
+                        if self.peek() == Some('\n') {
+                            self.advance();
+                        }
+                        break;
+                    }
+                    Some(ch) => {
+                        current_line.push(ch);
+                        self.advance();
+                    }
+                }
+            }
+            
+            loop {
+                let start_pos = self.pos;
+                while self.peek().map(|c| c == ' ' || c == '\t').unwrap_or(false) {
+                    self.advance();
+                }
+                
+                if self.peek() == Some('\\') && self.src.get(self.pos + 1) == Some(&'\\') {
+                    self.advance();
+                    self.advance();
+                    
+                    current_line = String::new();
+                    loop {
+                        match self.peek() {
+                            None | Some('\n') => {
+                                lines.push(current_line.clone());
+                                if self.peek() == Some('\n') {
+                                    self.advance();
+                                }
+                                break;
+                            }
+                            Some(ch) => {
+                                current_line.push(ch);
+                                self.advance();
+                            }
+                        }
+                    }
+                } else {
+                    self.pos = start_pos;
+                    break;
+                }
+            }
+            
+            return Ok(TokenKind::StringLit(lines.join("\n")));
+        }
+        
         if c == '"' {
             self.advance();
             let mut s = String::new();
