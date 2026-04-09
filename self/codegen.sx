@@ -1990,7 +1990,10 @@ fn gen_call(ctx: ref void, expr: ref parser.Node) ref char! = {
     }
 
     val tmp: i64 = fresh_tmp(ctx)
-    val fn_params_list: ref void = cg_lookup_fn_params(ctx, callee_name)
+    val resolved_callee: ref char = cg_resolve_fn_name(ctx, callee_name)
+    val effective_callee: mut ref char = ""
+    if resolved_callee != 0 as ref char { effective_callee = resolved_callee } else { effective_callee = callee_name }
+    val fn_params_list: ref void = cg_lookup_fn_params(ctx, effective_callee)
     if fn_params_list != 0 as ref void {
         val plen: i64 = @len(fn_params_list) as i64
         val tlen0: i64 = @len(arg_tmps) as i64
@@ -2056,7 +2059,6 @@ fn gen_call(ctx: ref void, expr: ref parser.Node) ref char! = {
     val call_buf: ref char = @alloc(8192) as ref char
     val call_pos: mut i64 = 0
     val hdr: ref char = @alloc(256) as ref char
-    val resolved_callee: ref char = cg_resolve_fn_name(ctx, callee_name)
     val is_fn_ptr: bool = resolved_callee == 0 as ref char 
         && ext_sym == 0 as ref char 
         && callee_node.kind == parser.NK_IDENT
