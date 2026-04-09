@@ -1,7 +1,7 @@
-val std = use("std")
+val stdio = use("std/stdio")
 
 pub fn main() void! = {
     val hello: ref char = "hello world"
     val fmt_string: ref char = @fmt("{d} {d} {s}", {12, 14, hello})
-    std.stdio.print("{s}", {fmt_string})
+    stdio.print("{s}", {fmt_string})
 }
