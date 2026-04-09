@@ -3,6 +3,7 @@
 set -u
 
 SAMPLES_DIR="./samples"
+STD_DIR="./std"
 COMPILER="./s-out/sxc"
 
 total=0
@@ -41,19 +42,37 @@ for file in "$SAMPLES_DIR"/*.sx; do
 done
 
 echo
-echo "Summary:"
+echo "Extra tests:"
+
+for file in "$STD_DIR"/*.sx; do
+    [ -e "$file" ] || continue
+
+    filename=$(basename "$file")
+
+    ((total++))
+
+    "$COMPILER" "$file" --test > /dev/null 2>&1
+    status=$?
+
+    if [ $status -eq 0 ]; then
+        echo "[PASS] $filename"
+        ((passed++))
+    else
+        echo "[FAIL] $filename"
+        ((failed++))
+    fi
+done
+
+echo
+echo "Final Summary:"
 echo "Total tests : $total"
 echo "Passed      : $passed"
 echo "Failed      : $failed"
 echo "Skipped     : $skipped"
 echo
-echo "Extra tests:"
 
-for file in ./std/*.sx; do
-    [ -e "$file" ] || continue
-    filename=$(basename "$file")
-    echo "[TEST] $filename"
-    "$COMPILER" "$file" --test
-done
+if [ $failed -ne 0 ]; then
+    exit 1
+fi
 
 exit 0
