@@ -792,6 +792,12 @@ fn is_word_type_name(name: ref char) bool! = {
     return false
 }
 
+fn is_float_type_name(name: ref char) bool! = {
+    if str.rchar_cmp(name, "f32") == 0 { return true }
+    if str.rchar_cmp(name, "f64") == 0 { return true }
+    return false
+}
+
 fn qbe_type_of(ty: ref parser.Node) ref char! = {
     if ty == 0 as ref parser.Node { return "l" }
     val k: i64 = ty.kind
@@ -1130,6 +1136,8 @@ fn gen_expr(ctx: ref void, expr: ref parser.Node) ref char! = {
                         emit(ctx, buf_w_load)
                         @free(buf_w_load)
                         @snprintf(buf_load, 128, "    %%t%lld =l extsw %%t%lld\n", {tmp_load, w_tmp_load})
+                    } elif is_float_type_name(ltype_slot) {
+                        @snprintf(buf_load, 128, "    %%t%lld =d loadd %s\n", {tmp_load, slot_ref})
                     } else {
                         @snprintf(buf_load, 128, "    %%t%lld =l loadl %s\n", {tmp_load, slot_ref})
                     }
@@ -1204,11 +1212,14 @@ fn gen_expr(ctx: ref void, expr: ref parser.Node) ref char! = {
         emit(ctx, buf_ok)
         @free(buf_ok)
         if expr.d0 != 0 {
-            val inner_ok: ref char = gen_expr(ctx, expr.d0 as ref parser.Node)
+            val inner_ok_expr: ref parser.Node = expr.d0 as ref parser.Node
+            val inner_ok: ref char = gen_expr(ctx, inner_ok_expr)
             val off_ok: i64 = fresh_tmp(ctx)
             val vbuf_ok: ref char = @alloc(128) as ref char
-            @snprintf(vbuf_ok, 128, "    %%t%lld =l add %%t%lld, 8\n    storel %s, %%t%lld\n",
-                {off_ok, ptr_ok, inner_ok, off_ok})
+            val store_op_ok: mut ref char = ""
+            if expr_is_float(ctx, inner_ok_expr) { store_op_ok = "stored" } else { store_op_ok = "storel" }
+            @snprintf(vbuf_ok, 128, "    %%t%lld =l add %%t%lld, 8\n    %s %s, %%t%lld\n",
+                {off_ok, ptr_ok, store_op_ok, inner_ok, off_ok})
             emit(ctx, vbuf_ok)
             @free(vbuf_ok)
         }
@@ -1257,15 +1268,54 @@ fn gen_expr(ctx: ref void, expr: ref parser.Node) ref char! = {
     }
 
     if k == parser.NK_CAST {
-        val inner3: ref char = gen_expr(ctx, expr.d0 as ref parser.Node)
+        val inner_expr: ref parser.Node = expr.d0 as ref parser.Node
+        val inner3: ref char = gen_expr(ctx, inner_expr)
         val ty: ref parser.Node = expr.d1 as ref parser.Node
         val qt: ref char = qbe_type_of(ty)
-        if str.rchar_cmp(qt, "w") == 0 {
+        val src_is_float: bool = expr_is_float(ctx, inner_expr)
+        val src_qt: mut ref char = ""
+
+        if src_is_float { src_qt = "d" } else { src_qt = "l" }
+        
+        val needs_conversion: mut bool = false
+        val conv_instr: mut ref char = "copy"
+        
+        if str.rchar_cmp(src_qt, "d") == 0 && str.rchar_cmp(qt, "l") == 0 {
+            needs_conversion = true
+            conv_instr = "dtosi"
+        } elif str.rchar_cmp(src_qt, "d") == 0 && str.rchar_cmp(qt, "w") == 0 {
+            needs_conversion = true
+            conv_instr = "dtosi"
+        } elif str.rchar_cmp(src_qt, "l") == 0 && str.rchar_cmp(qt, "d") == 0 {
+            needs_conversion = true
+            conv_instr = "sltof"
+        } elif str.rchar_cmp(src_qt, "w") == 0 && str.rchar_cmp(qt, "d") == 0 {
+            val ext_tmp: i64 = fresh_tmp(ctx)
+            val ext_buf: ref char = @alloc(128) as ref char
+            @snprintf(ext_buf, 128, "    %%t%lld =l extsw %s\n", {ext_tmp, inner3})
+            emit(ctx, ext_buf)
+            @free(ext_buf)
+            val tmp_conv: i64 = fresh_tmp(ctx)
+            val buf_conv: ref char = @alloc(128) as ref char
+            @snprintf(buf_conv, 128, "    %%t%lld =d sltof %%t%lld\n", {tmp_conv, ext_tmp})
+            emit(ctx, buf_conv)
+            @free(buf_conv)
+            val res_conv: ref char = @alloc(16) as ref char
+            @snprintf(res_conv, 16, "%%t%lld", {tmp_conv})
+            return res_conv
+        }
+        
+        if str.rchar_cmp(qt, "w") == 0 && !needs_conversion {
             return inner3
         }
+        
         val tmp7: i64 = fresh_tmp(ctx)
         val buf12: ref char = @alloc(128) as ref char
-        @snprintf(buf12, 128, "    %%t%lld =%s copy %s\n", {tmp7, qt, inner3})
+        if needs_conversion {
+            @snprintf(buf12, 128, "    %%t%lld =%s %s %s\n", {tmp7, qt, conv_instr, inner3})
+        } else {
+            @snprintf(buf12, 128, "    %%t%lld =%s copy %s\n", {tmp7, qt, inner3})
+        }
         emit(ctx, buf12)
         @free(buf12)
         val res9: ref char = @alloc(16) as ref char
@@ -1373,14 +1423,46 @@ fn gen_expr(ctx: ref void, expr: ref parser.Node) ref char! = {
     return res13
 }
 
+/// Check if an expression is float-typed by examining its structure
+fn expr_is_float(ctx: ref void, expr: ref parser.Node) bool! = {
+    if expr == 0 as ref parser.Node { return false }
+    val k: i64 = expr.kind
+    if k == parser.NK_FLOAT_LIT { return true }
+    if k == parser.NK_IDENT {
+        val name: ref char = expr.d0 as ref char
+        val qtype: ref char = cg_direct_type(ctx, name)
+        if str.rchar_cmp(qtype, "d") == 0 || str.rchar_cmp(qtype, "s") == 0 {
+            return true
+        }
+        val ltype: ref char = cg_local_type(ctx, name)
+        if str.rchar_cmp(ltype, "f64") == 0 || str.rchar_cmp(ltype, "f32") == 0 {
+            return true
+        }
+        return false
+    }
+    if k == parser.NK_BINOP {
+        val lhs_float: bool = expr_is_float(ctx, expr.d1 as ref parser.Node)
+        val rhs_float: bool = expr_is_float(ctx, expr.d2 as ref parser.Node)
+        return lhs_float || rhs_float
+    }
+    if k == parser.NK_UNOP {
+        return expr_is_float(ctx, expr.d1 as ref parser.Node)
+    }
+    return false
+}
+
 fn gen_binop(ctx: ref void, expr: ref parser.Node) ref char! = {
     val op: i64 = expr.d0 as i64
-    val lhs: ref char = gen_expr(ctx, expr.d1 as ref parser.Node)
-    val rhs: ref char = gen_expr(ctx, expr.d2 as ref parser.Node)
+    val lhs_expr: ref parser.Node = expr.d1 as ref parser.Node
+    val rhs_expr: ref parser.Node = expr.d2 as ref parser.Node
+    val lhs: ref char = gen_expr(ctx, lhs_expr)
+    val rhs: ref char = gen_expr(ctx, rhs_expr)
     val tmp: i64 = fresh_tmp(ctx)
     val buf: ref char = @alloc(256) as ref char
     val lhs_l: mut ref char = lhs
     val rhs_l: mut ref char = rhs
+
+    val is_float: bool = expr_is_float(ctx, lhs_expr) || expr_is_float(ctx, rhs_expr)
 
     if op == parser.OP_EQ || op == parser.OP_NE || op == parser.OP_LT || 
        op == parser.OP_GT || op == parser.OP_LE || op == parser.OP_GE {
@@ -1412,29 +1494,44 @@ fn gen_binop(ctx: ref void, expr: ref parser.Node) ref char! = {
         }
     }
 
-    if op == parser.OP_ADD  { @snprintf(buf, 256, "    %%t%lld =l add %s, %s\n",  {tmp, lhs, rhs}) }
-    elif op == parser.OP_SUB { @snprintf(buf, 256, "    %%t%lld =l sub %s, %s\n",  {tmp, lhs, rhs}) }
-    elif op == parser.OP_MUL { @snprintf(buf, 256, "    %%t%lld =l mul %s, %s\n",  {tmp, lhs, rhs}) }
-    elif op == parser.OP_DIV { @snprintf(buf, 256, "    %%t%lld =l div %s, %s\n",  {tmp, lhs, rhs}) }
-    elif op == parser.OP_REM { @snprintf(buf, 256, "    %%t%lld =l rem %s, %s\n",  {tmp, lhs, rhs}) }
-    elif op == parser.OP_EQ  { @snprintf(buf, 256, "    %%t%lld =l ceql %s, %s\n", {tmp, lhs_l, rhs_l}) }
-    elif op == parser.OP_NE  { @snprintf(buf, 256, "    %%t%lld =l cnel %s, %s\n", {tmp, lhs_l, rhs_l}) }
-    elif op == parser.OP_LT  { @snprintf(buf, 256, "    %%t%lld =l csltl %s, %s\n",{tmp, lhs_l, rhs_l}) }
-    elif op == parser.OP_GT  { @snprintf(buf, 256, "    %%t%lld =l csgtl %s, %s\n",{tmp, lhs_l, rhs_l}) }
-    elif op == parser.OP_LE  { @snprintf(buf, 256, "    %%t%lld =l cslel %s, %s\n",{tmp, lhs_l, rhs_l}) }
-    elif op == parser.OP_GE  { @snprintf(buf, 256, "    %%t%lld =l csgel %s, %s\n",{tmp, lhs_l, rhs_l}) }
-    elif op == parser.OP_AND {
-        @snprintf(buf, 256, "    %%t%lld =l and %s, %s\n", {tmp, lhs, rhs})
+    if is_float {
+        if op == parser.OP_ADD  { @snprintf(buf, 256, "    %%t%lld =d add %s, %s\n",  {tmp, lhs, rhs}) }
+        elif op == parser.OP_SUB { @snprintf(buf, 256, "    %%t%lld =d sub %s, %s\n",  {tmp, lhs, rhs}) }
+        elif op == parser.OP_MUL { @snprintf(buf, 256, "    %%t%lld =d mul %s, %s\n",  {tmp, lhs, rhs}) }
+        elif op == parser.OP_DIV { @snprintf(buf, 256, "    %%t%lld =d div %s, %s\n",  {tmp, lhs, rhs}) }
+        elif op == parser.OP_REM { @snprintf(buf, 256, "    %%t%lld =d rem %s, %s\n",  {tmp, lhs, rhs}) }
+        elif op == parser.OP_EQ  { @snprintf(buf, 256, "    %%t%lld =w ceqd %s, %s\n", {tmp, lhs, rhs}) }
+        elif op == parser.OP_NE  { @snprintf(buf, 256, "    %%t%lld =w cned %s, %s\n", {tmp, lhs, rhs}) }
+        elif op == parser.OP_LT  { @snprintf(buf, 256, "    %%t%lld =w cltd %s, %s\n", {tmp, lhs, rhs}) }
+        elif op == parser.OP_GT  { @snprintf(buf, 256, "    %%t%lld =w cgtd %s, %s\n", {tmp, lhs, rhs}) }
+        elif op == parser.OP_LE  { @snprintf(buf, 256, "    %%t%lld =w cled %s, %s\n", {tmp, lhs, rhs}) }
+        elif op == parser.OP_GE  { @snprintf(buf, 256, "    %%t%lld =w cged %s, %s\n", {tmp, lhs, rhs}) }
+        else { @snprintf(buf, 256, "    %%t%lld =l copy 0\n", {tmp}) }
+    } else {
+        if op == parser.OP_ADD  { @snprintf(buf, 256, "    %%t%lld =l add %s, %s\n",  {tmp, lhs, rhs}) }
+        elif op == parser.OP_SUB { @snprintf(buf, 256, "    %%t%lld =l sub %s, %s\n",  {tmp, lhs, rhs}) }
+        elif op == parser.OP_MUL { @snprintf(buf, 256, "    %%t%lld =l mul %s, %s\n",  {tmp, lhs, rhs}) }
+        elif op == parser.OP_DIV { @snprintf(buf, 256, "    %%t%lld =l div %s, %s\n",  {tmp, lhs, rhs}) }
+        elif op == parser.OP_REM { @snprintf(buf, 256, "    %%t%lld =l rem %s, %s\n",  {tmp, lhs, rhs}) }
+        elif op == parser.OP_EQ  { @snprintf(buf, 256, "    %%t%lld =l ceql %s, %s\n", {tmp, lhs_l, rhs_l}) }
+        elif op == parser.OP_NE  { @snprintf(buf, 256, "    %%t%lld =l cnel %s, %s\n", {tmp, lhs_l, rhs_l}) }
+        elif op == parser.OP_LT  { @snprintf(buf, 256, "    %%t%lld =l csltl %s, %s\n",{tmp, lhs_l, rhs_l}) }
+        elif op == parser.OP_GT  { @snprintf(buf, 256, "    %%t%lld =l csgtl %s, %s\n",{tmp, lhs_l, rhs_l}) }
+        elif op == parser.OP_LE  { @snprintf(buf, 256, "    %%t%lld =l cslel %s, %s\n",{tmp, lhs_l, rhs_l}) }
+        elif op == parser.OP_GE  { @snprintf(buf, 256, "    %%t%lld =l csgel %s, %s\n",{tmp, lhs_l, rhs_l}) }
+        elif op == parser.OP_AND {
+            @snprintf(buf, 256, "    %%t%lld =l and %s, %s\n", {tmp, lhs, rhs})
+        }
+        elif op == parser.OP_OR {
+            @snprintf(buf, 256, "    %%t%lld =l or %s, %s\n", {tmp, lhs, rhs})
+        }
+        elif op == parser.OP_BAND { @snprintf(buf, 256, "    %%t%lld =l and %s, %s\n", {tmp, lhs, rhs}) }
+        elif op == parser.OP_BOR  { @snprintf(buf, 256, "    %%t%lld =l or %s, %s\n",  {tmp, lhs, rhs}) }
+        elif op == parser.OP_BXOR { @snprintf(buf, 256, "    %%t%lld =l xor %s, %s\n", {tmp, lhs, rhs}) }
+        elif op == parser.OP_SHL  { @snprintf(buf, 256, "    %%t%lld =l shl %s, %s\n", {tmp, lhs, rhs}) }
+        elif op == parser.OP_SHR  { @snprintf(buf, 256, "    %%t%lld =l shr %s, %s\n", {tmp, lhs, rhs}) }
+        else { @snprintf(buf, 256, "    %%t%lld =l copy 0\n", {tmp}) }
     }
-    elif op == parser.OP_OR {
-        @snprintf(buf, 256, "    %%t%lld =l or %s, %s\n", {tmp, lhs, rhs})
-    }
-    elif op == parser.OP_BAND { @snprintf(buf, 256, "    %%t%lld =l and %s, %s\n", {tmp, lhs, rhs}) }
-    elif op == parser.OP_BOR  { @snprintf(buf, 256, "    %%t%lld =l or %s, %s\n",  {tmp, lhs, rhs}) }
-    elif op == parser.OP_BXOR { @snprintf(buf, 256, "    %%t%lld =l xor %s, %s\n", {tmp, lhs, rhs}) }
-    elif op == parser.OP_SHL  { @snprintf(buf, 256, "    %%t%lld =l shl %s, %s\n", {tmp, lhs, rhs}) }
-    elif op == parser.OP_SHR  { @snprintf(buf, 256, "    %%t%lld =l shr %s, %s\n", {tmp, lhs, rhs}) }
-    else { @snprintf(buf, 256, "    %%t%lld =l copy 0\n", {tmp}) }
 
     emit(ctx, buf)
     @free(buf)
@@ -1445,13 +1542,20 @@ fn gen_binop(ctx: ref void, expr: ref parser.Node) ref char! = {
 
 fn gen_unop(ctx: ref void, expr: ref parser.Node) ref char! = {
     val op: i64 = expr.d0 as i64
-    val inner: ref char = gen_expr(ctx, expr.d1 as ref parser.Node)
+    val inner_expr: ref parser.Node = expr.d1 as ref parser.Node
+    val inner: ref char = gen_expr(ctx, inner_expr)
     val tmp: i64 = fresh_tmp(ctx)
     val buf: ref char = @alloc(128) as ref char
+    val is_float: bool = expr_is_float(ctx, inner_expr)
+    
     if op == parser.UOP_NOT {
         @snprintf(buf, 128, "    %%t%lld =l ceqw %s, 0\n", {tmp, inner})
     } elif op == parser.UOP_NEG {
-        @snprintf(buf, 128, "    %%t%lld =l neg %s\n", {tmp, inner})
+        if is_float {
+            @snprintf(buf, 128, "    %%t%lld =d neg %s\n", {tmp, inner})
+        } else {
+            @snprintf(buf, 128, "    %%t%lld =l neg %s\n", {tmp, inner})
+        }
     } elif op == parser.UOP_BNOT {
         @snprintf(buf, 128, "    %%t%lld =l xor %s, -1\n", {tmp, inner})
     } else {
@@ -1909,7 +2013,27 @@ fn gen_call(ctx: ref void, expr: ref parser.Node) ref char! = {
                     @memcpy(@ptradd(call_buf as ref void, call_pos), ", " as ref void, 2)
                     call_pos = call_pos + 2
                 }
-                @snprintf(tbuf, 64, "l %s", {t as ref char})
+
+                val arg_qtype: mut ref char = "l"
+                if fn_params_list != 0 as ref void {
+                    val params_len: i64 = @len(fn_params_list as list[ref void]) as i64
+                    if ti < params_len {
+                        val param_opt = @get(fn_params_list as list[ref void], ti as usize)
+                        match param_opt {
+                            some param => {
+                                val param_node: ref parser.Node = param as ref parser.Node
+                                if param_node != 0 as ref parser.Node {
+                                    val param_ty: ref parser.Node = param_node.d1 as ref parser.Node
+                                    if param_ty != 0 as ref parser.Node {
+                                        arg_qtype = qbe_type_of(param_ty)
+                                    }
+                                }
+                            }
+                            none => {}
+                        }
+                    }
+                }
+                @snprintf(tbuf, 64, "%s %s", {arg_qtype, t as ref char})
                 val tlen2: mut i64 = str.len_raw(tbuf)
                 @memcpy(@ptradd(call_buf as ref void, call_pos), tbuf as ref void, tlen2)
                 call_pos = call_pos + tlen2
