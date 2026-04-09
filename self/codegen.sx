@@ -1495,6 +1495,88 @@ fn expr_is_float(ctx: ref CgCtx, expr: ref parser.Node) bool! = {
     return false
 }
 
+/// Infer the QBE type of an expression.
+fn expr_qbe_type(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
+    if expr == 0 as ref parser.Node { return "l" } 
+
+    val k: i64 = expr.kind
+
+    if k == parser.NK_INT_LIT || k == parser.NK_STR_LIT || k == parser.NK_NONE {
+        return "l"
+    }
+    if k == parser.NK_FLOAT_LIT {
+        return "d"
+    }
+    if k == parser.NK_BOOL || k == parser.NK_CHAR_LIT {
+        return "w"
+    }
+
+    if k == parser.NK_IDENT {
+        val name: ref char = expr.d0 as ref char
+        val dqt_opt: ref char = cg_direct_type(ctx, name)
+        if str.rchar_cmp(dqt_opt, "") != 0 { return dqt_opt }
+
+        val ltype: ref char = cg_local_type(ctx, name)
+        if str.rchar_cmp(ltype, "") != 0 {
+            if is_word_type_name(ltype) { return "w" }
+            if is_float_type_name(ltype) { return "d" }
+            return "l" 
+        }
+        return "l"
+    }
+
+    if k == parser.NK_CALL {
+        val callee_node: ref parser.Node = expr.d0 as ref parser.Node
+        val callee_name: ref char = resolve_callee_name(callee_node)
+        val ext_ret_ty_node: ref void = cg_lookup_ext_ret(ctx, callee_name)
+        if ext_ret_ty_node != 0 as ref void {
+            return qbe_type_of(ext_ret_ty_node as ref parser.Node)
+        }
+
+        val fn_ret_ty_node: ref void = cg_lookup_fn_ret(ctx, callee_name)
+        if fn_ret_ty_node != 0 as ref void {
+            return qbe_type_of(fn_ret_ty_node as ref parser.Node)
+        }
+        
+        return "l"
+    }
+
+    if k == parser.NK_CAST {
+        val cast_ty_node: ref parser.Node = expr.d1 as ref parser.Node
+        return qbe_type_of(cast_ty_node)
+    }
+
+    if k == parser.NK_BINOP {
+        val lhs_qbt = expr_qbe_type(ctx, expr.d1 as ref parser.Node)
+        val rhs_qbt = expr_qbe_type(ctx, expr.d2 as ref parser.Node)
+        if str.rchar_cmp(lhs_qbt, "d") == 0 || str.rchar_cmp(lhs_qbt, "s") == 0 ||
+           str.rchar_cmp(rhs_qbt, "d") == 0 || str.rchar_cmp(rhs_qbt, "s") == 0 {
+            return "d"
+        }
+        if str.rchar_cmp(lhs_qbt, "l") == 0 || str.rchar_cmp(rhs_qbt, "l") == 0 {
+             val op: i64 = expr.d0 as i64
+             if op == parser.OP_EQ || op == parser.OP_NE || op == parser.OP_LT ||
+                op == parser.OP_GT || op == parser.OP_LE || op == parser.OP_GE ||
+                op == parser.OP_AND || op == parser.OP_OR {
+                 return "w" 
+             }
+             return "l" 
+        }
+        return "w"
+    }
+
+    if k == parser.NK_UNOP {
+        val op_qbt = expr_qbe_type(ctx, expr.d1 as ref parser.Node)
+        val op: i64 = expr.d0 as i64
+        if op == parser.UOP_NEG { return op_qbt }
+        if op == parser.UOP_NOT { return "w" } 
+        if op == parser.UOP_BNOT { return op_qbt }
+        return "l" 
+    }
+    
+    return "l"
+}
+
 fn expr_is_result(expr: ref parser.Node) bool! = {
     if expr == 0 as ref parser.Node { return false }
     val k: i64 = expr.kind
@@ -1594,31 +1676,26 @@ fn gen_binop(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
 
     if op == parser.OP_EQ || op == parser.OP_NE || op == parser.OP_LT ||
        op == parser.OP_GT || op == parser.OP_LE || op == parser.OP_GE {
-        if @load8(lhs) == 37 {
-            val lhs_name: ref char = @ptradd(lhs, 1) as ref char
-            val lhs_qtype: ref char = cg_direct_type(ctx, lhs_name)
-            if str.rchar_cmp(lhs_qtype, "w") == 0 {
-                val ext_tmp: i64 = fresh_tmp(ctx)
-                val ext_buf: ref char = @alloc(128) as ref char
-                @snprintf(ext_buf, 128, "    %%t%lld =l extsw %s\n", {ext_tmp, lhs})
-                emit(ctx, ext_buf)
-                @free(ext_buf)
-                lhs_l = @alloc(16) as ref char
-                @snprintf(lhs_l, 16, "%%t%lld", {ext_tmp})
-            }
+        val lhs_qbt: ref char = expr_qbe_type(ctx, lhs_expr)
+        val rhs_qbt: ref char = expr_qbe_type(ctx, rhs_expr)
+
+        if str.rchar_cmp(lhs_qbt, "w") == 0 {
+            val ext_tmp: i64 = fresh_tmp(ctx)
+            val ext_buf: ref char = @alloc(128) as ref char
+            @snprintf(ext_buf, 128, "    %%t%lld =l extsw %s\n", {ext_tmp, lhs_l})
+            emit(ctx, ext_buf)
+            @free(ext_buf)
+            lhs_l = @alloc(16) as ref char
+            @snprintf(lhs_l, 16, "%%t%lld", {ext_tmp})
         }
-        if @load8(rhs) == 37 {
-            val rhs_name: ref char = @ptradd(rhs, 1) as ref char
-            val rhs_qtype: ref char = cg_direct_type(ctx, rhs_name)
-            if str.rchar_cmp(rhs_qtype, "w") == 0 {
-                val ext_tmp: i64 = fresh_tmp(ctx)
-                val ext_buf: ref char = @alloc(128) as ref char
-                @snprintf(ext_buf, 128, "    %%t%lld =l extsw %s\n", {ext_tmp, rhs})
-                emit(ctx, ext_buf)
-                @free(ext_buf)
-                rhs_l = @alloc(16) as ref char
-                @snprintf(rhs_l, 16, "%%t%lld", {ext_tmp})
-            }
+        if str.rchar_cmp(rhs_qbt, "w") == 0 {
+            val ext_tmp: i64 = fresh_tmp(ctx)
+            val ext_buf: ref char = @alloc(128) as ref char
+            @snprintf(ext_buf, 128, "    %%t%lld =l extsw %s\n", {ext_tmp, rhs_l})
+            emit(ctx, ext_buf)
+            @free(ext_buf)
+            rhs_l = @alloc(16) as ref char
+            @snprintf(rhs_l, 16, "%%t%lld", {ext_tmp})
         }
     }
 
