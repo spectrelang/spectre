@@ -259,10 +259,16 @@ pub fn main() i32! = {
         std.stdio.print("{s}\n", {cc_cmd})
     }
 
-    val cc_res = std.os.exec(cc_cmd)
+    val cc_res = std.os.exec(@fmt("{s} {s}", {cc_cmd, " 2>&1"}))
     match cc_res {
-        ok _ => {
-            std.stdio.print("{s}", {success_msg})
+        ok v => {
+            if std.string.contains(v, std.string.from("error")) {
+                std.stdio.print("{s}\n", {std.string.cstr(v)})
+                std.stdio.puts("linking failed.")
+                exit_code = 1
+            } else {
+                std.stdio.print("{s}", {success_msg})
+            }
         }
         err e => {
             std.stdio.puts("\nerror: cc compilation failed")
@@ -273,5 +279,5 @@ pub fn main() i32! = {
     std.os.delete(asm_file)
     allocators.Arena.free(arena)
 
-    return 0
+    return exit_code
 }
