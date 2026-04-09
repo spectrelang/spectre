@@ -893,6 +893,19 @@ fn align_to(n: i64, align: i64) i64! = {
     return (n + align - 1) / align * align
 }
 
+fn resolve_type_name(ty: ref parser.Node) ref char! = {
+    if ty == 0 as ref parser.Node { return "" }
+    val k: i64 = ty.kind
+    if k == parser.TY_NAMED { return ty.d0 as ref char }
+    if k == parser.TY_REF || k == parser.TY_MUT {
+        return resolve_type_name(ty.d0 as ref parser.Node)
+    }
+    if k == parser.TY_LIST   { return "list" }
+    if k == parser.TY_OPTION { return "option" }
+    if k == parser.TY_RESULT { return "result" }
+    return ""
+}
+
 fn fields_have_fixed_arr(fields: ref void) bool! = {
     val flen: i64 = @len(fields as list[ref void]) as i64
     val fi: mut i64 = 0
@@ -1791,7 +1804,9 @@ fn gen_field(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
         val base_name: ref char = base_expr.d0 as ref char
         val dqt_check: ref char = cg_direct_type(ctx, base_name)
         val local_type: ref char = cg_local_type(ctx, base_name)
-        val is_local: bool = str.rchar_cmp(dqt_check, "") != 0 || str.rchar_cmp(local_type, "") != 0
+        val is_local: bool = str.rchar_cmp(dqt_check, "") != 0 ||
+                             str.rchar_cmp(local_type, "") != 0 ||
+                             str.rchar_cmp(cg_lookup_local_var(ctx, base_name), "") != 0
 
         if !is_local {
             val tmp: i64 = fresh_tmp(ctx)
@@ -3565,9 +3580,8 @@ fn gen_stmt(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
         val val_tmp: ref char = gen_expr(ctx, expr)
 
         if ty_node != 0 as ref parser.Node {
-            val tyk: i64 = ty_node.kind
-            if tyk == parser.TY_NAMED {
-                val tname: ref char = ty_node.d0 as ref char
+            val tname: ref char = resolve_type_name(ty_node)
+            if str.rchar_cmp(tname, "") != 0 {
                 cg_register_local_type(ctx, name, tname)
             }
         }
