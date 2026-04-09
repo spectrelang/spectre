@@ -1053,10 +1053,46 @@ pub fn parse_stmt(p: ref Parser) result[ref Node, ref char]! = {
         p_expect_lbrace(p)?
         val wb = parse_stmts(p)?
         p_expect_rbrace(p)?
+        val or_when_branches: mut list[ref Node] = []
+        for {
+            val k2: lexer.TokenKind = p_peek_kind(p)
+            if !kind_is_ident(k2) { break }
+            val txt: ref char = lexer.tok_text(p.tokens, p.pos)
+            if !str_eq(txt, "or") { break }
+            val k3: lexer.TokenKind = p_peek2_kind(p)
+            if !kind_is_when(k3) { break }
+            p_advance(p)
+            p_advance(p)
+            val ow_plat = p_expect_ident(p)?
+            p_expect_lbrace(p)?
+            val ow_body = parse_stmts(p)?
+            p_expect_rbrace(p)?
+            val ow_node: mut ref Node = make_node(NK_WHEN_STMT, line)
+            ow_node.d0 = ow_plat as i64
+            val ow_bl: list[ref Node] = ow_body
+            ow_node.d1 = ow_bl as i64
+            @append(or_when_branches, ow_node)
+        }
+        val otherwise_stmts: mut list[ref Node] = []
+        val k4: lexer.TokenKind = p_peek_kind(p)
+        if kind_is_ident(k4) {
+            val txt2: ref char = lexer.tok_text(p.tokens, p.pos)
+            if str_eq(txt2, "otherwise") {
+                p_advance(p)
+                p_expect_lbrace(p)?
+                val ow2 = parse_stmts(p)?
+                p_expect_rbrace(p)?
+                otherwise_stmts = ow2
+            }
+        }
         val nw: mut ref Node = make_node(NK_WHEN_STMT, line)
         nw.d0 = plat as i64
         val wbl: list[ref Node] = wb
         nw.d1 = wbl as i64
+        val owbl: list[ref Node] = or_when_branches
+        nw.d2 = owbl as i64
+        val owsl: list[ref Node] = otherwise_stmts
+        nw.d3 = owsl as i64
         return ok nw
     }
 
@@ -1564,10 +1600,54 @@ pub fn parse_item(p: ref Parser) result[ref Node, ref char]! = {
             @append(witems, wi)
         }
         p_expect_rbrace(p)?
+        val or_when_item_branches: mut list[ref Node] = []
+        for {
+            val k2: lexer.TokenKind = p_peek_kind(p)
+            if !kind_is_ident(k2) { break }
+            val txt: ref char = lexer.tok_text(p.tokens, p.pos)
+            if !str_eq(txt, "or") { break }
+            val k3: lexer.TokenKind = p_peek2_kind(p)
+            if !kind_is_when(k3) { break }
+            p_advance(p)
+            p_advance(p)
+            val ow_plat = p_expect_ident(p)?
+            p_expect_lbrace(p)?
+            val ow_items: mut list[ref Node] = []
+            for {
+                if lexer.kind_is_rbrace(p_peek_kind(p)) { break }
+                val owi = parse_item(p)?
+                @append(ow_items, owi)
+            }
+            p_expect_rbrace(p)?
+            val ow_node: mut ref Node = make_node(NK_WHEN_ITEMS, line)
+            ow_node.d0 = ow_plat as i64
+            val ow_il: list[ref Node] = ow_items
+            ow_node.d1 = ow_il as i64
+            @append(or_when_item_branches, ow_node)
+        }
+        val otherwise_items: mut list[ref Node] = []
+        val k4: lexer.TokenKind = p_peek_kind(p)
+        if kind_is_ident(k4) {
+            val txt2: ref char = lexer.tok_text(p.tokens, p.pos)
+            if str_eq(txt2, "otherwise") {
+                p_advance(p)
+                p_expect_lbrace(p)?
+                for {
+                    if lexer.kind_is_rbrace(p_peek_kind(p)) { break }
+                    val owi2 = parse_item(p)?
+                    @append(otherwise_items, owi2)
+                }
+                p_expect_rbrace(p)?
+            }
+        }
         val nwi: mut ref Node = make_node(NK_WHEN_ITEMS, line)
         nwi.d0 = plat as i64
         val wil: list[ref Node] = witems
         nwi.d1 = wil as i64
+        val owil: list[ref Node] = or_when_item_branches
+        nwi.d2 = owil as i64
+        val owsl2: list[ref Node] = otherwise_items
+        nwi.d3 = owsl2 as i64
         return ok nwi
     }
 

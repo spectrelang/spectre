@@ -669,6 +669,20 @@ fn check_stmt(ctx: ref SemaCtx, stmt: ref parser.Node, filename: ref char) void!
         push_scope(ctx)
         check_stmts(ctx, stmt.d1 as ref void, filename)
         pop_scope(ctx)
+        val or_when_sema: ref void = stmt.d2 as ref void
+        if or_when_sema != 0 as ref void {
+            for ow_sema in or_when_sema as list[ref parser.Node] {
+                push_scope(ctx)
+                check_stmts(ctx, ow_sema.d1 as ref void, filename)
+                pop_scope(ctx)
+            }
+        }
+        val otherwise_sema: ref void = stmt.d3 as ref void
+        if otherwise_sema != 0 as ref void {
+            push_scope(ctx)
+            check_stmts(ctx, otherwise_sema, filename)
+            pop_scope(ctx)
+        }
         return
     }
 
@@ -852,6 +866,27 @@ pub fn check_module(items: list[ref parser.Node], filename: ref char) list[ref c
                 for wi2 in witems2 as list[ref parser.Node] {
                     if wi2.kind == parser.NK_FN {
                         check_fn(ctx, wi2, filename)
+                    }
+                }
+            }
+            val or_when_sema2: ref void = item2.d2 as ref void
+            if or_when_sema2 != 0 as ref void {
+                for ow_sema2 in or_when_sema2 as list[ref parser.Node] {
+                    val ow_items_sema: ref void = ow_sema2.d1 as ref void
+                    if ow_items_sema != 0 as ref void {
+                        for wi3 in ow_items_sema as list[ref parser.Node] {
+                            if wi3.kind == parser.NK_FN {
+                                check_fn(ctx, wi3, filename)
+                            }
+                        }
+                    }
+                }
+            }
+            val ow_otherwise_sema: ref void = item2.d3 as ref void
+            if ow_otherwise_sema != 0 as ref void {
+                for wi4 in ow_otherwise_sema as list[ref parser.Node] {
+                    if wi4.kind == parser.NK_FN {
+                        check_fn(ctx, wi4, filename)
                     }
                 }
             }

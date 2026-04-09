@@ -236,8 +236,6 @@ pub fn (Mutex) free(m: self) void! = {
     @free(m)
 }
 
-val std = use("std")
-
 fn thread_test_entry(arg: ref void) ref void = {
     val c: ref void = arg
     val old_val: i64 = trust @load(c) as i64
