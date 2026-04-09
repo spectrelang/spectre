@@ -1451,10 +1451,94 @@ fn expr_is_float(ctx: ref void, expr: ref parser.Node) bool! = {
     return false
 }
 
+fn expr_is_result(expr: ref parser.Node) bool! = {
+    if expr == 0 as ref parser.Node { return false }
+    val k: i64 = expr.kind
+    if k == parser.NK_OK_VAL || k == parser.NK_ERR_VAL { return true }
+    return false
+}
+
 fn gen_binop(ctx: ref void, expr: ref parser.Node) ref char! = {
     val op: i64 = expr.d0 as i64
     val lhs_expr: ref parser.Node = expr.d1 as ref parser.Node
     val rhs_expr: ref parser.Node = expr.d2 as ref parser.Node
+    val lhs_is_result: bool = expr_is_result(lhs_expr)
+    val rhs_is_result: bool = expr_is_result(rhs_expr)
+    
+    if ((lhs_is_result || rhs_is_result) && (op == parser.OP_EQ || op == parser.OP_NE)) {
+        val lhs: ref char = gen_expr(ctx, lhs_expr)
+        val rhs: ref char = gen_expr(ctx, rhs_expr)
+        val l_tag: i64 = fresh_tmp(ctx)
+        val r_tag: i64 = fresh_tmp(ctx)
+        val tag_buf: ref char = @alloc(128) as ref char
+        @snprintf(tag_buf, 128, "    %%t%lld =l loadl %s\n    %%t%lld =l loadl %s\n", {l_tag, lhs, r_tag, rhs})
+        emit(ctx, tag_buf)
+        @free(tag_buf)
+        
+        val tags_eq: i64 = fresh_tmp(ctx)
+        val tags_buf: ref char = @alloc(128) as ref char
+        @snprintf(tags_buf, 128, "    %%t%lld =w ceql %%t%lld, %%t%lld\n", {tags_eq, l_tag, r_tag})
+        emit(ctx, tags_buf)
+        @free(tags_buf)
+        
+        val l_val_ptr: i64 = fresh_tmp(ctx)
+        val r_val_ptr: i64 = fresh_tmp(ctx)
+        val ptr_buf: ref char = @alloc(128) as ref char
+        @snprintf(ptr_buf, 128, "    %%t%lld =l add %s, 8\n    %%t%lld =l add %s, 8\n", {l_val_ptr, lhs, r_val_ptr, rhs})
+        emit(ctx, ptr_buf)
+        @free(ptr_buf)
+        
+        val result_literal: mut ref parser.Node = 0 as ref parser.Node
+        if lhs_is_result { result_literal = lhs_expr } else { result_literal = rhs_expr }
+        val payload_expr: ref parser.Node = result_literal.d0 as ref parser.Node
+        val payload_is_float: bool = expr_is_float(ctx, payload_expr)
+        
+        val vals_eq: i64 = fresh_tmp(ctx)
+        if payload_is_float {
+            val l_val: i64 = fresh_tmp(ctx)
+            val r_val: i64 = fresh_tmp(ctx)
+            val load_buf: ref char = @alloc(128) as ref char
+            @snprintf(load_buf, 128, "    %%t%lld =d loadd %%t%lld\n    %%t%lld =d loadd %%t%lld\n", {l_val, l_val_ptr, r_val, r_val_ptr})
+            emit(ctx, load_buf)
+            @free(load_buf)
+            val cmp_buf: ref char = @alloc(128) as ref char
+            @snprintf(cmp_buf, 128, "    %%t%lld =w ceqd %%t%lld, %%t%lld\n", {vals_eq, l_val, r_val})
+            emit(ctx, cmp_buf)
+            @free(cmp_buf)
+        } else {
+            val l_val: i64 = fresh_tmp(ctx)
+            val r_val: i64 = fresh_tmp(ctx)
+            val load_buf: ref char = @alloc(128) as ref char
+            @snprintf(load_buf, 128, "    %%t%lld =l loadl %%t%lld\n    %%t%lld =l loadl %%t%lld\n", {l_val, l_val_ptr, r_val, r_val_ptr})
+            emit(ctx, load_buf)
+            @free(load_buf)
+            val cmp_buf: ref char = @alloc(128) as ref char
+            @snprintf(cmp_buf, 128, "    %%t%lld =w ceql %%t%lld, %%t%lld\n", {vals_eq, l_val, r_val})
+            emit(ctx, cmp_buf)
+            @free(cmp_buf)
+        }
+        
+        val both: i64 = fresh_tmp(ctx)
+        val and_buf: ref char = @alloc(128) as ref char
+        @snprintf(and_buf, 128, "    %%t%lld =w and %%t%lld, %%t%lld\n", {both, tags_eq, vals_eq})
+        emit(ctx, and_buf)
+        @free(and_buf)
+        
+        val result: i64 = fresh_tmp(ctx)
+        val res_buf: ref char = @alloc(128) as ref char
+        if op == parser.OP_NE {
+            @snprintf(res_buf, 128, "    %%t%lld =w ceqw %%t%lld, 0\n", {result, both})
+        } else {
+            @snprintf(res_buf, 128, "    %%t%lld =w copy %%t%lld\n", {result, both})
+        }
+        emit(ctx, res_buf)
+        @free(res_buf)
+        
+        val res: ref char = @alloc(16) as ref char
+        @snprintf(res, 16, "%%t%lld", {result})
+        return res
+    }
+    
     val lhs: ref char = gen_expr(ctx, lhs_expr)
     val rhs: ref char = gen_expr(ctx, rhs_expr)
     val tmp: i64 = fresh_tmp(ctx)
