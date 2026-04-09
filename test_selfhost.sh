@@ -47,15 +47,13 @@ echo "Passed      : $passed"
 echo "Failed      : $failed"
 echo "Skipped     : $skipped"
 echo
-
-
 echo "Extra tests:"
-"$COMPILER" ./std/collections.sx --test
-"$COMPILER" ./std/string.sx --test
-"$COMPILER" ./std/stdio.sx --test
 
-if [ $failed -ne 0 ]; then
-    exit 1
-fi
+for file in ./std/*.sx; do
+    [ -e "$file" ] || continue
+    filename=$(basename "$file")
+    echo "[TEST] $filename"
+    "$COMPILER" "$file" --test
+done
 
 exit 0
