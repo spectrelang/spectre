@@ -3794,7 +3794,7 @@ mod list_tests {
             panic!("expected ForIn statement");
         };
         assert_eq!(binding, "x");
-        assert!(matches!(iterable, Expr::Ident(s) if s == "xs"));
+        assert!(matches!(iterable, Expr::Ident(s, _) if s == "xs"));
         assert_eq!(body.len(), 1);
     }
 

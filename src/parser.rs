@@ -241,7 +241,7 @@ pub enum Expr {
     FloatLit(f64),
     StrLit(String),
     CharLit(u8),
-    Ident(String),
+    Ident(String, usize), // name, line
     Bool(bool),
     Some(Box<Expr>),
     None,
@@ -1370,26 +1370,26 @@ impl Parser {
                         value,
                     })
                 } else if self.eat(&TokenKind::PlusPlus) {
-                    if let Expr::Ident(name) = expr {
+                    if let Expr::Ident(name, _) = expr {
                         Ok(Stmt::Increment(name))
                     } else {
                         Err("'++' can only be applied to a variable".to_string())
                     }
                 } else if self.eat(&TokenKind::MinusMinus) {
-                    if let Expr::Ident(name) = expr {
+                    if let Expr::Ident(name, _) = expr {
                         Ok(Stmt::Decrement(name))
                     } else {
                         Err("'--' can only be applied to a variable".to_string())
                     }
                 } else if self.eat(&TokenKind::PlusEq) {
-                    if let Expr::Ident(name) = expr {
+                    if let Expr::Ident(name, _) = expr {
                         let value = self.parse_expr()?;
                         Ok(Stmt::AddAssign(name, value))
                     } else {
                         Err("'+=' can only be applied to a variable".to_string())
                     }
                 } else if self.eat(&TokenKind::MinusEq) {
-                    if let Expr::Ident(name) = expr {
+                    if let Expr::Ident(name, _) = expr {
                         let value = self.parse_expr()?;
                         Ok(Stmt::SubAssign(name, value))
                     } else {
@@ -1708,6 +1708,7 @@ impl Parser {
                 Ok(Expr::Bool(false))
             }
             TokenKind::Ident(name) => {
+                let line = self.tokens[self.pos].line;
                 self.advance();
                 // addr(expr) — take address of a function or variable
                 if name == "addr" {
@@ -1753,7 +1754,7 @@ impl Parser {
                     self.expect(&TokenKind::RBrace)?;
                     return Ok(Expr::StructLit { fields });
                 }
-                Ok(Expr::Ident(name))
+                Ok(Expr::Ident(name, line))
             }
             TokenKind::LBracket => {
                 self.advance();

@@ -1104,7 +1104,7 @@ impl Codegen {
                         ));
                     }
                 }
-                if let Expr::Ident(name) = target {
+                if let Expr::Ident(name, _) = target {
                     let (val_tmp, val_qty) = self.emit_expr(value, ns)?;
                     if self.local_is_slot.contains(name) {
                         let slot = self.locals.get(name).cloned().ok_or_else(|| {
@@ -1944,7 +1944,7 @@ impl Codegen {
                     .as_deref()
                     .map(|a| a == "f64" || a == "f32")
                     .unwrap_or_else(|| {
-                        if let Expr::Ident(name) = expr {
+                        if let Expr::Ident(name, _) = expr {
                             self.local_type_annotations
                                 .get(name)
                                 .map(|ann| ann.starts_with("result[f64") || ann == "f64")
@@ -2144,7 +2144,7 @@ impl Codegen {
                 }
 
                 let base_ptr = match base.as_ref() {
-                    Expr::Ident(name) => {
+                    Expr::Ident(name, _) => {
                         let slot = self
                             .locals
                             .get(name)
@@ -2270,7 +2270,7 @@ impl Codegen {
         ns: Option<&Namespace>,
     ) -> Result<String, String> {
         match expr {
-            Expr::Ident(name) => self
+            Expr::Ident(name, _) => self
                 .local_type_annotations
                 .get(name)
                 .cloned()
@@ -2350,7 +2350,7 @@ impl Codegen {
                 }
                 type_to_annotation_string(ty)
             }
-            Expr::Ident(name) => self
+            Expr::Ident(name, _) => self
                 .local_type_annotations
                 .get(name)
                 .cloned()
@@ -2579,7 +2579,7 @@ impl Codegen {
         match expr {
             Expr::FloatLit(_) => true,
             Expr::Cast { ty, .. } => matches!(ty, TypeExpr::Named(n) if n == "f64"),
-            Expr::Ident(name) => {
+            Expr::Ident(name, _) => {
                 self.local_slot_is_d.contains(name)
                     || self.local_types.get(name).copied() == Some("d")
                     || self
@@ -2607,7 +2607,7 @@ impl Codegen {
                 Ok((tmp, "l"))
             }
 
-            Expr::Ident(name) => {
+            Expr::Ident(name, line) => {
                 if let Some(slot_or_tmp) = self.locals.get(name).cloned() {
                     if self.local_is_slot.contains(name) {
                         let tmp = self.fresh_tmp();
@@ -2644,13 +2644,13 @@ impl Codegen {
                         || self.tagged_union_defs.contains_key(name)
                         || self.enum_defs.contains_key(name)
                         || self.type_aliases.contains_key(name) {
-                        format!("\n  hint: '{}' is a type name, not a variable. Did you mean to use it in a type annotation or with sizeof?", name)
+                        format!("\n  hint: '{}' is a type name, not a variable", name)
                     } else {
                         String::new()
                     };
                     
-                    Err(format!("{}: undefined variable '{}'{}{}", 
-                        self.current_file, name, context, hint))
+                    Err(format!("{}:{}: undefined variable '{}'{}{}", 
+                        self.current_file, line, name, context, hint))
                 }
             }
 
@@ -2768,7 +2768,7 @@ impl Codegen {
                 }
                 "sizeof" => {
                     let type_name = match &args[0] {
-                        Expr::Ident(n) => n.clone(),
+                        Expr::Ident(n, _) => n.clone(),
                         other => return Err(format!("@sizeof expects a type name, got {other:?}")),
                     };
                     let size = if let Some(fields) = self
@@ -3565,7 +3565,7 @@ impl Codegen {
             }
 
             Expr::Field(_base, _field_name) => {
-                if let Expr::Ident(enum_name) = _base.as_ref() {
+                if let Expr::Ident(enum_name, _) = _base.as_ref() {
                     if let Some(variants) = self.enum_defs.get(enum_name.as_str()).cloned() {
                         let idx =
                             variants
@@ -4037,7 +4037,7 @@ impl Codegen {
                                         None
                                     } else {
                                         let arg_type_name = match a {
-                                            Expr::Ident(n) => {
+                                            Expr::Ident(n, _) => {
                                                 self.local_type_annotations.get(n).cloned()
                                             }
                                             Expr::IntLit(_) => Some("i32".to_string()),
@@ -4430,7 +4430,7 @@ impl Codegen {
             Expr::Addr(inner) => {
                 let tmp = self.fresh_tmp();
                 match inner.as_ref() {
-                    Expr::Ident(name) => {
+                    Expr::Ident(name, _) => {
                         if let Some(qbe_name) = ns.get(name) {
                             self.emit(&format!("    {tmp} =l copy ${qbe_name}"));
                             return Ok((tmp, "l"));
@@ -4592,7 +4592,7 @@ fn all_trusted_stmts(stmts: &[Stmt]) -> bool {
         Stmt::Assert(..) => true,
         Stmt::Assign { target, .. } => matches!(
             target,
-            Expr::Ident(_) | Expr::Field(..) | Expr::Deref(_) | Expr::Trust(_)
+            Expr::Ident(_, _) | Expr::Field(..) | Expr::Deref(_) | Expr::Trust(_)
         ),
         Stmt::Defer(body) => all_trusted_stmts(body),
         Stmt::If {
@@ -4772,7 +4772,7 @@ fn find_bare_builtin_in_expr(expr: &Expr) -> Option<String> {
         | Expr::FloatLit(_)
         | Expr::CharLit(_)
         | Expr::StrLit(_)
-        | Expr::Ident(_)
+        | Expr::Ident(_, _)
         | Expr::Bool(_)
         | Expr::None => None,
         Expr::ZeroInit(_) => None,
@@ -5377,7 +5377,7 @@ fn resolve_call_name(
 
 fn expr_to_path(expr: &Expr) -> String {
     match expr {
-        Expr::Ident(name) => name.clone(),
+        Expr::Ident(name, _) => name.clone(),
         Expr::Field(base, field) => format!("{}.{field}", expr_to_path(base)),
         _ => String::new(),
     }
@@ -5408,7 +5408,7 @@ fn is_namespace_prefix(path: &str, ns: &Namespace) -> bool {
 /// Get the root identifier name from a (possibly nested) field access expression.
 fn expr_root_name(expr: &Expr) -> Option<String> {
     match expr {
-        Expr::Ident(name) => Some(name.clone()),
+        Expr::Ident(name, _) => Some(name.clone()),
         Expr::Field(base, _) => expr_root_name(base),
         _ => None,
     }

@@ -322,13 +322,13 @@ fn collect_used_imports_in_expr(
     used: &mut HashSet<String>,
 ) {
     match expr {
-        Expr::Ident(name) => {
+        Expr::Ident(name, _) => {
             if imports.contains_key(name) {
                 used.insert(name.clone());
             }
         }
         Expr::Field(base, _) => {
-            if let Expr::Ident(name) = base.as_ref() {
+            if let Expr::Ident(name, _) = base.as_ref() {
                 if imports.contains_key(name) {
                     used.insert(name.clone());
                 }
@@ -652,9 +652,9 @@ fn stmt_references_name(stmt: &crate::parser::Stmt, name: &str) -> bool {
 
 fn expr_references_name(expr: &Expr, name: &str) -> bool {
     match expr {
-        Expr::Ident(n) => n == name,
+        Expr::Ident(n, _) => n == name,
         Expr::Field(base, _) => {
-            if let Expr::Ident(n) = base.as_ref() {
+            if let Expr::Ident(n, _) = base.as_ref() {
                 if n == name {
                     return true;
                 }
@@ -979,7 +979,7 @@ fn collect_needed_subnames_in_stmt(
 fn collect_needed_subnames_in_expr(expr: &Expr, import_name: &str, needed: &mut HashSet<String>) {
     match expr {
         Expr::Field(base, field) => {
-            if let Expr::Ident(name) = base.as_ref() {
+            if let Expr::Ident(name, _) = base.as_ref() {
                 if name == import_name {
                     needed.insert(field.clone());
                 }

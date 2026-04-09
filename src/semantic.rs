@@ -983,7 +983,7 @@ fn collect_used_in_stmt(stmt: &Stmt, used: &mut HashSet<String>) {
 
 fn collect_used_in_assign_target(expr: &Expr, used: &mut HashSet<String>) {
     match expr {
-        Expr::Ident(_) => {}
+        Expr::Ident(_, _) => {}
         Expr::Field(base, _) => {
             collect_used_in_expr(base, used);
         }
@@ -993,7 +993,7 @@ fn collect_used_in_assign_target(expr: &Expr, used: &mut HashSet<String>) {
 
 fn collect_used_in_expr(expr: &Expr, used: &mut HashSet<String>) {
     match expr {
-        Expr::Ident(name) => {
+        Expr::Ident(name, _) => {
             used.insert(name.clone());
         }
         Expr::BinOp { lhs, rhs, .. } => {
@@ -1195,7 +1195,7 @@ fn collect_mutated_in_stmt(stmt: &Stmt, mutated: &mut HashSet<String>) {
 fn collect_addr_deref_in_expr(expr: &Expr, mutated: &mut HashSet<String>) {
     match expr {
         Expr::Addr(inner) | Expr::Deref(inner) => {
-            if let Expr::Ident(name) = inner.as_ref() {
+            if let Expr::Ident(name, _) = inner.as_ref() {
                 mutated.insert(name.clone());
             }
             collect_addr_deref_in_expr(inner, mutated);
@@ -1239,7 +1239,7 @@ fn collect_addr_deref_in_expr(expr: &Expr, mutated: &mut HashSet<String>) {
 
 fn expr_root_name(expr: &Expr) -> Option<String> {
     match expr {
-        Expr::Ident(name) => Some(name.clone()),
+        Expr::Ident(name, _) => Some(name.clone()),
         Expr::Field(base, _) => expr_root_name(base),
         _ => None,
     }
@@ -1483,7 +1483,7 @@ fn collect_ref_used_in_expr(
     match expr {
         Expr::Builtin { args, .. } => {
             for arg in args {
-                if let Expr::Ident(name) = arg {
+                if let Expr::Ident(name, _) = arg {
                     out.insert(name.clone());
                 }
                 collect_ref_used_in_expr(arg, fn_lookup, out);
@@ -1496,7 +1496,7 @@ fn collect_ref_used_in_expr(
                 for (i, arg) in args.iter().enumerate() {
                     if let Some((_, param_ty)) = params.get(i) {
                         if is_ref_type(param_ty) {
-                            if let Expr::Ident(name) = arg {
+                            if let Expr::Ident(name, _) = arg {
                                 out.insert(name.clone());
                             }
                         }
@@ -1522,7 +1522,7 @@ fn collect_ref_used_in_expr(
         | Expr::Trust(expr)
         | Expr::Deref(expr) => collect_ref_used_in_expr(expr, fn_lookup, out),
         Expr::Addr(inner) => {
-            if let Expr::Ident(name) = inner.as_ref() {
+            if let Expr::Ident(name, _) = inner.as_ref() {
                 out.insert(name.clone());
             }
             collect_ref_used_in_expr(inner, fn_lookup, out);
@@ -1955,7 +1955,7 @@ fn check_immutable_args_in_expr(
             );
         }
         Expr::Addr(inner) => {
-            if let Expr::Ident(var_name) = inner.as_ref() {
+            if let Expr::Ident(var_name, _) = inner.as_ref() {
                 if let Some(&is_mut) = var_mut.get(var_name) {
                     if !is_mut {
                         errors.push(format!(
@@ -1999,7 +1999,7 @@ fn immutable_non_ref_ident<'a>(
     var_mut: &HashMap<String, bool>,
     var_types: &HashMap<String, TypeExpr>,
 ) -> Option<&'a str> {
-    if let Expr::Ident(name) = expr {
+    if let Expr::Ident(name, _) = expr {
         if var_mut.get(name.as_str()) == Some(&false) {
             let is_ptr = var_types.get(name.as_str()).map_or(true, is_pointer_type);
             if !is_ptr {
@@ -2027,7 +2027,7 @@ fn is_ref_type(ty: &TypeExpr) -> bool {
 /// e.g. `Ident("foo")` -> `"foo"`, `Field(Ident("mod"), "bar")` -> `"mod.bar"`
 fn expr_to_call_path(expr: &Expr) -> Option<String> {
     match expr {
-        Expr::Ident(name) => Some(name.clone()),
+        Expr::Ident(name, _) => Some(name.clone()),
         Expr::Field(base, field) => {
             expr_to_call_path(base).map(|base_path| format!("{base_path}.{field}"))
         }
@@ -2720,7 +2720,7 @@ fn check_format_args(
         };
         if !ok {
             let arg_desc = match arg {
-                Expr::Ident(n) => format!("'{n}'"),
+                Expr::Ident(n, _) => format!("'{n}'"),
                 Expr::IntLit(_) => "integer literal".to_string(),
                 Expr::FloatLit(_) => "float literal".to_string(),
                 Expr::StrLit(_) => "string literal".to_string(),
@@ -2787,7 +2787,7 @@ fn check_call_arg_types_in_expr(
                             {
                                 if !types_compatible(expected_type, &actual_type, union_lookup) {
                                     let arg_desc = match arg {
-                                        Expr::Ident(n) => format!("'{n}'"),
+                                        Expr::Ident(n, _) => format!("'{n}'"),
                                         Expr::IntLit(_) => "integer literal".to_string(),
                                         Expr::FloatLit(_) => "float literal".to_string(),
                                         Expr::StrLit(_) => "string literal".to_string(),
@@ -3573,7 +3573,7 @@ fn infer_expr_type(
     fn_ret_lookup: &HashMap<String, TypeExpr>,
 ) -> Option<TypeExpr> {
     match expr {
-        Expr::Ident(name) => var_types.get(name).cloned(),
+        Expr::Ident(name, _) => var_types.get(name).cloned(),
         Expr::IntLit(_) => Some(TypeExpr::Named("i32".to_string())),
         Expr::FloatLit(_) => Some(TypeExpr::Named("f64".to_string())),
         Expr::StrLit(_) => Some(TypeExpr::Ref(Box::new(TypeExpr::Named("char".to_string())))),
@@ -3617,7 +3617,7 @@ fn infer_expr_type(
             }
         }
         Expr::Deref(inner) => {
-            if let Expr::Ident(name) = inner.as_ref() {
+            if let Expr::Ident(name, _) = inner.as_ref() {
                 if let Some(ty) = var_types.get(name) {
                     if let TypeExpr::Ref(inner_ty) = ty {
                         return Some((**inner_ty).clone());
