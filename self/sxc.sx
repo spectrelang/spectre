@@ -26,7 +26,7 @@ pub fn main() i32! = {
     val argc: i64 = @len(args) as i64
 
     if argc < 2 {
-        std.stdio.puts("error: no input file provided")
+        std.stdio.puts("error: no input file provided\n")
         print_usage()
         allocators.Arena.free(arena)
         return 1
