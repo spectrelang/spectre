@@ -1649,10 +1649,13 @@ fn gen_binop(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
         elif op == parser.OP_REM { @snprintf(buf, 256, "    %%t%lld =l rem %s, %s\n",  {tmp, lhs, rhs}) }
         elif op == parser.OP_EQ  { @snprintf(buf, 256, "    %%t%lld =w ceql %s, %s\n", {tmp, lhs_l, rhs_l}) }
         elif op == parser.OP_NE  { @snprintf(buf, 256, "    %%t%lld =w cnel %s, %s\n", {tmp, lhs_l, rhs_l}) }
-        elif op == parser.OP_LT  { @snprintf(buf, 256, "    %%t%lld =w csltl %s, %s\n",{tmp, lhs_l, rhs_l}) }
+        elif op == parser.OP_LT  { @snprintf(buf, 256, "    %%t%lld =w csltw %s, %s\n",{tmp, lhs_l, rhs_l}) }
         elif op == parser.OP_GT  { @snprintf(buf, 256, "    %%t%lld =w csgtl %s, %s\n",{tmp, lhs_l, rhs_l}) }
         elif op == parser.OP_LE  { @snprintf(buf, 256, "    %%t%lld =w cslel %s, %s\n",{tmp, lhs_l, rhs_l}) }
-        elif op == parser.OP_GE  { @snprintf(buf, 256, "    %%t%lld =w csgel %s, %s\n",{tmp, lhs_l, rhs_l}) }
+        elif op == parser.OP_GE  { 
+            val lt: i64 = fresh_tmp(ctx)
+            @snprintf(buf, 256, "    %%t%lld =w csltw %s, %s\n    %%t%lld =w ceqw %%t%lld, 0\n", {lt, lhs_l, rhs_l, tmp, lt}) 
+        }
         elif op == parser.OP_AND {
             @snprintf(buf, 256, "    %%t%lld =w and %s, %s\n", {tmp, lhs, rhs})
         }
@@ -2498,8 +2501,9 @@ fn gen_builtin(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
         val need_grow: i64 = fresh_tmp(ctx)
         val grow_lbl: i64 = fresh_lbl(ctx)
         val no_grow_lbl: i64 = fresh_lbl(ctx)
+        val lt: i64 = fresh_tmp(ctx)
         val buf_app3: ref char = @alloc(256) as ref char
-        @snprintf(buf_app3, 256, "    %%t%lld =w csgel %%t%lld, %%t%lld\n    jnz %%t%lld, @lbl%lld, @lbl%lld\n", {need_grow, len_val, cap_val, need_grow, grow_lbl, no_grow_lbl})
+        @snprintf(buf_app3, 256, "    %%t%lld =w csltw %%t%lld, %%t%lld\n    %%t%lld =w ceqw %%t%lld, 0\n    jnz %%t%lld, @lbl%lld, @lbl%lld\n", {lt, len_val, cap_val, need_grow, lt, need_grow, grow_lbl, no_grow_lbl})
         emit(ctx, buf_app3)
         @free(buf_app3)
 
@@ -2770,8 +2774,9 @@ fn gen_builtin(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
         val need_grow: i64 = fresh_tmp(ctx)
         val grow_lbl: i64 = fresh_lbl(ctx)
         val no_grow_lbl: i64 = fresh_lbl(ctx)
+        val lt: i64 = fresh_tmp(ctx)
         val buf_ins2: ref char = @alloc(256) as ref char
-        @snprintf(buf_ins2, 256, "    %%t%lld =w csgel %%t%lld, %%t%lld\n    jnz %%t%lld, @lbl%lld, @lbl%lld\n", {need_grow, len_val, cap_val, need_grow, grow_lbl, no_grow_lbl})
+        @snprintf(buf_ins2, 256, "    %%t%lld =w csltw %%t%lld, %%t%lld\n    %%t%lld =w ceqw %%t%lld, 0\n    jnz %%t%lld, @lbl%lld, @lbl%lld\n", {lt, len_val, cap_val, need_grow, lt, need_grow, grow_lbl, no_grow_lbl})
         emit(ctx, buf_ins2)
         @free(buf_ins2)
 
