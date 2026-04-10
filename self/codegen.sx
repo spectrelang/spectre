@@ -78,6 +78,7 @@ pub type CgCtx = {
     local_src_names: mut list[ref char]
     local_qbe_names: mut list[ref char]
     local_slot_names: mut list[ref char]
+    local_ref_types: mut list[ref char]s
     global_src_names: mut list[ref char]
     global_labels: mut list[ref char]
     global_qtypes: mut list[ref char]
@@ -119,6 +120,7 @@ fn cg_new() ref CgCtx! = {
     ctx.local_src_names = []
     ctx.local_qbe_names = []
     ctx.local_slot_names = []
+    ctx.local_ref_types = []
     ctx.global_src_names = []
     ctx.global_labels = []
     ctx.global_qtypes = []
@@ -660,6 +662,29 @@ fn cg_register_local_type(ctx: ref CgCtx, name: ref char, type_name: ref char) v
     @append(ctx.ltypes as list[ref char], type_name)
 }
 
+/// Register a local variable as having a reference/pointer type
+fn cg_register_local_ref_type(ctx: ref CgCtx, name: ref char) void! = {
+    @append(ctx.local_ref_types as list[ref char], name)
+}
+
+/// Check if a local variable has a reference/pointer type
+fn cg_is_local_ref_type(ctx: ref CgCtx, name: ref char) bool! = {
+    val nlen: i64 = @len(ctx.local_ref_types as list[ref char]) as i64
+    val ni: mut i64 = 0
+    for {
+        if ni >= nlen { break }
+        val n_opt = @get(ctx.local_ref_types as list[ref char], ni as usize)
+        match n_opt {
+            some n => {
+                if str.rchar_cmp(n as ref char, name) == 0 { return true }
+            }
+            none => {}
+        }
+        ni++
+    }
+    return false
+}
+
 fn cg_local_type(ctx: ref CgCtx, name: ref char) ref char! = {
     val nlen: i64 = @len(ctx.lnames as list[ref char]) as i64
     val ni: mut i64 = 0
@@ -840,6 +865,26 @@ fn qbe_type_of(ty: ref parser.Node) ref char! = {
         return "l"
     }
     return "l"
+}
+
+/// Returns true if the type is a reference/pointer type (TY_REF or TY_MUT with ref inside).
+fn is_ref_type(ty: ref parser.Node) bool! = {
+    if ty == 0 as ref parser.Node { return false }
+    val k: i64 = ty.kind
+    if k == parser.TY_REF { return true }
+    if k == parser.TY_MUT { return is_ref_type(ty.d0 as ref parser.Node) }
+    return false
+}
+
+/// Unwrap a type node to get the base named type, stripping ref/mut wrappers.
+/// Returns "" if not a named type.
+fn unwrap_type_name(ty: ref parser.Node) ref char! = {
+    if ty == 0 as ref parser.Node { return "" }
+    val k: i64 = ty.kind
+    if k == parser.TY_REF { return unwrap_type_name(ty.d0 as ref parser.Node) }
+    if k == parser.TY_MUT { return unwrap_type_name(ty.d0 as ref parser.Node) }
+    if k == parser.TY_NAMED { return ty.d0 as ref char }
+    return ""
 }
 
 fn type_size(ty: ref parser.Node) i64! = {
@@ -1822,6 +1867,7 @@ fn gen_field(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
     }
 
     val base: mut ref char = 0 as ref char
+    val base_is_ref: mut bool = false
     if base_expr.kind == parser.NK_IDENT {
         val base_name2: ref char = base_expr.d0 as ref char
         val dqt: ref char = cg_direct_type(ctx, base_name2)
@@ -1829,10 +1875,20 @@ fn gen_field(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
             val direct_buf: ref char = @alloc(32) as ref char
             @snprintf(direct_buf, 32, "%%%s", {base_name2})
             base = direct_buf
+        } else {
+            if cg_is_local_ref_type(ctx, base_name2) {
+                base_is_ref = true
+            }
         }
     }
     if base == 0 as ref char {
         base = gen_expr(ctx, base_expr)
+        if base_expr.kind == parser.NK_IDENT {
+            val base_name3: ref char = base_expr.d0 as ref char
+            if cg_is_local_ref_type(ctx, base_name3) {
+                base_is_ref = true
+            }
+        }
     }
 
     val field_is_fa: mut bool = false
@@ -1869,7 +1925,30 @@ fn gen_field(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
 
     val tmp: i64 = fresh_tmp(ctx)
     val buf: ref char = @alloc(256) as ref char
-    if field_is_fa {
+    
+    if base_is_ref {
+        if field_is_fa {
+            if offset == 0 {
+                @snprintf(buf, 256, "    %%t%lld =l copy %s\n", {tmp, base})
+            } else {
+                @snprintf(buf, 256, "    %%t%lld =l add %s, %lld\n", {tmp, base, offset})
+            }
+        } else {
+            if offset == 0 {
+                @snprintf(buf, 256, "    %%t%lld =l loadl %s\n", {tmp, base})
+            } else {
+                val ptr_tmp: i64 = fresh_tmp(ctx)
+                val buf2: ref char = @alloc(128) as ref char
+                @snprintf(buf2, 128, "    %%t%lld =l add %s, %lld\n", {ptr_tmp, base, offset})
+                emit(ctx, buf2)
+                @free(buf2)
+                val ptr_str: ref char = @alloc(16) as ref char
+                @snprintf(ptr_str, 16, "%%t%lld", {ptr_tmp})
+                @snprintf(buf, 256, "    %%t%lld =l loadl %s\n", {tmp, ptr_str})
+                @free(ptr_str)
+            }
+        }
+    } elif field_is_fa {
         if offset == 0 {
             @snprintf(buf, 256, "    %%t%lld =l copy %s\n", {tmp, base})
         } else {
@@ -3565,10 +3644,13 @@ fn gen_stmt(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
         val val_tmp: ref char = gen_expr(ctx, expr)
 
         if ty_node != 0 as ref parser.Node {
-            val tyk: i64 = ty_node.kind
-            if tyk == parser.TY_NAMED {
-                val tname: ref char = ty_node.d0 as ref char
+            val tname: ref char = unwrap_type_name(ty_node)
+            if str.rchar_cmp(tname, "") != 0 {
                 cg_register_local_type(ctx, name, tname)
+            }
+            // Track if this is a reference type
+            if is_ref_type(ty_node) {
+                cg_register_local_ref_type(ctx, name)
             }
         }
 

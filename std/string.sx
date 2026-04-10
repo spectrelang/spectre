@@ -31,7 +31,7 @@ pub fn new() ref void! = {
 }
 
 /// Internal.
-/// 
+///
 /// Either a String or a raw pointer to a String.
 pub union StrOrRChar = {
     Str(String) | RChar(ref char)
@@ -50,12 +50,18 @@ pub fn rchar_cmp(a: ref char, b: ref char) i64 = {
 pub fn compare(a: StrOrRChar, b: StrOrRChar) i64! = {
     val aptr: mut ref char = ""
     match a {
-        RChar p => { aptr = p }
+        RChar p => {
+            @puts("got RChar a")
+            aptr = p
+        }
         Str s   => { aptr = s.ptr }
     }
     val bptr: mut ref char = ""
     match b {
-        RChar p => { bptr = p }
+        RChar p => {
+            @puts("got RChar b")
+            bptr = p
+        }
         Str s   => { bptr = s.ptr }
     }
     return strcmp(aptr, bptr)
@@ -516,7 +522,7 @@ pub fn replace(s: ref void, from: ref void, to: ref void) ref void! = {
     val new_len: mut i64 = 0
     val out_ptr: mut ref void = 0 as ref void
     val c: mut u8 = 0
-    
+
     for {
         if (i >= sl) {
             break
@@ -817,7 +823,7 @@ pub fn (StringBuilder) build(sb: self) ref void! = {
     @store(out, buf)
     @store(@ptradd(out, 8), l)
     @store(@ptradd(out, 16), l + 1)
-    
+
     return out
 }
 

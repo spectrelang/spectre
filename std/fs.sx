@@ -210,7 +210,7 @@ pub fn rmdir_path(path: ref char) bool! = {
 }
 
 /// Return the current working directory as a heap-allocated string.
-/// Returns none on failure. 
+/// Returns none on failure.
 /// Caller must free the result.
 pub fn cwd() option[ref char] = {
     val buf: ref char = trust @alloc(4096) as ref char
@@ -291,21 +291,27 @@ val str = use("string.sx")
 
 test {
     val path: ref char = "test_file.txt"
+    @puts("1")
     val success = write_all(path, "Hello, Spectre!")
     assert success
-
+    @puts("2")
     val content_opt: option[ref char] = read_all(path)
     match content_opt {
         none => { assert false }
         some content => {
+            @puts("2.5")
+            @dprintf(2, "content: {s}\n", content)
+
             stdio.print("{s} {d}\n", {content, str.compare(str.RChar(content), str.RChar("Hello, Spectre!"))})
+            @puts("2.6")
             assert str.compare(str.RChar(content), str.RChar("Hello, Spectre!")) == 0
             @free(content)
         }
     }
-
+    @puts("3")
     val append_ok = append_all(path, " More text.")
     assert append_ok
+    @puts("4")
 
     val content2_opt = read_all(path)
     match content2_opt {
@@ -315,9 +321,11 @@ test {
             @free(content2)
         }
     }
+    @puts("5")
 
     val overwrite_ok = write_all(path, "Overwritten.")
     assert overwrite_ok
+    @puts("6")
 
     val content3_opt = read_all(path)
     match content3_opt {
@@ -327,6 +335,7 @@ test {
             @free(content3)
         }
     }
+    @puts("7")
 
     val rename_ok = rename_path(path, "test_file2.txt")
     assert rename_ok

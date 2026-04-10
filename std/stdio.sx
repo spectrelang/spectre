@@ -5,7 +5,7 @@ pub fn puts(arg: ref char) void = {
 
 /// Print a formatted string to stdout.
 ///
-/// This trusts an unsafe printf call for the sake of making debugging pure 
+/// This trusts an unsafe printf call for the sake of making debugging pure
 /// functions easier, use with caution.
 pub fn print(fmt: ref char, args: untyped) void = {
     trust @printf(fmt, args)
@@ -21,7 +21,7 @@ pub fn eprint(fmt: ref char, args: untyped) void! = {
     @dprintf(2, fmt, args)
 }
 
-/// Read a single character from stdin. 
+/// Read a single character from stdin.
 /// Returns -1 on EOF.
 pub fn read_key() i32! = {
     return @getchar()
