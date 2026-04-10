@@ -132,6 +132,8 @@ fn do_request(handle: ref void) ref void! = {
     return resp
 }
 
+type Http = {}
+
 /// Initialise the curl global state. Call once at program start.
 pub fn (Http) init() void! = {
     curl_global_init(CURL_GLOBAL_DEFAULT)
@@ -225,6 +227,8 @@ pub fn (Http) append_header(list: ref void, header: ref char) ref void! = {
 pub fn (Http) free_headers(list: ref void) void! = {
     curl_slist_free_all(list)
 }
+
+type TcpServer = {}
 
 /// Create a TCP server bound to `port` and start listening.
 /// Returns a heap-allocated server handle; caller must call TcpServer.close().
