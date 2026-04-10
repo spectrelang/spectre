@@ -2028,13 +2028,22 @@ fn gen_list_ptr(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
         val vname: ref char = expr.d0 as ref char
         val qbe_var: ref char = cg_lookup_local_var(ctx, vname)
         if str.rchar_cmp(qbe_var, "") != 0 && cg_is_slot(ctx, vname) {
-            val res: ref char = @alloc(64) as ref char
+            val slot_addr: ref char = @alloc(64) as ref char
             val is_global_ref: bool = @load8(qbe_var as ref void) == 36
             if is_global_ref {
-                @snprintf(res, 64, "%s", {qbe_var})
+                @snprintf(slot_addr, 64, "%s", {qbe_var})
             } else {
-                @snprintf(res, 64, "%%t%s", {qbe_var})
+                @snprintf(slot_addr, 64, "%%t%s", {qbe_var})
             }
+            val list_ptr_tmp: i64 = fresh_tmp(ctx)
+            val load_buf: ref char = @alloc(128) as ref char
+            @snprintf(load_buf, 128, "    %%t%lld =l loadl %s\n", {list_ptr_tmp, slot_addr})
+            emit(ctx, load_buf)
+            @free(load_buf)
+            @free(slot_addr)
+            
+            val res: ref char = @alloc(16) as ref char
+            @snprintf(res, 16, "%%t%lld", {list_ptr_tmp})
             return res
         }
         val dqt: ref char = cg_direct_type(ctx, vname)
