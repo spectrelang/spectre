@@ -100,7 +100,7 @@ fn in_progress_contains(in_progress: list[ref char], path: ref char) bool! = {
 /// This is used to determine if we should actually load an import or skip it.
 fn import_is_referenced(items: list[ref parser.Node], import_name: ref char) bool! = {
     std.stdio.print("[DEBUG] import_is_referenced: checking '{s}'\n", {import_name})
-    
+
     val items_len: i64 = @len(items) as i64
     val ii: mut i64 = 0
     for {
@@ -109,18 +109,29 @@ fn import_is_referenced(items: list[ref parser.Node], import_name: ref char) boo
         match item_opt {
             some item_val => {
                 val item: ref parser.Node = item_val as ref parser.Node
-                
+                std.stdio.print("[DEBUG]   item[{d}] kind={d}\n", {ii, item.kind})
+
                 if item.kind == parser.NK_FN {
                     val body: ref void = item.d5 as ref void
-                    if body != 0 && item_references_import_shallow(body, import_name) {
-                        std.stdio.print("[DEBUG] import_is_referenced: '{s}' found in function\n", {import_name})
-                        return true
+                    std.stdio.print("[DEBUG]   NK_FN body_ptr={p}\n", {body})
+                    if body != 0 {
+                        val blen: i64 = @len(body) as i64
+                        std.stdio.print("[DEBUG]   NK_FN body len={d}\n", {blen})
+                        if item_references_import_shallow(body, import_name) {
+                            std.stdio.print("[DEBUG] import_is_referenced: '{s}' found in function\n", {import_name})
+                            return true
+                        }
                     }
                 } elif item.kind == parser.NK_TEST {
+                    std.stdio.print("[DEBUG]   NK_TEST at d0={p}\n", {item.d0 as ref void})
                     val body: ref void = item.d0 as ref void
-                    if body != 0 && item_references_import_shallow(body, import_name) {
-                        std.stdio.print("[DEBUG] import_is_referenced: '{s}' found in test\n", {import_name})
-                        return true
+                    if body != 0 {
+                        val blen: i64 = @len(body) as i64
+                        std.stdio.print("[DEBUG]   NK_TEST body len={d}\n", {blen})
+                        if item_references_import_shallow(body, import_name) {
+                            std.stdio.print("[DEBUG] import_is_referenced: '{s}' found in test\n", {import_name})
+                            return true
+                        }
                     }
                 } elif item.kind == parser.NK_CONST {
                     val expr: ref parser.Node = item.d2 as ref parser.Node
@@ -179,7 +190,7 @@ fn stmt_references_import_shallow(node: ref parser.Node, import_name: ref char) 
     if node == 0 { return false }
 
     if node.kind == parser.NK_VAL {
-        return expr_references_import_shallow(node.d2 as ref parser.Node, import_name)
+        return expr_references_import_shallow(node.d3 as ref parser.Node, import_name)
     } elif node.kind == parser.NK_ASSIGN {
         if expr_references_import_shallow(node.d0 as ref parser.Node, import_name) { return true }
         return expr_references_import_shallow(node.d1 as ref parser.Node, import_name)
@@ -406,8 +417,11 @@ fn stmt_references_import_shallow(node: ref parser.Node, import_name: ref char) 
 fn expr_references_import_shallow(node: ref parser.Node, import_name: ref char) bool! = {
     if node == 0 { return false }
 
+    std.stdio.print("[DEBUG] expr_shallow: kind={d} import={s}\n", {node.kind, import_name})
+
     if node.kind == parser.NK_IDENT {
         val name: ref char = node.d0 as ref char
+        std.stdio.print("[DEBUG]   NK_IDENT: '{s}'\n", {name})
         if str.rchar_cmp(name, import_name) == 0 {
             return true
         }
@@ -415,9 +429,14 @@ fn expr_references_import_shallow(node: ref parser.Node, import_name: ref char) 
         val base: ref parser.Node = node.d0 as ref parser.Node
         if base != 0 && base.kind == parser.NK_IDENT {
             val name: ref char = base.d0 as ref char
+            std.stdio.print("[DEBUG]   NK_FIELD base=IDENT('{s}') field='{s}'\n", {name, node.d1 as ref char})
             if str.rchar_cmp(name, import_name) == 0 {
                 return true
             }
+        } else {
+            val bkind: mut i64 = -1
+            if base != 0 { bkind = base.kind } 
+            std.stdio.print("[DEBUG]   NK_FIELD base=kind={d}\n", {bkind})
         }
         if base != 0 && expr_references_import_shallow(base, import_name) { return true }
     } elif node.kind == parser.NK_CALL {
@@ -968,7 +987,7 @@ fn collect_used_imports_stmt(node: ref parser.Node, import_names: list[ref char]
     if node == 0 { return }
 
     if node.kind == parser.NK_VAL {
-        collect_used_imports_expr(node.d2 as ref parser.Node, import_names, used)
+        collect_used_imports_expr(node.d3 as ref parser.Node, import_names, used)
     } elif node.kind == parser.NK_ASSIGN {
         collect_used_imports_expr(node.d0 as ref parser.Node, import_names, used)
         collect_used_imports_expr(node.d1 as ref parser.Node, import_names, used)
