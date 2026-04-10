@@ -300,7 +300,7 @@ pub fn collect_links(items: list[ref parser.Node], exe_dir: ref char) list[ref c
             if file_exists(shim_path) {
                 @append(result, shim_path)
             } else {
-                std.stdio.print("warning: yyjson_shim.o not found at expected path: {s}\n", {shim_path})
+                std.stdio.print("warning: yyjson_shim not found at expected path: {s}\n", {shim_path})
                 @append(result, the_link)
             }
         } else {
