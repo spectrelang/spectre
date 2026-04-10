@@ -5834,6 +5834,9 @@ fn scan_stmts_for_calls(ctx: ref CgCtx, stmts: ref void) void! = {
     if stmts == 0 as ref void { return }
     
     val slen: i64 = @len(stmts as list[ref parser.Node]) as i64
+    if slen < 0 || slen > 100000 {
+        return
+    }
     val si: mut i64 = 0
     for {
         if si >= slen { break }
@@ -6079,34 +6082,6 @@ pub fn gen_module_resolved(root: ref module.ResolvedModule) ref char! = {
             none => {}
         }
         li++
-    }
-    
-    val scan_pass: mut i64 = 0
-    for {
-        if scan_pass >= 10 { break }
-        scan_pass++
-        
-        val li_scan: mut i64 = 0
-        for {
-            if li_scan >= layers { break }
-            val pfx_scan_opt   = @get(out_prefixes, li_scan as usize)
-            val items_scan_opt = @get(out_items,    li_scan as usize)
-            match pfx_scan_opt {
-                some pfx_scan => {
-                    if cg_is_prefix_used(ctx, pfx_scan as ref char) {
-                        match items_scan_opt {
-                            some items_scan_ptr => {
-                                val items_scan: list[ref parser.Node] = items_scan_ptr as list[ref parser.Node]
-                                scan_items_for_usage(ctx, items_scan, pfx_scan as ref char)
-                            }
-                            none => {}
-                        }
-                    }
-                }
-                none => {}
-            }
-            li_scan++
-        }
     }
 
     val li2: mut i64 = 0
