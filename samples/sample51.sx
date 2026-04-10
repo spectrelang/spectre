@@ -1,0 +1,83 @@
+val std = use("std")
+
+pub union TokenKind = {
+    Fn() | Val() | Ident(ref char) | Eof()
+}
+
+pub type Token = {
+    kind: mut TokenKind
+}
+
+pub fn tokenize_simple(src: ref char) list[ref Token]! = {
+    val tokens: mut list[ref Token] = []
+    
+    // Just create a few test tokens
+    val t1: mut ref Token = @alloc(@sizeof(Token)) as ref Token
+    t1.kind = Fn()
+    @append(tokens, t1)
+    
+    val t2: mut ref Token = @alloc(@sizeof(Token)) as ref Token
+    t2.kind = Val()
+    @append(tokens, t2)
+    
+    val t3: mut ref Token = @alloc(@sizeof(Token)) as ref Token
+    t3.kind = Eof()
+    @append(tokens, t3)
+    
+    return tokens
+}
+
+pub fn tok_kind_simple(tokens: list[ref Token], i: i64) TokenKind! = {
+    val opt = @get(tokens, i as usize)
+    match opt {
+        some t => { return (t as ref Token).kind }
+        none   => { return Eof() }
+    }
+}
+
+fn kind_is_fn(k: TokenKind) bool! = { 
+    match k { 
+        Fn() => { return true } 
+        else => { return false } 
+    } 
+}
+
+fn kind_is_val(k: TokenKind) bool! = { 
+    match k { 
+        Val() => { return true } 
+        else => { return false } 
+    } 
+}
+
+fn kind_is_eof(k: TokenKind) bool! = { 
+    match k { 
+        Eof() => { return true } 
+        else => { return false } 
+    } 
+}
+
+pub fn main() void! = {
+    @puts("Simple test 1")
+    val toks = tokenize_simple("dummy")
+    @puts("Simple test 2")
+    
+    val opt0 = @get(toks, 0 as usize)
+    @puts("Simple test 3")
+    match opt0 {
+        some t0 => {
+            @puts("Simple test 4")
+            val tok0: ref Token = t0 as ref Token
+            @puts("Simple test 5")
+            val kind_ptr: ref void = addr(tok0.kind) as ref void
+            val tag_val: i64 = @load(kind_ptr)
+            @printf("tok0=%p, kind_ptr=%p, tag=%lld\n", {tok0, kind_ptr, tag_val})
+            match tok0.kind {
+                Fn() => { @puts("Simple test 6 - got Fn") }
+                else => { @puts("ERROR: expected Fn") assert false }
+            }
+        }
+        none => { @puts("ERROR: no token") assert false }
+    }
+    
+    @puts("Simple test 7 - all passed")
+}

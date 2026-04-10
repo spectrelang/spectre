@@ -5689,6 +5689,30 @@ fn gen_fn_prefixed(ctx: ref CgCtx, fn_node: ref parser.Node, mod_prefix: ref cha
 
     cg_dvars_clear(ctx)
 
+    if params != 0 as ref void {
+        val plen2: i64 = @len(params) as i64
+        val pi2: mut i64 = 0
+        for {
+            if pi2 >= plen2 { break }
+            val p_opt2 = @get(params, pi2 as usize)
+            match p_opt2 {
+                some param2 => {
+                    val pname2: ref char = (param2 as ref parser.Node).d0 as ref char
+                    val pty2: ref parser.Node = (param2 as ref parser.Node).d1 as ref parser.Node
+                    val pty_name2: ref char = unwrap_type_name(pty2)
+                    if str.rchar_cmp(pty_name2, "") != 0 {
+                        cg_register_local_type(ctx, pname2, pty_name2)
+                    }
+                    if is_ref_type(pty2) {
+                        cg_register_local_ref_type(ctx, pname2)
+                    }
+                }
+                none => {}
+            }
+            pi2++
+        }
+    }
+
     val gnames_list: ref void = cg_global_src_names(ctx)
     val glen: i64 = @len(gnames_list) as i64
     val gi: mut i64 = 0

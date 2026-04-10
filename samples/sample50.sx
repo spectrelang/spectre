@@ -1,0 +1,22 @@
+union Kind = { A() | B(ref char) }
+type Thing = { kind: mut Kind }
+
+fn make_thing(k: Kind) ref Thing! = {
+    val t: mut ref Thing = @alloc(@sizeof(Thing)) as ref Thing
+    t.kind = k
+    return t
+}
+
+fn get_text(t: ref Thing) ref char! = {
+    match t.kind {
+        A() => { return "got A" }
+        B s => { return s }
+        else => { return "unknown" }
+    }
+}
+
+pub fn main() void! = {
+    val t1 = make_thing(B("hello"))
+    val text = get_text(t1)
+    @puts(text)
+}
