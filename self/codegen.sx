@@ -2714,37 +2714,46 @@ fn gen_call(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
                             val at_opt = @get(arg_tmps, wi as usize)
                             match at_opt {
                                 some at => {
-                                    // TODO: Use type inference here.
                                     val arg_val: ref char = at as ref char
-                                    val box_ptr: i64 = fresh_tmp(ctx)
-                                    val payload_ptr: i64 = fresh_tmp(ctx)
-                                    val bbuf: ref char = @alloc(256) as ref char
-                                    @snprintf(bbuf, 256,
-                                        "    %%t%lld =l call $malloc(l 16)\n    storew 0, %%t%lld\n    %%t%lld =l add %%t%lld, 8\n    storel %s, %%t%lld\n",
-                                        {box_ptr, box_ptr, payload_ptr, box_ptr, arg_val, payload_ptr})
-                                    emit(ctx, bbuf)
-                                    @free(bbuf)
-                                    val wrapped: ref char = @alloc(16) as ref char
-                                    @snprintf(wrapped, 16, "%%t%lld", {box_ptr})
-                                    val new_tmps: mut list[ref char] = []
-                                    val tlen_r: i64 = @len(arg_tmps) as i64
-                                    val ri: mut i64 = 0
-                                    for {
-                                        if ri >= tlen_r { break }
-                                        val r_opt = @get(arg_tmps, ri as usize)
-                                        match r_opt {
-                                            some r => {
-                                                if ri == wi {
-                                                    @append(new_tmps, wrapped)
-                                                } else {
-                                                    @append(new_tmps, r as ref char)
-                                                }
-                                            }
-                                            none => {}
+                                    val should_wrap: mut bool = true
+                                    if @load8(arg_val) as i64 == 37 {
+                                        val second: i64 = @load8(@ptradd(arg_val, 1)) as i64
+                                        if second == 116 {
+                                            should_wrap = false
                                         }
-                                        ri++
                                     }
-                                    arg_tmps = new_tmps
+                                    
+                                    if should_wrap {
+                                        val box_ptr: i64 = fresh_tmp(ctx)
+                                        val payload_ptr: i64 = fresh_tmp(ctx)
+                                        val bbuf: ref char = @alloc(256) as ref char
+                                        @snprintf(bbuf, 256,
+                                            "    %%t%lld =l call $malloc(l 16)\n    storew 0, %%t%lld\n    %%t%lld =l add %%t%lld, 8\n    storel %s, %%t%lld\n",
+                                            {box_ptr, box_ptr, payload_ptr, box_ptr, arg_val, payload_ptr})
+                                        emit(ctx, bbuf)
+                                        @free(bbuf)
+                                        val wrapped: ref char = @alloc(16) as ref char
+                                        @snprintf(wrapped, 16, "%%t%lld", {box_ptr})
+                                        val new_tmps: mut list[ref char] = []
+                                        val tlen_r: i64 = @len(arg_tmps) as i64
+                                        val ri: mut i64 = 0
+                                        for {
+                                            if ri >= tlen_r { break }
+                                            val r_opt = @get(arg_tmps, ri as usize)
+                                            match r_opt {
+                                                some r => {
+                                                    if ri == wi {
+                                                        @append(new_tmps, wrapped)
+                                                    } else {
+                                                        @append(new_tmps, r as ref char)
+                                                    }
+                                                }
+                                                none => {}
+                                            }
+                                            ri++
+                                        }
+                                        arg_tmps = new_tmps
+                                    }
                                 }
                                 none => {}
                             }
