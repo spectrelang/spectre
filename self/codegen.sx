@@ -644,7 +644,7 @@ fn cg_lookup_union(ctx: ref CgCtx, union_name: ref char) ref void! = {
 }
 
 /// Compute the total byte size of a struct with the given fields.
-fn struct_size(fields: ref void) i64! = {
+fn struct_size(ctx: ref CgCtx, fields: ref void) i64! = {
     val flen: i64 = @len(fields as list[ref void]) as i64
     val has_fa: bool = fields_have_fixed_arr(fields)
     val offset: mut i64 = 0
@@ -660,7 +660,14 @@ fn struct_size(fields: ref void) i64! = {
                     val align: i64 = type_align(fty)
                     offset = align_to(offset, align)
                 }
-                val fsize: i64 = type_size(fty)
+                val fsize: mut i64 = type_size(fty)
+                if fty != 0 as ref parser.Node && fty.kind == parser.TY_NAMED {
+                    val tname: ref char = fty.d0 as ref char
+                    val union_check: ref void = cg_lookup_union(ctx, tname)
+                    if union_check != 0 as ref void {
+                        fsize = 16
+                    }
+                }
                 if has_fa {
                     offset = offset + fsize
                 } else {
@@ -675,7 +682,7 @@ fn struct_size(fields: ref void) i64! = {
     return offset
 }
 
-fn field_offset(fields: ref void, field_name: ref char) i64! = {
+fn field_offset(ctx: ref CgCtx, fields: ref void, field_name: ref char) i64! = {
     val flen: i64 = @len(fields as list[ref void]) as i64
     val has_fa: bool = fields_have_fixed_arr(fields)
     val offset: mut i64 = 0
@@ -693,7 +700,14 @@ fn field_offset(fields: ref void, field_name: ref char) i64! = {
                     offset = align_to(offset, align)
                 }
                 if str.rchar_cmp(fname, field_name) == 0 { return offset }
-                val fsize: i64 = type_size(fty)
+                val fsize: mut i64 = type_size(fty)
+                if fty != 0 as ref parser.Node && fty.kind == parser.TY_NAMED {
+                    val tname: ref char = fty.d0 as ref char
+                    val union_check: ref void = cg_lookup_union(ctx, tname)
+                    if union_check != 0 as ref void {
+                        fsize = 16
+                    }
+                }
                 if has_fa {
                     offset = offset + fsize
                 } else {
@@ -800,7 +814,7 @@ fn gen_struct_lit_inline(ctx: ref CgCtx, struct_node: ref parser.Node, parent_pt
                 val lf_node: ref parser.Node = lf as ref parser.Node
                 val lf_name: ref char = lf_node.d0 as ref char
                 val lf_expr: ref parser.Node = lf_node.d1 as ref parser.Node              
-                val off: i64 = field_offset(sfields_node, lf_name)
+                val off: i64 = field_offset(ctx, sfields_node, lf_name)
                 if off >= 0 {
                     val actual_off: i64 = base_offset + off
                     val fptr: i64 = fresh_tmp(ctx)
@@ -2136,7 +2150,7 @@ fn gen_field(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
         if str.rchar_cmp(local_type, "") != 0 {
             val fields: ref void = cg_lookup_struct(ctx, local_type)
             if fields != 0 as ref void {
-                val off: i64 = field_offset(fields, field_name)
+                val off: i64 = field_offset(ctx, fields, field_name)
                 if off >= 0 { offset = off }
             }
         }
@@ -2319,7 +2333,7 @@ fn gen_list_ptr(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
             if str.rchar_cmp(local_type, "") != 0 {
                 val fields: ref void = cg_lookup_struct(ctx, local_type)
                 if fields != 0 as ref void {
-                    val off: i64 = field_offset(fields, field_name)
+                    val off: i64 = field_offset(ctx, fields, field_name)
                     if off >= 0 { offset = off }
                 }
             }
@@ -3383,7 +3397,7 @@ fn gen_builtin(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
                     
                     val flds: ref void = cg_lookup_struct(ctx, vname)
                     if flds != 0 as ref void {
-                        sizeof_val = struct_size(flds)
+                        sizeof_val = struct_size(ctx, flds)
                     } else {
                         val ltype: ref char = cg_local_type(ctx, vname)
                         if str.rchar_cmp(ltype, "") != 0 {
@@ -3407,7 +3421,7 @@ fn gen_builtin(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
                             } else {
                                 val flds2: ref void = cg_lookup_struct(ctx, ltype)
                                 if flds2 != 0 as ref void {
-                                    sizeof_val = struct_size(flds2)
+                                    sizeof_val = struct_size(ctx, flds2)
                                 } else {
                                     sizeof_val = 8
                                 }
@@ -4061,7 +4075,7 @@ fn gen_struct_lit(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
                             match sf_opt {
                                 some sf => {
                                     val sfields: ref void = sf as ref void
-                                    val off: i64 = field_offset(sfields, fname0)
+                                    val off: i64 = field_offset(ctx, sfields, fname0)
                                     if off >= 0 {
                                         struct_fields = sfields
                                         si = slen // break
@@ -4126,7 +4140,7 @@ fn gen_struct_lit(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
                 val off: mut i64 = fi * 8
                 val fty_node: mut ref parser.Node = 0 as ref parser.Node
                 if struct_fields != 0 as ref void {
-                    val real_off: i64 = field_offset(struct_fields, fname)
+                    val real_off: i64 = field_offset(ctx, struct_fields, fname)
                     if real_off >= 0 { off = real_off }
                     val sflen2: i64 = @len(struct_fields as list[ref void]) as i64
                     val sfi2: mut i64 = 0
@@ -4396,7 +4410,7 @@ fn gen_stmt(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
                 if str.rchar_cmp(tname2, "") != 0 {
                     val flds2: ref void = cg_lookup_struct(ctx, tname2)
                     if flds2 != 0 as ref void {
-                        val off2: i64 = field_offset(flds2, fname)
+                        val off2: i64 = field_offset(ctx, flds2, fname)
                         if off2 >= 0 { foffset = off2 }
                         
                         val sflen: i64 = @len(flds2 as list[ref void]) as i64
