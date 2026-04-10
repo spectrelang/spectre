@@ -2638,7 +2638,6 @@ impl Codegen {
                         String::new()
                     };
                     
-                    // Check if it might be a type name being used as a value
                     let hint = if self.type_defs.contains_key(name) 
                         || self.union_defs.contains_key(name)
                         || self.tagged_union_defs.contains_key(name)
@@ -3788,7 +3787,6 @@ impl Codegen {
                     if let Some((union_name, tag_index, field_types)) =
                         self.find_tagged_union_variant(&expanded_callee_path)
                     {
-                        let n_fields = field_types.len();
                         let inline_size = self.tagged_union_inline_size(&union_name);
                         let ptr = self.fresh_tmp();
                         self.emit(&format!("    {ptr} =l alloc8 {inline_size}"));
