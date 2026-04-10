@@ -2111,7 +2111,8 @@ fn gen_field(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
         val base_name: ref char = base_expr.d0 as ref char
         val dqt_check: ref char = cg_direct_type(ctx, base_name)
         val local_type: ref char = cg_local_type(ctx, base_name)
-        val is_local: bool = str.rchar_cmp(dqt_check, "") != 0 || str.rchar_cmp(local_type, "") != 0
+        val local_var: ref char = cg_lookup_local_var(ctx, base_name)
+        val is_local: bool = str.rchar_cmp(dqt_check, "") != 0 || str.rchar_cmp(local_type, "") != 0 || str.rchar_cmp(local_var, "") != 0
 
         if !is_local {
             val tmp: i64 = fresh_tmp(ctx)
@@ -2152,6 +2153,10 @@ fn gen_field(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
             base = direct_buf
         } else {
             if cg_is_local_ref_type(ctx, base_name2) {
+                base_is_ref = true
+            }
+            val local_var: ref char = cg_lookup_local_var(ctx, base_name2)
+            if str.rchar_cmp(local_var, "") != 0 && !cg_is_slot(ctx, base_name2) {
                 base_is_ref = true
             }
         }
@@ -2261,7 +2266,7 @@ fn gen_field(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
             }
         } else {
             if offset == 0 {
-                @snprintf(buf, 256, "    %%t%lld =l loadl %s\n", {tmp, base})
+                @snprintf(buf, 256, "    %%t%lld =l add %s, 0\n", {tmp, base})
             } else {
                 val ptr_tmp: i64 = fresh_tmp(ctx)
                 val buf2: ref char = @alloc(128) as ref char
