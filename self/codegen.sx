@@ -78,7 +78,7 @@ pub type CgCtx = {
     local_src_names: mut list[ref char]
     local_qbe_names: mut list[ref char]
     local_slot_names: mut list[ref char]
-    local_ref_types: mut list[ref char]s
+    local_ref_types: mut list[ref char]
     global_src_names: mut list[ref char]
     global_labels: mut list[ref char]
     global_qtypes: mut list[ref char]
