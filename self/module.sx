@@ -177,7 +177,7 @@ fn item_references_import_shallow(stmts_ptr: ref void, import_name: ref char) bo
 /// Shallow check if a statement references an import.
 fn stmt_references_import_shallow(node: ref parser.Node, import_name: ref char) bool! = {
     if node == 0 { return false }
-    
+
     if node.kind == parser.NK_VAL {
         return expr_references_import_shallow(node.d2 as ref parser.Node, import_name)
     } elif node.kind == parser.NK_ASSIGN {
@@ -187,15 +187,225 @@ fn stmt_references_import_shallow(node: ref parser.Node, import_name: ref char) 
         return expr_references_import_shallow(node.d0 as ref parser.Node, import_name)
     } elif node.kind == parser.NK_EXPR_STMT {
         return expr_references_import_shallow(node.d0 as ref parser.Node, import_name)
+    } elif node.kind == parser.NK_ASSERT {
+        return expr_references_import_shallow(node.d0 as ref parser.Node, import_name)
+    } elif node.kind == parser.NK_IF {
+        if expr_references_import_shallow(node.d0 as ref parser.Node, import_name) { return true }
+        val then_body: ref void = node.d1 as ref void
+        if then_body != 0 {
+            val tlen: i64 = @len(then_body) as i64
+            val ti: mut i64 = 0
+            for {
+                if ti >= tlen { break }
+                val stmt_opt = @get(then_body, ti as usize)
+                match stmt_opt {
+                    some stmt => {
+                        if stmt_references_import_shallow(stmt as ref parser.Node, import_name) { return true }
+                    }
+                    none => {}
+                }
+                ti++
+            }
+        }
+        val elif_list: ref void = node.d2 as ref void
+        if elif_list != 0 {
+            val elen: i64 = @len(elif_list) as i64
+            val ei: mut i64 = 0
+            for {
+                if ei >= elen { break }
+                val elif_opt = @get(elif_list, ei as usize)
+                match elif_opt {
+                    some elif_node => {
+                        if stmt_references_import_shallow(elif_node as ref parser.Node, import_name) { return true }
+                    }
+                    none => {}
+                }
+                ei++
+            }
+        }
+        val else_body_node: ref parser.Node = node.d3 as ref parser.Node
+        if else_body_node != 0 {
+            val else_stmts: ref void = else_body_node.d0 as ref void
+            if else_stmts != 0 {
+                val eslen: i64 = @len(else_stmts) as i64
+                val esi: mut i64 = 0
+                for {
+                    if esi >= eslen { break }
+                    val stmt_opt = @get(else_stmts, esi as usize)
+                    match stmt_opt {
+                        some stmt => {
+                            if stmt_references_import_shallow(stmt as ref parser.Node, import_name) { return true }
+                        }
+                        none => {}
+                    }
+                    esi++
+                }
+            }
+        }
+    } elif node.kind == parser.NK_FOR {
+        val init: ref parser.Node = node.d1 as ref parser.Node
+        if init != 0 && expr_references_import_shallow(init, import_name) { return true }
+        val cond: ref parser.Node = node.d2 as ref parser.Node
+        if cond != 0 && expr_references_import_shallow(cond, import_name) { return true }
+        val post_n: ref parser.Node = node.d3 as ref parser.Node
+        if post_n != 0 && stmt_references_import_shallow(post_n, import_name) { return true }
+        val body: ref void = node.d4 as ref void
+        if body != 0 {
+            val blen: i64 = @len(body) as i64
+            val bi: mut i64 = 0
+            for {
+                if bi >= blen { break }
+                val stmt_opt = @get(body, bi as usize)
+                match stmt_opt {
+                    some stmt => {
+                        if stmt_references_import_shallow(stmt as ref parser.Node, import_name) { return true }
+                    }
+                    none => {}
+                }
+                bi++
+            }
+        }
+    } elif node.kind == parser.NK_FORIN {
+        val iter: ref parser.Node = node.d1 as ref parser.Node
+        if iter != 0 && expr_references_import_shallow(iter, import_name) { return true }
+        val body: ref void = node.d2 as ref void
+        if body != 0 {
+            val blen: i64 = @len(body) as i64
+            val bi: mut i64 = 0
+            for {
+                if bi >= blen { break }
+                val stmt_opt = @get(body, bi as usize)
+                match stmt_opt {
+                    some stmt => {
+                        if stmt_references_import_shallow(stmt as ref parser.Node, import_name) { return true }
+                    }
+                    none => {}
+                }
+                bi++
+            }
+        }
+    } elif node.kind == parser.NK_MATCH_OPT {
+        if expr_references_import_shallow(node.d0 as ref parser.Node, import_name) { return true }
+        val some_body_node: ref parser.Node = node.d2 as ref parser.Node
+        if some_body_node != 0 {
+            val some_body: ref void = some_body_node.d0 as ref void
+            if some_body != 0 {
+                val slen: i64 = @len(some_body) as i64
+                val si: mut i64 = 0
+                for {
+                    if si >= slen { break }
+                    val stmt_opt = @get(some_body, si as usize)
+                    match stmt_opt {
+                        some stmt => {
+                            if stmt_references_import_shallow(stmt as ref parser.Node, import_name) { return true }
+                        }
+                        none => {}
+                    }
+                    si++
+                }
+            }
+        }
+        val none_body_node: ref parser.Node = node.d3 as ref parser.Node
+        if none_body_node != 0 {
+            val none_body: ref void = none_body_node.d0 as ref void
+            if none_body != 0 {
+                val nlen: i64 = @len(none_body) as i64
+                val ni: mut i64 = 0
+                for {
+                    if ni >= nlen { break }
+                    val stmt_opt = @get(none_body, ni as usize)
+                    match stmt_opt {
+                        some stmt => {
+                            if stmt_references_import_shallow(stmt as ref parser.Node, import_name) { return true }
+                        }
+                        none => {}
+                    }
+                    ni++
+                }
+            }
+        }
+    } elif node.kind == parser.NK_MATCH_RES {
+        if expr_references_import_shallow(node.d0 as ref parser.Node, import_name) { return true }
+        val ok_body_node: ref parser.Node = node.d2 as ref parser.Node
+        if ok_body_node != 0 {
+            val ok_body: ref void = ok_body_node.d0 as ref void
+            if ok_body != 0 {
+                val olen: i64 = @len(ok_body) as i64
+                val oi: mut i64 = 0
+                for {
+                    if oi >= olen { break }
+                    val stmt_opt = @get(ok_body, oi as usize)
+                    match stmt_opt {
+                        some stmt => {
+                            if stmt_references_import_shallow(stmt as ref parser.Node, import_name) { return true }
+                        }
+                        none => {}
+                    }
+                    oi++
+                }
+            }
+        }
+        val err_body_node: ref parser.Node = node.d4 as ref parser.Node
+        if err_body_node != 0 {
+            val err_body: ref void = err_body_node.d0 as ref void
+            if err_body != 0 {
+                val elen: i64 = @len(err_body) as i64
+                val ei: mut i64 = 0
+                for {
+                    if ei >= elen { break }
+                    val stmt_opt = @get(err_body, ei as usize)
+                    match stmt_opt {
+                        some stmt => {
+                            if stmt_references_import_shallow(stmt as ref parser.Node, import_name) { return true }
+                        }
+                        none => {}
+                    }
+                    ei++
+                }
+            }
+        }
+    } elif node.kind == parser.NK_MATCH_ENUM {
+        if expr_references_import_shallow(node.d0 as ref parser.Node, import_name) { return true }
+        val arms: ref void = node.d1 as ref void
+        if arms != 0 {
+            val alen: i64 = @len(arms) as i64
+            val ai: mut i64 = 0
+            for {
+                if ai >= alen { break }
+                val arm_opt = @get(arms, ai as usize)
+                match arm_opt {
+                    some arm => {
+                        val arm_node: ref parser.Node = arm as ref parser.Node
+                        val body: ref void = arm_node.d1 as ref void
+                        if body != 0 {
+                            val blen: i64 = @len(body) as i64
+                            val bi: mut i64 = 0
+                            for {
+                                if bi >= blen { break }
+                                val stmt_opt = @get(body, bi as usize)
+                                match stmt_opt {
+                                    some stmt => {
+                                        if stmt_references_import_shallow(stmt as ref parser.Node, import_name) { return true }
+                                    }
+                                    none => {}
+                                }
+                                bi++
+                            }
+                        }
+                    }
+                    none => {}
+                }
+                ai++
+            }
+        }
     }
-    
     return false
 }
 
 /// Shallow check if an expression references an import (only checks ident and field).
 fn expr_references_import_shallow(node: ref parser.Node, import_name: ref char) bool! = {
     if node == 0 { return false }
-    
+
     if node.kind == parser.NK_IDENT {
         val name: ref char = node.d0 as ref char
         if str.rchar_cmp(name, import_name) == 0 {
@@ -209,10 +419,36 @@ fn expr_references_import_shallow(node: ref parser.Node, import_name: ref char) 
                 return true
             }
         }
+        if base != 0 && expr_references_import_shallow(base, import_name) { return true }
     } elif node.kind == parser.NK_CALL {
-        return expr_references_import_shallow(node.d0 as ref parser.Node, import_name)
+        if expr_references_import_shallow(node.d0 as ref parser.Node, import_name) { return true }
+        val args: ref void = node.d1 as ref void
+        if args != 0 {
+            val alen: i64 = @len(args) as i64
+            val ai: mut i64 = 0
+            for {
+                if ai >= alen { break }
+                val arg_opt = @get(args, ai as usize)
+                match arg_opt {
+                    some arg => {
+                        if expr_references_import_shallow(arg as ref parser.Node, import_name) { return true }
+                    }
+                    none => {}
+                }
+                ai++
+            }
+        }
+    } elif node.kind == parser.NK_BINOP {
+        if expr_references_import_shallow(node.d1 as ref parser.Node, import_name) { return true }
+        if expr_references_import_shallow(node.d2 as ref parser.Node, import_name) { return true }
+    } elif node.kind == parser.NK_UNOP {
+        if expr_references_import_shallow(node.d1 as ref parser.Node, import_name) { return true }
+    } elif node.kind == parser.NK_CAST || node.kind == parser.NK_ADDR || node.kind == parser.NK_DEREF || node.kind == parser.NK_TRY || node.kind == parser.NK_TRUST {
+        if expr_references_import_shallow(node.d0 as ref parser.Node, import_name) { return true }
+    } elif node.kind == parser.NK_SOME || node.kind == parser.NK_OK_VAL || node.kind == parser.NK_ERR_VAL {
+        if expr_references_import_shallow(node.d0 as ref parser.Node, import_name) { return true }
     }
-    
+
     return false
 }
 
@@ -739,6 +975,8 @@ fn collect_used_imports_stmt(node: ref parser.Node, import_names: list[ref char]
     } elif node.kind == parser.NK_RETURN {
         collect_used_imports_expr(node.d0 as ref parser.Node, import_names, used)
     } elif node.kind == parser.NK_EXPR_STMT {
+        collect_used_imports_expr(node.d0 as ref parser.Node, import_names, used)
+    } elif node.kind == parser.NK_ASSERT {
         collect_used_imports_expr(node.d0 as ref parser.Node, import_names, used)
     } elif node.kind == parser.NK_ADD_ASSIGN || node.kind == parser.NK_SUB_ASSIGN {
         collect_used_imports_expr(node.d1 as ref parser.Node, import_names, used)
