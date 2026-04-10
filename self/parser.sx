@@ -164,13 +164,13 @@ fn p_peek_line(p: ref Parser) i64! = {
     }
 }
 
-fn p_advance(p: ref Parser) lexer.TokenKind! = {
+fn p_advance(p: mut ref Parser) lexer.TokenKind! = {
     val k: lexer.TokenKind = p_peek_kind(p)
     if p.pos + 1 < @len(p.tokens) as i64 { p.pos = p.pos + 1 }
     return k
 }
 
-fn p_advance_text(p: ref Parser) ref char! = {
+fn p_advance_text(p: mut ref Parser) ref char! = {
     val txt: ref char = lexer.tok_text(p.tokens, p.pos)
     if p.pos + 1 < @len(p.tokens) as i64 { p.pos = p.pos + 1 }
     return txt
