@@ -2155,6 +2155,11 @@ fn gen_field(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
                 base_is_ref = true
             }
         }
+    } elif base_expr.kind == parser.NK_CAST {
+        val cast_ty: ref parser.Node = base_expr.d1 as ref parser.Node
+        if is_ref_type(cast_ty) {
+            base_is_ref = true
+        }
     }
     if base == 0 as ref char {
         base = gen_expr(ctx, base_expr)
@@ -2167,6 +2172,7 @@ fn gen_field(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
     }
 
     val field_is_fa: mut bool = false
+    val field_is_union: mut bool = false
     if base_expr.kind == parser.NK_IDENT {
         val base_name3: ref char = base_expr.d0 as ref char
         val local_type2: ref char = cg_local_type(ctx, base_name3)
@@ -2184,8 +2190,53 @@ fn gen_field(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
                             val sfname3: ref char = sfn3.d0 as ref char
                             if str.rchar_cmp(sfname3, field_name) == 0 {
                                 val sfty3: ref parser.Node = sfn3.d2 as ref parser.Node
-                                if sfty3 != 0 as ref parser.Node && sfty3.kind == parser.TY_FIXED_ARR {
-                                    field_is_fa = true
+                                if sfty3 != 0 as ref parser.Node {
+                                    if sfty3.kind == parser.TY_FIXED_ARR {
+                                        field_is_fa = true
+                                    } elif sfty3.kind == parser.TY_NAMED {
+                                        val type_name: ref char = sfty3.d0 as ref char
+                                        val union_check: ref void = cg_lookup_union(ctx, type_name)
+                                        if union_check != 0 as ref void {
+                                            field_is_union = true
+                                        }
+                                    }
+                                }
+                                sfi3 = sflen3 // break
+                            }
+                        }
+                        none => {}
+                    }
+                    sfi3++
+                }
+            }
+        }
+    } elif base_expr.kind == parser.NK_CAST {
+        val cast_ty: ref parser.Node = base_expr.d1 as ref parser.Node
+        val type_name: ref char = unwrap_type_name(cast_ty)
+        if str.rchar_cmp(type_name, "") != 0 {
+            val fields2: ref void = cg_lookup_struct(ctx, type_name)
+            if fields2 != 0 as ref void {
+                val sflen3: i64 = @len(fields2 as list[ref void]) as i64
+                val sfi3: mut i64 = 0
+                for {
+                    if sfi3 >= sflen3 { break }
+                    val sf3_opt = @get(fields2 as list[ref void], sfi3 as usize)
+                    match sf3_opt {
+                        some sf3 => {
+                            val sfn3: ref parser.Node = sf3 as ref parser.Node
+                            val sfname3: ref char = sfn3.d0 as ref char
+                            if str.rchar_cmp(sfname3, field_name) == 0 {
+                                val sfty3: ref parser.Node = sfn3.d2 as ref parser.Node
+                                if sfty3 != 0 as ref parser.Node {
+                                    if sfty3.kind == parser.TY_FIXED_ARR {
+                                        field_is_fa = true
+                                    } elif sfty3.kind == parser.TY_NAMED {
+                                        val ftype_name: ref char = sfty3.d0 as ref char
+                                        val union_check: ref void = cg_lookup_union(ctx, ftype_name)
+                                        if union_check != 0 as ref void {
+                                            field_is_union = true
+                                        }
+                                    }
                                 }
                                 sfi3 = sflen3 // break
                             }
@@ -2202,9 +2253,9 @@ fn gen_field(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
     val buf: ref char = @alloc(256) as ref char
     
     if base_is_ref {
-        if field_is_fa {
+        if field_is_fa || field_is_union {
             if offset == 0 {
-                @snprintf(buf, 256, "    %%t%lld =l copy %s\n", {tmp, base})
+                @snprintf(buf, 256, "    %%t%lld =l add %s, 0\n", {tmp, base})
             } else {
                 @snprintf(buf, 256, "    %%t%lld =l add %s, %lld\n", {tmp, base, offset})
             }
@@ -2223,9 +2274,9 @@ fn gen_field(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
                 @free(ptr_str)
             }
         }
-    } elif field_is_fa {
+    } elif field_is_fa || field_is_union {
         if offset == 0 {
-            @snprintf(buf, 256, "    %%t%lld =l copy %s\n", {tmp, base})
+            @snprintf(buf, 256, "    %%t%lld =l add %s, 0\n", {tmp, base})
         } else {
             @snprintf(buf, 256, "    %%t%lld =l add %s, %lld\n", {tmp, base, offset})
         }
@@ -3087,7 +3138,7 @@ fn gen_builtin(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
         emit(ctx, buf)
     } elif str.rchar_cmp(name, "puts") == 0 {
         val s: ref char = get_arg(ctx, args, 0)
-        @snprintf(buf, 512, "    %%t%lld =w call $puts(l %s)\n    call $fflush(l 0)\n", {tmp, s})
+        @snprintf(buf, 512, "    %%t%lld =w call $puts(l %s)\n", {tmp, s})
         emit(ctx, buf)
     } elif str.rchar_cmp(name, "printf") == 0 {
         val fmt: ref char = get_format_arg(ctx, args, 0)
@@ -4332,6 +4383,8 @@ fn gen_stmt(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
             val ftarget: ref parser.Node = target.d0 as ref parser.Node
             val fname: ref char = target.d1 as ref char
             val foffset: mut i64 = 0
+            val field_is_union: mut bool = false
+            
             if ftarget.kind == parser.NK_IDENT {
                 val bname: ref char = ftarget.d0 as ref char
                 val tname2: ref char = cg_local_type(ctx, bname)
@@ -4340,23 +4393,70 @@ fn gen_stmt(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
                     if flds2 != 0 as ref void {
                         val off2: i64 = field_offset(flds2, fname)
                         if off2 >= 0 { foffset = off2 }
+                        
+                        val sflen: i64 = @len(flds2 as list[ref void]) as i64
+                        val sfi: mut i64 = 0
+                        for {
+                            if sfi >= sflen { break }
+                            val sf_opt = @get(flds2 as list[ref void], sfi as usize)
+                            match sf_opt {
+                                some sf => {
+                                    val sfn: ref parser.Node = sf as ref parser.Node
+                                    val sfname: ref char = sfn.d0 as ref char
+                                    if str.rchar_cmp(sfname, fname) == 0 {
+                                        val sfty: ref parser.Node = sfn.d2 as ref parser.Node
+                                        if sfty != 0 as ref parser.Node && sfty.kind == parser.TY_NAMED {
+                                            val ftype_name: ref char = sfty.d0 as ref char
+                                            val union_check: ref void = cg_lookup_union(ctx, ftype_name)
+                                            if union_check != 0 as ref void {
+                                                field_is_union = true
+                                            }
+                                        }
+                                        sfi = sflen // break
+                                    }
+                                }
+                                none => {}
+                            }
+                            sfi++
+                        }
                     }
                 }
             }
+            
             val base: ref char = gen_expr(ctx, ftarget)
-            val buf3: ref char = @alloc(128) as ref char
-            if foffset == 0 {
-                @snprintf(buf3, 128, "    storel %s, %s\n", {val_tmp2, base})
-            } else {
+            
+            if field_is_union {
                 val fptr: i64 = fresh_tmp(ctx)
-                val buf3b: ref char = @alloc(128) as ref char
-                @snprintf(buf3b, 128, "    %%t%lld =l add %s, %lld\n", {fptr, base, foffset})
-                emit(ctx, buf3b)
-                @free(buf3b)
-                @snprintf(buf3, 128, "    storel %s, %%t%lld\n", {val_tmp2, fptr})
+                if foffset == 0 {
+                    val buf3u: ref char = @alloc(128) as ref char
+                    @snprintf(buf3u, 128, "    call $memcpy(l %s, l %s, l 16)\n", {base, val_tmp2})
+                    emit(ctx, buf3u)
+                    @free(buf3u)
+                } else {
+                    val buf3ub: ref char = @alloc(128) as ref char
+                    @snprintf(buf3ub, 128, "    %%t%lld =l add %s, %lld\n", {fptr, base, foffset})
+                    emit(ctx, buf3ub)
+                    @free(buf3ub)
+                    val buf3u: ref char = @alloc(128) as ref char
+                    @snprintf(buf3u, 128, "    call $memcpy(l %%t%lld, l %s, l 16)\n", {fptr, val_tmp2})
+                    emit(ctx, buf3u)
+                    @free(buf3u)
+                }
+            } else {
+                val buf3: ref char = @alloc(128) as ref char
+                if foffset == 0 {
+                    @snprintf(buf3, 128, "    storel %s, %s\n", {val_tmp2, base})
+                } else {
+                    val fptr: i64 = fresh_tmp(ctx)
+                    val buf3b: ref char = @alloc(128) as ref char
+                    @snprintf(buf3b, 128, "    %%t%lld =l add %s, %lld\n", {fptr, base, foffset})
+                    emit(ctx, buf3b)
+                    @free(buf3b)
+                    @snprintf(buf3, 128, "    storel %s, %%t%lld\n", {val_tmp2, fptr})
+                }
+                emit(ctx, buf3)
+                @free(buf3)
             }
-            emit(ctx, buf3)
-            @free(buf3)
         } elif tk == parser.NK_DEREF {
             val ptr: ref char = gen_expr(ctx, target.d0 as ref parser.Node)
             val buf4: ref char = @alloc(128) as ref char
@@ -5030,11 +5130,13 @@ fn gen_match_opt(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
     if some_bind != 0 as ref char {
         val val_tmp: i64 = fresh_tmp(ctx)
         val vbuf: ref char = @alloc(128) as ref char
-        @snprintf(vbuf, 128,
-            "    %%t%lld =l sub %s, 1\n    %%%s =l alloc8 8\n    storel %%t%lld, %%%s\n",
-            {val_tmp, expr, some_bind, val_tmp, some_bind})
+        @snprintf(vbuf, 128, "    %%t%lld =l sub %s, 1\n", {val_tmp, expr})
         emit(ctx, vbuf)
         @free(vbuf)
+        val tmp_str: ref char = @alloc(16) as ref char
+        @snprintf(tmp_str, 16, "%lld", {val_tmp})
+        cg_register_local_var(ctx, some_bind, tmp_str)
+        cg_register_local_ref_type(ctx, some_bind)
     }
 
     if some_body_node != 0 as ref parser.Node {
@@ -5105,11 +5207,13 @@ fn gen_match_res(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
         val val_ok: i64 = fresh_tmp(ctx)
         val vbuf: ref char = @alloc(256) as ref char
         @snprintf(vbuf, 256,
-            "    %%t%lld =l add %s, 8\n    %%t%lld =l loadl %%t%lld\n    %%%s =l copy %%t%lld\n",
-            {off_ok, expr, val_ok, off_ok, ok_bind, val_ok})
+            "    %%t%lld =l add %s, 8\n    %%t%lld =l loadl %%t%lld\n",
+            {off_ok, expr, val_ok, off_ok})
         emit(ctx, vbuf)
         @free(vbuf)
-        cg_dvars_add(ctx, ok_bind, "l")
+        val tmp_str: ref char = @alloc(16) as ref char
+        @snprintf(tmp_str, 16, "%lld", {val_ok})
+        cg_register_local_var(ctx, ok_bind, tmp_str)
     }
     if ok_body_node != 0 as ref parser.Node {
         gen_stmts(ctx, ok_body_node.d0 as ref parser.Node)
@@ -5256,7 +5360,7 @@ fn gen_match_union(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
     val tag: i64 = fresh_tmp(ctx)
     val tbuf: ref char = @alloc(64) as ref char
 
-    @snprintf(tbuf, 64, "    %%t%lld =w loadw %s\n", {tag, expr})
+    @snprintf(tbuf, 64, "    %%t%lld =l loadl %s\n", {tag, expr})
     emit(ctx, tbuf)
     @free(tbuf)
 
@@ -5308,7 +5412,7 @@ fn gen_match_union(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
                     val cmp: i64 = fresh_tmp(ctx)
                     val buf: ref char = @alloc(256) as ref char
                     @snprintf(buf, 256,
-                        "    %%t%lld =w ceqw %%t%lld, %lld\n    jnz %%t%lld, @lbl%lld, @lbl%lld\n@lbl%lld\n",
+                        "    %%t%lld =w ceql %%t%lld, %lld\n    jnz %%t%lld, @lbl%lld, @lbl%lld\n@lbl%lld\n",
                         {cmp, tag, tag_idx, cmp, body_lbl, next_lbl, body_lbl})
                     emit(ctx, buf)
                     @free(buf)
