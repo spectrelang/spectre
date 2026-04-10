@@ -138,7 +138,6 @@ pub fn main() i32! = {
         return 1
     }
 
-    val links: list[ref char] = module.collect_links(root_mod.items, exe_dir)
     val qbe_ir: mut ref char = ""
 
     if test_mode {
@@ -146,6 +145,9 @@ pub fn main() i32! = {
     } else {
         qbe_ir = codegen.gen_module_resolved(root_mod)
     }
+
+    val seen_for_links: list[String] = []
+    val links: list[ref char] = module.collect_links_all(root_mod, "", exe_dir, seen_for_links)
 
     if emit_qbe != 0 {
         std.stdio.puts(qbe_ir)

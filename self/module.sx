@@ -311,6 +311,164 @@ pub fn collect_links(items: list[ref parser.Node], exe_dir: ref char) list[ref c
     return result
 }
 
+/// Collect links only from modules that match the given used_prefixes list.
+pub fn collect_links_filtered(
+    m: ref ResolvedModule,
+    prefix: ref char,
+    used_prefixes: list[ref char],
+    exe_dir: ref char,
+    seen: list[String]
+) list[ref char]! = {
+    val slen: i64 = @len(seen) as i64
+    val si: mut i64 = 0
+    for {
+        if si >= slen { break }
+        val s_opt = @get(seen, si as usize)
+        match s_opt {
+            some s => {
+                if s == 0 { continue }
+                if str.equals(s, m.filename) { return [] }
+            }
+            none => {}
+        }
+        si++
+    }
+    
+    @append(seen, m.filename)
+    
+    val result: mut list[ref char] = []
+    
+    val is_used: mut bool = false
+    val ulen: i64 = @len(used_prefixes) as i64
+    val ui: mut i64 = 0
+    for {
+        if ui >= ulen { break }
+        val u_opt = @get(used_prefixes, ui as usize)
+        match u_opt {
+            some u => {
+                if str.rchar_cmp(u as ref char, prefix) == 0 {
+                    is_used = true
+                    break
+                }
+            }
+            none => {}
+        }
+        ui++
+    }
+    
+    if is_used {
+        val my_links: list[ref char] = collect_links(m.items, exe_dir)
+        for lnk in my_links {
+            @append(result, lnk)
+        }
+    }
+    
+    val clen: i64 = @len(m.import_modules) as i64
+    val ci: mut i64 = 0
+    for {
+        if ci >= clen { break }
+        val name_opt = @get(m.import_names, ci as usize)
+        val mod_opt  = @get(m.import_modules, ci as usize)
+        match name_opt {
+            some name => {
+                match mod_opt {
+                    some child => {
+                        val child_prefix: mut ref char = ""
+                        if str.rchar_cmp(prefix, "") == 0 {
+                            child_prefix = name as ref char
+                        } else {
+                            child_prefix = @fmt("{s}__{s}", {prefix, name as ref char})
+                        }
+                        val child_links: list[ref char] = collect_links_filtered(
+                            child as ref ResolvedModule,
+                            child_prefix,
+                            used_prefixes,
+                            exe_dir,
+                            seen
+                        )
+                        for clink in child_links {
+                            @append(result, clink)
+                        }
+                    }
+                    none => {}
+                }
+            }
+            none => {}
+        }
+        ci++
+    }
+    
+    return result
+}
+
+/// Collect links from all modules in the tree.
+pub fn collect_links_all(
+    m: ref ResolvedModule,
+    prefix: ref char,
+    exe_dir: ref char,
+    seen: list[String]
+) list[ref char]! = {
+    val slen: i64 = @len(seen) as i64
+    val si: mut i64 = 0
+    for {
+        if si >= slen { break }
+        val s_opt = @get(seen, si as usize)
+        match s_opt {
+            some s => {
+                if s == 0 { continue }
+                if str.equals(s, m.filename) { return [] }
+            }
+            none => {}
+        }
+        si++
+    }
+    
+    @append(seen, m.filename)
+    
+    val result: mut list[ref char] = []
+    
+    val my_links: list[ref char] = collect_links(m.items, exe_dir)
+    for lnk in my_links {
+        @append(result, lnk)
+    }
+    
+    val clen: i64 = @len(m.import_modules) as i64
+    val ci: mut i64 = 0
+    for {
+        if ci >= clen { break }
+        val name_opt = @get(m.import_names, ci as usize)
+        val mod_opt  = @get(m.import_modules, ci as usize)
+        match name_opt {
+            some name => {
+                match mod_opt {
+                    some child => {
+                        val child_prefix: mut ref char = ""
+                        if str.rchar_cmp(prefix, "") == 0 {
+                            child_prefix = name as ref char
+                        } else {
+                            child_prefix = @fmt("{s}__{s}", {prefix, name as ref char})
+                        }
+                        val child_links: list[ref char] = collect_links_all(
+                            child as ref ResolvedModule,
+                            child_prefix,
+                            exe_dir,
+                            seen
+                        )
+                        for clink in child_links {
+                            @append(result, clink)
+                        }
+                    }
+                    none => {}
+                }
+            }
+            none => {}
+        }
+        ci++
+    }
+    
+    return result
+}
+
 /// Check if a platform name matches the current platform.
 /// Handles group aliases like "posix" matching linux/darwin/bsd/etc.
 fn platform_matches(current: ref char, name: ref char) bool! = {
