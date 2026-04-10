@@ -1182,7 +1182,6 @@ fn gen_expr(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
                 if cg_is_slot(ctx, name) {
                     val tmp_load: i64 = fresh_tmp(ctx)
                     val buf_load: ref char = @alloc(128) as ref char
-                    val ltype_slot: ref char = cg_local_type(ctx, name)
 
                     // qbe_var is either a tmp number ("42") or a global label ("$foo") at this point
                     val is_global_slot: bool = @load8(qbe_var as ref void) == 36 // '$'
@@ -1192,17 +1191,24 @@ fn gen_expr(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
                     } else {
                         @snprintf(slot_ref, 64, "%%t%s", {qbe_var})
                     }
-                    if is_word_type_name(ltype_slot) {
-                        val w_tmp_load: i64 = fresh_tmp(ctx)
-                        val buf_w_load: ref char = @alloc(128) as ref char
-                        @snprintf(buf_w_load, 128, "    %%t%lld =w loadw %s\n", {w_tmp_load, slot_ref})
-                        emit(ctx, buf_w_load)
-                        @free(buf_w_load)
-                        @snprintf(buf_load, 128, "    %%t%lld =l extsw %%t%lld\n", {tmp_load, w_tmp_load})
-                    } elif is_float_type_name(ltype_slot) {
-                        @snprintf(buf_load, 128, "    %%t%lld =d loadd %s\n", {tmp_load, slot_ref})
-                    } else {
+                    
+                    val is_ref_load: bool = cg_is_local_ref_type(ctx, name)
+                    if is_ref_load {
                         @snprintf(buf_load, 128, "    %%t%lld =l loadl %s\n", {tmp_load, slot_ref})
+                    } else {
+                        val ltype_slot: ref char = cg_local_type(ctx, name)
+                        if is_word_type_name(ltype_slot) {
+                            val w_tmp_load: i64 = fresh_tmp(ctx)
+                            val buf_w_load: ref char = @alloc(128) as ref char
+                            @snprintf(buf_w_load, 128, "    %%t%lld =w loadw %s\n", {w_tmp_load, slot_ref})
+                            emit(ctx, buf_w_load)
+                            @free(buf_w_load)
+                            @snprintf(buf_load, 128, "    %%t%lld =l extsw %%t%lld\n", {tmp_load, w_tmp_load})
+                        } elif is_float_type_name(ltype_slot) {
+                            @snprintf(buf_load, 128, "    %%t%lld =d loadd %s\n", {tmp_load, slot_ref})
+                        } else {
+                            @snprintf(buf_load, 128, "    %%t%lld =l loadl %s\n", {tmp_load, slot_ref})
+                        }
                     }
                     emit(ctx, buf_load)
                     @free(buf_load)
@@ -3661,10 +3667,14 @@ fn gen_stmt(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
 
             val buf: ref char = @alloc(256) as ref char
             val store_op: mut ref char = "storel"
-            val ltype2: ref char = cg_local_type(ctx, name)
-            if str.rchar_cmp(ltype2, "f64") == 0 { store_op = "stored" }
-            elif str.rchar_cmp(ltype2, "f32") == 0 { store_op = "stores" }
-            elif is_word_type_name(ltype2) { store_op = "storew" }
+            val is_ref: bool = ty_node != 0 as ref parser.Node && is_ref_type(ty_node)
+
+            if !is_ref {
+                val ltype2: ref char = cg_local_type(ctx, name)
+                if str.rchar_cmp(ltype2, "f64") == 0 { store_op = "stored" }
+                elif str.rchar_cmp(ltype2, "f32") == 0 { store_op = "stores" }
+                elif is_word_type_name(ltype2) { store_op = "storew" }
+            }
 
             @snprintf(buf, 256, "    %%t%lld =l alloc8 8\n    %s %s, %%t%lld\n", {qbe_tmp, store_op, val_tmp, qbe_tmp})
             emit(ctx, buf)
@@ -3703,11 +3713,15 @@ fn gen_stmt(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
             val tname: ref char = target.d0 as ref char
             val qbe_var: ref char = cg_lookup_local_var(ctx, tname)
             val buf2: ref char = @alloc(128) as ref char
-            val ltype3: ref char = cg_local_type(ctx, tname)
             val store_op2: mut ref char = "storel"
-            if str.rchar_cmp(ltype3, "f64") == 0 { store_op2 = "stored" }
-            elif str.rchar_cmp(ltype3, "f32") == 0 { store_op2 = "stores" }
-            elif is_word_type_name(ltype3) { store_op2 = "storew" }
+            val is_ref2: bool = cg_is_local_ref_type(ctx, tname)
+
+            if !is_ref2 {
+                val ltype3: ref char = cg_local_type(ctx, tname)
+                if str.rchar_cmp(ltype3, "f64") == 0 { store_op2 = "stored" }
+                elif str.rchar_cmp(ltype3, "f32") == 0 { store_op2 = "stores" }
+                elif is_word_type_name(ltype3) { store_op2 = "storew" }
+            }
 
             if str.rchar_cmp(qbe_var, "") != 0 {
                 val is_global_store: bool = @load8(qbe_var as ref void) == 36 // '$'
