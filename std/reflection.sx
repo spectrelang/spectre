@@ -119,6 +119,25 @@ pub fn get_current_platform() Platform! = {
     return Platform.Unknown
 }
 
+/// Returns the current platform name as a lowercase string (e.g. "linux", "darwin").
+pub fn current_platform_name() ref char! = {
+    val p = get_current_platform()
+    match p {
+        Platform.Linux        => { return "linux" }
+        Platform.Darwin       => { return "darwin" }
+        Platform.FreeBSD      => { return "freebsd" }
+        Platform.OpenBSD      => { return "openbsd" }
+        Platform.NetBSD       => { return "netbsd" }
+        Platform.DragonflyBSD => { return "dragonflybsd" }
+        Platform.Windows      => { return "windows" }
+        Platform.Android      => { return "android" }
+        Platform.Haiku        => { return "haiku" }
+        Platform.Redox        => { return "redox" }
+        Platform.Plan9        => { return "plan9" }
+    }
+    return "unknown"
+}
+
 test {
     stdio.puts("calling get_current_platform")
     val platform = get_current_platform()

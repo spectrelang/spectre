@@ -138,7 +138,9 @@ pub fn main() i32! = {
         return 1
     }
 
+    val links: list[ref char] = module.collect_links(root_mod.items)
     val qbe_ir: mut ref char = ""
+
     if test_mode {
         qbe_ir = codegen.gen_module_resolved_test(root_mod)
     } else {
@@ -221,10 +223,15 @@ pub fn main() i32! = {
     val cc_cmd: mut ref char = ""
     val success_msg: mut ref char = ""
     val exit_code: mut i32 = 0
+    val link_flags: mut ref char = ""
+
+    for lib in links {
+        link_flags = @fmt("{s} {s}", {link_flags, lib})
+    }
 
     if test_mode {
         val test_bin: ref char = "/tmp/spectre_test_bin"
-        cc_cmd = @fmt("cc -o {s} {s}", {test_bin, asm_file})
+        cc_cmd = @fmt("cc -o {s} {s}{s}", {test_bin, asm_file, link_flags})
         val cc_res2 = std.os.exec(cc_cmd)
         match cc_res2 {
             ok _ => {
@@ -247,11 +254,11 @@ pub fn main() i32! = {
     }
 
     if output_specified != 0 {
-        cc_cmd = @fmt("cc -o {s} {s}", {binary_name, asm_file})
+        cc_cmd = @fmt("cc -o {s} {s}{s}", {binary_name, asm_file, link_flags})
         success_msg = @fmt("compiled: {s}\n", {binary_name})
     } else {
         std.os.exec("mkdir -p ./s-out")
-        cc_cmd = @fmt("cc -o ./s-out/{s} {s}", {binary_name, asm_file})
+        cc_cmd = @fmt("cc -o ./s-out/{s} {s}{s}", {binary_name, asm_file, link_flags})
         success_msg = @fmt("compiled: ./s-out/{s}\n", {binary_name})
     }
 
