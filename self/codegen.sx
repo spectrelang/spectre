@@ -5473,20 +5473,8 @@ fn gen_match_tagged_union(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
     val end_lbl: i64 = fresh_lbl(ctx)
     val tag: i64 = fresh_tmp(ctx)
     val tbuf: ref char = @alloc(64) as ref char
-    val is_direct_param: mut bool = false
 
-    if @load8(expr) as i64 == 37 {  // '%'
-        val second_char: i64 = @load8(@ptradd(expr, 1)) as i64
-        if second_char != 116 {  // not 't'
-            is_direct_param = true
-        }
-    }
-    
-    if is_direct_param {
-        @snprintf(tbuf, 64, "    %%t%lld =l copy %s\n", {tag, expr})
-    } else {
-        @snprintf(tbuf, 64, "    %%t%lld =l loadl %s\n", {tag, expr})
-    }
+    @snprintf(tbuf, 64, "    %%t%lld =l loadl %s\n", {tag, expr})
     emit(ctx, tbuf)
     @free(tbuf)
 
