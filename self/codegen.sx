@@ -1177,7 +1177,10 @@ fn intern_string(ctx: ref CgCtx, s: ref char) i64! = {
         }
         i++
     }
-    @append(strs, s)
+    val slen: i64 = str.len_raw(s)
+    val scopy: ref char = @alloc(slen + 1) as ref char
+    @memcpy(scopy as ref void, s as ref void, slen + 1)
+    @append(strs, scopy)
     val idx: i64 = cg_str_cnt(ctx)
     cg_set_str_cnt(ctx, idx + 1)
     return idx

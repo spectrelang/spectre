@@ -483,7 +483,11 @@ test {
     match r1 {
         err _ => { assert false }
         ok toks => {
-            assert kind_is_fn(tok_kind(toks, 0))
+            @puts("assertion1")
+            val kind = tok_kind(toks, 0)
+            @puts("assertion1.5")
+            assert kind_is_fn(kind)
+            @puts("assertion2")
             assert kind_is_val(tok_kind(toks, 1))
             assert kind_is_mut(tok_kind(toks, 2))
             assert kind_is_pub(tok_kind(toks, 3))
