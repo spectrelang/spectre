@@ -2391,10 +2391,14 @@ fn gen_call(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
                 }
                 
                 val alloc_size2: i64 = 8 + payload_size2
+                val actual_alloc_size2: mut i64 = alloc_size2
+                if actual_alloc_size2 < 16 {
+                    actual_alloc_size2 = 16
+                }
                 val ptr2: i64 = fresh_tmp(ctx)
                 val pbuf2: ref char = @alloc(64) as ref char
                 @snprintf(pbuf2, 64, "    %%t%lld =l alloc8 %lld\n    storel %lld, %%t%lld\n",
-                    {ptr2, alloc_size2, tv_tag2, ptr2})
+                    {ptr2, actual_alloc_size2, tv_tag2, ptr2})
                 emit(ctx, pbuf2)
                 @free(pbuf2)
                 if args_list != 0 as ref void {
@@ -2482,10 +2486,14 @@ fn gen_call(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
         }
         
         val alloc_size: i64 = 8 + payload_size
+        val actual_alloc_size: mut i64 = alloc_size
+        if actual_alloc_size < 16 {
+            actual_alloc_size = 16
+        }
         val ptr: i64 = fresh_tmp(ctx)
         val pbuf: ref char = @alloc(64) as ref char
         @snprintf(pbuf, 64, "    %%t%lld =l alloc8 %lld\n    storel %lld, %%t%lld\n",
-            {ptr, alloc_size, tv_tag, ptr})
+            {ptr, actual_alloc_size, tv_tag, ptr})
         emit(ctx, pbuf)
         @free(pbuf)
         if args_list != 0 as ref void {
