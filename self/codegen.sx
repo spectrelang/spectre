@@ -2489,8 +2489,27 @@ fn gen_builtin(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
         emit(ctx, buf)
     } elif str.rchar_cmp(name, "store") == 0 {
         val ptr4: ref char = get_arg(ctx, args, 0)
+        val val3_node_opt = @get(args, 1)
         val val3: ref char = get_arg(ctx, args, 1)
-        @snprintf(buf, 512, "    storel %s, %s\n    %%t%lld =l copy 0\n", {val3, ptr4, tmp})
+        val val3_qtype: mut ref char = "l"
+
+        match val3_node_opt {
+            some vn => {
+                val3_qtype = expr_qbe_type(ctx, vn as ref parser.Node)
+            }
+            none => {}
+        }
+        
+        if str.rchar_cmp(val3_qtype, "w") == 0 {
+            val ext_tmp: i64 = fresh_tmp(ctx)
+            val ext_buf: ref char = @alloc(128) as ref char
+            @snprintf(ext_buf, 128, "    %%t%lld =l extsw %s\n", {ext_tmp, val3})
+            emit(ctx, ext_buf)
+            @free(ext_buf)
+            @snprintf(buf, 512, "    storel %%t%lld, %s\n    %%t%lld =l copy 0\n", {ext_tmp, ptr4, tmp})
+        } else {
+            @snprintf(buf, 512, "    storel %s, %s\n    %%t%lld =l copy 0\n", {val3, ptr4, tmp})
+        }
         emit(ctx, buf)
     } elif str.rchar_cmp(name, "load8") == 0 {
         val ptr5: ref char = get_arg(ctx, args, 0)
