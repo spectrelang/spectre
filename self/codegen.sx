@@ -30,6 +30,7 @@ pub type CgCtx = {
     tmp: mut i64
     lbl: mut i64
     fn_name: mut ref char
+    current_fn_ret_union: mut ref char
     strs: mut list[ref char]
     str_cnt: mut i64
     tdefs: mut list[ref void]
@@ -73,6 +74,7 @@ fn cg_new() ref CgCtx! = {
     ctx.tmp = 0
     ctx.lbl = 0
     ctx.fn_name = 0 as ref char
+    ctx.current_fn_ret_union = ""
     ctx.strs = []
     ctx.str_cnt = 0
     ctx.tdefs = []
@@ -992,6 +994,20 @@ fn unwrap_type_name(ty: ref parser.Node) ref char! = {
     if k == parser.TY_REF { return unwrap_type_name(ty.d0 as ref parser.Node) }
     if k == parser.TY_MUT { return unwrap_type_name(ty.d0 as ref parser.Node) }
     if k == parser.TY_NAMED { return ty.d0 as ref char }
+    return ""
+}
+
+/// Check if a type is a tagged union. Returns the union name if it is, "" otherwise.
+fn is_union_type(ctx: ref CgCtx, ty: ref parser.Node) ref char! = {
+    if ty == 0 as ref parser.Node { return "" }
+    val k: i64 = ty.kind
+    if k == parser.TY_NAMED {
+        val name: ref char = ty.d0 as ref char
+        val union_vars: ref void = cg_lookup_union(ctx, name)
+        if union_vars != 0 as ref void {
+            return name
+        }
+    }
     return ""
 }
 
@@ -2749,10 +2765,12 @@ fn gen_call(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
         && callee_node.kind == parser.NK_IDENT
 
     val ret_qtype: mut ref char = "l"  // default to long/pointer
+    val ret_union_name: mut ref char = ""
     if ext_sym != 0 as ref char {
         val ret_ty: ref void = cg_lookup_ext_ret(ctx, callee_raw)
         if ret_ty != 0 as ref void {
             ret_qtype = qbe_type_of(ret_ty as ref parser.Node)
+            ret_union_name = is_union_type(ctx, ret_ty as ref parser.Node)
         }
     } else {
         val lookup_name: mut ref char = callee_name
@@ -2762,7 +2780,20 @@ fn gen_call(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
         val ret_ty: ref void = cg_lookup_fn_ret(ctx, lookup_name)
         if ret_ty != 0 as ref void {
             ret_qtype = qbe_type_of(ret_ty as ref parser.Node)
+            ret_union_name = is_union_type(ctx, ret_ty as ref parser.Node)
         }
+    }
+
+    val returns_union: bool = str.rchar_cmp(ret_union_name, "") != 0
+    val ret_buf_tmp: mut i64 = -1
+    
+    // If the function returns a union, allocate a return buffer
+    if returns_union {
+        ret_buf_tmp = fresh_tmp(ctx)
+        val alloc_buf: ref char = @alloc(64) as ref char
+        @snprintf(alloc_buf, 64, "    %%t%lld =l alloc8 16\n", {ret_buf_tmp})
+        emit(ctx, alloc_buf)
+        @free(alloc_buf)
     }
 
     if is_fn_ptr {
@@ -2790,6 +2821,21 @@ fn gen_call(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
     @free(hdr)
 
     val tlen: i64 = @len(arg_tmps) as i64
+
+    // If returning a union, add the return buffer as the first argument
+    if returns_union {
+        val ret_arg: ref char = @alloc(32) as ref char
+        @snprintf(ret_arg, 32, "l %%t%lld", {ret_buf_tmp})
+        val ret_arg_len: mut i64 = str.len_raw(ret_arg)
+        @memcpy(@ptradd(call_buf as ref void, call_pos), ret_arg as ref void, ret_arg_len)
+        call_pos = call_pos + ret_arg_len
+        @free(ret_arg)
+        if tlen > 0 {
+            @memcpy(@ptradd(call_buf as ref void, call_pos), ", " as ref void, 2)
+            call_pos = call_pos + 2
+        }
+    }
+
     val ti: mut i64 = 0
     for {
         if ti >= tlen { break }
@@ -2851,8 +2897,14 @@ fn gen_call(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
         }
     }
 
+    // If the function returns a union, return the buffer pointer instead of the call result
+    val result_tmp: mut i64 = tmp
+    if returns_union {
+        result_tmp = ret_buf_tmp
+    }
+
     val res: ref char = @alloc(16) as ref char
-    @snprintf(res, 16, "%%t%lld", {tmp})
+    @snprintf(res, 16, "%%t%lld", {result_tmp})
     return res
 }
 
@@ -4306,10 +4358,19 @@ fn gen_stmt(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
         } else {
             val rv: ref char = gen_expr(ctx, expr2)
             cg_emit_defers(ctx)
-            val buf5: ref char = @alloc(64) as ref char
-            @snprintf(buf5, 64, "    ret %s\n", {rv})
-            emit(ctx, buf5)
-            @free(buf5)
+            
+            // If returning a union, use memcpy to copy to %__ret
+            if str.rchar_cmp(ctx.current_fn_ret_union, "") != 0 {
+                val buf5: ref char = @alloc(128) as ref char
+                @snprintf(buf5, 128, "    call $memcpy(l %%__ret, l %s, l 16)\n    ret %%__ret\n", {rv})
+                emit(ctx, buf5)
+                @free(buf5)
+            } else {
+                val buf5: ref char = @alloc(64) as ref char
+                @snprintf(buf5, 64, "    ret %s\n", {rv})
+                emit(ctx, buf5)
+                @free(buf5)
+            }
         }
         return
     }
@@ -4994,17 +5055,31 @@ fn gen_match_res(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
     val ok_body_node: ref parser.Node = stmt.d2 as ref parser.Node
     val err_bind: ref char = stmt.d3 as ref char
     val err_body_node: ref parser.Node = stmt.d4 as ref parser.Node
-
     val tag: i64 = fresh_tmp(ctx)
     val is_ok: i64 = fresh_tmp(ctx)
     val ok_lbl: i64 = fresh_lbl(ctx)
     val err_lbl: i64 = fresh_lbl(ctx)
     val end_lbl: i64 = fresh_lbl(ctx)
     val buf: ref char = @alloc(256) as ref char
+    val is_direct_param: mut bool = false
 
-    @snprintf(buf, 256,
-        "    %%t%lld =l loadl %s\n    %%t%lld =w ceql %%t%lld, 0\n    jnz %%t%lld, @lbl%lld, @lbl%lld\n@lbl%lld\n",
-        {tag, expr, is_ok, tag, is_ok, ok_lbl, err_lbl, ok_lbl})
+    if @load8(expr) as i64 == 37 {  // '%'
+        val second_char: i64 = @load8(@ptradd(expr, 1)) as i64
+        if second_char != 116 {  // not 't'
+            is_direct_param = true
+        }
+    }
+    
+    if is_direct_param {
+        @snprintf(buf, 256,
+            "    %%t%lld =l copy %s\n    %%t%lld =w ceql %%t%lld, 0\n    jnz %%t%lld, @lbl%lld, @lbl%lld\n@lbl%lld\n",
+            {tag, expr, is_ok, tag, is_ok, ok_lbl, err_lbl, ok_lbl})
+    } else {
+        @snprintf(buf, 256,
+            "    %%t%lld =l loadl %s\n    %%t%lld =w ceql %%t%lld, 0\n    jnz %%t%lld, @lbl%lld, @lbl%lld\n@lbl%lld\n",
+            {tag, expr, is_ok, tag, is_ok, ok_lbl, err_lbl, ok_lbl})
+    }
+
     emit(ctx, buf)
     @free(buf)
 
@@ -5256,10 +5331,22 @@ fn gen_match_tagged_union(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
     val arms: ref void = stmt.d1 as ref void
     val else_body: ref void = stmt.d2 as ref void
     val end_lbl: i64 = fresh_lbl(ctx)
-
     val tag: i64 = fresh_tmp(ctx)
     val tbuf: ref char = @alloc(64) as ref char
-    @snprintf(tbuf, 64, "    %%t%lld =l loadl %s\n", {tag, expr})
+    val is_direct_param: mut bool = false
+
+    if @load8(expr) as i64 == 37 {  // '%'
+        val second_char: i64 = @load8(@ptradd(expr, 1)) as i64
+        if second_char != 116 {  // not 't'
+            is_direct_param = true
+        }
+    }
+    
+    if is_direct_param {
+        @snprintf(tbuf, 64, "    %%t%lld =l copy %s\n", {tag, expr})
+    } else {
+        @snprintf(tbuf, 64, "    %%t%lld =l loadl %s\n", {tag, expr})
+    }
     emit(ctx, tbuf)
     @free(tbuf)
 
@@ -5415,9 +5502,30 @@ fn gen_fn_prefixed(ctx: ref CgCtx, fn_node: ref parser.Node, mod_prefix: ref cha
     val ret_qt: ref char = qbe_type_of(ret_ty)
     val sig_buf: ref char = @alloc(512) as ref char
 
+    val ret_union_name: mut ref char = is_union_type(ctx, ret_ty)
+    if str.rchar_cmp(ret_union_name, "") == 0 && ret_ty != 0 as ref parser.Node && ret_ty.kind == parser.TY_NAMED {
+        val unprefixed_name: ref char = ret_ty.d0 as ref char
+        if str.rchar_cmp(mod_prefix, "") != 0 {
+            val prefixed_name: ref char = @alloc(256) as ref char
+            @snprintf(prefixed_name, 256, "%s__%s", {mod_prefix, unprefixed_name})
+            val union_vars: ref void = cg_lookup_union(ctx, prefixed_name)
+            if union_vars != 0 as ref void {
+                ret_union_name = prefixed_name
+            }
+        }
+    }
+    val returns_union: bool = str.rchar_cmp(ret_union_name, "") != 0
+
     @snprintf(sig_buf, 512, "%sfunction %s $%s(", {export_kw, ret_qt, mangled})
     emit(ctx, sig_buf)
     @free(sig_buf)
+
+    if returns_union {
+        emit(ctx, "l %__ret")
+        if params != 0 as ref void && @len(params) as i64 > 0 {
+            emit(ctx, ", ")
+        }
+    }
 
     if params != 0 as ref void {
         val plen: i64 = @len(params) as i64
@@ -5444,6 +5552,12 @@ fn gen_fn_prefixed(ctx: ref CgCtx, fn_node: ref parser.Node, mod_prefix: ref cha
 
     emitln(ctx, ") {")
     emitln(ctx, "@start")
+
+    if returns_union {
+        ctx.current_fn_ret_union = ret_union_name
+    } else {
+        ctx.current_fn_ret_union = ""
+    }
 
     cg_dvars_clear(ctx)
 
@@ -5486,9 +5600,7 @@ fn gen_fn_prefixed(ctx: ref CgCtx, fn_node: ref parser.Node, mod_prefix: ref cha
                     val pname2: ref char = (param2 as ref parser.Node).d0 as ref char
                     val pty2: ref parser.Node = (param2 as ref parser.Node).d1 as ref parser.Node
                     val ptk: i64 = pty2.kind
-                    // Don't mark ref parameters as direct - they need normal handling
                     cg_dvars_add(ctx, pname2, qbe_type_of(pty2))
-                    // Register struct-typed params so field access works
                     if ptk == parser.TY_NAMED {
                         val tname: ref char = pty2.d0 as ref char
                         cg_register_local_type(ctx, pname2, tname)
@@ -5540,6 +5652,9 @@ fn gen_tagged_union_def(ctx: ref CgCtx, item: ref parser.Node, mod_prefix: ref c
     } else {
         @snprintf(mangled_name, 256, "%s__%s", {mod_prefix, name})
     }
+    
+    cg_register_union(ctx, mangled_name, variants)
+    
     val vi: mut i64 = 0
     for {
         if vi >= vlen { break }
@@ -5786,6 +5901,8 @@ fn preregister_items(ctx: ref CgCtx, items: list[ref parser.Node], mod_prefix: r
                     }
                 } elif k == parser.NK_TAGGED_UNIONDEF {
                     gen_tagged_union_def(ctx, node, mod_prefix)
+                } elif k == parser.NK_UNIONDEF {
+                    gen_union_def_prefixed(ctx, node, mod_prefix)
                 } elif k == parser.NK_ENUMDEF {
                     gen_enum_def_prefixed(ctx, node, mod_prefix)
                 } elif k == parser.NK_TYPEDEF {
