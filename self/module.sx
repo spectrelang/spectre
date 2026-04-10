@@ -99,8 +99,6 @@ fn in_progress_contains(in_progress: list[ref char], path: ref char) bool! = {
 /// Check if an import name is referenced anywhere in the items (functions, tests, globals).
 /// This is used to determine if we should actually load an import or skip it.
 fn import_is_referenced(items: list[ref parser.Node], import_name: ref char) bool! = {
-    std.stdio.print("[DEBUG] import_is_referenced: checking '{s}'\n", {import_name})
-
     val items_len: i64 = @len(items) as i64
     val ii: mut i64 = 0
     for {
@@ -109,34 +107,23 @@ fn import_is_referenced(items: list[ref parser.Node], import_name: ref char) boo
         match item_opt {
             some item_val => {
                 val item: ref parser.Node = item_val as ref parser.Node
-                std.stdio.print("[DEBUG]   item[{d}] kind={d}\n", {ii, item.kind})
-
                 if item.kind == parser.NK_FN {
                     val body: ref void = item.d5 as ref void
-                    std.stdio.print("[DEBUG]   NK_FN body_ptr={p}\n", {body})
                     if body != 0 {
-                        val blen: i64 = @len(body) as i64
-                        std.stdio.print("[DEBUG]   NK_FN body len={d}\n", {blen})
                         if item_references_import_shallow(body, import_name) {
-                            std.stdio.print("[DEBUG] import_is_referenced: '{s}' found in function\n", {import_name})
                             return true
                         }
                     }
                 } elif item.kind == parser.NK_TEST {
-                    std.stdio.print("[DEBUG]   NK_TEST at d0={p}\n", {item.d0 as ref void})
                     val body: ref void = item.d0 as ref void
                     if body != 0 {
-                        val blen: i64 = @len(body) as i64
-                        std.stdio.print("[DEBUG]   NK_TEST body len={d}\n", {blen})
                         if item_references_import_shallow(body, import_name) {
-                            std.stdio.print("[DEBUG] import_is_referenced: '{s}' found in test\n", {import_name})
                             return true
                         }
                     }
                 } elif item.kind == parser.NK_CONST {
                     val expr: ref parser.Node = item.d2 as ref parser.Node
                     if expr != 0 && expr_references_import_shallow(expr, import_name) {
-                        std.stdio.print("[DEBUG] import_is_referenced: '{s}' found in const\n", {import_name})
                         return true
                     }
                 }
@@ -146,7 +133,6 @@ fn import_is_referenced(items: list[ref parser.Node], import_name: ref char) boo
         ii++
     }
     
-    std.stdio.print("[DEBUG] import_is_referenced: '{s}' not found\n", {import_name})
     return false
 }
 
@@ -173,7 +159,6 @@ fn item_references_import_shallow(stmts_ptr: ref void, import_name: ref char) bo
             some stmt_val => {
                 val stmt: ref parser.Node = stmt_val as ref parser.Node
                 if stmt != 0 {
-                    std.stdio.print("[DEBUG]   stmt_shallow: kind={d}\n", {stmt.kind})
                     if stmt_references_import_shallow(stmt, import_name) {
                         return true
                     }
@@ -641,28 +626,20 @@ fn stmt_references_import_shallow(node: ref parser.Node, import_name: ref char) 
 fn expr_references_import_shallow(node: ref parser.Node, import_name: ref char) bool! = {
     if node == 0 { return false }
 
-    std.stdio.print("[DEBUG] expr_shallow: kind={d} import={s}\n", {node.kind, import_name})
-
     if node.kind == parser.NK_IDENT {
         val name: ref char = node.d0 as ref char
-        std.stdio.print("[DEBUG]   NK_IDENT: '{s}'\n", {name})
         if str.rchar_cmp(name, import_name) == 0 {
             return true
         }
     } elif node.kind == parser.NK_FIELD {
         val base: ref parser.Node = node.d0 as ref parser.Node
-        val field_name: ref char = node.d1 as ref char
-        std.stdio.print("[DEBUG]   NK_FIELD field='{s}'\n", {field_name})
         if base != 0 {
             if base.kind == parser.NK_IDENT {
                 val base_name: ref char = base.d0 as ref char
-                std.stdio.print("[DEBUG]   NK_FIELD base ident='{s}'\n", {base_name})
                 if str.rchar_cmp(base_name, import_name) == 0 {
-                    std.stdio.print("[DEBUG]   base ident match!\n", {})
                     return true
                 }
             } elif base.kind == parser.NK_FIELD {
-                std.stdio.print("[DEBUG]   NK_FIELD base is also field, recursing\n", {})
                 if expr_references_import_shallow(base, import_name) { return true }
             }
         }
@@ -759,17 +736,12 @@ pub fn resolve_module(
         if node.kind == parser.NK_USE {
             val import_name: ref char = node.d1 as ref char
             val use_path:    ref char = node.d2 as ref char
-
-            std.stdio.print("[DEBUG] checking import '{s}' (path: {s})\n", {import_name, use_path})
-            
             val is_needed: bool = import_in_list(needed_children, import_name)
             val is_locally_referenced: bool = import_is_referenced(items, import_name)
             
             if !is_needed && !is_locally_referenced {
-                std.stdio.print("[DEBUG] import '{s}' NOT needed and NOT locally referenced, skipping\n", {import_name})
                 continue
             }
-            std.stdio.print("[DEBUG] import '{s}' IS needed or locally referenced\n", {import_name})
             
             val resolved_path = resolve_use_path(use_path, str.cstr(file_dir), exe_dir)
             
@@ -1224,7 +1196,6 @@ fn collect_needed_subnames_in_expr(expr: ref parser.Node, import_name: ref char,
             val base_name: ref char = base.d0 as ref char
             if str.rchar_cmp(base_name, import_name) == 0 {
                 if !import_in_list(needed, field_name) {
-                    std.stdio.print("[DEBUG] collect_needed_subnames: found {s}.{s}\n", {import_name, field_name})
                     @append(needed, field_name)
                 }
             }
