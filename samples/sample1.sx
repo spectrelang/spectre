@@ -1,5 +1,4 @@
 val std = use("std")
-val some_other_module = use("some_other_module.sx")
 
 type Point = {
 	x: mut i32
@@ -40,4 +39,8 @@ fn can_fail(should_fail: bool) option[i32]! = {
 
 pub fn some_other_function() void! = {
 	std.stdio.puts("This is some function...without any preconds, postconds, or invariants. Thus the return type is marked !")
+}
+
+pub fn main() void = {
+	trust some_other_function()
 }
