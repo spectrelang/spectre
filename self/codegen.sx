@@ -1,5 +1,6 @@
 val std        = use("std")
 val str        = use("std/string")
+val stdio      = use("std/stdio")
 val reflection = use("std/reflection")
 val parser     = use("parser.sx")
 val module     = use("module.sx")
@@ -1091,6 +1092,48 @@ fn emit_string_data(ctx: ref CgCtx) void! = {
     }
 }
 
+/// Generate an integer literal with a specific QBE type (w or l).
+fn gen_int_lit_as(ctx: ref CgCtx, text: ref char, qbe_type: ref char) ref char! = {
+    val tmp: i64 = fresh_tmp(ctx)
+    val buf: ref char = @alloc(64) as ref char
+    val emit_text: mut ref char = text
+
+    if @load8(text as ref void) == 48 && @load8(@ptradd(text as ref void, 1)) == 120 {
+        val hex_start: ref char = @ptradd(text as ref void, 2) as ref char
+        val val_: mut i64 = 0
+        val hi: mut i64 = 0
+        for {
+            val hc: i64 = @load8(@ptradd(hex_start as ref void, hi)) as i64
+            if hc == 0 { break }
+            val digit: mut i64 = hc - 48
+            if hc >= 97 { digit = hc - 87 }
+            elif hc >= 65 { digit = hc - 55 }
+            val_ = val_ * 16 + digit
+            hi++
+        }
+        val dec_buf: ref char = @alloc(32) as ref char
+        @snprintf(dec_buf, 32, "%lld", {val_})
+        emit_text = dec_buf
+    }
+    @snprintf(buf, 64, "    %%t%lld =%s copy %s\n", {tmp, qbe_type, emit_text})
+    emit(ctx, buf)
+    @free(buf)
+    val res: ref char = @alloc(16) as ref char
+    @snprintf(res, 16, "%%t%lld", {tmp})
+    return res
+}
+
+/// Generate an expression, with integer literals using the specified QBE type.
+fn gen_expr_with_type(ctx: ref CgCtx, expr: ref parser.Node, target_type: ref char) ref char! = {
+    if expr == 0 as ref parser.Node { return "0" }
+    val k: i64 = expr.kind
+    if k == parser.NK_INT_LIT {
+        val text: ref char = expr.d0 as ref char
+        return gen_int_lit_as(ctx, text, target_type)
+    }
+    return gen_expr(ctx, expr)
+}
+
 fn gen_expr(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
     if expr == 0 as ref parser.Node { return "0" }
 
@@ -1609,7 +1652,17 @@ fn expr_qbe_type(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
 
         val fn_ret_ty_node: ref void = cg_lookup_fn_ret(ctx, callee_name)
         if fn_ret_ty_node != 0 as ref void {
-            return qbe_type_of(fn_ret_ty_node as ref parser.Node)
+            val ret_type: ref char = qbe_type_of(fn_ret_ty_node as ref parser.Node)
+            return ret_type
+        }
+        
+        val resolved_name: ref char = cg_resolve_fn_name(ctx, callee_name)
+        if resolved_name != 0 as ref char {
+            val fn_ret_ty_node2: ref void = cg_lookup_fn_ret(ctx, resolved_name)
+            if fn_ret_ty_node2 != 0 as ref void {
+                val ret_type2: ref char = qbe_type_of(fn_ret_ty_node2 as ref parser.Node)
+                return ret_type2
+            }
         }
         
         return "l"
@@ -1739,37 +1792,54 @@ fn gen_binop(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
         return res
     }
 
-    val lhs: ref char = gen_expr(ctx, lhs_expr)
-    val rhs: ref char = gen_expr(ctx, rhs_expr)
+    val is_float: bool = expr_is_float(ctx, lhs_expr) || expr_is_float(ctx, rhs_expr)
+    val lhs_qbt: ref char = expr_qbe_type(ctx, lhs_expr)
+    val rhs_qbt: ref char = expr_qbe_type(ctx, rhs_expr)
+    val lhs_is_word: bool = str.rchar_cmp(lhs_qbt, "w") == 0
+    val rhs_is_word: bool = str.rchar_cmp(rhs_qbt, "w") == 0
+    val lhs_is_int_lit: bool = lhs_expr.kind == parser.NK_INT_LIT
+    val rhs_is_int_lit: bool = rhs_expr.kind == parser.NK_INT_LIT
+    val is_comparison: bool = op == parser.OP_EQ || op == parser.OP_NE || op == parser.OP_LT ||
+                              op == parser.OP_GT || op == parser.OP_LE || op == parser.OP_GE
+    val target_type: mut ref char = "l"
+
+    if !is_float && is_comparison {
+        if ((lhs_is_word && rhs_is_int_lit) || (rhs_is_word && lhs_is_int_lit)) {
+            target_type = "w"
+        }
+    }
+    
+    val lhs: ref char = gen_expr_with_type(ctx, lhs_expr, target_type)
+    val rhs: ref char = gen_expr_with_type(ctx, rhs_expr, target_type)
     val tmp: i64 = fresh_tmp(ctx)
     val buf: ref char = @alloc(256) as ref char
     val lhs_l: mut ref char = lhs
     val rhs_l: mut ref char = rhs
-
-    val is_float: bool = expr_is_float(ctx, lhs_expr) || expr_is_float(ctx, rhs_expr)
+    val both_word: bool = (lhs_is_word && rhs_is_word) || 
+                          (lhs_is_word && rhs_is_int_lit) || 
+                          (rhs_is_word && lhs_is_int_lit)
 
     if op == parser.OP_EQ || op == parser.OP_NE || op == parser.OP_LT ||
        op == parser.OP_GT || op == parser.OP_LE || op == parser.OP_GE {
-        val lhs_qbt: ref char = expr_qbe_type(ctx, lhs_expr)
-        val rhs_qbt: ref char = expr_qbe_type(ctx, rhs_expr)
-
-        if str.rchar_cmp(lhs_qbt, "w") == 0 {
-            val ext_tmp: i64 = fresh_tmp(ctx)
-            val ext_buf: ref char = @alloc(128) as ref char
-            @snprintf(ext_buf, 128, "    %%t%lld =l extsw %s\n", {ext_tmp, lhs_l})
-            emit(ctx, ext_buf)
-            @free(ext_buf)
-            lhs_l = @alloc(16) as ref char
-            @snprintf(lhs_l, 16, "%%t%lld", {ext_tmp})
-        }
-        if str.rchar_cmp(rhs_qbt, "w") == 0 {
-            val ext_tmp: i64 = fresh_tmp(ctx)
-            val ext_buf: ref char = @alloc(128) as ref char
-            @snprintf(ext_buf, 128, "    %%t%lld =l extsw %s\n", {ext_tmp, rhs_l})
-            emit(ctx, ext_buf)
-            @free(ext_buf)
-            rhs_l = @alloc(16) as ref char
-            @snprintf(rhs_l, 16, "%%t%lld", {ext_tmp})
+        if !both_word {
+            if str.rchar_cmp(lhs_qbt, "w") == 0 {
+                val ext_tmp: i64 = fresh_tmp(ctx)
+                val ext_buf: ref char = @alloc(128) as ref char
+                @snprintf(ext_buf, 128, "    %%t%lld =l extsw %s\n", {ext_tmp, lhs_l})
+                emit(ctx, ext_buf)
+                @free(ext_buf)
+                lhs_l = @alloc(16) as ref char
+                @snprintf(lhs_l, 16, "%%t%lld", {ext_tmp})
+            }
+            if str.rchar_cmp(rhs_qbt, "w") == 0 {
+                val ext_tmp: i64 = fresh_tmp(ctx)
+                val ext_buf: ref char = @alloc(128) as ref char
+                @snprintf(ext_buf, 128, "    %%t%lld =l extsw %s\n", {ext_tmp, rhs_l})
+                emit(ctx, ext_buf)
+                @free(ext_buf)
+                rhs_l = @alloc(16) as ref char
+                @snprintf(rhs_l, 16, "%%t%lld", {ext_tmp})
+            }
         }
     }
 
@@ -1798,14 +1868,48 @@ fn gen_binop(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
         elif op == parser.OP_MUL { @snprintf(buf, 256, "    %%t%lld =l mul %s, %s\n",  {tmp, lhs, rhs}) }
         elif op == parser.OP_DIV { @snprintf(buf, 256, "    %%t%lld =l div %s, %s\n",  {tmp, lhs, rhs}) }
         elif op == parser.OP_REM { @snprintf(buf, 256, "    %%t%lld =l rem %s, %s\n",  {tmp, lhs, rhs}) }
-        elif op == parser.OP_EQ  { @snprintf(buf, 256, "    %%t%lld =w ceql %s, %s\n", {tmp, lhs_l, rhs_l}) }
-        elif op == parser.OP_NE  { @snprintf(buf, 256, "    %%t%lld =w cnel %s, %s\n", {tmp, lhs_l, rhs_l}) }
-        elif op == parser.OP_LT  { @snprintf(buf, 256, "    %%t%lld =w csltw %s, %s\n",{tmp, lhs_l, rhs_l}) }
-        elif op == parser.OP_GT  { @snprintf(buf, 256, "    %%t%lld =w csgtl %s, %s\n",{tmp, lhs_l, rhs_l}) }
-        elif op == parser.OP_LE  { @snprintf(buf, 256, "    %%t%lld =w cslel %s, %s\n",{tmp, lhs_l, rhs_l}) }
+        elif op == parser.OP_EQ  {
+            if both_word {
+                @snprintf(buf, 256, "    %%t%lld =w ceqw %s, %s\n", {tmp, lhs, rhs})
+            } else {
+                @snprintf(buf, 256, "    %%t%lld =w ceql %s, %s\n", {tmp, lhs_l, rhs_l})
+            }
+        }
+        elif op == parser.OP_NE  {
+            if both_word {
+                @snprintf(buf, 256, "    %%t%lld =w cnew %s, %s\n", {tmp, lhs, rhs})
+            } else {
+                @snprintf(buf, 256, "    %%t%lld =w cnel %s, %s\n", {tmp, lhs_l, rhs_l})
+            }
+        }
+        elif op == parser.OP_LT  {
+            if both_word {
+                @snprintf(buf, 256, "    %%t%lld =w csltw %s, %s\n", {tmp, lhs, rhs})
+            } else {
+                @snprintf(buf, 256, "    %%t%lld =w csltw %s, %s\n", {tmp, lhs_l, rhs_l})
+            }
+        }
+        elif op == parser.OP_GT  {
+            if both_word {
+                @snprintf(buf, 256, "    %%t%lld =w csgtw %s, %s\n", {tmp, lhs, rhs})
+            } else {
+                @snprintf(buf, 256, "    %%t%lld =w csgtl %s, %s\n", {tmp, lhs_l, rhs_l})
+            }
+        }
+        elif op == parser.OP_LE  {
+            if both_word {
+                @snprintf(buf, 256, "    %%t%lld =w cslew %s, %s\n", {tmp, lhs, rhs})
+            } else {
+                @snprintf(buf, 256, "    %%t%lld =w cslel %s, %s\n", {tmp, lhs_l, rhs_l})
+            }
+        }
         elif op == parser.OP_GE  { 
             val lt: i64 = fresh_tmp(ctx)
-            @snprintf(buf, 256, "    %%t%lld =w csltw %s, %s\n    %%t%lld =w ceqw %%t%lld, 0\n", {lt, lhs_l, rhs_l, tmp, lt}) 
+            if both_word {
+                @snprintf(buf, 256, "    %%t%lld =w csltw %s, %s\n    %%t%lld =w ceqw %%t%lld, 0\n", {lt, lhs, rhs, tmp, lt})
+            } else {
+                @snprintf(buf, 256, "    %%t%lld =w csltw %s, %s\n    %%t%lld =w ceqw %%t%lld, 0\n", {lt, lhs_l, rhs_l, tmp, lt})
+            }
         }
         elif op == parser.OP_AND {
             @snprintf(buf, 256, "    %%t%lld =w and %s, %s\n", {tmp, lhs, rhs})
