@@ -201,6 +201,70 @@ fn stmt_references_import_shallow(node: ref parser.Node, import_name: ref char) 
         return expr_references_import_shallow(node.d0 as ref parser.Node, import_name)
     } elif node.kind == parser.NK_ASSERT {
         return expr_references_import_shallow(node.d0 as ref parser.Node, import_name)
+    } elif node.kind == parser.NK_WHEN_STMT {
+        val when_body: ref void = node.d1 as ref void
+        if when_body != 0 {
+            val wlen: i64 = @len(when_body) as i64
+            val wi: mut i64 = 0
+            for {
+                if wi >= wlen { break }
+                val stmt_opt = @get(when_body, wi as usize)
+                match stmt_opt {
+                    some stmt => {
+                        if stmt_references_import_shallow(stmt as ref parser.Node, import_name) { return true }
+                    }
+                    none => {}
+                }
+                wi++
+            }
+        }
+        val or_branches: ref void = node.d2 as ref void
+        if or_branches != 0 {
+            val olen: i64 = @len(or_branches) as i64
+            val oi: mut i64 = 0
+            for {
+                if oi >= olen { break }
+                val or_opt = @get(or_branches, oi as usize)
+                match or_opt {
+                    some or_node => {
+                        val or_body: ref void = (or_node as ref parser.Node).d1 as ref void
+                        if or_body != 0 {
+                            val orlen: i64 = @len(or_body) as i64
+                            val ori: mut i64 = 0
+                            for {
+                                if ori >= orlen { break }
+                                val or_stmt_opt = @get(or_body, ori as usize)
+                                match or_stmt_opt {
+                                    some or_stmt => {
+                                        if stmt_references_import_shallow(or_stmt as ref parser.Node, import_name) { return true }
+                                    }
+                                    none => {}
+                                }
+                                ori++
+                            }
+                        }
+                    }
+                    none => {}
+                }
+                oi++
+            }
+        }
+        val owise: ref void = node.d3 as ref void
+        if owise != 0 {
+            val olen: i64 = @len(owise) as i64
+            val oi: mut i64 = 0
+            for {
+                if oi >= olen { break }
+                val o_stmt_opt = @get(owise, oi as usize)
+                match o_stmt_opt {
+                    some o_stmt => {
+                        if stmt_references_import_shallow(o_stmt as ref parser.Node, import_name) { return true }
+                    }
+                    none => {}
+                }
+                oi++
+            }
+        }
     } elif node.kind == parser.NK_IF {
         if expr_references_import_shallow(node.d0 as ref parser.Node, import_name) { return true }
         val then_body: ref void = node.d1 as ref void
@@ -587,16 +651,11 @@ fn expr_references_import_shallow(node: ref parser.Node, import_name: ref char) 
         }
     } elif node.kind == parser.NK_FIELD {
         val base: ref parser.Node = node.d0 as ref parser.Node
-        if base != 0 && base.kind == parser.NK_IDENT {
-            val name: ref char = base.d0 as ref char
-            std.stdio.print("[DEBUG]   NK_FIELD base=IDENT('{s}') field='{s}'\n", {name, node.d1 as ref char})
-            if str.rchar_cmp(name, import_name) == 0 {
-                return true
-            }
-        } else {
-            val bkind: mut i64 = -1
-            if base != 0 { bkind = base.kind } 
-            std.stdio.print("[DEBUG]   NK_FIELD base=kind={d}\n", {bkind})
+        val field_name: ref char = node.d1 as ref char
+        std.stdio.print("[DEBUG]   NK_FIELD field='{s}'\n", {field_name})
+        if str.rchar_cmp(field_name, import_name) == 0 {
+            std.stdio.print("[DEBUG]   field match!\n", {})
+            return true
         }
         if base != 0 && expr_references_import_shallow(base, import_name) { return true }
     } elif node.kind == parser.NK_CALL {
