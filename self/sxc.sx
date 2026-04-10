@@ -138,7 +138,7 @@ pub fn main() i32! = {
         return 1
     }
 
-    val links: list[ref char] = module.collect_links(root_mod.items)
+    val links: list[ref char] = module.collect_links(root_mod.items, exe_dir)
     val qbe_ir: mut ref char = ""
 
     if test_mode {

@@ -258,7 +258,7 @@ pub fn flatten_modules(
 
 /// Collect all link statements from a module's items.
 /// Returns a list of link flags (strings like "-lcurl" or full paths).
-pub fn collect_links(items: list[ref parser.Node]) list[ref char]! = {
+pub fn collect_links(items: list[ref parser.Node], exe_dir: ref char) list[ref char]! = {
     val links: mut list[ref char] = []
     val platform: ref char = reflection.current_platform_name()
     
@@ -292,7 +292,23 @@ pub fn collect_links(items: list[ref parser.Node]) list[ref char]! = {
         }
     }
     
-    return links
+    val result: mut list[ref char] = []
+    for the_link in links {
+        if str.rchar_cmp(the_link, "__sx__internal__json__") == 0 {
+            val shim_path: ref char = std.path.join(exe_dir, "std/csources/yyjson_shim.o")
+            
+            if file_exists(shim_path) {
+                @append(result, shim_path)
+            } else {
+                std.stdio.print("warning: yyjson_shim.o not found at expected path: {s}\n", {shim_path})
+                @append(result, the_link)
+            }
+        } else {
+            @append(result, the_link)
+        }
+    }
+    
+    return result
 }
 
 /// Check if a platform name matches the current platform.

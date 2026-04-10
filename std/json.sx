@@ -272,7 +272,10 @@ test {
     val input: ref char = \\{"name":"Alice","age":30,"active":true,"score":9.5}
     val doc_opt = parse(input)
     match doc_opt {
-        none => { assert false }
+        none => { 
+            @dprintf(2, "input was {s}", {input})
+            assert false 
+        }
         some handle => {
             val root: ref void = doc_root(handle)
             assert val_is_object(root)
