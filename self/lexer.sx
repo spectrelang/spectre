@@ -64,13 +64,15 @@ type Lexer = {
 
 pub fn lexer_new(src: ref char) ref Lexer! = {
     val slen: i64 = std.string.len_raw(src)
-    val arena_cap: mut usize = (slen * 64 + 8192) as usize
+    val arena_cap: usize = (slen * 64 + 8192) as usize
     val arena_res = std.allocators.Arena.new(arena_cap)
     val arena: mut ref void = 0 as ref void
 
     match arena_res {
         ok a  => { arena = a }
-        err _ => { arena = @alloc(arena_cap) }
+        err _ => { 
+            arena = 0 as ref void
+        }
     }
 
     val l: mut ref Lexer = @alloc(@sizeof(Lexer)) as ref Lexer

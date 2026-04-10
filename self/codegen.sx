@@ -3044,9 +3044,10 @@ fn gen_builtin(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
         emit(ctx, buf_app4)
         @free(buf_app4)
 
+        val new_cap_tmp: i64 = fresh_tmp(ctx)
         val new_cap: i64 = fresh_tmp(ctx)
         val buf_app5: ref char = @alloc(256) as ref char
-        @snprintf(buf_app5, 256, "    %%t%lld =l mul %%t%lld, 2\n    %%t%lld =l add %%t%lld, 1\n", {new_cap, cap_val, new_cap, new_cap})
+        @snprintf(buf_app5, 256, "    %%t%lld =l mul %%t%lld, 2\n    %%t%lld =l add %%t%lld, 1\n", {new_cap_tmp, cap_val, new_cap, new_cap_tmp})
         emit(ctx, buf_app5)
         @free(buf_app5)
 
@@ -3110,35 +3111,41 @@ fn gen_builtin(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
                 val arg_k: i64 = arg_nd.kind
                 if arg_k == parser.NK_IDENT {
                     val vname: ref char = arg_nd.d0 as ref char
-                    val ltype: ref char = cg_local_type(ctx, vname)
-                    if str.rchar_cmp(ltype, "") != 0 {
-                        val fake_ty: mut ref parser.Node = 0 as ref parser.Node
-                        if str.rchar_cmp(ltype, "i8") == 0 || str.rchar_cmp(ltype, "u8") == 0 || str.rchar_cmp(ltype, "char") == 0 {
-                            fake_ty = parser.make_node(parser.TY_NAMED, 0)
-                            fake_ty.d0 = ltype as i64
-                            sizeof_val = type_size(fake_ty)
-                        } elif str.rchar_cmp(ltype, "i16") == 0 || str.rchar_cmp(ltype, "u16") == 0 {
-                            fake_ty = parser.make_node(parser.TY_NAMED, 0)
-                            fake_ty.d0 = ltype as i64
-                            sizeof_val = type_size(fake_ty)
-                        } elif str.rchar_cmp(ltype, "i32") == 0 || str.rchar_cmp(ltype, "u32") == 0 || str.rchar_cmp(ltype, "f32") == 0 {
-                            fake_ty = parser.make_node(parser.TY_NAMED, 0)
-                            fake_ty.d0 = ltype as i64
-                            sizeof_val = type_size(fake_ty)
-                        } elif str.rchar_cmp(ltype, "i64") == 0 || str.rchar_cmp(ltype, "u64") == 0 || str.rchar_cmp(ltype, "f64") == 0 {
-                            sizeof_val = 8
-                        } elif str.rchar_cmp(ltype, "bool") == 0 {
-                            sizeof_val = 4
-                        } else {
-                            val flds: ref void = cg_lookup_struct(ctx, ltype)
-                            if flds != 0 as ref void {
-                                sizeof_val = struct_size(flds)
-                            } else {
-                                sizeof_val = 8
-                            }
-                        }
+                    
+                    val flds: ref void = cg_lookup_struct(ctx, vname)
+                    if flds != 0 as ref void {
+                        sizeof_val = struct_size(flds)
                     } else {
-                        sizeof_val = 8
+                        val ltype: ref char = cg_local_type(ctx, vname)
+                        if str.rchar_cmp(ltype, "") != 0 {
+                            val fake_ty: mut ref parser.Node = 0 as ref parser.Node
+                            if str.rchar_cmp(ltype, "i8") == 0 || str.rchar_cmp(ltype, "u8") == 0 || str.rchar_cmp(ltype, "char") == 0 {
+                                fake_ty = parser.make_node(parser.TY_NAMED, 0)
+                                fake_ty.d0 = ltype as i64
+                                sizeof_val = type_size(fake_ty)
+                            } elif str.rchar_cmp(ltype, "i16") == 0 || str.rchar_cmp(ltype, "u16") == 0 {
+                                fake_ty = parser.make_node(parser.TY_NAMED, 0)
+                                fake_ty.d0 = ltype as i64
+                                sizeof_val = type_size(fake_ty)
+                            } elif str.rchar_cmp(ltype, "i32") == 0 || str.rchar_cmp(ltype, "u32") == 0 || str.rchar_cmp(ltype, "f32") == 0 {
+                                fake_ty = parser.make_node(parser.TY_NAMED, 0)
+                                fake_ty.d0 = ltype as i64
+                                sizeof_val = type_size(fake_ty)
+                            } elif str.rchar_cmp(ltype, "i64") == 0 || str.rchar_cmp(ltype, "u64") == 0 || str.rchar_cmp(ltype, "f64") == 0 {
+                                sizeof_val = 8
+                            } elif str.rchar_cmp(ltype, "bool") == 0 {
+                                sizeof_val = 4
+                            } else {
+                                val flds2: ref void = cg_lookup_struct(ctx, ltype)
+                                if flds2 != 0 as ref void {
+                                    sizeof_val = struct_size(flds2)
+                                } else {
+                                    sizeof_val = 8
+                                }
+                            }
+                        } else {
+                            sizeof_val = 8
+                        }
                     }
                 } elif arg_k == parser.NK_CAST {
                     val ty: ref parser.Node = arg_nd.d1 as ref parser.Node
@@ -3258,6 +3265,8 @@ fn gen_builtin(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
         emit(ctx, buf_rem6)
         @free(buf_rem6)
 
+        val src_off_tmp: i64 = fresh_tmp(ctx)
+        val src_off_tmp2: i64 = fresh_tmp(ctx)
         val src_off: i64 = fresh_tmp(ctx)
         val dst_off: i64 = fresh_tmp(ctx)
         val src_ptr: i64 = fresh_tmp(ctx)
@@ -3265,7 +3274,7 @@ fn gen_builtin(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
         val src_val: i64 = fresh_tmp(ctx)
         val buf_rem7: ref char = @alloc(512) as ref char
         @snprintf(buf_rem7, 512, "    %%t%lld =l add %%t%lld, 1\n    %%t%lld =l mul %%t%lld, 8\n    %%t%lld =l mul %%t%lld, 8\n    %%t%lld =l add %%t%lld, %%t%lld\n    %%t%lld =l add %%t%lld, %%t%lld\n    %%t%lld =l loadl %%t%lld\n    storel %%t%lld, %%t%lld\n",
-            {src_off, shift_idx, src_off, src_off, dst_off, shift_idx, src_ptr, buf_tmp, src_off, dst_ptr, buf_tmp, dst_off, src_val, src_ptr, src_val, dst_ptr})
+            {src_off_tmp, shift_idx, src_off_tmp2, src_off_tmp, src_off, src_off_tmp2, src_ptr, buf_tmp, src_off, dst_ptr, buf_tmp, dst_off, src_val, src_ptr, src_val, dst_ptr})
         emit(ctx, buf_rem7)
         @free(buf_rem7)
 
@@ -3366,6 +3375,7 @@ fn gen_builtin(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
         @free(buf_ins10)
 
         val src_off: i64 = fresh_tmp(ctx)
+        val dst_off_tmp: i64 = fresh_tmp(ctx)
         val dst_off: i64 = fresh_tmp(ctx)
         val src_ptr: i64 = fresh_tmp(ctx)
         val dst_ptr: i64 = fresh_tmp(ctx)
@@ -3373,7 +3383,7 @@ fn gen_builtin(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
         val buf2: i64 = fresh_tmp(ctx)
         val buf_ins11: ref char = @alloc(512) as ref char
         @snprintf(buf_ins11, 512, "    %%t%lld =l mul %%t%lld, 8\n    %%t%lld =l add %%t%lld, 1\n    %%t%lld =l mul %%t%lld, 8\n    %%t%lld =l loadl %s\n    %%t%lld =l add %%t%lld, %%t%lld\n    %%t%lld =l add %%t%lld, %%t%lld\n    %%t%lld =l loadl %%t%lld\n    storel %%t%lld, %%t%lld\n",
-            {src_off, shift_idx, dst_off, shift_idx, dst_off, dst_off, buf2, lst_ins, src_ptr, buf2, src_off, dst_ptr, buf2, dst_off, src_val, src_ptr, src_val, dst_ptr})
+            {src_off, shift_idx, dst_off_tmp, shift_idx, dst_off, dst_off_tmp, buf2, lst_ins, src_ptr, buf2, src_off, dst_ptr, buf2, dst_off, src_val, src_ptr, src_val, dst_ptr})
         emit(ctx, buf_ins11)
         @free(buf_ins11)
 
