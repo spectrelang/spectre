@@ -448,10 +448,10 @@ fn kind_is_if(k: TokenKind)       bool! = { match k { If()       => { return tru
 fn kind_is_else(k: TokenKind)     bool! = { match k { Else()     => { return true } else => { return false } } }
 fn kind_is_for(k: TokenKind)      bool! = { match k { For()      => { return true } else => { return false } } }
 fn kind_is_eof(k: TokenKind)      bool! = { match k { Eof()      => { return true } else => { return false } } }
-fn kind_is_ident(k: TokenKind)    bool! = { match k { Ident _   => { return true } else => { return false } } }
-fn kind_is_str(k: TokenKind)      bool! = { match k { Str _     => { return true } else => { return false } } }
-fn kind_is_int(k: TokenKind)      bool! = { match k { Int _     => { return true } else => { return false } } }
-fn kind_is_float(k: TokenKind)    bool! = { match k { Float _   => { return true } else => { return false } } }
+fn kind_is_ident(k: TokenKind)    bool! = { match k { Ident _    => { return true } else => { return false } } }
+fn kind_is_str(k: TokenKind)      bool! = { match k { Str _      => { return true } else => { return false } } }
+fn kind_is_int(k: TokenKind)      bool! = { match k { Int _      => { return true } else => { return false } } }
+fn kind_is_float(k: TokenKind)    bool! = { match k { Float _    => { return true } else => { return false } } }
 fn kind_is_eqeq(k: TokenKind)     bool! = { match k { EqEq()     => { return true } else => { return false } } }
 fn kind_is_bangeq(k: TokenKind)   bool! = { match k { BangEq()   => { return true } else => { return false } } }
 fn kind_is_lteq(k: TokenKind)     bool! = { match k { LtEq()     => { return true } else => { return false } } }
