@@ -52,7 +52,7 @@ for file in "$STD_DIR"/*.sx; do
     ((total++))
 
     if [[ "$filename" == std.sx ]]; then
-        echo "[SKIP] $filename (this is the std facade, skipping)"
+        echo "[SKIP] $filename (this is the std facade)"
         ((skipped++))
         continue
     fi
