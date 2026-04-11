@@ -242,9 +242,9 @@ fn p_expect_lbracket(p: ref Parser) result[ref char, ref char]! = { return p_exp
 fn p_expect_rbracket(p: ref Parser) result[ref char, ref char]! = { return p_expect_kind(p, lexer.kind_is_rbracket, "']'" ) }
 fn p_expect_colon(p: ref Parser)    result[ref char, ref char]! = { return p_expect_kind(p, lexer.kind_is_colon,    "':'" ) }
 fn p_expect_comma(p: ref Parser)    result[ref char, ref char]! = { return p_expect_kind(p, lexer.kind_is_comma,    "','" ) }
-fn p_expect_eq(p: ref Parser)       result[ref char, ref char]! = { return p_expect_kind(p, lexer.kind_is_eq,       "'='" ) }
+fn p_expect_eq(p: ref Parser)       result[ref char, ref char]! = { return p_expect_kind(p, kind_is_eq,       "'='" ) }
 fn p_expect_fatarrow(p: ref Parser) result[ref char, ref char]! = { return p_expect_kind(p, lexer.kind_is_fatarrow, "'=>'") }
-fn p_expect_semicolon(p: ref Parser) result[ref char, ref char]! = { return p_expect_kind(p, lexer.kind_is_semicolon, "';'") }
+fn p_expect_semicolon(p: ref Parser) result[ref char, ref char]! = { return p_expect_kind(p, kind_is_semicolon, "';'") }
 fn p_expect_dot(p: ref Parser)      result[ref char, ref char]! = { return p_expect_kind(p, lexer.kind_is_dot,      "'.'" ) }
 
 fn kind_is_eq(k: lexer.TokenKind) bool! = { match k { Eq() => { return true } else => { return false } } }

@@ -737,22 +737,41 @@ pub fn resolve_module(
         if node.kind == parser.NK_USE {
             val import_name: ref char = node.d1 as ref char
             val use_path:    ref char = node.d2 as ref char
-            
+
+            std.stdio.print("[resolve_module] {s}: checking import '{s}' (path: {s})\n", {path, import_name, use_path})
+
             val is_directly_referenced: bool = import_is_referenced(items, import_name)
-            val needed_subs: list[ref char] = collect_needed_subnames(items, import_name)
-            val has_submodule_refs: bool = @len(needed_subs) > 0
+            std.stdio.print("[resolve_module]   is_directly_referenced: {d}\n", {is_directly_referenced as i64})
             
+            val needed_subs: list[ref char] = collect_needed_subnames_transitive(items, import_name, use_path, str.cstr(file_dir), exe_dir, next_progress)
+            std.stdio.print("[resolve_module]   needed_subs count: {d}\n", {@len(needed_subs) as i64})
+            val ns_debug_i: mut i64 = 0
+            val ns_debug_len: i64 = @len(needed_subs) as i64
+            for {
+                if ns_debug_i >= ns_debug_len { break }
+                val ns_opt = @get(needed_subs, ns_debug_i as usize)
+                match ns_opt {
+                    some ns => { std.stdio.print("[resolve_module]     - {s}\n", {ns as ref char}) }
+                    none => {}
+                }
+                ns_debug_i++
+            }
+            val has_submodule_refs: bool = @len(needed_subs) > 0
+
             val is_needed_by_parent: mut bool = false
             if needed_children != 0 {
                 val needed_list: list[ref char] = needed_children as list[ref char]
                 is_needed_by_parent = import_in_list(needed_list, import_name)
+                std.stdio.print("[resolve_module]   is_needed_by_parent: {d}\n", {is_needed_by_parent as i64})
             }
-            
+
             if !is_directly_referenced && !has_submodule_refs && !is_needed_by_parent {
+                std.stdio.puts("[resolve_module]   SKIP: not needed\n")
                 continue
             }
-            
+
             val resolved_path = resolve_use_path(use_path, str.cstr(file_dir), exe_dir)
+            std.stdio.print("[resolve_module]   resolved_path: {s}\n", {resolved_path})
             val needed_grandchildren: mut ref void = 0 as ref void
             if @len(needed_subs) > 0 {
                 needed_grandchildren = needed_subs as ref void
@@ -761,6 +780,7 @@ pub fn resolve_module(
 
             match child_result {
                 ok child => {
+                    std.stdio.print("[resolve_module]   SUCCESS: loaded {d} imports from child\n", {@len((child as ref ResolvedModule).import_names) as i64})
                     @append(m.import_names,   import_name)
                     @append(m.import_modules, child as ref void)
                 }
@@ -1183,7 +1203,7 @@ fn collect_needed_subnames_in_stmts(stmts_ptr: ref void, import_name: ref char, 
 
 fn collect_needed_subnames_in_stmt(stmt: ref parser.Node, import_name: ref char, needed: list[ref char]) void! = {
     if stmt == 0 { return }
-    
+
     if stmt.kind == parser.NK_VAL {
         collect_needed_subnames_in_expr(stmt.d3 as ref parser.Node, import_name, needed)
     } elif stmt.kind == parser.NK_ASSIGN {
@@ -1193,19 +1213,234 @@ fn collect_needed_subnames_in_stmt(stmt: ref parser.Node, import_name: ref char,
         collect_needed_subnames_in_expr(stmt.d0 as ref parser.Node, import_name, needed)
     } elif stmt.kind == parser.NK_EXPR_STMT {
         collect_needed_subnames_in_expr(stmt.d0 as ref parser.Node, import_name, needed)
+    } elif stmt.kind == parser.NK_IF {
+        collect_needed_subnames_in_expr(stmt.d0 as ref parser.Node, import_name, needed)
+        val then_body: ref void = stmt.d1 as ref void
+        if then_body != 0 {
+            collect_needed_subnames_in_stmts(then_body, import_name, needed)
+        }
+        val elif_list: ref void = stmt.d2 as ref void
+        if elif_list != 0 {
+            val elen: i64 = @len(elif_list) as i64
+            val ei: mut i64 = 0
+            for {
+                if ei >= elen { break }
+                val elif_opt = @get(elif_list, ei as usize)
+                match elif_opt {
+                    some elif_node => {
+                        val elif_stmt_node: ref parser.Node = elif_node as ref parser.Node
+                        collect_needed_subnames_in_expr(elif_stmt_node.d0 as ref parser.Node, import_name, needed)
+                        val elif_body: ref void = elif_stmt_node.d1 as ref void
+                        if elif_body != 0 {
+                            collect_needed_subnames_in_stmts(elif_body, import_name, needed)
+                        }
+                    }
+                    none => {}
+                }
+                ei++
+            }
+        }
+        val else_node: ref parser.Node = stmt.d3 as ref parser.Node
+        if else_node != 0 {
+            val else_body: ref void = else_node.d0 as ref void
+            if else_body != 0 {
+                collect_needed_subnames_in_stmts(else_body, import_name, needed)
+            }
+        }
+    } elif stmt.kind == parser.NK_FOR {
+        val init: ref parser.Node = stmt.d1 as ref parser.Node
+        if init != 0 {
+            collect_needed_subnames_in_expr(init, import_name, needed)
+        }
+        val cond: ref parser.Node = stmt.d2 as ref parser.Node
+        if cond != 0 {
+            collect_needed_subnames_in_expr(cond, import_name, needed)
+        }
+        val post_n: ref parser.Node = stmt.d3 as ref parser.Node
+        if post_n != 0 {
+            collect_needed_subnames_in_stmt(post_n, import_name, needed)
+        }
+        val body: ref void = stmt.d4 as ref void
+        if body != 0 {
+            collect_needed_subnames_in_stmts(body, import_name, needed)
+        }
+    } elif stmt.kind == parser.NK_FORIN {
+        val iter: ref parser.Node = stmt.d1 as ref parser.Node
+        if iter != 0 {
+            collect_needed_subnames_in_expr(iter, import_name, needed)
+        }
+        val body: ref void = stmt.d2 as ref void
+        if body != 0 {
+            collect_needed_subnames_in_stmts(body, import_name, needed)
+        }
+    } elif stmt.kind == parser.NK_MATCH_OPT {
+        collect_needed_subnames_in_expr(stmt.d0 as ref parser.Node, import_name, needed)
+        val some_body_node: ref parser.Node = stmt.d2 as ref parser.Node
+        if some_body_node != 0 {
+            val some_body: ref void = some_body_node.d0 as ref void
+            if some_body != 0 {
+                collect_needed_subnames_in_stmts(some_body, import_name, needed)
+            }
+        }
+        val none_body_node: ref parser.Node = stmt.d3 as ref parser.Node
+        if none_body_node != 0 {
+            val none_body: ref void = none_body_node.d0 as ref void
+            if none_body != 0 {
+                collect_needed_subnames_in_stmts(none_body, import_name, needed)
+            }
+        }
+    } elif stmt.kind == parser.NK_MATCH_RES {
+        collect_needed_subnames_in_expr(stmt.d0 as ref parser.Node, import_name, needed)
+        val ok_body_node: ref parser.Node = stmt.d2 as ref parser.Node
+        if ok_body_node != 0 {
+            val ok_body: ref void = ok_body_node.d0 as ref void
+            if ok_body != 0 {
+                collect_needed_subnames_in_stmts(ok_body, import_name, needed)
+            }
+        }
+        val err_body_node: ref parser.Node = stmt.d4 as ref parser.Node
+        if err_body_node != 0 {
+            val err_body: ref void = err_body_node.d0 as ref void
+            if err_body != 0 {
+                collect_needed_subnames_in_stmts(err_body, import_name, needed)
+            }
+        }
+    } elif stmt.kind == parser.NK_MATCH_ENUM {
+        collect_needed_subnames_in_expr(stmt.d0 as ref parser.Node, import_name, needed)
+        val arms: ref void = stmt.d1 as ref void
+        if arms != 0 {
+            val alen: i64 = @len(arms) as i64
+            val ai: mut i64 = 0
+            for {
+                if ai >= alen { break }
+                val arm_opt = @get(arms, ai as usize)
+                match arm_opt {
+                    some arm => {
+                        val arm_node: ref parser.Node = arm as ref parser.Node
+                        val body: ref void = arm_node.d1 as ref void
+                        if body != 0 {
+                            collect_needed_subnames_in_stmts(body, import_name, needed)
+                        }
+                    }
+                    none => {}
+                }
+                ai++
+            }
+        }
+    } elif stmt.kind == parser.NK_MATCH_UNION {
+        collect_needed_subnames_in_expr(stmt.d0 as ref parser.Node, import_name, needed)
+        val arms: ref void = stmt.d1 as ref void
+        if arms != 0 {
+            val alen: i64 = @len(arms) as i64
+            val ai: mut i64 = 0
+            for {
+                if ai >= alen { break }
+                val arm_opt = @get(arms, ai as usize)
+                match arm_opt {
+                    some arm => {
+                        val arm_node: ref parser.Node = arm as ref parser.Node
+                        val body: ref void = arm_node.d1 as ref void
+                        if body != 0 {
+                            collect_needed_subnames_in_stmts(body, import_name, needed)
+                        }
+                    }
+                    none => {}
+                }
+                ai++
+            }
+        }
+    } elif stmt.kind == parser.NK_MATCH_TAGGED_UNION {
+        collect_needed_subnames_in_expr(stmt.d0 as ref parser.Node, import_name, needed)
+        val arms: ref void = stmt.d1 as ref void
+        if arms != 0 {
+            val alen: i64 = @len(arms) as i64
+            val ai: mut i64 = 0
+            for {
+                if ai >= alen { break }
+                val arm_opt = @get(arms, ai as usize)
+                match arm_opt {
+                    some arm => {
+                        val arm_node: ref parser.Node = arm as ref parser.Node
+                        val body: ref void = arm_node.d2 as ref void
+                        if body != 0 {
+                            collect_needed_subnames_in_stmts(body, import_name, needed)
+                        }
+                    }
+                    none => {}
+                }
+                ai++
+            }
+        }
+    } elif stmt.kind == parser.NK_MATCH_STR {
+        collect_needed_subnames_in_expr(stmt.d0 as ref parser.Node, import_name, needed)
+        val arms: ref void = stmt.d1 as ref void
+        if arms != 0 {
+            val alen: i64 = @len(arms) as i64
+            val ai: mut i64 = 0
+            for {
+                if ai >= alen { break }
+                val arm_opt = @get(arms, ai as usize)
+                match arm_opt {
+                    some arm => {
+                        val arm_node: ref parser.Node = arm as ref parser.Node
+                        val body: ref void = arm_node.d1 as ref void
+                        if body != 0 {
+                            collect_needed_subnames_in_stmts(body, import_name, needed)
+                        }
+                    }
+                    none => {}
+                }
+                ai++
+            }
+        }
+    } elif stmt.kind == parser.NK_ASSERT {
+        collect_needed_subnames_in_expr(stmt.d0 as ref parser.Node, import_name, needed)
+    } elif stmt.kind == parser.NK_WHEN_STMT {
+        val when_body: ref void = stmt.d1 as ref void
+        if when_body != 0 {
+            collect_needed_subnames_in_stmts(when_body, import_name, needed)
+        }
+    } elif stmt.kind == parser.NK_DEFER {
+        val defer_body: ref parser.Node = stmt.d0 as ref parser.Node
+        if defer_body != 0 {
+            collect_needed_subnames_in_stmt(defer_body, import_name, needed)
+        }
+    } elif stmt.kind == parser.NK_BREAK || stmt.kind == parser.NK_CONTINUE {
+        // No expressions to traverse
+    } elif stmt.kind == parser.NK_TRY {
+        collect_needed_subnames_in_expr(stmt.d0 as ref parser.Node, import_name, needed)
+    } elif stmt.kind == parser.NK_PRE || stmt.kind == parser.NK_POST {
+        val contracts: ref void = stmt.d0 as ref void
+        if contracts != 0 {
+            val clen: i64 = @len(contracts) as i64
+            val ci: mut i64 = 0
+            for {
+                if ci >= clen { break }
+                val c_opt = @get(contracts, ci as usize)
+                match c_opt {
+                    some c => {
+                        val cnode: ref parser.Node = c as ref parser.Node
+                        collect_needed_subnames_in_expr(cnode.d0 as ref parser.Node, import_name, needed)
+                    }
+                    none => {}
+                }
+                ci++
+            }
+        }
     }
 }
 
 fn collect_needed_subnames_in_expr(expr: ref parser.Node, import_name: ref char, needed: list[ref char]) void! = {
     if expr == 0 { return }
-    
+
     if expr.kind == parser.NK_FIELD {
         val base: ref parser.Node = expr.d0 as ref parser.Node
         val field_name: ref char = expr.d1 as ref char
-        
+
         if base != 0 && base.kind == parser.NK_IDENT {
             val base_name: ref char = base.d0 as ref char
             if str.rchar_cmp(base_name, import_name) == 0 {
+                std.stdio.print("[collect_needed_subnames_in_expr] FOUND: {s}.{s}\n", {import_name, field_name})
                 if !import_in_list(needed, field_name) {
                     @append(needed, field_name)
                 }
@@ -1213,6 +1448,7 @@ fn collect_needed_subnames_in_expr(expr: ref parser.Node, import_name: ref char,
         }
         collect_needed_subnames_in_expr(base, import_name, needed)
     } elif expr.kind == parser.NK_CALL {
+        std.stdio.puts("[collect_needed_subnames_in_expr] NK_CALL, traversing callee\n")
         collect_needed_subnames_in_expr(expr.d0 as ref parser.Node, import_name, needed)
         val args: ref void = expr.d1 as ref void
         if args != 0 {
@@ -1233,7 +1469,174 @@ fn collect_needed_subnames_in_expr(expr: ref parser.Node, import_name: ref char,
         collect_needed_subnames_in_expr(expr.d2 as ref parser.Node, import_name, needed)
     } elif expr.kind == parser.NK_UNOP {
         collect_needed_subnames_in_expr(expr.d1 as ref parser.Node, import_name, needed)
+    } elif expr.kind == parser.NK_CAST || expr.kind == parser.NK_ADDR || expr.kind == parser.NK_DEREF || expr.kind == parser.NK_TRY || expr.kind == parser.NK_TRUST {
+        collect_needed_subnames_in_expr(expr.d0 as ref parser.Node, import_name, needed)
+    } elif expr.kind == parser.NK_SOME || expr.kind == parser.NK_OK_VAL || expr.kind == parser.NK_ERR_VAL {
+        collect_needed_subnames_in_expr(expr.d0 as ref parser.Node, import_name, needed)
+    } elif expr.kind == parser.NK_ARGS_PACK {
+        val elems: ref void = expr.d0 as ref void
+        if elems != 0 {
+            val elen: i64 = @len(elems) as i64
+            val ei: mut i64 = 0
+            for {
+                if ei >= elen { break }
+                val e_opt = @get(elems, ei as usize)
+                match e_opt {
+                    some e => {
+                        collect_needed_subnames_in_expr(e as ref parser.Node, import_name, needed)
+                    }
+                    none => {}
+                }
+                ei++
+            }
+        }
+    } elif expr.kind == parser.NK_STRUCT_LIT {
+        val fields: ref void = expr.d0 as ref void
+        if fields != 0 {
+            val flen: i64 = @len(fields) as i64
+            val fi: mut i64 = 0
+            for {
+                if fi >= flen { break }
+                val f_opt = @get(fields, fi as usize)
+                match f_opt {
+                    some f => {
+                        val fnode: ref parser.Node = f as ref parser.Node
+                        collect_needed_subnames_in_expr(fnode.d1 as ref parser.Node, import_name, needed)
+                    }
+                    none => {}
+                }
+                fi++
+            }
+        }
+    } elif expr.kind == parser.NK_LIST_LIT {
+        val elems: ref void = expr.d0 as ref void
+        if elems != 0 {
+            val elen: i64 = @len(elems) as i64
+            val ei: mut i64 = 0
+            for {
+                if ei >= elen { break }
+                val e_opt = @get(elems, ei as usize)
+                match e_opt {
+                    some e => {
+                        collect_needed_subnames_in_expr(e as ref parser.Node, import_name, needed)
+                    }
+                    none => {}
+                }
+                ei++
+            }
+        }
     }
+}
+
+/// Collect needed sub-names transitively, including what the child module itself imports.
+fn collect_needed_subnames_transitive(
+    items: list[ref parser.Node],
+    import_name: ref char,
+    use_path: ref char,
+    file_dir: ref char,
+    exe_dir: ref char,
+    in_progress: list[ref char]
+) list[ref char]! = {
+    std.stdio.print("[collect_needed_subnames_transitive] import_name: {s}, items count: {d}\n", {import_name, @len(items) as i64})
+    val needed: mut list[ref char] = []
+    val items_len: i64 = @len(items) as i64
+    val ii: mut i64 = 0
+    for {
+        if ii >= items_len { break }
+        val item_opt = @get(items, ii as usize)
+        match item_opt {
+            some item_val => {
+                val item: ref parser.Node = item_val as ref parser.Node
+                std.stdio.print("[collect_needed] item {d}: kind={d}\n", {ii, item.kind})
+                if item.kind == parser.NK_FN {
+                    val body: ref void = item.d5 as ref void
+                    std.stdio.print("[collect_needed]   NK_FN: body ptr={d}\n", {body as i64})
+                    if body != 0 {
+                        collect_needed_subnames_in_stmts(body, import_name, needed)
+                    }
+                } elif item.kind == parser.NK_TEST {
+                    val body: ref void = item.d0 as ref void
+                    std.stdio.print("[collect_needed]   NK_TEST: body ptr={d}\n", {body as i64})
+                    if body != 0 {
+                        collect_needed_subnames_in_stmts(body, import_name, needed)
+                    }
+                } elif item.kind == parser.NK_CONST {
+                    val expr: ref parser.Node = item.d2 as ref parser.Node
+                    std.stdio.print("[collect_needed]   NK_CONST: expr ptr={d}\n", {expr as i64})
+                    if expr != 0 {
+                        collect_needed_subnames_in_expr(expr, import_name, needed)
+                    }
+                }
+            }
+            none => {}
+        }
+        ii++
+    }
+    std.stdio.print("[collect_needed_subnames_transitive] direct needed count: {d}\n", {@len(needed) as i64})
+
+    val visited: mut list[ref char] = []
+    val changed: mut bool = true
+    for {
+        if !changed { break }
+        changed = false
+
+        val needed_len: i64 = @len(needed) as i64
+        val ni: mut i64 = 0
+        for {
+            if ni >= needed_len { break }
+            val sub_name_opt = @get(needed, ni as usize)
+            match sub_name_opt {
+                some sub_name => {
+                    val already_visited: mut bool = false
+                    for v in visited {
+                        if str.rchar_cmp(v, sub_name as ref char) == 0 {
+                            already_visited = true
+                            break
+                        }
+                    }
+
+                    if !already_visited {
+                        @append(visited, sub_name as ref char)
+                        val resolved_path = resolve_use_path(use_path, file_dir, exe_dir)
+                        if in_progress_contains(in_progress, resolved_path) {
+                            ni++
+                            continue
+                        }
+
+                        val child_src_opt = std.fs.read_all(resolved_path)
+                        match child_src_opt {
+                            some child_src => {
+                                val lex_result = lexer.tokenize(child_src as ref char)
+                                match lex_result {
+                                    ok child_tokens => {
+                                        val parse_result = parser.parse_module(child_tokens, resolved_path)
+                                        match parse_result {
+                                            ok child_items => {
+                                                val child_needed = collect_needed_subnames(child_items, import_name)
+                                                for extra in child_needed {
+                                                    if !import_in_list(needed, extra) {
+                                                        @append(needed, extra)
+                                                        changed = true
+                                                    }
+                                                }
+                                            }
+                                            err _ => {}
+                                        }
+                                    }
+                                    err _ => {}
+                                }
+                            }
+                            none => {}
+                        }
+                    }
+                }
+                none => {}
+            }
+            ni++
+        }
+    }
+
+    return needed
 }
 
 
