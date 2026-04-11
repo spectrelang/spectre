@@ -735,6 +735,11 @@ pub fn resolve_module(
         if node.kind == parser.NK_USE {
             val import_name: ref char = node.d1 as ref char
             val use_path:    ref char = node.d2 as ref char
+            
+            if !import_is_referenced(items, import_name) {
+                continue
+            }
+            
             val resolved_path = resolve_use_path(use_path, str.cstr(file_dir), exe_dir)
             val child_result = resolve_module(resolved_path, next_progress, exe_dir)
 
