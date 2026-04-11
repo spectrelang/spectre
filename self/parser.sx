@@ -1732,7 +1732,10 @@ test {
     @puts("parser 1")
     val r1 = parse_expr_src("42")
     match r1 {
-        err _ => { assert false }
+        err e => {
+            std.stdio.print("{s}", {e})
+            assert false
+        }
         ok n  => {
             assert n.kind == NK_INT_LIT
             assert std.string.compare(n.d0 as ref char, "42") == 0

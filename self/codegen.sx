@@ -645,7 +645,7 @@ fn cg_lookup_union(ctx: ref CgCtx, union_name: ref char) ref void! = {
 
 /// Check if a type name matches any registered union (tries exact match and suffix match for mangled names).
 fn is_union_type_name(ctx: ref CgCtx, type_name: ref char) bool! = {
-    if cg_lookup_union(ctx, type_name) != 0 as ref void {
+    if cg_lookup_union_suffix(ctx, type_name) != 0 as ref void {
         return true
     }
     val names: ref void = cg_unames(ctx)
@@ -699,7 +699,7 @@ fn struct_size(ctx: ref CgCtx, fields: ref void) i64! = {
                 val fsize: mut i64 = type_size(fty)
                 if fty != 0 as ref parser.Node && fty.kind == parser.TY_NAMED {
                     val tname: ref char = fty.d0 as ref char
-                    val union_check: ref void = cg_lookup_union(ctx, tname)
+                    val union_check: ref void = cg_lookup_union_suffix(ctx, tname)
                     if union_check != 0 as ref void {
                         fsize = 16
                     }
@@ -739,7 +739,7 @@ fn field_offset(ctx: ref CgCtx, fields: ref void, field_name: ref char) i64! = {
                 val fsize: mut i64 = type_size(fty)
                 if fty != 0 as ref parser.Node && fty.kind == parser.TY_NAMED {
                     val tname: ref char = fty.d0 as ref char
-                    val union_check: ref void = cg_lookup_union(ctx, tname)
+                    val union_check: ref void = cg_lookup_union_suffix(ctx, tname)
                     if union_check != 0 as ref void {
                         fsize = 16
                     }
@@ -1087,7 +1087,7 @@ fn is_union_type(ctx: ref CgCtx, ty: ref parser.Node) ref char! = {
     val k: i64 = ty.kind
     if k == parser.TY_NAMED {
         val name: ref char = ty.d0 as ref char
-        val union_vars: ref void = cg_lookup_union(ctx, name)
+        val union_vars: ref void = cg_lookup_union_suffix(ctx, name)
 
         if union_vars != 0 as ref void {
             return name
@@ -2296,6 +2296,7 @@ fn gen_field(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
 
     val field_is_fa: mut bool = false
     val field_is_union: mut bool = false
+    val field_is_list: mut bool = false
     if base_expr.kind == parser.NK_IDENT {
         val base_name3: ref char = base_expr.d0 as ref char
         val local_type2: ref char = cg_local_type(ctx, base_name3)
@@ -2316,6 +2317,8 @@ fn gen_field(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
                                 if sfty3 != 0 as ref parser.Node {
                                     if sfty3.kind == parser.TY_FIXED_ARR {
                                         field_is_fa = true
+                                    } elif sfty3.kind == parser.TY_LIST {
+                                        field_is_list = true
                                     } elif sfty3.kind == parser.TY_NAMED {
                                         val type_name: ref char = sfty3.d0 as ref char
                                         if is_union_type_name(ctx, type_name) {
@@ -2352,6 +2355,8 @@ fn gen_field(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
                                 if sfty3 != 0 as ref parser.Node {
                                     if sfty3.kind == parser.TY_FIXED_ARR {
                                         field_is_fa = true
+                                    } elif sfty3.kind == parser.TY_LIST {
+                                        field_is_list = true
                                     } elif sfty3.kind == parser.TY_NAMED {
                                         val ftype_name: ref char = sfty3.d0 as ref char
                                         if is_union_type_name(ctx, ftype_name) {
@@ -2374,7 +2379,7 @@ fn gen_field(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
     val buf: ref char = @alloc(256) as ref char
     
     if base_is_ref {
-        if field_is_fa || field_is_union {
+        if field_is_fa || field_is_union || field_is_list {
             if offset == 0 {
                 @snprintf(buf, 256, "    %%t%lld =l add %s, 0\n", {tmp, base})
             } else {
@@ -2395,7 +2400,7 @@ fn gen_field(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
                 @free(ptr_str)
             }
         }
-    } elif field_is_fa || field_is_union {
+    } elif field_is_fa || field_is_union || field_is_list {
         if offset == 0 {
             @snprintf(buf, 256, "    %%t%lld =l add %s, 0\n", {tmp, base})
         } else {
@@ -2889,7 +2894,7 @@ fn gen_call(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
                     val pty: ref parser.Node = param_node.d1 as ref parser.Node
                     if pty != 0 as ref parser.Node && pty.kind == parser.TY_NAMED {
                         val ptype_name: ref char = pty.d0 as ref char
-                        val union_vars: ref void = cg_lookup_union(ctx, ptype_name)
+                        val union_vars: ref void = cg_lookup_union_suffix(ctx, ptype_name)
                         if union_vars != 0 as ref void {
                             val at_opt = @get(arg_tmps, wi as usize)
                             match at_opt {
@@ -4528,7 +4533,7 @@ fn gen_stmt(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
                                         val sfty: ref parser.Node = sfn.d2 as ref parser.Node
                                         if sfty != 0 as ref parser.Node && sfty.kind == parser.TY_NAMED {
                                             val ftype_name: ref char = sfty.d0 as ref char
-                                            val union_check: ref void = cg_lookup_union(ctx, ftype_name)
+                                            val union_check: ref void = cg_lookup_union_suffix(ctx, ftype_name)
                                             if union_check != 0 as ref void {
                                                 field_is_union = true
                                             }
@@ -5474,6 +5479,42 @@ fn gen_match_str(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
     @free(endbuf)
 }
 
+/// Look up union variants by type name, trying exact match then suffix match for mangled names.
+fn cg_lookup_union_suffix(ctx: ref CgCtx, type_name: ref char) ref void! = {
+    val exact = cg_lookup_union(ctx, type_name)
+    if exact != 0 as ref void { return exact }
+    val names: ref void = cg_unames(ctx)
+    val nlen: i64 = @len(names as list[ref char]) as i64
+    val tlen: i64 = str.len_raw(type_name)
+    val suffix_len: i64 = tlen + 2
+    val ni: mut i64 = 0
+    for {
+        if ni >= nlen { break }
+        val n_opt = @get(names as list[ref char], ni as usize)
+        match n_opt {
+            some n => {
+                val candidate: ref char = n as ref char
+                val clen: i64 = str.len_raw(candidate)
+                if clen > suffix_len {
+                    val tail: ref char = @ptradd(candidate, clen - suffix_len) as ref char
+                    val c1: u8 = @load8(@ptradd(tail as ref void, 0))
+                    val c2: u8 = @load8(@ptradd(tail as ref void, 1))
+                    if c1 == 95 && c2 == 95 {
+                        val rest: ref char = @ptradd(tail as ref void, 2) as ref char
+                        if str.rchar_cmp(rest, type_name) == 0 {
+                            val v_opt = @get(cg_uvariants(ctx) as list[ref void], ni as usize)
+                            match v_opt { some v => { return v as ref void } none => {} }
+                        }
+                    }
+                }
+            }
+            none => {}
+        }
+        ni++
+    }
+    return 0 as ref void
+}
+
 fn gen_match_union(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
     val expr_node: ref parser.Node = stmt.d0 as ref parser.Node
     val expr: ref char = gen_expr(ctx, expr_node)
@@ -5492,7 +5533,7 @@ fn gen_match_union(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
         val ename: ref char = expr_node.d0 as ref char
         val local_ty: ref char = cg_local_type(ctx, ename)
         if str.rchar_cmp(local_ty, "") != 0 {
-            union_variants = cg_lookup_union(ctx, local_ty)
+            union_variants = cg_lookup_union_suffix(ctx, local_ty)
         }
     }
 
@@ -5712,7 +5753,7 @@ fn gen_fn_prefixed(ctx: ref CgCtx, fn_node: ref parser.Node, mod_prefix: ref cha
         if str.rchar_cmp(mod_prefix, "") != 0 {
             val prefixed_name: ref char = @alloc(256) as ref char
             @snprintf(prefixed_name, 256, "%s__%s", {mod_prefix, unprefixed_name})
-            val union_vars: ref void = cg_lookup_union(ctx, prefixed_name)
+            val union_vars: ref void = cg_lookup_union_suffix(ctx, prefixed_name)
             if union_vars != 0 as ref void {
                 ret_union_name = prefixed_name
             }
