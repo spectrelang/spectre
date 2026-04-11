@@ -693,10 +693,12 @@ fn expr_references_import_shallow(node: ref parser.Node, import_name: ref char) 
 }
 
 /// Recursively resolve a module from its source path.
+/// needed_children: optional list of child import names that must be loaded (for DCE)
 pub fn resolve_module(
-    path:        ref char,
-    in_progress: list[ref char],
-    exe_dir:     ref char
+    path:            ref char,
+    in_progress:     list[ref char],
+    exe_dir:         ref char,
+    needed_children: ref void
 ) result[ref ResolvedModule, ref char]! = {
     if in_progress_contains(in_progress, path) {
         return err @fmt("cyclic import: {s}", {path})
@@ -736,12 +738,26 @@ pub fn resolve_module(
             val import_name: ref char = node.d1 as ref char
             val use_path:    ref char = node.d2 as ref char
             
-            if !import_is_referenced(items, import_name) {
+            val is_directly_referenced: bool = import_is_referenced(items, import_name)
+            val needed_subs: list[ref char] = collect_needed_subnames(items, import_name)
+            val has_submodule_refs: bool = @len(needed_subs) > 0
+            
+            val is_needed_by_parent: mut bool = false
+            if needed_children != 0 {
+                val needed_list: list[ref char] = needed_children as list[ref char]
+                is_needed_by_parent = import_in_list(needed_list, import_name)
+            }
+            
+            if !is_directly_referenced && !has_submodule_refs && !is_needed_by_parent {
                 continue
             }
             
             val resolved_path = resolve_use_path(use_path, str.cstr(file_dir), exe_dir)
-            val child_result = resolve_module(resolved_path, next_progress, exe_dir)
+            val needed_grandchildren: mut ref void = 0 as ref void
+            if @len(needed_subs) > 0 {
+                needed_grandchildren = needed_subs as ref void
+            }
+            val child_result = resolve_module(resolved_path, next_progress, exe_dir, needed_grandchildren)
 
             match child_result {
                 ok child => {

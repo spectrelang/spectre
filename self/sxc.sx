@@ -116,7 +116,7 @@ pub fn main() i32! = {
     }
 
     val exe_dir: ref char = "."
-    val resolve_result = module.resolve_module(input, [], exe_dir)
+    val resolve_result = module.resolve_module(input, [], exe_dir, 0 as ref void)
     val root_mod: mut ref module.ResolvedModule = 0 as ref module.ResolvedModule
 
     match resolve_result {
