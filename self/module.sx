@@ -760,42 +760,21 @@ pub fn resolve_module(
         if node.kind == parser.NK_USE {
             val import_name: ref char = node.d1 as ref char
             val use_path:    ref char = node.d2 as ref char
-
-            std.stdio.print("[resolve_module] {s}: checking import '{s}' (path: {s})\n", {path, import_name, use_path})
-
             val is_directly_referenced: bool = import_is_referenced(items, import_name)
-            std.stdio.print("[resolve_module]   is_directly_referenced: {d}\n", {is_directly_referenced as i64})
-            
             val needed_subs: list[ref char] = collect_needed_subnames_transitive(items, import_name, use_path, str.cstr(file_dir), exe_dir, next_progress)
-            std.stdio.print("[resolve_module]   needed_subs count: {d}\n", {@len(needed_subs) as i64})
-            val ns_debug_i: mut i64 = 0
-            val ns_debug_len: i64 = @len(needed_subs) as i64
-            for {
-                if ns_debug_i >= ns_debug_len { break }
-                val ns_opt = @get(needed_subs, ns_debug_i as usize)
-                match ns_opt {
-                    some ns => { std.stdio.print("[resolve_module]     - {s}\n", {ns as ref char}) }
-                    none => {}
-                }
-                ns_debug_i++
-            }
-
             val is_needed_by_parent: mut bool = false
             if needed_children != 0 {
                 val needed_list: list[ref char] = needed_children as list[ref char]
                 is_needed_by_parent = import_in_list(needed_list, import_name)
-                std.stdio.print("[resolve_module]   is_needed_by_parent: {d}\n", {is_needed_by_parent as i64})
             }
 
             val has_links: bool = items_have_external_links(items)
             
             if !is_directly_referenced && !is_needed_by_parent && has_links {
-                std.stdio.print("[resolve_module]   SKIP: not needed: {s}\n", {import_name})
                 continue
             }
 
             val resolved_path = resolve_use_path(use_path, str.cstr(file_dir), exe_dir)
-            std.stdio.print("[resolve_module]   resolved_path: {s}\n", {resolved_path})
             val needed_grandchildren: mut ref void = 0 as ref void
             if @len(needed_subs) > 0 {
                 needed_grandchildren = needed_subs as ref void
@@ -804,12 +783,12 @@ pub fn resolve_module(
 
             match child_result {
                 ok child => {
-                    std.stdio.print("[resolve_module]   SUCCESS: loaded {d} imports from child\n", {@len((child as ref ResolvedModule).import_names) as i64})
                     @append(m.import_names,   import_name)
                     @append(m.import_modules, child as ref void)
                 }
                 err e => {
-                    std.stdio.print("warning: could not resolve import '{s}': {s}\n", {import_name, e})
+                    std.stdio.eprint("error: could not resolve import '{s}': {s}\n", {import_name, e})
+                    std.os.exit(1)
                 }
             }
         }
@@ -1464,7 +1443,6 @@ fn collect_needed_subnames_in_expr(expr: ref parser.Node, import_name: ref char,
         if base != 0 && base.kind == parser.NK_IDENT {
             val base_name: ref char = base.d0 as ref char
             if str.rchar_cmp(base_name, import_name) == 0 {
-                std.stdio.print("[collect_needed_subnames_in_expr] FOUND: {s}.{s}\n", {import_name, field_name})
                 if !import_in_list(needed, field_name) {
                     @append(needed, field_name)
                 }
@@ -1472,7 +1450,6 @@ fn collect_needed_subnames_in_expr(expr: ref parser.Node, import_name: ref char,
         }
         collect_needed_subnames_in_expr(base, import_name, needed)
     } elif expr.kind == parser.NK_CALL {
-        std.stdio.puts("[collect_needed_subnames_in_expr] NK_CALL, traversing callee\n")
         collect_needed_subnames_in_expr(expr.d0 as ref parser.Node, import_name, needed)
         val args: ref void = expr.d1 as ref void
         if args != 0 {
@@ -1561,7 +1538,6 @@ fn collect_needed_subnames_transitive(
     exe_dir: ref char,
     in_progress: list[ref char]
 ) list[ref char]! = {
-    std.stdio.print("[collect_needed_subnames_transitive] import_name: {s}, items count: {d}\n", {import_name, @len(items) as i64})
     val needed: mut list[ref char] = []
     val items_len: i64 = @len(items) as i64
     val ii: mut i64 = 0
@@ -1571,22 +1547,18 @@ fn collect_needed_subnames_transitive(
         match item_opt {
             some item_val => {
                 val item: ref parser.Node = item_val as ref parser.Node
-                std.stdio.print("[collect_needed] item {d}: kind={d}\n", {ii, item.kind})
                 if item.kind == parser.NK_FN {
                     val body: ref void = item.d5 as ref void
-                    std.stdio.print("[collect_needed]   NK_FN: body ptr={d}\n", {body as i64})
                     if body != 0 {
                         collect_needed_subnames_in_stmts(body, import_name, needed)
                     }
                 } elif item.kind == parser.NK_TEST {
                     val body: ref void = item.d0 as ref void
-                    std.stdio.print("[collect_needed]   NK_TEST: body ptr={d}\n", {body as i64})
                     if body != 0 {
                         collect_needed_subnames_in_stmts(body, import_name, needed)
                     }
                 } elif item.kind == parser.NK_CONST {
                     val expr: ref parser.Node = item.d2 as ref parser.Node
-                    std.stdio.print("[collect_needed]   NK_CONST: expr ptr={d}\n", {expr as i64})
                     if expr != 0 {
                         collect_needed_subnames_in_expr(expr, import_name, needed)
                     }
@@ -1596,7 +1568,6 @@ fn collect_needed_subnames_transitive(
         }
         ii++
     }
-    std.stdio.print("[collect_needed_subnames_transitive] direct needed count: {d}\n", {@len(needed) as i64})
 
     val visited: mut list[ref char] = []
     val changed: mut bool = true
