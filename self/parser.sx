@@ -427,7 +427,9 @@ pub fn parse_type(p: ref Parser) result[ref Node, ref char]! = {
 pub fn parse_expr(p: ref Parser) result[ref Node, ref char]! = { return parse_or(p) }
 
 fn parse_or(p: ref Parser) result[ref Node, ref char]! = {
+    @puts("before parse and")
     val lhs = parse_and(p)?
+    @puts("in parse_or")
     val res: mut ref Node = lhs
     for {
         if !lexer.kind_is_or(p_peek_kind(p)) { break }
@@ -441,7 +443,9 @@ fn parse_or(p: ref Parser) result[ref Node, ref char]! = {
 }
 
 fn parse_and(p: ref Parser) result[ref Node, ref char]! = {
+    @puts("propagated to parse_and")
     val lhs = parse_cmp(p)?
+    @puts("in parse_and")
     val res: mut ref Node = lhs
     for {
         if !lexer.kind_is_and(p_peek_kind(p)) { break }
@@ -455,6 +459,7 @@ fn parse_and(p: ref Parser) result[ref Node, ref char]! = {
 }
 
 fn parse_cmp(p: ref Parser) result[ref Node, ref char]! = {
+    @puts("propagated to parse_cmp")
     val lhs = parse_bitor(p)?
     val res: mut ref Node = lhs
     for {
@@ -576,6 +581,9 @@ fn parse_mul(p: ref Parser) result[ref Node, ref char]! = {
 fn parse_unary(p: ref Parser) result[ref Node, ref char]! = {
     val line: i64 = p_line(p)
     val k: lexer.TokenKind = p_peek_kind(p)
+
+    @puts("parsing unary")
+    
     if kind_is_bang(k) || kind_is_not(k) {
         p_advance(p)
         val inner = parse_unary(p)?
@@ -689,10 +697,24 @@ fn parse_primary(p: ref Parser) result[ref Node, ref char]! = {
     val line: i64 = p_line(p)
     val k: lexer.TokenKind = p_peek_kind(p)
 
+    @puts("checking if is int...")
+    @dprintf(2, "%d", {k})
+
+    val y: lexer.TokenKind = lexer.Int("42")
+    match y {
+        Int => {
+            @puts("its an int...here...")
+        }
+        else => {
+            @puts("its not an int!!!")
+        }
+    }
     if kind_is_int(k) {
         val n: mut ref Node = make_node(NK_INT_LIT, line)
         n.d0 = p_advance_text(p) as i64
         return ok n
+    } else {
+        @puts("false!!!")
     }
     if kind_is_float(k) {
         val n2: mut ref Node = make_node(NK_FLOAT_LIT, line)
@@ -1723,6 +1745,7 @@ fn parse_expr_src(src: ref char) result[ref Node, ref char]! = {
         err e => { return err e }
         ok toks => {
             val p: ref Parser = parser_new(toks, "<test>")
+            @puts("parse_expr_src returning OK")
             return parse_expr(p)
         }
     }
@@ -1733,7 +1756,7 @@ test {
     val r1 = parse_expr_src("42")
     match r1 {
         err e => {
-            std.stdio.print("{s}", {e})
+            std.stdio.print("r1 matched ERROR: {s}\n", {e})
             assert false
         }
         ok n  => {

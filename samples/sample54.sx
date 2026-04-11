@@ -1,0 +1,58 @@
+val std = use("std")
+
+pub union TokenKind = {
+    Fn()        | Val()       | Mut()      | Pub()      | Type()
+  | Pre()       | Post()      | Return()   | If()       | Else()
+  | Elif()      | Trust()     | Use()      | Ref()      | For()
+  | In()        | Some()      | None()     | Ok()       | Err()
+  | Match()     | True()      | False()    | Defer()    | Break()
+  | Continue()  | As()        | Assert()   | When()     | Union()
+  | Enum()      | Extern()    | Link()     | Guarded()  | Not()
+  | Test()
+  | Ident(ref char)
+  | Str(ref char)
+  | Int(ref char)
+  | Float(ref char)
+  | CharLit(i64)
+  | LParen()    | RParen()    | LBrace()   | RBrace()
+  | LBracket()  | RBracket()  | Colon()    | Semicolon()
+  | Comma()     | Dot()       | DotDotDot()
+  | Eq()        | Bang()      | At()       | Plus()     | Minus()
+  | Star()      | Slash()     | Percent()  | PlusPlus() | MinusMinus()
+  | PlusEq()    | MinusEq()   | EqEq()     | BangEq()
+  | Lt()        | Gt()        | LtEq()     | GtEq()
+  | And()       | Or()        | BitAnd()   | BitOr()    | BitXor()
+  | Shl()       | Shr()       | Arrow()    | FatArrow() | Tilde()
+  | Question()
+  | Eof()
+}
+
+pub type Token = {
+    kind: mut TokenKind
+}
+
+fn make_fn_token() ref Token! = {
+    val t: mut ref Token = @alloc(@sizeof(Token)) as ref Token
+    t.kind = Fn()
+    return t
+}
+
+fn kind_is_fn(k: TokenKind) bool! = {
+    match k {
+        Fn() => { return true }
+        else => { return false }
+    }
+}
+
+pub fn main() void! = {
+   
+    val y: TokenKind = Int("42")
+    match y {
+        Int => {
+            @puts("its an int...here...")
+        }
+        else => {
+            @puts("its not an int!!!")
+        }
+    }
+}
