@@ -2283,7 +2283,7 @@ fn gen_field(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
             }
         } else {
             if offset == 0 {
-                @snprintf(buf, 256, "    %%t%lld =l add %s, 0\n", {tmp, base})
+                @snprintf(buf, 256, "    %%t%lld =l loadl %s\n", {tmp, base})
             } else {
                 val ptr_tmp: i64 = fresh_tmp(ctx)
                 val buf2: ref char = @alloc(128) as ref char

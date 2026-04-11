@@ -483,6 +483,9 @@ test {
     match r1 {
         err _ => { assert false }
         ok toks => {
+            for tok in toks {
+                @dprintf(2, "\n---\ntok kind: %p\ntok line: %d\ntok col: %d\n---\n", {tok.kind, tok.line, tok.col})
+            }
             @puts("assertion1")
             val kind = tok_kind(toks, 0)
             @puts("assertion1.5")
