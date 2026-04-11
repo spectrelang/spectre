@@ -51,6 +51,12 @@ for file in "$STD_DIR"/*.sx; do
 
     ((total++))
 
+    if [[ "$filename" == std.sx ]]; then
+        echo "[SKIP] $filename (this is the std facade, skipping)"
+        ((skipped++))
+        continue
+    fi
+
     "$COMPILER" "$file" --test > /dev/null 2>&1
     status=$?
 

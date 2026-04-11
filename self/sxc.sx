@@ -36,7 +36,7 @@ pub fn main() i32! = {
     val input: mut ref char = ""
     match input_opt {
         some a => { input = a as ref char }
-        none   => { 
+        none   => {
             std.stdio.puts("error: no input file")
             allocators.Arena.free(arena)
             return 1
@@ -243,7 +243,7 @@ pub fn main() i32! = {
                     exit_code = 1
                 }
             }
-            err _ => { 
+            err _ => {
                 std.stdio.puts("error: cc compilation failed")
                 exit_code = 1
             }
