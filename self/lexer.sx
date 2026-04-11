@@ -539,16 +539,13 @@ test {
 
 
     @puts("5")
-    val r5 = tokenize("\"line1\\nline2\"")
+    val the_string = "\"line1\\nline2\""
+    val r5 = tokenize(the_string)
     match r5 {
         err _ => { assert false }
         ok toks => {
             assert kind_is_str(tok_kind(toks, 0))
             val text: ref char = tok_text(toks, 0)
-            @dprintf(2, "text[0]=%d text[1]=%d text[2]=%d text[3]=%d text[4]=%d text[5]=%d text[6]=%d\n", 
-                {@load8(@ptradd(text, 0)) as i64, @load8(@ptradd(text, 1)) as i64, @load8(@ptradd(text, 2)) as i64,
-                 @load8(@ptradd(text, 3)) as i64, @load8(@ptradd(text, 4)) as i64, @load8(@ptradd(text, 5)) as i64,
-                 @load8(@ptradd(text, 6)) as i64})
             assert @load8(@ptradd(text, 5)) as i64 == 10
         }
     }
