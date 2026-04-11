@@ -696,8 +696,7 @@ fn expr_references_import_shallow(node: ref parser.Node, import_name: ref char) 
 pub fn resolve_module(
     path:        ref char,
     in_progress: list[ref char],
-    exe_dir:     ref char,
-    needed_children: list[ref char]
+    exe_dir:     ref char
 ) result[ref ResolvedModule, ref char]! = {
     if in_progress_contains(in_progress, path) {
         return err @fmt("cyclic import: {s}", {path})
@@ -736,18 +735,9 @@ pub fn resolve_module(
         if node.kind == parser.NK_USE {
             val import_name: ref char = node.d1 as ref char
             val use_path:    ref char = node.d2 as ref char
-            val is_needed: bool = import_in_list(needed_children, import_name)
-            val is_locally_referenced: bool = import_is_referenced(items, import_name)
-            
-            if !is_needed && !is_locally_referenced {
-                continue
-            }
-            
             val resolved_path = resolve_use_path(use_path, str.cstr(file_dir), exe_dir)
-            
-            val child_needed: list[ref char] = collect_needed_subnames(items, import_name)
+            val child_result = resolve_module(resolved_path, next_progress, exe_dir)
 
-            val child_result = resolve_module(resolved_path, next_progress, exe_dir, child_needed)
             match child_result {
                 ok child => {
                     @append(m.import_names,   import_name)

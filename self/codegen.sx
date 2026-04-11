@@ -725,6 +725,7 @@ fn field_offset(ctx: ref CgCtx, fields: ref void, field_name: ref char) i64! = {
 fn cg_dvars_clear(ctx: ref CgCtx) void! = {
     ctx.dvars = []
     ctx.dqtypes = []
+    ctx.local_ref_types = []
     ctx.lnames = []
     ctx.ltypes = []
     ctx.local_src_names = []
@@ -835,6 +836,39 @@ fn gen_struct_lit_inline(ctx: ref CgCtx, struct_node: ref parser.Node, parent_pt
 fn cg_dvars_add(ctx: ref CgCtx, name: ref char, qtype: ref char) void! = {
     @append(cg_dvars(ctx) as list[ref char], name)
     @append(ctx.dqtypes as list[ref char], qtype)
+}
+
+/// Get the QBE type for a variable (from dvars or inferred from local type)
+fn cg_var_qbe_type(ctx: ref CgCtx, name: ref char) ref char! = {
+    val dv: ref void = cg_dvars(ctx)
+    val dlen: i64 = @len(dv as list[ref char]) as i64
+    val di: mut i64 = 0
+    for {
+        if di >= dlen { break }
+        val d_opt = @get(dv as list[ref char], di as usize)
+        match d_opt {
+            some d => {
+                if str.rchar_cmp(d as ref char, name) == 0 {
+                    val q_opt = @get(ctx.dqtypes as list[ref char], di as usize)
+                    match q_opt {
+                        some q => { return q as ref char }
+                        none   => { return "l" }
+                    }
+                }
+            }
+            none => {}
+        }
+        di++
+    }
+    
+    val ltype: ref char = cg_local_type(ctx, name)
+    if is_float_type_name(ltype) {
+        return "d"
+    } elif is_word_type_name(ltype) {
+        return "w"
+    } 
+    return "l"
+    
 }
 
 /// Register a local variable: map source name to QBE temporary name
@@ -1421,15 +1455,15 @@ fn gen_expr(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
                     if is_ref_load {
                         @snprintf(buf_load, 128, "    %%t%lld =l loadl %s\n", {tmp_load, slot_ref})
                     } else {
-                        val ltype_slot: ref char = cg_local_type(ctx, name)
-                        if is_word_type_name(ltype_slot) {
+                        val qtype: ref char = cg_var_qbe_type(ctx, name)
+                        if str.rchar_cmp(qtype, "w") == 0 {
                             val w_tmp_load: i64 = fresh_tmp(ctx)
                             val buf_w_load: ref char = @alloc(128) as ref char
                             @snprintf(buf_w_load, 128, "    %%t%lld =w loadw %s\n", {w_tmp_load, slot_ref})
                             emit(ctx, buf_w_load)
                             @free(buf_w_load)
                             @snprintf(buf_load, 128, "    %%t%lld =l extsw %%t%lld\n", {tmp_load, w_tmp_load})
-                        } elif is_float_type_name(ltype_slot) {
+                        } elif str.rchar_cmp(qtype, "d") == 0 {
                             @snprintf(buf_load, 128, "    %%t%lld =d loadd %s\n", {tmp_load, slot_ref})
                         } else {
                             @snprintf(buf_load, 128, "    %%t%lld =l loadl %s\n", {tmp_load, slot_ref})
