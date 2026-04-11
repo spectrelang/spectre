@@ -3586,15 +3586,15 @@ fn gen_builtin(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
         @free(buf_rem6)
 
         val src_off_tmp: i64 = fresh_tmp(ctx)
-        val src_off_tmp2: i64 = fresh_tmp(ctx)
         val src_off: i64 = fresh_tmp(ctx)
         val dst_off: i64 = fresh_tmp(ctx)
+        val buf_tmp2: i64 = fresh_tmp(ctx)
         val src_ptr: i64 = fresh_tmp(ctx)
         val dst_ptr: i64 = fresh_tmp(ctx)
         val src_val: i64 = fresh_tmp(ctx)
         val buf_rem7: ref char = @alloc(512) as ref char
-        @snprintf(buf_rem7, 512, "    %%t%lld =l add %%t%lld, 1\n    %%t%lld =l mul %%t%lld, 8\n    %%t%lld =l mul %%t%lld, 8\n    %%t%lld =l add %%t%lld, %%t%lld\n    %%t%lld =l add %%t%lld, %%t%lld\n    %%t%lld =l loadl %%t%lld\n    storel %%t%lld, %%t%lld\n",
-            {src_off_tmp, shift_idx, src_off_tmp2, src_off_tmp, src_off, src_off_tmp2, src_ptr, buf_tmp, src_off, dst_ptr, buf_tmp, dst_off, src_val, src_ptr, src_val, dst_ptr})
+        @snprintf(buf_rem7, 512, "    %%t%lld =l add %%t%lld, 1\n    %%t%lld =l mul %%t%lld, 8\n    %%t%lld =l mul %%t%lld, 8\n    %%t%lld =l loadl %s\n    %%t%lld =l add %%t%lld, %%t%lld\n    %%t%lld =l add %%t%lld, %%t%lld\n    %%t%lld =l loadl %%t%lld\n    storel %%t%lld, %%t%lld\n",
+            {src_off_tmp, shift_idx, src_off, src_off_tmp, dst_off, shift_idx, buf_tmp2, lst4, src_ptr, buf_tmp2, src_off, dst_ptr, buf_tmp2, dst_off, src_val, src_ptr, src_val, dst_ptr})
         emit(ctx, buf_rem7)
         @free(buf_rem7)
 
