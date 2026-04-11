@@ -1,0 +1,20 @@
+val json = use("std/json")
+val stdio = use("std/stdio")
+
+pub fn main() void! = {
+    val raw_str = \\{"Alice": "asdf"}
+    val doc_opt = json.parse(raw_str)
+    match doc_opt {
+        none => {
+            @puts("Got nothing.")
+        }
+        some handle => {
+            @puts("Got something:")
+            stdio.print("Raw string: {s}\n", {raw_str})
+            stdio.print("{s}", {json.obj_get_str(json.doc_root(handle), "Alice")})
+            val root: ref void = json.doc_root(handle)
+            assert json.val_is_object(root)
+            json.doc_free(handle)
+        }
+    }
+}
