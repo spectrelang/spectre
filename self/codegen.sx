@@ -6246,6 +6246,40 @@ fn gen_items_with_prefix(ctx: ref CgCtx, items: list[ref parser.Node], mod_prefi
     }
 }
 
+/// Returns true if the items contain any external link statements.
+fn items_have_external_links(items: list[ref parser.Node]) bool! = {
+    val ilen: i64 = @len(items) as i64
+    val i: mut i64 = 0
+    for {
+        if i >= ilen { break }
+        val item_opt = @get(items, i as usize)
+        match item_opt {
+            some item => {
+                val node: ref parser.Node = item as ref parser.Node
+                if node.kind == parser.NK_LINK { return true }
+                if node.kind == parser.NK_WHEN_ITEMS {
+                    val witems: list[ref parser.Node] = node.d1 as list[ref parser.Node]
+                    if items_have_external_links(witems) { return true }
+                    val or_when_branches: ref void = node.d2 as ref void
+                    if or_when_branches != 0 as ref void {
+                        for ow in or_when_branches as list[ref parser.Node] {
+                            val ow_items: list[ref parser.Node] = ow.d1 as list[ref parser.Node]
+                            if items_have_external_links(ow_items) { return true }
+                        }
+                    }
+                    val ow_otherwise: ref void = node.d3 as ref void
+                    if ow_otherwise != 0 as ref void {
+                        if items_have_external_links(ow_otherwise as list[ref parser.Node]) { return true }
+                    }
+                }
+            }
+            none => {}
+        }
+        i++
+    }
+    return false
+}
+
 /// Scan items for function calls to track which modules are used, without emitting code.
 fn scan_items_for_usage(ctx: ref CgCtx, items: list[ref parser.Node], mod_prefix: ref char) void! = {
     val ilen: i64 = @len(items) as i64
@@ -6325,6 +6359,7 @@ fn scan_node_for_calls_depth(ctx: ref CgCtx, node: ref parser.Node, depth: i64) 
     val k: i64 = node.kind
     
     if k == parser.NK_CALL {
+        scan_node_for_calls_depth(ctx, node.d0 as ref parser.Node, depth + 1)
         val args: ref void = node.d1 as ref void
         if args != 0 as ref void {
             val alen: i64 = @len(args as list[ref parser.Node]) as i64
@@ -6339,6 +6374,11 @@ fn scan_node_for_calls_depth(ctx: ref CgCtx, node: ref parser.Node, depth: i64) 
                 ai++
             }
         }
+    } elif k == parser.NK_IDENT {
+        val name: ref char = node.d0 as ref char
+        cg_resolve_fn_name(ctx, name)
+    } elif k == parser.NK_FIELD {
+        scan_node_for_calls_depth(ctx, node.d0 as ref parser.Node, depth + 1)
     } elif k == parser.NK_IF {
         scan_node_for_calls_depth(ctx, node.d0 as ref parser.Node, depth + 1)
         val then_stmts: ref void = node.d1 as ref void
@@ -6535,6 +6575,9 @@ pub fn gen_module_resolved(root: ref module.ResolvedModule) ref char! = {
                     some items_ptr => {
                         val items: list[ref parser.Node] = items_ptr as list[ref parser.Node]
                         preregister_items(ctx, items, pfx as ref char)
+                        if str.rchar_cmp(pfx as ref char, "") == 0 {
+                            scan_items_for_usage(ctx, items, "")
+                        }
                     }
                     none => {}
                 }
@@ -6544,6 +6587,34 @@ pub fn gen_module_resolved(root: ref module.ResolvedModule) ref char! = {
         li++
     }
 
+    val scan_pass: mut i64 = 0
+    for {
+        if scan_pass >= 10 { break }
+        scan_pass++
+        
+        val li_scan: mut i64 = 0
+        for {
+            if li_scan >= layers { break }
+            val pfx_scan_opt   = @get(out_prefixes, li_scan as usize)
+            val items_scan_opt = @get(out_items,    li_scan as usize)
+            match pfx_scan_opt {
+                some pfx_scan => {
+                    if cg_is_prefix_used(ctx, pfx_scan as ref char) {
+                        match items_scan_opt {
+                            some items_scan_ptr => {
+                                val items_scan: list[ref parser.Node] = items_scan_ptr as list[ref parser.Node]
+                                scan_items_for_usage(ctx, items_scan, pfx_scan as ref char)
+                            }
+                            none => {}
+                        }
+                    }
+                }
+                none => {}
+            }
+            li_scan++
+        }
+    }
+
     val li2: mut i64 = 0
     for {
         if li2 >= layers { break }
@@ -6551,10 +6622,16 @@ pub fn gen_module_resolved(root: ref module.ResolvedModule) ref char! = {
         val items_opt = @get(out_items,    li2 as usize)
         match pfx_opt {
             some pfx => {
+                val is_root: bool = str.rchar_cmp(pfx as ref char, "") == 0
+                val is_used: bool = cg_is_prefix_used(ctx, pfx as ref char)
+
                 match items_opt {
                     some items_ptr => {
-                        val items: list[ref parser.Node] = items_ptr as list[ref parser.Node]
-                        gen_items_with_prefix(ctx, items, pfx as ref char)
+                        val items: list[ref parser.Node] = items_ptr as list[ref parser.Node]                        
+                        val has_links: bool = items_have_external_links(items)
+                        if is_root || is_used || !has_links {
+                            gen_items_with_prefix(ctx, items, pfx as ref char)
+                        }
                     }
                     none => {}
                 }
@@ -6817,14 +6894,19 @@ pub fn gen_module_resolved_test(root: ref module.ResolvedModule) ref char! = {
         match pfx_opt {
             some pfx => {
                 val is_root: bool = str.rchar_cmp(pfx as ref char, "") == 0
+                val is_used: bool = cg_is_prefix_used(ctx, pfx as ref char)
                 
                 match items_opt {
                     some items_ptr => {
-                        val items: list[ref parser.Node] = items_ptr as list[ref parser.Node]
-                        if is_root {
-                            gen_items_with_prefix_skip_main(ctx, items, "")
-                        } else {
-                            gen_items_with_prefix(ctx, items, pfx as ref char)
+                        val items: list[ref parser.Node] = items_ptr as list[ref parser.Node]                        
+                        val has_links: bool = items_have_external_links(items)
+
+                        if is_root || is_used || !has_links {
+                            if is_root {
+                                gen_items_with_prefix_skip_main(ctx, items, "")
+                            } else {
+                                gen_items_with_prefix(ctx, items, pfx as ref char)
+                            }
                         }
                     }
                     none => {}

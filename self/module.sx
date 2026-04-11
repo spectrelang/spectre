@@ -756,7 +756,6 @@ pub fn resolve_module(
                 }
                 ns_debug_i++
             }
-            val has_submodule_refs: bool = @len(needed_subs) > 0
 
             val is_needed_by_parent: mut bool = false
             if needed_children != 0 {
@@ -765,10 +764,10 @@ pub fn resolve_module(
                 std.stdio.print("[resolve_module]   is_needed_by_parent: {d}\n", {is_needed_by_parent as i64})
             }
 
-            if !is_directly_referenced && !has_submodule_refs && !is_needed_by_parent {
-                std.stdio.puts("[resolve_module]   SKIP: not needed\n")
-                continue
-            }
+            // if !is_directly_referenced && !has_submodule_refs && !is_needed_by_parent {
+            //     std.stdio.print("[resolve_module]   SKIP: not needed: {s}\n", {import_name})
+            //     continue
+            // }
 
             val resolved_path = resolve_use_path(use_path, str.cstr(file_dir), exe_dir)
             std.stdio.print("[resolve_module]   resolved_path: {s}\n", {resolved_path})
