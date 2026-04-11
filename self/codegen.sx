@@ -643,6 +643,42 @@ fn cg_lookup_union(ctx: ref CgCtx, union_name: ref char) ref void! = {
     return 0 as ref void
 }
 
+/// Check if a type name matches any registered union (tries exact match and suffix match for mangled names).
+fn is_union_type_name(ctx: ref CgCtx, type_name: ref char) bool! = {
+    if cg_lookup_union(ctx, type_name) != 0 as ref void {
+        return true
+    }
+    val names: ref void = cg_unames(ctx)
+    val nlen: i64 = @len(names as list[ref char]) as i64
+    val tlen: i64 = str.len_raw(type_name)
+    val suffix_len: i64 = tlen + 2
+    val ni: mut i64 = 0
+    for {
+        if ni >= nlen { break }
+        val n_opt = @get(names as list[ref char], ni as usize)
+        match n_opt {
+            some n => {
+                val candidate: ref char = n as ref char
+                val clen: i64 = str.len_raw(candidate)
+                if clen > suffix_len {
+                    val tail: ref char = @ptradd(candidate, clen - suffix_len) as ref char
+                    val c1: u8 = @load8(@ptradd(tail as ref void, 0))
+                    val c2: u8 = @load8(@ptradd(tail as ref void, 1))
+                    if c1 == 95 && c2 == 95 {
+                        val rest: ref char = @ptradd(tail as ref void, 2) as ref char
+                        if str.rchar_cmp(rest, type_name) == 0 {
+                            return true
+                        }
+                    }
+                }
+            }
+            none => {}
+        }
+        ni++
+    }
+    return false
+}
+
 /// Compute the total byte size of a struct with the given fields.
 fn struct_size(ctx: ref CgCtx, fields: ref void) i64! = {
     val flen: i64 = @len(fields as list[ref void]) as i64
@@ -1052,8 +1088,39 @@ fn is_union_type(ctx: ref CgCtx, ty: ref parser.Node) ref char! = {
     if k == parser.TY_NAMED {
         val name: ref char = ty.d0 as ref char
         val union_vars: ref void = cg_lookup_union(ctx, name)
+
         if union_vars != 0 as ref void {
             return name
+        }
+
+        val names: ref void = cg_unames(ctx)
+        val nlen: i64 = @len(names as list[ref char]) as i64
+        val tlen: i64 = str.len_raw(name)
+        val suffix_len: i64 = tlen + 2
+        val ni: mut i64 = 0
+
+        for {
+            if ni >= nlen { break }
+            val n_opt = @get(names as list[ref char], ni as usize)
+            match n_opt {
+                some n => {
+                    val candidate: ref char = n as ref char
+                    val clen: i64 = str.len_raw(candidate)
+                    if clen > suffix_len {
+                        val tail: ref char = @ptradd(candidate, clen - suffix_len) as ref char
+                        val c1: u8 = @load8(@ptradd(tail as ref void, 0))
+                        val c2: u8 = @load8(@ptradd(tail as ref void, 1))
+                        if c1 == 95 && c2 == 95 {
+                            val rest: ref char = @ptradd(tail as ref void, 2) as ref char
+                            if str.rchar_cmp(rest, name) == 0 {
+                                return name
+                            }
+                        }
+                    }
+                }
+                none => {}
+            }
+            ni++
         }
     }
     return ""
@@ -2251,8 +2318,7 @@ fn gen_field(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
                                         field_is_fa = true
                                     } elif sfty3.kind == parser.TY_NAMED {
                                         val type_name: ref char = sfty3.d0 as ref char
-                                        val union_check: ref void = cg_lookup_union(ctx, type_name)
-                                        if union_check != 0 as ref void {
+                                        if is_union_type_name(ctx, type_name) {
                                             field_is_union = true
                                         }
                                     }
@@ -2288,8 +2354,7 @@ fn gen_field(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
                                         field_is_fa = true
                                     } elif sfty3.kind == parser.TY_NAMED {
                                         val ftype_name: ref char = sfty3.d0 as ref char
-                                        val union_check: ref void = cg_lookup_union(ctx, ftype_name)
-                                        if union_check != 0 as ref void {
+                                        if is_union_type_name(ctx, ftype_name) {
                                             field_is_union = true
                                         }
                                     }
