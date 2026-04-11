@@ -1,0 +1,45 @@
+val std = use("std")
+
+pub union TokenKind = {
+    Fn()
+  | Val()
+  | Ident(ref char)
+}
+
+pub type Token = {
+    kind: mut TokenKind
+}
+
+fn make_fn_token() ref Token! = {
+    val t: mut ref Token = @alloc(@sizeof(Token)) as ref Token
+    t.kind = Fn()
+    return t
+}
+
+fn kind_is_fn(k: TokenKind) bool! = {
+    match k {
+        Fn() => { return true }
+        else => { return false }
+    }
+}
+
+pub fn main() void! = {
+    val t = make_fn_token()
+    @printf("Token at: %p\n", {t})
+    
+    val kind_ptr: ref void = addr(t.kind) as ref void
+    val tag_val: i64 = @load(kind_ptr) as i64
+    @printf("Tag value: %lld\n", {tag_val})
+    
+    val kind = t.kind
+    @printf("After copy, checking kind_is_fn...\n", {})
+    
+    val result = kind_is_fn(kind)
+    @printf("kind_is_fn result: %d\n", {result})
+    
+    if result {
+        @puts("SUCCESS: Token is Fn()")
+    } else {
+        @puts("FAILURE: Token is not Fn()")
+    }
+}
