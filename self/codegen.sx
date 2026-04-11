@@ -2686,7 +2686,7 @@ fn gen_call(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
                         val call_buf_p: ref char = @alloc(4096) as ref char
                         val vlen: i64 = @len(variadic_args) as i64
                         if vlen == 0 {
-                            @snprintf(call_buf_p, 4096, "    %%t%lld =l call $printf(l %%t%lld)\n", {result_tmp, fmt_tmp})
+                            @snprintf(call_buf_p, 4096, "    %%t%lld =l call $printf(l %%t%lld, ..., l 0)\n", {result_tmp, fmt_tmp})
                         } else {
                             val call_pos_p: mut i64 = 0
                             val hdr_p: ref char = @alloc(256) as ref char

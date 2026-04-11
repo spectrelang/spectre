@@ -1,9 +1,30 @@
 val std = use("std")
 
 pub union TokenKind = {
-    Fn()
-  | Val()
+    Fn()        | Val()       | Mut()      | Pub()      | Type()
+  | Pre()       | Post()      | Return()   | If()       | Else()
+  | Elif()      | Trust()     | Use()      | Ref()      | For()
+  | In()        | Some()      | None()     | Ok()       | Err()
+  | Match()     | True()      | False()    | Defer()    | Break()
+  | Continue()  | As()        | Assert()   | When()     | Union()
+  | Enum()      | Extern()    | Link()     | Guarded()  | Not()
+  | Test()
   | Ident(ref char)
+  | Str(ref char)
+  | Int(ref char)
+  | Float(ref char)
+  | CharLit(i64)
+  | LParen()    | RParen()    | LBrace()   | RBrace()
+  | LBracket()  | RBracket()  | Colon()    | Semicolon()
+  | Comma()     | Dot()       | DotDotDot()
+  | Eq()        | Bang()      | At()       | Plus()     | Minus()
+  | Star()      | Slash()     | Percent()  | PlusPlus() | MinusMinus()
+  | PlusEq()    | MinusEq()   | EqEq()     | BangEq()
+  | Lt()        | Gt()        | LtEq()     | GtEq()
+  | And()       | Or()        | BitAnd()   | BitOr()    | BitXor()
+  | Shl()       | Shr()       | Arrow()    | FatArrow() | Tilde()
+  | Question()
+  | Eof()
 }
 
 pub type Token = {
@@ -25,17 +46,16 @@ fn kind_is_fn(k: TokenKind) bool! = {
 
 pub fn main() void! = {
     val t = make_fn_token()
-    @printf("Token at: %p\n", {t})
+    @dprintf(2, "Token at: %p\n", {t})
     
     val kind_ptr: ref void = addr(t.kind) as ref void
     val tag_val: i64 = @load(kind_ptr) as i64
-    @printf("Tag value: %lld\n", {tag_val})
+    @dprintf(2, "Tag value: %lld\n", {tag_val})
     
     val kind = t.kind
-    @printf("After copy, checking kind_is_fn...\n", {})
+    @dprintf(2, "After copy, checking kind_is_fn...\n", {})
     
     val result = kind_is_fn(kind)
-    @printf("kind_is_fn result: %d\n", {result})
     
     if result {
         @puts("SUCCESS: Token is Fn()")
