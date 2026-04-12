@@ -635,7 +635,6 @@ fn cg_lookup_tv(ctx: ref CgCtx, vname: ref char, out_owner: ref void, out_field_
 
 /// Register a struct type's field list by name.
 fn cg_register_struct(ctx: ref CgCtx, type_name: ref char, fields: ref void) void! = {
-    std.stdio.print("SIZEOF_DEBUG: cg_register_struct('%s')\n", {type_name})
     @append(cg_snames(ctx) as list[ref char], type_name)
     @append(cg_sfields(ctx) as list[ref void], fields)
 }
@@ -7636,11 +7635,7 @@ pub fn gen_module(items: list[ref parser.Node]) ref char! = {
     val ctx: ref CgCtx = cg_new()
 
     emit_runtime_helpers(ctx)
-
-    std.stdio.puts("SIZEOF_DEBUG: gen_module calling preregister_items\n")
     preregister_items(ctx, items, "")
-    std.stdio.puts("SIZEOF_DEBUG: gen_module preregister_items done\n")
-    std.stdio.print("SIZEOF_DEBUG: after preregister, snames len = %lld\n", {@len(cg_snames(ctx) as list[ref char])})
 
     val ilen: i64 = @len(items) as i64
     val i: mut i64 = 0
@@ -7659,7 +7654,6 @@ pub fn gen_module(items: list[ref parser.Node]) ref char! = {
                     gen_enum_def_prefixed(ctx, item as ref parser.Node, "")
                 } elif k == parser.NK_TYPEDEF {
                     // Already registered during preregister, but emit type info
-                    // (structs don't emit code, they're just metadata)
                 } elif k == parser.NK_EXTERN_TYPE {
                     // Already registered during preregister
                 } elif k == parser.NK_UNIONDEF {
