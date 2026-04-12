@@ -3808,6 +3808,11 @@ fn gen_builtin(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
                 } elif arg_k == parser.NK_CAST {
                     val ty: ref parser.Node = arg_nd.d1 as ref parser.Node
                     sizeof_val = type_size(ty)
+                } elif arg_k == parser.TY_NAMED || arg_k == parser.TY_LIST || arg_k == parser.TY_REF ||
+                       arg_k == parser.TY_MUT || arg_k == parser.TY_OPTION || arg_k == parser.TY_RESULT ||
+                       arg_k == parser.TY_SLICE || arg_k == parser.TY_FIXED_ARR || arg_k == parser.TY_FNPTR ||
+                       arg_k == parser.TY_VOID {
+                    sizeof_val = type_size(arg_nd)
                 } else {
                     sizeof_val = 8
                 }

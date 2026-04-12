@@ -851,6 +851,16 @@ fn parse_primary(p: ref Parser) result[ref Node, ref char]! = {
         p_advance(p)
         val bname = p_expect_ident(p)?
         p_expect_lparen(p)?
+        if str_eq(bname, "sizeof") {
+            val ty = parse_type(p)?
+            p_expect_rparen(p)?
+            val nb: mut ref Node = make_node(NK_BUILTIN, line)
+            nb.d0 = bname as i64
+            val targs: mut list[ref Node] = []
+            @append(targs, ty)
+            nb.d1 = targs as i64
+            return ok nb
+        }
         val bargs: mut list[ref Node] = []
         for {
             if lexer.kind_is_rparen(p_peek_kind(p)) { break }

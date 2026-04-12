@@ -247,15 +247,168 @@ fn lex_number(l: ref Lexer, line: i64, col: i64) ref Token! = {
     return make_tok(l, Int(text), line, col)
 }
 
+fn skip_whitespace(l: mut ref Lexer) void! = {
+    for { if !is_space(lx_peek(l)) { break } lx_advance(l) }
+}
+
+fn skip_comment(l: mut ref Lexer) bool! = {
+    if lx_peek(l) == 47 && lx_peek2(l) == 47 {
+        for { val c: i64 = lx_peek(l) if c == -1 || c == 10 { break } lx_advance(l) }
+        return true
+    }
+    return false
+}
+
+fn lex_raw_string(l: mut ref Lexer, line: i64, col: i64) ref Token! = {
+    lx_advance(l)
+    val buf: ref char = @alloc(4096) as ref char
+    val i: mut i64 = 0
+    for {
+        for {
+            val ch: i64 = lx_peek(l)
+            if ch == -1 || ch == 10 { break }
+            lx_advance(l)
+            @store8(@ptradd(buf, i), ch as u8)
+            i++
+        }
+        if lx_peek(l) == 10 {
+            lx_advance(l)
+        }
+        for { if !is_space(lx_peek(l)) || lx_peek(l) == 10 { break } lx_advance(l) }
+        if lx_peek(l) == 92 && lx_peek2(l) == 92 {
+            @store8(@ptradd(buf, i), 10)
+            i++
+            lx_advance(l)
+            lx_advance(l)
+        } else {
+            break
+        }
+    }
+    @store8(@ptradd(buf, i), 0)
+    val result: ref char = @alloc(i + 1) as ref char
+    @memcpy(result, buf, i + 1)
+    @free(buf)
+    return make_tok(l, Str(result), line, col)
+}
+
+fn lex_char_literal(l: mut ref Lexer, line: i64, col: i64) ref Token! = {
+    val ch: i64 = lx_advance(l)
+    val char_val: mut i64 = ch
+    if ch == 92 {
+        val esc: i64 = lx_advance(l)
+        if esc == 110      { char_val = 10 }
+        elif esc == 116    { char_val = 9  }
+        elif esc == 114    { char_val = 13 }
+        elif esc == 48     { char_val = 0  }
+        elif esc == 39     { char_val = 39 }
+        elif esc == 92     { char_val = 92 }
+        else               { char_val = esc }
+    }
+    lx_advance(l)
+    return make_tok(l, CharLit(char_val), line, col)
+}
+
+fn lex_identifier(l: mut ref Lexer, line: i64, col: i64) ref Token! = {
+    val start: i64 = l.pos - 1
+    for { if !is_alnum(lx_peek(l)) { break } lx_advance(l) }
+    val text: ref char = substr(l.src, start, l.pos)
+    return make_tok(l, keyword_kind(text), line, col)
+}
+
+fn lex_single_char(l: ref Lexer, c: i64, line: i64, col: i64) result[ref Token, bool]! = {
+    if c == 40  { return ok make_tok(l, LParen(),    line, col) }
+    if c == 41  { return ok make_tok(l, RParen(),    line, col) }
+    if c == 123 { return ok make_tok(l, LBrace(),    line, col) }
+    if c == 125 { return ok make_tok(l, RBrace(),    line, col) }
+    if c == 91  { return ok make_tok(l, LBracket(),  line, col) }
+    if c == 93  { return ok make_tok(l, RBracket(),  line, col) }
+    if c == 58  { return ok make_tok(l, Colon(),     line, col) }
+    if c == 59  { return ok make_tok(l, Semicolon(), line, col) }
+    if c == 44  { return ok make_tok(l, Comma(),     line, col) }
+    if c == 64  { return ok make_tok(l, At(),        line, col) }
+    if c == 126 { return ok make_tok(l, Tilde(),     line, col) }
+    if c == 63  { return ok make_tok(l, Question(),  line, col) }
+    if c == 37  { return ok make_tok(l, Percent(),   line, col) }
+    if c == 94  { return ok make_tok(l, BitXor(),    line, col) }
+    if c == 42  { return ok make_tok(l, Star(),      line, col) }
+    return err false
+}
+
+fn lex_dot(l: mut ref Lexer, line: i64, col: i64) ref Token! = {
+    if lx_peek(l) == 46 && lx_peek2(l) == 46 {
+        lx_advance(l) lx_advance(l)
+        return make_tok(l, DotDotDot(), line, col)
+    }
+    return make_tok(l, Dot(), line, col)
+}
+
+fn lex_plus(l: mut ref Lexer, line: i64, col: i64) ref Token! = {
+    if lx_peek(l) == 43      { lx_advance(l) return make_tok(l, PlusPlus(), line, col) }
+    if lx_peek(l) == 61      { lx_advance(l) return make_tok(l, PlusEq(),   line, col) }
+    return make_tok(l, Plus(), line, col)
+}
+
+fn lex_minus(l: mut ref Lexer, line: i64, col: i64) ref Token! = {
+    if lx_peek(l) == 62      { lx_advance(l) return make_tok(l, Arrow(),      line, col) }
+    if lx_peek(l) == 45      { lx_advance(l) return make_tok(l, MinusMinus(), line, col) }
+    if lx_peek(l) == 61      { lx_advance(l) return make_tok(l, MinusEq(),    line, col) }
+    return make_tok(l, Minus(), line, col)
+}
+
+fn lex_eq(l: mut ref Lexer, line: i64, col: i64) ref Token! = {
+    if lx_peek(l) == 61      { lx_advance(l) return make_tok(l, EqEq(),    line, col) }
+    if lx_peek(l) == 62      { lx_advance(l) return make_tok(l, FatArrow(), line, col) }
+    return make_tok(l, Eq(), line, col)
+}
+
+fn lex_bang(l: mut ref Lexer, line: i64, col: i64) ref Token! = {
+    if lx_peek(l) == 61      { lx_advance(l) return make_tok(l, BangEq(), line, col) }
+    return make_tok(l, Bang(), line, col)
+}
+
+fn lex_lt(l: mut ref Lexer, line: i64, col: i64) ref Token! = {
+    if lx_peek(l) == 61      { lx_advance(l) return make_tok(l, LtEq(), line, col) }
+    if lx_peek(l) == 60      { lx_advance(l) return make_tok(l, Shl(),  line, col) }
+    return make_tok(l, Lt(), line, col)
+}
+
+fn lex_gt(l: mut ref Lexer, line: i64, col: i64) ref Token! = {
+    if lx_peek(l) == 61      { lx_advance(l) return make_tok(l, GtEq(), line, col) }
+    if lx_peek(l) == 62      { lx_advance(l) return make_tok(l, Shr(),  line, col) }
+    return make_tok(l, Gt(), line, col)
+}
+
+fn lex_amp(l: mut ref Lexer, line: i64, col: i64) ref Token! = {
+    if lx_peek(l) == 38      { lx_advance(l) return make_tok(l, And(),    line, col) }
+    return make_tok(l, BitAnd(), line, col)
+}
+
+fn lex_pipe(l: mut ref Lexer, line: i64, col: i64) ref Token! = {
+    if lx_peek(l) == 124     { lx_advance(l) return make_tok(l, Or(),    line, col) }
+    return make_tok(l, BitOr(), line, col)
+}
+
+fn lex_operator(l: mut ref Lexer, c: i64, line: i64, col: i64) result[ref Token, bool]! = {
+    if c == 46 { return ok lex_dot(l, line, col) }
+    if c == 43 { return ok lex_plus(l, line, col) }
+    if c == 45 { return ok lex_minus(l, line, col) }
+    if c == 47 { return ok make_tok(l, Slash(), line, col) }
+    if c == 61 { return ok lex_eq(l, line, col) }
+    if c == 33 { return ok lex_bang(l, line, col) }
+    if c == 60 { return ok lex_lt(l, line, col) }
+    if c == 62 { return ok lex_gt(l, line, col) }
+    if c == 38 { return ok lex_amp(l, line, col) }
+    if c == 124 { return ok lex_pipe(l, line, col) }
+    return err false
+}
+
 pub fn tokenize(src: ref char) result[list[ref Token], ref char]! = {
     val l: ref Lexer = lexer_new(src)
     val tokens: mut list[ref Token] = []
     for {
-        for { if !is_space(lx_peek(l)) { break } lx_advance(l) }
-        if lx_peek(l) == 47 && lx_peek2(l) == 47 {
-            for { val c: i64 = lx_peek(l) if c == -1 || c == 10 { break } lx_advance(l) }
-            continue
-        }
+        skip_whitespace(l)
+        if skip_comment(l) { continue }
+
         val line: i64 = l.line
         val col:  i64 = l.col
         val c: i64 = lx_peek(l)
@@ -268,35 +421,7 @@ pub fn tokenize(src: ref char) result[list[ref Token], ref char]! = {
         lx_advance(l)
 
         if c == 92 && lx_peek(l) == 92 {
-            lx_advance(l)
-            val buf: ref char = @alloc(4096) as ref char
-            val i: mut i64 = 0
-            for {
-                for {
-                    val ch: i64 = lx_peek(l)
-                    if ch == -1 || ch == 10 { break }
-                    lx_advance(l)
-                    @store8(@ptradd(buf, i), ch as u8)
-                    i++
-                }
-                if lx_peek(l) == 10 {
-                    lx_advance(l)
-                }
-                for { if !is_space(lx_peek(l)) || lx_peek(l) == 10 { break } lx_advance(l) }
-                if lx_peek(l) == 92 && lx_peek2(l) == 92 {
-                    @store8(@ptradd(buf, i), 10)
-                    i++
-                    lx_advance(l)
-                    lx_advance(l)
-                } else {
-                    break
-                }
-            }
-            @store8(@ptradd(buf, i), 0)
-            val result: ref char = @alloc(i + 1) as ref char
-            @memcpy(result, buf, i + 1)
-            @free(buf)
-            @append(tokens, make_tok(l, Str(result), line, col))
+            @append(tokens, lex_raw_string(l, line, col))
             continue
         }
         if c == 34 {
@@ -304,20 +429,7 @@ pub fn tokenize(src: ref char) result[list[ref Token], ref char]! = {
             continue
         }
         if c == 39 {
-            val ch: i64 = lx_advance(l)
-            val char_val: mut i64 = ch
-            if ch == 92 {
-                val esc: i64 = lx_advance(l)
-                if esc == 110      { char_val = 10 }
-                elif esc == 116    { char_val = 9  }
-                elif esc == 114    { char_val = 13 }
-                elif esc == 48     { char_val = 0  }
-                elif esc == 39     { char_val = 39 }
-                elif esc == 92     { char_val = 92 }
-                else               { char_val = esc }
-            }
-            lx_advance(l)
-            @append(tokens, make_tok(l, CharLit(char_val), line, col))
+            @append(tokens, lex_char_literal(l, line, col))
             continue
         }
         if is_digit(c) {
@@ -325,84 +437,17 @@ pub fn tokenize(src: ref char) result[list[ref Token], ref char]! = {
             continue
         }
         if is_alpha(c) {
-            val start: i64 = l.pos - 1
-            for { if !is_alnum(lx_peek(l)) { break } lx_advance(l) }
-            val text: ref char = substr(l.src, start, l.pos)
-            @append(tokens, make_tok(l, keyword_kind(text), line, col))
+            @append(tokens, lex_identifier(l, line, col))
             continue
         }
 
-        if c == 40  { @append(tokens, make_tok(l, LParen(),    line, col)) continue }
-        if c == 41  { @append(tokens, make_tok(l, RParen(),    line, col)) continue }
-        if c == 123 { @append(tokens, make_tok(l, LBrace(),    line, col)) continue }
-        if c == 125 { @append(tokens, make_tok(l, RBrace(),    line, col)) continue }
-        if c == 91  { @append(tokens, make_tok(l, LBracket(),  line, col)) continue }
-        if c == 93  { @append(tokens, make_tok(l, RBracket(),  line, col)) continue }
-        if c == 58  { @append(tokens, make_tok(l, Colon(),     line, col)) continue }
-        if c == 59  { @append(tokens, make_tok(l, Semicolon(), line, col)) continue }
-        if c == 44  { @append(tokens, make_tok(l, Comma(),     line, col)) continue }
-        if c == 64  { @append(tokens, make_tok(l, At(),        line, col)) continue }
-        if c == 126 { @append(tokens, make_tok(l, Tilde(),     line, col)) continue }
-        if c == 63  { @append(tokens, make_tok(l, Question(),  line, col)) continue }
-        if c == 37  { @append(tokens, make_tok(l, Percent(),   line, col)) continue }
-        if c == 94  { @append(tokens, make_tok(l, BitXor(),    line, col)) continue }
-        if c == 42  { @append(tokens, make_tok(l, Star(),      line, col)) continue }
-
-        if c == 46 {
-            if lx_peek(l) == 46 && lx_peek2(l) == 46 {
-                lx_advance(l) lx_advance(l)
-                @append(tokens, make_tok(l, DotDotDot(), line, col))
-            } else {
-                @append(tokens, make_tok(l, Dot(), line, col))
-            }
-            continue
+        match lex_single_char(l, c, line, col) {
+            ok t  => { @append(tokens, t) continue }
+            err _ => {}
         }
-        if c == 43 {
-            if lx_peek(l) == 43      { lx_advance(l) @append(tokens, make_tok(l, PlusPlus(), line, col)) }
-            elif lx_peek(l) == 61    { lx_advance(l) @append(tokens, make_tok(l, PlusEq(),   line, col)) }
-            else                     { @append(tokens, make_tok(l, Plus(), line, col)) }
-            continue
-        }
-        if c == 45 {
-            if lx_peek(l) == 62      { lx_advance(l) @append(tokens, make_tok(l, Arrow(),      line, col)) }
-            elif lx_peek(l) == 45    { lx_advance(l) @append(tokens, make_tok(l, MinusMinus(), line, col)) }
-            elif lx_peek(l) == 61    { lx_advance(l) @append(tokens, make_tok(l, MinusEq(),    line, col)) }
-            else                     { @append(tokens, make_tok(l, Minus(), line, col)) }
-            continue
-        }
-        if c == 47 { @append(tokens, make_tok(l, Slash(), line, col)) continue }
-        if c == 61 {
-            if lx_peek(l) == 61      { lx_advance(l) @append(tokens, make_tok(l, EqEq(),    line, col)) }
-            elif lx_peek(l) == 62    { lx_advance(l) @append(tokens, make_tok(l, FatArrow(), line, col)) }
-            else                     { @append(tokens, make_tok(l, Eq(), line, col)) }
-            continue
-        }
-        if c == 33 {
-            if lx_peek(l) == 61      { lx_advance(l) @append(tokens, make_tok(l, BangEq(), line, col)) }
-            else                     { @append(tokens, make_tok(l, Bang(), line, col)) }
-            continue
-        }
-        if c == 60 {
-            if lx_peek(l) == 61      { lx_advance(l) @append(tokens, make_tok(l, LtEq(), line, col)) }
-            elif lx_peek(l) == 60    { lx_advance(l) @append(tokens, make_tok(l, Shl(),  line, col)) }
-            else                     { @append(tokens, make_tok(l, Lt(), line, col)) }
-            continue
-        }
-        if c == 62 {
-            if lx_peek(l) == 61      { lx_advance(l) @append(tokens, make_tok(l, GtEq(), line, col)) }
-            elif lx_peek(l) == 62    { lx_advance(l) @append(tokens, make_tok(l, Shr(),  line, col)) }
-            else                     { @append(tokens, make_tok(l, Gt(), line, col)) }
-            continue
-        }
-        if c == 38 {
-            if lx_peek(l) == 38      { lx_advance(l) @append(tokens, make_tok(l, And(),    line, col)) }
-            else                     { @append(tokens, make_tok(l, BitAnd(), line, col)) }
-            continue
-        }
-        if c == 124 {
-            if lx_peek(l) == 124     { lx_advance(l) @append(tokens, make_tok(l, Or(),    line, col)) }
-            else                     { @append(tokens, make_tok(l, BitOr(), line, col)) }
-            continue
+        match lex_operator(l, c, line, col) {
+            ok t  => { @append(tokens, t) continue }
+            err _ => {}
         }
 
         val errbuf: ref char = @alloc(64) as ref char
