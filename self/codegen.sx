@@ -5365,6 +5365,8 @@ fn gen_match_res(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
         val tmp_str: ref char = @alloc(16) as ref char
         @snprintf(tmp_str, 16, "%lld", {val_ok})
         cg_register_local_var(ctx, ok_bind, tmp_str)
+        cg_register_local_type(ctx, ok_bind, "Node")
+        cg_register_local_ref_type(ctx, ok_bind)
     }
     if ok_body_node != 0 as ref parser.Node {
         gen_stmts(ctx, ok_body_node.d0 as ref parser.Node)
