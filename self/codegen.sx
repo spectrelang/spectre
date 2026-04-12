@@ -4424,7 +4424,9 @@ fn gen_stmt(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
             if str.rchar_cmp(tname, "") != 0 {
                 cg_register_local_type(ctx, name, tname)
             }
-            // Track if this is a reference type
+            if ty_node.kind == parser.TY_LIST {
+                cg_register_local_type(ctx, name, "list")
+            }
             if is_ref_type(ty_node) {
                 cg_register_local_ref_type(ctx, name)
             }
@@ -4569,8 +4571,27 @@ fn gen_stmt(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
                     @free(buf3u)
                 }
             } else {
+                val field_is_list: mut bool = false
+                if value.kind == parser.NK_IDENT {
+                    val vname: ref char = value.d0 as ref char
+                    val vtype: ref char = cg_local_type(ctx, vname)
+                    if str.rchar_cmp(vtype, "") != 0 && str.starts_with(str.from(vtype), str.from("list")) {
+                        field_is_list = true
+                    }
+                }
                 val buf3: ref char = @alloc(128) as ref char
-                if foffset == 0 {
+                if field_is_list {
+                    if foffset == 0 {
+                        @snprintf(buf3, 128, "    call $memcpy(l %s, l %s, l 24)\n", {base, val_tmp2})
+                    } else {
+                        val fptr: i64 = fresh_tmp(ctx)
+                        val buf3b: ref char = @alloc(128) as ref char
+                        @snprintf(buf3b, 128, "    %%t%lld =l add %s, %lld\n", {fptr, base, foffset})
+                        emit(ctx, buf3b)
+                        @free(buf3b)
+                        @snprintf(buf3, 128, "    call $memcpy(l %%t%lld, l %s, l 24)\n", {fptr, val_tmp2})
+                    }
+                } elif foffset == 0 {
                     @snprintf(buf3, 128, "    storel %s, %s\n", {val_tmp2, base})
                 } else {
                     val fptr: i64 = fresh_tmp(ctx)
@@ -5822,6 +5843,9 @@ fn gen_fn_prefixed(ctx: ref CgCtx, fn_node: ref parser.Node, mod_prefix: ref cha
                     }
                     if is_ref_type(pty2) {
                         cg_register_local_ref_type(ctx, pname2)
+                    }
+                    if pty2 != 0 as ref parser.Node && pty2.kind == parser.TY_LIST {
+                        cg_register_local_type(ctx, pname2, "list")
                     }
                 }
                 none => {}
