@@ -210,47 +210,7 @@ fn node_set_child5(n: ref Node, v: ref Node) void! = {
     n.d5 = v as i64
 }
 
-/// Get a data field as a ref void (list pointer).
-fn node_list(n: ref Node) ref void! = {
-    return n.d0 as ref void
-}
-
-/// Get d1 as a ref void.
-fn node_list1(n: ref Node) ref void! = {
-    return n.d1 as ref void
-}
-
-/// Get d2 as a ref void.
-fn node_list2(n: ref Node) ref void! = {
-    return n.d2 as ref void
-}
-
-/// Get d3 as a ref void.
-fn node_list3(n: ref Node) ref void! = {
-    return n.d3 as ref void
-}
-
-/// Set a data field as a ref void (list pointer).
-fn node_set_list(n: ref Node, v: ref void) void! = {
-    n.d0 = v as i64
-}
-
-/// Set d1 as a ref void.
-fn node_set_list1(n: ref Node, v: ref void) void! = {
-    n.d1 = v as i64
-}
-
-/// Set d2 as a ref void.
-fn node_set_list2(n: ref Node, v: ref void) void! = {
-    n.d2 = v as i64
-}
-
-/// Set d3 as a ref void.
-fn node_set_list3(n: ref Node, v: ref void) void! = {
-    n.d3 = v as i64
-}
-
-/// Get dN as an i64 value (for public/mutable flags, etc).
+/// Get dN as an i64 value (for opcodes, flags, sizes).
 fn node_get_i64(n: ref Node, idx: i64) i64! = {
     if idx == 0 { return n.d0 }
     if idx == 1 { return n.d1 }
@@ -296,6 +256,366 @@ fn node_set_bool(n: ref Node, idx: i64, v: bool) void! = {
         return
     }
 }
+
+/// Get the binary op code.
+fn node_op(n: ref Node) i64! = { return n.d0 }
+
+/// Get the left operand of a binary op.
+fn node_lhs(n: ref Node) ref Node! = { return n.d1 as ref Node }
+
+/// Get the right operand of a binary op.
+fn node_rhs(n: ref Node) ref Node! = { return n.d2 as ref Node }
+
+/// Get the unary op code.
+fn node_uop(n: ref Node) i64! = { return n.d0 }
+
+/// Get the operand of a unary op.
+fn node_operand(n: ref Node) ref Node! = { return n.d1 as ref Node }
+
+/// Get literal text (identifiers, string/int/float literals).
+fn node_lit_text(n: ref Node) ref char! = { return n.d0 as ref char }
+
+/// Get bool literal value.
+fn node_lit_bool_val(n: ref Node) bool! = { return n.d0 != 0 }
+
+/// Get char literal value.
+fn node_lit_char_val(n: ref Node) i64! = { return n.d0 }
+
+/// Get the callee of a call expression.
+fn node_callee(n: ref Node) ref Node! = { return n.d0 as ref Node }
+
+/// Get the arguments of a call expression as a typed list.
+fn node_call_args(n: ref Node) list[ref Node]! = { return n.d1 as list[ref Node] }
+
+/// Get the base of a field access expression.
+fn node_field_base(n: ref Node) ref Node! = { return n.d0 as ref Node }
+
+/// Get the field name of a field access expression.
+fn node_field_name(n: ref Node) ref char! = { return n.d1 as ref char }
+
+/// Get the expression of a cast node.
+fn node_cast_expr(n: ref Node) ref Node! = { return n.d0 as ref Node }
+
+/// Get the target type of a cast node.
+fn node_cast_ty(n: ref Node) ref Node! = { return n.d1 as ref Node }
+
+/// Get the expression of a try node.
+fn node_try_expr(n: ref Node) ref Node! = { return n.d0 as ref Node }
+
+/// Get the expression of an addr node.
+fn node_addr_expr(n: ref Node) ref Node! = { return n.d0 as ref Node }
+
+/// Get the expression of a deref node.
+fn node_deref_expr(n: ref Node) ref Node! = { return n.d0 as ref Node }
+
+/// Get the expression of a trust node.
+fn node_trust_expr(n: ref Node) ref Node! = { return n.d0 as ref Node }
+
+/// Get the inner expression of a some wrapper.
+fn node_some_expr(n: ref Node) ref Node! = { return n.d0 as ref Node }
+
+/// Get the inner expression of an ok value.
+fn node_ok_val_expr(n: ref Node) ref Node! = { return n.d0 as ref Node }
+
+/// Get the inner expression of an err value.
+fn node_err_val_expr(n: ref Node) ref Node! = { return n.d0 as ref Node }
+
+/// Get the name of a val definition.
+fn node_val_name(n: ref Node) ref char! = { return n.d0 as ref char }
+
+/// Check if a val definition is mutable.
+fn node_val_is_mut(n: ref Node) bool! = { return n.d1 != 0 }
+
+/// Get the type of a val definition.
+fn node_val_ty(n: ref Node) ref Node! = { return n.d2 as ref Node }
+
+/// Get the initializer of a val definition.
+fn node_val_expr(n: ref Node) ref Node! = { return n.d3 as ref Node }
+
+/// Get the condition of an if statement.
+fn node_if_cond(n: ref Node) ref Node! = { return n.d0 as ref Node }
+
+/// Get the then-body of an if statement.
+fn node_if_then_body(n: ref Node) list[ref Node]! = { return n.d1 as list[ref Node] }
+
+/// Get the elif-list of an if statement.
+fn node_if_elif_list(n: ref Node) list[ref Node]! = { return n.d2 as list[ref Node] }
+
+/// Get the else-body of an if statement.
+fn node_if_else_body(n: ref Node) list[ref Node]! = { return n.d3 as list[ref Node] }
+
+/// Get the init variable name of a for loop.
+fn node_for_init_name(n: ref Node) ref char! = { return n.d0 as ref char }
+
+/// Get the init expression of a for loop.
+fn node_for_init_expr(n: ref Node) ref Node! = { return n.d1 as ref Node }
+
+/// Get the condition of a for loop.
+fn node_for_cond(n: ref Node) ref Node! = { return n.d2 as ref Node }
+
+/// Get the post statement of a for loop.
+fn node_for_post(n: ref Node) ref Node! = { return n.d3 as ref Node }
+
+/// Get the body of a for loop.
+fn node_for_body(n: ref Node) list[ref Node]! = { return n.d4 as list[ref Node] }
+
+/// Get the binding of a for-in loop.
+fn node_forin_binding(n: ref Node) ref char! = { return n.d0 as ref char }
+
+/// Get the iterator of a for-in loop.
+fn node_forin_iter(n: ref Node) ref Node! = { return n.d1 as ref Node }
+
+/// Get the body of a for-in loop.
+fn node_forin_body(n: ref Node) list[ref Node]! = { return n.d2 as list[ref Node] }
+
+/// Check if a function definition is public.
+fn node_fn_is_public(n: ref Node) bool! = { return n.d0 != 0 }
+
+/// Get the self-type name of a function definition.
+fn node_fn_sig_name(n: ref Node) ref char! = { return n.d1 as ref char }
+
+/// Get the name of a function definition.
+fn node_fn_name(n: ref Node) ref char! = { return n.d2 as ref char }
+
+/// Get the parameters of a function definition.
+fn node_fn_params(n: ref Node) list[ref Node]! = { return n.d3 as list[ref Node] }
+
+/// Get the return type of a function definition.
+fn node_fn_ret_ty(n: ref Node) ref Node! = { return n.d4 as ref Node }
+
+/// Get the body of a function definition.
+fn node_fn_body(n: ref Node) list[ref Node]! = { return n.d5 as list[ref Node] }
+
+/// Get the expression of a return statement.
+fn node_ret_expr(n: ref Node) ref Node! = { return n.d0 as ref Node }
+
+/// Get the body of a defer statement.
+fn node_defer_body(n: ref Node) list[ref Node]! = { return n.d0 as list[ref Node] }
+
+/// Get the target of an assignment.
+fn node_assign_target(n: ref Node) ref Node! = { return n.d0 as ref Node }
+
+/// Get the value of an assignment.
+fn node_assign_value(n: ref Node) ref Node! = { return n.d1 as ref Node }
+
+/// Get the target of an add-assign.
+fn node_add_assign_target(n: ref Node) ref Node! = { return n.d0 as ref Node }
+
+/// Get the value of an add-assign.
+fn node_add_assign_value(n: ref Node) ref Node! = { return n.d1 as ref Node }
+
+/// Get the target of a sub-assign.
+fn node_sub_assign_target(n: ref Node) ref Node! = { return n.d0 as ref Node }
+
+/// Get the value of a sub-assign.
+fn node_sub_assign_value(n: ref Node) ref Node! = { return n.d1 as ref Node }
+
+/// Get the variable name of an increment.
+fn node_inc_name(n: ref Node) ref char! = { return n.d0 as ref char }
+
+/// Get the variable name of a decrement.
+fn node_dec_name(n: ref Node) ref char! = { return n.d0 as ref char }
+
+/// Get the expression of an assert.
+fn node_assert_expr(n: ref Node) ref Node! = { return n.d0 as ref Node }
+
+/// Get the expression of an expr-stmt.
+fn node_expr_stmt_expr(n: ref Node) ref Node! = { return n.d0 as ref Node }
+
+/// Get the expression of a match-opt.
+fn node_match_opt_expr(n: ref Node) ref Node! = { return n.d0 as ref Node }
+
+/// Get the some-binding name of a match-opt.
+fn node_match_opt_some_bind(n: ref Node) ref char! = { return n.d1 as ref char }
+
+/// Get the some-body of a match-opt.
+fn node_match_opt_some_body(n: ref Node) list[ref Node]! = { return n.d2 as list[ref Node] }
+
+/// Get the none-body of a match-opt.
+fn node_match_opt_none_body(n: ref Node) list[ref Node]! = { return n.d3 as list[ref Node] }
+
+/// Get the expression of a match-res.
+fn node_match_res_expr(n: ref Node) ref Node! = { return n.d0 as ref Node }
+
+/// Get the ok-binding name of a match-res.
+fn node_match_res_ok_bind(n: ref Node) ref char! = { return n.d1 as ref char }
+
+/// Get the ok-body of a match-res.
+fn node_match_res_ok_body(n: ref Node) list[ref Node]! = { return n.d2 as list[ref Node] }
+
+/// Get the err-binding name of a match-res.
+fn node_match_res_err_bind(n: ref Node) ref char! = { return n.d3 as ref char }
+
+/// Get the err-body of a match-res.
+fn node_match_res_err_body(n: ref Node) list[ref Node]! = { return n.d4 as list[ref Node] }
+
+/// Get the expression of a match-enum.
+fn node_match_enum_expr(n: ref Node) ref Node! = { return n.d0 as ref Node }
+
+/// Get the arms list of a match-enum.
+fn node_match_enum_arms(n: ref Node) list[ref Node]! = { return n.d1 as list[ref Node] }
+
+/// Enum arm: d0=variant_name(ref char), d1=body list
+fn node_match_enum_arm_variant(n: ref Node) ref char! = { return n.d0 as ref char }
+fn node_match_enum_arm_body(n: ref Node) list[ref Node]! = { return n.d1 as list[ref Node] }
+
+/// Get the expression of a match-str.
+fn node_match_str_expr(n: ref Node) ref Node! = { return n.d0 as ref Node }
+/// Get the arms of a match-str.
+fn node_match_str_arms(n: ref Node) list[ref Node]! = { return n.d1 as list[ref Node] }
+/// Get the else-body of a match-str.
+fn node_match_str_else_body(n: ref Node) list[ref Node]! = { return n.d2 as list[ref Node] }
+/// String arm: d0=pattern(ref char), d1=body list
+fn node_match_str_arm_pat(n: ref Node) ref char! = { return n.d0 as ref char }
+fn node_match_str_arm_body(n: ref Node) list[ref Node]! = { return n.d1 as list[ref Node] }
+
+/// Get the expression of a match-union.
+fn node_match_union_expr(n: ref Node) ref Node! = { return n.d0 as ref Node }
+/// Get the arms of a match-union.
+fn node_match_union_arms(n: ref Node) list[ref Node]! = { return n.d1 as list[ref Node] }
+/// Get the else-body of a match-union.
+fn node_match_union_else_body(n: ref Node) list[ref Node]! = { return n.d2 as list[ref Node] }
+/// Union arm: d0=type_node, d1=body list
+fn node_match_union_arm_ty(n: ref Node) ref Node! = { return n.d0 as ref Node }
+fn node_match_union_arm_body(n: ref Node) list[ref Node]! = { return n.d1 as list[ref Node] }
+
+/// Get the expression of a match-tagged-union.
+fn node_match_tu_expr(n: ref Node) ref Node! = { return n.d0 as ref Node }
+/// Get the arms of a match-tagged-union.
+fn node_match_tu_arms(n: ref Node) list[ref Node]! = { return n.d1 as list[ref Node] }
+/// Get the else-body of a match-tagged-union.
+fn node_match_tu_else_body(n: ref Node) list[ref Node]! = { return n.d2 as list[ref Node] }
+/// Tagged union arm: d0=variant_name, d1=bindings list[ref char], d2=body list
+fn node_match_tu_arm_variant(n: ref Node) ref char! = { return n.d0 as ref char }
+fn node_match_tu_arm_bindings(n: ref Node) list[ref char]! = { return n.d1 as list[ref char] }
+fn node_match_tu_arm_body(n: ref Node) list[ref Node]! = { return n.d2 as list[ref Node] }
+
+/// Get the platform name of a when-stmt.
+fn node_when_plat(n: ref Node) ref char! = { return n.d0 as ref char }
+/// Get the body of a when-stmt.
+fn node_when_body(n: ref Node) list[ref Node]! = { return n.d1 as list[ref Node] }
+/// Get the or-branches of a when-stmt.
+fn node_when_or_branches(n: ref Node) list[ref Node]! = { return n.d2 as list[ref Node] }
+/// Get the otherwise of a when-stmt.
+fn node_when_otherwise(n: ref Node) list[ref Node]! = { return n.d3 as list[ref Node] }
+
+/// Get the platform name of when-items.
+fn node_when_items_plat(n: ref Node) ref char! = { return n.d0 as ref char }
+/// Get the items of when-items.
+fn node_when_items_items(n: ref Node) list[ref Node]! = { return n.d1 as list[ref Node] }
+/// Get the or-branches of when-items.
+fn node_when_items_or_branches(n: ref Node) list[ref Node]! = { return n.d2 as list[ref Node] }
+/// Get the otherwise of when-items.
+fn node_when_items_otherwise(n: ref Node) list[ref Node]! = { return n.d3 as list[ref Node] }
+
+/// Get the test body.
+fn node_test_body(n: ref Node) list[ref Node]! = { return n.d0 as list[ref Node] }
+
+/// Get the pre/post contracts list.
+fn node_contract_list(n: ref Node) list[ref Node]! = { return n.d0 as list[ref Node] }
+/// Contract label: d0=label(ref char), d1=expr
+fn node_contract_label(n: ref Node) ref char! = { return n.d0 as ref char }
+fn node_contract_expr(n: ref Node) ref Node! = { return n.d1 as ref Node }
+
+/// Get struct literal fields list.
+fn node_struct_lit_fields(n: ref Node) list[ref Node]! = { return n.d0 as list[ref Node] }
+/// Struct lit field: d0=field_name, d1=value_expr
+fn node_struct_lit_field_name(n: ref Node) ref char! = { return n.d0 as ref char }
+fn node_struct_lit_field_expr(n: ref Node) ref Node! = { return n.d1 as ref Node }
+
+/// Get list literal elements.
+fn node_list_lit_elems(n: ref Node) list[ref Node]! = { return n.d0 as list[ref Node] }
+
+/// Get args-pack elements.
+fn node_args_pack_elems(n: ref Node) list[ref Node]! = { return n.d0 as list[ref Node] }
+
+/// Get zero-init type name.
+fn node_zero_init_type(n: ref Node) ref char! = { return n.d0 as ref char }
+
+/// Get the type name from a named type node.
+fn node_type_name(n: ref Node) ref char! = { return n.d0 as ref char }
+/// Get the inner type from a ref/mut/slice/list/option type.
+fn node_type_inner(n: ref Node) ref Node! = { return n.d0 as ref Node }
+/// Get the second inner type (for result types).
+fn node_type_inner2(n: ref Node) ref Node! = { return n.d1 as ref Node }
+/// Get fnptr params list.
+fn node_fnptr_params(n: ref Node) list[ref Node]! = { return n.d0 as list[ref Node] }
+/// Get fnptr return type.
+fn node_fnptr_ret(n: ref Node) ref Node! = { return n.d1 as ref Node }
+/// Get fixed array size.
+fn node_fixed_arr_size(n: ref Node) i64! = { return n.d0 }
+/// Get fixed array element type.
+fn node_fixed_arr_inner(n: ref Node) ref Node! = { return n.d1 as ref Node }
+
+/// Check if struct def is public.
+fn node_struct_def_is_public(n: ref Node) bool! = { return n.d0 != 0 }
+/// Get struct def name.
+fn node_struct_def_name(n: ref Node) ref char! = { return n.d1 as ref char }
+/// Get struct def fields.
+fn node_struct_def_fields(n: ref Node) list[ref Node]! = { return n.d2 as list[ref Node] }
+/// Struct field: d0=name, d1=is_mut, d2=type
+fn node_struct_field_name(n: ref Node) ref char! = { return n.d0 as ref char }
+fn node_struct_field_is_mut(n: ref Node) bool! = { return n.d1 != 0 }
+fn node_struct_field_ty(n: ref Node) ref Node! = { return n.d2 as ref Node }
+
+/// Check if enum def is public.
+fn node_enum_def_is_public(n: ref Node) bool! = { return n.d0 != 0 }
+/// Get enum def name.
+fn node_enum_def_name(n: ref Node) ref char! = { return n.d1 as ref char }
+/// Get enum def variants.
+fn node_enum_def_variants(n: ref Node) list[ref char]! = { return n.d2 as list[ref char] }
+
+/// Check if union def is public.
+fn node_union_def_is_public(n: ref Node) bool! = { return n.d0 != 0 }
+/// Get union def name.
+fn node_union_def_name(n: ref Node) ref char! = { return n.d1 as ref char }
+/// Get union def variants.
+fn node_union_def_variants(n: ref Node) list[ref Node]! = { return n.d2 as list[ref Node] }
+
+/// Check if tagged union def is public.
+fn node_tagged_union_def_is_public(n: ref Node) bool! = { return n.d0 != 0 }
+/// Get tagged union def name.
+fn node_tagged_union_def_name(n: ref Node) ref char! = { return n.d1 as ref char }
+/// Get tagged union def variants.
+fn node_tagged_union_def_variants(n: ref Node) list[ref Node]! = { return n.d2 as list[ref Node] }
+/// Tagged union variant: d0=name, d1=types list
+fn node_tu_variant_name(n: ref Node) ref char! = { return n.d0 as ref char }
+fn node_tu_variant_types(n: ref Node) list[ref Node]! = { return n.d1 as list[ref Node] }
+
+/// Check if extern fn is public.
+fn node_extern_fn_is_public(n: ref Node) bool! = { return n.d0 != 0 }
+/// Get extern fn name.
+fn node_extern_fn_name(n: ref Node) ref char! = { return n.d1 as ref char }
+/// Get extern fn symbol.
+fn node_extern_fn_symbol(n: ref Node) ref char! = { return n.d2 as ref char }
+/// Get extern fn convention.
+fn node_extern_fn_conv(n: ref Node) ref char! = { return n.d3 as ref char }
+/// Get extern fn params.
+fn node_extern_fn_params(n: ref Node) list[ref Node]! = { return n.d4 as list[ref Node] }
+/// Get extern fn return type.
+fn node_extern_fn_ret_ty(n: ref Node) ref Node! = { return n.d5 as ref Node }
+
+/// Check if const def is public.
+fn node_const_def_is_public(n: ref Node) bool! = { return n.d0 != 0 }
+/// Get const def name.
+fn node_const_def_name(n: ref Node) ref char! = { return n.d1 as ref char }
+/// Get const def value.
+fn node_const_def_value(n: ref Node) ref Node! = { return n.d2 as ref Node }
+
+/// Check if use is public.
+fn node_use_is_public(n: ref Node) bool! = { return n.d0 != 0 }
+/// Get use alias.
+fn node_use_alias(n: ref Node) ref char! = { return n.d1 as ref char }
+/// Get use path.
+fn node_use_path(n: ref Node) ref char! = { return n.d2 as ref char }
+
+/// Get link lib path.
+fn node_link_lib(n: ref Node) ref char! = { return n.d0 as ref char }
+
+/// Get builtin name.
+fn node_builtin_name(n: ref Node) ref char! = { return n.d0 as ref char }
+/// Get builtin args.
+fn node_builtin_args(n: ref Node) list[ref Node]! = { return n.d1 as list[ref Node] }
 
 /// Create a binary operation node: (op, lhs, rhs)
 fn node_binop(line: i64, op: i64, lhs: ref Node, rhs: ref Node) ref Node! = {
