@@ -635,6 +635,7 @@ fn cg_lookup_tv(ctx: ref CgCtx, vname: ref char, out_owner: ref void, out_field_
 
 /// Register a struct type's field list by name.
 fn cg_register_struct(ctx: ref CgCtx, type_name: ref char, fields: ref void) void! = {
+    std.stdio.print("SIZEOF_DEBUG: cg_register_struct('%s')\n", {type_name})
     @append(cg_snames(ctx) as list[ref char], type_name)
     @append(cg_sfields(ctx) as list[ref void], fields)
 }
@@ -1380,6 +1381,12 @@ fn type_size(ty: ref parser.Node) i64! = {
     val k: i64 = ty.kind
     if k == parser.TY_VOID    { return 0 }
     if k == parser.TY_MUT     { return type_size(ty.d0 as ref parser.Node) }
+    if k == parser.TY_REF     { return 8 }
+    if k == parser.TY_LIST    { return 24 }
+    if k == parser.TY_OPTION  { return 24 }
+    if k == parser.TY_RESULT  { return 24 }
+    if k == parser.TY_SLICE   { return 16 }
+    if k == parser.TY_FNPTR   { return 8 }
     if k == parser.TY_NAMED {
         val tname: ref char = ty.d0 as ref char
         if str.rchar_cmp(tname, "i8")   == 0 { return 1 }
@@ -1390,6 +1397,13 @@ fn type_size(ty: ref parser.Node) i64! = {
         if str.rchar_cmp(tname, "i32")  == 0 { return 4 }
         if str.rchar_cmp(tname, "u32")  == 0 { return 4 }
         if str.rchar_cmp(tname, "f32")  == 0 { return 4 }
+        if str.rchar_cmp(tname, "i64")  == 0 { return 8 }
+        if str.rchar_cmp(tname, "u64")  == 0 { return 8 }
+        if str.rchar_cmp(tname, "f64")  == 0 { return 8 }
+        if str.rchar_cmp(tname, "bool") == 0 { return 4 }
+        if str.rchar_cmp(tname, "isize") == 0 { return 8 }
+        if str.rchar_cmp(tname, "usize") == 0 { return 8 }
+        if str.rchar_cmp(tname, "void") == 0 { return 0 }
         return 8
     }
     if k == parser.TY_FIXED_ARR {
@@ -3769,7 +3783,6 @@ fn gen_builtin(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
                 val arg_k: i64 = arg_nd.kind
                 if arg_k == parser.NK_IDENT {
                     val vname: ref char = arg_nd.d0 as ref char
-                    
                     val flds: ref void = cg_lookup_struct(ctx, vname)
                     if flds != 0 as ref void {
                         sizeof_val = struct_size(ctx, flds)
@@ -3808,7 +3821,15 @@ fn gen_builtin(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
                 } elif arg_k == parser.NK_CAST {
                     val ty: ref parser.Node = arg_nd.d1 as ref parser.Node
                     sizeof_val = type_size(ty)
-                } elif arg_k == parser.TY_NAMED || arg_k == parser.TY_LIST || arg_k == parser.TY_REF ||
+                } elif arg_k == parser.TY_NAMED {
+                    val tname: ref char = arg_nd.d0 as ref char
+                    val flds: ref void = cg_lookup_struct(ctx, tname)
+                    if flds != 0 as ref void {
+                        sizeof_val = struct_size(ctx, flds)
+                    } else {
+                        sizeof_val = type_size(arg_nd)
+                    }
+                } elif arg_k == parser.TY_LIST || arg_k == parser.TY_REF ||
                        arg_k == parser.TY_MUT || arg_k == parser.TY_OPTION || arg_k == parser.TY_RESULT ||
                        arg_k == parser.TY_SLICE || arg_k == parser.TY_FIXED_ARR || arg_k == parser.TY_FNPTR ||
                        arg_k == parser.TY_VOID {
@@ -7616,6 +7637,11 @@ pub fn gen_module(items: list[ref parser.Node]) ref char! = {
 
     emit_runtime_helpers(ctx)
 
+    std.stdio.puts("SIZEOF_DEBUG: gen_module calling preregister_items\n")
+    preregister_items(ctx, items, "")
+    std.stdio.puts("SIZEOF_DEBUG: gen_module preregister_items done\n")
+    std.stdio.print("SIZEOF_DEBUG: after preregister, snames len = %lld\n", {@len(cg_snames(ctx) as list[ref char])})
+
     val ilen: i64 = @len(items) as i64
     val i: mut i64 = 0
 
@@ -7631,6 +7657,15 @@ pub fn gen_module(items: list[ref parser.Node]) ref char! = {
                     gen_extern_fn(ctx, item as ref parser.Node)
                 } elif k == parser.NK_ENUMDEF {
                     gen_enum_def_prefixed(ctx, item as ref parser.Node, "")
+                } elif k == parser.NK_TYPEDEF {
+                    // Already registered during preregister, but emit type info
+                    // (structs don't emit code, they're just metadata)
+                } elif k == parser.NK_EXTERN_TYPE {
+                    // Already registered during preregister
+                } elif k == parser.NK_UNIONDEF {
+                    gen_union_def_prefixed(ctx, item as ref parser.Node, "")
+                } elif k == parser.NK_TAGGED_UNIONDEF {
+                    gen_tagged_union_def(ctx, item as ref parser.Node, "")
                 }
             }
             none => {}
