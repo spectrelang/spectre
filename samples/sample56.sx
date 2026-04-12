@@ -1,0 +1,26 @@
+type Value = {
+    kind: i64
+}
+
+fn is_zero(v: Value) bool! = {
+    return v.kind == 0
+}
+
+fn is_one(v: Value) bool! = {
+    return v.kind == 1
+}
+
+fn check(v: Value, pred: fn(Value) bool) bool! = {
+    @puts("In check")
+    return pred(v)
+}
+
+pub fn main() bool! = {
+    val a: Value = { kind: 0 }
+    val b: Value = { kind: 1 }
+
+    val r1 = check(a, is_zero)
+    val r2 = check(b, is_one)
+
+    return r1 && r2
+}
