@@ -1867,7 +1867,7 @@ fn expr_is_float(ctx: ref CgCtx, expr: ref parser.Node) bool! = {
         return lhs_float || rhs_float
     }
     if k == parser.NK_UNOP {
-        return expr_is_float(ctx, expr.d1 as ref parser.Node)
+        return expr_is_float(ctx, parser.unop_inner(expr))
     }
     return false
 }
@@ -1953,12 +1953,12 @@ fn expr_qbe_type(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
     }
 
     if k == parser.NK_UNOP {
-        val op_qbt = expr_qbe_type(ctx, expr.d1 as ref parser.Node)
-        val op: i64 = expr.d0 as i64
+        val op_qbt = expr_qbe_type(ctx, parser.unop_inner(expr))
+        val op: i64 = parser.unop_op(expr)
         if op == parser.UOP_NEG { return op_qbt }
-        if op == parser.UOP_NOT { return "w" } 
+        if op == parser.UOP_NOT { return "w" }
         if op == parser.UOP_BNOT { return op_qbt }
-        return "l" 
+        return "l"
     }
     
     return "l"
@@ -6320,8 +6320,8 @@ fn gen_items_with_prefix(ctx: ref CgCtx, items: list[ref parser.Node], mod_prefi
                             @snprintf(fval, 128, "d_%s", {ftext})
                             cg_register_module_const(ctx, cname, fval)
                         } elif cexpr.kind == parser.NK_UNOP {
-                            val uop: i64 = cexpr.d0 as i64
-                            val inner: ref parser.Node = cexpr.d1 as ref parser.Node
+                            val uop: i64 = parser.unop_op(cexpr)
+                            val inner: ref parser.Node = parser.unop_inner(cexpr)
                             if inner != 0 as ref parser.Node {
                                 if uop == parser.UOP_NEG {
                                     if inner.kind == parser.NK_INT_LIT {
@@ -6573,7 +6573,7 @@ fn scan_node_for_calls_depth(ctx: ref CgCtx, node: ref parser.Node, depth: i64) 
         scan_node_for_calls_depth(ctx, parser.binop_left(node), depth + 1)
         scan_node_for_calls_depth(ctx, parser.binop_right(node), depth + 1)
     } elif k == parser.NK_UNOP {
-        scan_node_for_calls_depth(ctx, node.d1 as ref parser.Node, depth + 1)
+        scan_node_for_calls_depth(ctx, parser.unop_inner(node), depth + 1)
     } elif k == parser.NK_FIELD {
         scan_node_for_calls_depth(ctx, node.d0 as ref parser.Node, depth + 1)
     } elif k == parser.NK_BUILTIN {
@@ -7125,8 +7125,8 @@ fn gen_items_with_prefix_skip_main(ctx: ref CgCtx, items: list[ref parser.Node],
                             @snprintf(fval3, 128, "d_%s", {ftext3})
                             cg_register_module_const(ctx, cname, fval3)
                         } elif cexpr.kind == parser.NK_UNOP {
-                            val uop2: i64 = cexpr.d0 as i64
-                            val inner2: ref parser.Node = cexpr.d1 as ref parser.Node
+                            val uop2: i64 = parser.unop_op(cexpr)
+                            val inner2: ref parser.Node = parser.unop_inner(cexpr)
                             if inner2 != 0 as ref parser.Node {
                                 if uop2 == parser.UOP_NEG {
                                     if inner2.kind == parser.NK_INT_LIT {

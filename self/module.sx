@@ -682,7 +682,7 @@ fn expr_references_import_shallow(node: ref parser.Node, import_name: ref char) 
         if expr_references_import_shallow(parser.binop_left(node), import_name) { return true }
         if expr_references_import_shallow(parser.binop_right(node), import_name) { return true }
     } elif node.kind == parser.NK_UNOP {
-        if expr_references_import_shallow(node.d1 as ref parser.Node, import_name) { return true }
+        if expr_references_import_shallow(parser.unop_inner(node), import_name) { return true }
     } elif node.kind == parser.NK_CAST || node.kind == parser.NK_ADDR || node.kind == parser.NK_DEREF || node.kind == parser.NK_TRY || node.kind == parser.NK_TRUST {
         if expr_references_import_shallow(node.d0 as ref parser.Node, import_name) { return true }
     } elif node.kind == parser.NK_SOME || node.kind == parser.NK_OK_VAL || node.kind == parser.NK_ERR_VAL {
@@ -1469,7 +1469,7 @@ fn collect_needed_subnames_in_expr(expr: ref parser.Node, import_name: ref char,
         collect_needed_subnames_in_expr(parser.binop_left(expr), import_name, needed)
         collect_needed_subnames_in_expr(parser.binop_right(expr), import_name, needed)
     } elif expr.kind == parser.NK_UNOP {
-        collect_needed_subnames_in_expr(expr.d1 as ref parser.Node, import_name, needed)
+        collect_needed_subnames_in_expr(parser.unop_inner(expr), import_name, needed)
     } elif expr.kind == parser.NK_CAST || expr.kind == parser.NK_ADDR || expr.kind == parser.NK_DEREF || expr.kind == parser.NK_TRY || expr.kind == parser.NK_TRUST {
         collect_needed_subnames_in_expr(expr.d0 as ref parser.Node, import_name, needed)
     } elif expr.kind == parser.NK_SOME || expr.kind == parser.NK_OK_VAL || expr.kind == parser.NK_ERR_VAL {
@@ -1677,7 +1677,7 @@ fn collect_used_imports_expr(node: ref parser.Node, import_names: list[ref char]
         collect_used_imports_expr(parser.binop_left(node), import_names, used)
         collect_used_imports_expr(parser.binop_right(node), import_names, used)
     } elif node.kind == parser.NK_UNOP {
-        collect_used_imports_expr(node.d1 as ref parser.Node, import_names, used)
+        collect_used_imports_expr(parser.unop_inner(node), import_names, used)
     } elif node.kind == parser.NK_CAST {
         collect_used_imports_expr(node.d0 as ref parser.Node, import_names, used)
     } elif node.kind == parser.NK_SOME || node.kind == parser.NK_OK_VAL || node.kind == parser.NK_ERR_VAL || node.kind == parser.NK_TRY || node.kind == parser.NK_TRUST || node.kind == parser.NK_ADDR || node.kind == parser.NK_DEREF {

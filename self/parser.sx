@@ -138,6 +138,16 @@ fn binop_op(n: ref Node) i64! = { return n.d0 }
 fn binop_left(n: ref Node) ref Node! = { return n.d1 as ref Node }
 fn binop_right(n: ref Node) ref Node! = { return n.d2 as ref Node }
 
+fn make_unop(op: i64, line: i64, inner: ref Node) result[ref Node, ref char]! = {
+    val n: mut ref Node = make_node(NK_UNOP, line)
+    n.d0 = op
+    n.d1 = inner as i64
+    return ok n
+}
+
+fn unop_op(n: ref Node) i64! = { return n.d0 }
+fn unop_inner(n: ref Node) ref Node! = { return n.d1 as ref Node }
+
 fn str_eq(a: ref char, b: ref char) bool! = {
     return std.string.compare(std.string.RChar(a), std.string.RChar(b)) == 0
 }
@@ -573,23 +583,17 @@ fn parse_unary(p: ref Parser) result[ref Node, ref char]! = {
     if kind_is_bang(k) || kind_is_not(k) {
         p_advance(p)
         val inner = parse_unary(p)?
-        val n: mut ref Node = make_node(NK_UNOP, line)
-        n.d0 = UOP_NOT n.d1 = inner as i64
-        return ok n
+        return make_unop(UOP_NOT, line, inner)
     }
     if kind_is_minus(k) {
         p_advance(p)
         val inner2 = parse_unary(p)?
-        val n2: mut ref Node = make_node(NK_UNOP, line)
-        n2.d0 = UOP_NEG n2.d1 = inner2 as i64
-        return ok n2
+        return make_unop(UOP_NEG, line, inner2)
     }
     if kind_is_tilde(k) {
         p_advance(p)
         val inner3 = parse_unary(p)?
-        val n3: mut ref Node = make_node(NK_UNOP, line)
-        n3.d0 = UOP_BNOT n3.d1 = inner3 as i64
-        return ok n3
+        return make_unop(UOP_BNOT, line, inner3)
     }
     if kind_is_trust(k) {
         p_advance(p)
@@ -1805,7 +1809,7 @@ test {
         err _ => { assert false }
         ok n  => {
             assert n.kind == NK_UNOP
-            assert n.d0 == UOP_NEG
+            assert unop_op(n) == UOP_NEG
         }
     }
 
@@ -1815,7 +1819,7 @@ test {
         err _ => { assert false }
         ok n  => {
             assert n.kind == NK_UNOP
-            assert n.d0 == UOP_NOT
+            assert unop_op(n) == UOP_NOT
         }
     }
 

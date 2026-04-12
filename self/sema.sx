@@ -244,7 +244,10 @@ fn expr_uses_name(node: ref parser.Node, name: ref char) bool! = {
         return expr_uses_name(node.d0 as ref parser.Node, name) ||
                expr_uses_name(node.d1 as ref parser.Node, name)
     }
-    if k == parser.NK_UNOP || k == parser.NK_TRUST || k == parser.NK_SOME ||
+    if k == parser.NK_UNOP {
+        return expr_uses_name(parser.unop_inner(node), name)
+    }
+    if k == parser.NK_TRUST || k == parser.NK_SOME ||
        k == parser.NK_OK_VAL || k == parser.NK_ERR_VAL || k == parser.NK_TRY ||
        k == parser.NK_ADDR || k == parser.NK_DEREF || k == parser.NK_CAST ||
        k == parser.NK_RETURN || k == parser.NK_EXPR_STMT || k == parser.NK_ASSERT {
@@ -359,7 +362,7 @@ fn check_expr(ctx: ref SemaCtx, expr: ref parser.Node, filename: ref char) void!
         return
     }
     if k == parser.NK_UNOP {
-        check_expr(ctx, expr.d1 as ref parser.Node, filename)
+        check_expr(ctx, parser.unop_inner(expr), filename)
         return
     }
     if k == parser.NK_TRUST || k == parser.NK_SOME ||
