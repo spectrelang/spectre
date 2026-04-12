@@ -69,6 +69,8 @@ for file in "$STD_DIR"/*.sx; do
     fi
 done
 
+"$COMPILER" ./self/lexer.sx --test
+
 echo
 echo "Final Summary:"
 echo "Total tests : $total"
