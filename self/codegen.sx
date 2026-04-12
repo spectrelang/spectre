@@ -1862,8 +1862,8 @@ fn expr_is_float(ctx: ref CgCtx, expr: ref parser.Node) bool! = {
         return false
     }
     if k == parser.NK_BINOP {
-        val lhs_float: bool = expr_is_float(ctx, expr.d1 as ref parser.Node)
-        val rhs_float: bool = expr_is_float(ctx, expr.d2 as ref parser.Node)
+        val lhs_float: bool = expr_is_float(ctx, parser.binop_left(expr))
+        val rhs_float: bool = expr_is_float(ctx, parser.binop_right(expr))
         return lhs_float || rhs_float
     }
     if k == parser.NK_UNOP {
@@ -1934,20 +1934,20 @@ fn expr_qbe_type(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
     }
 
     if k == parser.NK_BINOP {
-        val lhs_qbt = expr_qbe_type(ctx, expr.d1 as ref parser.Node)
-        val rhs_qbt = expr_qbe_type(ctx, expr.d2 as ref parser.Node)
+        val lhs_qbt = expr_qbe_type(ctx, parser.binop_left(expr))
+        val rhs_qbt = expr_qbe_type(ctx, parser.binop_right(expr))
         if str.rchar_cmp(lhs_qbt, "d") == 0 || str.rchar_cmp(lhs_qbt, "s") == 0 ||
            str.rchar_cmp(rhs_qbt, "d") == 0 || str.rchar_cmp(rhs_qbt, "s") == 0 {
             return "d"
         }
         if str.rchar_cmp(lhs_qbt, "l") == 0 || str.rchar_cmp(rhs_qbt, "l") == 0 {
-             val op: i64 = expr.d0 as i64
+             val op: i64 = parser.binop_op(expr)
              if op == parser.OP_EQ || op == parser.OP_NE || op == parser.OP_LT ||
                 op == parser.OP_GT || op == parser.OP_LE || op == parser.OP_GE ||
                 op == parser.OP_AND || op == parser.OP_OR {
-                 return "w" 
+                 return "w"
              }
-             return "l" 
+             return "l"
         }
         return "w"
     }
@@ -6570,8 +6570,8 @@ fn scan_node_for_calls_depth(ctx: ref CgCtx, node: ref parser.Node, depth: i64) 
     } elif k == parser.NK_VAL {
         scan_node_for_calls_depth(ctx, node.d3 as ref parser.Node, depth + 1)
     } elif k == parser.NK_BINOP {
-        scan_node_for_calls_depth(ctx, node.d1 as ref parser.Node, depth + 1)
-        scan_node_for_calls_depth(ctx, node.d2 as ref parser.Node, depth + 1)
+        scan_node_for_calls_depth(ctx, parser.binop_left(node), depth + 1)
+        scan_node_for_calls_depth(ctx, parser.binop_right(node), depth + 1)
     } elif k == parser.NK_UNOP {
         scan_node_for_calls_depth(ctx, node.d1 as ref parser.Node, depth + 1)
     } elif k == parser.NK_FIELD {

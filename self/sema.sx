@@ -237,8 +237,8 @@ fn expr_uses_name(node: ref parser.Node, name: ref char) bool! = {
         return str_eq(node.d0 as ref char, name)
     }
     if k == parser.NK_BINOP {
-        return expr_uses_name(node.d1 as ref parser.Node, name) ||
-               expr_uses_name(node.d2 as ref parser.Node, name)
+        return expr_uses_name(parser.binop_left(node), name) ||
+               expr_uses_name(parser.binop_right(node), name)
     }
     if k == parser.NK_ASSIGN || k == parser.NK_ADD_ASSIGN || k == parser.NK_SUB_ASSIGN {
         return expr_uses_name(node.d0 as ref parser.Node, name) ||
@@ -354,8 +354,8 @@ fn check_expr(ctx: ref SemaCtx, expr: ref parser.Node, filename: ref char) void!
     }
 
     if k == parser.NK_BINOP {
-        check_expr(ctx, expr.d1 as ref parser.Node, filename)
-        check_expr(ctx, expr.d2 as ref parser.Node, filename)
+        check_expr(ctx, parser.binop_left(expr), filename)
+        check_expr(ctx, parser.binop_right(expr), filename)
         return
     }
     if k == parser.NK_UNOP {

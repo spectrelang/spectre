@@ -126,6 +126,18 @@ fn box_list(lst: ref void) ref void! = {
     return p
 }
 
+fn make_binop(op: i64, line: i64, left: ref Node, right: ref Node) result[ref Node, ref char]! = {
+    val n: mut ref Node = make_node(NK_BINOP, line)
+    n.d0 = op
+    n.d1 = left as i64
+    n.d2 = right as i64
+    return ok n
+}
+
+fn binop_op(n: ref Node) i64! = { return n.d0 }
+fn binop_left(n: ref Node) ref Node! = { return n.d1 as ref Node }
+fn binop_right(n: ref Node) ref Node! = { return n.d2 as ref Node }
+
 fn str_eq(a: ref char, b: ref char) bool! = {
     return std.string.compare(std.string.RChar(a), std.string.RChar(b)) == 0
 }
@@ -433,9 +445,7 @@ fn parse_or(p: ref Parser) result[ref Node, ref char]! = {
         if !lexer.kind_is_or(p_peek_kind(p)) { break }
         val line: i64 = p_line(p) p_advance(p)
         val rhs = parse_and(p)?
-        val n: mut ref Node = make_node(NK_BINOP, line)
-        n.d0 = OP_OR n.d1 = res as i64 n.d2 = rhs as i64
-        res = n
+        res = make_binop(OP_OR, line, res, rhs)?
     }
     return ok res
 }
@@ -447,9 +457,7 @@ fn parse_and(p: ref Parser) result[ref Node, ref char]! = {
         if !lexer.kind_is_and(p_peek_kind(p)) { break }
         val line: i64 = p_line(p) p_advance(p)
         val rhs = parse_cmp(p)?
-        val n: mut ref Node = make_node(NK_BINOP, line)
-        n.d0 = OP_AND n.d1 = res as i64 n.d2 = rhs as i64
-        res = n
+        res = make_binop(OP_AND, line, res, rhs)?
     }
     return ok res
 }
@@ -469,9 +477,7 @@ fn parse_cmp(p: ref Parser) result[ref Node, ref char]! = {
         if op == 0 { break }
         val line: i64 = p_line(p) p_advance(p)
         val rhs = parse_bitor(p)?
-        val n: mut ref Node = make_node(NK_BINOP, line)
-        n.d0 = op n.d1 = res as i64 n.d2 = rhs as i64
-        res = n
+        res = make_binop(op, line, res, rhs)?
     }
     return ok res
 }
@@ -483,9 +489,7 @@ fn parse_bitor(p: ref Parser) result[ref Node, ref char]! = {
         if !kind_is_bitor(p_peek_kind(p)) { break }
         val line: i64 = p_line(p) p_advance(p)
         val rhs = parse_bitxor(p)?
-        val n: mut ref Node = make_node(NK_BINOP, line)
-        n.d0 = OP_BOR n.d1 = res as i64 n.d2 = rhs as i64
-        res = n
+        res = make_binop(OP_BOR, line, res, rhs)?
     }
     return ok res
 }
@@ -497,9 +501,7 @@ fn parse_bitxor(p: ref Parser) result[ref Node, ref char]! = {
         if !kind_is_bitxor(p_peek_kind(p)) { break }
         val line: i64 = p_line(p) p_advance(p)
         val rhs = parse_bitand(p)?
-        val n: mut ref Node = make_node(NK_BINOP, line)
-        n.d0 = OP_BXOR n.d1 = res as i64 n.d2 = rhs as i64
-        res = n
+        res = make_binop(OP_BXOR, line, res, rhs)?
     }
     return ok res
 }
@@ -511,9 +513,7 @@ fn parse_bitand(p: ref Parser) result[ref Node, ref char]! = {
         if !kind_is_bitand(p_peek_kind(p)) { break }
         val line: i64 = p_line(p) p_advance(p)
         val rhs = parse_shift(p)?
-        val n: mut ref Node = make_node(NK_BINOP, line)
-        n.d0 = OP_BAND n.d1 = res as i64 n.d2 = rhs as i64
-        res = n
+        res = make_binop(OP_BAND, line, res, rhs)?
     }
     return ok res
 }
@@ -529,9 +529,7 @@ fn parse_shift(p: ref Parser) result[ref Node, ref char]! = {
         if op == 0 { break }
         val line: i64 = p_line(p) p_advance(p)
         val rhs = parse_add(p)?
-        val n: mut ref Node = make_node(NK_BINOP, line)
-        n.d0 = op n.d1 = res as i64 n.d2 = rhs as i64
-        res = n
+        res = make_binop(op, line, res, rhs)?
     }
     return ok res
 }
@@ -547,9 +545,7 @@ fn parse_add(p: ref Parser) result[ref Node, ref char]! = {
         if op == 0 { break }
         val line: i64 = p_line(p) p_advance(p)
         val rhs = parse_mul(p)?
-        val n: mut ref Node = make_node(NK_BINOP, line)
-        n.d0 = op n.d1 = res as i64 n.d2 = rhs as i64
-        res = n
+        res = make_binop(op, line, res, rhs)?
     }
     return ok res
 }
@@ -566,9 +562,7 @@ fn parse_mul(p: ref Parser) result[ref Node, ref char]! = {
         if op == 0 { break }
         val line: i64 = p_line(p) p_advance(p)
         val rhs = parse_unary(p)?
-        val n: mut ref Node = make_node(NK_BINOP, line)
-        n.d0 = op n.d1 = res as i64 n.d2 = rhs as i64
-        res = n
+        res = make_binop(op, line, res, rhs)?
     }
     return ok res
 }
@@ -1787,9 +1781,9 @@ test {
         err _ => { assert false }
         ok n  => {
             assert n.kind == NK_BINOP
-            assert n.d0 == OP_ADD
-            val lhs: ref Node = n.d1 as ref Node
-            val rhs: ref Node = n.d2 as ref Node
+            assert binop_op(n) == OP_ADD
+            val lhs: ref Node = binop_left(n)
+            val rhs: ref Node = binop_right(n)
             assert lhs.kind == NK_INT_LIT
             assert rhs.kind == NK_INT_LIT
         }
@@ -1801,7 +1795,7 @@ test {
         err _ => { assert false }
         ok n  => {
             assert n.kind == NK_BINOP
-            assert n.d0 == OP_EQ
+            assert binop_op(n) == OP_EQ
         }
     }
 
@@ -1942,10 +1936,10 @@ test {
         err _ => { assert false }
         ok n  => {
             assert n.kind == NK_BINOP
-            assert n.d0 == OP_ADD
-            val rhs: ref Node = n.d2 as ref Node
+            assert binop_op(n) == OP_ADD
+            val rhs: ref Node = binop_right(n)
             assert rhs.kind == NK_BINOP
-            assert rhs.d0 == OP_MUL
+            assert binop_op(rhs) == OP_MUL
         }
     }
 
