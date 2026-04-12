@@ -744,6 +744,7 @@ fn parse_primary(p: ref Parser) result[ref Node, ref char]! = {
     if kind_is_str(k) {
         return make_str_lit(p_advance_text(p), line)
     }
+
     if kind_is_true(k)  { p_advance(p) val n4: mut ref Node = make_node(NK_BOOL, line) n4.d0 = 1 return ok n4 }
     if kind_is_false(k) { p_advance(p) val n5: mut ref Node = make_node(NK_BOOL, line) n5.d0 = 0 return ok n5 }
     if kind_is_none(k)  { p_advance(p) return ok make_node(NK_NONE, line) }
