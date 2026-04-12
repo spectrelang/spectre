@@ -1130,9 +1130,15 @@ fn infer_type_annotation(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
         val callee: ref parser.Node = parser.call_callee(expr)
         if callee != 0 as ref parser.Node && callee.kind == parser.NK_IDENT {
             val callee_name: ref char = callee.d0 as ref char
+            @printf("DEBUG infer_type: CALL callee='%s' fn_name='%s'\n", {callee_name, ctx.fn_name})
             val ret_expr: ref parser.Node = cg_lookup_fn_ret_type_expr(ctx, callee_name)
             if ret_expr != 0 as ref parser.Node {
-                return unwrap_type_name(ret_expr)
+                @printf("DEBUG infer_type: CALL ret_expr.kind={d}\n", {ret_expr.kind})
+                val unwrapped: ref char = unwrap_type_name(ret_expr)
+                @printf("DEBUG infer_type: CALL unwrapped='%s'\n", {unwrapped})
+                return unwrapped
+            } else {
+                @printf("DEBUG infer_type: CALL ret_expr NOT FOUND\n")
             }
         }
     }
@@ -5432,6 +5438,7 @@ fn gen_match_opt(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
         cg_register_local_var(ctx, some_bind, tmp_str)
         val opt_ann: ref char = infer_type_annotation(ctx, expr_node)
         val inner_type: ref char = parse_option_inner(opt_ann)
+        @printf("DEBUG match_opt: inner_type='%s'\n", {inner_type})
         if str.rchar_cmp(inner_type, "") != 0 {
             cg_register_local_type(ctx, some_bind, inner_type)
             if rchar_starts_with(inner_type, "ref ") {
@@ -5511,6 +5518,7 @@ fn gen_match_res(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
     val ok_type_buf: ref char = @alloc(256) as ref char
     val err_type_buf: ref char = @alloc(256) as ref char
     parse_result_types(result_ann, ok_type_buf, err_type_buf)
+    @printf("DEBUG match_res: ok_inner='%s' err_inner='%s'\n", {ok_type_buf, err_type_buf})
 
     if ok_bind != 0 as ref char {
         val off_ok: i64 = fresh_tmp(ctx)
@@ -5525,6 +5533,7 @@ fn gen_match_res(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
         @snprintf(tmp_str, 16, "%lld", {val_ok})
         cg_register_local_var(ctx, ok_bind, tmp_str)
         val ok_inner: ref char = ok_type_buf
+        @printf("DEBUG match_res: registering ok_bind='%s' type='%s'\n", {ok_bind, ok_inner})
         if str.rchar_cmp(ok_inner, "") != 0 {
             cg_register_local_type(ctx, ok_bind, ok_inner)
             if rchar_starts_with(ok_inner, "ref ") {
