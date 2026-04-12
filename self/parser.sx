@@ -248,13 +248,8 @@ type Parser = {
 }
 
 pub fn parser_new(tokens: list[ref lexer.Token], filename: ref char) ref Parser! = {
-    val tlen = @len(tokens)
-    val tdptr = tokens as i64
-    @printf("DEBUG parser_new IN: tokens.len={d} data={p}\n", {tlen, tdptr})
     val p: mut ref Parser = @alloc(@sizeof(Parser)) as ref Parser
     p.tokens   = tokens
-    val pcheck = @len(p.tokens)
-    @printf("DEBUG parser_new AFTER: p.tokens.len={d}\n", {pcheck})
     p.pos      = 0
     p.filename = filename
     return p
@@ -898,93 +893,6 @@ fn parse_primary(p: ref Parser) result[ref Node, ref char]! = {
         val ni: mut ref Node = make_node(NK_IDENT, line)
         ni.d0 = name as i64
         return ok ni
-    }
-
-    val dbg_k = p_peek_kind(p)
-    match dbg_k {
-        Fn()         => { @puts("DEBUG token: Fn") }
-        Val()        => { @puts("DEBUG token: Val") }
-        Mut()        => { @puts("DEBUG token: Mut") }
-        Pub()        => { @puts("DEBUG token: Pub") }
-        Type()       => { @puts("DEBUG token: Type") }
-        Pre()        => { @puts("DEBUG token: Pre") }
-        Post()       => { @puts("DEBUG token: Post") }
-        Return()     => { @puts("DEBUG token: Return") }
-        If()         => { @puts("DEBUG token: If") }
-        Else()       => { @puts("DEBUG token: Else") }
-        Elif()       => { @puts("DEBUG token: Elif") }
-        Trust()      => { @puts("DEBUG token: Trust") }
-        Use()        => { @puts("DEBUG token: Use") }
-        Ref()        => { @puts("DEBUG token: Ref") }
-        For()        => { @puts("DEBUG token: For") }
-        In()         => { @puts("DEBUG token: In") }
-        Some()       => { @puts("DEBUG token: Some") }
-        None()       => { @puts("DEBUG token: None") }
-        Ok()         => { @puts("DEBUG token: Ok") }
-        Err()        => { @puts("DEBUG token: Err") }
-        Match()      => { @puts("DEBUG token: Match") }
-        True()       => { @puts("DEBUG token: True") }
-        False()      => { @puts("DEBUG token: False") }
-        Defer()      => { @puts("DEBUG token: Defer") }
-        Break()      => { @puts("DEBUG token: Break") }
-        Continue()   => { @puts("DEBUG token: Continue") }
-        As()         => { @puts("DEBUG token: As") }
-        Assert()     => { @puts("DEBUG token: Assert") }
-        When()       => { @puts("DEBUG token: When") }
-        Union()      => { @puts("DEBUG token: Union") }
-        Enum()       => { @puts("DEBUG token: Enum") }
-        Extern()     => { @puts("DEBUG token: Extern") }
-        Link()       => { @puts("DEBUG token: Link") }
-        Guarded()    => { @puts("DEBUG token: Guarded") }
-        Not()        => { @puts("DEBUG token: Not") }
-        Test()       => { @puts("DEBUG token: Test") }
-        Ident s      => { @puts("DEBUG token: Ident") @puts(s) }
-        Str s        => { @puts("DEBUG token: Str") @puts(s) }
-        Int s        => { @puts("DEBUG token: Int") @puts(s) }
-        Float s      => { @puts("DEBUG token: Float") @puts(s) }
-        CharLit v    => { @printf("DEBUG token: CharLit(%lld)\n", {v}) }
-        LParen()     => { @puts("DEBUG token: LParen") }
-        RParen()     => { @puts("DEBUG token: RParen") }
-        LBrace()     => { @puts("DEBUG token: LBrace") }
-        RBrace()     => { @puts("DEBUG token: RBrace") }
-        LBracket()   => { @puts("DEBUG token: LBracket") }
-        RBracket()   => { @puts("DEBUG token: RBracket") }
-        Colon()      => { @puts("DEBUG token: Colon") }
-        Semicolon()  => { @puts("DEBUG token: Semicolon") }
-        Comma()      => { @puts("DEBUG token: Comma") }
-        Dot()        => { @puts("DEBUG token: Dot") }
-        DotDotDot()  => { @puts("DEBUG token: DotDotDot") }
-        Eq()         => { @puts("DEBUG token: Eq") }
-        Bang()       => { @puts("DEBUG token: Bang") }
-        At()         => { @puts("DEBUG token: At") }
-        Plus()       => { @puts("DEBUG token: Plus") }
-        Minus()      => { @puts("DEBUG token: Minus") }
-        Star()       => { @puts("DEBUG token: Star") }
-        Slash()      => { @puts("DEBUG token: Slash") }
-        Percent()    => { @puts("DEBUG token: Percent") }
-        PlusPlus()   => { @puts("DEBUG token: PlusPlus") }
-        MinusMinus() => { @puts("DEBUG token: MinusMinus") }
-        PlusEq()     => { @puts("DEBUG token: PlusEq") }
-        MinusEq()    => { @puts("DEBUG token: MinusEq") }
-        EqEq()       => { @puts("DEBUG token: EqEq") }
-        BangEq()     => { @puts("DEBUG token: BangEq") }
-        Lt()         => { @puts("DEBUG token: Lt") }
-        Gt()         => { @puts("DEBUG token: Gt") }
-        LtEq()       => { @puts("DEBUG token: LtEq") }
-        GtEq()       => { @puts("DEBUG token: GtEq") }
-        And()        => { @puts("DEBUG token: And") }
-        Or()         => { @puts("DEBUG token: Or") }
-        BitAnd()     => { @puts("DEBUG token: BitAnd") }
-        BitOr()      => { @puts("DEBUG token: BitOr") }
-        BitXor()     => { @puts("DEBUG token: BitXor") }
-        Shl()        => { @puts("DEBUG token: Shl") }
-        Shr()        => { @puts("DEBUG token: Shr") }
-        Arrow()      => { @puts("DEBUG token: Arrow") }
-        FatArrow()   => { @puts("DEBUG token: FatArrow") }
-        Tilde()      => { @puts("DEBUG token: Tilde") }
-        Question()   => { @puts("DEBUG token: Question") }
-        Eof()        => { @puts("DEBUG token: Eof") }
-      else         => { @puts("DEBUG token: UNKNOWN") }
     }
 
     return err p_error(p, "expected expression")
@@ -1889,19 +1797,7 @@ fn parse_expr_src(src: ref char) result[ref Node, ref char]! = {
     match r {
         err e => { return err e }
         ok toks => {
-            val tlen = @len(toks)
-            val tdata = toks as i64
-            @printf("DEBUG parse_expr_src: src={s} toks.len={d} data={p}\n", {src, tlen, tdata})
             val p: ref Parser = parser_new(toks, "<test>")
-            @printf("DEBUG after parser_new: p.pos={d}\n", {p.pos})
-            val peeked = p_peek_kind(p)
-            match peeked {
-                Int s => { @printf("DEBUG p_peek: Int {s}\n", {s}) }
-				True() => { @puts("DEBUG p_peek: true") }
-				False() => { @puts("DEBUG p_peek: False" )}
-                Eof() => { @puts("DEBUG p_peek: Eof!") }
-                else => { @puts("DEBUG p_peek: something else") }
-            }
             return parse_expr(p)
         }
     }
