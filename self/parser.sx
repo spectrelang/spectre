@@ -178,6 +178,41 @@ fn make_struct_field(name: ref char, line: i64, expr: ref Node) result[ref Node,
 fn struct_field_name(n: ref Node) ref char! = { return n.d0 as ref char }
 fn struct_field_expr(n: ref Node) ref Node! = { return n.d1 as ref Node }
 
+fn match_opt_expr(n: ref Node) ref Node!     = { return n.d0 as ref Node }
+fn match_opt_some_bind(n: ref Node) ref char! = { return n.d1 as ref char }
+fn match_opt_some_body(n: ref Node) ref Node! = { return n.d2 as ref Node }  // wrapper, .d0 = stmts list
+fn match_opt_none_body(n: ref Node) ref Node! = { return n.d3 as ref Node }  // wrapper, .d0 = stmts list
+
+fn match_res_expr(n: ref Node) ref Node!       = { return n.d0 as ref Node }
+fn match_res_ok_bind(n: ref Node) ref char!    = { return n.d1 as ref char }
+fn match_res_ok_body(n: ref Node) ref Node!    = { return n.d2 as ref Node }  // wrapper, .d0 = stmts list
+fn match_res_err_bind(n: ref Node) ref char!   = { return n.d3 as ref char }
+fn match_res_err_body(n: ref Node) ref Node!   = { return n.d4 as ref Node }  // wrapper, .d0 = stmts list
+
+fn match_enum_expr(n: ref Node) ref Node!               = { return n.d0 as ref Node }
+fn match_enum_arms(n: ref Node) list[ref Node]!         = { return n.d1 as list[ref Node] }
+fn match_enum_arm_variant(arm: ref Node) ref char!      = { return arm.d0 as ref char }
+fn match_enum_arm_body(arm: ref Node) list[ref Node]!   = { return arm.d1 as list[ref Node] }
+
+fn match_str_expr(n: ref Node) ref Node!                = { return n.d0 as ref Node }
+fn match_str_arms(n: ref Node) list[ref Node]!          = { return n.d1 as list[ref Node] }
+fn match_str_else(n: ref Node) ref Node!                = { return n.d2 as ref Node }  // wrapper, .d0 = stmts list
+fn match_str_arm_value(arm: ref Node) ref char!         = { return arm.d0 as ref char }
+fn match_str_arm_body(arm: ref Node) list[ref Node]!    = { return arm.d1 as list[ref Node] }
+
+fn match_union_expr(n: ref Node) ref Node!              = { return n.d0 as ref Node }
+fn match_union_arms(n: ref Node) list[ref Node]!        = { return n.d1 as list[ref Node] }
+fn match_union_else(n: ref Node) ref Node!              = { return n.d2 as ref Node }  // wrapper, .d0 = stmts list
+fn match_union_arm_type(arm: ref Node) ref Node!        = { return arm.d0 as ref Node }
+fn match_union_arm_body(arm: ref Node) list[ref Node]!  = { return arm.d1 as list[ref Node] }
+
+fn match_tagged_union_expr(n: ref Node) ref Node!           = { return n.d0 as ref Node }
+fn match_tagged_union_arms(n: ref Node) list[ref Node]!     = { return n.d1 as list[ref Node] }
+fn match_tagged_union_else(n: ref Node) ref Node!           = { return n.d2 as ref Node }  // wrapper, .d0 = stmts list
+fn match_tagged_union_arm_variant(arm: ref Node) ref char!  = { return arm.d0 as ref char }
+fn match_tagged_union_arm_bindings(arm: ref Node) list[ref char]! = { return arm.d1 as list[ref char] }
+fn match_tagged_union_arm_body(arm: ref Node) list[ref Node]! = { return arm.d2 as list[ref Node] }
+
 fn make_int_lit(text: ref char, line: i64) result[ref Node, ref char]! = {
     val n: mut ref Node = make_node(NK_INT_LIT, line)
     n.d0 = text as i64
@@ -215,7 +250,7 @@ type Parser = {
 pub fn parser_new(tokens: list[ref lexer.Token], filename: ref char) ref Parser! = {
     val tlen = @len(tokens)
     val tdptr = tokens as i64
-    @printf("DEBUG parser_new IN: tokens.len={d} data={d}\n", {tlen, tdptr})
+    @printf("DEBUG parser_new IN: tokens.len={d} data={p}\n", {tlen, tdptr})
     val p: mut ref Parser = @alloc(@sizeof(Parser)) as ref Parser
     p.tokens   = tokens
     val pcheck = @len(p.tokens)
@@ -1856,12 +1891,14 @@ fn parse_expr_src(src: ref char) result[ref Node, ref char]! = {
         ok toks => {
             val tlen = @len(toks)
             val tdata = toks as i64
-            @printf("DEBUG parse_expr_src: src={s} toks.len={d} data={d}\n", {src, tlen, tdata})
+            @printf("DEBUG parse_expr_src: src={s} toks.len={d} data={p}\n", {src, tlen, tdata})
             val p: ref Parser = parser_new(toks, "<test>")
             @printf("DEBUG after parser_new: p.pos={d}\n", {p.pos})
             val peeked = p_peek_kind(p)
             match peeked {
                 Int s => { @printf("DEBUG p_peek: Int {s}\n", {s}) }
+				True() => { @puts("DEBUG p_peek: true") }
+				False() => { @puts("DEBUG p_peek: False" )}
                 Eof() => { @puts("DEBUG p_peek: Eof!") }
                 else => { @puts("DEBUG p_peek: something else") }
             }
@@ -1905,7 +1942,11 @@ test {
     val r4t = parse_expr_src("true")
     match r4t {
         err _ => { assert false }
-        ok n  => { assert n.kind == NK_BOOL assert n.d0 == 1 }
+        ok n  => {
+            assert n.kind == NK_BOOL
+            @printf("{d} {d}", {n.d0, n.d1})
+            assert n.d0 == 1
+        }
     }
     val r4f = parse_expr_src("false")
     match r4f {
