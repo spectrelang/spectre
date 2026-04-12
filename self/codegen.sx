@@ -1388,7 +1388,7 @@ fn gen_expr_with_type(ctx: ref CgCtx, expr: ref parser.Node, target_type: ref ch
     if expr == 0 as ref parser.Node { return "0" }
     val k: i64 = expr.kind
     if k == parser.NK_INT_LIT {
-        val text: ref char = expr.d0 as ref char
+        val text: ref char = parser.int_lit_text(expr)
         return gen_int_lit_as(ctx, text, target_type)
     }
     return gen_expr(ctx, expr)
@@ -1400,7 +1400,7 @@ fn gen_expr(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
     val k: i64 = expr.kind
 
     if k == parser.NK_INT_LIT {
-        val text: ref char = expr.d0 as ref char
+        val text: ref char = parser.int_lit_text(expr)
         val tmp: i64 = fresh_tmp(ctx)
         val buf: ref char = @alloc(64) as ref char
         val emit_text: mut ref char = text
@@ -1431,7 +1431,7 @@ fn gen_expr(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
     }
 
     if k == parser.NK_FLOAT_LIT {
-        val text2: ref char = expr.d0 as ref char
+        val text2: ref char = parser.float_lit_text(expr)
         val tmp2: i64 = fresh_tmp(ctx)
         val buf2: ref char = @alloc(64) as ref char
         @snprintf(buf2, 64, "    %%t%lld =d copy d_%s\n", {tmp2, text2})
@@ -1443,7 +1443,7 @@ fn gen_expr(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
     }
 
     if k == parser.NK_STR_LIT {
-        val s: ref char = expr.d0 as ref char
+        val s: ref char = parser.str_lit_text(expr)
         val idx: i64 = intern_string(ctx, s)
         val tmp3: i64 = fresh_tmp(ctx)
         val buf3: ref char = @alloc(64) as ref char
@@ -2737,7 +2737,7 @@ fn gen_call(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
                 some first_arg => {
                     val first_node: ref parser.Node = first_arg as ref parser.Node
                     if first_node.kind == parser.NK_STR_LIT {
-                        val fmt_str: ref char = first_node.d0 as ref char
+                        val fmt_str: ref char = parser.str_lit_text(first_node)
                         val fmt_idx: i64 = intern_format_string(ctx, fmt_str)
                         val fmt_tmp: i64 = fresh_tmp(ctx)
                         val fmt_buf: ref char = @alloc(64) as ref char
@@ -3132,7 +3132,7 @@ fn get_format_arg(ctx: ref CgCtx, args: ref void, i: i64) ref char! = {
         some a => {
             val node: ref parser.Node = a as ref parser.Node
             if node.kind == parser.NK_STR_LIT {
-                val s: ref char = node.d0 as ref char
+                val s: ref char = parser.str_lit_text(node)
                 val idx: i64 = intern_format_string(ctx, s)
                 val tmp: i64 = fresh_tmp(ctx)
                 val buf: ref char = @alloc(64) as ref char
@@ -4276,7 +4276,7 @@ fn gen_struct_lit(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
                     @snprintf(fbuf2, 256, "    %%t%lld =l add %%t%lld, %lld\n", {off_tmp2, tmp, off})
                     emit(ctx, fbuf2)
                     @free(fbuf2)
-                    val is_zero: bool = fexpr_node.kind == parser.NK_INT_LIT && str.rchar_cmp(fexpr_node.d0 as ref char, "0") == 0
+                    val is_zero: bool = fexpr_node.kind == parser.NK_INT_LIT && str.rchar_cmp(parser.int_lit_text(fexpr_node), "0") == 0
                     if is_zero {
                         val fbuf3: ref char = @alloc(128) as ref char
                         @snprintf(fbuf3, 128, "    call $memset(l %%t%lld, w 0, l %lld)\n", {off_tmp2, fa_size})
@@ -6294,7 +6294,7 @@ fn gen_items_with_prefix(ctx: ref CgCtx, items: list[ref parser.Node], mod_prefi
                                 val bv: i64 = gexpr.d0 as i64
                                 if bv != 0 { ginit = "1" } else { ginit = "0" }
                             } elif gexpr.kind == parser.NK_INT_LIT {
-                                ginit = gexpr.d0 as ref char
+                                ginit = parser.int_lit_text(gexpr)
                             }
                         }
                         val glabel: ref char = @alloc(512) as ref char
@@ -6313,9 +6313,9 @@ fn gen_items_with_prefix(ctx: ref CgCtx, items: list[ref parser.Node], mod_prefi
                     val cexpr: ref parser.Node = node.d2 as ref parser.Node
                     if cexpr != 0 as ref parser.Node {
                         if cexpr.kind == parser.NK_INT_LIT {
-                            cg_register_module_const(ctx, cname, cexpr.d0 as ref char)
+                            cg_register_module_const(ctx, cname, parser.int_lit_text(cexpr))
                         } elif cexpr.kind == parser.NK_FLOAT_LIT {
-                            val ftext: ref char = cexpr.d0 as ref char
+                            val ftext: ref char = parser.float_lit_text(cexpr)
                             val fval: ref char = @alloc(128) as ref char
                             @snprintf(fval, 128, "d_%s", {ftext})
                             cg_register_module_const(ctx, cname, fval)
@@ -6325,12 +6325,12 @@ fn gen_items_with_prefix(ctx: ref CgCtx, items: list[ref parser.Node], mod_prefi
                             if inner != 0 as ref parser.Node {
                                 if uop == parser.UOP_NEG {
                                     if inner.kind == parser.NK_INT_LIT {
-                                        val itext: ref char = inner.d0 as ref char
+                                        val itext: ref char = parser.int_lit_text(inner)
                                         val ival: ref char = @alloc(128) as ref char
                                         @snprintf(ival, 128, "-%s", {itext})
                                         cg_register_module_const(ctx, cname, ival)
                                     } elif inner.kind == parser.NK_FLOAT_LIT {
-                                        val ftext2: ref char = inner.d0 as ref char
+                                        val ftext2: ref char = parser.float_lit_text(inner)
                                         val fval2: ref char = @alloc(128) as ref char
                                         @snprintf(fval2, 128, "d_-%s", {ftext2})
                                         cg_register_module_const(ctx, cname, fval2)
@@ -7118,9 +7118,9 @@ fn gen_items_with_prefix_skip_main(ctx: ref CgCtx, items: list[ref parser.Node],
                     val cexpr: ref parser.Node = node.d2 as ref parser.Node
                     if cexpr != 0 as ref parser.Node {
                         if cexpr.kind == parser.NK_INT_LIT {
-                            cg_register_module_const(ctx, cname, cexpr.d0 as ref char)
+                            cg_register_module_const(ctx, cname, parser.int_lit_text(cexpr))
                         } elif cexpr.kind == parser.NK_FLOAT_LIT {
-                            val ftext3: ref char = cexpr.d0 as ref char
+                            val ftext3: ref char = parser.float_lit_text(cexpr)
                             val fval3: ref char = @alloc(128) as ref char
                             @snprintf(fval3, 128, "d_%s", {ftext3})
                             cg_register_module_const(ctx, cname, fval3)
@@ -7130,12 +7130,12 @@ fn gen_items_with_prefix_skip_main(ctx: ref CgCtx, items: list[ref parser.Node],
                             if inner2 != 0 as ref parser.Node {
                                 if uop2 == parser.UOP_NEG {
                                     if inner2.kind == parser.NK_INT_LIT {
-                                        val itext2: ref char = inner2.d0 as ref char
+                                        val itext2: ref char = parser.int_lit_text(inner2)
                                         val ival2: ref char = @alloc(128) as ref char
                                         @snprintf(ival2, 128, "-%s", {itext2})
                                         cg_register_module_const(ctx, cname, ival2)
                                     } elif inner2.kind == parser.NK_FLOAT_LIT {
-                                        val ftext4: ref char = inner2.d0 as ref char
+                                        val ftext4: ref char = parser.float_lit_text(inner2)
                                         val fval4: ref char = @alloc(128) as ref char
                                         @snprintf(fval4, 128, "d_-%s", {ftext4})
                                         cg_register_module_const(ctx, cname, fval4)
@@ -7169,7 +7169,7 @@ fn gen_items_with_prefix_skip_main(ctx: ref CgCtx, items: list[ref parser.Node],
                                 val bv: i64 = gexpr.d0 as i64
                                 if bv != 0 { ginit = "1" } else { ginit = "0" }
                             } elif gexpr.kind == parser.NK_INT_LIT {
-                                ginit = gexpr.d0 as ref char
+                                ginit = parser.int_lit_text(gexpr)
                             }
                         }
                         val glabel: ref char = @alloc(512) as ref char
