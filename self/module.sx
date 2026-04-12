@@ -632,7 +632,7 @@ fn expr_references_import_shallow(node: ref parser.Node, import_name: ref char) 
             return true
         }
     } elif node.kind == parser.NK_FIELD {
-        val base: ref parser.Node = node.d0 as ref parser.Node
+        val base: ref parser.Node = parser.field_base(node)
         if base != 0 {
             if base.kind == parser.NK_IDENT {
                 val base_name: ref char = base.d0 as ref char
@@ -644,8 +644,8 @@ fn expr_references_import_shallow(node: ref parser.Node, import_name: ref char) 
             }
         }
     } elif node.kind == parser.NK_CALL {
-        if expr_references_import_shallow(node.d0 as ref parser.Node, import_name) { return true }
-        val args: ref void = node.d1 as ref void
+        if expr_references_import_shallow(parser.call_callee(node), import_name) { return true }
+        val args: ref void = parser.call_args(node) as ref void
         if args != 0 {
             val alen: i64 = @len(args) as i64
             val ai: mut i64 = 0
@@ -1437,8 +1437,8 @@ fn collect_needed_subnames_in_expr(expr: ref parser.Node, import_name: ref char,
     if expr == 0 { return }
 
     if expr.kind == parser.NK_FIELD {
-        val base: ref parser.Node = expr.d0 as ref parser.Node
-        val field_name: ref char = expr.d1 as ref char
+        val base: ref parser.Node = parser.field_base(expr)
+        val field_name: ref char = parser.field_name(expr)
 
         if base != 0 && base.kind == parser.NK_IDENT {
             val base_name: ref char = base.d0 as ref char
@@ -1450,8 +1450,8 @@ fn collect_needed_subnames_in_expr(expr: ref parser.Node, import_name: ref char,
         }
         collect_needed_subnames_in_expr(base, import_name, needed)
     } elif expr.kind == parser.NK_CALL {
-        collect_needed_subnames_in_expr(expr.d0 as ref parser.Node, import_name, needed)
-        val args: ref void = expr.d1 as ref void
+        collect_needed_subnames_in_expr(parser.call_callee(expr), import_name, needed)
+        val args: ref void = parser.call_args(expr) as ref void
         if args != 0 {
             val alen: i64 = @len(args) as i64
             val ai: mut i64 = 0
@@ -1647,7 +1647,7 @@ fn collect_used_imports_expr(node: ref parser.Node, import_names: list[ref char]
             }
         }
     } elif node.kind == parser.NK_FIELD {
-        val base: ref parser.Node = node.d0 as ref parser.Node
+        val base: ref parser.Node = parser.field_base(node)
         if base != 0 && base.kind == parser.NK_IDENT {
             val name: ref char = base.d0 as ref char
             if import_in_list(import_names, name) {
@@ -1658,8 +1658,8 @@ fn collect_used_imports_expr(node: ref parser.Node, import_names: list[ref char]
         }
         collect_used_imports_expr(base, import_names, used)
     } elif node.kind == parser.NK_CALL {
-        collect_used_imports_expr(node.d0 as ref parser.Node, import_names, used)
-        val args: ref void = node.d1 as ref void
+        collect_used_imports_expr(parser.call_callee(node), import_names, used)
+        val args: ref void = parser.call_args(node) as ref void
         if args != 0 {
             val alen: i64 = @len(args) as i64
             val ai: mut i64 = 0

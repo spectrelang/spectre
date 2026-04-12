@@ -59,7 +59,7 @@ fn find_root_ident(node: ref parser.Node) ref parser.Node! = {
     for {
         if cur.kind == parser.NK_IDENT { return cur }
         if cur.kind == parser.NK_FIELD {
-            cur = cur.d0 as ref parser.Node
+            cur = parser.field_base(cur)
         } else {
             return 0 as ref parser.Node
         }
@@ -254,11 +254,11 @@ fn expr_uses_name(node: ref parser.Node, name: ref char) bool! = {
         return expr_uses_name(node.d0 as ref parser.Node, name)
     }
     if k == parser.NK_FIELD {
-        return expr_uses_name(node.d0 as ref parser.Node, name)
+        return expr_uses_name(parser.field_base(node), name)
     }
     if k == parser.NK_CALL {
-        if expr_uses_name(node.d0 as ref parser.Node, name) { return true }
-        val cargs: ref void = node.d1 as ref void
+        if expr_uses_name(parser.call_callee(node), name) { return true }
+        val cargs: ref void = parser.call_args(node) as ref void
         if cargs != 0 as ref void {
             for carg in cargs as list[ref parser.Node] {
                 if expr_uses_name(carg, name) { return true }
@@ -371,12 +371,12 @@ fn check_expr(ctx: ref SemaCtx, expr: ref parser.Node, filename: ref char) void!
         return
     }
     if k == parser.NK_FIELD {
-        check_expr(ctx, expr.d0 as ref parser.Node, filename)
+        check_expr(ctx, parser.field_base(expr), filename)
         return
     }
     if k == parser.NK_CALL {
-        check_expr(ctx, expr.d0 as ref parser.Node, filename)
-        val args: ref void = expr.d1 as ref void
+        check_expr(ctx, parser.call_callee(expr), filename)
+        val args: ref void = parser.call_args(expr) as ref void
         if args != 0 as ref void {
             for arg in args as list[ref parser.Node] {
                 check_expr(ctx, arg, filename)
@@ -466,7 +466,7 @@ fn check_stmt(ctx: ref SemaCtx, stmt: ref parser.Node, filename: ref char) void!
                     @snprintf(buf, 256, "%s:%lld: cannot assign to field of immutable '%s'", {filename, line, tname})
                     add_error(ctx, buf)
                 } else {
-                    val field_name: ref char = target.d1 as ref char
+                    val field_name: ref char = parser.field_name(target)
                     val var_type: ref char = scope_lookup_type(ctx, tname)
                     if var_type != 0 as ref char && field_name != 0 as ref char {
                         val fmut: i64 = find_field_mutable(ctx, var_type, field_name)

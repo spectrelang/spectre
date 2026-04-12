@@ -1903,7 +1903,7 @@ fn expr_qbe_type(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
     }
 
     if k == parser.NK_CALL {
-        val callee_node: ref parser.Node = expr.d0 as ref parser.Node
+        val callee_node: ref parser.Node = parser.call_callee(expr)
         val callee_name: ref char = resolve_callee_name(callee_node)
         val ext_ret_ty_node: ref void = cg_lookup_ext_ret(ctx, callee_name)
         if ext_ret_ty_node != 0 as ref void {
@@ -2431,8 +2431,8 @@ fn gen_field(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
 fn gen_list_ptr(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
     if expr == 0 as ref parser.Node { return "0" }
     if expr.kind == parser.NK_FIELD {
-        val base_expr: ref parser.Node = expr.d0 as ref parser.Node
-        val field_name: ref char = expr.d1 as ref char
+        val base_expr: ref parser.Node = parser.field_base(expr)
+        val field_name: ref char = parser.field_name(expr)
         val offset: mut i64 = 0
         if base_expr.kind == parser.NK_IDENT {
             val base_name: ref char = base_expr.d0 as ref char
@@ -3108,8 +3108,8 @@ fn resolve_callee_name(node: ref parser.Node) ref char! = {
         return node.d0 as ref char
     }
     if k == parser.NK_FIELD {
-        val base: ref char = resolve_callee_name(node.d0 as ref parser.Node)
-        val field: ref char = node.d1 as ref char
+        val base: ref char = resolve_callee_name(parser.field_base(node))
+        val field: ref char = parser.field_name(node)
         val buf: ref char = @alloc(256) as ref char
         @snprintf(buf, 256, "%s__%s", {base, field})
         return buf
@@ -4506,8 +4506,8 @@ fn gen_stmt(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
             emit(ctx, buf2)
             @free(buf2)
         } elif tk == parser.NK_FIELD {
-            val ftarget: ref parser.Node = target.d0 as ref parser.Node
-            val fname: ref char = target.d1 as ref char
+            val ftarget: ref parser.Node = parser.field_base(target)
+            val fname: ref char = parser.field_name(target)
             val foffset: mut i64 = 0
             val field_is_union: mut bool = false
             
@@ -6467,8 +6467,8 @@ fn scan_node_for_calls_depth(ctx: ref CgCtx, node: ref parser.Node, depth: i64) 
     val k: i64 = node.kind
     
     if k == parser.NK_CALL {
-        scan_node_for_calls_depth(ctx, node.d0 as ref parser.Node, depth + 1)
-        val args: ref void = node.d1 as ref void
+        scan_node_for_calls_depth(ctx, parser.call_callee(node), depth + 1)
+        val args: ref void = parser.call_args(node) as ref void
         if args != 0 as ref void {
             val alen: i64 = @len(args as list[ref parser.Node]) as i64
             val ai: mut i64 = 0
@@ -6486,7 +6486,7 @@ fn scan_node_for_calls_depth(ctx: ref CgCtx, node: ref parser.Node, depth: i64) 
         val name: ref char = node.d0 as ref char
         cg_resolve_fn_name(ctx, name)
     } elif k == parser.NK_FIELD {
-        scan_node_for_calls_depth(ctx, node.d0 as ref parser.Node, depth + 1)
+        scan_node_for_calls_depth(ctx, parser.field_base(node), depth + 1)
     } elif k == parser.NK_IF {
         scan_node_for_calls_depth(ctx, node.d0 as ref parser.Node, depth + 1)
         val then_stmts: ref void = node.d1 as ref void
@@ -6575,7 +6575,7 @@ fn scan_node_for_calls_depth(ctx: ref CgCtx, node: ref parser.Node, depth: i64) 
     } elif k == parser.NK_UNOP {
         scan_node_for_calls_depth(ctx, parser.unop_inner(node), depth + 1)
     } elif k == parser.NK_FIELD {
-        scan_node_for_calls_depth(ctx, node.d0 as ref parser.Node, depth + 1)
+        scan_node_for_calls_depth(ctx, parser.field_base(node), depth + 1)
     } elif k == parser.NK_BUILTIN {
         val args: ref void = node.d1 as ref void
         if args != 0 as ref void {

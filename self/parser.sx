@@ -148,6 +148,36 @@ fn make_unop(op: i64, line: i64, inner: ref Node) result[ref Node, ref char]! = 
 fn unop_op(n: ref Node) i64! = { return n.d0 }
 fn unop_inner(n: ref Node) ref Node! = { return n.d1 as ref Node }
 
+fn make_field(base: ref Node, line: i64, name: ref char) result[ref Node, ref char]! = {
+    val n: mut ref Node = make_node(NK_FIELD, line)
+    n.d0 = base as i64
+    n.d1 = name as i64
+    return ok n
+}
+
+fn field_base(n: ref Node) ref Node! = { return n.d0 as ref Node }
+fn field_name(n: ref Node) ref char! = { return n.d1 as ref char }
+
+fn make_call(callee: ref Node, line: i64, args: list[ref Node]) result[ref Node, ref char]! = {
+    val n: mut ref Node = make_node(NK_CALL, line)
+    n.d0 = callee as i64
+    n.d1 = args as i64
+    return ok n
+}
+
+fn call_callee(n: ref Node) ref Node! = { return n.d0 as ref Node }
+fn call_args(n: ref Node) list[ref Node]! = { return n.d1 as list[ref Node] }
+
+fn make_struct_field(name: ref char, line: i64, expr: ref Node) result[ref Node, ref char]! = {
+    val n: mut ref Node = make_node(NK_FIELD, line)
+    n.d0 = name as i64
+    n.d1 = expr as i64
+    return ok n
+}
+
+fn struct_field_name(n: ref Node) ref char! = { return n.d0 as ref char }
+fn struct_field_expr(n: ref Node) ref Node! = { return n.d1 as ref Node }
+
 fn str_eq(a: ref char, b: ref char) bool! = {
     return std.string.compare(std.string.RChar(a), std.string.RChar(b)) == 0
 }
@@ -641,9 +671,7 @@ fn parse_postfix(p: ref Parser) result[ref Node, ref char]! = {
         if lexer.kind_is_dot(k) {
             p_advance(p)
             val field = p_expect_ident(p)?
-            val n: mut ref Node = make_node(NK_FIELD, line)
-            n.d0 = res as i64 n.d1 = field as i64
-            res = n
+            res = make_field(res, line, field)?
             continue
         }
         if lexer.kind_is_lparen(k) {
@@ -656,11 +684,7 @@ fn parse_postfix(p: ref Parser) result[ref Node, ref char]! = {
                 if !p_eat_fn(p, lexer.kind_is_comma) { break }
             }
             p_expect_rparen(p)?
-            val n2: mut ref Node = make_node(NK_CALL, line)
-            n2.d0 = res as i64
-            val alist: list[ref Node] = args
-            n2.d1 = alist as i64
-            res = n2
+            res = make_call(res, line, args)?
             continue
         }
         if lexer.kind_is_question(k) {
@@ -729,8 +753,7 @@ fn parse_primary(p: ref Parser) result[ref Node, ref char]! = {
                 val fname = p_expect_ident(p)?
                 p_expect_colon(p)?
                 val fval = parse_expr(p)?
-                val pair: mut ref Node = make_node(NK_FIELD, line)
-                pair.d0 = fname as i64 pair.d1 = fval as i64
+                val pair = make_struct_field(fname, line, fval)?
                 @append(fields, pair)
                 p_eat_fn(p, lexer.kind_is_comma)
             }
@@ -1829,9 +1852,9 @@ test {
         err _ => { assert false }
         ok n  => {
             assert n.kind == NK_FIELD
-            val base: ref Node = n.d0 as ref Node
+            val base: ref Node = field_base(n)
             assert base.kind == NK_IDENT
-            assert std.string.compare(n.d1 as ref char, "field") == 0
+            assert std.string.compare(field_name(n), "field") == 0
         }
     }
 
