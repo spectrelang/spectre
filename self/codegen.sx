@@ -2491,7 +2491,15 @@ fn gen_field(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
             if str.rchar_cmp(const_val, "") != 0 {
                 @snprintf(buf, 256, "    %%t%lld =l copy %s\n", {tmp, const_val})
             } else {
-                @snprintf(buf, 256, "    %%t%lld =l loadl $%s__%s\n", {tmp, base_name, field_name})
+                val qbe_key: ref char = @alloc(512) as ref char
+                @snprintf(qbe_key, 512, "%s__%s", {base_name, field_name})
+                val is_fn: bool = cg_is_fn(ctx, qbe_key)
+                @free(qbe_key)
+                if is_fn {
+                    @snprintf(buf, 256, "    %%t%lld =l copy $%s__%s\n", {tmp, base_name, field_name})
+                } else {
+                    @snprintf(buf, 256, "    %%t%lld =l loadl $%s__%s\n", {tmp, base_name, field_name})
+                }
             }
             emit(ctx, buf)
             @free(buf)
