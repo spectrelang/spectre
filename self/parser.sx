@@ -1840,7 +1840,6 @@ test {
         err _ => { assert false }
         ok n  => {
             assert n.kind == NK_BOOL
-            @printf("{d} {d}", {n.d0, n.d1})
             assert n.d0 == 1
         }
     }
