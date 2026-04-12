@@ -2508,7 +2508,12 @@ fn gen_field(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
         }
 
         if str.rchar_cmp(local_type, "") != 0 {
-            val fields: ref void = cg_lookup_struct(ctx, local_type)
+            val lookup_type: mut ref char = local_type
+            val is_ref_prefix: bool = rchar_starts_with(local_type, "ref ")
+            if is_ref_prefix {
+                lookup_type = @ptradd(local_type, 4)
+            }
+            val fields: ref void = cg_lookup_struct(ctx, lookup_type)
             if fields != 0 as ref void {
                 val off: i64 = field_offset(ctx, fields, field_name)
                 if off >= 0 { offset = off }
@@ -2556,8 +2561,14 @@ fn gen_field(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
     if base_expr.kind == parser.NK_IDENT {
         val base_name3: ref char = base_expr.d0 as ref char
         val local_type2: ref char = cg_local_type(ctx, base_name3)
-        if str.rchar_cmp(local_type2, "") != 0 {
-            val fields2: ref void = cg_lookup_struct(ctx, local_type2)
+        val lookup_type2: mut ref char = local_type2 
+	
+	if rchar_starts_with(local_type2, "ref ") { 
+	    lookup_type2 = @ptradd(local_type2, 4) 
+	}
+        
+	if str.rchar_cmp(lookup_type2, "") != 0 {
+            val fields2: ref void = cg_lookup_struct(ctx, lookup_type2)
             if fields2 != 0 as ref void {
                 val sflen3: i64 = @len(fields2 as list[ref void]) as i64
                 val sfi3: mut i64 = 0
@@ -4785,8 +4796,14 @@ fn gen_stmt(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
             if ftarget.kind == parser.NK_IDENT {
                 val bname: ref char = ftarget.d0 as ref char
                 val tname2: ref char = cg_local_type(ctx, bname)
-                if str.rchar_cmp(tname2, "") != 0 {
-                    val flds2: ref void = cg_lookup_struct(ctx, tname2)
+                val lookup_tname: mut ref char = tname2 
+		
+		if rchar_starts_with(tname2, "ref ") { 
+		    lookup_tname = @ptradd(tname2, 4) 
+		} 
+		
+		if str.rchar_cmp(lookup_tname, "") != 0 {
+                    val flds2: ref void = cg_lookup_struct(ctx, lookup_tname)
                     if flds2 != 0 as ref void {
                         val off2: i64 = field_offset(ctx, flds2, fname)
                         if off2 >= 0 { foffset = off2 }
