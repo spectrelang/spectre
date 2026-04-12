@@ -476,18 +476,52 @@ fn cg_lookup_fn_ret(ctx: ref CgCtx, mangled: ref char) ref void! = {
 }
 
 /// Look up the return TypeExpr for a function by its simple (unmangled) name.
+/// Uses suffix matching (same as cg_resolve_fn_name).
 /// Returns 0 as ref parser.Node if not found.
 fn cg_lookup_fn_ret_type_expr(ctx: ref CgCtx, name: ref char) ref parser.Node! = {
-    val ret_node: ref void = cg_lookup_fn_ret(ctx, name)
-    if ret_node != 0 as ref void { return ret_node as ref parser.Node }
-    val cur_mod_prefix: ref char = ctx.current_module_prefix
-    if str.rchar_cmp(cur_mod_prefix, "") != 0 {
-        val prefixed: ref char = @alloc(512) as ref char
-        @snprintf(prefixed, 512, "%s__%s", {ctx.current_module_prefix, name})
-        val ret_node2: ref void = cg_lookup_fn_ret(ctx, prefixed)
-        @free(prefixed)
-        if ret_node2 != 0 as ref void { return ret_node2 as ref parser.Node }
+    val names: ref void = cg_fn_names(ctx)
+    val nlen: i64 = @len(names as list[ref char]) as i64
+    val namelen: i64 = str.len_raw(name)
+    val suffix: ref char = @alloc(namelen + 3) as ref char
+    @snprintf(suffix, namelen + 3, "__%s", {name})
+    val ni: mut i64 = 0
+    for {
+        if ni >= nlen { break }
+        val n_opt = @get(names as list[ref char], ni as usize)
+        match n_opt {
+            some n => {
+                val candidate: ref char = n as ref char
+                if str.rchar_cmp(candidate, name) == 0 {
+                    val r_opt = @get(cg_fn_rets(ctx) as list[ref void], ni as usize)
+                    match r_opt {
+                        some r => { 
+			    @free(suffix) 
+			    return r as ref parser.Node 
+			}
+                        none => {}
+                    }
+                }
+                val clen: i64 = str.len_raw(candidate)
+                val slen: i64 = namelen + 2
+                if clen > slen {
+                    val tail: ref char = @ptradd(candidate, clen - slen) as ref char
+                    if str.rchar_cmp(tail, suffix) == 0 {
+                        val r_opt = @get(cg_fn_rets(ctx) as list[ref void], ni as usize)
+                        match r_opt {
+                            some r => { 
+			    	@free(suffix)
+				return r as ref parser.Node 
+			    }
+                            none => {}
+                        }
+                    }
+                }
+            }
+            none => {}
+        }
+        ni++
     }
+    @free(suffix)
     return 0 as ref parser.Node
 }
 
@@ -1093,6 +1127,7 @@ fn is_ref_type(ty: ref parser.Node) bool! = {
 fn infer_type_annotation(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
     if expr == 0 as ref parser.Node { return "" }
     val k: i64 = expr.kind
+    @printf("DEBUG infer_type: expr.kind={d}\n", {k})
 
     if k == parser.NK_IDENT {
         val name: ref char = expr.d0 as ref char
@@ -1123,20 +1158,21 @@ fn infer_type_annotation(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
 
     if k == parser.NK_CAST {
         val cast_ty: ref parser.Node = expr.d1 as ref parser.Node
-        return unwrap_type_name(cast_ty)
+        return type_expr_to_annotation(ctx, cast_ty)
     }
 
     if k == parser.NK_CALL {
         val callee: ref parser.Node = parser.call_callee(expr)
+        @printf("DEBUG infer_type: CALL callee=%p callee.kind=%d\n", {callee, callee.kind})
         if callee != 0 as ref parser.Node && callee.kind == parser.NK_IDENT {
             val callee_name: ref char = callee.d0 as ref char
             @printf("DEBUG infer_type: CALL callee='%s' fn_name='%s'\n", {callee_name, ctx.fn_name})
             val ret_expr: ref parser.Node = cg_lookup_fn_ret_type_expr(ctx, callee_name)
             if ret_expr != 0 as ref parser.Node {
                 @printf("DEBUG infer_type: CALL ret_expr.kind={d}\n", {ret_expr.kind})
-                val unwrapped: ref char = unwrap_type_name(ret_expr)
-                @printf("DEBUG infer_type: CALL unwrapped='%s'\n", {unwrapped})
-                return unwrapped
+                val ann = type_expr_to_annotation(ctx, ret_expr)
+                @printf("DEBUG infer_type: CALL ann='%s'\n", {ann})
+                return ann
             } else {
                 @printf("DEBUG infer_type: CALL ret_expr NOT FOUND\n")
             }
@@ -1223,8 +1259,75 @@ fn parse_result_types(ann: ref char, ok_buf: ref char, err_buf: ref char) void! 
     @store8(@ptradd(err_buf, err_len), 0)
 }
 
+/// Convert a TypeExpr AST node to its annotation string.
+/// Handles all type kinds: NAMED, REF, MUT, RESULT, OPTION, LIST, SLICE, FIXED_ARR, FNPTR.
+fn type_expr_to_annotation(ctx: ref CgCtx, ty: ref parser.Node) ref char! = {
+    if ty == 0 as ref parser.Node { return "" }
+    val k: i64 = ty.kind
+
+    if k == parser.TY_NAMED { return ty.d0 as ref char }
+    if k == parser.TY_REF {
+        val inner = type_expr_to_annotation(ctx, ty.d0 as ref parser.Node)
+        val buf: ref char = @alloc(512) as ref char
+        @snprintf(buf, 512, "ref %s", {inner})
+        return buf
+    }
+    if k == parser.TY_MUT { return type_expr_to_annotation(ctx, ty.d0 as ref parser.Node) }
+
+    if k == parser.TY_RESULT {
+        val ok_ty = ty.d0 as ref parser.Node
+        val err_ty = ty.d1 as ref parser.Node
+        val ok_s = type_expr_to_annotation(ctx, ok_ty)
+        val err_s = type_expr_to_annotation(ctx, err_ty)
+        val buf: ref char = @alloc(512) as ref char
+        @snprintf(buf, 512, "result[%s, %s]", {ok_s, err_s})
+        @free(ok_s)
+        @free(err_s)
+        return buf
+    }
+
+    if k == parser.TY_OPTION {
+        val inner = type_expr_to_annotation(ctx, ty.d0 as ref parser.Node)
+        val buf: ref char = @alloc(512) as ref char
+        @snprintf(buf, 512, "option[%s]", {inner})
+        @free(inner)
+        return buf
+    }
+
+    if k == parser.TY_LIST {
+        val inner = type_expr_to_annotation(ctx, ty.d0 as ref parser.Node)
+        val buf: ref char = @alloc(512) as ref char
+        @snprintf(buf, 512, "list[%s]", {inner})
+        @free(inner)
+        return buf
+    }
+
+    if k == parser.TY_SLICE {
+        val inner = type_expr_to_annotation(ctx, ty.d0 as ref parser.Node)
+        val buf: ref char = @alloc(512) as ref char
+        @snprintf(buf, 512, "slice[%s]", {inner})
+        @free(inner)
+        return buf
+    }
+
+    if k == parser.TY_FIXED_ARR {
+        val count: i64 = ty.d0 as i64
+        val inner = type_expr_to_annotation(ctx, ty.d1 as ref parser.Node)
+        val buf: ref char = @alloc(512) as ref char
+        @snprintf(buf, 512, "[%lld]%s", {count, inner})
+        @free(inner)
+        return buf
+    }
+
+    if k == parser.TY_FNPTR {
+        return "fn"
+    }
+
+    return ""
+}
+
 /// Unwrap a type node to get the base named type, stripping ref/mut wrappers.
-/// Returns "" if not a named type.
+/// Returns "" if not a named type. Kept for backward compatibility.
 fn unwrap_type_name(ty: ref parser.Node) ref char! = {
     if ty == 0 as ref parser.Node { return "" }
     val k: i64 = ty.kind
@@ -4582,6 +4685,19 @@ fn gen_stmt(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
             }
             if is_ref_type(ty_node) {
                 cg_register_local_ref_type(ctx, name)
+            }
+        } elif expr != 0 as ref parser.Node && expr.kind == parser.NK_CALL {
+            // No explicit type: infer from the function call's return type
+            val callee: ref parser.Node = parser.call_callee(expr)
+            if callee != 0 as ref parser.Node && callee.kind == parser.NK_IDENT {
+                val callee_name: ref char = callee.d0 as ref char
+                val ret_expr: ref parser.Node = cg_lookup_fn_ret_type_expr(ctx, callee_name)
+                if ret_expr != 0 as ref parser.Node {
+                    val ret_ann: ref char = type_expr_to_annotation(ctx, ret_expr)
+                    if str.rchar_cmp(ret_ann, "") != 0 {
+                        cg_register_local_type(ctx, name, ret_ann)
+                    }
+                }
             }
         }
 
