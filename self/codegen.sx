@@ -450,6 +450,45 @@ fn cg_lookup_fn_params(ctx: ref CgCtx, mangled: ref char) ref void! = {
     return 0 as ref void
 }
 
+/// Find a mangled function name whose suffix matches the given bare name.
+/// E.g. bare name "kind_is_eq" matches mangled "parser__kind_is_eq".
+/// Returns the mangled name, or empty string if not found.
+fn resolve_fn_mangled(ctx: ref CgCtx, bare_name: ref char) ref char! = {
+    val names: ref void = cg_fn_names(ctx)
+    val nlen: i64 = @len(names as list[ref char]) as i64
+    val ni: mut i64 = 0
+    for {
+        if ni >= nlen { break }
+        val n_opt = @get(names as list[ref char], ni as usize)
+        match n_opt {
+            some n => {
+                val mangled: ref char = n as ref char
+                val mlen: i64 = std.string.len_raw(mangled)
+                val blen: i64 = std.string.len_raw(bare_name)
+                if mlen > blen {
+                    val suffix_pos: mut i64 = mlen - blen
+                    if suffix_pos > 0 {
+                        val sc: u8 = @load8(@ptradd(mangled as ref void, suffix_pos - 1))
+                        if sc == 95 {
+                            val rest: ref char = @ptradd(mangled as ref void, suffix_pos) as ref char
+                            if str.rchar_cmp(rest, bare_name) == 0 {
+                                return mangled
+                            }
+                        }
+                    }
+                } elif mlen == blen {
+                    if str.rchar_cmp(mangled, bare_name) == 0 {
+                        return mangled
+                    }
+                }
+            }
+            none => {}
+        }
+        ni++
+    }
+    return ""
+}
+
 /// Look up the return type for a mangled function name. Returns 0 if not found.
 fn cg_lookup_fn_ret(ctx: ref CgCtx, mangled: ref char) ref void! = {
     val names: ref void = cg_fn_names(ctx)
@@ -1823,19 +1862,24 @@ fn gen_expr(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
                 val fn_check: ref void = cg_lookup_fn_params(ctx, name)
                 if fn_check != 0 as ref void {
                     @snprintf(buf6b, 128, "    %%t%lld =l copy $%s\n", {tmp6b, name})
-                } elif str.rchar_cmp(ltype, "f64") == 0 {
-                    @snprintf(buf6b, 128, "    %%t%lld =d loadd %%%s\n", {tmp6b, name})
-                } elif str.rchar_cmp(ltype, "f32") == 0 {
-                    @snprintf(buf6b, 128, "    %%t%lld =s loads %%%s\n", {tmp6b, name})
-                } elif is_word_type_name(ltype) {
-                    val w_tmp6: i64 = fresh_tmp(ctx)
-                    val buf6c: ref char = @alloc(128) as ref char
-                    @snprintf(buf6c, 128, "    %%t%lld =w loadw %%%s\n", {w_tmp6, name})
-                    emit(ctx, buf6c)
-                    @free(buf6c)
-                    @snprintf(buf6b, 128, "    %%t%lld =l extsw %%t%lld\n", {tmp6b, w_tmp6})
                 } else {
-                    @snprintf(buf6b, 128, "    %%t%lld =l loadl %%%s\n", {tmp6b, name})
+                    val resolved_name: ref char = resolve_fn_mangled(ctx, name)
+                    if str.rchar_cmp(resolved_name, "") != 0 {
+                        @snprintf(buf6b, 128, "    %%t%lld =l copy $%s\n", {tmp6b, resolved_name})
+                    } elif str.rchar_cmp(ltype, "f64") == 0 {
+                        @snprintf(buf6b, 128, "    %%t%lld =d loadd %%%s\n", {tmp6b, name})
+                    } elif str.rchar_cmp(ltype, "f32") == 0 {
+                        @snprintf(buf6b, 128, "    %%t%lld =s loads %%%s\n", {tmp6b, name})
+                    } elif is_word_type_name(ltype) {
+                        val w_tmp6: i64 = fresh_tmp(ctx)
+                        val buf6c: ref char = @alloc(128) as ref char
+                        @snprintf(buf6c, 128, "    %%t%lld =w loadw %%%s\n", {w_tmp6, name})
+                        emit(ctx, buf6c)
+                        @free(buf6c)
+                        @snprintf(buf6b, 128, "    %%t%lld =l extsw %%t%lld\n", {tmp6b, w_tmp6})
+                    } else {
+                        @snprintf(buf6b, 128, "    %%t%lld =l loadl %%%s\n", {tmp6b, name})
+                    }
                 }
                 emit(ctx, buf6b)
                 @free(buf6b)
