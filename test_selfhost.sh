@@ -70,6 +70,7 @@ for file in "$STD_DIR"/*.sx; do
 done
 
 "$COMPILER" ./self/lexer.sx --test
+"$COMPILER" ./self/parser.sx --test
 
 echo
 echo "Final Summary:"
