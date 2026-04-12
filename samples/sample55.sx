@@ -1,0 +1,7 @@
+pub fn main() void = {
+	if 1 {
+		trust @puts("true")
+	} else {
+		trust @puts("false")
+	}
+}
