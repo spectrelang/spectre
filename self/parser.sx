@@ -120,6 +120,713 @@ fn make_node(kind: i64, line: i64) ref Node! = {
     return n
 }
 
+/// Assert that the node's kind matches one of the expected kinds.
+fn node_assert_kind(n: ref Node, expected_kind: i64) void! = {
+    assert n.kind == expected_kind
+}
+
+/// Assert that the node's kind matches any of the provided expected kinds.
+fn node_assert_kind_any(n: ref Node, k1: i64, k2: i64) void! = {
+    assert n.kind == k1 || n.kind == k2
+}
+
+/// Get d0 as an i64 value (for literals, opcodes, flags).
+fn node_i64(n: ref Node) i64! = {
+    return n.d0
+}
+
+/// Set d0 as an i64 value.
+fn node_set_i64(n: ref Node, v: i64) void! = {
+    n.d0 = v
+}
+
+/// Get d0 as a ref char (for identifiers, string literals, type names).
+fn node_str(n: ref Node) ref char! = {
+    return n.d0 as ref char
+}
+
+/// Set d0 as a ref char.
+fn node_set_str(n: ref Node, v: ref char) void! = {
+    n.d0 = v as i64
+}
+
+/// Get d0 as a ref Node (for child expressions).
+fn node_child(n: ref Node) ref Node! = {
+    return n.d0 as ref Node
+}
+
+/// Set d0 as a ref Node.
+fn node_set_child(n: ref Node, v: ref Node) void! = {
+    n.d0 = v as i64
+}
+
+/// Get d1 as a ref Node (for RHS of binary ops, second child).
+fn node_child1(n: ref Node) ref Node! = {
+    return n.d1 as ref Node
+}
+
+/// Set d1 as a ref Node.
+fn node_set_child1(n: ref Node, v: ref Node) void! = {
+    n.d1 = v as i64
+}
+
+/// Get d2 as a ref Node (for third child, e.g. else-if chains).
+fn node_child2(n: ref Node) ref Node! = {
+    return n.d2 as ref Node
+}
+
+/// Set d2 as a ref Node.
+fn node_set_child2(n: ref Node, v: ref Node) void! = {
+    n.d2 = v as i64
+}
+
+/// Get d3 as a ref Node (for fourth child).
+fn node_child3(n: ref Node) ref Node! = {
+    return n.d3 as ref Node
+}
+
+/// Set d3 as a ref Node.
+fn node_set_child3(n: ref Node, v: ref Node) void! = {
+    n.d3 = v as i64
+}
+
+/// Get d4 as a ref Node (for fifth child).
+fn node_child4(n: ref Node) ref Node! = {
+    return n.d4 as ref Node
+}
+
+/// Set d4 as a ref Node.
+fn node_set_child4(n: ref Node, v: ref Node) void! = {
+    n.d4 = v as i64
+}
+
+/// Get d5 as a ref Node (for sixth child).
+fn node_child5(n: ref Node) ref Node! = {
+    return n.d5 as ref Node
+}
+
+/// Set d5 as a ref Node.
+fn node_set_child5(n: ref Node, v: ref Node) void! = {
+    n.d5 = v as i64
+}
+
+/// Get a data field as a ref void (list pointer).
+fn node_list(n: ref Node) ref void! = {
+    return n.d0 as ref void
+}
+
+/// Get d1 as a ref void.
+fn node_list1(n: ref Node) ref void! = {
+    return n.d1 as ref void
+}
+
+/// Get d2 as a ref void.
+fn node_list2(n: ref Node) ref void! = {
+    return n.d2 as ref void
+}
+
+/// Get d3 as a ref void.
+fn node_list3(n: ref Node) ref void! = {
+    return n.d3 as ref void
+}
+
+/// Set a data field as a ref void (list pointer).
+fn node_set_list(n: ref Node, v: ref void) void! = {
+    n.d0 = v as i64
+}
+
+/// Set d1 as a ref void.
+fn node_set_list1(n: ref Node, v: ref void) void! = {
+    n.d1 = v as i64
+}
+
+/// Set d2 as a ref void.
+fn node_set_list2(n: ref Node, v: ref void) void! = {
+    n.d2 = v as i64
+}
+
+/// Set d3 as a ref void.
+fn node_set_list3(n: ref Node, v: ref void) void! = {
+    n.d3 = v as i64
+}
+
+/// Get dN as an i64 value (for public/mutable flags, etc).
+fn node_get_i64(n: ref Node, idx: i64) i64! = {
+    if idx == 0 { return n.d0 }
+    if idx == 1 { return n.d1 }
+    if idx == 2 { return n.d2 }
+    if idx == 3 { return n.d3 }
+    if idx == 4 { return n.d4 }
+    if idx == 5 { return n.d5 }
+    return 0
+}
+
+/// Get dN as a boolean flag (0 or 1, for public/mutable flags).
+fn node_bool(n: ref Node, idx: i64) bool! = {
+    val v: i64 = node_get_i64(n, idx)
+    return v != 0
+}
+
+/// Set dN as a boolean flag.
+fn node_set_bool(n: ref Node, idx: i64, v: bool) void! = {
+    val val_i64: mut i64 = 0
+    if v { val_i64 = 1 } else { val_i64 = 0 }
+    if idx == 0 {
+        n.d0 = val_i64
+        return
+    }
+    if idx == 1 {
+        n.d1 = val_i64
+        return
+    }
+    if idx == 2 {
+        n.d2 = val_i64
+        return
+    }
+    if idx == 3 {
+        n.d3 = val_i64
+        return
+    }
+    if idx == 4 {
+        n.d4 = val_i64
+        return
+    }
+    if idx == 5 {
+        n.d5 = val_i64
+        return
+    }
+}
+
+/// Create a binary operation node: (op, lhs, rhs)
+fn node_binop(line: i64, op: i64, lhs: ref Node, rhs: ref Node) ref Node! = {
+    val n: mut ref Node = make_node(NK_BINOP, line)
+    n.d0 = op
+    n.d1 = lhs as i64
+    n.d2 = rhs as i64
+    return n
+}
+
+/// Create a unary operation node: (op, operand)
+fn node_unop(line: i64, op: i64, operand: ref Node) ref Node! = {
+    val n: mut ref Node = make_node(NK_UNOP, line)
+    n.d0 = op
+    n.d1 = operand as i64
+    return n
+}
+
+/// Create a named type node.
+fn node_named_type(line: i64, name: ref char) ref Node! = {
+    val n: mut ref Node = make_node(TY_NAMED, line)
+    n.d0 = name as i64
+    return n
+}
+
+/// Create a ref type node: ref<T>
+fn node_ref_type(line: i64, inner: ref Node) ref Node! = {
+    val n: mut ref Node = make_node(TY_REF, line)
+    n.d0 = inner as i64
+    return n
+}
+
+/// Create a mut type node: mut<T>
+fn node_mut_type(line: i64, inner: ref Node) ref Node! = {
+    val n: mut ref Node = make_node(TY_MUT, line)
+    n.d0 = inner as i64
+    return n
+}
+
+/// Create a slice type node: []T
+fn node_slice_type(line: i64, inner: ref Node) ref Node! = {
+    val n: mut ref Node = make_node(TY_SLICE, line)
+    n.d0 = inner as i64
+    return n
+}
+
+/// Create a list type node: list[T]
+fn node_list_type(line: i64, inner: ref Node) ref Node! = {
+    val n: mut ref Node = make_node(TY_LIST, line)
+    n.d0 = inner as i64
+    return n
+}
+
+/// Create an option type node: option[T]
+fn node_option_type(line: i64, inner: ref Node) ref Node! = {
+    val n: mut ref Node = make_node(TY_OPTION, line)
+    n.d0 = inner as i64
+    return n
+}
+
+/// Create a result type node: result[Ok, Err]
+fn node_result_type(line: i64, ok_ty: ref Node, err_ty: ref Node) ref Node! = {
+    val n: mut ref Node = make_node(TY_RESULT, line)
+    n.d0 = ok_ty as i64
+    n.d1 = err_ty as i64
+    return n
+}
+
+/// Create a fixed array type node: [N]T
+fn node_fixed_arr_type(line: i64, size: i64, inner: ref Node) ref Node! = {
+    val n: mut ref Node = make_node(TY_FIXED_ARR, line)
+    n.d0 = size
+    n.d1 = inner as i64
+    return n
+}
+
+/// Create a function pointer type node: fn(params) ret
+fn node_fnptr_type(line: i64, params: list[ref Node], ret: ref Node) ref Node! = {
+    val n: mut ref Node = make_node(TY_FNPTR, line)
+    val plist: list[ref Node] = params
+    n.d0 = plist as i64
+    n.d1 = ret as i64
+    return n
+}
+
+/// Create an identifier node.
+fn node_ident(line: i64, name: ref char) ref Node! = {
+    val n: mut ref Node = make_node(NK_IDENT, line)
+    n.d0 = name as i64
+    return n
+}
+
+/// Create an int literal node.
+fn node_int_lit(line: i64, text: ref char) ref Node! = {
+    val n: mut ref Node = make_node(NK_INT_LIT, line)
+    n.d0 = text as i64
+    return n
+}
+
+/// Create a str literal node.
+fn node_str_lit(line: i64, text: ref char) ref Node! = {
+    val n: mut ref Node = make_node(NK_STR_LIT, line)
+    n.d0 = text as i64
+    return n
+}
+
+/// Create a bool literal node.
+fn node_bool_lit(line: i64, value: bool) ref Node! = {
+    val n: mut ref Node = make_node(NK_BOOL, line)
+    n.d0 = 0
+    if value { n.d0 = 1 }
+    return n
+}
+
+/// Create a char literal node.
+fn node_char_lit(line: i64, char_val: i64) ref Node! = {
+    val n: mut ref Node = make_node(NK_CHAR_LIT, line)
+    n.d0 = char_val
+    return n
+}
+
+/// Create a call node: callee(args)
+fn node_call(line: i64, callee: ref Node, args: ref void) ref Node! = {
+    val n: mut ref Node = make_node(NK_CALL, line)
+    n.d0 = callee as i64
+    n.d1 = args as i64
+    return n
+}
+
+/// Create a field access node: base.field
+fn node_field(line: i64, base: ref Node, field: ref char) ref Node! = {
+    val n: mut ref Node = make_node(NK_FIELD, line)
+    n.d0 = base as i64
+    n.d1 = field as i64
+    return n
+}
+
+/// Create a val definition node: (name, mutable, type, expr)
+fn node_val(line: i64, name: ref char, mutable: bool, ty: ref Node, expr: ref Node) ref Node! = {
+    val n: mut ref Node = make_node(NK_VAL, line)
+    n.d0 = name as i64
+    n.d1 = 0
+    if mutable { n.d1 = 1 }
+    n.d2 = ty as i64
+    n.d3 = expr as i64
+    return n
+}
+
+/// Create an if statement node: (cond, then_body, elif_list, else_body)
+fn node_if(line: i64, cond: ref Node, then_body: ref Node, elif_list: ref void, else_body: ref Node) ref Node! = {
+    val n: mut ref Node = make_node(NK_IF, line)
+    n.d0 = cond as i64
+    n.d1 = then_body as i64
+    n.d2 = elif_list as i64
+    n.d3 = else_body as i64
+    return n
+}
+
+/// Create a for loop node: (init_name, init_expr, cond, post, body)
+fn node_for(line: i64, init_name: ref char, init_expr: ref Node, cond: ref Node, pst: ref void, body: ref Node) ref Node! = {
+    val n: mut ref Node = make_node(NK_FOR, line)
+    n.d0 = init_name as i64
+    n.d1 = init_expr as i64
+    n.d2 = cond as i64
+    n.d3 = pst as i64
+    n.d4 = body as i64
+    return n
+}
+
+/// Create a for-in loop node: (binding, iter, body)
+fn node_forin(line: i64, binding: ref char, iter: ref Node, body: ref Node) ref Node! = {
+    val n: mut ref Node = make_node(NK_FORIN, line)
+    n.d0 = binding as i64
+    n.d1 = iter as i64
+    n.d2 = body as i64
+    return n
+}
+
+/// Create a function definition node: (public, sig_name, name, params, ret_ty, body)
+fn node_fn(line: i64, public: bool, sig_name: ref void, name: ref char, params: ref void, ret_ty: ref Node, body: ref Node) ref Node! = {
+    val n: mut ref Node = make_node(NK_FN, line)
+    n.d0 = 0
+    if public { n.d0 = 1 }
+    n.d1 = sig_name as i64
+    n.d2 = name as i64
+    n.d3 = params as i64
+    n.d4 = ret_ty as i64
+    n.d5 = body as i64
+    return n
+}
+
+/// Create an assignment node: (target, value)
+fn node_assign(line: i64, target: ref Node, value: ref Node) ref Node! = {
+    val n: mut ref Node = make_node(NK_ASSIGN, line)
+    n.d0 = target as i64
+    n.d1 = value as i64
+    return n
+}
+
+/// Create a return statement node.
+fn node_return(line: i64, expr: ref Node) ref Node! = {
+    val n: mut ref Node = make_node(NK_RETURN, line)
+    n.d0 = expr as i64
+    return n
+}
+
+/// Create a defer statement node.
+fn node_defer(line: i64, body: ref Node) ref Node! = {
+    val n: mut ref Node = make_node(NK_DEFER, line)
+    n.d0 = body as i64
+    return n
+}
+
+/// Create a match-option node: (expr, some_bind, some_body, none_body)
+fn node_match_opt(line: i64, expr: ref Node, some_bind: ref char, some_body: ref Node, none_body: ref Node) ref Node! = {
+    val n: mut ref Node = make_node(NK_MATCH_OPT, line)
+    n.d0 = expr as i64
+    n.d1 = some_bind as i64
+    n.d2 = some_body as i64
+    n.d3 = none_body as i64
+    return n
+}
+
+/// Create a match-result node: (expr, ok_bind, ok_body, err_bind, err_body)
+fn node_match_res(line: i64, expr: ref Node, ok_bind: ref char, ok_body: ref Node, err_bind: ref char, err_body: ref Node) ref Node! = {
+    val n: mut ref Node = make_node(NK_MATCH_RES, line)
+    n.d0 = expr as i64
+    n.d1 = ok_bind as i64
+    n.d2 = ok_body as i64
+    n.d3 = err_bind as i64
+    n.d4 = err_body as i64
+    return n
+}
+
+/// Create a match-enum node: (expr, arms_list)
+fn node_match_enum(line: i64, expr: ref Node, arms: ref void) ref Node! = {
+    val n: mut ref Node = make_node(NK_MATCH_ENUM, line)
+    n.d0 = expr as i64
+    n.d1 = arms as i64
+    return n
+}
+
+/// Create a match-string node: (expr, str_arms_list, else_body)
+fn node_match_str(line: i64, expr: ref Node, arms: ref void, else_body: ref Node) ref Node! = {
+    val n: mut ref Node = make_node(NK_MATCH_STR, line)
+    n.d0 = expr as i64
+    n.d1 = arms as i64
+    n.d2 = else_body as i64
+    return n
+}
+
+/// Create a match-union node: (expr, union_arms_list, else_body)
+fn node_match_union(line: i64, expr: ref Node, arms: ref void, else_body: ref Node) ref Node! = {
+    val n: mut ref Node = make_node(NK_MATCH_UNION, line)
+    n.d0 = expr as i64
+    n.d1 = arms as i64
+    n.d2 = else_body as i64
+    return n
+}
+
+/// Create a match-tagged-union node: (expr, arms_list, else_body)
+fn node_match_tagged_union(line: i64, expr: ref Node, arms: ref void, else_body: ref Node) ref Node! = {
+    val n: mut ref Node = make_node(NK_MATCH_TAGGED_UNION, line)
+    n.d0 = expr as i64
+    n.d1 = arms as i64
+    n.d2 = else_body as i64
+    return n
+}
+
+/// Create a when-statement node: (platform, body, or_when_branches, otherwise_stmts)
+fn node_when_stmt(line: i64, plat: ref char, body: ref Node, or_branches: ref void, owise: ref Node) ref Node! = {
+    val n: mut ref Node = make_node(NK_WHEN_STMT, line)
+    n.d0 = plat as i64
+    n.d1 = body as i64
+    n.d2 = or_branches as i64
+    n.d3 = owise as i64
+    return n
+}
+
+/// Create a struct type definition node: (public, name, fields)
+fn node_struct_def(line: i64, public: bool, name: ref char, fields: ref void) ref Node! = {
+    val n: mut ref Node = make_node(NK_TYPEDEF, line)
+    n.d0 = 0
+    if public { n.d0 = 1 }
+    n.d1 = name as i64
+    n.d2 = fields as i64
+    return n
+}
+//// Create an enum definition node: (public, name, variants)
+fn node_enum_def(line: i64, public: bool, name: ref char, variants: ref void) ref Node! = {
+    val n: mut ref Node = make_node(NK_ENUMDEF, line)
+    if public {
+        n.d0 = 1
+    } else {
+        n.d0 = 0
+    }
+    n.d1 = name as i64
+    n.d2 = variants as i64
+    return n
+}
+
+/// Create a union definition node: (public, name, variants)
+fn node_union_def(line: i64, public: bool, name: ref char, variants: ref void) ref Node! = {
+    val n: mut ref Node = make_node(NK_UNIONDEF, line)
+    if public {
+        n.d0 = 1
+    } else {
+        n.d0 = 0
+    }
+    n.d1 = name as i64
+    n.d2 = variants as i64
+    return n
+}
+
+/// Create a tagged union definition node: (public, name, variants)
+fn node_tagged_union_def(line: i64, public: bool, name: ref char, variants: ref void) ref Node! = {
+    val n: mut ref Node = make_node(NK_TAGGED_UNIONDEF, line)
+    if public {
+        n.d0 = 1
+    } else {
+        n.d0 = 0
+    }
+    n.d1 = name as i64
+    n.d2 = variants as i64
+    return n
+}
+
+/// Create an extern function node: (public, name, symbol, conv, params, ret_ty)
+fn node_extern_fn(line: i64, public: bool, name: ref char, symbol: ref char, conv: i64, params: ref void, ret_ty: ref Node) ref Node! = {
+    val n: mut ref Node = make_node(NK_EXTERN_FN, line)
+    if public {
+        n.d0 = 1
+    } else {
+        n.d0 = 0
+    }
+    n.d1 = name as i64
+    n.d2 = symbol as i64
+    n.d3 = conv
+    n.d4 = params as i64
+    n.d5 = ret_ty as i64
+    return n
+}
+
+/// Create a const definition node: (public, name, value)
+fn node_const_def(line: i64, public: bool, name: ref char, value: ref Node) ref Node! = {
+    val n: mut ref Node = make_node(NK_CONST, line)
+    if public {
+        n.d0 = 1
+    } else {
+        n.d0 = 0
+    }
+    n.d1 = name as i64
+    n.d2 = value as i64
+    return n
+}
+
+/// Create a use/import node: (public, alias, path)
+fn node_use(line: i64, public: bool, alias: ref char, path: ref char) ref Node! = {
+    val n: mut ref Node = make_node(NK_USE, line)
+    if public {
+        n.d0 = 1
+    } else {
+        n.d0 = 0
+    }
+    n.d1 = alias as i64
+    n.d2 = path as i64
+    return n
+}
+
+// Create a link directive node: (lib_path)
+fn node_link(line: i64, lib: ref char) ref Node! = {
+    val n: mut ref Node = make_node(NK_LINK, line)
+    n.d0 = lib as i64
+    return n
+}
+
+/// Create a when-items wrapper node: (platform, items, or_branches, otherwise)
+fn node_when_items(line: i64, plat: ref char, items: ref void, or_branches: ref void, owise: ref void) ref Node! = {
+    val n: mut ref Node = make_node(NK_WHEN_ITEMS, line)
+    n.d0 = plat as i64
+    n.d1 = items as i64
+    n.d2 = or_branches as i64
+    n.d3 = owise as i64
+    return n
+}
+
+/// Create an increment/decrement statement node.
+fn node_inc_dec(line: i64, kind: i64, name: ref char) ref Node! = {
+    val n: mut ref Node = make_node(kind, line)
+    n.d0 = name as i64
+    return n
+}
+
+/// Create an add/sub assign statement node.
+fn node_add_sub_assign(line: i64, kind: i64, target: ref Node, rhs: ref Node) ref Node! = {
+    val n: mut ref Node = make_node(kind, line)
+    n.d0 = target as i64
+    n.d1 = rhs as i64
+    return n
+}
+
+/// Create an assert statement node.
+fn node_assert(line: i64, expr: ref Node) ref Node! = {
+    val n: mut ref Node = make_node(NK_ASSERT, line)
+    n.d0 = expr as i64
+    return n
+}
+
+/// Create a break statement node.
+fn node_break(line: i64) ref Node! = {
+    return make_node(NK_BREAK, line)
+}
+
+/// Create a continue statement node.
+fn node_continue(line: i64) ref Node! = {
+    return make_node(NK_CONTINUE, line)
+}
+
+/// Create an expression statement node.
+fn node_expr_stmt(line: i64, expr: ref Node) ref Node! = {
+    val n: mut ref Node = make_node(NK_EXPR_STMT, line)
+    n.d0 = expr as i64
+    return n
+}
+
+/// Create a struct literal node: StructName{fields}
+fn node_struct_lit(line: i64, fields: ref void) ref Node! = {
+    val n: mut ref Node = make_node(NK_STRUCT_LIT, line)
+    n.d0 = fields as i64
+    return n
+}
+
+/// Create a list literal node: [elems]
+fn node_list_lit(line: i64, elems: ref void) ref Node! = {
+    val n: mut ref Node = make_node(NK_LIST_LIT, line)
+    n.d0 = elems as i64
+    return n
+}
+
+/// Create an args pack node: ...args
+fn node_args_pack(line: i64, pack: ref void) ref Node! = {
+    val n: mut ref Node = make_node(NK_ARGS_PACK, line)
+    n.d0 = pack as i64
+    return n
+}
+
+/// Create a zero-init node.
+fn node_zero_init(line: i64, type_name: ref char) ref Node! = {
+    val n: mut ref Node = make_node(NK_ZERO_INIT, line)
+    n.d0 = type_name as i64
+    return n
+}
+
+/// Create a cast node: expr as T
+fn node_cast(line: i64, expr: ref Node, ty: ref Node) ref Node! = {
+    val n: mut ref Node = make_node(NK_CAST, line)
+    n.d0 = expr as i64
+    n.d1 = ty as i64
+    return n
+}
+
+/// Create an address-of node: &expr
+fn node_addr(line: i64, expr: ref Node) ref Node! = {
+    val n: mut ref Node = make_node(NK_ADDR, line)
+    n.d0 = expr as i64
+    return n
+}
+
+/// Create a dereference node: *expr
+fn node_deref(line: i64, expr: ref Node) ref Node! = {
+    val n: mut ref Node = make_node(NK_DEREF, line)
+    n.d0 = expr as i64
+    return n
+}
+
+/// Create a some() wrapper node.
+fn node_some(line: i64, inner: ref Node) ref Node! = {
+    val n: mut ref Node = make_node(NK_SOME, line)
+    n.d0 = inner as i64
+    return n
+}
+
+/// Create an ok() wrapper node.
+fn node_ok_val(line: i64, inner: ref Node) ref Node! = {
+    val n: mut ref Node = make_node(NK_OK_VAL, line)
+    n.d0 = inner as i64
+    return n
+}
+
+/// Create an err() wrapper node.
+fn node_err_val(line: i64, inner: ref Node) ref Node! = {
+    val n: mut ref Node = make_node(NK_ERR_VAL, line)
+    n.d0 = inner as i64
+    return n
+}
+
+/// Create a trust node.
+fn node_trust(line: i64, inner: ref Node) ref Node! = {
+    val n: mut ref Node = make_node(NK_TRUST, line)
+    n.d0 = inner as i64
+    return n
+}
+
+/// Create a try node.
+fn node_try(line: i64, expr: ref Node) ref Node! = {
+    val n: mut ref Node = make_node(NK_TRY, line)
+    n.d0 = expr as i64
+    return n
+}
+
+/// Create a builtin call node.
+fn node_builtin(line: i64, name: ref char) ref Node! = {
+    val n: mut ref Node = make_node(NK_BUILTIN, line)
+    n.d0 = name as i64
+    return n
+}
+
+/// Create a float literal node.
+fn node_float_lit(line: i64, text: ref char) ref Node! = {
+    val n: mut ref Node = make_node(NK_FLOAT_LIT, line)
+    n.d0 = text as i64
+    return n
+}
+
+/// Create a none value node.
+fn node_none(line: i64) ref Node! = {
+    val n: mut ref Node = make_node(NK_NONE, line)
+    n.d0 = 0
+    return n
+}
+
 fn box_list(lst: ref void) ref void! = {
     val p: ref void = @alloc(24)
     @memcpy(p, lst, 24 as usize)
