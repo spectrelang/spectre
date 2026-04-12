@@ -66,6 +66,7 @@ pub type CgCtx = {
     global_labels: mut list[ref char]
     global_qtypes: mut list[ref char]
     used_prefixes: mut list[ref char]
+    current_module_prefix: mut ref char
 }
 
 fn cg_new() ref CgCtx! = {
@@ -110,6 +111,7 @@ fn cg_new() ref CgCtx! = {
     ctx.global_labels = []
     ctx.global_qtypes = []
     ctx.used_prefixes = []
+    ctx.current_module_prefix = ""
     return ctx
 }
 
@@ -471,6 +473,22 @@ fn cg_lookup_fn_ret(ctx: ref CgCtx, mangled: ref char) ref void! = {
         ni++
     }
     return 0 as ref void
+}
+
+/// Look up the return TypeExpr for a function by its simple (unmangled) name.
+/// Returns 0 as ref parser.Node if not found.
+fn cg_lookup_fn_ret_type_expr(ctx: ref CgCtx, name: ref char) ref parser.Node! = {
+    val ret_node: ref void = cg_lookup_fn_ret(ctx, name)
+    if ret_node != 0 as ref void { return ret_node as ref parser.Node }
+    val cur_mod_prefix: ref char = ctx.current_module_prefix
+    if str.rchar_cmp(cur_mod_prefix, "") != 0 {
+        val prefixed: ref char = @alloc(512) as ref char
+        @snprintf(prefixed, 512, "%s__%s", {ctx.current_module_prefix, name})
+        val ret_node2: ref void = cg_lookup_fn_ret(ctx, prefixed)
+        @free(prefixed)
+        if ret_node2 != 0 as ref void { return ret_node2 as ref parser.Node }
+    }
+    return 0 as ref parser.Node
 }
 
 /// Register an extern function: maps its declared name to its C symbol and stores return type.
@@ -1068,6 +1086,135 @@ fn is_ref_type(ty: ref parser.Node) bool! = {
     if k == parser.TY_REF { return true }
     if k == parser.TY_MUT { return is_ref_type(ty.d0 as ref parser.Node) }
     return false
+}
+
+/// Infer the type annotation string for an expression.
+/// Handles: Ident (local vars, params, globals), Cast, Call (function return type).
+fn infer_type_annotation(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
+    if expr == 0 as ref parser.Node { return "" }
+    val k: i64 = expr.kind
+
+    if k == parser.NK_IDENT {
+        val name: ref char = expr.d0 as ref char
+        val lt: ref char = cg_local_type(ctx, name)
+        if str.rchar_cmp(lt, "") != 0 { return lt }
+        val fparams: ref void = cg_lookup_fn_params(ctx, ctx.fn_name)
+        if fparams != 0 as ref void {
+            val plen: i64 = @len(fparams as list[ref parser.Node]) as i64
+            val pi: mut i64 = 0
+            for {
+                if pi >= plen { break }
+                val p_opt = @get(fparams as list[ref parser.Node], pi as usize)
+                match p_opt {
+                    some p => {
+                        val pname: ref char = (p as ref parser.Node).d0 as ref char
+                        val pty: ref parser.Node = (p as ref parser.Node).d1 as ref parser.Node
+                        if str.rchar_cmp(pname, name) == 0 {
+                            return unwrap_type_name(pty)
+                        }
+                    }
+                    none => {}
+                }
+                pi++
+            }
+        }
+        return ""
+    }
+
+    if k == parser.NK_CAST {
+        val cast_ty: ref parser.Node = expr.d1 as ref parser.Node
+        return unwrap_type_name(cast_ty)
+    }
+
+    if k == parser.NK_CALL {
+        val callee: ref parser.Node = parser.call_callee(expr)
+        if callee != 0 as ref parser.Node && callee.kind == parser.NK_IDENT {
+            val callee_name: ref char = callee.d0 as ref char
+            val ret_expr: ref parser.Node = cg_lookup_fn_ret_type_expr(ctx, callee_name)
+            if ret_expr != 0 as ref parser.Node {
+                return unwrap_type_name(ret_expr)
+            }
+        }
+    }
+
+    return ""
+}
+
+/// Check if a raw char pointer starts with a raw prefix.
+fn rchar_starts_with(src: ref char, prefix: ref char) bool! = {
+    val slen: i64 = str.len_raw(src)
+    val plen: i64 = str.len_raw(prefix)
+    if plen > slen { return false }
+    val pi: mut i64 = 0
+    for {
+        if pi >= plen { break }
+        if @load8(@ptradd(src, pi)) != @load8(@ptradd(prefix, pi)) { return false }
+        pi++
+    }
+    return true
+}
+
+/// Extract the inner type from a "option[T]" annotation string. Returns "" if not an option.
+fn parse_option_inner(ann: ref char) ref char! = {
+    if !rchar_starts_with(ann, "option[") { return "" }
+    val alen: i64 = str.len_raw(ann)
+    if @load8(@ptradd(ann, alen - 1)) != 93 { return "" }  // not ']'
+    val inner = str.substr(ann, 7, alen - 8)
+    return inner
+}
+
+/// Extract the ok and err types from a "result[T, E]" annotation string. Returns 0 for each part if not a result.
+/// Caller provides two 256-byte buffers for the results.
+fn parse_result_types(ann: ref char, ok_buf: ref char, err_buf: ref char) void! = {
+    if !rchar_starts_with(ann, "result[") {
+        @store8(ok_buf, 0)
+        @store8(err_buf, 0)
+        return
+    }
+    val alen: i64 = str.len_raw(ann)
+    if @load8(@ptradd(ann, alen - 1)) != 93 {  // not ']'
+        @store8(ok_buf, 0)
+        @store8(err_buf, 0)
+        return
+    }
+    val inner_start: i64 = 7
+    val inner_end: i64 = alen - 1
+    val depth: mut i64 = 0
+    val split_pos: mut i64 = -1
+    val i: mut i64 = inner_start
+    for {
+        if i >= inner_end { break }
+        val c: i64 = @load8(@ptradd(ann, i))
+        if c == 91 { depth = depth + 1 }       // '['
+        elif c == 93 { depth = depth - 1 }     // ']'
+        elif c == 44 && depth == 0 {            // ','
+            split_pos = i
+            break
+        }
+        i++
+    }
+    if split_pos < 0 {
+        @store8(ok_buf, 0)
+        @store8(err_buf, 0)
+        return
+    }
+    val ok_len: mut i64 = split_pos - inner_start
+    val err_len: mut i64 = inner_end - split_pos - 1
+    val j: mut i64 = 0
+    for {
+        if j >= ok_len { break }
+        @store8(@ptradd(ok_buf, j), @load8(@ptradd(ann, inner_start + j)))
+        j++
+    }
+    @store8(@ptradd(ok_buf, ok_len), 0)
+    val err_start: i64 = split_pos + 1
+    val k: mut i64 = 0
+    for {
+        if k >= err_len { break }
+        @store8(@ptradd(err_buf, k), @load8(@ptradd(ann, err_start + k)))
+        k++
+    }
+    @store8(@ptradd(err_buf, err_len), 0)
 }
 
 /// Unwrap a type node to get the base named type, stripping ref/mut wrappers.
@@ -5266,8 +5413,6 @@ fn gen_match_opt(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
     val some_lbl: i64 = fresh_lbl(ctx)
     val none_lbl: i64 = fresh_lbl(ctx)
     val end_lbl: i64 = fresh_lbl(ctx)
-
-    // option encoding: none=0, some(v)=v+1
     val tag: i64 = fresh_tmp(ctx)
     val buf: ref char = @alloc(256) as ref char
     @snprintf(buf, 256,
@@ -5285,7 +5430,16 @@ fn gen_match_opt(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
         val tmp_str: ref char = @alloc(16) as ref char
         @snprintf(tmp_str, 16, "%lld", {val_tmp})
         cg_register_local_var(ctx, some_bind, tmp_str)
-        cg_register_local_ref_type(ctx, some_bind)
+        val opt_ann: ref char = infer_type_annotation(ctx, expr_node)
+        val inner_type: ref char = parse_option_inner(opt_ann)
+        if str.rchar_cmp(inner_type, "") != 0 {
+            cg_register_local_type(ctx, some_bind, inner_type)
+            if rchar_starts_with(inner_type, "ref ") {
+                cg_register_local_ref_type(ctx, some_bind)
+            }
+        } else {
+            cg_register_local_ref_type(ctx, some_bind)
+        }
     }
 
     if some_body_node != 0 as ref parser.Node {
@@ -5353,6 +5507,11 @@ fn gen_match_res(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
     emit(ctx, buf)
     @free(buf)
 
+    val result_ann: ref char = infer_type_annotation(ctx, expr_node)
+    val ok_type_buf: ref char = @alloc(256) as ref char
+    val err_type_buf: ref char = @alloc(256) as ref char
+    parse_result_types(result_ann, ok_type_buf, err_type_buf)
+
     if ok_bind != 0 as ref char {
         val off_ok: i64 = fresh_tmp(ctx)
         val val_ok: i64 = fresh_tmp(ctx)
@@ -5365,8 +5524,13 @@ fn gen_match_res(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
         val tmp_str: ref char = @alloc(16) as ref char
         @snprintf(tmp_str, 16, "%lld", {val_ok})
         cg_register_local_var(ctx, ok_bind, tmp_str)
-        cg_register_local_type(ctx, ok_bind, "Node")
-        cg_register_local_ref_type(ctx, ok_bind)
+        val ok_inner: ref char = ok_type_buf
+        if str.rchar_cmp(ok_inner, "") != 0 {
+            cg_register_local_type(ctx, ok_bind, ok_inner)
+            if rchar_starts_with(ok_inner, "ref ") {
+                cg_register_local_ref_type(ctx, ok_bind)
+            }
+        }
     }
     if ok_body_node != 0 as ref parser.Node {
         gen_stmts(ctx, ok_body_node.d0 as ref parser.Node)

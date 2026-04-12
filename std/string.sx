@@ -920,6 +920,21 @@ pub fn format(fmt: ref char, args: untyped) ref void! = {
     return out
 }
 
+/// Return a new ref char containing the substring of `src` starting at `start` with length `len`.
+pub fn substr(src: ref char, start: i64, len: i64) ref char! = {
+    val buf: ref void = @alloc(len + 1)
+    @memcpy(buf, @ptradd(src, start), len)
+    @store8(@ptradd(buf, len), 0)
+    return buf as ref char
+}
+
+/// Copy `len` bytes from `src` to `dst`, starting at offset `dst_off` in dst.
+/// The result is NOT null-terminated beyond what was already there.
+pub fn copy(dst: ref char, dst_off: i64, src: ref char) void! = {
+    val slen: mut i64 = strlen(src)
+    @memcpy(@ptradd(dst, dst_off), src, slen)
+}
+
 test {
     val empty = new()
     assert(len(empty) == 0)
