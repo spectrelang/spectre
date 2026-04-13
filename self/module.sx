@@ -768,9 +768,7 @@ pub fn resolve_module(
                 is_needed_by_parent = import_in_list(needed_list, import_name)
             }
 
-            val has_links: bool = items_have_external_links(items)
-            
-            if !is_directly_referenced && !is_needed_by_parent && has_links {
+            if !is_directly_referenced && !is_needed_by_parent {
                 continue
             }
 

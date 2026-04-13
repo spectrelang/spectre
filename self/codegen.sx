@@ -6805,12 +6805,15 @@ fn gen_items_with_prefix(ctx: ref CgCtx, items: list[ref parser.Node], mod_prefi
                                 @snprintf(data_buf, 256, "data $%s = \{ l %s \}\n", {const_label, cval})
                                 emit(ctx, data_buf)
                                 @free(data_buf)
+                            } else {
+                                @free(const_label)
                             }
                         } elif cexpr.kind == parser.NK_FLOAT_LIT {
                             val ftext: ref char = parser.float_lit_text(cexpr)
                             val fval: ref char = @alloc(128) as ref char
                             @snprintf(fval, 128, "d_%s", {ftext})
                             cg_register_module_const(ctx, cname, fval)
+                            @free(const_label)
                         } elif cexpr.kind == parser.NK_UNOP {
                             val uop: i64 = parser.unop_op(cexpr)
                             val inner: ref parser.Node = parser.unop_inner(cexpr)
@@ -6826,14 +6829,23 @@ fn gen_items_with_prefix(ctx: ref CgCtx, items: list[ref parser.Node], mod_prefi
                                             @snprintf(data_buf2, 256, "data $%s = \{ l %s \}\n", {const_label, ival})
                                             emit(ctx, data_buf2)
                                             @free(data_buf2)
+                                        } else {
+                                            @free(const_label)
                                         }
                                     } elif inner.kind == parser.NK_FLOAT_LIT {
                                         val ftext2: ref char = parser.float_lit_text(inner)
                                         val fval2: ref char = @alloc(128) as ref char
                                         @snprintf(fval2, 128, "d_-%s", {ftext2})
                                         cg_register_module_const(ctx, cname, fval2)
+                                        @free(const_label)
+                                    } else {
+                                        @free(const_label)
                                     }
+                                } else {
+                                    @free(const_label)
                                 }
+                            } else {
+                                @free(const_label)
                             }
                         } elif cexpr.kind == parser.NK_BOOL {
                             val bval: i64 = cexpr.d0 as i64
@@ -6849,9 +6861,12 @@ fn gen_items_with_prefix(ctx: ref CgCtx, items: list[ref parser.Node], mod_prefi
                                 @snprintf(data_buf3, 256, "data $%s = \{ w %s \}\n", {const_label, bstr})
                                 emit(ctx, data_buf3)
                                 @free(data_buf3)
+                            } else {
+                                @free(const_label)
                             }
+                        } else {
+                            @free(const_label)
                         }
-                        @free(const_label)
                     }
                 }
             }
@@ -7746,7 +7761,7 @@ fn gen_items_with_prefix_skip_links(ctx: ref CgCtx, items: list[ref parser.Node]
                         } else {
                             @snprintf(const_label, 512, "%s__%s", {mod_prefix, cname})
                         }
-                        
+
                         if cexpr.kind == parser.NK_INT_LIT {
                             val cval: ref char = parser.int_lit_text(cexpr)
                             cg_register_module_const(ctx, cname, cval)
@@ -7755,12 +7770,15 @@ fn gen_items_with_prefix_skip_links(ctx: ref CgCtx, items: list[ref parser.Node]
                                 @snprintf(data_buf, 256, "data $%s = \{ l %s \}\n", {const_label, cval})
                                 emit(ctx, data_buf)
                                 @free(data_buf)
+                            } else {
+                                @free(const_label)
                             }
                         } elif cexpr.kind == parser.NK_FLOAT_LIT {
                             val ftext: ref char = parser.float_lit_text(cexpr)
                             val fval: ref char = @alloc(128) as ref char
                             @snprintf(fval, 128, "d_%s", {ftext})
                             cg_register_module_const(ctx, cname, fval)
+                            @free(const_label)
                         } elif cexpr.kind == parser.NK_UNOP {
                             val uop: i64 = parser.unop_op(cexpr)
                             val inner: ref parser.Node = parser.unop_inner(cexpr)
@@ -7776,14 +7794,23 @@ fn gen_items_with_prefix_skip_links(ctx: ref CgCtx, items: list[ref parser.Node]
                                             @snprintf(data_buf2, 256, "data $%s = \{ l %s \}\n", {const_label, ival})
                                             emit(ctx, data_buf2)
                                             @free(data_buf2)
+                                        } else {
+                                            @free(const_label)
                                         }
                                     } elif inner.kind == parser.NK_FLOAT_LIT {
                                         val ftext2: ref char = parser.float_lit_text(inner)
                                         val fval2: ref char = @alloc(128) as ref char
                                         @snprintf(fval2, 128, "d_-%s", {ftext2})
                                         cg_register_module_const(ctx, cname, fval2)
+                                        @free(const_label)
+                                    } else {
+                                        @free(const_label)
                                     }
+                                } else {
+                                    @free(const_label)
                                 }
+                            } else {
+                                @free(const_label)
                             }
                         } elif cexpr.kind == parser.NK_BOOL {
                             val bval: i64 = cexpr.d0 as i64
@@ -7799,9 +7826,12 @@ fn gen_items_with_prefix_skip_links(ctx: ref CgCtx, items: list[ref parser.Node]
                                 @snprintf(data_buf3, 256, "data $%s = \{ w %s \}\n", {const_label, bstr})
                                 emit(ctx, data_buf3)
                                 @free(data_buf3)
+                            } else {
+                                @free(const_label)
                             }
+                        } else {
+                            @free(const_label)
                         }
-                        @free(const_label)
                     }
                 }
             }
