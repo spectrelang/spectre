@@ -6912,7 +6912,6 @@ fn items_have_external_links(items: list[ref parser.Node]) bool! = {
 
 /// Scan items for function calls to track which modules are used, without emitting code.
 fn scan_items_for_usage(ctx: ref CgCtx, items: list[ref parser.Node], mod_prefix: ref char) void! = {
-    @puts("scanning for usage...")
     val ilen: i64 = @len(items) as i64
     val i: mut i64 = 0
     for {
