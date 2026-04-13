@@ -1443,8 +1443,6 @@ fn type_expr_to_annotation(ctx: ref CgCtx, ty: ref parser.Node) ref char! = {
         val err_s = type_expr_to_annotation(ctx, err_ty)
         val buf: ref char = @alloc(512) as ref char
         @snprintf(buf, 512, "result[%s, %s]", {ok_s, err_s})
-        @free(ok_s)
-        @free(err_s)
         return buf
     }
 
@@ -1452,7 +1450,6 @@ fn type_expr_to_annotation(ctx: ref CgCtx, ty: ref parser.Node) ref char! = {
         val inner = type_expr_to_annotation(ctx, ty.d0 as ref parser.Node)
         val buf: ref char = @alloc(512) as ref char
         @snprintf(buf, 512, "option[%s]", {inner})
-        @free(inner)
         return buf
     }
 
@@ -1460,7 +1457,6 @@ fn type_expr_to_annotation(ctx: ref CgCtx, ty: ref parser.Node) ref char! = {
         val inner = type_expr_to_annotation(ctx, ty.d0 as ref parser.Node)
         val buf: ref char = @alloc(512) as ref char
         @snprintf(buf, 512, "list[%s]", {inner})
-        @free(inner)
         return buf
     }
 
@@ -1468,7 +1464,6 @@ fn type_expr_to_annotation(ctx: ref CgCtx, ty: ref parser.Node) ref char! = {
         val inner = type_expr_to_annotation(ctx, ty.d0 as ref parser.Node)
         val buf: ref char = @alloc(512) as ref char
         @snprintf(buf, 512, "slice[%s]", {inner})
-        @free(inner)
         return buf
     }
 
@@ -1477,7 +1472,6 @@ fn type_expr_to_annotation(ctx: ref CgCtx, ty: ref parser.Node) ref char! = {
         val inner = type_expr_to_annotation(ctx, ty.d1 as ref parser.Node)
         val buf: ref char = @alloc(512) as ref char
         @snprintf(buf, 512, "[%lld]%s", {count, inner})
-        @free(inner)
         return buf
     }
 
@@ -4898,15 +4892,16 @@ fn gen_stmt(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
                 cg_register_local_ref_type(ctx, name)
             }
         } elif expr != 0 as ref parser.Node && expr.kind == parser.NK_CALL {
-            // No explicit type: infer from the function call's return type
             val callee: ref parser.Node = parser.call_callee(expr)
-            if callee != 0 as ref parser.Node && callee.kind == parser.NK_IDENT {
-                val callee_name: ref char = callee.d0 as ref char
+            val callee_name: ref char = resolve_callee_name(callee)
+            if callee != 0 as ref parser.Node && callee_name != 0 as ref char && str.rchar_cmp(callee_name, "unknown") != 0 {
                 val ret_expr: ref parser.Node = cg_lookup_fn_ret_type_expr(ctx, callee_name)
                 if ret_expr != 0 as ref parser.Node {
                     val ret_ann: ref char = type_expr_to_annotation(ctx, ret_expr)
                     if str.rchar_cmp(ret_ann, "") != 0 {
-                        cg_register_local_type(ctx, name, ret_ann)
+                        val type_copy: ref char = @alloc(str.len_raw(ret_ann) + 1) as ref char
+                        @memcpy(type_copy as ref void, ret_ann as ref void, str.len_raw(ret_ann) + 1)
+                        cg_register_local_type(ctx, name, type_copy)
                     }
                 }
             }
