@@ -4901,12 +4901,16 @@ fn gen_stmt(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
         val val_tmp: ref char = gen_expr(ctx, expr)
 
         if ty_node != 0 as ref parser.Node {
-            val tname: ref char = unwrap_type_name(ty_node)
-            if str.rchar_cmp(tname, "") != 0 {
-                cg_register_local_type(ctx, name, tname)
-            }
             if ty_node.kind == parser.TY_LIST {
-                cg_register_local_type(ctx, name, "list")
+                val full_type: ref char = type_expr_to_annotation(ctx, ty_node)
+                if str.rchar_cmp(full_type, "") != 0 {
+                    cg_register_local_type(ctx, name, full_type)
+                }
+            } else {
+                val tname: ref char = unwrap_type_name(ty_node)
+                if str.rchar_cmp(tname, "") != 0 {
+                    cg_register_local_type(ctx, name, tname)
+                }
             }
             if is_ref_type(ty_node) {
                 cg_register_local_ref_type(ctx, name)
@@ -5742,6 +5746,22 @@ fn gen_forin_stmt(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
     cg_register_local_var(ctx, binding, binding_qbe)
     cg_mark_as_slot(ctx, binding)
 
+    val iter_type: ref char = infer_type_annotation(ctx, stmt.d1 as ref parser.Node)
+    if str.rchar_cmp(iter_type, "") != 0 && rchar_starts_with(iter_type, "list[") {
+        val elem_type: ref char = @ptradd(iter_type, 5) as ref char // skip "list["
+        val elem_len: mut i64 = str.len_raw(elem_type)
+        val yo = @load8(@ptradd(elem_type as ref void, elem_len - 1)) as i64
+        if elem_len > 1 && yo == 93 { // ']'
+            val elem_type_copy: ref char = @alloc(elem_len) as ref char
+            @memcpy(elem_type_copy as ref void, elem_type as ref void, (elem_len - 1) as usize)
+            @store8(@ptradd(elem_type_copy as ref void, elem_len - 1), 0)
+            cg_register_local_var_type(ctx, binding, elem_type_copy)
+            if rchar_starts_with(elem_type_copy, "ref ") {
+                cg_register_local_ref_type(ctx, binding)
+            }
+        }
+    }
+
     gen_stmts(ctx, body as ref parser.Node)
 
     val nxt: i64 = fresh_tmp(ctx)
@@ -6412,14 +6432,16 @@ fn gen_fn_prefixed(ctx: mut ref CgCtx, fn_node: ref parser.Node, mod_prefix: ref
                     val pname2: ref char = (param2 as ref parser.Node).d0 as ref char
                     val pty2: ref parser.Node = (param2 as ref parser.Node).d1 as ref parser.Node
                     val pty_name2: ref char = unwrap_type_name(pty2)
-                    if str.rchar_cmp(pty_name2, "") != 0 {
+                    if pty2 != 0 as ref parser.Node && pty2.kind == parser.TY_LIST {
+                        val full_ptype: ref char = type_expr_to_annotation(ctx, pty2)
+                        if str.rchar_cmp(full_ptype, "") != 0 {
+                            cg_register_local_type(ctx, pname2, full_ptype)
+                        }
+                    } elif str.rchar_cmp(pty_name2, "") != 0 {
                         cg_register_local_type(ctx, pname2, pty_name2)
                     }
                     if is_ref_type(pty2) {
                         cg_register_local_ref_type(ctx, pname2)
-                    }
-                    if pty2 != 0 as ref parser.Node && pty2.kind == parser.TY_LIST {
-                        cg_register_local_type(ctx, pname2, "list")
                     }
                 }
                 none => {}
