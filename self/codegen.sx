@@ -48,7 +48,7 @@ pub type CgCtx = {
     global_qtypes: mut list[ref char]
     used_prefixes: mut list[ref char]
     current_module_prefix: mut ref char
-    emitted_labels: mut list[ref char] 
+    emitted_labels: mut list[ref char]
 }
 
 fn cg_new() ref CgCtx! = {
@@ -6410,14 +6410,150 @@ fn gen_tagged_union_def(ctx: ref CgCtx, item: ref parser.Node, mod_prefix: ref c
 }
 
 fn gen_extern_fn(ctx: ref CgCtx, item: ref parser.Node) void! = {
+    gen_extern_fn_prefixed(ctx, item, "")
+}
+
+fn gen_extern_fn_prefixed(ctx: ref CgCtx, item: ref parser.Node, mod_prefix: ref char) void! = {
+    val public: i64 = item.d0 as i64
     val name: ref char = item.d1 as ref char
     val symbol: ref char = item.d2 as ref char
     val params: ref void = item.d4 as ref void
     val ret_ty: ref void = item.d5 as ref void
+
     cg_register_extern(ctx, name, symbol, ret_ty)
+
     if params != 0 as ref void {
         cg_register_fn(ctx, symbol, params, ret_ty)
     }
+
+    if public == 1 && str.rchar_cmp(mod_prefix, "") != 0 {
+        val mangled_name: ref char = @alloc(512) as ref char
+        @snprintf(mangled_name, 512, "%s__%s", {mod_prefix, name})
+        cg_register_extern(ctx, mangled_name, symbol, ret_ty)
+        if params != 0 as ref void {
+            cg_register_fn(ctx, mangled_name, params, ret_ty)
+        }
+        @free(mangled_name)
+
+        gen_extern_shim(ctx, item, mod_prefix)
+    }
+}
+
+fn gen_extern_shim(ctx: ref CgCtx, item: ref parser.Node, mod_prefix: ref char) void! = {
+    val name: ref char = item.d1 as ref char
+    val symbol: ref char = item.d2 as ref char
+    val params: ref void = item.d4 as ref void
+    val ret_ty: ref parser.Node = item.d5 as ref parser.Node
+    val shim_name: ref char = @alloc(512) as ref char
+    val is_std_child: mut bool = false
+    val scn_len: i64 = @len(get_std_child_names()) as i64
+    val scn_i: mut i64 = 0
+
+    for {
+        if scn_i >= scn_len { break }
+        val scn_opt = @get(get_std_child_names(), scn_i as usize)
+        match scn_opt {
+            some scn => {
+                if str.rchar_cmp(scn as ref char, mod_prefix) == 0 {
+                    is_std_child = true
+                    break
+                }
+            }
+            none => {}
+        }
+        scn_i++
+    }
+
+    if is_std_child {
+        @snprintf(shim_name, 512, "std__%s__%s", {mod_prefix, name})
+    } else {
+        @snprintf(shim_name, 512, "%s__%s", {mod_prefix, name})
+    }
+
+    if !cg_emit_label_if_new(ctx, shim_name) {
+        @free(shim_name)
+        return
+    }
+    
+    cg_set_fn_name(ctx, shim_name)
+    
+    if params != 0 as ref void {
+        cg_register_fn(ctx, shim_name, params, ret_ty as ref void)
+    }
+    
+    val ret_qt: ref char = qbe_type_of(ret_ty)
+    val export_buf: ref char = @alloc(256) as ref char
+    @snprintf(export_buf, 256, "\nexport function %s $%s(", {ret_qt, shim_name})
+    emit(ctx, export_buf)
+    @free(export_buf)
+    
+    if params != 0 as ref void {
+        val plen: i64 = @len(params as list[ref parser.Node]) as i64
+        val pi: mut i64 = 0
+        for {
+            if pi >= plen { break }
+            val p_opt = @get(params, pi as usize)
+            match p_opt {
+                some param => {
+                    val pname: ref char = (param as ref parser.Node).d0 as ref char
+                    val pty: ref parser.Node = (param as ref parser.Node).d1 as ref parser.Node
+                    val pqt: ref char = qbe_type_of(pty)
+                    val pbuf: ref char = @alloc(64) as ref char
+                    if pi > 0 { emit(ctx, ", ") }
+                    @snprintf(pbuf, 64, "%s %%%s", {pqt, pname})
+                    emit(ctx, pbuf)
+                    @free(pbuf)
+                }
+                none => {}
+            }
+            pi++
+        }
+    }
+    emitln(ctx, ") {")
+    emitln(ctx, "@start")
+    
+    if params != 0 as ref void && @len(params as list[ref parser.Node]) > 0 {
+        val call_buf: ref char = @alloc(1024) as ref char
+        @snprintf(call_buf, 1024, "    call $%s(", {symbol})
+        emit(ctx, call_buf)
+        @free(call_buf)
+        
+        val plen: i64 = @len(params) as i64
+        val pi: mut i64 = 0
+        for {
+            if pi >= plen { break }
+            val p_opt = @get(params, pi as usize)
+            match p_opt {
+                some param => {
+                    val pname: ref char = (param as ref parser.Node).d0 as ref char
+                    val pty: ref parser.Node = (param as ref parser.Node).d1 as ref parser.Node
+                    val pqt: ref char = qbe_type_of(pty)
+                    val pbuf: ref char = @alloc(128) as ref char
+                    if pi > 0 { emit(ctx, ", ") }
+                    @snprintf(pbuf, 128, "%s %%%s", {pqt, pname})
+                    emit(ctx, pbuf)
+                    @free(pbuf)
+                }
+                none => {}
+            }
+            pi++
+        }
+        emitln(ctx, ")")
+    } else {
+        val call_buf: ref char = @alloc(256) as ref char
+        @snprintf(call_buf, 256, "    call $%s()", {symbol})
+        emitln(ctx, call_buf)
+        @free(call_buf)
+    }
+    
+    if str.rchar_cmp(ret_qt, "void") != 0 {
+        emitln(ctx, "    ret 0")
+    } else {
+        emitln(ctx, "    ret")
+    }
+    
+    emitln(ctx, "}")
+    @free(shim_name)
 }
 
 fn gen_enum_def(ctx: ref CgCtx, item: ref parser.Node) void! = {
@@ -6753,7 +6889,7 @@ fn gen_items_with_prefix(ctx: ref CgCtx, items: list[ref parser.Node], mod_prefi
                 if k == parser.NK_FN {
                     gen_fn_prefixed(ctx, node, mod_prefix)
                 } elif k == parser.NK_EXTERN_FN {
-                    gen_extern_fn(ctx, node)
+                    gen_extern_fn_prefixed(ctx, node, mod_prefix)
                 } elif k == parser.NK_ENUMDEF {
                     gen_enum_def_prefixed(ctx, node, mod_prefix)
                 } elif k == parser.NK_UNIONDEF {
@@ -7804,7 +7940,7 @@ fn gen_items_with_prefix_skip_links(ctx: ref CgCtx, items: list[ref parser.Node]
                 } elif k == parser.NK_FN {
                     gen_fn_prefixed(ctx, node, mod_prefix)
                 } elif k == parser.NK_EXTERN_FN {
-                    gen_extern_fn(ctx, node)
+                    gen_extern_fn_prefixed(ctx, node, mod_prefix)
                 } elif k == parser.NK_ENUMDEF {
                     gen_enum_def_prefixed(ctx, node, mod_prefix)
                 } elif k == parser.NK_UNIONDEF {
@@ -7966,7 +8102,7 @@ fn gen_items_with_prefix_skip_main(ctx: ref CgCtx, items: list[ref parser.Node],
                         gen_fn_prefixed(ctx, node, mod_prefix)
                     }
                 } elif k == parser.NK_EXTERN_FN {
-                    gen_extern_fn(ctx, node)
+                    gen_extern_fn_prefixed(ctx, node, mod_prefix)
                 } elif k == parser.NK_ENUMDEF {
                     gen_enum_def_prefixed(ctx, node, mod_prefix)
                 } elif k == parser.NK_UNIONDEF {
