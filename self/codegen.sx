@@ -416,7 +416,7 @@ fn cg_resolve_fn_name(ctx: ref CgCtx, name: ref char) ref char! = {
     @free(suffix)
     if found != 0 as ref char {
         val prefix: ref char = extract_prefix_from_mangled(found, name)
-        
+
         val plen: i64 = str.len_raw(prefix)
         val pi: mut i64 = 0
         for {
@@ -434,7 +434,7 @@ fn cg_resolve_fn_name(ctx: ref CgCtx, name: ref char) ref char! = {
             }
             pi++
         }
-        
+
         cg_mark_prefix_used(ctx, prefix)
     }
     return found
@@ -3305,7 +3305,7 @@ fn gen_call(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
         && ext_sym == 0 as ref char
         && callee_node.kind == parser.NK_IDENT
 
-    val ret_qtype: mut ref char = "l"  // default to long/pointer
+    val ret_qtype: mut ref char = "l"  
     val ret_union_name: mut ref char = ""
     if ext_sym != 0 as ref char {
         val ret_ty: ref void = cg_lookup_ext_ret(ctx, callee_raw)
@@ -3328,7 +3328,6 @@ fn gen_call(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
     val returns_union: bool = str.rchar_cmp(ret_union_name, "") != 0
     val ret_buf_tmp: mut i64 = -1
     
-    // If the function returns a union, allocate a return buffer
     if returns_union {
         ret_buf_tmp = fresh_tmp(ctx)
         val alloc_buf: ref char = @alloc(64) as ref char
@@ -6160,8 +6159,29 @@ fn gen_fn_prefixed(ctx: ref CgCtx, fn_node: ref parser.Node, mod_prefix: ref cha
         @snprintf(base, 256, "%s", {name})
     }
 
+    val std_child_names: mut list[ref char] = ["allocators", "collections", "crypto", "fmt", "fs", "log", "math", "os", "path", "random", "reflection", "stdio", "string", "str", "time", "thread"]
+    val is_std_child: mut bool = false
+    val scn_len: i64 = @len(std_child_names) as i64
+    val scn_i: mut i64 = 0
+    for {
+        if scn_i >= scn_len { break }
+        val scn_opt = @get(std_child_names, scn_i as usize)
+        match scn_opt {
+            some scn => {
+                if str.rchar_cmp(scn as ref char, mod_prefix) == 0 {
+                    is_std_child = true
+                    break
+                }
+            }
+            none => {}
+        }
+        scn_i++
+    }
+
     if str.rchar_cmp(mod_prefix, "") == 0 {
         @snprintf(mangled, 512, "%s", {base})
+    } elif is_std_child {
+        @snprintf(mangled, 512, "std__%s__%s", {mod_prefix, base})
     } else {
         @snprintf(mangled, 512, "%s__%s", {mod_prefix, base})
     }
@@ -6598,9 +6618,29 @@ fn preregister_items(ctx: ref CgCtx, items: list[ref parser.Node], mod_prefix: r
                     } else {
                         @snprintf(base, 256, "%s", {name})
                     }
+                    val std_child_names: mut list[ref char] = ["allocators", "collections", "crypto", "fmt", "fs", "log", "math", "os", "path", "random", "reflection", "stdio", "string", "str", "time", "thread"]
+                    val is_std_child: mut bool = false
+                    val scn_len: i64 = @len(std_child_names) as i64
+                    val scn_i: mut i64 = 0
+                    for {
+                        if scn_i >= scn_len { break }
+                        val scn_opt = @get(std_child_names, scn_i as usize)
+                        match scn_opt {
+                            some scn => {
+                                if str.rchar_cmp(scn as ref char, mod_prefix) == 0 {
+                                    is_std_child = true
+                                    break
+                                }
+                            }
+                            none => {}
+                        }
+                        scn_i++
+                    }
                     val mangled: ref char = @alloc(512) as ref char
                     if str.rchar_cmp(mod_prefix, "") == 0 {
                         @snprintf(mangled, 512, "%s", {base})
+                    } elif is_std_child {
+                        @snprintf(mangled, 512, "std__%s__%s", {mod_prefix, base})
                     } else {
                         @snprintf(mangled, 512, "%s__%s", {mod_prefix, base})
                     }
@@ -6990,10 +7030,9 @@ fn scan_node_for_calls_depth(ctx: ref CgCtx, node: ref parser.Node, depth: i64) 
    
     if k == parser.NK_CALL {
         val callee: ref parser.Node = parser.call_callee(node)
-        val callee_name: ref char = resolve_callee_name(callee)
-        std.stdio.eprint("\n[codegen] SCAN call: callee_name='{s}'\n", {callee_name})
-        val resolved = cg_resolve_fn_name(ctx, callee_name)
-        std.stdio.eprint("\n[codegen] SCAN call: resolved='{s}'\n", {resolved})
+        if callee != 0 as ref parser.Node {
+            scan_node_for_calls_depth(ctx, callee, depth + 1)
+        }
         val args: ref void = parser.call_args(node) as ref void
         if args != 0 as ref void {
             val alen: i64 = @len(args as list[ref parser.Node]) as i64
@@ -7251,6 +7290,7 @@ fn scan_node_for_calls_depth(ctx: ref CgCtx, node: ref parser.Node, depth: i64) 
 /// Main entry for the resolved module tree.
 /// Flattens children depth-first, emits each layer with its mangled prefix.
 pub fn gen_module_resolved(root: ref module.ResolvedModule) ref char! = {
+    @puts("gen_module_resolved called")
     val ctx: ref CgCtx = cg_new()
     emit_runtime_helpers(ctx)
 
@@ -7266,31 +7306,6 @@ pub fn gen_module_resolved(root: ref module.ResolvedModule) ref char! = {
     )
 
     val layers: i64 = @len(out_prefixes) as i64
-    std.stdio.eprint("[codegen] DEBUG: {d} layers loaded\n", {layers})
-    
-    val li_dbg: mut i64 = 0
-    for {
-        if li_dbg >= layers { break }
-        val pfx_dbg_opt = @get(out_prefixes, li_dbg as usize)
-        val items_dbg_opt = @get(out_items, li_dbg as usize)
-        match pfx_dbg_opt {
-            some pfx_dbg => {
-                val items_count: mut i64 = 0
-		match items_dbg_opt {
-                    some items_dbg_ptr => { items_count = @len(items_dbg_ptr as list[ref parser.Node]) as i64 }
-                    none => {}
-                }
-                val has_links_dbg: mut bool = false
-		match items_dbg_opt {
-                    some items_dbg_ptr2 => { has_links_dbg = items_have_external_links(items_dbg_ptr2 as list[ref parser.Node]) }
-                    none => {}
-                }
-                std.stdio.eprint("[codegen]   Layer {d}: prefix='{s}' items={d} has_links={d}\n", {li_dbg, pfx_dbg as ref char, items_count, has_links_dbg})
-            }
-            none => {}
-        }
-        li_dbg++
-    }
 
     cg_mark_prefix_used(ctx, "")
     
@@ -7321,7 +7336,7 @@ pub fn gen_module_resolved(root: ref module.ResolvedModule) ref char! = {
     for {
         if scan_pass >= 10 { break }
         scan_pass++
-        
+
         val li_scan: mut i64 = 0
         for {
             if li_scan >= layers { break }
@@ -7345,6 +7360,38 @@ pub fn gen_module_resolved(root: ref module.ResolvedModule) ref char! = {
         }
     }
 
+    if cg_is_prefix_used(ctx, "std") {
+        val std_child_names: mut list[ref char] = ["allocators", "collections", "crypto", "fmt", "fs", "log", "math", "os", "path", "random", "reflection", "stdio", "string", "str", "time", "thread"]
+        val li_std: mut i64 = 0
+        for {
+            if li_std >= layers { break }
+            val pfx_std_opt = @get(out_prefixes, li_std as usize)
+            match pfx_std_opt {
+                some pfx_std => {
+                    val pfx_str: ref char = pfx_std as ref char
+                    val nlen: i64 = @len(std_child_names) as i64
+                    val ni: mut i64 = 0
+                    for {
+                        if ni >= nlen { break }
+                        val std_name_opt = @get(std_child_names, ni as usize)
+                        match std_name_opt {
+                            some std_name => {
+                                if str.rchar_cmp(pfx_str, std_name as ref char) == 0 {
+                                    cg_mark_prefix_used(ctx, pfx_str)
+                                    break
+                                }
+                            }
+                            none => {}
+                        }
+                        ni++
+                    }
+                }
+                none => {}
+            }
+            li_std++
+        }
+    } 
+
     val li2: mut i64 = 0
     for {
         if li2 >= layers { break }
@@ -7358,8 +7405,6 @@ pub fn gen_module_resolved(root: ref module.ResolvedModule) ref char! = {
                         val is_root2: bool = str.rchar_cmp(pfx as ref char, "") == 0
                         val is_used2: bool = cg_is_prefix_used(ctx, pfx as ref char)
                         val has_links: bool = items_have_external_links(items)
-
-                        std.stdio.eprint("[codegen] EMIT layer {d}: prefix='{s}' root={d} used={d} has_links={d}\n", {li2, pfx as ref char, is_root2, is_used2, has_links})
 
                         if !has_links || is_root2 || is_used2 {
                             gen_items_with_prefix(ctx, items, pfx as ref char)
@@ -7442,7 +7487,39 @@ pub fn get_used_prefixes(root: ref module.ResolvedModule) list[ref char]! = {
         }
         li2++
     }
-    
+
+    if cg_is_prefix_used(ctx, "std") {
+        val std_child_names: mut list[ref char] = ["allocators", "collections", "crypto", "fmt", "fs", "log", "math", "os", "path", "random", "reflection", "stdio", "string", "str", "time", "thread"]
+        val li_std: mut i64 = 0
+        for {
+            if li_std >= layers { break }
+            val pfx_std_opt = @get(out_prefixes, li_std as usize)
+            match pfx_std_opt {
+                some pfx_std => {
+                    val pfx_str: ref char = pfx_std as ref char
+                    val nlen: i64 = @len(std_child_names) as i64
+                    val ni: mut i64 = 0
+                    for {
+                        if ni >= nlen { break }
+                        val std_name_opt = @get(std_child_names, ni as usize)
+                        match std_name_opt {
+                            some std_name => {
+                                if str.rchar_cmp(pfx_str, std_name as ref char) == 0 {
+                                    cg_mark_prefix_used(ctx, pfx_str)
+                                    break
+                                }
+                            }
+                            none => {}
+                        }
+                        ni++
+                    }
+                }
+                none => {}
+            }
+            li_std++
+        }
+    }
+
     return ctx.used_prefixes
 }
 
@@ -7531,7 +7608,7 @@ pub fn gen_module_resolved_test(root: ref module.ResolvedModule) ref char! = {
     )
 
     val layers: i64 = @len(out_prefixes) as i64
-    
+
     cg_mark_prefix_used(ctx, "")
     
     val root_imports: mut list[ref char] = root.import_names
@@ -7620,6 +7697,38 @@ pub fn gen_module_resolved_test(root: ref module.ResolvedModule) ref char! = {
         }
     }
 
+    if cg_is_prefix_used(ctx, "std") {
+        val std_child_names: mut list[ref char] = ["allocators", "collections", "crypto", "fmt", "fs", "log", "math", "os", "path", "random", "reflection", "stdio", "string", "str", "time", "thread"]
+        val li_std: mut i64 = 0
+        for {
+            if li_std >= layers { break }
+            val pfx_std_opt = @get(out_prefixes, li_std as usize)
+            match pfx_std_opt {
+                some pfx_std => {
+                    val pfx_str: ref char = pfx_std as ref char
+                    val nlen: i64 = @len(std_child_names) as i64
+                    val ni: mut i64 = 0
+                    for {
+                        if ni >= nlen { break }
+                        val std_name_opt = @get(std_child_names, ni as usize)
+                        match std_name_opt {
+                            some std_name => {
+                                if str.rchar_cmp(pfx_str, std_name as ref char) == 0 {
+                                    cg_mark_prefix_used(ctx, pfx_str)
+                                    break
+                                }
+                            }
+                            none => {}
+                        }
+                        ni++
+                    }
+                }
+                none => {}
+            }
+            li_std++
+        }
+    }
+
     val li2: mut i64 = 0
     for {
         if li2 >= layers { break }
@@ -7629,10 +7738,10 @@ pub fn gen_module_resolved_test(root: ref module.ResolvedModule) ref char! = {
             some pfx => {
                 val is_root: bool = str.rchar_cmp(pfx as ref char, "") == 0
                 val is_used: bool = cg_is_prefix_used(ctx, pfx as ref char)
-                
+
                 match items_opt {
                     some items_ptr => {
-                        val items: list[ref parser.Node] = items_ptr as list[ref parser.Node]                        
+                        val items: list[ref parser.Node] = items_ptr as list[ref parser.Node]
                         val has_links: bool = items_have_external_links(items)
 
                         if is_root || is_used || !has_links {
@@ -7641,8 +7750,8 @@ pub fn gen_module_resolved_test(root: ref module.ResolvedModule) ref char! = {
                             } else {
                                 gen_items_with_prefix(ctx, items, pfx as ref char)
                             }
-                        }
-                    }
+                        } 
+		    }
                     none => {}
                 }
             }
