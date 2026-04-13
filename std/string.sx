@@ -97,6 +97,40 @@ pub fn cstr(s: ref void) ref char! = {
     return @load(s) as ref char
 }
 
+/// Returns true if s starts with prefix
+pub fn rchar_starts_with(s: ref char, prefix: ref char) bool = {
+    if (prefix == none) {
+        return true
+    }
+    if (s == none) {
+        return false
+    }
+
+    val ps: ref char = prefix
+    val ss: ref char = s
+    val i: mut i64 = 0
+
+    for {
+        val pc: u8 = trust @load8(@ptradd(ps, i)) as u8
+        if (pc == 0) {
+            break
+        }
+        val sc: u8 = trust @load8(@ptradd(ss, i)) as u8
+
+        if (sc == 0) {
+            return false
+        }
+
+        if (pc != sc) {
+            return false
+        }
+
+        i++
+    }
+
+    return true
+}
+
 /// Ensure capacity (private helper)
 fn ensure_cap(s: SbOrPtr, needed: i64) void! = {
     match s {
