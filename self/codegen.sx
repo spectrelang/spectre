@@ -7290,7 +7290,6 @@ fn scan_node_for_calls_depth(ctx: ref CgCtx, node: ref parser.Node, depth: i64) 
 /// Main entry for the resolved module tree.
 /// Flattens children depth-first, emits each layer with its mangled prefix.
 pub fn gen_module_resolved(root: ref module.ResolvedModule) ref char! = {
-    @puts("gen_module_resolved called")
     val ctx: ref CgCtx = cg_new()
     emit_runtime_helpers(ctx)
 
