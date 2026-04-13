@@ -2031,8 +2031,10 @@ fn gen_expr(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
         if inner_node != 0 as ref parser.Node && inner_node.kind == parser.NK_CALL {
             val callee_node: ref parser.Node = inner_node.d0 as ref parser.Node
             val callee_name: ref char = resolve_callee_name(callee_node)
+            val resolved: ref char = cg_resolve_fn_name(ctx, callee_name)
             val ext_sym: ref char = cg_lookup_extern_symbol(ctx, callee_name)
-            if ext_sym != 0 as ref char {
+            val use_ext: bool = resolved == 0 as ref char && ext_sym != 0 as ref char
+            if use_ext {
                 val ret_ty: ref void = cg_lookup_ext_ret(ctx, callee_name)
                 if ret_ty != 0 as ref void {
                     val ret_qtype: ref char = qbe_type_of(ret_ty as ref parser.Node)
@@ -2965,11 +2967,6 @@ fn gen_call(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
 
     @snprintf(callee_name, 256, "%s", {callee_raw})
 
-    val ext_sym: ref char = cg_lookup_extern_symbol(ctx, callee_name)
-    if ext_sym != 0 as ref char {
-        @snprintf(callee_name, 256, "%s", {ext_sym})
-    }
-
     val tv_owner_slot: ref void = @alloc(8)
     val tv_field_slot: ref void = @alloc(8)
 
@@ -3331,14 +3328,13 @@ fn gen_call(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
     }
 
     val tmp: mut i64 = fresh_tmp(ctx)
-    val ext_sym2: ref char = cg_lookup_extern_symbol(ctx, callee_name)
-    val is_extern: bool = ext_sym2 != 0 as ref char
     val resolved_callee: ref char = cg_resolve_fn_name(ctx, callee_name)
+    val ext_sym2: ref char = cg_lookup_extern_symbol(ctx, callee_name)
     val effective_callee: mut ref char = ""
-    if is_extern {
-        effective_callee = ext_sym2
-    } elif resolved_callee != 0 as ref char {
+    if resolved_callee != 0 as ref char {
         effective_callee = resolved_callee
+    } elif ext_sym2 != 0 as ref char {
+        effective_callee = ext_sym2
     } else {
         effective_callee = callee_name
     }
@@ -3417,13 +3413,14 @@ fn gen_call(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
     val call_buf: ref char = @alloc(8192) as ref char
     val call_pos: mut i64 = 0
     val hdr: ref char = @alloc(256) as ref char
+    val using_ext: bool = ext_sym2 != 0 as ref char && effective_callee == ext_sym2
     val is_fn_ptr: bool = resolved_callee == 0 as ref char
-        && ext_sym == 0 as ref char
+        && !using_ext
         && callee_node.kind == parser.NK_IDENT
 
-    val ret_qtype: mut ref char = "l"  
+    val ret_qtype: mut ref char = "l"
     val ret_union_name: mut ref char = ""
-    if ext_sym != 0 as ref char {
+    if using_ext {
         val ret_ty: ref void = cg_lookup_ext_ret(ctx, callee_raw)
         if ret_ty != 0 as ref void {
             ret_qtype = qbe_type_of(ret_ty as ref parser.Node)
@@ -3534,7 +3531,7 @@ fn gen_call(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
     @store8(@ptradd(call_buf as ref void, call_pos), 0)
     emitln(ctx, call_buf)
 
-    if ext_sym != 0 as ref char {
+    if using_ext {
         val ret_ty2: ref void = cg_lookup_ext_ret(ctx, callee_raw)
         if ret_ty2 != 0 as ref void {
             val ret_qtype2: ref char = qbe_type_of(ret_ty2 as ref parser.Node)
