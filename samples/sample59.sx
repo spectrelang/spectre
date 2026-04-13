@@ -1,0 +1,51 @@
+val stdio = use("std/stdio")
+
+type Node = {
+    x: i32,
+    y: i32
+}
+
+pub fn make_list() result[list[Node], ref char]! = {
+    val a: mut list[Node] = []
+    @append(a, {x: 1, y: 2})
+    @append(a, {x: 3, y: 4})
+    return ok a
+}
+
+pub fn wrap() result[result[list[Node], ref char], ref char]! = {
+    val r = make_list()
+    return ok r
+}
+
+pub fn main() void! = {
+    val r2 = wrap()
+
+    match r2 {
+        ok inner => {
+            match inner {
+                ok lst => {
+                    val n = @len(lst)
+                    stdio.print("len = %lld\n", {n})
+
+                    val i: mut i64 = 0
+                    for {
+                        if i >= n { break }
+
+                        val v = @get(lst, i as usize)
+                        match v {
+                            some x => {
+                                stdio.print("%d %d\n", {x.x, x.y})
+                            }
+                            none => {
+                                stdio.print("CORRUPTED LIST\n", {})
+                            }
+                        }
+                        i++
+                    }
+                }
+                err e => { stdio.print("inner err: %s\n", {e}) }
+            }
+        }
+        err e => { stdio.print("outer err: %s\n", {e}) }
+    }
+}

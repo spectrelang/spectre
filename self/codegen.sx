@@ -2578,7 +2578,7 @@ fn gen_binop(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
             if both_word {
                 @snprintf(buf, 256, "    %%t%lld =w csltw %s, %s\n", {tmp, lhs, rhs})
             } else {
-                @snprintf(buf, 256, "    %%t%lld =w csltw %s, %s\n", {tmp, lhs_l, rhs_l})
+                @snprintf(buf, 256, "    %%t%lld =w csltl %s, %s\n", {tmp, lhs_l, rhs_l})
             }
         }
         elif op == parser.OP_GT  {
@@ -2595,12 +2595,12 @@ fn gen_binop(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
                 @snprintf(buf, 256, "    %%t%lld =w cslel %s, %s\n", {tmp, lhs_l, rhs_l})
             }
         }
-        elif op == parser.OP_GE  { 
+        elif op == parser.OP_GE  {
             val lt: i64 = fresh_tmp(ctx)
             if both_word {
                 @snprintf(buf, 256, "    %%t%lld =w csltw %s, %s\n    %%t%lld =w ceqw %%t%lld, 0\n", {lt, lhs, rhs, tmp, lt})
             } else {
-                @snprintf(buf, 256, "    %%t%lld =w csltw %s, %s\n    %%t%lld =w ceqw %%t%lld, 0\n", {lt, lhs_l, rhs_l, tmp, lt})
+                @snprintf(buf, 256, "    %%t%lld =w csltl %s, %s\n    %%t%lld =w ceqw %%t%lld, 0\n", {lt, lhs_l, rhs_l, tmp, lt})
             }
         }
         elif op == parser.OP_AND {
@@ -2762,15 +2762,16 @@ fn gen_field(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
     val field_is_fa: mut bool = false
     val field_is_union: mut bool = false
     val field_is_list: mut bool = false
+    val field_is_multi_word_struct: mut bool = false
     if base_expr.kind == parser.NK_IDENT {
         val base_name3: ref char = base_expr.d0 as ref char
         val local_type2: ref char = cg_local_type(ctx, base_name3)
-        val lookup_type2: mut ref char = local_type2 
-	
-	if rchar_starts_with(local_type2, "ref ") { 
-	    lookup_type2 = @ptradd(local_type2, 4) 
+        val lookup_type2: mut ref char = local_type2
+
+	if rchar_starts_with(local_type2, "ref ") {
+	    lookup_type2 = @ptradd(local_type2, 4)
 	}
-        
+
 	if str.rchar_cmp(lookup_type2, "") != 0 {
             val fields2: ref void = cg_lookup_struct(ctx, lookup_type2)
             if fields2 != 0 as ref void {
@@ -2794,6 +2795,14 @@ fn gen_field(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
                                         val type_name: ref char = sfty3.d0 as ref char
                                         if is_union_type_name(ctx, type_name) {
                                             field_is_union = true
+                                        } else {
+                                            val sfields: ref void = cg_lookup_struct(ctx, type_name)
+                                            if sfields != 0 as ref void {
+                                                val sz: i64 = struct_size(ctx, sfields)
+                                                if sz > 8 {
+                                                    field_is_multi_word_struct = true
+                                                }
+                                            }
                                         }
                                     }
                                 }
@@ -2832,6 +2841,14 @@ fn gen_field(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
                                         val ftype_name: ref char = sfty3.d0 as ref char
                                         if is_union_type_name(ctx, ftype_name) {
                                             field_is_union = true
+                                        } else {
+                                            val sfields: ref void = cg_lookup_struct(ctx, ftype_name)
+                                            if sfields != 0 as ref void {
+                                                val sz: i64 = struct_size(ctx, sfields)
+                                                if sz > 8 {
+                                                    field_is_multi_word_struct = true
+                                                }
+                                            }
                                         }
                                     }
                                 }
@@ -2850,7 +2867,7 @@ fn gen_field(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
     val buf: ref char = @alloc(256) as ref char
     
     if base_is_ref {
-        if field_is_fa || field_is_union || field_is_list {
+        if field_is_fa || field_is_union || field_is_list || field_is_multi_word_struct {
             if offset == 0 {
                 @snprintf(buf, 256, "    %%t%lld =l add %s, 0\n", {tmp, base})
             } else {
@@ -2871,7 +2888,7 @@ fn gen_field(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
                 @free(ptr_str)
             }
         }
-    } elif field_is_fa || field_is_union || field_is_list {
+    } elif field_is_fa || field_is_union || field_is_list || field_is_multi_word_struct {
         if offset == 0 {
             @snprintf(buf, 256, "    %%t%lld =l add %s, 0\n", {tmp, base})
         } else {
@@ -3894,7 +3911,7 @@ fn gen_builtin(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
         val no_grow_lbl: i64 = fresh_lbl(ctx)
         val lt: i64 = fresh_tmp(ctx)
         val buf_app3: ref char = @alloc(256) as ref char
-        @snprintf(buf_app3, 256, "    %%t%lld =w csltw %%t%lld, %%t%lld\n    %%t%lld =w ceqw %%t%lld, 0\n    jnz %%t%lld, @lbl%lld, @lbl%lld\n", {lt, len_val, cap_val, need_grow, lt, need_grow, grow_lbl, no_grow_lbl})
+        @snprintf(buf_app3, 256, "    %%t%lld =w csltl %%t%lld, %%t%lld\n    %%t%lld =w ceqw %%t%lld, 0\n    jnz %%t%lld, @lbl%lld, @lbl%lld\n", {lt, len_val, cap_val, need_grow, lt, need_grow, grow_lbl, no_grow_lbl})
         emit(ctx, buf_app3)
         @free(buf_app3)
 
@@ -4188,7 +4205,7 @@ fn gen_builtin(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
         val no_grow_lbl: i64 = fresh_lbl(ctx)
         val lt: i64 = fresh_tmp(ctx)
         val buf_ins2: ref char = @alloc(256) as ref char
-        @snprintf(buf_ins2, 256, "    %%t%lld =w csltw %%t%lld, %%t%lld\n    %%t%lld =w ceqw %%t%lld, 0\n    jnz %%t%lld, @lbl%lld, @lbl%lld\n", {lt, len_val, cap_val, need_grow, lt, need_grow, grow_lbl, no_grow_lbl})
+        @snprintf(buf_ins2, 256, "    %%t%lld =w csltl %%t%lld, %%t%lld\n    %%t%lld =w ceqw %%t%lld, 0\n    jnz %%t%lld, @lbl%lld, @lbl%lld\n", {lt, len_val, cap_val, need_grow, lt, need_grow, grow_lbl, no_grow_lbl})
         emit(ctx, buf_ins2)
         @free(buf_ins2)
 

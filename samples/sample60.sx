@@ -1,0 +1,21 @@
+type Inner = {
+    data: mut ref void
+    len:  mut i64
+}
+
+type Outer = {
+    inner: mut Inner
+}
+
+pub fn take_inner(x: Inner) i64! = {
+    return x.len
+}
+
+pub fn main() i64! = {
+    val o: mut ref Outer = @alloc(@sizeof(Outer)) as ref Outer
+    o.inner.data = 0 as ref void
+    o.inner.len  = 42
+    val result = take_inner(o.inner)
+    @puts("done")
+    return 0
+}
