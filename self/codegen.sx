@@ -5699,20 +5699,20 @@ fn gen_forin_stmt(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
     val binding: ref char = stmt.d0 as ref char
     val iter: ref char = gen_expr(ctx, stmt.d1 as ref parser.Node)
     val body: ref void = stmt.d2 as ref void
-
     val idx: i64 = fresh_tmp(ctx)
     val len: i64 = fresh_tmp(ctx)
     val loop_lbl: i64 = fresh_lbl(ctx)
     val body_lbl: i64 = fresh_lbl(ctx)
     val break_lbl: i64 = fresh_lbl(ctx)
-
     val prev_break2: i64 = cg_break_lbl(ctx)
     val prev_cont2: i64 = cg_cont_lbl(ctx)
+    
     cg_set_break_lbl(ctx, break_lbl)
     cg_set_cont_lbl(ctx, loop_lbl)
 
     val len_slot: i64 = fresh_tmp(ctx)
     val buf: ref char = @alloc(512) as ref char
+
     @snprintf(buf, 512,
         "    %%t%lld =l alloc8 8\n    storel 0, %%t%lld\n    %%t%lld =l add %s, 8\n    %%t%lld =l loadl %%t%lld\n@lbl%lld\n",
         {idx, idx, len_slot, iter, len, len_slot, loop_lbl})
