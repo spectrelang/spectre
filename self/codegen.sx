@@ -979,6 +979,96 @@ fn field_offset(ctx: ref CgCtx, fields: ref void, field_name: ref char) i64! = {
     return -1
 }
 
+/// Look up the type name of a field in a struct by name. Returns "" if not found.
+fn field_type_name(ctx: ref CgCtx, fields: ref void, field_name: ref char) ref char! = {
+    val flen: i64 = @len(fields as list[ref void]) as i64
+    val fi: mut i64 = 0
+    for {
+        if fi >= flen { break }
+        val f_opt = @get(fields as list[ref void], fi as usize)
+        match f_opt {
+            some f => {
+                val fnode: ref parser.Node = f as ref parser.Node
+                val fname: ref char = fnode.d0 as ref char
+                if str.rchar_cmp(fname, field_name) == 0 {
+                    val fty: ref parser.Node = fnode.d2 as ref parser.Node
+                    if fty != 0 as ref parser.Node {
+                        return unwrap_type_name(fty)
+                    }
+                }
+            }
+            none => {}
+        }
+        fi++
+    }
+    return ""
+}
+
+/// Compute the cumulative offset for a nested field access chain (e.g., o.inner.len).
+/// Returns -1 if the type cannot be resolved.
+fn nested_field_offset(ctx: ref CgCtx, node: ref parser.Node, field_name: ref char) i64! = {
+    if node == 0 as ref parser.Node { return -1 }
+    if node.kind == parser.NK_IDENT {
+        val bname: ref char = node.d0 as ref char
+        val tname: mut ref char = cg_local_type(ctx, bname)
+        if str.rchar_cmp(tname, "") == 0 {
+            tname = infer_type_annotation(ctx, node)
+        }
+        val lookup_tname: mut ref char = tname
+        if rchar_starts_with(tname, "ref ") {
+            lookup_tname = @ptradd(tname, 4)
+        }
+        if str.rchar_cmp(lookup_tname, "") != 0 {
+            val flds: ref void = cg_lookup_struct(ctx, lookup_tname)
+            if flds != 0 as ref void {
+                val off: i64 = field_offset(ctx, flds, field_name)
+                if off >= 0 { return off }
+            }
+        }
+        return -1
+    }
+    if node.kind == parser.NK_FIELD {
+        val inner_base: ref parser.Node = parser.field_base(node)
+        val inner_name: ref char = parser.field_name(node)
+        val inner_off: i64 = nested_field_offset(ctx, inner_base, inner_name)
+        if inner_off < 0 { return -1 }
+        val inner_type: mut ref char = ""
+        if inner_base.kind == parser.NK_IDENT {
+            val bname2: ref char = inner_base.d0 as ref parser.Node.d0 as ref char
+            val btname: mut ref char = cg_local_type(ctx, bname2)
+            if str.rchar_cmp(btname, "") == 0 {
+                btname = infer_type_annotation(ctx, inner_base)
+            }
+            val blookup: mut ref char = btname
+            if rchar_starts_with(btname, "ref ") {
+                blookup = @ptradd(btname, 4)
+            }
+            if str.rchar_cmp(blookup, "") != 0 {
+                val bflds: ref void = cg_lookup_struct(ctx, blookup)
+                if bflds != 0 as ref void {
+                    inner_type = field_type_name(ctx, bflds, inner_name)
+                }
+            }
+        }
+        if str.rchar_cmp(inner_type, "") == 0 {
+            inner_type = infer_type_annotation(ctx, node)
+        }
+        val lookup_inner: mut ref char = inner_type
+        if rchar_starts_with(inner_type, "ref ") {
+            lookup_inner = @ptradd(inner_type, 4)
+        }
+        if str.rchar_cmp(lookup_inner, "") != 0 {
+            val inner_flds: ref void = cg_lookup_struct(ctx, lookup_inner)
+            if inner_flds != 0 as ref void {
+                val final_off: i64 = field_offset(ctx, inner_flds, field_name)
+                if final_off >= 0 { return inner_off + final_off }
+            }
+        }
+        return -1
+    }
+    return -1
+}
+
 fn cg_dvars_clear(ctx: mut ref CgCtx) void! = {
     ctx.dvars = []
     ctx.dqtypes = []
@@ -2858,6 +2948,57 @@ fn gen_field(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
                         none => {}
                     }
                     sfi3++
+                }
+            }
+        }
+    } elif base_expr.kind == parser.NK_FIELD {
+        val noff: i64 = nested_field_offset(ctx, base_expr, field_name)
+        if noff >= 0 { offset = noff }
+        val inner_type3: ref char = infer_type_annotation(ctx, base_expr)
+        val lookup_inner3: mut ref char = inner_type3
+        if rchar_starts_with(inner_type3, "ref ") {
+            lookup_inner3 = @ptradd(inner_type3, 4)
+        }
+        if str.rchar_cmp(lookup_inner3, "") != 0 {
+            val iflds3: ref void = cg_lookup_struct(ctx, lookup_inner3)
+            if iflds3 != 0 as ref void {
+                val sflen4: i64 = @len(iflds3 as list[ref void]) as i64
+                val sfi4: mut i64 = 0
+                for {
+                    if sfi4 >= sflen4 { break }
+                    val sf4_opt = @get(iflds3 as list[ref void], sfi4 as usize)
+                    match sf4_opt {
+                        some sf4 => {
+                            val sfn4: ref parser.Node = sf4 as ref parser.Node
+                            val sfname4: ref char = sfn4.d0 as ref char
+                            if str.rchar_cmp(sfname4, field_name) == 0 {
+                                val sfty4: ref parser.Node = sfn4.d2 as ref parser.Node
+                                if sfty4 != 0 as ref parser.Node {
+                                    if sfty4.kind == parser.TY_FIXED_ARR {
+                                        field_is_fa = true
+                                    } elif sfty4.kind == parser.TY_LIST {
+                                        field_is_list = true
+                                    } elif sfty4.kind == parser.TY_NAMED {
+                                        val ftype_name: ref char = sfty4.d0 as ref char
+                                        if is_union_type_name(ctx, ftype_name) {
+                                            field_is_union = true
+                                        } else {
+                                            val sfields: ref void = cg_lookup_struct(ctx, ftype_name)
+                                            if sfields != 0 as ref void {
+                                                val sz: i64 = struct_size(ctx, sfields)
+                                                if sz > 8 {
+                                                    field_is_multi_word_struct = true
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                                sfi4 = sflen4
+                            }
+                        }
+                        none => {}
+                    }
+                    sfi4++
                 }
             }
         }
@@ -5071,8 +5212,11 @@ fn gen_stmt(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
                         }
                     }
                 }
+            } elif ftarget.kind == parser.NK_FIELD {
+                val noff: i64 = nested_field_offset(ctx, ftarget, fname)
+                if noff >= 0 { foffset = noff }
             }
-            
+
             val base: ref char = gen_expr(ctx, ftarget)
             
             if field_is_union {

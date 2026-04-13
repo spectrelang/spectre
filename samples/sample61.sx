@@ -1,0 +1,22 @@
+pub union Shape = {
+    Circle(i64)
+  | Rect(i64, i64)
+}
+
+fn is_circle(s: Shape) bool! = {
+    match s {
+        Circle _ => { return true }
+        else     => { return false }
+    }
+}
+
+pub fn main() i64! = {
+    val s: Shape = Circle(42)
+    val result = is_circle(s)
+    if result {
+        @puts("circle")
+    } else {
+        @puts("not circle")
+    }
+    return 0
+}

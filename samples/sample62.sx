@@ -1,0 +1,29 @@
+pub union Kind = {
+    Foo()
+  | Bar(ref char)
+}
+
+type Token = {
+    kind: mut Kind
+    line: mut i64
+}
+
+fn is_foo(k: Kind) bool! = {
+    match k {
+        Foo() => { return true }
+        else  => { return false }
+    }
+}
+
+pub fn main() i64! = {
+    val t: mut ref Token = @alloc(@sizeof(Token)) as ref Token
+    t.kind = Foo()
+    t.line = 1
+    val result = is_foo(t.kind)
+    if result {
+        @puts("foo")
+    } else {
+        @puts("not foo")
+    }
+    return 0
+}

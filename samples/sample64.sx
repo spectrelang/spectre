@@ -1,0 +1,22 @@
+pub union Kind = {
+    Foo()
+  | Bar(i64)
+}
+
+fn get_kind(items: list[ref Kind], i: i64) Kind! = {
+    val opt = @get(items, i as usize)
+    match opt {
+        some t => { return (t as ref Kind) }
+        none   => { return Foo() }
+    }
+}
+
+pub fn main() i64! = {
+    val items: list[ref Kind] = []
+    val k = get_kind(items, 0)
+    match k {
+        Foo() => { @puts("foo") }
+        Bar _ => { @puts("bar") }
+    }
+    return 0
+}
