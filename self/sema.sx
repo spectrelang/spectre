@@ -754,89 +754,148 @@ fn check_fn(ctx: ref SemaCtx, fn_node: ref parser.Node, filename: ref char) void
     pop_scope(ctx)
 }
 
-pub fn check_module(items: list[ref parser.Node], filename: ref char) list[ref char]! = {
-    val ctx: ref SemaCtx = sema_new()
+/// Register a function name.
+fn register_fn_name(ctx: ref SemaCtx, ns: ref char, nm: ref char) void! = {
+    if ns != 0 as ref char && nm != 0 as ref char {
+        val buf: ref char = @alloc(256) as ref char
+        @snprintf(buf, 256, "%s.%s", {ns, nm})
+        @append(ctx.fn_names, buf)
+    } elif nm != 0 as ref char {
+        @append(ctx.fn_names, nm)
+    }
+}
 
-    for item in items {
-        val k: i64 = item.kind
-        if k == parser.NK_FN {
-            val fn_ns: ref char = item.d1 as ref char
-            val fn_nm: ref char = item.d2 as ref char
-            if fn_ns != 0 as ref char {
-                val buf: ref char = @alloc(256) as ref char
-                @snprintf(buf, 256, "%s.%s", {fn_ns, fn_nm})
-                @append(ctx.fn_names, buf)
-            } else {
-                @append(ctx.fn_names, fn_nm)
-            }
-        }
-        if k == parser.NK_TYPEDEF || k == parser.NK_EXTERN_TYPE ||
-           k == parser.NK_ENUMDEF || k == parser.NK_UNIONDEF || k == parser.NK_TAGGED_UNIONDEF {
-            @append(ctx.type_names, item.d1 as ref char)
-            if k == parser.NK_TYPEDEF {
-                @append(ctx.type_defs, item as ref void)
-            }
-            if k == parser.NK_TAGGED_UNIONDEF {
-                val tvariants: ref void = item.d2 as ref void
-                if tvariants != 0 as ref void {
-                    for tv in tvariants as list[ref parser.Node] {
-                        @append(ctx.fn_names, tv.d0 as ref char)
-                    }
-                }
-            }
-        }
-        if k == parser.NK_EXTERN_FN {
-            @append(ctx.fn_names, item.d1 as ref char)
-        }
-        if k == parser.NK_CONST || k == parser.NK_USE {
-            @append(ctx.fn_names, item.d1 as ref char)
-        }
-        if k == parser.NK_VAL {
-            @append(ctx.fn_names, item.d0 as ref char)
-        }
-        if k == parser.NK_WHEN_ITEMS {
-            val witems: ref void = item.d1 as ref void
-            if witems != 0 as ref void {
-                for wi in witems as list[ref parser.Node] {
-                    val wk: i64 = wi.kind
-                    if wk == parser.NK_FN {
-                        val wfn_ns: ref char = wi.d1 as ref char
-                        val wfn_nm: ref char = wi.d2 as ref char
-                        if wfn_ns != 0 as ref char {
-                            val wbuf: ref char = @alloc(256) as ref char
-                            @snprintf(wbuf, 256, "%s.%s", {wfn_ns, wfn_nm})
-                            @append(ctx.fn_names, wbuf)
-                        } else {
-                            @append(ctx.fn_names, wfn_nm)
-                        }
-                    }
-                    if wk == parser.NK_TYPEDEF || wk == parser.NK_EXTERN_TYPE ||
-                       wk == parser.NK_ENUMDEF || wk == parser.NK_UNIONDEF || wk == parser.NK_TAGGED_UNIONDEF {
-                        @append(ctx.type_names, wi.d1 as ref char)
-                        if wk == parser.NK_TYPEDEF {
-                            @append(ctx.type_defs, wi as ref void)
-                        }
-                    }
-                    if wk == parser.NK_EXTERN_FN {
-                        @append(ctx.fn_names, wi.d1 as ref char)
-                    }
-                    if wk == parser.NK_CONST || wk == parser.NK_USE {
-                        @append(ctx.fn_names, wi.d1 as ref char)
-                    }
-                    if wk == parser.NK_VAL {
-                        @append(ctx.fn_names, wi.d0 as ref char)
-                    }
+/// Register a type definition or type-related item name.
+fn register_type_name(ctx: ref SemaCtx, item: ref parser.Node) void! = {
+    if item == 0 as ref parser.Node { return }
+    val k: i64 = item.kind
+    if item.d1 != 0 as i64 {
+        @append(ctx.type_names, item.d1 as ref char)
+    }
+    if k == parser.NK_TYPEDEF {
+        @append(ctx.type_defs, item as ref void)
+    }
+    if k == parser.NK_TAGGED_UNIONDEF {
+        val tvariants: ref void = item.d2 as ref void
+        if tvariants != 0 as ref void {
+            for tv in tvariants as list[ref parser.Node] {
+                if tv != 0 as ref parser.Node && tv.d0 != 0 as i64 {
+                    @append(ctx.fn_names, tv.d0 as ref char)
                 }
             }
         }
     }
+}
 
+/// Register a named item (const/use/val/extern_fn) name.
+fn register_named_item(ctx: ref SemaCtx, item: ref parser.Node) void! = {
+    if item == 0 as ref parser.Node { return }
+    val k: i64 = item.kind
+    if k == parser.NK_EXTERN_FN {
+        if item.d1 != 0 as i64 {
+            @append(ctx.fn_names, item.d1 as ref char)
+        }
+    }
+    if k == parser.NK_CONST || k == parser.NK_USE {
+        if item.d1 != 0 as i64 {
+            @append(ctx.fn_names, item.d1 as ref char)
+        }
+    }
+    if k == parser.NK_VAL {
+        if item.d0 != 0 as i64 {
+            @append(ctx.fn_names, item.d0 as ref char)
+        }
+    }
+}
+
+/// Register a single top-level item's name in the context.
+fn register_item_name(ctx: ref SemaCtx, item: ref parser.Node) void! = {
+    if item == 0 as ref parser.Node { return }
+    val k: i64 = item.kind
+    if k == parser.NK_FN {
+        register_fn_name(ctx, item.d1 as ref char, item.d2 as ref char)
+    }
+    if k == parser.NK_TYPEDEF || k == parser.NK_EXTERN_TYPE ||
+       k == parser.NK_ENUMDEF || k == parser.NK_UNIONDEF || k == parser.NK_TAGGED_UNIONDEF {
+        register_type_name(ctx, item)
+    }
+    register_named_item(ctx, item)
+    if k == parser.NK_WHEN_ITEMS {
+        val witems: ref void = item.d1 as ref void
+        if witems != 0 as ref void {
+            val wlen: i64 = @len(witems as list[ref parser.Node]) as i64
+            val wi: mut i64 = 0
+            for {
+                if wi >= wlen { break }
+                val wi_opt = @get(witems as list[ref parser.Node], wi as usize)
+                match wi_opt {
+                    some wi_node => {
+                        register_item_name(ctx, wi_node as ref parser.Node)
+                    }
+                    none => {}
+                }
+                wi++
+            }
+        }
+    }
+}
+
+/// Check a single top-level item (functions, tests, when items).
+fn check_top_item(ctx: ref SemaCtx, item: ref parser.Node, filename: ref char) void! = {
+    val k: i64 = item.kind
+    if k == parser.NK_FN {
+        check_fn(ctx, item, filename)
+    }
+    if k == parser.NK_TEST {
+        push_scope(ctx)
+        check_stmts(ctx, item.d0 as ref void, filename)
+        pop_scope(ctx)
+    }
+    if k == parser.NK_WHEN_ITEMS {
+        val witems: ref void = item.d1 as ref void
+        if witems != 0 as ref void {
+            for wi in witems as list[ref parser.Node] {
+                if wi.kind == parser.NK_FN {
+                    check_fn(ctx, wi, filename)
+                }
+            }
+        }
+        val or_when_sema: ref void = item.d2 as ref void
+        if or_when_sema != 0 as ref void {
+            for ow_sema in or_when_sema as list[ref parser.Node] {
+                val ow_items: ref void = ow_sema.d1 as ref void
+                if ow_items != 0 as ref void {
+                    for wi3 in ow_items as list[ref parser.Node] {
+                        if wi3.kind == parser.NK_FN {
+                            check_fn(ctx, wi3, filename)
+                        }
+                    }
+                }
+            }
+        }
+        val ow_otherwise: ref void = item.d3 as ref void
+        if ow_otherwise != 0 as ref void {
+            for wi4 in ow_otherwise as list[ref parser.Node] {
+                if wi4.kind == parser.NK_FN {
+                    check_fn(ctx, wi4, filename)
+                }
+            }
+        }
+    }
+}
+
+/// Check for duplicate function/type names.
+fn check_duplicates(ctx: ref SemaCtx, filename: ref char) void! = {
     val fnlen: i64 = @len(ctx.fn_names) as i64
-    for fi = 0; fi < fnlen; fi++ {
+    val fi: mut i64 = 0
+    for {
+        if fi >= fnlen { break }
         val fn_opt = @get(ctx.fn_names, fi as usize)
         match fn_opt {
             some fn_name => {
-                for fj = fi + 1; fj < fnlen; fj++ {
+                val fj: mut i64 = fi + 1
+                for {
+                    if fj >= fnlen { break }
                     val fn2_opt = @get(ctx.fn_names, fj as usize)
                     match fn2_opt {
                         some fn2_name => {
@@ -848,52 +907,26 @@ pub fn check_module(items: list[ref parser.Node], filename: ref char) list[ref c
                         }
                         none => {}
                     }
+                    fj++
                 }
             }
             none => {}
         }
+        fi++
+    }
+}
+
+pub fn check_module(items: list[ref parser.Node], filename: ref char) list[ref char]! = {
+    val ctx: ref SemaCtx = sema_new()
+
+    for item in items {
+        register_item_name(ctx, item)
     }
 
+    check_duplicates(ctx, filename)
+
     for item2 in items {
-        if item2.kind == parser.NK_FN {
-            check_fn(ctx, item2, filename)
-        }
-        if item2.kind == parser.NK_TEST {
-            push_scope(ctx)
-            check_stmts(ctx, item2.d0 as ref void, filename)
-            pop_scope(ctx)
-        }
-        if item2.kind == parser.NK_WHEN_ITEMS {
-            val witems2: ref void = item2.d1 as ref void
-            if witems2 != 0 as ref void {
-                for wi2 in witems2 as list[ref parser.Node] {
-                    if wi2.kind == parser.NK_FN {
-                        check_fn(ctx, wi2, filename)
-                    }
-                }
-            }
-            val or_when_sema2: ref void = item2.d2 as ref void
-            if or_when_sema2 != 0 as ref void {
-                for ow_sema2 in or_when_sema2 as list[ref parser.Node] {
-                    val ow_items_sema: ref void = ow_sema2.d1 as ref void
-                    if ow_items_sema != 0 as ref void {
-                        for wi3 in ow_items_sema as list[ref parser.Node] {
-                            if wi3.kind == parser.NK_FN {
-                                check_fn(ctx, wi3, filename)
-                            }
-                        }
-                    }
-                }
-            }
-            val ow_otherwise_sema: ref void = item2.d3 as ref void
-            if ow_otherwise_sema != 0 as ref void {
-                for wi4 in ow_otherwise_sema as list[ref parser.Node] {
-                    if wi4.kind == parser.NK_FN {
-                        check_fn(ctx, wi4, filename)
-                    }
-                }
-            }
-        }
+        check_top_item(ctx, item2, filename)
     }
 
     return ctx.errors
