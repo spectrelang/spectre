@@ -67,6 +67,7 @@ pub type CgCtx = {
     global_qtypes: mut list[ref char]
     used_prefixes: mut list[ref char]
     current_module_prefix: mut ref char
+    emitted_labels: mut list[ref char] 
 }
 
 fn cg_new() ref CgCtx! = {
@@ -112,6 +113,7 @@ fn cg_new() ref CgCtx! = {
     ctx.global_qtypes = []
     ctx.used_prefixes = []
     ctx.current_module_prefix = ""
+    ctx.emitted_labels = []
     return ctx
 }
 
@@ -135,6 +137,26 @@ fn cg_set_fn_name(ctx: ref CgCtx, v: ref char) void! = {
 }
 fn cg_set_str_cnt(ctx: ref CgCtx, v: i64) void! = {
     ctx.str_cnt = v
+}
+
+fn cg_emit_label_if_new(ctx: ref CgCtx, label: ref char) bool! = {
+    val elen: i64 = @len(ctx.emitted_labels as list[ref char]) as i64
+    val ei: mut i64 = 0
+    for {
+        if ei >= elen { break }
+        val e_opt = @get(ctx.emitted_labels as list[ref char], ei as usize)
+        match e_opt {
+            some e => {
+                if str.rchar_cmp(e as ref char, label) == 0 {
+                    return false  
+                }
+            }
+            none => {}
+        }
+        ei++
+    }
+    @append(ctx.emitted_labels as list[ref char], label)
+    return true  
 }
 
 fn cg_dvars(ctx: ref CgCtx) ref void! = { return ctx.dvars as ref void }
@@ -6144,6 +6166,12 @@ fn gen_fn_prefixed(ctx: ref CgCtx, fn_node: ref parser.Node, mod_prefix: ref cha
         @snprintf(mangled, 512, "%s__%s", {mod_prefix, base})
     }
 
+    if !cg_emit_label_if_new(ctx, mangled) {
+        @free(mangled)
+        @free(base)
+        return
+    }
+
     cg_set_fn_name(ctx, mangled)
 
     if params != 0 as ref void {
@@ -6593,6 +6621,44 @@ fn preregister_items(ctx: ref CgCtx, items: list[ref parser.Node], mod_prefix: r
                     val etname: ref char = node.d1 as ref char
                     val etfields: ref void = node.d2 as ref void
                     cg_register_struct(ctx, etname, etfields)
+                } elif k == parser.NK_CONST {
+                    val cname: ref char = node.d1 as ref char
+                    val cexpr: ref parser.Node = node.d2 as ref parser.Node
+                    if cexpr != 0 as ref parser.Node {
+                        if cexpr.kind == parser.NK_INT_LIT {
+                            cg_register_module_const(ctx, cname, parser.int_lit_text(cexpr))
+                        } elif cexpr.kind == parser.NK_FLOAT_LIT {
+                            val ftext: ref char = parser.float_lit_text(cexpr)
+                            val fval: ref char = @alloc(128) as ref char
+                            @snprintf(fval, 128, "d_%s", {ftext})
+                            cg_register_module_const(ctx, cname, fval)
+                        } elif cexpr.kind == parser.NK_UNOP {
+                            val uop: i64 = parser.unop_op(cexpr)
+                            val inner: ref parser.Node = parser.unop_inner(cexpr)
+                            if inner != 0 as ref parser.Node {
+                                if uop == parser.UOP_NEG {
+                                    if inner.kind == parser.NK_INT_LIT {
+                                        val itext: ref char = parser.int_lit_text(inner)
+                                        val ival: ref char = @alloc(128) as ref char
+                                        @snprintf(ival, 128, "-%s", {itext})
+                                        cg_register_module_const(ctx, cname, ival)
+                                    } elif inner.kind == parser.NK_FLOAT_LIT {
+                                        val ftext2: ref char = parser.float_lit_text(inner)
+                                        val fval2: ref char = @alloc(128) as ref char
+                                        @snprintf(fval2, 128, "d_-%s", {ftext2})
+                                        cg_register_module_const(ctx, cname, fval2)
+                                    }
+                                }
+                            }
+                        } elif cexpr.kind == parser.NK_BOOL {
+                            val bval: i64 = cexpr.d0 as i64
+                            if bval != 0 {
+                                cg_register_module_const(ctx, cname, "1")
+                            } else {
+                                cg_register_module_const(ctx, cname, "0")
+                            }
+                        }
+                    }
                 } elif k == parser.NK_WHEN_ITEMS {
                     val plat: ref char = node.d0 as ref char
                     if platform_matches(plat) {
@@ -6720,11 +6786,26 @@ fn gen_items_with_prefix(ctx: ref CgCtx, items: list[ref parser.Node], mod_prefi
                         @free(data_buf)
                         cg_register_global(ctx, gname, glabel, gqtype)
                     }
-                } elif k == parser.NK_CONST {                    val cname: ref char = node.d1 as ref char
+                } elif k == parser.NK_CONST {
+                    val cname: ref char = node.d1 as ref char
                     val cexpr: ref parser.Node = node.d2 as ref parser.Node
                     if cexpr != 0 as ref parser.Node {
+                        val const_label: ref char = @alloc(512) as ref char
+                        if str.rchar_cmp(mod_prefix, "") == 0 {
+                            @snprintf(const_label, 512, "%s", {cname})
+                        } else {
+                            @snprintf(const_label, 512, "%s__%s", {mod_prefix, cname})
+                        }
+
                         if cexpr.kind == parser.NK_INT_LIT {
-                            cg_register_module_const(ctx, cname, parser.int_lit_text(cexpr))
+                            val cval: ref char = parser.int_lit_text(cexpr)
+                            cg_register_module_const(ctx, cname, cval)
+                            if cg_emit_label_if_new(ctx, const_label) {
+                                val data_buf: ref char = @alloc(256) as ref char
+                                @snprintf(data_buf, 256, "data $%s = \{ l %s \}\n", {const_label, cval})
+                                emit(ctx, data_buf)
+                                @free(data_buf)
+                            }
                         } elif cexpr.kind == parser.NK_FLOAT_LIT {
                             val ftext: ref char = parser.float_lit_text(cexpr)
                             val fval: ref char = @alloc(128) as ref char
@@ -6740,6 +6821,12 @@ fn gen_items_with_prefix(ctx: ref CgCtx, items: list[ref parser.Node], mod_prefi
                                         val ival: ref char = @alloc(128) as ref char
                                         @snprintf(ival, 128, "-%s", {itext})
                                         cg_register_module_const(ctx, cname, ival)
+                                        if cg_emit_label_if_new(ctx, const_label) {
+                                            val data_buf2: ref char = @alloc(256) as ref char
+                                            @snprintf(data_buf2, 256, "data $%s = \{ l %s \}\n", {const_label, ival})
+                                            emit(ctx, data_buf2)
+                                            @free(data_buf2)
+                                        }
                                     } elif inner.kind == parser.NK_FLOAT_LIT {
                                         val ftext2: ref char = parser.float_lit_text(inner)
                                         val fval2: ref char = @alloc(128) as ref char
@@ -6750,12 +6837,21 @@ fn gen_items_with_prefix(ctx: ref CgCtx, items: list[ref parser.Node], mod_prefi
                             }
                         } elif cexpr.kind == parser.NK_BOOL {
                             val bval: i64 = cexpr.d0 as i64
+                            val bstr: mut ref char = "0"
                             if bval != 0 {
                                 cg_register_module_const(ctx, cname, "1")
+                                bstr = "1"
                             } else {
                                 cg_register_module_const(ctx, cname, "0")
                             }
+                            if cg_emit_label_if_new(ctx, const_label) {
+                                val data_buf3: ref char = @alloc(256) as ref char
+                                @snprintf(data_buf3, 256, "data $%s = \{ w %s \}\n", {const_label, bstr})
+                                emit(ctx, data_buf3)
+                                @free(data_buf3)
+                            }
                         }
+                        @free(const_label)
                     }
                 }
             }
@@ -6801,6 +6897,7 @@ fn items_have_external_links(items: list[ref parser.Node]) bool! = {
 
 /// Scan items for function calls to track which modules are used, without emitting code.
 fn scan_items_for_usage(ctx: ref CgCtx, items: list[ref parser.Node], mod_prefix: ref char) void! = {
+    @puts("scanning for usage...")
     val ilen: i64 = @len(items) as i64
     val i: mut i64 = 0
     for {
@@ -6821,7 +6918,7 @@ fn scan_items_for_usage(ctx: ref CgCtx, items: list[ref parser.Node], mod_prefix
                             match stmt_opt {
                                 some stmt_val => {
                                     val stmt: ref parser.Node = stmt_val as ref parser.Node
-                                    scan_node_for_calls_depth(ctx, stmt)
+                                    scan_node_for_calls_depth(ctx, stmt, 0)
                                 }
                                 none => {}
                             }
@@ -6876,9 +6973,13 @@ fn scan_node_for_calls_depth(ctx: ref CgCtx, node: ref parser.Node, depth: i64) 
     if depth > 100 { return }
     
     val k: i64 = node.kind
-    
+   
     if k == parser.NK_CALL {
-        scan_node_for_calls_depth(ctx, parser.call_callee(node), depth + 1)
+        val callee: ref parser.Node = parser.call_callee(node)
+        val callee_name: ref char = resolve_callee_name(callee)
+        std.stdio.eprint("\n[codegen] SCAN call: callee_name='{s}'\n", {callee_name})
+        val resolved = cg_resolve_fn_name(ctx, callee_name)
+        std.stdio.eprint("\n[codegen] SCAN call: resolved='{s}'\n", {resolved})
         val args: ref void = parser.call_args(node) as ref void
         if args != 0 as ref void {
             val alen: i64 = @len(args as list[ref parser.Node]) as i64
@@ -7104,7 +7205,7 @@ fn scan_node_for_calls_depth(ctx: ref CgCtx, node: ref parser.Node, depth: i64) 
                 match elem_opt {
                     some elem_val => {
                         val elem: ref parser.Node = elem_val as ref parser.Node
-                        scan_node_for_calls_depth(ctx, elem)
+                        scan_node_for_calls_depth(ctx, elem, depth + 1)
                     }
                     none => {}
                 }
@@ -7151,7 +7252,32 @@ pub fn gen_module_resolved(root: ref module.ResolvedModule) ref char! = {
     )
 
     val layers: i64 = @len(out_prefixes) as i64
+    std.stdio.eprint("[codegen] DEBUG: {d} layers loaded\n", {layers})
     
+    val li_dbg: mut i64 = 0
+    for {
+        if li_dbg >= layers { break }
+        val pfx_dbg_opt = @get(out_prefixes, li_dbg as usize)
+        val items_dbg_opt = @get(out_items, li_dbg as usize)
+        match pfx_dbg_opt {
+            some pfx_dbg => {
+                val items_count: mut i64 = 0
+		match items_dbg_opt {
+                    some items_dbg_ptr => { items_count = @len(items_dbg_ptr as list[ref parser.Node]) as i64 }
+                    none => {}
+                }
+                val has_links_dbg: mut bool = false
+		match items_dbg_opt {
+                    some items_dbg_ptr2 => { has_links_dbg = items_have_external_links(items_dbg_ptr2 as list[ref parser.Node]) }
+                    none => {}
+                }
+                std.stdio.eprint("[codegen]   Layer {d}: prefix='{s}' items={d} has_links={d}\n", {li_dbg, pfx_dbg as ref char, items_count, has_links_dbg})
+            }
+            none => {}
+        }
+        li_dbg++
+    }
+
     cg_mark_prefix_used(ctx, "")
     
     val li: mut i64 = 0
@@ -7212,15 +7338,19 @@ pub fn gen_module_resolved(root: ref module.ResolvedModule) ref char! = {
         val items_opt = @get(out_items,    li2 as usize)
         match pfx_opt {
             some pfx => {
-                val is_root: bool = str.rchar_cmp(pfx as ref char, "") == 0
-                val is_used: bool = cg_is_prefix_used(ctx, pfx as ref char)
-
                 match items_opt {
                     some items_ptr => {
-                        val items: list[ref parser.Node] = items_ptr as list[ref parser.Node]                        
+                        val items: list[ref parser.Node] = items_ptr as list[ref parser.Node]
+                        val is_root2: bool = str.rchar_cmp(pfx as ref char, "") == 0
+                        val is_used2: bool = cg_is_prefix_used(ctx, pfx as ref char)
                         val has_links: bool = items_have_external_links(items)
-                        if is_root || is_used || !has_links {
+
+                        std.stdio.eprint("[codegen] EMIT layer {d}: prefix='{s}' root={d} used={d} has_links={d}\n", {li2, pfx as ref char, is_root2, is_used2, has_links})
+
+                        if !has_links || is_root2 || is_used2 {
                             gen_items_with_prefix(ctx, items, pfx as ref char)
+                        } else {
+                            gen_items_with_prefix_skip_links(ctx, items, pfx as ref char)
                         }
                     }
                     none => {}
@@ -7532,6 +7662,153 @@ pub fn gen_module_resolved_test(root: ref module.ResolvedModule) ref char! = {
     val result: ref char = str.cstr(built)
     str.StringBuilder.free(cg_sb(ctx))
     return result
+}
+
+/// Like gen_items_with_prefix but skips NK_LINK directives.
+/// Used to emit module code without pulling in external libraries.
+fn gen_items_with_prefix_skip_links(ctx: ref CgCtx, items: list[ref parser.Node], mod_prefix: ref char) void! = {
+    preregister_items(ctx, items, mod_prefix)
+    val ilen: i64 = @len(items) as i64
+    val i: mut i64 = 0
+    for {
+        if i >= ilen { break }
+        val item_opt = @get(items, i as usize)
+        match item_opt {
+            some item => {
+                val node: ref parser.Node = item as ref parser.Node
+                val k: i64 = node.kind
+                if k == parser.NK_LINK {
+                    // Skip link directive to avoid pulling in external library
+                } elif k == parser.NK_FN {
+                    gen_fn_prefixed(ctx, node, mod_prefix)
+                } elif k == parser.NK_EXTERN_FN {
+                    gen_extern_fn(ctx, node)
+                } elif k == parser.NK_ENUMDEF {
+                    gen_enum_def_prefixed(ctx, node, mod_prefix)
+                } elif k == parser.NK_UNIONDEF {
+                    gen_union_def_prefixed(ctx, node, mod_prefix)
+                } elif k == parser.NK_TAGGED_UNIONDEF {
+                    gen_tagged_union_def(ctx, node, mod_prefix)
+                } elif k == parser.NK_TYPEDEF {
+                    val tname: ref char = node.d1 as ref char
+                    val tfields: ref void = node.d2 as ref void
+                    cg_register_struct(ctx, tname, tfields)
+                } elif k == parser.NK_EXTERN_TYPE {
+                    val etname: ref char = node.d1 as ref char
+                    val etfields: ref void = node.d2 as ref void
+                    cg_register_struct(ctx, etname, etfields)
+                } elif k == parser.NK_WHEN_ITEMS {
+                    val plat: ref char = node.d0 as ref char
+                    if platform_matches(plat) {
+                        val witems: list[ref parser.Node] = node.d1 as list[ref parser.Node]
+                        gen_items_with_prefix_skip_links(ctx, witems, mod_prefix)
+                    }
+                } elif k == parser.NK_VAL {
+                    val gname: ref char = node.d0 as ref char
+                    val gmut: i64 = node.d1 as i64
+                    val gty_node: ref parser.Node = node.d2 as ref parser.Node
+                    val gexpr: ref parser.Node = node.d3 as ref parser.Node
+                    if gmut != 0 {
+                        val gqtype: mut ref char = "l"
+                        if gty_node != 0 as ref parser.Node {
+                            gqtype = qbe_type_of(gty_node)
+                        } elif gexpr != 0 as ref parser.Node {
+                            if gexpr.kind == parser.NK_BOOL { gqtype = "w" }
+                        }
+                        val ginit: mut ref char = "0"
+                        if gexpr != 0 as ref parser.Node {
+                            if gexpr.kind == parser.NK_BOOL {
+                                val bv: i64 = gexpr.d0 as i64
+                                if bv != 0 { ginit = "1" } else { ginit = "0" }
+                            } elif gexpr.kind == parser.NK_INT_LIT {
+                                ginit = parser.int_lit_text(gexpr)
+                            }
+                        }
+                        val glabel: ref char = @alloc(512) as ref char
+                        if str.rchar_cmp(mod_prefix, "") == 0 {
+                            @snprintf(glabel, 512, "%s", {gname})
+                        } else {
+                            @snprintf(glabel, 512, "%s__%s", {mod_prefix, gname})
+                        }
+                        val data_buf: ref char = @alloc(256) as ref char
+                        @snprintf(data_buf, 256, "data $%s = \{ %s %s \}\n", {glabel, gqtype, ginit})
+                        emit(ctx, data_buf)
+                        @free(data_buf)
+                        cg_register_global(ctx, gname, glabel, gqtype)
+                    }
+                } elif k == parser.NK_CONST {
+                    val cname: ref char = node.d1 as ref char
+                    val cexpr: ref parser.Node = node.d2 as ref parser.Node
+                    if cexpr != 0 as ref parser.Node {
+                        val const_label: ref char = @alloc(512) as ref char
+                        if str.rchar_cmp(mod_prefix, "") == 0 {
+                            @snprintf(const_label, 512, "%s", {cname})
+                        } else {
+                            @snprintf(const_label, 512, "%s__%s", {mod_prefix, cname})
+                        }
+                        
+                        if cexpr.kind == parser.NK_INT_LIT {
+                            val cval: ref char = parser.int_lit_text(cexpr)
+                            cg_register_module_const(ctx, cname, cval)
+                            if cg_emit_label_if_new(ctx, const_label) {
+                                val data_buf: ref char = @alloc(256) as ref char
+                                @snprintf(data_buf, 256, "data $%s = \{ l %s \}\n", {const_label, cval})
+                                emit(ctx, data_buf)
+                                @free(data_buf)
+                            }
+                        } elif cexpr.kind == parser.NK_FLOAT_LIT {
+                            val ftext: ref char = parser.float_lit_text(cexpr)
+                            val fval: ref char = @alloc(128) as ref char
+                            @snprintf(fval, 128, "d_%s", {ftext})
+                            cg_register_module_const(ctx, cname, fval)
+                        } elif cexpr.kind == parser.NK_UNOP {
+                            val uop: i64 = parser.unop_op(cexpr)
+                            val inner: ref parser.Node = parser.unop_inner(cexpr)
+                            if inner != 0 as ref parser.Node {
+                                if uop == parser.UOP_NEG {
+                                    if inner.kind == parser.NK_INT_LIT {
+                                        val itext: ref char = parser.int_lit_text(inner)
+                                        val ival: ref char = @alloc(128) as ref char
+                                        @snprintf(ival, 128, "-%s", {itext})
+                                        cg_register_module_const(ctx, cname, ival)
+                                        if cg_emit_label_if_new(ctx, const_label) {
+                                            val data_buf2: ref char = @alloc(256) as ref char
+                                            @snprintf(data_buf2, 256, "data $%s = \{ l %s \}\n", {const_label, ival})
+                                            emit(ctx, data_buf2)
+                                            @free(data_buf2)
+                                        }
+                                    } elif inner.kind == parser.NK_FLOAT_LIT {
+                                        val ftext2: ref char = parser.float_lit_text(inner)
+                                        val fval2: ref char = @alloc(128) as ref char
+                                        @snprintf(fval2, 128, "d_-%s", {ftext2})
+                                        cg_register_module_const(ctx, cname, fval2)
+                                    }
+                                }
+                            }
+                        } elif cexpr.kind == parser.NK_BOOL {
+                            val bval: i64 = cexpr.d0 as i64
+                            val bstr: mut ref char = "0"
+                            if bval != 0 {
+                                cg_register_module_const(ctx, cname, "1")
+                                bstr = "1"
+                            } else {
+                                cg_register_module_const(ctx, cname, "0")
+                            }
+                            if cg_emit_label_if_new(ctx, const_label) {
+                                val data_buf3: ref char = @alloc(256) as ref char
+                                @snprintf(data_buf3, 256, "data $%s = \{ w %s \}\n", {const_label, bstr})
+                                emit(ctx, data_buf3)
+                                @free(data_buf3)
+                            }
+                        }
+                        @free(const_label)
+                    }
+                }
+            }
+            none => {}
+        }
+        i++
+    }
 }
 
 /// Kinda like gen_items_with_prefix but skips NK_FN named "main" and handles NK_TEST.

@@ -867,12 +867,7 @@ pub fn flatten_modules(
             some name => {
                 match mod_opt {
                     some child => {
-                        val child_prefix: mut ref char = ""
-                        if str.rchar_cmp(prefix, "") == 0 {
-                            child_prefix = name as ref char
-                        } else {
-                            child_prefix = @fmt("{s}__{s}", {prefix, name as ref char})
-                        }
+                        val child_prefix: ref char = name as ref char
                         flatten_modules(
                             child as ref ResolvedModule,
                             child_prefix,
