@@ -6143,6 +6143,11 @@ fn gen_fn(ctx: ref CgCtx, fn_node: ref parser.Node) void! = {
     gen_fn_prefixed(ctx, fn_node, "")
 }
 
+fn get_std_child_names() mut list[ref char] = {
+    val std_child_names: list[ref char] = ["allocators", "collections", "crypto", "fmt", "fs", "log", "math", "os", "path", "random", "reflection", "stdio", "string", "str", "time", "thread"]
+    return std_child_names
+}
+
 fn gen_fn_prefixed(ctx: ref CgCtx, fn_node: ref parser.Node, mod_prefix: ref char) void! = {
     val public: i64 = fn_node.d0 as i64
     val ns: ref char = fn_node.d1 as ref char
@@ -6159,13 +6164,12 @@ fn gen_fn_prefixed(ctx: ref CgCtx, fn_node: ref parser.Node, mod_prefix: ref cha
         @snprintf(base, 256, "%s", {name})
     }
 
-    val std_child_names: mut list[ref char] = ["allocators", "collections", "crypto", "fmt", "fs", "log", "math", "os", "path", "random", "reflection", "stdio", "string", "str", "time", "thread"]
     val is_std_child: mut bool = false
-    val scn_len: i64 = @len(std_child_names) as i64
+    val scn_len: i64 = @len(get_std_child_names()) as i64
     val scn_i: mut i64 = 0
     for {
         if scn_i >= scn_len { break }
-        val scn_opt = @get(std_child_names, scn_i as usize)
+        val scn_opt = @get(get_std_child_names(), scn_i as usize)
         match scn_opt {
             some scn => {
                 if str.rchar_cmp(scn as ref char, mod_prefix) == 0 {
@@ -6618,13 +6622,12 @@ fn preregister_items(ctx: ref CgCtx, items: list[ref parser.Node], mod_prefix: r
                     } else {
                         @snprintf(base, 256, "%s", {name})
                     }
-                    val std_child_names: mut list[ref char] = ["allocators", "collections", "crypto", "fmt", "fs", "log", "math", "os", "path", "random", "reflection", "stdio", "string", "str", "time", "thread"]
                     val is_std_child: mut bool = false
-                    val scn_len: i64 = @len(std_child_names) as i64
+                    val scn_len: i64 = @len(get_std_child_names()) as i64
                     val scn_i: mut i64 = 0
                     for {
                         if scn_i >= scn_len { break }
-                        val scn_opt = @get(std_child_names, scn_i as usize)
+                        val scn_opt = @get(get_std_child_names(), scn_i as usize)
                         match scn_opt {
                             some scn => {
                                 if str.rchar_cmp(scn as ref char, mod_prefix) == 0 {
@@ -7360,7 +7363,6 @@ pub fn gen_module_resolved(root: ref module.ResolvedModule) ref char! = {
     }
 
     if cg_is_prefix_used(ctx, "std") {
-        val std_child_names: mut list[ref char] = ["allocators", "collections", "crypto", "fmt", "fs", "log", "math", "os", "path", "random", "reflection", "stdio", "string", "str", "time", "thread"]
         val li_std: mut i64 = 0
         for {
             if li_std >= layers { break }
@@ -7368,11 +7370,11 @@ pub fn gen_module_resolved(root: ref module.ResolvedModule) ref char! = {
             match pfx_std_opt {
                 some pfx_std => {
                     val pfx_str: ref char = pfx_std as ref char
-                    val nlen: i64 = @len(std_child_names) as i64
+                    val nlen: i64 = @len(get_std_child_names()) as i64
                     val ni: mut i64 = 0
                     for {
                         if ni >= nlen { break }
-                        val std_name_opt = @get(std_child_names, ni as usize)
+                        val std_name_opt = @get(get_std_child_names(), ni as usize)
                         match std_name_opt {
                             some std_name => {
                                 if str.rchar_cmp(pfx_str, std_name as ref char) == 0 {
@@ -7488,7 +7490,6 @@ pub fn get_used_prefixes(root: ref module.ResolvedModule) list[ref char]! = {
     }
 
     if cg_is_prefix_used(ctx, "std") {
-        val std_child_names: mut list[ref char] = ["allocators", "collections", "crypto", "fmt", "fs", "log", "math", "os", "path", "random", "reflection", "stdio", "string", "str", "time", "thread"]
         val li_std: mut i64 = 0
         for {
             if li_std >= layers { break }
@@ -7496,11 +7497,11 @@ pub fn get_used_prefixes(root: ref module.ResolvedModule) list[ref char]! = {
             match pfx_std_opt {
                 some pfx_std => {
                     val pfx_str: ref char = pfx_std as ref char
-                    val nlen: i64 = @len(std_child_names) as i64
+                    val nlen: i64 = @len(get_std_child_names()) as i64
                     val ni: mut i64 = 0
                     for {
                         if ni >= nlen { break }
-                        val std_name_opt = @get(std_child_names, ni as usize)
+                        val std_name_opt = @get(get_std_child_names(), ni as usize)
                         match std_name_opt {
                             some std_name => {
                                 if str.rchar_cmp(pfx_str, std_name as ref char) == 0 {
@@ -7697,7 +7698,6 @@ pub fn gen_module_resolved_test(root: ref module.ResolvedModule) ref char! = {
     }
 
     if cg_is_prefix_used(ctx, "std") {
-        val std_child_names: mut list[ref char] = ["allocators", "collections", "crypto", "fmt", "fs", "log", "math", "os", "path", "random", "reflection", "stdio", "string", "str", "time", "thread"]
         val li_std: mut i64 = 0
         for {
             if li_std >= layers { break }
@@ -7705,11 +7705,11 @@ pub fn gen_module_resolved_test(root: ref module.ResolvedModule) ref char! = {
             match pfx_std_opt {
                 some pfx_std => {
                     val pfx_str: ref char = pfx_std as ref char
-                    val nlen: i64 = @len(std_child_names) as i64
+                    val nlen: i64 = @len(get_std_child_names()) as i64
                     val ni: mut i64 = 0
                     for {
                         if ni >= nlen { break }
-                        val std_name_opt = @get(std_child_names, ni as usize)
+                        val std_name_opt = @get(get_std_child_names(), ni as usize)
                         match std_name_opt {
                             some std_name => {
                                 if str.rchar_cmp(pfx_str, std_name as ref char) == 0 {
