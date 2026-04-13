@@ -6331,12 +6331,17 @@ fn gen_fn_prefixed(ctx: mut ref CgCtx, fn_node: ref parser.Node, mod_prefix: ref
 
     if returns_union {
         emit(ctx, "l %__ret")
-        if params != 0 as ref void && @len(params) as i64 > 0 {
-            emit(ctx, ", ")
-        }
     }
 
-    if params != 0 as ref void {
+    val is_main: bool = str.rchar_cmp(name, "main") == 0 && str.rchar_cmp(mod_prefix, "") == 0
+    if is_main {
+        if returns_union {
+            emit(ctx, ", ")
+        }
+        emit(ctx, "w %argc, l %argv")
+    }
+
+    if params != 0 as ref void && !is_main {
         val plen: i64 = @len(params) as i64
         val pi: mut i64 = 0
         for {
@@ -6348,7 +6353,7 @@ fn gen_fn_prefixed(ctx: mut ref CgCtx, fn_node: ref parser.Node, mod_prefix: ref
                     val pty: ref parser.Node = (param as ref parser.Node).d1 as ref parser.Node
                     val pqt: ref char = qbe_type_of(pty)
                     val pbuf: ref char = @alloc(64) as ref char
-                    if pi > 0 { emit(ctx, ", ") }
+                    if pi > 0 || returns_union { emit(ctx, ", ") }
                     @snprintf(pbuf, 64, "%s %%%s", {pqt, pname})
                     emit(ctx, pbuf)
                     @free(pbuf)
@@ -6361,6 +6366,12 @@ fn gen_fn_prefixed(ctx: mut ref CgCtx, fn_node: ref parser.Node, mod_prefix: ref
 
     emitln(ctx, ") {")
     emitln(ctx, "@start")
+
+    if is_main {
+        emitln(ctx, "    %sx_argc_val =l extsw %argc")
+        emitln(ctx, "    storel %sx_argc_val, $sx_argc_store")
+        emitln(ctx, "    storel %argv, $sx_argv_store")
+    }
 
     if returns_union {
         ctx.current_fn_ret_union = ret_union_name
@@ -7822,8 +7833,11 @@ fn gen_test_fn(ctx: ref CgCtx, body_stmts: ref parser.Node, test_id: i64) void! 
 
 /// Emit a $main that calls all collected test functions and prints a summary.
 fn gen_test_main(ctx: ref CgCtx, test_ids: list[i64]) void! = {
-    emitln(ctx, "export function w $main() {")
+    emitln(ctx, "export function w $main(w %argc, l %argv) {")
     emitln(ctx, "@start")
+    emitln(ctx, "    %sx_argc_val =l extsw %argc")
+    emitln(ctx, "    storel %sx_argc_val, $sx_argc_store")
+    emitln(ctx, "    storel %argv, $sx_argv_store")
     val tlen: i64 = @len(test_ids) as i64
     val ti: mut i64 = 0
     for {
