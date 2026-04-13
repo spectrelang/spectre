@@ -1,0 +1,15 @@
+val json = use("std/json")
+
+pub fn main() void = {
+	val input: ref char = \\{"name":"Alice"}
+	val doc_opt = json.parse(input)
+	match doc_opt {
+		none => {
+			@puts("got nothing")
+			assert false
+		}
+		some _ => {
+			@puts("got something")
+		}
+	}
+}
