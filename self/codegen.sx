@@ -6768,97 +6768,97 @@ fn gen_enum_def_prefixed(ctx: ref CgCtx, item: ref parser.Node, mod_prefix: ref 
 
 /// Generate the assert_fail handler and any needed runtime helpers.
 fn emit_runtime_helpers(ctx: ref CgCtx) void! = {
-    emitln(ctx, `
-data $str_w_mode = { b "w", b 0 }
-data $str_r_mode = { b "r", b 0 }
-data $sx_stdin_ptr = { l 0 }
-data $sx_stdout_ptr = { l 0 }
-data $sx_stderr_ptr = { l 0 }
-
-function l $sx_stdout() {
-@start
-    %p =l loadl $sx_stdout_ptr
-    %c =w cnel %p, 0
-    jnz %c, @done, @init
-@init
-    %r =l call $fdopen(w 1, l $str_w_mode)
-    storel %r, $sx_stdout_ptr
-    ret %r
-@done
-    ret %p
-}
-function l $sx_stderr() {
-@start
-    %p =l loadl $sx_stderr_ptr
-    %c =w cnel %p, 0
-    jnz %c, @done, @init
-@init
-    %r =l call $fdopen(w 2, l $str_w_mode)
-    storel %r, $sx_stderr_ptr
-    ret %r
-@done
-    ret %p
-}
-function l $sx_stdin() {
-@start
-    %p =l loadl $sx_stdin_ptr
-    %c =w cnel %p, 0
-    jnz %c, @done, @init
-@init
-    %r =l call $fdopen(w 0, l $str_r_mode)
-    storel %r, $sx_stdin_ptr
-    ret %r
-@done
-    ret %p
-}
-
-data $sx_argc_store = { l 0 }
-data $sx_argv_store = { l 0 }
-
-function l $sx_get_args() {
-@start
-    %argc =l loadl $sx_argc_store
-    %argv =l loadl $sx_argv_store
-    %hdr =l call $malloc(l 24)
-    %cap =l mul %argc, 8
-    %buf =l call $malloc(l %cap)
-    storel %buf, %hdr
-    %len_slot =l add %hdr, 8
-    storel 0, %len_slot
-    %cap_slot =l add %hdr, 16
-    storel %argc, %cap_slot
-    %i =l copy 0
-@args_loop
-    %done =l csgtl %i, %argc
-    jnz %done, @args_done, @args_body
-@args_body
-    %off =l mul %i, 8
-    %slot =l add %argv, %off
-    %str =l loadl %slot
-    %cur_len =l loadl %len_slot
-    %boff =l mul %cur_len, 8
-    %bslot =l add %buf, %boff
-    storel %str, %bslot
-    %new_len =l add %cur_len, 1
-    storel %new_len, %len_slot
-    %i =l add %i, 1
-    jmp @args_loop
-@args_done
-    ret %hdr
-}
-
-function l $__sx_get_args() {
-@start
-    %r =l call $sx_get_args()
-    ret %r
-}
-
-function w $os__exit(w %code) {
-@start
-    call $exit(w %code)
-    ret 0
-}
-`)
+    emitln(ctx,
+      \\data $str_w_mode = { b "w", b 0 }
+      \\data $str_r_mode = { b "r", b 0 }
+      \\data $sx_stdin_ptr = { l 0 }
+      \\data $sx_stdout_ptr = { l 0 }
+      \\data $sx_stderr_ptr = { l 0 }
+      \\
+      \\function l $sx_stdout() {
+      \\@start
+      \\    %p =l loadl $sx_stdout_ptr
+      \\    %c =w cnel %p, 0
+      \\    jnz %c, @done, @init
+      \\@init
+      \\    %r =l call $fdopen(w 1, l $str_w_mode)
+      \\    storel %r, $sx_stdout_ptr
+      \\    ret %r
+      \\@done
+      \\    ret %p
+      \\}
+      \\function l $sx_stderr() {
+      \\@start
+      \\    %p =l loadl $sx_stderr_ptr
+      \\    %c =w cnel %p, 0
+      \\    jnz %c, @done, @init
+      \\@init
+      \\    %r =l call $fdopen(w 2, l $str_w_mode)
+      \\    storel %r, $sx_stderr_ptr
+      \\    ret %r
+      \\@done
+      \\    ret %p
+      \\}
+      \\function l $sx_stdin() {
+      \\@start
+      \\    %p =l loadl $sx_stdin_ptr
+      \\    %c =w cnel %p, 0
+      \\    jnz %c, @done, @init
+      \\@init
+      \\    %r =l call $fdopen(w 0, l $str_r_mode)
+      \\    storel %r, $sx_stdin_ptr
+      \\    ret %r
+      \\@done
+      \\    ret %p
+      \\}
+      \\
+      \\data $sx_argc_store = { l 0 }
+      \\data $sx_argv_store = { l 0 }
+      \\
+      \\function l $sx_get_args() {
+      \\@start
+      \\    %argc =l loadl $sx_argc_store
+      \\    %argv =l loadl $sx_argv_store
+      \\    %hdr =l call $malloc(l 24)
+      \\    %cap =l mul %argc, 8
+      \\    %buf =l call $malloc(l %cap)
+      \\    storel %buf, %hdr
+      \\    %len_slot =l add %hdr, 8
+      \\    storel 0, %len_slot
+      \\    %cap_slot =l add %hdr, 16
+      \\    storel %argc, %cap_slot
+      \\    %i =l copy 0
+      \\@args_loop
+      \\    %done =l csgtl %i, %argc
+      \\    jnz %done, @args_done, @args_body
+      \\@args_body
+      \\    %off =l mul %i, 8
+      \\    %slot =l add %argv, %off
+      \\    %str =l loadl %slot
+      \\    %cur_len =l loadl %len_slot
+      \\    %boff =l mul %cur_len, 8
+      \\    %bslot =l add %buf, %boff
+      \\    storel %str, %bslot
+      \\    %new_len =l add %cur_len, 1
+      \\    storel %new_len, %len_slot
+      \\    %i =l add %i, 1
+      \\    jmp @args_loop
+      \\@args_done
+      \\    ret %hdr
+      \\}
+      \\
+      \\function l $__sx_get_args() {
+      \\@start
+      \\    %r =l call $sx_get_args()
+      \\    ret %r
+      \\}
+      \\
+      \\function w $os__exit(w %code) {
+      \\@start
+      \\    call $exit(w %code)
+      \\    ret 0
+      \\}
+    )
 }
 
 /// Pre-registration pass: register all function names and tagged union variants
