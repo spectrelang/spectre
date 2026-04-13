@@ -109,16 +109,16 @@ fn cg_str_cnt(ctx: ref CgCtx) i64!      = { return ctx.str_cnt as i64 }
 fn cg_tdefs(ctx: ref CgCtx)   ref void! = { return ctx.tdefs as ref void }
 fn cg_edefs(ctx: ref CgCtx)   ref void! = { return ctx.edefs as ref void }
 
-fn cg_set_tmp(ctx: ref CgCtx, v: i64) void! = {
+fn cg_set_tmp(ctx: mut ref CgCtx, v: i64) void! = {
     ctx.tmp = v
 }
-fn cg_set_lbl(ctx: ref CgCtx, v: i64) void! = {
+fn cg_set_lbl(ctx: mut ref CgCtx, v: i64) void! = {
     ctx.lbl = v
 }
-fn cg_set_fn_name(ctx: ref CgCtx, v: ref char) void! = {
+fn cg_set_fn_name(ctx: mut ref CgCtx, v: ref char) void! = {
     ctx.fn_name = v
 }
-fn cg_set_str_cnt(ctx: ref CgCtx, v: i64) void! = {
+fn cg_set_str_cnt(ctx: mut ref CgCtx, v: i64) void! = {
     ctx.str_cnt = v
 }
 
@@ -276,8 +276,8 @@ fn cg_tv_tags(ctx: ref CgCtx) ref void! = { return ctx.tv_tags as ref void }
 fn cg_tv_fields(ctx: ref CgCtx) ref void! = { return ctx.tv_fields as ref void }
 fn cg_break_lbl(ctx: ref CgCtx) i64! = { return ctx.break_lbl }
 fn cg_cont_lbl(ctx: ref CgCtx) i64! = { return ctx.cont_lbl }
-fn cg_set_break_lbl(ctx: ref CgCtx, v: i64) void! = { ctx.break_lbl = v }
-fn cg_set_cont_lbl(ctx: ref CgCtx, v: i64) void! = { ctx.cont_lbl = v }
+fn cg_set_break_lbl(ctx: mut ref CgCtx, v: i64) void! = { ctx.break_lbl = v }
+fn cg_set_cont_lbl(ctx: mut ref CgCtx, v: i64) void! = { ctx.cont_lbl = v }
 fn cg_defer_stack(ctx: ref CgCtx) ref void! = { return ctx.defer_stack as ref void }
 
 fn cg_defer_push(ctx: ref CgCtx, body: ref parser.Node) void! = {
@@ -285,7 +285,7 @@ fn cg_defer_push(ctx: ref CgCtx, body: ref parser.Node) void! = {
     @append(stack as list[ref void], body as ref void)
 }
 
-fn cg_defer_clear(ctx: ref CgCtx) void! = {
+fn cg_defer_clear(ctx: mut ref CgCtx) void! = {
     ctx.defer_stack = []
 }
 
@@ -979,7 +979,7 @@ fn field_offset(ctx: ref CgCtx, fields: ref void, field_name: ref char) i64! = {
     return -1
 }
 
-fn cg_dvars_clear(ctx: ref CgCtx) void! = {
+fn cg_dvars_clear(ctx: mut ref CgCtx) void! = {
     ctx.dvars = []
     ctx.dqtypes = []
     ctx.local_ref_types = []
@@ -6257,7 +6257,7 @@ fn get_std_child_names() mut list[ref char] = {
     return std_child_names
 }
 
-fn gen_fn_prefixed(ctx: ref CgCtx, fn_node: ref parser.Node, mod_prefix: ref char) void! = {
+fn gen_fn_prefixed(ctx: mut ref CgCtx, fn_node: ref parser.Node, mod_prefix: ref char) void! = {
     val public: i64 = fn_node.d0 as i64
     val ns: ref char = fn_node.d1 as ref char
     val name: ref char = fn_node.d2 as ref char
