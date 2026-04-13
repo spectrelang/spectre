@@ -811,7 +811,7 @@ fn register_named_item(ctx: ref SemaCtx, item: ref parser.Node) void! = {
 /// Register a single top-level item's name in the context.
 fn register_item_name(ctx: ref SemaCtx, item: ref parser.Node) void! = {
     if item == 0 as ref parser.Node { return }
-    val k: i64 = item.kind 
+    val k: i64 = item.kind //instantly crashes here 
     if k == parser.NK_FN {
         register_fn_name(ctx, item.d1 as ref char, item.d2 as ref char)
     }

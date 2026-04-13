@@ -6894,7 +6894,7 @@ fn emit_runtime_helpers(ctx: ref CgCtx) void! = {
       \\    storel %argc, %cap_slot
       \\    %i =l copy 0
       \\@args_loop
-      \\    %done =l csgtl %i, %argc
+      \\    %done =w csgel %i, %argc
       \\    jnz %done, @args_done, @args_body
       \\@args_body
       \\    %off =l mul %i, 8
