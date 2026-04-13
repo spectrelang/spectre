@@ -1544,7 +1544,7 @@ fn type_size(ty: ref parser.Node) i64! = {
     if k == parser.TY_VOID    { return 0 }
     if k == parser.TY_MUT     { return type_size(ty.d0 as ref parser.Node) }
     if k == parser.TY_REF     { return 8 }
-    if k == parser.TY_LIST    { return 24 }
+    if k == parser.TY_LIST    { return 16 }
     if k == parser.TY_OPTION  { return 24 }
     if k == parser.TY_RESULT  { return 24 }
     if k == parser.TY_SLICE   { return 16 }
@@ -1573,7 +1573,7 @@ fn type_size(ty: ref parser.Node) i64! = {
         val elem_size: i64 = type_size(ty.d1 as ref parser.Node)
         return count * elem_size
     }
-    if k == parser.TY_LIST { return 24 }
+    if k == parser.TY_LIST { return 16 }
     return 8
 }
 
