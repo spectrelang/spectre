@@ -5,25 +5,6 @@ val reflection = use("std/reflection")
 val parser     = use("parser.sx")
 val module     = use("module.sx")
 
-/// Returns true if the given when-clause name matches the current platform.
-/// Handles group aliases: "posix" matches linux/darwin/*bsd/haiku/android/redox.
-fn platform_matches(name: ref char) bool! = {
-    val cur: ref char = reflection.current_platform_name()
-    if str.rchar_cmp(name, cur) == 0 { return true }
-    if str.rchar_cmp(name, "posix") == 0 {
-        if str.rchar_cmp(cur, "linux")        == 0 { return true }
-        if str.rchar_cmp(cur, "darwin")       == 0 { return true }
-        if str.rchar_cmp(cur, "freebsd")      == 0 { return true }
-        if str.rchar_cmp(cur, "openbsd")      == 0 { return true }
-        if str.rchar_cmp(cur, "netbsd")       == 0 { return true }
-        if str.rchar_cmp(cur, "dragonflybsd") == 0 { return true }
-        if str.rchar_cmp(cur, "haiku")        == 0 { return true }
-        if str.rchar_cmp(cur, "android")      == 0 { return true }
-        if str.rchar_cmp(cur, "redox")        == 0 { return true }
-    }
-    return false
-}
-
 /// Codegen context
 pub type CgCtx = {
     sb: mut ref void
@@ -199,6 +180,25 @@ fn cg_is_prefix_used(ctx: ref CgCtx, prefix: ref char) bool! = {
             none => {}
         }
         ni++
+    }
+    return false
+}
+
+/// Returns true if the given when-clause name matches the current platform.
+/// Handles group aliases: "posix" matches linux/darwin/*bsd/haiku/android/redox.
+fn platform_matches(name: ref char) bool! = {
+    val cur: ref char = reflection.current_platform_name()
+    if str.rchar_cmp(name, cur) == 0 { return true }
+    if str.rchar_cmp(name, "posix") == 0 {
+        if str.rchar_cmp(cur, "linux")        == 0 { return true }
+        if str.rchar_cmp(cur, "darwin")       == 0 { return true }
+        if str.rchar_cmp(cur, "freebsd")      == 0 { return true }
+        if str.rchar_cmp(cur, "openbsd")      == 0 { return true }
+        if str.rchar_cmp(cur, "netbsd")       == 0 { return true }
+        if str.rchar_cmp(cur, "dragonflybsd") == 0 { return true }
+        if str.rchar_cmp(cur, "haiku")        == 0 { return true }
+        if str.rchar_cmp(cur, "android")      == 0 { return true }
+        if str.rchar_cmp(cur, "redox")        == 0 { return true }
     }
     return false
 }
