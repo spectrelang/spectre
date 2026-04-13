@@ -71,6 +71,7 @@ done
 
 "$COMPILER" ./self/lexer.sx --test
 "$COMPILER" ./self/parser.sx --test
+"$COMPILER" ./self/sema.sx --test
 
 echo
 echo "Final Summary:"
