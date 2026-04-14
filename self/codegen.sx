@@ -6097,11 +6097,12 @@ fn gen_forin_stmt(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
     val loop_lbl: i64 = fresh_lbl(ctx)
     val body_lbl: i64 = fresh_lbl(ctx)
     val break_lbl: i64 = fresh_lbl(ctx)
+    val cont_lbl: i64 = fresh_lbl(ctx)
     val prev_break2: i64 = cg_break_lbl(ctx)
     val prev_cont2: i64 = cg_cont_lbl(ctx)
     
     cg_set_break_lbl(ctx, break_lbl)
-    cg_set_cont_lbl(ctx, loop_lbl)
+    cg_set_cont_lbl(ctx, cont_lbl)
 
     val len_slot: i64 = fresh_tmp(ctx)
     val buf: ref char = @alloc(512) as ref char
@@ -6158,10 +6159,10 @@ fn gen_forin_stmt(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
     gen_stmts(ctx, body as ref parser.Node)
 
     val nxt: i64 = fresh_tmp(ctx)
-    val buf4: ref char = @alloc(128) as ref char
-    @snprintf(buf4, 128,
-        "    %%t%lld =l add %%t%lld, 1\n    storel %%t%lld, %%t%lld\n    jmp @lbl%lld\n@lbl%lld\n",
-        {nxt, cur_idx, nxt, idx, loop_lbl, break_lbl})
+    val buf4: ref char = @alloc(256) as ref char
+    @snprintf(buf4, 256,
+        "@lbl%lld\n    %%t%lld =l add %%t%lld, 1\n    storel %%t%lld, %%t%lld\n    jmp @lbl%lld\n@lbl%lld\n",
+        {cont_lbl, nxt, cur_idx, nxt, idx, loop_lbl, break_lbl})
     emit(ctx, buf4)
     @free(buf4)
 
