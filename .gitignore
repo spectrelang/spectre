@@ -1,6 +1,7 @@
 /target
 /s-out
 .DS_Store
+spectre-dev
 .q*
 *.o
 *.s
