@@ -2,9 +2,20 @@
 
 This repository contains the compiler for the Spectre Programming Language.
 
-Spectre is a statically typed, design-by-contract language aiming to offer low-level control in combination with explicit correctness. At the same time, it is not too verbose, and strikes a balance between the two to enable explicit, trustworthy code to be written.
+Spectre is a statically typed, design-by-contract language aiming to offer low-level control in combination with explicit correctness. The compiler is written entirely in Spectre itself.
 
-The complete documentation can be found at https://spectre-docs.pages.dev.
+The complete documentation can be found at https://spectre-docs.pages.dev
+
+## Installation
+
+Prerequisite: cmake
+
+```
+git clone https://github.com/spectrelang/spectre.git
+./install.sh
+```
+
+## Examples
 
 ```spectre
 val std = use("std")
