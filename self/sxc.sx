@@ -1,11 +1,16 @@
-val std = use("std")
-val allocators = use("std/allocators")
-val path = use("std/path")
-val lexer = use("lexer.sx")
-val parser = use("parser.sx")
-val sema = use("sema.sx")
-val codegen = use("codegen.sx")
-val module = use("module.sx")
+/// The Spectre Compiler
+///
+/// GPL-3.0-only 
+/// (C) Navid Momtahen
+
+val std         = use("std")
+val allocators  = use("std/allocators")
+val path        = use("std/path")
+val lexer       = use("lexer.sx")
+val parser      = use("parser.sx")
+val sema        = use("sema.sx")
+val codegen     = use("codegen.sx")
+val module      = use("module.sx")
 
 fn print_usage() void = {
     std.stdio.puts("usage:")
