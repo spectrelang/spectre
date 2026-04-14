@@ -1,7 +1,7 @@
 /// The Spectre Compiler
 ///
 /// GPL-3.0-only 
-/// (C) Navid Momtahen
+/// (C) Navid Momtahen - 2026
 
 val std         = use("std")
 val allocators  = use("std/allocators")
@@ -14,7 +14,7 @@ val module      = use("module.sx")
 
 fn print_usage() void = {
     std.stdio.puts("usage:")
-    std.stdio.puts("  sxc <input.sx> [options]")
+    std.stdio.puts("  spectre <input.sx> [options]")
     std.stdio.puts("")
     std.stdio.puts("options:")
     std.stdio.puts("  -o, --output <FILE>  Output binary path (default: input filename without extension)")
@@ -23,6 +23,7 @@ fn print_usage() void = {
     std.stdio.puts("  --show-cmd           Show the command used for linking")
     std.stdio.puts("  --test               Run the unit tests in the current file")
     std.stdio.puts("  -q, --quiet          Suppress compiler output")
+    std.stdio.puts("  -v, --version        Show the version of the Spectre compiler")
     std.stdio.puts("  -h, --help           Print this help message")
 }
 
@@ -52,6 +53,12 @@ pub fn main() i32! = {
 
     if std.string.rchar_cmp(input, "-h") == 0 || std.string.rchar_cmp(input, "--help") == 0 {
         print_usage()
+        allocators.Arena.free(arena)
+        return 0
+    }
+
+    if std.string.rchar_cmp(input, "-v") == 0 || std.string.rchar_cmp(input, "--version") == 0 {
+        std.stdio.puts("Spectre v0.0.1\n(C) Navid Momtahen - GPL-3.0 - 2026")
         allocators.Arena.free(arena)
         return 0
     }
