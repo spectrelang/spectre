@@ -15,6 +15,8 @@ git clone https://github.com/spectrelang/spectre.git
 ./install.sh
 ```
 
+The compiler is tested under MacOS aarch64 and Linux x86_64, for Windows it is untested, though might work under MSYS2.
+
 ## Examples
 
 ```spectre
