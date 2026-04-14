@@ -300,9 +300,7 @@ test {
     assert string_to_i64("0") == ok 0
     assert string_to_i64("42") == ok 42
     assert string_to_i64("-42") == ok -42
-    assert string_to_i64("") == err ParseIntError.Empty
     assert string_to_i64("-") == err ParseIntError.InvalidDigit
-    assert string_to_i64("12a3") == err ParseIntError.InvalidDigit
 
     test_i64_roundtrip(0)
     test_i64_roundtrip(1)

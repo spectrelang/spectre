@@ -1430,7 +1430,7 @@ fn collect_needed_subnames_in_stmt(stmt: ref parser.Node, import_name: ref char,
                 match c_opt {
                     some c => {
                         val cnode: ref parser.Node = c as ref parser.Node
-                        collect_needed_subnames_in_expr(cnode.d0 as ref parser.Node, import_name, needed)
+                        collect_needed_subnames_in_expr(cnode.d1 as ref parser.Node, import_name, needed)
                     }
                     none => {}
                 }
