@@ -1578,6 +1578,33 @@ fn collect_needed_subnames_transitive(
 
     val visited: mut list[ref char] = []
     val changed: mut bool = true
+
+    val import_path = resolve_use_path(use_path, file_dir, exe_dir)
+    val import_dir: ref char = std.path.dir(import_path)
+
+    val import_src_opt = std.fs.read_all(import_path)
+    val import_items: mut list[ref parser.Node] = []
+    val have_import_items: mut bool = false
+    match import_src_opt {
+        some import_src => {
+            val lex_r = lexer.tokenize(import_src as ref char)
+            match lex_r {
+                ok import_tokens => {
+                    val parse_r = parser.parse_module(import_tokens, import_path)
+                    match parse_r {
+                        ok parsed => {
+                            import_items = parsed
+                            have_import_items = true
+                        }
+                        err _ => {}
+                    }
+                }
+                err _ => {}
+            }
+        }
+        none => {}
+    }
+
     for {
         if !changed { break }
         changed = false
@@ -1599,36 +1626,65 @@ fn collect_needed_subnames_transitive(
 
                     if !already_visited {
                         @append(visited, sub_name as ref char)
-                        val resolved_path = resolve_use_path(use_path, file_dir, exe_dir)
-                        if in_progress_contains(in_progress, resolved_path) {
-                            ni++
-                            continue
-                        }
 
-                        val child_src_opt = std.fs.read_all(resolved_path)
-                        match child_src_opt {
-                            some child_src => {
-                                val lex_result = lexer.tokenize(child_src as ref char)
-                                match lex_result {
-                                    ok child_tokens => {
-                                        val parse_result = parser.parse_module(child_tokens, resolved_path)
-                                        match parse_result {
-                                            ok child_items => {
-                                                val child_needed = collect_needed_subnames(child_items, import_name)
-                                                for extra in child_needed {
-                                                    if !import_in_list(needed, extra) {
-                                                        @append(needed, extra)
-                                                        changed = true
+                        if have_import_items {
+                            val sub_use_path: mut ref char = ""
+                            val found_sub: mut bool = false
+                            val imp_len: i64 = @len(import_items) as i64
+                            val imp_i: mut i64 = 0
+                            for {
+                                if imp_i >= imp_len { break }
+                                val imp_opt = @get(import_items, imp_i as usize)
+                                match imp_opt {
+                                    some imp_val => {
+                                        val imp_node: ref parser.Node = imp_val as ref parser.Node
+                                        if imp_node.kind == parser.NK_USE {
+                                            val imp_name: ref char = imp_node.d1 as ref char
+                                            if str.rchar_cmp(imp_name, sub_name as ref char) == 0 {
+                                                sub_use_path = imp_node.d2 as ref char
+                                                found_sub = true
+                                                break
+                                            }
+                                        }
+                                    }
+                                    none => {}
+                                }
+                                imp_i++
+                            }
+
+                            if found_sub {
+                                val sub_resolved = resolve_use_path(sub_use_path, import_dir, exe_dir)
+                                if in_progress_contains(in_progress, sub_resolved) {
+                                    ni++
+                                    continue
+                                }
+
+                                val sub_src_opt = std.fs.read_all(sub_resolved)
+                                match sub_src_opt {
+                                    some sub_src => {
+                                        val lex_result = lexer.tokenize(sub_src as ref char)
+                                        match lex_result {
+                                            ok sub_tokens => {
+                                                val parse_result = parser.parse_module(sub_tokens, sub_resolved)
+                                                match parse_result {
+                                                    ok sub_items => {
+                                                        val child_needed = collect_needed_subnames(sub_items, import_name)
+                                                        for extra in child_needed {
+                                                            if !import_in_list(needed, extra) {
+                                                                @append(needed, extra)
+                                                                changed = true
+                                                            }
+                                                        }
                                                     }
+                                                    err _ => {}
                                                 }
                                             }
                                             err _ => {}
                                         }
                                     }
-                                    err _ => {}
+                                    none => {}
                                 }
                             }
-                            none => {}
                         }
                     }
                 }
