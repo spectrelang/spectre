@@ -140,7 +140,7 @@ pub fn main() i32! = {
         return 1
     }
 
-    std.stdio.puts("[III]| codegen")
+    std.stdio.puts("[III]| cg pass")
     val qbe_ir: mut ref char = ""
 
     if test_mode {
