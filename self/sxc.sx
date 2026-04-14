@@ -116,6 +116,7 @@ pub fn main() i32! = {
     }
 
     val exe_dir: ref char = "."
+    std.stdio.puts("[I]  | resolving module")
     val resolve_result = module.resolve_module(input, [], exe_dir, 0 as ref void)
     val root_mod: mut ref module.ResolvedModule = 0 as ref module.ResolvedModule
 
@@ -128,6 +129,7 @@ pub fn main() i32! = {
         }
     }
 
+    std.stdio.puts("[II] | sema")
     val errors: mut list[ref char] = sema.check_module(root_mod.items, input)
     val nerrors: i64 = @len(errors) as i64
     if nerrors > 0 {
@@ -138,6 +140,7 @@ pub fn main() i32! = {
         return 1
     }
 
+    std.stdio.puts("[III]| codegen")
     val qbe_ir: mut ref char = ""
 
     if test_mode {
@@ -145,6 +148,8 @@ pub fn main() i32! = {
     } else {
         qbe_ir = codegen.gen_module_resolved(root_mod)
     }
+
+    std.stdio.puts("[IV] | module ul-collection")
 
     val links: list[ref char] = module.collect_used_links(root_mod, exe_dir)
 
