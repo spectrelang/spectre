@@ -89,7 +89,7 @@ pub fn string_to_i64(s: ref char) result[i64, ParseIntError]! = {
 
         val c: u8 = @load8(@ptradd(s, i))
         if c < 48 || c > 57 {
-            return err ParseIntError.InvalidDigit
+            break
         }
 
         val digit: i64 = (c - 48) as i64
@@ -105,6 +105,10 @@ pub fn string_to_i64(s: ref char) result[i64, ParseIntError]! = {
 
     if neg {
         acc = -acc
+    }
+
+    if i == start {
+        return err ParseIntError.InvalidDigit
     }
 
     return ok acc

@@ -595,7 +595,58 @@ pub fn replace(s: ref void, from: ref void, to: ref void) ref void! = {
     return out
 }
 
+/// If s starts with prefix, return a new ref char without it, otherwise clone
+pub fn trim_prefix_raw(s: ref char, prefix: ref char) ref char! = {
+    if (prefix == none) {
+        return substr(s, 0, strlen(s))
+    }
+    if (s == none) {
+        return none
+    }
 
+    if (!rchar_starts_with(s, prefix)) {
+        return substr(s, 0, strlen(s))
+    }
+
+    val pl: i64 = strlen(prefix)
+    val sl: i64 = strlen(s)
+
+    return substr(s, pl, sl - pl)
+}
+
+/// If s ends with suffix, return a new ref char without it, otherwise clone
+pub fn trim_suffix_raw(s: ref char, suffix: ref char) ref char! = {
+    if (suffix == none) {
+        return substr(s, 0, strlen(s))
+    }
+    if (s == none) {
+        return none
+    }
+
+    val sl: i64 = strlen(s)
+    val sul: i64 = strlen(suffix)
+
+    if (sul > sl) {
+        return substr(s, 0, sl)
+    }
+
+    val offset: i64 = sl - sul
+    val i: mut i64 = 0
+
+    for {
+        if (i >= sul) {
+            break
+        }
+        val a: u8 = @load8(@ptradd(s, offset + i)) as u8
+        val b: u8 = @load8(@ptradd(suffix, i)) as u8
+        if (a != b) {
+            return substr(s, 0, sl)
+        }
+        i++
+    }
+
+    return substr(s, 0, sl - sul)
+}
 /// Split s by delim — returns a List of heap-allocated Strings
 pub fn split(s: ref void, delim: ref void) result[ref void, ListAllocError]! = {
     val result: ref void = collections.PtrList.new(8)?
