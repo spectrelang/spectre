@@ -1,7 +1,3 @@
-[I]  | resolving module
-[II] | sema
-[III]| cg pass
-[IV] | module ul-collection
 data $str_w_mode = { b "w", b 0 }
 data $str_r_mode = { b "r", b 0 }
 data $sx_stdin_ptr = { l 0 }
