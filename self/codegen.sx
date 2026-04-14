@@ -4760,8 +4760,10 @@ fn gen_builtin(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
     } elif str.rchar_cmp(name, "call") == 0 {
         val fn_ptr: ref char = get_arg(ctx, args, 0)
         val call_sb2: ref void = str.StringBuilder.new()
-        val hdr3: ref void = str.format("    %%t%lld =l call %s(", {tmp, fn_ptr})
-        str.StringBuilder.append(call_sb2, hdr3)
+        val hdr3_buf: ref char = @alloc(512) as ref char
+        @snprintf(hdr3_buf, 512, "    %%t%lld =l call %s(", {tmp, fn_ptr})
+        str.StringBuilder.append_cstr(call_sb2, hdr3_buf)
+        @free(hdr3_buf)
         if args != 0 as ref void {
             val alen3: i64 = @len(args) as i64
             val ai3: mut i64 = 1
@@ -4775,8 +4777,10 @@ fn gen_builtin(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
                         val at3: ref char = gen_expr(ctx, a3_node)
                         if !first3 { str.StringBuilder.append_cstr(call_sb2, ", ") }
                         val qtype3: ref char = expr_qtype(ctx, a3_node)
-                        val tbuf4: ref void = str.format("%s %s", {qtype3, at3})
-                        str.StringBuilder.append(call_sb2, tbuf4)
+                        val tbuf4: ref char = @alloc(64) as ref char
+                        @snprintf(tbuf4, 64, "%s %s", {qtype3, at3})
+                        str.StringBuilder.append_cstr(call_sb2, tbuf4)
+                        @free(tbuf4)
                         first3 = false
                     }
                     none => {}
@@ -4790,8 +4794,10 @@ fn gen_builtin(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
         emit(ctx, str.cstr(call_line3))
     } else {
         val call_sb: ref void = str.StringBuilder.new()
-        val hdr2: mut ref void = str.format("    %%t%lld =l call $%s(", {tmp, name})
-        str.StringBuilder.append(call_sb, hdr2)
+        val hdr2_buf: ref char = @alloc(512) as ref char
+        @snprintf(hdr2_buf, 512, "    %%t%lld =l call $%s(", {tmp, name})
+        str.StringBuilder.append_cstr(call_sb, hdr2_buf)
+        @free(hdr2_buf)
         if args != 0 as ref void {
             val alen: i64 = @len(args) as i64
             val ai: mut i64 = 0
@@ -4851,8 +4857,10 @@ fn gen_builtin(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
                             }
                             none => {}
                         }
-                        val tbuf3: ref void = str.format("%s %s", {qtype, t3 as ref char})
-                        str.StringBuilder.append(call_sb, tbuf3)
+                        val tbuf3: ref char = @alloc(64) as ref char
+                        @snprintf(tbuf3, 64, "%s %s", {qtype, t3 as ref char})
+                        str.StringBuilder.append_cstr(call_sb, tbuf3)
+                        @free(tbuf3)
                     }
                     none => {}
                 }
