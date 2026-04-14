@@ -1,0 +1,27 @@
+val stdio = use("std/stdio")
+val fmt = use("std/fmt")
+val string = use("std/string")
+
+pub fn main() void = {
+    val buffer: mut ref char = @alloc(100) as ref char
+    val buffer2: mut ref char = @alloc(100) as ref char
+
+    trust stdio.read_line(buffer, 100)
+    trust stdio.read_line(buffer2, 100)
+
+    match trust fmt.string_to_i64(buffer) {
+        ok v => {
+            match trust fmt.string_to_i64(buffer2) {
+                ok v2 => {
+                    trust stdio.print("{d}\n", {v + v2})
+                }
+                err _ => {
+                    stdio.puts("Invalid integer #2.")
+                }
+            }
+        }
+        err e => {
+            stdio.puts("Invalid integer #1.")
+        }
+    }
+}

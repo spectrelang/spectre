@@ -2951,6 +2951,14 @@ fn gen_field(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
         if is_ref_type(cast_ty) {
             base_is_ref = true
         }
+        val cast_type_name: ref char = unwrap_type_name(cast_ty)
+        if str.rchar_cmp(cast_type_name, "") != 0 {
+            val fields: ref void = cg_lookup_struct(ctx, cast_type_name)
+            if fields != 0 as ref void {
+                val off: i64 = field_offset(ctx, fields, field_name)
+                if off >= 0 { offset = off }
+            }
+        }
     } elif base_expr.kind == parser.NK_DEREF {
         base_is_ref = true
         val inner: ref parser.Node = base_expr.d0 as ref parser.Node
