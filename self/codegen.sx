@@ -830,6 +830,38 @@ fn cg_lookup_struct(ctx: ref CgCtx, type_name: ref char) ref void! = {
         }
         ni++
     }
+
+    val tlen: i64 = str.len_raw(type_name)
+    val dot_pos: mut i64 = tlen - 1
+
+    for {
+        if dot_pos < 0 { break }
+        val ch: u8 = @load8(@ptradd(type_name as ref void, dot_pos))
+        if ch == 46 { break }
+        dot_pos--
+    }
+
+    if dot_pos >= 0 {
+        val bare: ref char = @ptradd(type_name as ref void, dot_pos + 1) as ref char
+        val ni2: mut i64 = 0
+        for {
+            if ni2 >= nlen { break }
+            val n_opt2 = @get(names as list[ref char], ni2 as usize)
+            match n_opt2 {
+                some n2 => {
+                    if str.rchar_cmp(n2 as ref char, bare) == 0 {
+                        val f_opt2 = @get(cg_sfields(ctx) as list[ref void], ni2 as usize)
+                        match f_opt2 {
+                            some f2 => { return f2 as ref void }
+                            none    => { return 0 as ref void }
+                        }
+                    }
+                }
+                none => {}
+            }
+            ni2++
+        }
+    }
     return 0 as ref void
 }
 
@@ -1462,6 +1494,25 @@ fn infer_type_annotation(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
                 return ann
             }
 	    }
+    }
+
+    if k == parser.NK_TRY {
+        val try_inner: ref parser.Node = expr.d0 as ref parser.Node
+        if try_inner != 0 as ref parser.Node {
+            val inner_ann: ref char = infer_type_annotation(ctx, try_inner)
+            if str.rchar_cmp(inner_ann, "") != 0 {
+                val ok_buf: ref char = @alloc(256) as ref char
+                val err_buf: ref char = @alloc(256) as ref char
+                parse_result_types(inner_ann, ok_buf, err_buf)
+                if @load8(ok_buf) != 0 as u8 {
+                    @free(err_buf)
+                    return ok_buf
+                }
+                @free(ok_buf)
+                @free(err_buf)
+            }
+        }
+        return ""
     }
 
     if k == parser.NK_MATCH_OPT {
