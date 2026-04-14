@@ -28,10 +28,6 @@ require_cmd make
 require_cmd cc
 require_cmd cmake
 
-if ! command -v cargo >/dev/null 2>&1; then
-    err "Rust (cargo) is required. Install it from https://rustup.rs/"
-fi
-
 log "Preparing directories..."
 mkdir -p "$BIN_DIR" "$SRC_DIR"
 
@@ -56,7 +52,7 @@ else
     /usr/bin/install -m 0755 "$QBE_DIR/qbe" "$BIN_DIR/qbe"
 fi
 
-log "Installing Spectre..."
+log "Installing Spectre (self-hosted)..."
 
 SPECTRE_DIR="${SRC_DIR}/spectre"
 
@@ -67,13 +63,20 @@ else
     git clone "$SPECTRE_REPO" "$SPECTRE_DIR"
 fi
 
-log "Building Spectre (release)..."
-(cd "$SPECTRE_DIR" && cargo build --release)
+BOOTSTRAP_SSA="${SPECTRE_DIR}/bootstrap/sxc.ssa"
+BOOTSTRAP_OUT="${SPECTRE_DIR}/bootstrap/sxc_bootstrap"
+
+[ -f "$BOOTSTRAP_SSA" ] || err "Missing bootstrap SSA at ${BOOTSTRAP_SSA}"
+
+log "Bootstrapping Spectre with QBE..."
+
+qbe -o "${BOOTSTRAP_OUT}.s" "$BOOTSTRAP_SSA"
+cc -O2 "${BOOTSTRAP_OUT}.s" -o "${BOOTSTRAP_OUT}"
 
 log "Installing Spectre binary..."
 /usr/bin/install -m 0755 \
-    "$SPECTRE_DIR/target/release/spectre" \
-    "$BIN_DIR/spectre"
+    "${BOOTSTRAP_OUT}" \
+    "${BIN_DIR}/spectre"
 
 STDLIB_SRC="${SPECTRE_DIR}/std"
 STDLIB_DEST="${BIN_DIR}/std"

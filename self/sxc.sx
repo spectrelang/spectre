@@ -17,6 +17,7 @@ fn print_usage() void = {
     std.stdio.puts("  --emit-asm           Print assembly to stdout and exit")
     std.stdio.puts("  --show-cmd           Show the command used for linking")
     std.stdio.puts("  --test               Run the unit tests in the current file")
+    std.stdio.puts("  -q, --quiet          Suppress compiler output")
     std.stdio.puts("  -h, --help           Print this help message")
 }
 
@@ -24,6 +25,7 @@ pub fn main() i32! = {
     val arena = allocators.Arena.new(65536)?
     val args = std.os.get_args()
     val argc: i64 = @len(args) as i64
+    val quiet: mut bool = false
 
     if argc < 2 {
         std.stdio.puts("error: no input file provided\n")
@@ -105,6 +107,9 @@ pub fn main() i32! = {
                 } elif std.string.rchar_cmp(arg, "--test") == 0 {
                     test_mode = true
                     arg_i++
+                } elif std.string.rchar_cmp(arg, "--quiet") == 0 || std.string.rchar_cmp(arg, "-q") == 0 {
+                    quiet = true
+                    arg_i++
                 } else {
                     arg_i++
                 }
@@ -116,7 +121,11 @@ pub fn main() i32! = {
     }
 
     val exe_dir: ref char = "."
-    std.stdio.puts("[I]  | resolving module")
+
+    if !quiet {
+        std.stdio.puts("[I]  | resolving module")
+    }
+
     val resolve_result = module.resolve_module(input, [], exe_dir, 0 as ref void)
     val root_mod: mut ref module.ResolvedModule = 0 as ref module.ResolvedModule
 
@@ -129,7 +138,10 @@ pub fn main() i32! = {
         }
     }
 
-    std.stdio.puts("[II] | sema")
+    if !quiet {
+        std.stdio.puts("[II] | sema")
+    }
+
     val errors: mut list[ref char] = sema.check_module(root_mod.items, input)
     val nerrors: i64 = @len(errors) as i64
     if nerrors > 0 {
@@ -140,7 +152,10 @@ pub fn main() i32! = {
         return 1
     }
 
-    std.stdio.puts("[III]| cg pass")
+    if !quiet { 
+        std.stdio.puts("[III]| cg pass")
+    }
+
     val qbe_ir: mut ref char = ""
 
     if test_mode {
@@ -149,7 +164,9 @@ pub fn main() i32! = {
         qbe_ir = codegen.gen_module_resolved(root_mod)
     }
 
-    std.stdio.puts("[IV] | module ul-collection")
+    if !quiet {
+        std.stdio.puts("[IV] | module ul-collection")
+    }
 
     val links: list[ref char] = module.collect_used_links(root_mod, exe_dir)
 
@@ -241,10 +258,14 @@ pub fn main() i32! = {
         val cc_res2 = std.os.exec(cc_cmd)
         match cc_res2 {
             ok _ => {
-                std.stdio.print("[spectre] running tests for: {s}\n", {input})
+                if !quiet {
+                    std.stdio.print("[spectre] running tests for: {s}\n", {input})
+                }
                 val run_res = std.os.run(test_bin)
                 if run_res != 0 {
-                    std.stdio.print("[spectre] test binary exited with: {s}\n", {"non-zero exit"})
+                    if !quiet {
+                        std.stdio.print("[spectre] test binary exited with: {s}\n", {"non-zero exit"})
+                    }
                     exit_code = 1
                 }
             }
@@ -280,7 +301,9 @@ pub fn main() i32! = {
                 std.stdio.puts("linking failed.")
                 exit_code = 1
             } else {
-                std.stdio.print("{s}", {success_msg})
+                if !quiet {
+                    std.stdio.print("{s}", {success_msg})
+                }
             }
         }
         err e => {
