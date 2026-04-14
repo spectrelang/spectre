@@ -7,3 +7,4 @@
 *.out
 *.ssa
 .vscode
+!bootstrap/*
