@@ -1461,7 +1461,7 @@ fn infer_type_annotation(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
                 val ann = type_expr_to_annotation(ctx, ret_expr)
                 return ann
             }
-	}
+	    }
     }
 
     if k == parser.NK_MATCH_OPT {
