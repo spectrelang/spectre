@@ -955,6 +955,11 @@ fn struct_size(ctx: ref CgCtx, fields: ref void) i64! = {
                     val union_check: ref void = cg_lookup_union_suffix(ctx, tname)
                     if union_check != 0 as ref void {
                         fsize = 16
+                    } else {
+                        val struct_fields: ref void = cg_lookup_struct(ctx, tname)
+                        if struct_fields != 0 as ref void {
+                            fsize = struct_size(ctx, struct_fields)
+                        }
                     }
                 }
                 if has_fa {
@@ -995,6 +1000,11 @@ fn field_offset(ctx: ref CgCtx, fields: ref void, field_name: ref char) i64! = {
                     val union_check: ref void = cg_lookup_union_suffix(ctx, tname)
                     if union_check != 0 as ref void {
                         fsize = 16
+                    } else {
+                        val struct_fields2: ref void = cg_lookup_struct(ctx, tname)
+                        if struct_fields2 != 0 as ref void {
+                            fsize = struct_size(ctx, struct_fields2)
+                        }
                     }
                 }
                 if has_fa {
@@ -4093,7 +4103,7 @@ fn gen_builtin(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
                 match spack_opt {
                     some spack_node => {
                         val spn: ref parser.Node = spack_node as ref parser.Node
-                        if spn.kind == parser.NK_ARGS_PACK {
+                         if spn.kind == parser.NK_ARGS_PACK {
                             val spack: ref void = spn.d0 as ref void
                             val splen: i64 = @len(spack) as i64
                             val spi: mut i64 = 0
@@ -4116,6 +4126,16 @@ fn gen_builtin(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
                                 }
                                 spi++
                             }
+                        } else {
+                            // Single non-pack argument (e.g. untyped parameter passthrough)
+                            val spqt2: ref char = expr_qtype(ctx, spn)
+                            val spv2: ref char = gen_expr(ctx, spn)
+                            val spbuf2: ref char = @alloc(64) as ref char
+                            @snprintf(spbuf2, 64, ", %s %s", {spqt2, spv2})
+                            val spbuf2_len: mut i64 = str.len_raw(spbuf2)
+                            @memcpy(@ptradd(scall_buf as ref void, scall_pos), spbuf2 as ref void, spbuf2_len)
+                            scall_pos = scall_pos + spbuf2_len
+                            @free(spbuf2)
                         }
                     }
                     none => {}
@@ -5377,11 +5397,57 @@ fn gen_stmt(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
                 }
             } else {
                 val field_is_list: mut bool = false
-                if value.kind == parser.NK_IDENT {
+                val field_size_write: mut i64 = 8
+                if value.kind == parser.NK_LIST_LIT {
+                    field_is_list = true
+                } elif value.kind == parser.NK_IDENT {
                     val vname: ref char = value.d0 as ref char
                     val vtype: ref char = cg_local_type(ctx, vname)
                     if str.rchar_cmp(vtype, "") != 0 && str.starts_with(str.from(vtype), str.from("list")) {
                         field_is_list = true
+                    }
+                }
+                // Also check the target field's type in the struct definition
+                if !field_is_list && ftarget.kind == parser.NK_IDENT {
+                    val bname2: ref char = ftarget.d0 as ref char
+                    val tname3: ref char = cg_local_type(ctx, bname2)
+                    val lookup3: mut ref char = tname3
+                    if rchar_starts_with(tname3, "ref ") { lookup3 = @ptradd(tname3, 4) }
+                    if str.rchar_cmp(lookup3, "") != 0 {
+                        val flds3: ref void = cg_lookup_struct(ctx, lookup3)
+                        if flds3 != 0 as ref void {
+                            val sf3len: i64 = @len(flds3 as list[ref void]) as i64
+                            val sf3i: mut i64 = 0
+                            for {
+                                if sf3i >= sf3len { break }
+                                val sf3_opt = @get(flds3 as list[ref void], sf3i as usize)
+                                match sf3_opt {
+                                    some sf3 => {
+                                        val sf3n: ref parser.Node = sf3 as ref parser.Node
+                                        val sf3name: ref char = sf3n.d0 as ref char
+                                        if str.rchar_cmp(sf3name, fname) == 0 {
+                                            val sf3ty: ref parser.Node = sf3n.d2 as ref parser.Node
+                                            if sf3ty != 0 as ref parser.Node {
+                                                if sf3ty.kind == parser.TY_LIST {
+                                                    field_is_list = true
+                                                } else {
+                                                    if sf3ty.kind == parser.TY_NAMED {
+                                                        val ftnm: ref char = sf3ty.d0 as ref char
+                                                        val sflds: ref void = cg_lookup_struct(ctx, ftnm)
+                                                        if sflds != 0 as ref void {
+                                                            field_size_write = struct_size(ctx, sflds)
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                            sf3i = sf3len
+                                        }
+                                    }
+                                    none => {}
+                                }
+                                sf3i++
+                            }
+                        }
                     }
                 }
                 val buf3: ref char = @alloc(128) as ref char
@@ -5395,6 +5461,17 @@ fn gen_stmt(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
                         emit(ctx, buf3b)
                         @free(buf3b)
                         @snprintf(buf3, 128, "    call $memcpy(l %%t%lld, l %s, l 24)\n", {fptr, val_tmp2})
+                    }
+                } elif field_size_write > 8 {
+                    if foffset == 0 {
+                        @snprintf(buf3, 128, "    call $memcpy(l %s, l %s, l %lld)\n", {base, val_tmp2, field_size_write})
+                    } else {
+                        val fptr: i64 = fresh_tmp(ctx)
+                        val buf3b: ref char = @alloc(128) as ref char
+                        @snprintf(buf3b, 128, "    %%t%lld =l add %s, %lld\n", {fptr, base, foffset})
+                        emit(ctx, buf3b)
+                        @free(buf3b)
+                        @snprintf(buf3, 128, "    call $memcpy(l %%t%lld, l %s, l %lld)\n", {fptr, val_tmp2, field_size_write})
                     }
                 } elif foffset == 0 {
                     @snprintf(buf3, 128, "    storel %s, %s\n", {val_tmp2, base})
