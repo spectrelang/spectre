@@ -1381,6 +1381,39 @@ fn is_ref_type(ty: ref parser.Node) bool! = {
     return false
 }
 
+/// Infer the result type from a list of statements (used for match body type inference).
+/// Looks for the last expression statement's type.
+fn infer_stmts_result_type(ctx: ref CgCtx, stmts: ref void) ref char! = {
+    if stmts == 0 as ref void { return "" }
+    val slen: i64 = @len(stmts as list[ref void]) as i64
+    if slen == 0 { return "" }
+    val last_opt = @get(stmts as list[ref void], (slen - 1) as usize)
+    match last_opt {
+        some last => {
+            val stmt: ref parser.Node = last as ref parser.Node
+            return infer_stmt_result_type(ctx, stmt)
+        }
+        none => { return "" }
+    }
+}
+
+/// Infer the result type from a single statement.
+fn infer_stmt_result_type(ctx: ref CgCtx, stmt: ref parser.Node) ref char! = {
+    if stmt == 0 as ref parser.Node { return "" }
+    val k: i64 = stmt.kind
+    if k == parser.NK_EXPR_STMT {
+        val expr: ref parser.Node = stmt.d0 as ref parser.Node
+        return infer_type_annotation(ctx, expr)
+    }
+    if k == parser.NK_RETURN {
+        val expr: ref parser.Node = stmt.d0 as ref parser.Node
+        if expr != 0 as ref parser.Node {
+            return infer_type_annotation(ctx, expr)
+        }
+    }
+    return ""
+}
+
 /// Infer the type annotation string for an expression.
 /// Handles: Ident (local vars, params, globals), Cast, Call (function return type).
 fn infer_type_annotation(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
@@ -1429,6 +1462,22 @@ fn infer_type_annotation(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
                 return ann
             }
 	}
+    }
+
+    if k == parser.NK_MATCH_OPT {
+        val some_body: ref parser.Node = parser.match_opt_some_body(expr)
+        if some_body != 0 as ref parser.Node {
+            val some_stmts: ref void = some_body.d0 as ref void
+            val t: ref char = infer_stmts_result_type(ctx, some_stmts)
+            if str.rchar_cmp(t, "") != 0 { return t }
+        }
+        val none_body: ref parser.Node = parser.match_opt_none_body(expr)
+        if none_body != 0 as ref parser.Node {
+            val none_stmts: ref void = none_body.d0 as ref void
+            val t2: ref char = infer_stmts_result_type(ctx, none_stmts)
+            if str.rchar_cmp(t2, "") != 0 { return t2 }
+        }
+        return ""
     }
 
     return ""
@@ -2792,6 +2841,19 @@ fn gen_field(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
                 val off: i64 = field_offset(ctx, fields, field_name)
                 if off >= 0 { offset = off }
             }
+        } else {
+            val inferred: ref char = infer_type_annotation(ctx, base_expr)
+            if str.rchar_cmp(inferred, "") != 0 {
+                val lookup_type: mut ref char = inferred
+                if rchar_starts_with(inferred, "ref ") {
+                    lookup_type = @ptradd(inferred, 4)
+                }
+                val fields: ref void = cg_lookup_struct(ctx, lookup_type)
+                if fields != 0 as ref void {
+                    val off: i64 = field_offset(ctx, fields, field_name)
+                    if off >= 0 { offset = off }
+                }
+            }
         }
     }
 
@@ -2811,6 +2873,16 @@ fn gen_field(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
             val local_var: ref char = cg_lookup_local_var(ctx, base_name2)
             if str.rchar_cmp(local_var, "") != 0 && !cg_is_slot(ctx, base_name2) {
                 base_is_ref = true
+            }
+            if cg_is_slot(ctx, base_name2) && !base_is_ref {
+                if cg_is_local_ref_type(ctx, base_name2) {
+                base_is_ref = true
+                } else {
+                    val inferred_type: ref char = infer_type_annotation(ctx, base_expr)
+                    if str.rchar_cmp(inferred_type, "") != 0 && rchar_starts_with(inferred_type, "ref ") {
+                        base_is_ref = true
+                    }
+                }
             }
         }
     } elif base_expr.kind == parser.NK_CAST {
@@ -2857,9 +2929,15 @@ fn gen_field(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
         val base_name3: ref char = base_expr.d0 as ref char
         val local_type2: ref char = cg_local_type(ctx, base_name3)
         val lookup_type2: mut ref char = local_type2
+        if str.rchar_cmp(local_type2, "") == 0 {
+            val inferred: ref char = infer_type_annotation(ctx, base_expr)
+            if str.rchar_cmp(inferred, "") != 0 {
+                lookup_type2 = inferred
+            }
+        }
 
-	if rchar_starts_with(local_type2, "ref ") {
-	    lookup_type2 = @ptradd(local_type2, 4)
+	if rchar_starts_with(lookup_type2, "ref ") {
+	    lookup_type2 = @ptradd(lookup_type2, 4)
 	}
 
 	if str.rchar_cmp(lookup_type2, "") != 0 {
@@ -5085,6 +5163,16 @@ fn gen_stmt(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
                         @memcpy(type_copy as ref void, ret_ann as ref void, str.len_raw(ret_ann) + 1)
                         cg_register_local_type(ctx, name, type_copy)
                     }
+                }
+            }
+        } elif expr != 0 as ref parser.Node {
+            val inferred: ref char = infer_type_annotation(ctx, expr)
+            if str.rchar_cmp(inferred, "") != 0 {
+                val type_copy: ref char = @alloc(str.len_raw(inferred) + 1) as ref char
+                @memcpy(type_copy as ref void, inferred as ref void, str.len_raw(inferred) + 1)
+                cg_register_local_type(ctx, name, type_copy)
+                if rchar_starts_with(inferred, "ref ") {
+                    cg_register_local_ref_type(ctx, name)
                 }
             }
         }
