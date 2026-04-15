@@ -65685,7 +65685,7 @@ data $__str598 = { b "    %%t%lld =l copy $__str%lld\n    call $printf(l %%t%lld
 data $__str599 = { b "usage:", b 0 }
 data $__str600 = { b "  spectre <input.sx> [options]", b 0 }
 data $__str601 = { b "options:", b 0 }
-data $__str602 = { b "  -o, --output <FILE>  Output binary path (default: input filename without extension)", b 0 }
+data $__str602 = { b "  -o, --output <file>  Output binary path (default: input filename without extension)", b 0 }
 data $__str603 = { b "  --emit-qbe           Print IR to stdout and exit", b 0 }
 data $__str604 = { b "  --emit-asm           Print assembly to stdout and exit", b 0 }
 data $__str605 = { b "  --show-cmd           Show the command used for linking", b 0 }
