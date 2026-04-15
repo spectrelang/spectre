@@ -1,0 +1,25 @@
+val stdio = use("std/stdio")
+
+/// Some other docstring
+type SomeType = {
+    x: i32
+    y: i32
+}
+
+fn (SomeType) add(this: self) i32 = {
+    val res = this.x + this.y
+    return res
+}
+
+/// Some docstring
+fn some_function(x: i32) i32 = {
+    return 10
+}
+
+pub fn main() void = {
+    stdio.puts("Hello, world.")
+    
+    some_function(10)
+    val st: SomeType = {1, 10}
+    stdio.print("\n{d}", {SomeType.add(st)})
+}
