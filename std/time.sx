@@ -32,7 +32,7 @@ pub fn (DateTime) new(
         valid_second : second >= 0  && second <= 59
         valid_millis : millis >= 0  && millis <= 999
     }
-    val ptr: mut DateTime = {
+    val ptr: DateTime = {
         year: year
         month: month
         day: day
