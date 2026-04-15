@@ -5223,7 +5223,7 @@ fn gen_stmt(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
         val expr: ref parser.Node = stmt.d3 as ref parser.Node
         val val_tmp: mut ref char = gen_expr(ctx, expr)
 
-        if ty_node != 0 as ref parser.Node && expr != 0 as ref parser.Node {
+        if ty_node != 0 as ref parser.Node && expr != 0 as ref parser.Node && expr.kind == parser.NK_CALL {
             val decl_qbe_type: ref char = qbe_type_of(ty_node)
             val expr_qbe_type_val: ref char = expr_qbe_type(ctx, expr)
 
