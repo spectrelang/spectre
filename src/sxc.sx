@@ -17,7 +17,7 @@ fn print_usage() void = {
     std.stdio.puts("  spectre <input.sx> [options]")
     std.stdio.puts("")
     std.stdio.puts("options:")
-    std.stdio.puts("  -o, --output <FILE>  Output binary path (default: input filename without extension)")
+    std.stdio.puts("  -o, --output <file>  Output binary path (default: input filename without extension)")
     std.stdio.puts("  --emit-qbe           Print IR to stdout and exit")
     std.stdio.puts("  --emit-asm           Print assembly to stdout and exit")
     std.stdio.puts("  --show-cmd           Show the command used for linking")

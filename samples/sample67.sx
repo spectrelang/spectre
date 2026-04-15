@@ -20,6 +20,7 @@ pub fn main() void = {
     stdio.puts("Hello, world.")
     
     some_function(10)
-    val st: SomeType = {1, 10}
+    val st: SomeType = {x: 10, y: 20}
     stdio.print("\n{d}", {SomeType.add(st)})
 }
+
