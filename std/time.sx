@@ -23,7 +23,7 @@ pub fn (DateTime) new(
     minute: i64, 
     second: i64, 
     millis: i64
-) DateTime! = {
+) DateTime = {
     pre {
         valid_month  : month  >= 1  && month  <= 12
         valid_day    : day    >= 1  && day    <= 31
@@ -32,15 +32,16 @@ pub fn (DateTime) new(
         valid_second : second >= 0  && second <= 59
         valid_millis : millis >= 0  && millis <= 999
     }
-    val ptr: ref void = @alloc(56)
-    @store(@ptradd(ptr, 0),  year)
-    @store(@ptradd(ptr, 8),  month)
-    @store(@ptradd(ptr, 16), day)
-    @store(@ptradd(ptr, 24), hour)
-    @store(@ptradd(ptr, 32), minute)
-    @store(@ptradd(ptr, 40), second)
-    @store(@ptradd(ptr, 48), millis)
-    return ptr as DateTime
+    val ptr: mut DateTime = {
+        year: year
+        month: month
+        day: day
+        hour: hour
+        minute: minute
+        second: second
+        millis: millis
+    }
+    return ptr
 }
 
 /// Free a heap-allocated DateTime.
