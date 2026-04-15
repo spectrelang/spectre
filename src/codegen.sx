@@ -5234,8 +5234,8 @@ fn gen_stmt(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
                     @snprintf(conv_buf, 64, "    %%t%lld =l extsw %s\n", {conv_tmp, val_tmp})
                     emit(ctx, conv_buf)
                     @free(conv_buf)
-                    val conv_res: ref char = @alloc(16) as ref char
-                    @snprintf(conv_res, 16, "%%t%lld", {conv_tmp})
+                    val conv_res: ref char = @alloc(32) as ref char
+                    @snprintf(conv_res, 32, "%%t%lld", {conv_tmp})
                     val_tmp = conv_res
                 }
                 elif str.rchar_cmp(expr_qbe_type_val, "s") == 0 && str.rchar_cmp(decl_qbe_type, "d") == 0 {
@@ -5244,8 +5244,8 @@ fn gen_stmt(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
                     @snprintf(conv_buf, 64, "    %%t%lld =d exts %s\n", {conv_tmp, val_tmp})
                     emit(ctx, conv_buf)
                     @free(conv_buf)
-                    val conv_res: ref char = @alloc(16) as ref char
-                    @snprintf(conv_res, 16, "%%t%lld", {conv_tmp})
+                    val conv_res: ref char = @alloc(32) as ref char
+                    @snprintf(conv_res, 32, "%%t%lld", {conv_tmp})
                     val_tmp = conv_res
                 }
                 elif str.rchar_cmp(expr_qbe_type_val, "d") == 0 && str.rchar_cmp(decl_qbe_type, "s") == 0 {
@@ -5254,8 +5254,8 @@ fn gen_stmt(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
                     @snprintf(conv_buf, 64, "    %%t%lld =s truncd %s\n", {conv_tmp, val_tmp})
                     emit(ctx, conv_buf)
                     @free(conv_buf)
-                    val conv_res: ref char = @alloc(16) as ref char
-                    @snprintf(conv_res, 16, "%%t%lld", {conv_tmp})
+                    val conv_res: ref char = @alloc(32) as ref char
+                    @snprintf(conv_res, 32, "%%t%lld", {conv_tmp})
                     val_tmp = conv_res
                 }
             }
