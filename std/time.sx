@@ -72,48 +72,48 @@ pub fn (DateTime) now() DateTime = {
 
 /// Read the year field.
 pub fn (DateTime) year(dt: self) i64! = {
-    return @load(@ptradd(dt, 0)) as i64
+    return dt.year
 }
 
 /// Read the month field (1–12).
-pub fn (DateTime) month(dt: self) i64! = {
-    return @load(@ptradd(dt, 8)) as i64
+pub fn (DateTime) month(dt: self) i64 = {
+    return dt.month 
 }
 
 /// Read the day field (1–31).
-pub fn (DateTime) day(dt: self) i64! = {
-    return @load(@ptradd(dt, 16)) as i64
+pub fn (DateTime) day(dt: self) i64 = {
+    return dt.day 
 }
 
 /// Read the hour field (0–23).
-pub fn (DateTime) hour(dt: self) i64! = {
-    return @load(@ptradd(dt, 24)) as i64
+pub fn (DateTime) hour(dt: self) i64 = {
+    return dt.hour
 }
 
 /// Read the minute field (0–59).
-pub fn (DateTime) minute(dt: self) i64! = {
-    return @load(@ptradd(dt, 32)) as i64
+pub fn (DateTime) minute(dt: self) i64 = {
+    return dt.minute
 }
 
 /// Read the second field (0–59).
-pub fn (DateTime) second(dt: self) i64! = {
-    return @load(@ptradd(dt, 40)) as i64
+pub fn (DateTime) second(dt: self) i64 = {
+    return dt.second
 }
 
 /// Read the milliseconds field (0–999).
-pub fn (DateTime) millis(dt: self) i64! = {
-    return @load(@ptradd(dt, 48)) as i64
+pub fn (DateTime) millis(dt: self) i64 = {
+    return dt.millis
 }
 
 /// Convert a DateTime to a Unix timestamp (seconds since epoch).
 /// Does not account for leap seconds.
 pub fn (DateTime) to_unix(dt: self) i64 = {
-    val y:  i64 = trust DateTime.year(dt)
-    val mo: i64 = trust DateTime.month(dt)
-    val d:  i64 = trust DateTime.day(dt)
-    val h:  i64 = trust DateTime.hour(dt)
-    val mi: i64 = trust DateTime.minute(dt)
-    val s:  i64 = trust DateTime.second(dt)
+    val y:  i64 = DateTime.year(dt)
+    val mo: i64 = DateTime.month(dt)
+    val d:  i64 = DateTime.day(dt)
+    val h:  i64 = DateTime.hour(dt)
+    val mi: i64 = DateTime.minute(dt)
+    val s:  i64 = DateTime.second(dt)
     val years_since: i64 = y - 1970
     val leap_days:   i64 = (years_since - 1) / 4
     val days_in_year: i64 = years_since * 365 + leap_days
