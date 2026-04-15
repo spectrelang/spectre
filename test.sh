@@ -5,16 +5,28 @@ set -u
 SAMPLES_DIR="./samples"
 STD_DIR="./std"
 COMPILER="./spectre-dev"
+BOOTSTRAP_ONLY=0
 
 total=0
 passed=0
 failed=0
 skipped=0
 
+
+for arg in "$@"; do
+    case "$arg" in
+        -bs)
+            BOOTSTRAP_ONLY=1
+            ;;
+    esac
+done
+
 if [ ! -x "$COMPILER" ]; then
     echo "ERROR: compiler not found or not executable at $COMPILER"
     exit 1
 fi
+
+if [ $BOOTSTRAP_ONLY -eq 0 ]; then
 
 for file in "$SAMPLES_DIR"/*.sx; do
     [ -e "$file" ] || continue
@@ -76,10 +88,12 @@ done
 "$COMPILER" ./src/codegen.sx --test
 "$COMPILER" ./src/sxc.sx --test
 
+fi
+
 echo "Bootstrap test:"
-"$COMPILER" ./src/sxc.sx -o sxc2
-./sxc2 ./src/sxc.sx -o sxc3
-./sxc3 ./src/sxc.sx -o sxc4
+"$COMPILER" ./src/sxc.sx -o sxc2 || exit 1
+./sxc2 ./src/sxc.sx -o sxc3 || exit 1
+./sxc3 ./src/sxc.sx -o sxc4 || exit 1
 
 echo
 echo "Final Summary:"
