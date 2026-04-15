@@ -21,6 +21,8 @@ pub fn main() void = {
     
     some_function(10)
     val st: SomeType = {x: 10, y: 20}
-    stdio.print("\n{d}", {SomeType.add(st)})
+    val sum: i64 = SomeType.add(st)
+
+    stdio.print("\n%d", {sum})
 }
 

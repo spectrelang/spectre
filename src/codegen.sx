@@ -5221,7 +5221,45 @@ fn gen_stmt(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
         val mutable: i64 = stmt.d1
         val ty_node: ref parser.Node = stmt.d2 as ref parser.Node
         val expr: ref parser.Node = stmt.d3 as ref parser.Node
-        val val_tmp: ref char = gen_expr(ctx, expr)
+        val val_tmp: mut ref char = gen_expr(ctx, expr)
+
+        if ty_node != 0 as ref parser.Node && expr != 0 as ref parser.Node {
+            val decl_qbe_type: ref char = qbe_type_of(ty_node)
+            val expr_qbe_type_val: ref char = expr_qbe_type(ctx, expr)
+
+            if str.rchar_cmp(decl_qbe_type, expr_qbe_type_val) != 0 {
+                if str.rchar_cmp(expr_qbe_type_val, "w") == 0 && str.rchar_cmp(decl_qbe_type, "l") == 0 {
+                    val conv_tmp: i64 = fresh_tmp(ctx)
+                    val conv_buf: ref char = @alloc(64) as ref char
+                    @snprintf(conv_buf, 64, "    %%t%lld =l extsw %s\n", {conv_tmp, val_tmp})
+                    emit(ctx, conv_buf)
+                    @free(conv_buf)
+                    val conv_res: ref char = @alloc(16) as ref char
+                    @snprintf(conv_res, 16, "%%t%lld", {conv_tmp})
+                    val_tmp = conv_res
+                }
+                elif str.rchar_cmp(expr_qbe_type_val, "s") == 0 && str.rchar_cmp(decl_qbe_type, "d") == 0 {
+                    val conv_tmp: i64 = fresh_tmp(ctx)
+                    val conv_buf: ref char = @alloc(64) as ref char
+                    @snprintf(conv_buf, 64, "    %%t%lld =d exts %s\n", {conv_tmp, val_tmp})
+                    emit(ctx, conv_buf)
+                    @free(conv_buf)
+                    val conv_res: ref char = @alloc(16) as ref char
+                    @snprintf(conv_res, 16, "%%t%lld", {conv_tmp})
+                    val_tmp = conv_res
+                }
+                elif str.rchar_cmp(expr_qbe_type_val, "d") == 0 && str.rchar_cmp(decl_qbe_type, "s") == 0 {
+                    val conv_tmp: i64 = fresh_tmp(ctx)
+                    val conv_buf: ref char = @alloc(64) as ref char
+                    @snprintf(conv_buf, 64, "    %%t%lld =s truncd %s\n", {conv_tmp, val_tmp})
+                    emit(ctx, conv_buf)
+                    @free(conv_buf)
+                    val conv_res: ref char = @alloc(16) as ref char
+                    @snprintf(conv_res, 16, "%%t%lld", {conv_tmp})
+                    val_tmp = conv_res
+                }
+            }
+        }
 
         if ty_node != 0 as ref parser.Node {
             if ty_node.kind == parser.TY_LIST {

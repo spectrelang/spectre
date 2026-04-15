@@ -4,7 +4,7 @@ set -u
 
 SAMPLES_DIR="./samples"
 STD_DIR="./std"
-COMPILER="./s-out/sxc"
+COMPILER="./spectre-dev"
 
 total=0
 passed=0
@@ -69,12 +69,17 @@ for file in "$STD_DIR"/*.sx; do
     fi
 done
 
-"$COMPILER" ./self/lexer.sx --test
-"$COMPILER" ./self/parser.sx --test
-"$COMPILER" ./self/sema.sx --test
-"$COMPILER" ./self/module.sx --test
-"$COMPILER" ./self/codegen.sx --test
-"$COMPILER" ./self/sxc.sx --test
+"$COMPILER" ./src/lexer.sx --test
+"$COMPILER" ./src/parser.sx --test
+"$COMPILER" ./src/sema.sx --test
+"$COMPILER" ./src/module.sx --test
+"$COMPILER" ./src/codegen.sx --test
+"$COMPILER" ./src/sxc.sx --test
+
+echo "Bootstrap test:"
+"$COMPILER" ./src/sxc.sx -o sxc2
+./sxc2 ./src/sxc.sx -o sxc3
+./sxc3 ./src/sxc.sx -o sxc4
 
 echo
 echo "Final Summary:"
