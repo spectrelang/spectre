@@ -111,7 +111,7 @@ fn buf_new() ref void! = {
 fn do_request(handle: ref void) ref void! = {
     val buf: mut ref void = buf_new()
 
-    curl_easy_setopt(handle, CURLOPT_WRITEFUNCTION, addr(curl_write_cb))
+    curl_easy_setopt(handle, CURLOPT_WRITEFUNCTION, @addr(curl_write_cb))
     curl_easy_setopt(handle, CURLOPT_WRITEDATA,     buf)
     curl_easy_perform(handle)
 

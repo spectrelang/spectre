@@ -111,7 +111,7 @@ pub fn doc_root(handle: ref void) ref void! = {
 pub fn doc_to_string(handle: ref void) ref char! = {
     val doc: ref void = @load(handle)
     val len_slot: mut usize = 0
-    val s: ref char = yyjson_write_opts(doc, 0, 0 as ref void, addr(len_slot), 0 as ref void)
+    val s: ref char = yyjson_write_opts(doc, 0, 0 as ref void, @addr(len_slot), 0 as ref void)
     return s
 }
 
@@ -206,13 +206,13 @@ pub fn builder_free(handle: ref void) void! = {
 pub fn builder_to_string(handle: ref void) ref char! = {
     val doc: ref void = @load(handle)
     val len_slot: mut usize = 0
-    return yyjson_mut_write_opts(doc, 0, 0 as ref void, addr(len_slot), 0 as ref void)
+    return yyjson_mut_write_opts(doc, 0, 0 as ref void, @addr(len_slot), 0 as ref void)
 }
 
 pub fn builder_to_string_pretty(handle: ref void) ref char! = {
     val doc: ref void = @load(handle)
     val len_slot: mut usize = 0
-    return yyjson_mut_write_opts(doc, 1, 0 as ref void, addr(len_slot), 0 as ref void)
+    return yyjson_mut_write_opts(doc, 1, 0 as ref void, @addr(len_slot), 0 as ref void)
 }
 
 pub fn build_null(handle: ref void) ref void! = {

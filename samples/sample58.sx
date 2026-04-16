@@ -5,11 +5,11 @@ pub type Node = {
 
 pub fn main() void = {
     val node: Node = {x: 10, y: 30}
-    val ptr1: ref Node = addr(node)
+    val ptr1: ref Node = @addr(node)
     val xs: list[ref Node] = [ptr1]
     for x in xs {
         trust @printf("{p}\n", {x})
-        trust @printf("{d} {d}\n", {deref(x).x, deref(x).y})
+        trust @printf("{d} {d}\n", {@deref(x).x, @deref(x).y})
     }
 }
 

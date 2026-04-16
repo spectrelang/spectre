@@ -68,7 +68,7 @@ pub fn main() void! = {
             @puts("Simple test 4")
             val tok0: ref Token = t0 as ref Token
             @puts("Simple test 5")
-            val kind_ptr: ref void = addr(tok0.kind) as ref void
+            val kind_ptr: ref void = @addr(tok0.kind) as ref void
             val tag_val: i64 = @load(kind_ptr)
             @printf("tok0=%p, kind_ptr=%p, tag=%lld\n", {tok0, kind_ptr, tag_val})
             match tok0.kind {

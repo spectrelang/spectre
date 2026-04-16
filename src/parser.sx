@@ -853,6 +853,20 @@ fn parse_primary(p: ref Parser) result[ref Node, ref char]! = {
         p_advance(p)
         val bname = p_expect_ident(p)?
         p_expect_lparen(p)?
+        if str_eq(bname, "addr") {
+            val inner2 = parse_expr(p)?
+            p_expect_rparen(p)?
+            val na2: mut ref Node = make_node(NK_ADDR, line)
+            na2.d0 = inner2 as i64
+            return ok na2
+        }
+        if str_eq(bname, "deref") {
+            val inner3 = parse_expr(p)?
+            p_expect_rparen(p)?
+            val nd: mut ref Node = make_node(NK_DEREF, line)
+            nd.d0 = inner3 as i64
+            return ok nd
+        }
         if str_eq(bname, "sizeof") {
             val ty = parse_type(p)?
             p_expect_rparen(p)?
@@ -880,22 +894,6 @@ fn parse_primary(p: ref Parser) result[ref Node, ref char]! = {
 
     if kind_is_ident(k) {
         val name: ref char = p_advance_text(p)
-        if str_eq(name, "addr") && lexer.kind_is_lparen(p_peek_kind(p)) {
-            p_advance(p)
-            val inner2 = parse_expr(p)?
-            p_expect_rparen(p)?
-            val na2: mut ref Node = make_node(NK_ADDR, line)
-            na2.d0 = inner2 as i64
-            return ok na2
-        }
-        if str_eq(name, "deref") && lexer.kind_is_lparen(p_peek_kind(p)) {
-            p_advance(p)
-            val inner3 = parse_expr(p)?
-            p_expect_rparen(p)?
-            val nd: mut ref Node = make_node(NK_DEREF, line)
-            nd.d0 = inner3 as i64
-            return ok nd
-        }
         if lexer.kind_is_lbrace(p_peek_kind(p)) && lexer.kind_is_rbrace(p_peek2_kind(p)) {
             p_advance(p) p_advance(p)
             val nz: mut ref Node = make_node(NK_ZERO_INIT, line)
