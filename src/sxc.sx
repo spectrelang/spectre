@@ -95,7 +95,7 @@ pub fn main() i32! = {
                         allocators.Arena.free(arena)
                         return 1
                     }
-                } elif std.string.rchar_cmp(arg, "--emit-qbe") == 0 {
+                } elif std.string.rchar_cmp(arg, "--emit-ssa") == 0 {
                     emit_qbe = true
                     arg_i++
                 } elif std.string.rchar_cmp(arg, "--emit-asm") == 0 {

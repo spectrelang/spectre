@@ -20,7 +20,7 @@ spectre ./src/sxc.sx -o spectre-dev || exit 1
 
 if [ $DO_BOOTSTRAP -eq 1 ]; then
     echo "Emitting bootstrap SSA..."
-    spectre ./src/sxc.sx --emit-qbe --quiet > ./bootstrap/sxc.ssa || exit 1
+    spectre ./src/sxc.sx --emit-ssa --quiet > ./bootstrap/sxc.ssa || exit 1
     echo "Bootstrap SSA written to ./bootstrap/sxc.ssa"
 fi
 
