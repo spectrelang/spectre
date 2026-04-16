@@ -172,4 +172,4 @@ echo "  - qbe     -> ${BIN_DIR}/qbe"
 echo "  - yyjson  -> ${OTHER_PREFIX}/lib/libyyjson.a"
 echo
 echo "Verify with:"
-echo "  spectre --help"
+echo "  spectre -v"
