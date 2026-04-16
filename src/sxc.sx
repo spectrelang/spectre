@@ -6,11 +6,11 @@
 val std         = use("std")
 val allocators  = use("std/allocators")
 val path        = use("std/path")
-val lexer       = use("lexer.sx")
-val parser      = use("parser.sx")
-val sema        = use("sema.sx")
-val codegen     = use("codegen.sx")
-val module      = use("module.sx")
+val lexer       = use("ast/lexer.sx")
+val parser      = use("ast/parser.sx")
+val sema        = use("sema/sema.sx")
+val codegen     = use("codegen/codegen.sx")
+val module      = use("module/module.sx")
 
 fn print_usage() void = {
     std.stdio.puts("usage:")

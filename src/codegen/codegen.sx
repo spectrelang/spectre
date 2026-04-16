@@ -2,8 +2,8 @@ val std        = use("std")
 val str        = use("std/string")
 val stdio      = use("std/stdio")
 val reflection = use("std/reflection")
-val parser     = use("parser.sx")
-val module     = use("module.sx")
+val parser     = use("../ast/parser.sx")
+val module     = use("../module/module.sx")
 
 /// Codegen context
 pub type CgCtx = {
