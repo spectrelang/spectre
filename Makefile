@@ -1,4 +1,4 @@
-.PHONY: all
+.PHONY: all cprev clean
 
 all:
 ifeq ($(OS),Windows_NT)
@@ -6,3 +6,9 @@ ifeq ($(OS),Windows_NT)
 else
 	@sh ./build.sh
 endif
+
+cprev:
+	@git clean -fdXn
+
+clean:
+	@git clean -fdX
