@@ -42,9 +42,7 @@ fn find_workspace_root(start_dir: ref char) ref char! = {
     for {
         if limit <= 0 { break }
         limit--
-        val cargo = std.path.join(cur, "Cargo.toml")
-        if file_exists(cargo) { return cur }
-        val spectre_mod = std.path.join(cur, "spectre.mod")
+        val spectre_mod = std.path.join(cur, "sx.mod")
         if file_exists(spectre_mod) { return cur }
         val parent = std.path.dir(cur)
         if str.rchar_cmp(parent, cur) == 0 { break }
