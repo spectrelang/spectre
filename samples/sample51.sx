@@ -70,7 +70,7 @@ pub fn main() void! = {
             @puts("Simple test 5")
             val kind_ptr: ref void = @addr(tok0.kind) as ref void
             val tag_val: i64 = @load(kind_ptr)
-            @printf("tok0=%p, kind_ptr=%p, tag=%lld\n", {tok0, kind_ptr, tag_val})
+            @printf("tok0={p}, kind_ptr={p}, tag={lld}\n", {tok0, kind_ptr, tag_val})
             match tok0.kind {
                 Fn() => { @puts("Simple test 6 - got Fn") }
                 else => { @puts("ERROR: expected Fn") assert false }

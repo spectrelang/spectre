@@ -1,0 +1,4 @@
+pub fn main() void = {
+    val some_str: ref char = "i am some string."
+    @printf("{d}", {some_str})
+}

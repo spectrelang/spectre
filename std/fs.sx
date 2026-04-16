@@ -300,7 +300,7 @@ test {
         none => { assert false }
         some content => {
             @puts("2.5")
-            @dprintf(2, "content: {s}\n", content)
+            @dprintf(2, "content: {s}\n", {content})
 
             stdio.print("{s} {d}\n", {content, str.compare(str.RChar(content), str.RChar("Hello, Spectre!"))})
             @puts("2.6")
