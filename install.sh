@@ -70,8 +70,12 @@ BOOTSTRAP_OUT="${SPECTRE_DIR}/bootstrap/sxc_bootstrap"
 
 log "Bootstrapping Spectre with QBE..."
 
+PANIC_HANDLER_SRC="${SPECTRE_DIR}/std/csources/panic_handler.c"
+PANIC_HANDLER_OBJ="${BOOTSTRAP_OUT}_panic.o"
+
 qbe -o "${BOOTSTRAP_OUT}.s" "$BOOTSTRAP_SSA"
-cc -O2 "${BOOTSTRAP_OUT}.s" -o "${BOOTSTRAP_OUT}"
+cc -O2 -c "${PANIC_HANDLER_SRC}" -o "${PANIC_HANDLER_OBJ}"
+cc -O2 "${BOOTSTRAP_OUT}.s" "${PANIC_HANDLER_OBJ}" -o "${BOOTSTRAP_OUT}"
 
 log "Installing Spectre binary..."
 /usr/bin/install -m 0755 \
