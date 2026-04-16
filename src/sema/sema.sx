@@ -648,14 +648,50 @@ fn check_stmt(ctx: ref SemaCtx, stmt: ref parser.Node, filename: ref char) void!
             val init_expr: ref parser.Node = stmt.d3 as ref parser.Node
             if tname != 0 as ref char && init_expr != 0 as ref parser.Node {
                 val init_k: i64 = init_expr.kind
-                val args_list: mut ref void = 0 as ref void
-                if init_k == parser.NK_ARGS_PACK {
-                    args_list = init_expr.d0 as ref void
-                }
-                if args_list != 0 as ref void {
-                    val tdef: ref parser.Node = sema_lookup_typedef(ctx, tname)
-                    if tdef != 0 as ref parser.Node {
-                        sema_check_invariant_lit(ctx, tdef, args_list, filename, line)
+                val tdef: ref parser.Node = sema_lookup_typedef(ctx, tname)
+                if init_k == parser.NK_ARGS_PACK && tdef != 0 as ref parser.Node {
+                    val buf: ref char = @alloc(256) as ref char
+                    @snprintf(buf, 256, "%s:%lld: positional struct literal not allowed for type '%s'; use named field syntax", {filename, line, tname})
+                    add_error(ctx, buf)
+                } elif init_k == parser.NK_STRUCT_LIT && tdef != 0 as ref parser.Node {
+                    val typedef_fields: ref void = tdef.d2 as ref void
+                    val lit_fields: ref void = init_expr.d0 as ref void
+                    if typedef_fields != 0 as ref void && lit_fields != 0 as ref void {
+                        val ordered_args: mut list[ref parser.Node] = []
+                        val tflen: i64 = @len(typedef_fields as list[ref parser.Node]) as i64
+                        val tfi: mut i64 = 0
+                        for {
+                            if tfi >= tflen { break }
+                            val tf_opt = @get(typedef_fields as list[ref parser.Node], tfi as usize)
+                            match tf_opt {
+                                some tf => {
+                                    val tfname: ref char = (tf as ref parser.Node).d0 as ref char
+                                    val lflen: i64 = @len(lit_fields as list[ref parser.Node]) as i64
+                                    val lfi: mut i64 = 0
+                                    val found: mut ref parser.Node = 0 as ref parser.Node
+                                    for {
+                                        if lfi >= lflen { break }
+                                        val lf_opt = @get(lit_fields as list[ref parser.Node], lfi as usize)
+                                        match lf_opt {
+                                            some lf => {
+                                                val lfname: ref char = (lf as ref parser.Node).d0 as ref char
+                                                if str_eq(lfname, tfname) {
+                                                    found = (lf as ref parser.Node).d1 as ref parser.Node
+                                                    lfi = lflen 
+                                                }
+                                            }
+                                            none => {}
+                                        }
+                                        lfi++
+                                    }
+                                    @append(ordered_args, found)
+                                }
+                                none => {}
+                            }
+                            tfi++
+                        }
+                        val ordered_args_list: list[ref parser.Node] = ordered_args
+                        sema_check_invariant_lit(ctx, tdef, ordered_args_list as ref void, filename, line)
                     }
                 }
             }
