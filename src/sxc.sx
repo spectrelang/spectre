@@ -135,7 +135,7 @@ pub fn main() i32! = {
     val exe_dir: ref char = "."
 
     if !quiet {
-        std.stdio.puts("[I]  | resolving module")
+        std.stdio.puts("[I]  │ resolving module")
     }
 
     val resolve_result = module.resolve_module(input, [], exe_dir, 0 as ref void)
@@ -151,7 +151,7 @@ pub fn main() i32! = {
     }
 
     if !quiet {
-        std.stdio.puts("[II] | sema")
+        std.stdio.puts("[II] │ sema")
     }
 
     val errors: mut list[ref char] = sema.check_module(root_mod.items, input)
@@ -165,7 +165,7 @@ pub fn main() i32! = {
     }
 
     if !quiet { 
-        std.stdio.puts("[III]| cg pass")
+        std.stdio.puts("[III]│ cg pass")
     }
 
     val qbe_ir: mut ref char = ""
@@ -177,7 +177,7 @@ pub fn main() i32! = {
     }
 
     if !quiet {
-        std.stdio.puts("[IV] | module ul-collection")
+        std.stdio.puts("[IV] │ module ul-collection")
     }
 
     val links: list[ref char] = module.collect_used_links(root_mod, exe_dir)

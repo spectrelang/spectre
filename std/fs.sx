@@ -401,6 +401,7 @@ test {
                 count++
                 @free(entry)
             }
+            @printf("count: {d}", {count})
             assert count == 2
         }
     }
