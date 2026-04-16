@@ -126,7 +126,7 @@ pub fn main() i32! = {
     val exe_dir: ref char = "."
 
     if !quiet && !emit_qbe {
-        std.stdio.puts("[I]  │ resolving module")
+        std.stdio.puts("[I]  │ Resolving module")
     }
 
     val resolve_result = module.resolve_module(input, [], exe_dir, 0 as ref void)
@@ -142,7 +142,7 @@ pub fn main() i32! = {
     }
 
     if !quiet && !emit_qbe {
-        std.stdio.puts("[II] │ sema")
+        std.stdio.puts("[II] │ Semantic analysis")
     }
 
     val errors: mut list[ref char] = sema.check_module(root_mod.items, input)
@@ -156,7 +156,7 @@ pub fn main() i32! = {
     }
 
     if !quiet && !emit_qbe { 
-        std.stdio.puts("[III]│ cg pass")
+        std.stdio.puts("[III]│ CG pass")
     }
 
     val qbe_ir: mut ref char = ""
@@ -168,7 +168,7 @@ pub fn main() i32! = {
     }
 
     if !quiet && !emit_qbe {
-        std.stdio.puts("[IV] │ module ul-collection")
+        std.stdio.puts("[IV] │ Module used-links collection")
     }
 
     val links: mut list[ref char] = module.collect_used_links(root_mod, exe_dir)
@@ -305,11 +305,11 @@ pub fn main() i32! = {
 
     if output_specified != 0 {
         cc_cmd = @fmt("cc -o {s} {s}{s}", {binary_name, asm_file, link_flags})
-        success_msg = @fmt("compiled: {s}\n", {binary_name})
+        success_msg = @fmt("Compiled: {s}\n", {binary_name})
     } else {
         std.os.exec("mkdir -p ./s-out")
         cc_cmd = @fmt("cc -o ./s-out/{s} {s}{s}", {binary_name, asm_file, link_flags})
-        success_msg = @fmt("compiled: ./s-out/{s}\n", {binary_name})
+        success_msg = @fmt("Compiled: ./s-out/{s}\n", {binary_name})
     }
 
     if show_cmd != 0 {

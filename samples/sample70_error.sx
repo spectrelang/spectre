@@ -1,0 +1,8 @@
+pub fn main() void = {
+    val p: ref i32 = 0 as ref i32
+    val x = @deref(p)
+    
+    if x == 123 {
+        @store(p, x)
+    }
+}
