@@ -64740,7 +64740,7 @@ export function l $codegen__gen_module(l %items) {
     ret %t62
 }
 
-function w $print_usage() {
+export function w $meta__print_usage() {
 @start
     %t0 =l copy $__str604
     %t1 =w call $std__stdio__puts(l %t0)
@@ -64766,6 +64766,13 @@ function w $print_usage() {
     %t21 =w call $std__stdio__puts(l %t20)
     %t22 =l copy $__str614
     %t23 =w call $std__stdio__puts(l %t22)
+    ret 0
+}
+
+export function w $meta__print_version() {
+@start
+    %t0 =l copy $__str615
+    %t1 =w call $std__stdio__puts(l %t0)
     ret 0
 }
 
@@ -64795,9 +64802,9 @@ export function w $main(w %argc, l %argv) {
     %t14 =w csltl %t10, %t13
     jnz %t14, @lbl11952, @lbl11953
 @lbl11952
-    %t15 =l copy $__str615
+    %t15 =l copy $__str616
     %t16 =w call $std__stdio__puts(l %t15)
-    %t17 =w call $print_usage()
+    %t17 =w call $meta__print_usage()
     %t18 =w call $std__allocators__Arena__free(l %t5)
     %t19 =l copy 1
     ret %t19
@@ -64832,802 +64839,801 @@ export function w $main(w %argc, l %argv) {
     storel %t35, %t32
     jmp @lbl11960
 @lbl11959
-    %t36 =l copy $__str616
+    %t36 =l copy $__str617
     %t37 =w call $std__stdio__puts(l %t36)
     %t38 =w call $std__allocators__Arena__free(l %t5)
     %t39 =l copy 1
     ret %t39
 @lbl11960
     %t40 =l loadl %t32
-    %t41 =l copy $__str617
+    %t41 =l copy $__str618
     %t42 =l call $std__string__rchar_cmp(l %t40, l %t41)
     %t43 =l copy 0
     %t44 =w ceql %t42, %t43
     %t45 =l loadl %t32
-    %t46 =l copy $__str618
+    %t46 =l copy $__str619
     %t47 =l call $std__string__rchar_cmp(l %t45, l %t46)
     %t48 =l copy 0
     %t49 =w ceql %t47, %t48
     %t50 =w or %t44, %t49
     jnz %t50, @lbl11961, @lbl11962
 @lbl11961
-    %t51 =w call $print_usage()
+    %t51 =w call $meta__print_usage()
     %t52 =w call $std__allocators__Arena__free(l %t5)
     %t53 =l copy 0
     ret %t53
 @lbl11962
     %t54 =l loadl %t32
-    %t55 =l copy $__str619
+    %t55 =l copy $__str620
     %t56 =l call $std__string__rchar_cmp(l %t54, l %t55)
     %t57 =l copy 0
     %t58 =w ceql %t56, %t57
     %t59 =l loadl %t32
-    %t60 =l copy $__str620
+    %t60 =l copy $__str621
     %t61 =l call $std__string__rchar_cmp(l %t59, l %t60)
     %t62 =l copy 0
     %t63 =w ceql %t61, %t62
     %t64 =w or %t58, %t63
     jnz %t64, @lbl11964, @lbl11965
 @lbl11964
-    %t65 =l copy $__str621
-    %t66 =w call $std__stdio__puts(l %t65)
-    %t67 =w call $std__allocators__Arena__free(l %t5)
-    %t68 =l copy 0
-    ret %t68
+    %t65 =w call $meta__print_version()
+    %t66 =w call $std__allocators__Arena__free(l %t5)
+    %t67 =l copy 0
+    ret %t67
 @lbl11965
-    %t69 =l loadl %t32
-    %t70 =l call $std__fs__read_all(l %t69)
-    %t71 =w cnel %t70, 0
-    jnz %t71, @lbl11967, @lbl11968
+    %t68 =l loadl %t32
+    %t69 =l call $std__fs__read_all(l %t68)
+    %t70 =w cnel %t69, 0
+    jnz %t70, @lbl11967, @lbl11968
 @lbl11967
-    %t72 =l sub %t70, 1
+    %t71 =l sub %t69, 1
     jmp @lbl11969
 @lbl11968
-    %t73 =l copy $__str622
-    %t74 =l loadl %t32
-    %t75 =l call $printf(l %t73, ..., l %t74)
-    %t76 =w call $std__allocators__Arena__free(l %t5)
-    %t77 =l copy 1
-    ret %t77
+    %t72 =l copy $__str622
+    %t73 =l loadl %t32
+    %t74 =l call $printf(l %t72, ..., l %t73)
+    %t75 =w call $std__allocators__Arena__free(l %t5)
+    %t76 =l copy 1
+    ret %t76
 @lbl11969
-    %t78 =l copy 0
-    %t79 =l alloc8 8
-    storew %t78, %t79
-    %t80 =l copy 0
-    %t81 =l alloc8 8
-    storew %t80, %t81
-    %t82 =l copy 0
-    %t83 =l alloc8 8
-    storew %t82, %t83
-    %t84 =l copy 0
-    %t85 =l alloc8 8
-    storew %t84, %t85
-    %t86 =l copy $__str52
-    %t87 =l alloc8 8
-    storel %t86, %t87
-    %t88 =l copy 2
-    %t89 =l alloc8 8
-    storel %t88, %t89
+    %t77 =l copy 0
+    %t78 =l alloc8 8
+    storew %t77, %t78
+    %t79 =l copy 0
+    %t80 =l alloc8 8
+    storew %t79, %t80
+    %t81 =l copy 0
+    %t82 =l alloc8 8
+    storew %t81, %t82
+    %t83 =l copy 0
+    %t84 =l alloc8 8
+    storew %t83, %t84
+    %t85 =l copy $__str52
+    %t86 =l alloc8 8
+    storel %t85, %t86
+    %t87 =l copy 2
+    %t88 =l alloc8 8
+    storel %t87, %t88
     jmp @lbl11970
 @lbl11970
     jmp @lbl11971
 @lbl11971
-    %t90 =l loadl %t89
-    %t92 =w csltl %t90, %t10
-    %t91 =w ceqw %t92, 0
-    jnz %t91, @lbl11974, @lbl11975
+    %t89 =l loadl %t88
+    %t91 =w csltl %t89, %t10
+    %t90 =w ceqw %t91, 0
+    jnz %t90, @lbl11974, @lbl11975
 @lbl11974
     jmp @lbl11973
 @lbl11975
-    %t94 =l loadl %t89
-    %t95 =l add %t6, 8
-    %t96 =l loadl %t95
-    %t98 =l alloc8 8
-    %t97 =w csltl %t94, %t96
-    jnz %t97, @lbl11977, @lbl11978
+    %t93 =l loadl %t88
+    %t94 =l add %t6, 8
+    %t95 =l loadl %t94
+    %t97 =l alloc8 8
+    %t96 =w csltl %t93, %t95
+    jnz %t96, @lbl11977, @lbl11978
 @lbl11977
-    %t99 =l loadl %t6
-    %t100 =l mul %t94, 8
-    %t101 =l add %t99, %t100
-    %t102 =l loadl %t101
-    %t103 =l add %t102, 1
-    storel %t103, %t98
+    %t98 =l loadl %t6
+    %t99 =l mul %t93, 8
+    %t100 =l add %t98, %t99
+    %t101 =l loadl %t100
+    %t102 =l add %t101, 1
+    storel %t102, %t97
     jmp @lbl11979
 @lbl11978
-    storel 0, %t98
+    storel 0, %t97
     jmp @lbl11979
 @lbl11979
-    %t93 =l loadl %t98
-    %t104 =w cnel %t93, 0
-    jnz %t104, @lbl11980, @lbl11981
+    %t92 =l loadl %t97
+    %t103 =w cnel %t92, 0
+    jnz %t103, @lbl11980, @lbl11981
 @lbl11980
-    %t105 =l sub %t93, 1
-    %t106 =l copy %t105
-    %t107 =l copy $__str623
-    %t108 =l call $std__string__rchar_cmp(l %t106, l %t107)
-    %t109 =l copy 0
-    %t110 =w ceql %t108, %t109
-    %t111 =l copy $__str624
-    %t112 =l call $std__string__rchar_cmp(l %t106, l %t111)
-    %t113 =l copy 0
-    %t114 =w ceql %t112, %t113
-    %t115 =w or %t110, %t114
-    jnz %t115, @lbl11983, @lbl11985
+    %t104 =l sub %t92, 1
+    %t105 =l copy %t104
+    %t106 =l copy $__str623
+    %t107 =l call $std__string__rchar_cmp(l %t105, l %t106)
+    %t108 =l copy 0
+    %t109 =w ceql %t107, %t108
+    %t110 =l copy $__str624
+    %t111 =l call $std__string__rchar_cmp(l %t105, l %t110)
+    %t112 =l copy 0
+    %t113 =w ceql %t111, %t112
+    %t114 =w or %t109, %t113
+    jnz %t114, @lbl11983, @lbl11985
 @lbl11983
-    %t116 =l loadl %t89
-    %t117 =l copy 1
-    %t118 =l add %t116, %t117
-    %t119 =l alloc8 8
-    storel %t118, %t119
-    %t120 =l loadl %t119
-    %t121 =w csltl %t120, %t10
-    jnz %t121, @lbl11996, @lbl11998
+    %t115 =l loadl %t88
+    %t116 =l copy 1
+    %t117 =l add %t115, %t116
+    %t118 =l alloc8 8
+    storel %t117, %t118
+    %t119 =l loadl %t118
+    %t120 =w csltl %t119, %t10
+    jnz %t120, @lbl11996, @lbl11998
 @lbl11996
-    %t123 =l loadl %t119
-    %t124 =l add %t6, 8
-    %t125 =l loadl %t124
-    %t127 =l alloc8 8
-    %t126 =w csltl %t123, %t125
-    jnz %t126, @lbl11999, @lbl12000
+    %t122 =l loadl %t118
+    %t123 =l add %t6, 8
+    %t124 =l loadl %t123
+    %t126 =l alloc8 8
+    %t125 =w csltl %t122, %t124
+    jnz %t125, @lbl11999, @lbl12000
 @lbl11999
-    %t128 =l loadl %t6
-    %t129 =l mul %t123, 8
-    %t130 =l add %t128, %t129
-    %t131 =l loadl %t130
-    %t132 =l add %t131, 1
-    storel %t132, %t127
+    %t127 =l loadl %t6
+    %t128 =l mul %t122, 8
+    %t129 =l add %t127, %t128
+    %t130 =l loadl %t129
+    %t131 =l add %t130, 1
+    storel %t131, %t126
     jmp @lbl12001
 @lbl12000
-    storel 0, %t127
+    storel 0, %t126
     jmp @lbl12001
 @lbl12001
-    %t122 =l loadl %t127
-    %t133 =w cnel %t122, 0
-    jnz %t133, @lbl12002, @lbl12003
+    %t121 =l loadl %t126
+    %t132 =w cnel %t121, 0
+    jnz %t132, @lbl12002, @lbl12003
 @lbl12002
-    %t134 =l sub %t122, 1
-    %t135 =l copy %t134
-    storel %t135, %t87
+    %t133 =l sub %t121, 1
+    %t134 =l copy %t133
+    storel %t134, %t86
     jmp @lbl12004
 @lbl12003
-    %t136 =l copy $__str625
-    %t137 =w call $std__stdio__puts(l %t136)
-    %t138 =w call $std__allocators__Arena__free(l %t5)
-    %t139 =l copy 1
-    ret %t139
+    %t135 =l copy $__str625
+    %t136 =w call $std__stdio__puts(l %t135)
+    %t137 =w call $std__allocators__Arena__free(l %t5)
+    %t138 =l copy 1
+    ret %t138
 @lbl12004
-    %t140 =l loadl %t119
-    %t141 =l copy 1
-    %t142 =l add %t140, %t141
-    storel %t142, %t89
+    %t139 =l loadl %t118
+    %t140 =l copy 1
+    %t141 =l add %t139, %t140
+    storel %t141, %t88
     jmp @lbl11997
 @lbl11998
-    %t143 =l copy $__str625
-    %t144 =w call $std__stdio__puts(l %t143)
-    %t145 =w call $std__allocators__Arena__free(l %t5)
-    %t146 =l copy 1
-    ret %t146
+    %t142 =l copy $__str625
+    %t143 =w call $std__stdio__puts(l %t142)
+    %t144 =w call $std__allocators__Arena__free(l %t5)
+    %t145 =l copy 1
+    ret %t145
 @lbl11997
     jmp @lbl11984
 @lbl11985
-    %t147 =l copy $__str626
-    %t148 =l call $std__string__rchar_cmp(l %t106, l %t147)
-    %t149 =l copy 0
-    %t150 =w ceql %t148, %t149
-    jnz %t150, @lbl11986, @lbl11987
+    %t146 =l copy $__str626
+    %t147 =l call $std__string__rchar_cmp(l %t105, l %t146)
+    %t148 =l copy 0
+    %t149 =w ceql %t147, %t148
+    jnz %t149, @lbl11986, @lbl11987
 @lbl11986
-    %t151 =l copy 1
-    storew %t151, %t79
-    %t152 =l loadl %t89
-    %t153 =l add %t152, 1
-    storel %t153, %t89
+    %t150 =l copy 1
+    storew %t150, %t78
+    %t151 =l loadl %t88
+    %t152 =l add %t151, 1
+    storel %t152, %t88
     jmp @lbl11984
 @lbl11987
-    %t154 =l copy $__str627
-    %t155 =l call $std__string__rchar_cmp(l %t106, l %t154)
-    %t156 =l copy 0
-    %t157 =w ceql %t155, %t156
-    jnz %t157, @lbl11988, @lbl11989
+    %t153 =l copy $__str627
+    %t154 =l call $std__string__rchar_cmp(l %t105, l %t153)
+    %t155 =l copy 0
+    %t156 =w ceql %t154, %t155
+    jnz %t156, @lbl11988, @lbl11989
 @lbl11988
-    %t158 =l copy 1
-    storew %t158, %t81
-    %t159 =l loadl %t89
-    %t160 =l add %t159, 1
-    storel %t160, %t89
+    %t157 =l copy 1
+    storew %t157, %t80
+    %t158 =l loadl %t88
+    %t159 =l add %t158, 1
+    storel %t159, %t88
     jmp @lbl11984
 @lbl11989
-    %t161 =l copy $__str628
-    %t162 =l call $std__string__rchar_cmp(l %t106, l %t161)
-    %t163 =l copy 0
-    %t164 =w ceql %t162, %t163
-    jnz %t164, @lbl11990, @lbl11991
+    %t160 =l copy $__str628
+    %t161 =l call $std__string__rchar_cmp(l %t105, l %t160)
+    %t162 =l copy 0
+    %t163 =w ceql %t161, %t162
+    jnz %t163, @lbl11990, @lbl11991
 @lbl11990
-    %t165 =l copy 1
-    storew %t165, %t83
-    %t166 =l loadl %t89
-    %t167 =l add %t166, 1
-    storel %t167, %t89
+    %t164 =l copy 1
+    storew %t164, %t82
+    %t165 =l loadl %t88
+    %t166 =l add %t165, 1
+    storel %t166, %t88
     jmp @lbl11984
 @lbl11991
-    %t168 =l copy $__str629
-    %t169 =l call $std__string__rchar_cmp(l %t106, l %t168)
-    %t170 =l copy 0
-    %t171 =w ceql %t169, %t170
-    jnz %t171, @lbl11992, @lbl11993
+    %t167 =l copy $__str629
+    %t168 =l call $std__string__rchar_cmp(l %t105, l %t167)
+    %t169 =l copy 0
+    %t170 =w ceql %t168, %t169
+    jnz %t170, @lbl11992, @lbl11993
 @lbl11992
-    %t172 =l copy 1
-    storew %t172, %t85
-    %t173 =l loadl %t89
-    %t174 =l add %t173, 1
-    storel %t174, %t89
+    %t171 =l copy 1
+    storew %t171, %t84
+    %t172 =l loadl %t88
+    %t173 =l add %t172, 1
+    storel %t173, %t88
     jmp @lbl11984
 @lbl11993
-    %t175 =l copy $__str630
-    %t176 =l call $std__string__rchar_cmp(l %t106, l %t175)
-    %t177 =l copy 0
-    %t178 =w ceql %t176, %t177
-    %t179 =l copy $__str631
-    %t180 =l call $std__string__rchar_cmp(l %t106, l %t179)
-    %t181 =l copy 0
-    %t182 =w ceql %t180, %t181
-    %t183 =w or %t178, %t182
-    jnz %t183, @lbl11994, @lbl11995
+    %t174 =l copy $__str630
+    %t175 =l call $std__string__rchar_cmp(l %t105, l %t174)
+    %t176 =l copy 0
+    %t177 =w ceql %t175, %t176
+    %t178 =l copy $__str631
+    %t179 =l call $std__string__rchar_cmp(l %t105, l %t178)
+    %t180 =l copy 0
+    %t181 =w ceql %t179, %t180
+    %t182 =w or %t177, %t181
+    jnz %t182, @lbl11994, @lbl11995
 @lbl11994
-    %t184 =l copy 1
-    storew %t184, %t12
-    %t185 =l loadl %t89
-    %t186 =l add %t185, 1
-    storel %t186, %t89
+    %t183 =l copy 1
+    storew %t183, %t12
+    %t184 =l loadl %t88
+    %t185 =l add %t184, 1
+    storel %t185, %t88
     jmp @lbl11984
 @lbl11995
-    %t187 =l loadl %t89
-    %t188 =l add %t187, 1
-    storel %t188, %t89
+    %t186 =l loadl %t88
+    %t187 =l add %t186, 1
+    storel %t187, %t88
     jmp @lbl11984
 @lbl11984
     jmp @lbl11982
 @lbl11981
-    %t189 =l loadl %t89
-    %t190 =l add %t189, 1
-    storel %t190, %t89
+    %t188 =l loadl %t88
+    %t189 =l add %t188, 1
+    storel %t189, %t88
     jmp @lbl11982
 @lbl11982
     jmp @lbl11972
 @lbl11972
     jmp @lbl11970
 @lbl11973
-    %t191 =l copy $__str145
-    %t193 =w loadw %t12
-    %t192 =l extsw %t193
-    %t194 =w ceqw %t192, 0
-    jnz %t194, @lbl12005, @lbl12006
+    %t190 =l copy $__str145
+    %t192 =w loadw %t12
+    %t191 =l extsw %t192
+    %t193 =w ceqw %t191, 0
+    jnz %t193, @lbl12005, @lbl12006
 @lbl12005
-    %t195 =l copy $__str632
-    %t196 =w call $std__stdio__puts(l %t195)
+    %t194 =l copy $__str632
+    %t195 =w call $std__stdio__puts(l %t194)
     jmp @lbl12006
 @lbl12006
-    %t197 =l loadl %t32
-    %t198 =l call $malloc(l 24)
-    %t199 =l call $malloc(l 8)
-    storel %t199, %t198
-    %t200 =l add %t198, 8
-    %t201 =l add %t198, 16
-    storel 0, %t200
-    storel 1, %t201
-    %t202 =l copy 0
-    %t203 =l copy %t202
-    %t204 =l call $module__resolve_module(l %t197, l %t198, l %t191, l %t203)
-    %t205 =l copy 0
-    %t206 =l copy %t205
-    %t207 =l alloc8 8
-    storel %t206, %t207
-    %t208 =l loadl %t204
-    %t209 =w ceql %t208, 0
-    jnz %t209, @lbl12008, @lbl12009
+    %t196 =l loadl %t32
+    %t197 =l call $malloc(l 24)
+    %t198 =l call $malloc(l 8)
+    storel %t198, %t197
+    %t199 =l add %t197, 8
+    %t200 =l add %t197, 16
+    storel 0, %t199
+    storel 1, %t200
+    %t201 =l copy 0
+    %t202 =l copy %t201
+    %t203 =l call $module__resolve_module(l %t196, l %t197, l %t190, l %t202)
+    %t204 =l copy 0
+    %t205 =l copy %t204
+    %t206 =l alloc8 8
+    storel %t205, %t206
+    %t207 =l loadl %t203
+    %t208 =w ceql %t207, 0
+    jnz %t208, @lbl12008, @lbl12009
 @lbl12008
-    %t210 =l add %t204, 8
-    %t211 =l loadl %t210
-    storel %t211, %t207
+    %t209 =l add %t203, 8
+    %t210 =l loadl %t209
+    storel %t210, %t206
     jmp @lbl12010
 @lbl12009
-    %t212 =l add %t204, 8
-    %t213 =l loadl %t212
-    %e =l copy %t213
-    %t214 =l copy $__str633
-    %t215 =l call $printf(l %t214, ..., l %t213)
-    %t216 =w call $std__allocators__Arena__free(l %t5)
-    %t217 =l copy 1
-    ret %t217
+    %t211 =l add %t203, 8
+    %t212 =l loadl %t211
+    %e =l copy %t212
+    %t213 =l copy $__str633
+    %t214 =l call $printf(l %t213, ..., l %t212)
+    %t215 =w call $std__allocators__Arena__free(l %t5)
+    %t216 =l copy 1
+    ret %t216
 @lbl12010
-    %t219 =w loadw %t12
-    %t218 =l extsw %t219
-    %t220 =w ceqw %t218, 0
-    jnz %t220, @lbl12011, @lbl12012
+    %t218 =w loadw %t12
+    %t217 =l extsw %t218
+    %t219 =w ceqw %t217, 0
+    jnz %t219, @lbl12011, @lbl12012
 @lbl12011
-    %t221 =l copy $__str634
-    %t222 =w call $std__stdio__puts(l %t221)
+    %t220 =l copy $__str634
+    %t221 =w call $std__stdio__puts(l %t220)
     jmp @lbl12012
 @lbl12012
-    %t223 =l loadl %t207
-    %t224 =l add %t223, 0
-    %t225 =l loadl %t32
-    %t226 =l call $sema__check_module(l %t224, l %t225)
-    %t227 =l alloc8 8
-    storel %t226, %t227
-    %t229 =l loadl %t227
-    %t230 =l add %t229, 8
-    %t231 =l loadl %t230
-    %t232 =l copy %t231
-    %t233 =l copy 0
-    %t234 =w csgtl %t232, %t233
-    jnz %t234, @lbl12014, @lbl12015
+    %t222 =l loadl %t206
+    %t223 =l add %t222, 0
+    %t224 =l loadl %t32
+    %t225 =l call $sema__check_module(l %t223, l %t224)
+    %t226 =l alloc8 8
+    storel %t225, %t226
+    %t228 =l loadl %t226
+    %t229 =l add %t228, 8
+    %t230 =l loadl %t229
+    %t231 =l copy %t230
+    %t232 =l copy 0
+    %t233 =w csgtl %t231, %t232
+    jnz %t233, @lbl12014, @lbl12015
 @lbl12014
-    %t235 =l loadl %t227
-    %t236 =l alloc8 8
-    storel 0, %t236
-    %t238 =l add %t235, 8
-    %t237 =l loadl %t238
+    %t234 =l loadl %t226
+    %t235 =l alloc8 8
+    storel 0, %t235
+    %t237 =l add %t234, 8
+    %t236 =l loadl %t237
 @lbl12017
-    %t239 =l loadl %t236
-    %t240 =w csltl %t239, %t237
-    jnz %t240, @lbl12018, @lbl12019
+    %t238 =l loadl %t235
+    %t239 =w csltl %t238, %t236
+    jnz %t239, @lbl12018, @lbl12019
 @lbl12018
-    %t241 =l loadl %t235
-    %t242 =l mul %t239, 8
-    %t243 =l add %t241, %t242
-    %t244 =l loadl %t243
-    %t245 =l alloc8 8
-    storel %t244, %t245
-    %t246 =l copy $__str633
-    %t247 =l loadl %t245
-    %t248 =l call $printf(l %t246, ..., l %t247)
+    %t240 =l loadl %t234
+    %t241 =l mul %t238, 8
+    %t242 =l add %t240, %t241
+    %t243 =l loadl %t242
+    %t244 =l alloc8 8
+    storel %t243, %t244
+    %t245 =l copy $__str633
+    %t246 =l loadl %t244
+    %t247 =l call $printf(l %t245, ..., l %t246)
 @lbl12020
-    %t249 =l add %t239, 1
-    storel %t249, %t236
+    %t248 =l add %t238, 1
+    storel %t248, %t235
     jmp @lbl12017
 @lbl12019
-    %t250 =w call $std__allocators__Arena__free(l %t5)
-    %t251 =l copy 1
-    ret %t251
+    %t249 =w call $std__allocators__Arena__free(l %t5)
+    %t250 =l copy 1
+    ret %t250
 @lbl12015
-    %t253 =w loadw %t12
-    %t252 =l extsw %t253
-    %t254 =w ceqw %t252, 0
-    jnz %t254, @lbl12021, @lbl12022
+    %t252 =w loadw %t12
+    %t251 =l extsw %t252
+    %t253 =w ceqw %t251, 0
+    jnz %t253, @lbl12021, @lbl12022
 @lbl12021
-    %t255 =l copy $__str635
-    %t256 =w call $std__stdio__puts(l %t255)
+    %t254 =l copy $__str635
+    %t255 =w call $std__stdio__puts(l %t254)
     jmp @lbl12022
 @lbl12022
-    %t257 =l copy $__str52
-    %t258 =l alloc8 8
-    storel %t257, %t258
-    %t260 =w loadw %t85
-    %t259 =l extsw %t260
-    jnz %t259, @lbl12024, @lbl12026
+    %t256 =l copy $__str52
+    %t257 =l alloc8 8
+    storel %t256, %t257
+    %t259 =w loadw %t84
+    %t258 =l extsw %t259
+    jnz %t258, @lbl12024, @lbl12026
 @lbl12024
-    %t261 =l loadl %t207
-    %t262 =l call $codegen__gen_module_resolved_test(l %t261)
-    storel %t262, %t258
+    %t260 =l loadl %t206
+    %t261 =l call $codegen__gen_module_resolved_test(l %t260)
+    storel %t261, %t257
     jmp @lbl12025
 @lbl12026
-    %t263 =l loadl %t207
-    %t264 =l call $codegen__gen_module_resolved(l %t263)
-    storel %t264, %t258
+    %t262 =l loadl %t206
+    %t263 =l call $codegen__gen_module_resolved(l %t262)
+    storel %t263, %t257
     jmp @lbl12025
 @lbl12025
-    %t266 =w loadw %t12
-    %t265 =l extsw %t266
-    %t267 =w ceqw %t265, 0
-    jnz %t267, @lbl12027, @lbl12028
+    %t265 =w loadw %t12
+    %t264 =l extsw %t265
+    %t266 =w ceqw %t264, 0
+    jnz %t266, @lbl12027, @lbl12028
 @lbl12027
-    %t268 =l copy $__str636
-    %t269 =w call $std__stdio__puts(l %t268)
+    %t267 =l copy $__str636
+    %t268 =w call $std__stdio__puts(l %t267)
     jmp @lbl12028
 @lbl12028
-    %t270 =l loadl %t207
-    %t271 =l call $module__collect_used_links(l %t270, l %t191)
-    %t273 =w loadw %t79
-    %t272 =l extsw %t273
-    %t274 =w copy 0
-    %t275 =w cnew %t272, %t274
-    jnz %t275, @lbl12030, @lbl12031
+    %t269 =l loadl %t206
+    %t270 =l call $module__collect_used_links(l %t269, l %t190)
+    %t272 =w loadw %t78
+    %t271 =l extsw %t272
+    %t273 =w copy 0
+    %t274 =w cnew %t271, %t273
+    jnz %t274, @lbl12030, @lbl12031
 @lbl12030
-    %t276 =l loadl %t258
-    %t277 =w call $std__stdio__puts(l %t276)
-    %t278 =w call $std__allocators__Arena__free(l %t5)
-    %t279 =l copy 0
-    ret %t279
+    %t275 =l loadl %t257
+    %t276 =w call $std__stdio__puts(l %t275)
+    %t277 =w call $std__allocators__Arena__free(l %t5)
+    %t278 =l copy 0
+    ret %t278
 @lbl12031
-    %t280 =l copy $__str52
-    %t281 =l alloc8 8
-    storel %t280, %t281
-    %t282 =l loadl %t87
-    %t283 =l copy $__str52
-    %t284 =l call $std__string__rchar_cmp(l %t282, l %t283)
-    %t285 =l copy 0
-    %t286 =w ceql %t284, %t285
-    jnz %t286, @lbl12033, @lbl12035
+    %t279 =l copy $__str52
+    %t280 =l alloc8 8
+    storel %t279, %t280
+    %t281 =l loadl %t86
+    %t282 =l copy $__str52
+    %t283 =l call $std__string__rchar_cmp(l %t281, l %t282)
+    %t284 =l copy 0
+    %t285 =w ceql %t283, %t284
+    jnz %t285, @lbl12033, @lbl12035
 @lbl12033
-    %t287 =l loadl %t32
-    %t288 =l call $std__path__get_name_without_ext(l %t5, l %t287)
-    storel %t288, %t281
+    %t286 =l loadl %t32
+    %t287 =l call $std__path__get_name_without_ext(l %t5, l %t286)
+    storel %t287, %t280
     jmp @lbl12034
 @lbl12035
-    %t289 =l loadl %t87
-    storel %t289, %t281
+    %t288 =l loadl %t86
+    storel %t288, %t280
     jmp @lbl12034
 @lbl12034
-    %t290 =l copy $__str637
-    %t291 =l copy $__str638
-    %t292 =l copy $__str93
-    %t293 =l call $std__os__open(l %t290, l %t292)
-    %t294 =w cnel %t293, 0
-    jnz %t294, @lbl12036, @lbl12037
+    %t289 =l copy $__str637
+    %t290 =l copy $__str638
+    %t291 =l copy $__str93
+    %t292 =l call $std__os__open(l %t289, l %t291)
+    %t293 =w cnel %t292, 0
+    jnz %t293, @lbl12036, @lbl12037
 @lbl12036
-    %t295 =l sub %t293, 1
-    %t296 =l loadl %t258
-    %t297 =l copy %t296
-    %t298 =l loadl %t258
-    %t299 =l call $std__string__len_raw(l %t298)
-    %t300 =l copy %t299
-    %t301 =l call $std__os__write(l %t295, l %t297, l %t300)
-    %t302 =w call $std__os__close(l %t295)
+    %t294 =l sub %t292, 1
+    %t295 =l loadl %t257
+    %t296 =l copy %t295
+    %t297 =l loadl %t257
+    %t298 =l call $std__string__len_raw(l %t297)
+    %t299 =l copy %t298
+    %t300 =l call $std__os__write(l %t294, l %t296, l %t299)
+    %t301 =w call $std__os__close(l %t294)
     jmp @lbl12038
 @lbl12037
-    %t303 =l copy $__str639
-    %t304 =w call $std__stdio__puts(l %t303)
-    %t305 =w call $std__allocators__Arena__free(l %t5)
-    %t306 =l copy 1
-    ret %t306
+    %t302 =l copy $__str639
+    %t303 =w call $std__stdio__puts(l %t302)
+    %t304 =w call $std__allocators__Arena__free(l %t5)
+    %t305 =l copy 1
+    ret %t305
 @lbl12038
-    %t308 =l copy $__str640
-    %t309 =l call $malloc(l 4096)
-    %t310 =w call $snprintf(l %t309, l 4096, l %t308, ..., l %t291, l %t290)
-    %t311 =l extsw %t310
-    %t312 =l add %t311, 1
-    %t313 =l call $malloc(l %t312)
-    call $memcpy(l %t313, l %t309, l %t311)
-    %t314 =l add %t313, %t311
-    storeb 0, %t314
-    call $free(l %t309)
-    %t307 =l copy %t313
-    %t315 =l call $std__os__exec(l %t307)
-    %t317 =w loadw %t83
-    %t316 =l extsw %t317
-    %t318 =w copy 0
-    %t319 =w cnew %t316, %t318
-    jnz %t319, @lbl12039, @lbl12040
+    %t307 =l copy $__str640
+    %t308 =l call $malloc(l 4096)
+    %t309 =w call $snprintf(l %t308, l 4096, l %t307, ..., l %t290, l %t289)
+    %t310 =l extsw %t309
+    %t311 =l add %t310, 1
+    %t312 =l call $malloc(l %t311)
+    call $memcpy(l %t312, l %t308, l %t310)
+    %t313 =l add %t312, %t310
+    storeb 0, %t313
+    call $free(l %t308)
+    %t306 =l copy %t312
+    %t314 =l call $std__os__exec(l %t306)
+    %t316 =w loadw %t82
+    %t315 =l extsw %t316
+    %t317 =w copy 0
+    %t318 =w cnew %t315, %t317
+    jnz %t318, @lbl12039, @lbl12040
 @lbl12039
-    %t320 =l copy $__str0
-    %t321 =l call $printf(l %t320, ..., l %t307)
+    %t319 =l copy $__str0
+    %t320 =l call $printf(l %t319, ..., l %t306)
     jmp @lbl12040
 @lbl12040
-    %t322 =l loadl %t315
-    %t323 =w ceql %t322, 0
-    jnz %t323, @lbl12042, @lbl12043
+    %t321 =l loadl %t314
+    %t322 =w ceql %t321, 0
+    jnz %t322, @lbl12042, @lbl12043
 @lbl12042
-    %t324 =l add %t315, 8
-    %t325 =l loadl %t324
-    %t326 =l call $std__string__cstr(l %t325)
-    %t327 =l call $std__string__len_raw(l %t326)
-    %t328 =l copy 0
-    %t329 =w csgtl %t327, %t328
-    jnz %t329, @lbl12045, @lbl12046
+    %t323 =l add %t314, 8
+    %t324 =l loadl %t323
+    %t325 =l call $std__string__cstr(l %t324)
+    %t326 =l call $std__string__len_raw(l %t325)
+    %t327 =l copy 0
+    %t328 =w csgtl %t326, %t327
+    jnz %t328, @lbl12045, @lbl12046
 @lbl12045
-    %t330 =l copy $__str314
-    %t331 =l call $printf(l %t330, ..., l %t326)
+    %t329 =l copy $__str314
+    %t330 =l call $printf(l %t329, ..., l %t325)
     jmp @lbl12046
 @lbl12046
-    %t332 =l copy $__str641
-    %t333 =l call $std__string__from(l %t332)
-    %t334 =w call $std__string__starts_with(l %t325, l %t333)
-    jnz %t334, @lbl12048, @lbl12049
+    %t331 =l copy $__str641
+    %t332 =l call $std__string__from(l %t331)
+    %t333 =w call $std__string__starts_with(l %t324, l %t332)
+    jnz %t333, @lbl12048, @lbl12049
 @lbl12048
-    %t335 =l copy $__str642
-    %t336 =w call $std__stdio__puts(l %t335)
-    %t337 =w call $std__os__delete(l %t290)
-    %t338 =w call $std__allocators__Arena__free(l %t5)
-    %t339 =l copy 1
-    ret %t339
+    %t334 =l copy $__str642
+    %t335 =w call $std__stdio__puts(l %t334)
+    %t336 =w call $std__os__delete(l %t289)
+    %t337 =w call $std__allocators__Arena__free(l %t5)
+    %t338 =l copy 1
+    ret %t338
 @lbl12049
     jmp @lbl12044
 @lbl12043
-    %t340 =l add %t315, 8
-    %t341 =l loadl %t340
-    %e =l copy %t341
-    %t342 =l copy $__str643
-    %t343 =w call $std__stdio__puts(l %t342)
-    %t344 =w call $std__os__delete(l %t290)
-    %t345 =w call $std__allocators__Arena__free(l %t5)
-    %t346 =l copy 1
-    ret %t346
+    %t339 =l add %t314, 8
+    %t340 =l loadl %t339
+    %e =l copy %t340
+    %t341 =l copy $__str643
+    %t342 =w call $std__stdio__puts(l %t341)
+    %t343 =w call $std__os__delete(l %t289)
+    %t344 =w call $std__allocators__Arena__free(l %t5)
+    %t345 =l copy 1
+    ret %t345
 @lbl12044
-    %t348 =w loadw %t81
-    %t347 =l extsw %t348
-    %t349 =w copy 0
-    %t350 =w cnew %t347, %t349
-    jnz %t350, @lbl12051, @lbl12052
+    %t347 =w loadw %t80
+    %t346 =l extsw %t347
+    %t348 =w copy 0
+    %t349 =w cnew %t346, %t348
+    jnz %t349, @lbl12051, @lbl12052
 @lbl12051
-    %t351 =l call $std__fs__read_all(l %t291)
-    %t352 =w cnel %t351, 0
-    jnz %t352, @lbl12054, @lbl12055
+    %t350 =l call $std__fs__read_all(l %t290)
+    %t351 =w cnel %t350, 0
+    jnz %t351, @lbl12054, @lbl12055
 @lbl12054
-    %t353 =l sub %t351, 1
-    %t354 =l copy %t353
-    %t355 =w call $std__stdio__puts(l %t354)
+    %t352 =l sub %t350, 1
+    %t353 =l copy %t352
+    %t354 =w call $std__stdio__puts(l %t353)
     jmp @lbl12056
 @lbl12055
-    %t356 =l copy $__str644
-    %t357 =w call $std__stdio__puts(l %t356)
+    %t355 =l copy $__str644
+    %t356 =w call $std__stdio__puts(l %t355)
     jmp @lbl12056
 @lbl12056
+    %t357 =w call $std__os__delete(l %t289)
     %t358 =w call $std__os__delete(l %t290)
-    %t359 =w call $std__os__delete(l %t291)
-    %t360 =w call $std__allocators__Arena__free(l %t5)
-    %t361 =l copy 0
-    ret %t361
+    %t359 =w call $std__allocators__Arena__free(l %t5)
+    %t360 =l copy 0
+    ret %t360
 @lbl12052
-    %t362 =l loadl %t87
-    %t363 =l copy $__str52
-    %t364 =l call $std__string__rchar_cmp(l %t362, l %t363)
-    %t365 =l copy 0
-    %t366 =w cnel %t364, %t365
-    %t367 =l copy $__str52
-    %t368 =l alloc8 8
-    storel %t367, %t368
-    %t369 =l copy $__str52
-    %t370 =l alloc8 8
-    storel %t369, %t370
-    %t371 =l copy 0
-    %t372 =l alloc8 8
-    storew %t371, %t372
-    %t373 =l copy $__str52
+    %t361 =l loadl %t86
+    %t362 =l copy $__str52
+    %t363 =l call $std__string__rchar_cmp(l %t361, l %t362)
+    %t364 =l copy 0
+    %t365 =w cnel %t363, %t364
+    %t366 =l copy $__str52
+    %t367 =l alloc8 8
+    storel %t366, %t367
+    %t368 =l copy $__str52
+    %t369 =l alloc8 8
+    storel %t368, %t369
+    %t370 =l copy 0
+    %t371 =l alloc8 8
+    storew %t370, %t371
+    %t372 =l copy $__str52
+    %t373 =l alloc8 8
+    storel %t372, %t373
     %t374 =l alloc8 8
-    storel %t373, %t374
-    %t375 =l alloc8 8
-    storel 0, %t375
-    %t377 =l add %t271, 8
-    %t376 =l loadl %t377
+    storel 0, %t374
+    %t376 =l add %t270, 8
+    %t375 =l loadl %t376
 @lbl12057
-    %t378 =l loadl %t375
-    %t379 =w csltl %t378, %t376
-    jnz %t379, @lbl12058, @lbl12059
+    %t377 =l loadl %t374
+    %t378 =w csltl %t377, %t375
+    jnz %t378, @lbl12058, @lbl12059
 @lbl12058
-    %t380 =l loadl %t271
-    %t381 =l mul %t378, 8
-    %t382 =l add %t380, %t381
-    %t383 =l loadl %t382
-    %t384 =l alloc8 8
-    storel %t383, %t384
-    %t386 =l copy $__str399
-    %t387 =l call $malloc(l 4096)
-    %t393 =l loadl %t374
-    %t394 =l loadl %t384
-    %t388 =w call $snprintf(l %t387, l 4096, l %t386, ..., l %t393, l %t394)
-    %t389 =l extsw %t388
-    %t390 =l add %t389, 1
-    %t391 =l call $malloc(l %t390)
-    call $memcpy(l %t391, l %t387, l %t389)
-    %t392 =l add %t391, %t389
-    storeb 0, %t392
-    call $free(l %t387)
-    %t385 =l copy %t391
-    storel %t385, %t374
+    %t379 =l loadl %t270
+    %t380 =l mul %t377, 8
+    %t381 =l add %t379, %t380
+    %t382 =l loadl %t381
+    %t383 =l alloc8 8
+    storel %t382, %t383
+    %t385 =l copy $__str399
+    %t386 =l call $malloc(l 4096)
+    %t392 =l loadl %t373
+    %t393 =l loadl %t383
+    %t387 =w call $snprintf(l %t386, l 4096, l %t385, ..., l %t392, l %t393)
+    %t388 =l extsw %t387
+    %t389 =l add %t388, 1
+    %t390 =l call $malloc(l %t389)
+    call $memcpy(l %t390, l %t386, l %t388)
+    %t391 =l add %t390, %t388
+    storeb 0, %t391
+    call $free(l %t386)
+    %t384 =l copy %t390
+    storel %t384, %t373
 @lbl12060
-    %t395 =l add %t378, 1
-    storel %t395, %t375
+    %t394 =l add %t377, 1
+    storel %t394, %t374
     jmp @lbl12057
 @lbl12059
-    %t397 =w loadw %t85
-    %t396 =l extsw %t397
-    jnz %t396, @lbl12061, @lbl12062
+    %t396 =w loadw %t84
+    %t395 =l extsw %t396
+    jnz %t395, @lbl12061, @lbl12062
 @lbl12061
-    %t398 =l copy $__str645
-    %t400 =l copy $__str646
-    %t401 =l call $malloc(l 4096)
-    %t407 =l loadl %t374
-    %t402 =w call $snprintf(l %t401, l 4096, l %t400, ..., l %t398, l %t291, l %t407)
-    %t403 =l extsw %t402
-    %t404 =l add %t403, 1
-    %t405 =l call $malloc(l %t404)
-    call $memcpy(l %t405, l %t401, l %t403)
-    %t406 =l add %t405, %t403
-    storeb 0, %t406
-    call $free(l %t401)
-    %t399 =l copy %t405
-    storel %t399, %t368
-    %t408 =l loadl %t368
-    %t409 =l call $std__os__exec(l %t408)
-    %t410 =l loadl %t409
-    %t411 =w ceql %t410, 0
-    jnz %t411, @lbl12064, @lbl12065
+    %t397 =l copy $__str645
+    %t399 =l copy $__str646
+    %t400 =l call $malloc(l 4096)
+    %t406 =l loadl %t373
+    %t401 =w call $snprintf(l %t400, l 4096, l %t399, ..., l %t397, l %t290, l %t406)
+    %t402 =l extsw %t401
+    %t403 =l add %t402, 1
+    %t404 =l call $malloc(l %t403)
+    call $memcpy(l %t404, l %t400, l %t402)
+    %t405 =l add %t404, %t402
+    storeb 0, %t405
+    call $free(l %t400)
+    %t398 =l copy %t404
+    storel %t398, %t367
+    %t407 =l loadl %t367
+    %t408 =l call $std__os__exec(l %t407)
+    %t409 =l loadl %t408
+    %t410 =w ceql %t409, 0
+    jnz %t410, @lbl12064, @lbl12065
 @lbl12064
-    %t412 =l add %t409, 8
-    %t413 =l loadl %t412
-    %t415 =w loadw %t12
-    %t414 =l extsw %t415
-    %t416 =w ceqw %t414, 0
-    jnz %t416, @lbl12067, @lbl12068
+    %t411 =l add %t408, 8
+    %t412 =l loadl %t411
+    %t414 =w loadw %t12
+    %t413 =l extsw %t414
+    %t415 =w ceqw %t413, 0
+    jnz %t415, @lbl12067, @lbl12068
 @lbl12067
-    %t417 =l copy $__str647
-    %t418 =l loadl %t32
-    %t419 =l call $printf(l %t417, ..., l %t418)
+    %t416 =l copy $__str647
+    %t417 =l loadl %t32
+    %t418 =l call $printf(l %t416, ..., l %t417)
     jmp @lbl12068
 @lbl12068
-    %t420 =w call $std__os__run(l %t398)
-    %t421 =w copy 0
-    %t422 =w cnew %t420, %t421
-    jnz %t422, @lbl12070, @lbl12071
+    %t419 =w call $std__os__run(l %t397)
+    %t420 =w copy 0
+    %t421 =w cnew %t419, %t420
+    jnz %t421, @lbl12070, @lbl12071
 @lbl12070
-    %t424 =w loadw %t12
-    %t423 =l extsw %t424
-    %t425 =w ceqw %t423, 0
-    jnz %t425, @lbl12073, @lbl12074
+    %t423 =w loadw %t12
+    %t422 =l extsw %t423
+    %t424 =w ceqw %t422, 0
+    jnz %t424, @lbl12073, @lbl12074
 @lbl12073
-    %t426 =l copy $__str648
-    %t427 =l copy $__str649
-    %t428 =l call $printf(l %t426, ..., l %t427)
+    %t425 =l copy $__str648
+    %t426 =l copy $__str649
+    %t427 =l call $printf(l %t425, ..., l %t426)
     jmp @lbl12074
 @lbl12074
-    %t429 =l copy 1
-    storew %t429, %t372
+    %t428 =l copy 1
+    storew %t428, %t371
     jmp @lbl12071
 @lbl12071
     jmp @lbl12066
 @lbl12065
-    %t430 =l add %t409, 8
-    %t431 =l loadl %t430
-    %_ =l copy %t431
-    %t432 =l copy $__str650
-    %t433 =w call $std__stdio__puts(l %t432)
-    %t434 =l copy 1
-    storew %t434, %t372
+    %t429 =l add %t408, 8
+    %t430 =l loadl %t429
+    %_ =l copy %t430
+    %t431 =l copy $__str650
+    %t432 =w call $std__stdio__puts(l %t431)
+    %t433 =l copy 1
+    storew %t433, %t371
     jmp @lbl12066
 @lbl12066
+    %t434 =w call $std__os__delete(l %t289)
     %t435 =w call $std__os__delete(l %t290)
-    %t436 =w call $std__os__delete(l %t291)
-    %t437 =w call $std__allocators__Arena__free(l %t5)
-    %t439 =w loadw %t372
-    %t438 =l extsw %t439
-    ret %t438
+    %t436 =w call $std__allocators__Arena__free(l %t5)
+    %t438 =w loadw %t371
+    %t437 =l extsw %t438
+    ret %t437
 @lbl12062
-    %t440 =w copy 0
-    %t441 =w cnew %t366, %t440
-    jnz %t441, @lbl12076, @lbl12078
+    %t439 =w copy 0
+    %t440 =w cnew %t365, %t439
+    jnz %t440, @lbl12076, @lbl12078
 @lbl12076
-    %t443 =l copy $__str646
-    %t444 =l call $malloc(l 4096)
-    %t450 =l loadl %t281
-    %t451 =l loadl %t374
-    %t445 =w call $snprintf(l %t444, l 4096, l %t443, ..., l %t450, l %t291, l %t451)
-    %t446 =l extsw %t445
-    %t447 =l add %t446, 1
-    %t448 =l call $malloc(l %t447)
-    call $memcpy(l %t448, l %t444, l %t446)
-    %t449 =l add %t448, %t446
-    storeb 0, %t449
-    call $free(l %t444)
-    %t442 =l copy %t448
-    storel %t442, %t368
-    %t453 =l copy $__str651
-    %t454 =l call $malloc(l 4096)
-    %t460 =l loadl %t281
-    %t455 =w call $snprintf(l %t454, l 4096, l %t453, ..., l %t460)
-    %t456 =l extsw %t455
-    %t457 =l add %t456, 1
-    %t458 =l call $malloc(l %t457)
-    call $memcpy(l %t458, l %t454, l %t456)
-    %t459 =l add %t458, %t456
-    storeb 0, %t459
-    call $free(l %t454)
-    %t452 =l copy %t458
-    storel %t452, %t370
+    %t442 =l copy $__str646
+    %t443 =l call $malloc(l 4096)
+    %t449 =l loadl %t280
+    %t450 =l loadl %t373
+    %t444 =w call $snprintf(l %t443, l 4096, l %t442, ..., l %t449, l %t290, l %t450)
+    %t445 =l extsw %t444
+    %t446 =l add %t445, 1
+    %t447 =l call $malloc(l %t446)
+    call $memcpy(l %t447, l %t443, l %t445)
+    %t448 =l add %t447, %t445
+    storeb 0, %t448
+    call $free(l %t443)
+    %t441 =l copy %t447
+    storel %t441, %t367
+    %t452 =l copy $__str651
+    %t453 =l call $malloc(l 4096)
+    %t459 =l loadl %t280
+    %t454 =w call $snprintf(l %t453, l 4096, l %t452, ..., l %t459)
+    %t455 =l extsw %t454
+    %t456 =l add %t455, 1
+    %t457 =l call $malloc(l %t456)
+    call $memcpy(l %t457, l %t453, l %t455)
+    %t458 =l add %t457, %t455
+    storeb 0, %t458
+    call $free(l %t453)
+    %t451 =l copy %t457
+    storel %t451, %t369
     jmp @lbl12077
 @lbl12078
-    %t461 =l copy $__str652
-    %t462 =l call $std__os__exec(l %t461)
-    %t464 =l copy $__str653
-    %t465 =l call $malloc(l 4096)
-    %t471 =l loadl %t281
-    %t472 =l loadl %t374
-    %t466 =w call $snprintf(l %t465, l 4096, l %t464, ..., l %t471, l %t291, l %t472)
-    %t467 =l extsw %t466
-    %t468 =l add %t467, 1
-    %t469 =l call $malloc(l %t468)
-    call $memcpy(l %t469, l %t465, l %t467)
-    %t470 =l add %t469, %t467
-    storeb 0, %t470
-    call $free(l %t465)
-    %t463 =l copy %t469
-    storel %t463, %t368
-    %t474 =l copy $__str654
-    %t475 =l call $malloc(l 4096)
-    %t481 =l loadl %t281
-    %t476 =w call $snprintf(l %t475, l 4096, l %t474, ..., l %t481)
-    %t477 =l extsw %t476
-    %t478 =l add %t477, 1
-    %t479 =l call $malloc(l %t478)
-    call $memcpy(l %t479, l %t475, l %t477)
-    %t480 =l add %t479, %t477
-    storeb 0, %t480
-    call $free(l %t475)
-    %t473 =l copy %t479
-    storel %t473, %t370
+    %t460 =l copy $__str652
+    %t461 =l call $std__os__exec(l %t460)
+    %t463 =l copy $__str653
+    %t464 =l call $malloc(l 4096)
+    %t470 =l loadl %t280
+    %t471 =l loadl %t373
+    %t465 =w call $snprintf(l %t464, l 4096, l %t463, ..., l %t470, l %t290, l %t471)
+    %t466 =l extsw %t465
+    %t467 =l add %t466, 1
+    %t468 =l call $malloc(l %t467)
+    call $memcpy(l %t468, l %t464, l %t466)
+    %t469 =l add %t468, %t466
+    storeb 0, %t469
+    call $free(l %t464)
+    %t462 =l copy %t468
+    storel %t462, %t367
+    %t473 =l copy $__str654
+    %t474 =l call $malloc(l 4096)
+    %t480 =l loadl %t280
+    %t475 =w call $snprintf(l %t474, l 4096, l %t473, ..., l %t480)
+    %t476 =l extsw %t475
+    %t477 =l add %t476, 1
+    %t478 =l call $malloc(l %t477)
+    call $memcpy(l %t478, l %t474, l %t476)
+    %t479 =l add %t478, %t476
+    storeb 0, %t479
+    call $free(l %t474)
+    %t472 =l copy %t478
+    storel %t472, %t369
     jmp @lbl12077
 @lbl12077
-    %t483 =w loadw %t83
-    %t482 =l extsw %t483
-    %t484 =w copy 0
-    %t485 =w cnew %t482, %t484
-    jnz %t485, @lbl12079, @lbl12080
+    %t482 =w loadw %t82
+    %t481 =l extsw %t482
+    %t483 =w copy 0
+    %t484 =w cnew %t481, %t483
+    jnz %t484, @lbl12079, @lbl12080
 @lbl12079
-    %t486 =l copy $__str0
-    %t487 =l loadl %t368
-    %t488 =l call $printf(l %t486, ..., l %t487)
+    %t485 =l copy $__str0
+    %t486 =l loadl %t367
+    %t487 =l call $printf(l %t485, ..., l %t486)
     jmp @lbl12080
 @lbl12080
-    %t490 =l copy $__str399
-    %t491 =l call $malloc(l 4096)
-    %t497 =l loadl %t368
-    %t498 =l copy $__str655
-    %t492 =w call $snprintf(l %t491, l 4096, l %t490, ..., l %t497, l %t498)
-    %t493 =l extsw %t492
-    %t494 =l add %t493, 1
-    %t495 =l call $malloc(l %t494)
-    call $memcpy(l %t495, l %t491, l %t493)
-    %t496 =l add %t495, %t493
-    storeb 0, %t496
-    call $free(l %t491)
-    %t489 =l copy %t495
-    %t499 =l call $std__os__exec(l %t489)
-    %t500 =l loadl %t499
-    %t501 =w ceql %t500, 0
-    jnz %t501, @lbl12082, @lbl12083
+    %t489 =l copy $__str399
+    %t490 =l call $malloc(l 4096)
+    %t496 =l loadl %t367
+    %t497 =l copy $__str655
+    %t491 =w call $snprintf(l %t490, l 4096, l %t489, ..., l %t496, l %t497)
+    %t492 =l extsw %t491
+    %t493 =l add %t492, 1
+    %t494 =l call $malloc(l %t493)
+    call $memcpy(l %t494, l %t490, l %t492)
+    %t495 =l add %t494, %t492
+    storeb 0, %t495
+    call $free(l %t490)
+    %t488 =l copy %t494
+    %t498 =l call $std__os__exec(l %t488)
+    %t499 =l loadl %t498
+    %t500 =w ceql %t499, 0
+    jnz %t500, @lbl12082, @lbl12083
 @lbl12082
-    %t502 =l add %t499, 8
-    %t503 =l loadl %t502
-    %t504 =l copy $__str656
-    %t505 =l call $std__string__from(l %t504)
-    %t506 =w call $std__string__contains(l %t503, l %t505)
-    jnz %t506, @lbl12085, @lbl12087
+    %t501 =l add %t498, 8
+    %t502 =l loadl %t501
+    %t503 =l copy $__str656
+    %t504 =l call $std__string__from(l %t503)
+    %t505 =w call $std__string__contains(l %t502, l %t504)
+    jnz %t505, @lbl12085, @lbl12087
 @lbl12085
-    %t507 =l copy $__str0
-    %t508 =l call $std__string__cstr(l %t503)
-    %t509 =l call $printf(l %t507, ..., l %t508)
-    %t510 =l copy $__str657
-    %t511 =w call $std__stdio__puts(l %t510)
-    %t512 =l copy 1
-    storew %t512, %t372
+    %t506 =l copy $__str0
+    %t507 =l call $std__string__cstr(l %t502)
+    %t508 =l call $printf(l %t506, ..., l %t507)
+    %t509 =l copy $__str657
+    %t510 =w call $std__stdio__puts(l %t509)
+    %t511 =l copy 1
+    storew %t511, %t371
     jmp @lbl12086
 @lbl12087
-    %t514 =w loadw %t12
-    %t513 =l extsw %t514
-    %t515 =w ceqw %t513, 0
-    jnz %t515, @lbl12088, @lbl12089
+    %t513 =w loadw %t12
+    %t512 =l extsw %t513
+    %t514 =w ceqw %t512, 0
+    jnz %t514, @lbl12088, @lbl12089
 @lbl12088
-    %t516 =l copy $__str314
-    %t517 =l loadl %t370
-    %t518 =l call $printf(l %t516, ..., l %t517)
+    %t515 =l copy $__str314
+    %t516 =l loadl %t369
+    %t517 =l call $printf(l %t515, ..., l %t516)
     jmp @lbl12089
 @lbl12089
     jmp @lbl12086
 @lbl12086
     jmp @lbl12084
 @lbl12083
-    %t519 =l add %t499, 8
-    %t520 =l loadl %t519
-    %e =l copy %t520
-    %t521 =l copy $__str658
-    %t522 =w call $std__stdio__puts(l %t521)
+    %t518 =l add %t498, 8
+    %t519 =l loadl %t518
+    %e =l copy %t519
+    %t520 =l copy $__str658
+    %t521 =w call $std__stdio__puts(l %t520)
     jmp @lbl12084
 @lbl12084
+    %t522 =w call $std__os__delete(l %t289)
     %t523 =w call $std__os__delete(l %t290)
-    %t524 =w call $std__os__delete(l %t291)
-    %t525 =w call $std__allocators__Arena__free(l %t5)
-    %t527 =w loadw %t372
-    %t526 =l extsw %t527
-    ret %t526
+    %t524 =w call $std__allocators__Arena__free(l %t5)
+    %t526 =w loadw %t371
+    %t525 =l extsw %t526
+    ret %t525
 }
 
 data $__str0 = { b "%s\n", b 0 }
@@ -66245,13 +66251,13 @@ data $__str611 = { b "  --test               Run the unit tests in the current f
 data $__str612 = { b "  -q, --quiet          Suppress compiler output", b 0 }
 data $__str613 = { b "  -v, --version        Show the version of the Spectre compiler", b 0 }
 data $__str614 = { b "  -h, --help           Print this help message", b 0 }
-data $__str615 = { b "error: no input file provided\n", b 0 }
-data $__str616 = { b "error: no input file", b 0 }
-data $__str617 = { b "-h", b 0 }
-data $__str618 = { b "--help", b 0 }
-data $__str619 = { b "-v", b 0 }
-data $__str620 = { b "--version", b 0 }
-data $__str621 = { b "Spectre v0.0.2\n(C) Navid Momtahen - GPL-3.0 - 2026", b 0 }
+data $__str615 = { b "Spectre v0.0.2\n(C) Navid Momtahen - GPL-3.0 - 2026", b 0 }
+data $__str616 = { b "error: no input file provided\n", b 0 }
+data $__str617 = { b "error: no input file", b 0 }
+data $__str618 = { b "-h", b 0 }
+data $__str619 = { b "--help", b 0 }
+data $__str620 = { b "-v", b 0 }
+data $__str621 = { b "--version", b 0 }
 data $__str622 = { b "error: could not read '%s'\n", b 0 }
 data $__str623 = { b "-o", b 0 }
 data $__str624 = { b "--output", b 0 }
