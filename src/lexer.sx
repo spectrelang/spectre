@@ -91,10 +91,12 @@ fn lx_peek(l: ref Lexer) i64 = {
     return trust @load8(@ptradd(l.src, l.pos)) as i64
 }
 
-fn lx_peek2(l: ref Lexer) i64! = {
+fn lx_peek2(l: ref Lexer) i64 = {
     val p: mut i64 = l.pos + 1
-    if p >= l.len { return -1 }
-    return @load8(@ptradd(l.src, p)) as i64
+    guard (p < l.len) else {
+        return -1
+    }
+    return trust @load8(@ptradd(l.src, p)) as i64
 }
 
 fn lx_advance(l: mut ref Lexer) i64! = {
