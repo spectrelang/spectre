@@ -9,3 +9,6 @@ spectre-dev
 *.ssa
 .vscode
 !bootstrap/*
+sxc2
+sxc3
+sxc4
