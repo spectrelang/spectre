@@ -64949,6 +64949,7 @@ export function w $main(w %argc, l %argv) {
     %sx_argc_val =l extsw %argc
     storel %sx_argc_val, $sx_argc_store
     storel %argv, $sx_argv_store
+    call $__sx_panic_init()
     %t0 =l copy 65536
     %t1 =l call $std__allocators__Arena__new(l %t0)
     %t2 =l loadl %t1
@@ -66559,7 +66560,7 @@ data $__str611 = { b "  --emit-qbe           Print IR to stdout and exit", b 0 }
 data $__str612 = { b "  --emit-asm           Print assembly to stdout and exit", b 0 }
 data $__str613 = { b "  --show-cmd           Show the command used for linking", b 0 }
 data $__str614 = { b "  --test               Run the unit tests in the current file", b 0 }
-data $__str615 = { b "  --release            Release build: disable debug panic handler", b 0 }
+data $__str615 = { b "  --release            Build in release mode", b 0 }
 data $__str616 = { b "  -q, --quiet          Suppress compiler output", b 0 }
 data $__str617 = { b "  -v, --version        Show the version of the Spectre compiler", b 0 }
 data $__str618 = { b "  -h, --help           Print this help message", b 0 }
@@ -66581,11 +66582,11 @@ data $__str633 = { b "--test", b 0 }
 data $__str634 = { b "--quiet", b 0 }
 data $__str635 = { b "-q", b 0 }
 data $__str636 = { b "--release", b 0 }
-data $__str637 = { b "[I]  │ resolving module", b 0 }
+data $__str637 = { b "[I]  │ Resolving module", b 0 }
 data $__str638 = { b "error: %s\n", b 0 }
-data $__str639 = { b "[II] │ sema", b 0 }
-data $__str640 = { b "[III]│ cg pass", b 0 }
-data $__str641 = { b "[IV] │ module ul-collection", b 0 }
+data $__str639 = { b "[II] │ Semantic analysis", b 0 }
+data $__str640 = { b "[III]│ CG pass", b 0 }
+data $__str641 = { b "[IV] │ Module used-links collection", b 0 }
 data $__str642 = { b "std/csources/panic_handler.o", b 0 }
 data $__str643 = { b "warning: panic_handler.o not found at: %s\n", b 0 }
 data $__str644 = { b "-lDbgHelp", b 0 }
@@ -66603,10 +66604,10 @@ data $__str655 = { b "[spectre] running tests for: %s\n", b 0 }
 data $__str656 = { b "[spectre] test binary exited with: %s\n", b 0 }
 data $__str657 = { b "non-zero exit", b 0 }
 data $__str658 = { b "error: cc compilation failed", b 0 }
-data $__str659 = { b "compiled: %s\n", b 0 }
+data $__str659 = { b "Compiled: %s\n", b 0 }
 data $__str660 = { b "mkdir -p ./s-out", b 0 }
 data $__str661 = { b "cc -o ./s-out/%s %s%s", b 0 }
-data $__str662 = { b "compiled: ./s-out/%s\n", b 0 }
+data $__str662 = { b "Compiled: ./s-out/%s\n", b 0 }
 data $__str663 = { b " 2>&1", b 0 }
 data $__str664 = { b "error", b 0 }
 data $__str665 = { b "linking failed.", b 0 }
