@@ -1210,8 +1210,31 @@ fn gen_struct_lit_inline(ctx: ref CgCtx, struct_node: ref parser.Node, parent_pt
                     val fptr: i64 = fresh_tmp(ctx)
                     val fbuf: ref char = @alloc(128) as ref char
                     val fval: ref char = gen_expr(ctx, lf_expr)
-                    @snprintf(fbuf, 128, "    %%t%lld =l add %%t%lld, %lld\n    storel %s, %%t%lld\n",
-                        {fptr, parent_ptr, actual_off, fval, fptr})
+                    val lit_store_op: mut ref char = "storel"
+                    val sflen2: i64 = @len(sfields_node as list[ref void]) as i64
+                    val sfi2: mut i64 = 0
+                    for {
+                        if sfi2 >= sflen2 { break }
+                        val sf2_opt = @get(sfields_node as list[ref void], sfi2 as usize)
+                        match sf2_opt {
+                            some sf2 => {
+                                val sf2n: ref parser.Node = sf2 as ref parser.Node
+                                val sf2name: ref char = sf2n.d0 as ref char
+                                if str.rchar_cmp(sf2name, lf_name) == 0 {
+                                    val sf2ty: ref parser.Node = sf2n.d2 as ref parser.Node
+                                    val sf2qt: ref char = qbe_type_of(sf2ty)
+                                    if str.rchar_cmp(sf2qt, "w") == 0 { lit_store_op = "storew" }
+                                    elif str.rchar_cmp(sf2qt, "s") == 0 { lit_store_op = "stores" }
+                                    elif str.rchar_cmp(sf2qt, "d") == 0 { lit_store_op = "stored" }
+                                    sfi2 = sflen2
+                                }
+                            }
+                            none => {}
+                        }
+                        sfi2++
+                    }
+                    @snprintf(fbuf, 128, "    %%t%lld =l add %%t%lld, %lld\n    %s %s, %%t%lld\n",
+                        {fptr, parent_ptr, actual_off, lit_store_op, fval, fptr})
                     emit(ctx, fbuf)
                     @free(fbuf)
                 }
@@ -5452,6 +5475,7 @@ fn gen_stmt(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
             } else {
                 val field_is_list: mut bool = false
                 val field_size_write: mut i64 = 8
+                val field_store_op: mut ref char = "storel"
                 if value.kind == parser.NK_LIST_LIT {
                     field_is_list = true
                 } elif value.kind == parser.NK_IDENT {
@@ -5492,6 +5516,10 @@ fn gen_stmt(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
                                                             field_size_write = struct_size(ctx, sflds)
                                                         }
                                                     }
+                                                    val sf3qt: ref char = qbe_type_of(sf3ty)
+                                                    if str.rchar_cmp(sf3qt, "w") == 0 { field_store_op = "storew" }
+                                                    elif str.rchar_cmp(sf3qt, "s") == 0 { field_store_op = "stores" }
+                                                    elif str.rchar_cmp(sf3qt, "d") == 0 { field_store_op = "stored" }
                                                 }
                                             }
                                             sf3i = sf3len
@@ -5528,14 +5556,14 @@ fn gen_stmt(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
                         @snprintf(buf3, 128, "    call $memcpy(l %%t%lld, l %s, l %lld)\n", {fptr, val_tmp2, field_size_write})
                     }
                 } elif foffset == 0 {
-                    @snprintf(buf3, 128, "    storel %s, %s\n", {val_tmp2, base})
+                    @snprintf(buf3, 128, "    %s %s, %s\n", {field_store_op, val_tmp2, base})
                 } else {
                     val fptr: i64 = fresh_tmp(ctx)
                     val buf3b: ref char = @alloc(128) as ref char
                     @snprintf(buf3b, 128, "    %%t%lld =l add %s, %lld\n", {fptr, base, foffset})
                     emit(ctx, buf3b)
                     @free(buf3b)
-                    @snprintf(buf3, 128, "    storel %s, %%t%lld\n", {val_tmp2, fptr})
+                    @snprintf(buf3, 128, "    %s %s, %%t%lld\n", {field_store_op, val_tmp2, fptr})
                 }
                 emit(ctx, buf3)
                 @free(buf3)
