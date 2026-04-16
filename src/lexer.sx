@@ -209,8 +209,11 @@ fn lex_string(l: ref Lexer) ref char! = {
                 elif h2 >= 65 { d2 = h2 - 55 } 
                 else { d2 = h2 - 48 }
                 @store8(@ptradd(buf, i), (d1 * 16 + d2) as u8)
+            } else { 
+                @store8(@ptradd(buf, i), 92 as u8) 
+                i++ 
+                @store8(@ptradd(buf, i), esc as u8) 
             }
-            else               { @store8(@ptradd(buf, i), 92 as u8) i++ @store8(@ptradd(buf, i), esc as u8) }
         } else {
             @store8(@ptradd(buf, i), c as u8)
         }
