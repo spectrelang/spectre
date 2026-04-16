@@ -11,21 +11,7 @@ val parser      = use("ast/parser.sx")
 val sema        = use("sema/sema.sx")
 val codegen     = use("codegen/codegen.sx")
 val module      = use("module/module.sx")
-
-fn print_usage() void = {
-    std.stdio.puts("usage:")
-    std.stdio.puts("  spectre <input.sx> [options]")
-    std.stdio.puts("")
-    std.stdio.puts("options:")
-    std.stdio.puts("  -o, --output <file>  Output binary path (default: input filename without extension)")
-    std.stdio.puts("  --emit-qbe           Print IR to stdout and exit")
-    std.stdio.puts("  --emit-asm           Print assembly to stdout and exit")
-    std.stdio.puts("  --show-cmd           Show the command used for linking")
-    std.stdio.puts("  --test               Run the unit tests in the current file")
-    std.stdio.puts("  -q, --quiet          Suppress compiler output")
-    std.stdio.puts("  -v, --version        Show the version of the Spectre compiler")
-    std.stdio.puts("  -h, --help           Print this help message")
-}
+val meta        = use("meta/meta.sx")
 
 pub fn main() i32! = {
     val arena = allocators.Arena.new(65536)?
@@ -35,7 +21,7 @@ pub fn main() i32! = {
 
     if argc < 2 {
         std.stdio.puts("error: no input file provided\n")
-        print_usage()
+        meta.print_usage()
         allocators.Arena.free(arena)
         return 1
     }
@@ -52,7 +38,7 @@ pub fn main() i32! = {
     }
 
     if std.string.rchar_cmp(input, "-h") == 0 || std.string.rchar_cmp(input, "--help") == 0 {
-        print_usage()
+        meta.print_usage()
         allocators.Arena.free(arena)
         return 0
     }
