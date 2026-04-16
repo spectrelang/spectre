@@ -559,7 +559,7 @@ fn check_stmt(ctx: ref SemaCtx, stmt: ref parser.Node, filename: ref char) void!
             val last_opt = @get(gbody as list[ref parser.Node], (gbody_len - 1) as usize)
             match last_opt {
                 some last => {
-                    if (last as ref parser.Node).kind == parser.NK_RETURN { ends_with_return = true }
+                    if ((last as ref parser.Node).kind == parser.NK_RETURN) { ends_with_return = true }
                 }
                 none => {}
             }
