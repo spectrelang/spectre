@@ -1,4 +1,4 @@
-val std = use("std")
+val std    = use("std")
 val parser = use("parser.sx")
 
 type ScopeEntry = {
