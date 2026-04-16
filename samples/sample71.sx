@@ -94,13 +94,13 @@ pub type Token = {
 }
 
 pub fn mutate_token(t: mut Token) void = {
-    t.line = t.line - 20
+    @printf("{d}\n", {t.line})
     // at the end of this scope, t.line is no longer > 10, should error at runtime
     // this check should not persist in release builds
 }
 
 pub fn main() void = {
-    val tk: mut Token = {Eof(), 11, 11} // ok
+    val tk: mut Token = {kind: Eof(), line: 11, col: 11} // ok
     // val tk2: Token = {Eof(), 11, 9} // error at compile time (should persist at release build)
-    mutate_token(tk)
+    @printf("{d}\n", {tk.line})
 }

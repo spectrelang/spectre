@@ -5179,34 +5179,11 @@ fn gen_struct_lit(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
         }
     }
 
-    // Compute the total allocation size using the actual field sizes
-    // (instead of some arbitrary number)
+    // Compute the total allocation size using struct_size which correctly
+    // accounts for tagged unions (16 bytes) and other named types.
     val size: mut i64 = flen * 8
     if struct_fields != 0 as ref void {
-        val sflen: i64 = @len(struct_fields as list[ref void]) as i64
-        val has_fa: bool = fields_have_fixed_arr(struct_fields)
-        val total: mut i64 = 0
-        val sfi: mut i64 = 0
-        for {
-            if sfi >= sflen { break }
-            val sf_opt = @get(struct_fields as list[ref void], sfi as usize)
-            match sf_opt {
-                some sf => {
-                    val sfnode: ref parser.Node = sf as ref parser.Node
-                    val sfty: ref parser.Node = sfnode.d2 as ref parser.Node
-                    val fsize: i64 = type_size(sfty)
-                    if has_fa {
-                        val align: i64 = type_align(sfty)
-                        total = align_to(total, align) + fsize
-                    } else {
-                        total = total + align_to(fsize, 8)
-                    }
-                }
-                none => {}
-            }
-            sfi++
-        }
-        size = total
+        size = struct_size(ctx, struct_fields)
     }
 
     val tmp: i64 = fresh_tmp(ctx)
