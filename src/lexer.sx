@@ -84,9 +84,11 @@ pub fn lexer_new(src: ref char) ref Lexer! = {
     return l
 }
 
-fn lx_peek(l: ref Lexer) i64! = {
-    if l.pos >= l.len { return -1 }
-    return @load8(@ptradd(l.src, l.pos)) as i64
+fn lx_peek(l: ref Lexer) i64 = {
+    guard (l.pos < l.len) else {
+        return -1
+    }
+    return trust @load8(@ptradd(l.src, l.pos)) as i64
 }
 
 fn lx_peek2(l: ref Lexer) i64! = {
