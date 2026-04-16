@@ -12,3 +12,11 @@ cprev:
 
 clean:
 	@git clean -fdX
+
+bt:
+	@sh ./build.sh
+	@sh ./test.sh -bs
+
+btfl:
+	@sh ./build.sh
+	@sh ./test.sh
