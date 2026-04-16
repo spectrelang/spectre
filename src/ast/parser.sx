@@ -1559,6 +1559,19 @@ fn parse_type_def_item(p: ref Parser, public: i64, is_extern: i64) result[ref No
     nt.d0 = public nt.d1 = name as i64
     val fl: list[ref Node] = fields
     nt.d2 = fl as i64
+    if lexer.kind_is_invariant(p_peek_kind(p)) {
+        p_advance(p)
+        p_expect_lbrace(p)?
+        val inv_exprs: mut list[ref Node] = []
+        for {
+            if lexer.kind_is_rbrace(p_peek_kind(p)) { break }
+            val iexpr = parse_expr(p)?
+            @append(inv_exprs, iexpr)
+        }
+        p_expect_rbrace(p)?
+        val il: list[ref Node] = inv_exprs
+        nt.d3 = il as i64
+    }
     return ok nt
 }
 

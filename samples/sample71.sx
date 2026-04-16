@@ -1,0 +1,106 @@
+pub union TokenKind = {
+    Fn()        
+    | Val()      
+    | Mut()      
+    | Pub()      
+    | Type()
+    | Pre()       
+    | Post()      
+    | Return()   
+    | If()       
+    | Else()
+    | Elif()      
+    | Trust()     
+    | Use()      
+    | Ref()      
+    | For()
+    | In()        
+    | Some()      
+    | None()     
+    | Ok()       
+    | Err()
+    | Match()     
+    | True()      
+    | False()    
+    | Defer()    
+    | Break()
+    | Continue()  
+    | As()        
+    | Assert()   
+    | When()     
+    | Union()
+    | Enum()      
+    | Extern()    
+    | Link()     
+    | Guarded()  
+    | Not()
+    | Test()     
+    | Guard()
+    | Ident(ref char)
+    | Str(ref char)
+    | Int(ref char)
+    | Float(ref char)
+    | CharLit(i64)
+    | LParen()    
+    | RParen()    
+    | LBrace()   
+    | RBrace()
+    | LBracket()  
+    | RBracket()  
+    | Colon()    
+    | Semicolon()
+    | Comma()    
+    | Dot()      
+    | DotDotDot()
+    | Eq()  
+    | Bang()    
+    | At()    
+    | Plus()
+    | Minus()
+    | Star() 
+    | Slash() 
+    | Percent() 
+    | PlusPlus() 
+    | MinusMinus()
+    | PlusEq()  
+    | MinusEq() 
+    | EqEq() 
+    | BangEq()
+    | Lt()
+    | Gt() 
+    | LtEq()
+    | GtEq()
+    | And() 
+    | Or() 
+    | BitAnd() 
+    | BitOr()
+    | BitXor()
+    | Shl() 
+    | Shr()  
+    | Arrow() 
+    | FatArrow() 
+    | Tilde()
+    | Question()
+    | Eof()
+}
+
+pub type Token = {
+    kind: mut TokenKind
+    line: mut i64
+    col:  mut i64
+} invariant {
+    line > 10
+    col > 10
+}
+
+pub fn mutate_token(t: mut Token) void = {
+    t.line = t.line - 20
+    // at the end of this scope, t.line is no longer > 10, should error at runtime
+    // this check should not persist in release builds
+}
+
+pub fn main() void = {
+    val tk: mut Token = {Eof(), 11, 11} // ok
+    // val tk2: Token = {Eof(), 11, 9} // error at compile time (should persist at release build)
+    mutate_token(tk)
+}
