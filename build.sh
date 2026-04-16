@@ -12,6 +12,9 @@ for arg in "$@"; do
     esac
 done
 
+echo "Compiling debug runtime (panic_handler)..."
+cc -c std/csources/panic_handler.c -o std/csources/panic_handler.o || exit 1
+
 echo "Building spectre-dev..."
 spectre ./src/sxc.sx -o spectre-dev || exit 1
 

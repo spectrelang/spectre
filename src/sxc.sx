@@ -6,6 +6,7 @@
 val std         = use("std")
 val allocators  = use("std/allocators")
 val path        = use("std/path")
+val reflection  = use("std/reflection")
 val lexer       = use("ast/lexer.sx")
 val parser      = use("ast/parser.sx")
 val sema        = use("sema/sema.sx")
@@ -63,6 +64,7 @@ pub fn main() i32! = {
     val emit_asm: mut bool = false
     val show_cmd: mut bool = false
     val test_mode: mut bool = false
+    val release_mode: mut bool = false
     val output_name: mut ref char = ""
     val arg_i: mut i64 = 2
 
@@ -107,6 +109,9 @@ pub fn main() i32! = {
                     arg_i++
                 } elif std.string.rchar_cmp(arg, "--quiet") == 0 || std.string.rchar_cmp(arg, "-q") == 0 {
                     quiet = true
+                    arg_i++
+                } elif std.string.rchar_cmp(arg, "--release") == 0 {
+                    release_mode = true
                     arg_i++
                 } else {
                     arg_i++
@@ -157,16 +162,36 @@ pub fn main() i32! = {
     val qbe_ir: mut ref char = ""
 
     if test_mode {
-        qbe_ir = codegen.gen_module_resolved_test(root_mod)
+        qbe_ir = codegen.gen_module_resolved_test(root_mod, release_mode)
     } else {
-        qbe_ir = codegen.gen_module_resolved(root_mod)
+        qbe_ir = codegen.gen_module_resolved(root_mod, release_mode)
     }
 
     if !quiet {
         std.stdio.puts("[IV] │ module ul-collection")
     }
 
-    val links: list[ref char] = module.collect_used_links(root_mod, exe_dir)
+    val links: mut list[ref char] = module.collect_used_links(root_mod, exe_dir)
+
+    if !release_mode {
+        val panic_o: ref char = path.join(exe_dir, "std/csources/panic_handler.o")
+        val panic_f = std.fs.open(panic_o, "r")
+        match panic_f {
+            some h => {
+                std.fs.close(h)
+                @append(links, panic_o)
+            }
+            none => {
+                if !quiet {
+                    std.stdio.print("warning: panic_handler.o not found at: {s}\n", {panic_o})
+                }
+            }
+        }
+        val platform: ref char = reflection.current_platform_name()
+        if std.string.rchar_cmp(platform, "windows") == 0 {
+            @append(links, "-lDbgHelp")
+        }
+    }
 
     if emit_qbe != 0 {
         std.stdio.puts(qbe_ir)

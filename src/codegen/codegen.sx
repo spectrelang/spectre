@@ -50,6 +50,7 @@ pub type CgCtx = {
     current_module_prefix: mut ref char
     emitted_labels: mut list[ref char]
     emitted_shims: mut list[ref char]
+    release_mode: mut bool
 }
 
 fn cg_new() ref CgCtx! = {
@@ -97,6 +98,7 @@ fn cg_new() ref CgCtx! = {
     ctx.current_module_prefix = ""
     ctx.emitted_labels = []
     ctx.emitted_shims = []
+    ctx.release_mode = false
     return ctx
 }
 
@@ -6859,6 +6861,9 @@ fn gen_fn_prefixed(ctx: mut ref CgCtx, fn_node: ref parser.Node, mod_prefix: ref
         emitln(ctx, "    %sx_argc_val =l extsw %argc")
         emitln(ctx, "    storel %sx_argc_val, $sx_argc_store")
         emitln(ctx, "    storel %argv, $sx_argv_store")
+        if !ctx.release_mode {
+            emitln(ctx, "    call $__sx_panic_init()")
+        }
     }
 
     if returns_union {
@@ -8050,8 +8055,9 @@ fn scan_node_for_calls_depth(ctx: ref CgCtx, node: ref parser.Node, depth: i64) 
 
 /// Main entry for the resolved module tree.
 /// Flattens children depth-first, emits each layer with its mangled prefix.
-pub fn gen_module_resolved(root: ref module.ResolvedModule) ref char! = {
+pub fn gen_module_resolved(root: ref module.ResolvedModule, release_mode: bool) ref char! = {
     val ctx: ref CgCtx = cg_new()
+    ctx.release_mode = release_mode
     emit_runtime_helpers(ctx)
 
     val out_prefixes: mut list[ref char] = []
@@ -8328,6 +8334,9 @@ fn gen_test_main(ctx: ref CgCtx, test_ids: list[i64]) void! = {
     emitln(ctx, "    %sx_argc_val =l extsw %argc")
     emitln(ctx, "    storel %sx_argc_val, $sx_argc_store")
     emitln(ctx, "    storel %argv, $sx_argv_store")
+    if !ctx.release_mode {
+        emitln(ctx, "    call $__sx_panic_init()")
+    }
     val tlen: i64 = @len(test_ids) as i64
     val ti: mut i64 = 0
     for {
@@ -8353,8 +8362,9 @@ fn gen_test_main(ctx: ref CgCtx, test_ids: list[i64]) void! = {
 
 /// Entry point for --test mode: emits test blocks from root module only,
 /// suppresses main(), and emits a test runner $main.
-pub fn gen_module_resolved_test(root: ref module.ResolvedModule) ref char! = {
+pub fn gen_module_resolved_test(root: ref module.ResolvedModule, release_mode: bool) ref char! = {
     val ctx: ref CgCtx = cg_new()
+    ctx.release_mode = release_mode
     emit_runtime_helpers(ctx)
 
     val out_prefixes: mut list[ref char] = []
