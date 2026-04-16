@@ -31,7 +31,7 @@ static void sx_signal_handler(int sig)
     int    nframes = backtrace(frames, 64);
     char **syms    = backtrace_symbols(frames, nframes);
 
-    fprintf(stderr, "\nspectre: RuntimeError - %s\n", sx_signal_name(sig));
+    fprintf(stderr, "RuntimeError - %s\n", sx_signal_name(sig));
     fprintf(stderr, "Stack trace:\n");
 
     if (syms) {
