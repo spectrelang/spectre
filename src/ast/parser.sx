@@ -1,4 +1,4 @@
-val std = use("std")
+val std   = use("std")
 val lexer = use("lexer.sx")
 
 pub val NK_FN              : i64 = 1
