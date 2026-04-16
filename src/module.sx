@@ -916,7 +916,7 @@ pub fn flatten_modules(
 
     @append(seen as list[String], m.filename)
     val items_copy: ref void = @alloc(24)
-    @memcpy(items_copy, addr(m.items) as ref void, 24 as usize)
+    @memcpy(items_copy, @addr(m.items) as ref void, 24 as usize)
     @append(out_prefixes as list[ref char], prefix)
     @append(out_items as list[ref void], items_copy)
 }

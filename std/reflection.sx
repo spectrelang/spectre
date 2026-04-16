@@ -77,7 +77,7 @@ pub fn get_current_platform() Platform! = {
         machine: 0
     }
 
-    val r = uname(addr(buf))
+    val r = uname(@addr(buf))
 
     if (r == 0) {
         match buf.sysname {

@@ -450,7 +450,7 @@ pub fn walk_dir(path: ref char) option[list[ref char]]! = {
             break
         }
 
-        val name: ref char = addr(entry.d_name) as ref char
+        val name: ref char = @addr(entry.d_name) as ref char
 
         val c0: u8 = @load8(name)
         if (c0 == 46) {  // '.'

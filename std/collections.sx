@@ -380,7 +380,7 @@ pub fn (Map) clear(map: self) void! = {
 
 test {
     @puts("STARTING 2")
-    val m = Map.new(8, addr(hash_identity))
+    val m = Map.new(8, @addr(hash_identity))
 
     assert Map.len(m) == 0
 
@@ -429,7 +429,7 @@ test {
     assert Map.len(m) == 0
     assert !Map.contains(m, 1)
 
-    val big = Map.new(4, addr(hash_identity))
+    val big = Map.new(4, @addr(hash_identity))
 
     for (i = 0; i < 20; i++) {
         Map.set(big, i, i * 10)
@@ -537,7 +537,7 @@ fn str_eq(a: ref char, b: ref char) bool! = {
 
 /// Allocate a new StringMap with the given initial capacity.
 pub fn (StringMap) new(initial_cap: usize) ref void! = {
-    return Map.new(initial_cap, addr(hash_string))
+    return Map.new(initial_cap, @addr(hash_string))
 }
 
 /// Insert or update a string key with a usize value.
