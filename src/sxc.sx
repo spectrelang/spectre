@@ -58,7 +58,7 @@ pub fn main() i32! = {
     }
 
     if std.string.rchar_cmp(input, "-v") == 0 || std.string.rchar_cmp(input, "--version") == 0 {
-        std.stdio.puts("Spectre v0.0.1\n(C) Navid Momtahen - GPL-3.0 - 2026")
+        std.stdio.puts("Spectre v0.0.2\n(C) Navid Momtahen - GPL-3.0 - 2026")
         allocators.Arena.free(arena)
         return 0
     }
