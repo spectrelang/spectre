@@ -20,3 +20,6 @@ bt:
 btfl:
 	@sh ./build.sh
 	@sh ./test.sh
+
+bs:
+	@sh ./build.sh -bs
