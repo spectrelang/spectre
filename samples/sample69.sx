@@ -1,0 +1,10 @@
+type SomeType = {
+    some_attrib: i32
+    some_other_attrib: mut bool
+}
+
+pub fn main() void = {
+    val st: mut SomeType = {some_attrib: 12, some_other_attrib: true}
+    st.some_other_attrib = 1 == 1
+    @puts("Done.")
+}
