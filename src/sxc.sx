@@ -120,7 +120,7 @@ pub fn main() i32! = {
 
     val exe_dir: ref char = "."
 
-    if !quiet {
+    if !quiet && !emit_qbe {
         std.stdio.puts("[I]  │ resolving module")
     }
 
@@ -136,7 +136,7 @@ pub fn main() i32! = {
         }
     }
 
-    if !quiet {
+    if !quiet && !emit_qbe {
         std.stdio.puts("[II] │ sema")
     }
 
@@ -150,7 +150,7 @@ pub fn main() i32! = {
         return 1
     }
 
-    if !quiet { 
+    if !quiet && !emit_qbe { 
         std.stdio.puts("[III]│ cg pass")
     }
 
@@ -162,7 +162,7 @@ pub fn main() i32! = {
         qbe_ir = codegen.gen_module_resolved(root_mod)
     }
 
-    if !quiet {
+    if !quiet && !emit_qbe {
         std.stdio.puts("[IV] │ module ul-collection")
     }
 
@@ -256,12 +256,12 @@ pub fn main() i32! = {
         val cc_res2 = std.os.exec(cc_cmd)
         match cc_res2 {
             ok _ => {
-                if !quiet {
+                if !quiet && !emit_qbe {
                     std.stdio.print("[spectre] running tests for: {s}\n", {input})
                 }
                 val run_res = std.os.run(test_bin)
                 if run_res != 0 {
-                    if !quiet {
+                    if !quiet && !emit_qbe {
                         std.stdio.print("[spectre] test binary exited with: {s}\n", {"non-zero exit"})
                     }
                     exit_code = 1
@@ -299,7 +299,7 @@ pub fn main() i32! = {
                 std.stdio.puts("linking failed.")
                 exit_code = 1
             } else {
-                if !quiet {
+                if !quiet && !emit_qbe {
                     std.stdio.print("{s}", {success_msg})
                 }
             }
