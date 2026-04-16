@@ -16,12 +16,12 @@
 static const char *sx_signal_name(int sig)
 {
     switch (sig) {
-        case SIGSEGV: return "Segmentation Fault (SIGSEGV)";
-        case SIGABRT: return "Abort (SIGABRT)";
-        case SIGBUS:  return "Bus Error (SIGBUS)";
-        case SIGFPE:  return "Floating Point Exception (SIGFPE)";
-        case SIGILL:  return "Illegal Instruction (SIGILL)";
-        default:      return "Fatal Signal";
+        case SIGSEGV: return "segmentation fault (sigsegv)";
+        case SIGABRT: return "abort (sigabrt)";
+        case SIGBUS:  return "bus error (sigbus)";
+        case SIGFPE:  return "floating point exception (sigfpe)";
+        case SIGILL:  return "illegal instruction (sigill)";
+        default:      return "fatal signal";
     }
 }
 
@@ -31,8 +31,8 @@ static void sx_signal_handler(int sig)
     int    nframes = backtrace(frames, 64);
     char **syms    = backtrace_symbols(frames, nframes);
 
-    fprintf(stderr, "RuntimeError - %s\n", sx_signal_name(sig));
-    fprintf(stderr, "Stack trace:\n");
+    fprintf(stderr, "spectre: panic - %s\n", sx_signal_name(sig));
+    fprintf(stderr, "trace:\n");
 
     if (syms) {
         for (int i = 0; i < nframes; i++)
@@ -73,22 +73,22 @@ static LONG WINAPI sx_exception_handler(EXCEPTION_POINTERS *info)
     HANDLE proc = GetCurrentProcess();
     SymInitialize(proc, NULL, TRUE);
 
-    const char *desc = "Unhandled Exception";
+    const char *desc = "unhandled exception";
     switch (info->ExceptionRecord->ExceptionCode) {
         case EXCEPTION_ACCESS_VIOLATION:
-            desc = "Access Violation (SIGSEGV equivalent)"; break;
+            desc = "access violation"; break;
         case EXCEPTION_STACK_OVERFLOW:
-            desc = "Stack Overflow";                        break;
+            desc = "stack overflow";                        break;
         case EXCEPTION_ILLEGAL_INSTRUCTION:
-            desc = "Illegal Instruction (SIGILL)";          break;
+            desc = "illegal instruction (sigill)";          break;
         case EXCEPTION_INT_DIVIDE_BY_ZERO:
-            desc = "Integer Divide By Zero (SIGFPE)";       break;
+            desc = "integer divide by zero (sigfpe)";       break;
         case EXCEPTION_FLT_DIVIDE_BY_ZERO:
-            desc = "Float Divide By Zero (SIGFPE)";         break;
+            desc = "float divide by zero (sigfpe)";         break;
     }
 
-    fprintf(stderr, "\nspectre: RuntimeError - %s\n", desc);
-    fprintf(stderr, "Stack trace:\n");
+    fprintf(stderr, "\nspectre: panic - %s\n", desc);
+    fprintf(stderr, "trace:\n");
 
     void        *stack[64];
     WORD         nframes = CaptureStackBackTrace(0, 64, stack, NULL);
