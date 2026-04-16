@@ -315,6 +315,10 @@ fn expr_uses_name(node: ref parser.Node, name: ref char) bool! = {
     if k == parser.NK_VAL {
         return expr_uses_name(node.d3 as ref parser.Node, name)
     }
+    if k == parser.NK_GUARD {
+        if expr_uses_name(node.d0 as ref parser.Node, name) { return true }
+        return stmts_use_name(node.d1 as ref void, name)
+    }
     if k == parser.NK_IF {
         if expr_uses_name(node.d0 as ref parser.Node, name) { return true }
         if stmts_use_name(node.d1 as ref void, name) { return true }
@@ -539,6 +543,32 @@ fn check_stmt(ctx: ref SemaCtx, stmt: ref parser.Node, filename: ref char) void!
     }
     if k == parser.NK_ASSERT {
         check_expr(ctx, stmt.d0 as ref parser.Node, filename)
+        return
+    }
+
+    if k == parser.NK_GUARD {
+        check_expr(ctx, stmt.d0 as ref parser.Node, filename)
+        val gbody: ref void = stmt.d1 as ref void
+        push_scope(ctx)
+        check_stmts(ctx, gbody, filename)
+        pop_scope(ctx)
+        val gbody_len: mut i64 = 0
+        if gbody != 0 as ref void { gbody_len = @len(gbody as list[ref parser.Node]) as i64 }
+        val ends_with_return: mut bool = false
+        if gbody_len > 0 {
+            val last_opt = @get(gbody as list[ref parser.Node], (gbody_len - 1) as usize)
+            match last_opt {
+                some last => {
+                    if (last as ref parser.Node).kind == parser.NK_RETURN { ends_with_return = true }
+                }
+                none => {}
+            }
+        }
+        if !ends_with_return {
+            val buf: ref char = @alloc(256) as ref char
+            @snprintf(buf, 256, "%s:%lld: guard else block must end with a return statement", {filename, line})
+            add_error(ctx, buf)
+        }
         return
     }
 

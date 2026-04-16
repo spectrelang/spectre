@@ -39,6 +39,7 @@ pub val NK_ADD_ASSIGN : i64 = 42
 pub val NK_SUB_ASSIGN : i64 = 43
 pub val NK_TEST       : i64 = 44
 pub val NK_MATCH_TAGGED_UNION: i64 = 46
+pub val NK_GUARD      : i64 = 47
 pub val NK_INT_LIT    : i64 = 60
 pub val NK_FLOAT_LIT  : i64 = 61
 pub val NK_STR_LIT    : i64 = 62
@@ -410,6 +411,7 @@ fn kind_is_not(k: lexer.TokenKind) bool! = { match k { Not() => { return true } 
 fn kind_is_ref(k: lexer.TokenKind) bool! = { match k { Ref() => { return true } else => { return false } } }
 fn kind_is_use(k: lexer.TokenKind) bool! = { match k { Use() => { return true } else => { return false } } }
 fn kind_is_test(k: lexer.TokenKind) bool! = { match k { Test() => { return true } else => { return false } } }
+fn kind_is_guard(k: lexer.TokenKind) bool! = { match k { Guard() => { return true } else => { return false } } }
 fn kind_is_eof(k: lexer.TokenKind) bool! = { match k { Eof() => { return true } else => { return false } } }
 fn kind_is_ident(k: lexer.TokenKind) bool! = { match k { Ident _ => { return true } else => { return false } } }
 fn kind_is_str(k: lexer.TokenKind) bool! = { match k { Str _ => { return true } else => { return false } } }
@@ -994,6 +996,25 @@ pub fn parse_stmt(p: ref Parser) result[ref Node, ref char]! = {
         val clist3: list[ref Node] = cs3
         n5.d0 = clist3 as i64
         return ok n5
+    }
+
+    if kind_is_guard(k) {
+        p_advance(p)
+        val has_paren_g: bool = p_eat_fn(p, lexer.kind_is_lparen)
+        val gcond = parse_expr(p)?
+        if has_paren_g { p_expect_rparen(p)? }
+        if !kind_is_else(p_peek_kind(p)) {
+            return err p_error(p, "expected 'else' after guard condition")
+        }
+        p_advance(p)
+        p_expect_lbrace(p)?
+        val gbody = parse_stmts(p)?
+        p_expect_rbrace(p)?
+        val ng: mut ref Node = make_node(NK_GUARD, line)
+        ng.d0 = gcond as i64
+        val gbl: list[ref Node] = gbody
+        ng.d1 = gbl as i64
+        return ok ng
     }
 
     if kind_is_if(k) {

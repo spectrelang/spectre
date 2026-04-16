@@ -250,6 +250,24 @@ fn stmt_references_import_shallow(node: ref parser.Node, import_name: ref char) 
                 oi++
             }
         }
+    } elif node.kind == parser.NK_GUARD {
+        if expr_references_import_shallow(node.d0 as ref parser.Node, import_name) { return true }
+        val guard_body: ref void = node.d1 as ref void
+        if guard_body != 0 {
+            val gblen: i64 = @len(guard_body) as i64
+            val gbi: mut i64 = 0
+            for {
+                if gbi >= gblen { break }
+                val stmt_opt = @get(guard_body, gbi as usize)
+                match stmt_opt {
+                    some stmt => {
+                        if stmt_references_import_shallow(stmt as ref parser.Node, import_name) { return true }
+                    }
+                    none => {}
+                }
+                gbi++
+            }
+        }
     } elif node.kind == parser.NK_IF {
         if expr_references_import_shallow(node.d0 as ref parser.Node, import_name) { return true }
         val then_body: ref void = node.d1 as ref void
@@ -1223,6 +1241,12 @@ fn collect_needed_subnames_in_stmt(stmt: ref parser.Node, import_name: ref char,
         collect_needed_subnames_in_expr(stmt.d0 as ref parser.Node, import_name, needed)
     } elif stmt.kind == parser.NK_EXPR_STMT {
         collect_needed_subnames_in_expr(stmt.d0 as ref parser.Node, import_name, needed)
+    } elif stmt.kind == parser.NK_GUARD {
+        collect_needed_subnames_in_expr(stmt.d0 as ref parser.Node, import_name, needed)
+        val guard_body2: ref void = stmt.d1 as ref void
+        if guard_body2 != 0 {
+            collect_needed_subnames_in_stmts(guard_body2, import_name, needed)
+        }
     } elif stmt.kind == parser.NK_IF {
         collect_needed_subnames_in_expr(stmt.d0 as ref parser.Node, import_name, needed)
         val then_body: ref void = stmt.d1 as ref void
@@ -1674,6 +1698,22 @@ fn collect_used_imports_stmt(node: ref parser.Node, import_names: list[ref char]
                     none => {}
                 }
                 bi++
+            }
+        }
+    } elif node.kind == parser.NK_GUARD {
+        collect_used_imports_expr(node.d0 as ref parser.Node, import_names, used)
+        val guard_body3: ref void = node.d1 as ref void
+        if guard_body3 != 0 {
+            val gb3len: i64 = @len(guard_body3) as i64
+            val gb3i: mut i64 = 0
+            for {
+                if gb3i >= gb3len { break }
+                val stmt_opt = @get(guard_body3, gb3i as usize)
+                match stmt_opt {
+                    some stmt => { collect_used_imports_stmt(stmt as ref parser.Node, import_names, used) }
+                    none => {}
+                }
+                gb3i++
             }
         }
     } elif node.kind == parser.NK_IF {

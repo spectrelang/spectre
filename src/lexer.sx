@@ -8,7 +8,7 @@ pub union TokenKind = {
   | Match()     | True()      | False()    | Defer()    | Break()
   | Continue()  | As()        | Assert()   | When()     | Union()
   | Enum()      | Extern()    | Link()     | Guarded()  | Not()
-  | Test()
+  | Test()     | Guard()
   | Ident(ref char)
   | Str(ref char)
   | Int(ref char)
@@ -173,6 +173,7 @@ fn keyword_kind(s: ref char) TokenKind! = {
     if str_eq(s, "guarded")  { return Guarded() }
     if str_eq(s, "not")      { return Not() }
     if str_eq(s, "test")     { return Test() }
+    if str_eq(s, "guard")    { return Guard() }
     return Ident(s)
 }
 
@@ -518,6 +519,7 @@ fn kind_is_dot(k: TokenKind)      bool! = { match k { Dot()      => { return tru
 fn kind_is_dotdotdot(k: TokenKind) bool! = { match k { DotDotDot() => { return true } else => { return false } } }
 fn kind_is_at(k: TokenKind)       bool! = { match k { At()       => { return true } else => { return false } } }
 fn kind_is_question(k: TokenKind) bool! = { match k { Question() => { return true } else => { return false } } }
+pub fn kind_is_guard(k: TokenKind) bool! = { match k { Guard() => { return true } else => { return false } } }
 
 test {
     @puts("1")

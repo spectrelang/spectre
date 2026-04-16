@@ -5585,6 +5585,22 @@ fn gen_stmt(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
         return
     }
 
+    if k == parser.NK_GUARD {
+        val gcond: ref char = gen_expr(ctx, stmt.d0 as ref parser.Node)
+        val pass_lbl: i64 = fresh_lbl(ctx)
+        val fail_lbl: i64 = fresh_lbl(ctx)
+        val gbuf: ref char = @alloc(128) as ref char
+        @snprintf(gbuf, 128, "    jnz %s, @lbl%lld, @lbl%lld\n@lbl%lld\n", {gcond, pass_lbl, fail_lbl, fail_lbl})
+        emit(ctx, gbuf)
+        @free(gbuf)
+        gen_stmts(ctx, stmt.d1 as ref parser.Node)
+        val glbl_buf: ref char = @alloc(64) as ref char
+        @snprintf(glbl_buf, 64, "@lbl%lld\n", {pass_lbl})
+        emit(ctx, glbl_buf)
+        @free(glbl_buf)
+        return
+    }
+
     if k == parser.NK_FOR {
         gen_for_stmt(ctx, stmt)
         return

@@ -7,7 +7,7 @@ type SomeType = {
 }
 
 fn (SomeType) add(this: self) i32 = {
-    guard (this.x > 10) else return 0
+    guard (this.x > 10) else { return 0 }
     val res = this.x + this.y
     return res
 }
@@ -26,4 +26,3 @@ pub fn main() void = {
 
     stdio.print("\n%d", {sum})
 }
-
