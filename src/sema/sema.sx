@@ -1700,9 +1700,9 @@ pub fn check_module(items: list[ref parser.Node], filename: ref char) list[ref c
                 }
                 if !used_found {
                     val namec: ref char = fn_name as ref char
-                    if !str.rchar_cmp(namec, "main") != 0 {
+                    if !str_eq(namec, "main") {
                         val wbuf: ref char = @alloc(256) as ref char
-                        @snprintf(wbuf, 256, "{s}: warning: unused function '{s}'", {filename, namec})
+                        @snprintf(wbuf, 256, "{s}: unused function '{s}'", {filename, namec})
                         @append(ctx.warnings, wbuf)
                     }
                 }
