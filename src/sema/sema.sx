@@ -1277,6 +1277,7 @@ fn check_stmt(ctx: ref SemaCtx, stmt: ref parser.Node, filename: ref char) void!
                 add_error(ctx, buf)
             } else {
                 scope_define(ctx, init_name, 1, 0 as ref char, 0, line)
+                mark_name_mutated(ctx, init_name)
             }
         }
         check_expr(ctx, stmt.d2 as ref parser.Node, filename)
