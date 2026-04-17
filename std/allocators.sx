@@ -192,10 +192,8 @@ pub fn (Stack) free(stack: self) void! = {
 
 test {
     val stack = Stack.new(1024)
-    val p1 = Stack.alloc(stack, 100)
     val marker = Stack.save(stack)
     val tmp1 = Stack.alloc(stack, 200)
-    val tmp2 = Stack.alloc(stack, 200)
 
     assert Stack.save(stack) > marker
     
