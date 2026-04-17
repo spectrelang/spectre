@@ -12,13 +12,14 @@ type ScopeEntry = {
 }
 
 type SemaCtx = {
-    errors:     mut list[ref char]
-    warnings:   mut list[ref char]
-    fn_names:   mut list[ref char]
-    used_fns:   mut list[ref char]
-    type_names: mut list[ref char]
-    scopes:     mut list[ref void]
-    type_defs:  mut list[ref void]
+    errors:       mut list[ref char]
+    warnings:     mut list[ref char]
+    fn_names:     mut list[ref char]
+    used_fns:     mut list[ref char]
+    type_names:   mut list[ref char]
+    global_names: mut list[ref char]
+    scopes:       mut list[ref void]
+    type_defs:    mut list[ref void]
 }
 
 fn sema_new() ref SemaCtx! = {
@@ -761,6 +762,11 @@ fn check_expr(ctx: ref SemaCtx, expr: ref parser.Node, filename: ref char) void!
                 if !is_known {
                     for ty_name in ctx.type_names {
                         if str_eq(ty_name, name) { is_known = true break }
+                    }
+                }
+                if !is_known {
+                    for gname in ctx.global_names {
+                        if str_eq(gname, name) { is_known = true break }
                     }
                 }
                 if !is_known {
@@ -1556,12 +1562,12 @@ fn register_named_item(ctx: ref SemaCtx, item: ref parser.Node) void! = {
     }
     if k == parser.NK_CONST || k == parser.NK_USE {
         if item.d1 != 0 as i64 {
-            @append(ctx.fn_names, item.d1 as ref char)
+            @append(ctx.global_names, item.d1 as ref char)
         }
     }
     if k == parser.NK_VAL {
         if item.d0 != 0 as i64 {
-            @append(ctx.fn_names, item.d0 as ref char)
+            @append(ctx.global_names, item.d0 as ref char)
         }
     }
 }

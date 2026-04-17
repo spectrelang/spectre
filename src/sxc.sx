@@ -78,7 +78,7 @@ pub fn main() i32! = {
                 val arg: ref char = arg_val as ref char
 
                 if std.string.rchar_cmp(arg, "-o") == 0 || std.string.rchar_cmp(arg, "--output") == 0 {
-                    val next_i: mut i64 = arg_i + 1
+                    val next_i: i64 = arg_i + 1
                     if (next_i < argc) {
                         val next_opt = @get(args, next_i)
                         match next_opt {
@@ -145,7 +145,7 @@ pub fn main() i32! = {
         std.stdio.puts("[II] │ Semantic analysis")
     }
 
-    val errors: mut list[ref char] = sema.check_module(root_mod.items, input)
+    val errors: list[ref char] = sema.check_module(root_mod.items, input)
     val nerrors: i64 = @len(errors) as i64
     if nerrors > 0 {
         for e in errors {
@@ -171,7 +171,7 @@ pub fn main() i32! = {
         std.stdio.puts("[IV] │ Module used-links collection")
     }
 
-    val links: mut list[ref char] = module.collect_used_links(root_mod, exe_dir)
+    val links: list[ref char] = module.collect_used_links(root_mod, exe_dir)
 
     if !release_mode {
         val panic_o: ref char = path.join(exe_dir, "std/csources/panic_handler.o")
@@ -241,7 +241,7 @@ pub fn main() i32! = {
                 return 1
             }
         }
-        err e => {
+        err _ => {
             std.stdio.puts("\nerror: failed to run qbe")
             std.os.delete(qbe_file)
             allocators.Arena.free(arena)
@@ -329,7 +329,7 @@ pub fn main() i32! = {
                 }
             }
         }
-        err e => {
+        err _ => {
             std.stdio.puts("\nerror: cc compilation failed")
         }
     }
