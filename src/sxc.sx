@@ -54,7 +54,7 @@ pub fn main() i32! = {
     match src_opt {
         some _ => {}
         none   => {
-            std.stdio.print("error: could not read '%s'\n", {input})
+            std.stdio.print("error: could not read '{s}'\n", {input})
             allocators.Arena.free(arena)
             return 1
         }
@@ -135,7 +135,7 @@ pub fn main() i32! = {
     match resolve_result {
         ok m  => { root_mod = m }
         err e => {
-            std.stdio.print("error: %s\n", {e})
+            std.stdio.print("error: {s}\n", {e})
             allocators.Arena.free(arena)
             return 1
         }
@@ -149,7 +149,7 @@ pub fn main() i32! = {
     val nerrors: i64 = @len(errors) as i64
     if nerrors > 0 {
         for e in errors {
-            std.stdio.print("error: %s\n", {e})
+            std.stdio.print("error: {s}\n", {e})
         }
         allocators.Arena.free(arena)
         return 1
@@ -232,7 +232,7 @@ pub fn main() i32! = {
         ok v => {
             val vstr: ref char = std.string.cstr(v)
             if std.string.len_raw(vstr) > 0 {
-                std.stdio.print("%s", {vstr})
+                std.stdio.print("{s}", {vstr})
             }
             if std.string.starts_with(v, std.string.from("qbe:")) {
                 std.stdio.puts("error: qbe stage failed")

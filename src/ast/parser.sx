@@ -293,7 +293,7 @@ fn p_line(p: ref Parser) i64! = { return p_peek_line(p) }
 fn p_error(p: ref Parser, msg: ref char) ref char! = {
     val line: i64 = p_peek_line(p)
     val buf: ref char = @alloc(512) as ref char
-    @snprintf(buf, 512, "%s:%lld: %s", {p.filename, line, msg})
+    @snprintf(buf, 512, "{s}:{lld}: {s}", {p.filename, line, msg})
     return buf
 }
 
@@ -309,7 +309,7 @@ fn p_expect_kind(p: ref Parser, is_kind: fn(lexer.TokenKind) bool, name: ref cha
         return ok txt
     }
     val msg: ref char = @alloc(128) as ref char
-    @snprintf(msg, 128, "expected %s", {name})
+    @snprintf(msg, 128, "expected {s}", {name})
     return err p_error(p, msg)
 }
 

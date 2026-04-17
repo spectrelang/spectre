@@ -398,7 +398,7 @@ fn cg_resolve_fn_name(ctx: ref CgCtx, name: ref char) ref char! = {
     val nlen: i64 = @len(names as list[ref char]) as i64
     val namelen: i64 = str.len_raw(name)
     val suffix: ref char = @alloc(namelen + 3) as ref char
-    @snprintf(suffix, namelen + 3, "__%s", {name})
+    @snprintf(suffix, namelen + 3, "__{s}", {name})
     val ni: mut i64 = 0
     val found: mut ref char = 0 as ref char
     for {
@@ -556,7 +556,7 @@ fn cg_lookup_fn_ret_type_expr(ctx: ref CgCtx, name: ref char) ref parser.Node! =
     val nlen: i64 = @len(names as list[ref char]) as i64
     val namelen: i64 = str.len_raw(name)
     val suffix: ref char = @alloc(namelen + 3) as ref char
-    @snprintf(suffix, namelen + 3, "__%s", {name})
+    @snprintf(suffix, namelen + 3, "__{s}", {name})
     val ni: mut i64 = 0
     for {
         if ni >= nlen { break }
@@ -942,12 +942,12 @@ fn cg_emit_invariant_checks(ctx: ref CgCtx) void! = {
                                             val val_tmp:  i64 = fresh_tmp(ctx)
                                             val lbuf: ref char = @alloc(256) as ref char
                                             @snprintf(lbuf, 256,
-                                                "    %%t%lld =l add %%%s, %lld\n    %%t%lld =l loadl %%t%lld\n",
+                                                "    %%t{lld} =l add %%{s}, {lld}\n    %%t{lld} =l loadl %%t{lld}\n",
                                                 {addr_tmp, param_name, foff, val_tmp, addr_tmp})
                                             emit(ctx, lbuf)
                                             @free(lbuf)
                                             val tmp_str: ref char = @alloc(32) as ref char
-                                            @snprintf(tmp_str, 32, "%lld", {val_tmp})
+                                            @snprintf(tmp_str, 32, "{lld}", {val_tmp})
                                             cg_register_local_var(ctx, fname, tmp_str)
                                             cg_register_local_type(ctx, fname, "i64")
                                         } elif str.rchar_cmp(fqt, "w") == 0 {
@@ -956,12 +956,12 @@ fn cg_emit_invariant_checks(ctx: ref CgCtx) void! = {
                                             val val_tmp:  i64 = fresh_tmp(ctx)
                                             val lbuf: ref char = @alloc(256) as ref char
                                             @snprintf(lbuf, 256,
-                                                "    %%t%lld =l add %%%s, %lld\n    %%t%lld =w loadw %%t%lld\n    %%t%lld =l extsw %%t%lld\n",
+                                                "    %%t{lld} =l add %%{s}, {lld}\n    %%t{lld} =w loadw %%t{lld}\n    %%t{lld} =l extsw %%t{lld}\n",
                                                 {addr_tmp, param_name, foff, w_tmp, addr_tmp, val_tmp, w_tmp})
                                             emit(ctx, lbuf)
                                             @free(lbuf)
                                             val tmp_str: ref char = @alloc(32) as ref char
-                                            @snprintf(tmp_str, 32, "%lld", {val_tmp})
+                                            @snprintf(tmp_str, 32, "{lld}", {val_tmp})
                                             cg_register_local_var(ctx, fname, tmp_str)
                                             cg_register_local_type(ctx, fname, "i64")
                                         }
@@ -984,20 +984,20 @@ fn cg_emit_invariant_checks(ctx: ref CgCtx) void! = {
                                         val fn_name:  ref char = cg_fn_name(ctx)
                                         val jbuf: ref char = @alloc(128) as ref char
                                         @snprintf(jbuf, 128,
-                                            "    jnz %s, @lbl%lld, @lbl%lld\n@lbl%lld\n",
+                                            "    jnz {s}, @lbl{lld}, @lbl{lld}\n@lbl{lld}\n",
                                             {cv, ok_lbl, fail_lbl, fail_lbl})
                                         emit(ctx, jbuf)
                                         @free(jbuf)
                                         val msg_buf: ref char = @alloc(512) as ref char
                                         @snprintf(msg_buf, 512,
-                                            "spectre: invariant violated for type '%s' in '%s'\n",
+                                            "spectre: invariant violated for type '{s}' in '{s}'\n",
                                             {type_name, fn_name})
                                         val msg_idx: i64 = intern_string(ctx, msg_buf)
                                         @free(msg_buf)
                                         val msg_tmp: i64 = fresh_tmp(ctx)
                                         val call_buf: ref char = @alloc(256) as ref char
                                         @snprintf(call_buf, 256,
-                                            "    %%t%lld =l copy $__str%lld\n    call $dprintf(w 2, l %%t%lld)\n    call $fflush(l 0)\n    call $abort()\n    hlt\n@lbl%lld\n",
+                                            "    %%t{lld} =l copy $__str{lld}\n    call $dprintf(w 2, l %%t{lld})\n    call $fflush(l 0)\n    call $abort()\n    hlt\n@lbl{lld}\n",
                                             {msg_tmp, msg_idx, msg_tmp, ok_lbl})
                                         emit(ctx, call_buf)
                                         @free(call_buf)
@@ -1385,7 +1385,7 @@ fn gen_struct_lit_inline(ctx: ref CgCtx, struct_node: ref parser.Node, parent_pt
                         }
                         sfi2++
                     }
-                    @snprintf(fbuf, 128, "    %%t%lld =l add %%t%lld, %lld\n    %s %s, %%t%lld\n",
+                    @snprintf(fbuf, 128, "    %%t{lld} =l add %%t{lld}, {lld}\n    {s} {s}, %%t{lld}\n",
                         {fptr, parent_ptr, actual_off, lit_store_op, fval, fptr})
                     emit(ctx, fbuf)
                     @free(fbuf)
@@ -1806,7 +1806,7 @@ fn type_expr_to_annotation(ctx: ref CgCtx, ty: ref parser.Node) ref char! = {
     if k == parser.TY_REF {
         val inner = type_expr_to_annotation(ctx, ty.d0 as ref parser.Node)
         val buf: ref char = @alloc(512) as ref char
-        @snprintf(buf, 512, "ref %s", {inner})
+        @snprintf(buf, 512, "ref {s}", {inner})
         return buf
     }
     if k == parser.TY_MUT { return type_expr_to_annotation(ctx, ty.d0 as ref parser.Node) }
@@ -1817,28 +1817,28 @@ fn type_expr_to_annotation(ctx: ref CgCtx, ty: ref parser.Node) ref char! = {
         val ok_s = type_expr_to_annotation(ctx, ok_ty)
         val err_s = type_expr_to_annotation(ctx, err_ty)
         val buf: ref char = @alloc(512) as ref char
-        @snprintf(buf, 512, "result[%s, %s]", {ok_s, err_s})
+        @snprintf(buf, 512, "result[{s}, {s}]", {ok_s, err_s})
         return buf
     }
 
     if k == parser.TY_OPTION {
         val inner = type_expr_to_annotation(ctx, ty.d0 as ref parser.Node)
         val buf: ref char = @alloc(512) as ref char
-        @snprintf(buf, 512, "option[%s]", {inner})
+        @snprintf(buf, 512, "option[{s}]", {inner})
         return buf
     }
 
     if k == parser.TY_LIST {
         val inner = type_expr_to_annotation(ctx, ty.d0 as ref parser.Node)
         val buf: ref char = @alloc(512) as ref char
-        @snprintf(buf, 512, "list[%s]", {inner})
+        @snprintf(buf, 512, "list[{s}]", {inner})
         return buf
     }
 
     if k == parser.TY_SLICE {
         val inner = type_expr_to_annotation(ctx, ty.d0 as ref parser.Node)
         val buf: ref char = @alloc(512) as ref char
-        @snprintf(buf, 512, "slice[%s]", {inner})
+        @snprintf(buf, 512, "slice[{s}]", {inner})
         return buf
     }
 
@@ -1846,7 +1846,7 @@ fn type_expr_to_annotation(ctx: ref CgCtx, ty: ref parser.Node) ref char! = {
         val count: i64 = ty.d0 as i64
         val inner = type_expr_to_annotation(ctx, ty.d1 as ref parser.Node)
         val buf: ref char = @alloc(512) as ref char
-        @snprintf(buf, 512, "[%lld]%s", {count, inner})
+        @snprintf(buf, 512, "[{lld}]{s}", {count, inner})
         return buf
     }
 
@@ -2172,14 +2172,14 @@ fn gen_int_lit_as(ctx: ref CgCtx, text: ref char, qbe_type: ref char) ref char! 
             hi++
         }
         val dec_buf: ref char = @alloc(32) as ref char
-        @snprintf(dec_buf, 32, "%lld", {val_})
+        @snprintf(dec_buf, 32, "{lld}", {val_})
         emit_text = dec_buf
     }
-    @snprintf(buf, 64, "    %%t%lld =%s copy %s\n", {tmp, qbe_type, emit_text})
+    @snprintf(buf, 64, "    %%t{lld} ={s} copy {s}\n", {tmp, qbe_type, emit_text})
     emit(ctx, buf)
     @free(buf)
     val res: ref char = @alloc(16) as ref char
-    @snprintf(res, 16, "%%t%lld", {tmp})
+    @snprintf(res, 16, "%%t{lld}", {tmp})
     return res
 }
 
@@ -2219,14 +2219,14 @@ fn gen_expr(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
                 hi++
             }
             val dec_buf: ref char = @alloc(32) as ref char
-            @snprintf(dec_buf, 32, "%lld", {val_})
+            @snprintf(dec_buf, 32, "{lld}", {val_})
             emit_text = dec_buf
         }
-        @snprintf(buf, 64, "    %%t%lld =l copy %s\n", {tmp, emit_text})
+        @snprintf(buf, 64, "    %%t{lld} =l copy {s}\n", {tmp, emit_text})
         emit(ctx, buf)
         @free(buf)
         val res: ref char = @alloc(16) as ref char
-        @snprintf(res, 16, "%%t%lld", {tmp})
+        @snprintf(res, 16, "%%t{lld}", {tmp})
         return res
     }
 
@@ -2234,11 +2234,11 @@ fn gen_expr(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
         val text2: ref char = parser.float_lit_text(expr)
         val tmp2: i64 = fresh_tmp(ctx)
         val buf2: ref char = @alloc(64) as ref char
-        @snprintf(buf2, 64, "    %%t%lld =d copy d_%s\n", {tmp2, text2})
+        @snprintf(buf2, 64, "    %%t{lld} =d copy d_{s}\n", {tmp2, text2})
         emit(ctx, buf2)
         @free(buf2)
         val res2: ref char = @alloc(16) as ref char
-        @snprintf(res2, 16, "%%t%lld", {tmp2})
+        @snprintf(res2, 16, "%%t{lld}", {tmp2})
         return res2
     }
 
@@ -2247,11 +2247,11 @@ fn gen_expr(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
         val idx: i64 = intern_string(ctx, s)
         val tmp3: i64 = fresh_tmp(ctx)
         val buf3: ref char = @alloc(64) as ref char
-        @snprintf(buf3, 64, "    %%t%lld =l copy $__str%lld\n", {tmp3, idx})
+        @snprintf(buf3, 64, "    %%t{lld} =l copy $__str{lld}\n", {tmp3, idx})
         emit(ctx, buf3)
         @free(buf3)
         val res3: ref char = @alloc(16) as ref char
-        @snprintf(res3, 16, "%%t%lld", {tmp3})
+        @snprintf(res3, 16, "%%t{lld}", {tmp3})
         return res3
     }
 
@@ -2259,11 +2259,11 @@ fn gen_expr(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
         val v: i64 = expr.d0 as i64
         val tmp4: i64 = fresh_tmp(ctx)
         val buf4: ref char = @alloc(64) as ref char
-        @snprintf(buf4, 64, "    %%t%lld =l copy %lld\n", {tmp4, v})
+        @snprintf(buf4, 64, "    %%t{lld} =l copy {lld}\n", {tmp4, v})
         emit(ctx, buf4)
         @free(buf4)
         val res4: ref char = @alloc(16) as ref char
-        @snprintf(res4, 16, "%%t%lld", {tmp4})
+        @snprintf(res4, 16, "%%t{lld}", {tmp4})
         return res4
     }
 
@@ -2271,22 +2271,22 @@ fn gen_expr(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
         val cv: i64 = expr.d0 as i64
         val tmp_c: i64 = fresh_tmp(ctx)
         val buf_c: ref char = @alloc(64) as ref char
-        @snprintf(buf_c, 64, "    %%t%lld =l copy %lld\n", {tmp_c, cv})
+        @snprintf(buf_c, 64, "    %%t{lld} =l copy {lld}\n", {tmp_c, cv})
         emit(ctx, buf_c)
         @free(buf_c)
         val res_c: ref char = @alloc(16) as ref char
-        @snprintf(res_c, 16, "%%t%lld", {tmp_c})
+        @snprintf(res_c, 16, "%%t{lld}", {tmp_c})
         return res_c
     }
 
     if k == parser.NK_NONE {
         val tmp5: i64 = fresh_tmp(ctx)
         val buf5: ref char = @alloc(64) as ref char
-        @snprintf(buf5, 64, "    %%t%lld =l copy 0\n", {tmp5})
+        @snprintf(buf5, 64, "    %%t{lld} =l copy 0\n", {tmp5})
         emit(ctx, buf5)
         @free(buf5)
         val res5: ref char = @alloc(16) as ref char
-        @snprintf(res5, 16, "%%t%lld", {tmp5})
+        @snprintf(res5, 16, "%%t{lld}", {tmp5})
         return res5
     }
 
@@ -2296,11 +2296,11 @@ fn gen_expr(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
         if str.rchar_cmp(cval, "") != 0 {
             val tmp6: i64 = fresh_tmp(ctx)
             val buf6: ref char = @alloc(128) as ref char
-            @snprintf(buf6, 128, "    %%t%lld =l copy %s\n", {tmp6, cval})
+            @snprintf(buf6, 128, "    %%t{lld} =l copy {s}\n", {tmp6, cval})
             emit(ctx, buf6)
             @free(buf6)
             val res6: ref char = @alloc(16) as ref char
-            @snprintf(res6, 16, "%%t%lld", {tmp6})
+            @snprintf(res6, 16, "%%t{lld}", {tmp6})
             return res6
         } else {
             val qbe_var: ref char = cg_lookup_local_var(ctx, name)
@@ -2313,38 +2313,38 @@ fn gen_expr(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
                     val is_global_slot: bool = @load8(qbe_var as ref void) == 36 // '$'
                     val slot_ref: ref char = @alloc(64) as ref char
                     if is_global_slot {
-                        @snprintf(slot_ref, 64, "%s", {qbe_var})
+                        @snprintf(slot_ref, 64, "{s}", {qbe_var})
                     } else {
-                        @snprintf(slot_ref, 64, "%%t%s", {qbe_var})
+                        @snprintf(slot_ref, 64, "%%t{s}", {qbe_var})
                     }
                     
                     val is_ref_load: bool = cg_is_local_ref_type(ctx, name)
                     if is_ref_load {
-                        @snprintf(buf_load, 128, "    %%t%lld =l loadl %s\n", {tmp_load, slot_ref})
+                        @snprintf(buf_load, 128, "    %%t{lld} =l loadl {s}\n", {tmp_load, slot_ref})
                     } else {
                         val qtype: ref char = cg_var_qbe_type(ctx, name)
                         if str.rchar_cmp(qtype, "w") == 0 {
                             val w_tmp_load: i64 = fresh_tmp(ctx)
                             val buf_w_load: ref char = @alloc(128) as ref char
-                            @snprintf(buf_w_load, 128, "    %%t%lld =w loadw %s\n", {w_tmp_load, slot_ref})
+                            @snprintf(buf_w_load, 128, "    %%t{lld} =w loadw {s}\n", {w_tmp_load, slot_ref})
                             emit(ctx, buf_w_load)
                             @free(buf_w_load)
-                            @snprintf(buf_load, 128, "    %%t%lld =l extsw %%t%lld\n", {tmp_load, w_tmp_load})
+                            @snprintf(buf_load, 128, "    %%t{lld} =l extsw %%t{lld}\n", {tmp_load, w_tmp_load})
                         } elif str.rchar_cmp(qtype, "d") == 0 {
-                            @snprintf(buf_load, 128, "    %%t%lld =d loadd %s\n", {tmp_load, slot_ref})
+                            @snprintf(buf_load, 128, "    %%t{lld} =d loadd {s}\n", {tmp_load, slot_ref})
                         } else {
-                            @snprintf(buf_load, 128, "    %%t%lld =l loadl %s\n", {tmp_load, slot_ref})
+                            @snprintf(buf_load, 128, "    %%t{lld} =l loadl {s}\n", {tmp_load, slot_ref})
                         }
                     }
                     emit(ctx, buf_load)
                     @free(buf_load)
                     @free(slot_ref)
                     val res_load: ref char = @alloc(16) as ref char
-                    @snprintf(res_load, 16, "%%t%lld", {tmp_load})
+                    @snprintf(res_load, 16, "%%t{lld}", {tmp_load})
                     return res_load
                 } else {
                     val res_imm: ref char = @alloc(16) as ref char
-                    @snprintf(res_imm, 16, "%%t%s", {qbe_var})
+                    @snprintf(res_imm, 16, "%%t{s}", {qbe_var})
                     return res_imm
                 }
             }
@@ -2352,7 +2352,7 @@ fn gen_expr(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
             val dqt: ref char = cg_direct_type(ctx, name)
             if str.rchar_cmp(dqt, "") != 0 {
                 val res_direct: ref char = @alloc(32) as ref char
-                @snprintf(res_direct, 32, "%%%s", {name})
+                @snprintf(res_direct, 32, "%%{s}", {name})
                 return res_direct
             } else {
                 val tmp6b: i64 = fresh_tmp(ctx)
@@ -2360,30 +2360,30 @@ fn gen_expr(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
                 val ltype: ref char = cg_local_type(ctx, name)
                 val fn_check: ref void = cg_lookup_fn_params(ctx, name)
                 if fn_check != 0 as ref void {
-                    @snprintf(buf6b, 128, "    %%t%lld =l copy $%s\n", {tmp6b, name})
+                    @snprintf(buf6b, 128, "    %%t{lld} =l copy ${s}\n", {tmp6b, name})
                 } else {
                     val resolved_name: ref char = resolve_fn_mangled(ctx, name)
                     if str.rchar_cmp(resolved_name, "") != 0 {
-                        @snprintf(buf6b, 128, "    %%t%lld =l copy $%s\n", {tmp6b, resolved_name})
+                        @snprintf(buf6b, 128, "    %%t{lld} =l copy ${s}\n", {tmp6b, resolved_name})
                     } elif str.rchar_cmp(ltype, "f64") == 0 {
-                        @snprintf(buf6b, 128, "    %%t%lld =d loadd %%%s\n", {tmp6b, name})
+                        @snprintf(buf6b, 128, "    %%t{lld} =d loadd %%{s}\n", {tmp6b, name})
                     } elif str.rchar_cmp(ltype, "f32") == 0 {
-                        @snprintf(buf6b, 128, "    %%t%lld =s loads %%%s\n", {tmp6b, name})
+                        @snprintf(buf6b, 128, "    %%t{lld} =s loads %%{s}\n", {tmp6b, name})
                     } elif is_word_type_name(ltype) {
                         val w_tmp6: i64 = fresh_tmp(ctx)
                         val buf6c: ref char = @alloc(128) as ref char
-                        @snprintf(buf6c, 128, "    %%t%lld =w loadw %%%s\n", {w_tmp6, name})
+                        @snprintf(buf6c, 128, "    %%t{lld} =w loadw %%{s}\n", {w_tmp6, name})
                         emit(ctx, buf6c)
                         @free(buf6c)
-                        @snprintf(buf6b, 128, "    %%t%lld =l extsw %%t%lld\n", {tmp6b, w_tmp6})
+                        @snprintf(buf6b, 128, "    %%t{lld} =l extsw %%t{lld}\n", {tmp6b, w_tmp6})
                     } else {
-                        @snprintf(buf6b, 128, "    %%t%lld =l loadl %%%s\n", {tmp6b, name})
+                        @snprintf(buf6b, 128, "    %%t{lld} =l loadl %%{s}\n", {tmp6b, name})
                     }
                 }
                 emit(ctx, buf6b)
                 @free(buf6b)
                 val res6b: ref char = @alloc(16) as ref char
-                @snprintf(res6b, 16, "%%t%lld", {tmp6b})
+                @snprintf(res6b, 16, "%%t{lld}", {tmp6b})
                 return res6b
             }
         }
@@ -2419,24 +2419,24 @@ fn gen_expr(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
         if needs_extend != 0 {
             val ext_tmp: i64 = fresh_tmp(ctx)
             val ext_buf: ref char = @alloc(64) as ref char
-            @snprintf(ext_buf, 64, "    %%t%lld =l extuw %s\n", {ext_tmp, inner})
+            @snprintf(ext_buf, 64, "    %%t{lld} =l extuw {s}\n", {ext_tmp, inner})
             emit(ctx, ext_buf)
             @free(ext_buf)
-            @snprintf(buf_some, 128, "    %%t%lld =l add %%t%lld, 1\n", {tmp_some, ext_tmp})
+            @snprintf(buf_some, 128, "    %%t{lld} =l add %%t{lld}, 1\n", {tmp_some, ext_tmp})
         } else {
-            @snprintf(buf_some, 64, "    %%t%lld =l add %s, 1\n", {tmp_some, inner})
+            @snprintf(buf_some, 64, "    %%t{lld} =l add {s}, 1\n", {tmp_some, inner})
         }
         emit(ctx, buf_some)
         @free(buf_some)
         val res7: ref char = @alloc(16) as ref char
-        @snprintf(res7, 16, "%%t%lld", {tmp_some})
+        @snprintf(res7, 16, "%%t{lld}", {tmp_some})
         return res7
     }
 
     if k == parser.NK_OK_VAL {
         val ptr_ok: i64 = fresh_tmp(ctx)
         val buf_ok: ref char = @alloc(64) as ref char
-        @snprintf(buf_ok, 64, "    %%t%lld =l call $malloc(l 16)\n    storel 0, %%t%lld\n", {ptr_ok, ptr_ok})
+        @snprintf(buf_ok, 64, "    %%t{lld} =l call $malloc(l 16)\n    storel 0, %%t{lld}\n", {ptr_ok, ptr_ok})
         emit(ctx, buf_ok)
         @free(buf_ok)
         if expr.d0 != 0 {
@@ -2446,13 +2446,13 @@ fn gen_expr(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
             val vbuf_ok: ref char = @alloc(128) as ref char
             val store_op_ok: mut ref char = ""
             if expr_is_float(ctx, inner_ok_expr) { store_op_ok = "stored" } else { store_op_ok = "storel" }
-            @snprintf(vbuf_ok, 128, "    %%t%lld =l add %%t%lld, 8\n    %s %s, %%t%lld\n",
+            @snprintf(vbuf_ok, 128, "    %%t{lld} =l add %%t{lld}, 8\n    {s} {s}, %%t{lld}\n",
                 {off_ok, ptr_ok, store_op_ok, inner_ok, off_ok})
             emit(ctx, vbuf_ok)
             @free(vbuf_ok)
         }
         val res_ok: ref char = @alloc(16) as ref char
-        @snprintf(res_ok, 16, "%%t%lld", {ptr_ok})
+        @snprintf(res_ok, 16, "%%t{lld}", {ptr_ok})
         return res_ok
     }
 
@@ -2461,17 +2461,17 @@ fn gen_expr(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
         val inner2: ref char = gen_expr(ctx, expr.d0 as ref parser.Node)
         val ptr3: i64 = fresh_tmp(ctx)
         val buf10: ref char = @alloc(64) as ref char
-        @snprintf(buf10, 64, "    %%t%lld =l call $malloc(l 16)\n    storel 1, %%t%lld\n", {ptr3, ptr3})
+        @snprintf(buf10, 64, "    %%t{lld} =l call $malloc(l 16)\n    storel 1, %%t{lld}\n", {ptr3, ptr3})
         emit(ctx, buf10)
         @free(buf10)
         val off2: i64 = fresh_tmp(ctx)
         val buf11: ref char = @alloc(128) as ref char
-        @snprintf(buf11, 128, "    %%t%lld =l add %%t%lld, 8\n    storel %s, %%t%lld\n",
+        @snprintf(buf11, 128, "    %%t{lld} =l add %%t{lld}, 8\n    storel {s}, %%t{lld}\n",
             {off2, ptr3, inner2, off2})
         emit(ctx, buf11)
         @free(buf11)
         val res8: ref char = @alloc(16) as ref char
-        @snprintf(res8, 16, "%%t%lld", {ptr3})
+        @snprintf(res8, 16, "%%t{lld}", {ptr3})
         return res8
     }
 
@@ -2520,16 +2520,16 @@ fn gen_expr(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
         } elif str.rchar_cmp(src_qt, "w") == 0 && str.rchar_cmp(qt, "d") == 0 {
             val ext_tmp: i64 = fresh_tmp(ctx)
             val ext_buf: ref char = @alloc(128) as ref char
-            @snprintf(ext_buf, 128, "    %%t%lld =l extsw %s\n", {ext_tmp, inner3})
+            @snprintf(ext_buf, 128, "    %%t{lld} =l extsw {s}\n", {ext_tmp, inner3})
             emit(ctx, ext_buf)
             @free(ext_buf)
             val tmp_conv: i64 = fresh_tmp(ctx)
             val buf_conv: ref char = @alloc(128) as ref char
-            @snprintf(buf_conv, 128, "    %%t%lld =d sltof %%t%lld\n", {tmp_conv, ext_tmp})
+            @snprintf(buf_conv, 128, "    %%t{lld} =d sltof %%t{lld}\n", {tmp_conv, ext_tmp})
             emit(ctx, buf_conv)
             @free(buf_conv)
             val res_conv: ref char = @alloc(16) as ref char
-            @snprintf(res_conv, 16, "%%t%lld", {tmp_conv})
+            @snprintf(res_conv, 16, "%%t{lld}", {tmp_conv})
             return res_conv
         }
 
@@ -2540,14 +2540,14 @@ fn gen_expr(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
         val tmp7: i64 = fresh_tmp(ctx)
         val buf12: ref char = @alloc(128) as ref char
         if needs_conversion {
-            @snprintf(buf12, 128, "    %%t%lld =%s %s %s\n", {tmp7, qt, conv_instr, inner3})
+            @snprintf(buf12, 128, "    %%t{lld} ={s} {s} {s}\n", {tmp7, qt, conv_instr, inner3})
         } else {
-            @snprintf(buf12, 128, "    %%t%lld =%s copy %s\n", {tmp7, qt, inner3})
+            @snprintf(buf12, 128, "    %%t{lld} ={s} copy {s}\n", {tmp7, qt, inner3})
         }
         emit(ctx, buf12)
         @free(buf12)
         val res9: ref char = @alloc(16) as ref char
-        @snprintf(res9, 16, "%%t%lld", {tmp7})
+        @snprintf(res9, 16, "%%t{lld}", {tmp7})
         return res9
     }
 
@@ -2558,7 +2558,7 @@ fn gen_expr(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
             val resolved_fn: ref char = cg_resolve_fn_name(ctx, iname)
             if resolved_fn != 0 as ref char {
                 val res_fn: ref char = @alloc(256) as ref char
-                @snprintf(res_fn, 256, "$%s", {resolved_fn})
+                @snprintf(res_fn, 256, "${s}", {resolved_fn})
                 return res_fn
             }
             val qbe_var_addr: ref char = cg_lookup_local_var(ctx, iname)
@@ -2569,24 +2569,24 @@ fn gen_expr(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
                     val is_global_addr: bool = @load8(qbe_var_addr as ref void) == 36
                     val slot_ref_addr: ref char = @alloc(64) as ref char
                     if is_global_addr {
-                        @snprintf(slot_ref_addr, 64, "%s", {qbe_var_addr})
+                        @snprintf(slot_ref_addr, 64, "{s}", {qbe_var_addr})
                     } else {
-                        @snprintf(slot_ref_addr, 64, "%%t%s", {qbe_var_addr})
+                        @snprintf(slot_ref_addr, 64, "%%t{s}", {qbe_var_addr})
                     }
-                    @snprintf(buf_addr, 128, "    %%t%lld =l loadl %s\n", {tmp_addr, slot_ref_addr})
+                    @snprintf(buf_addr, 128, "    %%t{lld} =l loadl {s}\n", {tmp_addr, slot_ref_addr})
                     emit(ctx, buf_addr)
                     @free(buf_addr)
                     @free(slot_ref_addr)
                     val res_addr: ref char = @alloc(16) as ref char
-                    @snprintf(res_addr, 16, "%%t%lld", {tmp_addr})
+                    @snprintf(res_addr, 16, "%%t{lld}", {tmp_addr})
                     return res_addr
                 }
                 val res10: ref char = @alloc(32) as ref char
-                @snprintf(res10, 32, "%%t%s", {qbe_var_addr})
+                @snprintf(res10, 32, "%%t{s}", {qbe_var_addr})
                 return res10
             }
             val res10: ref char = @alloc(32) as ref char
-            @snprintf(res10, 32, "%%%s", {iname})
+            @snprintf(res10, 32, "%%{s}", {iname})
             return res10
         }
         return gen_expr(ctx, inner4)
@@ -2596,11 +2596,11 @@ fn gen_expr(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
         val inner5: ref char = gen_expr(ctx, expr.d0 as ref parser.Node)
         val tmp8: i64 = fresh_tmp(ctx)
         val buf13: ref char = @alloc(128) as ref char
-        @snprintf(buf13, 128, "    %%t%lld =l loadl %s\n", {tmp8, inner5})
+        @snprintf(buf13, 128, "    %%t{lld} =l loadl {s}\n", {tmp8, inner5})
         emit(ctx, buf13)
         @free(buf13)
         val res11: ref char = @alloc(16) as ref char
-        @snprintf(res11, 16, "%%t%lld", {tmp8})
+        @snprintf(res11, 16, "%%t{lld}", {tmp8})
         return res11
     }
 
@@ -2628,11 +2628,11 @@ fn gen_expr(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
     if k == parser.NK_ZERO_INIT {
         val tmp9: i64 = fresh_tmp(ctx)
         val buf14: ref char = @alloc(64) as ref char
-        @snprintf(buf14, 64, "    %%t%lld =l alloc8 64\n    call $memset(l %%t%lld, w 0, l 64)\n", {tmp9, tmp9})
+        @snprintf(buf14, 64, "    %%t{lld} =l alloc8 64\n    call $memset(l %%t{lld}, w 0, l 64)\n", {tmp9, tmp9})
         emit(ctx, buf14)
         @free(buf14)
         val res12: ref char = @alloc(16) as ref char
-        @snprintf(res12, 16, "%%t%lld", {tmp9})
+        @snprintf(res12, 16, "%%t{lld}", {tmp9})
         return res12
     }
 
@@ -2643,11 +2643,11 @@ fn gen_expr(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
     // fallback
     val tmp10: i64 = fresh_tmp(ctx)
     val buf15: ref char = @alloc(64) as ref char
-    @snprintf(buf15, 64, "    %%t%lld =l copy 0\n", {tmp10})
+    @snprintf(buf15, 64, "    %%t{lld} =l copy 0\n", {tmp10})
     emit(ctx, buf15)
     @free(buf15)
     val res13: ref char = @alloc(16) as ref char
-    @snprintf(res13, 16, "%%t%lld", {tmp10})
+    @snprintf(res13, 16, "%%t{lld}", {tmp10})
     return res13
 }
 
@@ -2791,20 +2791,20 @@ fn gen_binop(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
         val l_tag: i64 = fresh_tmp(ctx)
         val r_tag: i64 = fresh_tmp(ctx)
         val tag_buf: ref char = @alloc(128) as ref char
-        @snprintf(tag_buf, 128, "    %%t%lld =l loadl %s\n    %%t%lld =l loadl %s\n", {l_tag, lhs, r_tag, rhs})
+        @snprintf(tag_buf, 128, "    %%t{lld} =l loadl {s}\n    %%t{lld} =l loadl {s}\n", {l_tag, lhs, r_tag, rhs})
         emit(ctx, tag_buf)
         @free(tag_buf)
 
         val tags_eq: i64 = fresh_tmp(ctx)
         val tags_buf: ref char = @alloc(128) as ref char
-        @snprintf(tags_buf, 128, "    %%t%lld =w ceql %%t%lld, %%t%lld\n", {tags_eq, l_tag, r_tag})
+        @snprintf(tags_buf, 128, "    %%t{lld} =w ceql %%t{lld}, %%t{lld}\n", {tags_eq, l_tag, r_tag})
         emit(ctx, tags_buf)
         @free(tags_buf)
 
         val l_val_ptr: i64 = fresh_tmp(ctx)
         val r_val_ptr: i64 = fresh_tmp(ctx)
         val ptr_buf: ref char = @alloc(128) as ref char
-        @snprintf(ptr_buf, 128, "    %%t%lld =l add %s, 8\n    %%t%lld =l add %s, 8\n", {l_val_ptr, lhs, r_val_ptr, rhs})
+        @snprintf(ptr_buf, 128, "    %%t{lld} =l add {s}, 8\n    %%t{lld} =l add {s}, 8\n", {l_val_ptr, lhs, r_val_ptr, rhs})
         emit(ctx, ptr_buf)
         @free(ptr_buf)
 
@@ -2818,44 +2818,44 @@ fn gen_binop(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
             val l_val: i64 = fresh_tmp(ctx)
             val r_val: i64 = fresh_tmp(ctx)
             val load_buf: ref char = @alloc(128) as ref char
-            @snprintf(load_buf, 128, "    %%t%lld =d loadd %%t%lld\n    %%t%lld =d loadd %%t%lld\n", {l_val, l_val_ptr, r_val, r_val_ptr})
+            @snprintf(load_buf, 128, "    %%t{lld} =d loadd %%t{lld}\n    %%t{lld} =d loadd %%t{lld}\n", {l_val, l_val_ptr, r_val, r_val_ptr})
             emit(ctx, load_buf)
             @free(load_buf)
             val cmp_buf: ref char = @alloc(128) as ref char
-            @snprintf(cmp_buf, 128, "    %%t%lld =w ceqd %%t%lld, %%t%lld\n", {vals_eq, l_val, r_val})
+            @snprintf(cmp_buf, 128, "    %%t{lld} =w ceqd %%t{lld}, %%t{lld}\n", {vals_eq, l_val, r_val})
             emit(ctx, cmp_buf)
             @free(cmp_buf)
         } else {
             val l_val: i64 = fresh_tmp(ctx)
             val r_val: i64 = fresh_tmp(ctx)
             val load_buf: ref char = @alloc(128) as ref char
-            @snprintf(load_buf, 128, "    %%t%lld =l loadl %%t%lld\n    %%t%lld =l loadl %%t%lld\n", {l_val, l_val_ptr, r_val, r_val_ptr})
+            @snprintf(load_buf, 128, "    %%t{lld} =l loadl %%t{lld}\n    %%t{lld} =l loadl %%t{lld}\n", {l_val, l_val_ptr, r_val, r_val_ptr})
             emit(ctx, load_buf)
             @free(load_buf)
             val cmp_buf: ref char = @alloc(128) as ref char
-            @snprintf(cmp_buf, 128, "    %%t%lld =w ceql %%t%lld, %%t%lld\n", {vals_eq, l_val, r_val})
+            @snprintf(cmp_buf, 128, "    %%t{lld} =w ceql %%t{lld}, %%t{lld}\n", {vals_eq, l_val, r_val})
             emit(ctx, cmp_buf)
             @free(cmp_buf)
         }
 
         val both: i64 = fresh_tmp(ctx)
         val and_buf: ref char = @alloc(128) as ref char
-        @snprintf(and_buf, 128, "    %%t%lld =w and %%t%lld, %%t%lld\n", {both, tags_eq, vals_eq})
+        @snprintf(and_buf, 128, "    %%t{lld} =w and %%t{lld}, %%t{lld}\n", {both, tags_eq, vals_eq})
         emit(ctx, and_buf)
         @free(and_buf)
 
         val result: i64 = fresh_tmp(ctx)
         val res_buf: ref char = @alloc(128) as ref char
         if op == parser.OP_NE {
-            @snprintf(res_buf, 128, "    %%t%lld =w ceqw %%t%lld, 0\n", {result, both})
+            @snprintf(res_buf, 128, "    %%t{lld} =w ceqw %%t{lld}, 0\n", {result, both})
         } else {
-            @snprintf(res_buf, 128, "    %%t%lld =w copy %%t%lld\n", {result, both})
+            @snprintf(res_buf, 128, "    %%t{lld} =w copy %%t{lld}\n", {result, both})
         }
         emit(ctx, res_buf)
         @free(res_buf)
 
         val res: ref char = @alloc(16) as ref char
-        @snprintf(res, 16, "%%t%lld", {result})
+        @snprintf(res, 16, "%%t{lld}", {result})
         return res
     }
 
@@ -2892,110 +2892,110 @@ fn gen_binop(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
             if str.rchar_cmp(lhs_qbt, "w") == 0 {
                 val ext_tmp: i64 = fresh_tmp(ctx)
                 val ext_buf: ref char = @alloc(128) as ref char
-                @snprintf(ext_buf, 128, "    %%t%lld =l extsw %s\n", {ext_tmp, lhs_l})
+                @snprintf(ext_buf, 128, "    %%t{lld} =l extsw {s}\n", {ext_tmp, lhs_l})
                 emit(ctx, ext_buf)
                 @free(ext_buf)
                 lhs_l = @alloc(16) as ref char
-                @snprintf(lhs_l, 16, "%%t%lld", {ext_tmp})
+                @snprintf(lhs_l, 16, "%%t{lld}", {ext_tmp})
             }
             if str.rchar_cmp(rhs_qbt, "w") == 0 {
                 val ext_tmp: i64 = fresh_tmp(ctx)
                 val ext_buf: ref char = @alloc(128) as ref char
-                @snprintf(ext_buf, 128, "    %%t%lld =l extsw %s\n", {ext_tmp, rhs_l})
+                @snprintf(ext_buf, 128, "    %%t{lld} =l extsw {s}\n", {ext_tmp, rhs_l})
                 emit(ctx, ext_buf)
                 @free(ext_buf)
                 rhs_l = @alloc(16) as ref char
-                @snprintf(rhs_l, 16, "%%t%lld", {ext_tmp})
+                @snprintf(rhs_l, 16, "%%t{lld}", {ext_tmp})
             }
         }
     }
 
     if is_float {
-        if op == parser.OP_ADD  { @snprintf(buf, 256, "    %%t%lld =d add %s, %s\n",  {tmp, lhs, rhs}) }
-        elif op == parser.OP_SUB { @snprintf(buf, 256, "    %%t%lld =d sub %s, %s\n",  {tmp, lhs, rhs}) }
-        elif op == parser.OP_MUL { @snprintf(buf, 256, "    %%t%lld =d mul %s, %s\n",  {tmp, lhs, rhs}) }
-        elif op == parser.OP_DIV { @snprintf(buf, 256, "    %%t%lld =d div %s, %s\n",  {tmp, lhs, rhs}) }
-        elif op == parser.OP_REM { @snprintf(buf, 256, "    %%t%lld =d rem %s, %s\n",  {tmp, lhs, rhs}) }
-        elif op == parser.OP_EQ  { @snprintf(buf, 256, "    %%t%lld =w ceqd %s, %s\n", {tmp, lhs, rhs}) }
-        elif op == parser.OP_NE  { @snprintf(buf, 256, "    %%t%lld =w cned %s, %s\n", {tmp, lhs, rhs}) }
-        elif op == parser.OP_LT  { @snprintf(buf, 256, "    %%t%lld =w cltd %s, %s\n", {tmp, lhs, rhs}) }
-        elif op == parser.OP_GT  { @snprintf(buf, 256, "    %%t%lld =w cgtd %s, %s\n", {tmp, lhs, rhs}) }
-        elif op == parser.OP_LE  { @snprintf(buf, 256, "    %%t%lld =w cled %s, %s\n", {tmp, lhs, rhs}) }
-        elif op == parser.OP_GE  { @snprintf(buf, 256, "    %%t%lld =w cged %s, %s\n", {tmp, lhs, rhs}) }
+        if op == parser.OP_ADD  { @snprintf(buf, 256, "    %%t{lld} =d add {s}, {s}\n",  {tmp, lhs, rhs}) }
+        elif op == parser.OP_SUB { @snprintf(buf, 256, "    %%t{lld} =d sub {s}, {s}\n",  {tmp, lhs, rhs}) }
+        elif op == parser.OP_MUL { @snprintf(buf, 256, "    %%t{lld} =d mul {s}, {s}\n",  {tmp, lhs, rhs}) }
+        elif op == parser.OP_DIV { @snprintf(buf, 256, "    %%t{lld} =d div {s}, {s}\n",  {tmp, lhs, rhs}) }
+        elif op == parser.OP_REM { @snprintf(buf, 256, "    %%t{lld} =d rem {s}, {s}\n",  {tmp, lhs, rhs}) }
+        elif op == parser.OP_EQ  { @snprintf(buf, 256, "    %%t{lld} =w ceqd {s}, {s}\n", {tmp, lhs, rhs}) }
+        elif op == parser.OP_NE  { @snprintf(buf, 256, "    %%t{lld} =w cned {s}, {s}\n", {tmp, lhs, rhs}) }
+        elif op == parser.OP_LT  { @snprintf(buf, 256, "    %%t{lld} =w cltd {s}, {s}\n", {tmp, lhs, rhs}) }
+        elif op == parser.OP_GT  { @snprintf(buf, 256, "    %%t{lld} =w cgtd {s}, {s}\n", {tmp, lhs, rhs}) }
+        elif op == parser.OP_LE  { @snprintf(buf, 256, "    %%t{lld} =w cled {s}, {s}\n", {tmp, lhs, rhs}) }
+        elif op == parser.OP_GE  { @snprintf(buf, 256, "    %%t{lld} =w cged {s}, {s}\n", {tmp, lhs, rhs}) }
         elif op == parser.OP_AND {
-            @snprintf(buf, 256, "    %%t%lld =w and %s, %s\n", {tmp, lhs, rhs})
+            @snprintf(buf, 256, "    %%t{lld} =w and {s}, {s}\n", {tmp, lhs, rhs})
         }
         elif op == parser.OP_OR {
-            @snprintf(buf, 256, "    %%t%lld =w or %s, %s\n", {tmp, lhs, rhs})
+            @snprintf(buf, 256, "    %%t{lld} =w or {s}, {s}\n", {tmp, lhs, rhs})
         }
-        else { @snprintf(buf, 256, "    %%t%lld =l copy 0\n", {tmp}) }
+        else { @snprintf(buf, 256, "    %%t{lld} =l copy 0\n", {tmp}) }
     } else {
-        if op == parser.OP_ADD  { @snprintf(buf, 256, "    %%t%lld =l add %s, %s\n",  {tmp, lhs, rhs}) }
-        elif op == parser.OP_SUB { @snprintf(buf, 256, "    %%t%lld =l sub %s, %s\n",  {tmp, lhs, rhs}) }
-        elif op == parser.OP_MUL { @snprintf(buf, 256, "    %%t%lld =l mul %s, %s\n",  {tmp, lhs, rhs}) }
-        elif op == parser.OP_DIV { @snprintf(buf, 256, "    %%t%lld =l div %s, %s\n",  {tmp, lhs, rhs}) }
-        elif op == parser.OP_REM { @snprintf(buf, 256, "    %%t%lld =l rem %s, %s\n",  {tmp, lhs, rhs}) }
+        if op == parser.OP_ADD  { @snprintf(buf, 256, "    %%t{lld} =l add {s}, {s}\n",  {tmp, lhs, rhs}) }
+        elif op == parser.OP_SUB { @snprintf(buf, 256, "    %%t{lld} =l sub {s}, {s}\n",  {tmp, lhs, rhs}) }
+        elif op == parser.OP_MUL { @snprintf(buf, 256, "    %%t{lld} =l mul {s}, {s}\n",  {tmp, lhs, rhs}) }
+        elif op == parser.OP_DIV { @snprintf(buf, 256, "    %%t{lld} =l div {s}, {s}\n",  {tmp, lhs, rhs}) }
+        elif op == parser.OP_REM { @snprintf(buf, 256, "    %%t{lld} =l rem {s}, {s}\n",  {tmp, lhs, rhs}) }
         elif op == parser.OP_EQ  {
             if both_word {
-                @snprintf(buf, 256, "    %%t%lld =w ceqw %s, %s\n", {tmp, lhs, rhs})
+                @snprintf(buf, 256, "    %%t{lld} =w ceqw {s}, {s}\n", {tmp, lhs, rhs})
             } else {
-                @snprintf(buf, 256, "    %%t%lld =w ceql %s, %s\n", {tmp, lhs_l, rhs_l})
+                @snprintf(buf, 256, "    %%t{lld} =w ceql {s}, {s}\n", {tmp, lhs_l, rhs_l})
             }
         }
         elif op == parser.OP_NE  {
             if both_word {
-                @snprintf(buf, 256, "    %%t%lld =w cnew %s, %s\n", {tmp, lhs, rhs})
+                @snprintf(buf, 256, "    %%t{lld} =w cnew {s}, {s}\n", {tmp, lhs, rhs})
             } else {
-                @snprintf(buf, 256, "    %%t%lld =w cnel %s, %s\n", {tmp, lhs_l, rhs_l})
+                @snprintf(buf, 256, "    %%t{lld} =w cnel {s}, {s}\n", {tmp, lhs_l, rhs_l})
             }
         }
         elif op == parser.OP_LT  {
             if both_word {
-                @snprintf(buf, 256, "    %%t%lld =w csltw %s, %s\n", {tmp, lhs, rhs})
+                @snprintf(buf, 256, "    %%t{lld} =w csltw {s}, {s}\n", {tmp, lhs, rhs})
             } else {
-                @snprintf(buf, 256, "    %%t%lld =w csltl %s, %s\n", {tmp, lhs_l, rhs_l})
+                @snprintf(buf, 256, "    %%t{lld} =w csltl {s}, {s}\n", {tmp, lhs_l, rhs_l})
             }
         }
         elif op == parser.OP_GT  {
             if both_word {
-                @snprintf(buf, 256, "    %%t%lld =w csgtw %s, %s\n", {tmp, lhs, rhs})
+                @snprintf(buf, 256, "    %%t{lld} =w csgtw {s}, {s}\n", {tmp, lhs, rhs})
             } else {
-                @snprintf(buf, 256, "    %%t%lld =w csgtl %s, %s\n", {tmp, lhs_l, rhs_l})
+                @snprintf(buf, 256, "    %%t{lld} =w csgtl {s}, {s}\n", {tmp, lhs_l, rhs_l})
             }
         }
         elif op == parser.OP_LE  {
             if both_word {
-                @snprintf(buf, 256, "    %%t%lld =w cslew %s, %s\n", {tmp, lhs, rhs})
+                @snprintf(buf, 256, "    %%t{lld} =w cslew {s}, {s}\n", {tmp, lhs, rhs})
             } else {
-                @snprintf(buf, 256, "    %%t%lld =w cslel %s, %s\n", {tmp, lhs_l, rhs_l})
+                @snprintf(buf, 256, "    %%t{lld} =w cslel {s}, {s}\n", {tmp, lhs_l, rhs_l})
             }
         }
         elif op == parser.OP_GE  {
             val lt: i64 = fresh_tmp(ctx)
             if both_word {
-                @snprintf(buf, 256, "    %%t%lld =w csltw %s, %s\n    %%t%lld =w ceqw %%t%lld, 0\n", {lt, lhs, rhs, tmp, lt})
+                @snprintf(buf, 256, "    %%t{lld} =w csltw {s}, {s}\n    %%t{lld} =w ceqw %%t{lld}, 0\n", {lt, lhs, rhs, tmp, lt})
             } else {
-                @snprintf(buf, 256, "    %%t%lld =w csltl %s, %s\n    %%t%lld =w ceqw %%t%lld, 0\n", {lt, lhs_l, rhs_l, tmp, lt})
+                @snprintf(buf, 256, "    %%t{lld} =w csltl {s}, {s}\n    %%t{lld} =w ceqw %%t{lld}, 0\n", {lt, lhs_l, rhs_l, tmp, lt})
             }
         }
         elif op == parser.OP_AND {
-            @snprintf(buf, 256, "    %%t%lld =w and %s, %s\n", {tmp, lhs, rhs})
+            @snprintf(buf, 256, "    %%t{lld} =w and {s}, {s}\n", {tmp, lhs, rhs})
         }
         elif op == parser.OP_OR {
-            @snprintf(buf, 256, "    %%t%lld =w or %s, %s\n", {tmp, lhs, rhs})
+            @snprintf(buf, 256, "    %%t{lld} =w or {s}, {s}\n", {tmp, lhs, rhs})
         }
-        elif op == parser.OP_BAND { @snprintf(buf, 256, "    %%t%lld =l and %s, %s\n", {tmp, lhs, rhs}) }
-        elif op == parser.OP_BOR  { @snprintf(buf, 256, "    %%t%lld =l or %s, %s\n",  {tmp, lhs, rhs}) }
-        elif op == parser.OP_BXOR { @snprintf(buf, 256, "    %%t%lld =l xor %s, %s\n", {tmp, lhs, rhs}) }
-        elif op == parser.OP_SHL  { @snprintf(buf, 256, "    %%t%lld =l shl %s, %s\n", {tmp, lhs, rhs}) }
-        elif op == parser.OP_SHR  { @snprintf(buf, 256, "    %%t%lld =l shr %s, %s\n", {tmp, lhs, rhs}) }
-        else { @snprintf(buf, 256, "    %%t%lld =l copy 0\n", {tmp}) }
+        elif op == parser.OP_BAND { @snprintf(buf, 256, "    %%t{lld} =l and {s}, {s}\n", {tmp, lhs, rhs}) }
+        elif op == parser.OP_BOR  { @snprintf(buf, 256, "    %%t{lld} =l or {s}, {s}\n",  {tmp, lhs, rhs}) }
+        elif op == parser.OP_BXOR { @snprintf(buf, 256, "    %%t{lld} =l xor {s}, {s}\n", {tmp, lhs, rhs}) }
+        elif op == parser.OP_SHL  { @snprintf(buf, 256, "    %%t{lld} =l shl {s}, {s}\n", {tmp, lhs, rhs}) }
+        elif op == parser.OP_SHR  { @snprintf(buf, 256, "    %%t{lld} =l shr {s}, {s}\n", {tmp, lhs, rhs}) }
+        else { @snprintf(buf, 256, "    %%t{lld} =l copy 0\n", {tmp}) }
     }
 
     emit(ctx, buf)
     @free(buf)
     val res: ref char = @alloc(16) as ref char
-    @snprintf(res, 16, "%%t%lld", {tmp})
+    @snprintf(res, 16, "%%t{lld}", {tmp})
     return res
 }
 
@@ -3008,22 +3008,22 @@ fn gen_unop(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
     val is_float: bool = expr_is_float(ctx, inner_expr)
 
     if op == parser.UOP_NOT {
-        @snprintf(buf, 128, "    %%t%lld =w ceqw %s, 0\n", {tmp, inner})
+        @snprintf(buf, 128, "    %%t{lld} =w ceqw {s}, 0\n", {tmp, inner})
     } elif op == parser.UOP_NEG {
         if is_float {
-            @snprintf(buf, 128, "    %%t%lld =d neg %s\n", {tmp, inner})
+            @snprintf(buf, 128, "    %%t{lld} =d neg {s}\n", {tmp, inner})
         } else {
-            @snprintf(buf, 128, "    %%t%lld =l neg %s\n", {tmp, inner})
+            @snprintf(buf, 128, "    %%t{lld} =l neg {s}\n", {tmp, inner})
         }
     } elif op == parser.UOP_BNOT {
-        @snprintf(buf, 128, "    %%t%lld =l xor %s, -1\n", {tmp, inner})
+        @snprintf(buf, 128, "    %%t{lld} =l xor {s}, -1\n", {tmp, inner})
     } else {
-        @snprintf(buf, 128, "    %%t%lld =l copy 0\n", {tmp})
+        @snprintf(buf, 128, "    %%t{lld} =l copy 0\n", {tmp})
     }
     emit(ctx, buf)
     @free(buf)
     val res: ref char = @alloc(16) as ref char
-    @snprintf(res, 16, "%%t%lld", {tmp})
+    @snprintf(res, 16, "%%t{lld}", {tmp})
     return res
 }
 
@@ -3043,26 +3043,26 @@ fn gen_field(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
             val tmp: i64 = fresh_tmp(ctx)
             val buf: ref char = @alloc(256) as ref char
             val enum_key: ref char = @alloc(512) as ref char
-            @snprintf(enum_key, 512, "%s__%s", {base_name, field_name})
+            @snprintf(enum_key, 512, "{s}__{s}", {base_name, field_name})
             val const_val: ref char = cg_const_val(ctx, enum_key)
             @free(enum_key)
             if str.rchar_cmp(const_val, "") != 0 {
-                @snprintf(buf, 256, "    %%t%lld =l copy %s\n", {tmp, const_val})
+                @snprintf(buf, 256, "    %%t{lld} =l copy {s}\n", {tmp, const_val})
             } else {
                 val qbe_key: ref char = @alloc(512) as ref char
-                @snprintf(qbe_key, 512, "%s__%s", {base_name, field_name})
+                @snprintf(qbe_key, 512, "{s}__{s}", {base_name, field_name})
                 val is_fn: bool = cg_is_fn(ctx, qbe_key)
                 @free(qbe_key)
                 if is_fn {
-                    @snprintf(buf, 256, "    %%t%lld =l copy $%s__%s\n", {tmp, base_name, field_name})
+                    @snprintf(buf, 256, "    %%t{lld} =l copy ${s}__{s}\n", {tmp, base_name, field_name})
                 } else {
-                    @snprintf(buf, 256, "    %%t%lld =l loadl $%s__%s\n", {tmp, base_name, field_name})
+                    @snprintf(buf, 256, "    %%t{lld} =l loadl ${s}__{s}\n", {tmp, base_name, field_name})
                 }
             }
             emit(ctx, buf)
             @free(buf)
             val res: ref char = @alloc(16) as ref char
-            @snprintf(res, 16, "%%t%lld", {tmp})
+            @snprintf(res, 16, "%%t{lld}", {tmp})
             return res
         }
 
@@ -3100,7 +3100,7 @@ fn gen_field(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
         val dqt: ref char = cg_direct_type(ctx, base_name2)
         if str.rchar_cmp(dqt, "") != 0 {
             val direct_buf: ref char = @alloc(32) as ref char
-            @snprintf(direct_buf, 32, "%%%s", {base_name2})
+            @snprintf(direct_buf, 32, "%%{s}", {base_name2})
             base = direct_buf
         } else {
             if cg_is_local_ref_type(ctx, base_name2) {
@@ -3332,48 +3332,48 @@ fn gen_field(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
     if base_is_ref {
         if field_is_fa || field_is_union || field_is_list || field_is_multi_word_struct {
             if offset == 0 {
-                @snprintf(buf, 256, "    %%t%lld =l add %s, 0\n", {tmp, base})
+                @snprintf(buf, 256, "    %%t{lld} =l add {s}, 0\n", {tmp, base})
             } else {
-                @snprintf(buf, 256, "    %%t%lld =l add %s, %lld\n", {tmp, base, offset})
+                @snprintf(buf, 256, "    %%t{lld} =l add {s}, {lld}\n", {tmp, base, offset})
             }
         } else {
             if offset == 0 {
-                @snprintf(buf, 256, "    %%t%lld =l loadl %s\n", {tmp, base})
+                @snprintf(buf, 256, "    %%t{lld} =l loadl {s}\n", {tmp, base})
             } else {
                 val ptr_tmp: i64 = fresh_tmp(ctx)
                 val buf2: ref char = @alloc(128) as ref char
-                @snprintf(buf2, 128, "    %%t%lld =l add %s, %lld\n", {ptr_tmp, base, offset})
+                @snprintf(buf2, 128, "    %%t{lld} =l add {s}, {lld}\n", {ptr_tmp, base, offset})
                 emit(ctx, buf2)
                 @free(buf2)
                 val ptr_str: ref char = @alloc(16) as ref char
-                @snprintf(ptr_str, 16, "%%t%lld", {ptr_tmp})
-                @snprintf(buf, 256, "    %%t%lld =l loadl %s\n", {tmp, ptr_str})
+                @snprintf(ptr_str, 16, "%%t{lld}", {ptr_tmp})
+                @snprintf(buf, 256, "    %%t{lld} =l loadl {s}\n", {tmp, ptr_str})
                 @free(ptr_str)
             }
         }
     } elif field_is_fa || field_is_union || field_is_list || field_is_multi_word_struct {
         if offset == 0 {
-            @snprintf(buf, 256, "    %%t%lld =l add %s, 0\n", {tmp, base})
+            @snprintf(buf, 256, "    %%t{lld} =l add {s}, 0\n", {tmp, base})
         } else {
-            @snprintf(buf, 256, "    %%t%lld =l add %s, %lld\n", {tmp, base, offset})
+            @snprintf(buf, 256, "    %%t{lld} =l add {s}, {lld}\n", {tmp, base, offset})
         }
     } elif offset == 0 {
-        @snprintf(buf, 256, "    %%t%lld =l loadl %s\n", {tmp, base})
+        @snprintf(buf, 256, "    %%t{lld} =l loadl {s}\n", {tmp, base})
     } else {
         val ptr_tmp: i64 = fresh_tmp(ctx)
         val buf2: ref char = @alloc(128) as ref char
-        @snprintf(buf2, 128, "    %%t%lld =l add %s, %lld\n", {ptr_tmp, base, offset})
+        @snprintf(buf2, 128, "    %%t{lld} =l add {s}, {lld}\n", {ptr_tmp, base, offset})
         emit(ctx, buf2)
         @free(buf2)
         val ptr_str: ref char = @alloc(16) as ref char
-        @snprintf(ptr_str, 16, "%%t%lld", {ptr_tmp})
-        @snprintf(buf, 256, "    %%t%lld =l loadl %s\n", {tmp, ptr_str})
+        @snprintf(ptr_str, 16, "%%t{lld}", {ptr_tmp})
+        @snprintf(buf, 256, "    %%t{lld} =l loadl {s}\n", {tmp, ptr_str})
         @free(ptr_str)
     }
     emit(ctx, buf)
     @free(buf)
     val res: ref char = @alloc(16) as ref char
-    @snprintf(res, 16, "%%t%lld", {tmp})
+    @snprintf(res, 16, "%%t{lld}", {tmp})
     return res
 }
 
@@ -3402,7 +3402,7 @@ fn gen_list_ptr(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
             val dqt: ref char = cg_direct_type(ctx, base_name2)
             if str.rchar_cmp(dqt, "") != 0 {
                 val direct_buf: ref char = @alloc(32) as ref char
-                @snprintf(direct_buf, 32, "%%%s", {base_name2})
+                @snprintf(direct_buf, 32, "%%{s}", {base_name2})
                 base = direct_buf
             }
         }
@@ -3414,11 +3414,11 @@ fn gen_list_ptr(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
         }
         val ptr_tmp: i64 = fresh_tmp(ctx)
         val buf: ref char = @alloc(128) as ref char
-        @snprintf(buf, 128, "    %%t%lld =l add %s, %lld\n", {ptr_tmp, base, offset})
+        @snprintf(buf, 128, "    %%t{lld} =l add {s}, {lld}\n", {ptr_tmp, base, offset})
         emit(ctx, buf)
         @free(buf)
         val res: ref char = @alloc(16) as ref char
-        @snprintf(res, 16, "%%t%lld", {ptr_tmp})
+        @snprintf(res, 16, "%%t{lld}", {ptr_tmp})
         return res
     }
     if expr.kind == parser.NK_IDENT {
@@ -3428,25 +3428,25 @@ fn gen_list_ptr(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
             val slot_addr: ref char = @alloc(64) as ref char
             val is_global_ref: bool = @load8(qbe_var as ref void) == 36
             if is_global_ref {
-                @snprintf(slot_addr, 64, "%s", {qbe_var})
+                @snprintf(slot_addr, 64, "{s}", {qbe_var})
             } else {
-                @snprintf(slot_addr, 64, "%%t%s", {qbe_var})
+                @snprintf(slot_addr, 64, "%%t{s}", {qbe_var})
             }
             val list_ptr_tmp: i64 = fresh_tmp(ctx)
             val load_buf: ref char = @alloc(128) as ref char
-            @snprintf(load_buf, 128, "    %%t%lld =l loadl %s\n", {list_ptr_tmp, slot_addr})
+            @snprintf(load_buf, 128, "    %%t{lld} =l loadl {s}\n", {list_ptr_tmp, slot_addr})
             emit(ctx, load_buf)
             @free(load_buf)
             @free(slot_addr)
             
             val res: ref char = @alloc(16) as ref char
-            @snprintf(res, 16, "%%t%lld", {list_ptr_tmp})
+            @snprintf(res, 16, "%%t{lld}", {list_ptr_tmp})
             return res
         }
         val dqt: ref char = cg_direct_type(ctx, vname)
         if str.rchar_cmp(dqt, "") != 0 {
             val res2: ref char = @alloc(32) as ref char
-            @snprintf(res2, 32, "%%%s", {vname})
+            @snprintf(res2, 32, "%%{s}", {vname})
             return res2
         }
     }
@@ -3459,7 +3459,7 @@ fn gen_call(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
     val callee_raw: ref char = resolve_callee_name(callee_node)
     val callee_name: ref char = @alloc(256) as ref char
 
-    @snprintf(callee_name, 256, "%s", {callee_raw})
+    @snprintf(callee_name, 256, "{s}", {callee_raw})
 
     val tv_owner_slot: ref void = @alloc(8)
     val tv_field_slot: ref void = @alloc(8)
@@ -3520,7 +3520,7 @@ fn gen_call(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
                 }
                 val ptr2: i64 = fresh_tmp(ctx)
                 val pbuf2: ref char = @alloc(64) as ref char
-                @snprintf(pbuf2, 64, "    %%t%lld =l alloc8 %lld\n    storel %lld, %%t%lld\n",
+                @snprintf(pbuf2, 64, "    %%t{lld} =l alloc8 {lld}\n    storel {lld}, %%t{lld}\n",
                     {ptr2, actual_alloc_size2, tv_tag2, ptr2})
                 emit(ctx, pbuf2)
                 @free(pbuf2)
@@ -3556,7 +3556,7 @@ fn gen_call(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
                                     val field_val2: ref char = gen_expr(ctx, fa2_node)
                                     val fptr2: i64 = fresh_tmp(ctx)
                                     val fbuf2: ref char = @alloc(128) as ref char
-                                    @snprintf(fbuf2, 128, "    %%t%lld =l add %%t%lld, %lld\n    storel %s, %%t%lld\n",
+                                    @snprintf(fbuf2, 128, "    %%t{lld} =l add %%t{lld}, {lld}\n    storel {s}, %%t{lld}\n",
                                         {fptr2, ptr2, offset2, field_val2, fptr2})
                                     emit(ctx, fbuf2)
                                     @free(fbuf2)
@@ -3570,7 +3570,7 @@ fn gen_call(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
                 @free(tv_owner_slot)
                 @free(tv_field_slot)
                 val tv_res2: ref char = @alloc(16) as ref char
-                @snprintf(tv_res2, 16, "%%t%lld", {ptr2})
+                @snprintf(tv_res2, 16, "%%t{lld}", {ptr2})
                 return tv_res2
             }
         }
@@ -3615,7 +3615,7 @@ fn gen_call(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
         }
         val ptr: i64 = fresh_tmp(ctx)
         val pbuf: ref char = @alloc(64) as ref char
-        @snprintf(pbuf, 64, "    %%t%lld =l alloc8 %lld\n    storel %lld, %%t%lld\n",
+        @snprintf(pbuf, 64, "    %%t{lld} =l alloc8 {lld}\n    storel {lld}, %%t{lld}\n",
             {ptr, actual_alloc_size, tv_tag, ptr})
         emit(ctx, pbuf)
         @free(pbuf)
@@ -3651,7 +3651,7 @@ fn gen_call(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
                             val field_val: ref char = gen_expr(ctx, fa_node)
                             val fptr: i64 = fresh_tmp(ctx)
                             val fbuf: ref char = @alloc(128) as ref char
-                            @snprintf(fbuf, 128, "    %%t%lld =l add %%t%lld, %lld\n    storel %s, %%t%lld\n",
+                            @snprintf(fbuf, 128, "    %%t{lld} =l add %%t{lld}, {lld}\n    storel {s}, %%t{lld}\n",
                                 {fptr, ptr, offset, field_val, fptr})
                             emit(ctx, fbuf)
                             @free(fbuf)
@@ -3665,7 +3665,7 @@ fn gen_call(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
         @free(tv_owner_slot)
         @free(tv_field_slot)
         val tv_res: ref char = @alloc(16) as ref char
-        @snprintf(tv_res, 16, "%%t%lld", {ptr})
+        @snprintf(tv_res, 16, "%%t{lld}", {ptr})
         return tv_res
     }
     @free(tv_owner_slot)
@@ -3687,7 +3687,7 @@ fn gen_call(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
                         val fmt_idx: i64 = intern_format_string(ctx, fmt_str)
                         val fmt_tmp: i64 = fresh_tmp(ctx)
                         val fmt_buf: ref char = @alloc(64) as ref char
-                        @snprintf(fmt_buf, 64, "    %%t%lld =l copy $__str%lld\n", {fmt_tmp, fmt_idx})
+                        @snprintf(fmt_buf, 64, "    %%t{lld} =l copy $__str{lld}\n", {fmt_tmp, fmt_idx})
                         emit(ctx, fmt_buf)
                         @free(fmt_buf)
                         
@@ -3712,7 +3712,7 @@ fn gen_call(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
                                                     val pqt_p: ref char = expr_qtype(ctx, pe_node_p)
                                                     val pv_p: ref char = gen_expr(ctx, pe_node_p)
                                                     val pbuf_p: ref char = @alloc(64) as ref char
-                                                    @snprintf(pbuf_p, 64, "%s %s", {pqt_p, pv_p})
+                                                    @snprintf(pbuf_p, 64, "{s} {s}", {pqt_p, pv_p})
                                                     @append(variadic_args, pbuf_p)
                                                 }
                                                 none => {}
@@ -3723,7 +3723,7 @@ fn gen_call(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
                                         val aqt_p: ref char = expr_qtype(ctx, arg_node_p)
                                         val av_p: ref char = gen_expr(ctx, arg_node_p)
                                         val abuf_p: ref char = @alloc(64) as ref char
-                                        @snprintf(abuf_p, 64, "%s %s", {aqt_p, av_p})
+                                        @snprintf(abuf_p, 64, "{s} {s}", {aqt_p, av_p})
                                         @append(variadic_args, abuf_p)
                                     }
                                 }
@@ -3736,11 +3736,11 @@ fn gen_call(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
                         val call_buf_p: ref char = @alloc(4096) as ref char
                         val vlen: i64 = @len(variadic_args) as i64
                         if vlen == 0 {
-                            @snprintf(call_buf_p, 4096, "    %%t%lld =l call $printf(l %%t%lld, ..., l 0)\n", {result_tmp, fmt_tmp})
+                            @snprintf(call_buf_p, 4096, "    %%t{lld} =l call $printf(l %%t{lld}, ..., l 0)\n", {result_tmp, fmt_tmp})
                         } else {
                             val call_pos_p: mut i64 = 0
                             val hdr_p: ref char = @alloc(256) as ref char
-                            @snprintf(hdr_p, 256, "    %%t%lld =l call $printf(l %%t%lld, ...", {result_tmp, fmt_tmp})
+                            @snprintf(hdr_p, 256, "    %%t{lld} =l call $printf(l %%t{lld}, ...", {result_tmp, fmt_tmp})
                             val hdr_len_p: mut i64 = str.len_raw(hdr_p)
                             @memcpy(@ptradd(call_buf_p as ref void, call_pos_p), hdr_p as ref void, hdr_len_p)
                             call_pos_p = call_pos_p + hdr_len_p
@@ -3773,7 +3773,7 @@ fn gen_call(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
                         @free(call_buf_p)
                         
                         val res_p: ref char = @alloc(16) as ref char
-                        @snprintf(res_p, 16, "%%t%lld", {result_tmp})
+                        @snprintf(res_p, 16, "%%t{lld}", {result_tmp})
                         return res_p
                     }
                 }
@@ -3866,12 +3866,12 @@ fn gen_call(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
                                         val payload_ptr: i64 = fresh_tmp(ctx)
                                         val bbuf: ref char = @alloc(256) as ref char
                                         @snprintf(bbuf, 256,
-                                            "    %%t%lld =l call $malloc(l 16)\n    storew 0, %%t%lld\n    %%t%lld =l add %%t%lld, 8\n    storel %s, %%t%lld\n",
+                                            "    %%t{lld} =l call $malloc(l 16)\n    storew 0, %%t{lld}\n    %%t{lld} =l add %%t{lld}, 8\n    storel {s}, %%t{lld}\n",
                                             {box_ptr, box_ptr, payload_ptr, box_ptr, arg_val, payload_ptr})
                                         emit(ctx, bbuf)
                                         @free(bbuf)
                                         val wrapped: ref char = @alloc(16) as ref char
-                                        @snprintf(wrapped, 16, "%%t%lld", {box_ptr})
+                                        @snprintf(wrapped, 16, "%%t{lld}", {box_ptr})
                                         val new_tmps: mut list[ref char] = []
                                         val tlen_r: i64 = @len(arg_tmps) as i64
                                         val ri: mut i64 = 0
@@ -3938,7 +3938,7 @@ fn gen_call(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
     if returns_union {
         ret_buf_tmp = fresh_tmp(ctx)
         val alloc_buf: ref char = @alloc(64) as ref char
-        @snprintf(alloc_buf, 64, "    %%t%lld =l alloc8 16\n", {ret_buf_tmp})
+        @snprintf(alloc_buf, 64, "    %%t{lld} =l alloc8 16\n", {ret_buf_tmp})
         emit(ctx, alloc_buf)
         @free(alloc_buf)
     }
@@ -3946,17 +3946,17 @@ fn gen_call(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
     if is_fn_ptr {
         val dqt: ref char = cg_direct_type(ctx, callee_name)
         if str.rchar_cmp(dqt, "") != 0 {
-            @snprintf(hdr, 256, "    %%t%lld =%s call %%%s(", {tmp, ret_qtype, callee_name})
+            @snprintf(hdr, 256, "    %%t{lld} ={s} call %%{s}(", {tmp, ret_qtype, callee_name})
         } else {
             val ptr_tmp: i64 = fresh_tmp(ctx)
             val load_buf: ref char = @alloc(64) as ref char
-            @snprintf(load_buf, 64, "    %%t%lld =l loadl %%%s\n", {ptr_tmp, callee_name})
+            @snprintf(load_buf, 64, "    %%t{lld} =l loadl %%{s}\n", {ptr_tmp, callee_name})
             emit(ctx, load_buf)
             @free(load_buf)
-            @snprintf(hdr, 256, "    %%t%lld =%s call %%t%lld(", {tmp, ret_qtype, ptr_tmp})
+            @snprintf(hdr, 256, "    %%t{lld} ={s} call %%t{lld}(", {tmp, ret_qtype, ptr_tmp})
         }
     } else {
-        @snprintf(hdr, 256, "    %%t%lld =%s call $%s(", {tmp, ret_qtype, effective_callee})
+        @snprintf(hdr, 256, "    %%t{lld} ={s} call ${s}(", {tmp, ret_qtype, effective_callee})
     }
     val hdr_len: mut i64 = str.len_raw(hdr)
     @memcpy(@ptradd(call_buf as ref void, call_pos), hdr as ref void, hdr_len)
@@ -3968,7 +3968,7 @@ fn gen_call(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
     // If returning a union, add the return buffer as the first argument
     if returns_union {
         val ret_arg: ref char = @alloc(32) as ref char
-        @snprintf(ret_arg, 32, "l %%t%lld", {ret_buf_tmp})
+        @snprintf(ret_arg, 32, "l %%t{lld}", {ret_buf_tmp})
         val ret_arg_len: mut i64 = str.len_raw(ret_arg)
         @memcpy(@ptradd(call_buf as ref void, call_pos), ret_arg as ref void, ret_arg_len)
         call_pos = call_pos + ret_arg_len
@@ -4010,7 +4010,7 @@ fn gen_call(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
                         }
                     }
                 }
-                @snprintf(tbuf, 64, "%s %s", {arg_qtype, t as ref char})
+                @snprintf(tbuf, 64, "{s} {s}", {arg_qtype, t as ref char})
                 val tlen2: mut i64 = str.len_raw(tbuf)
                 @memcpy(@ptradd(call_buf as ref void, call_pos), tbuf as ref void, tlen2)
                 call_pos = call_pos + tlen2
@@ -4032,7 +4032,7 @@ fn gen_call(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
             if str.rchar_cmp(ret_qtype2, "w") == 0 {
                 val ext_tmp: i64 = fresh_tmp(ctx)
                 val ext_buf: ref char = @alloc(64) as ref char
-                @snprintf(ext_buf, 64, "    %%t%lld =l extsw %%t%lld\n", {ext_tmp, tmp})
+                @snprintf(ext_buf, 64, "    %%t{lld} =l extsw %%t{lld}\n", {ext_tmp, tmp})
                 emit(ctx, ext_buf)
                 @free(ext_buf)
                 tmp = ext_tmp
@@ -4047,7 +4047,7 @@ fn gen_call(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
     }
 
     val res: ref char = @alloc(16) as ref char
-    @snprintf(res, 16, "%%t%lld", {result_tmp})
+    @snprintf(res, 16, "%%t{lld}", {result_tmp})
     return res
 }
 
@@ -4060,7 +4060,7 @@ fn resolve_callee_name(node: ref parser.Node) ref char! = {
         val base: ref char = resolve_callee_name(parser.field_base(node))
         val field: ref char = parser.field_name(node)
         val buf: ref char = @alloc(256) as ref char
-        @snprintf(buf, 256, "%s__%s", {base, field})
+        @snprintf(buf, 256, "{s}__{s}", {base, field})
         return buf
     }
     return "unknown"
@@ -4085,11 +4085,11 @@ fn get_format_arg(ctx: ref CgCtx, args: ref void, i: i64) ref char! = {
                 val idx: i64 = intern_format_string(ctx, s)
                 val tmp: i64 = fresh_tmp(ctx)
                 val buf: ref char = @alloc(64) as ref char
-                @snprintf(buf, 64, "    %%t%lld =l copy $__str%lld\n", {tmp, idx})
+                @snprintf(buf, 64, "    %%t{lld} =l copy $__str{lld}\n", {tmp, idx})
                 emit(ctx, buf)
                 @free(buf)
                 val res: ref char = @alloc(16) as ref char
-                @snprintf(res, 16, "%%t%lld", {tmp})
+                @snprintf(res, 16, "%%t{lld}", {tmp})
                 return res
             } else {
                 return gen_expr(ctx, node)
@@ -4141,32 +4141,32 @@ fn gen_builtin(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
 
     if str.rchar_cmp(name, "alloc") == 0 {
         val sz: ref char = get_arg(ctx, args, 0)
-        @snprintf(buf, 512, "    %%t%lld =l call $malloc(l %s)\n", {tmp, sz})
+        @snprintf(buf, 512, "    %%t{lld} =l call $malloc(l {s})\n", {tmp, sz})
         emit(ctx, buf)
     } elif str.rchar_cmp(name, "free") == 0 {
         val ptr: ref char = get_arg(ctx, args, 0)
-        @snprintf(buf, 512, "    call $free(l %s)\n    %%t%lld =l copy 0\n", {ptr, tmp})
+        @snprintf(buf, 512, "    call $free(l {s})\n    %%t{lld} =l copy 0\n", {ptr, tmp})
         emit(ctx, buf)
     } elif str.rchar_cmp(name, "realloc") == 0 {
         val ptr2: ref char = get_arg(ctx, args, 0)
         val sz2: ref char = get_arg(ctx, args, 1)
-        @snprintf(buf, 512, "    %%t%lld =l call $realloc(l %s, l %s)\n", {tmp, ptr2, sz2})
+        @snprintf(buf, 512, "    %%t{lld} =l call $realloc(l {s}, l {s})\n", {tmp, ptr2, sz2})
         emit(ctx, buf)
     } elif str.rchar_cmp(name, "memcpy") == 0 {
         val dst: ref char = get_arg(ctx, args, 0)
         val src: ref char = get_arg(ctx, args, 1)
         val len: ref char = get_arg(ctx, args, 2)
-        @snprintf(buf, 512, "    call $memcpy(l %s, l %s, l %s)\n    %%t%lld =l copy 0\n", {dst, src, len, tmp})
+        @snprintf(buf, 512, "    call $memcpy(l {s}, l {s}, l {s})\n    %%t{lld} =l copy 0\n", {dst, src, len, tmp})
         emit(ctx, buf)
     } elif str.rchar_cmp(name, "memset") == 0 {
         val dst2: ref char = get_arg(ctx, args, 0)
         val val2: ref char = get_arg(ctx, args, 1)
         val len2: ref char = get_arg(ctx, args, 2)
-        @snprintf(buf, 512, "    call $memset(l %s, w %s, l %s)\n    %%t%lld =l copy 0\n", {dst2, val2, len2, tmp})
+        @snprintf(buf, 512, "    call $memset(l {s}, w {s}, l {s})\n    %%t{lld} =l copy 0\n", {dst2, val2, len2, tmp})
         emit(ctx, buf)
     } elif str.rchar_cmp(name, "load") == 0 {
         val ptr3: ref char = get_arg(ctx, args, 0)
-        @snprintf(buf, 512, "    %%t%lld =l loadl %s\n", {tmp, ptr3})
+        @snprintf(buf, 512, "    %%t{lld} =l loadl {s}\n", {tmp, ptr3})
         emit(ctx, buf)
     } elif str.rchar_cmp(name, "store") == 0 {
         val ptr4: ref char = get_arg(ctx, args, 0)
@@ -4184,43 +4184,43 @@ fn gen_builtin(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
         if str.rchar_cmp(val3_qtype, "w") == 0 {
             val ext_tmp: i64 = fresh_tmp(ctx)
             val ext_buf: ref char = @alloc(128) as ref char
-            @snprintf(ext_buf, 128, "    %%t%lld =l extsw %s\n", {ext_tmp, val3})
+            @snprintf(ext_buf, 128, "    %%t{lld} =l extsw {s}\n", {ext_tmp, val3})
             emit(ctx, ext_buf)
             @free(ext_buf)
-            @snprintf(buf, 512, "    storel %%t%lld, %s\n    %%t%lld =l copy 0\n", {ext_tmp, ptr4, tmp})
+            @snprintf(buf, 512, "    storel %%t{lld}, {s}\n    %%t{lld} =l copy 0\n", {ext_tmp, ptr4, tmp})
         } else {
-            @snprintf(buf, 512, "    storel %s, %s\n    %%t%lld =l copy 0\n", {val3, ptr4, tmp})
+            @snprintf(buf, 512, "    storel {s}, {s}\n    %%t{lld} =l copy 0\n", {val3, ptr4, tmp})
         }
         emit(ctx, buf)
     } elif str.rchar_cmp(name, "load8") == 0 {
         val ptr5: ref char = get_arg(ctx, args, 0)
         val w_tmp: i64 = fresh_tmp(ctx)
         val wbuf: ref char = @alloc(64) as ref char
-        @snprintf(wbuf, 64, "    %%t%lld =w loadub %s\n", {w_tmp, ptr5})
+        @snprintf(wbuf, 64, "    %%t{lld} =w loadub {s}\n", {w_tmp, ptr5})
         emit(ctx, wbuf)
         @free(wbuf)
-        @snprintf(buf, 512, "    %%t%lld =l extsw %%t%lld\n", {tmp, w_tmp})
+        @snprintf(buf, 512, "    %%t{lld} =l extsw %%t{lld}\n", {tmp, w_tmp})
         emit(ctx, buf)
     } elif str.rchar_cmp(name, "store8") == 0 {
         val ptr6: ref char = get_arg(ctx, args, 0)
         val val4: ref char = get_arg(ctx, args, 1)
-        @snprintf(buf, 512, "    storeb %s, %s\n    %%t%lld =l copy 0\n", {val4, ptr6, tmp})
+        @snprintf(buf, 512, "    storeb {s}, {s}\n    %%t{lld} =l copy 0\n", {val4, ptr6, tmp})
         emit(ctx, buf)
     } elif str.rchar_cmp(name, "ptradd") == 0 {
         val ptr7: ref char = get_arg(ctx, args, 0)
         val off: ref char = get_arg(ctx, args, 1)
-        @snprintf(buf, 512, "    %%t%lld =l add %s, %s\n", {tmp, ptr7, off})
+        @snprintf(buf, 512, "    %%t{lld} =l add {s}, {s}\n", {tmp, ptr7, off})
         emit(ctx, buf)
     } elif str.rchar_cmp(name, "puts") == 0 {
         val s: ref char = get_arg(ctx, args, 0)
-        @snprintf(buf, 512, "    %%t%lld =w call $puts(l %s)\n", {tmp, s})
+        @snprintf(buf, 512, "    %%t{lld} =w call $puts(l {s})\n", {tmp, s})
         emit(ctx, buf)
     } elif str.rchar_cmp(name, "printf") == 0 {
         val fmt: ref char = get_format_arg(ctx, args, 0)
         val call_buf2: ref char = @alloc(4096) as ref char
         val call_pos2: mut i64 = 0
         val hdr2: ref char = @alloc(256) as ref char
-        @snprintf(hdr2, 256, "    %%t%lld =w call $printf(l %s, ...", {tmp, fmt})
+        @snprintf(hdr2, 256, "    %%t{lld} =w call $printf(l {s}, ...", {tmp, fmt})
         val hdr2_len: mut i64 = str.len_raw(hdr2 as ref char)
         @memcpy(@ptradd(call_buf2 as ref void, call_pos2), hdr2 as ref void, hdr2_len)
         call_pos2 = call_pos2 + hdr2_len
@@ -4245,7 +4245,7 @@ fn gen_builtin(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
                                         val pqt: ref char = expr_qtype(ctx, pe_node)
                                         val pv: ref char = gen_expr(ctx, pe_node)
                                         val pbuf2: ref char = @alloc(64) as ref char
-                                        @snprintf(pbuf2, 64, ", %s %s", {pqt, pv})
+                                        @snprintf(pbuf2, 64, ", {s} {s}", {pqt, pv})
                                         val pbuf2_len: mut i64 = str.len_raw(pbuf2)
                                         @memcpy(@ptradd(call_buf2 as ref void, call_pos2), pbuf2 as ref void, pbuf2_len)
                                         call_pos2 = call_pos2 + pbuf2_len
@@ -4274,7 +4274,7 @@ fn gen_builtin(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
         val scall_buf: ref char = @alloc(4096) as ref char
         val scall_pos: mut i64 = 0
         val shdr: ref char = @alloc(256) as ref char
-        @snprintf(shdr, 256, "    %%t%lld =w call $snprintf(l %s, l %s, l %s, ...", {tmp, sbuf, ssz, sfmt})
+        @snprintf(shdr, 256, "    %%t{lld} =w call $snprintf(l {s}, l {s}, l {s}, ...", {tmp, sbuf, ssz, sfmt})
         val shdr_len: mut i64 = str.len_raw(shdr)
         @memcpy(@ptradd(scall_buf as ref void, scall_pos), shdr as ref void, shdr_len)
         scall_pos = scall_pos + shdr_len
@@ -4299,7 +4299,7 @@ fn gen_builtin(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
                                         val spqt: ref char = expr_qtype(ctx, spe_node)
                                         val spv: ref char = gen_expr(ctx, spe_node)
                                         val spbuf: mut ref char = @alloc(64) as ref char
-                                        @snprintf(spbuf, 64, ", %s %s", {spqt, spv})
+                                        @snprintf(spbuf, 64, ", {s} {s}", {spqt, spv})
                                         val spbuf_len: mut i64 = str.len_raw(spbuf)
                                         @memcpy(@ptradd(scall_buf as ref void, scall_pos), spbuf as ref void, spbuf_len)
                                         scall_pos = scall_pos + spbuf_len
@@ -4314,7 +4314,7 @@ fn gen_builtin(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
                             val spqt2: ref char = expr_qtype(ctx, spn)
                             val spv2: ref char = gen_expr(ctx, spn)
                             val spbuf2: ref char = @alloc(64) as ref char
-                            @snprintf(spbuf2, 64, ", %s %s", {spqt2, spv2})
+                            @snprintf(spbuf2, 64, ", {s} {s}", {spqt2, spv2})
                             val spbuf2_len: mut i64 = str.len_raw(spbuf2)
                             @memcpy(@ptradd(scall_buf as ref void, scall_pos), spbuf2 as ref void, spbuf2_len)
                             scall_pos = scall_pos + spbuf2_len
@@ -4333,25 +4333,25 @@ fn gen_builtin(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
         emit(ctx, scall_buf)
         val sext_tmp: i64 = fresh_tmp(ctx)
         val sext_buf: ref char = @alloc(64) as ref char
-        @snprintf(sext_buf, 64, "    %%t%lld =l extsw %%t%lld\n", {sext_tmp, tmp})
+        @snprintf(sext_buf, 64, "    %%t{lld} =l extsw %%t{lld}\n", {sext_tmp, tmp})
         emit(ctx, sext_buf)
         @free(sext_buf)
         @free(buf)
         val sres: ref char = @alloc(16) as ref char
-        @snprintf(sres, 16, "%%t%lld", {sext_tmp})
+        @snprintf(sres, 16, "%%t{lld}", {sext_tmp})
         return sres
     } elif str.rchar_cmp(name, "strlen") == 0 {
         val s2: ref char = get_arg(ctx, args, 0)
-        @snprintf(buf, 512, "    %%t%lld =l call $strlen(l %s)\n", {tmp, s2})
+        @snprintf(buf, 512, "    %%t{lld} =l call $strlen(l {s})\n", {tmp, s2})
         emit(ctx, buf)
     } elif str.rchar_cmp(name, "strcmp") == 0 {
         val a: ref char = get_arg(ctx, args, 0)
         val b: ref char = get_arg(ctx, args, 1)
-        @snprintf(buf, 512, "    %%t%lld =l call $strcmp(l %s, l %s)\n", {tmp, a, b})
+        @snprintf(buf, 512, "    %%t{lld} =l call $strcmp(l {s}, l {s})\n", {tmp, a, b})
         emit(ctx, buf)
     } elif str.rchar_cmp(name, "atoi") == 0 {
         val s3: ref char = get_arg(ctx, args, 0)
-        @snprintf(buf, 512, "    %%t%lld =l call $atoi(l %s)\n", {tmp, s3})
+        @snprintf(buf, 512, "    %%t{lld} =l call $atoi(l {s})\n", {tmp, s3})
         emit(ctx, buf)
     } elif str.rchar_cmp(name, "append") == 0 {
         val lst: ref char = get_list_arg(ctx, args, 0)
@@ -4368,14 +4368,14 @@ fn gen_builtin(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
         val len_slot: i64 = fresh_tmp(ctx)
         val cap_slot: i64 = fresh_tmp(ctx)
         val buf_app1: ref char = @alloc(256) as ref char
-        @snprintf(buf_app1, 256, "    %%t%lld =l add %s, 8\n    %%t%lld =l add %s, 16\n", {len_slot, lst, cap_slot, lst})
+        @snprintf(buf_app1, 256, "    %%t{lld} =l add {s}, 8\n    %%t{lld} =l add {s}, 16\n", {len_slot, lst, cap_slot, lst})
         emit(ctx, buf_app1)
         @free(buf_app1)
 
         val len_val: i64 = fresh_tmp(ctx)
         val cap_val: i64 = fresh_tmp(ctx)
         val buf_app2: ref char = @alloc(256) as ref char
-        @snprintf(buf_app2, 256, "    %%t%lld =l loadl %%t%lld\n    %%t%lld =l loadl %%t%lld\n", {len_val, len_slot, cap_val, cap_slot})
+        @snprintf(buf_app2, 256, "    %%t{lld} =l loadl %%t{lld}\n    %%t{lld} =l loadl %%t{lld}\n", {len_val, len_slot, cap_val, cap_slot})
         emit(ctx, buf_app2)
         @free(buf_app2)
 
@@ -4384,19 +4384,19 @@ fn gen_builtin(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
         val no_grow_lbl: i64 = fresh_lbl(ctx)
         val lt: i64 = fresh_tmp(ctx)
         val buf_app3: ref char = @alloc(256) as ref char
-        @snprintf(buf_app3, 256, "    %%t%lld =w csltl %%t%lld, %%t%lld\n    %%t%lld =w ceqw %%t%lld, 0\n    jnz %%t%lld, @lbl%lld, @lbl%lld\n", {lt, len_val, cap_val, need_grow, lt, need_grow, grow_lbl, no_grow_lbl})
+        @snprintf(buf_app3, 256, "    %%t{lld} =w csltl %%t{lld}, %%t{lld}\n    %%t{lld} =w ceqw %%t{lld}, 0\n    jnz %%t{lld}, @lbl{lld}, @lbl{lld}\n", {lt, len_val, cap_val, need_grow, lt, need_grow, grow_lbl, no_grow_lbl})
         emit(ctx, buf_app3)
         @free(buf_app3)
 
         val buf_app4: ref char = @alloc(64) as ref char
-        @snprintf(buf_app4, 64, "@lbl%lld\n", {grow_lbl})
+        @snprintf(buf_app4, 64, "@lbl{lld}\n", {grow_lbl})
         emit(ctx, buf_app4)
         @free(buf_app4)
 
         val new_cap_tmp: i64 = fresh_tmp(ctx)
         val new_cap: i64 = fresh_tmp(ctx)
         val buf_app5: ref char = @alloc(256) as ref char
-        @snprintf(buf_app5, 256, "    %%t%lld =l mul %%t%lld, 2\n    %%t%lld =l add %%t%lld, 1\n", {new_cap_tmp, cap_val, new_cap, new_cap_tmp})
+        @snprintf(buf_app5, 256, "    %%t{lld} =l mul %%t{lld}, 2\n    %%t{lld} =l add %%t{lld}, 1\n", {new_cap_tmp, cap_val, new_cap, new_cap_tmp})
         emit(ctx, buf_app5)
         @free(buf_app5)
 
@@ -4404,13 +4404,13 @@ fn gen_builtin(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
         val new_buf: i64 = fresh_tmp(ctx)
         val new_cap_bytes: i64 = fresh_tmp(ctx)
         val buf_app6: ref char = @alloc(512) as ref char
-        @snprintf(buf_app6, 512, "    %%t%lld =l loadl %s\n    %%t%lld =l mul %%t%lld, 8\n    %%t%lld =l call $realloc(l %%t%lld, l %%t%lld)\n    storel %%t%lld, %s\n    storel %%t%lld, %%t%lld\n    jmp @lbl%lld\n",
+        @snprintf(buf_app6, 512, "    %%t{lld} =l loadl {s}\n    %%t{lld} =l mul %%t{lld}, 8\n    %%t{lld} =l call $realloc(l %%t{lld}, l %%t{lld})\n    storel %%t{lld}, {s}\n    storel %%t{lld}, %%t{lld}\n    jmp @lbl{lld}\n",
             {old_buf, lst, new_cap_bytes, new_cap, new_buf, old_buf, new_cap_bytes, new_buf, lst, new_cap, cap_slot, no_grow_lbl})
         emit(ctx, buf_app6)
         @free(buf_app6)
 
         val buf_app7: ref char = @alloc(64) as ref char
-        @snprintf(buf_app7, 64, "@lbl%lld\n", {no_grow_lbl})
+        @snprintf(buf_app7, 64, "@lbl{lld}\n", {no_grow_lbl})
         emit(ctx, buf_app7)
         @free(buf_app7)
 
@@ -4418,7 +4418,7 @@ fn gen_builtin(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
         val off: i64 = fresh_tmp(ctx)
         val elem_ptr: i64 = fresh_tmp(ctx)
         val buf_app8a: ref char = @alloc(256) as ref char
-        @snprintf(buf_app8a, 256, "    %%t%lld =l loadl %s\n    %%t%lld =l mul %%t%lld, 8\n    %%t%lld =l add %%t%lld, %%t%lld\n",
+        @snprintf(buf_app8a, 256, "    %%t{lld} =l loadl {s}\n    %%t{lld} =l mul %%t{lld}, 8\n    %%t{lld} =l add %%t{lld}, %%t{lld}\n",
             {buf_tmp, lst, off, len_val, elem_ptr, buf_tmp, off})
         emit(ctx, buf_app8a)
         @free(buf_app8a)
@@ -4428,28 +4428,28 @@ fn gen_builtin(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
             val ext_buf: ref char = @alloc(64) as ref char
             val first_ch: i64 = @load8(@ptradd(val5 as ref void, 0)) as i64
             if ((first_ch >= 48 && first_ch <= 57) || first_ch == 45) {
-                @snprintf(ext_buf, 64, "    %%t%lld =l copy %s\n", {ext_tmp, val5})
+                @snprintf(ext_buf, 64, "    %%t{lld} =l copy {s}\n", {ext_tmp, val5})
             } else {
-                @snprintf(ext_buf, 64, "    %%t%lld =l extsw %s\n", {ext_tmp, val5})
+                @snprintf(ext_buf, 64, "    %%t{lld} =l extsw {s}\n", {ext_tmp, val5})
             }
             emit(ctx, ext_buf)
             @free(ext_buf)
             val sv: ref char = @alloc(16) as ref char
-            @snprintf(sv, 16, "%%t%lld", {ext_tmp})
+            @snprintf(sv, 16, "%%t{lld}", {ext_tmp})
             store_val = sv
         }
         val buf_app8b: ref char = @alloc(64) as ref char
-        @snprintf(buf_app8b, 64, "    storel %s, %%t%lld\n", {store_val, elem_ptr})
+        @snprintf(buf_app8b, 64, "    storel {s}, %%t{lld}\n", {store_val, elem_ptr})
         emit(ctx, buf_app8b)
         @free(buf_app8b)
 
         val new_len: i64 = fresh_tmp(ctx)
         val buf_app9: ref char = @alloc(256) as ref char
-        @snprintf(buf_app9, 256, "    %%t%lld =l add %%t%lld, 1\n    storel %%t%lld, %%t%lld\n", {new_len, len_val, new_len, len_slot})
+        @snprintf(buf_app9, 256, "    %%t{lld} =l add %%t{lld}, 1\n    storel %%t{lld}, %%t{lld}\n", {new_len, len_val, new_len, len_slot})
         emit(ctx, buf_app9)
         @free(buf_app9)
 
-        @snprintf(buf, 512, "    %%t%lld =l copy 0\n", {tmp})
+        @snprintf(buf, 512, "    %%t{lld} =l copy 0\n", {tmp})
         emit(ctx, buf)
     } elif str.rchar_cmp(name, "sizeof") == 0 {
         val arg_node_opt = @get(args, 0)
@@ -4519,13 +4519,13 @@ fn gen_builtin(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
                 sizeof_val = 0
             }
         }
-        @snprintf(buf, 512, "    %%t%lld =l copy %lld\n", {tmp, sizeof_val})
+        @snprintf(buf, 512, "    %%t{lld} =l copy {lld}\n", {tmp, sizeof_val})
         emit(ctx, buf)
     } elif str.rchar_cmp(name, "len") == 0 {
         val lst2: ref char = get_list_arg(ctx, args, 0)
         val len_slot: i64 = fresh_tmp(ctx)
         val len_val: i64 = fresh_tmp(ctx)
-        @snprintf(buf, 512, "    %%t%lld =l add %s, 8\n    %%t%lld =l loadl %%t%lld\n", {len_slot, lst2, len_val, len_slot})
+        @snprintf(buf, 512, "    %%t{lld} =l add {s}, 8\n    %%t{lld} =l loadl %%t{lld}\n", {len_slot, lst2, len_val, len_slot})
         emit(ctx, buf)
         tmp = len_val
     } elif str.rchar_cmp(name, "get") == 0 {
@@ -4535,7 +4535,7 @@ fn gen_builtin(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
         val len_slot: i64 = fresh_tmp(ctx)
         val len_val: i64 = fresh_tmp(ctx)
         val buf_get1: ref char = @alloc(256) as ref char
-        @snprintf(buf_get1, 256, "    %%t%lld =l add %s, 8\n    %%t%lld =l loadl %%t%lld\n", {len_slot, lst3, len_val, len_slot})
+        @snprintf(buf_get1, 256, "    %%t{lld} =l add {s}, 8\n    %%t{lld} =l loadl %%t{lld}\n", {len_slot, lst3, len_val, len_slot})
         emit(ctx, buf_get1)
         @free(buf_get1)
 
@@ -4546,13 +4546,13 @@ fn gen_builtin(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
         val result_slot: i64 = fresh_tmp(ctx)
 
         val buf_get2: ref char = @alloc(256) as ref char
-        @snprintf(buf_get2, 256, "    %%t%lld =l alloc8 8\n    %%t%lld =w csltl %s, %%t%lld\n    jnz %%t%lld, @lbl%lld, @lbl%lld\n",
+        @snprintf(buf_get2, 256, "    %%t{lld} =l alloc8 8\n    %%t{lld} =w csltl {s}, %%t{lld}\n    jnz %%t{lld}, @lbl{lld}, @lbl{lld}\n",
             {result_slot, in_bounds, idx, len_val, in_bounds, some_lbl, none_lbl})
         emit(ctx, buf_get2)
         @free(buf_get2)
 
         val buf_get3: ref char = @alloc(64) as ref char
-        @snprintf(buf_get3, 64, "@lbl%lld\n", {some_lbl})
+        @snprintf(buf_get3, 64, "@lbl{lld}\n", {some_lbl})
         emit(ctx, buf_get3)
         @free(buf_get3)
 
@@ -4563,18 +4563,18 @@ fn gen_builtin(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
         val some_val: i64 = fresh_tmp(ctx)
 
         val buf_get4: ref char = @alloc(512) as ref char
-        @snprintf(buf_get4, 512, "    %%t%lld =l loadl %s\n    %%t%lld =l mul %s, 8\n    %%t%lld =l add %%t%lld, %%t%lld\n    %%t%lld =l loadl %%t%lld\n    %%t%lld =l add %%t%lld, 1\n    storel %%t%lld, %%t%lld\n    jmp @lbl%lld\n",
+        @snprintf(buf_get4, 512, "    %%t{lld} =l loadl {s}\n    %%t{lld} =l mul {s}, 8\n    %%t{lld} =l add %%t{lld}, %%t{lld}\n    %%t{lld} =l loadl %%t{lld}\n    %%t{lld} =l add %%t{lld}, 1\n    storel %%t{lld}, %%t{lld}\n    jmp @lbl{lld}\n",
             {buf_get_tmp, lst3, off, idx, elem_ptr, buf_get_tmp, off, elem_val, elem_ptr, some_val, elem_val, some_val, result_slot, end_lbl})
         emit(ctx, buf_get4)
         @free(buf_get4)
 
         val buf_get5: ref char = @alloc(128) as ref char
-        @snprintf(buf_get5, 128, "@lbl%lld\n    storel 0, %%t%lld\n    jmp @lbl%lld\n", {none_lbl, result_slot, end_lbl})
+        @snprintf(buf_get5, 128, "@lbl{lld}\n    storel 0, %%t{lld}\n    jmp @lbl{lld}\n", {none_lbl, result_slot, end_lbl})
         emit(ctx, buf_get5)
         @free(buf_get5)
 
         val buf_get6: ref char = @alloc(128) as ref char
-        @snprintf(buf_get6, 128, "@lbl%lld\n    %%t%lld =l loadl %%t%lld\n", {end_lbl, tmp, result_slot})
+        @snprintf(buf_get6, 128, "@lbl{lld}\n    %%t{lld} =l loadl %%t{lld}\n", {end_lbl, tmp, result_slot})
         emit(ctx, buf_get6)
         @free(buf_get6)
     } elif str.rchar_cmp(name, "remove") == 0 {
@@ -4584,7 +4584,7 @@ fn gen_builtin(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
         val len_slot: i64 = fresh_tmp(ctx)
         val len_val: i64 = fresh_tmp(ctx)
         val buf_rem1: ref char = @alloc(256) as ref char
-        @snprintf(buf_rem1, 256, "    %%t%lld =l add %s, 8\n    %%t%lld =l loadl %%t%lld\n", {len_slot, lst4, len_val, len_slot})
+        @snprintf(buf_rem1, 256, "    %%t{lld} =l add {s}, 8\n    %%t{lld} =l loadl %%t{lld}\n", {len_slot, lst4, len_val, len_slot})
         emit(ctx, buf_rem1)
         @free(buf_rem1)
 
@@ -4593,7 +4593,7 @@ fn gen_builtin(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
         val elem_ptr: i64 = fresh_tmp(ctx)
         val elem_val: i64 = fresh_tmp(ctx)
         val buf_rem2: ref char = @alloc(512) as ref char
-        @snprintf(buf_rem2, 512, "    %%t%lld =l loadl %s\n    %%t%lld =l mul %s, 8\n    %%t%lld =l add %%t%lld, %%t%lld\n    %%t%lld =l loadl %%t%lld\n",
+        @snprintf(buf_rem2, 512, "    %%t{lld} =l loadl {s}\n    %%t{lld} =l mul {s}, 8\n    %%t{lld} =l add %%t{lld}, %%t{lld}\n    %%t{lld} =l loadl %%t{lld}\n",
             {buf_tmp, lst4, off, idx2, elem_ptr, buf_tmp, off, elem_val, elem_ptr})
         emit(ctx, buf_rem2)
         @free(buf_rem2)
@@ -4604,25 +4604,25 @@ fn gen_builtin(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
         val shift_idx: i64 = fresh_tmp(ctx)
 
         val buf_rem3: ref char = @alloc(256) as ref char
-        @snprintf(buf_rem3, 256, "    %%t%lld =l copy %s\n    jmp @lbl%lld\n", {shift_idx, idx2, shift_loop})
+        @snprintf(buf_rem3, 256, "    %%t{lld} =l copy {s}\n    jmp @lbl{lld}\n", {shift_idx, idx2, shift_loop})
         emit(ctx, buf_rem3)
         @free(buf_rem3)
 
         val buf_rem4: ref char = @alloc(64) as ref char
-        @snprintf(buf_rem4, 64, "@lbl%lld\n", {shift_loop})
+        @snprintf(buf_rem4, 64, "@lbl{lld}\n", {shift_loop})
         emit(ctx, buf_rem4)
         @free(buf_rem4)
 
         val one_past_end: i64 = fresh_tmp(ctx)
         val should_shift: i64 = fresh_tmp(ctx)
         val buf_rem5: ref char = @alloc(256) as ref char
-        @snprintf(buf_rem5, 256, "    %%t%lld =l sub %%t%lld, 1\n    %%t%lld =w csltl %%t%lld, %%t%lld\n    jnz %%t%lld, @lbl%lld, @lbl%lld\n",
+        @snprintf(buf_rem5, 256, "    %%t{lld} =l sub %%t{lld}, 1\n    %%t{lld} =w csltl %%t{lld}, %%t{lld}\n    jnz %%t{lld}, @lbl{lld}, @lbl{lld}\n",
             {one_past_end, len_val, should_shift, shift_idx, one_past_end, should_shift, shift_body, shift_end})
         emit(ctx, buf_rem5)
         @free(buf_rem5)
 
         val buf_rem6: ref char = @alloc(64) as ref char
-        @snprintf(buf_rem6, 64, "@lbl%lld\n", {shift_body})
+        @snprintf(buf_rem6, 64, "@lbl{lld}\n", {shift_body})
         emit(ctx, buf_rem6)
         @free(buf_rem6)
 
@@ -4634,26 +4634,26 @@ fn gen_builtin(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
         val dst_ptr: i64 = fresh_tmp(ctx)
         val src_val: i64 = fresh_tmp(ctx)
         val buf_rem7: ref char = @alloc(512) as ref char
-        @snprintf(buf_rem7, 512, "    %%t%lld =l add %%t%lld, 1\n    %%t%lld =l mul %%t%lld, 8\n    %%t%lld =l mul %%t%lld, 8\n    %%t%lld =l loadl %s\n    %%t%lld =l add %%t%lld, %%t%lld\n    %%t%lld =l add %%t%lld, %%t%lld\n    %%t%lld =l loadl %%t%lld\n    storel %%t%lld, %%t%lld\n",
+        @snprintf(buf_rem7, 512, "    %%t{lld} =l add %%t{lld}, 1\n    %%t{lld} =l mul %%t{lld}, 8\n    %%t{lld} =l mul %%t{lld}, 8\n    %%t{lld} =l loadl {s}\n    %%t{lld} =l add %%t{lld}, %%t{lld}\n    %%t{lld} =l add %%t{lld}, %%t{lld}\n    %%t{lld} =l loadl %%t{lld}\n    storel %%t{lld}, %%t{lld}\n",
             {src_off_tmp, shift_idx, src_off, src_off_tmp, dst_off, shift_idx, buf_tmp2, lst4, src_ptr, buf_tmp2, src_off, dst_ptr, buf_tmp2, dst_off, src_val, src_ptr, src_val, dst_ptr})
         emit(ctx, buf_rem7)
         @free(buf_rem7)
 
         val shift_idx_new: i64 = fresh_tmp(ctx)
         val buf_rem8: ref char = @alloc(256) as ref char
-        @snprintf(buf_rem8, 256, "    %%t%lld =l add %%t%lld, 1\n    %%t%lld =l copy %%t%lld\n    jmp @lbl%lld\n",
+        @snprintf(buf_rem8, 256, "    %%t{lld} =l add %%t{lld}, 1\n    %%t{lld} =l copy %%t{lld}\n    jmp @lbl{lld}\n",
             {shift_idx_new, shift_idx, shift_idx, shift_idx_new, shift_loop})
         emit(ctx, buf_rem8)
         @free(buf_rem8)
 
         val buf_rem9: ref char = @alloc(64) as ref char
-        @snprintf(buf_rem9, 64, "@lbl%lld\n", {shift_end})
+        @snprintf(buf_rem9, 64, "@lbl{lld}\n", {shift_end})
         emit(ctx, buf_rem9)
         @free(buf_rem9)
 
         val new_len: i64 = fresh_tmp(ctx)
         val buf_rem10: ref char = @alloc(256) as ref char
-        @snprintf(buf_rem10, 256, "    %%t%lld =l sub %%t%lld, 1\n    storel %%t%lld, %%t%lld\n", {new_len, len_val, new_len, len_slot})
+        @snprintf(buf_rem10, 256, "    %%t{lld} =l sub %%t{lld}, 1\n    storel %%t{lld}, %%t{lld}\n", {new_len, len_val, new_len, len_slot})
         emit(ctx, buf_rem10)
         @free(buf_rem10)
 
@@ -4668,7 +4668,7 @@ fn gen_builtin(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
         val len_val: i64 = fresh_tmp(ctx)
         val cap_val: i64 = fresh_tmp(ctx)
         val buf_ins1: ref char = @alloc(512) as ref char
-        @snprintf(buf_ins1, 512, "    %%t%lld =l add %s, 8\n    %%t%lld =l add %s, 16\n    %%t%lld =l loadl %%t%lld\n    %%t%lld =l loadl %%t%lld\n",
+        @snprintf(buf_ins1, 512, "    %%t{lld} =l add {s}, 8\n    %%t{lld} =l add {s}, 16\n    %%t{lld} =l loadl %%t{lld}\n    %%t{lld} =l loadl %%t{lld}\n",
             {len_slot, lst_ins, cap_slot, lst_ins, len_val, len_slot, cap_val, cap_slot})
         emit(ctx, buf_ins1)
         @free(buf_ins1)
@@ -4678,19 +4678,19 @@ fn gen_builtin(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
         val no_grow_lbl: i64 = fresh_lbl(ctx)
         val lt: i64 = fresh_tmp(ctx)
         val buf_ins2: ref char = @alloc(256) as ref char
-        @snprintf(buf_ins2, 256, "    %%t%lld =w csltl %%t%lld, %%t%lld\n    %%t%lld =w ceqw %%t%lld, 0\n    jnz %%t%lld, @lbl%lld, @lbl%lld\n", {lt, len_val, cap_val, need_grow, lt, need_grow, grow_lbl, no_grow_lbl})
+        @snprintf(buf_ins2, 256, "    %%t{lld} =w csltl %%t{lld}, %%t{lld}\n    %%t{lld} =w ceqw %%t{lld}, 0\n    jnz %%t{lld}, @lbl{lld}, @lbl{lld}\n", {lt, len_val, cap_val, need_grow, lt, need_grow, grow_lbl, no_grow_lbl})
         emit(ctx, buf_ins2)
         @free(buf_ins2)
 
         val buf_ins3: ref char = @alloc(64) as ref char
-        @snprintf(buf_ins3, 64, "@lbl%lld\n", {grow_lbl})
+        @snprintf(buf_ins3, 64, "@lbl{lld}\n", {grow_lbl})
         emit(ctx, buf_ins3)
         @free(buf_ins3)
 
         val new_cap: i64 = fresh_tmp(ctx)
         val new_cap2: i64 = fresh_tmp(ctx)
         val buf_ins4: ref char = @alloc(256) as ref char
-        @snprintf(buf_ins4, 256, "    %%t%lld =l mul %%t%lld, 2\n    %%t%lld =l add %%t%lld, 1\n", {new_cap, cap_val, new_cap2, new_cap})
+        @snprintf(buf_ins4, 256, "    %%t{lld} =l mul %%t{lld}, 2\n    %%t{lld} =l add %%t{lld}, 1\n", {new_cap, cap_val, new_cap2, new_cap})
         emit(ctx, buf_ins4)
         @free(buf_ins4)
 
@@ -4698,13 +4698,13 @@ fn gen_builtin(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
         val new_buf: i64 = fresh_tmp(ctx)
         val new_cap2_bytes: i64 = fresh_tmp(ctx)
         val buf_ins5: ref char = @alloc(512) as ref char
-        @snprintf(buf_ins5, 512, "    %%t%lld =l loadl %s\n    %%t%lld =l mul %%t%lld, 8\n    %%t%lld =l call $realloc(l %%t%lld, l %%t%lld)\n    storel %%t%lld, %s\n    storel %%t%lld, %%t%lld\n    jmp @lbl%lld\n",
+        @snprintf(buf_ins5, 512, "    %%t{lld} =l loadl {s}\n    %%t{lld} =l mul %%t{lld}, 8\n    %%t{lld} =l call $realloc(l %%t{lld}, l %%t{lld})\n    storel %%t{lld}, {s}\n    storel %%t{lld}, %%t{lld}\n    jmp @lbl{lld}\n",
             {old_buf, lst_ins, new_cap2_bytes, new_cap2, new_buf, old_buf, new_cap2_bytes, new_buf, lst_ins, new_cap2, cap_slot, no_grow_lbl})
         emit(ctx, buf_ins5)
         @free(buf_ins5)
 
         val buf_ins6: ref char = @alloc(64) as ref char
-        @snprintf(buf_ins6, 64, "@lbl%lld\n", {no_grow_lbl})
+        @snprintf(buf_ins6, 64, "@lbl{lld}\n", {no_grow_lbl})
         emit(ctx, buf_ins6)
         @free(buf_ins6)
 
@@ -4714,24 +4714,24 @@ fn gen_builtin(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
         val shift_idx: i64 = fresh_tmp(ctx)
 
         val buf_ins7: ref char = @alloc(256) as ref char
-        @snprintf(buf_ins7, 256, "    %%t%lld =l sub %%t%lld, 1\n    jmp @lbl%lld\n", {shift_idx, len_val, shift_loop})
+        @snprintf(buf_ins7, 256, "    %%t{lld} =l sub %%t{lld}, 1\n    jmp @lbl{lld}\n", {shift_idx, len_val, shift_loop})
         emit(ctx, buf_ins7)
         @free(buf_ins7)
 
         val buf_ins8: ref char = @alloc(64) as ref char
-        @snprintf(buf_ins8, 64, "@lbl%lld\n", {shift_loop})
+        @snprintf(buf_ins8, 64, "@lbl{lld}\n", {shift_loop})
         emit(ctx, buf_ins8)
         @free(buf_ins8)
 
         val should_shift: i64 = fresh_tmp(ctx)
         val buf_ins9: ref char = @alloc(256) as ref char
-        @snprintf(buf_ins9, 256, "    %%t%lld =w cslel %s, %%t%lld\n    jnz %%t%lld, @lbl%lld, @lbl%lld\n",
+        @snprintf(buf_ins9, 256, "    %%t{lld} =w cslel {s}, %%t{lld}\n    jnz %%t{lld}, @lbl{lld}, @lbl{lld}\n",
             {should_shift, idx_ins, shift_idx, should_shift, shift_body, shift_end})
         emit(ctx, buf_ins9)
         @free(buf_ins9)
 
         val buf_ins10: ref char = @alloc(64) as ref char
-        @snprintf(buf_ins10, 64, "@lbl%lld\n", {shift_body})
+        @snprintf(buf_ins10, 64, "@lbl{lld}\n", {shift_body})
         emit(ctx, buf_ins10)
         @free(buf_ins10)
 
@@ -4743,20 +4743,20 @@ fn gen_builtin(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
         val src_val: i64 = fresh_tmp(ctx)
         val buf2: i64 = fresh_tmp(ctx)
         val buf_ins11: ref char = @alloc(512) as ref char
-        @snprintf(buf_ins11, 512, "    %%t%lld =l mul %%t%lld, 8\n    %%t%lld =l add %%t%lld, 1\n    %%t%lld =l mul %%t%lld, 8\n    %%t%lld =l loadl %s\n    %%t%lld =l add %%t%lld, %%t%lld\n    %%t%lld =l add %%t%lld, %%t%lld\n    %%t%lld =l loadl %%t%lld\n    storel %%t%lld, %%t%lld\n",
+        @snprintf(buf_ins11, 512, "    %%t{lld} =l mul %%t{lld}, 8\n    %%t{lld} =l add %%t{lld}, 1\n    %%t{lld} =l mul %%t{lld}, 8\n    %%t{lld} =l loadl {s}\n    %%t{lld} =l add %%t{lld}, %%t{lld}\n    %%t{lld} =l add %%t{lld}, %%t{lld}\n    %%t{lld} =l loadl %%t{lld}\n    storel %%t{lld}, %%t{lld}\n",
             {src_off, shift_idx, dst_off_tmp, shift_idx, dst_off, dst_off_tmp, buf2, lst_ins, src_ptr, buf2, src_off, dst_ptr, buf2, dst_off, src_val, src_ptr, src_val, dst_ptr})
         emit(ctx, buf_ins11)
         @free(buf_ins11)
 
         val shift_idx_new: i64 = fresh_tmp(ctx)
         val buf_ins12: ref char = @alloc(256) as ref char
-        @snprintf(buf_ins12, 256, "    %%t%lld =l sub %%t%lld, 1\n    %%t%lld =l copy %%t%lld\n    jmp @lbl%lld\n",
+        @snprintf(buf_ins12, 256, "    %%t{lld} =l sub %%t{lld}, 1\n    %%t{lld} =l copy %%t{lld}\n    jmp @lbl{lld}\n",
             {shift_idx_new, shift_idx, shift_idx, shift_idx_new, shift_loop})
         emit(ctx, buf_ins12)
         @free(buf_ins12)
 
         val buf_ins13: ref char = @alloc(64) as ref char
-        @snprintf(buf_ins13, 64, "@lbl%lld\n", {shift_end})
+        @snprintf(buf_ins13, 64, "@lbl{lld}\n", {shift_end})
         emit(ctx, buf_ins13)
         @free(buf_ins13)
 
@@ -4764,18 +4764,18 @@ fn gen_builtin(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
         val elem_off: i64 = fresh_tmp(ctx)
         val elem_ptr: i64 = fresh_tmp(ctx)
         val buf_ins14: ref char = @alloc(512) as ref char
-        @snprintf(buf_ins14, 512, "    %%t%lld =l loadl %s\n    %%t%lld =l mul %s, 8\n    %%t%lld =l add %%t%lld, %%t%lld\n    storel %s, %%t%lld\n",
+        @snprintf(buf_ins14, 512, "    %%t{lld} =l loadl {s}\n    %%t{lld} =l mul {s}, 8\n    %%t{lld} =l add %%t{lld}, %%t{lld}\n    storel {s}, %%t{lld}\n",
             {buf3, lst_ins, elem_off, idx_ins, elem_ptr, buf3, elem_off, val_ins, elem_ptr})
         emit(ctx, buf_ins14)
         @free(buf_ins14)
 
         val new_len: i64 = fresh_tmp(ctx)
         val buf_ins15: ref char = @alloc(256) as ref char
-        @snprintf(buf_ins15, 256, "    %%t%lld =l add %%t%lld, 1\n    storel %%t%lld, %%t%lld\n", {new_len, len_val, new_len, len_slot})
+        @snprintf(buf_ins15, 256, "    %%t{lld} =l add %%t{lld}, 1\n    storel %%t{lld}, %%t{lld}\n", {new_len, len_val, new_len, len_slot})
         emit(ctx, buf_ins15)
         @free(buf_ins15)
 
-        @snprintf(buf, 512, "    %%t%lld =l copy 0\n", {tmp})
+        @snprintf(buf, 512, "    %%t{lld} =l copy 0\n", {tmp})
         emit(ctx, buf)
     } elif str.rchar_cmp(name, "reserve") == 0 {
         val lst5: ref char = get_list_arg(ctx, args, 0)
@@ -4784,7 +4784,7 @@ fn gen_builtin(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
         val cap_slot: i64 = fresh_tmp(ctx)
         val cur_cap: i64 = fresh_tmp(ctx)
         val buf_res1: ref char = @alloc(256) as ref char
-        @snprintf(buf_res1, 256, "    %%t%lld =l add %s, 16\n    %%t%lld =l loadl %%t%lld\n", {cap_slot, lst5, cur_cap, cap_slot})
+        @snprintf(buf_res1, 256, "    %%t{lld} =l add {s}, 16\n    %%t{lld} =l loadl %%t{lld}\n", {cap_slot, lst5, cur_cap, cap_slot})
         emit(ctx, buf_res1)
         @free(buf_res1)
 
@@ -4792,13 +4792,13 @@ fn gen_builtin(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
         val grow_lbl: i64 = fresh_lbl(ctx)
         val end_lbl: i64 = fresh_lbl(ctx)
         val buf_res2: ref char = @alloc(256) as ref char
-        @snprintf(buf_res2, 256, "    %%t%lld =w csgtl %s, %%t%lld\n    jnz %%t%lld, @lbl%lld, @lbl%lld\n",
+        @snprintf(buf_res2, 256, "    %%t{lld} =w csgtl {s}, %%t{lld}\n    jnz %%t{lld}, @lbl{lld}, @lbl{lld}\n",
             {need_grow, cap, cur_cap, need_grow, grow_lbl, end_lbl})
         emit(ctx, buf_res2)
         @free(buf_res2)
 
         val buf_res3: ref char = @alloc(64) as ref char
-        @snprintf(buf_res3, 64, "@lbl%lld\n", {grow_lbl})
+        @snprintf(buf_res3, 64, "@lbl{lld}\n", {grow_lbl})
         emit(ctx, buf_res3)
         @free(buf_res3)
 
@@ -4806,23 +4806,23 @@ fn gen_builtin(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
         val new_buf: i64 = fresh_tmp(ctx)
         val new_bytes: i64 = fresh_tmp(ctx)
         val buf_res4: ref char = @alloc(512) as ref char
-        @snprintf(buf_res4, 512, "    %%t%lld =l loadl %s\n    %%t%lld =l mul %s, 8\n    %%t%lld =l call $realloc(l %%t%lld, l %%t%lld)\n    storel %%t%lld, %s\n    storel %s, %%t%lld\n",
+        @snprintf(buf_res4, 512, "    %%t{lld} =l loadl {s}\n    %%t{lld} =l mul {s}, 8\n    %%t{lld} =l call $realloc(l %%t{lld}, l %%t{lld})\n    storel %%t{lld}, {s}\n    storel {s}, %%t{lld}\n",
             {old_buf, lst5, new_bytes, cap, new_buf, old_buf, new_bytes, new_buf, lst5, cap, cap_slot})
         emit(ctx, buf_res4)
         @free(buf_res4)
 
         val buf_res5: ref char = @alloc(64) as ref char
-        @snprintf(buf_res5, 64, "@lbl%lld\n", {end_lbl})
+        @snprintf(buf_res5, 64, "@lbl{lld}\n", {end_lbl})
         emit(ctx, buf_res5)
         @free(buf_res5)
 
-        @snprintf(buf, 512, "    %%t%lld =l copy 0\n", {tmp})
+        @snprintf(buf, 512, "    %%t{lld} =l copy 0\n", {tmp})
         emit(ctx, buf)
     } elif str.rchar_cmp(name, "capacity") == 0 {
         val lst6: ref char = get_list_arg(ctx, args, 0)
         val cap_slot: i64 = fresh_tmp(ctx)
         val cap_val: i64 = fresh_tmp(ctx)
-        @snprintf(buf, 512, "    %%t%lld =l add %s, 16\n    %%t%lld =l loadl %%t%lld\n", {cap_slot, lst6, cap_val, cap_slot})
+        @snprintf(buf, 512, "    %%t{lld} =l add {s}, 16\n    %%t{lld} =l loadl %%t{lld}\n", {cap_slot, lst6, cap_val, cap_slot})
         emit(ctx, buf)
         tmp = cap_val
     } elif str.rchar_cmp(name, "fmt") == 0 {
@@ -4837,7 +4837,7 @@ fn gen_builtin(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
         val fmt_call_pos: mut i64 = 0
         val fmt_hdr: ref char = @alloc(256) as ref char
 
-        @snprintf(fmt_hdr, 256, "    %%t%lld =l call $malloc(l 4096)\n", {fmt_buf})
+        @snprintf(fmt_hdr, 256, "    %%t{lld} =l call $malloc(l 4096)\n", {fmt_buf})
         val fmt_hdr_len: mut i64 = str.len_raw(fmt_hdr)
         @memcpy(@ptradd(fmt_call_buf as ref void, fmt_call_pos), fmt_hdr as ref void, fmt_hdr_len)
         fmt_call_pos = fmt_call_pos + fmt_hdr_len
@@ -4846,7 +4846,7 @@ fn gen_builtin(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
         fmt_call_pos = 0
 
         val snp_hdr: ref char = @alloc(256) as ref char
-        @snprintf(snp_hdr, 256, "    %%t%lld =w call $snprintf(l %%t%lld, l 4096, l %s", {fmt_written_w, fmt_buf, fmt2})
+        @snprintf(snp_hdr, 256, "    %%t{lld} =w call $snprintf(l %%t{lld}, l 4096, l {s}", {fmt_written_w, fmt_buf, fmt2})
         val snp_hdr_len: mut i64 = str.len_raw(snp_hdr)
         @memcpy(@ptradd(fmt_call_buf as ref void, fmt_call_pos), snp_hdr as ref void, snp_hdr_len)
         fmt_call_pos = fmt_call_pos + snp_hdr_len
@@ -4880,9 +4880,9 @@ fn gen_builtin(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
                                             val fpv: ref char = gen_expr(ctx, fpe_node)
                                             val fpbuf: ref char = @alloc(64) as ref char
                                             if fpi == 0 {
-                                                @snprintf(fpbuf, 64, " %s %s", {fpqt, fpv})
+                                                @snprintf(fpbuf, 64, " {s} {s}", {fpqt, fpv})
                                             } else {
-                                                @snprintf(fpbuf, 64, ", %s %s", {fpqt, fpv})
+                                                @snprintf(fpbuf, 64, ", {s} {s}", {fpqt, fpv})
                                             }
                                             val fpbuf_len: mut i64 = str.len_raw(fpbuf)
                                             @memcpy(@ptradd(fmt_call_buf as ref void, fmt_call_pos), fpbuf as ref void, fpbuf_len)
@@ -4908,7 +4908,7 @@ fn gen_builtin(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
         emit(ctx, fmt_call_buf)
         // extsw, malloc copy, memcpy, nul-terminate, free buf
         val tail_buf: ref char = @alloc(512) as ref char
-        @snprintf(tail_buf, 512, "    %%t%lld =l extsw %%t%lld\n    %%t%lld =l add %%t%lld, 1\n    %%t%lld =l call $malloc(l %%t%lld)\n    call $memcpy(l %%t%lld, l %%t%lld, l %%t%lld)\n    %%t%lld =l add %%t%lld, %%t%lld\n    storeb 0, %%t%lld\n    call $free(l %%t%lld)\n",
+        @snprintf(tail_buf, 512, "    %%t{lld} =l extsw %%t{lld}\n    %%t{lld} =l add %%t{lld}, 1\n    %%t{lld} =l call $malloc(l %%t{lld})\n    call $memcpy(l %%t{lld}, l %%t{lld}, l %%t{lld})\n    %%t{lld} =l add %%t{lld}, %%t{lld}\n    storeb 0, %%t{lld}\n    call $free(l %%t{lld})\n",
             {fmt_written, fmt_written_w,
              fmt_copy_size, fmt_written,
              fmt_copy, fmt_copy_size,
@@ -4918,25 +4918,25 @@ fn gen_builtin(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
              fmt_buf})
         emit(ctx, tail_buf)
         @free(tail_buf)
-        @snprintf(buf, 512, "    %%t%lld =l copy %%t%lld\n", {tmp, fmt_copy})
+        @snprintf(buf, 512, "    %%t{lld} =l copy %%t{lld}\n", {tmp, fmt_copy})
         emit(ctx, buf)
     } elif str.rchar_cmp(name, "args") == 0 {
-        @snprintf(buf, 512, "    %%t%lld =l call $__sx_get_args()\n", {tmp})
+        @snprintf(buf, 512, "    %%t{lld} =l call $__sx_get_args()\n", {tmp})
         emit(ctx, buf)
     } elif str.rchar_cmp(name, "stdin") == 0 {
-        @snprintf(buf, 512, "    %%t%lld =l call $sx_stdin()\n", {tmp})
+        @snprintf(buf, 512, "    %%t{lld} =l call $sx_stdin()\n", {tmp})
         emit(ctx, buf)
     } elif str.rchar_cmp(name, "stdout") == 0 {
-        @snprintf(buf, 512, "    %%t%lld =l call $sx_stdout()\n", {tmp})
+        @snprintf(buf, 512, "    %%t{lld} =l call $sx_stdout()\n", {tmp})
         emit(ctx, buf)
     } elif str.rchar_cmp(name, "stderr") == 0 {
-        @snprintf(buf, 512, "    %%t%lld =l call $sx_stderr()\n", {tmp})
+        @snprintf(buf, 512, "    %%t{lld} =l call $sx_stderr()\n", {tmp})
         emit(ctx, buf)
     } elif str.rchar_cmp(name, "call") == 0 {
         val fn_ptr: ref char = get_arg(ctx, args, 0)
         val call_sb2: ref void = str.StringBuilder.new()
         val hdr3_buf: ref char = @alloc(512) as ref char
-        @snprintf(hdr3_buf, 512, "    %%t%lld =l call %s(", {tmp, fn_ptr})
+        @snprintf(hdr3_buf, 512, "    %%t{lld} =l call {s}(", {tmp, fn_ptr})
         str.StringBuilder.append_cstr(call_sb2, hdr3_buf)
         @free(hdr3_buf)
         if args != 0 as ref void {
@@ -4953,7 +4953,7 @@ fn gen_builtin(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
                         if !first3 { str.StringBuilder.append_cstr(call_sb2, ", ") }
                         val qtype3: ref char = expr_qtype(ctx, a3_node)
                         val tbuf4: ref char = @alloc(64) as ref char
-                        @snprintf(tbuf4, 64, "%s %s", {qtype3, at3})
+                        @snprintf(tbuf4, 64, "{s} {s}", {qtype3, at3})
                         str.StringBuilder.append_cstr(call_sb2, tbuf4)
                         @free(tbuf4)
                         first3 = false
@@ -4970,7 +4970,7 @@ fn gen_builtin(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
     } else {
         val call_sb: ref void = str.StringBuilder.new()
         val hdr2_buf: ref char = @alloc(512) as ref char
-        @snprintf(hdr2_buf, 512, "    %%t%lld =l call $%s(", {tmp, name})
+        @snprintf(hdr2_buf, 512, "    %%t{lld} =l call ${s}(", {tmp, name})
         str.StringBuilder.append_cstr(call_sb, hdr2_buf)
         @free(hdr2_buf)
         if args != 0 as ref void {
@@ -5033,7 +5033,7 @@ fn gen_builtin(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
                             none => {}
                         }
                         val tbuf3: ref char = @alloc(64) as ref char
-                        @snprintf(tbuf3, 64, "%s %s", {qtype, t3 as ref char})
+                        @snprintf(tbuf3, 64, "{s} {s}", {qtype, t3 as ref char})
                         str.StringBuilder.append_cstr(call_sb, tbuf3)
                         @free(tbuf3)
                     }
@@ -5050,7 +5050,7 @@ fn gen_builtin(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
 
     @free(buf)
     val res: ref char = @alloc(16) as ref char
-    @snprintf(res, 16, "%%t%lld", {tmp})
+    @snprintf(res, 16, "%%t{lld}", {tmp})
     return res
 }
 
@@ -5065,39 +5065,39 @@ fn gen_list_lit(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
     val hdr_ptr: i64 = fresh_tmp(ctx)
     val buf_ptr: i64 = fresh_tmp(ctx)
     val buf1: ref char = @alloc(128) as ref char
-    @snprintf(buf1, 128, "    %%t%lld =l call $malloc(l 24)\n", {hdr_ptr})
+    @snprintf(buf1, 128, "    %%t{lld} =l call $malloc(l 24)\n", {hdr_ptr})
     emit(ctx, buf1)
     @free(buf1)
 
     val buf2: ref char = @alloc(128) as ref char
-    @snprintf(buf2, 128, "    %%t%lld =l call $malloc(l %lld)\n", {buf_ptr, cap * 8})
+    @snprintf(buf2, 128, "    %%t{lld} =l call $malloc(l {lld})\n", {buf_ptr, cap * 8})
     emit(ctx, buf2)
     @free(buf2)
 
     val buf3: ref char = @alloc(128) as ref char
-    @snprintf(buf3, 128, "    storel %%t%lld, %%t%lld\n", {buf_ptr, hdr_ptr})
+    @snprintf(buf3, 128, "    storel %%t{lld}, %%t{lld}\n", {buf_ptr, hdr_ptr})
     emit(ctx, buf3)
     @free(buf3)
 
     val len_slot: i64 = fresh_tmp(ctx)
     val cap_slot: i64 = fresh_tmp(ctx)
     val buf4: ref char = @alloc(128) as ref char
-    @snprintf(buf4, 128, "    %%t%lld =l add %%t%lld, 8\n", {len_slot, hdr_ptr})
+    @snprintf(buf4, 128, "    %%t{lld} =l add %%t{lld}, 8\n", {len_slot, hdr_ptr})
     emit(ctx, buf4)
     @free(buf4)
 
     val buf5: ref char = @alloc(128) as ref char
-    @snprintf(buf5, 128, "    %%t%lld =l add %%t%lld, 16\n", {cap_slot, hdr_ptr})
+    @snprintf(buf5, 128, "    %%t{lld} =l add %%t{lld}, 16\n", {cap_slot, hdr_ptr})
     emit(ctx, buf5)
     @free(buf5)
 
     val buf6: ref char = @alloc(128) as ref char
-    @snprintf(buf6, 128, "    storel %lld, %%t%lld\n", {elen, len_slot})
+    @snprintf(buf6, 128, "    storel {lld}, %%t{lld}\n", {elen, len_slot})
     emit(ctx, buf6)
     @free(buf6)
 
     val buf7: ref char = @alloc(128) as ref char
-    @snprintf(buf7, 128, "    storel %lld, %%t%lld\n", {cap, cap_slot})
+    @snprintf(buf7, 128, "    storel {lld}, %%t{lld}\n", {cap, cap_slot})
     emit(ctx, buf7)
     @free(buf7)
 
@@ -5113,17 +5113,17 @@ fn gen_list_lit(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
                     val elem_ptr: i64 = fresh_tmp(ctx)
 
                     val buf8: ref char = @alloc(128) as ref char
-                    @snprintf(buf8, 128, "    %%t%lld =l mul %lld, 8\n", {off, ei})
+                    @snprintf(buf8, 128, "    %%t{lld} =l mul {lld}, 8\n", {off, ei})
                     emit(ctx, buf8)
                     @free(buf8)
 
                     val buf9: ref char = @alloc(128) as ref char
-                    @snprintf(buf9, 128, "    %%t%lld =l add %%t%lld, %%t%lld\n", {elem_ptr, buf_ptr, off})
+                    @snprintf(buf9, 128, "    %%t{lld} =l add %%t{lld}, %%t{lld}\n", {elem_ptr, buf_ptr, off})
                     emit(ctx, buf9)
                     @free(buf9)
 
                     val buf10: ref char = @alloc(128) as ref char
-                    @snprintf(buf10, 128, "    storel %s, %%t%lld\n", {val_tmp, elem_ptr})
+                    @snprintf(buf10, 128, "    storel {s}, %%t{lld}\n", {val_tmp, elem_ptr})
                     emit(ctx, buf10)
                     @free(buf10)
                 }
@@ -5134,7 +5134,7 @@ fn gen_list_lit(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
     }
 
     val res: ref char = @alloc(16) as ref char
-    @snprintf(res, 16, "%%t%lld", {hdr_ptr})
+    @snprintf(res, 16, "%%t{lld}", {hdr_ptr})
     return res
 }
 
@@ -5188,7 +5188,7 @@ fn gen_struct_lit(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
 
     val tmp: i64 = fresh_tmp(ctx)
     val buf: ref char = @alloc(128) as ref char
-    @snprintf(buf, 128, "    %%t%lld =l call $malloc(l %lld)\n", {tmp, size})
+    @snprintf(buf, 128, "    %%t{lld} =l call $malloc(l {lld})\n", {tmp, size})
     emit(ctx, buf)
     @free(buf)
     val fi: mut i64 = 0
@@ -5229,19 +5229,19 @@ fn gen_struct_lit(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
                     val fa_size: i64 = type_size(fty_node)
                     val off_tmp2: i64 = fresh_tmp(ctx)
                     val fbuf2: ref char = @alloc(256) as ref char
-                    @snprintf(fbuf2, 256, "    %%t%lld =l add %%t%lld, %lld\n", {off_tmp2, tmp, off})
+                    @snprintf(fbuf2, 256, "    %%t{lld} =l add %%t{lld}, {lld}\n", {off_tmp2, tmp, off})
                     emit(ctx, fbuf2)
                     @free(fbuf2)
                     val is_zero: bool = fexpr_node.kind == parser.NK_INT_LIT && str.rchar_cmp(parser.int_lit_text(fexpr_node), "0") == 0
                     if is_zero {
                         val fbuf3: ref char = @alloc(128) as ref char
-                        @snprintf(fbuf3, 128, "    call $memset(l %%t%lld, w 0, l %lld)\n", {off_tmp2, fa_size})
+                        @snprintf(fbuf3, 128, "    call $memset(l %%t{lld}, w 0, l {lld})\n", {off_tmp2, fa_size})
                         emit(ctx, fbuf3)
                         @free(fbuf3)
                     } else {
                         val fval2: ref char = gen_expr(ctx, fexpr_node)
                         val fbuf3: ref char = @alloc(128) as ref char
-                        @snprintf(fbuf3, 128, "    call $memcpy(l %%t%lld, l %s, l %lld)\n", {off_tmp2, fval2, fa_size})
+                        @snprintf(fbuf3, 128, "    call $memcpy(l %%t{lld}, l {s}, l {lld})\n", {off_tmp2, fval2, fa_size})
                         emit(ctx, fbuf3)
                         @free(fbuf3)
                     }
@@ -5250,9 +5250,9 @@ fn gen_struct_lit(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
                     val fbuf: ref char = @alloc(128) as ref char
                     val off_tmp: i64 = fresh_tmp(ctx)
                     if off == 0 {
-                        @snprintf(fbuf, 128, "    storel %s, %%t%lld\n", {fval, tmp})
+                        @snprintf(fbuf, 128, "    storel {s}, %%t{lld}\n", {fval, tmp})
                     } else {
-                        @snprintf(fbuf, 128, "    %%t%lld =l add %%t%lld, %lld\n    storel %s, %%t%lld\n",
+                        @snprintf(fbuf, 128, "    %%t{lld} =l add %%t{lld}, {lld}\n    storel {s}, %%t{lld}\n",
                             {off_tmp, tmp, off, fval, off_tmp})
                     }
                     emit(ctx, fbuf)
@@ -5264,7 +5264,7 @@ fn gen_struct_lit(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
         fi++
     }
     val res: ref char = @alloc(16) as ref char
-    @snprintf(res, 16, "%%t%lld", {tmp})
+    @snprintf(res, 16, "%%t{lld}", {tmp})
     return res
 }
 
@@ -5278,14 +5278,14 @@ fn gen_try(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
     val is_ok: i64 = fresh_tmp(ctx)
     val buf: ref char = @alloc(256) as ref char
     @snprintf(buf, 256,
-        "    %%t%lld =l loadl %s\n    %%t%lld =w ceql %%t%lld, 0\n    jnz %%t%lld, @lbl%lld, @lbl%lld\n@lbl%lld\n",
+        "    %%t{lld} =l loadl {s}\n    %%t{lld} =w ceql %%t{lld}, 0\n    jnz %%t{lld}, @lbl{lld}, @lbl{lld}\n@lbl{lld}\n",
         {tag_tmp, inner, is_ok, tag_tmp, is_ok, ok_lbl, err_lbl, err_lbl})
     emit(ctx, buf)
     @free(buf)
 
     // err branch: return the result as-is
     val rbuf: ref char = @alloc(64) as ref char
-    @snprintf(rbuf, 64, "    ret %s\n@lbl%lld\n", {inner, ok_lbl})
+    @snprintf(rbuf, 64, "    ret {s}\n@lbl{lld}\n", {inner, ok_lbl})
     emit(ctx, rbuf)
     @free(rbuf)
 
@@ -5293,12 +5293,12 @@ fn gen_try(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
     val off_tmp: i64 = fresh_tmp(ctx)
     val val_tmp: i64 = fresh_tmp(ctx)
     val vbuf: ref char = @alloc(128) as ref char
-    @snprintf(vbuf, 128, "    %%t%lld =l add %s, 8\n    %%t%lld =l loadl %%t%lld\n",
+    @snprintf(vbuf, 128, "    %%t{lld} =l add {s}, 8\n    %%t{lld} =l loadl %%t{lld}\n",
         {off_tmp, inner, val_tmp, off_tmp})
     emit(ctx, vbuf)
     @free(vbuf)
     val res: ref char = @alloc(16) as ref char
-    @snprintf(res, 16, "%%t%lld", {val_tmp})
+    @snprintf(res, 16, "%%t{lld}", {val_tmp})
     return res
 }
 
@@ -5383,31 +5383,31 @@ fn gen_stmt(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
                 if str.rchar_cmp(expr_qbe_type_val, "w") == 0 && str.rchar_cmp(decl_qbe_type, "l") == 0 {
                     val conv_tmp: i64 = fresh_tmp(ctx)
                     val conv_buf: ref char = @alloc(64) as ref char
-                    @snprintf(conv_buf, 64, "    %%t%lld =l extsw %s\n", {conv_tmp, val_tmp})
+                    @snprintf(conv_buf, 64, "    %%t{lld} =l extsw {s}\n", {conv_tmp, val_tmp})
                     emit(ctx, conv_buf)
                     @free(conv_buf)
                     val conv_res: ref char = @alloc(32) as ref char
-                    @snprintf(conv_res, 32, "%%t%lld", {conv_tmp})
+                    @snprintf(conv_res, 32, "%%t{lld}", {conv_tmp})
                     val_tmp = conv_res
                 }
                 elif str.rchar_cmp(expr_qbe_type_val, "s") == 0 && str.rchar_cmp(decl_qbe_type, "d") == 0 {
                     val conv_tmp: i64 = fresh_tmp(ctx)
                     val conv_buf: ref char = @alloc(64) as ref char
-                    @snprintf(conv_buf, 64, "    %%t%lld =d exts %s\n", {conv_tmp, val_tmp})
+                    @snprintf(conv_buf, 64, "    %%t{lld} =d exts {s}\n", {conv_tmp, val_tmp})
                     emit(ctx, conv_buf)
                     @free(conv_buf)
                     val conv_res: ref char = @alloc(32) as ref char
-                    @snprintf(conv_res, 32, "%%t%lld", {conv_tmp})
+                    @snprintf(conv_res, 32, "%%t{lld}", {conv_tmp})
                     val_tmp = conv_res
                 }
                 elif str.rchar_cmp(expr_qbe_type_val, "d") == 0 && str.rchar_cmp(decl_qbe_type, "s") == 0 {
                     val conv_tmp: i64 = fresh_tmp(ctx)
                     val conv_buf: ref char = @alloc(64) as ref char
-                    @snprintf(conv_buf, 64, "    %%t%lld =s truncd %s\n", {conv_tmp, val_tmp})
+                    @snprintf(conv_buf, 64, "    %%t{lld} =s truncd {s}\n", {conv_tmp, val_tmp})
                     emit(ctx, conv_buf)
                     @free(conv_buf)
                     val conv_res: ref char = @alloc(32) as ref char
-                    @snprintf(conv_res, 32, "%%t%lld", {conv_tmp})
+                    @snprintf(conv_res, 32, "%%t{lld}", {conv_tmp})
                     val_tmp = conv_res
                 }
             }
@@ -5457,7 +5457,7 @@ fn gen_stmt(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
         if mutable != 0 {
             val qbe_tmp: i64 = fresh_tmp(ctx)
             val qbe_name: ref char = @alloc(32) as ref char
-            @snprintf(qbe_name, 32, "%lld", {qbe_tmp})
+            @snprintf(qbe_name, 32, "{lld}", {qbe_tmp})
 
             val buf: ref char = @alloc(256) as ref char
             val store_op: mut ref char = "storel"
@@ -5470,7 +5470,7 @@ fn gen_stmt(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
                 elif is_word_type_name(ltype2) { store_op = "storew" }
             }
 
-            @snprintf(buf, 256, "    %%t%lld =l alloc8 8\n    %s %s, %%t%lld\n", {qbe_tmp, store_op, val_tmp, qbe_tmp})
+            @snprintf(buf, 256, "    %%t{lld} =l alloc8 8\n    {s} {s}, %%t{lld}\n", {qbe_tmp, store_op, val_tmp, qbe_tmp})
             emit(ctx, buf)
             @free(buf)
 
@@ -5481,15 +5481,15 @@ fn gen_stmt(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
             val c0: u8 = @load8(val_tmp) as u8
             val c1: u8 = @load8(val_tmp + 1) as u8
             if c0 == 37 && c1 == 116 {
-                @snprintf(tmp_num, 32, "%s", {val_tmp + 2})
+                @snprintf(tmp_num, 32, "{s}", {val_tmp + 2})
                 cg_register_local_var(ctx, name, tmp_num)
             } elif c0 == 37 {
                 val copy_tmp: i64 = fresh_tmp(ctx)
                 val buf_copy: ref char = @alloc(128) as ref char
-                @snprintf(buf_copy, 128, "    %%t%lld =l copy %s\n", {copy_tmp, val_tmp})
+                @snprintf(buf_copy, 128, "    %%t{lld} =l copy {s}\n", {copy_tmp, val_tmp})
                 emit(ctx, buf_copy)
                 @free(buf_copy)
-                @snprintf(tmp_num, 32, "%lld", {copy_tmp})
+                @snprintf(tmp_num, 32, "{lld}", {copy_tmp})
                 cg_register_local_var(ctx, name, tmp_num)
             } else {
                 @free(tmp_num)
@@ -5520,12 +5520,12 @@ fn gen_stmt(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
             if str.rchar_cmp(qbe_var, "") != 0 {
                 val is_global_store: bool = @load8(qbe_var as ref void) == 36 // '$'
                 if is_global_store {
-                    @snprintf(buf2, 128, "    %s %s, %s\n", {store_op2, val_tmp2, qbe_var})
+                    @snprintf(buf2, 128, "    {s} {s}, {s}\n", {store_op2, val_tmp2, qbe_var})
                 } else {
-                    @snprintf(buf2, 128, "    %s %s, %%t%s\n", {store_op2, val_tmp2, qbe_var})
+                    @snprintf(buf2, 128, "    {s} {s}, %%t{s}\n", {store_op2, val_tmp2, qbe_var})
                 }
             } else {
-                @snprintf(buf2, 128, "    %s %s, %%%s\n", {store_op2, val_tmp2, tname})
+                @snprintf(buf2, 128, "    {s} {s}, %%{s}\n", {store_op2, val_tmp2, tname})
             }
             emit(ctx, buf2)
             @free(buf2)
@@ -5588,16 +5588,16 @@ fn gen_stmt(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
                 val fptr: i64 = fresh_tmp(ctx)
                 if foffset == 0 {
                     val buf3u: ref char = @alloc(128) as ref char
-                    @snprintf(buf3u, 128, "    call $memcpy(l %s, l %s, l 16)\n", {base, val_tmp2})
+                    @snprintf(buf3u, 128, "    call $memcpy(l {s}, l {s}, l 16)\n", {base, val_tmp2})
                     emit(ctx, buf3u)
                     @free(buf3u)
                 } else {
                     val buf3ub: ref char = @alloc(128) as ref char
-                    @snprintf(buf3ub, 128, "    %%t%lld =l add %s, %lld\n", {fptr, base, foffset})
+                    @snprintf(buf3ub, 128, "    %%t{lld} =l add {s}, {lld}\n", {fptr, base, foffset})
                     emit(ctx, buf3ub)
                     @free(buf3ub)
                     val buf3u: ref char = @alloc(128) as ref char
-                    @snprintf(buf3u, 128, "    call $memcpy(l %%t%lld, l %s, l 16)\n", {fptr, val_tmp2})
+                    @snprintf(buf3u, 128, "    call $memcpy(l %%t{lld}, l {s}, l 16)\n", {fptr, val_tmp2})
                     emit(ctx, buf3u)
                     @free(buf3u)
                 }
@@ -5664,35 +5664,35 @@ fn gen_stmt(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
                 val buf3: ref char = @alloc(128) as ref char
                 if field_is_list {
                     if foffset == 0 {
-                        @snprintf(buf3, 128, "    call $memcpy(l %s, l %s, l 24)\n", {base, val_tmp2})
+                        @snprintf(buf3, 128, "    call $memcpy(l {s}, l {s}, l 24)\n", {base, val_tmp2})
                     } else {
                         val fptr: i64 = fresh_tmp(ctx)
                         val buf3b: ref char = @alloc(128) as ref char
-                        @snprintf(buf3b, 128, "    %%t%lld =l add %s, %lld\n", {fptr, base, foffset})
+                        @snprintf(buf3b, 128, "    %%t{lld} =l add {s}, {lld}\n", {fptr, base, foffset})
                         emit(ctx, buf3b)
                         @free(buf3b)
-                        @snprintf(buf3, 128, "    call $memcpy(l %%t%lld, l %s, l 24)\n", {fptr, val_tmp2})
+                        @snprintf(buf3, 128, "    call $memcpy(l %%t{lld}, l {s}, l 24)\n", {fptr, val_tmp2})
                     }
                 } elif field_size_write > 8 {
                     if foffset == 0 {
-                        @snprintf(buf3, 128, "    call $memcpy(l %s, l %s, l %lld)\n", {base, val_tmp2, field_size_write})
+                        @snprintf(buf3, 128, "    call $memcpy(l {s}, l {s}, l {lld})\n", {base, val_tmp2, field_size_write})
                     } else {
                         val fptr: i64 = fresh_tmp(ctx)
                         val buf3b: ref char = @alloc(128) as ref char
-                        @snprintf(buf3b, 128, "    %%t%lld =l add %s, %lld\n", {fptr, base, foffset})
+                        @snprintf(buf3b, 128, "    %%t{lld} =l add {s}, {lld}\n", {fptr, base, foffset})
                         emit(ctx, buf3b)
                         @free(buf3b)
-                        @snprintf(buf3, 128, "    call $memcpy(l %%t%lld, l %s, l %lld)\n", {fptr, val_tmp2, field_size_write})
+                        @snprintf(buf3, 128, "    call $memcpy(l %%t{lld}, l {s}, l {lld})\n", {fptr, val_tmp2, field_size_write})
                     }
                 } elif foffset == 0 {
-                    @snprintf(buf3, 128, "    %s %s, %s\n", {field_store_op, val_tmp2, base})
+                    @snprintf(buf3, 128, "    {s} {s}, {s}\n", {field_store_op, val_tmp2, base})
                 } else {
                     val fptr: i64 = fresh_tmp(ctx)
                     val buf3b: ref char = @alloc(128) as ref char
-                    @snprintf(buf3b, 128, "    %%t%lld =l add %s, %lld\n", {fptr, base, foffset})
+                    @snprintf(buf3b, 128, "    %%t{lld} =l add {s}, {lld}\n", {fptr, base, foffset})
                     emit(ctx, buf3b)
                     @free(buf3b)
-                    @snprintf(buf3, 128, "    %s %s, %%t%lld\n", {field_store_op, val_tmp2, fptr})
+                    @snprintf(buf3, 128, "    {s} {s}, %%t{lld}\n", {field_store_op, val_tmp2, fptr})
                 }
                 emit(ctx, buf3)
                 @free(buf3)
@@ -5700,7 +5700,7 @@ fn gen_stmt(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
         } elif tk == parser.NK_DEREF {
             val ptr: ref char = gen_expr(ctx, target.d0 as ref parser.Node)
             val buf4: ref char = @alloc(128) as ref char
-            @snprintf(buf4, 128, "    storel %s, %s\n", {val_tmp2, ptr})
+            @snprintf(buf4, 128, "    storel {s}, {s}\n", {val_tmp2, ptr})
             emit(ctx, buf4)
             @free(buf4)
         }
@@ -5721,12 +5721,12 @@ fn gen_stmt(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
             // If returning a union, use memcpy to copy to %__ret
             if str.rchar_cmp(ctx.current_fn_ret_union, "") != 0 {
                 val buf5: ref char = @alloc(128) as ref char
-                @snprintf(buf5, 128, "    call $memcpy(l %%__ret, l %s, l 16)\n    ret %%__ret\n", {rv})
+                @snprintf(buf5, 128, "    call $memcpy(l %%__ret, l {s}, l 16)\n    ret %%__ret\n", {rv})
                 emit(ctx, buf5)
                 @free(buf5)
             } else {
                 val buf5: ref char = @alloc(64) as ref char
-                @snprintf(buf5, 64, "    ret %s\n", {rv})
+                @snprintf(buf5, 64, "    ret {s}\n", {rv})
                 emit(ctx, buf5)
                 @free(buf5)
             }
@@ -5749,12 +5749,12 @@ fn gen_stmt(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
         val pass_lbl: i64 = fresh_lbl(ctx)
         val fail_lbl: i64 = fresh_lbl(ctx)
         val gbuf: ref char = @alloc(128) as ref char
-        @snprintf(gbuf, 128, "    jnz %s, @lbl%lld, @lbl%lld\n@lbl%lld\n", {gcond, pass_lbl, fail_lbl, fail_lbl})
+        @snprintf(gbuf, 128, "    jnz {s}, @lbl{lld}, @lbl{lld}\n@lbl{lld}\n", {gcond, pass_lbl, fail_lbl, fail_lbl})
         emit(ctx, gbuf)
         @free(gbuf)
         gen_stmts(ctx, stmt.d1 as ref parser.Node)
         val glbl_buf: ref char = @alloc(64) as ref char
-        @snprintf(glbl_buf, 64, "@lbl%lld\n", {pass_lbl})
+        @snprintf(glbl_buf, 64, "@lbl{lld}\n", {pass_lbl})
         emit(ctx, glbl_buf)
         @free(glbl_buf)
         return
@@ -5773,7 +5773,7 @@ fn gen_stmt(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
     if k == parser.NK_BREAK {
         val blbl: i64 = cg_break_lbl(ctx)
         val bbuf: ref char = @alloc(64) as ref char
-        @snprintf(bbuf, 64, "    jmp @lbl%lld\n", {blbl})
+        @snprintf(bbuf, 64, "    jmp @lbl{lld}\n", {blbl})
         emit(ctx, bbuf)
         @free(bbuf)
         return
@@ -5782,7 +5782,7 @@ fn gen_stmt(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
     if k == parser.NK_CONTINUE {
         val clbl: i64 = cg_cont_lbl(ctx)
         val cbuf: ref char = @alloc(64) as ref char
-        @snprintf(cbuf, 64, "    jmp @lbl%lld\n", {clbl})
+        @snprintf(cbuf, 64, "    jmp @lbl{lld}\n", {clbl})
         emit(ctx, cbuf)
         @free(cbuf)
         return
@@ -5798,19 +5798,19 @@ fn gen_stmt(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
         val ok_lbl: i64 = fresh_lbl(ctx)
         val fail_lbl: i64 = fresh_lbl(ctx)
         val buf6: ref char = @alloc(128) as ref char
-        @snprintf(buf6, 128, "    jnz %s, @lbl%lld, @lbl%lld\n@lbl%lld\n", {cond, ok_lbl, fail_lbl, fail_lbl})
+        @snprintf(buf6, 128, "    jnz {s}, @lbl{lld}, @lbl{lld}\n@lbl{lld}\n", {cond, ok_lbl, fail_lbl, fail_lbl})
         emit(ctx, buf6)
         @free(buf6)
         val node: ref parser.Node = stmt as ref parser.Node
         val fn_name: ref char = cg_fn_name(ctx)
         val msg_buf: ref char = @alloc(512) as ref char
-        @snprintf(msg_buf, 512, "spectre: assertion failed at line %lld\n", {node.line})
+        @snprintf(msg_buf, 512, "spectre: assertion failed at line {lld}\n", {node.line})
         val msg_idx: i64 = intern_string(ctx, msg_buf)
         @free(msg_buf)
         val msg_tmp: i64 = fresh_tmp(ctx)
         val abuf: ref char = @alloc(256) as ref char
         @snprintf(abuf, 256,
-            "    %%t%lld =l copy $__str%lld\n    call $dprintf(w 2, l %%t%lld)\n    call $fflush(l 0)\n    call $abort()\n    hlt\n@lbl%lld\n",
+            "    %%t{lld} =l copy $__str{lld}\n    call $dprintf(w 2, l %%t{lld})\n    call $fflush(l 0)\n    call $abort()\n    hlt\n@lbl{lld}\n",
             {msg_tmp, msg_idx, msg_tmp, ok_lbl})
         emit(ctx, abuf)
         @free(abuf)
@@ -5839,16 +5839,16 @@ fn gen_stmt(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
                         val ok_lbl: i64 = fresh_lbl(ctx)
                         val fail_lbl: i64 = fresh_lbl(ctx)
                         val jbuf: ref char = @alloc(128) as ref char
-                        @snprintf(jbuf, 128, "    jnz %s, @lbl%lld, @lbl%lld\n@lbl%lld\n",
+                        @snprintf(jbuf, 128, "    jnz {s}, @lbl{lld}, @lbl{lld}\n@lbl{lld}\n",
                             {cv, ok_lbl, fail_lbl, fail_lbl})
                         emit(ctx, jbuf)
                         @free(jbuf)
                         val msg_buf: ref char = @alloc(512) as ref char
                         if label != 0 as ref char {
-                            @snprintf(msg_buf, 512, "spectre: %s '%s' violated in function '%s'\n",
+                            @snprintf(msg_buf, 512, "spectre: {s} '{s}' violated in function '{s}'\n",
                                 {kind_str, label, fn_name})
                         } else {
-                            @snprintf(msg_buf, 512, "spectre: %s violated in function '%s'\n",
+                            @snprintf(msg_buf, 512, "spectre: {s} violated in function '{s}'\n",
                                 {kind_str, fn_name})
                         }
                         val msg_idx: i64 = intern_string(ctx, msg_buf)
@@ -5856,7 +5856,7 @@ fn gen_stmt(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
                         val msg_tmp: i64 = fresh_tmp(ctx)
                         val call_buf: ref char = @alloc(256) as ref char
                         @snprintf(call_buf, 256,
-                            "    %%t%lld =l copy $__str%lld\n    call $dprintf(w 2, l %%t%lld)\n    call $fflush(l 0)\n    call $abort()\n    hlt\n@lbl%lld\n",
+                            "    %%t{lld} =l copy $__str{lld}\n    call $dprintf(w 2, l %%t{lld})\n    call $fflush(l 0)\n    call $abort()\n    hlt\n@lbl{lld}\n",
                             {msg_tmp, msg_idx, msg_tmp, ok_lbl})
                         emit(ctx, call_buf)
                         @free(call_buf)
@@ -5942,10 +5942,10 @@ fn gen_stmt(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
             val var_ref: ref char = @alloc(64) as ref char
             if str.rchar_cmp(qbe_var, "") != 0 {
                 val is_g: bool = @load8(qbe_var as ref void) == 36
-                if is_g { @snprintf(var_ref, 64, "%s", {qbe_var}) }
-                else    { @snprintf(var_ref, 64, "%%t%s", {qbe_var}) }
+                if is_g { @snprintf(var_ref, 64, "{s}", {qbe_var}) }
+                else    { @snprintf(var_ref, 64, "%%t{s}", {qbe_var}) }
             } else {
-                @snprintf(var_ref, 64, "%%%s", {tname2})
+                @snprintf(var_ref, 64, "%%{s}", {tname2})
             }
 
             val cur: i64 = fresh_tmp(ctx)
@@ -5954,10 +5954,10 @@ fn gen_stmt(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
             val ltype_inc: ref char = cg_local_type(ctx, tname2)
             if is_word_type_name(ltype_inc) {
                 val w_cur: i64 = fresh_tmp(ctx)
-                @snprintf(buf9, 256, "    %%t%lld =w loadw %s\n    %%t%lld =l extsw %%t%lld\n    %%t%lld =l add %%t%lld, 1\n    storew %%t%lld, %s\n",
+                @snprintf(buf9, 256, "    %%t{lld} =w loadw {s}\n    %%t{lld} =l extsw %%t{lld}\n    %%t{lld} =l add %%t{lld}, 1\n    storew %%t{lld}, {s}\n",
                     {w_cur, var_ref, cur, w_cur, nxt, cur, nxt, var_ref})
             } else {
-                @snprintf(buf9, 256, "    %%t%lld =l loadl %s\n    %%t%lld =l add %%t%lld, 1\n    storel %%t%lld, %s\n",
+                @snprintf(buf9, 256, "    %%t{lld} =l loadl {s}\n    %%t{lld} =l add %%t{lld}, 1\n    storel %%t{lld}, {s}\n",
                     {cur, var_ref, nxt, cur, nxt, var_ref})
             }
             emit(ctx, buf9)
@@ -5980,10 +5980,10 @@ fn gen_stmt(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
             val var_ref: ref char = @alloc(64) as ref char
             if str.rchar_cmp(qbe_var, "") != 0 {
                 val is_g: bool = @load8(qbe_var as ref void) == 36
-                if is_g { @snprintf(var_ref, 64, "%s", {qbe_var}) }
-                else    { @snprintf(var_ref, 64, "%%t%s", {qbe_var}) }
+                if is_g { @snprintf(var_ref, 64, "{s}", {qbe_var}) }
+                else    { @snprintf(var_ref, 64, "%%t{s}", {qbe_var}) }
             } else {
-                @snprintf(var_ref, 64, "%%%s", {tname3})
+                @snprintf(var_ref, 64, "%%{s}", {tname3})
             }
 
             val cur2: i64 = fresh_tmp(ctx)
@@ -5992,10 +5992,10 @@ fn gen_stmt(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
             val ltype_dec: ref char = cg_local_type(ctx, tname3)
             if is_word_type_name(ltype_dec) {
                 val w_cur2: i64 = fresh_tmp(ctx)
-                @snprintf(buf10, 256, "    %%t%lld =w loadw %s\n    %%t%lld =l extsw %%t%lld\n    %%t%lld =l sub %%t%lld, 1\n    storew %%t%lld, %s\n",
+                @snprintf(buf10, 256, "    %%t{lld} =w loadw {s}\n    %%t{lld} =l extsw %%t{lld}\n    %%t{lld} =l sub %%t{lld}, 1\n    storew %%t{lld}, {s}\n",
                     {w_cur2, var_ref, cur2, w_cur2, nxt2, cur2, nxt2, var_ref})
             } else {
-                @snprintf(buf10, 256, "    %%t%lld =l loadl %s\n    %%t%lld =l sub %%t%lld, 1\n    storel %%t%lld, %s\n",
+                @snprintf(buf10, 256, "    %%t{lld} =l loadl {s}\n    %%t{lld} =l sub %%t{lld}, 1\n    storel %%t{lld}, {s}\n",
                     {cur2, var_ref, nxt2, cur2, nxt2, var_ref})
             }
             emit(ctx, buf10)
@@ -6019,16 +6019,16 @@ fn gen_stmt(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
             val var_ref: ref char = @alloc(64) as ref char
             if str.rchar_cmp(qbe_var, "") != 0 {
                 val is_g: bool = @load8(qbe_var as ref void) == 36
-                if is_g { @snprintf(var_ref, 64, "%s", {qbe_var}) }
-                else    { @snprintf(var_ref, 64, "%%t%s", {qbe_var}) }
+                if is_g { @snprintf(var_ref, 64, "{s}", {qbe_var}) }
+                else    { @snprintf(var_ref, 64, "%%t{s}", {qbe_var}) }
             } else {
-                @snprintf(var_ref, 64, "%%%s", {tname4})
+                @snprintf(var_ref, 64, "%%{s}", {tname4})
             }
 
             val cur3: i64 = fresh_tmp(ctx)
             val nxt3: i64 = fresh_tmp(ctx)
             val buf11: ref char = @alloc(256) as ref char
-            @snprintf(buf11, 256, "    %%t%lld =l loadl %s\n    %%t%lld =l add %%t%lld, %s\n    storel %%t%lld, %s\n",
+            @snprintf(buf11, 256, "    %%t{lld} =l loadl {s}\n    %%t{lld} =l add %%t{lld}, {s}\n    storel %%t{lld}, {s}\n",
                 {cur3, var_ref, nxt3, cur3, rhs, nxt3, var_ref})
             emit(ctx, buf11)
             @free(buf11)
@@ -6051,16 +6051,16 @@ fn gen_stmt(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
             val var_ref: ref char = @alloc(64) as ref char
             if str.rchar_cmp(qbe_var, "") != 0 {
                 val is_g: bool = @load8(qbe_var as ref void) == 36
-                if is_g { @snprintf(var_ref, 64, "%s", {qbe_var}) }
-                else    { @snprintf(var_ref, 64, "%%t%s", {qbe_var}) }
+                if is_g { @snprintf(var_ref, 64, "{s}", {qbe_var}) }
+                else    { @snprintf(var_ref, 64, "%%t{s}", {qbe_var}) }
             } else {
-                @snprintf(var_ref, 64, "%%%s", {tname5})
+                @snprintf(var_ref, 64, "%%{s}", {tname5})
             }
 
             val cur4: i64 = fresh_tmp(ctx)
             val nxt4: i64 = fresh_tmp(ctx)
             val buf12: ref char = @alloc(256) as ref char
-            @snprintf(buf12, 256, "    %%t%lld =l loadl %s\n    %%t%lld =l sub %%t%lld, %s\n    storel %%t%lld, %s\n",
+            @snprintf(buf12, 256, "    %%t{lld} =l loadl {s}\n    %%t{lld} =l sub %%t{lld}, {s}\n    storel %%t{lld}, {s}\n",
                 {cur4, var_ref, nxt4, cur4, rhs2, nxt4, var_ref})
             emit(ctx, buf12)
             @free(buf12)
@@ -6133,7 +6133,7 @@ fn gen_if_stmt(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
 
     val cond: ref char = gen_expr(ctx, stmt.d0 as ref parser.Node)
     val buf: ref char = @alloc(128) as ref char
-    @snprintf(buf, 128, "    jnz %s, @lbl%lld, @lbl%lld\n@lbl%lld\n", {cond, then_lbl, first_false, then_lbl})
+    @snprintf(buf, 128, "    jnz {s}, @lbl{lld}, @lbl{lld}\n@lbl{lld}\n", {cond, then_lbl, first_false, then_lbl})
     emit(ctx, buf)
     @free(buf)
 
@@ -6141,7 +6141,7 @@ fn gen_if_stmt(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
 
     if !block_ends_with_terminator(stmt.d1 as ref parser.Node) {
         val buf2: ref char = @alloc(64) as ref char
-        @snprintf(buf2, 64, "    jmp @lbl%lld\n", {end_lbl})
+        @snprintf(buf2, 64, "    jmp @lbl{lld}\n", {end_lbl})
         emit(ctx, buf2)
         @free(buf2)
     }
@@ -6175,13 +6175,13 @@ fn gen_if_stmt(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
                                     }
 
                                     val clbuf: ref char = @alloc(32) as ref char
-                                    @snprintf(clbuf, 32, "@lbl%lld\n", {cond_lbl})
+                                    @snprintf(clbuf, 32, "@lbl{lld}\n", {cond_lbl})
                                     emit(ctx, clbuf)
                                     @free(clbuf)
 
                                     val econd: ref char = gen_expr(ctx, (ep as ref parser.Node).d0 as ref parser.Node)
                                     val ebuf: ref char = @alloc(128) as ref char
-                                    @snprintf(ebuf, 128, "    jnz %s, @lbl%lld, @lbl%lld\n@lbl%lld\n",
+                                    @snprintf(ebuf, 128, "    jnz {s}, @lbl{lld}, @lbl{lld}\n@lbl{lld}\n",
                                         {econd, body_lbl, false_lbl, body_lbl})
                                     emit(ctx, ebuf)
                                     @free(ebuf)
@@ -6190,7 +6190,7 @@ fn gen_if_stmt(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
 
                                     if !block_ends_with_terminator((ep as ref parser.Node).d1 as ref parser.Node) {
                                         val ejbuf: ref char = @alloc(64) as ref char
-                                        @snprintf(ejbuf, 64, "    jmp @lbl%lld\n", {end_lbl})
+                                        @snprintf(ejbuf, 64, "    jmp @lbl{lld}\n", {end_lbl})
                                         emit(ctx, ejbuf)
                                         @free(ejbuf)
                                     }
@@ -6209,20 +6209,20 @@ fn gen_if_stmt(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
 
     if has_else {
         val ebuf2: ref char = @alloc(32) as ref char
-        @snprintf(ebuf2, 32, "@lbl%lld\n", {else_lbl})
+        @snprintf(ebuf2, 32, "@lbl{lld}\n", {else_lbl})
         emit(ctx, ebuf2)
         @free(ebuf2)
         gen_stmts(ctx, (stmt.d3 as ref parser.Node).d0 as ref parser.Node)
         if !block_ends_with_terminator((stmt.d3 as ref parser.Node).d0 as ref parser.Node) {
             val ejbuf3: ref char = @alloc(64) as ref char
-            @snprintf(ejbuf3, 64, "    jmp @lbl%lld\n", {end_lbl})
+            @snprintf(ejbuf3, 64, "    jmp @lbl{lld}\n", {end_lbl})
             emit(ctx, ejbuf3)
             @free(ejbuf3)
         }
     }
 
     val endbuf: ref char = @alloc(32) as ref char
-    @snprintf(endbuf, 32, "@lbl%lld\n", {end_lbl})
+    @snprintf(endbuf, 32, "@lbl{lld}\n", {end_lbl})
     emit(ctx, endbuf)
     @free(endbuf)
 }
@@ -6245,16 +6245,16 @@ fn gen_for_stmt(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
         val already_local: bool = str.rchar_cmp(cg_local_type(ctx, init_name), "") != 0
         val already_direct: bool = str.rchar_cmp(cg_direct_type(ctx, init_name), "") != 0
         if already_local || already_direct {
-            @snprintf(buf, 128, "    storel %s, %%%s\n", {init_val, init_name})
+            @snprintf(buf, 128, "    storel {s}, %%{s}\n", {init_val, init_name})
         } else {
-            @snprintf(buf, 128, "    %%%s =l alloc8 8\n    storel %s, %%%s\n", {init_name, init_val, init_name})
+            @snprintf(buf, 128, "    %%{s} =l alloc8 8\n    storel {s}, %%{s}\n", {init_name, init_val, init_name})
         }
         emit(ctx, buf)
         @free(buf)
     }
 
     val ljbuf: ref char = @alloc(64) as ref char
-    @snprintf(ljbuf, 64, "    jmp @lbl%lld\n@lbl%lld\n", {loop_lbl, loop_lbl})
+    @snprintf(ljbuf, 64, "    jmp @lbl{lld}\n@lbl{lld}\n", {loop_lbl, loop_lbl})
     emit(ctx, ljbuf)
     @free(ljbuf)
 
@@ -6262,13 +6262,13 @@ fn gen_for_stmt(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
     if cond_node != 0 as ref void {
         val cond: ref char = gen_expr(ctx, cond_node as ref parser.Node)
         val cbuf: ref char = @alloc(128) as ref char
-        @snprintf(cbuf, 128, "    jnz %s, @lbl%lld, @lbl%lld\n@lbl%lld\n",
+        @snprintf(cbuf, 128, "    jnz {s}, @lbl{lld}, @lbl{lld}\n@lbl{lld}\n",
             {cond, body_lbl, break_lbl, body_lbl})
         emit(ctx, cbuf)
         @free(cbuf)
     } else {
         val ibuf: ref char = @alloc(64) as ref char
-        @snprintf(ibuf, 64, "    jmp @lbl%lld\n@lbl%lld\n", {body_lbl, body_lbl})
+        @snprintf(ibuf, 64, "    jmp @lbl{lld}\n@lbl{lld}\n", {body_lbl, body_lbl})
         emit(ctx, ibuf)
         @free(ibuf)
     }
@@ -6277,13 +6277,13 @@ fn gen_for_stmt(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
 
     if !block_ends_with_terminator(stmt.d4 as ref parser.Node) {
         val cjbuf: ref char = @alloc(64) as ref char
-        @snprintf(cjbuf, 64, "    jmp @lbl%lld\n", {cont_lbl})
+        @snprintf(cjbuf, 64, "    jmp @lbl{lld}\n", {cont_lbl})
         emit(ctx, cjbuf)
         @free(cjbuf)
     }
 
     val clbuf: ref char = @alloc(32) as ref char
-    @snprintf(clbuf, 32, "@lbl%lld\n", {cont_lbl})
+    @snprintf(clbuf, 32, "@lbl{lld}\n", {cont_lbl})
     emit(ctx, clbuf)
     @free(clbuf)
 
@@ -6293,7 +6293,7 @@ fn gen_for_stmt(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
     }
 
     val jbuf: ref char = @alloc(64) as ref char
-    @snprintf(jbuf, 64, "    jmp @lbl%lld\n@lbl%lld\n", {loop_lbl, break_lbl})
+    @snprintf(jbuf, 64, "    jmp @lbl{lld}\n@lbl{lld}\n", {loop_lbl, break_lbl})
     emit(ctx, jbuf)
     @free(jbuf)
 
@@ -6321,7 +6321,7 @@ fn gen_forin_stmt(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
     val buf: ref char = @alloc(512) as ref char
 
     @snprintf(buf, 512,
-        "    %%t%lld =l alloc8 8\n    storel 0, %%t%lld\n    %%t%lld =l add %s, 8\n    %%t%lld =l loadl %%t%lld\n@lbl%lld\n",
+        "    %%t{lld} =l alloc8 8\n    storel 0, %%t{lld}\n    %%t{lld} =l add {s}, 8\n    %%t{lld} =l loadl %%t{lld}\n@lbl{lld}\n",
         {idx, idx, len_slot, iter, len, len_slot, loop_lbl})
     emit(ctx, buf)
     @free(buf)
@@ -6330,7 +6330,7 @@ fn gen_forin_stmt(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
     val cmp: i64 = fresh_tmp(ctx)
     val buf2: ref char = @alloc(256) as ref char
     @snprintf(buf2, 256,
-        "    %%t%lld =l loadl %%t%lld\n    %%t%lld =w csltl %%t%lld, %%t%lld\n    jnz %%t%lld, @lbl%lld, @lbl%lld\n@lbl%lld\n",
+        "    %%t{lld} =l loadl %%t{lld}\n    %%t{lld} =w csltl %%t{lld}, %%t{lld}\n    jnz %%t{lld}, @lbl{lld}, @lbl{lld}\n@lbl{lld}\n",
         {cur_idx, idx, cmp, cur_idx, len, cmp, body_lbl, break_lbl, body_lbl})
     emit(ctx, buf2)
     @free(buf2)
@@ -6341,11 +6341,11 @@ fn gen_forin_stmt(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
     val elem: i64 = fresh_tmp(ctx)
     val binding_tmp: i64 = fresh_tmp(ctx)
     val binding_qbe: ref char = @alloc(32) as ref char
-    @snprintf(binding_qbe, 32, "%lld", {binding_tmp})
+    @snprintf(binding_qbe, 32, "{lld}", {binding_tmp})
 
     val buf3: ref char = @alloc(512) as ref char
     @snprintf(buf3, 512,
-        "    %%t%lld =l loadl %s\n    %%t%lld =l mul %%t%lld, 8\n    %%t%lld =l add %%t%lld, %%t%lld\n    %%t%lld =l loadl %%t%lld\n    %%t%lld =l alloc8 8\n    storel %%t%lld, %%t%lld\n",
+        "    %%t{lld} =l loadl {s}\n    %%t{lld} =l mul %%t{lld}, 8\n    %%t{lld} =l add %%t{lld}, %%t{lld}\n    %%t{lld} =l loadl %%t{lld}\n    %%t{lld} =l alloc8 8\n    storel %%t{lld}, %%t{lld}\n",
         {buf_tmp, iter, off, cur_idx, elem_ptr, buf_tmp, off, elem, elem_ptr, binding_tmp, elem, binding_tmp})
     emit(ctx, buf3)
     @free(buf3)
@@ -6374,7 +6374,7 @@ fn gen_forin_stmt(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
     val nxt: i64 = fresh_tmp(ctx)
     val buf4: ref char = @alloc(256) as ref char
     @snprintf(buf4, 256,
-        "@lbl%lld\n    %%t%lld =l add %%t%lld, 1\n    storel %%t%lld, %%t%lld\n    jmp @lbl%lld\n@lbl%lld\n",
+        "@lbl{lld}\n    %%t{lld} =l add %%t{lld}, 1\n    storel %%t{lld}, %%t{lld}\n    jmp @lbl{lld}\n@lbl{lld}\n",
         {cont_lbl, nxt, cur_idx, nxt, idx, loop_lbl, break_lbl})
     emit(ctx, buf4)
     @free(buf4)
@@ -6397,7 +6397,7 @@ fn gen_match_opt(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
     val tag: i64 = fresh_tmp(ctx)
     val buf: ref char = @alloc(256) as ref char
     @snprintf(buf, 256,
-        "    %%t%lld =w cnel %s, 0\n    jnz %%t%lld, @lbl%lld, @lbl%lld\n@lbl%lld\n",
+        "    %%t{lld} =w cnel {s}, 0\n    jnz %%t{lld}, @lbl{lld}, @lbl{lld}\n@lbl{lld}\n",
         {tag, expr, tag, some_lbl, none_lbl, some_lbl})
     emit(ctx, buf)
     @free(buf)
@@ -6405,11 +6405,11 @@ fn gen_match_opt(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
     if some_bind != 0 as ref char {
         val val_tmp: i64 = fresh_tmp(ctx)
         val vbuf: ref char = @alloc(128) as ref char
-        @snprintf(vbuf, 128, "    %%t%lld =l sub %s, 1\n", {val_tmp, expr})
+        @snprintf(vbuf, 128, "    %%t{lld} =l sub {s}, 1\n", {val_tmp, expr})
         emit(ctx, vbuf)
         @free(vbuf)
         val tmp_str: ref char = @alloc(16) as ref char
-        @snprintf(tmp_str, 16, "%lld", {val_tmp})
+        @snprintf(tmp_str, 16, "{lld}", {val_tmp})
         cg_register_local_var(ctx, some_bind, tmp_str)
         val opt_ann: ref char = infer_type_annotation(ctx, expr_node)
         val inner_type: ref char = parse_option_inner(opt_ann)
@@ -6429,10 +6429,10 @@ fn gen_match_opt(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
 
     val jbuf: ref char = @alloc(64) as ref char
     if !body_ends_with_terminator(some_body_node) {
-        @snprintf(jbuf, 64, "    jmp @lbl%lld\n@lbl%lld\n", {end_lbl, none_lbl})
+        @snprintf(jbuf, 64, "    jmp @lbl{lld}\n@lbl{lld}\n", {end_lbl, none_lbl})
         emit(ctx, jbuf)
     } else {
-        @snprintf(jbuf, 64, "@lbl%lld\n", {none_lbl})
+        @snprintf(jbuf, 64, "@lbl{lld}\n", {none_lbl})
         emit(ctx, jbuf)
     }
     @free(jbuf)
@@ -6443,10 +6443,10 @@ fn gen_match_opt(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
 
     val endbuf: ref char = @alloc(32) as ref char
     if !body_ends_with_terminator(none_body_node) {
-        @snprintf(endbuf, 32, "    jmp @lbl%lld\n@lbl%lld\n", {end_lbl, end_lbl})
+        @snprintf(endbuf, 32, "    jmp @lbl{lld}\n@lbl{lld}\n", {end_lbl, end_lbl})
         emit(ctx, endbuf)
     } else {
-        @snprintf(endbuf, 32, "@lbl%lld\n", {end_lbl})
+        @snprintf(endbuf, 32, "@lbl{lld}\n", {end_lbl})
         emit(ctx, endbuf)
     }
     @free(endbuf)
@@ -6477,11 +6477,11 @@ fn gen_match_res(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
 
     if is_direct_param {
         @snprintf(buf, 256,
-            "    %%t%lld =l copy %s\n    %%t%lld =w ceql %%t%lld, 0\n    jnz %%t%lld, @lbl%lld, @lbl%lld\n@lbl%lld\n",
+            "    %%t{lld} =l copy {s}\n    %%t{lld} =w ceql %%t{lld}, 0\n    jnz %%t{lld}, @lbl{lld}, @lbl{lld}\n@lbl{lld}\n",
             {tag, expr, is_ok, tag, is_ok, ok_lbl, err_lbl, ok_lbl})
     } else {
         @snprintf(buf, 256,
-            "    %%t%lld =l loadl %s\n    %%t%lld =w ceql %%t%lld, 0\n    jnz %%t%lld, @lbl%lld, @lbl%lld\n@lbl%lld\n",
+            "    %%t{lld} =l loadl {s}\n    %%t{lld} =w ceql %%t{lld}, 0\n    jnz %%t{lld}, @lbl{lld}, @lbl{lld}\n@lbl{lld}\n",
             {tag, expr, is_ok, tag, is_ok, ok_lbl, err_lbl, ok_lbl})
     }
 
@@ -6498,12 +6498,12 @@ fn gen_match_res(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
         val val_ok: i64 = fresh_tmp(ctx)
         val vbuf: ref char = @alloc(256) as ref char
         @snprintf(vbuf, 256,
-            "    %%t%lld =l add %s, 8\n    %%t%lld =l loadl %%t%lld\n",
+            "    %%t{lld} =l add {s}, 8\n    %%t{lld} =l loadl %%t{lld}\n",
             {off_ok, expr, val_ok, off_ok})
         emit(ctx, vbuf)
         @free(vbuf)
         val tmp_str: ref char = @alloc(16) as ref char
-        @snprintf(tmp_str, 16, "%lld", {val_ok})
+        @snprintf(tmp_str, 16, "{lld}", {val_ok})
         cg_register_local_var(ctx, ok_bind, tmp_str)
         val ok_inner: ref char = ok_type_buf
         if str.rchar_cmp(ok_inner, "") != 0 {
@@ -6519,10 +6519,10 @@ fn gen_match_res(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
 
     val jbuf: ref char = @alloc(64) as ref char
     if !body_ends_with_terminator(ok_body_node) {
-        @snprintf(jbuf, 64, "    jmp @lbl%lld\n@lbl%lld\n", {end_lbl, err_lbl})
+        @snprintf(jbuf, 64, "    jmp @lbl{lld}\n@lbl{lld}\n", {end_lbl, err_lbl})
         emit(ctx, jbuf)
     } else {
-        @snprintf(jbuf, 64, "@lbl%lld\n", {err_lbl})
+        @snprintf(jbuf, 64, "@lbl{lld}\n", {err_lbl})
         emit(ctx, jbuf)
     }
     @free(jbuf)
@@ -6532,12 +6532,12 @@ fn gen_match_res(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
         val val_err: i64 = fresh_tmp(ctx)
         val vbuf2: ref char = @alloc(256) as ref char
         @snprintf(vbuf2, 256,
-            "    %%t%lld =l add %s, 8\n    %%t%lld =l loadl %%t%lld\n    %%%s =l copy %%t%lld\n",
+            "    %%t{lld} =l add {s}, 8\n    %%t{lld} =l loadl %%t{lld}\n    %%{s} =l copy %%t{lld}\n",
             {off_err, expr, val_err, off_err, err_bind, val_err})
         emit(ctx, vbuf2)
         @free(vbuf2)
         val tmp_str_err: ref char = @alloc(16) as ref char
-        @snprintf(tmp_str_err, 16, "%lld", {val_err})
+        @snprintf(tmp_str_err, 16, "{lld}", {val_err})
         cg_register_local_var(ctx, err_bind, tmp_str_err)
     }
     if err_body_node != 0 as ref parser.Node {
@@ -6546,10 +6546,10 @@ fn gen_match_res(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
 
     val endbuf: ref char = @alloc(32) as ref char
     if !body_ends_with_terminator(err_body_node) {
-        @snprintf(endbuf, 32, "    jmp @lbl%lld\n@lbl%lld\n", {end_lbl, end_lbl})
+        @snprintf(endbuf, 32, "    jmp @lbl{lld}\n@lbl{lld}\n", {end_lbl, end_lbl})
         emit(ctx, endbuf)
     } else {
-        @snprintf(endbuf, 32, "@lbl%lld\n", {end_lbl})
+        @snprintf(endbuf, 32, "@lbl{lld}\n", {end_lbl})
         emit(ctx, endbuf)
     }
     @free(endbuf)
@@ -6576,7 +6576,7 @@ fn gen_match_enum(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
                 val cmp: i64 = fresh_tmp(ctx)
                 val buf: ref char = @alloc(256) as ref char
                 @snprintf(buf, 256,
-                    "    %%t%lld =w ceql %s, %lld\n    jnz %%t%lld, @lbl%lld, @lbl%lld\n@lbl%lld\n",
+                    "    %%t{lld} =w ceql {s}, {lld}\n    jnz %%t{lld}, @lbl{lld}, @lbl{lld}\n@lbl{lld}\n",
                     {cmp, expr, ai, cmp, body_lbl, next_lbl, body_lbl})
                 emit(ctx, buf)
                 @free(buf)
@@ -6584,9 +6584,9 @@ fn gen_match_enum(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
                 gen_stmts(ctx, arm_body as ref parser.Node)
                 val jbuf: ref char = @alloc(64) as ref char
                 if !block_ends_with_terminator(arm_body as ref parser.Node) {
-                    @snprintf(jbuf, 64, "    jmp @lbl%lld\n@lbl%lld\n", {end_lbl, next_lbl})
+                    @snprintf(jbuf, 64, "    jmp @lbl{lld}\n@lbl{lld}\n", {end_lbl, next_lbl})
                 } else {
-                    @snprintf(jbuf, 64, "@lbl%lld\n", {next_lbl})
+                    @snprintf(jbuf, 64, "@lbl{lld}\n", {next_lbl})
                 }
                 emit(ctx, jbuf)
                 @free(jbuf)
@@ -6596,7 +6596,7 @@ fn gen_match_enum(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
         ai++
     }
     val endbuf: ref char = @alloc(32) as ref char
-    @snprintf(endbuf, 32, "@lbl%lld\n", {end_lbl})
+    @snprintf(endbuf, 32, "@lbl{lld}\n", {end_lbl})
     emit(ctx, endbuf)
     @free(endbuf)
 }
@@ -6626,7 +6626,7 @@ fn gen_match_str(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
                     val cmp2: i64 = fresh_tmp(ctx)
                     val buf: ref char = @alloc(256) as ref char
                     @snprintf(buf, 256,
-                        "    %%t%lld =l call $strcmp(l %s, l $__str%lld)\n    %%t%lld =w ceql %%t%lld, 0\n    jnz %%t%lld, @lbl%lld, @lbl%lld\n@lbl%lld\n",
+                        "    %%t{lld} =l call $strcmp(l {s}, l $__str{lld})\n    %%t{lld} =w ceql %%t{lld}, 0\n    jnz %%t{lld}, @lbl{lld}, @lbl{lld}\n@lbl{lld}\n",
                         {cmp, expr, pat_idx, cmp2, cmp, cmp2, body_lbl, next_lbl, body_lbl})
                     emit(ctx, buf)
                     @free(buf)
@@ -6634,9 +6634,9 @@ fn gen_match_str(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
                     gen_stmts(ctx, arm_body as ref parser.Node)
                     val jbuf: ref char = @alloc(64) as ref char
                     if !block_ends_with_terminator(arm_body as ref parser.Node) {
-                        @snprintf(jbuf, 64, "    jmp @lbl%lld\n@lbl%lld\n", {end_lbl, next_lbl})
+                        @snprintf(jbuf, 64, "    jmp @lbl{lld}\n@lbl{lld}\n", {end_lbl, next_lbl})
                     } else {
-                        @snprintf(jbuf, 64, "@lbl%lld\n", {next_lbl})
+                        @snprintf(jbuf, 64, "@lbl{lld}\n", {next_lbl})
                     }
                     emit(ctx, jbuf)
                     @free(jbuf)
@@ -6652,7 +6652,7 @@ fn gen_match_str(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
     }
 
     val endbuf: ref char = @alloc(32) as ref char
-    @snprintf(endbuf, 32, "@lbl%lld\n", {end_lbl})
+    @snprintf(endbuf, 32, "@lbl{lld}\n", {end_lbl})
     emit(ctx, endbuf)
     @free(endbuf)
 }
@@ -6703,7 +6703,7 @@ fn gen_match_union(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
     val tag: i64 = fresh_tmp(ctx)
     val tbuf: ref char = @alloc(64) as ref char
 
-    @snprintf(tbuf, 64, "    %%t%lld =l loadl %s\n", {tag, expr})
+    @snprintf(tbuf, 64, "    %%t{lld} =l loadl {s}\n", {tag, expr})
     emit(ctx, tbuf)
     @free(tbuf)
 
@@ -6755,7 +6755,7 @@ fn gen_match_union(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
                     val cmp: i64 = fresh_tmp(ctx)
                     val buf: ref char = @alloc(256) as ref char
                     @snprintf(buf, 256,
-                        "    %%t%lld =w ceql %%t%lld, %lld\n    jnz %%t%lld, @lbl%lld, @lbl%lld\n@lbl%lld\n",
+                        "    %%t{lld} =w ceql %%t{lld}, {lld}\n    jnz %%t{lld}, @lbl{lld}, @lbl{lld}\n@lbl{lld}\n",
                         {cmp, tag, tag_idx, cmp, body_lbl, next_lbl, body_lbl})
                     emit(ctx, buf)
                     @free(buf)
@@ -6763,9 +6763,9 @@ fn gen_match_union(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
                     gen_stmts(ctx, arm_body as ref parser.Node)
                     val jbuf: ref char = @alloc(64) as ref char
                     if !block_ends_with_terminator(arm_body as ref parser.Node) {
-                        @snprintf(jbuf, 64, "    jmp @lbl%lld\n@lbl%lld\n", {end_lbl, next_lbl})
+                        @snprintf(jbuf, 64, "    jmp @lbl{lld}\n@lbl{lld}\n", {end_lbl, next_lbl})
                     } else {
-                        @snprintf(jbuf, 64, "@lbl%lld\n", {next_lbl})
+                        @snprintf(jbuf, 64, "@lbl{lld}\n", {next_lbl})
                     }
                     emit(ctx, jbuf)
                     @free(jbuf)
@@ -6781,7 +6781,7 @@ fn gen_match_union(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
     }
 
     val endbuf: ref char = @alloc(32) as ref char
-    @snprintf(endbuf, 32, "@lbl%lld\n", {end_lbl})
+    @snprintf(endbuf, 32, "@lbl{lld}\n", {end_lbl})
     emit(ctx, endbuf)
     @free(endbuf)
 }
@@ -6799,7 +6799,7 @@ fn gen_match_tagged_union(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
     val tag: i64 = fresh_tmp(ctx)
     val tbuf: ref char = @alloc(64) as ref char
 
-    @snprintf(tbuf, 64, "    %%t%lld =l loadl %s\n", {tag, expr})
+    @snprintf(tbuf, 64, "    %%t{lld} =l loadl {s}\n", {tag, expr})
     emit(ctx, tbuf)
     @free(tbuf)
 
@@ -6830,7 +6830,7 @@ fn gen_match_tagged_union(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
                     val cmp: i64 = fresh_tmp(ctx)
                     val buf: ref char = @alloc(256) as ref char
                     @snprintf(buf, 256,
-                        "    %%t%lld =w ceql %%t%lld, %lld\n    jnz %%t%lld, @lbl%lld, @lbl%lld\n@lbl%lld\n",
+                        "    %%t{lld} =w ceql %%t{lld}, {lld}\n    jnz %%t{lld}, @lbl{lld}, @lbl{lld}\n@lbl{lld}\n",
                         {cmp, tag, actual_idx, cmp, body_lbl, next_lbl, body_lbl})
                     emit(ctx, buf)
                     @free(buf)
@@ -6850,7 +6850,7 @@ fn gen_match_tagged_union(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
                                         val bbuf: ref char = @alloc(256) as ref char
                                         val payload_val: i64 = fresh_tmp(ctx)
                                         @snprintf(bbuf, 256,
-                                            "    %%t%lld =l add %s, %lld\n    %%t%lld =l loadl %%t%lld\n    %%%s =l copy %%t%lld\n",
+                                            "    %%t{lld} =l add {s}, {lld}\n    %%t{lld} =l loadl %%t{lld}\n    %%{s} =l copy %%t{lld}\n",
                                             {payload_ptr, expr, offset, payload_val, payload_ptr, bname, payload_val})
                                         emit(ctx, bbuf)
                                         @free(bbuf)
@@ -6867,9 +6867,9 @@ fn gen_match_tagged_union(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
                     gen_stmts(ctx, arm_body as ref parser.Node)
                     val jbuf: ref char = @alloc(64) as ref char
                     if !block_ends_with_terminator(arm_body as ref parser.Node) {
-                        @snprintf(jbuf, 64, "    jmp @lbl%lld\n@lbl%lld\n", {end_lbl, next_lbl})
+                        @snprintf(jbuf, 64, "    jmp @lbl{lld}\n@lbl{lld}\n", {end_lbl, next_lbl})
                     } else {
-                        @snprintf(jbuf, 64, "@lbl%lld\n", {next_lbl})
+                        @snprintf(jbuf, 64, "@lbl{lld}\n", {next_lbl})
                     }
                     emit(ctx, jbuf)
                     @free(jbuf)
@@ -6885,7 +6885,7 @@ fn gen_match_tagged_union(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
     }
 
     val endbuf2: ref char = @alloc(32) as ref char
-    @snprintf(endbuf2, 32, "@lbl%lld\n", {end_lbl})
+    @snprintf(endbuf2, 32, "@lbl{lld}\n", {end_lbl})
     emit(ctx, endbuf2)
     @free(endbuf2)
 }
@@ -6910,9 +6910,9 @@ fn gen_fn_prefixed(ctx: mut ref CgCtx, fn_node: ref parser.Node, mod_prefix: ref
     val base: ref char = @alloc(256) as ref char
 
     if ns != 0 as ref char {
-        @snprintf(base, 256, "%s__%s", {ns, name})
+        @snprintf(base, 256, "{s}__{s}", {ns, name})
     } else {
-        @snprintf(base, 256, "%s", {name})
+        @snprintf(base, 256, "{s}", {name})
     }
 
     val is_std_child: mut bool = false
@@ -6934,11 +6934,11 @@ fn gen_fn_prefixed(ctx: mut ref CgCtx, fn_node: ref parser.Node, mod_prefix: ref
     }
 
     if str.rchar_cmp(mod_prefix, "") == 0 {
-        @snprintf(mangled, 512, "%s", {base})
+        @snprintf(mangled, 512, "{s}", {base})
     } elif is_std_child {
-        @snprintf(mangled, 512, "std__%s__%s", {mod_prefix, base})
+        @snprintf(mangled, 512, "std__{s}__{s}", {mod_prefix, base})
     } else {
-        @snprintf(mangled, 512, "%s__%s", {mod_prefix, base})
+        @snprintf(mangled, 512, "{s}__{s}", {mod_prefix, base})
     }
 
     if !cg_emit_label_if_new(ctx, mangled) {
@@ -6963,7 +6963,7 @@ fn gen_fn_prefixed(ctx: mut ref CgCtx, fn_node: ref parser.Node, mod_prefix: ref
         val unprefixed_name: ref char = ret_ty.d0 as ref char
         if str.rchar_cmp(mod_prefix, "") != 0 {
             val prefixed_name: ref char = @alloc(256) as ref char
-            @snprintf(prefixed_name, 256, "%s__%s", {mod_prefix, unprefixed_name})
+            @snprintf(prefixed_name, 256, "{s}__{s}", {mod_prefix, unprefixed_name})
             val union_vars: ref void = cg_lookup_union_suffix(ctx, prefixed_name)
             if union_vars != 0 as ref void {
                 ret_union_name = prefixed_name
@@ -6972,7 +6972,7 @@ fn gen_fn_prefixed(ctx: mut ref CgCtx, fn_node: ref parser.Node, mod_prefix: ref
     }
     val returns_union: bool = str.rchar_cmp(ret_union_name, "") != 0
 
-    @snprintf(sig_buf, 512, "%sfunction %s $%s(", {export_kw, ret_qt, mangled})
+    @snprintf(sig_buf, 512, "%sfunction {s} ${s}(", {export_kw, ret_qt, mangled})
     emit(ctx, sig_buf)
     @free(sig_buf)
 
@@ -7001,7 +7001,7 @@ fn gen_fn_prefixed(ctx: mut ref CgCtx, fn_node: ref parser.Node, mod_prefix: ref
                     val pqt: ref char = qbe_type_of(pty)
                     val pbuf: ref char = @alloc(64) as ref char
                     if pi > 0 || returns_union { emit(ctx, ", ") }
-                    @snprintf(pbuf, 64, "%s %%%s", {pqt, pname})
+                    @snprintf(pbuf, 64, "{s} %%{s}", {pqt, pname})
                     emit(ctx, pbuf)
                     @free(pbuf)
                 }
@@ -7075,7 +7075,7 @@ fn gen_fn_prefixed(ctx: mut ref CgCtx, fn_node: ref parser.Node, mod_prefix: ref
                 val found: bool = cg_lookup_global(ctx, gn as ref char, glbl_buf, gqt_buf)
                 if found {
                     val dollar_label: ref char = @alloc(260) as ref char
-                    @snprintf(dollar_label, 260, "$%s", {glbl_buf})
+                    @snprintf(dollar_label, 260, "${s}", {glbl_buf})
                     cg_register_local_var(ctx, gn as ref char, dollar_label)
                     cg_mark_as_slot(ctx, gn as ref char)
                     if str.rchar_cmp(gqt_buf, "w") == 0 {
@@ -7157,9 +7157,9 @@ fn gen_tagged_union_def(ctx: ref CgCtx, item: ref parser.Node, mod_prefix: ref c
     val vlen: i64 = @len(variants) as i64
     val mangled_name: ref char = @alloc(256) as ref char
     if str.rchar_cmp(mod_prefix, "") == 0 {
-        @snprintf(mangled_name, 256, "%s", {name})
+        @snprintf(mangled_name, 256, "{s}", {name})
     } else {
-        @snprintf(mangled_name, 256, "%s__%s", {mod_prefix, name})
+        @snprintf(mangled_name, 256, "{s}__{s}", {mod_prefix, name})
     }
     
     cg_register_union(ctx, mangled_name, variants)
@@ -7176,7 +7176,7 @@ fn gen_tagged_union_def(ctx: ref CgCtx, item: ref parser.Node, mod_prefix: ref c
                 cg_register_tv(ctx, vname, mangled_name, vi, vty)
                 if str.rchar_cmp(mod_prefix, "") != 0 {
                     val prefixed_vname: ref char = @alloc(256) as ref char
-                    @snprintf(prefixed_vname, 256, "%s__%s", {mod_prefix, vname})
+                    @snprintf(prefixed_vname, 256, "{s}__{s}", {mod_prefix, vname})
                     cg_register_tv(ctx, prefixed_vname, mangled_name, vi, vty)
                 }
             }
@@ -7205,7 +7205,7 @@ fn gen_extern_fn_prefixed(ctx: ref CgCtx, item: ref parser.Node, mod_prefix: ref
 
     if public == 1 && str.rchar_cmp(mod_prefix, "") != 0 {
         val mangled_name: ref char = @alloc(512) as ref char
-        @snprintf(mangled_name, 512, "%s__%s", {mod_prefix, name})
+        @snprintf(mangled_name, 512, "{s}__{s}", {mod_prefix, name})
         cg_register_extern(ctx, mangled_name, symbol, ret_ty)
         if params != 0 as ref void {
             cg_register_fn(ctx, mangled_name, params, ret_ty)
@@ -7240,9 +7240,9 @@ fn gen_extern_shim(ctx: ref CgCtx, item: ref parser.Node, mod_prefix: ref char) 
     }
 
     if is_std_child {
-        @snprintf(shim_name, 512, "std__%s__%s", {mod_prefix, name})
+        @snprintf(shim_name, 512, "std__{s}__{s}", {mod_prefix, name})
     } else {
-        @snprintf(shim_name, 512, "%s__%s", {mod_prefix, name})
+        @snprintf(shim_name, 512, "{s}__{s}", {mod_prefix, name})
     }
 
     val eshims_len: i64 = @len(ctx.emitted_shims as list[ref char]) as i64
@@ -7276,7 +7276,7 @@ fn gen_extern_shim(ctx: ref CgCtx, item: ref parser.Node, mod_prefix: ref char) 
     
     val ret_qt: ref char = qbe_type_of(ret_ty)
     val export_buf: ref char = @alloc(256) as ref char
-    @snprintf(export_buf, 256, "\nexport function %s $%s(", {ret_qt, shim_name})
+    @snprintf(export_buf, 256, "\nexport function {s} ${s}(", {ret_qt, shim_name})
     emit(ctx, export_buf)
     @free(export_buf)
     
@@ -7293,7 +7293,7 @@ fn gen_extern_shim(ctx: ref CgCtx, item: ref parser.Node, mod_prefix: ref char) 
                     val pqt: ref char = qbe_type_of(pty)
                     val pbuf: ref char = @alloc(64) as ref char
                     if pi > 0 { emit(ctx, ", ") }
-                    @snprintf(pbuf, 64, "%s %%%s", {pqt, pname})
+                    @snprintf(pbuf, 64, "{s} %%{s}", {pqt, pname})
                     emit(ctx, pbuf)
                     @free(pbuf)
                 }
@@ -7308,7 +7308,7 @@ fn gen_extern_shim(ctx: ref CgCtx, item: ref parser.Node, mod_prefix: ref char) 
     
     if params != 0 as ref void && @len(params as list[ref parser.Node]) > 0 {
         val call_buf: ref char = @alloc(1024) as ref char
-        @snprintf(call_buf, 1024, "    call $%s(", {symbol})
+        @snprintf(call_buf, 1024, "    call ${s}(", {symbol})
         emit(ctx, call_buf)
         @free(call_buf)
         
@@ -7324,7 +7324,7 @@ fn gen_extern_shim(ctx: ref CgCtx, item: ref parser.Node, mod_prefix: ref char) 
                     val pqt: ref char = qbe_type_of(pty)
                     val pbuf: ref char = @alloc(128) as ref char
                     if pi > 0 { emit(ctx, ", ") }
-                    @snprintf(pbuf, 128, "%s %%%s", {pqt, pname})
+                    @snprintf(pbuf, 128, "{s} %%{s}", {pqt, pname})
                     emit(ctx, pbuf)
                     @free(pbuf)
                 }
@@ -7335,7 +7335,7 @@ fn gen_extern_shim(ctx: ref CgCtx, item: ref parser.Node, mod_prefix: ref char) 
         emitln(ctx, ")")
     } else {
         val call_buf: ref char = @alloc(256) as ref char
-        @snprintf(call_buf, 256, "    call $%s()", {symbol})
+        @snprintf(call_buf, 256, "    call ${s}()", {symbol})
         emitln(ctx, call_buf)
         @free(call_buf)
     }
@@ -7385,9 +7385,9 @@ fn gen_union_def_prefixed(ctx: ref CgCtx, item: ref parser.Node, mod_prefix: ref
     }
     val mangled_name: ref char = @alloc(256) as ref char
     if str.rchar_cmp(mod_prefix, "") == 0 {
-        @snprintf(mangled_name, 256, "%s", {name})
+        @snprintf(mangled_name, 256, "{s}", {name})
     } else {
-        @snprintf(mangled_name, 256, "%s__%s", {mod_prefix, name})
+        @snprintf(mangled_name, 256, "{s}__{s}", {mod_prefix, name})
     }
     val vl: list[ref char] = vnames
     cg_register_union(ctx, mangled_name, vl as ref void)
@@ -7411,20 +7411,20 @@ fn gen_enum_def_prefixed(ctx: ref CgCtx, item: ref parser.Node, mod_prefix: ref 
                 val const_key: ref char = @alloc(512) as ref char
                 val idx_str: ref char = @alloc(32) as ref char
 
-                @snprintf(idx_str, 32, "%lld", {vi})
+                @snprintf(idx_str, 32, "{lld}", {vi})
 
                 if str.rchar_cmp(mod_prefix, "") == 0 {
-                    @snprintf(const_key, 512, "%s__%s", {name, vname})
+                    @snprintf(const_key, 512, "{s}__{s}", {name, vname})
                 } else {
-                    @snprintf(const_key, 512, "%s__%s__%s", {mod_prefix, name, vname})
+                    @snprintf(const_key, 512, "{s}__{s}__{s}", {mod_prefix, name, vname})
                 }
 
                 cg_register_module_const(ctx, const_key, idx_str)
                 if str.rchar_cmp(mod_prefix, "") != 0 {
                     val bare_key: ref char = @alloc(256) as ref char
-                    @snprintf(bare_key, 256, "%s__%s", {name, vname})
+                    @snprintf(bare_key, 256, "{s}__{s}", {name, vname})
                     val idx_str2: ref char = @alloc(32) as ref char
-                    @snprintf(idx_str2, 32, "%lld", {vi})
+                    @snprintf(idx_str2, 32, "{lld}", {vi})
                     cg_register_module_const(ctx, bare_key, idx_str2)
                 }
             }
@@ -7548,9 +7548,9 @@ fn preregister_items(ctx: ref CgCtx, items: list[ref parser.Node], mod_prefix: r
                     val ret_ty: ref void = node.d4 as ref void
                     val base: ref char = @alloc(256) as ref char
                     if ns != 0 as ref char {
-                        @snprintf(base, 256, "%s__%s", {ns, name})
+                        @snprintf(base, 256, "{s}__{s}", {ns, name})
                     } else {
-                        @snprintf(base, 256, "%s", {name})
+                        @snprintf(base, 256, "{s}", {name})
                     }
                     val is_std_child: mut bool = false
                     val scn_len: i64 = @len(get_std_child_names()) as i64
@@ -7571,11 +7571,11 @@ fn preregister_items(ctx: ref CgCtx, items: list[ref parser.Node], mod_prefix: r
                     }
                     val mangled: ref char = @alloc(512) as ref char
                     if str.rchar_cmp(mod_prefix, "") == 0 {
-                        @snprintf(mangled, 512, "%s", {base})
+                        @snprintf(mangled, 512, "{s}", {base})
                     } elif is_std_child {
-                        @snprintf(mangled, 512, "std__%s__%s", {mod_prefix, base})
+                        @snprintf(mangled, 512, "std__{s}__{s}", {mod_prefix, base})
                     } else {
-                        @snprintf(mangled, 512, "%s__%s", {mod_prefix, base})
+                        @snprintf(mangled, 512, "{s}__{s}", {mod_prefix, base})
                     }
                     if params != 0 as ref void {
                         cg_register_fn(ctx, mangled, params, ret_ty)
@@ -7604,7 +7604,7 @@ fn preregister_items(ctx: ref CgCtx, items: list[ref parser.Node], mod_prefix: r
                         } elif cexpr.kind == parser.NK_FLOAT_LIT {
                             val ftext: ref char = parser.float_lit_text(cexpr)
                             val fval: ref char = @alloc(128) as ref char
-                            @snprintf(fval, 128, "d_%s", {ftext})
+                            @snprintf(fval, 128, "d_{s}", {ftext})
                             cg_register_module_const(ctx, cname, fval)
                         } elif cexpr.kind == parser.NK_UNOP {
                             val uop: i64 = parser.unop_op(cexpr)
@@ -7614,12 +7614,12 @@ fn preregister_items(ctx: ref CgCtx, items: list[ref parser.Node], mod_prefix: r
                                     if inner.kind == parser.NK_INT_LIT {
                                         val itext: ref char = parser.int_lit_text(inner)
                                         val ival: ref char = @alloc(128) as ref char
-                                        @snprintf(ival, 128, "-%s", {itext})
+                                        @snprintf(ival, 128, "-{s}", {itext})
                                         cg_register_module_const(ctx, cname, ival)
                                     } elif inner.kind == parser.NK_FLOAT_LIT {
                                         val ftext2: ref char = parser.float_lit_text(inner)
                                         val fval2: ref char = @alloc(128) as ref char
-                                        @snprintf(fval2, 128, "d_-%s", {ftext2})
+                                        @snprintf(fval2, 128, "d_-{s}", {ftext2})
                                         cg_register_module_const(ctx, cname, fval2)
                                     }
                                 }
@@ -7751,12 +7751,12 @@ fn gen_items_with_prefix(ctx: ref CgCtx, items: list[ref parser.Node], mod_prefi
                         }
                         val glabel: ref char = @alloc(512) as ref char
                         if str.rchar_cmp(mod_prefix, "") == 0 {
-                            @snprintf(glabel, 512, "%s", {gname})
+                            @snprintf(glabel, 512, "{s}", {gname})
                         } else {
-                            @snprintf(glabel, 512, "%s__%s", {mod_prefix, gname})
+                            @snprintf(glabel, 512, "{s}__{s}", {mod_prefix, gname})
                         }
                         val data_buf: ref char = @alloc(256) as ref char
-                        @snprintf(data_buf, 256, "data $%s = \{ %s %s \}\n", {glabel, gqtype, ginit})
+                        @snprintf(data_buf, 256, "data ${s} = \{ {s} {s} \}\n", {glabel, gqtype, ginit})
                         emit(ctx, data_buf)
                         @free(data_buf)
                         cg_register_global(ctx, gname, glabel, gqtype)
@@ -7767,9 +7767,9 @@ fn gen_items_with_prefix(ctx: ref CgCtx, items: list[ref parser.Node], mod_prefi
                     if cexpr != 0 as ref parser.Node {
                         val const_label: ref char = @alloc(512) as ref char
                         if str.rchar_cmp(mod_prefix, "") == 0 {
-                            @snprintf(const_label, 512, "%s", {cname})
+                            @snprintf(const_label, 512, "{s}", {cname})
                         } else {
-                            @snprintf(const_label, 512, "%s__%s", {mod_prefix, cname})
+                            @snprintf(const_label, 512, "{s}__{s}", {mod_prefix, cname})
                         }
 
                         if cexpr.kind == parser.NK_INT_LIT {
@@ -7777,7 +7777,7 @@ fn gen_items_with_prefix(ctx: ref CgCtx, items: list[ref parser.Node], mod_prefi
                             cg_register_module_const(ctx, cname, cval)
                             if cg_emit_label_if_new(ctx, const_label) {
                                 val data_buf: ref char = @alloc(256) as ref char
-                                @snprintf(data_buf, 256, "data $%s = \{ l %s \}\n", {const_label, cval})
+                                @snprintf(data_buf, 256, "data ${s} = \{ l {s} \}\n", {const_label, cval})
                                 emit(ctx, data_buf)
                                 @free(data_buf)
                             } else {
@@ -7786,7 +7786,7 @@ fn gen_items_with_prefix(ctx: ref CgCtx, items: list[ref parser.Node], mod_prefi
                         } elif cexpr.kind == parser.NK_FLOAT_LIT {
                             val ftext: ref char = parser.float_lit_text(cexpr)
                             val fval: ref char = @alloc(128) as ref char
-                            @snprintf(fval, 128, "d_%s", {ftext})
+                            @snprintf(fval, 128, "d_{s}", {ftext})
                             cg_register_module_const(ctx, cname, fval)
                             @free(const_label)
                         } elif cexpr.kind == parser.NK_UNOP {
@@ -7797,11 +7797,11 @@ fn gen_items_with_prefix(ctx: ref CgCtx, items: list[ref parser.Node], mod_prefi
                                     if inner.kind == parser.NK_INT_LIT {
                                         val itext: ref char = parser.int_lit_text(inner)
                                         val ival: ref char = @alloc(128) as ref char
-                                        @snprintf(ival, 128, "-%s", {itext})
+                                        @snprintf(ival, 128, "-{s}", {itext})
                                         cg_register_module_const(ctx, cname, ival)
                                         if cg_emit_label_if_new(ctx, const_label) {
                                             val data_buf2: ref char = @alloc(256) as ref char
-                                            @snprintf(data_buf2, 256, "data $%s = \{ l %s \}\n", {const_label, ival})
+                                            @snprintf(data_buf2, 256, "data ${s} = \{ l {s} \}\n", {const_label, ival})
                                             emit(ctx, data_buf2)
                                             @free(data_buf2)
                                         } else {
@@ -7810,7 +7810,7 @@ fn gen_items_with_prefix(ctx: ref CgCtx, items: list[ref parser.Node], mod_prefi
                                     } elif inner.kind == parser.NK_FLOAT_LIT {
                                         val ftext2: ref char = parser.float_lit_text(inner)
                                         val fval2: ref char = @alloc(128) as ref char
-                                        @snprintf(fval2, 128, "d_-%s", {ftext2})
+                                        @snprintf(fval2, 128, "d_-{s}", {ftext2})
                                         cg_register_module_const(ctx, cname, fval2)
                                         @free(const_label)
                                     } else {
@@ -7833,7 +7833,7 @@ fn gen_items_with_prefix(ctx: ref CgCtx, items: list[ref parser.Node], mod_prefi
                             }
                             if cg_emit_label_if_new(ctx, const_label) {
                                 val data_buf3: ref char = @alloc(256) as ref char
-                                @snprintf(data_buf3, 256, "data $%s = \{ w %s \}\n", {const_label, bstr})
+                                @snprintf(data_buf3, 256, "data ${s} = \{ w {s} \}\n", {const_label, bstr})
                                 emit(ctx, data_buf3)
                                 @free(data_buf3)
                             } else {
@@ -8459,8 +8459,8 @@ pub fn get_used_prefixes(root: ref module.ResolvedModule) list[ref char]! = {
 /// Emit a single test block as a numbered function. Returns the function name.
 fn gen_test_fn(ctx: ref CgCtx, body_stmts: ref parser.Node, test_id: i64) void! = {
     cg_dvars_clear(ctx)
-    val fname: ref char = @fmt("__sx_test_%lld", {test_id})
-    val hdr: ref char = @fmt("export function w $%s() {\n@start\n", {fname})
+    val fname: ref char = @fmt("__sx_test_{lld}", {test_id})
+    val hdr: ref char = @fmt("export function w ${s}() {\n@start\n", {fname})
     emit(ctx, hdr)
     val gnames_list: ref void = cg_global_src_names(ctx)
     val glen: i64 = @len(gnames_list) as i64
@@ -8475,7 +8475,7 @@ fn gen_test_fn(ctx: ref CgCtx, body_stmts: ref parser.Node, test_id: i64) void! 
                 val found: bool = cg_lookup_global(ctx, gn as ref char, glbl_buf, gqt_buf)
                 if found {
                     val dollar_label: ref char = @alloc(260) as ref char
-                    @snprintf(dollar_label, 260, "$%s", {glbl_buf})
+                    @snprintf(dollar_label, 260, "${s}", {glbl_buf})
                     cg_register_local_var(ctx, gn as ref char, dollar_label)
                     cg_mark_as_slot(ctx, gn as ref char)
                     if str.rchar_cmp(gqt_buf, "w") == 0 {
@@ -8513,7 +8513,7 @@ fn gen_test_main(ctx: ref CgCtx, test_ids: list[i64]) void! = {
         val id_opt = @get(test_ids, ti as usize)
         match id_opt {
             some id => {
-                val call: ref char = @fmt("    call $__sx_test_%lld()\n", {id as i64})
+                val call: ref char = @fmt("    call $__sx_test_{lld}()\n", {id as i64})
                 emit(ctx, call)
             }
             none => {}
@@ -8523,7 +8523,7 @@ fn gen_test_main(ctx: ref CgCtx, test_ids: list[i64]) void! = {
     val ok_idx: i64 = intern_string(ctx, "all tests passed\n")
     val ok_tmp: i64 = fresh_tmp(ctx)
     val ok_buf: ref char = @alloc(128) as ref char
-    @snprintf(ok_buf, 128, "    %%t%lld =l copy $__str%lld\n    call $printf(l %%t%lld)\n    ret 0\n}\n\n",
+    @snprintf(ok_buf, 128, "    %%t{lld} =l copy $__str{lld}\n    call $printf(l %%t{lld})\n    ret 0\n}\n\n",
         {ok_tmp, ok_idx, ok_tmp})
     emit(ctx, ok_buf)
     @free(ok_buf)
@@ -8789,12 +8789,12 @@ fn gen_items_with_prefix_skip_links(ctx: ref CgCtx, items: list[ref parser.Node]
                         }
                         val glabel: ref char = @alloc(512) as ref char
                         if str.rchar_cmp(mod_prefix, "") == 0 {
-                            @snprintf(glabel, 512, "%s", {gname})
+                            @snprintf(glabel, 512, "{s}", {gname})
                         } else {
-                            @snprintf(glabel, 512, "%s__%s", {mod_prefix, gname})
+                            @snprintf(glabel, 512, "{s}__{s}", {mod_prefix, gname})
                         }
                         val data_buf: ref char = @alloc(256) as ref char
-                        @snprintf(data_buf, 256, "data $%s = \{ %s %s \}\n", {glabel, gqtype, ginit})
+                        @snprintf(data_buf, 256, "data ${s} = \{ {s} {s} \}\n", {glabel, gqtype, ginit})
                         emit(ctx, data_buf)
                         @free(data_buf)
                         cg_register_global(ctx, gname, glabel, gqtype)
@@ -8805,9 +8805,9 @@ fn gen_items_with_prefix_skip_links(ctx: ref CgCtx, items: list[ref parser.Node]
                     if cexpr != 0 as ref parser.Node {
                         val const_label: ref char = @alloc(512) as ref char
                         if str.rchar_cmp(mod_prefix, "") == 0 {
-                            @snprintf(const_label, 512, "%s", {cname})
+                            @snprintf(const_label, 512, "{s}", {cname})
                         } else {
-                            @snprintf(const_label, 512, "%s__%s", {mod_prefix, cname})
+                            @snprintf(const_label, 512, "{s}__{s}", {mod_prefix, cname})
                         }
 
                         if cexpr.kind == parser.NK_INT_LIT {
@@ -8815,7 +8815,7 @@ fn gen_items_with_prefix_skip_links(ctx: ref CgCtx, items: list[ref parser.Node]
                             cg_register_module_const(ctx, cname, cval)
                             if cg_emit_label_if_new(ctx, const_label) {
                                 val data_buf: ref char = @alloc(256) as ref char
-                                @snprintf(data_buf, 256, "data $%s = \{ l %s \}\n", {const_label, cval})
+                                @snprintf(data_buf, 256, "data ${s} = \{ l {s} \}\n", {const_label, cval})
                                 emit(ctx, data_buf)
                                 @free(data_buf)
                             } else {
@@ -8824,7 +8824,7 @@ fn gen_items_with_prefix_skip_links(ctx: ref CgCtx, items: list[ref parser.Node]
                         } elif cexpr.kind == parser.NK_FLOAT_LIT {
                             val ftext: ref char = parser.float_lit_text(cexpr)
                             val fval: ref char = @alloc(128) as ref char
-                            @snprintf(fval, 128, "d_%s", {ftext})
+                            @snprintf(fval, 128, "d_{s}", {ftext})
                             cg_register_module_const(ctx, cname, fval)
                             @free(const_label)
                         } elif cexpr.kind == parser.NK_UNOP {
@@ -8835,11 +8835,11 @@ fn gen_items_with_prefix_skip_links(ctx: ref CgCtx, items: list[ref parser.Node]
                                     if inner.kind == parser.NK_INT_LIT {
                                         val itext: ref char = parser.int_lit_text(inner)
                                         val ival: ref char = @alloc(128) as ref char
-                                        @snprintf(ival, 128, "-%s", {itext})
+                                        @snprintf(ival, 128, "-{s}", {itext})
                                         cg_register_module_const(ctx, cname, ival)
                                         if cg_emit_label_if_new(ctx, const_label) {
                                             val data_buf2: ref char = @alloc(256) as ref char
-                                            @snprintf(data_buf2, 256, "data $%s = \{ l %s \}\n", {const_label, ival})
+                                            @snprintf(data_buf2, 256, "data ${s} = \{ l {s} \}\n", {const_label, ival})
                                             emit(ctx, data_buf2)
                                             @free(data_buf2)
                                         } else {
@@ -8848,7 +8848,7 @@ fn gen_items_with_prefix_skip_links(ctx: ref CgCtx, items: list[ref parser.Node]
                                     } elif inner.kind == parser.NK_FLOAT_LIT {
                                         val ftext2: ref char = parser.float_lit_text(inner)
                                         val fval2: ref char = @alloc(128) as ref char
-                                        @snprintf(fval2, 128, "d_-%s", {ftext2})
+                                        @snprintf(fval2, 128, "d_-{s}", {ftext2})
                                         cg_register_module_const(ctx, cname, fval2)
                                         @free(const_label)
                                     } else {
@@ -8871,7 +8871,7 @@ fn gen_items_with_prefix_skip_links(ctx: ref CgCtx, items: list[ref parser.Node]
                             }
                             if cg_emit_label_if_new(ctx, const_label) {
                                 val data_buf3: ref char = @alloc(256) as ref char
-                                @snprintf(data_buf3, 256, "data $%s = \{ w %s \}\n", {const_label, bstr})
+                                @snprintf(data_buf3, 256, "data ${s} = \{ w {s} \}\n", {const_label, bstr})
                                 emit(ctx, data_buf3)
                                 @free(data_buf3)
                             } else {
@@ -8960,7 +8960,7 @@ fn gen_items_with_prefix_skip_main(ctx: ref CgCtx, items: list[ref parser.Node],
                         } elif cexpr.kind == parser.NK_FLOAT_LIT {
                             val ftext3: ref char = parser.float_lit_text(cexpr)
                             val fval3: ref char = @alloc(128) as ref char
-                            @snprintf(fval3, 128, "d_%s", {ftext3})
+                            @snprintf(fval3, 128, "d_{s}", {ftext3})
                             cg_register_module_const(ctx, cname, fval3)
                         } elif cexpr.kind == parser.NK_UNOP {
                             val uop2: i64 = parser.unop_op(cexpr)
@@ -8970,12 +8970,12 @@ fn gen_items_with_prefix_skip_main(ctx: ref CgCtx, items: list[ref parser.Node],
                                     if inner2.kind == parser.NK_INT_LIT {
                                         val itext2: ref char = parser.int_lit_text(inner2)
                                         val ival2: ref char = @alloc(128) as ref char
-                                        @snprintf(ival2, 128, "-%s", {itext2})
+                                        @snprintf(ival2, 128, "-{s}", {itext2})
                                         cg_register_module_const(ctx, cname, ival2)
                                     } elif inner2.kind == parser.NK_FLOAT_LIT {
                                         val ftext4: ref char = parser.float_lit_text(inner2)
                                         val fval4: ref char = @alloc(128) as ref char
-                                        @snprintf(fval4, 128, "d_-%s", {ftext4})
+                                        @snprintf(fval4, 128, "d_-{s}", {ftext4})
                                         cg_register_module_const(ctx, cname, fval4)
                                     }
                                 }
@@ -9012,12 +9012,12 @@ fn gen_items_with_prefix_skip_main(ctx: ref CgCtx, items: list[ref parser.Node],
                         }
                         val glabel: ref char = @alloc(512) as ref char
                         if str.rchar_cmp(mod_prefix, "") == 0 {
-                            @snprintf(glabel, 512, "%s", {gname})
+                            @snprintf(glabel, 512, "{s}", {gname})
                         } else {
-                            @snprintf(glabel, 512, "%s__%s", {mod_prefix, gname})
+                            @snprintf(glabel, 512, "{s}__{s}", {mod_prefix, gname})
                         }
                         val data_buf: ref char = @alloc(256) as ref char
-                        @snprintf(data_buf, 256, "data $%s = \{ %s %s \}\n", {glabel, gqtype, ginit})
+                        @snprintf(data_buf, 256, "data ${s} = \{ {s} {s} \}\n", {glabel, gqtype, ginit})
                         emit(ctx, data_buf)
                         @free(data_buf)
                         cg_register_global(ctx, gname, glabel, gqtype)
