@@ -73,7 +73,7 @@ fn pop_scope(ctx: ref SemaCtx, filename: ref char, scope_line: i64) void! = {
                                         add_error(ctx, buf)
                                     } elif entry.mutable == 1 && entry.mutated == 0 {
                                         val buf2: ref char = @alloc(256) as ref char
-                                        @snprintf(buf2, 256, "line {lld}: mutable variable '{s}' declared but never mutated", {entry.line, entry.name})
+                                        @snprintf(buf2, 256, "line {lld}: mutable variable '{s}' declared mutable but never mutated", {entry.line, entry.name})
                                         add_error(ctx, buf2)
                                     }
                                 }
@@ -1577,7 +1577,12 @@ fn register_item_name(ctx: ref SemaCtx, item: ref parser.Node) void! = {
     if item == 0 as ref parser.Node { return }
     val k: i64 = item.kind //instantly crashes here 
     if k == parser.NK_FN {
-        register_fn_name(ctx, item.d1 as ref char, item.d2 as ref char)
+        if item.d0 == 1 {
+            val nm: ref char = item.d2 as ref char
+            if nm != 0 as ref char { @append(ctx.global_names, nm) }
+        } else {
+            register_fn_name(ctx, item.d1 as ref char, item.d2 as ref char)
+        }
     }
     if k == parser.NK_TYPEDEF || k == parser.NK_EXTERN_TYPE ||
        k == parser.NK_ENUMDEF || k == parser.NK_UNIONDEF || k == parser.NK_TAGGED_UNIONDEF {
