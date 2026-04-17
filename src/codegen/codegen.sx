@@ -5819,6 +5819,11 @@ fn gen_stmt(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
 
     if k == parser.NK_PRE || k == parser.NK_GUARDED_PRE ||
        k == parser.NK_POST || k == parser.NK_GUARDED_POST {
+        if ctx.release_mode {
+            if k == parser.NK_PRE || k == parser.NK_POST {
+                return
+            }
+        }
         val is_pre: bool = k == parser.NK_PRE || k == parser.NK_GUARDED_PRE
         val kind_str: mut ref char = "precondition"
         if !is_pre { kind_str = "postcondition" }
