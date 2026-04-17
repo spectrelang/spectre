@@ -58,6 +58,7 @@ pub val AF_INET                = 2
 pub val IPPROTO_TCP            = 6
 
 /// A heap-allocated HTTP response.
+///
 /// Layout (8 bytes each field):
 ///   offset  0 : body   (ref char) — null-terminated response body
 ///   offset  8 : status (i64)      — HTTP status code
