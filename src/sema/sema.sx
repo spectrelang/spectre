@@ -870,7 +870,7 @@ fn check_expr(ctx: ref SemaCtx, expr: ref parser.Node, filename: ref char) void!
             }
         }
         if str_eq(bname, "memcpy") || str_eq(bname, "memset") || str_eq(bname, "memmove") ||
-           str_eq(bname, "alloc") || str_eq(bname, "realloc") || str_eq(bname, "free") || str_eq(bname, "ptradd") {
+           str_eq(bname, "alloc") || str_eq(bname, "realloc") || str_eq(bname, "free") || str_eq(bname, "ptradd") || str_eq(bname, "store") || str_eq(bname, "load") || str_eq(bname, "load8") {
             if bargs != 0 as ref void {
                 for barg in bargs as list[ref parser.Node] {
                     if barg.kind == parser.NK_IDENT {
