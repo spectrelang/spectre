@@ -147,7 +147,7 @@ pub fn (Http) cleanup() void! = {
 /// Perform an HTTP GET request.
 /// Returns a heap-allocated Response; caller must call Http.free_response().
 pub fn (Http) get(url: ref char) ref void! = {
-    val handle: mut ref void = curl_easy_init()
+    val handle: ref void = curl_easy_init()
     curl_easy_setopt(handle, CURLOPT_URL, url)
     val resp: ref void = do_request(handle)
     curl_easy_cleanup(handle)
@@ -157,7 +157,7 @@ pub fn (Http) get(url: ref char) ref void! = {
 /// Perform an HTTP POST request with a body string.
 /// Returns a heap-allocated Response; caller must call Http.free_response().
 pub fn (Http) post_request(url: ref char, body: ref char, content_type: ref char) ref void! = {
-    val handle: mut ref void = curl_easy_init()
+    val handle: ref void = curl_easy_init()
     val headers: ref void = curl_slist_append(none, content_type)
 
     curl_easy_setopt(handle, CURLOPT_URL, url)
@@ -173,7 +173,7 @@ pub fn (Http) post_request(url: ref char, body: ref char, content_type: ref char
 
 /// Perform an arbitrary HTTP request (GET, POST, PUT, DELETE, PATCH …).
 pub fn (Http) request(method: ref char, url: ref char, body: ref char, headers: ref void) ref void! = {
-    val handle: mut ref void = curl_easy_init()
+    val handle: ref void = curl_easy_init()
 
     curl_easy_setopt(handle, CURLOPT_URL, url)
     curl_easy_setopt(handle, CURLOPT_CUSTOMREQUEST, method)
