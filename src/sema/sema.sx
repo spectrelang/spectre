@@ -6,12 +6,16 @@ type ScopeEntry = {
     mutable:   mut i64
     type_name: mut ref char
     is_ref:    mut i64
+    line:      mut i64
+    used:      mut i64
+    mutated:   mut i64
 }
 
 type SemaCtx = {
     errors:     mut list[ref char]
     warnings:   mut list[ref char]
     fn_names:   mut list[ref char]
+    used_fns:   mut list[ref char]
     type_names: mut list[ref char]
     scopes:     mut list[ref void]
     type_defs:  mut list[ref void]
@@ -41,21 +45,55 @@ fn push_scope(ctx: ref SemaCtx) void! = {
     }
 }
 
-fn pop_scope(ctx: ref SemaCtx) void! = {
+fn pop_scope(ctx: ref SemaCtx, filename: ref char, scope_line: i64) void! = {
     guarded pre {
         ctx_not_null   : ctx != 0 as ref SemaCtx
         has_scopes     : @len(ctx.scopes) > 0
     }
 
     val len: usize = @len(ctx.scopes)
-    if len > 0 { @remove(ctx.scopes, len - 1) }
+    if len > 0 {
+        val frame_opt = @get(ctx.scopes, len - 1)
+        match frame_opt {
+            some frame => {
+                val flen: i64 = @len(frame as ref void) as i64
+                val i: mut i64 = 0
+                for {
+                    if i >= flen { break }
+                    val e_opt = @get(frame as ref void, i as usize)
+                    match e_opt {
+                        some e => {
+                            val entry: ref ScopeEntry = e as ref ScopeEntry
+                            if entry.name != 0 as ref char {
+                                if std.string.compare(std.string.RChar(entry.name), std.string.RChar("_")) != 0 {
+                                    if entry.used == 0 {
+                                        val buf: ref char = @alloc(256) as ref char
+                                        @snprintf(buf, 256, "line {lld}: variable '{s}' declared but never used", {entry.line, entry.name})
+                                        add_error(ctx, buf)
+                                    } elif entry.mutable == 1 && entry.mutated == 0 {
+                                        val buf2: ref char = @alloc(256) as ref char
+                                        @snprintf(buf2, 256, "line {lld}: mutable variable '{s}' declared but never mutated", {entry.line, entry.name})
+                                        add_error(ctx, buf2)
+                                    }
+                                }
+                            }
+                        }
+                        none => {}
+                    }
+                    i++
+                }
+            }
+            none => {}
+        }
+        @remove(ctx.scopes, len - 1)
+    }
 
     guarded post {
         scope_removed : true
     }
 }
 
-fn scope_define(ctx: ref SemaCtx, name: ref char, mutable: i64, type_name: ref char, is_ref: i64) void! = {
+fn scope_define(ctx: ref SemaCtx, name: ref char, mutable: i64, type_name: ref char, is_ref: i64, decl_line: i64) void! = {
     guarded pre {
         ctx_not_null    : ctx != 0 as ref SemaCtx
         name_not_null   : name != 0 as ref char
@@ -72,6 +110,9 @@ fn scope_define(ctx: ref SemaCtx, name: ref char, mutable: i64, type_name: ref c
             entry.mutable   = mutable
             entry.type_name = type_name
             entry.is_ref    = is_ref
+            entry.line      = decl_line
+            entry.used      = 0
+            entry.mutated   = 0
             @append(frame as ref void, entry)
 
             guarded post {
@@ -208,6 +249,74 @@ fn scope_lookup_is_ref(ctx: ref SemaCtx, name: ref char) i64! = {
         i--
     }
     return 0
+}
+
+
+fn mark_name_used(ctx: ref SemaCtx, name: ref char) void! = {
+    if name == 0 as ref char { return }
+    val len: i64 = @len(ctx.scopes) as i64
+    val i: mut i64 = len - 1
+    for {
+        if i < 0 { break }
+        val frame_opt = @get(ctx.scopes, i as usize)
+        match frame_opt {
+            some frame => {
+                val flen: i64 = @len(frame as ref void) as i64
+                val j: mut i64 = flen - 1
+                for {
+                    if j < 0 { break }
+                    val e_opt = @get(frame as ref void, j as usize)
+                    match e_opt {
+                        some e => {
+                            val entry: mut ref ScopeEntry = e as ref ScopeEntry
+                            if std.string.compare(std.string.RChar(entry.name), std.string.RChar(name)) == 0 {
+                                entry.used = 1
+                                return
+                            }
+                        }
+                        none => {}
+                    }
+                    j--
+                }
+            }
+            none => {}
+        }
+        i--
+    }
+}
+
+fn mark_name_mutated(ctx: ref SemaCtx, name: ref char) void! = {
+    if name == 0 as ref char { return }
+    val len: i64 = @len(ctx.scopes) as i64
+    val i: mut i64 = len - 1
+    for {
+        if i < 0 { break }
+        val frame_opt = @get(ctx.scopes, i as usize)
+        match frame_opt {
+            some frame => {
+                val flen: i64 = @len(frame as ref void) as i64
+                val j: mut i64 = flen - 1
+                for {
+                    if j < 0 { break }
+                    val e_opt = @get(frame as ref void, j as usize)
+                    match e_opt {
+                        some e => {
+                            val entry: mut ref ScopeEntry = e as ref ScopeEntry
+                            if std.string.compare(std.string.RChar(entry.name), std.string.RChar(name)) == 0 {
+                                entry.mutated = 1
+                                entry.used = 1
+                                return
+                            }
+                        }
+                        none => {}
+                    }
+                    j--
+                }
+            }
+            none => {}
+        }
+        i--
+    }
 }
 
 /// Checks if a field named field_name is mutable in the typedef named type_name.
@@ -643,7 +752,8 @@ fn check_expr(ctx: ref SemaCtx, expr: ref parser.Node, filename: ref char) void!
             i++
         }
         if !has_dot {
-            if scope_lookup(ctx, name) == -1 {
+            val lkup = scope_lookup(ctx, name)
+            if lkup == -1 {
                 val is_known: mut bool = false
                 for fn_name in ctx.fn_names {
                     if str_eq(fn_name, name) { is_known = true break }
@@ -658,6 +768,8 @@ fn check_expr(ctx: ref SemaCtx, expr: ref parser.Node, filename: ref char) void!
                     @snprintf(buf, 256, "{s}:{lld}: undefined variable '{s}'", {filename, line, name})
                     add_error(ctx, buf)
                 }
+            } else {
+                mark_name_used(ctx, name)
             }
         }
         return
@@ -690,7 +802,15 @@ fn check_expr(ctx: ref SemaCtx, expr: ref parser.Node, filename: ref char) void!
                 check_expr(ctx, carg, filename)
             }
         }
-        // Validate print/eprint wrappers: callee ends in "print" or "eprint"
+        if callee != 0 as ref parser.Node {
+            if callee.kind == parser.NK_IDENT {
+                val fname2: ref char = callee.d0 as ref char
+                @append(ctx.used_fns, fname2)
+            } elif callee.kind == parser.NK_FIELD {
+                val fname: ref char = parser.field_name(callee)
+                if fname != 0 as ref char { @append(ctx.used_fns, fname) }
+            }
+        }
         if callee != 0 as ref parser.Node && callee.kind == parser.NK_FIELD {
             val fname: ref char = parser.field_name(callee)
             val is_print_call: bool = str_eq(fname, "print") || str_eq(fname, "eprint")
@@ -739,6 +859,21 @@ fn check_expr(ctx: ref SemaCtx, expr: ref parser.Node, filename: ref char) void!
                             }
                         }
                         none => {}
+                    }
+                }
+            }
+        }
+        if str_eq(bname, "memcpy") || str_eq(bname, "memset") || str_eq(bname, "memmove") ||
+           str_eq(bname, "alloc") || str_eq(bname, "realloc") || str_eq(bname, "free") {
+            if bargs != 0 as ref void {
+                for barg in bargs as list[ref parser.Node] {
+                    if barg.kind == parser.NK_IDENT {
+                        mark_name_mutated(ctx, barg.d0 as ref char)
+                    } elif barg.kind == parser.NK_FIELD {
+                        val root_node: ref parser.Node = find_root_ident(barg)
+                        if root_node != 0 as ref parser.Node {
+                            mark_name_mutated(ctx, root_node.d0 as ref char)
+                        }
                     }
                 }
             }
@@ -965,7 +1100,7 @@ fn check_stmt(ctx: ref SemaCtx, stmt: ref parser.Node, filename: ref char) void!
                     }
                 }
             }
-            scope_define(ctx, name, mutable, tname, is_ref_flag)
+            scope_define(ctx, name, mutable, tname, is_ref_flag, line)
             val init_expr: ref parser.Node = stmt.d3 as ref parser.Node
             if tname != 0 as ref char && init_expr != 0 as ref parser.Node {
                 val init_k: i64 = init_expr.kind
@@ -1025,6 +1160,7 @@ fn check_stmt(ctx: ref SemaCtx, stmt: ref parser.Node, filename: ref char) void!
         val target: ref parser.Node = stmt.d0 as ref parser.Node
         if target.kind == parser.NK_IDENT {
             val tname: ref char = target.d0 as ref char
+            mark_name_mutated(ctx, tname)
             if scope_lookup(ctx, tname) == 0 {
                 val buf: ref char = @alloc(256) as ref char
                 @snprintf(buf, 256, "{s}:{lld}: cannot assign to immutable '{s}'", {filename, line, tname})
@@ -1034,6 +1170,7 @@ fn check_stmt(ctx: ref SemaCtx, stmt: ref parser.Node, filename: ref char) void!
             val root: ref parser.Node = find_root_ident(target)
             if root != 0 as ref parser.Node {
                 val tname: ref char = root.d0 as ref char
+                mark_name_mutated(ctx, tname)
                 val lkup: i64 = scope_lookup(ctx, tname)
                 if lkup == 0 {
                     val buf: ref char = @alloc(256) as ref char
@@ -1078,7 +1215,7 @@ fn check_stmt(ctx: ref SemaCtx, stmt: ref parser.Node, filename: ref char) void!
         val gbody: ref void = stmt.d1 as ref void
         push_scope(ctx)
         check_stmts(ctx, gbody, filename)
-        pop_scope(ctx)
+        pop_scope(ctx, filename, line)
         val gbody_len: mut i64 = 0
         if gbody != 0 as ref void { gbody_len = @len(gbody as list[ref parser.Node]) as i64 }
         val ends_with_return: mut bool = false
@@ -1103,21 +1240,21 @@ fn check_stmt(ctx: ref SemaCtx, stmt: ref parser.Node, filename: ref char) void!
         check_expr(ctx, stmt.d0 as ref parser.Node, filename)
         push_scope(ctx)
         check_stmts(ctx, stmt.d1 as ref void, filename)
-        pop_scope(ctx)
+        pop_scope(ctx, filename, line)
         val elif_list: ref void = stmt.d2 as ref void
         if elif_list != 0 as ref void {
             for ep in elif_list as list[ref parser.Node] {
                 check_expr(ctx, ep.d0 as ref parser.Node, filename)
                 push_scope(ctx)
                 check_stmts(ctx, ep.d1 as ref void, filename)
-                pop_scope(ctx)
+                pop_scope(ctx, filename, line)
             }
         }
         val else_body: ref void = stmt.d3 as ref void
         if else_body != 0 as ref void {
             push_scope(ctx)
             check_stmts(ctx, (stmt.d3 as ref parser.Node).d0 as ref void, filename)
-            pop_scope(ctx)
+            pop_scope(ctx, filename, line)
         }
         return
     }
@@ -1133,12 +1270,12 @@ fn check_stmt(ctx: ref SemaCtx, stmt: ref parser.Node, filename: ref char) void!
                     {filename, line, init_name})
                 add_error(ctx, buf)
             } else {
-                scope_define(ctx, init_name, 1, 0 as ref char, 0)
+                scope_define(ctx, init_name, 1, 0 as ref char, 0, line)
             }
         }
         check_expr(ctx, stmt.d2 as ref parser.Node, filename)
         check_stmts(ctx, stmt.d4 as ref void, filename)
-        pop_scope(ctx)
+        pop_scope(ctx, filename, line)
         return
     }
 
@@ -1146,16 +1283,16 @@ fn check_stmt(ctx: ref SemaCtx, stmt: ref parser.Node, filename: ref char) void!
         val binding: ref char = stmt.d0 as ref char
         check_expr(ctx, stmt.d1 as ref parser.Node, filename)
         push_scope(ctx)
-        scope_define(ctx, binding, 0, 0 as ref char, 0)
+        scope_define(ctx, binding, 0, 0 as ref char, 0, line)
         check_stmts(ctx, stmt.d2 as ref void, filename)
-        pop_scope(ctx)
+        pop_scope(ctx, filename, line)
         return
     }
 
     if k == parser.NK_DEFER {
         push_scope(ctx)
         check_stmts(ctx, stmt.d0 as ref void, filename)
-        pop_scope(ctx)
+        pop_scope(ctx, filename, line)
         return
     }
 
@@ -1175,7 +1312,7 @@ fn check_stmt(ctx: ref SemaCtx, stmt: ref parser.Node, filename: ref char) void!
         val some_body_node: ref parser.Node = stmt.d2 as ref parser.Node
         val none_body_node: ref parser.Node = stmt.d3 as ref parser.Node
         push_scope(ctx)
-        if some_bind != 0 as ref char { scope_define(ctx, some_bind, 0, 0 as ref char, 0) }
+        if some_bind != 0 as ref char { scope_define(ctx, some_bind, 0, 0 as ref char, 0, line) }
         if some_body_node != 0 as ref parser.Node {
             check_stmts(ctx, some_body_node.d0 as ref void, filename)
         }
@@ -1184,7 +1321,7 @@ fn check_stmt(ctx: ref SemaCtx, stmt: ref parser.Node, filename: ref char) void!
         if none_body_node != 0 as ref parser.Node {
             check_stmts(ctx, none_body_node.d0 as ref void, filename)
         }
-        pop_scope(ctx)
+        pop_scope(ctx, filename, line)
         return
     }
 
@@ -1193,19 +1330,19 @@ fn check_stmt(ctx: ref SemaCtx, stmt: ref parser.Node, filename: ref char) void!
         val ok_bind: ref char = stmt.d1 as ref char
         val ok_body_node: ref parser.Node = stmt.d2 as ref parser.Node
         push_scope(ctx)
-        if ok_bind != 0 as ref char { scope_define(ctx, ok_bind, 0, 0 as ref char, 0) }
+        if ok_bind != 0 as ref char { scope_define(ctx, ok_bind, 0, 0 as ref char, 0, line) }
         if ok_body_node != 0 as ref parser.Node {
             check_stmts(ctx, ok_body_node.d0 as ref void, filename)
         }
-        pop_scope(ctx)
+        pop_scope(ctx, filename, line)
         val err_bind: ref char = stmt.d3 as ref char
         val err_body_node: ref parser.Node = stmt.d4 as ref parser.Node
         push_scope(ctx)
-        if err_bind != 0 as ref char { scope_define(ctx, err_bind, 0, 0 as ref char, 0) }
+        if err_bind != 0 as ref char { scope_define(ctx, err_bind, 0, 0 as ref char, 0, line) }
         if err_body_node != 0 as ref parser.Node {
             check_stmts(ctx, err_body_node.d0 as ref void, filename)
         }
-        pop_scope(ctx)
+        pop_scope(ctx, filename, line)
         return
     }
 
@@ -1216,14 +1353,14 @@ fn check_stmt(ctx: ref SemaCtx, stmt: ref parser.Node, filename: ref char) void!
             for arm in arms as list[ref parser.Node] {
                 push_scope(ctx)
                 check_stmts(ctx, arm.d1 as ref void, filename)
-                pop_scope(ctx)
+                pop_scope(ctx, filename, line)
             }
         }
         val else_node: ref parser.Node = stmt.d2 as ref parser.Node
         if else_node != 0 as ref parser.Node {
             push_scope(ctx)
             check_stmts(ctx, else_node.d0 as ref void, filename)
-            pop_scope(ctx)
+            pop_scope(ctx, filename, line)
         }
         return
     }
@@ -1238,7 +1375,7 @@ fn check_stmt(ctx: ref SemaCtx, stmt: ref parser.Node, filename: ref char) void!
                 if bindings != 0 as ref void {
                     for bname in bindings as list[ref char] {
                         if std.string.compare(std.string.RChar(bname), std.string.RChar("_")) != 0 {
-                            scope_define(ctx, bname, 0, 0 as ref char, 0)
+                            scope_define(ctx, bname, 0, 0 as ref char, 0, line)
                         }
                     }
                 }
@@ -1256,14 +1393,14 @@ fn check_stmt(ctx: ref SemaCtx, stmt: ref parser.Node, filename: ref char) void!
                         }
                     }
                 }
-                pop_scope(ctx)
+                pop_scope(ctx, filename, line)
             }
         }
         val tu_else: ref parser.Node = stmt.d2 as ref parser.Node
         if tu_else != 0 as ref parser.Node {
             push_scope(ctx)
             check_stmts(ctx, tu_else.d0 as ref void, filename)
-            pop_scope(ctx)
+            pop_scope(ctx, filename, line)
         }
         return
     }
@@ -1271,13 +1408,13 @@ fn check_stmt(ctx: ref SemaCtx, stmt: ref parser.Node, filename: ref char) void!
     if k == parser.NK_WHEN_STMT {
         push_scope(ctx)
         check_stmts(ctx, stmt.d1 as ref void, filename)
-        pop_scope(ctx)
+        pop_scope(ctx, filename, line)
         val or_when_sema: ref void = stmt.d2 as ref void
         if or_when_sema != 0 as ref void {
             for ow_sema in or_when_sema as list[ref parser.Node] {
                 push_scope(ctx)
                 check_stmts(ctx, ow_sema.d1 as ref void, filename)
-                pop_scope(ctx)
+                pop_scope(ctx, filename, line)
             }
         }
         val otherwise_sema: ref void = stmt.d3 as ref void
@@ -1293,6 +1430,7 @@ fn check_stmt(ctx: ref SemaCtx, stmt: ref parser.Node, filename: ref char) void!
         val target2: ref parser.Node = stmt.d0 as ref parser.Node
         if target2.kind == parser.NK_IDENT {
             val tname2: ref char = target2.d0 as ref char
+            mark_name_mutated(ctx, tname2)
             if scope_lookup(ctx, tname2) == 0 {
                 val buf2: ref char = @alloc(256) as ref char
                 @snprintf(buf2, 256, "{s}:{lld}: cannot mutate immutable '{s}'", {filename, line, tname2})
@@ -1302,6 +1440,7 @@ fn check_stmt(ctx: ref SemaCtx, stmt: ref parser.Node, filename: ref char) void!
             val root2: ref parser.Node = find_root_ident(target2)
             if root2 != 0 as ref parser.Node {
                 val tname2: ref char = root2.d0 as ref char
+                mark_name_mutated(ctx, tname2)
                 if scope_lookup(ctx, tname2) == 0 {
                     val buf2: ref char = @alloc(256) as ref char
                     @snprintf(buf2, 256, "{s}:{lld}: cannot mutate field of immutable '{s}'", {filename, line, tname2})
@@ -1317,6 +1456,7 @@ fn check_stmt(ctx: ref SemaCtx, stmt: ref parser.Node, filename: ref char) void!
         val target3: ref parser.Node = stmt.d0 as ref parser.Node
         if target3.kind == parser.NK_IDENT {
             val tname3: ref char = target3.d0 as ref char
+            mark_name_mutated(ctx, tname3)
             if scope_lookup(ctx, tname3) == 0 {
                 val buf3: ref char = @alloc(256) as ref char
                 @snprintf(buf3, 256, "{s}:{lld}: cannot mutate immutable '{s}'", {filename, line, tname3})
@@ -1326,6 +1466,7 @@ fn check_stmt(ctx: ref SemaCtx, stmt: ref parser.Node, filename: ref char) void!
             val root3: ref parser.Node = find_root_ident(target3)
             if root3 != 0 as ref parser.Node {
                 val tname3: ref char = root3.d0 as ref char
+                mark_name_mutated(ctx, tname3)
                 if scope_lookup(ctx, tname3) == 0 {
                     val buf3: ref char = @alloc(256) as ref char
                     @snprintf(buf3, 256, "{s}:{lld}: cannot mutate field of immutable '{s}'", {filename, line, tname3})
@@ -1364,7 +1505,7 @@ fn check_fn(ctx: ref SemaCtx, fn_node: ref parser.Node, filename: ref char) void
             } elif pty.kind == parser.TY_REF {
                 param_is_ref = 1
             }
-            scope_define(ctx, pname, is_mut, param_tname, param_is_ref)
+            scope_define(ctx, pname, is_mut, param_tname, param_is_ref, param.line)
         }
     }
     check_stmts(ctx, fn_node.d5 as ref void, filename)
@@ -1466,7 +1607,7 @@ fn check_top_item(ctx: ref SemaCtx, item: ref parser.Node, filename: ref char) v
     if k == parser.NK_TEST {
         push_scope(ctx)
         check_stmts(ctx, item.d0 as ref void, filename)
-        pop_scope(ctx)
+        pop_scope(ctx, filename, item.line)
     }
     if k == parser.NK_WHEN_ITEMS {
         val witems: ref void = item.d1 as ref void
@@ -1544,6 +1685,35 @@ pub fn check_module(items: list[ref parser.Node], filename: ref char) list[ref c
 
     for item2 in items {
         check_top_item(ctx, item2, filename)
+    }
+
+    val fnlen: i64 = @len(ctx.fn_names) as i64
+    val fi: mut i64 = 0
+    for {
+        if fi >= fnlen { break }
+        val fn_opt = @get(ctx.fn_names, fi as usize)
+        match fn_opt {
+            some fn_name => {
+                val used_found: mut bool = false
+                for uf in ctx.used_fns {
+                    if str_eq(uf as ref char, fn_name as ref char) { used_found = true break }
+                }
+                if !used_found {
+                    val namec: ref char = fn_name as ref char
+                    if !str.rchar_cmp(namec, "main") != 0 {
+                        val wbuf: ref char = @alloc(256) as ref char
+                        @snprintf(wbuf, 256, "{s}: warning: unused function '{s}'", {filename, namec})
+                        @append(ctx.warnings, wbuf)
+                    }
+                }
+            }
+            none => {}
+        }
+        fi++
+    }
+
+    for w in ctx.warnings {
+        std.stdio.print("warning: {s}\n", {w})
     }
 
     return ctx.errors
