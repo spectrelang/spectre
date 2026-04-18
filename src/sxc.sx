@@ -13,11 +13,20 @@ val sema        = use("sema/sema.sx")
 val codegen     = use("codegen/codegen.sx")
 val module      = use("module/module.sx")
 val meta        = use("meta/meta.sx")
+val commands    = use("meta/commands.sx")
 
 pub fn main() i32! = {
     val arena = allocators.Arena.new(65536)?
     val args = std.os.get_args()
     val argc: i64 = @len(args) as i64
+
+    val exe_path: mut ref char = "./spectre"
+    val exe_opt = @get(args, 0)
+    match exe_opt {
+        some v => { exe_path = v as ref char }
+        none   => {}
+    }
+
     val quiet: mut bool = false
 
     if argc < 2 {
@@ -48,6 +57,74 @@ pub fn main() i32! = {
         meta.print_version()
         allocators.Arena.free(arena)
         return 0
+    }
+
+    if std.string.rchar_cmp(input, "ref") == 0 {
+        val code: i32 = commands.cmd_ref()
+        allocators.Arena.free(arena)
+        return code
+    }
+
+    if std.string.rchar_cmp(input, "init") == 0 {
+        val name_arg: mut ref char = ""
+        val name_opt = @get(args, 2)
+        match name_opt {
+            some v => { name_arg = v as ref char }
+            none   => {}
+        }
+        val code: i32 = commands.cmd_init(name_arg)
+        allocators.Arena.free(arena)
+        return code
+    }
+
+    if std.string.rchar_cmp(input, "build") == 0 {
+        val config_name: mut ref char = "dev"
+        val cfg_opt = @get(args, 2)
+        match cfg_opt {
+            some v => { config_name = v as ref char }
+            none   => {}
+        }
+        val code: i32 = commands.cmd_build(config_name, exe_path)
+        allocators.Arena.free(arena)
+        return code
+    }
+
+    if std.string.rchar_cmp(input, "add") == 0 {
+        val url_opt = @get(args, 2)
+        match url_opt {
+            some v => {
+                val code: i32 = commands.cmd_add(v as ref char)
+                allocators.Arena.free(arena)
+                return code
+            }
+            none => {
+                std.stdio.puts("error: spectre add requires a git repository URL")
+                allocators.Arena.free(arena)
+                return 1
+            }
+        }
+    }
+
+    if std.string.rchar_cmp(input, "remove") == 0 {
+        val dep_opt = @get(args, 2)
+        match dep_opt {
+            some v => {
+                val code: i32 = commands.cmd_remove(v as ref char)
+                allocators.Arena.free(arena)
+                return code
+            }
+            none => {
+                std.stdio.puts("error: spectre remove requires a dependency name")
+                allocators.Arena.free(arena)
+                return 1
+            }
+        }
+    }
+
+    if std.string.rchar_cmp(input, "clean") == 0 {
+        val code: i32 = commands.cmd_clean()
+        allocators.Arena.free(arena)
+        return code
     }
 
     val src_opt = std.fs.read_all(input)
