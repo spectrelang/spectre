@@ -909,6 +909,7 @@ fn check_expr(ctx: ref SemaCtx, expr: ref parser.Node, filename: ref char) void!
                                         val pty_inner: ref parser.Node = pty.d0 as ref parser.Node
                                         if pty_inner != 0 as ref parser.Node && pty_inner.kind == parser.TY_REF { param_is_ref = true }
                                         elif pty_inner != 0 as ref parser.Node && pty_inner.kind == parser.TY_LIST { param_is_ref = true }
+                                        elif pty_inner != 0 as ref parser.Node && pty_inner.kind == parser.TY_NAMED { param_is_ref = true }
                                     }
                                     if param_is_ref {
                                         if arg_node.kind == parser.NK_IDENT {
@@ -1035,7 +1036,7 @@ fn check_expr(ctx: ref SemaCtx, expr: ref parser.Node, filename: ref char) void!
             }
         }
         if str_eq(bname, "memcpy") || str_eq(bname, "store8") || str_eq(bname, "memset") || str_eq(bname, "addr") || str_eq(bname, "memmove") ||
-           str_eq(bname, "alloc") || str_eq(bname, "realloc") || str_eq(bname, "free") || str_eq(bname, "ptradd") || str_eq(bname, "store") || str_eq(bname, "load") || str_eq(bname, "load8") || str_eq(bname, "append") || str_eq(bname, "remove") {
+           str_eq(bname, "alloc") || str_eq(bname, "realloc") || str_eq(bname, "free") || str_eq(bname, "ptradd") || str_eq(bname, "store") || str_eq(bname, "load") || str_eq(bname, "load8") || str_eq(bname, "append") || str_eq(bname, "remove") || str_eq(bname, "reserve") {
             if bargs != 0 as ref void {
                 for barg in bargs as list[ref parser.Node] {
                     if barg.kind == parser.NK_IDENT {
@@ -1524,7 +1525,7 @@ fn check_stmt(ctx: ref SemaCtx, stmt: ref parser.Node, filename: ref char) void!
         if some_body_node != 0 as ref parser.Node {
             check_stmts(ctx, some_body_node.d0 as ref void, filename)
         }
-        pop_scope(ctx)
+        pop_scope(ctx, filename, line)
         push_scope(ctx)
         if none_body_node != 0 as ref parser.Node {
             check_stmts(ctx, none_body_node.d0 as ref void, filename)
@@ -1629,7 +1630,7 @@ fn check_stmt(ctx: ref SemaCtx, stmt: ref parser.Node, filename: ref char) void!
         if otherwise_sema != 0 as ref void {
             push_scope(ctx)
             check_stmts(ctx, otherwise_sema, filename)
-            pop_scope(ctx)
+            pop_scope(ctx, filename, line)
         }
         return
     }
@@ -1717,7 +1718,7 @@ fn check_fn(ctx: ref SemaCtx, fn_node: ref parser.Node, filename: ref char) void
         }
     }
     check_stmts(ctx, fn_node.d5 as ref void, filename)
-    pop_scope(ctx)
+    pop_scope(ctx, filename, 0)
 }
 
 /// Register a function name.

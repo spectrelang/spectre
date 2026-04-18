@@ -23,14 +23,14 @@ type Stack = {
     len:  mut usize
 }
 
-pub fn (Stack) peek(s: mut self) option[i32] = {
+pub fn (Stack) peek(s: self) option[i32] = {
     pre { 
         not_empty: s.len > 0 
     }
     return trust @get(s.data, s.len - 1)
 }
 
-pub fn (Stack) print_top(s: mut self) void = {
+pub fn (Stack) print_top(s: self) void = {
     guarded pre { 
         has_items: s.len > 0 
     }

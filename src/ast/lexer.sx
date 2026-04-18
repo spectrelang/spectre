@@ -243,11 +243,16 @@ fn keyword_kind(s: ref char) TokenKind! = {
 }
 
 fn lex_string(l: ref Lexer) ref char! = {
-    val buf: ref char = @alloc(4096) as ref char
+    val buf_cap: mut i64 = 4096
+    val buf: mut ref char = @alloc(buf_cap) as ref char
     val i: mut i64 = 0
     for {
         val c: i64 = lx_advance(l)
         if c == -1 || c == 34 { break }
+        if i >= buf_cap - 2 {
+            buf_cap = buf_cap * 2
+            buf = @realloc(buf as ref void, buf_cap) as ref char
+        }
         if c == 92 {
             val esc: i64 = lx_advance(l)
             if esc == 110      { @store8(@ptradd(buf, i), 10) }
@@ -329,13 +334,18 @@ fn skip_comment(l: mut ref Lexer) bool! = {
 
 fn lex_raw_string(l: mut ref Lexer, line: i64, col: i64) ref Token! = {
     lx_advance(l)
-    val buf: ref char = @alloc(4096) as ref char
+    val buf_cap: mut i64 = 4096
+    val buf: mut ref char = @alloc(buf_cap) as ref char
     val i: mut i64 = 0
     for {
         for {
             val ch: i64 = lx_peek(l)
             if ch == -1 || ch == 10 { break }
             lx_advance(l)
+            if i >= buf_cap - 2 {
+                buf_cap = buf_cap * 2
+                buf = @realloc(buf as ref void, buf_cap) as ref char
+            }
             @store8(@ptradd(buf, i), ch as u8)
             i++
         }
