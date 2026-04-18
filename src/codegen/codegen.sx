@@ -2500,10 +2500,7 @@ fn gen_expr(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
         val inner3: ref char = gen_expr(ctx, inner_expr)
         val ty: ref parser.Node = expr.d1 as ref parser.Node
         val qt: ref char = qbe_type_of(ty)
-        val src_is_float: bool = expr_is_float(ctx, inner_expr)
-        val src_qt: mut ref char = ""
-
-        if src_is_float { src_qt = "d" } else { src_qt = "l" }
+        val src_qt: ref char = expr_qbe_type(ctx, inner_expr)
 
         val needs_conversion: mut bool = false
         val conv_instr: mut ref char = "copy"
@@ -2517,6 +2514,15 @@ fn gen_expr(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
         } elif str.rchar_cmp(src_qt, "l") == 0 && str.rchar_cmp(qt, "d") == 0 {
             needs_conversion = true
             conv_instr = "sltof"
+        } elif str.rchar_cmp(src_qt, "w") == 0 && str.rchar_cmp(qt, "l") == 0 {
+            val ext_tmp: i64 = fresh_tmp(ctx)
+            val ext_buf: ref char = @alloc(128) as ref char
+            @snprintf(ext_buf, 128, "    %%t{lld} =l extsw {s}\n", {ext_tmp, inner3})
+            emit(ctx, ext_buf)
+            @free(ext_buf)
+            val res_conv: ref char = @alloc(16) as ref char
+            @snprintf(res_conv, 16, "%%t{lld}", {ext_tmp})
+            return res_conv
         } elif str.rchar_cmp(src_qt, "w") == 0 && str.rchar_cmp(qt, "d") == 0 {
             val ext_tmp: i64 = fresh_tmp(ctx)
             val ext_buf: ref char = @alloc(128) as ref char
@@ -5661,38 +5667,54 @@ fn gen_stmt(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
                         }
                     }
                 }
+
+                val val_to_store: mut ref char = val_tmp2
+                if str.rchar_cmp(field_store_op, "storel") == 0 {
+                    val val_qtype: ref char = expr_qbe_type(ctx, value)
+                    if str.rchar_cmp(val_qtype, "w") == 0 {
+                        val ext_tmp: i64 = fresh_tmp(ctx)
+                        val ext_buf: ref char = @alloc(128) as ref char
+                        @snprintf(ext_buf, 128, "    %%t{lld} =l extsw {s}\n", {ext_tmp, val_tmp2})
+                        emit(ctx, ext_buf)
+                        @free(ext_buf)
+                        val ext_res: ref char = @alloc(16) as ref char
+                        @snprintf(ext_res, 16, "%%t{lld}", {ext_tmp})
+                        val_to_store = ext_res
+                    }
+                }
+
                 val buf3: ref char = @alloc(128) as ref char
                 if field_is_list {
                     if foffset == 0 {
-                        @snprintf(buf3, 128, "    call $memcpy(l {s}, l {s}, l 24)\n", {base, val_tmp2})
+                        @snprintf(buf3, 128, "    call $memcpy(l {s}, l {s}, l 24)\n", {base, val_to_store})
                     } else {
                         val fptr: i64 = fresh_tmp(ctx)
                         val buf3b: ref char = @alloc(128) as ref char
                         @snprintf(buf3b, 128, "    %%t{lld} =l add {s}, {lld}\n", {fptr, base, foffset})
                         emit(ctx, buf3b)
                         @free(buf3b)
-                        @snprintf(buf3, 128, "    call $memcpy(l %%t{lld}, l {s}, l 24)\n", {fptr, val_tmp2})
+                        @snprintf(buf3, 128, "    call $memcpy(l %%t{lld}, l {s}, l 24)\n", {fptr, val_to_store})
                     }
                 } elif field_size_write > 8 {
                     if foffset == 0 {
-                        @snprintf(buf3, 128, "    call $memcpy(l {s}, l {s}, l {lld})\n", {base, val_tmp2, field_size_write})
+                        @snprintf(buf3, 128, "    call $memcpy(l {s}, l {s}, l {lld})\n", {base, val_to_store, field_size_write})
                     } else {
                         val fptr: i64 = fresh_tmp(ctx)
                         val buf3b: ref char = @alloc(128) as ref char
                         @snprintf(buf3b, 128, "    %%t{lld} =l add {s}, {lld}\n", {fptr, base, foffset})
                         emit(ctx, buf3b)
                         @free(buf3b)
-                        @snprintf(buf3, 128, "    call $memcpy(l %%t{lld}, l {s}, l {lld})\n", {fptr, val_tmp2, field_size_write})
+                        @snprintf(buf3, 128, "    call $memcpy(l %%t{lld}, l {s}, l {lld})\n", {fptr, val_to_store, field_size_write})
                     }
                 } elif foffset == 0 {
-                    @snprintf(buf3, 128, "    {s} {s}, {s}\n", {field_store_op, val_tmp2, base})
+                    @snprintf(buf3, 128, "    {s} {s}, {s}\n", {field_store_op, val_to_store, base})
                 } else {
                     val fptr: i64 = fresh_tmp(ctx)
                     val buf3b: ref char = @alloc(128) as ref char
                     @snprintf(buf3b, 128, "    %%t{lld} =l add {s}, {lld}\n", {fptr, base, foffset})
                     emit(ctx, buf3b)
                     @free(buf3b)
-                    @snprintf(buf3, 128, "    {s} {s}, %%t{lld}\n", {field_store_op, val_tmp2, fptr})
+                    @snprintf(buf3, 128, "    {s} {s}, %%t{lld}\n", {field_store_op, val_to_store, fptr})
                 }
                 emit(ctx, buf3)
                 @free(buf3)
