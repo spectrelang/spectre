@@ -15,7 +15,7 @@ fn (SomeType) add(this: self) i32 = {
 }
 
 /// Some docstring
-fn some_function(x: i32) i32 = {
+fn some_function(_: i32) i32 = {
     return 10
 }
 
@@ -26,6 +26,6 @@ pub fn main() void = {
     val st: SomeType = {x: 10, y: 20}
     val sum: i64 = SomeType.add(st)
 
-    stdio.print("\n%d", {sum})
+    stdio.print("\n{d}", {sum})
 }
 
