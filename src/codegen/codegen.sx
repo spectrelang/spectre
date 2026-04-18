@@ -543,9 +543,9 @@ fn cg_lookup_fn_ret_type_expr(ctx: ref CgCtx, name: ref char) ref parser.Node! =
                     val r_opt = @get(cg_fn_rets(ctx) as list[ref void], ni as usize)
                     match r_opt {
                         some r => { 
-			    @free(suffix) 
-			    return r as ref parser.Node 
-			}
+			                @free(suffix) 
+			                return r as ref parser.Node 
+			            }
                         none => {}
                     }
                 }
