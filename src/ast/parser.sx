@@ -325,17 +325,6 @@ fn p_expect_string(p: ref Parser) result[ref char, ref char]! = {
     }
 }
 
-fn p_expect_int_text(p: ref Parser) result[ref char, ref char]! = {
-    match p_peek_kind(p) {
-        Int _ => {
-            val txt: ref char = lexer.tok_text(p.tokens, p.pos)
-            p_advance(p)
-            return ok txt
-        }
-        else => { return err p_error(p, "expected integer literal") }
-    }
-}
-
 fn p_expect_lbrace(p: ref Parser)   result[ref char, ref char]! = { return p_expect_kind(p, lexer.kind_is_lbrace,   "'{'" ) }
 fn p_expect_rbrace(p: ref Parser)   result[ref char, ref char]! = { return p_expect_kind(p, lexer.kind_is_rbrace,   "'}'" ) }
 fn p_expect_lparen(p: ref Parser)   result[ref char, ref char]! = { return p_expect_kind(p, lexer.kind_is_lparen,   "'('" ) }
