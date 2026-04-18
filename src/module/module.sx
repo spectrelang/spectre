@@ -140,7 +140,7 @@ fn item_references_import_shallow(stmts_ptr: ref void, import_name: ref char) bo
         return false
     }
 
-    val stmts: mut list[ref parser.Node] = stmts_ptr as list[ref parser.Node]
+    val stmts: list[ref parser.Node] = stmts_ptr as list[ref parser.Node]
     val slen: i64 = @len(stmts) as i64
 
     if slen < 0 || slen > 100000 {
@@ -1291,7 +1291,7 @@ fn collect_needed_subnames(items: list[ref parser.Node], import_name: ref char) 
 
 fn collect_needed_subnames_in_stmts(stmts_ptr: ref void, import_name: ref char, needed: list[ref char]) void! = {
     if stmts_ptr == 0 { return }
-    val stmts: mut list[ref parser.Node] = stmts_ptr as list[ref parser.Node]
+    val stmts: list[ref parser.Node] = stmts_ptr as list[ref parser.Node]
     val slen: i64 = @len(stmts) as i64
     val si: mut i64 = 0
     for {
@@ -1640,16 +1640,15 @@ fn collect_needed_subnames_in_expr(expr: ref parser.Node, import_name: ref char,
         }
     }
 }
+
 /// Collect all unique sub-module names accessed via <import_name>.<sub> in items.
-/// e.g. for import_name="std", finds "std.stdio" and returns ["stdio"]
-/// (transitive part removed — it was broken and caused massive redundant parsing)
 pub fn collect_needed_subnames_transitive(
     items: list[ref parser.Node],
     import_name: ref char,
-    use_path: ref char,  
-    file_dir: ref char, 
-    exe_dir: ref char,  
-    in_progress: list[ref char]  
+    _: ref char,  
+    _: ref char, 
+    _: ref char,  
+    _: list[ref char]  
 ) list[ref char]! = {
     return collect_needed_subnames(items, import_name)
 }
