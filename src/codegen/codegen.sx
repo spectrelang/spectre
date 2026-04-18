@@ -116,8 +116,6 @@ fn cg_lbl(ctx: ref CgCtx)     i64!      = { return ctx.lbl as i64 }
 fn cg_fn_name(ctx: ref CgCtx) ref char! = { return ctx.fn_name as ref char }
 fn cg_strs(ctx: ref CgCtx)    ref void! = { return ctx.strs as ref void }
 fn cg_str_cnt(ctx: ref CgCtx) i64!      = { return ctx.str_cnt as i64 }
-fn cg_tdefs(ctx: ref CgCtx)   ref void! = { return ctx.tdefs as ref void }
-fn cg_edefs(ctx: ref CgCtx)   ref void! = { return ctx.edefs as ref void }
 
 fn cg_set_tmp(ctx: mut ref CgCtx, v: i64) void! = {
     ctx.tmp = v
@@ -321,29 +319,6 @@ fn cg_mc_vals(ctx: ref CgCtx) ref void! = { return ctx.mc_vals as ref void }
 fn cg_register_module_const(ctx: ref CgCtx, name: ref char, val_str: ref char) void! = {
     @append(cg_mc_names(ctx) as list[ref char], name)
     @append(cg_mc_vals(ctx)  as list[ref char], val_str)
-}
-
-/// Inject all module-level constants as direct vars so they resolve inline.
-fn cg_inject_module_consts(ctx: ref CgCtx) void! = {
-    val names: ref void = cg_mc_names(ctx)
-    val vals:  ref void = cg_mc_vals(ctx)
-    val nlen: i64 = @len(names as list[ref char]) as i64
-    val ni: mut i64 = 0
-    for {
-        if ni >= nlen { break }
-        val n_opt = @get(names as list[ref char], ni as usize)
-        val v_opt = @get(vals  as list[ref char], ni as usize)
-        match n_opt {
-            some n => {
-                match v_opt {
-                    some v => { cg_dvars_add(ctx, n as ref char, v as ref char) }
-                    none => {}
-                }
-            }
-            none => {}
-        }
-        ni++
-    }
 }
 
 /// Look up a module-level constant value by name. Returns "" if not found.
@@ -715,50 +690,6 @@ fn cg_lookup_ext_ret(ctx: ref CgCtx, name: ref char) ref void! = {
         ni2++
     }
     return 0 as ref void
-}
-
-/// Returns true if the given name is an extern function.
-/// Tries exact match first, then suffix match.
-fn cg_is_extern(ctx: ref CgCtx, name: ref char) bool! = {
-    val names: ref void = cg_extern_names(ctx)
-    val nlen: i64 = @len(names as list[ref char]) as i64
-    val ni: mut i64 = 0
-    for {
-        if ni >= nlen { break }
-        val n_opt = @get(names as list[ref char], ni as usize)
-        match n_opt {
-            some n => {
-                if str.rchar_cmp(n as ref char, name) == 0 { return true }
-            }
-            none => {}
-        }
-        ni++
-    }
-    val namelen: i64 = str.len_raw(name)
-    val ni2: mut i64 = 0
-    for {
-        if ni2 >= nlen { break }
-        val n_opt = @get(names as list[ref char], ni2 as usize)
-        match n_opt {
-            some n => {
-                val candidate: ref char = n as ref char
-                val clen: i64 = str.len_raw(candidate)
-                if namelen > clen {
-                    val suffix_pos: mut i64 = namelen - clen
-                    if suffix_pos > 0 {
-                        val sc: u8 = @load8(@ptradd(name as ref void, suffix_pos - 1))
-                        if sc == 95 {
-                            val rest: ref char = @ptradd(name as ref void, suffix_pos) as ref char
-                            if str.rchar_cmp(rest, candidate) == 0 { return true }
-                        }
-                    }
-                }
-            }
-            none => {}
-        }
-        ni2++
-    }
-    return false
 }
 
 /// Register a tagged union variant: variant_name -> (union_name, tag_index, field_type_node).
@@ -1331,11 +1262,6 @@ fn cg_local_type(ctx: ref CgCtx, name: ref char) ref char! = {
 fn cg_register_local_var_type(ctx: ref CgCtx, src_name: ref char, type_name: ref char) void! = {
     @append(ctx.lnames as list[ref char], src_name)
     @append(ctx.ltypes as list[ref char], type_name)
-}
-
-/// Mark a local variable as having a reference/pointer type (for field access)
-fn cg_mark_local_ref_type(ctx: ref CgCtx, src_name: ref char) void! = {
-    @append(ctx.local_ref_types as list[ref char], src_name)
 }
 
 /// Generate a struct literal inline within a parent allocation (e.g., union payload).
@@ -6940,10 +6866,6 @@ fn gen_match_tagged_union(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
     @free(endbuf2)
 }
 
-fn gen_fn(ctx: ref CgCtx, fn_node: ref parser.Node) void! = {
-    gen_fn_prefixed(ctx, fn_node, "")
-}
-
 fn get_std_child_names() mut list[ref char] = {
     val std_child_names: list[ref char] = ["allocators", "collections", "crypto", "fmt", "fs", "log", "math", "os", "path", "random", "reflection", "stdio", "string", "str", "time", "thread"]
     return std_child_names
@@ -7262,150 +7184,6 @@ fn gen_extern_fn_prefixed(ctx: ref CgCtx, item: ref parser.Node, mod_prefix: ref
         }
         @free(mangled_name)
     }
-}
-
-fn gen_extern_shim(ctx: ref CgCtx, item: ref parser.Node, mod_prefix: ref char) void! = {
-    val name: ref char = item.d1 as ref char
-    val symbol: ref char = item.d2 as ref char
-    val params: ref void = item.d4 as ref void
-    val ret_ty: ref parser.Node = item.d5 as ref parser.Node
-    val shim_name: ref char = @alloc(512) as ref char
-    val is_std_child: mut bool = false
-    val scn_len: i64 = @len(get_std_child_names()) as i64
-    val scn_i: mut i64 = 0
-    
-    for {
-        if scn_i >= scn_len { break }
-        val scn_opt = @get(get_std_child_names(), scn_i as usize)
-        match scn_opt {
-            some scn => {
-                if str.rchar_cmp(scn as ref char, mod_prefix) == 0 {
-                    is_std_child = true
-                    break
-                }
-            }
-            none => {}
-        }
-        scn_i++
-    }
-
-    if is_std_child {
-        @snprintf(shim_name, 512, "std__{s}__{s}", {mod_prefix, name})
-    } else {
-        @snprintf(shim_name, 512, "{s}__{s}", {mod_prefix, name})
-    }
-
-    val eshims_len: i64 = @len(ctx.emitted_shims as list[ref char]) as i64
-    val eshims_i: mut i64 = 0
-    for {
-        if eshims_i >= eshims_len { break }
-        val sh_opt = @get(ctx.emitted_shims as list[ref char], eshims_i as usize)
-        match sh_opt {
-            some sh => {
-                if str.rchar_cmp(sh as ref char, shim_name) == 0 {
-                    @free(shim_name)
-                    return
-                }
-            }
-            none => {}
-        }
-        eshims_i++
-    }
-
-    if !cg_emit_label_if_new(ctx, shim_name) {
-        @free(shim_name)
-        return
-    }
-
-    @append(ctx.emitted_shims, shim_name)
-    cg_set_fn_name(ctx, shim_name)
-
-    if params != 0 as ref void {
-        cg_register_fn(ctx, shim_name, params, ret_ty as ref void)
-    }
-    
-    val ret_qt: ref char = qbe_type_of(ret_ty)
-    val export_buf: ref char = @alloc(256) as ref char
-    @snprintf(export_buf, 256, "\nexport function {s} ${s}(", {ret_qt, shim_name})
-    emit(ctx, export_buf)
-    @free(export_buf)
-    
-    if params != 0 as ref void {
-        val plen: i64 = @len(params as list[ref parser.Node]) as i64
-        val pi: mut i64 = 0
-        for {
-            if pi >= plen { break }
-            val p_opt = @get(params, pi as usize)
-            match p_opt {
-                some param => {
-                    val pname: ref char = (param as ref parser.Node).d0 as ref char
-                    val pty: ref parser.Node = (param as ref parser.Node).d1 as ref parser.Node
-                    val pqt: ref char = qbe_type_of(pty)
-                    val pbuf: ref char = @alloc(64) as ref char
-                    if pi > 0 { emit(ctx, ", ") }
-                    @snprintf(pbuf, 64, "{s} %%{s}", {pqt, pname})
-                    emit(ctx, pbuf)
-                    @free(pbuf)
-                }
-                none => {}
-            }
-            pi++
-        }
-    }
-    
-    emitln(ctx, ") {")
-    emitln(ctx, "@start")
-    
-    if params != 0 as ref void && @len(params as list[ref parser.Node]) > 0 {
-        val call_buf: ref char = @alloc(1024) as ref char
-        @snprintf(call_buf, 1024, "    call ${s}(", {symbol})
-        emit(ctx, call_buf)
-        @free(call_buf)
-        
-        val plen: i64 = @len(params) as i64
-        val pi: mut i64 = 0
-        for {
-            if pi >= plen { break }
-            val p_opt = @get(params, pi as usize)
-            match p_opt {
-                some param => {
-                    val pname: ref char = (param as ref parser.Node).d0 as ref char
-                    val pty: ref parser.Node = (param as ref parser.Node).d1 as ref parser.Node
-                    val pqt: ref char = qbe_type_of(pty)
-                    val pbuf: ref char = @alloc(128) as ref char
-                    if pi > 0 { emit(ctx, ", ") }
-                    @snprintf(pbuf, 128, "{s} %%{s}", {pqt, pname})
-                    emit(ctx, pbuf)
-                    @free(pbuf)
-                }
-                none => {}
-            }
-            pi++
-        }
-        emitln(ctx, ")")
-    } else {
-        val call_buf: ref char = @alloc(256) as ref char
-        @snprintf(call_buf, 256, "    call ${s}()", {symbol})
-        emitln(ctx, call_buf)
-        @free(call_buf)
-    }
-    
-    if str.rchar_cmp(ret_qt, "void") != 0 {
-        emitln(ctx, "    ret 0")
-    } else {
-        emitln(ctx, "    ret")
-    }
-    
-    emitln(ctx, "}")
-    @free(shim_name)
-}
-
-fn gen_enum_def(ctx: ref CgCtx, item: ref parser.Node) void! = {
-    gen_enum_def_prefixed(ctx, item, "")
-}
-
-fn gen_union_def(ctx: ref CgCtx, item: ref parser.Node) void! = {
-    gen_union_def_prefixed(ctx, item, "")
 }
 
 fn gen_union_def_prefixed(ctx: ref CgCtx, item: ref parser.Node, mod_prefix: ref char) void! = {
@@ -7999,11 +7777,6 @@ fn scan_stmts_for_calls(ctx: ref CgCtx, stmts: ref void) void! = {
         }
         si++
     }
-}
-
-/// Recursively scan a node tree for function calls to mark prefixes as used.
-fn scan_node_for_calls(ctx: ref CgCtx, node: ref parser.Node) void! = {
-    scan_node_for_calls_depth(ctx, node, 0)
 }
 
 /// Recursively scan a node tree for function calls to mark prefixes as used, with depth limit.
