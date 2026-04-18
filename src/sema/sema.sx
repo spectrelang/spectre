@@ -13,18 +13,19 @@ type ScopeEntry = {
 }
 
 type SemaCtx = {
-    errors:       mut list[ref char]
-    warnings:     mut list[ref char]
-    fn_names:     mut list[ref char]
-    used_fns:     mut list[ref char]
-    type_names:   mut list[ref char]
-    global_names: mut list[ref char]
-    scopes:       mut list[ref void]
-    type_defs:    mut list[ref void]
-    fn_defs:      mut list[ref void]
-    fn_map_names: mut list[ref char]
+    errors:        mut list[ref char]
+    warnings:      mut list[ref char]
+    fn_names:      mut list[ref char]
+    used_fns:      mut list[ref char]
+    type_names:    mut list[ref char]
+    global_names:  mut list[ref char]
+    scopes:        mut list[ref void]
+    type_defs:     mut list[ref void]
+    fn_defs:       mut list[ref void]
+    fn_map_names:  mut list[ref char]
     fn_map_params: mut list[ref void]
-    root_mod: mut ref modinfo.ResolvedModule
+    variant_names: mut list[ref char]
+    root_mod:      mut ref modinfo.ResolvedModule
 }
 
 fn sema_new() ref SemaCtx! = {
@@ -73,12 +74,12 @@ fn pop_scope(ctx: ref SemaCtx, filename: ref char, scope_line: i64) void! = {
                             if entry.name != 0 as ref char {
                                 if std.string.compare(std.string.RChar(entry.name), std.string.RChar("_")) != 0 {
                                     if entry.used == 0 {
-                                        val buf: ref char = @alloc(256) as ref char
-                                        @snprintf(buf, 256, "line {lld}: variable '{s}' declared but never used", {entry.line, entry.name})
+                                        val buf: ref char = @alloc(512) as ref char
+                                        @snprintf(buf, 512, "{s}:{lld}: variable '{s}' declared but never used", {filename, entry.line, entry.name})
                                         add_error(ctx, buf)
                                     } elif entry.mutable == 1 && entry.mutated == 0 {
-                                        val buf2: ref char = @alloc(256) as ref char
-                                        @snprintf(buf2, 256, "line {lld}: mutable variable '{s}' declared mutable but never mutated", {entry.line, entry.name})
+                                        val buf2: ref char = @alloc(512) as ref char
+                                        @snprintf(buf2, 512, "{s}:{lld}: mutable variable '{s}' declared mutable but never mutated", {filename, entry.line, entry.name})
                                         add_error(ctx, buf2)
                                     }
                                 }
@@ -1741,7 +1742,9 @@ fn register_type_name(ctx: ref SemaCtx, item: ref parser.Node) void! = {
         if tvariants != 0 as ref void {
             for tv in tvariants as list[ref parser.Node] {
                 if tv != 0 as ref parser.Node && tv.d0 != 0 as i64 {
-                    @append(ctx.fn_names, tv.d0 as ref char)
+                    val vname: ref char = tv.d0 as ref char
+                    @append(ctx.fn_names, vname)
+                    @append(ctx.variant_names, vname)
                 }
             }
         }
@@ -1925,7 +1928,11 @@ pub fn check_module(items: list[ref parser.Node], filename: ref char, root: ref 
                 }
                 if !used_found {
                     val namec: ref char = fn_name as ref char
-                    if !str_eq(namec, "main") {
+                    val is_variant: mut bool = false
+                    for vn in ctx.variant_names {
+                        if str_eq(vn as ref char, namec) { is_variant = true break }
+                    }
+                    if !str_eq(namec, "main") && !is_variant {
                         val wbuf: ref char = @alloc(256) as ref char
                         @snprintf(wbuf, 256, "{s}: unused function '{s}'", {filename, namec})
                         @append(ctx.warnings, wbuf)
