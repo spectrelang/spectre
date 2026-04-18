@@ -21,6 +21,8 @@ type SemaCtx = {
     scopes:       mut list[ref void]
     type_defs:    mut list[ref void]
     fn_defs:      mut list[ref void]
+    fn_map_names: mut list[ref char]
+    fn_map_params: mut list[ref void]
 }
 
 fn sema_new() ref SemaCtx! = {
@@ -836,8 +838,16 @@ fn check_expr(ctx: ref SemaCtx, expr: ref parser.Node, filename: ref char) void!
                     match f_opt {
                         some f => {
                             val fnode: ref parser.Node = f as ref parser.Node
-                            val fname_node: ref char = fnode.d2 as ref char
-                            if fname_node != 0 as ref char && std.string.compare(std.string.RChar(fname_node), std.string.RChar(target_name)) == 0 {
+                            val fname_node1: ref char = fnode.d1 as ref char
+                            val fname_node2: ref char = fnode.d2 as ref char
+                            val is_match: mut bool = false
+                            if fname_node1 != 0 as ref char {
+                                if std.string.compare(std.string.RChar(fname_node1), std.string.RChar(target_name)) == 0 { is_match = true }
+                            }
+                            if fname_node2 != 0 as ref char {
+                                if std.string.compare(std.string.RChar(fname_node2), std.string.RChar(target_name)) == 0 { is_match = true }
+                            }
+                            if is_match {
                                 fn_found = fnode
                                 break
                             }
@@ -891,6 +901,33 @@ fn check_expr(ctx: ref SemaCtx, expr: ref parser.Node, filename: ref char) void!
                         none => {}
                     }
                     idx++
+                }
+            }
+        }
+
+        if fn_found == 0 as ref parser.Node && cargs != 0 as ref void {
+            for carg in cargs as list[ref parser.Node] {
+                if carg.kind == parser.NK_IDENT {
+                    val aname: ref char = carg.d0 as ref char
+                    if aname != 0 as ref char {
+                        if scope_lookup_is_ref(ctx, aname) == 1 {
+                            if scope_lookup(ctx, aname) == 1 {
+                                mark_name_mutated(ctx, aname)
+                            }
+                        }
+                    }
+                } elif carg.kind == parser.NK_FIELD {
+                    val root_carg: ref parser.Node = find_root_ident(carg)
+                    if root_carg != 0 as ref parser.Node {
+                        val aname2: ref char = root_carg.d0 as ref char
+                        if aname2 != 0 as ref char {
+                            if scope_lookup_is_ref(ctx, aname2) == 1 {
+                                if scope_lookup(ctx, aname2) == 1 {
+                                    mark_name_mutated(ctx, aname2)
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -1690,13 +1727,29 @@ fn register_named_item(ctx: ref SemaCtx, item: ref parser.Node) void! = {
 /// Register a single top-level item's name in the context.
 fn register_item_name(ctx: ref SemaCtx, item: ref parser.Node) void! = {
     if item == 0 as ref parser.Node { return }
-    val k: i64 = item.kind //instantly crashes here 
-    if k == parser.NK_FN {
-        if item.d0 == 1 {
-            val nm: ref char = item.d2 as ref char
-            if nm != 0 as ref char { @append(ctx.global_names, nm) }
+    val k: i64 = item.kind 
+    if k == parser.NK_FN || k == parser.NK_EXTERN_FN {
+        if k == parser.NK_FN {
+            if item.d0 == 1 {
+                val nm: ref char = item.d2 as ref char
+                if nm != 0 as ref char { @append(ctx.global_names, nm) }
+            } else {
+                register_fn_name(ctx, item.d1 as ref char, item.d2 as ref char)
+            }
+            val fname: ref char = item.d2 as ref char
+            val params_node: ref void = item.d3 as ref void
+            if fname != 0 as ref char {
+                @append(ctx.fn_map_names, fname)
+                @append(ctx.fn_map_params, params_node)
+            }
         } else {
-            register_fn_name(ctx, item.d1 as ref char, item.d2 as ref char)
+            if item.d1 != 0 as i64 {
+                val ename: ref char = item.d1 as ref char
+                val eparams: ref void = item.d4 as ref void
+                @append(ctx.fn_map_names, ename)
+                @append(ctx.fn_map_params, eparams)
+                @append(ctx.fn_names, ename)
+            }
         }
         @append(ctx.fn_defs, item as ref void)
     }

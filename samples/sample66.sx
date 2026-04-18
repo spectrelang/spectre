@@ -20,7 +20,7 @@ pub fn main() void = {
                 }
             }
         }
-        err e => {
+        err _ => {
             stdio.puts("Invalid integer #1.")
         }
     }
