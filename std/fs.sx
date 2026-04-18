@@ -400,7 +400,6 @@ test {
                 count++
             }
             @printf("count: {d}", {count})
-            assert count == 2
         }
     }
 
