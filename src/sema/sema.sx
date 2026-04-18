@@ -144,6 +144,20 @@ fn find_root_ident(node: ref parser.Node) ref parser.Node! = {
     return 0 as ref parser.Node
 }
 
+/// Strips NK_CAST and NK_TRUST wrappers, then delegates to find_root_ident.
+fn unwrap_and_find_root(node: ref parser.Node) ref parser.Node! = {
+    val cur: mut ref parser.Node = node
+    for {
+        if cur == 0 as ref parser.Node { return 0 as ref parser.Node }
+        if cur.kind == parser.NK_CAST || cur.kind == parser.NK_TRUST {
+            cur = cur.d0 as ref parser.Node
+        } else {
+            return find_root_ident(cur)
+        }
+    }
+    return 0 as ref parser.Node
+}
+
 /// Returns mutable flag (0 or 1) or -1 if not found.
 fn scope_lookup(ctx: ref SemaCtx, name: ref char) i64! = {
     guarded pre {
@@ -949,13 +963,9 @@ fn check_expr(ctx: ref SemaCtx, expr: ref parser.Node, filename: ref char) void!
                                         elif pty_inner != 0 as ref parser.Node && pty_inner.kind == parser.TY_NAMED { param_is_ref = true }
                                     }
                                     if param_is_ref {
-                                        if arg_node.kind == parser.NK_IDENT {
-                                            mark_name_mutated(ctx, arg_node.d0 as ref char)
-                                        } elif arg_node.kind == parser.NK_FIELD {
-                                            val root_node: ref parser.Node = find_root_ident(arg_node)
-                                            if root_node != 0 as ref parser.Node {
-                                                mark_name_mutated(ctx, root_node.d0 as ref char)
-                                            }
+                                        val root_node: ref parser.Node = unwrap_and_find_root(arg_node)
+                                        if root_node != 0 as ref parser.Node {
+                                            mark_name_mutated(ctx, root_node.d0 as ref char)
                                         }
                                     }
                                 }
@@ -971,24 +981,13 @@ fn check_expr(ctx: ref SemaCtx, expr: ref parser.Node, filename: ref char) void!
 
         if fn_found == 0 as ref parser.Node && cargs != 0 as ref void {
             for carg in cargs as list[ref parser.Node] {
-                if carg.kind == parser.NK_IDENT {
-                    val aname: ref char = carg.d0 as ref char
+                val root_carg: ref parser.Node = unwrap_and_find_root(carg)
+                if root_carg != 0 as ref parser.Node {
+                    val aname: ref char = root_carg.d0 as ref char
                     if aname != 0 as ref char {
                         if scope_lookup_is_ref(ctx, aname) == 1 {
                             if scope_lookup(ctx, aname) == 1 {
                                 mark_name_mutated(ctx, aname)
-                            }
-                        }
-                    }
-                } elif carg.kind == parser.NK_FIELD {
-                    val root_carg: ref parser.Node = find_root_ident(carg)
-                    if root_carg != 0 as ref parser.Node {
-                        val aname2: ref char = root_carg.d0 as ref char
-                        if aname2 != 0 as ref char {
-                            if scope_lookup_is_ref(ctx, aname2) == 1 {
-                                if scope_lookup(ctx, aname2) == 1 {
-                                    mark_name_mutated(ctx, aname2)
-                                }
                             }
                         }
                     }
@@ -1073,17 +1072,25 @@ fn check_expr(ctx: ref SemaCtx, expr: ref parser.Node, filename: ref char) void!
             }
         }
         if str_eq(bname, "memcpy") || str_eq(bname, "store8") || str_eq(bname, "memset") || str_eq(bname, "addr") || str_eq(bname, "memmove") ||
-           str_eq(bname, "alloc") || str_eq(bname, "realloc") || str_eq(bname, "free") || str_eq(bname, "ptradd") || str_eq(bname, "store") || str_eq(bname, "load") || str_eq(bname, "load8") || str_eq(bname, "append") || str_eq(bname, "remove") || str_eq(bname, "reserve") {
+           str_eq(bname, "alloc") || str_eq(bname, "realloc") || str_eq(bname, "free") || str_eq(bname, "store") || str_eq(bname, "append") || str_eq(bname, "remove") || str_eq(bname, "reserve") {
             if bargs != 0 as ref void {
-                for barg in bargs as list[ref parser.Node] {
-                    if barg.kind == parser.NK_IDENT {
-                        mark_name_mutated(ctx, barg.d0 as ref char)
-                    } elif barg.kind == parser.NK_FIELD {
-                        val root_node: ref parser.Node = find_root_ident(barg)
+                val btarget_opt = @get(bargs as list[ref parser.Node], 0)
+                match btarget_opt {
+                    some btarget => {
+                        val root_node: ref parser.Node = unwrap_and_find_root(btarget)
                         if root_node != 0 as ref parser.Node {
-                            mark_name_mutated(ctx, root_node.d0 as ref char)
+                            val vname: ref char = root_node.d0 as ref char
+                            val is_mut: i64 = scope_lookup(ctx, vname)
+                            val is_ref: i64 = scope_lookup_is_ref(ctx, vname)
+                            if is_mut != -1 && is_mut == 0 && is_ref == 0 {
+                                val ebuf: ref char = @alloc(512) as ref char
+                                @snprintf(ebuf, 512, "{s}:{lld}: cannot pass immutable value '{s}' to mutating builtin '@{s}'", {filename, line, vname, bname})
+                                add_error(ctx, ebuf)
+                            }
+                            mark_name_mutated(ctx, vname)
                         }
                     }
+                    none => {}
                 }
             }
         }

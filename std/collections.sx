@@ -41,7 +41,7 @@ pub fn (PtrList) new(initial_cap: usize) result[ref void, ListAllocError]! = {
 }
 
 /// Free a PtrList and its backing buffer.
-pub fn (PtrList) free(list: self) void! = {
+pub fn (PtrList) free(list: mut self) void! = {
     val buf: ref void = @load(list)
     @free(buf)
     @free(list)
@@ -59,7 +59,7 @@ pub fn (PtrList) cap(list: self) usize! = {
 
 /// Grow the backing buffer to at least new_cap elements.
 /// Requires new_cap > 0 to avoid a zero-size allocation.
-fn (PtrList) grow(list: self, new_cap: usize) result[void, ListAllocError] = {
+fn (PtrList) grow(list: mut self, new_cap: usize) result[void, ListAllocError] = {
     pre {
         new_cap_positive : new_cap > 0
     }
@@ -141,7 +141,7 @@ pub fn (PtrList) pop(list: self) option[usize] = {
     if (len == 0) {
         return none
     }
-    val new_len: mut usize = len - 1
+    val new_len: usize = len - 1
     val buf: ref void = trust @load(list)
     val slot: ref void = trust @ptradd(buf, new_len * ELEMENT_SIZE)
     val value: usize = trust @load(slot) as usize
@@ -205,7 +205,7 @@ pub fn (Map) new(initial_cap: usize, hash_fn: ref void) ref void! = {
 }
 
 /// Free the map and its backing bucket array.
-pub fn (Map) free(map: self) void! = {
+pub fn (Map) free(map: mut self) void! = {
     val buckets: ref void = @load(map)
     @free(buckets)
     @free(map)
@@ -222,7 +222,7 @@ pub fn (Map) cap(map: self) usize! = {
 }
 
 /// Internal: grow the map to new_cap buckets and rehash all live entries.
-fn (Map) grow(map: self, new_cap: usize) void! = {
+fn (Map) grow(map: mut self, new_cap: usize) void! = {
     pre {
         new_cap_positive: new_cap > 0
     }
@@ -546,7 +546,7 @@ pub fn (StringMap) new(initial_cap: usize) ref void! = {
 pub fn (StringMap) set(map: self, key: ref char, value: usize) void! = {
     val cap: usize = @load(@ptradd(map, 16)) as usize
     val buckets: ref void = @load(map)
-    val kl: mut i64 = strlen(key)
+    val kl: i64 = strlen(key)
     val hash_fn: ref void = @load(@ptradd(map, 24))
     val h: usize = @call(hash_fn, key as usize)
     val start: usize = h - (h / cap) * cap
