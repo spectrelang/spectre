@@ -18,7 +18,7 @@ pub fn some_function() void! = {
     val one_x: option[i32] = @get(xs, 0) // get first element from xs
 
     match one_x {
-        some xv => {
+        some _ => {
             val len = @len(xs)
             stdio.print("and the length of this list is {d}\n", {len})
             @remove(xs, 1)
