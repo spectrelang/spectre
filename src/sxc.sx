@@ -143,6 +143,8 @@ pub fn main() i32! = {
     val test_mode: mut bool = false
     val release_mode: mut bool = false
     val output_name: mut ref char = ""
+    val build_dll: mut bool = false
+    val compile_obj: mut bool = false
     val arg_i: mut i64 = 2
 
     for {
@@ -189,6 +191,12 @@ pub fn main() i32! = {
                     arg_i++
                 } elif std.string.rchar_cmp(arg, "--release") == 0 {
                     release_mode = true
+                    arg_i++
+                } elif std.string.rchar_cmp(arg, "--dll") == 0 {
+                    build_dll = true
+                    arg_i++
+                } elif std.string.rchar_cmp(arg, "-c") == 0 || std.string.rchar_cmp(arg, "--compile") == 0 {
+                    compile_obj = true
                     arg_i++
                 } else {
                     arg_i++
@@ -347,9 +355,35 @@ pub fn main() i32! = {
     val success_msg: mut ref char = ""
     val exit_code: mut i32 = 0
     val link_flags: mut ref char = ""
+    val platform: ref char = reflection.current_platform_name()
 
     for lib in links {
         link_flags = @fmt("{s} {s}", {link_flags, lib})
+    }
+
+    val cc_flags: mut ref char = ""
+    val output_ext: mut ref char = ""
+
+    if compile_obj {
+        cc_flags = "-c"
+        if std.string.rchar_cmp(platform, "windows") == 0 {
+            output_ext = ".obj"
+        } else {
+            output_ext = ".o"
+        }
+    } elif build_dll {
+        if std.string.rchar_cmp(platform, "macos") == 0 {
+            cc_flags = "-dynamiclib"
+            output_ext = ".dylib"
+        } elif std.string.rchar_cmp(platform, "windows") == 0 {
+            cc_flags = "-shared"
+            output_ext = ".dll"
+        } else {
+            cc_flags = "-shared"
+            output_ext = ".so"
+        }
+    } else {
+        output_ext = ""
     }
 
     if test_mode {
@@ -381,12 +415,28 @@ pub fn main() i32! = {
     }
 
     if output_specified != 0 {
-        cc_cmd = @fmt("cc -o {s} {s}{s}", {binary_name, asm_file, link_flags})
-        success_msg = @fmt("Compiled: {s}\n", {binary_name})
+        val final_output: mut ref char = binary_name
+        if std.string.rchar_cmp(output_ext, "") != 0 {
+            final_output = @fmt("{s}{s}", {binary_name, output_ext})
+        }
+        if std.string.rchar_cmp(cc_flags, "") == 0 {
+            cc_cmd = @fmt("cc -o {s} {s}{s}", {final_output, asm_file, link_flags})
+        } else {
+            cc_cmd = @fmt("cc {s} -o {s} {s}{s}", {cc_flags, final_output, asm_file, link_flags})
+        }
+        success_msg = @fmt("Compiled: {s}\n", {final_output})
     } else {
         std.os.exec("mkdir -p ./s-out")
-        cc_cmd = @fmt("cc -o ./s-out/{s} {s}{s}", {binary_name, asm_file, link_flags})
-        success_msg = @fmt("Compiled: ./s-out/{s}\n", {binary_name})
+        val final_output: mut ref char = @fmt("./s-out/{s}", {binary_name})
+        if std.string.rchar_cmp(output_ext, "") != 0 {
+            final_output = @fmt("./s-out/{s}{s}", {binary_name, output_ext})
+        }
+        if std.string.rchar_cmp(cc_flags, "") == 0 {
+            cc_cmd = @fmt("cc -o {s} {s}{s}", {final_output, asm_file, link_flags})
+        } else {
+            cc_cmd = @fmt("cc {s} -o {s} {s}{s}", {cc_flags, final_output, asm_file, link_flags})
+        }
+        success_msg = @fmt("Compiled: {s}\n", {final_output})
     }
 
     if show_cmd != 0 {
