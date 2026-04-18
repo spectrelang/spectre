@@ -226,7 +226,7 @@ pub fn main() i32! = {
     val exe_dir: ref char = "."
 
     if !quiet && !emit_qbe && !print_ast {
-        std.stdio.puts("[I]  │ Resolving module")
+        std.stdio.puts("[I  ]│ Resolving module")
     }
 
     val resolve_result = module.resolve_module(input, [], exe_dir, 0 as ref void)
@@ -249,7 +249,7 @@ pub fn main() i32! = {
     }
 
     if !quiet && !emit_qbe {
-        std.stdio.puts("[II] │ Semantic analysis")
+        std.stdio.puts("[II ]│ Semantic analysis")
     }
 
     val errors: list[ref char] = sema.check_module_tree(root_mod)
@@ -281,7 +281,7 @@ pub fn main() i32! = {
     }
 
     if !quiet && !emit_qbe {
-        std.stdio.puts("[IV] │ Module used-links collection")
+        std.stdio.puts("[IV ]│ Module used-links collection")
     }
 
     val links: mut list[ref char] = module.collect_used_links(root_mod, exe_dir)
