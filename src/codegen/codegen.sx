@@ -6943,7 +6943,7 @@ fn gen_fn_prefixed(ctx: mut ref CgCtx, fn_node: ref parser.Node, mod_prefix: ref
     }
     val returns_union: bool = str.rchar_cmp(ret_union_name, "") != 0
 
-    @snprintf(sig_buf, 512, "%sfunction {s} ${s}(", {export_kw, ret_qt, mangled})
+    @snprintf(sig_buf, 512, "{s}function {s} ${s}(", {export_kw, ret_qt, mangled})
     emit(ctx, sig_buf)
     @free(sig_buf)
 

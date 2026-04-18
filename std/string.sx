@@ -131,6 +131,57 @@ pub fn rchar_starts_with(s: ref char, prefix: ref char) bool = {
     return true
 }
 
+pub fn rchar_ends_with(s: ref char, suffix: ref char) bool = {
+    if (suffix == none) {
+        return true
+    }
+    if (s == none) {
+        return false
+    }
+
+    val suffix_len: mut i64 = 0
+    val s_len: mut i64 = 0
+    val ps: ref char = suffix
+    val ss: ref char = s
+
+    for {
+        val c: u8 = trust @load8(@ptradd(ps, suffix_len)) as u8
+        if (c == 0) {
+            break
+        }
+        suffix_len++
+    }
+
+    for {
+        val c: u8 = trust @load8(@ptradd(ss, s_len)) as u8
+        if (c == 0) {
+            break
+        }
+        s_len++
+    }
+
+    if (suffix_len > s_len) {
+        return false
+    }
+
+    val offset: i64 = s_len - suffix_len
+    val i: mut i64 = 0
+
+    for {
+        if (i >= suffix_len) {
+            break
+        }
+        val a: u8 = trust @load8(@ptradd(ss, offset + i)) as u8
+        val b: u8 = trust @load8(@ptradd(ps, i)) as u8
+        if (a != b) {
+            return false
+        }
+        i++
+    }
+
+    return true
+}
+
 /// Ensure capacity (private helper)
 fn ensure_cap(s: SbOrPtr, needed: i64) void! = {
     match s {
