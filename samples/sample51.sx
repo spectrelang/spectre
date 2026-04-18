@@ -8,10 +8,9 @@ pub type Token = {
     kind: mut TokenKind
 }
 
-pub fn tokenize_simple(src: ref char) list[ref Token]! = {
+pub fn tokenize_simple(_: ref char) list[ref Token]! = {
     val tokens: mut list[ref Token] = []
     
-    // Just create a few test tokens
     val t1: mut ref Token = @alloc(@sizeof(Token)) as ref Token
     t1.kind = Fn()
     @append(tokens, t1)
@@ -33,27 +32,6 @@ pub fn tok_kind_simple(tokens: list[ref Token], i: i64) TokenKind! = {
         some t => { return (t as ref Token).kind }
         none   => { return Eof() }
     }
-}
-
-fn kind_is_fn(k: TokenKind) bool! = { 
-    match k { 
-        Fn() => { return true } 
-        else => { return false } 
-    } 
-}
-
-fn kind_is_val(k: TokenKind) bool! = { 
-    match k { 
-        Val() => { return true } 
-        else => { return false } 
-    } 
-}
-
-fn kind_is_eof(k: TokenKind) bool! = { 
-    match k { 
-        Eof() => { return true } 
-        else => { return false } 
-    } 
 }
 
 pub fn main() void! = {
