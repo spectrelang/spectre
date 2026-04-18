@@ -63,7 +63,7 @@ pub fn compare(a: StrOrRChar, b: StrOrRChar) i64! = {
 
 /// Create from raw C string
 pub fn from(cstr: ref char) String! = {
-    val l: mut i64 = strlen(cstr)
+    val l: i64 = strlen(cstr)
     val buf: ref void = @alloc(l + 1)
     @memcpy(buf, cstr, l)
     @store8(@ptradd(buf, l), 0)
@@ -190,7 +190,7 @@ fn ensure_cap(s: SbOrPtr, needed: i64) void! = {
             if (needed <= cap) {
                 return
             }
-            val new_cap: mut i64 = needed * 2
+            val new_cap: i64 = needed * 2
             val old_ptr: ref void = @load(ptr)
             val new_ptr: ref void = @realloc(old_ptr, new_cap)
             @store(ptr, new_ptr)
@@ -201,7 +201,7 @@ fn ensure_cap(s: SbOrPtr, needed: i64) void! = {
             if (needed <= cap) {
                 return
             }
-            val new_cap: mut i64 = needed * 2
+            val new_cap: i64 = needed * 2
             val old_ptr: ref void = @load(sb)
             val new_ptr: ref void = @realloc(old_ptr, new_cap)
             @store(sb, new_ptr)
@@ -212,9 +212,9 @@ fn ensure_cap(s: SbOrPtr, needed: i64) void! = {
 
 /// Append a C string in place
 pub fn push_cstr(s: String, other: ref char) void! = {
-    val l: mut i64 = @load(@ptradd(s, 8)) as i64
-    val add_len: mut i64 = strlen(other)
-    val new_len: mut i64 = l + add_len
+    val l: i64 = @load(@ptradd(s, 8)) as i64
+    val add_len: i64 = strlen(other)
+    val new_len: i64 = l + add_len
 
     ensure_cap(StrBuilder(s), new_len + 1)
 
@@ -228,10 +228,10 @@ pub fn push_cstr(s: String, other: ref char) void! = {
 /// Append another String in place
 pub fn push(s: ref void, other: ref void) void! = {
     val other_ptr: ref void = @load(other)
-    val other_len: mut i64 = @load(@ptradd(other, 8)) as i64
+    val other_len: i64 = @load(@ptradd(other, 8)) as i64
 
-    val l: mut i64 = @load(@ptradd(s, 8)) as i64
-    val new_len: mut i64 = l + other_len
+    val l: i64 = @load(@ptradd(s, 8)) as i64
+    val new_len: i64 = l + other_len
 
     ensure_cap(Ptr(s), new_len + 1)
 
@@ -244,7 +244,7 @@ pub fn push(s: ref void, other: ref void) void! = {
 
 /// Clone — returns a new heap-allocated String
 pub fn clone(s: ref void) ref void! = {
-    val l: mut i64 = @load(@ptradd(s, 8)) as i64
+    val l: i64 = @load(@ptradd(s, 8)) as i64
     val ptr: ref void = @load(s)
     val buf: ref void = @alloc(l + 1)
 
@@ -261,7 +261,7 @@ pub fn clone(s: ref void) ref void! = {
 }
 
 /// Reverse in place
-pub fn reverse(s: ref void) void! = {
+pub fn reverse(s: mut ref void) void! = {
     val ptr: ref void = @load(s)
     val l: i64 = @load(@ptradd(s, 8)) as i64
 
@@ -272,8 +272,8 @@ pub fn reverse(s: ref void) void! = {
         if (i >= j) {
             break
         }
-        val a: mut u8 = @load8(@ptradd(ptr, i)) as u8
-        val b: mut u8 = @load8(@ptradd(ptr, j)) as u8
+        val a: u8 = @load8(@ptradd(ptr, i)) as u8
+        val b: u8 = @load8(@ptradd(ptr, j)) as u8
 
         @store8(@ptradd(ptr, i), b)
         @store8(@ptradd(ptr, j), a)
@@ -285,9 +285,9 @@ pub fn reverse(s: ref void) void! = {
 
 /// Concat raw char pointers — returns a new heap-allocated ref char
 pub fn concat_raw(a: ref char, b: ref char) ref char! = {
-    val len_a: mut i64 = strlen(a)
-    val len_b: mut i64 = strlen(b)
-    val new_len: mut i64 = len_a + len_b
+    val len_a: i64 = strlen(a)
+    val len_b: i64 = strlen(b)
+    val new_len: i64 = len_a + len_b
     val buf: mut ref void = @alloc(new_len + 1)
 
     @memcpy(buf, a, len_a)
@@ -318,8 +318,8 @@ pub fn clear(s: ref void) void! = {
 
 /// Append a single byte character
 pub fn push_char(s: ref void, c: u8) void! = {
-    val l: mut i64 = @load(@ptradd(s, 8)) as i64
-    val new_len: mut i64 = l + 1
+    val l: i64 = @load(@ptradd(s, 8)) as i64
+    val new_len: i64 = l + 1
 
     ensure_cap(Ptr(s), new_len + 1)
 
@@ -539,7 +539,7 @@ pub fn trim_left(s: ref void) void! = {
     if (start == 0) {
         return
     }
-    val new_len: mut i64 = l - start
+    val new_len: i64 = l - start
     @memcpy(ptr, @ptradd(ptr, start), new_len)
     @store8(@ptradd(ptr, new_len), 0)
     @store(@ptradd(s, 8), new_len)
@@ -579,7 +579,7 @@ pub fn trim(s: ref void) void! = {
 pub fn replace(s: ref void, from: ref void, to: ref void) ref void! = {
     val sl: i64 = @load(@ptradd(s, 8)) as i64
     val froml: i64 = @load(@ptradd(from, 8)) as i64
-    val tol: mut i64 = @load(@ptradd(to, 8)) as i64
+    val tol: i64 = @load(@ptradd(to, 8)) as i64
     val out: ref void = new()
 
     if (froml == 0) {
@@ -911,9 +911,9 @@ pub fn (StringBuilder) new() ref void! = {
 /// Append a String to the builder
 pub fn (StringBuilder) append(sb: self, s: ref void) void! = {
     val other_ptr: ref void = @load(s)
-    val other_len: mut i64 = @load(@ptradd(s, 8)) as i64
-    val l: mut i64 = @load(@ptradd(sb, 8)) as i64
-    val new_len: mut i64 = l + other_len
+    val other_len: i64 = @load(@ptradd(s, 8)) as i64
+    val l: i64 = @load(@ptradd(sb, 8)) as i64
+    val new_len: i64 = l + other_len
 
     ensure_cap(StrBuilder(sb), new_len + 1)
 
@@ -926,7 +926,7 @@ pub fn (StringBuilder) append(sb: self, s: ref void) void! = {
 
 /// Append a C string to the builder
 pub fn (StringBuilder) append_cstr(sb: self, cstr: ref char) void! = {
-    val l: mut i64 = @load(@ptradd(sb, 8)) as i64
+    val l: i64 = @load(@ptradd(sb, 8)) as i64
     val add_len: mut i64 = strlen(cstr)
     val new_len: mut i64 = l + add_len
 
@@ -941,7 +941,7 @@ pub fn (StringBuilder) append_cstr(sb: self, cstr: ref char) void! = {
 
 /// Build — returns a new heap-allocated String with the accumulated content
 pub fn (StringBuilder) build(sb: self) ref void! = {
-    val l: mut i64 = @load(@ptradd(sb, 8)) as i64
+    val l: i64 = @load(@ptradd(sb, 8)) as i64
     val ptr: ref void = @load(sb)
     val buf: ref void = @alloc(l + 1)
 
@@ -965,8 +965,8 @@ pub fn (StringBuilder) free(sb: self) void! = {
 
 /// Append a single byte character
 pub fn (StringBuilder) append_char(sb: self, c: u8) void! = {
-    val l: mut i64 = @load(@ptradd(sb, 8)) as i64
-    val new_len: mut i64 = l + 1
+    val l: i64 = @load(@ptradd(sb, 8)) as i64
+    val new_len: i64 = l + 1
 
     ensure_cap(StrBuilder(sb), new_len + 1)
 
@@ -993,7 +993,7 @@ fn rewrite_fmt(fmt: ref char) ref void! = {
         if (i >= fmtlen) {
             break
         }
-        val c: mut u8 = @load8(@ptradd(fmt, i)) as u8
+        val c: u8 = @load8(@ptradd(fmt, i)) as u8
         if (c == 123) { // '{'
             val j: mut i64 = i + 1
             val found: mut i64 = 0
@@ -1016,7 +1016,7 @@ fn rewrite_fmt(fmt: ref char) ref void! = {
                     if (k >= j) {
                         break
                     }
-                    val sc: mut u8 = @load8(@ptradd(fmt, k)) as u8
+                    val sc: u8 = @load8(@ptradd(fmt, k)) as u8
                     @store8(@ptradd(buf, out_i), sc)
                     out_i++
                     k++
@@ -1043,7 +1043,7 @@ fn rewrite_fmt(fmt: ref char) ref void! = {
 pub fn format(fmt: ref char, args: untyped) ref void! = {
     val rfmt: ref void = rewrite_fmt(fmt)
     val buf: ref void = @alloc(4096)
-    val written: mut i64 = @snprintf(buf, 4096, rfmt, args) as i64
+    val written: i64 = @snprintf(buf, 4096, rfmt, args) as i64
     @free(rfmt)
     val copy: ref void = @alloc(written + 1)
     @memcpy(copy, buf, written)
@@ -1067,7 +1067,7 @@ pub fn substr(src: ref char, start: i64, len: i64) ref char! = {
 /// Copy `len` bytes from `src` to `dst`, starting at offset `dst_off` in dst.
 /// The result is NOT null-terminated beyond what was already there.
 pub fn copy(dst: ref char, dst_off: i64, src: ref char) void! = {
-    val slen: mut i64 = strlen(src)
+    val slen: i64 = strlen(src)
     @memcpy(@ptradd(dst, dst_off), src, slen)
 }
 

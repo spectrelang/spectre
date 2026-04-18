@@ -29,7 +29,7 @@ fn new_ctx(text: ref char) ref ParseCtx = {
     return ctx
 }
 
-fn ctx_peek(ctx: mut ref ParseCtx) i64 = {
+fn ctx_peek(ctx: ref ParseCtx) i64 = {
     if ctx.pos >= ctx.len { return -1 }
     return @load8(@ptradd(ctx.text as ref void, ctx.pos)) as i64
 }

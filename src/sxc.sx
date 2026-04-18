@@ -248,7 +248,7 @@ pub fn main() i32! = {
         std.stdio.puts("[IV] │ Module used-links collection")
     }
 
-    val links: list[ref char] = module.collect_used_links(root_mod, exe_dir)
+    val links: mut list[ref char] = module.collect_used_links(root_mod, exe_dir)
 
     if !release_mode {
         val panic_o: ref char = path.join(exe_dir, "std/csources/panic_handler.o")
