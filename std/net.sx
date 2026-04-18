@@ -76,10 +76,10 @@ type I64Slot = { value: mut i64 }
 pub fn curl_write_cb(ptr: ref void, size: i64, nmemb: i64, userdata: ref void) i64! = {
     val total: i64          = size * nmemb
     val buf: mut ref Buffer = userdata as mut ref Buffer
-    val new_len: mut i64    = buf.len + total
+    val new_len: i64    = buf.len + total
 
     if (new_len + 1 > buf.cap) {
-        val new_cap: mut i64 = (new_len + 1) * 2
+        val new_cap: i64 = (new_len + 1) * 2
         buf.data = @realloc(buf.data, new_cap)
         buf.cap  = new_cap
         memcpy(@ptradd(buf.data, buf.len), ptr, total)
@@ -255,7 +255,7 @@ pub fn (TcpServer) listen(port: i32) ref ServerHandle! = {
     val address: mut ref void = @alloc(16)
     memset(address, 0, 16)
     @store(address, 2)
-    val net_port: mut i32     = htons(port)
+    val net_port: i32     = htons(port)
     val port_ptr: mut ref void = @ptradd(address, 2)
     @store(port_ptr, net_port)
 
