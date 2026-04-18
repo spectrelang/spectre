@@ -55,83 +55,81 @@ pub val CURL_GLOBAL_DEFAULT    = 3
 pub val AF_INET                = 2
 pub val IPPROTO_TCP            = 6
 
+type Buffer = {
+    data: mut ref void
+    len:  mut i64
+    cap:  mut i64
+}
+
 /// A heap-allocated HTTP response.
-///
-/// Layout (8 bytes each field):
-///   offset  0 : body   (ref char) — null-terminated response body
-///   offset  8 : status (i64)      — HTTP status code
-///   offset 16 : len    (i64)      — body length in bytes
 type Response = {
-    body:   ref char
-    status: i64
-    len:    i64
+    body:   mut ref char
+    status: mut i64
+    len:    mut i64
 }
 
 /// Internal write callback for curl.
 /// Signature matches: size_t write_fn(char *ptr, size_t size, size_t nmemb, void *userdata)
-/// userdata layout (8 bytes each):
-///   offset  0 : ptr  (ref char) — heap buffer
-///   offset  8 : len  (i64)      — bytes written so far
-///   offset 16 : cap  (i64)      — allocated capacity
 pub fn curl_write_cb(ptr: ref void, size: i64, nmemb: i64, userdata: ref void) i64! = {
-    val total: i64            = size * nmemb
-    val buf_ptr: mut ref void = @load(userdata)
-    val buf_len: mut i64      = @load(@ptradd(userdata, 8)) as i64
-    val buf_cap: i64          = @load(@ptradd(userdata, 16)) as i64
-    val new_len: mut i64      = buf_len + total
+    val total: i64       = size * nmemb
+    val buf: mut ref Buffer = userdata as mut ref Buffer
+    val new_len: mut i64 = buf.len + total
 
-    if (new_len + 1 > buf_cap) {
-        val new_cap: mut i64    = (new_len + 1) * 2
-        val grown: mut ref void = @realloc(buf_ptr, new_cap)
-        @store(userdata,              grown)
-        @store(@ptradd(userdata, 16), new_cap)
-        memcpy(@ptradd(grown, buf_len), ptr, total)
-        @store(@ptradd(grown, new_len), 0)
+    if (new_len + 1 > buf.cap) {
+        val new_cap: mut i64 = (new_len + 1) * 2
+        buf.data = @realloc(buf.data, new_cap)
+        buf.cap = new_cap
+        memcpy(@ptradd(buf.data, buf.len), ptr, total)
+        @store(@ptradd(buf.data, new_len), 0)
     } else {
-        memcpy(@ptradd(buf_ptr, buf_len), ptr, total)
-        @store(@ptradd(buf_ptr, new_len), 0)
+        memcpy(@ptradd(buf.data, buf.len), ptr, total)
+        @store(@ptradd(buf.data, new_len), 0)
     }
 
-    @store(@ptradd(userdata, 8), new_len)
+    buf.len = new_len
     return total
 }
 
-fn buf_new() ref void! = {
-    val b: mut ref void   = @alloc(24)
-    val data: mut ref void = @alloc(256)
-    @store(b,                data)
-    @store(@ptradd(b, 8),  0)
-    @store(@ptradd(b, 16), 256)
+fn buf_new() ref Buffer! = {
+    val b: mut ref Buffer = @alloc(24) as mut ref Buffer
+    b.data = @alloc(256)
+    b.len = 0
+    b.cap = 256
     return b
 }
 
 /// Perform a curl request, capturing the response body via the write callback.
-/// Returns a heap-allocated Response (24 bytes).
-fn do_request(handle: ref void) ref void! = {
-    val buf: mut ref void = buf_new()
+/// Returns a heap-allocated Response.
+fn do_request(handle: ref void) ref Response! = {
+    val buf: ref Buffer = buf_new()
 
     curl_easy_setopt(handle, CURLOPT_WRITEFUNCTION, @addr(curl_write_cb))
-    curl_easy_setopt(handle, CURLOPT_WRITEDATA,     buf)
+    curl_easy_setopt(handle, CURLOPT_WRITEDATA,     buf as ref void)
     curl_easy_perform(handle)
 
     val status_slot: mut ref void = @alloc(8)
     @store(status_slot, 0)
     curl_easy_getinfo(handle, CURLINFO_RESPONSE_CODE, status_slot)
-    val status: mut i64 = @load(status_slot) as i64
+    val status: i64 = @load(status_slot) as i64
     @free(status_slot)
 
-    val body_ptr: mut ref void = @load(buf)
-    val body_len: mut i64      = @load(@ptradd(buf, 8)) as i64
-    @free(buf)
+    val body_ptr: ref void = buf.data
+    val body_len: i64      = buf.len
+    @free(buf as ref void)
 
-    val resp: mut ref void = @alloc(24)
-    @store(resp,              body_ptr)
-    @store(@ptradd(resp, 8),  status)
-    @store(@ptradd(resp, 16), body_len)
+    val resp: mut ref Response = @alloc(24) as mut ref Response
+    resp.body = body_ptr as ref char
+    resp.status = status
+    resp.len = body_len
     return resp
 }
 
 type Http = {}
+
+type ServerHandle = {
+    fd:   mut i32
+    port: mut i64
+}
 
 /// Initialise the curl global state. Call once at program start.
 pub fn (Http) init() void! = {
@@ -145,17 +143,17 @@ pub fn (Http) cleanup() void! = {
 
 /// Perform an HTTP GET request.
 /// Returns a heap-allocated Response; caller must call Http.free_response().
-pub fn (Http) get(url: ref char) ref void! = {
+pub fn (Http) get(url: ref char) ref Response! = {
     val handle: ref void = curl_easy_init()
     curl_easy_setopt(handle, CURLOPT_URL, url)
-    val resp: ref void = do_request(handle)
+    val resp: ref Response = do_request(handle)
     curl_easy_cleanup(handle)
     return resp
 }
 
 /// Perform an HTTP POST request with a body string.
 /// Returns a heap-allocated Response; caller must call Http.free_response().
-pub fn (Http) post_request(url: ref char, body: ref char, content_type: ref char) ref void! = {
+pub fn (Http) post_request(url: ref char, body: ref char, content_type: ref char) ref Response! = {
     val handle: ref void = curl_easy_init()
     val headers: ref void = curl_slist_append(none, content_type)
 
@@ -163,7 +161,7 @@ pub fn (Http) post_request(url: ref char, body: ref char, content_type: ref char
     curl_easy_setopt(handle, CURLOPT_POSTFIELDS, body)
     curl_easy_setopt(handle, CURLOPT_HTTPHEADER, headers)
 
-    val resp: ref void = do_request(handle)
+    val resp: ref Response = do_request(handle)
 
     curl_slist_free_all(headers)
     curl_easy_cleanup(handle)
@@ -171,7 +169,7 @@ pub fn (Http) post_request(url: ref char, body: ref char, content_type: ref char
 }
 
 /// Perform an arbitrary HTTP request (GET, POST, PUT, DELETE, PATCH …).
-pub fn (Http) request(method: ref char, url: ref char, body: ref char, headers: ref void) ref void! = {
+pub fn (Http) request(method: ref char, url: ref char, body: ref char, headers: ref void) ref Response! = {
     val handle: ref void = curl_easy_init()
 
     curl_easy_setopt(handle, CURLOPT_URL, url)
@@ -184,31 +182,30 @@ pub fn (Http) request(method: ref char, url: ref char, body: ref char, headers: 
         curl_easy_setopt(handle, CURLOPT_HTTPHEADER, headers)
     }
 
-    val resp: ref void = do_request(handle)
+    val resp: ref Response = do_request(handle)
     curl_easy_cleanup(handle)
     return resp
 }
 
 /// Free a Response returned by Http.get / Http.post / Http.request.
-pub fn (Http) free_response(resp: ref void) void! = {
-    val body: mut ref void = @load(resp)
-    @free(body)
-    @free(resp)
+pub fn (Http) free_response(resp: ref Response) void! = {
+    @free(resp.body as ref void)
+    @free(resp as ref void)
 }
 
 /// Read the HTTP status code from a Response.
-pub fn (Http) status(resp: ref void) i64! = {
-    return @load(@ptradd(resp, 8)) as i64
+pub fn (Http) status(resp: ref Response) i64! = {
+    return resp.status
 }
 
 /// Read the body pointer from a Response.
-pub fn (Http) body(resp: ref void) ref char! = {
-    return @load(resp) as ref char
+pub fn (Http) body(resp: ref Response) ref char! = {
+    return resp.body
 }
 
 /// Read the body length from a Response.
-pub fn (Http) body_len(resp: ref void) i64! = {
-    return @load(@ptradd(resp, 16)) as i64
+pub fn (Http) body_len(resp: ref Response) i64! = {
+    return resp.len
 }
 
 /// Build a curl slist header list from a single "Key: Value" string.
@@ -231,18 +228,10 @@ type TcpServer = {}
 
 /// Create a TCP server bound to `port` and start listening.
 /// Returns a heap-allocated server handle; caller must call TcpServer.close().
-pub fn (TcpServer) listen(port: i32) ref void! = {
+pub fn (TcpServer) listen(port: i32) ref ServerHandle! = {
     val sock_stream: i32 = 1
 
-    // when linux        { sock_stream = 1 }
-    // when darwin       { sock_stream = 1 }
-    // when netbsd       { sock_stream = 1 }
-    // when freebsd      { sock_stream = 1 }
-    // when openbsd      { sock_stream = 1 }
-    // when dragonflybsd { sock_stream = 1 }
-    // when windows      { sock_stream = 1 }
-
-    val fd: mut i32 = socket(AF_INET, sock_stream, IPPROTO_TCP)
+    val fd: i32 = socket(AF_INET, sock_stream, IPPROTO_TCP)
     val sol_socket:   mut i32 = 1
     val so_reuseaddr: mut i32 = 2
 
@@ -270,16 +259,16 @@ pub fn (TcpServer) listen(port: i32) ref void! = {
     listen(fd, 128)
     @free(address)
 
-    val handle: mut ref void = @alloc(16)
-    @store(handle, fd)
-    @store(@ptradd(handle, 8), port)
+    val handle: mut ref ServerHandle = @alloc(16) as mut ref ServerHandle
+    handle.fd = fd
+    handle.port = port as i64
     return handle
 }
 
 /// Accept the next incoming connection.
 /// Returns the client socket fd, or -1 on error.
-pub fn (TcpServer) accept(server: ref void) i32! = {
-    val fd: i32 = @load(server) as i32
+pub fn (TcpServer) accept(server: ref ServerHandle) i32! = {
+    val fd: i32 = server.fd
     val client_addr: mut ref void = @alloc(16)
     val addrlen: mut ref void     = @alloc(8)
     @store(addrlen, 16)
@@ -308,20 +297,19 @@ pub fn (TcpServer) close_client(client_fd: i32) void! = {
 }
 
 /// Shut down and free the server handle.
-pub fn (TcpServer) close(server: ref void) void! = {
-    val fd: i32 = @load(server) as i32
-    close(fd)
-    @free(server)
+pub fn (TcpServer) close(server: ref ServerHandle) void! = {
+    close(server.fd)
+    @free(server as ref void)
 }
 
 /// Read the listening port from a server handle.
-pub fn (TcpServer) port(server: ref void) i64! = {
-    return @load(@ptradd(server, 8)) as i64
+pub fn (TcpServer) port(server: ref ServerHandle) i64! = {
+    return server.port
 }
 
 /// Read the listening fd from a server handle.
-pub fn (TcpServer) fd(server: ref void) i32! = {
-    return @load(server) as i32
+pub fn (TcpServer) fd(server: ref ServerHandle) i32! = {
+    return server.fd
 }
 
 val stdio = use("stdio.sx")
@@ -330,7 +318,7 @@ test {
     Http.init()
 
     val url: ref char = "https://example.com"
-    val resp: ref void = Http.get(url)
+    val resp: ref Response = Http.get(url)
     assert resp != none
 
     val status: i64 = Http.status(resp)
@@ -345,7 +333,7 @@ test {
     assert body_len >= 0
     Http.free_response(resp)
 
-    val server: ref void = TcpServer.listen(8080)
+    val server: ref ServerHandle = TcpServer.listen(8080)
     assert server != none
     val listen_fd: i32 = TcpServer.fd(server)
     val listen_port: i64 = TcpServer.port(server)
