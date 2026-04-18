@@ -9,6 +9,7 @@ val path        = use("std/path")
 val reflection  = use("std/reflection")
 val lexer       = use("ast/lexer.sx")
 val parser      = use("ast/parser.sx")
+val ast_printer = use("ast/ast_printer.sx")
 val sema        = use("sema/sema.sx")
 val codegen     = use("codegen/codegen.sx")
 val module      = use("module/module.sx")
@@ -151,6 +152,8 @@ pub fn main() i32! = {
     val output_name: mut ref char = ""
     val build_dll: mut bool = false
     val compile_obj: mut bool = false
+    val syntax_check: mut bool = false
+    val print_ast: mut bool = false
     val arg_i: mut i64 = 2
 
     for {
@@ -204,6 +207,12 @@ pub fn main() i32! = {
                 } elif std.string.rchar_cmp(arg, "-c") == 0 || std.string.rchar_cmp(arg, "--compile") == 0 {
                     compile_obj = true
                     arg_i++
+                } elif std.string.rchar_cmp(arg, "--syntax-check") == 0 {
+                    syntax_check = true
+                    arg_i++
+                } elif std.string.rchar_cmp(arg, "--ast") == 0 {
+                    print_ast = true
+                    arg_i++
                 } else {
                     arg_i++
                 }
@@ -216,7 +225,7 @@ pub fn main() i32! = {
 
     val exe_dir: ref char = "."
 
-    if !quiet && !emit_qbe {
+    if !quiet && !emit_qbe && !print_ast {
         std.stdio.puts("[I]  │ Resolving module")
     }
 
@@ -232,6 +241,13 @@ pub fn main() i32! = {
         }
     }
 
+    if print_ast {
+        val items: list[ref parser.Node] = module.module_items(root_mod)
+        ast_printer.print_ast_items(items)
+        allocators.Arena.free(arena)
+        return 0
+    }
+
     if !quiet && !emit_qbe {
         std.stdio.puts("[II] │ Semantic analysis")
     }
@@ -244,6 +260,12 @@ pub fn main() i32! = {
         }
         allocators.Arena.free(arena)
         return 1
+    }
+
+    if syntax_check {
+        std.stdio.puts("Syntax OK")
+        allocators.Arena.free(arena)
+        return 0
     }
 
     if !quiet && !emit_qbe { 

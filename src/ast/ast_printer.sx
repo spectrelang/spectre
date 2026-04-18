@@ -1,0 +1,198 @@
+val std    = use("std")
+val parser = use("parser.sx")
+
+fn kind_to_name(kind: i64) ref char = {
+    if kind == parser.NK_FN { return "FN" }
+    elif kind == parser.NK_USE { return "USE" }
+    elif kind == parser.NK_TYPEDEF { return "TYPEDEF" }
+    elif kind == parser.NK_ENUMDEF { return "ENUMDEF" }
+    elif kind == parser.NK_UNIONDEF { return "UNIONDEF" }
+    elif kind == parser.NK_CONST { return "CONST" }
+    elif kind == parser.NK_EXTERN_FN { return "EXTERN_FN" }
+    elif kind == parser.NK_EXTERN_TYPE { return "EXTERN_TYPE" }
+    elif kind == parser.NK_LINK { return "LINK" }
+    elif kind == parser.NK_WHEN_ITEMS { return "WHEN_ITEMS" }
+    elif kind == parser.NK_TAGGED_UNIONDEF { return "TAGGED_UNIONDEF" }
+    elif kind == parser.NK_VAL { return "VAL" }
+    elif kind == parser.NK_ASSIGN { return "ASSIGN" }
+    elif kind == parser.NK_RETURN { return "RETURN" }
+    elif kind == parser.NK_IF { return "IF" }
+    elif kind == parser.NK_FOR { return "FOR" }
+    elif kind == parser.NK_FORIN { return "FORIN" }
+    elif kind == parser.NK_BREAK { return "BREAK" }
+    elif kind == parser.NK_CONTINUE { return "CONTINUE" }
+    elif kind == parser.NK_DEFER { return "DEFER" }
+    elif kind == parser.NK_ASSERT { return "ASSERT" }
+    elif kind == parser.NK_PRE { return "PRE" }
+    elif kind == parser.NK_POST { return "POST" }
+    elif kind == parser.NK_GUARDED_PRE { return "GUARDED_PRE" }
+    elif kind == parser.NK_GUARDED_POST { return "GUARDED_POST" }
+    elif kind == parser.NK_EXPR_STMT { return "EXPR_STMT" }
+    elif kind == parser.NK_MATCH_OPT { return "MATCH_OPT" }
+    elif kind == parser.NK_MATCH_RES { return "MATCH_RES" }
+    elif kind == parser.NK_MATCH_ENUM { return "MATCH_ENUM" }
+    elif kind == parser.NK_MATCH_UNION { return "MATCH_UNION" }
+    elif kind == parser.NK_MATCH_STR { return "MATCH_STR" }
+    elif kind == parser.NK_WHEN_STMT { return "WHEN_STMT" }
+    elif kind == parser.NK_INCREMENT { return "INCREMENT" }
+    elif kind == parser.NK_DECREMENT { return "DECREMENT" }
+    elif kind == parser.NK_ADD_ASSIGN { return "ADD_ASSIGN" }
+    elif kind == parser.NK_SUB_ASSIGN { return "SUB_ASSIGN" }
+    elif kind == parser.NK_TEST { return "TEST" }
+    elif kind == parser.NK_MATCH_TAGGED_UNION { return "MATCH_TAGGED_UNION" }
+    elif kind == parser.NK_GUARD { return "GUARD" }
+    elif kind == parser.NK_INT_LIT { return "INT_LIT" }
+    elif kind == parser.NK_FLOAT_LIT { return "FLOAT_LIT" }
+    elif kind == parser.NK_STR_LIT { return "STR_LIT" }
+    elif kind == parser.NK_IDENT { return "IDENT" }
+    elif kind == parser.NK_BOOL { return "BOOL" }
+    elif kind == parser.NK_SOME { return "SOME" }
+    elif kind == parser.NK_NONE { return "NONE" }
+    elif kind == parser.NK_OK_VAL { return "OK_VAL" }
+    elif kind == parser.NK_ERR_VAL { return "ERR_VAL" }
+    elif kind == parser.NK_CHAR_LIT { return "CHAR_LIT" }
+    elif kind == parser.NK_FIELD { return "FIELD" }
+    elif kind == parser.NK_CALL { return "CALL" }
+    elif kind == parser.NK_BUILTIN { return "BUILTIN" }
+    elif kind == parser.NK_TRUST { return "TRUST" }
+    elif kind == parser.NK_BINOP { return "BINOP" }
+    elif kind == parser.NK_UNOP { return "UNOP" }
+    elif kind == parser.NK_STRUCT_LIT { return "STRUCT_LIT" }
+    elif kind == parser.NK_LIST_LIT { return "LIST_LIT" }
+    elif kind == parser.NK_ARGS_PACK { return "ARGS_PACK" }
+    elif kind == parser.NK_ZERO_INIT { return "ZERO_INIT" }
+    elif kind == parser.NK_CAST { return "CAST" }
+    elif kind == parser.NK_ADDR { return "ADDR" }
+    elif kind == parser.NK_DEREF { return "DEREF" }
+    elif kind == parser.NK_TRY { return "TRY" }
+    elif kind == parser.TY_NAMED { return "TY_NAMED" }
+    elif kind == parser.TY_REF { return "TY_REF" }
+    elif kind == parser.TY_MUT { return "TY_MUT" }
+    elif kind == parser.TY_OPTION { return "TY_OPTION" }
+    elif kind == parser.TY_LIST { return "TY_LIST" }
+    elif kind == parser.TY_RESULT { return "TY_RESULT" }
+    elif kind == parser.TY_SLICE { return "TY_SLICE" }
+    elif kind == parser.TY_FIXED_ARR { return "TY_FIXED_ARR" }
+    elif kind == parser.TY_FNPTR { return "TY_FNPTR" }
+    elif kind == parser.TY_VOID { return "TY_VOID" }
+    elif kind == parser.TY_UNTYPED { return "TY_UNTYPED" }
+    else { return "UNKNOWN" }
+}
+
+fn op_to_name(op: i64, is_binop: bool) ref char = {
+    if is_binop {
+        if op == parser.OP_ADD { return "+" }
+        elif op == parser.OP_SUB { return "-" }
+        elif op == parser.OP_MUL { return "*" }
+        elif op == parser.OP_DIV { return "/" }
+        elif op == parser.OP_REM { return "%" }
+        elif op == parser.OP_EQ { return "==" }
+        elif op == parser.OP_NE { return "!=" }
+        elif op == parser.OP_LT { return "<" }
+        elif op == parser.OP_GT { return ">" }
+        elif op == parser.OP_LE { return "<=" }
+        elif op == parser.OP_GE { return ">=" }
+        elif op == parser.OP_AND { return "and" }
+        elif op == parser.OP_OR { return "or" }
+        elif op == parser.OP_BAND { return "&" }
+        elif op == parser.OP_BOR { return "|" }
+        elif op == parser.OP_BXOR { return "^" }
+        elif op == parser.OP_SHL { return "<<" }
+        elif op == parser.OP_SHR { return ">>" }
+        else { return "?" }
+    } else {
+        if op == parser.UOP_NOT { return "!" }
+        elif op == parser.UOP_NEG { return "-" }
+        elif op == parser.UOP_BNOT { return "~" }
+        else { return "?" }
+    }
+}
+
+fn build_prefix(indent: i64, is_last: bool) ref char = {
+    if indent == 0 { return "" }
+    val buf: mut ref char = @alloc((indent * 4 + 10) as usize) as ref char
+    @memset(buf as ref void, 0, ((indent * 4 + 10) as usize))
+    
+    val i: mut i64 = 0
+    val spaces: mut i64 = 0
+    for {
+        if spaces >= indent - 1 {
+            break
+        }
+        @store8(@ptradd(buf as ref void, i), 32 as u8)
+        @store8(@ptradd(buf as ref void, i + 1), 32 as u8)
+        @store8(@ptradd(buf as ref void, i + 2), 32 as u8)
+        @store8(@ptradd(buf as ref void, i + 3), 124 as u8)
+        i = i + 4
+        spaces++
+    }
+    
+    if is_last {
+        @store8(@ptradd(buf as ref void, i), 96 as u8)
+        @store8(@ptradd(buf as ref void, i + 1), 45 as u8)
+        @store8(@ptradd(buf as ref void, i + 2), 45 as u8)
+        @store8(@ptradd(buf as ref void, i + 3), 32 as u8)
+    } else {
+        @store8(@ptradd(buf as ref void, i), 124 as u8)
+        @store8(@ptradd(buf as ref void, i + 1), 45 as u8)
+        @store8(@ptradd(buf as ref void, i + 2), 45 as u8)
+        @store8(@ptradd(buf as ref void, i + 3), 32 as u8)
+    }
+    
+    return buf
+}
+
+fn print_node_info(node: ref Node, prefix: ref char) void! = {
+    val kind: i64 = node.kind
+    val kind_name: ref char = kind_to_name(kind)
+
+    if kind == parser.NK_INT_LIT {
+        val text: ref char = parser.int_lit_text(node)
+        std.stdio.print("{s}{s} : {s}\n", {prefix, kind_name, text})
+    } elif kind == parser.NK_FLOAT_LIT {
+        val text: ref char = parser.float_lit_text(node)
+        std.stdio.print("{s}{s} : {s}\n", {prefix, kind_name, text})
+    } elif kind == parser.NK_STR_LIT {
+        val text: ref char = parser.str_lit_text(node)
+        std.stdio.print("{s}{s} : {s}\n", {prefix, kind_name, text})
+    } elif kind == parser.NK_IDENT {
+        val text: ref char = parser.int_lit_text(node)
+        std.stdio.print("{s}{s} : {s}\n", {prefix, kind_name, text})
+    } elif kind == parser.NK_BINOP {
+        val op: i64 = parser.binop_op(node)
+        val op_name: ref char = op_to_name(op, true)
+        std.stdio.print("{s}{s} [{s}]\n", {prefix, kind_name, op_name})
+    } elif kind == parser.NK_UNOP {
+        val op: i64 = parser.unop_op(node)
+        val op_name: ref char = op_to_name(op, false)
+        std.stdio.print("{s}{s} [{s}]\n", {prefix, kind_name, op_name})
+    } else {
+        std.stdio.print("{s}{s}\n", {prefix, kind_name})
+    }
+}
+
+pub fn print_ast_items(items: list[ref parser.Node]) void! = {
+    val nitems: i64 = @len(items) as i64
+    if nitems == 0 {
+        std.stdio.puts("(Empty AST)")
+        return
+    }
+    
+    val i: mut i64 = 0
+    for {
+        if i >= nitems {
+            break
+        }
+        val item_opt = @get(items, i as usize)
+        match item_opt {
+            some item_val => {
+                val item: ref parser.Node = item_val as ref parser.Node
+                val is_last: bool = (i == nitems - 1)
+                val prefix: ref char = build_prefix(0, is_last)
+                print_node_info(item, "")
+            }
+            none => {}
+        }
+        i++
+    }
+}
