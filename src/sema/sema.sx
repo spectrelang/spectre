@@ -860,7 +860,8 @@ fn check_expr(ctx: ref SemaCtx, expr: ref parser.Node, filename: ref char) void!
         }
 
         if fn_found != 0 as ref parser.Node && cargs != 0 as ref void {
-            val params: ref void = fn_found.d3 as ref void
+            val params: mut ref void = fn_found.d3 as ref void
+            if fn_found.kind == parser.NK_EXTERN_FN { params = fn_found.d4 as ref void }
             if params != 0 as ref void {
                 val arg_len: i64 = @len(cargs) as i64
                 val param_len: i64 = @len(params) as i64
