@@ -73,8 +73,13 @@ log "Bootstrapping Spectre with QBE..."
 PANIC_HANDLER_SRC="${SPECTRE_DIR}/std/csources/panic_handler.c"
 PANIC_HANDLER_OBJ="${BOOTSTRAP_OUT}_panic.o"
 
+log "QBE Stage..."
 qbe -o "${BOOTSTRAP_OUT}.s" "$BOOTSTRAP_SSA"
+
+log "CC Stage I..."
 cc -O2 -c "${PANIC_HANDLER_SRC}" -o "${PANIC_HANDLER_OBJ}"
+
+log "CC Stage II..."
 cc -O2 "${BOOTSTRAP_OUT}.s" "${PANIC_HANDLER_OBJ}" -o "${BOOTSTRAP_OUT}"
 
 log "Installing Spectre binary..."
