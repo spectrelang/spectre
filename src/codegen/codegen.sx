@@ -2708,6 +2708,7 @@ fn expr_qbe_type(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
 
         val ltype: ref char = cg_local_type(ctx, name)
         if str.rchar_cmp(ltype, "") != 0 {
+            if cg_is_local_ref_type(ctx, name) { return "l" }
             if is_word_type_name(ltype) { return "w" }
             if is_float_type_name(ltype) { return "d" }
             return "l" 
