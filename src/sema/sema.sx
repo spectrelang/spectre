@@ -640,7 +640,7 @@ fn check_printf_fmt(ctx: ref SemaCtx, fmt_str: ref char, all_args: ref void,
                     args_start_idx: i64, filename: ref char, line: i64) void! = {
     if has_c_style_specifier(fmt_str) {
         val buf: ref char = @alloc(256) as ref char
-        @snprintf(buf, 256, "{s}:{lld}: C-style format specifiers (e.g., %%d, %%s) are not allowed; use {d}, {s} etc.",
+        @snprintf(buf, 256, "{s}:{lld}: C-style format specifiers (e.g., %%d, %%s) are not allowed; use \{d\}, \{s\} etc.",
             {filename, line})
         add_error(ctx, buf)
         return
