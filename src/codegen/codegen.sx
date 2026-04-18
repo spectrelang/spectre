@@ -3033,6 +3033,24 @@ fn gen_unop(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
     return res
 }
 
+fn field_load_instr_for(ty: ref parser.Node) ref char! = {
+    if ty == 0 as ref parser.Node { return "loadl" }
+    val k: i64 = ty.kind
+    if k == parser.TY_MUT { return field_load_instr_for(ty.d0 as ref parser.Node) }
+    if k == parser.TY_NAMED {
+        val name: ref char = ty.d0 as ref char
+        if str.rchar_cmp(name, "i32")  == 0 { return "loadsw" }
+        if str.rchar_cmp(name, "u32")  == 0 { return "loaduw" }
+        if str.rchar_cmp(name, "i16")  == 0 { return "loadsh" }
+        if str.rchar_cmp(name, "u16")  == 0 { return "loaduh" }
+        if str.rchar_cmp(name, "i8")   == 0 { return "loadsb" }
+        if str.rchar_cmp(name, "u8")   == 0 { return "loadub" }
+        if str.rchar_cmp(name, "bool") == 0 { return "loadub" }
+        if str.rchar_cmp(name, "char") == 0 { return "loadub" }
+    }
+    return "loadl"
+}
+
 fn gen_field(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
     val base_expr: ref parser.Node = expr.d0 as ref parser.Node
     val field_name: ref char = expr.d1 as ref char
@@ -3175,6 +3193,7 @@ fn gen_field(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
     val field_is_union: mut bool = false
     val field_is_list: mut bool = false
     val field_is_multi_word_struct: mut bool = false
+    val field_load_instr: mut ref char = "loadl"
     if base_expr.kind == parser.NK_IDENT {
         val base_name3: ref char = base_expr.d0 as ref char
         val local_type2: ref char = cg_local_type(ctx, base_name3)
@@ -3223,6 +3242,7 @@ fn gen_field(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
                                             }
                                         }
                                     }
+                                    field_load_instr = field_load_instr_for(sfty3)
                                 }
                                 sfi3 = sflen3 // break
                             }
@@ -3269,6 +3289,7 @@ fn gen_field(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
                                             }
                                         }
                                     }
+                                    field_load_instr = field_load_instr_for(sfty3)
                                 }
                                 sfi3 = sflen3 // break
                             }
@@ -3320,6 +3341,7 @@ fn gen_field(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
                                             }
                                         }
                                     }
+                                    field_load_instr = field_load_instr_for(sfty4)
                                 }
                                 sfi4 = sflen4
                             }
@@ -3344,7 +3366,7 @@ fn gen_field(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
             }
         } else {
             if offset == 0 {
-                @snprintf(buf, 256, "    %%t{lld} =l loadl {s}\n", {tmp, base})
+                @snprintf(buf, 256, "    %%t{lld} =l {s} {s}\n", {tmp, field_load_instr, base})
             } else {
                 val ptr_tmp: i64 = fresh_tmp(ctx)
                 val buf2: ref char = @alloc(128) as ref char
@@ -3353,7 +3375,7 @@ fn gen_field(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
                 @free(buf2)
                 val ptr_str: ref char = @alloc(16) as ref char
                 @snprintf(ptr_str, 16, "%%t{lld}", {ptr_tmp})
-                @snprintf(buf, 256, "    %%t{lld} =l loadl {s}\n", {tmp, ptr_str})
+                @snprintf(buf, 256, "    %%t{lld} =l {s} {s}\n", {tmp, field_load_instr, ptr_str})
                 @free(ptr_str)
             }
         }
@@ -3364,7 +3386,7 @@ fn gen_field(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
             @snprintf(buf, 256, "    %%t{lld} =l add {s}, {lld}\n", {tmp, base, offset})
         }
     } elif offset == 0 {
-        @snprintf(buf, 256, "    %%t{lld} =l loadl {s}\n", {tmp, base})
+        @snprintf(buf, 256, "    %%t{lld} =l {s} {s}\n", {tmp, field_load_instr, base})
     } else {
         val ptr_tmp: i64 = fresh_tmp(ctx)
         val buf2: ref char = @alloc(128) as ref char
@@ -3373,7 +3395,7 @@ fn gen_field(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
         @free(buf2)
         val ptr_str: ref char = @alloc(16) as ref char
         @snprintf(ptr_str, 16, "%%t{lld}", {ptr_tmp})
-        @snprintf(buf, 256, "    %%t{lld} =l loadl {s}\n", {tmp, ptr_str})
+        @snprintf(buf, 256, "    %%t{lld} =l {s} {s}\n", {tmp, field_load_instr, ptr_str})
         @free(ptr_str)
     }
     emit(ctx, buf)
@@ -5386,7 +5408,7 @@ fn gen_stmt(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
             val expr_qbe_type_val: ref char = expr_qbe_type(ctx, expr)
 
             if str.rchar_cmp(decl_qbe_type, expr_qbe_type_val) != 0 {
-                if str.rchar_cmp(expr_qbe_type_val, "w") == 0 && str.rchar_cmp(decl_qbe_type, "l") == 0 {
+                if str.rchar_cmp(expr_qbe_type_val, "w") == 0 && str.rchar_cmp(decl_qbe_type, "l") == 0 && !is_ref_type(ty_node) {
                     val conv_tmp: i64 = fresh_tmp(ctx)
                     val conv_buf: ref char = @alloc(64) as ref char
                     @snprintf(conv_buf, 64, "    %%t{lld} =l extsw {s}\n", {conv_tmp, val_tmp})
