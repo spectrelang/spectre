@@ -880,6 +880,30 @@ pub fn fn_is_public_in_module(m: ref ResolvedModule, fn_name: ref char) bool! = 
     return true
 }
 
+/// Number of direct imports in module `m`.
+pub fn import_count(m: ref ResolvedModule) i64! = {
+    return @len(m.import_names) as i64
+}
+
+/// Return the i-th imported child module, or null.
+pub fn import_module_at(m: ref ResolvedModule, i: usize) ref ResolvedModule! = {
+    val opt = @get(m.import_modules, i)
+    match opt {
+        some child => { return child as ref ResolvedModule }
+        none       => { return 0 as ref ResolvedModule }
+    }
+}
+
+/// Return the filename of module `m` as a raw C string.
+pub fn module_filename(m: ref ResolvedModule) ref char! = {
+    return str.cstr(m.filename)
+}
+
+/// Return the top-level items list of module `m`.
+pub fn module_items(m: ref ResolvedModule) list[ref parser.Node]! = {
+    return m.items
+}
+
 /// Collect all unique filenames in the resolved module tree (depth-first).
 /// Used to avoid emitting the same module twice.
 fn collect_seen(m: ref ResolvedModule, seen: ref void) void! = {

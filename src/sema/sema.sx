@@ -1943,3 +1943,39 @@ pub fn check_module(items: list[ref parser.Node], filename: ref char, root: ref 
 
     return ctx.errors
 }
+
+fn check_module_seen(seen: list[ref void], mod: ref modinfo.ResolvedModule) bool! = {
+    for s in seen {
+        if s == mod as ref void { return true }
+    }
+    return false
+}
+
+fn check_module_rec(mod: ref modinfo.ResolvedModule, all_errors: list[ref char], seen: list[ref void]) void! = {
+    if mod == 0 as ref modinfo.ResolvedModule { return }
+    if check_module_seen(seen, mod) { return }
+    @append(seen, mod as ref void)
+
+    val n: i64 = modinfo.import_count(mod)
+    val i: mut i64 = 0
+    for {
+        if i >= n { break }
+        val child: ref modinfo.ResolvedModule = modinfo.import_module_at(mod, i as usize)
+        check_module_rec(child, all_errors, seen)
+        i++
+    }
+
+    val fname: ref char = modinfo.module_filename(mod)
+    val items: list[ref parser.Node] = modinfo.module_items(mod)
+    val errors: list[ref char] = check_module(items, fname, mod)
+    for e in errors {
+        @append(all_errors, e)
+    }
+}
+
+pub fn check_module_tree(root: ref modinfo.ResolvedModule) list[ref char]! = {
+    val all_errors: mut list[ref char] = []
+    val seen: mut list[ref void] = []
+    check_module_rec(root, all_errors, seen)
+    return all_errors
+}

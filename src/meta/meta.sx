@@ -1,3 +1,5 @@
+val std = use("std")
+
 pub fn print_usage() void = {
     std.stdio.puts("usage:")
     std.stdio.puts("  spectre <input.sx> [options]")
