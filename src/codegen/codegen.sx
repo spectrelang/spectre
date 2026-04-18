@@ -8354,7 +8354,7 @@ fn gen_test_main(ctx: ref CgCtx, test_ids: list[i64]) void! = {
 /// Entry point for --test mode: emits test blocks from root module only,
 /// suppresses main(), and emits a test runner $main.
 pub fn gen_module_resolved_test(root: ref module.ResolvedModule, release_mode: bool) ref char! = {
-    val ctx: ref CgCtx = cg_new()
+    val ctx: mut ref CgCtx = cg_new()
     ctx.release_mode = release_mode
     emit_runtime_helpers(ctx)
 
