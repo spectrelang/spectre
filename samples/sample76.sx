@@ -4,6 +4,6 @@ type SxBuildConfig = {
 }
 
 pub fn main() void! = {
-    val cfg: SxBuildConfig = @alloc(@sizeof(SxBuildConfig)) 
+    val cfg: mut SxBuildConfig = @alloc(@sizeof(SxBuildConfig)) 
     @memset(cfg as ref void, 0, @sizeof(SxBuildConfig) as usize)
 }
