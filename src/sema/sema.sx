@@ -847,10 +847,19 @@ fn check_expr(ctx: ref SemaCtx, expr: ref parser.Node, filename: ref char) void!
         val fn_found: mut ref parser.Node = 0 as ref parser.Node
         if callee != 0 as ref parser.Node {
             val target_name: mut ref char = 0 as ref char
+            val target_ns: mut ref char = 0 as ref char
             if callee.kind == parser.NK_IDENT {
                 target_name = callee.d0 as ref char
             } elif callee.kind == parser.NK_FIELD {
                 target_name = parser.field_name(callee)
+                val fbase: ref parser.Node = parser.field_base(callee)
+                if fbase != 0 as ref parser.Node {
+                    if fbase.kind == parser.NK_IDENT {
+                        target_ns = fbase.d0 as ref char
+                    } elif fbase.kind == parser.NK_FIELD {
+                        target_ns = parser.field_name(fbase)
+                    }
+                }
             }
             if target_name != 0 as ref char {
                 val flen: i64 = @len(ctx.fn_defs) as i64
@@ -864,11 +873,20 @@ fn check_expr(ctx: ref SemaCtx, expr: ref parser.Node, filename: ref char) void!
                             val fname_node1: ref char = fnode.d1 as ref char
                             val fname_node2: ref char = fnode.d2 as ref char
                             val is_match: mut bool = false
-                            if fname_node1 != 0 as ref char {
-                                if std.string.compare(std.string.RChar(fname_node1), std.string.RChar(target_name)) == 0 { is_match = true }
-                            }
-                            if fname_node2 != 0 as ref char {
-                                if std.string.compare(std.string.RChar(fname_node2), std.string.RChar(target_name)) == 0 { is_match = true }
+                            if target_ns != 0 as ref char {
+                                if fname_node1 != 0 as ref char && fname_node2 != 0 as ref char {
+                                    if std.string.compare(std.string.RChar(fname_node1), std.string.RChar(target_ns)) == 0 &&
+                                       std.string.compare(std.string.RChar(fname_node2), std.string.RChar(target_name)) == 0 {
+                                        is_match = true
+                                    }
+                                }
+                            } else {
+                                if fname_node1 != 0 as ref char {
+                                    if std.string.compare(std.string.RChar(fname_node1), std.string.RChar(target_name)) == 0 { is_match = true }
+                                }
+                                if fname_node2 != 0 as ref char {
+                                    if std.string.compare(std.string.RChar(fname_node2), std.string.RChar(target_name)) == 0 { is_match = true }
+                                }
                             }
                             if is_match {
                                 fn_found = fnode
