@@ -962,6 +962,27 @@ fn check_expr(ctx: ref SemaCtx, expr: ref parser.Node, filename: ref char) void!
                 }
             }
         }
+
+        if str_eq(bname, "sizeof") {
+            if bargs != 0 as ref void {
+                for barg in bargs as list[ref parser.Node] {
+                    if barg.kind == parser.NK_IDENT {
+                        mark_name_used(ctx, barg.d0 as ref char)
+                    } elif barg.kind == parser.NK_FIELD {
+                        val root_node2: ref parser.Node = find_root_ident(barg)
+                        if root_node2 != 0 as ref parser.Node {
+                            mark_name_used(ctx, root_node2.d0 as ref char)
+                        }
+                    } elif barg.kind == parser.TY_NAMED {
+                        val tname2: ref char = barg.d0 as ref char
+                        if tname2 != 0 as ref char {
+                            val lkup2: i64 = scope_lookup(ctx, tname2)
+                            if lkup2 != -1 { mark_name_used(ctx, tname2) }
+                        }
+                    }
+                }
+            }
+        }
         return
     }
     if k == parser.NK_CAST || k == parser.NK_DEREF {
