@@ -923,33 +923,61 @@ pub fn flatten_modules(
 /// Returns a list of link flags (strings like "-lcurl" or full paths).
 pub fn collect_links(items: list[ref parser.Node], exe_dir: ref char) list[ref char]! = {
     val links: mut list[ref char] = []
-    val platform: ref char = reflection.current_platform_name()
-    
+    val p: i64 = reflection.get_current_platform() as i64
+    val platform: mut ref char = "unknown"
+    if p == 0      { platform = "windows"      }
+    elif p == 1    { platform = "linux"        }
+    elif p == 2    { platform = "darwin"       }
+    elif p == 3    { platform = "netbsd"       }
+    elif p == 4    { platform = "dragonflybsd" }
+    elif p == 5    { platform = "freebsd"      }
+    elif p == 6    { platform = "openbsd"      }
+    elif p == 7    { platform = "android"      }
+    elif p == 8    { platform = "haiku"        }
+
     for item in items {
         if item.kind == parser.NK_LINK {
             val lib: ref char = item.d0 as ref char
             @append(links, lib)
         } elif item.kind == parser.NK_WHEN_ITEMS {
             val when_platform: ref char = item.d0 as ref char
-            val when_items: ref void = item.d1 as ref void
-            
+            val matched: mut bool = false
             if platform_matches(platform, when_platform) {
-                val when_len: i64 = @len(when_items) as i64
-                val wi: mut i64 = 0
-                for {
-                    if wi >= when_len { break }
-                    val wi_opt = @get(when_items, wi as usize)
-                    match wi_opt {
-                        some wi_node => {
-                            val wnode: ref parser.Node = wi_node as ref parser.Node
-                            if wnode.kind == parser.NK_LINK {
-                                val wlib: ref char = wnode.d0 as ref char
-                                @append(links, wlib)
+                matched = true
+                val when_items: list[ref parser.Node] = item.d1 as list[ref parser.Node]
+                for wnode in when_items {
+                    if wnode.kind == parser.NK_LINK {
+                        @append(links, wnode.d0 as ref char)
+                    }
+                }
+            }
+            if !matched {
+                val or_branches: ref void = item.d2 as ref void
+                if or_branches != 0 as ref void {
+                    for ob in or_branches as list[ref parser.Node] {
+                        if !matched {
+                            val ob_plat: ref char = ob.d0 as ref char
+                            if platform_matches(platform, ob_plat) {
+                                matched = true
+                                val ob_items: list[ref parser.Node] = ob.d1 as list[ref parser.Node]
+                                for obnode in ob_items {
+                                    if obnode.kind == parser.NK_LINK {
+                                        @append(links, obnode.d0 as ref char)
+                                    }
+                                }
                             }
                         }
-                        none => {}
                     }
-                    wi++
+                }
+            }
+            if !matched {
+                val otherwise: ref void = item.d3 as ref void
+                if otherwise != 0 as ref void {
+                    for ow in otherwise as list[ref parser.Node] {
+                        if ow.kind == parser.NK_LINK {
+                            @append(links, ow.d0 as ref char)
+                        }
+                    }
                 }
             }
         }

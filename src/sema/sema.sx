@@ -869,7 +869,7 @@ fn check_expr(ctx: ref SemaCtx, expr: ref parser.Node, filename: ref char) void!
                 }
             }
         }
-        if str_eq(bname, "memcpy") || str_eq(bname, "memset") || str_eq(bname, "memmove") ||
+        if str_eq(bname, "memcpy") || str_eq(bname, "memset") || str_eq(bname, "addr") || str_eq(bname, "memmove") ||
            str_eq(bname, "alloc") || str_eq(bname, "realloc") || str_eq(bname, "free") || str_eq(bname, "ptradd") || str_eq(bname, "store") || str_eq(bname, "load") || str_eq(bname, "load8") {
             if bargs != 0 as ref void {
                 for barg in bargs as list[ref parser.Node] {
@@ -886,8 +886,23 @@ fn check_expr(ctx: ref SemaCtx, expr: ref parser.Node, filename: ref char) void!
         }
         return
     }
-    if k == parser.NK_CAST || k == parser.NK_ADDR || k == parser.NK_DEREF {
+    if k == parser.NK_CAST || k == parser.NK_DEREF {
         check_expr(ctx, expr.d0 as ref parser.Node, filename)
+        return
+    }
+    if k == parser.NK_ADDR {
+        val inner: ref parser.Node = expr.d0 as ref parser.Node
+        check_expr(ctx, inner, filename)
+        if inner != 0 as ref parser.Node {
+            if inner.kind == parser.NK_IDENT {
+                mark_name_mutated(ctx, inner.d0 as ref char)
+            } elif inner.kind == parser.NK_FIELD {
+                val root: ref parser.Node = find_root_ident(inner)
+                if root != 0 as ref parser.Node {
+                    mark_name_mutated(ctx, root.d0 as ref char)
+                }
+            }
+        }
         return
     }
     if k == parser.NK_STRUCT_LIT {
