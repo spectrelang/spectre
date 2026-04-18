@@ -52,7 +52,7 @@ fn push_scope(ctx: ref SemaCtx) void! = {
     }
 }
 
-fn pop_scope(ctx: ref SemaCtx, filename: ref char, scope_line: i64) void! = {
+fn pop_scope(ctx: ref SemaCtx, filename: ref char, _: i64) void! = {
     guarded pre {
         ctx_not_null   : ctx != 0 as ref SemaCtx
         has_scopes     : @len(ctx.scopes) > 0
@@ -1909,7 +1909,7 @@ fn check_duplicates(ctx: ref SemaCtx, filename: ref char) void! = {
 }
 
 pub fn check_module(items: list[ref parser.Node], filename: ref char, root: ref modinfo.ResolvedModule) list[ref char]! = {
-    val ctx: ref SemaCtx = sema_new()
+    val ctx: mut ref SemaCtx = sema_new()
     ctx.root_mod = root
 
     for item in items {

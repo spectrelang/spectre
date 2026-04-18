@@ -170,9 +170,6 @@ fn make_struct_field(name: ref char, line: i64, expr: ref Node) result[ref Node,
     return ok n
 }
 
-fn struct_field_name(n: ref Node) ref char! = { return n.d0 as ref char }
-fn struct_field_expr(n: ref Node) ref Node! = { return n.d1 as ref Node }
-
 pub fn match_opt_expr(n: ref Node) ref Node!     = { return n.d0 as ref Node }
 pub fn match_opt_some_bind(n: ref Node) ref char! = { return n.d1 as ref char }
 pub fn match_opt_some_body(n: ref Node) ref Node! = { return n.d2 as ref Node }  // wrapper, .d0 = stmts list
@@ -186,7 +183,6 @@ pub fn match_res_err_body(n: ref Node) ref Node!   = { return n.d4 as ref Node }
 
 pub fn match_enum_expr(n: ref Node) ref Node!               = { return n.d0 as ref Node }
 pub fn match_enum_arms(n: ref Node) list[ref Node]!         = { return n.d1 as list[ref Node] }
-fn match_enum_arm_variant(arm: ref Node) ref char!      = { return arm.d0 as ref char }
 pub fn match_enum_arm_body(arm: ref Node) list[ref Node]!   = { return arm.d1 as list[ref Node] }
 
 pub fn match_str_expr(n: ref Node) ref Node!                = { return n.d0 as ref Node }
