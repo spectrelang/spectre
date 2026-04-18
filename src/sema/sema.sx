@@ -882,14 +882,33 @@ fn check_expr(ctx: ref SemaCtx, expr: ref parser.Node, filename: ref char) void!
             }
         }
 
-        if fn_found != 0 as ref parser.Node && cargs != 0 as ref void {
+        if fn_found != 0 as ref parser.Node {
             val params: mut ref void = fn_found.d3 as ref void
             if fn_found.kind == parser.NK_EXTERN_FN { params = fn_found.d4 as ref void }
-            if params != 0 as ref void {
-                val arg_len: i64 = @len(cargs) as i64
+            if params != 0 as ref void && fn_found.kind != parser.NK_EXTERN_FN {
+                val arg_len: mut i64 = 0
+                if cargs != 0 as ref void { arg_len = @len(cargs) as i64 }
                 val param_len: i64 = @len(params) as i64
-                val min_len: mut i64 = param_len
-                if arg_len < param_len { min_len = arg_len } 
+                if arg_len != param_len {
+                    val fn_name: mut ref char = 0 as ref char
+                    if callee != 0 as ref parser.Node {
+                        if callee.kind == parser.NK_IDENT { fn_name = callee.d0 as ref char }
+                        elif callee.kind == parser.NK_FIELD { fn_name = parser.field_name(callee) }
+                    }
+                    val arity_buf: ref char = @alloc(512) as ref char
+                    if fn_name != 0 as ref char {
+                        @snprintf(arity_buf, 512, "{s}:{lld}: function '{s}' expects {lld} argument(s) but got {lld}", {filename, line, fn_name, param_len, arg_len})
+                    } else {
+                        @snprintf(arity_buf, 512, "{s}:{lld}: function expects {lld} argument(s) but got {lld}", {filename, line, param_len, arg_len})
+                    }
+                    add_error(ctx, arity_buf)
+                }
+            }
+            if params != 0 as ref void && cargs != 0 as ref void {
+                val arg_len2: i64 = @len(cargs) as i64
+                val param_len2: i64 = @len(params) as i64
+                val min_len: mut i64 = param_len2
+                if arg_len2 < param_len2 { min_len = arg_len2 }
                 val idx: mut i64 = 0
                 for {
                     if idx >= min_len { break }
