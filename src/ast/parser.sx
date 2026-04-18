@@ -130,8 +130,8 @@ fn make_binop(op: i64, line: i64, left: ref Node, right: ref Node) result[ref No
 }
 
 fn binop_op(n: ref Node) i64! = { return n.d0 }
-fn binop_left(n: ref Node) ref Node! = { return n.d1 as ref Node }
-fn binop_right(n: ref Node) ref Node! = { return n.d2 as ref Node }
+pub fn binop_left(n: ref Node) ref Node! = { return n.d1 as ref Node }
+pub fn binop_right(n: ref Node) ref Node! = { return n.d2 as ref Node }
 
 fn make_unop(op: i64, line: i64, inner: ref Node) result[ref Node, ref char]! = {
     val n: mut ref Node = make_node(NK_UNOP, line)
@@ -141,7 +141,7 @@ fn make_unop(op: i64, line: i64, inner: ref Node) result[ref Node, ref char]! = 
 }
 
 fn unop_op(n: ref Node) i64! = { return n.d0 }
-fn unop_inner(n: ref Node) ref Node! = { return n.d1 as ref Node }
+pub fn unop_inner(n: ref Node) ref Node! = { return n.d1 as ref Node }
 
 fn make_field(base: ref Node, line: i64, name: ref char) result[ref Node, ref char]! = {
     val n: mut ref Node = make_node(NK_FIELD, line)
@@ -150,8 +150,8 @@ fn make_field(base: ref Node, line: i64, name: ref char) result[ref Node, ref ch
     return ok n
 }
 
-fn field_base(n: ref Node) ref Node! = { return n.d0 as ref Node }
-fn field_name(n: ref Node) ref char! = { return n.d1 as ref char }
+pub fn field_base(n: ref Node) ref Node! = { return n.d0 as ref Node }
+pub fn field_name(n: ref Node) ref char! = { return n.d1 as ref char }
 
 fn make_call(callee: ref Node, line: i64, args: list[ref Node]) result[ref Node, ref char]! = {
     val n: mut ref Node = make_node(NK_CALL, line)
@@ -160,8 +160,8 @@ fn make_call(callee: ref Node, line: i64, args: list[ref Node]) result[ref Node,
     return ok n
 }
 
-fn call_callee(n: ref Node) ref Node! = { return n.d0 as ref Node }
-fn call_args(n: ref Node) list[ref Node]! = { return n.d1 as list[ref Node] }
+pub fn call_callee(n: ref Node) ref Node! = { return n.d0 as ref Node }
+pub fn call_args(n: ref Node) list[ref Node]! = { return n.d1 as list[ref Node] }
 
 fn make_struct_field(name: ref char, line: i64, expr: ref Node) result[ref Node, ref char]! = {
     val n: mut ref Node = make_node(NK_FIELD, line)
