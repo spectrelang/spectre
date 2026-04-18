@@ -761,7 +761,7 @@ pub fn (IndexMap) set(map: self, key: ref char, value: usize) void! = {
     val already = StringMap.contains(inner, key)
     StringMap.set(inner, key, value)
     if !already {
-        val kl: mut i64 = strlen(key)
+        val kl: i64 = strlen(key)
         val copy: ref void = @alloc(kl + 1)
         @memcpy(copy, key, kl)
         @store8(@ptradd(copy, kl), 0)
@@ -860,7 +860,7 @@ pub fn (IndexMap) key_at(map: self, i: usize) option[ref char]! = {
 }
 
 /// Free the IndexMap and all owned key copies.
-pub fn (IndexMap) free(map: self) void! = {
+pub fn (IndexMap) free(map: mut self) void! = {
     val inner: ref void = @load(map)
     val keys:  ref void = @load(@ptradd(map, 8))
     val n: usize = PtrList.len(keys)
