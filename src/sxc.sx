@@ -59,6 +59,12 @@ pub fn main() i32! = {
         return 0
     }
 
+    if std.string.rchar_cmp(input, "doctor") == 0 {
+        val code: i32 = commands.cmd_doctor()
+        allocators.Arena.free(arena)
+        return code
+    }
+
     if std.string.rchar_cmp(input, "ref") == 0 {
         val code: i32 = commands.cmd_ref()
         allocators.Arena.free(arena)

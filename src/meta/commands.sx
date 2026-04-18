@@ -1,5 +1,6 @@
-val std = use("std")
-val str = use("std/string")
+val std  = use("std")
+val str  = use("std/string")
+val meta = use("meta.sx")
 
 pub type SxBuildConfig = {
     name:   mut ref char
@@ -864,5 +865,64 @@ pub fn cmd_clean() i32 = {
     }
     std.os.run("rm -f /tmp/spectre_output.ssa /tmp/spectre_output.s /tmp/spectre_test_bin")
     std.stdio.puts("Clean complete.")
+    return 0
+}
+
+fn tool_version(cmd: ref char) ref char = {
+    val res = std.os.exec(cmd)
+    match res {
+        ok v => {
+            val raw: ref char = std.string.cstr(v)
+            val raw_len: i64 = str.len_raw(raw)
+            val end: mut i64 = raw_len
+            for {
+                if end <= 0 { break }
+                val c: u8 = @load8(@ptradd(raw as ref void, end - 1)) as u8
+                if c == 10 || c == 13 { end-- } else { break }
+            }
+            if end <= 0 { return "unknown" }
+            val buf: ref char = @alloc(end + 1) as ref char
+            @memcpy(buf as ref void, raw as ref void, end as usize)
+            @store8(@ptradd(buf as ref void, end), 0)
+            return buf
+        }
+        err _ => { return "not found" }
+    }
+}
+
+pub fn cmd_doctor() i32 = {
+    std.stdio.print("Spectre Compiler {s}\n\n", {meta.get_spectre_version()})
+
+    val platform_res = std.os.exec("uname -srm 2>&1")
+    match platform_res {
+        ok v => { std.stdio.print("os:      {s}", {std.string.cstr(v)}) }
+        err _ => { std.stdio.puts("os:      unknown") }
+    }
+
+    val qbe_ver: ref char = tool_version("qbe -d 2>&1")
+    val qbe_installed_str: mut ref char = "installed"
+    if std.string.contains(std.string.from(qbe_ver), std.string.from("not found")) {
+        qbe_installed_str = "not installed"
+    }
+    std.stdio.print("qbe:     {s}\n", {qbe_installed_str})
+
+    val cc_ver: ref char = tool_version("cc --version 2>&1 | head -1")
+    std.stdio.print("cc:      {s}\n", {cc_ver})
+
+    val git_ver: ref char = tool_version("git --version 2>&1")
+    std.stdio.print("git:     {s}\n", {git_ver})
+
+    val cwd_opt = std.fs.cwd()
+    match cwd_opt {
+        some cwd => { std.stdio.print("cwd:     {s}\n", {cwd}) }
+        none     => { std.stdio.puts("cwd:     unknown") }
+    }
+
+    if std.os.exists("sx.mod") {
+        std.stdio.puts("sx.mod:  found")
+    } else {
+        std.stdio.puts("sx.mod:  not found")
+    }
+
     return 0
 }

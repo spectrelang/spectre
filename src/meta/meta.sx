@@ -1,5 +1,9 @@
 val std = use("std")
 
+pub fn get_spectre_version() ref char = {
+    return "v0.0.2"
+}
+
 pub fn print_usage() void = {
     std.stdio.puts("usage:")
     std.stdio.puts("  spectre <command> [args] | <input.sx> [options]")
@@ -10,7 +14,8 @@ pub fn print_usage() void = {
     std.stdio.puts("  add    <git-url>     Clone a git dependency into ./lib/ and record it")
     std.stdio.puts("  remove <name>        Remove a dependency by repository name")
     std.stdio.puts("  ref                  Generate the language reference in the current directory")
-    std.stdio.puts("  clean                Remove build artifacts (s-out/, temp files)")
+    std.stdio.puts("  clean                Remove build artifacts")
+    std.stdio.puts("  doctor               Show system and Spectre installation information")
     std.stdio.puts("")
     std.stdio.puts("options:")
     std.stdio.puts("  --emit-ssa           Print IR to stdout and exit")
@@ -20,12 +25,12 @@ pub fn print_usage() void = {
     std.stdio.puts("  --release            Build in release mode")
     std.stdio.puts("  --dll                Build a shared library")
     std.stdio.puts("  -c, --compile        Compile only to produce object file, without linking")
-    std.stdio.puts("  -o, --output <file>  Output binary path (default: input filename without extension)")
+    std.stdio.puts("  -o, --output <file>  Output binary path")
     std.stdio.puts("  -q, --quiet          Suppress compiler output")
     std.stdio.puts("  -v, --version        Show the version of the Spectre compiler")
     std.stdio.puts("  -h, --help           Print this help message")
 }
 
 pub fn print_version() void = {
-    std.stdio.puts("Spectre v0.0.2\n(C) Navid Momtahen - GPL-3.0 - 2026")
+    std.stdio.print("Spectre {s}\n(C) Navid Momtahen - GPL-3.0 - 2026", {get_spectre_version()})
 }
