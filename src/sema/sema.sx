@@ -817,7 +817,20 @@ fn check_expr(ctx: ref SemaCtx, expr: ref parser.Node, filename: ref char) void!
                 @append(ctx.used_fns, fname2)
             } elif callee.kind == parser.NK_FIELD {
                 val fname: ref char = parser.field_name(callee)
-                if fname != 0 as ref char { @append(ctx.used_fns, fname) }
+                if fname != 0 as ref char {
+                    @append(ctx.used_fns, fname)
+                    val fbase: ref parser.Node = parser.field_base(callee)
+                    if fbase != 0 as ref parser.Node {
+                        if fbase.kind == parser.NK_IDENT {
+                            val base_name: ref char = fbase.d0 as ref char
+                            if base_name != 0 as ref char {
+                                val qbuf: ref char = @alloc(256) as ref char
+                                @snprintf(qbuf, 256, "{s}.{s}", {base_name, fname})
+                                @append(ctx.used_fns, qbuf)
+                            }
+                        }
+                    }
+                }
             }
         }
 
@@ -1749,7 +1762,6 @@ fn register_item_name(ctx: ref SemaCtx, item: ref parser.Node) void! = {
                 val eparams: ref void = item.d4 as ref void
                 @append(ctx.fn_map_names, ename)
                 @append(ctx.fn_map_params, eparams)
-                @append(ctx.fn_names, ename)
             }
         }
         @append(ctx.fn_defs, item as ref void)
