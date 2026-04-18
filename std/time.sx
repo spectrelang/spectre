@@ -45,7 +45,7 @@ pub fn (DateTime) new(
 }
 
 /// Free a heap-allocated DateTime.
-pub fn (DateTime) free(dt: self) void! = {
+pub fn (DateTime) free(dt: mut self) void! = {
     @free(dt)
 }
 

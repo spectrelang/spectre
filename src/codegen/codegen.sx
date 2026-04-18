@@ -475,7 +475,7 @@ fn resolve_fn_mangled(ctx: ref CgCtx, bare_name: ref char) ref char! = {
                 val mlen: i64 = std.string.len_raw(mangled)
                 val blen: i64 = std.string.len_raw(bare_name)
                 if mlen > blen {
-                    val suffix_pos: mut i64 = mlen - blen
+                    val suffix_pos: i64 = mlen - blen
                     if suffix_pos > 0 {
                         val sc: u8 = @load8(@ptradd(mangled as ref void, suffix_pos - 1))
                         if sc == 95 {
@@ -613,7 +613,7 @@ fn cg_lookup_extern_symbol(ctx: ref CgCtx, name: ref char) ref char! = {
                 val candidate: ref char = n as ref char
                 val clen: i64 = str.len_raw(candidate)
                 if namelen > clen {
-                    val suffix_pos: mut i64 = namelen - clen
+                    val suffix_pos: i64 = namelen - clen
                     if suffix_pos > 0 {
                         val sc: u8 = @load8(@ptradd(name as ref void, suffix_pos - 1))
                         if sc == 95 {
@@ -669,7 +669,7 @@ fn cg_lookup_ext_ret(ctx: ref CgCtx, name: ref char) ref void! = {
                 val candidate: ref char = n as ref char
                 val clen: i64 = str.len_raw(candidate)
                 if namelen > clen {
-                    val suffix_pos: mut i64 = namelen - clen
+                    val suffix_pos: i64 = namelen - clen
                     if suffix_pos > 0 {
                         val sc: u8 = @load8(@ptradd(name as ref void, suffix_pos - 1))
                         if sc == 95 {
@@ -3696,7 +3696,7 @@ fn gen_call(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
                             val call_pos_p: mut i64 = 0
                             val hdr_p: ref char = @alloc(256) as ref char
                             @snprintf(hdr_p, 256, "    %%t{lld} =l call $printf(l %%t{lld}, ...", {result_tmp, fmt_tmp})
-                            val hdr_len_p: mut i64 = str.len_raw(hdr_p)
+                            val hdr_len_p: i64 = str.len_raw(hdr_p)
                             @memcpy(@ptradd(call_buf_p as ref void, call_pos_p), hdr_p as ref void, hdr_len_p)
                             call_pos_p = call_pos_p + hdr_len_p
                             @free(hdr_p)
@@ -3708,7 +3708,7 @@ fn gen_call(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
                                 match v_opt {
                                     some v => {
                                         val vstr: ref char = v as ref char
-                                        val vlen2: mut i64 = str.len_raw(vstr)
+                                        val vlen2: i64 = str.len_raw(vstr)
                                         @memcpy(@ptradd(call_buf_p as ref void, call_pos_p), ", " as ref void, 2)
                                         call_pos_p = call_pos_p + 2
                                         @memcpy(@ptradd(call_buf_p as ref void, call_pos_p), vstr as ref void, vlen2)
@@ -3913,7 +3913,7 @@ fn gen_call(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
     } else {
         @snprintf(hdr, 256, "    %%t{lld} ={s} call ${s}(", {tmp, ret_qtype, effective_callee})
     }
-    val hdr_len: mut i64 = str.len_raw(hdr)
+    val hdr_len: i64 = str.len_raw(hdr)
     @memcpy(@ptradd(call_buf as ref void, call_pos), hdr as ref void, hdr_len)
     call_pos = call_pos + hdr_len
     @free(hdr)
@@ -3924,7 +3924,7 @@ fn gen_call(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
     if returns_union {
         val ret_arg: ref char = @alloc(32) as ref char
         @snprintf(ret_arg, 32, "l %%t{lld}", {ret_buf_tmp})
-        val ret_arg_len: mut i64 = str.len_raw(ret_arg)
+        val ret_arg_len: i64 = str.len_raw(ret_arg)
         @memcpy(@ptradd(call_buf as ref void, call_pos), ret_arg as ref void, ret_arg_len)
         call_pos = call_pos + ret_arg_len
         @free(ret_arg)
@@ -3966,7 +3966,7 @@ fn gen_call(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
                     }
                 }
                 @snprintf(tbuf, 64, "{s} {s}", {arg_qtype, t as ref char})
-                val tlen2: mut i64 = str.len_raw(tbuf)
+                val tlen2: i64 = str.len_raw(tbuf)
                 @memcpy(@ptradd(call_buf as ref void, call_pos), tbuf as ref void, tlen2)
                 call_pos = call_pos + tlen2
                 @free(tbuf)
@@ -4176,7 +4176,7 @@ fn gen_builtin(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
         val call_pos2: mut i64 = 0
         val hdr2: ref char = @alloc(256) as ref char
         @snprintf(hdr2, 256, "    %%t{lld} =w call $printf(l {s}, ...", {tmp, fmt})
-        val hdr2_len: mut i64 = str.len_raw(hdr2 as ref char)
+        val hdr2_len: i64 = str.len_raw(hdr2 as ref char)
         @memcpy(@ptradd(call_buf2 as ref void, call_pos2), hdr2 as ref void, hdr2_len)
         call_pos2 = call_pos2 + hdr2_len
         @free(hdr2)
@@ -4201,7 +4201,7 @@ fn gen_builtin(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
                                         val pv: ref char = gen_expr(ctx, pe_node)
                                         val pbuf2: ref char = @alloc(64) as ref char
                                         @snprintf(pbuf2, 64, ", {s} {s}", {pqt, pv})
-                                        val pbuf2_len: mut i64 = str.len_raw(pbuf2)
+                                        val pbuf2_len: i64 = str.len_raw(pbuf2)
                                         @memcpy(@ptradd(call_buf2 as ref void, call_pos2), pbuf2 as ref void, pbuf2_len)
                                         call_pos2 = call_pos2 + pbuf2_len
                                         @free(pbuf2)
@@ -4255,7 +4255,7 @@ fn gen_builtin(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
                                         val spv: ref char = gen_expr(ctx, spe_node)
                                         val spbuf: mut ref char = @alloc(64) as ref char
                                         @snprintf(spbuf, 64, ", {s} {s}", {spqt, spv})
-                                        val spbuf_len: mut i64 = str.len_raw(spbuf)
+                                        val spbuf_len: i64 = str.len_raw(spbuf)
                                         @memcpy(@ptradd(scall_buf as ref void, scall_pos), spbuf as ref void, spbuf_len)
                                         scall_pos = scall_pos + spbuf_len
                                         @free(spbuf)
@@ -4270,7 +4270,7 @@ fn gen_builtin(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
                             val spv2: ref char = gen_expr(ctx, spn)
                             val spbuf2: ref char = @alloc(64) as ref char
                             @snprintf(spbuf2, 64, ", {s} {s}", {spqt2, spv2})
-                            val spbuf2_len: mut i64 = str.len_raw(spbuf2)
+                            val spbuf2_len: i64 = str.len_raw(spbuf2)
                             @memcpy(@ptradd(scall_buf as ref void, scall_pos), spbuf2 as ref void, spbuf2_len)
                             scall_pos = scall_pos + spbuf2_len
                             @free(spbuf2)
@@ -4802,7 +4802,7 @@ fn gen_builtin(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
 
         val snp_hdr: ref char = @alloc(256) as ref char
         @snprintf(snp_hdr, 256, "    %%t{lld} =w call $snprintf(l %%t{lld}, l 4096, l {s}", {fmt_written_w, fmt_buf, fmt2})
-        val snp_hdr_len: mut i64 = str.len_raw(snp_hdr)
+        val snp_hdr_len: i64 = str.len_raw(snp_hdr)
         @memcpy(@ptradd(fmt_call_buf as ref void, fmt_call_pos), snp_hdr as ref void, snp_hdr_len)
         fmt_call_pos = fmt_call_pos + snp_hdr_len
         @free(snp_hdr)
@@ -4839,7 +4839,7 @@ fn gen_builtin(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
                                             } else {
                                                 @snprintf(fpbuf, 64, ", {s} {s}", {fpqt, fpv})
                                             }
-                                            val fpbuf_len: mut i64 = str.len_raw(fpbuf)
+                                            val fpbuf_len: i64 = str.len_raw(fpbuf)
                                             @memcpy(@ptradd(fmt_call_buf as ref void, fmt_call_pos), fpbuf as ref void, fpbuf_len)
                                             fmt_call_pos = fmt_call_pos + fpbuf_len
                                             @free(fpbuf)
@@ -6331,7 +6331,7 @@ fn gen_forin_stmt(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
     val iter_type: ref char = infer_type_annotation(ctx, stmt.d1 as ref parser.Node)
     if str.rchar_cmp(iter_type, "") != 0 && rchar_starts_with(iter_type, "list[") {
         val elem_type: ref char = @ptradd(iter_type, 5) as ref char // skip "list["
-        val elem_len: mut i64 = str.len_raw(elem_type)
+        val elem_len: i64 = str.len_raw(elem_type)
         val yo = @load8(@ptradd(elem_type as ref void, elem_len - 1)) as i64
         if elem_len > 1 && yo == 93 { // ']'
             val elem_type_copy: ref char = @alloc(elem_len) as ref char
