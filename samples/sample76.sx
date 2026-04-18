@@ -1,0 +1,9 @@
+type SxBuildConfig = {
+    x: i32
+    y: i32
+}
+
+pub fn main() void! = {
+    val cfg: SxBuildConfig = @alloc(@sizeof(SxBuildConfig)) 
+    @memset(cfg as ref void, 0, @sizeof(SxBuildConfig) as usize)
+}

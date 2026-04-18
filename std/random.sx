@@ -63,8 +63,8 @@ test {
     assert r3 >= 0
     assert r3 < 100
 
-    val uuid1 = random_uuid()
-    val uuid2 = random_uuid()
+    val uuid1: mut ref char = random_uuid()
+    val uuid2: mut ref char = random_uuid()
     assert uuid1 != 0
     assert uuid2 != 0
     

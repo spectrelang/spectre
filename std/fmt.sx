@@ -40,7 +40,7 @@ pub fn i64_to_string(x: i64) ref char! = {
         offset = 0
     }
 
-    val total: mut i64 = digits + offset
+    val total: i64 = digits + offset
     val buf: ref char = @alloc(total + 1) as ref char
     val i: mut i64 = total - 1
 
@@ -149,7 +149,7 @@ pub fn f64_to_string(x: f64) ref char! = {
     }
     @store8(@ptradd(frac_buf, 6), 0)
 
-    val int_len: mut i64 = strlen(int_str)
+    val int_len: i64 = strlen(int_str)
     val offset_x: mut i64 = 0
 
     if neg {
@@ -246,14 +246,14 @@ pub fn string_to_f64(s: ref char) result[f64, ParseFloatError]! = {
 }
 
 fn test_i64_roundtrip(x: i64) void! = {
-    val s = i64_to_string(x)
+    val s: mut ref char = i64_to_string(x)
     val parsed = string_to_i64(s)
     assert parsed == ok x
     @free(s)
 }
 
 fn test_f64_roundtrip(x: f64) void! = {
-    val s = f64_to_string(x)
+    val s: mut ref char = f64_to_string(x)
     val parsed = string_to_f64(s)
     assert parsed == ok x
     @free(s)

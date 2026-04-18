@@ -221,7 +221,7 @@ fn extract_prefix_from_mangled(mangled: ref char, bare_name: ref char) ref char!
     if mlen <= blen + 2 {
         return ""
     }
-    val prefix_len: mut i64 = mlen - blen - 2
+    val prefix_len: i64 = mlen - blen - 2
     val prefix: ref char = @alloc(prefix_len + 1) as ref char
     @memcpy(prefix as ref void, mangled as ref void, prefix_len as usize)
     @store8(@ptradd(prefix as ref void, prefix_len), 0)
@@ -4230,7 +4230,7 @@ fn gen_builtin(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
         val scall_pos: mut i64 = 0
         val shdr: ref char = @alloc(256) as ref char
         @snprintf(shdr, 256, "    %%t{lld} =w call $snprintf(l {s}, l {s}, l {s}, ...", {tmp, sbuf, ssz, sfmt})
-        val shdr_len: mut i64 = str.len_raw(shdr)
+        val shdr_len: i64 = str.len_raw(shdr)
         @memcpy(@ptradd(scall_buf as ref void, scall_pos), shdr as ref void, shdr_len)
         scall_pos = scall_pos + shdr_len
         @free(shdr)
@@ -4793,7 +4793,7 @@ fn gen_builtin(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
         val fmt_hdr: ref char = @alloc(256) as ref char
 
         @snprintf(fmt_hdr, 256, "    %%t{lld} =l call $malloc(l 4096)\n", {fmt_buf})
-        val fmt_hdr_len: mut i64 = str.len_raw(fmt_hdr)
+        val fmt_hdr_len: i64 = str.len_raw(fmt_hdr)
         @memcpy(@ptradd(fmt_call_buf as ref void, fmt_call_pos), fmt_hdr as ref void, fmt_hdr_len)
         fmt_call_pos = fmt_call_pos + fmt_hdr_len
         @free(fmt_hdr)
@@ -4820,7 +4820,7 @@ fn gen_builtin(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
                             if fplen > 0 {
                                 val sep_buf: ref char = @alloc(8) as ref char
                                 @snprintf(sep_buf, 8, ", ...,")
-                                val sep_len: mut i64 = str.len_raw(sep_buf)
+                                val sep_len: i64 = str.len_raw(sep_buf)
                                 @memcpy(@ptradd(fmt_call_buf as ref void, fmt_call_pos), sep_buf as ref void, sep_len)
                                 fmt_call_pos = fmt_call_pos + sep_len
                                 @free(sep_buf)

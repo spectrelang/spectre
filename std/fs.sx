@@ -106,7 +106,7 @@ pub fn read_all(path: ref char) option[ref char]! = {
         some f => {
             val ptr: ref void = @load(f)
             fseek(ptr, 0, 2)          // SEEK_END = 2
-            val size: mut i64 = ftell(ptr)
+            val size: i64 = ftell(ptr)
             rewind(ptr)
             val buf: ref void = @alloc(size + 1)
             fread(buf, 1, size as usize, ptr)
@@ -268,9 +268,9 @@ pub fn config_dir() option[ref char]! = {
         if (xdg != 0) { return some xdg }
         val h: ref char = getenv("HOME")
         if (h == 0) { return none }
-        val hl: mut i64 = strlen(h)
+        val hl: i64 = strlen(h)
         val suffix: ref char = "/.config"
-        val sl: mut i64 = strlen(suffix)
+        val sl: i64 = strlen(suffix)
         val buf: ref char = @alloc(hl + sl + 1)
         @memcpy(buf, h, hl)
         @memcpy(@ptradd(buf, hl), suffix, sl)
@@ -396,9 +396,8 @@ test {
         none => { assert false }
         some entries => {
             val count: mut i64 = 0
-            for entry in entries {
+            for _ in entries {
                 count++
-                @free(entry)
             }
             @printf("count: {d}", {count})
             assert count == 2

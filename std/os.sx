@@ -91,7 +91,7 @@ pub fn exec(cmd: ref char) result[String, ProcessError]! = {
     }
 
     val sb: ref void = string.StringBuilder.new()
-    val buf_size: mut i64 = 1024
+    val buf_size: i64 = 1024
     val buf: ref void = @alloc(buf_size)
 
     for {

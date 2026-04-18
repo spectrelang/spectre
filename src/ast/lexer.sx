@@ -152,7 +152,7 @@ fn lx_peek(l: ref Lexer) i64 = {
 }
 
 fn lx_peek2(l: ref Lexer) i64 = {
-    val p: mut i64 = l.pos + 1
+    val p: i64 = l.pos + 1
     guard (p < l.len) else {
         return -1
     }
@@ -189,7 +189,7 @@ fn is_space(c: i64) bool! = {
 }
 
 fn substr(src: ref char, start: i64, end: i64) ref char! = {
-    val n: mut i64 = end - start
+    val n: i64 = end - start
     val buf: ref char = @alloc(n + 1) as ref char
     @memcpy(buf, @ptradd(src, start), n)
     @store8(@ptradd(buf, n), 0)
@@ -293,7 +293,7 @@ fn lex_string(l: ref Lexer) ref char! = {
 }
 
 fn lex_number(l: ref Lexer, line: i64, col: i64) ref Token! = {
-    val start: mut i64 = l.pos - 1
+    val start: i64 = l.pos - 1
     val is_float: mut bool = false
     val first: i64 = @load8(@ptradd(l.src, start)) as i64
 

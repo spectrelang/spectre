@@ -144,7 +144,7 @@ fn scope_set_implicit_mut(ctx: ref SemaCtx, name: ref char) void! = {
                 val e_opt = @get(frame as ref void, i as usize)
                 match e_opt {
                     some e => {
-                        val entry: ref ScopeEntry = e as ref ScopeEntry
+                        val entry: mut ref ScopeEntry = e as ref ScopeEntry
                         if entry.name != 0 as ref char {
                             if std.string.compare(std.string.RChar(entry.name), std.string.RChar(name)) == 0 {
                                 entry.implicit_mut = 1
@@ -2053,7 +2053,7 @@ fn check_module_seen(seen: list[ref void], mod: ref modinfo.ResolvedModule) bool
     return false
 }
 
-fn check_module_rec(mod: ref modinfo.ResolvedModule, all_errors: list[ref char], seen: list[ref void]) void! = {
+fn check_module_rec(mod: ref modinfo.ResolvedModule, all_errors: mut list[ref char], seen: mut list[ref void]) void! = {
     if mod == 0 as ref modinfo.ResolvedModule { return }
     if check_module_seen(seen, mod) { return }
     @append(seen, mod as ref void)

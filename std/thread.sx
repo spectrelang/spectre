@@ -31,7 +31,7 @@ when windows {
 
 /// Create a new thread running `entry` with the given `arg`.
 pub fn (Thread) new(entry: fn(ref void) ref void, arg: ref void) result[ref void, ThreadError]! = {
-    val handle_size: mut usize = 8
+    val handle_size: usize = 8
     val handle: ref void = @alloc(handle_size)
     @memset(handle, 0, handle_size)
 
@@ -128,7 +128,7 @@ pub fn (Thread) detach(thread: self) result[void, ThreadError]! = {
 }
 
 /// Free a thread handle after it has been joined or detached.
-pub fn (Thread) free(thread: self) void! = {
+pub fn (Thread) free(thread: mut self) void! = {
     @free(thread)
 }
 
@@ -226,7 +226,7 @@ pub fn (Mutex) unlock(m: self) void! = {
 }
 
 /// Destroy and free a mutex.
-pub fn (Mutex) free(m: self) void! = {
+pub fn (Mutex) free(m: mut self) void! = {
     when posix {
         pthread_mutex_destroy(m)
     }
