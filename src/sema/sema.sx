@@ -902,9 +902,11 @@ fn check_expr(ctx: ref SemaCtx, expr: ref parser.Node, filename: ref char) void!
                                     val pty: ref parser.Node = param_node.d1 as ref parser.Node
                                     val param_is_ref: mut bool = false
                                     if pty.kind == parser.TY_REF { param_is_ref = true }
+                                    elif pty.kind == parser.TY_LIST { param_is_ref = true }
                                     elif pty.kind == parser.TY_MUT {
                                         val pty_inner: ref parser.Node = pty.d0 as ref parser.Node
                                         if pty_inner != 0 as ref parser.Node && pty_inner.kind == parser.TY_REF { param_is_ref = true }
+                                        elif pty_inner != 0 as ref parser.Node && pty_inner.kind == parser.TY_LIST { param_is_ref = true }
                                     }
                                     if param_is_ref {
                                         if arg_node.kind == parser.NK_IDENT {
