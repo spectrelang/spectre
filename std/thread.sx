@@ -253,7 +253,7 @@ test {
     }
     stdio.puts("it worked :D")
 
-    val _result = Thread.join(t)?
+    Thread.join(t)?
     stdio.puts("it worked :D2")
 
     val final_val: i64 = @load(counter)
