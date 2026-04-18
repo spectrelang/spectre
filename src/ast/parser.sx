@@ -108,7 +108,7 @@ pub type Node = {
     d5:   mut i64
 }
 
-fn make_node(kind: i64, line: i64) ref Node! = {
+pub fn make_node(kind: i64, line: i64) ref Node! = {
     val n: mut ref Node = @alloc(@sizeof(Node)) as ref Node
     n.kind = kind
     n.line = line
@@ -129,7 +129,7 @@ fn make_binop(op: i64, line: i64, left: ref Node, right: ref Node) result[ref No
     return ok n
 }
 
-fn binop_op(n: ref Node) i64! = { return n.d0 }
+pub fn binop_op(n: ref Node) i64! = { return n.d0 }
 pub fn binop_left(n: ref Node) ref Node! = { return n.d1 as ref Node }
 pub fn binop_right(n: ref Node) ref Node! = { return n.d2 as ref Node }
 
@@ -140,7 +140,7 @@ fn make_unop(op: i64, line: i64, inner: ref Node) result[ref Node, ref char]! = 
     return ok n
 }
 
-fn unop_op(n: ref Node) i64! = { return n.d0 }
+pub fn unop_op(n: ref Node) i64! = { return n.d0 }
 pub fn unop_inner(n: ref Node) ref Node! = { return n.d1 as ref Node }
 
 fn make_field(base: ref Node, line: i64, name: ref char) result[ref Node, ref char]! = {
@@ -175,8 +175,8 @@ fn struct_field_expr(n: ref Node) ref Node! = { return n.d1 as ref Node }
 
 fn match_opt_expr(n: ref Node) ref Node!     = { return n.d0 as ref Node }
 fn match_opt_some_bind(n: ref Node) ref char! = { return n.d1 as ref char }
-fn match_opt_some_body(n: ref Node) ref Node! = { return n.d2 as ref Node }  // wrapper, .d0 = stmts list
-fn match_opt_none_body(n: ref Node) ref Node! = { return n.d3 as ref Node }  // wrapper, .d0 = stmts list
+pub fn match_opt_some_body(n: ref Node) ref Node! = { return n.d2 as ref Node }  // wrapper, .d0 = stmts list
+pub fn match_opt_none_body(n: ref Node) ref Node! = { return n.d3 as ref Node }  // wrapper, .d0 = stmts list
 
 fn match_res_expr(n: ref Node) ref Node!       = { return n.d0 as ref Node }
 fn match_res_ok_bind(n: ref Node) ref char!    = { return n.d1 as ref char }
@@ -214,7 +214,7 @@ fn make_int_lit(text: ref char, line: i64) result[ref Node, ref char]! = {
     return ok n
 }
 
-fn int_lit_text(n: ref Node) ref char! = { return n.d0 as ref char }
+pub fn int_lit_text(n: ref Node) ref char! = { return n.d0 as ref char }
 
 fn make_float_lit(text: ref char, line: i64) result[ref Node, ref char]! = {
     val n: mut ref Node = make_node(NK_FLOAT_LIT, line)
@@ -222,7 +222,7 @@ fn make_float_lit(text: ref char, line: i64) result[ref Node, ref char]! = {
     return ok n
 }
 
-fn float_lit_text(n: ref Node) ref char! = { return n.d0 as ref char }
+pub fn float_lit_text(n: ref Node) ref char! = { return n.d0 as ref char }
 
 fn make_str_lit(text: ref char, line: i64) result[ref Node, ref char]! = {
     val n: mut ref Node = make_node(NK_STR_LIT, line)
@@ -230,7 +230,7 @@ fn make_str_lit(text: ref char, line: i64) result[ref Node, ref char]! = {
     return ok n
 }
 
-fn str_lit_text(n: ref Node) ref char! = { return n.d0 as ref char }
+pub fn str_lit_text(n: ref Node) ref char! = { return n.d0 as ref char }
 
 fn str_eq(a: ref char, b: ref char) bool! = {
     return std.string.compare(std.string.RChar(a), std.string.RChar(b)) == 0
