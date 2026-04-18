@@ -1836,6 +1836,13 @@ fn check_top_item(ctx: ref SemaCtx, item: ref parser.Node, filename: ref char) v
         check_stmts(ctx, item.d0 as ref void, filename)
         pop_scope(ctx, filename, item.line)
     }
+    if k == parser.NK_VAL {
+        val init_node: ref parser.Node = item.d3 as ref parser.Node
+        if init_node != 0 as ref parser.Node {
+            check_expr(ctx, init_node, filename)
+        }
+        return
+    }
     if k == parser.NK_WHEN_ITEMS {
         val witems: ref void = item.d1 as ref void
         if witems != 0 as ref void {
