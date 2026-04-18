@@ -25,7 +25,7 @@ pub fn main() void! = {
             match inner {
                 ok lst => {
                     val n = @len(lst)
-                    stdio.print("len = %lld\n", {n})
+                    stdio.print("len = {lld}\n", {n})
 
                     val i: mut i64 = 0
                     for {
@@ -34,7 +34,7 @@ pub fn main() void! = {
                         val v = @get(lst, i as usize)
                         match v {
                             some x => {
-                                stdio.print("%d %d\n", {x.x, x.y})
+                                stdio.print("{d} {d}\n", {x.x, x.y})
                             }
                             none => {
                                 stdio.print("CORRUPTED LIST\n", {})
@@ -43,9 +43,9 @@ pub fn main() void! = {
                         i++
                     }
                 }
-                err e => { stdio.print("inner err: %s\n", {e}) }
+                err e => { stdio.print("inner err: {s}\n", {e}) }
             }
         }
-        err e => { stdio.print("outer err: %s\n", {e}) }
+        err e => { stdio.print("outer err: {s}\n", {e}) }
     }
 }
