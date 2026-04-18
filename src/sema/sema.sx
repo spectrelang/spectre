@@ -768,7 +768,7 @@ fn check_expr(ctx: ref SemaCtx, expr: ref parser.Node, filename: ref char) void!
             if lkup == -1 {
                 val is_known: mut bool = false
                 for fn_name in ctx.fn_names {
-                    if str_eq(fn_name, name) { is_known = true break }
+                    if str_eq(fn_name, name) { is_known = true @append(ctx.used_fns, name) break }
                 }
                 if !is_known {
                     for ty_name in ctx.type_names {
