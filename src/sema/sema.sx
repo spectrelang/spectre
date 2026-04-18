@@ -1101,8 +1101,7 @@ fn check_expr(ctx: ref SemaCtx, expr: ref parser.Node, filename: ref char) void!
                 }
             }
         }
-        if str_eq(bname, "memcpy") || str_eq(bname, "store8") || str_eq(bname, "memset") || str_eq(bname, "addr") || str_eq(bname, "memmove") ||
-           str_eq(bname, "alloc") || str_eq(bname, "realloc") || str_eq(bname, "free") || str_eq(bname, "store") || str_eq(bname, "append") || str_eq(bname, "remove") || str_eq(bname, "reserve") {
+        if str_eq(bname, "memcpy") || str_eq(bname, "store8") || str_eq(bname, "memset") || str_eq(bname, "addr") || str_eq(bname, "memmove") || str_eq(bname, "realloc") || str_eq(bname, "free") || str_eq(bname, "store") || str_eq(bname, "append") || str_eq(bname, "remove") || str_eq(bname, "reserve") {
             if bargs != 0 as ref void {
                 val btarget_opt = @get(bargs as list[ref parser.Node], 0)
                 match btarget_opt {

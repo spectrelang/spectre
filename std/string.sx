@@ -261,7 +261,7 @@ pub fn clone(s: ref void) ref void! = {
 }
 
 /// Reverse in place
-pub fn reverse(s: mut ref void) void! = {
+pub fn reverse(s: ref void) void! = {
     val ptr: ref void = @load(s)
     val l: i64 = @load(@ptradd(s, 8)) as i64
 
@@ -927,8 +927,8 @@ pub fn (StringBuilder) append(sb: self, s: ref void) void! = {
 /// Append a C string to the builder
 pub fn (StringBuilder) append_cstr(sb: self, cstr: ref char) void! = {
     val l: i64 = @load(@ptradd(sb, 8)) as i64
-    val add_len: mut i64 = strlen(cstr)
-    val new_len: mut i64 = l + add_len
+    val add_len: i64 = strlen(cstr)
+    val new_len: i64 = l + add_len
 
     ensure_cap(StrBuilder(sb), new_len + 1)
 

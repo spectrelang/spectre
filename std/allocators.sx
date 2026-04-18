@@ -44,7 +44,7 @@ pub fn (Arena) new(capacity: usize) result[Arena, ArenaError]! = {
 }
 
 /// Free the entire arena and its backing block.
-pub fn (Arena) free(arena: self) void! = {
+pub fn (Arena) free(arena: mut self) void! = {
     val buf: mut ref void = @load(arena)
     @free(buf)
     @free(arena)
@@ -57,13 +57,13 @@ pub fn (Arena) alloc(arena: self, size: usize) option[ref void] = {
     guarded pre {
         pre_size_positive : size > 0
     }
-    val off: mut usize = trust @load(@ptradd(arena, 8)) as usize
+    val off: usize = trust @load(@ptradd(arena, 8)) as usize
     val cap: usize = trust @load(@ptradd(arena, 16)) as usize
     val aligned: usize = (size + 7) - ((size + 7) - ((size + 7) / 8) * 8)
     if (off + aligned > cap) {
         return none
     }
-    val buf: mut ref void = trust @load(arena)
+    val buf: ref void = trust @load(arena)
     val ptr: ref void = trust @ptradd(buf, off)
     trust @store(@ptradd(arena, 8), off + aligned)
     return some ptr
@@ -96,7 +96,7 @@ pub fn (Arena) remaining(arena: self) usize = {
 /// Reset the arena — all previously allocated pointers become invalid.
 pub fn (Arena) reset(arena: self) void! = {
     val buf: mut ref void = @load(arena)
-    val cap: mut usize = @load(@ptradd(arena, 16)) as usize
+    val cap: usize = @load(@ptradd(arena, 16)) as usize
     @memset(buf, 0, cap)
     @store(@ptradd(arena, 8), 0)
 }
@@ -140,7 +140,7 @@ type Stack = {
 pub fn (Stack) new(capacity: usize) ref void! = {
     pre { capacity_positive: capacity > 0 }
     val header: mut ref void = @alloc(24)
-    val buf: mut ref void = @alloc(capacity)
+    val buf: ref void = @alloc(capacity)
     @store(header, buf)
     @store(@ptradd(header, 8), 0)
     @store(@ptradd(header, 16), capacity)
@@ -151,7 +151,7 @@ pub fn (Stack) new(capacity: usize) ref void! = {
 pub fn (Stack) alloc(stack: self, size: usize) option[ref void] = {
     pre { size_positive: size > 0 }
 
-    val off: mut usize = trust @load(@ptradd(stack, 8)) as usize
+    val off: usize = trust @load(@ptradd(stack, 8)) as usize
     val cap: usize = trust @load(@ptradd(stack, 16)) as usize
     val aligned: usize = (size + 7) & ~7
     
@@ -159,7 +159,7 @@ pub fn (Stack) alloc(stack: self, size: usize) option[ref void] = {
         return none
     }
     
-    val buf: mut ref void = trust @load(stack)
+    val buf: ref void = trust @load(stack)
     val ptr: ref void = trust @ptradd(buf, off)
     
     trust @store(@ptradd(stack, 8), off + aligned)
@@ -184,7 +184,7 @@ pub fn (Stack) restore(stack: self, checkpoint: usize) void = {
 }
 
 /// Free the underlying memory.
-pub fn (Stack) free(stack: self) void! = {
+pub fn (Stack) free(stack: mut self) void! = {
     val buf: mut ref void = @load(stack)
     @free(buf)
     @free(stack)
