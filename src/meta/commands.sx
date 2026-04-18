@@ -1,0 +1,868 @@
+val std = use("std")
+val str = use("std/string")
+
+pub type SxBuildConfig = {
+    name:   mut ref char
+    action: mut ref char
+    flags:  mut ref char
+    output: mut ref char
+}
+
+pub type SxMod = {
+    entry:   mut ref char
+    version: mut ref char
+    deps:    mut list[ref char]
+    builds:  mut list[ref SxBuildConfig]
+}
+
+type ParseCtx = {
+    text: mut ref char
+    pos:  mut i64
+    len:  mut i64
+}
+
+fn new_ctx(text: ref char) ref ParseCtx = {
+    val ctx: mut ref ParseCtx = @alloc(@sizeof(ParseCtx)) as ref ParseCtx
+    ctx.text = text
+    ctx.pos  = 0
+    ctx.len  = str.len_raw(text)
+    return ctx
+}
+
+fn ctx_peek(ctx: mut ref ParseCtx) i64 = {
+    if ctx.pos >= ctx.len { return -1 }
+    return @load8(@ptradd(ctx.text as ref void, ctx.pos)) as i64
+}
+
+fn ctx_advance(ctx: mut ref ParseCtx) void = {
+    ctx.pos = ctx.pos + 1
+}
+
+fn ctx_skip_line(ctx: ref ParseCtx) void = {
+    for {
+        val c: i64 = ctx_peek(ctx)
+        if c == -1 { break }
+        ctx_advance(ctx)
+        if c == 10 { break }
+    }
+}
+
+fn ctx_skip_ws(ctx: ref ParseCtx) void = {
+    for {
+        val c: i64 = ctx_peek(ctx)
+        if c == -1 { break }
+        if c == 32 || c == 9 || c == 10 || c == 13 {
+            ctx_advance(ctx)
+        } elif c == 47 && ctx.pos + 1 < ctx.len {
+            val c2: i64 = @load8(@ptradd(ctx.text as ref void, ctx.pos + 1)) as i64
+            if c2 == 47 { ctx_skip_line(ctx) } else { break }
+        } else {
+            break
+        }
+    }
+}
+
+fn ctx_read_quoted(ctx: ref ParseCtx) ref char = {
+    ctx_skip_ws(ctx)
+    if ctx_peek(ctx) != 34 { return "" }
+    ctx_advance(ctx)
+    val cap: mut i64 = 256
+    val buf: mut ref char = @alloc(cap) as ref char
+    val i: mut i64 = 0
+    for {
+        val c: i64 = ctx_peek(ctx)
+        if c == -1 || c == 34 { break }
+        if i >= cap - 1 {
+            cap = cap * 2
+            buf = @realloc(buf as ref void, cap) as ref char
+        }
+        @store8(@ptradd(buf as ref void, i), c as u8)
+        i++
+        ctx_advance(ctx)
+    }
+    if ctx_peek(ctx) == 34 { ctx_advance(ctx) }
+    @store8(@ptradd(buf as ref void, i), 0)
+    val result: ref char = @alloc(i + 1) as ref char
+    @memcpy(result as ref void, buf as ref void, (i + 1) as usize)
+    @free(buf as ref void)
+    return result
+}
+
+fn ctx_read_ident(ctx: ref ParseCtx) ref char = {
+    ctx_skip_ws(ctx)
+    val buf: ref char = @alloc(256) as ref char
+    val i: mut i64 = 0
+    for {
+        val c: i64 = ctx_peek(ctx)
+        if c == -1 { break }
+        val alpha: bool = (c >= 65 && c <= 90) || (c >= 97 && c <= 122)
+        val digit: bool = c >= 48 && c <= 57
+        val special: bool = c == 95 || c == 45 || c == 46 || c == 47
+        if !alpha && !digit && !special { break }
+        @store8(@ptradd(buf as ref void, i), c as u8)
+        i++
+        ctx_advance(ctx)
+    }
+    @store8(@ptradd(buf as ref void, i), 0)
+    if i == 0 {
+        @free(buf as ref void)
+        return ""
+    }
+    val result: ref char = @alloc(i + 1) as ref char
+    @memcpy(result as ref void, buf as ref void, (i + 1) as usize)
+    @free(buf as ref void)
+    return result
+}
+
+pub fn parse_sxmod(content: ref char) ref SxMod = {
+    val ctx: ref ParseCtx = new_ctx(content)
+    val m: mut ref SxMod = @alloc(@sizeof(SxMod)) as ref SxMod
+    @memset(m as ref void, 0, @sizeof(SxMod) as usize)
+    m.entry   = ""
+    m.version = ""
+    m.deps    = []
+    m.builds  = []
+    for {
+        ctx_skip_ws(ctx)
+        if ctx_peek(ctx) == -1 { break }
+        val kw: ref char = ctx_read_ident(ctx)
+        if str.rchar_cmp(kw, "") == 0 { break }
+        if str.rchar_cmp(kw, "entry") == 0 {
+            m.entry = ctx_read_quoted(ctx)
+        } elif str.rchar_cmp(kw, "version") == 0 {
+            m.version = ctx_read_quoted(ctx)
+        } elif str.rchar_cmp(kw, "dep") == 0 {
+            @append(m.deps, ctx_read_quoted(ctx))
+        } elif str.rchar_cmp(kw, "build") == 0 {
+            val cfg: mut ref SxBuildConfig = @alloc(@sizeof(SxBuildConfig)) as ref SxBuildConfig
+            @memset(cfg as ref void, 0, @sizeof(SxBuildConfig) as usize)
+            cfg.name   = ctx_read_ident(ctx)
+            cfg.action = ""
+            cfg.flags  = ""
+            cfg.output = ""
+            ctx_skip_ws(ctx)
+            if ctx_peek(ctx) == 123 { ctx_advance(ctx) }
+            for {
+                ctx_skip_ws(ctx)
+                val c2: i64 = ctx_peek(ctx)
+                if c2 == -1 || c2 == 125 { break }
+                val inner: ref char = ctx_read_ident(ctx)
+                if str.rchar_cmp(inner, "") == 0 { break }
+                if str.rchar_cmp(inner, "action") == 0 {
+                    cfg.action = ctx_read_quoted(ctx)
+                } elif str.rchar_cmp(inner, "flags") == 0 {
+                    cfg.flags = ctx_read_quoted(ctx)
+                } elif str.rchar_cmp(inner, "output") == 0 {
+                    cfg.output = ctx_read_quoted(ctx)
+                } else {
+                    ctx_skip_line(ctx)
+                }
+            }
+            if ctx_peek(ctx) == 125 { ctx_advance(ctx) }
+            @append(m.builds, cfg)
+        } else {
+            ctx_skip_line(ctx)
+        }
+    }
+    @free(ctx as ref void)
+    return m
+}
+
+pub fn load_sxmod() option[ref SxMod] = {
+    val content_opt = std.fs.read_all("sx.mod")
+    match content_opt {
+        none => { return none }
+        some content => { return some parse_sxmod(content as ref char) }
+    }
+}
+
+fn basename_of(path: ref char) ref char = {
+    val len: i64 = str.len_raw(path)
+    if len == 0 { return "project" }
+    val last_slash: mut i64 = -1
+    val i: mut i64 = 0
+    for {
+        if i >= len { break }
+        val c: u8 = @load8(@ptradd(path as ref void, i)) as u8
+        if c == 47 { last_slash = i }
+        i++
+    }
+    val start: i64 = last_slash + 1
+    val name_len: i64 = len - start
+    if name_len <= 0 { return "project" }
+    val buf: ref char = @alloc(name_len + 1) as ref char
+    @memcpy(buf as ref void, @ptradd(path as ref void, start), name_len as usize)
+    @store8(@ptradd(buf as ref void, name_len), 0)
+    return buf
+}
+
+fn repo_name_from_url(url: ref char) ref char = {
+    val base: ref char = basename_of(url)
+    val blen: i64 = str.len_raw(base)
+    if blen > 4 {
+        val a: u8 = @load8(@ptradd(base as ref void, blen - 4)) as u8
+        val b: u8 = @load8(@ptradd(base as ref void, blen - 3)) as u8
+        val c: u8 = @load8(@ptradd(base as ref void, blen - 2)) as u8
+        val d: u8 = @load8(@ptradd(base as ref void, blen - 1)) as u8
+        if a == 46 && b == 103 && c == 105 && d == 116 {
+            val trimmed: ref char = @alloc(blen - 3) as ref char
+            @memcpy(trimmed as ref void, base as ref void, (blen - 4) as usize)
+            @store8(@ptradd(trimmed as ref void, blen - 4), 0)
+            return trimmed
+        }
+    }
+    return base
+}
+
+fn rchar_contains(haystack: ref char, needle: ref char) bool = {
+    val hlen: i64 = str.len_raw(haystack)
+    val nlen: i64 = str.len_raw(needle)
+    if nlen == 0 { return true }
+    if nlen > hlen { return false }
+    val limit: i64 = hlen - nlen
+    val i: mut i64 = 0
+    for {
+        if i > limit { break }
+        val j: mut i64 = 0
+        val matched: mut bool = true
+        for {
+            if j >= nlen { break }
+            val x: u8 = @load8(@ptradd(haystack as ref void, i + j)) as u8
+            val y: u8 = @load8(@ptradd(needle as ref void, j)) as u8
+            if x != y { matched = false break }
+            j++
+        }
+        if matched { return true }
+        i++
+    }
+    return false
+}
+
+/// Rewrite filepath, dropping lines that start with dep_prefix AND contain needle.
+fn drop_dep_lines(filepath: ref char, needle: ref char) void = {
+    val content_opt = std.fs.read_all(filepath)
+    match content_opt {
+        none => { return }
+        some content => {
+            val sb: ref void = std.string.StringBuilder.new()
+            val text: ref char = content as ref char
+            val tlen: i64 = str.len_raw(text)
+            val line_start: mut i64 = 0
+            val i: mut i64 = 0
+            for {
+                if i > tlen { break }
+                val at_end: bool = i == tlen
+                val c: mut u8 = 0
+                if !at_end { c = @load8(@ptradd(text as ref void, i)) as u8 }
+                if at_end || c == 10 {
+                    val line_len: i64 = i - line_start
+                    val line: ref char = @alloc(line_len + 1) as ref char
+                    @memcpy(line as ref void, @ptradd(text as ref void, line_start), line_len as usize)
+                    @store8(@ptradd(line as ref void, line_len), 0)
+                    val is_dep: bool = str.rchar_starts_with(line, "dep ")
+                    val has_needle: bool = rchar_contains(line, needle)
+                    if !(is_dep && has_needle) {
+                        std.string.StringBuilder.append_cstr(sb, line)
+                        if !at_end { std.string.StringBuilder.append_char(sb, 10) }
+                    }
+                    @free(line as ref void)
+                    line_start = i + 1
+                }
+                i++
+            }
+            val result: ref void = std.string.StringBuilder.build(sb)
+            std.fs.write_all(filepath, std.string.cstr(result))
+            std.string.StringBuilder.free(sb)
+        }
+    }
+}
+
+pub fn cmd_ref() i32 = {
+    val path: ref char = "SPECTRE_LANGUAGE_REFERENCE.md"
+    val f_opt = std.fs.open(path, "w")
+    match f_opt {
+        none => {
+            std.stdio.print("error: could not write {s}\n", {path})
+            return 1
+        }
+        some f => {
+            std.fs.write(f, \\ # Spectre Language Reference
+                \\
+                \\ ---
+                \\
+                \\ ## Comments
+                \\
+                \\ ```
+                \\ // This is a line comment
+                \\ ```
+                \\
+                \\ ---
+                \\
+                \\ ## Variables
+                \\
+                \\ ```
+                \\ val x: i64 = 42          // immutable binding
+                \\ val y: mut i64 = 0       // mutable binding
+                \\ y = y + 1
+                \\ ```
+                \\
+            )
+            std.fs.write(f, \\ ---
+                \\
+                \\ ## Primitive Types
+                \\
+                \\ | Type    | Description              |
+                \\ |---------|--------------------------|
+                \\ | `i32`   | 32-bit signed integer    |
+                \\ | `i64`   | 64-bit signed integer    |
+                \\ | `u8`    | 8-bit unsigned integer   |
+                \\ | `u32`   | 32-bit unsigned integer  |
+                \\ | `u64`   | 64-bit unsigned integer  |
+                \\ | `usize` | pointer-sized unsigned   |
+                \\ | `f32`   | 32-bit float             |
+                \\ | `f64`   | 64-bit float             |
+                \\ | `bool`  | boolean (`true`/`false`) |
+                \\ | `char`  | single byte character    |
+                \\ | `void`  | no value                 |
+                \\
+            )
+            std.fs.write(f, \\ ---
+                \\
+                \\ ## Reference and Pointer Types
+                \\
+                \\ ```
+                \\ val p: ref char = "hello"    // pointer to char (C string)
+                \\ val q: mut ref i64 = ...     // reassignable pointer
+                \\ ```
+                \\
+                \\ `ref T` is a raw pointer.  Null is written as `0 as ref T`.
+                \\
+                \\ ---
+                \\
+                \\ ## List Type
+                \\
+                \\ ```
+                \\ val xs: mut list[i64] = []
+                \\ @append(xs, 1)
+                \\ @append(xs, 2)
+                \\ val n: usize = @len(xs)
+                \\ val opt = @get(xs, 0)        // returns option[i64]
+                \\ @remove(xs, 0)
+                \\ @reserve(xs, 64)
+                \\ ```
+                \\
+            )
+            std.fs.write(f, \\ ---
+                \\
+                \\ ## Option Type
+                \\
+                \\ ```
+                \\ val a: option[i64] = some 42
+                \\ val b: option[i64] = none
+                \\
+                \\ match a {
+                \\     some v => { /* use v */ }
+                \\     none   => { /* handle missing */ }
+                \\ }
+                \\ ```
+                \\
+                \\ ---
+                \\
+                \\ ## Result Type
+                \\
+                \\ ```
+                \\ val r: result[i64, ref char] = ok 10
+                \\ val e: result[i64, ref char] = err "oops"
+                \\
+                \\ match r {
+                \\     ok v  => { } // Use v 
+                \\     err e => { } // Handle the error
+                \\ }
+                \\ ```
+                \\
+            )
+            std.fs.write(f, \\ ---
+                \\
+                \\ ## Strings
+                \\
+                \\ ```
+                \\ val s: ref char = "hello"           // C string literal
+                \\ val raw = \\ a raw string literal   // raw string (no escape processing)
+                \\           \\ continued on next line // lines joined with \n
+                \\ ```
+                \\
+                \\ The standard library (`std/string`) provides `String` (owned heap string)
+                \\ and `StringBuilder` for building strings dynamically.
+                \\
+                \\ ---
+                \\
+                \\ ## Functions
+                \\
+                \\ ```
+                \\ fn add(a: i64, b: i64) i64 = {
+                \\     return a + b
+                \\ }
+                \\
+                \\ pub fn greet(name: ref char) void = {
+                \\     @printf("Hello, %s!\n", name)
+                \\ }
+                \\
+                \\ // Functions that may propagate errors use !
+                \\ fn open_file(path: ref char) ref void! = {
+                \\     // ... can use ? to propagate
+                \\ }
+                \\ ```
+                \\
+            )
+            std.fs.write(f, \\ ---
+                \\
+                \\ ## Methods (Namespaced Functions)
+                \\
+                \\ ```
+                \\ type Counter = {
+                \\     value: mut i64
+                \\ }
+                \\
+                \\ pub fn (Counter) new() ref Counter = {
+                \\     val c: ref Counter = @alloc(@sizeof(Counter)) as ref Counter
+                \\     c.value = 0
+                \\     return c
+                \\ }
+                \\
+                \\ pub fn (Counter) inc(self: mut self) void = {
+                \\     self.value = self.value + 1
+                \\ }
+                \\
+                \\ // Call site:
+                \\ val c = Counter.new()
+                \\ Counter.inc(c)
+                \\ ```
+                \\
+                \\ `self` in a parameter position refers to the enclosing type.
+                \\ `mut self` means the method may mutate the receiver.
+                \\
+            )
+            std.fs.write(f, \\ ---
+                \\
+                \\ ## Control Flow
+                \\
+                \\ ```
+                \\ // if / elif / else
+                \\ if x > 0 {
+                \\     // ...
+                \\ } elif x == 0 {
+                \\     // ...
+                \\ } else {
+                \\     // ...
+                \\ }
+                \\
+                \\ // infinite loop with break
+                \\ for {
+                \\     if done { break }
+                \\ }
+                \\
+                \\ // for-in over a list
+                \\ for item in my_list {
+                \\     // use item
+                \\ }
+                \\
+                \\ // early return
+                \\ return value
+                \\ ```
+                \\
+                \\ ---
+                \\
+                \\ ## Pattern Matching
+                \\
+                \\ ```
+                \\ // option
+                \\ match maybe_val {
+                \\     some v => { /* v is the unwrapped value */ }
+                \\     none   => { }
+                \\ }
+                \\
+                \\ // result
+                \\ match result_val {
+                \\     ok v  => { }
+                \\     err e => { }
+                \\ }
+                \\
+                \\ // union
+                \\ match shape {
+                \\     Circle r    => { }
+                \\     Rectangle w h => { }
+                \\ }
+                \\ ```
+                \\
+            )
+            std.fs.write(f, \\ ---
+                \\
+                \\ ## Type Definitions
+                \\
+                \\ ```
+                \\ // struct
+                \\ pub type Point = {
+                \\     x: mut f64
+                \\     y: mut f64
+                \\ }
+                \\
+                \\ // union (tagged)
+                \\ pub union Shape = {
+                \\     Circle(f64) | Rectangle(f64, f64)
+                \\ }
+                \\
+                \\ // enum
+                \\ pub enum Color = {
+                \\     Red, Green, Blue
+                \\ }
+                \\ ```
+                \\
+                \\ ---
+                \\
+                \\ ## Modules
+                \\
+                \\ ```
+                \\ // import a module
+                \\ val io = use("std/stdio")
+                \\ val mymod = use("path/to/module.sx")
+                \\
+                \\ // use it
+                \\ io.puts("hello")
+                \\
+                \\ // pub makes a declaration visible to importers
+                \\ pub fn my_fn() void = { }
+                \\ ```
+                \\
+            )
+            std.fs.write(f, \\ ---
+                \\
+                \\ ## Contracts
+                \\
+                \\ ```
+                \\ fn divide(a: i64, b: i64) i64 = {
+                \\     pre  { nonzero: b != 0 }
+                \\     post { result_valid: true }
+                \\     return a / b
+                \\ }
+                \\
+                \\ // guarded: contract violation is a runtime error, not UB
+                \\ fn safe_div(a: i64, b: i64) i64 = {
+                \\     guarded pre { nonzero: b != 0 }
+                \\     return a / b
+                \\ }
+                \\
+                \\ // invariant: checked on every iteration of the enclosing loop
+                \\ invariant { i_in_bounds: i < len }
+                \\ ```
+                \\
+                \\ ---
+                \\
+                \\ ## Error Propagation
+                \\
+                \\ ```
+                \\ // ! in return type means errors can propagate
+                \\ fn read_file(path: ref char) ref char! = {
+                \\     val f = some_fallible_call()?   // ? propagates err upward
+                \\     return f
+                \\ }
+                \\ ```
+                \\
+            )
+            std.fs.write(f, \\ ---
+                \\
+                \\ ## Builtins
+                \\
+                \\ | Builtin                        | Description                              |
+                \\ |-------------------------------|------------------------------------------|
+                \\ | `@alloc(n)`                   | allocate n bytes, returns `ref void`     |
+                \\ | `@realloc(ptr, n)`            | resize allocation                        |
+                \\ | `@free(ptr)`                  | free allocation                          |
+                \\ | `@sizeof(T)`                  | size of type T in bytes                  |
+                \\ | `@memcpy(dst, src, n)`        | copy n bytes                             |
+                \\ | `@memset(dst, val, n)`        | fill n bytes with val                    |
+                \\ | `@memmove(dst, src, n)`       | overlapping-safe copy                    |
+                \\ | `@ptradd(ptr, n)`             | pointer arithmetic                       |
+                \\ | `@load(ptr)`                  | load word from pointer                   |
+                \\ | `@store(ptr, val)`            | store word to pointer                    |
+                \\ | `@load8(ptr)`                 | load byte from pointer                   |
+                \\ | `@store8(ptr, val)`           | store byte to pointer                    |
+                \\ | `@append(list, val)`          | append to list                           |
+                \\ | `@remove(list, i)`            | remove element at index i                |
+                \\ | `@get(list, i)`               | get element at index (returns option)    |
+                \\ | `@len(list)`                  | list length (returns usize)              |
+                \\ | `@reserve(list, n)`           | reserve capacity                         |
+                \\ | `@capacity(list)`             | current capacity                         |
+                \\ | `@fmt(fmt, {args})`           | heap-allocate a formatted string         |
+                \\ | `@snprintf(buf, n, fmt, {})` | printf into a buffer                     |
+                \\ | `@printf(fmt, {args})`        | print to stdout                          |
+                \\ | `@args()`                     | command-line arguments as `list[ref char]` |
+                \\
+            )
+            std.fs.write(f, \\ ---
+                \\
+                \\ ## The `trust` Keyword
+                \\
+                \\ `trust expr` evaluates `expr` while suppressing all contract checks.
+                \\ Use it when you have external guarantees that contracts cannot express.
+                \\
+                \\ ```
+                \\ val ptr: ref void = trust @load(some_raw_ptr)
+                \\ ```
+                \\
+                \\ ---
+                \\
+                \\ ## `assert`
+                \\
+                \\ ```
+                \\ assert x > 0           // aborts if false
+                \\ assert my_fn() == ok 1
+                \\ ```
+                \\
+                \\ ---
+                \\
+                \\ ## Platform Conditionals
+                \\
+                \\ ```
+                \\ when linux   {  }
+                \\ when darwin  {  }
+                \\ when windows {  }
+                \\ when posix   {  }
+                \\ ```
+                \\
+                \\ ---
+                \\
+                \\ ## Extern Functions
+                \\
+                \\ ```
+                \\ extern (C) fn strlen(s: ref char) i64! = "strlen"
+                \\ extern (C) fn printf(fmt: ref char, ...) i32! = "printf"
+                \\ ```
+                \\
+                \\ ---
+                \\
+                \\ ## Tests
+                \\
+                \\ ```
+                \\ test {
+                \\     assert add(1, 2) == 3
+                \\ }
+                \\ ```
+                \\
+                \\ Run with: `spectre <file.sx> --test`
+                \\
+            )
+            std.fs.write(f, \\ ---
+                \\
+                \\ ## sx.mod — This is the Project Manifest
+                \\
+                \\ ```
+                \\ entry "./src/main.sx"
+                \\ version "v0.0.1"
+                \\
+                \\ dep "https://github.com/user/some-lib"
+                \\
+                \\ build release {
+                \\     flags  "--release"
+                \\     output "./myapp"
+                \\ }
+                \\
+                \\ build dev {
+                \\     output "./myapp-dev"
+                \\ }
+                \\ ```
+                \\
+                \\ - `entry`   — source file passed to the compiler
+                \\ - `version` — project version string
+                \\ - `dep`     — git dependency URL (cloned to `lib/`)
+                \\ - `build`   — named build configuration
+                \\   - `action`  — run this shell command instead of the compiler
+                \\   - `flags`   — extra flags forwarded to `spectre`
+                \\   - `output`  — `-o` output path
+                \\
+            )
+            std.fs.close(f)
+        }
+    }
+    std.stdio.puts("Generated SLR.")
+    return 0
+}
+
+pub fn cmd_init(name_arg: ref char) i32 = {
+    if std.os.exists("sx.mod") {
+        std.stdio.puts("error: sx.mod already exists in this directory")
+        return 1
+    }
+
+    val proj_name: mut ref char = name_arg
+    if str.rchar_cmp(proj_name, "") == 0 {
+        val cwd_opt = std.fs.cwd()
+        match cwd_opt {
+            some cwd => { proj_name = basename_of(cwd) }
+            none     => { proj_name = "my-project" }
+        }
+    }
+
+    val sb: ref void = std.string.StringBuilder.new()
+    std.string.StringBuilder.append_cstr(sb, "entry \"./src/main.sx\"\nversion \"v0.0.1\"\n\nbuild release {\n    flags \"--release\"\n    output \"./")
+    std.string.StringBuilder.append_cstr(sb, proj_name)
+    std.string.StringBuilder.append_cstr(sb, "\"\n}\n\nbuild dev {\n    output \"./")
+    std.string.StringBuilder.append_cstr(sb, proj_name)
+    std.string.StringBuilder.append_cstr(sb, "-dev\"\n}\n")
+    val sxmod_built: ref void = std.string.StringBuilder.build(sb)
+    std.fs.write_all("sx.mod", std.string.cstr(sxmod_built))
+    std.string.StringBuilder.free(sb)
+    std.fs.write_all("sx.lock", "version \"1\"\n")
+    std.fs.write_all(".gitignore", "SPECTRE_LANGUAGE_REFERENCE.md\nlib/\ns-out/\n")
+
+    std.fs.mkdir_path("src")
+
+    val main_template: ref char = \\ val stdio = use("std/stdio")
+        \\
+        \\ pub fn main() void = {
+        \\     stdio.puts("Hello, world!")
+        \\ }
+        \\
+    std.fs.write_all("src/main.sx", main_template)
+
+    std.stdio.print("Initialized project '{s}'\n", {proj_name})
+    std.stdio.puts("  sx.mod       project manifest")
+    std.stdio.puts("  sx.lock      dependency lockfile")
+    std.stdio.puts("  .gitignore")
+    std.stdio.puts("  src/main.sx  entry point")
+    return 0
+}
+
+pub fn cmd_build(config_name: ref char, exe_path: ref char) i32 = {
+    val mod_opt = load_sxmod()
+    match mod_opt {
+        none => {
+            std.stdio.puts("error: sx.mod not found — run 'spectre init' first")
+            return 1
+        }
+        some m => {
+            val nbuilds: i64 = @len(m.builds) as i64
+            val found_cfg: mut ref SxBuildConfig = 0 as ref SxBuildConfig
+            val bi: mut i64 = 0
+            for {
+                if bi >= nbuilds { break }
+                val opt = @get(m.builds, bi as usize)
+                match opt {
+                    some raw => {
+                        val cfg: ref SxBuildConfig = raw as ref SxBuildConfig
+                        if str.rchar_cmp(cfg.name, config_name) == 0 {
+                            found_cfg = cfg
+                            break
+                        }
+                    }
+                    none => {}
+                }
+                bi++
+            }
+            if found_cfg == 0 as ref SxBuildConfig {
+                std.stdio.print("error: build config '{s}' not found in sx.mod\n", {config_name})
+                return 1
+            }
+
+            if str.rchar_cmp(found_cfg.action, "") != 0 {
+                val exit_code: i32 = std.os.run(found_cfg.action)
+                return exit_code
+            }
+
+            val cmd: mut ref char = @fmt("{s} {s}", {exe_path, m.entry})
+            if str.rchar_cmp(found_cfg.flags, "") != 0 {
+                cmd = @fmt("{s} {s}", {cmd, found_cfg.flags})
+            }
+            if str.rchar_cmp(found_cfg.output, "") != 0 {
+                cmd = @fmt("{s} -o {s}", {cmd, found_cfg.output})
+            }
+            val exit_code: i32 = std.os.run(cmd)
+            return exit_code
+        }
+    }
+}
+
+pub fn cmd_add(url: ref char) i32 = {
+    if !std.os.exists("sx.mod") {
+        std.stdio.puts("error: sx.mod not found — run 'spectre init' first")
+        return 1
+    }
+
+    val name: ref char = repo_name_from_url(url)
+    val lib_path: ref char = @fmt("lib/{s}", {name})
+
+    if std.os.exists(lib_path) {
+        std.stdio.print("error: dependency '{s}' already exists at {s}\n", {name, lib_path})
+        return 1
+    }
+
+    std.fs.mkdir_path("lib")
+
+    val clone_cmd: ref char = @fmt("git clone {s} {s}", {url, lib_path})
+    std.stdio.print("Cloning {s}...\n", {url})
+    val exit_code: i32 = std.os.run(clone_cmd)
+    if exit_code != 0 {
+        std.stdio.print("error: git clone failed for {s}\n", {url})
+        return 1
+    }
+
+    val dep_line: ref char = @fmt("dep \"{s}\"\n", {url})
+    std.fs.append_all("sx.mod", dep_line)
+
+    val hash_cmd: ref char = @fmt("git -C {s} rev-parse HEAD", {lib_path})
+    val hash_res = std.os.exec(hash_cmd)
+    val hash: mut ref char = "unknown"
+    match hash_res {
+        ok v => {
+            val raw: ref char = std.string.cstr(v)
+            val raw_len: i64 = str.len_raw(raw)
+            val trimmed_len: mut i64 = raw_len
+            for {
+                if trimmed_len <= 0 { break }
+                val c: u8 = @load8(@ptradd(raw as ref void, trimmed_len - 1)) as u8
+                if c == 10 || c == 13 || c == 32 { trimmed_len-- } else { break }
+            }
+            val h: ref char = @alloc(trimmed_len + 1) as ref char
+            @memcpy(h as ref void, raw as ref void, trimmed_len as usize)
+            @store8(@ptradd(h as ref void, trimmed_len), 0)
+            hash = h
+        }
+        err _ => {}
+    }
+
+    val lock_line: ref char = @fmt("dep \"{s}\" \"{s}\"\n", {url, hash})
+    std.fs.append_all("sx.lock", lock_line)
+
+    std.stdio.print("Added dependency '{s}' ({s})\n", {name, hash})
+    return 0
+}
+
+pub fn cmd_remove(dep_name: ref char) i32 = {
+    if !std.os.exists("sx.mod") {
+        std.stdio.puts("error: sx.mod not found")
+        return 1
+    }
+
+    val lib_path: ref char = @fmt("lib/{s}", {dep_name})
+    if std.os.exists(lib_path) {
+        val rm_cmd: ref char = @fmt("rm -rf {s}", {lib_path})
+        std.os.run(rm_cmd)
+        std.stdio.print("Removed {s}\n", {lib_path})
+    } else {
+        std.stdio.print("warning: {s} not found, updating manifests only\n", {lib_path})
+    }
+
+    drop_dep_lines("sx.mod", dep_name)
+    drop_dep_lines("sx.lock", dep_name)
+    std.stdio.print("Removed dependency '{s}'\n", {dep_name})
+    return 0
+}
+
+pub fn cmd_clean() i32 = {
+    if std.os.exists("s-out") {
+        std.os.run("rm -rf s-out")
+        std.stdio.puts("Removed s-out/")
+    }
+    std.os.run("rm -f /tmp/spectre_output.ssa /tmp/spectre_output.s /tmp/spectre_test_bin")
+    std.stdio.puts("Clean complete.")
+    return 0
+}
