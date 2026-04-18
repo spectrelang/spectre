@@ -943,9 +943,9 @@ fn collect_seen(m: ref ResolvedModule, seen: ref void) void! = {
 pub fn flatten_modules(
     m:      ref ResolvedModule,
     prefix: ref char,
-    out_prefixes: list[ref char],
-    out_items:    list[ref void], 
-    seen:         list[String]  
+    out_prefixes: mut list[ref char],
+    out_items:    mut list[ref void], 
+    seen:         mut list[String]  
 ) void! = {
     val slen: i64 = @len(seen as list[String]) as i64
     val si: mut i64 = 0
@@ -1087,7 +1087,7 @@ pub fn collect_links_filtered(
     prefix: ref char,
     used_prefixes: list[ref char],
     exe_dir: ref char,
-    seen: list[String]
+    seen: mut list[String]
 ) list[ref char]! = {
     val slen: i64 = @len(seen) as i64
     val si: mut i64 = 0
@@ -1176,7 +1176,7 @@ pub fn collect_links_all(
     m: ref ResolvedModule,
     prefix: ref char,
     exe_dir: ref char,
-    seen: list[String]
+    seen: mut list[String]
 ) list[ref char]! = {
     val slen: i64 = @len(seen) as i64
     val si: mut i64 = 0
@@ -1569,7 +1569,7 @@ fn collect_needed_subnames_in_stmt(stmt: ref parser.Node, import_name: ref char,
     }
 }
 
-fn collect_needed_subnames_in_expr(expr: ref parser.Node, import_name: ref char, needed: list[ref char]) void! = {
+fn collect_needed_subnames_in_expr(expr: ref parser.Node, import_name: ref char, needed: mut list[ref char]) void! = {
     if expr == 0 { return }
 
     if expr.kind == parser.NK_FIELD {
@@ -1678,7 +1678,7 @@ pub fn collect_needed_subnames_transitive(
 }
 
 /// Collect used import names from an expression.
-fn collect_used_imports_expr(node: ref parser.Node, import_names: list[ref char], used: list[ref char]) void! = {
+fn collect_used_imports_expr(node: ref parser.Node, import_names: list[ref char], used: mut list[ref char]) void! = {
     if node == 0 { return }
 
     if node.kind == parser.NK_IDENT {
@@ -2131,7 +2131,7 @@ pub fn collect_used_links(
 fn collect_used_links_recursive(
     m: ref ResolvedModule,
     exe_dir: ref char,
-    seen: list[String]
+    seen: mut list[String]
 ) list[ref char]! = {
     val slen: i64 = @len(seen) as i64
     val si: mut i64 = 0

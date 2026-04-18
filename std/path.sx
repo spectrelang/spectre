@@ -24,7 +24,7 @@ pub fn get_name_without_ext(arena: ref allocators.Arena, path: ref char) ref cha
         i++
     }
 
-    val filename_start: mut i64 = last_slash + 1
+    val filename_start: i64 = last_slash + 1
     val filename_len: i64 = len - filename_start
     val last_dot: mut i64 = -1
     val j: mut i64 = 0
@@ -73,7 +73,7 @@ pub fn get_name_without_ext(arena: ref allocators.Arena, path: ref char) ref cha
 
 /// Join dir + "/" + name, returning a heap-allocated string.
 pub fn join(dir: ref char, name: ref char) ref char! = {
-    val dlen: mut i64 = str.len_raw(dir)
+    val dlen: i64 = str.len_raw(dir)
     val nlen: i64 = str.len_raw(name)
     val buf: ref char = @alloc(dlen + nlen + 2) as ref char
     @memcpy(buf as ref void, dir as ref void, dlen as usize)
