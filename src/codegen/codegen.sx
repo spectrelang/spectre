@@ -1105,7 +1105,7 @@ fn field_offset(ctx: ref CgCtx, fields: ref void, field_name: ref char) i64! = {
 }
 
 /// Look up the type name of a field in a struct by name. Returns "" if not found.
-fn field_type_name(ctx: ref CgCtx, fields: ref void, field_name: ref char) ref char! = {
+fn field_type_name(_: ref CgCtx, fields: ref void, field_name: ref char) ref char! = {
     val flen: i64 = @len(fields as list[ref void]) as i64
     val fi: mut i64 = 0
     for {
@@ -1933,11 +1933,11 @@ fn rewrite_fmt(s: ref char) ref char! = {
     val i: mut i64 = 0
     for {
         if i >= slen { break }
-        val c: mut u8 = @load8(@ptradd(s as ref void, i))
+        val c: u8 = @load8(@ptradd(s as ref void, i))
         
         if c == 92 { // '\\'
             if i + 1 < slen {
-                val next: mut u8 = @load8(@ptradd(s as ref void, i + 1))
+                val next: u8 = @load8(@ptradd(s as ref void, i + 1))
                 if next == 123 || next == 125 { // '{' or '}'
                     @store8(@ptradd(out as ref void, oi), next)
                     oi++
@@ -1967,7 +1967,7 @@ fn rewrite_fmt(s: ref char) ref char! = {
                 val k: mut i64 = i + 1
                 for {
                     if k >= j { break }
-                    val sc: mut u8 = @load8(@ptradd(s as ref void, k))
+                    val sc: u8 = @load8(@ptradd(s as ref void, k))
                     @store8(@ptradd(out as ref void, oi), sc)
                     oi++
                     k++
@@ -2051,7 +2051,7 @@ fn emit_string_data(ctx: ref CgCtx) void! = {
                 val sptr: ref char = s as ref char
                 val j: mut i64 = 0
                 for {
-                    val c: mut u8 = @load8(@ptradd(sptr, j))
+                    val c: u8 = @load8(@ptradd(sptr, j))
                     if c == 0 { break }
                     if c == 10 {
                         emit(ctx, "\\n")
@@ -5111,7 +5111,7 @@ fn gen_struct_lit(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
                     if si >= slen { break }
                     val sn_opt = @get(snames as list[ref char], si as usize)
                     match sn_opt {
-                        some sn => {
+                        some _ => {
                             val sf_opt = @get(cg_sfields(ctx) as list[ref void], si as usize)
                             match sf_opt {
                                 some sf => {
@@ -5773,7 +5773,6 @@ fn gen_stmt(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
         emit(ctx, buf6)
         @free(buf6)
         val node: ref parser.Node = stmt as ref parser.Node
-        val fn_name: ref char = cg_fn_name(ctx)
         val msg_buf: ref char = @alloc(512) as ref char
         @snprintf(msg_buf, 512, "spectre: assertion failed at line {lld}\n", {node.line})
         val msg_idx: i64 = intern_string(ctx, msg_buf)
@@ -8052,8 +8051,8 @@ pub fn gen_module_resolved(root: ref module.ResolvedModule, release_mode: bool) 
     ctx.release_mode = release_mode
     emit_runtime_helpers(ctx)
 
-    val out_prefixes: mut list[ref char] = []
-    val out_items:    mut list[ref void] = []
+    val out_prefixes: list[ref char] = []
+    val out_items:    list[ref void] = []
     val seen:         list[String] = []
 
     module.flatten_modules(
@@ -8188,8 +8187,8 @@ pub fn gen_module_resolved(root: ref module.ResolvedModule, release_mode: bool) 
 pub fn get_used_prefixes(root: ref module.ResolvedModule) list[ref char]! = {
     val ctx: ref CgCtx = cg_new()
     
-    val out_prefixes: mut list[ref char] = []
-    val out_items:    mut list[ref void] = []
+    val out_prefixes: list[ref char] = []
+    val out_items:    list[ref void] = []
     val seen:         list[String] = []
 
     module.flatten_modules(
@@ -8359,8 +8358,8 @@ pub fn gen_module_resolved_test(root: ref module.ResolvedModule, release_mode: b
     ctx.release_mode = release_mode
     emit_runtime_helpers(ctx)
 
-    val out_prefixes: mut list[ref char] = []
-    val out_items:    mut list[ref void] = []
+    val out_prefixes: list[ref char] = []
+    val out_items:    list[ref void] = []
     val seen:         list[String] = []
 
     module.flatten_modules(
@@ -8374,7 +8373,7 @@ pub fn gen_module_resolved_test(root: ref module.ResolvedModule, release_mode: b
 
     cg_mark_prefix_used(ctx, "")
     
-    val root_imports: mut list[ref char] = root.import_names
+    val root_imports: list[ref char] = root.import_names
     val rimp_len: i64 = @len(root_imports) as i64
     val ri_idx: mut i64 = 0
     for {
@@ -8411,7 +8410,7 @@ pub fn gen_module_resolved_test(root: ref module.ResolvedModule, release_mode: b
     
     val test_ids: mut list[i64] = []
     val test_counter: mut i64 = 0
-    val root_items: mut list[ref parser.Node] = root.items
+    val root_items: list[ref parser.Node] = root.items
     val rlen: i64 = @len(root_items) as i64
     val ri: mut i64 = 0
     for {
