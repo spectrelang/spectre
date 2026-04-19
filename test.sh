@@ -81,12 +81,12 @@ for file in "$STD_DIR"/*.sx; do
     fi
 done
 
-"$COMPILER" ./src/ast/lexer.sx --test
-"$COMPILER" ./src/ast/parser.sx --test
-"$COMPILER" ./src/sema/sema.sx --test
-"$COMPILER" ./src/module/module.sx --test
-"$COMPILER" ./src/codegen/codegen.sx --test
-"$COMPILER" ./src/sxc.sx --test
+"$COMPILER" ./src/ast/lexer.sx -q --test
+"$COMPILER" ./src/ast/parser.sx -q --test
+"$COMPILER" ./src/sema/sema.sx -q --test
+"$COMPILER" ./src/module/module.sx -q --test
+"$COMPILER" ./src/codegen/codegen.sx -q --test
+"$COMPILER" ./src/sxc.sx -q --test
 
 fi
 
