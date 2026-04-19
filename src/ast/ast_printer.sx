@@ -887,7 +887,7 @@ fn print_node_recursive(node: ref parser.Node, indent: i64, is_last: bool) void!
 pub fn print_ast_items(items: list[ref parser.Node]) void! = {
     val nitems: i64 = @len(items) as i64
     if nitems == 0 {
-        std.stdio.puts("(empty AST)")
+        std.stdio.puts("(Empty AST)")
         return
     }
     
