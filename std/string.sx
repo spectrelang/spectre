@@ -83,8 +83,8 @@ pub fn string_free(s: ref void) void! = {
 }
 
 /// Length of a String
-pub fn len(s: String) i64! = {
-    return @load(@ptradd(s, 8)) as i64
+pub fn len(s: String) i64 = {
+    return trust @load(@ptradd(s, 8)) as i64
 }
 
 /// Length of a raw char pointer
@@ -898,13 +898,13 @@ pub type StringBuilder = {
 }
 
 /// Create a new empty StringBuilder
-pub fn (StringBuilder) new() ref void! = {
-    val s: ref void = @alloc(24)
-    val buf: ref void = @alloc(64)
-    @store8(buf, 0)
-    @store(s, buf)
-    @store(@ptradd(s, 8), 0)
-    @store(@ptradd(s, 16), 64)
+pub fn (StringBuilder) new() ref void = {
+    val s: ref void = trust @alloc(24)
+    val buf: ref void = trust @alloc(64)
+    trust @store8(buf, 0)
+    trust @store(s, buf)
+    trust @store(@ptradd(s, 8), 0)
+    trust @store(@ptradd(s, 16), 64)
     return s
 }
 
@@ -1072,40 +1072,40 @@ pub fn copy(dst: ref char, dst_off: i64, src: ref char) void! = {
 }
 
 test {
-    val empty = new()
+    val empty = trust new()
     assert(len(empty) == 0)
 
     stdio.puts("hi")
-    val s = from("hello")
+    val s = trust from("hello")
     assert(len(s) == 5)
-    assert(equals(s, from("hello")))
-    val a = from("foo")
-    push_cstr(a, "bar")
-    assert(equals(a, from("foobar")))
+    assert(equals(s, trust from("hello")))
+    val a = trust from("foo")
+    trust push_cstr(a, "bar")
+    assert(equals(a, trust from("foobar")))
 
-    val b = from("foo")
-    val c = from("bar")
-    push(b, c)
-    assert(equals(b, from("foobar")))
+    val b = trust from("foo")
+    val c = trust from("bar")
+    trust push(b, c)
+    assert(equals(b, trust from("foobar")))
     stdio.puts("hi1.3")
 
-    val pc = from("ab")
-    push_char(pc, 99) // 'c'
-    assert(equals(pc, from("abc")))
+    val pc = trust from("ab")
+    trust push_char(pc, 99) // 'c'
+    assert(equals(pc, trust from("abc")))
     stdio.puts("hi1.4")
 
-    val orig = from("clone me")
-    val copy = clone(orig)
+    val orig = trust from("clone me")
+    val copy = trust clone(orig)
     assert(equals(orig, copy))
-    set(copy, 0, 88) // 'X'
+    trust set(copy, 0, 88) // 'X'
     assert(!equals(orig, copy))
 
-    val cl = from("something")
-    clear(cl)
+    val cl = trust from("something")
+    trust clear(cl)
     assert(len(cl) == 0)
-    assert(equals(cl, from("")))
+    assert(equals(cl, trust from("")))
 
-    val g = from("abc")
+    val g = trust from("abc")
     val g0 = get(g, 0)
     val g1 = get(g, 1)
     val g2 = get(g, 2)
@@ -1117,145 +1117,145 @@ test {
     match g2 { some v => { assert(v == 99) } none => { assert(false) } }
     match g3 { some _ => { assert(false) } none => {} }
 
-    val st = from("abc")
-    set(st, 1, 120) // 'x'
-    assert(equals(st, from("axc")))
-    set(st, 99, 121) // OOB no-op
-    assert(equals(st, from("axc")))
+    val st = trust from("abc")
+    trust set(st, 1, 120) // 'x'
+    assert(equals(st, trust from("axc")))
+    trust set(st, 99, 121) // OOB no-op
+    assert(equals(st, trust from("axc")))
 
-    val sl = from("hello world")
-    assert(equals(slice(sl, 0, 5), from("hello")))
-    assert(equals(slice(sl, 6, 11), from("world")))
-    assert(equals(slice(sl, -5, 5), from("hello")))
-    assert(equals(slice(sl, 6, 999), from("world")))
-    assert(equals(slice(sl, 5, 5), from("")))
+    val sl = trust from("hello world")
+    assert(equals(trust slice(sl, 0, 5), trust from("hello")))
+    assert(equals(trust slice(sl, 6, 11), trust from("world")))
+    assert(equals(trust slice(sl, -5, 5), trust from("hello")))
+    assert(equals(trust slice(sl, 6, 999), trust from("world")))
+    assert(equals(trust slice(sl, 5, 5), trust from("")))
 
-    val f = from("abc abc abc")
-    match find(f, from("abc")) {
+    val f = trust from("abc abc abc")
+    match find(f, trust from("abc")) {
         some i => { assert(i == 0) }
         none => { assert(false) }
     }
-    match find(f, from("bca")) {
+    match find(f, trust from("bca")) {
         some _ => { assert(false) }
         none => {}
     }
-    match find(f, from("")) {
+    match find(f, trust from("")) {
         some i => { assert(i == 0) }
         none => { assert(false) }
     }
 
-    assert(contains(f, from("abc")))
-    assert(!contains(f, from("zzz")))
+    assert(contains(f, trust from("abc")))
+    assert(!contains(f, trust from("zzz")))
 
-    val se = from("foobar")
-    assert(starts_with(se, from("foo")))
-    assert(!starts_with(se, from("bar")))
-    assert(ends_with(se, from("bar")))
-    assert(!ends_with(se, from("foo")))
+    val se = trust from("foobar")
+    assert(starts_with(se, trust from("foo")))
+    assert(!starts_with(se, trust from("bar")))
+    assert(ends_with(se, trust from("bar")))
+    assert(!ends_with(se, trust from("foo")))
 
-    val up = from("abcXYZ")
-    to_upper(up)
-    assert(equals(up, from("ABCXYZ")))
+    val up = trust from("abcXYZ")
+    trust to_upper(up)
+    assert(equals(up, trust from("ABCXYZ")))
 
-    val low = from("ABCxyz")
-    to_lower(low)
-    assert(equals(low, from("abcxyz")))
+    val low = trust from("ABCxyz")
+    trust to_lower(low)
+    assert(equals(low, trust from("abcxyz")))
 
     stdio.puts("hi3")
-    val tr = from("  \t hello \n ")
-    trim(tr)
-    assert(equals(tr, from("hello")))
+    val tr = trust from("  \t hello \n ")
+    trust trim(tr)
+    assert(equals(tr, trust from("hello")))
 
-    val tl = from("   hello")
-    trim_left(tl)
-    assert(equals(tl, from("hello")))
+    val tl = trust from("   hello")
+    trust trim_left(tl)
+    assert(equals(tl, trust from("hello")))
 
     stdio.puts("hi3.1")
-    val trr = from("hello   ")
+    val trr = trust from("hello   ")
     stdio.puts("hi3.1.1")
 
-    trim_right(trr)
+    trust trim_right(trr)
     stdio.puts("hi3.1.2")
-    assert(equals(trr, from("hello")))
+    assert(equals(trr, trust from("hello")))
     stdio.puts("hi3.1.3")
 
-    val rep = from("foo bar foo")
+    val rep = trust from("foo bar foo")
     stdio.puts("hi3.1.4" )
 
-    val rep2 = replace(rep, from("foo"), from("baz"))
+    val rep2 = trust replace(rep, from("foo"), from("baz"))
     stdio.puts("hi3.1.5")
-    assert(equals(rep2, from("baz bar baz")))
+    assert(equals(rep2, trust from("baz bar baz")))
     stdio.puts("hi3.2")
 
-    val rep3 = replace(rep, from("xxx"), from("yyy"))
+    val rep3 = trust replace(rep, from("xxx"), from("yyy"))
     stdio.puts("hi3.2.1")
-    assert(equals(rep3, from("foo bar foo")))
+    assert(equals(rep3, trust from("foo bar foo")))
     stdio.puts("hi3.2.2")
-    val sp = from("a,b,c")
+    val sp = trust from("a,b,c")
     stdio.puts("hi3.2.3")
-    val parts = split(sp, from(","))?
+    val parts = trust split(sp, from(","))?
     stdio.puts("hi3.3")
 
     assert(collections.PtrList.len(parts) == 3)
     match collections.PtrList.get(parts, 0) {
-        some v => { assert(equals(v, from("a"))) }
+        some v => { assert(equals(v, trust from("a"))) }
         none => { assert(false) }
     }
     match collections.PtrList.get(parts, 1) {
-        some v => { assert(equals(v, from("b"))) }
+        some v => { assert(equals(v, trust from("b"))) }
         none => { assert(false) }
     }
     match collections.PtrList.get(parts, 2) {
-        some v => { assert(equals(v, from("c"))) }
+        some v => { assert(equals(v, trust from("c"))) }
         none => { assert(false) }
     }
 
-    val sp2 = from("a,b,")
-    val parts2 = split(sp2, from(","))?
+    val sp2 = trust from("a,b,")
+    val parts2 = trust split(sp2, trust from(","))?
     assert(collections.PtrList.len(parts2) == 3)
     match collections.PtrList.get(parts2, 2) {
-        some v => { assert(equals(v, from(""))) }
+        some v => { assert(equals(v, trust from(""))) }
         none => { assert(false) }
     }
 
     stdio.puts("hi4")
-    val ca = from("foo")
-    val cb = from("bar")
-    val cc = concat(ca, cb)
-    assert(equals(cc, from("foobar")))
+    val ca = trust from("foo")
+    val cb = trust from("bar")
+    val cc = trust concat(ca, cb)
+    assert(equals(cc, trust from("foobar")))
 
-    val rs = from("abc")
-    reserve(rs, 100)
-    push_cstr(rs, "def")
-    assert(equals(rs, from("abcdef")))
+    val rs = trust from("abc")
+    trust reserve(rs, 100)
+    trust push_cstr(rs, "def")
+    assert(equals(rs, trust from("abcdef")))
 
     val sb = StringBuilder.new()
-    StringBuilder.append_cstr(sb, "hello")
-    StringBuilder.append(sb, from(" "))
-    StringBuilder.append_cstr(sb, "world")
-    StringBuilder.append_char(sb, 33) // '!'
+    trust StringBuilder.append_cstr(sb, "hello")
+    trust StringBuilder.append(sb, from(" "))
+    trust StringBuilder.append_cstr(sb, "world")
+    trust StringBuilder.append_char(sb, 33) // '!'
 
-    val built = StringBuilder.build(sb)
-    assert(equals(built, from("hello world!")))
+    val built = trust StringBuilder.build(sb)
+    assert(equals(built, trust from("hello world!")))
 
-    StringBuilder.clear(sb)
-    val built2 = StringBuilder.build(sb)
-    assert(equals(built2, from("")))
+    trust StringBuilder.clear(sb)
+    val built2 = trust StringBuilder.build(sb)
+    assert(equals(built2, trust from("")))
 
-    StringBuilder.free(sb)
+    trust StringBuilder.free(sb)
 
-    val rv = from("abcd")
-    reverse(rv)
-    assert(equals(rv, from("dcba")))
+    val rv = trust from("abcd")
+    trust reverse(rv)
+    assert(equals(rv, trust from("dcba")))
 
 
-    val s2 = from("Hello world")
-    val out = trim_suffix(s2, from("world"))
-    assert(equals(out, from("Hello ")))
+    val s2 = trust from("Hello world")
+    val out = trust trim_suffix(s2, from("world"))
+    assert(equals(out, trust from("Hello ")))
 
     stdio.puts("string tests passed")
 
-    stdio.print("{s}", {cstr(format("hello {d}", {1}))})
+    stdio.print("{s}", {trust cstr(format("hello {d}", {1}))})
 
-    stdio.print("comparison: {d}\n", {compare(from("abc"), from("abc"))})
+    stdio.print("comparison: {d}\n", {trust compare(trust from("abc"), trust from("abc"))})
 }
