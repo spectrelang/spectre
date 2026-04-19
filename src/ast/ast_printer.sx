@@ -158,6 +158,9 @@ fn build_prefix(indent: i64, is_last: bool) ref char! = {
 }
 
 fn print_list_of_nodes(nodes: list[ref parser.Node], indent: i64, start_idx: i64) void! = {
+    if nodes as i64 == 0 {
+        return
+    }
     val nlen: i64 = @len(nodes) as i64
     val i: mut i64 = 0
     for {
@@ -172,6 +175,19 @@ fn print_list_of_nodes(nodes: list[ref parser.Node], indent: i64, start_idx: i64
             none => {}
         }
         i++
+    }
+}
+
+fn print_contract_node(node: ref parser.Node, indent: i64, prefix: ref char, kind_name: ref char) void! = {
+    val label: ref char = node.d0 as ref char
+    val expr: ref parser.Node = node.d1 as ref parser.Node
+    if label as i64 != 0 {
+        std.stdio.print("{s}{s} : {s}\n", {prefix, kind_name, label})
+    } else {
+        std.stdio.print("{s}{s}\n", {prefix, kind_name})
+    }
+    if expr as i64 != 0 {
+        print_node_recursive(expr, indent + 1, true)
     }
 }
 
@@ -580,6 +596,8 @@ fn print_node_recursive(node: ref parser.Node, indent: i64, is_last: bool) void!
     } elif kind == parser.NK_CHAR_LIT {
         val val_: i64 = node.d0
         std.stdio.print("{s}{s} : {d}\n", {prefix, kind_name, val_})
+    } elif kind == parser.NK_PRE && node.d1 != 0 {
+        print_contract_node(node, indent, prefix, kind_name)
     } elif kind == parser.NK_PRE || kind == parser.NK_POST || kind == parser.NK_GUARDED_PRE || kind == parser.NK_GUARDED_POST {
         std.stdio.print("{s}{s}\n", {prefix, kind_name})
         val contracts: list[ref parser.Node] = node.d0 as list[ref parser.Node]
