@@ -86771,7 +86771,7 @@ data $__str757 = { b "export function w $main(w %argc, l %argv) {", b 0 }
 data $__str758 = { b "    call $__sx_test_%lld()\n", b 0 }
 data $__str759 = { b "all tests passed\n", b 0 }
 data $__str760 = { b "    %%t%lld =l copy $__str%lld\n    call $printf(l %%t%lld)\n    ret 0\n}\n\n", b 0 }
-data $__str761 = { b "v0.0.2", b 0 }
+data $__str761 = { b "v0.0.3", b 0 }
 data $__str762 = { b "usage:", b 0 }
 data $__str763 = { b "  spectre <command> [args] | <input.sx> [options]", b 0 }
 data $__str764 = { b "commands:", b 0 }
