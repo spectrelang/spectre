@@ -212,8 +212,8 @@ pub fn (Map) free(map: mut self) void! = {
 }
 
 /// Return the number of live entries.
-pub fn (Map) len(map: self) usize! = {
-    return @load(@ptradd(map, 8)) as usize
+pub fn (Map) len(map: self) usize = {
+    return trust @load(@ptradd(map, 8)) as usize
 }
 
 /// Return the current bucket capacity.
@@ -380,7 +380,7 @@ pub fn (Map) clear(map: self) void! = {
 
 test {
     @puts("STARTING 2")
-    val m = Map.new(8, @addr(hash_identity))
+    val m = trust Map.new(8, @addr(hash_identity))
 
     assert Map.len(m) == 0
 
