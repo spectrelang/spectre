@@ -1,17 +1,72 @@
+link "-lSDL2"
+
 val stdio = use("std/stdio")
-val fs = use("std/fs")
 val random = use("std/random")
 
-val MEMORY_SIZE: usize = 4096
-val DISPLAY_WIDTH: usize = 64
+val SDL_INIT_EVERYTHING: u32  = 62001
+val SDL_WINDOW_SHOWN: u32     = 4
+val SDL_WINDOWPOS_UNDEFINED: i32 = 536805376
+val SDL_PIXELFORMAT_ARGB8888: u32 = 372645892
+val SDL_TEXTUREACCESS_STREAMING: i32 = 1
+val SDL_QUIT: u32   = 256
+val SDL_KEYDOWN: u32 = 768
+val SDL_KEYUP: u32   = 769
+
+val SDLK_ESCAPE: i32 = 27
+val SDLK_F1: i32     = 1073741882
+val SDLK_1: i32 = 49
+val SDLK_2: i32 = 50
+val SDLK_3: i32 = 51
+val SDLK_4: i32 = 52
+val SDLK_q: i32 = 113
+val SDLK_w: i32 = 119
+val SDLK_e: i32 = 101
+val SDLK_r: i32 = 114
+val SDLK_a: i32 = 97
+val SDLK_s: i32 = 115
+val SDLK_d: i32 = 100
+val SDLK_f: i32 = 102
+val SDLK_z: i32 = 122
+val SDLK_x: i32 = 120
+val SDLK_c: i32 = 99
+val SDLK_v: i32 = 118
+
+extern (C) fn SDL_Init(flags: u32) i32!                                                             = "SDL_Init"
+extern (C) fn SDL_Quit() void!                                                                      = "SDL_Quit"
+extern (C) fn SDL_CreateWindow(title: ref char, x: i32, y: i32, w: i32, h: i32, flags: u32) ref void! = "SDL_CreateWindow"
+extern (C) fn SDL_DestroyWindow(win: ref void) void!                                                = "SDL_DestroyWindow"
+extern (C) fn SDL_CreateRenderer(win: ref void, index: i32, flags: u32) ref void!                  = "SDL_CreateRenderer"
+extern (C) fn SDL_DestroyRenderer(r: ref void) void!                                               = "SDL_DestroyRenderer"
+extern (C) fn SDL_RenderSetLogicalSize(r: ref void, w: i32, h: i32) i32!                           = "SDL_RenderSetLogicalSize"
+extern (C) fn SDL_CreateTexture(r: ref void, fmt: u32, access: i32, w: i32, h: i32) ref void!      = "SDL_CreateTexture"
+extern (C) fn SDL_DestroyTexture(t: ref void) void!                                                 = "SDL_DestroyTexture"
+extern (C) fn SDL_UpdateTexture(t: ref void, rect: ref void, pixels: ref void, pitch: i32) i32!    = "SDL_UpdateTexture"
+extern (C) fn SDL_RenderClear(r: ref void) i32!                                                     = "SDL_RenderClear"
+extern (C) fn SDL_RenderCopy(r: ref void, t: ref void, src: ref void, dst: ref void) i32!          = "SDL_RenderCopy"
+extern (C) fn SDL_RenderPresent(r: ref void) void!                                                  = "SDL_RenderPresent"
+extern (C) fn SDL_PollEvent(event: ref void) i32!                                                   = "SDL_PollEvent"
+extern (C) fn SDL_Delay(ms: u32) void!                                                              = "SDL_Delay"
+extern (C) fn SDL_GetError() ref char!                                                              = "SDL_GetError"
+
+extern (C) fn fopen(path: ref char, mode: ref char) ref void!                     = "fopen"
+extern (C) fn fclose(f: ref void) i32!                                            = "fclose"
+extern (C) fn fread(buf: ref void, sz: usize, n: usize, f: ref void) usize!      = "fread"
+extern (C) fn fseek(f: ref void, off: i64, whence: i32) i32!                     = "fseek"
+extern (C) fn ftell(f: ref void) i64!                                             = "ftell"
+extern (C) fn rewind(f: ref void) void!                                           = "rewind"
+
+val MEMORY_SIZE: usize  = 4096
+val DISPLAY_WIDTH: usize  = 64
 val DISPLAY_HEIGHT: usize = 32
-val DISPLAY_SIZE: usize = 2048
-val STACK_SIZE: usize = 16
-val NUM_KEYS: usize = 16
-val NUM_REGISTERS: usize = 16
-val PROGRAM_START: u16 = 200
-val FONT_START: usize = 0
-val FONT_SIZE: usize = 80
+val DISPLAY_SIZE: usize   = 2048
+val STACK_SIZE: usize     = 16
+val NUM_KEYS: usize       = 16
+val NUM_REGISTERS: usize  = 16
+val PROGRAM_START: u16    = 512   // 0x200
+val FONT_START: usize     = 0
+val FONT_SIZE: usize      = 80
+val WIN_W: i32            = 1024
+val WIN_H: i32            = 512
 
 val chip8_fontset: mut list[u8] = [
   0xF0, 0x90, 0x90, 0x90, 0xF0, // 0
@@ -32,14 +87,33 @@ val chip8_fontset: mut list[u8] = [
   0xF0, 0x80, 0xF0, 0x80, 0x80  // F
 ]
 
-/// Chip-8 CPU and state structure
+// keypad map: chip8 key index -> SDL keycode
+val keypad_map: mut list[i32] = [
+  SDLK_x, // 0
+  SDLK_1, // 1
+  SDLK_2, // 2
+  SDLK_3, // 3
+  SDLK_q, // 4
+  SDLK_w, // 5
+  SDLK_e, // 6
+  SDLK_a, // 7
+  SDLK_s, // 8
+  SDLK_d, // 9
+  SDLK_z, // A
+  SDLK_c, // B
+  SDLK_4, // C
+  SDLK_r, // D
+  SDLK_f, // E
+  SDLK_v  // F
+]
+
 type Chip8 = {
   opcode: mut u16,
   memory: mut list[u8],
-  V: mut list[u8],        // 16 CPU registers
-  I: mut u16,             // Index register
-  pc: mut u16,            // Program counter
-  gfx: mut list[u8],      // Display pixels (64x32)
+  V: mut list[u8],
+  I: mut u16,
+  pc: mut u16,
+  gfx: mut list[u8],
   delay_timer: mut u8,
   sound_timer: mut u8,
   stack: mut list[u16],
@@ -48,595 +122,498 @@ type Chip8 = {
   drawFlag: mut bool
 }
 
-// Create a new uninitialized Chip8 instance
 fn new_chip8() ref Chip8 = {
   val chip: mut ref Chip8 = @alloc(@sizeof(Chip8)) as ref Chip8
   chip.opcode = 0
-  chip.memory = []
-  chip.V = []
   chip.I = 0
   chip.pc = 0
-  chip.gfx = []
   chip.delay_timer = 0
   chip.sound_timer = 0
-  chip.stack = []
   chip.sp = 0
-  chip.key = []
   chip.drawFlag = false
-  
-  @reserve(chip.memory, MEMORY_SIZE)
-  @reserve(chip.V, NUM_REGISTERS)
-  @reserve(chip.gfx, DISPLAY_SIZE)
-  @reserve(chip.stack, STACK_SIZE)
-  @reserve(chip.key, NUM_KEYS)
-  
+
+  chip.memory = []
+  chip.V = []
+  chip.gfx = []
+  chip.stack = []
+  chip.key = []
+
   val i: mut usize = 0
   for {
     if i >= MEMORY_SIZE { break }
     @append(chip.memory, 0)
     i = i + 1
   }
-  
   i = 0
   for {
     if i >= NUM_REGISTERS { break }
     @append(chip.V, 0)
     i = i + 1
   }
-  
   i = 0
   for {
     if i >= DISPLAY_SIZE { break }
     @append(chip.gfx, 0)
     i = i + 1
   }
-  
   i = 0
   for {
     if i >= STACK_SIZE { break }
     @append(chip.stack, 0)
     i = i + 1
   }
-  
   i = 0
   for {
     if i >= NUM_KEYS { break }
     @append(chip.key, 0)
     i = i + 1
   }
-  
   return chip
 }
 
-/// Initialize Chip8 state
+// Direct indexed set helpers using raw pointer arithmetic into list buffer
+fn mem_get(chip: ref Chip8, addr: u16) u8 = {
+  val idx: usize = addr as usize
+  if idx >= MEMORY_SIZE { return 0 }
+  match @get(chip.memory, idx) {
+    some v => { return v }
+    none => { return 0 }
+  }
+}
+
+fn mem_set(chip: ref Chip8, addr: u16, value: u8) void = {
+  val idx: usize = addr as usize
+  if idx >= MEMORY_SIZE { return }
+  val ptr: ref u8 = trust @ptradd(@addr(chip.memory) as ref void, idx as i64) as ref u8
+  trust @store8(ptr as ref void, value)
+}
+
+fn get_v(chip: ref Chip8, idx: usize) u8 = {
+  if idx >= NUM_REGISTERS { return 0 }
+  match @get(chip.V, idx) {
+    some v => { return v }
+    none => { return 0 }
+  }
+}
+
+fn set_v(chip: ref Chip8, idx: usize, value: u8) void = {
+  if idx >= NUM_REGISTERS { return }
+  val ptr: ref u8 = trust @ptradd(@addr(chip.V) as ref void, idx as i64) as ref u8
+  trust @store8(ptr as ref void, value)
+}
+
+fn get_gfx(chip: ref Chip8, idx: usize) u8 = {
+  if idx >= DISPLAY_SIZE { return 0 }
+  match @get(chip.gfx, idx) {
+    some v => { return v }
+    none => { return 0 }
+  }
+}
+
+fn set_gfx(chip: ref Chip8, idx: usize, value: u8) void = {
+  if idx >= DISPLAY_SIZE { return }
+  val ptr: ref u8 = trust @ptradd(@addr(chip.gfx) as ref void, idx as i64) as ref u8
+  trust @store8(ptr as ref void, value)
+}
+
+fn get_stack(chip: ref Chip8, idx: usize) u16 = {
+  if idx >= STACK_SIZE { return 0 }
+  match @get(chip.stack, idx) {
+    some v => { return v }
+    none => { return 0 }
+  }
+}
+
+fn set_stack(chip: ref Chip8, idx: usize, value: u16) void = {
+  if idx >= STACK_SIZE { return }
+  val ptr: ref u16 = trust @ptradd(@addr(chip.stack) as ref void, (idx as i64) * 2) as ref u16
+  trust @store(ptr as ref void, value as i32)
+}
+
+fn get_key(chip: ref Chip8, idx: usize) u8 = {
+  if idx >= NUM_KEYS { return 0 }
+  match @get(chip.key, idx) {
+    some v => { return v }
+    none => { return 0 }
+  }
+}
+
+fn set_key(chip: ref Chip8, idx: usize, value: u8) void = {
+  if idx >= NUM_KEYS { return }
+  val ptr: ref u8 = trust @ptradd(@addr(chip.key) as ref void, idx as i64) as ref u8
+  trust @store8(ptr as ref void, value)
+}
+
 fn chip8_init(chip: mut ref Chip8) void = {
   chip.pc = PROGRAM_START
   chip.opcode = 0
   chip.I = 0
   chip.sp = 0
-  
+  chip.delay_timer = 0
+  chip.sound_timer = 0
+  chip.drawFlag = false
+
   val i: mut usize = 0
   for {
     if i >= DISPLAY_SIZE { break }
-    match @get(chip.gfx, i) {
-      some _ => {
-        @remove(chip.gfx, i)
-        @append(chip.gfx, 0)
-      }
-      none => { @append(chip.gfx, 0) }
-    }
+    set_gfx(chip, i, 0)
     i = i + 1
   }
-  
-  // Clear registers
   i = 0
   for {
     if i >= NUM_REGISTERS { break }
-    match @get(chip.V, i) {
-      some _ => {
-        @remove(chip.V, i)
-        @append(chip.V, 0)
-      }
-      none => { @append(chip.V, 0) }
-    }
+    set_v(chip, i, 0)
     i = i + 1
   }
-  
-  // Clear stack
   i = 0
   for {
     if i >= STACK_SIZE { break }
-    match @get(chip.stack, i) {
-      some _ => {
-        @remove(chip.stack, i)
-        @append(chip.stack, 0)
-      }
-      none => { @append(chip.stack, 0) }
-    }
+    set_stack(chip, i, 0)
     i = i + 1
   }
-  
-  // Clear key state
   i = 0
   for {
     if i >= NUM_KEYS { break }
-    match @get(chip.key, i) {
-      some _ => {
-        @remove(chip.key, i)
-        @append(chip.key, 0)
-      }
-      none => { @append(chip.key, 0) }
-    }
+    set_key(chip, i, 0)
     i = i + 1
   }
-  
-  // Load fontset
+  i = 0
+  for {
+    if i >= MEMORY_SIZE { break }
+    mem_set(chip, i as u16, 0)
+    i = i + 1
+  }
   i = 0
   for {
     if i >= FONT_SIZE { break }
-    val font_byte = @get(chip8_fontset, i)
-    match font_byte {
-      some b => {
-        match @get(chip.memory, i) {
-          some _ => {
-            @remove(chip.memory, i)
-          }
-          none => { }
-        }
-        @append(chip.memory, b)
-      }
+    match @get(chip8_fontset, i) {
+      some b => { mem_set(chip, i as u16, b) }
       none => { }
     }
     i = i + 1
   }
-  
-  chip.delay_timer = 0
-  chip.sound_timer = 0
-  chip.drawFlag = false
 }
 
-// Load ROM file into memory
-fn chip8_load(chip: mut ref Chip8, path: ref char) bool! = {
+fn chip8_load(chip: mut ref Chip8, path: ref char) bool = {
   chip8_init(chip)
-  
-  match fs.read_all(path) {
-    some rom_data => {
-      val rom_len: mut i64 = 0
-      for {
-        val byte: u8 = @load8(@ptradd(rom_data as ref void, rom_len))
-        if byte == 0 { break }
-        rom_len = rom_len + 1
-      }
-      
-      if rom_len > (4096 - 512) {
-        stdio.puts("ROM too large to fit in device memory.")
-        @free(rom_data as ref void)
-        return false
-      }
-      
-      val j: mut i64 = 0
-      for {
-        if j >= rom_len { break }
-        val byte: u8 = @load8(@ptradd(rom_data as ref void, j))
-        mem_set(chip, (512 + j) as u16, byte)
-        j = j + 1
-      }
-      
-      @free(rom_data as ref void)
-      return true
-    }
-    none => {
-      stdio.puts("Failed to open ROM")
-      return false
-    }
-  }
-}
 
-// Get a byte from memory at address
-fn mem_get(chip: ref Chip8, addr: u16) u8 = {
-  val index: usize = addr as usize
-  match @get(chip.memory, index) {
-    some b => { return b }
-    none => { return 0 }
+  val f: ref void = trust fopen(path, "rb")
+  if f == 0 as ref void {
+    stdio.puts("Failed to open ROM")
+    return false
   }
-}
 
-// Set a byte in memory at address
-fn mem_set(chip: mut ref Chip8, addr: u16, value: u8) void = {
-  val index: usize = addr as usize
-  match @get(chip.memory, index) {
-    some _ => {
-      @remove(chip.memory, index)
-    }
-    none => { }
-  }
-  @append(chip.memory, value)
-}
+  trust fseek(f, 0, 2)
+  val rom_len: i64 = trust ftell(f)
+  trust rewind(f)
 
-// Get a register value
-fn get_vx(chip: ref Chip8, x: u16) u8 = {
-  val index: usize = (x & 0x0F) as usize
-  match @get(chip.V, index) {
-    some v => { return v }
-    none => { return 0 }
+  if rom_len > (4096 - 512) {
+    stdio.puts("ROM too large to fit in device memory.")
+    trust fclose(f)
+    return false
   }
-}
 
-// Set a register value
-fn set_vx(chip: mut ref Chip8, x: u16, value: u8) void = {
-  val index: usize = (x & 0x0F) as usize
-  match @get(chip.V, index) {
-    some _ => {
-      @remove(chip.V, index)
-    }
-    none => { }
-  }
-  @append(chip.V, value)
-}
+  val buf: ref void = @alloc(rom_len as usize)
+  trust fread(buf, 1, rom_len as usize, f)
+  trust fclose(f)
 
-// Get VF (carry flag)
-fn get_vf(chip: ref Chip8) u8 = {
-  match @get(chip.V, 0xF) {
-    some v => { return v }
-    none => { return 0 }
+  val j: mut i64 = 0
+  for {
+    if j >= rom_len { break }
+    val byte: u8 = trust @load8(@ptradd(buf, j))
+    mem_set(chip, (512 + j) as u16, byte)
+    j = j + 1
   }
-}
-
-// Set VF (carry flag)
-fn set_vf(chip: mut ref Chip8, value: u8) void = {
-  match @get(chip.V, 0xF) {
-    some _ => {
-      @remove(chip.V, 0xF)
-    }
-    none => { }
-  }
-  @append(chip.V, value)
+  trust @free(buf)
+  return true
 }
 
 fn chip8_emulateCycle(chip: mut ref Chip8) void = {
-  chip.opcode = (((mem_get(chip, chip.pc) as u16) << 8) || (mem_get(chip, chip.pc + 1) as u16))
-  
+  val hi: u16 = mem_get(chip, chip.pc) as u16
+  val lo: u16 = mem_get(chip, chip.pc + 1) as u16
+  chip.opcode = (hi << 8) || lo
+
   val opcode_high: u16 = chip.opcode & 0xF000
-  
+
   if opcode_high == 0x0000 {
     val opcode_low: u16 = chip.opcode & 0x000F
     if opcode_low == 0x0000 {
       val i: mut usize = 0
       for {
         if i >= DISPLAY_SIZE { break }
-        match @get(chip.gfx, i) {
-          some _ => { @remove(chip.gfx, i) @append(chip.gfx, 0) }
-          none => { @append(chip.gfx, 0) }
-        }
+        set_gfx(chip, i, 0)
         i = i + 1
       }
       chip.drawFlag = true
       chip.pc = chip.pc + 2
     } elif opcode_low == 0x000E {
       chip.sp = chip.sp - 1
-      match @get(chip.stack, chip.sp as usize) {
-        some addr => { chip.pc = addr + 2 }
-        none => { chip.pc = chip.pc + 2 }
-      }
+      chip.pc = get_stack(chip, chip.sp as usize) + 2
     } else {
-      trust @printf("Unknown opcode: {x}\n", chip.opcode)
+      trust @printf("Unknown opcode: 0x{X}\n", chip.opcode as u32)
     }
   } elif opcode_high == 0x1000 {
     chip.pc = chip.opcode & 0x0FFF
   } elif opcode_high == 0x2000 {
-    match @get(chip.stack, chip.sp as usize) {
-      some _ => { @remove(chip.stack, chip.sp as usize) }
-      none => { }
-    }
-    @append(chip.stack, chip.pc)
+    set_stack(chip, chip.sp as usize, chip.pc)
     chip.sp = chip.sp + 1
     chip.pc = chip.opcode & 0x0FFF
   } elif opcode_high == 0x3000 {
-    // 0x3XNN - Skip if VX == NN
-    val x: u16 = (chip.opcode & 0x0F00) >> 8
+    val x: usize = ((chip.opcode & 0x0F00) >> 8) as usize
     val nn: u16 = chip.opcode & 0x00FF
-    if ((get_vx(chip, x) as u16) == nn) {
+    if ((get_v(chip, x) as u16) == nn) {
       chip.pc = chip.pc + 4
     } else {
       chip.pc = chip.pc + 2
     }
   } elif opcode_high == 0x4000 {
-    // 0x4XNN - Skip if VX != NN
-    val x: u16 = (chip.opcode & 0x0F00) >> 8
+    val x: usize = ((chip.opcode & 0x0F00) >> 8) as usize
     val nn: u16 = chip.opcode & 0x00FF
-    if ((get_vx(chip, x) as u16) != nn) {
+    if ((get_v(chip, x) as u16) != nn) {
       chip.pc = chip.pc + 4
     } else {
       chip.pc = chip.pc + 2
     }
   } elif opcode_high == 0x5000 {
-    // 0x5XY0 - Skip if VX == VY
-    val x: u16 = (chip.opcode & 0x0F00) >> 8
-    val y: u16 = (chip.opcode & 0x00F0) >> 4
-    if get_vx(chip, x) == get_vx(chip, y) {
+    val x: usize = ((chip.opcode & 0x0F00) >> 8) as usize
+    val y: usize = ((chip.opcode & 0x00F0) >> 4) as usize
+    if get_v(chip, x) == get_v(chip, y) {
       chip.pc = chip.pc + 4
     } else {
       chip.pc = chip.pc + 2
     }
   } elif opcode_high == 0x6000 {
-    // 0x6XNN - Set VX = NN
-    val x: u16 = (chip.opcode & 0x0F00) >> 8
+    val x: usize = ((chip.opcode & 0x0F00) >> 8) as usize
     val nn: u8 = (chip.opcode & 0x00FF) as u8
-    set_vx(chip, x, nn)
+    set_v(chip, x, nn)
     chip.pc = chip.pc + 2
   } elif opcode_high == 0x7000 {
-    // 0x7XNN - Add NN to VX
-    val x: u16 = (chip.opcode & 0x0F00) >> 8
+    val x: usize = ((chip.opcode & 0x0F00) >> 8) as usize
     val nn: u8 = (chip.opcode & 0x00FF) as u8
-    set_vx(chip, x, get_vx(chip, x) + nn)
+    set_v(chip, x, get_v(chip, x) + nn)
     chip.pc = chip.pc + 2
   } elif opcode_high == 0x8000 {
-    val x: u16 = (chip.opcode & 0x0F00) >> 8
-    val y: u16 = (chip.opcode & 0x00F0) >> 4
-    val opcode_lowest: u16 = chip.opcode & 0x000F
-    
-    if opcode_lowest == 0x0000 {
-      // 0x8XY0 - Set VX = VY
-      set_vx(chip, x, get_vx(chip, y))
+    val x: usize = ((chip.opcode & 0x0F00) >> 8) as usize
+    val y: usize = ((chip.opcode & 0x00F0) >> 4) as usize
+    val nibble: u16 = chip.opcode & 0x000F
+    if nibble == 0x0000 {
+      set_v(chip, x, get_v(chip, y))
       chip.pc = chip.pc + 2
-    } elif opcode_lowest == 0x0001 {
-      set_vx(chip, x, get_vx(chip, x) | get_vx(chip, y))
+    } elif nibble == 0x0001 {
+      set_v(chip, x, get_v(chip, x) | get_v(chip, y))
       chip.pc = chip.pc + 2
-    } elif opcode_lowest == 0x0002 {
-      set_vx(chip, x, get_vx(chip, x) & get_vx(chip, y))
+    } elif nibble == 0x0002 {
+      set_v(chip, x, get_v(chip, x) & get_v(chip, y))
       chip.pc = chip.pc + 2
-    } elif opcode_lowest == 0x0003 {
-      set_vx(chip, x, get_vx(chip, x) ^ get_vx(chip, y))
+    } elif nibble == 0x0003 {
+      set_v(chip, x, get_v(chip, x) ^ get_v(chip, y))
       chip.pc = chip.pc + 2
-    } elif opcode_lowest == 0x0004 {
-      // 0x8XY4 - Add VY to VX, set VF = carry
-      val vx: u8 = get_vx(chip, x)
-      val vy: u8 = get_vx(chip, y)
+    } elif nibble == 0x0004 {
+      val vx: u8 = get_v(chip, x)
+      val vy: u8 = get_v(chip, y)
       if vy > (0xFF as u8 - vx) {
-        set_vf(chip, 1)
+        set_v(chip, 0xF, 1)
       } else {
-        set_vf(chip, 0)
+        set_v(chip, 0xF, 0)
       }
-      set_vx(chip, x, vx + vy)
+      set_v(chip, x, vx + vy)
       chip.pc = chip.pc + 2
-    } elif opcode_lowest == 0x0005 {
-      // 0x8XY5 - Subtract VY from VX, set VF = !borrow
-      val vx: u8 = get_vx(chip, x)
-      val vy: u8 = get_vx(chip, y)
+    } elif nibble == 0x0005 {
+      val vx: u8 = get_v(chip, x)
+      val vy: u8 = get_v(chip, y)
       if vy > vx {
-        set_vf(chip, 0)
+        set_v(chip, 0xF, 0)
       } else {
-        set_vf(chip, 1)
+        set_v(chip, 0xF, 1)
       }
-      set_vx(chip, x, vx - vy)
+      set_v(chip, x, vx - vy)
       chip.pc = chip.pc + 2
-    } elif opcode_lowest == 0x0006 {
-      // 0x8XY6 - Set VF = VX & 1, then VX >>= 1
-      val vx: u8 = get_vx(chip, x)
-      set_vf(chip, vx & 0x1)
-      set_vx(chip, x, vx >> 1)
+    } elif nibble == 0x0006 {
+      val vx: u8 = get_v(chip, x)
+      set_v(chip, 0xF, vx & 0x1)
+      set_v(chip, x, vx >> 1)
       chip.pc = chip.pc + 2
-    } elif opcode_lowest == 0x0007 {
-      // 0x8XY7 - Set VX = VY - VX, set VF = !borrow
-      val vx: u8 = get_vx(chip, x)
-      val vy: u8 = get_vx(chip, y)
+    } elif nibble == 0x0007 {
+      val vx: u8 = get_v(chip, x)
+      val vy: u8 = get_v(chip, y)
       if vx > vy {
-        set_vf(chip, 0)
+        set_v(chip, 0xF, 0)
       } else {
-        set_vf(chip, 1)
+        set_v(chip, 0xF, 1)
       }
-      set_vx(chip, x, vy - vx)
+      set_v(chip, x, vy - vx)
       chip.pc = chip.pc + 2
-    } elif opcode_lowest == 0x000E {
-      // 0x8XYE - Set VF = VX >> 7, then VX <<= 1
-      val vx: u8 = get_vx(chip, x)
-      set_vf(chip, (vx >> 7) & 0x1)
-      set_vx(chip, x, vx << 1)
+    } elif nibble == 0x000E {
+      val vx: u8 = get_v(chip, x)
+      set_v(chip, 0xF, (vx >> 7) & 0x1)
+      set_v(chip, x, vx << 1)
       chip.pc = chip.pc + 2
     } else {
-      trust @printf("Unknown opcode: {x}\n", chip.opcode)
+      trust @printf("Unknown opcode: 0x{X}\n", chip.opcode as u32)
     }
   } elif opcode_high == 0x9000 {
-    // 0x9XY0 - Skip if VX != VY
-    val x: u16 = (chip.opcode & 0x0F00) >> 8
-    val y: u16 = (chip.opcode & 0x00F0) >> 4
-    if get_vx(chip, x) != get_vx(chip, y) {
+    val x: usize = ((chip.opcode & 0x0F00) >> 8) as usize
+    val y: usize = ((chip.opcode & 0x00F0) >> 4) as usize
+    if get_v(chip, x) != get_v(chip, y) {
       chip.pc = chip.pc + 4
     } else {
       chip.pc = chip.pc + 2
     }
   } elif opcode_high == 0xA000 {
-    // 0xANNN - Set I = NNN
     chip.I = chip.opcode & 0x0FFF
     chip.pc = chip.pc + 2
   } elif opcode_high == 0xB000 {
-    // 0xBNNN - Jump to NNN + V0
-    chip.pc = (chip.opcode & 0x0FFF) + (get_vx(chip, 0) as u16)
+    chip.pc = (chip.opcode & 0x0FFF) + (get_v(chip, 0) as u16)
   } elif opcode_high == 0xC000 {
-    // 0xCXNN - Set VX = random & NN
-    val x: u16 = (chip.opcode & 0x0F00) >> 8
+    val x: usize = ((chip.opcode & 0x0F00) >> 8) as usize
     val nn: u8 = (chip.opcode & 0x00FF) as u8
-    val rand_val: u32 = random.random_u32_below(256)
-    set_vx(chip, x, (rand_val as u8) & nn)
+    val r: u32 = random.random_u32_below(256)
+    set_v(chip, x, (r as u8) & nn)
     chip.pc = chip.pc + 2
   } elif opcode_high == 0xD000 {
-    // 0xDXYN - Draw sprite at VX, VY with height N
-    val x: u16 = (chip.opcode & 0x0F00) >> 8
-    val y: u16 = (chip.opcode & 0x00F0) >> 4
+    val x: usize = ((chip.opcode & 0x0F00) >> 8) as usize
+    val y: usize = ((chip.opcode & 0x00F0) >> 4) as usize
     val height: u16 = chip.opcode & 0x000F
-    
-    val px: u8 = get_vx(chip, x)
-    val py: u8 = get_vx(chip, y)
-    
-    set_vf(chip, 0)
-    
+    val px: u8 = get_v(chip, x)
+    val py: u8 = get_v(chip, y)
+    set_v(chip, 0xF, 0)
     val yline: mut u16 = 0
     for {
       if yline >= height { break }
-      
       val pixel: u8 = mem_get(chip, chip.I + yline)
       val xline: mut u8 = 0
       for {
         if xline >= 8 { break }
-        
         if ((pixel & (0x80 >> (xline as u16))) != 0) {
           val pos: u16 = ((px as u16) + (xline as u16)) + (((py as u16) + yline) * 64)
-          if pos < DISPLAY_SIZE as u16 {
-            match @get(chip.gfx, pos as usize) {
-              some pixel_val => {
-                if pixel_val == 1 {
-                  set_vf(chip, 1)
-                }
-                @remove(chip.gfx, pos as usize)
-                @append(chip.gfx, (pixel_val ^ 1) as u8)
-              }
-              none => { }
+          if ((pos as usize) < DISPLAY_SIZE) {
+            val old: u8 = get_gfx(chip, pos as usize)
+            if old == 1 {
+              set_v(chip, 0xF, 1)
             }
+            set_gfx(chip, pos as usize, old ^ 1)
           }
         }
         xline = xline + 1
       }
       yline = yline + 1
     }
-    
     chip.drawFlag = true
     chip.pc = chip.pc + 2
   } elif opcode_high == 0xE000 {
+    val x: usize = ((chip.opcode & 0x0F00) >> 8) as usize
     val opcode_low: u16 = chip.opcode & 0x00FF
     if opcode_low == 0x009E {
-      val x: u16 = (chip.opcode & 0x0F00) >> 8
-      val key_idx: usize = get_vx(chip, x) as usize
-      match @get(chip.key, key_idx) {
-        some k => {
-          if k != 0 {
-            chip.pc = chip.pc + 4
-          } else {
-            chip.pc = chip.pc + 2
-          }
-        }
-        none => { chip.pc = chip.pc + 2 }
+      val ki: usize = get_v(chip, x) as usize
+      if get_key(chip, ki) != 0 {
+        chip.pc = chip.pc + 4
+      } else {
+        chip.pc = chip.pc + 2
       }
     } elif opcode_low == 0x00A1 {
-      // 0xEXA1 - Skip if key VX is not pressed
-      val x: u16 = (chip.opcode & 0x0F00) >> 8
-      val key_idx: usize = get_vx(chip, x) as usize
-      match @get(chip.key, key_idx) {
-        some k => {
-          if k == 0 {
-            chip.pc = chip.pc + 4
-          } else {
-            chip.pc = chip.pc + 2
-          }
-        }
-        none => { chip.pc = chip.pc + 4 }
+      val ki: usize = get_v(chip, x) as usize
+      if get_key(chip, ki) == 0 {
+        chip.pc = chip.pc + 4
+      } else {
+        chip.pc = chip.pc + 2
       }
     } else {
-      trust @printf("Unknown opcode: {x}\n", chip.opcode)
+      trust @printf("Unknown opcode: 0x{X}\n", chip.opcode as u32)
     }
   } elif opcode_high == 0xF000 {
-    val x: u16 = (chip.opcode & 0x0F00) >> 8
+    val x: usize = ((chip.opcode & 0x0F00) >> 8) as usize
     val opcode_low: u16 = chip.opcode & 0x00FF
-    
     if opcode_low == 0x0007 {
-      set_vx(chip, x, chip.delay_timer)
+      set_v(chip, x, chip.delay_timer)
       chip.pc = chip.pc + 2
     } elif opcode_low == 0x000A {
       val i: mut usize = 0
       val key_pressed: mut bool = false
       for {
         if i >= NUM_KEYS { break }
-        match @get(chip.key, i) {
-          some k => {
-            if k != 0 {
-              set_vx(chip, x, i as u8)
-              key_pressed = true
-              break
-            }
-          }
-          none => { }
+        if get_key(chip, i) != 0 {
+          set_v(chip, x, i as u8)
+          key_pressed = true
+          break
         }
         i = i + 1
       }
-      if !key_pressed {
-        return
-      }
+      if !key_pressed { return }
       chip.pc = chip.pc + 2
     } elif opcode_low == 0x0015 {
-      // 0xFX15 - Set delay_timer = VX
-      chip.delay_timer = get_vx(chip, x)
+      chip.delay_timer = get_v(chip, x)
       chip.pc = chip.pc + 2
     } elif opcode_low == 0x0018 {
-      // 0xFX18 - Set sound_timer = VX
-      chip.sound_timer = get_vx(chip, x)
+      chip.sound_timer = get_v(chip, x)
       chip.pc = chip.pc + 2
     } elif opcode_low == 0x001E {
-      // 0xFX1E - Add VX to I
-      val vx_val: u16 = get_vx(chip, x) as u16
+      val vx_val: u16 = get_v(chip, x) as u16
       if chip.I + vx_val > 0xFFF {
-        set_vf(chip, 1)
+        set_v(chip, 0xF, 1)
       } else {
-        set_vf(chip, 0)
+        set_v(chip, 0xF, 0)
       }
       chip.I = chip.I + vx_val
       chip.pc = chip.pc + 2
     } elif opcode_low == 0x0029 {
-      // 0xFX29 - Set I = location of sprite for digit VX
-      chip.I = (get_vx(chip, x) as u16) * 5
+      chip.I = (get_v(chip, x) as u16) * 5
       chip.pc = chip.pc + 2
     } elif opcode_low == 0x0033 {
-      // 0xFX33 - Store BCD of VX at I, I+1, I+2
-      val vx_val: u8 = get_vx(chip, x)
+      val vx_val: u8 = get_v(chip, x)
       mem_set(chip, chip.I, vx_val / 100)
       mem_set(chip, chip.I + 1, (vx_val / 10) % 10)
       mem_set(chip, chip.I + 2, vx_val % 10)
       chip.pc = chip.pc + 2
     } elif opcode_low == 0x0055 {
-      // 0xFX55 - Store registers V0-VX at I onwards
-      val x_val: u16 = (chip.opcode & 0x0F00) >> 8
-      val i: mut u16 = 0
+      val x_val: usize = ((chip.opcode & 0x0F00) >> 8) as usize
+      val i: mut usize = 0
       for {
         if i > x_val { break }
-        mem_set(chip, chip.I + i, get_vx(chip, i))
+        mem_set(chip, chip.I + (i as u16), get_v(chip, i))
         i = i + 1
       }
-      chip.I = chip.I + x_val + 1
+      chip.I = chip.I + (x_val as u16) + 1
       chip.pc = chip.pc + 2
     } elif opcode_low == 0x0065 {
-      // 0xFX65 - Load registers V0-VX from I onwards
-      val x_val: u16 = (chip.opcode & 0x0F00) >> 8
-      val i: mut u16 = 0
+      val x_val: usize = ((chip.opcode & 0x0F00) >> 8) as usize
+      val i: mut usize = 0
       for {
         if i > x_val { break }
-        set_vx(chip, i, mem_get(chip, chip.I + i))
+        set_v(chip, i, mem_get(chip, chip.I + (i as u16)))
         i = i + 1
       }
-      chip.I = chip.I + x_val + 1
+      chip.I = chip.I + (x_val as u16) + 1
       chip.pc = chip.pc + 2
     } else {
-      trust @printf("Unknown opcode: {x}\n", chip.opcode)
+      trust @printf("Unknown opcode: 0x{X}\n", chip.opcode as u32)
     }
   } else {
-    trust @printf("Unimplemented opcode: {x}\n", chip.opcode)
+    trust @printf("Unimplemented opcode: 0x{X}\n", chip.opcode as u32)
   }
-  
-  // Decrement timers
-  if chip.delay_timer > 0 {
-    chip.delay_timer = chip.delay_timer - 1
-  }
-  
-  if chip.sound_timer > 0 {
-    chip.sound_timer = chip.sound_timer - 1
-  }
+
+  if chip.delay_timer > 0 { chip.delay_timer = chip.delay_timer - 1 }
+  if chip.sound_timer > 0 { chip.sound_timer = chip.sound_timer - 1 }
+}
+
+// SDL event is a 56-byte union. We access type at offset 0 (u32) and
+// keysym.sym at offset 16 (i32) for keyboard events.
+fn event_type(ev: ref void) u32 = {
+  return trust @load(ev) as u32
+}
+
+fn event_keysym(ev: ref void) i32 = {
+  val sym_ptr: ref void = trust @ptradd(ev, 16)
+  return trust @load(sym_ptr) as i32
 }
 
 pub fn main() void = {
   val args = @args()
-  
+
   if @len(args) < 2 {
     stdio.puts("usage: cemu <rom file>")
     return
   }
-  
+
   match @get(args, 1) {
     some arg => {
       if arg == "--about" {
@@ -645,18 +622,121 @@ pub fn main() void = {
         stdio.puts("https://gitlab.com/navid-m/cemu")
         return
       }
-      
+
       val chip: mut ref Chip8 = new_chip8()
-      match trust chip8_load(chip, arg) {
-        ok _ => {
-          stdio.puts("ROM loaded successfully!")
-          stdio.puts("Display dimensions: 64x32 pixels")
-          stdio.puts("TODO: Implement SDL2 rendering")
-        }
-        err _ => {
-          stdio.puts("Failed to load ROM")
-        }
+      if !chip8_load(chip, arg) {
+        return
       }
+
+      if trust SDL_Init(SDL_INIT_EVERYTHING) != 0 {
+        stdio.puts("SDL could not initialise")
+        return
+      }
+
+      val window: ref void = trust SDL_CreateWindow(
+        "cemu",
+        SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED,
+        WIN_W, WIN_H,
+        SDL_WINDOW_SHOWN
+      )
+      if window == 0 as ref void {
+        stdio.puts("Window could not be created")
+        trust SDL_Quit()
+        return
+      }
+
+      val renderer: ref void = trust SDL_CreateRenderer(window, -1, 0)
+      trust SDL_RenderSetLogicalSize(renderer, WIN_W, WIN_H)
+
+      val texture: ref void = trust SDL_CreateTexture(
+        renderer,
+        SDL_PIXELFORMAT_ARGB8888,
+        SDL_TEXTUREACCESS_STREAMING,
+        64, 32
+      )
+
+      val pixels: ref void = @alloc(DISPLAY_SIZE * 4)
+      val event: ref void = @alloc(56)
+      val running: mut bool = true
+
+      for {
+        if !running { break }
+        chip8_emulateCycle(chip)
+
+        for {
+          if trust SDL_PollEvent(event) == 0 { break }
+          val ev_type: u32 = event_type(event)
+          if ev_type == SDL_QUIT {
+            running = false
+            break
+          }
+          if ev_type == SDL_KEYDOWN {
+            val sym: i32 = event_keysym(event)
+            if sym == SDLK_ESCAPE {
+              running = false
+              break
+            }
+            val ki: mut usize = 0
+            for {
+              if ki >= NUM_KEYS { break }
+              match @get(keypad_map, ki) {
+                some mapped => {
+                  if mapped == sym {
+                    set_key(chip, ki, 1)
+                  }
+                }
+                none => { }
+              }
+              ki = ki + 1
+            }
+          }
+          if ev_type == SDL_KEYUP {
+            val sym: i32 = event_keysym(event)
+            val ki: mut usize = 0
+            for {
+              if ki >= NUM_KEYS { break }
+              match @get(keypad_map, ki) {
+                some mapped => {
+                  if mapped == sym {
+                    set_key(chip, ki, 0)
+                  }
+                }
+                none => { }
+              }
+              ki = ki + 1
+            }
+          }
+        }
+
+        if chip.drawFlag {
+          chip.drawFlag = false
+          val i: mut usize = 0
+          for {
+            if i >= DISPLAY_SIZE { break }
+            val px: u8 = get_gfx(chip, i)
+            val pixel_ptr: ref void = trust @ptradd(pixels, (i as i64) * 4)
+            if px != 0 {
+              trust @store(pixel_ptr, 0xFFFFFFFF as u32)
+            } else {
+              trust @store(pixel_ptr, 0xFF000000 as u32)
+            }
+            i = i + 1
+          }
+          trust SDL_UpdateTexture(texture, 0 as ref void, pixels, 64 * 4)
+          trust SDL_RenderClear(renderer)
+          trust SDL_RenderCopy(renderer, texture, 0 as ref void, 0 as ref void)
+          trust SDL_RenderPresent(renderer)
+        }
+
+        trust SDL_Delay(1)
+      }
+
+      trust @free(pixels)
+      trust @free(event)
+      trust SDL_DestroyTexture(texture)
+      trust SDL_DestroyRenderer(renderer)
+      trust SDL_DestroyWindow(window)
+      trust SDL_Quit()
     }
     none => {
       stdio.puts("usage: cemu <rom file>")
