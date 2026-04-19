@@ -534,7 +534,7 @@ pub fn tokenize(src: ref char) result[list[ref Token], ref char]! = {
     return ok tokens
 }
 
-pub fn tok_kind(tokens: list[ref Token], i: i64) TokenKind! = {
+pub fn tok_kind(tokens: list[ref Token], i: i64) TokenKind = {
     val opt = @get(tokens, i as usize)
     match opt {
         some t => { return (t as ref Token).kind }
@@ -543,7 +543,7 @@ pub fn tok_kind(tokens: list[ref Token], i: i64) TokenKind! = {
 }
 
 // Extract text payload from Ident/Str/Int/Float variants, null otherwise.
-pub fn tok_text(tokens: list[ref Token], i: i64) ref char! = {
+pub fn tok_text(tokens: list[ref Token], i: i64) ref char = {
     val opt = @get(tokens, i as usize)
     match opt {
         some t => {
@@ -560,49 +560,49 @@ pub fn tok_text(tokens: list[ref Token], i: i64) ref char! = {
     }
 }
 
-pub fn kind_is_fn(k: TokenKind)       bool! = { match k { Fn()       => { return true } else => { return false } } }
-pub fn kind_is_val(k: TokenKind)      bool! = { match k { Val()      => { return true } else => { return false } } }
-pub fn kind_is_mut(k: TokenKind)      bool! = { match k { Mut()      => { return true } else => { return false } } }
-pub fn kind_is_pub(k: TokenKind)      bool! = { match k { Pub()      => { return true } else => { return false } } }
-pub fn kind_is_return(k: TokenKind)   bool! = { match k { Return()   => { return true } else => { return false } } }
-pub fn kind_is_if(k: TokenKind)       bool! = { match k { If()       => { return true } else => { return false } } }
-pub fn kind_is_else(k: TokenKind)     bool! = { match k { Else()     => { return true } else => { return false } } }
-pub fn kind_is_for(k: TokenKind)      bool! = { match k { For()      => { return true } else => { return false } } }
-pub fn kind_is_eof(k: TokenKind)      bool! = { match k { Eof()      => { return true } else => { return false } } }
-pub fn kind_is_ident(k: TokenKind)    bool! = { match k { Ident _    => { return true } else => { return false } } }
-pub fn kind_is_str(k: TokenKind)      bool! = { match k { Str _      => { return true } else => { return false } } }
-pub fn kind_is_int(k: TokenKind)      bool! = { match k { Int _      => { return true } else => { return false } } }
-pub fn kind_is_float(k: TokenKind)    bool! = { match k { Float _    => { return true } else => { return false } } }
-pub fn kind_is_eqeq(k: TokenKind)     bool! = { match k { EqEq()     => { return true } else => { return false } } }
-pub fn kind_is_bangeq(k: TokenKind)   bool! = { match k { BangEq()   => { return true } else => { return false } } }
-pub fn kind_is_lteq(k: TokenKind)     bool! = { match k { LtEq()     => { return true } else => { return false } } }
-pub fn kind_is_gteq(k: TokenKind)     bool! = { match k { GtEq()     => { return true } else => { return false } } }
-pub fn kind_is_and(k: TokenKind)      bool! = { match k { And()      => { return true } else => { return false } } }
-pub fn kind_is_or(k: TokenKind)       bool! = { match k { Or()       => { return true } else => { return false } } }
-pub fn kind_is_plusplus(k: TokenKind) bool! = { match k { PlusPlus() => { return true } else => { return false } } }
-pub fn kind_is_minusminus(k: TokenKind) bool! = { match k { MinusMinus() => { return true } else => { return false } } }
-pub fn kind_is_arrow(k: TokenKind)     bool! = { match k { Arrow()    => { return true } else => { return false } } }
-pub fn kind_is_fatarrow(k: TokenKind)  bool! = { match k { FatArrow() => { return true } else => { return false } } }
-pub fn kind_is_shl(k: TokenKind)       bool! = { match k { Shl()      => { return true } else => { return false } } }
-pub fn kind_is_shr(k: TokenKind)       bool! = { match k { Shr()      => { return true } else => { return false } } }
-pub fn kind_is_lparen(k: TokenKind)    bool! = { match k { LParen()   => { return true } else => { return false } } }
-pub fn kind_is_rparen(k: TokenKind)    bool! = { match k { RParen()   => { return true } else => { return false } } }
-pub fn kind_is_lbrace(k: TokenKind)    bool! = { match k { LBrace()   => { return true } else => { return false } } }
-pub fn kind_is_rbrace(k: TokenKind)    bool! = { match k { RBrace()   => { return true } else => { return false } } }
-pub fn kind_is_lbracket(k: TokenKind)  bool! = { match k { LBracket() => { return true } else => { return false } } }
-pub fn kind_is_rbracket(k: TokenKind)  bool! = { match k { RBracket() => { return true } else => { return false } } }
-pub fn kind_is_colon(k: TokenKind)     bool! = { match k { Colon()    => { return true } else => { return false } } }
-pub fn kind_is_comma(k: TokenKind)     bool! = { match k { Comma()    => { return true } else => { return false } } }
-pub fn kind_is_dot(k: TokenKind)       bool! = { match k { Dot()      => { return true } else => { return false } } }
-pub fn kind_is_dotdotdot(k: TokenKind) bool! = { match k { DotDotDot() => { return true } else => { return false } } }
-pub fn kind_is_at(k: TokenKind)        bool! = { match k { At()       => { return true } else => { return false } } }
-pub fn kind_is_question(k: TokenKind)  bool! = { match k { Question() => { return true } else => { return false } } }
-pub fn kind_is_guard(k: TokenKind)     bool! = { match k { Guard()     => { return true } else => { return false } } }
-pub fn kind_is_invariant(k: TokenKind) bool! = { match k { Invariant() => { return true } else => { return false } } }
+pub fn kind_is_fn(k: TokenKind)       bool = { match k { Fn()       => { return true } else => { return false } } }
+pub fn kind_is_val(k: TokenKind)      bool = { match k { Val()      => { return true } else => { return false } } }
+pub fn kind_is_mut(k: TokenKind)      bool = { match k { Mut()      => { return true } else => { return false } } }
+pub fn kind_is_pub(k: TokenKind)      bool = { match k { Pub()      => { return true } else => { return false } } }
+pub fn kind_is_return(k: TokenKind)   bool = { match k { Return()   => { return true } else => { return false } } }
+pub fn kind_is_if(k: TokenKind)       bool = { match k { If()       => { return true } else => { return false } } }
+pub fn kind_is_else(k: TokenKind)     bool = { match k { Else()     => { return true } else => { return false } } }
+pub fn kind_is_for(k: TokenKind)      bool = { match k { For()      => { return true } else => { return false } } }
+pub fn kind_is_eof(k: TokenKind)      bool = { match k { Eof()      => { return true } else => { return false } } }
+pub fn kind_is_ident(k: TokenKind)    bool = { match k { Ident _    => { return true } else => { return false } } }
+pub fn kind_is_str(k: TokenKind)      bool = { match k { Str _      => { return true } else => { return false } } }
+pub fn kind_is_int(k: TokenKind)      bool = { match k { Int _      => { return true } else => { return false } } }
+pub fn kind_is_float(k: TokenKind)    bool = { match k { Float _    => { return true } else => { return false } } }
+pub fn kind_is_eqeq(k: TokenKind)     bool = { match k { EqEq()     => { return true } else => { return false } } }
+pub fn kind_is_bangeq(k: TokenKind)   bool = { match k { BangEq()   => { return true } else => { return false } } }
+pub fn kind_is_lteq(k: TokenKind)     bool = { match k { LtEq()     => { return true } else => { return false } } }
+pub fn kind_is_gteq(k: TokenKind)     bool = { match k { GtEq()     => { return true } else => { return false } } }
+pub fn kind_is_and(k: TokenKind)      bool = { match k { And()      => { return true } else => { return false } } }
+pub fn kind_is_or(k: TokenKind)       bool = { match k { Or()       => { return true } else => { return false } } }
+pub fn kind_is_plusplus(k: TokenKind) bool = { match k { PlusPlus() => { return true } else => { return false } } }
+pub fn kind_is_minusminus(k: TokenKind) bool = { match k { MinusMinus() => { return true } else => { return false } } }
+pub fn kind_is_arrow(k: TokenKind)     bool = { match k { Arrow()    => { return true } else => { return false } } }
+pub fn kind_is_fatarrow(k: TokenKind)  bool = { match k { FatArrow() => { return true } else => { return false } } }
+pub fn kind_is_shl(k: TokenKind)       bool = { match k { Shl()      => { return true } else => { return false } } }
+pub fn kind_is_shr(k: TokenKind)       bool = { match k { Shr()      => { return true } else => { return false } } }
+pub fn kind_is_lparen(k: TokenKind)    bool = { match k { LParen()   => { return true } else => { return false } } }
+pub fn kind_is_rparen(k: TokenKind)    bool = { match k { RParen()   => { return true } else => { return false } } }
+pub fn kind_is_lbrace(k: TokenKind)    bool = { match k { LBrace()   => { return true } else => { return false } } }
+pub fn kind_is_rbrace(k: TokenKind)    bool = { match k { RBrace()   => { return true } else => { return false } } }
+pub fn kind_is_lbracket(k: TokenKind)  bool = { match k { LBracket() => { return true } else => { return false } } }
+pub fn kind_is_rbracket(k: TokenKind)  bool = { match k { RBracket() => { return true } else => { return false } } }
+pub fn kind_is_colon(k: TokenKind)     bool = { match k { Colon()    => { return true } else => { return false } } }
+pub fn kind_is_comma(k: TokenKind)     bool = { match k { Comma()    => { return true } else => { return false } } }
+pub fn kind_is_dot(k: TokenKind)       bool = { match k { Dot()      => { return true } else => { return false } } }
+pub fn kind_is_dotdotdot(k: TokenKind) bool = { match k { DotDotDot() => { return true } else => { return false } } }
+pub fn kind_is_at(k: TokenKind)        bool = { match k { At()       => { return true } else => { return false } } }
+pub fn kind_is_question(k: TokenKind)  bool = { match k { Question() => { return true } else => { return false } } }
+pub fn kind_is_guard(k: TokenKind)     bool = { match k { Guard()     => { return true } else => { return false } } }
+pub fn kind_is_invariant(k: TokenKind) bool = { match k { Invariant() => { return true } else => { return false } } }
 
 test {
     @puts("1")
-    val r1 = tokenize("fn val mut pub return if else for")
+    val r1 = trust tokenize("fn val mut pub return if else for")
     match r1 {
         err _ => { assert false }
         ok toks => {
@@ -623,7 +623,7 @@ test {
     }
 
     @puts("2")
-    val r2 = tokenize("foobar hello_world _x")
+    val r2 = trust tokenize("foobar hello_world _x")
     match r2 {
         err _ => { assert false }
         ok toks => {
@@ -637,7 +637,7 @@ test {
 
 
     @puts("3")
-    val r3 = tokenize("42 3.14 0xff")
+    val r3 = trust tokenize("42 3.14 0xff")
     match r3 {
         err _ => { assert false }
         ok toks => {
@@ -651,7 +651,7 @@ test {
 
 
     @puts("4")
-    val r4 = tokenize("\"hello\"")
+    val r4 = trust tokenize("\"hello\"")
     match r4 {
         err _ => { assert false }
         ok toks => {
@@ -663,17 +663,17 @@ test {
 
     @puts("5")
     val the_string = "\"line1\\nline2\""
-    val r5 = tokenize(the_string)
+    val r5 = trust tokenize(the_string)
     match r5 {
         err _ => { assert false }
         ok toks => {
             assert kind_is_str(tok_kind(toks, 0))
             val text: ref char = tok_text(toks, 0)
-            assert @load8(@ptradd(text, 5)) as i64 == 10
+            assert trust @load8(@ptradd(text, 5)) as i64 == 10
         }
     }
 
-    val r6 = tokenize("== != <= >= && || ++ -- -> => << >>")
+    val r6 = trust tokenize("== != <= >= && || ++ -- -> => << >>")
     match r6 {
         err _ => { assert false }
         ok toks => {
@@ -692,7 +692,7 @@ test {
         }
     }
 
-    val r7 = tokenize("( ) { } [ ] : , . @ ~ ?")
+    val r7 = trust tokenize("( ) { } [ ] : , . @ ~ ?")
     match r7 {
         err _ => { assert false }
         ok toks => {
@@ -710,7 +710,7 @@ test {
         }
     }
 
-    val r8 = tokenize("...")
+    val r8 = trust tokenize("...")
     match r8 {
         err _ => { assert false }
         ok toks => {
@@ -719,7 +719,7 @@ test {
         }
     }
 
-    val r9 = tokenize("fn // this is a comment\nval")
+    val r9 = trust tokenize("fn // this is a comment\nval")
     match r9 {
         err _ => { assert false }
         ok toks => {
@@ -729,7 +729,7 @@ test {
         }
     }
 
-    val r10 = tokenize("fn\nval")
+    val r10 = trust tokenize("fn\nval")
     match r10 {
         err _ => { assert false }
         ok toks => {
@@ -753,7 +753,7 @@ test {
         }
     }
 
-    val r11 = tokenize("")
+    val r11 = trust tokenize("")
     match r11 {
         err _ => { assert false }
         ok toks => {
@@ -762,7 +762,7 @@ test {
         }
     }
 
-    val r12 = tokenize("#")
+    val r12 = trust tokenize("#")
     match r12 {
         ok _  => { assert false }
         err _ => { assert true }

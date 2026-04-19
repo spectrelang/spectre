@@ -291,107 +291,107 @@ val str = use("string.sx")
 test {
     val path: ref char = "test_file.txt"
     @puts("1")
-    val success = write_all(path, "Hello, Spectre!")
+    val success = trust write_all(path, "Hello, Spectre!")
     assert success
     @puts("2")
-    val content_opt: option[ref char] = read_all(path)
+    val content_opt: option[ref char] = trust read_all(path)
     match content_opt {
         none => { assert false }
         some content => {
             @puts("2.5")
-            @dprintf(2, "content: {s}\n", {content})
+            trust @dprintf(2, "content: {s}\n", {content})
 
-            stdio.print("{s} {d}\n", {content, str.compare(str.RChar(content), str.RChar("Hello, Spectre!"))})
+            trust stdio.print("{s} {d}\n", {content, str.compare(str.RChar(content), str.RChar("Hello, Spectre!"))})
             @puts("2.6")
             assert str.compare(str.RChar(content), str.RChar("Hello, Spectre!")) == 0
-            @free(content)
+            trust @free(content)
         }
     }
     @puts("3")
-    val append_ok = append_all(path, " More text.")
+    val append_ok = trust append_all(path, " More text.")
     assert append_ok
     @puts("4")
 
-    val content2_opt = read_all(path)
+    val content2_opt = trust read_all(path)
     match content2_opt {
         none => { assert false }
         some content2 => {
             assert str.compare(str.RChar(content2), str.RChar("Hello, Spectre! More text.")) == 0
-            @free(content2)
+            trust @free(content2)
         }
     }
     @puts("5")
 
-    val overwrite_ok = write_all(path, "Overwritten.")
+    val overwrite_ok = trust write_all(path, "Overwritten.")
     assert overwrite_ok
     @puts("6")
 
-    val content3_opt = read_all(path)
+    val content3_opt = trust read_all(path)
     match content3_opt {
         none => { assert false }
         some content3 => {
             assert str.compare(str.RChar(content3), str.RChar("Overwritten.")) == 0
-            @free(content3)
+            trust @free(content3)
         }
     }
     @puts("7")
 
-    val rename_ok = rename_path(path, "test_file2.txt")
+    val rename_ok = trust rename_path(path, "test_file2.txt")
     assert rename_ok
 
-    val gone_opt = read_all(path)
+    val gone_opt = trust read_all(path)
     match gone_opt {
         none => {}
         some _ => { assert false }
     }
 
-    val delete_ok = delete("test_file2.txt")
+    val delete_ok = trust delete("test_file2.txt")
     assert delete_ok
 
-    val delete_missing = delete("test_file2.txt")
+    val delete_missing = trust delete("test_file2.txt")
     assert !delete_missing
 
     val lpath: ref char = "test_lines.txt"
-    val wh_opt = open(lpath, "w")
+    val wh_opt = trust open(lpath, "w")
     match wh_opt {
         none => { assert false }
         some wh => {
-            write_line(wh, "line one")
-            write_line(wh, "line two")
-            close(wh)
+            trust write_line(wh, "line one")
+            trust write_line(wh, "line two")
+            trust close(wh)
         }
     }
 
-    val rh_opt = open(lpath, "r")
+    val rh_opt = trust open(lpath, "r")
     match rh_opt {
         none => { assert false }
         some rh => {
-            val buf: ref char = @alloc(128)
-            val got1 = read_line(rh, buf, 128)
+            val buf: ref char = trust @alloc(128)
+            val got1 = trust read_line(rh, buf, 128)
             assert got1
             assert str.compare(str.RChar(buf), str.RChar("line one")) == 0
 
-            val got2 = read_line(rh, buf, 128)
+            val got2 = trust read_line(rh, buf, 128)
             assert got2
             assert str.compare(str.RChar(buf), str.RChar("line two")) == 0
 
-            val got3 = read_line(rh, buf, 128)
+            val got3 = trust read_line(rh, buf, 128)
             assert !got3
 
-            @free(buf)
-            close(rh)
+            trust @free(buf)
+            trust close(rh)
         }
     }
-    delete(lpath)
+    trust delete(lpath)
 
     val dpath: ref char = "test_walk_dir"
-    val mkdir_ok = mkdir_path(dpath)
+    val mkdir_ok = trust mkdir_path(dpath)
     assert mkdir_ok
 
-    write_all("test_walk_dir/a.txt", "a")
-    write_all("test_walk_dir/b.txt", "b")
+    trust write_all("test_walk_dir/a.txt", "a")
+    trust write_all("test_walk_dir/b.txt", "b")
 
-    val entries_opt = walk_dir(dpath)
+    val entries_opt = trust walk_dir(dpath)
     match entries_opt {
         none => { assert false }
         some entries => {
@@ -399,28 +399,28 @@ test {
             for _ in entries {
                 count++
             }
-            @printf("count: {d}", {count})
+            trust @printf("count: {d}", {count})
         }
     }
 
-    val bad_opt = walk_dir("__no_such_dir__")
+    val bad_opt = trust walk_dir("__no_such_dir__")
     match bad_opt {
         none => {}
         some _ => { assert false }
     }
 
-    delete("test_walk_dir/a.txt")
-    delete("test_walk_dir/b.txt")
-    val rmdir_ok = rmdir_path(dpath)
+    trust delete("test_walk_dir/a.txt")
+    trust delete("test_walk_dir/b.txt")
+    val rmdir_ok = trust rmdir_path(dpath)
     assert rmdir_ok
 
     val cwd_opt = cwd()
     match cwd_opt {
         none => { assert false }
         some dir => {
-            val l: i64 = strlen(dir)
+            val l: i64 = trust strlen(dir)
             assert l > 0
-            @free(dir)
+            trust @free(dir)
         }
     }
 

@@ -131,9 +131,9 @@ fn make_binop(op: i64, line: i64, left: ref Node, right: ref Node) result[ref No
     return ok n
 }
 
-pub fn binop_op(n: ref Node) i64! = { return n.d0 }
-pub fn binop_left(n: ref Node) ref Node! = { return n.d1 as ref Node }
-pub fn binop_right(n: ref Node) ref Node! = { return n.d2 as ref Node }
+pub fn binop_op(n: ref Node) i64 = { return n.d0 }
+pub fn binop_left(n: ref Node) ref Node = { return n.d1 as ref Node }
+pub fn binop_right(n: ref Node) ref Node = { return n.d2 as ref Node }
 
 fn make_unop(op: i64, line: i64, inner: ref Node) result[ref Node, ref char]! = {
     val n: mut ref Node = make_node(NK_UNOP, line)
@@ -142,8 +142,8 @@ fn make_unop(op: i64, line: i64, inner: ref Node) result[ref Node, ref char]! = 
     return ok n
 }
 
-pub fn unop_op(n: ref Node) i64! = { return n.d0 }
-pub fn unop_inner(n: ref Node) ref Node! = { return n.d1 as ref Node }
+pub fn unop_op(n: ref Node) i64 = { return n.d0 }
+pub fn unop_inner(n: ref Node) ref Node = { return n.d1 as ref Node }
 
 fn make_field(base: ref Node, line: i64, name: ref char) result[ref Node, ref char]! = {
     val n: mut ref Node = make_node(NK_FIELD, line)
@@ -152,8 +152,8 @@ fn make_field(base: ref Node, line: i64, name: ref char) result[ref Node, ref ch
     return ok n
 }
 
-pub fn field_base(n: ref Node) ref Node! = { return n.d0 as ref Node }
-pub fn field_name(n: ref Node) ref char! = { return n.d1 as ref char }
+pub fn field_base(n: ref Node) ref Node = { return n.d0 as ref Node }
+pub fn field_name(n: ref Node) ref char = { return n.d1 as ref char }
 
 fn make_call(callee: ref Node, line: i64, args: list[ref Node]) result[ref Node, ref char]! = {
     val n: mut ref Node = make_node(NK_CALL, line)
@@ -172,36 +172,36 @@ fn make_struct_field(name: ref char, line: i64, expr: ref Node) result[ref Node,
     return ok n
 }
 
-pub fn match_opt_expr(n: ref Node) ref Node!     = { return n.d0 as ref Node }
-pub fn match_opt_some_bind(n: ref Node) ref char! = { return n.d1 as ref char }
-pub fn match_opt_some_body(n: ref Node) ref Node! = { return n.d2 as ref Node }  // wrapper, .d0 = stmts list
-pub fn match_opt_none_body(n: ref Node) ref Node! = { return n.d3 as ref Node }  // wrapper, .d0 = stmts list
+pub fn match_opt_expr(n: ref Node) ref Node     = { return n.d0 as ref Node }
+pub fn match_opt_some_bind(n: ref Node) ref char = { return n.d1 as ref char }
+pub fn match_opt_some_body(n: ref Node) ref Node = { return n.d2 as ref Node }  // wrapper, .d0 = stmts list
+pub fn match_opt_none_body(n: ref Node) ref Node = { return n.d3 as ref Node }  // wrapper, .d0 = stmts list
 
-pub fn match_res_expr(n: ref Node) ref Node!       = { return n.d0 as ref Node }
-pub fn match_res_ok_bind(n: ref Node) ref char!    = { return n.d1 as ref char }
-pub fn match_res_ok_body(n: ref Node) ref Node!    = { return n.d2 as ref Node }  // wrapper, .d0 = stmts list
-pub fn match_res_err_bind(n: ref Node) ref char!   = { return n.d3 as ref char }
-pub fn match_res_err_body(n: ref Node) ref Node!   = { return n.d4 as ref Node }  // wrapper, .d0 = stmts list
+pub fn match_res_expr(n: ref Node) ref Node       = { return n.d0 as ref Node }
+pub fn match_res_ok_bind(n: ref Node) ref char    = { return n.d1 as ref char }
+pub fn match_res_ok_body(n: ref Node) ref Node    = { return n.d2 as ref Node }  // wrapper, .d0 = stmts list
+pub fn match_res_err_bind(n: ref Node) ref char   = { return n.d3 as ref char }
+pub fn match_res_err_body(n: ref Node) ref Node   = { return n.d4 as ref Node }  // wrapper, .d0 = stmts list
 
-pub fn match_enum_expr(n: ref Node) ref Node!               = { return n.d0 as ref Node }
-pub fn match_enum_arms(n: ref Node) list[ref Node]!         = { return n.d1 as list[ref Node] }
-pub fn match_enum_arm_body(arm: ref Node) list[ref Node]!   = { return arm.d1 as list[ref Node] }
+pub fn match_enum_expr(n: ref Node) ref Node               = { return n.d0 as ref Node }
+pub fn match_enum_arms(n: ref Node) list[ref Node]         = { return n.d1 as list[ref Node] }
+pub fn match_enum_arm_body(arm: ref Node) list[ref Node]   = { return arm.d1 as list[ref Node] }
 
-pub fn match_str_expr(n: ref Node) ref Node!                = { return n.d0 as ref Node }
-pub fn match_str_arms(n: ref Node) list[ref Node]!          = { return n.d1 as list[ref Node] }
-pub fn match_str_else(n: ref Node) ref Node!                = { return n.d2 as ref Node }  // wrapper, .d0 = stmts list
-pub fn match_str_arm_value(arm: ref Node) ref char!         = { return arm.d0 as ref char }
-pub fn match_str_arm_body(arm: ref Node) list[ref Node]!    = { return arm.d1 as list[ref Node] }
+pub fn match_str_expr(n: ref Node) ref Node                = { return n.d0 as ref Node }
+pub fn match_str_arms(n: ref Node) list[ref Node]          = { return n.d1 as list[ref Node] }
+pub fn match_str_else(n: ref Node) ref Node                = { return n.d2 as ref Node }  // wrapper, .d0 = stmts list
+pub fn match_str_arm_value(arm: ref Node) ref char        = { return arm.d0 as ref char }
+pub fn match_str_arm_body(arm: ref Node) list[ref Node]    = { return arm.d1 as list[ref Node] }
 
-pub fn match_union_expr(n: ref Node) ref Node!              = { return n.d0 as ref Node }
-pub fn match_union_arms(n: ref Node) list[ref Node]!        = { return n.d1 as list[ref Node] }
-pub fn match_union_else(n: ref Node) ref Node!              = { return n.d2 as ref Node }  // wrapper, .d0 = stmts list
-pub fn match_union_arm_type(arm: ref Node) ref Node!        = { return arm.d0 as ref Node }
-pub fn match_union_arm_body(arm: ref Node) list[ref Node]!  = { return arm.d1 as list[ref Node] }
+pub fn match_union_expr(n: ref Node) ref Node              = { return n.d0 as ref Node }
+pub fn match_union_arms(n: ref Node) list[ref Node]        = { return n.d1 as list[ref Node] }
+pub fn match_union_else(n: ref Node) ref Node              = { return n.d2 as ref Node }  // wrapper, .d0 = stmts list
+pub fn match_union_arm_type(arm: ref Node) ref Node        = { return arm.d0 as ref Node }
+pub fn match_union_arm_body(arm: ref Node) list[ref Node]  = { return arm.d1 as list[ref Node] }
 
-pub fn match_tagged_union_expr(n: ref Node) ref Node!           = { return n.d0 as ref Node }
-pub fn match_tagged_union_arms(n: ref Node) list[ref Node]!     = { return n.d1 as list[ref Node] }
-pub fn match_tagged_union_else(n: ref Node) ref Node!           = { return n.d2 as ref Node }  // wrapper, .d0 = stmts list
+pub fn match_tagged_union_expr(n: ref Node) ref Node           = { return n.d0 as ref Node }
+pub fn match_tagged_union_arms(n: ref Node) list[ref Node]     = { return n.d1 as list[ref Node] }
+pub fn match_tagged_union_else(n: ref Node) ref Node           = { return n.d2 as ref Node }  // wrapper, .d0 = stmts list
 pub fn match_tagged_union_arm_variant(arm: ref Node) ref char!  = { return arm.d0 as ref char }
 pub fn match_tagged_union_arm_bindings(arm: ref Node) list[ref char]! = { return arm.d1 as list[ref char] }
 pub fn match_tagged_union_arm_body(arm: ref Node) list[ref Node]! = { return arm.d2 as list[ref Node] }
@@ -212,7 +212,7 @@ fn make_int_lit(text: ref char, line: i64) result[ref Node, ref char]! = {
     return ok n
 }
 
-pub fn int_lit_text(n: ref Node) ref char! = { return n.d0 as ref char }
+pub fn int_lit_text(n: ref Node) ref char = { return n.d0 as ref char }
 
 fn make_float_lit(text: ref char, line: i64) result[ref Node, ref char]! = {
     val n: mut ref Node = make_node(NK_FLOAT_LIT, line)
@@ -220,7 +220,7 @@ fn make_float_lit(text: ref char, line: i64) result[ref Node, ref char]! = {
     return ok n
 }
 
-pub fn float_lit_text(n: ref Node) ref char! = { return n.d0 as ref char }
+pub fn float_lit_text(n: ref Node) ref char = { return n.d0 as ref char }
 
 fn make_str_lit(text: ref char, line: i64) result[ref Node, ref char]! = {
     val n: mut ref Node = make_node(NK_STR_LIT, line)
@@ -228,7 +228,7 @@ fn make_str_lit(text: ref char, line: i64) result[ref Node, ref char]! = {
     return ok n
 }
 
-pub fn str_lit_text(n: ref Node) ref char! = { return n.d0 as ref char }
+pub fn str_lit_text(n: ref Node) ref char = { return n.d0 as ref char }
 
 fn str_eq(a: ref char, b: ref char) bool! = {
     return std.string.compare(std.string.RChar(a), std.string.RChar(b)) == 0
@@ -1809,21 +1809,21 @@ pub fn parse_module(tokens: list[ref lexer.Token], filename: ref char) result[li
     return ok items
 }
 
-fn parse_src(src: ref char) result[list[ref Node], ref char]! = {
-    val r = lexer.tokenize(src)
+fn parse_src(src: ref char) result[list[ref Node], ref char] = {
+    val r = lexer.tokenize(src) // TODO: COME BACK TO THIS, SHOULD RAISE ERROR, CROSS MODULE TRUST CHECKING
     match r {
         err e => { return err e }
-        ok toks => { return parse_module(toks, "<test>") }
+        ok toks => { return trust parse_module(toks, "<test>") }
     }
 }
 
-fn parse_expr_src(src: ref char) result[ref Node, ref char]! = {
-    val r = lexer.tokenize(src)
+fn parse_expr_src(src: ref char) result[ref Node, ref char] = {
+    val r = trust lexer.tokenize(src)
     match r {
         err e => { return err e }
         ok toks => {
-            val p: ref Parser = parser_new(toks, "<test>")
-            return parse_expr(p)
+            val p: ref Parser = trust parser_new(toks, "<test>")
+            return trust parse_expr(p)
         }
     }
 }
