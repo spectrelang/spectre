@@ -954,6 +954,22 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref char) v
         }
 
         if fn_found != 0 as ref parser.Node {
+            val is_unsafe_fn: i64 = fn_found.d6
+            if is_unsafe_fn != 0 && ctx.in_unsafe_fn == 0 && ctx.in_trust == 0 {
+                val fn_name: mut ref char = 0 as ref char
+                if callee != 0 as ref parser.Node {
+                    if callee.kind == parser.NK_IDENT { fn_name = callee.d0 as ref char }
+                    elif callee.kind == parser.NK_FIELD { fn_name = parser.field_name(callee) }
+                }
+                val ebuf: ref char = @alloc(512) as ref char
+                if fn_name != 0 as ref char {
+                    @snprintf(ebuf, 512, "{s}:{lld}: cannot call unsafe function '{s}' from safe context, use 'trust' block or mark current function as unsafe with '!'", {filename, line, fn_name})
+                } else {
+                    @snprintf(ebuf, 512, "{s}:{lld}: cannot call unsafe function from safe context, use 'trust' block or mark current function as unsafe with '!'", {filename, line})
+                }
+                add_error(ctx, ebuf)
+            }
+            
             val params: mut ref void = fn_found.d3 as ref void
             if fn_found.kind == parser.NK_EXTERN_FN { params = fn_found.d4 as ref void }
             if params != 0 as ref void && fn_found.kind != parser.NK_EXTERN_FN {
