@@ -252,7 +252,9 @@ pub fn main() i32! = {
         std.stdio.puts("[II ]│ Semantic analysis")
     }
 
-    val errors: list[ref char] = sema.check_module_tree(root_mod)
+    val quiet_flag: mut bool = false
+    if quiet { quiet_flag = true }
+    val errors: list[ref char] = sema.check_module_tree(root_mod, quiet_flag)
     val nerrors: i64 = @len(errors) as i64
     if nerrors > 0 {
         for e in errors {

@@ -2041,7 +2041,7 @@ fn check_duplicates(ctx: ref SemaCtx, filename: ref char) void! = {
     }
 }
 
-pub fn check_module(items: list[ref parser.Node], filename: ref char, root: ref modinfo.ResolvedModule) list[ref char]! = {
+pub fn check_module(items: list[ref parser.Node], filename: ref char, root: ref modinfo.ResolvedModule, quiet: i64) list[ref char]! = {
     val ctx: mut ref SemaCtx = sema_new()
     ctx.root_mod = root
 
@@ -2084,8 +2084,10 @@ pub fn check_module(items: list[ref parser.Node], filename: ref char, root: ref 
         fi++
     }
 
-    for w in ctx.warnings {
-        std.stdio.print("warning: {s}\n", {w})
+    if quiet == 0 {
+        for w in ctx.warnings {
+            std.stdio.print("warning: {s}\n", {w})
+        }
     }
 
     return ctx.errors
@@ -2098,7 +2100,7 @@ fn check_module_seen(seen: list[ref void], mod: ref modinfo.ResolvedModule) bool
     return false
 }
 
-fn check_module_rec(mod: ref modinfo.ResolvedModule, all_errors: mut list[ref char], seen: mut list[ref void]) void! = {
+fn check_module_rec(mod: ref modinfo.ResolvedModule, all_errors: mut list[ref char], seen: mut list[ref void], quiet: i64) void! = {
     if mod == 0 as ref modinfo.ResolvedModule { return }
     if check_module_seen(seen, mod) { return }
     @append(seen, mod as ref void)
@@ -2108,21 +2110,21 @@ fn check_module_rec(mod: ref modinfo.ResolvedModule, all_errors: mut list[ref ch
     for {
         if i >= n { break }
         val child: ref modinfo.ResolvedModule = modinfo.import_module_at(mod, i as usize)
-        check_module_rec(child, all_errors, seen)
+        check_module_rec(child, all_errors, seen, quiet)
         i++
     }
 
     val fname: ref char = modinfo.module_filename(mod)
     val items: list[ref parser.Node] = modinfo.module_items(mod)
-    val errors: list[ref char] = check_module(items, fname, mod)
+    val errors: list[ref char] = check_module(items, fname, mod, quiet)
     for e in errors {
         @append(all_errors, e)
     }
 }
 
-pub fn check_module_tree(root: ref modinfo.ResolvedModule) list[ref char]! = {
+pub fn check_module_tree(root: ref modinfo.ResolvedModule, quiet: i64) list[ref char]! = {
     val all_errors: mut list[ref char] = []
     val seen: mut list[ref void] = []
-    check_module_rec(root, all_errors, seen)
+    check_module_rec(root, all_errors, seen, quiet)
     return all_errors
 }
