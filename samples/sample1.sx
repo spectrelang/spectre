@@ -27,7 +27,7 @@ fn some_function(some_arg: i32, some_other_arg: usize) void = {
 pub val some_constant = 1000
 
 fn pure_function() void = {
-	trust std.stdio.puts("This is trusted now, and can therefore run in a pure function")	
+	// trust std.stdio.puts("This is trusted now, and can therefore run in a pure function")	
 }
 
 fn can_fail(should_fail: bool) option[i32]! = {
