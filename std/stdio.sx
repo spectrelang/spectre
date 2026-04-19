@@ -36,6 +36,6 @@ pub fn read_line(buf: ref char, max_len: i64) ref char! = {
 
 test {
     val buffer: mut ref char = ""
-    val result = read_line(buffer, 100)
+    val result = trust read_line(buffer, 100)
     print("{s}", result)
 }
