@@ -71,7 +71,7 @@ pub fn (DateTime) now() DateTime = {
 }
 
 /// Read the year field.
-pub fn (DateTime) year(dt: self) i64! = {
+pub fn (DateTime) year(dt: self) i64 = {
     return dt.year
 }
 
@@ -131,7 +131,7 @@ pub fn (DateTime) is_leap_year(dt: self) bool = {
 }
 
 /// Return the number of days in the month of this DateTime.
-pub fn (DateTime) days_in_month(dt: self) i64! = {
+pub fn (DateTime) days_in_month(dt: self) i64 = {
     val mo:   i64  = DateTime.month(dt)
     val leap: bool = DateTime.is_leap_year(dt)
 
@@ -217,6 +217,6 @@ test {
 
     stdio.print("year: {d}\n", {DateTime.year(dt)})
 
-    DateTime.free(dt)
-    DateTime.free(dt2)
+    trust DateTime.free(dt)
+    trust DateTime.free(dt2)
 }
