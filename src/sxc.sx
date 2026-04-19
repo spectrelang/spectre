@@ -16,6 +16,10 @@ val module      = use("module/module.sx")
 val meta        = use("meta/meta.sx")
 val commands    = use("meta/commands.sx")
 
+when posix {
+    extern (C) fn readlink(path: ref char, buf: ref char, bufsiz: i64) i64! = "readlink"
+}
+
 pub fn main() i32! = {
     val arena = allocators.Arena.new(65536)?
     val args = std.os.get_args()
@@ -223,7 +227,13 @@ pub fn main() i32! = {
         }
     }
 
-    val exe_dir: ref char = "."
+    val path_buf: ref char = @alloc(1024) as ref char
+    val n: i64 = readlink("/proc/self/exe", path_buf, 1024)
+    val exe_dir: mut ref char = "."
+    if n > 0 {
+        @store8(@ptradd(path_buf, n), 0)
+        exe_dir = path.dir(path_buf)
+    }
 
     if !quiet && !emit_qbe && !print_ast {
         std.stdio.puts("[I  ]│ Resolving module")

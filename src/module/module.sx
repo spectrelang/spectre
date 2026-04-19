@@ -77,14 +77,18 @@ pub fn resolve_use_path(use_path: ref char, file_dir: ref char, exe_dir: ref cha
     }
 
     if has_slash {
-        val candidate = std.path.join(workspace, @fmt("{s}.sx", {use_path}))
-        if file_exists(candidate) { return candidate }
-        return std.path.join(exe_dir, @fmt("{s}.sx", {use_path}))
+        val candidate_exe = std.path.join(exe_dir, @fmt("{s}.sx", {use_path}))
+        if file_exists(candidate_exe) { return candidate_exe }
+        val candidate_ws = std.path.join(workspace, @fmt("{s}.sx", {use_path}))
+        if file_exists(candidate_ws) { return candidate_ws }
+        return candidate_ws
     }
 
-    val candidate2 = std.path.join(workspace, @fmt("{s}/{s}.sx", {use_path, use_path}))
-    if file_exists(candidate2) { return candidate2 }
-    return std.path.join(exe_dir, @fmt("{s}/{s}.sx", {use_path, use_path}))
+    val candidate2_exe = std.path.join(exe_dir, @fmt("{s}/{s}.sx", {use_path, use_path}))
+    if file_exists(candidate2_exe) { return candidate2_exe }
+    val candidate2_ws = std.path.join(workspace, @fmt("{s}/{s}.sx", {use_path, use_path}))
+    if file_exists(candidate2_ws) { return candidate2_ws }
+    return candidate2_ws
 }
 
 fn in_progress_contains(in_progress: list[ref char], path: ref char) bool! = {
