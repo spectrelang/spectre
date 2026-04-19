@@ -320,7 +320,7 @@ test {
     val status: i64    = Http.status(resp)
     val body_ptr: ref char = Http.body(resp)
 
-    stdio.print("{d} {s}\n", {status, body_ptr})
+    trust stdio.print("{d} {s}\n", {status, body_ptr})
 
     val body_len: i64 = Http.body_len(resp)
 
