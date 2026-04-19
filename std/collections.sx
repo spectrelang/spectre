@@ -903,7 +903,7 @@ test {
         none   => { assert false }
     }
 
-    IndexMap.set(m, "a", 99)
+    trust IndexMap.set(m, "a", 99)
     match trust IndexMap.get(m, "a") {
         some v => { assert v == 99 }
         none   => { assert false }
