@@ -27,6 +27,8 @@ type SemaCtx = {
     fn_map_params: mut list[ref void]
     variant_names: mut list[ref char]
     root_mod:      mut ref modinfo.ResolvedModule
+    in_unsafe_fn:  mut i64
+    in_trust:      mut i64
 }
 
 fn sema_new() ref SemaCtx! = {
@@ -788,7 +790,7 @@ fn find_import_module(ctx: ref SemaCtx, name: ref char) ref modinfo.ResolvedModu
     return modinfo.find_import_by_name(ctx.root_mod, name)
 }
 
-fn check_expr(ctx: ref SemaCtx, expr: ref parser.Node, filename: ref char) void! = {
+fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref char) void! = {
     if expr == 0 as ref parser.Node { return }
 
     val k: i64 = expr.kind
@@ -847,7 +849,14 @@ fn check_expr(ctx: ref SemaCtx, expr: ref parser.Node, filename: ref char) void!
         check_expr(ctx, parser.unop_inner(expr), filename)
         return
     }
-    if k == parser.NK_TRUST || k == parser.NK_SOME ||
+     if k == parser.NK_TRUST {
+         val prev_trust: i64 = ctx.in_trust
+         ctx.in_trust = 1
+         check_expr(ctx, expr.d0 as ref parser.Node, filename)
+         ctx.in_trust = prev_trust
+         return
+    }
+    if k == parser.NK_SOME ||
        k == parser.NK_OK_VAL || k == parser.NK_ERR_VAL || k == parser.NK_TRY {
         check_expr(ctx, expr.d0 as ref parser.Node, filename)
         return
@@ -1076,6 +1085,14 @@ fn check_expr(ctx: ref SemaCtx, expr: ref parser.Node, filename: ref char) void!
                 check_expr(ctx, barg, filename)
             }
         }
+        
+        val is_unsafe_builtin: bool = str_eq(bname, "alloc") || str_eq(bname, "store8") || str_eq(bname, "store") || str_eq(bname, "load8") || str_eq(bname, "load") || str_eq(bname, "ptradd") || str_eq(bname, "memset") || str_eq(bname, "memcpy") || str_eq(bname, "memmove") || str_eq(bname, "free") || str_eq(bname, "realloc") || str_eq(bname, "addr") || str_eq(bname, "deref")
+        if is_unsafe_builtin && ctx.in_unsafe_fn == 0 && ctx.in_trust == 0 {
+            val ebuf: ref char = @alloc(512) as ref char
+            @snprintf(ebuf, 512, "{s}:{lld}: unsafe builtin '@{s}' can only be used in functions marked with '!' or inside 'trust' blocks", {filename, line, bname})
+            add_error(ctx, ebuf)
+        }
+        
         val is_printf:   bool = str_eq(bname, "printf")
         val is_dprintf:  bool = str_eq(bname, "dprintf")
         val is_snprintf: bool = str_eq(bname, "snprintf")
@@ -1771,7 +1788,7 @@ fn check_stmt(ctx: ref SemaCtx, stmt: ref parser.Node, filename: ref char) void!
 }
 
 
-fn check_fn(ctx: ref SemaCtx, fn_node: ref parser.Node, filename: ref char) void! = {
+fn check_fn(ctx: mut ref SemaCtx, fn_node: ref parser.Node, filename: ref char) void! = {
     guarded pre {
         ctx_not_null      : ctx != 0 as ref SemaCtx
         fn_node_not_null  : fn_node != 0 as ref parser.Node
@@ -1779,6 +1796,10 @@ fn check_fn(ctx: ref SemaCtx, fn_node: ref parser.Node, filename: ref char) void
         filename_not_null : filename != 0 as ref char
     }
 
+    val is_unsafe: i64 = fn_node.d6
+    val prev_unsafe: i64 = ctx.in_unsafe_fn
+    ctx.in_unsafe_fn = is_unsafe
+    
     push_scope(ctx)
     val params: ref void = fn_node.d3 as ref void
     if params != 0 as ref void {
@@ -1802,6 +1823,8 @@ fn check_fn(ctx: ref SemaCtx, fn_node: ref parser.Node, filename: ref char) void
     }
     check_stmts(ctx, fn_node.d5 as ref void, filename)
     pop_scope(ctx, filename, 0)
+    
+    ctx.in_unsafe_fn = prev_unsafe
 }
 
 /// Register a function name.

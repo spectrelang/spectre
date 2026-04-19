@@ -106,6 +106,7 @@ pub type Node = {
     d3:   mut i64
     d4:   mut i64
     d5:   mut i64
+    d6:   mut i64
 }
 
 pub fn make_node(kind: i64, line: i64) ref Node! = {
@@ -118,6 +119,7 @@ pub fn make_node(kind: i64, line: i64) ref Node! = {
     n.d3 = 0
     n.d4 = 0
     n.d5 = 0
+    n.d6 = 0
     return n
 }
 
@@ -1497,7 +1499,8 @@ fn parse_fn_item(p: ref Parser, public: i64) result[ref Node, ref char]! = {
     }
     p_expect_rparen(p)?
     val ret_ty = parse_type(p)?
-    p_eat_fn(p, kind_is_bang)
+    val is_unsafe: mut i64 = 0
+    if p_eat_fn(p, kind_is_bang) { is_unsafe = 1 }
     p_expect_eq(p)?
     p_expect_lbrace(p)?
     val body = parse_stmts(p)?
@@ -1509,6 +1512,7 @@ fn parse_fn_item(p: ref Parser, public: i64) result[ref Node, ref char]! = {
     nfn.d4 = ret_ty as i64
     val bl: list[ref Node] = body
     nfn.d5 = bl as i64
+    nfn.d6 = is_unsafe
     return ok nfn
 }
 

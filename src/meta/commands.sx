@@ -23,14 +23,14 @@ type ParseCtx = {
 }
 
 fn new_ctx(text: ref char) ref ParseCtx = {
-    val ctx: mut ref ParseCtx = @alloc(@sizeof(ParseCtx)) as ref ParseCtx
+    val ctx: mut ref ParseCtx = trust @alloc(@sizeof(ParseCtx)) as ref ParseCtx
     ctx.text = text
     ctx.pos  = 0
     ctx.len  = str.len_raw(text)
     return ctx
 }
 
-fn ctx_peek(ctx: ref ParseCtx) i64 = {
+fn ctx_peek(ctx: ref ParseCtx) i64! = {
     if ctx.pos >= ctx.len { return -1 }
     return @load8(@ptradd(ctx.text as ref void, ctx.pos)) as i64
 }
@@ -55,7 +55,7 @@ fn ctx_skip_ws(ctx: ref ParseCtx) void = {
         if c == 32 || c == 9 || c == 10 || c == 13 {
             ctx_advance(ctx)
         } elif c == 47 && ctx.pos + 1 < ctx.len {
-            val c2: i64 = @load8(@ptradd(ctx.text as ref void, ctx.pos + 1)) as i64
+            val c2: i64 = trust @load8(@ptradd(ctx.text as ref void, ctx.pos + 1)) as i64
             if c2 == 47 { ctx_skip_line(ctx) } else { break }
         } else {
             break
@@ -63,7 +63,7 @@ fn ctx_skip_ws(ctx: ref ParseCtx) void = {
     }
 }
 
-fn ctx_read_quoted(ctx: ref ParseCtx) ref char = {
+fn ctx_read_quoted(ctx: ref ParseCtx) ref char! = {
     ctx_skip_ws(ctx)
     if ctx_peek(ctx) != 34 { return "" }
     ctx_advance(ctx)
@@ -89,7 +89,7 @@ fn ctx_read_quoted(ctx: ref ParseCtx) ref char = {
     return result
 }
 
-fn ctx_read_ident(ctx: ref ParseCtx) ref char = {
+fn ctx_read_ident(ctx: ref ParseCtx) ref char! = {
     ctx_skip_ws(ctx)
     val buf: ref char = @alloc(256) as ref char
     val i: mut i64 = 0
@@ -115,7 +115,7 @@ fn ctx_read_ident(ctx: ref ParseCtx) ref char = {
     return result
 }
 
-pub fn parse_sxmod(content: ref char) ref SxMod = {
+pub fn parse_sxmod(content: ref char) ref SxMod! = {
     val ctx: ref ParseCtx = new_ctx(content)
     val m: mut ref SxMod = @alloc(@sizeof(SxMod)) as ref SxMod
     @memset(m as ref void, 0, @sizeof(SxMod) as usize)
@@ -184,20 +184,20 @@ fn basename_of(path: ref char) ref char = {
     val i: mut i64 = 0
     for {
         if i >= len { break }
-        val c: u8 = @load8(@ptradd(path as ref void, i)) as u8
+        val c: u8 = trust @load8(@ptradd(path as ref void, i)) as u8
         if c == 47 { last_slash = i }
         i++
     }
     val start: i64 = last_slash + 1
     val name_len: i64 = len - start
     if name_len <= 0 { return "project" }
-    val buf: ref char = @alloc(name_len + 1) as ref char
-    @memcpy(buf as ref void, @ptradd(path as ref void, start), name_len as usize)
-    @store8(@ptradd(buf as ref void, name_len), 0)
+    val buf: ref char = trust @alloc(name_len + 1) as ref char
+    trust @memcpy(buf as ref void, @ptradd(path as ref void, start), name_len as usize)
+    trust @store8(@ptradd(buf as ref void, name_len), 0)
     return buf
 }
 
-fn repo_name_from_url(url: ref char) ref char = {
+fn repo_name_from_url(url: ref char) ref char! = {
     val base: ref char = basename_of(url)
     val blen: i64 = str.len_raw(base)
     if blen > 4 {
@@ -240,7 +240,7 @@ fn rchar_contains(haystack: ref char, needle: ref char) bool = {
 }
 
 /// Rewrite filepath, dropping lines that start with dep_prefix AND contain needle.
-fn drop_dep_lines(filepath: ref char, needle: ref char) void = {
+fn drop_dep_lines(filepath: ref char, needle: ref char) void! = {
     val content_opt = std.fs.read_all(filepath)
     match content_opt {
         none => { return }
