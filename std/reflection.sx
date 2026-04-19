@@ -140,6 +140,6 @@ pub fn current_platform_name() ref char! = {
 
 test {
     stdio.puts("calling get_current_platform")
-    val platform = get_current_platform()
+    val platform = trust get_current_platform()
     stdio.print("Current platform: {d}\n", {platform})
 }

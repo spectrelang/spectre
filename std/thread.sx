@@ -244,35 +244,35 @@ fn thread_test_entry(arg: ref void) ref void = {
 }
 
 test {
-    val counter: ref void = @alloc(8)
-    @store(counter, 0)
+    val counter: ref void = trust @alloc(8)
+    trust @store(counter, 0)
 
-    val t = Thread.new(thread_test_entry, counter)?
+    val t = trust Thread.new(thread_test_entry, counter)?
     defer {
-        Thread.free(t)
+        trust Thread.free(t)
     }
     stdio.puts("it worked :D")
 
-    Thread.join(t)?
+    trust Thread.join(t)?
     stdio.puts("it worked :D2")
 
-    val final_val: i64 = @load(counter)
+    val final_val: i64 = trust @load(counter)
     stdio.puts("it worked :D3")
 
     assert final_val == 1
 
 
-    match Mutex.new() {
+    match trust Mutex.new() {
         some m => {
             defer {
-                Mutex.free(m)
+                trust Mutex.free(m)
             }
             stdio.puts("it worked :D4")
 
-            Mutex.lock(m)
+            trust Mutex.lock(m)
             stdio.puts("it worked :D5")
 
-            Mutex.unlock(m)
+            trust Mutex.unlock(m)
         }
         none => {
             assert 0 == 1
@@ -282,7 +282,7 @@ test {
     val tid = current_thread_id()
     assert tid > 0
 
-    yield_thread()
+    trust yield_thread()
 
-    @free(counter)
+    trust @free(counter)
 }
