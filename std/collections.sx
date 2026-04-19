@@ -48,13 +48,13 @@ pub fn (PtrList) free(list: mut self) void! = {
 }
 
 /// Return the number of elements in the list.
-pub fn (PtrList) len(list: self) usize! = {
-    return @load(@ptradd(list, 8)) as usize
+pub fn (PtrList) len(list: self) usize = {
+    return trust @load(@ptradd(list, 8)) as usize
 }
 
 /// Return the current capacity.
-pub fn (PtrList) cap(list: self) usize! = {
-    return @load(@ptradd(list, 16)) as usize
+pub fn (PtrList) cap(list: self) usize = {
+    return trust @load(@ptradd(list, 16)) as usize
 }
 
 /// Grow the backing buffer to at least new_cap elements.
@@ -371,11 +371,11 @@ pub fn (Map) contains(map: self, key: usize) bool = {
 }
 
 /// Clear all entries (reset to empty, keep allocation).
-pub fn (Map) clear(map: self) void! = {
-    val cap: usize = @load(@ptradd(map, 16)) as usize
-    val buckets: ref void = @load(map)
-    @memset(buckets, 0, cap * MAP_BUCKET_SIZE)
-    @store(@ptradd(map, 8), 0)
+pub fn (Map) clear(map: self) void = {
+    val cap: usize = trust @load(@ptradd(map, 16)) as usize
+    val buckets: ref void = trust @load(map)
+    trust @memset(buckets, 0, cap * MAP_BUCKET_SIZE)
+    trust @store(@ptradd(map, 8), 0)
 }
 
 test {
@@ -384,9 +384,9 @@ test {
 
     assert Map.len(m) == 0
 
-    Map.set(m, 1, 100)
-    Map.set(m, 2, 200)
-    Map.set(m, 3, 300)
+    trust Map.set(m, 1, 100)
+    trust Map.set(m, 2, 200)
+    trust Map.set(m, 3, 300)
 
     assert Map.len(m) == 3
 
@@ -407,7 +407,7 @@ test {
         none   => {}
     }
 
-    Map.set(m, 1, 999)
+    trust Map.set(m, 1, 999)
     match Map.get(m, 1) {
         some v => { assert(v == 999) }
         none   => { assert(false) }
@@ -417,22 +417,22 @@ test {
     assert Map.contains(m, 2)
     assert !Map.contains(m, 42)
 
-    val deleted = Map.delete(m, 2)
+    val deleted = trust Map.delete(m, 2)
     assert deleted == 1
     assert Map.len(m) == 2
     assert !Map.contains(m, 2)
 
-    val not_deleted = Map.delete(m, 2)
+    val not_deleted = trust Map.delete(m, 2)
     assert not_deleted == 0
 
     Map.clear(m)
     assert Map.len(m) == 0
     assert !Map.contains(m, 1)
 
-    val big = Map.new(4, @addr(hash_identity))
+    val big = trust Map.new(4, @addr(hash_identity))
 
     for (i = 0; i < 20; i++) {
-        Map.set(big, i, i * 10)
+        trust Map.set(big, i, i * 10)
     }
     assert Map.len(big) == 20
     for (i = 0; i < 20; i++) {
@@ -442,30 +442,30 @@ test {
         }
     }
 
-    Map.free(m)
-    Map.free(big)
+    trust Map.free(m)
+    trust Map.free(big)
 
     stdio.puts("map tests passed")
 }
 
 
 test {
-    val list: ref void = PtrList.new(2)?
+    val list: ref void = trust PtrList.new(2)?
     defer {
-        PtrList.free(list)
+        trust PtrList.free(list)
     }
 
     assert(PtrList.len(list) == 0)
     assert(PtrList.cap(list) == 2)
 
-    PtrList.push(list, 42)?
-    PtrList.push(list, 84)?
+    trust PtrList.push(list, 42)?
+    trust PtrList.push(list, 84)?
 
     assert(PtrList.len(list) == 2)
     assert(PtrList.get(list, 0) == some 42)
     assert(PtrList.get(list, 1) == some 84)
 
-    PtrList.push(list, 126)?
+    trust PtrList.push(list, 126)?
 
     assert(PtrList.len(list) == 3)
     assert(PtrList.cap(list) >= 3)
@@ -477,20 +477,20 @@ test {
     assert(PtrList.pop(list) == some 99)
     assert(PtrList.pop(list) == some 42)
 
-    val list2: ref void = PtrList.new(1)?
+    val list2: ref void = trust PtrList.new(1)?
     defer {
-        PtrList.free(list2)
+        trust PtrList.free(list2)
     }
 
-    PtrList.push(list2, 10)?
+    trust PtrList.push(list2, 10)?
     assert(PtrList.get(list2, 0) == some 10)
 
-    val list3: ref void = PtrList.new(1)?
+    val list3: ref void = trust PtrList.new(1)?
     defer {
-        PtrList.free(list3)
+        trust PtrList.free(list3)
     }
 
-    PtrList.push(list3, 5)?
+    trust PtrList.push(list3, 5)?
 
     stdio.puts("list tests passed")
 }
@@ -573,24 +573,24 @@ pub fn (StringMap) set(map: self, key: ref char, value: usize) void! = {
 }
 
 /// Look up a string key. Returns some(value) or none.
-pub fn (StringMap) get(map: self, key: ref char) option[usize]! = {
-    val cap: usize = @load(@ptradd(map, 16)) as usize
-    val buckets: ref void = @load(map)
-    val hash_fn: ref void = @load(@ptradd(map, 24))
-    val h: usize = @call(hash_fn, key as usize)
+pub fn (StringMap) get(map: self, key: ref char) option[usize] = {
+    val cap: usize = trust @load(@ptradd(map, 16)) as usize
+    val buckets: ref void = trust @load(map)
+    val hash_fn: ref void = trust @load(@ptradd(map, 24))
+    val h: usize = trust @call(hash_fn, key as usize)
     val start: usize = h - (h / cap) * cap
 
     for (i = 0; i < cap; i++) {
         val idx: usize = (start + i) - ((start + i) / cap) * cap
-        val slot: ref void = @ptradd(buckets, idx * MAP_BUCKET_SIZE)
-        val state: usize = @load(slot) as usize
+        val slot: ref void = trust @ptradd(buckets, idx * MAP_BUCKET_SIZE)
+        val state: usize = trust @load(slot) as usize
         if (state == MAP_BUCKET_EMPTY) {
             return none
         }
         if (state == MAP_BUCKET_LIVE) {
-            val existing_key: ref char = @load(@ptradd(slot, 8)) as ref char
-            if (str_eq(existing_key, key)) {
-                return some (@load(@ptradd(slot, 16)) as usize)
+            val existing_key: ref char = trust @load(@ptradd(slot, 8)) as ref char
+            if (trust str_eq(existing_key, key)) {
+                return some (trust @load(@ptradd(slot, 16)) as usize)
             }
         }
     }
@@ -599,8 +599,8 @@ pub fn (StringMap) get(map: self, key: ref char) option[usize]! = {
 }
 
 /// Check if a string key exists.
-pub fn (StringMap) contains(map: self, key: ref char) bool! = {
-    val result = StringMap.get(map, key)
+pub fn (StringMap) contains(map: self, key: ref char) bool = {
+    val result = trust StringMap.get(map, key)
     match result {
         some _ => { return true  }
         none   => { return false }
@@ -637,7 +637,7 @@ pub fn (StringMap) delete(map: self, key: ref char) usize! = {
 }
 
 /// Return the number of live entries.
-pub fn (StringMap) len(map: self) usize! = {
+pub fn (StringMap) len(map: self) usize = {
     return Map.len(map)
 }
 
@@ -658,17 +658,17 @@ pub fn (StringMap) free(map: self) void! = {
 
 test {
     @puts("sm: new")
-    val m = StringMap.new(8)
+    val m = trust StringMap.new(8)
 
     @puts("sm: len==0")
     assert StringMap.len(m) == 0
 
     @puts("sm: set hello")
-    StringMap.set(m, "hello", 1)
+    trust StringMap.set(m, "hello", 1)
     @puts("sm: set world")
-    StringMap.set(m, "world", 2)
+    trust StringMap.set(m, "world", 2)
     @puts("sm: set foo")
-    StringMap.set(m, "foo",   3)
+    trust StringMap.set(m, "foo",   3)
 
     @puts("sm: len==3")
     assert StringMap.len(m) == 3
@@ -696,7 +696,7 @@ test {
     }
 
     @puts("sm: update hello=99")
-    StringMap.set(m, "hello", 99)
+    trust StringMap.set(m, "hello", 99)
     @puts("sm: get hello==99")
     match StringMap.get(m, "hello") {
         some v => { assert(v == 99) }
@@ -706,7 +706,7 @@ test {
     assert StringMap.len(m) == 3
 
     @puts("sm: delete world")
-    val deleted = StringMap.delete(m, "world")
+    val deleted = trust StringMap.delete(m, "world")
     @puts("sm: assert deleted==1")
     assert deleted == 1
     @puts("sm: len==2")
@@ -715,12 +715,12 @@ test {
     assert !StringMap.contains(m, "world")
 
     @puts("sm: delete world again")
-    val not_deleted = StringMap.delete(m, "world")
+    val not_deleted = trust StringMap.delete(m, "world")
     @puts("sm: assert not_deleted==0")
     assert not_deleted == 0
 
     @puts("sm: free")
-    StringMap.free(m)
+    trust StringMap.free(m)
 
     stdio.puts("string map tests passed")
 }
@@ -780,8 +780,8 @@ pub fn (IndexMap) get(map: self, key: ref char) option[usize]! = {
 }
 
 /// Check if a key exists.
-pub fn (IndexMap) contains(map: self, key: ref char) bool! = {
-    val inner: ref void = @load(map)
+pub fn (IndexMap) contains(map: self, key: ref char) bool = {
+    val inner: ref void = trust @load(map)
     return StringMap.contains(inner, key)
 }
 
@@ -813,8 +813,8 @@ pub fn (IndexMap) delete(map: self, key: ref char) usize! = {
 }
 
 /// Return the number of live entries.
-pub fn (IndexMap) len(map: self) usize! = {
-    val inner: ref void = @load(map)
+pub fn (IndexMap) len(map: self) usize = {
+    val inner: ref void = trust @load(map)
     return StringMap.len(inner)
 }
 
@@ -841,8 +841,8 @@ pub fn (IndexMap) each(map: self, cb: fn(ref char, usize) void) void! = {
 
 /// Get the i-th key in insertion order (skipping tombstones).
 /// Returns none if out of range.
-pub fn (IndexMap) key_at(map: self, i: usize) option[ref char]! = {
-    val keys: ref void = @load(@ptradd(map, 8))
+pub fn (IndexMap) key_at(map: self, i: usize) option[ref char] = {
+    val keys: ref void = trust @load(@ptradd(map, 8))
     val n: usize = PtrList.len(keys)
     val live: mut usize = 0
     for (j = 0; j < n; j++) {
@@ -876,13 +876,13 @@ pub fn (IndexMap) free(map: mut self) void! = {
 }
 
 test {
-    val m = IndexMap.new(8)
+    val m = trust IndexMap.new(8)
 
     assert IndexMap.len(m) == 0
 
-    IndexMap.set(m, "c", 3)
-    IndexMap.set(m, "a", 1)
-    IndexMap.set(m, "b", 2)
+    trust IndexMap.set(m, "c", 3)
+    trust IndexMap.set(m, "a", 1)
+    trust IndexMap.set(m, "b", 2)
 
     assert IndexMap.len(m) == 3
     assert IndexMap.contains(m, "a")
@@ -890,54 +890,54 @@ test {
     assert IndexMap.contains(m, "c")
     assert !IndexMap.contains(m, "z")
 
-    match IndexMap.get(m, "a") {
+    match trust IndexMap.get(m, "a") {
         some v => { assert v == 1 }
         none   => { assert false }
     }
-    match IndexMap.get(m, "b") {
+    match trust IndexMap.get(m, "b") {
         some v => { assert v == 2 }
         none   => { assert false }
     }
-    match IndexMap.get(m, "c") {
+    match trust IndexMap.get(m, "c") {
         some v => { assert v == 3 }
         none   => { assert false }
     }
 
     IndexMap.set(m, "a", 99)
-    match IndexMap.get(m, "a") {
+    match trust IndexMap.get(m, "a") {
         some v => { assert v == 99 }
         none   => { assert false }
     }
     assert IndexMap.len(m) == 3
 
     match IndexMap.key_at(m, 0) {
-        some k => { assert str_eq(k, "c") }
+        some k => { assert trust str_eq(k, "c") }
         none   => { assert false }
     }
     match IndexMap.key_at(m, 1) {
-        some k => { assert str_eq(k, "a") }
+        some k => { assert trust str_eq(k, "a") }
         none   => { assert false }
     }
     match IndexMap.key_at(m, 2) {
-        some k => { assert str_eq(k, "b") }
+        some k => { assert trust str_eq(k, "b") }
         none   => { assert false }
     }
 
-    val deleted = IndexMap.delete(m, "a")
+    val deleted = trust IndexMap.delete(m, "a")
     assert deleted == 1
     assert IndexMap.len(m) == 2
     assert !IndexMap.contains(m, "a")
 
     match IndexMap.key_at(m, 0) {
-        some k => { assert str_eq(k, "c") }
+        some k => { assert trust str_eq(k, "c") }
         none   => { assert false }
     }
     match IndexMap.key_at(m, 1) {
-        some k => { assert str_eq(k, "b") }
+        some k => { assert trust str_eq(k, "b") }
         none   => { assert false }
     }
 
-    IndexMap.free(m)
+    trust IndexMap.free(m)
 
     stdio.puts("index map tests passed")
 }
