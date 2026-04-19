@@ -228,6 +228,7 @@ pub fn main() i32! = {
     if std.string.rchar_cmp(exe_path2, ".") != 0 {
         exe_dir = path.dir(exe_path2)
     }
+    std.stdio.print("DEBUG: exe_dir={s}\n", {exe_dir})
 
     if !quiet && !emit_qbe && !print_ast {
         std.stdio.puts("[I  ]│ Resolving module")

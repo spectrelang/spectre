@@ -55,6 +55,8 @@ fn find_workspace_root(start_dir: ref char) ref char! = {
 /// Resolve a use-path string relative to the current file's directory.
 pub fn resolve_use_path(use_path: ref char, file_dir: ref char, exe_dir: ref char) ref char! = {
     val plen: i64 = str.len_raw(use_path)
+    
+    @printf("DEBUG: resolve_use_path: {s} file_dir={s} exe_dir={s}\n", {use_path, file_dir, exe_dir})
 
     if plen >= 3 {
         val c0: u8 = @load8(@ptradd(use_path as ref void, plen - 3))
