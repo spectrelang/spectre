@@ -70,13 +70,13 @@ pub fn (Arena) alloc(arena: self, size: usize) option[ref void] = {
 }
 
 /// Return the number of bytes currently used.
-pub fn (Arena) used(arena: self) usize! = {
-    return @load(@ptradd(arena, 8)) as usize
+pub fn (Arena) used(arena: self) usize = {
+    return trust @load(@ptradd(arena, 8)) as usize
 }
 
 /// Return the total capacity in bytes.
-pub fn (Arena) cap(arena: self) usize! = {
-    return @load(@ptradd(arena, 16)) as usize
+pub fn (Arena) cap(arena: self) usize = {
+    return trust @load(@ptradd(arena, 16)) as usize
 }
 
 /// Return the number of bytes remaining.
@@ -102,7 +102,7 @@ pub fn (Arena) reset(arena: self) void! = {
 }
 
 test {
-    val arena = Arena.new(64)?
+    val arena = trust Arena.new(64)?
 
     stdio.puts("done making new arena")
     assert Arena.cap(arena) == 64
@@ -119,7 +119,7 @@ test {
     assert Arena.used(arena) == 24
     assert Arena.remaining(arena) == 40
 
-    Arena.free(arena)
+    trust Arena.free(arena)
 }
 
 /// A Stack Allocator allows for LIFO (Last-In, First-Out) memory management.
@@ -191,7 +191,7 @@ pub fn (Stack) free(stack: mut self) void! = {
 }
 
 test {
-    val stack = Stack.new(1024)
+    val stack = trust Stack.new(1024)
     val marker = Stack.save(stack)
     val tmp1 = Stack.alloc(stack, 200)
 
@@ -203,5 +203,5 @@ test {
 
     assert p2 == tmp1
  
-    Stack.free(stack)
+    trust Stack.free(stack)
 }
