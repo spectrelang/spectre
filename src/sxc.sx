@@ -20,9 +20,9 @@ pub fn main() i32! = {
     val arena = allocators.Arena.new(65536)?
     val args = std.os.get_args()
     val argc: i64 = @len(args) as i64
-
     val exe_path: mut ref char = "./spectre"
     val exe_opt = @get(args, 0)
+    
     match exe_opt {
         some v => { exe_path = v as ref char }
         none   => {}
