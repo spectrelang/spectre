@@ -145,27 +145,27 @@ val stdio = use("stdio.sx")
 test {
     val path = "test_file.txt"
     val content = "Hello World"
-    delete(path)
+    trust delete(path)
     assert exists(path) == false
     val f_opt = open(path, "w")
     assert f_opt != none
     match f_opt {
         some f => {
-            write(f, content, 11)
-            close(f)
+            trust write(f, content, 11)
+            trust close(f)
         }
         none => {}
     }
     assert exists(path) == true
     val new_path = "test_file_renamed.txt"
-    rename_file(path, new_path)
+    trust rename_file(path, new_path)
     stdio.puts("hi8")
     assert exists(path) == false
     assert exists(new_path) == true
-    delete(new_path)
+    trust delete(new_path)
     assert exists(new_path) == false
 
-    val res = exec("echo hello")
+    val res = trust exec("echo hello")
     match res {
         ok s => {
             stdio.print("{s}", {string.cstr(s)})
