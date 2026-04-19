@@ -273,7 +273,7 @@ test {
     val doc_opt = trust parse(input)
     match doc_opt {
         none => { 
-            @dprintf(2, "input was {s}", {input})
+            trust @dprintf(2, "input was {s}", {input})
             assert false 
         }
         some handle => {
