@@ -1211,7 +1211,7 @@ test {
     }
 
     val sp2 = trust from("a,b,")
-    val parts2 = trust split(sp2, trust from(","))?
+    val parts2 = trust split(sp2, from(","))?
     assert(collections.PtrList.len(parts2) == 3)
     match collections.PtrList.get(parts2, 2) {
         some v => { assert(equals(v, trust from(""))) }
@@ -1255,7 +1255,7 @@ test {
 
     stdio.puts("string tests passed")
 
-    stdio.print("{s}", {trust cstr(format("hello {d}", {1}))})
+    trust stdio.print("{s}", {cstr(format("hello {d}", {1}))})
 
-    stdio.print("comparison: {d}\n", {trust compare(trust from("abc"), trust from("abc"))})
+    trust stdio.print("comparison: {d}\n", {compare(from("abc"), from("abc"))})
 }

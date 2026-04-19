@@ -296,7 +296,7 @@ pub fn (Map) get(map: self, key: usize) option[usize] = {
     val cap: usize = trust @load(@ptradd(map, 16)) as usize
     val buckets: ref void = trust @load(map)
     val hash_fn: ref void = trust @load(@ptradd(map, 24))
-    val h: usize = trust @call(hash_fn, key)
+    val h: usize = @call(hash_fn, key)
     val start: usize = h - (h / cap) * cap
 
     for (i = 0; i < cap; i++) {
@@ -358,7 +358,7 @@ pub fn (Map) contains(map: self, key: usize) bool = {
     pre {
         map_not_null: map != 0
     }
-    val result = trust Map.get(map, key)
+    val result = Map.get(map, key)
     val found: mut usize = 0
     match result {
         some _ => { found = 1 }
@@ -577,7 +577,7 @@ pub fn (StringMap) get(map: self, key: ref char) option[usize] = {
     val cap: usize = trust @load(@ptradd(map, 16)) as usize
     val buckets: ref void = trust @load(map)
     val hash_fn: ref void = trust @load(@ptradd(map, 24))
-    val h: usize = trust @call(hash_fn, key as usize)
+    val h: usize = @call(hash_fn, key as usize)
     val start: usize = h - (h / cap) * cap
 
     for (i = 0; i < cap; i++) {
@@ -600,7 +600,7 @@ pub fn (StringMap) get(map: self, key: ref char) option[usize] = {
 
 /// Check if a string key exists.
 pub fn (StringMap) contains(map: self, key: ref char) bool = {
-    val result = trust StringMap.get(map, key)
+    val result = StringMap.get(map, key)
     match result {
         some _ => { return true  }
         none   => { return false }

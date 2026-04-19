@@ -851,9 +851,13 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref char) v
         return
     }
     if k == parser.NK_TRUST {
-        if ctx.in_unsafe_fn != 0 {
-            val buf: ref char = @alloc(256) as ref char
-            @snprintf(buf, 256, "{s}:{lld}: redundant 'trust' statement; already in an unsafe context (marked with '!')", {filename, line})
+        if ctx.in_unsafe_fn != 0 || ctx.in_trust != 0 {
+            val buf: ref char = @alloc(512) as ref char
+            if ctx.in_unsafe_fn != 0 {
+                @snprintf(buf, 512, "{s}:{lld}: redundant 'trust' statement; already in an unsafe context (marked with '!')", {filename, line})
+            } else {
+                @snprintf(buf, 512, "{s}:{lld}: redundant 'trust' statement; already inside a 'trust' block", {filename, line})
+            }
             add_error(ctx, buf)
         }
         val pt_used: i64 = ctx.trust_used
@@ -862,9 +866,9 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref char) v
         ctx.in_trust = 1
         check_expr(ctx, expr.d0 as ref parser.Node, filename)
         ctx.in_trust = prev_trust
-        if ctx.trust_used == 0 && ctx.in_unsafe_fn == 0 {
-            val buf: ref char = @alloc(256) as ref char
-            @snprintf(buf, 256, "{s}:{lld}: redundant 'trust' statement; the expression is already pure", {filename, line})
+        if ctx.trust_used == 0 && ctx.in_unsafe_fn == 0 && ctx.in_trust == 0 {
+            val buf: ref char = @alloc(512) as ref char
+            @snprintf(buf, 512, "{s}:{lld}: redundant 'trust' statement; the expression is already pure", {filename, line})
             add_error(ctx, buf)
         }
         ctx.trust_used = pt_used | ctx.trust_used
@@ -1126,7 +1130,7 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref char) v
             }
         }
         
-        val is_unsafe_builtin: bool = str_eq(bname, "store8") || str_eq(bname, "store") || str_eq(bname, "load8") || str_eq(bname, "load") || str_eq(bname, "ptradd") || str_eq(bname, "dprintf") || str_eq(bname, "printf") || str_eq(bname, "memset") || str_eq(bname, "memcpy") || str_eq(bname, "memmove") || str_eq(bname, "free") || str_eq(bname, "realloc") || str_eq(bname, "addr") || str_eq(bname, "deref")
+        val is_unsafe_builtin: bool = str_eq(bname, "store8") || str_eq(bname, "store") || str_eq(bname, "load8") || str_eq(bname, "load") || str_eq(bname, "ptradd") || str_eq(bname, "dprintf") || str_eq(bname, "printf") || str_eq(bname, "fmt") || str_eq(bname, "memset") || str_eq(bname, "memcpy") || str_eq(bname, "memmove") || str_eq(bname, "free") || str_eq(bname, "realloc") || str_eq(bname, "addr") || str_eq(bname, "deref")
         if is_unsafe_builtin {
             if ctx.in_unsafe_fn == 0 && ctx.in_trust == 0 {
                 val ebuf: ref char = @alloc(512) as ref char

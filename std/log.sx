@@ -12,7 +12,7 @@ pub enum Level = {
     Fatal
 }
 
-val colors: mut bool = isatty(1) != 0
+val colors: mut bool = trust isatty(1) != 0
 val min_level: mut Level = Level.Debug
 
 pub fn set_colors(c: bool) void = {

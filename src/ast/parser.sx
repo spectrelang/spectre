@@ -1655,14 +1655,17 @@ fn parse_extern_fn_item(p: ref Parser, public: i64) result[ref Node, ref char]! 
     }
     p_expect_rparen(p)?
     val ret_ty = parse_type(p)?
-    p_eat_fn(p, kind_is_bang)
+    val is_unsafe: mut i64 = 0
+    if p_eat_fn(p, kind_is_bang) { is_unsafe = 1 }
     p_expect_eq(p)?
     val symbol = p_expect_string(p)?
     val nef: mut ref Node = make_node(NK_EXTERN_FN, line)
     nef.d0 = public nef.d1 = name as i64 nef.d2 = symbol as i64
     nef.d3 = conv as i64
     val pl: list[ref Node] = params
-    nef.d4 = pl as i64 nef.d5 = ret_ty as i64
+    nef.d4 = pl as i64
+    nef.d5 = ret_ty as i64
+    nef.d6 = is_unsafe
     return ok nef
 }
 

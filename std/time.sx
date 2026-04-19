@@ -215,7 +215,7 @@ test {
     assert DateTime.after(dt, dt2)  == true
     assert DateTime.equals(dt, dt)  == true
 
-    stdio.print("year: {d}\n", {DateTime.year(dt)})
+    trust stdio.print("year: {d}\n", {DateTime.year(dt)})
 
     trust DateTime.free(dt)
     trust DateTime.free(dt2)

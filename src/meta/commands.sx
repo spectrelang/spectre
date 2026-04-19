@@ -769,12 +769,12 @@ pub fn cmd_build(config_name: ref char, exe_path: ref char) i32 = {
                 return exit_code
             }
 
-            val cmd: mut ref char = @fmt("{s} {s}", {exe_path, m.entry})
+            val cmd: mut ref char = trust @fmt("{s} {s}", {exe_path, m.entry})
             if str.rchar_cmp(found_cfg.flags, "") != 0 {
-                cmd = @fmt("{s} {s}", {cmd, found_cfg.flags})
+                cmd = trust @fmt("{s} {s}", {cmd, found_cfg.flags})
             }
             if str.rchar_cmp(found_cfg.output, "") != 0 {
-                cmd = @fmt("{s} -o {s}", {cmd, found_cfg.output})
+                cmd = trust @fmt("{s} -o {s}", {cmd, found_cfg.output})
             }
             val exit_code: i32 = std.os.run(cmd)
             return exit_code
@@ -843,9 +843,9 @@ pub fn cmd_remove(dep_name: ref char) i32 = {
         return 1
     }
 
-    val lib_path: ref char = @fmt("lib/{s}", {dep_name})
+    val lib_path: ref char = trust @fmt("lib/{s}", {dep_name})
     if std.os.exists(lib_path) {
-        val rm_cmd: ref char = @fmt("rm -rf {s}", {lib_path})
+        val rm_cmd: ref char = trust @fmt("rm -rf {s}", {lib_path})
         std.os.run(rm_cmd)
         std.stdio.print("Removed {s}\n", {lib_path})
     } else {

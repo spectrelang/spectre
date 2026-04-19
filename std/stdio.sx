@@ -7,8 +7,8 @@ pub fn puts(arg: ref char) void = {
 ///
 /// This trusts an unsafe printf call for the sake of making debugging pure
 /// functions easier, use with caution.
-pub fn print(fmt: ref char, args: untyped) void = {
-    trust @printf(fmt, args)
+pub fn print(fmt: ref char, args: untyped) void! = {
+    @printf(fmt, args)
 }
 
 /// Print a string to stderr followed by a newline (fd 2).
@@ -37,5 +37,5 @@ pub fn read_line(buf: ref char, max_len: i64) ref char! = {
 test {
     val buffer: mut ref char = ""
     val result = trust read_line(buffer, 100)
-    print("{s}", result)
+    trust print("{s}", result)
 }
