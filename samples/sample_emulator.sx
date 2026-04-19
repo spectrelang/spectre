@@ -1,0 +1,665 @@
+val stdio = use("std/stdio")
+val fs = use("std/fs")
+val random = use("std/random")
+
+val MEMORY_SIZE: usize = 4096
+val DISPLAY_WIDTH: usize = 64
+val DISPLAY_HEIGHT: usize = 32
+val DISPLAY_SIZE: usize = 2048
+val STACK_SIZE: usize = 16
+val NUM_KEYS: usize = 16
+val NUM_REGISTERS: usize = 16
+val PROGRAM_START: u16 = 200
+val FONT_START: usize = 0
+val FONT_SIZE: usize = 80
+
+val chip8_fontset: mut list[u8] = [
+  0xF0, 0x90, 0x90, 0x90, 0xF0, // 0
+  0x20, 0x60, 0x20, 0x20, 0x70, // 1
+  0xF0, 0x10, 0xF0, 0x80, 0xF0, // 2
+  0xF0, 0x10, 0xF0, 0x10, 0xF0, // 3
+  0x90, 0x90, 0xF0, 0x10, 0x10, // 4
+  0xF0, 0x80, 0xF0, 0x10, 0xF0, // 5
+  0xF0, 0x80, 0xF0, 0x90, 0xF0, // 6
+  0xF0, 0x10, 0x20, 0x40, 0x40, // 7
+  0xF0, 0x90, 0xF0, 0x90, 0xF0, // 8
+  0xF0, 0x90, 0xF0, 0x10, 0xF0, // 9
+  0xF0, 0x90, 0xF0, 0x90, 0x90, // A
+  0xE0, 0x90, 0xE0, 0x90, 0xE0, // B
+  0xF0, 0x80, 0x80, 0x80, 0xF0, // C
+  0xE0, 0x90, 0x90, 0x90, 0xE0, // D
+  0xF0, 0x80, 0xF0, 0x80, 0xF0, // E
+  0xF0, 0x80, 0xF0, 0x80, 0x80  // F
+]
+
+/// Chip-8 CPU and state structure
+type Chip8 = {
+  opcode: mut u16,
+  memory: mut list[u8],
+  V: mut list[u8],        // 16 CPU registers
+  I: mut u16,             // Index register
+  pc: mut u16,            // Program counter
+  gfx: mut list[u8],      // Display pixels (64x32)
+  delay_timer: mut u8,
+  sound_timer: mut u8,
+  stack: mut list[u16],
+  sp: mut u16,
+  key: mut list[u8],
+  drawFlag: mut bool
+}
+
+// Create a new uninitialized Chip8 instance
+fn new_chip8() ref Chip8 = {
+  val chip: mut ref Chip8 = @alloc(@sizeof(Chip8)) as ref Chip8
+  chip.opcode = 0
+  chip.memory = []
+  chip.V = []
+  chip.I = 0
+  chip.pc = 0
+  chip.gfx = []
+  chip.delay_timer = 0
+  chip.sound_timer = 0
+  chip.stack = []
+  chip.sp = 0
+  chip.key = []
+  chip.drawFlag = false
+  
+  @reserve(chip.memory, MEMORY_SIZE)
+  @reserve(chip.V, NUM_REGISTERS)
+  @reserve(chip.gfx, DISPLAY_SIZE)
+  @reserve(chip.stack, STACK_SIZE)
+  @reserve(chip.key, NUM_KEYS)
+  
+  val i: mut usize = 0
+  for {
+    if i >= MEMORY_SIZE { break }
+    @append(chip.memory, 0)
+    i = i + 1
+  }
+  
+  i = 0
+  for {
+    if i >= NUM_REGISTERS { break }
+    @append(chip.V, 0)
+    i = i + 1
+  }
+  
+  i = 0
+  for {
+    if i >= DISPLAY_SIZE { break }
+    @append(chip.gfx, 0)
+    i = i + 1
+  }
+  
+  i = 0
+  for {
+    if i >= STACK_SIZE { break }
+    @append(chip.stack, 0)
+    i = i + 1
+  }
+  
+  i = 0
+  for {
+    if i >= NUM_KEYS { break }
+    @append(chip.key, 0)
+    i = i + 1
+  }
+  
+  return chip
+}
+
+/// Initialize Chip8 state
+fn chip8_init(chip: mut ref Chip8) void = {
+  chip.pc = PROGRAM_START
+  chip.opcode = 0
+  chip.I = 0
+  chip.sp = 0
+  
+  val i: mut usize = 0
+  for {
+    if i >= DISPLAY_SIZE { break }
+    match @get(chip.gfx, i) {
+      some _ => {
+        @remove(chip.gfx, i)
+        @append(chip.gfx, 0)
+      }
+      none => { @append(chip.gfx, 0) }
+    }
+    i = i + 1
+  }
+  
+  // Clear registers
+  i = 0
+  for {
+    if i >= NUM_REGISTERS { break }
+    match @get(chip.V, i) {
+      some _ => {
+        @remove(chip.V, i)
+        @append(chip.V, 0)
+      }
+      none => { @append(chip.V, 0) }
+    }
+    i = i + 1
+  }
+  
+  // Clear stack
+  i = 0
+  for {
+    if i >= STACK_SIZE { break }
+    match @get(chip.stack, i) {
+      some _ => {
+        @remove(chip.stack, i)
+        @append(chip.stack, 0)
+      }
+      none => { @append(chip.stack, 0) }
+    }
+    i = i + 1
+  }
+  
+  // Clear key state
+  i = 0
+  for {
+    if i >= NUM_KEYS { break }
+    match @get(chip.key, i) {
+      some _ => {
+        @remove(chip.key, i)
+        @append(chip.key, 0)
+      }
+      none => { @append(chip.key, 0) }
+    }
+    i = i + 1
+  }
+  
+  // Load fontset
+  i = 0
+  for {
+    if i >= FONT_SIZE { break }
+    val font_byte = @get(chip8_fontset, i)
+    match font_byte {
+      some b => {
+        match @get(chip.memory, i) {
+          some _ => {
+            @remove(chip.memory, i)
+          }
+          none => { }
+        }
+        @append(chip.memory, b)
+      }
+      none => { }
+    }
+    i = i + 1
+  }
+  
+  chip.delay_timer = 0
+  chip.sound_timer = 0
+  chip.drawFlag = false
+}
+
+// Load ROM file into memory
+fn chip8_load(chip: mut ref Chip8, path: ref char) bool! = {
+  chip8_init(chip)
+  
+  match fs.read_all(path) {
+    some rom_data => {
+      val rom_len: mut i64 = 0
+      for {
+        val byte: u8 = @load8(@ptradd(rom_data as ref void, rom_len))
+        if byte == 0 { break }
+        rom_len = rom_len + 1
+      }
+      
+      if rom_len > (4096 - 512) {
+        stdio.puts("ROM too large to fit in device memory.")
+        @free(rom_data as ref void)
+        return false
+      }
+      
+      val j: mut i64 = 0
+      for {
+        if j >= rom_len { break }
+        val byte: u8 = @load8(@ptradd(rom_data as ref void, j))
+        mem_set(chip, (512 + j) as u16, byte)
+        j = j + 1
+      }
+      
+      @free(rom_data as ref void)
+      return true
+    }
+    none => {
+      stdio.puts("Failed to open ROM")
+      return false
+    }
+  }
+}
+
+// Get a byte from memory at address
+fn mem_get(chip: ref Chip8, addr: u16) u8 = {
+  val index: usize = addr as usize
+  match @get(chip.memory, index) {
+    some b => { return b }
+    none => { return 0 }
+  }
+}
+
+// Set a byte in memory at address
+fn mem_set(chip: mut ref Chip8, addr: u16, value: u8) void = {
+  val index: usize = addr as usize
+  match @get(chip.memory, index) {
+    some _ => {
+      @remove(chip.memory, index)
+    }
+    none => { }
+  }
+  @append(chip.memory, value)
+}
+
+// Get a register value
+fn get_vx(chip: ref Chip8, x: u16) u8 = {
+  val index: usize = (x & 0x0F) as usize
+  match @get(chip.V, index) {
+    some v => { return v }
+    none => { return 0 }
+  }
+}
+
+// Set a register value
+fn set_vx(chip: mut ref Chip8, x: u16, value: u8) void = {
+  val index: usize = (x & 0x0F) as usize
+  match @get(chip.V, index) {
+    some _ => {
+      @remove(chip.V, index)
+    }
+    none => { }
+  }
+  @append(chip.V, value)
+}
+
+// Get VF (carry flag)
+fn get_vf(chip: ref Chip8) u8 = {
+  match @get(chip.V, 0xF) {
+    some v => { return v }
+    none => { return 0 }
+  }
+}
+
+// Set VF (carry flag)
+fn set_vf(chip: mut ref Chip8, value: u8) void = {
+  match @get(chip.V, 0xF) {
+    some _ => {
+      @remove(chip.V, 0xF)
+    }
+    none => { }
+  }
+  @append(chip.V, value)
+}
+
+fn chip8_emulateCycle(chip: mut ref Chip8) void = {
+  chip.opcode = (((mem_get(chip, chip.pc) as u16) << 8) || (mem_get(chip, chip.pc + 1) as u16))
+  
+  val opcode_high: u16 = chip.opcode & 0xF000
+  
+  if opcode_high == 0x0000 {
+    val opcode_low: u16 = chip.opcode & 0x000F
+    if opcode_low == 0x0000 {
+      val i: mut usize = 0
+      for {
+        if i >= DISPLAY_SIZE { break }
+        match @get(chip.gfx, i) {
+          some _ => { @remove(chip.gfx, i) @append(chip.gfx, 0) }
+          none => { @append(chip.gfx, 0) }
+        }
+        i = i + 1
+      }
+      chip.drawFlag = true
+      chip.pc = chip.pc + 2
+    } elif opcode_low == 0x000E {
+      chip.sp = chip.sp - 1
+      match @get(chip.stack, chip.sp as usize) {
+        some addr => { chip.pc = addr + 2 }
+        none => { chip.pc = chip.pc + 2 }
+      }
+    } else {
+      trust @printf("Unknown opcode: {x}\n", chip.opcode)
+    }
+  } elif opcode_high == 0x1000 {
+    chip.pc = chip.opcode & 0x0FFF
+  } elif opcode_high == 0x2000 {
+    match @get(chip.stack, chip.sp as usize) {
+      some _ => { @remove(chip.stack, chip.sp as usize) }
+      none => { }
+    }
+    @append(chip.stack, chip.pc)
+    chip.sp = chip.sp + 1
+    chip.pc = chip.opcode & 0x0FFF
+  } elif opcode_high == 0x3000 {
+    // 0x3XNN - Skip if VX == NN
+    val x: u16 = (chip.opcode & 0x0F00) >> 8
+    val nn: u16 = chip.opcode & 0x00FF
+    if ((get_vx(chip, x) as u16) == nn) {
+      chip.pc = chip.pc + 4
+    } else {
+      chip.pc = chip.pc + 2
+    }
+  } elif opcode_high == 0x4000 {
+    // 0x4XNN - Skip if VX != NN
+    val x: u16 = (chip.opcode & 0x0F00) >> 8
+    val nn: u16 = chip.opcode & 0x00FF
+    if ((get_vx(chip, x) as u16) != nn) {
+      chip.pc = chip.pc + 4
+    } else {
+      chip.pc = chip.pc + 2
+    }
+  } elif opcode_high == 0x5000 {
+    // 0x5XY0 - Skip if VX == VY
+    val x: u16 = (chip.opcode & 0x0F00) >> 8
+    val y: u16 = (chip.opcode & 0x00F0) >> 4
+    if get_vx(chip, x) == get_vx(chip, y) {
+      chip.pc = chip.pc + 4
+    } else {
+      chip.pc = chip.pc + 2
+    }
+  } elif opcode_high == 0x6000 {
+    // 0x6XNN - Set VX = NN
+    val x: u16 = (chip.opcode & 0x0F00) >> 8
+    val nn: u8 = (chip.opcode & 0x00FF) as u8
+    set_vx(chip, x, nn)
+    chip.pc = chip.pc + 2
+  } elif opcode_high == 0x7000 {
+    // 0x7XNN - Add NN to VX
+    val x: u16 = (chip.opcode & 0x0F00) >> 8
+    val nn: u8 = (chip.opcode & 0x00FF) as u8
+    set_vx(chip, x, get_vx(chip, x) + nn)
+    chip.pc = chip.pc + 2
+  } elif opcode_high == 0x8000 {
+    val x: u16 = (chip.opcode & 0x0F00) >> 8
+    val y: u16 = (chip.opcode & 0x00F0) >> 4
+    val opcode_lowest: u16 = chip.opcode & 0x000F
+    
+    if opcode_lowest == 0x0000 {
+      // 0x8XY0 - Set VX = VY
+      set_vx(chip, x, get_vx(chip, y))
+      chip.pc = chip.pc + 2
+    } elif opcode_lowest == 0x0001 {
+      set_vx(chip, x, get_vx(chip, x) | get_vx(chip, y))
+      chip.pc = chip.pc + 2
+    } elif opcode_lowest == 0x0002 {
+      set_vx(chip, x, get_vx(chip, x) & get_vx(chip, y))
+      chip.pc = chip.pc + 2
+    } elif opcode_lowest == 0x0003 {
+      set_vx(chip, x, get_vx(chip, x) ^ get_vx(chip, y))
+      chip.pc = chip.pc + 2
+    } elif opcode_lowest == 0x0004 {
+      // 0x8XY4 - Add VY to VX, set VF = carry
+      val vx: u8 = get_vx(chip, x)
+      val vy: u8 = get_vx(chip, y)
+      if vy > (0xFF as u8 - vx) {
+        set_vf(chip, 1)
+      } else {
+        set_vf(chip, 0)
+      }
+      set_vx(chip, x, vx + vy)
+      chip.pc = chip.pc + 2
+    } elif opcode_lowest == 0x0005 {
+      // 0x8XY5 - Subtract VY from VX, set VF = !borrow
+      val vx: u8 = get_vx(chip, x)
+      val vy: u8 = get_vx(chip, y)
+      if vy > vx {
+        set_vf(chip, 0)
+      } else {
+        set_vf(chip, 1)
+      }
+      set_vx(chip, x, vx - vy)
+      chip.pc = chip.pc + 2
+    } elif opcode_lowest == 0x0006 {
+      // 0x8XY6 - Set VF = VX & 1, then VX >>= 1
+      val vx: u8 = get_vx(chip, x)
+      set_vf(chip, vx & 0x1)
+      set_vx(chip, x, vx >> 1)
+      chip.pc = chip.pc + 2
+    } elif opcode_lowest == 0x0007 {
+      // 0x8XY7 - Set VX = VY - VX, set VF = !borrow
+      val vx: u8 = get_vx(chip, x)
+      val vy: u8 = get_vx(chip, y)
+      if vx > vy {
+        set_vf(chip, 0)
+      } else {
+        set_vf(chip, 1)
+      }
+      set_vx(chip, x, vy - vx)
+      chip.pc = chip.pc + 2
+    } elif opcode_lowest == 0x000E {
+      // 0x8XYE - Set VF = VX >> 7, then VX <<= 1
+      val vx: u8 = get_vx(chip, x)
+      set_vf(chip, (vx >> 7) & 0x1)
+      set_vx(chip, x, vx << 1)
+      chip.pc = chip.pc + 2
+    } else {
+      trust @printf("Unknown opcode: {x}\n", chip.opcode)
+    }
+  } elif opcode_high == 0x9000 {
+    // 0x9XY0 - Skip if VX != VY
+    val x: u16 = (chip.opcode & 0x0F00) >> 8
+    val y: u16 = (chip.opcode & 0x00F0) >> 4
+    if get_vx(chip, x) != get_vx(chip, y) {
+      chip.pc = chip.pc + 4
+    } else {
+      chip.pc = chip.pc + 2
+    }
+  } elif opcode_high == 0xA000 {
+    // 0xANNN - Set I = NNN
+    chip.I = chip.opcode & 0x0FFF
+    chip.pc = chip.pc + 2
+  } elif opcode_high == 0xB000 {
+    // 0xBNNN - Jump to NNN + V0
+    chip.pc = (chip.opcode & 0x0FFF) + (get_vx(chip, 0) as u16)
+  } elif opcode_high == 0xC000 {
+    // 0xCXNN - Set VX = random & NN
+    val x: u16 = (chip.opcode & 0x0F00) >> 8
+    val nn: u8 = (chip.opcode & 0x00FF) as u8
+    val rand_val: u32 = random.random_u32_below(256)
+    set_vx(chip, x, (rand_val as u8) & nn)
+    chip.pc = chip.pc + 2
+  } elif opcode_high == 0xD000 {
+    // 0xDXYN - Draw sprite at VX, VY with height N
+    val x: u16 = (chip.opcode & 0x0F00) >> 8
+    val y: u16 = (chip.opcode & 0x00F0) >> 4
+    val height: u16 = chip.opcode & 0x000F
+    
+    val px: u8 = get_vx(chip, x)
+    val py: u8 = get_vx(chip, y)
+    
+    set_vf(chip, 0)
+    
+    val yline: mut u16 = 0
+    for {
+      if yline >= height { break }
+      
+      val pixel: u8 = mem_get(chip, chip.I + yline)
+      val xline: mut u8 = 0
+      for {
+        if xline >= 8 { break }
+        
+        if ((pixel & (0x80 >> (xline as u16))) != 0) {
+          val pos: u16 = ((px as u16) + (xline as u16)) + (((py as u16) + yline) * 64)
+          if pos < DISPLAY_SIZE as u16 {
+            match @get(chip.gfx, pos as usize) {
+              some pixel_val => {
+                if pixel_val == 1 {
+                  set_vf(chip, 1)
+                }
+                @remove(chip.gfx, pos as usize)
+                @append(chip.gfx, (pixel_val ^ 1) as u8)
+              }
+              none => { }
+            }
+          }
+        }
+        xline = xline + 1
+      }
+      yline = yline + 1
+    }
+    
+    chip.drawFlag = true
+    chip.pc = chip.pc + 2
+  } elif opcode_high == 0xE000 {
+    val opcode_low: u16 = chip.opcode & 0x00FF
+    if opcode_low == 0x009E {
+      val x: u16 = (chip.opcode & 0x0F00) >> 8
+      val key_idx: usize = get_vx(chip, x) as usize
+      match @get(chip.key, key_idx) {
+        some k => {
+          if k != 0 {
+            chip.pc = chip.pc + 4
+          } else {
+            chip.pc = chip.pc + 2
+          }
+        }
+        none => { chip.pc = chip.pc + 2 }
+      }
+    } elif opcode_low == 0x00A1 {
+      // 0xEXA1 - Skip if key VX is not pressed
+      val x: u16 = (chip.opcode & 0x0F00) >> 8
+      val key_idx: usize = get_vx(chip, x) as usize
+      match @get(chip.key, key_idx) {
+        some k => {
+          if k == 0 {
+            chip.pc = chip.pc + 4
+          } else {
+            chip.pc = chip.pc + 2
+          }
+        }
+        none => { chip.pc = chip.pc + 4 }
+      }
+    } else {
+      trust @printf("Unknown opcode: {x}\n", chip.opcode)
+    }
+  } elif opcode_high == 0xF000 {
+    val x: u16 = (chip.opcode & 0x0F00) >> 8
+    val opcode_low: u16 = chip.opcode & 0x00FF
+    
+    if opcode_low == 0x0007 {
+      set_vx(chip, x, chip.delay_timer)
+      chip.pc = chip.pc + 2
+    } elif opcode_low == 0x000A {
+      val i: mut usize = 0
+      val key_pressed: mut bool = false
+      for {
+        if i >= NUM_KEYS { break }
+        match @get(chip.key, i) {
+          some k => {
+            if k != 0 {
+              set_vx(chip, x, i as u8)
+              key_pressed = true
+              break
+            }
+          }
+          none => { }
+        }
+        i = i + 1
+      }
+      if !key_pressed {
+        return
+      }
+      chip.pc = chip.pc + 2
+    } elif opcode_low == 0x0015 {
+      // 0xFX15 - Set delay_timer = VX
+      chip.delay_timer = get_vx(chip, x)
+      chip.pc = chip.pc + 2
+    } elif opcode_low == 0x0018 {
+      // 0xFX18 - Set sound_timer = VX
+      chip.sound_timer = get_vx(chip, x)
+      chip.pc = chip.pc + 2
+    } elif opcode_low == 0x001E {
+      // 0xFX1E - Add VX to I
+      val vx_val: u16 = get_vx(chip, x) as u16
+      if chip.I + vx_val > 0xFFF {
+        set_vf(chip, 1)
+      } else {
+        set_vf(chip, 0)
+      }
+      chip.I = chip.I + vx_val
+      chip.pc = chip.pc + 2
+    } elif opcode_low == 0x0029 {
+      // 0xFX29 - Set I = location of sprite for digit VX
+      chip.I = (get_vx(chip, x) as u16) * 5
+      chip.pc = chip.pc + 2
+    } elif opcode_low == 0x0033 {
+      // 0xFX33 - Store BCD of VX at I, I+1, I+2
+      val vx_val: u8 = get_vx(chip, x)
+      mem_set(chip, chip.I, vx_val / 100)
+      mem_set(chip, chip.I + 1, (vx_val / 10) % 10)
+      mem_set(chip, chip.I + 2, vx_val % 10)
+      chip.pc = chip.pc + 2
+    } elif opcode_low == 0x0055 {
+      // 0xFX55 - Store registers V0-VX at I onwards
+      val x_val: u16 = (chip.opcode & 0x0F00) >> 8
+      val i: mut u16 = 0
+      for {
+        if i > x_val { break }
+        mem_set(chip, chip.I + i, get_vx(chip, i))
+        i = i + 1
+      }
+      chip.I = chip.I + x_val + 1
+      chip.pc = chip.pc + 2
+    } elif opcode_low == 0x0065 {
+      // 0xFX65 - Load registers V0-VX from I onwards
+      val x_val: u16 = (chip.opcode & 0x0F00) >> 8
+      val i: mut u16 = 0
+      for {
+        if i > x_val { break }
+        set_vx(chip, i, mem_get(chip, chip.I + i))
+        i = i + 1
+      }
+      chip.I = chip.I + x_val + 1
+      chip.pc = chip.pc + 2
+    } else {
+      trust @printf("Unknown opcode: {x}\n", chip.opcode)
+    }
+  } else {
+    trust @printf("Unimplemented opcode: {x}\n", chip.opcode)
+  }
+  
+  // Decrement timers
+  if chip.delay_timer > 0 {
+    chip.delay_timer = chip.delay_timer - 1
+  }
+  
+  if chip.sound_timer > 0 {
+    chip.sound_timer = chip.sound_timer - 1
+  }
+}
+
+pub fn main() void = {
+  val args = @args()
+  
+  if @len(args) < 2 {
+    stdio.puts("usage: cemu <rom file>")
+    return
+  }
+  
+  match @get(args, 1) {
+    some arg => {
+      if arg == "--about" {
+        stdio.puts("CEMU")
+        stdio.puts("By Navid M (c) 2025")
+        stdio.puts("https://gitlab.com/navid-m/cemu")
+        return
+      }
+      
+      val chip: mut ref Chip8 = new_chip8()
+      match trust chip8_load(chip, arg) {
+        ok _ => {
+          stdio.puts("ROM loaded successfully!")
+          stdio.puts("Display dimensions: 64x32 pixels")
+          stdio.puts("TODO: Implement SDL2 rendering")
+        }
+        err _ => {
+          stdio.puts("Failed to load ROM")
+        }
+      }
+    }
+    none => {
+      stdio.puts("usage: cemu <rom file>")
+    }
+  }
+}
