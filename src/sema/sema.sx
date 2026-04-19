@@ -1108,7 +1108,7 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref char) v
             }
         }
         
-        val is_unsafe_builtin: bool = str_eq(bname, "alloc") || str_eq(bname, "store8") || str_eq(bname, "store") || str_eq(bname, "load8") || str_eq(bname, "load") || str_eq(bname, "ptradd") || str_eq(bname, "memset") || str_eq(bname, "memcpy") || str_eq(bname, "memmove") || str_eq(bname, "free") || str_eq(bname, "realloc") || str_eq(bname, "addr") || str_eq(bname, "deref")
+        val is_unsafe_builtin: bool = str_eq(bname, "store8") || str_eq(bname, "store") || str_eq(bname, "load8") || str_eq(bname, "load") || str_eq(bname, "ptradd") || str_eq(bname, "memset") || str_eq(bname, "memcpy") || str_eq(bname, "memmove") || str_eq(bname, "free") || str_eq(bname, "realloc") || str_eq(bname, "addr") || str_eq(bname, "deref")
         if is_unsafe_builtin && ctx.in_unsafe_fn == 0 && ctx.in_trust == 0 {
             val ebuf: ref char = @alloc(512) as ref char
             @snprintf(ebuf, 512, "{s}:{lld}: unsafe builtin '@{s}' can only be used in functions marked with '!' or inside 'trust' blocks", {filename, line, bname})
