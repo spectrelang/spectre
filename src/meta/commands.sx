@@ -741,23 +741,13 @@ pub fn cmd_build(config_name: ref char, exe_path: ref char) i32 = {
             return 1
         }
         some m => {
-            val nbuilds: i64 = @len(m.builds) as i64
             val found_cfg: mut ref SxBuildConfig = 0 as ref SxBuildConfig
-            val bi: mut i64 = 0
-            for {
-                if bi >= nbuilds { break }
-                val opt = @get(m.builds, bi as usize)
-                match opt {
-                    some raw => {
-                        val cfg: ref SxBuildConfig = raw as ref SxBuildConfig
-                        if str.rchar_cmp(cfg.name, config_name) == 0 {
-                            found_cfg = cfg
-                            break
-                        }
-                    }
-                    none => {}
+            val builds: list[ref SxBuildConfig] = m.builds
+            for cfg in builds {
+                if str.rchar_cmp(cfg.name, config_name) == 0 {
+                    found_cfg = cfg
+                    break
                 }
-                bi++
             }
             if found_cfg == 0 as ref SxBuildConfig {
                 std.stdio.print("error: build config '{s}' not found in sx.mod\n", {config_name})
