@@ -2041,6 +2041,30 @@ fn check_duplicates(ctx: ref SemaCtx, filename: ref char) void! = {
     }
 }
 
+fn is_function_public(items: list[ref parser.Node], fn_name: ref char) bool! = {
+    for item in items {
+        if item == 0 as ref parser.Node { continue }
+        val k: i64 = item.kind
+        if k == parser.NK_FN {
+            if item.d0 == 1 {
+                val name: ref char = item.d2 as ref char
+                if name != 0 as ref char && str_eq(name, fn_name) {
+                    return true
+                }
+            }
+        } elif k == parser.NK_EXTERN_FN {
+            if item.d0 == 1 {
+                val name: ref char = item.d1 as ref char
+                if name != 0 as ref char && str_eq(name, fn_name) {
+                    return true
+                }
+            }
+        }
+    }
+    return false
+}
+
+
 pub fn check_module(items: list[ref parser.Node], filename: ref char, root: ref modinfo.ResolvedModule, quiet: i64) list[ref char]! = {
     val ctx: mut ref SemaCtx = sema_new()
     ctx.root_mod = root
@@ -2072,7 +2096,8 @@ pub fn check_module(items: list[ref parser.Node], filename: ref char, root: ref 
                     for vn in ctx.variant_names {
                         if str_eq(vn as ref char, namec) { is_variant = true break }
                     }
-                    if !str_eq(namec, "main") && !is_variant {
+                    val is_public: bool = is_function_public(items, namec)
+                    if !str_eq(namec, "main") && !is_variant && !is_public {
                         val wbuf: ref char = @alloc(256) as ref char
                         @snprintf(wbuf, 256, "{s}: unused function '{s}'", {filename, namec})
                         @append(ctx.warnings, wbuf)
