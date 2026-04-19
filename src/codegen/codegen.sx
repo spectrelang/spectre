@@ -6465,50 +6465,72 @@ fn gen_match_res(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
     val err_lbl: i64 = fresh_lbl(ctx)
     val end_lbl: i64 = fresh_lbl(ctx)
     val buf: ref char = @alloc(256) as ref char
-    val is_direct_param: mut bool = false
-
-    if @load8(expr) as i64 == 37 {  // '%'
-        val second_char: i64 = @load8(@ptradd(expr, 1)) as i64
-        if second_char != 116 {  // not 't'
-            is_direct_param = true
-        }
-    }
-
-    if is_direct_param {
-        @snprintf(buf, 256,
-            "    %%t{lld} =l copy {s}\n    %%t{lld} =w ceql %%t{lld}, 0\n    jnz %%t{lld}, @lbl{lld}, @lbl{lld}\n@lbl{lld}\n",
-            {tag, expr, is_ok, tag, is_ok, ok_lbl, err_lbl, ok_lbl})
-    } else {
-        @snprintf(buf, 256,
-            "    %%t{lld} =l loadl {s}\n    %%t{lld} =w ceql %%t{lld}, 0\n    jnz %%t{lld}, @lbl{lld}, @lbl{lld}\n@lbl{lld}\n",
-            {tag, expr, is_ok, tag, is_ok, ok_lbl, err_lbl, ok_lbl})
-    }
-
-    emit(ctx, buf)
-    @free(buf)
 
     val result_ann: ref char = infer_type_annotation(ctx, expr_node)
     val ok_type_buf: ref char = @alloc(256) as ref char
     val err_type_buf: ref char = @alloc(256) as ref char
     parse_result_types(result_ann, ok_type_buf, err_type_buf)
+    val is_real_result: bool = str.rchar_cmp(result_ann, "") == 0 || rchar_starts_with(result_ann, "result[")
 
-    if ok_bind != 0 as ref char {
-        val off_ok: i64 = fresh_tmp(ctx)
-        val val_ok: i64 = fresh_tmp(ctx)
-        val vbuf: ref char = @alloc(256) as ref char
-        @snprintf(vbuf, 256,
-            "    %%t{lld} =l add {s}, 8\n    %%t{lld} =l loadl %%t{lld}\n",
-            {off_ok, expr, val_ok, off_ok})
-        emit(ctx, vbuf)
-        @free(vbuf)
-        val tmp_str: ref char = @alloc(16) as ref char
-        @snprintf(tmp_str, 16, "{lld}", {val_ok})
-        cg_register_local_var(ctx, ok_bind, tmp_str)
-        val ok_inner: ref char = ok_type_buf
-        if str.rchar_cmp(ok_inner, "") != 0 {
-            cg_register_local_type(ctx, ok_bind, ok_inner)
-            if rchar_starts_with(ok_inner, "ref ") {
-                cg_register_local_ref_type(ctx, ok_bind)
+    if is_real_result {
+        val is_direct_param: mut bool = false
+        if @load8(expr) as i64 == 37 {  // '%'
+            val second_char: i64 = @load8(@ptradd(expr, 1)) as i64
+            if second_char != 116 {  // not 't'
+                is_direct_param = true
+            }
+        }
+        if is_direct_param {
+            @snprintf(buf, 256,
+                "    %%t{lld} =l copy {s}\n    %%t{lld} =w ceql %%t{lld}, 0\n    jnz %%t{lld}, @lbl{lld}, @lbl{lld}\n@lbl{lld}\n",
+                {tag, expr, is_ok, tag, is_ok, ok_lbl, err_lbl, ok_lbl})
+        } else {
+            @snprintf(buf, 256,
+                "    %%t{lld} =l loadl {s}\n    %%t{lld} =w ceql %%t{lld}, 0\n    jnz %%t{lld}, @lbl{lld}, @lbl{lld}\n@lbl{lld}\n",
+                {tag, expr, is_ok, tag, is_ok, ok_lbl, err_lbl, ok_lbl})
+        }
+    } else {
+        @snprintf(buf, 256,
+            "    %%t{lld} =w copy 1\n    jnz {s}, @lbl{lld}, @lbl{lld}\n@lbl{lld}\n",
+            {tag, expr, ok_lbl, err_lbl, ok_lbl})
+    }
+
+    emit(ctx, buf)
+    @free(buf)
+
+    if is_real_result {
+        if ok_bind != 0 as ref char {
+            val off_ok: i64 = fresh_tmp(ctx)
+            val val_ok: i64 = fresh_tmp(ctx)
+            val vbuf: ref char = @alloc(256) as ref char
+            @snprintf(vbuf, 256,
+                "    %%t{lld} =l add {s}, 8\n    %%t{lld} =l loadl %%t{lld}\n",
+                {off_ok, expr, val_ok, off_ok})
+            emit(ctx, vbuf)
+            @free(vbuf)
+            val tmp_str: ref char = @alloc(16) as ref char
+            @snprintf(tmp_str, 16, "{lld}", {val_ok})
+            cg_register_local_var(ctx, ok_bind, tmp_str)
+            val ok_inner: ref char = ok_type_buf
+            if str.rchar_cmp(ok_inner, "") != 0 {
+                cg_register_local_type(ctx, ok_bind, ok_inner)
+                if rchar_starts_with(ok_inner, "ref ") {
+                    cg_register_local_ref_type(ctx, ok_bind)
+                }
+            }
+        }
+    } else {
+        if ok_bind != 0 as ref char {
+            val ok_copy: i64 = fresh_tmp(ctx)
+            val ok_cbuf: ref char = @alloc(64) as ref char
+            @snprintf(ok_cbuf, 64, "    %%t{lld} =l copy {s}\n", {ok_copy, expr})
+            emit(ctx, ok_cbuf)
+            @free(ok_cbuf)
+            val ok_str: ref char = @alloc(16) as ref char
+            @snprintf(ok_str, 16, "{lld}", {ok_copy})
+            cg_register_local_var(ctx, ok_bind, ok_str)
+            if str.rchar_cmp(result_ann, "") != 0 {
+                cg_register_local_type(ctx, ok_bind, result_ann)
             }
         }
     }
@@ -6526,18 +6548,31 @@ fn gen_match_res(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
     }
     @free(jbuf)
 
-    if err_bind != 0 as ref char {
-        val off_err: i64 = fresh_tmp(ctx)
-        val val_err: i64 = fresh_tmp(ctx)
-        val vbuf2: ref char = @alloc(256) as ref char
-        @snprintf(vbuf2, 256,
-            "    %%t{lld} =l add {s}, 8\n    %%t{lld} =l loadl %%t{lld}\n    %%{s} =l copy %%t{lld}\n",
-            {off_err, expr, val_err, off_err, err_bind, val_err})
-        emit(ctx, vbuf2)
-        @free(vbuf2)
-        val tmp_str_err: ref char = @alloc(16) as ref char
-        @snprintf(tmp_str_err, 16, "{lld}", {val_err})
-        cg_register_local_var(ctx, err_bind, tmp_str_err)
+    if is_real_result {
+        if err_bind != 0 as ref char {
+            val off_err: i64 = fresh_tmp(ctx)
+            val val_err: i64 = fresh_tmp(ctx)
+            val vbuf2: ref char = @alloc(256) as ref char
+            @snprintf(vbuf2, 256,
+                "    %%t{lld} =l add {s}, 8\n    %%t{lld} =l loadl %%t{lld}\n    %%{s} =l copy %%t{lld}\n",
+                {off_err, expr, val_err, off_err, err_bind, val_err})
+            emit(ctx, vbuf2)
+            @free(vbuf2)
+            val tmp_str_err: ref char = @alloc(16) as ref char
+            @snprintf(tmp_str_err, 16, "{lld}", {val_err})
+            cg_register_local_var(ctx, err_bind, tmp_str_err)
+        }
+    } else {
+        if err_bind != 0 as ref char {
+            val err_tmp: i64 = fresh_tmp(ctx)
+            val err_zbuf: ref char = @alloc(64) as ref char
+            @snprintf(err_zbuf, 64, "    %%t{lld} =l copy 0\n", {err_tmp})
+            emit(ctx, err_zbuf)
+            @free(err_zbuf)
+            val err_str: ref char = @alloc(16) as ref char
+            @snprintf(err_str, 16, "{lld}", {err_tmp})
+            cg_register_local_var(ctx, err_bind, err_str)
+        }
     }
     if err_body_node != 0 as ref parser.Node {
         gen_stmts(ctx, err_body_node.d0 as ref parser.Node)
