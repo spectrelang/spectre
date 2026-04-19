@@ -191,6 +191,25 @@ fn unwrap_and_find_root(node: ref parser.Node) ref parser.Node! = {
     return 0 as ref parser.Node
 }
 
+fn sema_find_fn_in_module(mod: ref modinfo.ResolvedModule, name: ref char) ref parser.Node! = {
+    if mod == 0 as ref modinfo.ResolvedModule { return 0 as ref parser.Node }
+    val items: list[ref parser.Node] = modinfo.module_items(mod)
+    for item in items {
+        if item.kind == parser.NK_FN {
+            val fname: ref char = item.d2 as ref char
+            if fname != 0 as ref char && str_eq(fname, name) {
+                return item
+            }
+        } elif item.kind == parser.NK_EXTERN_FN {
+            val fname: ref char = item.d1 as ref char
+            if fname != 0 as ref char && str_eq(fname, name) {
+                return item
+            }
+        }
+    }
+    return 0 as ref parser.Node
+}
+
 /// Returns mutable flag (0 or 1) or -1 if not found.
 fn scope_lookup(ctx: ref SemaCtx, name: ref char) i64! = {
     guarded pre {
@@ -967,6 +986,29 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref char) v
                         none => {}
                     }
                     fi++
+                }
+            }
+        }
+        
+        if fn_found == 0 as ref parser.Node && callee.kind == parser.NK_FIELD {
+            val fname: ref char = parser.field_name(callee)
+            val fbase: ref parser.Node = parser.field_base(callee)
+            if fbase != 0 as ref parser.Node && fbase.kind == parser.NK_IDENT {
+                val modname: ref char = fbase.d0 as ref char
+                val rmod: ref modinfo.ResolvedModule = ctx.root_mod
+                if rmod != 0 as ref modinfo.ResolvedModule {
+                    val n: i64 = modinfo.import_count(rmod)
+                    val i: mut i64 = 0
+                    for {
+                        if i >= n { break }
+                        val mname: ref char = modinfo.import_name_at(rmod, i as usize)
+                        if mname != 0 as ref char && str_eq(mname, modname) {
+                            val mm: ref modinfo.ResolvedModule = modinfo.import_module_at(rmod, i as usize)
+                            fn_found = sema_find_fn_in_module(mm, fname)
+                            break
+                        }
+                        i++
+                    }
                 }
             }
         }

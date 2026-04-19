@@ -11,12 +11,12 @@ when posix {
 
 /// Fill `buf` with `len` cryptographically secure random bytes.
 pub fn random_bytes(buf: ref void, len: usize) void = {
-    arc4random_buf(buf, len)
+    trust arc4random_buf(buf, len)
 }
 
 /// Return a cryptographically secure random u64.
 pub fn random_u64() u64 = {
-    val buf: ref void = trust @alloc(8)
+    val buf: ref void = @alloc(8)
     trust arc4random_buf(buf, 8)
     val result: u64 = trust @load(buf) as u64
     trust @free(buf)

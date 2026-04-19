@@ -95,7 +95,7 @@ pub fn error(msg: ref char) void = {
 
 pub fn fatal(msg: ref char) void = {
     trust log_err(msg, "FATAL", "\x1b[31m")
-    os.exit(1)
+    trust os.exit(1)
 }
 
 test {

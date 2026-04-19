@@ -244,7 +244,7 @@ fn thread_test_entry(arg: ref void) ref void = {
 }
 
 test {
-    val counter: ref void = trust @alloc(8)
+    val counter: ref void = @alloc(8)
     trust @store(counter, 0)
 
     val t = trust Thread.new(thread_test_entry, counter)?
@@ -269,7 +269,7 @@ test {
             }
             stdio.puts("it worked :D4")
 
-            trust Mutex.lock(m)
+            Mutex.lock(m)
             stdio.puts("it worked :D5")
 
             trust Mutex.unlock(m)

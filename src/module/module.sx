@@ -917,6 +917,15 @@ pub fn import_module_at(m: ref ResolvedModule, i: usize) ref ResolvedModule! = {
     }
 }
 
+/// Return the i-th import name, or null.
+pub fn import_name_at(m: ref ResolvedModule, i: usize) ref char! = {
+    val opt = @get(m.import_names, i)
+    match opt {
+        some name => { return name as ref char }
+        none      => { return 0 as ref char }
+    }
+}
+
 /// Return the filename of module `m` as a raw C string.
 pub fn module_filename(m: ref ResolvedModule) ref char! = {
     return str.cstr(m.filename)

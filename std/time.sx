@@ -52,9 +52,9 @@ pub fn (DateTime) free(dt: mut self) void! = {
 /// Return the current local time as a DateTime.
 /// Wraps the C `localtime` / `gettimeofday` pair.
 pub fn (DateTime) now() DateTime = {
-    val ts: ref void = trust @alloc(16)
+    val ts: ref void = @alloc(16)
 
-    trust @gettimeofday(ts, 0)
+    @gettimeofday(ts, 0)
     val usecs: i64 = trust @load(@ptradd(ts, 8)) as i64
     val tm: ref void = trust localtime(ts)
 
@@ -124,7 +124,7 @@ pub fn (DateTime) to_unix(dt: self) i64 = {
 
 /// Return true if the year is a leap year.
 pub fn (DateTime) is_leap_year(dt: self) bool = {
-    val y: i64 = trust DateTime.year(dt)
+    val y: i64 = DateTime.year(dt)
     if (y % 400 == 0) { return true }
     if (y % 100 == 0) { return false }
     return y % 4 == 0
@@ -147,49 +147,49 @@ pub fn (DateTime) days_in_month(dt: self) i64 = {
 
 /// Return true if two DateTimes represent the same instant (ignoring millis).
 pub fn (DateTime) equals(a: self, b: self) bool = {
-    val ay: i64 = trust DateTime.year(a)
-    val by: i64 = trust DateTime.year(b)
+    val ay: i64 = DateTime.year(a)
+    val by: i64 = DateTime.year(b)
     if (ay != by) { return false }
 
-    val amo: i64 = trust DateTime.month(a)
-    val bmo: i64 = trust DateTime.month(b)
+    val amo: i64 = DateTime.month(a)
+    val bmo: i64 = DateTime.month(b)
     if (amo != bmo) { return false }
 
-    val ad: i64 = trust DateTime.day(a)
-    val bd: i64 = trust DateTime.day(b)
+    val ad: i64 = DateTime.day(a)
+    val bd: i64 = DateTime.day(b)
     if (ad != bd) { return false }
 
-    val ah: i64 = trust DateTime.hour(a)
-    val bh: i64 = trust DateTime.hour(b)
+    val ah: i64 = DateTime.hour(a)
+    val bh: i64 = DateTime.hour(b)
     if (ah != bh) { return false }
 
-    val ami: i64 = trust DateTime.minute(a)
-    val bmi: i64 = trust DateTime.minute(b)
+    val ami: i64 = DateTime.minute(a)
+    val bmi: i64 = DateTime.minute(b)
     if (ami != bmi) { return false }
 
-    val as_: i64 = trust DateTime.second(a)
-    val bs_: i64 = trust DateTime.second(b)
+    val as_: i64 = DateTime.second(a)
+    val bs_: i64 = DateTime.second(b)
     return as_ == bs_
 }
 
 /// Return true if `a` is strictly before `b`.
 pub fn (DateTime) before(a: self, b: self) bool = {
-    val ua: i64 = trust DateTime.to_unix(a)
-    val ub: i64 = trust DateTime.to_unix(b)
+    val ua: i64 = DateTime.to_unix(a)
+    val ub: i64 = DateTime.to_unix(b)
     return ua < ub
 }
 
 /// Return true if `a` is strictly after `b`.
 pub fn (DateTime) after(a: self, b: self) bool = {
-    val ua: i64 = trust DateTime.to_unix(a)
-    val ub: i64 = trust DateTime.to_unix(b)
+    val ua: i64 = DateTime.to_unix(a)
+    val ub: i64 = DateTime.to_unix(b)
     return ua > ub
 }
 
 /// Return the difference in seconds between two DateTimes (a - b).
 pub fn (DateTime) diff_seconds(a: self, b: self) i64 = {
-    val ua: i64 = trust DateTime.to_unix(a)
-    val ub: i64 = trust DateTime.to_unix(b)
+    val ua: i64 = DateTime.to_unix(a)
+    val ub: i64 = DateTime.to_unix(b)
     return ua - ub
 }
 

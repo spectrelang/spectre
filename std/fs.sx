@@ -212,7 +212,7 @@ pub fn rmdir_path(path: ref char) bool! = {
 /// Returns none on failure.
 /// Caller must free the result.
 pub fn cwd() option[ref char] = {
-    val buf: ref char = trust @alloc(4096) as ref char
+    val buf: ref char = @alloc(4096) as ref char
     val result: ref char = trust getcwd(buf, 4096)
     if (result == 0) {
         trust @free(buf)
@@ -366,7 +366,7 @@ test {
     match rh_opt {
         none => { assert false }
         some rh => {
-            val buf: ref char = trust @alloc(128)
+            val buf: ref char = @alloc(128)
             val got1 = trust read_line(rh, buf, 128)
             assert got1
             assert trust str.compare(str.RChar(buf), str.RChar("line one")) == 0

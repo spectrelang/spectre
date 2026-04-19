@@ -67,7 +67,7 @@ pub fn string_to_i64(s: ref char) result[i64, ParseIntError] = {
         non_null: s != 0
     }
 
-    val len: i64 = strlen(s)
+    val len: i64 = trust strlen(s)
     if len == 0 {
         return err ParseIntError.Empty
     }
@@ -186,7 +186,7 @@ pub fn string_to_f64(s: ref char) result[f64, ParseFloatError] = {
         non_null: s != 0
     }
 
-    val len: i64 = strlen(s)
+    val len: i64 = trust strlen(s)
     if len == 0 {
         return err ParseFloatError.Empty
     }
@@ -268,7 +268,7 @@ test {
     
     match string_to_i64(s) {
         ok v => {
-            stdio.print("worked: {d}\n", {v})
+            trust stdio.print("worked: {d}\n", {v})
         }
         err v => {
             match v {
@@ -309,25 +309,25 @@ test {
     trust test_i64_roundtrip(-654321)
 
     s = trust f64_to_string(0.0)
-    assert trust string_to_f64(s) == ok 0.0
+    assert string_to_f64(s) == ok 0.0
     trust @free(s)
 
     s = trust f64_to_string(123.456789)
-    assert trust string_to_f64(s) == ok 123.456789
+    assert string_to_f64(s) == ok 123.456789
     trust @free(s)
 
     s = trust f64_to_string(-3.14)
-    assert trust string_to_f64(s) == ok -3.14
+    assert string_to_f64(s) == ok -3.14
     trust @free(s)
 
-    assert trust string_to_f64("0") == ok 0.0
-    assert trust string_to_f64("10.5") == ok 10.5
-    assert trust string_to_f64("-0.25") == ok -0.25
+    assert string_to_f64("0") == ok 0.0
+    assert string_to_f64("10.5") == ok 10.5
+    assert string_to_f64("-0.25") == ok -0.25
 
-    assert trust string_to_f64("") == err ParseFloatError.Empty
-    assert trust string_to_f64("-") == err ParseFloatError.Invalid
-    assert trust string_to_f64("1.2.3") == err ParseFloatError.Invalid
-    assert trust string_to_f64("abc") == err ParseFloatError.Invalid
+    assert string_to_f64("") == err ParseFloatError.Empty
+    assert string_to_f64("-") == err ParseFloatError.Invalid
+    assert string_to_f64("1.2.3") == err ParseFloatError.Invalid
+    assert string_to_f64("abc") == err ParseFloatError.Invalid
 
     trust test_f64_roundtrip(0.0)
     trust test_f64_roundtrip(1.5)
