@@ -72,10 +72,8 @@ OTHER_PREFIX="/usr/local"
 log "Bootstrapping Spectre with QBE..."
 
 CSOURCES_DIR="${SPECTRE_DIR}/std/csources"
-
 PANIC_HANDLER_SRC="${CSOURCES_DIR}/panic_handler.c"
 PANIC_HANDLER_OBJ="${CSOURCES_DIR}/panic_handler.o"
-
 YYJSON_SHIM_SRC="${CSOURCES_DIR}/yyjson_shim.c"
 YYJSON_SHIM_OBJ="${CSOURCES_DIR}/yyjson_shim.o"
 
