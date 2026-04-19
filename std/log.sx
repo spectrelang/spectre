@@ -65,36 +65,36 @@ fn log_err(msg: ref char, label: ref char, color: ref char) void! = {
     }
 }
 
-pub fn debug(msg: ref char) void! = {
+pub fn debug(msg: ref char) void = {
     if !should_log(Level.Debug) {
         return
     }
-    log_out(msg, "DEBUG", "\x1b[34m")
+    trust log_out(msg, "DEBUG", "\x1b[34m")
 }
 
-pub fn info(msg: ref char) void! = {
+pub fn info(msg: ref char) void = {
     if !should_log(Level.Info) {
         return
     }
-    log_out(msg, "INFO", "\x1b[32m")
+    trust log_out(msg, "INFO", "\x1b[32m")
 }
 
-pub fn warn(msg: ref char) void! = {
+pub fn warn(msg: ref char) void = {
     if !should_log(Level.Warn) {
         return
     }
-    log_err(msg, "WARN", "\x1b[33m")
+    trust log_err(msg, "WARN", "\x1b[33m")
 }
 
-pub fn error(msg: ref char) void! = {
+pub fn error(msg: ref char) void = {
     if !should_log(Level.Error) {
         return
     }
-    log_err(msg, "ERROR", "\x1b[31m")
+    trust log_err(msg, "ERROR", "\x1b[31m")
 }
 
-pub fn fatal(msg: ref char) void! = {
-    log_err(msg, "FATAL", "\x1b[31m")
+pub fn fatal(msg: ref char) void = {
+    trust log_err(msg, "FATAL", "\x1b[31m")
     os.exit(1)
 }
 
