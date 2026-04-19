@@ -108,7 +108,7 @@ fn op_to_name(op: i64, is_binop: bool) ref char = {
     }
 }
 
-fn build_prefix(indent: i64, is_last: bool) ref char = {
+fn build_prefix(indent: i64, is_last: bool) ref char! = {
     if indent == 0 { return "" }
     val buf: mut ref char = @alloc((indent * 6 + 15) as usize) as ref char
 
