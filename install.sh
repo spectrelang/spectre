@@ -65,22 +65,35 @@ fi
 
 BOOTSTRAP_SSA="${SPECTRE_DIR}/bootstrap/sxc.ssa"
 BOOTSTRAP_OUT="${SPECTRE_DIR}/bootstrap/sxc_bootstrap"
+OTHER_PREFIX="/usr/local"
 
 [ -f "$BOOTSTRAP_SSA" ] || err "Missing bootstrap SSA at ${BOOTSTRAP_SSA}"
 
 log "Bootstrapping Spectre with QBE..."
 
-PANIC_HANDLER_SRC="${SPECTRE_DIR}/std/csources/panic_handler.c"
-PANIC_HANDLER_OBJ="${BOOTSTRAP_OUT}_panic.o"
+CSOURCES_DIR="${SPECTRE_DIR}/std/csources"
+
+PANIC_HANDLER_SRC="${CSOURCES_DIR}/panic_handler.c"
+PANIC_HANDLER_OBJ="${CSOURCES_DIR}/panic_handler.o"
+
+YYJSON_SHIM_SRC="${CSOURCES_DIR}/yyjson_shim.c"
+YYJSON_SHIM_OBJ="${CSOURCES_DIR}/yyjson_shim.o"
 
 log "QBE Stage..."
 qbe -o "${BOOTSTRAP_OUT}.s" "$BOOTSTRAP_SSA"
 
-log "CC Stage I..."
+log "CC Stage I (C sources)..."
 cc -O2 -c "${PANIC_HANDLER_SRC}" -o "${PANIC_HANDLER_OBJ}"
+cc -O2 -c "${YYJSON_SHIM_SRC}" -o "${YYJSON_SHIM_OBJ}"
 
 log "CC Stage II..."
-cc -O2 "${BOOTSTRAP_OUT}.s" "${PANIC_HANDLER_OBJ}" -o "${BOOTSTRAP_OUT}"
+cc -O2 \
+    "${BOOTSTRAP_OUT}.s" \
+    "${PANIC_HANDLER_OBJ}" \
+    "${YYJSON_SHIM_OBJ}" \
+    -L"${OTHER_PREFIX}/lib" \
+    -lyyjson \
+    -o "${BOOTSTRAP_OUT}"
 
 log "Installing Spectre binary..."
 /usr/bin/install -m 0755 \
