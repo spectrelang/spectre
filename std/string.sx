@@ -463,7 +463,7 @@ pub fn contains(s: String, sub: String) bool = {
         sub_not_null: sub != 0
     }
 
-    val result = trust find(s as ref void, sub as ref void)
+    val result = find(s as ref void, sub as ref void)
     val found: mut i64 = 0
     match result {
         some _ => { found = 1 }
@@ -899,8 +899,8 @@ pub type StringBuilder = {
 
 /// Create a new empty StringBuilder
 pub fn (StringBuilder) new() ref void = {
-    val s: ref void = trust @alloc(24)
-    val buf: ref void = trust @alloc(64)
+    val s: ref void = @alloc(24)
+    val buf: ref void = @alloc(64)
     trust @store8(buf, 0)
     trust @store(s, buf)
     trust @store(@ptradd(s, 8), 0)

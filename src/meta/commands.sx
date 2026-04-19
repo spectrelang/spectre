@@ -23,7 +23,7 @@ type ParseCtx = {
 }
 
 fn new_ctx(text: ref char) ref ParseCtx = {
-    val ctx: mut ref ParseCtx = trust @alloc(@sizeof(ParseCtx)) as ref ParseCtx
+    val ctx: mut ref ParseCtx = @alloc(@sizeof(ParseCtx)) as ref ParseCtx
     ctx.text = text
     ctx.pos  = 0
     ctx.len  = str.len_raw(text)
@@ -191,7 +191,7 @@ fn basename_of(path: ref char) ref char = {
     val start: i64 = last_slash + 1
     val name_len: i64 = len - start
     if name_len <= 0 { return "project" }
-    val buf: ref char = trust @alloc(name_len + 1) as ref char
+    val buf: ref char = @alloc(name_len + 1) as ref char
     trust @memcpy(buf as ref void, @ptradd(path as ref void, start), name_len as usize)
     trust @store8(@ptradd(buf as ref void, name_len), 0)
     return buf
@@ -881,7 +881,7 @@ fn tool_version(cmd: ref char) ref char = {
                 if c == 10 || c == 13 { end-- } else { break }
             }
             if end <= 0 { return "unknown" }
-            val buf: ref char = trust @alloc(end + 1) as ref char
+            val buf: ref char = @alloc(end + 1) as ref char
             trust @memcpy(buf as ref void, raw as ref void, end as usize)
             trust @store8(@ptradd(buf as ref void, end), 0)
             return buf

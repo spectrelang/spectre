@@ -1,6 +1,6 @@
 /// Print a string followed by a newline to stdout.
 pub fn puts(arg: ref char) void = {
-    trust @puts(arg)
+    @puts(arg)
 }
 
 /// Print a formatted string to stdout.
