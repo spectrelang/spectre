@@ -29,6 +29,7 @@ type SemaCtx = {
     root_mod:      mut ref modinfo.ResolvedModule
     in_unsafe_fn:  mut i64
     in_trust:      mut i64
+    trust_used:    mut i64
 }
 
 fn sema_new() ref SemaCtx! = {
@@ -849,12 +850,25 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref char) v
         check_expr(ctx, parser.unop_inner(expr), filename)
         return
     }
-     if k == parser.NK_TRUST {
-         val prev_trust: i64 = ctx.in_trust
-         ctx.in_trust = 1
-         check_expr(ctx, expr.d0 as ref parser.Node, filename)
-         ctx.in_trust = prev_trust
-         return
+    if k == parser.NK_TRUST {
+        if ctx.in_unsafe_fn != 0 {
+            val buf: ref char = @alloc(256) as ref char
+            @snprintf(buf, 256, "{s}:{lld}: redundant 'trust' statement; already in an unsafe context (marked with '!')", {filename, line})
+            add_error(ctx, buf)
+        }
+        val pt_used: i64 = ctx.trust_used
+        ctx.trust_used = 0
+        val prev_trust: i64 = ctx.in_trust
+        ctx.in_trust = 1
+        check_expr(ctx, expr.d0 as ref parser.Node, filename)
+        ctx.in_trust = prev_trust
+        if ctx.trust_used == 0 && ctx.in_unsafe_fn == 0 {
+            val buf: ref char = @alloc(256) as ref char
+            @snprintf(buf, 256, "{s}:{lld}: redundant 'trust' statement; the expression is already pure (not marked with '!')", {filename, line})
+            add_error(ctx, buf)
+        }
+        ctx.trust_used = pt_used | ctx.trust_used
+        return
     }
     if k == parser.NK_SOME ||
        k == parser.NK_OK_VAL || k == parser.NK_ERR_VAL || k == parser.NK_TRY {
@@ -955,19 +969,23 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref char) v
 
         if fn_found != 0 as ref parser.Node {
             val is_unsafe_fn: i64 = fn_found.d6
-            if is_unsafe_fn != 0 && ctx.in_unsafe_fn == 0 && ctx.in_trust == 0 {
-                val fn_name: mut ref char = 0 as ref char
-                if callee != 0 as ref parser.Node {
-                    if callee.kind == parser.NK_IDENT { fn_name = callee.d0 as ref char }
-                    elif callee.kind == parser.NK_FIELD { fn_name = parser.field_name(callee) }
-                }
-                val ebuf: ref char = @alloc(512) as ref char
-                if fn_name != 0 as ref char {
-                    @snprintf(ebuf, 512, "{s}:{lld}: cannot call unsafe function '{s}' from safe context, use 'trust' block or mark current function as unsafe with '!'", {filename, line, fn_name})
+            if is_unsafe_fn != 0 {
+                if ctx.in_unsafe_fn == 0 && ctx.in_trust == 0 {
+                    val fn_name: mut ref char = 0 as ref char
+                    if callee != 0 as ref parser.Node {
+                        if callee.kind == parser.NK_IDENT { fn_name = callee.d0 as ref char }
+                        elif callee.kind == parser.NK_FIELD { fn_name = parser.field_name(callee) }
+                    }
+                    val ebuf: ref char = @alloc(512) as ref char
+                    if fn_name != 0 as ref char {
+                        @snprintf(ebuf, 512, "{s}:{lld}: cannot call unsafe function '{s}' from safe context, use 'trust' block or mark current function as unsafe with '!'", {filename, line, fn_name})
+                    } else {
+                        @snprintf(ebuf, 512, "{s}:{lld}: cannot call unsafe function from safe context, use 'trust' block or mark current function as unsafe with '!'", {filename, line})
+                    }
+                    add_error(ctx, ebuf)
                 } else {
-                    @snprintf(ebuf, 512, "{s}:{lld}: cannot call unsafe function from safe context, use 'trust' block or mark current function as unsafe with '!'", {filename, line})
+                    ctx.trust_used = 1
                 }
-                add_error(ctx, ebuf)
             }
             
             val params: mut ref void = fn_found.d3 as ref void
@@ -1109,10 +1127,14 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref char) v
         }
         
         val is_unsafe_builtin: bool = str_eq(bname, "store8") || str_eq(bname, "store") || str_eq(bname, "load8") || str_eq(bname, "load") || str_eq(bname, "ptradd") || str_eq(bname, "memset") || str_eq(bname, "memcpy") || str_eq(bname, "memmove") || str_eq(bname, "free") || str_eq(bname, "realloc") || str_eq(bname, "addr") || str_eq(bname, "deref")
-        if is_unsafe_builtin && ctx.in_unsafe_fn == 0 && ctx.in_trust == 0 {
-            val ebuf: ref char = @alloc(512) as ref char
-            @snprintf(ebuf, 512, "{s}:{lld}: unsafe builtin '@{s}' can only be used in functions marked with '!' or inside 'trust' blocks", {filename, line, bname})
-            add_error(ctx, ebuf)
+        if is_unsafe_builtin {
+            if ctx.in_unsafe_fn == 0 && ctx.in_trust == 0 {
+                val ebuf: ref char = @alloc(512) as ref char
+                @snprintf(ebuf, 512, "{s}:{lld}: unsafe builtin '@{s}' can only be used in functions marked with '!' or inside 'trust' blocks", {filename, line, bname})
+                add_error(ctx, ebuf)
+            } else {
+                ctx.trust_used = 1
+            }
         }
         
         val is_printf:   bool = str_eq(bname, "printf")
