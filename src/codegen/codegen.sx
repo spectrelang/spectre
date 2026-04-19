@@ -4568,6 +4568,48 @@ fn gen_builtin(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
         @snprintf(buf_get6, 128, "@lbl{lld}\n    %%t{lld} =l loadl %%t{lld}\n", {end_lbl, tmp, result_slot})
         emit(ctx, buf_get6)
         @free(buf_get6)
+    } elif str.rchar_cmp(name, "set") == 0 {
+        val lst_s: ref char = get_list_arg(ctx, args, 0)
+        val idx_s: ref char = get_arg(ctx, args, 1)
+        val val_s_node_opt = @get(args, 2)
+        val val_s_qtype: mut ref char = "l"
+        val val_s: ref char = get_arg(ctx, args, 2)
+        match val_s_node_opt {
+            some vn_s => {
+                val_s_qtype = expr_qtype(ctx, vn_s as ref parser.Node)
+            }
+            none => {}
+        }
+        val data_s: i64 = fresh_tmp(ctx)
+        val off_s: i64 = fresh_tmp(ctx)
+        val eptr_s: i64 = fresh_tmp(ctx)
+        val set_b1: ref char = @alloc(256) as ref char
+        @snprintf(set_b1, 256, "    %%t{lld} =l loadl {s}\n    %%t{lld} =l mul {s}, 8\n    %%t{lld} =l add %%t{lld}, %%t{lld}\n",
+            {data_s, lst_s, off_s, idx_s, eptr_s, data_s, off_s})
+        emit(ctx, set_b1)
+        @free(set_b1)
+        val sv_s: mut ref char = val_s
+        if str.rchar_cmp(val_s_qtype, "w") == 0 {
+            val ext_s: i64 = fresh_tmp(ctx)
+            val ext_b: ref char = @alloc(64) as ref char
+            val fc_s: i64 = @load8(@ptradd(val_s as ref void, 0)) as i64
+            if ((fc_s >= 48 && fc_s <= 57) || fc_s == 45) {
+                @snprintf(ext_b, 64, "    %%t{lld} =l copy {s}\n", {ext_s, val_s})
+            } else {
+                @snprintf(ext_b, 64, "    %%t{lld} =l extsw {s}\n", {ext_s, val_s})
+            }
+            emit(ctx, ext_b)
+            @free(ext_b)
+            val sv_s2: ref char = @alloc(16) as ref char
+            @snprintf(sv_s2, 16, "%%t{lld}", {ext_s})
+            sv_s = sv_s2
+        }
+        val set_b2: ref char = @alloc(64) as ref char
+        @snprintf(set_b2, 64, "    storel {s}, %%t{lld}\n", {sv_s, eptr_s})
+        emit(ctx, set_b2)
+        @free(set_b2)
+        @snprintf(buf, 512, "    %%t{lld} =l copy 0\n", {tmp})
+        emit(ctx, buf)
     } elif str.rchar_cmp(name, "remove") == 0 {
         val lst4: ref char = get_list_arg(ctx, args, 0)
         val idx2: ref char = get_arg(ctx, args, 1)

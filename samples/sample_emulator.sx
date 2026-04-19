@@ -184,8 +184,7 @@ fn mem_get(chip: ref Chip8, addr: u16) u8 = {
 fn mem_set(chip: ref Chip8, addr: u16, value: u8) void = {
   val idx: usize = addr as usize
   if idx >= MEMORY_SIZE { return }
-  val ptr: ref u8 = trust @ptradd(@addr(chip.memory) as ref void, idx as i64) as ref u8
-  trust @store8(ptr as ref void, value)
+  @set(chip.memory, idx, value)
 }
 
 fn get_v(chip: ref Chip8, idx: usize) u8 = {
@@ -198,8 +197,7 @@ fn get_v(chip: ref Chip8, idx: usize) u8 = {
 
 fn set_v(chip: ref Chip8, idx: usize, value: u8) void = {
   if idx >= NUM_REGISTERS { return }
-  val ptr: ref u8 = trust @ptradd(@addr(chip.V) as ref void, idx as i64) as ref u8
-  trust @store8(ptr as ref void, value)
+  @set(chip.V, idx, value)
 }
 
 fn get_gfx(chip: ref Chip8, idx: usize) u8 = {
@@ -212,8 +210,7 @@ fn get_gfx(chip: ref Chip8, idx: usize) u8 = {
 
 fn set_gfx(chip: ref Chip8, idx: usize, value: u8) void = {
   if idx >= DISPLAY_SIZE { return }
-  val ptr: ref u8 = trust @ptradd(@addr(chip.gfx) as ref void, idx as i64) as ref u8
-  trust @store8(ptr as ref void, value)
+  @set(chip.gfx, idx, value)
 }
 
 fn get_stack(chip: ref Chip8, idx: usize) u16 = {
@@ -226,8 +223,7 @@ fn get_stack(chip: ref Chip8, idx: usize) u16 = {
 
 fn set_stack(chip: ref Chip8, idx: usize, value: u16) void = {
   if idx >= STACK_SIZE { return }
-  val ptr: ref u16 = trust @ptradd(@addr(chip.stack) as ref void, (idx as i64) * 2) as ref u16
-  trust @store(ptr as ref void, value as i32)
+  @set(chip.stack, idx, value)
 }
 
 fn get_key(chip: ref Chip8, idx: usize) u8 = {
@@ -240,8 +236,7 @@ fn get_key(chip: ref Chip8, idx: usize) u8 = {
 
 fn set_key(chip: ref Chip8, idx: usize, value: u8) void = {
   if idx >= NUM_KEYS { return }
-  val ptr: ref u8 = trust @ptradd(@addr(chip.key) as ref void, idx as i64) as ref u8
-  trust @store8(ptr as ref void, value)
+  @set(chip.key, idx, value)
 }
 
 fn chip8_init(chip: mut ref Chip8) void = {
