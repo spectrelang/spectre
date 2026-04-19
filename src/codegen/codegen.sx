@@ -2117,6 +2117,173 @@ fn gen_int_lit_as(ctx: ref CgCtx, text: ref char, qbe_type: ref char) ref char! 
     return res
 }
 
+fn normalize_static_int_text(text: ref char) ref char! = {
+    if text == 0 as ref char { return "0" }
+    val start: mut ref char = text
+    val sign: mut i64 = 1
+    if @load8(start as ref void) == 45 {
+        sign = -1
+        start = @ptradd(start as ref void, 1) as ref char
+    }
+    if @load8(start as ref void) == 48 {
+        val next: i64 = @load8(@ptradd(start as ref void, 1)) as i64
+        if next == 120 || next == 88 {
+            val hex_start: ref char = @ptradd(start as ref void, 2) as ref char
+            val val_: mut i64 = 0
+            val hi: mut i64 = 0
+            for {
+                val hc: i64 = @load8(@ptradd(hex_start as ref void, hi)) as i64
+                if hc == 0 { break }
+                val digit: mut i64 = hc - 48
+                if hc >= 97 { digit = hc - 87 }
+                elif hc >= 65 { digit = hc - 55 }
+                val_ = val_ * 16 + digit
+                hi++
+            }
+            if sign < 0 { val_ = 0 - val_ }
+            val dec_buf: ref char = @alloc(32) as ref char
+            @snprintf(dec_buf, 32, "{lld}", {val_})
+            return dec_buf
+        }
+    }
+    return text
+}
+
+fn static_global_init_value(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
+    if expr == 0 as ref parser.Node { return "0" }
+    val k: i64 = expr.kind
+    if k == parser.NK_INT_LIT {
+        return normalize_static_int_text(parser.int_lit_text(expr))
+    }
+    if k == parser.NK_BOOL {
+        val bv: i64 = expr.d0 as i64
+        if bv != 0 { return "1" }
+        return "0"
+    }
+    if k == parser.NK_CHAR_LIT {
+        val cv: i64 = expr.d0 as i64
+        val cv_buf: ref char = @alloc(32) as ref char
+        @snprintf(cv_buf, 32, "{lld}", {cv})
+        return cv_buf
+    }
+    if k == parser.NK_IDENT {
+        val cval: ref char = cg_const_val(ctx, expr.d0 as ref char)
+        if str.rchar_cmp(cval, "") != 0 {
+            return normalize_static_int_text(cval)
+        }
+    }
+    if k == parser.NK_UNOP {
+        val uop: i64 = parser.unop_op(expr)
+        val inner: ref parser.Node = parser.unop_inner(expr)
+        if uop == parser.UOP_NEG && inner != 0 as ref parser.Node {
+            if inner.kind == parser.NK_INT_LIT {
+                val inner_val: ref char = normalize_static_int_text(parser.int_lit_text(inner))
+                val neg_buf: ref char = @alloc(64) as ref char
+                @snprintf(neg_buf, 64, "-{s}", {inner_val})
+                return neg_buf
+            }
+        }
+    }
+    return ""
+}
+
+fn emit_global_list_literal(ctx: ref CgCtx, glabel: ref char, gexpr: ref parser.Node) bool! = {
+    if gexpr == 0 as ref parser.Node || gexpr.kind != parser.NK_LIST_LIT { return false }
+    val elems: ref void = gexpr.d0 as ref void
+    val elen: mut i64 = 0
+    if elems != 0 as ref void { elen = @len(elems as list[ref parser.Node]) as i64 }
+
+    val init_vals: mut list[ref char] = []
+    val ei: mut i64 = 0
+    for {
+        if ei >= elen { break }
+        val elem_opt = @get(elems as list[ref parser.Node], ei as usize)
+        match elem_opt {
+            some elem => {
+                val init_val: ref char = static_global_init_value(ctx, elem as ref parser.Node)
+                if str.rchar_cmp(init_val, "") == 0 { return false }
+                @append(init_vals, init_val)
+            }
+            none => {}
+        }
+        ei++
+    }
+
+    val data_label: ref char = @alloc(576) as ref char
+    val hdr_label: ref char = @alloc(576) as ref char
+    @snprintf(data_label, 576, "{s}__data", {glabel})
+    @snprintf(hdr_label, 576, "{s}__hdr", {glabel})
+
+    val buf: ref char = @alloc(1024) as ref char
+    @snprintf(buf, 1024, "data ${s} = \\{ ", {data_label})
+    emit(ctx, buf)
+
+    if elen == 0 {
+        emit(ctx, "l 0")
+    } else {
+        val vi: mut i64 = 0
+        for {
+            if vi >= elen { break }
+            if vi != 0 { emit(ctx, ", ") }
+            val val_opt = @get(init_vals as list[ref char], vi as usize)
+            match val_opt {
+                some init_val => {
+                    @snprintf(buf, 1024, "l {s}", {init_val as ref char})
+                    emit(ctx, buf)
+                }
+                none => {}
+            }
+            vi++
+        }
+    }
+    emit(ctx, " }\n")
+
+    val cap: mut i64 = elen
+    if cap == 0 { cap = 1 }
+    @snprintf(buf, 1024, "data ${s} = \\{ l ${s}, l {lld}, l {lld} \\}\n", {hdr_label, data_label, elen, cap})
+    emit(ctx, buf)
+    @snprintf(buf, 1024, "data ${s} = \\{ l ${s} \\}\n", {glabel, hdr_label})
+    emit(ctx, buf)
+    @free(buf)
+    return true
+}
+
+fn emit_global_val(ctx: ref CgCtx, mod_prefix: ref char, node: ref parser.Node) void! = {
+    val gname: ref char = node.d0 as ref char
+    val gmut: i64 = node.d1 as i64
+    val gty_node: ref parser.Node = node.d2 as ref parser.Node
+    val gexpr: ref parser.Node = node.d3 as ref parser.Node
+    if gmut == 0 { return }
+
+    val gqtype: mut ref char = "l"
+    if gty_node != 0 as ref parser.Node {
+        gqtype = qbe_type_of(gty_node)
+    } elif gexpr != 0 as ref parser.Node {
+        if gexpr.kind == parser.NK_BOOL || gexpr.kind == parser.NK_CHAR_LIT { gqtype = "w" }
+    }
+
+    val ginit: mut ref char = "0"
+    if gexpr != 0 as ref parser.Node {
+        val static_init: ref char = static_global_init_value(ctx, gexpr)
+        if str.rchar_cmp(static_init, "") != 0 { ginit = static_init }
+    }
+
+    val glabel: ref char = @alloc(512) as ref char
+    if str.rchar_cmp(mod_prefix, "") == 0 {
+        @snprintf(glabel, 512, "{s}", {gname})
+    } else {
+        @snprintf(glabel, 512, "{s}__{s}", {mod_prefix, gname})
+    }
+
+    if !emit_global_list_literal(ctx, glabel, gexpr) {
+        val data_buf: ref char = @alloc(256) as ref char
+        @snprintf(data_buf, 256, "data ${s} = \{ {s} {s} \}\n", {glabel, gqtype, ginit})
+        emit(ctx, data_buf)
+        @free(data_buf)
+    }
+    cg_register_global(ctx, gname, glabel, gqtype)
+}
+
 /// Generate an expression, with integer literals using the specified QBE type.
 fn gen_expr_with_type(ctx: ref CgCtx, expr: ref parser.Node, target_type: ref char) ref char! = {
     if expr == 0 as ref parser.Node { return "0" }
@@ -7680,38 +7847,7 @@ fn gen_items_with_prefix(ctx: ref CgCtx, items: list[ref parser.Node], mod_prefi
                         }
                     }
                 } elif k == parser.NK_VAL {
-                    val gname: ref char = node.d0 as ref char
-                    val gmut: i64 = node.d1 as i64
-                    val gty_node: ref parser.Node = node.d2 as ref parser.Node
-                    val gexpr: ref parser.Node = node.d3 as ref parser.Node
-                    if gmut != 0 {
-                        val gqtype: mut ref char = "l"
-                        if gty_node != 0 as ref parser.Node {
-                            gqtype = qbe_type_of(gty_node)
-                        } elif gexpr != 0 as ref parser.Node {
-                            if gexpr.kind == parser.NK_BOOL { gqtype = "w" }
-                        }
-                        val ginit: mut ref char = "0"
-                        if gexpr != 0 as ref parser.Node {
-                            if gexpr.kind == parser.NK_BOOL {
-                                val bv: i64 = gexpr.d0 as i64
-                                if bv != 0 { ginit = "1" } else { ginit = "0" }
-                            } elif gexpr.kind == parser.NK_INT_LIT {
-                                ginit = parser.int_lit_text(gexpr)
-                            }
-                        }
-                        val glabel: ref char = @alloc(512) as ref char
-                        if str.rchar_cmp(mod_prefix, "") == 0 {
-                            @snprintf(glabel, 512, "{s}", {gname})
-                        } else {
-                            @snprintf(glabel, 512, "{s}__{s}", {mod_prefix, gname})
-                        }
-                        val data_buf: ref char = @alloc(256) as ref char
-                        @snprintf(data_buf, 256, "data ${s} = \{ {s} {s} \}\n", {glabel, gqtype, ginit})
-                        emit(ctx, data_buf)
-                        @free(data_buf)
-                        cg_register_global(ctx, gname, glabel, gqtype)
-                    }
+                    emit_global_val(ctx, mod_prefix, node)
                 } elif k == parser.NK_CONST {
                     val cname: ref char = node.d1 as ref char
                     val cexpr: ref parser.Node = node.d2 as ref parser.Node
@@ -8713,38 +8849,7 @@ fn gen_items_with_prefix_skip_links(ctx: ref CgCtx, items: list[ref parser.Node]
                         gen_items_with_prefix_skip_links(ctx, witems, mod_prefix)
                     }
                 } elif k == parser.NK_VAL {
-                    val gname: ref char = node.d0 as ref char
-                    val gmut: i64 = node.d1 as i64
-                    val gty_node: ref parser.Node = node.d2 as ref parser.Node
-                    val gexpr: ref parser.Node = node.d3 as ref parser.Node
-                    if gmut != 0 {
-                        val gqtype: mut ref char = "l"
-                        if gty_node != 0 as ref parser.Node {
-                            gqtype = qbe_type_of(gty_node)
-                        } elif gexpr != 0 as ref parser.Node {
-                            if gexpr.kind == parser.NK_BOOL { gqtype = "w" }
-                        }
-                        val ginit: mut ref char = "0"
-                        if gexpr != 0 as ref parser.Node {
-                            if gexpr.kind == parser.NK_BOOL {
-                                val bv: i64 = gexpr.d0 as i64
-                                if bv != 0 { ginit = "1" } else { ginit = "0" }
-                            } elif gexpr.kind == parser.NK_INT_LIT {
-                                ginit = parser.int_lit_text(gexpr)
-                            }
-                        }
-                        val glabel: ref char = @alloc(512) as ref char
-                        if str.rchar_cmp(mod_prefix, "") == 0 {
-                            @snprintf(glabel, 512, "{s}", {gname})
-                        } else {
-                            @snprintf(glabel, 512, "{s}__{s}", {mod_prefix, gname})
-                        }
-                        val data_buf: ref char = @alloc(256) as ref char
-                        @snprintf(data_buf, 256, "data ${s} = \{ {s} {s} \}\n", {glabel, gqtype, ginit})
-                        emit(ctx, data_buf)
-                        @free(data_buf)
-                        cg_register_global(ctx, gname, glabel, gqtype)
-                    }
+                    emit_global_val(ctx, mod_prefix, node)
                 } elif k == parser.NK_CONST {
                     val cname: ref char = node.d1 as ref char
                     val cexpr: ref parser.Node = node.d2 as ref parser.Node
@@ -8936,38 +9041,7 @@ fn gen_items_with_prefix_skip_main(ctx: ref CgCtx, items: list[ref parser.Node],
                         }
                     }
                 } elif k == parser.NK_VAL {
-                    val gname: ref char = node.d0 as ref char
-                    val gmut: i64 = node.d1 as i64
-                    val gty_node: ref parser.Node = node.d2 as ref parser.Node
-                    val gexpr: ref parser.Node = node.d3 as ref parser.Node
-                    if gmut != 0 {
-                        val gqtype: mut ref char = "l"
-                        if gty_node != 0 as ref parser.Node {
-                            gqtype = qbe_type_of(gty_node)
-                        } elif gexpr != 0 as ref parser.Node {
-                            if gexpr.kind == parser.NK_BOOL { gqtype = "w" }
-                        }
-                        val ginit: mut ref char = "0"
-                        if gexpr != 0 as ref parser.Node {
-                            if gexpr.kind == parser.NK_BOOL {
-                                val bv: i64 = gexpr.d0 as i64
-                                if bv != 0 { ginit = "1" } else { ginit = "0" }
-                            } elif gexpr.kind == parser.NK_INT_LIT {
-                                ginit = parser.int_lit_text(gexpr)
-                            }
-                        }
-                        val glabel: ref char = @alloc(512) as ref char
-                        if str.rchar_cmp(mod_prefix, "") == 0 {
-                            @snprintf(glabel, 512, "{s}", {gname})
-                        } else {
-                            @snprintf(glabel, 512, "{s}__{s}", {mod_prefix, gname})
-                        }
-                        val data_buf: ref char = @alloc(256) as ref char
-                        @snprintf(data_buf, 256, "data ${s} = \{ {s} {s} \}\n", {glabel, gqtype, ginit})
-                        emit(ctx, data_buf)
-                        @free(data_buf)
-                        cg_register_global(ctx, gname, glabel, gqtype)
-                    }
+                    emit_global_val(ctx, mod_prefix, node)
                 }
             }
             none => {}
