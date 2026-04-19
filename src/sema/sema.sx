@@ -1084,6 +1084,12 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref char) v
                                             {filename, line, vis_fn_name, vis_mod_name})
                                         add_error(ctx, buf)
                                     }
+                                    if modinfo.fn_is_unsafe_in_module(import_mod, vis_fn_name) && ctx.in_unsafe_fn == 0 && ctx.in_trust == 0 {
+                                        val ubuf: ref char = @alloc(256) as ref char
+                                        @snprintf(ubuf, 256, "{s}:{lld}: cannot call unsafe function '{s}' from module '{s}' in safe context, use 'trust' block or mark current function as unsafe with '!'",
+                                            {filename, line, vis_fn_name, vis_mod_name})
+                                        add_error(ctx, ubuf)
+                                    }
                                 }
                             }
                         }

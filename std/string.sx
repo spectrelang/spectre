@@ -88,8 +88,8 @@ pub fn len(s: String) i64 = {
 }
 
 /// Length of a raw char pointer
-pub fn len_raw(s: ref char) i64! = {
-    return strlen(s)
+pub fn len_raw(s: ref char) i64 = {
+    return trust strlen(s)
 }
 
 /// Raw pointer

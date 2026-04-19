@@ -168,7 +168,7 @@ test {
     val res = trust exec("echo hello")
     match res {
         ok s => {
-            stdio.print("{s}", {string.cstr(s)})
+            trust stdio.print("{s}", {string.cstr(s)})
         }
         err _ => {
             assert(false)

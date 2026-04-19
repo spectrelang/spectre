@@ -1810,7 +1810,7 @@ pub fn parse_module(tokens: list[ref lexer.Token], filename: ref char) result[li
 }
 
 fn parse_src(src: ref char) result[list[ref Node], ref char] = {
-    val r = lexer.tokenize(src) // TODO: COME BACK TO THIS, SHOULD RAISE ERROR, CROSS MODULE TRUST CHECKING
+    val r = trust lexer.tokenize(src)
     match r {
         err e => { return err e }
         ok toks => { return trust parse_module(toks, "<test>") }
