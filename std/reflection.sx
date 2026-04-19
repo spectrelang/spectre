@@ -138,8 +138,37 @@ pub fn current_platform_name() ref char! = {
     return "unknown"
 }
 
+when linux {
+    extern (C) fn readlink(path: ref char, buf: ref char, bufsiz: i64) i64! = "readlink"
+}
+
+when windows {
+    extern (C) fn GetModuleFileNameA(module: ref void, buf: ref char, size: u32) u32! = "GetModuleFileNameA"
+}
+
+/// Returns the absolute path to the current executable.
+pub fn get_exe_path() ref char! = {
+    val buf: ref char = @alloc(1024) as ref char
+    when linux {
+        val n = readlink("/proc/self/exe", buf, 1024)
+        if n > 0 {
+            @store8(@ptradd(buf, n), 0)
+            return buf
+        }
+    }
+    when windows {
+        if GetModuleFileNameA(0 as ref void, buf, 1024) != 0 {
+            return buf
+        }
+    }
+    return "."
+}
+
 test {
     stdio.puts("calling get_current_platform")
     val platform = trust get_current_platform()
     trust stdio.print("Current platform: {d}\n", {platform})
+    
+    val exe_path = trust get_exe_path()
+    trust stdio.print("Exe path: {s}\n", {exe_path})
 }
