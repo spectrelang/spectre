@@ -1607,6 +1607,14 @@ fn infer_type_annotation(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
 	    }
     }
 
+    if k == parser.NK_TRUST {
+        val trust_inner: ref parser.Node = expr.d0 as ref parser.Node
+        if trust_inner != 0 as ref parser.Node {
+            return infer_type_annotation(ctx, trust_inner)
+        }
+        return ""
+    }
+
     if k == parser.NK_TRY {
         val try_inner: ref parser.Node = expr.d0 as ref parser.Node
         if try_inner != 0 as ref parser.Node {
@@ -2640,6 +2648,10 @@ fn expr_qbe_type(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
             return "l" 
         }
         return "l"
+    }
+
+    if k == parser.NK_TRUST {
+        return expr_qbe_type(ctx, expr.d0 as ref parser.Node)
     }
 
     if k == parser.NK_CALL {
@@ -6523,12 +6535,23 @@ fn gen_match_res(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
         if ok_bind != 0 as ref char {
             val ok_copy: i64 = fresh_tmp(ctx)
             val ok_cbuf: ref char = @alloc(64) as ref char
-            @snprintf(ok_cbuf, 64, "    %%t{lld} =l copy {s}\n", {ok_copy, expr})
-            emit(ctx, ok_cbuf)
-            @free(ok_cbuf)
-            val ok_str: ref char = @alloc(16) as ref char
-            @snprintf(ok_str, 16, "{lld}", {ok_copy})
-            cg_register_local_var(ctx, ok_bind, ok_str)
+            val expr_qt: ref char = expr_qbe_type(ctx, expr_node)
+            if str.rchar_cmp(expr_qt, "w") == 0 {
+                val ext_tmp: i64 = fresh_tmp(ctx)
+                @snprintf(ok_cbuf, 64, "    %%t{lld} =l extsw {s}\n", {ext_tmp, expr})
+                emit(ctx, ok_cbuf)
+                @free(ok_cbuf)
+                val ok_str: ref char = @alloc(16) as ref char
+                @snprintf(ok_str, 16, "{lld}", {ext_tmp})
+                cg_register_local_var(ctx, ok_bind, ok_str)
+            } else {
+                @snprintf(ok_cbuf, 64, "    %%t{lld} =l copy {s}\n", {ok_copy, expr})
+                emit(ctx, ok_cbuf)
+                @free(ok_cbuf)
+                val ok_str: ref char = @alloc(16) as ref char
+                @snprintf(ok_str, 16, "{lld}", {ok_copy})
+                cg_register_local_var(ctx, ok_bind, ok_str)
+            }
             if str.rchar_cmp(result_ann, "") != 0 {
                 cg_register_local_type(ctx, ok_bind, result_ann)
             }
