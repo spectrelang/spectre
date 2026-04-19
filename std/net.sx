@@ -135,8 +135,8 @@ type ServerHandle = {
 }
 
 /// Initialise the curl global state. Call once at program start.
-pub fn (Http) init() void! = {
-    curl_global_init(CURL_GLOBAL_DEFAULT)
+pub fn (Http) init() void = {
+    trust curl_global_init(CURL_GLOBAL_DEFAULT)
 }
 
 /// Clean up the curl global state. Call once at program end.
@@ -197,17 +197,17 @@ pub fn (Http) free_response(resp: ref Response) void! = {
 }
 
 /// Read the HTTP status code from a Response.
-pub fn (Http) status(resp: ref Response) i64! = {
+pub fn (Http) status(resp: ref Response) i64 = {
     return resp.status
 }
 
 /// Read the body pointer from a Response.
-pub fn (Http) body(resp: ref Response) ref char! = {
+pub fn (Http) body(resp: ref Response) ref char = {
     return resp.body
 }
 
 /// Read the body length from a Response.
-pub fn (Http) body_len(resp: ref Response) i64! = {
+pub fn (Http) body_len(resp: ref Response) i64 = {
     return resp.len
 }
 
@@ -299,12 +299,12 @@ pub fn (TcpServer) close(server: ref ServerHandle) void! = {
 }
 
 /// Read the listening port from a server handle.
-pub fn (TcpServer) port(server: ref ServerHandle) i64! = {
+pub fn (TcpServer) port(server: ref ServerHandle) i64 = {
     return server.port
 }
 
 /// Read the listening fd from a server handle.
-pub fn (TcpServer) fd(server: ref ServerHandle) i32! = {
+pub fn (TcpServer) fd(server: ref ServerHandle) i32 = {
     return server.fd
 }
 
@@ -314,7 +314,7 @@ test {
     Http.init()
 
     val url: ref char      = "https://example.com"
-    val resp: ref Response = Http.get(url)
+    val resp: ref Response = trust Http.get(url)
     assert resp != none
 
     val status: i64    = Http.status(resp)
@@ -327,15 +327,15 @@ test {
     assert status > 0
     assert body_ptr != none
     assert body_len >= 0
-    Http.free_response(resp)
+    trust Http.free_response(resp)
 
-    val server: ref ServerHandle = TcpServer.listen(8080)
+    val server: ref ServerHandle = trust TcpServer.listen(8080)
     assert server != none
     val listen_fd: i32    = TcpServer.fd(server)
     val listen_port: i64  = TcpServer.port(server)
     assert listen_fd > 0
     assert listen_port == 8080
 
-    TcpServer.close(server)
-    Http.cleanup()
+    trust TcpServer.close(server)
+    trust Http.cleanup()
 }
