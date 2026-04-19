@@ -12,7 +12,6 @@ passed=0
 failed=0
 skipped=0
 
-
 for arg in "$@"; do
     case "$arg" in
         -bs)
@@ -33,8 +32,8 @@ for file in "$SAMPLES_DIR"/*.sx; do
 
     filename=$(basename "$file")
 
-    if [[ "$filename" == *_error.sx ]]; then
-        echo "[SKIP] $filename (expected failure)"
+    if [[ "$filename" == *_rt_error.sx ]]; then
+        echo "[SKIP] $filename (runtime error test)"
         ((skipped++))
         continue
     fi
@@ -44,12 +43,22 @@ for file in "$SAMPLES_DIR"/*.sx; do
     "$COMPILER" "$file" > /dev/null 2>&1
     status=$?
 
-    if [ $status -eq 0 ]; then
-        echo "[PASS] $filename"
-        ((passed++))
+    if [[ "$filename" == *_error.sx ]]; then
+        if [ $status -ne 0 ]; then
+            echo "[PASS] $filename (failed as expected)"
+            ((passed++))
+        else
+            echo "[FAIL] $filename (expected failure, got success)"
+            ((failed++))
+        fi
     else
-        echo "[FAIL] $filename"
-        ((failed++))
+        if [ $status -eq 0 ]; then
+            echo "[PASS] $filename"
+            ((passed++))
+        else
+            echo "[FAIL] $filename"
+            ((failed++))
+        fi
     fi
 done
 
