@@ -2843,6 +2843,28 @@ fn gen_binop(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
         }
     }
 
+    if op == parser.OP_BAND || op == parser.OP_BOR || op == parser.OP_BXOR ||
+       op == parser.OP_SHL || op == parser.OP_SHR {
+        if str.rchar_cmp(lhs_qbt, "w") == 0 {
+            val ext_tmp: i64 = fresh_tmp(ctx)
+            val ext_buf: ref char = @alloc(128) as ref char
+            @snprintf(ext_buf, 128, "    %%t{lld} =l extsw {s}\n", {ext_tmp, lhs_l})
+            emit(ctx, ext_buf)
+            @free(ext_buf)
+            lhs_l = @alloc(16) as ref char
+            @snprintf(lhs_l, 16, "%%t{lld}", {ext_tmp})
+        }
+        if str.rchar_cmp(rhs_qbt, "w") == 0 {
+            val ext_tmp: i64 = fresh_tmp(ctx)
+            val ext_buf: ref char = @alloc(128) as ref char
+            @snprintf(ext_buf, 128, "    %%t{lld} =l extsw {s}\n", {ext_tmp, rhs_l})
+            emit(ctx, ext_buf)
+            @free(ext_buf)
+            rhs_l = @alloc(16) as ref char
+            @snprintf(rhs_l, 16, "%%t{lld}", {ext_tmp})
+        }
+    }
+
     if is_float {
         if op == parser.OP_ADD  { @snprintf(buf, 256, "    %%t{lld} =d add {s}, {s}\n",  {tmp, lhs, rhs}) }
         elif op == parser.OP_SUB { @snprintf(buf, 256, "    %%t{lld} =d sub {s}, {s}\n",  {tmp, lhs, rhs}) }
@@ -2917,11 +2939,11 @@ fn gen_binop(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
         elif op == parser.OP_OR {
             @snprintf(buf, 256, "    %%t{lld} =w or {s}, {s}\n", {tmp, lhs, rhs})
         }
-        elif op == parser.OP_BAND { @snprintf(buf, 256, "    %%t{lld} =l and {s}, {s}\n", {tmp, lhs, rhs}) }
-        elif op == parser.OP_BOR  { @snprintf(buf, 256, "    %%t{lld} =l or {s}, {s}\n",  {tmp, lhs, rhs}) }
-        elif op == parser.OP_BXOR { @snprintf(buf, 256, "    %%t{lld} =l xor {s}, {s}\n", {tmp, lhs, rhs}) }
-        elif op == parser.OP_SHL  { @snprintf(buf, 256, "    %%t{lld} =l shl {s}, {s}\n", {tmp, lhs, rhs}) }
-        elif op == parser.OP_SHR  { @snprintf(buf, 256, "    %%t{lld} =l shr {s}, {s}\n", {tmp, lhs, rhs}) }
+        elif op == parser.OP_BAND { @snprintf(buf, 256, "    %%t{lld} =l and {s}, {s}\n", {tmp, lhs_l, rhs_l}) }
+        elif op == parser.OP_BOR  { @snprintf(buf, 256, "    %%t{lld} =l or {s}, {s}\n",  {tmp, lhs_l, rhs_l}) }
+        elif op == parser.OP_BXOR { @snprintf(buf, 256, "    %%t{lld} =l xor {s}, {s}\n", {tmp, lhs_l, rhs_l}) }
+        elif op == parser.OP_SHL  { @snprintf(buf, 256, "    %%t{lld} =l shl {s}, {s}\n", {tmp, lhs_l, rhs_l}) }
+        elif op == parser.OP_SHR  { @snprintf(buf, 256, "    %%t{lld} =l shr {s}, {s}\n", {tmp, lhs_l, rhs_l}) }
         else { @snprintf(buf, 256, "    %%t{lld} =l copy 0\n", {tmp}) }
     }
 
