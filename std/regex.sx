@@ -26,6 +26,14 @@ type RegexHandle = {
     ccl_buf: mut ref char
 }
 
+pub enum RegexMatchError = {
+    NullPattern,
+    NullText,
+    NullMatchLength,
+    InvalidCompiledPattern,
+    CompileFailed
+}
+
 fn char_ptr(ptr: ref char, offset: i64) ref char = {
     return trust @ptradd(ptr as ref void, offset) as ref char
 }
@@ -504,71 +512,71 @@ fn matchquestion(token: ref void, pattern: ref void, text: ref char, matchlength
     return false
 }
 
-pub fn re_matchp(pattern: ref void, text: ref char, matchlength: ref i64) i64! = {
+pub fn re_matchp(pattern: ref void, text: ref char, matchlength: ref i64) result[option[i64], RegexMatchError]! = {
     guard (matchlength != none) else {
-        return -1
+        return err RegexMatchError.NullMatchLength
     }
 
     @deref(matchlength) = 0
 
     guard (pattern != none) else {
-        return -1
+        return err RegexMatchError.InvalidCompiledPattern
     }
     guard (text != none) else {
-        return -1
+        return err RegexMatchError.NullText
     }
 
     val handle: ref RegexHandle = pattern as ref RegexHandle
     val tokens: ref void = handle.tokens
     if (tokens == none) {
-        return -1
+        return err RegexMatchError.InvalidCompiledPattern
     }
 
     if (token_kind(token_ptr(tokens, 0)) == TOKEN_BEGIN) {
         if (matchpattern(token_ptr(tokens, 1), text, matchlength)) {
-            return 0
+            return ok (some 0)
         }
-        return -1
+        return ok none
     }
 
-    val idx: mut i64 = -1
+    val idx: mut i64 = 0
     val cursor: mut ref char = text
 
     for {
-        idx += 1
         if (matchpattern(tokens, cursor, matchlength)) {
-            if (char_at(cursor, 0) == 0) {
-                return -1
+            if (char_at(cursor, 0) != 0) {
+                return ok (some idx)
             }
-            return idx
+            return ok none
         }
 
         if (char_at(cursor, 0) == 0) {
             break
         }
         cursor = char_ptr(cursor, 1)
+        idx += 1
     }
 
-    return -1
+    return ok none
 }
 
-pub fn re_match(pattern: ref char, text: ref char, matchlength: ref i64) i64 = {
+pub fn re_match(pattern: ref char, text: ref char, matchlength: ref i64) result[option[i64], RegexMatchError] = {
     guard (matchlength != none) else {
-        return -1
+        return err RegexMatchError.NullMatchLength
     }
 
     @deref(matchlength) = 0
 
     guard (pattern != none) else {
-        return -1
+        return err RegexMatchError.NullPattern
     }
     guard (text != none) else {
-        return -1
+        return err RegexMatchError.NullText
     }
 
     match re_compile(pattern) {
         some compiled => {
-            val out: i64 = trust re_matchp(compiled, text, matchlength)
+            val out: result[option[i64], RegexMatchError] = trust re_matchp(compiled, text, matchlength)
             trust re_free(compiled)
             post {
                 matchlength_nonneg: @deref(matchlength) >= 0
@@ -576,7 +584,7 @@ pub fn re_match(pattern: ref char, text: ref char, matchlength: ref i64) i64 = {
             return out
         }
         none => {
-            return -1
+            return err RegexMatchError.CompileFailed
         }
     }
 }
@@ -657,27 +665,83 @@ pub fn re_print(pattern: ref void) void = {
 
 test {
     val matchlength: mut i64 = 0
-    assert re_match("^h.llo$", "hello", @addr(matchlength)) == 0
-    assert matchlength == 5
+    match re_match("^h.llo$", "hello", @addr(matchlength)) {
+        ok found => {
+            match found {
+                some pos => { assert pos == 0 }
+                none => { assert false }
+            }
+            assert matchlength == 5
+        }
+        err _ => { assert false }
+    }
 
-    assert re_match("a*bc", "aaabc", @addr(matchlength)) == 0
-    assert matchlength == 5
+    match re_match("a*bc", "aaabc", @addr(matchlength)) {
+        ok found => {
+            match found {
+                some pos => { assert pos == 0 }
+                none => { assert false }
+            }
+            assert matchlength == 5
+        }
+        err _ => { assert false }
+    }
 
-    assert re_match("colou?r", "color", @addr(matchlength)) == 0
-    assert matchlength == 5
+    match re_match("colou?r", "color", @addr(matchlength)) {
+        ok found => {
+            match found {
+                some pos => { assert pos == 0 }
+                none => { assert false }
+            }
+            assert matchlength == 5
+        }
+        err _ => { assert false }
+    }
 
-    assert re_match("\\d+", "abc123z", @addr(matchlength)) == 3
-    assert matchlength == 3
+    match re_match("\\d+", "abc123z", @addr(matchlength)) {
+        ok found => {
+            match found {
+                some pos => { assert pos == 3 }
+                none => { assert false }
+            }
+            assert matchlength == 3
+        }
+        err _ => { assert false }
+    }
+
+    match re_match("xyz", "hello", @addr(matchlength)) {
+        ok found => {
+            match found {
+                some _ => { assert false }
+                none => {}
+            }
+            assert matchlength == 0
+        }
+        err _ => { assert false }
+    }
 
     match re_compile("[a-z]+") {
         some compiled => {
-            assert trust re_matchp(compiled, "spectre", @addr(matchlength)) == 0
-            assert matchlength == 7
+            match trust re_matchp(compiled, "spectre", @addr(matchlength)) {
+                ok found => {
+                    match found {
+                        some pos => { assert pos == 0 }
+                        none => { assert false }
+                    }
+                    assert matchlength == 7
+                }
+                err _ => { assert false }
+            }
             trust re_free(compiled)
         }
         none => {
             assert false
         }
+    }
+
+    match re_match("[", "hello", @addr(matchlength)) {
+        ok _ => { assert false }
+        err e => { assert e == RegexMatchError.CompileFailed }
     }
 
     match re_compile("[") {
