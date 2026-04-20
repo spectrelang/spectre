@@ -602,6 +602,14 @@ fn kind_name(kind: i64) ref char = {
     return "UNKNOWN"
 }
 
+fn print_char(c: u8) void! = {
+    val buf: ref char = @alloc(2) as ref char
+    @store8(buf, c)
+    @store8(@ptradd(buf, 1), 0)
+    stdio.print("{s}", {buf})
+    @free(buf)
+}
+
 pub fn re_print(pattern: ref void) void = {
     guard (pattern != none) else {
         return
@@ -634,12 +642,14 @@ pub fn re_print(pattern: ref void) void = {
                 if (c == 0 || c == ']') {
                     break
                 }
-                trust stdio.print("{c}", {c})
+                trust print_char(c)
                 j += 1
             }
             trust stdio.print("]", {})
         } elif (kind == TOKEN_CHAR) {
-            trust stdio.print(" '{c}'", {token_ch(token)})
+            trust stdio.print(" '", {})
+            trust print_char(token_ch(token))
+            trust stdio.print("'", {})
         }
         trust stdio.print("\n", {})
         i += 1

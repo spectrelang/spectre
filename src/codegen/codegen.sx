@@ -1711,8 +1711,8 @@ fn parse_result_types(ann: ref char, ok_buf: ref char, err_buf: ref char) void! 
         @store8(err_buf, 0)
         return
     }
-    val ok_len: mut i64 = split_pos - inner_start
-    val err_len: mut i64 = inner_end - split_pos - 1
+    val ok_len: i64 = split_pos - inner_start
+    val err_len: i64 = inner_end - split_pos - 1
     val j: mut i64 = 0
     for {
         if j >= ok_len { break }
