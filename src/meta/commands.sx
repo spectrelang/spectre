@@ -722,11 +722,11 @@ pub fn cmd_init(name_arg: ref char) i32 = {
 
     std.fs.mkdir_path("src")
 
-    val main_template: ref char = \\ val stdio = use("std/stdio")
+    val main_template: ref char = \\val stdio = use("std/stdio")
         \\
-        \\ pub fn main() void = {
-        \\     stdio.puts("Hello, world!")
-        \\ }
+        \\pub fn main() void = {
+        \\    stdio.puts("Hello, world!")
+        \\}
         \\
     std.fs.write_all("src/main.sx", main_template)
 
