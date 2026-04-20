@@ -1376,10 +1376,11 @@ fn translate_body_statement(ctx: ref TranslationCtx, line: ref char, indent: i64
                 if q_i >= 0 {
                     val colon_i: i64 = find_matching_colon_for_ternary(ternary_src, q_i)
                     if colon_i > q_i {
+                        mark_mutable_name(ctx, decl.name)
                         val cond: ref char = unwrap_outer_parens(trim_raw(std.string.substr(ternary_src, 0, q_i)))
                         val if_true: ref char = unwrap_outer_parens(trim_raw(std.string.substr(ternary_src, q_i + 1, colon_i - q_i - 1)))
                         val if_false: ref char = unwrap_outer_parens(trim_raw(std.string.substr(ternary_src, colon_i + 1, std.string.len_raw(ternary_src) - colon_i - 1)))
-                        append_line(out, indent, trust @fmt("val {s}: {s} = {s}", {decl.name, rendered_type, if_false}))
+                        append_line(out, indent, trust @fmt("val {s}: {s} = {s}", {decl.name, render_mutable_type(decl.type_name), if_false}))
                         val if_line1: ref char = trust @fmt("if ({s}) ", {cond})
                         val if_line2: ref char = std.string.concat_raw(if_line1, "{ ")
                         val if_line3: ref char = trust @fmt("{s} = {s}", {decl.name, if_true})
