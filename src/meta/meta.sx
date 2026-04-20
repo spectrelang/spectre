@@ -1,7 +1,7 @@
 val std = use("std")
 
 pub fn get_spectre_version() ref char = {
-    return "v0.0.3"
+    return "v0.0.4"
 }
 
 pub fn print_usage() void = {
