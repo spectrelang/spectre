@@ -1,0 +1,684 @@
+val stdio = use("stdio.sx")
+
+pub val MAX_REGEXP_OBJECTS: i64 = 30
+pub val MAX_CHAR_CLASS_LEN: i64 = 40
+
+val REGEX_TOKEN_SIZE: i64 = 24
+val TOKEN_UNUSED: i64 = 0
+val TOKEN_DOT: i64 = 1
+val TOKEN_BEGIN: i64 = 2
+val TOKEN_END: i64 = 3
+val TOKEN_QUESTIONMARK: i64 = 4
+val TOKEN_STAR: i64 = 5
+val TOKEN_PLUS: i64 = 6
+val TOKEN_CHAR: i64 = 7
+val TOKEN_CHAR_CLASS: i64 = 8
+val TOKEN_INV_CHAR_CLASS: i64 = 9
+val TOKEN_DIGIT: i64 = 10
+val TOKEN_NOT_DIGIT: i64 = 11
+val TOKEN_ALPHA: i64 = 12
+val TOKEN_NOT_ALPHA: i64 = 13
+val TOKEN_WHITESPACE: i64 = 14
+val TOKEN_NOT_WHITESPACE: i64 = 15
+
+type RegexHandle = {
+    tokens: mut ref void
+    ccl_buf: mut ref char
+}
+
+fn char_ptr(ptr: ref char, offset: i64) ref char = {
+    return trust @ptradd(ptr as ref void, offset) as ref char
+}
+
+fn char_at(ptr: ref char, offset: i64) u8 = {
+    return trust @load8(char_ptr(ptr, offset)) as u8
+}
+
+fn token_ptr(tokens: ref void, idx: i64) ref void = {
+    pre {
+        idx_nonneg: idx >= 0
+        idx_in_bounds: idx < MAX_REGEXP_OBJECTS
+    }
+    return trust @ptradd(tokens, idx * REGEX_TOKEN_SIZE)
+}
+
+fn token_next(token: ref void, delta: i64) ref void = {
+    return trust @ptradd(token, delta * REGEX_TOKEN_SIZE)
+}
+
+fn token_kind(token: ref void) i64 = {
+    return trust @load(token) as i64
+}
+
+fn set_token_kind(token: ref void, kind: i64) void = {
+    trust @store(token, kind)
+}
+
+fn token_ch(token: ref void) u8 = {
+    return trust @load8(@ptradd(token, 8)) as u8
+}
+
+fn set_token_ch(token: ref void, ch: u8) void = {
+    trust @store8(@ptradd(token, 8), ch)
+}
+
+fn token_ccl(token: ref void) ref char = {
+    return trust @load(@ptradd(token, 16)) as ref char
+}
+
+fn set_token_ccl(token: ref void, ccl: ref char) void = {
+    trust @store(@ptradd(token, 16), ccl)
+}
+
+fn ccl_slot(buf: ref char, idx: i64) ref char = {
+    pre {
+        idx_nonneg: idx >= 0
+        idx_in_bounds: idx < MAX_CHAR_CLASS_LEN
+    }
+    return char_ptr(buf, idx)
+}
+
+fn alloc_handle() option[ref void]! = {
+    val handle: mut ref RegexHandle = @alloc(16) as mut ref RegexHandle
+    if (handle == none) {
+        return none
+    }
+
+    val tokens: ref void = @alloc(MAX_REGEXP_OBJECTS * REGEX_TOKEN_SIZE)
+    if (tokens == none) {
+        @free(handle as ref void)
+        return none
+    }
+
+    val ccl_raw: ref void = @alloc(MAX_CHAR_CLASS_LEN)
+    if (ccl_raw == none) {
+        @free(tokens)
+        @free(handle as ref void)
+        return none
+    }
+
+    @memset(tokens, 0, MAX_REGEXP_OBJECTS * REGEX_TOKEN_SIZE)
+    @memset(ccl_raw, 0, MAX_CHAR_CLASS_LEN)
+
+    handle.tokens = tokens
+    handle.ccl_buf = ccl_raw as ref char
+
+    post {
+        tokens_present: handle.tokens != none
+        ccl_present: handle.ccl_buf != none
+    }
+    return some (handle as ref void)
+}
+
+pub fn re_free(pattern: ref void) void! = {
+    guard (pattern != none) else {
+        return
+    }
+
+    val handle: ref RegexHandle = pattern as ref RegexHandle
+    if (handle.tokens != none) {
+        @free(handle.tokens)
+    }
+    if (handle.ccl_buf != none) {
+        @free(handle.ccl_buf as ref void)
+    }
+    @free(pattern)
+}
+
+pub fn re_compile(pattern: ref char) option[ref void] = {
+    guard (pattern != none) else {
+        return none
+    }
+
+    match trust alloc_handle() {
+        none => {
+            return none
+        }
+        some raw_handle => {
+            val handle: ref RegexHandle = raw_handle as ref RegexHandle
+            val ccl_bufidx: mut i64 = 1
+            val i: mut i64 = 0
+            val j: mut i64 = 0
+
+            for {
+                val c: u8 = char_at(pattern, i)
+                if (c == 0 || (j + 1 >= MAX_REGEXP_OBJECTS)) {
+                    break
+                }
+
+                val token: ref void = token_ptr(handle.tokens, j)
+
+                if (c == '^') {
+                    set_token_kind(token, TOKEN_BEGIN)
+                } elif (c == '$') {
+                    set_token_kind(token, TOKEN_END)
+                } elif (c == '.') {
+                    set_token_kind(token, TOKEN_DOT)
+                } elif (c == '*') {
+                    set_token_kind(token, TOKEN_STAR)
+                } elif (c == '+') {
+                    set_token_kind(token, TOKEN_PLUS)
+                } elif (c == '?') {
+                    set_token_kind(token, TOKEN_QUESTIONMARK)
+                } elif (c == '\\') {
+                    val next: u8 = char_at(pattern, i + 1)
+                    if (next == 0) {
+                        trust re_free(raw_handle)
+                        return none
+                    }
+
+                    i += 1
+                    val escaped: u8 = char_at(pattern, i)
+                    if (escaped == 'd') {
+                        set_token_kind(token, TOKEN_DIGIT)
+                    } elif (escaped == 'D') {
+                        set_token_kind(token, TOKEN_NOT_DIGIT)
+                    } elif (escaped == 'w') {
+                        set_token_kind(token, TOKEN_ALPHA)
+                    } elif (escaped == 'W') {
+                        set_token_kind(token, TOKEN_NOT_ALPHA)
+                    } elif (escaped == 's') {
+                        set_token_kind(token, TOKEN_WHITESPACE)
+                    } elif (escaped == 'S') {
+                        set_token_kind(token, TOKEN_NOT_WHITESPACE)
+                    } else {
+                        set_token_kind(token, TOKEN_CHAR)
+                        set_token_ch(token, escaped)
+                    }
+                } elif (c == '[') {
+                    val buf_begin: i64 = ccl_bufidx
+
+                    if (char_at(pattern, i + 1) == '^') {
+                        set_token_kind(token, TOKEN_INV_CHAR_CLASS)
+                        i += 1
+                        if (char_at(pattern, i + 1) == 0) {
+                            trust re_free(raw_handle)
+                            return none
+                        }
+                    } else {
+                        set_token_kind(token, TOKEN_CHAR_CLASS)
+                    }
+
+                    for {
+                        i += 1
+                        val cls_char: u8 = char_at(pattern, i)
+                        if (cls_char == ']' || cls_char == 0) {
+                            break
+                        }
+
+                        if (cls_char == '\\') {
+                            if (ccl_bufidx >= MAX_CHAR_CLASS_LEN - 1) {
+                                trust re_free(raw_handle)
+                                return none
+                            }
+                            if (char_at(pattern, i + 1) == 0) {
+                                trust re_free(raw_handle)
+                                return none
+                            }
+                            trust @store8(ccl_slot(handle.ccl_buf, ccl_bufidx), cls_char)
+                            ccl_bufidx += 1
+                            i += 1
+                        } elif (ccl_bufidx >= MAX_CHAR_CLASS_LEN) {
+                            trust re_free(raw_handle)
+                            return none
+                        }
+
+                        if (ccl_bufidx >= MAX_CHAR_CLASS_LEN) {
+                            trust re_free(raw_handle)
+                            return none
+                        }
+
+                        trust @store8(ccl_slot(handle.ccl_buf, ccl_bufidx), char_at(pattern, i))
+                        ccl_bufidx += 1
+                    }
+
+                    if (ccl_bufidx >= MAX_CHAR_CLASS_LEN) {
+                        trust re_free(raw_handle)
+                        return none
+                    }
+
+                    trust @store8(ccl_slot(handle.ccl_buf, ccl_bufidx), 0)
+                    ccl_bufidx += 1
+                    set_token_ccl(token, char_ptr(handle.ccl_buf, buf_begin))
+                } else {
+                    set_token_kind(token, TOKEN_CHAR)
+                    set_token_ch(token, c)
+                }
+
+                if (char_at(pattern, i) == 0) {
+                    trust re_free(raw_handle)
+                    return none
+                }
+
+                i += 1
+                j += 1
+            }
+
+            set_token_kind(token_ptr(handle.tokens, j), TOKEN_UNUSED)
+            return some raw_handle
+        }
+    }
+}
+
+fn matchdigit(c: u8) bool = {
+    return c >= '0' && c <= '9'
+}
+
+fn matchalpha(c: u8) bool = {
+    return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
+}
+
+fn matchwhitespace(c: u8) bool = {
+    return c == 9 || c == 10 || c == 11 || c == 12 || c == 13 || c == 32
+}
+
+fn matchalphanum(c: u8) bool = {
+    return c == '_' || matchalpha(c) || matchdigit(c)
+}
+
+fn matchrange(c: u8, str: ref char) bool = {
+    return c != '-'
+        && char_at(str, 0) != 0
+        && char_at(str, 0) != '-'
+        && char_at(str, 1) == '-'
+        && char_at(str, 2) != 0
+        && c >= char_at(str, 0)
+        && c <= char_at(str, 2)
+}
+
+fn matchdot(c: u8) bool = {
+    return c != 10 && c != 13
+}
+
+fn ismetachar(c: u8) bool = {
+    return c == 's' || c == 'S' || c == 'w' || c == 'W' || c == 'd' || c == 'D'
+}
+
+fn matchmetachar(c: u8, str: ref char) bool = {
+    val meta: u8 = char_at(str, 0)
+    if (meta == 'd') {
+        return matchdigit(c)
+    } elif (meta == 'D') {
+        return !matchdigit(c)
+    } elif (meta == 'w') {
+        return matchalphanum(c)
+    } elif (meta == 'W') {
+        return !matchalphanum(c)
+    } elif (meta == 's') {
+        return matchwhitespace(c)
+    } elif (meta == 'S') {
+        return !matchwhitespace(c)
+    }
+    return c == meta
+}
+
+fn matchcharclass(c: u8, str: ref char) bool = {
+    val i: mut i64 = 0
+    val prev: mut u8 = 0
+
+    for {
+        val current: u8 = char_at(str, i)
+
+        if (matchrange(c, char_ptr(str, i))) {
+            return true
+        } elif (current == '\\') {
+            i += 1
+            val escaped: u8 = char_at(str, i)
+            if (matchmetachar(c, char_ptr(str, i))) {
+                return true
+            } elif (c == escaped && !ismetachar(c)) {
+                return true
+            }
+        } elif (c == current) {
+            if (c == '-') {
+                return prev == 0 || char_at(str, i + 1) == 0
+            }
+            return true
+        }
+
+        val consumed: u8 = char_at(str, i)
+        if (consumed == 0) {
+            break
+        }
+
+        prev = consumed
+        i += 1
+    }
+
+    return false
+}
+
+fn matchone(token: ref void, c: u8) bool = {
+    val kind: i64 = token_kind(token)
+
+    if (kind == TOKEN_DOT) {
+        return matchdot(c)
+    } elif (kind == TOKEN_CHAR_CLASS) {
+        return matchcharclass(c, token_ccl(token))
+    } elif (kind == TOKEN_INV_CHAR_CLASS) {
+        return !matchcharclass(c, token_ccl(token))
+    } elif (kind == TOKEN_DIGIT) {
+        return matchdigit(c)
+    } elif (kind == TOKEN_NOT_DIGIT) {
+        return !matchdigit(c)
+    } elif (kind == TOKEN_ALPHA) {
+        return matchalphanum(c)
+    } elif (kind == TOKEN_NOT_ALPHA) {
+        return !matchalphanum(c)
+    } elif (kind == TOKEN_WHITESPACE) {
+        return matchwhitespace(c)
+    } elif (kind == TOKEN_NOT_WHITESPACE) {
+        return !matchwhitespace(c)
+    }
+
+    return token_ch(token) == c
+}
+
+fn matchpattern(pattern: ref void, text: ref char, matchlength: ref i64) bool = {
+    pre {
+        text_present: text != none
+        matchlength_present: matchlength != none
+    }
+
+    val pre_ml: i64 = @deref(matchlength)
+    val cursor: mut ref char = text
+    val current: mut ref void = pattern
+
+    for {
+        val kind0: i64 = token_kind(current)
+        val kind1: i64 = token_kind(token_next(current, 1))
+
+        if (kind0 == TOKEN_UNUSED || kind1 == TOKEN_QUESTIONMARK) {
+            return matchquestion(current, token_next(current, 2), cursor, matchlength)
+        } elif (kind1 == TOKEN_STAR) {
+            return matchstar(current, token_next(current, 2), cursor, matchlength)
+        } elif (kind1 == TOKEN_PLUS) {
+            return matchplus(current, token_next(current, 2), cursor, matchlength)
+        } elif (kind0 == TOKEN_END && kind1 == TOKEN_UNUSED) {
+            return char_at(cursor, 0) == 0
+        }
+
+        val current_char: u8 = char_at(cursor, 0)
+        if (current_char == 0 || !matchone(current, current_char)) {
+            break
+        }
+
+        @deref(matchlength) = @deref(matchlength) + 1
+        current = token_next(current, 1)
+        cursor = char_ptr(cursor, 1)
+    }
+
+    @deref(matchlength) = pre_ml
+    return false
+}
+
+fn matchstar(token: ref void, pattern: ref void, text: ref char, matchlength: ref i64) bool = {
+    pre {
+        text_present: text != none
+        matchlength_present: matchlength != none
+    }
+
+    val prelen: i64 = @deref(matchlength)
+    val cursor: mut ref char = text
+    val span: mut i64 = 0
+
+    for {
+        val c: u8 = char_at(cursor, 0)
+        if (c == 0 || !matchone(token, c)) {
+            break
+        }
+        cursor = char_ptr(cursor, 1)
+        span += 1
+        @deref(matchlength) = @deref(matchlength) + 1
+    }
+
+    for {
+        if (span < 0) {
+            break
+        }
+        if (matchpattern(pattern, char_ptr(text, span), matchlength)) {
+            return true
+        }
+        @deref(matchlength) = @deref(matchlength) - 1
+        span -= 1
+    }
+
+    @deref(matchlength) = prelen
+    return false
+}
+
+fn matchplus(token: ref void, pattern: ref void, text: ref char, matchlength: ref i64) bool = {
+    pre {
+        text_present: text != none
+        matchlength_present: matchlength != none
+    }
+
+    val cursor: mut ref char = text
+    val span: mut i64 = 0
+
+    for {
+        val c: u8 = char_at(cursor, 0)
+        if (c == 0 || !matchone(token, c)) {
+            break
+        }
+        cursor = char_ptr(cursor, 1)
+        span += 1
+        @deref(matchlength) = @deref(matchlength) + 1
+    }
+
+    for {
+        if (span <= 0) {
+            break
+        }
+        if (matchpattern(pattern, char_ptr(text, span), matchlength)) {
+            return true
+        }
+        @deref(matchlength) = @deref(matchlength) - 1
+        span -= 1
+    }
+
+    return false
+}
+
+fn matchquestion(token: ref void, pattern: ref void, text: ref char, matchlength: ref i64) bool = {
+    pre {
+        text_present: text != none
+        matchlength_present: matchlength != none
+    }
+
+    if (token_kind(token) == TOKEN_UNUSED) {
+        return true
+    }
+    if (matchpattern(pattern, text, matchlength)) {
+        return true
+    }
+
+    val c: u8 = char_at(text, 0)
+    if (c != 0 && matchone(token, c)) {
+        if (matchpattern(pattern, char_ptr(text, 1), matchlength)) {
+            @deref(matchlength) = @deref(matchlength) + 1
+            return true
+        }
+    }
+
+    return false
+}
+
+pub fn re_matchp(pattern: ref void, text: ref char, matchlength: ref i64) i64! = {
+    guard (matchlength != none) else {
+        return -1
+    }
+
+    @deref(matchlength) = 0
+
+    guard (pattern != none) else {
+        return -1
+    }
+    guard (text != none) else {
+        return -1
+    }
+
+    val handle: ref RegexHandle = pattern as ref RegexHandle
+    val tokens: ref void = handle.tokens
+    if (tokens == none) {
+        return -1
+    }
+
+    if (token_kind(token_ptr(tokens, 0)) == TOKEN_BEGIN) {
+        if (matchpattern(token_ptr(tokens, 1), text, matchlength)) {
+            return 0
+        }
+        return -1
+    }
+
+    val idx: mut i64 = -1
+    val cursor: mut ref char = text
+
+    for {
+        idx += 1
+
+        if (matchpattern(tokens, cursor, matchlength)) {
+            if (char_at(cursor, 0) == 0) {
+                return -1
+            }
+            return idx
+        }
+
+        if (char_at(cursor, 0) == 0) {
+            break
+        }
+        cursor = char_ptr(cursor, 1)
+    }
+
+    return -1
+}
+
+pub fn re_match(pattern: ref char, text: ref char, matchlength: ref i64) i64 = {
+    guard (matchlength != none) else {
+        return -1
+    }
+
+    @deref(matchlength) = 0
+
+    guard (pattern != none) else {
+        return -1
+    }
+    guard (text != none) else {
+        return -1
+    }
+
+    match re_compile(pattern) {
+        some compiled => {
+            val out: i64 = trust re_matchp(compiled, text, matchlength)
+            trust re_free(compiled)
+            post {
+                matchlength_nonneg: @deref(matchlength) >= 0
+            }
+            return out
+        }
+        none => {
+            return -1
+        }
+    }
+}
+
+fn kind_name(kind: i64) ref char = {
+    if (kind == TOKEN_UNUSED) { return "UNUSED" }
+    if (kind == TOKEN_DOT) { return "DOT" }
+    if (kind == TOKEN_BEGIN) { return "BEGIN" }
+    if (kind == TOKEN_END) { return "END" }
+    if (kind == TOKEN_QUESTIONMARK) { return "QUESTIONMARK" }
+    if (kind == TOKEN_STAR) { return "STAR" }
+    if (kind == TOKEN_PLUS) { return "PLUS" }
+    if (kind == TOKEN_CHAR) { return "CHAR" }
+    if (kind == TOKEN_CHAR_CLASS) { return "CHAR_CLASS" }
+    if (kind == TOKEN_INV_CHAR_CLASS) { return "INV_CHAR_CLASS" }
+    if (kind == TOKEN_DIGIT) { return "DIGIT" }
+    if (kind == TOKEN_NOT_DIGIT) { return "NOT_DIGIT" }
+    if (kind == TOKEN_ALPHA) { return "ALPHA" }
+    if (kind == TOKEN_NOT_ALPHA) { return "NOT_ALPHA" }
+    if (kind == TOKEN_WHITESPACE) { return "WHITESPACE" }
+    if (kind == TOKEN_NOT_WHITESPACE) { return "NOT_WHITESPACE" }
+    return "UNKNOWN"
+}
+
+pub fn re_print(pattern: ref void) void = {
+    guard (pattern != none) else {
+        return
+    }
+
+    val handle: ref RegexHandle = pattern as ref RegexHandle
+    val i: mut i64 = 0
+
+    for {
+        if (i >= MAX_REGEXP_OBJECTS) {
+            break
+        }
+
+        val token: ref void = token_ptr(handle.tokens, i)
+        val kind: i64 = token_kind(token)
+        if (kind == TOKEN_UNUSED) {
+            break
+        }
+
+        trust stdio.print("type: {s}", {kind_name(kind)})
+        if (kind == TOKEN_CHAR_CLASS || kind == TOKEN_INV_CHAR_CLASS) {
+            trust stdio.print(" [", {})
+            val ccl: ref char = token_ccl(token)
+            val j: mut i64 = 0
+            for {
+                if (j >= MAX_CHAR_CLASS_LEN) {
+                    break
+                }
+                val c: u8 = char_at(ccl, j)
+                if (c == 0 || c == ']') {
+                    break
+                }
+                trust stdio.print("{c}", {c})
+                j += 1
+            }
+            trust stdio.print("]", {})
+        } elif (kind == TOKEN_CHAR) {
+            trust stdio.print(" '{c}'", {token_ch(token)})
+        }
+        trust stdio.print("\n", {})
+        i += 1
+    }
+}
+
+test {
+    val matchlength: mut i64 = 0
+
+    assert re_match("^h.llo$", "hello", @addr(matchlength)) == 0
+    assert matchlength == 5
+
+    assert re_match("a*bc", "aaabc", @addr(matchlength)) == 0
+    assert matchlength == 5
+
+    assert re_match("colou?r", "color", @addr(matchlength)) == 0
+    assert matchlength == 5
+
+    assert re_match("\\d+", "abc123z", @addr(matchlength)) == 3
+    assert matchlength == 3
+
+    match re_compile("[a-z]+") {
+        some compiled => {
+            assert trust re_matchp(compiled, "spectre", @addr(matchlength)) == 0
+            assert matchlength == 7
+            trust re_free(compiled)
+        }
+        none => {
+            assert false
+        }
+    }
+
+    match re_compile("[") {
+        some compiled => {
+            trust re_free(compiled)
+            assert false
+        }
+        none => {}
+    }
+
+    stdio.puts("regex tests passed")
+}
