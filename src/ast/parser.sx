@@ -1523,8 +1523,25 @@ fn parse_type_def_item(p: ref Parser, public: i64, is_extern: i64) result[ref No
     p_expect_eq(p)?
     p_expect_lbrace(p)?
     val fields: mut list[ref Node] = []
+    val inv_exprs: mut list[ref Node] = []
+    val has_invariant: mut bool = false
     for {
         if lexer.kind_is_rbrace(p_peek_kind(p)) { break }
+        if lexer.kind_is_invariant(p_peek_kind(p)) {
+            if has_invariant {
+                return err p_error(p, "duplicate invariant block in type definition")
+            }
+            has_invariant = true
+            p_advance(p)
+            p_expect_lbrace(p)?
+            for {
+                if lexer.kind_is_rbrace(p_peek_kind(p)) { break }
+                val iexpr = parse_expr(p)?
+                @append(inv_exprs, iexpr)
+            }
+            p_expect_rbrace(p)?
+            continue
+        }
         val fname = p_expect_ident(p)?
         p_expect_colon(p)?
         val fmut: mut i64 = 0
@@ -1542,16 +1559,7 @@ fn parse_type_def_item(p: ref Parser, public: i64, is_extern: i64) result[ref No
     nt.d0 = public nt.d1 = name as i64
     val fl: list[ref Node] = fields
     nt.d2 = fl as i64
-    if lexer.kind_is_invariant(p_peek_kind(p)) {
-        p_advance(p)
-        p_expect_lbrace(p)?
-        val inv_exprs: mut list[ref Node] = []
-        for {
-            if lexer.kind_is_rbrace(p_peek_kind(p)) { break }
-            val iexpr = parse_expr(p)?
-            @append(inv_exprs, iexpr)
-        }
-        p_expect_rbrace(p)?
+    if has_invariant {
         val il: list[ref Node] = inv_exprs
         nt.d3 = il as i64
     }
@@ -2040,6 +2048,34 @@ test {
                 }
             }
         }
+    }
+
+    @puts("parser 18b")
+    val r18b = parse_src("type Token = { kind: mut i64 invariant { kind > 0 } }")
+    match r18b {
+        err e => {
+            std.stdio.print("{s}\n", {e})
+            assert false
+        }
+        ok items => {
+            val opt18b = @get(items, 0 as usize)
+            match opt18b {
+                none => { assert false }
+                some v => {
+                    val item: ref Node = v as ref Node
+                    assert item.kind == NK_TYPEDEF
+                    assert item.d3 != 0
+                    assert @len(item.d3 as list[ref Node]) as i64 == 1
+                }
+            }
+        }
+    }
+
+    @puts("parser 18c")
+    val r18c = parse_src("type Token = { kind: mut i64 } invariant { kind > 0 }")
+    match r18c {
+        ok _  => { assert false }
+        err _ => { assert true }
     }
 
     @puts("parser 19")

@@ -611,6 +611,7 @@ fn print_node_recursive(node: ref parser.Node, indent: i64, is_last: bool) void!
         val name: ref char = node.d1 as ref char
         std.stdio.print("{s}{s} : {s}\n", {prefix, kind_name, name})
         val fields: list[ref parser.Node] = node.d2 as list[ref parser.Node]
+        val invariants: list[ref parser.Node] = node.d3 as list[ref parser.Node]
         if fields as i64 != 0 {
             val nfields: i64 = @len(fields) as i64
             val i: mut i64 = 0
@@ -620,12 +621,15 @@ fn print_node_recursive(node: ref parser.Node, indent: i64, is_last: bool) void!
                 match field_opt {
                     some field_val => {
                         val field: ref parser.Node = field_val as ref parser.Node
-                        print_named_node_children(field.d0 as ref char, field.d2 as ref parser.Node, indent + 1, i == nfields - 1)
+                        print_named_node_children(field.d0 as ref char, field.d2 as ref parser.Node, indent + 1, i == nfields - 1 && invariants as i64 == 0)
                     }
                     none => {}
                 }
                 i++
             }
+        }
+        if invariants as i64 != 0 {
+            print_named_node_list("invariants", invariants, indent + 1, true)
         }
     } elif kind == parser.NK_ENUMDEF {
         val name: ref char = node.d1 as ref char
