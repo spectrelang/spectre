@@ -1615,7 +1615,12 @@ fn infer_type_annotation(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
                     return type_expr_to_annotation(ctx, ret_expr2 as ref parser.Node)
                 }
             }
-	    }
+    	    }
+    }
+
+    if k == parser.NK_BUILTIN {
+        val bname: ref char = expr.d0 as ref char
+        if str.rchar_cmp(bname, "isnull") == 0 { return "bool" }
     }
 
     if k == parser.NK_TRUST {
@@ -2912,6 +2917,12 @@ fn expr_qbe_type(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
             }
         }
         
+        return "l"
+    }
+
+    if k == parser.NK_BUILTIN {
+        val bname: ref char = expr.d0 as ref char
+        if str.rchar_cmp(bname, "isnull") == 0 { return "w" }
         return "l"
     }
 
@@ -4430,6 +4441,10 @@ fn gen_builtin(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
         val ptr7: ref char = get_arg(ctx, args, 0)
         val off: ref char = get_arg(ctx, args, 1)
         @snprintf(buf, 512, "    %%t{lld} =l add {s}, {s}\n", {tmp, ptr7, off})
+        emit(ctx, buf)
+    } elif str.rchar_cmp(name, "isnull") == 0 {
+        val ptr8: ref char = get_arg(ctx, args, 0)
+        @snprintf(buf, 512, "    %%t{lld} =w ceql {s}, 0\n", {tmp, ptr8})
         emit(ctx, buf)
     } elif str.rchar_cmp(name, "puts") == 0 {
         val s: ref char = get_arg(ctx, args, 0)
@@ -7379,6 +7394,30 @@ fn gen_fn_prefixed(ctx: mut ref CgCtx, fn_node: ref parser.Node, mod_prefix: ref
                     if is_ref_type(pty2) {
                         cg_register_local_ref_type(ctx, pname2)
                     }
+
+                    if pty2 != 0 as ref parser.Node && pty2.kind == parser.TY_MUT {
+                        val slot_tmp: i64 = fresh_tmp(ctx)
+                        val slot_name: ref char = @alloc(32) as ref char
+                        @snprintf(slot_name, 32, "{lld}", {slot_tmp})
+
+                        val slot_buf: ref char = @alloc(256) as ref char
+                        val param_qt: ref char = qbe_type_of(pty2)
+                        val store_op: mut ref char = "storel"
+                        if str.rchar_cmp(param_qt, "w") == 0 {
+                            store_op = "storew"
+                        } elif str.rchar_cmp(param_qt, "s") == 0 {
+                            store_op = "stores"
+                        } elif str.rchar_cmp(param_qt, "d") == 0 {
+                            store_op = "stored"
+                        }
+
+                        @snprintf(slot_buf, 256, "    %%t{lld} =l alloc8 8\n    {s} %%{s}, %%t{lld}\n", {slot_tmp, store_op, pname2, slot_tmp})
+                        emit(ctx, slot_buf)
+                        @free(slot_buf)
+
+                        cg_register_local_var(ctx, pname2, slot_name)
+                        cg_mark_as_slot(ctx, pname2)
+                    }
                 }
                 none => {}
             }
@@ -7425,7 +7464,9 @@ fn gen_fn_prefixed(ctx: mut ref CgCtx, fn_node: ref parser.Node, mod_prefix: ref
                     val pname2: ref char = (param2 as ref parser.Node).d0 as ref char
                     val pty2: ref parser.Node = (param2 as ref parser.Node).d1 as ref parser.Node
                     val ptk: i64 = pty2.kind
-                    cg_dvars_add(ctx, pname2, qbe_type_of(pty2))
+                    if ptk != parser.TY_MUT {
+                        cg_dvars_add(ctx, pname2, qbe_type_of(pty2))
+                    }
                     if ptk == parser.TY_NAMED {
                         val tname: ref char = pty2.d0 as ref char
                         cg_register_local_type(ctx, pname2, tname)

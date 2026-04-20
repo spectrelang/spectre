@@ -90,19 +90,19 @@ for file in "$STD_DIR"/*.sx; do
     fi
 done
 
-"$COMPILER" ./src/ast/lexer.sx -q --test
-"$COMPILER" ./src/ast/parser.sx -q --test
-"$COMPILER" ./src/sema/sema.sx -q --test
-"$COMPILER" ./src/module/module.sx -q --test
-"$COMPILER" ./src/codegen/codegen.sx -q --test
-"$COMPILER" ./src/sxc.sx -q --test
+"$COMPILER" ./src/ast/lexer.sx -l --test
+"$COMPILER" ./src/ast/parser.sx -l --test
+"$COMPILER" ./src/sema/sema.sx -l --test
+"$COMPILER" ./src/module/module.sx -l --test
+"$COMPILER" ./src/codegen/codegen.sx -l --test
+"$COMPILER" ./src/sxc.sx -l --test
 
 fi
 
 echo "Bootstrap test:"
-"$COMPILER" ./src/sxc.sx -o sxc2 || exit 1
-./sxc2 ./src/sxc.sx -o sxc3 || exit 1
-./sxc3 ./src/sxc.sx -o sxc4 || exit 1
+"$COMPILER" ./src/sxc.sx -l -o sxc2 || exit 1
+./sxc2 ./src/sxc.sx -l -o sxc3 || exit 1
+./sxc3 ./src/sxc.sx -l -o sxc4 || exit 1
 
 echo
 echo "Final Summary:"
