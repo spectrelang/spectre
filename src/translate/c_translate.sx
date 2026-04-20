@@ -28,6 +28,8 @@ type TranslationCtx = {
     fnptr_names:   mut list[ref char]
     local_names:   mut list[ref char]
     local_types:   mut list[ref char]
+    local_array_names: mut list[ref char]
+    local_array_types: mut list[ref char]
     mutable_names: mut list[ref char]
 }
 
@@ -47,6 +49,8 @@ fn new_translation_ctx() ref TranslationCtx = {
     ctx.fnptr_names   = []
     ctx.local_names   = []
     ctx.local_types   = []
+    ctx.local_array_names = []
+    ctx.local_array_types = []
     ctx.mutable_names = []
     return ctx
 }
@@ -295,6 +299,8 @@ fn push_unique(items: mut list[ref char], value: ref char) void = {
 fn clear_local_types(ctx: mut ref TranslationCtx) void = {
     ctx.local_names = []
     ctx.local_types = []
+    ctx.local_array_names = []
+    ctx.local_array_types = []
     ctx.mutable_names = []
 }
 
@@ -342,6 +348,50 @@ fn lookup_local_type(ctx: ref TranslationCtx, name: ref char) option[ref char] =
     return none
 }
 
+fn remember_local_array_type(ctx: ref TranslationCtx, name: ref char, array_size_expr: ref char) void = {
+    val len: i64 = @len(ctx.local_array_names) as i64
+    val i: mut i64 = 0
+    for {
+        if i >= len { break }
+        val existing_opt = @get(ctx.local_array_names, i as usize)
+        match existing_opt {
+            some existing_name => {
+                if std.string.rchar_cmp(existing_name as ref char, name) == 0 {
+                    @set(ctx.local_array_types, i as usize, array_size_expr)
+                    return
+                }
+            }
+            none => {}
+        }
+        i++
+    }
+    @append(ctx.local_array_names, name)
+    @append(ctx.local_array_types, array_size_expr)
+}
+
+fn lookup_local_array_type(ctx: ref TranslationCtx, name: ref char) option[ref char] = {
+    val len: i64 = @len(ctx.local_array_names) as i64
+    val i: mut i64 = 0
+    for {
+        if i >= len { break }
+        val existing_opt = @get(ctx.local_array_names, i as usize)
+        match existing_opt {
+            some existing_name => {
+                if std.string.rchar_cmp(existing_name as ref char, name) == 0 {
+                    val type_opt = @get(ctx.local_array_types, i as usize)
+                    match type_opt {
+                        some type_name => { return some type_name as ref char }
+                        none => {}
+                    }
+                }
+            }
+            none => {}
+        }
+        i++
+    }
+    return none
+}
+
 fn mark_mutable_name(ctx: ref TranslationCtx, name: ref char) void = {
     if std.string.rchar_cmp(name, "") == 0 { return }
     push_unique(ctx.mutable_names, name)
@@ -360,6 +410,37 @@ fn render_binding_type(ctx: ref TranslationCtx, name: ref char, type_name: ref c
 fn render_mutable_type(type_name: ref char) ref char = {
     if std.string.rchar_starts_with(type_name, "mut ") { return type_name }
     return trust @fmt("mut {s}", {type_name})
+}
+
+fn is_array_type_name(type_name: ref char) bool = {
+    return std.string.rchar_starts_with(type_name, "[")
+}
+
+fn array_type_close_index(type_name: ref char) i64 = {
+    return find_char(type_name, 93)
+}
+
+fn array_type_len_expr(type_name: ref char) ref char = {
+    val close_i: i64 = array_type_close_index(type_name)
+    if close_i <= 1 { return "" }
+    return std.string.substr(type_name, 1, close_i - 1)
+}
+
+fn array_type_elem(type_name: ref char) ref char = {
+    val close_i: i64 = array_type_close_index(type_name)
+    val len: i64 = std.string.len_raw(type_name)
+    if close_i < 0 || close_i + 1 >= len { return "void" }
+    return std.string.substr(type_name, close_i + 1, len - close_i - 1)
+}
+
+fn decay_array_type(type_name: ref char) ref char = {
+    return trust @fmt("ref {s}", {array_type_elem(type_name)})
+}
+
+fn array_alloc_expr(type_name: ref char) ref char = {
+    val len_expr: ref char = array_type_len_expr(type_name)
+    val elem_type: ref char = array_type_elem(type_name)
+    return trust @fmt("{s} * @sizeof({s})", {len_expr, elem_type})
 }
 
 fn extract_assignment_base(lhs: ref char) ref char = {
@@ -697,6 +778,11 @@ fn is_printf_length_char(c: u8) bool = {
 }
 
 fn map_printf_specifier(length_mod: ref char, spec: u8) ref char = {
+    val is_size_mod: bool = std.string.rchar_cmp(length_mod, "z") == 0
+        || std.string.rchar_cmp(length_mod, "t") == 0
+        || std.string.rchar_cmp(length_mod, "j") == 0
+    if is_size_mod && (spec == 105 || spec == 100 || spec == 117) { return "d" }
+    if is_size_mod && (spec == 120 || spec == 88 || spec == 111) { return trust @fmt("{c}", {spec}) }
     if spec == 105 { return trust @fmt("{s}d", {length_mod}) }
     if spec == 100 { return trust @fmt("{s}d", {length_mod}) }
     if spec == 117 { return trust @fmt("{s}u", {length_mod}) }
@@ -1187,7 +1273,7 @@ fn translate_designated_initializer(text: ref char) ref char = {
     return std.string.cstr(built)
 }
 
-fn translate_sizeof_expr(text: ref char) ref char = {
+fn translate_sizeof_expr(ctx: ref TranslationCtx, text: ref char) ref char = {
     val trimmed: ref char = trim_raw(text)
     val len: i64 = std.string.len_raw(trimmed)
     val sb: ref void = std.string.StringBuilder.new()
@@ -1221,6 +1307,16 @@ fn translate_sizeof_expr(text: ref char) ref char = {
                     }
                     if close_i < len {
                         val inner: ref char = trim_raw(std.string.substr(trimmed, after_kw + 1, close_i - after_kw - 1))
+                        if is_ident_text(inner) {
+                            match lookup_local_array_type(ctx, inner) {
+                                some array_size_expr => {
+                                    std.string.StringBuilder.append_cstr(sb, array_size_expr as ref char)
+                                    i = close_i + 1
+                                    continue
+                                }
+                                none => {}
+                            }
+                        }
                         val mapped: ref char = translate_c_type(inner, "")
                         std.string.StringBuilder.append_cstr(sb, trust @fmt("@sizeof({s})", {mapped}))
                         i = close_i + 1
@@ -1309,7 +1405,7 @@ fn rewrite_null_comparison(ctx: ref TranslationCtx, text: ref char) option[ref c
 fn translate_expr_text(ctx: ref TranslationCtx, text: ref char) ref char = {
     val no_semicolon: ref char = strip_trailing_semicolon(text)
     val with_init: ref char = translate_designated_initializer(no_semicolon)
-    val with_sizeof: ref char = translate_sizeof_expr(with_init)
+    val with_sizeof: ref char = translate_sizeof_expr(ctx, with_init)
     val with_arrow: ref char = replace_arrow_access(with_sizeof)
     val with_casts: ref char = translate_c_cast_expr(ctx, with_arrow)
     val with_rewritten: ref char = rewrite_identifiers(with_casts)
@@ -1364,6 +1460,14 @@ fn translate_body_statement(ctx: ref TranslationCtx, line: ref char, indent: i64
         if can_be_decl {
             val decl: ref DeclInfo = parse_named_decl(lhs, "")
             if decl.its_ok && std.string.rchar_cmp(decl.name, "") != 0 && std.string.rchar_cmp(trim_raw(decl.type_src), "") != 0 {
+                if is_array_type_name(decl.type_name) {
+                    val alloc_expr: ref char = array_alloc_expr(decl.type_name)
+                    val decayed_type: ref char = decay_array_type(decl.type_name)
+                    remember_local_type(ctx, decl.name, decayed_type)
+                    remember_local_array_type(ctx, decl.name, alloc_expr)
+                    append_line(out, indent, trust @fmt("val {s}: {s} = @alloc({s})", {decl.name, render_binding_type(ctx, decl.name, decayed_type), alloc_expr}))
+                    return true
+                }
                 val rhs_expr0: ref char = translate_expr_text(ctx, rhs)
                 val rhs_expr: mut ref char = rhs_expr0
                 if std.string.rchar_cmp(trim_raw(rhs), "NULL") == 0 {
@@ -1417,6 +1521,20 @@ fn translate_body_statement(ctx: ref TranslationCtx, line: ref char, indent: i64
         }
         append_line(out, indent, trust @fmt("{s} = {s}", {lhs_rewritten, rhs_expr3}))
         return true
+    }
+    val can_be_bare_decl: bool = (str_contains(stripped, " ") || str_contains(stripped, "*")
+        || std.string.rchar_starts_with(stripped, "struct ") || std.string.rchar_starts_with(stripped, "enum "))
+        && !str_contains(stripped, "(")
+    if can_be_bare_decl {
+        val decl2: ref DeclInfo = parse_named_decl(stripped, "")
+        if decl2.its_ok && std.string.rchar_cmp(decl2.name, "") != 0 && is_array_type_name(decl2.type_name) {
+            val alloc_expr2: ref char = array_alloc_expr(decl2.type_name)
+            val decayed_type2: ref char = decay_array_type(decl2.type_name)
+            remember_local_type(ctx, decl2.name, decayed_type2)
+            remember_local_array_type(ctx, decl2.name, alloc_expr2)
+            append_line(out, indent, trust @fmt("val {s}: {s} = @alloc({s})", {decl2.name, render_binding_type(ctx, decl2.name, decayed_type2), alloc_expr2}))
+            return true
+        }
     }
     if std.string.rchar_starts_with(stripped, "for (") {
         return false
@@ -2151,8 +2269,12 @@ fn translate_params(ctx: ref TranslationCtx, params_text: ref char) ref char = {
             arg_index++
             continue
         }
-        remember_local_type(ctx, decl.name, decl.type_name)
-        val rendered_type: ref char = render_binding_type(ctx, decl.name, decl.type_name)
+        val param_type: mut ref char = decl.type_name
+        if is_array_type_name(decl.type_name) {
+            param_type = decay_array_type(decl.type_name)
+        }
+        remember_local_type(ctx, decl.name, param_type)
+        val rendered_type: ref char = render_binding_type(ctx, decl.name, param_type)
         if !first { std.string.StringBuilder.append_cstr(sb, ", ") }
         std.string.StringBuilder.append_cstr(sb, trust @fmt("{s}: {s}", {decl.name, rendered_type}))
         first = false

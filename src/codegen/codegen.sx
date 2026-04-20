@@ -4665,13 +4665,10 @@ fn gen_builtin(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
         val sbuf: ref char = get_arg(ctx, args, 0)
         val ssz: ref char = get_arg(ctx, args, 1)
         val sfmt: ref char = get_format_arg(ctx, args, 2)
-        val scall_buf: ref char = @alloc(4096) as ref char
-        val scall_pos: mut i64 = 0
+        val scall_sb: ref void = str.StringBuilder.new()
         val shdr: ref char = @alloc(256) as ref char
         @snprintf(shdr, 256, "    %%t{lld} =w call $snprintf(l {s}, l {s}, l {s}, ...", {tmp, sbuf, ssz, sfmt})
-        val shdr_len: i64 = str.len_raw(shdr)
-        @memcpy(@ptradd(scall_buf as ref void, scall_pos), shdr as ref void, shdr_len)
-        scall_pos = scall_pos + shdr_len
+        str.StringBuilder.append_cstr(scall_sb, shdr)
         @free(shdr)
         if args != 0 as ref void {
             val salen: i64 = @len(args) as i64
@@ -4691,13 +4688,11 @@ fn gen_builtin(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
                                     some spe => {
                                         val spe_node: ref parser.Node = spe as ref parser.Node
                                         val svarg: ref char = gen_variadic_arg(ctx, spe_node)
-                                        val spbuf: mut ref char = @alloc(64) as ref char
+                                        val spbuf: ref char = @alloc(64) as ref char
                                         @snprintf(spbuf, 64, ", {s}", {svarg})
-                                        val spbuf_len: i64 = str.len_raw(spbuf)
-                                        @memcpy(@ptradd(scall_buf as ref void, scall_pos), spbuf as ref void, spbuf_len)
-                                        scall_pos = scall_pos + spbuf_len
-                                        @free(svarg)
+                                        str.StringBuilder.append_cstr(scall_sb, spbuf)
                                         @free(spbuf)
+                                        @free(svarg)
                                     }
                                     none => {}
                                 }
@@ -4708,23 +4703,19 @@ fn gen_builtin(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
                             val svarg2: ref char = gen_variadic_arg(ctx, spn)
                             val spbuf2: ref char = @alloc(64) as ref char
                             @snprintf(spbuf2, 64, ", {s}", {svarg2})
-                            val spbuf2_len: i64 = str.len_raw(spbuf2)
-                            @memcpy(@ptradd(scall_buf as ref void, scall_pos), spbuf2 as ref void, spbuf2_len)
-                            scall_pos = scall_pos + spbuf2_len
-                            @free(svarg2)
+                            str.StringBuilder.append_cstr(scall_sb, spbuf2)
                             @free(spbuf2)
+                            @free(svarg2)
                         }
                     }
                     none => {}
                 }
             }
         }
-        @store8(@ptradd(scall_buf as ref void, scall_pos), 41)
-        scall_pos++
-        @store8(@ptradd(scall_buf as ref void, scall_pos), 10)
-        scall_pos++
-        @store8(@ptradd(scall_buf as ref void, scall_pos), 0)
-        emit(ctx, scall_buf)
+        str.StringBuilder.append_cstr(scall_sb, ")\n")
+        val scall_line: ref void = str.StringBuilder.build(scall_sb)
+        str.StringBuilder.free(scall_sb)
+        emit(ctx, str.cstr(scall_line))
         val sext_tmp: i64 = fresh_tmp(ctx)
         val sext_buf: ref char = @alloc(64) as ref char
         @snprintf(sext_buf, 64, "    %%t{lld} =l extsw %%t{lld}\n", {sext_tmp, tmp})
@@ -5269,23 +5260,14 @@ fn gen_builtin(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
         val fmt_copy_size: i64 = fresh_tmp(ctx)
         val fmt_copy: i64 = fresh_tmp(ctx)
         val fmt_nul: i64 = fresh_tmp(ctx)
-        val fmt_call_buf: ref char = @alloc(4096) as ref char
-        val fmt_call_pos: mut i64 = 0
         val fmt_hdr: ref char = @alloc(256) as ref char
-
         @snprintf(fmt_hdr, 256, "    %%t{lld} =l call $malloc(l 4096)\n", {fmt_buf})
-        val fmt_hdr_len: i64 = str.len_raw(fmt_hdr)
-        @memcpy(@ptradd(fmt_call_buf as ref void, fmt_call_pos), fmt_hdr as ref void, fmt_hdr_len)
-        fmt_call_pos = fmt_call_pos + fmt_hdr_len
+        emit(ctx, fmt_hdr)
         @free(fmt_hdr)
-        emit(ctx, fmt_call_buf)
-        fmt_call_pos = 0
-
+        val fmt_call_sb: ref void = str.StringBuilder.new()
         val snp_hdr: ref char = @alloc(256) as ref char
         @snprintf(snp_hdr, 256, "    %%t{lld} =w call $snprintf(l %%t{lld}, l 4096, l {s}", {fmt_written_w, fmt_buf, fmt2})
-        val snp_hdr_len: i64 = str.len_raw(snp_hdr)
-        @memcpy(@ptradd(fmt_call_buf as ref void, fmt_call_pos), snp_hdr as ref void, snp_hdr_len)
-        fmt_call_pos = fmt_call_pos + snp_hdr_len
+        str.StringBuilder.append_cstr(fmt_call_sb, snp_hdr)
         @free(snp_hdr)
 
         if args != 0 as ref void {
@@ -5299,12 +5281,7 @@ fn gen_builtin(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
                             val fpack: ref void = fpn.d0 as ref void
                             val fplen: i64 = @len(fpack) as i64
                             if fplen > 0 {
-                                val sep_buf: ref char = @alloc(8) as ref char
-                                @snprintf(sep_buf, 8, ", ...,")
-                                val sep_len: i64 = str.len_raw(sep_buf)
-                                @memcpy(@ptradd(fmt_call_buf as ref void, fmt_call_pos), sep_buf as ref void, sep_len)
-                                fmt_call_pos = fmt_call_pos + sep_len
-                                @free(sep_buf)
+                                str.StringBuilder.append_cstr(fmt_call_sb, ", ...")
                                 val fpi: mut i64 = 0
                                 for {
                                     if fpi >= fplen { break }
@@ -5315,14 +5292,8 @@ fn gen_builtin(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
                                             val fpqt: ref char = expr_qtype(ctx, fpe_node)
                                             val fpv: ref char = gen_expr(ctx, fpe_node)
                                             val fpbuf: ref char = @alloc(64) as ref char
-                                            if fpi == 0 {
-                                                @snprintf(fpbuf, 64, " {s} {s}", {fpqt, fpv})
-                                            } else {
-                                                @snprintf(fpbuf, 64, ", {s} {s}", {fpqt, fpv})
-                                            }
-                                            val fpbuf_len: i64 = str.len_raw(fpbuf)
-                                            @memcpy(@ptradd(fmt_call_buf as ref void, fmt_call_pos), fpbuf as ref void, fpbuf_len)
-                                            fmt_call_pos = fmt_call_pos + fpbuf_len
+                                            @snprintf(fpbuf, 64, ", {s} {s}", {fpqt, fpv})
+                                            str.StringBuilder.append_cstr(fmt_call_sb, fpbuf)
                                             @free(fpbuf)
                                         }
                                         none => {}
@@ -5336,12 +5307,10 @@ fn gen_builtin(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
                 }
             }
         }
-        @store8(@ptradd(fmt_call_buf as ref void, fmt_call_pos), 41) // ')'
-        fmt_call_pos++
-        @store8(@ptradd(fmt_call_buf as ref void, fmt_call_pos), 10) // '\n'
-        fmt_call_pos++
-        @store8(@ptradd(fmt_call_buf as ref void, fmt_call_pos), 0)
-        emit(ctx, fmt_call_buf)
+        str.StringBuilder.append_cstr(fmt_call_sb, ")\n")
+        val fmt_call_line: ref void = str.StringBuilder.build(fmt_call_sb)
+        str.StringBuilder.free(fmt_call_sb)
+        emit(ctx, str.cstr(fmt_call_line))
         // extsw, malloc copy, memcpy, nul-terminate, free buf
         val tail_buf: ref char = @alloc(512) as ref char
         @snprintf(tail_buf, 512, "    %%t{lld} =l extsw %%t{lld}\n    %%t{lld} =l add %%t{lld}, 1\n    %%t{lld} =l call $malloc(l %%t{lld})\n    call $memcpy(l %%t{lld}, l %%t{lld}, l %%t{lld})\n    %%t{lld} =l add %%t{lld}, %%t{lld}\n    storeb 0, %%t{lld}\n    call $free(l %%t{lld})\n",
