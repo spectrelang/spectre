@@ -1,5 +1,5 @@
-val std    = use("std")
-val parser = use("../ast/parser.sx")
+val std     = use("std")
+val parser  = use("../ast/parser.sx")
 val modinfo = use("../module/module.sx")
 
 type ScopeEntry = {
