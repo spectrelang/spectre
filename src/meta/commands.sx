@@ -552,10 +552,15 @@ pub fn cmd_ref() i32 = {
                 \\     return a / b
                 \\ }
                 \\
-                \\ // invariant: checked on every iteration of the enclosing loop
-                \\ invariant { i_in_bounds: i < len }
-                \\ ```
+                \\ // type level invariant: checked at compile time where possible
+                \\ type SomeType = {
+                \\     x: i32
+                \\     y: i32
                 \\
+                \\     invariant {
+                \\         x > 10 && y > 5
+                \\     }
+                \\ }
                 \\ ---
                 \\
                 \\ ## Error Propagation
