@@ -567,7 +567,7 @@ pub fn cmd_ref() i32 = {
                 \\
                 \\ ```
                 \\ // ! in return type means errors can propagate
-                \\ fn read_file(path: ref char) ref char! = {
+                \\ fn read_file(path: ref char) result[ref char, SomeError]! = {
                 \\     val f = some_fallible_call()?   // ? propagates err upward
                 \\     return f
                 \\ }
