@@ -29,7 +29,7 @@ The compiler is tested under MacOS aarch64 and Linux x86_64, for Windows it is u
 val std = use("std")
 
 pub fn main() void! = {
-    val xs: list[ref char] = ["hello", "world", "this", "is", "a", "test"]
+    val xs = ["hello", "world", "this", "is", "a", "test"]
     for x in xs {
         std.stdio.print("{s}\n", {x})
     }
