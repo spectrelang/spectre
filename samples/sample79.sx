@@ -1,0 +1,10 @@
+type SomeType = {
+    x: mut i32
+    y: i32
+}
+
+pub fn main() void = {
+    val s: mut SomeType = {x: 10, y: 30}
+    s.x++
+    trust @printf("{d}\n", {s.x})
+}
