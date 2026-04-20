@@ -248,7 +248,7 @@ pub fn main() i32! = {
 
     if translate_c_flag {
         if std.string.rchar_cmp(output_name, "") == 0 {
-            output_name = @fmt("./s-source-out/{s}.sx", {path.get_name_without_ext(arena, input)})
+            output_name = @fmt("./src-out/{s}.sx", {path.get_name_without_ext(arena, input)})
         }
         val code: i32 = c_translate.translate_c(input, output_name)
         allocators.Arena.free(arena)

@@ -15,3 +15,4 @@ sxc4
 test_walk_dir
 SPECTRE_LANGUAGE_REFERENCE.md
 /s-source-out
+/src-out
