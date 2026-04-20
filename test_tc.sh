@@ -25,7 +25,7 @@ for cfile in "$SAMPLES_DIR"/*.c; do
         continue
     fi
 
-    "$COMPILER" "$sxfile"
+    "$COMPILER" "./s-source-out/$sxfile"
     if [ $? -ne 0 ]; then
         echo "[FAIL] compile failed: $name"
         echo
