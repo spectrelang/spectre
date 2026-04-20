@@ -3679,6 +3679,180 @@ fn gen_list_ptr(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
     return gen_expr(ctx, expr)
 }
 
+fn gen_store_field_value(ctx: ref CgCtx, target: ref parser.Node, val_tmp2: ref char, val_qtype: ref char) void! = {
+    val ftarget: ref parser.Node = parser.field_base(target)
+    val fname: ref char = parser.field_name(target)
+    val foffset: mut i64 = 0
+    val field_is_union: mut bool = false
+    
+    if ftarget.kind == parser.NK_IDENT {
+        val bname: ref char = ftarget.d0 as ref char
+        val tname2: ref char = cg_local_type(ctx, bname)
+        val lookup_tname: mut ref char = tname2
+
+        if rchar_starts_with(tname2, "ref ") {
+            lookup_tname = @ptradd(tname2, 4)
+        }
+
+        if str.rchar_cmp(lookup_tname, "") != 0 {
+            val flds2: ref void = cg_lookup_struct(ctx, lookup_tname)
+            if flds2 != 0 as ref void {
+                val off2: i64 = field_offset(ctx, flds2, fname)
+                if off2 >= 0 { foffset = off2 }
+
+                val sflen: i64 = @len(flds2 as list[ref void]) as i64
+                val sfi: mut i64 = 0
+                for {
+                    if sfi >= sflen { break }
+                    val sf_opt = @get(flds2 as list[ref void], sfi as usize)
+                    match sf_opt {
+                        some sf => {
+                            val sfn: ref parser.Node = sf as ref parser.Node
+                            val sfname: ref char = sfn.d0 as ref char
+                            if str.rchar_cmp(sfname, fname) == 0 {
+                                val sfty: ref parser.Node = sfn.d2 as ref parser.Node
+                                if sfty != 0 as ref parser.Node && sfty.kind == parser.TY_NAMED {
+                                    val ftype_name: ref char = sfty.d0 as ref char
+                                    val union_check: ref void = cg_lookup_union_suffix(ctx, ftype_name)
+                                    if union_check != 0 as ref void {
+                                        field_is_union = true
+                                    }
+                                }
+                                sfi = sflen
+                            }
+                        }
+                        none => {}
+                    }
+                    sfi++
+                }
+            }
+        }
+    } elif ftarget.kind == parser.NK_FIELD {
+        val noff: i64 = nested_field_offset(ctx, ftarget, fname)
+        if noff >= 0 { foffset = noff }
+    }
+
+    val base: ref char = gen_expr(ctx, ftarget)
+
+    if field_is_union {
+        val fptr: i64 = fresh_tmp(ctx)
+        if foffset == 0 {
+            val buf3u: ref char = @alloc(128) as ref char
+            @snprintf(buf3u, 128, "    call $memcpy(l {s}, l {s}, l 16)\n", {base, val_tmp2})
+            emit(ctx, buf3u)
+            @free(buf3u)
+        } else {
+            val buf3ub: ref char = @alloc(128) as ref char
+            @snprintf(buf3ub, 128, "    %%t{lld} =l add {s}, {lld}\n", {fptr, base, foffset})
+            emit(ctx, buf3ub)
+            @free(buf3ub)
+            val buf3u: ref char = @alloc(128) as ref char
+            @snprintf(buf3u, 128, "    call $memcpy(l %%t{lld}, l {s}, l 16)\n", {fptr, val_tmp2})
+            emit(ctx, buf3u)
+            @free(buf3u)
+        }
+    } else {
+        val field_is_list: mut bool = false
+        val field_size_write: mut i64 = 8
+        val field_store_op: mut ref char = "storel"
+
+        if ftarget.kind == parser.NK_IDENT {
+            val bname2: ref char = ftarget.d0 as ref char
+            val tname3: ref char = cg_local_type(ctx, bname2)
+            val lookup3: mut ref char = tname3
+            if rchar_starts_with(tname3, "ref ") { lookup3 = @ptradd(tname3, 4) }
+            if str.rchar_cmp(lookup3, "") != 0 {
+                val flds3: ref void = cg_lookup_struct(ctx, lookup3)
+                if flds3 != 0 as ref void {
+                    val sf3len: i64 = @len(flds3 as list[ref void]) as i64
+                    val sf3i: mut i64 = 0
+                    for {
+                        if sf3i >= sf3len { break }
+                        val sf3_opt = @get(flds3 as list[ref void], sf3i as usize)
+                        match sf3_opt {
+                            some sf3 => {
+                                val sf3n: ref parser.Node = sf3 as ref parser.Node
+                                val sf3name: ref char = sf3n.d0 as ref char
+                                if str.rchar_cmp(sf3name, fname) == 0 {
+                                    val sf3ty: ref parser.Node = sf3n.d2 as ref parser.Node
+                                    if sf3ty != 0 as ref parser.Node {
+                                        if sf3ty.kind == parser.TY_LIST {
+                                            field_is_list = true
+                                        } else {
+                                            if sf3ty.kind == parser.TY_NAMED {
+                                                val ftnm: ref char = sf3ty.d0 as ref char
+                                                val sflds: ref void = cg_lookup_struct(ctx, ftnm)
+                                                if sflds != 0 as ref void {
+                                                    field_size_write = struct_size(ctx, sflds)
+                                                }
+                                            }
+                                            val sf3qt: ref char = qbe_type_of(sf3ty)
+                                            if str.rchar_cmp(sf3qt, "w") == 0 { field_store_op = "storew" }
+                                            elif str.rchar_cmp(sf3qt, "s") == 0 { field_store_op = "stores" }
+                                            elif str.rchar_cmp(sf3qt, "d") == 0 { field_store_op = "stored" }
+                                        }
+                                    }
+                                    sf3i = sf3len
+                                }
+                            }
+                            none => {}
+                        }
+                        sf3i++
+                    }
+                }
+            }
+        }
+
+        val val_to_store: mut ref char = val_tmp2
+        if str.rchar_cmp(field_store_op, "storel") == 0 && str.rchar_cmp(val_qtype, "w") == 0 {
+            val ext_tmp: i64 = fresh_tmp(ctx)
+            val ext_buf: ref char = @alloc(128) as ref char
+            @snprintf(ext_buf, 128, "    %%t{lld} =l extsw {s}\n", {ext_tmp, val_tmp2})
+            emit(ctx, ext_buf)
+            @free(ext_buf)
+            val ext_res: ref char = @alloc(16) as ref char
+            @snprintf(ext_res, 16, "%%t{lld}", {ext_tmp})
+            val_to_store = ext_res
+        }
+
+        val buf3: ref char = @alloc(128) as ref char
+        if field_is_list {
+            if foffset == 0 {
+                @snprintf(buf3, 128, "    call $memcpy(l {s}, l {s}, l 24)\n", {base, val_to_store})
+            } else {
+                val fptr: i64 = fresh_tmp(ctx)
+                val buf3b: ref char = @alloc(128) as ref char
+                @snprintf(buf3b, 128, "    %%t{lld} =l add {s}, {lld}\n", {fptr, base, foffset})
+                emit(ctx, buf3b)
+                @free(buf3b)
+                @snprintf(buf3, 128, "    call $memcpy(l %%t{lld}, l {s}, l 24)\n", {fptr, val_to_store})
+            }
+        } elif field_size_write > 8 {
+            if foffset == 0 {
+                @snprintf(buf3, 128, "    call $memcpy(l {s}, l {s}, l {lld})\n", {base, val_to_store, field_size_write})
+            } else {
+                val fptr: i64 = fresh_tmp(ctx)
+                val buf3b: ref char = @alloc(128) as ref char
+                @snprintf(buf3b, 128, "    %%t{lld} =l add {s}, {lld}\n", {fptr, base, foffset})
+                emit(ctx, buf3b)
+                @free(buf3b)
+                @snprintf(buf3, 128, "    call $memcpy(l %%t{lld}, l {s}, l {lld})\n", {fptr, val_to_store, field_size_write})
+            }
+        } elif foffset == 0 {
+            @snprintf(buf3, 128, "    {s} {s}, {s}\n", {field_store_op, val_to_store, base})
+        } else {
+            val fptr: i64 = fresh_tmp(ctx)
+            val buf3b: ref char = @alloc(128) as ref char
+            @snprintf(buf3b, 128, "    %%t{lld} =l add {s}, {lld}\n", {fptr, base, foffset})
+            emit(ctx, buf3b)
+            @free(buf3b)
+            @snprintf(buf3, 128, "    {s} {s}, %%t{lld}\n", {field_store_op, val_to_store, fptr})
+        }
+        emit(ctx, buf3)
+        @free(buf3)
+    }
+}
+
 fn gen_call(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
     val callee_node: ref parser.Node = expr.d0 as ref parser.Node
     val args_list: ref void = expr.d1 as ref void
@@ -5792,189 +5966,7 @@ fn gen_stmt(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
             emit(ctx, buf2)
             @free(buf2)
         } elif tk == parser.NK_FIELD {
-            val ftarget: ref parser.Node = parser.field_base(target)
-            val fname: ref char = parser.field_name(target)
-            val foffset: mut i64 = 0
-            val field_is_union: mut bool = false
-            
-            if ftarget.kind == parser.NK_IDENT {
-                val bname: ref char = ftarget.d0 as ref char
-                val tname2: ref char = cg_local_type(ctx, bname)
-                val lookup_tname: mut ref char = tname2 
-		
-		if rchar_starts_with(tname2, "ref ") { 
-		    lookup_tname = @ptradd(tname2, 4) 
-		} 
-		
-		if str.rchar_cmp(lookup_tname, "") != 0 {
-                    val flds2: ref void = cg_lookup_struct(ctx, lookup_tname)
-                    if flds2 != 0 as ref void {
-                        val off2: i64 = field_offset(ctx, flds2, fname)
-                        if off2 >= 0 { foffset = off2 }
-                        
-                        val sflen: i64 = @len(flds2 as list[ref void]) as i64
-                        val sfi: mut i64 = 0
-                        for {
-                            if sfi >= sflen { break }
-                            val sf_opt = @get(flds2 as list[ref void], sfi as usize)
-                            match sf_opt {
-                                some sf => {
-                                    val sfn: ref parser.Node = sf as ref parser.Node
-                                    val sfname: ref char = sfn.d0 as ref char
-                                    if str.rchar_cmp(sfname, fname) == 0 {
-                                        val sfty: ref parser.Node = sfn.d2 as ref parser.Node
-                                        if sfty != 0 as ref parser.Node && sfty.kind == parser.TY_NAMED {
-                                            val ftype_name: ref char = sfty.d0 as ref char
-                                            val union_check: ref void = cg_lookup_union_suffix(ctx, ftype_name)
-                                            if union_check != 0 as ref void {
-                                                field_is_union = true
-                                            }
-                                        }
-                                        sfi = sflen // break
-                                    }
-                                }
-                                none => {}
-                            }
-                            sfi++
-                        }
-                    }
-                }
-            } elif ftarget.kind == parser.NK_FIELD {
-                val noff: i64 = nested_field_offset(ctx, ftarget, fname)
-                if noff >= 0 { foffset = noff }
-            }
-
-            val base: ref char = gen_expr(ctx, ftarget)
-            
-            if field_is_union {
-                val fptr: i64 = fresh_tmp(ctx)
-                if foffset == 0 {
-                    val buf3u: ref char = @alloc(128) as ref char
-                    @snprintf(buf3u, 128, "    call $memcpy(l {s}, l {s}, l 16)\n", {base, val_tmp2})
-                    emit(ctx, buf3u)
-                    @free(buf3u)
-                } else {
-                    val buf3ub: ref char = @alloc(128) as ref char
-                    @snprintf(buf3ub, 128, "    %%t{lld} =l add {s}, {lld}\n", {fptr, base, foffset})
-                    emit(ctx, buf3ub)
-                    @free(buf3ub)
-                    val buf3u: ref char = @alloc(128) as ref char
-                    @snprintf(buf3u, 128, "    call $memcpy(l %%t{lld}, l {s}, l 16)\n", {fptr, val_tmp2})
-                    emit(ctx, buf3u)
-                    @free(buf3u)
-                }
-            } else {
-                val field_is_list: mut bool = false
-                val field_size_write: mut i64 = 8
-                val field_store_op: mut ref char = "storel"
-                if value.kind == parser.NK_LIST_LIT {
-                    field_is_list = true
-                } elif value.kind == parser.NK_IDENT {
-                    val vname: ref char = value.d0 as ref char
-                    val vtype: ref char = cg_local_type(ctx, vname)
-                    if str.rchar_cmp(vtype, "") != 0 && str.starts_with(str.from(vtype), str.from("list")) {
-                        field_is_list = true
-                    }
-                }
-                // Also check the target field's type in the struct definition
-                if !field_is_list && ftarget.kind == parser.NK_IDENT {
-                    val bname2: ref char = ftarget.d0 as ref char
-                    val tname3: ref char = cg_local_type(ctx, bname2)
-                    val lookup3: mut ref char = tname3
-                    if rchar_starts_with(tname3, "ref ") { lookup3 = @ptradd(tname3, 4) }
-                    if str.rchar_cmp(lookup3, "") != 0 {
-                        val flds3: ref void = cg_lookup_struct(ctx, lookup3)
-                        if flds3 != 0 as ref void {
-                            val sf3len: i64 = @len(flds3 as list[ref void]) as i64
-                            val sf3i: mut i64 = 0
-                            for {
-                                if sf3i >= sf3len { break }
-                                val sf3_opt = @get(flds3 as list[ref void], sf3i as usize)
-                                match sf3_opt {
-                                    some sf3 => {
-                                        val sf3n: ref parser.Node = sf3 as ref parser.Node
-                                        val sf3name: ref char = sf3n.d0 as ref char
-                                        if str.rchar_cmp(sf3name, fname) == 0 {
-                                            val sf3ty: ref parser.Node = sf3n.d2 as ref parser.Node
-                                            if sf3ty != 0 as ref parser.Node {
-                                                if sf3ty.kind == parser.TY_LIST {
-                                                    field_is_list = true
-                                                } else {
-                                                    if sf3ty.kind == parser.TY_NAMED {
-                                                        val ftnm: ref char = sf3ty.d0 as ref char
-                                                        val sflds: ref void = cg_lookup_struct(ctx, ftnm)
-                                                        if sflds != 0 as ref void {
-                                                            field_size_write = struct_size(ctx, sflds)
-                                                        }
-                                                    }
-                                                    val sf3qt: ref char = qbe_type_of(sf3ty)
-                                                    if str.rchar_cmp(sf3qt, "w") == 0 { field_store_op = "storew" }
-                                                    elif str.rchar_cmp(sf3qt, "s") == 0 { field_store_op = "stores" }
-                                                    elif str.rchar_cmp(sf3qt, "d") == 0 { field_store_op = "stored" }
-                                                }
-                                            }
-                                            sf3i = sf3len
-                                        }
-                                    }
-                                    none => {}
-                                }
-                                sf3i++
-                            }
-                        }
-                    }
-                }
-
-                val val_to_store: mut ref char = val_tmp2
-                if str.rchar_cmp(field_store_op, "storel") == 0 {
-                    val val_qtype: ref char = expr_qbe_type(ctx, value)
-                    if str.rchar_cmp(val_qtype, "w") == 0 {
-                        val ext_tmp: i64 = fresh_tmp(ctx)
-                        val ext_buf: ref char = @alloc(128) as ref char
-                        @snprintf(ext_buf, 128, "    %%t{lld} =l extsw {s}\n", {ext_tmp, val_tmp2})
-                        emit(ctx, ext_buf)
-                        @free(ext_buf)
-                        val ext_res: ref char = @alloc(16) as ref char
-                        @snprintf(ext_res, 16, "%%t{lld}", {ext_tmp})
-                        val_to_store = ext_res
-                    }
-                }
-
-                val buf3: ref char = @alloc(128) as ref char
-                if field_is_list {
-                    if foffset == 0 {
-                        @snprintf(buf3, 128, "    call $memcpy(l {s}, l {s}, l 24)\n", {base, val_to_store})
-                    } else {
-                        val fptr: i64 = fresh_tmp(ctx)
-                        val buf3b: ref char = @alloc(128) as ref char
-                        @snprintf(buf3b, 128, "    %%t{lld} =l add {s}, {lld}\n", {fptr, base, foffset})
-                        emit(ctx, buf3b)
-                        @free(buf3b)
-                        @snprintf(buf3, 128, "    call $memcpy(l %%t{lld}, l {s}, l 24)\n", {fptr, val_to_store})
-                    }
-                } elif field_size_write > 8 {
-                    if foffset == 0 {
-                        @snprintf(buf3, 128, "    call $memcpy(l {s}, l {s}, l {lld})\n", {base, val_to_store, field_size_write})
-                    } else {
-                        val fptr: i64 = fresh_tmp(ctx)
-                        val buf3b: ref char = @alloc(128) as ref char
-                        @snprintf(buf3b, 128, "    %%t{lld} =l add {s}, {lld}\n", {fptr, base, foffset})
-                        emit(ctx, buf3b)
-                        @free(buf3b)
-                        @snprintf(buf3, 128, "    call $memcpy(l %%t{lld}, l {s}, l {lld})\n", {fptr, val_to_store, field_size_write})
-                    }
-                } elif foffset == 0 {
-                    @snprintf(buf3, 128, "    {s} {s}, {s}\n", {field_store_op, val_to_store, base})
-                } else {
-                    val fptr: i64 = fresh_tmp(ctx)
-                    val buf3b: ref char = @alloc(128) as ref char
-                    @snprintf(buf3b, 128, "    %%t{lld} =l add {s}, {lld}\n", {fptr, base, foffset})
-                    emit(ctx, buf3b)
-                    @free(buf3b)
-                    @snprintf(buf3, 128, "    {s} {s}, %%t{lld}\n", {field_store_op, val_to_store, fptr})
-                }
-                emit(ctx, buf3)
-                @free(buf3)
-            }
+            gen_store_field_value(ctx, target, val_tmp2, expr_qbe_type(ctx, value))
         } elif tk == parser.NK_DEREF {
             val ptr: ref char = gen_expr(ctx, target.d0 as ref parser.Node)
             val buf4: ref char = @alloc(128) as ref char
@@ -6290,6 +6282,18 @@ fn gen_stmt(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
     if k == parser.NK_ADD_ASSIGN {
         val target4: ref parser.Node = stmt.d0 as ref parser.Node
         val rhs: ref char = gen_expr(ctx, stmt.d1 as ref parser.Node)
+        if target4.kind == parser.NK_FIELD {
+            val curv: ref char = gen_expr(ctx, target4)
+            val sum_tmp: i64 = fresh_tmp(ctx)
+            val sum_buf: ref char = @alloc(256) as ref char
+            @snprintf(sum_buf, 256, "    %%t{lld} =l add {s}, {s}\n", {sum_tmp, curv, rhs})
+            emit(ctx, sum_buf)
+            @free(sum_buf)
+            val sum_res: ref char = @alloc(16) as ref char
+            @snprintf(sum_res, 16, "%%t{lld}", {sum_tmp})
+            gen_store_field_value(ctx, target4, sum_res, "l")
+            return
+        }
         val tname4: mut ref char = 0 as ref char
         if target4.kind == parser.NK_IDENT {
             tname4 = target4.d0 as ref char
@@ -6322,6 +6326,18 @@ fn gen_stmt(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
     if k == parser.NK_SUB_ASSIGN {
         val target5: ref parser.Node = stmt.d0 as ref parser.Node
         val rhs2: ref char = gen_expr(ctx, stmt.d1 as ref parser.Node)
+        if target5.kind == parser.NK_FIELD {
+            val curv2: ref char = gen_expr(ctx, target5)
+            val diff_tmp: i64 = fresh_tmp(ctx)
+            val diff_buf: ref char = @alloc(256) as ref char
+            @snprintf(diff_buf, 256, "    %%t{lld} =l sub {s}, {s}\n", {diff_tmp, curv2, rhs2})
+            emit(ctx, diff_buf)
+            @free(diff_buf)
+            val diff_res: ref char = @alloc(16) as ref char
+            @snprintf(diff_res, 16, "%%t{lld}", {diff_tmp})
+            gen_store_field_value(ctx, target5, diff_res, "l")
+            return
+        }
         val tname5: mut ref char = 0 as ref char
         if target5.kind == parser.NK_IDENT {
             tname5 = target5.d0 as ref char
