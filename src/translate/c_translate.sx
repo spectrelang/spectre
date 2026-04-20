@@ -1727,6 +1727,9 @@ fn split_top_level(text: ref char, delim: u8) list[ref char] = {
     val paren: mut i64 = 0
     val brace: mut i64 = 0
     val bracket: mut i64 = 0
+    val in_string: mut bool = false
+    val in_char: mut bool = false
+    val escaped: mut bool = false
     val i: mut i64 = 0
     for {
         if i > len { break }
@@ -1734,14 +1737,36 @@ fn split_top_level(text: ref char, delim: u8) list[ref char] = {
         val c: mut u8 = 0
         if !at_end {
             c = trust @load8(@ptradd(text as ref void, i)) as u8
-            if c == 40 { paren++ }
-            elif c == 41 && paren > 0 { paren-- }
-            elif c == 123 { brace++ }
-            elif c == 125 && brace > 0 { brace-- }
-            elif c == 91 { bracket++ }
-            elif c == 93 && bracket > 0 { bracket-- }
+            if in_string {
+                if escaped {
+                    escaped = false
+                } elif c == 92 {
+                    escaped = true
+                } elif c == 34 {
+                    in_string = false
+                }
+            } elif in_char {
+                if escaped {
+                    escaped = false
+                } elif c == 92 {
+                    escaped = true
+                } elif c == 39 {
+                    in_char = false
+                }
+            } else {
+                if c == 34 {
+                    in_string = true
+                } elif c == 39 {
+                    in_char = true
+                } elif c == 40 { paren++ }
+                elif c == 41 && paren > 0 { paren-- }
+                elif c == 123 { brace++ }
+                elif c == 125 && brace > 0 { brace-- }
+                elif c == 91 { bracket++ }
+                elif c == 93 && bracket > 0 { bracket-- }
+            }
         }
-        if at_end || (c == delim && paren == 0 && brace == 0 && bracket == 0) {
+        if at_end || (c == delim && !in_string && !in_char && paren == 0 && brace == 0 && bracket == 0) {
             @append(items, trim_raw(std.string.substr(text, start, i - start)))
             start = i + 1
         }
