@@ -21,6 +21,11 @@ type DeclInfo = {
     type_src:  mut ref char
 }
 
+type LoweredExpr = {
+    expr:    mut ref char
+    changed: mut bool
+}
+
 type TranslationCtx = {
     defined_names: mut list[ref char]
     called_names:  mut list[ref char]
@@ -31,6 +36,7 @@ type TranslationCtx = {
     local_array_names: mut list[ref char]
     local_array_types: mut list[ref char]
     mutable_names: mut list[ref char]
+    temp_counter:  mut i64
 }
 
 fn make_block_result(next_index: i64, stop_kind: i64, stop_line: ref char) ref BlockResult = {
@@ -52,7 +58,15 @@ fn new_translation_ctx() ref TranslationCtx = {
     ctx.local_array_names = []
     ctx.local_array_types = []
     ctx.mutable_names = []
+    ctx.temp_counter = 0
     return ctx
+}
+
+fn make_lowered_expr(expr: ref char, changed: bool) ref LoweredExpr = {
+    val lowered: mut ref LoweredExpr = @alloc(@sizeof(LoweredExpr)) as ref LoweredExpr
+    lowered.expr = expr
+    lowered.changed = changed
+    return lowered
 }
 
 fn is_space(c: u8) bool = {
@@ -302,6 +316,7 @@ fn clear_local_types(ctx: mut ref TranslationCtx) void = {
     ctx.local_array_names = []
     ctx.local_array_types = []
     ctx.mutable_names = []
+    ctx.temp_counter = 0
 }
 
 fn remember_local_type(ctx: ref TranslationCtx, name: ref char, type_name: ref char) void = {
@@ -476,9 +491,97 @@ fn analyze_mutations_in_statement(ctx: ref TranslationCtx, line: ref char) void 
     }
     val len: i64 = std.string.len_raw(stripped)
     val i: mut i64 = 0
+    val in_string: mut bool = false
+    val in_char: mut bool = false
+    val escaped: mut bool = false
     for {
         if i >= len { break }
         val c: u8 = trust @load8(@ptradd(stripped as ref void, i)) as u8
+        if in_string {
+            if escaped {
+                escaped = false
+            } elif c == 92 {
+                escaped = true
+            } elif c == 34 {
+                in_string = false
+            }
+            i++
+            continue
+        }
+        if in_char {
+            if escaped {
+                escaped = false
+            } elif c == 92 {
+                escaped = true
+            } elif c == 39 {
+                in_char = false
+            }
+            i++
+            continue
+        }
+        if c == 34 {
+            in_string = true
+            i++
+            continue
+        }
+        if c == 39 {
+            in_char = true
+            i++
+            continue
+        }
+        if is_ident_start(c) {
+            val start_i: i64 = i
+            i++
+            for {
+                if i >= len { break }
+                val cc: u8 = trust @load8(@ptradd(stripped as ref void, i)) as u8
+                if !is_ident_part(cc) { break }
+                i++
+            }
+            val ident: ref char = std.string.substr(stripped, start_i, i - start_i)
+            val j: mut i64 = i
+            for {
+                if j >= len { break }
+                val ws: u8 = trust @load8(@ptradd(stripped as ref void, j)) as u8
+                if !is_space(ws) { break }
+                j++
+            }
+            if j + 1 < len {
+                val c1: u8 = trust @load8(@ptradd(stripped as ref void, j)) as u8
+                val c2: u8 = trust @load8(@ptradd(stripped as ref void, j + 1)) as u8
+                if ((c1 == 43 && c2 == 43) || (c1 == 45 && c2 == 45)) {
+                    mark_mutable_name(ctx, rewrite_identifiers(ident))
+                }
+            }
+            continue
+        }
+        if i + 1 < len && ((c == 43 && (trust @load8(@ptradd(stripped as ref void, i + 1)) as u8) == 43)
+            || (c == 45 && (trust @load8(@ptradd(stripped as ref void, i + 1)) as u8) == 45)) {
+            val j: mut i64 = i + 2
+            for {
+                if j >= len { break }
+                val ws: u8 = trust @load8(@ptradd(stripped as ref void, j)) as u8
+                if !is_space(ws) { break }
+                j++
+            }
+            if j < len {
+                val first: u8 = trust @load8(@ptradd(stripped as ref void, j)) as u8
+                if is_ident_start(first) {
+                    val start_i2: i64 = j
+                    j++
+                    for {
+                        if j >= len { break }
+                        val cc2: u8 = trust @load8(@ptradd(stripped as ref void, j)) as u8
+                        if !is_ident_part(cc2) { break }
+                        j++
+                    }
+                    val ident2: ref char = std.string.substr(stripped, start_i2, j - start_i2)
+                    mark_mutable_name(ctx, rewrite_identifiers(ident2))
+                    i = j
+                    continue
+                }
+            }
+        }
         if c == 123 {
             val close_i: i64 = find_matching_delim(stripped, i, 123, 125)
             if close_i > i {
@@ -493,6 +596,167 @@ fn analyze_mutations_in_statement(ctx: ref TranslationCtx, line: ref char) void 
         }
         i++
     }
+}
+
+fn fresh_temp_name(ctx: mut ref TranslationCtx) ref char = {
+    val temp_name: ref char = trust @fmt("t{d}", {ctx.temp_counter})
+    ctx.temp_counter = ctx.temp_counter + 1
+    return temp_name
+}
+
+fn lookup_local_type_or_default(ctx: ref TranslationCtx, name: ref char) ref char = {
+    match lookup_local_type(ctx, name) {
+        some type_name => { return type_name as ref char }
+        none => {}
+    }
+    return "i32"
+}
+
+fn emit_incdec_temp(ctx: ref TranslationCtx, raw_name: ref char, op: ref char, is_prefix: bool, indent: i64, out: ref void) ref char = {
+    val name: ref char = rewrite_identifiers(raw_name)
+    val temp_name: ref char = fresh_temp_name(ctx)
+    val temp_type: ref char = lookup_local_type_or_default(ctx, name)
+    remember_local_type(ctx, temp_name, temp_type)
+    if is_prefix {
+        append_line(out, indent, trust @fmt("{s} {s}= 1", {name, op}))
+        append_line(out, indent, trust @fmt("val {s}: {s} = {s}", {temp_name, temp_type, name}))
+    } else {
+        append_line(out, indent, trust @fmt("val {s}: {s} = {s}", {temp_name, temp_type, name}))
+        append_line(out, indent, trust @fmt("{s} {s}= 1", {name, op}))
+    }
+    return temp_name
+}
+
+fn lower_incdec_expr(ctx: ref TranslationCtx, text: ref char, indent: i64, out: ref void) ref LoweredExpr = {
+    val trimmed: ref char = strip_trailing_semicolon(text)
+    val len: i64 = std.string.len_raw(trimmed)
+    val sb: ref void = std.string.StringBuilder.new()
+    val changed: mut bool = false
+    val in_string: mut bool = false
+    val in_char: mut bool = false
+    val escaped: mut bool = false
+    val i: mut i64 = 0
+    for {
+        if i >= len { break }
+        val c: u8 = trust @load8(@ptradd(trimmed as ref void, i)) as u8
+        if in_string {
+            std.string.StringBuilder.append_char(sb, c)
+            if escaped {
+                escaped = false
+            } elif c == 92 {
+                escaped = true
+            } elif c == 34 {
+                in_string = false
+            }
+            i++
+            continue
+        }
+        if in_char {
+            std.string.StringBuilder.append_char(sb, c)
+            if escaped {
+                escaped = false
+            } elif c == 92 {
+                escaped = true
+            } elif c == 39 {
+                in_char = false
+            }
+            i++
+            continue
+        }
+        if c == 34 {
+            in_string = true
+            std.string.StringBuilder.append_char(sb, c)
+            i++
+            continue
+        }
+        if c == 39 {
+            in_char = true
+            std.string.StringBuilder.append_char(sb, c)
+            i++
+            continue
+        }
+        if i + 1 < len {
+            val next: u8 = trust @load8(@ptradd(trimmed as ref void, i + 1)) as u8
+            if ((c == 43 && next == 43) || (c == 45 && next == 45)) {
+                val op: mut ref char = "+"
+                if c == 45 { op = "-" }
+                val j: mut i64 = i + 2
+                for {
+                    if j >= len { break }
+                    val ws: u8 = trust @load8(@ptradd(trimmed as ref void, j)) as u8
+                    if !is_space(ws) { break }
+                    j++
+                }
+                if j < len {
+                    val first: u8 = trust @load8(@ptradd(trimmed as ref void, j)) as u8
+                    if is_ident_start(first) {
+                        val start_name: i64 = j
+                        j++
+                        for {
+                            if j >= len { break }
+                            val cc: u8 = trust @load8(@ptradd(trimmed as ref void, j)) as u8
+                            if !is_ident_part(cc) { break }
+                            j++
+                        }
+                        val ident: ref char = std.string.substr(trimmed, start_name, j - start_name)
+                        std.string.StringBuilder.append_cstr(sb, emit_incdec_temp(ctx, ident, op, true, indent, out))
+                        changed = true
+                        i = j
+                        continue
+                    }
+                }
+            }
+        }
+        if is_ident_start(c) {
+            val start_name2: i64 = i
+            i++
+            for {
+                if i >= len { break }
+                val cc2: u8 = trust @load8(@ptradd(trimmed as ref void, i)) as u8
+                if !is_ident_part(cc2) { break }
+                i++
+            }
+            val ident2: ref char = std.string.substr(trimmed, start_name2, i - start_name2)
+            val j2: mut i64 = i
+            for {
+                if j2 >= len { break }
+                val ws2: u8 = trust @load8(@ptradd(trimmed as ref void, j2)) as u8
+                if !is_space(ws2) { break }
+                j2++
+            }
+            if j2 + 1 < len {
+                val c1: u8 = trust @load8(@ptradd(trimmed as ref void, j2)) as u8
+                val c2: u8 = trust @load8(@ptradd(trimmed as ref void, j2 + 1)) as u8
+                if ((c1 == 43 && c2 == 43) || (c1 == 45 && c2 == 45)) {
+                    val op2: mut ref char = "+"
+                    if c1 == 45 { op2 = "-" }
+                    std.string.StringBuilder.append_cstr(sb, emit_incdec_temp(ctx, ident2, op2, false, indent, out))
+                    changed = true
+                    i = j2 + 2
+                    continue
+                }
+            }
+            std.string.StringBuilder.append_cstr(sb, ident2)
+            continue
+        }
+        std.string.StringBuilder.append_char(sb, c)
+        i++
+    }
+    val built: ref void = std.string.StringBuilder.build(sb)
+    std.string.StringBuilder.free(sb)
+    return make_lowered_expr(translate_expr_text(ctx, std.string.cstr(built)), changed)
+}
+
+fn body_has_explicit_return(lines: list[ref char]) bool = {
+    for line in lines {
+        val trimmed: ref char = trim_raw(line)
+        if std.string.rchar_starts_with(trimmed, "return") { return true }
+    }
+    return false
+}
+
+fn contains_incdec_ops(text: ref char) bool = {
+    return str_contains(text, "++") || str_contains(text, "--")
 }
 
 fn analyze_mutable_names(ctx: ref TranslationCtx, lines: list[ref char], start: i64) void = {
@@ -1435,7 +1699,10 @@ fn translate_body_statement(ctx: ref TranslationCtx, line: ref char, indent: i64
         if std.string.rchar_cmp(tail, "") == 0 {
             append_line(out, indent, "return")
         } else {
-            append_line(out, indent, trust @fmt("return {s}", {translate_expr_text(ctx, tail)}))
+            if contains_incdec_ops(tail) { append_blank_line(out) }
+            val lowered_ret: ref LoweredExpr = lower_incdec_expr(ctx, tail, indent, out)
+            if lowered_ret.changed { append_blank_line(out) }
+            append_line(out, indent, trust @fmt("return {s}", {lowered_ret.expr}))
         }
         return true
     }
@@ -1468,7 +1735,13 @@ fn translate_body_statement(ctx: ref TranslationCtx, line: ref char, indent: i64
                     append_line(out, indent, trust @fmt("val {s}: {s} = @alloc({s})", {decl.name, render_binding_type(ctx, decl.name, decayed_type), alloc_expr}))
                     return true
                 }
-                val rhs_expr0: ref char = translate_expr_text(ctx, rhs)
+                val has_incdec_rhs: bool = contains_incdec_ops(rhs)
+                if has_incdec_rhs {
+                    append_blank_line(out)
+                    append_comment_line(out, indent, trust @fmt("{s} = {s}", {decl.name, rhs}))
+                }
+                val lowered_rhs: ref LoweredExpr = lower_incdec_expr(ctx, rhs, indent, out)
+                val rhs_expr0: ref char = lowered_rhs.expr
                 val rhs_expr: mut ref char = rhs_expr0
                 if std.string.rchar_cmp(trim_raw(rhs), "NULL") == 0 {
                     rhs_expr = trust @fmt("0 as {s}", {decl.type_name})
@@ -1499,6 +1772,7 @@ fn translate_body_statement(ctx: ref TranslationCtx, line: ref char, indent: i64
                     push_unique(ctx.called_names, call_name)
                 }
                 append_line(out, indent, trust @fmt("val {s}: {s} = {s}", {decl.name, rendered_type, rhs_expr}))
+                if lowered_rhs.changed { append_blank_line(out) }
                 return true
             }
         }
@@ -1507,11 +1781,24 @@ fn translate_body_statement(ctx: ref TranslationCtx, line: ref char, indent: i64
         val index_target: ref char = parse_index_target(lhs_rewritten)
         if std.string.rchar_cmp(index_target, "") != 0 {
             val index_expr: ref char = parse_index_expr(lhs_rewritten)
-            val rhs_expr2: ref char = translate_expr_text(ctx, rhs)
+            val has_incdec_rhs2: bool = contains_incdec_ops(rhs)
+            if has_incdec_rhs2 {
+                append_blank_line(out)
+                append_comment_line(out, indent, trust @fmt("{s} = {s}", {lhs_rewritten, rhs}))
+            }
+            val lowered_rhs2: ref LoweredExpr = lower_incdec_expr(ctx, rhs, indent, out)
+            val rhs_expr2: ref char = lowered_rhs2.expr
             append_line(out, indent, trust @fmt("@store(@ptradd({s}, {s}), {s})", {index_target, index_expr, rhs_expr2}))
+            if lowered_rhs2.changed { append_blank_line(out) }
             return true
         }
-        val rhs_expr3_0: ref char = translate_expr_text(ctx, rhs)
+        val has_incdec_rhs3: bool = contains_incdec_ops(rhs)
+        if has_incdec_rhs3 {
+            append_blank_line(out)
+            append_comment_line(out, indent, trust @fmt("{s} = {s}", {lhs_rewritten, rhs}))
+        }
+        val lowered_rhs3: ref LoweredExpr = lower_incdec_expr(ctx, rhs, indent, out)
+        val rhs_expr3_0: ref char = lowered_rhs3.expr
         val rhs_expr3: mut ref char = rhs_expr3_0
         if std.string.rchar_cmp(trim_raw(rhs), "NULL") == 0 && is_ident_text(lhs_rewritten) {
             match lookup_local_type(ctx, lhs_rewritten) {
@@ -1520,6 +1807,7 @@ fn translate_body_statement(ctx: ref TranslationCtx, line: ref char, indent: i64
             }
         }
         append_line(out, indent, trust @fmt("{s} = {s}", {lhs_rewritten, rhs_expr3}))
+        if lowered_rhs3.changed { append_blank_line(out) }
         return true
     }
     val can_be_bare_decl: bool = (str_contains(stripped, " ") || str_contains(stripped, "*")
@@ -1544,7 +1832,8 @@ fn translate_body_statement(ctx: ref TranslationCtx, line: ref char, indent: i64
         && !std.string.rchar_starts_with(stripped, "for")
         && !std.string.rchar_starts_with(stripped, "while")
         && !std.string.rchar_starts_with(stripped, "switch") {
-        val expr: ref char = translate_expr_text(ctx, stripped)
+        val lowered_expr: ref LoweredExpr = lower_incdec_expr(ctx, stripped, indent, out)
+        val expr: ref char = lowered_expr.expr
         val call_name: ref char = extract_call_name(expr)
         if std.string.rchar_cmp(call_name, "") != 0 {
             push_unique(ctx.called_names, call_name)
@@ -2330,6 +2619,12 @@ fn translate_function_decl(text: ref char, current_dir: ref char, indent: i64, o
         append_open_block_line(out, indent, line)
         val body_lines = split_lines(body_src)
         translate_body_lines(body_lines, current_dir, 0, indent + 1, out, ctx)
+        if std.string.rchar_cmp(name, "main") == 0
+            && std.string.rchar_cmp(return_type, "i32") == 0
+            && !body_has_explicit_return(body_lines) {
+            append_blank_line(out)
+            append_line(out, indent + 1, "return 0")
+        }
         append_line(out, indent, "}")
         append_blank_line(out)
         return true
