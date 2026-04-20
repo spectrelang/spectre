@@ -700,10 +700,6 @@ fn get_expr_type_category(ctx: ref SemaCtx, node: ref parser.Node) ref char! = {
         if str_eq(tname, "f")     { return "float" }
         return "unknown"
     }
-    if k == parser.NK_BUILTIN {
-        val bname: ref char = node.d0 as ref char
-        if str_eq(bname, "isnull") { return "int" }
-    }
     return "unknown"
 }
 

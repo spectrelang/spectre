@@ -1618,11 +1618,6 @@ fn infer_type_annotation(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
     	    }
     }
 
-    if k == parser.NK_BUILTIN {
-        val bname: ref char = expr.d0 as ref char
-        if str.rchar_cmp(bname, "isnull") == 0 { return "bool" }
-    }
-
     if k == parser.NK_TRUST {
         val trust_inner: ref parser.Node = expr.d0 as ref parser.Node
         if trust_inner != 0 as ref parser.Node {
@@ -2917,12 +2912,6 @@ fn expr_qbe_type(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
             }
         }
         
-        return "l"
-    }
-
-    if k == parser.NK_BUILTIN {
-        val bname: ref char = expr.d0 as ref char
-        if str.rchar_cmp(bname, "isnull") == 0 { return "w" }
         return "l"
     }
 
@@ -4441,10 +4430,6 @@ fn gen_builtin(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
         val ptr7: ref char = get_arg(ctx, args, 0)
         val off: ref char = get_arg(ctx, args, 1)
         @snprintf(buf, 512, "    %%t{lld} =l add {s}, {s}\n", {tmp, ptr7, off})
-        emit(ctx, buf)
-    } elif str.rchar_cmp(name, "isnull") == 0 {
-        val ptr8: ref char = get_arg(ctx, args, 0)
-        @snprintf(buf, 512, "    %%t{lld} =w ceql {s}, 0\n", {tmp, ptr8})
         emit(ctx, buf)
     } elif str.rchar_cmp(name, "puts") == 0 {
         val s: ref char = get_arg(ctx, args, 0)
