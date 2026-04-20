@@ -1840,10 +1840,22 @@ fn check_stmt(ctx: ref SemaCtx, stmt: ref parser.Node, filename: ref char) void!
             if root2 != 0 as ref parser.Node {
                 val tname2: ref char = root2.d0 as ref char
                 mark_name_mutated(ctx, tname2)
-                if scope_lookup(ctx, tname2) == 0 {
+                val lkup2: i64 = scope_lookup(ctx, tname2)
+                if lkup2 == 0 {
                     val buf2: ref char = @alloc(256) as ref char
                     @snprintf(buf2, 256, "{s}:{lld}: cannot mutate field of immutable '{s}'", {filename, line, tname2})
                     add_error(ctx, buf2)
+                } else {
+                    val field_name2: ref char = parser.field_name(target2)
+                    val var_type2: ref char = scope_lookup_type(ctx, tname2)
+                    if var_type2 != 0 as ref char && field_name2 != 0 as ref char {
+                        val fmut2: i64 = find_field_mutable(ctx, var_type2, field_name2)
+                        if fmut2 == 0 {
+                            val buf2b: ref char = @alloc(256) as ref char
+                            @snprintf(buf2b, 256, "{s}:{lld}: cannot mutate immutable field '{s}' of type '{s}'", {filename, line, field_name2, var_type2})
+                            add_error(ctx, buf2b)
+                        }
+                    }
                 }
             }
         }

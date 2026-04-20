@@ -6173,6 +6173,28 @@ fn gen_stmt(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
 
     if k == parser.NK_INCREMENT {
         val target2: ref parser.Node = stmt.d0 as ref parser.Node
+        if target2.kind == parser.NK_FIELD {
+            val curv3: ref char = gen_expr(ctx, target2)
+            val next_tmp3: i64 = fresh_tmp(ctx)
+            val next_buf3: ref char = @alloc(256) as ref char
+            val target2_qt: ref char = expr_qbe_type(ctx, target2)
+            if str.rchar_cmp(target2_qt, "w") == 0 {
+                @snprintf(next_buf3, 256, "    %%t{lld} =l add {s}, 1\n", {next_tmp3, curv3})
+                emit(ctx, next_buf3)
+                @free(next_buf3)
+                val next_res3: ref char = @alloc(16) as ref char
+                @snprintf(next_res3, 16, "%%t{lld}", {next_tmp3})
+                gen_store_field_value(ctx, target2, next_res3, "w")
+            } else {
+                @snprintf(next_buf3, 256, "    %%t{lld} =l add {s}, 1\n", {next_tmp3, curv3})
+                emit(ctx, next_buf3)
+                @free(next_buf3)
+                val next_res3: ref char = @alloc(16) as ref char
+                @snprintf(next_res3, 16, "%%t{lld}", {next_tmp3})
+                gen_store_field_value(ctx, target2, next_res3, "l")
+            }
+            return
+        }
         val tname2: mut ref char = 0 as ref char
         if target2.kind == parser.NK_IDENT {
             tname2 = target2.d0 as ref char
@@ -6212,6 +6234,28 @@ fn gen_stmt(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
 
     if k == parser.NK_DECREMENT {
         val target3: ref parser.Node = stmt.d0 as ref parser.Node
+        if target3.kind == parser.NK_FIELD {
+            val curv4: ref char = gen_expr(ctx, target3)
+            val next_tmp4: i64 = fresh_tmp(ctx)
+            val next_buf4: ref char = @alloc(256) as ref char
+            val target3_qt: ref char = expr_qbe_type(ctx, target3)
+            if str.rchar_cmp(target3_qt, "w") == 0 {
+                @snprintf(next_buf4, 256, "    %%t{lld} =l sub {s}, 1\n", {next_tmp4, curv4})
+                emit(ctx, next_buf4)
+                @free(next_buf4)
+                val next_res4: ref char = @alloc(16) as ref char
+                @snprintf(next_res4, 16, "%%t{lld}", {next_tmp4})
+                gen_store_field_value(ctx, target3, next_res4, "w")
+            } else {
+                @snprintf(next_buf4, 256, "    %%t{lld} =l sub {s}, 1\n", {next_tmp4, curv4})
+                emit(ctx, next_buf4)
+                @free(next_buf4)
+                val next_res4: ref char = @alloc(16) as ref char
+                @snprintf(next_res4, 16, "%%t{lld}", {next_tmp4})
+                gen_store_field_value(ctx, target3, next_res4, "l")
+            }
+            return
+        }
         val tname3: mut ref char = 0 as ref char
         if target3.kind == parser.NK_IDENT {
             tname3 = target3.d0 as ref char
