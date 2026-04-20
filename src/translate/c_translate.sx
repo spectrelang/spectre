@@ -36,6 +36,7 @@ type TranslationCtx = {
     local_array_names: mut list[ref char]
     local_array_types: mut list[ref char]
     mutable_names: mut list[ref char]
+    address_taken_names: mut list[ref char]
     temp_counter:  mut i64
 }
 
@@ -58,6 +59,7 @@ fn new_translation_ctx() ref TranslationCtx = {
     ctx.local_array_names = []
     ctx.local_array_types = []
     ctx.mutable_names = []
+    ctx.address_taken_names = []
     ctx.temp_counter = 0
     return ctx
 }
@@ -316,6 +318,7 @@ fn clear_local_types(ctx: mut ref TranslationCtx) void = {
     ctx.local_array_names = []
     ctx.local_array_types = []
     ctx.mutable_names = []
+    ctx.address_taken_names = []
     ctx.temp_counter = 0
 }
 
@@ -412,8 +415,17 @@ fn mark_mutable_name(ctx: ref TranslationCtx, name: ref char) void = {
     push_unique(ctx.mutable_names, name)
 }
 
+fn mark_address_taken_name(ctx: ref TranslationCtx, name: ref char) void = {
+    if std.string.rchar_cmp(name, "") == 0 { return }
+    push_unique(ctx.address_taken_names, name)
+}
+
 fn is_mutable_name(ctx: ref TranslationCtx, name: ref char) bool = {
     return list_contains(ctx.mutable_names, name)
+}
+
+fn is_address_taken_name(ctx: ref TranslationCtx, name: ref char) bool = {
+    return list_contains(ctx.address_taken_names, name)
 }
 
 fn render_binding_type(ctx: ref TranslationCtx, name: ref char, type_name: ref char) ref char = {
@@ -759,6 +771,84 @@ fn contains_incdec_ops(text: ref char) bool = {
     return str_contains(text, "++") || str_contains(text, "--")
 }
 
+fn analyze_address_taken_in_statement(ctx: ref TranslationCtx, line: ref char) void = {
+    val stripped: ref char = strip_trailing_semicolon(trim_raw(line))
+    if std.string.rchar_cmp(stripped, "") == 0 { return }
+    val len: i64 = std.string.len_raw(stripped)
+    val i: mut i64 = 0
+    val in_string: mut bool = false
+    val in_char: mut bool = false
+    val escaped: mut bool = false
+    for {
+        if i >= len { break }
+        val c: u8 = trust @load8(@ptradd(stripped as ref void, i)) as u8
+        if in_string {
+            if escaped {
+                escaped = false
+            } elif c == 92 {
+                escaped = true
+            } elif c == 34 {
+                in_string = false
+            }
+            i++
+            continue
+        }
+        if in_char {
+            if escaped {
+                escaped = false
+            } elif c == 92 {
+                escaped = true
+            } elif c == 39 {
+                in_char = false
+            }
+            i++
+            continue
+        }
+        if c == 34 {
+            in_string = true
+            i++
+            continue
+        }
+        if c == 39 {
+            in_char = true
+            i++
+            continue
+        }
+        if c == 38 {
+            val prev: mut u8 = 0
+            val next: mut u8 = 0
+            if i > 0 { prev = trust @load8(@ptradd(stripped as ref void, i - 1)) as u8 }
+            if i + 1 < len { next = trust @load8(@ptradd(stripped as ref void, i + 1)) as u8 }
+            if prev != 38 && next != 38 {
+                val j: mut i64 = i + 1
+                for {
+                    if j >= len { break }
+                    val ws: u8 = trust @load8(@ptradd(stripped as ref void, j)) as u8
+                    if !is_space(ws) { break }
+                    j++
+                }
+                if j < len {
+                    val first: u8 = trust @load8(@ptradd(stripped as ref void, j)) as u8
+                    if is_ident_start(first) {
+                        val start_i: i64 = j
+                        j++
+                        for {
+                            if j >= len { break }
+                            val cc: u8 = trust @load8(@ptradd(stripped as ref void, j)) as u8
+                            if !is_ident_part(cc) { break }
+                            j++
+                        }
+                        mark_address_taken_name(ctx, rewrite_identifiers(std.string.substr(stripped, start_i, j - start_i)))
+                        i = j
+                        continue
+                    }
+                }
+            }
+        }
+        i++
+    }
+}
+
 fn analyze_mutable_names(ctx: ref TranslationCtx, lines: list[ref char], start: i64) void = {
     val len: i64 = @len(lines) as i64
     val i: mut i64 = start
@@ -767,6 +857,20 @@ fn analyze_mutable_names(ctx: ref TranslationCtx, lines: list[ref char], start: 
         val line_opt = @get(lines, i as usize)
         match line_opt {
             some line_val => { analyze_mutations_in_statement(ctx, line_val as ref char) }
+            none => {}
+        }
+        i++
+    }
+}
+
+fn analyze_address_taken_names(ctx: ref TranslationCtx, lines: list[ref char], start: i64) void = {
+    val len: i64 = @len(lines) as i64
+    val i: mut i64 = start
+    for {
+        if i >= len { break }
+        val line_opt = @get(lines, i as usize)
+        match line_opt {
+            some line_val => { analyze_address_taken_in_statement(ctx, line_val as ref char) }
             none => {}
         }
         i++
@@ -1028,6 +1132,122 @@ fn replace_pointer_indexing(text: ref char) ref char = {
             }
             std.string.StringBuilder.append_cstr(sb, ident)
             continue
+        }
+        std.string.StringBuilder.append_char(sb, c)
+        i++
+    }
+    val built: ref void = std.string.StringBuilder.build(sb)
+    std.string.StringBuilder.free(sb)
+    return std.string.cstr(built)
+}
+
+fn translate_addr_deref_expr(_: ref TranslationCtx, text: ref char) ref char = {
+    val trimmed: ref char = trim_raw(text)
+    val len: i64 = std.string.len_raw(trimmed)
+    val sb: ref void = std.string.StringBuilder.new()
+    val in_string: mut bool = false
+    val in_char: mut bool = false
+    val escaped: mut bool = false
+    val i: mut i64 = 0
+    for {
+        if i >= len { break }
+        val c: u8 = trust @load8(@ptradd(trimmed as ref void, i)) as u8
+        if in_string {
+            std.string.StringBuilder.append_char(sb, c)
+            if escaped {
+                escaped = false
+            } elif c == 92 {
+                escaped = true
+            } elif c == 34 {
+                in_string = false
+            }
+            i++
+            continue
+        }
+        if in_char {
+            std.string.StringBuilder.append_char(sb, c)
+            if escaped {
+                escaped = false
+            } elif c == 92 {
+                escaped = true
+            } elif c == 39 {
+                in_char = false
+            }
+            i++
+            continue
+        }
+        if c == 34 {
+            in_string = true
+            std.string.StringBuilder.append_char(sb, c)
+            i++
+            continue
+        }
+        if c == 39 {
+            in_char = true
+            std.string.StringBuilder.append_char(sb, c)
+            i++
+            continue
+        }
+        if c == 38 {
+            val prev: mut u8 = 0
+            val next: mut u8 = 0
+            if i > 0 { prev = trust @load8(@ptradd(trimmed as ref void, i - 1)) as u8 }
+            if i + 1 < len { next = trust @load8(@ptradd(trimmed as ref void, i + 1)) as u8 }
+            if prev != 38 && next != 38 {
+                val j: mut i64 = i + 1
+                for {
+                    if j >= len { break }
+                    val ws: u8 = trust @load8(@ptradd(trimmed as ref void, j)) as u8
+                    if !is_space(ws) { break }
+                    j++
+                }
+                if j < len {
+                    val first: u8 = trust @load8(@ptradd(trimmed as ref void, j)) as u8
+                    if is_ident_start(first) {
+                        val start_i: i64 = j
+                        j++
+                        for {
+                            if j >= len { break }
+                            val cc: u8 = trust @load8(@ptradd(trimmed as ref void, j)) as u8
+                            if !is_ident_part(cc) { break }
+                            j++
+                        }
+                        std.string.StringBuilder.append_cstr(sb, rewrite_identifiers(std.string.substr(trimmed, start_i, j - start_i)))
+                        i = j
+                        continue
+                    }
+                }
+            }
+        }
+        if c == 42 {
+            val prev2: mut u8 = 0
+            if i > 0 { prev2 = trust @load8(@ptradd(trimmed as ref void, i - 1)) as u8 }
+            if prev2 != 42 && prev2 != 47 && prev2 != 37 && prev2 != 43 && prev2 != 45 && prev2 != 61 && prev2 != 40 && prev2 != 44 {
+                val j2: mut i64 = i + 1
+                for {
+                    if j2 >= len { break }
+                    val ws2: u8 = trust @load8(@ptradd(trimmed as ref void, j2)) as u8
+                    if !is_space(ws2) { break }
+                    j2++
+                }
+                if j2 < len {
+                    val first2: u8 = trust @load8(@ptradd(trimmed as ref void, j2)) as u8
+                    if is_ident_start(first2) {
+                        val start_i2: i64 = j2
+                        j2++
+                        for {
+                            if j2 >= len { break }
+                            val cc2: u8 = trust @load8(@ptradd(trimmed as ref void, j2)) as u8
+                            if !is_ident_part(cc2) { break }
+                            j2++
+                        }
+                        val ident2: ref char = rewrite_identifiers(std.string.substr(trimmed, start_i2, j2 - start_i2))
+                        std.string.StringBuilder.append_cstr(sb, trust @fmt("@deref({s})", {ident2}))
+                        i = j2
+                        continue
+                    }
+                }
+            }
         }
         std.string.StringBuilder.append_char(sb, c)
         i++
@@ -1671,7 +1891,8 @@ fn translate_expr_text(ctx: ref TranslationCtx, text: ref char) ref char = {
     val with_init: ref char = translate_designated_initializer(no_semicolon)
     val with_sizeof: ref char = translate_sizeof_expr(ctx, with_init)
     val with_arrow: ref char = replace_arrow_access(with_sizeof)
-    val with_casts: ref char = translate_c_cast_expr(ctx, with_arrow)
+    val with_addr_deref: ref char = translate_addr_deref_expr(ctx, with_arrow)
+    val with_casts: ref char = translate_c_cast_expr(ctx, with_addr_deref)
     val with_rewritten: ref char = rewrite_identifiers(with_casts)
     val with_indexing: ref char = replace_pointer_indexing(with_rewritten)
     if str_contains(with_indexing, "(") {
@@ -1722,7 +1943,7 @@ fn translate_body_statement(ctx: ref TranslationCtx, line: ref char, indent: i64
     if assign_i > 0 {
         val lhs: ref char = trim_raw(std.string.substr(stripped, 0, assign_i))
         val rhs: ref char = trim_raw(std.string.substr(stripped, assign_i + 1, std.string.len_raw(stripped) - assign_i - 1))
-        val can_be_decl: bool = str_contains(lhs, " ") || str_contains(lhs, "*")
+        val can_be_decl: bool = str_contains(lhs, " ")
             || std.string.rchar_starts_with(lhs, "struct ") || std.string.rchar_starts_with(lhs, "enum ")
         if can_be_decl {
             val decl: ref DeclInfo = parse_named_decl(lhs, "")
@@ -1733,6 +1954,18 @@ fn translate_body_statement(ctx: ref TranslationCtx, line: ref char, indent: i64
                     remember_local_type(ctx, decl.name, decayed_type)
                     remember_local_array_type(ctx, decl.name, alloc_expr)
                     append_line(out, indent, trust @fmt("val {s}: {s} = @alloc({s})", {decl.name, render_binding_type(ctx, decl.name, decayed_type), alloc_expr}))
+                    return true
+                }
+                if is_address_taken_name(ctx, decl.name) && !std.string.rchar_starts_with(decl.type_name, "ref ") {
+                    val ref_type: ref char = trust @fmt("ref {s}", {decl.type_name})
+                    remember_local_type(ctx, decl.name, ref_type)
+                    append_line(out, indent, trust @fmt("val {s}: {s} = @alloc(@sizeof({s}))", {decl.name, render_binding_type(ctx, decl.name, ref_type), decl.type_name}))
+                    val lowered_rhs_addr: ref LoweredExpr = lower_incdec_expr(ctx, rhs, indent, out)
+                    val rhs_expr_addr: mut ref char = lowered_rhs_addr.expr
+                    if std.string.rchar_cmp(trim_raw(rhs), "NULL") == 0 {
+                        rhs_expr_addr = trust @fmt("0 as {s}", {decl.type_name})
+                    }
+                    append_line(out, indent, trust @fmt("@deref({s}) = {s}", {decl.name, rhs_expr_addr}))
                     return true
                 }
                 val has_incdec_rhs: bool = contains_incdec_ops(rhs)
@@ -1777,7 +2010,7 @@ fn translate_body_statement(ctx: ref TranslationCtx, line: ref char, indent: i64
             }
         }
         val lhs_arrow: ref char = replace_arrow_access(lhs)
-        val lhs_rewritten: ref char = rewrite_identifiers(lhs_arrow)
+        val lhs_rewritten: ref char = rewrite_identifiers(translate_addr_deref_expr(ctx, lhs_arrow))
         val index_target: ref char = parse_index_target(lhs_rewritten)
         if std.string.rchar_cmp(index_target, "") != 0 {
             val index_expr: ref char = parse_index_expr(lhs_rewritten)
@@ -2607,6 +2840,7 @@ fn translate_function_decl(text: ref char, current_dir: ref char, indent: i64, o
     if has_body {
         val body_lines0 = split_lines(body_src)
         analyze_mutable_names(ctx, body_lines0, 0)
+        analyze_address_taken_names(ctx, body_lines0, 0)
     }
     val params_text: ref char = translate_params(ctx, params_raw)
     val is_static: bool = str_contains(signature, "static ")
