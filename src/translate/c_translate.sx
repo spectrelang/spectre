@@ -1,10 +1,9 @@
 val std = use("std")
 
-pub val STOP_EOF   : i64 = 0
-pub val STOP_ELSE  : i64 = 1
-pub val STOP_ENDIF : i64 = 2
-pub val STOP_ELIF  : i64 = 3
-
+pub val STOP_EOF       : i64 = 0
+pub val STOP_ELSE      : i64 = 1
+pub val STOP_ENDIF     : i64 = 2
+pub val STOP_ELIF      : i64 = 3
 pub val COND_NONE      : i64 = 0
 pub val COND_WIN_TRUE  : i64 = 1
 pub val COND_WIN_FALSE : i64 = 2
