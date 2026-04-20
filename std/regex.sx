@@ -536,7 +536,6 @@ pub fn re_matchp(pattern: ref void, text: ref char, matchlength: ref i64) i64! =
 
     for {
         idx += 1
-
         if (matchpattern(tokens, cursor, matchlength)) {
             if (char_at(cursor, 0) == 0) {
                 return -1

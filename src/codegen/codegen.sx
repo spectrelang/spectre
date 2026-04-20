@@ -2725,8 +2725,25 @@ fn gen_expr(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
             val qbe_var_addr: ref char = cg_lookup_local_var(ctx, iname)
             if str.rchar_cmp(qbe_var_addr, "") != 0 {
                 if cg_is_slot(ctx, iname) {
-                    val tmp_addr: i64 = fresh_tmp(ctx)
-                    val buf_addr: ref char = @alloc(128) as ref char
+                    val local_type_addr: ref char = cg_local_type(ctx, iname)
+                    val slot_is_indirect_addr: mut bool = false
+                    if !cg_is_local_ref_type(ctx, iname) {
+                        if rchar_starts_with(local_type_addr, "list[") ||
+                           rchar_starts_with(local_type_addr, "slice[") ||
+                           rchar_starts_with(local_type_addr, "result[") ||
+                           rchar_starts_with(local_type_addr, "[") {
+                            slot_is_indirect_addr = true
+                        } elif str.rchar_cmp(local_type_addr, "") != 0 {
+                            if cg_lookup_struct(ctx, local_type_addr) != 0 as ref void {
+                                slot_is_indirect_addr = true
+                            } elif cg_lookup_union_suffix(ctx, local_type_addr) != 0 as ref void {
+                                slot_is_indirect_addr = true
+                            }
+                        }
+                    }
+                    if slot_is_indirect_addr {
+                        return gen_list_ptr(ctx, inner4)
+                    }
                     val is_global_addr: bool = @load8(qbe_var_addr as ref void) == 36
                     val slot_ref_addr: ref char = @alloc(64) as ref char
                     if is_global_addr {
@@ -2734,13 +2751,7 @@ fn gen_expr(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
                     } else {
                         @snprintf(slot_ref_addr, 64, "%%t{s}", {qbe_var_addr})
                     }
-                    @snprintf(buf_addr, 128, "    %%t{lld} =l loadl {s}\n", {tmp_addr, slot_ref_addr})
-                    emit(ctx, buf_addr)
-                    @free(buf_addr)
-                    @free(slot_ref_addr)
-                    val res_addr: ref char = @alloc(16) as ref char
-                    @snprintf(res_addr, 16, "%%t{lld}", {tmp_addr})
-                    return res_addr
+                    return slot_ref_addr
                 }
                 val res10: ref char = @alloc(32) as ref char
                 @snprintf(res10, 32, "%%t{s}", {qbe_var_addr})
@@ -2749,6 +2760,9 @@ fn gen_expr(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
             val res10: ref char = @alloc(32) as ref char
             @snprintf(res10, 32, "%%{s}", {iname})
             return res10
+        }
+        if inner4.kind == parser.NK_FIELD {
+            return gen_list_ptr(ctx, inner4)
         }
         return gen_expr(ctx, inner4)
     }
