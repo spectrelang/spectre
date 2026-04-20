@@ -57,6 +57,48 @@ fn is_ident_part(c: u8) bool = {
     return is_ident_start(c) || (c >= 48 && c <= 57)
 }
 
+fn sanitize_identifier(name: ref char) ref char = {
+    if std.string.rchar_cmp(name, "fn") == 0        { return "func" }
+    if std.string.rchar_cmp(name, "val") == 0       { return "value" }
+    if std.string.rchar_cmp(name, "mut") == 0       { return "mutable" }
+    if std.string.rchar_cmp(name, "pub") == 0       { return "public" }
+    if std.string.rchar_cmp(name, "type") == 0      { return "type_value" }
+    if std.string.rchar_cmp(name, "pre") == 0       { return "precond" }
+    if std.string.rchar_cmp(name, "post") == 0      { return "postcond" }
+    if std.string.rchar_cmp(name, "return") == 0    { return "return_value" }
+    if std.string.rchar_cmp(name, "if") == 0        { return "if_value" }
+    if std.string.rchar_cmp(name, "else") == 0      { return "else_value" }
+    if std.string.rchar_cmp(name, "elif") == 0      { return "elif_value" }
+    if std.string.rchar_cmp(name, "trust") == 0     { return "trusted_value" }
+    if std.string.rchar_cmp(name, "use") == 0       { return "used_value" }
+    if std.string.rchar_cmp(name, "ref") == 0       { return "reference" }
+    if std.string.rchar_cmp(name, "for") == 0       { return "loop_value" }
+    if std.string.rchar_cmp(name, "in") == 0        { return "in_value" }
+    if std.string.rchar_cmp(name, "some") == 0      { return "some_value" }
+    if std.string.rchar_cmp(name, "none") == 0      { return "none_value" }
+    if std.string.rchar_cmp(name, "ok") == 0        { return "ok_value" }
+    if std.string.rchar_cmp(name, "err") == 0       { return "error_value" }
+    if std.string.rchar_cmp(name, "match") == 0     { return "match_value" }
+    if std.string.rchar_cmp(name, "true") == 0      { return "true_value" }
+    if std.string.rchar_cmp(name, "false") == 0     { return "false_value" }
+    if std.string.rchar_cmp(name, "defer") == 0     { return "deferred_value" }
+    if std.string.rchar_cmp(name, "break") == 0     { return "break_value" }
+    if std.string.rchar_cmp(name, "continue") == 0  { return "continue_value" }
+    if std.string.rchar_cmp(name, "as") == 0        { return "as_value" }
+    if std.string.rchar_cmp(name, "assert") == 0    { return "assert_value" }
+    if std.string.rchar_cmp(name, "when") == 0      { return "when_value" }
+    if std.string.rchar_cmp(name, "union") == 0     { return "union_value" }
+    if std.string.rchar_cmp(name, "enum") == 0      { return "enum_value" }
+    if std.string.rchar_cmp(name, "extern") == 0    { return "external_value" }
+    if std.string.rchar_cmp(name, "link") == 0      { return "link_value" }
+    if std.string.rchar_cmp(name, "guarded") == 0   { return "guarded_value" }
+    if std.string.rchar_cmp(name, "not") == 0       { return "not_value" }
+    if std.string.rchar_cmp(name, "test") == 0      { return "test_value" }
+    if std.string.rchar_cmp(name, "guard") == 0     { return "guard_value" }
+    if std.string.rchar_cmp(name, "invariant") == 0 { return "invariant_value" }
+    return name
+}
+
 fn str_contains(haystack: ref char, needle: ref char) bool = {
     val hlen: i64 = std.string.len_raw(haystack)
     val nlen: i64 = std.string.len_raw(needle)
@@ -317,6 +359,35 @@ fn extract_call_name(text: ref char) ref char = {
     val open_i: i64 = find_char(text, 40)
     if open_i <= 0 { return "" }
     return extract_identifier_before(text, open_i)
+}
+
+fn rewrite_identifiers(text: ref char) ref char = {
+    val trimmed: ref char = trim_raw(text)
+    val len: i64 = std.string.len_raw(trimmed)
+    val sb: ref void = std.string.StringBuilder.new()
+    val i: mut i64 = 0
+    for {
+        if i >= len { break }
+        val c: u8 = trust @load8(@ptradd(trimmed as ref void, i)) as u8
+        if is_ident_start(c) {
+            val start: i64 = i
+            i++
+            for {
+                if i >= len { break }
+                val cc: u8 = trust @load8(@ptradd(trimmed as ref void, i)) as u8
+                if !is_ident_part(cc) { break }
+                i++
+            }
+            val ident: ref char = std.string.substr(trimmed, start, i - start)
+            std.string.StringBuilder.append_cstr(sb, sanitize_identifier(ident))
+            continue
+        }
+        std.string.StringBuilder.append_char(sb, c)
+        i++
+    }
+    val built: ref void = std.string.StringBuilder.build(sb)
+    std.string.StringBuilder.free(sb)
+    return std.string.cstr(built)
 }
 
 fn is_ident_text(text: ref char) bool = {
@@ -630,7 +701,7 @@ fn parse_function_pointer_param_name(text: ref char, fallback_name: ref char) re
         if !is_ident_part(c) { break }
         name_end++
     }
-    return std.string.substr(text, name_start, name_end - name_start)
+    return sanitize_identifier(std.string.substr(text, name_start, name_end - name_start))
 }
 
 fn find_top_level_assign(text: ref char) i64 = {
@@ -767,7 +838,8 @@ fn translate_expr_text(ctx: ref TranslationCtx, text: ref char) ref char = {
     val no_semicolon: ref char = strip_trailing_semicolon(text)
     val with_init: ref char = translate_designated_initializer(no_semicolon)
     val with_sizeof: ref char = translate_sizeof_expr(with_init)
-    val with_indexing: ref char = replace_pointer_indexing(with_sizeof)
+    val with_rewritten: ref char = rewrite_identifiers(with_sizeof)
+    val with_indexing: ref char = replace_pointer_indexing(with_rewritten)
     if str_contains(with_indexing, "(") {
         return transform_call_expr(ctx, with_indexing)
     }
@@ -821,9 +893,10 @@ fn translate_body_statement(ctx: ref TranslationCtx, line: ref char, indent: i64
             append_line(out, indent, trust @fmt("val {s}: {s} = {s}", {decl.name, decl.type_name, rhs_expr}))
             return true
         }
-        val index_target: ref char = parse_index_target(lhs)
+        val lhs_rewritten: ref char = rewrite_identifiers(lhs)
+        val index_target: ref char = parse_index_target(lhs_rewritten)
         if std.string.rchar_cmp(index_target, "") != 0 {
-            val index_expr: ref char = parse_index_expr(lhs)
+            val index_expr: ref char = parse_index_expr(lhs_rewritten)
             val rhs_expr2: ref char = translate_expr_text(ctx, rhs)
             append_line(out, indent, trust @fmt("@store(@ptradd({s}, {s}), {s})", {index_target, index_expr, rhs_expr2}))
             return true
@@ -1012,12 +1085,12 @@ fn map_base_type(base: ref char) ref char = {
     if std.string.rchar_cmp(base, "intptr_t") == 0           { return "i64" }
     if std.string.rchar_cmp(base, "uintptr_t") == 0          { return "usize" }
     if std.string.rchar_starts_with(base, "struct ") {
-        return trim_raw(std.string.substr(base, 7, std.string.len_raw(base) - 7))
+        return sanitize_identifier(trim_raw(std.string.substr(base, 7, std.string.len_raw(base) - 7)))
     }
     if std.string.rchar_starts_with(base, "enum ") {
         return "i32"
     }
-    return base
+    return sanitize_identifier(base)
 }
 
 fn translate_c_type(type_src: ref char, array_prefix: ref char) ref char = {
@@ -1124,10 +1197,10 @@ fn parse_named_decl(text: ref char, fallback_name: ref char) ref DeclInfo = {
     }
     val name_start: i64 = i + 1
     if name_end >= name_start {
-        info.name = std.string.substr(trimmed0, name_start, name_end - name_start + 1)
+        info.name = sanitize_identifier(std.string.substr(trimmed0, name_start, name_end - name_start + 1))
         info.type_src = trim_raw(std.string.substr(trimmed0, 0, name_start))
     } else {
-        info.name = fallback_name
+        info.name = sanitize_identifier(fallback_name)
         info.type_src = trimmed0
     }
     info.type_name = translate_c_type(info.type_src, array_prefix)
@@ -1568,7 +1641,7 @@ fn translate_function_decl(text: ref char, current_dir: ref char, indent: i64, o
     if open_paren < 0 || close_paren <= open_paren { return false }
     val head: ref char = trim_raw(std.string.substr(signature, 0, open_paren))
     val params_raw: ref char = trim_raw(std.string.substr(signature, open_paren + 1, close_paren - open_paren - 1))
-    val name: ref char = extract_identifier_before(head, std.string.len_raw(head))
+    val name: ref char = sanitize_identifier(extract_identifier_before(head, std.string.len_raw(head)))
     if std.string.rchar_cmp(name, "") == 0 { return false }
     val head_len: i64 = std.string.len_raw(head)
     val name_len: i64 = std.string.len_raw(name)
