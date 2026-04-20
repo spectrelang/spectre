@@ -1599,10 +1599,21 @@ fn infer_type_annotation(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
         val callee: ref parser.Node = parser.call_callee(expr)
         if callee != 0 as ref parser.Node && callee.kind == parser.NK_IDENT {
             val callee_name: ref char = callee.d0 as ref char
+            val ext_ret_expr: ref void = cg_lookup_ext_ret(ctx, callee_name)
+            if ext_ret_expr != 0 as ref void {
+                return type_expr_to_annotation(ctx, ext_ret_expr as ref parser.Node)
+            }
             val ret_expr: ref parser.Node = cg_lookup_fn_ret_type_expr(ctx, callee_name)
             if ret_expr != 0 as ref parser.Node {
                 val ann = type_expr_to_annotation(ctx, ret_expr)
                 return ann
+            }
+            val resolved_name: ref char = cg_resolve_fn_name(ctx, callee_name)
+            if resolved_name != 0 as ref char {
+                val ret_expr2: ref void = cg_lookup_fn_ret(ctx, resolved_name)
+                if ret_expr2 != 0 as ref void {
+                    return type_expr_to_annotation(ctx, ret_expr2 as ref parser.Node)
+                }
             }
 	    }
     }
@@ -1651,6 +1662,49 @@ fn infer_type_annotation(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
     }
 
     return ""
+}
+
+fn gen_variadic_arg(ctx: ref CgCtx, node: ref parser.Node) ref char! = {
+    val qtype: mut ref char = expr_qbe_type(ctx, node)
+    val value: mut ref char = gen_expr(ctx, node)
+
+    if str.rchar_cmp(qtype, "w") == 0 {
+        val ann: ref char = infer_type_annotation(ctx, node)
+        val instr: mut ref char = "extsw"
+        if str.rchar_cmp(ann, "u8") == 0
+        || str.rchar_cmp(ann, "u16") == 0
+        || str.rchar_cmp(ann, "u32") == 0
+        || str.rchar_cmp(ann, "bool") == 0
+        || str.rchar_cmp(ann, "char") == 0 {
+            instr = "extuw"
+        }
+
+        val promoted_tmp: i64 = fresh_tmp(ctx)
+        val promoted_buf: ref char = @alloc(128) as ref char
+        @snprintf(promoted_buf, 128, "    %%t{lld} =l {s} {s}\n", {promoted_tmp, instr, value})
+        emit(ctx, promoted_buf)
+        @free(promoted_buf)
+
+        val promoted_val: ref char = @alloc(16) as ref char
+        @snprintf(promoted_val, 16, "%%t{lld}", {promoted_tmp})
+        value = promoted_val
+        qtype = "l"
+    } elif str.rchar_cmp(qtype, "s") == 0 {
+        val promoted_tmp2: i64 = fresh_tmp(ctx)
+        val promoted_buf2: ref char = @alloc(128) as ref char
+        @snprintf(promoted_buf2, 128, "    %%t{lld} =d exts {s}\n", {promoted_tmp2, value})
+        emit(ctx, promoted_buf2)
+        @free(promoted_buf2)
+
+        val promoted_val2: ref char = @alloc(16) as ref char
+        @snprintf(promoted_val2, 16, "%%t{lld}", {promoted_tmp2})
+        value = promoted_val2
+        qtype = "d"
+    }
+
+    val arg_buf: ref char = @alloc(64) as ref char
+    @snprintf(arg_buf, 64, "{s} {s}", {qtype, value})
+    return arg_buf
 }
 
 /// Check if a raw char pointer starts with a raw prefix.
@@ -3867,10 +3921,7 @@ fn gen_call(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
                                             match pe_opt_p {
                                                 some pe_p => {
                                                     val pe_node_p: ref parser.Node = pe_p as ref parser.Node
-                                                    val pqt_p: ref char = expr_qtype(ctx, pe_node_p)
-                                                    val pv_p: ref char = gen_expr(ctx, pe_node_p)
-                                                    val pbuf_p: ref char = @alloc(64) as ref char
-                                                    @snprintf(pbuf_p, 64, "{s} {s}", {pqt_p, pv_p})
+                                                    val pbuf_p: ref char = gen_variadic_arg(ctx, pe_node_p)
                                                     @append(variadic_args, pbuf_p)
                                                 }
                                                 none => {}
@@ -3878,10 +3929,7 @@ fn gen_call(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
                                             pi_p++
                                         }
                                     } else {
-                                        val aqt_p: ref char = expr_qtype(ctx, arg_node_p)
-                                        val av_p: ref char = gen_expr(ctx, arg_node_p)
-                                        val abuf_p: ref char = @alloc(64) as ref char
-                                        @snprintf(abuf_p, 64, "{s} {s}", {aqt_p, av_p})
+                                        val abuf_p: ref char = gen_variadic_arg(ctx, arg_node_p)
                                         @append(variadic_args, abuf_p)
                                     }
                                 }
@@ -4400,13 +4448,13 @@ fn gen_builtin(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
                                 match pe_opt {
                                     some pe => {
                                         val pe_node: ref parser.Node = pe as ref parser.Node
-                                        val pqt: ref char = expr_qtype(ctx, pe_node)
-                                        val pv: ref char = gen_expr(ctx, pe_node)
+                                        val pvarg: ref char = gen_variadic_arg(ctx, pe_node)
                                         val pbuf2: ref char = @alloc(64) as ref char
-                                        @snprintf(pbuf2, 64, ", {s} {s}", {pqt, pv})
+                                        @snprintf(pbuf2, 64, ", {s}", {pvarg})
                                         val pbuf2_len: i64 = str.len_raw(pbuf2)
                                         @memcpy(@ptradd(call_buf2 as ref void, call_pos2), pbuf2 as ref void, pbuf2_len)
                                         call_pos2 = call_pos2 + pbuf2_len
+                                        @free(pvarg)
                                         @free(pbuf2)
                                     }
                                     none => {}
@@ -4454,13 +4502,13 @@ fn gen_builtin(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
                                 match spe_opt {
                                     some spe => {
                                         val spe_node: ref parser.Node = spe as ref parser.Node
-                                        val spqt: ref char = expr_qtype(ctx, spe_node)
-                                        val spv: ref char = gen_expr(ctx, spe_node)
+                                        val svarg: ref char = gen_variadic_arg(ctx, spe_node)
                                         val spbuf: mut ref char = @alloc(64) as ref char
-                                        @snprintf(spbuf, 64, ", {s} {s}", {spqt, spv})
+                                        @snprintf(spbuf, 64, ", {s}", {svarg})
                                         val spbuf_len: i64 = str.len_raw(spbuf)
                                         @memcpy(@ptradd(scall_buf as ref void, scall_pos), spbuf as ref void, spbuf_len)
                                         scall_pos = scall_pos + spbuf_len
+                                        @free(svarg)
                                         @free(spbuf)
                                     }
                                     none => {}
@@ -4469,13 +4517,13 @@ fn gen_builtin(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
                             }
                         } else {
                             // Single non-pack argument (e.g. untyped parameter passthrough)
-                            val spqt2: ref char = expr_qtype(ctx, spn)
-                            val spv2: ref char = gen_expr(ctx, spn)
+                            val svarg2: ref char = gen_variadic_arg(ctx, spn)
                             val spbuf2: ref char = @alloc(64) as ref char
-                            @snprintf(spbuf2, 64, ", {s} {s}", {spqt2, spv2})
+                            @snprintf(spbuf2, 64, ", {s}", {svarg2})
                             val spbuf2_len: i64 = str.len_raw(spbuf2)
                             @memcpy(@ptradd(scall_buf as ref void, scall_pos), spbuf2 as ref void, spbuf2_len)
                             scall_pos = scall_pos + spbuf2_len
+                            @free(svarg2)
                             @free(spbuf2)
                         }
                     }
