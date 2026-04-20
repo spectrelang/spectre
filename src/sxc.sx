@@ -30,7 +30,6 @@ pub fn main() i32! = {
     }
 
     val quiet: mut bool = true
-    val flag_first_translate_c: bool = std.string.rchar_cmp(input, "--translate-c") == 0
 
     if argc < 2 {
         std.stdio.puts("error: no input file provided\n")
@@ -50,6 +49,8 @@ pub fn main() i32! = {
         }
     }
 
+    val flag_first_translate_c: bool = std.string.rchar_cmp(input, "--translate-c") == 0
+    
     if std.string.rchar_cmp(input, "-h") == 0 || std.string.rchar_cmp(input, "--help") == 0 {
         meta.print_usage()
         allocators.Arena.free(arena)
