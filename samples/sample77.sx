@@ -1,0 +1,8 @@
+val std = use("std")
+
+pub fn main() void! = {
+    val xs = ["hello", "world", "this", "is", "a", "test"]
+    for x in xs {
+        std.stdio.print("{s}\n", {x})
+    }
+}
