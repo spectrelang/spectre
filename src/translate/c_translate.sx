@@ -877,7 +877,7 @@ fn translate_body_statement(ctx: ref TranslationCtx, line: ref char, indent: i64
                     val if_true: ref char = unwrap_outer_parens(trim_raw(std.string.substr(ternary_src, q_i + 1, colon_i - q_i - 1)))
                     val if_false: ref char = unwrap_outer_parens(trim_raw(std.string.substr(ternary_src, colon_i + 1, std.string.len_raw(ternary_src) - colon_i - 1)))
                     append_line(out, indent, trust @fmt("val {s}: mut {s} = {s}", {decl.name, decl.type_name, if_false}))
-                    val if_line1: ref char = trust @fmt("if {s} ", {cond})
+                    val if_line1: ref char = trust @fmt("if ({s}) ", {cond})
                     val if_line2: ref char = std.string.concat_raw(if_line1, "{ ")
                     val if_line3: ref char = trust @fmt("{s} = {s}", {decl.name, if_true})
                     val if_line4: ref char = std.string.concat_raw(if_line2, if_line3)
@@ -928,35 +928,35 @@ fn append_open_block_line(sb: ref void, indent: i64, prefix: ref char) void = {
 
 fn emit_known_extern(name: ref char, out: ref void) bool = {
     if std.string.rchar_cmp(name, "printf") == 0 {
-        append_line(out, 0, "extern (C) fn printf(fmt: ref char, ...) i32 = \"printf\"")
+        append_line(out, 0, "extern (C) fn printf(fmt: ref char, ...) i32! = \"printf\"")
         return true
     }
     if std.string.rchar_cmp(name, "fprintf") == 0 {
-        append_line(out, 0, "extern (C) fn fprintf(stream: ref void, fmt: ref char, ...) i32 = \"fprintf\"")
+        append_line(out, 0, "extern (C) fn fprintf(stream: ref void, fmt: ref char, ...) i32! = \"fprintf\"")
         return true
     }
     if std.string.rchar_cmp(name, "sprintf") == 0 {
-        append_line(out, 0, "extern (C) fn sprintf(dst: ref char, fmt: ref char, ...) i32 = \"sprintf\"")
+        append_line(out, 0, "extern (C) fn sprintf(dst: ref char, fmt: ref char, ...) i32! = \"sprintf\"")
         return true
     }
     if std.string.rchar_cmp(name, "puts") == 0 {
-        append_line(out, 0, "extern (C) fn puts(s: ref char) i32 = \"puts\"")
+        append_line(out, 0, "extern (C) fn puts(s: ref char) i32! = \"puts\"")
         return true
     }
     if std.string.rchar_cmp(name, "putchar") == 0 {
-        append_line(out, 0, "extern (C) fn putchar(c: i32) i32 = \"putchar\"")
+        append_line(out, 0, "extern (C) fn putchar(c: i32) i32! = \"putchar\"")
         return true
     }
     if std.string.rchar_cmp(name, "strlen") == 0 {
-        append_line(out, 0, "extern (C) fn strlen(s: ref char) i64 = \"strlen\"")
+        append_line(out, 0, "extern (C) fn strlen(s: ref char) i64! = \"strlen\"")
         return true
     }
     if std.string.rchar_cmp(name, "malloc") == 0 {
-        append_line(out, 0, "extern (C) fn malloc(size: usize) ref void = \"malloc\"")
+        append_line(out, 0, "extern (C) fn malloc(size: usize) ref void! = \"malloc\"")
         return true
     }
     if std.string.rchar_cmp(name, "free") == 0 {
-        append_line(out, 0, "extern (C) fn free(ptr: ref void) void = \"free\"")
+        append_line(out, 0, "extern (C) fn free(ptr: ref void) void! = \"free\"")
         return true
     }
     return false
@@ -1655,7 +1655,7 @@ fn translate_function_decl(text: ref char, current_dir: ref char, indent: i64, o
         push_unique(ctx.defined_names, name)
         val fn_kw: mut ref char = "pub fn"
         if is_static { fn_kw = "fn" }
-        line = trust @fmt("{s} {s}({s}) {s} = ", {fn_kw, name, params_text, return_type})
+        line = trust @fmt("{s} {s}({s}) {s}! = ", {fn_kw, name, params_text, return_type})
         append_open_block_line(out, indent, line)
         val body_lines = split_lines(body_src)
         translate_body_lines(body_lines, current_dir, 0, indent + 1, out, ctx)
@@ -1668,7 +1668,7 @@ fn translate_function_decl(text: ref char, current_dir: ref char, indent: i64, o
         return true
     }
     push_unique(ctx.extern_names, name)
-    line = trust @fmt("extern (C) fn {s}({s}) {s} = \"{s}\"", {name, params_text, return_type, name})
+    line = trust @fmt("extern (C) fn {s}({s}) {s}! = \"{s}\"", {name, params_text, return_type, name})
     append_line(out, indent, line)
     return true
 }
