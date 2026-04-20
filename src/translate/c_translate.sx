@@ -2386,6 +2386,10 @@ pub fn translate_c(input_path: ref char, output_path: ref char) i32 = {
     append_synthesized_externs(ctx, out)
     append_builder(out, body)
     val built: ref void = std.string.StringBuilder.build(out)
+    val out_dir: ref char = std.path.dir(output_path)
+    if std.string.rchar_cmp(out_dir, "") != 0 && std.string.rchar_cmp(out_dir, ".") != 0 {
+        std.os.exec(trust @fmt("mkdir -p {s}", {out_dir}))
+    }
     val written: bool = std.fs.write_all(output_path, std.string.cstr(built))
     if !written {
         std.stdio.print("error: could not write '{s}'\n", {output_path})
