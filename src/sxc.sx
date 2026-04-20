@@ -28,7 +28,7 @@ pub fn main() i32! = {
         none   => {}
     }
 
-    val quiet: mut bool = false
+    val quiet: mut bool = true
 
     if argc < 2 {
         std.stdio.puts("error: no input file provided\n")
@@ -195,8 +195,8 @@ pub fn main() i32! = {
                 } elif std.string.rchar_cmp(arg, "--test") == 0 {
                     test_mode = true
                     arg_i++
-                } elif std.string.rchar_cmp(arg, "--quiet") == 0 || std.string.rchar_cmp(arg, "-q") == 0 {
-                    quiet = true
+                } elif std.string.rchar_cmp(arg, "--loud") == 0 || std.string.rchar_cmp(arg, "-l") == 0 {
+                    quiet = false
                     arg_i++
                 } elif std.string.rchar_cmp(arg, "--release") == 0 {
                     release_mode = true

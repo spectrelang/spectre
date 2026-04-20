@@ -28,7 +28,7 @@ pub fn print_usage() void = {
     std.stdio.puts("  --dll                Build a shared library")
     std.stdio.puts("  -c, --compile        Compile only to produce object file, without linking")
     std.stdio.puts("  -o, --output <file>  Output binary path")
-    std.stdio.puts("  -q, --quiet          Suppress compiler output")
+    std.stdio.puts("  -l, --loud           Show stages of compilation with verbose output")
     std.stdio.puts("  -v, --version        Show the version of the Spectre compiler")
     std.stdio.puts("  -h, --help           Print this help message")
 }
