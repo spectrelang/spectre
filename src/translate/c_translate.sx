@@ -357,6 +357,11 @@ fn render_binding_type(ctx: ref TranslationCtx, name: ref char, type_name: ref c
     return trust @fmt("mut {s}", {type_name})
 }
 
+fn render_mutable_type(type_name: ref char) ref char = {
+    if std.string.rchar_starts_with(type_name, "mut ") { return type_name }
+    return trust @fmt("mut {s}", {type_name})
+}
+
 fn extract_assignment_base(lhs: ref char) ref char = {
     val trimmed: ref char = trim_raw(lhs)
     if std.string.rchar_cmp(trimmed, "") == 0 { return "" }
@@ -378,7 +383,6 @@ fn analyze_mutations_in_statement(ctx: ref TranslationCtx, line: ref char) void 
     val compound_i: i64 = find_top_level_compound_assign(stripped)
     if compound_i > 0 {
         mark_mutable_name(ctx, extract_assignment_base(std.string.substr(stripped, 0, compound_i)))
-        return
     }
     val assign_i: i64 = find_top_level_assign(stripped)
     if assign_i > 0 {
@@ -388,6 +392,25 @@ fn analyze_mutations_in_statement(ctx: ref TranslationCtx, line: ref char) void 
         if !can_be_decl {
             mark_mutable_name(ctx, extract_assignment_base(lhs))
         }
+    }
+    val len: i64 = std.string.len_raw(stripped)
+    val i: mut i64 = 0
+    for {
+        if i >= len { break }
+        val c: u8 = trust @load8(@ptradd(stripped as ref void, i)) as u8
+        if c == 123 {
+            val close_i: i64 = find_matching_delim(stripped, i, 123, 125)
+            if close_i > i {
+                val inner: ref char = std.string.substr(stripped, i + 1, close_i - i - 1)
+                val statements = split_top_level(inner, 59)
+                for stmt in statements {
+                    analyze_mutations_in_statement(ctx, stmt)
+                }
+                i = close_i + 1
+                continue
+            }
+        }
+        i++
     }
 }
 
@@ -1936,7 +1959,7 @@ fn translate_struct_decl(text: ref char, indent: i64, out: ref void) bool = {
             append_comment_line(out, indent + 1, trust @fmt("unsupported field declaration: {s};", {trimmed}))
             continue
         }
-        append_line(out, indent + 1, trust @fmt("{s}: {s}", {decl.name, decl.type_name}))
+        append_line(out, indent + 1, trust @fmt("{s}: {s}", {decl.name, render_mutable_type(decl.type_name)}))
     }
     append_line(out, indent, "}")
     append_blank_line(out)
