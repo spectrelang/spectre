@@ -22,6 +22,7 @@ pub fn print_usage() void = {
     std.stdio.puts("  --syntax-check       Check validity of syntax given some program")
     std.stdio.puts("  --emit-ssa           Print IR to stdout and exit")
     std.stdio.puts("  --emit-asm           Print assembly to stdout and exit")
+    std.stdio.puts("  --translate-c        Translate C input into a single Spectre .sx file")
     std.stdio.puts("  --show-cmd           Show the command used for linking")
     std.stdio.puts("  --test               Run the unit tests in the current file")
     std.stdio.puts("  --release            Build in release mode")

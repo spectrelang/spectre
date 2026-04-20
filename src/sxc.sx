@@ -15,6 +15,7 @@ val codegen     = use("codegen/codegen.sx")
 val module      = use("module/module.sx")
 val meta        = use("meta/meta.sx")
 val commands    = use("meta/commands.sx")
+val c_translate = use("translate/c_translate.sx")
 
 pub fn main() i32! = {
     val arena = allocators.Arena.new(65536)?
@@ -29,6 +30,7 @@ pub fn main() i32! = {
     }
 
     val quiet: mut bool = true
+    val flag_first_translate_c: bool = std.string.rchar_cmp(input, "--translate-c") == 0
 
     if argc < 2 {
         std.stdio.puts("error: no input file provided\n")
@@ -134,6 +136,18 @@ pub fn main() i32! = {
         return code
     }
 
+    if flag_first_translate_c {
+        val next_opt = @get(args, 2)
+        match next_opt {
+            some next_arg => { input = next_arg as ref char }
+            none => {
+                std.stdio.puts("error: --translate-c requires an input .c or .h file")
+                allocators.Arena.free(arena)
+                return 1
+            }
+        }
+    }
+
     val src_opt = std.fs.read_all(input)
     match src_opt {
         some _ => {}
@@ -154,7 +168,12 @@ pub fn main() i32! = {
     val compile_obj: mut bool = false
     val syntax_check: mut bool = false
     val print_ast: mut bool = false
+    val translate_c_flag: mut bool = flag_first_translate_c
     val arg_i: mut i64 = 2
+
+    if flag_first_translate_c {
+        arg_i = 3
+    }
 
     for {
         if (arg_i >= argc) {
@@ -183,6 +202,9 @@ pub fn main() i32! = {
                         allocators.Arena.free(arena)
                         return 1
                     }
+                } elif std.string.rchar_cmp(arg, "--translate-c") == 0 {
+                    translate_c_flag = true
+                    arg_i++
                 } elif std.string.rchar_cmp(arg, "--emit-ssa") == 0 {
                     emit_qbe = true
                     arg_i++
@@ -221,6 +243,15 @@ pub fn main() i32! = {
                 arg_i++
             }
         }
+    }
+
+    if translate_c_flag {
+        if std.string.rchar_cmp(output_name, "") == 0 {
+            output_name = @fmt("{s}.sx", {path.get_name_without_ext(arena, input)})
+        }
+        val code: i32 = c_translate.translate_c(input, output_name)
+        allocators.Arena.free(arena)
+        return code
     }
 
     val exe_path2: ref char = reflection.get_exe_path()

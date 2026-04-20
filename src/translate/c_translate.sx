@@ -1,0 +1,1093 @@
+val std = use("std")
+
+pub val STOP_EOF   : i64 = 0
+pub val STOP_ELSE  : i64 = 1
+pub val STOP_ENDIF : i64 = 2
+pub val STOP_ELIF  : i64 = 3
+
+pub val COND_NONE      : i64 = 0
+pub val COND_WIN_TRUE  : i64 = 1
+pub val COND_WIN_FALSE : i64 = 2
+
+type BlockResult = {
+    next_index: mut i64
+    stop_kind:  mut i64
+    stop_line:  mut ref char
+}
+
+type DeclInfo = {
+    its_ok:    mut bool
+    name:      mut ref char
+    type_name: mut ref char
+    type_src:  mut ref char
+}
+
+fn make_block_result(next_index: i64, stop_kind: i64, stop_line: ref char) ref BlockResult = {
+    val result: mut ref BlockResult = @alloc(@sizeof(BlockResult)) as ref BlockResult
+    result.next_index = next_index
+    result.stop_kind  = stop_kind
+    result.stop_line  = stop_line
+    return result
+}
+
+fn is_space(c: u8) bool = {
+    return c == 32 || c == 9 || c == 10 || c == 13
+}
+
+fn is_ident_start(c: u8) bool = {
+    return (c >= 65 && c <= 90) || (c >= 97 && c <= 122) || c == 95
+}
+
+fn is_ident_part(c: u8) bool = {
+    return is_ident_start(c) || (c >= 48 && c <= 57)
+}
+
+fn str_contains(haystack: ref char, needle: ref char) bool = {
+    val hlen: i64 = std.string.len_raw(haystack)
+    val nlen: i64 = std.string.len_raw(needle)
+    if nlen == 0 { return true }
+    if nlen > hlen { return false }
+    val i: mut i64 = 0
+    for {
+        if i > hlen - nlen { break }
+        val matched: mut bool = true
+        val j: mut i64 = 0
+        for {
+            if j >= nlen { break }
+            val a: u8 = trust @load8(@ptradd(haystack as ref void, i + j)) as u8
+            val b: u8 = trust @load8(@ptradd(needle as ref void, j)) as u8
+            if a != b {
+                matched = false
+                break
+            }
+            j++
+        }
+        if matched { return true }
+        i++
+    }
+    return false
+}
+
+fn find_char(text: ref char, target: u8) i64 = {
+    val len: i64 = std.string.len_raw(text)
+    val i: mut i64 = 0
+    for {
+        if i >= len { break }
+        val c: u8 = trust @load8(@ptradd(text as ref void, i)) as u8
+        if c == target { return i }
+        i++
+    }
+    return -1
+}
+
+fn find_last_char(text: ref char, target: u8) i64 = {
+    val len: i64 = std.string.len_raw(text)
+    val i: mut i64 = len - 1
+    for {
+        if i < 0 { break }
+        val c: u8 = trust @load8(@ptradd(text as ref void, i)) as u8
+        if c == target { return i }
+        i--
+    }
+    return -1
+}
+
+fn trim_raw(text: ref char) ref char = {
+    val len: i64 = std.string.len_raw(text)
+    if len == 0 { return "" }
+    val start: mut i64 = 0
+    for {
+        if start >= len { break }
+        val c: u8 = trust @load8(@ptradd(text as ref void, start)) as u8
+        if !is_space(c) { break }
+        start++
+    }
+    val end: mut i64 = len - 1
+    for {
+        if end < start { break }
+        val c: u8 = trust @load8(@ptradd(text as ref void, end)) as u8
+        if !is_space(c) { break }
+        end--
+    }
+    if end < start { return "" }
+    return trust std.string.substr(text, start, end - start + 1)
+}
+
+fn flatten_ws(text: ref char) ref char = {
+    val sb: ref void = std.string.StringBuilder.new()
+    val len: i64 = std.string.len_raw(text)
+    val last_space: mut bool = true
+    val i: mut i64 = 0
+    for {
+        if i >= len { break }
+        val c: u8 = trust @load8(@ptradd(text as ref void, i)) as u8
+        if is_space(c) {
+            if !last_space {
+                trust std.string.StringBuilder.append_char(sb, 32)
+                last_space = true
+            }
+        } else {
+            trust std.string.StringBuilder.append_char(sb, c)
+            last_space = false
+        }
+        i++
+    }
+    val built: ref void = trust std.string.StringBuilder.build(sb)
+    std.string.StringBuilder.free(sb)
+    return trust trim_raw(std.string.cstr(built))
+}
+
+fn split_lines(text: ref char) list[ref char] = {
+    val lines: mut list[ref char] = []
+    val len: i64 = std.string.len_raw(text)
+    val start: mut i64 = 0
+    val i: mut i64 = 0
+    for {
+        if i > len { break }
+        val at_end: bool = i == len
+        val c: mut u8 = 0
+        if !at_end {
+            c = trust @load8(@ptradd(text as ref void, i)) as u8
+        }
+        if at_end || c == 10 {
+            val line_len: i64 = i - start
+            val trimmed_len: mut i64 = line_len
+            if trimmed_len > 0 {
+                val last: u8 = trust @load8(@ptradd(text as ref void, start + trimmed_len - 1)) as u8
+                if last == 13 { trimmed_len-- }
+            }
+            @append(lines, trust std.string.substr(text, start, trimmed_len))
+            start = i + 1
+        }
+        i++
+    }
+    return lines
+}
+
+fn join_lines(lines: list[ref char], start: i64, end_exclusive: i64) ref char = {
+    val sb: ref void = std.string.StringBuilder.new()
+    val i: mut i64 = start
+    for {
+        if i >= end_exclusive { break }
+        val line_opt = @get(lines, i as usize)
+        match line_opt {
+            some line_val => {
+                trust std.string.StringBuilder.append_cstr(sb, line_val as ref char)
+                if i + 1 < end_exclusive {
+                    trust std.string.StringBuilder.append_char(sb, 10)
+                }
+            }
+            none => {}
+        }
+        i++
+    }
+    val built: ref void = trust std.string.StringBuilder.build(sb)
+    std.string.StringBuilder.free(sb)
+    return std.string.cstr(built)
+}
+
+fn push_indent(sb: ref void, indent: i64) void = {
+    val i: mut i64 = 0
+    for {
+        if i >= indent { break }
+        trust std.string.StringBuilder.append_cstr(sb, "    ")
+        i++
+    }
+}
+
+fn append_line(sb: ref void, indent: i64, line: ref char) void = {
+    push_indent(sb, indent)
+    trust std.string.StringBuilder.append_cstr(sb, line)
+    trust std.string.StringBuilder.append_char(sb, 10)
+}
+
+fn append_blank_line(sb: ref void) void = {
+    trust std.string.StringBuilder.append_char(sb, 10)
+}
+
+fn append_comment_line(sb: ref void, indent: i64, line: ref char) void = {
+    val trimmed: ref char = trim_raw(line)
+    if std.string.rchar_cmp(trimmed, "") == 0 {
+        append_blank_line(sb)
+        return
+    }
+    push_indent(sb, indent)
+    trust std.string.StringBuilder.append_cstr(sb, "// ")
+    trust std.string.StringBuilder.append_cstr(sb, trimmed)
+    trust std.string.StringBuilder.append_char(sb, 10)
+}
+
+fn list_contains(items: list[ref char], value: ref char) bool = {
+    for item in items {
+        if std.string.rchar_cmp(item, value) == 0 { return true }
+    }
+    return false
+}
+
+fn file_exists(path: ref char) bool = {
+    val file_opt = std.fs.open(path, "r")
+    match file_opt {
+        some f => {
+            trust std.fs.close(f)
+            return true
+        }
+        none => { return false }
+    }
+}
+
+fn resolve_include_path(name: ref char, current_dir: ref char) option[ref char] = {
+    if std.string.rchar_starts_with(name, "/") {
+        if file_exists(name) { return some name }
+        return none
+    }
+    val local = std.path.join(current_dir, name)
+    if file_exists(local) { return some local }
+    val cwd_candidate = std.path.join(".", name)
+    if file_exists(cwd_candidate) { return some cwd_candidate }
+    val usr_local = std.path.join("/usr/local/include", name)
+    if file_exists(usr_local) { return some usr_local }
+    val usr = std.path.join("/usr/include", name)
+    if file_exists(usr) { return some usr }
+    return none
+}
+
+fn keyword_ignored(word: ref char) bool = {
+    if std.string.rchar_cmp(word, "const") == 0    { return true }
+    if std.string.rchar_cmp(word, "volatile") == 0 { return true }
+    if std.string.rchar_cmp(word, "register") == 0 { return true }
+    if std.string.rchar_cmp(word, "static") == 0   { return true }
+    if std.string.rchar_cmp(word, "extern") == 0   { return true }
+    if std.string.rchar_cmp(word, "inline") == 0   { return true }
+    if std.string.rchar_cmp(word, "typedef") == 0  { return true }
+    if std.string.rchar_cmp(word, "signed") == 0   { return true }
+    return false
+}
+
+fn normalize_type_phrase(text: ref char) ref char = {
+    val flat: ref char = flatten_ws(text)
+    val sb: ref void = std.string.StringBuilder.new()
+    val len: i64 = std.string.len_raw(flat)
+    val i: mut i64 = 0
+    val first: mut bool = true
+    for {
+        if i >= len { break }
+        for {
+            if i >= len {
+                break
+            }
+            val c: u8 = trust @load8(@ptradd(flat as ref void, i)) as u8
+            if !is_space(c) { break }
+            i++
+        }
+        if i >= len { break }
+        val start: i64 = i
+        for {
+            if i >= len {
+                break
+            }
+            val c: u8 = trust @load8(@ptradd(flat as ref void, i)) as u8
+            if is_space(c) { break }
+            i++
+        }
+        val word: ref char = trust std.string.substr(flat, start, i - start)
+        if !keyword_ignored(word) {
+            if !first { trust std.string.StringBuilder.append_char(sb, 32) }
+            trust std.string.StringBuilder.append_cstr(sb, word)
+            first = false
+        }
+    }
+    val built: ref void = trust std.string.StringBuilder.build(sb)
+    std.string.StringBuilder.free(sb)
+    return trim_raw(std.string.cstr(built))
+}
+
+fn map_base_type(base: ref char) ref char = {
+    if std.string.rchar_cmp(base, "") == 0                   { return "void" }
+    if std.string.rchar_cmp(base, "void") == 0               { return "void" }
+    if std.string.rchar_cmp(base, "char") == 0               { return "char" }
+    if std.string.rchar_cmp(base, "short") == 0              { return "i16" }
+    if std.string.rchar_cmp(base, "int") == 0                { return "i32" }
+    if std.string.rchar_cmp(base, "long") == 0               { return "i64" }
+    if std.string.rchar_cmp(base, "long long") == 0          { return "i64" }
+    if std.string.rchar_cmp(base, "unsigned char") == 0      { return "u8" }
+    if std.string.rchar_cmp(base, "unsigned short") == 0     { return "u16" }
+    if std.string.rchar_cmp(base, "unsigned") == 0           { return "u32" }
+    if std.string.rchar_cmp(base, "unsigned int") == 0       { return "u32" }
+    if std.string.rchar_cmp(base, "unsigned long") == 0      { return "u64" }
+    if std.string.rchar_cmp(base, "unsigned long long") == 0 { return "u64" }
+    if std.string.rchar_cmp(base, "float") == 0              { return "f32" }
+    if std.string.rchar_cmp(base, "double") == 0             { return "f64" }
+    if std.string.rchar_cmp(base, "_Bool") == 0              { return "bool" }
+    if std.string.rchar_cmp(base, "bool") == 0               { return "bool" }
+    if std.string.rchar_cmp(base, "size_t") == 0             { return "usize" }
+    if std.string.rchar_cmp(base, "ssize_t") == 0            { return "i64" }
+    if std.string.rchar_cmp(base, "int8_t") == 0             { return "i8" }
+    if std.string.rchar_cmp(base, "uint8_t") == 0            { return "u8" }
+    if std.string.rchar_cmp(base, "int16_t") == 0            { return "i16" }
+    if std.string.rchar_cmp(base, "uint16_t") == 0           { return "u16" }
+    if std.string.rchar_cmp(base, "int32_t") == 0            { return "i32" }
+    if std.string.rchar_cmp(base, "uint32_t") == 0           { return "u32" }
+    if std.string.rchar_cmp(base, "int64_t") == 0            { return "i64" }
+    if std.string.rchar_cmp(base, "uint64_t") == 0           { return "u64" }
+    if std.string.rchar_cmp(base, "intptr_t") == 0           { return "i64" }
+    if std.string.rchar_cmp(base, "uintptr_t") == 0          { return "usize" }
+    if std.string.rchar_starts_with(base, "struct ") {
+        return trim_raw(trust std.string.substr(base, 7, std.string.len_raw(base) - 7))
+    }
+    if std.string.rchar_starts_with(base, "enum ") {
+        return "i32"
+    }
+    return base
+}
+
+fn translate_c_type(type_src: ref char, array_prefix: ref char) ref char = {
+    val normalized: ref char = normalize_type_phrase(type_src)
+    val len: i64 = std.string.len_raw(normalized)
+    val no_stars_sb: ref void = std.string.StringBuilder.new()
+    val star_count: mut i64 = 0
+    val i: mut i64 = 0
+    for {
+        if i >= len { break }
+        val c: u8 = trust @load8(@ptradd(normalized as ref void, i)) as u8
+        if c == 42 {
+            star_count++
+        } else {
+            trust std.string.StringBuilder.append_char(no_stars_sb, c)
+        }
+        i++
+    }
+    val no_stars_built: ref void = trust std.string.StringBuilder.build(no_stars_sb)
+    std.string.StringBuilder.free(no_stars_sb)
+    val base: ref char = trim_raw(std.string.cstr(no_stars_built))
+    val mapped0: ref char = map_base_type(base)
+    val mapped: mut ref char = mapped0
+    val j: mut i64 = 0
+    for {
+        if j >= star_count { break }
+        mapped = @fmt("ref {s}", {mapped})
+        j++
+    }
+    if std.string.rchar_cmp(array_prefix, "") != 0 {
+        mapped = @fmt("{s}{s}", {array_prefix, mapped})
+    }
+    return mapped
+}
+
+fn strip_initializer(text: ref char) ref char = {
+    val len: i64 = std.string.len_raw(text)
+    val i: mut i64 = 0
+    val depth_paren: mut i64 = 0
+    val depth_bracket: mut i64 = 0
+    for {
+        if i >= len { break }
+        val c: u8 = trust @load8(@ptradd(text as ref void, i)) as u8
+        if c == 40 { depth_paren++ }
+        elif c == 41 && depth_paren > 0 { depth_paren-- }
+        elif c == 91 { depth_bracket++ }
+        elif c == 93 && depth_bracket > 0 { depth_bracket-- }
+        elif c == 61 && depth_paren == 0 && depth_bracket == 0 {
+            return trim_raw(trust std.string.substr(text, 0, i))
+        }
+        i++
+    }
+    return trim_raw(text)
+}
+
+fn parse_named_decl(text: ref char, fallback_name: ref char) ref DeclInfo = {
+    val info: mut ref DeclInfo = @alloc(@sizeof(DeclInfo)) as ref DeclInfo
+    info.its_ok    = false
+    info.name      = fallback_name
+    info.type_name = ""
+    info.type_src  = ""
+    val trimmed0: ref char = trim_raw(strip_initializer(text))
+    val len0: i64 = std.string.len_raw(trimmed0)
+    if len0 == 0 { return info }
+    val array_prefix: mut ref char = ""
+    val i: mut i64 = len0 - 1
+    for {
+        if i < 0 { break }
+        val c: u8 = trust @load8(@ptradd(trimmed0 as ref void, i)) as u8
+        if is_space(c) {
+            i--
+            continue
+        }
+        if c != 93 { break }
+        val close_i: i64 = i
+        val open_i: mut i64 = i - 1
+        for {
+            if open_i < 0 { break }
+            val inner: u8 = trust @load8(@ptradd(trimmed0 as ref void, open_i)) as u8
+            if inner == 91 { break }
+            open_i--
+        }
+        if open_i < 0 { break }
+        val array_len_txt: ref char = trim_raw(trust std.string.substr(trimmed0, open_i + 1, close_i - open_i - 1))
+        array_prefix = @fmt("[{s}]{s}", {array_len_txt, array_prefix})
+        i = open_i - 1
+    }
+    for {
+        if i < 0 {
+            break
+        }
+        val c: u8 = trust @load8(@ptradd(trimmed0 as ref void, i)) as u8
+        if !is_space(c) { break }
+        i--
+    }
+    val name_end: i64 = i
+    for {
+        if i < 0 {
+            break
+        }
+        val c: u8 = trust @load8(@ptradd(trimmed0 as ref void, i)) as u8
+        if !is_ident_part(c) { break }
+        i--
+    }
+    val name_start: i64 = i + 1
+    if name_end >= name_start {
+        info.name = trust std.string.substr(trimmed0, name_start, name_end - name_start + 1)
+        info.type_src = trim_raw(trust std.string.substr(trimmed0, 0, name_start))
+    } else {
+        info.name = fallback_name
+        info.type_src = trimmed0
+    }
+    info.type_name = translate_c_type(info.type_src, array_prefix)
+    info.its_ok = std.string.rchar_cmp(info.type_name, "") != 0
+    return info
+}
+
+fn split_top_level(text: ref char, delim: u8) list[ref char] = {
+    val items: mut list[ref char] = []
+    val len: i64 = std.string.len_raw(text)
+    val start: mut i64 = 0
+    val paren: mut i64 = 0
+    val brace: mut i64 = 0
+    val bracket: mut i64 = 0
+    val i: mut i64 = 0
+    for {
+        if i > len { break }
+        val at_end: bool = i == len
+        val c: mut u8 = 0
+        if !at_end {
+            c = trust @load8(@ptradd(text as ref void, i)) as u8
+            if c == 40 { paren++ }
+            elif c == 41 && paren > 0 { paren-- }
+            elif c == 123 { brace++ }
+            elif c == 125 && brace > 0 { brace-- }
+            elif c == 91 { bracket++ }
+            elif c == 93 && bracket > 0 { bracket-- }
+        }
+        if at_end || (c == delim && paren == 0 && brace == 0 && bracket == 0) {
+            @append(items, trim_raw(trust std.string.substr(text, start, i - start)))
+            start = i + 1
+        }
+        i++
+    }
+    return items
+}
+
+fn extract_identifier_before(text: ref char, end_exclusive: i64) ref char = {
+    val i: mut i64 = end_exclusive - 1
+    for {
+        if i < 0 {
+            break
+        }
+        val c: u8 = trust @load8(@ptradd(text as ref void, i)) as u8
+        if !is_space(c) { break }
+        i--
+    }
+    val end_i: i64 = i
+    for {
+        if i < 0 {
+            break
+        }
+        val c: u8 = trust @load8(@ptradd(text as ref void, i)) as u8
+        if !is_ident_part(c) { break }
+        i--
+    }
+    if end_i < i + 1 { return "" }
+    return trust std.string.substr(text, i + 1, end_i - i)
+}
+
+fn next_significant_line(lines: list[ref char], start: i64) i64 = {
+    val len: i64 = @len(lines) as i64
+    val i: mut i64 = start
+    for {
+        if i >= len { break }
+        val opt = @get(lines, i as usize)
+        match opt {
+            some line_val => {
+                val trimmed: ref char = trim_raw(line_val as ref char)
+                if std.string.rchar_cmp(trimmed, "") != 0 {
+                    return i
+                }
+            }
+            none => {}
+        }
+        i++
+    }
+    return -1
+}
+
+fn parse_include_name(line: ref char) ref char = {
+    val q1: i64 = find_char(line, 34)
+    if q1 >= 0 {
+        val q2: mut i64 = q1 + 1
+        val len: i64 = std.string.len_raw(line)
+        for {
+            if q2 >= len { break }
+            val c: u8 = trust @load8(@ptradd(line as ref void, q2)) as u8
+            if c == 34 { break }
+            q2++
+        }
+        if q2 < len {
+            return trust std.string.substr(line, q1 + 1, q2 - q1 - 1)
+        }
+    }
+    val a1: i64 = find_char(line, 60)
+    if a1 >= 0 {
+        val a2: mut i64 = a1 + 1
+        val len: i64 = std.string.len_raw(line)
+        for {
+            if a2 >= len { break }
+            val c: u8 = trust @load8(@ptradd(line as ref void, a2)) as u8
+            if c == 62 { break }
+            a2++
+        }
+        if a2 < len {
+            return trust std.string.substr(line, a1 + 1, a2 - a1 - 1)
+        }
+    }
+    return ""
+}
+
+fn parse_macro_name(line: ref char, keyword: ref char) ref char = {
+    val flat: ref char = flatten_ws(line)
+    val prefix: ref char = @fmt("{s} ", {keyword})
+    if !std.string.rchar_starts_with(flat, prefix) { return "" }
+    return trim_raw(trust std.string.substr(flat, std.string.len_raw(prefix), std.string.len_raw(flat) - std.string.len_raw(prefix)))
+}
+
+fn detect_condition(line: ref char) i64 = {
+    val flat: ref char = flatten_ws(line)
+    if std.string.rchar_cmp(flat, "#ifdef _WIN32") == 0 { return COND_WIN_TRUE }
+    if std.string.rchar_cmp(flat, "#if defined(_WIN32)") == 0 { return COND_WIN_TRUE }
+    if std.string.rchar_cmp(flat, "#if defined( _WIN32 )") == 0 { return COND_WIN_TRUE }
+    if std.string.rchar_cmp(flat, "#ifndef _WIN32") == 0 { return COND_WIN_FALSE }
+    if std.string.rchar_cmp(flat, "#if !defined(_WIN32)") == 0 { return COND_WIN_FALSE }
+    if std.string.rchar_cmp(flat, "#if ! defined(_WIN32)") == 0 { return COND_WIN_FALSE }
+    return COND_NONE
+}
+
+fn is_header_guard(lines: list[ref char], line_index: i64, macro_name: ref char) bool = {
+    if std.string.rchar_cmp(macro_name, "") == 0 { return false }
+    val next_i: i64 = next_significant_line(lines, line_index + 1)
+    if next_i < 0 { return false }
+    val opt = @get(lines, next_i as usize)
+    match opt {
+        some next_line => {
+            val def_name: ref char = parse_macro_name(next_line as ref char, "#define")
+            return std.string.rchar_cmp(def_name, macro_name) == 0
+        }
+        none => { return false }
+    }
+}
+
+fn append_builder(dst: ref void, src: ref void) void = {
+    val built: ref void = trust std.string.StringBuilder.build(src)
+    trust std.string.StringBuilder.append(dst, built)
+}
+
+fn translate_body_lines(lines: list[ref char], current_dir: ref char, start: i64, indent: i64, out: ref void) ref BlockResult = {
+    val len: i64 = @len(lines) as i64
+    val i: mut i64 = start
+    for {
+        if i >= len { break }
+        val line_opt = @get(lines, i as usize)
+        match line_opt {
+            some line_val => {
+                val line: ref char = line_val as ref char
+                val trimmed: ref char = trim_raw(line)
+                if std.string.rchar_cmp(trimmed, "") == 0 {
+                    append_blank_line(out)
+                    i++
+                    continue
+                }
+                if std.string.rchar_starts_with(trimmed, "#else") {
+                    return make_block_result(i + 1, STOP_ELSE, trimmed)
+                }
+                if std.string.rchar_starts_with(trimmed, "#endif") {
+                    return make_block_result(i + 1, STOP_ENDIF, trimmed)
+                }
+                if std.string.rchar_starts_with(trimmed, "#elif") {
+                    return make_block_result(i + 1, STOP_ELIF, trimmed)
+                }
+                if std.string.rchar_starts_with(trimmed, "#include") {
+                    append_comment_line(out, indent, trimmed)
+                    i++
+                    continue
+                }
+                val ifndef_name: ref char = parse_macro_name(trimmed, "#ifndef")
+                if is_header_guard(lines, i, ifndef_name) {
+                    val define_i: i64 = next_significant_line(lines, i + 1)
+                    val inner = translate_body_lines(lines, current_dir, define_i + 1, indent, out)
+                    i = inner.next_index
+                    continue
+                }
+                val cond: i64 = detect_condition(trimmed)
+                if cond == COND_WIN_TRUE {
+                    append_line(out, indent, "when windows {")
+                    val then_result = translate_body_lines(lines, current_dir, i + 1, indent + 1, out)
+                    if then_result.stop_kind == STOP_ELSE {
+                        append_line(out, indent, "} otherwise {")
+                        val else_result = translate_body_lines(lines, current_dir, then_result.next_index, indent + 1, out)
+                        append_line(out, indent, "}")
+                        i = else_result.next_index
+                    } elif then_result.stop_kind == STOP_ELIF {
+                        append_line(out, indent, "} otherwise {")
+                        append_comment_line(out, indent + 1, then_result.stop_line)
+                        val elif_result = translate_body_lines(lines, current_dir, then_result.next_index, indent + 1, out)
+                        append_line(out, indent, "}")
+                        i = elif_result.next_index
+                    } else {
+                        append_line(out, indent, "}")
+                        i = then_result.next_index
+                    }
+                    continue
+                }
+                if cond == COND_WIN_FALSE {
+                    val non_windows: ref void = std.string.StringBuilder.new()
+                    val then_result = translate_body_lines(lines, current_dir, i + 1, indent + 1, non_windows)
+                    append_line(out, indent, "when windows {")
+                    if then_result.stop_kind == STOP_ELSE {
+                        val else_result = translate_body_lines(lines, current_dir, then_result.next_index, indent + 1, out)
+                        append_line(out, indent, "} otherwise {")
+                        append_builder(out, non_windows)
+                        append_line(out, indent, "}")
+                        i = else_result.next_index
+                    } elif then_result.stop_kind == STOP_ELIF {
+                        append_comment_line(out, indent + 1, then_result.stop_line)
+                        val elif_result = translate_body_lines(lines, current_dir, then_result.next_index, indent + 1, out)
+                        append_line(out, indent, "} otherwise {")
+                        append_builder(out, non_windows)
+                        append_line(out, indent, "}")
+                        i = elif_result.next_index
+                    } else {
+                        append_line(out, indent, "} otherwise {")
+                        append_builder(out, non_windows)
+                        append_line(out, indent, "}")
+                        i = then_result.next_index
+                    }
+                    continue
+                }
+                append_comment_line(out, indent, trimmed)
+                i++
+            }
+            none => { i++ }
+        }
+    }
+    return make_block_result(i, STOP_EOF, "")
+}
+
+fn collect_struct(lines: list[ref char], start: i64) ref BlockResult = {
+    val len: i64 = @len(lines) as i64
+    val brace_depth: mut i64 = 0
+    val started: mut bool = false
+    val i: mut i64 = start
+    for {
+        if i >= len { break }
+        val line_opt = @get(lines, i as usize)
+        match line_opt {
+            some line_val => {
+                val line: ref char = line_val as ref char
+                val l: i64 = std.string.len_raw(line)
+                val j: mut i64 = 0
+                for {
+                    if j >= l { break }
+                    val c: u8 = trust @load8(@ptradd(line as ref void, j)) as u8
+                    if c == 123 {
+                        brace_depth++
+                        started = true
+                    } elif c == 125 && brace_depth > 0 {
+                        brace_depth--
+                    } elif c == 59 && started && brace_depth == 0 {
+                        return make_block_result(i + 1, STOP_EOF, "")
+                    }
+                    j++
+                }
+            }
+            none => {}
+        }
+        i++
+    }
+    return make_block_result(i, STOP_EOF, "")
+}
+
+fn collect_function(lines: list[ref char], start: i64) ref BlockResult = {
+    val len: i64 = @len(lines) as i64
+    val paren_depth: mut i64 = 0
+    val brace_depth: mut i64 = 0
+    val seen_body: mut bool = false
+    val i: mut i64 = start
+    for {
+        if i >= len { break }
+        val line_opt = @get(lines, i as usize)
+        match line_opt {
+            some line_val => {
+                val line: ref char = line_val as ref char
+                val l: i64 = std.string.len_raw(line)
+                val j: mut i64 = 0
+                for {
+                    if j >= l { break }
+                    val c: u8 = trust @load8(@ptradd(line as ref void, j)) as u8
+                    if c == 40 { paren_depth++ }
+                    elif c == 41 && paren_depth > 0 { paren_depth-- }
+                    elif c == 123 && paren_depth == 0 {
+                        brace_depth++
+                        seen_body = true
+                    } elif c == 125 && brace_depth > 0 {
+                        brace_depth--
+                        if seen_body && brace_depth == 0 {
+                            return make_block_result(i + 1, STOP_EOF, "")
+                        }
+                    } elif c == 59 && paren_depth == 0 && !seen_body {
+                        return make_block_result(i + 1, STOP_EOF, "")
+                    }
+                    j++
+                }
+            }
+            none => {}
+        }
+        i++
+    }
+    return make_block_result(i, STOP_EOF, "")
+}
+
+fn translate_struct_decl(text: ref char, indent: i64, out: ref void) bool = {
+    val flat: ref char = flatten_ws(text)
+    val open_i: i64 = find_char(flat, 123)
+    val close_i: i64 = find_last_char(flat, 125)
+    if open_i < 0 || close_i <= open_i { return false }
+    val header: ref char = trim_raw(trust std.string.substr(flat, 0, open_i))
+    val after: ref char = trim_raw(trust std.string.substr(flat, close_i + 1, std.string.len_raw(flat) - close_i - 1))
+    val before_body_name: mut ref char = ""
+    if std.string.rchar_starts_with(header, "typedef struct") {
+        val tail_len: i64 = std.string.len_raw(header) - 14
+        if tail_len > 0 {
+            before_body_name = trim_raw(trust std.string.substr(header, 14, tail_len))
+        }
+    } elif std.string.rchar_starts_with(header, "struct") {
+        val tail_len: i64 = std.string.len_raw(header) - 6
+        if tail_len > 0 {
+            before_body_name = trim_raw(trust std.string.substr(header, 6, tail_len))
+        }
+    } else {
+        return false
+    }
+    val alias0: ref char = extract_identifier_before(after, std.string.len_raw(after))
+    val alias: mut ref char = alias0
+    if std.string.rchar_cmp(alias, "") == 0 {
+        alias = before_body_name
+    }
+    if std.string.rchar_cmp(alias, "") == 0 { return false }
+    val body: ref char = trust std.string.substr(flat, open_i + 1, close_i - open_i - 1)
+    append_line(out, indent, @fmt("type {s} = {{", {alias}))
+    val fields = split_top_level(body, 59)
+    for field in fields {
+        val trimmed: ref char = trim_raw(field)
+        if std.string.rchar_cmp(trimmed, "") == 0 { continue }
+        if str_contains(trimmed, ",") {
+            append_comment_line(out, indent + 1, @fmt("unsupported field declaration: {s};", {trimmed}))
+            continue
+        }
+        val decl: ref DeclInfo = parse_named_decl(trimmed, "")
+        if !decl.its_ok || std.string.rchar_cmp(decl.name, "") == 0 {
+            append_comment_line(out, indent + 1, @fmt("unsupported field declaration: {s};", {trimmed}))
+            continue
+        }
+        append_line(out, indent + 1, @fmt("{s}: {s}", {decl.name, decl.type_name}))
+    }
+    append_line(out, indent, "}")
+    append_blank_line(out)
+    return true
+}
+
+fn translate_params(params_text: ref char) ref char = {
+    val trimmed: ref char = trim_raw(params_text)
+    if std.string.rchar_cmp(trimmed, "") == 0 { return "" }
+    if std.string.rchar_cmp(trimmed, "void") == 0 { return "" }
+    val params = split_top_level(trimmed, 44)
+    val sb: ref void = std.string.StringBuilder.new()
+    val arg_index: mut i64 = 0
+    val first: mut bool = true
+    for param in params {
+        val p: ref char = trim_raw(param)
+        if std.string.rchar_cmp(p, "") == 0 { continue }
+        if std.string.rchar_cmp(p, "...") == 0 {
+            if !first { trust std.string.StringBuilder.append_cstr(sb, ", ") }
+            trust std.string.StringBuilder.append_cstr(sb, "...")
+            first = false
+            continue
+        }
+        val fallback: ref char = @fmt("arg{d}", {arg_index})
+        val decl: ref DeclInfo = parse_named_decl(p, fallback)
+        if !decl.its_ok {
+            if !first { trust std.string.StringBuilder.append_cstr(sb, ", ") }
+            trust std.string.StringBuilder.append_cstr(sb, @fmt("{s}: void", {fallback}))
+            first = false
+            arg_index++
+            continue
+        }
+        if !first { trust std.string.StringBuilder.append_cstr(sb, ", ") }
+        trust std.string.StringBuilder.append_cstr(sb, @fmt("{s}: {s}", {decl.name, decl.type_name}))
+        first = false
+        arg_index++
+    }
+    val built: ref void = trust std.string.StringBuilder.build(sb)
+    std.string.StringBuilder.free(sb)
+    return std.string.cstr(built)
+}
+
+fn translate_function_decl(text: ref char, current_dir: ref char, indent: i64, out: ref void) bool = {
+    val has_body: bool = find_char(text, 123) >= 0
+    val signature_src: mut ref char = ""
+    val body_src: mut ref char = ""
+    if has_body {
+        val open_i: i64 = find_char(text, 123)
+        val close_i: i64 = find_last_char(text, 125)
+        if close_i <= open_i { return false }
+        signature_src = trim_raw(trust std.string.substr(text, 0, open_i))
+        body_src = trust std.string.substr(text, open_i + 1, close_i - open_i - 1)
+    } else {
+        val semi_i: i64 = find_last_char(text, 59)
+        if semi_i < 0 { return false }
+        signature_src = trim_raw(trust std.string.substr(text, 0, semi_i))
+        body_src = ""
+    }
+    val signature: ref char = flatten_ws(signature_src)
+    val open_paren: i64 = find_char(signature, 40)
+    val close_paren: i64 = find_last_char(signature, 41)
+    if open_paren < 0 || close_paren <= open_paren { return false }
+    val head: ref char = trim_raw(trust std.string.substr(signature, 0, open_paren))
+    val params_raw: ref char = trim_raw(trust std.string.substr(signature, open_paren + 1, close_paren - open_paren - 1))
+    val name: ref char = extract_identifier_before(head, std.string.len_raw(head))
+    if std.string.rchar_cmp(name, "") == 0 { return false }
+    val head_len: i64 = std.string.len_raw(head)
+    val name_len: i64 = std.string.len_raw(name)
+    if head_len < name_len { return false }
+    val return_src: ref char = trim_raw(trust std.string.substr(head, 0, head_len - name_len))
+    val return_type: ref char = translate_c_type(return_src, "")
+    val params_text: ref char = translate_params(params_raw)
+    val is_static: bool = str_contains(signature, "static ")
+    val line: mut ref char = ""
+    if has_body {
+        val fn_kw: mut ref char = "pub fn"
+        if is_static { fn_kw = "fn" }
+        line = @fmt("{s} {s}({s}) {s} = {{", {fn_kw, name, params_text, return_type})
+        append_line(out, indent, line)
+        val body_lines = split_lines(body_src)
+        trust translate_body_lines(body_lines, current_dir, 0, indent + 1, out)
+        append_line(out, indent, "}")
+        append_blank_line(out)
+        return true
+    }
+    if is_static {
+        append_comment_line(out, indent, @fmt("static prototype omitted: {s};", {signature}))
+        return true
+    }
+    line = @fmt("extern (C) fn {s}({s}) {s}! = \"{s}\"", {name, params_text, return_type, name})
+    append_line(out, indent, line)
+    return true
+}
+
+fn translate_file(path: ref char, out: ref void, seen: mut list[ref char]) bool = {
+    if list_contains(seen, path) { return true }
+    @append(seen, path)
+    val content_opt = std.fs.read_all(path)
+    match content_opt {
+        none => {
+            append_comment_line(out, 0, @fmt("failed to read include: {s}", {path}))
+            return false
+        }
+        some content_val => {
+            val content: ref char = content_val as ref char
+            append_comment_line(out, 0, @fmt("BEGIN translated from {s}", {path}))
+            val lines = split_lines(content)
+            val current_dir: ref char = std.path.dir(path)
+            val result = translate_top_level(lines, current_dir, 0, 0, out, seen)
+            if result.stop_kind != STOP_EOF {
+                append_comment_line(out, 0, @fmt("unterminated preprocessor block in {s}", {path}))
+            }
+            append_comment_line(out, 0, @fmt("END translated from {s}", {path}))
+            append_blank_line(out)
+            return true
+        }
+    }
+}
+
+pub fn translate_top_level(
+    lines: list[ref char],
+    current_dir: ref char,
+    start: i64,
+    indent: i64,
+    out: ref void,
+    seen: mut list[ref char]
+) ref BlockResult = {
+    val len: i64 = @len(lines) as i64
+    val i: mut i64 = start
+    for {
+        if i >= len { break }
+        val line_opt = @get(lines, i as usize)
+        match line_opt {
+            some line_val => {
+                val line: ref char = line_val as ref char
+                val trimmed: ref char = trim_raw(line)
+                if std.string.rchar_cmp(trimmed, "") == 0 {
+                    i++
+                    continue
+                }
+                if std.string.rchar_starts_with(trimmed, "#else") {
+                    return make_block_result(i + 1, STOP_ELSE, trimmed)
+                }
+                if std.string.rchar_starts_with(trimmed, "#endif") {
+                    return make_block_result(i + 1, STOP_ENDIF, trimmed)
+                }
+                if std.string.rchar_starts_with(trimmed, "#elif") {
+                    return make_block_result(i + 1, STOP_ELIF, trimmed)
+                }
+                if std.string.rchar_starts_with(trimmed, "#pragma once") {
+                    i++
+                    continue
+                }
+                if std.string.rchar_starts_with(trimmed, "#include") {
+                    val include_name: ref char = parse_include_name(trimmed)
+                    if std.string.rchar_cmp(include_name, "") == 0 {
+                        append_comment_line(out, indent, trimmed)
+                    } else {
+                        val include_path_opt = resolve_include_path(include_name, current_dir)
+                        match include_path_opt {
+                            some include_path => {
+                                trust translate_file(include_path as ref char, out, seen)
+                            }
+                            none => {
+                                append_comment_line(out, indent, @fmt("unresolved include: {s}", {include_name}))
+                            }
+                        }
+                    }
+                    i++
+                    continue
+                }
+                val ifndef_name: ref char = parse_macro_name(trimmed, "#ifndef")
+                if is_header_guard(lines, i, ifndef_name) {
+                    val define_i: i64 = next_significant_line(lines, i + 1)
+                    val inner = translate_top_level(lines, current_dir, define_i + 1, indent, out, seen)
+                    i = inner.next_index
+                    continue
+                }
+                val cond: i64 = detect_condition(trimmed)
+                if cond == COND_WIN_TRUE {
+                    append_line(out, indent, "when windows {")
+                    val then_result = translate_top_level(lines, current_dir, i + 1, indent + 1, out, seen)
+                    if then_result.stop_kind == STOP_ELSE {
+                        append_line(out, indent, "} otherwise {")
+                        val else_result = translate_top_level(lines, current_dir, then_result.next_index, indent + 1, out, seen)
+                        append_line(out, indent, "}")
+                        i = else_result.next_index
+                    } elif then_result.stop_kind == STOP_ELIF {
+                        append_line(out, indent, "} otherwise {")
+                        append_comment_line(out, indent + 1, then_result.stop_line)
+                        val elif_result = translate_top_level(lines, current_dir, then_result.next_index, indent + 1, out, seen)
+                        append_line(out, indent, "}")
+                        i = elif_result.next_index
+                    } else {
+                        append_line(out, indent, "}")
+                        i = then_result.next_index
+                    }
+                    continue
+                }
+                if cond == COND_WIN_FALSE {
+                    val non_windows: ref void = std.string.StringBuilder.new()
+                    val then_result = translate_top_level(lines, current_dir, i + 1, indent + 1, non_windows, seen)
+                    append_line(out, indent, "when windows {")
+                    if then_result.stop_kind == STOP_ELSE {
+                        val else_result = translate_top_level(lines, current_dir, then_result.next_index, indent + 1, out, seen)
+                        append_line(out, indent, "} otherwise {")
+                        append_builder(out, non_windows)
+                        append_line(out, indent, "}")
+                        i = else_result.next_index
+                    } elif then_result.stop_kind == STOP_ELIF {
+                        append_comment_line(out, indent + 1, then_result.stop_line)
+                        val elif_result = translate_top_level(lines, current_dir, then_result.next_index, indent + 1, out, seen)
+                        append_line(out, indent, "} otherwise {")
+                        append_builder(out, non_windows)
+                        append_line(out, indent, "}")
+                        i = elif_result.next_index
+                    } else {
+                        append_line(out, indent, "} otherwise {")
+                        append_builder(out, non_windows)
+                        append_line(out, indent, "}")
+                        i = then_result.next_index
+                    }
+                    continue
+                }
+                if std.string.rchar_starts_with(trimmed, "#define")
+                    || std.string.rchar_starts_with(trimmed, "#undef")
+                    || std.string.rchar_starts_with(trimmed, "#pragma")
+                    || std.string.rchar_starts_with(trimmed, "#error")
+                    || std.string.rchar_starts_with(trimmed, "#if")
+                    || std.string.rchar_starts_with(trimmed, "#ifndef")
+                    || std.string.rchar_starts_with(trimmed, "#ifdef") {
+                    append_comment_line(out, indent, trimmed)
+                    i++
+                    continue
+                }
+                if ((std.string.rchar_starts_with(trimmed, "typedef struct") || std.string.rchar_starts_with(trimmed, "struct "))
+                    && str_contains(trimmed, "{")) {
+                    val span = collect_struct(lines, i)
+                    val full_text: ref char = join_lines(lines, i, span.next_index)
+                    if !translate_struct_decl(full_text, indent, out) {
+                        append_comment_line(out, indent, @fmt("unsupported struct declaration: {s}", {trimmed}))
+                    }
+                    i = span.next_index
+                    continue
+                }
+                if str_contains(trimmed, "(")
+                    && !std.string.rchar_starts_with(trimmed, "if")
+                    && !std.string.rchar_starts_with(trimmed, "for")
+                    && !std.string.rchar_starts_with(trimmed, "while")
+                    && !std.string.rchar_starts_with(trimmed, "switch")
+                    && !std.string.rchar_starts_with(trimmed, "return") {
+                    val span2 = collect_function(lines, i)
+                    val full_text2: ref char = join_lines(lines, i, span2.next_index)
+                    if translate_function_decl(full_text2, current_dir, indent, out) {
+                        i = span2.next_index
+                        continue
+                    }
+                }
+                append_comment_line(out, indent, trimmed)
+                i++
+            }
+            none => { i++ }
+        }
+    }
+    return make_block_result(i, STOP_EOF, "")
+}
+
+pub fn translate_c(input_path: ref char, output_path: ref char) i32 = {
+    val out: ref void = std.string.StringBuilder.new()
+    append_comment_line(out, 0, @fmt("Generated by spectre --translate-c from {s}", {input_path}))
+    append_blank_line(out)
+    val seen: mut list[ref char] = []
+    val its_ok: bool = translate_file(input_path, out, seen)
+    if !its_ok {
+        std.stdio.print("error: failed to translate '{s}'\n", {input_path})
+        return 1
+    }
+    val built: ref void = trust std.string.StringBuilder.build(out)
+    val written: bool = trust std.fs.write_all(output_path, std.string.cstr(built))
+    if !written {
+        std.stdio.print("error: could not write '{s}'\n", {output_path})
+        return 1
+    }
+    std.stdio.print("wrote {s}\n", {output_path})
+    return 0
+}
