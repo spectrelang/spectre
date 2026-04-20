@@ -259,10 +259,198 @@ fn strip_trailing_semicolon(text: ref char) ref char = {
     return trimmed
 }
 
+fn strip_system_includes(text: ref char) ref char = {
+    val lines = split_lines(text)
+    val sb: ref void = std.string.StringBuilder.new()
+    val first: mut bool = true
+    for line in lines {
+        val trimmed: ref char = trim_raw(line)
+        if std.string.rchar_starts_with(trimmed, "#include") && is_system_include(trimmed) {
+            continue
+        }
+        if !first {
+            std.string.StringBuilder.append_char(sb, 10)
+        }
+        std.string.StringBuilder.append_cstr(sb, line)
+        first = false
+    }
+    val built: ref void = std.string.StringBuilder.build(sb)
+    std.string.StringBuilder.free(sb)
+    return std.string.cstr(built)
+}
+
+fn preprocess_source(path: ref char) option[ref char] = {
+    val content_opt = std.fs.read_all(path)
+    match content_opt {
+        none => { return none }
+        some content_val => {
+            val original: ref char = content_val as ref char
+            val filtered: ref char = strip_system_includes(original)
+            val current_dir: ref char = std.path.dir(path)
+            val temp_path: ref char = std.path.join(current_dir, "__spectre_translate_tmp__.c")
+            val wrote: bool = std.fs.write_all(temp_path, filtered)
+            if !wrote {
+                return some original
+            }
+            val cmd: ref char = trust @fmt("cc -E -P {s} 2>/dev/null || clang -E -P {s} 2>/dev/null", {temp_path, temp_path})
+            val result = std.os.exec(cmd)
+            std.fs.delete(temp_path)
+            match result {
+                ok out => {
+                    val text: ref char = std.string.cstr(out)
+                    if std.string.rchar_cmp(trim_raw(text), "") == 0 {
+                        return some filtered
+                    }
+                    return some text
+                }
+                err _ => {
+                    return some filtered
+                }
+            }
+        }
+    }
+}
+
 fn extract_call_name(text: ref char) ref char = {
     val open_i: i64 = find_char(text, 40)
     if open_i <= 0 { return "" }
     return extract_identifier_before(text, open_i)
+}
+
+fn find_top_level_assign(text: ref char) i64 = {
+    val len: i64 = std.string.len_raw(text)
+    val paren: mut i64 = 0
+    val brace: mut i64 = 0
+    val bracket: mut i64 = 0
+    val i: mut i64 = 0
+    for {
+        if i >= len { break }
+        val c: u8 = trust @load8(@ptradd(text as ref void, i)) as u8
+        if c == 40 { paren++ }
+        elif c == 41 && paren > 0 { paren-- }
+        elif c == 123 { brace++ }
+        elif c == 125 && brace > 0 { brace-- }
+        elif c == 91 { bracket++ }
+        elif c == 93 && bracket > 0 { bracket-- }
+        elif c == 61 && paren == 0 && brace == 0 && bracket == 0 {
+            val prev: mut u8 = 0
+            val next: mut u8 = 0
+            if i > 0 { prev = trust @load8(@ptradd(text as ref void, i - 1)) as u8 }
+            if i + 1 < len { next = trust @load8(@ptradd(text as ref void, i + 1)) as u8 }
+            if prev != 61 && prev != 33 && prev != 60 && prev != 62 && next != 61 {
+                return i
+            }
+        }
+        i++
+    }
+    return -1
+}
+
+fn translate_designated_initializer(text: ref char) ref char = {
+    val trimmed: ref char = trim_raw(text)
+    if !std.string.rchar_starts_with(trimmed, "{") { return trimmed }
+    if !str_contains(trimmed, ".") { return trimmed }
+    val sb: ref void = std.string.StringBuilder.new()
+    val len: i64 = std.string.len_raw(trimmed)
+    val i: mut i64 = 0
+    for {
+        if i >= len { break }
+        val c: u8 = trust @load8(@ptradd(trimmed as ref void, i)) as u8
+        if c == 46 && i + 1 < len {
+            val next: u8 = trust @load8(@ptradd(trimmed as ref void, i + 1)) as u8
+            if is_ident_start(next) {
+                i++
+                val start: i64 = i
+                for {
+                    if i >= len { break }
+                    val cc: u8 = trust @load8(@ptradd(trimmed as ref void, i)) as u8
+                    if !is_ident_part(cc) { break }
+                    i++
+                }
+                val field: ref char = std.string.substr(trimmed, start, i - start)
+                std.string.StringBuilder.append_cstr(sb, field)
+                for {
+                    if i >= len {
+                        break
+                    }
+                    val ws: u8 = trust @load8(@ptradd(trimmed as ref void, i)) as u8
+                    if !is_space(ws) { break }
+                    i++
+                }
+                if i < len {
+                    val eq: u8 = trust @load8(@ptradd(trimmed as ref void, i)) as u8
+                    if eq == 61 {
+                        std.string.StringBuilder.append_cstr(sb, ": ")
+                        i++
+                        continue
+                    }
+                }
+                continue
+            }
+        }
+        std.string.StringBuilder.append_char(sb, c)
+        i++
+    }
+    val built: ref void = std.string.StringBuilder.build(sb)
+    std.string.StringBuilder.free(sb)
+    return std.string.cstr(built)
+}
+
+fn translate_sizeof_expr(text: ref char) ref char = {
+    val trimmed: ref char = trim_raw(text)
+    val len: i64 = std.string.len_raw(trimmed)
+    val sb: ref void = std.string.StringBuilder.new()
+    val i: mut i64 = 0
+    for {
+        if i >= len { break }
+        if i + 7 <= len {
+            val maybe_kw: ref char = std.string.substr(trimmed, i, 6)
+            if std.string.rchar_cmp(maybe_kw, "sizeof") == 0 {
+                val after_kw: mut i64 = i + 6
+                for {
+                    if after_kw >= len {
+                        break
+                    }
+                    val ws: u8 = trust @load8(@ptradd(trimmed as ref void, after_kw)) as u8
+                    if !is_space(ws) { break }
+                    after_kw++
+                }
+                if after_kw < len && (trust @load8(@ptradd(trimmed as ref void, after_kw)) as u8) == 40 {
+                    val close_i: mut i64 = after_kw + 1
+                    val depth: mut i64 = 1
+                    for {
+                        if close_i >= len { break }
+                        val cc: u8 = trust @load8(@ptradd(trimmed as ref void, close_i)) as u8
+                        if cc == 40 { depth++ }
+                        elif cc == 41 {
+                            depth--
+                            if depth == 0 { break }
+                        }
+                        close_i++
+                    }
+                    if close_i < len {
+                        val inner: ref char = trim_raw(std.string.substr(trimmed, after_kw + 1, close_i - after_kw - 1))
+                        val mapped: ref char = translate_c_type(inner, "")
+                        std.string.StringBuilder.append_cstr(sb, trust @fmt("@sizeof({s})", {mapped}))
+                        i = close_i + 1
+                        continue
+                    }
+                }
+            }
+        }
+        val c: u8 = trust @load8(@ptradd(trimmed as ref void, i)) as u8
+        std.string.StringBuilder.append_char(sb, c)
+        i++
+    }
+    val built: ref void = std.string.StringBuilder.build(sb)
+    std.string.StringBuilder.free(sb)
+    return std.string.cstr(built)
+}
+
+fn translate_expr_text(text: ref char) ref char = {
+    val no_semicolon: ref char = strip_trailing_semicolon(text)
+    val with_init: ref char = translate_designated_initializer(no_semicolon)
+    return translate_sizeof_expr(with_init)
 }
 
 fn translate_body_statement(ctx: ref TranslationCtx, line: ref char, indent: i64, out: ref void) bool = {
@@ -275,16 +463,32 @@ fn translate_body_statement(ctx: ref TranslationCtx, line: ref char, indent: i64
         append_line(out, indent, stripped)
         return true
     }
+    val assign_i: i64 = find_top_level_assign(stripped)
+    if assign_i > 0 {
+        val lhs: ref char = trim_raw(std.string.substr(stripped, 0, assign_i))
+        val rhs: ref char = trim_raw(std.string.substr(stripped, assign_i + 1, std.string.len_raw(stripped) - assign_i - 1))
+        val decl: ref DeclInfo = parse_named_decl(lhs, "")
+        if decl.its_ok && std.string.rchar_cmp(decl.name, "") != 0 && std.string.rchar_cmp(trim_raw(decl.type_src), "") != 0 {
+            val rhs_expr: ref char = translate_expr_text(rhs)
+            val call_name: ref char = extract_call_name(rhs_expr)
+            if std.string.rchar_cmp(call_name, "") != 0 {
+                push_unique(ctx.called_names, call_name)
+            }
+            append_line(out, indent, trust @fmt("val {s}: {s} = {s}", {decl.name, decl.type_name, rhs_expr}))
+            return true
+        }
+    }
     if str_contains(stripped, "(")
         && !std.string.rchar_starts_with(stripped, "if")
         && !std.string.rchar_starts_with(stripped, "for")
         && !std.string.rchar_starts_with(stripped, "while")
         && !std.string.rchar_starts_with(stripped, "switch") {
-        val call_name: ref char = extract_call_name(stripped)
+        val expr: ref char = translate_expr_text(stripped)
+        val call_name: ref char = extract_call_name(expr)
         if std.string.rchar_cmp(call_name, "") != 0 {
             push_unique(ctx.called_names, call_name)
         }
-        append_line(out, indent, stripped)
+        append_line(out, indent, expr)
         return true
     }
     return false
@@ -614,7 +818,9 @@ fn extract_identifier_before(text: ref char, end_exclusive: i64) ref char = {
             break
         }
         val c: u8 = trust @load8(@ptradd(text as ref void, i)) as u8
-        if !is_space(c) { break }
+        if !is_space(c) && c != 59 {
+            break
+        }
         i--
     }
     val end_i: i64 = i
@@ -893,7 +1099,7 @@ fn translate_struct_decl(text: ref char, indent: i64, out: ref void) bool = {
     val close_i: i64 = find_last_char(flat, 125)
     if open_i < 0 || close_i <= open_i { return false }
     val header: ref char = trim_raw(std.string.substr(flat, 0, open_i))
-    val after: ref char = trim_raw(std.string.substr(flat, close_i + 1, std.string.len_raw(flat) - close_i - 1))
+    val after: ref char = strip_trailing_semicolon(trim_raw(std.string.substr(flat, close_i + 1, std.string.len_raw(flat) - close_i - 1)))
     val before_body_name: mut ref char = ""
     if std.string.rchar_starts_with(header, "typedef struct") {
         val tail_len: i64 = std.string.len_raw(header) - 14
@@ -1029,7 +1235,7 @@ fn translate_function_decl(text: ref char, current_dir: ref char, indent: i64, o
 fn translate_file(path: ref char, out: ref void, seen: mut list[ref char], ctx: ref TranslationCtx) bool = {
     if list_contains(seen, path) { return true }
     @append(seen, path)
-    val content_opt = std.fs.read_all(path)
+    val content_opt = preprocess_source(path)
     match content_opt {
         none => {
             append_comment_line(out, 0, trust @fmt("failed to read include: {s}", {path}))
