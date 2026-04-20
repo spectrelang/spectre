@@ -28,6 +28,7 @@ type TranslationCtx = {
     fnptr_names:   mut list[ref char]
     local_names:   mut list[ref char]
     local_types:   mut list[ref char]
+    mutable_names: mut list[ref char]
 }
 
 fn make_block_result(next_index: i64, stop_kind: i64, stop_line: ref char) ref BlockResult = {
@@ -46,6 +47,7 @@ fn new_translation_ctx() ref TranslationCtx = {
     ctx.fnptr_names   = []
     ctx.local_names   = []
     ctx.local_types   = []
+    ctx.mutable_names = []
     return ctx
 }
 
@@ -293,6 +295,7 @@ fn push_unique(items: mut list[ref char], value: ref char) void = {
 fn clear_local_types(ctx: mut ref TranslationCtx) void = {
     ctx.local_names = []
     ctx.local_types = []
+    ctx.mutable_names = []
 }
 
 fn remember_local_type(ctx: ref TranslationCtx, name: ref char, type_name: ref char) void = {
@@ -337,6 +340,69 @@ fn lookup_local_type(ctx: ref TranslationCtx, name: ref char) option[ref char] =
         i++
     }
     return none
+}
+
+fn mark_mutable_name(ctx: ref TranslationCtx, name: ref char) void = {
+    if std.string.rchar_cmp(name, "") == 0 { return }
+    push_unique(ctx.mutable_names, name)
+}
+
+fn is_mutable_name(ctx: ref TranslationCtx, name: ref char) bool = {
+    return list_contains(ctx.mutable_names, name)
+}
+
+fn render_binding_type(ctx: ref TranslationCtx, name: ref char, type_name: ref char) ref char = {
+    if !is_mutable_name(ctx, name) { return type_name }
+    if std.string.rchar_starts_with(type_name, "mut ") { return type_name }
+    return trust @fmt("mut {s}", {type_name})
+}
+
+fn extract_assignment_base(lhs: ref char) ref char = {
+    val trimmed: ref char = trim_raw(lhs)
+    if std.string.rchar_cmp(trimmed, "") == 0 { return "" }
+    val lhs_arrow: ref char = replace_arrow_access(trimmed)
+    val dot_i: i64 = find_char(lhs_arrow, 46)
+    if dot_i > 0 {
+        val base: ref char = trim_raw(std.string.substr(lhs_arrow, 0, dot_i))
+        if is_ident_text(base) { return rewrite_identifiers(base) }
+        return ""
+    }
+    if str_contains(lhs_arrow, "[") { return "" }
+    if is_ident_text(trimmed) { return rewrite_identifiers(trimmed) }
+    return ""
+}
+
+fn analyze_mutations_in_statement(ctx: ref TranslationCtx, line: ref char) void = {
+    val stripped: ref char = strip_trailing_semicolon(trim_raw(line))
+    if std.string.rchar_cmp(stripped, "") == 0 { return }
+    val compound_i: i64 = find_top_level_compound_assign(stripped)
+    if compound_i > 0 {
+        mark_mutable_name(ctx, extract_assignment_base(std.string.substr(stripped, 0, compound_i)))
+        return
+    }
+    val assign_i: i64 = find_top_level_assign(stripped)
+    if assign_i > 0 {
+        val lhs: ref char = trim_raw(std.string.substr(stripped, 0, assign_i))
+        val can_be_decl: bool = str_contains(lhs, " ") || str_contains(lhs, "*")
+            || std.string.rchar_starts_with(lhs, "struct ") || std.string.rchar_starts_with(lhs, "enum ")
+        if !can_be_decl {
+            mark_mutable_name(ctx, extract_assignment_base(lhs))
+        }
+    }
+}
+
+fn analyze_mutable_names(ctx: ref TranslationCtx, lines: list[ref char], start: i64) void = {
+    val len: i64 = @len(lines) as i64
+    val i: mut i64 = start
+    for {
+        if i >= len { break }
+        val line_opt = @get(lines, i as usize)
+        match line_opt {
+            some line_val => { analyze_mutations_in_statement(ctx, line_val as ref char) }
+            none => {}
+        }
+        i++
+    }
 }
 
 fn is_system_include(line: ref char) bool = {
@@ -1153,6 +1219,7 @@ fn translate_body_statement(ctx: ref TranslationCtx, line: ref char, indent: i64
                     rhs_expr = trust @fmt("0 as {s}", {decl.type_name})
                 }
                 remember_local_type(ctx, decl.name, decl.type_name)
+                val rendered_type: ref char = render_binding_type(ctx, decl.name, decl.type_name)
                 val ternary_src: ref char = unwrap_outer_parens(rhs_expr)
                 val q_i: i64 = find_top_level_ternary(ternary_src)
                 if q_i >= 0 {
@@ -1161,7 +1228,7 @@ fn translate_body_statement(ctx: ref TranslationCtx, line: ref char, indent: i64
                         val cond: ref char = unwrap_outer_parens(trim_raw(std.string.substr(ternary_src, 0, q_i)))
                         val if_true: ref char = unwrap_outer_parens(trim_raw(std.string.substr(ternary_src, q_i + 1, colon_i - q_i - 1)))
                         val if_false: ref char = unwrap_outer_parens(trim_raw(std.string.substr(ternary_src, colon_i + 1, std.string.len_raw(ternary_src) - colon_i - 1)))
-                        append_line(out, indent, trust @fmt("val {s}: mut {s} = {s}", {decl.name, decl.type_name, if_false}))
+                        append_line(out, indent, trust @fmt("val {s}: {s} = {s}", {decl.name, rendered_type, if_false}))
                         val if_line1: ref char = trust @fmt("if ({s}) ", {cond})
                         val if_line2: ref char = std.string.concat_raw(if_line1, "{ ")
                         val if_line3: ref char = trust @fmt("{s} = {s}", {decl.name, if_true})
@@ -1175,7 +1242,7 @@ fn translate_body_statement(ctx: ref TranslationCtx, line: ref char, indent: i64
                 if std.string.rchar_cmp(call_name, "") != 0 {
                     push_unique(ctx.called_names, call_name)
                 }
-                append_line(out, indent, trust @fmt("val {s}: {s} = {s}", {decl.name, decl.type_name, rhs_expr}))
+                append_line(out, indent, trust @fmt("val {s}: {s} = {s}", {decl.name, rendered_type, rhs_expr}))
                 return true
             }
         }
@@ -1912,8 +1979,9 @@ fn translate_params(ctx: ref TranslationCtx, params_text: ref char) ref char = {
             continue
         }
         remember_local_type(ctx, decl.name, decl.type_name)
+        val rendered_type: ref char = render_binding_type(ctx, decl.name, decl.type_name)
         if !first { std.string.StringBuilder.append_cstr(sb, ", ") }
-        std.string.StringBuilder.append_cstr(sb, trust @fmt("{s}: {s}", {decl.name, decl.type_name}))
+        std.string.StringBuilder.append_cstr(sb, trust @fmt("{s}: {s}", {decl.name, rendered_type}))
         first = false
         arg_index++
     }
@@ -1952,6 +2020,10 @@ fn translate_function_decl(text: ref char, current_dir: ref char, indent: i64, o
     val return_src: ref char = trim_raw(std.string.substr(head, 0, head_len - name_len))
     val return_type: ref char = translate_c_type(return_src, "")
     clear_local_types(ctx)
+    if has_body {
+        val body_lines0 = split_lines(body_src)
+        analyze_mutable_names(ctx, body_lines0, 0)
+    }
     val params_text: ref char = translate_params(ctx, params_raw)
     val is_static: bool = str_contains(signature, "static ")
     val line: mut ref char = ""
