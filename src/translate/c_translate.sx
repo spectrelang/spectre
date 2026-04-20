@@ -110,7 +110,7 @@ fn trim_raw(text: ref char) ref char = {
         end--
     }
     if end < start { return "" }
-    return trust std.string.substr(text, start, end - start + 1)
+    return std.string.substr(text, start, end - start + 1)
 }
 
 fn flatten_ws(text: ref char) ref char = {
@@ -123,18 +123,18 @@ fn flatten_ws(text: ref char) ref char = {
         val c: u8 = trust @load8(@ptradd(text as ref void, i)) as u8
         if is_space(c) {
             if !last_space {
-                trust std.string.StringBuilder.append_char(sb, 32)
+                std.string.StringBuilder.append_char(sb, 32)
                 last_space = true
             }
         } else {
-            trust std.string.StringBuilder.append_char(sb, c)
+            std.string.StringBuilder.append_char(sb, c)
             last_space = false
         }
         i++
     }
-    val built: ref void = trust std.string.StringBuilder.build(sb)
+    val built: ref void = std.string.StringBuilder.build(sb)
     std.string.StringBuilder.free(sb)
-    return trust trim_raw(std.string.cstr(built))
+    return trim_raw(std.string.cstr(built))
 }
 
 fn split_lines(text: ref char) list[ref char] = {
@@ -156,7 +156,7 @@ fn split_lines(text: ref char) list[ref char] = {
                 val last: u8 = trust @load8(@ptradd(text as ref void, start + trimmed_len - 1)) as u8
                 if last == 13 { trimmed_len-- }
             }
-            @append(lines, trust std.string.substr(text, start, trimmed_len))
+            @append(lines, std.string.substr(text, start, trimmed_len))
             start = i + 1
         }
         i++
@@ -172,16 +172,16 @@ fn join_lines(lines: list[ref char], start: i64, end_exclusive: i64) ref char = 
         val line_opt = @get(lines, i as usize)
         match line_opt {
             some line_val => {
-                trust std.string.StringBuilder.append_cstr(sb, line_val as ref char)
+                std.string.StringBuilder.append_cstr(sb, line_val as ref char)
                 if i + 1 < end_exclusive {
-                    trust std.string.StringBuilder.append_char(sb, 10)
+                    std.string.StringBuilder.append_char(sb, 10)
                 }
             }
             none => {}
         }
         i++
     }
-    val built: ref void = trust std.string.StringBuilder.build(sb)
+    val built: ref void = std.string.StringBuilder.build(sb)
     std.string.StringBuilder.free(sb)
     return std.string.cstr(built)
 }
@@ -190,19 +190,19 @@ fn push_indent(sb: ref void, indent: i64) void = {
     val i: mut i64 = 0
     for {
         if i >= indent { break }
-        trust std.string.StringBuilder.append_cstr(sb, "    ")
+        std.string.StringBuilder.append_cstr(sb, "    ")
         i++
     }
 }
 
 fn append_line(sb: ref void, indent: i64, line: ref char) void = {
     push_indent(sb, indent)
-    trust std.string.StringBuilder.append_cstr(sb, line)
-    trust std.string.StringBuilder.append_char(sb, 10)
+    std.string.StringBuilder.append_cstr(sb, line)
+    std.string.StringBuilder.append_char(sb, 10)
 }
 
 fn append_blank_line(sb: ref void) void = {
-    trust std.string.StringBuilder.append_char(sb, 10)
+    std.string.StringBuilder.append_char(sb, 10)
 }
 
 fn append_comment_line(sb: ref void, indent: i64, line: ref char) void = {
@@ -212,9 +212,9 @@ fn append_comment_line(sb: ref void, indent: i64, line: ref char) void = {
         return
     }
     push_indent(sb, indent)
-    trust std.string.StringBuilder.append_cstr(sb, "// ")
-    trust std.string.StringBuilder.append_cstr(sb, trimmed)
-    trust std.string.StringBuilder.append_char(sb, 10)
+    std.string.StringBuilder.append_cstr(sb, "// ")
+    std.string.StringBuilder.append_cstr(sb, trimmed)
+    std.string.StringBuilder.append_char(sb, 10)
 }
 
 fn list_contains(items: list[ref char], value: ref char) bool = {
