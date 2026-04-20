@@ -692,6 +692,131 @@ fn replace_pointer_indexing(text: ref char) ref char = {
     return std.string.cstr(built)
 }
 
+fn is_printf_length_char(c: u8) bool = {
+    return c == 104 || c == 108 || c == 122 || c == 116 || c == 106 || c == 76
+}
+
+fn map_printf_specifier(length_mod: ref char, spec: u8) ref char = {
+    if spec == 105 { return trust @fmt("{s}d", {length_mod}) }
+    if spec == 100 { return trust @fmt("{s}d", {length_mod}) }
+    if spec == 117 { return trust @fmt("{s}u", {length_mod}) }
+    if spec == 120 { return trust @fmt("{s}x", {length_mod}) }
+    if spec == 88 { return trust @fmt("{s}X", {length_mod}) }
+    if spec == 111 { return trust @fmt("{s}o", {length_mod}) }
+    if spec == 99 { return "c" }
+    if spec == 115 { return "s" }
+    if spec == 112 { return "p" }
+    if spec == 102 || spec == 70 || spec == 101 || spec == 69 || spec == 103 || spec == 71 || spec == 97 || spec == 65 {
+        return "f"
+    }
+    return trust @fmt("{c}", {spec})
+}
+
+fn translate_printf_format(text: ref char) ref char = {
+    val trimmed: ref char = trim_raw(text)
+    val len: i64 = std.string.len_raw(trimmed)
+    if len < 2 { return trimmed }
+    val first: u8 = trust @load8(@ptradd(trimmed as ref void, 0)) as u8
+    val last: u8 = trust @load8(@ptradd(trimmed as ref void, len - 1)) as u8
+    if first != 34 || last != 34 { return trimmed }
+    val sb: ref void = std.string.StringBuilder.new()
+    std.string.StringBuilder.append_char(sb, 34)
+    val i: mut i64 = 1
+    for {
+        if i >= len - 1 { break }
+        val c: u8 = trust @load8(@ptradd(trimmed as ref void, i)) as u8
+        if c == 37 && i + 1 < len - 1 {
+            val next: u8 = trust @load8(@ptradd(trimmed as ref void, i + 1)) as u8
+            if next == 37 {
+                std.string.StringBuilder.append_char(sb, 37)
+                i += 2
+                continue
+            }
+            val spec_i: mut i64 = i + 1
+            for {
+                if spec_i >= len - 1 { break }
+                val flag: u8 = trust @load8(@ptradd(trimmed as ref void, spec_i)) as u8
+                if flag != 45 && flag != 43 && flag != 32 && flag != 35 && flag != 48 {
+                    break
+                }
+                spec_i++
+            }
+            for {
+                if spec_i >= len - 1 { break }
+                val width: u8 = trust @load8(@ptradd(trimmed as ref void, spec_i)) as u8
+                if !((width >= 48 && width <= 57) || width == 42) { break }
+                spec_i++
+            }
+            if spec_i < len - 1 && (trust @load8(@ptradd(trimmed as ref void, spec_i)) as u8) == 46 {
+                spec_i++
+                for {
+                    if spec_i >= len - 1 { break }
+                    val prec: u8 = trust @load8(@ptradd(trimmed as ref void, spec_i)) as u8
+                    if !((prec >= 48 && prec <= 57) || prec == 42) { break }
+                    spec_i++
+                }
+            }
+            val length_sb: ref void = std.string.StringBuilder.new()
+            for {
+                if spec_i >= len - 1 { break }
+                val lm: u8 = trust @load8(@ptradd(trimmed as ref void, spec_i)) as u8
+                if !is_printf_length_char(lm) { break }
+                std.string.StringBuilder.append_char(length_sb, lm)
+                spec_i++
+            }
+            if spec_i < len - 1 {
+                val spec: u8 = trust @load8(@ptradd(trimmed as ref void, spec_i)) as u8
+                val length_built: ref void = std.string.StringBuilder.build(length_sb)
+                std.string.StringBuilder.free(length_sb)
+                val mapped: ref char = map_printf_specifier(std.string.cstr(length_built), spec)
+                std.string.StringBuilder.append_char(sb, 123)
+                std.string.StringBuilder.append_cstr(sb, mapped)
+                std.string.StringBuilder.append_char(sb, 125)
+                i = spec_i + 1
+                continue
+            }
+            std.string.StringBuilder.free(length_sb)
+        }
+        std.string.StringBuilder.append_char(sb, c)
+        i++
+    }
+    std.string.StringBuilder.append_char(sb, 34)
+    val built: ref void = std.string.StringBuilder.build(sb)
+    std.string.StringBuilder.free(sb)
+    return std.string.cstr(built)
+}
+
+fn translate_printf_call(ctx: ref TranslationCtx, args: list[ref char]) ref char = {
+    val fmt_opt = @get(args, 0)
+    val fmt_expr: mut ref char = "\"\""
+    match fmt_opt {
+        some fmt_val => { fmt_expr = translate_printf_format(translate_expr_text(ctx, fmt_val as ref char)) }
+        none => {}
+    }
+    val sb: ref void = std.string.StringBuilder.new()
+    std.string.StringBuilder.append_char(sb, 123)
+    val first: mut bool = true
+    val idx: mut i64 = 1
+    val len: i64 = @len(args) as i64
+    for {
+        if idx >= len { break }
+        val arg_opt = @get(args, idx as usize)
+        match arg_opt {
+            some arg_val => {
+                if !first { std.string.StringBuilder.append_cstr(sb, ", ") }
+                std.string.StringBuilder.append_cstr(sb, translate_expr_text(ctx, arg_val as ref char))
+                first = false
+            }
+            none => {}
+        }
+        idx++
+    }
+    std.string.StringBuilder.append_char(sb, 125)
+    val args_built: ref void = std.string.StringBuilder.build(sb)
+    std.string.StringBuilder.free(sb)
+    return trust @fmt("@printf({s}, {s})", {fmt_expr, std.string.cstr(args_built)})
+}
+
 fn transform_call_expr(ctx: ref TranslationCtx, text: ref char) ref char = {
     val trimmed: ref char = trim_raw(text)
     val open_i: i64 = find_char(trimmed, 40)
@@ -703,6 +828,9 @@ fn transform_call_expr(ctx: ref TranslationCtx, text: ref char) ref char = {
     if std.string.rchar_starts_with(trimmed, "@") { intrinsic_prefix = "@" }
     val args_raw: ref char = trim_raw(std.string.substr(trimmed, open_i + 1, close_i - open_i - 1))
     val args = split_top_level(args_raw, 44)
+    if std.string.rchar_cmp(call_name, "printf") == 0 {
+        return translate_printf_call(ctx, args)
+    }
     val sb: ref void = std.string.StringBuilder.new()
     val first: mut bool = true
     for arg in args {
@@ -1314,10 +1442,6 @@ fn append_open_block_line(sb: ref void, indent: i64, prefix: ref char) void = {
 }
 
 fn emit_known_extern(name: ref char, out: ref void) bool = {
-    if std.string.rchar_cmp(name, "printf") == 0 {
-        append_line(out, 0, "extern (C) fn printf(fmt: ref char, ...) i32! = \"printf\"")
-        return true
-    }
     if std.string.rchar_cmp(name, "fprintf") == 0 {
         append_line(out, 0, "extern (C) fn fprintf(stream: ref void, fmt: ref char, ...) i32! = \"fprintf\"")
         return true
