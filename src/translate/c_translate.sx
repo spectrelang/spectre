@@ -2088,33 +2088,81 @@ fn translate_for_init(text: ref char) ref char = {
     return trimmed
 }
 
-fn translate_for_loop(lines: list[ref char], start: i64, indent: i64, out: ref void, ctx: ref TranslationCtx) ref BlockResult = {
-    val span: ref BlockResult = collect_brace_block(lines, start)
-    val full_text: ref char = join_lines(lines, start, span.next_index)
-    val open_i: i64 = find_char(full_text, 40)
-    val close_i: i64 = find_char(full_text, 41)
-    val brace_i: i64 = find_char(full_text, 123)
-    if open_i < 0 || close_i <= open_i || brace_i < 0 {
-        append_comment_line(out, indent, trim_raw(full_text))
-        return span
+fn translate_for_loop(lines: list[ref char], current_dir: ref char, start: i64, indent: i64, out: ref void, ctx: ref TranslationCtx) ref BlockResult = {
+    val line_opt = @get(lines, start as usize)
+    match line_opt {
+        none => { return make_block_result(start + 1, STOP_EOF, "") }
+        some line_val => {
+            val line: ref char = trim_raw(line_val as ref char)
+            val open_i: i64 = find_char(line, 40)
+            val close_i: i64 = find_matching_delim(line, open_i, 40, 41)
+            if open_i < 0 || close_i <= open_i {
+                append_comment_line(out, indent, line)
+                return make_block_result(start + 1, STOP_EOF, "")
+            }
+            val inside: ref char = trim_raw(std.string.substr(line, open_i + 1, close_i - open_i - 1))
+            val tail: ref char = trim_raw(std.string.substr(line, close_i + 1, std.string.len_raw(line) - close_i - 1))
+            val parts = split_top_level(inside, 59)
+            val init: mut ref char = ""
+            val cond: mut ref char = ""
+            val postc: mut ref char = ""
+            val p0 = @get(parts, 0)
+            match p0 { some v => { init = trim_raw(v as ref char) } none => {} }
+            val p1 = @get(parts, 1)
+            match p1 { some v => { cond = trim_raw(v as ref char) } none => {} }
+            val p2 = @get(parts, 2)
+            match p2 { some v => { postc = trim_raw(v as ref char) } none => {} }
+            if std.string.rchar_cmp(init, "") != 0 {
+                translate_inline_statement(ctx, init, indent, out)
+            }
+            append_line(out, indent, "for {")
+            val body_indent: mut i64 = indent + 1
+            val next_i: mut i64 = start + 1
+            if std.string.rchar_cmp(cond, "") != 0 {
+                val cond_out: ref void = std.string.StringBuilder.new()
+                val cond_text: ref char = translate_condition_text(ctx, cond, indent + 1, cond_out)
+                append_builder(out, cond_out)
+                append_line(out, indent + 1, trust @fmt("if ({s}) {", {cond_text}))
+                body_indent = indent + 2
+            }
+            if std.string.rchar_cmp(tail, "") != 0 {
+                if std.string.rchar_starts_with(tail, "{") {
+                    val body_span: ref BlockResult = translate_brace_block(lines, start, body_indent, out, ctx)
+                    next_i = body_span.next_index
+                } else {
+                    translate_inline_statement(ctx, tail, body_indent, out)
+                }
+            } else {
+                val next_body_i: i64 = next_significant_line(lines, start + 1)
+                if next_body_i >= 0 {
+                    val next_opt = @get(lines, next_body_i as usize)
+                    match next_opt {
+                        some next_line => {
+                            val next_trimmed: ref char = trim_raw(next_line as ref char)
+                            if std.string.rchar_starts_with(next_trimmed, "{") {
+                                val body_span2: ref BlockResult = translate_brace_block(lines, next_body_i, body_indent, out, ctx)
+                                next_i = body_span2.next_index
+                            } else {
+                                val stmt_result: ref BlockResult = translate_statement_at(lines, current_dir, next_body_i, body_indent, out, ctx)
+                                next_i = stmt_result.next_index
+                            }
+                        }
+                        none => {}
+                    }
+                }
+            }
+            if std.string.rchar_cmp(postc, "") != 0 {
+                translate_inline_statement(ctx, postc, body_indent, out)
+            }
+            if std.string.rchar_cmp(cond, "") != 0 {
+                append_line(out, indent + 1, "} else {")
+                append_line(out, indent + 2, "break")
+                append_line(out, indent + 1, "}")
+            }
+            append_line(out, indent, "}")
+            return make_block_result(next_i, STOP_EOF, "")
+        }
     }
-    val inside: ref char = trim_raw(std.string.substr(full_text, open_i + 1, close_i - open_i - 1))
-    val parts = split_top_level(inside, 59)
-    val init: mut ref char = ""
-    val cond: mut ref char = ""
-    val postc: mut ref char = ""
-    val p0 = @get(parts, 0)
-    match p0 { some v => { init = translate_for_init(v as ref char) } none => {} }
-    val p1 = @get(parts, 1)
-    match p1 { some v => { cond = trim_raw(v as ref char) } none => {} }
-    val p2 = @get(parts, 2)
-    match p2 { some v => { postc = trim_raw(v as ref char) } none => {} }
-    append_open_block_line(out, indent, trust @fmt("for ({s}; {s}; {s}) ", {init, cond, postc}))
-    val body_text: ref char = std.string.substr(full_text, brace_i + 1, find_last_char(full_text, 125) - brace_i - 1)
-    val body_lines = split_lines(body_text)
-    translate_body_lines(body_lines, "", 0, indent + 1, out, ctx)
-    append_line(out, indent, "}")
-    return span
 }
 
 fn translate_while_loop(lines: list[ref char], current_dir: ref char, start: i64, indent: i64, out: ref void, ctx: ref TranslationCtx) ref BlockResult = {
@@ -2494,7 +2542,7 @@ fn translate_statement_at(lines: list[ref char], current_dir: ref char, start: i
         some line_val => {
             val trimmed: ref char = trim_raw(line_val as ref char)
             if std.string.rchar_starts_with(trimmed, "for (") {
-                return translate_for_loop(lines, start, indent, out, ctx)
+                return translate_for_loop(lines, current_dir, start, indent, out, ctx)
             }
             if std.string.rchar_starts_with(trimmed, "while (") {
                 return translate_while_loop(lines, current_dir, start, indent, out, ctx)
