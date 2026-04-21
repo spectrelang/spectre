@@ -38,6 +38,8 @@ type TranslationCtx = {
     extern_names:  mut list[ref char]
     fnptr_names:   mut list[ref char]
     translated_type_names: mut list[ref char]
+    enum_constant_names: mut list[ref char]
+    enum_constant_types: mut list[ref char]
     local_names:   mut list[ref char]
     local_types:   mut list[ref char]
     local_array_names: mut list[ref char]
@@ -65,6 +67,8 @@ fn new_translation_ctx() ref TranslationCtx = {
     ctx.extern_names  = []
     ctx.fnptr_names   = []
     ctx.translated_type_names = []
+    ctx.enum_constant_names = []
+    ctx.enum_constant_types = []
     ctx.local_names   = []
     ctx.local_types   = []
     ctx.local_array_names = []
@@ -419,6 +423,50 @@ fn lookup_local_array_type(ctx: ref TranslationCtx, name: ref char) option[ref c
             some existing_name => {
                 if std.string.rchar_cmp(existing_name as ref char, name) == 0 {
                     val type_opt = @get(ctx.local_array_types, i as usize)
+                    match type_opt {
+                        some type_name => { return some type_name as ref char }
+                        none => {}
+                    }
+                }
+            }
+            none => {}
+        }
+        i++
+    }
+    return none
+}
+
+fn remember_enum_constant(ctx: ref TranslationCtx, name: ref char, enum_type: ref char) void = {
+    val len: i64 = @len(ctx.enum_constant_names) as i64
+    val i: mut i64 = 0
+    for {
+        if i >= len { break }
+        val existing_opt = @get(ctx.enum_constant_names, i as usize)
+        match existing_opt {
+            some existing_name => {
+                if std.string.rchar_cmp(existing_name as ref char, name) == 0 {
+                    @set(ctx.enum_constant_types, i as usize, enum_type)
+                    return
+                }
+            }
+            none => {}
+        }
+        i++
+    }
+    @append(ctx.enum_constant_names, name)
+    @append(ctx.enum_constant_types, enum_type)
+}
+
+fn lookup_enum_constant_type(ctx: ref TranslationCtx, name: ref char) option[ref char] = {
+    val len: i64 = @len(ctx.enum_constant_names) as i64
+    val i: mut i64 = 0
+    for {
+        if i >= len { break }
+        val existing_opt = @get(ctx.enum_constant_names, i as usize)
+        match existing_opt {
+            some existing_name => {
+                if std.string.rchar_cmp(existing_name as ref char, name) == 0 {
+                    val type_opt = @get(ctx.enum_constant_types, i as usize)
                     match type_opt {
                         some type_name => { return some type_name as ref char }
                         none => {}
@@ -1152,6 +1200,61 @@ fn track_called_expr(ctx: ref TranslationCtx, expr: ref char) void = {
     if std.string.rchar_cmp(call_name, "") != 0 && !std.string.rchar_starts_with(expr, "@") {
         push_unique(ctx.called_names, call_name)
     }
+}
+
+fn qualify_enum_constants(ctx: ref TranslationCtx, text: ref char) ref char = {
+    val trimmed: ref char = trim_raw(text)
+    val len: i64 = std.string.len_raw(trimmed)
+    val sb: ref void = std.string.StringBuilder.new()
+    val i: mut i64 = 0
+    for {
+        if i >= len { break }
+        val c: u8 = trust @load8(@ptradd(trimmed as ref void, i)) as u8
+        if is_ident_start(c) {
+            val start: i64 = i
+            i++
+            for {
+                if i >= len { break }
+                val cc: u8 = trust @load8(@ptradd(trimmed as ref void, i)) as u8
+                if !is_ident_part(cc) { break }
+                i++
+            }
+            val ident: ref char = std.string.substr(trimmed, start, i - start)
+            val prev_non_space: mut u8 = 0
+            val j: mut i64 = start - 1
+            for {
+                if j < 0 { break }
+                val pc: u8 = trust @load8(@ptradd(trimmed as ref void, j)) as u8
+                if !is_space(pc) {
+                    prev_non_space = pc
+                    break
+                }
+                j--
+            }
+            val sanitized_ident: ref char = sanitize_identifier(ident)
+            if prev_non_space != 46 {
+                match lookup_local_type(ctx, sanitized_ident) {
+                    some _ => {}
+                    none => {
+                        match lookup_enum_constant_type(ctx, ident) {
+                            some enum_type => {
+                                std.string.StringBuilder.append_cstr(sb, trust @fmt("{s}.{s}", {enum_type as ref char, sanitized_ident}))
+                                continue
+                            }
+                            none => {}
+                        }
+                    }
+                }
+            }
+            std.string.StringBuilder.append_cstr(sb, ident)
+            continue
+        }
+        std.string.StringBuilder.append_char(sb, c)
+        i++
+    }
+    val built: ref void = std.string.StringBuilder.build(sb)
+    std.string.StringBuilder.free(sb)
+    return std.string.cstr(built)
 }
 
 fn rewrite_identifiers(text: ref char) ref char = {
@@ -2739,7 +2842,8 @@ fn translate_expr_text(ctx: ref TranslationCtx, text: ref char) ref char = {
     val with_init: ref char = translate_designated_initializer(no_semicolon)
     val with_sizeof: ref char = translate_sizeof_expr(ctx, with_init)
     val with_arrow: ref char = replace_arrow_access(with_sizeof)
-    val with_rewritten: ref char = rewrite_identifiers(with_arrow)
+    val with_qualified_enums: ref char = qualify_enum_constants(ctx, with_arrow)
+    val with_rewritten: ref char = rewrite_identifiers(with_qualified_enums)
     val with_addr_deref: ref char = translate_addr_deref_expr(ctx, with_rewritten)
     val with_casts: ref char = translate_c_cast_expr(ctx, with_addr_deref)
     val with_indexing2: ref char = replace_pointer_indexing(with_casts)
@@ -3155,7 +3259,10 @@ fn map_base_type(base: ref char) ref char = {
         return sanitize_identifier(trim_raw(std.string.substr(base, 7, std.string.len_raw(base) - 7)))
     }
     if std.string.rchar_starts_with(base, "enum ") {
-        return "i32"
+        return sanitize_identifier(trim_raw(std.string.substr(base, 5, std.string.len_raw(base) - 5)))
+    }
+    if std.string.rchar_starts_with(base, "union ") {
+        return sanitize_identifier(trim_raw(std.string.substr(base, 6, std.string.len_raw(base) - 6)))
     }
     return sanitize_identifier(base)
 }
@@ -3674,7 +3781,7 @@ fn translate_struct_decl(text: ref char, indent: i64, out: ref void, ctx: ref Tr
     if list_contains(ctx.translated_type_names, alias) { return true }
     push_unique(ctx.translated_type_names, alias)
     val body: ref char = std.string.substr(flat, open_i + 1, close_i - open_i - 1)
-    append_open_block_line(out, indent, trust @fmt("type {s} = ", {alias}))
+    append_open_block_line(out, indent, trust @fmt("extern type {s} = ", {alias}))
     val fields = split_top_level(body, 59)
     for field in fields {
         val trimmed: ref char = trim_raw(field)
@@ -3698,6 +3805,164 @@ fn translate_struct_decl(text: ref char, indent: i64, out: ref void, ctx: ref Tr
                 remember_flex_field(ctx, alias, decl.name, field_type)
             }
             append_line(out, indent + 1, trust @fmt("{s}: {s}", {decl.name, render_mutable_type(field_type)}))
+        }
+    }
+    append_line(out, indent, "}")
+    append_blank_line(out)
+    return true
+}
+
+fn translate_enum_decl(text: ref char, indent: i64, out: ref void, ctx: ref TranslationCtx) bool = {
+    val flat: ref char = flatten_ws(text)
+    val open_i: i64 = find_char(flat, 123)
+    val close_i: i64 = find_last_char(flat, 125)
+    if open_i < 0 || close_i <= open_i { return false }
+    val header: ref char = trim_raw(std.string.substr(flat, 0, open_i))
+    val after: ref char = strip_trailing_semicolon(trim_raw(std.string.substr(flat, close_i + 1, std.string.len_raw(flat) - close_i - 1)))
+    val before_body_name: mut ref char = ""
+    if std.string.rchar_starts_with(header, "typedef enum") {
+        val tail_len: i64 = std.string.len_raw(header) - 12
+        if tail_len > 0 {
+            before_body_name = trim_raw(std.string.substr(header, 12, tail_len))
+        }
+    } elif std.string.rchar_starts_with(header, "enum") {
+        val tail_len: i64 = std.string.len_raw(header) - 4
+        if tail_len > 0 {
+            before_body_name = trim_raw(std.string.substr(header, 4, tail_len))
+        }
+    } else {
+        return false
+    }
+    val alias0: ref char = extract_identifier_before(after, std.string.len_raw(after))
+    val alias: mut ref char = alias0
+    if std.string.rchar_cmp(alias, "") == 0 {
+        alias = before_body_name
+    }
+    alias = sanitize_identifier(alias)
+    val body: ref char = std.string.substr(flat, open_i + 1, close_i - open_i - 1)
+    val items = split_top_level(body, 44)
+    if std.string.rchar_cmp(alias, "") == 0 {
+        val next_value: mut ref char = "0"
+        for item in items {
+            val trimmed: ref char = trim_raw(item)
+            if std.string.rchar_cmp(trimmed, "") == 0 { continue }
+            val assign_i: i64 = find_top_level_assign(trimmed)
+            val name_src: mut ref char = trimmed
+            val value_expr: mut ref char = next_value
+            if assign_i > 0 {
+                name_src = trim_raw(std.string.substr(trimmed, 0, assign_i))
+                value_expr = translate_expr_text(ctx, trim_raw(std.string.substr(trimmed, assign_i + 1, std.string.len_raw(trimmed) - assign_i - 1)))
+            }
+            val member: ref char = sanitize_identifier(trim_raw(name_src))
+            if std.string.rchar_cmp(member, "") == 0 { continue }
+            append_line(out, indent, trust @fmt("val {s}: i32 = {s}", {member, value_expr}))
+            next_value = trust @fmt("({s}) + 1", {value_expr})
+        }
+        append_blank_line(out)
+        return true
+    }
+    if list_contains(ctx.translated_type_names, alias) { return true }
+    push_unique(ctx.translated_type_names, alias)
+    val members: mut list[ref char] = []
+    for item in items {
+        val trimmed: ref char = trim_raw(item)
+        if std.string.rchar_cmp(trimmed, "") == 0 { continue }
+        val name_src: ref char = strip_initializer(trimmed)
+        val member: ref char = sanitize_identifier(trim_raw(name_src))
+        if std.string.rchar_cmp(member, "") == 0 { continue }
+        @append(members, member)
+    }
+    append_open_block_line(out, indent, trust @fmt("pub enum {s} = ", {alias}))
+    val member_count: i64 = @len(members) as i64
+    val member_i: mut i64 = 0
+    for {
+        if member_i >= member_count { break }
+        val member_opt = @get(members, member_i as usize)
+        match member_opt {
+            some member_val => {
+                val member: ref char = member_val as ref char
+                remember_enum_constant(ctx, member, alias)
+                if member_i + 1 < member_count {
+                    append_line(out, indent + 1, trust @fmt("{s},", {member}))
+                } else {
+                    append_line(out, indent + 1, member)
+                }
+            }
+            none => {}
+        }
+        member_i++
+    }
+    append_line(out, indent, "}")
+    append_blank_line(out)
+    return true
+}
+
+fn translate_union_decl(text: ref char, indent: i64, out: ref void, ctx: ref TranslationCtx) bool = {
+    val flat: ref char = flatten_ws(text)
+    val open_i: i64 = find_char(flat, 123)
+    val close_i: i64 = find_last_char(flat, 125)
+    if open_i < 0 || close_i <= open_i { return false }
+    val header: ref char = trim_raw(std.string.substr(flat, 0, open_i))
+    val after: ref char = strip_trailing_semicolon(trim_raw(std.string.substr(flat, close_i + 1, std.string.len_raw(flat) - close_i - 1)))
+    val before_body_name: mut ref char = ""
+    if std.string.rchar_starts_with(header, "typedef union") {
+        val tail_len: i64 = std.string.len_raw(header) - 13
+        if tail_len > 0 {
+            before_body_name = trim_raw(std.string.substr(header, 13, tail_len))
+        }
+    } elif std.string.rchar_starts_with(header, "union") {
+        val tail_len: i64 = std.string.len_raw(header) - 5
+        if tail_len > 0 {
+            before_body_name = trim_raw(std.string.substr(header, 5, tail_len))
+        }
+    } else {
+        return false
+    }
+    val alias0: ref char = extract_identifier_before(after, std.string.len_raw(after))
+    val alias: mut ref char = alias0
+    if std.string.rchar_cmp(alias, "") == 0 {
+        alias = before_body_name
+    }
+    alias = sanitize_identifier(alias)
+    if std.string.rchar_cmp(alias, "") == 0 { return false }
+    if list_contains(ctx.translated_type_names, alias) { return true }
+    push_unique(ctx.translated_type_names, alias)
+    val body: ref char = std.string.substr(flat, open_i + 1, close_i - open_i - 1)
+    val fields = split_top_level(body, 59)
+    append_open_block_line(out, indent, trust @fmt("pub union {s} = ", {alias}))
+    val first_variant: mut bool = true
+    for field in fields {
+        val trimmed: ref char = trim_raw(field)
+        if std.string.rchar_cmp(trimmed, "") == 0 { continue }
+        val field_items = split_multi_decl(trimmed)
+        val decl_items: mut list[ref char] = []
+        if ((@len(field_items) as i64) > 1) {
+            decl_items = field_items
+        } else {
+            @append(decl_items, trimmed)
+        }
+        for decl_text in decl_items {
+            val decl: ref DeclInfo = parse_named_decl(decl_text, "")
+            if !decl.its_ok || std.string.rchar_cmp(decl.name, "") == 0 { continue }
+            val variant_name: ref char = sanitize_identifier(decl.name)
+            val payload_type0: ref char = decl.type_name
+            val payload_type: mut ref char = payload_type0
+            if is_array_type_name(payload_type0) {
+                payload_type = decay_array_type(payload_type0)
+            }
+            val line_prefix: ref char = variant_name
+            val line_text: mut ref char = ""
+            if std.string.rchar_cmp(payload_type, "void") == 0 {
+                line_text = trust @fmt("{s}()", {line_prefix})
+            } else {
+                line_text = trust @fmt("{s}({s})", {line_prefix, payload_type})
+            }
+            if first_variant {
+                append_line(out, indent + 1, line_text)
+                first_variant = false
+            } else {
+                append_line(out, indent + 1, trust @fmt("| {s}", {line_text}))
+            }
         }
     }
     append_line(out, indent, "}")
@@ -3967,8 +4232,12 @@ pub fn translate_top_level(
                 }
                 val starts_struct_decl: bool = std.string.rchar_starts_with(trimmed, "typedef struct")
                     || std.string.rchar_starts_with(trimmed, "struct ")
-                val struct_has_brace: mut bool = str_contains(trimmed, "{")
-                if starts_struct_decl && !struct_has_brace {
+                val starts_enum_decl: bool = std.string.rchar_starts_with(trimmed, "typedef enum")
+                    || std.string.rchar_starts_with(trimmed, "enum ")
+                val starts_union_decl: bool = std.string.rchar_starts_with(trimmed, "typedef union")
+                    || std.string.rchar_starts_with(trimmed, "union ")
+                val type_decl_has_brace: mut bool = str_contains(trimmed, "{")
+                if ((starts_struct_decl || starts_enum_decl || starts_union_decl) && !type_decl_has_brace) {
                     val next_i_struct: i64 = next_significant_line(lines, i + 1)
                     if next_i_struct >= 0 {
                         val next_struct_opt = @get(lines, next_i_struct as usize)
@@ -3976,20 +4245,38 @@ pub fn translate_top_level(
                             some next_struct_line => {
                                 val next_struct_trimmed: ref char = trim_raw(next_struct_line as ref char)
                                 if std.string.rchar_cmp(next_struct_trimmed, "{") == 0 {
-                                    struct_has_brace = true
+                                    type_decl_has_brace = true
                                 }
                             }
                             none => {}
                         }
                     }
                 }
-                if starts_struct_decl && struct_has_brace {
+                if starts_struct_decl && type_decl_has_brace {
                     val span = collect_struct(lines, i)
                     val full_text: ref char = join_lines(lines, i, span.next_index)
                     if !translate_struct_decl(full_text, indent, out, ctx) {
                         append_comment_line(out, indent, trust @fmt("unsupported struct declaration: {s}", {trimmed}))
                     }
                     i = span.next_index
+                    continue
+                }
+                if starts_enum_decl && type_decl_has_brace {
+                    val span_enum = collect_struct(lines, i)
+                    val full_text_enum: ref char = join_lines(lines, i, span_enum.next_index)
+                    if !translate_enum_decl(full_text_enum, indent, out, ctx) {
+                        append_comment_line(out, indent, trust @fmt("unsupported enum declaration: {s}", {trimmed}))
+                    }
+                    i = span_enum.next_index
+                    continue
+                }
+                if starts_union_decl && type_decl_has_brace {
+                    val span_union = collect_struct(lines, i)
+                    val full_text_union: ref char = join_lines(lines, i, span_union.next_index)
+                    if !translate_union_decl(full_text_union, indent, out, ctx) {
+                        append_comment_line(out, indent, trust @fmt("unsupported union declaration: {s}", {trimmed}))
+                    }
+                    i = span_union.next_index
                     continue
                 }
                 if str_contains(trimmed, "(")
