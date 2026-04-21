@@ -950,8 +950,6 @@ fn intern_format_string(ctx: ref LLCtx, s: ref char) i64! = {
     return intern_string(ctx, rewrite_fmt(s))
 }
 
-// ── Function call codegen ────────────────────────────────────────────────────
-
 fn gen_call(ctx: ref LLCtx, expr: ref parser.Node) ref char! = {
     val callee_node: ref parser.Node = expr.d0 as ref parser.Node
     val args_list: ref void = expr.d1 as ref void
@@ -1542,7 +1540,6 @@ pub fn gen_module_resolved(root: ref module.ResolvedModule, release_mode: bool) 
         }
     }
 
-    // Emit all items
     val li2: mut i64 = 0
     for {
         if li2 >= layers { break }
@@ -1566,14 +1563,11 @@ pub fn gen_module_resolved(root: ref module.ResolvedModule, release_mode: bool) 
         li2++
     }
 
-    // Build final output: globals + declarations + string data + functions
     val final_sb: ref void = str.StringBuilder.new()
 
-    // Runtime globals
     str.StringBuilder.append_cstr(final_sb, "@sx_argc_store = global i64 0\n")
     str.StringBuilder.append_cstr(final_sb, "@sx_argv_store = global ptr null\n\n")
 
-    // Extern declarations
     val decl_str: ref void = str.StringBuilder.build(ctx.decl_sb)
     val decl_cstr: ref char = str.cstr(decl_str)
     if str.len_raw(decl_cstr) > 0 {
@@ -1581,9 +1575,7 @@ pub fn gen_module_resolved(root: ref module.ResolvedModule, release_mode: bool) 
         str.StringBuilder.append_char(final_sb, 10)
     }
 
-    // String data
     val str_sb: ref void = str.StringBuilder.new()
-    // swap sb temporarily
     val old_sb: ref void = ctx.sb
     ctx.sb = str_sb
     emit_string_data(ctx)
@@ -1596,7 +1588,6 @@ pub fn gen_module_resolved(root: ref module.ResolvedModule, release_mode: bool) 
     }
     str.StringBuilder.free(str_sb)
 
-    // Function bodies
     val fn_str: ref void = str.StringBuilder.build(ctx.fn_sb)
     str.StringBuilder.append_cstr(final_sb, str.cstr(fn_str))
 

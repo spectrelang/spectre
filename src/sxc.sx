@@ -315,7 +315,6 @@ pub fn main() i32! = {
         std.stdio.puts("[III]│ CG pass")
     }
 
-    // ── LLVM backend path ──────────────────────────────────────────────────
     if use_llvm {
         val ll_ir: ref char = llvm_codegen.gen_module_resolved(root_mod, release_mode)
 
@@ -403,7 +402,6 @@ pub fn main() i32! = {
         return 0
     }
 
-    // ── QBE backend path (default) ──────────────────────────────────────────
     val qbe_ir: mut ref char = ""
 
     if test_mode {
