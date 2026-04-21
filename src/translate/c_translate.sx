@@ -1406,6 +1406,45 @@ fn scan_deref_operand_end(text: ref char, start: i64) i64 = {
     return i
 }
 
+fn is_unary_deref_context(text: ref char, star_i: i64) bool = {
+    val j: mut i64 = star_i - 1
+    for {
+        if j < 0 { return true }
+        val c: u8 = trust @load8(@ptradd(text as ref void, j)) as u8
+        if !is_space(c) { break }
+        j--
+    }
+    if j < 0 { return true }
+    val prev: u8 = trust @load8(@ptradd(text as ref void, j)) as u8
+    if prev == 40 || prev == 44 || prev == 61 || prev == 33 || prev == 126 || prev == 63 || prev == 58 {
+        return true
+    }
+    if prev == 43 || prev == 45 || prev == 42 || prev == 47 || prev == 37 || prev == 38 || prev == 124 || prev == 94 {
+        return true
+    }
+    if prev == 60 || prev == 62 || prev == 123 || prev == 91 {
+        return true
+    }
+    if is_ident_part(prev) {
+        val end_i: i64 = j
+        for {
+            if j < 0 { break }
+            val c2: u8 = trust @load8(@ptradd(text as ref void, j)) as u8
+            if !is_ident_part(c2) { break }
+            j--
+        }
+        val word: ref char = std.string.substr(text, j + 1, end_i - j)
+        if std.string.rchar_cmp(word, "return") == 0 { return true }
+        if std.string.rchar_cmp(word, "if") == 0 { return true }
+        if std.string.rchar_cmp(word, "while") == 0 { return true }
+        if std.string.rchar_cmp(word, "for") == 0 { return true }
+        if std.string.rchar_cmp(word, "case") == 0 { return true }
+        if std.string.rchar_cmp(word, "switch") == 0 { return true }
+        if std.string.rchar_cmp(word, "sizeof") == 0 { return true }
+    }
+    return false
+}
+
 fn translate_addr_deref_expr(ctx: ref TranslationCtx, text: ref char) ref char = {
     val trimmed: ref char = trim_raw(text)
     val len: i64 = std.string.len_raw(trimmed)
@@ -1525,9 +1564,7 @@ fn translate_addr_deref_expr(ctx: ref TranslationCtx, text: ref char) ref char =
             }
         }
         if c == 42 {
-            val prev2: mut u8 = 0
-            if i > 0 { prev2 = trust @load8(@ptradd(trimmed as ref void, i - 1)) as u8 }
-            if prev2 != 42 && prev2 != 47 && prev2 != 37 && prev2 != 43 && prev2 != 45 && prev2 != 61 && prev2 != 40 && prev2 != 44 {
+            if is_unary_deref_context(trimmed, i) {
                 val j2: mut i64 = i + 1
                 for {
                     if j2 >= len { break }
