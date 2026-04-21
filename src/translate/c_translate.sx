@@ -567,6 +567,20 @@ fn array_alloc_expr(type_name: ref char) ref char = {
     return trust @fmt("{s} * @sizeof({s})", {len_expr, elem_type})
 }
 
+fn is_string_literal_text(text: ref char) bool = {
+    val trimmed: ref char = trim_raw(text)
+    val len: i64 = std.string.len_raw(trimmed)
+    if len < 2 { return false }
+    val first: u8 = trust @load8(trimmed as ref void) as u8
+    val last: u8 = trust @load8(@ptradd(trimmed as ref void, len - 1)) as u8
+    return first == 34 && last == 34
+}
+
+fn is_unsized_char_array(type_name: ref char) bool = {
+    return std.string.rchar_cmp(array_type_len_expr(type_name), "") == 0
+        && std.string.rchar_cmp(array_type_elem(type_name), "char") == 0
+}
+
 fn extract_assignment_base(lhs: ref char) ref char = {
     val trimmed: ref char = trim_raw(lhs)
     if std.string.rchar_cmp(trimmed, "") == 0 { return "" }
@@ -2702,6 +2716,15 @@ fn translate_body_statement(ctx: ref TranslationCtx, line: ref char, indent: i64
             val decl: ref DeclInfo = parse_named_decl(lhs, "")
             if decl.its_ok && std.string.rchar_cmp(decl.name, "") != 0 && std.string.rchar_cmp(trim_raw(decl.type_src), "") != 0 {
                 if is_array_type_name(decl.type_name) {
+                    if is_unsized_char_array(decl.type_name) && is_string_literal_text(rhs) {
+                        val decayed_type0: ref char = decay_array_type(decl.type_name)
+                        val lowered_rhs0: ref LoweredExpr = lower_incdec_expr(ctx, rhs, indent, out)
+                        val rhs_expr0: ref char = lowered_rhs0.expr
+                        remember_local_type(ctx, decl.name, decayed_type0)
+                        track_called_expr(ctx, rhs_expr0)
+                        append_line(out, indent, trust @fmt("val {s}: {s} = {s}", {decl.name, render_binding_type(ctx, decl.name, decayed_type0), rhs_expr0}))
+                        return true
+                    }
                     val alloc_expr: ref char = array_alloc_expr(decl.type_name)
                     val decayed_type: ref char = decay_array_type(decl.type_name)
                     remember_local_type(ctx, decl.name, decayed_type)
