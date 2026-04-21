@@ -14,6 +14,20 @@
 #include <unistd.h>
 
 #ifdef __linux__
+static void sx_format_func(const char *src, char *dst, size_t dstsz)
+{
+    size_t j = 0;
+    for (size_t i = 0; src[i] && j + 1 < dstsz; ) {
+        if (src[i] == '_' && src[i+1] == '_') {
+            dst[j++] = '.';
+            i += 2;
+        } else {
+            dst[j++] = src[i++];
+        }
+    }
+    dst[j] = '\0';
+}
+
 static int sx_print_frame(int idx, const char *sym_str)
 {
     const char *paren = strchr(sym_str, '(');
@@ -41,17 +55,23 @@ static int sx_print_frame(int idx, const char *sym_str)
         FILE *fp = popen(cmd, "r");
         if (!fp) goto raw;
         char resolved[512] = "";
-        if (fgets(resolved, sizeof(resolved), fp)) {
-            size_t n = strlen(resolved);
-            if (n > 0 && resolved[n-1] == '\n') resolved[n-1] = '\0';
-        }
+        fgets(resolved, sizeof(resolved), fp);
         pclose(fp);
+
+        size_t n = strlen(resolved);
+        if (n > 0 && resolved[n-1] == '\n') resolved[n-1] = '\0';
 
         if (strstr(resolved, "panic_handler.c")) return 0;
 
         fprintf(stderr, "  #%-2d %s\n", idx, sym_str);
-        if (resolved[0] && resolved[0] != '?')
-            fprintf(stderr, "       at %s\n", resolved);
+
+        if (resolved[0] && resolved[0] != '?') {
+            char *at_sep = strstr(resolved, " at ");
+            if (at_sep) *at_sep = '\0';
+            char formatted[512];
+            sx_format_func(resolved, formatted, sizeof(formatted));
+            fprintf(stderr, "       at %s\n", formatted);
+        }
         return 1;
     }
 
