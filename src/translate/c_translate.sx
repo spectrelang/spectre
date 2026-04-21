@@ -50,6 +50,7 @@ type TranslationCtx = {
     flex_field_names:  mut list[ref char]
     flex_field_types:  mut list[ref char]
     temp_counter:  mut i64
+    union_counter: mut i64
 }
 
 fn make_block_result(next_index: i64, stop_kind: i64, stop_line: ref char) ref BlockResult = {
@@ -79,6 +80,7 @@ fn new_translation_ctx() ref TranslationCtx = {
     ctx.flex_field_names  = []
     ctx.flex_field_types  = []
     ctx.temp_counter = 0
+    ctx.union_counter = 0
     return ctx
 }
 
@@ -824,6 +826,12 @@ fn analyze_mutations_in_statement(ctx: ref TranslationCtx, line: ref char) void 
 fn emit_incdec_stmt(raw_name: ref char, op: ref char, indent: i64, out: ref void) void = {
     val name: ref char = rewrite_identifiers(raw_name)
     append_line(out, indent, trust @fmt("{s}{s}{s}", {name, op, op}))
+}
+
+fn fresh_union_name(ctx: mut ref TranslationCtx) ref char = {
+    val union_name: ref char = trust @fmt("union{d}", {ctx.union_counter})
+    ctx.union_counter = ctx.union_counter + 1
+    return union_name
 }
 
 fn normalize_simple_incdec_stmt(text: ref char) ref char = {
@@ -3954,11 +3962,19 @@ fn translate_struct_decl(text: ref char, indent: i64, out: ref void, ctx: ref Tr
     if list_contains(ctx.translated_type_names, alias) { return true }
     push_unique(ctx.translated_type_names, alias)
     val body: ref char = std.string.substr(flat, open_i + 1, close_i - open_i - 1)
-    append_open_block_line(out, indent, trust @fmt("extern type {s} = ", {alias}))
+    val prelude_out: ref void = std.string.StringBuilder.new()
+    val fields_out: ref void = std.string.StringBuilder.new()
     val fields = split_top_level(body, 59)
     for field in fields {
         val trimmed: ref char = trim_raw(field)
         if std.string.rchar_cmp(trimmed, "") == 0 { continue }
+        match translate_anonymous_union_field(trimmed, indent, prelude_out, ctx) {
+            some field_line => {
+                append_line(fields_out, indent + 1, field_line as ref char)
+                continue
+            }
+            none => {}
+        }
         val field_items = split_multi_decl(trimmed)
         val decl_items: mut list[ref char] = []
         if ((@len(field_items) as i64) > 1) {
@@ -3969,7 +3985,7 @@ fn translate_struct_decl(text: ref char, indent: i64, out: ref void, ctx: ref Tr
         for decl_text in decl_items {
             val decl: ref DeclInfo = parse_named_decl(decl_text, "")
             if !decl.its_ok || std.string.rchar_cmp(decl.name, "") == 0 {
-                append_comment_line(out, indent + 1, trust @fmt("unsupported field declaration: {s};", {decl_text}))
+                append_comment_line(fields_out, indent + 1, trust @fmt("unsupported field declaration: {s};", {decl_text}))
                 continue
             }
             val field_type: mut ref char = decl.type_name
@@ -3977,9 +3993,12 @@ fn translate_struct_decl(text: ref char, indent: i64, out: ref void, ctx: ref Tr
                 field_type = trust @fmt("ref {s}", {@ptradd(field_type, 2)})
                 remember_flex_field(ctx, alias, decl.name, field_type)
             }
-            append_line(out, indent + 1, trust @fmt("{s}: {s}", {decl.name, render_mutable_type(field_type)}))
+            append_line(fields_out, indent + 1, trust @fmt("{s}: {s}", {decl.name, render_mutable_type(field_type)}))
         }
     }
+    append_builder(out, prelude_out)
+    append_open_block_line(out, indent, trust @fmt("extern type {s} = ", {alias}))
+    append_builder(out, fields_out)
     append_line(out, indent, "}")
     append_blank_line(out)
     return true
@@ -4070,6 +4089,66 @@ fn translate_enum_decl(text: ref char, indent: i64, out: ref void, ctx: ref Tran
     return true
 }
 
+fn emit_union_type(alias: ref char, body: ref char, indent: i64, out: ref void, _: ref TranslationCtx) void = {
+    append_open_block_line(out, indent, trust @fmt("pub union {s} = ", {alias}))
+    val fields = split_top_level(body, 59)
+    val first_variant: mut bool = true
+    for field in fields {
+        val trimmed: ref char = trim_raw(field)
+        if std.string.rchar_cmp(trimmed, "") == 0 { continue }
+        val field_items = split_multi_decl(trimmed)
+        val decl_items: mut list[ref char] = []
+        if ((@len(field_items) as i64) > 1) {
+            decl_items = field_items
+        } else {
+            @append(decl_items, trimmed)
+        }
+        for decl_text in decl_items {
+            val decl: ref DeclInfo = parse_named_decl(decl_text, "")
+            if !decl.its_ok || std.string.rchar_cmp(decl.name, "") == 0 { continue }
+            val variant_name: ref char = sanitize_identifier(decl.name)
+            val payload_type0: ref char = decl.type_name
+            val payload_type: mut ref char = payload_type0
+            if is_array_type_name(payload_type0) {
+                payload_type = decay_array_type(payload_type0)
+            }
+            val line_text: mut ref char = ""
+            if std.string.rchar_cmp(payload_type, "void") == 0 {
+                line_text = trust @fmt("{s}()", {variant_name})
+            } else {
+                line_text = trust @fmt("{s}({s})", {variant_name, payload_type})
+            }
+            if first_variant {
+                append_line(out, indent + 1, line_text)
+                first_variant = false
+            } else {
+                append_line(out, indent + 1, trust @fmt("| {s}", {line_text}))
+            }
+        }
+    }
+    append_line(out, indent, "}")
+    append_blank_line(out)
+}
+
+fn translate_anonymous_union_field(field_text: ref char, indent: i64, out: ref void, ctx: ref TranslationCtx) option[ref char] = {
+    val trimmed: ref char = trim_raw(field_text)
+    if !std.string.rchar_starts_with(trimmed, "union") { return none }
+    val open_i: i64 = find_char(trimmed, 123)
+    val close_i: i64 = find_last_char(trimmed, 125)
+    if open_i < 0 || close_i <= open_i { return none }
+    val header: ref char = trim_raw(std.string.substr(trimmed, 0, open_i))
+    val after: ref char = trim_raw(std.string.substr(trimmed, close_i + 1, std.string.len_raw(trimmed) - close_i - 1))
+    val header_tail: ref char = trim_raw(std.string.substr(header, 5, std.string.len_raw(header) - 5))
+    if std.string.rchar_cmp(header_tail, "") != 0 { return none }
+    val field_name: ref char = sanitize_identifier(extract_identifier_before(after, std.string.len_raw(after)))
+    if std.string.rchar_cmp(field_name, "") == 0 { return none }
+    val union_name: ref char = fresh_union_name(ctx)
+    push_unique(ctx.translated_type_names, union_name)
+    val union_body: ref char = std.string.substr(trimmed, open_i + 1, close_i - open_i - 1)
+    emit_union_type(union_name, union_body, indent, out, ctx)
+    return some trust @fmt("{s}: {s}", {field_name, render_mutable_type(union_name)})
+}
+
 fn translate_union_decl(text: ref char, indent: i64, out: ref void, ctx: ref TranslationCtx) bool = {
     val flat: ref char = flatten_ws(text)
     val open_i: i64 = find_char(flat, 123)
@@ -4101,45 +4180,7 @@ fn translate_union_decl(text: ref char, indent: i64, out: ref void, ctx: ref Tra
     if list_contains(ctx.translated_type_names, alias) { return true }
     push_unique(ctx.translated_type_names, alias)
     val body: ref char = std.string.substr(flat, open_i + 1, close_i - open_i - 1)
-    val fields = split_top_level(body, 59)
-    append_open_block_line(out, indent, trust @fmt("pub union {s} = ", {alias}))
-    val first_variant: mut bool = true
-    for field in fields {
-        val trimmed: ref char = trim_raw(field)
-        if std.string.rchar_cmp(trimmed, "") == 0 { continue }
-        val field_items = split_multi_decl(trimmed)
-        val decl_items: mut list[ref char] = []
-        if ((@len(field_items) as i64) > 1) {
-            decl_items = field_items
-        } else {
-            @append(decl_items, trimmed)
-        }
-        for decl_text in decl_items {
-            val decl: ref DeclInfo = parse_named_decl(decl_text, "")
-            if !decl.its_ok || std.string.rchar_cmp(decl.name, "") == 0 { continue }
-            val variant_name: ref char = sanitize_identifier(decl.name)
-            val payload_type0: ref char = decl.type_name
-            val payload_type: mut ref char = payload_type0
-            if is_array_type_name(payload_type0) {
-                payload_type = decay_array_type(payload_type0)
-            }
-            val line_prefix: ref char = variant_name
-            val line_text: mut ref char = ""
-            if std.string.rchar_cmp(payload_type, "void") == 0 {
-                line_text = trust @fmt("{s}()", {line_prefix})
-            } else {
-                line_text = trust @fmt("{s}({s})", {line_prefix, payload_type})
-            }
-            if first_variant {
-                append_line(out, indent + 1, line_text)
-                first_variant = false
-            } else {
-                append_line(out, indent + 1, trust @fmt("| {s}", {line_text}))
-            }
-        }
-    }
-    append_line(out, indent, "}")
-    append_blank_line(out)
+    emit_union_type(alias, body, indent, out, ctx)
     return true
 }
 
