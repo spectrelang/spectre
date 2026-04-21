@@ -63,7 +63,7 @@ static int sx_print_frame(int idx, const char *sym_str)
 
         if (strstr(resolved, "panic_handler.c")) return 0;
 
-        fprintf(stderr, "  #%-2d %s\n", idx, sym_str);
+        fprintf(stderr, "  -> %-2d %s\n", idx, sym_str);
 
         if (resolved[0] && resolved[0] != '?') {
             char *at_sep = strstr(resolved, " at ");
