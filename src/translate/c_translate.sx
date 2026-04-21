@@ -2653,6 +2653,13 @@ fn translate_body_statement(ctx: ref TranslationCtx, line: ref char, indent: i64
         append_blank_line(out)
         return true
     }
+    val multi_decls = split_multi_decl(stripped)
+    if ((@len(multi_decls) as i64) > 1) {
+        for decl_text in multi_decls {
+            translate_body_statement(ctx, decl_text, indent, out)
+        }
+        return true
+    }
     if std.string.rchar_starts_with(stripped, "return") {
         val tail: ref char = trim_raw(std.string.substr(stripped, 6, std.string.len_raw(stripped) - 6))
         if std.string.rchar_cmp(tail, "") == 0 {
@@ -2861,6 +2868,10 @@ fn emit_known_extern(name: ref char, out: ref void) bool = {
     }
     if std.string.rchar_cmp(name, "strlen") == 0 {
         append_line(out, 0, "extern (C) fn strlen(s: ref char) i64! = \"strlen\"")
+        return true
+    }
+    if std.string.rchar_cmp(name, "fgets") == 0 {
+        append_line(out, 0, "extern (C) fn fgets(dst: ref char, n: i32, stream: ref void) ref char! = \"fgets\"")
         return true
     }
     if std.string.rchar_cmp(name, "malloc") == 0 {
@@ -3118,6 +3129,42 @@ fn parse_named_decl(text: ref char, fallback_name: ref char) ref DeclInfo = {
     info.type_name = translate_c_type(info.type_src, array_prefix)
     info.its_ok = std.string.rchar_cmp(info.type_name, "") != 0
     return info
+}
+
+fn split_multi_decl(text: ref char) list[ref char] = {
+    val trimmed: ref char = strip_trailing_semicolon(trim_raw(text))
+    if str_contains(trimmed, "(") { return [] }
+    val parts = split_top_level(trimmed, 44)
+    if ((@len(parts) as i64) <= 1) { return [] }
+    val first_opt = @get(parts, 0)
+    match first_opt {
+        some first_part => {
+            val first_trimmed: ref char = trim_raw(first_part as ref char)
+            val first_decl: ref DeclInfo = parse_named_decl(first_trimmed, "")
+            val first_type_src: ref char = trim_raw(first_decl.type_src)
+            if !first_decl.its_ok || std.string.rchar_cmp(first_type_src, "") == 0 { return [] }
+            val items: mut list[ref char] = []
+            @append(items, first_trimmed)
+            val len: i64 = @len(parts) as i64
+            val i: mut i64 = 1
+            for {
+                if i >= len { break }
+                val part_opt = @get(parts, i as usize)
+                match part_opt {
+                    some part_val => {
+                        val part_trimmed: ref char = trim_raw(part_val as ref char)
+                        if std.string.rchar_cmp(part_trimmed, "") != 0 {
+                            @append(items, trust @fmt("{s} {s}", {first_type_src, part_trimmed}))
+                        }
+                    }
+                    none => {}
+                }
+                i++
+            }
+            return items
+        }
+        none => { return [] }
+    }
 }
 
 fn split_top_level(text: ref char, delim: u8) list[ref char] = {
@@ -3488,21 +3535,26 @@ fn translate_struct_decl(text: ref char, indent: i64, out: ref void, ctx: ref Tr
     for field in fields {
         val trimmed: ref char = trim_raw(field)
         if std.string.rchar_cmp(trimmed, "") == 0 { continue }
-        if str_contains(trimmed, ",") {
-            append_comment_line(out, indent + 1, trust @fmt("unsupported field declaration: {s};", {trimmed}))
-            continue
+        val field_items = split_multi_decl(trimmed)
+        val decl_items: mut list[ref char] = []
+        if ((@len(field_items) as i64) > 1) {
+            decl_items = field_items
+        } else {
+            @append(decl_items, trimmed)
         }
-        val decl: ref DeclInfo = parse_named_decl(trimmed, "")
-        if !decl.its_ok || std.string.rchar_cmp(decl.name, "") == 0 {
-            append_comment_line(out, indent + 1, trust @fmt("unsupported field declaration: {s};", {trimmed}))
-            continue
+        for decl_text in decl_items {
+            val decl: ref DeclInfo = parse_named_decl(decl_text, "")
+            if !decl.its_ok || std.string.rchar_cmp(decl.name, "") == 0 {
+                append_comment_line(out, indent + 1, trust @fmt("unsupported field declaration: {s};", {decl_text}))
+                continue
+            }
+            val field_type: mut ref char = decl.type_name
+            if std.string.rchar_starts_with(field_type, "[]") {
+                field_type = trust @fmt("ref {s}", {@ptradd(field_type, 2)})
+                remember_flex_field(ctx, alias, decl.name, field_type)
+            }
+            append_line(out, indent + 1, trust @fmt("{s}: {s}", {decl.name, render_mutable_type(field_type)}))
         }
-        val field_type: mut ref char = decl.type_name
-        if std.string.rchar_starts_with(field_type, "[]") {
-            field_type = trust @fmt("ref {s}", {@ptradd(field_type, 2)})
-            remember_flex_field(ctx, alias, decl.name, field_type)
-        }
-        append_line(out, indent + 1, trust @fmt("{s}: {s}", {decl.name, render_mutable_type(field_type)}))
     }
     append_line(out, indent, "}")
     append_blank_line(out)
@@ -3587,6 +3639,7 @@ fn translate_function_decl(text: ref char, current_dir: ref char, indent: i64, o
     val head_len: i64 = std.string.len_raw(head)
     val name_len: i64 = std.string.len_raw(name)
     if head_len < name_len { return false }
+    if head_len == name_len { return false }
     val return_src: ref char = trim_raw(std.string.substr(head, 0, head_len - name_len))
     val return_type: ref char = translate_c_type(return_src, "")
     clear_local_types(ctx)
