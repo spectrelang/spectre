@@ -623,6 +623,16 @@ fn string_literal_storage_len(text: ref char) i64 = {
     return count + 1
 }
 
+fn zero_init_expr(type_name: ref char) ref char = {
+    if std.string.rchar_cmp(type_name, "f32") == 0 || std.string.rchar_cmp(type_name, "f64") == 0 {
+        return "0.0"
+    }
+    if std.string.rchar_cmp(type_name, "bool") == 0 {
+        return "false"
+    }
+    return trust @fmt("0 as {s}", {type_name})
+}
+
 fn extract_assignment_base(lhs: ref char) ref char = {
     val trimmed: ref char = trim_raw(lhs)
     if std.string.rchar_cmp(trimmed, "") == 0 { return "" }
@@ -2937,12 +2947,23 @@ fn translate_body_statement(ctx: ref TranslationCtx, line: ref char, indent: i64
         && !str_contains(stripped, "(")
     if can_be_bare_decl {
         val decl2: ref DeclInfo = parse_named_decl(stripped, "")
-        if decl2.its_ok && std.string.rchar_cmp(decl2.name, "") != 0 && is_array_type_name(decl2.type_name) {
-            val alloc_expr2: ref char = array_alloc_expr(decl2.type_name)
-            val decayed_type2: ref char = decay_array_type(decl2.type_name)
-            remember_local_type(ctx, decl2.name, decayed_type2)
-            remember_local_array_type(ctx, decl2.name, alloc_expr2)
-            append_line(out, indent, trust @fmt("val {s}: {s} = @alloc({s})", {decl2.name, render_binding_type(ctx, decl2.name, decayed_type2), alloc_expr2}))
+        if decl2.its_ok && std.string.rchar_cmp(decl2.name, "") != 0 {
+            if is_array_type_name(decl2.type_name) {
+                val alloc_expr2: ref char = array_alloc_expr(decl2.type_name)
+                val decayed_type2: ref char = decay_array_type(decl2.type_name)
+                remember_local_type(ctx, decl2.name, decayed_type2)
+                remember_local_array_type(ctx, decl2.name, alloc_expr2)
+                append_line(out, indent, trust @fmt("val {s}: {s} = @alloc({s})", {decl2.name, render_binding_type(ctx, decl2.name, decayed_type2), alloc_expr2}))
+                return true
+            }
+            if is_address_taken_name(ctx, decl2.name) && !std.string.rchar_starts_with(decl2.type_name, "ref ") {
+                val ref_type2: ref char = trust @fmt("ref {s}", {decl2.type_name})
+                remember_local_type(ctx, decl2.name, ref_type2)
+                append_line(out, indent, trust @fmt("val {s}: {s} = @alloc(@sizeof({s}))", {decl2.name, render_binding_type(ctx, decl2.name, ref_type2), decl2.type_name}))
+                return true
+            }
+            remember_local_type(ctx, decl2.name, decl2.type_name)
+            append_line(out, indent, trust @fmt("val {s}: {s} = {s}", {decl2.name, render_binding_type(ctx, decl2.name, decl2.type_name), zero_init_expr(decl2.type_name)}))
             return true
         }
     }
