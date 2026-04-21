@@ -161,6 +161,7 @@ pub fn main() i32! = {
     }
 
     val emit_qbe: mut bool = false
+    val emit_ll: mut bool = false
     val emit_asm: mut bool = false
     val show_cmd: mut bool = false
     val test_mode: mut bool = false
@@ -210,6 +211,9 @@ pub fn main() i32! = {
                     arg_i++
                 } elif std.string.rchar_cmp(arg, "--emit-ssa") == 0 {
                     emit_qbe = true
+                    arg_i++
+                } elif std.string.rchar_cmp(arg, "--emit-ll") == 0 {
+                    emit_ll = true
                     arg_i++
                 } elif std.string.rchar_cmp(arg, "--emit-asm") == 0 {
                     emit_asm = true
@@ -266,7 +270,7 @@ pub fn main() i32! = {
         exe_dir = path.dir(exe_path2)
     }
 
-    if !quiet && !emit_qbe && !print_ast {
+    if !quiet && !emit_qbe && !emit_ll && !print_ast {
         std.stdio.puts("[I  ]│ Resolving module")
     }
 
@@ -289,7 +293,7 @@ pub fn main() i32! = {
         return 0
     }
 
-    if !quiet && !emit_qbe {
+    if !quiet && !emit_qbe && !emit_ll {
         std.stdio.puts("[II ]│ Semantic analysis")
     }
 
@@ -311,14 +315,14 @@ pub fn main() i32! = {
         return 0
     }
 
-    if !quiet && !emit_qbe { 
+    if !quiet && !emit_qbe && !emit_ll { 
         std.stdio.puts("[III]│ CG pass")
     }
 
-    if use_llvm {
+    if use_llvm || emit_ll {
         val ll_ir: ref char = llvm_codegen.gen_module_resolved(root_mod, release_mode)
 
-        if emit_qbe != 0 {
+        if emit_ll != false {
             std.stdio.puts(ll_ir)
             allocators.Arena.free(arena)
             return 0
@@ -410,7 +414,7 @@ pub fn main() i32! = {
         qbe_ir = codegen.gen_module_resolved(root_mod, release_mode)
     }
 
-    if !quiet && !emit_qbe {
+    if !quiet && !emit_qbe && !emit_ll {
         std.stdio.puts("[IV ]│ Module used-links collection")
     }
 
