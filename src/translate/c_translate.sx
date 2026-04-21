@@ -736,7 +736,12 @@ fn emit_incdec_temp(ctx: ref TranslationCtx, raw_name: ref char, op: ref char, i
     return temp_name
 }
 
-fn lower_incdec_expr(ctx: ref TranslationCtx, text: ref char, indent: i64, out: ref void) ref LoweredExpr = {
+fn emit_incdec_stmt(raw_name: ref char, op: ref char, indent: i64, out: ref void) void = {
+    val name: ref char = rewrite_identifiers(raw_name)
+    append_line(out, indent, trust @fmt("{s}{s}{s}", {name, op, op}))
+}
+
+fn lower_incdec_text(ctx: ref TranslationCtx, text: ref char, indent: i64, out: ref void) ref LoweredExpr = {
     val trimmed: ref char = strip_trailing_semicolon(text)
     val len: i64 = std.string.len_raw(trimmed)
     val sb: ref void = std.string.StringBuilder.new()
@@ -839,7 +844,8 @@ fn lower_incdec_expr(ctx: ref TranslationCtx, text: ref char, indent: i64, out: 
                 if ((c1 == 43 && c2 == 43) || (c1 == 45 && c2 == 45)) {
                     val op2: mut ref char = "+"
                     if c1 == 45 { op2 = "-" }
-                    std.string.StringBuilder.append_cstr(sb, emit_incdec_temp(ctx, ident2, op2, false, indent, out))
+                    emit_incdec_stmt(ident2, op2, indent, out)
+                    std.string.StringBuilder.append_cstr(sb, ident2)
                     changed = true
                     i = j2 + 2
                     continue
@@ -853,7 +859,12 @@ fn lower_incdec_expr(ctx: ref TranslationCtx, text: ref char, indent: i64, out: 
     }
     val built: ref void = std.string.StringBuilder.build(sb)
     std.string.StringBuilder.free(sb)
-    return make_lowered_expr(translate_expr_text(ctx, std.string.cstr(built)), changed)
+    return make_lowered_expr(std.string.cstr(built), changed)
+}
+
+fn lower_incdec_expr(ctx: ref TranslationCtx, text: ref char, indent: i64, out: ref void) ref LoweredExpr = {
+    val lowered_text: ref LoweredExpr = lower_incdec_text(ctx, text, indent, out)
+    return make_lowered_expr(translate_expr_text(ctx, lowered_text.expr), lowered_text.changed)
 }
 
 fn body_has_explicit_return(lines: list[ref char]) bool = {
@@ -1941,8 +1952,10 @@ fn translate_while_loop(lines: list[ref char], start: i64, indent: i64, out: ref
         return span
     }
     val cond_src: ref char = trim_raw(std.string.substr(full_text, open_i + 1, close_i - open_i - 1))
-    val cond_text: ref char = translate_condition_text(ctx, cond_src)
+    val cond_out: ref void = std.string.StringBuilder.new()
+    val cond_text: ref char = translate_condition_text(ctx, cond_src, indent + 1, cond_out)
     append_line(out, indent, "for {")
+    append_builder(out, cond_out)
     append_line(out, indent + 1, trust @fmt("if ({s}) {", {cond_text}))
     val body_text: ref char = std.string.substr(full_text, brace_i + 1, find_last_char(full_text, 125) - brace_i - 1)
     val body_lines = split_lines(body_text)
@@ -1985,7 +1998,7 @@ fn translate_if_text(lines: list[ref char], current_dir: ref char, line_index: i
         return make_block_result(line_index + 1, STOP_EOF, "")
     }
     val cond_src: ref char = trim_raw(std.string.substr(trimmed, open_i + 1, close_i - open_i - 1))
-    val cond_text: ref char = translate_condition_text(ctx, cond_src)
+    val cond_text: ref char = translate_condition_text(ctx, cond_src, indent, out)
     val tail: ref char = trim_raw(std.string.substr(trimmed, close_i + 1, std.string.len_raw(trimmed) - close_i - 1))
     append_line(out, indent, trust @fmt("if ({s}) {", {cond_text}))
     val next_i: mut i64 = line_index + 1
@@ -2106,7 +2119,7 @@ fn translate_switch_statement(lines: list[ref char], start: i64, indent: i64, ou
                 append_comment_line(out, indent, line)
                 return make_block_result(start + 1, STOP_EOF, "")
             }
-            val switch_expr: ref char = translate_expr_text(ctx, trim_raw(std.string.substr(line, open_i + 1, close_i - open_i - 1)))
+            val switch_expr: ref char = lower_incdec_expr(ctx, trim_raw(std.string.substr(line, open_i + 1, close_i - open_i - 1)), indent, out).expr
             val body_start: mut i64 = start
             val tail: ref char = trim_raw(std.string.substr(line, close_i + 1, std.string.len_raw(line) - close_i - 1))
             if !std.string.rchar_starts_with(tail, "{") {
@@ -2252,11 +2265,13 @@ fn translate_do_while_loop(lines: list[ref char], start: i64, indent: i64, out: 
                 append_comment_line(out, indent, line)
                 return make_block_result(next_i, STOP_EOF, "")
             }
-            val cond_text: ref char = translate_condition_text(ctx, trim_raw(std.string.substr(while_line, open_i + 1, close_i - open_i - 1)))
+            val cond_out: ref void = std.string.StringBuilder.new()
+            val cond_text: ref char = translate_condition_text(ctx, trim_raw(std.string.substr(while_line, open_i + 1, close_i - open_i - 1)), indent + 1, cond_out)
             val body_text: ref char = std.string.substr(body_full, brace_i + 1, close_b - brace_i - 1)
             val body_lines = split_lines(body_text)
             append_line(out, indent, "for {")
             translate_body_lines(body_lines, "", 0, indent + 1, out, ctx)
+            append_builder(out, cond_out)
             append_line(out, indent + 1, trust @fmt("if ({s}) {", {cond_text}))
             append_line(out, indent + 1, "} else {")
             append_line(out, indent + 2, "break")
@@ -2587,7 +2602,15 @@ fn translate_expr_text(ctx: ref TranslationCtx, text: ref char) ref char = {
     return normalized_intrinsics
 }
 
-fn translate_condition_text(ctx: ref TranslationCtx, text: ref char) ref char = {
+fn translate_condition_text(ctx: ref TranslationCtx, text: ref char, indent: i64, out: ref void) ref char = {
+    if contains_incdec_ops(text) {
+        val lowered_text: ref LoweredExpr = lower_incdec_text(ctx, text, indent, out)
+        match rewrite_null_comparison(ctx, lowered_text.expr) {
+            some translated => { return translated as ref char }
+            none => {}
+        }
+        return translate_expr_text(ctx, lowered_text.expr)
+    }
     match rewrite_null_comparison(ctx, text) {
         some translated => { return translated as ref char }
         none => {}
@@ -2618,10 +2641,11 @@ fn translate_body_statement(ctx: ref TranslationCtx, line: ref char, indent: i64
         val lhs: ref char = trim_raw(std.string.substr(stripped, 0, compound_i))
         val op: ref char = std.string.substr(stripped, compound_i, 1)
         val rhs: ref char = trim_raw(std.string.substr(stripped, compound_i + 2, std.string.len_raw(stripped) - compound_i - 2))
+        val rhs_expr_compound: ref char = lower_incdec_expr(ctx, rhs, indent, out).expr
         append_line(out, indent, trust @fmt("{s} {s}= {s}", {
             translate_expr_text(ctx, lhs),
             op,
-            translate_expr_text(ctx, rhs)
+            rhs_expr_compound
         }))
         return true
     }
