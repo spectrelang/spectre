@@ -89,6 +89,9 @@ pub fn len(s: String) i64 = {
 
 /// Length of a raw char pointer
 pub fn len_raw(s: ref char) i64 = {
+    pre {
+        s != 0 as ref char
+    }
     return trust strlen(s)
 }
 

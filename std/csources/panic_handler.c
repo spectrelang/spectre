@@ -13,6 +13,54 @@
 #include <execinfo.h>
 #include <unistd.h>
 
+#ifdef __linux__
+static int sx_print_frame(int idx, const char *sym_str)
+{
+    const char *paren = strchr(sym_str, '(');
+    if (!paren) goto raw;
+    const char *plus = strchr(paren, '+');
+    if (!plus) goto raw;
+    const char *addr_end = strchr(plus, ')');
+    if (!addr_end) goto raw;
+
+    {
+        char exe[512];
+        size_t exe_len = (size_t)(paren - sym_str);
+        if (exe_len == 0 || exe_len >= sizeof(exe)) goto raw;
+        memcpy(exe, sym_str, exe_len);
+        exe[exe_len] = '\0';
+
+        char addr[32];
+        size_t addr_len = (size_t)(addr_end - (plus + 1));
+        if (addr_len == 0 || addr_len >= sizeof(addr)) goto raw;
+        memcpy(addr, plus + 1, addr_len);
+        addr[addr_len] = '\0';
+
+        char cmd[2048];
+        snprintf(cmd, sizeof(cmd), "addr2line -e %s -f -p %s 2>/dev/null", exe, addr);
+        FILE *fp = popen(cmd, "r");
+        if (!fp) goto raw;
+        char resolved[512] = "";
+        if (fgets(resolved, sizeof(resolved), fp)) {
+            size_t n = strlen(resolved);
+            if (n > 0 && resolved[n-1] == '\n') resolved[n-1] = '\0';
+        }
+        pclose(fp);
+
+        if (strstr(resolved, "panic_handler.c")) return 0;
+
+        fprintf(stderr, "  #%-2d %s\n", idx, sym_str);
+        if (resolved[0] && resolved[0] != '?')
+            fprintf(stderr, "       at %s\n", resolved);
+        return 1;
+    }
+
+raw:
+    fprintf(stderr, "  #%-2d %s\n", idx, sym_str);
+    return 1;
+}
+#endif
+
 static const char *sx_signal_name(int sig)
 {
     switch (sig) {
@@ -35,8 +83,14 @@ static void sx_signal_handler(int sig)
     fprintf(stderr, "trace:\n");
 
     if (syms) {
+#ifdef __linux__
+        int printed = 0;
+        for (int i = 0; i < nframes; i++)
+            printed += sx_print_frame(printed, syms[i]);
+#else
         for (int i = 0; i < nframes; i++)
             fprintf(stderr, "  #%-2d %s\n", i, syms[i]);
+#endif
         free(syms);
     } else {
         backtrace_symbols_fd(frames, nframes, STDERR_FILENO);

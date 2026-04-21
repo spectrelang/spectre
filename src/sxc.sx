@@ -428,10 +428,11 @@ pub fn main() i32! = {
     }
 
     val cc_flags: mut ref char = ""
+    if !release_mode { cc_flags = "-g" }
     val output_ext: mut ref char = ""
 
     if compile_obj {
-        cc_flags = "-c"
+        cc_flags = @fmt("{s} -c", {cc_flags})
         if std.string.rchar_cmp(platform, "windows") == 0 {
             output_ext = ".obj"
         } else {
@@ -439,13 +440,13 @@ pub fn main() i32! = {
         }
     } elif build_dll {
         if std.string.rchar_cmp(platform, "macos") == 0 {
-            cc_flags = "-dynamiclib"
+            cc_flags = @fmt("{s} -dynamiclib", {cc_flags})
             output_ext = ".dylib"
         } elif std.string.rchar_cmp(platform, "windows") == 0 {
-            cc_flags = "-shared"
+            cc_flags = @fmt("{s} -shared", {cc_flags})
             output_ext = ".dll"
         } else {
-            cc_flags = "-shared"
+            cc_flags = @fmt("{s} -shared", {cc_flags})
             output_ext = ".so"
         }
     } else {
