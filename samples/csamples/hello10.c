@@ -36,3 +36,7 @@ struct m_image
 };
 
 #define M_IMAGE_IDENTITY() {0, 0, 0, 0, 0, 0}
+
+int main() {
+    
+}
