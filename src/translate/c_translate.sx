@@ -2188,7 +2188,7 @@ fn translate_switch_statement(lines: list[ref char], start: i64, indent: i64, ou
                 } else {
                     val cond_text: ref char = render_switch_case_condition(ctx, switch_expr, case_item.labels)
                     if emitted_any {
-                        append_line(out, indent, trust @fmt("} else if ({s}) {", {cond_text}))
+                        append_line(out, indent, trust @fmt("} elif ({s}) {", {cond_text}))
                     } else {
                         append_line(out, indent, trust @fmt("if ({s}) {", {cond_text}))
                     }
