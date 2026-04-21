@@ -35,6 +35,8 @@ type SwitchCase = {
 type TranslationCtx = {
     defined_names: mut list[ref char]
     called_names:  mut list[ref char]
+    called_sig_names: mut list[ref char]
+    called_sig_params: mut list[ref char]
     extern_names:  mut list[ref char]
     fnptr_names:   mut list[ref char]
     translated_type_names: mut list[ref char]
@@ -44,11 +46,16 @@ type TranslationCtx = {
     local_types:   mut list[ref char]
     local_array_names: mut list[ref char]
     local_array_types: mut list[ref char]
+    global_names: mut list[ref char]
+    global_types: mut list[ref char]
+    global_array_names: mut list[ref char]
+    global_array_types: mut list[ref char]
     mutable_names: mut list[ref char]
     address_taken_names: mut list[ref char]
     flex_struct_names: mut list[ref char]
     flex_field_names:  mut list[ref char]
     flex_field_types:  mut list[ref char]
+    main_prelude_lines: mut list[ref char]
     temp_counter:  mut i64
     union_counter: mut i64
 }
@@ -65,6 +72,8 @@ fn new_translation_ctx() ref TranslationCtx = {
     val ctx: mut ref TranslationCtx = @alloc(@sizeof(TranslationCtx)) as ref TranslationCtx
     ctx.defined_names = []
     ctx.called_names  = []
+    ctx.called_sig_names = []
+    ctx.called_sig_params = []
     ctx.extern_names  = []
     ctx.fnptr_names   = []
     ctx.translated_type_names = []
@@ -74,11 +83,16 @@ fn new_translation_ctx() ref TranslationCtx = {
     ctx.local_types   = []
     ctx.local_array_names = []
     ctx.local_array_types = []
+    ctx.global_names = []
+    ctx.global_types = []
+    ctx.global_array_names = []
+    ctx.global_array_types = []
     ctx.mutable_names = []
     ctx.address_taken_names = []
     ctx.flex_struct_names = []
     ctx.flex_field_names  = []
     ctx.flex_field_types  = []
+    ctx.main_prelude_lines = []
     ctx.temp_counter = 0
     ctx.union_counter = 0
     return ctx
@@ -371,6 +385,27 @@ fn remember_local_type(ctx: ref TranslationCtx, name: ref char, type_name: ref c
     @append(ctx.local_types, type_name)
 }
 
+fn remember_global_type(ctx: ref TranslationCtx, name: ref char, type_name: ref char) void = {
+    val len: i64 = @len(ctx.global_names) as i64
+    val i: mut i64 = 0
+    for {
+        if i >= len { break }
+        val existing_opt = @get(ctx.global_names, i as usize)
+        match existing_opt {
+            some existing_name => {
+                if std.string.rchar_cmp(existing_name as ref char, name) == 0 {
+                    @set(ctx.global_types, i as usize, type_name)
+                    return
+                }
+            }
+            none => {}
+        }
+        i++
+    }
+    @append(ctx.global_names, name)
+    @append(ctx.global_types, type_name)
+}
+
 fn lookup_local_type(ctx: ref TranslationCtx, name: ref char) option[ref char] = {
     val len: i64 = @len(ctx.local_names) as i64
     val i: mut i64 = 0
@@ -390,6 +425,25 @@ fn lookup_local_type(ctx: ref TranslationCtx, name: ref char) option[ref char] =
             none => {}
         }
         i++
+    }
+    val glen: i64 = @len(ctx.global_names) as i64
+    val gi: mut i64 = 0
+    for {
+        if gi >= glen { break }
+        val existing_opt2 = @get(ctx.global_names, gi as usize)
+        match existing_opt2 {
+            some existing_name2 => {
+                if std.string.rchar_cmp(existing_name2 as ref char, name) == 0 {
+                    val type_opt2 = @get(ctx.global_types, gi as usize)
+                    match type_opt2 {
+                        some type_name2 => { return some type_name2 as ref char }
+                        none => {}
+                    }
+                }
+            }
+            none => {}
+        }
+        gi++
     }
     return none
 }
@@ -415,6 +469,27 @@ fn remember_local_array_type(ctx: ref TranslationCtx, name: ref char, array_size
     @append(ctx.local_array_types, array_size_expr)
 }
 
+fn remember_global_array_type(ctx: ref TranslationCtx, name: ref char, array_size_expr: ref char) void = {
+    val len: i64 = @len(ctx.global_array_names) as i64
+    val i: mut i64 = 0
+    for {
+        if i >= len { break }
+        val existing_opt = @get(ctx.global_array_names, i as usize)
+        match existing_opt {
+            some existing_name => {
+                if std.string.rchar_cmp(existing_name as ref char, name) == 0 {
+                    @set(ctx.global_array_types, i as usize, array_size_expr)
+                    return
+                }
+            }
+            none => {}
+        }
+        i++
+    }
+    @append(ctx.global_array_names, name)
+    @append(ctx.global_array_types, array_size_expr)
+}
+
 fn lookup_local_array_type(ctx: ref TranslationCtx, name: ref char) option[ref char] = {
     val len: i64 = @len(ctx.local_array_names) as i64
     val i: mut i64 = 0
@@ -434,6 +509,25 @@ fn lookup_local_array_type(ctx: ref TranslationCtx, name: ref char) option[ref c
             none => {}
         }
         i++
+    }
+    val glen: i64 = @len(ctx.global_array_names) as i64
+    val gi: mut i64 = 0
+    for {
+        if gi >= glen { break }
+        val existing_opt2 = @get(ctx.global_array_names, gi as usize)
+        match existing_opt2 {
+            some existing_name2 => {
+                if std.string.rchar_cmp(existing_name2 as ref char, name) == 0 {
+                    val type_opt2 = @get(ctx.global_array_types, gi as usize)
+                    match type_opt2 {
+                        some type_name2 => { return some type_name2 as ref char }
+                        none => {}
+                    }
+                }
+            }
+            none => {}
+        }
+        gi++
     }
     return none
 }
@@ -586,6 +680,20 @@ fn render_mutable_type(type_name: ref char) ref char = {
     return trust @fmt("mut {s}", {type_name})
 }
 
+fn append_main_prelude_line(ctx: ref TranslationCtx, line: ref char) void = {
+    @append(ctx.main_prelude_lines, line)
+}
+
+fn append_main_prelude_builder(ctx: ref TranslationCtx, sb: ref void) void = {
+    val built: ref void = std.string.StringBuilder.build(sb)
+    val lines = split_lines(std.string.cstr(built))
+    for line in lines {
+        val trimmed: ref char = trim_raw(line)
+        if std.string.rchar_cmp(trimmed, "") == 0 { continue }
+        append_main_prelude_line(ctx, trimmed)
+    }
+}
+
 fn is_array_type_name(type_name: ref char) bool = {
     return std.string.rchar_starts_with(type_name, "[")
 }
@@ -695,6 +803,26 @@ fn parse_brace_initializer_items(text: ref char) list[ref char] = {
         @append(items, item)
     }
     return items
+}
+
+fn emit_array_initializer_stores(ctx: ref TranslationCtx, out: ref void, indent: i64, name: ref char, items: list[ref char]) void = {
+    val init_len: i64 = @len(items) as i64
+    val init_i: mut i64 = 0
+    for {
+        if init_i >= init_len { break }
+        val item_opt = @get(items, init_i as usize)
+        match item_opt {
+            some item_val => {
+                val lowered_item: ref LoweredExpr = lower_incdec_expr(ctx, item_val as ref char, indent, out)
+                val item_expr: ref char = lowered_item.expr
+                val item_ptr: ref char = render_index_ptr_expr(ctx, name, trust @fmt("{d}", {init_i}))
+                track_called_expr(ctx, item_expr)
+                append_line(out, indent, trust @fmt("@store({s}, {s})", {item_ptr, item_expr}))
+            }
+            none => {}
+        }
+        init_i++
+    }
 }
 
 fn zero_init_expr(type_name: ref char) ref char = {
@@ -1315,10 +1443,137 @@ fn extract_call_name(text: ref char) ref char = {
     return extract_identifier_before(text, open_i)
 }
 
+fn extract_call_args_text(text: ref char) list[ref char] = {
+    val open_i: i64 = find_char(text, 40)
+    val close_i: i64 = find_matching_delim(text, open_i, 40, 41)
+    if open_i <= 0 || close_i <= open_i { return [] }
+    val args_raw: ref char = trim_raw(std.string.substr(text, open_i + 1, close_i - open_i - 1))
+    if std.string.rchar_cmp(args_raw, "") == 0 { return [] }
+    return split_top_level(args_raw, 44)
+}
+
+fn is_integer_literal_text(text: ref char) bool = {
+    val trimmed: ref char = trim_raw(text)
+    val len: i64 = std.string.len_raw(trimmed)
+    if len == 0 { return false }
+    val i: mut i64 = 0
+    val first: u8 = trust @load8(trimmed as ref void) as u8
+    if first == 45 || first == 43 { i = 1 }
+    if i >= len { return false }
+    for {
+        if i >= len { break }
+        val c: u8 = trust @load8(@ptradd(trimmed as ref void, i)) as u8
+        if !(c >= 48 && c <= 57) { return false }
+        i++
+    }
+    return true
+}
+
+fn is_float_literal_text(text: ref char) bool = {
+    val trimmed: ref char = trim_raw(text)
+    return str_contains(trimmed, ".") && !is_string_literal_text(trimmed)
+}
+
+fn infer_called_arg_type(ctx: ref TranslationCtx, text: ref char) ref char = {
+    val trimmed: ref char = trim_raw(text)
+    if std.string.rchar_cmp(trimmed, "NULL") == 0 || std.string.rchar_cmp(trimmed, "0") == 0 { return "ref void" }
+    if std.string.rchar_starts_with(trimmed, "@addr(") { return "ref void" }
+    if is_string_literal_text(trimmed) { return "ref char" }
+    if is_integer_literal_text(trimmed) { return "i32" }
+    if is_float_literal_text(trimmed) { return "f64" }
+    if is_ident_text(trimmed) {
+        match lookup_local_type(ctx, trimmed) {
+            some type_name => { return type_name as ref char }
+            none => {}
+        }
+        return "ref void"
+    }
+    val index_target: ref char = parse_index_target(trimmed)
+    if std.string.rchar_cmp(index_target, "") != 0 {
+        val elem_type: ref char = lookup_index_element_type(ctx, index_target)
+        if std.string.rchar_cmp(elem_type, "") != 0 { return elem_type }
+    }
+    return "ref void"
+}
+
+fn remember_called_signature(ctx: ref TranslationCtx, call_name: ref char, args: list[ref char]) void = {
+    val sb: ref void = std.string.StringBuilder.new()
+    val first: mut bool = true
+    val len: i64 = @len(args) as i64
+    val i: mut i64 = 0
+    for {
+        if i >= len { break }
+        val arg_opt = @get(args, i as usize)
+        match arg_opt {
+            some arg_val => {
+                if !first { std.string.StringBuilder.append_cstr(sb, ", ") }
+                val arg_type: ref char = infer_called_arg_type(ctx, arg_val as ref char)
+                std.string.StringBuilder.append_cstr(sb, trust @fmt("arg{d}: {s}", {i, arg_type}))
+                first = false
+            }
+            none => {}
+        }
+        i++
+    }
+    val built: ref void = std.string.StringBuilder.build(sb)
+    std.string.StringBuilder.free(sb)
+    val params_text: ref char = std.string.cstr(built)
+    val sig_len: i64 = @len(ctx.called_sig_names) as i64
+    val sig_i: mut i64 = 0
+    for {
+        if sig_i >= sig_len { break }
+        val name_opt = @get(ctx.called_sig_names, sig_i as usize)
+        match name_opt {
+            some name_val => {
+                if std.string.rchar_cmp(name_val as ref char, call_name) == 0 {
+                    val existing_opt = @get(ctx.called_sig_params, sig_i as usize)
+                    match existing_opt {
+                        some existing_val => {
+                            if std.string.len_raw(existing_val as ref char) < std.string.len_raw(params_text) {
+                                @set(ctx.called_sig_params, sig_i as usize, params_text)
+                            }
+                        }
+                        none => { @set(ctx.called_sig_params, sig_i as usize, params_text) }
+                    }
+                    return
+                }
+            }
+            none => {}
+        }
+        sig_i++
+    }
+    @append(ctx.called_sig_names, call_name)
+    @append(ctx.called_sig_params, params_text)
+}
+
+fn lookup_called_signature(ctx: ref TranslationCtx, call_name: ref char) option[ref char] = {
+    val len: i64 = @len(ctx.called_sig_names) as i64
+    val i: mut i64 = 0
+    for {
+        if i >= len { break }
+        val name_opt = @get(ctx.called_sig_names, i as usize)
+        match name_opt {
+            some name_val => {
+                if std.string.rchar_cmp(name_val as ref char, call_name) == 0 {
+                    val params_opt = @get(ctx.called_sig_params, i as usize)
+                    match params_opt {
+                        some params_val => { return some params_val as ref char }
+                        none => {}
+                    }
+                }
+            }
+            none => {}
+        }
+        i++
+    }
+    return none
+}
+
 fn track_called_expr(ctx: ref TranslationCtx, expr: ref char) void = {
     val call_name: ref char = extract_call_name(expr)
     if std.string.rchar_cmp(call_name, "") != 0 && !std.string.rchar_starts_with(expr, "@") {
         push_unique(ctx.called_names, call_name)
+        remember_called_signature(ctx, call_name, extract_call_args_text(expr))
     }
 }
 
@@ -3249,23 +3504,7 @@ fn translate_body_statement(ctx: ref TranslationCtx, line: ref char, indent: i64
                         track_called_expr(ctx, rhs_expr_char)
                     }
                     if ((@len(array_init_items) as i64) > 0) {
-                        val init_len: i64 = @len(array_init_items) as i64
-                        val init_i: mut i64 = 0
-                        for {
-                            if init_i >= init_len { break }
-                            val item_opt = @get(array_init_items, init_i as usize)
-                            match item_opt {
-                                some item_val => {
-                                    val lowered_item: ref LoweredExpr = lower_incdec_expr(ctx, item_val as ref char, indent, out)
-                                    val item_expr: ref char = lowered_item.expr
-                                    val item_ptr: ref char = render_index_ptr_expr(ctx, decl.name, trust @fmt("{d}", {init_i}))
-                                    track_called_expr(ctx, item_expr)
-                                    append_line(out, indent, trust @fmt("@store({s}, {s})", {item_ptr, item_expr}))
-                                }
-                                none => {}
-                            }
-                            init_i++
-                        }
+                        emit_array_initializer_stores(ctx, out, indent, decl.name, array_init_items)
                     }
                     return true
                 }
@@ -3460,12 +3699,22 @@ fn emit_known_extern(name: ref char, out: ref void) bool = {
     return false
 }
 
+fn emit_generic_extern(ctx: ref TranslationCtx, name: ref char, out: ref void) bool = {
+    val params_text: mut ref char = ""
+    match lookup_called_signature(ctx, name) {
+        some params_val => { params_text = params_val as ref char }
+        none => {}
+    }
+    append_line(out, 0, trust @fmt("extern (C) fn {s}({s}) i32! = \"{s}\"", {name, params_text, name}))
+    return true
+}
+
 fn append_synthesized_externs(ctx: ref TranslationCtx, out: ref void) void = {
     val emitted_any: mut bool = false
     for name in ctx.called_names {
         if list_contains(ctx.defined_names, name) { continue }
         if list_contains(ctx.extern_names, name) { continue }
-        if emit_known_extern(name, out) {
+        if emit_known_extern(name, out) || emit_generic_extern(ctx, name, out) {
             push_unique(ctx.extern_names, name)
             emitted_any = true
         }
@@ -4426,6 +4675,14 @@ fn translate_function_decl(text: ref char, current_dir: ref char, indent: i64, o
         if is_static { fn_kw = "fn" }
         line = trust @fmt("{s} {s}({s}) {s}! = ", {fn_kw, name, params_text, return_type})
         append_open_block_line(out, indent, line)
+        if std.string.rchar_cmp(name, "main") == 0 {
+            for prelude_line in ctx.main_prelude_lines {
+                append_line(out, indent + 1, prelude_line)
+            }
+            if (((@len(ctx.main_prelude_lines) as i64) > 0 && (@len(split_lines(body_src)) as i64)) > 0) {
+                append_blank_line(out)
+            }
+        }
         val body_lines = split_lines(body_src)
         translate_body_lines(body_lines, current_dir, 0, indent + 1, out, ctx)
         if std.string.rchar_cmp(name, "main") == 0
@@ -4446,6 +4703,92 @@ fn translate_function_decl(text: ref char, current_dir: ref char, indent: i64, o
     line = trust @fmt("extern (C) fn {s}({s}) {s}! = \"{s}\"", {name, params_text, return_type, name})
     append_line(out, indent, line)
     return true
+}
+
+fn translate_top_level_decl(text: ref char, indent: i64, out: ref void, ctx: ref TranslationCtx) bool = {
+    val stripped: ref char = strip_trailing_semicolon(trim_raw(text))
+    if std.string.rchar_cmp(stripped, "") == 0 { return false }
+    val multi_decls = split_multi_decl(stripped)
+    if ((@len(multi_decls) as i64) > 1) {
+        val any_ok: mut bool = false
+        for decl_text in multi_decls {
+            if translate_top_level_decl(decl_text, indent, out, ctx) { any_ok = true }
+        }
+        return any_ok
+    }
+    val assign_i: i64 = find_top_level_assign(stripped)
+    if assign_i > 0 {
+        val lhs: ref char = trim_raw(std.string.substr(stripped, 0, assign_i))
+        val rhs: ref char = trim_raw(std.string.substr(stripped, assign_i + 1, std.string.len_raw(stripped) - assign_i - 1))
+        val can_be_decl: bool = str_contains(lhs, " ")
+            || std.string.rchar_starts_with(lhs, "struct ")
+            || std.string.rchar_starts_with(lhs, "enum ")
+            || std.string.rchar_starts_with(lhs, "union ")
+        if !can_be_decl { return false }
+        val decl: ref DeclInfo = parse_named_decl(lhs, "")
+        if !decl.its_ok || std.string.rchar_cmp(decl.name, "") == 0 || std.string.rchar_cmp(trim_raw(decl.type_src), "") == 0 {
+            return false
+        }
+        if is_array_type_name(decl.type_name) {
+            val array_init_items = parse_brace_initializer_items(rhs)
+            val elem_type: ref char = array_type_elem(decl.type_name)
+            val alloc_expr: mut ref char = array_alloc_expr(decl.type_name)
+            if std.string.rchar_cmp(array_type_len_expr(decl.type_name), "") == 0 && (@len(array_init_items) as i64) > 0 {
+                alloc_expr = trust @fmt("{d} * @sizeof({s})", {@len(array_init_items) as i64, elem_type})
+            }
+            val decayed_type: ref char = decay_array_type(decl.type_name)
+            val is_char_array_literal: bool = std.string.rchar_cmp(elem_type, "char") == 0 && is_string_literal_text(rhs)
+            remember_global_type(ctx, decl.name, decayed_type)
+            remember_global_array_type(ctx, decl.name, alloc_expr)
+            append_line(out, indent, trust @fmt("val {s}: {s} = @alloc({s})", {decl.name, render_mutable_type(decayed_type), alloc_expr}))
+            if is_char_array_literal {
+                val prelude_sb: ref void = std.string.StringBuilder.new()
+                val lowered_rhs_char: ref LoweredExpr = lower_incdec_expr(ctx, rhs, 0, prelude_sb)
+                val rhs_expr_char: ref char = lowered_rhs_char.expr
+                val copy_len: i64 = string_literal_storage_len(rhs)
+                append_line(prelude_sb, 0, trust @fmt("@memset({s} as ref void, 0, {s})", {decl.name, alloc_expr}))
+                append_line(prelude_sb, 0, trust @fmt("@memcpy({s} as ref void, {s} as ref void, {d} as usize)", {decl.name, rhs_expr_char, copy_len}))
+                track_called_expr(ctx, rhs_expr_char)
+                append_main_prelude_builder(ctx, prelude_sb)
+            }
+            if ((@len(array_init_items) as i64) > 0) {
+                val prelude_sb2: ref void = std.string.StringBuilder.new()
+                emit_array_initializer_stores(ctx, prelude_sb2, 0, decl.name, array_init_items)
+                append_main_prelude_builder(ctx, prelude_sb2)
+            }
+            return true
+        }
+        remember_global_type(ctx, decl.name, decl.type_name)
+        val lowered_rhs: ref LoweredExpr = lower_incdec_expr(ctx, rhs, indent, out)
+        val rhs_expr: mut ref char = lowered_rhs.expr
+        if std.string.rchar_cmp(trim_raw(rhs), "NULL") == 0 {
+            rhs_expr = trust @fmt("0 as {s}", {decl.type_name})
+        }
+        track_called_expr(ctx, rhs_expr)
+        append_line(out, indent, trust @fmt("val {s}: {s} = {s}", {decl.name, render_mutable_type(decl.type_name), rhs_expr}))
+        return true
+    }
+    val can_be_bare_decl: bool = (str_contains(stripped, " ") || str_contains(stripped, "*")
+        || std.string.rchar_starts_with(stripped, "struct ") || std.string.rchar_starts_with(stripped, "enum ")
+        || std.string.rchar_starts_with(stripped, "union "))
+        && !str_contains(stripped, "(")
+    if can_be_bare_decl {
+        val decl2: ref DeclInfo = parse_named_decl(stripped, "")
+        if decl2.its_ok && std.string.rchar_cmp(decl2.name, "") != 0 {
+            if is_array_type_name(decl2.type_name) {
+                val alloc_expr2: ref char = array_alloc_expr(decl2.type_name)
+                val decayed_type2: ref char = decay_array_type(decl2.type_name)
+                remember_global_type(ctx, decl2.name, decayed_type2)
+                remember_global_array_type(ctx, decl2.name, alloc_expr2)
+                append_line(out, indent, trust @fmt("val {s}: {s} = @alloc({s})", {decl2.name, render_mutable_type(decayed_type2), alloc_expr2}))
+                return true
+            }
+            remember_global_type(ctx, decl2.name, decl2.type_name)
+            append_line(out, indent, trust @fmt("val {s}: {s} = {s}", {decl2.name, render_mutable_type(decl2.type_name), zero_init_expr(decl2.type_name)}))
+            return true
+        }
+    }
+    return false
 }
 
 fn translate_file(path: ref char, out: ref void, seen: mut list[ref char], ctx: ref TranslationCtx) bool = {
@@ -4651,6 +4994,10 @@ pub fn translate_top_level(
                         i = span2.next_index
                         continue
                     }
+                }
+                if translate_top_level_decl(trimmed, indent, out, ctx) {
+                    i++
+                    continue
                 }
                 append_comment_line(out, indent, trimmed)
                 i++
