@@ -2677,6 +2677,53 @@ fn rewrite_null_comparison(ctx: ref TranslationCtx, text: ref char) option[ref c
     return some trust @fmt("{s} != {s}", {translated_expr, zero_expr})
 }
 
+fn emit_condition_assignment(ctx: ref TranslationCtx, lhs: ref char, rhs: ref char, indent: i64, out: ref void) ref char = {
+    val lhs_arrow: ref char = replace_arrow_access(lhs)
+    val lhs_rewritten: ref char = rewrite_identifiers(translate_addr_deref_expr(ctx, lhs_arrow))
+    val lowered_rhs: ref LoweredExpr = lower_incdec_expr(ctx, rhs, indent, out)
+    val rhs_expr0: ref char = lowered_rhs.expr
+    val rhs_expr: mut ref char = rhs_expr0
+    if std.string.rchar_cmp(trim_raw(rhs), "NULL") == 0 && is_ident_text(lhs_rewritten) {
+        match lookup_local_type(ctx, lhs_rewritten) {
+            some type_name => { rhs_expr = trust @fmt("0 as {s}", {type_name as ref char}) }
+            none => {}
+        }
+    }
+    val index_target: ref char = parse_index_target(lhs_rewritten)
+    if std.string.rchar_cmp(index_target, "") != 0 {
+        val index_expr: ref char = parse_index_expr(lhs_rewritten)
+        track_called_expr(ctx, rhs_expr)
+        append_line(out, indent, trust @fmt("@store(@ptradd({s}, {s}), {s})", {index_target, index_expr, rhs_expr}))
+        return trust @fmt("@load(@ptradd({s}, {s}))", {index_target, index_expr})
+    }
+    track_called_expr(ctx, rhs_expr)
+    append_line(out, indent, trust @fmt("{s} = {s}", {lhs_rewritten, rhs_expr}))
+    return lhs_rewritten
+}
+
+fn rewrite_condition_assignments(ctx: ref TranslationCtx, text: ref char, indent: i64, out: ref void) ref char = {
+    val trimmed: ref char = trim_raw(text)
+    val inner: ref char = unwrap_outer_parens(trimmed)
+    val cmp_i: i64 = find_top_level_equality(inner)
+    if cmp_i >= 0 {
+        val lhs: ref char = trim_raw(std.string.substr(inner, 0, cmp_i))
+        val rhs: ref char = trim_raw(std.string.substr(inner, cmp_i + 2, std.string.len_raw(inner) - cmp_i - 2))
+        val lhs_rewritten: ref char = rewrite_condition_assignments(ctx, lhs, indent, out)
+        val rhs_rewritten: ref char = rewrite_condition_assignments(ctx, rhs, indent, out)
+        val op: ref char = std.string.substr(inner, cmp_i, 2)
+        return trust @fmt("{s} {s} {s}", {lhs_rewritten, op, rhs_rewritten})
+    }
+    val assign_i: i64 = find_top_level_assign(inner)
+    if assign_i > 0 {
+        val lhs_assign: ref char = trim_raw(std.string.substr(inner, 0, assign_i))
+        val rhs_assign: ref char = trim_raw(std.string.substr(inner, assign_i + 1, std.string.len_raw(inner) - assign_i - 1))
+        if !str_contains(lhs_assign, " ") {
+            return emit_condition_assignment(ctx, lhs_assign, rhs_assign, indent, out)
+        }
+    }
+    return trimmed
+}
+
 fn translate_expr_text(ctx: ref TranslationCtx, text: ref char) ref char = {
     val no_semicolon: ref char = strip_trailing_semicolon(text)
     val with_init: ref char = translate_designated_initializer(no_semicolon)
@@ -2695,19 +2742,17 @@ fn translate_expr_text(ctx: ref TranslationCtx, text: ref char) ref char = {
 }
 
 fn translate_condition_text(ctx: ref TranslationCtx, text: ref char, indent: i64, out: ref void) ref char = {
+    val condition_src: mut ref char = text
     if contains_incdec_ops(text) {
         val lowered_text: ref LoweredExpr = lower_incdec_text(ctx, text, indent, out)
-        match rewrite_null_comparison(ctx, lowered_text.expr) {
-            some translated => { return translated as ref char }
-            none => {}
-        }
-        return translate_expr_text(ctx, lowered_text.expr)
+        condition_src = lowered_text.expr
     }
-    match rewrite_null_comparison(ctx, text) {
+    val rewritten_assigns: ref char = rewrite_condition_assignments(ctx, condition_src, indent, out)
+    match rewrite_null_comparison(ctx, rewritten_assigns) {
         some translated => { return translated as ref char }
         none => {}
     }
-    return translate_expr_text(ctx, text)
+    return translate_expr_text(ctx, rewritten_assigns)
 }
 
 fn translate_body_statement(ctx: ref TranslationCtx, line: ref char, indent: i64, out: ref void) bool = {
