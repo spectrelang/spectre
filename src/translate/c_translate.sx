@@ -581,6 +581,48 @@ fn is_unsized_char_array(type_name: ref char) bool = {
         && std.string.rchar_cmp(array_type_elem(type_name), "char") == 0
 }
 
+fn string_literal_storage_len(text: ref char) i64 = {
+    val trimmed: ref char = trim_raw(text)
+    val len: i64 = std.string.len_raw(trimmed)
+    if len < 2 { return 0 }
+    val i: mut i64 = 1
+    val count: mut i64 = 0
+    for {
+        if i >= len - 1 { break }
+        val c: u8 = trust @load8(@ptradd(trimmed as ref void, i)) as u8
+        if c == 92 && i + 1 < len - 1 {
+            val esc: u8 = trust @load8(@ptradd(trimmed as ref void, i + 1)) as u8
+            if esc == 120 || esc == 88 {
+                i += 2
+                for {
+                    if i >= len - 1 { break }
+                    val hc: u8 = trust @load8(@ptradd(trimmed as ref void, i)) as u8
+                    val is_hex: bool = (hc >= 48 && hc <= 57) || (hc >= 65 && hc <= 70) || (hc >= 97 && hc <= 102)
+                    if !is_hex { break }
+                    i++
+                }
+            } elif esc >= 48 && esc <= 55 {
+                i += 2
+                val oct_count: mut i64 = 1
+                for {
+                    if i >= len - 1 || oct_count >= 3 { break }
+                    val oc: u8 = trust @load8(@ptradd(trimmed as ref void, i)) as u8
+                    if !(oc >= 48 && oc <= 55) { break }
+                    i++
+                    oct_count++
+                }
+            } else {
+                i += 2
+            }
+            count++
+            continue
+        }
+        count++
+        i++
+    }
+    return count + 1
+}
+
 fn extract_assignment_base(lhs: ref char) ref char = {
     val trimmed: ref char = trim_raw(lhs)
     if std.string.rchar_cmp(trimmed, "") == 0 { return "" }
@@ -2727,9 +2769,18 @@ fn translate_body_statement(ctx: ref TranslationCtx, line: ref char, indent: i64
                     }
                     val alloc_expr: ref char = array_alloc_expr(decl.type_name)
                     val decayed_type: ref char = decay_array_type(decl.type_name)
+                    val is_char_array_literal: bool = std.string.rchar_cmp(array_type_elem(decl.type_name), "char") == 0 && is_string_literal_text(rhs)
                     remember_local_type(ctx, decl.name, decayed_type)
                     remember_local_array_type(ctx, decl.name, alloc_expr)
                     append_line(out, indent, trust @fmt("val {s}: {s} = @alloc({s})", {decl.name, render_binding_type(ctx, decl.name, decayed_type), alloc_expr}))
+                    if is_char_array_literal {
+                        val lowered_rhs_char: ref LoweredExpr = lower_incdec_expr(ctx, rhs, indent, out)
+                        val rhs_expr_char: ref char = lowered_rhs_char.expr
+                        val copy_len: i64 = string_literal_storage_len(rhs)
+                        append_line(out, indent, trust @fmt("@memset({s} as ref void, 0, {s})", {decl.name, alloc_expr}))
+                        append_line(out, indent, trust @fmt("@memcpy({s} as ref void, {s} as ref void, {d} as usize)", {decl.name, rhs_expr_char, copy_len}))
+                        track_called_expr(ctx, rhs_expr_char)
+                    }
                     return true
                 }
                 if is_address_taken_name(ctx, decl.name) && !std.string.rchar_starts_with(decl.type_name, "ref ") {
