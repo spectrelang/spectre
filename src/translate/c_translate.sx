@@ -37,6 +37,9 @@ type TranslationCtx = {
     local_array_types: mut list[ref char]
     mutable_names: mut list[ref char]
     address_taken_names: mut list[ref char]
+    flex_struct_names: mut list[ref char]
+    flex_field_names:  mut list[ref char]
+    flex_field_types:  mut list[ref char]
     temp_counter:  mut i64
 }
 
@@ -60,6 +63,9 @@ fn new_translation_ctx() ref TranslationCtx = {
     ctx.local_array_types = []
     ctx.mutable_names = []
     ctx.address_taken_names = []
+    ctx.flex_struct_names = []
+    ctx.flex_field_names  = []
+    ctx.flex_field_types  = []
     ctx.temp_counter = 0
     return ctx
 }
@@ -399,6 +405,81 @@ fn lookup_local_array_type(ctx: ref TranslationCtx, name: ref char) option[ref c
                     val type_opt = @get(ctx.local_array_types, i as usize)
                     match type_opt {
                         some type_name => { return some type_name as ref char }
+                        none => {}
+                    }
+                }
+            }
+            none => {}
+        }
+        i++
+    }
+    return none
+}
+
+fn remember_flex_field(ctx: ref TranslationCtx, struct_name: ref char, field_name: ref char, field_type: ref char) void = {
+    val len: i64 = @len(ctx.flex_struct_names) as i64
+    val i: mut i64 = 0
+    for {
+        if i >= len { break }
+        val s_opt = @get(ctx.flex_struct_names, i as usize)
+        val f_opt = @get(ctx.flex_field_names, i as usize)
+        match s_opt {
+            some s_name => {
+                match f_opt {
+                    some f_name => {
+                        if std.string.rchar_cmp(s_name as ref char, struct_name) == 0
+                            && std.string.rchar_cmp(f_name as ref char, field_name) == 0 {
+                            @set(ctx.flex_field_types, i as usize, field_type)
+                            return
+                        }
+                    }
+                    none => {}
+                }
+            }
+            none => {}
+        }
+        i++
+    }
+    @append(ctx.flex_struct_names, struct_name)
+    @append(ctx.flex_field_names, field_name)
+    @append(ctx.flex_field_types, field_type)
+}
+
+fn lookup_flex_field_name(ctx: ref TranslationCtx, struct_name: ref char) option[ref char] = {
+    val len: i64 = @len(ctx.flex_struct_names) as i64
+    val i: mut i64 = 0
+    for {
+        if i >= len { break }
+        val s_opt = @get(ctx.flex_struct_names, i as usize)
+        match s_opt {
+            some s_name => {
+                if std.string.rchar_cmp(s_name as ref char, struct_name) == 0 {
+                    val f_opt = @get(ctx.flex_field_names, i as usize)
+                    match f_opt {
+                        some f_name => { return some f_name as ref char }
+                        none => {}
+                    }
+                }
+            }
+            none => {}
+        }
+        i++
+    }
+    return none
+}
+
+fn lookup_flex_field_type(ctx: ref TranslationCtx, struct_name: ref char) option[ref char] = {
+    val len: i64 = @len(ctx.flex_struct_names) as i64
+    val i: mut i64 = 0
+    for {
+        if i >= len { break }
+        val s_opt = @get(ctx.flex_struct_names, i as usize)
+        match s_opt {
+            some s_name => {
+                if std.string.rchar_cmp(s_name as ref char, struct_name) == 0 {
+                    val t_opt = @get(ctx.flex_field_types, i as usize)
+                    match t_opt {
+                        some t_name => { return some t_name as ref char }
                         none => {}
                     }
                 }
@@ -2111,6 +2192,23 @@ fn translate_body_statement(ctx: ref TranslationCtx, line: ref char, indent: i64
                     push_unique(ctx.called_names, call_name)
                 }
                 append_line(out, indent, trust @fmt("val {s}: {s} = {s}", {decl.name, rendered_type, rhs_expr}))
+                if std.string.rchar_starts_with(decl.type_name, "ref ")
+                    && std.string.rchar_starts_with(rhs_expr, "@alloc(") {
+                    val struct_name: ref char = trust @ptradd(decl.type_name, 4)
+                    match lookup_flex_field_name(ctx, struct_name) {
+                        some flex_field => {
+                            match lookup_flex_field_type(ctx, struct_name) {
+                                some flex_type => {
+                                    append_blank_line(out)
+                                    append_line(out, indent, trust @fmt("{s}.{s} = @ptradd({s} as ref i8, @sizeof({s})) as {s}",
+                                        {decl.name, flex_field as ref char, decl.name, struct_name, flex_type as ref char}))
+                                }
+                                none => {}
+                            }
+                        }
+                        none => {}
+                    }
+                }
                 if lowered_rhs.changed { append_blank_line(out) }
                 return true
             }
@@ -2813,7 +2911,7 @@ fn collect_function(lines: list[ref char], start: i64) ref BlockResult = {
     return make_block_result(i, STOP_EOF, "")
 }
 
-fn translate_struct_decl(text: ref char, indent: i64, out: ref void) bool = {
+fn translate_struct_decl(text: ref char, indent: i64, out: ref void, ctx: ref TranslationCtx) bool = {
     val flat: ref char = flatten_ws(text)
     val open_i: i64 = find_char(flat, 123)
     val close_i: i64 = find_last_char(flat, 125)
@@ -2858,6 +2956,7 @@ fn translate_struct_decl(text: ref char, indent: i64, out: ref void) bool = {
         val field_type: mut ref char = decl.type_name
         if std.string.rchar_starts_with(field_type, "[]") {
             field_type = trust @fmt("ref {s}", {@ptradd(field_type, 2)})
+            remember_flex_field(ctx, alias, decl.name, field_type)
         }
         append_line(out, indent + 1, trust @fmt("{s}: {s}", {decl.name, render_mutable_type(field_type)}))
     }
@@ -3129,7 +3228,7 @@ pub fn translate_top_level(
                     && str_contains(trimmed, "{")) {
                     val span = collect_struct(lines, i)
                     val full_text: ref char = join_lines(lines, i, span.next_index)
-                    if !translate_struct_decl(full_text, indent, out) {
+                    if !translate_struct_decl(full_text, indent, out, ctx) {
                         append_comment_line(out, indent, trust @fmt("unsupported struct declaration: {s}", {trimmed}))
                     }
                     i = span.next_index
