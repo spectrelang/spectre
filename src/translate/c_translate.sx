@@ -1081,6 +1081,13 @@ fn extract_call_name(text: ref char) ref char = {
     return extract_identifier_before(text, open_i)
 }
 
+fn track_called_expr(ctx: ref TranslationCtx, expr: ref char) void = {
+    val call_name: ref char = extract_call_name(expr)
+    if std.string.rchar_cmp(call_name, "") != 0 && !std.string.rchar_starts_with(expr, "@") {
+        push_unique(ctx.called_names, call_name)
+    }
+}
+
 fn rewrite_identifiers(text: ref char) ref char = {
     val trimmed: ref char = trim_raw(text)
     val len: i64 = std.string.len_raw(trimmed)
@@ -2711,6 +2718,7 @@ fn translate_body_statement(ctx: ref TranslationCtx, line: ref char, indent: i64
                     if std.string.rchar_cmp(trim_raw(rhs), "NULL") == 0 {
                         rhs_expr_addr = trust @fmt("0 as {s}", {decl.type_name})
                     }
+                    track_called_expr(ctx, rhs_expr_addr)
                     append_line(out, indent, trust @fmt("@deref({s}) = {s}", {decl.name, rhs_expr_addr}))
                     return true
                 }
@@ -2746,10 +2754,7 @@ fn translate_body_statement(ctx: ref TranslationCtx, line: ref char, indent: i64
                         return true
                     }
                 }
-                val call_name: ref char = extract_call_name(rhs_expr)
-                if std.string.rchar_cmp(call_name, "") != 0 && !std.string.rchar_starts_with(rhs_expr, "@") {
-                    push_unique(ctx.called_names, call_name)
-                }
+                track_called_expr(ctx, rhs_expr)
                 append_line(out, indent, trust @fmt("val {s}: {s} = {s}", {decl.name, rendered_type, rhs_expr}))
                 if std.string.rchar_starts_with(decl.type_name, "ref ")
                     && std.string.rchar_starts_with(rhs_expr, "@alloc(") {
@@ -2784,6 +2789,7 @@ fn translate_body_statement(ctx: ref TranslationCtx, line: ref char, indent: i64
             }
             val lowered_rhs2: ref LoweredExpr = lower_incdec_expr(ctx, rhs, indent, out)
             val rhs_expr2: ref char = lowered_rhs2.expr
+            track_called_expr(ctx, rhs_expr2)
             append_line(out, indent, trust @fmt("@store(@ptradd({s}, {s}), {s})", {index_target, index_expr, rhs_expr2}))
             if lowered_rhs2.changed { append_blank_line(out) }
             return true
@@ -2802,6 +2808,7 @@ fn translate_body_statement(ctx: ref TranslationCtx, line: ref char, indent: i64
                 none => {}
             }
         }
+        track_called_expr(ctx, rhs_expr3)
         append_line(out, indent, trust @fmt("{s} = {s}", {lhs_rewritten, rhs_expr3}))
         if lowered_rhs3.changed { append_blank_line(out) }
         return true
@@ -2834,10 +2841,7 @@ fn translate_body_statement(ctx: ref TranslationCtx, line: ref char, indent: i64
         && !std.string.rchar_starts_with(stripped, "switch") {
         val lowered_expr: ref LoweredExpr = lower_incdec_expr(ctx, stripped, indent, out)
         val expr: ref char = lowered_expr.expr
-        val call_name: ref char = extract_call_name(expr)
-        if std.string.rchar_cmp(call_name, "") != 0 && !std.string.rchar_starts_with(expr, "@") {
-            push_unique(ctx.called_names, call_name)
-        }
+        track_called_expr(ctx, expr)
         append_line(out, indent, expr)
         return true
     }
