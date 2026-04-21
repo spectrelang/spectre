@@ -4480,8 +4480,7 @@ fn translate_enum_decl(text: ref char, indent: i64, out: ref void, ctx: ref Tran
     for item in items {
         val trimmed: ref char = trim_raw(item)
         if std.string.rchar_cmp(trimmed, "") == 0 { continue }
-        val name_src: ref char = strip_initializer(trimmed)
-        val member: ref char = sanitize_identifier(trim_raw(name_src))
+        val member: ref char = sanitize_identifier(trim_raw(strip_initializer(trimmed)))
         if std.string.rchar_cmp(member, "") == 0 { continue }
         @append(members, member)
     }
