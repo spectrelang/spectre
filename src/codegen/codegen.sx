@@ -5858,6 +5858,9 @@ fn gen_stmt(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
                         val type_copy: ref char = @alloc(str.len_raw(ret_ann) + 1) as ref char
                         @memcpy(type_copy as ref void, ret_ann as ref void, str.len_raw(ret_ann) + 1)
                         cg_register_local_type(ctx, name, type_copy)
+                        if rchar_starts_with(ret_ann, "ref ") {
+                            cg_register_local_ref_type(ctx, name)
+                        }
                     }
                 }
             }
