@@ -673,6 +673,30 @@ fn string_literal_storage_len(text: ref char) i64 = {
     return count + 1
 }
 
+fn is_brace_initializer_text(text: ref char) bool = {
+    val trimmed: ref char = trim_raw(text)
+    val len: i64 = std.string.len_raw(trimmed)
+    if len < 2 { return false }
+    val first: u8 = trust @load8(trimmed as ref void) as u8
+    val last: u8 = trust @load8(@ptradd(trimmed as ref void, len - 1)) as u8
+    return first == 123 && last == 125
+}
+
+fn parse_brace_initializer_items(text: ref char) list[ref char] = {
+    val trimmed: ref char = trim_raw(text)
+    if !is_brace_initializer_text(trimmed) { return [] }
+    val inner: ref char = trim_raw(std.string.substr(trimmed, 1, std.string.len_raw(trimmed) - 2))
+    if std.string.rchar_cmp(inner, "") == 0 { return [] }
+    val raw_items = split_top_level(inner, 44)
+    val items: mut list[ref char] = []
+    for raw_item in raw_items {
+        val item: ref char = trim_raw(raw_item)
+        if std.string.rchar_cmp(item, "") == 0 { continue }
+        @append(items, item)
+    }
+    return items
+}
+
 fn zero_init_expr(type_name: ref char) ref char = {
     if std.string.rchar_cmp(type_name, "f32") == 0 || std.string.rchar_cmp(type_name, "f64") == 0 {
         return "0.0"
@@ -2879,6 +2903,15 @@ fn translate_sizeof_expr(ctx: ref TranslationCtx, text: ref char) ref char = {
                                 none => {}
                             }
                         }
+                        val index_target: ref char = parse_index_target(inner)
+                        if std.string.rchar_cmp(index_target, "") != 0 {
+                            val elem_type: ref char = lookup_index_element_type(ctx, index_target)
+                            if std.string.rchar_cmp(elem_type, "") != 0 {
+                                std.string.StringBuilder.append_cstr(sb, trust @fmt("@sizeof({s})", {elem_type}))
+                                i = close_i + 1
+                                continue
+                            }
+                        }
                         val mapped: ref char = translate_c_type(inner, "")
                         std.string.StringBuilder.append_cstr(sb, trust @fmt("@sizeof({s})", {mapped}))
                         i = close_i + 1
@@ -3107,7 +3140,12 @@ fn translate_body_statement(ctx: ref TranslationCtx, line: ref char, indent: i64
                         append_line(out, indent, trust @fmt("val {s}: {s} = {s}", {decl.name, render_binding_type(ctx, decl.name, decayed_type0), rhs_expr0}))
                         return true
                     }
-                    val alloc_expr: ref char = array_alloc_expr(decl.type_name)
+                    val array_init_items = parse_brace_initializer_items(rhs)
+                    val elem_type: ref char = array_type_elem(decl.type_name)
+                    val alloc_expr: mut ref char = array_alloc_expr(decl.type_name)
+                    if std.string.rchar_cmp(array_type_len_expr(decl.type_name), "") == 0 && (@len(array_init_items) as i64) > 0 {
+                        alloc_expr = trust @fmt("{d} * @sizeof({s})", {@len(array_init_items) as i64, elem_type})
+                    }
                     val decayed_type: ref char = decay_array_type(decl.type_name)
                     val is_char_array_literal: bool = std.string.rchar_cmp(array_type_elem(decl.type_name), "char") == 0 && is_string_literal_text(rhs)
                     remember_local_type(ctx, decl.name, decayed_type)
@@ -3120,6 +3158,25 @@ fn translate_body_statement(ctx: ref TranslationCtx, line: ref char, indent: i64
                         append_line(out, indent, trust @fmt("@memset({s} as ref void, 0, {s})", {decl.name, alloc_expr}))
                         append_line(out, indent, trust @fmt("@memcpy({s} as ref void, {s} as ref void, {d} as usize)", {decl.name, rhs_expr_char, copy_len}))
                         track_called_expr(ctx, rhs_expr_char)
+                    }
+                    if ((@len(array_init_items) as i64) > 0) {
+                        val init_len: i64 = @len(array_init_items) as i64
+                        val init_i: mut i64 = 0
+                        for {
+                            if init_i >= init_len { break }
+                            val item_opt = @get(array_init_items, init_i as usize)
+                            match item_opt {
+                                some item_val => {
+                                    val lowered_item: ref LoweredExpr = lower_incdec_expr(ctx, item_val as ref char, indent, out)
+                                    val item_expr: ref char = lowered_item.expr
+                                    val item_ptr: ref char = render_index_ptr_expr(ctx, decl.name, trust @fmt("{d}", {init_i}))
+                                    track_called_expr(ctx, item_expr)
+                                    append_line(out, indent, trust @fmt("@store({s}, {s})", {item_ptr, item_expr}))
+                                }
+                                none => {}
+                            }
+                            init_i++
+                        }
                     }
                     return true
                 }
