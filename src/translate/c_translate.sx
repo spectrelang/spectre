@@ -31,6 +31,7 @@ type TranslationCtx = {
     called_names:  mut list[ref char]
     extern_names:  mut list[ref char]
     fnptr_names:   mut list[ref char]
+    translated_type_names: mut list[ref char]
     local_names:   mut list[ref char]
     local_types:   mut list[ref char]
     local_array_names: mut list[ref char]
@@ -57,6 +58,7 @@ fn new_translation_ctx() ref TranslationCtx = {
     ctx.called_names  = []
     ctx.extern_names  = []
     ctx.fnptr_names   = []
+    ctx.translated_type_names = []
     ctx.local_names   = []
     ctx.local_types   = []
     ctx.local_array_names = []
@@ -2938,6 +2940,8 @@ fn translate_struct_decl(text: ref char, indent: i64, out: ref void, ctx: ref Tr
         alias = before_body_name
     }
     if std.string.rchar_cmp(alias, "") == 0 { return false }
+    if list_contains(ctx.translated_type_names, alias) { return true }
+    push_unique(ctx.translated_type_names, alias)
     val body: ref char = std.string.substr(flat, open_i + 1, close_i - open_i - 1)
     append_open_block_line(out, indent, trust @fmt("type {s} = ", {alias}))
     val fields = split_top_level(body, 59)
@@ -3224,8 +3228,25 @@ pub fn translate_top_level(
                     i++
                     continue
                 }
-                if ((std.string.rchar_starts_with(trimmed, "typedef struct") || std.string.rchar_starts_with(trimmed, "struct "))
-                    && str_contains(trimmed, "{")) {
+                val starts_struct_decl: bool = std.string.rchar_starts_with(trimmed, "typedef struct")
+                    || std.string.rchar_starts_with(trimmed, "struct ")
+                val struct_has_brace: mut bool = str_contains(trimmed, "{")
+                if starts_struct_decl && !struct_has_brace {
+                    val next_i_struct: i64 = next_significant_line(lines, i + 1)
+                    if next_i_struct >= 0 {
+                        val next_struct_opt = @get(lines, next_i_struct as usize)
+                        match next_struct_opt {
+                            some next_struct_line => {
+                                val next_struct_trimmed: ref char = trim_raw(next_struct_line as ref char)
+                                if std.string.rchar_cmp(next_struct_trimmed, "{") == 0 {
+                                    struct_has_brace = true
+                                }
+                            }
+                            none => {}
+                        }
+                    }
+                }
+                if starts_struct_decl && struct_has_brace {
                     val span = collect_struct(lines, i)
                     val full_text: ref char = join_lines(lines, i, span.next_index)
                     if !translate_struct_decl(full_text, indent, out, ctx) {
