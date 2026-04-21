@@ -1341,38 +1341,52 @@ fn is_probable_c_type(text: ref char) bool = {
 fn is_known_c_type_name(ctx: ref TranslationCtx, text: ref char) bool = {
     val trimmed: ref char = trim_raw(text)
     if std.string.rchar_cmp(trimmed, "") == 0 { return false }
-    if std.string.rchar_cmp(trimmed, "void") == 0               { return true }
-    if std.string.rchar_cmp(trimmed, "char") == 0               { return true }
-    if std.string.rchar_cmp(trimmed, "short") == 0              { return true }
-    if std.string.rchar_cmp(trimmed, "int") == 0                { return true }
-    if std.string.rchar_cmp(trimmed, "long") == 0               { return true }
-    if std.string.rchar_cmp(trimmed, "long long") == 0          { return true }
-    if std.string.rchar_cmp(trimmed, "unsigned char") == 0      { return true }
-    if std.string.rchar_cmp(trimmed, "unsigned short") == 0     { return true }
-    if std.string.rchar_cmp(trimmed, "unsigned") == 0           { return true }
-    if std.string.rchar_cmp(trimmed, "unsigned int") == 0       { return true }
-    if std.string.rchar_cmp(trimmed, "unsigned long") == 0      { return true }
-    if std.string.rchar_cmp(trimmed, "unsigned long long") == 0 { return true }
-    if std.string.rchar_cmp(trimmed, "float") == 0              { return true }
-    if std.string.rchar_cmp(trimmed, "double") == 0             { return true }
-    if std.string.rchar_cmp(trimmed, "_Bool") == 0              { return true }
-    if std.string.rchar_cmp(trimmed, "bool") == 0               { return true }
-    if std.string.rchar_cmp(trimmed, "size_t") == 0             { return true }
-    if std.string.rchar_cmp(trimmed, "ssize_t") == 0            { return true }
-    if std.string.rchar_cmp(trimmed, "int8_t") == 0             { return true }
-    if std.string.rchar_cmp(trimmed, "uint8_t") == 0            { return true }
-    if std.string.rchar_cmp(trimmed, "int16_t") == 0            { return true }
-    if std.string.rchar_cmp(trimmed, "uint16_t") == 0           { return true }
-    if std.string.rchar_cmp(trimmed, "int32_t") == 0            { return true }
-    if std.string.rchar_cmp(trimmed, "uint32_t") == 0           { return true }
-    if std.string.rchar_cmp(trimmed, "int64_t") == 0            { return true }
-    if std.string.rchar_cmp(trimmed, "uint64_t") == 0           { return true }
-    if std.string.rchar_cmp(trimmed, "intptr_t") == 0           { return true }
-    if std.string.rchar_cmp(trimmed, "uintptr_t") == 0          { return true }
-    if std.string.rchar_starts_with(trimmed, "struct ")         { return true }
-    if std.string.rchar_starts_with(trimmed, "enum ")           { return true }
-    if std.string.rchar_starts_with(trimmed, "union ")          { return true }
-    return list_contains(ctx.translated_type_names, trimmed)
+    val no_stars_sb: ref void = std.string.StringBuilder.new()
+    val len: i64 = std.string.len_raw(trimmed)
+    val i: mut i64 = 0
+    for {
+        if i >= len { break }
+        val c: u8 = trust @load8(@ptradd(trimmed as ref void, i)) as u8
+        if c != 42 {
+            std.string.StringBuilder.append_char(no_stars_sb, c)
+        }
+        i++
+    }
+    val no_stars_built: ref void = std.string.StringBuilder.build(no_stars_sb)
+    std.string.StringBuilder.free(no_stars_sb)
+    val base: ref char = trim_raw(std.string.cstr(no_stars_built))
+    if std.string.rchar_cmp(base, "void") == 0               { return true }
+    if std.string.rchar_cmp(base, "char") == 0               { return true }
+    if std.string.rchar_cmp(base, "short") == 0              { return true }
+    if std.string.rchar_cmp(base, "int") == 0                { return true }
+    if std.string.rchar_cmp(base, "long") == 0               { return true }
+    if std.string.rchar_cmp(base, "long long") == 0          { return true }
+    if std.string.rchar_cmp(base, "unsigned char") == 0      { return true }
+    if std.string.rchar_cmp(base, "unsigned short") == 0     { return true }
+    if std.string.rchar_cmp(base, "unsigned") == 0           { return true }
+    if std.string.rchar_cmp(base, "unsigned int") == 0       { return true }
+    if std.string.rchar_cmp(base, "unsigned long") == 0      { return true }
+    if std.string.rchar_cmp(base, "unsigned long long") == 0 { return true }
+    if std.string.rchar_cmp(base, "float") == 0              { return true }
+    if std.string.rchar_cmp(base, "double") == 0             { return true }
+    if std.string.rchar_cmp(base, "_Bool") == 0              { return true }
+    if std.string.rchar_cmp(base, "bool") == 0               { return true }
+    if std.string.rchar_cmp(base, "size_t") == 0             { return true }
+    if std.string.rchar_cmp(base, "ssize_t") == 0            { return true }
+    if std.string.rchar_cmp(base, "int8_t") == 0             { return true }
+    if std.string.rchar_cmp(base, "uint8_t") == 0            { return true }
+    if std.string.rchar_cmp(base, "int16_t") == 0            { return true }
+    if std.string.rchar_cmp(base, "uint16_t") == 0           { return true }
+    if std.string.rchar_cmp(base, "int32_t") == 0            { return true }
+    if std.string.rchar_cmp(base, "uint32_t") == 0           { return true }
+    if std.string.rchar_cmp(base, "int64_t") == 0            { return true }
+    if std.string.rchar_cmp(base, "uint64_t") == 0           { return true }
+    if std.string.rchar_cmp(base, "intptr_t") == 0           { return true }
+    if std.string.rchar_cmp(base, "uintptr_t") == 0          { return true }
+    if std.string.rchar_starts_with(base, "struct ")         { return true }
+    if std.string.rchar_starts_with(base, "enum ")           { return true }
+    if std.string.rchar_starts_with(base, "union ")          { return true }
+    return list_contains(ctx.translated_type_names, base)
 }
 
 fn is_ident_text(text: ref char) bool = {
