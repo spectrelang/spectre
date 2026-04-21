@@ -2266,6 +2266,10 @@ fn translate_body_statement(ctx: ref TranslationCtx, line: ref char, indent: i64
     if std.string.rchar_starts_with(stripped, "for (") {
         return false
     }
+    if contains_incdec_ops(stripped) {
+        append_line(out, indent, translate_expr_text(ctx, stripped))
+        return true
+    }
     if str_contains(stripped, "(")
         && !std.string.rchar_starts_with(stripped, "if")
         && !std.string.rchar_starts_with(stripped, "for")
