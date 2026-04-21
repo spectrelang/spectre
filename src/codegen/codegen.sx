@@ -1626,6 +1626,18 @@ fn infer_type_annotation(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
         return ""
     }
 
+    if k == parser.NK_DEREF {
+        val inner_expr: ref parser.Node = expr.d0 as ref parser.Node
+        val inner_ann: ref char = infer_type_annotation(ctx, inner_expr)
+        if rchar_starts_with(inner_ann, "mut ref ") {
+            return @ptradd(inner_ann, 8) as ref char
+        }
+        if rchar_starts_with(inner_ann, "ref ") {
+            return @ptradd(inner_ann, 4) as ref char
+        }
+        return inner_ann
+    }
+
     if k == parser.NK_TRY {
         val try_inner: ref parser.Node = expr.d0 as ref parser.Node
         if try_inner != 0 as ref parser.Node {
@@ -6173,6 +6185,10 @@ fn gen_stmt(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
 
     if k == parser.NK_INCREMENT {
         val target2: ref parser.Node = stmt.d0 as ref parser.Node
+        if target2.kind == parser.NK_DEREF {
+            gen_update_deref_value(ctx, target2, 1)
+            return
+        }
         if target2.kind == parser.NK_FIELD {
             val curv3: ref char = gen_expr(ctx, target2)
             val next_tmp3: i64 = fresh_tmp(ctx)
@@ -6234,6 +6250,10 @@ fn gen_stmt(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
 
     if k == parser.NK_DECREMENT {
         val target3: ref parser.Node = stmt.d0 as ref parser.Node
+        if target3.kind == parser.NK_DEREF {
+            gen_update_deref_value(ctx, target3, -1)
+            return
+        }
         if target3.kind == parser.NK_FIELD {
             val curv4: ref char = gen_expr(ctx, target3)
             val next_tmp4: i64 = fresh_tmp(ctx)
@@ -6379,6 +6399,31 @@ fn gen_stmt(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
         }
         return
     }
+}
+
+fn gen_update_deref_value(ctx: ref CgCtx, target: ref parser.Node, delta: i64) void! = {
+    val ptr_expr: ref parser.Node = target.d0 as ref parser.Node
+    val ptr: ref char = gen_expr(ctx, ptr_expr)
+    val deref_ann: ref char = infer_type_annotation(ctx, target)
+    val cur_tmp: i64 = fresh_tmp(ctx)
+    val next_tmp: i64 = fresh_tmp(ctx)
+    val buf: ref char = @alloc(256) as ref char
+    if is_word_type_name(deref_ann) {
+        val w_cur_tmp: i64 = fresh_tmp(ctx)
+        @snprintf(buf, 256, "    %%t{lld} =w loadw {s}\n    %%t{lld} =l extsw %%t{lld}\n    %%t{lld} =l add %%t{lld}, {lld}\n    storew %%t{lld}, {s}\n",
+            {w_cur_tmp, ptr, cur_tmp, w_cur_tmp, next_tmp, cur_tmp, delta, next_tmp, ptr})
+    } else {
+        val op: mut ref char = "+"
+        val amount: mut i64 = delta
+        if delta < 0 {
+            op = "-"
+            amount = 0 - delta
+        }
+        @snprintf(buf, 256, "    %%t{lld} =l loadl {s}\n    %%t{lld} =l {s} %%t{lld}, {lld}\n    storel %%t{lld}, {s}\n",
+            {cur_tmp, ptr, next_tmp, op, cur_tmp, amount, next_tmp, ptr})
+    }
+    emit(ctx, buf)
+    @free(buf)
 }
 
 fn block_ends_with_terminator(stmts: ref parser.Node) bool! = {
