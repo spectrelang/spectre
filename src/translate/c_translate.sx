@@ -722,9 +722,98 @@ fn extract_assignment_base(lhs: ref char) ref char = {
     return ""
 }
 
+fn find_top_level_else(text: ref char) i64 = {
+    val len: i64 = std.string.len_raw(text)
+    val paren: mut i64 = 0
+    val brace: mut i64 = 0
+    val bracket: mut i64 = 0
+    val in_string: mut bool = false
+    val in_char: mut bool = false
+    val escaped: mut bool = false
+    val i: mut i64 = 0
+    for {
+        if i >= len { break }
+        val c: u8 = trust @load8(@ptradd(text as ref void, i)) as u8
+        if in_string {
+            if escaped {
+                escaped = false
+            } elif c == 92 {
+                escaped = true
+            } elif c == 34 {
+                in_string = false
+            }
+            i++
+            continue
+        }
+        if in_char {
+            if escaped {
+                escaped = false
+            } elif c == 92 {
+                escaped = true
+            } elif c == 39 {
+                in_char = false
+            }
+            i++
+            continue
+        }
+        if c == 34 {
+            in_string = true
+            i++
+            continue
+        }
+        if c == 39 {
+            in_char = true
+            i++
+            continue
+        }
+        if c == 40 { paren++ }
+        elif c == 41 && paren > 0 { paren-- }
+        elif c == 123 { brace++ }
+        elif c == 125 && brace > 0 { brace-- }
+        elif c == 91 { bracket++ }
+        elif c == 93 && bracket > 0 { bracket-- }
+        elif paren == 0 && brace == 0 && bracket == 0 && i + 4 <= len {
+            val frag: ref char = std.string.substr(text, i, 4)
+            if std.string.rchar_cmp(frag, "else") == 0 {
+                val prev_ok: bool = i == 0 || !is_ident_part(trust @load8(@ptradd(text as ref void, i - 1)) as u8)
+                val next_ok: bool = i + 4 >= len || !is_ident_part(trust @load8(@ptradd(text as ref void, i + 4)) as u8)
+                if prev_ok && next_ok { return i }
+            }
+        }
+        i++
+    }
+    return -1
+}
+
 fn analyze_mutations_in_statement(ctx: ref TranslationCtx, line: ref char) void = {
     val stripped: ref char = strip_trailing_semicolon(trim_raw(line))
     if std.string.rchar_cmp(stripped, "") == 0 { return }
+    if std.string.rchar_starts_with(stripped, "else") {
+        val tail: ref char = trim_raw(std.string.substr(stripped, 4, std.string.len_raw(stripped) - 4))
+        if std.string.rchar_cmp(tail, "") != 0 {
+            analyze_mutations_in_statement(ctx, tail)
+        }
+        return
+    }
+    if std.string.rchar_starts_with(stripped, "if (") {
+        val open_i: i64 = find_char(stripped, 40)
+        val close_i: i64 = find_matching_delim(stripped, open_i, 40, 41)
+        if open_i >= 0 && close_i > open_i {
+            val tail: ref char = trim_raw(std.string.substr(stripped, close_i + 1, std.string.len_raw(stripped) - close_i - 1))
+            if std.string.rchar_cmp(tail, "") != 0 {
+                val else_i: i64 = find_top_level_else(tail)
+                if else_i >= 0 {
+                    val then_text: ref char = trim_raw(std.string.substr(tail, 0, else_i))
+                    val else_text: ref char = trim_raw(std.string.substr(tail, else_i + 4, std.string.len_raw(tail) - else_i - 4))
+                    if std.string.rchar_cmp(then_text, "") != 0 { analyze_mutations_in_statement(ctx, then_text) }
+                    if std.string.rchar_cmp(else_text, "") != 0 { analyze_mutations_in_statement(ctx, else_text) }
+                    return
+                }
+                analyze_mutations_in_statement(ctx, tail)
+                return
+            }
+        }
+    }
     val compound_i: i64 = find_top_level_compound_assign(stripped)
     if compound_i > 0 {
         mark_mutable_name(ctx, extract_assignment_base(std.string.substr(stripped, 0, compound_i)))
