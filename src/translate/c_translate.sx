@@ -1076,9 +1076,7 @@ fn parse_index_target(text: ref char) ref char = {
     val open_i: i64 = find_char(trimmed, 91)
     val close_i: i64 = find_last_char(trimmed, 93)
     if open_i <= 0 || close_i <= open_i { return "" }
-    val base: ref char = trim_raw(std.string.substr(trimmed, 0, open_i))
-    if !is_ident_text(base) { return "" }
-    return base
+    return trim_raw(std.string.substr(trimmed, 0, open_i))
 }
 
 fn parse_index_expr(text: ref char) ref char = {
@@ -1106,7 +1104,23 @@ fn replace_pointer_indexing(text: ref char) ref char = {
                 if !is_ident_part(cc) { break }
                 i++
             }
-            val ident: ref char = std.string.substr(trimmed, start, i - start)
+            val chain_end: mut i64 = i
+            for {
+                if chain_end >= len { break }
+                val dot: u8 = trust @load8(@ptradd(trimmed as ref void, chain_end)) as u8
+                if dot != 46 || chain_end + 1 >= len { break }
+                val next0: u8 = trust @load8(@ptradd(trimmed as ref void, chain_end + 1)) as u8
+                if !is_ident_start(next0) { break }
+                chain_end += 2
+                for {
+                    if chain_end >= len { break }
+                    val cc_chain: u8 = trust @load8(@ptradd(trimmed as ref void, chain_end)) as u8
+                    if !is_ident_part(cc_chain) { break }
+                    chain_end++
+                }
+            }
+            val ident: ref char = std.string.substr(trimmed, start, chain_end - start)
+            i = chain_end
             if i < len {
                 val next: u8 = trust @load8(@ptradd(trimmed as ref void, i)) as u8
                 if next == 91 {
@@ -1131,6 +1145,89 @@ fn replace_pointer_indexing(text: ref char) ref char = {
                 }
             }
             std.string.StringBuilder.append_cstr(sb, ident)
+            continue
+        }
+        std.string.StringBuilder.append_char(sb, c)
+        i++
+    }
+    val built: ref void = std.string.StringBuilder.build(sb)
+    std.string.StringBuilder.free(sb)
+    return std.string.cstr(built)
+}
+
+fn ensure_intrinsic_prefixes(text: ref char) ref char = {
+    val trimmed: ref char = trim_raw(text)
+    val len: i64 = std.string.len_raw(trimmed)
+    val names: list[ref char] = ["load", "store", "ptradd", "sizeof", "alloc", "free"]
+    val sb: ref void = std.string.StringBuilder.new()
+    val i: mut i64 = 0
+    for {
+        if i >= len { break }
+        val matched: mut bool = false
+        for name in names {
+            val nlen: i64 = std.string.len_raw(name)
+            if i + nlen + 1 > len { continue }
+            val frag: ref char = std.string.substr(trimmed, i, nlen)
+            if std.string.rchar_cmp(frag, name) != 0 { continue }
+            val prev_ok: bool = i == 0 || !is_ident_part(trust @load8(@ptradd(trimmed as ref void, i - 1)) as u8)
+            val nextc: u8 = trust @load8(@ptradd(trimmed as ref void, i + nlen)) as u8
+            val already_intrinsic: bool = i > 0 && (trust @load8(@ptradd(trimmed as ref void, i - 1)) as u8) == 64
+            if prev_ok && !already_intrinsic && nextc == 40 {
+                std.string.StringBuilder.append_char(sb, 64)
+                std.string.StringBuilder.append_cstr(sb, name)
+                i += nlen
+                matched = true
+                break
+            }
+        }
+        if matched { continue }
+        std.string.StringBuilder.append_char(sb, trust @load8(@ptradd(trimmed as ref void, i)) as u8)
+        i++
+    }
+    val built: ref void = std.string.StringBuilder.build(sb)
+    std.string.StringBuilder.free(sb)
+    return std.string.cstr(built)
+}
+
+fn normalize_intrinsic_prefixes(text: ref char) ref char = {
+    val trimmed: ref char = trim_raw(text)
+    val len: i64 = std.string.len_raw(trimmed)
+    val names: list[ref char] = ["load", "store", "ptradd", "sizeof", "alloc", "free"]
+    val sb: ref void = std.string.StringBuilder.new()
+    val i: mut i64 = 0
+    for {
+        if i >= len { break }
+        val c: u8 = trust @load8(@ptradd(trimmed as ref void, i)) as u8
+        if c == 64 {
+            val at_start: i64 = i
+            for {
+                if i < len && (trust @load8(@ptradd(trimmed as ref void, i)) as u8) == 64 {
+                    i++
+                    continue
+                }
+                break
+            }
+            val matched: mut bool = false
+            for name in names {
+                val nlen: i64 = std.string.len_raw(name)
+                if i + nlen > len { continue }
+                val frag: ref char = std.string.substr(trimmed, i, nlen)
+                if std.string.rchar_cmp(frag, name) != 0 { continue }
+                if i + nlen < len && (trust @load8(@ptradd(trimmed as ref void, i + nlen)) as u8) == 40 {
+                    std.string.StringBuilder.append_char(sb, 64)
+                    std.string.StringBuilder.append_cstr(sb, name)
+                    i += nlen
+                    matched = true
+                    break
+                }
+            }
+            if matched { continue }
+            val j: mut i64 = at_start
+            for {
+                if j >= i { break }
+                std.string.StringBuilder.append_char(sb, 64)
+                j++
+            }
             continue
         }
         std.string.StringBuilder.append_char(sb, c)
@@ -1390,10 +1487,17 @@ fn translate_printf_call(ctx: ref TranslationCtx, args: list[ref char]) ref char
 fn transform_call_expr(ctx: ref TranslationCtx, text: ref char) ref char = {
     val trimmed: ref char = trim_raw(text)
     val open_i: i64 = find_char(trimmed, 40)
-    val close_i: i64 = find_last_char(trimmed, 41)
+    val close_i: i64 = find_matching_delim(trimmed, open_i, 40, 41)
     if open_i <= 0 || close_i <= open_i { return trimmed }
     val call_name: ref char = extract_identifier_before(trimmed, open_i)
     if std.string.rchar_cmp(call_name, "") == 0 { return trimmed }
+    val call_start: i64 = open_i - std.string.len_raw(call_name)
+    if call_start < 0 { return trimmed }
+    val prefix_text: ref char = trim_raw(std.string.substr(trimmed, 0, call_start))
+    if !(std.string.rchar_cmp(prefix_text, "") == 0 || std.string.rchar_cmp(prefix_text, "@") == 0) {
+        return trimmed
+    }
+    if close_i != std.string.len_raw(trimmed) - 1 { return trimmed }
     val intrinsic_prefix: mut ref char = ""
     if std.string.rchar_starts_with(trimmed, "@") { intrinsic_prefix = "@" }
     val args_raw: ref char = trim_raw(std.string.substr(trimmed, open_i + 1, close_i - open_i - 1))
@@ -1891,14 +1995,16 @@ fn translate_expr_text(ctx: ref TranslationCtx, text: ref char) ref char = {
     val with_init: ref char = translate_designated_initializer(no_semicolon)
     val with_sizeof: ref char = translate_sizeof_expr(ctx, with_init)
     val with_arrow: ref char = replace_arrow_access(with_sizeof)
-    val with_addr_deref: ref char = translate_addr_deref_expr(ctx, with_arrow)
+    val with_rewritten: ref char = rewrite_identifiers(with_arrow)
+    val with_addr_deref: ref char = translate_addr_deref_expr(ctx, with_rewritten)
     val with_casts: ref char = translate_c_cast_expr(ctx, with_addr_deref)
-    val with_rewritten: ref char = rewrite_identifiers(with_casts)
-    val with_indexing: ref char = replace_pointer_indexing(with_rewritten)
-    if str_contains(with_indexing, "(") {
-        return transform_call_expr(ctx, with_indexing)
+    val with_indexing2: ref char = replace_pointer_indexing(with_casts)
+    val with_intrinsics: ref char = ensure_intrinsic_prefixes(with_indexing2)
+    val normalized_intrinsics: ref char = normalize_intrinsic_prefixes(with_intrinsics)
+    if str_contains(normalized_intrinsics, "(") {
+        return transform_call_expr(ctx, normalized_intrinsics)
     }
-    return with_indexing
+    return normalized_intrinsics
 }
 
 fn translate_condition_text(ctx: ref TranslationCtx, text: ref char) ref char = {
@@ -2001,7 +2107,7 @@ fn translate_body_statement(ctx: ref TranslationCtx, line: ref char, indent: i64
                     }
                 }
                 val call_name: ref char = extract_call_name(rhs_expr)
-                if std.string.rchar_cmp(call_name, "") != 0 {
+                if std.string.rchar_cmp(call_name, "") != 0 && !std.string.rchar_starts_with(rhs_expr, "@") {
                     push_unique(ctx.called_names, call_name)
                 }
                 append_line(out, indent, trust @fmt("val {s}: {s} = {s}", {decl.name, rendered_type, rhs_expr}))
@@ -2068,7 +2174,7 @@ fn translate_body_statement(ctx: ref TranslationCtx, line: ref char, indent: i64
         val lowered_expr: ref LoweredExpr = lower_incdec_expr(ctx, stripped, indent, out)
         val expr: ref char = lowered_expr.expr
         val call_name: ref char = extract_call_name(expr)
-        if std.string.rchar_cmp(call_name, "") != 0 {
+        if std.string.rchar_cmp(call_name, "") != 0 && !std.string.rchar_starts_with(expr, "@") {
             push_unique(ctx.called_names, call_name)
         }
         append_line(out, indent, expr)
@@ -2749,7 +2855,11 @@ fn translate_struct_decl(text: ref char, indent: i64, out: ref void) bool = {
             append_comment_line(out, indent + 1, trust @fmt("unsupported field declaration: {s};", {trimmed}))
             continue
         }
-        append_line(out, indent + 1, trust @fmt("{s}: {s}", {decl.name, render_mutable_type(decl.type_name)}))
+        val field_type: mut ref char = decl.type_name
+        if std.string.rchar_starts_with(field_type, "[]") {
+            field_type = trust @fmt("ref {s}", {@ptradd(field_type, 2)})
+        }
+        append_line(out, indent + 1, trust @fmt("{s}: {s}", {decl.name, render_mutable_type(field_type)}))
     }
     append_line(out, indent, "}")
     append_blank_line(out)
