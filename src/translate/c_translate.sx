@@ -855,7 +855,34 @@ fn emit_incdec_stmt(raw_name: ref char, op: ref char, indent: i64, out: ref void
     append_line(out, indent, trust @fmt("{s}{s}{s}", {name, op, op}))
 }
 
-fn lower_incdec_text(ctx: ref TranslationCtx, text: ref char, indent: i64, out: ref void) ref LoweredExpr = {
+fn normalize_simple_incdec_stmt(text: ref char) ref char = {
+    val trimmed: ref char = trim_raw(text)
+    val len: i64 = std.string.len_raw(trimmed)
+    if len < 3 { return "" }
+    val first: u8 = trust @load8(@ptradd(trimmed as ref void, 0)) as u8
+    val second: u8 = trust @load8(@ptradd(trimmed as ref void, 1)) as u8
+    if ((first == 43 && second == 43) || (first == 45 && second == 45)) {
+        val ident: ref char = trim_raw(std.string.substr(trimmed, 2, len - 2))
+        if is_ident_text(ident) {
+            val op: mut ref char = "+"
+            if first == 45 { op = "-" }
+            return trust @fmt("{s}{s}{s}", {rewrite_identifiers(ident), op, op})
+        }
+    }
+    val last2: u8 = trust @load8(@ptradd(trimmed as ref void, len - 2)) as u8
+    val last1: u8 = trust @load8(@ptradd(trimmed as ref void, len - 1)) as u8
+    if ((last2 == 43 && last1 == 43) || (last2 == 45 && last1 == 45)) {
+        val ident2: ref char = trim_raw(std.string.substr(trimmed, 0, len - 2))
+        if is_ident_text(ident2) {
+            val op2: mut ref char = "+"
+            if last2 == 45 { op2 = "-" }
+            return trust @fmt("{s}{s}{s}", {rewrite_identifiers(ident2), op2, op2})
+        }
+    }
+    return ""
+}
+
+fn lower_incdec_text(_: ref TranslationCtx, text: ref char, indent: i64, out: ref void) ref LoweredExpr = {
     val trimmed: ref char = strip_trailing_semicolon(text)
     val len: i64 = std.string.len_raw(trimmed)
     val sb: ref void = std.string.StringBuilder.new()
@@ -927,7 +954,8 @@ fn lower_incdec_text(ctx: ref TranslationCtx, text: ref char, indent: i64, out: 
                             j++
                         }
                         val ident: ref char = std.string.substr(trimmed, start_name, j - start_name)
-                        std.string.StringBuilder.append_cstr(sb, emit_incdec_temp(ctx, ident, op, true, indent, out))
+                        emit_incdec_stmt(ident, op, indent, out)
+                        std.string.StringBuilder.append_cstr(sb, rewrite_identifiers(ident))
                         changed = true
                         i = j
                         continue
@@ -1908,6 +1936,58 @@ fn translate_printf_call(ctx: ref TranslationCtx, args: list[ref char]) ref char
     return trust @fmt("@printf({s}, {s})", {fmt_expr, std.string.cstr(args_built)})
 }
 
+fn translate_variadic_args(ctx: ref TranslationCtx, args: list[ref char], start_index: i64) ref char = {
+    val sb: ref void = std.string.StringBuilder.new()
+    std.string.StringBuilder.append_char(sb, 123)
+    val first: mut bool = true
+    val idx: mut i64 = start_index
+    val len: i64 = @len(args) as i64
+    for {
+        if idx >= len { break }
+        val arg_opt = @get(args, idx as usize)
+        match arg_opt {
+            some arg_val => {
+                if !first { std.string.StringBuilder.append_cstr(sb, ", ") }
+                std.string.StringBuilder.append_cstr(sb, translate_expr_text(ctx, arg_val as ref char))
+                first = false
+            }
+            none => {}
+        }
+        idx++
+    }
+    std.string.StringBuilder.append_char(sb, 125)
+    val built: ref void = std.string.StringBuilder.build(sb)
+    std.string.StringBuilder.free(sb)
+    return std.string.cstr(built)
+}
+
+fn translate_stream_fd_expr(ctx: ref TranslationCtx, text: ref char) ref char = {
+    val trimmed: ref char = trim_raw(text)
+    if std.string.rchar_cmp(trimmed, "stdin") == 0 { return "0" }
+    if std.string.rchar_cmp(trimmed, "stdout") == 0 { return "1" }
+    if std.string.rchar_cmp(trimmed, "stderr") == 0 { return "2" }
+    return translate_expr_text(ctx, trimmed)
+}
+
+fn translate_fprintf_call(ctx: ref TranslationCtx, args: list[ref char]) ref char = {
+    val stream_opt = @get(args, 0)
+    val fmt_opt = @get(args, 1)
+    match stream_opt {
+        none => { return "/* unsupported fprintf */" }
+        some stream_val => {
+            match fmt_opt {
+                none => { return "/* unsupported fprintf */" }
+                some fmt_val => {
+                    val fd_expr: ref char = translate_stream_fd_expr(ctx, stream_val as ref char)
+                    val fmt_expr: ref char = translate_printf_format(translate_expr_text(ctx, fmt_val as ref char))
+                    val varargs: ref char = translate_variadic_args(ctx, args, 2)
+                    return trust @fmt("@dprintf({s}, {s}, {s})", {fd_expr, fmt_expr, varargs})
+                }
+            }
+        }
+    }
+}
+
 fn transform_call_expr(ctx: ref TranslationCtx, text: ref char) ref char = {
     val trimmed: ref char = trim_raw(text)
     val open_i: i64 = find_char(trimmed, 40)
@@ -1928,6 +2008,9 @@ fn transform_call_expr(ctx: ref TranslationCtx, text: ref char) ref char = {
     val args = split_top_level(args_raw, 44)
     if std.string.rchar_cmp(call_name, "printf") == 0 {
         return translate_printf_call(ctx, args)
+    }
+    if std.string.rchar_cmp(call_name, "fprintf") == 0 {
+        return translate_fprintf_call(ctx, args)
     }
     val sb: ref void = std.string.StringBuilder.new()
     val first: mut bool = true
@@ -2942,6 +3025,11 @@ fn translate_body_statement(ctx: ref TranslationCtx, line: ref char, indent: i64
         }
         return true
     }
+    val simple_incdec_stmt: ref char = normalize_simple_incdec_stmt(stripped)
+    if std.string.rchar_cmp(simple_incdec_stmt, "") != 0 {
+        append_line(out, indent, simple_incdec_stmt)
+        return true
+    }
     val compound_i: i64 = find_top_level_compound_assign(stripped)
     if compound_i > 0 {
         val lhs: ref char = trim_raw(std.string.substr(stripped, 0, compound_i))
@@ -3147,7 +3235,6 @@ fn append_open_block_line(sb: ref void, indent: i64, prefix: ref char) void = {
 
 fn emit_known_extern(name: ref char, out: ref void) bool = {
     if std.string.rchar_cmp(name, "fprintf") == 0 {
-        append_line(out, 0, "extern (C) fn fprintf(stream: ref void, fmt: ref char, ...) i32! = \"fprintf\"")
         return true
     }
     if std.string.rchar_cmp(name, "sprintf") == 0 {
