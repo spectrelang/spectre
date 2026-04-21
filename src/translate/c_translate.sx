@@ -821,35 +821,6 @@ fn analyze_mutations_in_statement(ctx: ref TranslationCtx, line: ref char) void 
     }
 }
 
-fn fresh_temp_name(ctx: mut ref TranslationCtx) ref char = {
-    val temp_name: ref char = trust @fmt("t{d}", {ctx.temp_counter})
-    ctx.temp_counter = ctx.temp_counter + 1
-    return temp_name
-}
-
-fn lookup_local_type_or_default(ctx: ref TranslationCtx, name: ref char) ref char = {
-    match lookup_local_type(ctx, name) {
-        some type_name => { return type_name as ref char }
-        none => {}
-    }
-    return "i32"
-}
-
-fn emit_incdec_temp(ctx: ref TranslationCtx, raw_name: ref char, op: ref char, is_prefix: bool, indent: i64, out: ref void) ref char = {
-    val name: ref char = rewrite_identifiers(raw_name)
-    val temp_name: ref char = fresh_temp_name(ctx)
-    val temp_type: ref char = lookup_local_type_or_default(ctx, name)
-    remember_local_type(ctx, temp_name, temp_type)
-    if is_prefix {
-        append_line(out, indent, trust @fmt("{s} {s}= 1", {name, op}))
-        append_line(out, indent, trust @fmt("val {s}: {s} = {s}", {temp_name, temp_type, name}))
-    } else {
-        append_line(out, indent, trust @fmt("val {s}: {s} = {s}", {temp_name, temp_type, name}))
-        append_line(out, indent, trust @fmt("{s} {s}= 1", {name, op}))
-    }
-    return temp_name
-}
-
 fn emit_incdec_stmt(raw_name: ref char, op: ref char, indent: i64, out: ref void) void = {
     val name: ref char = rewrite_identifiers(raw_name)
     append_line(out, indent, trust @fmt("{s}{s}{s}", {name, op, op}))
@@ -1367,6 +1338,43 @@ fn is_probable_c_type(text: ref char) bool = {
     return saw_ident
 }
 
+fn is_known_c_type_name(ctx: ref TranslationCtx, text: ref char) bool = {
+    val trimmed: ref char = trim_raw(text)
+    if std.string.rchar_cmp(trimmed, "") == 0 { return false }
+    if std.string.rchar_cmp(trimmed, "void") == 0               { return true }
+    if std.string.rchar_cmp(trimmed, "char") == 0               { return true }
+    if std.string.rchar_cmp(trimmed, "short") == 0              { return true }
+    if std.string.rchar_cmp(trimmed, "int") == 0                { return true }
+    if std.string.rchar_cmp(trimmed, "long") == 0               { return true }
+    if std.string.rchar_cmp(trimmed, "long long") == 0          { return true }
+    if std.string.rchar_cmp(trimmed, "unsigned char") == 0      { return true }
+    if std.string.rchar_cmp(trimmed, "unsigned short") == 0     { return true }
+    if std.string.rchar_cmp(trimmed, "unsigned") == 0           { return true }
+    if std.string.rchar_cmp(trimmed, "unsigned int") == 0       { return true }
+    if std.string.rchar_cmp(trimmed, "unsigned long") == 0      { return true }
+    if std.string.rchar_cmp(trimmed, "unsigned long long") == 0 { return true }
+    if std.string.rchar_cmp(trimmed, "float") == 0              { return true }
+    if std.string.rchar_cmp(trimmed, "double") == 0             { return true }
+    if std.string.rchar_cmp(trimmed, "_Bool") == 0              { return true }
+    if std.string.rchar_cmp(trimmed, "bool") == 0               { return true }
+    if std.string.rchar_cmp(trimmed, "size_t") == 0             { return true }
+    if std.string.rchar_cmp(trimmed, "ssize_t") == 0            { return true }
+    if std.string.rchar_cmp(trimmed, "int8_t") == 0             { return true }
+    if std.string.rchar_cmp(trimmed, "uint8_t") == 0            { return true }
+    if std.string.rchar_cmp(trimmed, "int16_t") == 0            { return true }
+    if std.string.rchar_cmp(trimmed, "uint16_t") == 0           { return true }
+    if std.string.rchar_cmp(trimmed, "int32_t") == 0            { return true }
+    if std.string.rchar_cmp(trimmed, "uint32_t") == 0           { return true }
+    if std.string.rchar_cmp(trimmed, "int64_t") == 0            { return true }
+    if std.string.rchar_cmp(trimmed, "uint64_t") == 0           { return true }
+    if std.string.rchar_cmp(trimmed, "intptr_t") == 0           { return true }
+    if std.string.rchar_cmp(trimmed, "uintptr_t") == 0          { return true }
+    if std.string.rchar_starts_with(trimmed, "struct ")         { return true }
+    if std.string.rchar_starts_with(trimmed, "enum ")           { return true }
+    if std.string.rchar_starts_with(trimmed, "union ")          { return true }
+    return list_contains(ctx.translated_type_names, trimmed)
+}
+
 fn is_ident_text(text: ref char) bool = {
     val trimmed: ref char = trim_raw(text)
     val len: i64 = std.string.len_raw(trimmed)
@@ -1399,7 +1407,32 @@ fn parse_index_expr(text: ref char) ref char = {
     return trim_raw(std.string.substr(trimmed, open_i + 1, close_i - open_i - 1))
 }
 
-fn replace_pointer_indexing(text: ref char) ref char = {
+fn lookup_index_element_type(ctx: ref TranslationCtx, base: ref char) ref char = {
+    if !is_ident_text(base) { return "" }
+    match lookup_local_type(ctx, base) {
+        some type_name => {
+            val t: ref char = trim_raw(type_name as ref char)
+            if std.string.rchar_starts_with(t, "ref ") {
+                return trim_raw(std.string.substr(t, 4, std.string.len_raw(t) - 4))
+            }
+            if is_array_type_name(t) {
+                return decay_array_type(t)
+            }
+        }
+        none => {}
+    }
+    return ""
+}
+
+fn render_index_ptr_expr(ctx: ref TranslationCtx, base: ref char, index_expr: ref char) ref char = {
+    val elem_type: ref char = lookup_index_element_type(ctx, base)
+    if std.string.rchar_cmp(elem_type, "") == 0 {
+        return trust @fmt("@ptradd({s}, {s})", {base, index_expr})
+    }
+    return trust @fmt("@ptradd({s}, ({s}) * @sizeof({s}))", {base, index_expr, elem_type})
+}
+
+fn replace_pointer_indexing(ctx: ref TranslationCtx, text: ref char) ref char = {
     val trimmed: ref char = trim_raw(text)
     val len: i64 = std.string.len_raw(trimmed)
     val sb: ref void = std.string.StringBuilder.new()
@@ -1450,7 +1483,8 @@ fn replace_pointer_indexing(text: ref char) ref char = {
                     }
                     if close_i < len {
                         val inner: ref char = trim_raw(std.string.substr(trimmed, i + 1, close_i - i - 1))
-                        std.string.StringBuilder.append_cstr(sb, trust @fmt("@load(@ptradd({s}, {s}))", {ident, inner}))
+                        val index_ptr: ref char = render_index_ptr_expr(ctx, ident, inner)
+                        std.string.StringBuilder.append_cstr(sb, trust @fmt("@load({s})", {index_ptr}))
                         i = close_i + 1
                         continue
                     }
@@ -2158,19 +2192,6 @@ fn collect_brace_block(lines: list[ref char], start: i64) ref BlockResult = {
     return make_block_result(i, STOP_EOF, "")
 }
 
-fn translate_for_init(text: ref char) ref char = {
-    val trimmed: ref char = trim_raw(text)
-    val assign_i: i64 = find_top_level_assign(trimmed)
-    if assign_i <= 0 { return trimmed }
-    val lhs: ref char = trim_raw(std.string.substr(trimmed, 0, assign_i))
-    val rhs: ref char = trim_raw(std.string.substr(trimmed, assign_i + 1, std.string.len_raw(trimmed) - assign_i - 1))
-    val decl: ref DeclInfo = parse_named_decl(lhs, "")
-    if decl.its_ok && std.string.rchar_cmp(decl.name, "") != 0 && std.string.rchar_cmp(trim_raw(decl.type_src), "") != 0 {
-        return trust @fmt("{s} = {s}", {decl.name, rhs})
-    }
-    return trimmed
-}
-
 fn translate_for_loop(lines: list[ref char], current_dir: ref char, start: i64, indent: i64, out: ref void, ctx: ref TranslationCtx) ref BlockResult = {
     val line_opt = @get(lines, start as usize)
     match line_opt {
@@ -2860,6 +2881,7 @@ fn translate_c_cast_expr(ctx: ref TranslationCtx, text: ref char) ref char = {
     if close_i <= 0 { return trimmed }
     val inner: ref char = trim_raw(std.string.substr(trimmed, 1, close_i - 1))
     if !is_probable_c_type(inner) { return trimmed }
+    if !is_known_c_type_name(ctx, normalize_type_phrase(inner)) { return trimmed }
     val len: i64 = std.string.len_raw(trimmed)
     val rest: ref char = trim_raw(std.string.substr(trimmed, close_i + 1, len - close_i - 1))
     if std.string.rchar_cmp(rest, "") == 0 { return trimmed }
@@ -2936,9 +2958,10 @@ fn emit_condition_assignment(ctx: ref TranslationCtx, lhs: ref char, rhs: ref ch
     val index_target: ref char = parse_index_target(lhs_rewritten)
     if std.string.rchar_cmp(index_target, "") != 0 {
         val index_expr: ref char = parse_index_expr(lhs_rewritten)
+        val index_ptr: ref char = render_index_ptr_expr(ctx, index_target, index_expr)
         track_called_expr(ctx, rhs_expr)
-        append_line(out, indent, trust @fmt("@store(@ptradd({s}, {s}), {s})", {index_target, index_expr, rhs_expr}))
-        return trust @fmt("@load(@ptradd({s}, {s}))", {index_target, index_expr})
+        append_line(out, indent, trust @fmt("@store({s}, {s})", {index_ptr, rhs_expr}))
+        return trust @fmt("@load({s})", {index_ptr})
     }
     track_called_expr(ctx, rhs_expr)
     append_line(out, indent, trust @fmt("{s} = {s}", {lhs_rewritten, rhs_expr}))
@@ -2977,7 +3000,7 @@ fn translate_expr_text(ctx: ref TranslationCtx, text: ref char) ref char = {
     val with_rewritten: ref char = rewrite_identifiers(with_qualified_enums)
     val with_addr_deref: ref char = translate_addr_deref_expr(ctx, with_rewritten)
     val with_casts: ref char = translate_c_cast_expr(ctx, with_addr_deref)
-    val with_indexing2: ref char = replace_pointer_indexing(with_casts)
+    val with_indexing2: ref char = replace_pointer_indexing(ctx, with_casts)
     val with_intrinsics: ref char = ensure_intrinsic_prefixes(with_indexing2)
     val normalized_intrinsics: ref char = normalize_intrinsic_prefixes(with_intrinsics)
     if str_contains(normalized_intrinsics, "(") {
@@ -3151,6 +3174,7 @@ fn translate_body_statement(ctx: ref TranslationCtx, line: ref char, indent: i64
         val index_target: ref char = parse_index_target(lhs_rewritten)
         if std.string.rchar_cmp(index_target, "") != 0 {
             val index_expr: ref char = parse_index_expr(lhs_rewritten)
+            val index_ptr: ref char = render_index_ptr_expr(ctx, index_target, index_expr)
             val has_incdec_rhs2: bool = contains_incdec_ops(rhs)
             if has_incdec_rhs2 {
                 append_blank_line(out)
@@ -3159,7 +3183,7 @@ fn translate_body_statement(ctx: ref TranslationCtx, line: ref char, indent: i64
             val lowered_rhs2: ref LoweredExpr = lower_incdec_expr(ctx, rhs, indent, out)
             val rhs_expr2: ref char = lowered_rhs2.expr
             track_called_expr(ctx, rhs_expr2)
-            append_line(out, indent, trust @fmt("@store(@ptradd({s}, {s}), {s})", {index_target, index_expr, rhs_expr2}))
+            append_line(out, indent, trust @fmt("@store({s}, {s})", {index_ptr, rhs_expr2}))
             if lowered_rhs2.changed { append_blank_line(out) }
             return true
         }

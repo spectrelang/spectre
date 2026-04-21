@@ -11,6 +11,7 @@ pub type CgCtx = {
     tmp: mut i64
     lbl: mut i64
     fn_name: mut ref char
+    current_fn_ret_qtype: mut ref char
     current_fn_ret_union: mut ref char
     strs: mut list[ref char]
     str_cnt: mut i64
@@ -63,6 +64,7 @@ fn cg_new() ref CgCtx! = {
     ctx.tmp = 0
     ctx.lbl = 0
     ctx.fn_name = 0 as ref char
+    ctx.current_fn_ret_qtype = "l"
     ctx.current_fn_ret_union = ""
     ctx.strs = []
     ctx.str_cnt = 0
@@ -5965,7 +5967,30 @@ fn gen_stmt(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
             cg_emit_defers(ctx)
             emitln(ctx, "    ret 0")
         } else {
-            val rv: ref char = gen_expr(ctx, expr2)
+            val rv0: ref char = gen_expr(ctx, expr2)
+            val rv_qt: ref char = expr_qbe_type(ctx, expr2)
+            val rv: mut ref char = rv0
+            if str.rchar_cmp(rv_qt, ctx.current_fn_ret_qtype) != 0 {
+                if str.rchar_cmp(rv_qt, "w") == 0 && str.rchar_cmp(ctx.current_fn_ret_qtype, "l") == 0 {
+                    val ann: ref char = infer_type_annotation(ctx, expr2)
+                    val instr: mut ref char = "extsw"
+                    if str.rchar_cmp(ann, "u8") == 0
+                    || str.rchar_cmp(ann, "u16") == 0
+                    || str.rchar_cmp(ann, "u32") == 0
+                    || str.rchar_cmp(ann, "bool") == 0
+                    || str.rchar_cmp(ann, "char") == 0 {
+                        instr = "extuw"
+                    }
+                    val promoted_tmp: i64 = fresh_tmp(ctx)
+                    val promoted_buf: ref char = @alloc(128) as ref char
+                    @snprintf(promoted_buf, 128, "    %%t{lld} =l {s} {s}\n", {promoted_tmp, instr, rv})
+                    emit(ctx, promoted_buf)
+                    @free(promoted_buf)
+                    val promoted_val: ref char = @alloc(16) as ref char
+                    @snprintf(promoted_val, 16, "%%t{lld}", {promoted_tmp})
+                    rv = promoted_val
+                }
+            }
             cg_emit_invariant_checks(ctx)
             cg_emit_defers(ctx)
             
@@ -7426,6 +7451,7 @@ fn gen_fn_prefixed(ctx: mut ref CgCtx, fn_node: ref parser.Node, mod_prefix: ref
     } else {
         ctx.current_fn_ret_union = ""
     }
+    ctx.current_fn_ret_qtype = ret_qt
 
     cg_dvars_clear(ctx)
     ctx.inv_cur_pnames = []
@@ -7569,6 +7595,8 @@ fn gen_fn_prefixed(ctx: mut ref CgCtx, fn_node: ref parser.Node, mod_prefix: ref
         cg_emit_defers(ctx)
         emitln(ctx, "    ret 0")
     }
+    ctx.current_fn_ret_qtype = "l"
+    ctx.current_fn_ret_union = ""
     emitln(ctx, "}")
     emitln(ctx, "")
 }
