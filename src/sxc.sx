@@ -3,19 +3,20 @@
 /// GPL-3.0-only 
 /// (C) Navid Momtahen - 2026
 
-val std         = use("std")
-val allocators  = use("std/allocators")
-val path        = use("std/path")
-val reflection  = use("std/reflection")
-val lexer       = use("ast/lexer.sx")
-val parser      = use("ast/parser.sx")
-val ast_printer = use("ast/ast_printer.sx")
-val sema        = use("sema/sema.sx")
-val codegen     = use("codegen/codegen.sx")
-val module      = use("module/module.sx")
-val meta        = use("meta/meta.sx")
-val commands    = use("meta/commands.sx")
-val c_translate = use("translate/c_translate.sx")
+val std          = use("std")
+val allocators   = use("std/allocators")
+val path         = use("std/path")
+val reflection   = use("std/reflection")
+val lexer        = use("ast/lexer.sx")
+val parser       = use("ast/parser.sx")
+val ast_printer  = use("ast/ast_printer.sx")
+val sema         = use("sema/sema.sx")
+val codegen      = use("codegen/codegen.sx")
+val llvm_codegen = use("codegen/llvm_codegen.sx")
+val module       = use("module/module.sx")
+val meta         = use("meta/meta.sx")
+val commands     = use("meta/commands.sx")
+val c_translate  = use("translate/c_translate.sx")
 
 pub fn main() i32! = {
     val arena = allocators.Arena.new(65536)?
@@ -169,6 +170,7 @@ pub fn main() i32! = {
     val compile_obj: mut bool = false
     val syntax_check: mut bool = false
     val print_ast: mut bool = false
+    val use_llvm: mut bool = false
     val translate_c_flag: mut bool = flag_first_translate_c
     val arg_i: mut i64 = 2
 
@@ -235,6 +237,9 @@ pub fn main() i32! = {
                     arg_i++
                 } elif std.string.rchar_cmp(arg, "--ast") == 0 {
                     print_ast = true
+                    arg_i++
+                } elif std.string.rchar_cmp(arg, "--llvm") == 0 {
+                    use_llvm = true
                     arg_i++
                 } else {
                     arg_i++
@@ -310,6 +315,95 @@ pub fn main() i32! = {
         std.stdio.puts("[III]│ CG pass")
     }
 
+    // ── LLVM backend path ──────────────────────────────────────────────────
+    if use_llvm {
+        val ll_ir: ref char = llvm_codegen.gen_module_resolved(root_mod, release_mode)
+
+        if emit_qbe != 0 {
+            std.stdio.puts(ll_ir)
+            allocators.Arena.free(arena)
+            return 0
+        }
+
+        val binary_name_ll: mut ref char = ""
+        if std.string.rchar_cmp(output_name, "") == 0 {
+            binary_name_ll = path.get_name_without_ext(arena, input)
+        } else {
+            binary_name_ll = output_name
+        }
+
+        val ll_file = "/tmp/spectre_output.ll"
+        val ll_f = std.os.open(ll_file, "w")
+        match ll_f {
+            some f => {
+                std.os.write(f, ll_ir as ref void, std.string.len_raw(ll_ir) as i64)
+                std.os.close(f)
+            }
+            none => {
+                std.stdio.puts("\nerror: could not write LLVM IR")
+                allocators.Arena.free(arena)
+                return 1
+            }
+        }
+
+        val output_specified_ll: bool = std.string.rchar_cmp(output_name, "") != 0
+        val final_output_ll: mut ref char = ""
+        if output_specified_ll != 0 {
+            final_output_ll = binary_name_ll
+        } else {
+            std.os.exec("mkdir -p ./s-out")
+            final_output_ll = @fmt("./s-out/{s}", {binary_name_ll})
+        }
+
+        val links_ll: list[ref char] = module.collect_used_links(root_mod, exe_dir)
+        val link_flags_ll: mut ref char = ""
+        for lib in links_ll {
+            link_flags_ll = @fmt("{s} {s}", {link_flags_ll, lib})
+        }
+
+        val cc_flags_ll: mut ref char = ""
+        if !release_mode { cc_flags_ll = "-g" }
+
+        val clang_cmd: mut ref char = ""
+        if std.string.rchar_cmp(cc_flags_ll, "") == 0 {
+            clang_cmd = @fmt("clang -o {s} {s}{s} -Wno-override-module 2>&1", {final_output_ll, ll_file, link_flags_ll})
+        } else {
+            clang_cmd = @fmt("clang {s} -o {s} {s}{s} -Wno-override-module 2>&1", {cc_flags_ll, final_output_ll, ll_file, link_flags_ll})
+        }
+
+        if show_cmd != 0 {
+            std.stdio.print("{s}\n", {clang_cmd})
+        }
+
+        val clang_res = std.os.exec(clang_cmd)
+        match clang_res {
+            ok v => {
+                if std.string.contains(v, std.string.from("error")) {
+                    std.stdio.print("{s}\n", {std.string.cstr(v)})
+                    std.stdio.puts("clang linking failed.")
+                    std.os.delete(ll_file)
+                    allocators.Arena.free(arena)
+                    return 1
+                } else {
+                    if !quiet {
+                        std.stdio.print("Compiled (LLVM): {s}\n", {final_output_ll})
+                    }
+                }
+            }
+            err _ => {
+                std.stdio.puts("\nerror: clang compilation failed")
+                std.os.delete(ll_file)
+                allocators.Arena.free(arena)
+                return 1
+            }
+        }
+
+        std.os.delete(ll_file)
+        allocators.Arena.free(arena)
+        return 0
+    }
+
+    // ── QBE backend path (default) ──────────────────────────────────────────
     val qbe_ir: mut ref char = ""
 
     if test_mode {
