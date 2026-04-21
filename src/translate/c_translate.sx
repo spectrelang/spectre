@@ -262,6 +262,32 @@ fn flatten_ws(text: ref char) ref char = {
     return trim_raw(std.string.cstr(built))
 }
 
+fn starts_keyword_paren(text: ref char, keyword: ref char) bool = {
+    val trimmed: ref char = trim_raw(text)
+    val kw_len: i64 = std.string.len_raw(keyword)
+    val len: i64 = std.string.len_raw(trimmed)
+    if len <= kw_len { return false }
+    if !std.string.rchar_starts_with(trimmed, keyword) { return false }
+    val i: mut i64 = kw_len
+    for {
+        if i >= len { break }
+        val c: u8 = trust @load8(@ptradd(trimmed as ref void, i)) as u8
+        if !is_space(c) { break }
+        i++
+    }
+    if i >= len { return false }
+    return (trust @load8(@ptradd(trimmed as ref void, i)) as u8) == 40
+}
+
+fn starts_do_statement(text: ref char) bool = {
+    val trimmed: ref char = trim_raw(text)
+    if !std.string.rchar_starts_with(trimmed, "do") { return false }
+    val len: i64 = std.string.len_raw(trimmed)
+    if len == 2 { return true }
+    val next: u8 = trust @load8(@ptradd(trimmed as ref void, 2)) as u8
+    return is_space(next) || next == 123
+}
+
 fn split_lines(text: ref char) list[ref char] = {
     val lines: mut list[ref char] = []
     val len: i64 = std.string.len_raw(text)
@@ -923,7 +949,7 @@ fn analyze_mutations_in_statement(ctx: ref TranslationCtx, line: ref char) void 
         }
         return
     }
-    if std.string.rchar_starts_with(stripped, "if (") {
+    if starts_keyword_paren(stripped, "if") {
         val open_i: i64 = find_char(stripped, 40)
         val close_i: i64 = find_matching_delim(stripped, open_i, 40, 41)
         if open_i >= 0 && close_i > open_i {
@@ -2784,7 +2810,7 @@ fn translate_if_text(lines: list[ref char], current_dir: ref char, line_index: i
                 if std.string.rchar_starts_with(else_trimmed, "else") {
                     val else_tail: ref char = trim_raw(std.string.substr(else_trimmed, 4, std.string.len_raw(else_trimmed) - 4))
                     append_line(out, indent, "} else {")
-                    if std.string.rchar_starts_with(else_tail, "if (") {
+                    if starts_keyword_paren(else_tail, "if") {
                         val nested_result: ref BlockResult = translate_if_text(lines, current_dir, else_i, else_tail, indent + 1, out, ctx)
                         append_line(out, indent, "}")
                         return make_block_result(nested_result.next_index, STOP_EOF, "")
@@ -2991,7 +3017,7 @@ fn translate_do_while_loop(lines: list[ref char], start: i64, indent: i64, out: 
             }
             val while_line: mut ref char = trim_raw(std.string.substr(body_full, close_b + 1, std.string.len_raw(body_full) - close_b - 1))
             val next_i: mut i64 = body_span.next_index
-            if !std.string.rchar_starts_with(while_line, "while (") {
+            if !starts_keyword_paren(while_line, "while") {
                 val while_i: i64 = next_significant_line(lines, body_span.next_index)
                 if while_i < 0 {
                     append_comment_line(out, indent, line)
@@ -3035,19 +3061,19 @@ fn translate_statement_at(lines: list[ref char], current_dir: ref char, start: i
         none => { return make_block_result(start + 1, STOP_EOF, "") }
         some line_val => {
             val trimmed: ref char = trim_raw(line_val as ref char)
-            if std.string.rchar_starts_with(trimmed, "for (") {
+            if starts_keyword_paren(trimmed, "for") {
                 return translate_for_loop(lines, current_dir, start, indent, out, ctx)
             }
-            if std.string.rchar_starts_with(trimmed, "while (") {
+            if starts_keyword_paren(trimmed, "while") {
                 return translate_while_loop(lines, current_dir, start, indent, out, ctx)
             }
-            if std.string.rchar_starts_with(trimmed, "if (") {
+            if starts_keyword_paren(trimmed, "if") {
                 return translate_if_statement(lines, current_dir, start, indent, out, ctx)
             }
-            if std.string.rchar_starts_with(trimmed, "switch (") {
+            if starts_keyword_paren(trimmed, "switch") {
                 return translate_switch_statement(lines, start, indent, out, ctx)
             }
-            if std.string.rchar_starts_with(trimmed, "do") {
+            if starts_do_statement(trimmed) {
                 return translate_do_while_loop(lines, start, indent, out, ctx)
             }
             if translate_body_statement(ctx, trimmed, indent, out) {
@@ -3634,11 +3660,11 @@ fn translate_body_statement(ctx: ref TranslationCtx, line: ref char, indent: i64
                 return true
             }
             remember_local_type(ctx, decl2.name, decl2.type_name)
-            append_line(out, indent, trust @fmt("val {s}: {s} = {s}", {decl2.name, render_binding_type(ctx, decl2.name, decl2.type_name), zero_init_expr(decl2.type_name)}))
+            append_line(out, indent, trust @fmt("val {s}: {s}", {decl2.name, render_binding_type(ctx, decl2.name, decl2.type_name)}))
             return true
         }
     }
-    if std.string.rchar_starts_with(stripped, "for (") {
+    if starts_keyword_paren(stripped, "for") {
         return false
     }
     if contains_incdec_ops(stripped) {
