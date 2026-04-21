@@ -38,6 +38,7 @@ pub type LLCtx = {
     lnames: mut list[ref char]
     lptrs: mut list[ref char]
     ltypes: mut list[ref void]
+    current_is_main: mut bool
 }
 
 fn ll_new() ref LLCtx! = {
@@ -71,6 +72,7 @@ fn ll_new() ref LLCtx! = {
     ctx.lnames = []
     ctx.lptrs = []
     ctx.ltypes = []
+    ctx.current_is_main = false
     return ctx
 }
 
@@ -1502,11 +1504,20 @@ fn gen_stmt(ctx: ref LLCtx, stmt: ref parser.Node) void! = {
     if k == parser.NK_RETURN {
         val expr: ref parser.Node = stmt.d0 as ref parser.Node
         if expr == 0 as ref parser.Node {
-            emitln(ctx, "  ret i32 0")
+            if ctx.current_is_main {
+                emitln(ctx, "  ret i32 0")
+            } else {
+                emitln(ctx, "  ret i64 0")
+            }
         } else {
-            // val rv: ref char = gen_expr(ctx, expr)
+            val rv: ref char = gen_expr(ctx, expr)
             val buf: ref char = @alloc(128) as ref char
-            @snprintf(buf, 128, "  ret i32 0\n", {})
+            if ctx.current_is_main {
+                val tr: i64 = fresh_tmp(ctx)
+                @snprintf(buf, 128, "  %%t{lld} = trunc i64 {s} to i32\n  ret i32 %%t{lld}\n", {tr, rv, tr})
+            } else {
+                @snprintf(buf, 128, "  ret i64 {s}\n", {rv})
+            }
             emit(ctx, buf)
             @free(buf)
         }
@@ -1657,6 +1668,7 @@ fn gen_fn_prefixed(ctx: mut ref LLCtx, fn_node: ref parser.Node, mod_prefix: ref
     val is_main: bool = str.rchar_cmp(name, "main") == 0 && str.rchar_cmp(mod_prefix, "") == 0
 
     ctx.tmp = 0
+    ctx.current_is_main = is_main
     ll_clear_locals(ctx)
 
     if is_main {
