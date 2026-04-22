@@ -35,6 +35,8 @@ pub type LLCtx = {
     mc_vals: mut list[ref char]
     unames: mut list[ref char]
     uvariants: mut list[ref void]
+    break_lbl: mut i64
+    cont_lbl: mut i64
     defer_stack: mut list[ref void]
     lnames: mut list[ref char]
     lptrs: mut list[ref char]
@@ -71,6 +73,8 @@ fn ll_new() ref LLCtx! = {
     ctx.mc_vals = []
     ctx.unames = []
     ctx.uvariants = []
+    ctx.break_lbl = -1
+    ctx.cont_lbl = -1
     ctx.defer_stack = []
     ctx.lnames = []
     ctx.lptrs = []
@@ -85,6 +89,11 @@ fn ll_clear_locals(ctx: mut ref LLCtx) void! = {
     ctx.lptrs = []
     ctx.ltypes = []
 }
+
+fn ll_break_lbl(ctx: ref LLCtx) i64! = { return ctx.break_lbl }
+fn ll_cont_lbl(ctx: ref LLCtx) i64! = { return ctx.cont_lbl }
+fn ll_set_break_lbl(ctx: mut ref LLCtx, v: i64) void! = { ctx.break_lbl = v }
+fn ll_set_cont_lbl(ctx: mut ref LLCtx, v: i64) void! = { ctx.cont_lbl = v }
 
 fn ll_defer_push(ctx: ref LLCtx, body: ref void) void! = {
     @append(ctx.defer_stack, body)
@@ -1988,6 +1997,20 @@ fn gen_stmts(ctx: ref LLCtx, stmts: ref parser.Node) void! = {
     }
 }
 
+fn ll_block_ends_with_terminator(stmts: ref parser.Node) bool! = {
+    if stmts == 0 as ref parser.Node { return false }
+    val blen: i64 = @len(stmts) as i64
+    if blen <= 0 { return false }
+    val last_opt = @get(stmts, (blen - 1) as usize)
+    match last_opt {
+        some last => {
+            val k: i64 = (last as ref parser.Node).kind
+            return k == parser.NK_RETURN || k == parser.NK_BREAK || k == parser.NK_CONTINUE
+        }
+        none => { return false }
+    }
+}
+
 fn gen_stmt(ctx: ref LLCtx, stmt: ref parser.Node) void! = {
     if stmt == 0 as ref parser.Node { return }
     val k: i64 = stmt.kind
@@ -2173,10 +2196,24 @@ fn gen_stmt(ctx: ref LLCtx, stmt: ref parser.Node) void! = {
     }
 
     if k == parser.NK_BREAK {
+        val blbl: i64 = ll_break_lbl(ctx)
+        if blbl >= 0 {
+            val bbuf: ref char = @alloc(64) as ref char
+            @snprintf(bbuf, 64, "  br label %%lbl{lld}\n", {blbl})
+            emit(ctx, bbuf)
+            @free(bbuf)
+        }
         return
     }
 
     if k == parser.NK_CONTINUE {
+        val clbl: i64 = ll_cont_lbl(ctx)
+        if clbl >= 0 {
+            val cbuf: ref char = @alloc(64) as ref char
+            @snprintf(cbuf, 64, "  br label %%lbl{lld}\n", {clbl})
+            emit(ctx, cbuf)
+            @free(cbuf)
+        }
         return
     }
 }
@@ -2215,6 +2252,11 @@ fn gen_for_stmt(ctx: ref LLCtx, stmt: ref parser.Node) void! = {
     val cond_node: ref parser.Node = stmt.d2 as ref parser.Node
     val post_node: ref parser.Node = stmt.d3 as ref parser.Node
     val body: ref void = stmt.d4 as ref void
+    val prev_break: i64 = ll_break_lbl(ctx)
+    val prev_cont: i64 = ll_cont_lbl(ctx)
+
+    ll_set_break_lbl(ctx, end_lbl)
+    ll_set_cont_lbl(ctx, cont_lbl)
 
     if init_name != 0 as ref char && init_expr != 0 as ref parser.Node {
         val init_val: ref char = gen_expr(ctx, init_expr)
@@ -2256,10 +2298,17 @@ fn gen_for_stmt(ctx: ref LLCtx, stmt: ref parser.Node) void! = {
 
     if body != 0 as ref void { gen_stmts(ctx, body as ref parser.Node) }
 
-    val cbuf2: ref char = @alloc(64) as ref char
-    @snprintf(cbuf2, 64, "  br label %%lbl{lld}\nlbl{lld}:\n", {cont_lbl, cont_lbl})
-    emit(ctx, cbuf2)
-    @free(cbuf2)
+    if !ll_block_ends_with_terminator(body as ref parser.Node) {
+        val cbuf2: ref char = @alloc(64) as ref char
+        @snprintf(cbuf2, 64, "  br label %%lbl{lld}\n", {cont_lbl})
+        emit(ctx, cbuf2)
+        @free(cbuf2)
+    }
+
+    val clbuf: ref char = @alloc(32) as ref char
+    @snprintf(clbuf, 32, "lbl{lld}:\n", {cont_lbl})
+    emit(ctx, clbuf)
+    @free(clbuf)
 
     if post_node != 0 as ref parser.Node {
         val pk: i64 = post_node.kind
@@ -2303,6 +2352,9 @@ fn gen_for_stmt(ctx: ref LLCtx, stmt: ref parser.Node) void! = {
     @snprintf(jbuf, 64, "  br label %%lbl{lld}\nlbl{lld}:\n", {loop_lbl, end_lbl})
     emit(ctx, jbuf)
     @free(jbuf)
+
+    ll_set_break_lbl(ctx, prev_break)
+    ll_set_cont_lbl(ctx, prev_cont)
 }
 
 
