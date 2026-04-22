@@ -2783,6 +2783,20 @@ fn gen_builtin(ctx: ref LLCtx, expr: ref parser.Node) ref char! = {
         @snprintf(ebuf, 128, "  %%t{lld} = sext i32 %%t{lld} to i64\n", {tmp, dprintf_tmp})
         emit(ctx, ebuf)
         @free(ebuf)
+    } elif str.rchar_cmp(name, "gettimeofday") == 0 {
+        ensure_declared(ctx, "gettimeofday", "declare i32 @gettimeofday(ptr, ptr)")
+        val tv_node: ref parser.Node = get_arg_node(args, 0)
+        val tz_node: ref parser.Node = get_arg_node(args, 1)
+        val tv_arg: ref char = gen_expr(ctx, tv_node)
+        val tz_arg_raw: ref char = gen_expr(ctx, tz_node)
+        val tz_arg: mut ref char = tz_arg_raw
+        if ll_expr_is_null_ptr_literal(tz_node) { tz_arg = "null" }
+        val gtod_tmp: i64 = fresh_tmp(ctx)
+        val gbuf: ref char = @alloc(192) as ref char
+        @snprintf(gbuf, 192, "  %%t{lld} = call i32 @gettimeofday(ptr {s}, ptr {s})\n  %%t{lld} = sext i32 %%t{lld} to i64\n",
+            {gtod_tmp, tv_arg, tz_arg, tmp, gtod_tmp})
+        emit(ctx, gbuf)
+        @free(gbuf)
     } elif str.rchar_cmp(name, "snprintf") == 0 {
         ensure_declared(ctx, "snprintf", "declare i32 @snprintf(ptr, i64, ptr, ...)")
         val sb_arg: ref char = gen_expr(ctx, get_arg_node(args, 0))
@@ -3203,6 +3217,93 @@ fn gen_call_print_builtin(ctx: ref LLCtx, args_list: ref void) ref char! = {
     }
 }
 
+fn gen_call_eprint_builtin(ctx: ref LLCtx, args_list: ref void) ref char! = {
+    if args_list == 0 as ref void { return 0 as ref char }
+    val alen_p: i64 = @len(args_list) as i64
+    if alen_p <= 0 { return 0 as ref char }
+    val first_arg_opt = @get(args_list, 0)
+    match first_arg_opt {
+        some first_arg => {
+            val first_node: ref parser.Node = first_arg as ref parser.Node
+            if first_node.kind != parser.NK_STR_LIT { return 0 as ref char }
+            ensure_declared(ctx, "dprintf", "declare i32 @dprintf(i32, ptr, ...)")
+            val fmt_str: ref char = parser.str_lit_text(first_node)
+            val fmt_idx: i64 = intern_format_string(ctx, fmt_str)
+            val slen: i64 = str.len_raw(rewrite_fmt(fmt_str)) + 1
+            val fd_tmp: i64 = fresh_tmp(ctx)
+            val fmt_tmp: i64 = fresh_tmp(ctx)
+            val fmt_buf: ref char = @alloc(192) as ref char
+            @snprintf(fmt_buf, 192,
+                "  %%t{lld} = trunc i64 2 to i32\n  %%t{lld} = getelementptr [{lld} x i8], ptr @__str{lld}, i64 0, i64 0\n",
+                {fd_tmp, fmt_tmp, slen, fmt_idx})
+            emit(ctx, fmt_buf)
+            @free(fmt_buf)
+
+            val call_sb: ref void = str.StringBuilder.new()
+            val result_tmp: i64 = fresh_tmp(ctx)
+            val hdr: ref char = @alloc(256) as ref char
+            @snprintf(hdr, 256, "  %%t{lld} = call i32 (i32, ptr, ...) @dprintf(i32 %%t{lld}, ptr %%t{lld}", {result_tmp, fd_tmp, fmt_tmp})
+            str.StringBuilder.append_cstr(call_sb, hdr)
+            @free(hdr)
+
+            val ai_p: mut i64 = 1
+            for {
+                if ai_p >= alen_p { break }
+                val arg_opt_p = @get(args_list, ai_p as usize)
+                match arg_opt_p {
+                    some arg_p => {
+                        val arg_node_p: ref parser.Node = arg_p as ref parser.Node
+                        if arg_node_p.kind == parser.NK_ARGS_PACK {
+                            val pack_p: ref void = arg_node_p.d0 as ref void
+                            val plen_p: i64 = @len(pack_p) as i64
+                            val pi_p: mut i64 = 0
+                            for {
+                                if pi_p >= plen_p { break }
+                                val pe_opt_p = @get(pack_p, pi_p as usize)
+                                match pe_opt_p {
+                                    some pe_p => {
+                                        val pe_node_p: ref parser.Node = pe_p as ref parser.Node
+                                        val pv: ref char = gen_expr(ctx, pe_node_p)
+                                        val ab: ref char = @alloc(64) as ref char
+                                        @snprintf(ab, 64, ", {s} {s}", {ll_variadic_abi_type(ctx, pe_node_p), pv})
+                                        str.StringBuilder.append_cstr(call_sb, ab)
+                                        @free(ab)
+                                    }
+                                    none => {}
+                                }
+                                pi_p++
+                            }
+                        } else {
+                            val pv2: ref char = gen_expr(ctx, arg_node_p)
+                            val ab2: ref char = @alloc(64) as ref char
+                            @snprintf(ab2, 64, ", {s} {s}", {ll_variadic_abi_type(ctx, arg_node_p), pv2})
+                            str.StringBuilder.append_cstr(call_sb, ab2)
+                            @free(ab2)
+                        }
+                    }
+                    none => {}
+                }
+                ai_p++
+            }
+
+            str.StringBuilder.append_cstr(call_sb, ")\n")
+            emit(ctx, str.cstr(str.StringBuilder.build(call_sb)))
+            str.StringBuilder.free(call_sb)
+
+            val widened_tmp: i64 = fresh_tmp(ctx)
+            val ext_buf: ref char = @alloc(128) as ref char
+            @snprintf(ext_buf, 128, "  %%t{lld} = sext i32 %%t{lld} to i64\n", {widened_tmp, result_tmp})
+            emit(ctx, ext_buf)
+            @free(ext_buf)
+
+            val res_p: ref char = @alloc(16) as ref char
+            @snprintf(res_p, 16, "%%t{lld}", {widened_tmp})
+            return res_p
+        }
+        none => { return 0 as ref char }
+    }
+}
+
 fn gen_call_read_line_builtin(ctx: ref LLCtx, args_list: ref void) ref char! = {
     if args_list == 0 as ref void { return 0 as ref char }
     ensure_declared(ctx, "fgets", "declare ptr @fgets(ptr, i32, ptr)")
@@ -3431,9 +3532,15 @@ fn gen_call(ctx: ref LLCtx, expr: ref parser.Node) ref char! = {
     
     val is_print: bool = str.rchar_cmp(callee_name, "print") == 0
         || str.ends_with(str.from(callee_name), str.from("__print"))
+    val is_eprint: bool = str.rchar_cmp(callee_name, "eprint") == 0
+        || str.ends_with(str.from(callee_name), str.from("__eprint"))
     if is_print {
         val print_res: ref char = gen_call_print_builtin(ctx, args_list)
         if print_res != 0 as ref char { return print_res }
+    }
+    if is_eprint {
+        val eprint_res: ref char = gen_call_eprint_builtin(ctx, args_list)
+        if eprint_res != 0 as ref char { return eprint_res }
     }
 
     val args_len: mut i64 = @len(args_list) as i64
