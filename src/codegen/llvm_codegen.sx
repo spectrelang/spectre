@@ -33,6 +33,8 @@ pub type LLCtx = {
     tv_fields: mut list[ref void]
     mc_names: mut list[ref char]
     mc_vals: mut list[ref char]
+    gc_names: mut list[ref char]
+    gc_vals: mut list[ref char]
     unames: mut list[ref char]
     uvariants: mut list[ref void]
     break_lbl: mut i64
@@ -43,6 +45,7 @@ pub type LLCtx = {
     ltypes: mut list[ref void]
     current_is_main: mut bool
     current_ret_abi: mut ref char
+    current_prefix: mut ref char
 }
 
 fn ll_new() ref LLCtx! = {
@@ -71,6 +74,8 @@ fn ll_new() ref LLCtx! = {
     ctx.tv_fields = []
     ctx.mc_names = []
     ctx.mc_vals = []
+    ctx.gc_names = []
+    ctx.gc_vals = []
     ctx.unames = []
     ctx.uvariants = []
     ctx.break_lbl = -1
@@ -81,6 +86,7 @@ fn ll_new() ref LLCtx! = {
     ctx.ltypes = []
     ctx.current_is_main = false
     ctx.current_ret_abi = "i64"
+    ctx.current_prefix = ""
     return ctx
 }
 
@@ -174,6 +180,24 @@ fn ll_register_module_const(ctx: ref LLCtx, name: ref char, value: ref char) voi
     @append(ctx.mc_vals, value)
 }
 
+fn ll_register_global_const(ctx: ref LLCtx, name: ref char, value: ref char) void! = {
+    val len: i64 = @len(ctx.gc_names) as i64
+    val i: mut i64 = 0
+    for {
+        if i >= len { break }
+        val n_opt = @get(ctx.gc_names, i as usize)
+        match n_opt {
+            some n => {
+                if str.rchar_cmp(n as ref char, name) == 0 { return }
+            }
+            none => {}
+        }
+        i++
+    }
+    @append(ctx.gc_names, name)
+    @append(ctx.gc_vals, value)
+}
+
 fn ll_lookup_module_const(ctx: ref LLCtx, name: ref char) ref char! = {
     val len: i64 = @len(ctx.mc_names) as i64
     val i: mut i64 = 0
@@ -193,6 +217,21 @@ fn ll_lookup_module_const(ctx: ref LLCtx, name: ref char) ref char! = {
             none => {}
         }
         i++
+    }
+    return ""
+}
+
+fn ll_lookup_module_const_symbol(ctx: ref LLCtx, name: ref char) ref char! = {
+    val local_key: ref char = @alloc(512) as ref char
+    if str.rchar_cmp(ctx.current_prefix, "") != 0 {
+        @snprintf(local_key, 512, "{s}__{s}", {ctx.current_prefix, name})
+        if str.rchar_cmp(ll_lookup_module_const(ctx, local_key), "") != 0 {
+            return local_key
+        }
+    }
+    @free(local_key)
+    if str.rchar_cmp(ll_lookup_module_const(ctx, name), "") != 0 {
+        return name
     }
     return ""
 }
@@ -1514,18 +1553,17 @@ fn gen_expr_field(ctx: ref LLCtx, expr: ref parser.Node) ref char! = {
         val base_name: ref char = base_expr.d0 as ref char
         val const_key: ref char = @alloc(512) as ref char
         @snprintf(const_key, 512, "{s}__{s}", {base_name, field_name})
-        val const_val: ref char = ll_lookup_module_const(ctx, const_key)
-        @free(const_key)
-        if str.rchar_cmp(const_val, "") != 0 {
+        if str.rchar_cmp(ll_lookup_module_const(ctx, const_key), "") != 0 {
             val tmp: i64 = fresh_tmp(ctx)
             val buf: ref char = @alloc(128) as ref char
-            @snprintf(buf, 128, "  %%t{lld} = add i64 {s}, 0\n", {tmp, const_val})
+            @snprintf(buf, 128, "  %%t{lld} = load i64, ptr @{s}\n", {tmp, const_key})
             emit(ctx, buf)
             @free(buf)
             val res: ref char = @alloc(16) as ref char
             @snprintf(res, 16, "%%t{lld}", {tmp})
             return res
         }
+        @free(const_key)
     }
     if base_expr.kind == parser.NK_IDENT && str.rchar_cmp(field_ptr, "0") != 0 {
         val base_ty: ref parser.Node = ll_lookup_local_type(ctx, base_expr.d0 as ref char)
@@ -1825,7 +1863,12 @@ fn gen_expr(ctx: ref LLCtx, expr: ref parser.Node) ref char! = {
                 @snprintf(buf, 128, "  %%t{lld} = load i64, ptr {s}\n", {tmp, local_ptr})
             }
         } else {
-            @snprintf(buf, 128, "  %%t{lld} = add i64 %%{s}, 0\n", {tmp, name})
+            val const_sym: ref char = ll_lookup_module_const_symbol(ctx, name)
+            if str.rchar_cmp(const_sym, "") != 0 {
+                @snprintf(buf, 128, "  %%t{lld} = load i64, ptr @{s}\n", {tmp, const_sym})
+            } else {
+                @snprintf(buf, 128, "  %%t{lld} = add i64 %%{s}, 0\n", {tmp, name})
+            }
         }
         emit(ctx, buf)
         @free(buf)
@@ -3579,6 +3622,7 @@ fn gen_fn_prefixed(ctx: mut ref LLCtx, fn_node: ref parser.Node, mod_prefix: ref
 
     ctx.tmp = 0
     ctx.current_is_main = is_main
+    ctx.current_prefix = mod_prefix
     ll_defer_clear(ctx)
     if is_main {
         ctx.current_ret_abi = "i32"
@@ -3840,13 +3884,32 @@ fn preregister_items(ctx: ref LLCtx, items: list[ref parser.Node], mod_prefix: r
                     val cname: ref char = node.d1 as ref char
                     val cexpr: ref parser.Node = node.d2 as ref parser.Node
                     if cexpr != 0 as ref parser.Node {
+                        val const_key: ref char = @alloc(512) as ref char
+                        if str.rchar_cmp(mod_prefix, "") == 0 {
+                            @snprintf(const_key, 512, "{s}", {cname})
+                        } else {
+                            @snprintf(const_key, 512, "{s}__{s}", {mod_prefix, cname})
+                        }
                         if cexpr.kind == parser.NK_INT_LIT {
-                            @append(ctx.mc_names, cname)
-                            @append(ctx.mc_vals, parser.int_lit_text(cexpr))
+                            ll_register_global_const(ctx, const_key, parser.int_lit_text(cexpr))
+                            ll_register_module_const(ctx, const_key, parser.int_lit_text(cexpr))
+                            if str.rchar_cmp(mod_prefix, "") != 0 {
+                                ll_register_module_const(ctx, cname, parser.int_lit_text(cexpr))
+                            }
                         } elif cexpr.kind == parser.NK_BOOL {
-                            @append(ctx.mc_names, cname)
-                            if cexpr.d0 != 0 { @append(ctx.mc_vals, "1") }
-                            else { @append(ctx.mc_vals, "0") }
+                            if cexpr.d0 != 0 {
+                                ll_register_global_const(ctx, const_key, "1")
+                                ll_register_module_const(ctx, const_key, "1")
+                                if str.rchar_cmp(mod_prefix, "") != 0 {
+                                    ll_register_module_const(ctx, cname, "1")
+                                }
+                            } else {
+                                ll_register_global_const(ctx, const_key, "0")
+                                ll_register_module_const(ctx, const_key, "0")
+                                if str.rchar_cmp(mod_prefix, "") != 0 {
+                                    ll_register_module_const(ctx, cname, "0")
+                                }
+                            }
                         }
                     }
                 } elif k == parser.NK_WHEN_ITEMS {
@@ -4038,6 +4101,11 @@ fn scan_node_for_calls(ctx: ref LLCtx, node: ref parser.Node) void! = {
         scan_node_for_calls(ctx, node.d1 as ref parser.Node)
         scan_node_for_calls(ctx, node.d2 as ref parser.Node)
     } elif k == parser.NK_UNOP { scan_node_for_calls(ctx, parser.unop_inner(node)) }
+    elif k == parser.NK_TRY || k == parser.NK_TRUST || k == parser.NK_CAST || k == parser.NK_ADDR || k == parser.NK_DEREF {
+        scan_node_for_calls(ctx, node.d0 as ref parser.Node)
+    } elif k == parser.NK_FIELD {
+        scan_node_for_calls(ctx, parser.field_base(node))
+    }
 }
 
 fn extract_call_prefix(mangled: ref char, bare: ref char) ref char! = {
@@ -4229,6 +4297,29 @@ pub fn gen_module_resolved(root: ref module.ResolvedModule, release_mode: bool) 
 
     str.StringBuilder.append_cstr(final_sb, "@sx_argc_store = global i64 0\n")
     str.StringBuilder.append_cstr(final_sb, "@sx_argv_store = global ptr null\n\n")
+    val gc_len: i64 = @len(ctx.gc_names) as i64
+    val gc_i: mut i64 = 0
+    for {
+        if gc_i >= gc_len { break }
+        val n_opt = @get(ctx.gc_names, gc_i as usize)
+        val v_opt = @get(ctx.gc_vals, gc_i as usize)
+        match n_opt {
+            some n => {
+                match v_opt {
+                    some v => {
+                        val gbuf: ref char = @alloc(256) as ref char
+                        @snprintf(gbuf, 256, "@{s} = global i64 {s}\n", {n as ref char, v as ref char})
+                        str.StringBuilder.append_cstr(final_sb, gbuf)
+                        @free(gbuf)
+                    }
+                    none => {}
+                }
+            }
+            none => {}
+        }
+        gc_i++
+    }
+    if gc_len > 0 { str.StringBuilder.append_char(final_sb, 10) }
     str.StringBuilder.append_cstr(final_sb,
         \\define ptr @__sx_get_args() {
         \\entry:
@@ -4463,6 +4554,29 @@ pub fn gen_module_resolved_test(root: ref module.ResolvedModule, release_mode: b
     val final_sb: ref void = str.StringBuilder.new()
     str.StringBuilder.append_cstr(final_sb, "@sx_argc_store = global i64 0\n")
     str.StringBuilder.append_cstr(final_sb, "@sx_argv_store = global ptr null\n\n")
+    val gc_len: i64 = @len(ctx.gc_names) as i64
+    val gc_i: mut i64 = 0
+    for {
+        if gc_i >= gc_len { break }
+        val n_opt = @get(ctx.gc_names, gc_i as usize)
+        val v_opt = @get(ctx.gc_vals, gc_i as usize)
+        match n_opt {
+            some n => {
+                match v_opt {
+                    some v => {
+                        val gbuf: ref char = @alloc(256) as ref char
+                        @snprintf(gbuf, 256, "@{s} = global i64 {s}\n", {n as ref char, v as ref char})
+                        str.StringBuilder.append_cstr(final_sb, gbuf)
+                        @free(gbuf)
+                    }
+                    none => {}
+                }
+            }
+            none => {}
+        }
+        gc_i++
+    }
+    if gc_len > 0 { str.StringBuilder.append_char(final_sb, 10) }
     str.StringBuilder.append_cstr(final_sb,
         \\define ptr @__sx_get_args() {
         \\entry:
