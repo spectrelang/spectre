@@ -3003,9 +3003,12 @@ fn gen_builtin(ctx: ref LLCtx, expr: ref parser.Node) ref char! = {
                                 val fpe_opt = @get(fpack, fpi as usize)
                                 match fpe_opt {
                                     some fpe => {
-                                        val fv: ref char = gen_expr(ctx, fpe as ref parser.Node)
+                                        val fpe_node: ref parser.Node = fpe as ref parser.Node
+                                        val fv_raw: ref char = gen_expr(ctx, fpe_node)
+                                        val fabi: ref char = ll_variadic_abi_type(ctx, fpe_node)
+                                        val fv: ref char = ll_coerce_arg_to_abi(ctx, fpe_node, fv_raw, fabi)
                                         val fb2: ref char = @alloc(64) as ref char
-                                        @snprintf(fb2, 64, ", i64 {s}", {fv})
+                                        @snprintf(fb2, 64, ", {s} {s}", {fabi, fv})
                                         str.StringBuilder.append_cstr(call_sb, fb2)
                                         @free(fb2)
                                     }
