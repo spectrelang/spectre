@@ -1943,8 +1943,9 @@ fn gen_builtin(ctx: ref LLCtx, expr: ref parser.Node) ref char! = {
     if str.rchar_cmp(name, "puts") == 0 {
         ensure_declared(ctx, "puts", "declare i32 @puts(ptr)")
         val s: ref char = gen_expr(ctx, get_arg_node(args, 0))
+        val puts_tmp: i64 = fresh_tmp(ctx)
         val buf: ref char = @alloc(256) as ref char
-        @snprintf(buf, 256, "  %%t{lld} = call i32 @puts(ptr {s})\n", {tmp, s})
+        @snprintf(buf, 256, "  %%t{lld} = call i32 @puts(ptr {s})\n  %%t{lld} = sext i32 %%t{lld} to i64\n", {puts_tmp, s, tmp, puts_tmp})
         emit(ctx, buf)
         @free(buf)
     } elif str.rchar_cmp(name, "alloc") == 0 {
@@ -2061,8 +2062,9 @@ fn gen_builtin(ctx: ref LLCtx, expr: ref parser.Node) ref char! = {
             fmt = gen_expr(ctx, fmt_node)
         }
         val call_sb: ref void = str.StringBuilder.new()
+        val printf_tmp: i64 = fresh_tmp(ctx)
         val hdr: ref char = @alloc(256) as ref char
-        @snprintf(hdr, 256, "  %%t{lld} = call i32 (ptr, ...) @printf(ptr {s}", {tmp, fmt})
+        @snprintf(hdr, 256, "  %%t{lld} = call i32 (ptr, ...) @printf(ptr {s}", {printf_tmp, fmt})
         str.StringBuilder.append_cstr(call_sb, hdr)
         @free(hdr)
         if args != 0 as ref void {
@@ -2101,6 +2103,10 @@ fn gen_builtin(ctx: ref LLCtx, expr: ref parser.Node) ref char! = {
         str.StringBuilder.append_cstr(call_sb, ")\n")
         emit(ctx, str.cstr(str.StringBuilder.build(call_sb)))
         str.StringBuilder.free(call_sb)
+        val ebuf: ref char = @alloc(128) as ref char
+        @snprintf(ebuf, 128, "  %%t{lld} = sext i32 %%t{lld} to i64\n", {tmp, printf_tmp})
+        emit(ctx, ebuf)
+        @free(ebuf)
     } elif str.rchar_cmp(name, "dprintf") == 0 {
         ensure_declared(ctx, "dprintf", "declare i32 @dprintf(i32, ptr, ...)")
         val fd_arg: ref char = gen_expr(ctx, get_arg_node(args, 0))
@@ -2127,8 +2133,9 @@ fn gen_builtin(ctx: ref LLCtx, expr: ref parser.Node) ref char! = {
             fmt = gen_expr(ctx, fmt_node)
         }
         val call_sb: ref void = str.StringBuilder.new()
+        val dprintf_tmp: i64 = fresh_tmp(ctx)
         val hdr: ref char = @alloc(256) as ref char
-        @snprintf(hdr, 256, "  %%t{lld} = call i32 (i32, ptr, ...) @dprintf(i32 %%t{lld}, ptr {s}", {tmp, fd32, fmt})
+        @snprintf(hdr, 256, "  %%t{lld} = call i32 (i32, ptr, ...) @dprintf(i32 %%t{lld}, ptr {s}", {dprintf_tmp, fd32, fmt})
         str.StringBuilder.append_cstr(call_sb, hdr)
         @free(hdr)
         if args != 0 as ref void {
@@ -2173,6 +2180,10 @@ fn gen_builtin(ctx: ref LLCtx, expr: ref parser.Node) ref char! = {
         str.StringBuilder.append_cstr(call_sb, ")\n")
         emit(ctx, str.cstr(str.StringBuilder.build(call_sb)))
         str.StringBuilder.free(call_sb)
+        val ebuf: ref char = @alloc(128) as ref char
+        @snprintf(ebuf, 128, "  %%t{lld} = sext i32 %%t{lld} to i64\n", {tmp, dprintf_tmp})
+        emit(ctx, ebuf)
+        @free(ebuf)
     } elif str.rchar_cmp(name, "snprintf") == 0 {
         ensure_declared(ctx, "snprintf", "declare i32 @snprintf(ptr, i64, ptr, ...)")
         val sb_arg: ref char = gen_expr(ctx, get_arg_node(args, 0))
@@ -2195,8 +2206,9 @@ fn gen_builtin(ctx: ref LLCtx, expr: ref parser.Node) ref char! = {
             sfmt = gen_expr(ctx, fmt_node)
         }
         val call_sb: ref void = str.StringBuilder.new()
+        val snprintf_tmp: i64 = fresh_tmp(ctx)
         val hdr: ref char = @alloc(256) as ref char
-        @snprintf(hdr, 256, "  %%t{lld} = call i32 (ptr, i64, ptr, ...) @snprintf(ptr {s}, i64 {s}, ptr {s}", {tmp, sb_arg, ssz, sfmt})
+        @snprintf(hdr, 256, "  %%t{lld} = call i32 (ptr, i64, ptr, ...) @snprintf(ptr {s}, i64 {s}, ptr {s}", {snprintf_tmp, sb_arg, ssz, sfmt})
         str.StringBuilder.append_cstr(call_sb, hdr)
         @free(hdr)
         if args != 0 as ref void {
@@ -2235,6 +2247,10 @@ fn gen_builtin(ctx: ref LLCtx, expr: ref parser.Node) ref char! = {
         str.StringBuilder.append_cstr(call_sb, ")\n")
         emit(ctx, str.cstr(str.StringBuilder.build(call_sb)))
         str.StringBuilder.free(call_sb)
+        val ebuf: ref char = @alloc(128) as ref char
+        @snprintf(ebuf, 128, "  %%t{lld} = sext i32 %%t{lld} to i64\n", {tmp, snprintf_tmp})
+        emit(ctx, ebuf)
+        @free(ebuf)
     } elif str.rchar_cmp(name, "getchar") == 0 {
         ensure_declared(ctx, "getchar", "declare i32 @getchar()")
         val ch32: i64 = fresh_tmp(ctx)
@@ -2573,8 +2589,14 @@ fn gen_call(ctx: ref LLCtx, expr: ref parser.Node) ref char! = {
                         emit(ctx, str.cstr(str.StringBuilder.build(call_sb)))
                         str.StringBuilder.free(call_sb)
 
+                        val widened_tmp: i64 = fresh_tmp(ctx)
+                        val ext_buf: ref char = @alloc(128) as ref char
+                        @snprintf(ext_buf, 128, "  %%t{lld} = sext i32 %%t{lld} to i64\n", {widened_tmp, result_tmp})
+                        emit(ctx, ext_buf)
+                        @free(ext_buf)
+
                         val res_p: ref char = @alloc(16) as ref char
-                        @snprintf(res_p, 16, "%%t{lld}", {result_tmp})
+                        @snprintf(res_p, 16, "%%t{lld}", {widened_tmp})
                         return res_p
                     }
                 }
