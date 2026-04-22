@@ -1334,6 +1334,9 @@ fn ll_list_lit_inner_type(ctx: ref LLCtx, elems: ref void) ref parser.Node! = {
 }
 
 fn ll_param_ssa_name(name: ref char) ref char! = {
+    if str.rchar_cmp(name, "_") == 0 {
+        return "__anon_param"
+    }
     if str.rchar_cmp(name, "entry") == 0 {
         return "__param_entry"
     }
@@ -1343,6 +1346,16 @@ fn ll_param_ssa_name(name: ref char) ref char! = {
         return out
     }
     return name
+}
+
+fn ll_param_ssa_name_at(name: ref char, index: i64) ref char! = {
+    val base: ref char = ll_param_ssa_name(name)
+    if str.rchar_cmp(name, "_") == 0 {
+        val out: ref char = @alloc(32) as ref char
+        @snprintf(out, 32, "{s}_{lld}", {base, index})
+        return out
+    }
+    return base
 }
 
 fn ll_is_float_type(ty: ref parser.Node) bool! = {
@@ -5388,7 +5401,7 @@ fn gen_fn_prefixed(ctx: mut ref LLCtx, fn_node: ref parser.Node, mod_prefix: ref
                     some param => {
                         val pnode: ref parser.Node = param as ref parser.Node
                         val pname: ref char = pnode.d0 as ref char
-                        val pssa: ref char = ll_param_ssa_name(pname)
+                        val pssa: ref char = ll_param_ssa_name_at(pname, pi)
                         val pty: ref parser.Node = pnode.d1 as ref parser.Node
                         if pi > 0 { emit(ctx, ", ") }
                         val pb: ref char = @alloc(64) as ref char
@@ -5424,7 +5437,7 @@ fn gen_fn_prefixed(ctx: mut ref LLCtx, fn_node: ref parser.Node, mod_prefix: ref
                 some param2 => {
                     val pnode2: ref parser.Node = param2 as ref parser.Node
                     val pname2: ref char = pnode2.d0 as ref char
-                    val pssa2: ref char = ll_param_ssa_name(pname2)
+                    val pssa2: ref char = ll_param_ssa_name_at(pname2, pi2)
                     val pty2: ref parser.Node = pnode2.d1 as ref parser.Node
                     val slot_name: ref char = ll_alloca_typed_slot(ctx, pty2)
                     val abi_ty: ref char = ll_param_abi_type(ctx, pty2)
