@@ -36,6 +36,8 @@ pub type LLCtx = {
     gc_names: mut list[ref char]
     gc_vals: mut list[ref char]
     gc_types: mut list[ref void]
+    gl_names: mut list[ref char]
+    gl_exprs: mut list[ref void]
     unames: mut list[ref char]
     uvariants: mut list[ref void]
     break_lbl: mut i64
@@ -78,6 +80,8 @@ fn ll_new() ref LLCtx! = {
     ctx.gc_names = []
     ctx.gc_vals = []
     ctx.gc_types = []
+    ctx.gl_names = []
+    ctx.gl_exprs = []
     ctx.unames = []
     ctx.uvariants = []
     ctx.break_lbl = -1
@@ -199,6 +203,47 @@ fn ll_register_global_const(ctx: ref LLCtx, name: ref char, value: ref char, ty:
     @append(ctx.gc_names, name)
     @append(ctx.gc_vals, value)
     @append(ctx.gc_types, ty)
+}
+
+fn ll_register_global_list_literal(ctx: ref LLCtx, name: ref char, expr: ref parser.Node) void! = {
+    val len: i64 = @len(ctx.gl_names) as i64
+    val i: mut i64 = 0
+    for {
+        if i >= len { break }
+        val n_opt = @get(ctx.gl_names, i as usize)
+        match n_opt {
+            some n => {
+                if str.rchar_cmp(n as ref char, name) == 0 { return }
+            }
+            none => {}
+        }
+        i++
+    }
+    @append(ctx.gl_names, name)
+    @append(ctx.gl_exprs, expr as ref void)
+}
+
+fn ll_lookup_global_list_literal(ctx: ref LLCtx, name: ref char) ref parser.Node! = {
+    val len: i64 = @len(ctx.gl_names) as i64
+    val i: mut i64 = 0
+    for {
+        if i >= len { break }
+        val n_opt = @get(ctx.gl_names, i as usize)
+        match n_opt {
+            some n => {
+                if str.rchar_cmp(n as ref char, name) == 0 {
+                    val e_opt = @get(ctx.gl_exprs, i as usize)
+                    match e_opt {
+                        some e => { return e as ref parser.Node }
+                        none => {}
+                    }
+                }
+            }
+            none => {}
+        }
+        i++
+    }
+    return 0 as ref parser.Node
 }
 
 fn ll_lookup_module_const(ctx: ref LLCtx, name: ref char) ref char! = {
@@ -332,6 +377,70 @@ fn ll_static_global_init_value(ctx: ref LLCtx, expr: ref parser.Node) ref char! 
         }
     }
     return ""
+}
+
+fn ll_emit_global_list_literal(final_sb: ref void, ctx: ref LLCtx, gname: ref char, gty: ref parser.Node, gexpr: ref parser.Node) bool! = {
+    if gexpr == 0 as ref parser.Node { return false }
+    if gexpr.kind != parser.NK_LIST_LIT { return false }
+    val elems: ref void = gexpr.d0 as ref void
+    val elen: mut i64 = 0
+    if elems != 0 as ref void { elen = @len(elems as list[ref parser.Node]) as i64 }
+
+    val inner_ty: ref parser.Node = ll_list_inner_type(gty)
+    val elem_abi: mut ref char = "i64"
+    if ll_slot_is_ptr(ctx, inner_ty) { elem_abi = "ptr" }
+    val data_name: ref char = @alloc(640) as ref char
+    val hdr_name: ref char = @alloc(640) as ref char
+    @snprintf(data_name, 640, "{s}__data", {gname})
+    @snprintf(hdr_name, 640, "{s}__hdr", {gname})
+
+    val data_buf: ref char = @alloc(2048) as ref char
+    val cap: mut i64 = elen
+    if cap == 0 { cap = 1 }
+
+    if elen == 0 {
+        @snprintf(data_buf, 2048, "@{s} = global [{lld} x {s}] zeroinitializer\n", {data_name, cap, elem_abi})
+        str.StringBuilder.append_cstr(final_sb, data_buf)
+    } else {
+        @snprintf(data_buf, 2048, "@{s} = global [{lld} x {s}] [", {data_name, cap, elem_abi})
+        str.StringBuilder.append_cstr(final_sb, data_buf)
+        val ei: mut i64 = 0
+        for {
+            if ei >= elen { break }
+            val elem_opt = @get(elems as list[ref parser.Node], ei as usize)
+            match elem_opt {
+                some elem => {
+                    val init_val: ref char = ll_static_global_init_value(ctx, elem as ref parser.Node)
+                    if str.rchar_cmp(init_val, "") == 0 {
+                        @free(data_buf)
+                        @free(data_name)
+                        @free(hdr_name)
+                        return false
+                    }
+                    if ei != 0 { str.StringBuilder.append_cstr(final_sb, ", ") }
+                    @snprintf(data_buf, 2048, "{s} {s}", {elem_abi, init_val})
+                    str.StringBuilder.append_cstr(final_sb, data_buf)
+                }
+                none => {}
+            }
+            ei++
+        }
+        str.StringBuilder.append_cstr(final_sb, "]\n")
+    }
+
+    @snprintf(data_buf, 2048, "@{s} = global ", {hdr_name})
+    str.StringBuilder.append_cstr(final_sb, data_buf)
+    str.StringBuilder.append_cstr(final_sb, "{ ptr, i64, i64 } ")
+    str.StringBuilder.append_cstr(final_sb, "{ ptr @")
+    str.StringBuilder.append_cstr(final_sb, data_name)
+    @snprintf(data_buf, 2048, ", i64 {lld}, i64 {lld} }\n", {elen, cap})
+    str.StringBuilder.append_cstr(final_sb, data_buf)
+    @snprintf(data_buf, 2048, "@{s} = global ptr @{s}\n", {gname, hdr_name})
+    str.StringBuilder.append_cstr(final_sb, data_buf)
+    @free(data_buf)
+    @free(data_name)
+    @free(hdr_name)
+    return true
 }
 
 fn fresh_tmp(ctx: mut ref LLCtx) i64! = {
@@ -2796,8 +2905,23 @@ fn gen_builtin(ctx: ref LLCtx, expr: ref parser.Node) ref char! = {
         emit(ctx, buf)
         @free(buf)
     } elif str.rchar_cmp(name, "sizeof") == 0 {
+        val arg_nd: ref parser.Node = get_arg_node(args, 0)
+        val sizeof_val: mut i64 = 0
+        if arg_nd != 0 as ref parser.Node {
+            val arg_k: i64 = arg_nd.kind
+            if arg_k == parser.TY_NAMED || arg_k == parser.TY_LIST || arg_k == parser.TY_REF ||
+               arg_k == parser.TY_MUT || arg_k == parser.TY_OPTION || arg_k == parser.TY_RESULT ||
+               arg_k == parser.TY_SLICE || arg_k == parser.TY_FIXED_ARR || arg_k == parser.TY_FNPTR ||
+               arg_k == parser.TY_VOID {
+                sizeof_val = ll_type_size(ctx, arg_nd)
+            } elif arg_k == parser.NK_CAST {
+                sizeof_val = ll_type_size(ctx, arg_nd.d1 as ref parser.Node)
+            } else {
+                sizeof_val = ll_type_size(ctx, ll_expr_storage_type(ctx, arg_nd))
+            }
+        }
         val buf: ref char = @alloc(128) as ref char
-        @snprintf(buf, 128, "  %%t{lld} = add i64 8, 0\n", {tmp})
+        @snprintf(buf, 128, "  %%t{lld} = add i64 {lld}, 0\n", {tmp, sizeof_val})
         emit(ctx, buf)
         @free(buf)
     } elif str.rchar_cmp(name, "append") == 0 {
@@ -5003,6 +5127,9 @@ fn preregister_items(ctx: ref LLCtx, items: list[ref parser.Node], mod_prefix: r
                     if global_ty == 0 as ref parser.Node {
                         global_ty = ll_expr_storage_type(ctx, gexpr)
                     }
+                    if gexpr != 0 as ref parser.Node && gexpr.kind == parser.NK_LIST_LIT {
+                        ll_register_global_list_literal(ctx, global_key, gexpr)
+                    }
                     val static_init: ref char = ll_static_global_init_value(ctx, gexpr)
                     if gmut != 0 || str.rchar_cmp(static_init, "") != 0 {
                         val global_init: mut ref char = "0"
@@ -5463,6 +5590,14 @@ pub fn gen_module_resolved(root: ref module.ResolvedModule, release_mode: bool) 
                     some v => {
                         val gbuf: ref char = @alloc(256) as ref char
                         val gty: ref parser.Node = ll_lookup_global_type(ctx, n as ref char)
+                        val list_expr: ref parser.Node = ll_lookup_global_list_literal(ctx, n as ref char)
+                        if list_expr != 0 as ref parser.Node {
+                            if ll_emit_global_list_literal(final_sb, ctx, n as ref char, gty, list_expr) {
+                                @free(gbuf)
+                                gc_i++
+                                continue
+                            }
+                        }
                         val ginit: mut ref char = v as ref char
                         val gabi: ref char = ll_type_of(gty)
                         if ll_slot_is_ptr(ctx, gty) && str.rchar_cmp(ginit, "0") == 0 {
@@ -5726,6 +5861,14 @@ pub fn gen_module_resolved_test(root: ref module.ResolvedModule, release_mode: b
                     some v => {
                         val gbuf: ref char = @alloc(256) as ref char
                         val gty: ref parser.Node = ll_lookup_global_type(ctx, n as ref char)
+                        val list_expr: ref parser.Node = ll_lookup_global_list_literal(ctx, n as ref char)
+                        if list_expr != 0 as ref parser.Node {
+                            if ll_emit_global_list_literal(final_sb, ctx, n as ref char, gty, list_expr) {
+                                @free(gbuf)
+                                gc_i++
+                                continue
+                            }
+                        }
                         val ginit: mut ref char = v as ref char
                         val gabi: ref char = ll_type_of(gty)
                         if ll_slot_is_ptr(ctx, gty) && str.rchar_cmp(ginit, "0") == 0 {
