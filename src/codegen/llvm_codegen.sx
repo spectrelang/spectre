@@ -3979,6 +3979,9 @@ fn gen_fn_prefixed(ctx: mut ref LLCtx, fn_node: ref parser.Node, mod_prefix: ref
     ll_clear_locals(ctx)
 
     if is_main {
+        if !ctx.release_mode {
+            ensure_declared(ctx, "__sx_panic_init", "declare void @__sx_panic_init()")
+        }
         emitln(ctx, "define i32 @main(i32 %argc, ptr %argv) {")
     } else {
         val hdr: ref char = @alloc(512) as ref char
@@ -4010,6 +4013,11 @@ fn gen_fn_prefixed(ctx: mut ref LLCtx, fn_node: ref parser.Node, mod_prefix: ref
         emitln(ctx, ") {")
     }
     emitln(ctx, "entry:")
+    if is_main {
+        if !ctx.release_mode {
+            emitln(ctx, "  call void @__sx_panic_init()")
+        }
+    }
 
     if is_main {
         emitln(ctx, "  %t.argc = sext i32 %argc to i64")
@@ -4504,8 +4512,14 @@ fn gen_test_fn(ctx: mut ref LLCtx, body: ref parser.Node, id: i64) void! = {
 
 fn gen_test_main(ctx: ref LLCtx, test_ids: list[i64]) void! = {
     ensure_declared(ctx, "printf", "declare i32 @printf(ptr, ...)")
+    if !ctx.release_mode {
+        ensure_declared(ctx, "__sx_panic_init", "declare void @__sx_panic_init()")
+    }
     emitln(ctx, "define i32 @main(i32 %argc, ptr %argv) {")
     emitln(ctx, "entry:")
+    if !ctx.release_mode {
+        emitln(ctx, "  call void @__sx_panic_init()")
+    }
     emitln(ctx, "  %t.argc = sext i32 %argc to i64")
     emitln(ctx, "  store i64 %t.argc, ptr @sx_argc_store")
     emitln(ctx, "  store ptr %argv, ptr @sx_argv_store")

@@ -18,6 +18,27 @@ val meta         = use("meta/meta.sx")
 val commands     = use("meta/commands.sx")
 val c_translate  = use("translate/c_translate.sx")
 
+fn append_debug_runtime_links(links: mut list[ref char], exe_dir: ref char, quiet: bool, release_mode: bool) void! = {
+    if release_mode { return }
+    val panic_o: ref char = path.join(exe_dir, "std/csources/panic_handler.o")
+    val panic_f = std.fs.open(panic_o, "r")
+    match panic_f {
+        some h => {
+            std.fs.close(h)
+            @append(links, panic_o)
+        }
+        none => {
+            if !quiet {
+                std.stdio.print("warning: panic_handler.o not found at: {s}\n", {panic_o})
+            }
+        }
+    }
+    val platform: ref char = reflection.current_platform_name()
+    if std.string.rchar_cmp(platform, "windows") == 0 {
+        @append(links, "-lDbgHelp")
+    }
+}
+
 pub fn main() i32! = {
     val arena = allocators.Arena.new(65536)?
     val args = std.os.get_args()
@@ -363,7 +384,8 @@ pub fn main() i32! = {
             final_output_ll = @fmt("./s-out/{s}", {binary_name_ll})
         }
 
-        val links_ll: list[ref char] = module.collect_used_links(root_mod, exe_dir)
+        val links_ll: mut list[ref char] = module.collect_used_links(root_mod, exe_dir)
+        append_debug_runtime_links(links_ll, exe_dir, quiet, release_mode)
         val link_flags_ll: mut ref char = ""
         for lib in links_ll {
             link_flags_ll = @fmt("{s} {s}", {link_flags_ll, lib})
@@ -441,26 +463,7 @@ pub fn main() i32! = {
     }
 
     val links: mut list[ref char] = module.collect_used_links(root_mod, exe_dir)
-
-    if !release_mode {
-        val panic_o: ref char = path.join(exe_dir, "std/csources/panic_handler.o")
-        val panic_f = std.fs.open(panic_o, "r")
-        match panic_f {
-            some h => {
-                std.fs.close(h)
-                @append(links, panic_o)
-            }
-            none => {
-                if !quiet {
-                    std.stdio.print("warning: panic_handler.o not found at: {s}\n", {panic_o})
-                }
-            }
-        }
-        val platform: ref char = reflection.current_platform_name()
-        if std.string.rchar_cmp(platform, "windows") == 0 {
-            @append(links, "-lDbgHelp")
-        }
-    }
+    append_debug_runtime_links(links, exe_dir, quiet, release_mode)
 
     if emit_qbe != 0 {
         std.stdio.puts(qbe_ir)
