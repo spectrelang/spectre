@@ -4105,6 +4105,44 @@ fn gen_stmt(ctx: ref LLCtx, stmt: ref parser.Node) void! = {
         return
     }
 
+    if k == parser.NK_ASSERT {
+        val cond_node: ref parser.Node = stmt.d0 as ref parser.Node
+        val cond: ref char = gen_expr(ctx, cond_node)
+        val cond_ty: ref parser.Node = ll_expr_storage_type(ctx, cond_node)
+        val ok_lbl: i64 = fresh_lbl(ctx)
+        val fail_lbl: i64 = fresh_lbl(ctx)
+        val cmp: i64 = fresh_tmp(ctx)
+        val jbuf: ref char = @alloc(256) as ref char
+        if ll_slot_is_ptr(ctx, cond_ty) {
+            @snprintf(jbuf, 256, "  %%t{lld} = icmp ne ptr {s}, null\n  br i1 %%t{lld}, label %%lbl{lld}, label %%lbl{lld}\nlbl{lld}:\n",
+                {cmp, cond, cmp, ok_lbl, fail_lbl, fail_lbl})
+        } else {
+            @snprintf(jbuf, 256, "  %%t{lld} = icmp ne i64 {s}, 0\n  br i1 %%t{lld}, label %%lbl{lld}, label %%lbl{lld}\nlbl{lld}:\n",
+                {cmp, cond, cmp, ok_lbl, fail_lbl, fail_lbl})
+        }
+        emit(ctx, jbuf)
+        @free(jbuf)
+
+        ensure_declared(ctx, "dprintf", "declare i32 @dprintf(i32, ptr, ...)")
+        ensure_declared(ctx, "fflush", "declare i32 @fflush(ptr)")
+        ensure_declared(ctx, "abort", "declare void @abort()")
+        val msg_buf: ref char = @alloc(512) as ref char
+        @snprintf(msg_buf, 512, "spectre: assertion failed at line {lld}\n", {stmt.line})
+        val msg_len: i64 = str.len_raw(msg_buf) + 1
+        val msg_idx: i64 = intern_string(ctx, msg_buf)
+        @free(msg_buf)
+        val msg_tmp: i64 = fresh_tmp(ctx)
+        val fd_tmp: i64 = fresh_tmp(ctx)
+        val call_tmp: i64 = fresh_tmp(ctx)
+        val fbuf: ref char = @alloc(256) as ref char
+        @snprintf(fbuf, 256,
+            "  %%t{lld} = getelementptr [{lld} x i8], ptr @__str{lld}, i64 0, i64 0\n  %%t{lld} = trunc i64 2 to i32\n  %%t{lld} = call i32 (i32, ptr, ...) @dprintf(i32 %%t{lld}, ptr %%t{lld})\n  call i32 @fflush(ptr null)\n  call void @abort()\n  unreachable\nlbl{lld}:\n",
+            {msg_tmp, msg_len, msg_idx, fd_tmp, call_tmp, fd_tmp, msg_tmp, ok_lbl})
+        emit(ctx, fbuf)
+        @free(fbuf)
+        return
+    }
+
     if k == parser.NK_DEFER {
         ll_defer_push(ctx, stmt.d0 as ref void)
         return
