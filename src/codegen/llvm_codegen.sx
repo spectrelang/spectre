@@ -2702,11 +2702,18 @@ fn gen_expr(ctx: ref LLCtx, expr: ref parser.Node) ref char! = {
         val lhs_is_result_like: bool = ll_is_result_type(lhs_ty) || lhs_node.kind == parser.NK_OK_VAL || lhs_node.kind == parser.NK_ERR_VAL
         val rhs_is_result_like: bool = ll_is_result_type(rhs_ty) || rhs_node.kind == parser.NK_OK_VAL || rhs_node.kind == parser.NK_ERR_VAL
         if op == parser.OP_ADD {
-            if is_float_binop { @snprintf(buf, 256, "  %%t{lld} = fadd {s} {s}, {s}\n", {tmp, float_abi, lhs, rhs}) }
+            if ll_slot_is_ptr(ctx, lhs_ty) && !ll_slot_is_ptr(ctx, rhs_ty) {
+                @snprintf(buf, 256, "  %%t{lld} = getelementptr i8, ptr {s}, i64 {s}\n", {tmp, lhs, rhs})
+            } elif ll_slot_is_ptr(ctx, rhs_ty) && !ll_slot_is_ptr(ctx, lhs_ty) {
+                @snprintf(buf, 256, "  %%t{lld} = getelementptr i8, ptr {s}, i64 {s}\n", {tmp, rhs, lhs})
+            } elif is_float_binop { @snprintf(buf, 256, "  %%t{lld} = fadd {s} {s}, {s}\n", {tmp, float_abi, lhs, rhs}) }
             else { @snprintf(buf, 256, "  %%t{lld} = add i64 {s}, {s}\n", {tmp, lhs, rhs}) }
         }
         elif op == parser.OP_SUB {
-            if is_float_binop { @snprintf(buf, 256, "  %%t{lld} = fsub {s} {s}, {s}\n", {tmp, float_abi, lhs, rhs}) }
+            if ll_slot_is_ptr(ctx, lhs_ty) && !ll_slot_is_ptr(ctx, rhs_ty) {
+                val neg_tmp: i64 = fresh_tmp(ctx)
+                @snprintf(buf, 256, "  %%t{lld} = sub i64 0, {s}\n  %%t{lld} = getelementptr i8, ptr {s}, i64 %%t{lld}\n", {neg_tmp, rhs, tmp, lhs, neg_tmp})
+            } elif is_float_binop { @snprintf(buf, 256, "  %%t{lld} = fsub {s} {s}, {s}\n", {tmp, float_abi, lhs, rhs}) }
             else { @snprintf(buf, 256, "  %%t{lld} = sub i64 {s}, {s}\n", {tmp, lhs, rhs}) }
         }
         elif op == parser.OP_MUL {
@@ -3152,8 +3159,19 @@ fn gen_builtin(ctx: ref LLCtx, expr: ref parser.Node) ref char! = {
         val elem_ptr_name: ref char = @alloc(16) as ref char
         @snprintf(elem_ptr_name, 16, "%%t{lld}", {elem_ptr})
         val val_raw: ref char = gen_expr(ctx, val_node)
-        if ll_slot_is_ptr(ctx, elem_ty) {
-            ll_emit_store_value(ctx, elem_ptr_name, elem_ty, val_raw)
+        val elem_is_ptr: mut bool = ll_slot_is_ptr(ctx, elem_ty)
+        val store_ty: mut ref parser.Node = elem_ty
+        if !elem_is_ptr && elem_ty == 0 as ref parser.Node {
+            elem_is_ptr = ll_some_payload_is_ptr_like(ctx, val_node)
+            if elem_is_ptr {
+                store_ty = ll_expr_storage_type(ctx, val_node)
+            }
+        }
+        if elem_is_ptr {
+            if store_ty == 0 as ref parser.Node {
+                store_ty = ll_make_ref_type(0 as ref parser.Node)
+            }
+            ll_emit_store_value(ctx, elem_ptr_name, store_ty, val_raw)
         } else {
             val store_val: ref char = ll_coerce_value_for_type(ctx, val_node, ll_make_named_type("i64"), val_raw)
             val sbuf: ref char = @alloc(128) as ref char
