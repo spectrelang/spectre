@@ -613,6 +613,66 @@ fn get_std_child_names() mut list[ref char] = {
     return ["allocators", "collections", "crypto", "fmt", "fs", "log", "math", "os", "path", "random", "reflection", "stdio", "string", "str", "time", "thread"]
 }
 
+fn ll_is_std_child_name(name: ref char) bool! = {
+    for scn in get_std_child_names() {
+        if str.rchar_cmp(scn, name) == 0 { return true }
+    }
+    return false
+}
+
+fn ll_first_path_segment(src: ref char) ref char! = {
+    val len: i64 = str.len_raw(src)
+    val i: mut i64 = 0
+    for {
+        if i >= len { break }
+        val c: u8 = @load8(@ptradd(src as ref void, i))
+        if c == 95 && @load8(@ptradd(src as ref void, i + 1)) == 95 {
+            val out: ref char = @alloc(i + 1) as ref char
+            @memcpy(out as ref void, src as ref void, i as usize)
+            @store8(@ptradd(out as ref void, i), 0)
+            return out
+        }
+        i++
+    }
+    return ""
+}
+
+fn ll_root_prefix(root: ref module.ResolvedModule) ref char! = {
+    val fname: ref char = str.cstr(root.filename)
+    val len: i64 = str.len_raw(fname)
+    val slash: mut i64 = -1
+    val dot: mut i64 = len
+    val i: mut i64 = 0
+    for {
+        if i >= len { break }
+        val c: u8 = @load8(@ptradd(fname as ref void, i))
+        if c == 47 { slash = i }
+        elif c == 46 { dot = i }
+        i++
+    }
+    val base_start: i64 = slash + 1
+    if dot <= base_start { dot = len }
+    val base_len: i64 = dot - base_start
+    if base_len <= 0 { return "" }
+    val base: ref char = @alloc(base_len + 1) as ref char
+    @memcpy(base as ref void, @ptradd(fname as ref void, base_start), base_len as usize)
+    @store8(@ptradd(base as ref void, base_len), 0)
+    if !ll_is_std_child_name(base) { return "" }
+    if slash < 3 { return "" }
+    val p3: u8 = @load8(@ptradd(fname as ref void, slash - 3))
+    val p2: u8 = @load8(@ptradd(fname as ref void, slash - 2))
+    val p1: u8 = @load8(@ptradd(fname as ref void, slash - 1))
+    if p3 == 115 && p2 == 116 && p1 == 100 { return base }
+    return ""
+}
+
+fn ll_effective_prefix(root_prefix: ref char, original_prefix: ref char) ref char! = {
+    if str.rchar_cmp(original_prefix, "") == 0 && str.rchar_cmp(root_prefix, "") != 0 {
+        return root_prefix
+    }
+    return original_prefix
+}
+
 fn ll_widen_to_i64(ctx: ref LLCtx, value: ref char, ty: ref parser.Node) ref char! = {
     if ty == 0 as ref parser.Node { return value }
     val k: i64 = ty.kind
@@ -2083,6 +2143,18 @@ fn scan_node_for_calls(ctx: ref LLCtx, node: ref parser.Node) void! = {
 }
 
 fn extract_call_prefix(mangled: ref char, bare: ref char) ref char! = {
+    if str.rchar_cmp(mangled, bare) == 0 { return "" }
+    if str.len_raw(mangled) > 5 {
+        val s0: u8 = @load8(mangled as ref void)
+        val s1: u8 = @load8(@ptradd(mangled as ref void, 1))
+        val s2: u8 = @load8(@ptradd(mangled as ref void, 2))
+        val s3: u8 = @load8(@ptradd(mangled as ref void, 3))
+        val s4: u8 = @load8(@ptradd(mangled as ref void, 4))
+        if s0 == 115 && s1 == 116 && s2 == 100 && s3 == 95 && s4 == 95 {
+            val child_prefix: ref char = ll_first_path_segment(bare)
+            if str.rchar_cmp(child_prefix, "") != 0 { return child_prefix }
+        }
+    }
     val mlen: i64 = str.len_raw(mangled)
     val blen: i64 = str.len_raw(bare)
     if mlen <= blen + 2 { return "" }
@@ -2097,6 +2169,7 @@ fn extract_call_prefix(mangled: ref char, bare: ref char) ref char! = {
 pub fn gen_module_resolved(root: ref module.ResolvedModule, release_mode: bool) ref char! = {
     val ctx: mut ref LLCtx = ll_new()
     ctx.release_mode = release_mode
+    val root_prefix: ref char = ll_root_prefix(root)
 
     val out_prefixes: list[ref char] = []
     val out_items:    list[ref void] = []
@@ -2117,7 +2190,8 @@ pub fn gen_module_resolved(root: ref module.ResolvedModule, release_mode: bool) 
             some pfx => {
                 match items_opt {
                     some items_ptr => {
-                        preregister_items(ctx, items_ptr as list[ref parser.Node], pfx as ref char)
+                        val effective_pfx: ref char = ll_effective_prefix(root_prefix, pfx as ref char)
+                        preregister_items(ctx, items_ptr as list[ref parser.Node], effective_pfx)
                         if str.rchar_cmp(pfx as ref char, "") == 0 {
                             scan_items_for_usage(ctx, items_ptr as list[ref parser.Node], "")
                         }
@@ -2141,10 +2215,11 @@ pub fn gen_module_resolved(root: ref module.ResolvedModule, release_mode: bool) 
             val items_opt = @get(out_items, li_s as usize)
             match pfx_opt {
                 some pfx => {
-                    if ll_is_prefix_used(ctx, pfx as ref char) {
+                    val effective_pfx: ref char = ll_effective_prefix(root_prefix, pfx as ref char)
+                    if ll_is_prefix_used(ctx, effective_pfx) {
                         match items_opt {
                             some items_ptr => {
-                                scan_items_for_usage(ctx, items_ptr as list[ref parser.Node], pfx as ref char)
+                                scan_items_for_usage(ctx, items_ptr as list[ref parser.Node], effective_pfx)
                             }
                             none => {}
                         }
@@ -2165,8 +2240,9 @@ pub fn gen_module_resolved(root: ref module.ResolvedModule, release_mode: bool) 
             match pfx_opt {
                 some pfx => {
                     for scn in get_std_child_names() {
-                        if str.rchar_cmp(pfx as ref char, scn) == 0 {
-                            ll_mark_prefix_used(ctx, pfx as ref char)
+                        val effective_pfx: ref char = ll_effective_prefix(root_prefix, pfx as ref char)
+                        if str.rchar_cmp(effective_pfx, scn) == 0 {
+                            ll_mark_prefix_used(ctx, effective_pfx)
                             break
                         }
                     }
@@ -2187,9 +2263,10 @@ pub fn gen_module_resolved(root: ref module.ResolvedModule, release_mode: bool) 
                 match items_opt {
                     some items_ptr => {
                         val is_root: bool = str.rchar_cmp(pfx as ref char, "") == 0
-                        val is_used: bool = ll_is_prefix_used(ctx, pfx as ref char)
+                        val effective_pfx: ref char = ll_effective_prefix(root_prefix, pfx as ref char)
+                        val is_used: bool = ll_is_prefix_used(ctx, effective_pfx)
                         if is_root || is_used {
-                            gen_items_with_prefix(ctx, items_ptr as list[ref parser.Node], pfx as ref char)
+                            gen_items_with_prefix(ctx, items_ptr as list[ref parser.Node], effective_pfx)
                         }
                     }
                     none => {}
