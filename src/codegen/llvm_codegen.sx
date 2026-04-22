@@ -35,6 +35,7 @@ pub type LLCtx = {
     mc_vals: mut list[ref char]
     unames: mut list[ref char]
     uvariants: mut list[ref void]
+    defer_stack: mut list[ref void]
     lnames: mut list[ref char]
     lptrs: mut list[ref char]
     ltypes: mut list[ref void]
@@ -70,6 +71,7 @@ fn ll_new() ref LLCtx! = {
     ctx.mc_vals = []
     ctx.unames = []
     ctx.uvariants = []
+    ctx.defer_stack = []
     ctx.lnames = []
     ctx.lptrs = []
     ctx.ltypes = []
@@ -82,6 +84,28 @@ fn ll_clear_locals(ctx: mut ref LLCtx) void! = {
     ctx.lnames = []
     ctx.lptrs = []
     ctx.ltypes = []
+}
+
+fn ll_defer_push(ctx: ref LLCtx, body: ref void) void! = {
+    @append(ctx.defer_stack, body)
+}
+
+fn ll_defer_clear(ctx: mut ref LLCtx) void! = {
+    ctx.defer_stack = []
+}
+
+fn ll_emit_defers(ctx: ref LLCtx) void! = {
+    val n: i64 = @len(ctx.defer_stack) as i64
+    val i: mut i64 = n - 1
+    for {
+        if i < 0 { break }
+        val d_opt = @get(ctx.defer_stack, i as usize)
+        match d_opt {
+            some d => { gen_stmts(ctx, d as ref parser.Node) }
+            none => {}
+        }
+        i--
+    }
 }
 
 fn ll_register_local(ctx: ref LLCtx, name: ref char, ptr_name: ref char, ty: ref void) void! = {
@@ -641,6 +665,25 @@ fn ll_expr_storage_type(ctx: ref LLCtx, expr: ref parser.Node) ref parser.Node! 
         if resolved != 0 as ref char { effective = resolved }
         elif ext_sym != 0 as ref char { effective = ext_sym }
         return ll_lookup_fn_ret(ctx, effective)
+    }
+    if expr.kind == parser.NK_BUILTIN {
+        val bname: ref char = expr.d0 as ref char
+        if str.rchar_cmp(bname, "alloc") == 0
+        || str.rchar_cmp(bname, "realloc") == 0
+        || str.rchar_cmp(bname, "ptradd") == 0
+        || str.rchar_cmp(bname, "fmt") == 0 {
+            val dummy: mut ref parser.Node = @alloc(@sizeof(parser.Node)) as ref parser.Node
+            dummy.kind = parser.TY_REF
+            dummy.line = 0
+            dummy.d0 = 0
+            dummy.d1 = 0
+            dummy.d2 = 0
+            dummy.d3 = 0
+            dummy.d4 = 0
+            dummy.d5 = 0
+            dummy.d6 = 0
+            return dummy
+        }
     }
     return 0 as ref parser.Node
 }
@@ -1282,6 +1325,14 @@ fn gen_builtin(ctx: ref LLCtx, expr: ref parser.Node) ref char! = {
         val ptr: ref char = gen_expr(ctx, get_arg_node(args, 0))
         val buf: ref char = @alloc(256) as ref char
         @snprintf(buf, 256, "  call void @free(ptr {s})\n  %%t{lld} = add i64 0, 0\n", {ptr, tmp})
+        emit(ctx, buf)
+        @free(buf)
+    } elif str.rchar_cmp(name, "realloc") == 0 {
+        ensure_declared(ctx, "realloc", "declare ptr @realloc(ptr, i64)")
+        val ptr: ref char = gen_expr(ctx, get_arg_node(args, 0))
+        val sz: ref char = gen_expr(ctx, get_arg_node(args, 1))
+        val buf: ref char = @alloc(256) as ref char
+        @snprintf(buf, 256, "  %%t{lld} = call ptr @realloc(ptr {s}, i64 {s})\n", {tmp, ptr, sz})
         emit(ctx, buf)
         @free(buf)
     } elif str.rchar_cmp(name, "memcpy") == 0 {
@@ -1949,6 +2000,7 @@ fn gen_stmt(ctx: ref LLCtx, stmt: ref parser.Node) void! = {
     if k == parser.NK_RETURN {
         val expr: ref parser.Node = stmt.d0 as ref parser.Node
         if expr == 0 as ref parser.Node {
+            ll_emit_defers(ctx)
             if ctx.current_is_main {
                 emitln(ctx, "  ret i32 0")
             } elif str.rchar_cmp(ctx.current_ret_abi, "ptr") == 0 {
@@ -1959,6 +2011,7 @@ fn gen_stmt(ctx: ref LLCtx, stmt: ref parser.Node) void! = {
         } else {
             val rv: ref char = gen_expr(ctx, expr)
             val buf: ref char = @alloc(128) as ref char
+            ll_emit_defers(ctx)
             if ctx.current_is_main {
                 val tr: i64 = fresh_tmp(ctx)
                 @snprintf(buf, 128, "  %%t{lld} = trunc i64 {s} to i32\n  ret i32 %%t{lld}\n", {tr, rv, tr})
@@ -1970,6 +2023,11 @@ fn gen_stmt(ctx: ref LLCtx, stmt: ref parser.Node) void! = {
             emit(ctx, buf)
             @free(buf)
         }
+        return
+    }
+
+    if k == parser.NK_DEFER {
+        ll_defer_push(ctx, stmt.d0 as ref void)
         return
     }
 
@@ -2287,6 +2345,7 @@ fn gen_fn_prefixed(ctx: mut ref LLCtx, fn_node: ref parser.Node, mod_prefix: ref
 
     ctx.tmp = 0
     ctx.current_is_main = is_main
+    ll_defer_clear(ctx)
     if is_main {
         ctx.current_ret_abi = "i32"
     } else {
@@ -2386,6 +2445,7 @@ fn gen_fn_prefixed(ctx: mut ref LLCtx, fn_node: ref parser.Node, mod_prefix: ref
         }
     }
     if needs_ret {
+        ll_emit_defers(ctx)
         if is_main {
             emitln(ctx, "  ret i32 0")
         } elif str.rchar_cmp(ctx.current_ret_abi, "ptr") == 0 {
@@ -2622,6 +2682,9 @@ fn scan_node_for_calls(ctx: ref LLCtx, node: ref parser.Node) void! = {
             scan_stmts_for_calls(ctx, node.d1 as ref void)
         }
     } elif k == parser.NK_EXPR_STMT { scan_node_for_calls(ctx, node.d0 as ref parser.Node) }
+    elif k == parser.NK_DEFER {
+        if node.d0 != 0 { scan_stmts_for_calls(ctx, node.d0 as ref void) }
+    }
     elif k == parser.NK_VAL { scan_node_for_calls(ctx, node.d3 as ref parser.Node) }
     elif k == parser.NK_IF {
         scan_node_for_calls(ctx, node.d0 as ref parser.Node)
@@ -2678,12 +2741,14 @@ fn gen_test_fn(ctx: mut ref LLCtx, body: ref parser.Node, id: i64) void! = {
     ctx.tmp = 0
     ctx.current_is_main = false
     ll_clear_locals(ctx)
+    ll_defer_clear(ctx)
     val hdr: ref char = @alloc(128) as ref char
     @snprintf(hdr, 128, "define void @__sx_test_{lld}() {\n", {id})
     emit(ctx, hdr)
     @free(hdr)
     emitln(ctx, "entry:")
     gen_stmts(ctx, body)
+    ll_emit_defers(ctx)
     emitln(ctx, "  ret void")
     emitln(ctx, "}")
     emitln(ctx, "")
