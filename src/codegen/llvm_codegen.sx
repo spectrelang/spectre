@@ -824,6 +824,20 @@ fn ll_is_fnptr_type(ty: ref parser.Node) bool! = {
     return ty.kind == parser.TY_FNPTR
 }
 
+fn ll_make_named_type(name: ref char) ref parser.Node! = {
+    val named: mut ref parser.Node = @alloc(@sizeof(parser.Node)) as ref parser.Node
+    named.kind = parser.TY_NAMED
+    named.line = 0
+    named.d0 = name as ref void
+    named.d1 = 0
+    named.d2 = 0
+    named.d3 = 0
+    named.d4 = 0
+    named.d5 = 0
+    named.d6 = 0
+    return named
+}
+
 fn ll_is_float_type(ty: ref parser.Node) bool! = {
     if ty == 0 as ref parser.Node { return false }
     val abi_ty: ref char = ll_type_of(ty)
@@ -1004,6 +1018,28 @@ fn ll_expr_storage_type(ctx: ref LLCtx, expr: ref parser.Node) ref parser.Node! 
             dummy.d6 = 0
             return dummy
         }
+    }
+    if expr.kind == parser.NK_FLOAT_LIT { return ll_make_named_type("f64") }
+    if expr.kind == parser.NK_INT_LIT { return ll_make_named_type("i64") }
+    if expr.kind == parser.NK_BOOL { return ll_make_named_type("bool") }
+    if expr.kind == parser.NK_CHAR_LIT { return ll_make_named_type("char") }
+    if expr.kind == parser.NK_UNOP {
+        val op: i64 = parser.unop_op(expr)
+        if op == parser.UOP_NEG { return ll_expr_storage_type(ctx, parser.unop_inner(expr)) }
+        return ll_make_named_type("i64")
+    }
+    if expr.kind == parser.NK_BINOP {
+        val op: i64 = expr.d0 as i64
+        if op == parser.OP_EQ || op == parser.OP_NE || op == parser.OP_LT || op == parser.OP_GT || op == parser.OP_LE || op == parser.OP_GE
+            || op == parser.OP_AND || op == parser.OP_OR {
+            return ll_make_named_type("i64")
+        }
+        val lhs_ty: ref parser.Node = ll_expr_storage_type(ctx, expr.d1 as ref parser.Node)
+        val rhs_ty: ref parser.Node = ll_expr_storage_type(ctx, expr.d2 as ref parser.Node)
+        if ll_is_float_type(lhs_ty) { return lhs_ty }
+        if ll_is_float_type(rhs_ty) { return rhs_ty }
+        if lhs_ty != 0 as ref parser.Node { return lhs_ty }
+        return rhs_ty
     }
     return 0 as ref parser.Node
 }
