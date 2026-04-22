@@ -2,7 +2,7 @@ val stdio = use("std/stdio")
 
 pub fn (Stack) push(s: mut self, vl: i32) void = {
     pre {
-        not_full: s.len < trust @capacity(s.data)
+        not_full: s.len < @capacity(s.data)
     }
     trust @append(s.data, vl)
     s.len = s.len + 1
@@ -12,7 +12,7 @@ pub fn (Stack) pop(s: mut self) option[i32] = {
     pre { 
         not_empty: s.len > 0
     }
-    val top = trust @get(s.data, s.len - 1)
+    val top = @get(s.data, s.len - 1)
     trust @remove(s.data, s.len - 1)
     s.len = s.len - 1
     return top
@@ -27,7 +27,7 @@ pub fn (Stack) peek(s: self) option[i32] = {
     pre { 
         not_empty: s.len > 0 
     }
-    return trust @get(s.data, s.len - 1)
+    return @get(s.data, s.len - 1)
 }
 
 pub fn (Stack) print_top(s: self) void = {
