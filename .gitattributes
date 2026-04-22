@@ -1,3 +1,4 @@
 *.c linguist-generated
 *.h linguist-generated
 *.sh linguist-generated
+*.ll linguist-generated
