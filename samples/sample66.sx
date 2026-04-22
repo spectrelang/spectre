@@ -9,9 +9,9 @@ pub fn main() void = {
     trust stdio.read_line(buffer, 100)
     trust stdio.read_line(buffer2, 100)
 
-    match trust fmt.string_to_i64(buffer) {
+    match fmt.string_to_i64(buffer) {
         ok v => {
-            match trust fmt.string_to_i64(buffer2) {
+            match fmt.string_to_i64(buffer2) {
                 ok v2 => {
                     trust stdio.print("{d}\n", {v + v2})
                 }
