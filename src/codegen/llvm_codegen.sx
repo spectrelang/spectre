@@ -213,7 +213,7 @@ fn emit_string_data(ctx: ref LLCtx) void! = {
                 val slen: i64 = str.len_raw(sptr)
                 val arr_len: i64 = slen + 1
                 val buf: ref char = @alloc(64) as ref char
-                @snprintf(buf, 64, "@__str{lld} = private constant [{lld} x i8] c\"", {i, arr_len})
+                @snprintf(buf, 64, "@__str{lld} = private global [{lld} x i8] c\"", {i, arr_len})
                 emit(ctx, buf)
                 @free(buf)
                 val j: mut i64 = 0
