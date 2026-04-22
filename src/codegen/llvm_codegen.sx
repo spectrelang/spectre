@@ -1616,24 +1616,18 @@ fn gen_expr_ok_val(ctx: ref LLCtx, expr: ref parser.Node) ref char! = {
     emit(ctx, buf)
     @free(buf)
     if expr.d0 != 0 {
-        val inner: ref void = gen_expr(ctx, expr.d0 as ref parser.Node) as ref void
+        val inner_node: ref parser.Node = expr.d0 as ref parser.Node
+        val inner_raw: ref char = gen_expr(ctx, inner_node)
+        val inner_ty: ref parser.Node = ll_expr_storage_type(ctx, inner_node)
+        val inner: ref char = ll_coerce_value_for_type(ctx, inner_node, inner_ty, inner_raw)
         val off: i64 = fresh_tmp(ctx)
         val pbuf: ref char = @alloc(128) as ref char
         @snprintf(pbuf, 128, "  %%t{lld} = getelementptr i8, ptr %%t{lld}, i64 8\n", {off, ptr})
         emit(ctx, pbuf)
         @free(pbuf)
-        emit(ctx, "  store i64 ")
-        val ii: mut i64 = 0
-        for {
-            val ch: u8 = @load8(@ptradd(inner, ii))
-            if ch == 0 { break }
-            str.StringBuilder.append_char(ctx.sb, ch)
-            ii++
-        }
-        val sbuf: ref char = @alloc(64) as ref char
-        @snprintf(sbuf, 64, ", ptr %%t{lld}\n", {off})
-        emit(ctx, sbuf)
-        @free(sbuf)
+        val off_name: ref char = @alloc(16) as ref char
+        @snprintf(off_name, 16, "%%t{lld}", {off})
+        ll_emit_store_value(ctx, off_name, inner_ty, inner)
     }
     val res: ref char = @alloc(16) as ref char
     @snprintf(res, 16, "%%t{lld}", {ptr})
@@ -1642,7 +1636,10 @@ fn gen_expr_ok_val(ctx: ref LLCtx, expr: ref parser.Node) ref char! = {
 
 fn gen_expr_err_val(ctx: ref LLCtx, expr: ref parser.Node) ref char! = {
     ensure_declared(ctx, "malloc", "declare ptr @malloc(i64)")
-    val inner: ref void = gen_expr(ctx, expr.d0 as ref parser.Node) as ref void
+    val inner_node: ref parser.Node = expr.d0 as ref parser.Node
+    val inner_raw: ref char = gen_expr(ctx, inner_node)
+    val inner_ty: ref parser.Node = ll_expr_storage_type(ctx, inner_node)
+    val inner: ref char = ll_coerce_value_for_type(ctx, inner_node, inner_ty, inner_raw)
     val ptr: i64 = fresh_tmp(ctx)
     val buf: ref char = @alloc(256) as ref char
     @snprintf(buf, 256, "  %%t{lld} = call ptr @malloc(i64 16)\n  store i64 1, ptr %%t{lld}\n", {ptr, ptr})
@@ -1653,18 +1650,9 @@ fn gen_expr_err_val(ctx: ref LLCtx, expr: ref parser.Node) ref char! = {
     @snprintf(pbuf, 128, "  %%t{lld} = getelementptr i8, ptr %%t{lld}, i64 8\n", {off, ptr})
     emit(ctx, pbuf)
     @free(pbuf)
-    emit(ctx, "  store i64 ")
-    val ii: mut i64 = 0
-    for {
-        val ch: u8 = @load8(@ptradd(inner, ii))
-        if ch == 0 { break }
-        str.StringBuilder.append_char(ctx.sb, ch)
-        ii++
-    }
-    val sbuf: ref char = @alloc(64) as ref char
-    @snprintf(sbuf, 64, ", ptr %%t{lld}\n", {off})
-    emit(ctx, sbuf)
-    @free(sbuf)
+    val off_name: ref char = @alloc(16) as ref char
+    @snprintf(off_name, 16, "%%t{lld}", {off})
+    ll_emit_store_value(ctx, off_name, inner_ty, inner)
     val res: ref char = @alloc(16) as ref char
     @snprintf(res, 16, "%%t{lld}", {ptr})
     return res
