@@ -1419,8 +1419,10 @@ fn ll_expr_storage_type(ctx: ref LLCtx, expr: ref parser.Node) ref parser.Node! 
         val local_ty: ref parser.Node = ll_lookup_local_type(ctx, name)
         if local_ty != 0 as ref parser.Node { return local_ty }
         val resolved: ref char = ll_resolve_fn_name(ctx, name)
+        val ext_sym: ref char = ll_lookup_extern_symbol(ctx, name)
         val effective: mut ref char = name
         if resolved != 0 as ref char { effective = resolved }
+        elif ext_sym != 0 as ref char { effective = ext_sym }
         val ret_ty: ref parser.Node = ll_lookup_fn_ret(ctx, effective)
         if ret_ty != 0 as ref parser.Node {
             return ll_make_fnptr_type(ll_lookup_fn_params(ctx, effective), ret_ty)
@@ -1459,8 +1461,10 @@ fn ll_expr_storage_type(ctx: ref LLCtx, expr: ref parser.Node) ref parser.Node! 
         }
         val field_full_name: ref char = resolve_callee_name(expr)
         val resolved_field: ref char = ll_resolve_fn_name(ctx, field_full_name)
+        val ext_field: ref char = ll_lookup_extern_symbol(ctx, field_full_name)
         val effective_field: mut ref char = field_full_name
         if resolved_field != 0 as ref char { effective_field = resolved_field }
+        elif ext_field != 0 as ref char { effective_field = ext_field }
         val field_ret_ty: ref parser.Node = ll_lookup_fn_ret(ctx, effective_field)
         if field_ret_ty != 0 as ref parser.Node {
             return ll_make_fnptr_type(ll_lookup_fn_params(ctx, effective_field), field_ret_ty)
