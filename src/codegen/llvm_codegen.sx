@@ -4510,12 +4510,7 @@ fn gen_fn_prefixed(ctx: mut ref LLCtx, fn_node: ref parser.Node, mod_prefix: ref
     emitln(ctx, "")
 }
 
-fn gen_extern_fn_prefixed(ctx: ref LLCtx, item: ref parser.Node, _: ref char) void! = {
-    val name: ref char = item.d1 as ref char
-    val symbol: ref char = item.d2 as ref char
-    val params: ref void = item.d4 as ref void
-    val ret_ty: ref void = item.d5 as ref void
-    ll_register_extern(ctx, name, symbol, ret_ty)
+fn ll_declare_extern(ctx: ref LLCtx, symbol: ref char, params: ref void, ret_ty: ref void) void! = {
     val decl_sb: ref void = str.StringBuilder.new()
     val hdr: ref char = @alloc(256) as ref char
     @snprintf(hdr, 256, "declare {s} @{s}(", {ll_call_ret_abi(ctx, ret_ty as ref parser.Node), symbol})
@@ -4545,8 +4540,27 @@ fn gen_extern_fn_prefixed(ctx: ref LLCtx, item: ref parser.Node, _: ref char) vo
     str.StringBuilder.append_cstr(decl_sb, ")")
     ensure_declared(ctx, symbol, str.cstr(str.StringBuilder.build(decl_sb)))
     str.StringBuilder.free(decl_sb)
+}
+
+fn gen_extern_fn_prefixed(ctx: ref LLCtx, item: ref parser.Node, mod_prefix: ref char) void! = {
+    val public: i64 = item.d0 as i64
+    val name: ref char = item.d1 as ref char
+    val symbol: ref char = item.d2 as ref char
+    val params: ref void = item.d4 as ref void
+    val ret_ty: ref void = item.d5 as ref void
+    ll_register_extern(ctx, name, symbol, ret_ty)
+    ll_declare_extern(ctx, symbol, params, ret_ty)
     if params != 0 as ref void {
         ll_register_fn(ctx, symbol, params, ret_ty)
+    }
+    if public == 1 && str.rchar_cmp(mod_prefix, "") != 0 {
+        val mangled_name: ref char = @alloc(512) as ref char
+        @snprintf(mangled_name, 512, "{s}__{s}", {mod_prefix, name})
+        ll_register_extern(ctx, mangled_name, symbol, ret_ty)
+        if params != 0 as ref void {
+            ll_register_fn(ctx, mangled_name, params, ret_ty)
+        }
+        @free(mangled_name)
     }
 }
 
@@ -4582,6 +4596,26 @@ fn preregister_items(ctx: ref LLCtx, items: list[ref parser.Node], mod_prefix: r
                     else { @snprintf(mangled, 512, "{s}__{s}", {mod_prefix, base}) }
                     if params != 0 as ref void {
                         ll_register_fn(ctx, mangled, params, ret_ty)
+                    }
+                } elif k == parser.NK_EXTERN_FN {
+                    val public: i64 = node.d0 as i64
+                    val name: ref char = node.d1 as ref char
+                    val symbol: ref char = node.d2 as ref char
+                    val params: ref void = node.d4 as ref void
+                    val ret_ty: ref void = node.d5 as ref void
+                    ll_register_extern(ctx, name, symbol, ret_ty)
+                    ll_declare_extern(ctx, symbol, params, ret_ty)
+                    if params != 0 as ref void {
+                        ll_register_fn(ctx, symbol, params, ret_ty)
+                    }
+                    if public == 1 && str.rchar_cmp(mod_prefix, "") != 0 {
+                        val mangled_name: ref char = @alloc(512) as ref char
+                        @snprintf(mangled_name, 512, "{s}__{s}", {mod_prefix, name})
+                        ll_register_extern(ctx, mangled_name, symbol, ret_ty)
+                        if params != 0 as ref void {
+                            ll_register_fn(ctx, mangled_name, params, ret_ty)
+                        }
+                        @free(mangled_name)
                     }
                 } elif k == parser.NK_UNIONDEF {
                     val uname: ref char = node.d1 as ref char
