@@ -1003,7 +1003,8 @@ fn ll_coerce_value_for_type(ctx: ref LLCtx, expr: ref parser.Node, ty: ref parse
     if ll_slot_is_ptr(ctx, ty) && ll_expr_is_null_ptr_literal(expr) {
         return "null"
     }
-    if ll_slot_is_ptr(ctx, ty) && ll_expr_is_raw_load(expr) {
+    val expr_ty: ref parser.Node = ll_expr_storage_type(ctx, expr)
+    if ll_slot_is_ptr(ctx, ty) && !ll_slot_is_ptr(ctx, expr_ty) && ll_expr_is_raw_load(expr) {
         return ll_coerce_word_to_ptr(ctx, value)
     }
     return value
@@ -1313,8 +1314,18 @@ fn ll_coerce_arg_to_abi(ctx: ref LLCtx, node: ref parser.Node, value: ref char, 
     if str.rchar_cmp(abi_ty, "ptr") == 0 && ll_expr_is_null_ptr_literal(node) {
         return "null"
     }
-    if str.rchar_cmp(abi_ty, "ptr") == 0 && ll_expr_is_raw_load(node) {
+    val node_ty_for_abi: ref parser.Node = ll_expr_storage_type(ctx, node)
+    if str.rchar_cmp(abi_ty, "ptr") == 0 && !ll_slot_is_ptr(ctx, node_ty_for_abi) && ll_expr_is_raw_load(node) {
         return ll_coerce_word_to_ptr(ctx, value)
+    }
+    if str.rchar_cmp(abi_ty, "i64") == 0 {
+        if ll_expr_is_null_ptr_literal(node) {
+            return "0"
+        }
+        val node_ty: ref parser.Node = node_ty_for_abi
+        if ll_slot_is_ptr(ctx, node_ty) {
+            return ll_coerce_ptr_to_word(ctx, value)
+        }
     }
     if str.rchar_cmp(abi_ty, "i32") == 0 {
         val tmp: i64 = fresh_tmp(ctx)
@@ -1756,7 +1767,18 @@ fn gen_expr(ctx: ref LLCtx, expr: ref parser.Node) ref char! = {
     }
 
     if k == parser.NK_CAST {
-        return gen_expr(ctx, expr.d0 as ref parser.Node)
+        val inner_expr: ref parser.Node = expr.d0 as ref parser.Node
+        val inner: ref char = gen_expr(ctx, inner_expr)
+        val src_ty: ref parser.Node = ll_expr_storage_type(ctx, inner_expr)
+        val dst_ty: ref parser.Node = expr.d1 as ref parser.Node
+        if ll_slot_is_ptr(ctx, dst_ty) && !ll_slot_is_ptr(ctx, src_ty) {
+            if ll_expr_is_null_ptr_literal(inner_expr) { return "null" }
+            return ll_coerce_word_to_ptr(ctx, inner)
+        }
+        if !ll_slot_is_ptr(ctx, dst_ty) && ll_slot_is_ptr(ctx, src_ty) {
+            return ll_coerce_ptr_to_word(ctx, inner)
+        }
+        return inner
     }
 
     if k == parser.NK_SOME {
@@ -2805,7 +2827,10 @@ fn gen_stmt(ctx: ref LLCtx, stmt: ref parser.Node) void! = {
             } elif str.rchar_cmp(ctx.current_ret_abi, "void") == 0 {
                 @snprintf(buf, 128, "  ret void\n", {})
             } elif str.rchar_cmp(ctx.current_ret_abi, "ptr") == 0 {
-                if ll_expr_is_raw_load(expr) {
+                val rv_ty2: ref parser.Node = ll_expr_storage_type(ctx, expr)
+                if ll_expr_is_null_ptr_literal(expr) {
+                    @snprintf(buf, 128, "  ret ptr null\n", {})
+                } elif !ll_slot_is_ptr(ctx, rv_ty2) && ll_expr_is_raw_load(expr) {
                     @snprintf(buf, 128, "  ret ptr {s}\n", {ll_coerce_word_to_ptr(ctx, rv)})
                 } else {
                     @snprintf(buf, 128, "  ret ptr {s}\n", {rv})
