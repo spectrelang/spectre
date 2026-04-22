@@ -957,6 +957,24 @@ fn ll_expr_is_raw_load(expr: ref parser.Node) bool! = {
     return false
 }
 
+fn ll_expr_is_null_ptr_literal(expr: ref parser.Node) bool! = {
+    if expr == 0 as ref parser.Node { return false }
+    if expr.kind == parser.NK_TRUST {
+        return ll_expr_is_null_ptr_literal(expr.d0 as ref parser.Node)
+    }
+    if expr.kind == parser.NK_NONE { return true }
+    if expr.kind == parser.NK_INT_LIT {
+        return str.rchar_cmp(parser.int_lit_text(expr), "0") == 0
+    }
+    if expr.kind == parser.NK_CAST {
+        val cast_ty: ref parser.Node = expr.d1 as ref parser.Node
+        if cast_ty != 0 as ref parser.Node && cast_ty.kind == parser.TY_REF {
+            return ll_expr_is_null_ptr_literal(expr.d0 as ref parser.Node)
+        }
+    }
+    return false
+}
+
 fn ll_coerce_word_to_ptr(ctx: ref LLCtx, value: ref char) ref char! = {
     if str.rchar_cmp(value, "0") == 0 { return "null" }
     val tmp: i64 = fresh_tmp(ctx)
@@ -982,6 +1000,9 @@ fn ll_coerce_ptr_to_word(ctx: ref LLCtx, value: ref char) ref char! = {
 }
 
 fn ll_coerce_value_for_type(ctx: ref LLCtx, expr: ref parser.Node, ty: ref parser.Node, value: ref char) ref char! = {
+    if ll_slot_is_ptr(ctx, ty) && ll_expr_is_null_ptr_literal(expr) {
+        return "null"
+    }
     if ll_slot_is_ptr(ctx, ty) && ll_expr_is_raw_load(expr) {
         return ll_coerce_word_to_ptr(ctx, value)
     }
@@ -1289,6 +1310,9 @@ fn ll_store_target_value(ctx: ref LLCtx, target: ref parser.Node, value: ref cha
 }
 
 fn ll_coerce_arg_to_abi(ctx: ref LLCtx, node: ref parser.Node, value: ref char, abi_ty: ref char) ref char! = {
+    if str.rchar_cmp(abi_ty, "ptr") == 0 && ll_expr_is_null_ptr_literal(node) {
+        return "null"
+    }
     if str.rchar_cmp(abi_ty, "ptr") == 0 && ll_expr_is_raw_load(node) {
         return ll_coerce_word_to_ptr(ctx, value)
     }
