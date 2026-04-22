@@ -1596,9 +1596,15 @@ fn gen_try(ctx: ref LLCtx, expr: ref parser.Node) ref char! = {
     if ctx.current_is_main {
         ll_emit_defers(ctx)
         @snprintf(rbuf, 64, "  ret i32 1\nlbl{lld}:\n", {ok_lbl})
-    } else {
+    } elif str.rchar_cmp(ctx.current_ret_abi, "void") == 0 {
+        ll_emit_defers(ctx)
+        @snprintf(rbuf, 64, "  ret void\nlbl{lld}:\n", {ok_lbl})
+    } elif str.rchar_cmp(ctx.current_ret_abi, "ptr") == 0 {
         ll_emit_defers(ctx)
         @snprintf(rbuf, 64, "  ret ptr {s}\nlbl{lld}:\n", {inner, ok_lbl})
+    } else {
+        ll_emit_defers(ctx)
+        @snprintf(rbuf, 64, "  ret {s} 0\nlbl{lld}:\n", {ctx.current_ret_abi, ok_lbl})
     }
     emit(ctx, rbuf)
     @free(rbuf)
