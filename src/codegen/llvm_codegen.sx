@@ -3138,6 +3138,65 @@ fn gen_stmt(ctx: ref LLCtx, stmt: ref parser.Node) void! = {
         val result_ty: ref parser.Node = ll_expr_storage_type(ctx, expr_node)
         val ok_ty: ref parser.Node = ll_result_ok_type(result_ty)
         val err_ty: ref parser.Node = ll_result_err_type(result_ty)
+        if !ll_is_result_type(result_ty) && ll_slot_is_ptr(ctx, result_ty) {
+            val cmp_ptr: i64 = fresh_tmp(ctx)
+            val ok_lbl_ptr: i64 = fresh_lbl(ctx)
+            val err_lbl_ptr: i64 = fresh_lbl(ctx)
+            val end_lbl_ptr: i64 = fresh_lbl(ctx)
+            val pbuf: ref char = @alloc(256) as ref char
+            @snprintf(pbuf, 256,
+                "  %%t{lld} = icmp ne ptr {s}, null\n  br i1 %%t{lld}, label %%lbl{lld}, label %%lbl{lld}\nlbl{lld}:\n",
+                {cmp_ptr, expr, cmp_ptr, ok_lbl_ptr, err_lbl_ptr, ok_lbl_ptr})
+            emit(ctx, pbuf)
+            @free(pbuf)
+
+            if ok_bind != 0 as ref char {
+                val slot_ok: i64 = fresh_tmp(ctx)
+                val sbuf_ok: ref char = @alloc(128) as ref char
+                @snprintf(sbuf_ok, 128, "  %%t{lld} = alloca ptr, align 8\n", {slot_ok})
+                emit(ctx, sbuf_ok)
+                @free(sbuf_ok)
+                val slot_ok_name: ref char = @alloc(16) as ref char
+                @snprintf(slot_ok_name, 16, "%%t{lld}", {slot_ok})
+                ll_emit_store_value(ctx, slot_ok_name, result_ty, expr)
+                ll_register_local(ctx, ok_bind, slot_ok_name, result_ty as ref void)
+            }
+            if ok_body_node != 0 as ref parser.Node {
+                gen_stmts(ctx, ok_body_node.d0 as ref parser.Node)
+            }
+            val jbuf_ptr: ref char = @alloc(64) as ref char
+            if ok_body_node == 0 as ref parser.Node || !ll_block_ends_with_terminator(ok_body_node.d0 as ref parser.Node) {
+                @snprintf(jbuf_ptr, 64, "  br label %%lbl{lld}\nlbl{lld}:\n", {end_lbl_ptr, err_lbl_ptr})
+            } else {
+                @snprintf(jbuf_ptr, 64, "lbl{lld}:\n", {err_lbl_ptr})
+            }
+            emit(ctx, jbuf_ptr)
+            @free(jbuf_ptr)
+
+            if err_bind != 0 as ref char {
+                val slot_err: i64 = fresh_tmp(ctx)
+                val sbuf_err: ref char = @alloc(128) as ref char
+                @snprintf(sbuf_err, 128, "  %%t{lld} = alloca i64, align 8\n", {slot_err})
+                emit(ctx, sbuf_err)
+                @free(sbuf_err)
+                val slot_err_name: ref char = @alloc(16) as ref char
+                @snprintf(slot_err_name, 16, "%%t{lld}", {slot_err})
+                ll_emit_store_value(ctx, slot_err_name, 0 as ref parser.Node, "0")
+                ll_register_local(ctx, err_bind, slot_err_name, 0 as ref void)
+            }
+            if err_body_node != 0 as ref parser.Node {
+                gen_stmts(ctx, err_body_node.d0 as ref parser.Node)
+            }
+            val endbuf_ptr: ref char = @alloc(64) as ref char
+            if err_body_node == 0 as ref parser.Node || !ll_block_ends_with_terminator(err_body_node.d0 as ref parser.Node) {
+                @snprintf(endbuf_ptr, 64, "  br label %%lbl{lld}\nlbl{lld}:\n", {end_lbl_ptr, end_lbl_ptr})
+            } else {
+                @snprintf(endbuf_ptr, 64, "lbl{lld}:\n", {end_lbl_ptr})
+            }
+            emit(ctx, endbuf_ptr)
+            @free(endbuf_ptr)
+            return
+        }
         val tag: i64 = fresh_tmp(ctx)
         val cmp: i64 = fresh_tmp(ctx)
         val ok_lbl: i64 = fresh_lbl(ctx)
@@ -4165,6 +4224,7 @@ pub fn gen_module_resolved(root: ref module.ResolvedModule, release_mode: bool) 
         li2++
     }
 
+    ensure_declared(ctx, "malloc", "declare ptr @malloc(i64)")
     val final_sb: ref void = str.StringBuilder.new()
 
     str.StringBuilder.append_cstr(final_sb, "@sx_argc_store = global i64 0\n")
@@ -4399,6 +4459,7 @@ pub fn gen_module_resolved_test(root: ref module.ResolvedModule, release_mode: b
 
     gen_test_main(ctx, test_ids)
 
+    ensure_declared(ctx, "malloc", "declare ptr @malloc(i64)")
     val final_sb: ref void = str.StringBuilder.new()
     str.StringBuilder.append_cstr(final_sb, "@sx_argc_store = global i64 0\n")
     str.StringBuilder.append_cstr(final_sb, "@sx_argv_store = global ptr null\n\n")
