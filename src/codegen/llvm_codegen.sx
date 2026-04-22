@@ -2723,6 +2723,73 @@ fn gen_builtin(ctx: ref LLCtx, expr: ref parser.Node) ref char! = {
         @snprintf(buf, 128, "  %%t{lld} = add i64 8, 0\n", {tmp})
         emit(ctx, buf)
         @free(buf)
+    } elif str.rchar_cmp(name, "append") == 0 {
+        ensure_declared(ctx, "realloc", "declare ptr @realloc(ptr, i64)")
+        val list_node: ref parser.Node = get_arg_node(args, 0)
+        val val_node: ref parser.Node = get_arg_node(args, 1)
+        val lp: ref char = gen_expr(ctx, list_node)
+        val list_ty: ref parser.Node = ll_expr_storage_type(ctx, list_node)
+        val elem_ty: mut ref parser.Node = 0 as ref parser.Node
+        if list_ty != 0 as ref parser.Node {
+            val inner_list_ty: mut ref parser.Node = list_ty
+            if inner_list_ty.kind == parser.TY_MUT {
+                inner_list_ty = inner_list_ty.d0 as ref parser.Node
+            }
+            if inner_list_ty.kind == parser.TY_LIST || inner_list_ty.kind == parser.TY_SLICE {
+                elem_ty = inner_list_ty.d0 as ref parser.Node
+            }
+        }
+        val len_ptr: i64 = fresh_tmp(ctx)
+        val cap_ptr: i64 = fresh_tmp(ctx)
+        val len_val: i64 = fresh_tmp(ctx)
+        val cap_val: i64 = fresh_tmp(ctx)
+        val fits: i64 = fresh_tmp(ctx)
+        val grow_lbl: i64 = fresh_lbl(ctx)
+        val cont_lbl: i64 = fresh_lbl(ctx)
+        val abuf1: ref char = @alloc(512) as ref char
+        @snprintf(abuf1, 512,
+            "  %%t{lld} = getelementptr i8, ptr {s}, i64 8\n  %%t{lld} = getelementptr i8, ptr {s}, i64 16\n  %%t{lld} = load i64, ptr %%t{lld}\n  %%t{lld} = load i64, ptr %%t{lld}\n  %%t{lld} = icmp slt i64 %%t{lld}, %%t{lld}\n  br i1 %%t{lld}, label %%lbl{lld}, label %%lbl{lld}\nlbl{lld}:\n",
+            {len_ptr, lp, cap_ptr, lp, len_val, len_ptr, cap_val, cap_ptr, fits, len_val, cap_val, fits, cont_lbl, grow_lbl, grow_lbl})
+        emit(ctx, abuf1)
+        @free(abuf1)
+        val new_cap_tmp: i64 = fresh_tmp(ctx)
+        val new_cap: i64 = fresh_tmp(ctx)
+        val old_buf: i64 = fresh_tmp(ctx)
+        val new_cap_bytes: i64 = fresh_tmp(ctx)
+        val new_buf: i64 = fresh_tmp(ctx)
+        val abuf2: ref char = @alloc(512) as ref char
+        @snprintf(abuf2, 512,
+            "  %%t{lld} = mul i64 %%t{lld}, 2\n  %%t{lld} = add i64 %%t{lld}, 1\n  %%t{lld} = load ptr, ptr {s}\n  %%t{lld} = mul i64 %%t{lld}, 8\n  %%t{lld} = call ptr @realloc(ptr %%t{lld}, i64 %%t{lld})\n  store ptr %%t{lld}, ptr {s}\n  store i64 %%t{lld}, ptr %%t{lld}\n  br label %%lbl{lld}\nlbl{lld}:\n",
+            {new_cap_tmp, cap_val, new_cap, new_cap_tmp, old_buf, lp, new_cap_bytes, new_cap, new_buf, old_buf, new_cap_bytes, new_buf, lp, new_cap, cap_ptr, cont_lbl, cont_lbl})
+        emit(ctx, abuf2)
+        @free(abuf2)
+        val buf_tmp: i64 = fresh_tmp(ctx)
+        val off: i64 = fresh_tmp(ctx)
+        val elem_ptr: i64 = fresh_tmp(ctx)
+        val abuf3: ref char = @alloc(256) as ref char
+        @snprintf(abuf3, 256,
+            "  %%t{lld} = load ptr, ptr {s}\n  %%t{lld} = mul i64 %%t{lld}, 8\n  %%t{lld} = getelementptr i8, ptr %%t{lld}, i64 %%t{lld}\n",
+            {buf_tmp, lp, off, len_val, elem_ptr, buf_tmp, off})
+        emit(ctx, abuf3)
+        @free(abuf3)
+        val elem_ptr_name: ref char = @alloc(16) as ref char
+        @snprintf(elem_ptr_name, 16, "%%t{lld}", {elem_ptr})
+        val val_raw: ref char = gen_expr(ctx, val_node)
+        if ll_slot_is_ptr(ctx, elem_ty) {
+            ll_emit_store_value(ctx, elem_ptr_name, elem_ty, val_raw)
+        } else {
+            val store_val: ref char = ll_coerce_value_for_type(ctx, val_node, ll_make_named_type("i64"), val_raw)
+            val sbuf: ref char = @alloc(128) as ref char
+            @snprintf(sbuf, 128, "  store i64 {s}, ptr {s}\n", {store_val, elem_ptr_name})
+            emit(ctx, sbuf)
+            @free(sbuf)
+        }
+        val new_len: i64 = fresh_tmp(ctx)
+        val abuf4: ref char = @alloc(160) as ref char
+        @snprintf(abuf4, 160, "  %%t{lld} = add i64 %%t{lld}, 1\n  store i64 %%t{lld}, ptr %%t{lld}\n  %%t{lld} = add i64 0, 0\n",
+            {new_len, len_val, new_len, len_ptr, tmp})
+        emit(ctx, abuf4)
+        @free(abuf4)
     } elif str.rchar_cmp(name, "len") == 0 {
         val lp: ref char = gen_expr(ctx, get_arg_node(args, 0))
         val lptr: i64 = fresh_tmp(ctx)
