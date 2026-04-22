@@ -718,8 +718,14 @@ fn ll_option_inner_type(ty: ref parser.Node) ref parser.Node! = {
 fn ll_variadic_abi_type(ctx: ref LLCtx, node: ref parser.Node) ref char! = {
     if node == 0 as ref parser.Node { return "i64" }
     if node.kind == parser.NK_STR_LIT { return "ptr" }
+    if node.kind == parser.NK_FLOAT_LIT { return "double" }
     val ty: ref parser.Node = ll_expr_storage_type(ctx, node)
     if ll_slot_is_ptr(ctx, ty) { return "ptr" }
+    if ty != 0 as ref parser.Node {
+        val abi_ty: ref char = ll_type_of(ty)
+        if str.rchar_cmp(abi_ty, "double") == 0 { return "double" }
+        if str.rchar_cmp(abi_ty, "float") == 0 { return "double" }
+    }
     if node.kind == parser.NK_IDENT {
         val local_ty: ref parser.Node = ll_lookup_local_type(ctx, node.d0 as ref char)
         if ll_slot_is_ptr(ctx, local_ty) { return "ptr" }
@@ -831,6 +837,10 @@ fn ll_emit_store_value(ctx: ref LLCtx, ptr: ref char, ty: ref parser.Node, value
     val buf: ref char = @alloc(256) as ref char
     if ll_slot_is_ptr(ctx, ty) {
         @snprintf(buf, 256, "  store ptr {s}, ptr {s}\n", {value, ptr})
+    } elif ty != 0 as ref parser.Node && str.rchar_cmp(ll_type_of(ty), "double") == 0 {
+        @snprintf(buf, 256, "  store double {s}, ptr {s}\n", {value, ptr})
+    } elif ty != 0 as ref parser.Node && str.rchar_cmp(ll_type_of(ty), "float") == 0 {
+        @snprintf(buf, 256, "  store float {s}, ptr {s}\n", {value, ptr})
     } elif ty != 0 as ref parser.Node && str.rchar_cmp(ll_type_of(ty), "i32") == 0 {
         val tr: i64 = fresh_tmp(ctx)
         if ll_is_unsigned_type(ty) {
@@ -960,6 +970,18 @@ fn gen_expr(ctx: ref LLCtx, expr: ref parser.Node) ref char! = {
         return res
     }
 
+    if k == parser.NK_FLOAT_LIT {
+        val text: ref char = parser.float_lit_text(expr)
+        val tmp: i64 = fresh_tmp(ctx)
+        val buf: ref char = @alloc(160) as ref char
+        @snprintf(buf, 160, "  %%t{lld} = fadd double {s}, 0.000000e+00\n", {tmp, text})
+        emit(ctx, buf)
+        @free(buf)
+        val res: ref char = @alloc(16) as ref char
+        @snprintf(res, 16, "%%t{lld}", {tmp})
+        return res
+    }
+
     if k == parser.NK_STR_LIT {
         val s: ref char = parser.str_lit_text(expr)
         val idx: i64 = intern_string(ctx, s)
@@ -1018,6 +1040,10 @@ fn gen_expr(ctx: ref LLCtx, expr: ref parser.Node) ref char! = {
             val local_ty: ref parser.Node = ll_lookup_local_type(ctx, name)
             if ll_slot_is_ptr(ctx, local_ty) {
                 @snprintf(buf, 128, "  %%t{lld} = load ptr, ptr {s}\n", {tmp, local_ptr})
+            } elif local_ty != 0 as ref parser.Node && str.rchar_cmp(ll_type_of(local_ty), "double") == 0 {
+                @snprintf(buf, 128, "  %%t{lld} = load double, ptr {s}\n", {tmp, local_ptr})
+            } elif local_ty != 0 as ref parser.Node && str.rchar_cmp(ll_type_of(local_ty), "float") == 0 {
+                @snprintf(buf, 128, "  %%t{lld} = load float, ptr {s}\n", {tmp, local_ptr})
             } elif local_ty != 0 as ref parser.Node && str.rchar_cmp(ll_type_of(local_ty), "i32") == 0 {
                 @snprintf(buf, 128, "  %%t{lld} = load i32, ptr {s}\n", {tmp, local_ptr})
             } else {
@@ -1136,6 +1162,22 @@ fn gen_expr(ctx: ref LLCtx, expr: ref parser.Node) ref char! = {
             val buf: ref char = @alloc(128) as ref char
             if ll_slot_is_ptr(ctx, field_ty) {
                 @snprintf(buf, 128, "  %%t{lld} = load ptr, ptr {s}\n", {tmp, field_ptr})
+                emit(ctx, buf)
+                @free(buf)
+                val res: ref char = @alloc(16) as ref char
+                @snprintf(res, 16, "%%t{lld}", {tmp})
+                return res
+            }
+            if field_ty != 0 as ref parser.Node && str.rchar_cmp(ll_type_of(field_ty), "double") == 0 {
+                @snprintf(buf, 128, "  %%t{lld} = load double, ptr {s}\n", {tmp, field_ptr})
+                emit(ctx, buf)
+                @free(buf)
+                val res: ref char = @alloc(16) as ref char
+                @snprintf(res, 16, "%%t{lld}", {tmp})
+                return res
+            }
+            if field_ty != 0 as ref parser.Node && str.rchar_cmp(ll_type_of(field_ty), "float") == 0 {
+                @snprintf(buf, 128, "  %%t{lld} = load float, ptr {s}\n", {tmp, field_ptr})
                 emit(ctx, buf)
                 @free(buf)
                 val res: ref char = @alloc(16) as ref char
