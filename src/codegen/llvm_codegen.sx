@@ -1017,6 +1017,13 @@ fn ll_result_err_type(ty: ref parser.Node) ref parser.Node! = {
     return 0 as ref parser.Node
 }
 
+fn ll_list_inner_type(ty: ref parser.Node) ref parser.Node! = {
+    if ty == 0 as ref parser.Node { return 0 as ref parser.Node }
+    if ty.kind == parser.TY_MUT { return ll_list_inner_type(ty.d0 as ref parser.Node) }
+    if ty.kind == parser.TY_LIST { return ty.d0 as ref parser.Node }
+    return 0 as ref parser.Node
+}
+
 fn ll_is_result_type(ty: ref parser.Node) bool! = {
     if ty == 0 as ref parser.Node { return false }
     if ty.kind == parser.TY_MUT { return ll_is_result_type(ty.d0 as ref parser.Node) }
@@ -1320,6 +1327,27 @@ fn ll_emit_store_value(ctx: ref LLCtx, ptr: ref char, ty: ref parser.Node, value
     }
     emit(ctx, buf)
     @free(buf)
+}
+
+fn ll_alloca_typed_slot(ctx: ref LLCtx, ty: ref parser.Node) ref char! = {
+    val slot: i64 = fresh_tmp(ctx)
+    val buf: ref char = @alloc(128) as ref char
+    if ll_slot_is_ptr(ctx, ty) {
+        @snprintf(buf, 128, "  %%t{lld} = alloca ptr, align 8\n", {slot})
+    } elif ty != 0 as ref parser.Node && str.rchar_cmp(ll_type_of(ty), "double") == 0 {
+        @snprintf(buf, 128, "  %%t{lld} = alloca double, align 8\n", {slot})
+    } elif ty != 0 as ref parser.Node && str.rchar_cmp(ll_type_of(ty), "float") == 0 {
+        @snprintf(buf, 128, "  %%t{lld} = alloca float, align 4\n", {slot})
+    } elif ty != 0 as ref parser.Node && str.rchar_cmp(ll_type_of(ty), "i32") == 0 {
+        @snprintf(buf, 128, "  %%t{lld} = alloca i32, align 4\n", {slot})
+    } else {
+        @snprintf(buf, 128, "  %%t{lld} = alloca i64, align 8\n", {slot})
+    }
+    emit(ctx, buf)
+    @free(buf)
+    val slot_name: ref char = @alloc(16) as ref char
+    @snprintf(slot_name, 16, "%%t{lld}", {slot})
+    return slot_name
 }
 
 fn ll_load_named_local_value(ctx: ref LLCtx, name: ref char) ref char! = {
@@ -3444,6 +3472,11 @@ fn gen_stmt(ctx: ref LLCtx, stmt: ref parser.Node) void! = {
         return
     }
 
+    if k == parser.NK_FORIN {
+        gen_forin_stmt(ctx, stmt)
+        return
+    }
+
     if k == parser.NK_BREAK {
         val blbl: i64 = ll_break_lbl(ctx)
         if blbl >= 0 {
@@ -3687,6 +3720,78 @@ fn gen_for_stmt(ctx: ref LLCtx, stmt: ref parser.Node) void! = {
     @snprintf(jbuf, 64, "  br label %%lbl{lld}\nlbl{lld}:\n", {loop_lbl, end_lbl})
     emit(ctx, jbuf)
     @free(jbuf)
+
+    ll_set_break_lbl(ctx, prev_break)
+    ll_set_cont_lbl(ctx, prev_cont)
+}
+
+fn gen_forin_stmt(ctx: ref LLCtx, stmt: ref parser.Node) void! = {
+    val binding: ref char = stmt.d0 as ref char
+    val iter_node: ref parser.Node = stmt.d1 as ref parser.Node
+    val body: ref void = stmt.d2 as ref void
+    val iter: ref char = gen_expr(ctx, iter_node)
+    val iter_ty: ref parser.Node = ll_expr_storage_type(ctx, iter_node)
+    val elem_ty: ref parser.Node = ll_list_inner_type(iter_ty)
+    val loop_lbl: i64 = fresh_lbl(ctx)
+    val body_lbl: i64 = fresh_lbl(ctx)
+    val cont_lbl: i64 = fresh_lbl(ctx)
+    val end_lbl: i64 = fresh_lbl(ctx)
+    val prev_break: i64 = ll_break_lbl(ctx)
+    val prev_cont: i64 = ll_cont_lbl(ctx)
+
+    ll_set_break_lbl(ctx, end_lbl)
+    ll_set_cont_lbl(ctx, cont_lbl)
+
+    val idx_slot_name: ref char = ll_alloca_typed_slot(ctx, 0 as ref parser.Node)
+    ll_emit_store_value(ctx, idx_slot_name, 0 as ref parser.Node, "0")
+
+    val binding_slot_name: ref char = ll_alloca_typed_slot(ctx, elem_ty)
+    ll_register_local(ctx, binding, binding_slot_name, elem_ty as ref void)
+
+    val len_ptr: i64 = fresh_tmp(ctx)
+    val len_val: i64 = fresh_tmp(ctx)
+    val lbuf: ref char = @alloc(160) as ref char
+    @snprintf(lbuf, 160, "  %%t{lld} = getelementptr i8, ptr {s}, i64 8\n  %%t{lld} = load i64, ptr %%t{lld}\n  br label %%lbl{lld}\nlbl{lld}:\n",
+        {len_ptr, iter, len_val, len_ptr, loop_lbl, loop_lbl})
+    emit(ctx, lbuf)
+    @free(lbuf)
+
+    val cur_idx: i64 = fresh_tmp(ctx)
+    val cmp: i64 = fresh_tmp(ctx)
+    val cbuf: ref char = @alloc(192) as ref char
+    @snprintf(cbuf, 192, "  %%t{lld} = load i64, ptr {s}\n  %%t{lld} = icmp slt i64 %%t{lld}, %%t{lld}\n  br i1 %%t{lld}, label %%lbl{lld}, label %%lbl{lld}\nlbl{lld}:\n",
+        {cur_idx, idx_slot_name, cmp, cur_idx, len_val, cmp, body_lbl, end_lbl, body_lbl})
+    emit(ctx, cbuf)
+    @free(cbuf)
+
+    val buf_ptr: i64 = fresh_tmp(ctx)
+    val off: i64 = fresh_tmp(ctx)
+    val elem_ptr: i64 = fresh_tmp(ctx)
+    val ebuf: ref char = @alloc(192) as ref char
+    @snprintf(ebuf, 192, "  %%t{lld} = load ptr, ptr {s}\n  %%t{lld} = mul i64 %%t{lld}, 8\n  %%t{lld} = getelementptr i8, ptr %%t{lld}, i64 %%t{lld}\n",
+        {buf_ptr, iter, off, cur_idx, elem_ptr, buf_ptr, off})
+    emit(ctx, ebuf)
+    @free(ebuf)
+    val elem_ptr_name: ref char = @alloc(16) as ref char
+    @snprintf(elem_ptr_name, 16, "%%t{lld}", {elem_ptr})
+    val elem_val: ref char = ll_load_typed_value(ctx, elem_ptr_name, elem_ty)
+    ll_emit_store_value(ctx, binding_slot_name, elem_ty, elem_val)
+
+    if body != 0 as ref void { gen_stmts(ctx, body as ref parser.Node) }
+
+    if !ll_block_ends_with_terminator(body as ref parser.Node) {
+        val cbuf2: ref char = @alloc(64) as ref char
+        @snprintf(cbuf2, 64, "  br label %%lbl{lld}\n", {cont_lbl})
+        emit(ctx, cbuf2)
+        @free(cbuf2)
+    }
+
+    val next_idx: i64 = fresh_tmp(ctx)
+    val nbuf: ref char = @alloc(160) as ref char
+    @snprintf(nbuf, 160, "lbl{lld}:\n  %%t{lld} = add i64 %%t{lld}, 1\n  store i64 %%t{lld}, ptr {s}\n  br label %%lbl{lld}\nlbl{lld}:\n",
+        {cont_lbl, next_idx, cur_idx, next_idx, idx_slot_name, loop_lbl, end_lbl})
+    emit(ctx, nbuf)
+    @free(nbuf)
 
     ll_set_break_lbl(ctx, prev_break)
     ll_set_cont_lbl(ctx, prev_cont)
@@ -4202,6 +4307,9 @@ fn scan_node_for_calls(ctx: ref LLCtx, node: ref parser.Node) void! = {
         if node.d2 != 0 { scan_node_for_calls(ctx, node.d2 as ref parser.Node) }
         if node.d3 != 0 { scan_node_for_calls(ctx, node.d3 as ref parser.Node) }
         if node.d4 != 0 { scan_stmts_for_calls(ctx, node.d4 as ref void) }
+    } elif k == parser.NK_FORIN {
+        if node.d1 != 0 { scan_node_for_calls(ctx, node.d1 as ref parser.Node) }
+        if node.d2 != 0 { scan_stmts_for_calls(ctx, node.d2 as ref void) }
     } elif k == parser.NK_INCREMENT || k == parser.NK_DECREMENT {
     } elif k == parser.NK_ADD_ASSIGN || k == parser.NK_SUB_ASSIGN {
         scan_node_for_calls(ctx, node.d1 as ref parser.Node)

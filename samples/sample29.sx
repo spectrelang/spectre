@@ -6,4 +6,6 @@ pub fn main() void! = {
     for arg in args {
         stdio.print("arg: {s}\n", {arg})
     }
+    stdio.puts("hello")
+    stdio.print("{d}\n", {@len(args)})
 }
