@@ -7,4 +7,5 @@ enum SomeEnum = {
 
 pub fn main() void! = {
     stdio.print("{d}", {SomeEnum.HELLO})
+    stdio.print("{d}", {SomeEnum.WORLD})
 }

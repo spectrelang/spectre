@@ -169,6 +169,34 @@ fn ll_lookup_local_type(ctx: ref LLCtx, name: ref char) ref parser.Node! = {
     return 0 as ref parser.Node
 }
 
+fn ll_register_module_const(ctx: ref LLCtx, name: ref char, value: ref char) void! = {
+    @append(ctx.mc_names, name)
+    @append(ctx.mc_vals, value)
+}
+
+fn ll_lookup_module_const(ctx: ref LLCtx, name: ref char) ref char! = {
+    val len: i64 = @len(ctx.mc_names) as i64
+    val i: mut i64 = 0
+    for {
+        if i >= len { break }
+        val n_opt = @get(ctx.mc_names, i as usize)
+        match n_opt {
+            some n => {
+                if str.rchar_cmp(n as ref char, name) == 0 {
+                    val v_opt = @get(ctx.mc_vals, i as usize)
+                    match v_opt {
+                        some v => { return v as ref char }
+                        none => {}
+                    }
+                }
+            }
+            none => {}
+        }
+        i++
+    }
+    return ""
+}
+
 fn fresh_tmp(ctx: mut ref LLCtx) i64! = {
     val n: i64 = ctx.tmp
     ctx.tmp = n + 1
@@ -1286,6 +1314,23 @@ fn gen_expr(ctx: ref LLCtx, expr: ref parser.Node) ref char! = {
         val field_ptr: ref char = ll_field_ptr(ctx, expr)
         val base_expr: ref parser.Node = parser.field_base(expr)
         val field_name: ref char = parser.field_name(expr)
+        if base_expr.kind == parser.NK_IDENT && str.rchar_cmp(field_ptr, "0") == 0 {
+            val base_name: ref char = base_expr.d0 as ref char
+            val const_key: ref char = @alloc(512) as ref char
+            @snprintf(const_key, 512, "{s}__{s}", {base_name, field_name})
+            val const_val: ref char = ll_lookup_module_const(ctx, const_key)
+            @free(const_key)
+            if str.rchar_cmp(const_val, "") != 0 {
+                val tmp: i64 = fresh_tmp(ctx)
+                val buf: ref char = @alloc(128) as ref char
+                @snprintf(buf, 128, "  %%t{lld} = add i64 {s}, 0\n", {tmp, const_val})
+                emit(ctx, buf)
+                @free(buf)
+                val res: ref char = @alloc(16) as ref char
+                @snprintf(res, 16, "%%t{lld}", {tmp})
+                return res
+            }
+        }
         if base_expr.kind == parser.NK_IDENT && str.rchar_cmp(field_ptr, "0") != 0 {
             val base_ty: ref parser.Node = ll_lookup_local_type(ctx, base_expr.d0 as ref char)
             val struct_name: ref char = ll_struct_type_name(ctx, base_ty)
@@ -2853,6 +2898,40 @@ fn preregister_items(ctx: ref LLCtx, items: list[ref parser.Node], mod_prefix: r
                     val uname: ref char = node.d1 as ref char
                     val variants: ref void = node.d2 as ref void
                     ll_register_union(ctx, uname, variants)
+                } elif k == parser.NK_ENUMDEF {
+                    val ename: ref char = node.d1 as ref char
+                    val variants: ref void = node.d2 as ref void
+                    if variants != 0 as ref void {
+                        val vlen: i64 = @len(variants) as i64
+                        val vi: mut i64 = 0
+                        for {
+                            if vi >= vlen { break }
+                            val v_opt = @get(variants, vi as usize)
+                            match v_opt {
+                                some v => {
+                                    val vname: ref char = v as ref char
+                                    val const_key: ref char = @alloc(512) as ref char
+                                    val idx_str: ref char = @alloc(32) as ref char
+                                    @snprintf(idx_str, 32, "{lld}", {vi})
+                                    if str.rchar_cmp(mod_prefix, "") == 0 {
+                                        @snprintf(const_key, 512, "{s}__{s}", {ename, vname})
+                                    } else {
+                                        @snprintf(const_key, 512, "{s}__{s}__{s}", {mod_prefix, ename, vname})
+                                    }
+                                    ll_register_module_const(ctx, const_key, idx_str)
+                                    if str.rchar_cmp(mod_prefix, "") != 0 {
+                                        val bare_key: ref char = @alloc(256) as ref char
+                                        val idx_str2: ref char = @alloc(32) as ref char
+                                        @snprintf(bare_key, 256, "{s}__{s}", {ename, vname})
+                                        @snprintf(idx_str2, 32, "{lld}", {vi})
+                                        ll_register_module_const(ctx, bare_key, idx_str2)
+                                    }
+                                }
+                                none => {}
+                            }
+                            vi++
+                        }
+                    }
                 } elif k == parser.NK_TAGGED_UNIONDEF {
                     val tname: ref char = node.d1 as ref char
                     val variants: ref void = node.d2 as ref void
