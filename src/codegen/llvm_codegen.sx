@@ -1065,6 +1065,20 @@ fn ll_make_named_type(name: ref char) ref parser.Node! = {
     return named
 }
 
+fn ll_make_ref_type(inner: ref parser.Node) ref parser.Node! = {
+    val ref_ty: mut ref parser.Node = @alloc(@sizeof(parser.Node)) as ref parser.Node
+    ref_ty.kind = parser.TY_REF
+    ref_ty.line = 0
+    ref_ty.d0 = inner as ref void
+    ref_ty.d1 = 0
+    ref_ty.d2 = 0
+    ref_ty.d3 = 0
+    ref_ty.d4 = 0
+    ref_ty.d5 = 0
+    ref_ty.d6 = 0
+    return ref_ty
+}
+
 fn ll_is_float_type(ty: ref parser.Node) bool! = {
     if ty == 0 as ref parser.Node { return false }
     val abi_ty: ref char = ll_type_of(ty)
@@ -1139,17 +1153,7 @@ fn ll_expr_storage_type(ctx: ref LLCtx, expr: ref parser.Node) ref parser.Node! 
     }
     if expr.kind == parser.NK_ADDR {
         val inner_ty: ref parser.Node = ll_expr_storage_type(ctx, expr.d0 as ref parser.Node)
-        val dummy: mut ref parser.Node = @alloc(@sizeof(parser.Node)) as ref parser.Node
-        dummy.kind = parser.TY_REF
-        dummy.line = 0
-        dummy.d0 = inner_ty as ref void
-        dummy.d1 = 0
-        dummy.d2 = 0
-        dummy.d3 = 0
-        dummy.d4 = 0
-        dummy.d5 = 0
-        dummy.d6 = 0
-        return dummy
+        return ll_make_ref_type(inner_ty)
     }
     if expr.kind == parser.NK_DEREF {
         val inner_ty0: ref parser.Node = ll_expr_storage_type(ctx, expr.d0 as ref parser.Node)
@@ -1246,6 +1250,7 @@ fn ll_expr_storage_type(ctx: ref LLCtx, expr: ref parser.Node) ref parser.Node! 
             return dummy
         }
     }
+    if expr.kind == parser.NK_STR_LIT { return ll_make_ref_type(ll_make_named_type("char")) }
     if expr.kind == parser.NK_FLOAT_LIT { return ll_make_named_type("f64") }
     if expr.kind == parser.NK_INT_LIT { return ll_make_named_type("i64") }
     if expr.kind == parser.NK_BOOL { return ll_make_named_type("bool") }
