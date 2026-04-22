@@ -673,6 +673,7 @@ fn ll_unwrap_named_type(ty: ref parser.Node) ref char! = {
     if ty == 0 as ref parser.Node { return "" }
     val k: i64 = ty.kind
     if k == parser.TY_MUT { return ll_unwrap_named_type(ty.d0 as ref parser.Node) }
+    if k == parser.TY_REF { return ll_unwrap_named_type(ty.d0 as ref parser.Node) }
     if k == parser.TY_NAMED { return ty.d0 as ref char }
     return ""
 }
@@ -721,14 +722,61 @@ fn ll_type_size(ctx: ref LLCtx, ty: ref parser.Node) i64! = {
         val name: ref char = ty.d0 as ref char
         if ll_is_tagged_union_name(ctx, name) { return 8 }
         if ll_lookup_union_suffix(ctx, name) != 0 as ref void { return 16 }
-        if str.rchar_cmp(name, "i8") == 0 || str.rchar_cmp(name, "u8") == 0 || str.rchar_cmp(name, "bool") == 0 || str.rchar_cmp(name, "char") == 0 { return 1 }
+        if str.rchar_cmp(name, "i8") == 0 || str.rchar_cmp(name, "u8") == 0 || str.rchar_cmp(name, "char") == 0 { return 1 }
         if str.rchar_cmp(name, "i16") == 0 || str.rchar_cmp(name, "u16") == 0 { return 2 }
         if str.rchar_cmp(name, "i32") == 0 || str.rchar_cmp(name, "u32") == 0 || str.rchar_cmp(name, "f32") == 0 { return 4 }
         if str.rchar_cmp(name, "f64") == 0 { return 8 }
+        if str.rchar_cmp(name, "bool") == 0 { return 4 }
+        if str.rchar_cmp(name, "isize") == 0 || str.rchar_cmp(name, "usize") == 0 { return 8 }
         val fields: ref void = ll_lookup_struct(ctx, name)
         if fields != 0 as ref void { return ll_struct_size(ctx, fields) }
     }
+    if k == parser.TY_FIXED_ARR {
+        val count: i64 = ty.d0
+        val elem_size: i64 = ll_type_size(ctx, ty.d1 as ref parser.Node)
+        return count * elem_size
+    }
     return 8
+}
+
+fn ll_type_align(ty: ref parser.Node) i64! = {
+    if ty == 0 as ref parser.Node { return 8 }
+    val k: i64 = ty.kind
+    if k == parser.TY_MUT { return ll_type_align(ty.d0 as ref parser.Node) }
+    if k == parser.TY_NAMED {
+        val name: ref char = ty.d0 as ref char
+        if str.rchar_cmp(name, "i8") == 0 || str.rchar_cmp(name, "u8") == 0 || str.rchar_cmp(name, "char") == 0 { return 1 }
+        if str.rchar_cmp(name, "i16") == 0 || str.rchar_cmp(name, "u16") == 0 { return 2 }
+        if str.rchar_cmp(name, "i32") == 0 || str.rchar_cmp(name, "u32") == 0 || str.rchar_cmp(name, "f32") == 0 { return 4 }
+        return 8
+    }
+    if k == parser.TY_FIXED_ARR { return ll_type_align(ty.d1 as ref parser.Node) }
+    return 8
+}
+
+fn ll_align_to(n: i64, align: i64) i64! = {
+    if align <= 1 { return n }
+    return (n + align - 1) / align * align
+}
+
+fn ll_fields_have_fixed_arr(fields: ref void) bool! = {
+    if fields == 0 as ref void { return false }
+    val flen: i64 = @len(fields as list[ref void]) as i64
+    val fi: mut i64 = 0
+    for {
+        if fi >= flen { break }
+        val f_opt = @get(fields as list[ref void], fi as usize)
+        match f_opt {
+            some f => {
+                val fnode: ref parser.Node = f as ref parser.Node
+                val fty: ref parser.Node = fnode.d2 as ref parser.Node
+                if fty != 0 as ref parser.Node && fty.kind == parser.TY_FIXED_ARR { return true }
+            }
+            none => {}
+        }
+        fi++
+    }
+    return false
 }
 
 fn ll_aligned_size(size: i64) i64! = {
@@ -740,6 +788,7 @@ fn ll_aligned_size(size: i64) i64! = {
 fn ll_struct_size(ctx: ref LLCtx, fields: ref void) i64! = {
     if fields == 0 as ref void { return 0 }
     val flen: i64 = @len(fields as list[ref void]) as i64
+    val has_fa: bool = ll_fields_have_fixed_arr(fields)
     val offset: mut i64 = 0
     val fi: mut i64 = 0
     for {
@@ -749,7 +798,12 @@ fn ll_struct_size(ctx: ref LLCtx, fields: ref void) i64! = {
             some f => {
                 val fnode: ref parser.Node = f as ref parser.Node
                 val fty: ref parser.Node = fnode.d2 as ref parser.Node
-                offset = offset + ll_aligned_size(ll_type_size(ctx, fty))
+                if has_fa {
+                    offset = ll_align_to(offset, ll_type_align(fty))
+                    offset = offset + ll_type_size(ctx, fty)
+                } else {
+                    offset = offset + ll_aligned_size(ll_type_size(ctx, fty))
+                }
             }
             none => {}
         }
@@ -761,6 +815,7 @@ fn ll_struct_size(ctx: ref LLCtx, fields: ref void) i64! = {
 fn ll_field_offset(ctx: ref LLCtx, fields: ref void, field_name: ref char) i64! = {
     if fields == 0 as ref void { return -1 }
     val flen: i64 = @len(fields as list[ref void]) as i64
+    val has_fa: bool = ll_fields_have_fixed_arr(fields)
     val offset: mut i64 = 0
     val fi: mut i64 = 0
     for {
@@ -772,7 +827,12 @@ fn ll_field_offset(ctx: ref LLCtx, fields: ref void, field_name: ref char) i64! 
                 val fname: ref char = fnode.d0 as ref char
                 if str.rchar_cmp(fname, field_name) == 0 { return offset }
                 val fty: ref parser.Node = fnode.d2 as ref parser.Node
-                offset = offset + ll_aligned_size(ll_type_size(ctx, fty))
+                if has_fa {
+                    offset = ll_align_to(offset, ll_type_align(fty))
+                    offset = offset + ll_type_size(ctx, fty)
+                } else {
+                    offset = offset + ll_aligned_size(ll_type_size(ctx, fty))
+                }
             }
             none => {}
         }
