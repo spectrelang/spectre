@@ -114,7 +114,9 @@ if [ $LLVM_ONLY -eq 1 ]; then
     echo "Self compilation tests:"
     "$COMPILER" ./src/ast/lexer.sx --test --llvm
     "$COMPILER" ./src/ast/parser.sx --test --llvm
+    "$COMPILER" ./src/ast/ast_printer.sx --test --llvm
     "$COMPILER" ./src/codegen/llvm_codegen.sx --test --llvm
+    "$COMPILER" ./src/codegen/codegen.sx --test --llvm
     "$COMPILER" ./src/module/module.sx --test --llvm
     echo
     echo "LLVM Test Summary:"
