@@ -4451,7 +4451,7 @@ fn scan_node_for_calls(ctx: ref LLCtx, node: ref parser.Node) void! = {
     if node == 0 as ref parser.Node { return }
     val k: i64 = node.kind
     if k == parser.NK_CALL {
-        val callee: ref parser.Node = node.d0 as ref parser.Node
+        val callee: ref parser.Node = parser.call_callee(node)
         val cn: ref char = resolve_callee_name(callee)
         val resolved: ref char = ll_resolve_fn_name(ctx, cn)
         if resolved != 0 as ref char {
@@ -4460,15 +4460,27 @@ fn scan_node_for_calls(ctx: ref LLCtx, node: ref parser.Node) void! = {
                 ll_mark_prefix_used(ctx, prefix)
             }
         }
-        if node.d1 != 0 {
-            scan_stmts_for_calls(ctx, node.d1 as ref void)
+        val args: ref void = parser.call_args(node) as ref void
+        if args != 0 as ref void {
+            val alen: i64 = @len(args as list[ref parser.Node]) as i64
+            val ai: mut i64 = 0
+            for {
+                if ai >= alen { break }
+                val arg_opt = @get(args as list[ref parser.Node], ai as usize)
+                match arg_opt {
+                    some arg => { scan_node_for_calls(ctx, arg as ref parser.Node) }
+                    none => {}
+                }
+                ai++
+            }
         }
-    } elif k == parser.NK_EXPR_STMT { scan_node_for_calls(ctx, node.d0 as ref parser.Node) }
-    elif k == parser.NK_DEFER {
+    } elif k == parser.NK_EXPR_STMT {
+        scan_node_for_calls(ctx, node.d0 as ref parser.Node)
+    } elif k == parser.NK_DEFER {
         if node.d0 != 0 { scan_stmts_for_calls(ctx, node.d0 as ref void) }
-    }
-    elif k == parser.NK_VAL { scan_node_for_calls(ctx, node.d3 as ref parser.Node) }
-    elif k == parser.NK_IF {
+    } elif k == parser.NK_VAL {
+        scan_node_for_calls(ctx, node.d3 as ref parser.Node)
+    } elif k == parser.NK_IF {
         scan_node_for_calls(ctx, node.d0 as ref parser.Node)
         if node.d1 != 0 { scan_stmts_for_calls(ctx, node.d1 as ref void) }
         if node.d2 != 0 { scan_stmts_for_calls(ctx, node.d2 as ref void) }
@@ -4513,17 +4525,46 @@ fn scan_node_for_calls(ctx: ref LLCtx, node: ref parser.Node) void! = {
     } elif k == parser.NK_FORIN {
         if node.d1 != 0 { scan_node_for_calls(ctx, node.d1 as ref parser.Node) }
         if node.d2 != 0 { scan_stmts_for_calls(ctx, node.d2 as ref void) }
-    } elif k == parser.NK_INCREMENT || k == parser.NK_DECREMENT {
     } elif k == parser.NK_ADD_ASSIGN || k == parser.NK_SUB_ASSIGN {
         scan_node_for_calls(ctx, node.d1 as ref parser.Node)
-    } elif k == parser.NK_RETURN { scan_node_for_calls(ctx, node.d0 as ref parser.Node) }
-    elif k == parser.NK_BUILTIN {
-        if node.d1 != 0 { scan_stmts_for_calls(ctx, node.d1 as ref void) }
+    } elif k == parser.NK_RETURN {
+        scan_node_for_calls(ctx, node.d0 as ref parser.Node)
+    } elif k == parser.NK_BUILTIN {
+        if node.d1 != 0 {
+            val args2: ref void = node.d1 as ref void
+            val alen2: i64 = @len(args2 as list[ref parser.Node]) as i64
+            val ai2: mut i64 = 0
+            for {
+                if ai2 >= alen2 { break }
+                val arg_opt2 = @get(args2 as list[ref parser.Node], ai2 as usize)
+                match arg_opt2 {
+                    some arg2 => { scan_node_for_calls(ctx, arg2 as ref parser.Node) }
+                    none => {}
+                }
+                ai2++
+            }
+        }
     } elif k == parser.NK_BINOP {
-        scan_node_for_calls(ctx, node.d1 as ref parser.Node)
-        scan_node_for_calls(ctx, node.d2 as ref parser.Node)
-    } elif k == parser.NK_UNOP { scan_node_for_calls(ctx, parser.unop_inner(node)) }
-    elif k == parser.NK_TRY || k == parser.NK_TRUST || k == parser.NK_CAST || k == parser.NK_ADDR || k == parser.NK_DEREF {
+        scan_node_for_calls(ctx, parser.binop_left(node))
+        scan_node_for_calls(ctx, parser.binop_right(node))
+    } elif k == parser.NK_UNOP {
+        scan_node_for_calls(ctx, parser.unop_inner(node))
+    } elif k == parser.NK_ARGS_PACK {
+        val args3: ref void = node.d0 as ref void
+        if args3 != 0 as ref void {
+            val alen3: i64 = @len(args3 as list[ref parser.Node]) as i64
+            val ai3: mut i64 = 0
+            for {
+                if ai3 >= alen3 { break }
+                val arg_opt3 = @get(args3 as list[ref parser.Node], ai3 as usize)
+                match arg_opt3 {
+                    some arg3 => { scan_node_for_calls(ctx, arg3 as ref parser.Node) }
+                    none => {}
+                }
+                ai3++
+            }
+        }
+    } elif k == parser.NK_TRY || k == parser.NK_TRUST || k == parser.NK_CAST || k == parser.NK_ADDR || k == parser.NK_DEREF {
         scan_node_for_calls(ctx, node.d0 as ref parser.Node)
     } elif k == parser.NK_FIELD {
         scan_node_for_calls(ctx, parser.field_base(node))
