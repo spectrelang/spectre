@@ -4082,7 +4082,13 @@ fn gen_stmts(ctx: ref LLCtx, stmts: ref parser.Node) void! = {
         if i >= len { break }
         val s_opt = @get(stmts, i as usize)
         match s_opt {
-            some s => { gen_stmt(ctx, s as ref parser.Node) }
+            some s => {
+                val snode: ref parser.Node = s as ref parser.Node
+                gen_stmt(ctx, snode)
+                if snode.kind == parser.NK_WHEN_STMT {
+                    if ll_when_stmt_terminated(snode) { break }
+                }
+            }
             none => {}
         }
         i++
@@ -4103,9 +4109,80 @@ fn ll_block_ends_with_terminator(stmts: ref parser.Node) bool! = {
     }
 }
 
+fn ll_when_stmt_terminated(stmt: ref parser.Node) bool! = {
+    val plat: ref char = stmt.d0 as ref char
+    if platform_matches(plat) {
+        return ll_block_ends_with_terminator(stmt.d1 as ref parser.Node)
+    }
+    val or_when_branches: ref void = stmt.d2 as ref void
+    if or_when_branches != 0 as ref void {
+        val ow_len: i64 = @len(or_when_branches as list[ref parser.Node]) as i64
+        val ow_i: mut i64 = 0
+        for {
+            if ow_i >= ow_len { break }
+            val ow_opt = @get(or_when_branches as list[ref parser.Node], ow_i as usize)
+            match ow_opt {
+                some ow_val => {
+                    val ow_node: ref parser.Node = ow_val as ref parser.Node
+                    val ow_plat: ref char = ow_node.d0 as ref char
+                    if platform_matches(ow_plat) {
+                        return ll_block_ends_with_terminator(ow_node.d1 as ref parser.Node)
+                    }
+                }
+                none => {}
+            }
+            ow_i++
+        }
+    }
+    val otherwise_stmts: ref void = stmt.d3 as ref void
+    if otherwise_stmts != 0 as ref void {
+        return ll_block_ends_with_terminator(stmt.d3 as ref parser.Node)
+    }
+    return false
+}
+
 fn gen_stmt(ctx: ref LLCtx, stmt: ref parser.Node) void! = {
     if stmt == 0 as ref parser.Node { return }
     val k: i64 = stmt.kind
+
+    if k == parser.NK_WHEN_STMT {
+        val plat: ref char = stmt.d0 as ref char
+        if platform_matches(plat) {
+            gen_stmts(ctx, stmt.d1 as ref parser.Node)
+        } else {
+            val or_when_branches: ref void = stmt.d2 as ref void
+            val matched: mut bool = false
+            if or_when_branches != 0 as ref void {
+                val ow_len: i64 = @len(or_when_branches as list[ref parser.Node]) as i64
+                val ow_i: mut i64 = 0
+                for {
+                    if ow_i >= ow_len { break }
+                    val ow_opt = @get(or_when_branches as list[ref parser.Node], ow_i as usize)
+                    match ow_opt {
+                        some ow_val => {
+                            if !matched {
+                                val ow_node: ref parser.Node = ow_val as ref parser.Node
+                                val ow_plat: ref char = ow_node.d0 as ref char
+                                if platform_matches(ow_plat) {
+                                    gen_stmts(ctx, ow_node.d1 as ref parser.Node)
+                                    matched = true
+                                }
+                            }
+                        }
+                        none => {}
+                    }
+                    ow_i++
+                }
+            }
+            if !matched {
+                val otherwise_stmts: ref void = stmt.d3 as ref void
+                if otherwise_stmts != 0 as ref void {
+                    gen_stmts(ctx, stmt.d3 as ref parser.Node)
+                }
+            }
+        }
+        return
+    }
 
     if k == parser.NK_EXPR_STMT {
         gen_expr(ctx, stmt.d0 as ref parser.Node)
