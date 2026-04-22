@@ -1626,7 +1626,15 @@ fn ll_some_payload_is_ptr_like(ctx: ref LLCtx, expr: ref parser.Node) bool! = {
         return ll_slot_is_ptr(ctx, expr.d1 as ref parser.Node)
     }
     if k == parser.NK_IDENT {
-        return ll_slot_is_ptr(ctx, ll_lookup_local_type(ctx, expr.d0 as ref char))
+        val name: ref char = expr.d0 as ref char
+        val local_ty: ref parser.Node = ll_lookup_local_type(ctx, name)
+        if ll_slot_is_ptr(ctx, local_ty) { return true }
+        val resolved: ref char = ll_resolve_fn_name(ctx, name)
+        val ext_sym: ref char = ll_lookup_extern_symbol(ctx, name)
+        val effective: mut ref char = name
+        if resolved != 0 as ref char { effective = resolved }
+        elif ext_sym != 0 as ref char { effective = ext_sym }
+        return str.rchar_cmp(effective, name) != 0 || ll_lookup_fn_ret(ctx, effective) != 0 as ref parser.Node
     }
     if k == parser.NK_STR_LIT || k == parser.NK_ADDR || k == parser.NK_LIST_LIT || k == parser.NK_STRUCT_LIT {
         return true
