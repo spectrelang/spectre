@@ -918,13 +918,28 @@ fn ll_lookup_union_suffix(ctx: ref LLCtx, type_name: ref char) ref void! = {
 
 fn ll_lookup_tv(ctx: ref LLCtx, vname: ref char, out_owner: ref void, out_field_ty: ref void) i64! = {
     val nlen: i64 = @len(ctx.tv_names) as i64
+    val vlen: i64 = str.len_raw(vname)
     val ni: mut i64 = 0
     for {
         if ni >= nlen { break }
         val n_opt = @get(ctx.tv_names, ni as usize)
         match n_opt {
             some n => {
-                if str.rchar_cmp(n as ref char, vname) == 0 {
+                val candidate: ref char = n as ref char
+                val matched: mut bool = str.rchar_cmp(candidate, vname) == 0
+                if !matched {
+                    val clen: i64 = str.len_raw(candidate)
+                    if vlen > clen + 2 {
+                        val suffix_pos: i64 = vlen - clen
+                        val s0: u8 = @load8(@ptradd(vname as ref void, suffix_pos - 2))
+                        val s1: u8 = @load8(@ptradd(vname as ref void, suffix_pos - 1))
+                        if s0 == 95 && s1 == 95 {
+                            val tail: ref char = @ptradd(vname as ref void, suffix_pos) as ref char
+                            matched = str.rchar_cmp(candidate, tail) == 0
+                        }
+                    }
+                }
+                if matched {
                     val tag_opt = @get(ctx.tv_tags, ni as usize)
                     val owner_opt = @get(ctx.tv_owners, ni as usize)
                     val field_opt = @get(ctx.tv_fields, ni as usize)
@@ -1621,6 +1636,13 @@ fn ll_some_payload_is_ptr_like(ctx: ref LLCtx, expr: ref parser.Node) bool! = {
     }
     if k == parser.NK_CALL {
         val callee_name: ref char = resolve_callee_name(expr.d0 as ref parser.Node)
+        val tv_owner_slot: ref void = @alloc(8)
+        val tv_field_slot: ref void = @alloc(8)
+        @store(tv_owner_slot, 0)
+        @store(tv_field_slot, 0)
+        if ll_lookup_tv(ctx, callee_name, tv_owner_slot, tv_field_slot) >= 0 {
+            return true
+        }
         val resolved: ref char = ll_resolve_fn_name(ctx, callee_name)
         val direct_ret: ref parser.Node = ll_lookup_fn_ret(ctx, callee_name)
         if resolved != 0 as ref char {
@@ -1975,6 +1997,13 @@ fn ll_coerce_arg_to_abi(ctx: ref LLCtx, node: ref parser.Node, value: ref char, 
     }
     val node_ty_for_abi: ref parser.Node = ll_expr_storage_type(ctx, node)
     if str.rchar_cmp(abi_ty, "ptr") == 0 && !ll_slot_is_ptr(ctx, node_ty_for_abi) {
+        val arg_node: mut ref parser.Node = node
+        if arg_node != 0 as ref parser.Node && arg_node.kind == parser.NK_TRUST {
+            arg_node = arg_node.d0 as ref parser.Node
+        }
+        if arg_node != 0 as ref parser.Node && ll_some_payload_is_ptr_like(ctx, arg_node) {
+            return value
+        }
         return ll_coerce_word_to_ptr(ctx, value)
     }
     if str.rchar_cmp(abi_ty, "i64") == 0 {
