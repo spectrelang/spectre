@@ -1,0 +1,10 @@
+fn wrap(s: ref char) option[ref char] = {
+    return some s
+}
+
+pub fn main() void! = {
+    match wrap("hello") {
+        some v => { @puts(v) }
+        none => { @puts("missing") }
+    }
+}
