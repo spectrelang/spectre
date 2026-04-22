@@ -831,7 +831,47 @@ fn ll_type_of(ty: ref parser.Node) ref char! = {
     return "i64"
 }
 
+fn ll_resolve_struct_name(ctx: ref LLCtx, type_name: ref char) ref char! = {
+    val len: i64 = @len(ctx.snames) as i64
+    val type_len: i64 = str.len_raw(type_name)
+    val i: mut i64 = 0
+    for {
+        if i >= len { break }
+        val n_opt = @get(ctx.snames, i as usize)
+        match n_opt {
+            some n => {
+                val candidate: ref char = n as ref char
+                if str.rchar_cmp(candidate, type_name) == 0 {
+                    return candidate
+                }
+                val candidate_len: i64 = str.len_raw(candidate)
+                if type_len > candidate_len {
+                    val tail: ref char = @ptradd(type_name as ref void, type_len - candidate_len) as ref char
+                    if str.rchar_cmp(tail, candidate) == 0 {
+                        val sep_pos: i64 = type_len - candidate_len - 1
+                        val sep: u8 = @load8(@ptradd(type_name as ref void, sep_pos))
+                        if sep == 46 {
+                            return candidate
+                        }
+                        if sep_pos >= 1 {
+                            val sep_prev: u8 = @load8(@ptradd(type_name as ref void, sep_pos - 1))
+                            if sep_prev == 95 && sep == 95 {
+                                return candidate
+                            }
+                        }
+                    }
+                }
+            }
+            none => {}
+        }
+        i++
+    }
+    return ""
+}
+
 fn ll_lookup_struct(ctx: ref LLCtx, type_name: ref char) ref void! = {
+    val resolved_name: ref char = ll_resolve_struct_name(ctx, type_name)
+    if str.rchar_cmp(resolved_name, "") == 0 { return 0 as ref void }
     val len: i64 = @len(ctx.snames) as i64
     val i: mut i64 = 0
     for {
@@ -839,7 +879,7 @@ fn ll_lookup_struct(ctx: ref LLCtx, type_name: ref char) ref void! = {
         val n_opt = @get(ctx.snames, i as usize)
         match n_opt {
             some n => {
-                if str.rchar_cmp(n as ref char, type_name) == 0 {
+                if str.rchar_cmp(n as ref char, resolved_name) == 0 {
                     val f_opt = @get(ctx.sfields, i as usize)
                     match f_opt {
                         some f => { return f as ref void }
@@ -1026,8 +1066,7 @@ fn ll_unwrap_named_type(ty: ref parser.Node) ref char! = {
 fn ll_struct_type_name(ctx: ref LLCtx, ty: ref parser.Node) ref char! = {
     val tname: ref char = ll_unwrap_named_type(ty)
     if str.rchar_cmp(tname, "") == 0 { return "" }
-    if ll_lookup_struct(ctx, tname) != 0 as ref void { return tname }
-    return ""
+    return ll_resolve_struct_name(ctx, tname)
 }
 
 fn ll_slot_is_ptr(ctx: ref LLCtx, ty: ref parser.Node) bool! = {
@@ -1707,6 +1746,12 @@ fn ll_coerce_value_for_type(ctx: ref LLCtx, expr: ref parser.Node, ty: ref parse
     if ll_slot_is_ptr(ctx, ty) && !ll_slot_is_ptr(ctx, expr_ty) && ll_expr_is_raw_load(expr) {
         return ll_coerce_word_to_ptr(ctx, value)
     }
+    if !ll_slot_is_ptr(ctx, ty) && ll_slot_is_ptr(ctx, expr_ty) {
+        if ll_expr_is_null_ptr_literal(expr) {
+            return "0"
+        }
+        return ll_coerce_ptr_to_word(ctx, value)
+    }
     return value
 }
 
@@ -2055,18 +2100,26 @@ fn ll_union_variants_for_expr(ctx: ref LLCtx, expr_node: ref parser.Node) ref vo
     return 0 as ref void
 }
 
-fn ll_store_target_value(ctx: ref LLCtx, target: ref parser.Node, value: ref char) void! = {
+fn ll_store_target_value(ctx: ref LLCtx, target: ref parser.Node, source_node: ref parser.Node, value: ref char) void! = {
     if target == 0 as ref parser.Node { return }
     if target.kind == parser.NK_IDENT {
         val name: ref char = target.d0 as ref char
         val slot_ptr: ref char = ll_lookup_local_ptr(ctx, name)
         if str.rchar_cmp(slot_ptr, "") != 0 {
-            ll_emit_store_value(ctx, slot_ptr, ll_lookup_local_type(ctx, name), value)
+            val slot_ty: ref parser.Node = ll_lookup_local_type(ctx, name)
+            val stored_value: mut ref char = value
+            if source_node != 0 as ref parser.Node {
+                stored_value = ll_coerce_value_for_type(ctx, source_node, slot_ty, value)
+            }
+            ll_emit_store_value(ctx, slot_ptr, slot_ty, stored_value)
         } else {
             val global_sym: ref char = ll_lookup_module_const_symbol(ctx, name)
             if str.rchar_cmp(global_sym, "") != 0 {
                 val global_ty: ref parser.Node = ll_lookup_global_type(ctx, global_sym)
-                val coerced_value: ref char = ll_coerce_value_for_type(ctx, target, global_ty, value)
+                val coerced_value: mut ref char = value
+                if source_node != 0 as ref parser.Node {
+                    coerced_value = ll_coerce_value_for_type(ctx, source_node, global_ty, value)
+                }
                 val gptr: ref char = @alloc(str.len_raw(global_sym) + 2) as ref char
                 @snprintf(gptr, str.len_raw(global_sym) + 2, "@{s}", {global_sym})
                 ll_emit_store_value(ctx, gptr, global_ty, coerced_value)
@@ -2082,14 +2135,22 @@ fn ll_store_target_value(ctx: ref LLCtx, target: ref parser.Node, value: ref cha
             val sname: ref char = ll_struct_type_name(ctx, base_ty)
             val fields: ref void = ll_lookup_struct(ctx, sname)
             val fty: ref parser.Node = ll_field_type(fields, parser.field_name(target))
-            ll_emit_store_value(ctx, fptr, fty, value)
+            val stored_value: mut ref char = value
+            if source_node != 0 as ref parser.Node {
+                stored_value = ll_coerce_value_for_type(ctx, source_node, fty, value)
+            }
+            ll_emit_store_value(ctx, fptr, fty, stored_value)
         }
         return
     }
     if target.kind == parser.NK_DEREF {
         val ptr: ref char = gen_expr(ctx, target.d0 as ref parser.Node)
         val ty: ref parser.Node = ll_expr_storage_type(ctx, target)
-        ll_emit_store_value(ctx, ptr, ty, value)
+        val stored_value: mut ref char = value
+        if source_node != 0 as ref parser.Node {
+            stored_value = ll_coerce_value_for_type(ctx, source_node, ty, value)
+        }
+        ll_emit_store_value(ctx, ptr, ty, stored_value)
     }
 }
 
@@ -4473,10 +4534,8 @@ fn gen_stmt(ctx: ref LLCtx, stmt: ref parser.Node) void! = {
     if k == parser.NK_ASSIGN {
         val target: ref parser.Node = stmt.d0 as ref parser.Node
         val value: ref parser.Node = stmt.d1 as ref parser.Node
-        val target_ty: ref parser.Node = ll_expr_storage_type(ctx, target)
         val val_tmp2_raw: ref char = gen_expr(ctx, value)
-        val val_tmp2: ref char = ll_coerce_value_for_type(ctx, value, target_ty, val_tmp2_raw)
-        ll_store_target_value(ctx, target, val_tmp2)
+        ll_store_target_value(ctx, target, value, val_tmp2_raw)
         return
     }
 
@@ -4494,7 +4553,7 @@ fn gen_stmt(ctx: ref LLCtx, stmt: ref parser.Node) void! = {
         @free(buf)
         val res: ref char = @alloc(16) as ref char
         @snprintf(res, 16, "%%t{lld}", {tmp})
-        ll_store_target_value(ctx, target, res)
+        ll_store_target_value(ctx, target, 0 as ref parser.Node, res)
         return
     }
 
@@ -4514,7 +4573,7 @@ fn gen_stmt(ctx: ref LLCtx, stmt: ref parser.Node) void! = {
         @free(buf)
         val res: ref char = @alloc(16) as ref char
         @snprintf(res, 16, "%%t{lld}", {tmp})
-        ll_store_target_value(ctx, target, res)
+        ll_store_target_value(ctx, target, 0 as ref parser.Node, res)
         return
     }
 
