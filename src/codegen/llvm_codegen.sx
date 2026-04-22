@@ -1974,7 +1974,7 @@ fn ll_coerce_arg_to_abi(ctx: ref LLCtx, node: ref parser.Node, value: ref char, 
         return "null"
     }
     val node_ty_for_abi: ref parser.Node = ll_expr_storage_type(ctx, node)
-    if str.rchar_cmp(abi_ty, "ptr") == 0 && !ll_slot_is_ptr(ctx, node_ty_for_abi) && ll_expr_is_raw_load(node) {
+    if str.rchar_cmp(abi_ty, "ptr") == 0 && !ll_slot_is_ptr(ctx, node_ty_for_abi) {
         return ll_coerce_word_to_ptr(ctx, value)
     }
     if str.rchar_cmp(abi_ty, "i64") == 0 {
