@@ -4506,26 +4506,141 @@ fn gen_stmt(ctx: ref LLCtx, stmt: ref parser.Node) void! = {
 }
 
 fn gen_if_stmt(ctx: ref LLCtx, stmt: ref parser.Node) void! = {
-    val cond: ref char = gen_expr(ctx, stmt.d0 as ref parser.Node)
-    val else_body: ref parser.Node = stmt.d3 as ref parser.Node
     val then_lbl: i64 = fresh_lbl(ctx)
-    val else_lbl: i64 = fresh_lbl(ctx)
     val end_lbl: i64 = fresh_lbl(ctx)
+    val else_body: ref parser.Node = stmt.d3 as ref parser.Node
+    val elif_list: ref void = stmt.d2 as ref void
+    val has_else: bool = else_body != 0 as ref parser.Node
+    val has_elif: bool = elif_list != 0 as ref void && @len(elif_list as list[ref void]) > 0
+    val next_lbls: mut list[i64] = []
+    val body_lbls: mut list[i64] = []
+    if has_elif {
+        val elen: i64 = @len(elif_list as list[ref void]) as i64
+        val pi: mut i64 = 0
+        for {
+            if pi >= elen { break }
+            @append(next_lbls, fresh_lbl(ctx))
+            @append(body_lbls, fresh_lbl(ctx))
+            pi++
+        }
+    }
+    val else_lbl: i64 = fresh_lbl(ctx)
+    val first_false: mut i64 = end_lbl
+    if has_elif {
+        val fl_opt = @get(next_lbls, 0)
+        match fl_opt {
+            some fl => { first_false = fl as i64 }
+            none => {}
+        }
+    } elif has_else {
+        first_false = else_lbl
+    }
+
+    val cond_node: ref parser.Node = stmt.d0 as ref parser.Node
+    val cond_ty: ref parser.Node = ll_expr_storage_type(ctx, cond_node)
+    val cond: ref char = gen_expr(ctx, cond_node)
     val cmp: i64 = fresh_tmp(ctx)
     val buf: ref char = @alloc(256) as ref char
-    @snprintf(buf, 256, "  %%t{lld} = icmp ne i64 {s}, 0\n  br i1 %%t{lld}, label %%lbl{lld}, label %%lbl{lld}\nlbl{lld}:\n", {cmp, cond, cmp, then_lbl, else_lbl, then_lbl})
+    if ll_slot_is_ptr(ctx, cond_ty) {
+        @snprintf(buf, 256, "  %%t{lld} = icmp ne ptr {s}, null\n  br i1 %%t{lld}, label %%lbl{lld}, label %%lbl{lld}\nlbl{lld}:\n", {cmp, cond, cmp, then_lbl, first_false, then_lbl})
+    } else {
+        @snprintf(buf, 256, "  %%t{lld} = icmp ne i64 {s}, 0\n  br i1 %%t{lld}, label %%lbl{lld}, label %%lbl{lld}\nlbl{lld}:\n", {cmp, cond, cmp, then_lbl, first_false, then_lbl})
+    }
     emit(ctx, buf)
     @free(buf)
     gen_stmts(ctx, stmt.d1 as ref parser.Node)
-    val jbuf: ref char = @alloc(64) as ref char
-    @snprintf(jbuf, 64, "  br label %%lbl{lld}\nlbl{lld}:\n", {end_lbl, else_lbl})
-    emit(ctx, jbuf)
-    @free(jbuf)
-    if else_body != 0 as ref parser.Node {
-        gen_stmts(ctx, else_body.d0 as ref parser.Node)
+
+    if !ll_block_ends_with_terminator(stmt.d1 as ref parser.Node) {
+        val jbuf: ref char = @alloc(64) as ref char
+        @snprintf(jbuf, 64, "  br label %%lbl{lld}\n", {end_lbl})
+        emit(ctx, jbuf)
+        @free(jbuf)
     }
-    val ebuf: ref char = @alloc(64) as ref char
-    @snprintf(ebuf, 64, "  br label %%lbl{lld}\nlbl{lld}:\n", {end_lbl, end_lbl})
+
+    if has_elif {
+        val elen: i64 = @len(elif_list as list[ref void]) as i64
+        val ei: mut i64 = 0
+        for {
+            if ei >= elen { break }
+            val ep_opt = @get(elif_list as list[ref void], ei as usize)
+            val cl_opt = @get(next_lbls, ei as usize)
+            val bl_opt = @get(body_lbls, ei as usize)
+            match ep_opt {
+                some ep => {
+                    match cl_opt {
+                        some cl => {
+                            match bl_opt {
+                                some bl => {
+                                    val cond_lbl: i64 = cl as i64
+                                    val body_lbl: i64 = bl as i64
+                                    val false_lbl: mut i64 = end_lbl
+                                    if ei + 1 < elen {
+                                        val nl_opt = @get(next_lbls, (ei + 1) as usize)
+                                        match nl_opt {
+                                            some nl => { false_lbl = nl as i64 }
+                                            none => {}
+                                        }
+                                    } elif has_else {
+                                        false_lbl = else_lbl
+                                    }
+
+                                    val clbuf: ref char = @alloc(32) as ref char
+                                    @snprintf(clbuf, 32, "lbl{lld}:\n", {cond_lbl})
+                                    emit(ctx, clbuf)
+                                    @free(clbuf)
+
+                                    val ep_node: ref parser.Node = ep as ref parser.Node
+                                    val econd_node: ref parser.Node = ep_node.d0 as ref parser.Node
+                                    val econd_ty: ref parser.Node = ll_expr_storage_type(ctx, econd_node)
+                                    val econd: ref char = gen_expr(ctx, econd_node)
+                                    val ecmp: i64 = fresh_tmp(ctx)
+                                    val ebuf: ref char = @alloc(256) as ref char
+                                    if ll_slot_is_ptr(ctx, econd_ty) {
+                                        @snprintf(ebuf, 256, "  %%t{lld} = icmp ne ptr {s}, null\n  br i1 %%t{lld}, label %%lbl{lld}, label %%lbl{lld}\nlbl{lld}:\n",
+                                            {ecmp, econd, ecmp, body_lbl, false_lbl, body_lbl})
+                                    } else {
+                                        @snprintf(ebuf, 256, "  %%t{lld} = icmp ne i64 {s}, 0\n  br i1 %%t{lld}, label %%lbl{lld}, label %%lbl{lld}\nlbl{lld}:\n",
+                                            {ecmp, econd, ecmp, body_lbl, false_lbl, body_lbl})
+                                    }
+                                    emit(ctx, ebuf)
+                                    @free(ebuf)
+
+                                    gen_stmts(ctx, ep_node.d1 as ref parser.Node)
+                                    if !ll_block_ends_with_terminator(ep_node.d1 as ref parser.Node) {
+                                        val ejbuf: ref char = @alloc(64) as ref char
+                                        @snprintf(ejbuf, 64, "  br label %%lbl{lld}\n", {end_lbl})
+                                        emit(ctx, ejbuf)
+                                        @free(ejbuf)
+                                    }
+                                }
+                                none => {}
+                            }
+                        }
+                        none => {}
+                    }
+                }
+                none => {}
+            }
+            ei++
+        }
+    }
+
+    if has_else {
+        val lbuf: ref char = @alloc(32) as ref char
+        @snprintf(lbuf, 32, "lbl{lld}:\n", {else_lbl})
+        emit(ctx, lbuf)
+        @free(lbuf)
+        gen_stmts(ctx, else_body.d0 as ref parser.Node)
+        if !ll_block_ends_with_terminator(else_body.d0 as ref parser.Node) {
+            val jbuf2: ref char = @alloc(64) as ref char
+            @snprintf(jbuf2, 64, "  br label %%lbl{lld}\n", {end_lbl})
+            emit(ctx, jbuf2)
+            @free(jbuf2)
+        }
+    }
+
+    val ebuf: ref char = @alloc(32) as ref char
+    @snprintf(ebuf, 32, "lbl{lld}:\n", {end_lbl})
     emit(ctx, ebuf)
     @free(ebuf)
 }
