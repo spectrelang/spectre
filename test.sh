@@ -111,6 +111,12 @@ if [ $LLVM_ONLY -eq 1 ]; then
     echo "LLVM std tests:"
     run_std_tests
     echo
+    echo "Self compilation tests:"
+    "$COMPILER" ./src/ast/lexer.sx --test --llvm
+    "$COMPILER" ./src/ast/parser.sx --test --llvm
+    "$COMPILER" ./src/codegen/llvm_codegen.sx --test --llvm
+    "$COMPILER" ./src/module/module.sx --test --llvm
+    echo
     echo "LLVM Test Summary:"
     echo "Total tests : $total"
     echo "Passed      : $passed"
