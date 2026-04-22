@@ -782,6 +782,35 @@ fn ll_emit_store_value(ctx: ref LLCtx, ptr: ref char, ty: ref parser.Node, value
     @free(buf)
 }
 
+fn ll_load_named_local_value(ctx: ref LLCtx, name: ref char) ref char! = {
+    val local_ptr: ref char = ll_lookup_local_ptr(ctx, name)
+    if str.rchar_cmp(local_ptr, "") == 0 { return "0" }
+    val local_ty: ref parser.Node = ll_lookup_local_type(ctx, name)
+    val tmp: i64 = fresh_tmp(ctx)
+    val buf: ref char = @alloc(128) as ref char
+    if ll_slot_is_ptr(ctx, local_ty) {
+        @snprintf(buf, 128, "  %%t{lld} = load ptr, ptr {s}\n", {tmp, local_ptr})
+    } elif local_ty != 0 as ref parser.Node && str.rchar_cmp(ll_type_of(local_ty), "i32") == 0 {
+        @snprintf(buf, 128, "  %%t{lld} = load i32, ptr {s}\n", {tmp, local_ptr})
+    } else {
+        @snprintf(buf, 128, "  %%t{lld} = load i64, ptr {s}\n", {tmp, local_ptr})
+    }
+    emit(ctx, buf)
+    @free(buf)
+    val loaded: ref char = @alloc(16) as ref char
+    @snprintf(loaded, 16, "%%t{lld}", {tmp})
+    if local_ty != 0 as ref parser.Node && str.rchar_cmp(ll_type_of(local_ty), "i32") == 0 {
+        return ll_widen_to_i64(ctx, loaded, local_ty)
+    }
+    return loaded
+}
+
+fn ll_store_named_local_value(ctx: ref LLCtx, name: ref char, value: ref char) void! = {
+    val slot_ptr: ref char = ll_lookup_local_ptr(ctx, name)
+    if str.rchar_cmp(slot_ptr, "") == 0 { return }
+    ll_emit_store_value(ctx, slot_ptr, ll_lookup_local_type(ctx, name), value)
+}
+
 fn ll_store_target_value(ctx: ref LLCtx, target: ref parser.Node, value: ref char) void! = {
     if target == 0 as ref parser.Node { return }
     if target.kind == parser.NK_IDENT {
@@ -2174,7 +2203,43 @@ fn gen_for_stmt(ctx: ref LLCtx, stmt: ref parser.Node) void! = {
     emit(ctx, cbuf2)
     @free(cbuf2)
 
-    if post_node != 0 as ref parser.Node { gen_stmt(ctx, post_node) }
+    if post_node != 0 as ref parser.Node {
+        val pk: i64 = post_node.kind
+        if pk == parser.NK_INCREMENT || pk == parser.NK_DECREMENT {
+            val name: ref char = post_node.d0 as ref char
+            val cur: ref char = ll_load_named_local_value(ctx, name)
+            val tmp: i64 = fresh_tmp(ctx)
+            val buf: ref char = @alloc(128) as ref char
+            if pk == parser.NK_INCREMENT {
+                @snprintf(buf, 128, "  %%t{lld} = add i64 {s}, 1\n", {tmp, cur})
+            } else {
+                @snprintf(buf, 128, "  %%t{lld} = sub i64 {s}, 1\n", {tmp, cur})
+            }
+            emit(ctx, buf)
+            @free(buf)
+            val res: ref char = @alloc(16) as ref char
+            @snprintf(res, 16, "%%t{lld}", {tmp})
+            ll_store_named_local_value(ctx, name, res)
+        } elif pk == parser.NK_ADD_ASSIGN || pk == parser.NK_SUB_ASSIGN {
+            val name: ref char = post_node.d0 as ref char
+            val cur: ref char = ll_load_named_local_value(ctx, name)
+            val rhs: ref char = gen_expr(ctx, post_node.d1 as ref parser.Node)
+            val tmp: i64 = fresh_tmp(ctx)
+            val buf: ref char = @alloc(128) as ref char
+            if pk == parser.NK_ADD_ASSIGN {
+                @snprintf(buf, 128, "  %%t{lld} = add i64 {s}, {s}\n", {tmp, cur, rhs})
+            } else {
+                @snprintf(buf, 128, "  %%t{lld} = sub i64 {s}, {s}\n", {tmp, cur, rhs})
+            }
+            emit(ctx, buf)
+            @free(buf)
+            val res: ref char = @alloc(16) as ref char
+            @snprintf(res, 16, "%%t{lld}", {tmp})
+            ll_store_named_local_value(ctx, name, res)
+        } else {
+            gen_stmt(ctx, post_node)
+        }
+    }
 
     val jbuf: ref char = @alloc(64) as ref char
     @snprintf(jbuf, 64, "  br label %%lbl{lld}\nlbl{lld}:\n", {loop_lbl, end_lbl})
@@ -2575,9 +2640,7 @@ fn scan_node_for_calls(ctx: ref LLCtx, node: ref parser.Node) void! = {
         if node.d3 != 0 { scan_node_for_calls(ctx, node.d3 as ref parser.Node) }
         if node.d4 != 0 { scan_stmts_for_calls(ctx, node.d4 as ref void) }
     } elif k == parser.NK_INCREMENT || k == parser.NK_DECREMENT {
-        scan_node_for_calls(ctx, node.d0 as ref parser.Node)
     } elif k == parser.NK_ADD_ASSIGN || k == parser.NK_SUB_ASSIGN {
-        scan_node_for_calls(ctx, node.d0 as ref parser.Node)
         scan_node_for_calls(ctx, node.d1 as ref parser.Node)
     } elif k == parser.NK_RETURN { scan_node_for_calls(ctx, node.d0 as ref parser.Node) }
     elif k == parser.NK_BUILTIN {
