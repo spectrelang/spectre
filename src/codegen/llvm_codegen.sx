@@ -968,14 +968,33 @@ fn ll_lookup_tv(ctx: ref LLCtx, vname: ref char, out_owner: ref void, out_field_
 
 fn ll_is_tagged_union_name(ctx: ref LLCtx, name: ref char) bool! = {
     val nlen: i64 = @len(ctx.tv_owners) as i64
+    val name_len: i64 = str.len_raw(name)
     val ni: mut i64 = 0
     for {
         if ni >= nlen { break }
         val owner_opt = @get(ctx.tv_owners, ni as usize)
         match owner_opt {
             some owner => {
-                if str.rchar_cmp(owner as ref char, name) == 0 {
+                val owner_name: ref char = owner as ref char
+                if str.rchar_cmp(owner_name, name) == 0 {
                     return true
+                }
+                val owner_len: i64 = str.len_raw(owner_name)
+                if name_len > owner_len {
+                    val tail: ref char = @ptradd(name as ref void, name_len - owner_len) as ref char
+                    if str.rchar_cmp(tail, owner_name) == 0 {
+                        val sep_pos: i64 = name_len - owner_len - 1
+                        val sep: u8 = @load8(@ptradd(name as ref void, sep_pos))
+                        if sep == 46 {
+                            return true
+                        }
+                        if sep_pos >= 1 {
+                            val sep_prev: u8 = @load8(@ptradd(name as ref void, sep_pos - 1))
+                            if sep_prev == 95 && sep == 95 {
+                                return true
+                            }
+                        }
+                    }
                 }
             }
             none => {}
@@ -4241,10 +4260,14 @@ fn gen_stmt(ctx: ref LLCtx, stmt: ref parser.Node) void! = {
             }
         } else {
             val rv: ref char = gen_expr(ctx, expr)
+            val rv_ty: ref parser.Node = ll_expr_storage_type(ctx, expr)
+            val rv_word: mut ref char = rv
+            if ll_slot_is_ptr(ctx, rv_ty) { 
+                rv_word = ll_coerce_ptr_to_word(ctx, rv) 
+            }
             val buf: ref char = @alloc(256) as ref char
             ll_emit_defers(ctx)
             if ctx.current_is_main {
-                val rv_ty: ref parser.Node = ll_expr_storage_type(ctx, expr)
                 if expr.kind == parser.NK_OK_VAL || expr.kind == parser.NK_ERR_VAL || ll_is_result_type(rv_ty) {
                     val tag: i64 = fresh_tmp(ctx)
                     val is_ok: i64 = fresh_tmp(ctx)
@@ -4253,11 +4276,11 @@ fn gen_stmt(ctx: ref LLCtx, stmt: ref parser.Node) void! = {
                         {tag, rv, is_ok, tag, code, is_ok, code})
                 } else {
                     val tr: i64 = fresh_tmp(ctx)
-                    @snprintf(buf, 256, "  %%t{lld} = trunc i64 {s} to i32\n  ret i32 %%t{lld}\n", {tr, rv, tr})
+                    @snprintf(buf, 256, "  %%t{lld} = trunc i64 {s} to i32\n  ret i32 %%t{lld}\n", {tr, rv_word, tr})
                 }
             } elif str.rchar_cmp(ctx.current_ret_abi, "i32") == 0 {
                 val tr: i64 = fresh_tmp(ctx)
-                @snprintf(buf, 128, "  %%t{lld} = trunc i64 {s} to i32\n  ret i32 %%t{lld}\n", {tr, rv, tr})
+                @snprintf(buf, 128, "  %%t{lld} = trunc i64 {s} to i32\n  ret i32 %%t{lld}\n", {tr, rv_word, tr})
             } elif str.rchar_cmp(ctx.current_ret_abi, "double") == 0 {
                 @snprintf(buf, 128, "  ret double {s}\n", {rv})
             } elif str.rchar_cmp(ctx.current_ret_abi, "float") == 0 {
@@ -4265,16 +4288,15 @@ fn gen_stmt(ctx: ref LLCtx, stmt: ref parser.Node) void! = {
             } elif str.rchar_cmp(ctx.current_ret_abi, "void") == 0 {
                 @snprintf(buf, 128, "  ret void\n", {})
             } elif str.rchar_cmp(ctx.current_ret_abi, "ptr") == 0 {
-                val rv_ty2: ref parser.Node = ll_expr_storage_type(ctx, expr)
                 if ll_expr_is_null_ptr_literal(expr) {
                     @snprintf(buf, 128, "  ret ptr null\n", {})
-                } elif !ll_slot_is_ptr(ctx, rv_ty2) && ll_expr_is_raw_load(expr) {
+                } elif !ll_slot_is_ptr(ctx, rv_ty) && ll_expr_is_raw_load(expr) {
                     @snprintf(buf, 128, "  ret ptr {s}\n", {ll_coerce_word_to_ptr(ctx, rv)})
                 } else {
                     @snprintf(buf, 128, "  ret ptr {s}\n", {rv})
                 }
             } else {
-                @snprintf(buf, 128, "  ret i64 {s}\n", {rv})
+                @snprintf(buf, 128, "  ret i64 {s}\n", {rv_word})
             }
             emit(ctx, buf)
             @free(buf)
