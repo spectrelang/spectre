@@ -3210,34 +3210,60 @@ fn get_arg_node(args: ref void, i: i64) ref parser.Node! = {
 
 fn rewrite_fmt(s: ref char) ref char! = {
     val slen: i64 = str.len_raw(s)
-    val out: ref char = @alloc(slen * 4 + 1) as ref char
-    val si: mut i64 = 0
+    val out: ref char = @alloc(slen * 2 + 1) as ref char
     val oi: mut i64 = 0
+    val i: mut i64 = 0
     for {
-        val c: u8 = @load8(@ptradd(s as ref void, si))
-        if c == 0 { break }
-        if c == 123 { // '{'
-            val n: u8 = @load8(@ptradd(s as ref void, si + 1))
-            val cl: u8 = @load8(@ptradd(s as ref void, si + 2))
-            if n == 115 && cl == 125 { // {s}
-                @store8(@ptradd(out as ref void, oi), 37) oi++
-                @store8(@ptradd(out as ref void, oi), 115) oi++
-                si = si + 3
-            } elif n == 100 && cl == 125 { // {d}
-                @store8(@ptradd(out as ref void, oi), 37) oi++
-                @store8(@ptradd(out as ref void, oi), 108) oi++
-                @store8(@ptradd(out as ref void, oi), 108) oi++
-                @store8(@ptradd(out as ref void, oi), 100) oi++
-                si = si + 3
-            } elif n == 102 && cl == 125 { // {f}
-                @store8(@ptradd(out as ref void, oi), 37) oi++
-                @store8(@ptradd(out as ref void, oi), 102) oi++
-                si = si + 3
+        if i >= slen { break }
+        val c: u8 = @load8(@ptradd(s as ref void, i))
+
+        if c == 92 {
+            if i + 1 < slen {
+                val next: u8 = @load8(@ptradd(s as ref void, i + 1))
+                if next == 123 || next == 125 {
+                    @store8(@ptradd(out as ref void, oi), next)
+                    oi++
+                    i += 2
+                } else {
+                    @store8(@ptradd(out as ref void, oi), c)
+                    oi++
+                    i++
+                }
             } else {
-                @store8(@ptradd(out as ref void, oi), c) oi++ si++
+                @store8(@ptradd(out as ref void, oi), c)
+                oi++
+                i++
+            }
+        } elif c == 123 {
+            val j: mut i64 = i + 1
+            val found: mut bool = false
+            for {
+                if j >= slen { break }
+                val ic: u8 = @load8(@ptradd(s as ref void, j))
+                if ic == 125 { found = true break }
+                j++
+            }
+            if found {
+                @store8(@ptradd(out as ref void, oi), 37)
+                oi++
+                val k: mut i64 = i + 1
+                for {
+                    if k >= j { break }
+                    val sc: u8 = @load8(@ptradd(s as ref void, k))
+                    @store8(@ptradd(out as ref void, oi), sc)
+                    oi++
+                    k++
+                }
+                i = j + 1
+            } else {
+                @store8(@ptradd(out as ref void, oi), c)
+                oi++
+                i++
             }
         } else {
-            @store8(@ptradd(out as ref void, oi), c) oi++ si++
+            @store8(@ptradd(out as ref void, oi), c)
+            oi++
+            i++
         }
     }
     @store8(@ptradd(out as ref void, oi), 0)
