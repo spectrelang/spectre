@@ -5706,26 +5706,12 @@ fn preregister_items(ctx: ref LLCtx, items: list[ref parser.Node], mod_prefix: r
                         } else {
                             @snprintf(const_key, 512, "{s}__{s}", {mod_prefix, cname})
                         }
-                        if cexpr.kind == parser.NK_INT_LIT {
-                            val lit_text: ref char = ll_normalize_int_text(parser.int_lit_text(cexpr))
-                            ll_register_global_const(ctx, const_key, lit_text, 0 as ref void)
-                            ll_register_module_const(ctx, const_key, lit_text)
+                        val static_init: ref char = ll_static_global_init_value(ctx, cexpr)
+                        if str.rchar_cmp(static_init, "") != 0 {
+                            ll_register_global_const(ctx, const_key, static_init, 0 as ref void)
+                            ll_register_module_const(ctx, const_key, static_init)
                             if str.rchar_cmp(mod_prefix, "") != 0 {
-                                ll_register_module_const(ctx, cname, lit_text)
-                            }
-                        } elif cexpr.kind == parser.NK_BOOL {
-                            if cexpr.d0 != 0 {
-                                ll_register_global_const(ctx, const_key, "1", 0 as ref void)
-                                ll_register_module_const(ctx, const_key, "1")
-                                if str.rchar_cmp(mod_prefix, "") != 0 {
-                                    ll_register_module_const(ctx, cname, "1")
-                                }
-                            } else {
-                                ll_register_global_const(ctx, const_key, "0", 0 as ref void)
-                                ll_register_module_const(ctx, const_key, "0")
-                                if str.rchar_cmp(mod_prefix, "") != 0 {
-                                    ll_register_module_const(ctx, cname, "0")
-                                }
+                                ll_register_module_const(ctx, cname, static_init)
                             }
                         }
                     }
