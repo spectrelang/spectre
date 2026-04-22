@@ -1358,7 +1358,9 @@ fn ll_widen_to_i64(ctx: ref LLCtx, value: ref char, ty: ref parser.Node) ref cha
 fn ll_emit_store_value(ctx: ref LLCtx, ptr: ref char, ty: ref parser.Node, value: ref char) void! = {
     val buf: ref char = @alloc(256) as ref char
     if ll_slot_is_ptr(ctx, ty) {
-        @snprintf(buf, 256, "  store ptr {s}, ptr {s}\n", {value, ptr})
+        val ptr_value: mut ref char = value
+        if str.rchar_cmp(value, "0") == 0 { ptr_value = "null" }
+        @snprintf(buf, 256, "  store ptr {s}, ptr {s}\n", {ptr_value, ptr})
     } elif ty != 0 as ref parser.Node && str.rchar_cmp(ll_type_of(ty), "double") == 0 {
         @snprintf(buf, 256, "  store double {s}, ptr {s}\n", {value, ptr})
     } elif ty != 0 as ref parser.Node && str.rchar_cmp(ll_type_of(ty), "float") == 0 {
@@ -2096,8 +2098,8 @@ fn gen_expr(ctx: ref LLCtx, expr: ref parser.Node) ref char! = {
             if ll_slot_is_ptr(ctx, lhs_ty) || ll_slot_is_ptr(ctx, rhs_ty) {
                 val lhs_cmp: mut ref char = lhs
                 val rhs_cmp: mut ref char = rhs
-                if lhs_node.kind == parser.NK_NONE { lhs_cmp = "null" }
-                if rhs_node.kind == parser.NK_NONE { rhs_cmp = "null" }
+                if ll_expr_is_null_ptr_literal(lhs_node) { lhs_cmp = "null" }
+                if ll_expr_is_null_ptr_literal(rhs_node) { rhs_cmp = "null" }
                 @snprintf(buf, 256, "  %%t{lld} = icmp eq ptr {s}, {s}\n  %%t{lld} = zext i1 %%t{lld} to i64\n", {cmp, lhs_cmp, rhs_cmp, tmp, cmp})
             } elif is_float_binop {
                 @snprintf(buf, 256, "  %%t{lld} = fcmp oeq {s} {s}, {s}\n  %%t{lld} = zext i1 %%t{lld} to i64\n", {cmp, float_abi, lhs, rhs, tmp, cmp})
@@ -2109,8 +2111,8 @@ fn gen_expr(ctx: ref LLCtx, expr: ref parser.Node) ref char! = {
             if ll_slot_is_ptr(ctx, lhs_ty) || ll_slot_is_ptr(ctx, rhs_ty) {
                 val lhs_cmp: mut ref char = lhs
                 val rhs_cmp: mut ref char = rhs
-                if lhs_node.kind == parser.NK_NONE { lhs_cmp = "null" }
-                if rhs_node.kind == parser.NK_NONE { rhs_cmp = "null" }
+                if ll_expr_is_null_ptr_literal(lhs_node) { lhs_cmp = "null" }
+                if ll_expr_is_null_ptr_literal(rhs_node) { rhs_cmp = "null" }
                 @snprintf(buf, 256, "  %%t{lld} = icmp ne ptr {s}, {s}\n  %%t{lld} = zext i1 %%t{lld} to i64\n", {cmp, lhs_cmp, rhs_cmp, tmp, cmp})
             } elif is_float_binop {
                 @snprintf(buf, 256, "  %%t{lld} = fcmp one {s} {s}, {s}\n  %%t{lld} = zext i1 %%t{lld} to i64\n", {cmp, float_abi, lhs, rhs, tmp, cmp})
@@ -3182,15 +3184,18 @@ fn gen_call(ctx: ref LLCtx, expr: ref parser.Node) ref char! = {
         if print_res != 0 as ref char { return print_res }
     }
 
+    val args_len: mut i64 = @len(args_list) as i64
+    if args_list == 0 as ref void { args_len = 0 }
+
     val is_read_line: bool = str.rchar_cmp(callee_name, "read_line") == 0
-        || str.ends_with(str.from(callee_name), str.from("__read_line"))
+        && args_len == 2
     if is_read_line {
         val rl_res: ref char = gen_call_read_line_builtin(ctx, args_list)
         if rl_res != 0 as ref char { return rl_res }
     }
 
     val is_read_key: bool = str.rchar_cmp(callee_name, "read_key") == 0
-        || str.ends_with(str.from(callee_name), str.from("__read_key"))
+        && args_len == 0
     if is_read_key {
         return gen_call_read_key_builtin(ctx)
     }
