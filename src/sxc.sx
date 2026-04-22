@@ -320,7 +320,12 @@ pub fn main() i32! = {
     }
 
     if use_llvm || emit_ll {
-        val ll_ir: ref char = llvm_codegen.gen_module_resolved(root_mod, release_mode)
+        val ll_ir: mut ref char = ""
+        if test_mode {
+            ll_ir = llvm_codegen.gen_module_resolved_test(root_mod, release_mode)
+        } else {
+            ll_ir = llvm_codegen.gen_module_resolved(root_mod, release_mode)
+        }
 
         if emit_ll != false {
             std.stdio.puts(ll_ir)
@@ -368,7 +373,14 @@ pub fn main() i32! = {
         if !release_mode { cc_flags_ll = "-g" }
 
         val clang_cmd: mut ref char = ""
-        if std.string.rchar_cmp(cc_flags_ll, "") == 0 {
+        if test_mode {
+            val test_bin_ll: ref char = "/tmp/spectre_test_bin"
+            if std.string.rchar_cmp(cc_flags_ll, "") == 0 {
+                clang_cmd = @fmt("clang -o {s} {s}{s} -Wno-override-module 2>&1", {test_bin_ll, ll_file, link_flags_ll})
+            } else {
+                clang_cmd = @fmt("clang {s} -o {s} {s}{s} -Wno-override-module 2>&1", {cc_flags_ll, test_bin_ll, ll_file, link_flags_ll})
+            }
+        } elif std.string.rchar_cmp(cc_flags_ll, "") == 0 {
             clang_cmd = @fmt("clang -o {s} {s}{s} -Wno-override-module 2>&1", {final_output_ll, ll_file, link_flags_ll})
         } else {
             clang_cmd = @fmt("clang {s} -o {s} {s}{s} -Wno-override-module 2>&1", {cc_flags_ll, final_output_ll, ll_file, link_flags_ll})
@@ -388,6 +400,16 @@ pub fn main() i32! = {
                     allocators.Arena.free(arena)
                     return 1
                 } else {
+                    if test_mode {
+                        val run_res_ll = std.os.run("/tmp/spectre_test_bin")
+                        if run_res_ll != 0 {
+                            std.stdio.puts("LLVM test binary failed.")
+                            std.os.delete(ll_file)
+                            allocators.Arena.free(arena)
+                            return 1
+                        }
+                        std.os.delete("/tmp/spectre_test_bin")
+                    }
                     if !quiet {
                         std.stdio.print("Compiled (LLVM): {s}\n", {final_output_ll})
                     }
