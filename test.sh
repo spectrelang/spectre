@@ -30,6 +30,38 @@ if [ ! -x "$COMPILER" ]; then
     exit 1
 fi
 
+run_std_tests() {
+    for file in "$STD_DIR"/*.sx; do
+        [ -e "$file" ] || continue
+
+        filename=$(basename "$file")
+
+        ((total++))
+
+        if [[ "$filename" == std.sx ]]; then
+            echo "[SKIP] $filename (this is the std facade)"
+            ((skipped++))
+            continue
+        fi
+
+        if [ "$LLVM_ONLY" -eq 1 ]; then
+            "$COMPILER" "$file" --llvm --test > /dev/null 2>&1
+        else
+            "$COMPILER" "$file" --test > /dev/null 2>&1
+        fi
+
+        status=$?
+
+        if [ $status -eq 0 ]; then
+            echo "[PASS] $filename"
+            ((passed++))
+        else
+            echo "[FAIL] $filename"
+            ((failed++))
+        fi
+    done
+}
+
 run_samples() {
     for file in "$SAMPLES_DIR"/*.sx; do
         [ -e "$file" ] || continue
@@ -75,7 +107,9 @@ run_samples() {
 if [ $LLVM_ONLY -eq 1 ]; then
     echo "Running LLVM backend tests only..."
     run_samples
-
+    echo
+    echo "LLVM std tests:"
+    run_std_tests
     echo
     echo "LLVM Test Summary:"
     echo "Total tests : $total"
