@@ -1267,22 +1267,19 @@ fn ll_widen_to_i64(ctx: ref LLCtx, value: ref char, ty: ref parser.Node) ref cha
     if ty == 0 as ref parser.Node { return value }
     val k: i64 = ty.kind
     if k == parser.TY_MUT { return ll_widen_to_i64(ctx, value, ty.d0 as ref parser.Node) }
-    if k == parser.TY_NAMED {
-        val name: ref char = ty.d0 as ref char
-        if str.rchar_cmp(name, "i32") == 0 || str.rchar_cmp(name, "u32") == 0 || str.rchar_cmp(name, "bool") == 0 || str.rchar_cmp(name, "char") == 0 {
-            val tmp: i64 = fresh_tmp(ctx)
-            val buf: ref char = @alloc(128) as ref char
-            if ll_is_unsigned_type(ty) {
-                @snprintf(buf, 128, "  %%t{lld} = zext i32 {s} to i64\n", {tmp, value})
-            } else {
-                @snprintf(buf, 128, "  %%t{lld} = sext i32 {s} to i64\n", {tmp, value})
-            }
-            emit(ctx, buf)
-            @free(buf)
-            val res: ref char = @alloc(16) as ref char
-            @snprintf(res, 16, "%%t{lld}", {tmp})
-            return res
+    if str.rchar_cmp(ll_type_of(ty), "i32") == 0 {
+        val tmp: i64 = fresh_tmp(ctx)
+        val buf: ref char = @alloc(128) as ref char
+        if ll_is_unsigned_type(ty) {
+            @snprintf(buf, 128, "  %%t{lld} = zext i32 {s} to i64\n", {tmp, value})
+        } else {
+            @snprintf(buf, 128, "  %%t{lld} = sext i32 {s} to i64\n", {tmp, value})
         }
+        emit(ctx, buf)
+        @free(buf)
+        val res: ref char = @alloc(16) as ref char
+        @snprintf(res, 16, "%%t{lld}", {tmp})
+        return res
     }
     return value
 }
@@ -1847,9 +1844,9 @@ fn gen_expr(ctx: ref LLCtx, expr: ref parser.Node) ref char! = {
     if k == parser.NK_IDENT {
         val name: ref char = expr.d0 as ref char
         val local_ptr: ref char = ll_lookup_local_ptr(ctx, name)
-        val tmp: i64 = fresh_tmp(ctx)
-        val buf: ref char = @alloc(128) as ref char
         if str.rchar_cmp(local_ptr, "") != 0 {
+            val tmp: i64 = fresh_tmp(ctx)
+            val buf: ref char = @alloc(128) as ref char
             val local_ty: ref parser.Node = ll_lookup_local_type(ctx, name)
             if ll_slot_is_ptr(ctx, local_ty) {
                 @snprintf(buf, 128, "  %%t{lld} = load ptr, ptr {s}\n", {tmp, local_ptr})
@@ -1862,27 +1859,51 @@ fn gen_expr(ctx: ref LLCtx, expr: ref parser.Node) ref char! = {
             } else {
                 @snprintf(buf, 128, "  %%t{lld} = load i64, ptr {s}\n", {tmp, local_ptr})
             }
+            emit(ctx, buf)
+            @free(buf)
+            if str.rchar_cmp(local_ptr, "") != 0 {
+                val local_ty2: ref parser.Node = ll_lookup_local_type(ctx, name)
+                if local_ty2 != 0 as ref parser.Node && str.rchar_cmp(ll_type_of(local_ty2), "i32") == 0 {
+                    val loaded: ref char = @alloc(16) as ref char
+                    @snprintf(loaded, 16, "%%t{lld}", {tmp})
+                    return ll_widen_to_i64(ctx, loaded, local_ty2)
+                }
+            }
+            val res: ref char = @alloc(16) as ref char
+            @snprintf(res, 16, "%%t{lld}", {tmp})
+            return res
         } else {
             val const_sym: ref char = ll_lookup_module_const_symbol(ctx, name)
             if str.rchar_cmp(const_sym, "") != 0 {
+                val tmp: i64 = fresh_tmp(ctx)
+                val buf: ref char = @alloc(128) as ref char
                 @snprintf(buf, 128, "  %%t{lld} = load i64, ptr @{s}\n", {tmp, const_sym})
+                emit(ctx, buf)
+                @free(buf)
+                val res: ref char = @alloc(16) as ref char
+                @snprintf(res, 16, "%%t{lld}", {tmp})
+                return res
             } else {
+                val resolved: ref char = ll_resolve_fn_name(ctx, name)
+                val ext_sym: ref char = ll_lookup_extern_symbol(ctx, name)
+                val effective: mut ref char = name
+                if resolved != 0 as ref char { effective = resolved }
+                elif ext_sym != 0 as ref char { effective = ext_sym }
+                if str.rchar_cmp(effective, name) != 0 || ll_lookup_fn_ret(ctx, effective) != 0 as ref parser.Node {
+                    val sym: ref char = @alloc(str.len_raw(effective) + 2) as ref char
+                    @snprintf(sym, str.len_raw(effective) + 2, "@{s}", {effective})
+                    return sym
+                }
+                val tmp: i64 = fresh_tmp(ctx)
+                val buf: ref char = @alloc(128) as ref char
                 @snprintf(buf, 128, "  %%t{lld} = add i64 %%{s}, 0\n", {tmp, name})
+                emit(ctx, buf)
+                @free(buf)
+                val res: ref char = @alloc(16) as ref char
+                @snprintf(res, 16, "%%t{lld}", {tmp})
+                return res
             }
         }
-        emit(ctx, buf)
-        @free(buf)
-        if str.rchar_cmp(local_ptr, "") != 0 {
-            val local_ty2: ref parser.Node = ll_lookup_local_type(ctx, name)
-            if local_ty2 != 0 as ref parser.Node && str.rchar_cmp(ll_type_of(local_ty2), "i32") == 0 {
-                val loaded: ref char = @alloc(16) as ref char
-                @snprintf(loaded, 16, "%%t{lld}", {tmp})
-                return ll_widen_to_i64(ctx, loaded, local_ty2)
-            }
-        }
-        val res: ref char = @alloc(16) as ref char
-        @snprintf(res, 16, "%%t{lld}", {tmp})
-        return res
     }
 
     if k == parser.NK_TRUST {
