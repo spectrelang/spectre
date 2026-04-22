@@ -4189,6 +4189,37 @@ fn gen_stmt(ctx: ref LLCtx, stmt: ref parser.Node) void! = {
         return
     }
 
+    if k == parser.NK_GUARD {
+        val gcond_node: ref parser.Node = stmt.d0 as ref parser.Node
+        val gcond_ty: ref parser.Node = ll_expr_storage_type(ctx, gcond_node)
+        val gcond: ref char = gen_expr(ctx, stmt.d0 as ref parser.Node)
+        val cmp: i64 = fresh_tmp(ctx)
+        val pass_lbl: i64 = fresh_lbl(ctx)
+        val fail_lbl: i64 = fresh_lbl(ctx)
+        val gbuf: ref char = @alloc(256) as ref char
+        if ll_slot_is_ptr(ctx, gcond_ty) {
+            @snprintf(gbuf, 256,
+                "  %%t{lld} = icmp ne ptr {s}, null\n  br i1 %%t{lld}, label %%lbl{lld}, label %%lbl{lld}\nlbl{lld}:\n",
+                {cmp, gcond, cmp, pass_lbl, fail_lbl, fail_lbl})
+        } else {
+            @snprintf(gbuf, 256,
+                "  %%t{lld} = icmp ne i64 {s}, 0\n  br i1 %%t{lld}, label %%lbl{lld}, label %%lbl{lld}\nlbl{lld}:\n",
+                {cmp, gcond, cmp, pass_lbl, fail_lbl, fail_lbl})
+        }
+        emit(ctx, gbuf)
+        @free(gbuf)
+        gen_stmts(ctx, stmt.d1 as ref parser.Node)
+        val endbuf: ref char = @alloc(64) as ref char
+        if !ll_block_ends_with_terminator(stmt.d1 as ref parser.Node) {
+            @snprintf(endbuf, 64, "  br label %%lbl{lld}\nlbl{lld}:\n", {pass_lbl, pass_lbl})
+        } else {
+            @snprintf(endbuf, 64, "lbl{lld}:\n", {pass_lbl})
+        }
+        emit(ctx, endbuf)
+        @free(endbuf)
+        return
+    }
+
     if k == parser.NK_RETURN {
         val expr: ref parser.Node = stmt.d0 as ref parser.Node
         if expr == 0 as ref parser.Node {
