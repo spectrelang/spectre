@@ -655,6 +655,20 @@ fn ll_emit_store_value(ctx: ref LLCtx, ptr: ref char, ty: ref parser.Node, value
     @free(buf)
 }
 
+fn ll_coerce_arg_to_abi(ctx: ref LLCtx, _: ref parser.Node, value: ref char, abi_ty: ref char) ref char! = {
+    if str.rchar_cmp(abi_ty, "i32") == 0 {
+        val tmp: i64 = fresh_tmp(ctx)
+        val buf: ref char = @alloc(128) as ref char
+        @snprintf(buf, 128, "  %%t{lld} = trunc i64 {s} to i32\n", {tmp, value})
+        emit(ctx, buf)
+        @free(buf)
+        val res: ref char = @alloc(16) as ref char
+        @snprintf(res, 16, "%%t{lld}", {tmp})
+        return res
+    }
+    return value
+}
+
 fn ll_field_ptr(ctx: ref LLCtx, expr: ref parser.Node) ref char! = {
     if expr == 0 as ref parser.Node || expr.kind != parser.NK_FIELD { return "0" }
     val base_expr: ref parser.Node = parser.field_base(expr)
@@ -1479,6 +1493,7 @@ fn gen_call(ctx: ref LLCtx, expr: ref parser.Node) ref char! = {
     }
 
     val arg_tmps: mut list[ref char] = []
+    val arg_nodes: mut list[ref parser.Node] = []
     if args_list != 0 as ref void {
         val alen: i64 = @len(args_list) as i64
         val ai: mut i64 = 0
@@ -1496,13 +1511,17 @@ fn gen_call(ctx: ref LLCtx, expr: ref parser.Node) ref char! = {
                             if pi >= plen { break }
                             val pe_opt = @get(pack, pi as usize)
                             match pe_opt {
-                                some pe => { @append(arg_tmps, gen_expr(ctx, pe as ref parser.Node)) }
+                                some pe => {
+                                    @append(arg_tmps, gen_expr(ctx, pe as ref parser.Node))
+                                    @append(arg_nodes, pe as ref parser.Node)
+                                }
                                 none => {}
                             }
                             pi++
                         }
                     } else {
                         @append(arg_tmps, gen_expr(ctx, an))
+                        @append(arg_nodes, an)
                     }
                 }
                 none => {}
@@ -1541,7 +1560,13 @@ fn gen_call(ctx: ref LLCtx, expr: ref parser.Node) ref char! = {
                         none => {}
                     }
                 }
-                @snprintf(tb, 64, "{s} {s}", {abi_ty, t as ref char})
+                val arg_val: mut ref char = t as ref char
+                val n_opt = @get(arg_nodes, ti as usize)
+                match n_opt {
+                    some n => { arg_val = ll_coerce_arg_to_abi(ctx, n as ref parser.Node, arg_val, abi_ty) }
+                    none => {}
+                }
+                @snprintf(tb, 64, "{s} {s}", {abi_ty, arg_val})
                 str.StringBuilder.append_cstr(call_sb, tb)
                 @free(tb)
             }
