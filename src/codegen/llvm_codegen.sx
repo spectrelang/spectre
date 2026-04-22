@@ -1550,10 +1550,11 @@ fn gen_expr_field(ctx: ref LLCtx, expr: ref parser.Node) ref char! = {
         val base_name: ref char = base_expr.d0 as ref char
         val const_key: ref char = @alloc(512) as ref char
         @snprintf(const_key, 512, "{s}__{s}", {base_name, field_name})
-        if str.rchar_cmp(ll_lookup_module_const(ctx, const_key), "") != 0 {
+        val const_sym: ref char = ll_lookup_module_const_symbol(ctx, const_key)
+        if str.rchar_cmp(const_sym, "") != 0 {
             val tmp: i64 = fresh_tmp(ctx)
             val buf: ref char = @alloc(128) as ref char
-            @snprintf(buf, 128, "  %%t{lld} = load i64, ptr @{s}\n", {tmp, const_key})
+            @snprintf(buf, 128, "  %%t{lld} = load i64, ptr @{s}\n", {tmp, const_sym})
             emit(ctx, buf)
             @free(buf)
             val res: ref char = @alloc(16) as ref char
@@ -3853,6 +3854,7 @@ fn preregister_items(ctx: ref LLCtx, items: list[ref parser.Node], mod_prefix: r
                                     } else {
                                         @snprintf(const_key, 512, "{s}__{s}__{s}", {mod_prefix, ename, vname})
                                     }
+                                    ll_register_global_const(ctx, const_key, idx_str)
                                     ll_register_module_const(ctx, const_key, idx_str)
                                     if str.rchar_cmp(mod_prefix, "") != 0 {
                                         val bare_key: ref char = @alloc(256) as ref char
