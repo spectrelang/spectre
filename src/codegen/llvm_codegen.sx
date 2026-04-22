@@ -454,6 +454,41 @@ fn platform_matches(name: ref char) bool! = {
     return false
 }
 
+fn ll_active_when_items(node: ref parser.Node) ref void! = {
+    if node == 0 as ref parser.Node || node.kind != parser.NK_WHEN_ITEMS {
+        return 0 as ref void
+    }
+    val plat: ref char = node.d0 as ref char
+    if platform_matches(plat) {
+        return node.d1 as ref void
+    }
+    val or_when_branches: ref void = node.d2 as ref void
+    if or_when_branches != 0 as ref void {
+        val ow_len: i64 = @len(or_when_branches as list[ref parser.Node]) as i64
+        val ow_i: mut i64 = 0
+        for {
+            if ow_i >= ow_len { break }
+            val ow_opt = @get(or_when_branches as list[ref parser.Node], ow_i as usize)
+            match ow_opt {
+                some ow_val => {
+                    val ow: ref parser.Node = ow_val as ref parser.Node
+                    val ow_plat: ref char = ow.d0 as ref char
+                    if platform_matches(ow_plat) {
+                        return ow.d1 as ref void
+                    }
+                }
+                none => {}
+            }
+            ow_i++
+        }
+    }
+    val otherwise_items: ref void = node.d3 as ref void
+    if otherwise_items != 0 as ref void {
+        return otherwise_items
+    }
+    return 0 as ref void
+}
+
 
 fn ll_mark_prefix_used(ctx: ref LLCtx, prefix: ref char) void! = {
     val nlen: i64 = @len(ctx.used_prefixes) as i64
@@ -1077,6 +1112,18 @@ fn ll_make_ref_type(inner: ref parser.Node) ref parser.Node! = {
     ref_ty.d5 = 0
     ref_ty.d6 = 0
     return ref_ty
+}
+
+fn ll_param_ssa_name(name: ref char) ref char! = {
+    if str.rchar_cmp(name, "entry") == 0 {
+        return "__param_entry"
+    }
+    if str.starts_with(str.from(name), str.from("lbl")) {
+        val out: ref char = @alloc(str.len_raw(name) + 9) as ref char
+        @snprintf(out, str.len_raw(name) + 9, "__param_{s}", {name})
+        return out
+    }
+    return name
 }
 
 fn ll_is_float_type(ty: ref parser.Node) bool! = {
@@ -4363,10 +4410,11 @@ fn gen_fn_prefixed(ctx: mut ref LLCtx, fn_node: ref parser.Node, mod_prefix: ref
                     some param => {
                         val pnode: ref parser.Node = param as ref parser.Node
                         val pname: ref char = pnode.d0 as ref char
+                        val pssa: ref char = ll_param_ssa_name(pname)
                         val pty: ref parser.Node = pnode.d1 as ref parser.Node
                         if pi > 0 { emit(ctx, ", ") }
                         val pb: ref char = @alloc(64) as ref char
-                        @snprintf(pb, 64, "{s} %%{s}", {ll_param_abi_type(ctx, pty), pname})
+                        @snprintf(pb, 64, "{s} %%{s}", {ll_param_abi_type(ctx, pty), pssa})
                         emit(ctx, pb)
                         @free(pb)
                     }
@@ -4398,21 +4446,22 @@ fn gen_fn_prefixed(ctx: mut ref LLCtx, fn_node: ref parser.Node, mod_prefix: ref
                 some param2 => {
                     val pnode2: ref parser.Node = param2 as ref parser.Node
                     val pname2: ref char = pnode2.d0 as ref char
+                    val pssa2: ref char = ll_param_ssa_name(pname2)
                     val pty2: ref parser.Node = pnode2.d1 as ref parser.Node
                     val slot_name: ref char = ll_alloca_typed_slot(ctx, pty2)
                     val abi_ty: ref char = ll_param_abi_type(ctx, pty2)
                     if str.rchar_cmp(abi_ty, "i32") == 0 {
                         val ext: i64 = fresh_tmp(ctx)
                         val sbuf: ref char = @alloc(128) as ref char
-                        @snprintf(sbuf, 128, "  %%t{lld} = sext i32 %%{s} to i64\n", {ext, pname2})
+                        @snprintf(sbuf, 128, "  %%t{lld} = sext i32 %%{s} to i64\n", {ext, pssa2})
                         emit(ctx, sbuf)
                         @free(sbuf)
                         val ext_name: ref char = @alloc(16) as ref char
                         @snprintf(ext_name, 16, "%%t{lld}", {ext})
                         ll_emit_store_value(ctx, slot_name, pty2, ext_name)
                     } else {
-                        val incoming: ref char = @alloc(str.len_raw(pname2) + 2) as ref char
-                        @snprintf(incoming, str.len_raw(pname2) + 2, "%%{s}", {pname2})
+                        val incoming: ref char = @alloc(str.len_raw(pssa2) + 2) as ref char
+                        @snprintf(incoming, str.len_raw(pssa2) + 2, "%%{s}", {pssa2})
                         ll_emit_store_value(ctx, slot_name, pty2, incoming)
                     }
                     ll_register_local(ctx, pname2, slot_name, pty2 as ref void)
@@ -4642,21 +4691,21 @@ fn preregister_items(ctx: ref LLCtx, items: list[ref parser.Node], mod_prefix: r
                     val gmut: i64 = node.d1 as i64
                     val gty_node: ref parser.Node = node.d2 as ref parser.Node
                     val gexpr: ref parser.Node = node.d3 as ref parser.Node
-                    if gmut != 0 {
-                        val global_key: ref char = @alloc(512) as ref char
-                        if str.rchar_cmp(mod_prefix, "") == 0 {
-                            @snprintf(global_key, 512, "{s}", {gname})
-                        } else {
-                            @snprintf(global_key, 512, "{s}__{s}", {mod_prefix, gname})
-                        }
-                        val global_ty: mut ref parser.Node = gty_node
-                        if global_ty == 0 as ref parser.Node {
-                            global_ty = ll_expr_storage_type(ctx, gexpr)
-                        }
+                    val global_key: ref char = @alloc(512) as ref char
+                    if str.rchar_cmp(mod_prefix, "") == 0 {
+                        @snprintf(global_key, 512, "{s}", {gname})
+                    } else {
+                        @snprintf(global_key, 512, "{s}__{s}", {mod_prefix, gname})
+                    }
+                    val global_ty: mut ref parser.Node = gty_node
+                    if global_ty == 0 as ref parser.Node {
+                        global_ty = ll_expr_storage_type(ctx, gexpr)
+                    }
+                    val static_init: ref char = ll_static_global_init_value(ctx, gexpr)
+                    if gmut != 0 || str.rchar_cmp(static_init, "") != 0 {
                         val global_init: mut ref char = "0"
-                        if gexpr != 0 as ref parser.Node {
-                            val static_init: ref char = ll_static_global_init_value(ctx, gexpr)
-                            if str.rchar_cmp(static_init, "") != 0 { global_init = static_init }
+                        if str.rchar_cmp(static_init, "") != 0 {
+                            global_init = static_init
                         }
                         ll_register_global_const(ctx, global_key, global_init, global_ty as ref void)
                         ll_register_module_const(ctx, global_key, global_init)
@@ -4665,9 +4714,9 @@ fn preregister_items(ctx: ref LLCtx, items: list[ref parser.Node], mod_prefix: r
                         }
                     }
                 } elif k == parser.NK_WHEN_ITEMS {
-                    val plat: ref char = node.d0 as ref char
-                    if platform_matches(plat) {
-                        preregister_items(ctx, node.d1 as list[ref parser.Node], mod_prefix)
+                    val active_items: ref void = ll_active_when_items(node)
+                    if active_items != 0 as ref void {
+                        preregister_items(ctx, active_items as list[ref parser.Node], mod_prefix)
                     }
                 }
             }
@@ -4694,9 +4743,9 @@ fn gen_items_with_prefix(ctx: mut ref LLCtx, items: list[ref parser.Node], mod_p
                 } elif k == parser.NK_EXTERN_FN {
                     gen_extern_fn_prefixed(ctx, node, mod_prefix)
                 } elif k == parser.NK_WHEN_ITEMS {
-                    val plat: ref char = node.d0 as ref char
-                    if platform_matches(plat) {
-                        gen_items_with_prefix(ctx, node.d1 as list[ref parser.Node], mod_prefix)
+                    val active_items: ref void = ll_active_when_items(node)
+                    if active_items != 0 as ref void {
+                        gen_items_with_prefix(ctx, active_items as list[ref parser.Node], mod_prefix)
                     }
                 }
             }
@@ -4725,9 +4774,9 @@ fn gen_items_with_prefix_skip_main(ctx: mut ref LLCtx, items: list[ref parser.No
                 } elif k == parser.NK_EXTERN_FN {
                     gen_extern_fn_prefixed(ctx, node, mod_prefix)
                 } elif k == parser.NK_WHEN_ITEMS {
-                    val plat: ref char = node.d0 as ref char
-                    if platform_matches(plat) {
-                        gen_items_with_prefix_skip_main(ctx, node.d1 as list[ref parser.Node], mod_prefix)
+                    val active_items: ref void = ll_active_when_items(node)
+                    if active_items != 0 as ref void {
+                        gen_items_with_prefix_skip_main(ctx, active_items as list[ref parser.Node], mod_prefix)
                     }
                 }
             }
@@ -4753,9 +4802,9 @@ fn scan_items_for_usage(ctx: ref LLCtx, items: list[ref parser.Node], mod_prefix
                         scan_stmts_for_calls(ctx, body)
                     }
                 } elif node.kind == parser.NK_WHEN_ITEMS {
-                    val plat: ref char = node.d0 as ref char
-                    if platform_matches(plat) {
-                        scan_items_for_usage(ctx, node.d1 as list[ref parser.Node], mod_prefix)
+                    val active_items: ref void = ll_active_when_items(node)
+                    if active_items != 0 as ref void {
+                        scan_items_for_usage(ctx, active_items as list[ref parser.Node], mod_prefix)
                     }
                 }
             }
@@ -4930,6 +4979,7 @@ fn extract_call_prefix(mangled: ref char, bare: ref char) ref char! = {
 fn gen_test_fn(ctx: mut ref LLCtx, body: ref parser.Node, id: i64) void! = {
     ctx.tmp = 0
     ctx.current_is_main = false
+    ctx.current_ret_abi = "void"
     ll_clear_locals(ctx)
     ll_defer_clear(ctx)
     val hdr: ref char = @alloc(128) as ref char
