@@ -666,6 +666,17 @@ fn ll_expr_storage_type(ctx: ref LLCtx, expr: ref parser.Node) ref parser.Node! 
     if expr.kind == parser.NK_IDENT {
         return ll_lookup_local_type(ctx, expr.d0 as ref char)
     }
+    if expr.kind == parser.NK_FIELD {
+        val base_expr: ref parser.Node = parser.field_base(expr)
+        if base_expr.kind == parser.NK_IDENT {
+            val base_ty: ref parser.Node = ll_lookup_local_type(ctx, base_expr.d0 as ref char)
+            val struct_name: ref char = ll_struct_type_name(ctx, base_ty)
+            if str.rchar_cmp(struct_name, "") != 0 {
+                val fields: ref void = ll_lookup_struct(ctx, struct_name)
+                return ll_field_type(fields, parser.field_name(expr))
+            }
+        }
+    }
     if expr.kind == parser.NK_CALL {
         val callee_name: ref char = resolve_callee_name(expr.d0 as ref parser.Node)
         val resolved: ref char = ll_resolve_fn_name(ctx, callee_name)
