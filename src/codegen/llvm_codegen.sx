@@ -6999,3 +6999,19 @@ pub fn gen_module_resolved_test(root: ref module.ResolvedModule, release_mode: b
     str.StringBuilder.free(final_sb)
     return result
 }
+
+test {
+    @puts("llvm_codegen test 1: ll_platform_matches")
+    
+    trust ll_platform_matches("linux")
+    @puts("tested linux match")
+    
+    trust ll_platform_matches("posix")
+    @puts("tested posix match")
+    
+    val result_none = trust ll_platform_matches(0 as ref char)
+    @puts("tested null match")
+    assert result_none == false
+    
+    @puts("llvm_codegen tests passed")
+}
