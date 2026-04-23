@@ -7001,17 +7001,49 @@ pub fn gen_module_resolved_test(root: ref module.ResolvedModule, release_mode: b
 }
 
 test {
-    @puts("llvm_codegen test 1: ll_platform_matches")
+    @puts("llvm_codegen test 1: ll_platform_matches with null")
+    val result_null = trust ll_platform_matches(0 as ref char)
+    assert result_null == false
+    @puts("  PASS: null platform returns false")
     
-    trust ll_platform_matches("linux")
-    @puts("tested linux match")
+    @puts("llvm_codegen test 2: ll_platform_matches with invalid string")
+    val result_invalid = trust ll_platform_matches("nonexistent_platform_xyz")
+    assert result_invalid == false
+    @puts("  PASS: invalid platform returns false")
     
+    @puts("llvm_codegen test 3: ll_platform_matches with posix")
     trust ll_platform_matches("posix")
-    @puts("tested posix match")
+    @puts("  PASS: posix check completed")
     
-    val result_none = trust ll_platform_matches(0 as ref char)
-    @puts("tested null match")
-    assert result_none == false
+    @puts("llvm_codegen test 4: ll_platform_matches with current platform")
+    val cur_platform = trust reflection.current_platform_name()
+    if cur_platform != 0 as ref char {
+        val result_current = trust ll_platform_matches(cur_platform)
+        assert result_current == true
+        @puts("  PASS: current platform matches itself")
+    }
+    
+    @puts("llvm_codegen test 5: ll_lookup_module_const with empty context")
+    val ctx: mut ref LLCtx = @alloc(@sizeof(LLCtx)) as mut ref LLCtx
+    ctx.mc_names = []
+    ctx.mc_vals = []
+    val lookup_result = trust ll_lookup_module_const(ctx, "nonexistent")
+    assert lookup_result == "" || lookup_result == 0 as ref char
+    @puts("  PASS: lookup on empty context returns empty string")
+    
+    @puts("llvm_codegen test 6: ll_lookup_fn_ret with empty context")
+    ctx.fn_names = []
+    ctx.fn_rets = []
+    val fn_ret_result = trust ll_lookup_fn_ret(ctx, "nonexistent")
+    assert fn_ret_result == 0 as ref parser.Node
+    @puts("  PASS: fn_ret lookup on empty context returns null")
+    
+    @puts("llvm_codegen test 7: ll_lookup_extern_symbol with empty context")
+    ctx.ext_names = []
+    ctx.ext_syms = []
+    val ext_sym_result = trust ll_lookup_extern_symbol(ctx, "nonexistent")
+    assert ext_sym_result == "" || ext_sym_result == 0 as ref char
+    @puts("  PASS: extern symbol lookup on empty context returns empty")
     
     @puts("llvm_codegen tests passed")
 }
