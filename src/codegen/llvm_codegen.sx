@@ -2086,7 +2086,7 @@ fn ll_wrap_union_arg(ctx: ref LLCtx, node: ref parser.Node, union_variants: ref 
         payload_store = "store double"
     }
     @snprintf(buf, 256,
-        "  %%t{lld} = call ptr @malloc(i64 16)\n  store i64 {lld}, ptr %%t{lld}\n  %%t{lld} = getelementptr i8, ptr %%t{lld}, i64 8\n  {s} {s}, ptr %%t{lld}\n",
+        "  %%t{lld} = alloca i8, i64 16, align 8\n  store i64 {lld}, ptr %%t{lld}\n  %%t{lld} = getelementptr i8, ptr %%t{lld}, i64 8\n  {s} {s}, ptr %%t{lld}\n",
         {box_ptr, tag_val, box_ptr, payload_ptr, box_ptr, payload_store, value, payload_ptr})
     emit(ctx, buf)
     @free(buf)
