@@ -5262,20 +5262,15 @@ fn gen_for_stmt(ctx: ref LLCtx, stmt: ref parser.Node) void! = {
 
     if init_name != 0 as ref char && init_expr != 0 as ref parser.Node {
         val init_val: ref char = gen_expr(ctx, init_expr)
-        val existing_ptr: ref char = ll_lookup_local_ptr(ctx, init_name)
-        if str.rchar_cmp(existing_ptr, "") == 0 {
-            val slot: i64 = fresh_tmp(ctx)
-            val buf: ref char = @alloc(128) as ref char
-            @snprintf(buf, 128, "  %%t{lld} = alloca i64, align 8\n", {slot})
-            emit(ctx, buf)
-            @free(buf)
-            val slot_name: ref char = @alloc(16) as ref char
-            @snprintf(slot_name, 16, "%%t{lld}", {slot})
-            ll_emit_store_value(ctx, slot_name, 0 as ref parser.Node, init_val)
-            ll_register_local(ctx, init_name, slot_name, 0 as ref void)
-        } else {
-            ll_emit_store_value(ctx, existing_ptr, ll_lookup_local_type(ctx, init_name), init_val)
-        }
+        val slot: i64 = fresh_tmp(ctx)
+        val buf: ref char = @alloc(128) as ref char
+        @snprintf(buf, 128, "  %%t{lld} = alloca i64, align 8\n", {slot})
+        emit(ctx, buf)
+        @free(buf)
+        val slot_name: ref char = @alloc(16) as ref char
+        @snprintf(slot_name, 16, "%%t{lld}", {slot})
+        ll_emit_store_value(ctx, slot_name, 0 as ref parser.Node, init_val)
+        ll_register_local(ctx, init_name, slot_name, 0 as ref void)
     }
 
     val lbuf: ref char = @alloc(64) as ref char
