@@ -588,6 +588,7 @@ fn emit_string_data(ctx: ref LLCtx) void! = {
 fn platform_matches(name: ref char) bool! = {
     if name == 0 as ref char { return false }
     val cur: ref char = reflection.current_platform_name()
+    if cur == 0 as ref char { return false }
     if str.rchar_cmp(name, cur) == 0 { return true }
     if str.rchar_cmp(name, "posix") == 0 {
         if str.rchar_cmp(cur, "linux")   == 0 { return true }
@@ -5007,6 +5008,11 @@ fn gen_stmt(ctx: ref LLCtx, stmt: ref parser.Node) void! = {
         return
     }
 
+    if k == parser.NK_MATCH_ENUM {
+        gen_match_enum(ctx, stmt)
+        return
+    }
+
     if k == parser.NK_MATCH_UNION {
         gen_match_union(ctx, stmt)
         return
@@ -5190,6 +5196,70 @@ fn gen_if_stmt(ctx: ref LLCtx, stmt: ref parser.Node) void! = {
     @free(ebuf)
 }
 
+
+fn gen_match_enum(ctx: ref LLCtx, stmt: ref parser.Node) void! = {
+    val expr_node: ref parser.Node = parser.match_enum_expr(stmt)
+    val expr: mut ref char = "0"
+    if expr_node != 0 as ref parser.Node { expr = gen_expr(ctx, expr_node) }
+    val arms: ref void = parser.match_enum_arms(stmt)
+    val end_lbl: i64 = fresh_lbl(ctx)
+
+    val alen: i64 = @len(arms) as i64
+    if alen == 0 { return }
+    
+    val last_arm_terminates: mut bool = false
+    val ai: mut i64 = 0
+    for {
+        if ai >= alen { break }
+        val arm_opt = @get(arms, ai as usize)
+        match arm_opt {
+            some arm => {
+                val arm_node: ref parser.Node = arm as ref parser.Node
+                val body_lbl: i64 = fresh_lbl(ctx)
+                val next_lbl: i64 = fresh_lbl(ctx)
+                val cmp: i64 = fresh_tmp(ctx)
+                val cmp_buf: ref char = @alloc(128) as ref char
+                @snprintf(cmp_buf, 128, "  %%t{lld} = icmp eq i64 {s}, {lld}\n  br i1 %%t{lld}, label %%lbl{lld}, label %%lbl{lld}\n",
+                    {cmp, expr, ai, cmp, body_lbl, next_lbl})
+                emit(ctx, cmp_buf)
+                @free(cmp_buf)
+                
+                val body_lbl_buf: ref char = @alloc(64) as ref char
+                @snprintf(body_lbl_buf, 64, "lbl{lld}:\n", {body_lbl})
+                emit(ctx, body_lbl_buf)
+                @free(body_lbl_buf)
+                
+                val arm_body: ref void = parser.match_enum_arm_body(arm_node) as ref void
+                gen_stmts(ctx, arm_body as ref parser.Node)
+                
+                val body_terminates: bool = ll_block_ends_with_terminator(arm_body as ref parser.Node)
+                if !body_terminates {
+                    val exit_buf: ref char = @alloc(64) as ref char
+                    @snprintf(exit_buf, 64, "  br label %%lbl{lld}\n", {end_lbl})
+                    emit(ctx, exit_buf)
+                    @free(exit_buf)
+                    last_arm_terminates = false
+                } else {
+                    last_arm_terminates = true
+                }
+                
+                val next_label_buf: ref char = @alloc(64) as ref char
+                @snprintf(next_label_buf, 64, "lbl{lld}:\n", {next_lbl})
+                emit(ctx, next_label_buf)
+                @free(next_label_buf)
+            }
+            none => {}
+        }
+        ai++
+    }
+    if !last_arm_terminates {
+        val endbuf: ref char = @alloc(32) as ref char
+        @snprintf(endbuf, 32, "lbl{lld}:\n", {end_lbl})
+        emit(ctx, endbuf)
+        @free(endbuf)
+    }
+}
+
 fn gen_match_union(ctx: ref LLCtx, stmt: ref parser.Node) void! = {
     val expr_node: ref parser.Node = parser.match_union_expr(stmt)
     val expr: mut ref char = "0"
@@ -5197,11 +5267,6 @@ fn gen_match_union(ctx: ref LLCtx, stmt: ref parser.Node) void! = {
     val arms: ref void = parser.match_union_arms(stmt)
     val else_body: ref parser.Node = parser.match_union_else(stmt)
     val end_lbl: i64 = fresh_lbl(ctx)
-    val tag: i64 = fresh_tmp(ctx)
-    val tbuf: ref char = @alloc(96) as ref char
-    @snprintf(tbuf, 96, "  %%t{lld} = load i64, ptr {s}\n", {tag, expr})
-    emit(ctx, tbuf)
-    @free(tbuf)
 
     val union_variants: ref void = ll_union_variants_for_expr(ctx, expr_node)
     val alen: i64 = @len(arms) as i64
@@ -5239,8 +5304,8 @@ fn gen_match_union(ctx: ref LLCtx, stmt: ref parser.Node) void! = {
                     val next_lbl: i64 = fresh_lbl(ctx)
                     val cmp: i64 = fresh_tmp(ctx)
                     val buf: ref char = @alloc(256) as ref char
-                    @snprintf(buf, 256, "  %%t{lld} = icmp eq i64 %%t{lld}, {lld}\n  br i1 %%t{lld}, label %%lbl{lld}, label %%lbl{lld}\nlbl{lld}:\n",
-                        {cmp, tag, tag_idx, cmp, body_lbl, next_lbl, body_lbl})
+                    @snprintf(buf, 256, "  %%t{lld} = icmp eq i64 {s}, {lld}\n  br i1 %%t{lld}, label %%lbl{lld}, label %%lbl{lld}\nlbl{lld}:\n",
+                        {cmp, expr, tag_idx, cmp, body_lbl, next_lbl, body_lbl})
                     emit(ctx, buf)
                     @free(buf)
                     val arm_body: ref void = parser.match_union_arm_body(arm_node) as ref void

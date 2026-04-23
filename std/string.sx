@@ -58,6 +58,7 @@ pub fn compare(a: StrOrRChar, b: StrOrRChar) i64! = {
         RChar p => { bptr = p }
         Str s   => { bptr = s.ptr }
     }
+    if aptr == none || bptr == none { return 0 }
     return strcmp(aptr, bptr)
 }
 

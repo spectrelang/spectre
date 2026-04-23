@@ -199,7 +199,9 @@ fn cg_is_prefix_used(ctx: ref CgCtx, prefix: ref char) bool! = {
 /// Returns true if the given when-clause name matches the current platform.
 /// Handles group aliases: "posix" matches linux/darwin/*bsd/haiku/android/redox.
 fn platform_matches(name: ref char) bool! = {
+    if name == 0 as ref char { return false }
     val cur: ref char = reflection.current_platform_name()
+    if cur == 0 as ref char { return false }
     if str.rchar_cmp(name, cur) == 0 { return true }
     if str.rchar_cmp(name, "posix") == 0 {
         if str.rchar_cmp(cur, "linux")        == 0 { return true }

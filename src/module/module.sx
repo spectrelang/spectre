@@ -1283,6 +1283,8 @@ pub fn collect_links_all(
 /// Check if a platform name matches the current platform.
 /// Handles group aliases like "posix" matching linux/darwin/bsd/etc.
 fn platform_matches(current: ref char, name: ref char) bool! = {
+    if name == 0 as ref char { return false }
+    if current == 0 as ref char { return false }
     if str.rchar_cmp(name, current) == 0 { return true }
     
     if str.rchar_cmp(name, "posix") == 0 {
