@@ -585,56 +585,24 @@ fn emit_string_data(ctx: ref LLCtx) void! = {
 }
 
 
-fn platform_matches(name: ref char) bool! = {
+fn ll_platform_matches(name: ref char) bool! = {
     if name == 0 as ref char { return false }
     val cur: ref char = reflection.current_platform_name()
     if cur == 0 as ref char { return false }
     if str.rchar_cmp(name, cur) == 0 { return true }
     if str.rchar_cmp(name, "posix") == 0 {
-        if str.rchar_cmp(cur, "linux")   == 0 { return true }
-        if str.rchar_cmp(cur, "darwin")  == 0 { return true }
-        if str.rchar_cmp(cur, "freebsd") == 0 { return true }
-        if str.rchar_cmp(cur, "openbsd") == 0 { return true }
-        if str.rchar_cmp(cur, "netbsd")  == 0 { return true }
+        if str.rchar_cmp(cur, "linux")        == 0 { return true }
+        if str.rchar_cmp(cur, "darwin")       == 0 { return true }
+        if str.rchar_cmp(cur, "freebsd")      == 0 { return true }
+        if str.rchar_cmp(cur, "openbsd")      == 0 { return true }
+        if str.rchar_cmp(cur, "netbsd")       == 0 { return true }
+        if str.rchar_cmp(cur, "dragonflybsd") == 0 { return true }
+        if str.rchar_cmp(cur, "haiku")        == 0 { return true }
+        if str.rchar_cmp(cur, "android")      == 0 { return true }
+        if str.rchar_cmp(cur, "redox")        == 0 { return true }
     }
     return false
 }
-
-fn ll_active_when_items(node: ref parser.Node) ref void! = {
-    if node == 0 as ref parser.Node || node.kind != parser.NK_WHEN_ITEMS {
-        return 0 as ref void
-    }
-    val plat: ref char = node.d0 as ref char
-    if platform_matches(plat) {
-        return node.d1 as ref void
-    }
-    val or_when_branches: ref void = node.d2 as ref void
-    if or_when_branches != 0 as ref void {
-        val ow_len: i64 = @len(or_when_branches as list[ref parser.Node]) as i64
-        val ow_i: mut i64 = 0
-        for {
-            if ow_i >= ow_len { break }
-            val ow_opt = @get(or_when_branches as list[ref parser.Node], ow_i as usize)
-            match ow_opt {
-                some ow_val => {
-                    val ow: ref parser.Node = ow_val as ref parser.Node
-                    val ow_plat: ref char = ow.d0 as ref char
-                    if platform_matches(ow_plat) {
-                        return ow.d1 as ref void
-                    }
-                }
-                none => {}
-            }
-            ow_i++
-        }
-    }
-    val otherwise_items: ref void = node.d3 as ref void
-    if otherwise_items != 0 as ref void {
-        return otherwise_items
-    }
-    return 0 as ref void
-}
-
 
 fn ll_mark_prefix_used(ctx: ref LLCtx, prefix: ref char) void! = {
     val nlen: i64 = @len(ctx.used_prefixes) as i64
@@ -4506,7 +4474,7 @@ fn ll_block_ends_with_terminator(stmts: ref parser.Node) bool! = {
 
 fn ll_when_stmt_terminated(stmt: ref parser.Node) bool! = {
     val plat: ref char = stmt.d0 as ref char
-    if platform_matches(plat) {
+    if ll_platform_matches(plat) {
         return ll_block_ends_with_terminator(stmt.d1 as ref parser.Node)
     }
     val or_when_branches: ref void = stmt.d2 as ref void
@@ -4520,7 +4488,7 @@ fn ll_when_stmt_terminated(stmt: ref parser.Node) bool! = {
                 some ow_val => {
                     val ow_node: ref parser.Node = ow_val as ref parser.Node
                     val ow_plat: ref char = ow_node.d0 as ref char
-                    if platform_matches(ow_plat) {
+                    if ll_platform_matches(ow_plat) {
                         return ll_block_ends_with_terminator(ow_node.d1 as ref parser.Node)
                     }
                 }
@@ -4542,7 +4510,7 @@ fn gen_stmt(ctx: ref LLCtx, stmt: ref parser.Node) void! = {
 
     if k == parser.NK_WHEN_STMT {
         val plat: ref char = stmt.d0 as ref char
-        if platform_matches(plat) {
+        if ll_platform_matches(plat) {
             gen_stmts(ctx, stmt.d1 as ref parser.Node)
         } else {
             val or_when_branches: ref void = stmt.d2 as ref void
@@ -4558,7 +4526,7 @@ fn gen_stmt(ctx: ref LLCtx, stmt: ref parser.Node) void! = {
                             if !matched {
                                 val ow_node: ref parser.Node = ow_val as ref parser.Node
                                 val ow_plat: ref char = ow_node.d0 as ref char
-                                if platform_matches(ow_plat) {
+                                if ll_platform_matches(ow_plat) {
                                     gen_stmts(ctx, ow_node.d1 as ref parser.Node)
                                     matched = true
                                 }
@@ -6078,9 +6046,43 @@ fn preregister_items(ctx: ref LLCtx, items: list[ref parser.Node], mod_prefix: r
                         }
                     }
                 } elif k == parser.NK_WHEN_ITEMS {
-                    val active_items: ref void = ll_active_when_items(node)
-                    if active_items != 0 as ref void {
-                        preregister_items(ctx, active_items as list[ref parser.Node], mod_prefix)
+                    val plat: ref char = node.d0 as ref char
+                    if plat != 0 as ref char && ll_platform_matches(plat) {
+                        val witems: list[ref parser.Node] = node.d1 as list[ref parser.Node]
+                        preregister_items(ctx, witems, mod_prefix)
+                    } else {
+                        val or_when_branches: ref void = node.d2 as ref void
+                        val matched: mut bool = false
+                        if or_when_branches != 0 as ref void {
+                            val ow_len: i64 = @len(or_when_branches as list[ref parser.Node]) as i64
+                            val ow_i: mut i64 = 0
+                            for {
+                                if ow_i >= ow_len { break }
+                                val ow_opt = @get(or_when_branches as list[ref parser.Node], ow_i as usize)
+                                match ow_opt {
+                                    some ow_val => {
+                                        if !matched {
+                                            val ow: ref parser.Node = ow_val as ref parser.Node
+                                            val ow_plat: ref char = ow.d0 as ref char
+                                            if ow_plat != 0 as ref char && ll_platform_matches(ow_plat) {
+                                                val ow_items: list[ref parser.Node] = ow.d1 as list[ref parser.Node]
+                                                preregister_items(ctx, ow_items, mod_prefix)
+                                                matched = true
+                                            }
+                                        }
+                                    }
+                                    none => {}
+                                }
+                                ow_i++
+                            }
+                        }
+                        if !matched {
+                            val ow_otherwise: ref void = node.d3 as ref void
+                            if ow_otherwise != 0 as ref void {
+                                val ow_oi: list[ref parser.Node] = ow_otherwise as list[ref parser.Node]
+                                preregister_items(ctx, ow_oi, mod_prefix)
+                            }
+                        }
                     }
                 }
             }
@@ -6107,9 +6109,43 @@ fn gen_items_with_prefix(ctx: mut ref LLCtx, items: list[ref parser.Node], mod_p
                 } elif k == parser.NK_EXTERN_FN {
                     gen_extern_fn_prefixed(ctx, node, mod_prefix)
                 } elif k == parser.NK_WHEN_ITEMS {
-                    val active_items: ref void = ll_active_when_items(node)
-                    if active_items != 0 as ref void {
-                        gen_items_with_prefix(ctx, active_items as list[ref parser.Node], mod_prefix)
+                    val plat: ref char = node.d0 as ref char
+                    if plat != 0 as ref char && ll_platform_matches(plat) {
+                        val witems: list[ref parser.Node] = node.d1 as list[ref parser.Node]
+                        gen_items_with_prefix(ctx, witems, mod_prefix)
+                    } else {
+                        val or_when_branches: ref void = node.d2 as ref void
+                        val matched: mut bool = false
+                        if or_when_branches != 0 as ref void {
+                            val ow_len: i64 = @len(or_when_branches as list[ref parser.Node]) as i64
+                            val ow_i: mut i64 = 0
+                            for {
+                                if ow_i >= ow_len { break }
+                                val ow_opt = @get(or_when_branches as list[ref parser.Node], ow_i as usize)
+                                match ow_opt {
+                                    some ow_val => {
+                                        if !matched {
+                                            val ow: ref parser.Node = ow_val as ref parser.Node
+                                            val ow_plat: ref char = ow.d0 as ref char
+                                            if ow_plat != 0 as ref char && ll_platform_matches(ow_plat) {
+                                                val ow_items: list[ref parser.Node] = ow.d1 as list[ref parser.Node]
+                                                gen_items_with_prefix(ctx, ow_items, mod_prefix)
+                                                matched = true
+                                            }
+                                        }
+                                    }
+                                    none => {}
+                                }
+                                ow_i++
+                            }
+                        }
+                        if !matched {
+                            val ow_otherwise: ref void = node.d3 as ref void
+                            if ow_otherwise != 0 as ref void {
+                                val ow_oi: list[ref parser.Node] = ow_otherwise as list[ref parser.Node]
+                                gen_items_with_prefix(ctx, ow_oi, mod_prefix)
+                            }
+                        }
                     }
                 }
             }
@@ -6138,9 +6174,43 @@ fn gen_items_with_prefix_skip_main(ctx: mut ref LLCtx, items: list[ref parser.No
                 } elif k == parser.NK_EXTERN_FN {
                     gen_extern_fn_prefixed(ctx, node, mod_prefix)
                 } elif k == parser.NK_WHEN_ITEMS {
-                    val active_items: ref void = ll_active_when_items(node)
-                    if active_items != 0 as ref void {
-                        gen_items_with_prefix_skip_main(ctx, active_items as list[ref parser.Node], mod_prefix)
+                    val plat: ref char = node.d0 as ref char
+                    if plat != 0 as ref char && ll_platform_matches(plat) {
+                        val witems: list[ref parser.Node] = node.d1 as list[ref parser.Node]
+                        gen_items_with_prefix_skip_main(ctx, witems, mod_prefix)
+                    } else {
+                        val or_when_branches: ref void = node.d2 as ref void
+                        val matched: mut bool = false
+                        if or_when_branches != 0 as ref void {
+                            val ow_len: i64 = @len(or_when_branches as list[ref parser.Node]) as i64
+                            val ow_i: mut i64 = 0
+                            for {
+                                if ow_i >= ow_len { break }
+                                val ow_opt = @get(or_when_branches as list[ref parser.Node], ow_i as usize)
+                                match ow_opt {
+                                    some ow_val => {
+                                        if !matched {
+                                            val ow: ref parser.Node = ow_val as ref parser.Node
+                                            val ow_plat: ref char = ow.d0 as ref char
+                                            if ow_plat != 0 as ref char && ll_platform_matches(ow_plat) {
+                                                val ow_items: list[ref parser.Node] = ow.d1 as list[ref parser.Node]
+                                                gen_items_with_prefix_skip_main(ctx, ow_items, mod_prefix)
+                                                matched = true
+                                            }
+                                        }
+                                    }
+                                    none => {}
+                                }
+                                ow_i++
+                            }
+                        }
+                        if !matched {
+                            val ow_otherwise: ref void = node.d3 as ref void
+                            if ow_otherwise != 0 as ref void {
+                                val ow_oi: list[ref parser.Node] = ow_otherwise as list[ref parser.Node]
+                                gen_items_with_prefix_skip_main(ctx, ow_oi, mod_prefix)
+                            }
+                        }
                     }
                 }
             }
@@ -6166,9 +6236,43 @@ fn scan_items_for_usage(ctx: ref LLCtx, items: list[ref parser.Node], mod_prefix
                         scan_stmts_for_calls(ctx, body)
                     }
                 } elif node.kind == parser.NK_WHEN_ITEMS {
-                    val active_items: ref void = ll_active_when_items(node)
-                    if active_items != 0 as ref void {
-                        scan_items_for_usage(ctx, active_items as list[ref parser.Node], mod_prefix)
+                    val plat: ref char = node.d0 as ref char
+                    if plat != 0 as ref char && ll_platform_matches(plat) {
+                        val witems: list[ref parser.Node] = node.d1 as list[ref parser.Node]
+                        scan_items_for_usage(ctx, witems, mod_prefix)
+                    } else {
+                        val or_when_branches: ref void = node.d2 as ref void
+                        val matched: mut bool = false
+                        if or_when_branches != 0 as ref void {
+                            val ow_len: i64 = @len(or_when_branches as list[ref parser.Node]) as i64
+                            val ow_i: mut i64 = 0
+                            for {
+                                if ow_i >= ow_len { break }
+                                val ow_opt = @get(or_when_branches as list[ref parser.Node], ow_i as usize)
+                                match ow_opt {
+                                    some ow_val => {
+                                        if !matched {
+                                            val ow: ref parser.Node = ow_val as ref parser.Node
+                                            val ow_plat: ref char = ow.d0 as ref char
+                                            if ow_plat != 0 as ref char && ll_platform_matches(ow_plat) {
+                                                val ow_items: list[ref parser.Node] = ow.d1 as list[ref parser.Node]
+                                                scan_items_for_usage(ctx, ow_items, mod_prefix)
+                                                matched = true
+                                            }
+                                        }
+                                    }
+                                    none => {}
+                                }
+                                ow_i++
+                            }
+                        }
+                        if !matched {
+                            val ow_otherwise: ref void = node.d3 as ref void
+                            if ow_otherwise != 0 as ref void {
+                                val ow_oi: list[ref parser.Node] = ow_otherwise as list[ref parser.Node]
+                                scan_items_for_usage(ctx, ow_oi, mod_prefix)
+                            }
+                        }
                     }
                 }
             }
