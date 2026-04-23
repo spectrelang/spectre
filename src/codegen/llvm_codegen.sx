@@ -3333,6 +3333,60 @@ fn gen_builtin(ctx: ref LLCtx, expr: ref parser.Node) ref char! = {
             {some_val, elem_word, some_val, result_slot, end_lbl, none_lbl, result_slot, end_lbl, end_lbl, tmp, result_slot})
         emit(ctx, gbuf3)
         @free(gbuf3)
+    } elif str.rchar_cmp(name, "remove") == 0 {
+        val list_node: ref parser.Node = get_arg_node(args, 0)
+        val idx_node: ref parser.Node = get_arg_node(args, 1)
+        val lp: ref char = gen_expr(ctx, list_node)
+        val idx: ref char = gen_expr(ctx, idx_node)
+        val len_ptr: i64 = fresh_tmp(ctx)
+        val len_val: i64 = fresh_tmp(ctx)
+        val buf_ptr: i64 = fresh_tmp(ctx)
+        val off0: i64 = fresh_tmp(ctx)
+        val elem_ptr0: i64 = fresh_tmp(ctx)
+        val elem_val: i64 = fresh_tmp(ctx)
+        val rbuf1: ref char = @alloc(512) as ref char
+        @snprintf(rbuf1, 512,
+            "  %%t{lld} = getelementptr i8, ptr {s}, i64 8\n  %%t{lld} = load i64, ptr %%t{lld}\n  %%t{lld} = load ptr, ptr {s}\n  %%t{lld} = mul i64 {s}, 8\n  %%t{lld} = getelementptr i8, ptr %%t{lld}, i64 %%t{lld}\n  %%t{lld} = load i64, ptr %%t{lld}\n",
+            {len_ptr, lp, len_val, len_ptr, buf_ptr, lp, off0, idx, elem_ptr0, buf_ptr, off0, elem_val, elem_ptr0})
+        emit(ctx, rbuf1)
+        @free(rbuf1)
+        val shift_lbl: i64 = fresh_lbl(ctx)
+        val shift_body: i64 = fresh_lbl(ctx)
+        val shift_end: i64 = fresh_lbl(ctx)
+        val shift_idx: i64 = fresh_tmp(ctx)
+        val rbuf2: ref char = @alloc(128) as ref char
+        @snprintf(rbuf2, 128, "  %%t{lld} = alloca i64, align 8\n  store i64 {s}, ptr %%t{lld}\n  br label %%lbl{lld}\nlbl{lld}:\n",
+            {shift_idx, idx, shift_idx, shift_lbl, shift_lbl})
+        emit(ctx, rbuf2)
+        @free(rbuf2)
+        val cur_si: i64 = fresh_tmp(ctx)
+        val last_idx: i64 = fresh_tmp(ctx)
+        val cmp_shift: i64 = fresh_tmp(ctx)
+        val rbuf3: ref char = @alloc(256) as ref char
+        @snprintf(rbuf3, 256,
+            "  %%t{lld} = load i64, ptr %%t{lld}\n  %%t{lld} = sub i64 %%t{lld}, 1\n  %%t{lld} = icmp slt i64 %%t{lld}, %%t{lld}\n  br i1 %%t{lld}, label %%lbl{lld}, label %%lbl{lld}\nlbl{lld}:\n",
+            {cur_si, shift_idx, last_idx, len_val, cmp_shift, cur_si, last_idx, cmp_shift, shift_body, shift_end, shift_body})
+        emit(ctx, rbuf3)
+        @free(rbuf3)
+        val src_idx: i64 = fresh_tmp(ctx)
+        val src_off: i64 = fresh_tmp(ctx)
+        val dst_off: i64 = fresh_tmp(ctx)
+        val src_ptr: i64 = fresh_tmp(ctx)
+        val dst_ptr: i64 = fresh_tmp(ctx)
+        val src_val: i64 = fresh_tmp(ctx)
+        val next_si: i64 = fresh_tmp(ctx)
+        val rbuf4: ref char = @alloc(512) as ref char
+        @snprintf(rbuf4, 512,
+            "  %%t{lld} = add i64 %%t{lld}, 1\n  %%t{lld} = mul i64 %%t{lld}, 8\n  %%t{lld} = mul i64 %%t{lld}, 8\n  %%t{lld} = getelementptr i8, ptr %%t{lld}, i64 %%t{lld}\n  %%t{lld} = getelementptr i8, ptr %%t{lld}, i64 %%t{lld}\n  %%t{lld} = load i64, ptr %%t{lld}\n  store i64 %%t{lld}, ptr %%t{lld}\n  %%t{lld} = add i64 %%t{lld}, 1\n  store i64 %%t{lld}, ptr %%t{lld}\n  br label %%lbl{lld}\nlbl{lld}:\n",
+            {src_idx, cur_si, src_off, src_idx, dst_off, cur_si, src_ptr, buf_ptr, src_off, dst_ptr, buf_ptr, dst_off, src_val, src_ptr, src_val, dst_ptr, next_si, cur_si, next_si, shift_idx, shift_lbl, shift_end})
+        emit(ctx, rbuf4)
+        @free(rbuf4)
+        val new_len: i64 = fresh_tmp(ctx)
+        val rbuf5: ref char = @alloc(128) as ref char
+        @snprintf(rbuf5, 128, "  %%t{lld} = sub i64 %%t{lld}, 1\n  store i64 %%t{lld}, ptr %%t{lld}\n  %%t{lld} = add i64 %%t{lld}, 0\n",
+            {new_len, len_val, new_len, len_ptr, tmp, elem_val})
+        emit(ctx, rbuf5)
+        @free(rbuf5)
     } elif str.rchar_cmp(name, "printf") == 0 {
         ensure_declared(ctx, "printf", "declare i32 @printf(ptr, ...)")
         val fmt_node: ref parser.Node = get_arg_node(args, 0)

@@ -17,7 +17,7 @@ echo "[Stage 1] Building spectre-stage1 with LLVM backend"
 ./spectre-dev "$SRC" --llvm -o "spectre-stage1"
 
 echo "[Stage 2] Building spectre-stage2 with stage1"
-"spectre-stage1" "$SRC" --llvm -o "spectre-stage2"
+"./spectre-stage1" "$SRC" --llvm -o "spectre-stage2"
 
 echo "Verifying bootstrap consistency"
 
