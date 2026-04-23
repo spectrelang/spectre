@@ -50,8 +50,6 @@ pub type LLCtx = {
     current_is_main: mut bool
     current_ret_abi: mut ref char
     current_prefix: mut ref char
-    resolve_cache_keys: mut list[ref char]
-    resolve_cache_vals: mut list[ref char]
 }
 
 fn ll_new() ref LLCtx! = {
@@ -97,8 +95,6 @@ fn ll_new() ref LLCtx! = {
     ctx.current_is_main = false
     ctx.current_ret_abi = "i64"
     ctx.current_prefix = ""
-    ctx.resolve_cache_keys = []
-    ctx.resolve_cache_vals = []
     return ctx
 }
 
@@ -658,26 +654,27 @@ fn ll_register_fn(ctx: ref LLCtx, mangled: ref char, params: ref void, ret_ty: r
 }
 
 fn ll_resolve_fn_name(ctx: ref LLCtx, name: ref char) ref char! = {
-    val clen2: i64 = @len(ctx.resolve_cache_keys) as i64
-    val ci: mut i64 = 0
-    for {
-        if ci >= clen2 { break }
-        val ck_opt = @get(ctx.resolve_cache_keys, ci as usize)
-        match ck_opt {
-            some ck => {
-                if str.rchar_cmp(ck as ref char, name) == 0 {
-                    val cv_opt = @get(ctx.resolve_cache_vals, ci as usize)
-                    match cv_opt {
-                        some cv => { return cv as ref char }
-                        none => { return 0 as ref char }
+    val nlen: i64 = @len(ctx.fn_names) as i64
+    if str.rchar_cmp(ctx.current_prefix, "") != 0 {
+        val local_key: ref char = @alloc(512) as ref char
+        @snprintf(local_key, 512, "{s}__{s}", {ctx.current_prefix, name})
+        val li: mut i64 = 0
+        for {
+            if li >= nlen { break }
+            val ln_opt = @get(ctx.fn_names, li as usize)
+            match ln_opt {
+                some ln => {
+                    if str.rchar_cmp(ln as ref char, local_key) == 0 {
+                        @free(local_key)
+                        return ln as ref char
                     }
                 }
+                none => {}
             }
-            none => {}
+            li++
         }
-        ci++
+        @free(local_key)
     }
-    val nlen: i64 = @len(ctx.fn_names) as i64
     val namelen: i64 = str.len_raw(name)
     val suffix: ref char = @alloc(namelen + 3) as ref char
     @snprintf(suffix, namelen + 3, "__{s}", {name})
@@ -691,8 +688,6 @@ fn ll_resolve_fn_name(ctx: ref LLCtx, name: ref char) ref char! = {
                 val candidate: ref char = n as ref char
                 if str.rchar_cmp(candidate, name) == 0 {
                     @free(suffix)
-                    @append(ctx.resolve_cache_keys, name)
-                    @append(ctx.resolve_cache_vals, candidate)
                     return candidate
                 }
                 val clen: i64 = str.len_raw(candidate)
@@ -707,8 +702,6 @@ fn ll_resolve_fn_name(ctx: ref LLCtx, name: ref char) ref char! = {
         ni++
     }
     @free(suffix)
-    @append(ctx.resolve_cache_keys, name)
-    @append(ctx.resolve_cache_vals, found)
     return found
 }
 
@@ -5677,7 +5670,7 @@ fn gen_fn_prefixed(ctx: mut ref LLCtx, fn_node: ref parser.Node, mod_prefix: ref
 
     if !ll_emit_label_if_new(ctx, mangled) { return }
 
-    if params != 0 as ref void {
+    if params != 0 as ref void || ret_ty != 0 as ref parser.Node {
         ll_register_fn(ctx, mangled, params, ret_ty as ref void)
     }
 
@@ -5871,7 +5864,7 @@ fn gen_extern_fn_prefixed(ctx: ref LLCtx, item: ref parser.Node, mod_prefix: ref
 }
 
 
-fn preregister_items(ctx: ref LLCtx, items: list[ref parser.Node], mod_prefix: ref char) void! = {
+fn ll_preregister_items(ctx: ref LLCtx, items: list[ref parser.Node], mod_prefix: ref char) void! = {
     val ilen: i64 = @len(items) as i64
     val i: mut i64 = 0
     for {
@@ -5900,7 +5893,7 @@ fn preregister_items(ctx: ref LLCtx, items: list[ref parser.Node], mod_prefix: r
                     if str.rchar_cmp(mod_prefix, "") == 0 { @snprintf(mangled, 512, "{s}", {base}) }
                     elif is_std_child { @snprintf(mangled, 512, "std__{s}__{s}", {mod_prefix, base}) }
                     else { @snprintf(mangled, 512, "{s}__{s}", {mod_prefix, base}) }
-                    if params != 0 as ref void {
+                    if params != 0 as ref void || ret_ty != 0 as ref void {
                         ll_register_fn(ctx, mangled, params, ret_ty)
                     }
                 } elif k == parser.NK_EXTERN_FN {
@@ -5911,14 +5904,14 @@ fn preregister_items(ctx: ref LLCtx, items: list[ref parser.Node], mod_prefix: r
                     val ret_ty: ref void = node.d5 as ref void
                     ll_register_extern(ctx, name, symbol, ret_ty)
                     ll_declare_extern(ctx, symbol, params, ret_ty)
-                    if params != 0 as ref void {
+                    if params != 0 as ref void || ret_ty != 0 as ref void {
                         ll_register_fn(ctx, symbol, params, ret_ty)
                     }
                     if public == 1 && str.rchar_cmp(mod_prefix, "") != 0 {
                         val mangled_name: ref char = @alloc(512) as ref char
                         @snprintf(mangled_name, 512, "{s}__{s}", {mod_prefix, name})
                         ll_register_extern(ctx, mangled_name, symbol, ret_ty)
-                        if params != 0 as ref void {
+                        if params != 0 as ref void || ret_ty != 0 as ref void {
                             ll_register_fn(ctx, mangled_name, params, ret_ty)
                         }
                         @free(mangled_name)
@@ -6049,7 +6042,7 @@ fn preregister_items(ctx: ref LLCtx, items: list[ref parser.Node], mod_prefix: r
                     val plat: ref char = node.d0 as ref char
                     if plat != 0 as ref char && ll_platform_matches(plat) {
                         val witems: list[ref parser.Node] = node.d1 as list[ref parser.Node]
-                        preregister_items(ctx, witems, mod_prefix)
+                        ll_preregister_items(ctx, witems, mod_prefix)
                     } else {
                         val or_when_branches: ref void = node.d2 as ref void
                         val matched: mut bool = false
@@ -6066,7 +6059,7 @@ fn preregister_items(ctx: ref LLCtx, items: list[ref parser.Node], mod_prefix: r
                                             val ow_plat: ref char = ow.d0 as ref char
                                             if ow_plat != 0 as ref char && ll_platform_matches(ow_plat) {
                                                 val ow_items: list[ref parser.Node] = ow.d1 as list[ref parser.Node]
-                                                preregister_items(ctx, ow_items, mod_prefix)
+                                                ll_preregister_items(ctx, ow_items, mod_prefix)
                                                 matched = true
                                             }
                                         }
@@ -6080,7 +6073,7 @@ fn preregister_items(ctx: ref LLCtx, items: list[ref parser.Node], mod_prefix: r
                             val ow_otherwise: ref void = node.d3 as ref void
                             if ow_otherwise != 0 as ref void {
                                 val ow_oi: list[ref parser.Node] = ow_otherwise as list[ref parser.Node]
-                                preregister_items(ctx, ow_oi, mod_prefix)
+                                ll_preregister_items(ctx, ow_oi, mod_prefix)
                             }
                         }
                     }
@@ -6094,7 +6087,7 @@ fn preregister_items(ctx: ref LLCtx, items: list[ref parser.Node], mod_prefix: r
 
 
 fn gen_items_with_prefix(ctx: mut ref LLCtx, items: list[ref parser.Node], mod_prefix: ref char) void! = {
-    preregister_items(ctx, items, mod_prefix)
+    ll_preregister_items(ctx, items, mod_prefix)
     val ilen: i64 = @len(items) as i64
     val i: mut i64 = 0
     for {
@@ -6156,7 +6149,7 @@ fn gen_items_with_prefix(ctx: mut ref LLCtx, items: list[ref parser.Node], mod_p
 }
 
 fn gen_items_with_prefix_skip_main(ctx: mut ref LLCtx, items: list[ref parser.Node], mod_prefix: ref char) void! = {
-    preregister_items(ctx, items, mod_prefix)
+    ll_preregister_items(ctx, items, mod_prefix)
     val ilen: i64 = @len(items) as i64
     val i: mut i64 = 0
     for {
@@ -6534,7 +6527,7 @@ pub fn gen_module_resolved(root: ref module.ResolvedModule, release_mode: bool) 
                 match items_opt {
                     some items_ptr => {
                         val effective_pfx: ref char = ll_effective_prefix(root_prefix, pfx as ref char)
-                        preregister_items(ctx, items_ptr as list[ref parser.Node], effective_pfx)
+                        ll_preregister_items(ctx, items_ptr as list[ref parser.Node], effective_pfx)
                         if str.rchar_cmp(pfx as ref char, "") == 0 {
                             scan_items_for_usage(ctx, items_ptr as list[ref parser.Node], "")
                         }
@@ -6766,7 +6759,7 @@ pub fn gen_module_resolved_test(root: ref module.ResolvedModule, release_mode: b
                 match items_opt {
                     some items_ptr => {
                         val effective_pfx: ref char = ll_effective_prefix(root_prefix, pfx as ref char)
-                        preregister_items(ctx, items_ptr as list[ref parser.Node], effective_pfx)
+                        ll_preregister_items(ctx, items_ptr as list[ref parser.Node], effective_pfx)
                     }
                     none => {}
                 }
