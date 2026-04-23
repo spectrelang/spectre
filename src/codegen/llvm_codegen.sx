@@ -471,11 +471,28 @@ fn emit_entry(ctx: ref LLCtx, s: ref char) void! = {
 }
 
 fn flush_entry_allocas(ctx: mut ref LLCtx) void! = {
-    val entry_str: ref char = str.StringBuilder.build(ctx.entry_sb)
-    if str.len_raw(entry_str) > 0 {
-        str.StringBuilder.append_cstr(ctx.sb, entry_str)
+    val entry_len: i64 = @load(@ptradd(ctx.entry_sb, 8)) as i64
+    if entry_len > 0 {
+        val entry_ptr: ref char = @load(ctx.entry_sb) as ref char
+        str.StringBuilder.append_cstr(ctx.sb, entry_ptr)
     }
     ctx.entry_sb = str.StringBuilder.new()
+}
+
+fn begin_body_buffer(ctx: mut ref LLCtx) ref void! = {
+    val saved: ref void = ctx.sb
+    ctx.sb = str.StringBuilder.new()
+    return saved
+}
+
+fn end_body_buffer(ctx: mut ref LLCtx, saved_sb: ref void) void! = {
+    val body_len: i64 = @load(@ptradd(ctx.sb, 8)) as i64
+    val body_ptr: ref char = @load(ctx.sb) as ref char
+    ctx.sb = saved_sb
+    flush_entry_allocas(ctx)
+    if body_len > 0 {
+        str.StringBuilder.append_cstr(ctx.sb, body_ptr)
+    }
 }
 
 fn emit_decl(ctx: ref LLCtx, s: ref char) void! = {
@@ -5592,6 +5609,9 @@ fn gen_fn_prefixed(ctx: mut ref LLCtx, fn_node: ref parser.Node, mod_prefix: ref
     }
     ctx.entry_sb = str.StringBuilder.new()
     emitln(ctx, "entry:")
+
+    val saved_sb: ref void = begin_body_buffer(ctx)
+
     if is_main {
         if !ctx.release_mode {
             emitln(ctx, "  call void @__sx_panic_init()")
@@ -5638,7 +5658,6 @@ fn gen_fn_prefixed(ctx: mut ref LLCtx, fn_node: ref parser.Node, mod_prefix: ref
         }
     }
 
-    flush_entry_allocas(ctx)
     gen_stmts(ctx, body)
 
     val blen: i64 = @len(body) as i64
@@ -5670,6 +5689,7 @@ fn gen_fn_prefixed(ctx: mut ref LLCtx, fn_node: ref parser.Node, mod_prefix: ref
             emitln(ctx, "  ret i64 0")
         }
     }
+    end_body_buffer(ctx, saved_sb)
     emitln(ctx, "}")
     emitln(ctx, "")
 }
@@ -6178,10 +6198,11 @@ fn gen_test_fn(ctx: mut ref LLCtx, body: ref parser.Node, id: i64) void! = {
     @free(hdr)
     ctx.entry_sb = str.StringBuilder.new()
     emitln(ctx, "entry:")
-    flush_entry_allocas(ctx)
+    val saved_sb: ref void = begin_body_buffer(ctx)
     gen_stmts(ctx, body)
     ll_emit_defers(ctx)
     emitln(ctx, "  ret void")
+    end_body_buffer(ctx, saved_sb)
     emitln(ctx, "}")
     emitln(ctx, "")
 }
@@ -6194,13 +6215,13 @@ fn gen_test_main(ctx: mut ref LLCtx, test_ids: list[i64]) void! = {
     emitln(ctx, "define i32 @main(i32 %argc, ptr %argv) {")
     ctx.entry_sb = str.StringBuilder.new()
     emitln(ctx, "entry:")
+    val saved_sb: ref void = begin_body_buffer(ctx)
     if !ctx.release_mode {
         emitln(ctx, "  call void @__sx_panic_init()")
     }
     emitln(ctx, "  %t.argc = sext i32 %argc to i64")
     emitln(ctx, "  store i64 %t.argc, ptr @sx_argc_store")
     emitln(ctx, "  store ptr %argv, ptr @sx_argv_store")
-    flush_entry_allocas(ctx)
     val tlen: i64 = @len(test_ids) as i64
     val ti: mut i64 = 0
     for {
@@ -6221,9 +6242,12 @@ fn gen_test_main(ctx: mut ref LLCtx, test_ids: list[i64]) void! = {
     val ok_tmp: i64 = fresh_tmp(ctx)
     val ok_call_tmp: i64 = fresh_tmp(ctx)
     val ok_buf: ref char = @alloc(160) as ref char
-    @snprintf(ok_buf, 160, "  %%t{lld} = getelementptr [18 x i8], ptr @__str{lld}, i64 0, i64 0\n  %%t{lld} = call i32 (ptr, ...) @printf(ptr %%t{lld})\n  ret i32 0\n}\n\n", {ok_tmp, ok_idx, ok_call_tmp, ok_tmp})
+    @snprintf(ok_buf, 160, "  %%t{lld} = getelementptr [18 x i8], ptr @__str{lld}, i64 0, i64 0\n  %%t{lld} = call i32 (ptr, ...) @printf(ptr %%t{lld})\n  ret i32 0\n", {ok_tmp, ok_idx, ok_call_tmp, ok_tmp})
     emit(ctx, ok_buf)
     @free(ok_buf)
+    end_body_buffer(ctx, saved_sb)
+    emitln(ctx, "}")
+    emitln(ctx, "")
 }
 
 
