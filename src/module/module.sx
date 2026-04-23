@@ -751,8 +751,6 @@ pub fn resolve_module(
     exe_dir:         ref char,
     needed_children: ref void
 ) result[ref ResolvedModule, ref char]! = {
-    std.stdio.eprint("[RESOLVE] depth={lld} path={s}\n", {@len(in_progress) as i64, path})
-    
     if in_progress_contains(in_progress, path) {
         return err @fmt("cyclic import: {s}", {path})
     }
@@ -794,7 +792,6 @@ pub fn resolve_module(
         if node.kind == parser.NK_USE {
             val import_name: ref char = node.d1 as ref char
             val use_path:    ref char = node.d2 as ref char
-            std.stdio.eprint("[IMPORT] import_name={s} use_path={s}\n", {import_name, use_path})
             val is_json_or_net: bool = str.rchar_cmp(import_name, "json") == 0 ||
                                        str.rchar_cmp(import_name, "net") == 0
             val skip_std_dce: bool = is_std_module && !is_json_or_net
@@ -818,7 +815,6 @@ pub fn resolve_module(
             }
 
             val resolved_path = resolve_use_path(use_path, str.cstr(file_dir), exe_dir)
-            std.stdio.eprint("[RESOLVED] use_path={s} -> resolved_path={s}\n", {use_path, resolved_path})
             val needed_grandchildren: mut ref void = 0 as ref void
             if @len(needed_subs) > 0 {
                 needed_grandchildren = needed_subs as ref void
