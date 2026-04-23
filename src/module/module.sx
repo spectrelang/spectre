@@ -95,12 +95,9 @@ fn in_progress_contains(in_progress: list[ref char], path: ref char) bool! = {
     for p in in_progress {
         val match1: bool = str.rchar_cmp(p, path) == 0
         val match_val: mut i64 = 1
-        if match1 {
-            match_val = 1 
-        } else {
+        if !match1 {
             match_val = 0 
         }
-        std.stdio.eprint("[CHECK] comparing '{s}' vs '{s}' = {lld}\n", {p, path, match_val})
         if match1 { return true }
     }
     return false
