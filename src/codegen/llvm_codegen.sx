@@ -10,6 +10,7 @@ val module     = use("../module/module.sx")
 
 pub type LLCtx = {
     sb: mut ref void
+    entry_sb: mut ref void
     tmp: mut i64
     lbl: mut i64
     strs: mut list[ref char]
@@ -54,6 +55,7 @@ pub type LLCtx = {
 fn ll_new() ref LLCtx! = {
     val ctx: mut ref LLCtx = @alloc(@sizeof(LLCtx)) as ref LLCtx
     ctx.sb = str.StringBuilder.new()
+    ctx.entry_sb = str.StringBuilder.new()
     ctx.tmp = 0
     ctx.lbl = 0
     ctx.strs = []
@@ -462,6 +464,18 @@ fn emit(ctx: ref LLCtx, s: ref char) void! = {
 fn emitln(ctx: ref LLCtx, s: ref char) void! = {
     str.StringBuilder.append_cstr(ctx.sb, s)
     str.StringBuilder.append_char(ctx.sb, 10)
+}
+
+fn emit_entry(ctx: ref LLCtx, s: ref char) void! = {
+    str.StringBuilder.append_cstr(ctx.entry_sb, s)
+}
+
+fn flush_entry_allocas(ctx: mut ref LLCtx) void! = {
+    val entry_str: ref char = str.StringBuilder.build(ctx.entry_sb)
+    if str.len_raw(entry_str) > 0 {
+        str.StringBuilder.append_cstr(ctx.sb, entry_str)
+    }
+    ctx.entry_sb = str.StringBuilder.new()
 }
 
 fn emit_decl(ctx: ref LLCtx, s: ref char) void! = {
@@ -2015,7 +2029,7 @@ fn ll_alloca_typed_slot(ctx: ref LLCtx, ty: ref parser.Node) ref char! = {
     } else {
         @snprintf(buf, 128, "  %%t{lld} = alloca i64, align 8\n", {slot})
     }
-    emit(ctx, buf)
+    emit_entry(ctx, buf)
     @free(buf)
     val slot_name: ref char = @alloc(16) as ref char
     @snprintf(slot_name, 16, "%%t{lld}", {slot})
@@ -2085,9 +2099,13 @@ fn ll_wrap_union_arg(ctx: ref LLCtx, node: ref parser.Node, union_variants: ref 
     } elif arg_ty != 0 as ref parser.Node && str.rchar_cmp(ll_type_of(arg_ty), "double") == 0 {
         payload_store = "store double"
     }
+    val alloca_buf: ref char = @alloc(128) as ref char
+    @snprintf(alloca_buf, 128, "  %%t{lld} = alloca i8, i64 16, align 8\n", {box_ptr})
+    emit_entry(ctx, alloca_buf)
+    @free(alloca_buf)
     @snprintf(buf, 256,
-        "  %%t{lld} = alloca i8, i64 16, align 8\n  store i64 {lld}, ptr %%t{lld}\n  %%t{lld} = getelementptr i8, ptr %%t{lld}, i64 8\n  {s} {s}, ptr %%t{lld}\n",
-        {box_ptr, tag_val, box_ptr, payload_ptr, box_ptr, payload_store, value, payload_ptr})
+        "  store i64 {lld}, ptr %%t{lld}\n  %%t{lld} = getelementptr i8, ptr %%t{lld}, i64 8\n  {s} {s}, ptr %%t{lld}\n",
+        {tag_val, box_ptr, payload_ptr, box_ptr, payload_store, value, payload_ptr})
     emit(ctx, buf)
     @free(buf)
     val wrapped: ref char = @alloc(16) as ref char
@@ -3294,10 +3312,14 @@ fn gen_builtin(ctx: ref LLCtx, expr: ref parser.Node) ref char! = {
         val some_lbl: i64 = fresh_lbl(ctx)
         val none_lbl: i64 = fresh_lbl(ctx)
         val end_lbl: i64 = fresh_lbl(ctx)
+        val alloca_buf: ref char = @alloc(128) as ref char
+        @snprintf(alloca_buf, 128, "  %%t{lld} = alloca i64, align 8\n", {result_slot})
+        emit_entry(ctx, alloca_buf)
+        @free(alloca_buf)
         val gbuf1: ref char = @alloc(512) as ref char
         @snprintf(gbuf1, 512,
-            "  %%t{lld} = getelementptr i8, ptr {s}, i64 8\n  %%t{lld} = load i64, ptr %%t{lld}\n  %%t{lld} = alloca i64, align 8\n  %%t{lld} = icmp slt i64 {s}, %%t{lld}\n  br i1 %%t{lld}, label %%lbl{lld}, label %%lbl{lld}\nlbl{lld}:\n",
-            {len_ptr, lp, len_val, len_ptr, result_slot, in_bounds, idx, len_val, in_bounds, some_lbl, none_lbl, some_lbl})
+            "  %%t{lld} = getelementptr i8, ptr {s}, i64 8\n  %%t{lld} = load i64, ptr %%t{lld}\n  %%t{lld} = icmp slt i64 {s}, %%t{lld}\n  br i1 %%t{lld}, label %%lbl{lld}, label %%lbl{lld}\nlbl{lld}:\n",
+            {len_ptr, lp, len_val, len_ptr, in_bounds, idx, len_val, in_bounds, some_lbl, none_lbl, some_lbl})
         emit(ctx, gbuf1)
         @free(gbuf1)
         val data_ptr: i64 = fresh_tmp(ctx)
@@ -3354,9 +3376,13 @@ fn gen_builtin(ctx: ref LLCtx, expr: ref parser.Node) ref char! = {
         val shift_body: i64 = fresh_lbl(ctx)
         val shift_end: i64 = fresh_lbl(ctx)
         val shift_idx: i64 = fresh_tmp(ctx)
+        val abuf2: ref char = @alloc(128) as ref char
+        @snprintf(abuf2, 128, "  %%t{lld} = alloca i64, align 8\n", {shift_idx})
+        emit_entry(ctx, abuf2)
+        @free(abuf2)
         val rbuf2: ref char = @alloc(128) as ref char
-        @snprintf(rbuf2, 128, "  %%t{lld} = alloca i64, align 8\n  store i64 {s}, ptr %%t{lld}\n  br label %%lbl{lld}\nlbl{lld}:\n",
-            {shift_idx, idx, shift_idx, shift_lbl, shift_lbl})
+        @snprintf(rbuf2, 128, "  store i64 {s}, ptr %%t{lld}\n  br label %%lbl{lld}\nlbl{lld}:\n",
+            {idx, shift_idx, shift_lbl, shift_lbl})
         emit(ctx, rbuf2)
         @free(rbuf2)
         val cur_si: i64 = fresh_tmp(ctx)
@@ -4686,7 +4712,7 @@ fn gen_stmt(ctx: ref LLCtx, stmt: ref parser.Node) void! = {
             val slot: i64 = fresh_tmp(ctx)
             val sbuf: ref char = @alloc(128) as ref char
             @snprintf(sbuf, 128, "  %%t{lld} = alloca i64, align 8\n", {slot})
-            emit(ctx, sbuf)
+            emit_entry(ctx, sbuf)
             @free(sbuf)
 
             val slot_name: ref char = @alloc(16) as ref char
@@ -4748,7 +4774,7 @@ fn gen_stmt(ctx: ref LLCtx, stmt: ref parser.Node) void! = {
                 val slot_ok: i64 = fresh_tmp(ctx)
                 val sbuf_ok: ref char = @alloc(128) as ref char
                 @snprintf(sbuf_ok, 128, "  %%t{lld} = alloca ptr, align 8\n", {slot_ok})
-                emit(ctx, sbuf_ok)
+                emit_entry(ctx, sbuf_ok)
                 @free(sbuf_ok)
                 val slot_ok_name: ref char = @alloc(16) as ref char
                 @snprintf(slot_ok_name, 16, "%%t{lld}", {slot_ok})
@@ -4771,7 +4797,7 @@ fn gen_stmt(ctx: ref LLCtx, stmt: ref parser.Node) void! = {
                 val slot_err: i64 = fresh_tmp(ctx)
                 val sbuf_err: ref char = @alloc(128) as ref char
                 @snprintf(sbuf_err, 128, "  %%t{lld} = alloca i64, align 8\n", {slot_err})
-                emit(ctx, sbuf_err)
+                emit_entry(ctx, sbuf_err)
                 @free(sbuf_err)
                 val slot_err_name: ref char = @alloc(16) as ref char
                 @snprintf(slot_err_name, 16, "%%t{lld}", {slot_err})
@@ -4819,7 +4845,7 @@ fn gen_stmt(ctx: ref LLCtx, stmt: ref parser.Node) void! = {
             } else {
                 @snprintf(sbuf_ok, 128, "  %%t{lld} = alloca i64, align 8\n", {slot_ok})
             }
-            emit(ctx, sbuf_ok)
+            emit_entry(ctx, sbuf_ok)
             @free(sbuf_ok)
             val slot_ok_name: ref char = @alloc(16) as ref char
             @snprintf(slot_ok_name, 16, "%%t{lld}", {slot_ok})
@@ -4854,7 +4880,7 @@ fn gen_stmt(ctx: ref LLCtx, stmt: ref parser.Node) void! = {
             } else {
                 @snprintf(sbuf_err, 128, "  %%t{lld} = alloca i64, align 8\n", {slot_err})
             }
-            emit(ctx, sbuf_err)
+            emit_entry(ctx, sbuf_err)
             @free(sbuf_err)
             val slot_err_name: ref char = @alloc(16) as ref char
             @snprintf(slot_err_name, 16, "%%t{lld}", {slot_err})
@@ -5241,7 +5267,7 @@ fn gen_match_tagged_union(ctx: ref LLCtx, stmt: ref parser.Node) void! = {
                                         } else {
                                             @snprintf(sbuf, 128, "  %%t{lld} = alloca i64, align 8\n", {slot})
                                         }
-                                        emit(ctx, sbuf)
+                                        emit_entry(ctx, sbuf)
                                         @free(sbuf)
                                         val slot_name: ref char = @alloc(16) as ref char
                                         @snprintf(slot_name, 16, "%%t{lld}", {slot})
@@ -5319,7 +5345,7 @@ fn gen_for_stmt(ctx: ref LLCtx, stmt: ref parser.Node) void! = {
         val slot: i64 = fresh_tmp(ctx)
         val buf: ref char = @alloc(128) as ref char
         @snprintf(buf, 128, "  %%t{lld} = alloca i64, align 8\n", {slot})
-        emit(ctx, buf)
+        emit_entry(ctx, buf)
         @free(buf)
         val slot_name: ref char = @alloc(16) as ref char
         @snprintf(slot_name, 16, "%%t{lld}", {slot})
@@ -5564,6 +5590,7 @@ fn gen_fn_prefixed(ctx: mut ref LLCtx, fn_node: ref parser.Node, mod_prefix: ref
         }
         emitln(ctx, ") {")
     }
+    ctx.entry_sb = str.StringBuilder.new()
     emitln(ctx, "entry:")
     if is_main {
         if !ctx.release_mode {
@@ -5611,6 +5638,7 @@ fn gen_fn_prefixed(ctx: mut ref LLCtx, fn_node: ref parser.Node, mod_prefix: ref
         }
     }
 
+    flush_entry_allocas(ctx)
     gen_stmts(ctx, body)
 
     val blen: i64 = @len(body) as i64
@@ -6148,7 +6176,9 @@ fn gen_test_fn(ctx: mut ref LLCtx, body: ref parser.Node, id: i64) void! = {
     @snprintf(hdr, 128, "define void @__sx_test_{lld}() {\n", {id})
     emit(ctx, hdr)
     @free(hdr)
+    ctx.entry_sb = str.StringBuilder.new()
     emitln(ctx, "entry:")
+    flush_entry_allocas(ctx)
     gen_stmts(ctx, body)
     ll_emit_defers(ctx)
     emitln(ctx, "  ret void")
@@ -6156,12 +6186,13 @@ fn gen_test_fn(ctx: mut ref LLCtx, body: ref parser.Node, id: i64) void! = {
     emitln(ctx, "")
 }
 
-fn gen_test_main(ctx: ref LLCtx, test_ids: list[i64]) void! = {
+fn gen_test_main(ctx: mut ref LLCtx, test_ids: list[i64]) void! = {
     ensure_declared(ctx, "printf", "declare i32 @printf(ptr, ...)")
     if !ctx.release_mode {
         ensure_declared(ctx, "__sx_panic_init", "declare void @__sx_panic_init()")
     }
     emitln(ctx, "define i32 @main(i32 %argc, ptr %argv) {")
+    ctx.entry_sb = str.StringBuilder.new()
     emitln(ctx, "entry:")
     if !ctx.release_mode {
         emitln(ctx, "  call void @__sx_panic_init()")
@@ -6169,6 +6200,7 @@ fn gen_test_main(ctx: ref LLCtx, test_ids: list[i64]) void! = {
     emitln(ctx, "  %t.argc = sext i32 %argc to i64")
     emitln(ctx, "  store i64 %t.argc, ptr @sx_argc_store")
     emitln(ctx, "  store ptr %argv, ptr @sx_argv_store")
+    flush_entry_allocas(ctx)
     val tlen: i64 = @len(test_ids) as i64
     val ti: mut i64 = 0
     for {
