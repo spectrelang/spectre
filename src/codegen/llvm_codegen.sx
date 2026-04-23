@@ -1101,7 +1101,9 @@ fn ll_type_size(ctx: ref LLCtx, ty: ref parser.Node) i64! = {
     if ty == 0 as ref parser.Node { return 8 }
     val k: i64 = ty.kind
     if k == parser.TY_MUT { return ll_type_size(ctx, ty.d0 as ref parser.Node) }
-    if k == parser.TY_REF || k == parser.TY_LIST || k == parser.TY_RESULT || k == parser.TY_FNPTR { return 8 }
+    if k == parser.TY_REF || k == parser.TY_FNPTR { return 8 }
+    if k == parser.TY_LIST { return 24 }
+    if k == parser.TY_RESULT { return 16 }
     if k == parser.TY_NAMED {
         val name: ref char = ty.d0 as ref char
         if ll_is_tagged_union_name(ctx, name) { return 8 }
@@ -1121,6 +1123,14 @@ fn ll_type_size(ctx: ref LLCtx, ty: ref parser.Node) i64! = {
         return count * elem_size
     }
     return 8
+}
+
+fn ll_is_inline_agg(ty: ref parser.Node) bool! = {
+    if ty == 0 as ref parser.Node { return false }
+    val k: i64 = ty.kind
+    if k == parser.TY_MUT { return ll_is_inline_agg(ty.d0 as ref parser.Node) }
+    if k == parser.TY_LIST || k == parser.TY_RESULT { return true }
+    return false
 }
 
 fn ll_type_align(ty: ref parser.Node) i64! = {
@@ -2135,11 +2145,20 @@ fn ll_store_target_value(ctx: ref LLCtx, target: ref parser.Node, source_node: r
             val sname: ref char = ll_struct_type_name(ctx, base_ty)
             val fields: ref void = ll_lookup_struct(ctx, sname)
             val fty: ref parser.Node = ll_field_type(fields, parser.field_name(target))
-            val stored_value: mut ref char = value
-            if source_node != 0 as ref parser.Node {
-                stored_value = ll_coerce_value_for_type(ctx, source_node, fty, value)
+            if ll_is_inline_agg(fty) {
+                ensure_declared(ctx, "memcpy", "declare ptr @memcpy(ptr, ptr, i64)")
+                val cpbuf: ref char = @alloc(128) as ref char
+                val agg_size: i64 = ll_type_size(ctx, fty)
+                @snprintf(cpbuf, 128, "  call ptr @memcpy(ptr {s}, ptr {s}, i64 {lld})\n", {fptr, value, agg_size})
+                emit(ctx, cpbuf)
+                @free(cpbuf)
+            } else {
+                val stored_value: mut ref char = value
+                if source_node != 0 as ref parser.Node {
+                    stored_value = ll_coerce_value_for_type(ctx, source_node, fty, value)
+                }
+                ll_emit_store_value(ctx, fptr, fty, stored_value)
             }
-            ll_emit_store_value(ctx, fptr, fty, stored_value)
         }
         return
     }
@@ -2332,6 +2351,9 @@ fn gen_expr_field(ctx: ref LLCtx, expr: ref parser.Node) ref char! = {
         val struct_name: ref char = ll_struct_type_name(ctx, base_ty)
         val fields: ref void = ll_lookup_struct(ctx, struct_name)
         val field_ty: ref parser.Node = ll_field_type(fields, field_name)
+        if ll_is_inline_agg(field_ty) {
+            return field_ptr
+        }
         val tmp: i64 = fresh_tmp(ctx)
         val buf: ref char = @alloc(128) as ref char
         if ll_slot_is_ptr(ctx, field_ty) {
