@@ -696,6 +696,17 @@ fn ll_resolve_fn_name(ctx: ref LLCtx, name: ref char) ref char! = {
                     val tail: ref char = @ptradd(candidate as ref void, clen - slen) as ref char
                     if str.rchar_cmp(tail, suffix) == 0 { found = candidate }
                 }
+                if found == 0 as ref char && clen > namelen {
+                    val tail2: ref char = @ptradd(candidate as ref void, clen - namelen) as ref char
+                    if str.rchar_cmp(tail2, name) == 0 {
+                        val sep_pos: i64 = clen - namelen - 2
+                        if sep_pos >= 0 {
+                            val s0: u8 = @load8(@ptradd(candidate as ref void, sep_pos))
+                            val s1: u8 = @load8(@ptradd(candidate as ref void, sep_pos + 1))
+                            if s0 == 95 && s1 == 95 { found = candidate }
+                        }
+                    }
+                }
             }
             none => {}
         }
@@ -5896,6 +5907,11 @@ fn ll_preregister_items(ctx: ref LLCtx, items: list[ref parser.Node], mod_prefix
                     if params != 0 as ref void || ret_ty != 0 as ref void {
                         ll_register_fn(ctx, mangled, params, ret_ty)
                     }
+                    if is_std_child {
+                        val short_mangled: ref char = @alloc(512) as ref char
+                        @snprintf(short_mangled, 512, "{s}__{s}", {mod_prefix, base})
+                        ll_register_extern(ctx, short_mangled, mangled, ret_ty)
+                    }
                 } elif k == parser.NK_EXTERN_FN {
                     val public: i64 = node.d0 as i64
                     val name: ref char = node.d1 as ref char
@@ -6302,6 +6318,10 @@ fn scan_node_for_calls(ctx: ref LLCtx, node: ref parser.Node) void! = {
             if str.rchar_cmp(prefix, "") != 0 {
                 ll_mark_prefix_used(ctx, prefix)
             }
+        }
+        val cn_seg: ref char = ll_first_path_segment(cn)
+        if str.rchar_cmp(cn_seg, "") != 0 && ll_is_std_child_name(cn_seg) {
+            ll_mark_prefix_used(ctx, cn_seg)
         }
         val args: ref void = parser.call_args(node) as ref void
         if args != 0 as ref void {
@@ -6714,7 +6734,7 @@ pub fn gen_module_resolved(root: ref module.ResolvedModule, release_mode: bool) 
     }
     str.StringBuilder.free(str_sb)
 
-    val fn_str: ref void = str.StringBuilder.build(ctx.fn_sb)
+    val fn_str: ref void = str.StringBuilder.build(ctx.sb)
     str.StringBuilder.append_cstr(final_sb, str.cstr(fn_str))
 
     val result: ref char = str.cstr(str.StringBuilder.build(final_sb))
@@ -6985,7 +7005,7 @@ pub fn gen_module_resolved_test(root: ref module.ResolvedModule, release_mode: b
     }
     str.StringBuilder.free(str_sb)
 
-    val fn_str: ref void = str.StringBuilder.build(ctx.fn_sb)
+    val fn_str: ref void = str.StringBuilder.build(ctx.sb)
     str.StringBuilder.append_cstr(final_sb, str.cstr(fn_str))
 
     val result: ref char = str.cstr(str.StringBuilder.build(final_sb))
