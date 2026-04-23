@@ -3050,13 +3050,18 @@ fn gen_expr(ctx: ref LLCtx, expr: ref parser.Node) ref char! = {
                 none => {}
             }
         }
-        ensure_declared(ctx, "malloc", "declare ptr @malloc(i64)")
         val size: mut i64 = flen * 8
         if struct_fields != 0 as ref void { size = ll_struct_size(ctx, struct_fields) }
         val ptr_tmp: i64 = fresh_tmp(ctx)
         val abuf: ref char = @alloc(128) as ref char
-        @snprintf(abuf, 128, "  %%t{lld} = call ptr @malloc(i64 {lld})\n", {ptr_tmp, size})
-        emit(ctx, abuf)
+        if size <= 16 {
+            @snprintf(abuf, 128, "  %%t{lld} = alloca i8, i64 {lld}, align 8\n", {ptr_tmp, size})
+            emit_entry(ctx, abuf)
+        } else {
+            ensure_declared(ctx, "malloc", "declare ptr @malloc(i64)")
+            @snprintf(abuf, 128, "  %%t{lld} = call ptr @malloc(i64 {lld})\n", {ptr_tmp, size})
+            emit(ctx, abuf)
+        }
         @free(abuf)
         val fi: mut i64 = 0
         for {
@@ -3874,7 +3879,6 @@ fn ll_lookup_tagged_call_variant(ctx: ref LLCtx, callee_name: ref char, tv_owner
 }
 
 fn gen_call_tv_variant(ctx: ref LLCtx, args_list: ref void, tv_tag: i64, field_ty_list: ref void) ref char! = {
-    ensure_declared(ctx, "malloc", "declare ptr @malloc(i64)")
     val n_args: mut i64 = 0
     if args_list != 0 as ref void { n_args = @len(args_list) as i64 }
     val payload_size: mut i64 = 0
@@ -3902,9 +3906,12 @@ fn gen_call_tv_variant(ctx: ref LLCtx, args_list: ref void, tv_tag: i64, field_t
     val actual_alloc_size: mut i64 = alloc_size
     if actual_alloc_size < 16 { actual_alloc_size = 16 }
     val ptr: i64 = fresh_tmp(ctx)
-    val pbuf: ref char = @alloc(96) as ref char
-    @snprintf(pbuf, 96, "  %%t{lld} = call ptr @malloc(i64 {lld})\n  store i64 {lld}, ptr %%t{lld}\n",
-        {ptr, actual_alloc_size, tv_tag, ptr})
+    val alloca_buf: ref char = @alloc(96) as ref char
+    @snprintf(alloca_buf, 96, "  %%t{lld} = alloca i8, i64 {lld}, align 8\n", {ptr, actual_alloc_size})
+    emit_entry(ctx, alloca_buf)
+    @free(alloca_buf)
+    val pbuf: ref char = @alloc(64) as ref char
+    @snprintf(pbuf, 64, "  store i64 {lld}, ptr %%t{lld}\n", {tv_tag, ptr})
     emit(ctx, pbuf)
     @free(pbuf)
     if args_list != 0 as ref void {
