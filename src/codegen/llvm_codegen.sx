@@ -586,6 +586,7 @@ fn emit_string_data(ctx: ref LLCtx) void! = {
 
 
 fn platform_matches(name: ref char) bool! = {
+    if name == 0 as ref char { return false }
     val cur: ref char = reflection.current_platform_name()
     if str.rchar_cmp(name, cur) == 0 { return true }
     if str.rchar_cmp(name, "posix") == 0 {
@@ -2836,6 +2837,77 @@ fn gen_expr(ctx: ref LLCtx, expr: ref parser.Node) ref char! = {
         val op: i64 = expr.d0 as i64
         val lhs_node: ref parser.Node = expr.d1 as ref parser.Node
         val rhs_node: ref parser.Node = expr.d2 as ref parser.Node
+
+        if op == parser.OP_AND {
+            val slot: i64 = fresh_tmp(ctx)
+            val ea: ref char = @alloc(64) as ref char
+            @snprintf(ea, 64, "  %%t{lld} = alloca i64\n", {slot})
+            emit_entry(ctx, ea)
+            @free(ea)
+            val lhs_val: ref char = gen_expr(ctx, lhs_node)
+            val c1: i64 = fresh_tmp(ctx)
+            val lbl_rhs: i64 = fresh_lbl(ctx)
+            val lbl_merge: i64 = fresh_lbl(ctx)
+            val b1: ref char = @alloc(256) as ref char
+            @snprintf(b1, 256, "  store i64 0, ptr %%t{lld}\n  %%t{lld} = icmp ne i64 {s}, 0\n  br i1 %%t{lld}, label %%L{lld}, label %%L{lld}\n", {slot, c1, lhs_val, c1, lbl_rhs, lbl_merge})
+            emit(ctx, b1)
+            @free(b1)
+            val b2: ref char = @alloc(64) as ref char
+            @snprintf(b2, 64, "L{lld}:\n", {lbl_rhs})
+            emit(ctx, b2)
+            @free(b2)
+            val rhs_val: ref char = gen_expr(ctx, rhs_node)
+            val c2: i64 = fresh_tmp(ctx)
+            val rhs_ext: i64 = fresh_tmp(ctx)
+            val b3: ref char = @alloc(256) as ref char
+            @snprintf(b3, 256, "  %%t{lld} = icmp ne i64 {s}, 0\n  %%t{lld} = zext i1 %%t{lld} to i64\n  store i64 %%t{lld}, ptr %%t{lld}\n  br label %%L{lld}\n", {c2, rhs_val, rhs_ext, c2, rhs_ext, slot, lbl_merge})
+            emit(ctx, b3)
+            @free(b3)
+            val result: i64 = fresh_tmp(ctx)
+            val b4: ref char = @alloc(128) as ref char
+            @snprintf(b4, 128, "L{lld}:\n  %%t{lld} = load i64, ptr %%t{lld}\n", {lbl_merge, result, slot})
+            emit(ctx, b4)
+            @free(b4)
+            val res: ref char = @alloc(16) as ref char
+            @snprintf(res, 16, "%%t{lld}", {result})
+            return res
+        }
+
+        if op == parser.OP_OR {
+            val slot: i64 = fresh_tmp(ctx)
+            val ea: ref char = @alloc(64) as ref char
+            @snprintf(ea, 64, "  %%t{lld} = alloca i64\n", {slot})
+            emit_entry(ctx, ea)
+            @free(ea)
+            val lhs_val: ref char = gen_expr(ctx, lhs_node)
+            val c1: i64 = fresh_tmp(ctx)
+            val lbl_rhs: i64 = fresh_lbl(ctx)
+            val lbl_merge: i64 = fresh_lbl(ctx)
+            val b1: ref char = @alloc(256) as ref char
+            @snprintf(b1, 256, "  store i64 1, ptr %%t{lld}\n  %%t{lld} = icmp ne i64 {s}, 0\n  br i1 %%t{lld}, label %%L{lld}, label %%L{lld}\n", {slot, c1, lhs_val, c1, lbl_merge, lbl_rhs})
+            emit(ctx, b1)
+            @free(b1)
+            val b2: ref char = @alloc(64) as ref char
+            @snprintf(b2, 64, "L{lld}:\n", {lbl_rhs})
+            emit(ctx, b2)
+            @free(b2)
+            val rhs_val: ref char = gen_expr(ctx, rhs_node)
+            val c2: i64 = fresh_tmp(ctx)
+            val rhs_ext: i64 = fresh_tmp(ctx)
+            val b3: ref char = @alloc(256) as ref char
+            @snprintf(b3, 256, "  %%t{lld} = icmp ne i64 {s}, 0\n  %%t{lld} = zext i1 %%t{lld} to i64\n  store i64 %%t{lld}, ptr %%t{lld}\n  br label %%L{lld}\n", {c2, rhs_val, rhs_ext, c2, rhs_ext, slot, lbl_merge})
+            emit(ctx, b3)
+            @free(b3)
+            val result: i64 = fresh_tmp(ctx)
+            val b4: ref char = @alloc(128) as ref char
+            @snprintf(b4, 128, "L{lld}:\n  %%t{lld} = load i64, ptr %%t{lld}\n", {lbl_merge, result, slot})
+            emit(ctx, b4)
+            @free(b4)
+            val res: ref char = @alloc(16) as ref char
+            @snprintf(res, 16, "%%t{lld}", {result})
+            return res
+        }
+
         val lhs_ty: ref parser.Node = ll_expr_storage_type(ctx, lhs_node)
         val rhs_ty: ref parser.Node = ll_expr_storage_type(ctx, rhs_node)
         val lhs: ref char = gen_expr(ctx, expr.d1 as ref parser.Node)
@@ -2945,16 +3017,6 @@ fn gen_expr(ctx: ref LLCtx, expr: ref parser.Node) ref char! = {
             val cmp: i64 = fresh_tmp(ctx)
             if is_float_binop { @snprintf(buf, 256, "  %%t{lld} = fcmp oge {s} {s}, {s}\n  %%t{lld} = zext i1 %%t{lld} to i64\n", {cmp, float_abi, lhs, rhs, tmp, cmp}) }
             else { @snprintf(buf, 256, "  %%t{lld} = icmp sge i64 {s}, {s}\n  %%t{lld} = zext i1 %%t{lld} to i64\n", {cmp, lhs, rhs, tmp, cmp}) }
-        } elif op == parser.OP_AND {
-            val c1: i64 = fresh_tmp(ctx)
-            val c2: i64 = fresh_tmp(ctx)
-            val a: i64 = fresh_tmp(ctx)
-            @snprintf(buf, 256, "  %%t{lld} = icmp ne i64 {s}, 0\n  %%t{lld} = icmp ne i64 {s}, 0\n  %%t{lld} = and i1 %%t{lld}, %%t{lld}\n  %%t{lld} = zext i1 %%t{lld} to i64\n", {c1, lhs, c2, rhs, a, c1, c2, tmp, a})
-        } elif op == parser.OP_OR {
-            val c1: i64 = fresh_tmp(ctx)
-            val c2: i64 = fresh_tmp(ctx)
-            val o: i64 = fresh_tmp(ctx)
-            @snprintf(buf, 256, "  %%t{lld} = icmp ne i64 {s}, 0\n  %%t{lld} = icmp ne i64 {s}, 0\n  %%t{lld} = or i1 %%t{lld}, %%t{lld}\n  %%t{lld} = zext i1 %%t{lld} to i64\n", {c1, lhs, c2, rhs, o, c1, c2, tmp, o})
         } elif op == parser.OP_BAND { @snprintf(buf, 256, "  %%t{lld} = and i64 {s}, {s}\n", {tmp, lhs, rhs}) }
         elif op == parser.OP_BOR  { @snprintf(buf, 256, "  %%t{lld} = or i64 {s}, {s}\n", {tmp, lhs, rhs}) }
         elif op == parser.OP_BXOR { @snprintf(buf, 256, "  %%t{lld} = xor i64 {s}, {s}\n", {tmp, lhs, rhs}) }
