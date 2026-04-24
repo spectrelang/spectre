@@ -1472,7 +1472,10 @@ fn gen_if_stmt(ctx: ref CCtx, stmt: ref parser.Node) void! = {
                ei++ 
            } 
     }
-    if stmt.d3 != 0 { emitln(ctx, "}else{") gen_stmts(ctx, (stmt.d3 as ref parser.Node).d0 as ref parser.Node) }
+    if stmt.d3 != 0 { 
+        emitln(ctx, "}else{") 
+        gen_stmts(ctx, (stmt.d3 as ref parser.Node).d0 as ref parser.Node) 
+    }
     emitln(ctx, "}")
 }
 
