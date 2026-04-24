@@ -1110,24 +1110,40 @@ fn gen_stmt(ctx: ref CCtx, stmt: ref parser.Node) void! = {
             if !matched { val otherwise: ref void = stmt.d3 as ref void
                 if otherwise != 0 as ref void { gen_stmts(ctx, stmt.d3 as ref parser.Node) } } }
         return }
-    if k == parser.NK_INCREMENT { val tgt: ref parser.Node = stmt.d0 as ref parser.Node
-        if tgt.kind == parser.NK_IDENT { val buf: ref char = @alloc(128) as ref char @snprintf(buf, 128, "t_{s}++;\n", {tgt.d0 as ref char}) emit(ctx, buf) @free(buf) }
-        elif tgt.kind == parser.NK_FIELD { val fa: ref char = gen_field_addr(ctx, tgt) val buf: ref char = @alloc(256) as ref char @snprintf(buf, 256, "(*(int64_t*)({s}))++;\n", {fa}) emit(ctx, buf) @free(buf) }
-        elif tgt.kind == parser.NK_DEREF { val p: ref char = gen_expr(ctx, tgt.d0 as ref parser.Node) val buf: ref char = @alloc(256) as ref char @snprintf(buf, 256, "(*(int64_t*)(intptr_t)({s}))++;\n", {p}) emit(ctx, buf) @free(buf) }
-        return }
-    if k == parser.NK_DECREMENT { val tgt: ref parser.Node = stmt.d0 as ref parser.Node
+    if k == parser.NK_INCREMENT { 
+        val tgt: ref parser.Node = stmt.d0 as ref parser.Node
+        if tgt.kind == parser.NK_IDENT { 
+            val buf: ref char = @alloc(128) as ref char 
+            @snprintf(buf, 128, "t_{s}++;\n", {tgt.d0 as ref char}) emit(ctx, buf) 
+            @free(buf) 
+        }
+        elif tgt.kind == parser.NK_FIELD { 
+            val fa: ref char = gen_field_addr(ctx, tgt) val buf: ref char = @alloc(256) as ref char @snprintf(buf, 256, "(*(int64_t*)({s}))++;\n", {fa}) emit(ctx, buf) @free(buf) 
+        }
+        elif tgt.kind == parser.NK_DEREF { 
+            val p: ref char = gen_expr(ctx, tgt.d0 as ref parser.Node) val buf: ref char = @alloc(256) as ref char @snprintf(buf, 256, "(*(int64_t*)(intptr_t)({s}))++;\n", {p}) emit(ctx, buf) @free(buf) 
+        }
+        return 
+    }
+    if k == parser.NK_DECREMENT { 
+        val tgt: ref parser.Node = stmt.d0 as ref parser.Node
         if tgt.kind == parser.NK_IDENT { val buf: ref char = @alloc(128) as ref char @snprintf(buf, 128, "t_{s}--;\n", {tgt.d0 as ref char}) emit(ctx, buf) @free(buf) }
         elif tgt.kind == parser.NK_FIELD { val fa: ref char = gen_field_addr(ctx, tgt) val buf: ref char = @alloc(256) as ref char @snprintf(buf, 256, "(*(int64_t*)({s}))--;\n", {fa}) emit(ctx, buf) @free(buf) }
         elif tgt.kind == parser.NK_DEREF { val p: ref char = gen_expr(ctx, tgt.d0 as ref parser.Node) val buf: ref char = @alloc(256) as ref char @snprintf(buf, 256, "(*(int64_t*)(intptr_t)({s}))--;\n", {p}) emit(ctx, buf) @free(buf) }
-        return }
-    if k == parser.NK_ADD_ASSIGN { val tgt: ref parser.Node = stmt.d0 as ref parser.Node val rhs: ref char = gen_expr(ctx, stmt.d1 as ref parser.Node)
+        return 
+    }
+    if k == parser.NK_ADD_ASSIGN { 
+        val tgt: ref parser.Node = stmt.d0 as ref parser.Node val rhs: ref char = gen_expr(ctx, stmt.d1 as ref parser.Node)
         if tgt.kind == parser.NK_IDENT { val buf: ref char = @alloc(256) as ref char @snprintf(buf, 256, "t_{s}+=({s});\n", {tgt.d0 as ref char, rhs}) emit(ctx, buf) @free(buf) }
         elif tgt.kind == parser.NK_FIELD { val fa: ref char = gen_field_addr(ctx, tgt) val buf: ref char = @alloc(256) as ref char @snprintf(buf, 256, "(*(int64_t*)({s}))+=({s});\n", {fa, rhs}) emit(ctx, buf) @free(buf) }
-        return }
-    if k == parser.NK_SUB_ASSIGN { val tgt: ref parser.Node = stmt.d0 as ref parser.Node val rhs: ref char = gen_expr(ctx, stmt.d1 as ref parser.Node)
+        return 
+    }
+    if k == parser.NK_SUB_ASSIGN { 
+        val tgt: ref parser.Node = stmt.d0 as ref parser.Node val rhs: ref char = gen_expr(ctx, stmt.d1 as ref parser.Node)
         if tgt.kind == parser.NK_IDENT { val buf: ref char = @alloc(256) as ref char @snprintf(buf, 256, "t_{s}-=({s});\n", {tgt.d0 as ref char, rhs}) emit(ctx, buf) @free(buf) }
         elif tgt.kind == parser.NK_FIELD { val fa: ref char = gen_field_addr(ctx, tgt) val buf: ref char = @alloc(256) as ref char @snprintf(buf, 256, "(*(int64_t*)({s}))-=({s});\n", {fa, rhs}) emit(ctx, buf) @free(buf) }
-        return }
+        return 
+    }
 }
 
 fn gen_if_stmt(ctx: ref CCtx, stmt: ref parser.Node) void! = {
@@ -1135,12 +1151,21 @@ fn gen_if_stmt(ctx: ref CCtx, stmt: ref parser.Node) void! = {
     val buf: ref char = @alloc(256) as ref char @snprintf(buf, 256, "if({s}){\n", {cond}) emit(ctx, buf) @free(buf)
     gen_stmts(ctx, stmt.d1 as ref parser.Node)
     val elif_list: ref void = stmt.d2 as ref void
-    if elif_list != 0 as ref void && @len(elif_list as list[ref void]) > 0 { val elen: i64 = @len(elif_list as list[ref void]) as i64 val ei: mut i64 = 0
-        for { if ei >= elen { break } val ep_opt = @get(elif_list as list[ref void], ei as usize)
-            match ep_opt { some ep => { val econd: ref char = gen_expr(ctx, (ep as ref parser.Node).d0 as ref parser.Node)
-                val eb: ref char = @alloc(256) as ref char @snprintf(eb, 256, "}else if({s}){\n", {econd}) emit(ctx, eb) @free(eb)
-                gen_stmts(ctx, (ep as ref parser.Node).d1 as ref parser.Node) } none => {} }
-            ei++ } }
+    if elif_list != 0 as ref void && @len(elif_list as list[ref void]) > 0 { 
+        val elen: i64 = @len(elif_list as list[ref void]) as i64 val ei: mut i64 = 0
+           for { 
+               if ei >= elen { break } 
+               val ep_opt = @get(elif_list as list[ref void], ei as usize)
+               match ep_opt { 
+                   some ep => { val econd: ref char = gen_expr(ctx, (ep as ref parser.Node).d0 as ref parser.Node)
+                   val eb: ref char = @alloc(256) as ref char 
+                   @snprintf(eb, 256, "}else if({s}){\n", {econd}) emit(ctx, eb) 
+                   @free(eb)
+                   gen_stmts(ctx, (ep as ref parser.Node).d1 as ref parser.Node) } none => {} 
+               }
+               ei++ 
+           } 
+    }
     if stmt.d3 != 0 { emitln(ctx, "}else{") gen_stmts(ctx, (stmt.d3 as ref parser.Node).d0 as ref parser.Node) }
     emitln(ctx, "}")
 }
