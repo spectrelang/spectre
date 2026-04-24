@@ -95,9 +95,20 @@ fn cc_new() ref CCtx! = {
     return ctx
 }
 
-fn fresh_tmp(ctx: mut ref CCtx) i64! = { val n: i64 = ctx.tmp ctx.tmp = n + 1 return n }
-fn emit(ctx: ref CCtx, s: ref char) void! = { str.StringBuilder.append_cstr(ctx.sb, s) }
-fn emitln(ctx: ref CCtx, s: ref char) void! = { str.StringBuilder.append_cstr(ctx.sb, s) str.StringBuilder.append_char(ctx.sb, 10) }
+fn fresh_tmp(ctx: mut ref CCtx) i64! = {
+    val n: i64 = ctx.tmp 
+    ctx.tmp = n + 1 
+    return n 
+}
+
+fn emit(ctx: ref CCtx, s: ref char) void! = { 
+    str.StringBuilder.append_cstr(ctx.sb, s) 
+}
+
+fn emitln(ctx: ref CCtx, s: ref char) void! = {
+    str.StringBuilder.append_cstr(ctx.sb, s) 
+    str.StringBuilder.append_char(ctx.sb, 10) 
+}
 
 fn intern_string(ctx: mut ref CCtx, s: ref char) i64! = {
     val idx: i64 = ctx.str_cnt
@@ -109,43 +120,71 @@ fn intern_string(ctx: mut ref CCtx, s: ref char) i64! = {
 fn cc_emit_label_if_new(ctx: ref CCtx, label: ref char) bool! = {
     val elen: i64 = @len(ctx.emitted_labels as list[ref char]) as i64
     val ei: mut i64 = 0
-    for { if ei >= elen { break }
+    for { 
+        if ei >= elen { break }
         val e_opt = @get(ctx.emitted_labels as list[ref char], ei as usize)
-        match e_opt { some e => { if str.rchar_cmp(e as ref char, label) == 0 { return false } } none => {} }
-        ei++ }
+        match e_opt { 
+            some e => { if str.rchar_cmp(e as ref char, label) == 0 { return false } } 
+            none => {} 
+        }
+        ei++ 
+    }
     @append(ctx.emitted_labels as list[ref char], label)
     return true
 }
 
 fn cc_clear_locals(ctx: mut ref CCtx) void! = {
-    ctx.local_names = [] ctx.local_ctypes = [] ctx.local_is_slot = []
-    ctx.defer_stack = [] ctx.tmp = 0
-    ctx.inv_cur_pnames = [] ctx.inv_cur_ptypes = []
+    ctx.local_names = [] 
+    ctx.local_ctypes = [] 
+    ctx.local_is_slot = []
+    ctx.defer_stack = [] 
+    ctx.tmp = 0
+    ctx.inv_cur_pnames = [] 
+    ctx.inv_cur_ptypes = []
 }
 
 fn cc_register_local(ctx: ref CCtx, name: ref char, ctype: ref char, is_slot: i64) void! = {
-    @append(ctx.local_names, name) @append(ctx.local_ctypes, ctype) @append(ctx.local_is_slot, is_slot)
+    @append(ctx.local_names, name) 
+    @append(ctx.local_ctypes, ctype) 
+    @append(ctx.local_is_slot, is_slot)
 }
 
 fn cc_lookup_local_type(ctx: ref CCtx, name: ref char) ref char! = {
     val nlen: i64 = @len(ctx.local_names as list[ref char]) as i64
     val ni: mut i64 = nlen - 1
-    for { if ni < 0 { break }
+    for { 
+        if ni < 0 { break }
         val n_opt = @get(ctx.local_names as list[ref char], ni as usize)
-        match n_opt { some n => { if str.rchar_cmp(n as ref char, name) == 0 {
-            val t_opt = @get(ctx.local_ctypes as list[ref char], ni as usize)
-            match t_opt { some t => { return t as ref char } none => { return "int64_t" } } } } none => {} }
-        ni-- }
+        match n_opt { 
+            some n => { 
+                if str.rchar_cmp(n as ref char, name) == 0 {
+                    val t_opt = @get(ctx.local_ctypes as list[ref char], ni as usize)
+                    match t_opt { 
+                        some t => { return t as ref char } 
+                        none => { return "int64_t" } 
+                    } 
+                } 
+            } none => {} 
+        }
+        ni-- 
+    }
     return ""
 }
 
 fn cc_mark_prefix_used(ctx: ref CCtx, prefix: ref char) void! = {
     val nlen: i64 = @len(ctx.used_prefixes as list[ref char]) as i64
     val ni: mut i64 = 0
-    for { if ni >= nlen { break }
+    for { 
+        if ni >= nlen { break }
         val n_opt = @get(ctx.used_prefixes as list[ref char], ni as usize)
-        match n_opt { some n => { if str.rchar_cmp(n as ref char, prefix) == 0 { return } } none => {} }
-        ni++ }
+        match n_opt { 
+            some n => { 
+                if str.rchar_cmp(n as ref char, prefix) == 0 { return } 
+            } 
+            none => {} 
+        }
+        ni++ 
+    }
     @append(ctx.used_prefixes as list[ref char], prefix)
 }
 
@@ -186,7 +225,9 @@ fn is_void_ret(ty: ref parser.Node) bool! = {
 }
 
 fn cc_register_fn(ctx: ref CCtx, mangled: ref char, params: ref void, ret_ty: ref void) void! = {
-    @append(ctx.fn_names, mangled) @append(ctx.fn_params, params) @append(ctx.fn_rets, ret_ty)
+    @append(ctx.fn_names, mangled) 
+    @append(ctx.fn_params, params) 
+    @append(ctx.fn_rets, ret_ty)
 }
 
 fn cc_resolve_fn_name(ctx: ref CCtx, name: ref char) ref char! = {
@@ -1144,23 +1185,26 @@ fn gen_items_with_prefix(ctx: ref CCtx, items: list[ref parser.Node], mod_prefix
         i++ }
 }
 
+fn emit_to_fwd(ctx: ref CCtx, s: ref char) void! = { str.StringBuilder.append_cstr(ctx.fwd_sb, s) }
+fn emitln_fwd(ctx: ref CCtx, s: ref char) void! = { str.StringBuilder.append_cstr(ctx.fwd_sb, s) str.StringBuilder.append_char(ctx.fwd_sb, 10) }
+
 fn emit_c_preamble(ctx: ref CCtx) void! = {
-    emitln(ctx, "#include <stdint.h>")
-    emitln(ctx, "#include <stdlib.h>")
-    emitln(ctx, "#include <string.h>")
-    emitln(ctx, "#include <stdio.h>")
-    emitln(ctx, "#include <signal.h>")
-    emitln(ctx, "static int64_t sx__argc=0;")
-    emitln(ctx, "static int64_t sx__argv=0;")
-    emitln(ctx, "static void sx__append(void*list,int64_t elem){int64_t*hdr=(int64_t*)list;int64_t*buf=*(int64_t**)hdr;int64_t len=hdr[1];int64_t cap=hdr[2];if(len>=cap){cap=cap<4?8:cap*2;buf=(int64_t*)realloc(buf,(size_t)(cap*8));hdr[0]=(int64_t)(intptr_t)buf;hdr[2]=cap;}buf[len]=elem;hdr[1]=len+1;}")
-    emitln(ctx, "static int64_t sx__get(void*list,int64_t idx){int64_t*hdr=(int64_t*)list;int64_t*buf=*(int64_t**)hdr;int64_t len=hdr[1];if(idx<0||idx>=len)return 0;return buf[idx]+1;}")
-    emitln(ctx, "static void*sx__get_args(void){int64_t*hdr=(int64_t*)calloc(1,24);int64_t c=sx__argc;int64_t*buf=(int64_t*)calloc(1,(size_t)(c*8));char**av=(char**)(intptr_t)sx__argv;int64_t i;for(i=0;i<c;i++)buf[i]=(int64_t)(intptr_t)av[i];hdr[0]=(int64_t)(intptr_t)buf;hdr[1]=c;hdr[2]=c;return hdr;}")
+    emitln_fwd(ctx, "#include <stdint.h>")
+    emitln_fwd(ctx, "#include <stdlib.h>")
+    emitln_fwd(ctx, "#include <string.h>")
+    emitln_fwd(ctx, "#include <stdio.h>")
+    emitln_fwd(ctx, "#include <signal.h>")
+    emitln_fwd(ctx, "static int64_t sx__argc=0;")
+    emitln_fwd(ctx, "static int64_t sx__argv=0;")
+    emitln_fwd(ctx, "static void sx__append(void*list,int64_t elem){int64_t*hdr=(int64_t*)list;int64_t*buf=*(int64_t**)hdr;int64_t len=hdr[1];int64_t cap=hdr[2];if(len>=cap){cap=cap<4?8:cap*2;buf=(int64_t*)realloc(buf,(size_t)(cap*8));hdr[0]=(int64_t)(intptr_t)buf;hdr[2]=cap;}buf[len]=elem;hdr[1]=len+1;}")
+    emitln_fwd(ctx, "static int64_t sx__get(void*list,int64_t idx){int64_t*hdr=(int64_t*)list;int64_t*buf=*(int64_t**)hdr;int64_t len=hdr[1];if(idx<0||idx>=len)return 0;return buf[idx]+1;}")
+    emitln_fwd(ctx, "static void*sx__get_args(void){int64_t*hdr=(int64_t*)calloc(1,24);int64_t c=sx__argc;int64_t*buf=(int64_t*)calloc(1,(size_t)(c*8));char**av=(char**)(intptr_t)sx__argv;int64_t i;for(i=0;i<c;i++)buf[i]=(int64_t)(intptr_t)av[i];hdr[0]=(int64_t)(intptr_t)buf;hdr[1]=c;hdr[2]=c;return hdr;}")
 }
 
 fn emit_c_panic_handler(ctx: ref CCtx) void! = {
-    if ctx.release_mode { emitln(ctx, "static void sx__panic_init(void){}") return }
-    emitln(ctx, "static void sx__panic_handler(int sig){const char*name=\"unknown\";if(sig==SIGSEGV)name=\"SIGSEGV\";else if(sig==SIGABRT)name=\"SIGABRT\";else if(sig==SIGFPE)name=\"SIGFPE\";fprintf(stderr,\"spectre: caught signal %s\\n\",name);fflush(stderr);exit(128+sig);}")
-    emitln(ctx, "static void sx__panic_init(void){signal(SIGSEGV,sx__panic_handler);signal(SIGFPE,sx__panic_handler);}")
+    if ctx.release_mode { emitln_fwd(ctx, "static void sx__panic_init(void){}") return }
+    emitln_fwd(ctx, "static void sx__panic_handler(int sig){const char*name=\"unknown\";if(sig==SIGSEGV)name=\"SIGSEGV\";else if(sig==SIGABRT)name=\"SIGABRT\";else if(sig==SIGFPE)name=\"SIGFPE\";fprintf(stderr,\"spectre: caught signal %s\\n\",name);fflush(stderr);exit(128+sig);}")
+    emitln_fwd(ctx, "static void sx__panic_init(void){signal(SIGSEGV,sx__panic_handler);signal(SIGFPE,sx__panic_handler);}")
 }
 
 fn emit_string_data(ctx: ref CCtx) void! = {
@@ -1171,30 +1215,68 @@ fn emit_string_data(ctx: ref CCtx) void! = {
         match s_opt { some s => {
             val buf: ref char = @alloc(4096) as ref char
             @snprintf(buf, 4096, "static const char sx__str{lld}[]=\"", {si})
-            emit(ctx, buf) @free(buf)
+            emit_to_fwd(ctx, buf) @free(buf)
             val raw: ref char = s as ref char 
             val rlen: i64 = str.len_raw(raw) 
             val ri: mut i64 = 0
             for { if ri >= rlen { break }
                 val ch: u8 = @load8(@ptradd(raw as ref void, ri))
-                if ch == 10 { emit(ctx, "\\n") }
-                elif ch == 13 { emit(ctx, "\\r") }
-                elif ch == 9 { emit(ctx, "\\t") }
-                elif ch == 0 { emit(ctx, "\\0") }
-                elif ch == 34 { emit(ctx, "\\\"") }
-                elif ch == 92 { emit(ctx, "\\\\") }
-                else { val cb: ref char = @alloc(2) as ref char @store8(cb as ref void, ch) @store8(@ptradd(cb as ref void, 1), 0) emit(ctx, cb) @free(cb) }
+                if ch == 10 { emit_to_fwd(ctx, "\\n") }
+                elif ch == 13 { emit_to_fwd(ctx, "\\r") }
+                elif ch == 9 { emit_to_fwd(ctx, "\\t") }
+                elif ch == 0 { emit_to_fwd(ctx, "\\0") }
+                elif ch == 34 { emit_to_fwd(ctx, "\\\"") }
+                elif ch == 92 { emit_to_fwd(ctx, "\\\\") }
+                else { val cb: ref char = @alloc(2) as ref char @store8(cb as ref void, ch) @store8(@ptradd(cb as ref void, 1), 0) emit_to_fwd(ctx, cb) @free(cb) }
                 ri++ }
-            emitln(ctx, "\";")
+            emitln_fwd(ctx, "\";")
         } none => {} }
         si++ }
+}
+
+fn emit_forward_decls(ctx: ref CCtx) void! = {
+    val nlen: i64 = @len(ctx.emitted_labels as list[ref char]) as i64
+    val ni: mut i64 = 0
+    for { 
+        if ni >= nlen { break }
+        val n_opt = @get(ctx.emitted_labels as list[ref char], ni as usize)
+        match n_opt { 
+            some n => {
+                val mangled: ref char = n as ref char
+                if str.rchar_cmp(mangled, "main") == 0 { ni++ continue }
+                val ret_ct: mut ref char = "int64_t"
+                val flen: i64 = @len(ctx.fn_names as list[ref char]) as i64
+                val fi: mut i64 = 0
+                for { 
+                    if fi >= flen { break }
+                    val fn_opt = @get(ctx.fn_names as list[ref char], fi as usize)
+                    match fn_opt { 
+                        some fn_n => { 
+                            if str.rchar_cmp(fn_n as ref char, mangled) == 0 {
+                                val r_opt = @get(ctx.fn_rets as list[ref void], fi as usize)
+                                match r_opt { 
+                                    some r => { ret_ct = c_ret_type_of(r as ref parser.Node) } 
+                                    none => {} 
+                                }
+                                fi = flen
+                            } 
+                        } none => {} 
+                    }
+                    fi++ 
+                }
+                val buf: ref char = @alloc(1024) as ref char
+                @snprintf(buf, 1024, "{s} {s}();\n", {ret_ct, mangled})
+                emit_to_fwd(ctx, buf) @free(buf)
+            } 
+            none => {} 
+        }
+        ni++ 
+    }
 }
 
 pub fn gen_module_c(root: ref module.ResolvedModule, release_mode: bool) ref char! = {
     val ctx: mut ref CCtx = cc_new()
     ctx.release_mode = release_mode
-    emit_c_preamble(ctx)
-    emit_c_panic_handler(ctx)
     val out_prefixes: list[ref char] = []
     val out_items: list[ref void] = []
     val seen: list[String] = []
@@ -1202,22 +1284,53 @@ pub fn gen_module_c(root: ref module.ResolvedModule, release_mode: bool) ref cha
     val layers: i64 = @len(out_prefixes) as i64
     cc_mark_prefix_used(ctx, "")
     val li: mut i64 = 0
-    for { if li >= layers { break }
-        val pfx_opt = @get(out_prefixes, li as usize) val items_opt = @get(out_items, li as usize)
-        match pfx_opt { some pfx => { match items_opt { some ip => {
-            preregister_items(ctx, ip as list[ref parser.Node], pfx as ref char)
-        } none => {} } } none => {} }
-        li++ }
+    for { 
+        if li >= layers { break }
+        val pfx_opt = @get(out_prefixes, li as usize) 
+        val items_opt = @get(out_items, li as usize)
+        match pfx_opt { 
+            some pfx => { 
+                match items_opt { 
+                    some ip => {
+                        preregister_items(ctx, ip as list[ref parser.Node], pfx as ref char)
+                    } none => {} 
+                } 
+            } none => {} 
+        }
+        li++ 
+    }
     val li2: mut i64 = 0
-    for { if li2 >= layers { break }
-        val pfx_opt = @get(out_prefixes, li2 as usize) val items_opt = @get(out_items, li2 as usize)
-        match pfx_opt { some pfx => { match items_opt { some ip => {
-            gen_items_with_prefix(ctx, ip as list[ref parser.Node], pfx as ref char)
-        } none => {} } } none => {} }
-        li2++ }
+    for { 
+        if li2 >= layers { break }
+        val pfx_opt = @get(out_prefixes, li2 as usize) 
+        val items_opt = @get(out_items, li2 as usize)
+        match pfx_opt { 
+            some pfx => { 
+                match items_opt { 
+                    some ip => {
+                        gen_items_with_prefix(ctx, ip as list[ref parser.Node], pfx as ref char)
+                    } none => {} 
+                } 
+            } 
+            none => {} 
+        }       
+        li2++ 
+    }
+    emit_c_preamble(ctx)
+    emit_c_panic_handler(ctx)
     emit_string_data(ctx)
-    val built: ref void = str.StringBuilder.build(ctx.sb)
-    val result: ref char = str.cstr(built)
+    emit_forward_decls(ctx)
+    val hdr_built: ref void = str.StringBuilder.build(ctx.fwd_sb)
+    val hdr_str: ref char = str.cstr(hdr_built)
+    val body_built: ref void = str.StringBuilder.build(ctx.sb)
+    val body_str: ref char = str.cstr(body_built)
+    val hdr_len: i64 = str.len_raw(hdr_str)
+    val body_len: i64 = str.len_raw(body_str)
+    val total: i64 = hdr_len + body_len + 1
+    val result: ref char = @alloc(total) as ref char
+    @memcpy(result as ref void, hdr_str as ref void, hdr_len as usize)
+    @memcpy(@ptradd(result as ref void, hdr_len), body_str as ref void, (body_len + 1) as usize)
+    str.StringBuilder.free(ctx.fwd_sb)
     str.StringBuilder.free(ctx.sb)
     return result
 }
