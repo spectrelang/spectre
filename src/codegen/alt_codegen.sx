@@ -1922,7 +1922,10 @@ fn emit_c_preamble(ctx: ref CCtx) void! = {
     emitln_fwd(ctx, "#include <stdio.h>")
     emitln_fwd(ctx, "#include <time.h>")
     emitln_fwd(ctx, "#include <sys/time.h>")
+    emitln_fwd(ctx, "#include <sys/types.h>")
+    emitln_fwd(ctx, "#include <sys/stat.h>")
     emitln_fwd(ctx, "#include <unistd.h>")
+    emitln_fwd(ctx, "#include <dirent.h>")
     emitln_fwd(ctx, "static int64_t sx__argc=0;")
     emitln_fwd(ctx, "static int64_t sx__argv=0;")
     emitln_fwd(ctx, "static void sx__rt_append(void*list,int64_t elem){int64_t*hdr=(int64_t*)list;int64_t*buf=*(int64_t**)hdr;int64_t len=hdr[1];int64_t cap=hdr[2];if(len>=cap){cap=cap<4?8:cap*2;buf=(int64_t*)realloc(buf,(size_t)(cap*8));hdr[0]=(int64_t)(intptr_t)buf;hdr[2]=cap;}buf[len]=elem;hdr[1]=len+1;}")
@@ -1978,7 +1981,7 @@ fn is_libc_fn(name: ref char) bool! = {
         "strlen","strnlen","strcmp","strncmp","strcpy","strncpy","strcat","strncat","strchr",
         "strrchr","strstr","strpbrk","strtok","strdup","strndup",
         "stat","fstat","lstat","opendir","readdir","closedir","isatty", "readlink", "rmdir",
-        "fseek", "ftell", "rewind", "getcwd"
+        "fseek", "ftell", "rewind", "getcwd", "mkdir", "fread", "fwrite"
     ]
 
     for fun in libc_fns { if str.rchar_cmp(name, fun) == 0 { return true } }
