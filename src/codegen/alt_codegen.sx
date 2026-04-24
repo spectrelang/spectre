@@ -1058,6 +1058,14 @@ fn gen_builtin(ctx: ref CCtx, expr: ref parser.Node) ref char! = {
                 } none => {} } } }
         @snprintf(buf, 4096, "printf((const char*)(intptr_t)({s}))", {fmt_arg}) return buf
     }
+    if is_libc_fn(bname) {
+        val buf: ref char = @alloc(8192) as ref char @snprintf(buf, 8192, "{s}(", {bname})
+        if args != 0 as ref void { val alen: i64 = @len(args as list[ref parser.Node]) as i64 val ai: mut i64 = 0
+            for { if ai >= alen { break } val a_opt = @get(args as list[ref parser.Node], ai as usize)
+                match a_opt { some a => { if ai > 0 { val ol: i64 = str.len_raw(buf) @store8(@ptradd(buf as ref void, ol), 44) @store8(@ptradd(buf as ref void, ol+1), 0) }
+                    val av: ref char = gen_expr(ctx, a as ref parser.Node) val ol2: i64 = str.len_raw(buf) val al: i64 = str.len_raw(av)
+                    @memcpy(@ptradd(buf as ref void, ol2), av as ref void, (al+1) as usize) } none => {} } ai++ } }
+        val cl: i64 = str.len_raw(buf) @store8(@ptradd(buf as ref void, cl), 41) @store8(@ptradd(buf as ref void, cl+1), 0) return buf }
     return "0"
 }
 
