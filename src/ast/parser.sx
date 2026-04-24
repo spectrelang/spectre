@@ -1650,9 +1650,10 @@ fn parse_extern_fn_item(p: ref Parser, public: i64) result[ref Node, ref char]! 
     val name = p_expect_ident(p)?
     p_expect_lparen(p)?
     val params: mut list[ref Node] = []
+    val is_variadic: mut i64 = 0
     for {
         if lexer.kind_is_rparen(p_peek_kind(p)) { break }
-        if kind_is_dotdotdot(p_peek_kind(p)) { p_advance(p) break }
+        if kind_is_dotdotdot(p_peek_kind(p)) { p_advance(p) is_variadic = 1 break }
         val pname = p_expect_ident(p)?
         p_expect_colon(p)?
         val pty = parse_type(p)?
@@ -1673,7 +1674,7 @@ fn parse_extern_fn_item(p: ref Parser, public: i64) result[ref Node, ref char]! 
     val pl: list[ref Node] = params
     nef.d4 = pl as i64
     nef.d5 = ret_ty as i64
-    nef.d6 = is_unsafe
+    nef.d6 = is_unsafe | (is_variadic << 1)
     return ok nef
 }
 
