@@ -512,9 +512,16 @@ fn field_offset_bytes(_: ref CCtx, fields: ref void, field_name: ref char) i64! 
     val fi: mut i64 = 0
     for { if fi >= flen { break }
         val f_opt = @get(fields as list[ref void], fi as usize)
-        match f_opt { some f => { val fn_: ref char = (f as ref parser.Node).d0 as ref char
-            if str.rchar_cmp(fn_, field_name) == 0 { return off } off = off + 8 } none => {} }
-        fi++ }
+        match f_opt { 
+            some f => { 
+                val fn_: ref char = (f as ref parser.Node).d0 as ref char
+                if str.rchar_cmp(fn_, field_name) == 0 { return off } 
+                off = off + 8 
+            } 
+            none => {} 
+        }
+        fi++ 
+    }
     return -1
 }
 
@@ -527,8 +534,10 @@ fn resolve_callee_name(callee: ref parser.Node) ref char! = {
         if base != 0 as ref parser.Node && base.kind == parser.NK_IDENT {
             val buf: ref char = @alloc(512) as ref char
             @snprintf(buf, 512, "{s}__{s}", {base.d0 as ref char, fname})
-            return buf }
-        return fname }
+            return buf 
+        }
+        return fname 
+    }
     return "unknown"
 }
 
