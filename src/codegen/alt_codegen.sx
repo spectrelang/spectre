@@ -1854,6 +1854,8 @@ fn gen_extern_fn_prefixed(_: ref CCtx, _: ref parser.Node, _: ref char) void! = 
 fn gen_tagged_union_def(ctx: ref CCtx, item: ref parser.Node, mod_prefix: ref char) void! = {
     val name: ref char = item.d1 as ref char val variants: ref void = item.d2 as ref void
     if variants == 0 as ref void { return }
+    val is_sc: mut bool = false
+    for scn in get_std_child_names() { if str.rchar_cmp(scn, mod_prefix) == 0 { is_sc = true break } }
     val vlen: i64 = @len(variants) as i64 val mangled: ref char = @alloc(256) as ref char
     if str.rchar_cmp(mod_prefix, "") == 0 { @snprintf(mangled, 256, "{s}", {name}) }
     else { @snprintf(mangled, 256, "{s}__{s}", {mod_prefix, name}) }
@@ -1864,6 +1866,8 @@ fn gen_tagged_union_def(ctx: ref CCtx, item: ref parser.Node, mod_prefix: ref ch
             cc_register_tv(ctx, vname, mangled, vi, vn.d1 as ref void)
             if str.rchar_cmp(mod_prefix, "") != 0 { val pv: ref char = @alloc(256) as ref char
                 @snprintf(pv, 256, "{s}__{s}", {mod_prefix, vname}) cc_register_tv(ctx, pv, mangled, vi, vn.d1 as ref void) }
+            if is_sc { val sv: ref char = @alloc(256) as ref char
+                @snprintf(sv, 256, "std__{s}__{s}", {mod_prefix, vname}) cc_register_tv(ctx, sv, mangled, vi, vn.d1 as ref void) }
         } none => {} }
         vi++ }
 }
@@ -1926,11 +1930,16 @@ fn preregister_items(ctx: ref CCtx, items: list[ref parser.Node], mod_prefix: re
                 val name: ref char = node.d1 as ref char val symbol: ref char = node.d2 as ref char
                 val params: ref void = node.d4 as ref void val ret_ty: ref void = node.d5 as ref void
                 val is_var: bool = (node.d6 >> 1) & 1 != 0
+                val is_sc2: mut bool = false
+                for scn2 in get_std_child_names() { if str.rchar_cmp(scn2, mod_prefix) == 0 { is_sc2 = true break } }
                 cc_register_extern(ctx, name, symbol, ret_ty)
                 if params != 0 as ref void { cc_register_fn(ctx, symbol, params, ret_ty, is_var) }
                 if str.rchar_cmp(mod_prefix, "") != 0 { val m: ref char = @alloc(512) as ref char
                     @snprintf(m, 512, "{s}__{s}", {mod_prefix, name}) cc_register_extern(ctx, m, symbol, ret_ty)
                     if params != 0 as ref void { cc_register_fn(ctx, m, params, ret_ty, is_var) } }
+                if is_sc2 { val sm: ref char = @alloc(512) as ref char
+                    @snprintf(sm, 512, "std__{s}__{s}", {mod_prefix, name}) cc_register_extern(ctx, sm, symbol, ret_ty)
+                    if params != 0 as ref void { cc_register_fn(ctx, sm, params, ret_ty, is_var) } }
             }
             elif k == parser.NK_CONST { val cn: ref char = node.d1 as ref char val ce: ref parser.Node = node.d2 as ref parser.Node
                 if ce != 0 as ref parser.Node { if ce.kind == parser.NK_INT_LIT { cc_register_module_const(ctx, cn, parser.int_lit_text(ce)) }
