@@ -590,7 +590,9 @@ fn c_size_of(ctx: ref CCtx, ty: ref parser.Node) i64! = {
     val k: i64 = ty.kind
     if k == parser.TY_VOID { return 0 }
     if k == parser.TY_MUT { return c_size_of(ctx, ty.d0 as ref parser.Node) }
-    if k == parser.TY_REF || k == parser.TY_OPTION || k == parser.TY_LIST || k == parser.TY_RESULT || k == parser.TY_SLICE || k == parser.TY_FNPTR { return 8 }
+    if k == parser.TY_REF || k == parser.TY_OPTION || k == parser.TY_RESULT || k == parser.TY_FNPTR { return 8 }
+    if k == parser.TY_LIST { return 24 }
+    if k == parser.TY_SLICE { return 16 }
     if k == parser.TY_FIXED_ARR {
         val sz: i64 = ty.d0
         val inner: ref parser.Node = ty.d1 as ref parser.Node
