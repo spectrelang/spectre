@@ -17,6 +17,7 @@ SPECTRE_LANGUAGE_REFERENCE.md
 /s-source-out
 /src-out
 out.ll
+out.c
 spectre-stage1
 spectre-stage2
 
