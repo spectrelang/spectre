@@ -623,6 +623,15 @@ fn resolve_callee_name(callee: ref parser.Node) ref char! = {
                     @snprintf(buf, 512, "{s}__{s}__{s}", {b2.d0 as ref char, f2, fname})
                     return buf
                 }
+                if b2 != 0 as ref parser.Node && b2.kind == parser.NK_FIELD {
+                    val b3: ref parser.Node = parser.field_base(b2)
+                    val f3: ref char = parser.field_name(b2)
+                    if b3 != 0 as ref parser.Node && b3.kind == parser.NK_IDENT {
+                        val buf: ref char = @alloc(512) as ref char
+                        @snprintf(buf, 512, "{s}__{s}__{s}__{s}", {b3.d0 as ref char, f3, f2, fname})
+                        return buf
+                    }
+                }
             }
         }
         return fname
@@ -1139,17 +1148,17 @@ fn gen_builtin(ctx: ref CCtx, expr: ref parser.Node) ref char! = {
         @snprintf(buf, 256, "(int64_t)(intptr_t)((char*)(intptr_t)({s})+({s}))", {p, o}) return buf }
     if str.rchar_cmp(bname, "load") == 0 || str.rchar_cmp(bname, "load64") == 0 {
         val p: ref char = get_arg(ctx, args, 0)
-        val buf: ref char = @alloc(128) as ref char
-        @snprintf(buf, 128, "(*(int64_t*)(intptr_t)({s}))", {p}) return buf }
+        val buf: ref char = @alloc(512) as ref char
+        @snprintf(buf, 512, "(*(int64_t*)(intptr_t)({s}))", {p}) return buf }
     if str.rchar_cmp(bname, "load8") == 0 { val p: ref char = get_arg(ctx, args, 0)
-        val buf: ref char = @alloc(128) as ref char
-        @snprintf(buf, 128, "((int64_t)(*(uint8_t*)(intptr_t)({s})))", {p}) return buf }
+        val buf: ref char = @alloc(512) as ref char
+        @snprintf(buf, 512, "((int64_t)(*(uint8_t*)(intptr_t)({s})))", {p}) return buf }
     if str.rchar_cmp(bname, "load16") == 0 { val p: ref char = get_arg(ctx, args, 0)
-        val buf: ref char = @alloc(128) as ref char
-        @snprintf(buf, 128, "((int64_t)(*(uint16_t*)(intptr_t)({s})))", {p}) return buf }
+        val buf: ref char = @alloc(512) as ref char
+        @snprintf(buf, 512, "((int64_t)(*(uint16_t*)(intptr_t)({s})))", {p}) return buf }
     if str.rchar_cmp(bname, "load32") == 0 { val p: ref char = get_arg(ctx, args, 0)
-        val buf: ref char = @alloc(128) as ref char
-        @snprintf(buf, 128, "((int64_t)(*(int32_t*)(intptr_t)({s})))", {p}) return buf }
+        val buf: ref char = @alloc(512) as ref char
+        @snprintf(buf, 512, "((int64_t)(*(int32_t*)(intptr_t)({s})))", {p}) return buf }
     if str.rchar_cmp(bname, "store") == 0 || str.rchar_cmp(bname, "store64") == 0 {
         val p: ref char = get_arg(ctx, args, 0) val v: ref char = get_arg(ctx, args, 1)
         val buf: ref char = @alloc(256) as ref char
@@ -1518,23 +1527,23 @@ fn gen_stmt(ctx: mut ref CCtx, stmt: ref parser.Node) void! = {
 
 fn gen_if_stmt(ctx: ref CCtx, stmt: ref parser.Node) void! = {
     val cond: ref char = gen_expr(ctx, stmt.d0 as ref parser.Node)
-    val buf: ref char = @alloc(256) as ref char @snprintf(buf, 256, "if({s}){\n", {cond}) emit(ctx, buf) @free(buf)
+    val buf: ref char = @alloc(4096) as ref char @snprintf(buf, 4096, "if({s}){\n", {cond}) emit(ctx, buf) @free(buf)
     gen_stmts(ctx, stmt.d1 as ref parser.Node)
     val elif_list: ref void = stmt.d2 as ref void
-    if elif_list != 0 as ref void && @len(elif_list as list[ref void]) > 0 { 
+    if elif_list != 0 as ref void && @len(elif_list as list[ref void]) > 0 {
         val elen: i64 = @len(elif_list as list[ref void]) as i64 val ei: mut i64 = 0
-           for { 
-               if ei >= elen { break } 
+           for {
+               if ei >= elen { break }
                val ep_opt = @get(elif_list as list[ref void], ei as usize)
-               match ep_opt { 
+               match ep_opt {
                    some ep => { val econd: ref char = gen_expr(ctx, (ep as ref parser.Node).d0 as ref parser.Node)
-                   val eb: ref char = @alloc(256) as ref char 
-                   @snprintf(eb, 256, "}else if({s}){\n", {econd}) emit(ctx, eb) 
+                   val eb: ref char = @alloc(4096) as ref char
+                   @snprintf(eb, 4096, "}else if({s}){\n", {econd}) emit(ctx, eb)
                    @free(eb)
-                   gen_stmts(ctx, (ep as ref parser.Node).d1 as ref parser.Node) } none => {} 
+                   gen_stmts(ctx, (ep as ref parser.Node).d1 as ref parser.Node) } none => {}
                }
-               ei++ 
-           } 
+               ei++
+           }
     }
     if stmt.d3 != 0 { 
         emitln(ctx, "}else{") 
