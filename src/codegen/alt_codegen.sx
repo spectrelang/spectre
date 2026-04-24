@@ -275,26 +275,52 @@ fn cc_register_extern(ctx: ref CCtx, name: ref char, symbol: ref char, ret_ty: r
 fn cc_lookup_extern_symbol(ctx: ref CCtx, name: ref char) ref char! = {
     val nlen: i64 = @len(ctx.ext_names as list[ref char]) as i64
     val ni: mut i64 = 0
-    for { if ni >= nlen { break }
+    for { 
+        if ni >= nlen { break }
         val n_opt = @get(ctx.ext_names as list[ref char], ni as usize)
-        match n_opt { some n => { if str.rchar_cmp(n as ref char, name) == 0 {
-            val s_opt = @get(ctx.ext_syms as list[ref char], ni as usize)
-            match s_opt { some s => { return s as ref char } none => { return 0 as ref char } } } } none => {} }
-        ni++ }
+        match n_opt { 
+            some n => { 
+                if str.rchar_cmp(n as ref char, name) == 0 {
+                    val s_opt = @get(ctx.ext_syms as list[ref char], ni as usize)
+                    match s_opt { 
+                        some s => { return s as ref char } 
+                        none => { return 0 as ref char } 
+                    } 
+                } 
+            } 
+            none => {} 
+        }
+        ni++ 
+    }
     val namelen: i64 = str.len_raw(name)
     val ni2: mut i64 = 0
-    for { if ni2 >= nlen { break }
+    for {
+        if ni2 >= nlen { break }
         val n_opt = @get(ctx.ext_names as list[ref char], ni2 as usize)
-        match n_opt { some n => { val candidate: ref char = n as ref char
-            val clen: i64 = str.len_raw(candidate)
-            if namelen > clen { val sp: i64 = namelen - clen
-                if sp > 0 { val sc: u8 = @load8(@ptradd(name as ref void, sp - 1))
-                    if sc == 95 { val rest: ref char = @ptradd(name as ref void, sp) as ref char
-                        if str.rchar_cmp(rest, candidate) == 0 {
-                            val s_opt = @get(ctx.ext_syms as list[ref char], ni2 as usize)
-                            match s_opt { some s => { return s as ref char } none => {} } } } } }
-        } none => {} }
-        ni2++ }
+        match n_opt { 
+            some n => { 
+                val candidate: ref char = n as ref char
+                val clen: i64 = str.len_raw(candidate)
+                if namelen > clen { 
+                    val sp: i64 = namelen - clen
+                    if sp > 0 {
+                        val sc: u8 = @load8(@ptradd(name as ref void, sp - 1))
+                        if sc == 95 { 
+                            val rest: ref char = @ptradd(name as ref void, sp) as ref char
+                            if str.rchar_cmp(rest, candidate) == 0 {
+                                val s_opt = @get(ctx.ext_syms as list[ref char], ni2 as usize)
+                                match s_opt { 
+                                    some s => { return s as ref char } 
+                                    none => {} 
+                                } 
+                            } 
+                        } 
+                    } 
+                }
+            } none => {} 
+        }
+        ni2++ 
+    }
     return 0 as ref char
 }
 
