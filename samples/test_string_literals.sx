@@ -1,0 +1,10 @@
+val std = use("std")
+
+pub fn test_platform_name() ref char = {
+    return "linux"
+}
+
+pub fn main() void = {
+    val name: ref char = test_platform_name()
+    std.stdio.puts(name)
+}

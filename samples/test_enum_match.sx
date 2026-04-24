@@ -1,0 +1,20 @@
+pub enum Color = {
+    Red,
+    Green,
+    Blue,
+}
+
+pub fn color_name(c: Color) ref char = {
+    match c {
+        Color.Red   => { return "red" }
+        Color.Green => { return "green" }
+        Color.Blue  => { return "blue" }
+    }
+    return "unknown"
+}
+
+val stdio = use("std/stdio")
+
+pub fn main() void = {
+    trust stdio.print("{s}\n", {color_name(Color.Red)})    
+}

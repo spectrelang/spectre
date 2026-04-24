@@ -1,0 +1,6 @@
+val std = use("std")
+
+pub fn main() void = {
+    val name: ref char = std.reflection.current_platform_name()
+    std.stdio.puts(name)
+}
