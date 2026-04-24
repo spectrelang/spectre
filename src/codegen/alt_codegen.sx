@@ -1849,7 +1849,7 @@ fn is_libc_fn(name: ref char) bool! = {
         "malloc", "free", "realloc", "calloc", "memset", "memcpy", 
         "strlen", "strcmp", "puts", "printf", "dprintf", "getchar", "fgets", 
         "exit", "abort", "abs", "getenv", "fopen", "fclose", "fread", "fwrite", 
-        "rename", "system", "time","gmtime","localtime","strftime","clock",
+        "remove", "rename", "system", "time","gmtime","localtime","strftime","clock",
         "gettimeofday","srand","rand","random","srandom","access","popen","pclose", 
         "open","close","read","write","lseek","pread","pwrite","fsync","ftruncate",
         "strlen","strnlen","strcmp","strncmp","strcpy","strncpy","strcat","strncat","strchr",
