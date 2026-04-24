@@ -634,14 +634,14 @@ fn gen_expr(ctx: ref CCtx, expr: ref parser.Node) ref char! = {
     if k == parser.NK_TRY {
         val inner_expr: ref char = gen_expr(ctx, expr.d0 as ref parser.Node)
         val t: i64 = fresh_tmp(ctx)
-        val buf: ref char = @alloc(1024) as ref char
-        @snprintf(buf, 1024, "int64_t* sx__try{lld} = (int64_t*)(intptr_t)({s});\nif(sx__try{lld}[0] != 0) {\n", {t, inner_expr, t})
+        val buf: ref char = @alloc(8192) as ref char
+        @snprintf(buf, 8192, "int64_t* sx__try{lld} = (int64_t*)(intptr_t)({s});\nif(sx__try{lld}[0] != 0) {\n", {t, inner_expr, t})
         emit(ctx, buf)
         cc_emit_defers(ctx)
         if ctx.current_ret_is_void {
-            @snprintf(buf, 1024, "return;\n}\nint64_t sx__val{lld} = sx__try{lld}[1];\n", {t, t})
+            @snprintf(buf, 8192, "return;\n}\nint64_t sx__val{lld} = sx__try{lld}[1];\n", {t, t})
         } else {
-            @snprintf(buf, 1024, "return ({s})(intptr_t)sx__try{lld};\n}\nint64_t sx__val{lld} = sx__try{lld}[1];\n", {ctx.current_ret_ctype, t, t, t})
+            @snprintf(buf, 8192, "return ({s})(intptr_t)sx__try{lld};\n}\nint64_t sx__val{lld} = sx__try{lld}[1];\n", {ctx.current_ret_ctype, t, t, t})
         }
         emit(ctx, buf)        @free(buf)
         val res: ref char = @alloc(64) as ref char
@@ -714,26 +714,26 @@ fn gen_binop(ctx: ref CCtx, expr: ref parser.Node) ref char! = {
     val op: i64 = parser.binop_op(expr)
     val lhs: ref char = gen_expr(ctx, parser.binop_left(expr))
     val rhs: ref char = gen_expr(ctx, parser.binop_right(expr))
-    val buf: ref char = @alloc(512) as ref char
-    if op == parser.OP_ADD { @snprintf(buf, 512, "(({s})+({s}))", {lhs, rhs}) }
-    elif op == parser.OP_SUB { @snprintf(buf, 512, "(({s})-({s}))", {lhs, rhs}) }
-    elif op == parser.OP_MUL { @snprintf(buf, 512, "(({s})*({s}))", {lhs, rhs}) }
-    elif op == parser.OP_DIV { @snprintf(buf, 512, "(({s})/({s}))", {lhs, rhs}) }
-    elif op == parser.OP_REM { @snprintf(buf, 512, "(({s})%%({s}))", {lhs, rhs}) }
-    elif op == parser.OP_EQ { @snprintf(buf, 512, "(({s})==({s}))", {lhs, rhs}) }
-    elif op == parser.OP_NE { @snprintf(buf, 512, "(({s})!=({s}))", {lhs, rhs}) }
-    elif op == parser.OP_LT { @snprintf(buf, 512, "(({s})<({s}))", {lhs, rhs}) }
-    elif op == parser.OP_GT { @snprintf(buf, 512, "(({s})>({s}))", {lhs, rhs}) }
-    elif op == parser.OP_LE { @snprintf(buf, 512, "(({s})<=({s}))", {lhs, rhs}) }
-    elif op == parser.OP_GE { @snprintf(buf, 512, "(({s})>=({s}))", {lhs, rhs}) }
-    elif op == parser.OP_AND { @snprintf(buf, 512, "(({s})&&({s}))", {lhs, rhs}) }
-    elif op == parser.OP_OR { @snprintf(buf, 512, "(({s})||({s}))", {lhs, rhs}) }
-    elif op == parser.OP_BAND { @snprintf(buf, 512, "(({s})&({s}))", {lhs, rhs}) }
-    elif op == parser.OP_BOR { @snprintf(buf, 512, "(({s})|({s}))", {lhs, rhs}) }
-    elif op == parser.OP_BXOR { @snprintf(buf, 512, "(({s})^({s}))", {lhs, rhs}) }
-    elif op == parser.OP_SHL { @snprintf(buf, 512, "(({s})<<({s}))", {lhs, rhs}) }
-    elif op == parser.OP_SHR { @snprintf(buf, 512, "((int64_t)((uint64_t)({s})>>({s})))", {lhs, rhs}) }
-    else { @snprintf(buf, 512, "(({s})+({s}))", {lhs, rhs}) }
+    val buf: ref char = @alloc(8192) as ref char
+    if op == parser.OP_ADD { @snprintf(buf, 8192, "(({s})+({s}))", {lhs, rhs}) }
+    elif op == parser.OP_SUB { @snprintf(buf, 8192, "(({s})-({s}))", {lhs, rhs}) }
+    elif op == parser.OP_MUL { @snprintf(buf, 8192, "(({s})*({s}))", {lhs, rhs}) }
+    elif op == parser.OP_DIV { @snprintf(buf, 8192, "(({s})/({s}))", {lhs, rhs}) }
+    elif op == parser.OP_REM { @snprintf(buf, 8192, "(({s})%%({s}))", {lhs, rhs}) }
+    elif op == parser.OP_EQ { @snprintf(buf, 8192, "(({s})==({s}))", {lhs, rhs}) }
+    elif op == parser.OP_NE { @snprintf(buf, 8192, "(({s})!=({s}))", {lhs, rhs}) }
+    elif op == parser.OP_LT { @snprintf(buf, 8192, "(({s})<({s}))", {lhs, rhs}) }
+    elif op == parser.OP_GT { @snprintf(buf, 8192, "(({s})>({s}))", {lhs, rhs}) }
+    elif op == parser.OP_LE { @snprintf(buf, 8192, "(({s})<=({s}))", {lhs, rhs}) }
+    elif op == parser.OP_GE { @snprintf(buf, 8192, "(({s})>=({s}))", {lhs, rhs}) }
+    elif op == parser.OP_AND { @snprintf(buf, 8192, "(({s})&&({s}))", {lhs, rhs}) }
+    elif op == parser.OP_OR { @snprintf(buf, 8192, "(({s})||({s}))", {lhs, rhs}) }
+    elif op == parser.OP_BAND { @snprintf(buf, 8192, "(({s})&({s}))", {lhs, rhs}) }
+    elif op == parser.OP_BOR { @snprintf(buf, 8192, "(({s})|({s}))", {lhs, rhs}) }
+    elif op == parser.OP_BXOR { @snprintf(buf, 8192, "(({s})^({s}))", {lhs, rhs}) }
+    elif op == parser.OP_SHL { @snprintf(buf, 8192, "(({s})<<({s}))", {lhs, rhs}) }
+    elif op == parser.OP_SHR { @snprintf(buf, 8192, "((int64_t)((uint64_t)({s})>>({s})))", {lhs, rhs}) }
+    else { @snprintf(buf, 8192, "(({s})+({s}))", {lhs, rhs}) }
     return buf
 }
 
@@ -1158,14 +1158,15 @@ fn gen_field_addr(ctx: ref CCtx, expr: ref parser.Node) ref char! = {
     val fname: ref char = parser.field_name(expr)
     val base: ref char = gen_expr(ctx, base_node)
     val bt: mut ref char = ""
+    if bt == 0 as ref char { bt = "" }
     if base_node.kind == parser.NK_IDENT { bt = cc_lookup_local_type(ctx, base_node.d0 as ref char) }
     val fields: ref void = cc_lookup_struct(ctx, bt)
     val off: mut i64 = 0
     if fields != 0 as ref void { val ro: i64 = field_offset_bytes(ctx, fields, fname) if ro >= 0 { off = ro } }
     elif str.rchar_cmp(fname, "len") == 0 { off = 8 }
     elif str.rchar_cmp(fname, "cap") == 0 { off = 16 }
-    val buf: ref char = @alloc(256) as ref char
-    @snprintf(buf, 256, "(int64_t)(intptr_t)((char*)(intptr_t)({s})+{lld})", {base, off}) 
+    val buf: ref char = @alloc(4096) as ref char
+    @snprintf(buf, 4096, "(int64_t)(intptr_t)((char*)(intptr_t)({s})+{lld})", {base, off}) 
     return buf
 }
 
@@ -1191,8 +1192,8 @@ fn gen_stmt(ctx: ref CCtx, stmt: ref parser.Node) void! = {
         val ct: mut ref char = "int64_t"
         if ty_node != 0 as ref parser.Node { ct = c_type_of(ty_node) }
         
-        val buf: ref char = @alloc(512) as ref char
-        @snprintf(buf, 512, "{s} t_{s}=({s})({s});\n", {ct, name, ct, val_str}) emit(ctx, buf) @free(buf)
+        val buf: ref char = @alloc(8192) as ref char
+        @snprintf(buf, 8192, "{s} t_{s}=({s})({s});\n", {ct, name, ct, val_str}) emit(ctx, buf) @free(buf)
         val is_slot: mut i64 = 0 if mutable != 0 { is_slot = 1 }
         cc_register_local(ctx, name, ct, is_slot)
         return 
@@ -1200,26 +1201,26 @@ fn gen_stmt(ctx: ref CCtx, stmt: ref parser.Node) void! = {
     if k == parser.NK_ASSIGN {
         val target: ref parser.Node = stmt.d0 as ref parser.Node
         val val_str: ref char = gen_expr(ctx, stmt.d1 as ref parser.Node)
-        if target.kind == parser.NK_IDENT { val buf: ref char = @alloc(256) as ref char
-            @snprintf(buf, 256, "t_{s}=({s});\n", {target.d0 as ref char, val_str}) emit(ctx, buf) @free(buf) }
-        elif target.kind == parser.NK_FIELD { val fa: ref char = gen_field_addr(ctx, target) val buf: ref char = @alloc(256) as ref char
-            @snprintf(buf, 256, "*(int64_t*)({s})=(int64_t)({s});\n", {fa, val_str}) emit(ctx, buf) @free(buf) }
+        if target.kind == parser.NK_IDENT { val buf: ref char = @alloc(4096) as ref char
+            @snprintf(buf, 4096, "t_{s}=({s});\n", {target.d0 as ref char, val_str}) emit(ctx, buf) @free(buf) }
+        elif target.kind == parser.NK_FIELD { val fa: ref char = gen_field_addr(ctx, target) val buf: ref char = @alloc(4096) as ref char
+            @snprintf(buf, 4096, "*(int64_t*)({s})=(int64_t)({s});\n", {fa, val_str}) emit(ctx, buf) @free(buf) }
         elif target.kind == parser.NK_DEREF { val ptr: ref char = gen_expr(ctx, target.d0 as ref parser.Node)
-            val buf: ref char = @alloc(256) as ref char
-            @snprintf(buf, 256, "*(int64_t*)(intptr_t)({s})=(int64_t)({s});\n", {ptr, val_str}) emit(ctx, buf) @free(buf) }
+            val buf: ref char = @alloc(4096) as ref char
+            @snprintf(buf, 4096, "*(int64_t*)(intptr_t)({s})=(int64_t)({s});\n", {ptr, val_str}) emit(ctx, buf) @free(buf) }
         return }
     if k == parser.NK_RETURN {
         val expr: ref parser.Node = stmt.d0 as ref parser.Node
         cc_emit_defers(ctx)
         if expr == 0 as ref parser.Node { if ctx.current_ret_is_void { emitln(ctx, "return;") } else { emitln(ctx, "return 0;") } }
-        else { val rv: ref char = gen_expr(ctx, expr) val buf: ref char = @alloc(256) as ref char
-            @snprintf(buf, 256, "return({s})({s});\n", {ctx.current_ret_ctype, rv}) emit(ctx, buf) @free(buf) }
+        else { val rv: ref char = gen_expr(ctx, expr) val buf: ref char = @alloc(8192) as ref char
+            @snprintf(buf, 8192, "return({s})({s});\n", {ctx.current_ret_ctype, rv}) emit(ctx, buf) @free(buf) }
         return }
     if k == parser.NK_EXPR_STMT { val ev: ref char = gen_expr(ctx, stmt.d0 as ref parser.Node)
-        val buf: ref char = @alloc(512) as ref char @snprintf(buf, 512, "(void)({s});\n", {ev}) emit(ctx, buf) @free(buf) return }
+        val buf: ref char = @alloc(8192) as ref char @snprintf(buf, 8192, "(void)({s});\n", {ev}) emit(ctx, buf) @free(buf) return }
     if k == parser.NK_IF { gen_if_stmt(ctx, stmt) return }
     if k == parser.NK_GUARD { val gc: ref char = gen_expr(ctx, stmt.d0 as ref parser.Node)
-        val buf: ref char = @alloc(256) as ref char @snprintf(buf, 256, "if(!({s})){\n", {gc}) emit(ctx, buf) @free(buf)
+        val buf: ref char = @alloc(4096) as ref char @snprintf(buf, 4096, "if(!({s})){\n", {gc}) emit(ctx, buf) @free(buf)
         gen_stmts(ctx, stmt.d1 as ref parser.Node) emitln(ctx, "}") return }
     if k == parser.NK_FOR { gen_for_stmt(ctx, stmt) return }
     if k == parser.NK_FORIN { gen_forin_stmt(ctx, stmt) return }
@@ -1427,8 +1428,8 @@ fn gen_match_res(ctx: ref CCtx, stmt: ref parser.Node) void! = {
     if en != 0 as ref parser.Node { expr = gen_expr(ctx, en) }
     val ob: ref char = parser.match_res_ok_bind(stmt) val obody: ref parser.Node = parser.match_res_ok_body(stmt)
     val eb: ref char = parser.match_res_err_bind(stmt) val ebody: ref parser.Node = parser.match_res_err_body(stmt)
-    val t: i64 = fresh_tmp(ctx) val buf: ref char = @alloc(256) as ref char
-    @snprintf(buf, 256, "\{int64_t*sx__rp{lld}=(int64_t*)(intptr_t)({s});if(sx__rp{lld}[0]==0){\n", {t, expr, t}) emit(ctx, buf) @free(buf)
+    val t: i64 = fresh_tmp(ctx) val buf: ref char = @alloc(4096) as ref char
+    @snprintf(buf, 4096, "\{int64_t*sx__rp{lld}=(int64_t*)(intptr_t)({s});if(sx__rp{lld}[0]==0){\n", {t, expr, t}) emit(ctx, buf) @free(buf)
     if ob != 0 as ref char { val vb: ref char = @alloc(128) as ref char @snprintf(vb, 128, "int64_t t_{s}=sx__rp{lld}[1];\n", {ob, t}) emit(ctx, vb) @free(vb) cc_register_local(ctx, ob, "int64_t", 0) }
     if obody != 0 as ref parser.Node { gen_stmts(ctx, obody.d0 as ref parser.Node) }
     emitln(ctx, "}else{")
@@ -1459,16 +1460,16 @@ fn gen_match_str(ctx: ref CCtx, stmt: ref parser.Node) void! = {
     val en: ref parser.Node = parser.match_str_expr(stmt) val expr: mut ref char = "0"
     if en != 0 as ref parser.Node { expr = gen_expr(ctx, en) }
     val arms: list[ref parser.Node] = parser.match_str_arms(stmt) val else_body: ref parser.Node = parser.match_str_else(stmt)
-    val t: i64 = fresh_tmp(ctx) val buf: ref char = @alloc(256) as ref char
-    @snprintf(buf, 256, "{const char*sx__sv{lld}=(const char*)(intptr_t)({s});\n", {t, expr}) emit(ctx, buf) @free(buf)
+    val t: i64 = fresh_tmp(ctx) val buf: ref char = @alloc(4096) as ref char
+    @snprintf(buf, 4096, "{const char*sx__sv{lld}=(const char*)(intptr_t)({s});\n", {t, expr}) emit(ctx, buf) @free(buf)
     val alen: i64 = @len(arms) as i64
     if alen > 0 { val ai: mut i64 = 0
         for { if ai >= alen { break } val arm_opt = @get(arms, ai as usize)
             match arm_opt { some arm => { val an: ref parser.Node = arm as ref parser.Node
                 val pat: ref char = parser.match_str_arm_value(an) val pi: i64 = intern_string(ctx, pat)
-                val ab: ref char = @alloc(256) as ref char
-                if ai == 0 { @snprintf(ab, 256, "if(strcmp(sx__sv{lld},sx__str{lld})==0){\n", {t, pi}) }
-                else { @snprintf(ab, 256, "}else if(strcmp(sx__sv{lld},sx__str{lld})==0){\n", {t, pi}) }
+                val ab: ref char = @alloc(4096) as ref char
+                if ai == 0 { @snprintf(ab, 4096, "if(strcmp(sx__sv{lld},sx__str{lld})==0){\n", {t, pi}) }
+                else { @snprintf(ab, 4096, "}else if(strcmp(sx__sv{lld},sx__str{lld})==0){\n", {t, pi}) }
                 emit(ctx, ab) @free(ab) gen_stmts(ctx, parser.match_str_arm_body(an) as ref parser.Node)
             } none => {} }
             ai++ } }
@@ -1480,8 +1481,8 @@ fn gen_match_union(ctx: ref CCtx, stmt: ref parser.Node) void! = {
     val en: ref parser.Node = parser.match_union_expr(stmt) val expr: mut ref char = "0"
     if en != 0 as ref parser.Node { expr = gen_expr(ctx, en) }
     val arms: list[ref parser.Node] = parser.match_union_arms(stmt) val else_body: ref parser.Node = parser.match_union_else(stmt)
-    val t: i64 = fresh_tmp(ctx) val buf: ref char = @alloc(256) as ref char
-    @snprintf(buf, 256, "\{int64_t sx__uv{lld}=(int64_t)({s});int64_t sx__ut{lld}=*(int64_t*)(intptr_t)sx__uv{lld};\n", {t, expr, t, t}) 
+    val t: i64 = fresh_tmp(ctx) val buf: ref char = @alloc(4096) as ref char
+    @snprintf(buf, 4096, "\{int64_t sx__uv{lld}=(int64_t)({s});int64_t sx__ut{lld}=*(int64_t*)(intptr_t)sx__uv{lld};\n", {t, expr, t, t}) 
     emit(ctx, buf) 
     @free(buf)
     val alen: i64 = @len(arms) as i64
@@ -1512,8 +1513,8 @@ fn gen_match_tagged_union(ctx: ref CCtx, stmt: ref parser.Node) void! = {
     val en: ref parser.Node = parser.match_tagged_union_expr(stmt) val expr: mut ref char = "0"
     if en != 0 as ref parser.Node { expr = gen_expr(ctx, en) }
     val arms: list[ref parser.Node] = parser.match_tagged_union_arms(stmt) val else_body: ref parser.Node = parser.match_tagged_union_else(stmt)
-    val t: i64 = fresh_tmp(ctx) val buf: ref char = @alloc(256) as ref char
-    @snprintf(buf, 256, "\{int64_t sx__tv{lld}=(int64_t)({s});int64_t sx__tt{lld}=*(int64_t*)(intptr_t)sx__tv{lld};\n", {t, expr, t, t}) emit(ctx, buf) @free(buf)
+    val t: i64 = fresh_tmp(ctx) val buf: ref char = @alloc(4096) as ref char
+    @snprintf(buf, 4096, "\{int64_t sx__tv{lld}=(int64_t)({s});int64_t sx__tt{lld}=*(int64_t*)(intptr_t)sx__tv{lld};\n", {t, expr, t, t}) emit(ctx, buf) @free(buf)
     val alen: i64 = @len(arms) as i64
     if alen > 0 { val ai: mut i64 = 0
         for { if ai >= alen { break } val arm_opt = @get(arms, ai as usize)
@@ -1523,17 +1524,17 @@ fn gen_match_tagged_union(ctx: ref CCtx, stmt: ref parser.Node) void! = {
                 val os: ref void = @alloc(8) val fs: ref void = @alloc(8) @store(os, 0) @store(fs, 0)
                 val ti: i64 = cc_lookup_tv(ctx, vname, os, fs) @free(os) @free(fs)
                 val idx: mut i64 = ai if ti >= 0 { idx = ti }
-                val ab: ref char = @alloc(128) as ref char
-                if ai == 0 { @snprintf(ab, 128, "if(sx__tt{lld}=={lld}){\n", {t, idx}) }
-                else { @snprintf(ab, 128, "}else if(sx__tt{lld}=={lld}){\n", {t, idx}) }
+                val ab: ref char = @alloc(4096) as ref char
+                if ai == 0 { @snprintf(ab, 4096, "if(sx__tt{lld}=={lld}){\n", {t, idx}) }
+                else { @snprintf(ab, 4096, "}else if(sx__tt{lld}=={lld}){\n", {t, idx}) }
                 emit(ctx, ab) @free(ab)
                 val blen: i64 = @len(bindings) as i64
                 if blen > 0 { val bi: mut i64 = 0
                     for { if bi >= blen { break } val b_opt = @get(bindings, bi as usize)
                         match b_opt { some b => { val bn: ref char = b as ref char
                             if str.rchar_cmp(bn, "_") != 0 { val off: i64 = 8 + bi * 8
-                                val bb: ref char = @alloc(256) as ref char
-                                @snprintf(bb, 256, "int64_t t_{s}=*(int64_t*)((char*)(intptr_t)sx__tv{lld}+{lld});\n", {bn, t, off})
+                                val bb: ref char = @alloc(1024) as ref char
+                                @snprintf(bb, 1024, "int64_t t_{s}=*(int64_t*)((char*)(intptr_t)sx__tv{lld}+{lld});\n", {bn, t, off})
                                 emit(ctx, bb) @free(bb) cc_register_local(ctx, bn, "int64_t", 0) }
                         } none => {} }
                         bi++ } }
