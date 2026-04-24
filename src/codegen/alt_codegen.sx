@@ -802,6 +802,61 @@ fn gen_builtin(ctx: ref CCtx, expr: ref parser.Node) ref char! = {
     if str.rchar_cmp(bname, "puts") == 0 { val s: ref char = get_arg(ctx, args, 0)
         val buf: ref char = @alloc(256) as ref char
         @snprintf(buf, 256, "puts((const char*)(intptr_t)({s}))", {s}) return buf }
+    if str.rchar_cmp(bname, "stdin") == 0 {
+        return "(int64_t)(intptr_t)stdin" }
+    if str.rchar_cmp(bname, "fgets") == 0 { val b: ref char = get_arg(ctx, args, 0) val n: ref char = get_arg(ctx, args, 1) val s: ref char = get_arg(ctx, args, 2)
+        val buf: ref char = @alloc(512) as ref char
+        @snprintf(buf, 512, "(int64_t)(intptr_t)fgets((char*)(intptr_t)({s}),(int)({s}),(FILE*)(intptr_t)({s}))", {b, n, s}) return buf }
+    if str.rchar_cmp(bname, "getchar") == 0 {
+        return "(int64_t)(int)getchar()" }
+    if str.rchar_cmp(bname, "dprintf") == 0 {
+        val buf: ref char = @alloc(4096) as ref char
+        val fd: ref char = get_arg(ctx, args, 0)
+        val fmt_arg: mut ref char = 0 as ref char
+        if args != 0 as ref void {
+            val alen: i64 = @len(args as list[ref parser.Node]) as i64
+            if alen > 1 {
+                val first_arg_opt = @get(args as list[ref parser.Node], 1 as usize)
+                match first_arg_opt {
+                    some first_arg => {
+                        val first_node: ref parser.Node = first_arg as ref parser.Node
+                        if first_node.kind == parser.NK_STR_LIT {
+                            val fmt_str: ref char = parser.str_lit_text(first_node)
+                            val fmt_idx: i64 = intern_format_string(ctx, fmt_str)
+                            val fmt_buf: ref char = @alloc(64) as ref char
+                            @snprintf(fmt_buf, 64, "sx__str{lld}", {fmt_idx})
+                            fmt_arg = fmt_buf
+                        }
+                    }
+                    none => {}
+                }
+            }
+        }
+        if fmt_arg == 0 as ref char { fmt_arg = get_arg(ctx, args, 1) }
+        @snprintf(buf, 4096, "dprintf((int)({s}),(const char*)(intptr_t)({s})", {fd, fmt_arg})
+        if args != 0 as ref void { val alen: i64 = @len(args as list[ref parser.Node]) as i64
+            if alen > 2 {
+                val pack_opt = @get(args as list[ref parser.Node], 2 as usize)
+                match pack_opt { some pack_node => {
+                    val pn: ref parser.Node = pack_node as ref parser.Node
+                    if pn.kind == parser.NK_ARGS_PACK { val pack: ref void = pn.d0 as ref void
+                        val plen: i64 = @len(pack as list[ref parser.Node]) as i64 val pi: mut i64 = 0
+                        for { if pi >= plen { break }
+                            val pe_opt = @get(pack as list[ref parser.Node], pi as usize)
+                            match pe_opt { some pe => { val av: ref char = gen_expr(ctx, pe as ref parser.Node)
+                                val ol: i64 = str.len_raw(buf) val ab: ref char = @alloc(256) as ref char
+                                @snprintf(ab, 256, ",({s})", {av}) val al: i64 = str.len_raw(ab)
+                                @memcpy(@ptradd(buf as ref void, ol), ab as ref void, (al+1) as usize) @free(ab)
+                            } none => {} }
+                            pi++ }
+                    } else { val av2: ref char = gen_expr(ctx, pn)
+                        val ol: i64 = str.len_raw(buf) val ab: ref char = @alloc(256) as ref char
+                        @snprintf(ab, 256, ",({s})", {av2}) val al: i64 = str.len_raw(ab)
+                        @memcpy(@ptradd(buf as ref void, ol), ab as ref void, (al+1) as usize) @free(ab) }
+                } none => {} } } }
+        val cl: i64 = str.len_raw(buf)
+        @store8(@ptradd(buf as ref void, cl), 41) @store8(@ptradd(buf as ref void, cl+1), 0)
+        return buf }
     if (str.rchar_cmp(bname, "printf") == 0 || str.rchar_cmp(bname, "print") == 0) {
         val buf: ref char = @alloc(4096) as ref char
         val fmt_arg: mut ref char = 0 as ref char
