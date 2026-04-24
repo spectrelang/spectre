@@ -1062,27 +1062,21 @@ fn gen_builtin(ctx: ref CCtx, expr: ref parser.Node) ref char! = {
 }
 
 fn gen_struct_lit(ctx: ref CCtx, expr: ref parser.Node) ref char! = {
-    val type_name: ref char = expr.d0 as ref char
-    val lit_fields: ref void = expr.d1 as ref void
-    val fields: ref void = cc_lookup_struct(ctx, type_name)
+    val lit_fields: ref void = expr.d0 as ref void
     val fcount: mut i64 = 0
-    if fields != 0 as ref void { fcount = @len(fields as list[ref void]) as i64 }
-    val total: i64 = fcount * 8
-    if total < 8 { val t: i64 = fresh_tmp(ctx) val res: ref char = @alloc(64) as ref char
-        val d: ref char = @alloc(128) as ref char @snprintf(d, 128, "int64_t*sx__sl{lld}=(int64_t*)calloc(1,8);\n", {t}) emit(ctx, d) @free(d)
-        @snprintf(res, 64, "(int64_t)(intptr_t)sx__sl{lld}", {t}) return res }
+    if lit_fields != 0 as ref void { fcount = @len(lit_fields as list[ref void]) as i64 }
+    val alloc_size: mut i64 = (fcount * 8) as i64
+    if fcount < 1 { alloc_size = 8 as i64 }
     val t: i64 = fresh_tmp(ctx)
     val buf: ref char = @alloc(256) as ref char
-    @snprintf(buf, 256, "int64_t*sx__sl{lld}=(int64_t*)calloc(1,{lld});\n", {t, total}) emit(ctx, buf) @free(buf)
+    @snprintf(buf, 256, "int64_t*sx__sl{lld}=(int64_t*)calloc(1,{lld});\n", {t, alloc_size}) emit(ctx, buf) @free(buf)
     if lit_fields != 0 as ref void { val lflen: i64 = @len(lit_fields as list[ref void]) as i64
         val li: mut i64 = 0
         for { if li >= lflen { break }
             val lf_opt = @get(lit_fields as list[ref void], li as usize)
             match lf_opt { some lf => { val lf_node: ref parser.Node = lf as ref parser.Node
-                val lf_name: ref char = lf_node.d0 as ref char
                 val fval: ref char = gen_expr(ctx, lf_node.d1 as ref parser.Node)
-                val off: mut i64 = li * 8
-                if fields != 0 as ref void { val ro: i64 = field_offset_bytes(ctx, fields, lf_name) if ro >= 0 { off = ro } }
+                val off: i64 = li * 8
                 val fb: ref char = @alloc(256) as ref char
                 @snprintf(fb, 256, "*(int64_t*)((char*)sx__sl{lld}+{lld})=(int64_t)({s});\n", {t, off, fval}) emit(ctx, fb) @free(fb)
             } none => {} }
