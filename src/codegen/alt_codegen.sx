@@ -335,6 +335,8 @@ fn cc_register_fn(ctx: ref CCtx, mangled: ref char, params: ref void, ret_ty: re
 }
 
 fn cc_resolve_fn_name(ctx: ref CCtx, name: ref char) ref char! = {
+    val ext: ref char = cc_lookup_extern_symbol(ctx, name)
+    if ext != 0 as ref char { return ext }
     val nlen: i64 = @len(ctx.fn_names as list[ref char]) as i64
     val namelen: i64 = str.len_raw(name)
     val suffix: ref char = @alloc(namelen + 3) as ref char
@@ -1668,14 +1670,8 @@ fn gen_fn_prefixed(ctx: mut ref CCtx, fn_node: ref parser.Node, mod_prefix: ref 
     emitln(ctx, "}") emitln(ctx, "")
 }
 
-fn gen_extern_fn_prefixed(ctx: ref CCtx, item: ref parser.Node, mod_prefix: ref char) void! = {
-    val name: ref char = item.d1 as ref char val symbol: ref char = item.d2 as ref char
-    val params: ref void = item.d4 as ref void val ret_ty: ref void = item.d5 as ref void
-    cc_register_extern(ctx, name, symbol, ret_ty)
-    if params != 0 as ref void { cc_register_fn(ctx, symbol, params, ret_ty) }
-    if str.rchar_cmp(mod_prefix, "") != 0 { val m: ref char = @alloc(512) as ref char
-        @snprintf(m, 512, "{s}__{s}", {mod_prefix, name}) cc_register_extern(ctx, m, symbol, ret_ty)
-        if params != 0 as ref void { cc_register_fn(ctx, m, params, ret_ty) } }
+fn gen_extern_fn_prefixed(_: ref CCtx, _: ref parser.Node, _: ref char) void! = {
+    // NOOP.
 }
 
 fn gen_tagged_union_def(ctx: ref CCtx, item: ref parser.Node, mod_prefix: ref char) void! = {
@@ -1749,6 +1745,15 @@ fn preregister_items(ctx: ref CCtx, items: list[ref parser.Node], mod_prefix: re
             elif k == parser.NK_TYPEDEF { cc_register_struct(ctx, node.d1 as ref char, node.d2 as ref void)
                 if node.d3 != 0 as i64 { cc_register_invariant(ctx, node.d1 as ref char, node.d3 as ref void) } }
             elif k == parser.NK_EXTERN_TYPE { cc_register_struct(ctx, node.d1 as ref char, node.d2 as ref void) }
+            elif k == parser.NK_EXTERN_FN {
+                val name: ref char = node.d1 as ref char val symbol: ref char = node.d2 as ref char
+                val params: ref void = node.d4 as ref void val ret_ty: ref void = node.d5 as ref void
+                cc_register_extern(ctx, name, symbol, ret_ty)
+                if params != 0 as ref void { cc_register_fn(ctx, symbol, params, ret_ty) }
+                if str.rchar_cmp(mod_prefix, "") != 0 { val m: ref char = @alloc(512) as ref char
+                    @snprintf(m, 512, "{s}__{s}", {mod_prefix, name}) cc_register_extern(ctx, m, symbol, ret_ty)
+                    if params != 0 as ref void { cc_register_fn(ctx, m, params, ret_ty) } }
+            }
             elif k == parser.NK_CONST { val cn: ref char = node.d1 as ref char val ce: ref parser.Node = node.d2 as ref parser.Node
                 if ce != 0 as ref parser.Node { if ce.kind == parser.NK_INT_LIT { cc_register_module_const(ctx, cn, parser.int_lit_text(ce)) }
                     elif ce.kind == parser.NK_BOOL { if ce.d0 as i64 != 0 { cc_register_module_const(ctx, cn, "1") } else { cc_register_module_const(ctx, cn, "0") } }
@@ -1816,6 +1821,9 @@ fn emit_c_preamble(ctx: ref CCtx) void! = {
     emitln_fwd(ctx, "#include <stdlib.h>")
     emitln_fwd(ctx, "#include <string.h>")
     emitln_fwd(ctx, "#include <stdio.h>")
+    emitln_fwd(ctx, "#include <time.h>")
+    emitln_fwd(ctx, "#include <sys/time.h>")
+    emitln_fwd(ctx, "#include <unistd.h>")
     emitln_fwd(ctx, "static int64_t sx__argc=0;")
     emitln_fwd(ctx, "static int64_t sx__argv=0;")
     emitln_fwd(ctx, "static void sx__rt_append(void*list,int64_t elem){int64_t*hdr=(int64_t*)list;int64_t*buf=*(int64_t**)hdr;int64_t len=hdr[1];int64_t cap=hdr[2];if(len>=cap){cap=cap<4?8:cap*2;buf=(int64_t*)realloc(buf,(size_t)(cap*8));hdr[0]=(int64_t)(intptr_t)buf;hdr[2]=cap;}buf[len]=elem;hdr[1]=len+1;}")
@@ -1861,7 +1869,7 @@ fn is_libc_fn(name: ref char) bool! = {
         "strlen", "strcmp", "puts", "printf", "dprintf", "getchar", "fgets", 
         "exit", "abort", "abs", "getenv", "fopen", "fclose", "fread", "fwrite", 
         "remove", "rename", "system", "time","gmtime","localtime","strftime","clock",
-        "gettimeofday","srand","rand","random","srandom", 
+        "gettimeofday","srand","rand","random","srandom","access","popen","pclose", 
         "open","close","read","write","lseek","pread","pwrite","fsync","ftruncate",
         "strlen","strnlen","strcmp","strncmp","strcpy","strncpy","strcat","strncat","strchr",
         "strrchr","strstr","strpbrk","strtok","strdup","strndup",
