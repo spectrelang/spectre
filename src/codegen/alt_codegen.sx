@@ -569,6 +569,26 @@ fn get_arg(ctx: ref CCtx, args: ref void, idx: i64) ref char! = {
     match a_opt { some a => { return gen_expr(ctx, a as ref parser.Node) } none => { return "0" } }
 }
 
+fn get_format_arg(ctx: mut ref CCtx, args: ref void, idx: i64) ref char! = {
+    if args == 0 as ref void { return "0" }
+    val a_opt = @get(args as list[ref parser.Node], idx as usize)
+    match a_opt {
+        some a => {
+            val node: ref parser.Node = a as ref parser.Node
+            if node.kind == parser.NK_STR_LIT {
+                val s: ref char = parser.str_lit_text(node)
+                val fidx: i64 = intern_format_string(ctx, s)
+                val buf: ref char = @alloc(64) as ref char
+                @snprintf(buf, 64, "sx__str{lld}", {fidx})
+                return buf
+            }
+            return gen_expr(ctx, node)
+        }
+        none => { return "0" }
+    }
+}
+
+
 fn gen_expr(ctx: ref CCtx, expr: ref parser.Node) ref char! = {
     if expr == 0 as ref parser.Node { return "0" }
     val k: i64 = expr.kind
@@ -588,10 +608,10 @@ fn gen_expr(ctx: ref CCtx, expr: ref parser.Node) ref char! = {
         return buf 
     }
     if k == parser.NK_STR_LIT {
-        val idx: i64 = intern_format_string(ctx, parser.str_lit_text(expr))
+        val idx: i64 = intern_string(ctx, parser.str_lit_text(expr))
         val buf: ref char = @alloc(64) as ref char
-        @snprintf(buf, 64, "sx__str{lld}", {idx}) 
-        return buf 
+        @snprintf(buf, 64, "sx__str{lld}", {idx})
+        return buf
     }
     if k == parser.NK_BOOL { 
         if expr.d0 as i64 != 0 { return "1" } return "0" 
@@ -1000,7 +1020,7 @@ fn gen_builtin(ctx: ref CCtx, expr: ref parser.Node) ref char! = {
         val buf: ref char = @alloc(256) as ref char
         @snprintf(buf, 256, "sx__rt_get((void*)(intptr_t)({s}),(int64_t)({s}))", {l, i}) return buf }
     if str.rchar_cmp(bname, "fmt") == 0 {
-        val f: ref char = get_arg(ctx, args, 0) val p: mut ref char = "0"
+        val f: ref char = get_format_arg(ctx, args, 0) val p: mut ref char = "0"
         if args != 0 as ref void { val alen: i64 = @len(args as list[ref parser.Node]) as i64
             if alen > 1 { p = get_arg(ctx, args, 1) } }
         val buf: ref char = @alloc(512) as ref char
@@ -1020,7 +1040,7 @@ fn gen_builtin(ctx: ref CCtx, expr: ref parser.Node) ref char! = {
     if str.rchar_cmp(bname, "dprintf") == 0 {
         val buf: ref char = @alloc(4096) as ref char
         val fd: ref char = get_arg(ctx, args, 0)
-        val fmt_arg: ref char = get_arg(ctx, args, 1)
+        val fmt_arg: ref char = get_format_arg(ctx, args, 1)
         if args != 0 as ref void { val alen: i64 = @len(args as list[ref parser.Node]) as i64
             if alen > 2 { val pack_opt = @get(args as list[ref parser.Node], 2 as usize)
                 match pack_opt { some pack_node => { val pn: ref parser.Node = pack_node as ref parser.Node
@@ -1040,7 +1060,7 @@ fn gen_builtin(ctx: ref CCtx, expr: ref parser.Node) ref char! = {
     }
     if (str.rchar_cmp(bname, "printf") == 0 || str.rchar_cmp(bname, "print") == 0) {
         val buf: ref char = @alloc(4096) as ref char
-        val fmt_arg: ref char = get_arg(ctx, args, 0)
+        val fmt_arg: ref char = get_format_arg(ctx, args, 0)
         if args != 0 as ref void { val alen: i64 = @len(args as list[ref parser.Node]) as i64
             if alen > 1 { val pack_opt = @get(args as list[ref parser.Node], 1 as usize)
                 match pack_opt { some pack_node => { val pn: ref parser.Node = pack_node as ref parser.Node
