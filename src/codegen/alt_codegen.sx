@@ -32,6 +32,8 @@ pub type CCtx = {
     tv_fields: mut list[ref void]
     mc_names: mut list[ref char]
     mc_vals: mut list[ref char]
+    gnames: mut list[ref char]
+    gsyms: mut list[ref char]
     break_lbl: mut i64
     cont_lbl: mut i64
     defer_stack: mut list[ref void]
@@ -76,6 +78,8 @@ fn cc_new() ref CCtx! = {
     ctx.tv_fields = []
     ctx.mc_names = []
     ctx.mc_vals = []
+    ctx.gnames = []
+    ctx.gsyms = []
     ctx.break_lbl = -1
     ctx.cont_lbl = -1
     ctx.defer_stack = []
@@ -495,24 +499,31 @@ fn cc_register_module_const(ctx: ref CCtx, name: ref char, val_str: ref char) vo
 fn cc_const_val(ctx: ref CCtx, name: ref char) ref char! = {
     val nlen: i64 = @len(ctx.mc_names as list[ref char]) as i64
     val ni: mut i64 = 0
-    for { 
-        if ni >= nlen { break }
+    for { if ni >= nlen { break }
         val n_opt = @get(ctx.mc_names as list[ref char], ni as usize)
-        match n_opt { 
-            some n => { 
-                if str.rchar_cmp(n as ref char, name) == 0 {
-                    val v_opt = @get(ctx.mc_vals as list[ref char], ni as usize)
-                    match v_opt { 
-                        some v => { return v as ref char } 
-                        none => {
-                            return "" 
-                        } 
-                    } 
-                } 
-            } none => {} 
-        }
-        ni++ 
-    }
+        match n_opt { some n => { if str.rchar_cmp(n as ref char, name) == 0 {
+            val v_opt = @get(ctx.mc_vals as list[ref char], ni as usize)
+            match v_opt { some v => { return v as ref char } none => {} }
+        } } none => {} }
+        ni++ }
+    return ""
+}
+
+fn cc_register_module_val(ctx: ref CCtx, name: ref char, symbol: ref char) void! = {
+    @append(ctx.gnames, name)
+    @append(ctx.gsyms, symbol)
+}
+
+fn cc_resolve_global_name(ctx: ref CCtx, name: ref char) ref char! = {
+    val nlen: i64 = @len(ctx.gnames as list[ref char]) as i64
+    val ni: mut i64 = 0
+    for { if ni >= nlen { break }
+        val n_opt = @get(ctx.gnames as list[ref char], ni as usize)
+        match n_opt { some n => { if str.rchar_cmp(n as ref char, name) == 0 {
+            val s_opt = @get(ctx.gsyms as list[ref char], ni as usize)
+            match s_opt { some s => { return s as ref char } none => {} }
+        } } none => {} }
+        ni++ }
     return ""
 }
 
@@ -632,6 +643,11 @@ fn gen_expr(ctx: ref CCtx, expr: ref parser.Node) ref char! = {
         if str.rchar_cmp(lt, "") != 0 {
             val buf: ref char = @alloc(128) as ref char
             @snprintf(buf, 128, "t_{s}", {name}) return buf 
+        }
+        val gn: ref char = cc_resolve_global_name(ctx, name)
+        if str.rchar_cmp(gn, "") != 0 {
+            val buf: ref char = @alloc(128) as ref char
+            @snprintf(buf, 128, "{s}", {gn}) return buf 
         }
         val resolved: ref char = cc_resolve_fn_name(ctx, name)
         if resolved != 0 as ref char {
@@ -1213,8 +1229,14 @@ fn gen_stmt(ctx: ref CCtx, stmt: ref parser.Node) void! = {
     if k == parser.NK_ASSIGN {
         val target: ref parser.Node = stmt.d0 as ref parser.Node
         val val_str: ref char = gen_expr(ctx, stmt.d1 as ref parser.Node)
-        if target.kind == parser.NK_IDENT { val buf: ref char = @alloc(4096) as ref char
-            @snprintf(buf, 4096, "t_{s}=({s});\n", {target.d0 as ref char, val_str}) emit(ctx, buf) @free(buf) }
+        if target.kind == parser.NK_IDENT { 
+            val name: ref char = target.d0 as ref char
+            val gn: ref char = cc_resolve_global_name(ctx, name)
+            val buf: ref char = @alloc(4096) as ref char
+            if str.rchar_cmp(gn, "") != 0 { @snprintf(buf, 4096, "{s}=({s});\n", {gn, val_str}) }
+            else { @snprintf(buf, 4096, "t_{s}=({s});\n", {name, val_str}) }
+            emit(ctx, buf) @free(buf)
+        }
         elif target.kind == parser.NK_FIELD { val fa: ref char = gen_field_addr(ctx, target) val buf: ref char = @alloc(4096) as ref char
             @snprintf(buf, 4096, "*(int64_t*)({s})=(int64_t)({s});\n", {fa, val_str}) emit(ctx, buf) @free(buf) }
         elif target.kind == parser.NK_DEREF { val ptr: ref char = gen_expr(ctx, target.d0 as ref parser.Node)
@@ -1279,9 +1301,12 @@ fn gen_stmt(ctx: ref CCtx, stmt: ref parser.Node) void! = {
     if k == parser.NK_INCREMENT { 
         val tgt: ref parser.Node = stmt.d0 as ref parser.Node
         if tgt.kind == parser.NK_IDENT { 
+            val name: ref char = tgt.d0 as ref char
+            val gn: ref char = cc_resolve_global_name(ctx, name)
             val buf: ref char = @alloc(128) as ref char 
-            @snprintf(buf, 128, "t_{s}++;\n", {tgt.d0 as ref char}) emit(ctx, buf) 
-            @free(buf) 
+            if str.rchar_cmp(gn, "") != 0 { @snprintf(buf, 128, "{s}++;\n", {gn}) }
+            else { @snprintf(buf, 128, "t_{s}++;\n", {name}) }
+            emit(ctx, buf) @free(buf) 
         }
         elif tgt.kind == parser.NK_FIELD { 
             val fa: ref char = gen_field_addr(ctx, tgt) val buf: ref char = @alloc(256) as ref char @snprintf(buf, 256, "(*(int64_t*)({s}))++;\n", {fa}) emit(ctx, buf) @free(buf) 
@@ -1293,20 +1318,41 @@ fn gen_stmt(ctx: ref CCtx, stmt: ref parser.Node) void! = {
     }
     if k == parser.NK_DECREMENT { 
         val tgt: ref parser.Node = stmt.d0 as ref parser.Node
-        if tgt.kind == parser.NK_IDENT { val buf: ref char = @alloc(128) as ref char @snprintf(buf, 128, "t_{s}--;\n", {tgt.d0 as ref char}) emit(ctx, buf) @free(buf) }
+        if tgt.kind == parser.NK_IDENT { 
+            val name: ref char = tgt.d0 as ref char
+            val gn: ref char = cc_resolve_global_name(ctx, name)
+            val buf: ref char = @alloc(128) as ref char 
+            if str.rchar_cmp(gn, "") != 0 { @snprintf(buf, 128, "{s}--;\n", {gn}) }
+            else { @snprintf(buf, 128, "t_{s}--;\n", {name}) }
+            emit(ctx, buf) @free(buf) 
+        }
         elif tgt.kind == parser.NK_FIELD { val fa: ref char = gen_field_addr(ctx, tgt) val buf: ref char = @alloc(256) as ref char @snprintf(buf, 256, "(*(int64_t*)({s}))--;\n", {fa}) emit(ctx, buf) @free(buf) }
         elif tgt.kind == parser.NK_DEREF { val p: ref char = gen_expr(ctx, tgt.d0 as ref parser.Node) val buf: ref char = @alloc(256) as ref char @snprintf(buf, 256, "(*(int64_t*)(intptr_t)({s}))--;\n", {p}) emit(ctx, buf) @free(buf) }
         return 
     }
     if k == parser.NK_ADD_ASSIGN { 
         val tgt: ref parser.Node = stmt.d0 as ref parser.Node val rhs: ref char = gen_expr(ctx, stmt.d1 as ref parser.Node)
-        if tgt.kind == parser.NK_IDENT { val buf: ref char = @alloc(256) as ref char @snprintf(buf, 256, "t_{s}+=({s});\n", {tgt.d0 as ref char, rhs}) emit(ctx, buf) @free(buf) }
+        if tgt.kind == parser.NK_IDENT { 
+            val name: ref char = tgt.d0 as ref char
+            val gn: ref char = cc_resolve_global_name(ctx, name)
+            val buf: ref char = @alloc(256) as ref char 
+            if str.rchar_cmp(gn, "") != 0 { @snprintf(buf, 256, "{s}+=({s});\n", {gn, rhs}) }
+            else { @snprintf(buf, 256, "t_{s}+=({s});\n", {name, rhs}) }
+            emit(ctx, buf) @free(buf) 
+        }
         elif tgt.kind == parser.NK_FIELD { val fa: ref char = gen_field_addr(ctx, tgt) val buf: ref char = @alloc(256) as ref char @snprintf(buf, 256, "(*(int64_t*)({s}))+=({s});\n", {fa, rhs}) emit(ctx, buf) @free(buf) }
         return 
     }
     if k == parser.NK_SUB_ASSIGN { 
         val tgt: ref parser.Node = stmt.d0 as ref parser.Node val rhs: ref char = gen_expr(ctx, stmt.d1 as ref parser.Node)
-        if tgt.kind == parser.NK_IDENT { val buf: ref char = @alloc(256) as ref char @snprintf(buf, 256, "t_{s}-=({s});\n", {tgt.d0 as ref char, rhs}) emit(ctx, buf) @free(buf) }
+        if tgt.kind == parser.NK_IDENT { 
+            val name: ref char = tgt.d0 as ref char
+            val gn: ref char = cc_resolve_global_name(ctx, name)
+            val buf: ref char = @alloc(256) as ref char 
+            if str.rchar_cmp(gn, "") != 0 { @snprintf(buf, 256, "{s}-=({s});\n", {gn, rhs}) }
+            else { @snprintf(buf, 256, "t_{s}-=({s});\n", {name, rhs}) }
+            emit(ctx, buf) @free(buf) 
+        }
         elif tgt.kind == parser.NK_FIELD { val fa: ref char = gen_field_addr(ctx, tgt) val buf: ref char = @alloc(256) as ref char @snprintf(buf, 256, "(*(int64_t*)({s}))-=({s});\n", {fa, rhs}) emit(ctx, buf) @free(buf) }
         return 
     }
@@ -1717,7 +1763,24 @@ fn preregister_items(ctx: ref CCtx, items: list[ref parser.Node], mod_prefix: re
                     if !matched { val otherwise: ref void = node.d3 as ref void
                         if otherwise != 0 as ref void { preregister_items(ctx, otherwise as list[ref parser.Node], mod_prefix) } } } }
         } none => {} }
-        i++ }
+        i++ 
+    }
+}
+
+fn gen_module_val(ctx: ref CCtx, node: ref parser.Node, mod_prefix: ref char) void! = {
+    val name: ref char = node.d0 as ref char
+    val ty_node: ref parser.Node = node.d2 as ref parser.Node
+    val ct: mut ref char = "int64_t"
+    if ty_node != 0 as ref parser.Node { ct = c_type_of(ty_node) }
+    val mangled: ref char = @alloc(512) as ref char
+    if str.rchar_cmp(mod_prefix, "") == 0 { @snprintf(mangled, 512, "sx__{s}", {name}) }
+    else { @snprintf(mangled, 512, "{s}__{s}", {mod_prefix, name}) }
+    cc_register_module_val(ctx, name, mangled)
+    if str.rchar_cmp(mod_prefix, "") != 0 {
+        val m: ref char = @alloc(512) as ref char @snprintf(m, 512, "{s}__{s}", {mod_prefix, name})
+        cc_register_module_val(ctx, m, mangled) }
+    val buf: ref char = @alloc(1024) as ref char @snprintf(buf, 1024, "static {s} {s};\n", {ct, mangled})
+    emit_to_fwd(ctx, buf) @free(buf)
 }
 
 fn gen_items_with_prefix(ctx: ref CCtx, items: list[ref parser.Node], mod_prefix: ref char) void! = {
@@ -1726,6 +1789,7 @@ fn gen_items_with_prefix(ctx: ref CCtx, items: list[ref parser.Node], mod_prefix
     for { if i >= ilen { break } val item_opt = @get(items, i as usize)
         match item_opt { some item => { val node: ref parser.Node = item as ref parser.Node val k: i64 = node.kind
             if k == parser.NK_FN { gen_fn_prefixed(ctx, node, mod_prefix) }
+            elif k == parser.NK_VAL { gen_module_val(ctx, node, mod_prefix) }
             elif k == parser.NK_EXTERN_FN { gen_extern_fn_prefixed(ctx, node, mod_prefix) }
             elif k == parser.NK_ENUMDEF { gen_enum_def_prefixed(ctx, node, mod_prefix) }
             elif k == parser.NK_UNIONDEF { gen_union_def_prefixed(ctx, node, mod_prefix) }
@@ -1801,7 +1865,7 @@ fn is_libc_fn(name: ref char) bool! = {
         "open","close","read","write","lseek","pread","pwrite","fsync","ftruncate",
         "strlen","strnlen","strcmp","strncmp","strcpy","strncpy","strcat","strncat","strchr",
         "strrchr","strstr","strpbrk","strtok","strdup","strndup",
-        "stat","fstat","lstat","opendir","readdir","closedir",
+        "stat","fstat","lstat","opendir","readdir","closedir","isatty",
     ]
 
     for fun in libc_fns { if str.rchar_cmp(name, fun) == 0 { return true } }
@@ -1857,7 +1921,8 @@ fn gen_items_with_prefix_skip_main(ctx: ref CCtx, items: list[ref parser.Node], 
             if k == parser.NK_FN {
                 val fname: ref char = node.d2 as ref char
                 if str.rchar_cmp(fname, "main") != 0 { gen_fn_prefixed(ctx, node, mod_prefix) }
-            } elif k == parser.NK_EXTERN_FN { gen_extern_fn_prefixed(ctx, node, mod_prefix) }
+            } elif k == parser.NK_VAL { gen_module_val(ctx, node, mod_prefix) }
+            elif k == parser.NK_EXTERN_FN { gen_extern_fn_prefixed(ctx, node, mod_prefix) }
             elif k == parser.NK_ENUMDEF { gen_enum_def_prefixed(ctx, node, mod_prefix) }
             elif k == parser.NK_UNIONDEF { gen_union_def_prefixed(ctx, node, mod_prefix) }
             elif k == parser.NK_TAGGED_UNIONDEF { gen_tagged_union_def(ctx, node, mod_prefix) }
@@ -1929,6 +1994,8 @@ pub fn gen_module_c_test(root: ref module.ResolvedModule, release_mode: bool) re
     module.flatten_modules(root, "", out_prefixes, out_items, seen)
     val layers: i64 = @len(out_prefixes) as i64
     cc_mark_prefix_used(ctx, "")
+    emit_c_preamble(ctx)
+    emit_c_panic_handler(ctx)
     val li: mut i64 = 0
     for {
         if li >= layers { break }
@@ -1984,8 +2051,6 @@ pub fn gen_module_c_test(root: ref module.ResolvedModule, release_mode: bool) re
         ri++
     }
     gen_test_main_c(ctx, test_ids)
-    emit_c_preamble(ctx)
-    emit_c_panic_handler(ctx)
     emit_string_data(ctx)
     emit_forward_decls(ctx)
     val hdr_built: ref void = str.StringBuilder.build(ctx.fwd_sb)
@@ -2012,6 +2077,8 @@ pub fn gen_module_c(root: ref module.ResolvedModule, release_mode: bool) ref cha
     module.flatten_modules(root, "", out_prefixes, out_items, seen)
     val layers: i64 = @len(out_prefixes) as i64
     cc_mark_prefix_used(ctx, "")
+    emit_c_preamble(ctx)
+    emit_c_panic_handler(ctx)
     val li: mut i64 = 0
     for { 
         if li >= layers { break }
@@ -2045,8 +2112,6 @@ pub fn gen_module_c(root: ref module.ResolvedModule, release_mode: bool) ref cha
         }       
         li2++ 
     }
-    emit_c_preamble(ctx)
-    emit_c_panic_handler(ctx)
     emit_string_data(ctx)
     emit_forward_decls(ctx)
     val hdr_built: ref void = str.StringBuilder.build(ctx.fwd_sb)
