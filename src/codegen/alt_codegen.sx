@@ -312,6 +312,18 @@ fn is_void_ret(ty: ref parser.Node) bool! = {
     return ty.kind == parser.TY_VOID
 }
 
+fn spectre_type_name_of(ty: ref parser.Node) ref char! = {
+    if ty == 0 as ref parser.Node { return "int64_t" }
+    val k: i64 = ty.kind
+    if k == parser.TY_MUT || k == parser.TY_REF || k == parser.TY_OPTION || k == parser.TY_LIST || k == parser.TY_RESULT || k == parser.TY_SLICE {
+        return spectre_type_name_of(ty.d0 as ref parser.Node)
+    }
+    if k == parser.TY_NAMED {
+        return ty.d0 as ref char
+    }
+    return "int64_t"
+}
+
 fn cc_register_fn(ctx: ref CCtx, mangled: ref char, params: ref void, ret_ty: ref void) void! = {
     @append(ctx.fn_names, mangled) 
     @append(ctx.fn_params, params) 
@@ -1195,7 +1207,7 @@ fn gen_stmt(ctx: ref CCtx, stmt: ref parser.Node) void! = {
         val buf: ref char = @alloc(8192) as ref char
         @snprintf(buf, 8192, "{s} t_{s}=({s})({s});\n", {ct, name, ct, val_str}) emit(ctx, buf) @free(buf)
         val is_slot: mut i64 = 0 if mutable != 0 { is_slot = 1 }
-        cc_register_local(ctx, name, ct, is_slot)
+        cc_register_local(ctx, name, spectre_type_name_of(ty_node), is_slot)
         return 
     }
     if k == parser.NK_ASSIGN {
@@ -1580,8 +1592,8 @@ fn gen_fn_prefixed(ctx: mut ref CCtx, fn_node: ref parser.Node, mod_prefix: ref 
                 match p_opt { some param => { val pn: ref char = (param as ref parser.Node).d0 as ref char
                     val pt: ref parser.Node = (param as ref parser.Node).d1 as ref parser.Node
                     val pct: ref char = c_type_of(pt) if pi > 0 { emit(ctx, ",") }
-                    val pb: ref char = @alloc(128) as ref char @snprintf(pb, 128, "{s} t_{s}", {pct, pn}) emit(ctx, pb) @free(pb)
-                    cc_register_local(ctx, pn, pct, 0) } none => {} }
+                    val pb: ref char = @alloc(1024) as ref char @snprintf(pb, 1024, "{s} t_{s}", {pct, pn}) emit(ctx, pb) @free(pb)
+                    cc_register_local(ctx, pn, spectre_type_name_of(pt), 0) } none => {} }
                 pi++ }
         } else { emit(ctx, "void") }
         emitln(ctx, "){") }
