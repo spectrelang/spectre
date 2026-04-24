@@ -198,7 +198,7 @@ fn cg_is_prefix_used(ctx: ref CgCtx, prefix: ref char) bool! = {
 
 /// Returns true if the given when-clause name matches the current platform.
 /// Handles group aliases: "posix" matches linux/darwin/*bsd/haiku/android/redox.
-fn platform_matches(name: ref char) bool! = {
+pub fn platform_matches(name: ref char) bool! = {
     if name == 0 as ref char { return false }
     val cur: ref char = reflection.current_platform_name()
     if cur == 0 as ref char { return false }
@@ -219,7 +219,7 @@ fn platform_matches(name: ref char) bool! = {
 
 /// Extract the module prefix from a mangled function name.
 /// E.g. "std__stdio__puts" with bare name "puts" -> "std__stdio"
-fn extract_prefix_from_mangled(mangled: ref char, bare_name: ref char) ref char! = {
+pub fn extract_prefix_from_mangled(mangled: ref char, bare_name: ref char) ref char! = {
     val mlen: i64 = str.len_raw(mangled)
     val blen: i64 = str.len_raw(bare_name)
     if mlen <= blen + 2 {

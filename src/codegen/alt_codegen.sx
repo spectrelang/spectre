@@ -95,12 +95,12 @@ fn cc_new() ref CCtx! = {
     return ctx
 }
 
-fn fresh_tmp(ctx: ref CCtx) i64! = { val n: i64 = ctx.tmp ctx.tmp = n + 1 return n }
-fn fresh_lbl(ctx: ref CCtx) i64! = { val n: i64 = ctx.lbl ctx.lbl = n + 1 return n }
+fn fresh_tmp(ctx: mut ref CCtx) i64! = { val n: i64 = ctx.tmp ctx.tmp = n + 1 return n }
+fn fresh_lbl(ctx: mut ref CCtx) i64! = { val n: i64 = ctx.lbl ctx.lbl = n + 1 return n }
 fn emit(ctx: ref CCtx, s: ref char) void! = { str.StringBuilder.append_cstr(ctx.sb, s) }
 fn emitln(ctx: ref CCtx, s: ref char) void! = { str.StringBuilder.append_cstr(ctx.sb, s) str.StringBuilder.append_char(ctx.sb, 10) }
 
-fn intern_string(ctx: ref CCtx, s: ref char) i64! = {
+fn intern_string(ctx: mut ref CCtx, s: ref char) i64! = {
     val idx: i64 = ctx.str_cnt
     @append(ctx.strs, s)
     ctx.str_cnt = idx + 1
@@ -848,8 +848,8 @@ fn gen_for_stmt(ctx: ref CCtx, stmt: ref parser.Node) void! = {
         val wb: ref char = @alloc(256) as ref char @snprintf(wb, 256, "while({s}){\n", {cond}) emit(ctx, wb) @free(wb)
     } else { emitln(ctx, "for(;;){") }
     gen_stmts(ctx, stmt.d4 as ref parser.Node)
-    val post: ref void = stmt.d3 as ref void
-    if post != 0 as ref void { gen_stmt(ctx, post as ref parser.Node) }
+    val pst: ref void = stmt.d3 as ref void
+    if pst != 0 as ref void { gen_stmt(ctx, pst as ref parser.Node) }
     emitln(ctx, "}")
 }
 
@@ -1028,8 +1028,16 @@ fn gen_fn_prefixed(ctx: mut ref CCtx, fn_node: ref parser.Node, mod_prefix: ref 
         if !ctx.release_mode { emitln(ctx, "sx__panic_init();") } }
     gen_stmts(ctx, body)
     val blen: i64 = @len(body) as i64 val needs_ret: mut bool = true
-    if blen > 0 { val last_opt = @get(body, (blen - 1) as usize)
-        match last_opt { some last => { if (last as ref parser.Node).kind == parser.NK_RETURN { needs_ret = false } } none => {} } }
+    if blen > 0 { 
+        val last_opt = @get(body, (blen - 1) as usize)
+        match last_opt { 
+            some last => { 
+                if ((last as ref parser.Node).kind == parser.NK_RETURN) { 
+                    needs_ret = false 
+                } 
+            } none => {} 
+        } 
+    }
     if needs_ret { cc_emit_defers(ctx) if is_main { emitln(ctx, "return 0;") }
         elif ctx.current_ret_is_void { emitln(ctx, "return;") } else { emitln(ctx, "return 0;") } }
     emitln(ctx, "}") emitln(ctx, "")
