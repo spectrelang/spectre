@@ -661,8 +661,8 @@ fn gen_expr(ctx: ref CCtx, expr: ref parser.Node) ref char! = {
     }
     if k == parser.NK_STR_LIT {
         val idx: i64 = intern_string(ctx, parser.str_lit_text(expr))
-        val buf: ref char = @alloc(64) as ref char
-        @snprintf(buf, 64, "sx__str{lld}", {idx})
+        val buf: ref char = @alloc(128) as ref char
+        @snprintf(buf, 128, "((int64_t)(intptr_t)sx__str{lld})", {idx})
         return buf
     }
     if k == parser.NK_BOOL { 
@@ -1912,6 +1912,7 @@ fn emit_to_fwd(ctx: ref CCtx, s: ref char) void! = { str.StringBuilder.append_cs
 fn emitln_fwd(ctx: ref CCtx, s: ref char) void! = { str.StringBuilder.append_cstr(ctx.fwd_sb, s) str.StringBuilder.append_char(ctx.fwd_sb, 10) }
 
 fn emit_c_preamble(ctx: ref CCtx) void! = {
+    emitln_fwd(ctx, "#define _POSIX_C_SOURCE 200809L")
     emitln_fwd(ctx, "#include <stdint.h>")
     emitln_fwd(ctx, "#include <stdlib.h>")
     emitln_fwd(ctx, "#include <string.h>")
