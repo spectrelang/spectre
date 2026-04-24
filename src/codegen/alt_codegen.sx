@@ -620,6 +620,23 @@ fn gen_expr(ctx: ref CCtx, expr: ref parser.Node) ref char! = {
         return buf 
     }
     if k == parser.NK_TRUST { return gen_expr(ctx, expr.d0 as ref parser.Node) }
+    if k == parser.NK_TRY {
+        val inner_expr: ref char = gen_expr(ctx, expr.d0 as ref parser.Node)
+        val t: i64 = fresh_tmp(ctx)
+        val buf: ref char = @alloc(1024) as ref char
+        @snprintf(buf, 1024, "int64_t* sx__try{lld} = (int64_t*)(intptr_t)({s});\nif(sx__try{lld}[0] != 0) {\n", {t, inner_expr, t})
+        emit(ctx, buf)
+        cc_emit_defers(ctx)
+        if ctx.current_ret_is_void {
+            @snprintf(buf, 1024, "return;\n}\nint64_t sx__val{lld} = sx__try{lld}[1];\n", {t, t})
+        } else {
+            @snprintf(buf, 1024, "return ({s})(intptr_t)sx__try{lld};\n}\nint64_t sx__val{lld} = sx__try{lld}[1];\n", {ctx.current_ret_ctype, t, t, t})
+        }
+        emit(ctx, buf)        @free(buf)
+        val res: ref char = @alloc(64) as ref char
+        @snprintf(res, 64, "sx__val{lld}", {t})
+        return res
+    }
     if k == parser.NK_SOME {
         val inner: ref char = gen_expr(ctx, expr.d0 as ref parser.Node)
         val buf: ref char = @alloc(128) as ref char
