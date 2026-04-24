@@ -1276,10 +1276,17 @@ fn gen_stmts(ctx: ref CCtx, stmts: ref parser.Node) void! = {
     if stmts == 0 as ref parser.Node { return }
     val len: i64 = @len(stmts) as i64
     val i: mut i64 = 0
-    for { if i >= len { break }
+    for { 
+        if i >= len { break }
         val s_opt = @get(stmts, i as usize)
-        match s_opt { some s => { gen_stmt(ctx, s as ref parser.Node) } none => {} }
-        i++ }
+        match s_opt { 
+            some s => {
+                gen_stmt(ctx, s as ref parser.Node) 
+            } 
+            none => {} 
+        }
+        i++ 
+    }
 }
 
 fn gen_stmt(ctx: mut ref CCtx, stmt: ref parser.Node) void! = {
