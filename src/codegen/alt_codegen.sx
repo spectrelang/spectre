@@ -219,6 +219,24 @@ fn cc_register_local(ctx: ref CCtx, name: ref char, ctype: ref char, is_slot: i6
     @append(ctx.local_is_slot, is_slot)
 }
 
+fn cc_is_local_declared(ctx: ref CCtx, name: ref char) bool! = {
+    val nlen: i64 = @len(ctx.local_names as list[ref char]) as i64
+    val ni: mut i64 = 0
+    for { 
+        if ni >= nlen { break }
+        val n_opt = @get(ctx.local_names as list[ref char], ni as usize)
+        match n_opt { 
+            some n => { 
+                if str.rchar_cmp(n as ref char, name) == 0 {
+                    return true
+                } 
+            } none => {} 
+        }
+        ni++ 
+    }
+    return false
+}
+
 fn cc_lookup_local_type(ctx: ref CCtx, name: ref char) ref char! = {
     val nlen: i64 = @len(ctx.local_names as list[ref char]) as i64
     val ni: mut i64 = nlen - 1
@@ -740,7 +758,7 @@ fn gen_field(ctx: ref CCtx, expr: ref parser.Node) ref char! = {
     return buf
 }
 
-fn gen_call(ctx: ref CCtx, expr: ref parser.Node) ref char! = {
+fn gen_call(ctx: mut ref CCtx, expr: ref parser.Node) ref char! = {
     val callee: ref parser.Node = parser.call_callee(expr)
     val args: ref void = parser.call_args(expr) as ref void
     val callee_name: ref char = resolve_callee_name(callee)
@@ -752,9 +770,10 @@ fn gen_call(ctx: ref CCtx, expr: ref parser.Node) ref char! = {
     val tv_tag: i64 = cc_lookup_tv(ctx, callee_name, tv_owner_slot, tv_field_slot)
     
     if tv_tag >= 0 {
-        val t: i64 = fresh_tmp(ctx)
+        ctx.tmp = ctx.tmp + 1
+        val t: i64 = ctx.tmp
         val alloc_stmt: ref char = @alloc(512) as ref char
-        @snprintf(alloc_stmt, 512, "int64_t t_{lld}=(int64_t)(intptr_t)calloc(1,24);*(int64_t*)(intptr_t)t_{lld}={lld};\n", {t, t, tv_tag})
+        @snprintf(alloc_stmt, 512, "int64_t sx__uv{lld}=(int64_t)(intptr_t)calloc(1,24);*(int64_t*)(intptr_t)sx__uv{lld}={lld};\n", {t, t, tv_tag})
         emit(ctx, alloc_stmt)
         @free(alloc_stmt)
         
@@ -768,7 +787,7 @@ fn gen_call(ctx: ref CCtx, expr: ref parser.Node) ref char! = {
                         val av: ref char = gen_expr(ctx, a as ref parser.Node)
                         val offset: i64 = 8 + (ai * 8)
                         val assign_stmt: ref char = @alloc(512) as ref char
-                        @snprintf(assign_stmt, 512, "*(int64_t*)(intptr_t)((char*)(intptr_t)t_{lld}+{lld})={s};\n", {t, offset, av})
+                        @snprintf(assign_stmt, 512, "*(int64_t*)(intptr_t)((char*)(intptr_t)sx__uv{lld}+{lld})={s};\n", {t, offset, av})
                         emit(ctx, assign_stmt)
                         @free(assign_stmt)
                     } none => {}
@@ -780,7 +799,7 @@ fn gen_call(ctx: ref CCtx, expr: ref parser.Node) ref char! = {
         @free(tv_field_slot)
         
         val res: ref char = @alloc(64) as ref char
-        @snprintf(res, 64, "t_{lld}", {t})
+        @snprintf(res, 64, "sx__uv{lld}", {t})
         return res
     }
     
@@ -1137,10 +1156,19 @@ fn gen_stmt(ctx: ref CCtx, stmt: ref parser.Node) void! = {
         val val_str: ref char = gen_expr(ctx, init_expr)
         val ct: mut ref char = "int64_t"
         if ty_node != 0 as ref parser.Node { ct = c_type_of(ty_node) }
-        val buf: ref char = @alloc(512) as ref char
-        @snprintf(buf, 512, "{s} t_{s}=({s})({s});\n", {ct, name, ct, val_str}) emit(ctx, buf) @free(buf)
-        val is_slot: mut i64 = 0 if mutable != 0 { is_slot = 1 }
-        cc_register_local(ctx, name, ct, is_slot) return }
+        
+        val already_declared: bool = cc_is_local_declared(ctx, name)
+        if !already_declared {
+            val buf: ref char = @alloc(512) as ref char
+            @snprintf(buf, 512, "{s} t_{s}=({s})({s});\n", {ct, name, ct, val_str}) emit(ctx, buf) @free(buf)
+            val is_slot: mut i64 = 0 if mutable != 0 { is_slot = 1 }
+            cc_register_local(ctx, name, ct, is_slot)
+        } else {
+            val buf: ref char = @alloc(512) as ref char
+            @snprintf(buf, 512, "t_{s}=({s})({s});\n", {name, ct, val_str}) emit(ctx, buf) @free(buf)
+        }
+        return 
+    }
     if k == parser.NK_ASSIGN {
         val target: ref parser.Node = stmt.d0 as ref parser.Node
         val val_str: ref char = gen_expr(ctx, stmt.d1 as ref parser.Node)
@@ -1271,9 +1299,22 @@ fn gen_for_stmt(ctx: ref CCtx, stmt: ref parser.Node) void! = {
     val cond_node: ref void = stmt.d2 as ref void
     if cond_node != 0 as ref void {
         val init_name: ref char = stmt.d0 as ref char
-        if init_name != 0 as ref char { val init_val: ref char = gen_expr(ctx, stmt.d1 as ref parser.Node)
-            val ib: ref char = @alloc(256) as ref char @snprintf(ib, 256, "int64_t t_{s}=({s});\n", {init_name, init_val}) emit(ctx, ib) @free(ib)
-            cc_register_local(ctx, init_name, "int64_t", 1) }
+        if init_name != 0 as ref char { 
+            val init_val: ref char = gen_expr(ctx, stmt.d1 as ref parser.Node)
+            val already_declared: bool = cc_is_local_declared(ctx, init_name)
+            if !already_declared {
+                val ib: ref char = @alloc(256) as ref char 
+                @snprintf(ib, 256, "int64_t t_{s}=({s});\n", {init_name, init_val}) 
+                emit(ctx, ib) 
+                @free(ib)
+                cc_register_local(ctx, init_name, "int64_t", 1)
+            } else {
+                val ib: ref char = @alloc(256) as ref char 
+                @snprintf(ib, 256, "t_{s}=({s});\n", {init_name, init_val}) 
+                emit(ctx, ib) 
+                @free(ib)
+            }
+        }
         val cond: ref char = gen_expr(ctx, cond_node as ref parser.Node)
         val wb: ref char = @alloc(256) as ref char @snprintf(wb, 256, "while({s}){\n", {cond}) emit(ctx, wb) @free(wb)
     } else { emitln(ctx, "for(;;){") }
