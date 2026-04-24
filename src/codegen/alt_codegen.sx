@@ -904,6 +904,19 @@ fn gen_field(ctx: ref CCtx, expr: ref parser.Node) ref char! = {
         val cval: ref char = cc_const_val(ctx, key)
         @free(key)
         if str.rchar_cmp(cval, "") != 0 { @snprintf(buf, 512, "({s})", {cval}) return buf }
+        val base_lt: ref char = cc_lookup_local_type(ctx, base_name)
+        if str.rchar_cmp(base_lt, "") == 0 {
+            val qkey: ref char = @alloc(512) as ref char
+            @snprintf(qkey, 512, "{s}__{s}", {base_name, fname})
+            val resolved: ref char = cc_resolve_fn_name(ctx, qkey)
+            @free(qkey)
+            if resolved != 0 as ref char {
+                @snprintf(buf, 512, "((int64_t)(intptr_t)&{s})", {resolved})
+                return buf
+            }
+            @free(buf)
+            return "0"
+        }
     }
     if base_node.kind == parser.NK_FIELD {
         val mid_node: ref parser.Node = parser.field_base(base_node)
@@ -914,6 +927,19 @@ fn gen_field(ctx: ref CCtx, expr: ref parser.Node) ref char! = {
             val cval: ref char = cc_const_val(ctx, key)
             @free(key)
             if str.rchar_cmp(cval, "") != 0 { @snprintf(buf, 512, "({s})", {cval}) return buf }
+            val mid_lt: ref char = cc_lookup_local_type(ctx, mid_node.d0 as ref char)
+            if str.rchar_cmp(mid_lt, "") == 0 {
+                val qkey: ref char = @alloc(512) as ref char
+                @snprintf(qkey, 512, "{s}__{s}__{s}", {mid_node.d0 as ref char, mid_name, fname})
+                val resolved: ref char = cc_resolve_fn_name(ctx, qkey)
+                @free(qkey)
+                if resolved != 0 as ref char {
+                    @snprintf(buf, 512, "((int64_t)(intptr_t)&{s})", {resolved})
+                    return buf
+                }
+                @free(buf)
+                return "0"
+            }
         }
     }
     val base: ref char = gen_expr(ctx, base_node)
