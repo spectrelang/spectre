@@ -1660,7 +1660,7 @@ fn gen_match_str(ctx: ref CCtx, stmt: ref parser.Node) void! = {
     if en != 0 as ref parser.Node { expr = gen_expr(ctx, en) }
     val arms: list[ref parser.Node] = parser.match_str_arms(stmt) val else_body: ref parser.Node = parser.match_str_else(stmt)
     val t: i64 = fresh_tmp(ctx) val buf: ref char = @alloc(4096) as ref char
-    @snprintf(buf, 4096, "{const char*sx__sv{lld}=(const char*)(intptr_t)({s});\n", {t, expr}) emit(ctx, buf) @free(buf)
+    @snprintf(buf, 4096, "\{const char*sx__sv{lld}=(const char*)(intptr_t)({s});\n", {t, expr}) emit(ctx, buf) @free(buf)
     val alen: i64 = @len(arms) as i64
     if alen > 0 { val ai: mut i64 = 0
         for { if ai >= alen { break } val arm_opt = @get(arms, ai as usize)
