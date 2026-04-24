@@ -1721,12 +1721,26 @@ fn gen_for_post_expr(ctx: ref CCtx, pst: ref parser.Node) ref char! = {
 
 fn gen_forin_stmt(ctx: ref CCtx, stmt: ref parser.Node) void! = {
     val binding: ref char = stmt.d0 as ref char
-    val iter: ref char = gen_expr(ctx, stmt.d1 as ref parser.Node)
+    val iter_node: ref parser.Node = stmt.d1 as ref parser.Node
+    val iter: ref char = gen_expr(ctx, iter_node)
     val t: i64 = fresh_tmp(ctx)
     val buf: ref char = @alloc(1024) as ref char
     @snprintf(buf, 1024, "\{int64_t sx__it{lld}={s};int64_t sx__len{lld}=(sx__it{lld}==0?0:*(int64_t*)((char*)(intptr_t)sx__it{lld}+8));int64_t*sx__buf{lld}=(sx__it{lld}==0?0:*(int64_t**)(intptr_t)sx__it{lld});int64_t sx__i{lld}=0;for(;sx__i{lld}<sx__len{lld};sx__i{lld}++)\{int64_t t_{s}=sx__buf{lld}[sx__i{lld}];\n",
         {t, iter, t, t, t, t, t, t, t, t, t, t, binding, t, t})
-    emit(ctx, buf) @free(buf) cc_register_local(ctx, binding, "int64_t", 0 as ref parser.Node, 1)
+    emit(ctx, buf) @free(buf)
+    val elem_stype: mut ref char = "int64_t"
+    val elem_ty: mut ref parser.Node = 0 as ref parser.Node
+    if iter_node != 0 as ref parser.Node && iter_node.kind == parser.NK_CAST {
+        val cast_ty: ref parser.Node = iter_node.d1 as ref parser.Node
+        if cast_ty != 0 as ref parser.Node && cast_ty.kind == parser.TY_LIST {
+            val inner_ty: ref parser.Node = cast_ty.d0 as ref parser.Node
+            if inner_ty != 0 as ref parser.Node {
+                elem_stype = spectre_type_name_of(inner_ty)
+                elem_ty = inner_ty
+            }
+        }
+    }
+    cc_register_local(ctx, binding, elem_stype, elem_ty, 1)
     gen_stmts(ctx, stmt.d2 as ref parser.Node) emitln(ctx, "}}")
 }
 
