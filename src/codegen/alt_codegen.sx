@@ -1636,13 +1636,20 @@ fn gen_test_main_c(ctx: ref CCtx, test_ids: list[i64]) void! = {
     emitln(ctx, "sx__argc=(int64_t)argc;sx__argv=(int64_t)(intptr_t)argv;")
     if !ctx.release_mode { emitln(ctx, "__sx_panic_init();") }
     val tlen: i64 = @len(test_ids) as i64 val ti: mut i64 = 0
-    for { if ti >= tlen { break } val id_opt = @get(test_ids, ti as usize)
-        match id_opt { some id => {
-            val call: ref char = @alloc(48) as ref char
-            @snprintf(call, 48, "sx__test_{lld}();", {id as i64})
-            emitln(ctx, call) @free(call)
-        } none => {} }
-        ti++ }
+    for { 
+        if ti >= tlen { break } 
+        val id_opt = @get(test_ids, ti as usize)
+        match id_opt { 
+            some id => {
+                val call: ref char = @alloc(48) as ref char
+                @snprintf(call, 48, "sx__test_{lld}();", {id as i64})
+                emitln(ctx, call) 
+                @free(call)
+            } 
+            none => {} 
+        }
+        ti++ 
+    }
     val ok_idx: i64 = intern_format_string(ctx, "all tests passed\n")
     val ok_buf: ref char = @alloc(64) as ref char
     @snprintf(ok_buf, 64, "printf(sx__str{lld});", {ok_idx})
