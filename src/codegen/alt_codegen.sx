@@ -747,9 +747,25 @@ fn gen_expr(ctx: ref CCtx, expr: ref parser.Node) ref char! = {
 
 fn gen_binop(ctx: ref CCtx, expr: ref parser.Node) ref char! = {
     val op: i64 = parser.binop_op(expr)
-    val lhs: ref char = gen_expr(ctx, parser.binop_left(expr))
-    val rhs: ref char = gen_expr(ctx, parser.binop_right(expr))
+    val lhs_expr: ref parser.Node = parser.binop_left(expr)
+    val rhs_expr: ref parser.Node = parser.binop_right(expr)
+    val lhs_is_result: bool = lhs_expr.kind == parser.NK_OK_VAL || lhs_expr.kind == parser.NK_ERR_VAL
+    val rhs_is_result: bool = rhs_expr.kind == parser.NK_OK_VAL || rhs_expr.kind == parser.NK_ERR_VAL
+    val lhs: ref char = gen_expr(ctx, lhs_expr)
+    val rhs: ref char = gen_expr(ctx, rhs_expr)
     val buf: ref char = @alloc(8192) as ref char
+    if ((lhs_is_result || rhs_is_result) && (op == parser.OP_EQ || op == parser.OP_NE)) {
+        val t: i64 = fresh_tmp(ctx)
+        val decl: ref char = @alloc(1024) as ref char
+        @snprintf(decl, 1024, "int64_t*sx__rl{lld}=(int64_t*)(intptr_t)({s});int64_t*sx__rr{lld}=(int64_t*)(intptr_t)({s});\n", {t, lhs, t, rhs})
+        emit(ctx, decl) @free(decl)
+        if op == parser.OP_EQ {
+            @snprintf(buf, 8192, "(sx__rl{lld}[0]==sx__rr{lld}[0]&&sx__rl{lld}[1]==sx__rr{lld}[1])", {t, t, t, t})
+        } else {
+            @snprintf(buf, 8192, "!(sx__rl{lld}[0]==sx__rr{lld}[0]&&sx__rl{lld}[1]==sx__rr{lld}[1])", {t, t, t, t})
+        }
+        return buf
+    }
     if op == parser.OP_ADD { @snprintf(buf, 8192, "(({s})+({s}))", {lhs, rhs}) }
     elif op == parser.OP_SUB { @snprintf(buf, 8192, "(({s})-({s}))", {lhs, rhs}) }
     elif op == parser.OP_MUL { @snprintf(buf, 8192, "(({s})*({s}))", {lhs, rhs}) }
