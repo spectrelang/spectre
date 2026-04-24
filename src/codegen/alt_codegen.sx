@@ -707,7 +707,8 @@ fn gen_field_addr(ctx: ref CCtx, expr: ref parser.Node) ref char! = {
     elif str.rchar_cmp(fname, "len") == 0 { off = 8 }
     elif str.rchar_cmp(fname, "cap") == 0 { off = 16 }
     val buf: ref char = @alloc(256) as ref char
-    @snprintf(buf, 256, "(int64_t)(intptr_t)((char*)(intptr_t)({s})+{lld})", {base, off}) return buf
+    @snprintf(buf, 256, "(int64_t)(intptr_t)((char*)(intptr_t)({s})+{lld})", {base, off}) 
+    return buf
 }
 
 fn gen_stmts(ctx: ref CCtx, stmts: ref parser.Node) void! = {
