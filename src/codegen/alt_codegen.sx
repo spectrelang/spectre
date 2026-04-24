@@ -1302,32 +1302,86 @@ fn gen_if_stmt(ctx: ref CCtx, stmt: ref parser.Node) void! = {
 }
 
 fn gen_for_stmt(ctx: ref CCtx, stmt: ref parser.Node) void! = {
+    val init_name: ref char = stmt.d0 as ref char
     val cond_node: ref void = stmt.d2 as ref void
-    if cond_node != 0 as ref void {
-        val init_name: ref char = stmt.d0 as ref char
-        if init_name != 0 as ref char { 
-            val init_val: ref char = gen_expr(ctx, stmt.d1 as ref parser.Node)
-            val already_declared: bool = cc_is_local_declared(ctx, init_name)
-            if !already_declared {
-                val ib: ref char = @alloc(256) as ref char 
-                @snprintf(ib, 256, "int64_t t_{s}=({s});\n", {init_name, init_val}) 
-                emit(ctx, ib) 
-                @free(ib)
-                cc_register_local(ctx, init_name, "int64_t", 1)
-            } else {
-                val ib: ref char = @alloc(256) as ref char 
-                @snprintf(ib, 256, "t_{s}=({s});\n", {init_name, init_val}) 
-                emit(ctx, ib) 
-                @free(ib)
-            }
+    val pst: ref void = stmt.d3 as ref void
+
+    if init_name != 0 as ref char {
+        val init_val: ref char = gen_expr(ctx, stmt.d1 as ref parser.Node)
+        val already_declared: bool = cc_is_local_declared(ctx, init_name)
+        if !already_declared {
+            val ib: ref char = @alloc(256) as ref char 
+            @snprintf(ib, 256, "int64_t t_{s}=({s});\n", {init_name, init_val}) 
+            emit(ctx, ib) 
+            @free(ib)
+            cc_register_local(ctx, init_name, "int64_t", 1)
+        } else {
+            val ib: ref char = @alloc(256) as ref char 
+            @snprintf(ib, 256, "t_{s}=({s});\n", {init_name, init_val}) 
+            emit(ctx, ib) 
+            @free(ib)
         }
+    }
+
+    if cond_node != 0 as ref void {
         val cond: ref char = gen_expr(ctx, cond_node as ref parser.Node)
-        val wb: ref char = @alloc(256) as ref char @snprintf(wb, 256, "while({s}){\n", {cond}) emit(ctx, wb) @free(wb)
+        if pst != 0 as ref void {
+            val pst_str: ref char = gen_for_post_expr(ctx, pst as ref parser.Node)
+            val wb: ref char = @alloc(512) as ref char
+            @snprintf(wb, 512, "for(;{s};{s}){\n", {cond, pst_str})
+            emit(ctx, wb)
+            @free(wb)
+        } else {
+            val wb: ref char = @alloc(256) as ref char 
+            @snprintf(wb, 256, "while({s}){\n", {cond}) 
+            emit(ctx, wb) 
+            @free(wb)
+        }
     } else { emitln(ctx, "for(;;){") }
     gen_stmts(ctx, stmt.d4 as ref parser.Node)
-    val pst: ref void = stmt.d3 as ref void
-    if pst != 0 as ref void { gen_stmt(ctx, pst as ref parser.Node) }
     emitln(ctx, "}")
+}
+
+/// Convert a for-loop post-step statement node into an expression string
+fn gen_for_post_expr(ctx: ref CCtx, pst: ref parser.Node) ref char! = {
+    if pst == 0 as ref parser.Node { return "" }
+    val k: i64 = pst.kind
+    val name: ref char = pst.d0 as ref char
+    if k == parser.NK_INCREMENT {
+        if name != 0 as ref char {
+            val buf: ref char = @alloc(128) as ref char
+            @snprintf(buf, 128, "t_{s}++", {name})
+            return buf
+        }
+        return ""
+    }
+    if k == parser.NK_DECREMENT {
+        if name != 0 as ref char {
+            val buf: ref char = @alloc(128) as ref char
+            @snprintf(buf, 128, "t_{s}--", {name})
+            return buf
+        }
+        return ""
+    }
+    if k == parser.NK_ADD_ASSIGN {
+        val rhs: ref char = gen_expr(ctx, pst.d1 as ref parser.Node)
+        if name != 0 as ref char {
+            val buf: ref char = @alloc(256) as ref char
+            @snprintf(buf, 256, "t_{s}+=({s})", {name, rhs})
+            return buf
+        }
+        return ""
+    }
+    if k == parser.NK_SUB_ASSIGN {
+        val rhs: ref char = gen_expr(ctx, pst.d1 as ref parser.Node)
+        if name != 0 as ref char {
+            val buf: ref char = @alloc(256) as ref char
+            @snprintf(buf, 256, "t_{s}-=({s})", {name, rhs})
+            return buf
+        }
+        return ""
+    }
+    return gen_expr(ctx, pst)
 }
 
 fn gen_forin_stmt(ctx: ref CCtx, stmt: ref parser.Node) void! = {
