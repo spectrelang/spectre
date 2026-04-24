@@ -1300,7 +1300,7 @@ fn gen_fn_prefixed(ctx: mut ref CCtx, fn_node: ref parser.Node, mod_prefix: ref 
         } else { emit(ctx, "void") }
         emitln(ctx, "){") }
     if is_main { emitln(ctx, "sx__argc=(int64_t)argc;sx__argv=(int64_t)(intptr_t)argv;")
-        if !ctx.release_mode { emitln(ctx, "sx__panic_init();") } }
+        if !ctx.release_mode { emitln(ctx, "__sx_panic_init();") } }
     gen_stmts(ctx, body)
     val blen: i64 = @len(body) as i64 val needs_ret: mut bool = true
     if blen > 0 { 
@@ -1448,7 +1448,6 @@ fn emit_c_preamble(ctx: ref CCtx) void! = {
     emitln_fwd(ctx, "#include <stdlib.h>")
     emitln_fwd(ctx, "#include <string.h>")
     emitln_fwd(ctx, "#include <stdio.h>")
-    emitln_fwd(ctx, "#include <signal.h>")
     emitln_fwd(ctx, "static int64_t sx__argc=0;")
     emitln_fwd(ctx, "static int64_t sx__argv=0;")
     emitln_fwd(ctx, "static void sx__append(void*list,int64_t elem){int64_t*hdr=(int64_t*)list;int64_t*buf=*(int64_t**)hdr;int64_t len=hdr[1];int64_t cap=hdr[2];if(len>=cap){cap=cap<4?8:cap*2;buf=(int64_t*)realloc(buf,(size_t)(cap*8));hdr[0]=(int64_t)(intptr_t)buf;hdr[2]=cap;}buf[len]=elem;hdr[1]=len+1;}")
@@ -1457,9 +1456,7 @@ fn emit_c_preamble(ctx: ref CCtx) void! = {
 }
 
 fn emit_c_panic_handler(ctx: ref CCtx) void! = {
-    if ctx.release_mode { emitln_fwd(ctx, "static void sx__panic_init(void){}") return }
-    emitln_fwd(ctx, "static void sx__panic_handler(int sig){const char*name=\"unknown\";if(sig==SIGSEGV)name=\"SIGSEGV\";else if(sig==SIGABRT)name=\"SIGABRT\";else if(sig==SIGFPE)name=\"SIGFPE\";fprintf(stderr,\"spectre: caught signal %s\\n\",name);fflush(stderr);exit(128+sig);}")
-    emitln_fwd(ctx, "static void sx__panic_init(void){signal(SIGSEGV,sx__panic_handler);signal(SIGFPE,sx__panic_handler);}")
+    if !ctx.release_mode { emitln_fwd(ctx, "extern void __sx_panic_init(void);") }
 }
 
 fn emit_string_data(ctx: ref CCtx) void! = {
@@ -1469,7 +1466,7 @@ fn emit_string_data(ctx: ref CCtx) void! = {
         val s_opt = @get(ctx.strs as list[ref char], si as usize)
         match s_opt { some s => {
             val buf: ref char = @alloc(4096) as ref char
-            @snprintf(buf, 4096, "static const char sx__str{lld}[]=\"", {si})
+            @snprintf(buf, 4096, "static char sx__str{lld}[]=\"", {si})
             emit_to_fwd(ctx, buf) @free(buf)
             val raw: ref char = s as ref char 
             val rlen: i64 = str.len_raw(raw) 
@@ -1589,7 +1586,7 @@ fn gen_test_fn_c(ctx: mut ref CCtx, body_stmts: ref parser.Node, test_id: i64) v
 fn gen_test_main_c(ctx: ref CCtx, test_ids: list[i64]) void! = {
     emitln(ctx, "int main(int argc,char**argv) {")
     emitln(ctx, "sx__argc=(int64_t)argc;sx__argv=(int64_t)(intptr_t)argv;")
-    if !ctx.release_mode { emitln(ctx, "sx__panic_init();") }
+    if !ctx.release_mode { emitln(ctx, "__sx_panic_init();") }
     val tlen: i64 = @len(test_ids) as i64 val ti: mut i64 = 0
     for { if ti >= tlen { break } val id_opt = @get(test_ids, ti as usize)
         match id_opt { some id => {
