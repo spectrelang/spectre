@@ -141,31 +141,31 @@ fn new_chip8() ref Chip8 = {
   val i: mut usize = 0
   for {
     if i >= MEMORY_SIZE { break }
-    trust @append(chip.memory, 0)
+    @append(chip.memory, 0)
     i = i + 1
   }
   i = 0
   for {
     if i >= NUM_REGISTERS { break }
-    trust @append(chip.V, 0)
+    @append(chip.V, 0)
     i = i + 1
   }
   i = 0
   for {
     if i >= DISPLAY_SIZE { break }
-    trust @append(chip.gfx, 0)
+    @append(chip.gfx, 0)
     i = i + 1
   }
   i = 0
   for {
     if i >= STACK_SIZE { break }
-    trust @append(chip.stack, 0)
+    @append(chip.stack, 0)
     i = i + 1
   }
   i = 0
   for {
     if i >= NUM_KEYS { break }
-    trust @append(chip.key, 0)
+    @append(chip.key, 0)
     i = i + 1
   }
   return chip
