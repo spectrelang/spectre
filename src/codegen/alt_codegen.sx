@@ -1019,6 +1019,9 @@ fn gen_builtin(ctx: ref CCtx, expr: ref parser.Node) ref char! = {
     if str.rchar_cmp(bname, "get") == 0 { val l: ref char = get_arg(ctx, args, 0) val i: ref char = get_arg(ctx, args, 1)
         val buf: ref char = @alloc(256) as ref char
         @snprintf(buf, 256, "sx__rt_get((void*)(intptr_t)({s}),(int64_t)({s}))", {l, i}) return buf }
+    if str.rchar_cmp(bname, "remove") == 0 { val l: ref char = get_arg(ctx, args, 0) val i: ref char = get_arg(ctx, args, 1)
+        val buf: ref char = @alloc(256) as ref char
+        @snprintf(buf, 256, "sx__rt_remove((void*)(intptr_t)({s}),(int64_t)({s}))", {l, i}) return buf }
     if str.rchar_cmp(bname, "fmt") == 0 {
         val f: ref char = get_format_arg(ctx, args, 0) val p: mut ref char = "0"
         if args != 0 as ref void { val alen: i64 = @len(args as list[ref parser.Node]) as i64
@@ -1779,6 +1782,7 @@ fn emit_c_preamble(ctx: ref CCtx) void! = {
     emitln_fwd(ctx, "static int64_t sx__argv=0;")
     emitln_fwd(ctx, "static void sx__rt_append(void*list,int64_t elem){int64_t*hdr=(int64_t*)list;int64_t*buf=*(int64_t**)hdr;int64_t len=hdr[1];int64_t cap=hdr[2];if(len>=cap){cap=cap<4?8:cap*2;buf=(int64_t*)realloc(buf,(size_t)(cap*8));hdr[0]=(int64_t)(intptr_t)buf;hdr[2]=cap;}buf[len]=elem;hdr[1]=len+1;}")
     emitln_fwd(ctx, "static int64_t sx__rt_get(void*list,int64_t idx){int64_t*hdr=(int64_t*)list;int64_t*buf=*(int64_t**)hdr;int64_t len=hdr[1];if(idx<0||idx>=len)return 0;return buf[idx]+1;}")
+    emitln_fwd(ctx, "static int64_t sx__rt_remove(void*list,int64_t idx){int64_t*hdr=(int64_t*)list;int64_t*buf=*(int64_t**)hdr;int64_t len=hdr[1];if(idx<0||idx>=len)return 0;int64_t val=buf[idx];int64_t i;for(i=idx;i<len-1;i++)buf[i]=buf[i+1];hdr[1]=len-1;return val;}")
     emitln_fwd(ctx, "static void*sx__rt_get_args(void){int64_t*hdr=(int64_t*)calloc(1,24);int64_t c=sx__argc;int64_t*buf=(int64_t*)calloc(1,(size_t)(c*8));char**av=(char**)(intptr_t)sx__argv;int64_t i;for(i=0;i<c;i++)buf[i]=(int64_t)(intptr_t)av[i];hdr[0]=(int64_t)(intptr_t)buf;hdr[1]=c;hdr[2]=c;return hdr;}")
     emitln_fwd(ctx, "static void sx__rt_printf(const char* f, int64_t* p){if(!p){printf(\"%s\",f);return;} printf(f,p[0],p[1],p[2],p[3],p[4],p[5],p[6],p[7],p[8],p[9],p[10],p[11],p[12],p[13],p[14],p[15]);}")
     emitln_fwd(ctx, "static void sx__rt_dprintf(int fd, const char* f, int64_t* p){if(!p){dprintf(fd,\"%s\",f);return;} dprintf(fd,f,p[0],p[1],p[2],p[3],p[4],p[5],p[6],p[7],p[8],p[9],p[10],p[11],p[12],p[13],p[14],p[15]);}")
@@ -1822,7 +1826,7 @@ fn is_libc_fn(name: ref char) bool! = {
         "malloc", "free", "realloc", "calloc", "memset", "memcpy", 
         "strlen", "strcmp", "puts", "printf", "dprintf", "getchar", "fgets", 
         "exit", "abort", "abs", "getenv", "fopen", "fclose", "fread", "fwrite", 
-        "remove", "rename", "system", "time","gmtime","localtime","strftime","clock",
+        "rename", "system", "time","gmtime","localtime","strftime","clock",
         "gettimeofday","srand","rand","random","srandom","access","popen","pclose", 
         "open","close","read","write","lseek","pread","pwrite","fsync","ftruncate",
         "strlen","strnlen","strcmp","strncmp","strcpy","strncpy","strcat","strncat","strchr",
