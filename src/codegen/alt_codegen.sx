@@ -110,9 +110,79 @@ fn emitln(ctx: ref CCtx, s: ref char) void! = {
     str.StringBuilder.append_char(ctx.sb, 10) 
 }
 
+fn rewrite_fmt(s: ref char) ref char! = {
+    val slen: i64 = str.len_raw(s)
+    val out: ref char = @alloc(slen * 2 + 1) as ref char
+    val oi: mut i64 = 0
+    val i: mut i64 = 0
+    for {
+        if i >= slen { break }
+        val c: u8 = @load8(@ptradd(s as ref void, i))
+        
+        if c == 92 {
+            if i + 1 < slen {
+                val next: u8 = @load8(@ptradd(s as ref void, i + 1))
+                if next == 123 || next == 125 {
+                    @store8(@ptradd(out as ref void, oi), next)
+                    oi++
+                    i += 2
+                } else {
+                    @store8(@ptradd(out as ref void, oi), c)
+                    oi++
+                    i++
+                }
+            } else {
+                @store8(@ptradd(out as ref void, oi), c)
+                oi++
+                i++
+            }
+        } elif c == 123 {
+            val j: mut i64 = i + 1
+            val found: mut bool = false
+            for {
+                if j >= slen { break }
+                val ic: u8 = @load8(@ptradd(s as ref void, j))
+                if ic == 125 { found = true break }
+                j++
+            }
+            if found {
+                @store8(@ptradd(out as ref void, oi), 37)
+                oi++
+                val k: mut i64 = i + 1
+                for {
+                    if k >= j { break }
+                    val sc: u8 = @load8(@ptradd(s as ref void, k))
+                    @store8(@ptradd(out as ref void, oi), sc)
+                    oi++
+                    k++
+                }
+                i = j + 1
+            } else {
+                @store8(@ptradd(out as ref void, oi), c)
+                oi++
+                i++
+            }
+        } else {
+            @store8(@ptradd(out as ref void, oi), c)
+            oi++
+            i++
+        }
+    }
+    @store8(@ptradd(out as ref void, oi), 0)
+    return out
+}
+
 fn intern_string(ctx: mut ref CCtx, s: ref char) i64! = {
     val idx: i64 = ctx.str_cnt
     @append(ctx.strs, s)
+    ctx.str_cnt = idx + 1
+    return idx
+}
+
+fn intern_format_string(ctx: mut ref CCtx, s: ref char) i64! = {
+    val rewritten: ref char = rewrite_fmt(s)
+    val idx: i64 = ctx.str_cnt
+    @append(ctx.strs, rewritten)
     ctx.str_cnt = idx + 1
     return idx
 }
@@ -615,6 +685,13 @@ fn gen_call(ctx: ref CCtx, expr: ref parser.Node) ref char! = {
     val effective: mut ref char = callee_name
     if resolved != 0 as ref char { effective = resolved }
     elif ext_sym != 0 as ref char { effective = ext_sym }
+    
+    val is_print: bool = str.rchar_cmp(callee_name, "print") == 0
+        || str.rchar_cmp(effective, "std__stdio__print") == 0
+        || str.ends_with(str.from(callee_name), str.from("__print"))
+        || str.ends_with(str.from(callee_name), str.from("__eprint"))
+        || str.rchar_cmp(callee_name, "printf") == 0
+    
     val buf: ref char = @alloc(4096) as ref char
     @snprintf(buf, 4096, "{s}(", {effective})
     if args != 0 as ref void {
@@ -625,7 +702,22 @@ fn gen_call(ctx: ref CCtx, expr: ref parser.Node) ref char! = {
             match a_opt { some a => {
                 if ai > 0 { val ol: i64 = str.len_raw(buf)
                     @store8(@ptradd(buf as ref void, ol), 44) @store8(@ptradd(buf as ref void, ol+1), 0) }
-                val av: ref char = gen_expr(ctx, a as ref parser.Node)
+                
+                val av: mut ref char = 0 as ref char
+                if is_print && ai == 0 {
+                    val a_node: ref parser.Node = a as ref parser.Node
+                    if a_node.kind == parser.NK_STR_LIT {
+                        val fmt_str: ref char = parser.str_lit_text(a_node)
+                        val fmt_idx: i64 = intern_format_string(ctx, fmt_str)
+                        val fmt_buf: ref char = @alloc(64) as ref char
+                        @snprintf(fmt_buf, 64, "sx__str{lld}", {fmt_idx})
+                        av = fmt_buf
+                    }
+                }
+                if av == 0 as ref char {
+                    av = gen_expr(ctx, a as ref parser.Node)
+                }
+                
                 val ol2: i64 = str.len_raw(buf) val al: i64 = str.len_raw(av)
                 @memcpy(@ptradd(buf as ref void, ol2), av as ref void, (al+1) as usize)
             } none => {} }
@@ -700,10 +792,36 @@ fn gen_builtin(ctx: ref CCtx, expr: ref parser.Node) ref char! = {
     if str.rchar_cmp(bname, "puts") == 0 { val s: ref char = get_arg(ctx, args, 0)
         val buf: ref char = @alloc(256) as ref char
         @snprintf(buf, 256, "puts((const char*)(intptr_t)({s}))", {s}) return buf }
-    if str.rchar_cmp(bname, "printf") == 0 || str.rchar_cmp(bname, "print") == 0 {
-        val f: ref char = get_arg(ctx, args, 0)
+    if (str.rchar_cmp(bname, "printf") == 0 || str.rchar_cmp(bname, "print") == 0) {
         val buf: ref char = @alloc(4096) as ref char
-        @snprintf(buf, 4096, "printf((const char*)(intptr_t)({s})", {f})
+        val fmt_arg: mut ref char = 0 as ref char
+        
+        if args != 0 as ref void {
+            val alen: i64 = @len(args as list[ref parser.Node]) as i64
+            if alen > 0 {
+                val first_arg_opt = @get(args as list[ref parser.Node], 0 as usize)
+                match first_arg_opt {
+                    some first_arg => {
+                        val first_node: ref parser.Node = first_arg as ref parser.Node
+                        if first_node.kind == parser.NK_STR_LIT {
+                            val fmt_str: ref char = parser.str_lit_text(first_node)
+                            val fmt_idx: i64 = intern_format_string(ctx, fmt_str)
+                            val fmt_buf: ref char = @alloc(64) as ref char
+                            @snprintf(fmt_buf, 64, "sx__str{lld}", {fmt_idx})
+                            fmt_arg = fmt_buf
+                        }
+                    }
+                    none => {}
+                }
+            }
+        }
+        
+        if fmt_arg == 0 as ref char {
+            val f: ref char = get_arg(ctx, args, 0)
+            fmt_arg = f
+        }
+        
+        @snprintf(buf, 4096, "printf((const char*)(intptr_t)({s})", {fmt_arg})
         if args != 0 as ref void { val alen: i64 = @len(args as list[ref parser.Node]) as i64
             if alen > 1 {
                 val pack_opt = @get(args as list[ref parser.Node], 1 as usize)
