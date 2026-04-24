@@ -1075,7 +1075,7 @@ fn gen_stmt(ctx: ref CCtx, stmt: ref parser.Node) void! = {
     if k == parser.NK_DEFER { cc_defer_push(ctx, stmt.d0 as ref parser.Node) return }
     if k == parser.NK_ASSERT { val cond: ref char = gen_expr(ctx, stmt.d0 as ref parser.Node) val line: i64 = stmt.line
         val buf: ref char = @alloc(512) as ref char
-        @snprintf(buf, 512, "if(!({s})){fprintf(stderr,\"spectre: assertion failed at line {lld}\\n\");fflush(stderr);abort();}\n", {cond, line})
+        @snprintf(buf, 512, "if(!({s}))\{fprintf(stderr,\"spectre: assertion failed at line {lld}\\n\");fflush(stderr);abort();}\n", {cond, line})
         emit(ctx, buf) @free(buf) return }
     if k == parser.NK_PRE || k == parser.NK_GUARDED_PRE || k == parser.NK_POST || k == parser.NK_GUARDED_POST {
         if ctx.release_mode { if k == parser.NK_PRE || k == parser.NK_POST { return } }
@@ -1089,8 +1089,8 @@ fn gen_stmt(ctx: ref CCtx, stmt: ref parser.Node) void! = {
                 match c_opt { some c => { val cn: ref parser.Node = c as ref parser.Node
                     val label: ref char = cn.d0 as ref char val cexpr: ref parser.Node = cn.d1 as ref parser.Node
                     val cv: ref char = gen_expr(ctx, cexpr) val buf: ref char = @alloc(1024) as ref char
-                    if label != 0 as ref char { @snprintf(buf, 1024, "if(!({s})){fprintf(stderr,\"spectre: {s} '%s' violated in function '%s'\\n\",\"{s}\",\"{s}\");fflush(stderr);abort();}\n", {cv, ks, label, fn_n}) }
-                    else { @snprintf(buf, 1024, "if(!({s})){fprintf(stderr,\"spectre: {s} violated in function '%s'\\n\",\"{s}\");fflush(stderr);abort();}\n", {cv, ks, fn_n}) }
+                    if label != 0 as ref char { @snprintf(buf, 1024, "if(!({s}))\{fprintf(stderr,\"spectre: {s} '%%s' violated in function '%%s'\\n\",\"{s}\",\"{s}\");fflush(stderr);abort();}\n", {cv, ks, label, fn_n}) }
+                    else { @snprintf(buf, 1024, "if(!({s}))\{fprintf(stderr,\"spectre: {s} violated in function '%%s'\\n\",\"{s}\");fflush(stderr);abort();}\n", {cv, ks, fn_n}) }
                     emit(ctx, buf) @free(buf)
                 } none => {} }
                 ci++ } }
