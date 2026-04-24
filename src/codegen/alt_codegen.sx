@@ -305,33 +305,43 @@ fn cc_resolve_fn_name(ctx: ref CCtx, name: ref char) ref char! = {
     val namelen: i64 = str.len_raw(name)
     val suffix: ref char = @alloc(namelen + 3) as ref char
     @snprintf(suffix, namelen + 3, "__{s}", {name})
+    val sx_name: ref char = @alloc(namelen + 5) as ref char
+    @snprintf(sx_name, namelen + 5, "sx__{s}", {name})
     val ni: mut i64 = 0
     val found: mut ref char = 0 as ref char
-    for { 
+    for {
         if ni >= nlen { break }
         val n_opt = @get(ctx.fn_names as list[ref char], ni as usize)
-        match n_opt { 
+        match n_opt {
             some n => {
                 val candidate: ref char = n as ref char
-                if str.rchar_cmp(candidate, name) == 0 { 
-                    @free(suffix) 
-                    cc_mark_prefix_used(ctx, "") 
-                    return candidate 
+                if str.rchar_cmp(candidate, name) == 0 {
+                    @free(suffix)
+                    @free(sx_name)
+                    cc_mark_prefix_used(ctx, "")
+                    return candidate
+                }
+                if str.rchar_cmp(candidate, sx_name) == 0 {
+                    @free(suffix)
+                    @free(sx_name)
+                    cc_mark_prefix_used(ctx, "")
+                    return candidate
                 }
                 val clen: i64 = str.len_raw(candidate)
                 val slen: i64 = namelen + 2
-                if clen > slen { 
+                if clen > slen {
                     val tail: ref char = @ptradd(candidate, clen - slen) as ref char
-                    if str.rchar_cmp(tail, suffix) == 0 { found = candidate } 
+                    if str.rchar_cmp(tail, suffix) == 0 { found = candidate }
                 }
-            } none => {} 
+            } none => {}
         }
-        ni++ 
+        ni++
     }
     @free(suffix)
-    if found != 0 as ref char { 
-        val prefix: ref char = codegen.extract_prefix_from_mangled(found, name) 
-        cc_mark_prefix_used(ctx, prefix) 
+    @free(sx_name)
+    if found != 0 as ref char {
+        val prefix: ref char = codegen.extract_prefix_from_mangled(found, name)
+        cc_mark_prefix_used(ctx, prefix)
     }
     return found
 }
@@ -1203,8 +1213,10 @@ fn gen_fn_prefixed(ctx: mut ref CCtx, fn_node: ref parser.Node, mod_prefix: ref 
     val is_std_child: mut bool = false
     for scn in get_std_child_names() { if str.rchar_cmp(scn, mod_prefix) == 0 { is_std_child = true break } }
     val mangled: ref char = @alloc(512) as ref char
-    if str.rchar_cmp(mod_prefix, "") == 0 { @snprintf(mangled, 512, "{s}", {base}) }
-    elif is_std_child { @snprintf(mangled, 512, "std__{s}__{s}", {mod_prefix, base}) }
+    if str.rchar_cmp(mod_prefix, "") == 0 {
+        if str.rchar_cmp(base, "main") == 0 { @snprintf(mangled, 512, "{s}", {base}) }
+        else { @snprintf(mangled, 512, "sx__{s}", {base}) }
+    } elif is_std_child { @snprintf(mangled, 512, "std__{s}__{s}", {mod_prefix, base}) }
     else { @snprintf(mangled, 512, "{s}__{s}", {mod_prefix, base}) }
     if !cc_emit_label_if_new(ctx, mangled) { @free(mangled) @free(base) return }
     ctx.fn_name = mangled
@@ -1316,8 +1328,10 @@ fn preregister_items(ctx: ref CCtx, items: list[ref parser.Node], mod_prefix: re
                 val is_sc: mut bool = false
                 for scn in get_std_child_names() { if str.rchar_cmp(scn, mod_prefix) == 0 { is_sc = true break } }
                 val mangled: ref char = @alloc(512) as ref char
-                if str.rchar_cmp(mod_prefix, "") == 0 { @snprintf(mangled, 512, "{s}", {base}) }
-                elif is_sc { @snprintf(mangled, 512, "std__{s}__{s}", {mod_prefix, base}) }
+                if str.rchar_cmp(mod_prefix, "") == 0 {
+                    if str.rchar_cmp(base, "main") == 0 { @snprintf(mangled, 512, "{s}", {base}) }
+                    else { @snprintf(mangled, 512, "sx__{s}", {base}) }
+                } elif is_sc { @snprintf(mangled, 512, "std__{s}__{s}", {mod_prefix, base}) }
                 else { @snprintf(mangled, 512, "{s}__{s}", {mod_prefix, base}) }
                 if params != 0 as ref void { cc_register_fn(ctx, mangled, params, ret_ty) }
             } elif k == parser.NK_TAGGED_UNIONDEF { gen_tagged_union_def(ctx, node, mod_prefix) }
@@ -1427,28 +1441,42 @@ fn emit_forward_decls(ctx: ref CCtx) void! = {
                 val mangled: ref char = n as ref char
                 if str.rchar_cmp(mangled, "main") == 0 { ni++ continue }
                 val ret_ct: mut ref char = "int64_t"
+                val params_list: mut ref void = 0 as ref void
                 val flen: i64 = @len(ctx.fn_names as list[ref char]) as i64
                 val fi: mut i64 = 0
-                for { 
+                for {
                     if fi >= flen { break }
                     val fn_opt = @get(ctx.fn_names as list[ref char], fi as usize)
-                    match fn_opt { 
-                        some fn_n => { 
+                    match fn_opt {
+                        some fn_n => {
                             if str.rchar_cmp(fn_n as ref char, mangled) == 0 {
                                 val r_opt = @get(ctx.fn_rets as list[ref void], fi as usize)
-                                match r_opt { 
-                                    some r => { ret_ct = c_ret_type_of(r as ref parser.Node) } 
-                                    none => {} 
+                                match r_opt {
+                                    some r => { ret_ct = c_ret_type_of(r as ref parser.Node) }
+                                    none => {}
                                 }
+                                val p_opt = @get(ctx.fn_params as list[ref void], fi as usize)
+                                match p_opt { some p => { params_list = p as ref void } none => {} }
                                 fi = flen
-                            } 
-                        } none => {} 
+                            }
+                        } none => {}
                     }
-                    fi++ 
+                    fi++
                 }
                 val buf: ref char = @alloc(1024) as ref char
-                @snprintf(buf, 1024, "{s} {s}();\n", {ret_ct, mangled})
+                @snprintf(buf, 1024, "{s} {s}(", {ret_ct, mangled})
                 emit_to_fwd(ctx, buf) @free(buf)
+                if params_list != 0 as ref void {
+                    val plen: i64 = @len(params_list) as i64
+                    if plen == 0 { emit_to_fwd(ctx, "void") }
+                    val pi: mut i64 = 0
+                    for { if pi >= plen { break } val p_opt = @get(params_list, pi as usize)
+                        match p_opt { some param => { val pt: ref parser.Node = (param as ref parser.Node).d1 as ref parser.Node
+                            val pct: ref char = c_type_of(pt) if pi > 0 { emit_to_fwd(ctx, ",") }
+                            emit_to_fwd(ctx, pct) } none => {} }
+                        pi++ }
+                } else { emit_to_fwd(ctx, "void") }
+                emitln_fwd(ctx, ");")
             } 
             none => {} 
         }
