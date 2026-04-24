@@ -1341,7 +1341,10 @@ fn gen_for_stmt(ctx: ref CCtx, stmt: ref parser.Node) void! = {
     val cond_node: ref void = stmt.d2 as ref void
     val pst: ref void = stmt.d3 as ref void
 
+    val has_block: mut bool = false
     if init_name != 0 as ref char {
+        emitln(ctx, "{")
+        has_block = true
         val init_val: ref char = gen_expr(ctx, stmt.d1 as ref parser.Node)
         val ib: ref char = @alloc(256) as ref char 
         @snprintf(ib, 256, "int64_t t_{s}=({s});\n", {init_name, init_val}) 
@@ -1367,6 +1370,9 @@ fn gen_for_stmt(ctx: ref CCtx, stmt: ref parser.Node) void! = {
     } else { emitln(ctx, "for(;;){") }
     gen_stmts(ctx, stmt.d4 as ref parser.Node)
     emitln(ctx, "}")
+    if has_block {
+        emitln(ctx, "}")
+    }
 }
 
 /// Convert a for-loop post-step statement node into an expression string
