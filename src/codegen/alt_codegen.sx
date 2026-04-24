@@ -567,6 +567,19 @@ fn cc_emit_defers(ctx: ref CCtx) void! = {
     }
 }
 
+fn cc_handle_block_defers(ctx: ref CCtx, target_depth: i64) void! = {
+    for {
+        val n: i64 = @len(ctx.defer_stack) as i64
+        if n <= target_depth { break }
+        val d_opt = @get(ctx.defer_stack, n - 1)
+        match d_opt {
+            some d => { gen_stmts(ctx, d as ref parser.Node) }
+            none => {}
+        }
+        @remove(ctx.defer_stack, (n - 1) as usize)
+    }
+}
+
 fn field_offset_bytes(ctx: ref CCtx, fields: ref void, field_name: ref char) i64! = {
     val flen: i64 = @len(fields as list[ref void]) as i64
     val off: mut i64 = 0
@@ -1274,6 +1287,7 @@ fn gen_field_addr(ctx: ref CCtx, expr: ref parser.Node) ref char! = {
 
 fn gen_stmts(ctx: ref CCtx, stmts: ref parser.Node) void! = {
     if stmts == 0 as ref parser.Node { return }
+    val old_depth: i64 = @len(ctx.defer_stack) as i64
     val len: i64 = @len(stmts) as i64
     val i: mut i64 = 0
     for { 
@@ -1287,6 +1301,7 @@ fn gen_stmts(ctx: ref CCtx, stmts: ref parser.Node) void! = {
         }
         i++ 
     }
+    cc_handle_block_defers(ctx, old_depth)
 }
 
 fn gen_stmt(ctx: mut ref CCtx, stmt: ref parser.Node) void! = {
