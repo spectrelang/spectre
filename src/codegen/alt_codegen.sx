@@ -1062,7 +1062,7 @@ fn gen_forin_stmt(ctx: ref CCtx, stmt: ref parser.Node) void! = {
     val iter: ref char = gen_expr(ctx, stmt.d1 as ref parser.Node)
     val t: i64 = fresh_tmp(ctx)
     val buf: ref char = @alloc(1024) as ref char
-    @snprintf(buf, 1024, "{int64_t sx__it{lld}={s};int64_t sx__len{lld}=*(int64_t*)((char*)(intptr_t)sx__it{lld}+8);int64_t*sx__buf{lld}=*(int64_t**)(intptr_t)sx__it{lld};int64_t sx__i{lld}=0;for(;sx__i{lld}<sx__len{lld};sx__i{lld}++){int64_t t_{s}=sx__buf{lld}[sx__i{lld}];\n",
+    @snprintf(buf, 1024, "\{int64_t sx__it{lld}={s};int64_t sx__len{lld}=*(int64_t*)((char*)(intptr_t)sx__it{lld}+8);int64_t*sx__buf{lld}=*(int64_t**)(intptr_t)sx__it{lld};int64_t sx__i{lld}=0;for(;sx__i{lld}<sx__len{lld};sx__i{lld}++)\{int64_t t_{s}=sx__buf{lld}[sx__i{lld}];\n",
         {t, iter, t, t, t, t, t, t, t, t, binding, t, t})
     emit(ctx, buf) @free(buf) cc_register_local(ctx, binding, "int64_t", 1)
     gen_stmts(ctx, stmt.d2 as ref parser.Node) emitln(ctx, "}}")
@@ -1073,7 +1073,7 @@ fn gen_match_opt(ctx: ref CCtx, stmt: ref parser.Node) void! = {
     if en != 0 as ref parser.Node { expr = gen_expr(ctx, en) }
     val sb: ref char = parser.match_opt_some_bind(stmt) val sbody: ref parser.Node = parser.match_opt_some_body(stmt)
     val nbody: ref parser.Node = parser.match_opt_none_body(stmt) val t: i64 = fresh_tmp(ctx)
-    val buf: ref char = @alloc(256) as ref char @snprintf(buf, 256, "{int64_t sx__mv{lld}={s};if(sx__mv{lld}!=0){\n", {t, expr, t}) emit(ctx, buf) @free(buf)
+    val buf: ref char = @alloc(256) as ref char @snprintf(buf, 256, "\{int64_t sx__mv{lld}={s};if(sx__mv{lld}!=0){\n", {t, expr, t}) emit(ctx, buf) @free(buf)
     if sb != 0 as ref char { val vb: ref char = @alloc(128) as ref char @snprintf(vb, 128, "int64_t t_{s}=sx__mv{lld}-1;\n", {sb, t}) emit(ctx, vb) @free(vb) cc_register_local(ctx, sb, "int64_t", 0) }
     if sbody != 0 as ref parser.Node { gen_stmts(ctx, sbody.d0 as ref parser.Node) }
     emitln(ctx, "}else{")
@@ -1087,7 +1087,7 @@ fn gen_match_res(ctx: ref CCtx, stmt: ref parser.Node) void! = {
     val ob: ref char = parser.match_res_ok_bind(stmt) val obody: ref parser.Node = parser.match_res_ok_body(stmt)
     val eb: ref char = parser.match_res_err_bind(stmt) val ebody: ref parser.Node = parser.match_res_err_body(stmt)
     val t: i64 = fresh_tmp(ctx) val buf: ref char = @alloc(256) as ref char
-    @snprintf(buf, 256, "{int64_t*sx__rp{lld}=(int64_t*)(intptr_t)({s});if(sx__rp{lld}[0]==0){\n", {t, expr, t}) emit(ctx, buf) @free(buf)
+    @snprintf(buf, 256, "\{int64_t*sx__rp{lld}=(int64_t*)(intptr_t)({s});if(sx__rp{lld}[0]==0){\n", {t, expr, t}) emit(ctx, buf) @free(buf)
     if ob != 0 as ref char { val vb: ref char = @alloc(128) as ref char @snprintf(vb, 128, "int64_t t_{s}=sx__rp{lld}[1];\n", {ob, t}) emit(ctx, vb) @free(vb) cc_register_local(ctx, ob, "int64_t", 0) }
     if obody != 0 as ref parser.Node { gen_stmts(ctx, obody.d0 as ref parser.Node) }
     emitln(ctx, "}else{")
@@ -1102,7 +1102,7 @@ fn gen_match_enum(ctx: ref CCtx, stmt: ref parser.Node) void! = {
     val arms: list[ref parser.Node] = parser.match_enum_arms(stmt) val alen: i64 = @len(arms) as i64
     if alen == 0 { return }
     val t: i64 = fresh_tmp(ctx) val buf: ref char = @alloc(128) as ref char
-    @snprintf(buf, 128, "{int64_t sx__ev{lld}={s};\n", {t, expr}) emit(ctx, buf) @free(buf)
+    @snprintf(buf, 128, "\{int64_t sx__ev{lld}={s};\n", {t, expr}) emit(ctx, buf) @free(buf)
     val ai: mut i64 = 0
     for { if ai >= alen { break } val arm_opt = @get(arms, ai as usize)
         match arm_opt { some arm => { val ab: ref char = @alloc(128) as ref char
@@ -1140,7 +1140,7 @@ fn gen_match_union(ctx: ref CCtx, stmt: ref parser.Node) void! = {
     if en != 0 as ref parser.Node { expr = gen_expr(ctx, en) }
     val arms: list[ref parser.Node] = parser.match_union_arms(stmt) val else_body: ref parser.Node = parser.match_union_else(stmt)
     val t: i64 = fresh_tmp(ctx) val buf: ref char = @alloc(256) as ref char
-    @snprintf(buf, 256, "{int64_t sx__uv{lld}=(int64_t)({s});int64_t sx__ut{lld}=*(int64_t*)(intptr_t)sx__uv{lld};\n", {t, expr, t, t}) emit(ctx, buf) @free(buf)
+    @snprintf(buf, 256, "\{int64_t sx__uv{lld}=(int64_t)({s});int64_t sx__ut{lld}=*(int64_t*)(intptr_t)sx__uv{lld};\n", {t, expr, t, t}) emit(ctx, buf) @free(buf)
     val alen: i64 = @len(arms) as i64
     if alen > 0 { val ai: mut i64 = 0
         for { if ai >= alen { break } val arm_opt = @get(arms, ai as usize)
@@ -1159,7 +1159,7 @@ fn gen_match_tagged_union(ctx: ref CCtx, stmt: ref parser.Node) void! = {
     if en != 0 as ref parser.Node { expr = gen_expr(ctx, en) }
     val arms: list[ref parser.Node] = parser.match_tagged_union_arms(stmt) val else_body: ref parser.Node = parser.match_tagged_union_else(stmt)
     val t: i64 = fresh_tmp(ctx) val buf: ref char = @alloc(256) as ref char
-    @snprintf(buf, 256, "{int64_t sx__tv{lld}=(int64_t)({s});int64_t sx__tt{lld}=*(int64_t*)(intptr_t)sx__tv{lld};\n", {t, expr, t, t}) emit(ctx, buf) @free(buf)
+    @snprintf(buf, 256, "\{int64_t sx__tv{lld}=(int64_t)({s});int64_t sx__tt{lld}=*(int64_t*)(intptr_t)sx__tv{lld};\n", {t, expr, t, t}) emit(ctx, buf) @free(buf)
     val alen: i64 = @len(arms) as i64
     if alen > 0 { val ai: mut i64 = 0
         for { if ai >= alen { break } val arm_opt = @get(arms, ai as usize)
