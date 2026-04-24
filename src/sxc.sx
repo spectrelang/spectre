@@ -460,7 +460,9 @@ pub fn main() i32! = {
     }
 
     if use_alt || emit_alt {
-        val c_ir: mut ref char = alt_codegen.gen_module_c(root_mod, release_mode)
+        val c_ir: mut ref char = ""
+        if test_mode { c_ir = alt_codegen.gen_module_c_test(root_mod, release_mode) }
+        else { c_ir = alt_codegen.gen_module_c(root_mod, release_mode) }
 
         if emit_alt != false {
             std.stdio.puts(c_ir)

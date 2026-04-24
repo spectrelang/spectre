@@ -1484,6 +1484,153 @@ fn emit_forward_decls(ctx: ref CCtx) void! = {
     }
 }
 
+fn gen_items_with_prefix_skip_main(ctx: ref CCtx, items: list[ref parser.Node], mod_prefix: ref char) void! = {
+    preregister_items(ctx, items, mod_prefix)
+    val ilen: i64 = @len(items) as i64 val i: mut i64 = 0
+    for { if i >= ilen { break } val item_opt = @get(items, i as usize)
+        match item_opt { some item => { val node: ref parser.Node = item as ref parser.Node val k: i64 = node.kind
+            if k == parser.NK_FN {
+                val fname: ref char = node.d2 as ref char
+                if str.rchar_cmp(fname, "main") != 0 { gen_fn_prefixed(ctx, node, mod_prefix) }
+            } elif k == parser.NK_EXTERN_FN { gen_extern_fn_prefixed(ctx, node, mod_prefix) }
+            elif k == parser.NK_ENUMDEF { gen_enum_def_prefixed(ctx, node, mod_prefix) }
+            elif k == parser.NK_UNIONDEF { gen_union_def_prefixed(ctx, node, mod_prefix) }
+            elif k == parser.NK_TAGGED_UNIONDEF { gen_tagged_union_def(ctx, node, mod_prefix) }
+            elif k == parser.NK_TYPEDEF { cc_register_struct(ctx, node.d1 as ref char, node.d2 as ref void)
+                if node.d3 != 0 as i64 { cc_register_invariant(ctx, node.d1 as ref char, node.d3 as ref void) } }
+            elif k == parser.NK_EXTERN_TYPE { cc_register_struct(ctx, node.d1 as ref char, node.d2 as ref void) }
+            elif k == parser.NK_WHEN_ITEMS { val plat: ref char = node.d0 as ref char
+                if codegen.platform_matches(plat) { gen_items_with_prefix_skip_main(ctx, node.d1 as list[ref parser.Node], mod_prefix) }
+                else { val ow: ref void = node.d2 as ref void val matched: mut bool = false
+                    if ow != 0 as ref void { for own in ow as list[ref parser.Node] { if !matched {
+                        if codegen.platform_matches(own.d0 as ref char) { gen_items_with_prefix_skip_main(ctx, own.d1 as list[ref parser.Node], mod_prefix) matched = true } } } }
+                    if !matched { val otherwise: ref void = node.d3 as ref void
+                        if otherwise != 0 as ref void { gen_items_with_prefix_skip_main(ctx, otherwise as list[ref parser.Node], mod_prefix) } } } }
+        } none => {} }
+        i++ }
+}
+
+fn gen_test_fn_c(ctx: mut ref CCtx, body_stmts: ref parser.Node, test_id: i64) void! = {
+    cc_clear_locals(ctx)
+    ctx.current_ret_ctype = "void"
+    ctx.current_ret_is_void = true
+    val fname: ref char = @alloc(32) as ref char
+    @snprintf(fname, 32, "sx__test_{lld}", {test_id})
+    ctx.fn_name = fname
+    val hdr: ref char = @alloc(64) as ref char
+    @snprintf(hdr, 64, "void {s}(void)\{", {fname})
+    emitln(ctx, hdr) @free(hdr) @free(fname)
+    gen_stmts(ctx, body_stmts)
+    cc_emit_defers(ctx)
+    emitln(ctx, "return;")
+    emitln(ctx, "}")
+    emitln(ctx, "")
+}
+
+fn gen_test_main_c(ctx: ref CCtx, test_ids: list[i64]) void! = {
+    emitln(ctx, "int main(int argc,char**argv) {")
+    emitln(ctx, "sx__argc=(int64_t)argc;sx__argv=(int64_t)(intptr_t)argv;")
+    if !ctx.release_mode { emitln(ctx, "sx__panic_init();") }
+    val tlen: i64 = @len(test_ids) as i64 val ti: mut i64 = 0
+    for { if ti >= tlen { break } val id_opt = @get(test_ids, ti as usize)
+        match id_opt { some id => {
+            val call: ref char = @alloc(48) as ref char
+            @snprintf(call, 48, "sx__test_{lld}();", {id as i64})
+            emitln(ctx, call) @free(call)
+        } none => {} }
+        ti++ }
+    val ok_idx: i64 = intern_format_string(ctx, "all tests passed\n")
+    val ok_buf: ref char = @alloc(64) as ref char
+    @snprintf(ok_buf, 64, "printf(sx__str{lld});", {ok_idx})
+    emitln(ctx, ok_buf) @free(ok_buf)
+    emitln(ctx, "return 0;")
+    emitln(ctx, "}")
+    emitln(ctx, "")
+}
+
+pub fn gen_module_c_test(root: ref module.ResolvedModule, release_mode: bool) ref char! = {
+    val ctx: mut ref CCtx = cc_new()
+    ctx.release_mode = release_mode
+    val out_prefixes: list[ref char] = []
+    val out_items: list[ref void] = []
+    val seen: list[String] = []
+    module.flatten_modules(root, "", out_prefixes, out_items, seen)
+    val layers: i64 = @len(out_prefixes) as i64
+    cc_mark_prefix_used(ctx, "")
+    val li: mut i64 = 0
+    for {
+        if li >= layers { break }
+        val pfx_opt = @get(out_prefixes, li as usize)
+        val items_opt = @get(out_items, li as usize)
+        match pfx_opt {
+            some pfx => {
+                match items_opt {
+                    some ip => { preregister_items(ctx, ip as list[ref parser.Node], pfx as ref char) }
+                    none => {}
+                }
+            } none => {}
+        }
+        li++
+    }
+    val li2: mut i64 = 0
+    for {
+        if li2 >= layers { break }
+        val pfx_opt = @get(out_prefixes, li2 as usize)
+        val items_opt = @get(out_items, li2 as usize)
+        match pfx_opt {
+            some pfx => {
+                match items_opt {
+                    some ip => {
+                        val is_root: bool = str.rchar_cmp(pfx as ref char, "") == 0
+                        if is_root { gen_items_with_prefix_skip_main(ctx, ip as list[ref parser.Node], "") }
+                        else { gen_items_with_prefix(ctx, ip as list[ref parser.Node], pfx as ref char) }
+                    } none => {}
+                }
+            } none => {}
+        }
+        li2++
+    }
+    val test_ids: mut list[i64] = []
+    val test_counter: mut i64 = 0
+    val root_items: list[ref parser.Node] = root.items
+    val rlen: i64 = @len(root_items) as i64
+    val ri: mut i64 = 0
+    for {
+        if ri >= rlen { break }
+        val item_opt = @get(root_items, ri as usize)
+        match item_opt {
+            some item => {
+                val node: ref parser.Node = item as ref parser.Node
+                if node.kind == parser.NK_TEST {
+                    test_counter++
+                    @append(test_ids, test_counter)
+                    gen_test_fn_c(ctx, node.d0 as ref parser.Node, test_counter)
+                }
+            }
+            none => {}
+        }
+        ri++
+    }
+    gen_test_main_c(ctx, test_ids)
+    emit_c_preamble(ctx)
+    emit_c_panic_handler(ctx)
+    emit_string_data(ctx)
+    emit_forward_decls(ctx)
+    val hdr_built: ref void = str.StringBuilder.build(ctx.fwd_sb)
+    val hdr_str: ref char = str.cstr(hdr_built)
+    val body_built: ref void = str.StringBuilder.build(ctx.sb)
+    val body_str: ref char = str.cstr(body_built)
+    val hdr_len: i64 = str.len_raw(hdr_str)
+    val body_len: i64 = str.len_raw(body_str)
+    val total: i64 = hdr_len + body_len + 1
+    val result: ref char = @alloc(total) as ref char
+    @memcpy(result as ref void, hdr_str as ref void, hdr_len as usize)
+    @memcpy(@ptradd(result as ref void, hdr_len), body_str as ref void, (body_len + 1) as usize)
+    str.StringBuilder.free(ctx.fwd_sb)
+    str.StringBuilder.free(ctx.sb)
+    return result
+}
+
 pub fn gen_module_c(root: ref module.ResolvedModule, release_mode: bool) ref char! = {
     val ctx: mut ref CCtx = cc_new()
     ctx.release_mode = release_mode
