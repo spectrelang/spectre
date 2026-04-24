@@ -505,8 +505,8 @@ pub fn main() i32! = {
             link_flags_alt = @fmt("{s} {s}", {link_flags_alt, lib})
         }
 
-        val cc_flags_alt: mut ref char = ""
-        if !release_mode { cc_flags_alt = "-g" }
+        val cc_flags_alt: mut ref char = "-std=c99 -Wno-everything"
+        if !release_mode { cc_flags_alt = "-std=c99 -Wno-everything -g" }
 
         val clang_cmd_alt: mut ref char = ""
         if test_mode {

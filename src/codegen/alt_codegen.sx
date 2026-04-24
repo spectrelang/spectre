@@ -592,6 +592,36 @@ fn gen_builtin(ctx: ref CCtx, expr: ref parser.Node) ref char! = {
         val f: ref char = get_arg(ctx, args, 0) val buf: ref char = @alloc(256) as ref char
         @snprintf(buf, 256, "(int64_t)(intptr_t)({s})", {f}) return buf }
     if str.rchar_cmp(bname, "args") == 0 { return "(int64_t)(intptr_t)sx__get_args()" }
+    if str.rchar_cmp(bname, "puts") == 0 { val s: ref char = get_arg(ctx, args, 0)
+        val buf: ref char = @alloc(256) as ref char
+        @snprintf(buf, 256, "puts((const char*)(intptr_t)({s}))", {s}) return buf }
+    if str.rchar_cmp(bname, "printf") == 0 || str.rchar_cmp(bname, "print") == 0 {
+        val f: ref char = get_arg(ctx, args, 0)
+        val buf: ref char = @alloc(4096) as ref char
+        @snprintf(buf, 4096, "printf((const char*)(intptr_t)({s})", {f})
+        if args != 0 as ref void { val alen: i64 = @len(args as list[ref parser.Node]) as i64
+            if alen > 1 {
+                val pack_opt = @get(args as list[ref parser.Node], 1 as usize)
+                match pack_opt { some pack_node => {
+                    val pn: ref parser.Node = pack_node as ref parser.Node
+                    if pn.kind == parser.NK_ARGS_PACK { val pack: ref void = pn.d0 as ref void
+                        val plen: i64 = @len(pack as list[ref parser.Node]) as i64 val pi: mut i64 = 0
+                        for { if pi >= plen { break }
+                            val pe_opt = @get(pack as list[ref parser.Node], pi as usize)
+                            match pe_opt { some pe => { val av: ref char = gen_expr(ctx, pe as ref parser.Node)
+                                val ol: i64 = str.len_raw(buf) val ab: ref char = @alloc(256) as ref char
+                                @snprintf(ab, 256, ",({s})", {av}) val al: i64 = str.len_raw(ab)
+                                @memcpy(@ptradd(buf as ref void, ol), ab as ref void, (al+1) as usize) @free(ab)
+                            } none => {} }
+                            pi++ }
+                    } else { val av2: ref char = gen_expr(ctx, pn)
+                        val ol: i64 = str.len_raw(buf) val ab: ref char = @alloc(256) as ref char
+                        @snprintf(ab, 256, ",({s})", {av2}) val al: i64 = str.len_raw(ab)
+                        @memcpy(@ptradd(buf as ref void, ol), ab as ref void, (al+1) as usize) @free(ab) }
+                } none => {} } } }
+        val cl: i64 = str.len_raw(buf)
+        @store8(@ptradd(buf as ref void, cl), 41) @store8(@ptradd(buf as ref void, cl+1), 0)
+        return buf }
     return "0"
 }
 
@@ -1129,7 +1159,7 @@ fn emit_c_preamble(ctx: ref CCtx) void! = {
 
 fn emit_c_panic_handler(ctx: ref CCtx) void! = {
     if ctx.release_mode { emitln(ctx, "static void sx__panic_init(void){}") return }
-    emitln(ctx, "static void sx__panic_handler(int sig){const char*name=\"unknown\";if(sig==SIGSEGV)name=\"SIGSEGV\";else if(sig==SIGABRT)name=\"SIGABRT\";else if(sig==SIGFPE)name=\"SIGFPE\";fprintf(stderr,\"spectre: caught signal %s\\n\",name);fflush(stderr);_exit(128+sig);}")
+    emitln(ctx, "static void sx__panic_handler(int sig){const char*name=\"unknown\";if(sig==SIGSEGV)name=\"SIGSEGV\";else if(sig==SIGABRT)name=\"SIGABRT\";else if(sig==SIGFPE)name=\"SIGFPE\";fprintf(stderr,\"spectre: caught signal %s\\n\",name);fflush(stderr);exit(128+sig);}")
     emitln(ctx, "static void sx__panic_init(void){signal(SIGSEGV,sx__panic_handler);signal(SIGFPE,sx__panic_handler);}")
 }
 
