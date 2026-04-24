@@ -496,10 +496,14 @@ fn cc_defer_push(ctx: ref CCtx, body: ref parser.Node) void! = { @append(ctx.def
 fn cc_emit_defers(ctx: ref CCtx) void! = {
     val n: i64 = @len(ctx.defer_stack) as i64
     val i: mut i64 = n - 1
-    for { if i < 0 { break }
+    for { 
+        if i < 0 { break }
         val d_opt = @get(ctx.defer_stack, i as usize)
-        match d_opt { some d => { gen_stmts(ctx, d as ref parser.Node) } none => {} }
-        i-- }
+        match d_opt { 
+            some d => { gen_stmts(ctx, d as ref parser.Node) } none => {} 
+        }
+        i-- 
+    }
 }
 
 fn field_offset_bytes(_: ref CCtx, fields: ref void, field_name: ref char) i64! = {
