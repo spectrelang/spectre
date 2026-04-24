@@ -1432,8 +1432,12 @@ fn gen_stmt(ctx: mut ref CCtx, stmt: ref parser.Node) void! = {
             val name: ref char = tgt.d0 as ref char
             val gn: ref char = cc_resolve_global_name(ctx, name)
             val buf: ref char = @alloc(128) as ref char 
-            if str.rchar_cmp(gn, "") != 0 { @snprintf(buf, 128, "{s}++;\n", {gn}) }
-            else { @snprintf(buf, 128, "t_{s}++;\n", {name}) }
+            if str.rchar_cmp(gn, "") != 0 { 
+                @snprintf(buf, 128, "{s}++;\n", {gn}) 
+            }
+            else { 
+                @snprintf(buf, 128, "t_{s}++;\n", {name}) 
+            }
             emit(ctx, buf) @free(buf) 
         }
         elif tgt.kind == parser.NK_FIELD { 
