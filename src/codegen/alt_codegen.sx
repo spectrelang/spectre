@@ -1792,22 +1792,14 @@ fn emit_string_data(ctx: ref CCtx) void! = {
 }
 
 fn is_libc_fn(name: ref char) bool! = {
-    if str.rchar_cmp(name, "malloc") == 0 { return true }
-    if str.rchar_cmp(name, "free") == 0 { return true }
-    if str.rchar_cmp(name, "realloc") == 0 { return true }
-    if str.rchar_cmp(name, "calloc") == 0 { return true }
-    if str.rchar_cmp(name, "memset") == 0 { return true }
-    if str.rchar_cmp(name, "memcpy") == 0 { return true }
-    if str.rchar_cmp(name, "strlen") == 0 { return true }
-    if str.rchar_cmp(name, "strcmp") == 0 { return true }
-    if str.rchar_cmp(name, "puts") == 0 { return true }
-    if str.rchar_cmp(name, "printf") == 0 { return true }
-    if str.rchar_cmp(name, "dprintf") == 0 { return true }
-    if str.rchar_cmp(name, "getchar") == 0 { return true }
-    if str.rchar_cmp(name, "fgets") == 0 { return true }
-    if str.rchar_cmp(name, "exit") == 0 { return true }
-    if str.rchar_cmp(name, "abort") == 0 { return true }
-    if str.rchar_cmp(name, "abs") == 0 { return true }
+    val libc_fns: list[ref char] = [
+        "malloc", "free", "realloc", "calloc", "memset", "memcpy", 
+        "strlen", "strcmp", "puts", "printf", "dprintf", "getchar", "fgets", 
+        "exit", "abort", "abs", "getenv", "fopen", "fclose", "fread", "fwrite", 
+        "remove", "rename", "system"
+    ]
+
+    for fun in libc_fns { if str.rchar_cmp(name, fun) == 0 { return true } }
     return false
 }
 
