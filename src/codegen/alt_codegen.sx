@@ -555,36 +555,52 @@ fn gen_expr(ctx: ref CCtx, expr: ref parser.Node) ref char! = {
         val buf: ref char = @alloc(64) as ref char
         if @load8(text as ref void) == 48 && @load8(@ptradd(text as ref void, 1)) == 120 {
             @snprintf(buf, 64, "((int64_t){s})", {text})
-        } else { @snprintf(buf, 64, "INT64_C({s})", {text}) }
-        return buf }
+        } else { 
+            @snprintf(buf, 64, "INT64_C({s})", {text}) 
+        }
+        return buf 
+    }
     if k == parser.NK_FLOAT_LIT {
         val buf: ref char = @alloc(64) as ref char
-        @snprintf(buf, 64, "{s}", {parser.float_lit_text(expr)}) return buf }
+        @snprintf(buf, 64, "{s}", {parser.float_lit_text(expr)}) 
+        return buf 
+    }
     if k == parser.NK_STR_LIT {
         val idx: i64 = intern_string(ctx, parser.str_lit_text(expr))
         val buf: ref char = @alloc(64) as ref char
-        @snprintf(buf, 64, "sx__str{lld}", {idx}) return buf }
-    if k == parser.NK_BOOL { if expr.d0 as i64 != 0 { return "1" } return "0" }
+        @snprintf(buf, 64, "sx__str{lld}", {idx}) 
+        return buf 
+    }
+    if k == parser.NK_BOOL { 
+        if expr.d0 as i64 != 0 { return "1" } return "0" 
+    }
     if k == parser.NK_CHAR_LIT {
         val buf: ref char = @alloc(32) as ref char
-        @snprintf(buf, 32, "{lld}", {expr.d0 as i64}) return buf }
+        @snprintf(buf, 32, "{lld}", {expr.d0 as i64}) 
+        return buf 
+    }
     if k == parser.NK_NONE { return "0" }
     if k == parser.NK_IDENT {
         val name: ref char = expr.d0 as ref char
         val cval: ref char = cc_const_val(ctx, name)
         if str.rchar_cmp(cval, "") != 0 {
             val buf: ref char = @alloc(128) as ref char
-            @snprintf(buf, 128, "({s})", {cval}) return buf }
+            @snprintf(buf, 128, "({s})", {cval}) return buf 
+        }
         val lt: ref char = cc_lookup_local_type(ctx, name)
         if str.rchar_cmp(lt, "") != 0 {
             val buf: ref char = @alloc(128) as ref char
-            @snprintf(buf, 128, "t_{s}", {name}) return buf }
+            @snprintf(buf, 128, "t_{s}", {name}) return buf 
+        }
         val resolved: ref char = cc_resolve_fn_name(ctx, name)
         if resolved != 0 as ref char {
             val buf: ref char = @alloc(256) as ref char
-            @snprintf(buf, 256, "((int64_t)(intptr_t)&{s})", {resolved}) return buf }
+            @snprintf(buf, 256, "((int64_t)(intptr_t)&{s})", {resolved}) return buf 
+        }
         val buf: ref char = @alloc(128) as ref char
-        @snprintf(buf, 128, "t_{s}", {name}) return buf }
+        @snprintf(buf, 128, "t_{s}", {name})
+        return buf 
+    }
     if k == parser.NK_TRUST { return gen_expr(ctx, expr.d0 as ref parser.Node) }
     if k == parser.NK_SOME {
         val inner: ref char = gen_expr(ctx, expr.d0 as ref parser.Node)
@@ -597,10 +613,12 @@ fn gen_expr(ctx: ref CCtx, expr: ref parser.Node) ref char! = {
         val decl: ref char = @alloc(256) as ref char
         @snprintf(decl, 256, "int64_t*sx__ok{lld}=(int64_t*)calloc(1,16);sx__ok{lld}[0]=0;\n", {t, t})
         emit(ctx, decl) @free(decl)
-        if expr.d0 != 0 { val inner: ref char = gen_expr(ctx, expr.d0 as ref parser.Node)
+        if expr.d0 != 0 { 
+            val inner: ref char = gen_expr(ctx, expr.d0 as ref parser.Node)
             val sb: ref char = @alloc(256) as ref char
             @snprintf(sb, 256, "sx__ok{lld}[1]=(int64_t)({s});\n", {t, inner})
-            emit(ctx, sb) @free(sb) }
+            emit(ctx, sb) @free(sb)
+        }
         val res: ref char = @alloc(64) as ref char
         @snprintf(res, 64, "(int64_t)(intptr_t)sx__ok{lld}", {t}) return res }
     if k == parser.NK_ERR_VAL {
@@ -610,7 +628,9 @@ fn gen_expr(ctx: ref CCtx, expr: ref parser.Node) ref char! = {
         @snprintf(buf, 512, "int64_t*sx__err{lld}=(int64_t*)calloc(1,16);sx__err{lld}[0]=1;sx__err{lld}[1]=(int64_t)({s});\n", {t, t, t, inner})
         emit(ctx, buf) @free(buf)
         val res: ref char = @alloc(64) as ref char
-        @snprintf(res, 64, "(int64_t)(intptr_t)sx__err{lld}", {t}) return res }
+        @snprintf(res, 64, "(int64_t)(intptr_t)sx__err{lld}", {t}) 
+        return res 
+    }
     if k == parser.NK_BINOP { return gen_binop(ctx, expr) }
     if k == parser.NK_UNOP { return gen_unop(ctx, expr) }
     if k == parser.NK_FIELD { return gen_field(ctx, expr) }
@@ -631,11 +651,13 @@ fn gen_expr(ctx: ref CCtx, expr: ref parser.Node) ref char! = {
                 @snprintf(buf, 256, "(int64_t)(intptr_t)&{s}", {resolved}) return buf }
             val buf: ref char = @alloc(128) as ref char
             @snprintf(buf, 128, "(int64_t)(intptr_t)&t_{s}", {iname}) return buf }
-        return gen_expr(ctx, inner_node) }
+        return gen_expr(ctx, inner_node) 
+    }
     if k == parser.NK_DEREF {
         val inner: ref char = gen_expr(ctx, expr.d0 as ref parser.Node)
         val buf: ref char = @alloc(128) as ref char
-        @snprintf(buf, 128, "(*(int64_t*)(intptr_t)({s}))", {inner}) return buf }
+        @snprintf(buf, 128, "(*(int64_t*)(intptr_t)({s}))", {inner}) return buf 
+    }
     if k == parser.NK_STRUCT_LIT { return gen_struct_lit(ctx, expr) }
     if k == parser.NK_LIST_LIT { return gen_list_lit(ctx, expr) }
     if k == parser.NK_ZERO_INIT { return "0" }
