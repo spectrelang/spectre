@@ -541,7 +541,7 @@ pub fn main() i32! = {
                     if test_mode {
                         val run_res_alt = std.os.run("/tmp/spectre_test_bin_alt")
                         if run_res_alt != 0 {
-                            std.stdio.puts("C backend test binary failed.")
+                            std.stdio.puts("Test binary failed.")
                             std.os.delete(c_file)
                             allocators.Arena.free(arena)
                             return 1
@@ -554,7 +554,7 @@ pub fn main() i32! = {
                 }
             }
             err _ => {
-                std.stdio.puts("\nerror: clang compilation failed")
+                std.stdio.puts("\nerror: clang stage failed")
                 std.os.delete(c_file)
                 allocators.Arena.free(arena)
                 return 1
