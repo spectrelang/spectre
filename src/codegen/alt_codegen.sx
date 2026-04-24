@@ -744,6 +744,49 @@ fn gen_call(ctx: ref CCtx, expr: ref parser.Node) ref char! = {
     val callee: ref parser.Node = parser.call_callee(expr)
     val args: ref void = parser.call_args(expr) as ref void
     val callee_name: ref char = resolve_callee_name(callee)
+    val tv_owner_slot: ref void = @alloc(8)
+    val tv_field_slot: ref void = @alloc(8)
+    @store(tv_owner_slot, 0)
+    @store(tv_field_slot, 0)
+    
+    val tv_tag: i64 = cc_lookup_tv(ctx, callee_name, tv_owner_slot, tv_field_slot)
+    
+    if tv_tag >= 0 {
+        val t: i64 = fresh_tmp(ctx)
+        val alloc_stmt: ref char = @alloc(512) as ref char
+        @snprintf(alloc_stmt, 512, "int64_t t_{lld}=(int64_t)(intptr_t)calloc(1,24);*(int64_t*)(intptr_t)t_{lld}={lld};\n", {t, t, tv_tag})
+        emit(ctx, alloc_stmt)
+        @free(alloc_stmt)
+        
+        if args != 0 as ref void {
+            val alen: i64 = @len(args as list[ref parser.Node]) as i64
+            val ai: mut i64 = 0
+            for { if ai >= alen { break }
+                val a_opt = @get(args as list[ref parser.Node], ai as usize)
+                match a_opt {
+                    some a => {
+                        val av: ref char = gen_expr(ctx, a as ref parser.Node)
+                        val offset: i64 = 8 + (ai * 8)
+                        val assign_stmt: ref char = @alloc(512) as ref char
+                        @snprintf(assign_stmt, 512, "*(int64_t*)(intptr_t)((char*)(intptr_t)t_{lld}+{lld})={s};\n", {t, offset, av})
+                        emit(ctx, assign_stmt)
+                        @free(assign_stmt)
+                    } none => {}
+                }
+                ai++ }
+        }
+        
+        @free(tv_owner_slot)
+        @free(tv_field_slot)
+        
+        val res: ref char = @alloc(64) as ref char
+        @snprintf(res, 64, "t_{lld}", {t})
+        return res
+    }
+    
+    @free(tv_owner_slot)
+    @free(tv_field_slot)
+    
     val resolved: ref char = cc_resolve_fn_name(ctx, callee_name)
     val ext_sym: ref char = cc_lookup_extern_symbol(ctx, callee_name)
     val effective: mut ref char = callee_name
@@ -884,14 +927,14 @@ fn gen_builtin(ctx: ref CCtx, expr: ref parser.Node) ref char! = {
         @snprintf(buf, 128, "(*(int64_t*)((char*)(intptr_t)({s})+8))", {l}) return buf }
     if str.rchar_cmp(bname, "append") == 0 { val l: ref char = get_arg(ctx, args, 0) val e: ref char = get_arg(ctx, args, 1)
         val buf: ref char = @alloc(256) as ref char
-        @snprintf(buf, 256, "sx__append((void*)(intptr_t)({s}),(int64_t)({s}))", {l, e}) return buf }
+        @snprintf(buf, 256, "sx__rt_append((void*)(intptr_t)({s}),(int64_t)({s}))", {l, e}) return buf }
     if str.rchar_cmp(bname, "get") == 0 { val l: ref char = get_arg(ctx, args, 0) val i: ref char = get_arg(ctx, args, 1)
         val buf: ref char = @alloc(256) as ref char
-        @snprintf(buf, 256, "sx__get((void*)(intptr_t)({s}),(int64_t)({s}))", {l, i}) return buf }
+        @snprintf(buf, 256, "sx__rt_get((void*)(intptr_t)({s}),(int64_t)({s}))", {l, i}) return buf }
     if str.rchar_cmp(bname, "fmt") == 0 || str.rchar_cmp(bname, "snprintf") == 0 {
         val f: ref char = get_arg(ctx, args, 0) val buf: ref char = @alloc(256) as ref char
         @snprintf(buf, 256, "(int64_t)(intptr_t)({s})", {f}) return buf }
-    if str.rchar_cmp(bname, "args") == 0 { return "(int64_t)(intptr_t)sx__get_args()" }
+    if str.rchar_cmp(bname, "args") == 0 { return "(int64_t)(intptr_t)sx__rt_get_args()" }
     if str.rchar_cmp(bname, "puts") == 0 { val s: ref char = get_arg(ctx, args, 0)
         val buf: ref char = @alloc(256) as ref char
         @snprintf(buf, 256, "puts((const char*)(intptr_t)({s}))", {s}) return buf }
@@ -1577,9 +1620,9 @@ fn emit_c_preamble(ctx: ref CCtx) void! = {
     emitln_fwd(ctx, "#include <stdio.h>")
     emitln_fwd(ctx, "static int64_t sx__argc=0;")
     emitln_fwd(ctx, "static int64_t sx__argv=0;")
-    emitln_fwd(ctx, "static void sx__append(void*list,int64_t elem){int64_t*hdr=(int64_t*)list;int64_t*buf=*(int64_t**)hdr;int64_t len=hdr[1];int64_t cap=hdr[2];if(len>=cap){cap=cap<4?8:cap*2;buf=(int64_t*)realloc(buf,(size_t)(cap*8));hdr[0]=(int64_t)(intptr_t)buf;hdr[2]=cap;}buf[len]=elem;hdr[1]=len+1;}")
-    emitln_fwd(ctx, "static int64_t sx__get(void*list,int64_t idx){int64_t*hdr=(int64_t*)list;int64_t*buf=*(int64_t**)hdr;int64_t len=hdr[1];if(idx<0||idx>=len)return 0;return buf[idx]+1;}")
-    emitln_fwd(ctx, "static void*sx__get_args(void){int64_t*hdr=(int64_t*)calloc(1,24);int64_t c=sx__argc;int64_t*buf=(int64_t*)calloc(1,(size_t)(c*8));char**av=(char**)(intptr_t)sx__argv;int64_t i;for(i=0;i<c;i++)buf[i]=(int64_t)(intptr_t)av[i];hdr[0]=(int64_t)(intptr_t)buf;hdr[1]=c;hdr[2]=c;return hdr;}")
+    emitln_fwd(ctx, "static void sx__rt_append(void*list,int64_t elem){int64_t*hdr=(int64_t*)list;int64_t*buf=*(int64_t**)hdr;int64_t len=hdr[1];int64_t cap=hdr[2];if(len>=cap){cap=cap<4?8:cap*2;buf=(int64_t*)realloc(buf,(size_t)(cap*8));hdr[0]=(int64_t)(intptr_t)buf;hdr[2]=cap;}buf[len]=elem;hdr[1]=len+1;}")
+    emitln_fwd(ctx, "static int64_t sx__rt_get(void*list,int64_t idx){int64_t*hdr=(int64_t*)list;int64_t*buf=*(int64_t**)hdr;int64_t len=hdr[1];if(idx<0||idx>=len)return 0;return buf[idx]+1;}")
+    emitln_fwd(ctx, "static void*sx__rt_get_args(void){int64_t*hdr=(int64_t*)calloc(1,24);int64_t c=sx__argc;int64_t*buf=(int64_t*)calloc(1,(size_t)(c*8));char**av=(char**)(intptr_t)sx__argv;int64_t i;for(i=0;i<c;i++)buf[i]=(int64_t)(intptr_t)av[i];hdr[0]=(int64_t)(intptr_t)buf;hdr[1]=c;hdr[2]=c;return hdr;}")
 }
 
 fn emit_c_panic_handler(ctx: ref CCtx) void! = {
