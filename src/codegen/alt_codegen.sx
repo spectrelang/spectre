@@ -1173,11 +1173,32 @@ fn gen_builtin(ctx: ref CCtx, expr: ref parser.Node) ref char! = {
         val buf: ref char = @alloc(256) as ref char
         @snprintf(buf, 256, "(*(int32_t*)(intptr_t)({s})=(int32_t)({s}))", {p, v}) return buf }
     if str.rchar_cmp(bname, "len") == 0 { val l: ref char = get_arg(ctx, args, 0)
-        val buf: ref char = @alloc(128) as ref char
-        @snprintf(buf, 128, "(*(int64_t*)((char*)(intptr_t)({s})+8))", {l}) return buf }
-    if str.rchar_cmp(bname, "append") == 0 { val l: ref char = get_arg(ctx, args, 0) val e: ref char = get_arg(ctx, args, 1)
         val buf: ref char = @alloc(256) as ref char
-        @snprintf(buf, 256, "sx__rt_append((void*)(intptr_t)({s}),(int64_t)({s}))", {l, e}) return buf }
+        @snprintf(buf, 256, "({s}==0?0:(*(int64_t*)((char*)(intptr_t)({s})+8)))", {l, l}) return buf }
+    if str.rchar_cmp(bname, "append") == 0 {
+        val e: ref char = get_arg(ctx, args, 1)
+        val buf: ref char = @alloc(512) as ref char
+        val list_arg_opt = @get(args as list[ref parser.Node], 0 as usize)
+        match list_arg_opt {
+            some list_arg => {
+                val lan: ref parser.Node = list_arg as ref parser.Node
+                if lan.kind == parser.NK_FIELD {
+                    val fa: ref char = gen_field_addr(ctx, lan)
+                    @snprintf(buf, 512, "sx__rt_append_f((int64_t*)({s}),(int64_t)({s}))", {fa, e}) return buf
+                }
+                if lan.kind == parser.NK_IDENT {
+                    val iname: ref char = lan.d0 as ref char
+                    val lt2: ref char = cc_lookup_local_type(ctx, iname)
+                    if str.rchar_cmp(lt2, "") != 0 {
+                        val buf2: ref char = @alloc(512) as ref char
+                        @snprintf(buf2, 512, "sx__rt_append_f((int64_t*)&t_{s},(int64_t)({s}))", {iname, e}) return buf2
+                    }
+                }
+            }
+            none => {}
+        }
+        val l: ref char = get_arg(ctx, args, 0)
+        @snprintf(buf, 512, "sx__rt_append((void*)(intptr_t)({s}),(int64_t)({s}))", {l, e}) return buf }
     if str.rchar_cmp(bname, "get") == 0 { val l: ref char = get_arg(ctx, args, 0) val i: ref char = get_arg(ctx, args, 1)
         val buf: ref char = @alloc(256) as ref char
         @snprintf(buf, 256, "sx__rt_get((void*)(intptr_t)({s}),(int64_t)({s}))", {l, i}) return buf }
@@ -1638,8 +1659,8 @@ fn gen_forin_stmt(ctx: ref CCtx, stmt: ref parser.Node) void! = {
     val iter: ref char = gen_expr(ctx, stmt.d1 as ref parser.Node)
     val t: i64 = fresh_tmp(ctx)
     val buf: ref char = @alloc(1024) as ref char
-    @snprintf(buf, 1024, "\{int64_t sx__it{lld}={s};int64_t sx__len{lld}=*(int64_t*)((char*)(intptr_t)sx__it{lld}+8);int64_t*sx__buf{lld}=*(int64_t**)(intptr_t)sx__it{lld};int64_t sx__i{lld}=0;for(;sx__i{lld}<sx__len{lld};sx__i{lld}++)\{int64_t t_{s}=sx__buf{lld}[sx__i{lld}];\n",
-        {t, iter, t, t, t, t, t, t, t, t, binding, t, t})
+    @snprintf(buf, 1024, "\{int64_t sx__it{lld}={s};int64_t sx__len{lld}=(sx__it{lld}==0?0:*(int64_t*)((char*)(intptr_t)sx__it{lld}+8));int64_t*sx__buf{lld}=(sx__it{lld}==0?0:*(int64_t**)(intptr_t)sx__it{lld});int64_t sx__i{lld}=0;for(;sx__i{lld}<sx__len{lld};sx__i{lld}++)\{int64_t t_{s}=sx__buf{lld}[sx__i{lld}];\n",
+        {t, iter, t, t, t, t, t, t, t, t, t, t, binding, t, t})
     emit(ctx, buf) @free(buf) cc_register_local(ctx, binding, "int64_t", 0 as ref parser.Node, 1)
     gen_stmts(ctx, stmt.d2 as ref parser.Node) emitln(ctx, "}}")
 }
@@ -2033,6 +2054,7 @@ fn emit_c_preamble(ctx: ref CCtx) void! = {
     emitln_fwd(ctx, "static int64_t sx__argc=0;")
     emitln_fwd(ctx, "static int64_t sx__argv=0;")
     emitln_fwd(ctx, "static void sx__rt_append(void*list,int64_t elem){int64_t*hdr=(int64_t*)list;int64_t*buf=*(int64_t**)hdr;int64_t len=hdr[1];int64_t cap=hdr[2];if(len>=cap){cap=cap<4?8:cap*2;buf=(int64_t*)realloc(buf,(size_t)(cap*8));hdr[0]=(int64_t)(intptr_t)buf;hdr[2]=cap;}buf[len]=elem;hdr[1]=len+1;}")
+    emitln_fwd(ctx, "static void sx__rt_append_f(int64_t*lfield,int64_t elem){if(*lfield==0){int64_t*hdr=(int64_t*)calloc(1,24);int64_t*buf=(int64_t*)calloc(1,64);hdr[0]=(int64_t)(intptr_t)buf;hdr[1]=0;hdr[2]=8;*lfield=(int64_t)(intptr_t)hdr;}sx__rt_append((void*)(intptr_t)(*lfield),elem);}")
     emitln_fwd(ctx, "static int64_t sx__rt_get(void*list,int64_t idx){if(!list)return 0;int64_t*hdr=(int64_t*)list;int64_t*buf=*(int64_t**)hdr;int64_t len=hdr[1];if(idx<0||idx>=len)return 0;return buf[idx]+1;}")
     emitln_fwd(ctx, "static int64_t sx__rt_remove(void*list,int64_t idx){int64_t*hdr=(int64_t*)list;int64_t*buf=*(int64_t**)hdr;int64_t len=hdr[1];if(idx<0||idx>=len)return 0;int64_t val=buf[idx];int64_t i;for(i=idx;i<len-1;i++)buf[i]=buf[i+1];hdr[1]=len-1;return val;}")
     emitln_fwd(ctx, "static void sx__rt_reserve(void*list,int64_t cap){int64_t*hdr=(int64_t*)list;int64_t cur=hdr[2];if(cap>cur){int64_t*buf=*(int64_t**)hdr;buf=(int64_t*)realloc(buf,(size_t)(cap*8));hdr[0]=(int64_t)(intptr_t)buf;hdr[2]=cap;}}")
