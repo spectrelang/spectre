@@ -1244,17 +1244,30 @@ fn gen_match_union(ctx: ref CCtx, stmt: ref parser.Node) void! = {
     if en != 0 as ref parser.Node { expr = gen_expr(ctx, en) }
     val arms: list[ref parser.Node] = parser.match_union_arms(stmt) val else_body: ref parser.Node = parser.match_union_else(stmt)
     val t: i64 = fresh_tmp(ctx) val buf: ref char = @alloc(256) as ref char
-    @snprintf(buf, 256, "\{int64_t sx__uv{lld}=(int64_t)({s});int64_t sx__ut{lld}=*(int64_t*)(intptr_t)sx__uv{lld};\n", {t, expr, t, t}) emit(ctx, buf) @free(buf)
+    @snprintf(buf, 256, "\{int64_t sx__uv{lld}=(int64_t)({s});int64_t sx__ut{lld}=*(int64_t*)(intptr_t)sx__uv{lld};\n", {t, expr, t, t}) 
+    emit(ctx, buf) 
+    @free(buf)
     val alen: i64 = @len(arms) as i64
-    if alen > 0 { val ai: mut i64 = 0
-        for { if ai >= alen { break } val arm_opt = @get(arms, ai as usize)
-            match arm_opt { some arm => { val ab: ref char = @alloc(128) as ref char
-                if ai == 0 { @snprintf(ab, 128, "if(sx__ut{lld}=={lld}){\n", {t, ai}) }
-                else { @snprintf(ab, 128, "}else if(sx__ut{lld}=={lld}){\n", {t, ai}) }
-                emit(ctx, ab) @free(ab) gen_stmts(ctx, parser.match_union_arm_body(arm as ref parser.Node) as ref parser.Node)
-            } none => {} }
-            ai++ } }
-    if else_body != 0 as ref parser.Node { emitln(ctx, "}else{") gen_stmts(ctx, else_body.d0 as ref parser.Node) }
+    if alen > 0 { 
+        val ai: mut i64 = 0
+        for { 
+            if ai >= alen { break } 
+            val arm_opt = @get(arms, ai as usize)
+            match arm_opt { 
+                some arm => { 
+                    val ab: ref char = @alloc(128) as ref char
+                    if ai == 0 { @snprintf(ab, 128, "if(sx__ut{lld}=={lld}){\n", {t, ai}) }
+                    else { @snprintf(ab, 128, "}else if(sx__ut{lld}=={lld}){\n", {t, ai}) }
+                    emit(ctx, ab) @free(ab) gen_stmts(ctx, parser.match_union_arm_body(arm as ref parser.Node) as ref parser.Node)
+                } none => {} 
+            }
+            ai++ 
+        } 
+    }
+    if else_body != 0 as ref parser.Node { 
+        emitln(ctx, "}else{") 
+        gen_stmts(ctx, else_body.d0 as ref parser.Node) 
+    }
     emitln(ctx, "}}")
 }
 
