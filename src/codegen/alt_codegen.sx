@@ -352,40 +352,63 @@ fn cc_register_tv(ctx: ref CCtx, vname: ref char, owner: ref char, tag: i64, fie
 fn cc_lookup_tv(ctx: ref CCtx, vname: ref char, out_owner: ref void, out_field_ty: ref void) i64! = {
     val nlen: i64 = @len(ctx.tv_names as list[ref char]) as i64
     val ni: mut i64 = 0
-    for { if ni >= nlen { break }
+    for { 
+        if ni >= nlen { break }
         val n_opt = @get(ctx.tv_names as list[ref char], ni as usize)
-        match n_opt { some n => { if str.rchar_cmp(n as ref char, vname) == 0 {
-            val tag_opt = @get(ctx.tv_tags as list[i64], ni as usize)
-            match tag_opt { some tag => {
-                val o_opt = @get(ctx.tv_owners as list[ref char], ni as usize)
-                match o_opt { some o => { @store(out_owner, o as usize) } none => {} }
-                val f_opt = @get(ctx.tv_fields as list[ref void], ni as usize)
-                match f_opt { some f => { @store(out_field_ty, f as usize) } none => {} }
-                return tag as i64
-            } none => {} }
-        } } none => {} }
-        ni++ }
+        match n_opt { 
+            some n => { 
+                if str.rchar_cmp(n as ref char, vname) == 0 {
+                    val tag_opt = @get(ctx.tv_tags as list[i64], ni as usize)
+                    match tag_opt { 
+                        some tag => {
+                            val o_opt = @get(ctx.tv_owners as list[ref char], ni as usize)
+                            match o_opt { 
+                                some o => { @store(out_owner, o as usize) } none => {} 
+                            }
+                            val f_opt = @get(ctx.tv_fields as list[ref void], ni as usize)
+                            match f_opt { some f => { @store(out_field_ty, f as usize) } none => {} }
+                            return tag as i64
+                        } none => {} }
+                } 
+            } none => {} 
+        }
+        ni++ 
+    }
     return -1
 }
 
 fn cc_register_module_const(ctx: ref CCtx, name: ref char, val_str: ref char) void! = {
-    @append(ctx.mc_names, name) @append(ctx.mc_vals, val_str)
+    @append(ctx.mc_names, name) 
+    @append(ctx.mc_vals, val_str)
 }
 
 fn cc_const_val(ctx: ref CCtx, name: ref char) ref char! = {
     val nlen: i64 = @len(ctx.mc_names as list[ref char]) as i64
     val ni: mut i64 = 0
-    for { if ni >= nlen { break }
+    for { 
+        if ni >= nlen { break }
         val n_opt = @get(ctx.mc_names as list[ref char], ni as usize)
-        match n_opt { some n => { if str.rchar_cmp(n as ref char, name) == 0 {
-            val v_opt = @get(ctx.mc_vals as list[ref char], ni as usize)
-            match v_opt { some v => { return v as ref char } none => { return "" } } } } none => {} }
-        ni++ }
+        match n_opt { 
+            some n => { 
+                if str.rchar_cmp(n as ref char, name) == 0 {
+                    val v_opt = @get(ctx.mc_vals as list[ref char], ni as usize)
+                    match v_opt { 
+                        some v => { return v as ref char } 
+                        none => {
+                            return "" 
+                        } 
+                    } 
+                } 
+            } none => {} 
+        }
+        ni++ 
+    }
     return ""
 }
 
 fn cc_register_invariant(ctx: ref CCtx, tname: ref char, inv_list: ref void) void! = {
-    @append(ctx.inv_tnames as list[ref char], tname) @append(ctx.inv_tlists as list[ref void], inv_list)
+    @append(ctx.inv_tnames as list[ref char], tname) 
+    @append(ctx.inv_tlists as list[ref void], inv_list)
 }
 
 fn cc_defer_push(ctx: ref CCtx, body: ref parser.Node) void! = { @append(ctx.defer_stack, body as ref void) }
