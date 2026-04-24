@@ -223,7 +223,7 @@ fn cc_infer_expr_ty(ctx: ref CCtx, expr: ref parser.Node) ref parser.Node! = {
         }
         return 0 as ref parser.Node
     }
-    if k == parser.NK_TRUST || k == parser.NK_SOME {
+    if k == parser.NK_TRUST || k == parser.NK_SOME || k == parser.NK_TRY {
         return cc_infer_expr_ty(ctx, expr.d0 as ref parser.Node)
     }
     if k == parser.NK_CALL {
@@ -1109,6 +1109,10 @@ fn gen_field(ctx: ref CCtx, expr: ref parser.Node) ref char! = {
     val base: ref char = gen_expr(ctx, base_node)
     val base_type: mut ref char = ""
     if base_node.kind == parser.NK_IDENT { base_type = cc_lookup_local_type(ctx, base_node.d0 as ref char) }
+    elif base_node.kind == parser.NK_CAST {
+        val cast_ty: ref parser.Node = base_node.d1 as ref parser.Node
+        if cast_ty != 0 as ref parser.Node { base_type = spectre_type_name_of(cast_ty) }
+    }
     val fields: mut ref void = cc_lookup_struct(ctx, base_type)
     if fields == 0 as ref void && str.rchar_cmp(base_type, "") != 0 {
         val btlen: i64 = str.len_raw(base_type)
@@ -1515,6 +1519,10 @@ fn gen_field_addr(ctx: ref CCtx, expr: ref parser.Node) ref char! = {
     val bt: mut ref char = ""
     if bt == 0 as ref char { bt = "" }
     if base_node.kind == parser.NK_IDENT { bt = cc_lookup_local_type(ctx, base_node.d0 as ref char) }
+    elif base_node.kind == parser.NK_CAST {
+        val cast_ty: ref parser.Node = base_node.d1 as ref parser.Node
+        if cast_ty != 0 as ref parser.Node { bt = spectre_type_name_of(cast_ty) }
+    }
     val fields: mut ref void = cc_lookup_struct(ctx, bt)
     if fields == 0 as ref void && str.rchar_cmp(bt, "") != 0 {
         val btlen2: i64 = str.len_raw(bt)
@@ -1578,17 +1586,7 @@ fn gen_stmt(ctx: mut ref CCtx, stmt: ref parser.Node) void! = {
                     } elif rk != parser.TY_VOID { ty_node = ret }
                 }
             }
-            if ty_node == 0 as ref parser.Node {
-                val inferred: ref parser.Node = cc_infer_expr_ty(ctx, init_expr)
-                if inferred != 0 as ref parser.Node {
-                    val ik: i64 = inferred.kind
-                    if ik == parser.TY_RESULT || ik == parser.TY_OPTION {
-                        val inner: ref parser.Node = inferred.d0 as ref parser.Node
-                        if inner != 0 as ref parser.Node && inner.kind != parser.TY_VOID { ty_node = inner }
-                        else { ty_node = inferred }
-                    } elif ik != parser.TY_VOID { ty_node = inferred }
-                }
-            }
+            
         }
         val old_expected = ctx.expected_ty
         ctx.expected_ty = ty_node
