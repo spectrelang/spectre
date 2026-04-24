@@ -237,24 +237,39 @@ fn cc_resolve_fn_name(ctx: ref CCtx, name: ref char) ref char! = {
     @snprintf(suffix, namelen + 3, "__{s}", {name})
     val ni: mut i64 = 0
     val found: mut ref char = 0 as ref char
-    for { if ni >= nlen { break }
+    for { 
+        if ni >= nlen { break }
         val n_opt = @get(ctx.fn_names as list[ref char], ni as usize)
-        match n_opt { some n => {
-            val candidate: ref char = n as ref char
-            if str.rchar_cmp(candidate, name) == 0 { @free(suffix) cc_mark_prefix_used(ctx, "") return candidate }
-            val clen: i64 = str.len_raw(candidate)
-            val slen: i64 = namelen + 2
-            if clen > slen { val tail: ref char = @ptradd(candidate, clen - slen) as ref char
-                if str.rchar_cmp(tail, suffix) == 0 { found = candidate } }
-        } none => {} }
-        ni++ }
+        match n_opt { 
+            some n => {
+                val candidate: ref char = n as ref char
+                if str.rchar_cmp(candidate, name) == 0 { 
+                    @free(suffix) 
+                    cc_mark_prefix_used(ctx, "") 
+                    return candidate 
+                }
+                val clen: i64 = str.len_raw(candidate)
+                val slen: i64 = namelen + 2
+                if clen > slen { 
+                    val tail: ref char = @ptradd(candidate, clen - slen) as ref char
+                    if str.rchar_cmp(tail, suffix) == 0 { found = candidate } 
+                }
+            } none => {} 
+        }
+        ni++ 
+    }
     @free(suffix)
-    if found != 0 as ref char { val prefix: ref char = codegen.extract_prefix_from_mangled(found, name) cc_mark_prefix_used(ctx, prefix) }
+    if found != 0 as ref char { 
+        val prefix: ref char = codegen.extract_prefix_from_mangled(found, name) 
+        cc_mark_prefix_used(ctx, prefix) 
+    }
     return found
 }
 
 fn cc_register_extern(ctx: ref CCtx, name: ref char, symbol: ref char, ret_ty: ref void) void! = {
-    @append(ctx.ext_names, name) @append(ctx.ext_syms, symbol) @append(ctx.ext_rets, ret_ty)
+    @append(ctx.ext_names, name) 
+    @append(ctx.ext_syms, symbol) 
+    @append(ctx.ext_rets, ret_ty)
 }
 
 fn cc_lookup_extern_symbol(ctx: ref CCtx, name: ref char) ref char! = {
