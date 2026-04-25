@@ -3827,14 +3827,24 @@ fn resolve_include_path(name: ref char, current_dir: ref char) option[ref char] 
 }
 
 fn keyword_ignored(word: ref char) bool = {
-    if std.string.rchar_cmp(word, "const") == 0    { return true }
-    if std.string.rchar_cmp(word, "volatile") == 0 { return true }
-    if std.string.rchar_cmp(word, "register") == 0 { return true }
-    if std.string.rchar_cmp(word, "static") == 0   { return true }
-    if std.string.rchar_cmp(word, "extern") == 0   { return true }
-    if std.string.rchar_cmp(word, "inline") == 0   { return true }
-    if std.string.rchar_cmp(word, "typedef") == 0  { return true }
-    if std.string.rchar_cmp(word, "signed") == 0   { return true }
+    if std.string.rchar_cmp(word, "const") == 0       { return true }
+    if std.string.rchar_cmp(word, "__const") == 0     { return true }
+    if std.string.rchar_cmp(word, "__const__") == 0   { return true }
+    if std.string.rchar_cmp(word, "volatile") == 0    { return true }
+    if std.string.rchar_cmp(word, "__volatile__") == 0 { return true }
+    if std.string.rchar_cmp(word, "restrict") == 0    { return true }
+    if std.string.rchar_cmp(word, "__restrict") == 0  { return true }
+    if std.string.rchar_cmp(word, "__restrict__") == 0 { return true }
+    if std.string.rchar_cmp(word, "register") == 0    { return true }
+    if std.string.rchar_cmp(word, "static") == 0      { return true }
+    if std.string.rchar_cmp(word, "extern") == 0      { return true }
+    if std.string.rchar_cmp(word, "inline") == 0      { return true }
+    if std.string.rchar_cmp(word, "__inline") == 0    { return true }
+    if std.string.rchar_cmp(word, "__inline__") == 0  { return true }
+    if std.string.rchar_cmp(word, "typedef") == 0     { return true }
+    if std.string.rchar_cmp(word, "signed") == 0      { return true }
+    if std.string.rchar_cmp(word, "__signed__") == 0  { return true }
+    if std.string.rchar_cmp(word, "__extension__") == 0 { return true }
     return false
 }
 
@@ -3855,13 +3865,21 @@ fn normalize_type_phrase(text: ref char) ref char = {
             i++
         }
         if i >= len { break }
+        val c0: u8 = trust @load8(@ptradd(flat as ref void, i)) as u8
+        if c0 == 42 {
+            if !first { std.string.StringBuilder.append_char(sb, 32) }
+            std.string.StringBuilder.append_char(sb, 42)
+            first = false
+            i++
+            continue
+        }
         val start: i64 = i
         for {
             if i >= len {
                 break
             }
             val c: u8 = trust @load8(@ptradd(flat as ref void, i)) as u8
-            if is_space(c) { break }
+            if is_space(c) || c == 42 { break }
             i++
         }
         val word: ref char = std.string.substr(flat, start, i - start)
