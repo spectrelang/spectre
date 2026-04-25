@@ -1725,6 +1725,26 @@ fn rewrite_identifiers(text: ref char) ref char = {
                 i++
             }
             val ident: ref char = std.string.substr(trimmed, start, i - start)
+            val preceded_by_at: bool = start > 0
+                && (trust @load8(@ptradd(trimmed as ref void, start - 1)) as u8) == 64
+            if preceded_by_at && std.string.rchar_cmp(ident, "sizeof") == 0 {
+                val j: mut i64 = i
+                for {
+                    if j >= len { break }
+                    val ws: u8 = trust @load8(@ptradd(trimmed as ref void, j)) as u8
+                    if !is_space(ws) { break }
+                    j++
+                }
+                if j < len && (trust @load8(@ptradd(trimmed as ref void, j)) as u8) == 40 {
+                    val close_j: i64 = find_matching_delim(trimmed, j, 40, 41)
+                    if close_j > j {
+                        std.string.StringBuilder.append_cstr(sb, ident)
+                        std.string.StringBuilder.append_cstr(sb, std.string.substr(trimmed, j, close_j - j + 1))
+                        i = close_j + 1
+                        continue
+                    }
+                }
+            }
             if std.string.rchar_cmp(ident, "NULL") == 0 {
                 std.string.StringBuilder.append_cstr(sb, "0")
                 continue
