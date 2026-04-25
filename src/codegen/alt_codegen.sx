@@ -1548,7 +1548,13 @@ fn gen_struct_lit(ctx: ref CCtx, expr: ref parser.Node) ref char! = {
                 }
                 
                 val fb: ref char = @alloc(512) as ref char
-                if fld_sz > 8 { @snprintf(fb, 512, "memcpy((char*)sx__sl{lld}+{lld},(void*)(intptr_t)({s}),(size_t){lld});\n", {t, off, fval, fld_sz}) }
+                if fld_sz > 8 {
+                    if str.rchar_cmp(fval, "INT64_C(0)") == 0 || str.rchar_cmp(fval, "0") == 0 {
+                        @snprintf(fb, 512, "memset((char*)sx__sl{lld}+{lld},0,(size_t){lld});\n", {t, off, fld_sz})
+                    } else {
+                        @snprintf(fb, 512, "memcpy((char*)sx__sl{lld}+{lld},(void*)(intptr_t)({s}),(size_t){lld});\n", {t, off, fval, fld_sz})
+                    }
+                }
                 else { @snprintf(fb, 512, "*(int64_t*)((char*)sx__sl{lld}+{lld})=(int64_t)({s});\n", {t, off, fval}) }
                 emit(ctx, fb) @free(fb)
             } none => {} }
