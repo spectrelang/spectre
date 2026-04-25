@@ -20,6 +20,54 @@ val commands     = use("meta/commands.sx")
 val c_translate  = use("translate/c_translate.sx")
 val builds       = use("meta/builds.sx")
 
+fn root_has_direct_links(items: list[ref parser.Node]) bool = {
+    for item in items {
+        if item.kind == parser.NK_LINK { return true }
+        if item.kind == parser.NK_WHEN_ITEMS {
+            val when_items: list[ref parser.Node] = item.d1 as list[ref parser.Node]
+            for w in when_items {
+                if w.kind == parser.NK_LINK { return true }
+            }
+            val or_branches: ref void = item.d2 as ref void
+            if or_branches != 0 as ref void {
+                for ob in or_branches as list[ref parser.Node] {
+                    val ob_items: list[ref parser.Node] = ob.d1 as list[ref parser.Node]
+                    for obn in ob_items {
+                        if obn.kind == parser.NK_LINK { return true }
+                    }
+                }
+            }
+            val otherwise: ref void = item.d3 as ref void
+            if otherwise != 0 as ref void {
+                for ow in otherwise as list[ref parser.Node] {
+                    if ow.kind == parser.NK_LINK { return true }
+                }
+            }
+        }
+    }
+    return false
+}
+
+fn input_is_in_std(input: ref char) bool = {
+    if std.string.rchar_starts_with(input, "std/") { return true }
+    if std.string.rchar_starts_with(input, "./std/") { return true }
+    if std.string.contains(std.string.from(input), std.string.from("/std/")) { return true }
+    return false
+}
+
+fn pick_alt_compiler(
+    requested: ref char,
+    release_mode: bool,
+    input: ref char,
+    root_items: list[ref parser.Node]
+) ref char = {
+    val selected: mut ref char = builds.select_alt_compiler(requested)
+    if std.string.rchar_cmp(selected, "tcc") != 0 { return selected }
+    if release_mode { return "clang" }
+    if !input_is_in_std(input) && root_has_direct_links(root_items) { return "clang" }
+    return selected
+}
+
 fn append_debug_runtime_links(links: mut list[ref char], exe_dir: ref char, quiet: bool, release_mode: bool) void! = {
     if release_mode { return }
     val panic_o: ref char = path.join(exe_dir, "std/csources/panic_handler.o")
@@ -519,7 +567,7 @@ pub fn main() i32! = {
         val cc_flags_alt: mut ref char = "-std=c99 -Wno-everything -O3"
         if !release_mode { cc_flags_alt = "-std=c99 -Wno-everything -g" }
 
-        val selected_compiler: mut ref char = builds.select_alt_compiler(alt_compiler)
+        val selected_compiler: mut ref char = pick_alt_compiler(alt_compiler, release_mode, input, root_mod.items)
         val test_output_alt: ref char = "/tmp/spectre_test_bin_alt"
         val compile_output: mut ref char = test_output_alt
         if !test_mode {
