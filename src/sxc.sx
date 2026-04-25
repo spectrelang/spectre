@@ -252,6 +252,10 @@ pub fn main() i32! = {
     if flag_first_translate_c {
         arg_i = 3
     }
+    
+    when windows {
+        use_alt = true
+    }
 
     for {
         if (arg_i >= argc) {
