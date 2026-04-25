@@ -55,7 +55,7 @@ fn input_is_in_std(input: ref char) bool = {
     return false
 }
 
-fn pick_alt_compiler(
+fn pick_alt_backend(
     requested: ref char,
     release_mode: bool,
     input: ref char,
@@ -567,7 +567,7 @@ pub fn main() i32! = {
         val cc_flags_alt: mut ref char = "-std=c99 -Wno-everything -O3"
         if !release_mode { cc_flags_alt = "-std=c99 -Wno-everything -g" }
 
-        val selected_compiler: mut ref char = pick_alt_compiler(alt_compiler, release_mode, input, root_mod.items)
+        val selected_compiler: mut ref char = pick_alt_backend(alt_compiler, release_mode, input, root_mod.items)
         val test_output_alt: ref char = "/tmp/spectre_test_bin_alt"
         val compile_output: mut ref char = test_output_alt
         if !test_mode {
