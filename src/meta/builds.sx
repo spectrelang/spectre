@@ -13,19 +13,15 @@ pub fn select_alt_compiler(requested: ref char) ref char = {
     if std.string.rchar_cmp(requested, "") != 0 {
         return requested
     }
-
     if is_compiler_available("tcc") {
         return "tcc"
     }
-
     if is_compiler_available("clang") {
         return "clang"
     }
-
     if is_compiler_available("gcc") {
         return "gcc"
     }
-
     return "clang"
 }
 
