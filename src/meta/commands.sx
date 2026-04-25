@@ -381,6 +381,12 @@ pub fn cmd_ref() i32 = {
                 \\ }
                 \\ ```
                 \\
+                \\ Note that braces in match arms are not optional. You must use braces, for example:
+                \\
+                \\ ```
+                \\ ok v => hello // INVALID
+                \\ ok v => { return hello } // VALID if hello is defined and matches the return type
+                \\ ```
             )
             std.fs.write(f, \\ ---
                 \\
