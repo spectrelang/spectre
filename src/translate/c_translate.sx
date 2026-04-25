@@ -55,6 +55,8 @@ type TranslationCtx = {
     flex_struct_names: mut list[ref char]
     flex_field_names:  mut list[ref char]
     flex_field_types:  mut list[ref char]
+    typedef_alias_names: mut list[ref char]
+    typedef_alias_types: mut list[ref char]
     main_prelude_lines: mut list[ref char]
     temp_counter:  mut i64
     union_counter: mut i64
@@ -92,6 +94,8 @@ fn new_translation_ctx() ref TranslationCtx = {
     ctx.flex_struct_names = []
     ctx.flex_field_names  = []
     ctx.flex_field_types  = []
+    ctx.typedef_alias_names = []
+    ctx.typedef_alias_types = []
     ctx.main_prelude_lines = []
     ctx.temp_counter = 0
     ctx.union_counter = 0
@@ -388,6 +392,51 @@ fn clear_local_types(ctx: mut ref TranslationCtx) void = {
     ctx.mutable_names = []
     ctx.address_taken_names = []
     ctx.temp_counter = 0
+}
+
+fn register_typedef_alias(ctx: ref TranslationCtx, alias_name: ref char, spectre_type: ref char) void = {
+    val len: i64 = @len(ctx.typedef_alias_names) as i64
+    val i: mut i64 = 0
+    for {
+        if i >= len { break }
+        val existing_opt = @get(ctx.typedef_alias_names, i as usize)
+        match existing_opt {
+            some existing_name => {
+                if std.string.rchar_cmp(existing_name as ref char, alias_name) == 0 {
+                    @set(ctx.typedef_alias_types, i as usize, spectre_type)
+                    return
+                }
+            }
+            none => {}
+        }
+        i++
+    }
+    @append(ctx.typedef_alias_names, alias_name)
+    @append(ctx.typedef_alias_types, spectre_type)
+    push_unique(ctx.translated_type_names, alias_name)
+}
+
+fn lookup_typedef_alias(ctx: ref TranslationCtx, alias_name: ref char) option[ref char] = {
+    val len: i64 = @len(ctx.typedef_alias_names) as i64
+    val i: mut i64 = 0
+    for {
+        if i >= len { break }
+        val name_opt = @get(ctx.typedef_alias_names, i as usize)
+        match name_opt {
+            some name_val => {
+                if std.string.rchar_cmp(name_val as ref char, alias_name) == 0 {
+                    val type_opt = @get(ctx.typedef_alias_types, i as usize)
+                    match type_opt {
+                        some type_val => { return some type_val as ref char }
+                        none => {}
+                    }
+                }
+            }
+            none => {}
+        }
+        i++
+    }
+    return none
 }
 
 fn remember_local_type(ctx: ref TranslationCtx, name: ref char, type_name: ref char) void = {
@@ -3282,7 +3331,7 @@ fn translate_sizeof_expr(ctx: ref TranslationCtx, text: ref char) ref char = {
                                 continue
                             }
                         }
-                        val mapped: ref char = translate_c_type(inner, "")
+                        val mapped: ref char = translate_c_type_ctx(ctx, inner, "")
                         std.string.StringBuilder.append_cstr(sb, trust @fmt("@sizeof({s})", {mapped}))
                         i = close_i + 1
                         continue
@@ -3310,7 +3359,7 @@ fn translate_c_cast_expr(ctx: ref TranslationCtx, text: ref char) ref char = {
     val len: i64 = std.string.len_raw(trimmed)
     val rest: ref char = trim_raw(std.string.substr(trimmed, close_i + 1, len - close_i - 1))
     if std.string.rchar_cmp(rest, "") == 0 { return trimmed }
-    val mapped: ref char = translate_c_type(inner, "")
+    val mapped: ref char = translate_c_type_ctx(ctx, inner, "")
     return trust @fmt("{s} as {s}", {translate_expr_text(ctx, rest), mapped})
 }
 
@@ -3454,7 +3503,7 @@ fn translate_body_statement(ctx: ref TranslationCtx, line: ref char, indent: i64
         append_blank_line(out)
         return true
     }
-    val multi_decls = split_multi_decl(stripped)
+    val multi_decls = split_multi_decl(ctx, stripped)
     if ((@len(multi_decls) as i64) > 1) {
         for decl_text in multi_decls {
             translate_body_statement(ctx, decl_text, indent, out)
@@ -3498,7 +3547,7 @@ fn translate_body_statement(ctx: ref TranslationCtx, line: ref char, indent: i64
         val can_be_decl: bool = str_contains(lhs, " ")
             || std.string.rchar_starts_with(lhs, "struct ") || std.string.rchar_starts_with(lhs, "enum ")
         if can_be_decl {
-            val decl: ref DeclInfo = parse_named_decl(lhs, "")
+            val decl: ref DeclInfo = parse_named_decl(ctx, lhs, "")
             if decl.its_ok && std.string.rchar_cmp(decl.name, "") != 0 && std.string.rchar_cmp(trim_raw(decl.type_src), "") != 0 {
                 if is_array_type_name(decl.type_name) {
                     if is_unsized_char_array(decl.type_name) && is_string_literal_text(rhs) {
@@ -3643,7 +3692,7 @@ fn translate_body_statement(ctx: ref TranslationCtx, line: ref char, indent: i64
         || std.string.rchar_starts_with(stripped, "struct ") || std.string.rchar_starts_with(stripped, "enum "))
         && !str_contains(stripped, "(")
     if can_be_bare_decl {
-        val decl2: ref DeclInfo = parse_named_decl(stripped, "")
+        val decl2: ref DeclInfo = parse_named_decl(ctx, stripped, "")
         if decl2.its_ok && std.string.rchar_cmp(decl2.name, "") != 0 {
             if is_array_type_name(decl2.type_name) {
                 val alloc_expr2: ref char = array_alloc_expr(decl2.type_name)
@@ -3839,8 +3888,28 @@ fn map_base_type(base: ref char) ref char = {
     if std.string.rchar_cmp(base, "unsigned short") == 0     { return "u16" }
     if std.string.rchar_cmp(base, "unsigned") == 0           { return "u32" }
     if std.string.rchar_cmp(base, "unsigned int") == 0       { return "u32" }
-    if std.string.rchar_cmp(base, "unsigned long") == 0      { return "u64" }
-    if std.string.rchar_cmp(base, "unsigned long long") == 0 { return "u64" }
+    if std.string.rchar_cmp(base, "unsigned long") == 0         { return "u64" }
+    if std.string.rchar_cmp(base, "unsigned long long") == 0   { return "u64" }
+    if std.string.rchar_cmp(base, "long unsigned") == 0         { return "u64" }
+    if std.string.rchar_cmp(base, "long unsigned int") == 0     { return "u64" }
+    if std.string.rchar_cmp(base, "unsigned long int") == 0     { return "u64" }
+    if std.string.rchar_cmp(base, "long long unsigned") == 0    { return "u64" }
+    if std.string.rchar_cmp(base, "long long unsigned int") == 0 { return "u64" }
+    if std.string.rchar_cmp(base, "unsigned long long int") == 0 { return "u64" }
+    if std.string.rchar_cmp(base, "long int") == 0              { return "i64" }
+    if std.string.rchar_cmp(base, "long long int") == 0         { return "i64" }
+    if std.string.rchar_cmp(base, "signed long") == 0           { return "i64" }
+    if std.string.rchar_cmp(base, "signed long int") == 0       { return "i64" }
+    if std.string.rchar_cmp(base, "signed long long") == 0      { return "i64" }
+    if std.string.rchar_cmp(base, "signed long long int") == 0  { return "i64" }
+    if std.string.rchar_cmp(base, "short int") == 0             { return "i16" }
+    if std.string.rchar_cmp(base, "signed short") == 0          { return "i16" }
+    if std.string.rchar_cmp(base, "signed short int") == 0      { return "i16" }
+    if std.string.rchar_cmp(base, "short unsigned int") == 0    { return "u16" }
+    if std.string.rchar_cmp(base, "unsigned short int") == 0    { return "u16" }
+    if std.string.rchar_cmp(base, "signed int") == 0            { return "i32" }
+    if std.string.rchar_cmp(base, "signed") == 0                { return "i32" }
+    if std.string.rchar_cmp(base, "signed char") == 0           { return "i8" }
     if std.string.rchar_cmp(base, "float") == 0              { return "f32" }
     if std.string.rchar_cmp(base, "double") == 0             { return "f64" }
     if std.string.rchar_cmp(base, "_Bool") == 0              { return "bool" }
@@ -3902,6 +3971,22 @@ fn translate_c_type(type_src: ref char, array_prefix: ref char) ref char = {
     return mapped
 }
 
+fn translate_c_type_ctx(ctx: ref TranslationCtx, type_src: ref char, array_prefix: ref char) ref char = {
+    val normalized: ref char = normalize_type_phrase(type_src)
+    if is_ident_text(normalized) {
+        match lookup_typedef_alias(ctx, normalized) {
+            some mapped => {
+                if std.string.rchar_cmp(array_prefix, "") != 0 {
+                    return trust @fmt("{s}{s}", {array_prefix, mapped as ref char})
+                }
+                return mapped as ref char
+            }
+            none => {}
+        }
+    }
+    return translate_c_type(type_src, array_prefix)
+}
+
 fn strip_initializer(text: ref char) ref char = {
     val len: i64 = std.string.len_raw(text)
     val i: mut i64 = 0
@@ -3922,7 +4007,7 @@ fn strip_initializer(text: ref char) ref char = {
     return trim_raw(text)
 }
 
-fn parse_named_decl(text: ref char, fallback_name: ref char) ref DeclInfo = {
+fn parse_named_decl(ctx: ref TranslationCtx, text: ref char, fallback_name: ref char) ref DeclInfo = {
     val info: mut ref DeclInfo = @alloc(@sizeof(DeclInfo)) as ref DeclInfo
     info.its_ok    = false
     info.name      = fallback_name
@@ -3979,12 +4064,12 @@ fn parse_named_decl(text: ref char, fallback_name: ref char) ref DeclInfo = {
         info.name = sanitize_identifier(fallback_name)
         info.type_src = trimmed0
     }
-    info.type_name = translate_c_type(info.type_src, array_prefix)
+    info.type_name = translate_c_type_ctx(ctx, info.type_src, array_prefix)
     info.its_ok = std.string.rchar_cmp(info.type_name, "") != 0
     return info
 }
 
-fn split_multi_decl(text: ref char) list[ref char] = {
+fn split_multi_decl(ctx: ref TranslationCtx, text: ref char) list[ref char] = {
     val trimmed: ref char = strip_trailing_semicolon(trim_raw(text))
     if str_contains(trimmed, "(") { return [] }
     val parts = split_top_level(trimmed, 44)
@@ -3993,7 +4078,7 @@ fn split_multi_decl(text: ref char) list[ref char] = {
     match first_opt {
         some first_part => {
             val first_trimmed: ref char = trim_raw(first_part as ref char)
-            val first_decl: ref DeclInfo = parse_named_decl(first_trimmed, "")
+            val first_decl: ref DeclInfo = parse_named_decl(ctx, first_trimmed, "")
             val first_type_src: ref char = trim_raw(first_decl.type_src)
             if !first_decl.its_ok || std.string.rchar_cmp(first_type_src, "") == 0 { return [] }
             val items: mut list[ref char] = []
@@ -4396,7 +4481,7 @@ fn translate_struct_decl(text: ref char, indent: i64, out: ref void, ctx: ref Tr
             }
             none => {}
         }
-        val field_items = split_multi_decl(trimmed)
+        val field_items = split_multi_decl(ctx, trimmed)
         val decl_items: mut list[ref char] = []
         if ((@len(field_items) as i64) > 1) {
             decl_items = field_items
@@ -4404,7 +4489,7 @@ fn translate_struct_decl(text: ref char, indent: i64, out: ref void, ctx: ref Tr
             @append(decl_items, trimmed)
         }
         for decl_text in decl_items {
-            val decl: ref DeclInfo = parse_named_decl(decl_text, "")
+            val decl: ref DeclInfo = parse_named_decl(ctx, decl_text, "")
             if !decl.its_ok || std.string.rchar_cmp(decl.name, "") == 0 {
                 append_comment_line(fields_out, indent + 1, trust @fmt("unsupported field declaration: {s};", {decl_text}))
                 continue
@@ -4509,14 +4594,14 @@ fn translate_enum_decl(text: ref char, indent: i64, out: ref void, ctx: ref Tran
     return true
 }
 
-fn emit_union_type(alias: ref char, body: ref char, indent: i64, out: ref void, _: ref TranslationCtx) void = {
+fn emit_union_type(alias: ref char, body: ref char, indent: i64, out: ref void, ctx: ref TranslationCtx) void = {
     append_open_block_line(out, indent, trust @fmt("pub union {s} = ", {alias}))
     val fields = split_top_level(body, 59)
     val first_variant: mut bool = true
     for field in fields {
         val trimmed: ref char = trim_raw(field)
         if std.string.rchar_cmp(trimmed, "") == 0 { continue }
-        val field_items = split_multi_decl(trimmed)
+        val field_items = split_multi_decl(ctx, trimmed)
         val decl_items: mut list[ref char] = []
         if ((@len(field_items) as i64) > 1) {
             decl_items = field_items
@@ -4524,7 +4609,7 @@ fn emit_union_type(alias: ref char, body: ref char, indent: i64, out: ref void, 
             @append(decl_items, trimmed)
         }
         for decl_text in decl_items {
-            val decl: ref DeclInfo = parse_named_decl(decl_text, "")
+            val decl: ref DeclInfo = parse_named_decl(ctx, decl_text, "")
             if !decl.its_ok || std.string.rchar_cmp(decl.name, "") == 0 { continue }
             val variant_name: ref char = sanitize_identifier(decl.name)
             val payload_type0: ref char = decl.type_name
@@ -4631,7 +4716,7 @@ fn translate_params(ctx: ref TranslationCtx, params_text: ref char) ref char = {
             arg_index++
             continue
         }
-        val decl: ref DeclInfo = parse_named_decl(p, fallback)
+        val decl: ref DeclInfo = parse_named_decl(ctx, p, fallback)
         if !decl.its_ok {
             if !first { std.string.StringBuilder.append_cstr(sb, ", ") }
             std.string.StringBuilder.append_cstr(sb, trust @fmt("{s}: void", {fallback}))
@@ -4684,7 +4769,7 @@ fn translate_function_decl(text: ref char, current_dir: ref char, indent: i64, o
     if head_len < name_len { return false }
     if head_len == name_len { return false }
     val return_src: ref char = trim_raw(std.string.substr(head, 0, head_len - name_len))
-    val return_type: ref char = translate_c_type(return_src, "")
+    val return_type: ref char = translate_c_type_ctx(ctx, return_src, "")
     clear_local_types(ctx)
     if has_body {
         val body_lines0 = split_lines(body_src)
@@ -4733,13 +4818,26 @@ fn translate_function_decl(text: ref char, current_dir: ref char, indent: i64, o
 fn translate_top_level_decl(text: ref char, indent: i64, out: ref void, ctx: ref TranslationCtx) bool = {
     val stripped: ref char = strip_trailing_semicolon(trim_raw(text))
     if std.string.rchar_cmp(stripped, "") == 0 { return false }
-    val multi_decls = split_multi_decl(stripped)
+    val multi_decls = split_multi_decl(ctx, stripped)
     if ((@len(multi_decls) as i64) > 1) {
         val any_ok: mut bool = false
         for decl_text in multi_decls {
             if translate_top_level_decl(decl_text, indent, out, ctx) { any_ok = true }
         }
         return any_ok
+    }
+    if std.string.rchar_starts_with(stripped, "typedef ")
+        && !std.string.rchar_starts_with(stripped, "typedef struct")
+        && !std.string.rchar_starts_with(stripped, "typedef enum")
+        && !std.string.rchar_starts_with(stripped, "typedef union")
+        && !str_contains(stripped, "(") {
+        val after_typedef: ref char = trim_raw(std.string.substr(stripped, 8, std.string.len_raw(stripped) - 8))
+        val alias_decl: ref DeclInfo = parse_named_decl(ctx, after_typedef, "")
+        if alias_decl.its_ok && std.string.rchar_cmp(alias_decl.name, "") != 0
+            && std.string.rchar_cmp(alias_decl.type_name, alias_decl.name) != 0 {
+            register_typedef_alias(ctx, alias_decl.name, alias_decl.type_name)
+        }
+        return true
     }
     val assign_i: i64 = find_top_level_assign(stripped)
     if assign_i > 0 {
@@ -4750,7 +4848,7 @@ fn translate_top_level_decl(text: ref char, indent: i64, out: ref void, ctx: ref
             || std.string.rchar_starts_with(lhs, "enum ")
             || std.string.rchar_starts_with(lhs, "union ")
         if !can_be_decl { return false }
-        val decl: ref DeclInfo = parse_named_decl(lhs, "")
+        val decl: ref DeclInfo = parse_named_decl(ctx, lhs, "")
         if !decl.its_ok || std.string.rchar_cmp(decl.name, "") == 0 || std.string.rchar_cmp(trim_raw(decl.type_src), "") == 0 {
             return false
         }
@@ -4798,7 +4896,7 @@ fn translate_top_level_decl(text: ref char, indent: i64, out: ref void, ctx: ref
         || std.string.rchar_starts_with(stripped, "union "))
         && !str_contains(stripped, "(")
     if can_be_bare_decl {
-        val decl2: ref DeclInfo = parse_named_decl(stripped, "")
+        val decl2: ref DeclInfo = parse_named_decl(ctx, stripped, "")
         if decl2.its_ok && std.string.rchar_cmp(decl2.name, "") != 0 {
             if is_array_type_name(decl2.type_name) {
                 val alloc_expr2: ref char = array_alloc_expr(decl2.type_name)
