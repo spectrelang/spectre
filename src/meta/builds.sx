@@ -1,8 +1,7 @@
 val std = use("std")
 
 pub fn is_compiler_available(compiler: ref char) bool = {
-    val check_cmd = trust @fmt("which {s} > /dev/null 2>&1", {compiler})
-    val res = std.os.exec(check_cmd)
+    val res = std.os.exec(trust @fmt("{s} --version", {compiler}))
     match res {
         ok _ => { return true }
         err _ => { return false }
