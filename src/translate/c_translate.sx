@@ -4054,7 +4054,11 @@ fn parse_named_decl(ctx: ref TranslationCtx, text: ref char, fallback_name: ref 
         }
         if open_i < 0 { break }
         val array_len_txt: ref char = trim_raw(std.string.substr(trimmed0, open_i + 1, close_i - open_i - 1))
-        array_prefix = trust @fmt("[{s}]{s}", {array_len_txt, array_prefix})
+        val effective_len: mut ref char = array_len_txt
+        if !is_integer_literal_text(array_len_txt) && !is_ident_text(array_len_txt) {
+            effective_len = "32"
+        }
+        array_prefix = trust @fmt("[{s}]{s}", {effective_len, array_prefix})
         i = open_i - 1
     }
     for {
