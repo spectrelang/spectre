@@ -10,6 +10,8 @@ The complete documentation can be found at https://spectre-docs.pages.dev
 
 Prerequisite: cmake
 
+Run the following in the terminal:
+
 ```
 curl https://spectrelang.org/get.sh | sh
 ```
