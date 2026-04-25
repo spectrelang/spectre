@@ -1,3 +1,5 @@
+pub val some_constant = "hello, word."
+
 pub fn some_function() void! = {
     @puts("Hello...")
 }

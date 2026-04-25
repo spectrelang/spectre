@@ -2252,6 +2252,13 @@ fn static_global_init_value(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
             }
         }
     }
+    if k == parser.NK_STR_LIT {
+        val s: ref char = parser.str_lit_text(expr)
+        val idx: i64 = intern_string(ctx, s)
+        val sbuf: ref char = @alloc(64) as ref char
+        @snprintf(sbuf, 64, "$__str{lld}", {idx})
+        return sbuf
+    }
     return ""
 }
 
@@ -2318,10 +2325,8 @@ fn emit_global_list_literal(ctx: ref CgCtx, glabel: ref char, gexpr: ref parser.
 
 fn emit_global_val(ctx: ref CgCtx, mod_prefix: ref char, node: ref parser.Node) void! = {
     val gname: ref char = node.d0 as ref char
-    val gmut: i64 = node.d1 as i64
     val gty_node: ref parser.Node = node.d2 as ref parser.Node
     val gexpr: ref parser.Node = node.d3 as ref parser.Node
-    if gmut == 0 { return }
 
     val gqtype: mut ref char = "l"
     if gty_node != 0 as ref parser.Node {
@@ -7909,14 +7914,15 @@ fn preregister_items(ctx: ref CgCtx, items: list[ref parser.Node], mod_prefix: r
                 } elif k == parser.NK_CONST {
                     val cname: ref char = node.d1 as ref char
                     val cexpr: ref parser.Node = node.d2 as ref parser.Node
+                    val cval_reg: mut ref char = 0 as ref char
                     if cexpr != 0 as ref parser.Node {
                         if cexpr.kind == parser.NK_INT_LIT {
-                            cg_register_module_const(ctx, cname, parser.int_lit_text(cexpr))
+                            cval_reg = parser.int_lit_text(cexpr)
                         } elif cexpr.kind == parser.NK_FLOAT_LIT {
                             val ftext: ref char = parser.float_lit_text(cexpr)
                             val fval: ref char = @alloc(128) as ref char
                             @snprintf(fval, 128, "d_{s}", {ftext})
-                            cg_register_module_const(ctx, cname, fval)
+                            cval_reg = fval
                         } elif cexpr.kind == parser.NK_UNOP {
                             val uop: i64 = parser.unop_op(cexpr)
                             val inner: ref parser.Node = parser.unop_inner(cexpr)
@@ -7926,22 +7932,31 @@ fn preregister_items(ctx: ref CgCtx, items: list[ref parser.Node], mod_prefix: r
                                         val itext: ref char = parser.int_lit_text(inner)
                                         val ival: ref char = @alloc(128) as ref char
                                         @snprintf(ival, 128, "-{s}", {itext})
-                                        cg_register_module_const(ctx, cname, ival)
+                                        cval_reg = ival
                                     } elif inner.kind == parser.NK_FLOAT_LIT {
                                         val ftext2: ref char = parser.float_lit_text(inner)
                                         val fval2: ref char = @alloc(128) as ref char
                                         @snprintf(fval2, 128, "d_-{s}", {ftext2})
-                                        cg_register_module_const(ctx, cname, fval2)
+                                        cval_reg = fval2
                                     }
                                 }
                             }
                         } elif cexpr.kind == parser.NK_BOOL {
                             val bval: i64 = cexpr.d0 as i64
-                            if bval != 0 {
-                                cg_register_module_const(ctx, cname, "1")
-                            } else {
-                                cg_register_module_const(ctx, cname, "0")
-                            }
+                            if bval != 0 { cval_reg = "1" } else { cval_reg = "0" }
+                        } elif cexpr.kind == parser.NK_STR_LIT {
+                            val sidx: i64 = intern_string(ctx, parser.str_lit_text(cexpr))
+                            val sbuf: ref char = @alloc(64) as ref char
+                            @snprintf(sbuf, 64, "$__str{lld}", {sidx})
+                            cval_reg = sbuf
+                        }
+                    }
+                    if cval_reg != 0 as ref char {
+                        cg_register_module_const(ctx, cname, cval_reg)
+                        if str.rchar_cmp(mod_prefix, "") != 0 {
+                            val pkey: ref char = @alloc(512) as ref char
+                            @snprintf(pkey, 512, "{s}__{s}", {mod_prefix, cname})
+                            cg_register_module_const(ctx, pkey, cval_reg)
                         }
                     }
                 } elif k == parser.NK_WHEN_ITEMS {

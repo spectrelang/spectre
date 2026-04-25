@@ -1128,6 +1128,12 @@ fn gen_field(ctx: ref CCtx, expr: ref parser.Node) ref char! = {
         if str.rchar_cmp(base_lt, "") == 0 {
             val qkey: ref char = @alloc(512) as ref char
             @snprintf(qkey, 512, "{s}__{s}", {base_name, fname})
+            val gn: ref char = cc_resolve_global_name(ctx, qkey)
+            if str.rchar_cmp(gn, "") != 0 {
+                @free(qkey)
+                @snprintf(buf, 512, "((int64_t){s})", {gn})
+                return cc_expr_track(ctx, buf)
+            }
             val resolved: ref char = cc_resolve_fn_name(ctx, qkey)
             @free(qkey)
             if resolved != 0 as ref char {
@@ -2457,7 +2463,13 @@ fn preregister_items(ctx: ref CCtx, items: list[ref parser.Node], mod_prefix: re
                     elif ce.kind == parser.NK_BOOL { if ce.d0 as i64 != 0 { cv = "1" } else { cv = "0" } }
                     elif ce.kind == parser.NK_UNOP { val uop: i64 = parser.unop_op(ce) val inner: ref parser.Node = parser.unop_inner(ce)
                         if inner != 0 as ref parser.Node && uop == parser.UOP_NEG && inner.kind == parser.NK_INT_LIT {
-                            val iv: ref char = @alloc(128) as ref char @snprintf(iv, 128, "-{s}", {parser.int_lit_text(inner)}) cv = iv } } }
+                            val iv: ref char = @alloc(128) as ref char @snprintf(iv, 128, "-{s}", {parser.int_lit_text(inner)}) cv = iv } }
+                    elif ce.kind == parser.NK_STR_LIT {
+                        val sidx: i64 = intern_string(ctx, parser.str_lit_text(ce))
+                        val sb: ref char = @alloc(128) as ref char
+                        @snprintf(sb, 128, "((int64_t)(intptr_t)sx__str{lld})", {sidx})
+                        cv = sb
+                    } }
                 if cv != 0 as ref char {
                     cc_register_module_const(ctx, cn, cv)
                     if str.rchar_cmp(mod_prefix, "") != 0 {
