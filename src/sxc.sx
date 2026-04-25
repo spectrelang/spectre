@@ -447,7 +447,7 @@ pub fn main() i32! = {
                 }
             }
             err _ => {
-                std.stdio.puts("\nerror: clang compilation failed")
+                std.stdio.puts("\nerror: llvm clang stage failed")
                 std.os.delete(ll_file)
                 allocators.Arena.free(arena)
                 return 1
