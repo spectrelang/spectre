@@ -300,7 +300,7 @@ pub fn main() i32! = {
         exe_dir = path.dir(exe_path2)
     }
 
-    if !quiet && !emit_qbe && !emit_ll && !print_ast {
+    if !quiet && !emit_qbe && !emit_ll && !emit_alt && !print_ast {
         std.stdio.puts("[I  ]│ Resolving module")
     }
 
@@ -323,7 +323,7 @@ pub fn main() i32! = {
         return 0
     }
 
-    if !quiet && !emit_qbe && !emit_ll {
+    if !quiet && !emit_qbe && !emit_ll && !emit_alt {
         std.stdio.puts("[II ]│ Semantic analysis")
     }
 
@@ -345,7 +345,7 @@ pub fn main() i32! = {
         return 0
     }
 
-    if !quiet && !emit_qbe && !emit_ll { 
+    if !quiet && !emit_qbe && !emit_ll && !emit_alt { 
         std.stdio.puts("[III]│ CG pass")
     }
 
