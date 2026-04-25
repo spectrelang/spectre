@@ -677,7 +677,8 @@ fn cc_lookup_tv(ctx: ref CCtx, vname: ref char, out_owner: ref void, out_field_t
                             val f_opt = @get(ctx.tv_fields as list[ref void], ni as usize)
                             match f_opt { some f => { @store(out_field_ty, f as usize) } none => {} }
                             return tag as i64
-                        } none => {} }
+                        } none => {} 
+                    }
                 } 
             } none => {} 
         }
