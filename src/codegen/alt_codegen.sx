@@ -131,8 +131,7 @@ fn rewrite_fmt(s: ref char) ref char! = {
     val i: mut i64 = 0
     for { if i >= slen { break }
         val c: u8 = @load8(@ptradd(s as ref void, i))
-        if c == 37 { @store8(@ptradd(out as ref void, oi), 37) @store8(@ptradd(out as ref void, oi+1), 37) oi += 2 i++ }
-        elif c == 92 { if i + 1 < slen { val next: u8 = @load8(@ptradd(s as ref void, i + 1))
+        if c == 92 { if i + 1 < slen { val next: u8 = @load8(@ptradd(s as ref void, i + 1))
                 if next == 123 || next == 125 { @store8(@ptradd(out as ref void, oi), next) oi++ i += 2 }
                 else { @store8(@ptradd(out as ref void, oi), c) oi++ i++ } }
             else { @store8(@ptradd(out as ref void, oi), c) oi++ i++ } }
@@ -1115,6 +1114,41 @@ fn gen_field(ctx: ref CCtx, expr: ref parser.Node) ref char! = {
         val cast_ty: ref parser.Node = base_node.d1 as ref parser.Node
         if cast_ty != 0 as ref parser.Node { base_type = spectre_type_name_of(cast_ty) }
     }
+    elif base_node.kind == parser.NK_FIELD {
+        val mid_node2: ref parser.Node = parser.field_base(base_node)
+        val mid_name2: ref char = parser.field_name(base_node)
+        val mid_type: mut ref char = ""
+        if mid_node2 != 0 as ref parser.Node && mid_node2.kind == parser.NK_IDENT {
+            mid_type = cc_lookup_local_type(ctx, mid_node2.d0 as ref char)
+        }
+        if str.rchar_cmp(mid_type, "") != 0 {
+            val mid_fields: mut ref void = cc_lookup_struct(ctx, mid_type)
+            if mid_fields == 0 as ref void {
+                val mtlen: i64 = str.len_raw(mid_type)
+                val mdot: mut i64 = -1
+                val mi: mut i64 = 0
+                for { if mi >= mtlen { break }
+                    if @load8(@ptradd(mid_type as ref void, mi)) == 46 { mdot = mi }
+                    mi++ }
+                if mdot >= 0 {
+                    val msuf: ref char = @ptradd(mid_type as ref void, mdot + 1) as ref char
+                    mid_fields = cc_lookup_struct(ctx, msuf) } }
+            if mid_fields != 0 as ref void {
+                val mflen: i64 = @len(mid_fields as list[ref void]) as i64
+                val mfi: mut i64 = 0
+                for { if mfi >= mflen { break }
+                    val mf_opt = @get(mid_fields as list[ref void], mfi as usize)
+                    match mf_opt { some mf => {
+                        val mf_node: ref parser.Node = mf as ref parser.Node
+                        if str.rchar_cmp(mf_node.d0 as ref char, mid_name2) == 0 {
+                            val fty: ref parser.Node = mf_node.d2 as ref parser.Node
+                            if fty != 0 as ref parser.Node { base_type = spectre_type_name_of(fty) }
+                        }
+                    } none => {} }
+                    mfi++ }
+            }
+        }
+    }
     val fields: mut ref void = cc_lookup_struct(ctx, base_type)
     if fields == 0 as ref void && str.rchar_cmp(base_type, "") != 0 {
         val btlen: i64 = str.len_raw(base_type)
@@ -1555,6 +1589,41 @@ fn gen_field_addr(ctx: ref CCtx, expr: ref parser.Node) ref char! = {
         val cast_ty: ref parser.Node = base_node.d1 as ref parser.Node
         if cast_ty != 0 as ref parser.Node { bt = spectre_type_name_of(cast_ty) }
     }
+    elif base_node.kind == parser.NK_FIELD {
+        val mid_node3: ref parser.Node = parser.field_base(base_node)
+        val mid_name3: ref char = parser.field_name(base_node)
+        val mid_type3: mut ref char = ""
+        if mid_node3 != 0 as ref parser.Node && mid_node3.kind == parser.NK_IDENT {
+            mid_type3 = cc_lookup_local_type(ctx, mid_node3.d0 as ref char)
+        }
+        if str.rchar_cmp(mid_type3, "") != 0 {
+            val mid_fields3: mut ref void = cc_lookup_struct(ctx, mid_type3)
+            if mid_fields3 == 0 as ref void {
+                val mtlen3: i64 = str.len_raw(mid_type3)
+                val mdot3: mut i64 = -1
+                val mi3: mut i64 = 0
+                for { if mi3 >= mtlen3 { break }
+                    if @load8(@ptradd(mid_type3 as ref void, mi3)) == 46 { mdot3 = mi3 }
+                    mi3++ }
+                if mdot3 >= 0 {
+                    val msuf3: ref char = @ptradd(mid_type3 as ref void, mdot3 + 1) as ref char
+                    mid_fields3 = cc_lookup_struct(ctx, msuf3) } }
+            if mid_fields3 != 0 as ref void {
+                val mflen3: i64 = @len(mid_fields3 as list[ref void]) as i64
+                val mfi3: mut i64 = 0
+                for { if mfi3 >= mflen3 { break }
+                    val mf_opt3 = @get(mid_fields3 as list[ref void], mfi3 as usize)
+                    match mf_opt3 { some mf3 => {
+                        val mfn3: ref parser.Node = mf3 as ref parser.Node
+                        if str.rchar_cmp(mfn3.d0 as ref char, mid_name3) == 0 {
+                            val fty3: ref parser.Node = mfn3.d2 as ref parser.Node
+                            if fty3 != 0 as ref parser.Node { bt = spectre_type_name_of(fty3) }
+                        }
+                    } none => {} }
+                    mfi3++ }
+            }
+        }
+    }
     val fields: mut ref void = cc_lookup_struct(ctx, bt)
     if fields == 0 as ref void && str.rchar_cmp(bt, "") != 0 {
         val btlen2: i64 = str.len_raw(bt)
@@ -1599,6 +1668,41 @@ fn cc_field_size_of_expr(ctx: ref CCtx, expr: ref parser.Node) i64! = {
     elif base_node.kind == parser.NK_CAST {
         val cast_ty: ref parser.Node = base_node.d1 as ref parser.Node
         if cast_ty != 0 as ref parser.Node { bt = spectre_type_name_of(cast_ty) }
+    }
+    elif base_node.kind == parser.NK_FIELD {
+        val mid_node4: ref parser.Node = parser.field_base(base_node)
+        val mid_name4: ref char = parser.field_name(base_node)
+        val mid_type4: mut ref char = ""
+        if mid_node4 != 0 as ref parser.Node && mid_node4.kind == parser.NK_IDENT {
+            mid_type4 = cc_lookup_local_type(ctx, mid_node4.d0 as ref char)
+        }
+        if str.rchar_cmp(mid_type4, "") != 0 {
+            val mid_fields4: mut ref void = cc_lookup_struct(ctx, mid_type4)
+            if mid_fields4 == 0 as ref void {
+                val mtlen4: i64 = str.len_raw(mid_type4)
+                val mdot4: mut i64 = -1
+                val mi4: mut i64 = 0
+                for { if mi4 >= mtlen4 { break }
+                    if @load8(@ptradd(mid_type4 as ref void, mi4)) == 46 { mdot4 = mi4 }
+                    mi4++ }
+                if mdot4 >= 0 {
+                    val msuf4: ref char = @ptradd(mid_type4 as ref void, mdot4 + 1) as ref char
+                    mid_fields4 = cc_lookup_struct(ctx, msuf4) } }
+            if mid_fields4 != 0 as ref void {
+                val mflen4: i64 = @len(mid_fields4 as list[ref void]) as i64
+                val mfi4: mut i64 = 0
+                for { if mfi4 >= mflen4 { break }
+                    val mf_opt4 = @get(mid_fields4 as list[ref void], mfi4 as usize)
+                    match mf_opt4 { some mf4 => {
+                        val mfn4: ref parser.Node = mf4 as ref parser.Node
+                        if str.rchar_cmp(mfn4.d0 as ref char, mid_name4) == 0 {
+                            val fty4: ref parser.Node = mfn4.d2 as ref parser.Node
+                            if fty4 != 0 as ref parser.Node { bt = spectre_type_name_of(fty4) }
+                        }
+                    } none => {} }
+                    mfi4++ }
+            }
+        }
     }
     val fields: mut ref void = cc_lookup_struct(ctx, bt)
     if fields == 0 as ref void && str.rchar_cmp(bt, "") != 0 {
