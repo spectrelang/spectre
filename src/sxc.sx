@@ -549,7 +549,7 @@ pub fn main() i32! = {
                         std.os.delete("/tmp/spectre_test_bin_alt")
                     }
                     if !quiet {
-                        std.stdio.print("Compiled (C): {s}\n", {final_output_alt})
+                        std.stdio.print("Compiled (ALT): {s}\n", {final_output_alt})
                     }
                 }
             }
