@@ -1359,7 +1359,7 @@ fn gen_builtin(ctx: ref CCtx, expr: ref parser.Node) ref char! = {
                 val lan: ref parser.Node = list_arg as ref parser.Node
                 if lan.kind == parser.NK_FIELD {
                     val fa: ref char = gen_field_addr(ctx, lan)
-                    @snprintf(buf, 512, "sx__rt_append_f((int64_t*)({s}),(int64_t)({s}))", {fa, e}) return buf
+                    @snprintf(buf, 512, "sx__rt_append((void*)(intptr_t)({s}),(int64_t)({s}))", {fa, e}) return buf
                 }
                 if lan.kind == parser.NK_IDENT {
                     val iname: ref char = lan.d0 as ref char
