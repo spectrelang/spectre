@@ -1,6 +1,6 @@
 /// The Spectre Compiler
 ///
-/// GPL-3.0-only 
+/// GPL-3.0-only
 /// (C) Navid Momtahen - 2026
 
 val std          = use("std")
@@ -18,6 +18,7 @@ val module       = use("module/module.sx")
 val meta         = use("meta/meta.sx")
 val commands     = use("meta/commands.sx")
 val c_translate  = use("translate/c_translate.sx")
+val builds       = use("meta/builds.sx")
 
 fn append_debug_runtime_links(links: mut list[ref char], exe_dir: ref char, quiet: bool, release_mode: bool) void! = {
     if release_mode { return }
@@ -46,7 +47,7 @@ pub fn main() i32! = {
     val argc: i64 = @len(args) as i64
     val exe_path: mut ref char = "./spectre"
     val exe_opt = @get(args, 0)
-    
+
     match exe_opt {
         some v => { exe_path = v as ref char }
         none   => {}
@@ -73,7 +74,7 @@ pub fn main() i32! = {
     }
 
     val flag_first_translate_c: bool = std.string.rchar_cmp(input, "--translate-c") == 0
-    
+
     if std.string.rchar_cmp(input, "-h") == 0 || std.string.rchar_cmp(input, "--help") == 0 {
         meta.print_usage()
         allocators.Arena.free(arena)
@@ -196,6 +197,7 @@ pub fn main() i32! = {
     val print_ast: mut bool = false
     val use_llvm: mut bool = false
     val use_alt: mut bool = false
+    val alt_compiler: mut ref char = ""
     val translate_c_flag: mut bool = flag_first_translate_c
     val arg_i: mut i64 = 2
 
@@ -275,6 +277,13 @@ pub fn main() i32! = {
                 } elif std.string.rchar_cmp(arg, "--alt") == 0 {
                     use_alt = true
                     arg_i++
+                } elif std.string.rchar_starts_with(arg, "--alt=") {
+                    use_alt = true
+                    val compiler_str = builds.parse_alt_compiler_arg(arg)
+                    if std.string.rchar_cmp(compiler_str, "") != 0 {
+                        alt_compiler = compiler_str
+                    }
+                    arg_i++
                 } else {
                     arg_i++
                 }
@@ -345,7 +354,7 @@ pub fn main() i32! = {
         return 0
     }
 
-    if !quiet && !emit_qbe && !emit_ll && !emit_alt { 
+    if !quiet && !emit_qbe && !emit_ll && !emit_alt {
         std.stdio.puts("[III]│ CG pass")
     }
 
@@ -510,46 +519,54 @@ pub fn main() i32! = {
         val cc_flags_alt: mut ref char = "-std=c99 -Wno-everything -O3"
         if !release_mode { cc_flags_alt = "-std=c99 -Wno-everything -g" }
 
-        val clang_cmd_alt: mut ref char = ""
-        if test_mode {
-            val test_bin_alt: ref char = "/tmp/spectre_test_bin_alt"
-            if std.string.rchar_cmp(cc_flags_alt, "") == 0 {
-                clang_cmd_alt = @fmt("clang -o {s} {s}{s} 2>&1", {test_bin_alt, c_file, link_flags_alt})
-            } else {
-                clang_cmd_alt = @fmt("clang {s} -o {s} {s}{s} 2>&1", {cc_flags_alt, test_bin_alt, c_file, link_flags_alt})
-            }
-        } elif std.string.rchar_cmp(cc_flags_alt, "") == 0 {
-            clang_cmd_alt = @fmt("clang -o {s} {s}{s} 2>&1", {final_output_alt, c_file, link_flags_alt})
-        } else {
-            clang_cmd_alt = @fmt("clang {s} -o {s} {s}{s} 2>&1", {cc_flags_alt, final_output_alt, c_file, link_flags_alt})
+        val selected_compiler: mut ref char = builds.select_alt_compiler(alt_compiler)
+        val test_output_alt: ref char = "/tmp/spectre_test_bin_alt"
+        val compile_output: mut ref char = test_output_alt
+        if !test_mode {
+            compile_output = final_output_alt
         }
 
-        if !quiet && !emit_alt { 
+        val alt_cmd: mut ref char = ""
+        if std.string.rchar_cmp(selected_compiler, "tcc") == 0 {
+            if test_mode {
+                alt_cmd = @fmt("tcc {s} -o {s} -w -std=c99 {s} 2>&1", {c_file, test_output_alt, link_flags_alt})
+            } else {
+                alt_cmd = @fmt("tcc {s} -o {s} -w -std=c99 {s} 2>&1", {c_file, final_output_alt, link_flags_alt})
+            }
+        } else {
+            if std.string.rchar_cmp(cc_flags_alt, "") == 0 {
+                alt_cmd = @fmt("{s} -o {s} {s}{s} 2>&1", {selected_compiler, compile_output, c_file, link_flags_alt})
+            } else {
+                alt_cmd = @fmt("{s} {s} -o {s} {s}{s} 2>&1", {selected_compiler, cc_flags_alt, compile_output, c_file, link_flags_alt})
+            }
+        }
+
+        if !quiet && !emit_alt {
             std.stdio.puts("[IV ]│ AMCS")
         }
         if show_cmd != 0 {
-            std.stdio.print("{s}\n", {clang_cmd_alt})
+            std.stdio.print("{s}\n", {alt_cmd})
         }
 
-        val clang_res_alt = std.os.exec(clang_cmd_alt)
-        match clang_res_alt {
+        val alt_res = std.os.exec(alt_cmd)
+        match alt_res {
             ok v => {
                 if std.string.contains(v, std.string.from("error")) {
                     std.stdio.print("{s}\n", {std.string.cstr(v)})
-                    std.stdio.puts("clang linking failed.")
+                    std.stdio.print("{s} linking failed.\n", {selected_compiler})
                     std.os.delete(c_file)
                     allocators.Arena.free(arena)
                     return 1
                 } else {
                     if test_mode {
-                        val run_res_alt = std.os.run("/tmp/spectre_test_bin_alt")
+                        val run_res_alt = std.os.run(test_output_alt)
                         if run_res_alt != 0 {
                             std.stdio.puts("Test binary failed.")
                             std.os.delete(c_file)
                             allocators.Arena.free(arena)
                             return 1
                         }
-                        std.os.delete("/tmp/spectre_test_bin_alt")
+                        std.os.delete(test_output_alt)
                     }
                     if !quiet {
                         std.stdio.print("Compiled (ALT): {s}\n", {final_output_alt})
@@ -557,7 +574,7 @@ pub fn main() i32! = {
                 }
             }
             err _ => {
-                std.stdio.puts("\nerror: clang stage failed")
+                std.stdio.print("error: {s} stage failed\n", {selected_compiler})
                 std.os.delete(c_file)
                 allocators.Arena.free(arena)
                 return 1
