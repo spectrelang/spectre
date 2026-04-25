@@ -1,0 +1,37 @@
+val std = use("std")
+
+pub fn is_compiler_available(compiler: ref char) bool = {
+    val check_cmd = trust @fmt("which {s} > /dev/null 2>&1", {compiler})
+    val res = std.os.exec(check_cmd)
+    match res {
+        ok _ => { return true }
+        err _ => { return false }
+    }
+}
+
+pub fn select_alt_compiler(requested: ref char) ref char = {
+    if std.string.rchar_cmp(requested, "") != 0 {
+        return requested
+    }
+
+    if is_compiler_available("tcc") {
+        return "tcc"
+    }
+
+    if is_compiler_available("clang") {
+        return "clang"
+    }
+
+    if is_compiler_available("gcc") {
+        return "gcc"
+    }
+
+    return "clang"
+}
+
+pub fn parse_alt_compiler_arg(arg: ref char) ref char = {
+    if std.string.rchar_starts_with(arg, "--alt=") {
+        return trust @ptradd(arg, 6) as ref char
+    }
+    return ""
+}
