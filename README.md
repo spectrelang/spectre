@@ -1,5 +1,9 @@
 # Spectre
 
+![License](https://img.shields.io/badge/license-GPLv3-blue)
+![Status](https://img.shields.io/badge/status-alpha-blue)
+![Stars](https://img.shields.io/github/stars/spectrelang/spectre)
+
 This repository contains the compiler for the Spectre Programming Language.
 
 Spectre is a statically typed, design-by-contract language aiming to offer low-level control in combination with explicit correctness. The compiler is written entirely in Spectre itself.

@@ -4740,6 +4740,46 @@ fn translate_params(ctx: ref TranslationCtx, params_text: ref char) ref char = {
     return std.string.cstr(built)
 }
 
+fn strip_gnu_attributes(text: ref char) ref char = {
+    val len: i64 = std.string.len_raw(text)
+    val sb: ref void = std.string.StringBuilder.new()
+    val i: mut i64 = 0
+    for {
+        if i >= len { break }
+        if i + 13 <= len {
+            val frag: ref char = std.string.substr(text, i, 13)
+            if std.string.rchar_cmp(frag, "__attribute__") == 0 {
+                val prev_ok: bool = i == 0 || !is_ident_part(trust @load8(@ptradd(text as ref void, i - 1)) as u8)
+                val next_ok: bool = i + 13 >= len || !is_ident_part(trust @load8(@ptradd(text as ref void, i + 13)) as u8)
+                if prev_ok && next_ok {
+                    val j: mut i64 = i + 13
+                    for {
+                        if j >= len { break }
+                        val ws: u8 = trust @load8(@ptradd(text as ref void, j)) as u8
+                        if !is_space(ws) { break }
+                        j++
+                    }
+                    if j < len && (trust @load8(@ptradd(text as ref void, j)) as u8) == 40 {
+                        val close_j: i64 = find_matching_delim(text, j, 40, 41)
+                        if close_j > j {
+                            i = close_j + 1
+                            continue
+                        }
+                    }
+                    i = j
+                    continue
+                }
+            }
+        }
+        val c: u8 = trust @load8(@ptradd(text as ref void, i)) as u8
+        std.string.StringBuilder.append_char(sb, c)
+        i++
+    }
+    val built: ref void = std.string.StringBuilder.build(sb)
+    std.string.StringBuilder.free(sb)
+    return trim_raw(std.string.cstr(built))
+}
+
 fn translate_function_decl(text: ref char, current_dir: ref char, indent: i64, out: ref void, ctx: ref TranslationCtx) bool = {
     val has_body: bool = find_char(text, 123) >= 0
     val signature_src: mut ref char = ""
@@ -4756,9 +4796,9 @@ fn translate_function_decl(text: ref char, current_dir: ref char, indent: i64, o
         signature_src = trim_raw(std.string.substr(text, 0, semi_i))
         body_src = ""
     }
-    val signature: ref char = flatten_ws(signature_src)
+    val signature: ref char = flatten_ws(strip_gnu_attributes(signature_src))
     val open_paren: i64 = find_char(signature, 40)
-    val close_paren: i64 = find_last_char(signature, 41)
+    val close_paren: i64 = find_matching_delim(signature, open_paren, 40, 41)
     if open_paren < 0 || close_paren <= open_paren { return false }
     val head: ref char = trim_raw(std.string.substr(signature, 0, open_paren))
     val params_raw: ref char = trim_raw(std.string.substr(signature, open_paren + 1, close_paren - open_paren - 1))
