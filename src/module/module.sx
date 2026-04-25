@@ -53,7 +53,8 @@ fn find_workspace_root(start_dir: ref char) ref char! = {
 }
 
 /// Resolve a use-path string relative to the current file's directory.
-pub fn resolve_use_path(use_path: ref char, file_dir: ref char, exe_dir: ref char) ref char! = {
+/// The workspace param must be the pre-computed workspace root (from find_workspace_root).
+pub fn resolve_use_path(use_path: ref char, file_dir: ref char, exe_dir: ref char, workspace: ref char) ref char! = {
     val plen: i64 = str.len_raw(use_path)
 
     if plen >= 3 {
@@ -64,8 +65,6 @@ pub fn resolve_use_path(use_path: ref char, file_dir: ref char, exe_dir: ref cha
             return std.path.join(file_dir, use_path)
         }
     }
-
-    val workspace = find_workspace_root(file_dir)
     val has_slash: mut bool = false
     val si: mut i64 = 0
 
@@ -737,14 +736,36 @@ fn items_have_external_links(items: list[ref parser.Node]) bool! = {
     return false
 }
 
-pub fn resolve_module(
+fn resolve_module_impl(
     path:            ref char,
     in_progress:     list[ref char],
     exe_dir:         ref char,
-    needed_children: ref void
+    needed_children: ref void,
+    cache_keys:      mut list[ref char],
+    cache_vals:      mut list[ref void]
 ) result[ref ResolvedModule, ref char]! = {
     if in_progress_contains(in_progress, path) {
         return err @fmt("cyclic import: {s}", {path})
+    }
+
+    val cn: i64 = @len(cache_keys) as i64
+    val ci: mut i64 = 0
+    for {
+        if ci >= cn { break }
+        val ck_opt = @get(cache_keys, ci as usize)
+        match ck_opt {
+            some ck => {
+                if str.rchar_cmp(ck as ref char, path) == 0 {
+                    val cv_opt = @get(cache_vals, ci as usize)
+                    match cv_opt {
+                        some cv => { return ok (cv as ref ResolvedModule) }
+                        none    => {}
+                    }
+                }
+            }
+            none => {}
+        }
+        ci++
     }
 
     val src_opt = std.fs.read_all(path)
@@ -768,12 +789,13 @@ pub fn resolve_module(
         err e => { return err @fmt("{s}: parse error: {s}", {path, e}) }
     }
 
-    val file_dir = str.from(std.path.dir(path))
+    val file_dir   = str.from(std.path.dir(path))
+    val file_dir_c = str.cstr(file_dir)
+    val workspace  = find_workspace_root(file_dir_c)
     val m: ref ResolvedModule = new_resolved(items, str.from(path), file_dir)
-    val next_progress: mut list[ref char] = []
 
-    for p in in_progress { @append(next_progress, p) }
-    @append(next_progress, path)
+    val cur_progress: mut list[ref char] = in_progress
+    @append(cur_progress, path)
 
     val is_std_module: bool = str.rchar_cmp(path, "std/std.sx") == 0 ||
                               (str.len_raw(path) >= 10 &&
@@ -787,8 +809,8 @@ pub fn resolve_module(
             val is_json_or_net: bool = str.rchar_cmp(import_name, "json") == 0 ||
                                        str.rchar_cmp(import_name, "net") == 0
             val skip_std_dce: bool = is_std_module && !is_json_or_net
-            val is_directly_referenced: bool = import_is_referenced(items, import_name)
-            val needed_subs: list[ref char] = collect_needed_subnames_transitive(items, import_name, use_path, str.cstr(file_dir), exe_dir, next_progress)
+            val needed_subs: list[ref char] = collect_needed_subnames_transitive(items, import_name, use_path, file_dir_c, exe_dir, cur_progress)
+            val is_directly_referenced: bool = @len(needed_subs) > 0 || import_is_referenced(items, import_name)
             val is_needed_by_parent: mut bool = false
 
             if needed_children != 0 {
@@ -806,12 +828,12 @@ pub fn resolve_module(
                 }
             }
 
-            val resolved_path = resolve_use_path(use_path, str.cstr(file_dir), exe_dir)
+            val resolved_path = resolve_use_path(use_path, file_dir_c, exe_dir, workspace)
             val needed_grandchildren: mut ref void = 0 as ref void
             if @len(needed_subs) > 0 {
                 needed_grandchildren = needed_subs as ref void
             }
-            val child_result = resolve_module(resolved_path, next_progress, exe_dir, needed_grandchildren)
+            val child_result = resolve_module_impl(resolved_path, cur_progress, exe_dir, needed_grandchildren, cache_keys, cache_vals)
 
             match child_result {
                 ok child => {
@@ -826,7 +848,21 @@ pub fn resolve_module(
         }
     }
 
+    @remove(cur_progress, @len(cur_progress) - 1)
+    @append(cache_keys, path)
+    @append(cache_vals, m as ref void)
     return ok m
+}
+
+pub fn resolve_module(
+    path:            ref char,
+    in_progress:     list[ref char],
+    exe_dir:         ref char,
+    needed_children: ref void
+) result[ref ResolvedModule, ref char]! = {
+    val cache_keys: mut list[ref char] = []
+    val cache_vals: mut list[ref void] = []
+    return resolve_module_impl(path, in_progress, exe_dir, needed_children, cache_keys, cache_vals)
 }
 
 /// Look up a direct import of `m` by its alias name.
