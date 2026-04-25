@@ -2540,7 +2540,9 @@ fn emit_to_fwd(ctx: ref CCtx, s: ref char) void! = { str.StringBuilder.append_cs
 fn emitln_fwd(ctx: ref CCtx, s: ref char) void! = { str.StringBuilder.append_cstr(ctx.fwd_sb, s) str.StringBuilder.append_char(ctx.fwd_sb, 10) }
 
 fn emit_c_preamble(ctx: ref CCtx) void! = {
-    emitln_fwd(ctx, "#define _POSIX_C_SOURCE 200809L")
+    when posix {
+        emitln_fwd(ctx, "#define _POSIX_C_SOURCE 200809L")
+    }
     emitln_fwd(ctx, "#include <stdint.h>")
     emitln_fwd(ctx, "#include <stdlib.h>")
     emitln_fwd(ctx, "#include <string.h>")
