@@ -407,9 +407,11 @@ pub fn cmd_ref() i32 = {
                 \\ pub fn greet(name: ref char) void = {
                 \\     @printf("Hello, %s!\n", name)
                 \\ }
-                \\
-                \\ // Functions that may propagate errors use !
-                \\ fn open_file(path: ref char) ref void! = {
+                \\ 
+                \\ pub enum SomeError = { FailedToDoSomeThing, OrSomethingElse }
+                \\ 
+                \\ // Functions that may propagate errors use result[T, E]
+                \\ fn open_file(path: ref char) result[ref void, SomeError] = {
                 \\     // ... can use ? to propagate
                 \\ }
                 \\ ```
@@ -417,7 +419,7 @@ pub fn cmd_ref() i32 = {
             )
             std.fs.write(f, \\ ---
                 \\
-                \\ ## Methods (Namespaced Functions)
+                \\ ## Namespaced Functions
                 \\
                 \\ ```
                 \\ type Counter = {
@@ -430,8 +432,8 @@ pub fn cmd_ref() i32 = {
                 \\     return c
                 \\ }
                 \\
-                \\ pub fn (Counter) inc(self: mut self) void = {
-                \\     self.value = self.value + 1
+                \\ pub fn (Counter) inc(s: mut self) void = {
+                \\     s.value = s.value + 1
                 \\ }
                 \\
                 \\ // Call site:
@@ -546,7 +548,7 @@ pub fn cmd_ref() i32 = {
                 \\     return a / b
                 \\ }
                 \\
-                \\ // guarded: contract violation is a runtime error, not UB
+                \\ // guarded: contract violation checks persist in --release builds
                 \\ fn safe_div(a: i64, b: i64) i64 = {
                 \\     guarded pre { nonzero: b != 0 }
                 \\     return a / b
@@ -561,17 +563,25 @@ pub fn cmd_ref() i32 = {
                 \\         x > 10 && y > 5
                 \\     }
                 \\ }
-                \\ ---
-                \\
-                \\ ## Error Propagation
                 \\
                 \\ ```
-                \\ // ! in return type means errors can propagate
+                \\ // ! in return type means the function is untrusted as per the contract system
+                \\ // this means that you would need to call this function read_file with the `trust`
+                \\ // prefix, like:
+                \\ //
+                \\ // trust read_file("some_file.txt")
+                \\ // 
+                \\ // Note that trust statements inside untrusted functions marked with ! are redundant
+                \\ // and will result in a compile-time error.
                 \\ fn read_file(path: ref char) result[ref char, SomeError]! = {
                 \\     val f = some_fallible_call()?   // ? propagates err upward
                 \\     return f
                 \\ }
                 \\ ```
+                \\
+                \\ Do not confuse the trust system with the result propagation, ! in the return type has
+                \\ nothing to do with result propagation. Error propagation only works on result[T, E]
+                \\ returns, regardless of there being a ! in this return type or not.
                 \\
             )
             std.fs.write(f, \\ ---
