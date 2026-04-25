@@ -2772,8 +2772,32 @@ fn gen_expr(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
                     }
                     return slot_ref_addr
                 }
+                val vqtype4: ref char = cg_var_qbe_type(ctx, iname)
+                val slot_tmp4: i64 = fresh_tmp(ctx)
+                val store_op4: mut ref char = "storel"
+                val alloc_op4: mut ref char = "alloc8"
+                val alloc_sz4: mut i64 = 8
+                if str.rchar_cmp(vqtype4, "w") == 0 {
+                    store_op4 = "storew"
+                    alloc_op4 = "alloc4"
+                    alloc_sz4 = 4
+                } elif str.rchar_cmp(vqtype4, "s") == 0 {
+                    store_op4 = "stores"
+                    alloc_op4 = "alloc4"
+                    alloc_sz4 = 4
+                } elif str.rchar_cmp(vqtype4, "d") == 0 {
+                    store_op4 = "stored"
+                }
+                val val_ref4: ref char = @alloc(32) as ref char
+                @snprintf(val_ref4, 32, "%%t{s}", {qbe_var_addr})
+                val spill_buf4: ref char = @alloc(128) as ref char
+                @snprintf(spill_buf4, 128, "    %%t{lld} =l {s} {lld}\n    {s} {s}, %%t{lld}\n",
+                    {slot_tmp4, alloc_op4, alloc_sz4, store_op4, val_ref4, slot_tmp4})
+                emit(ctx, spill_buf4)
+                @free(spill_buf4)
+                @free(val_ref4)
                 val res10: ref char = @alloc(32) as ref char
-                @snprintf(res10, 32, "%%t{s}", {qbe_var_addr})
+                @snprintf(res10, 32, "%%t{lld}", {slot_tmp4})
                 return res10
             }
             val res10: ref char = @alloc(32) as ref char
