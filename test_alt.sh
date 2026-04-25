@@ -122,12 +122,12 @@ echo "Self compilation tests:"
 #     fi
 # done
 
-# echo
-# echo "Bootstrap test:"
+echo
+echo "Bootstrap test:"
 
-# run_compiler ./src/sxc.sx -o sxc2 --alt || exit 1
-# ./sxc2 ./src/sxc.sx -o sxc3 --alt || exit 1
-# ./sxc3 ./src/sxc.sx -o sxc4 --alt || exit 1
+run_compiler ./src/sxc.sx -o sxc2 --alt -l || exit 1
+./sxc2 ./src/sxc.sx -o sxc3 --alt -l || exit 1
+./sxc3 ./src/sxc.sx -o sxc4 --alt -l || exit 1
 
 echo
 echo "Final Summary:"
