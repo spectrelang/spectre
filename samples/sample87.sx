@@ -1,0 +1,29 @@
+extern (C) fn stat(path: ref char, st: ref void) i32! = "stat"
+
+when linux {
+    extern type Stat = {
+        st_ino: u64
+        st_mode: u32
+        st_uid: u32
+        st_size: i64
+    }
+}
+
+pub fn main() void = {
+    @puts("sizeof Stat:")
+
+    trust @printf("{d}\n", {@sizeof(Stat)})
+    val st: ref Stat = @alloc(@sizeof(Stat)) as ref Stat
+
+    @puts("calling stat...")
+
+    val r: i32 = trust stat("test_file.txt", st as ref void)
+    trust @printf("stat returned: {d}\n", {r})
+
+    @puts("reading fields...")
+
+    val x: i64 = st.st_size
+
+    trust @printf("size: {d}\n", {x})
+    trust @free(st)
+}
