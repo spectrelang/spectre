@@ -1,7 +1,7 @@
 # Spectre
 
-![License](https://img.shields.io/badge/license-GPLv3-blue)
-![Status](https://img.shields.io/badge/status-alpha-blue)
+![License](https://img.shields.io/badge/license-GPLv3-red)
+![Status](https://img.shields.io/badge/status-alpha-red)
 ![Stars](https://img.shields.io/github/stars/spectrelang/spectre)
 
 This repository contains the compiler for the Spectre Programming Language.
