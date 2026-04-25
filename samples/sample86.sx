@@ -1,0 +1,6 @@
+val std = use("std")
+val submod = use("submod/sub.sx")
+
+pub fn main() void = {
+    std.stdio.print("{s}\n", submod.some_constant)
+}
