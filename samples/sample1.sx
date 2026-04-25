@@ -14,7 +14,7 @@ fn some_function(some_arg: i32, some_other_arg: usize) void = {
 	val x: i32 = 10                          // This cannot change.
 	val y: i32 = 20                          // Neither can this.
 	val z: i32 = 30                          // Or this.
-	
+
 	post {
 		x_is_ten : x == 10
 		y_is_twe : y == 20
@@ -27,7 +27,7 @@ fn some_function(some_arg: i32, some_other_arg: usize) void = {
 pub val some_constant = 1000
 
 fn pure_function() void = {
-	// trust std.stdio.puts("This is trusted now, and can therefore run in a pure function")	
+	// trust std.stdio.puts("This is trusted now, and can therefore run in a pure function")
 }
 
 fn can_fail(should_fail: bool) option[i32]! = {
@@ -37,8 +37,8 @@ fn can_fail(should_fail: bool) option[i32]! = {
 	return none
 }
 
-pub fn some_other_function() void! = {
-	std.stdio.puts("This is some function...without any preconds, postconds, or invariants. Thus the return type is marked !")
+pub fn some_other_function() void = {
+	std.stdio.puts("This is some function...without any preconds, postconds, or invariants, but since our puts function is trusted, we can call it here without marking the return type as !")
 }
 
 pub fn main() void = {
