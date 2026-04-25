@@ -11,8 +11,7 @@ The complete documentation can be found at https://spectre-docs.pages.dev
 Prerequisite: cmake
 
 ```
-git clone https://github.com/spectrelang/spectre.git
-./install.sh
+curl https://spectrelang.org/get.sh | sh
 ```
 
 Then run to confirm installation:
