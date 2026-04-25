@@ -427,7 +427,9 @@ pub fn cmd_ref() i32 = {
                 \\ }
                 \\
                 \\ pub fn (Counter) new() ref Counter = {
-                \\     val c: ref Counter = @alloc(@sizeof(Counter)) as ref Counter
+                \\     val c: ref Counter = trust @alloc(@sizeof(Counter)) as ref Counter
+                \\     // Note that "trust" needs to be used above as @alloc is an untrusted intrinsic
+                \\     // as per the contract system.
                 \\     c.value = 0
                 \\     return c
                 \\ }
