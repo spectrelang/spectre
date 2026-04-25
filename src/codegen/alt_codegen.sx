@@ -1128,7 +1128,14 @@ fn gen_field(ctx: ref CCtx, expr: ref parser.Node) ref char! = {
             fields = cc_lookup_struct(ctx, suffix) } }
     if fields != 0 as ref void {
         val off: i64 = field_offset_bytes(ctx, fields, fname)
-        if off >= 0 { @snprintf(buf, 512, "(*(int64_t*)((char*)(intptr_t)({s})+{lld}))", {base, off}) return buf } }
+        if off >= 0 {
+            val fld_sz: i64 = cc_field_byte_size_from_fields(ctx, fields, fname)
+            if fld_sz > 8 {
+                @snprintf(buf, 512, "((int64_t)(intptr_t)((char*)(intptr_t)({s})+{lld}))", {base, off})
+            } else {
+                @snprintf(buf, 512, "(*(int64_t*)((char*)(intptr_t)({s})+{lld}))", {base, off})
+            }
+            return buf } }
     if str.rchar_cmp(fname, "len") == 0 || str.rchar_cmp(fname, "length") == 0 {
         @snprintf(buf, 512, "(*(int64_t*)((char*)(intptr_t)({s})+8))", {base}) return buf }
     if str.rchar_cmp(fname, "cap") == 0 || str.rchar_cmp(fname, "capacity") == 0 {
@@ -1501,14 +1508,21 @@ fn gen_struct_lit(ctx: ref CCtx, expr: ref parser.Node) ref char! = {
                 val fval: ref char = gen_expr(ctx, lf_node.d1 as ref parser.Node)
                 
                 val off: mut i64 = li * 8
+                val fld_sz: mut i64 = 8
                 if struct_fields != 0 as ref void {
                      val fname: ref char = lf_node.d0 as ref char
                      val roff: i64 = field_offset_bytes(ctx, struct_fields, fname)
                      if roff >= 0 { off = roff }
+                     fld_sz = cc_field_byte_size_from_fields(ctx, struct_fields, fname)
                 }
                 
-                val fb: ref char = @alloc(256) as ref char
-                @snprintf(fb, 256, "*(int64_t*)((char*)sx__sl{lld}+{lld})=(int64_t)({s});\n", {t, off, fval}) emit(ctx, fb) @free(fb)
+                val fb: ref char = @alloc(512) as ref char
+                if fld_sz > 8 {
+                    @snprintf(fb, 512, "memcpy((char*)sx__sl{lld}+{lld},(void*)(intptr_t)({s}),(size_t){lld});\n", {t, off, fval, fld_sz})
+                } else {
+                    @snprintf(fb, 512, "*(int64_t*)((char*)sx__sl{lld}+{lld})=(int64_t)({s});\n", {t, off, fval})
+                }
+                emit(ctx, fb) @free(fb)
             } none => {} }
             li++ } }
     val res: ref char = @alloc(64) as ref char
@@ -1565,6 +1579,58 @@ fn gen_field_addr(ctx: ref CCtx, expr: ref parser.Node) ref char! = {
     val buf: ref char = @alloc(4096) as ref char
     @snprintf(buf, 4096, "(int64_t)(intptr_t)((char*)(intptr_t)({s})+{lld})", {base, off}) 
     return buf
+}
+
+fn cc_field_byte_size_from_fields(ctx: ref CCtx, fields: ref void, fname: ref char) i64! = {
+    if fields == 0 as ref void { return 8 }
+    val flen: i64 = @len(fields as list[ref void]) as i64
+    val fi: mut i64 = 0
+    for { if fi >= flen { break }
+        val f_opt = @get(fields as list[ref void], fi as usize)
+        match f_opt { some f => {
+            val fn_node: ref parser.Node = f as ref parser.Node
+            if str.rchar_cmp(fn_node.d0 as ref char, fname) == 0 {
+                return c_size_of(ctx, fn_node.d2 as ref parser.Node)
+            }
+        } none => {} }
+        fi++ }
+    return 8
+}
+
+fn cc_field_byte_size(ctx: ref CCtx, expr: ref parser.Node) i64! = {
+    val base_node: ref parser.Node = parser.field_base(expr)
+    val fname: ref char = parser.field_name(expr)
+    val bt: mut ref char = ""
+    if base_node.kind == parser.NK_IDENT { bt = cc_lookup_local_type(ctx, base_node.d0 as ref char) }
+    elif base_node.kind == parser.NK_CAST {
+        val cast_ty: ref parser.Node = base_node.d1 as ref parser.Node
+        if cast_ty != 0 as ref parser.Node { bt = spectre_type_name_of(cast_ty) }
+    }
+    val fields: mut ref void = cc_lookup_struct(ctx, bt)
+    if fields == 0 as ref void && str.rchar_cmp(bt, "") != 0 {
+        val btlen2: i64 = str.len_raw(bt)
+        val dotpos2: mut i64 = -1
+        val bi2: mut i64 = 0
+        for { if bi2 >= btlen2 { break }
+            if @load8(@ptradd(bt as ref void, bi2)) == 46 { dotpos2 = bi2 }
+            bi2++ }
+        if dotpos2 >= 0 {
+            val suffix2: ref char = @ptradd(bt as ref void, dotpos2 + 1) as ref char
+            fields = cc_lookup_struct(ctx, suffix2) } }
+    if fields != 0 as ref void {
+        val flen: i64 = @len(fields as list[ref void]) as i64
+        val fi: mut i64 = 0
+        for { if fi >= flen { break }
+            val f_opt = @get(fields as list[ref void], fi as usize)
+            match f_opt { some f => {
+                val fn_node: ref parser.Node = f as ref parser.Node
+                if str.rchar_cmp(fn_node.d0 as ref char, fname) == 0 {
+                    return c_size_of(ctx, fn_node.d2 as ref parser.Node)
+                }
+            } none => {} }
+            fi++ }
+    }
+    return 8
 }
 
 fn gen_stmts(ctx: ref CCtx, stmts: ref parser.Node) void! = {
@@ -1641,8 +1707,15 @@ fn gen_stmt(ctx: mut ref CCtx, stmt: ref parser.Node) void! = {
             else { @snprintf(buf, 4096, "t_{s}=({s});\n", {name, val_str}) }
             emit(ctx, buf) @free(buf)
         }
-        elif target.kind == parser.NK_FIELD { val fa: ref char = gen_field_addr(ctx, target) val buf: ref char = @alloc(4096) as ref char
-            @snprintf(buf, 4096, "*(int64_t*)({s})=(int64_t)({s});\n", {fa, val_str}) emit(ctx, buf) @free(buf) }
+        elif target.kind == parser.NK_FIELD {
+            val fsz: i64 = cc_field_byte_size(ctx, target)
+            val fa: ref char = gen_field_addr(ctx, target) val buf: ref char = @alloc(4096) as ref char
+            if fsz > 8 {
+                @snprintf(buf, 4096, "memcpy((void*)(intptr_t)({s}),(void*)(intptr_t)({s}),(size_t){lld});\n", {fa, val_str, fsz})
+            } else {
+                @snprintf(buf, 4096, "*(int64_t*)({s})=(int64_t)({s});\n", {fa, val_str})
+            }
+            emit(ctx, buf) @free(buf) }
         elif target.kind == parser.NK_DEREF { val ptr: ref char = gen_expr(ctx, target.d0 as ref parser.Node)
             val buf: ref char = @alloc(4096) as ref char
             @snprintf(buf, 4096, "*(int64_t*)(intptr_t)({s})=(int64_t)({s});\n", {ptr, val_str}) emit(ctx, buf) @free(buf) }
