@@ -1347,20 +1347,8 @@ fn gen_builtin(ctx: ref CCtx, expr: ref parser.Node) ref char! = {
     if str.rchar_cmp(bname, "store32") == 0 { val p: ref char = get_arg(ctx, args, 0) val v: ref char = get_arg(ctx, args, 1)
         val buf: ref char = @alloc(256) as ref char
         @snprintf(buf, 256, "(*(int32_t*)(intptr_t)({s})=(int32_t)({s}))", {p, v}) return buf }
-    if str.rchar_cmp(bname, "len") == 0 {
+    if str.rchar_cmp(bname, "len") == 0 { val l: ref char = get_arg(ctx, args, 0)
         val buf: ref char = @alloc(256) as ref char
-        val len_arg_opt = @get(args as list[ref parser.Node], 0 as usize)
-        match len_arg_opt {
-            some len_arg => {
-                val lan: ref parser.Node = len_arg as ref parser.Node
-                if lan.kind == parser.NK_FIELD {
-                    val fa: ref char = gen_field_addr(ctx, lan)
-                    @snprintf(buf, 256, "((*(int64_t*)(intptr_t)({s}))==0?0:(*(int64_t*)((char*)(intptr_t)(*(int64_t*)(intptr_t)({s}))+8)))", {fa, fa}) return buf
-                }
-            }
-            none => {}
-        }
-        val l: ref char = get_arg(ctx, args, 0)
         @snprintf(buf, 256, "({s}==0?0:(*(int64_t*)((char*)(intptr_t)({s})+8)))", {l, l}) return buf }
     if str.rchar_cmp(bname, "append") == 0 {
         val e: ref char = get_arg(ctx, args, 1)
