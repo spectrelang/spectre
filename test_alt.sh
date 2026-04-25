@@ -5,6 +5,15 @@ set -u
 SAMPLES_DIR="./samples"
 STD_DIR="./std"
 COMPILER="./spectre-dev"
+BOOTSTRAP_ONLY=0
+
+for arg in "$@"; do
+    case "$arg" in
+        -bs)
+            BOOTSTRAP_ONLY=1
+            ;;
+    esac
+done
 
 total=0
 passed=0
@@ -88,46 +97,27 @@ run_std_tests() {
 echo "Running C backend tests (--alt)..."
 echo
 
-run_samples
+if [ $BOOTSTRAP_ONLY -eq 0 ]; then
+    run_samples
 
-echo
-echo "STD tests:"
-run_std_tests
-
-echo
-echo "Self compilation tests:"
-
-# self_tests=(
-#     "./src/ast/lexer.sx"
-#     "./src/ast/parser.sx"
-#     "./src/ast/ast_printer.sx"
-#     "./src/sema/sema.sx"
-#     "./src/module/module.sx"
-#     "./src/codegen/codegen.sx"
-#     "./src/sxc.sx"
-# )
-# 
-# for file in "${self_tests[@]}"; do
-#     ((total++))
-# 
-#     run_compiler "$file" --test --alt
-#     status=$?
-# 
-#     if [ $status -eq 0 ]; then
-#         echo "[PASS] $(basename "$file")"
-#         ((passed++))
-#     else
-#         echo "[FAIL] $(basename "$file")"
-#         ((failed++))
-#     fi
-# done
+    echo
+    echo "STD tests:"
+    run_std_tests
+fi
 
 echo
 echo "Bootstrap test:"
 
-run_compiler ./src/sxc.sx -o sxc2 --alt -l || exit 1
-./sxc2 ./src/sxc.sx -o sxc3 --alt -l || exit 1
-./sxc3 ./src/sxc.sx -o sxc4 --alt -l || exit 1
+((total++))
+"$COMPILER" ./src/sxc.sx -o sxc2 --alt -l || { echo "[FAIL] stage1"; ((failed++)); exit 1; }
+
+((total++))
+./sxc2 ./src/sxc.sx -o sxc3 --alt -l || { echo "[FAIL] stage2"; ((failed++)); exit 1; }
+
+((total++))
+./sxc3 ./src/sxc.sx -o sxc4 --alt -l || { echo "[FAIL] stage3"; ((failed++)); exit 1; }
+
+echo "[PASS] bootstrap"
 
 echo
 echo "Final Summary:"
