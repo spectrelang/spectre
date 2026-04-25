@@ -7006,13 +7006,25 @@ fn gen_match_enum(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
         match arm_opt {
             some arm => {
                 val arm_node: ref parser.Node = arm as ref parser.Node
+                val variant_name: ref char = arm_node.d0 as ref char
+                val type_name: ref char = arm_node.d2 as ref char
+                val eval_str: ref char = @alloc(32) as ref char
+                @snprintf(eval_str, 32, "{lld}", {ai})
+                if type_name != 0 as ref char && str.rchar_cmp(type_name, "") != 0 {
+                    val key: ref char = @alloc(512) as ref char
+                    @snprintf(key, 512, "{s}__{s}", {type_name, variant_name})
+                    val found: ref char = cg_const_val(ctx, key)
+                    @free(key)
+                    if str.rchar_cmp(found, "") != 0 { @snprintf(eval_str, 32, "{s}", {found}) }
+                }
                 val body_lbl: i64 = fresh_lbl(ctx)
                 val next_lbl: i64 = fresh_lbl(ctx)
                 val cmp: i64 = fresh_tmp(ctx)
                 val buf: ref char = @alloc(256) as ref char
                 @snprintf(buf, 256,
-                    "    %%t{lld} =w ceql {s}, {lld}\n    jnz %%t{lld}, @lbl{lld}, @lbl{lld}\n@lbl{lld}\n",
-                    {cmp, expr, ai, cmp, body_lbl, next_lbl, body_lbl})
+                    "    %%t{lld} =w ceql {s}, {s}\n    jnz %%t{lld}, @lbl{lld}, @lbl{lld}\n@lbl{lld}\n",
+                    {cmp, expr, eval_str, cmp, body_lbl, next_lbl, body_lbl})
+                @free(eval_str)
                 emit(ctx, buf)
                 @free(buf)
                 val arm_body = parser.match_enum_arm_body(arm_node)

@@ -2193,10 +2193,24 @@ fn gen_match_enum(ctx: mut ref CCtx, stmt: ref parser.Node) void! = {
     cc_expr_drain(ctx)
     val ai: mut i64 = 0
     for { if ai >= alen { break } val arm_opt = @get(arms, ai as usize)
-        match arm_opt { some arm => { val ab: ref char = @alloc(128) as ref char
-            if ai == 0 { @snprintf(ab, 128, "if(sx__ev{lld}=={lld}){\n", {t, ai}) }
-            else { @snprintf(ab, 128, "}else if(sx__ev{lld}=={lld}){\n", {t, ai}) }
-            emit(ctx, ab) @free(ab) gen_stmts(ctx, parser.match_enum_arm_body(arm as ref parser.Node) as ref parser.Node)
+        match arm_opt { some arm => {
+            val an: ref parser.Node = arm as ref parser.Node
+            val variant_name: ref char = an.d0 as ref char
+            val type_name: ref char = an.d2 as ref char
+            val eval_str: ref char = @alloc(32) as ref char
+            @snprintf(eval_str, 32, "{lld}", {ai})
+            if type_name != 0 as ref char && str.rchar_cmp(type_name, "") != 0 {
+                val key: ref char = @alloc(512) as ref char
+                @snprintf(key, 512, "{s}__{s}", {type_name, variant_name})
+                val found: ref char = cc_const_val(ctx, key)
+                @free(key)
+                if str.rchar_cmp(found, "") != 0 { @snprintf(eval_str, 32, "{s}", {found}) }
+            }
+            val ab: ref char = @alloc(128) as ref char
+            if ai == 0 { @snprintf(ab, 128, "if(sx__ev{lld}=={s}){\n", {t, eval_str}) }
+            else { @snprintf(ab, 128, "}else if(sx__ev{lld}=={s}){\n", {t, eval_str}) }
+            @free(eval_str)
+            emit(ctx, ab) @free(ab) gen_stmts(ctx, parser.match_enum_arm_body(an) as ref parser.Node)
         } none => {} }
         ai++ }
     emitln(ctx, "}}")

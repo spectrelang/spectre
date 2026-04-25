@@ -1301,7 +1301,7 @@ fn parse_match_stmt(p: ref Parser, line: i64) result[ref Node, ref char]! = {
         for {
             if lexer.kind_is_rbrace(p_peek_kind(p)) { break }
             val el: i64 = p_line(p)
-            p_expect_ident(p)?
+            val enum_type_name = p_expect_ident(p)?
             p_expect_dot(p)?
             val variant = p_expect_ident(p)?
             p_expect_fatarrow(p)?
@@ -1310,6 +1310,7 @@ fn parse_match_stmt(p: ref Parser, line: i64) result[ref Node, ref char]! = {
             p_expect_rbrace(p)?
             val arm: mut ref Node = make_node(NK_MATCH_ENUM, el)
             arm.d0 = variant as i64
+            arm.d2 = enum_type_name as i64
             val abl: list[ref Node] = ab
             arm.d1 = abl as i64
             @append(arms, arm)

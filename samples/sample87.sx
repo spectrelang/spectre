@@ -10,6 +10,12 @@ when linux {
 }
 
 pub fn main() void = {
+    when linux {
+        @puts("hi linux")
+    }
+    when darwin {
+        @puts("hi darwin")
+    }
     @puts("sizeof Stat:")
 
     trust @printf("{d}\n", {@sizeof(Stat)})
