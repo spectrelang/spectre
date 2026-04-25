@@ -2621,7 +2621,7 @@ fn is_libc_fn(name: ref char) bool! = {
         "strlen","strnlen","strcmp","strncmp","strcpy","strncpy","strcat","strncat","strchr",
         "strrchr","strstr","strpbrk","strtok","strdup","strndup",
         "stat","fstat","lstat","opendir","readdir","closedir","isatty", "readlink", "rmdir",
-        "fseek", "ftell", "rewind", "getcwd", "mkdir", "fread", "fwrite"
+        "fseek", "ftell", "rewind", "getcwd", "mkdir", "fread", "fwrite", "fprintf", "fflush"
     ]
 
     for fun in libc_fns { if str.rchar_cmp(name, fun) == 0 { return true } }
