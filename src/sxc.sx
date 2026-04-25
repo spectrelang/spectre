@@ -524,6 +524,9 @@ pub fn main() i32! = {
             clang_cmd_alt = @fmt("clang {s} -o {s} {s}{s} 2>&1", {cc_flags_alt, final_output_alt, c_file, link_flags_alt})
         }
 
+        if !quiet && !emit_alt { 
+            std.stdio.puts("[IV ]│ AMCS")
+        }
         if show_cmd != 0 {
             std.stdio.print("{s}\n", {clang_cmd_alt})
         }
