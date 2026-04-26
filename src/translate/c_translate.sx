@@ -3838,6 +3838,16 @@ fn translate_body_statement(ctx: ref TranslationCtx, line: ref char, indent: i64
     if starts_keyword_paren(stripped, "for") {
         return false
     }
+    if starts_keyword_paren(stripped, "assert") {
+        val open_i: i64 = find_char(stripped, 40)
+        val close_i: i64 = find_matching_delim(stripped, open_i, 40, 41)
+        if open_i >= 0 && close_i > open_i {
+            val cond_text: ref char = trim_raw(std.string.substr(stripped, open_i + 1, close_i - open_i - 1))
+            val lowered_cond: ref LoweredExpr = lower_incdec_expr(ctx, cond_text, indent, out)
+            append_line(out, indent, trust @fmt("assert {s}", {lowered_cond.expr}))
+            return true
+        }
+    }
     if contains_incdec_ops(stripped) {
         append_line(out, indent, translate_expr_text(ctx, stripped))
         return true
@@ -3862,6 +3872,12 @@ fn append_open_block_line(sb: ref void, indent: i64, prefix: ref char) void = {
 }
 
 fn emit_known_extern(name: ref char, out: ref void) bool = {
+    if std.string.rchar_cmp(name, "assert") == 0 {
+        return true
+    }
+    if std.string.rchar_cmp(name, "assert_value") == 0 {
+        return true
+    }
     if std.string.rchar_cmp(name, "fprintf") == 0 {
         return true
     }
