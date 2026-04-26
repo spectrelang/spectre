@@ -40,6 +40,10 @@ pub val NK_SUB_ASSIGN      : i64 = 43
 pub val NK_TEST            : i64 = 44
 pub val NK_MATCH_TAGGED_UNION: i64 = 46
 pub val NK_GUARD           : i64 = 47
+pub val NK_GENERIC_FN      : i64 = 48
+pub val NK_GENERIC_WHEN    : i64 = 49
+pub val NK_GENERIC_INST    : i64 = 50
+pub val NK_GWHEN_COND      : i64 = 51
 pub val NK_INT_LIT         : i64 = 60
 pub val NK_FLOAT_LIT       : i64 = 61
 pub val NK_STR_LIT         : i64 = 62
@@ -134,6 +138,15 @@ fn make_binop(op: i64, line: i64, left: ref Node, right: ref Node) result[ref No
 pub fn binop_op(n: ref Node) i64 = { return n.d0 }
 pub fn binop_left(n: ref Node) ref Node = { return n.d1 as ref Node }
 pub fn binop_right(n: ref Node) ref Node = { return n.d2 as ref Node }
+
+pub fn generic_fn_type_params(n: ref Node) list[ref char] = { return n.d6 as list[ref char] }
+pub fn generic_when_conditions(n: ref Node) list[ref Node] = { return n.d0 as list[ref Node] }
+pub fn generic_when_body(n: ref Node) ref Node = { return n.d1 as ref Node }
+pub fn generic_inst_base(n: ref Node) ref Node = { return n.d0 as ref Node }
+pub fn generic_inst_type_args(n: ref Node) list[ref Node] = { return n.d1 as list[ref Node] }
+pub fn gwhen_cond_tparam(n: ref Node) ref char = { return n.d0 as ref char }
+pub fn gwhen_cond_kind(n: ref Node) i64 = { return n.d1 }
+pub fn gwhen_cond_types(n: ref Node) list[ref Node] = { return n.d2 as list[ref Node] }
 
 fn make_unop(op: i64, line: i64, inner: ref Node) result[ref Node, ref char]! = {
     val n: mut ref Node = make_node(NK_UNOP, line)
@@ -744,6 +757,23 @@ fn parse_postfix(p: ref Parser) result[ref Node, ref char]! = {
             res = n4
             continue
         }
+        if lexer.kind_is_lbracket(k) {
+            p_advance(p)
+            val targs: mut list[ref Node] = []
+            for {
+                if lexer.kind_is_rbracket(p_peek_kind(p)) { break }
+                val ta = parse_type(p)?
+                @append(targs, ta)
+                if !p_eat_fn(p, lexer.kind_is_comma) { break }
+            }
+            p_expect_rbracket(p)?
+            val ng: mut ref Node = make_node(NK_GENERIC_INST, line)
+            ng.d0 = res as i64
+            val tl: list[ref Node] = targs
+            ng.d1 = tl as i64
+            res = ng
+            continue
+        }
         break
     }
     return ok res
@@ -1134,7 +1164,93 @@ pub fn parse_stmt(p: ref Parser) result[ref Node, ref char]! = {
 
     if kind_is_when(k) {
         p_advance(p)
-        val plat = p_expect_ident(p)?
+        val ident_text = p_expect_ident(p)?
+        val next_k: lexer.TokenKind = p_peek_kind(p)
+
+        if kind_is_in(next_k) {
+            p_advance(p)
+            p_expect_lparen(p)?
+            val gtypes: mut list[ref Node] = []
+            for {
+                if lexer.kind_is_rparen(p_peek_kind(p)) { break }
+                val gty = parse_type(p)?
+                @append(gtypes, gty)
+                if !p_eat_fn(p, lexer.kind_is_comma) { break }
+            }
+            p_expect_rparen(p)?
+            p_expect_lbrace(p)?
+            val gwb = parse_stmts(p)?
+            p_expect_rbrace(p)?
+            val gcond: mut ref Node = make_node(NK_GWHEN_COND, line)
+            gcond.d0 = ident_text as i64
+            gcond.d1 = 1
+            val gtl: list[ref Node] = gtypes
+            gcond.d2 = gtl as i64
+            val gconds: mut list[ref Node] = []
+            @append(gconds, gcond)
+            val gnw: mut ref Node = make_node(NK_GENERIC_WHEN, line)
+            val gcl: list[ref Node] = gconds
+            gnw.d0 = gcl as i64
+            val gbl: list[ref Node] = gwb
+            gnw.d1 = gbl as i64
+            return ok gnw
+        }
+
+        if kind_is_ident(next_k) {
+            val next_txt: ref char = lexer.tok_text(p.tokens, p.pos)
+            if str_eq(next_txt, "is") {
+                val gconds2: mut list[ref Node] = []
+                val cur_tparam: mut ref char = ident_text
+                for {
+                    p_advance(p)
+                    val gty2 = parse_type(p)?
+                    val gcond2: mut ref Node = make_node(NK_GWHEN_COND, line)
+                    gcond2.d0 = cur_tparam as i64
+                    gcond2.d1 = 2
+                    val stl: mut list[ref Node] = []
+                    @append(stl, gty2)
+                    val stl_ref: list[ref Node] = stl
+                    gcond2.d2 = stl_ref as i64
+                    @append(gconds2, gcond2)
+                    if !lexer.kind_is_and(p_peek_kind(p)) { break }
+                    p_advance(p)
+                    if !kind_is_ident(p_peek_kind(p)) { break }
+                    cur_tparam = p_advance_text(p)
+                    if !kind_is_ident(p_peek_kind(p)) { break }
+                    val nis_txt: ref char = lexer.tok_text(p.tokens, p.pos)
+                    if !str_eq(nis_txt, "is") { break }
+                }
+                p_expect_lbrace(p)?
+                val gwb2 = parse_stmts(p)?
+                p_expect_rbrace(p)?
+                val gnw2: mut ref Node = make_node(NK_GENERIC_WHEN, line)
+                val gcl2: list[ref Node] = gconds2
+                gnw2.d0 = gcl2 as i64
+                val gbl2: list[ref Node] = gwb2
+                gnw2.d1 = gbl2 as i64
+                return ok gnw2
+            }
+        }
+
+        if str_eq(ident_text, "_") {
+            p_expect_lbrace(p)?
+            val gwb3 = parse_stmts(p)?
+            p_expect_rbrace(p)?
+            val gwc: mut ref Node = make_node(NK_GWHEN_COND, line)
+            gwc.d0 = 0 as i64
+            gwc.d1 = 0
+            gwc.d2 = 0
+            val gwcs: mut list[ref Node] = []
+            @append(gwcs, gwc)
+            val gnw3: mut ref Node = make_node(NK_GENERIC_WHEN, line)
+            val gwcl: list[ref Node] = gwcs
+            gnw3.d0 = gwcl as i64
+            val gwbl3: list[ref Node] = gwb3
+            gnw3.d1 = gwbl3 as i64
+            return ok gnw3
+        }
+
+        val plat: ref char = ident_text
         p_expect_lbrace(p)?
         val wb = parse_stmts(p)?
         p_expect_rbrace(p)?
@@ -1472,6 +1588,17 @@ fn parse_fn_item(p: ref Parser, public: i64) result[ref Node, ref char]! = {
         }
     }
     val name = p_expect_ident(p)?
+    val type_params: mut list[ref char] = []
+    if lexer.kind_is_lbracket(p_peek_kind(p)) {
+        p_advance(p)
+        for {
+            if lexer.kind_is_rbracket(p_peek_kind(p)) { break }
+            val tp = p_expect_ident(p)?
+            @append(type_params, tp)
+            if !p_eat_fn(p, lexer.kind_is_comma) { break }
+        }
+        p_expect_rbracket(p)?
+    }
     p_expect_lparen(p)?
     val params: mut list[ref Node] = []
     for {
@@ -1506,6 +1633,18 @@ fn parse_fn_item(p: ref Parser, public: i64) result[ref Node, ref char]! = {
     p_expect_lbrace(p)?
     val body = parse_stmts(p)?
     p_expect_rbrace(p)?
+    if @len(type_params) as i64 > 0 {
+        val nfn: mut ref Node = make_node(NK_GENERIC_FN, line)
+        nfn.d0 = public nfn.d1 = ns as i64 nfn.d2 = name as i64
+        val pl: list[ref Node] = params
+        nfn.d3 = pl as i64
+        nfn.d4 = ret_ty as i64
+        val bl: list[ref Node] = body
+        nfn.d5 = bl as i64
+        val tpl: list[ref char] = type_params
+        nfn.d6 = tpl as i64
+        return ok nfn
+    }
     val nfn: mut ref Node = make_node(NK_FN, line)
     nfn.d0 = public nfn.d1 = ns as i64 nfn.d2 = name as i64
     val pl: list[ref Node] = params

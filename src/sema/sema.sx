@@ -821,6 +821,11 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref char) v
         return
     }
 
+    if k == parser.NK_GENERIC_INST {
+        check_expr(ctx, expr.d0 as ref parser.Node, filename)
+        return
+    }
+
     if k == parser.NK_IDENT {
         val name: ref char = expr.d0 as ref char
         val has_dot: mut bool = false
@@ -1804,6 +1809,12 @@ fn check_stmt(ctx: ref SemaCtx, stmt: ref parser.Node, filename: ref char) void!
         return
     }
 
+    if k == parser.NK_GENERIC_WHEN {
+        push_scope(ctx)
+        check_stmts(ctx, stmt.d1 as ref void, filename)
+        pop_scope(ctx, filename, line)
+        return
+    }
     if k == parser.NK_WHEN_STMT {
         push_scope(ctx)
         check_stmts(ctx, stmt.d1 as ref void, filename)
@@ -1997,6 +2008,13 @@ fn register_named_item(ctx: ref SemaCtx, item: ref parser.Node) void! = {
 fn register_item_name(ctx: ref SemaCtx, item: ref parser.Node) void! = {
     if item == 0 as ref parser.Node { return }
     val k: i64 = item.kind 
+    if k == parser.NK_GENERIC_FN {
+        val nm: ref char = item.d2 as ref char
+        if nm != 0 as ref char { @append(ctx.global_names, nm) }
+        register_fn_name(ctx, item.d1 as ref char, nm)
+        @append(ctx.fn_defs, item as ref void)
+        return
+    }
     if k == parser.NK_FN || k == parser.NK_EXTERN_FN {
         if k == parser.NK_FN {
             if item.d0 == 1 {
@@ -2046,9 +2064,64 @@ fn register_item_name(ctx: ref SemaCtx, item: ref parser.Node) void! = {
     }
 }
 
+fn check_generic_fn(ctx: mut ref SemaCtx, fn_node: ref parser.Node, filename: ref char) void! = {
+    val body: ref void = fn_node.d5 as ref void
+    if body == 0 as ref void { return }
+    val has_wildcard: mut bool = false
+    for stmt in body as list[ref parser.Node] {
+        if stmt == 0 as ref parser.Node { continue }
+        if stmt.kind == parser.NK_GENERIC_WHEN {
+            val conds: ref void = stmt.d0 as ref void
+            if conds == 0 as ref void { has_wildcard = true continue }
+            for cond in conds as list[ref parser.Node] {
+                if cond == 0 as ref parser.Node { continue }
+                if cond.d1 == 0 { has_wildcard = true }
+            }
+        }
+    }
+    if !has_wildcard {
+        val buf: ref char = @alloc(256) as ref char
+        val fn_name: ref char = fn_node.d2 as ref char
+        @snprintf(buf, 256, "{s}:{lld}: generic function '{s}' missing 'when _ \{ \}' wildcard branch", {filename, fn_node.line, fn_name})
+        add_error(ctx, buf)
+    }
+    push_scope(ctx)
+    val tparams: ref void = fn_node.d6 as ref void
+    if tparams != 0 as ref void {
+        for tp in tparams as list[ref char] {
+            if tp != 0 as ref char {
+                scope_define(ctx, tp, 0, "type_param", 0, fn_node.line)
+            }
+        }
+    }
+    val params: ref void = fn_node.d3 as ref void
+    if params != 0 as ref void {
+        for param in params as list[ref parser.Node] {
+            val pname: ref char = param.d0 as ref char
+            scope_define(ctx, pname, 0, "generic_param", 0, param.line)
+        }
+    }
+    if body != 0 as ref void {
+        for stmt in body as list[ref parser.Node] {
+            if stmt == 0 as ref parser.Node { continue }
+            if stmt.kind == parser.NK_GENERIC_WHEN {
+                push_scope(ctx)
+                val gwbody: ref void = stmt.d1 as ref void
+                if gwbody != 0 as ref void { check_stmts(ctx, gwbody, filename) }
+                pop_scope(ctx, filename, stmt.line)
+            }
+        }
+    }
+    pop_scope(ctx, filename, 0)
+}
+
 /// Check a single top-level item (functions, tests, when items).
 fn check_top_item(ctx: ref SemaCtx, item: ref parser.Node, filename: ref char) void! = {
     val k: i64 = item.kind
+    if k == parser.NK_GENERIC_FN {
+        check_generic_fn(ctx, item, filename)
+        return
+    }
     if k == parser.NK_FN {
         check_fn(ctx, item, filename)
     }

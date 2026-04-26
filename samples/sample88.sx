@@ -15,10 +15,10 @@ pub fn some_func[T](x: T, y: T) T = {
         return x + y + 4
     }
     when T is ref char {
-        return trust str.concat_raw(x, y)
+        return str.concat_raw(x, y)
     }
     when T is CustomType {
-        return x.x + y.y 
+        return x 
     }
     when _ {
         return x + y
@@ -27,7 +27,7 @@ pub fn some_func[T](x: T, y: T) T = {
 
 pub fn some_other_func[T, T2](x: T, y: T2) T = {
     when T is ref char && T2 is ref char {
-        return trust str.concat_raw(x, y)
+        return str.concat_raw(x, y)
     }
     when _ {
         stdio.puts("Got something else...")
@@ -37,11 +37,11 @@ pub fn some_other_func[T, T2](x: T, y: T2) T = {
 
 
 pub fn main() void = {
-    @printf("{d}\n", {some_func[i64](2, 4)})
-    @printf("{s}\n", {some_func[ref char]("hello", "world")})
+    trust @printf("{d}\n", {some_func[i64](2, 4)})
+    trust @printf("{s}\n", {some_func[ref char]("hello", "world")})
 
     val x: CustomType = {x: 10, y: 20}
     val y: CustomType = {x: 12, y: 40}
     
-    @printf("{d}\n", {some_func[CustomType](x, y)})
+    trust @printf("{d}\n", {some_func[CustomType](x, y)})
 }
