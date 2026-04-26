@@ -286,12 +286,6 @@ fn gsubst_push(ctx: ref CgCtx, name: ref char, ty: ref parser.Node) void! = {
     @append(ctx.gsubst_tnodes as list[ref void], ty as ref void)
 }
 
-/// Clear all current type substitutions.
-fn gsubst_clear(ctx: mut ref CgCtx) void! = {
-    ctx.gsubst_names = []
-    ctx.gsubst_tnodes = []
-}
-
 /// Resolve a type node through current generic substitutions.
 fn gsubst_resolve(ctx: ref CgCtx, ty: ref parser.Node) ref parser.Node! = {
     if ty == 0 as ref parser.Node { return ty }
@@ -563,16 +557,6 @@ fn generic_callee_base_name(node: ref parser.Node) ref char! = {
     if k == parser.NK_IDENT { return node.d0 as ref char }
     if k == parser.NK_FIELD { return parser.field_name(node) }
     return "unknown"
-}
-
-/// Extract the module prefix from a possibly-qualified callee for generic lookup.
-fn generic_callee_mod_prefix(node: ref parser.Node) ref char! = {
-    val k: i64 = node.kind
-    if k == parser.NK_FIELD {
-        val base: ref parser.Node = parser.field_base(node)
-        if base.kind == parser.NK_IDENT { return base.d0 as ref char }
-    }
-    return ""
 }
 
 /// Extract the module prefix from a mangled function name.

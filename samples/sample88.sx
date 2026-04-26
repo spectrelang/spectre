@@ -43,5 +43,5 @@ pub fn main() void = {
     val x: CustomType = {x: 10, y: 20}
     val y: CustomType = {x: 12, y: 40}
     
-    trust @printf("{d}\n", {some_func[CustomType](x, y)})
+    trust @printf("{p}\n", {some_func[CustomType](x, y)})
 }

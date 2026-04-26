@@ -713,11 +713,25 @@ fn cc_monomorphize_generic_fn(ctx: mut ref CCtx, gfn_node: ref parser.Node, _: r
         val saved_sb: ref void = ctx.sb
         val saved_tmp: i64 = ctx.tmp
         val saved_lbl: i64 = ctx.lbl
+        val saved_val_map = ctx.val_map
+        val saved_fn_name = ctx.fn_name
+        val saved_ret_ctype = ctx.current_ret_ctype
+        val saved_ret_is_void = ctx.current_ret_is_void
+        val saved_ret_ty = ctx.current_ret_ty
+        val saved_expected_ty = ctx.expected_ty
+
         ctx.sb = ctx.mono_sb
         gen_fn_prefixed(ctx, syn, "")
+        
         ctx.sb = saved_sb
         ctx.tmp = saved_tmp
         ctx.lbl = saved_lbl
+        ctx.val_map = saved_val_map
+        ctx.fn_name = saved_fn_name
+        ctx.current_ret_ctype = saved_ret_ctype
+        ctx.current_ret_is_void = saved_ret_is_void
+        ctx.current_ret_ty = saved_ret_ty
+        ctx.expected_ty = saved_expected_ty
     }
     ctx.gsubst_names = old_gsubst_names
     ctx.gsubst_tnodes = old_gsubst_tnodes
@@ -1599,10 +1613,13 @@ fn gen_call(ctx: mut ref CCtx, expr: ref parser.Node) ref char! = {
                     if api > 0 {
                         val gclen: i64 = str.len_raw(gcall_buf)
                         @memcpy(@ptradd(gcall_buf as ref void, gclen), "," as ref void, 1)
+                        @store8(@ptradd(gcall_buf as ref void, gclen + 1), 0)
                     }
                     val gclen2: i64 = str.len_raw(gcall_buf)
                     val apstr: ref char = ap as ref char
-                    @memcpy(@ptradd(gcall_buf as ref void, gclen2), apstr as ref void, str.len_raw(apstr) as usize)
+                    val aplen2: i64 = str.len_raw(apstr)
+                    @memcpy(@ptradd(gcall_buf as ref void, gclen2), apstr as ref void, aplen2 as usize)
+                    @store8(@ptradd(gcall_buf as ref void, gclen2 + aplen2), 0)
                 }
                 none => {}
             }
@@ -1610,6 +1627,7 @@ fn gen_call(ctx: mut ref CCtx, expr: ref parser.Node) ref char! = {
         }
         val gclen3: i64 = str.len_raw(gcall_buf)
         @memcpy(@ptradd(gcall_buf as ref void, gclen3), ");\n" as ref void, 3)
+        @store8(@ptradd(gcall_buf as ref void, gclen3 + 3), 0)
         emit(ctx, gcall_buf)
         @free(gcall_buf)
         @free(c_mangled)
