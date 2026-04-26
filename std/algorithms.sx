@@ -2,6 +2,72 @@ val string = use("string.sx")
 
 extern (C) fn isdigit(c: i32) i32! = "isdigit"
 
+/// Generic insertion sort (ascending).
+pub fn sort[T](input: list[T]) list[T] = {
+    val n: usize = @len(input)
+    val sorted: mut list[T] = []
+    val i: mut usize = 0
+    for {
+        if i >= n { break }
+        val v = @get(input, i)
+        match v {
+            none   => { }
+            some x => { @append(sorted, x) }
+        }
+        i++
+    }
+
+    val si: mut usize = 1
+    for {
+        if si >= n { break }
+
+        val ko = @get(sorted, si)
+        val key: mut T = 0 as T
+        match ko {
+            none   => { si++ }
+            some v => { key = v }
+        }
+
+        val j: mut i64 = (si as i64) - 1
+
+        for {
+            if j < 0 { break }
+
+            val jo = @get(sorted, j as usize)
+            val jval: mut T = 0 as T 
+            match jo {
+                none   => { break }
+                some v => { jval = v }
+            }
+
+            val should_break: mut i32 = 0
+
+            when T in (i64, i32) {
+                if jval <= key { should_break = 1 }
+            }
+            when T in (f64, f32) {
+                if jval <= key { should_break = 1 }
+            }
+            when T is ref char {
+                if intern_strcmp(jval, key) <= 0 { should_break = 1 }
+            }
+            when _ {
+                if jval <= key { should_break = 1 }
+            }
+
+            if should_break != 0 { break }
+
+            @set(sorted, (j + 1) as usize, jval)
+            j = j - 1
+        }
+
+        @set(sorted, (j + 1) as usize, key)
+        si++
+    }
+    
+    return sorted
+}
+
 /// Extract leading integer from a ref char. Returns -1 if none.
 fn parse_leading_num(name: ref char) i64 = {
     val len: i64 = string.len_raw(name)
@@ -280,5 +346,15 @@ test {
 
     for a in alpha_sorted {
         trust @printf("{s}\n", {a})
+    }
+
+    val numlist = [1, 532, 12, 124, 12]
+    trust @printf("len of numlist: {d}\n", {@len(numlist)})
+
+    val sorted_numlist = sort[i32](numlist)
+    trust @printf("len of sorted_numlist: {d}\n", {@len(sorted_numlist)})
+
+    for s in sorted_numlist {
+        trust @printf("Sorted: {d}\n", {s})
     }
 }

@@ -700,7 +700,12 @@ fn cc_monomorphize_generic_fn(ctx: mut ref CCtx, gfn_node: ref parser.Node, _: r
     val new_ret: ref parser.Node = cc_gsubst_resolve(ctx, orig_ret)
     val fn_body: ref parser.Node = gfn_node.d5 as ref parser.Node
     val branch_body: ref parser.Node = cc_find_matching_gwhen_body(ctx, fn_body)
-    if branch_body != 0 as ref parser.Node {
+    val final_body: mut ref parser.Node = branch_body
+    if final_body == 0 as ref parser.Node {
+        final_body = fn_body
+    }
+
+    if final_body != 0 as ref parser.Node {
         val syn: mut ref parser.Node = parser.make_node(parser.NK_FN, gfn_node.line)
         syn.d0 = 0
         syn.d1 = 0 as i64
@@ -708,7 +713,7 @@ fn cc_monomorphize_generic_fn(ctx: mut ref CCtx, gfn_node: ref parser.Node, _: r
         val pl: list[ref parser.Node] = new_params
         syn.d3 = pl as i64
         syn.d4 = new_ret as i64
-        syn.d5 = branch_body as i64
+        syn.d5 = final_body as i64
         syn.d6 = 0
         val saved_sb: ref void = ctx.sb
         val saved_tmp: i64 = ctx.tmp
@@ -2190,17 +2195,42 @@ fn gen_stmts(ctx: ref CCtx, stmts: ref parser.Node) void! = {
     val old_depth: i64 = @len(ctx.defer_stack) as i64
     val len: i64 = @len(stmts) as i64
     val i: mut i64 = 0
-    for { 
+    for {
         if i >= len { break }
         val s_opt = @get(stmts, i as usize)
-        match s_opt { 
+        match s_opt {
             some s => {
-                gen_stmt(ctx, s as ref parser.Node) 
-            } 
-            none => {} 
+                val sn: ref parser.Node = s as ref parser.Node
+                if sn.kind == parser.NK_GENERIC_WHEN {
+                    val matched: mut bool = false
+                    val j: mut i64 = i
+                    for {
+                        if j >= len { break }
+                        val s_opt2 = @get(stmts, j as usize)
+                        match s_opt2 {
+                            some s2 => {
+                                val sn2: ref parser.Node = s2 as ref parser.Node
+                                if sn2.kind != parser.NK_GENERIC_WHEN { break }
+                                if !matched && cc_gwhen_matches(ctx, sn2) {
+                                    gen_stmts(ctx, sn2.d1 as ref parser.Node)
+                                    matched = true
+                                }
+                            }
+                            none => { break }
+                        }
+                        j++
+                    }
+                    i = j
+                    continue
+                } else {
+                    gen_stmt(ctx, sn)
+                }
+            }
+            none => {}
         }
-        i++ 
+        i++
     }
+
     cc_handle_block_defers(ctx, old_depth)
 }
 

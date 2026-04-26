@@ -2068,9 +2068,11 @@ fn check_generic_fn(ctx: mut ref SemaCtx, fn_node: ref parser.Node, filename: re
     val body: ref void = fn_node.d5 as ref void
     if body == 0 as ref void { return }
     val has_wildcard: mut bool = false
+    val has_any_gwhen: mut bool = false
     for stmt in body as list[ref parser.Node] {
         if stmt == 0 as ref parser.Node { continue }
         if stmt.kind == parser.NK_GENERIC_WHEN {
+            has_any_gwhen = true
             val conds: ref void = stmt.d0 as ref void
             if conds == 0 as ref void { has_wildcard = true continue }
             for cond in conds as list[ref parser.Node] {
@@ -2078,12 +2080,6 @@ fn check_generic_fn(ctx: mut ref SemaCtx, fn_node: ref parser.Node, filename: re
                 if cond.d1 == 0 { has_wildcard = true }
             }
         }
-    }
-    if !has_wildcard {
-        val buf: ref char = @alloc(256) as ref char
-        val fn_name: ref char = fn_node.d2 as ref char
-        @snprintf(buf, 256, "{s}:{lld}: generic function '{s}' missing 'when _ \{ \}' wildcard branch", {filename, fn_node.line, fn_name})
-        add_error(ctx, buf)
     }
     push_scope(ctx)
     val params: ref void = fn_node.d3 as ref void

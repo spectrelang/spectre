@@ -533,8 +533,12 @@ fn monomorphize_generic_fn(ctx: mut ref CgCtx, gfn_node: ref parser.Node, _: ref
     val new_ret: ref parser.Node = gsubst_resolve(ctx, orig_ret)
     val fn_body: ref parser.Node = gfn_node.d5 as ref parser.Node
     val branch_body: ref parser.Node = find_matching_gwhen_body(ctx, fn_body)
+    val final_body: mut ref parser.Node = branch_body
+    if final_body == 0 as ref parser.Node {
+        final_body = fn_body
+    }
 
-    if branch_body != 0 as ref parser.Node {
+    if final_body != 0 as ref parser.Node {
         val syn: mut ref parser.Node = parser.make_node(parser.NK_FN, gfn_node.line)
         syn.d0 = 0
         syn.d1 = 0 as i64
@@ -542,7 +546,7 @@ fn monomorphize_generic_fn(ctx: mut ref CgCtx, gfn_node: ref parser.Node, _: ref
         val pl: list[ref parser.Node] = new_params
         syn.d3 = pl as i64
         syn.d4 = new_ret as i64
-        syn.d5 = branch_body as i64
+        syn.d5 = final_body as i64
         syn.d6 = 0
 
         val saved_sb = ctx.sb
@@ -6361,9 +6365,32 @@ fn gen_stmts(ctx: ref CgCtx, stmts: ref parser.Node) void! = {
         match s_opt {
             some s => {
                 val snode: ref parser.Node = s as ref parser.Node
-                gen_stmt(ctx, snode)
-                if snode.kind == parser.NK_WHEN_STMT {
-                    if when_stmt_terminated(snode) { break }
+                if snode.kind == parser.NK_GENERIC_WHEN {
+                    val matched: mut bool = false
+                    val j: mut i64 = i
+                    for {
+                        if j >= len { break }
+                        val s_opt2 = @get(stmts, j as usize)
+                        match s_opt2 {
+                            some s2 => {
+                                val sn2: ref parser.Node = s2 as ref parser.Node
+                                if sn2.kind != parser.NK_GENERIC_WHEN { break }
+                                if !matched && gwhen_matches_gsubst(ctx, sn2) {
+                                    gen_stmts(ctx, sn2.d1 as ref parser.Node)
+                                    matched = true
+                                }
+                            }
+                            none => { break }
+                        }
+                        j++
+                    }
+                    i = j
+                    continue
+                } else {
+                    gen_stmt(ctx, snode)
+                    if snode.kind == parser.NK_WHEN_STMT {
+                        if when_stmt_terminated(snode) { break }
+                    }
                 }
             }
             none => {}
