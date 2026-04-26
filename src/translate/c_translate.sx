@@ -3368,19 +3368,121 @@ fn translate_sizeof_expr(ctx: ref TranslationCtx, text: ref char) ref char = {
     return std.string.cstr(built)
 }
 
-fn translate_c_cast_expr(ctx: ref TranslationCtx, text: ref char) ref char = {
+fn scan_cast_operand_end(text: ref char, start: i64) i64 = {
+    val len: i64 = std.string.len_raw(text)
+    if start < 0 || start >= len { return start }
+    val first: u8 = trust @load8(@ptradd(text as ref void, start)) as u8
+    if first >= 48 && first <= 57 {
+        val i: mut i64 = start + 1
+        for {
+            if i >= len { break }
+            val c: u8 = trust @load8(@ptradd(text as ref void, i)) as u8
+            if !is_ident_part(c) && c != 46 { break }
+            i++
+        }
+        return i
+    }
+    val base_end: i64 = scan_deref_operand_end(text, start)
+    if base_end <= start { return start }
+    val j: mut i64 = base_end
+    for {
+        if j >= len { break }
+        val ws: u8 = trust @load8(@ptradd(text as ref void, j)) as u8
+        if !is_space(ws) { break }
+        j++
+    }
+    if j < len && (trust @load8(@ptradd(text as ref void, j)) as u8) == 40 {
+        val call_close: i64 = find_matching_delim(text, j, 40, 41)
+        if call_close > j { return call_close + 1 }
+    }
+    return base_end
+}
+
+fn translate_c_casts_in_expr(ctx: ref TranslationCtx, text: ref char) ref char = {
     val trimmed: ref char = trim_raw(text)
-    if !std.string.rchar_starts_with(trimmed, "(") { return trimmed }
-    val close_i: i64 = find_matching_delim(trimmed, 0, 40, 41)
-    if close_i <= 0 { return trimmed }
-    val inner: ref char = trim_raw(std.string.substr(trimmed, 1, close_i - 1))
-    if !is_probable_c_type(inner) { return trimmed }
-    if !is_known_c_type_name(ctx, normalize_type_phrase(inner)) { return trimmed }
     val len: i64 = std.string.len_raw(trimmed)
-    val rest: ref char = trim_raw(std.string.substr(trimmed, close_i + 1, len - close_i - 1))
-    if std.string.rchar_cmp(rest, "") == 0 { return trimmed }
-    val mapped: ref char = translate_c_type_ctx(ctx, inner, "")
-    return trust @fmt("{s} as {s}", {translate_expr_text(ctx, rest), mapped})
+    val sb: ref void = std.string.StringBuilder.new()
+    val in_string: mut bool = false
+    val in_char: mut bool = false
+    val escaped: mut bool = false
+    val i: mut i64 = 0
+    for {
+        if i >= len { break }
+        val c: u8 = trust @load8(@ptradd(trimmed as ref void, i)) as u8
+        if in_string {
+            std.string.StringBuilder.append_char(sb, c)
+            if escaped { escaped = false }
+            elif c == 92 { escaped = true }
+            elif c == 34 { in_string = false }
+            i++
+            continue
+        }
+        if in_char {
+            std.string.StringBuilder.append_char(sb, c)
+            if escaped { escaped = false }
+            elif c == 92 { escaped = true }
+            elif c == 39 { in_char = false }
+            i++
+            continue
+        }
+        if c == 34 { 
+            in_string = true
+            std.string.StringBuilder.append_char(sb, c)
+            i++
+            continue 
+        }
+        if c == 39 { 
+            in_char = true
+            std.string.StringBuilder.append_char(sb, c)
+            i++
+            continue 
+        }
+        if c == 40 {
+            val prev_is_ident: mut bool = false
+            val j: mut i64 = i - 1
+            for {
+                if j < 0 { break }
+                val pc: u8 = trust @load8(@ptradd(trimmed as ref void, j)) as u8
+                if !is_space(pc) { 
+                    prev_is_ident = is_ident_part(pc)
+                    break 
+                }
+                j--
+            }
+            if !prev_is_ident {
+                val close_i: i64 = find_matching_delim(trimmed, i, 40, 41)
+                if close_i > i {
+                    val inner: ref char = trim_raw(std.string.substr(trimmed, i + 1, close_i - i - 1))
+                    if is_probable_c_type(inner) && is_known_c_type_name(ctx, normalize_type_phrase(inner)) {
+                        val op_start: mut i64 = close_i + 1
+                        for {
+                            if op_start >= len { break }
+                            val ws: u8 = trust @load8(@ptradd(trimmed as ref void, op_start)) as u8
+                            if !is_space(ws) { break }
+                            op_start++
+                        }
+                        if op_start < len {
+                            val op_end: i64 = scan_cast_operand_end(trimmed, op_start)
+                            if op_end > op_start {
+                                val operand: ref char = trim_raw(std.string.substr(trimmed, op_start, op_end - op_start))
+                                val mapped: ref char = translate_c_type_ctx(ctx, inner, "")
+                                val translated_op: ref char = translate_expr_text(ctx, operand)
+                                std.string.StringBuilder.append_cstr(sb, translated_op)
+                                std.string.StringBuilder.append_cstr(sb, trust @fmt(" as {s}", {mapped}))
+                                i = op_end
+                                continue
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        std.string.StringBuilder.append_char(sb, c)
+        i++
+    }
+    val built: ref void = std.string.StringBuilder.build(sb)
+    std.string.StringBuilder.free(sb)
+    return trim_raw(std.string.cstr(built))
 }
 
 fn find_top_level_equality(text: ref char) i64 = {
@@ -3493,7 +3595,7 @@ fn translate_expr_text(ctx: ref TranslationCtx, text: ref char) ref char = {
     val with_qualified_enums: ref char = qualify_enum_constants(ctx, with_arrow)
     val with_rewritten: ref char = rewrite_identifiers(with_qualified_enums)
     val with_addr_deref: ref char = translate_addr_deref_expr(ctx, with_rewritten)
-    val with_casts: ref char = translate_c_cast_expr(ctx, with_addr_deref)
+    val with_casts: ref char = translate_c_casts_in_expr(ctx, with_addr_deref)
     val with_indexing2: ref char = replace_pointer_indexing(ctx, with_casts)
     val with_intrinsics: ref char = ensure_intrinsic_prefixes(with_indexing2)
     val normalized_intrinsics: ref char = normalize_intrinsic_prefixes(with_intrinsics)
