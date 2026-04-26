@@ -2771,7 +2771,7 @@ fn gen_test_main_c(ctx: ref CCtx, test_ids: list[i64]) void! = {
     emitln(ctx, "")
 }
 
-pub fn gen_module_c_test(root: ref module.ResolvedModule, release_mode: bool) ref char! = {
+pub fn gen_module_c_test(root: ref module.ResolvedModule, release_mode: bool, extra_includes: list[ref char]) ref char! = {
     val ctx: mut ref CCtx = cc_new()
     ctx.release_mode = release_mode
     val out_prefixes: list[ref char] = []
@@ -2781,6 +2781,9 @@ pub fn gen_module_c_test(root: ref module.ResolvedModule, release_mode: bool) re
     val layers: i64 = @len(out_prefixes) as i64
     cc_mark_prefix_used(ctx, "")
     emit_c_preamble(ctx)
+    for inc in extra_includes {
+        emitln_fwd(ctx, str.concat_raw("#include \"", str.concat_raw(inc, "\"")))
+    }
     emit_c_panic_handler(ctx)
     val li: mut i64 = 0
     for {
@@ -2855,7 +2858,7 @@ pub fn gen_module_c_test(root: ref module.ResolvedModule, release_mode: bool) re
     return result
 }
 
-pub fn gen_module_c(root: ref module.ResolvedModule, release_mode: bool) ref char! = {
+pub fn gen_module_c(root: ref module.ResolvedModule, release_mode: bool, extra_includes: list[ref char]) ref char! = {
     val ctx: mut ref CCtx = cc_new()
     ctx.release_mode = release_mode
     val out_prefixes: list[ref char] = []
@@ -2865,6 +2868,9 @@ pub fn gen_module_c(root: ref module.ResolvedModule, release_mode: bool) ref cha
     val layers: i64 = @len(out_prefixes) as i64
     cc_mark_prefix_used(ctx, "")
     emit_c_preamble(ctx)
+    for inc in extra_includes {
+        emitln_fwd(ctx, str.concat_raw("#include \"", str.concat_raw(inc, "\"")))
+    }
     emit_c_panic_handler(ctx)
     emitln_fwd(ctx, "static void sx__init(void);")
     val li: mut i64 = 0

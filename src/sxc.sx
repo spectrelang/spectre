@@ -247,6 +247,7 @@ pub fn main() i32! = {
     val use_alt: mut bool = false
     val alt_compiler: mut ref char = ""
     val translate_c_flag: mut bool = flag_first_translate_c
+    val extra_includes: mut list[ref char] = []
     val arg_i: mut i64 = 2
 
     if flag_first_translate_c {
@@ -334,6 +335,27 @@ pub fn main() i32! = {
                     val compiler_str = builds.parse_alt_compiler_arg(arg)
                     if std.string.rchar_cmp(compiler_str, "") != 0 {
                         alt_compiler = compiler_str
+                    }
+                    arg_i++
+                } elif std.string.rchar_starts_with(arg, "-I") {
+                    val headers_str: ref char = std.string.substr(arg, 2, std.string.len_raw(arg) - 2)
+                    val hlen: i64 = std.string.len_raw(headers_str)
+                    val hstart: mut i64 = 0
+                    val hi: mut i64 = 0
+                    for {
+                        if hi > hlen { break }
+                        val at_end: bool = hi == hlen
+                        val hc: mut u8 = 0
+                        if !at_end {
+                            hc = @load8(@ptradd(headers_str as ref void, hi)) as u8
+                        }
+                        if at_end || hc == 44 {
+                            if hi > hstart {
+                                @append(extra_includes, std.string.substr(headers_str, hstart, hi - hstart))
+                            }
+                            hstart = hi + 1
+                        }
+                        hi++
                     }
                     arg_i++
                 } else {
@@ -520,10 +542,16 @@ pub fn main() i32! = {
         return 0
     }
 
+    if ((@len(extra_includes) as i64) > 0 && !use_alt && !emit_alt) {
+        std.stdio.puts("error: -I<headers> requires the alt backend (--alt)")
+        allocators.Arena.free(arena)
+        return 1
+    }
+
     if use_alt || emit_alt {
         val c_ir: mut ref char = ""
-        if test_mode { c_ir = alt_codegen.gen_module_c_test(root_mod, release_mode) }
-        else { c_ir = alt_codegen.gen_module_c(root_mod, release_mode) }
+        if test_mode { c_ir = alt_codegen.gen_module_c_test(root_mod, release_mode, extra_includes) }
+        else { c_ir = alt_codegen.gen_module_c(root_mod, release_mode, extra_includes) }
 
         if emit_alt != false {
             std.stdio.puts(c_ir)
