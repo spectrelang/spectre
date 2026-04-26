@@ -178,6 +178,7 @@ pub fn sort_f64(input: list[f64]) list[f64] = {
     return sorted
 }
 
+/// Internal string comparison function for algo purposes.
 fn intern_strcmp(a: ref char, b: ref char) i32 = {
     val i: mut i64 = 0
 
@@ -203,6 +204,7 @@ fn intern_strcmp(a: ref char, b: ref char) i32 = {
     return 0
 }
 
+/// Sort some list of raw strings alphabetically.
 pub fn sort_alpha(files: list[ref char]) list[ref char] = {
     val n: usize = @len(files)
     val sorted: mut list[ref char] = []
