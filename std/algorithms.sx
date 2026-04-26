@@ -178,6 +178,82 @@ pub fn sort_f64(input: list[f64]) list[f64] = {
     return sorted
 }
 
+fn intern_strcmp(a: ref char, b: ref char) i32 = {
+    val i: mut i64 = 0
+
+    for {
+        val ca_o = string.byte_at(a, i)
+        val cb_o = string.byte_at(b, i)
+
+        val ca: mut u8 = 0
+        val cb: mut u8 = 0
+
+        match ca_o { none => { ca = 0 } some v => { ca = v } }
+        match cb_o { none => { cb = 0 } some v => { cb = v } }
+
+        if ca == 0 && cb == 0 { return 0 }
+
+        if ca != cb {
+            return (ca as i32) - (cb as i32)
+        }
+
+        i++
+    }
+
+    return 0
+}
+
+pub fn sort_alpha(files: list[ref char]) list[ref char] = {
+    val n: usize = @len(files)
+    val sorted: mut list[ref char] = []
+    val ci: mut usize = 0
+
+    for {
+        if ci >= n { break }
+        val fo = @get(files, ci)
+        match fo {
+            none   => { }
+            some v => { @append(sorted, v) }
+        }
+        ci++
+    }
+
+    val si: mut usize = 1
+    for {
+        if si >= n { break }
+
+        val ko = @get(sorted, si)
+        val key: mut ref char = 0 as ref char
+        match ko {
+            none   => { si++ }
+            some v => { key = v }
+        }
+
+        val j: mut i64 = (si as i64) - 1
+
+        for {
+            if j < 0 { break }
+
+            val jo = @get(sorted, j as usize)
+            val jval: mut ref char = 0 as ref char
+            match jo {
+                none   => { break }
+                some v => { jval = v }
+            }
+
+            if intern_strcmp(jval, key) <= 0 { break }
+
+            @set(sorted, (j + 1) as usize, jval)
+            j = j - 1
+        }
+
+        @set(sorted, (j + 1) as usize, key)
+        si++
+    }
+
+    return sorted
+}
+
 test {
     val all: list[ref char] = ["1 - hi", "2 - hello", "0 hey", "5 :)", "3 :D"]
     val sorted: list[ref char] = sort_by_num(all)
@@ -195,5 +271,12 @@ test {
     @puts("ok3")
     for il in il_sorted {
         trust @printf("{d}\n", {il})
+    }
+
+    val alpha_all = ["asdsad", "bosdfo", "asda", "pogkdsf", "pog pog pogu", "asdf"]
+    val alpha_sorted = sort_alpha(alpha_all)
+
+    for a in alpha_sorted {
+        trust @printf("{s}\n", {a})
     }
 }
