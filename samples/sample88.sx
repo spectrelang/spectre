@@ -15,7 +15,7 @@ pub fn some_func[T](x: T, y: T) T = {
         return x + y + 4
     }
     when T is ref char {
-        return str.concat_raw(x, y)
+        return trust str.concat_raw(x, y)
     }
     when T is CustomType {
         return x 
@@ -27,7 +27,7 @@ pub fn some_func[T](x: T, y: T) T = {
 
 pub fn some_other_func[T, T2](x: T, y: T2) T = {
     when T is ref char && T2 is ref char {
-        return str.concat_raw(x, y)
+        return trust str.concat_raw(x, y)
     }
     when _ {
         stdio.puts("Got something else...")
