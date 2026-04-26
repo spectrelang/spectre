@@ -2,7 +2,7 @@ val string = use("string.sx")
 
 extern (C) fn isdigit(c: i32) i32! = "isdigit"
 
-/// Extract leading integer from a filename like "3 - foo.md". Returns -1 if none.
+/// Extract leading integer from a ref char. Returns -1 if none.
 fn parse_leading_num(name: ref char) i64 = {
     val len: i64 = string.len_raw(name)
     if len == 0 { return -1 }
