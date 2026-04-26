@@ -2086,19 +2086,14 @@ fn check_generic_fn(ctx: mut ref SemaCtx, fn_node: ref parser.Node, filename: re
         add_error(ctx, buf)
     }
     push_scope(ctx)
-    val tparams: ref void = fn_node.d6 as ref void
-    if tparams != 0 as ref void {
-        for tp in tparams as list[ref char] {
-            if tp != 0 as ref char {
-                scope_define(ctx, tp, 0, "type_param", 0, fn_node.line)
-            }
-        }
-    }
     val params: ref void = fn_node.d3 as ref void
     if params != 0 as ref void {
         for param in params as list[ref parser.Node] {
             val pname: ref char = param.d0 as ref char
-            scope_define(ctx, pname, 0, "generic_param", 0, param.line)
+            val pty: ref parser.Node = param.d1 as ref parser.Node
+            val param_tname: ref char = extract_type_name(pty)
+            scope_define(ctx, pname, 0, param_tname, 0, param.line)
+            mark_name_used(ctx, pname)
         }
     }
     if body != 0 as ref void {
