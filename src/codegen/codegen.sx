@@ -4328,15 +4328,6 @@ fn gen_call(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
         val gi_base: ref parser.Node = parser.generic_inst_base(callee_node)
         val gi_targs: list[ref parser.Node] = parser.generic_inst_type_args(callee_node)
         val base_name: ref char = generic_callee_base_name(gi_base)
-        val gfn_node: ref parser.Node = lookup_generic_fn(ctx, base_name)
-        val mono_base: mut ref char = 0 as ref char
-        if gfn_node != 0 as ref parser.Node {
-            val gfn_prefix: ref char = lookup_generic_fn_prefix(ctx, base_name)
-            mono_base = monomorphize_generic_fn(ctx, gfn_node, gfn_prefix, gi_targs)
-        }
-        if mono_base == 0 as ref char {
-            mono_base = base_name
-        }
         val arg_tmps_g: mut list[ref char] = []
         if args_list != 0 as ref void {
             val glen: i64 = @len(args_list as list[ref parser.Node]) as i64
@@ -4372,6 +4363,15 @@ fn gen_call(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
                 }
                 gai++
             }
+        }
+        val gfn_node: ref parser.Node = lookup_generic_fn(ctx, base_name)
+        val mono_base: mut ref char = 0 as ref char
+        if gfn_node != 0 as ref parser.Node {
+            val gfn_prefix: ref char = lookup_generic_fn_prefix(ctx, base_name)
+            mono_base = monomorphize_generic_fn(ctx, gfn_node, gfn_prefix, gi_targs)
+        }
+        if mono_base == 0 as ref char {
+            mono_base = base_name
         }
         val gtmp: i64 = fresh_tmp(ctx)
         val gfn_params_list: ref void = cg_lookup_fn_params(ctx, mono_base)
@@ -9260,6 +9260,11 @@ pub fn gen_module_resolved(root: ref module.ResolvedModule, release_mode: bool) 
 
     emit_string_data(ctx)
 
+    val mono_built: ref void = str.StringBuilder.build(ctx.mono_sb)
+    val mono_str: ref char = str.cstr(mono_built)
+    str.StringBuilder.append_cstr(cg_sb(ctx), mono_str)
+    str.StringBuilder.free(ctx.mono_sb)
+
     val built: ref void = str.StringBuilder.build(cg_sb(ctx))
     val result: ref char = str.cstr(built)
     str.StringBuilder.free(cg_sb(ctx))
@@ -9623,6 +9628,11 @@ pub fn gen_module_resolved_test(root: ref module.ResolvedModule, release_mode: b
 
     gen_test_main(ctx, test_ids)
     emit_string_data(ctx)
+
+    val mono_built: ref void = str.StringBuilder.build(ctx.mono_sb)
+    val mono_str: ref char = str.cstr(mono_built)
+    str.StringBuilder.append_cstr(cg_sb(ctx), mono_str)
+    str.StringBuilder.free(ctx.mono_sb)
 
     val built: ref void = str.StringBuilder.build(cg_sb(ctx))
     val result: ref char = str.cstr(built)
