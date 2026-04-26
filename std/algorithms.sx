@@ -1,0 +1,86 @@
+val string = use("string.sx")
+
+extern (C) fn isdigit(c: i32) i32! = "isdigit"
+
+/// Extract leading integer from a filename like "3 - foo.md". Returns -1 if none.
+fn parse_leading_num(name: ref char) i64 = {
+    val len: i64 = string.len_raw(name)
+    if len == 0 { return -1 }
+    val result: mut i64 = 0
+    val found: mut i32 = 0
+    val i: mut i64 = 0
+    for {
+        if i >= len { break }
+        val cb = string.byte_at(name, i)
+        val c: mut u8 = 0
+        match cb {
+            none   => { break }
+            some v => { c = v }
+        }
+        val is_dig: i32 = trust isdigit(c as i32)
+        if is_dig != 0 {
+            result = result * 10 + ((c as i64) - 48)
+            found = 1
+        } else {
+            break
+        }
+        i++
+    }
+    if found == 0 { return -1 }
+    return result
+}
+
+/// Insertion-sort a list of ref char by their leading number (ascending).
+pub fn sort_by_num(files: list[ref char]) list[ref char] = {
+    val n: usize = @len(files)
+    val sorted: mut list[ref char] = []
+    val ci: mut usize = 0
+    for {
+        if ci >= n { break }
+        val fo = @get(files, ci)
+        match fo {
+            none   => { }
+            some v => { @append(sorted, v) }
+        }
+        ci++
+    }
+
+    val si: mut usize = 1
+    for {
+        if si >= n { break }
+        val ko = @get(sorted, si)
+        val key: mut ref char = 0 as ref char
+        match ko {
+            none   => { si++ }
+            some v => { key = v }
+        }
+        val knum: i64 = parse_leading_num(key)
+        val j: mut i64 = (si as i64) - 1
+        for {
+            if j < 0 { break }
+            val jo = @get(sorted, j as usize)
+            val jval: mut ref char = 0 as ref char
+            match jo {
+                none   => { break }
+                some v => { jval = v }
+            }
+            val jnum: i64 = parse_leading_num(jval)
+            if jnum <= knum { break }
+            @set(sorted, (j + 1) as usize, jval)
+            j = j - 1
+        }
+        @set(sorted, (j + 1) as usize, key)
+        si++
+    }
+
+    return sorted
+}
+
+test {
+    val all: list[ref char] = ["1 - hi", "2 - hello", "0 hey", "5 :)", "3 :D"]
+    val sorted: list[ref char] = sort_by_num(all)
+    
+    for s in sorted {
+        trust @printf("{s}\n", {s})
+    }
+}
