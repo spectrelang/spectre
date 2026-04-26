@@ -1644,12 +1644,6 @@ fn cg_local_type(ctx: ref CgCtx, name: ref char) ref char! = {
     return ""
 }
 
-/// Register the type of a local variable (used for match bindings)
-fn cg_register_local_var_type(ctx: ref CgCtx, src_name: ref char, type_name: ref char) void! = {
-    @append(ctx.lnames as list[ref char], src_name)
-    @append(ctx.ltypes as list[ref char], type_name)
-}
-
 /// Generate a struct literal inline within a parent allocation (e.g., union payload).
 /// base_offset is the starting offset within the parent allocation.
 fn gen_struct_lit_inline(ctx: ref CgCtx, struct_node: ref parser.Node, parent_ptr: i64, base_offset: i64, fields: ref void) void! = {
