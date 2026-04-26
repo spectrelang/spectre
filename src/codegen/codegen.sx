@@ -8,6 +8,7 @@ val module     = use("../module/module.sx")
 /// Codegen context
 pub type CgCtx = {
     sb: mut ref void
+    mono_sb: mut ref void
     tmp: mut i64
     lbl: mut i64
     fn_name: mut ref char
@@ -66,6 +67,7 @@ pub type CgCtx = {
 fn cg_new() ref CgCtx! = {
     val ctx: mut ref CgCtx = @alloc(@sizeof(CgCtx)) as ref CgCtx
     ctx.sb = str.StringBuilder.new()
+    ctx.mono_sb = str.StringBuilder.new()
     ctx.tmp = 0
     ctx.lbl = 0
     ctx.fn_name = 0 as ref char
@@ -542,7 +544,41 @@ fn monomorphize_generic_fn(ctx: mut ref CgCtx, gfn_node: ref parser.Node, _: ref
         syn.d4 = new_ret as i64
         syn.d5 = branch_body as i64
         syn.d6 = 0
+
+        val saved_sb = ctx.sb
+        val saved_tmp = ctx.tmp
+        val saved_lbl = ctx.lbl
+        val saved_fn_name = ctx.fn_name
+        val saved_ret_qtype = ctx.current_fn_ret_qtype
+        val saved_ret_union = ctx.current_fn_ret_union
+        val saved_local_src_names = ctx.local_src_names
+        val saved_local_qbe_names = ctx.local_qbe_names
+        val saved_local_slot_names = ctx.local_slot_names
+        val saved_local_ref_types = ctx.local_ref_types
+        val saved_lnames = ctx.lnames
+        val saved_ltypes = ctx.ltypes
+        val saved_dvars = ctx.dvars
+        val saved_dqtypes = ctx.dqtypes
+        val saved_defer_stack = ctx.defer_stack
+
+        ctx.sb = ctx.mono_sb
         gen_fn_prefixed(ctx, syn, "")
+
+        ctx.sb = saved_sb
+        ctx.tmp = saved_tmp
+        ctx.lbl = saved_lbl
+        ctx.fn_name = saved_fn_name
+        ctx.current_fn_ret_qtype = saved_ret_qtype
+        ctx.current_fn_ret_union = saved_ret_union
+        ctx.local_src_names = saved_local_src_names
+        ctx.local_qbe_names = saved_local_qbe_names
+        ctx.local_slot_names = saved_local_slot_names
+        ctx.local_ref_types = saved_local_ref_types
+        ctx.lnames = saved_lnames
+        ctx.ltypes = saved_ltypes
+        ctx.dvars = saved_dvars
+        ctx.dqtypes = saved_dqtypes
+        ctx.defer_stack = saved_defer_stack
     }
 
     ctx.gsubst_names = old_gsubst_names
@@ -9880,6 +9916,11 @@ pub fn gen_module(items: list[ref parser.Node]) ref char! = {
     }
 
     emit_string_data(ctx)
+
+    val mono_built: ref void = str.StringBuilder.build(ctx.mono_sb)
+    val mono_str: ref char = str.cstr(mono_built)
+    str.StringBuilder.append_cstr(cg_sb(ctx), mono_str)
+    str.StringBuilder.free(ctx.mono_sb)
 
     val built: ref void = str.StringBuilder.build(cg_sb(ctx))
     val result: ref char = str.cstr(built)
