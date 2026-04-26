@@ -1,0 +1,1293 @@
+val string = use("std/string")
+val stdio  = use("std/stdio")
+
+extern (C) fn fopen(path: ref char, mode: ref char) ref void! = "fopen"
+extern (C) fn fclose(fp: ref void) i32! = "fclose"
+extern (C) fn fread(buf: ref void, size: usize, count: usize, fp: ref void) usize! = "fread"
+extern (C) fn fwrite(buf: ref void, size: usize, count: usize, fp: ref void) usize! = "fwrite"
+extern (C) fn fseek(fp: ref void, offset: i64, whence: i32) i32! = "fseek"
+extern (C) fn ftell(fp: ref void) i64! = "ftell"
+extern (C) fn rewind(fp: ref void) void! = "rewind"
+extern (C) fn exit(code: i32) void! = "exit"
+extern (C) fn fflush(fp: ref void) i32! = "fflush"
+extern (C) fn isdigit(c: i32) i32! = "isdigit"
+extern (C) fn stat(path: ref char, buf: ref void) i32! = "stat"
+extern (C) fn localtime(timer: ref i64) ref void! = "localtime"
+extern (C) fn strftime(buf: ref char, max: usize, fmt: ref char, tm: ref void) usize! = "strftime"
+
+when linux {
+    extern type Stat = {
+        st_dev:     u64
+        st_ino:     u64
+        st_nlink:   u64
+        st_mode:    u32
+        st_uid:     u32
+        st_gid:     u32
+        __pad0:     i32
+        st_rdev:    u64
+        st_size:    i64
+        st_blksize: i64
+        st_blocks:  i64
+        st_atime:   i64
+        st_atime_nsec: i64
+        st_mtime:   i64
+        st_mtime_nsec: i64
+        st_ctime:   i64
+        st_ctime_nsec: i64
+        __unused:   [3]i64
+    }
+}
+
+val HTML_HEAD_1: ref char = \\ <!DOCTYPE html>
+                            \\ <html lang="en">
+                            \\ <head>
+                            \\   <meta charset="UTF-8">
+                            \\   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                            \\   <title>
+
+val HTML_HEAD_2: ref char = \\ </title>
+                            \\   <link rel="preconnect" href="https://fonts.googleapis.com">
+                            \\   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+                            \\   <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@300;400;500&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+                            \\   <style>
+
+val HTML_CSS: ref char = \\ *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+                         \\
+                         \\ :root {
+                         \\   --bg:        #0d0d0f;
+                         \\   --bg2:       #13131a;
+                         \\   --bg3:       #1a1a24;
+                         \\   --border:    #2a2a38;
+                         \\   --text:      #dcd8cc;
+                         \\   --text-dim:  #7a7670;
+                         \\   --accent:    #c9a96e;
+                         \\   --accent2:   #7eb8c9;
+                         \\   --accent3:   #a87fc0;
+                         \\   --code-bg:   #111118;
+                         \\   --code-text: #b8d4a8;
+                         \\   --serif:     'Instrument Serif', 'Libre Baskerville', Georgia, serif;
+                         \\   --mono:      'JetBrains Mono', 'Courier New', monospace;
+                         \\ }
+                         \\
+                         \\ html { scroll-behavior: smooth; }
+                         \\
+                         \\ body {
+                         \\   background: var(--bg);
+                         \\   color: var(--text);
+                         \\   font-family: var(--mono);
+                         \\   font-size: 15px;
+                         \\   font-weight: 300;
+                         \\   line-height: 1.9;
+                         \\   min-height: 100vh;
+                         \\ }
+                         \\
+                         \\ body::before {
+                         \\   content: '';
+                         \\   position: fixed;
+                         \\   inset: 0;
+                         \\   background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+                         \\   background-size: 256px 256px;
+                         \\   pointer-events: none;
+                         \\   z-index: 9999;
+                         \\   opacity: 0.35;
+                         \\ }
+                         \\
+                         \\ .site-header {
+                         \\   border-bottom: 1px solid var(--border);
+                         \\   padding: 1.4rem 0;
+                         \\   position: sticky;
+                         \\   top: 0;
+                         \\   background: rgba(13,13,15,0.88);
+                         \\   backdrop-filter: blur(12px);
+                         \\   -webkit-backdrop-filter: blur(12px);
+                         \\   z-index: 100;
+                         \\ }
+                         \\ .site-header-inner {
+                         \\   max-width: 740px;
+                         \\   margin: 0 auto;
+                         \\   padding: 0 2rem;
+                         \\   display: flex;
+                         \\   align-items: center;
+                         \\   gap: 1rem;
+                         \\ }
+                         \\ .site-logo {
+                         \\   font-size: 0.7rem;
+                         \\   letter-spacing: 0.25em;
+                         \\   text-transform: uppercase;
+                         \\   color: var(--accent);
+                         \\   text-decoration: none;
+                         \\   font-weight: 500;
+                         \\ }
+                         \\ .site-logo span {
+                         \\   color: var(--text-dim);
+                         \\   font-weight: 300;
+                         \\ }
+                         \\
+                         \\ .container {
+                         \\   max-width: 740px;
+                         \\   margin: 0 auto;
+                         \\   padding: 4rem 2rem 8rem;
+                         \\ }
+                         \\
+                         \\ .post-meta {
+                         \\   display: flex;
+                         \\   align-items: center;
+                         \\   gap: 0.75rem;
+                         \\   margin-bottom: 3rem;
+                         \\   font-size: 0.72rem;
+                         \\   letter-spacing: 0.12em;
+                         \\   text-transform: uppercase;
+                         \\   color: var(--text-dim);
+                         \\ }
+                         \\ .post-meta .dot { color: var(--border); }
+                         \\ .post-meta .tag {
+                         \\   color: var(--accent2);
+                         \\   border: 1px solid var(--accent2);
+                         \\   padding: 0.15em 0.55em;
+                         \\   font-size: 0.65rem;
+                         \\   letter-spacing: 0.1em;
+                         \\   opacity: 0.7;
+                         \\ }
+                         \\
+                         \\ h1, h2, h3, h4 {
+                         \\   font-family: var(--serif);
+                         \\   font-weight: 400;
+                         \\   letter-spacing: -0.01em;
+                         \\   line-height: 1.25;
+                         \\   color: #f0ece2;
+                         \\ }
+                         \\ h1 {
+                         \\   font-size: clamp(2.1rem, 5vw, 3rem);
+                         \\   margin-bottom: 0.35em;
+                         \\ }
+                         \\ h2 {
+                         \\   font-size: 1.45rem;
+                         \\   margin-top: 3.2rem;
+                         \\   margin-bottom: 0.9rem;
+                         \\   padding-bottom: 0.4rem;
+                         \\   border-bottom: 1px solid var(--border);
+                         \\ }
+                         \\ h3 {
+                         \\   font-size: 1.05rem;
+                         \\   margin-top: 2.4rem;
+                         \\   margin-bottom: 0.6rem;
+                         \\   color: var(--accent);
+                         \\   font-style: italic;
+                         \\ }
+                         \\
+                         \\ p {
+                         \\   margin-bottom: 1.35rem;
+                         \\   color: var(--text);
+                         \\   max-width: 68ch;
+                         \\ }
+                         \\
+                         \\ a {
+                         \\   color: var(--accent2);
+                         \\   text-decoration: none;
+                         \\   border-bottom: 1px solid transparent;
+                         \\   transition: border-color 0.2s, color 0.2s;
+                         \\ }
+                         \\ a:hover {
+                         \\   color: #aed8ea;
+                         \\   border-bottom-color: var(--accent2);
+                         \\ }
+                         \\
+                         \\ strong { color: #f0ece2; font-weight: 500; }
+                         \\ em     { font-family: var(--serif); font-style: italic; color: #d4c8b8; font-size: 1.05em; }
+                         \\
+                         \\ code {
+                         \\   font-family: var(--mono);
+                         \\   font-size: 0.85em;
+                         \\   background: var(--code-bg);
+                         \\   color: var(--code-text);
+                         \\   padding: 0.15em 0.45em;
+                         \\   border: 1px solid var(--border);
+                         \\   border-radius: 2px;
+                         \\ }
+                         \\
+                         \\ pre {
+                         \\   background: var(--code-bg);
+                         \\   border: 1px solid var(--border);
+                         \\   border-left: 3px solid var(--accent3);
+                         \\   padding: 1.5rem 1.75rem;
+                         \\   margin: 2rem 0;
+                         \\   overflow-x: auto;
+                         \\   position: relative;
+                         \\ }
+                         \\ pre::before {
+                         \\   content: attr(data-lang);
+                         \\   position: absolute;
+                         \\   top: 0.6rem;
+                         \\   right: 1rem;
+                         \\   font-size: 0.6rem;
+                         \\   letter-spacing: 0.15em;
+                         \\   text-transform: uppercase;
+                         \\   color: var(--text-dim);
+                         \\ }
+                         \\ pre code {
+                         \\   background: none;
+                         \\   border: none;
+                         \\   padding: 0;
+                         \\   font-size: 0.82rem;
+                         \\   line-height: 1.65;
+                         \\   color: var(--code-text);
+                         \\ }
+                         \\
+                         \\ blockquote {
+                         \\   border-left: 2px solid var(--accent);
+                         \\   padding: 0.8rem 1.5rem;
+                         \\   margin: 2rem 0;
+                         \\   background: var(--bg2);
+                         \\   font-family: var(--serif);
+                         \\   font-style: italic;
+                         \\   font-size: 1.05rem;
+                         \\   color: #c8c0ae;
+                         \\ }
+                         \\ blockquote p { margin-bottom: 0; }
+                         \\
+                         \\ ul {
+                         \\   list-style: none;
+                         \\   margin: 0 0 1.35rem 0;
+                         \\   padding: 0;
+                         \\ }
+                         \\ ul li {
+                         \\   padding-left: 1.4rem;
+                         \\   position: relative;
+                         \\   margin-bottom: 0.35rem;
+                         \\ }
+                         \\ ul li::before {
+                         \\   content: '–';
+                         \\   position: absolute;
+                         \\   left: 0;
+                         \\   color: var(--accent);
+                         \\ }
+                         \\
+                         \\ hr {
+                         \\   border: none;
+                         \\   border-top: 1px solid var(--border);
+                         \\   margin: 3.5rem 0;
+                         \\   position: relative;
+                         \\ }
+                         \\ hr::after {
+                         \\   content: '◆';
+                         \\   position: absolute;
+                         \\   top: 50%;
+                         \\   left: 50%;
+                         \\   transform: translate(-50%, -50%);
+                         \\   background: var(--bg);
+                         \\   color: var(--border);
+                         \\   padding: 0 0.75rem;
+                         \\   font-size: 0.55rem;
+                         \\ }
+                         \\
+                         \\ .footer {
+                         \\   margin-top: 6rem;
+                         \\   padding-top: 2rem;
+                         \\   border-top: 1px solid var(--border);
+                         \\   font-size: 0.7rem;
+                         \\   letter-spacing: 0.1em;
+                         \\   text-transform: uppercase;
+                         \\   color: var(--text-dim);
+                         \\ }
+                         \\
+                         \\ @keyframes fadeUp {
+                         \\   from { opacity: 0; transform: translateY(18px); }
+                         \\   to   { opacity: 1; transform: translateY(0); }
+                         \\ }
+                         \\ .container > * {
+                         \\   animation: fadeUp 0.55s ease both;
+                         \\ }
+                         \\ .container > *:nth-child(1) { animation-delay: 0.05s; }
+                         \\ .container > *:nth-child(2) { animation-delay: 0.12s; }
+                         \\ .container > *:nth-child(3) { animation-delay: 0.19s; }
+                         \\ .container > *:nth-child(4) { animation-delay: 0.26s; }
+                         \\ .container > *:nth-child(5) { animation-delay: 0.33s; }
+                         \\ .container > *:nth-child(n+6) { animation-delay: 0.38s; }
+
+val HTML_HEAD_3: ref char = \\ </style>
+                            \\ </head>
+                            \\ <body>
+                            \\   <header class="site-header">
+                            \\   </header>
+                            \\   <div class="container">
+                            \\     <div class="post-meta">
+                            \\       <span class="tag">devlog</span>
+                            \\       <span class="dot">·</span>
+
+val HTML_HEAD_4: ref char = \\     </div>
+
+val HTML_FOOT: ref char   = \\     <footer class="footer">generated with <a href="https://github.com/navid-m/md2html">md2html</a></footer>
+                            \\   </div>
+                            \\ </body>
+                            \\ </html>
+
+/// Global output file pointer (stdout by default)
+val g_outfp: mut ref void = 0 as ref void
+
+/// Write a C string to output
+fn emit_cstr(s: ref char) void = {
+    pre { s_not_null: s != 0 as ref char }
+    val l: i64 = string.len_raw(s)
+    if l <= 0 {
+        return
+    }
+    if g_outfp == 0 as ref void {
+        trust @printf("{s}", {s})
+    } else {
+        trust fwrite(s as ref void, 1 as usize, l as usize, g_outfp)
+    }
+}
+
+/// Write a heap String to output
+fn emit(s: ref void) void = {
+    pre { s_not_null: s != 0 as ref void }
+    val raw: ref char = trust string.cstr(s)
+    emit_cstr(raw)
+}
+
+/// Escape some text to HTML
+fn html_escape(src: ref char) ref void = {
+    pre { src_not_null: src != 0 as ref char }
+    val sb: ref void = string.StringBuilder.new()
+    val i: mut i64 = 0
+    for {
+        val ob = string.byte_at(src, i)
+        match ob {
+            none   => { break }
+            some c => {
+                if c == 60 {  // '<'
+                    string.StringBuilder.append_cstr(sb, "&lt;")
+                } elif c == 62 { // '>'
+                    string.StringBuilder.append_cstr(sb, "&gt;")
+                } elif c == 38 { // '&'
+                    string.StringBuilder.append_cstr(sb, "&amp;")
+                } elif c == 34 { // '"'
+                    string.StringBuilder.append_cstr(sb, "&quot;")
+                } else {
+                    string.StringBuilder.append_char(sb, c)
+                }
+            }
+        }
+        i++
+    }
+    val result: ref void = string.StringBuilder.build(sb)
+    string.StringBuilder.free(sb)
+    return result
+}
+
+fn render_inline(src: ref char) ref void = {
+    pre { src_not_null: src != 0 as ref char }
+    val sb: ref void = string.StringBuilder.new()
+    val len: i64 = string.len_raw(src)
+    val i: mut i64 = 0
+
+    for {
+        if i >= len { break }
+
+        val c0b = string.byte_at(src, i)
+        val c0: mut u8 = 0
+        match c0b {
+            none   => { break }
+            some v => { c0 = v }
+        }
+
+        if c0 == 42 {  // '*'
+            val c1b = string.byte_at(src, i + 1)
+            val c1: mut u8 = 0
+            match c1b {
+                none   => { c1 = 0 }
+                some v => { c1 = v }
+            }
+            if c1 == 42 {
+                val j: mut i64 = i + 2
+                val found_close: mut i64 = 0
+                for {
+                    if j >= len { break }
+                    val ab = string.byte_at(src, j)
+                    val a: mut u8 = 0
+                    match ab {
+                        none   => { break }
+                        some v => { a = v }
+                    }
+                    if a == 42 {
+                        val bb = string.byte_at(src, j + 1)
+                        val b: mut u8 = 0
+                        match bb {
+                            none   => { b = 0 }
+                            some v => { b = v }
+                        }
+                        if b == 42 {
+                            found_close = j
+                            break
+                        }
+                    }
+                    j = j + 1
+                }
+                if found_close != 0 {
+                    val inner: ref char = trust string.substr(src, i + 2, found_close - (i + 2))
+                    val escaped: ref void = html_escape(inner)
+                    trust @free(inner as ref void)
+                    string.StringBuilder.append_cstr(sb, "<strong>")
+                    string.StringBuilder.append(sb, escaped)
+                    string.StringBuilder.append_cstr(sb, "</strong>")
+                    trust @free(escaped)
+                    i = found_close + 2
+                } else {
+                    string.StringBuilder.append_char(sb, c0)
+                    i++
+                }
+            } else {
+                val j: mut i64 = i + 1
+                val found_close: mut i64 = 0
+                for {
+                    if j >= len { break }
+                    val ab = string.byte_at(src, j)
+                    val a: mut u8 = 0
+                    match ab {
+                        none   => { break }
+                        some v => { a = v }
+                    }
+                    if a == 42 {
+                        found_close = j
+                        break
+                    }
+                    j = j + 1
+                }
+                if found_close != 0 {
+                    val inner: ref char = trust string.substr(src, i + 1, found_close - (i + 1))
+                    val escaped: ref void = html_escape(inner)
+                    trust @free(inner as ref void)
+                    string.StringBuilder.append_cstr(sb, "<em>")
+                    string.StringBuilder.append(sb, escaped)
+                    string.StringBuilder.append_cstr(sb, "</em>")
+                    trust @free(escaped)
+                    i = found_close + 1
+                } else {
+                    string.StringBuilder.append_char(sb, c0)
+                    i++
+                }
+            }
+        } elif c0 == 96 {  // '`' inline code
+            val j: mut i64 = i + 1
+            val found_close: mut i64 = 0
+            for {
+                if j >= len { break }
+                val ab = string.byte_at(src, j)
+                val a: mut u8 = 0
+                match ab {
+                    none   => { break }
+                    some v => { a = v }
+                }
+                if a == 96 {
+                    found_close = j
+                    break
+                }
+                j = j + 1
+            }
+            if found_close != 0 {
+                val inner: ref char = trust string.substr(src, i + 1, found_close - (i + 1))
+                val escaped: ref void = html_escape(inner)
+                trust @free(inner as ref void)
+                string.StringBuilder.append_cstr(sb, "<code>")
+                string.StringBuilder.append(sb, escaped)
+                string.StringBuilder.append_cstr(sb, "</code>")
+                trust @free(escaped)
+                i = found_close + 1
+            } else {
+                string.StringBuilder.append_char(sb, c0)
+                i++
+            }
+        } elif c0 == 91 { // '[' — possible link [text](url)
+            val j: mut i64 = i + 1
+            val close_bracket: mut i64 = -1
+            for {
+                if j >= len { break }
+                val ab = string.byte_at(src, j)
+                val a: mut u8 = 0
+                match ab {
+                    none   => { break }
+                    some v => { a = v }
+                }
+                if a == 93 {  // ']'
+                    close_bracket = j
+                    break
+                }
+                j = j + 1
+            }
+            if close_bracket != -1 {
+                val after_b = string.byte_at(src, close_bracket + 1)
+                val after: mut u8 = 0
+                match after_b {
+                    none   => { after = 0 }
+                    some v => { after = v }
+                }
+                if after == 40 { // '('
+                    val k: mut i64 = close_bracket + 2
+                    val close_paren: mut i64 = -1
+                    for {
+                        if k >= len { break }
+                        val ab = string.byte_at(src, k)
+                        val a: mut u8 = 0
+                        match ab {
+                            none   => { break }
+                            some v => { a = v }
+                        }
+                        if a == 41 { // ')'
+                            close_paren = k
+                            break
+                        }
+                        k = k + 1
+                    }
+                    if close_paren != -1 {
+                        val link_text: ref char = trust string.substr(src, i + 1, close_bracket - (i + 1))
+                        val link_url:  ref char = trust string.substr(src, close_bracket + 2, close_paren - (close_bracket + 2))
+                        val escaped_text: ref void = html_escape(link_text)
+                        val escaped_url:  ref void = html_escape(link_url)
+                        trust @free(link_text as ref void)
+                        trust @free(link_url as ref void)
+                        string.StringBuilder.append_cstr(sb, "<a href=\"")
+                        string.StringBuilder.append(sb, escaped_url)
+                        string.StringBuilder.append_cstr(sb, "\">")
+                        string.StringBuilder.append(sb, escaped_text)
+                        string.StringBuilder.append_cstr(sb, "</a>")
+                        trust @free(escaped_text)
+                        trust @free(escaped_url)
+                        i = close_paren + 1
+                    } else {
+                        val esc: ref void = html_escape_char(c0)
+                        string.StringBuilder.append(sb, esc)
+                        trust @free(esc)
+                        i++
+                    }
+                } else {
+                    val esc: ref void = html_escape_char(c0)
+                    string.StringBuilder.append(sb, esc)
+                    trust @free(esc)
+                    i++
+                }
+            } else {
+                val esc: ref void = html_escape_char(c0)
+                string.StringBuilder.append(sb, esc)
+                trust @free(esc)
+                i++
+            }
+        } else {
+            if c0 == 60 {
+                string.StringBuilder.append_cstr(sb, "&lt;")
+            } elif c0 == 62 {
+                string.StringBuilder.append_cstr(sb, "&gt;")
+            } elif c0 == 38 {
+                string.StringBuilder.append_cstr(sb, "&amp;")
+            } else {
+                string.StringBuilder.append_char(sb, c0)
+            }
+            i++
+        }
+    }
+
+    val result: ref void = string.StringBuilder.build(sb)
+    string.StringBuilder.free(sb)
+    return result
+}
+
+/// Escape a single byte as HTML (returns heap String)
+fn html_escape_char(c: u8) ref void = {
+    val sb: ref void = string.StringBuilder.new()
+    if c == 60 {
+        string.StringBuilder.append_cstr(sb, "&lt;")
+    } elif c == 62 {
+        string.StringBuilder.append_cstr(sb, "&gt;")
+    } elif c == 38 {
+        string.StringBuilder.append_cstr(sb, "&amp;")
+    } elif c == 34 {
+        string.StringBuilder.append_cstr(sb, "&quot;")
+    } else {
+        string.StringBuilder.append_char(sb, c)
+    }
+    val r: ref void = string.StringBuilder.build(sb)
+    string.StringBuilder.free(sb)
+    return r
+}
+
+/// Returns number of leading '#' chars (1–3), or 0 if not a heading.
+fn heading_level(line: ref char) i32 = {
+    pre { line_not_null: line != 0 as ref char }
+    val c0b = string.byte_at(line, 0)
+    val c0: mut u8 = 0
+    match c0b {
+        none   => { return 0 }
+        some v => { c0 = v }
+    }
+    if c0 != 35 { return 0 } // '#'
+
+    val c1b = string.byte_at(line, 1)
+    val c1: mut u8 = 0
+    match c1b {
+        none   => { return 0 }
+        some v => { c1 = v }
+    }
+    if c1 == 32 { return 1 }  // "# text"
+    if c1 != 35 { return 0 }
+
+    val c2b = string.byte_at(line, 2)
+    val c2: mut u8 = 0
+    match c2b {
+        none   => { return 0 }
+        some v => { c2 = v }
+    }
+    if c2 == 32 { return 2 }  // "## text"
+    if c2 != 35 { return 0 }
+
+    val c3b = string.byte_at(line, 3)
+    val c3: mut u8 = 0
+    match c3b {
+        none   => { return 0 }
+        some v => { c3 = v }
+    }
+    if c3 == 32 { return 3 }  // "### text"
+    return 0
+}
+
+/// Returns true if line is a horizontal rule (--- or ***)
+fn is_hr(line: ref char) bool = {
+    pre { line_not_null: line != 0 as ref char }
+    val l: i64 = string.len_raw(line)
+    if l < 3 { return false }
+    val c0b = string.byte_at(line, 0)
+    val c0: mut u8 = 0
+    match c0b {
+        none   => { return false }
+        some v => { c0 = v }
+    }
+    if c0 != 45 { return false }  // '-'
+    val c1b = string.byte_at(line, 1)
+    val c1: mut u8 = 0
+    match c1b {
+        none   => { return false }
+        some v => { c1 = v }
+    }
+    if c1 != 45 { return false }
+    val c2b = string.byte_at(line, 2)
+    val c2: mut u8 = 0
+    match c2b {
+        none   => { return false }
+        some v => { c2 = v }
+    }
+    if c2 != 45 { return false }
+    return true
+}
+
+/// Returns true if line starts with "- " (unordered list item)
+fn is_list_item(line: ref char) bool = {
+    pre { line_not_null: line != 0 as ref char }
+    val c0b = string.byte_at(line, 0)
+    val c0: mut u8 = 0
+    match c0b {
+        none   => { return false }
+        some v => { c0 = v }
+    }
+    if c0 != 45 { return false }  // '-'
+    val c1b = string.byte_at(line, 1)
+    val c1: mut u8 = 0
+    match c1b {
+        none   => { return false }
+        some v => { c1 = v }
+    }
+    return c1 == 32
+}
+
+/// Returns true if line starts with "> "
+fn is_blockquote(line: ref char) bool = {
+    pre { line_not_null: line != 0 as ref char }
+    val c0b = string.byte_at(line, 0)
+    val c0: mut u8 = 0
+    match c0b {
+        none   => { return false }
+        some v => { c0 = v }
+    }
+    if c0 != 62 { return false }  // '>'
+    val c1b = string.byte_at(line, 1)
+    val c1: mut u8 = 0
+    match c1b {
+        none   => { return true }   // lone '>' is fine
+        some v => { c1 = v }
+    }
+    return c1 == 32
+}
+
+/// Returns true if line starts with "```"
+fn is_fence(line: ref char) bool = {
+    pre { line_not_null: line != 0 as ref char }
+    return string.rchar_starts_with(line, "```")
+}
+
+/// Returns true if line is blank (empty or only whitespace)
+fn is_blank(line: ref char) bool = {
+    pre { line_not_null: line != 0 as ref char }
+    val l: i64 = string.len_raw(line)
+    if l == 0 { return true }
+    val i: mut i64 = 0
+    for {
+        if i >= l { break }
+        val cb = string.byte_at(line, i)
+        val c: mut u8 = 0
+        match cb {
+            none   => { break }
+            some v => { c = v }
+        }
+        if c != 32 {
+            if c != 9 {
+                if c != 13 {
+                    return false
+                }
+            }
+        }
+        i++
+    }
+    return true
+}
+
+fn read_file_to_str(path: ref char) ref char = {
+    pre { path_not_null: path != 0 as ref char }
+    val fp: ref void = trust fopen(path, "r")
+    if fp == 0 as ref void {
+        trust @printf("md2html: cannot open file: {s}\n", {path})
+        trust exit(1)
+        return 0 as ref char
+    }
+    trust fseek(fp, 0, 2) 
+    val file_size: i64 = trust ftell(fp)
+    trust rewind(fp)
+    val buf: ref void = @alloc(file_size + 2)
+    trust fread(buf, 1 as usize, file_size as usize, fp)
+    trust @store8(@ptradd(buf, file_size), 0)
+    trust fclose(fp)
+    return buf as ref char
+}
+
+fn split_lines(text: ref char) list[ref char] = {
+    pre { text_not_null: text != 0 as ref char }
+    val lines: mut list[ref char] = []
+    val len: i64 = string.len_raw(text)
+    val i: mut i64 = 0
+    val seg_start: mut i64 = 0
+    for {
+        if i > len { break }
+        val c: mut u8 = 0
+        if i < len {
+            val cb = string.byte_at(text, i)
+            match cb {
+                none   => { break }
+                some v => { c = v }
+            }
+        }
+        if c == 10 || i == len {  // '\n'
+            val seg_end: mut i64 = i
+            if seg_end > seg_start {
+                val last_b = string.byte_at(text, seg_end - 1)
+                match last_b {
+                    none   => { }
+                    some v => {
+                        if v == 13 {  // '\r'
+                            seg_end = seg_end - 1
+                        }
+                    }
+                }
+            }
+            val seg_len: i64 = seg_end - seg_start
+            val line: ref char = trust string.substr(text, seg_start, seg_len)
+            @append(lines, line)
+            seg_start = i + 1
+        }
+        i++
+    }
+    return lines
+}
+
+val STATE_NORMAL:    i32 = 0
+val STATE_UL:        i32 = 1
+val STATE_BLOCKQUOTE:i32 = 2
+val STATE_PRE:       i32 = 3
+val STATE_PARA:      i32 = 4
+
+fn close_block(state: i32) void = {
+    if state == STATE_UL        { emit_cstr("</ul>\n") }
+    elif state == STATE_BLOCKQUOTE { emit_cstr("</blockquote>\n") }
+    elif state == STATE_PARA    { emit_cstr("</p>\n") }
+}
+
+fn convert(lines: list[ref char]) void = {
+    val n: usize = @len(lines)
+    val state: mut i32 = STATE_NORMAL
+    val first_h1_seen: mut i32 = 0
+    val i: mut usize = 0
+
+    for {
+        if i >= n { break }
+
+        val line_opt = @get(lines, i)
+        val line: mut ref char = 0 as ref char
+        match line_opt {
+            none   => { break }
+            some v => { line = v }
+        }
+
+        if is_fence(line) {
+            if state == STATE_PRE {
+                emit_cstr("</code></pre>\n")
+                state = STATE_NORMAL
+            } else {
+                close_block(state)
+                state = STATE_PRE
+                val lang: ref char = trust string.substr(line, 3, string.len_raw(line) - 3)
+                val lang_esc: ref void = html_escape(lang)
+                trust @free(lang as ref void)
+                emit_cstr("<pre data-lang=\"")
+                emit(lang_esc)
+                emit_cstr("\"><code>")
+                trust @free(lang_esc)
+            }
+            i++
+        } elif state == STATE_PRE {
+            val esc: ref void = html_escape(line)
+            emit(esc)
+            trust @free(esc)
+            emit_cstr("\n")
+            i++
+        } elif is_blank(line) {
+            close_block(state)
+            state = STATE_NORMAL
+            i++
+        } elif is_hr(line) {
+            close_block(state)
+            state = STATE_NORMAL
+            emit_cstr("<hr>\n")
+            i++
+        } else {
+            val hlevel: i32 = heading_level(line)
+            if hlevel > 0 {
+                close_block(state)
+                state = STATE_NORMAL
+                // Strip leading "# " / "## " / "### "
+                val skip: i32 = hlevel + 1
+                val text_start: ref char = trust string.substr(line, skip as i64, string.len_raw(line) - (skip as i64))
+                val rendered: ref void = render_inline(text_start)
+                trust @free(text_start as ref void)
+                if hlevel == 1 {
+                    if first_h1_seen == 0 {
+                        first_h1_seen = 1
+                        emit_cstr("<h1>")
+                        emit(rendered)
+                        emit_cstr("</h1>\n")
+                    } else {
+                        emit_cstr("<h1>")
+                        emit(rendered)
+                        emit_cstr("</h1>\n")
+                    }
+                } elif hlevel == 2 {
+                    emit_cstr("<h2>")
+                    emit(rendered)
+                    emit_cstr("</h2>\n")
+                } else {
+                    emit_cstr("<h3>")
+                    emit(rendered)
+                    emit_cstr("</h3>\n")
+                }
+                trust @free(rendered)
+                i++
+            } elif is_list_item(line) {
+                if state != STATE_UL {
+                    close_block(state)
+                    emit_cstr("<ul>\n")
+                    state = STATE_UL
+                }
+                // Skip "- "
+                val text_start: ref char = trust string.substr(line, 2, string.len_raw(line) - 2)
+                val rendered: ref void = render_inline(text_start)
+                trust @free(text_start as ref void)
+                emit_cstr("<li>")
+                emit(rendered)
+                emit_cstr("</li>\n")
+                trust @free(rendered)
+                i++
+            } elif is_blockquote(line) {
+                if state != STATE_BLOCKQUOTE {
+                    close_block(state)
+                    emit_cstr("<blockquote>\n<p>")
+                    state = STATE_BLOCKQUOTE
+                }
+                val ll: i64 = string.len_raw(line)
+                val skip: i64 = 2
+                val text_start: ref char = trust string.substr(line, skip, ll - skip)
+                val rendered: ref void = render_inline(text_start)
+                trust @free(text_start as ref void)
+                emit(rendered)
+                emit_cstr(" ")
+                trust @free(rendered)
+                i++
+            } else {
+                if state != STATE_PARA {
+                    close_block(state)
+                    emit_cstr("<p>")
+                    state = STATE_PARA
+                } else {
+                    emit_cstr(" ")
+                }
+                val rendered: ref void = render_inline(line)
+                emit(rendered)
+                trust @free(rendered)
+                i++
+            }
+        }
+    }
+
+    close_block(state)
+}
+
+fn make_title(path: ref char) ref char = {
+    pre { path_not_null: path != 0 as ref char }
+    val l: i64 = string.len_raw(path)
+    val base_start: mut i64 = 0
+    val k: mut i64 = l - 1
+    for {
+        if k < 0 { break }
+        val cb = string.byte_at(path, k)
+        val c: mut u8 = 0
+        match cb {
+            none   => { break }
+            some v => { c = v }
+        }
+        if c == 47 { // '/'
+            base_start = k + 1
+            break
+        }
+        k = k - 1
+    }
+    // strip .md suffix
+    val base_end: mut i64 = l
+    if string.rchar_ends_with(path, ".md") {
+        base_end = l - 3
+    }
+    val base_len: i64 = base_end - base_start
+    if base_len <= 0 {
+        return trust string.substr(path, 0, l)
+    }
+    val base: ref char = trust string.substr(path, base_start, base_len)
+    // replace '-' with space for a readable title
+    val bl: i64 = string.len_raw(base)
+    val sb: ref void = string.StringBuilder.new()
+    val j: mut i64 = 0
+    for {
+        if j >= bl { break }
+        val cb = string.byte_at(base, j)
+        val c: mut u8 = 0
+        match cb {
+            none   => { break }
+            some v => { c = v }
+        }
+        if c == 45 {  // '-'
+            string.StringBuilder.append_char(sb, 32)  // ' '
+        } else {
+            string.StringBuilder.append_char(sb, c)
+        }
+        j = j + 1
+    }
+    trust @free(base as ref void)
+    val result: ref void = string.StringBuilder.build(sb)
+    string.StringBuilder.free(sb)
+    val r: ref char = trust string.cstr(result)
+    return r
+}
+val fs = use("std/fs")
+
+/// Extract leading integer from a filename like "3 - foo.md". Returns -1 if none.
+fn parse_leading_num(name: ref char) i64 = {
+    val len: i64 = string.len_raw(name)
+    if len == 0 { return -1 }
+    val result: mut i64 = 0
+    val found: mut i32 = 0
+    val i: mut i64 = 0
+    for {
+        if i >= len { break }
+        val cb = string.byte_at(name, i)
+        val c: mut u8 = 0
+        match cb {
+            none   => { break }
+            some v => { c = v }
+        }
+        val is_dig: i32 = trust isdigit(c as i32)
+        if is_dig != 0 {
+            result = result * 10 + ((c as i64) - 48)
+            found = 1
+        } else {
+            break
+        }
+        i++
+    }
+    if found == 0 { return -1 }
+    return result
+}
+
+/// Get mtime of a file as a heap string like "2024-01-15". Caller frees.
+fn file_date(path: ref char) ref char = {
+    pre { path_not_null: path != 0 as ref char }
+    val st: ref Stat = @alloc(@sizeof(Stat)) as ref Stat
+    val r: i32 = trust stat(path, st as ref void)
+    if r != 0 {
+        trust @free(st)
+        @puts("before substr")
+        return trust string.substr("unknown", 0, 7)
+    }
+    
+    val mtime: i64 = st.st_mtime
+    val tm: ref void = trust localtime(@addr(mtime))
+    val buf: ref char = @alloc(32) as ref char
+    trust strftime(buf, 32 as usize, "%B %d, %Y", tm)
+    trust @free(st)
+    return buf
+}
+
+/// Insertion-sort a list of ref char by their leading number (ascending).
+fn sort_by_num(files: list[ref char]) list[ref char] = {
+    val n: usize = @len(files)
+    val sorted: mut list[ref char] = []
+    val ci: mut usize = 0
+    for {
+        if ci >= n { break }
+        val fo = @get(files, ci)
+        match fo {
+            none   => { }
+            some v => { @append(sorted, v) }
+        }
+        ci++
+    }
+
+    val si: mut usize = 1
+    for {
+        if si >= n { break }
+        val ko = @get(sorted, si)
+        val key: mut ref char = 0 as ref char
+        match ko {
+            none   => { si++ }
+            some v => { key = v }
+        }
+        val knum: i64 = parse_leading_num(key)
+        val j: mut i64 = (si as i64) - 1
+        for {
+            if j < 0 { break }
+            val jo = @get(sorted, j as usize)
+            val jval: mut ref char = 0 as ref char
+            match jo {
+                none   => { break }
+                some v => { jval = v }
+            }
+            val jnum: i64 = parse_leading_num(jval)
+            if jnum <= knum { break }
+            @set(sorted, (j + 1) as usize, jval)
+            j = j - 1
+        }
+        @set(sorted, (j + 1) as usize, key)
+        si++
+    }
+
+    return sorted
+}
+
+fn ends_with_md(name: ref char) bool = {
+    return string.rchar_ends_with(name, ".md")
+}
+
+fn run_all(out_path: ref char) void = {
+    if out_path != 0 as ref char {
+        val fp: ref void = trust fopen(out_path, "w")
+        if fp == 0 as ref void {
+            trust @printf("md2html: cannot open output: {s}\n", {out_path})
+            trust exit(1)
+        }
+        g_outfp = fp
+    }
+
+    val cwd_opt = fs.cwd()
+    val cwd_str: mut ref char = "."
+    match cwd_opt {
+        none   => { }
+        some v => { cwd_str = v }
+    }
+
+    val entries_opt = trust fs.walk_dir(cwd_str)
+    val all_md: mut list[ref char] = []
+
+    match entries_opt {
+        none => {
+            trust @printf("md2html: cannot read directory\n")
+            trust exit(1)
+        }
+        some entries => {
+            val ei: mut usize = 0
+            val en: usize = @len(entries)
+            for {
+                if ei >= en { break }
+                val eo = @get(entries, ei)
+                match eo {
+                    none   => { }
+                    some name => {
+                        if ends_with_md(name) {
+                            val num: i64 = parse_leading_num(name)
+                            if num >= 0 {
+                                @append(all_md, name)
+                            }
+                        }
+                    }
+                }
+                ei++
+            }
+        }
+    }
+
+    val sorted: list[ref char] = sort_by_num(all_md)
+    val total: usize = @len(sorted)
+
+    emit_cstr(HTML_HEAD_1)
+    emit_cstr("devlog")
+    emit_cstr(HTML_HEAD_2)
+    emit_cstr(HTML_CSS)
+    emit_cstr(HTML_HEAD_3)
+    emit_cstr("devlog")
+    emit_cstr(HTML_HEAD_4)
+
+    val ri: mut i64 = (total as i64) - 1
+    for {
+        if ri < 0 { break }
+        val fo = @get(sorted, ri as usize)
+        match fo {
+            none   => { ri = ri - 1 }
+            some fname => {
+                val cwd_len: i64 = string.len_raw(cwd_str)
+                val fname_len: i64 = string.len_raw(fname)
+                val path_buf: ref char = @alloc(cwd_len + fname_len + 2) as ref char
+                trust @memcpy(path_buf as ref void, cwd_str as ref void, cwd_len)
+                trust @store8(@ptradd(path_buf as ref void, cwd_len), 47)  // '/'
+                trust @memcpy(@ptradd(path_buf as ref void, cwd_len + 1), fname as ref void, fname_len)
+                trust @store8(@ptradd(path_buf as ref void, cwd_len + fname_len + 1), 0)
+
+                val date_str: ref char = file_date(path_buf)
+
+                emit_cstr("<hr>\n<div class=\"post-meta\"><span class=\"tag\">entry</span><span class=\"dot\">·</span>")
+                emit_cstr(date_str)
+                emit_cstr("</div>\n")
+                trust @free(date_str)
+
+                val text: ref char = read_file_to_str(path_buf)
+                val lines: list[ref char] = split_lines(text)
+                convert(lines)
+
+                val nl: usize = @len(lines)
+                val li: mut usize = 0
+                for {
+                    if li >= nl { break }
+                    val lo = @get(lines, li)
+                    match lo {
+                        none   => { }
+                        some v => { trust @free(v as ref void) }
+                    }
+                    li++
+                }
+                trust @free(text as ref void)
+                trust @free(path_buf as ref void)
+            }
+        }
+        ri = ri - 1
+    }
+
+    emit_cstr(HTML_FOOT)
+
+    if g_outfp != 0 as ref void {
+        trust fflush(g_outfp)
+        trust fclose(g_outfp)
+    }
+}
+
+pub fn main() void = {
+    val args: list[ref char] = @args()
+    val argc: usize = @len(args)
+
+    if argc < 2 {
+        @puts("usage: md2html <input.md> [output.html]\n")
+        @puts("       md2html --all [output.html]\n")
+        trust exit(1)
+    }
+
+    val arg1_opt = @get(args, 1)
+    val arg1: mut ref char = 0 as ref char
+    match arg1_opt {
+        none   => { trust exit(1) }
+        some v => { arg1 = v }
+    }
+
+    if string.rchar_starts_with(arg1, "--all") {
+        val out_path: mut ref char = "out.html"
+        if argc >= 3 {
+            val op = @get(args, 2)
+            match op {
+                none   => { }
+                some v => { out_path = v }
+            }
+        }
+        run_all(out_path)
+        return
+    }
+
+    val input_path: ref char = arg1
+
+    if argc >= 3 {
+        val out_path_opt = @get(args, 2)
+        match out_path_opt {
+            none   => { }
+            some p => {
+                val fp: ref void = trust fopen(p, "w")
+                if fp == 0 as ref void {
+                    trust @printf("md2html: cannot open output file: {s}\n", {p})
+                    trust exit(1)
+                }
+                g_outfp = fp
+            }
+        }
+    }
+
+    val text: ref char = read_file_to_str(input_path)
+    val lines: list[ref char] = split_lines(text)
+    val title_raw: ref char = make_title(input_path)
+    val title_esc: ref void = html_escape(title_raw)
+    trust @free(title_raw as ref void)
+
+    emit_cstr(HTML_HEAD_1)
+    emit(title_esc)
+    emit_cstr(HTML_HEAD_2)
+    emit_cstr(HTML_CSS)
+    emit_cstr(HTML_HEAD_3)
+    emit(title_esc)
+    emit_cstr(HTML_HEAD_4)
+    trust @free(title_esc)
+
+    convert(lines)
+    emit_cstr(HTML_FOOT)
+
+    if g_outfp != 0 as ref void {
+        trust fflush(g_outfp)
+        trust fclose(g_outfp)
+    }
+
+    val nl: usize = @len(lines)
+    val li: mut usize = 0
+    for {
+        if li >= nl { break }
+        val lo = @get(lines, li)
+        match lo {
+            none   => { }
+            some v => { trust @free(v as ref void) }
+        }
+        li = li + 1
+    }
+
+    trust @free(text as ref void)
+}
