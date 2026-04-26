@@ -1471,6 +1471,9 @@ fn gen_builtin(ctx: ref CCtx, expr: ref parser.Node) ref char! = {
     if str.rchar_cmp(bname, "get") == 0 { val l: ref char = get_arg(ctx, args, 0) val i: ref char = get_arg(ctx, args, 1)
         val buf: ref char = @alloc(256) as ref char
         @snprintf(buf, 256, "sx__rt_get((void*)(intptr_t)({s}),(int64_t)({s}))", {l, i}) return cc_expr_track(ctx, buf) }
+    if str.rchar_cmp(bname, "set") == 0 { val l: ref char = get_arg(ctx, args, 0) val i: ref char = get_arg(ctx, args, 1) val v: ref char = get_arg(ctx, args, 2)
+        val buf: ref char = @alloc(512) as ref char
+        @snprintf(buf, 512, "((*(int64_t**)(intptr_t)({s}))[(int64_t)({s})]=(int64_t)({s}),0)", {l, i, v}) return cc_expr_track(ctx, buf) }
     if str.rchar_cmp(bname, "remove") == 0 { val l: ref char = get_arg(ctx, args, 0) val i: ref char = get_arg(ctx, args, 1)
         val buf: ref char = @alloc(256) as ref char
         @snprintf(buf, 256, "sx__rt_remove((void*)(intptr_t)({s}),(int64_t)({s}))", {l, i}) return cc_expr_track(ctx, buf) }
