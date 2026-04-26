@@ -5009,6 +5009,7 @@ fn translate_function_decl(text: ref char, current_dir: ref char, indent: i64, o
         append_comment_line(out, indent, trust @fmt("static prototype omitted: {s};", {signature}))
         return true
     }
+    if list_contains(ctx.extern_names, name) { return true }
     push_unique(ctx.extern_names, name)
     line = trust @fmt("extern (C) fn {s}({s}) {s}! = \"{s}\"", {name, params_text, return_type, name})
     append_line(out, indent, line)
