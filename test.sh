@@ -5,9 +5,7 @@ set -u
 SAMPLES_DIR="./samples"
 STD_DIR="./std"
 COMPILER="./spectre-dev"
-
 BOOTSTRAP_ONLY=0
-LLVM_ONLY=0
 
 total=0
 passed=0
@@ -18,9 +16,6 @@ for arg in "$@"; do
     case "$arg" in
         -bs)
             BOOTSTRAP_ONLY=1
-            ;;
-        -ll)
-            LLVM_ONLY=1
             ;;
     esac
 done
@@ -44,11 +39,7 @@ run_std_tests() {
             continue
         fi
 
-        if [ "$LLVM_ONLY" -eq 1 ]; then
-            "$COMPILER" "$file" --llvm --test > /dev/null 2>&1
-        else
-            "$COMPILER" "$file" --test > /dev/null 2>&1
-        fi
+        "$COMPILER" "$file" --test > /dev/null 2>&1
 
         status=$?
 
@@ -76,11 +67,7 @@ run_samples() {
 
         ((total++))
 
-        if [ "$LLVM_ONLY" -eq 1 ]; then
-            "$COMPILER" "$file" --llvm > /dev/null 2>&1
-        else
-            "$COMPILER" "$file" > /dev/null 2>&1
-        fi
+        "$COMPILER" "$file" > /dev/null 2>&1
 
         status=$?
 
@@ -103,34 +90,6 @@ run_samples() {
         fi
     done
 }
-
-if [ $LLVM_ONLY -eq 1 ]; then
-    echo "Running LLVM backend tests only..."
-    run_samples
-    echo
-    echo "LLVM std tests:"
-    run_std_tests
-    echo
-    echo "Self compilation tests:"
-    "$COMPILER" ./src/ast/lexer.sx --test --llvm
-    "$COMPILER" ./src/ast/parser.sx --test --llvm
-    "$COMPILER" ./src/ast/ast_printer.sx --test --llvm
-    "$COMPILER" ./src/codegen/llvm_codegen.sx --test --llvm
-    "$COMPILER" ./src/codegen/codegen.sx --test --llvm
-    "$COMPILER" ./src/module/module.sx --test --llvm
-    echo
-    echo "LLVM Test Summary:"
-    echo "Total tests : $total"
-    echo "Passed      : $passed"
-    echo "Failed      : $failed"
-    echo "Skipped     : $skipped"
-
-    if [ $failed -ne 0 ]; then
-        exit 1
-    fi
-
-    exit 0
-fi
 
 if [ $BOOTSTRAP_ONLY -eq 0 ]; then
 
