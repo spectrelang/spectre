@@ -5198,7 +5198,7 @@ fn gen_builtin(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
         val s: ref char = get_arg(ctx, args, 0)
         @snprintf(buf, 512, "    %%t{lld} =w call $puts(l {s})\n", {tmp, s})
         emit(ctx, buf)
-    } elif str.rchar_cmp(name, "printf") == 0 {
+    } elif str.rchar_cmp(name, "print") == 0 {
         val fmt: ref char = get_format_arg(ctx, args, 0)
         val call_buf2: ref char = @alloc(4096) as ref char
         val call_pos2: mut i64 = 0

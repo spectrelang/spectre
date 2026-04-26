@@ -30,7 +30,7 @@ pub fn main() void! = {
         }
         Pair a, b => { // Support for destructuring
             @puts("This is a pair of ints")
-            @printf("{d} {d}\n", {a, b})
+            @print("{d} {d}\n", {a, b})
         }
         else => {
             @puts("This is a raw string")

@@ -4,6 +4,6 @@ pub fn main() void = {
     val y = [12412, 123123, 12312312, 1212]
     val y_sorted = std.algorithms.sort[i32](y)
     for ys in y_sorted {
-        trust @printf("{d}\n", {ys})
+        trust @print("{d}\n", {ys})
     }
 }

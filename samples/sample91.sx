@@ -37,7 +37,7 @@ pub fn main() void = {
     val b = sum[ref char](words)
     val c = sum[Vec2](points)
 
-    trust @printf("sum = {d}\n", {a})
-    trust @printf("{s}\n", {b})
-    trust @printf("vec = ({f}, {f})\n", {c.x, c.y})
+    trust @print("sum = {d}\n", {a})
+    trust @print("{s}\n", {b})
+    trust @print("vec = ({f}, {f})\n", {c.x, c.y})
 }

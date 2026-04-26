@@ -345,7 +345,7 @@ fn chip8_emulateCycle(chip: mut ref Chip8) void = {
       chip.sp = chip.sp - 1
       chip.pc = get_stack(chip, chip.sp as usize) + 2
     } else {
-      trust @printf("Unknown opcode: 0x{X}\n", chip.opcode as u32)
+      trust @print("Unknown opcode: 0x{X}\n", chip.opcode as u32)
     }
   } elif opcode_high == 0x1000 {
     chip.pc = chip.opcode & 0x0FFF
@@ -444,7 +444,7 @@ fn chip8_emulateCycle(chip: mut ref Chip8) void = {
       set_v(chip, x, vx << 1)
       chip.pc = chip.pc + 2
     } else {
-      trust @printf("Unknown opcode: 0x{X}\n", chip.opcode as u32)
+      trust @print("Unknown opcode: 0x{X}\n", chip.opcode as u32)
     }
   } elif opcode_high == 0x9000 {
     val x: usize = ((chip.opcode & 0x0F00) >> 8) as usize
@@ -513,7 +513,7 @@ fn chip8_emulateCycle(chip: mut ref Chip8) void = {
         chip.pc = chip.pc + 2
       }
     } else {
-      trust @printf("Unknown opcode: 0x{X}\n", chip.opcode as u32)
+      trust @print("Unknown opcode: 0x{X}\n", chip.opcode as u32)
     }
   } elif opcode_high == 0xF000 {
     val x: usize = ((chip.opcode & 0x0F00) >> 8) as usize
@@ -580,10 +580,10 @@ fn chip8_emulateCycle(chip: mut ref Chip8) void = {
       chip.I = chip.I + (x_val as u16) + 1
       chip.pc = chip.pc + 2
     } else {
-      trust @printf("Unknown opcode: 0x{X}\n", chip.opcode as u32)
+      trust @print("Unknown opcode: 0x{X}\n", chip.opcode as u32)
     }
   } else {
-    trust @printf("Unimplemented opcode: 0x{X}\n", chip.opcode as u32)
+    trust @print("Unimplemented opcode: 0x{X}\n", chip.opcode as u32)
   }
 
   if chip.delay_timer > 0 { chip.delay_timer = chip.delay_timer - 1 }

@@ -298,7 +298,7 @@ test {
         none => { assert false }
         some content => {
             @puts("2.5")
-            trust @printf("content: {s}\n", {content})
+            trust @print("content: {s}\n", {content})
 
             trust stdio.print("{s} {d}\n", {content, str.compare(str.RChar(content), str.RChar("Hello, Spectre!"))})
             @puts("2.6")
@@ -400,7 +400,7 @@ test {
         
             for entry in entries {
                 count++
-                trust @printf("entry: '{s}'\n", {entry})
+                trust @print("entry: '{s}'\n", {entry})
         
                 if trust str.compare(str.RChar(entry), str.RChar("a.txt")) == 0 {
                     seen_a = 1
@@ -411,12 +411,12 @@ test {
         
                 val first: u8 = trust @load8(entry)
                 if first != 97 && first != 98 { 
-                    trust @printf("BAD ENTRY (wrong first char): '{s}'\n", {entry})
+                    trust @print("BAD ENTRY (wrong first char): '{s}'\n", {entry})
                     assert false
                 }
             }
         
-            trust @printf("count: {d}\n", {count})
+            trust @print("count: {d}\n", {count})
         
             assert count == 2
             assert seen_a == 1

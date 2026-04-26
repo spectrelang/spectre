@@ -411,7 +411,7 @@ pub fn cmd_ref() i32 = {
                 \\ }
                 \\
                 \\ pub fn greet(name: ref char) void = {
-                \\     @printf("Hello, %s!\n", name)
+                \\     @print("Hello, %s!\n", name)
                 \\ }
                 \\ 
                 \\ pub enum SomeError = { FailedToDoSomeThing, OrSomethingElse }
@@ -618,7 +618,7 @@ pub fn cmd_ref() i32 = {
                 \\ | `@capacity(list)`             | current capacity                         |
                 \\ | `@fmt(fmt, {args})`           | heap-allocate a formatted string         |
                 \\ | `@snprintf(buf, n, fmt, {})` | printf into a buffer                     |
-                \\ | `@printf(fmt, {args})`        | print to stdout                          |
+                \\ | `@print(fmt, {args})`        | print to stdout                          |
                 \\ | `@args()`                     | command-line arguments as `list[ref char]` |
                 \\
             )

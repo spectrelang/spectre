@@ -2452,7 +2452,7 @@ fn translate_printf_call(ctx: ref TranslationCtx, args: list[ref char]) ref char
     std.string.StringBuilder.append_char(sb, 125)
     val args_built: ref void = std.string.StringBuilder.build(sb)
     std.string.StringBuilder.free(sb)
-    return trust @fmt("@printf({s}, {s})", {fmt_expr, std.string.cstr(args_built)})
+    return trust @fmt("@print({s}, {s})", {fmt_expr, std.string.cstr(args_built)})
 }
 
 fn translate_variadic_args(ctx: ref TranslationCtx, args: list[ref char], start_index: i64) ref char = {

@@ -37,11 +37,11 @@ pub fn some_other_func[T, T2](x: T, y: T2) T = {
 
 
 pub fn main() void = {
-    trust @printf("{d}\n", {some_func[i64](2, 4)})
-    trust @printf("{s}\n", {some_func[ref char]("hello", "world")})
+    trust @print("{d}\n", {some_func[i64](2, 4)})
+    trust @print("{s}\n", {some_func[ref char]("hello", "world")})
 
     val x: CustomType = {x: 10, y: 20}
     val y: CustomType = {x: 12, y: 40}
     
-    trust @printf("{p}\n", {some_func[CustomType](x, y)})
+    trust @print("{p}\n", {some_func[CustomType](x, y)})
 }

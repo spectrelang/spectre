@@ -332,7 +332,7 @@ fn emit_cstr(s: ref char) void = {
         return
     }
     if g_outfp == 0 as ref void {
-        trust @printf("{s}", {s})
+        trust @print("{s}", {s})
     } else {
         trust fwrite(s as ref void, 1 as usize, l as usize, g_outfp)
     }
@@ -751,7 +751,7 @@ fn read_file_to_str(path: ref char) ref char = {
     pre { path_not_null: path != 0 as ref char }
     val fp: ref void = trust fopen(path, "r")
     if fp == 0 as ref void {
-        trust @printf("md2html: cannot open file: {s}\n", {path})
+        trust @print("md2html: cannot open file: {s}\n", {path})
         trust exit(1)
         return 0 as ref char
     }
@@ -1101,7 +1101,7 @@ fn run_all(out_path: ref char) void = {
     if out_path != 0 as ref char {
         val fp: ref void = trust fopen(out_path, "w")
         if fp == 0 as ref void {
-            trust @printf("md2html: cannot open output: {s}\n", {out_path})
+            trust @print("md2html: cannot open output: {s}\n", {out_path})
             trust exit(1)
         }
         g_outfp = fp
@@ -1119,7 +1119,7 @@ fn run_all(out_path: ref char) void = {
 
     match entries_opt {
         none => {
-            trust @printf("md2html: cannot read directory\n")
+            trust @print("md2html: cannot read directory\n")
             trust exit(1)
         }
         some entries => {
@@ -1246,7 +1246,7 @@ pub fn main() void = {
             some p => {
                 val fp: ref void = trust fopen(p, "w")
                 if fp == 0 as ref void {
-                    trust @printf("md2html: cannot open output file: {s}\n", {p})
+                    trust @print("md2html: cannot open output file: {s}\n", {p})
                     trust exit(1)
                 }
                 g_outfp = fp

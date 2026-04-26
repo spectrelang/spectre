@@ -8,8 +8,8 @@ pub fn main() void = {
     val ptr1: ref Node = @addr(node)
     val xs: list[ref Node] = [ptr1]
     for x in xs {
-        trust @printf("{p}\n", {x})
-        trust @printf("{d} {d}\n", {@deref(x).x, @deref(x).y})
+        trust @print("{p}\n", {x})
+        trust @print("{d} {d}\n", {@deref(x).x, @deref(x).y})
     }
 }
 

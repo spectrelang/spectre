@@ -6,5 +6,5 @@ type SomeType = {
 pub fn main() void = {
     val s: mut SomeType = {x: 10, y: 30}
     s.x++
-    trust @printf("{d}\n", {s.x})
+    trust @print("{d}\n", {s.x})
 }

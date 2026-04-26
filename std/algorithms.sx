@@ -327,7 +327,7 @@ test {
     val sorted: list[ref char] = sort_by_num(all)
     
     for s in sorted {
-        trust @printf("{s}\n", {s})
+        trust @print("{s}\n", {s})
     }
 
     @puts("ok1")
@@ -338,23 +338,23 @@ test {
    
     @puts("ok3")
     for il in il_sorted {
-        trust @printf("{d}\n", {il})
+        trust @print("{d}\n", {il})
     }
 
     val alpha_all = ["asdsad", "bosdfo", "asda", "pogkdsf", "pog pog pogu", "asdf"]
     val alpha_sorted = sort_alpha(alpha_all)
 
     for a in alpha_sorted {
-        trust @printf("{s}\n", {a})
+        trust @print("{s}\n", {a})
     }
 
     val numlist = [1, 532, 12, 124, 12]
-    trust @printf("len of numlist: {d}\n", {@len(numlist)})
+    trust @print("len of numlist: {d}\n", {@len(numlist)})
 
     val sorted_numlist = sort[i32](numlist)
-    trust @printf("len of sorted_numlist: {d}\n", {@len(sorted_numlist)})
+    trust @print("len of sorted_numlist: {d}\n", {@len(sorted_numlist)})
 
     for s in sorted_numlist {
-        trust @printf("Sorted: {d}\n", {s})
+        trust @print("Sorted: {d}\n", {s})
     }
 }

@@ -8,7 +8,7 @@ pub fn puts(arg: ref char) void = {
 /// This trusts an unsafe printf call for the sake of making debugging pure
 /// functions easier, use with caution.
 pub fn print(fmt: ref char, args: untyped) void! = {
-    @printf(fmt, args)
+    @print(fmt, args)
 }
 
 /// Print a string to stderr followed by a newline (fd 2).

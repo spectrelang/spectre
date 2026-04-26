@@ -1698,7 +1698,7 @@ fn gen_call(ctx: mut ref CCtx, expr: ref parser.Node) ref char! = {
         || str.rchar_cmp(effective, "std__stdio__print") == 0
         || str.ends_with(str.from(callee_name), str.from("__print"))
         || str.ends_with(str.from(callee_name), str.from("__eprint"))
-        || str.rchar_cmp(callee_name, "printf") == 0
+        || str.rchar_cmp(callee_name, "print") == 0
     val is_eprint: bool = str.ends_with(str.from(callee_name), str.from("__eprint"))
 
     if is_print && args != 0 as ref void {
@@ -1946,7 +1946,7 @@ fn gen_builtin(ctx: ref CCtx, expr: ref parser.Node) ref char! = {
                 } none => {} } } }
         @snprintf(buf, 4096, "dprintf((int)({s}),(const char*)(intptr_t)({s}))", {fd, fmt_arg}) return cc_expr_track(ctx, buf)
     }
-    if (str.rchar_cmp(bname, "printf") == 0 || str.rchar_cmp(bname, "print") == 0) {
+    if (str.rchar_cmp(bname, "print") == 0) {
         val buf: ref char = @alloc(4096) as ref char
         val fmt_arg: ref char = get_format_arg(ctx, args, 0)
         if args != 0 as ref void { val alen: i64 = @len(args as list[ref parser.Node]) as i64
