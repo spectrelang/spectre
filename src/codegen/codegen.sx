@@ -6261,11 +6261,20 @@ fn gen_struct_lit(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
                     val fval: ref char = gen_expr(ctx, fexpr_node)
                     val fbuf: ref char = @alloc(128) as ref char
                     val off_tmp: i64 = fresh_tmp(ctx)
+
+                    val store_op: mut ref char = "storel"
+                    if fty_node != 0 as ref parser.Node {
+                        val qt: ref char = qbe_type_of(fty_node)
+                        if str.rchar_cmp(qt, "d") == 0 { store_op = "stored" }
+                        elif str.rchar_cmp(qt, "s") == 0 { store_op = "stores" }
+                        elif str.rchar_cmp(qt, "w") == 0 { store_op = "storew" }
+                    }
+
                     if off == 0 {
-                        @snprintf(fbuf, 128, "    storel {s}, %%t{lld}\n", {fval, tmp})
+                        @snprintf(fbuf, 128, "    {s} {s}, %%t{lld}\n", {store_op, fval, tmp})
                     } else {
-                        @snprintf(fbuf, 128, "    %%t{lld} =l add %%t{lld}, {lld}\n    storel {s}, %%t{lld}\n",
-                            {off_tmp, tmp, off, fval, off_tmp})
+                        @snprintf(fbuf, 128, "    %%t{lld} =l add %%t{lld}, {lld}\n    {s} {s}, %%t{lld}\n",
+                            {off_tmp, tmp, off, store_op, fval, off_tmp})
                     }
                     emit(ctx, fbuf)
                     @free(fbuf)
@@ -7347,10 +7356,29 @@ fn gen_forin_stmt(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
     val binding_qbe: ref char = @alloc(32) as ref char
     @snprintf(binding_qbe, 32, "{lld}", {binding_tmp})
 
+    val elem_stype: mut ref char = "l"
+    val iter_type2: ref char = infer_type_annotation(ctx, stmt.d1 as ref parser.Node)
+    if str.rchar_cmp(iter_type2, "") != 0 && rchar_starts_with(iter_type2, "list[") {
+        val elem_type2: ref char = @ptradd(iter_type2, 5) as ref char // skip "list["
+        val elem_len2: i64 = str.len_raw(elem_type2)
+        if elem_len2 > 1 {
+            val elem_type_copy2: ref char = @alloc(elem_len2) as ref char
+            @memcpy(elem_type_copy2 as ref void, elem_type2 as ref void, (elem_len2 - 1) as usize)
+            @store8(@ptradd(elem_type_copy2 as ref void, elem_len2 - 1), 0)
+            if is_float_type_name(elem_type_copy2) { elem_stype = "d" }
+            elif is_word_type_name(elem_type_copy2) { elem_stype = "w" }
+        }
+    }
+
+    val store_op3: mut ref char = "storel"
+    if str.rchar_cmp(elem_stype, "d") == 0 { store_op3 = "stored" }
+    elif str.rchar_cmp(elem_stype, "s") == 0 { store_op3 = "stores" }
+    elif str.rchar_cmp(elem_stype, "w") == 0 { store_op3 = "storew" }
+
     val buf3: ref char = @alloc(512) as ref char
     @snprintf(buf3, 512,
-        "    %%t{lld} =l loadl {s}\n    %%t{lld} =l mul %%t{lld}, 8\n    %%t{lld} =l add %%t{lld}, %%t{lld}\n    %%t{lld} =l loadl %%t{lld}\n    %%t{lld} =l alloc8 8\n    storel %%t{lld}, %%t{lld}\n",
-        {buf_tmp, iter, off, cur_idx, elem_ptr, buf_tmp, off, elem, elem_ptr, binding_tmp, elem, binding_tmp})
+        "    %%t{lld} =l loadl {s}\n    %%t{lld} =l mul %%t{lld}, 8\n    %%t{lld} =l add %%t{lld}, %%t{lld}\n    %%t{lld} =l loadl %%t{lld}\n    %%t{lld} =l alloc8 8\n    {s} %%t{lld}, %%t{lld}\n",
+        {buf_tmp, iter, off, cur_idx, elem_ptr, buf_tmp, off, elem, elem_ptr, binding_tmp, store_op3, elem, binding_tmp})
     emit(ctx, buf3)
     @free(buf3)
 
@@ -7366,7 +7394,7 @@ fn gen_forin_stmt(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
             val elem_type_copy: ref char = @alloc(elem_len) as ref char
             @memcpy(elem_type_copy as ref void, elem_type as ref void, (elem_len - 1) as usize)
             @store8(@ptradd(elem_type_copy as ref void, elem_len - 1), 0)
-            cg_register_local_var_type(ctx, binding, elem_type_copy)
+            cg_register_local_type(ctx, binding, elem_type_copy)
             if rchar_starts_with(elem_type_copy, "ref ") {
                 cg_register_local_ref_type(ctx, binding)
             }

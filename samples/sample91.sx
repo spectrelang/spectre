@@ -1,0 +1,43 @@
+val str = use("std/string")
+
+type Vec2 = {
+    x: f64
+    y: f64
+}
+
+/// Sum all elements in a list.
+pub fn sum[T](items: list[T]) T = {
+    val acc: mut T = 0 as T
+
+    for x in items {
+        when T in (i32, i64, f32, f64) {
+            acc = acc + x
+        }
+        when T is ref char {
+            acc = trust str.concat_raw(acc, x)
+        }
+        when T is Vec2 {
+            acc.x = acc.x + x.x
+            acc.y = acc.y + x.y
+        }
+    }
+
+    return acc
+}
+
+pub fn main() void = {
+    val nums = [1, 2, 3, 4]
+    val words = ["hello ", "world"]
+    val points: list[Vec2] = [
+        {x: 1.0, y: 2.0},
+        {x: 3.0, y: 4.0}
+    ]
+
+    val a = sum[i64](nums)
+    val b = sum[ref char](words)
+    val c = sum[Vec2](points)
+
+    trust @printf("sum = {d}\n", {a})
+    trust @printf("{s}\n", {b})
+    trust @printf("vec = ({f}, {f})\n", {c.x, c.y})
+}
