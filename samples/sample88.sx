@@ -1,0 +1,47 @@
+val str = use("std/string")
+val stdio = use("std/stdio")
+
+type CustomType = {
+    x: i32
+    y: i32
+}
+
+pub fn some_func[T](x: T, y: T) T = {
+    when T in (f32, f64) {
+        stdio.puts("Got some floats")
+        return x + y + 4.0
+    }
+    when T in (i32, i64) {
+        return x + y + 4
+    }
+    when T is ref char {
+        return trust str.concat_raw(x, y)
+    }
+    when T is CustomType {
+        return x.x + y.y 
+    }
+    when _ {
+        return x + y
+    }
+}
+
+pub fn some_other_func[T, T2](x: T, y: T2) T = {
+    when T is ref char && T2 is ref char {
+        return trust str.concat_raw(x, y)
+    }
+    when _ {
+        stdio.puts("Got something else...")
+        return x 
+    }
+}
+
+
+pub fn main() void = {
+    @printf("{d}\n", {some_func[i64](2, 4)})
+    @printf("{s}\n", {some_func[ref char]("hello", "world")})
+
+    val x: CustomType = {x: 10, y: 20}
+    val y: CustomType = {x: 12, y: 40}
+    
+    @printf("{d}\n", {some_func[CustomType](x, y)})
+}
