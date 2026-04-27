@@ -11,9 +11,41 @@ pub fn print(fmt: ref char, args: untyped) void! = {
     @print(fmt, args)
 }
 
+val STD_ERROR_HANDLE: i32 = -12
+
+when windows {
+    extern (C) fn GetStdHandle(nStdHandle: i32) ref void! = "GetStdHandle"
+    extern (C) fn WriteFile(
+        hFile: ref void,
+        lpBuffer: ref void,
+        nNumberOfBytesToWrite: u32,
+        lpNumberOfBytesWritten: ref u32,
+        lpOverlapped: ref void
+    ) i32! = "WriteFile"
+}
+
 /// Print a string to stderr followed by a newline (fd 2).
 pub fn eputs(msg: ref char) void = {
-    trust @print("{s}\n", {msg})
+    when posix {
+        trust @dprintf(2, "{s}\n", {msg})
+    }
+
+    when windows {
+        val handle = trust GetStdHandle(STD_ERROR_HANDLE)
+        val len: mut u32 = 0
+        val p: mut ref char = msg
+        for {
+            if @deref(p) == 0 {
+                break
+            }
+            len += 1
+            p++
+        }
+        val written: u32 = 0
+        trust WriteFile(handle, msg as ref void, len, @addr(written), 0)
+        val nl: list[char] = ['\n']
+        trust WriteFile(handle, @addr(@get(nl, 0)), 1, @addr(written), 0)
+    }
 }
 
 /// Print a string to stderr followed by a newline (fd 2).
