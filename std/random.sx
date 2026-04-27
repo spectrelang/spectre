@@ -33,7 +33,7 @@ pub fn random_u64() u64 = {
     return result
 }
 
-/// Return a cryptographically secure random u32 in [0, upper_bound) without modulo bias.
+/// Return a cryptographically secure random u32 in (0, upper_bound) without modulo bias.
 /// Requires upper_bound > 0.
 pub fn random_u32_below(upper_bound: u32) u32 = {
     when posix {
