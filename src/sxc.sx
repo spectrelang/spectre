@@ -19,6 +19,10 @@ val commands     = use("meta/commands.sx")
 val c_translate  = use("translate/c_translate.sx")
 val builds       = use("meta/builds.sx")
 
+when windows {
+    extern (C) fn SetConsoleOutputCP(codepage_id: u32) bool = "SetConsoleOutputCP"
+}
+
 fn root_has_direct_links(items: list[ref parser.Node]) bool = {
     for item in items {
         if item.kind == parser.NK_LINK { return true }
@@ -94,6 +98,10 @@ pub fn main() i32! = {
     val argc: i64 = @len(args) as i64
     val exe_path: mut ref char = "./spectre"
     val exe_opt = @get(args, 0)
+    
+    when windows {
+        SetConsoleOutputCP(65001)
+    }
 
     match exe_opt {
         some v => { exe_path = v as ref char }
