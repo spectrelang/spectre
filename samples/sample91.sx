@@ -33,8 +33,13 @@ pub fn main() void = {
         {x: 3.0, y: 4.0}
     ]
 
+    @puts("ok")
     val a = sum[i64](nums)
+    
+    @puts("ok2")
     val b = sum[ref char](words)
+    
+    @puts("ok3")
     val c = sum[Vec2](points)
 
     trust @print("sum = {d}\n", {a})

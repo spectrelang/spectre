@@ -288,13 +288,15 @@ pub fn reverse(s: ref void) void! = {
 
 /// Concat raw char pointers — returns a new heap-allocated ref char
 pub fn concat_raw(a: ref char, b: ref char) ref char! = {
-    val len_a: i64 = strlen(a)
-    val len_b: i64 = strlen(b)
+    val len_a: mut i64 = 0
+    if a != 0 as ref char { len_a = strlen(a) }
+    val len_b: mut i64 = 0
+    if b != 0 as ref char { len_b = strlen(b) }
     val new_len: i64 = len_a + len_b
     val buf: mut ref void = @alloc(new_len + 1)
 
-    @memcpy(buf, a, len_a)
-    @memcpy(@ptradd(buf, len_a), b, len_b)
+    if len_a > 0 { @memcpy(buf, a, len_a) }
+    if len_b > 0 { @memcpy(@ptradd(buf, len_a), b, len_b) }
     @store8(@ptradd(buf, new_len), 0)
 
     return buf as ref char
