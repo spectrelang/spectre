@@ -1,0 +1,6 @@
+val std = use("std")
+
+pub fn main() void = {
+    @puts("Hello, world.")
+    trust @print("{d}", {std.os.exists("life")})
+}
