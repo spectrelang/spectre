@@ -7,8 +7,10 @@ spectre-dev
 *.s
 *.out
 *.ssa
+*.exe
 .vscode
 !bootstrap/*
+bootstrap/*.exe
 sxc2
 sxc3
 sxc4
