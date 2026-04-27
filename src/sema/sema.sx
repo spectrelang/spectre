@@ -1085,8 +1085,7 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref char) v
         }
 
         if fn_found != 0 as ref parser.Node {
-            val is_unsafe_fn: i64 = fn_found.d6
-            if is_unsafe_fn != 0 {
+            if parser.fn_is_unsafe(fn_found) {
                 if ctx.in_unsafe_fn == 0 && ctx.in_trust == 0 {
                     val fn_name: mut ref char = 0 as ref char
                     if callee != 0 as ref parser.Node {
@@ -1990,7 +1989,8 @@ fn check_fn(ctx: mut ref SemaCtx, fn_node: ref parser.Node, filename: ref char) 
         add_error(ctx, buf)
     }
 
-    val is_unsafe: i64 = fn_node.d6
+    val is_unsafe: mut i64 = 0
+    if parser.fn_is_unsafe(fn_node) { is_unsafe = 1 }
     val prev_unsafe: i64 = ctx.in_unsafe_fn
     ctx.in_unsafe_fn = is_unsafe
     

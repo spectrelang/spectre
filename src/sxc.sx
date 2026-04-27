@@ -254,6 +254,7 @@ pub fn main() i32! = {
     val alt_compiler: mut ref char = ""
     val translate_c_flag: mut bool = flag_first_translate_c
     val extra_includes: mut list[ref char] = []
+    val inc_paths: mut list[ref char] = []
     val src_target: mut ref char = ""
     val arg_i: mut i64 = 2
 
@@ -346,6 +347,15 @@ pub fn main() i32! = {
                     if tgt_len > 0 {
                         src_target = std.string.substr(arg, 13, tgt_len)
                     }
+                    arg_i++
+                } elif std.string.rchar_starts_with(arg, "--inc-path=") {
+                    val path_str: ref char = std.string.substr(arg, 11, std.string.len_raw(arg) - 11)
+                    if std.string.rchar_cmp(path_str, "") == 0 {
+                        std.stdio.puts("error: --inc-path requires a value")
+                        allocators.Arena.free(arena)
+                        return 1
+                    }
+                    @append(inc_paths, path_str)
                     arg_i++
                 } elif std.string.rchar_starts_with(arg, "-I") {
                     val headers_str: ref char = std.string.substr(arg, 2, std.string.len_raw(arg) - 2)
@@ -503,6 +513,10 @@ pub fn main() i32! = {
         for lib in links_alt {
             link_flags_alt = @fmt("{s} {s}", {link_flags_alt, lib})
         }
+        val include_flags_alt: mut ref char = ""
+        for inc_path in inc_paths {
+            include_flags_alt = @fmt("{s} -I{s}", {include_flags_alt, inc_path})
+        }
 
         val cc_flags_alt: mut ref char = "-std=c99 -Wno-everything -O3"
         if !release_mode { cc_flags_alt = "-std=c99 -Wno-everything -g" }
@@ -517,15 +531,15 @@ pub fn main() i32! = {
         val alt_cmd: mut ref char = ""
         if std.string.rchar_cmp(selected_compiler, "tcc") == 0 {
             if test_mode {
-                alt_cmd = @fmt("tcc {s} -o {s} -w -std=c99 {s} 2>&1", {c_file, test_output_alt, link_flags_alt})
+                alt_cmd = @fmt("tcc {s} -o {s} -w -std=c99{s} {s} 2>&1", {c_file, test_output_alt, include_flags_alt, link_flags_alt})
             } else {
-                alt_cmd = @fmt("tcc {s} -o {s} -w -std=c99 {s} 2>&1", {c_file, final_output_alt, link_flags_alt})
+                alt_cmd = @fmt("tcc {s} -o {s} -w -std=c99{s} {s} 2>&1", {c_file, final_output_alt, include_flags_alt, link_flags_alt})
             }
         } else {
             if std.string.rchar_cmp(cc_flags_alt, "") == 0 {
-                alt_cmd = @fmt("{s} -o {s} {s}{s} 2>&1", {selected_compiler, compile_output, c_file, link_flags_alt})
+                alt_cmd = @fmt("{s}{s} -o {s} {s}{s} 2>&1", {selected_compiler, include_flags_alt, compile_output, c_file, link_flags_alt})
             } else {
-                alt_cmd = @fmt("{s} {s} -o {s} {s}{s} 2>&1", {selected_compiler, cc_flags_alt, compile_output, c_file, link_flags_alt})
+                alt_cmd = @fmt("{s} {s}{s} -o {s} {s}{s} 2>&1", {selected_compiler, cc_flags_alt, include_flags_alt, compile_output, c_file, link_flags_alt})
             }
         }
 

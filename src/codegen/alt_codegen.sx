@@ -24,6 +24,7 @@ pub type CCtx = {
     fn_params: mut list[ref void]
     fn_rets: mut list[ref void]
     fn_variadics: mut list[bool]
+    fn_no_forward: mut list[bool]
     ext_names: mut list[ref char]
     ext_syms: mut list[ref char]
     ext_rets: mut list[ref void]
@@ -83,6 +84,7 @@ fn cc_new() ref CCtx! = {
     ctx.fn_params = []
     ctx.fn_rets = []
     ctx.fn_variadics = []
+    ctx.fn_no_forward = []
     ctx.ext_names = []
     ctx.ext_syms = []
     ctx.ext_rets = []
@@ -869,11 +871,25 @@ fn cc_spectre_type_name_of(ctx: ref CCtx, ty: ref parser.Node) ref char! = {
     return spectre_type_name_of(cc_concrete_ty(ctx, ty))
 }
 
-fn cc_register_fn(ctx: ref CCtx, mangled: ref char, params: ref void, ret_ty: ref void, is_variadic: bool) void! = {
+fn cc_register_fn(ctx: ref CCtx, mangled: ref char, params: ref void, ret_ty: ref void, is_variadic: bool, no_forward: bool) void! = {
+    val nlen: i64 = @len(ctx.fn_names as list[ref char]) as i64
+    val ni: mut i64 = 0
+    for {
+        if ni >= nlen { break }
+        val n_opt = @get(ctx.fn_names as list[ref char], ni as usize)
+        match n_opt {
+            some n => {
+                if str.rchar_cmp(n as ref char, mangled) == 0 { return }
+            }
+            none => {}
+        }
+        ni++
+    }
     @append(ctx.fn_names, mangled)
     @append(ctx.fn_params, params)
     @append(ctx.fn_rets, ret_ty)
     @append(ctx.fn_variadics, is_variadic)
+    @append(ctx.fn_no_forward, no_forward)
 }
 
 fn cc_lookup_fn_params(ctx: ref CCtx, mangled: ref char) ref void! = {
@@ -3171,7 +3187,7 @@ fn gen_fn_prefixed(ctx: mut ref CCtx, fn_node: ref parser.Node, mod_prefix: ref 
     else { @snprintf(mangled, 512, "{s}__{s}", {mod_prefix, base}) }
     if !cc_emit_label_if_new(ctx, mangled) { @free(mangled) @free(base) return }
     ctx.fn_name = mangled
-    if params != 0 as ref void { cc_register_fn(ctx, mangled, params, ret_ty as ref void, false) }
+    if params != 0 as ref void { cc_register_fn(ctx, mangled, params, ret_ty as ref void, false, false) }
     val ret_ct: ref char = c_ret_type_of(ctx, ret_ty)
     val is_main: bool = str.rchar_cmp(name, "main") == 0 && str.rchar_cmp(mod_prefix, "") == 0
     ctx.current_ret_ctype = ret_ct 
@@ -3292,7 +3308,7 @@ fn preregister_items(ctx: ref CCtx, items: list[ref parser.Node], mod_prefix: re
                     else { @snprintf(mangled, 512, "sx__{s}", {base}) }
                 } elif is_sc { @snprintf(mangled, 512, "std__{s}__{s}", {mod_prefix, base}) }
                 else { @snprintf(mangled, 512, "{s}__{s}", {mod_prefix, base}) }
-                if params != 0 as ref void { cc_register_fn(ctx, mangled, params, ret_ty, false) }
+                if params != 0 as ref void { cc_register_fn(ctx, mangled, params, ret_ty, false, false) }
             } elif k == parser.NK_TAGGED_UNIONDEF { gen_tagged_union_def(ctx, node, mod_prefix) }
             elif k == parser.NK_UNIONDEF { gen_union_def_prefixed(ctx, node, mod_prefix) }
             elif k == parser.NK_ENUMDEF { gen_enum_def_prefixed(ctx, node, mod_prefix) }
@@ -3302,17 +3318,18 @@ fn preregister_items(ctx: ref CCtx, items: list[ref parser.Node], mod_prefix: re
             elif k == parser.NK_EXTERN_FN {
                 val name: ref char = node.d1 as ref char val symbol: ref char = node.d2 as ref char
                 val params: ref void = node.d4 as ref void val ret_ty: ref void = node.d5 as ref void
-                val is_var: bool = (node.d6 >> 1) & 1 != 0
+                val is_var: bool = parser.extern_fn_is_variadic(node)
+                val no_forward: bool = parser.extern_fn_uses_header(node)
                 val is_sc2: mut bool = false
                 for scn2 in get_std_child_names() { if str.rchar_cmp(scn2, mod_prefix) == 0 { is_sc2 = true break } }
                 cc_register_extern(ctx, name, symbol, ret_ty)
-                if params != 0 as ref void { cc_register_fn(ctx, symbol, params, ret_ty, is_var) }
+                if params != 0 as ref void { cc_register_fn(ctx, symbol, params, ret_ty, is_var, no_forward) }
                 if str.rchar_cmp(mod_prefix, "") != 0 { val m: ref char = @alloc(512) as ref char
                     @snprintf(m, 512, "{s}__{s}", {mod_prefix, name}) cc_register_extern(ctx, m, symbol, ret_ty)
-                    if params != 0 as ref void { cc_register_fn(ctx, m, params, ret_ty, is_var) } }
+                    if params != 0 as ref void { cc_register_fn(ctx, m, params, ret_ty, is_var, no_forward) } }
                 if is_sc2 { val sm: ref char = @alloc(512) as ref char
                     @snprintf(sm, 512, "std__{s}__{s}", {mod_prefix, name}) cc_register_extern(ctx, sm, symbol, ret_ty)
-                    if params != 0 as ref void { cc_register_fn(ctx, sm, params, ret_ty, is_var) } }
+                    if params != 0 as ref void { cc_register_fn(ctx, sm, params, ret_ty, is_var, no_forward) } }
             }
             elif k == parser.NK_CONST { val cn: ref char = node.d1 as ref char val ce: ref parser.Node = node.d2 as ref parser.Node
                 val cv: mut ref char = 0 as ref char
@@ -3509,6 +3526,8 @@ fn emit_forward_decls(ctx: ref CCtx) void! = {
             val mangled: ref char = mangled_ref as ref char
             if str.rchar_cmp(mangled, "main") == 0 { fi++ continue }
             if is_libc_fn(mangled) { fi++ continue }
+            val nf_opt = @get(ctx.fn_no_forward as list[bool], fi as usize)
+            match nf_opt { some nf => { if nf as bool { fi++ continue } } none => {} }
             
             val ret_ct: mut ref char = "int64_t"
             val r_opt = @get(ctx.fn_rets as list[ref void], fi as usize)

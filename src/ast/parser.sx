@@ -100,6 +100,9 @@ pub val OP_SHR             : i64 = 18
 pub val UOP_NOT            : i64 = 1
 pub val UOP_NEG            : i64 = 2
 pub val UOP_BNOT           : i64 = 3
+pub val FN_FLAG_UNSAFE     : i64 = 1
+pub val EXTERN_FLAG_VARIADIC : i64 = 2
+pub val EXTERN_FLAG_HEADER   : i64 = 4
 
 pub type Node = {
     kind: mut i64
@@ -160,6 +163,9 @@ pub fn unop_inner(n: ref Node) ref Node = { return n.d1 as ref Node }
 pub fn fixed_arr_size(n: ref Node) i64 = { return n.d0 }
 pub fn fixed_arr_inner(n: ref Node) ref Node = { return n.d1 as ref Node }
 pub fn fixed_arr_size_name(n: ref Node) ref char = { return n.d2 as ref char }
+pub fn fn_is_unsafe(n: ref Node) bool = { return (n.d6 & FN_FLAG_UNSAFE) != 0 }
+pub fn extern_fn_is_variadic(n: ref Node) bool = { return (n.d6 & EXTERN_FLAG_VARIADIC) != 0 }
+pub fn extern_fn_uses_header(n: ref Node) bool = { return (n.d6 & EXTERN_FLAG_HEADER) != 0 }
 
 fn make_field(base: ref Node, line: i64, name: ref char) result[ref Node, ref char]! = {
     val n: mut ref Node = make_node(NK_FIELD, line)
@@ -1671,7 +1677,7 @@ fn parse_fn_item(p: ref Parser, public: i64) result[ref Node, ref char]! = {
     nfn.d4 = ret_ty as i64
     val bl: list[ref Node] = body
     nfn.d5 = bl as i64
-    nfn.d6 = is_unsafe
+    nfn.d6 = is_unsafe * FN_FLAG_UNSAFE
     return ok nfn
 }
 
@@ -1804,6 +1810,17 @@ fn parse_extern_fn_item(p: ref Parser, public: i64) result[ref Node, ref char]! 
     val line: i64 = p_line(p)
     p_expect_lparen(p)?
     val conv = p_expect_ident(p)?
+    val use_header_decl: mut i64 = 0
+    for {
+        if lexer.kind_is_rparen(p_peek_kind(p)) { break }
+        p_expect_comma(p)?
+        val modifier = p_expect_ident(p)?
+        if str_eq(modifier, "header") {
+            use_header_decl = 1
+        } else {
+            return err @fmt("{s}:{lld}: unknown extern modifier '{s}'", {p.filename, p_line(p), modifier})
+        }
+    }
     p_expect_rparen(p)?
     p_expect_kind(p, kind_is_fn, "fn")?
     val name = p_expect_ident(p)?
@@ -1833,7 +1850,7 @@ fn parse_extern_fn_item(p: ref Parser, public: i64) result[ref Node, ref char]! 
     val pl: list[ref Node] = params
     nef.d4 = pl as i64
     nef.d5 = ret_ty as i64
-    nef.d6 = is_unsafe | (is_variadic << 1)
+    nef.d6 = (is_unsafe * FN_FLAG_UNSAFE) | (is_variadic * EXTERN_FLAG_VARIADIC) | (use_header_decl * EXTERN_FLAG_HEADER)
     return ok nef
 }
 

@@ -25,6 +25,7 @@ pub fn print_usage() void = {
     std.stdio.puts("  --emit-asm           Print assembly to stdout and exit")
     std.stdio.puts("  --src-target=<os>    Mock target OS for when-blocks in source output")
     std.stdio.puts("  --translate-c        Translate C input into a single .sx file")
+    std.stdio.puts("  --inc-path=<dir>     Add an include search path for the alt C compiler")
     std.stdio.puts("  --show-cmd           Show the command used for linking")
     std.stdio.puts("  --test               Run the unit tests in the current file")
     std.stdio.puts("  --release            Build in release mode")
