@@ -13,7 +13,7 @@ pub fn print(fmt: ref char, args: untyped) void! = {
 
 /// Print a string to stderr followed by a newline (fd 2).
 pub fn eputs(msg: ref char) void = {
-    trust @dprintf(2, "{s}\n", {msg})
+    trust @print("{s}\n", {msg})
 }
 
 /// Print a string to stderr followed by a newline (fd 2).
