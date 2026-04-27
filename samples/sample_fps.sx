@@ -156,13 +156,13 @@ pub fn main() i32 = {
 
                 val moveY0: i32 = ((player.y + 4.0) / 64.0) as i32
                 val moveX0: i32 = ((player.x + 4.0 + stepX) / 64.0) as i32
-                if map[moveY0][moveX0] == 0 {
+                if @get(moveY0, moveX0) == 0 {
                     player.x += stepX
                 }
 
                 val moveY1: i32 = ((player.y + 4.0 + stepY) / 64.0) as i32
                 val moveX1: i32 = ((player.x + 4.0) / 64.0) as i32
-                if map[moveY1][moveX1] == 0 {
+                if @get(map, moveY1, moveX1) == 0 {
                     player.y += stepY
                 }
             }
