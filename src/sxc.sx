@@ -464,7 +464,7 @@ pub fn main() i32! = {
             binary_name_alt = output_name
         }
 
-        val c_file = "/tmp/spectre_output.c"
+        val c_file = builds.get_tmp_path("spectre_output.c")
         val c_f = std.os.open(c_file, "w")
         match c_f {
             some f => {
@@ -498,7 +498,7 @@ pub fn main() i32! = {
         if !release_mode { cc_flags_alt = "-std=c99 -Wno-everything -g" }
 
         val selected_compiler: mut ref char = pick_alt_backend(alt_compiler, release_mode, input, root_mod.items)
-        val test_output_alt: ref char = "/tmp/spectre_test_bin_alt"
+        val test_output_alt: ref char = builds.get_tmp_path("spectre_test_bin_alt")
         val compile_output: mut ref char = test_output_alt
         if !test_mode {
             compile_output = final_output_alt
@@ -593,8 +593,8 @@ pub fn main() i32! = {
         binary_name = output_name
     }
 
-    val qbe_file = "/tmp/spectre_output.ssa"
-    val asm_file = "/tmp/spectre_output.s"
+    val qbe_file = builds.get_tmp_path("spectre_output.ssa")
+    val asm_file = builds.get_tmp_path("spectre_output.s")
     val qbe_f = std.os.open(qbe_file, "w")
 
     match qbe_f {
@@ -689,7 +689,7 @@ pub fn main() i32! = {
     }
 
     if test_mode {
-        val test_bin: ref char = "/tmp/spectre_test_bin"
+        val test_bin: ref char = builds.get_tmp_path("spectre_test_bin")
         cc_cmd = @fmt("cc -o {s} {s}{s}", {test_bin, asm_file, link_flags})
         val cc_res2 = std.os.exec(cc_cmd)
         match cc_res2 {

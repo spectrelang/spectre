@@ -1828,7 +1828,7 @@ fn gen_call(ctx: mut ref CCtx, expr: ref parser.Node) ref char! = {
                         val fmt_str: ref char = parser.str_lit_text(first_node)
                         val fmt_idx: i64 = intern_format_string(ctx, fmt_str)
                         val pbuf: ref char = @alloc(4096) as ref char
-                        if is_eprint { @snprintf(pbuf, 4096, "dprintf(2,(const char*)(intptr_t)sx__str{lld}", {fmt_idx}) }
+                        if is_eprint { @snprintf(pbuf, 4096, "sx__dprintf(2,(const char*)(intptr_t)sx__str{lld}", {fmt_idx}) }
                         else { @snprintf(pbuf, 4096, "printf((const char*)(intptr_t)sx__str{lld}", {fmt_idx}) }
                         val ai2: mut i64 = 1
                         for { if ai2 >= alen { break }
@@ -2050,7 +2050,7 @@ fn gen_builtin(ctx: ref CCtx, expr: ref parser.Node) ref char! = {
                 match pack_opt { some pack_node => { val pn: ref parser.Node = pack_node as ref parser.Node
                     if pn.kind == parser.NK_ARGS_PACK { val pack: ref void = pn.d0 as ref void
                         val plen: i64 = @len(pack as list[ref parser.Node]) as i64 val pi: mut i64 = 0
-                        @snprintf(buf, 4096, "dprintf((int)({s}),(const char*)(intptr_t)({s})", {fd, fmt_arg})
+                        @snprintf(buf, 4096, "sx__dprintf((int)({s}),(const char*)(intptr_t)({s})", {fd, fmt_arg})
                         for { if pi >= plen { break } val pe_opt = @get(pack as list[ref parser.Node], pi as usize)
                             match pe_opt { some pe => { val av: ref char = gen_expr(ctx, pe as ref parser.Node)
                                 val ol: i64 = str.len_raw(buf) val ab: ref char = @alloc(256) as ref char @snprintf(ab, 256, ",({s})", {av})
@@ -2060,7 +2060,7 @@ fn gen_builtin(ctx: ref CCtx, expr: ref parser.Node) ref char! = {
                     } else { val av2: ref char = gen_expr(ctx, pn)
                         @snprintf(buf, 4096, "sx__rt_dprintf((int)({s}),(const char*)(intptr_t)({s}),(int64_t*)(intptr_t)({s}))", {fd, fmt_arg, av2}) return cc_expr_track(ctx, buf) }
                 } none => {} } } }
-        @snprintf(buf, 4096, "dprintf((int)({s}),(const char*)(intptr_t)({s}))", {fd, fmt_arg}) return cc_expr_track(ctx, buf)
+        @snprintf(buf, 4096, "sx__dprintf((int)({s}),(const char*)(intptr_t)({s}))", {fd, fmt_arg}) return cc_expr_track(ctx, buf)
     }
     if (str.rchar_cmp(bname, "print") == 0) {
         val buf: ref char = @alloc(4096) as ref char
@@ -3208,7 +3208,7 @@ fn emit_to_fwd(ctx: ref CCtx, s: ref char) void! = { str.StringBuilder.append_cs
 fn emitln_fwd(ctx: ref CCtx, s: ref char) void! = { str.StringBuilder.append_cstr(ctx.fwd_sb, s) str.StringBuilder.append_char(ctx.fwd_sb, 10) }
 
 fn emit_c_preamble(ctx: ref CCtx) void! = {
-    when posix {
+    if cc_platform_matches(ctx, "posix") {
         emitln_fwd(ctx, "#define _POSIX_C_SOURCE 200809L")
     }
     emitln_fwd(ctx, "#include <stdint.h>")
@@ -3216,11 +3216,21 @@ fn emit_c_preamble(ctx: ref CCtx) void! = {
     emitln_fwd(ctx, "#include <string.h>")
     emitln_fwd(ctx, "#include <stdio.h>")
     emitln_fwd(ctx, "#include <time.h>")
-    emitln_fwd(ctx, "#include <sys/time.h>")
-    emitln_fwd(ctx, "#include <sys/types.h>")
-    emitln_fwd(ctx, "#include <sys/stat.h>")
-    emitln_fwd(ctx, "#include <unistd.h>")
-    emitln_fwd(ctx, "#include <dirent.h>")
+    if cc_platform_matches(ctx, "posix") {
+        emitln_fwd(ctx, "#include <sys/time.h>")
+        emitln_fwd(ctx, "#include <sys/types.h>")
+        emitln_fwd(ctx, "#include <sys/stat.h>")
+        emitln_fwd(ctx, "#include <unistd.h>")
+        emitln_fwd(ctx, "#include <dirent.h>")
+    }
+    if cc_platform_matches(ctx, "windows") {
+        emitln_fwd(ctx, "#ifndef WIN32_LEAN_AND_MEAN")
+        emitln_fwd(ctx, "#define WIN32_LEAN_AND_MEAN")
+        emitln_fwd(ctx, "#endif")
+        emitln_fwd(ctx, "#include <windows.h>")
+        emitln_fwd(ctx, "#include <io.h>")
+        emitln_fwd(ctx, "#include <direct.h>")
+    }
     emitln_fwd(ctx, "static int64_t sx__argc=0;")
     emitln_fwd(ctx, "static int64_t sx__argv=0;")
     emitln_fwd(ctx, "static void sx__rt_append(void*list,int64_t elem){int64_t*hdr=(int64_t*)list;int64_t*buf=*(int64_t**)hdr;int64_t len=hdr[1];int64_t cap=hdr[2];if(len>=cap){cap=cap<4?8:cap*2;buf=(int64_t*)realloc(buf,(size_t)(cap*8));hdr[0]=(int64_t)(intptr_t)buf;hdr[2]=cap;}buf[len]=elem;hdr[1]=len+1;}")
@@ -3230,7 +3240,8 @@ fn emit_c_preamble(ctx: ref CCtx) void! = {
     emitln_fwd(ctx, "static void sx__rt_reserve(void*list,int64_t cap){int64_t*hdr=(int64_t*)list;int64_t cur=hdr[2];if(cap>cur){int64_t*buf=*(int64_t**)hdr;buf=(int64_t*)realloc(buf,(size_t)(cap*8));hdr[0]=(int64_t)(intptr_t)buf;hdr[2]=cap;}}")
     emitln_fwd(ctx, "static void*sx__rt_get_args(void){int64_t*hdr=(int64_t*)calloc(1,24);int64_t c=sx__argc;int64_t*buf=(int64_t*)calloc(1,(size_t)(c*8));char**av=(char**)(intptr_t)sx__argv;int64_t i;for(i=0;i<c;i++)buf[i]=(int64_t)(intptr_t)av[i];hdr[0]=(int64_t)(intptr_t)buf;hdr[1]=c;hdr[2]=c;return hdr;}")
     emitln_fwd(ctx, "static void sx__rt_printf(const char* f, int64_t* p){if(!p){printf(\"%s\",f);return;} printf(f,p[0],p[1],p[2],p[3],p[4],p[5],p[6],p[7],p[8],p[9],p[10],p[11],p[12],p[13],p[14],p[15]);}")
-    emitln_fwd(ctx, "static void sx__rt_dprintf(int fd, const char* f, int64_t* p){if(!p){dprintf(fd,\"%s\",f);return;} dprintf(fd,f,p[0],p[1],p[2],p[3],p[4],p[5],p[6],p[7],p[8],p[9],p[10],p[11],p[12],p[13],p[14],p[15]);}")
+    emitln_fwd(ctx, "#ifdef _WIN32\n#include <stdarg.h>\nstatic int sx__dprintf(int fd,const char*fmt,...){char buf[4096];va_list ap;va_start(ap,fmt);int n=vsnprintf(buf,(int)(sizeof(buf)-1),fmt,ap);va_end(ap);if(n>0)_write(fd,buf,(unsigned)n);return n;}\n#else\n#define sx__dprintf dprintf\n#endif")
+    emitln_fwd(ctx, "static void sx__rt_dprintf(int fd, const char* f, int64_t* p){if(!p){sx__dprintf(fd,\"%s\",f);return;} sx__dprintf(fd,f,p[0],p[1],p[2],p[3],p[4],p[5],p[6],p[7],p[8],p[9],p[10],p[11],p[12],p[13],p[14],p[15]);}")
     emitln_fwd(ctx, "static char* sx__rt_fmt(const char* f, int64_t* p){char* b=(char*)malloc(4096);if(!p){strcpy(b,f);return b;} snprintf(b,4096,f,p[0],p[1],p[2],p[3],p[4],p[5],p[6],p[7],p[8],p[9],p[10],p[11],p[12],p[13],p[14],p[15]);return b;}")
 }
 

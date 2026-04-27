@@ -1,4 +1,4 @@
-extern (C) fn getenv(name: ref char) ref char! = "getenv"
+pub extern (C) fn getenv(name: ref char) ref char! = "getenv"
 extern (C) fn fopen(path: ref char, mode: ref char) ref void! = "fopen"
 extern (C) fn fclose(file: ref void) i32! = "fclose"
 extern (C) fn fread(ptr: ref void, size: i64, nmemb: i64, file: ref void) i64! = "fread"

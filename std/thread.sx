@@ -157,8 +157,9 @@ pub fn yield_thread() void! = {
 }
 
 /// A simple mutex using platform-specific primitives.
-/// On POSIX, uses pthread_mutex_t (40 bytes on most systems).
-/// On Windows, uses CRITICAL_SECTION (48 bytes on most systems).
+///
+/// On POSIX, this uses pthread_mutex_t (40 bytes on most systems).
+/// On Windows, it uses CRITICAL_SECTION (48 bytes on most systems).
 pub type Mutex = {
     ptr: ref void
 }
@@ -181,6 +182,8 @@ when linux {
     val MUTEX_SIZE: usize = 40
 } or when darwin {
     val MUTEX_SIZE: usize = 64
+} or when windows {
+    val MUTEX_SIZE: usize = 40
 } otherwise {
     val MUTEX_SIZE: usize = 8
 }

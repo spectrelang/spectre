@@ -1,6 +1,7 @@
-val std  = use("std")
-val str  = use("std/string")
-val meta = use("meta.sx")
+val std    = use("std")
+val str    = use("std/string")
+val meta   = use("meta.sx")
+val builds = use("builds.sx")
 
 pub type SxBuildConfig = {
     name:   mut ref char
@@ -873,10 +874,17 @@ pub fn cmd_remove(dep_name: ref char) i32 = {
 
 pub fn cmd_clean() i32 = {
     if std.os.exists("s-out") {
-        std.os.run("rm -rf s-out")
+        when windows {
+            std.os.run("rmdir /s /q s-out")
+        }
+        when posix {
+            std.os.run("rm -rf s-out")
+        }
         std.stdio.puts("Removed s-out/")
     }
-    std.os.run("rm -f /tmp/spectre_output.ssa /tmp/spectre_output.s /tmp/spectre_test_bin")
+    trust std.os.delete(builds.get_tmp_path("spectre_output.ssa"))
+    trust std.os.delete(builds.get_tmp_path("spectre_output.s"))
+    trust std.os.delete(builds.get_tmp_path("spectre_test_bin"))
     std.stdio.puts("Clean complete.")
     return 0
 }

@@ -1,5 +1,21 @@
 val std = use("std")
 
+/// Returns a platform-appropriate path for a temp file.
+pub fn get_tmp_path(name: ref char) ref char! = {
+    when windows {
+        val tmp_dir: ref char = std.os.getenv("TEMP")
+        if tmp_dir != none {
+            return @fmt("{s}/{s}", {tmp_dir, name})
+        }
+        val tmp2: ref char = std.os.getenv("TMP")
+        if tmp2 != none {
+            return @fmt("{s}/{s}", {tmp2, name})
+        }
+        return @fmt("C:/Windows/Temp/{s}", {name})
+    }
+    return @fmt("/tmp/{s}", {name})
+}
+
 pub fn is_compiler_available(compiler: ref char) bool = {
     val res = std.os.exec(trust @fmt("{s} --version", {compiler}))
     match res {

@@ -9,15 +9,25 @@ when posix {
     extern (C) fn arc4random_uniform(upper_bound: u32) u32! = "arc4random_uniform"
 }
 
+when windows {
+    link "-lbcrypt"
+    extern (C) fn BCryptGenRandom(hAlgorithm: ref void, pbBuffer: ref void, cbBuffer: u32, dwFlags: u32) i32! = "BCryptGenRandom"
+}
+
 /// Fill `buf` with `len` cryptographically secure random bytes.
 pub fn random_bytes(buf: ref void, len: usize) void = {
-    trust arc4random_buf(buf, len)
+    when posix {
+        trust arc4random_buf(buf, len)
+    }
+    when windows {
+        trust BCryptGenRandom(0 as ref void, buf, len as u32, 2)
+    }
 }
 
 /// Return a cryptographically secure random u64.
 pub fn random_u64() u64 = {
     val buf: ref void = @alloc(8)
-    trust arc4random_buf(buf, 8)
+    random_bytes(buf, 8)
     val result: u64 = trust @load(buf) as u64
     trust @free(buf)
     return result
@@ -26,7 +36,22 @@ pub fn random_u64() u64 = {
 /// Return a cryptographically secure random u32 in [0, upper_bound) without modulo bias.
 /// Requires upper_bound > 0.
 pub fn random_u32_below(upper_bound: u32) u32 = {
-    return trust arc4random_uniform(upper_bound)
+    when posix {
+        return trust arc4random_uniform(upper_bound)
+    }
+    when windows {
+        if upper_bound == 0 { return 0 }
+        if upper_bound == 1 { return 0 }
+        val threshold: u32 = (4294967295 as u32 % upper_bound + 1) % upper_bound
+        for {
+            val buf: ref void = @alloc(4)
+            trust BCryptGenRandom(0 as ref void, buf, 4, 2)
+            val r: u32 = trust @load(buf) as u32
+            trust @free(buf)
+            if r >= threshold { return r % upper_bound }
+        }
+    }
+    return 0
 }
 
 /// Allocate and return a null-terminated UUID v4 string (37 bytes: 36 chars + null).
@@ -35,7 +60,7 @@ pub fn random_u32_below(upper_bound: u32) u32 = {
 /// Format: xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx  (RFC 4122)
 pub fn random_uuid() ref char! = {
     val rnd: ref void = @alloc(16)
-    @arc4random_buf(rnd, 16)
+    random_bytes(rnd, 16)
 
     val hi: u64 = @load(rnd) as u64
     val lo: u64 = @load(@ptradd(rnd, 8)) as u64
@@ -67,10 +92,10 @@ test {
     val uuid2: mut ref char = trust random_uuid()
     assert uuid1 != 0
     assert uuid2 != 0
-    
+
     stdio.puts(uuid1)
     stdio.puts(uuid2)
-    
+
     trust @free(uuid1)
     trust @free(uuid2)
 }
