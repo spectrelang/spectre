@@ -42,5 +42,5 @@ pub fn some_other_function() void = {
 }
 
 pub fn main() void = {
-	trust some_other_function()
+	some_other_function()
 }
