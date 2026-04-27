@@ -787,6 +787,55 @@ fn cg_fixed_arr_size_text(_: ref CgCtx, ty: ref parser.Node) ref char! = {
     return buf
 }
 
+fn cg_fixed_arr_size_val(ctx: ref CgCtx, ty: ref parser.Node) i64! = {
+    if ty == 0 as ref parser.Node || ty.kind != parser.TY_FIXED_ARR { return 0 }
+    val sz_name: ref char = parser.fixed_arr_size_name(ty)
+    if sz_name == 0 as ref char || str.rchar_cmp(sz_name, "") == 0 {
+        return parser.fixed_arr_size(ty)
+    }
+    val exact: ref char = cg_const_val(ctx, sz_name)
+    val ctext: mut ref char = exact
+    if str.rchar_cmp(ctext, "") == 0 {
+        val slen: i64 = str.len_raw(sz_name)
+        val mapped: ref char = @alloc(slen * 2 + 1) as ref char
+        val si: mut i64 = 0
+        val mi: mut i64 = 0
+        for {
+            if si >= slen { break }
+            val ch: u8 = @load8(@ptradd(sz_name as ref void, si))
+            if ch == 46 {
+                @store8(@ptradd(mapped as ref void, mi), 95)
+                @store8(@ptradd(mapped as ref void, mi + 1), 95)
+                mi += 2
+            } else {
+                @store8(@ptradd(mapped as ref void, mi), ch)
+                mi++
+            }
+            si++
+        }
+        @store8(@ptradd(mapped as ref void, mi), 0)
+        ctext = cg_const_val(ctx, mapped)
+    }
+    if str.rchar_cmp(ctext, "") == 0 { return 0 }
+    val parsed = std.fmt.string_to_i64(ctext)
+    match parsed {
+        ok v  => { return v }
+        err _ => { return 0 }
+    }
+}
+
+fn cg_type_size(ctx: ref CgCtx, ty: ref parser.Node) i64! = {
+    if ty == 0 as ref parser.Node { return 8 }
+    val k: i64 = ty.kind
+    if k == parser.TY_FIXED_ARR {
+        val count: i64 = cg_fixed_arr_size_val(ctx, ty)
+        val elem_size: i64 = cg_type_size(ctx, parser.fixed_arr_inner(ty))
+        return count * elem_size
+    }
+    if k == parser.TY_MUT { return cg_type_size(ctx, ty.d0 as ref parser.Node) }
+    return type_size(ty)
+}
+
 /// Returns true if name is a registered function.
 fn cg_is_fn(ctx: ref CgCtx, name: ref char) bool! = {
     val names: ref void = cg_fn_names(ctx)
@@ -6129,6 +6178,96 @@ fn gen_builtin(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
     return res
 }
 
+fn gen_fixed_arr_lit(ctx: ref CgCtx, expr: ref parser.Node, ty: ref parser.Node) ref char! = {
+    if expr == 0 as ref parser.Node || ty == 0 as ref parser.Node || ty.kind != parser.TY_FIXED_ARR {
+        return "0"
+    }
+
+    val total_size: i64 = cg_type_size(ctx, ty)
+    val elem_ty: ref parser.Node = parser.fixed_arr_inner(ty)
+    val elem_size: i64 = cg_type_size(ctx, elem_ty)
+    val tmp: i64 = fresh_tmp(ctx)
+    val alloc_buf: ref char = @alloc(128) as ref char
+    @snprintf(alloc_buf, 128, "    %%t{lld} =l call $malloc(l {lld})\n", {tmp, total_size})
+    emit(ctx, alloc_buf)
+    @free(alloc_buf)
+
+    val zero_buf: ref char = @alloc(128) as ref char
+    @snprintf(zero_buf, 128, "    call $memset(l %%t{lld}, w 0, l {lld})\n", {tmp, total_size})
+    emit(ctx, zero_buf)
+    @free(zero_buf)
+
+    if expr.kind == parser.NK_ZERO_INIT {
+        val zero_res: ref char = @alloc(16) as ref char
+        @snprintf(zero_res, 16, "%%t{lld}", {tmp})
+        return zero_res
+    }
+
+    if expr.kind == parser.NK_LIST_LIT {
+        val elems: ref void = expr.d0 as ref void
+        val elen: mut i64 = 0
+        if elems != 0 as ref void { elen = @len(elems) as i64 }
+
+        val ei: mut i64 = 0
+        for {
+            if ei >= elen { break }
+            val e_opt = @get(elems, ei as usize)
+            match e_opt {
+                some e => {
+                    val e_node: ref parser.Node = e as ref parser.Node
+                    val off: i64 = ei * elem_size
+                    val elem_is_fa: bool = elem_ty != 0 as ref parser.Node && elem_ty.kind == parser.TY_FIXED_ARR
+                    if elem_is_fa {
+                        val off_tmp: i64 = fresh_tmp(ctx)
+                        val off_buf: ref char = @alloc(256) as ref char
+                        @snprintf(off_buf, 256, "    %%t{lld} =l add %%t{lld}, {lld}\n", {off_tmp, tmp, off})
+                        emit(ctx, off_buf)
+                        @free(off_buf)
+
+                        val is_zero: bool = e_node.kind == parser.NK_INT_LIT && str.rchar_cmp(parser.int_lit_text(e_node), "0") == 0
+                        if is_zero {
+                            val memset_buf: ref char = @alloc(128) as ref char
+                            @snprintf(memset_buf, 128, "    call $memset(l %%t{lld}, w 0, l {lld})\n", {off_tmp, elem_size})
+                            emit(ctx, memset_buf)
+                            @free(memset_buf)
+                        } else {
+                            val eval: ref char = gen_fixed_arr_lit(ctx, e_node, elem_ty)
+                            val memcpy_buf: ref char = @alloc(128) as ref char
+                            @snprintf(memcpy_buf, 128, "    call $memcpy(l %%t{lld}, l {s}, l {lld})\n", {off_tmp, eval, elem_size})
+                            emit(ctx, memcpy_buf)
+                            @free(memcpy_buf)
+                        }
+                    } else {
+                        val eval2: ref char = gen_expr(ctx, e_node)
+                        val store_op: mut ref char = "storel"
+                        val qt: ref char = qbe_type_of(elem_ty)
+                        if str.rchar_cmp(qt, "d") == 0 { store_op = "stored" }
+                        elif str.rchar_cmp(qt, "s") == 0 { store_op = "stores" }
+                        elif str.rchar_cmp(qt, "w") == 0 { store_op = "storew" }
+
+                        val store_buf: ref char = @alloc(256) as ref char
+                        if off == 0 {
+                            @snprintf(store_buf, 256, "    {s} {s}, %%t{lld}\n", {store_op, eval2, tmp})
+                        } else {
+                            val off_tmp2: i64 = fresh_tmp(ctx)
+                            @snprintf(store_buf, 256, "    %%t{lld} =l add %%t{lld}, {lld}\n    {s} {s}, %%t{lld}\n",
+                                {off_tmp2, tmp, off, store_op, eval2, off_tmp2})
+                        }
+                        emit(ctx, store_buf)
+                        @free(store_buf)
+                    }
+                }
+                none => {}
+            }
+            ei++
+        }
+    }
+
+    val res: ref char = @alloc(16) as ref char
+    @snprintf(res, 16, "%%t{lld}", {tmp})
+    return res
+}
+
 fn gen_list_lit(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
     val elems: ref void = expr.d0 as ref void
     val elen: mut i64 = 0
@@ -6480,7 +6619,22 @@ fn gen_stmt(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
         val mutable: i64 = stmt.d1
         val ty_node: ref parser.Node = stmt.d2 as ref parser.Node
         val expr: ref parser.Node = stmt.d3 as ref parser.Node
-        val val_tmp: mut ref char = gen_expr(ctx, expr)
+        val val_tmp: mut ref char = "0"
+        val use_fixed_arr_lit: mut bool = false
+        if ty_node != 0 as ref parser.Node {
+            if ty_node.kind == parser.TY_FIXED_ARR {
+                if expr != 0 as ref parser.Node {
+                    if expr.kind == parser.NK_LIST_LIT || expr.kind == parser.NK_ZERO_INIT {
+                        use_fixed_arr_lit = true
+                    }
+                }
+            }
+        }
+        if use_fixed_arr_lit {
+            val_tmp = gen_fixed_arr_lit(ctx, expr, ty_node)
+        } else {
+            val_tmp = gen_expr(ctx, expr)
+        }
 
         if ty_node != 0 as ref parser.Node && expr != 0 as ref parser.Node && expr.kind == parser.NK_CALL {
             val decl_qbe_type: ref char = qbe_type_of(ty_node)
