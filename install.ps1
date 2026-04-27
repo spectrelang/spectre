@@ -36,13 +36,53 @@ function Ensure-Tool($cmd, $wingetId) {
     winget install --id $wingetId -e --source winget
 }
 
+function Ensure-Tcc {
+    if (Get-Command tcc -ErrorAction SilentlyContinue) {
+        Log "tcc already installed."
+        return
+    }
+
+    Log "tcc not found. Trying winget..."
+
+    if (Get-Command winget -ErrorAction SilentlyContinue) {
+        try {
+            winget install --id TinyCC.TinyCC -e --source winget
+        } catch {
+            Log "winget install failed or package unavailable."
+        }
+    }
+
+    if (Get-Command tcc -ErrorAction SilentlyContinue) {
+        Log "tcc installed via winget."
+        return
+    }
+
+    Log "Falling back to Scoop..."
+
+    if (-not (Get-Command scoop -ErrorAction SilentlyContinue)) {
+        Log "Scoop not found. Installing Scoop..."
+
+        Set-ExecutionPolicy RemoteSigned -Scope CurrentUser -Force
+        Invoke-RestMethod get.scoop.sh | Invoke-Expression
+    }
+
+    scoop bucket add main 2>$null
+    scoop install tcc
+
+    if (-not (Get-Command tcc -ErrorAction SilentlyContinue)) {
+        Err "Failed to install tcc via Scoop."
+    }
+
+    Log "tcc installed via Scoop."
+}
+
 Log "Checking required tools..."
 
 Ensure-Tool git Git.Git
 Ensure-Tool cmake Kitware.CMake
 
 Ensure-Tool clang LLVM.LLVM
-Ensure-Tool tcc TinyCC.TinyCC
+Ensure-Tcc
 
 Require-Cmd git
 Require-Cmd cmake
