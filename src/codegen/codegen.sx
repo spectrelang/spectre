@@ -53,6 +53,7 @@ pub type CgCtx = {
     emitted_labels: mut list[ref char]
     emitted_shims: mut list[ref char]
     release_mode: mut bool
+    src_target: mut ref char
     inv_tnames:     mut list[ref char]
     inv_tlists:     mut list[ref void]
     inv_cur_pnames: mut list[ref char]
@@ -112,6 +113,7 @@ fn cg_new() ref CgCtx! = {
     ctx.emitted_labels = []
     ctx.emitted_shims = []
     ctx.release_mode = false
+    ctx.src_target = ""
     ctx.inv_tnames = []
     ctx.inv_tlists = []
     ctx.inv_cur_pnames = []
@@ -208,10 +210,12 @@ fn cg_is_prefix_used(ctx: ref CgCtx, prefix: ref char) bool! = {
     return false
 }
 
-/// Returns true if the given when-clause name matches the current platform.
+/// Returns true if the given when-clause name matches the specified platform.
+/// When src_target is "" the real host platform is used.
 /// Handles group aliases: "posix" matches linux/darwin/*bsd/haiku/android/redox.
-pub fn platform_matches(name: ref char) bool! = {
-    val cur: ref char = reflection.current_platform_name()
+pub fn platform_matches_with_target(name: ref char, src_target: ref char) bool! = {
+    val cur: mut ref char = reflection.current_platform_name()
+    if str.rchar_cmp(src_target, "") != 0 { cur = src_target }
     if str.rchar_cmp(name, cur) == 0 { return true }
     if str.rchar_cmp(name, "posix") == 0 {
         if str.rchar_cmp(cur, "linux")        == 0 { return true }
@@ -225,6 +229,16 @@ pub fn platform_matches(name: ref char) bool! = {
         if str.rchar_cmp(cur, "redox")        == 0 { return true }
     }
     return false
+}
+
+/// Returns true if the given when-clause name matches the host platform (no override).
+pub fn platform_matches(name: ref char) bool! = {
+    return platform_matches_with_target(name, "")
+}
+
+/// Returns true if the given when-clause name matches considering ctx.src_target.
+fn cg_platform_matches(ctx: ref CgCtx, name: ref char) bool! = {
+    return platform_matches_with_target(name, ctx.src_target)
 }
 
 /// Register a generic function node for later monomorphization.
@@ -6337,16 +6351,16 @@ fn stmts_terminated(stmts: ref parser.Node) bool! = {
 }
 
 /// Returns true if the active branch of a NK_WHEN_STMT is terminated.
-fn when_stmt_terminated(stmt: ref parser.Node) bool! = {
+fn when_stmt_terminated(ctx: ref CgCtx, stmt: ref parser.Node) bool! = {
     val plat: ref char = stmt.d0 as ref char
-    if platform_matches(plat) {
+    if cg_platform_matches(ctx, plat) {
         return stmts_terminated(stmt.d1 as ref parser.Node)
     }
     val or_when_branches: ref void = stmt.d2 as ref void
     if or_when_branches != 0 as ref void {
         for ow_node in or_when_branches as list[ref parser.Node] {
             val ow_plat: ref char = ow_node.d0 as ref char
-            if platform_matches(ow_plat) {
+            if cg_platform_matches(ctx, ow_plat) {
                 return stmts_terminated(ow_node.d1 as ref parser.Node)
             }
         }
@@ -6392,7 +6406,7 @@ fn gen_stmts(ctx: ref CgCtx, stmts: ref parser.Node) void! = {
                 } else {
                     gen_stmt(ctx, snode)
                     if snode.kind == parser.NK_WHEN_STMT {
-                        if when_stmt_terminated(snode) { break }
+                        if when_stmt_terminated(ctx, snode) { break }
                     }
                 }
             }
@@ -6808,7 +6822,7 @@ fn gen_stmt(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
 
     if k == parser.NK_WHEN_STMT {
         val plat: ref char = stmt.d0 as ref char
-        if platform_matches(plat) {
+        if cg_platform_matches(ctx, plat) {
             gen_stmts(ctx, stmt.d1 as ref parser.Node)
         } else {
             val or_when_branches: ref void = stmt.d2 as ref void
@@ -6817,7 +6831,7 @@ fn gen_stmt(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
                 for ow_node in or_when_branches as list[ref parser.Node] {
                     if !matched {
                         val ow_plat: ref char = ow_node.d0 as ref char
-                        if platform_matches(ow_plat) {
+                        if cg_platform_matches(ctx, ow_plat) {
                             gen_stmts(ctx, ow_node.d1 as ref parser.Node)
                             matched = true
                         }
@@ -8622,7 +8636,7 @@ fn preregister_items(ctx: ref CgCtx, items: list[ref parser.Node], mod_prefix: r
                     }
                 } elif k == parser.NK_WHEN_ITEMS {
                     val plat: ref char = node.d0 as ref char
-                    if platform_matches(plat) {
+                    if cg_platform_matches(ctx, plat) {
                         val witems: list[ref parser.Node] = node.d1 as list[ref parser.Node]
                         preregister_items(ctx, witems, mod_prefix)
                     } else {
@@ -8632,7 +8646,7 @@ fn preregister_items(ctx: ref CgCtx, items: list[ref parser.Node], mod_prefix: r
                             for ow2 in or_when_branches2 as list[ref parser.Node] {
                                 if !matched2 {
                                     val ow_plat2: ref char = ow2.d0 as ref char
-                                    if platform_matches(ow_plat2) {
+                                    if cg_platform_matches(ctx, ow_plat2) {
                                         val ow_items2: list[ref parser.Node] = ow2.d1 as list[ref parser.Node]
                                         preregister_items(ctx, ow_items2, mod_prefix)
                                         matched2 = true
@@ -8691,7 +8705,7 @@ fn gen_items_with_prefix(ctx: ref CgCtx, items: list[ref parser.Node], mod_prefi
                     cg_register_struct(ctx, etname, etfields)
                 } elif k == parser.NK_WHEN_ITEMS {
                     val plat: ref char = node.d0 as ref char
-                    if platform_matches(plat) {
+                    if cg_platform_matches(ctx, plat) {
                         val witems: list[ref parser.Node] = node.d1 as list[ref parser.Node]
                         gen_items_with_prefix(ctx, witems, mod_prefix)
                     } else {
@@ -8701,7 +8715,7 @@ fn gen_items_with_prefix(ctx: ref CgCtx, items: list[ref parser.Node], mod_prefi
                             for ow3 in or_when_branches3 as list[ref parser.Node] {
                                 if !matched3 {
                                     val ow_plat3: ref char = ow3.d0 as ref char
-                                    if platform_matches(ow_plat3) {
+                                    if cg_platform_matches(ctx, ow_plat3) {
                                         val ow_items3: list[ref parser.Node] = ow3.d1 as list[ref parser.Node]
                                         gen_items_with_prefix(ctx, ow_items3, mod_prefix)
                                         matched3 = true
@@ -8874,7 +8888,7 @@ fn scan_items_for_usage(ctx: ref CgCtx, items: list[ref parser.Node], mod_prefix
                     }
                 } elif k == parser.NK_WHEN_ITEMS {
                     val plat: ref char = node.d0 as ref char
-                    if platform_matches(plat) {
+                    if cg_platform_matches(ctx, plat) {
                         val witems: list[ref parser.Node] = node.d1 as list[ref parser.Node]
                         scan_items_for_usage(ctx, witems, mod_prefix)
                     }
@@ -9177,9 +9191,10 @@ fn scan_node_for_calls_depth(ctx: ref CgCtx, node: ref parser.Node, depth: i64) 
 
 /// Main entry for the resolved module tree.
 /// Flattens children depth-first, emits each layer with its mangled prefix.
-pub fn gen_module_resolved(root: ref module.ResolvedModule, release_mode: bool) ref char! = {
+pub fn gen_module_resolved(root: ref module.ResolvedModule, release_mode: bool, src_target: ref char) ref char! = {
     val ctx: mut ref CgCtx = cg_new()
     ctx.release_mode = release_mode
+    ctx.src_target = src_target
     emit_runtime_helpers(ctx)
 
     val out_prefixes: list[ref char] = []
@@ -9489,9 +9504,10 @@ fn gen_test_main(ctx: ref CgCtx, test_ids: list[i64]) void! = {
 
 /// Entry point for --test mode: emits test blocks from root module only,
 /// suppresses main(), and emits a test runner $main.
-pub fn gen_module_resolved_test(root: ref module.ResolvedModule, release_mode: bool) ref char! = {
+pub fn gen_module_resolved_test(root: ref module.ResolvedModule, release_mode: bool, src_target: ref char) ref char! = {
     val ctx: mut ref CgCtx = cg_new()
     ctx.release_mode = release_mode
+    ctx.src_target = src_target
     emit_runtime_helpers(ctx)
 
     val out_prefixes: list[ref char] = []
@@ -9727,7 +9743,7 @@ fn gen_items_with_prefix_skip_links(ctx: ref CgCtx, items: list[ref parser.Node]
                     cg_register_struct(ctx, etname, etfields)
                 } elif k == parser.NK_WHEN_ITEMS {
                     val plat: ref char = node.d0 as ref char
-                    if platform_matches(plat) {
+                    if cg_platform_matches(ctx, plat) {
                         val witems: list[ref parser.Node] = node.d1 as list[ref parser.Node]
                         gen_items_with_prefix_skip_links(ctx, witems, mod_prefix)
                     }
@@ -9861,7 +9877,7 @@ fn gen_items_with_prefix_skip_main(ctx: ref CgCtx, items: list[ref parser.Node],
                     cg_register_struct(ctx, etname, etfields)
                 } elif k == parser.NK_WHEN_ITEMS {
                     val plat: ref char = node.d0 as ref char
-                    if platform_matches(plat) {
+                    if cg_platform_matches(ctx, plat) {
                         val witems: list[ref parser.Node] = node.d1 as list[ref parser.Node]
                         gen_items_with_prefix_skip_main(ctx, witems, mod_prefix)
                     } else {
@@ -9871,7 +9887,7 @@ fn gen_items_with_prefix_skip_main(ctx: ref CgCtx, items: list[ref parser.Node],
                             for ow4 in or_when_branches4 as list[ref parser.Node] {
                                 if !matched4 {
                                     val ow_plat4: ref char = ow4.d0 as ref char
-                                    if platform_matches(ow_plat4) {
+                                    if cg_platform_matches(ctx, ow_plat4) {
                                         val ow_items4: list[ref parser.Node] = ow4.d1 as list[ref parser.Node]
                                         gen_items_with_prefix_skip_main(ctx, ow_items4, mod_prefix)
                                         matched4 = true

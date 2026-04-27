@@ -23,6 +23,7 @@ pub fn print_usage() void = {
     std.stdio.puts("  --emit-ssa           Print QBE IR to stdout and exit")
     std.stdio.puts("  --emit-alt           Print alternative IR to stdout and exit")
     std.stdio.puts("  --emit-asm           Print assembly to stdout and exit")
+    std.stdio.puts("  --src-target=<os>    Mock target OS for when-blocks in source output")
     std.stdio.puts("  --translate-c        Translate C input into a single .sx file")
     std.stdio.puts("  --show-cmd           Show the command used for linking")
     std.stdio.puts("  --test               Run the unit tests in the current file")
@@ -38,4 +39,18 @@ pub fn print_usage() void = {
 
 pub fn print_version() void = {
     std.stdio.print("Spectre {s}\n(C) Navid Momtahen - GPL-3.0 - 2026", {get_spectre_version()})
+}
+
+pub fn print_src_target_help() void = {
+    std.stdio.puts("--src-target=<os>")
+    std.stdio.puts("")
+    std.stdio.puts("  Mock the target OS for when blocks in source output.")
+    std.stdio.puts("  Requires --emit-alt or --emit-ssa.")
+    std.stdio.puts("")
+    std.stdio.puts("  Valid targets:")
+    std.stdio.puts("    windows, linux, darwin, freebsd, openbsd, netbsd,")
+    std.stdio.puts("    dragonflybsd, android, haiku, redox, plan9")
+    std.stdio.puts("")
+    std.stdio.puts("  Example:")
+    std.stdio.puts("    spectre file.sx --src-target=windows --emit-alt")
 }

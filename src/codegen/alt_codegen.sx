@@ -63,6 +63,7 @@ pub type CCtx = {
     gsubst_names: mut list[ref char]
     gsubst_tnodes: mut list[ref void]
     mono_sb: mut ref void
+    src_target: mut ref char
 }
 
 fn cc_new() ref CCtx! = {
@@ -120,7 +121,12 @@ fn cc_new() ref CCtx! = {
     ctx.gsubst_names = []
     ctx.gsubst_tnodes = []
     ctx.mono_sb = str.StringBuilder.new()
+    ctx.src_target = ""
     return ctx
+}
+
+fn cc_platform_matches(ctx: ref CCtx, name: ref char) bool! = {
+    return codegen.platform_matches_with_target(name, ctx.src_target)
 }
 
 fn cc_expr_track(ctx: ref CCtx, s: ref char) ref char! = {
@@ -2559,10 +2565,10 @@ fn gen_stmt(ctx: mut ref CCtx, stmt: ref parser.Node) void! = {
     if k == parser.NK_GENERIC_WHEN { return }
     if k == parser.NK_WHEN_STMT {
         val plat: ref char = stmt.d0 as ref char
-        if codegen.platform_matches(plat) { gen_stmts(ctx, stmt.d1 as ref parser.Node) }
+        if cc_platform_matches(ctx, plat) { gen_stmts(ctx, stmt.d1 as ref parser.Node) }
         else { val ow: ref void = stmt.d2 as ref void val matched: mut bool = false
             if ow != 0 as ref void { for own in ow as list[ref parser.Node] { if !matched {
-                if codegen.platform_matches(own.d0 as ref char) { gen_stmts(ctx, own.d1 as ref parser.Node) matched = true } } } }
+                if cc_platform_matches(ctx, own.d0 as ref char) { gen_stmts(ctx, own.d1 as ref parser.Node) matched = true } } } }
             if !matched { val otherwise: ref void = stmt.d3 as ref void
                 if otherwise != 0 as ref void { gen_stmts(ctx, stmt.d3 as ref parser.Node) } } }
         return }
@@ -3128,10 +3134,10 @@ fn preregister_items(ctx: ref CCtx, items: list[ref parser.Node], mod_prefix: re
                     if is_sc3 { val sk: ref char = @alloc(512) as ref char @snprintf(sk, 512, "std__{s}__{s}", {mod_prefix, cn})
                         cc_register_module_const(ctx, sk, cv) } } }
             elif k == parser.NK_WHEN_ITEMS { val plat: ref char = node.d0 as ref char
-                if codegen.platform_matches(plat) { preregister_items(ctx, node.d1 as list[ref parser.Node], mod_prefix) }
+                if cc_platform_matches(ctx, plat) { preregister_items(ctx, node.d1 as list[ref parser.Node], mod_prefix) }
                 else { val ow: ref void = node.d2 as ref void val matched: mut bool = false
                     if ow != 0 as ref void { for own in ow as list[ref parser.Node] { if !matched {
-                        if codegen.platform_matches(own.d0 as ref char) { preregister_items(ctx, own.d1 as list[ref parser.Node], mod_prefix) matched = true } } } }
+                        if cc_platform_matches(ctx, own.d0 as ref char) { preregister_items(ctx, own.d1 as list[ref parser.Node], mod_prefix) matched = true } } } }
                     if !matched { val otherwise: ref void = node.d3 as ref void
                         if otherwise != 0 as ref void { preregister_items(ctx, otherwise as list[ref parser.Node], mod_prefix) } } } }
         } none => {} }
@@ -3188,10 +3194,10 @@ fn gen_items_with_prefix(ctx: mut ref CCtx, items: list[ref parser.Node], mod_pr
                 if node.d3 != 0 as i64 { cc_register_invariant(ctx, node.d1 as ref char, node.d3 as ref void) } }
             elif k == parser.NK_EXTERN_TYPE { cc_register_struct(ctx, node.d1 as ref char, node.d2 as ref void) }
             elif k == parser.NK_WHEN_ITEMS { val plat: ref char = node.d0 as ref char
-                if codegen.platform_matches(plat) { gen_items_with_prefix(ctx, node.d1 as list[ref parser.Node], mod_prefix) }
+                if cc_platform_matches(ctx, plat) { gen_items_with_prefix(ctx, node.d1 as list[ref parser.Node], mod_prefix) }
                 else { val ow: ref void = node.d2 as ref void val matched: mut bool = false
                     if ow != 0 as ref void { for own in ow as list[ref parser.Node] { if !matched {
-                        if codegen.platform_matches(own.d0 as ref char) { gen_items_with_prefix(ctx, own.d1 as list[ref parser.Node], mod_prefix) matched = true } } } }
+                        if cc_platform_matches(ctx, own.d0 as ref char) { gen_items_with_prefix(ctx, own.d1 as list[ref parser.Node], mod_prefix) matched = true } } } }
                     if !matched { val otherwise: ref void = node.d3 as ref void
                         if otherwise != 0 as ref void { gen_items_with_prefix(ctx, otherwise as list[ref parser.Node], mod_prefix) } } } }
         } none => {} }
@@ -3350,10 +3356,10 @@ fn gen_items_with_prefix_skip_main(ctx: mut ref CCtx, items: list[ref parser.Nod
                 if node.d3 != 0 as i64 { cc_register_invariant(ctx, node.d1 as ref char, node.d3 as ref void) } }
             elif k == parser.NK_EXTERN_TYPE { cc_register_struct(ctx, node.d1 as ref char, node.d2 as ref void) }
             elif k == parser.NK_WHEN_ITEMS { val plat: ref char = node.d0 as ref char
-                if codegen.platform_matches(plat) { gen_items_with_prefix_skip_main(ctx, node.d1 as list[ref parser.Node], mod_prefix) }
+                if cc_platform_matches(ctx, plat) { gen_items_with_prefix_skip_main(ctx, node.d1 as list[ref parser.Node], mod_prefix) }
                 else { val ow: ref void = node.d2 as ref void val matched: mut bool = false
                     if ow != 0 as ref void { for own in ow as list[ref parser.Node] { if !matched {
-                        if codegen.platform_matches(own.d0 as ref char) { gen_items_with_prefix_skip_main(ctx, own.d1 as list[ref parser.Node], mod_prefix) matched = true } } } }
+                        if cc_platform_matches(ctx, own.d0 as ref char) { gen_items_with_prefix_skip_main(ctx, own.d1 as list[ref parser.Node], mod_prefix) matched = true } } } }
                     if !matched { val otherwise: ref void = node.d3 as ref void
                         if otherwise != 0 as ref void { gen_items_with_prefix_skip_main(ctx, otherwise as list[ref parser.Node], mod_prefix) } } } }
         } none => {} }
@@ -3407,9 +3413,10 @@ fn gen_test_main_c(ctx: ref CCtx, test_ids: list[i64]) void! = {
     emitln(ctx, "")
 }
 
-pub fn gen_module_c_test(root: ref module.ResolvedModule, release_mode: bool, extra_includes: list[ref char]) ref char! = {
+pub fn gen_module_c_test(root: ref module.ResolvedModule, release_mode: bool, extra_includes: list[ref char], src_target: ref char) ref char! = {
     val ctx: mut ref CCtx = cc_new()
     ctx.release_mode = release_mode
+    ctx.src_target = src_target
     val out_prefixes: list[ref char] = []
     val out_items: list[ref void] = []
     val seen: list[String] = []
@@ -3499,9 +3506,10 @@ pub fn gen_module_c_test(root: ref module.ResolvedModule, release_mode: bool, ex
     return result
 }
 
-pub fn gen_module_c(root: ref module.ResolvedModule, release_mode: bool, extra_includes: list[ref char]) ref char! = {
+pub fn gen_module_c(root: ref module.ResolvedModule, release_mode: bool, extra_includes: list[ref char], src_target: ref char) ref char! = {
     val ctx: mut ref CCtx = cc_new()
     ctx.release_mode = release_mode
+    ctx.src_target = src_target
     val out_prefixes: list[ref char] = []
     val out_items: list[ref void] = []
     val seen: list[String] = []

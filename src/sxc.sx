@@ -246,6 +246,7 @@ pub fn main() i32! = {
     val alt_compiler: mut ref char = ""
     val translate_c_flag: mut bool = flag_first_translate_c
     val extra_includes: mut list[ref char] = []
+    val src_target: mut ref char = ""
     val arg_i: mut i64 = 2
 
     if flag_first_translate_c {
@@ -332,6 +333,12 @@ pub fn main() i32! = {
                         alt_compiler = compiler_str
                     }
                     arg_i++
+                } elif std.string.rchar_starts_with(arg, "--src-target=") {
+                    val tgt_len: i64 = std.string.len_raw(arg) as i64 - 13
+                    if tgt_len > 0 {
+                        src_target = std.string.substr(arg, 13, tgt_len)
+                    }
+                    arg_i++
                 } elif std.string.rchar_starts_with(arg, "-I") {
                     val headers_str: ref char = std.string.substr(arg, 2, std.string.len_raw(arg) - 2)
                     val hlen: i64 = std.string.len_raw(headers_str)
@@ -361,6 +368,12 @@ pub fn main() i32! = {
                 arg_i++
             }
         }
+    }
+
+    if std.string.rchar_cmp(src_target, "") != 0 && !emit_alt && !emit_qbe {
+        std.stdio.puts("error: --src-target requires --emit-alt or --emit-ssa")
+        allocators.Arena.free(arena)
+        return 1
     }
 
     if translate_c_flag {
@@ -435,8 +448,8 @@ pub fn main() i32! = {
 
     if use_alt || emit_alt {
         val c_ir: mut ref char = ""
-        if test_mode { c_ir = alt_codegen.gen_module_c_test(root_mod, release_mode, extra_includes) }
-        else { c_ir = alt_codegen.gen_module_c(root_mod, release_mode, extra_includes) }
+        if test_mode { c_ir = alt_codegen.gen_module_c_test(root_mod, release_mode, extra_includes, src_target) }
+        else { c_ir = alt_codegen.gen_module_c(root_mod, release_mode, extra_includes, src_target) }
 
         if emit_alt != false {
             std.stdio.puts(c_ir)
@@ -554,9 +567,9 @@ pub fn main() i32! = {
     val qbe_ir: mut ref char = ""
 
     if test_mode {
-        qbe_ir = codegen.gen_module_resolved_test(root_mod, release_mode)
+        qbe_ir = codegen.gen_module_resolved_test(root_mod, release_mode, src_target)
     } else {
-        qbe_ir = codegen.gen_module_resolved(root_mod, release_mode)
+        qbe_ir = codegen.gen_module_resolved(root_mod, release_mode, src_target)
     }
 
     if !quiet && !emit_qbe && !emit_ll {
