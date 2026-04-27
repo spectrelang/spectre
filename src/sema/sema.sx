@@ -235,6 +235,13 @@ fn find_root_ident(node: ref parser.Node) ref parser.Node! = {
     return 0 as ref parser.Node
 }
 
+fn is_c_escape_expr(node: ref parser.Node) bool! = {
+    if node == 0 as ref parser.Node || node.kind != parser.NK_FIELD { return false }
+    val root: ref parser.Node = find_root_ident(node)
+    if root == 0 as ref parser.Node { return false }
+    return str_eq(root.d0 as ref char, "C")
+}
+
 /// Strips NK_CAST and NK_TRUST wrappers, then delegates to find_root_ident.
 fn unwrap_and_find_root(node: ref parser.Node) ref parser.Node! = {
     val cur: mut ref parser.Node = node
@@ -962,6 +969,7 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref char) v
         return
     }
     if k == parser.NK_FIELD {
+        if is_c_escape_expr(expr) { return }
         check_expr(ctx, parser.field_base(expr), filename)
         return
     }

@@ -796,6 +796,38 @@ fn cc_generic_callee_base_name(node: ref parser.Node) ref char! = {
     return "unknown"
 }
 
+fn cc_is_c_escape_expr(node: ref parser.Node) bool! = {
+    if node == 0 as ref parser.Node || node.kind != parser.NK_FIELD { return false }
+    val cur: mut ref parser.Node = node
+    for {
+        if cur == 0 as ref parser.Node { return false }
+        if cur.kind == parser.NK_IDENT {
+            return str.rchar_cmp(cur.d0 as ref char, "C") == 0
+        }
+        if cur.kind != parser.NK_FIELD { return false }
+        cur = parser.field_base(cur)
+    }
+    return false
+}
+
+fn cc_raw_c_name(node: ref parser.Node) ref char! = {
+    if node == 0 as ref parser.Node { return "" }
+    if node.kind == parser.NK_IDENT {
+        val name: ref char = node.d0 as ref char
+        if str.rchar_cmp(name, "C") == 0 { return "" }
+        return name
+    }
+    if node.kind == parser.NK_FIELD {
+        val base_raw: ref char = cc_raw_c_name(parser.field_base(node))
+        val fname: ref char = parser.field_name(node)
+        if str.rchar_cmp(base_raw, "") == 0 { return fname }
+        val buf: ref char = @alloc(512) as ref char
+        @snprintf(buf, 512, "{s}.{s}", {base_raw, fname})
+        return buf
+    }
+    return ""
+}
+
 fn c_ret_type_of(ctx: ref CCtx, ty: ref parser.Node) ref char! = {
     if ty == 0 as ref parser.Node { return "int64_t" }
     if ty.kind == parser.TY_VOID { return "int32_t" }
@@ -1147,6 +1179,9 @@ fn field_offset_bytes(ctx: ref CCtx, fields: ref void, field_name: ref char) i64
 
 fn resolve_callee_name_tracked(ctx: ref CCtx, callee: ref parser.Node) ref char! = {
     if callee == 0 as ref parser.Node { return "unknown" }
+    if cc_is_c_escape_expr(callee) {
+        return cc_expr_track(ctx, cc_raw_c_name(callee))
+    }
     if callee.kind == parser.NK_IDENT { return callee.d0 as ref char }
     if callee.kind == parser.NK_FIELD {
         val base: ref parser.Node = parser.field_base(callee)
@@ -1183,6 +1218,7 @@ fn resolve_callee_name_tracked(ctx: ref CCtx, callee: ref parser.Node) ref char!
 
 fn resolve_callee_name(callee: ref parser.Node) ref char! = {
     if callee == 0 as ref parser.Node { return "unknown" }
+    if cc_is_c_escape_expr(callee) { return cc_raw_c_name(callee) }
     if callee.kind == parser.NK_IDENT { return callee.d0 as ref char }
     if callee.kind == parser.NK_FIELD {
         val base: ref parser.Node = parser.field_base(callee)
@@ -1559,6 +1595,9 @@ fn gen_unop(ctx: ref CCtx, expr: ref parser.Node) ref char! = {
 fn gen_field(ctx: ref CCtx, expr: ref parser.Node) ref char! = {
     val base_node: ref parser.Node = parser.field_base(expr)
     val fname: ref char = parser.field_name(expr)
+    if cc_is_c_escape_expr(expr) {
+        return cc_expr_track(ctx, cc_raw_c_name(expr))
+    }
     val buf: ref char = @alloc(512) as ref char
     if base_node.kind == parser.NK_IDENT {
         val base_name: ref char = base_node.d0 as ref char

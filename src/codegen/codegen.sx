@@ -613,6 +613,38 @@ fn generic_callee_base_name(node: ref parser.Node) ref char! = {
     return "unknown"
 }
 
+fn cg_is_c_escape_expr(node: ref parser.Node) bool! = {
+    if node == 0 as ref parser.Node || node.kind != parser.NK_FIELD { return false }
+    val cur: mut ref parser.Node = node
+    for {
+        if cur == 0 as ref parser.Node { return false }
+        if cur.kind == parser.NK_IDENT {
+            return str.rchar_cmp(cur.d0 as ref char, "C") == 0
+        }
+        if cur.kind != parser.NK_FIELD { return false }
+        cur = parser.field_base(cur)
+    }
+    return false
+}
+
+fn cg_raw_c_name(node: ref parser.Node) ref char! = {
+    if node == 0 as ref parser.Node { return "" }
+    if node.kind == parser.NK_IDENT {
+        val name: ref char = node.d0 as ref char
+        if str.rchar_cmp(name, "C") == 0 { return "" }
+        return name
+    }
+    if node.kind == parser.NK_FIELD {
+        val base_raw: ref char = cg_raw_c_name(parser.field_base(node))
+        val fname: ref char = parser.field_name(node)
+        if str.rchar_cmp(base_raw, "") == 0 { return fname }
+        val buf: ref char = @alloc(512) as ref char
+        @snprintf(buf, 512, "{s}.{s}", {base_raw, fname})
+        return buf
+    }
+    return ""
+}
+
 /// Extract the module prefix from a mangled function name.
 /// E.g. "std__stdio__puts" with bare name "puts" -> "std__stdio"
 pub fn extract_prefix_from_mangled(mangled: ref char, bare_name: ref char) ref char! = {
@@ -3731,6 +3763,17 @@ fn field_load_instr_for(ty: ref parser.Node) ref char! = {
 fn gen_field(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
     val base_expr: ref parser.Node = expr.d0 as ref parser.Node
     val field_name: ref char = expr.d1 as ref char
+    if cg_is_c_escape_expr(expr) {
+        val raw_name: ref char = cg_raw_c_name(expr)
+        val tmp_raw: i64 = fresh_tmp(ctx)
+        val raw_buf: ref char = @alloc(256) as ref char
+        @snprintf(raw_buf, 256, "    %%t{lld} =l copy ${s}\n", {tmp_raw, raw_name})
+        emit(ctx, raw_buf)
+        @free(raw_buf)
+        val raw_res: ref char = @alloc(16) as ref char
+        @snprintf(raw_res, 16, "%%t{lld}", {tmp_raw})
+        return raw_res
+    }
     val offset: mut i64 = 0
 
     if base_expr.kind == parser.NK_IDENT {
@@ -5048,6 +5091,9 @@ fn resolve_callee_name(node: ref parser.Node) ref char! = {
         return node.d0 as ref char
     }
     if k == parser.NK_FIELD {
+        if cg_is_c_escape_expr(node) {
+            return cg_raw_c_name(node)
+        }
         val base: ref char = resolve_callee_name(parser.field_base(node))
         val field: ref char = parser.field_name(node)
         val buf: ref char = @alloc(256) as ref char
