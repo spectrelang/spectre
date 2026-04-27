@@ -778,6 +778,15 @@ fn cg_const_val(ctx: ref CgCtx, name: ref char) ref char! = {
     return ""
 }
 
+fn cg_fixed_arr_size_text(_: ref CgCtx, ty: ref parser.Node) ref char! = {
+    if ty == 0 as ref parser.Node || ty.kind != parser.TY_FIXED_ARR { return "0" }
+    val sz_name: ref char = parser.fixed_arr_size_name(ty)
+    if sz_name != 0 as ref char && str.rchar_cmp(sz_name, "") != 0 { return sz_name }
+    val buf: ref char = @alloc(64) as ref char
+    @snprintf(buf, 64, "{lld}", {parser.fixed_arr_size(ty)})
+    return buf
+}
+
 /// Returns true if name is a registered function.
 fn cg_is_fn(ctx: ref CgCtx, name: ref char) bool! = {
     val names: ref void = cg_fn_names(ctx)
@@ -2292,10 +2301,10 @@ fn type_expr_to_annotation(ctx: ref CgCtx, ty: ref parser.Node) ref char! = {
     }
 
     if k == parser.TY_FIXED_ARR {
-        val count: i64 = ty.d0 as i64
+        val count_text: ref char = cg_fixed_arr_size_text(ctx, ty)
         val inner = type_expr_to_annotation(ctx, ty.d1 as ref parser.Node)
         val buf: ref char = @alloc(512) as ref char
-        @snprintf(buf, 512, "[{lld}]{s}", {count, inner})
+        @snprintf(buf, 512, "[{s}]{s}", {count_text, inner})
         return buf
     }
 
@@ -2393,7 +2402,7 @@ fn type_size(ty: ref parser.Node) i64! = {
         return 8
     }
     if k == parser.TY_FIXED_ARR {
-        val count: i64 = ty.d0
+        val count: i64 = parser.fixed_arr_size(ty)
         val elem_size: i64 = type_size(ty.d1 as ref parser.Node)
         return count * elem_size
     }

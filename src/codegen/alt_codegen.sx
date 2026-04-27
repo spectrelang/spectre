@@ -1010,7 +1010,7 @@ fn c_size_of(ctx: ref CCtx, ty: ref parser.Node) i64! = {
     if k == parser.TY_LIST { return 24 }
     if k == parser.TY_SLICE { return 16 }
     if k == parser.TY_FIXED_ARR {
-        val sz: i64 = resolved_ty.d0
+        val sz: i64 = cc_fixed_arr_size_val(ctx, resolved_ty)
         val inner: ref parser.Node = resolved_ty.d1 as ref parser.Node
         return sz * c_size_of(ctx, inner)
     }
@@ -1103,6 +1103,43 @@ fn cc_const_val(ctx: ref CCtx, name: ref char) ref char! = {
         } } none => {} }
         ni++ }
     return ""
+}
+
+fn cc_fixed_arr_size_val(ctx: ref CCtx, ty: ref parser.Node) i64! = {
+    if ty == 0 as ref parser.Node || ty.kind != parser.TY_FIXED_ARR { return 0 }
+    val sz_name: ref char = parser.fixed_arr_size_name(ty)
+    if sz_name == 0 as ref char || str.rchar_cmp(sz_name, "") == 0 {
+        return parser.fixed_arr_size(ty)
+    }
+    val exact: ref char = cc_const_val(ctx, sz_name)
+    val ctext: mut ref char = exact
+    if str.rchar_cmp(ctext, "") == 0 {
+        val slen: i64 = str.len_raw(sz_name)
+        val mapped: ref char = @alloc(slen * 2 + 1) as ref char
+        val si: mut i64 = 0
+        val mi: mut i64 = 0
+        for {
+            if si >= slen { break }
+            val ch: u8 = @load8(@ptradd(sz_name as ref void, si))
+            if ch == 46 {
+                @store8(@ptradd(mapped as ref void, mi), 95)
+                @store8(@ptradd(mapped as ref void, mi + 1), 95)
+                mi += 2
+            } else {
+                @store8(@ptradd(mapped as ref void, mi), ch)
+                mi++
+            }
+            si++
+        }
+        @store8(@ptradd(mapped as ref void, mi), 0)
+        ctext = cc_const_val(ctx, mapped)
+    }
+    if str.rchar_cmp(ctext, "") == 0 { return 0 }
+    val parsed = std.fmt.string_to_i64(ctext)
+    match parsed {
+        ok v  => { return v }
+        err _ => { return 0 }
+    }
 }
 
 fn cc_register_module_val(ctx: ref CCtx, name: ref char, symbol: ref char) void! = {

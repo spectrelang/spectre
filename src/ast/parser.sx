@@ -157,6 +157,9 @@ fn make_unop(op: i64, line: i64, inner: ref Node) result[ref Node, ref char]! = 
 
 pub fn unop_op(n: ref Node) i64 = { return n.d0 }
 pub fn unop_inner(n: ref Node) ref Node = { return n.d1 as ref Node }
+pub fn fixed_arr_size(n: ref Node) i64 = { return n.d0 }
+pub fn fixed_arr_inner(n: ref Node) ref Node = { return n.d1 as ref Node }
+pub fn fixed_arr_size_name(n: ref Node) ref char = { return n.d2 as ref char }
 
 fn make_field(base: ref Node, line: i64, name: ref char) result[ref Node, ref char]! = {
     val n: mut ref Node = make_node(NK_FIELD, line)
@@ -427,21 +430,37 @@ pub fn parse_type(p: ref Parser) result[ref Node, ref char]! = {
             n.d0 = inner as i64
             return ok n
         }
-        if !kind_is_int(p_peek_kind(p)) {
-            return err p_error(p, "expected integer size in fixed array type")
-        }
-        val sz_text: ref char = p_advance_text(p)
-        val sz_res = std.fmt.string_to_i64(sz_text)
         val sz: mut i64 = 0
-        match sz_res {
-            ok v  => { sz = v }
-            err _ => { return err p_error(p, "invalid array size") }
+        val sz_name: mut ref char = 0 as ref char
+        if kind_is_int(p_peek_kind(p)) {
+            val sz_text: ref char = p_advance_text(p)
+            val sz_res = std.fmt.string_to_i64(sz_text)
+            match sz_res {
+                ok v  => { sz = v }
+                err _ => { return err p_error(p, "invalid array size") }
+            }
+        } elif kind_is_ident(p_peek_kind(p)) {
+            val sb: ref void = std.string.StringBuilder.new()
+            std.string.StringBuilder.append_cstr(sb, p_advance_text(p))
+            for {
+                if !lexer.kind_is_dot(p_peek_kind(p)) { break }
+                p_advance(p)
+                val seg = p_expect_ident(p)?
+                std.string.StringBuilder.append_char(sb, 46)
+                std.string.StringBuilder.append_cstr(sb, seg)
+            }
+            val built: ref void = std.string.StringBuilder.build(sb)
+            std.string.StringBuilder.free(sb)
+            sz_name = std.string.cstr(built)
+        } else {
+            return err p_error(p, "expected integer size in fixed array type")
         }
         p_expect_rbracket(p)?
         val inner2 = parse_type(p)?
         val n2: mut ref Node = make_node(TY_FIXED_ARR, line)
         n2.d0 = sz
         n2.d1 = inner2 as i64
+        n2.d2 = sz_name as i64
         return ok n2
     }
 
