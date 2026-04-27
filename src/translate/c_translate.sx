@@ -4900,6 +4900,124 @@ fn translate_params(ctx: ref TranslationCtx, params_text: ref char) ref char = {
     return std.string.cstr(built)
 }
 
+fn extract_main_param_name(ctx: ref TranslationCtx, params_text: ref char, index: i64) ref char = {
+    val trimmed: ref char = trim_raw(params_text)
+    if std.string.rchar_cmp(trimmed, "") == 0 || std.string.rchar_cmp(trimmed, "void") == 0 { return "" }
+    val params = split_top_level(trimmed, 44)
+    val param_opt = @get(params, index as usize)
+    match param_opt {
+        some param_val => {
+            val fallback: ref char = trust @fmt("arg{d}", {index})
+            val decl: ref DeclInfo = parse_named_decl(ctx, trim_raw(param_val as ref char), fallback)
+            if decl.its_ok { return decl.name }
+            return sanitize_identifier(fallback)
+        }
+        none => { return "" }
+    }
+}
+
+fn text_uses_ident(text: ref char, name: ref char) bool = {
+    if std.string.rchar_cmp(name, "") == 0 { return false }
+    val len: i64 = std.string.len_raw(text)
+    val nlen: i64 = std.string.len_raw(name)
+    if len == 0 || nlen == 0 || nlen > len { return false }
+    val i: mut i64 = 0
+    val in_string: mut bool = false
+    val in_char: mut bool = false
+    val escaped: mut bool = false
+    val in_line_comment: mut bool = false
+    val in_block_comment: mut bool = false
+    for {
+        if i >= len { break }
+        val c: u8 = trust @load8(@ptradd(text as ref void, i)) as u8
+        val next: mut u8 = 0
+        if i + 1 < len {
+            next = trust @load8(@ptradd(text as ref void, i + 1)) as u8
+        }
+        if in_line_comment {
+            if c == 10 || c == 13 { in_line_comment = false }
+            i++
+            continue
+        }
+        if in_block_comment {
+            if c == 42 && next == 47 {
+                in_block_comment = false
+                i += 2
+                continue
+            }
+            i++
+            continue
+        }
+        if in_string {
+            if escaped { escaped = false }
+            elif c == 92 { escaped = true }
+            elif c == 34 { in_string = false }
+            i++
+            continue
+        }
+        if in_char {
+            if escaped { escaped = false }
+            elif c == 92 { escaped = true }
+            elif c == 39 { in_char = false }
+            i++
+            continue
+        }
+        if c == 47 && next == 47 {
+            in_line_comment = true
+            i += 2
+            continue
+        }
+        if c == 47 && next == 42 {
+            in_block_comment = true
+            i += 2
+            continue
+        }
+        if c == 34 {
+            in_string = true
+            i++
+            continue
+        }
+        if c == 39 {
+            in_char = true
+            i++
+            continue
+        }
+        if i + nlen <= len {
+            val candidate: ref char = std.string.substr(text, i, nlen)
+            if std.string.rchar_cmp(candidate, name) == 0 {
+                val prev_ok: bool = i == 0 || !is_ident_part(trust @load8(@ptradd(text as ref void, i - 1)) as u8)
+                val next_ok: bool = i + nlen >= len || !is_ident_part(trust @load8(@ptradd(text as ref void, i + nlen)) as u8)
+                if prev_ok && next_ok { return true }
+            }
+        }
+        i++
+    }
+    return false
+}
+
+fn emit_main_args_prelude(ctx: ref TranslationCtx, params_text: ref char, body_text: ref char, indent: i64, out: ref void) bool = {
+    val argc_name: ref char = extract_main_param_name(ctx, params_text, 0)
+    val argv_name: ref char = extract_main_param_name(ctx, params_text, 1)
+    val needs_argc: bool = text_uses_ident(body_text, "argc") || text_uses_ident(body_text, argc_name)
+    val needs_argv: bool = text_uses_ident(body_text, "args") || text_uses_ident(body_text, argv_name)
+    if !needs_argc && !needs_argv { return false }
+    remember_local_type(ctx, "args", "list[ref char]")
+    append_line(out, indent, "val args: list[ref char] = @args()")
+    if needs_argc {
+        remember_local_type(ctx, "argc", "usize")
+        append_line(out, indent, "val argc: usize = @len(args)")
+    }
+    if std.string.rchar_cmp(argc_name, "") != 0 && std.string.rchar_cmp(argc_name, "argc") != 0 && text_uses_ident(body_text, argc_name) {
+        remember_local_type(ctx, argc_name, "usize")
+        append_line(out, indent, trust @fmt("val {s}: usize = @len(args)", {argc_name}))
+    }
+    if std.string.rchar_cmp(argv_name, "") != 0 && std.string.rchar_cmp(argv_name, "args") != 0 && text_uses_ident(body_text, argv_name) {
+        remember_local_type(ctx, argv_name, "list[ref char]")
+        append_line(out, indent, trust @fmt("val {s}: list[ref char] = args", {argv_name}))
+    }
+    return true
+}
+
 fn strip_gnu_attributes(text: ref char) ref char = {
     val len: i64 = std.string.len_raw(text)
     val sb: ref void = std.string.StringBuilder.new()
@@ -4976,7 +5094,11 @@ fn translate_function_decl(text: ref char, current_dir: ref char, indent: i64, o
         analyze_mutable_names(ctx, body_lines0, 0)
         analyze_address_taken_names(ctx, body_lines0, 0)
     }
-    val params_text: ref char = translate_params(ctx, params_raw)
+    val is_main: bool = std.string.rchar_cmp(name, "main") == 0
+    val params_text: mut ref char = ""
+    if !is_main {
+        params_text = translate_params(ctx, params_raw)
+    }
     val is_static: bool = str_contains(signature, "static ")
     val line: mut ref char = ""
     if has_body {
@@ -4985,21 +5107,27 @@ fn translate_function_decl(text: ref char, current_dir: ref char, indent: i64, o
         if is_static { fn_kw = "fn" }
         line = trust @fmt("{s} {s}({s}) {s}! = ", {fn_kw, name, params_text, return_type})
         append_open_block_line(out, indent, line)
-        if std.string.rchar_cmp(name, "main") == 0 {
+        if is_main {
+            val body_lines = split_lines(body_src)
+            emit_main_args_prelude(ctx, params_raw, body_src, indent + 1, out)
+            if ((@len(ctx.main_prelude_lines) as i64) > 0) {
+                append_blank_line(out)
+            }
             for prelude_line in ctx.main_prelude_lines {
                 append_line(out, indent + 1, prelude_line)
             }
-            if (((@len(ctx.main_prelude_lines) as i64) > 0 && (@len(split_lines(body_src)) as i64)) > 0) {
+            if ((@len(body_lines) as i64) > 0) {
                 append_blank_line(out)
             }
-        }
-        val body_lines = split_lines(body_src)
-        translate_body_lines(body_lines, current_dir, 0, indent + 1, out, ctx)
-        if std.string.rchar_cmp(name, "main") == 0
-            && std.string.rchar_cmp(return_type, "i32") == 0
-            && !body_has_explicit_return(body_lines) {
-            append_blank_line(out)
-            append_line(out, indent + 1, "return 0")
+            translate_body_lines(body_lines, current_dir, 0, indent + 1, out, ctx)
+            if std.string.rchar_cmp(return_type, "i32") == 0
+                && !body_has_explicit_return(body_lines) {
+                append_blank_line(out)
+                append_line(out, indent + 1, "return 0")
+            }
+        } else {
+            val body_lines = split_lines(body_src)
+            translate_body_lines(body_lines, current_dir, 0, indent + 1, out, ctx)
         }
         append_line(out, indent, "}")
         append_blank_line(out)
