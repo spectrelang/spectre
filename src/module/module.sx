@@ -673,6 +673,23 @@ fn expr_references_import_shallow(node: ref parser.Node, import_name: ref char) 
                 ai++
             }
         }
+    } elif node.kind == parser.NK_BUILTIN {
+        val args: ref void = node.d1 as ref void
+        if args != 0 {
+            val alen: i64 = @len(args) as i64
+            val ai: mut i64 = 0
+            for {
+                if ai >= alen { break }
+                val arg_opt = @get(args, ai as usize)
+                match arg_opt {
+                    some arg => {
+                        if expr_references_import_shallow(arg as ref parser.Node, import_name) { return true }
+                    }
+                    none => {}
+                }
+                ai++
+            }
+        }
     } elif node.kind == parser.NK_ARGS_PACK {
         val elems: ref void = node.d0 as ref void
         if elems != 0 {
@@ -1693,6 +1710,21 @@ fn collect_needed_subnames_in_expr(expr: ref parser.Node, import_name: ref char,
                 ai++
             }
         }
+    } elif expr.kind == parser.NK_BUILTIN {
+        val args: ref void = expr.d1 as ref void
+        if args != 0 {
+            val alen: i64 = @len(args) as i64
+            val ai: mut i64 = 0
+            for {
+                if ai >= alen { break }
+                val arg_opt = @get(args, ai as usize)
+                match arg_opt {
+                    some arg => { collect_needed_subnames_in_expr(arg as ref parser.Node, import_name, needed) }
+                    none => {}
+                }
+                ai++
+            }
+        }
     } elif expr.kind == parser.NK_BINOP {
         collect_needed_subnames_in_expr(parser.binop_left(expr), import_name, needed)
         collect_needed_subnames_in_expr(parser.binop_right(expr), import_name, needed)
@@ -1861,6 +1893,21 @@ fn collect_used_imports_expr(node: ref parser.Node, import_names: list[ref char]
                     none => {}
                 }
                 bi++
+            }
+        }
+    } elif node.kind == parser.NK_ARGS_PACK {
+        val elems: ref void = node.d0 as ref void
+        if elems != 0 {
+            val elen: i64 = @len(elems) as i64
+            val ei: mut i64 = 0
+            for {
+                if ei >= elen { break }
+                val e_opt = @get(elems, ei as usize)
+                match e_opt {
+                    some e => { collect_used_imports_expr(e as ref parser.Node, import_names, used) }
+                    none => {}
+                }
+                ei++
             }
         }
     } elif node.kind == parser.NK_GENERIC_INST {

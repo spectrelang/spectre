@@ -8933,6 +8933,14 @@ fn scan_node_for_calls_depth(ctx: ref CgCtx, node: ref parser.Node, depth: i64) 
     if k == parser.NK_CALL {
         val callee: ref parser.Node = parser.call_callee(node)
         if callee != 0 as ref parser.Node {
+            if callee.kind == parser.NK_IDENT || callee.kind == parser.NK_FIELD {
+                val callee_name: ref char = resolve_callee_name(callee)
+                cg_resolve_fn_name(ctx, callee_name)
+            } elif callee.kind == parser.NK_GENERIC_INST {
+                val gi_base: ref parser.Node = parser.generic_inst_base(callee)
+                val gi_name: ref char = generic_callee_base_name(gi_base)
+                cg_resolve_fn_name(ctx, gi_name)
+            }
             scan_node_for_calls_depth(ctx, callee, depth + 1)
         }
         val args: ref void = parser.call_args(node) as ref void
@@ -9150,6 +9158,24 @@ fn scan_node_for_calls_depth(ctx: ref CgCtx, node: ref parser.Node, depth: i64) 
             }
         }
     } elif k == parser.NK_LIST_LIT {
+        val elems: ref void = node.d0 as ref void
+        if elems != 0 as ref void {
+            val elen: i64 = @len(elems as list[ref parser.Node]) as i64
+            val ei: mut i64 = 0
+            for {
+                if ei >= elen { break }
+                val elem_opt = @get(elems as list[ref parser.Node], ei as usize)
+                match elem_opt {
+                    some elem_val => {
+                        val elem: ref parser.Node = elem_val as ref parser.Node
+                        scan_node_for_calls_depth(ctx, elem, depth + 1)
+                    }
+                    none => {}
+                }
+                ei++
+            }
+        }
+    } elif k == parser.NK_ARGS_PACK {
         val elems: ref void = node.d0 as ref void
         if elems != 0 as ref void {
             val elen: i64 = @len(elems as list[ref parser.Node]) as i64
