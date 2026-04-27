@@ -326,7 +326,7 @@ fn chip8_load(chip: mut ref Chip8, path: ref char) bool = {
 fn chip8_emulateCycle(chip: mut ref Chip8) void = {
   val hi: u16 = mem_get(chip, chip.pc) as u16
   val lo: u16 = mem_get(chip, chip.pc + 1) as u16
-  chip.opcode = (hi << 8) || lo
+  chip.opcode = (hi << 8) | lo
 
   val opcode_high: u16 = chip.opcode & 0xF000
 

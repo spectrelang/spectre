@@ -1285,6 +1285,17 @@ fn get_format_arg(ctx: mut ref CCtx, args: ref void, idx: i64) ref char! = {
     }
 }
 
+fn gen_vararg_scalar_pack(ctx: ref CCtx, value: ref char) ref char! = {
+    val t: i64 = fresh_tmp(ctx)
+    val decl: ref char = @alloc(512) as ref char
+    @snprintf(decl, 512, "int64_t sx__vap{lld}[]=\{(int64_t)({s})\};\n", {t, value})
+    emit(ctx, decl)
+    @free(decl)
+    val res: ref char = @alloc(64) as ref char
+    @snprintf(res, 64, "sx__vap{lld}", {t})
+    return cc_expr_track(ctx, res)
+}
+
 
 fn gen_expr(ctx: ref CCtx, expr: ref parser.Node) ref char! = {
     if expr == 0 as ref parser.Node { return "0" }
@@ -2004,7 +2015,17 @@ fn gen_builtin(ctx: ref CCtx, expr: ref parser.Node) ref char! = {
     if str.rchar_cmp(bname, "fmt") == 0 {
         val f: ref char = get_format_arg(ctx, args, 0) val p: mut ref char = "0"
         if args != 0 as ref void { val alen: i64 = @len(args as list[ref parser.Node]) as i64
-            if alen > 1 { p = get_arg(ctx, args, 1) } }
+            if alen > 1 {
+                val pack_opt = @get(args as list[ref parser.Node], 1 as usize)
+                match pack_opt {
+                    some pack_node => {
+                        val pn: ref parser.Node = pack_node as ref parser.Node
+                        if pn.kind == parser.NK_ARGS_PACK { p = gen_expr(ctx, pn) }
+                        else { p = gen_vararg_scalar_pack(ctx, gen_expr(ctx, pn)) }
+                    }
+                    none => {}
+                }
+            } }
         val buf: ref char = @alloc(512) as ref char
         @snprintf(buf, 512, "(int64_t)(intptr_t)sx__rt_fmt((const char*)(intptr_t)({s}),(int64_t*)(intptr_t)({s}))", {f, p})
         return cc_expr_track(ctx, buf) }
@@ -2058,7 +2079,8 @@ fn gen_builtin(ctx: ref CCtx, expr: ref parser.Node) ref char! = {
                             } none => {} } pi++ }
                         val cl: i64 = str.len_raw(buf) @store8(@ptradd(buf as ref void, cl), 41) @store8(@ptradd(buf as ref void, cl+1), 0) return cc_expr_track(ctx, buf)
                     } else { val av2: ref char = gen_expr(ctx, pn)
-                        @snprintf(buf, 4096, "sx__rt_dprintf((int)({s}),(const char*)(intptr_t)({s}),(int64_t*)(intptr_t)({s}))", {fd, fmt_arg, av2}) return cc_expr_track(ctx, buf) }
+                        val packed: ref char = gen_vararg_scalar_pack(ctx, av2)
+                        @snprintf(buf, 4096, "sx__rt_dprintf((int)({s}),(const char*)(intptr_t)({s}),(int64_t*)(intptr_t)({s}))", {fd, fmt_arg, packed}) return cc_expr_track(ctx, buf) }
                 } none => {} } } }
         @snprintf(buf, 4096, "sx__dprintf((int)({s}),(const char*)(intptr_t)({s}))", {fd, fmt_arg}) return cc_expr_track(ctx, buf)
     }
@@ -2078,7 +2100,8 @@ fn gen_builtin(ctx: ref CCtx, expr: ref parser.Node) ref char! = {
                             } none => {} } pi++ }
                         val cl: i64 = str.len_raw(buf) @store8(@ptradd(buf as ref void, cl), 41) @store8(@ptradd(buf as ref void, cl+1), 0) return cc_expr_track(ctx, buf)
                     } else { val av2: ref char = gen_expr(ctx, pn)
-                        @snprintf(buf, 4096, "sx__rt_printf((const char*)(intptr_t)({s}),(int64_t*)(intptr_t)({s}))", {fmt_arg, av2}) return cc_expr_track(ctx, buf) }
+                        val packed: ref char = gen_vararg_scalar_pack(ctx, av2)
+                        @snprintf(buf, 4096, "sx__rt_printf((const char*)(intptr_t)({s}),(int64_t*)(intptr_t)({s}))", {fmt_arg, packed}) return cc_expr_track(ctx, buf) }
                 } none => {} } } }
         @snprintf(buf, 4096, "printf((const char*)(intptr_t)({s}))", {fmt_arg}) return cc_expr_track(ctx, buf)
     }
