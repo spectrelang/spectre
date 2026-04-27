@@ -42,6 +42,64 @@ fn add_error(ctx: ref SemaCtx, msg: ref char) void! = {
     @append(ctx.errors, msg)
 }
 
+fn is_known_builtin(name: ref char) bool! = {
+    val builtins: list[ref char] = [
+        "alloc", 
+        "free", 
+        "realloc", 
+        "sizeof",
+        "memcpy", 
+        "memset", 
+        "memmove",
+        "ptradd",
+        "fgets",
+        "stdin",
+        "stderr",
+        "load", 
+        "load64", 
+        "load8", 
+        "load16", 
+        "load32",
+        "addr",
+        "deref",
+        "store", 
+        "store64", 
+        "store8", 
+        "store16", 
+        "store32",
+        "append", 
+        "remove", 
+        "insert", 
+        "get", 
+        "set", 
+        "len", 
+        "reserve", 
+        "capacity",
+        "fmt", 
+        "snprintf", 
+        "print", 
+        "dprintf", 
+        "puts",
+        "args", 
+        "call",
+        "stdin", 
+        "stdout", 
+        "stderr",
+        "fgets", 
+        "getchar",
+        "strlen", 
+        "strcmp", 
+        "atoi",
+        "itoa",
+        "gettimeofday"
+    ]
+
+    for builtin in builtins {
+        if str_eq(name, builtin) { return true }
+    }
+    return false
+}
+
 fn push_scope(ctx: ref SemaCtx) void! = {
     guarded pre {
         ctx_not_null : ctx != 0 as ref SemaCtx
@@ -1175,6 +1233,13 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref char) v
             for barg in bargs as list[ref parser.Node] {
                 check_expr(ctx, barg, filename)
             }
+        }
+
+        if !is_known_builtin(bname) {
+            val ebuf: ref char = @alloc(512) as ref char
+            @snprintf(ebuf, 512, "{s}:{lld}: unknown intrinsic '@{s}'", {filename, line, bname})
+            add_error(ctx, ebuf)
+            return
         }
         
         val is_unsafe_builtin: bool = str_eq(bname, "store8") || str_eq(bname, "store") || str_eq(bname, "load8") || str_eq(bname, "load") || str_eq(bname, "ptradd") || str_eq(bname, "dprintf") || str_eq(bname, "print") || str_eq(bname, "fmt") || str_eq(bname, "memset") || str_eq(bname, "memcpy") || str_eq(bname, "memmove") || str_eq(bname, "free") || str_eq(bname, "realloc") || str_eq(bname, "addr") || str_eq(bname, "deref") 
