@@ -361,7 +361,9 @@ pub fn main() i32! = {
                     }
                     arg_i++
                 } else {
-                    arg_i++
+                    std.stdio.print("error: unknown flag: {s}\n", {arg})
+                    allocators.Arena.free(arena)
+                    return 1
                 }
             }
             none => {
