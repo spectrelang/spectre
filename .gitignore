@@ -6,6 +6,7 @@
 spectre-dev
 .q*
 out_*
+*.ch8
 *.o
 *.s
 *.out
