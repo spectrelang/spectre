@@ -270,10 +270,11 @@ fn cc_infer_expr_ty(ctx: ref CCtx, expr: ref parser.Node) ref parser.Node! = {
         if str.rchar_cmp(bname, "get") == 0 {
             val bargs: ref void = expr.d1 as ref void
             if bargs != 0 as ref void {
+                val blen: i64 = @len(bargs as list[ref parser.Node]) as i64
                 val first_opt = @get(bargs as list[ref parser.Node], 0 as usize)
                 match first_opt { some first => {
                     val list_expr_ty: ref parser.Node = cc_infer_expr_ty(ctx, first as ref parser.Node)
-                    val elem: ref parser.Node = cc_unwrap_list_elem_ty(list_expr_ty)
+                    val elem: ref parser.Node = cc_unwrap_get_elem_ty(list_expr_ty, blen - 1)
                     if elem != 0 as ref parser.Node {
                         val opt_node: mut ref parser.Node = @alloc(@sizeof(parser.Node)) as ref parser.Node
                         opt_node.kind = parser.TY_OPTION
@@ -318,6 +319,19 @@ fn cc_unwrap_list_elem_ty(ty: ref parser.Node) ref parser.Node! = {
     val k: i64 = ty.kind
     if k == parser.TY_LIST { return ty.d0 as ref parser.Node }
     if k == parser.TY_MUT { return cc_unwrap_list_elem_ty(ty.d0 as ref parser.Node) }
+    return 0 as ref parser.Node
+}
+
+fn cc_unwrap_get_elem_ty(ty: ref parser.Node, dims: i64) ref parser.Node! = {
+    if ty == 0 as ref parser.Node { return 0 as ref parser.Node }
+    val k: i64 = ty.kind
+    if k == parser.TY_MUT { return cc_unwrap_get_elem_ty(ty.d0 as ref parser.Node, dims) }
+    if dims == 1 && k == parser.TY_LIST { return ty.d0 as ref parser.Node }
+    if k == parser.TY_FIXED_ARR {
+        if dims <= 0 { return ty }
+        return cc_unwrap_get_elem_ty(parser.fixed_arr_inner(ty), dims - 1)
+    }
+    if dims == 0 { return ty }
     return 0 as ref parser.Node
 }
 
@@ -1449,6 +1463,21 @@ fn gen_expr(ctx: ref CCtx, expr: ref parser.Node) ref char! = {
     }
     if k == parser.NK_SOME {
         val inner: ref char = gen_expr(ctx, expr.d0 as ref parser.Node)
+        val inner_ty_some: ref parser.Node = cc_infer_expr_ty(ctx, expr.d0 as ref parser.Node)
+        if inner_ty_some != 0 as ref parser.Node {
+            val inner_ct_some: ref char = c_type_of(inner_ty_some)
+            if str.rchar_cmp(inner_ct_some, "double") == 0 || str.rchar_cmp(inner_ct_some, "float") == 0 {
+                val tbox: i64 = fresh_tmp(ctx)
+                val decl_box: ref char = @alloc(512) as ref char
+                @snprintf(decl_box, 512, "{s}*sx__some{lld}=({s}*)calloc(1,sizeof({s}));*sx__some{lld}=({s})({s});\n",
+                    {inner_ct_some, tbox, inner_ct_some, inner_ct_some, tbox, inner_ct_some, inner})
+                emit(ctx, decl_box)
+                @free(decl_box)
+                val boxed_res: ref char = @alloc(64) as ref char
+                @snprintf(boxed_res, 64, "((int64_t)(intptr_t)sx__some{lld}+1)", {tbox})
+                return cc_expr_track(ctx, boxed_res)
+            }
+        }
         val buf: ref char = @alloc(128) as ref char
         @snprintf(buf, 128, "(({s})+1)", {inner}) return cc_expr_track(ctx, buf) }
     if k == parser.NK_OK_VAL {
@@ -2073,7 +2102,75 @@ fn gen_builtin(ctx: ref CCtx, expr: ref parser.Node) ref char! = {
         }
         val l: ref char = get_arg(ctx, args, 0)
         @snprintf(buf, 512, "sx__rt_append((void*)(intptr_t)({s}),(int64_t)({s}))", {l, e}) return cc_expr_track(ctx, buf) }
-    if str.rchar_cmp(bname, "get") == 0 { val l: ref char = get_arg(ctx, args, 0) val i: ref char = get_arg(ctx, args, 1)
+    if str.rchar_cmp(bname, "get") == 0 {
+        val target_opt = @get(args as list[ref parser.Node], 0 as usize)
+        val target_ty: mut ref parser.Node = 0 as ref parser.Node
+        match target_opt {
+            some target_node => { target_ty = cc_infer_expr_ty(ctx, target_node as ref parser.Node) }
+            none => {}
+        }
+        val concrete_target_ty: ref parser.Node = cc_concrete_ty(ctx, target_ty)
+        if concrete_target_ty != 0 as ref parser.Node {
+            if concrete_target_ty.kind == parser.TY_FIXED_ARR {
+                val res_t: i64 = fresh_tmp(ctx)
+                val cur_t: i64 = fresh_tmp(ctx)
+                val opt_t: i64 = fresh_tmp(ctx)
+                val decl: ref char = @alloc(512) as ref char
+                val base_expr: ref char = get_arg(ctx, args, 0)
+                @snprintf(decl, 512, "int64_t sx__getr{lld}=0;int64_t sx__getc{lld}=(int64_t)({s});int64_t sx__geto{lld}=0;\n", {res_t, cur_t, base_expr, opt_t})
+                emit(ctx, decl) @free(decl)
+
+                val cur_ty: mut ref parser.Node = concrete_target_ty
+                val arg_len: i64 = @len(args as list[ref parser.Node]) as i64
+                val ai: mut i64 = 1
+                for {
+                    if ai >= arg_len { break }
+                    if cur_ty == 0 as ref parser.Node || cur_ty.kind != parser.TY_FIXED_ARR {
+                        val fail_buf: ref char = @alloc(128) as ref char
+                        @snprintf(fail_buf, 128, "goto sx__get_none{lld};\n", {res_t})
+                        emit(ctx, fail_buf) @free(fail_buf)
+                        break
+                    }
+                    val idx_expr: ref char = get_arg(ctx, args, ai)
+                    val next_ty: ref parser.Node = parser.fixed_arr_inner(cur_ty)
+                    val step_buf: ref char = @alloc(512) as ref char
+                    @snprintf(step_buf, 512, "sx__geto{lld}=sx__rt_get((void*)(intptr_t)(sx__getc{lld}),(int64_t)({s}));if(sx__geto{lld}==0)goto sx__get_none{lld};\n",
+                        {opt_t, cur_t, idx_expr, opt_t, res_t})
+                    emit(ctx, step_buf) @free(step_buf)
+                    if ai == arg_len - 1 {
+                        if next_ty != 0 as ref parser.Node && next_ty.kind == parser.TY_FIXED_ARR {
+                            val done_buf: ref char = @alloc(256) as ref char
+                            @snprintf(done_buf, 256, "sx__getr{lld}=sx__geto{lld};goto sx__get_end{lld};\n", {res_t, opt_t, res_t})
+                            emit(ctx, done_buf) @free(done_buf)
+                        } else {
+                            val elem_ct: ref char = cc_c_type_of(ctx, next_ty)
+                            val done_buf: ref char = @alloc(768) as ref char
+                            if str.rchar_cmp(elem_ct, "double") == 0 || str.rchar_cmp(elem_ct, "float") == 0 {
+                                @snprintf(done_buf, 768, "{s}*sx__getbox{lld}=({s}*)calloc(1,sizeof({s}));*sx__getbox{lld}=({s})(sx__geto{lld}-1);sx__getr{lld}=((int64_t)(intptr_t)sx__getbox{lld})+1;goto sx__get_end{lld};\n",
+                                    {elem_ct, res_t, elem_ct, elem_ct, res_t, elem_ct, opt_t, res_t, res_t, res_t})
+                            } else {
+                                @snprintf(done_buf, 768, "sx__getr{lld}=sx__geto{lld};goto sx__get_end{lld};\n", {res_t, opt_t, res_t})
+                            }
+                            emit(ctx, done_buf) @free(done_buf)
+                        }
+                    } else {
+                        val mid_buf: ref char = @alloc(256) as ref char
+                        @snprintf(mid_buf, 256, "sx__getc{lld}=sx__geto{lld}-1;\n", {cur_t, opt_t})
+                        emit(ctx, mid_buf) @free(mid_buf)
+                        cur_ty = next_ty
+                    }
+                    ai++
+                }
+
+                val tail_buf: ref char = @alloc(256) as ref char
+                @snprintf(tail_buf, 256, "sx__get_none{lld}:sx__getr{lld}=0;sx__get_end{lld}:;\n", {res_t, res_t, res_t})
+                emit(ctx, tail_buf) @free(tail_buf)
+                val res: ref char = @alloc(64) as ref char
+                @snprintf(res, 64, "sx__getr{lld}", {res_t})
+                return cc_expr_track(ctx, res)
+            }
+        }
+        val l: ref char = get_arg(ctx, args, 0) val i: ref char = get_arg(ctx, args, 1)
         val buf: ref char = @alloc(256) as ref char
         @snprintf(buf, 256, "sx__rt_get((void*)(intptr_t)({s}),(int64_t)({s}))", {l, i}) return cc_expr_track(ctx, buf) }
     if str.rchar_cmp(bname, "set") == 0 { val l: ref char = get_arg(ctx, args, 0) val i: ref char = get_arg(ctx, args, 1) val v: ref char = get_arg(ctx, args, 2)
@@ -2877,15 +2974,23 @@ fn gen_match_opt(ctx: mut ref CCtx, stmt: ref parser.Node) void! = {
     val buf: ref char = @alloc(256) as ref char @snprintf(buf, 256, "\{int64_t sx__mv{lld}={s};if(sx__mv{lld}!=0){\n", {t, expr, t}) emit(ctx, buf) @free(buf)
     cc_expr_drain(ctx)
     if sb != 0 as ref char {
-        val vb: ref char = @alloc(128) as ref char @snprintf(vb, 128, "int64_t t_{s}=sx__mv{lld}-1;\n", {sb, t}) emit(ctx, vb) @free(vb)
         val bind_stype: mut ref char = "int64_t"
+        val bind_ctype: mut ref char = "int64_t"
         val bind_ty: mut ref parser.Node = 0 as ref parser.Node
         val expr_ty: ref parser.Node = cc_infer_expr_ty(ctx, en)
         val opt_inner: ref parser.Node = cc_unwrap_option_inner_ty(expr_ty)
         if opt_inner != 0 as ref parser.Node {
             bind_stype = cc_spectre_type_name_of(ctx, opt_inner)
+            bind_ctype = c_type_of(opt_inner)
             bind_ty = opt_inner
         }
+        val vb: ref char = @alloc(256) as ref char
+        if str.rchar_cmp(bind_ctype, "double") == 0 || str.rchar_cmp(bind_ctype, "float") == 0 {
+            @snprintf(vb, 256, "{s} t_{s}=*(({s}*)(intptr_t)(sx__mv{lld}-1));\n", {bind_ctype, sb, bind_ctype, t})
+        } else {
+            @snprintf(vb, 256, "int64_t t_{s}=sx__mv{lld}-1;\n", {sb, t})
+        }
+        emit(ctx, vb) @free(vb)
         cc_register_local(ctx, sb, bind_stype, bind_ty, 0)
     }
     if sbody != 0 as ref parser.Node { gen_stmts(ctx, sbody.d0 as ref parser.Node) }
