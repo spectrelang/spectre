@@ -1,9 +1,8 @@
 $ErrorActionPreference = "Stop"
 
-$PREFIX    = "$env:USERPROFILE\.local"
-$BIN_DIR   = "$PREFIX\bin"
-$SRC_DIR   = "$PREFIX\src"
-
+$PREFIX       = "$env:USERPROFILE\.local"
+$BIN_DIR      = "$PREFIX\bin"
+$SRC_DIR      = "$PREFIX\src"
 $SPECTRE_REPO = "https://github.com/spectrelang/spectre.git"
 $YYJSON_REPO  = "https://github.com/ibireme/yyjson.git"
 
