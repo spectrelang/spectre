@@ -1,8 +1,11 @@
+*.wasm
+*.js
 /target
 /s-out
 .DS_Store
 spectre-dev
 .q*
+out_*
 *.o
 *.s
 *.out
@@ -11,6 +14,7 @@ spectre-dev
 .vscode
 !bootstrap/*
 bootstrap/*.exe
+spectre-dev*
 sxc2
 sxc3
 sxc4
