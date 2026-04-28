@@ -1,0 +1,15 @@
+pub fn something(v: i32) option[ref char] = {
+    if v < 10 {
+        return some "hello"
+    }
+    return some ":)"
+}
+
+pub fn main() void = {
+    match something(11) {
+        some v => {
+            trust @print("{s}\n", {v})
+        }
+        none => {}
+    }
+}

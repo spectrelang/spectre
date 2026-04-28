@@ -1,0 +1,14 @@
+pub fn main() void = {
+    val arr: [2][2]i32 = [[1, 2], [3, 4]]
+    val v = @get(arr, 1, 0)
+    val y: mut i32 = 0
+    match v {
+        some x => {
+            y = x
+        }
+        none => {
+            y = 0
+        }
+    }
+    trust @print("{d}\n", {y})
+}
