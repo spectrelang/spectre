@@ -7541,38 +7541,35 @@ fn gen_stmts(ctx: ref CgCtx, stmts: ref parser.Node) void! = {
     for {
         if i >= len { break }
         val s_opt = @get(stmts, i as usize)
-        match s_opt {
-            some s => {
-                val snode: ref parser.Node = s as ref parser.Node
-                if snode.kind == parser.NK_GENERIC_WHEN {
-                    val matched: mut bool = false
-                    val j: mut i64 = i
-                    for {
-                        if j >= len { break }
-                        val s_opt2 = @get(stmts, j as usize)
-                        match s_opt2 {
-                            some s2 => {
-                                val sn2: ref parser.Node = s2 as ref parser.Node
-                                if sn2.kind != parser.NK_GENERIC_WHEN { break }
-                                if !matched && gwhen_matches_gsubst(ctx, sn2) {
-                                    gen_stmts(ctx, sn2.d1 as ref parser.Node)
-                                    matched = true
-                                }
+        if s_opt is some s {
+            val snode: ref parser.Node = s as ref parser.Node
+            if snode.kind == parser.NK_GENERIC_WHEN {
+                val matched: mut bool = false
+                val j: mut i64 = i
+                for {
+                    if j >= len { break }
+                    val s_opt2 = @get(stmts, j as usize)
+                    match s_opt2 {
+                        some s2 => {
+                            val sn2: ref parser.Node = s2 as ref parser.Node
+                            if sn2.kind != parser.NK_GENERIC_WHEN { break }
+                            if !matched && gwhen_matches_gsubst(ctx, sn2) {
+                                gen_stmts(ctx, sn2.d1 as ref parser.Node)
+                                matched = true
                             }
-                            none => { break }
                         }
-                        j++
+                        none => { break }
                     }
-                    i = j
-                    continue
-                } else {
-                    gen_stmt(ctx, snode)
-                    if snode.kind == parser.NK_WHEN_STMT {
-                        if when_stmt_terminated(ctx, snode) { break }
-                    }
+                    j++
+                }
+                i = j
+                continue
+            } else {
+                gen_stmt(ctx, snode)
+                if snode.kind == parser.NK_WHEN_STMT {
+                    if when_stmt_terminated(ctx, snode) { break }
                 }
             }
-            none => {}
         }
         i++
     }
