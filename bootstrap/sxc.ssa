@@ -117766,16 +117766,102 @@ export function l $commands__load_sxmod() {
     ret 0
 }
 
+function l $commands__build_config_cmd(l %cfg, l %exe_path, l %entry) {
+@start
+    %t0 =l copy $__str52
+    %t1 =l alloc8 8
+    storel %t0, %t1
+    %t3 =l add %cfg, 8
+    %t2 =l loadl %t3
+    %t4 =l copy $__str52
+    %t5 =l call $std__str__rchar_cmp(l %t2, l %t4)
+    %t6 =l copy 0
+    %t7 =w cnel %t5, %t6
+    jnz %t7, @lbl21977, @lbl21979
+@lbl21977
+    %t9 =l add %cfg, 8
+    %t8 =l loadl %t9
+    storel %t8, %t1
+    jmp @lbl21978
+@lbl21979
+    %t11 =l copy $__str572
+    %t12 =l call $malloc(l 4096)
+    %t13 =w call $snprintf(l %t12, l 4096, l %t11, ..., l %exe_path, l %entry)
+    %t14 =l extsw %t13
+    %t15 =l add %t14, 1
+    %t16 =l call $malloc(l %t15)
+    call $memcpy(l %t16, l %t12, l %t14)
+    %t17 =l add %t16, %t14
+    storeb 0, %t17
+    call $free(l %t12)
+    %t10 =l copy %t16
+    storel %t10, %t1
+    jmp @lbl21978
+@lbl21978
+    %t19 =l add %cfg, 16
+    %t18 =l loadl %t19
+    %t20 =l copy $__str52
+    %t21 =l call $std__str__rchar_cmp(l %t18, l %t20)
+    %t22 =l copy 0
+    %t23 =w cnel %t21, %t22
+    jnz %t23, @lbl21980, @lbl21981
+@lbl21980
+    %t25 =l copy $__str572
+    %t26 =l call $malloc(l 4096)
+    %t32 =l loadl %t1
+    %t34 =l add %cfg, 16
+    %t33 =l loadl %t34
+    %t27 =w call $snprintf(l %t26, l 4096, l %t25, ..., l %t32, l %t33)
+    %t28 =l extsw %t27
+    %t29 =l add %t28, 1
+    %t30 =l call $malloc(l %t29)
+    call $memcpy(l %t30, l %t26, l %t28)
+    %t31 =l add %t30, %t28
+    storeb 0, %t31
+    call $free(l %t26)
+    %t24 =l copy %t30
+    storel %t24, %t1
+    jmp @lbl21981
+@lbl21981
+    %t36 =l add %cfg, 24
+    %t35 =l loadl %t36
+    %t37 =l copy $__str52
+    %t38 =l call $std__str__rchar_cmp(l %t35, l %t37)
+    %t39 =l copy 0
+    %t40 =w cnel %t38, %t39
+    jnz %t40, @lbl21983, @lbl21984
+@lbl21983
+    %t42 =l copy $__str1297
+    %t43 =l call $malloc(l 4096)
+    %t49 =l loadl %t1
+    %t51 =l add %cfg, 24
+    %t50 =l loadl %t51
+    %t44 =w call $snprintf(l %t43, l 4096, l %t42, ..., l %t49, l %t50)
+    %t45 =l extsw %t44
+    %t46 =l add %t45, 1
+    %t47 =l call $malloc(l %t46)
+    call $memcpy(l %t47, l %t43, l %t45)
+    %t48 =l add %t47, %t45
+    storeb 0, %t48
+    call $free(l %t43)
+    %t41 =l copy %t47
+    storel %t41, %t1
+    jmp @lbl21984
+@lbl21984
+    %t52 =l loadl %t1
+    ret %t52
+}
+
 function l $commands__basename_of(l %path) {
 @start
     %t0 =l call $std__str__len_raw(l %path)
     %t1 =l copy 0
     %t2 =w ceql %t0, %t1
-    jnz %t2, @lbl21977, @lbl21978
-@lbl21977
-    %t3 =l copy $__str1297
+    jnz %t2, @lbl21986, @lbl21987
+@lbl21986
+    %t3 =l copy $__str1298
     ret %t3
-@lbl21978
+@lbl21987
     %t4 =l copy 1
     %t5 =l neg %t4
     %t6 =l alloc8 8
@@ -117783,17 +117869,17 @@ function l $commands__basename_of(l %path) {
     %t7 =l copy 0
     %t8 =l alloc8 8
     storel %t7, %t8
-    jmp @lbl21980
-@lbl21980
-    jmp @lbl21981
-@lbl21981
+    jmp @lbl21989
+@lbl21989
+    jmp @lbl21990
+@lbl21990
     %t9 =l loadl %t8
     %t11 =w csltl %t9, %t0
     %t10 =w ceqw %t11, 0
-    jnz %t10, @lbl21984, @lbl21985
-@lbl21984
-    jmp @lbl21983
-@lbl21985
+    jnz %t10, @lbl21993, @lbl21994
+@lbl21993
+    jmp @lbl21992
+@lbl21994
     %t14 =l copy %path
     %t15 =l loadl %t8
     %t13 =l add %t14, %t15
@@ -117801,30 +117887,30 @@ function l $commands__basename_of(l %path) {
     %t12 =l extsw %t16
     %t17 =w copy 47
     %t18 =w ceqw %t12, %t17
-    jnz %t18, @lbl21987, @lbl21988
-@lbl21987
+    jnz %t18, @lbl21996, @lbl21997
+@lbl21996
     %t19 =l loadl %t8
     storel %t19, %t6
-    jmp @lbl21988
-@lbl21988
+    jmp @lbl21997
+@lbl21997
     %t20 =l loadl %t8
     %t21 =l add %t20, 1
     storel %t21, %t8
-    jmp @lbl21982
-@lbl21982
-    jmp @lbl21980
-@lbl21983
+    jmp @lbl21991
+@lbl21991
+    jmp @lbl21989
+@lbl21992
     %t22 =l loadl %t6
     %t23 =l copy 1
     %t24 =l add %t22, %t23
     %t25 =l sub %t0, %t24
     %t26 =l copy 0
     %t27 =w cslel %t25, %t26
-    jnz %t27, @lbl21990, @lbl21991
-@lbl21990
-    %t28 =l copy $__str1297
+    jnz %t27, @lbl21999, @lbl22000
+@lbl21999
+    %t28 =l copy $__str1298
     ret %t28
-@lbl21991
+@lbl22000
     %t30 =l copy 1
     %t31 =l add %t25, %t30
     %t29 =l call $malloc(l %t31)
@@ -117849,8 +117935,8 @@ function l $commands__repo_name_from_url(l %url) {
     %t1 =l call $std__str__len_raw(l %t0)
     %t2 =l copy 4
     %t3 =w csgtl %t1, %t2
-    jnz %t3, @lbl21993, @lbl21994
-@lbl21993
+    jnz %t3, @lbl22002, @lbl22003
+@lbl22002
     %t6 =l copy %t0
     %t7 =l copy 4
     %t8 =l sub %t1, %t7
@@ -117886,8 +117972,8 @@ function l $commands__repo_name_from_url(l %url) {
     %t36 =w copy 116
     %t37 =w ceqw %t22, %t36
     %t38 =w and %t35, %t37
-    jnz %t38, @lbl21996, @lbl21997
-@lbl21996
+    jnz %t38, @lbl22005, @lbl22006
+@lbl22005
     %t40 =l copy 3
     %t41 =l sub %t1, %t40
     %t39 =l call $malloc(l %t41)
@@ -117907,9 +117993,9 @@ function l $commands__repo_name_from_url(l %url) {
     storeb %t54, %t50
     %t49 =l copy 0
     ret %t42
-@lbl21997
-    jmp @lbl21994
-@lbl21994
+@lbl22006
+    jmp @lbl22003
+@lbl22003
     ret %t0
 }
 
@@ -117919,48 +118005,48 @@ function w $commands__rchar_contains(l %haystack, l %needle) {
     %t1 =l call $std__str__len_raw(l %needle)
     %t2 =l copy 0
     %t3 =w ceql %t1, %t2
-    jnz %t3, @lbl21999, @lbl22000
-@lbl21999
+    jnz %t3, @lbl22008, @lbl22009
+@lbl22008
     %t4 =l copy 1
     ret %t4
-@lbl22000
+@lbl22009
     %t5 =w csgtl %t1, %t0
-    jnz %t5, @lbl22002, @lbl22003
-@lbl22002
+    jnz %t5, @lbl22011, @lbl22012
+@lbl22011
     %t6 =l copy 0
     ret %t6
-@lbl22003
+@lbl22012
     %t7 =l sub %t0, %t1
     %t8 =l copy 0
     %t9 =l alloc8 8
     storel %t8, %t9
-    jmp @lbl22005
-@lbl22005
-    jmp @lbl22006
-@lbl22006
+    jmp @lbl22014
+@lbl22014
+    jmp @lbl22015
+@lbl22015
     %t10 =l loadl %t9
     %t11 =w csgtl %t10, %t7
-    jnz %t11, @lbl22009, @lbl22010
-@lbl22009
-    jmp @lbl22008
-@lbl22010
+    jnz %t11, @lbl22018, @lbl22019
+@lbl22018
+    jmp @lbl22017
+@lbl22019
     %t12 =l copy 0
     %t13 =l alloc8 8
     storel %t12, %t13
     %t14 =l copy 1
     %t15 =l alloc8 8
     storew %t14, %t15
-    jmp @lbl22012
-@lbl22012
-    jmp @lbl22013
-@lbl22013
+    jmp @lbl22021
+@lbl22021
+    jmp @lbl22022
+@lbl22022
     %t16 =l loadl %t13
     %t18 =w csltl %t16, %t1
     %t17 =w ceqw %t18, 0
-    jnz %t17, @lbl22016, @lbl22017
-@lbl22016
-    jmp @lbl22015
-@lbl22017
+    jnz %t17, @lbl22025, @lbl22026
+@lbl22025
+    jmp @lbl22024
+@lbl22026
     %t21 =l copy %haystack
     %t22 =l loadl %t9
     %t23 =l loadl %t13
@@ -117974,33 +118060,33 @@ function w $commands__rchar_contains(l %haystack, l %needle) {
     %t30 =w loadub %t27
     %t26 =l extsw %t30
     %t31 =w cnew %t19, %t26
-    jnz %t31, @lbl22019, @lbl22020
-@lbl22019
+    jnz %t31, @lbl22028, @lbl22029
+@lbl22028
     %t32 =l copy 0
     storew %t32, %t15
-    jmp @lbl22015
-@lbl22020
+    jmp @lbl22024
+@lbl22029
     %t33 =l loadl %t13
     %t34 =l add %t33, 1
     storel %t34, %t13
-    jmp @lbl22014
-@lbl22014
-    jmp @lbl22012
-@lbl22015
+    jmp @lbl22023
+@lbl22023
+    jmp @lbl22021
+@lbl22024
     %t36 =w loadw %t15
     %t35 =l extsw %t36
-    jnz %t35, @lbl22022, @lbl22023
-@lbl22022
+    jnz %t35, @lbl22031, @lbl22032
+@lbl22031
     %t37 =l copy 1
     ret %t37
-@lbl22023
+@lbl22032
     %t38 =l loadl %t9
     %t39 =l add %t38, 1
     storel %t39, %t9
-    jmp @lbl22007
-@lbl22007
-    jmp @lbl22005
-@lbl22008
+    jmp @lbl22016
+@lbl22016
+    jmp @lbl22014
+@lbl22017
     %t40 =l copy 0
     ret %t40
 }
@@ -118009,8 +118095,8 @@ function w $commands__drop_dep_lines(l %filepath, l %needle) {
 @start
     %t0 =l call $std__fs__read_all(l %filepath)
     %t1 =w cnel %t0, 0
-    jnz %t1, @lbl22025, @lbl22026
-@lbl22025
+    jnz %t1, @lbl22034, @lbl22035
+@lbl22034
     %t2 =l sub %t0, 1
     %t3 =l call $std__string__StringBuilder__new()
     %t4 =l copy %t2
@@ -118021,39 +118107,39 @@ function w $commands__drop_dep_lines(l %filepath, l %needle) {
     %t8 =l copy 0
     %t9 =l alloc8 8
     storel %t8, %t9
-    jmp @lbl22028
-@lbl22028
-    jmp @lbl22029
-@lbl22029
+    jmp @lbl22037
+@lbl22037
+    jmp @lbl22038
+@lbl22038
     %t10 =l loadl %t9
     %t11 =w csgtl %t10, %t5
-    jnz %t11, @lbl22032, @lbl22033
-@lbl22032
-    jmp @lbl22031
-@lbl22033
+    jnz %t11, @lbl22041, @lbl22042
+@lbl22041
+    jmp @lbl22040
+@lbl22042
     %t12 =l loadl %t9
     %t13 =w ceql %t12, %t5
     %t14 =l copy 0
     %t15 =l alloc8 8
     storew %t14, %t15
     %t16 =w ceqw %t13, 0
-    jnz %t16, @lbl22035, @lbl22036
-@lbl22035
+    jnz %t16, @lbl22044, @lbl22045
+@lbl22044
     %t19 =l copy %t4
     %t20 =l loadl %t9
     %t18 =l add %t19, %t20
     %t21 =w loadub %t18
     %t17 =l extsw %t21
     storew %t17, %t15
-    jmp @lbl22036
-@lbl22036
+    jmp @lbl22045
+@lbl22045
     %t23 =w loadw %t15
     %t22 =l extsw %t23
     %t24 =w copy 10
     %t25 =w ceqw %t22, %t24
     %t26 =w or %t13, %t25
-    jnz %t26, @lbl22038, @lbl22039
-@lbl22038
+    jnz %t26, @lbl22047, @lbl22048
+@lbl22047
     %t27 =l loadl %t9
     %t28 =l loadl %t7
     %t29 =l sub %t27, %t28
@@ -118073,23 +118159,23 @@ function w $commands__drop_dep_lines(l %filepath, l %needle) {
     %t43 =l copy 0
     storeb %t43, %t41
     %t40 =l copy 0
-    %t44 =l copy $__str1298
+    %t44 =l copy $__str1299
     %t45 =w call $std__str__rchar_starts_with(l %t33, l %t44)
     %t46 =w call $commands__rchar_contains(l %t33, l %needle)
     %t47 =w and %t45, %t46
     %t48 =w ceqw %t47, 0
-    jnz %t48, @lbl22041, @lbl22042
-@lbl22041
+    jnz %t48, @lbl22050, @lbl22051
+@lbl22050
     %t49 =w call $std__string__StringBuilder__append_cstr(l %t3, l %t33)
     %t50 =w ceqw %t13, 0
-    jnz %t50, @lbl22044, @lbl22045
-@lbl22044
+    jnz %t50, @lbl22053, @lbl22054
+@lbl22053
     %t51 =l copy 10
     %t52 =w call $std__string__StringBuilder__append_char(l %t3, w %t51)
-    jmp @lbl22045
-@lbl22045
-    jmp @lbl22042
-@lbl22042
+    jmp @lbl22054
+@lbl22054
+    jmp @lbl22051
+@lbl22051
     %t54 =l copy %t33
     call $free(l %t54)
     %t53 =l copy 0
@@ -118097,68 +118183,68 @@ function w $commands__drop_dep_lines(l %filepath, l %needle) {
     %t56 =l copy 1
     %t57 =l add %t55, %t56
     storel %t57, %t7
-    jmp @lbl22039
-@lbl22039
+    jmp @lbl22048
+@lbl22048
     %t58 =l loadl %t9
     %t59 =l add %t58, 1
     storel %t59, %t9
-    jmp @lbl22030
-@lbl22030
-    jmp @lbl22028
-@lbl22031
+    jmp @lbl22039
+@lbl22039
+    jmp @lbl22037
+@lbl22040
     %t60 =l call $std__string__StringBuilder__build(l %t3)
     %t61 =l call $std__string__cstr(l %t60)
     %t62 =w call $std__fs__write_all(l %filepath, l %t61)
     %t63 =w call $std__string__StringBuilder__free(l %t3)
-    jmp @lbl22027
-@lbl22026
+    jmp @lbl22036
+@lbl22035
     ret 0
-@lbl22027
+@lbl22036
     ret 0
 }
 
 export function w $commands__cmd_ref() {
 @start
-    %t0 =l copy $__str1299
+    %t0 =l copy $__str1300
     %t1 =l copy $__str95
     %t2 =l call $std__fs__open(l %t0, l %t1)
     %t3 =w cnel %t2, 0
-    jnz %t3, @lbl22047, @lbl22048
-@lbl22047
+    jnz %t3, @lbl22056, @lbl22057
+@lbl22056
     %t4 =l sub %t2, 1
-    %t5 =l copy $__str1300
+    %t5 =l copy $__str1301
     %t6 =w call $std__fs__write(l %t4, l %t5)
-    %t7 =l copy $__str1301
+    %t7 =l copy $__str1302
     %t8 =w call $std__fs__write(l %t4, l %t7)
-    %t9 =l copy $__str1302
+    %t9 =l copy $__str1303
     %t10 =w call $std__fs__write(l %t4, l %t9)
-    %t11 =l copy $__str1303
+    %t11 =l copy $__str1304
     %t12 =w call $std__fs__write(l %t4, l %t11)
-    %t13 =l copy $__str1304
+    %t13 =l copy $__str1305
     %t14 =w call $std__fs__write(l %t4, l %t13)
-    %t15 =l copy $__str1305
+    %t15 =l copy $__str1306
     %t16 =w call $std__fs__write(l %t4, l %t15)
-    %t17 =l copy $__str1306
+    %t17 =l copy $__str1307
     %t18 =w call $std__fs__write(l %t4, l %t17)
-    %t19 =l copy $__str1307
+    %t19 =l copy $__str1308
     %t20 =w call $std__fs__write(l %t4, l %t19)
-    %t21 =l copy $__str1308
+    %t21 =l copy $__str1309
     %t22 =w call $std__fs__write(l %t4, l %t21)
-    %t23 =l copy $__str1309
+    %t23 =l copy $__str1310
     %t24 =w call $std__fs__write(l %t4, l %t23)
-    %t25 =l copy $__str1310
+    %t25 =l copy $__str1311
     %t26 =w call $std__fs__write(l %t4, l %t25)
-    %t27 =l copy $__str1311
+    %t27 =l copy $__str1312
     %t28 =w call $std__fs__write(l %t4, l %t27)
     %t29 =w call $std__fs__close(l %t4)
-    jmp @lbl22049
-@lbl22048
-    %t30 =l copy $__str1312
+    jmp @lbl22058
+@lbl22057
+    %t30 =l copy $__str1313
     %t31 =l call $printf(l %t30, ..., l %t0)
     %t32 =l copy 1
     ret %t32
-@lbl22049
-    %t33 =l copy $__str1313
+@lbl22058
+    %t33 =l copy $__str1314
     %t34 =w call $std__stdio__puts(l %t33)
     %t35 =l copy 0
     ret %t35
@@ -118168,13 +118254,13 @@ export function w $commands__cmd_init(l %name_arg) {
 @start
     %t0 =l copy $__str376
     %t1 =w call $std__os__exists(l %t0)
-    jnz %t1, @lbl22050, @lbl22051
-@lbl22050
-    %t2 =l copy $__str1314
+    jnz %t1, @lbl22059, @lbl22060
+@lbl22059
+    %t2 =l copy $__str1315
     %t3 =w call $std__stdio__puts(l %t2)
     %t4 =l copy 1
     ret %t4
-@lbl22051
+@lbl22060
     %t5 =l alloc8 8
     storel %name_arg, %t5
     %t6 =l loadl %t5
@@ -118182,60 +118268,60 @@ export function w $commands__cmd_init(l %name_arg) {
     %t8 =l call $std__str__rchar_cmp(l %t6, l %t7)
     %t9 =l copy 0
     %t10 =w ceql %t8, %t9
-    jnz %t10, @lbl22053, @lbl22054
-@lbl22053
+    jnz %t10, @lbl22062, @lbl22063
+@lbl22062
     %t11 =l call $std__fs__cwd()
     %t12 =w cnel %t11, 0
-    jnz %t12, @lbl22056, @lbl22057
-@lbl22056
+    jnz %t12, @lbl22065, @lbl22066
+@lbl22065
     %t13 =l sub %t11, 1
     %t14 =l call $commands__basename_of(l %t13)
     storel %t14, %t5
-    jmp @lbl22058
-@lbl22057
-    %t15 =l copy $__str1315
+    jmp @lbl22067
+@lbl22066
+    %t15 =l copy $__str1316
     storel %t15, %t5
-    jmp @lbl22058
-@lbl22058
-    jmp @lbl22054
-@lbl22054
+    jmp @lbl22067
+@lbl22067
+    jmp @lbl22063
+@lbl22063
     %t16 =l call $std__string__StringBuilder__new()
-    %t17 =l copy $__str1316
+    %t17 =l copy $__str1317
     %t18 =w call $std__string__StringBuilder__append_cstr(l %t16, l %t17)
     %t19 =l loadl %t5
     %t20 =w call $std__string__StringBuilder__append_cstr(l %t16, l %t19)
-    %t21 =l copy $__str1317
+    %t21 =l copy $__str1318
     %t22 =w call $std__string__StringBuilder__append_cstr(l %t16, l %t21)
     %t23 =l loadl %t5
     %t24 =w call $std__string__StringBuilder__append_cstr(l %t16, l %t23)
-    %t25 =l copy $__str1318
+    %t25 =l copy $__str1319
     %t26 =w call $std__string__StringBuilder__append_cstr(l %t16, l %t25)
     %t27 =l call $std__string__StringBuilder__build(l %t16)
     %t28 =l copy $__str376
     %t29 =l call $std__string__cstr(l %t27)
     %t30 =w call $std__fs__write_all(l %t28, l %t29)
     %t31 =w call $std__string__StringBuilder__free(l %t16)
-    %t32 =l copy $__str1319
-    %t33 =l copy $__str1320
+    %t32 =l copy $__str1320
+    %t33 =l copy $__str1321
     %t34 =w call $std__fs__write_all(l %t32, l %t33)
-    %t35 =l copy $__str1321
-    %t36 =l copy $__str1322
+    %t35 =l copy $__str1322
+    %t36 =l copy $__str1323
     %t37 =w call $std__fs__write_all(l %t35, l %t36)
-    %t38 =l copy $__str1323
+    %t38 =l copy $__str1324
     %t39 =w call $std__fs__mkdir_path(l %t38)
-    %t40 =l copy $__str1324
-    %t41 =l copy $__str1325
+    %t40 =l copy $__str1325
+    %t41 =l copy $__str1326
     %t42 =w call $std__fs__write_all(l %t41, l %t40)
-    %t43 =l copy $__str1326
+    %t43 =l copy $__str1327
     %t44 =l loadl %t5
     %t45 =l call $printf(l %t43, ..., l %t44)
-    %t46 =l copy $__str1327
+    %t46 =l copy $__str1328
     %t47 =w call $std__stdio__puts(l %t46)
-    %t48 =l copy $__str1328
+    %t48 =l copy $__str1329
     %t49 =w call $std__stdio__puts(l %t48)
-    %t50 =l copy $__str1329
+    %t50 =l copy $__str1330
     %t51 =w call $std__stdio__puts(l %t50)
-    %t52 =l copy $__str1330
+    %t52 =l copy $__str1331
     %t53 =w call $std__stdio__puts(l %t52)
     %t54 =l copy 0
     ret %t54
@@ -118245,8 +118331,8 @@ export function w $commands__cmd_build(l %config_name, l %exe_path) {
 @start
     %t0 =l call $commands__load_sxmod()
     %t1 =w cnel %t0, 0
-    jnz %t1, @lbl22059, @lbl22060
-@lbl22059
+    jnz %t1, @lbl22068, @lbl22069
+@lbl22068
     %t2 =l sub %t0, 1
     %t3 =l copy 0
     %t4 =l copy %t3
@@ -118257,11 +118343,11 @@ export function w $commands__cmd_build(l %config_name, l %exe_path) {
     storel 0, %t7
     %t9 =l add %t6, 8
     %t8 =l loadl %t9
-@lbl22062
+@lbl22071
     %t10 =l loadl %t7
     %t11 =w csltl %t10, %t8
-    jnz %t11, @lbl22063, @lbl22064
-@lbl22063
+    jnz %t11, @lbl22072, @lbl22073
+@lbl22072
     %t12 =l loadl %t6
     %t13 =l mul %t10, 8
     %t14 =l add %t12, %t13
@@ -118273,120 +118359,39 @@ export function w $commands__cmd_build(l %config_name, l %exe_path) {
     %t19 =l call $std__str__rchar_cmp(l %t18, l %config_name)
     %t20 =l copy 0
     %t21 =w ceql %t19, %t20
-    jnz %t21, @lbl22066, @lbl22067
-@lbl22066
+    jnz %t21, @lbl22075, @lbl22076
+@lbl22075
     %t22 =l loadl %t16
     storel %t22, %t5
-    jmp @lbl22064
-@lbl22067
-@lbl22065
+    jmp @lbl22073
+@lbl22076
+@lbl22074
     %t23 =l add %t10, 1
     storel %t23, %t7
-    jmp @lbl22062
-@lbl22064
+    jmp @lbl22071
+@lbl22073
     %t24 =l loadl %t5
     %t25 =l copy 0
     %t26 =l copy %t25
     %t27 =w ceql %t24, %t26
-    jnz %t27, @lbl22069, @lbl22070
-@lbl22069
-    %t28 =l copy $__str1331
+    jnz %t27, @lbl22078, @lbl22079
+@lbl22078
+    %t28 =l copy $__str1332
     %t29 =l call $printf(l %t28, ..., l %config_name)
     %t30 =l copy 1
     ret %t30
-@lbl22070
-    %t31 =l loadl %t5
-    %t33 =l add %t31, 8
-    %t32 =l loadl %t33
-    %t34 =l copy $__str52
-    %t35 =l call $std__str__rchar_cmp(l %t32, l %t34)
-    %t36 =l copy 0
-    %t37 =w cnel %t35, %t36
-    jnz %t37, @lbl22072, @lbl22073
-@lbl22072
-    %t38 =l loadl %t5
-    %t40 =l add %t38, 8
-    %t39 =l loadl %t40
-    %t41 =w call $std__os__run(l %t39)
-    ret %t41
-@lbl22073
-    %t43 =l copy $__str572
-    %t44 =l call $malloc(l 4096)
-    %t50 =l loadl %t2
-    %t45 =w call $snprintf(l %t44, l 4096, l %t43, ..., l %exe_path, l %t50)
-    %t46 =l extsw %t45
-    %t47 =l add %t46, 1
-    %t48 =l call $malloc(l %t47)
-    call $memcpy(l %t48, l %t44, l %t46)
-    %t49 =l add %t48, %t46
-    storeb 0, %t49
-    call $free(l %t44)
-    %t42 =l copy %t48
-    %t51 =l alloc8 8
-    storel %t42, %t51
-    %t52 =l loadl %t5
-    %t54 =l add %t52, 16
-    %t53 =l loadl %t54
-    %t55 =l copy $__str52
-    %t56 =l call $std__str__rchar_cmp(l %t53, l %t55)
-    %t57 =l copy 0
-    %t58 =w cnel %t56, %t57
-    jnz %t58, @lbl22075, @lbl22076
-@lbl22075
-    %t60 =l copy $__str572
-    %t61 =l call $malloc(l 4096)
-    %t67 =l loadl %t51
-    %t68 =l loadl %t5
-    %t70 =l add %t68, 16
-    %t69 =l loadl %t70
-    %t62 =w call $snprintf(l %t61, l 4096, l %t60, ..., l %t67, l %t69)
-    %t63 =l extsw %t62
-    %t64 =l add %t63, 1
-    %t65 =l call $malloc(l %t64)
-    call $memcpy(l %t65, l %t61, l %t63)
-    %t66 =l add %t65, %t63
-    storeb 0, %t66
-    call $free(l %t61)
-    %t59 =l copy %t65
-    storel %t59, %t51
-    jmp @lbl22076
-@lbl22076
-    %t71 =l loadl %t5
-    %t73 =l add %t71, 24
-    %t72 =l loadl %t73
-    %t74 =l copy $__str52
-    %t75 =l call $std__str__rchar_cmp(l %t72, l %t74)
-    %t76 =l copy 0
-    %t77 =w cnel %t75, %t76
-    jnz %t77, @lbl22078, @lbl22079
-@lbl22078
-    %t79 =l copy $__str1332
-    %t80 =l call $malloc(l 4096)
-    %t86 =l loadl %t51
-    %t87 =l loadl %t5
-    %t89 =l add %t87, 24
-    %t88 =l loadl %t89
-    %t81 =w call $snprintf(l %t80, l 4096, l %t79, ..., l %t86, l %t88)
-    %t82 =l extsw %t81
-    %t83 =l add %t82, 1
-    %t84 =l call $malloc(l %t83)
-    call $memcpy(l %t84, l %t80, l %t82)
-    %t85 =l add %t84, %t82
-    storeb 0, %t85
-    call $free(l %t80)
-    %t78 =l copy %t84
-    storel %t78, %t51
-    jmp @lbl22079
 @lbl22079
-    %t90 =l loadl %t51
-    %t91 =w call $std__os__run(l %t90)
-    ret %t91
-@lbl22060
-    %t92 =l copy $__str1333
-    %t93 =w call $std__stdio__puts(l %t92)
-    %t94 =l copy 1
-    ret %t94
-@lbl22061
+    %t31 =l loadl %t5
+    %t32 =l loadl %t2
+    %t33 =l call $commands__build_config_cmd(l %t31, l %exe_path, l %t32)
+    %t34 =w call $std__os__run(l %t33)
+    ret %t34
+@lbl22069
+    %t35 =l copy $__str1333
+    %t36 =w call $std__stdio__puts(l %t35)
+    %t37 =l copy 1
+    ret %t37
+@lbl22070
     ret 0
 }
 
@@ -118561,7 +118566,7 @@ export function w $commands__cmd_add(l %url) {
     storeb 0, %t109
     call $free(l %t104)
     %t102 =l copy %t108
-    %t111 =l copy $__str1319
+    %t111 =l copy $__str1320
     %t112 =w call $std__fs__append_all(l %t111, l %t102)
     %t113 =l copy $__str1343
     %t114 =l loadl %t57
@@ -118618,7 +118623,7 @@ export function w $commands__cmd_remove(l %dep_name) {
 @lbl22107
     %t28 =l copy $__str376
     %t29 =w call $commands__drop_dep_lines(l %t28, l %dep_name)
-    %t30 =l copy $__str1319
+    %t30 =l copy $__str1320
     %t31 =w call $commands__drop_dep_lines(l %t30, l %dep_name)
     %t32 =l copy $__str1348
     %t33 =l call $printf(l %t32, ..., l %dep_name)
@@ -145625,42 +145630,42 @@ data $__str1293 = { b "build", b 0 }
 data $__str1294 = { b "action", b 0 }
 data $__str1295 = { b "flags", b 0 }
 data $__str1296 = { b "output", b 0 }
-data $__str1297 = { b "project", b 0 }
-data $__str1298 = { b "dep ", b 0 }
-data $__str1299 = { b "SPECTRE_LANGUAGE_REFERENCE.md", b 0 }
-data $__str1300 = { b " # Spectre Language Reference\n\n ---\n\n ## Comments\n\n ```\n // This is a line comment\n ```\n\n ---\n\n ## Variables\n\n ```\n val x: i64 = 42          // immutable binding\n val y: mut i64 = 0       // mutable binding\n y = y + 1\n ```\n", b 0 }
-data $__str1301 = { b " ---\n\n ## Primitive Types\n\n | Type    | Description              |\n |---------|--------------------------|\n | `i32`   | 32-bit signed integer    |\n | `i64`   | 64-bit signed integer    |\n | `u8`    | 8-bit unsigned integer   |\n | `u32`   | 32-bit unsigned integer  |\n | `u64`   | 64-bit unsigned integer  |\n | `usize` | pointer-sized unsigned   |\n | `f32`   | 32-bit float             |\n | `f64`   | 64-bit float             |\n | `bool`  | boolean (`true`/`false`) |\n | `char`  | single byte character    |\n | `void`  | no value                 |\n", b 0 }
-data $__str1302 = { b " ---\n\n ## Reference and Pointer Types\n\n ```\n val p: ref char = \"hello\"    // pointer to char (C string)\n val q: mut ref i64 = ...     // reassignable pointer\n ```\n\n `ref T` is a raw pointer.  Null is written as `0 as ref T`.\n\n ---\n\n ## List Type\n\n ```\n val xs: mut list[i64] = []\n @append(xs, 1)\n @append(xs, 2)\n val n: usize = @len(xs)\n val opt = @get(xs, 0)        // returns option[i64]\n @remove(xs, 0)\n @reserve(xs, 64)\n ```\n", b 0 }
-data $__str1303 = { b " ---\n\n ## Option Type\n\n ```\n val a: option[i64] = some 42\n val b: option[i64] = none\n\n match a {\n     some v => { /* use v */ }\n     none   => { /* handle missing */ }\n }\n ```\n\n ---\n\n ## Result Type\n\n ```\n val r: result[i64, ref char] = ok 10\n val e: result[i64, ref char] = err \"oops\"\n\n match r {\n     ok v  => { } // Use v \n     err e => { } // Handle the error\n }\n ```\n\n Note that braces in match arms are not optional. You must use braces, for example:\n\n ```\n ok v => hello // INVALID\n ok v => { return hello } // VALID if hello is defined and matches the return type\n ```", b 0 }
-data $__str1304 = { b " ---\n\n ## Strings\n\n ```\n val s: ref char = \"hello\"           // C string literal\n val raw = \\\\ a raw string literal   // raw string (no escape processing)\n           \\\\ continued on next line // lines joined with \\n\n ```\n\n The standard library (`std/string`) provides `String` (owned heap string)\n and `StringBuilder` for building strings dynamically.\n\n ---\n\n ## Functions\n\n ```\n fn add(a: i64, b: i64) i64 = {\n     return a + b\n }\n\n pub fn greet(name: ref char) void = {\n     @print(\"Hello, %s!\\n\", name)\n }\n \n pub enum SomeError = { FailedToDoSomeThing, OrSomethingElse }\n \n // Functions that may propagate errors use result[T, E]\n fn open_file(path: ref char) result[ref void, SomeError] = {\n     // ... can use ? to propagate\n }\n ```\n", b 0 }
-data $__str1305 = { b " ---\n\n ## Namespaced Functions\n\n ```\n type Counter = {\n     value: mut i64\n }\n\n pub fn (Counter) new() ref Counter = {\n     val c: ref Counter = trust @alloc(@sizeof(Counter)) as ref Counter\n     // Note that \"trust\" needs to be used above as @alloc is an untrusted intrinsic\n     // as per the contract system.\n     c.value = 0\n     return c\n }\n\n pub fn (Counter) inc(s: mut self) void = {\n     s.value = s.value + 1\n }\n\n // Call site:\n val c = Counter.new()\n Counter.inc(c)\n ```\n\n `self` in a parameter position refers to the enclosing type.\n `mut self` means the method may mutate the receiver.\n", b 0 }
-data $__str1306 = { b " ---\n\n ## Control Flow\n\n ```\n // if / elif / else\n if x > 0 {\n     // ...\n } elif x == 0 {\n     // ...\n } else {\n     // ...\n }\n\n // infinite loop with break\n for {\n     if done { break }\n }\n\n // for-in over a list\n for item in my_list {\n     // use item\n }\n\n // early return\n return value\n ```\n\n ---\n\n ## Pattern Matching\n\n ```\n // option\n match maybe_val {\n     some v => { /* v is the unwrapped value */ }\n     none   => { }\n }\n\n // result\n match result_val {\n     ok v  => { }\n     err e => { }\n }\n\n // union\n match shape {\n     Circle r    => { }\n     Rectangle w h => { }\n }\n ```\n", b 0 }
-data $__str1307 = { b " ---\n\n ## Type Definitions\n\n ```\n // struct\n pub type Point = {\n     x: mut f64\n     y: mut f64\n }\n\n // union (tagged)\n pub union Shape = {\n     Circle(f64) | Rectangle(f64, f64)\n }\n\n // enum\n pub enum Color = {\n     Red, Green, Blue\n }\n ```\n\n ---\n\n ## Modules\n\n ```\n // import a module\n val io = use(\"std/stdio\")\n val mymod = use(\"path/to/module.sx\")\n\n // use it\n io.puts(\"hello\")\n\n // pub makes a declaration visible to importers\n pub fn my_fn() void = { }\n ```\n", b 0 }
-data $__str1308 = { b " ---\n\n ## Contracts\n\n ```\n fn divide(a: i64, b: i64) i64 = {\n     pre  { nonzero: b != 0 }\n     post { result_valid: true }\n     return a / b\n }\n\n // guarded: contract violation checks persist in --release builds\n fn safe_div(a: i64, b: i64) i64 = {\n     guarded pre { nonzero: b != 0 }\n     return a / b\n }\n\n // type level invariant: checked at compile time where possible\n type SomeType = {\n     x: i32\n     y: i32\n\n     invariant {\n         x > 10 && y > 5\n     }\n }\n\n ```\n // ! in return type means the function is untrusted as per the contract system\n // this means that you would need to call this function read_file with the `trust`\n // prefix, like:\n //\n // trust read_file(\"some_file.txt\")\n // \n // Note that trust statements inside untrusted functions marked with ! are redundant\n // and will result in a compile-time error.\n fn read_file(path: ref char) result[ref char, SomeError]! = {\n     val f = some_fallible_call()?   // ? propagates err upward\n     return f\n }\n ```\n\n Do not confuse the trust system with the result propagation, ! in the return type has\n nothing to do with result propagation. Error propagation only works on result[T, E]\n returns, regardless of there being a ! in this return type or not.\n", b 0 }
-data $__str1309 = { b " ---\n\n ## Builtins\n\n | Builtin                        | Description                              |\n |-------------------------------|------------------------------------------|\n | `@alloc(n)`                   | allocate n bytes, returns `ref void`     |\n | `@realloc(ptr, n)`            | resize allocation                        |\n | `@free(ptr)`                  | free allocation                          |\n | `@sizeof(T)`                  | size of type T in bytes                  |\n | `@memcpy(dst, src, n)`        | copy n bytes                             |\n | `@memset(dst, val, n)`        | fill n bytes with val                    |\n | `@memmove(dst, src, n)`       | overlapping-safe copy                    |\n | `@ptradd(ptr, n)`             | pointer arithmetic                       |\n | `@load(ptr)`                  | load word from pointer                   |\n | `@store(ptr, val)`            | store word to pointer                    |\n | `@load8(ptr)`                 | load byte from pointer                   |\n | `@store8(ptr, val)`           | store byte to pointer                    |\n | `@append(list, val)`          | append to list                           |\n | `@remove(list, i)`            | remove element at index i                |\n | `@get(list, i)`               | get element at index (returns option)    |\n | `@len(list)`                  | list length (returns usize)              |\n | `@reserve(list, n)`           | reserve capacity                         |\n | `@capacity(list)`             | current capacity                         |\n | `@fmt(fmt, {args})`           | heap-allocate a formatted string         |\n | `@snprintf(buf, n, fmt, {})` | printf into a buffer                     |\n | `@print(fmt, {args})`        | print to stdout                          |\n | `@args()`                     | command-line arguments as `list[ref char]` |\n", b 0 }
-data $__str1310 = { b " ---\n\n ## The `trust` Keyword\n\n `trust expr` evaluates `expr` while suppressing all contract checks.\n Use it when you have external guarantees that contracts cannot express.\n\n ```\n val ptr: ref void = trust @load(some_raw_ptr)\n ```\n\n ---\n\n ## `assert`\n\n ```\n assert x > 0           // aborts if false\n assert my_fn() == ok 1\n ```\n\n ---\n\n ## Platform Conditionals\n\n ```\n when linux   {  }\n when darwin  {  }\n when windows {  }\n when posix   {  }\n ```\n\n ---\n\n ## Extern Functions\n\n ```\n extern (C) fn strlen(s: ref char) i64! = \"strlen\"\n extern (C) fn printf(fmt: ref char, ...) i32! = \"printf\"\n ```\n\n ---\n\n ## Tests\n\n ```\n test {\n     assert add(1, 2) == 3\n }\n ```\n\n Run with: `spectre <file.sx> --test`\n", b 0 }
-data $__str1311 = { b " ---\n\n ## sx.mod — This is the Project Manifest\n\n ```\n entry \"./src/main.sx\"\n version \"v0.0.1\"\n\n dep \"https://github.com/user/some-lib\"\n\n build release {\n     flags  \"--release\"\n     output \"./myapp\"\n }\n\n build dev {\n     output \"./myapp-dev\"\n }\n ```\n\n - `entry`   — source file passed to the compiler\n - `version` — project version string\n - `dep`     — git dependency URL (cloned to `lib/`)\n - `build`   — named build configuration\n   - `action`  — run this shell command instead of the compiler\n   - `flags`   — extra flags forwarded to `spectre`\n   - `output`  — `-o` output path\n", b 0 }
-data $__str1312 = { b "error: could not write %s\n", b 0 }
-data $__str1313 = { b "Generated SLR.", b 0 }
-data $__str1314 = { b "error: sx.mod already exists in this directory", b 0 }
-data $__str1315 = { b "my-project", b 0 }
-data $__str1316 = { b "entry \"./src/main.sx\"\nversion \"v0.0.1\"\n\nbuild release {\n    flags \"--release\"\n    output \"./", b 0 }
-data $__str1317 = { b "\"\n}\n\nbuild dev {\n    output \"./", b 0 }
-data $__str1318 = { b "-dev\"\n}\n", b 0 }
-data $__str1319 = { b "sx.lock", b 0 }
-data $__str1320 = { b "version \"1\"\n", b 0 }
-data $__str1321 = { b ".gitignore", b 0 }
-data $__str1322 = { b "SPECTRE_LANGUAGE_REFERENCE.md\nlib/\ns-out/\n", b 0 }
-data $__str1323 = { b "src", b 0 }
-data $__str1324 = { b "val stdio = use(\"std/stdio\")\n\npub fn main() void = {\n    stdio.puts(\"Hello, world!\")\n}\n", b 0 }
-data $__str1325 = { b "src/main.sx", b 0 }
-data $__str1326 = { b "Initialized project '%s'\n", b 0 }
-data $__str1327 = { b "  sx.mod       project manifest", b 0 }
-data $__str1328 = { b "  sx.lock      dependency lockfile", b 0 }
-data $__str1329 = { b "  .gitignore", b 0 }
-data $__str1330 = { b "  src/main.sx  entry point", b 0 }
-data $__str1331 = { b "error: build config '%s' not found in sx.mod\n", b 0 }
-data $__str1332 = { b "%s -o %s", b 0 }
+data $__str1297 = { b "%s -o %s", b 0 }
+data $__str1298 = { b "project", b 0 }
+data $__str1299 = { b "dep ", b 0 }
+data $__str1300 = { b "SPECTRE_LANGUAGE_REFERENCE.md", b 0 }
+data $__str1301 = { b " # Spectre Language Reference\n\n ---\n\n ## Comments\n\n ```\n // This is a line comment\n ```\n\n ---\n\n ## Variables\n\n ```\n val x: i64 = 42          // immutable binding\n val y: mut i64 = 0       // mutable binding\n y = y + 1\n ```\n", b 0 }
+data $__str1302 = { b " ---\n\n ## Primitive Types\n\n | Type    | Description              |\n |---------|--------------------------|\n | `i32`   | 32-bit signed integer    |\n | `i64`   | 64-bit signed integer    |\n | `u8`    | 8-bit unsigned integer   |\n | `u32`   | 32-bit unsigned integer  |\n | `u64`   | 64-bit unsigned integer  |\n | `usize` | pointer-sized unsigned   |\n | `f32`   | 32-bit float             |\n | `f64`   | 64-bit float             |\n | `bool`  | boolean (`true`/`false`) |\n | `char`  | single byte character    |\n | `void`  | no value                 |\n", b 0 }
+data $__str1303 = { b " ---\n\n ## Reference and Pointer Types\n\n ```\n val p: ref char = \"hello\"    // pointer to char (C string)\n val q: mut ref i64 = ...     // reassignable pointer\n ```\n\n `ref T` is a raw pointer.  Null is written as `0 as ref T`.\n\n ---\n\n ## List Type\n\n ```\n val xs: mut list[i64] = []\n @append(xs, 1)\n @append(xs, 2)\n val n: usize = @len(xs)\n val opt = @get(xs, 0)        // returns option[i64]\n @remove(xs, 0)\n @reserve(xs, 64)\n ```\n", b 0 }
+data $__str1304 = { b " ---\n\n ## Option Type\n\n ```\n val a: option[i64] = some 42\n val b: option[i64] = none\n\n match a {\n     some v => { /* use v */ }\n     none   => { /* handle missing */ }\n }\n ```\n\n ---\n\n ## Result Type\n\n ```\n val r: result[i64, ref char] = ok 10\n val e: result[i64, ref char] = err \"oops\"\n\n match r {\n     ok v  => { } // Use v \n     err e => { } // Handle the error\n }\n ```\n\n Note that braces in match arms are not optional. You must use braces, for example:\n\n ```\n ok v => hello // INVALID\n ok v => { return hello } // VALID if hello is defined and matches the return type\n ```", b 0 }
+data $__str1305 = { b " ---\n\n ## Strings\n\n ```\n val s: ref char = \"hello\"           // C string literal\n val raw = \\\\ a raw string literal   // raw string (no escape processing)\n           \\\\ continued on next line // lines joined with \\n\n ```\n\n The standard library (`std/string`) provides `String` (owned heap string)\n and `StringBuilder` for building strings dynamically.\n\n ---\n\n ## Functions\n\n ```\n fn add(a: i64, b: i64) i64 = {\n     return a + b\n }\n\n pub fn greet(name: ref char) void = {\n     @print(\"Hello, %s!\\n\", name)\n }\n \n pub enum SomeError = { FailedToDoSomeThing, OrSomethingElse }\n \n // Functions that may propagate errors use result[T, E]\n fn open_file(path: ref char) result[ref void, SomeError] = {\n     // ... can use ? to propagate\n }\n ```\n", b 0 }
+data $__str1306 = { b " ---\n\n ## Namespaced Functions\n\n ```\n type Counter = {\n     value: mut i64\n }\n\n pub fn (Counter) new() ref Counter = {\n     val c: ref Counter = trust @alloc(@sizeof(Counter)) as ref Counter\n     // Note that \"trust\" needs to be used above as @alloc is an untrusted intrinsic\n     // as per the contract system.\n     c.value = 0\n     return c\n }\n\n pub fn (Counter) inc(s: mut self) void = {\n     s.value = s.value + 1\n }\n\n // Call site:\n val c = Counter.new()\n Counter.inc(c)\n ```\n\n `self` in a parameter position refers to the enclosing type.\n `mut self` means the method may mutate the receiver.\n", b 0 }
+data $__str1307 = { b " ---\n\n ## Control Flow\n\n ```\n // if / elif / else\n if x > 0 {\n     // ...\n } elif x == 0 {\n     // ...\n } else {\n     // ...\n }\n\n // infinite loop with break\n for {\n     if done { break }\n }\n\n // for-in over a list\n for item in my_list {\n     // use item\n }\n\n // early return\n return value\n ```\n\n ---\n\n ## Pattern Matching\n\n ```\n // option\n match maybe_val {\n     some v => { /* v is the unwrapped value */ }\n     none   => { }\n }\n\n // result\n match result_val {\n     ok v  => { }\n     err e => { }\n }\n\n // union\n match shape {\n     Circle r    => { }\n     Rectangle w h => { }\n }\n ```\n", b 0 }
+data $__str1308 = { b " ---\n\n ## Type Definitions\n\n ```\n // struct\n pub type Point = {\n     x: mut f64\n     y: mut f64\n }\n\n // union (tagged)\n pub union Shape = {\n     Circle(f64) | Rectangle(f64, f64)\n }\n\n // enum\n pub enum Color = {\n     Red, Green, Blue\n }\n ```\n\n ---\n\n ## Modules\n\n ```\n // import a module\n val io = use(\"std/stdio\")\n val mymod = use(\"path/to/module.sx\")\n\n // use it\n io.puts(\"hello\")\n\n // pub makes a declaration visible to importers\n pub fn my_fn() void = { }\n ```\n", b 0 }
+data $__str1309 = { b " ---\n\n ## Contracts\n\n ```\n fn divide(a: i64, b: i64) i64 = {\n     pre  { nonzero: b != 0 }\n     post { result_valid: true }\n     return a / b\n }\n\n // guarded: contract violation checks persist in --release builds\n fn safe_div(a: i64, b: i64) i64 = {\n     guarded pre { nonzero: b != 0 }\n     return a / b\n }\n\n // type level invariant: checked at compile time where possible\n type SomeType = {\n     x: i32\n     y: i32\n\n     invariant {\n         x > 10 && y > 5\n     }\n }\n\n ```\n // ! in return type means the function is untrusted as per the contract system\n // this means that you would need to call this function read_file with the `trust`\n // prefix, like:\n //\n // trust read_file(\"some_file.txt\")\n // \n // Note that trust statements inside untrusted functions marked with ! are redundant\n // and will result in a compile-time error.\n fn read_file(path: ref char) result[ref char, SomeError]! = {\n     val f = some_fallible_call()?   // ? propagates err upward\n     return f\n }\n ```\n\n Do not confuse the trust system with the result propagation, ! in the return type has\n nothing to do with result propagation. Error propagation only works on result[T, E]\n returns, regardless of there being a ! in this return type or not.\n", b 0 }
+data $__str1310 = { b " ---\n\n ## Builtins\n\n | Builtin                        | Description                              |\n |-------------------------------|------------------------------------------|\n | `@alloc(n)`                   | allocate n bytes, returns `ref void`     |\n | `@realloc(ptr, n)`            | resize allocation                        |\n | `@free(ptr)`                  | free allocation                          |\n | `@sizeof(T)`                  | size of type T in bytes                  |\n | `@memcpy(dst, src, n)`        | copy n bytes                             |\n | `@memset(dst, val, n)`        | fill n bytes with val                    |\n | `@memmove(dst, src, n)`       | overlapping-safe copy                    |\n | `@ptradd(ptr, n)`             | pointer arithmetic                       |\n | `@load(ptr)`                  | load word from pointer                   |\n | `@store(ptr, val)`            | store word to pointer                    |\n | `@load8(ptr)`                 | load byte from pointer                   |\n | `@store8(ptr, val)`           | store byte to pointer                    |\n | `@append(list, val)`          | append to list                           |\n | `@remove(list, i)`            | remove element at index i                |\n | `@get(list, i)`               | get element at index (returns option)    |\n | `@len(list)`                  | list length (returns usize)              |\n | `@reserve(list, n)`           | reserve capacity                         |\n | `@capacity(list)`             | current capacity                         |\n | `@fmt(fmt, {args})`           | heap-allocate a formatted string         |\n | `@snprintf(buf, n, fmt, {})` | printf into a buffer                     |\n | `@print(fmt, {args})`        | print to stdout                          |\n | `@args()`                     | command-line arguments as `list[ref char]` |\n", b 0 }
+data $__str1311 = { b " ---\n\n ## The `trust` Keyword\n\n `trust expr` evaluates `expr` while suppressing all contract checks.\n Use it when you have external guarantees that contracts cannot express.\n\n ```\n val ptr: ref void = trust @load(some_raw_ptr)\n ```\n\n ---\n\n ## `assert`\n\n ```\n assert x > 0           // aborts if false\n assert my_fn() == ok 1\n ```\n\n ---\n\n ## Platform Conditionals\n\n ```\n when linux   {  }\n when darwin  {  }\n when windows {  }\n when posix   {  }\n ```\n\n ---\n\n ## Extern Functions\n\n ```\n extern (C) fn strlen(s: ref char) i64! = \"strlen\"\n extern (C) fn printf(fmt: ref char, ...) i32! = \"printf\"\n ```\n\n ---\n\n ## Tests\n\n ```\n test {\n     assert add(1, 2) == 3\n }\n ```\n\n Run with: `spectre <file.sx> --test`\n", b 0 }
+data $__str1312 = { b " ---\n\n ## sx.mod — This is the Project Manifest\n\n ```\n entry \"./src/main.sx\"\n version \"v0.0.1\"\n\n dep \"https://github.com/user/some-lib\"\n\n build release {\n     flags  \"--release\"\n     output \"./myapp\"\n }\n\n build dev {\n     output \"./myapp-dev\"\n }\n ```\n\n - `entry`   — source file passed to the compiler\n - `version` — project version string\n - `dep`     — git dependency URL (cloned to `lib/`)\n - `build`   — named build configuration\n   - `action`  — base shell command for this build config\n   - `flags`   — extra flags appended to the build command\n   - `output`  — `-o` output path appended to the build command\n", b 0 }
+data $__str1313 = { b "error: could not write %s\n", b 0 }
+data $__str1314 = { b "Generated SLR.", b 0 }
+data $__str1315 = { b "error: sx.mod already exists in this directory", b 0 }
+data $__str1316 = { b "my-project", b 0 }
+data $__str1317 = { b "entry \"./src/main.sx\"\nversion \"v0.0.1\"\n\nbuild release {\n    flags \"--release\"\n    output \"./", b 0 }
+data $__str1318 = { b "\"\n}\n\nbuild dev {\n    output \"./", b 0 }
+data $__str1319 = { b "-dev\"\n}\n", b 0 }
+data $__str1320 = { b "sx.lock", b 0 }
+data $__str1321 = { b "version \"1\"\n", b 0 }
+data $__str1322 = { b ".gitignore", b 0 }
+data $__str1323 = { b "SPECTRE_LANGUAGE_REFERENCE.md\nlib/\ns-out/\n", b 0 }
+data $__str1324 = { b "src", b 0 }
+data $__str1325 = { b "val stdio = use(\"std/stdio\")\n\npub fn main() void = {\n    stdio.puts(\"Hello, world!\")\n}\n", b 0 }
+data $__str1326 = { b "src/main.sx", b 0 }
+data $__str1327 = { b "Initialized project '%s'\n", b 0 }
+data $__str1328 = { b "  sx.mod       project manifest", b 0 }
+data $__str1329 = { b "  sx.lock      dependency lockfile", b 0 }
+data $__str1330 = { b "  .gitignore", b 0 }
+data $__str1331 = { b "  src/main.sx  entry point", b 0 }
+data $__str1332 = { b "error: build config '%s' not found in sx.mod\n", b 0 }
 data $__str1333 = { b "error: sx.mod not found — run 'spectre init' first", b 0 }
 data $__str1334 = { b "lib/%s", b 0 }
 data $__str1335 = { b "error: dependency '%s' already exists at %s\n", b 0 }
