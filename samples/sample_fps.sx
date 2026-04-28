@@ -163,11 +163,12 @@ fn player_shoot() void! = {
                 val tx: f32 = invDet * (player.dirY * dx - player.dirX * dy)
                 val ty: f32 = invDet * (-player.planeY * dx + player.planeX * dy)
                 if ty > 0.0 {
+                    val depth: f32 = ty / (TILE_SIZE as f32)
                     val sx: f32 = (SCREEN_WIDTH as f32 / 2.0) * (1.0 + tx / ty)
                     val cdist: f32 = sx - (SCREEN_WIDTH as f32 / 2.0)
                     val col: i32 = SCREEN_WIDTH / 2
                     val zdist: usize = @load(@ptradd(zbuf, (col as usize) * 8)) as usize
-                    val ez: usize = (ty * 100000.0) as usize
+                    val ez: usize = (depth * 100000.0) as usize
                     if fabsf(cdist) < 80.0 && ez < zdist {
                         e.health -= 1
                         if e.health <= 0 {
@@ -317,8 +318,9 @@ fn render_sprites() void! = {
                 val ty: f32 = invDet * (-player.planeY * dx + player.planeX * dy)
 
                 if ty > 0.1 {
+                    val depth: f32 = ty / (TILE_SIZE as f32)
                     val screenX: i32 = ((SCREEN_WIDTH as f32 / 2.0) * (1.0 + tx / ty)) as i32
-                    val spriteH: i32 = (fabsf(SCREEN_HEIGHT as f32 / ty)) as i32
+                    val spriteH: i32 = (fabsf(SCREEN_HEIGHT as f32 / depth)) as i32
                     val spriteW: i32 = spriteH * enemyTexW / enemyTexH
 
                     if spriteW > 0 {
@@ -332,7 +334,7 @@ fn render_sprites() void! = {
                         if drawStartX < 0 { drawStartX = 0 }
                         if drawEndX >= SCREEN_WIDTH { drawEndX = SCREEN_WIDTH - 1 }
 
-                        val scaledDist: usize = (ty * 100000.0) as usize
+                        val scaledDist: usize = (depth * 100000.0) as usize
                         val spriteLeft: i32 = screenX - spriteW / 2
 
                         val xi: mut i32 = drawStartX
@@ -376,8 +378,9 @@ fn render_sprites() void! = {
                 val bty: f32 = invDet * (-player.planeY * bdx + player.planeX * bdy)
 
                 if bty > 0.1 {
+                    val depth: f32 = bty / (TILE_SIZE as f32)
                     val bsx: i32 = ((SCREEN_WIDTH as f32 / 2.0) * (1.0 + btx / bty)) as i32
-                    val bH: mut i32 = (fabsf(SCREEN_HEIGHT as f32 / bty)) as i32 / 8
+                    val bH: mut i32 = (fabsf(SCREEN_HEIGHT as f32 / depth)) as i32 / 8
                     if bH < 3 { bH = 3 }
                     if bH > 80 { bH = 80 }
 
@@ -392,7 +395,7 @@ fn render_sprites() void! = {
 
                     if bsx >= 0 && bsx < SCREEN_WIDTH {
                         val bZdist: usize = @load(@ptradd(zbuf, (bsx as usize) * 8)) as usize
-                        val bZscaled: usize = (bty * 100000.0) as usize
+                        val bZscaled: usize = (depth * 100000.0) as usize
                         if bZscaled < bZdist {
                             SDL_SetRenderDrawColor(g_renderer, 255 as u8, 100 as u8, 0 as u8, 255 as u8)
                             g_aux_rect.x = bsX
@@ -414,10 +417,10 @@ fn render_sprites() void! = {
 fn render_gun(bobY: i32, showFlash: bool) void! = {
     if g_gunTex == 0 as ref void { return }
 
-    val gunW: i32 = SCREEN_WIDTH / 3
+    val gunW: i32 = SCREEN_WIDTH / 2
     val gunH: i32 = gunW * gunTexH / gunTexW
     val gunX: i32 = (SCREEN_WIDTH - gunW) / 2
-    val gunY: i32 = SCREEN_HEIGHT - gunH + bobY
+    val gunY: i32 = SCREEN_HEIGHT - gunH + bobY + 24
 
     g_dst_rect.x = gunX
     g_dst_rect.y = gunY
@@ -465,7 +468,7 @@ pub fn main() i32 = {
     trust SDL_Init(C.SDL_INIT_VIDEO)
 
     val window: ref void = trust SDL_CreateWindow(
-        "Raycast FPS",
+        "cubedoom",
         C.SDL_WINDOWPOS_CENTERED,
         C.SDL_WINDOWPOS_CENTERED,
         SCREEN_WIDTH,
