@@ -946,6 +946,21 @@ fn cc_resolve_fn_name(ctx: ref CCtx, name: ref char) ref char! = {
     @snprintf(suffix, namelen + 3, "__{s}", {name})
     val sx_name: ref char = @alloc(namelen + 5) as ref char
     @snprintf(sx_name, namelen + 5, "sx__{s}", {name})
+    val cur_name: mut ref char = 0 as ref char
+    if str.rchar_cmp(ctx.current_prefix, "") != 0 {
+        val cur_prefix_len: i64 = str.len_raw(ctx.current_prefix)
+        val is_sc: mut bool = false
+        for scn in get_std_child_names() { if str.rchar_cmp(scn, ctx.current_prefix) == 0 { is_sc = true break } }
+        if is_sc {
+            val cur_name_cap: i64 = cur_prefix_len + namelen + 8
+            cur_name = @alloc(cur_name_cap) as ref char
+            @snprintf(cur_name, cur_name_cap, "std__{s}__{s}", {ctx.current_prefix, name})
+        } else {
+            val cur_name_cap: i64 = cur_prefix_len + namelen + 3
+            cur_name = @alloc(cur_name_cap) as ref char
+            @snprintf(cur_name, cur_name_cap, "{s}__{s}", {ctx.current_prefix, name})
+        }
+    }
     val ni: mut i64 = 0
     val found: mut ref char = 0 as ref char
     for {
@@ -957,13 +972,22 @@ fn cc_resolve_fn_name(ctx: ref CCtx, name: ref char) ref char! = {
                 if str.rchar_cmp(candidate, name) == 0 {
                     @free(suffix)
                     @free(sx_name)
+                    if cur_name != 0 as ref char { @free(cur_name) }
                     cc_mark_prefix_used(ctx, "")
                     return candidate
                 }
                 if str.rchar_cmp(candidate, sx_name) == 0 {
                     @free(suffix)
                     @free(sx_name)
+                    if cur_name != 0 as ref char { @free(cur_name) }
                     cc_mark_prefix_used(ctx, "")
+                    return candidate
+                }
+                if cur_name != 0 as ref char && str.rchar_cmp(candidate, cur_name) == 0 {
+                    @free(suffix)
+                    @free(sx_name)
+                    @free(cur_name)
+                    cc_mark_prefix_used(ctx, ctx.current_prefix)
                     return candidate
                 }
                 val clen: i64 = str.len_raw(candidate)
@@ -978,6 +1002,7 @@ fn cc_resolve_fn_name(ctx: ref CCtx, name: ref char) ref char! = {
     }
     @free(suffix)
     @free(sx_name)
+    if cur_name != 0 as ref char { @free(cur_name) }
     if found != 0 as ref char {
         val prefix: ref char = codegen.extract_prefix_from_mangled(found, name)
         cc_mark_prefix_used(ctx, prefix)
@@ -3187,6 +3212,8 @@ fn gen_fn_prefixed(ctx: mut ref CCtx, fn_node: ref parser.Node, mod_prefix: ref 
     else { @snprintf(mangled, 512, "{s}__{s}", {mod_prefix, base}) }
     if !cc_emit_label_if_new(ctx, mangled) { @free(mangled) @free(base) return }
     ctx.fn_name = mangled
+    val saved_prefix: ref char = ctx.current_prefix
+    ctx.current_prefix = mod_prefix
     if params != 0 as ref void { cc_register_fn(ctx, mangled, params, ret_ty as ref void, false, false) }
     val ret_ct: ref char = c_ret_type_of(ctx, ret_ty)
     val is_main: bool = str.rchar_cmp(name, "main") == 0 && str.rchar_cmp(mod_prefix, "") == 0
@@ -3232,6 +3259,7 @@ fn gen_fn_prefixed(ctx: mut ref CCtx, fn_node: ref parser.Node, mod_prefix: ref 
     }
     if needs_ret { cc_emit_defers(ctx) if is_main { emitln(ctx, "return 0;") }
         elif ctx.current_ret_is_void { emitln(ctx, "return;") } else { emitln(ctx, "return 0;") } }
+    ctx.current_prefix = saved_prefix
     emitln(ctx, "}") emitln(ctx, "")
 }
 
