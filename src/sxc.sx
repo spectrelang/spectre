@@ -256,6 +256,7 @@ pub fn main() i32! = {
     val extra_includes: mut list[ref char] = []
     val inc_paths: mut list[ref char] = []
     val src_target: mut ref char = ""
+    val bootstrap_mode: mut bool = false
     val arg_i: mut i64 = 2
 
     if flag_first_translate_c {
@@ -331,6 +332,9 @@ pub fn main() i32! = {
                     arg_i++
                 } elif std.string.rchar_cmp(arg, "--ast") == 0 {
                     print_ast = true
+                    arg_i++
+                } elif std.string.rchar_cmp(arg, "-b") == 0 || std.string.rchar_cmp(arg, "--bootstrap") == 0 {
+                    bootstrap_mode = true
                     arg_i++
                 } elif std.string.rchar_cmp(arg, "--alt") == 0 {
                     use_alt = true
@@ -468,8 +472,9 @@ pub fn main() i32! = {
 
     if use_alt || emit_alt {
         val c_ir: mut ref char = ""
-        if test_mode { c_ir = alt_codegen.gen_module_c_test(root_mod, release_mode, extra_includes, src_target) }
-        else { c_ir = alt_codegen.gen_module_c(root_mod, release_mode, extra_includes, src_target) }
+        val emit_ld: bool = !bootstrap_mode
+        if test_mode { c_ir = alt_codegen.gen_module_c_test(root_mod, release_mode, extra_includes, src_target, emit_ld) }
+        else { c_ir = alt_codegen.gen_module_c(root_mod, release_mode, extra_includes, src_target, emit_ld) }
 
         if emit_alt != false {
             std.stdio.puts(c_ir)
@@ -556,13 +561,17 @@ pub fn main() i32! = {
                 val vstr: ref char = std.string.cstr(v)
                 val has_error: bool = std.string.contains(v, std.string.from("error:"))
                 if has_error {
-                    std.stdio.print("{s}", {vstr})
+                    val display: mut ref char = vstr
+                    if !bootstrap_mode { display = builds.filter_c_diagnostics(vstr) }
+                    std.stdio.print("{s}", {display})
                     std.os.delete(c_file)
                     allocators.Arena.free(arena)
                     return 1
                 } else {
                     if std.string.len_raw(vstr) > 0 {
-                        std.stdio.print("{s}", {vstr})
+                        val display: mut ref char = vstr
+                        if !bootstrap_mode { display = builds.filter_c_diagnostics(vstr) }
+                        std.stdio.print("{s}", {display})
                     }
                     if test_mode {
                         val run_res_alt = std.os.run(test_output_alt)

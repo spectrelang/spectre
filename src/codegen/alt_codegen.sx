@@ -3765,7 +3765,7 @@ fn gen_test_main_c(ctx: ref CCtx, test_ids: list[i64]) void! = {
     emitln(ctx, "")
 }
 
-pub fn gen_module_c_test(root: ref module.ResolvedModule, release_mode: bool, extra_includes: list[ref char], src_target: ref char) ref char! = {
+pub fn gen_module_c_test(root: ref module.ResolvedModule, release_mode: bool, extra_includes: list[ref char], src_target: ref char, emit_line_directives: bool) ref char! = {
     val ctx: mut ref CCtx = cc_new()
     ctx.release_mode = release_mode
     ctx.src_target = src_target
@@ -3801,10 +3801,12 @@ pub fn gen_module_c_test(root: ref module.ResolvedModule, release_mode: bool, ex
         if li2 >= layers { break }
         val pfx_opt = @get(out_prefixes, li2 as usize)
         val items_opt = @get(out_items, li2 as usize)
-        val fname_opt = @get(out_filenames, li2 as usize)
-        match fname_opt {
-            some fname => { ctx.current_src_file = fname as ref char }
-            none => { ctx.current_src_file = "" }
+        if emit_line_directives {
+            val fname_opt = @get(out_filenames, li2 as usize)
+            match fname_opt {
+                some fname => { ctx.current_src_file = fname as ref char }
+                none => { ctx.current_src_file = "" }
+            }
         }
         match pfx_opt {
             some pfx => {
@@ -3822,7 +3824,7 @@ pub fn gen_module_c_test(root: ref module.ResolvedModule, release_mode: bool, ex
     gen_init_fn(ctx)
     val test_ids: mut list[i64] = []
     val test_counter: mut i64 = 0
-    ctx.current_src_file = module.module_filename(root)
+    if emit_line_directives { ctx.current_src_file = module.module_filename(root) }
     val root_items: list[ref parser.Node] = root.items
     val rlen: i64 = @len(root_items) as i64
     val ri: mut i64 = 0
@@ -3865,7 +3867,7 @@ pub fn gen_module_c_test(root: ref module.ResolvedModule, release_mode: bool, ex
     return result
 }
 
-pub fn gen_module_c(root: ref module.ResolvedModule, release_mode: bool, extra_includes: list[ref char], src_target: ref char) ref char! = {
+pub fn gen_module_c(root: ref module.ResolvedModule, release_mode: bool, extra_includes: list[ref char], src_target: ref char, emit_line_directives: bool) ref char! = {
     val ctx: mut ref CCtx = cc_new()
     ctx.release_mode = release_mode
     ctx.src_target = src_target
@@ -3903,10 +3905,12 @@ pub fn gen_module_c(root: ref module.ResolvedModule, release_mode: bool, extra_i
         if li2 >= layers { break }
         val pfx_opt = @get(out_prefixes, li2 as usize)
         val items_opt = @get(out_items, li2 as usize)
-        val fname_opt = @get(out_filenames, li2 as usize)
-        match fname_opt {
-            some fname => { ctx.current_src_file = fname as ref char }
-            none => { ctx.current_src_file = "" }
+        if emit_line_directives {
+            val fname_opt = @get(out_filenames, li2 as usize)
+            match fname_opt {
+                some fname => { ctx.current_src_file = fname as ref char }
+                none => { ctx.current_src_file = "" }
+            }
         }
         match pfx_opt {
             some pfx => {

@@ -46,3 +46,38 @@ pub fn parse_alt_compiler_arg(arg: ref char) ref char = {
     }
     return ""
 }
+
+pub fn filter_c_diagnostics(raw: ref char) ref char! = {
+    val sb: ref void = std.string.StringBuilder.new()
+    val len: i64 = std.string.len_raw(raw) as i64
+    val ls: mut i64 = 0
+    val i: mut i64 = 0
+    for {
+        if i > len { break }
+        val at_end: bool = i == len
+        val c: mut u8 = 0
+        if !at_end { c = @load8(@ptradd(raw as ref void, i)) as u8 }
+        if at_end || c == 10 {
+            val line_len: i64 = i - ls
+            if line_len > 0 {
+                val first: u8 = @load8(@ptradd(raw as ref void, ls)) as u8
+                val is_context: bool = first == 32 || first == 9
+                if !is_context {
+                    val ji: mut i64 = ls
+                    for {
+                        if ji >= ls + line_len { break }
+                        std.string.StringBuilder.append_char(sb, @load8(@ptradd(raw as ref void, ji)) as u8)
+                        ji++
+                    }
+                    std.string.StringBuilder.append_char(sb, 10)
+                }
+            }
+            ls = i + 1
+        }
+        i++
+    }
+    val built: ref void = std.string.StringBuilder.build(sb)
+    val out: ref char = std.string.cstr(built)
+    std.string.StringBuilder.free(sb)
+    return out
+}
