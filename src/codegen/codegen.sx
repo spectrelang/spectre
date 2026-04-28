@@ -7310,29 +7310,25 @@ fn gen_list_lit(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
         for {
             if ei >= elen { break }
             val e_opt = @get(elems, ei as usize)
-            match e_opt {
-                some e => {
-                    val val_tmp: ref char = gen_expr_expected(ctx, e as ref parser.Node, elem_ty)
-                    val off: i64 = fresh_tmp(ctx)
-                    val elem_ptr: i64 = fresh_tmp(ctx)
+            if e_opt is some e {
+                val val_tmp: ref char = gen_expr_expected(ctx, e as ref parser.Node, elem_ty)
+                val off: i64 = fresh_tmp(ctx)
+                val elem_ptr: i64 = fresh_tmp(ctx)
+                val buf8: ref char = @alloc(128) as ref char
 
-                    val buf8: ref char = @alloc(128) as ref char
-                    @snprintf(buf8, 128, "    %%t{lld} =l mul {lld}, 8\n", {off, ei})
-                    emit(ctx, buf8)
-                    @free(buf8)
-
-                    val buf9: ref char = @alloc(128) as ref char
-                    @snprintf(buf9, 128, "    %%t{lld} =l add %%t{lld}, %%t{lld}\n", {elem_ptr, buf_ptr, off})
-                    emit(ctx, buf9)
-                    @free(buf9)
-
-                    val buf10: ref char = @alloc(128) as ref char
-                    @snprintf(buf10, 128, "    storel {s}, %%t{lld}\n", {val_tmp, elem_ptr})
-                    emit(ctx, buf10)
-                    @free(buf10)
-                }
-                none => {}
+                @snprintf(buf8, 128, "    %%t{lld} =l mul {lld}, 8\n", {off, ei})
+                emit(ctx, buf8)
+                @free(buf8)
+                val buf9: ref char = @alloc(128) as ref char
+                @snprintf(buf9, 128, "    %%t{lld} =l add %%t{lld}, %%t{lld}\n", {elem_ptr, buf_ptr, off})
+                emit(ctx, buf9)
+                @free(buf9)
+                val buf10: ref char = @alloc(128) as ref char
+                @snprintf(buf10, 128, "    storel {s}, %%t{lld}\n", {val_tmp, elem_ptr})
+                emit(ctx, buf10)
+                @free(buf10)
             }
+            
             ei++
         }
     }
