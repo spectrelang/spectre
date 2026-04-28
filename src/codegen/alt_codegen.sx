@@ -2868,7 +2868,12 @@ fn gen_stmt(ctx: mut ref CCtx, stmt: ref parser.Node) void! = {
             emit(ctx, buf) @free(buf)
         }
         elif tgt.kind == parser.NK_FIELD {
-            val fa: ref char = gen_field_addr(ctx, tgt) val buf: ref char = @alloc(256) as ref char @snprintf(buf, 256, "(*(int64_t*)({s}))++;\n", {fa}) emit(ctx, buf) @free(buf)
+            val fa: ref char = gen_field_addr(ctx, tgt)
+            val fct: ref char = cc_field_ctype_of_expr(ctx, tgt)
+            val buf: ref char = @alloc(256) as ref char
+            @snprintf(buf, 256, "(*({s}*)({s}))++;\n", {fct, fa})
+            emit(ctx, buf)
+            @free(buf)
         }
         elif tgt.kind == parser.NK_DEREF {
             val p: ref char = gen_expr(ctx, tgt.d0 as ref parser.Node) val buf: ref char = @alloc(256) as ref char @snprintf(buf, 256, "(*(int64_t*)(intptr_t)({s}))++;\n", {p}) emit(ctx, buf) @free(buf)
@@ -2886,7 +2891,14 @@ fn gen_stmt(ctx: mut ref CCtx, stmt: ref parser.Node) void! = {
             else { @snprintf(buf, 128, "t_{s}--;\n", {name}) }
             emit(ctx, buf) @free(buf)
         }
-        elif tgt.kind == parser.NK_FIELD { val fa: ref char = gen_field_addr(ctx, tgt) val buf: ref char = @alloc(256) as ref char @snprintf(buf, 256, "(*(int64_t*)({s}))--;\n", {fa}) emit(ctx, buf) @free(buf) }
+        elif tgt.kind == parser.NK_FIELD {
+            val fa: ref char = gen_field_addr(ctx, tgt)
+            val fct: ref char = cc_field_ctype_of_expr(ctx, tgt)
+            val buf: ref char = @alloc(256) as ref char
+            @snprintf(buf, 256, "(*({s}*)({s}))--;\n", {fct, fa})
+            emit(ctx, buf)
+            @free(buf)
+        }
         elif tgt.kind == parser.NK_DEREF { val p: ref char = gen_expr(ctx, tgt.d0 as ref parser.Node) val buf: ref char = @alloc(256) as ref char @snprintf(buf, 256, "(*(int64_t*)(intptr_t)({s}))--;\n", {p}) emit(ctx, buf) @free(buf) }
         cc_expr_drain(ctx)
         return
@@ -2901,7 +2913,14 @@ fn gen_stmt(ctx: mut ref CCtx, stmt: ref parser.Node) void! = {
             else { @snprintf(buf, 256, "t_{s}+=({s});\n", {name, rhs}) }
             emit(ctx, buf) @free(buf)
         }
-        elif tgt.kind == parser.NK_FIELD { val fa: ref char = gen_field_addr(ctx, tgt) val buf: ref char = @alloc(256) as ref char @snprintf(buf, 256, "(*(int64_t*)({s}))+=({s});\n", {fa, rhs}) emit(ctx, buf) @free(buf) }
+        elif tgt.kind == parser.NK_FIELD {
+            val fa: ref char = gen_field_addr(ctx, tgt)
+            val fct: ref char = cc_field_ctype_of_expr(ctx, tgt)
+            val buf: ref char = @alloc(256) as ref char
+            @snprintf(buf, 256, "(*({s}*)({s}))+=({s});\n", {fct, fa, rhs})
+            emit(ctx, buf)
+            @free(buf)
+        }
         cc_expr_drain(ctx)
         return
     }
@@ -2915,7 +2934,14 @@ fn gen_stmt(ctx: mut ref CCtx, stmt: ref parser.Node) void! = {
             else { @snprintf(buf, 256, "t_{s}-=({s});\n", {name, rhs}) }
             emit(ctx, buf) @free(buf)
         }
-        elif tgt.kind == parser.NK_FIELD { val fa: ref char = gen_field_addr(ctx, tgt) val buf: ref char = @alloc(256) as ref char @snprintf(buf, 256, "(*(int64_t*)({s}))-=({s});\n", {fa, rhs}) emit(ctx, buf) @free(buf) }
+        elif tgt.kind == parser.NK_FIELD {
+            val fa: ref char = gen_field_addr(ctx, tgt)
+            val fct: ref char = cc_field_ctype_of_expr(ctx, tgt)
+            val buf: ref char = @alloc(256) as ref char
+            @snprintf(buf, 256, "(*({s}*)({s}))-=({s});\n", {fct, fa, rhs})
+            emit(ctx, buf)
+            @free(buf)
+        }
         cc_expr_drain(ctx)
         return
     }
