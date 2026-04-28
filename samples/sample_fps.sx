@@ -157,14 +157,24 @@ pub fn main() i32 = {
 
                 val moveY0: i32 = ((player.y + 4.0) / 64.0) as i32
                 val moveX0: i32 = ((player.x + 4.0 + stepX) / 64.0) as i32
-                if @get(moveY0, moveX0) == 0 {
-                    player.x += stepX
+                match @get(map, moveY0, moveX0) {
+                    some v => {
+                        if v == 0 {
+                            player.x += stepX
+                        }
+                    }
+                    none => {}
                 }
 
                 val moveY1: i32 = ((player.y + 4.0 + stepY) / 64.0) as i32
                 val moveX1: i32 = ((player.x + 4.0) / 64.0) as i32
-                if @get(map, moveY1, moveX1) == 0 {
-                    player.y += stepY
+                match @get(map, moveY1, moveX1) {
+                    some v => {
+                        if v == 0 {
+                            player.y += stepY
+                        }
+                    }
+                    none => {}
                 }
             }
 
@@ -173,7 +183,7 @@ pub fn main() i32 = {
 
             trust SDL_SetRenderDrawColor(renderer, 40 as u8, 40 as u8, 40 as u8, 255 as u8)
             val ceiling: ref SDL_Rect = @alloc(@sizeof(SDL_Rect))
-            @deref(ceiling) = {0, 0, SCREEN_WIDTH, SCREEN_HEIGHT / 2}
+            @deref(ceiling) = {x: 0, y: 0, w: SCREEN_WIDTH, h: SCREEN_HEIGHT / 2}
             trust SDL_RenderFillRect(renderer, ceiling)
 
             val pCX: f32 = player.x + 4.0
@@ -201,8 +211,8 @@ pub fn main() i32 = {
 
                     val sDX: mut f32 = 0.0
                     val sDY: mut f32 = 0.0
-                    val stepX: mut i32 = 0.0
-                    val stepY: mut i32 = 0.0
+                    val stepX: mut i32 = 0
+                    val stepY: mut i32 = 0
 
                     if rayDX < 0.0 {
                         stepX = -1
@@ -238,8 +248,13 @@ pub fn main() i32 = {
                             if mX < 0 || mX >= MAP_SIZE || mY < 0 || mY >= MAP_SIZE {
                                 break
                             }
-                            if map[mY][mX] > 0 {
-                                hit = 1
+                            match @get(map, mY, mX) {
+                                some v => {
+                                    if v > 0 {
+                                        hit = 1
+                                    }
+                                }
+                                none => {}
                             }
                         } else {
                             break
@@ -265,10 +280,10 @@ pub fn main() i32 = {
 
                     val slice: ref SDL_Rect = @alloc(@sizeof(SDL_Rect))
                     @deref(slice) = {
-                        i,
-                        ((960.0 - h) / 2.0) as i32,
-                        1,
-                        h as i32
+                        x: i,
+                        y: ((960.0 - h) / 2.0) as i32,
+                        w: 1,
+                        h: h as i32
                     }
                     trust SDL_RenderFillRect(renderer, slice)
 
@@ -288,17 +303,22 @@ pub fn main() i32 = {
                     val x: mut i32 = 0
                     for {
                         if x < MAP_SIZE {
-                            if map[y][x] > 0 {
-                                trust SDL_SetRenderDrawColor(renderer, 120 as u8, 120 as u8, 120 as u8, 255 as u8)
+                            match @get(map, y, x) {
+                                some v => {
+                                    if v > 0 {
+                                        trust SDL_SetRenderDrawColor(renderer, 120 as u8, 120 as u8, 120 as u8, 255 as u8)
 
-                                val w: ref SDL_Rect = @alloc(@sizeof(SDL_Rect))
-                                @deref(w) = {
-                                    (mar + (x as f32) * mt) as i32,
-                                    (mar + (y as f32) * mt) as i32,
-                                    mt as i32,
-                                    mt as i32
+                                        val w: ref SDL_Rect = @alloc(@sizeof(SDL_Rect))
+                                        @deref(w) = {
+                                            x: (mar + (x as f32) * mt) as i32,
+                                            y: (mar + (y as f32) * mt) as i32,
+                                            w: mt as i32,
+                                            h: mt as i32
+                                        }
+                                        trust SDL_RenderFillRect(renderer, w)
+                                    }
                                 }
-                                trust SDL_RenderFillRect(renderer, w)
+                                none => {}
                             }
                             x++
                         } else {
@@ -314,10 +334,10 @@ pub fn main() i32 = {
             trust SDL_SetRenderDrawColor(renderer, 255 as u8, 255 as u8, 0 as u8, 255 as u8)
             val mp: ref SDL_Rect = @alloc(@sizeof(SDL_Rect))
             @deref(mp) = {
-                (mar + player.x * ms - 4.0) as i32,
-                (mar + player.y * ms - 4.0) as i32,
-                7,
-                7
+                x: (mar + player.x * ms - 4.0) as i32,
+                y: (mar + player.y * ms - 4.0) as i32,
+                w: 7,
+                h: 7
             }
             trust SDL_RenderFillRect(renderer, mp)
 
