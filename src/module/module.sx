@@ -1099,6 +1099,62 @@ pub fn flatten_modules(
     @append(out_items as list[ref void], items_copy)
 }
 
+pub fn flatten_modules_with_files(
+    m:             ref ResolvedModule,
+    prefix:        ref char,
+    out_prefixes:  mut list[ref char],
+    out_items:     mut list[ref void],
+    out_filenames: mut list[ref char],
+    seen:          mut list[String]
+) void! = {
+    val slen: i64 = @len(seen as list[String]) as i64
+    val si: mut i64 = 0
+    for {
+        if si >= slen { break }
+        val s_opt = @get(seen as list[String], si as usize)
+        match s_opt {
+            some s => {
+                if s == 0 { continue }
+                if str.equals(s, m.filename) { return }
+            }
+            none => {}
+        }
+        si++
+    }
+    val clen: i64 = @len(m.import_modules) as i64
+    val ci: mut i64 = 0
+    for {
+        if ci >= clen { break }
+        val name_opt = @get(m.import_names, ci as usize)
+        val mod_opt  = @get(m.import_modules, ci as usize)
+        match name_opt {
+            some name => {
+                match mod_opt {
+                    some child => {
+                        flatten_modules_with_files(
+                            child as ref ResolvedModule,
+                            name as ref char,
+                            out_prefixes,
+                            out_items,
+                            out_filenames,
+                            seen
+                        )
+                    }
+                    none => {}
+                }
+            }
+            none => {}
+        }
+        ci++
+    }
+    @append(seen as list[String], m.filename)
+    val items_copy: ref void = @alloc(24)
+    @memcpy(items_copy, @addr(m.items) as ref void, 24 as usize)
+    @append(out_prefixes as list[ref char], prefix)
+    @append(out_items as list[ref void], items_copy)
+    @append(out_filenames as list[ref char], str.cstr(m.filename))
+}
+
 /// Collect all link statements from a module's items.
 /// Returns a list of link flags (strings like "-lcurl" or full paths).
 pub fn collect_links(items: list[ref parser.Node], exe_dir: ref char) list[ref char]! = {

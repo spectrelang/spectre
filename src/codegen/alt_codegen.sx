@@ -66,6 +66,7 @@ pub type CCtx = {
     gsubst_tnodes: mut list[ref void]
     mono_sb: mut ref void
     src_target: mut ref char
+    current_src_file: mut ref char
 }
 
 fn cc_new() ref CCtx! = {
@@ -126,6 +127,7 @@ fn cc_new() ref CCtx! = {
     ctx.gsubst_tnodes = []
     ctx.mono_sb = str.StringBuilder.new()
     ctx.src_target = ""
+    ctx.current_src_file = ""
     return ctx
 }
 
@@ -159,8 +161,17 @@ fn emit(ctx: ref CCtx, s: ref char) void! = {
 }
 
 fn emitln(ctx: ref CCtx, s: ref char) void! = {
-    str.StringBuilder.append_cstr(ctx.sb, s) 
-    str.StringBuilder.append_char(ctx.sb, 10) 
+    str.StringBuilder.append_cstr(ctx.sb, s)
+    str.StringBuilder.append_char(ctx.sb, 10)
+}
+
+fn emit_line_directive(ctx: ref CCtx, line: i64) void! = {
+    if str.rchar_cmp(ctx.current_src_file, "") == 0 { return }
+    if line <= 0 { return }
+    val buf: ref char = @alloc(1024) as ref char
+    @snprintf(buf, 1024, "#line {lld} \"{s}\"\n", {line, ctx.current_src_file})
+    emit(ctx, buf)
+    @free(buf)
 }
 
 fn rewrite_fmt(s: ref char) ref char! = {
@@ -2716,6 +2727,7 @@ fn gen_stmts(ctx: ref CCtx, stmts: ref parser.Node) void! = {
 
 fn gen_stmt(ctx: mut ref CCtx, stmt: ref parser.Node) void! = {
     if stmt == 0 as ref parser.Node { return }
+    emit_line_directive(ctx, stmt.line)
     val k: i64 = stmt.kind
     if k == parser.NK_VAL {
         val name: ref char = stmt.d0 as ref char
@@ -3291,10 +3303,11 @@ fn gen_fn_prefixed(ctx: mut ref CCtx, fn_node: ref parser.Node, mod_prefix: ref 
     if params != 0 as ref void { cc_register_fn(ctx, mangled, params, ret_ty as ref void, false, false) }
     val ret_ct: ref char = c_ret_type_of(ctx, ret_ty)
     val is_main: bool = str.rchar_cmp(name, "main") == 0 && str.rchar_cmp(mod_prefix, "") == 0
-    ctx.current_ret_ctype = ret_ct 
+    ctx.current_ret_ctype = ret_ct
     ctx.current_ret_is_void = is_void_ret(ret_ty)
     ctx.current_ret_ty = ret_ty
     cc_clear_locals(ctx)
+    emit_line_directive(ctx, fn_node.line)
     if is_main { emitln(ctx, "int32_t main(int argc,char**argv){") }
     else {
         val sig: ref char = @alloc(1024) as ref char @snprintf(sig, 1024, "{s} {s}(", {ret_ct, mangled}) emit(ctx, sig) @free(sig)
@@ -3758,8 +3771,9 @@ pub fn gen_module_c_test(root: ref module.ResolvedModule, release_mode: bool, ex
     ctx.src_target = src_target
     val out_prefixes: list[ref char] = []
     val out_items: list[ref void] = []
+    val out_filenames: list[ref char] = []
     val seen: list[String] = []
-    module.flatten_modules(root, "", out_prefixes, out_items, seen)
+    module.flatten_modules_with_files(root, "", out_prefixes, out_items, out_filenames, seen)
     val layers: i64 = @len(out_prefixes) as i64
     cc_mark_prefix_used(ctx, "")
     emit_c_preamble(ctx)
@@ -3787,6 +3801,11 @@ pub fn gen_module_c_test(root: ref module.ResolvedModule, release_mode: bool, ex
         if li2 >= layers { break }
         val pfx_opt = @get(out_prefixes, li2 as usize)
         val items_opt = @get(out_items, li2 as usize)
+        val fname_opt = @get(out_filenames, li2 as usize)
+        match fname_opt {
+            some fname => { ctx.current_src_file = fname as ref char }
+            none => { ctx.current_src_file = "" }
+        }
         match pfx_opt {
             some pfx => {
                 match items_opt {
@@ -3803,6 +3822,7 @@ pub fn gen_module_c_test(root: ref module.ResolvedModule, release_mode: bool, ex
     gen_init_fn(ctx)
     val test_ids: mut list[i64] = []
     val test_counter: mut i64 = 0
+    ctx.current_src_file = module.module_filename(root)
     val root_items: list[ref parser.Node] = root.items
     val rlen: i64 = @len(root_items) as i64
     val ri: mut i64 = 0
@@ -3851,8 +3871,9 @@ pub fn gen_module_c(root: ref module.ResolvedModule, release_mode: bool, extra_i
     ctx.src_target = src_target
     val out_prefixes: list[ref char] = []
     val out_items: list[ref void] = []
+    val out_filenames: list[ref char] = []
     val seen: list[String] = []
-    module.flatten_modules(root, "", out_prefixes, out_items, seen)
+    module.flatten_modules_with_files(root, "", out_prefixes, out_items, out_filenames, seen)
     val layers: i64 = @len(out_prefixes) as i64
     cc_mark_prefix_used(ctx, "")
     emit_c_preamble(ctx)
@@ -3862,37 +3883,42 @@ pub fn gen_module_c(root: ref module.ResolvedModule, release_mode: bool, extra_i
     emit_c_panic_handler(ctx)
     emitln_fwd(ctx, "static void sx__init(void);")
     val li: mut i64 = 0
-    for { 
+    for {
         if li >= layers { break }
-        val pfx_opt = @get(out_prefixes, li as usize) 
+        val pfx_opt = @get(out_prefixes, li as usize)
         val items_opt = @get(out_items, li as usize)
-        match pfx_opt { 
-            some pfx => { 
-                match items_opt { 
+        match pfx_opt {
+            some pfx => {
+                match items_opt {
                     some ip => {
                         preregister_items(ctx, ip as list[ref parser.Node], pfx as ref char)
-                    } none => {} 
-                } 
-            } none => {} 
+                    } none => {}
+                }
+            } none => {}
         }
-        li++ 
+        li++
     }
     val li2: mut i64 = 0
-    for { 
+    for {
         if li2 >= layers { break }
-        val pfx_opt = @get(out_prefixes, li2 as usize) 
+        val pfx_opt = @get(out_prefixes, li2 as usize)
         val items_opt = @get(out_items, li2 as usize)
-        match pfx_opt { 
-            some pfx => { 
-                match items_opt { 
+        val fname_opt = @get(out_filenames, li2 as usize)
+        match fname_opt {
+            some fname => { ctx.current_src_file = fname as ref char }
+            none => { ctx.current_src_file = "" }
+        }
+        match pfx_opt {
+            some pfx => {
+                match items_opt {
                     some ip => {
                         gen_items_with_prefix(ctx, ip as list[ref parser.Node], pfx as ref char)
-                    } none => {} 
-                } 
-            } 
-            none => {} 
-        }       
-        li2++ 
+                    } none => {}
+                }
+            }
+            none => {}
+        }
+        li2++
     }
     gen_init_fn(ctx)
     emit_string_data(ctx)
