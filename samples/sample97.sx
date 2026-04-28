@@ -1,0 +1,51 @@
+pub fn main() void = {
+    // This works:
+    val y = "hello"
+    match y {
+        "bye" => {
+            @puts("what")
+        }
+        "hello" => {
+            @puts("ok")
+        }
+        else => {
+            @puts("what2")
+        }
+    }
+    
+    // We should be able to do this:
+    val x = 10
+    match x {
+        5 => {
+            @puts("what")
+        }
+        10 => {
+            @puts("ok")
+        }
+        else => {
+            @puts("what2")
+        }
+    }
+
+    // Or this:
+    val z = true
+    match z {
+        true => {
+            @puts("ok")
+        }
+        else => {
+            @puts("what")
+        }
+    }
+
+    // Or this:
+    val a = 2.4
+    match a {
+        2.4 => {
+            @puts("ok")
+        }
+        else => {
+            @puts("what")
+        }
+    }
+}
