@@ -3972,6 +3972,44 @@ fn gen_binop(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
     val op: i64 = expr.d0 as i64
     val lhs_expr: ref parser.Node = expr.d1 as ref parser.Node
     val rhs_expr: ref parser.Node = expr.d2 as ref parser.Node
+
+    if op == parser.OP_AND || op == parser.OP_OR {
+        val lhs: ref char = gen_expr(ctx, lhs_expr)
+        val rhs_lbl: i64 = fresh_lbl(ctx)
+        val done_lbl: i64 = fresh_lbl(ctx)
+        val slot: i64 = fresh_tmp(ctx)
+
+        val sb: ref char = @alloc(128) as ref char
+        @snprintf(sb, 128, "    %%t{lld} =l alloc4 1\n", {slot})
+        emit(ctx, sb) @free(sb)
+
+        val s0: ref char = @alloc(128) as ref char
+        @snprintf(s0, 128, "    storew {s}, %%t{lld}\n", {lhs, slot})
+        emit(ctx, s0) @free(s0)
+
+        val jb: ref char = @alloc(128) as ref char
+        if op == parser.OP_AND {
+            @snprintf(jb, 128, "    jnz {s}, @lbl{lld}, @lbl{lld}\n@lbl{lld}\n", {lhs, rhs_lbl, done_lbl, rhs_lbl})
+        } else {
+            @snprintf(jb, 128, "    jnz {s}, @lbl{lld}, @lbl{lld}\n@lbl{lld}\n", {lhs, done_lbl, rhs_lbl, rhs_lbl})
+        }
+        emit(ctx, jb) @free(jb)
+
+        val rhs: ref char = gen_expr(ctx, rhs_expr)
+        val sr: ref char = @alloc(128) as ref char
+        @snprintf(sr, 128, "    storew {s}, %%t{lld}\n    jmp @lbl{lld}\n@lbl{lld}\n", {rhs, slot, done_lbl, done_lbl})
+        emit(ctx, sr) @free(sr)
+
+        val result: i64 = fresh_tmp(ctx)
+        val lb: ref char = @alloc(64) as ref char
+        @snprintf(lb, 64, "    %%t{lld} =w loadw %%t{lld}\n", {result, slot})
+        emit(ctx, lb) @free(lb)
+
+        val res: ref char = @alloc(16) as ref char
+        @snprintf(res, 16, "%%t{lld}", {result})
+        return res
+    }
+
     val lhs_is_result: bool = expr_is_result(lhs_expr)
     val rhs_is_result: bool = expr_is_result(rhs_expr)
 
@@ -4152,12 +4190,6 @@ fn gen_binop(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
         elif op == parser.OP_GT  { @snprintf(buf, 256, "    %%t{lld} =w cgtd {s}, {s}\n", {tmp, lhs, rhs}) }
         elif op == parser.OP_LE  { @snprintf(buf, 256, "    %%t{lld} =w cled {s}, {s}\n", {tmp, lhs, rhs}) }
         elif op == parser.OP_GE  { @snprintf(buf, 256, "    %%t{lld} =w cged {s}, {s}\n", {tmp, lhs, rhs}) }
-        elif op == parser.OP_AND {
-            @snprintf(buf, 256, "    %%t{lld} =w and {s}, {s}\n", {tmp, lhs, rhs})
-        }
-        elif op == parser.OP_OR {
-            @snprintf(buf, 256, "    %%t{lld} =w or {s}, {s}\n", {tmp, lhs, rhs})
-        }
         else { @snprintf(buf, 256, "    %%t{lld} =l copy 0\n", {tmp}) }
     } else {
         if op == parser.OP_ADD  { @snprintf(buf, 256, "    %%t{lld} =l add {s}, {s}\n",  {tmp, lhs_l, rhs_l}) }
@@ -4207,12 +4239,6 @@ fn gen_binop(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
             } else {
                 @snprintf(buf, 256, "    %%t{lld} =w csltl {s}, {s}\n    %%t{lld} =w ceqw %%t{lld}, 0\n", {lt, lhs_l, rhs_l, tmp, lt})
             }
-        }
-        elif op == parser.OP_AND {
-            @snprintf(buf, 256, "    %%t{lld} =w and {s}, {s}\n", {tmp, lhs, rhs})
-        }
-        elif op == parser.OP_OR {
-            @snprintf(buf, 256, "    %%t{lld} =w or {s}, {s}\n", {tmp, lhs, rhs})
         }
         elif op == parser.OP_BAND { @snprintf(buf, 256, "    %%t{lld} =l and {s}, {s}\n", {tmp, lhs_l, rhs_l}) }
         elif op == parser.OP_BOR  { @snprintf(buf, 256, "    %%t{lld} =l or {s}, {s}\n",  {tmp, lhs_l, rhs_l}) }

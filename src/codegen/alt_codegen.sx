@@ -1696,6 +1696,19 @@ fn gen_binop(ctx: ref CCtx, expr: ref parser.Node) ref char! = {
     val op: i64 = parser.binop_op(expr)
     val lhs_expr: ref parser.Node = parser.binop_left(expr)
     val rhs_expr: ref parser.Node = parser.binop_right(expr)
+
+    if op == parser.OP_AND || op == parser.OP_OR {
+        val lhs: ref char = gen_expr(ctx, lhs_expr)
+        val rhs: ref char = gen_expr(ctx, rhs_expr)
+        val buf: ref char = @alloc(8192) as ref char
+        if op == parser.OP_AND {
+            @snprintf(buf, 8192, "(({s})?({s}):(0))", {lhs, rhs})
+        } else {
+            @snprintf(buf, 8192, "(({s})?(1):({s}))", {lhs, rhs})
+        }
+        return cc_expr_track(ctx, buf)
+    }
+
     val lhs_is_result: bool = lhs_expr.kind == parser.NK_OK_VAL || lhs_expr.kind == parser.NK_ERR_VAL
     val rhs_is_result: bool = rhs_expr.kind == parser.NK_OK_VAL || rhs_expr.kind == parser.NK_ERR_VAL
     val lhs: ref char = gen_expr(ctx, lhs_expr)
@@ -1724,8 +1737,6 @@ fn gen_binop(ctx: ref CCtx, expr: ref parser.Node) ref char! = {
     elif op == parser.OP_GT { @snprintf(buf, 8192, "(({s})>({s}))", {lhs, rhs}) }
     elif op == parser.OP_LE { @snprintf(buf, 8192, "(({s})<=({s}))", {lhs, rhs}) }
     elif op == parser.OP_GE { @snprintf(buf, 8192, "(({s})>=({s}))", {lhs, rhs}) }
-    elif op == parser.OP_AND { @snprintf(buf, 8192, "(({s})&&({s}))", {lhs, rhs}) }
-    elif op == parser.OP_OR { @snprintf(buf, 8192, "(({s})||({s}))", {lhs, rhs}) }
     elif op == parser.OP_BAND { @snprintf(buf, 8192, "(({s})&({s}))", {lhs, rhs}) }
     elif op == parser.OP_BOR { @snprintf(buf, 8192, "(({s})|({s}))", {lhs, rhs}) }
     elif op == parser.OP_BXOR { @snprintf(buf, 8192, "(({s})^({s}))", {lhs, rhs}) }
