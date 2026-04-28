@@ -6,10 +6,16 @@ pub fn something(v: i32) option[ref char] = {
 }
 
 pub fn main() void = {
+    // Current syntax:
     match something(11) {
         some v => {
             trust @print("{s}\n", {v})
         }
         none => {}
+    }
+
+    // Instead of that, we can do this:
+    if something(11) is some v {
+        trust @print("{s}\n", {v})
     }
 }

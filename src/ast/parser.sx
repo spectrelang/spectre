@@ -1056,6 +1056,102 @@ pub fn parse_stmt(p: ref Parser) result[ref Node, ref char]! = {
         val has_paren: bool = p_eat_fn(p, lexer.kind_is_lparen)
         val cond = parse_expr(p)?
         if has_paren { p_expect_rparen(p)? }
+
+        val peek_next_some: mut bool = false
+        if lexer.kind_is_ident(p_peek_kind(p)) {
+            val ptxt: ref char = lexer.tok_text(p.tokens, p.pos)
+            if ptxt != 0 as ref char {
+                if str_eq(ptxt, "is") {
+                    if kind_is_some(p_peek2_kind(p)) {
+                        peek_next_some = true
+                    }
+                }
+            }
+        }
+        if peek_next_some {
+            p_advance(p)  // consume "is"
+            p_advance(p)  // consume "some"
+            val is_bind = p_expect_ident(p)?
+            p_expect_lbrace(p)?
+            val is_some_stmts = parse_stmts(p)?
+            p_expect_rbrace(p)?
+
+            val is_sbl: list[ref Node] = is_some_stmts
+            val is_some_body: mut ref Node = make_node(NK_MATCH_OPT, line)
+            is_some_body.d0 = is_sbl as i64
+
+            val is_elif_list: mut list[ref Node] = []
+            for {
+                if !kind_is_elif(p_peek_kind(p)) { break }
+                val iel: i64 = p_line(p) p_advance(p)
+                val iehp: bool = p_eat_fn(p, lexer.kind_is_lparen)
+                val iecond = parse_expr(p)?
+                if iehp { p_expect_rparen(p)? }
+                p_expect_lbrace(p)?
+                val iebody = parse_stmts(p)?
+                p_expect_rbrace(p)?
+                val iep: mut ref Node = make_node(NK_IF, iel)
+                iep.d0 = iecond as i64
+                val iebl: list[ref Node] = iebody
+                iep.d1 = iebl as i64
+                @append(is_elif_list, iep)
+            }
+            val is_else_node: mut ref Node = 0 as ref Node
+            if p_eat_fn(p, kind_is_else) {
+                p_expect_lbrace(p)?
+                val ieb = parse_stmts(p)?
+                p_expect_rbrace(p)?
+                val iebl2: list[ref Node] = ieb
+                val ien: mut ref Node = make_node(NK_IF, line)
+                ien.d0 = iebl2 as i64
+                is_else_node = ien
+            }
+
+            val is_none_body: mut ref Node = 0 as ref Node
+            val is_elif_count: i64 = @len(is_elif_list) as i64
+            if is_elif_count > 0 {
+                val ife0_opt = @get(is_elif_list, 0 as usize)
+                match ife0_opt {
+                    some ife0 => {
+                        val ife0n: ref Node = ife0 as ref Node
+                        val irest: mut list[ref Node] = []
+                        val iri: mut i64 = 1
+                        for {
+                            if iri >= is_elif_count { break }
+                            val ire_opt = @get(is_elif_list, iri as usize)
+                            match ire_opt {
+                                some ire => { @append(irest, ire as ref Node) }
+                                none => {}
+                            }
+                            iri++
+                        }
+                        val isyn: mut ref Node = make_node(NK_IF, ife0n.line)
+                        isyn.d0 = ife0n.d0
+                        isyn.d1 = ife0n.d1
+                        val irestl: list[ref Node] = irest
+                        isyn.d2 = irestl as i64
+                        isyn.d3 = is_else_node as i64
+                        val instmts: mut list[ref Node] = []
+                        @append(instmts, isyn)
+                        val instl: list[ref Node] = instmts
+                        val inc: mut ref Node = make_node(NK_MATCH_OPT, line)
+                        inc.d0 = instl as i64
+                        is_none_body = inc
+                    }
+                    none => {}
+                }
+            } elif is_else_node != 0 as ref Node {
+                is_none_body = is_else_node
+            }
+
+            val nmo: mut ref Node = make_node(NK_MATCH_OPT, line)
+            nmo.d0 = cond as i64
+            nmo.d1 = is_bind as i64
+            nmo.d2 = is_some_body as i64
+            nmo.d3 = is_none_body as i64
+            return ok nmo
+        }
+
         p_expect_lbrace(p)?
         val then_body = parse_stmts(p)?
         p_expect_rbrace(p)?
