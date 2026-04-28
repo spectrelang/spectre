@@ -509,7 +509,7 @@ pub fn main() i32 = {
     val ep5: ref Enemy = trust get_enemy(5)
     @deref(ep5) = {x: 928.0, y: 416.0, health: 3, alive: 1, shootTimer: 1.8}
 
-    val es: ref void = trust IMG_Load("sprites/enemy.gif")
+    val es: ref void = trust IMG_Load("samples/sprites/enemy.gif")
     if es != 0 as ref void {
         g_enemyTex = trust SDL_CreateTextureFromSurface(renderer, es)
         trust SDL_FreeSurface(es)
@@ -525,7 +525,7 @@ pub fn main() i32 = {
         if enemyTexH <= 0 { enemyTexH = 1 }
     }
 
-    val gs: ref void = trust IMG_Load("sprites/centre_gun.png")
+    val gs: ref void = trust IMG_Load("samples/sprites/centre_gun.png")
     if gs != 0 as ref void {
         g_gunTex = trust SDL_CreateTextureFromSurface(renderer, gs)
         trust SDL_FreeSurface(gs)
