@@ -178,6 +178,22 @@ pub fn load_sxmod() option[ref SxMod] = {
     }
 }
 
+fn build_config_cmd(cfg: ref SxBuildConfig, exe_path: ref char, entry: ref char) ref char! = {
+    val cmd: mut ref char = ""
+    if str.rchar_cmp(cfg.action, "") != 0 {
+        cmd = cfg.action
+    } else {
+        cmd = @fmt("{s} {s}", {exe_path, entry})
+    }
+    if str.rchar_cmp(cfg.flags, "") != 0 {
+        cmd = @fmt("{s} {s}", {cmd, cfg.flags})
+    }
+    if str.rchar_cmp(cfg.output, "") != 0 {
+        cmd = @fmt("{s} -o {s}", {cmd, cfg.output})
+    }
+    return cmd
+}
+
 fn basename_of(path: ref char) ref char = {
     val len: i64 = str.len_raw(path)
     if len == 0 { return "project" }
@@ -700,9 +716,9 @@ pub fn cmd_ref() i32 = {
                 \\ - `version` — project version string
                 \\ - `dep`     — git dependency URL (cloned to `lib/`)
                 \\ - `build`   — named build configuration
-                \\   - `action`  — run this shell command instead of the compiler
-                \\   - `flags`   — extra flags forwarded to `spectre`
-                \\   - `output`  — `-o` output path
+                \\   - `action`  — base shell command for this build config
+                \\   - `flags`   — extra flags appended to the build command
+                \\   - `output`  — `-o` output path appended to the build command
                 \\
             )
             std.fs.close(f)
@@ -778,18 +794,7 @@ pub fn cmd_build(config_name: ref char, exe_path: ref char) i32 = {
                 return 1
             }
 
-            if str.rchar_cmp(found_cfg.action, "") != 0 {
-                val exit_code: i32 = std.os.run(found_cfg.action)
-                return exit_code
-            }
-
-            val cmd: mut ref char = trust @fmt("{s} {s}", {exe_path, m.entry})
-            if str.rchar_cmp(found_cfg.flags, "") != 0 {
-                cmd = trust @fmt("{s} {s}", {cmd, found_cfg.flags})
-            }
-            if str.rchar_cmp(found_cfg.output, "") != 0 {
-                cmd = trust @fmt("{s} -o {s}", {cmd, found_cfg.output})
-            }
+            val cmd: ref char = trust build_config_cmd(found_cfg, exe_path, m.entry)
             val exit_code: i32 = std.os.run(cmd)
             return exit_code
         }
