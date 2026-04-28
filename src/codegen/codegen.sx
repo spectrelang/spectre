@@ -8439,10 +8439,7 @@ fn gen_if_stmt(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
 
     if has_elif {
         val fl_opt = @get(next_lbls, 0 as usize)
-        match fl_opt {
-            some fl => { first_false = fl as i64 }
-            none => {}
-        }
+        if fl_opt is some fl { first_false = fl as i64 }
     } elif has_else {
         first_false = else_lbl
     }
