@@ -3438,9 +3438,12 @@ fn preregister_items(ctx: ref CCtx, items: list[ref parser.Node], mod_prefix: re
                 if ce != 0 as ref parser.Node {
                     if ce.kind == parser.NK_INT_LIT { cv = parser.int_lit_text(ce) }
                     elif ce.kind == parser.NK_BOOL { if ce.d0 as i64 != 0 { cv = "1" } else { cv = "0" } }
+                    elif ce.kind == parser.NK_FLOAT_LIT { cv = parser.float_lit_text(ce) }
                     elif ce.kind == parser.NK_UNOP { val uop: i64 = parser.unop_op(ce) val inner: ref parser.Node = parser.unop_inner(ce)
                         if inner != 0 as ref parser.Node && uop == parser.UOP_NEG && inner.kind == parser.NK_INT_LIT {
-                            val iv: ref char = @alloc(128) as ref char @snprintf(iv, 128, "-{s}", {parser.int_lit_text(inner)}) cv = iv } }
+                            val iv: ref char = @alloc(128) as ref char @snprintf(iv, 128, "-{s}", {parser.int_lit_text(inner)}) cv = iv }
+                        elif inner != 0 as ref parser.Node && uop == parser.UOP_NEG && inner.kind == parser.NK_FLOAT_LIT {
+                            val fv: ref char = @alloc(128) as ref char @snprintf(fv, 128, "-{s}", {parser.float_lit_text(inner)}) cv = fv } }
                     elif ce.kind == parser.NK_STR_LIT {
                         val sidx: i64 = intern_string(ctx, parser.str_lit_text(ce))
                         val sb: ref char = @alloc(128) as ref char
