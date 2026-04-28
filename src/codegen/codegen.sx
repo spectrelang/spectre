@@ -50,6 +50,7 @@ pub type CgCtx = {
     global_src_names: mut list[ref char]
     global_labels: mut list[ref char]
     global_qtypes: mut list[ref char]
+    global_anns: mut list[ref char]
     used_prefixes: mut list[ref char]
     current_module_prefix: mut ref char
     emitted_labels: mut list[ref char]
@@ -112,6 +113,7 @@ fn cg_new() ref CgCtx! = {
     ctx.global_src_names = []
     ctx.global_labels = []
     ctx.global_qtypes = []
+    ctx.global_anns = []
     ctx.used_prefixes = []
     ctx.current_module_prefix = ""
     ctx.emitted_labels = []
@@ -175,6 +177,7 @@ fn cg_snames(ctx: ref CgCtx) ref void! = { return ctx.snames as ref void }
 fn cg_global_src_names(ctx: ref CgCtx) ref void! = { return ctx.global_src_names as ref void }
 fn cg_global_labels(ctx: ref CgCtx)    ref void! = { return ctx.global_labels as ref void }
 fn cg_global_qtypes(ctx: ref CgCtx)    ref void! = { return ctx.global_qtypes as ref void }
+fn cg_global_anns(ctx: ref CgCtx)      ref void! = { return ctx.global_anns as ref void }
 
 fn cg_mark_prefix_used(ctx: ref CgCtx, prefix: ref char) void! = {
     val nlen: i64 = @len(ctx.used_prefixes as list[ref char]) as i64
@@ -854,14 +857,15 @@ pub fn extract_prefix_from_mangled(mangled: ref char, bare_name: ref char) ref c
     return prefix
 }
 
-fn cg_register_global(ctx: ref CgCtx, src_name: ref char, label: ref char, qtype: ref char) void! = {
+fn cg_register_global(ctx: ref CgCtx, src_name: ref char, label: ref char, qtype: ref char, ann: ref char) void! = {
     @append(cg_global_src_names(ctx) as list[ref char], src_name)
     @append(cg_global_labels(ctx)    as list[ref char], label)
     @append(cg_global_qtypes(ctx)    as list[ref char], qtype)
+    @append(cg_global_anns(ctx)      as list[ref char], ann)
 }
 
 /// Look up a global by source name. Returns ("", "") if not found.
-fn cg_lookup_global(ctx: ref CgCtx, src_name: ref char, out_label: ref char, out_qtype: ref char) bool! = {
+fn cg_lookup_global(ctx: ref CgCtx, src_name: ref char, out_label: ref char, out_qtype: ref char, out_ann: ref char) bool! = {
     val names: ref void = cg_global_src_names(ctx)
     val len: i64 = @len(names) as i64
     val i: mut i64 = 0
@@ -882,6 +886,13 @@ fn cg_lookup_global(ctx: ref CgCtx, src_name: ref char, out_label: ref char, out
                     match qty_opt {
                         some qty => {
                             @memcpy(out_qtype, qty as ref char, str.len_raw(qty as ref char) + 1)
+                        }
+                        none => {}
+                    }
+                    val ann_opt = @get(cg_global_anns(ctx) as list[ref char], i as usize)
+                    match ann_opt {
+                        some ann => {
+                            @memcpy(out_ann, ann as ref char, str.len_raw(ann as ref char) + 1)
                         }
                         none => {}
                     }
@@ -970,6 +981,12 @@ fn cg_const_val(ctx: ref CgCtx, name: ref char) ref char! = {
         ni++
     }
     return ""
+}
+
+fn cg_is_int_const_val(cval: ref char) bool! = {
+    if cval == 0 as ref char || str.rchar_cmp(cval, "") == 0 { return false }
+    if rchar_starts_with(cval, "d_") || rchar_starts_with(cval, "s_") { return false }
+    return true
 }
 
 fn cg_fixed_arr_size_text(_: ref CgCtx, ty: ref parser.Node) ref char! = {
@@ -1109,6 +1126,54 @@ fn cg_ann_qtype(ann: ref char) ref char! = {
 fn cg_ann_word_extend_instr(ann: ref char) ref char! = {
     if str.rchar_cmp(ann, "u32") == 0 || str.rchar_cmp(ann, "u16") == 0 || str.rchar_cmp(ann, "u8") == 0 || str.rchar_cmp(ann, "bool") == 0 || str.rchar_cmp(ann, "char") == 0 { return "extuw" }
     return "extsw"
+}
+
+fn cg_normalize_qtype(qtype: ref char) ref char! = {
+    if qtype == 0 as ref char { return "" }
+    val qv: i64 = qtype as i64
+    if qv == 119 { return "w" }
+    if qv == 108 { return "l" }
+    if qv == 115 { return "s" }
+    if qv == 100 { return "d" }
+    if qv == 97  { return "a" }
+    return qtype
+}
+
+fn cg_coerce_qtype(ctx: ref CgCtx, value: ref char, src_qtype: ref char, dst_qtype: ref char) ref char! = {
+    val src_qtype_n: ref char = cg_normalize_qtype(src_qtype)
+    val dst_qtype_n: ref char = cg_normalize_qtype(dst_qtype)
+    if str.rchar_cmp(src_qtype_n, dst_qtype_n) == 0 { return value }
+    if str.rchar_cmp(src_qtype_n, "w") == 0 && str.rchar_cmp(dst_qtype_n, "l") == 0 {
+        val conv_tmp: i64 = fresh_tmp(ctx)
+        val conv_buf: ref char = @alloc(64) as ref char
+        @snprintf(conv_buf, 64, "    %%t{lld} =l extsw {s}\n", {conv_tmp, value})
+        emit(ctx, conv_buf)
+        @free(conv_buf)
+        val conv_res: ref char = @alloc(32) as ref char
+        @snprintf(conv_res, 32, "%%t{lld}", {conv_tmp})
+        return conv_res
+    }
+    if str.rchar_cmp(src_qtype_n, "s") == 0 && str.rchar_cmp(dst_qtype_n, "d") == 0 {
+        val conv_tmp: i64 = fresh_tmp(ctx)
+        val conv_buf: ref char = @alloc(64) as ref char
+        @snprintf(conv_buf, 64, "    %%t{lld} =d exts {s}\n", {conv_tmp, value})
+        emit(ctx, conv_buf)
+        @free(conv_buf)
+        val conv_res: ref char = @alloc(32) as ref char
+        @snprintf(conv_res, 32, "%%t{lld}", {conv_tmp})
+        return conv_res
+    }
+    if str.rchar_cmp(src_qtype_n, "d") == 0 && str.rchar_cmp(dst_qtype_n, "s") == 0 {
+        val conv_tmp: i64 = fresh_tmp(ctx)
+        val conv_buf: ref char = @alloc(64) as ref char
+        @snprintf(conv_buf, 64, "    %%t{lld} =s truncd {s}\n", {conv_tmp, value})
+        emit(ctx, conv_buf)
+        @free(conv_buf)
+        val conv_res: ref char = @alloc(32) as ref char
+        @snprintf(conv_res, 32, "%%t{lld}", {conv_tmp})
+        return conv_res
+    }
+    return value
 }
 
 fn cg_ann_after_get_indices(ann: ref char, dims: i64) ref char! = {
@@ -1916,10 +1981,7 @@ fn nested_field_offset(ctx: ref CgCtx, node: ref parser.Node, field_name: ref ch
         if str.rchar_cmp(tname, "") == 0 {
             tname = infer_type_annotation(ctx, node)
         }
-        val lookup_tname: mut ref char = tname
-        if rchar_starts_with(tname, "ref ") {
-            lookup_tname = @ptradd(tname, 4)
-        }
+        val lookup_tname: ref char = cg_ann_deref(tname)
         if str.rchar_cmp(lookup_tname, "") != 0 {
             val flds: ref void = cg_lookup_struct(ctx, lookup_tname)
             if flds != 0 as ref void {
@@ -1941,10 +2003,7 @@ fn nested_field_offset(ctx: ref CgCtx, node: ref parser.Node, field_name: ref ch
             if str.rchar_cmp(btname, "") == 0 {
                 btname = infer_type_annotation(ctx, inner_base)
             }
-            val blookup: mut ref char = btname
-            if rchar_starts_with(btname, "ref ") {
-                blookup = @ptradd(btname, 4)
-            }
+            val blookup: ref char = cg_ann_deref(btname)
             if str.rchar_cmp(blookup, "") != 0 {
                 val bflds: ref void = cg_lookup_struct(ctx, blookup)
                 if bflds != 0 as ref void {
@@ -1955,10 +2014,7 @@ fn nested_field_offset(ctx: ref CgCtx, node: ref parser.Node, field_name: ref ch
         if str.rchar_cmp(inner_type, "") == 0 {
             inner_type = infer_type_annotation(ctx, node)
         }
-        val lookup_inner: mut ref char = inner_type
-        if rchar_starts_with(inner_type, "ref ") {
-            lookup_inner = @ptradd(inner_type, 4)
-        }
+        val lookup_inner: ref char = cg_ann_deref(inner_type)
         if str.rchar_cmp(lookup_inner, "") != 0 {
             val inner_flds: ref void = cg_lookup_struct(ctx, lookup_inner)
             if inner_flds != 0 as ref void {
@@ -2123,8 +2179,10 @@ fn cg_var_qbe_type(ctx: ref CgCtx, name: ref char) ref char! = {
     }
     
     val ltype: ref char = cg_local_type(ctx, name)
-    if is_float_type_name(ltype) {
+    if str.rchar_cmp(ltype, "f64") == 0 {
         return "d"
+    } elif str.rchar_cmp(ltype, "f32") == 0 {
+        return "s"
     } elif is_word_type_name(ltype) {
         return "w"
     } 
@@ -2201,6 +2259,13 @@ fn cg_qbe_value_ref(qbe_name: ref char) ref char! = {
     }
     @snprintf(out, qlen + 4, "%%t{s}", {qbe_name})
     return out
+}
+
+fn cg_ann_deref(ann: ref char) ref char! = {
+    if ann == 0 as ref char { return "" }
+    if rchar_starts_with(ann, "mut ref ") { return @ptradd(ann, 8) as ref char }
+    if rchar_starts_with(ann, "ref ") { return @ptradd(ann, 4) as ref char }
+    return ann
 }
 
 fn cg_ann_is_indirect_value(ctx: ref CgCtx, ann: ref char) bool! = {
@@ -2399,10 +2464,7 @@ fn infer_type_annotation(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
         val base_expr: ref parser.Node = parser.field_base(expr)
         val field_name: ref char = parser.field_name(expr)
         val base_ann: ref char = infer_type_annotation(ctx, base_expr)
-        val lookup_type: mut ref char = base_ann
-        if rchar_starts_with(lookup_type, "ref ") {
-            lookup_type = @ptradd(lookup_type, 4)
-        }
+        val lookup_type: ref char = cg_ann_deref(base_ann)
         if str.rchar_cmp(lookup_type, "") != 0 {
             val fields: ref void = cg_lookup_struct(ctx, lookup_type)
             if fields != 0 as ref void {
@@ -3375,6 +3437,13 @@ fn emit_global_val(ctx: ref CgCtx, mod_prefix: ref char, node: ref parser.Node) 
         if gexpr.kind == parser.NK_BOOL || gexpr.kind == parser.NK_CHAR_LIT { gqtype = "w" }
     }
 
+    val gann: mut ref char = ""
+    if gty_node != 0 as ref parser.Node {
+        gann = type_expr_to_annotation(ctx, gty_node)
+    } elif gexpr != 0 as ref parser.Node {
+        gann = infer_type_annotation(ctx, gexpr)
+    }
+
     val ginit: mut ref char = "0"
     if gexpr != 0 as ref parser.Node {
         val static_init: ref char = static_global_init_value(ctx, gexpr)
@@ -3394,7 +3463,7 @@ fn emit_global_val(ctx: ref CgCtx, mod_prefix: ref char, node: ref parser.Node) 
         emit(ctx, data_buf)
         @free(data_buf)
     }
-    cg_register_global(ctx, gname, glabel, gqtype)
+    cg_register_global(ctx, gname, glabel, gqtype, gann)
 }
 
 /// Generate an expression, with integer literals using the specified QBE type.
@@ -3404,6 +3473,37 @@ fn gen_expr_with_type(ctx: ref CgCtx, expr: ref parser.Node, target_type: ref ch
     if k == parser.NK_INT_LIT {
         val text: ref char = parser.int_lit_text(expr)
         return gen_int_lit_as(ctx, text, target_type)
+    }
+    if k == parser.NK_IDENT {
+        val cval: ref char = cg_const_val(ctx, expr.d0 as ref char)
+        if cg_is_int_const_val(cval) && (str.rchar_cmp(target_type, "w") == 0 || str.rchar_cmp(target_type, "l") == 0) {
+            val tmp: i64 = fresh_tmp(ctx)
+            val buf: ref char = @alloc(64) as ref char
+            @snprintf(buf, 64, "    %%t{lld} ={s} copy {s}\n", {tmp, target_type, cval})
+            emit(ctx, buf)
+            @free(buf)
+            val res: ref char = @alloc(16) as ref char
+            @snprintf(res, 16, "%%t{lld}", {tmp})
+            return res
+        }
+    }
+    if k == parser.NK_FLOAT_LIT {
+        val text: ref char = parser.float_lit_text(expr)
+        val tmp: i64 = fresh_tmp(ctx)
+        val buf: ref char = @alloc(64) as ref char
+        if str.rchar_cmp(target_type, "s") == 0 {
+            @snprintf(buf, 64, "    %%t{lld} =s copy s_{s}\n", {tmp, text})
+        } elif str.rchar_cmp(target_type, "d") == 0 {
+            @snprintf(buf, 64, "    %%t{lld} =d copy d_{s}\n", {tmp, text})
+        } else {
+            @free(buf)
+            return gen_expr(ctx, expr)
+        }
+        emit(ctx, buf)
+        @free(buf)
+        val res: ref char = @alloc(16) as ref char
+        @snprintf(res, 16, "%%t{lld}", {tmp})
+        return res
     }
     return gen_expr(ctx, expr)
 }
@@ -3456,7 +3556,16 @@ fn gen_expr(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
         val text2: ref char = parser.float_lit_text(expr)
         val tmp2: i64 = fresh_tmp(ctx)
         val buf2: ref char = @alloc(64) as ref char
-        @snprintf(buf2, 64, "    %%t{lld} =d copy d_{s}\n", {tmp2, text2})
+        val expected_qt: mut ref char = "d"
+        if ctx.expected_ty != 0 as ref void {
+            val eqt: ref char = qbe_type_of(ctx.expected_ty as ref parser.Node)
+            if str.rchar_cmp(eqt, "s") == 0 { expected_qt = "s" }
+        }
+        if str.rchar_cmp(expected_qt, "s") == 0 {
+            @snprintf(buf2, 64, "    %%t{lld} =s copy s_{s}\n", {tmp2, text2})
+        } else {
+            @snprintf(buf2, 64, "    %%t{lld} =d copy d_{s}\n", {tmp2, text2})
+        }
         emit(ctx, buf2)
         @free(buf2)
         val res2: ref char = @alloc(16) as ref char
@@ -3518,7 +3627,20 @@ fn gen_expr(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
         if str.rchar_cmp(cval, "") != 0 {
             val tmp6: i64 = fresh_tmp(ctx)
             val buf6: ref char = @alloc(128) as ref char
-            @snprintf(buf6, 128, "    %%t{lld} =l copy {s}\n", {tmp6, cval})
+            val expected_qt2: mut ref char = ""
+            if ctx.expected_ty != 0 as ref void {
+                expected_qt2 = qbe_type_of(ctx.expected_ty as ref parser.Node)
+            }
+            if rchar_starts_with(cval, "d_") || rchar_starts_with(cval, "s_") {
+                val ftext: ref char = @ptradd(cval as ref void, 2) as ref char
+                val emit_qt: mut ref char = "d"
+                if rchar_starts_with(cval, "s_") { emit_qt = "s" }
+                if str.rchar_cmp(expected_qt2, "s") == 0 { emit_qt = "s" }
+                elif str.rchar_cmp(expected_qt2, "d") == 0 { emit_qt = "d" }
+                @snprintf(buf6, 128, "    %%t{lld} ={s} copy {s}_{s}\n", {tmp6, emit_qt, emit_qt, ftext})
+            } else {
+                @snprintf(buf6, 128, "    %%t{lld} =l copy {s}\n", {tmp6, cval})
+            }
             emit(ctx, buf6)
             @free(buf6)
             val res6: ref char = @alloc(16) as ref char
@@ -3545,6 +3667,8 @@ fn gen_expr(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
                             emit(ctx, buf_w_load)
                             @free(buf_w_load)
                             @snprintf(buf_load, 128, "    %%t{lld} =l extsw %%t{lld}\n", {tmp_load, w_tmp_load})
+                        } elif str.rchar_cmp(qtype, "s") == 0 {
+                            @snprintf(buf_load, 128, "    %%t{lld} =s loads {s}\n", {tmp_load, slot_ref})
                         } elif str.rchar_cmp(qtype, "d") == 0 {
                             @snprintf(buf_load, 128, "    %%t{lld} =d loadd {s}\n", {tmp_load, slot_ref})
                         } else {
@@ -3742,9 +3866,69 @@ fn gen_expr(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
         } elif str.rchar_cmp(src_qt, "d") == 0 && str.rchar_cmp(qt, "w") == 0 {
             needs_conversion = true
             conv_instr = "dtosi"
+        } elif str.rchar_cmp(src_qt, "s") == 0 && str.rchar_cmp(qt, "l") == 0 {
+            val tmp_conv_d: i64 = fresh_tmp(ctx)
+            val buf_conv_d: ref char = @alloc(128) as ref char
+            @snprintf(buf_conv_d, 128, "    %%t{lld} =d exts {s}\n", {tmp_conv_d, inner3})
+            emit(ctx, buf_conv_d)
+            @free(buf_conv_d)
+            val tmp_conv_i: i64 = fresh_tmp(ctx)
+            val buf_conv_i: ref char = @alloc(128) as ref char
+            @snprintf(buf_conv_i, 128, "    %%t{lld} =l dtosi %%t{lld}\n", {tmp_conv_i, tmp_conv_d})
+            emit(ctx, buf_conv_i)
+            @free(buf_conv_i)
+            val res_conv: ref char = @alloc(16) as ref char
+            @snprintf(res_conv, 16, "%%t{lld}", {tmp_conv_i})
+            return res_conv
+        } elif str.rchar_cmp(src_qt, "s") == 0 && str.rchar_cmp(qt, "w") == 0 {
+            val tmp_conv_d: i64 = fresh_tmp(ctx)
+            val buf_conv_d: ref char = @alloc(128) as ref char
+            @snprintf(buf_conv_d, 128, "    %%t{lld} =d exts {s}\n", {tmp_conv_d, inner3})
+            emit(ctx, buf_conv_d)
+            @free(buf_conv_d)
+            val tmp_conv_i: i64 = fresh_tmp(ctx)
+            val buf_conv_i: ref char = @alloc(128) as ref char
+            @snprintf(buf_conv_i, 128, "    %%t{lld} =w dtosi %%t{lld}\n", {tmp_conv_i, tmp_conv_d})
+            emit(ctx, buf_conv_i)
+            @free(buf_conv_i)
+            val res_conv: ref char = @alloc(16) as ref char
+            @snprintf(res_conv, 16, "%%t{lld}", {tmp_conv_i})
+            return res_conv
+        } elif str.rchar_cmp(src_qt, "d") == 0 && str.rchar_cmp(qt, "s") == 0 {
+            val tmp_conv: i64 = fresh_tmp(ctx)
+            val buf_conv: ref char = @alloc(128) as ref char
+            @snprintf(buf_conv, 128, "    %%t{lld} =s truncd {s}\n", {tmp_conv, inner3})
+            emit(ctx, buf_conv)
+            @free(buf_conv)
+            val res_conv: ref char = @alloc(16) as ref char
+            @snprintf(res_conv, 16, "%%t{lld}", {tmp_conv})
+            return res_conv
+        } elif str.rchar_cmp(src_qt, "s") == 0 && str.rchar_cmp(qt, "d") == 0 {
+            val tmp_conv: i64 = fresh_tmp(ctx)
+            val buf_conv: ref char = @alloc(128) as ref char
+            @snprintf(buf_conv, 128, "    %%t{lld} =d exts {s}\n", {tmp_conv, inner3})
+            emit(ctx, buf_conv)
+            @free(buf_conv)
+            val res_conv: ref char = @alloc(16) as ref char
+            @snprintf(res_conv, 16, "%%t{lld}", {tmp_conv})
+            return res_conv
         } elif str.rchar_cmp(src_qt, "l") == 0 && str.rchar_cmp(qt, "d") == 0 {
             needs_conversion = true
             conv_instr = "sltof"
+        } elif str.rchar_cmp(src_qt, "l") == 0 && str.rchar_cmp(qt, "s") == 0 {
+            val tmp_conv_d: i64 = fresh_tmp(ctx)
+            val buf_conv_d: ref char = @alloc(128) as ref char
+            @snprintf(buf_conv_d, 128, "    %%t{lld} =d sltof {s}\n", {tmp_conv_d, inner3})
+            emit(ctx, buf_conv_d)
+            @free(buf_conv_d)
+            val tmp_conv_s: i64 = fresh_tmp(ctx)
+            val buf_conv_s: ref char = @alloc(128) as ref char
+            @snprintf(buf_conv_s, 128, "    %%t{lld} =s truncd %%t{lld}\n", {tmp_conv_s, tmp_conv_d})
+            emit(ctx, buf_conv_s)
+            @free(buf_conv_s)
+            val res_conv: ref char = @alloc(16) as ref char
+            @snprintf(res_conv, 16, "%%t{lld}", {tmp_conv_s})
+            return res_conv
         } elif str.rchar_cmp(src_qt, "w") == 0 && str.rchar_cmp(qt, "l") == 0 {
             val ext_tmp: i64 = fresh_tmp(ctx)
             val ext_buf: ref char = @alloc(128) as ref char
@@ -3767,6 +3951,25 @@ fn gen_expr(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
             @free(buf_conv)
             val res_conv: ref char = @alloc(16) as ref char
             @snprintf(res_conv, 16, "%%t{lld}", {tmp_conv})
+            return res_conv
+        } elif str.rchar_cmp(src_qt, "w") == 0 && str.rchar_cmp(qt, "s") == 0 {
+            val ext_tmp: i64 = fresh_tmp(ctx)
+            val ext_buf: ref char = @alloc(128) as ref char
+            @snprintf(ext_buf, 128, "    %%t{lld} =l extsw {s}\n", {ext_tmp, inner3})
+            emit(ctx, ext_buf)
+            @free(ext_buf)
+            val tmp_conv_d: i64 = fresh_tmp(ctx)
+            val buf_conv_d: ref char = @alloc(128) as ref char
+            @snprintf(buf_conv_d, 128, "    %%t{lld} =d sltof %%t{lld}\n", {tmp_conv_d, ext_tmp})
+            emit(ctx, buf_conv_d)
+            @free(buf_conv_d)
+            val tmp_conv_s: i64 = fresh_tmp(ctx)
+            val buf_conv_s: ref char = @alloc(128) as ref char
+            @snprintf(buf_conv_s, 128, "    %%t{lld} =s truncd %%t{lld}\n", {tmp_conv_s, tmp_conv_d})
+            emit(ctx, buf_conv_s)
+            @free(buf_conv_s)
+            val res_conv: ref char = @alloc(16) as ref char
+            @snprintf(res_conv, 16, "%%t{lld}", {tmp_conv_s})
             return res_conv
         }
 
@@ -3944,6 +4147,10 @@ fn expr_is_float(ctx: ref CgCtx, expr: ref parser.Node) bool! = {
         }
         return false
     }
+    if k == parser.NK_CALL || k == parser.NK_CAST || k == parser.NK_TRUST {
+        val qtype: ref char = expr_qbe_type(ctx, expr)
+        return str.rchar_cmp(qtype, "d") == 0 || str.rchar_cmp(qtype, "s") == 0
+    }
     if k == parser.NK_BINOP {
         val lhs_float: bool = expr_is_float(ctx, parser.binop_left(expr))
         val rhs_float: bool = expr_is_float(ctx, parser.binop_right(expr))
@@ -3965,6 +4172,10 @@ fn expr_qbe_type(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
         return "l"
     }
     if k == parser.NK_FLOAT_LIT {
+        if ctx.expected_ty != 0 as ref void {
+            val expected_qt: ref char = qbe_type_of(ctx.expected_ty as ref parser.Node)
+            if str.rchar_cmp(expected_qt, "s") == 0 { return "s" }
+        }
         return "d"
     }
     if k == parser.NK_BOOL || k == parser.NK_CHAR_LIT {
@@ -3973,6 +4184,18 @@ fn expr_qbe_type(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
 
     if k == parser.NK_IDENT {
         val name: ref char = expr.d0 as ref char
+        val cval_ident: ref char = cg_const_val(ctx, name)
+        if str.rchar_cmp(cval_ident, "") != 0 {
+            if rchar_starts_with(cval_ident, "s_") { return "s" }
+            if rchar_starts_with(cval_ident, "d_") {
+                if ctx.expected_ty != 0 as ref void {
+                    val expected_qt_ident: ref char = qbe_type_of(ctx.expected_ty as ref parser.Node)
+                    if str.rchar_cmp(expected_qt_ident, "s") == 0 { return "s" }
+                }
+                return "d"
+            }
+            return "l"
+        }
         val dqt_opt: ref char = cg_direct_type(ctx, name)
         if str.rchar_cmp(dqt_opt, "") != 0 { return dqt_opt }
 
@@ -3980,7 +4203,8 @@ fn expr_qbe_type(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
         if str.rchar_cmp(ltype, "") != 0 {
             if cg_is_local_ref_type(ctx, name) { return "l" }
             if is_word_type_name(ltype) { return "w" }
-            if is_float_type_name(ltype) { return "d" }
+            if str.rchar_cmp(ltype, "f64") == 0 { return "d" }
+            if str.rchar_cmp(ltype, "f32") == 0 { return "s" }
             return "l" 
         }
         return "l"
@@ -4194,6 +4418,14 @@ fn gen_binop(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
     val is_float: bool = expr_is_float(ctx, lhs_expr) || expr_is_float(ctx, rhs_expr)
     val lhs_qbt: ref char = expr_qbe_type(ctx, lhs_expr)
     val rhs_qbt: ref char = expr_qbe_type(ctx, rhs_expr)
+    val lhs_const_val: mut ref char = ""
+    val rhs_const_val: mut ref char = ""
+    if lhs_expr.kind == parser.NK_IDENT {
+        lhs_const_val = cg_const_val(ctx, lhs_expr.d0 as ref char)
+    }
+    if rhs_expr.kind == parser.NK_IDENT {
+        rhs_const_val = cg_const_val(ctx, rhs_expr.d0 as ref char)
+    }
     val lhs_is_word: mut bool = str.rchar_cmp(lhs_qbt, "w") == 0
     val rhs_is_word: mut bool = str.rchar_cmp(rhs_qbt, "w") == 0
     if !lhs_is_word && lhs_expr.kind == parser.NK_CALL {
@@ -4212,8 +4444,8 @@ fn gen_binop(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
             rhs_is_word = true
         }
     }
-    val lhs_is_int_lit: bool = lhs_expr.kind == parser.NK_INT_LIT
-    val rhs_is_int_lit: bool = rhs_expr.kind == parser.NK_INT_LIT
+    val lhs_is_int_lit: bool = lhs_expr.kind == parser.NK_INT_LIT || (lhs_expr.kind == parser.NK_IDENT && cg_is_int_const_val(lhs_const_val))
+    val rhs_is_int_lit: bool = rhs_expr.kind == parser.NK_INT_LIT || (rhs_expr.kind == parser.NK_IDENT && cg_is_int_const_val(rhs_const_val))
     val is_comparison: bool = op == parser.OP_EQ || op == parser.OP_NE || op == parser.OP_LT ||
                               op == parser.OP_GT || op == parser.OP_LE || op == parser.OP_GE
     val target_type: mut ref char = "l"
@@ -4258,6 +4490,27 @@ fn gen_binop(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
         }
     }
 
+    if is_float {
+        if str.rchar_cmp(lhs_qbt, "s") == 0 {
+            val ext_tmp: i64 = fresh_tmp(ctx)
+            val ext_buf: ref char = @alloc(128) as ref char
+            @snprintf(ext_buf, 128, "    %%t{lld} =d exts {s}\n", {ext_tmp, lhs_l})
+            emit(ctx, ext_buf)
+            @free(ext_buf)
+            lhs_l = @alloc(16) as ref char
+            @snprintf(lhs_l, 16, "%%t{lld}", {ext_tmp})
+        }
+        if str.rchar_cmp(rhs_qbt, "s") == 0 {
+            val ext_tmp: i64 = fresh_tmp(ctx)
+            val ext_buf: ref char = @alloc(128) as ref char
+            @snprintf(ext_buf, 128, "    %%t{lld} =d exts {s}\n", {ext_tmp, rhs_l})
+            emit(ctx, ext_buf)
+            @free(ext_buf)
+            rhs_l = @alloc(16) as ref char
+            @snprintf(rhs_l, 16, "%%t{lld}", {ext_tmp})
+        }
+    }
+
     if op == parser.OP_BAND || op == parser.OP_BOR || op == parser.OP_BXOR ||
        op == parser.OP_SHL || op == parser.OP_SHR ||
        op == parser.OP_ADD || op == parser.OP_SUB || op == parser.OP_MUL ||
@@ -4283,17 +4536,17 @@ fn gen_binop(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
     }
 
     if is_float {
-        if op == parser.OP_ADD  { @snprintf(buf, 256, "    %%t{lld} =d add {s}, {s}\n",  {tmp, lhs, rhs}) }
-        elif op == parser.OP_SUB { @snprintf(buf, 256, "    %%t{lld} =d sub {s}, {s}\n",  {tmp, lhs, rhs}) }
-        elif op == parser.OP_MUL { @snprintf(buf, 256, "    %%t{lld} =d mul {s}, {s}\n",  {tmp, lhs, rhs}) }
-        elif op == parser.OP_DIV { @snprintf(buf, 256, "    %%t{lld} =d div {s}, {s}\n",  {tmp, lhs, rhs}) }
-        elif op == parser.OP_REM { @snprintf(buf, 256, "    %%t{lld} =d rem {s}, {s}\n",  {tmp, lhs, rhs}) }
-        elif op == parser.OP_EQ  { @snprintf(buf, 256, "    %%t{lld} =w ceqd {s}, {s}\n", {tmp, lhs, rhs}) }
-        elif op == parser.OP_NE  { @snprintf(buf, 256, "    %%t{lld} =w cned {s}, {s}\n", {tmp, lhs, rhs}) }
-        elif op == parser.OP_LT  { @snprintf(buf, 256, "    %%t{lld} =w cltd {s}, {s}\n", {tmp, lhs, rhs}) }
-        elif op == parser.OP_GT  { @snprintf(buf, 256, "    %%t{lld} =w cgtd {s}, {s}\n", {tmp, lhs, rhs}) }
-        elif op == parser.OP_LE  { @snprintf(buf, 256, "    %%t{lld} =w cled {s}, {s}\n", {tmp, lhs, rhs}) }
-        elif op == parser.OP_GE  { @snprintf(buf, 256, "    %%t{lld} =w cged {s}, {s}\n", {tmp, lhs, rhs}) }
+        if op == parser.OP_ADD  { @snprintf(buf, 256, "    %%t{lld} =d add {s}, {s}\n",  {tmp, lhs_l, rhs_l}) }
+        elif op == parser.OP_SUB { @snprintf(buf, 256, "    %%t{lld} =d sub {s}, {s}\n",  {tmp, lhs_l, rhs_l}) }
+        elif op == parser.OP_MUL { @snprintf(buf, 256, "    %%t{lld} =d mul {s}, {s}\n",  {tmp, lhs_l, rhs_l}) }
+        elif op == parser.OP_DIV { @snprintf(buf, 256, "    %%t{lld} =d div {s}, {s}\n",  {tmp, lhs_l, rhs_l}) }
+        elif op == parser.OP_REM { @snprintf(buf, 256, "    %%t{lld} =d rem {s}, {s}\n",  {tmp, lhs_l, rhs_l}) }
+        elif op == parser.OP_EQ  { @snprintf(buf, 256, "    %%t{lld} =w ceqd {s}, {s}\n", {tmp, lhs_l, rhs_l}) }
+        elif op == parser.OP_NE  { @snprintf(buf, 256, "    %%t{lld} =w cned {s}, {s}\n", {tmp, lhs_l, rhs_l}) }
+        elif op == parser.OP_LT  { @snprintf(buf, 256, "    %%t{lld} =w cltd {s}, {s}\n", {tmp, lhs_l, rhs_l}) }
+        elif op == parser.OP_GT  { @snprintf(buf, 256, "    %%t{lld} =w cgtd {s}, {s}\n", {tmp, lhs_l, rhs_l}) }
+        elif op == parser.OP_LE  { @snprintf(buf, 256, "    %%t{lld} =w cled {s}, {s}\n", {tmp, lhs_l, rhs_l}) }
+        elif op == parser.OP_GE  { @snprintf(buf, 256, "    %%t{lld} =w cged {s}, {s}\n", {tmp, lhs_l, rhs_l}) }
         else { @snprintf(buf, 256, "    %%t{lld} =l copy 0\n", {tmp}) }
     } else {
         if op == parser.OP_ADD  { @snprintf(buf, 256, "    %%t{lld} =l add {s}, {s}\n",  {tmp, lhs_l, rhs_l}) }
@@ -4366,12 +4619,15 @@ fn gen_unop(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
     val tmp: i64 = fresh_tmp(ctx)
     val buf: ref char = @alloc(128) as ref char
     val is_float: bool = expr_is_float(ctx, inner_expr)
+    val inner_qt: ref char = expr_qbe_type(ctx, inner_expr)
 
     if op == parser.UOP_NOT {
         @snprintf(buf, 128, "    %%t{lld} =w ceqw {s}, 0\n", {tmp, inner})
     } elif op == parser.UOP_NEG {
         if is_float {
-            @snprintf(buf, 128, "    %%t{lld} =d neg {s}\n", {tmp, inner})
+            val neg_qt: mut ref char = "d"
+            if str.rchar_cmp(inner_qt, "s") == 0 { neg_qt = "s" }
+            @snprintf(buf, 128, "    %%t{lld} ={s} neg {s}\n", {tmp, neg_qt, inner})
         } else {
             @snprintf(buf, 128, "    %%t{lld} =l neg {s}\n", {tmp, inner})
         }
@@ -4458,11 +4714,7 @@ fn gen_field(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
         }
 
         if str.rchar_cmp(local_type, "") != 0 {
-            val lookup_type: mut ref char = local_type
-            val is_ref_prefix: bool = rchar_starts_with(local_type, "ref ")
-            if is_ref_prefix {
-                lookup_type = @ptradd(local_type, 4)
-            }
+            val lookup_type: ref char = cg_ann_deref(local_type)
             val fields: ref void = cg_lookup_struct(ctx, lookup_type)
             if fields != 0 as ref void {
                 val off: i64 = field_offset(ctx, fields, field_name)
@@ -4471,10 +4723,7 @@ fn gen_field(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
         } else {
             val inferred: ref char = infer_type_annotation(ctx, base_expr)
             if str.rchar_cmp(inferred, "") != 0 {
-                val lookup_type: mut ref char = inferred
-                if rchar_starts_with(inferred, "ref ") {
-                    lookup_type = @ptradd(inferred, 4)
-                }
+                val lookup_type: ref char = cg_ann_deref(inferred)
                 val fields: ref void = cg_lookup_struct(ctx, lookup_type)
                 if fields != 0 as ref void {
                     val off: i64 = field_offset(ctx, fields, field_name)
@@ -4506,7 +4755,8 @@ fn gen_field(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
                 base_is_ref = true
                 } else {
                     val inferred_type: ref char = infer_type_annotation(ctx, base_expr)
-                    if str.rchar_cmp(inferred_type, "") != 0 && rchar_starts_with(inferred_type, "ref ") {
+                    val lookup_inferred_type: ref char = cg_ann_deref(inferred_type)
+                    if str.rchar_cmp(inferred_type, "") != 0 && str.rchar_cmp(lookup_inferred_type, inferred_type) != 0 {
                         base_is_ref = true
                     }
                 }
@@ -4564,17 +4814,13 @@ fn gen_field(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
     if base_expr.kind == parser.NK_IDENT {
         val base_name3: ref char = base_expr.d0 as ref char
         val local_type2: ref char = cg_local_type(ctx, base_name3)
-        val lookup_type2: mut ref char = local_type2
+        val lookup_type2: mut ref char = cg_ann_deref(local_type2)
         if str.rchar_cmp(local_type2, "") == 0 {
             val inferred: ref char = infer_type_annotation(ctx, base_expr)
             if str.rchar_cmp(inferred, "") != 0 {
-                lookup_type2 = inferred
+                lookup_type2 = cg_ann_deref(inferred)
             }
         }
-
-	if rchar_starts_with(lookup_type2, "ref ") {
-	    lookup_type2 = @ptradd(lookup_type2, 4)
-	}
 
 	if str.rchar_cmp(lookup_type2, "") != 0 {
             val fields2: ref void = cg_lookup_struct(ctx, lookup_type2)
@@ -4671,10 +4917,7 @@ fn gen_field(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
         val noff: i64 = nested_field_offset(ctx, base_expr, field_name)
         if noff >= 0 { offset = noff }
         val inner_type3: ref char = infer_type_annotation(ctx, base_expr)
-        val lookup_inner3: mut ref char = inner_type3
-        if rchar_starts_with(inner_type3, "ref ") {
-            lookup_inner3 = @ptradd(inner_type3, 4)
-        }
+        val lookup_inner3: ref char = cg_ann_deref(inner_type3)
         if str.rchar_cmp(lookup_inner3, "") != 0 {
             val iflds3: ref void = cg_lookup_struct(ctx, lookup_inner3)
             if iflds3 != 0 as ref void {
@@ -4851,6 +5094,7 @@ fn gen_list_ptr(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
 }
 
 fn gen_store_field_value(ctx: ref CgCtx, target: ref parser.Node, val_tmp2: ref char, val_qtype: ref char) void! = {
+    val val_qtype_n: ref char = cg_normalize_qtype(val_qtype)
     val ftarget: ref parser.Node = parser.field_base(target)
     val fname: ref char = parser.field_name(target)
     val foffset: mut i64 = 0
@@ -4859,11 +5103,7 @@ fn gen_store_field_value(ctx: ref CgCtx, target: ref parser.Node, val_tmp2: ref 
     if ftarget.kind == parser.NK_IDENT {
         val bname: ref char = ftarget.d0 as ref char
         val tname2: ref char = cg_local_type(ctx, bname)
-        val lookup_tname: mut ref char = tname2
-
-        if rchar_starts_with(tname2, "ref ") {
-            lookup_tname = @ptradd(tname2, 4)
-        }
+        val lookup_tname: ref char = cg_ann_deref(tname2)
 
         if str.rchar_cmp(lookup_tname, "") != 0 {
             val flds2: ref void = cg_lookup_struct(ctx, lookup_tname)
@@ -4930,8 +5170,7 @@ fn gen_store_field_value(ctx: ref CgCtx, target: ref parser.Node, val_tmp2: ref 
         if ftarget.kind == parser.NK_IDENT {
             val bname2: ref char = ftarget.d0 as ref char
             val tname3: ref char = cg_local_type(ctx, bname2)
-            val lookup3: mut ref char = tname3
-            if rchar_starts_with(tname3, "ref ") { lookup3 = @ptradd(tname3, 4) }
+            val lookup3: ref char = cg_ann_deref(tname3)
             if str.rchar_cmp(lookup3, "") != 0 {
                 val flds3: ref void = cg_lookup_struct(ctx, lookup3)
                 if flds3 != 0 as ref void {
@@ -4975,7 +5214,7 @@ fn gen_store_field_value(ctx: ref CgCtx, target: ref parser.Node, val_tmp2: ref 
         }
 
         val val_to_store: mut ref char = val_tmp2
-        if str.rchar_cmp(field_store_op, "storel") == 0 && str.rchar_cmp(val_qtype, "w") == 0 {
+        if str.rchar_cmp(field_store_op, "storel") == 0 && str.rchar_cmp(val_qtype_n, "w") == 0 {
             val ext_tmp: i64 = fresh_tmp(ctx)
             val ext_buf: ref char = @alloc(128) as ref char
             @snprintf(ext_buf, 128, "    %%t{lld} =l extsw {s}\n", {ext_tmp, val_tmp2})
@@ -4984,6 +5223,10 @@ fn gen_store_field_value(ctx: ref CgCtx, target: ref parser.Node, val_tmp2: ref 
             val ext_res: ref char = @alloc(16) as ref char
             @snprintf(ext_res, 16, "%%t{lld}", {ext_tmp})
             val_to_store = ext_res
+        } elif str.rchar_cmp(field_store_op, "stores") == 0 || str.rchar_cmp(field_store_op, "stored") == 0 {
+            val dst_qtype: mut ref char = "d"
+            if str.rchar_cmp(field_store_op, "stores") == 0 { dst_qtype = "s" }
+            val_to_store = cg_coerce_qtype(ctx, val_tmp2, val_qtype_n, dst_qtype)
         }
 
         val buf3: ref char = @alloc(128) as ref char
@@ -5033,6 +5276,7 @@ fn gen_call(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
         val gi_targs: list[ref parser.Node] = parser.generic_inst_type_args(callee_node)
         val base_name: ref char = generic_callee_base_name(gi_base)
         val arg_tmps_g: mut list[ref char] = []
+        val arg_qts_g: mut list[ref char] = []
         if args_list != 0 as ref void {
             val glen: i64 = @len(args_list as list[ref parser.Node]) as i64
             val gai: mut i64 = 0
@@ -5051,16 +5295,20 @@ fn gen_call(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
                                 val gpe_opt = @get(pack, gpi as usize)
                                 match gpe_opt {
                                     some gpe => {
-                                        val gpt: ref char = gen_expr(ctx, gpe as ref parser.Node)
+                                        val gpe_node: ref parser.Node = gpe as ref parser.Node
+                                        val gpt: ref char = gen_expr(ctx, gpe_node)
                                         @append(arg_tmps_g, gpt)
+                                        @append(arg_qts_g, expr_qbe_type(ctx, gpe_node))
                                     }
                                     none => {}
                                 }
                                 gpi++
                             }
                         } else {
-                            val gat: ref char = gen_expr(ctx, ga as ref parser.Node)
+                            val ga_node: ref parser.Node = ga as ref parser.Node
+                            val gat: ref char = gen_expr(ctx, ga_node)
                             @append(arg_tmps_g, gat)
+                            @append(arg_qts_g, expr_qbe_type(ctx, ga_node))
                         }
                     }
                     none => {}
@@ -5100,6 +5348,7 @@ fn gen_call(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
             match gt_opt {
                 some gt => {
                     val garg_qt: mut ref char = "l"
+                    val gsrc_qt: mut ref char = "l"
                     if gfn_params_list != 0 as ref void {
                         val gplen: i64 = @len(gfn_params_list as list[ref void]) as i64
                         if gti < gplen {
@@ -5118,12 +5367,18 @@ fn gen_call(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
                             }
                         }
                     }
+                    val gqt_opt = @get(arg_qts_g, gti as usize)
+                    match gqt_opt {
+                        some gq => { gsrc_qt = gq as ref char }
+                        none => {}
+                    }
+                    val gt_arg: ref char = cg_coerce_qtype(ctx, gt as ref char, gsrc_qt, garg_qt)
                     val gtbuf: ref char = @alloc(128) as ref char
                     if gti > 0 {
                         @memcpy(@ptradd(gcall_buf as ref void, gcall_pos), ", " as ref void, 2)
                         gcall_pos = gcall_pos + 2
                     }
-                    @snprintf(gtbuf, 128, "{s} {s}", {garg_qt, gt as ref char})
+                    @snprintf(gtbuf, 128, "{s} {s}", {garg_qt, gt_arg})
                     val gtbuf_len: i64 = str.len_raw(gtbuf)
                     @memcpy(@ptradd(gcall_buf as ref void, gcall_pos), gtbuf as ref void, gtbuf_len as usize)
                     gcall_pos = gcall_pos + gtbuf_len
@@ -5466,6 +5721,7 @@ fn gen_call(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
     }
 
     val arg_tmps: mut list[ref char] = []
+    val arg_qts: mut list[ref char] = []
 
     if args_list != 0 as ref void {
         val alen: i64 = @len(args_list) as i64
@@ -5486,8 +5742,10 @@ fn gen_call(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
                             val pe_opt = @get(pack, pi as usize)
                             match pe_opt {
                                 some pe => {
-                                    val pt: ref char = gen_expr(ctx, pe as ref parser.Node)
+                                    val pe_node: ref parser.Node = pe as ref parser.Node
+                                    val pt: ref char = gen_expr(ctx, pe_node)
                                     @append(arg_tmps, pt)
+                                    @append(arg_qts, expr_qbe_type(ctx, pe_node))
                                 }
                                 none => {}
                             }
@@ -5496,6 +5754,7 @@ fn gen_call(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
                     } else {
                         val at: ref char = gen_expr(ctx, arg_node)
                         @append(arg_tmps, at)
+                        @append(arg_qts, expr_qbe_type(ctx, arg_node))
                     }
                 }
                 none => {}
@@ -5669,6 +5928,7 @@ fn gen_call(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
         match t_opt {
             some t => {
                 val tbuf: ref char = @alloc(64) as ref char
+                val src_qtype: mut ref char = "l"
                 if ti > 0 {
                     @memcpy(@ptradd(call_buf as ref void, call_pos), ", " as ref void, 2)
                     call_pos = call_pos + 2
@@ -5693,7 +5953,13 @@ fn gen_call(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
                         }
                     }
                 }
-                @snprintf(tbuf, 64, "{s} {s}", {arg_qtype, t as ref char})
+                val src_qt_opt = @get(arg_qts, ti as usize)
+                match src_qt_opt {
+                    some sq => { src_qtype = sq as ref char }
+                    none => {}
+                }
+                val call_arg: ref char = cg_coerce_qtype(ctx, t as ref char, src_qtype, arg_qtype)
+                @snprintf(tbuf, 64, "{s} {s}", {arg_qtype, call_arg})
                 val tlen2: i64 = str.len_raw(tbuf)
                 @memcpy(@ptradd(call_buf as ref void, call_pos), tbuf as ref void, tlen2)
                 call_pos = call_pos + tlen2
@@ -5798,7 +6064,13 @@ fn get_list_arg(ctx: ref CgCtx, args: ref void, i: i64) ref char! = {
 fn expr_qtype(ctx: ref CgCtx, node: ref parser.Node) ref char! = {
     if node == 0 as ref parser.Node { return "l" }
     val k: i64 = node.kind
-    if k == parser.NK_FLOAT_LIT { return "d" }
+    if k == parser.NK_FLOAT_LIT {
+        if ctx.expected_ty != 0 as ref void {
+            val expected_qt: ref char = qbe_type_of(ctx.expected_ty as ref parser.Node)
+            if str.rchar_cmp(expected_qt, "s") == 0 { return "s" }
+        }
+        return "d"
+    }
     if k == parser.NK_INT_LIT { return "l" }
     if k == parser.NK_IDENT {
         val vname: ref char = node.d0 as ref char
@@ -6245,7 +6517,16 @@ fn gen_builtin(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
                     @free(fail_buf)
                     break
                 }
-                val idx_i: ref char = get_arg(ctx, args, ai)
+                val idx_i_raw: ref char = get_arg(ctx, args, ai)
+                val idx_i_node_opt = @get(args as list[ref parser.Node], ai as usize)
+                val idx_i_qt: mut ref char = "l"
+                match idx_i_node_opt {
+                    some idx_node => {
+                        idx_i_qt = expr_qtype(ctx, idx_node as ref parser.Node)
+                    }
+                    none => {}
+                }
+                val idx_i: ref char = cg_coerce_qtype(ctx, idx_i_raw, idx_i_qt, "l")
                 val len_i: i64 = cg_ann_fixed_arr_len_val(ctx, cur_ann)
                 val next_ann: ref char = ann_fixed_arr_inner(cur_ann)
                 val elem_sz: i64 = cg_ann_size(ctx, next_ann)
@@ -7328,41 +7609,11 @@ fn gen_stmt(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
             val_tmp = gen_expr_expected(ctx, expr, ty_node)
         }
 
-        if ty_node != 0 as ref parser.Node && expr != 0 as ref parser.Node && expr.kind == parser.NK_CALL {
+        if ty_node != 0 as ref parser.Node && expr != 0 as ref parser.Node {
             val decl_qbe_type: ref char = qbe_type_of(ty_node)
             val expr_qbe_type_val: ref char = expr_qbe_type(ctx, expr)
-
-            if str.rchar_cmp(decl_qbe_type, expr_qbe_type_val) != 0 {
-                if str.rchar_cmp(expr_qbe_type_val, "w") == 0 && str.rchar_cmp(decl_qbe_type, "l") == 0 && !is_ref_type(ty_node) {
-                    val conv_tmp: i64 = fresh_tmp(ctx)
-                    val conv_buf: ref char = @alloc(64) as ref char
-                    @snprintf(conv_buf, 64, "    %%t{lld} =l extsw {s}\n", {conv_tmp, val_tmp})
-                    emit(ctx, conv_buf)
-                    @free(conv_buf)
-                    val conv_res: ref char = @alloc(32) as ref char
-                    @snprintf(conv_res, 32, "%%t{lld}", {conv_tmp})
-                    val_tmp = conv_res
-                }
-                elif str.rchar_cmp(expr_qbe_type_val, "s") == 0 && str.rchar_cmp(decl_qbe_type, "d") == 0 {
-                    val conv_tmp: i64 = fresh_tmp(ctx)
-                    val conv_buf: ref char = @alloc(64) as ref char
-                    @snprintf(conv_buf, 64, "    %%t{lld} =d exts {s}\n", {conv_tmp, val_tmp})
-                    emit(ctx, conv_buf)
-                    @free(conv_buf)
-                    val conv_res: ref char = @alloc(32) as ref char
-                    @snprintf(conv_res, 32, "%%t{lld}", {conv_tmp})
-                    val_tmp = conv_res
-                }
-                elif str.rchar_cmp(expr_qbe_type_val, "d") == 0 && str.rchar_cmp(decl_qbe_type, "s") == 0 {
-                    val conv_tmp: i64 = fresh_tmp(ctx)
-                    val conv_buf: ref char = @alloc(64) as ref char
-                    @snprintf(conv_buf, 64, "    %%t{lld} =s truncd {s}\n", {conv_tmp, val_tmp})
-                    emit(ctx, conv_buf)
-                    @free(conv_buf)
-                    val conv_res: ref char = @alloc(32) as ref char
-                    @snprintf(conv_res, 32, "%%t{lld}", {conv_tmp})
-                    val_tmp = conv_res
-                }
+            if !(str.rchar_cmp(expr_qbe_type_val, "w") == 0 && str.rchar_cmp(decl_qbe_type, "l") == 0 && is_ref_type(ty_node)) {
+                val_tmp = cg_coerce_qtype(ctx, val_tmp, expr_qbe_type_val, decl_qbe_type)
             }
         }
 
@@ -7524,7 +7775,6 @@ fn gen_stmt(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
     if k == parser.NK_ASSIGN {
         val target: ref parser.Node = stmt.d0 as ref parser.Node
         val value: ref parser.Node = stmt.d1 as ref parser.Node
-        val val_tmp2: ref char = gen_expr(ctx, value)
         val tk: i64 = target.kind as i64
         if tk == parser.NK_IDENT {
             val tname: ref char = target.d0 as ref char
@@ -7532,12 +7782,26 @@ fn gen_stmt(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
             val buf2: ref char = @alloc(128) as ref char
             val store_op2: mut ref char = "storel"
             val is_ref2: bool = cg_is_local_ref_type(ctx, tname)
+            val dst_qtype2: mut ref char = "l"
+            if !is_ref2 {
+                val ltype3_pre: ref char = cg_local_type(ctx, tname)
+                dst_qtype2 = cg_ann_qtype(ltype3_pre)
+            }
+            val val_tmp2_raw: ref char = gen_expr_with_type(ctx, value, dst_qtype2)
+            val val_qtype2: mut ref char = expr_qbe_type(ctx, value)
+            if ((value.kind == parser.NK_INT_LIT || value.kind == parser.NK_FLOAT_LIT) && str.rchar_cmp(dst_qtype2, "") != 0) {
+                val_qtype2 = dst_qtype2
+            }
+            val val_tmp2: mut ref char = val_tmp2_raw
 
             if !is_ref2 {
                 val ltype3: ref char = cg_local_type(ctx, tname)
                 if str.rchar_cmp(ltype3, "f64") == 0 { store_op2 = "stored" }
                 elif str.rchar_cmp(ltype3, "f32") == 0 { store_op2 = "stores" }
                 elif is_word_type_name(ltype3) { store_op2 = "storew" }
+                if str.rchar_cmp(dst_qtype2, "") != 0 {
+                    val_tmp2 = cg_coerce_qtype(ctx, val_tmp2, val_qtype2, dst_qtype2)
+                }
             }
 
             if str.rchar_cmp(qbe_var, "") != 0 {
@@ -7549,11 +7813,14 @@ fn gen_stmt(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
             emit(ctx, buf2)
             @free(buf2)
         } elif tk == parser.NK_FIELD {
-            gen_store_field_value(ctx, target, val_tmp2, expr_qbe_type(ctx, value))
+            val val_tmp2_raw: ref char = gen_expr(ctx, value)
+            val val_qtype2: ref char = expr_qbe_type(ctx, value)
+            gen_store_field_value(ctx, target, val_tmp2_raw, val_qtype2)
         } elif tk == parser.NK_DEREF {
+            val val_tmp2_raw: ref char = gen_expr(ctx, value)
             val ptr: ref char = gen_expr(ctx, target.d0 as ref parser.Node)
             val buf4: ref char = @alloc(128) as ref char
-            @snprintf(buf4, 128, "    storel {s}, {s}\n", {val_tmp2, ptr})
+            @snprintf(buf4, 128, "    storel {s}, {s}\n", {val_tmp2_raw, ptr})
             emit(ctx, buf4)
             @free(buf4)
         }
@@ -7943,17 +8210,30 @@ fn gen_stmt(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
 
     if k == parser.NK_ADD_ASSIGN {
         val target4: ref parser.Node = stmt.d0 as ref parser.Node
-        val rhs: ref char = gen_expr(ctx, stmt.d1 as ref parser.Node)
+        val rhs_node: ref parser.Node = stmt.d1 as ref parser.Node
+        val rhs: ref char = gen_expr(ctx, rhs_node)
+        val rhs_qt: ref char = expr_qbe_type(ctx, rhs_node)
         if target4.kind == parser.NK_FIELD {
             val curv: ref char = gen_expr(ctx, target4)
+            val target4_qt: ref char = expr_qbe_type(ctx, target4)
             val sum_tmp: i64 = fresh_tmp(ctx)
             val sum_buf: ref char = @alloc(256) as ref char
-            @snprintf(sum_buf, 256, "    %%t{lld} =l add {s}, {s}\n", {sum_tmp, curv, rhs})
+            if str.rchar_cmp(target4_qt, "s") == 0 || str.rchar_cmp(target4_qt, "d") == 0 {
+                val curv_d: ref char = cg_coerce_qtype(ctx, curv, target4_qt, "d")
+                val rhs_d: ref char = cg_coerce_qtype(ctx, rhs, rhs_qt, "d")
+                @snprintf(sum_buf, 256, "    %%t{lld} =d add {s}, {s}\n", {sum_tmp, curv_d, rhs_d})
+            } else {
+                @snprintf(sum_buf, 256, "    %%t{lld} =l add {s}, {s}\n", {sum_tmp, curv, rhs})
+            }
             emit(ctx, sum_buf)
             @free(sum_buf)
             val sum_res: ref char = @alloc(16) as ref char
             @snprintf(sum_res, 16, "%%t{lld}", {sum_tmp})
-            gen_store_field_value(ctx, target4, sum_res, "l")
+            if str.rchar_cmp(target4_qt, "s") == 0 || str.rchar_cmp(target4_qt, "d") == 0 {
+                gen_store_field_value(ctx, target4, sum_res, "d")
+            } else {
+                gen_store_field_value(ctx, target4, sum_res, "l")
+            }
             return
         }
         val tname4: mut ref char = 0 as ref char
@@ -7976,8 +8256,29 @@ fn gen_stmt(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
             val cur3: i64 = fresh_tmp(ctx)
             val nxt3: i64 = fresh_tmp(ctx)
             val buf11: ref char = @alloc(256) as ref char
-            @snprintf(buf11, 256, "    %%t{lld} =l loadl {s}\n    %%t{lld} =l add %%t{lld}, {s}\n    storel %%t{lld}, {s}\n",
-                {cur3, var_ref, nxt3, cur3, rhs, nxt3, var_ref})
+            val ltype_add: ref char = cg_local_type(ctx, tname4)
+            if str.rchar_cmp(ltype_add, "f32") == 0 || str.rchar_cmp(ltype_add, "f64") == 0 {
+                val load_op_add: mut ref char = "loads"
+                if str.rchar_cmp(ltype_add, "f64") == 0 { load_op_add = "loadd" }
+                val cur_qt_add: ref char = cg_ann_qtype(ltype_add)
+                val cur_val_add: ref char = @alloc(16) as ref char
+                val rhs_d_add: ref char = cg_coerce_qtype(ctx, rhs, rhs_qt, "d")
+                @snprintf(cur_val_add, 16, "%%t{lld}", {cur3})
+                @snprintf(buf11, 256, "    %%t{lld} ={s} {s} {s}\n", {cur3, cur_qt_add, load_op_add, var_ref})
+                emit(ctx, buf11)
+                val cur_d_add: ref char = cg_coerce_qtype(ctx, cur_val_add, cur_qt_add, "d")
+                @snprintf(buf11, 256, "    %%t{lld} =d add {s}, {s}\n", {nxt3, cur_d_add, rhs_d_add})
+                emit(ctx, buf11)
+                if str.rchar_cmp(cur_qt_add, "s") == 0 {
+                    val trunc_tmp_add: i64 = fresh_tmp(ctx)
+                    @snprintf(buf11, 256, "    %%t{lld} =s truncd %%t{lld}\n    stores %%t{lld}, {s}\n", {trunc_tmp_add, nxt3, trunc_tmp_add, var_ref})
+                } else {
+                    @snprintf(buf11, 256, "    stored %%t{lld}, {s}\n", {nxt3, var_ref})
+                }
+            } else {
+                @snprintf(buf11, 256, "    %%t{lld} =l loadl {s}\n    %%t{lld} =l add %%t{lld}, {s}\n    storel %%t{lld}, {s}\n",
+                    {cur3, var_ref, nxt3, cur3, rhs, nxt3, var_ref})
+            }
             emit(ctx, buf11)
             @free(buf11)
             @free(var_ref)
@@ -7987,17 +8288,30 @@ fn gen_stmt(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
 
     if k == parser.NK_SUB_ASSIGN {
         val target5: ref parser.Node = stmt.d0 as ref parser.Node
-        val rhs2: ref char = gen_expr(ctx, stmt.d1 as ref parser.Node)
+        val rhs2_node: ref parser.Node = stmt.d1 as ref parser.Node
+        val rhs2: ref char = gen_expr(ctx, rhs2_node)
+        val rhs2_qt: ref char = expr_qbe_type(ctx, rhs2_node)
         if target5.kind == parser.NK_FIELD {
             val curv2: ref char = gen_expr(ctx, target5)
+            val target5_qt: ref char = expr_qbe_type(ctx, target5)
             val diff_tmp: i64 = fresh_tmp(ctx)
             val diff_buf: ref char = @alloc(256) as ref char
-            @snprintf(diff_buf, 256, "    %%t{lld} =l sub {s}, {s}\n", {diff_tmp, curv2, rhs2})
+            if str.rchar_cmp(target5_qt, "s") == 0 || str.rchar_cmp(target5_qt, "d") == 0 {
+                val curv2_d: ref char = cg_coerce_qtype(ctx, curv2, target5_qt, "d")
+                val rhs2_d: ref char = cg_coerce_qtype(ctx, rhs2, rhs2_qt, "d")
+                @snprintf(diff_buf, 256, "    %%t{lld} =d sub {s}, {s}\n", {diff_tmp, curv2_d, rhs2_d})
+            } else {
+                @snprintf(diff_buf, 256, "    %%t{lld} =l sub {s}, {s}\n", {diff_tmp, curv2, rhs2})
+            }
             emit(ctx, diff_buf)
             @free(diff_buf)
             val diff_res: ref char = @alloc(16) as ref char
             @snprintf(diff_res, 16, "%%t{lld}", {diff_tmp})
-            gen_store_field_value(ctx, target5, diff_res, "l")
+            if str.rchar_cmp(target5_qt, "s") == 0 || str.rchar_cmp(target5_qt, "d") == 0 {
+                gen_store_field_value(ctx, target5, diff_res, "d")
+            } else {
+                gen_store_field_value(ctx, target5, diff_res, "l")
+            }
             return
         }
         val tname5: mut ref char = 0 as ref char
@@ -8020,8 +8334,29 @@ fn gen_stmt(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
             val cur4: i64 = fresh_tmp(ctx)
             val nxt4: i64 = fresh_tmp(ctx)
             val buf12: ref char = @alloc(256) as ref char
-            @snprintf(buf12, 256, "    %%t{lld} =l loadl {s}\n    %%t{lld} =l sub %%t{lld}, {s}\n    storel %%t{lld}, {s}\n",
-                {cur4, var_ref, nxt4, cur4, rhs2, nxt4, var_ref})
+            val ltype_sub: ref char = cg_local_type(ctx, tname5)
+            if str.rchar_cmp(ltype_sub, "f32") == 0 || str.rchar_cmp(ltype_sub, "f64") == 0 {
+                val load_op_sub: mut ref char = "loads"
+                if str.rchar_cmp(ltype_sub, "f64") == 0 { load_op_sub = "loadd" }
+                val cur_qt_sub: ref char = cg_ann_qtype(ltype_sub)
+                val cur_val_sub: ref char = @alloc(16) as ref char
+                val rhs_d_sub: ref char = cg_coerce_qtype(ctx, rhs2, rhs2_qt, "d")
+                @snprintf(cur_val_sub, 16, "%%t{lld}", {cur4})
+                @snprintf(buf12, 256, "    %%t{lld} ={s} {s} {s}\n", {cur4, cur_qt_sub, load_op_sub, var_ref})
+                emit(ctx, buf12)
+                val cur_d_sub: ref char = cg_coerce_qtype(ctx, cur_val_sub, cur_qt_sub, "d")
+                @snprintf(buf12, 256, "    %%t{lld} =d sub {s}, {s}\n", {nxt4, cur_d_sub, rhs_d_sub})
+                emit(ctx, buf12)
+                if str.rchar_cmp(cur_qt_sub, "s") == 0 {
+                    val trunc_tmp_sub: i64 = fresh_tmp(ctx)
+                    @snprintf(buf12, 256, "    %%t{lld} =s truncd %%t{lld}\n    stores %%t{lld}, {s}\n", {trunc_tmp_sub, nxt4, trunc_tmp_sub, var_ref})
+                } else {
+                    @snprintf(buf12, 256, "    stored %%t{lld}, {s}\n", {nxt4, var_ref})
+                }
+            } else {
+                @snprintf(buf12, 256, "    %%t{lld} =l loadl {s}\n    %%t{lld} =l sub %%t{lld}, {s}\n    storel %%t{lld}, {s}\n",
+                    {cur4, var_ref, nxt4, cur4, rhs2, nxt4, var_ref})
+            }
             emit(ctx, buf12)
             @free(buf12)
             @free(var_ref)
@@ -9217,18 +9552,31 @@ fn gen_fn_prefixed(ctx: mut ref CgCtx, fn_node: ref parser.Node, mod_prefix: ref
             some gn => {
                 val glbl_buf: ref char = @alloc(256) as ref char
                 val gqt_buf: ref char = @alloc(8) as ref char
-                val found: bool = cg_lookup_global(ctx, gn as ref char, glbl_buf, gqt_buf)
+                val gann_buf: ref char = @alloc(256) as ref char
+                val found: bool = cg_lookup_global(ctx, gn as ref char, glbl_buf, gqt_buf, gann_buf)
                 if found {
                     val dollar_label: ref char = @alloc(260) as ref char
                     @snprintf(dollar_label, 260, "${s}", {glbl_buf})
                     cg_register_local_var(ctx, gn as ref char, dollar_label)
                     cg_mark_as_slot(ctx, gn as ref char)
-                    if str.rchar_cmp(gqt_buf, "w") == 0 {
-                        cg_register_local_type(ctx, gn as ref char, "bool")
+                    if str.rchar_cmp(gann_buf, "") != 0 {
+                        val gann_copy: ref char = @alloc(str.len_raw(gann_buf) + 1) as ref char
+                        @memcpy(gann_copy as ref void, gann_buf as ref void, str.len_raw(gann_buf) + 1)
+                        cg_register_local_type(ctx, gn as ref char, gann_copy)
+                        if rchar_starts_with(gann_copy, "ref ") || rchar_starts_with(gann_copy, "mut ref ") || cg_ann_is_indirect_value(ctx, gann_copy) {
+                            cg_register_local_ref_type(ctx, gn as ref char)
+                        }
+                    } elif str.rchar_cmp(gqt_buf, "w") == 0 {
+                        cg_register_local_type(ctx, gn as ref char, "i32")
+                    } elif str.rchar_cmp(gqt_buf, "s") == 0 {
+                        cg_register_local_type(ctx, gn as ref char, "f32")
+                    } elif str.rchar_cmp(gqt_buf, "d") == 0 {
+                        cg_register_local_type(ctx, gn as ref char, "f64")
                     }
                 }
                 @free(glbl_buf)
                 @free(gqt_buf)
+                @free(gann_buf)
             }
             none => {}
         }
@@ -10500,18 +10848,31 @@ fn gen_test_fn(ctx: ref CgCtx, body_stmts: ref parser.Node, test_id: i64) void! 
             some gn => {
                 val glbl_buf: ref char = @alloc(256) as ref char
                 val gqt_buf: ref char = @alloc(8) as ref char
-                val found: bool = cg_lookup_global(ctx, gn as ref char, glbl_buf, gqt_buf)
+                val gann_buf: ref char = @alloc(256) as ref char
+                val found: bool = cg_lookup_global(ctx, gn as ref char, glbl_buf, gqt_buf, gann_buf)
                 if found {
                     val dollar_label: ref char = @alloc(260) as ref char
                     @snprintf(dollar_label, 260, "${s}", {glbl_buf})
                     cg_register_local_var(ctx, gn as ref char, dollar_label)
                     cg_mark_as_slot(ctx, gn as ref char)
-                    if str.rchar_cmp(gqt_buf, "w") == 0 {
-                        cg_register_local_type(ctx, gn as ref char, "bool")
+                    if str.rchar_cmp(gann_buf, "") != 0 {
+                        val gann_copy: ref char = @alloc(str.len_raw(gann_buf) + 1) as ref char
+                        @memcpy(gann_copy as ref void, gann_buf as ref void, str.len_raw(gann_buf) + 1)
+                        cg_register_local_type(ctx, gn as ref char, gann_copy)
+                        if rchar_starts_with(gann_copy, "ref ") || rchar_starts_with(gann_copy, "mut ref ") || cg_ann_is_indirect_value(ctx, gann_copy) {
+                            cg_register_local_ref_type(ctx, gn as ref char)
+                        }
+                    } elif str.rchar_cmp(gqt_buf, "w") == 0 {
+                        cg_register_local_type(ctx, gn as ref char, "i32")
+                    } elif str.rchar_cmp(gqt_buf, "s") == 0 {
+                        cg_register_local_type(ctx, gn as ref char, "f32")
+                    } elif str.rchar_cmp(gqt_buf, "d") == 0 {
+                        cg_register_local_type(ctx, gn as ref char, "f64")
                     }
                 }
                 @free(glbl_buf)
                 @free(gqt_buf)
+                @free(gann_buf)
             }
             none => {}
         }
