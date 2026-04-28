@@ -8464,57 +8464,38 @@ fn gen_if_stmt(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
         val ei: mut i64 = 0
         for {
             if ei >= elen { break }
-            val ep_opt = @get(elif_list, ei as usize)
-            val cl_opt = @get(next_lbls, ei as usize)
-            val bl_opt = @get(body_lbls, ei as usize)
-            match ep_opt {
-                some ep => {
-                    match cl_opt {
-                        some cl => {
-                            match bl_opt {
-                                some bl => {
-                                    val cond_lbl: i64 = cl as i64
-                                    val body_lbl: i64 = bl as i64
-                                    val false_lbl: mut i64 = end_lbl
-
-                                    if ei + 1 < elen {
-                                        val nl_opt = @get(next_lbls, (ei + 1) as usize)
-                                        match nl_opt {
-                                            some nl => { false_lbl = nl as i64 }
-                                            none => {}
-                                        }
-                                    } elif has_else {
-                                        false_lbl = else_lbl
-                                    }
-
-                                    val clbuf: ref char = @alloc(32) as ref char
-                                    @snprintf(clbuf, 32, "@lbl{lld}\n", {cond_lbl})
-                                    emit(ctx, clbuf)
-                                    @free(clbuf)
-
-                                    val econd: ref char = gen_expr(ctx, (ep as ref parser.Node).d0 as ref parser.Node)
-                                    val ebuf: ref char = @alloc(128) as ref char
-                                    @snprintf(ebuf, 128, "    jnz {s}, @lbl{lld}, @lbl{lld}\n@lbl{lld}\n",
-                                        {econd, body_lbl, false_lbl, body_lbl})
-                                    emit(ctx, ebuf)
-                                    @free(ebuf)
-
-                                    gen_stmts(ctx, (ep as ref parser.Node).d1 as ref parser.Node)
-
-                                    if !block_ends_with_terminator((ep as ref parser.Node).d1 as ref parser.Node) {
-                                        val ejbuf: ref char = @alloc(64) as ref char
-                                        @snprintf(ejbuf, 64, "    jmp @lbl{lld}\n", {end_lbl})
-                                        emit(ctx, ejbuf)
-                                        @free(ejbuf)
-                                    }
-                                }
-                                none => {}
+            if @get(elif_list, ei as usize) is some ep {
+                if @get(next_lbls, ei as usize) is some cl {
+                    if @get(body_lbls, ei as usize) is some bl {
+                        val cond_lbl: i64 = cl as i64
+                        val body_lbl: i64 = bl as i64
+                        val false_lbl: mut i64 = end_lbl
+                        if ei + 1 < elen {
+                            if @get(next_lbls, (ei + 1) as usize) is some nl {
+                                false_lbl = nl as i64
                             }
+                        } elif has_else {
+                            false_lbl = else_lbl
                         }
-                        none => {}
+                        val clbuf: ref char = @alloc(32) as ref char
+                        @snprintf(clbuf, 32, "@lbl{lld}\n", {cond_lbl})
+                        emit(ctx, clbuf)
+                        @free(clbuf)
+                        val econd: ref char = gen_expr(ctx, (ep as ref parser.Node).d0 as ref parser.Node)
+                        val ebuf: ref char = @alloc(128) as ref char
+                        @snprintf(ebuf, 128, "    jnz {s}, @lbl{lld}, @lbl{lld}\n@lbl{lld}\n",
+                            {econd, body_lbl, false_lbl, body_lbl})
+                        emit(ctx, ebuf)
+                        @free(ebuf)
+                        gen_stmts(ctx, (ep as ref parser.Node).d1 as ref parser.Node)
+                        if !block_ends_with_terminator((ep as ref parser.Node).d1 as ref parser.Node) {
+                            val ejbuf: ref char = @alloc(64) as ref char
+                            @snprintf(ejbuf, 64, "    jmp @lbl{lld}\n", {end_lbl})
+                            emit(ctx, ejbuf)
+                            @free(ejbuf)
+                        }
                     }
                 }
-                none => {}
             }
             ei++
         }
