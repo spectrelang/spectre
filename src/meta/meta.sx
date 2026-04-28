@@ -31,7 +31,7 @@ pub fn print_usage() void = {
     std.stdio.puts("  --release            Build in release mode")
     std.stdio.puts("  --dll                Build a shared library")
     std.stdio.puts("  --alt                Compile with fallback backend")
-    std.stdio.puts("  -b, --bootstrap      Display backend output on error, only works with --alt")
+    std.stdio.puts("  -b, --bootstrap      Display backend output on error")
     std.stdio.puts("  -c, --compile        Compile only to produce object file, without linking")
     std.stdio.puts("  -o, --output <file>  Output path for binary or build artifact")
     std.stdio.puts("  -l, --loud           Show stages of compilation with verbose output")
