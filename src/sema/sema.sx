@@ -2425,8 +2425,19 @@ fn check_generic_fn(ctx: mut ref SemaCtx, fn_node: ref parser.Node, filename: re
         for param in params as list[ref parser.Node] {
             val pname: ref char = param.d0 as ref char
             val pty: ref parser.Node = param.d1 as ref parser.Node
+            val is_mut: mut i64 = 0
+            val param_is_ref: mut i64 = 0
             val param_tname: ref char = extract_type_name(pty)
-            scope_define(ctx, pname, 0, param_tname, 0, param.line)
+            if pty.kind == parser.TY_MUT {
+                is_mut = 1
+                val pty_inner: ref parser.Node = pty.d0 as ref parser.Node
+                if pty_inner != 0 as ref parser.Node && pty_inner.kind == parser.TY_REF {
+                    param_is_ref = 1
+                }
+            } elif pty.kind == parser.TY_REF {
+                param_is_ref = 1
+            }
+            scope_define(ctx, pname, is_mut, param_tname, param_is_ref, param.line)
             mark_name_used(ctx, pname)
         }
     }
