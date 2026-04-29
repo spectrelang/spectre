@@ -544,10 +544,32 @@ fn type_node_to_str(ty: ref parser.Node) ref char! = {
 }
 
 /// Serialize a type node to a mangled identifier string for function naming.
+fn sanitize_mangle_atom(name: ref char) ref char! = {
+    val nlen: i64 = str.len_raw(name)
+    val out: ref char = @alloc(nlen * 2 + 1) as ref char
+    val si: mut i64 = 0
+    val oi: mut i64 = 0
+    for {
+        if si >= nlen { break }
+        val ch: u8 = @load8(@ptradd(name as ref void, si))
+        if ch == 46 {
+            @store8(@ptradd(out as ref void, oi), 95)
+            @store8(@ptradd(out as ref void, oi + 1), 95)
+            oi += 2
+        } else {
+            @store8(@ptradd(out as ref void, oi), ch)
+            oi++
+        }
+        si++
+    }
+    @store8(@ptradd(out as ref void, oi), 0)
+    return out
+}
+
 fn type_node_to_mangle(ty: ref parser.Node) ref char! = {
     if ty == 0 as ref parser.Node { return "void" }
     val k: i64 = ty.kind
-    if k == parser.TY_NAMED { return ty.d0 as ref char }
+    if k == parser.TY_NAMED { return sanitize_mangle_atom(ty.d0 as ref char) }
     if k == parser.TY_REF {
         val inner: ref char = type_node_to_mangle(ty.d0 as ref parser.Node)
         val buf: ref char = @alloc(256) as ref char
@@ -774,7 +796,8 @@ fn monomorphize_generic_fn(ctx: mut ref CgCtx, gfn_node: ref parser.Node, _: ref
         val saved_dqtypes = cg_clone_char_list(ctx.dqtypes)
         val saved_defer_stack = cg_clone_void_list(ctx.defer_stack)
 
-        ctx.sb = ctx.mono_sb
+        val temp_mono_sb: ref void = str.StringBuilder.new()
+        ctx.sb = temp_mono_sb
         gen_fn_prefixed(ctx, syn, "")
 
         ctx.sb = saved_sb
@@ -794,6 +817,9 @@ fn monomorphize_generic_fn(ctx: mut ref CgCtx, gfn_node: ref parser.Node, _: ref
         ctx.dvars = saved_dvars
         ctx.dqtypes = saved_dqtypes
         ctx.defer_stack = saved_defer_stack
+        val temp_built: ref void = str.StringBuilder.build(temp_mono_sb)
+        str.StringBuilder.append_cstr(ctx.mono_sb, str.cstr(temp_built))
+        str.StringBuilder.free(temp_mono_sb)
     }
 
     ctx.gsubst_names = old_gsubst_names
@@ -5345,7 +5371,9 @@ fn gen_call(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
         val mono_base: mut ref char = 0 as ref char
         if gfn_node != 0 as ref parser.Node {
             val gfn_prefix: ref char = lookup_generic_fn_prefix(ctx, base_name)
-            mono_base = monomorphize_generic_fn(ctx, gfn_node, gfn_prefix, gi_targs)
+            val resolved_targs: mut list[ref parser.Node] = []
+            for ta in gi_targs { @append(resolved_targs, cg_concrete_ty(ctx, ta as ref parser.Node)) }
+            mono_base = monomorphize_generic_fn(ctx, gfn_node, gfn_prefix, resolved_targs)
         }
         if mono_base == 0 as ref char {
             mono_base = base_name
@@ -7664,7 +7692,9 @@ fn gen_stmt(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
                 val gfn_node: ref parser.Node = lookup_generic_fn(ctx, base_name)
                 if gfn_node != 0 as ref parser.Node {
                     val gfn_prefix: ref char = lookup_generic_fn_prefix(ctx, base_name)
-                    val mono_base: ref char = monomorphize_generic_fn(ctx, gfn_node, gfn_prefix, gi_targs)
+                    val resolved_targs2: mut list[ref parser.Node] = []
+                    for ta2 in gi_targs { @append(resolved_targs2, cg_concrete_ty(ctx, ta2 as ref parser.Node)) }
+                    val mono_base: ref char = monomorphize_generic_fn(ctx, gfn_node, gfn_prefix, resolved_targs2)
                     if mono_base != 0 as ref char {
                         callee_name = mono_base
                         ret_expr = cg_lookup_fn_ret(ctx, mono_base) as ref parser.Node
