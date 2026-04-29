@@ -482,7 +482,7 @@ pub fn hmac_sha256[T](key: T, data: T) string.String! = {
     val hashed_key: mut string.String = 0 as string.String
 
     if key_len > block_size {
-        hashed_key = sha256(key)
+        hashed_key = sha256[T](key)
         key_ptr = @load(hashed_key) as ref void
         key_len = 32
     }
@@ -510,7 +510,7 @@ pub fn hmac_sha256[T](key: T, data: T) string.String! = {
     if data_len > 0 {
         @memcpy(@ptradd(inner_ptr, block_size), data_ptr, data_len)
     }
-    val inner_digest: string.String = sha256(inner)
+    val inner_digest: string.String = sha256[T](inner)
     string.string_free(inner)
 
     val inner_digest_ptr: ref void = @load(inner_digest) as ref void
@@ -524,7 +524,7 @@ pub fn hmac_sha256[T](key: T, data: T) string.String! = {
     if hashed_key != 0 { string.string_free(hashed_key) }
     string.string_free(inner_digest)
 
-    val out: string.String = sha256(outer)
+    val out: string.String = sha256[T](outer)
     string.string_free(outer)
     return out
 }
@@ -536,7 +536,7 @@ pub fn unique_nonce() ref char! = {
     val buf: string.String = alloc_string(24)
     val ptr: ref void = @load(buf) as ref void
     random.random_bytes(ptr, 24)
-    val out: ref char = hex_encode(buf)
+    val out: ref char = hex_encode[string.String](buf)
     string.string_free(buf)
     return out
 }
@@ -544,22 +544,22 @@ pub fn unique_nonce() ref char! = {
 test {
     assert trust hash_fnv(0) != trust hash_fnv(1)
 
-    val sha: string.String = sha256("abc")
-    val sha_hex: mut ref char = hex_encode(sha)
+    val sha: string.String = sha256[ref char]("abc")
+    val sha_hex: mut ref char = hex_encode[string.String](sha)
     assert trust string.compare(string.RChar(sha_hex), string.RChar("ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad")) == 0
     trust @free(sha_hex)
     trust string.string_free(sha)
 
-    val hmac_out: string.String = hmac_sha256(
+    val hmac_out: string.String = hmac_sha256[ref char](
         "key",
         "The quick brown fox jumps over the lazy dog"
     )
-    val hmac_hex: mut ref char = hex_encode(hmac_out)
+    val hmac_hex: mut ref char = hex_encode[string.String](hmac_out)
     assert trust string.compare(string.RChar(hmac_hex), string.RChar("f7bc83f430538424b13298e6aa6fb143ef4d59a14946175997479dbc2d1a3cd8")) == 0
     trust @free(hmac_hex)
     trust string.string_free(hmac_out)
 
-    val encoded_hex: mut ref char = hex_encode("hi")
+    val encoded_hex: mut ref char = hex_encode[string.String]("hi")
     assert trust string.compare(string.RChar(encoded_hex), string.RChar("6869")) == 0
     trust @free(encoded_hex)
 

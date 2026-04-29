@@ -677,10 +677,32 @@ fn cc_type_node_to_str(ty: ref parser.Node) ref char! = {
     return "unknown"
 }
 
+fn cc_sanitize_mangle_atom(name: ref char) ref char! = {
+    val nlen: i64 = str.len_raw(name)
+    val out: ref char = @alloc(nlen * 2 + 1) as ref char
+    val si: mut i64 = 0
+    val oi: mut i64 = 0
+    for {
+        if si >= nlen { break }
+        val ch: u8 = @load8(@ptradd(name as ref void, si))
+        if ch == 46 {
+            @store8(@ptradd(out as ref void, oi), 95)
+            @store8(@ptradd(out as ref void, oi + 1), 95)
+            oi += 2
+        } else {
+            @store8(@ptradd(out as ref void, oi), ch)
+            oi++
+        }
+        si++
+    }
+    @store8(@ptradd(out as ref void, oi), 0)
+    return out
+}
+
 fn cc_type_node_to_mangle(ty: ref parser.Node) ref char! = {
     if ty == 0 as ref parser.Node { return "void" }
     val k: i64 = ty.kind
-    if k == parser.TY_NAMED { return ty.d0 as ref char }
+    if k == parser.TY_NAMED { return cc_sanitize_mangle_atom(ty.d0 as ref char) }
     if k == parser.TY_REF {
         val inner: ref char = cc_type_node_to_mangle(ty.d0 as ref parser.Node)
         val buf: ref char = @alloc(256) as ref char
