@@ -15,6 +15,7 @@ type DocEntry = {
     kind:         mut i64
     line:         mut i64
     name:         mut ref char
+    nav_name:     mut ref char
     anchor:       mut ref char
     signature:    mut ref char
     docs:         mut ref char
@@ -543,11 +544,19 @@ fn entry_name(node: ref parser.Node) ref char! = {
     return node.d1 as ref char
 }
 
+fn entry_nav_name(node: ref parser.Node) ref char! = {
+    if ((node.kind == parser.NK_FN || node.kind == parser.NK_GENERIC_FN) && node.d1 != 0 as i64) {
+        return @fmt("{s}.{s}", {node.d1 as ref char, node.d2 as ref char})
+    }
+    return entry_name(node)
+}
+
 fn add_entry(entries: mut list[ref DocEntry], node: ref parser.Node, doc_map: ref DocMap, availability: ref char) void! = {
     val item: mut ref DocEntry = @alloc(@sizeof(DocEntry)) as ref DocEntry
     item.kind = node.kind
     item.line = node.line
     item.name = entry_name(node)
+    item.nav_name = entry_nav_name(node)
     item.anchor = anchor_for(entry_kind_name(node.kind), item.name, node.line)
     item.docs = lookup_doc(doc_map, node.line)
     item.availability = availability
@@ -806,7 +815,7 @@ fn render_entry_details_html(sb: ref void, entry: ref DocEntry) void! = {
 }
 
 fn render_entry_html(sb: ref void, entry: ref DocEntry) void! = {
-    std.string.StringBuilder.append_cstr(sb, @fmt("<section class=\"entry\" id=\"{s}\" data-name=\"{s}\">", {entry.anchor, html_escape(entry.name)}))
+    std.string.StringBuilder.append_cstr(sb, @fmt("<section class=\"entry\" id=\"{s}\" data-name=\"{s}\">", {entry.anchor, html_escape(entry.nav_name)}))
     std.string.StringBuilder.append_cstr(sb, @fmt("<div class=\"entry-header\"><h3>{s}</h3>", {html_escape(entry.name)}))
     if !str_eq(entry.availability, "") {
         std.string.StringBuilder.append_cstr(sb, @fmt("<span class=\"badge\">{s}</span>", {html_escape(entry.availability)}))
@@ -885,7 +894,7 @@ fn append_sorted_module_nav_html(sb: ref void, modules: list[ref DocModule], cur
 fn append_sorted_entry_nav_html(sb: ref void, entries: list[ref DocEntry]) void! = {
     val keys: mut list[ref char] = []
     for entry in entries {
-        @append(keys, nav_key(entry.name, entry.anchor))
+        @append(keys, nav_key(entry.nav_name, entry.anchor))
     }
     val sorted = algo.sort_alpha(keys)
     for key in sorted {
@@ -894,8 +903,8 @@ fn append_sorted_entry_nav_html(sb: ref void, entries: list[ref DocEntry]) void!
             if !str_eq(entry.anchor, target_anchor) { continue }
             std.string.StringBuilder.append_cstr(sb, @fmt("<a class=\"nav-item\" href=\"#{s}\" data-name=\"{s}\">{s}</a>", {
                 entry.anchor,
-                html_escape(entry.name),
-                html_escape(entry.name)
+                html_escape(entry.nav_name),
+                html_escape(entry.nav_name)
             }))
             break
         }
@@ -1348,7 +1357,7 @@ fn render_module_page_md(module: ref DocModule, modules: list[ref DocModule]) re
     if @len(module.entries) as i64 > 0 {
         std.string.StringBuilder.append_cstr(sb, "## On this page\n\n")
         for entry in module.entries {
-            std.string.StringBuilder.append_cstr(sb, @fmt("- [{s}](#{s})\n", {entry.name, entry.anchor}))
+            std.string.StringBuilder.append_cstr(sb, @fmt("- [{s}](#{s})\n", {entry.nav_name, entry.anchor}))
         }
         std.string.StringBuilder.append_cstr(sb, "\n")
     }
