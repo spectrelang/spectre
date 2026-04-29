@@ -3534,6 +3534,15 @@ fn gen_extern_fn_prefixed(_: ref CCtx, _: ref parser.Node, _: ref char) void! = 
     // NOOP.
 }
 
+fn gen_extern_header(ctx: ref CCtx, item: ref parser.Node) void! = {
+    val header: ref char = item.d0 as ref char
+    if header == 0 as ref char { return }
+    val inc: ref char = @alloc(1024) as ref char
+    @snprintf(inc, 1024, "#include \"{s}\"", {header})
+    emitln_fwd(ctx, inc)
+    @free(inc)
+}
+
 fn gen_tagged_union_def(ctx: ref CCtx, item: ref parser.Node, mod_prefix: ref char) void! = {
     val name: ref char = item.d1 as ref char val variants: ref void = item.d2 as ref void
     if variants == 0 as ref void { return }
@@ -3706,6 +3715,7 @@ fn gen_items_with_prefix(ctx: mut ref CCtx, items: list[ref parser.Node], mod_pr
             elif k == parser.NK_FN { gen_fn_prefixed(ctx, node, mod_prefix) }
             elif k == parser.NK_VAL { gen_module_val(ctx, node, mod_prefix) }
             elif k == parser.NK_EXTERN_FN { gen_extern_fn_prefixed(ctx, node, mod_prefix) }
+            elif k == parser.NK_EXTERN_HEADER { gen_extern_header(ctx, node) }
             elif k == parser.NK_ENUMDEF { gen_enum_def_prefixed(ctx, node, mod_prefix) }
             elif k == parser.NK_UNIONDEF { gen_union_def_prefixed(ctx, node, mod_prefix) }
             elif k == parser.NK_TAGGED_UNIONDEF { gen_tagged_union_def(ctx, node, mod_prefix) }
@@ -3881,6 +3891,7 @@ fn gen_items_with_prefix_skip_main(ctx: mut ref CCtx, items: list[ref parser.Nod
                 if str.rchar_cmp(fname, "main") != 0 { gen_fn_prefixed(ctx, node, mod_prefix) }
             } elif k == parser.NK_VAL { gen_module_val(ctx, node, mod_prefix) }
             elif k == parser.NK_EXTERN_FN { gen_extern_fn_prefixed(ctx, node, mod_prefix) }
+            elif k == parser.NK_EXTERN_HEADER { gen_extern_header(ctx, node) }
             elif k == parser.NK_ENUMDEF { gen_enum_def_prefixed(ctx, node, mod_prefix) }
             elif k == parser.NK_UNIONDEF { gen_union_def_prefixed(ctx, node, mod_prefix) }
             elif k == parser.NK_TAGGED_UNIONDEF { gen_tagged_union_def(ctx, node, mod_prefix) }

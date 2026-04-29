@@ -12,6 +12,7 @@ pub val NK_EXTERN_TYPE     : i64 = 8
 pub val NK_LINK            : i64 = 9
 pub val NK_WHEN_ITEMS      : i64 = 10
 pub val NK_TAGGED_UNIONDEF : i64 = 11
+pub val NK_EXTERN_HEADER   : i64 = 53
 pub val NK_VAL             : i64 = 20
 pub val NK_ASSIGN          : i64 = 21
 pub val NK_RETURN          : i64 = 22
@@ -2012,6 +2013,14 @@ fn parse_extern_fn_item(p: ref Parser, public: i64) result[ref Node, ref char]! 
     return ok nef
 }
 
+fn parse_extern_header_item(p: ref Parser) result[ref Node, ref char]! = {
+    val line: i64 = p_line(p)
+    val header = p_expect_string(p)?
+    val neh: mut ref Node = make_node(NK_EXTERN_HEADER, line)
+    neh.d0 = header as i64
+    return ok neh
+}
+
 pub fn parse_item(p: ref Parser) result[ref Node, ref char]! = {
     val line: i64 = p_line(p)
     val k: lexer.TokenKind = p_peek_kind(p)
@@ -2103,6 +2112,7 @@ pub fn parse_item(p: ref Parser) result[ref Node, ref char]! = {
 
     if kind_is_extern(k2) {
         p_advance(p)
+        if kind_is_str(p_peek_kind(p)) { return parse_extern_header_item(p) }
         if kind_is_type(p_peek_kind(p)) { return parse_type_def_item(p, public, 1) }
         return parse_extern_fn_item(p, public)
     }

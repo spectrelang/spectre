@@ -11,6 +11,7 @@ fn kind_to_name(kind: i64) ref char = {
     elif kind == parser.NK_EXTERN_FN { return "EXTERN_FN" }
     elif kind == parser.NK_EXTERN_TYPE { return "EXTERN_TYPE" }
     elif kind == parser.NK_LINK { return "LINK" }
+    elif kind == parser.NK_EXTERN_HEADER { return "EXTERN_HEADER" }
     elif kind == parser.NK_WHEN_ITEMS { return "WHEN_ITEMS" }
     elif kind == parser.NK_TAGGED_UNIONDEF { return "TAGGED_UNIONDEF" }
     elif kind == parser.NK_VAL { return "VAL" }
@@ -733,6 +734,9 @@ fn print_node_recursive(node: ref parser.Node, indent: i64, is_last: bool) void!
         print_node_recursive(expr, indent + 1, true)
     } elif kind == parser.NK_LINK {
         std.stdio.print("{s}{s}\n", {prefix, kind_name})
+    } elif kind == parser.NK_EXTERN_HEADER {
+        val header: ref char = node.d0 as ref char
+        std.stdio.print("{s}{s} : {s}\n", {prefix, kind_name, header})
     } elif kind == parser.NK_TEST {
         std.stdio.print("{s}{s}\n", {prefix, kind_name})
         val body: list[ref parser.Node] = node.d0 as list[ref parser.Node]
