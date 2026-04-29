@@ -138,8 +138,8 @@ val SHA256_K: list[u32] = [
 ///
 /// Returns a 32-byte owned String.
 pub fn sha256[T](data: T) string.String! = {
-    val src_ptr: ref void = bytes_ptr(data)
-    val src_len: i64 = bytes_len(data)
+    val src_ptr: ref void = bytes_ptr[T](data)
+    val src_len: i64 = bytes_len[T](data)
 
     val bit_len: u64 = (src_len as u64) * 8
     val total_len: i64 = ((src_len + 9 + 63) / 64) * 64
@@ -265,8 +265,8 @@ fn hex_value(ch: u8) i64 = {
 ///
 /// Returns a newly allocated lowercase C string.
 pub fn hex_encode[T](data: T) ref char! = {
-    val src_ptr: ref void = bytes_ptr(data)
-    val src_len: i64 = bytes_len(data)
+    val src_ptr: ref void = bytes_ptr[T](data)
+    val src_len: i64 = bytes_len[T](data)
     val out: ref char = @alloc(src_len * 2 + 1) as ref char
     val i: mut i64 = 0
     for {
