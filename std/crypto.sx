@@ -557,7 +557,7 @@ test {
     trust @free(hmac_hex)
     trust string.string_free(hmac_out)
 
-    val encoded_hex: mut ref char = hex_encode[string.String]("hi")
+    val encoded_hex: mut ref char = hex_encode[ref char]("hi")
     trust @free(encoded_hex)
 
     val decoded_hex_res = trust hex_decode("6869")
