@@ -507,6 +507,20 @@ fn mark_name_mutated(ctx: ref SemaCtx, name: ref char) void! = {
     }
 }
 
+fn check_is_mutable(ctx: ref SemaCtx, name: ref char, filename: ref char, line: i64) bool! = {
+    if name == 0 as ref char { return true }
+    val is_mut: i64 = scope_lookup(ctx, name)
+    val is_ref: i64 = scope_lookup_is_ref(ctx, name)
+    if is_mut == 0 && is_ref == 0 {
+        val ebuf: ref char = @alloc(512) as ref char
+        @snprintf(ebuf, 512, "{s}:{lld}: cannot mutate immutable variable '{s}'", {filename, line, name})
+        add_error(ctx, ebuf)
+        return false
+    }
+    return true
+}
+
+
 /// Checks if a field named field_name is mutable in the typedef named type_name.
 /// Returns 1 if mutable, 0 if immutable, -1 if not found.
 fn find_field_mutable(ctx: ref SemaCtx, type_name: ref char, field_name: ref char) i64! = {
@@ -1378,7 +1392,9 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref char) v
                                     if param_is_ref {
                                         val root_node: ref parser.Node = unwrap_and_find_root(arg_node)
                                         if root_node != 0 as ref parser.Node {
-                                            mark_name_mutated(ctx, root_node.d0 as ref char)
+                                            val aname: ref char = root_node.d0 as ref char
+                                            mark_name_mutated(ctx, aname)
+                                            check_is_mutable(ctx, aname, filename, line)
                                         }
                                     }
                                 }
@@ -1521,13 +1537,7 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref char) v
                         val root_node: ref parser.Node = unwrap_and_find_root(btarget)
                         if root_node != 0 as ref parser.Node {
                             val vname: ref char = root_node.d0 as ref char
-                            val is_mut: i64 = scope_lookup(ctx, vname)
-                            val is_ref: i64 = scope_lookup_is_ref(ctx, vname)
-                            if is_mut != -1 && is_mut == 0 && is_ref == 0 {
-                                val ebuf: ref char = @alloc(512) as ref char
-                                @snprintf(ebuf, 512, "{s}:{lld}: cannot pass immutable value '{s}' to mutating builtin '@{s}'", {filename, line, vname, bname})
-                                add_error(ctx, ebuf)
-                            }
+                            check_is_mutable(ctx, vname, filename, line)
                             mark_name_mutated(ctx, vname)
                         }
                     }
@@ -1558,21 +1568,32 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref char) v
         }
         return
     }
-    if k == parser.NK_CAST || k == parser.NK_DEREF {
+    if k == parser.NK_CAST {
         check_expr(ctx, expr.d0 as ref parser.Node, filename)
+        return
+    }
+    if k == parser.NK_DEREF {
+        val dinner: ref parser.Node = expr.d0 as ref parser.Node
+        check_expr(ctx, dinner, filename)
+        if dinner != 0 as ref parser.Node {
+            val root: ref parser.Node = unwrap_and_find_root(dinner)
+            if root != 0 as ref parser.Node && root.kind == parser.NK_IDENT {
+                val dname: ref char = root.d0 as ref char
+                mark_name_mutated(ctx, dname)
+                check_is_mutable(ctx, dname, filename, line)
+            }
+        }
         return
     }
     if k == parser.NK_ADDR {
         val inner: ref parser.Node = expr.d0 as ref parser.Node
         check_expr(ctx, inner, filename)
         if inner != 0 as ref parser.Node {
-            if inner.kind == parser.NK_IDENT {
-                mark_name_mutated(ctx, inner.d0 as ref char)
-            } elif inner.kind == parser.NK_FIELD {
-                val root: ref parser.Node = find_root_ident(inner)
-                if root != 0 as ref parser.Node {
-                    mark_name_mutated(ctx, root.d0 as ref char)
-                }
+            val root: ref parser.Node = unwrap_and_find_root(inner)
+            if root != 0 as ref parser.Node && root.kind == parser.NK_IDENT {
+                val aname: ref char = root.d0 as ref char
+                check_is_mutable(ctx, aname, filename, line)
+                mark_name_mutated(ctx, aname)
             }
         }
         return
@@ -1854,11 +1875,7 @@ fn check_stmt(ctx: ref SemaCtx, stmt: ref parser.Node, filename: ref char) void!
         if target.kind == parser.NK_IDENT {
             val tname: ref char = target.d0 as ref char
             mark_name_mutated(ctx, tname)
-            if scope_lookup(ctx, tname) == 0 {
-                val buf: ref char = @alloc(256) as ref char
-                @snprintf(buf, 256, "{s}:{lld}: cannot assign to immutable '{s}'", {filename, line, tname})
-                add_error(ctx, buf)
-            }
+            check_is_mutable(ctx, tname, filename, line)
         } elif target.kind == parser.NK_FIELD {
             val root: ref parser.Node = find_root_ident(target)
             if root != 0 as ref parser.Node {
@@ -2180,11 +2197,7 @@ fn check_stmt(ctx: ref SemaCtx, stmt: ref parser.Node, filename: ref char) void!
         if target2.kind == parser.NK_IDENT {
             val tname2: ref char = target2.d0 as ref char
             mark_name_mutated(ctx, tname2)
-            if scope_lookup(ctx, tname2) == 0 {
-                val buf2: ref char = @alloc(256) as ref char
-                @snprintf(buf2, 256, "{s}:{lld}: cannot mutate immutable '{s}'", {filename, line, tname2})
-                add_error(ctx, buf2)
-            }
+            check_is_mutable(ctx, tname2, filename, line)
         } elif target2.kind == parser.NK_FIELD {
             val root2: ref parser.Node = find_root_ident(target2)
             if root2 != 0 as ref parser.Node {
@@ -2218,11 +2231,7 @@ fn check_stmt(ctx: ref SemaCtx, stmt: ref parser.Node, filename: ref char) void!
         if target3.kind == parser.NK_IDENT {
             val tname3: ref char = target3.d0 as ref char
             mark_name_mutated(ctx, tname3)
-            if scope_lookup(ctx, tname3) == 0 {
-                val buf3: ref char = @alloc(256) as ref char
-                @snprintf(buf3, 256, "{s}:{lld}: cannot mutate immutable '{s}'", {filename, line, tname3})
-                add_error(ctx, buf3)
-            }
+            check_is_mutable(ctx, tname3, filename, line)
         } elif target3.kind == parser.NK_FIELD {
             val root3: ref parser.Node = find_root_ident(target3)
             if root3 != 0 as ref parser.Node {
