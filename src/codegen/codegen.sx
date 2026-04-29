@@ -4648,7 +4648,16 @@ fn gen_unop(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
             @snprintf(buf, 128, "    %%t{lld} =l neg {s}\n", {tmp, inner})
         }
     } elif op == parser.UOP_BNOT {
-        @snprintf(buf, 128, "    %%t{lld} =l xor {s}, -1\n", {tmp, inner})
+        if str.rchar_cmp(inner_qt, "w") == 0 {
+            val ext_tmp: i64 = fresh_tmp(ctx)
+            val ext_buf: ref char = @alloc(64) as ref char
+            @snprintf(ext_buf, 64, "    %%t{lld} =l extsw {s}\n", {ext_tmp, inner})
+            emit(ctx, ext_buf)
+            @free(ext_buf)
+            @snprintf(buf, 128, "    %%t{lld} =l xor %%t{lld}, -1\n", {tmp, ext_tmp})
+        } else {
+            @snprintf(buf, 128, "    %%t{lld} =l xor {s}, -1\n", {tmp, inner})
+        }
     } else {
         @snprintf(buf, 128, "    %%t{lld} =l copy 0\n", {tmp})
     }
