@@ -37,7 +37,7 @@ pub fn select_alt_compiler(requested: ref char) ref char = {
     if is_compiler_available("gcc") {
         return "gcc"
     }
-    return "clang"
+    return "cc"
 }
 
 pub fn parse_alt_compiler_arg(arg: ref char) ref char = {
