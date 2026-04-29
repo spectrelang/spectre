@@ -39,7 +39,33 @@ fn sema_new() ref SemaCtx! = {
 }
 
 fn add_error(ctx: ref SemaCtx, msg: ref char) void! = {
+    for existing in ctx.errors {
+        if std.string.compare(std.string.RChar(existing as ref char), std.string.RChar(msg)) == 0 { return }
+    }
     @append(ctx.errors, msg)
+}
+
+fn normalize_path(path: ref char) ref char! = {
+    if path == 0 as ref char { return path }
+    val sb: ref void = std.string.StringBuilder.new()
+    val len: i64 = std.string.len_raw(path)
+    val prev_slash: mut bool = false
+    val i: mut i64 = 0
+    for {
+        if i >= len { break }
+        val c: i64 = @load8(@ptradd(path as ref void, i)) as i64
+        if c == 47 {
+            if !prev_slash { std.string.StringBuilder.append_char(sb, 47) }
+            prev_slash = true
+        } else {
+            std.string.StringBuilder.append_char(sb, c)
+            prev_slash = false
+        }
+        i++
+    }
+    val built: ref void = std.string.StringBuilder.build(sb)
+    std.string.StringBuilder.free(sb)
+    return std.string.cstr(built)
 }
 
 fn is_known_builtin(name: ref char) bool! = {
@@ -2594,7 +2620,7 @@ fn check_module_rec(mod: ref modinfo.ResolvedModule, all_errors: mut list[ref ch
         i++
     }
 
-    val fname: ref char = modinfo.module_filename(mod)
+    val fname: ref char = normalize_path(modinfo.module_filename(mod))
     val items: list[ref parser.Node] = modinfo.module_items(mod)
     val errors: list[ref char] = check_module(items, fname, mod, quiet)
     for e in errors {
