@@ -1326,7 +1326,7 @@ fn render_overview_page(markdown: bool, modules: list[ref DocModule], output_pat
     }
     val sb2 = std.string.StringBuilder.new()
     std.string.StringBuilder.append_cstr(sb2,
-        \\"<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><title>Docs</title>
+        \\<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><title>Docs</title>
         \\<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">
         \\<link rel=\"preconnect\" href=\"https://fonts.googleapis.com\">
         \\<link href=\"https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap\" rel=\"stylesheet\">
