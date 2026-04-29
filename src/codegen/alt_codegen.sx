@@ -1489,6 +1489,8 @@ fn cc_infer_call_ret_ty(ctx: mut ref CCtx, callee: ref parser.Node) ref parser.N
         val base_name: ref char = cc_generic_callee_base_name(gi_base)
         val gfn_node: ref parser.Node = cc_lookup_generic_fn(ctx, base_name)
         if gfn_node == 0 as ref parser.Node { return 0 as ref parser.Node }
+        val resolved_targs: mut list[ref parser.Node] = []
+        for ta in gi_targs { @append(resolved_targs, cc_concrete_ty(ctx, ta as ref parser.Node)) }
         val old_gsubst_names: list[ref char] = ctx.gsubst_names
         val old_gsubst_tnodes: list[ref void] = ctx.gsubst_tnodes
         ctx.gsubst_names = []
@@ -1500,7 +1502,7 @@ fn cc_infer_call_ret_ty(ctx: mut ref CCtx, callee: ref parser.Node) ref parser.N
             for {
                 if pi >= nparms { break }
                 val pn_opt = @get(tparams as list[ref char], pi as usize)
-                val ta_opt = @get(gi_targs, pi as usize)
+                val ta_opt = @get(resolved_targs, pi as usize)
                 match pn_opt {
                     some pn => {
                         match ta_opt {
@@ -2028,7 +2030,9 @@ fn gen_call(ctx: mut ref CCtx, expr: ref parser.Node) ref char! = {
         val gfn_node: ref parser.Node = cc_lookup_generic_fn(ctx, base_name)
         val mono_base: mut ref char = 0 as ref char
         if gfn_node != 0 as ref parser.Node {
-            mono_base = cc_monomorphize_generic_fn(ctx, gfn_node, "", gi_targs)
+            val resolved_targs: mut list[ref parser.Node] = []
+            for ta in gi_targs { @append(resolved_targs, cc_concrete_ty(ctx, ta as ref parser.Node)) }
+            mono_base = cc_monomorphize_generic_fn(ctx, gfn_node, "", resolved_targs)
         }
         if mono_base == 0 as ref char { mono_base = base_name }
         val c_mangled: ref char = @alloc(1024) as ref char
