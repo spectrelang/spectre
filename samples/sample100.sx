@@ -1,0 +1,8 @@
+link "-lSDL2"
+
+extern "SDL.h"
+
+pub fn main() void = {
+   @puts("linked.") 
+}
+
