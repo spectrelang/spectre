@@ -2068,10 +2068,19 @@ fn check_fn(ctx: mut ref SemaCtx, fn_node: ref parser.Node, filename: ref char) 
 
     val fn_name: ref char = fn_node.d2 as ref char
     val fn_ns: ref char = fn_node.d1 as ref char
-    if fn_name != 0 as ref char && fn_ns == 0 as ref char && str_eq(fn_name, "main") && fn_node.d0 != 1 {
-        val buf: ref char = @alloc(256) as ref char
-        @snprintf(buf, 256, "{s}:{lld}: main must be public.", {filename, fn_node.line})
-        add_error(ctx, buf)
+    val params: ref void = fn_node.d3 as ref void
+    if fn_name != 0 as ref char && fn_ns == 0 as ref char && str_eq(fn_name, "main") {
+        if fn_node.d0 != 1 {
+            val buf: ref char = @alloc(256) as ref char
+            @snprintf(buf, 256, "{s}:{lld}: main must be public.", {filename, fn_node.line})
+            add_error(ctx, buf)
+        }
+
+        if params != 0 as ref void && @len(params) > 0 {
+            val buf2: ref char = @alloc(256) as ref char
+            @snprintf(buf2, 256, "{s}:{lld}: main must not take any arguments.", {filename, fn_node.line})
+            add_error(ctx, buf2)
+        }
     }
 
     val is_unsafe: mut i64 = 0
@@ -2080,7 +2089,6 @@ fn check_fn(ctx: mut ref SemaCtx, fn_node: ref parser.Node, filename: ref char) 
     ctx.in_unsafe_fn = is_unsafe
     
     push_scope(ctx)
-    val params: ref void = fn_node.d3 as ref void
     if params != 0 as ref void {
         for param in params as list[ref parser.Node] {
             val pname: ref char = param.d0 as ref char
