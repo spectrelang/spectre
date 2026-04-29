@@ -739,7 +739,7 @@ fn render_entry_details_html(sb: ref void, entry: ref DocEntry) void! = {
 }
 
 fn render_entry_html(sb: ref void, entry: ref DocEntry) void! = {
-    std.string.StringBuilder.append_cstr(sb, @fmt("<section class=\"entry\" id=\"{s}\">", {entry.anchor}))
+    std.string.StringBuilder.append_cstr(sb, @fmt("<section class=\"entry\" id=\"{s}\" data-name=\"{s}\">", {entry.anchor, html_escape(entry.name)}))
     std.string.StringBuilder.append_cstr(sb, @fmt("<h3>{s}</h3>", {html_escape(entry.name)}))
     if !str_eq(entry.availability, "") {
         std.string.StringBuilder.append_cstr(sb, @fmt("<div class=\"badge\">{s}</div>", {html_escape(entry.availability)}))
@@ -750,15 +750,6 @@ fn render_entry_html(sb: ref void, entry: ref DocEntry) void! = {
     append_doc_html(sb, entry.docs)
     render_entry_details_html(sb, entry)
     std.string.StringBuilder.append_cstr(sb, "</section>")
-}
-
-fn render_toc_html(sb: ref void, module: ref DocModule) void! = {
-    if @len(module.entries) as i64 == 0 { return }
-    std.string.StringBuilder.append_cstr(sb, "<section class=\"toc\"><h2>On this page</h2><ul>")
-    for entry in module.entries {
-        std.string.StringBuilder.append_cstr(sb, @fmt("<li><a href=\"#{s}\">{s}</a></li>", {entry.anchor, html_escape(entry.name)}))
-    }
-    std.string.StringBuilder.append_cstr(sb, "</ul></section>")
 }
 
 fn depth_prefix(output_path: ref char) ref char! = {
@@ -785,42 +776,133 @@ fn href_from(current_output: ref char, target_output: ref char) ref char! = {
 }
 
 fn append_nav_html(sb: ref void, modules: list[ref DocModule], current: ref DocModule) void! = {
-    std.string.StringBuilder.append_cstr(sb, "<nav class=\"sidebar\"><h2>Modules</h2><ul>")
-    for mod in modules {
-        val cls: mut ref char = ""
-        if str_eq(mod.rel_path, current.rel_path) { cls = " class=\"active\"" }
-        std.string.StringBuilder.append_cstr(sb, @fmt("<li{s}><a href=\"{s}\">{s}</a></li>", {
-            cls,
-            href_from(current.output_path, mod.output_path),
-            html_escape(safe_cstr(mod.module_name))
-        }))
+    if @len(modules) as i64 > 1 {
+        std.string.StringBuilder.append_cstr(sb, "<div class=\"nav-section\"><span class=\"nav-label\">Modules</span>")
+        for mod in modules {
+            val cls: mut ref char = "nav-item"
+            if str_eq(mod.rel_path, current.rel_path) { cls = "nav-item active" }
+            std.string.StringBuilder.append_cstr(sb, @fmt("<a class=\"{s}\" href=\"{s}\">{s}</a>", {
+                cls,
+                href_from(current.output_path, mod.output_path),
+                html_escape(safe_cstr(mod.module_name))
+            }))
+        }
+        std.string.StringBuilder.append_cstr(sb, "</div>")
     }
-    std.string.StringBuilder.append_cstr(sb, "</ul></nav>")
+    if @len(current.entries) as i64 > 0 {
+        std.string.StringBuilder.append_cstr(sb, "<div class=\"nav-section\"><span class=\"nav-label\">On this page</span>")
+        for entry in current.entries {
+            std.string.StringBuilder.append_cstr(sb, @fmt("<a class=\"nav-item\" href=\"#{s}\" data-name=\"{s}\">{s}</a>", {
+                entry.anchor,
+                html_escape(entry.name),
+                html_escape(entry.name)
+            }))
+        }
+        std.string.StringBuilder.append_cstr(sb, "</div>")
+    }
 }
 
 fn render_module_page_html(module: ref DocModule, modules: list[ref DocModule]) ref char! = {
     val sb: ref void = std.string.StringBuilder.new()
-    std.string.StringBuilder.append_cstr(sb, "<!doctype html><html><head><meta charset=\"utf-8\">")
-    std.string.StringBuilder.append_cstr(sb, @fmt("<title>{s} - Spectre Docs</title>", {html_escape(safe_cstr(module.module_name))}))
-    std.string.StringBuilder.append_cstr(sb, "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">")
-    std.string.StringBuilder.append_cstr(sb, "<style>body{margin:0;font-family:Inter,system-ui,sans-serif;background:#0b1020;color:#e5e7eb;}a{color:#8ab4ff;text-decoration:none}a:hover{text-decoration:underline}.layout{display:grid;grid-template-columns:280px 1fr;min-height:100vh}.sidebar{padding:24px;border-right:1px solid #1f2937;background:#111827}.sidebar h2,.content h1,.content h2,.content h3,.content h4{margin-top:0}.sidebar ul,.toc ul,.details{padding-left:18px}.sidebar li{margin:8px 0}.sidebar li.active a{font-weight:700;color:#fff}.content{padding:32px;max-width:1100px}.hero{margin-bottom:24px}.hero p{color:#9ca3af}.toc,.entry{background:#111827;border:1px solid #1f2937;border-radius:16px;padding:20px;margin-bottom:20px}.badge{display:inline-block;padding:4px 10px;border-radius:999px;background:#1f2937;color:#cbd5e1;font-size:12px;margin-bottom:12px}pre{overflow:auto;background:#0f172a;border-radius:12px;padding:16px;border:1px solid #1f2937}.docs p{line-height:1.7;color:#d1d5db}.details li{margin:6px 0}@media (max-width:900px){.layout{grid-template-columns:1fr}.sidebar{border-right:none;border-bottom:1px solid #1f2937}}</style>")
-    std.string.StringBuilder.append_cstr(sb, "</head><body><div class=\"layout\">")
-    if @len(modules) as i64 > 1 {
-        append_nav_html(sb, modules, module)
-    }
-    std.string.StringBuilder.append_cstr(sb, "<main class=\"content\">")
-    std.string.StringBuilder.append_cstr(sb, @fmt("<section class=\"hero\"><h1>{s}</h1><p>Source: <code>{s}</code></p></section>", {
+    std.string.StringBuilder.append_cstr(sb, "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\">")
+    std.string.StringBuilder.append_cstr(sb, @fmt("<title>{s} - Docs</title>", {html_escape(safe_cstr(module.module_name))}))
+    std.string.StringBuilder.append_cstr(sb, "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><style>")
+    std.string.StringBuilder.append_cstr(sb, \\*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+        \\body{font-family:Inter,system-ui,-apple-system,sans-serif;background:#030b1a;color:#b8c9e0;font-size:15px;line-height:1.65;overflow-x:hidden}
+        \\a{color:#5ba3f5;text-decoration:none}
+        \\a:hover{color:#82bfff;text-decoration:underline}
+        \\.page{display:flex;min-height:100vh}
+        \\.sidebar{position:fixed;top:0;left:0;bottom:0;width:260px;background:#050e22;border-right:1px solid #0f2040;display:flex;flex-direction:column;transition:transform .3s cubic-bezier(.4,0,.2,1);z-index:100;overflow:hidden}
+        \\.sidebar.collapsed{transform:translateX(-260px)}
+        \\.sb-head{padding:18px 16px 14px;border-bottom:1px solid #0f2040;flex-shrink:0;display:flex;align-items:center;gap:8px}
+        \\.sb-logo{width:22px;height:22px;background:linear-gradient(135deg,#1a4a9e,#3b82f6);border-radius:6px;flex-shrink:0}
+        \\.sb-title{font-size:13px;font-weight:700;color:#e0ecff;letter-spacing:.01em}
+        \\.sb-search{padding:10px 12px;border-bottom:1px solid #0f2040;flex-shrink:0;position:relative}
+        \\.sb-search-icon{position:absolute;left:22px;top:50%;transform:translateY(-50%);color:#2e4a6e;pointer-events:none}
+        \\.sb-input{width:100%;padding:7px 8px 7px 30px;background:#020c1e;border:1px solid #0f2040;border-radius:8px;color:#b8c9e0;font-size:13px;font-family:inherit;outline:none;transition:border-color .15s}
+        \\.sb-input:focus{border-color:#1e4a8a;background:#030f1f}
+        \\.sb-input::placeholder{color:#233650}
+        \\.sb-nav{overflow-y:auto;flex:1;padding:8px 8px 20px}
+        \\.nav-section{margin-bottom:16px}
+        \\.nav-label{display:block;font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#1e3d6e;padding:6px 10px 5px}
+        \\.nav-item{display:block;padding:5px 10px;border-radius:6px;color:#6a8aaa;font-size:13px;transition:background .12s,color .12s;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+        \\.nav-item:hover{background:#0a1f42;color:#c0d4ee;text-decoration:none}
+        \\.nav-item.active{background:#0d2a5e;color:#82bfff;font-weight:600}
+        \\.nav-item.hidden{display:none}
+        \\.toggle{position:fixed;top:14px;z-index:200;width:32px;height:32px;background:#050e22;border:1px solid #0f2040;border-radius:7px;color:#4a8fd4;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:15px;line-height:1;padding:0;transition:left .3s cubic-bezier(.4,0,.2,1),background .15s,color .15s;left:14px}
+        \\.toggle:hover{background:#0a1f42;color:#82bfff}
+        \\.toggle.sb-open{left:272px}
+        \\.content{margin-left:260px;padding:50px 56px;flex:1;max-width:1000px;transition:margin-left .3s cubic-bezier(.4,0,.2,1)}
+        \\.content.sb-closed{margin-left:0}
+        \\.hero{margin-bottom:36px;padding-bottom:26px;border-bottom:1px solid #0f2040}
+        \\.hero h1{font-size:25px;font-weight:700;color:#e0ecff;margin-bottom:5px}
+        \\.hero p{color:#2e4a6e;font-size:13px}
+        \\.hero code{background:#071428;padding:2px 6px;border-radius:4px;color:#5ba3f5;font-size:12px;font-family:'JetBrains Mono','Fira Code',monospace}
+        \\.entry{background:#050e22;border:1px solid #0f2040;border-radius:12px;padding:24px 28px;margin-bottom:16px;transition:border-color .2s;scroll-margin-top:20px}
+        \\.entry:hover{border-color:#1a4080}
+        \\.entry.s-hide{display:none}
+        \\.entry h3{font-size:16px;font-weight:600;color:#d8e8ff;margin-bottom:12px}
+        \\.badge{display:inline-flex;align-items:center;padding:3px 10px;border-radius:999px;background:#071428;color:#5ba3f5;font-size:11px;font-weight:600;letter-spacing:.04em;margin-bottom:12px;border:1px solid #0c2550}
+        \\pre{overflow:auto;background:#020c1e;border-radius:8px;padding:14px 16px;border:1px solid #0f2040;margin:0 0 14px}
+        \\code{font-family:'JetBrains Mono','Fira Code','Cascadia Code',monospace;font-size:12.5px;color:#7ab8f5}
+        \\.docs p{line-height:1.8;color:#6a8aaa;margin-bottom:8px}
+        \\h4{font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#1e3d6e;margin:16px 0 7px}
+        \\.details{list-style:none;padding:0}
+        \\.details li{margin:4px 0;font-size:13px}
+        \\.details li code{background:#071428;padding:2px 5px;border-radius:4px}
+        \\@media(max-width:900px){.sidebar{transform:translateX(-260px)}.sidebar.sb-open-m{transform:translateX(0)}.content{margin-left:0;padding:28px 18px}.toggle{left:14px}.toggle.sb-open{left:272px}}
+    )
+    std.string.StringBuilder.append_cstr(sb, "</style></head><body>")
+    std.string.StringBuilder.append_cstr(sb, "<button class=\"toggle\" id=\"toggle\" aria-label=\"Toggle sidebar\">&#9776;</button>")
+    std.string.StringBuilder.append_cstr(sb, "<div class=\"page\">")
+    std.string.StringBuilder.append_cstr(sb, "<aside class=\"sidebar\" id=\"sidebar\">")
+    std.string.StringBuilder.append_cstr(sb, "<div class=\"sb-head\"><div class=\"sb-logo\"></div><span class=\"sb-title\">Docs</span></div>")
+    std.string.StringBuilder.append_cstr(sb, "<div class=\"sb-search\"><svg class=\"sb-search-icon\" width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"11\" cy=\"11\" r=\"8\"/><line x1=\"21\" y1=\"21\" x2=\"16.65\" y2=\"16.65\"/></svg><input class=\"sb-input\" id=\"search\" type=\"search\" placeholder=\"Search... (/)\" autocomplete=\"off\" spellcheck=\"false\"/></div>")
+    std.string.StringBuilder.append_cstr(sb, "<nav class=\"sb-nav\" id=\"sb-nav\">")
+    append_nav_html(sb, modules, module)
+    std.string.StringBuilder.append_cstr(sb, "</nav></aside>")
+    std.string.StringBuilder.append_cstr(sb, "<main class=\"content\" id=\"content\">")
+    std.string.StringBuilder.append_cstr(sb, @fmt("<div class=\"hero\"><h1>{s}</h1><p>Source: <code>{s}</code></p></div>", {
         html_escape(safe_cstr(module.module_name)),
         html_escape(safe_cstr(module.rel_path))
     }))
-    render_toc_html(sb, module)
     for entry in module.entries {
         render_entry_html(sb, entry)
     }
     if @len(module.entries) as i64 == 0 {
-        std.string.StringBuilder.append_cstr(sb, "<section class=\"entry\"><p>No top-level documented functions or types were found in this module.</p></section>")
+        std.string.StringBuilder.append_cstr(sb, "<div class=\"entry\"><p>No documented items found in this module.</p></div>")
     }
-    std.string.StringBuilder.append_cstr(sb, "</main></div></body></html>")
+    std.string.StringBuilder.append_cstr(sb, "</main></div><script>")
+    std.string.StringBuilder.append_cstr(sb, \\(function(){
+        \\var sb=document.getElementById('sidebar');
+        \\var btn=document.getElementById('toggle');
+        \\var ct=document.getElementById('content');
+        \\var isOpen=localStorage.getItem('sb-open')!=='0';
+        \\function setSidebar(open,animate){
+        \\  if(!animate){sb.style.transition='none';btn.style.transition='none';ct.style.transition='none';}
+        \\  if(open){sb.classList.remove('collapsed');ct.classList.remove('sb-closed');btn.classList.add('sb-open');}
+        \\  else{sb.classList.add('collapsed');ct.classList.add('sb-closed');btn.classList.remove('sb-open');}
+        \\  if(!animate){void sb.offsetWidth;sb.style.transition='';btn.style.transition='';ct.style.transition='';}
+        \\  isOpen=open;
+        \\  localStorage.setItem('sb-open',open?'1':'0');
+        \\}
+        \\setSidebar(isOpen,false);
+        \\btn.addEventListener('click',function(){setSidebar(!isOpen,true);});
+        \\var inp=document.getElementById('search');
+        \\inp.addEventListener('input',function(){
+        \\  var q=this.value.toLowerCase().trim();
+        \\  var links=sb.querySelectorAll('.nav-item[data-name]');
+        \\  for(var i=0;i<links.length;i++){var l=links[i];l.classList.toggle('hidden',q!==''&&l.dataset.name.toLowerCase().indexOf(q)===-1);}
+        \\  var cards=ct.querySelectorAll('.entry[data-name]');
+        \\  for(var j=0;j<cards.length;j++){var c=cards[j];c.classList.toggle('s-hide',q!==''&&c.dataset.name.toLowerCase().indexOf(q)===-1);}
+        \\});
+        \\document.addEventListener('keydown',function(e){
+        \\  if(e.key==='/'&&document.activeElement!==inp){e.preventDefault();if(!isOpen)setSidebar(true,true);inp.focus();}
+        \\  if(e.key==='Escape'&&document.activeElement===inp){inp.blur();}
+        \\});
+        \\})();
+    )
+    std.string.StringBuilder.append_cstr(sb, "</script></body></html>")
     val built = std.string.StringBuilder.build(sb)
     std.string.StringBuilder.free(sb)
     return std.string.cstr(built)
@@ -878,7 +960,11 @@ fn render_module_page_md(module: ref DocModule, modules: list[ref DocModule]) re
         std.string.StringBuilder.append_cstr(sb, "\n")
     }
     for entry in module.entries {
-        std.string.StringBuilder.append_cstr(sb, @fmt("## {s} {{#{s}}}\n\n", {entry.name, entry.anchor}))
+        std.string.StringBuilder.append_cstr(sb, "## ")
+        std.string.StringBuilder.append_cstr(sb, entry.name)
+        std.string.StringBuilder.append_cstr(sb, " {#")
+        std.string.StringBuilder.append_cstr(sb, entry.anchor)
+        std.string.StringBuilder.append_cstr(sb, "}\n\n")
         if !str_eq(entry.availability, "") {
             std.string.StringBuilder.append_cstr(sb, @fmt("Availability: `{s}`\n\n", {entry.availability}))
         }
@@ -903,7 +989,7 @@ fn render_module_page_md(module: ref DocModule, modules: list[ref DocModule]) re
 fn render_overview_page(markdown: bool, modules: list[ref DocModule], output_path: ref char) ref char! = {
     if markdown {
         val sb = std.string.StringBuilder.new()
-        std.string.StringBuilder.append_cstr(sb, "# Spectre Docs\n\n## Modules\n\n")
+        std.string.StringBuilder.append_cstr(sb, "# Docs\n\n## Modules\n\n")
         for mod in modules {
             std.string.StringBuilder.append_cstr(sb, @fmt("- [{s}]({s})\n", {mod.module_name, href_from(output_path, mod.output_path)}))
         }
@@ -912,7 +998,7 @@ fn render_overview_page(markdown: bool, modules: list[ref DocModule], output_pat
         return std.string.cstr(built)
     }
     val sb2 = std.string.StringBuilder.new()
-    std.string.StringBuilder.append_cstr(sb2, "<!doctype html><html><head><meta charset=\"utf-8\"><title>Spectre Docs</title><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><style>body{font-family:Inter,system-ui,sans-serif;background:#0b1020;color:#e5e7eb;padding:32px}a{color:#8ab4ff}.card{max-width:960px;margin:0 auto;background:#111827;border:1px solid #1f2937;border-radius:20px;padding:24px}li{margin:8px 0}</style></head><body><div class=\"card\"><h1>Spectre Docs</h1><p>Select a module:</p><ul>")
+    std.string.StringBuilder.append_cstr(sb2, "<!doctype html><html><head><meta charset=\"utf-8\"><title>Docs</title><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><style>*{box-sizing:border-box}body{margin:0;font-family:Inter,system-ui,sans-serif;background:#030b1a;color:#b8c9e0;display:flex;align-items:flex-start;justify-content:center;padding:56px 24px;min-height:100vh}a{color:#5ba3f5;text-decoration:none}a:hover{color:#82bfff;text-decoration:underline}.card{width:100%;max-width:640px;background:#050e22;border:1px solid #0f2040;border-radius:16px;padding:36px 40px}.card h1{margin:0 0 6px;font-size:26px;font-weight:700;color:#e0ecff}.card>.sub{color:#3d6290;margin:0 0 28px;font-size:13px}ul{padding:0;list-style:none;margin:0}li{margin:4px 0}li a{font-size:14.5px;display:block;padding:8px 12px;border-radius:8px;transition:background .12s}li a:hover{background:#0a1f42;text-decoration:none}</style></head><body><div class=\"card\"><h1>Docs</h1><p class=\"sub\">Select a module:</p><ul>")
     for mod in modules {
         std.string.StringBuilder.append_cstr(sb2, @fmt("<li><a href=\"{s}\">{s}</a></li>", {href_from(output_path, mod.output_path), html_escape(mod.module_name)}))
     }
@@ -1032,8 +1118,8 @@ test {
         \\fn greet() void = {}
         \\type Point = { x: i64 }
     )
-    assert(trust lookup_doc(docs, 3) == "hello\nworld")
-    assert(trust lookup_doc(docs, 4) == "")
+    assert(str_eq(trust lookup_doc(docs, 3), "hello\nworld"))
+    assert(str_eq(trust lookup_doc(docs, 4), ""))
 
     assert(str_eq(trust slugify("Hello.World"), "hello-world"))
     assert(str_eq(trust strip_sx_ext("src/meta/docs.sx"), "src/meta/docs"))
