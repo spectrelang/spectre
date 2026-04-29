@@ -2,6 +2,8 @@
 *.js
 /target
 /s-out
+/docs-out
+out
 .DS_Store
 spectre-dev
 .q*
