@@ -109,13 +109,13 @@ echo
 echo "Bootstrap test:"
 
 ((total++))
-"$COMPILER" ./src/sxc.sx -o sxc2 --alt=clang -l || { echo "[FAIL] stage1"; ((failed++)); exit 1; }
+"$COMPILER" ./src/sxc.sx -o sxc2 --alt -l || { echo "[FAIL] stage1"; ((failed++)); exit 1; }
 
 ((total++))
-./sxc2 ./src/sxc.sx -o sxc3 --alt=clang -l || { echo "[FAIL] stage2"; ((failed++)); exit 1; }
+./sxc2 ./src/sxc.sx -o sxc3 --alt -l || { echo "[FAIL] stage2"; ((failed++)); exit 1; }
 
 ((total++))
-./sxc3 ./src/sxc.sx -o sxc4 --alt=clang -l || { echo "[FAIL] stage3"; ((failed++)); exit 1; }
+./sxc3 ./src/sxc.sx -o sxc4 --alt -l || { echo "[FAIL] stage3"; ((failed++)); exit 1; }
 
 echo "[PASS] bootstrap"
 
