@@ -958,6 +958,105 @@ fn find_import_module(ctx: ref SemaCtx, name: ref char) ref modinfo.ResolvedModu
     return modinfo.find_import_by_name(ctx.root_mod, name)
 }
 
+fn generic_targ_type_compatible(expected: ref char, actual: ref char, arg_node: ref parser.Node) bool! = {
+    if str_eq(expected, actual) { return true }
+    if arg_node.kind == parser.NK_INT_LIT {
+        if str_eq(expected, "i8")  || str_eq(expected, "i16") || str_eq(expected, "i32") ||
+           str_eq(expected, "i64") || str_eq(expected, "u8")  || str_eq(expected, "u16") ||
+           str_eq(expected, "u32") || str_eq(expected, "u64") || str_eq(expected, "usize") ||
+           str_eq(expected, "isize") || str_eq(expected, "bool") { return true }
+    }
+    if arg_node.kind == parser.NK_FLOAT_LIT {
+        if str_eq(expected, "f32") || str_eq(expected, "f64") { return true }
+    }
+    return false
+}
+
+fn check_generic_call_arg_types(ctx: ref SemaCtx, fn_found: ref parser.Node, callee: ref parser.Node,
+                                 cargs: ref void, filename: ref char, line: i64) void! = {
+    if fn_found == 0 as ref parser.Node || fn_found.kind != parser.NK_GENERIC_FN { return }
+    if callee == 0 as ref parser.Node || callee.kind != parser.NK_GENERIC_INST { return }
+    if cargs == 0 as ref void { return }
+    val tparams: ref void = fn_found.d6 as ref void
+    val fn_params: ref void = fn_found.d3 as ref void
+    if tparams == 0 as ref void || fn_params == 0 as ref void { return }
+    val gi_targs: list[ref parser.Node] = parser.generic_inst_type_args(callee)
+    val ntparams: i64 = @len(tparams as list[ref char]) as i64
+    val ntargs: i64 = @len(gi_targs) as i64
+    if ntparams == 0 || ntargs == 0 { return }
+    val nfnparams: i64 = @len(fn_params as list[ref parser.Node]) as i64
+    val nargs: i64 = @len(cargs as list[ref parser.Node]) as i64
+    val min_len: mut i64 = nfnparams
+    if nargs < nfnparams { min_len = nargs }
+    val pi: mut i64 = 0
+    for {
+        if pi >= min_len { break }
+        val param_opt = @get(fn_params as list[ref parser.Node], pi as usize)
+        val arg_opt = @get(cargs as list[ref parser.Node], pi as usize)
+        match param_opt {
+            some param_raw => {
+                match arg_opt {
+                    some arg_raw => {
+                        val param_node: ref parser.Node = param_raw as ref parser.Node
+                        val arg_node: ref parser.Node = arg_raw as ref parser.Node
+                        val pty: ref parser.Node = param_node.d1 as ref parser.Node
+                        val inner_pty: ref parser.Node = unwrap_mut_type(pty)
+                        if inner_pty != 0 as ref parser.Node && inner_pty.kind == parser.TY_NAMED {
+                            val tparam_name: ref char = inner_pty.d0 as ref char
+                            val ti: mut i64 = 0
+                            for {
+                                if ti >= ntparams { break }
+                                val tp_opt = @get(tparams as list[ref char], ti as usize)
+                                match tp_opt {
+                                    some tp => {
+                                        if str_eq(tp as ref char, tparam_name) && ti < ntargs {
+                                            val ta_opt = @get(gi_targs, ti as usize)
+                                            match ta_opt {
+                                                some ta => {
+                                                    val type_arg_node: ref parser.Node = ta as ref parser.Node
+                                                    val expected_tname: ref char = extract_type_name(type_arg_node)
+                                                    val arg_tname: ref char = infer_expr_scope_type_name(ctx, arg_node)
+                                                    val expected_is_tparam: mut bool = false
+                                                    val ck: mut i64 = 0
+                                                    for {
+                                                        if ck >= ntparams { break }
+                                                        val ck_opt = @get(tparams as list[ref char], ck as usize)
+                                                        match ck_opt {
+                                                            some ckn => { if str_eq(ckn as ref char, expected_tname) { expected_is_tparam = true } }
+                                                            none => {}
+                                                        }
+                                                        ck++
+                                                    }
+                                                    if expected_tname != 0 as ref char && !str_eq(expected_tname, "") &&
+                                                       !expected_is_tparam &&
+                                                       arg_tname != 0 as ref char && !str_eq(arg_tname, "") &&
+                                                       !generic_targ_type_compatible(expected_tname, arg_tname, arg_node) {
+                                                        val ebuf: ref char = @alloc(512) as ref char
+                                                        @snprintf(ebuf, 512, "{s}:{lld}: type mismatch in generic call: argument has type '{s}' but type parameter '{s}' is '{s}'",
+                                                            {filename, line, arg_tname, tparam_name, expected_tname})
+                                                        add_error(ctx, ebuf)
+                                                    }
+                                                }
+                                                none => {}
+                                            }
+                                            break
+                                        }
+                                    }
+                                    none => {}
+                                }
+                                ti++
+                            }
+                        }
+                    }
+                    none => {}
+                }
+            }
+            none => {}
+        }
+        pi++
+    }
+}
+
 fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref char) void! = {
     if expr == 0 as ref parser.Node { return }
 
@@ -1265,6 +1364,10 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref char) v
                     idx++
                 }
             }
+        }
+
+        if fn_found != 0 as ref parser.Node && has_explicit_targs {
+            check_generic_call_arg_types(ctx, fn_found, callee, cargs, filename, line)
         }
 
         if fn_found == 0 as ref parser.Node && cargs != 0 as ref void {
