@@ -31,6 +31,7 @@ fn kind_to_name(kind: i64) ref char = {
     elif kind == parser.NK_MATCH_OPT { return "MATCH_OPT" }
     elif kind == parser.NK_MATCH_RES { return "MATCH_RES" }
     elif kind == parser.NK_MATCH_ENUM { return "MATCH_ENUM" }
+    elif kind == parser.NK_MATCH_VALUE { return "MATCH_VALUE" }
     elif kind == parser.NK_MATCH_UNION { return "MATCH_UNION" }
     elif kind == parser.NK_MATCH_STR { return "MATCH_STR" }
     elif kind == parser.NK_WHEN_STMT { return "WHEN_STMT" }
@@ -396,6 +397,45 @@ fn print_match_str_node(node: ref parser.Node, indent: i64, prefix: ref char, ki
     }
 }
 
+fn print_match_value_node(node: ref parser.Node, indent: i64, prefix: ref char, kind_name: ref char) void! = {
+    std.stdio.print("{s}{s}\n", {prefix, kind_name})
+    val expr: ref parser.Node = node.d0 as ref parser.Node
+    val arms: list[ref parser.Node] = node.d1 as list[ref parser.Node]
+    val else_body: ref parser.Node = node.d2 as ref parser.Node
+    val has_arms: bool = arms as i64 != 0 && (@len(arms) as i64) > 0
+    val has_else: bool = else_body as i64 != 0
+    if expr as i64 != 0 {
+        print_node_recursive(expr, indent + 1, !has_arms && !has_else)
+    }
+    if has_arms {
+        val narms: i64 = @len(arms) as i64
+        val i: mut i64 = 0
+        for {
+            if i >= narms { break }
+            val arm_opt = @get(arms, i as usize)
+            match arm_opt {
+                some arm_val => {
+                    val arm: ref parser.Node = arm_val as ref parser.Node
+                    val arm_prefix: ref char = build_prefix(indent + 1, !has_else && i == narms - 1)
+                    std.stdio.print("{s}CASE\n", {arm_prefix})
+                    val pat: ref parser.Node = arm.d0 as ref parser.Node
+                    if pat as i64 != 0 {
+                        print_node_recursive(pat, indent + 2, false)
+                    }
+                    print_list_of_nodes(arm.d1 as list[ref parser.Node], indent + 2, 0)
+                }
+                none => {}
+            }
+            i++
+        }
+    }
+    if has_else {
+        val else_prefix: ref char = build_prefix(indent + 1, true)
+        std.stdio.print("{s}ELSE\n", {else_prefix})
+        print_list_of_nodes(else_body.d0 as list[ref parser.Node], indent + 2, 0)
+    }
+}
+
 fn print_match_union_node(node: ref parser.Node, indent: i64, prefix: ref char, kind_name: ref char) void! = {
     std.stdio.print("{s}{s}\n", {prefix, kind_name})
     val expr: ref parser.Node = node.d0 as ref parser.Node
@@ -538,6 +578,8 @@ fn print_match_nodes(node: ref parser.Node, indent: i64, prefix: ref char, kind_
         print_match_res_node(node, indent, prefix, kind_name)
     } elif kind == parser.NK_MATCH_ENUM {
         print_match_enum_node(node, indent, prefix, kind_name)
+    } elif kind == parser.NK_MATCH_VALUE {
+        print_match_value_node(node, indent, prefix, kind_name)
     } elif kind == parser.NK_MATCH_STR {
         print_match_str_node(node, indent, prefix, kind_name)
     } elif kind == parser.NK_MATCH_UNION {
@@ -806,6 +848,8 @@ fn print_node_recursive(node: ref parser.Node, indent: i64, is_last: bool) void!
     } elif kind == parser.NK_MATCH_RES {
         print_match_nodes(node, indent, prefix, kind_name, kind)
     } elif kind == parser.NK_MATCH_ENUM {
+        print_match_nodes(node, indent, prefix, kind_name, kind)
+    } elif kind == parser.NK_MATCH_VALUE {
         print_match_nodes(node, indent, prefix, kind_name, kind)
     } elif kind == parser.NK_MATCH_STR {
         print_match_nodes(node, indent, prefix, kind_name, kind)

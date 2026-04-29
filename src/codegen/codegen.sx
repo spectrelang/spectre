@@ -2428,6 +2428,18 @@ fn infer_type_annotation(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
     if expr == 0 as ref parser.Node { return "" }
     val k: i64 = expr.kind
 
+    if k == parser.NK_INT_LIT { return "i64" }
+    if k == parser.NK_FLOAT_LIT {
+        if ctx.expected_ty != 0 as ref void {
+            val eqt: ref char = qbe_type_of(ctx.expected_ty as ref parser.Node)
+            if str.rchar_cmp(eqt, "s") == 0 { return "f32" }
+        }
+        return "f64"
+    }
+    if k == parser.NK_BOOL { return "bool" }
+    if k == parser.NK_CHAR_LIT { return "char" }
+    if k == parser.NK_STR_LIT { return "ref char" }
+
     if k == parser.NK_IDENT {
         val name: ref char = expr.d0 as ref char
         val lt: ref char = cg_local_type(ctx, name)
@@ -2519,6 +2531,10 @@ fn infer_type_annotation(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
             return infer_type_annotation(ctx, trust_inner)
         }
         return ""
+    }
+
+    if k == parser.NK_UNOP {
+        return infer_type_annotation(ctx, parser.unop_inner(expr))
     }
 
     if k == parser.NK_DEREF {
@@ -8024,6 +8040,11 @@ fn gen_stmt(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
         return
     }
 
+    if k == parser.NK_MATCH_VALUE {
+        gen_match_value(ctx, stmt)
+        return
+    }
+
     if k == parser.NK_MATCH_STR {
         gen_match_str(ctx, stmt)
         return
@@ -9023,6 +9044,90 @@ fn gen_match_enum(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
         }
         ai++
     }
+    val endbuf: ref char = @alloc(32) as ref char
+    @snprintf(endbuf, 32, "@lbl{lld}\n", {end_lbl})
+    emit(ctx, endbuf)
+    @free(endbuf)
+}
+
+fn gen_match_value(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
+    val expr_node = parser.match_value_expr(stmt)
+    val expr_ann: ref char = infer_type_annotation(ctx, expr_node)
+    val target_qt: ref char = cg_ann_qtype(expr_ann)
+    val expr_qt_raw: ref char = expr_qbe_type(ctx, expr_node)
+    val expr_raw: ref char = gen_expr_with_type(ctx, expr_node, target_qt)
+    val arms = parser.match_value_arms(stmt)
+    val else_body = parser.match_value_else(stmt)
+    val end_lbl: i64 = fresh_lbl(ctx)
+
+    val expr_cmp: mut ref char = expr_raw
+    val expr_cmp_qt: mut ref char = target_qt
+    if str.rchar_cmp(expr_cmp_qt, "") == 0 { expr_cmp_qt = expr_qt_raw }
+    if str.rchar_cmp(expr_cmp_qt, "s") == 0 {
+        val ext_tmp: i64 = fresh_tmp(ctx)
+        val ext_buf: ref char = @alloc(128) as ref char
+        @snprintf(ext_buf, 128, "    %%t{lld} =d exts {s}\n", {ext_tmp, expr_cmp})
+        emit(ctx, ext_buf)
+        @free(ext_buf)
+        expr_cmp = @alloc(32) as ref char
+        @snprintf(expr_cmp, 32, "%%t{lld}", {ext_tmp})
+        expr_cmp_qt = "d"
+    }
+
+    val alen: i64 = @len(arms) as i64
+    if alen > 0 {
+        val ai: mut i64 = 0
+        for {
+            if ai >= alen { break }
+            val arm_opt = @get(arms, ai as usize)
+            match arm_opt {
+                some arm => {
+                    val arm_node: ref parser.Node = arm as ref parser.Node
+                    val pat_node: ref parser.Node = parser.match_value_arm_pattern(arm_node)
+                    val body_lbl: i64 = fresh_lbl(ctx)
+                    val next_lbl: i64 = fresh_lbl(ctx)
+                    val cmp_tmp: i64 = fresh_tmp(ctx)
+                    val pat_raw: ref char = gen_expr_with_type(ctx, pat_node, target_qt)
+                    val pat_cmp: mut ref char = pat_raw
+                    if str.rchar_cmp(expr_cmp_qt, "d") == 0 && str.rchar_cmp(target_qt, "s") == 0 {
+                        val pat_ext_tmp: i64 = fresh_tmp(ctx)
+                        val pat_ext_buf: ref char = @alloc(128) as ref char
+                        @snprintf(pat_ext_buf, 128, "    %%t{lld} =d exts {s}\n", {pat_ext_tmp, pat_cmp})
+                        emit(ctx, pat_ext_buf)
+                        @free(pat_ext_buf)
+                        pat_cmp = @alloc(32) as ref char
+                        @snprintf(pat_cmp, 32, "%%t{lld}", {pat_ext_tmp})
+                    }
+                    val cmp_op: mut ref char = "ceql"
+                    if str.rchar_cmp(expr_cmp_qt, "w") == 0 { cmp_op = "ceqw" }
+                    elif str.rchar_cmp(expr_cmp_qt, "d") == 0 { cmp_op = "ceqd" }
+                    val buf: ref char = @alloc(256) as ref char
+                    @snprintf(buf, 256,
+                        "    %%t{lld} =w {s} {s}, {s}\n    jnz %%t{lld}, @lbl{lld}, @lbl{lld}\n@lbl{lld}\n",
+                        {cmp_tmp, cmp_op, expr_cmp, pat_cmp, cmp_tmp, body_lbl, next_lbl, body_lbl})
+                    emit(ctx, buf)
+                    @free(buf)
+                    val arm_body = parser.match_value_arm_body(arm_node)
+                    gen_stmts(ctx, arm_body as ref parser.Node)
+                    val jbuf: ref char = @alloc(64) as ref char
+                    if !block_ends_with_terminator(arm_body as ref parser.Node) {
+                        @snprintf(jbuf, 64, "    jmp @lbl{lld}\n@lbl{lld}\n", {end_lbl, next_lbl})
+                    } else {
+                        @snprintf(jbuf, 64, "@lbl{lld}\n", {next_lbl})
+                    }
+                    emit(ctx, jbuf)
+                    @free(jbuf)
+                }
+                none => {}
+            }
+            ai++
+        }
+    }
+
+    if else_body != 0 as ref parser.Node {
+        gen_stmts(ctx, else_body.d0 as ref parser.Node)
+    }
+
     val endbuf: ref char = @alloc(32) as ref char
     @snprintf(endbuf, 32, "@lbl{lld}\n", {end_lbl})
     emit(ctx, endbuf)
@@ -10377,6 +10482,34 @@ fn scan_node_for_calls_depth(ctx: ref CgCtx, node: ref parser.Node, depth: i64) 
                 }
                 ai++
             }
+        }
+    } elif k == parser.NK_MATCH_VALUE {
+        val mexprv = parser.match_value_expr(node)
+        if mexprv != 0 as ref parser.Node { scan_node_for_calls_depth(ctx, mexprv, depth + 1) }
+        val varms = parser.match_value_arms(node)
+        val valen: i64 = @len(varms) as i64
+        if valen > 0 {
+            val vai: mut i64 = 0
+            for {
+                if vai >= valen { break }
+                val varm_opt = @get(varms, vai as usize)
+                match varm_opt {
+                    some varm_val => {
+                        val varm: ref parser.Node = varm_val as ref parser.Node
+                        val vpat = parser.match_value_arm_pattern(varm)
+                        if vpat != 0 as ref parser.Node { scan_node_for_calls_depth(ctx, vpat, depth + 1) }
+                        val varm_body = parser.match_value_arm_body(varm)
+                        scan_stmts_for_calls(ctx, varm_body as ref void)
+                    }
+                    none => {}
+                }
+                vai++
+            }
+        }
+        val velse = parser.match_value_else(node)
+        if velse != 0 as ref parser.Node {
+            val velse_stmts: ref void = velse.d0 as ref void
+            if velse_stmts != 0 as ref void { scan_stmts_for_calls(ctx, velse_stmts) }
         }
     } elif k == parser.NK_MATCH_STR {
         val mexpr3 = parser.match_str_expr(node)

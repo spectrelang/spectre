@@ -44,6 +44,7 @@ pub val NK_GENERIC_FN      : i64 = 48
 pub val NK_GENERIC_WHEN    : i64 = 49
 pub val NK_GENERIC_INST    : i64 = 50
 pub val NK_GWHEN_COND      : i64 = 51
+pub val NK_MATCH_VALUE     : i64 = 52
 pub val NK_INT_LIT         : i64 = 60
 pub val NK_FLOAT_LIT       : i64 = 61
 pub val NK_STR_LIT         : i64 = 62
@@ -208,6 +209,12 @@ pub fn match_res_err_body(n: ref Node) ref Node   = { return n.d4 as ref Node } 
 pub fn match_enum_expr(n: ref Node) ref Node               = { return n.d0 as ref Node }
 pub fn match_enum_arms(n: ref Node) list[ref Node]         = { return n.d1 as list[ref Node] }
 pub fn match_enum_arm_body(arm: ref Node) list[ref Node]   = { return arm.d1 as list[ref Node] }
+
+pub fn match_value_expr(n: ref Node) ref Node              = { return n.d0 as ref Node }
+pub fn match_value_arms(n: ref Node) list[ref Node]        = { return n.d1 as list[ref Node] }
+pub fn match_value_else(n: ref Node) ref Node              = { return n.d2 as ref Node }  // wrapper, .d0 = stmts list
+pub fn match_value_arm_pattern(arm: ref Node) ref Node     = { return arm.d0 as ref Node }
+pub fn match_value_arm_body(arm: ref Node) list[ref Node]  = { return arm.d1 as list[ref Node] }
 
 pub fn match_str_expr(n: ref Node) ref Node                = { return n.d0 as ref Node }
 pub fn match_str_arms(n: ref Node) list[ref Node]          = { return n.d1 as list[ref Node] }
@@ -1594,6 +1601,45 @@ fn parse_match_stmt(p: ref Parser, line: i64) result[ref Node, ref char]! = {
         val sal: list[ref Node] = sarms
         nms.d1 = sal as i64 nms.d2 = else_body as i64
         return ok nms
+    }
+
+    if kind_is_int(p_peek_kind(p)) || kind_is_float(p_peek_kind(p)) ||
+       kind_is_true(p_peek_kind(p)) || kind_is_false(p_peek_kind(p)) ||
+       (kind_is_minus(p_peek_kind(p)) && (kind_is_int(p_peek2_kind(p)) || kind_is_float(p_peek2_kind(p)))) {
+        val varms: mut list[ref Node] = []
+        val else_body: mut ref Node = 0 as ref Node
+        for {
+            if lexer.kind_is_rbrace(p_peek_kind(p)) { break }
+            if kind_is_else(p_peek_kind(p)) {
+                p_advance(p)
+                p_expect_fatarrow(p)?
+                p_expect_lbrace(p)?
+                val eb3 = parse_stmts(p)?
+                p_expect_rbrace(p)?
+                val ebl3: list[ref Node] = eb3
+                val ebn3: mut ref Node = make_node(NK_MATCH_VALUE, line)
+                ebn3.d0 = ebl3 as i64
+                else_body = ebn3
+                break
+            }
+            val pat = parse_expr(p)?
+            p_expect_fatarrow(p)?
+            p_expect_lbrace(p)?
+            val vab = parse_stmts(p)?
+            p_expect_rbrace(p)?
+            val varm: mut ref Node = make_node(NK_MATCH_VALUE, pat.line)
+            varm.d0 = pat as i64
+            val vabl: list[ref Node] = vab
+            varm.d1 = vabl as i64
+            @append(varms, varm)
+        }
+        p_expect_rbrace(p)?
+        val nmv: mut ref Node = make_node(NK_MATCH_VALUE, line)
+        nmv.d0 = expr as i64
+        val value: list[ref Node] = varms
+        nmv.d1 = value as i64
+        nmv.d2 = else_body as i64
+        return ok nmv
     }
 
     val uarms: mut list[ref Node] = []

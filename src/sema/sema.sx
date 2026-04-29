@@ -727,6 +727,52 @@ fn fmt_specifier_category(spec: ref char) ref char! = {
     return "unknown"
 }
 
+fn sema_ty_is_ref(ty: ref parser.Node) i64! = {
+    if ty == 0 as ref parser.Node { return 0 }
+    if ty.kind == parser.TY_REF { return 1 }
+    if ty.kind == parser.TY_MUT {
+        val inner: ref parser.Node = ty.d0 as ref parser.Node
+        if inner != 0 as ref parser.Node && inner.kind == parser.TY_REF { return 1 }
+    }
+    return 0
+}
+
+fn infer_expr_scope_type_name(ctx: ref SemaCtx, node: ref parser.Node) ref char! = {
+    if node == 0 as ref parser.Node { return "" }
+    val k: i64 = node.kind
+    if k == parser.NK_INT_LIT  { return "i64" }
+    if k == parser.NK_FLOAT_LIT { return "f64" }
+    if k == parser.NK_BOOL     { return "bool" }
+    if k == parser.NK_CHAR_LIT { return "char" }
+    if k == parser.NK_STR_LIT  { return "char" }
+    if k == parser.NK_IDENT {
+        val tname: ref char = scope_lookup_type(ctx, node.d0 as ref char)
+        if tname != 0 as ref char { return tname }
+        return ""
+    }
+    if k == parser.NK_TRUST {
+        return infer_expr_scope_type_name(ctx, node.d0 as ref parser.Node)
+    }
+    if k == parser.NK_UNOP {
+        return infer_expr_scope_type_name(ctx, parser.unop_inner(node))
+    }
+    if k == parser.NK_CAST {
+        return extract_type_name(node.d1 as ref parser.Node)
+    }
+    return ""
+}
+
+fn infer_expr_scope_is_ref(ctx: ref SemaCtx, node: ref parser.Node) i64! = {
+    if node == 0 as ref parser.Node { return 0 }
+    val k: i64 = node.kind
+    if k == parser.NK_STR_LIT { return 1 }
+    if k == parser.NK_IDENT { return scope_lookup_is_ref(ctx, node.d0 as ref char) }
+    if k == parser.NK_TRUST { return infer_expr_scope_is_ref(ctx, node.d0 as ref parser.Node) }
+    if k == parser.NK_UNOP { return infer_expr_scope_is_ref(ctx, parser.unop_inner(node)) }
+    if k == parser.NK_CAST { return sema_ty_is_ref(node.d1 as ref parser.Node) }
+    return 0
+}
+
 /// Infers a broad type category for an expression node.
 /// Returns "int", "str", "char", "float", "ptr", or "unknown".
 fn get_expr_type_category(ctx: ref SemaCtx, node: ref parser.Node) ref char! = {
@@ -1553,7 +1599,7 @@ fn check_stmt(ctx: ref SemaCtx, stmt: ref parser.Node, filename: ref char) void!
             add_error(ctx, buf)
         } else {
             val ty_node: ref parser.Node = stmt.d2 as ref parser.Node
-            val tname: ref char = extract_type_name(ty_node)
+            val tname: mut ref char = extract_type_name(ty_node)
             val is_ref_flag: mut i64 = 0
             if ty_node != 0 as ref parser.Node {
                 if ty_node.kind == parser.TY_REF {
@@ -1565,8 +1611,14 @@ fn check_stmt(ctx: ref SemaCtx, stmt: ref parser.Node, filename: ref char) void!
                     }
                 }
             }
-            scope_define(ctx, name, mutable, tname, is_ref_flag, line)
             val init_expr: ref parser.Node = stmt.d3 as ref parser.Node
+            if ((tname == 0 as ref char || str_eq(tname, "")) && init_expr != 0 as ref parser.Node) {
+                tname = infer_expr_scope_type_name(ctx, init_expr)
+                if infer_expr_scope_is_ref(ctx, init_expr) != 0 {
+                    is_ref_flag = 1
+                }
+            }
+            scope_define(ctx, name, mutable, tname, is_ref_flag, line)
             if tname != 0 as ref char && init_expr != 0 as ref parser.Node {
                 val init_k: i64 = init_expr.kind
                 val tdef: ref parser.Node = sema_lookup_typedef(ctx, tname)
@@ -1768,6 +1820,45 @@ fn check_stmt(ctx: ref SemaCtx, stmt: ref parser.Node, filename: ref char) void!
             for c in clist as list[ref parser.Node] {
                 check_expr(ctx, c.d1 as ref parser.Node, filename)
             }
+        }
+        return
+    }
+
+    if k == parser.NK_MATCH_VALUE {
+        val match_expr: ref parser.Node = stmt.d0 as ref parser.Node
+        check_expr(ctx, match_expr, filename)
+        val match_ty: ref char = infer_expr_scope_type_name(ctx, match_expr)
+        val match_cat: ref char = get_expr_type_category(ctx, match_expr)
+        val arms: ref void = stmt.d1 as ref void
+        if arms != 0 as ref void {
+            for arm in arms as list[ref parser.Node] {
+                val pat: ref parser.Node = arm.d0 as ref parser.Node
+                check_expr(ctx, pat, filename)
+                val pat_ty: ref char = infer_expr_scope_type_name(ctx, pat)
+                val pat_cat: ref char = get_expr_type_category(ctx, pat)
+                val compatible: mut bool = false
+                if str_eq(match_ty, "bool") {
+                    compatible = str_eq(pat_ty, "bool")
+                } elif str_eq(match_cat, "float") {
+                    compatible = str_eq(pat_cat, "float")
+                } elif str_eq(match_cat, "int") {
+                    compatible = str_eq(pat_cat, "int") && !str_eq(pat_ty, "char")
+                }
+                if !compatible {
+                    val buf: ref char = @alloc(256) as ref char
+                    @snprintf(buf, 256, "{s}:{lld}: match pattern is not compatible with the matched expression", {filename, line})
+                    add_error(ctx, buf)
+                }
+                push_scope(ctx)
+                check_stmts(ctx, arm.d1 as ref void, filename)
+                pop_scope(ctx, filename, line)
+            }
+        }
+        val else_node: ref parser.Node = stmt.d2 as ref parser.Node
+        if else_node != 0 as ref parser.Node {
+            push_scope(ctx)
+            check_stmts(ctx, else_node.d0 as ref void, filename)
+            pop_scope(ctx, filename, line)
         }
         return
     }
