@@ -640,12 +640,9 @@ fn find_root_module(modules: list[ref DocModule], root_rel: ref char) i64! = {
     for {
         if i >= len { break }
         val mod_opt = @get(modules, i as usize)
-        match mod_opt {
-            some v => {
-                val mod: ref DocModule = v as ref DocModule
-                if str_eq(mod.rel_path, root_rel) { return i }
-            }
-            none => {}
+        if mod_opt is some v {
+            val mod: ref DocModule = v as ref DocModule
+            if str_eq(mod.rel_path, root_rel) { return i }
         }
         i++
     }
