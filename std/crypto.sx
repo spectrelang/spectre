@@ -330,8 +330,8 @@ fn b64_value(ch: u8) i64 = {
 ///
 /// Returns a newly allocated C string with padding.
 pub fn base64_encode[T](data: T) ref char! = {
-    val src_ptr: ref void = bytes_ptr(data)
-    val src_len: i64 = bytes_len(data)
+    val src_ptr: ref void = bytes_ptr[T](data)
+    val src_len: i64 = bytes_len[T](data)
     val out_len: i64 = ((src_len + 2) / 3) * 4
     val out: ref char = @alloc(out_len + 1) as ref char
 
@@ -451,10 +451,10 @@ pub fn base64_decode(text: ref char) result[string.String, CryptoError]! = {
 
 /// Compare two strings or byte strings without early exit.
 pub fn ct_eq[T](a: T, b: T) bool! = {
-    val ap: ref void = bytes_ptr(a)
-    val bp: ref void = bytes_ptr(b)
-    val al: i64 = bytes_len(a)
-    val bl: i64 = bytes_len(b)
+    val ap: ref void = bytes_ptr[T](a)
+    val bp: ref void = bytes_ptr[T](b)
+    val al: i64 = bytes_len[T](a)
+    val bl: i64 = bytes_len[T](b)
     val max_len: mut i64 = al
     if bl > max_len { max_len = bl }
 
@@ -477,8 +477,8 @@ pub fn ct_eq[T](a: T, b: T) bool! = {
 /// Returns a 32-byte owned String.
 pub fn hmac_sha256[T](key: T, data: T) string.String! = {
     val block_size: i64 = 64
-    val key_ptr: mut ref void = bytes_ptr(key)
-    val key_len: mut i64 = bytes_len(key)
+    val key_ptr: mut ref void = bytes_ptr[T](key)
+    val key_len: mut i64 = bytes_len[T](key)
     val hashed_key: mut string.String = 0 as string.String
 
     if key_len > block_size {
@@ -501,8 +501,8 @@ pub fn hmac_sha256[T](key: T, data: T) string.String! = {
         i++
     }
 
-    val data_ptr: ref void = bytes_ptr(data)
-    val data_len: i64 = bytes_len(data)
+    val data_ptr: ref void = bytes_ptr[T](data)
+    val data_len: i64 = bytes_len[T](data)
 
     val inner: string.String = alloc_string(block_size + data_len)
     val inner_ptr: ref void = @load(inner) as ref void
@@ -581,7 +581,7 @@ test {
         err e => { assert e == CryptoError.InvalidHexDigit }
     }
 
-    val encoded_b64: mut ref char = base64_encode("hello")
+    val encoded_b64: mut ref char = base64_encode[ref char]("hello")
     assert trust string.compare(string.RChar(encoded_b64), string.RChar("aGVsbG8=")) == 0
     trust @free(encoded_b64)
 
@@ -605,9 +605,9 @@ test {
         }
     }
 
-    assert ct_eq("same", "same")
-    assert !(ct_eq("same", "different"))
-    assert !(ct_eq("same", "same!"))
+    assert ct_eq[ref char]("same", "same")
+    assert !(ct_eq[ref char]("same", "different"))
+    assert !(ct_eq[ref char]("same", "same!"))
 
     val nonce1: mut ref char = trust unique_nonce()
     val nonce2: mut ref char = trust unique_nonce()

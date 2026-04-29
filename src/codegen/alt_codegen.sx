@@ -482,6 +482,40 @@ fn cc_register_module_val(ctx: ref CCtx, name: ref char, symbol: ref char, ty_no
     @append(ctx.gty_nodes, ty_node)
 }
 
+fn cc_has_module_val(ctx: ref CCtx, name: ref char) bool! = {
+    val nlen: i64 = @len(ctx.gnames as list[ref char]) as i64
+    val ni: mut i64 = 0
+    for {
+        if ni >= nlen { break }
+        val n_opt = @get(ctx.gnames as list[ref char], ni as usize)
+        match n_opt {
+            some n => {
+                if str.rchar_cmp(n as ref char, name) == 0 { return true }
+            }
+            none => {}
+        }
+        ni++
+    }
+    return false
+}
+
+fn cc_register_module_global(ctx: ref CCtx, name: ref char, mod_prefix: ref char, ty_node: ref parser.Node) ref char! = {
+    val mangled: ref char = @alloc(512) as ref char
+    if str.rchar_cmp(mod_prefix, "") == 0 { @snprintf(mangled, 512, "sx__{s}", {name}) }
+    else { @snprintf(mangled, 512, "{s}__{s}", {mod_prefix, name}) }
+    if !cc_has_module_val(ctx, name) {
+        cc_register_module_val(ctx, name, mangled, ty_node)
+    }
+    if str.rchar_cmp(mod_prefix, "") != 0 {
+        val m: ref char = @alloc(512) as ref char
+        @snprintf(m, 512, "{s}__{s}", {mod_prefix, name})
+        if !cc_has_module_val(ctx, m) {
+            cc_register_module_val(ctx, m, mangled, ty_node)
+        }
+    }
+    return mangled
+}
+
 fn cc_resolve_module_val(ctx: ref CCtx, name: ref char) ref char! = {
     val nlen: i64 = @len(ctx.gnames as list[ref char]) as i64
     val ni: mut i64 = 0
@@ -3678,6 +3712,9 @@ fn preregister_items(ctx: ref CCtx, items: list[ref parser.Node], mod_prefix: re
                         @snprintf(sb, 128, "((int64_t)(intptr_t)sx__str{lld})", {sidx})
                         cv = sb
                     } }
+                if ce != 0 as ref parser.Node && ce.kind == parser.NK_LIST_LIT {
+                    cc_register_module_global(ctx, cn, mod_prefix, 0 as ref parser.Node)
+                }
                 if cv != 0 as ref char {
                     cc_register_module_const(ctx, cn, cv)
                     if str.rchar_cmp(mod_prefix, "") != 0 {
@@ -3706,13 +3743,7 @@ fn gen_module_val(ctx: mut ref CCtx, node: ref parser.Node, mod_prefix: ref char
     val ct: mut ref char = "int64_t"
     ty_node = cc_concrete_ty(ctx, ty_node)
     if ty_node != 0 as ref parser.Node { ct = cc_c_type_of(ctx, ty_node) }
-    val mangled: ref char = @alloc(512) as ref char
-    if str.rchar_cmp(mod_prefix, "") == 0 { @snprintf(mangled, 512, "sx__{s}", {name}) }
-    else { @snprintf(mangled, 512, "{s}__{s}", {mod_prefix, name}) }
-    cc_register_module_val(ctx, name, mangled, ty_node)
-    if str.rchar_cmp(mod_prefix, "") != 0 {
-        val m: ref char = @alloc(512) as ref char @snprintf(m, 512, "{s}__{s}", {mod_prefix, name})
-        cc_register_module_val(ctx, m, mangled, ty_node) }
+    val mangled: ref char = cc_register_module_global(ctx, name, mod_prefix, ty_node)
     val buf: ref char = @alloc(1024) as ref char @snprintf(buf, 1024, "static {s} {s};\n", {ct, mangled})
     emit_to_fwd(ctx, buf) @free(buf)
     
@@ -3732,6 +3763,31 @@ fn gen_module_val(ctx: mut ref CCtx, node: ref parser.Node, mod_prefix: ref char
     }
 }
 
+fn gen_module_const_list(ctx: mut ref CCtx, node: ref parser.Node, mod_prefix: ref char) void! = {
+    val name: ref char = node.d1 as ref char
+    val init_expr: ref parser.Node = node.d2 as ref parser.Node
+    val mangled: ref char = cc_register_module_global(ctx, name, mod_prefix, 0 as ref parser.Node)
+    val buf: ref char = @alloc(1024) as ref char
+    @snprintf(buf, 1024, "static int64_t {s};\n", {mangled})
+    emit_to_fwd(ctx, buf)
+    @free(buf)
+
+    if init_expr != 0 as ref parser.Node {
+        val old_sb = ctx.sb
+        ctx.sb = ctx.init_sb
+        val old_expected = ctx.expected_ty
+        ctx.expected_ty = 0 as ref parser.Node
+        val val_str: ref char = gen_expr(ctx, init_expr)
+        ctx.expected_ty = old_expected
+        val init_buf: ref char = @alloc(2048) as ref char
+        @snprintf(init_buf, 2048, "{s} = (int64_t)({s});\n", {mangled, val_str})
+        str.StringBuilder.append_cstr(ctx.init_sb, init_buf)
+        @free(init_buf)
+        cc_expr_drain(ctx)
+        ctx.sb = old_sb
+    }
+}
+
 fn gen_items_with_prefix(ctx: mut ref CCtx, items: list[ref parser.Node], mod_prefix: ref char) void! = {
     preregister_items(ctx, items, mod_prefix)
     val ilen: i64 = @len(items) as i64 val i: mut i64 = 0
@@ -3740,6 +3796,10 @@ fn gen_items_with_prefix(ctx: mut ref CCtx, items: list[ref parser.Node], mod_pr
             if k == parser.NK_GENERIC_FN { cc_register_generic_fn(ctx, node.d2 as ref char, node, mod_prefix) }
             elif k == parser.NK_FN { gen_fn_prefixed(ctx, node, mod_prefix) }
             elif k == parser.NK_VAL { gen_module_val(ctx, node, mod_prefix) }
+            elif k == parser.NK_CONST {
+                val ce: ref parser.Node = node.d2 as ref parser.Node
+                if ce != 0 as ref parser.Node && ce.kind == parser.NK_LIST_LIT { gen_module_const_list(ctx, node, mod_prefix) }
+            }
             elif k == parser.NK_EXTERN_FN { gen_extern_fn_prefixed(ctx, node, mod_prefix) }
             elif k == parser.NK_EXTERN_HEADER { gen_extern_header(ctx, node) }
             elif k == parser.NK_ENUMDEF { gen_enum_def_prefixed(ctx, node, mod_prefix) }
@@ -3916,6 +3976,10 @@ fn gen_items_with_prefix_skip_main(ctx: mut ref CCtx, items: list[ref parser.Nod
                 val fname: ref char = node.d2 as ref char
                 if str.rchar_cmp(fname, "main") != 0 { gen_fn_prefixed(ctx, node, mod_prefix) }
             } elif k == parser.NK_VAL { gen_module_val(ctx, node, mod_prefix) }
+            elif k == parser.NK_CONST {
+                val ce: ref parser.Node = node.d2 as ref parser.Node
+                if ce != 0 as ref parser.Node && ce.kind == parser.NK_LIST_LIT { gen_module_const_list(ctx, node, mod_prefix) }
+            }
             elif k == parser.NK_EXTERN_FN { gen_extern_fn_prefixed(ctx, node, mod_prefix) }
             elif k == parser.NK_EXTERN_HEADER { gen_extern_header(ctx, node) }
             elif k == parser.NK_ENUMDEF { gen_enum_def_prefixed(ctx, node, mod_prefix) }
