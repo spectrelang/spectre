@@ -154,23 +154,20 @@ fn is_hidden_name(name: ref char) bool! = {
 
 fn collect_sx_files(dir: ref char, rel_dir: ref char, out: mut list[ref char]) void! = {
     val entries_opt = std.fs.walk_dir(dir)
-    match entries_opt {
-        none => {}
-        some entries => {
-            val sorted = entries as list[ref char]
-            for entry in sorted {
-                if is_hidden_name(entry) { continue }
-                if str_eq(entry, "docs-out") { continue }
-                val child_path = std.path.join(dir, entry)
-                val child_rel: mut ref char = entry
-                if !str_eq(rel_dir, "") {
-                    child_rel = std.path.join(rel_dir, entry)
-                }
-                if dir_exists(child_path) {
-                    collect_sx_files(child_path, child_rel, out)
-                } elif str.rchar_ends_with(entry, ".sx") {
-                    @append(out, normalize_rel_path(child_rel))
-                }
+    if entries_opt is some entries {
+        val sorted = entries as list[ref char]
+        for entry in sorted {
+            if is_hidden_name(entry) { continue }
+            if str_eq(entry, "docs-out") { continue }
+            val child_path = std.path.join(dir, entry)
+            val child_rel: mut ref char = entry
+            if !str_eq(rel_dir, "") {
+                child_rel = std.path.join(rel_dir, entry)
+            }
+            if dir_exists(child_path) {
+                collect_sx_files(child_path, child_rel, out)
+            } elif str.rchar_ends_with(entry, ".sx") {
+                @append(out, normalize_rel_path(child_rel))
             }
         }
     }
