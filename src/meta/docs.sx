@@ -888,11 +888,11 @@ fn render_module_page_html(module: ref DocModule, modules: list[ref DocModule]) 
         \\  --shadow-lg:0 2px 8px rgba(15,31,61,.08),0 12px 40px rgba(15,31,61,.12);
         \\}
         \\html.dark{
-        \\  --bg:#080f1e;--bg2:#0c1528;--surface:#0f1d35;--surface2:#0a1628;
-        \\  --border:#162b52;--border2:#1a3260;
+        \\  --bg:#000000;--bg2:#1b1c1c;--surface:#000000;--surface2:#1b1c1c; 
+        \\  --border:#171717;--border2:#171717;
         \\  --text:#d8e8ff;--text2:#8badd4;--text3:#4a6d96;
-        \\  --accent:#4a90f7;--accent2:#6aaeff;--accent3:#2e6fe0;
-        \\  --code-bg:#060e1c;--code-text:#93c5fd;
+        \\  --accent:#dde8f5;--accent2:#dde8f5;--accent3:#2e6fe0;
+        \\  --code-bg:#171717;--code-text:#dde8f5;
         \\  --kw:#60a5fa;--ty:#22d3ee;--lit:#4ade80;--op:#94a3b8;--cm:#4a6d96;--fn-col:#a78bfa;
         \\  --shadow:0 1px 3px rgba(0,0,0,.3),0 4px 16px rgba(0,0,0,.4);
         \\  --shadow-lg:0 2px 8px rgba(0,0,0,.4),0 12px 40px rgba(0,0,0,.5);
