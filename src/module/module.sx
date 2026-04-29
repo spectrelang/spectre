@@ -987,7 +987,7 @@ pub fn fn_is_public_in_module(m: ref ResolvedModule, fn_name: ref char) bool! = 
                 if item.kind == parser.NK_FN || item.kind == parser.NK_GENERIC_FN {
                     val iname: ref char = item.d2 as ref char
                     if iname != 0 as ref char {
-                        if str.rchar_cmp(iname, fn_name) == 0 { return item.d0 == 1 }
+                        if str.rchar_cmp(iname, fn_name) == 0 { return (item.d0 & 1) != 0 }
                     }
                 } elif item.kind == parser.NK_EXTERN_FN {
                     val iname: ref char = item.d1 as ref char

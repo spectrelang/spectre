@@ -145,6 +145,7 @@ pub fn binop_left(n: ref Node) ref Node = { return n.d1 as ref Node }
 pub fn binop_right(n: ref Node) ref Node = { return n.d2 as ref Node }
 
 pub fn generic_fn_type_params(n: ref Node) list[ref char] = { return n.d6 as list[ref char] }
+pub fn generic_fn_is_unsafe(n: ref Node) bool = { return (n.d0 & 2) != 0 }
 pub fn generic_when_conditions(n: ref Node) list[ref Node] = { return n.d0 as list[ref Node] }
 pub fn generic_when_body(n: ref Node) ref Node = { return n.d1 as ref Node }
 pub fn generic_inst_base(n: ref Node) ref Node = { return n.d0 as ref Node }
@@ -1819,7 +1820,7 @@ fn parse_fn_item(p: ref Parser, public: i64) result[ref Node, ref char]! = {
     p_expect_rbrace(p)?
     if @len(type_params) as i64 > 0 {
         val nfn: mut ref Node = make_node(NK_GENERIC_FN, line)
-        nfn.d0 = public nfn.d1 = ns as i64 nfn.d2 = name as i64
+        nfn.d0 = public | (is_unsafe << 1) nfn.d1 = ns as i64 nfn.d2 = name as i64
         val pl: list[ref Node] = params
         nfn.d3 = pl as i64
         nfn.d4 = ret_ty as i64
