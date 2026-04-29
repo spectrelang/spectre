@@ -378,27 +378,6 @@ pub fn main() i32! = {
                     }
                     @append(inc_paths, path_str)
                     arg_i++
-                } elif std.string.rchar_starts_with(arg, "-I") {
-                    val headers_str: ref char = std.string.substr(arg, 2, std.string.len_raw(arg) - 2)
-                    val hlen: i64 = std.string.len_raw(headers_str)
-                    val hstart: mut i64 = 0
-                    val hi: mut i64 = 0
-                    for {
-                        if hi > hlen { break }
-                        val at_end: bool = hi == hlen
-                        val hc: mut u8 = 0
-                        if !at_end {
-                            hc = @load8(@ptradd(headers_str as ref void, hi)) as u8
-                        }
-                        if at_end || hc == 44 {
-                            if hi > hstart {
-                                @append(extra_includes, std.string.substr(headers_str, hstart, hi - hstart))
-                            }
-                            hstart = hi + 1
-                        }
-                        hi++
-                    }
-                    arg_i++
                 } else {
                     std.stdio.print("error: unknown flag: {s}\n", {arg})
                     allocators.Arena.free(arena)
