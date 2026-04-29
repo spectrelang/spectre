@@ -1,6 +1,7 @@
 val std      = use("std")
 val str      = use("std/string")
 val regex    = use("std/regex")
+val algo     = use("std/algorithms")
 val lexer    = use("../ast/lexer.sx")
 val parser   = use("../ast/parser.sx")
 val commands = use("commands.sx")
@@ -842,10 +843,33 @@ fn href_from(current_output: ref char, target_output: ref char) ref char! = {
     return @fmt("{s}{s}", {depth_prefix(safe_cstr(current_output)), safe_cstr(target_output)})
 }
 
-fn append_nav_html(sb: ref void, modules: list[ref DocModule], current: ref DocModule) void! = {
-    if @len(modules) as i64 > 1 {
-        std.string.StringBuilder.append_cstr(sb, "<div class=\"nav-section\"><div class=\"nav-label\">Modules</div>")
+fn nav_key(label: ref char, unique: ref char) ref char! = {
+    return @fmt("{s}\n{s}", {safe_cstr(label), safe_cstr(unique)})
+}
+
+fn nav_key_tail(key: ref char) ref char! = {
+    val len: i64 = str.len_raw(key)
+    val i: mut i64 = 0
+    for {
+        if i >= len { break }
+        if @load8(@ptradd(key as ref void, i)) == 10 {
+            return substr(key, i + 1, len - i - 1)
+        }
+        i++
+    }
+    return ""
+}
+
+fn append_sorted_module_nav_html(sb: ref void, modules: list[ref DocModule], current: ref DocModule) void! = {
+    val keys: mut list[ref char] = []
+    for mod in modules {
+        @append(keys, nav_key(mod.module_name, mod.output_path))
+    }
+    val sorted = algo.sort_alpha(keys)
+    for key in sorted {
+        val target_output = nav_key_tail(key)
         for mod in modules {
+            if !str_eq(mod.output_path, target_output) { continue }
             val cls: mut ref char = "nav-item"
             if str_eq(mod.rel_path, current.rel_path) { cls = "nav-item active" }
             std.string.StringBuilder.append_cstr(sb, @fmt("<a class=\"{s}\" href=\"{s}\">{s}</a>", {
@@ -853,18 +877,40 @@ fn append_nav_html(sb: ref void, modules: list[ref DocModule], current: ref DocM
                 href_from(current.output_path, mod.output_path),
                 html_escape(safe_cstr(mod.module_name))
             }))
+            break
         }
-        std.string.StringBuilder.append_cstr(sb, "</div>")
     }
-    if @len(current.entries) as i64 > 0 {
-        std.string.StringBuilder.append_cstr(sb, "<div class=\"nav-section\"><div class=\"nav-label\">On this page</div>")
-        for entry in current.entries {
+}
+
+fn append_sorted_entry_nav_html(sb: ref void, entries: list[ref DocEntry]) void! = {
+    val keys: mut list[ref char] = []
+    for entry in entries {
+        @append(keys, nav_key(entry.name, entry.anchor))
+    }
+    val sorted = algo.sort_alpha(keys)
+    for key in sorted {
+        val target_anchor = nav_key_tail(key)
+        for entry in entries {
+            if !str_eq(entry.anchor, target_anchor) { continue }
             std.string.StringBuilder.append_cstr(sb, @fmt("<a class=\"nav-item\" href=\"#{s}\" data-name=\"{s}\">{s}</a>", {
                 entry.anchor,
                 html_escape(entry.name),
                 html_escape(entry.name)
             }))
+            break
         }
+    }
+}
+
+fn append_nav_html(sb: ref void, modules: list[ref DocModule], current: ref DocModule) void! = {
+    if @len(modules) as i64 > 1 {
+        std.string.StringBuilder.append_cstr(sb, "<div class=\"nav-section\"><div class=\"nav-label\">Modules</div>")
+        append_sorted_module_nav_html(sb, modules, current)
+        std.string.StringBuilder.append_cstr(sb, "</div>")
+    }
+    if @len(current.entries) as i64 > 0 {
+        std.string.StringBuilder.append_cstr(sb, "<div class=\"nav-section\"><div class=\"nav-label\">On this page</div>")
+        append_sorted_entry_nav_html(sb, current.entries)
         std.string.StringBuilder.append_cstr(sb, "</div>")
     }
 }
