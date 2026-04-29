@@ -1599,7 +1599,7 @@ fn check_stmt(ctx: ref SemaCtx, stmt: ref parser.Node, filename: ref char) void!
             add_error(ctx, buf)
         } else {
             val ty_node: ref parser.Node = stmt.d2 as ref parser.Node
-            val tname: mut ref char = extract_type_name(ty_node)
+            val tname: ref char = extract_type_name(ty_node)
             val is_ref_flag: mut i64 = 0
             if ty_node != 0 as ref parser.Node {
                 if ty_node.kind == parser.TY_REF {
@@ -1612,12 +1612,6 @@ fn check_stmt(ctx: ref SemaCtx, stmt: ref parser.Node, filename: ref char) void!
                 }
             }
             val init_expr: ref parser.Node = stmt.d3 as ref parser.Node
-            if ((tname == 0 as ref char || str_eq(tname, "")) && init_expr != 0 as ref parser.Node) {
-                tname = infer_expr_scope_type_name(ctx, init_expr)
-                if infer_expr_scope_is_ref(ctx, init_expr) != 0 {
-                    is_ref_flag = 1
-                }
-            }
             scope_define(ctx, name, mutable, tname, is_ref_flag, line)
             if tname != 0 as ref char && init_expr != 0 as ref parser.Node {
                 val init_k: i64 = init_expr.kind
@@ -1836,12 +1830,12 @@ fn check_stmt(ctx: ref SemaCtx, stmt: ref parser.Node, filename: ref char) void!
                 check_expr(ctx, pat, filename)
                 val pat_ty: ref char = infer_expr_scope_type_name(ctx, pat)
                 val pat_cat: ref char = get_expr_type_category(ctx, pat)
-                val compatible: mut bool = false
-                if str_eq(match_ty, "bool") {
+                val compatible: mut bool = true
+                if str_eq(match_ty, "bool") && !str_eq(pat_ty, "") {
                     compatible = str_eq(pat_ty, "bool")
-                } elif str_eq(match_cat, "float") {
+                } elif str_eq(match_cat, "float") && !str_eq(pat_cat, "unknown") {
                     compatible = str_eq(pat_cat, "float")
-                } elif str_eq(match_cat, "int") {
+                } elif str_eq(match_cat, "int") && !str_eq(pat_cat, "unknown") {
                     compatible = str_eq(pat_cat, "int") && !str_eq(pat_ty, "char")
                 }
                 if !compatible {
