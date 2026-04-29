@@ -478,6 +478,60 @@ fn stmt_references_import_shallow(node: ref parser.Node, import_name: ref char) 
                 ai++
             }
         }
+    } elif node.kind == parser.NK_MATCH_VALUE {
+        if expr_references_import_shallow(node.d0 as ref parser.Node, import_name) { return true }
+        val arms: ref void = node.d1 as ref void
+        if arms != 0 {
+            val alen: i64 = @len(arms) as i64
+            val ai: mut i64 = 0
+            for {
+                if ai >= alen { break }
+                val arm_opt = @get(arms, ai as usize)
+                match arm_opt {
+                    some arm => {
+                        val arm_node: ref parser.Node = arm as ref parser.Node
+                        if expr_references_import_shallow(parser.match_value_arm_pattern(arm_node), import_name) { return true }
+                        val body: ref void = parser.match_value_arm_body(arm_node) as ref void
+                        if body != 0 {
+                            val blen: i64 = @len(body) as i64
+                            val bi: mut i64 = 0
+                            for {
+                                if bi >= blen { break }
+                                val stmt_opt = @get(body, bi as usize)
+                                match stmt_opt {
+                                    some stmt => {
+                                        if stmt_references_import_shallow(stmt as ref parser.Node, import_name) { return true }
+                                    }
+                                    none => {}
+                                }
+                                bi++
+                            }
+                        }
+                    }
+                    none => {}
+                }
+                ai++
+            }
+        }
+        val else_node: ref parser.Node = parser.match_value_else(node)
+        if else_node != 0 {
+            val else_body: ref void = else_node.d0 as ref void
+            if else_body != 0 {
+                val elen: i64 = @len(else_body) as i64
+                val ei: mut i64 = 0
+                for {
+                    if ei >= elen { break }
+                    val stmt_opt = @get(else_body, ei as usize)
+                    match stmt_opt {
+                        some stmt => {
+                            if stmt_references_import_shallow(stmt as ref parser.Node, import_name) { return true }
+                        }
+                        none => {}
+                    }
+                    ei++
+                }
+            }
+        }
     } elif node.kind == parser.NK_MATCH_TAGGED_UNION {
         if expr_references_import_shallow(node.d0 as ref parser.Node, import_name) { return true }
         val arms: ref void = node.d1 as ref void
@@ -1688,6 +1742,36 @@ fn collect_needed_subnames_in_stmt(stmt: ref parser.Node, import_name: ref char,
                 ai++
             }
         }
+    } elif stmt.kind == parser.NK_MATCH_VALUE {
+        collect_needed_subnames_in_expr(parser.match_value_expr(stmt), import_name, needed)
+        val arms: ref void = parser.match_value_arms(stmt) as ref void
+        if arms != 0 {
+            val alen: i64 = @len(arms) as i64
+            val ai: mut i64 = 0
+            for {
+                if ai >= alen { break }
+                val arm_opt = @get(arms, ai as usize)
+                match arm_opt {
+                    some arm => {
+                        val arm_node: ref parser.Node = arm as ref parser.Node
+                        collect_needed_subnames_in_expr(parser.match_value_arm_pattern(arm_node), import_name, needed)
+                        val body: ref void = parser.match_value_arm_body(arm_node) as ref void
+                        if body != 0 {
+                            collect_needed_subnames_in_stmts(body, import_name, needed)
+                        }
+                    }
+                    none => {}
+                }
+                ai++
+            }
+        }
+        val else_node: ref parser.Node = parser.match_value_else(stmt)
+        if else_node != 0 {
+            val else_body: ref void = else_node.d0 as ref void
+            if else_body != 0 {
+                collect_needed_subnames_in_stmts(else_body, import_name, needed)
+            }
+        }
     } elif stmt.kind == parser.NK_ASSERT {
         collect_needed_subnames_in_expr(stmt.d0 as ref parser.Node, import_name, needed)
     } elif stmt.kind == parser.NK_WHEN_STMT {
@@ -2210,6 +2294,56 @@ fn collect_used_imports_stmt(node: ref parser.Node, import_names: list[ref char]
             }
         }
         val else_node: ref parser.Node = node.d2 as ref parser.Node
+        if else_node != 0 {
+            val else_body: ref void = else_node.d0 as ref void
+            if else_body != 0 {
+                val elen: i64 = @len(else_body) as i64
+                val ei: mut i64 = 0
+                for {
+                    if ei >= elen { break }
+                    val stmt_opt = @get(else_body, ei as usize)
+                    match stmt_opt {
+                        some stmt => { collect_used_imports_stmt(stmt as ref parser.Node, import_names, used) }
+                        none => {}
+                    }
+                    ei++
+                }
+            }
+        }
+    } elif node.kind == parser.NK_MATCH_VALUE {
+        collect_used_imports_expr(parser.match_value_expr(node), import_names, used)
+        val arms: ref void = parser.match_value_arms(node) as ref void
+        if arms != 0 {
+            val alen: i64 = @len(arms) as i64
+            val ai: mut i64 = 0
+            for {
+                if ai >= alen { break }
+                val arm_opt = @get(arms, ai as usize)
+                match arm_opt {
+                    some arm => {
+                        val arm_node: ref parser.Node = arm as ref parser.Node
+                        collect_used_imports_expr(parser.match_value_arm_pattern(arm_node), import_names, used)
+                        val arm_body: ref void = parser.match_value_arm_body(arm_node) as ref void
+                        if arm_body != 0 {
+                            val blen: i64 = @len(arm_body) as i64
+                            val bi: mut i64 = 0
+                            for {
+                                if bi >= blen { break }
+                                val stmt_opt = @get(arm_body, bi as usize)
+                                match stmt_opt {
+                                    some stmt => { collect_used_imports_stmt(stmt as ref parser.Node, import_names, used) }
+                                    none => {}
+                                }
+                                bi++
+                            }
+                        }
+                    }
+                    none => {}
+                }
+                ai++
+            }
+        }
+        val else_node: ref parser.Node = parser.match_value_else(node)
         if else_node != 0 {
             val else_body: ref void = else_node.d0 as ref void
             if else_body != 0 {

@@ -324,9 +324,7 @@ fn cc_infer_expr_ty(ctx: ref CCtx, expr: ref parser.Node) ref parser.Node! = {
                     val list_expr_ty: ref parser.Node = cc_infer_expr_ty(ctx, first as ref parser.Node)
                     val elem: ref parser.Node = cc_unwrap_get_elem_ty(list_expr_ty, blen - 1)
                     if elem != 0 as ref parser.Node {
-                        val opt_node: mut ref parser.Node = @alloc(@sizeof(parser.Node)) as ref parser.Node
-                        opt_node.kind = parser.TY_OPTION
-                        opt_node.line = 0
+                        val opt_node: mut ref parser.Node = parser.make_node(parser.TY_OPTION, 0)
                         opt_node.d0 = elem as i64
                         opt_node.d1 = 0 opt_node.d2 = 0 opt_node.d3 = 0 opt_node.d4 = 0 opt_node.d5 = 0 opt_node.d6 = 0
                         return opt_node
@@ -1494,9 +1492,53 @@ fn get_format_arg(ctx: mut ref CCtx, args: ref void, idx: i64) ref char! = {
 fn gen_vararg_scalar_pack(ctx: ref CCtx, value: ref char) ref char! = {
     val t: i64 = fresh_tmp(ctx)
     val decl: ref char = @alloc(512) as ref char
-    @snprintf(decl, 512, "int64_t sx__vap{lld}[]=\{(int64_t)({s})\};\n", {t, value})
+    @snprintf(decl, 512, "int64_t sx__vap{lld}[16]=\{(int64_t)({s}),0,0,0,0,0,0,0,0,0,0,0,0,0,0,0\};\n", {t, value})
     emit(ctx, decl)
     @free(decl)
+    val res: ref char = @alloc(64) as ref char
+    @snprintf(res, 64, "sx__vap{lld}", {t})
+    return cc_expr_track(ctx, res)
+}
+
+fn gen_vararg_pack(ctx: ref CCtx, pack: ref void) ref char! = {
+    val t: i64 = fresh_tmp(ctx)
+    val buf: ref char = @alloc(8192) as ref char
+    @snprintf(buf, 8192, "int64_t sx__vap{lld}[16]=\{", {t})
+    val plen: i64 = @len(pack as list[ref parser.Node]) as i64
+    val pi: mut i64 = 0
+    for {
+        if pi >= 16 { break }
+        val ol: i64 = str.len_raw(buf)
+        val ab: ref char = @alloc(512) as ref char
+        if pi < plen {
+            val pe_opt = @get(pack as list[ref parser.Node], pi as usize)
+            match pe_opt {
+                some pe => {
+                    val av: ref char = gen_expr(ctx, pe as ref parser.Node)
+                    if pi == 0 { @snprintf(ab, 512, "(int64_t)({s})", {av}) }
+                    else { @snprintf(ab, 512, ",(int64_t)({s})", {av}) }
+                }
+                none => {
+                    if pi == 0 { @snprintf(ab, 512, "0", {}) }
+                    else { @snprintf(ab, 512, ",0", {}) }
+                }
+            }
+        } else {
+            if pi == 0 { @snprintf(ab, 512, "0", {}) }
+            else { @snprintf(ab, 512, ",0", {}) }
+        }
+        val al: i64 = str.len_raw(ab)
+        @memcpy(@ptradd(buf as ref void, ol), ab as ref void, (al + 1) as usize)
+        @free(ab)
+        pi++
+    }
+    val cl: i64 = str.len_raw(buf)
+    @store8(@ptradd(buf as ref void, cl), 125)
+    @store8(@ptradd(buf as ref void, cl + 1), 59)
+    @store8(@ptradd(buf as ref void, cl + 2), 10)
+    @store8(@ptradd(buf as ref void, cl + 3), 0)
+    emit(ctx, buf)
+    @free(buf)
     val res: ref char = @alloc(64) as ref char
     @snprintf(res, 64, "sx__vap{lld}", {t})
     return cc_expr_track(ctx, res)
@@ -2323,7 +2365,7 @@ fn gen_builtin(ctx: ref CCtx, expr: ref parser.Node) ref char! = {
                 match pack_opt {
                     some pack_node => {
                         val pn: ref parser.Node = pack_node as ref parser.Node
-                        if pn.kind == parser.NK_ARGS_PACK { p = gen_expr(ctx, pn) }
+                        if pn.kind == parser.NK_ARGS_PACK { p = gen_vararg_pack(ctx, pn.d0 as ref void) }
                         else { p = gen_vararg_scalar_pack(ctx, gen_expr(ctx, pn)) }
                     }
                     none => {}
@@ -3078,11 +3120,28 @@ fn gen_for_stmt(ctx: mut ref CCtx, stmt: ref parser.Node) void! = {
 fn gen_for_post_expr(ctx: ref CCtx, pst: ref parser.Node) ref char! = {
     if pst == 0 as ref parser.Node { return "" }
     val k: i64 = pst.kind
-    val name: ref char = pst.d0 as ref char
+    val tgt: ref parser.Node = pst.d0 as ref parser.Node
+    val name: mut ref char = 0 as ref char
+    if tgt != 0 as ref parser.Node && tgt.kind == parser.NK_IDENT {
+        name = tgt.d0 as ref char
+    }
     if k == parser.NK_INCREMENT {
         if name != 0 as ref char {
             val buf: ref char = @alloc(128) as ref char
             @snprintf(buf, 128, "t_{s}++", {name})
+            return cc_expr_track(ctx, buf)
+        }
+        if tgt.kind == parser.NK_FIELD {
+            val fa: ref char = gen_field_addr(ctx, tgt)
+            val fct: ref char = cc_field_ctype_of_expr(ctx, tgt)
+            val buf: ref char = @alloc(256) as ref char
+            @snprintf(buf, 256, "(*({s}*)({s}))++", {fct, fa})
+            return cc_expr_track(ctx, buf)
+        }
+        if tgt.kind == parser.NK_DEREF {
+            val p: ref char = gen_expr(ctx, tgt.d0 as ref parser.Node)
+            val buf: ref char = @alloc(256) as ref char
+            @snprintf(buf, 256, "(*(int64_t*)(intptr_t)({s}))++", {p})
             return cc_expr_track(ctx, buf)
         }
         return ""
@@ -3091,6 +3150,19 @@ fn gen_for_post_expr(ctx: ref CCtx, pst: ref parser.Node) ref char! = {
         if name != 0 as ref char {
             val buf: ref char = @alloc(128) as ref char
             @snprintf(buf, 128, "t_{s}--", {name})
+            return cc_expr_track(ctx, buf)
+        }
+        if tgt.kind == parser.NK_FIELD {
+            val fa: ref char = gen_field_addr(ctx, tgt)
+            val fct: ref char = cc_field_ctype_of_expr(ctx, tgt)
+            val buf: ref char = @alloc(256) as ref char
+            @snprintf(buf, 256, "(*({s}*)({s}))--", {fct, fa})
+            return cc_expr_track(ctx, buf)
+        }
+        if tgt.kind == parser.NK_DEREF {
+            val p: ref char = gen_expr(ctx, tgt.d0 as ref parser.Node)
+            val buf: ref char = @alloc(256) as ref char
+            @snprintf(buf, 256, "(*(int64_t*)(intptr_t)({s}))--", {p})
             return cc_expr_track(ctx, buf)
         }
         return ""
@@ -3102,6 +3174,19 @@ fn gen_for_post_expr(ctx: ref CCtx, pst: ref parser.Node) ref char! = {
             @snprintf(buf, 256, "t_{s}+=({s})", {name, rhs})
             return cc_expr_track(ctx, buf)
         }
+        if tgt.kind == parser.NK_FIELD {
+            val fa: ref char = gen_field_addr(ctx, tgt)
+            val fct: ref char = cc_field_ctype_of_expr(ctx, tgt)
+            val buf: ref char = @alloc(256) as ref char
+            @snprintf(buf, 256, "(*({s}*)({s}))+=({s})", {fct, fa, rhs})
+            return cc_expr_track(ctx, buf)
+        }
+        if tgt.kind == parser.NK_DEREF {
+            val p: ref char = gen_expr(ctx, tgt.d0 as ref parser.Node)
+            val buf: ref char = @alloc(256) as ref char
+            @snprintf(buf, 256, "(*(int64_t*)(intptr_t)({s}))+=({s})", {p, rhs})
+            return cc_expr_track(ctx, buf)
+        }
         return ""
     }
     if k == parser.NK_SUB_ASSIGN {
@@ -3109,6 +3194,19 @@ fn gen_for_post_expr(ctx: ref CCtx, pst: ref parser.Node) ref char! = {
         if name != 0 as ref char {
             val buf: ref char = @alloc(256) as ref char
             @snprintf(buf, 256, "t_{s}-=({s})", {name, rhs})
+            return cc_expr_track(ctx, buf)
+        }
+        if tgt.kind == parser.NK_FIELD {
+            val fa: ref char = gen_field_addr(ctx, tgt)
+            val fct: ref char = cc_field_ctype_of_expr(ctx, tgt)
+            val buf: ref char = @alloc(256) as ref char
+            @snprintf(buf, 256, "(*({s}*)({s}))-=({s})", {fct, fa, rhs})
+            return cc_expr_track(ctx, buf)
+        }
+        if tgt.kind == parser.NK_DEREF {
+            val p: ref char = gen_expr(ctx, tgt.d0 as ref parser.Node)
+            val buf: ref char = @alloc(256) as ref char
+            @snprintf(buf, 256, "(*(int64_t*)(intptr_t)({s}))-=({s})", {p, rhs})
             return cc_expr_track(ctx, buf)
         }
         return ""

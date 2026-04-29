@@ -1228,30 +1228,30 @@ pub fn parse_stmt(p: ref Parser) result[ref Node, ref char]! = {
         p_expect_semicolon(p)?
         val cond2 = parse_expr(p)?
         p_expect_semicolon(p)?
-        val post_name = p_expect_ident(p)?
+        val post_target = parse_expr(p)?
         val post_kind: lexer.TokenKind = p_peek_kind(p)
         val post_node: mut ref Node = 0 as ref Node
         if lexer.kind_is_plusplus(post_kind) {
             p_advance(p)
             val pn: mut ref Node = make_node(NK_INCREMENT, line)
-            pn.d0 = post_name as i64
+            pn.d0 = post_target as i64
             post_node = pn
         } elif lexer.kind_is_minusminus(post_kind) {
             p_advance(p)
             val pn2: mut ref Node = make_node(NK_DECREMENT, line)
-            pn2.d0 = post_name as i64
+            pn2.d0 = post_target as i64
             post_node = pn2
         } elif kind_is_pluseq(post_kind) {
             p_advance(p)
             val pv = parse_expr(p)?
             val pn3: mut ref Node = make_node(NK_ADD_ASSIGN, line)
-            pn3.d0 = post_name as i64 pn3.d1 = pv as i64
+            pn3.d0 = post_target as i64 pn3.d1 = pv as i64
             post_node = pn3
         } elif kind_is_minuseq(post_kind) {
             p_advance(p)
             val pv2 = parse_expr(p)?
             val pn4: mut ref Node = make_node(NK_SUB_ASSIGN, line)
-            pn4.d0 = post_name as i64 pn4.d1 = pv2 as i64
+            pn4.d0 = post_target as i64 pn4.d1 = pv2 as i64
             post_node = pn4
         } else {
             return err p_error(p, "expected '++', '--', '+=', or '-=' in for loop")
