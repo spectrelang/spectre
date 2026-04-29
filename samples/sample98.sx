@@ -1,0 +1,7 @@
+pub fn main() void = {
+    val x: mut i32 = 0
+    for x < 10 {
+        @puts("incrementing...")
+        x++
+    }
+}
