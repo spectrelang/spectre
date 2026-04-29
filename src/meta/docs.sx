@@ -461,19 +461,19 @@ fn render_type_signature(node: ref parser.Node) ref char! = {
         val extern_prefix: mut ref char = ""
         if node.kind == parser.NK_EXTERN_TYPE { extern_prefix = "extern " }
         val fields = render_type_fields(node.d2 as list[ref parser.Node])
-        return @fmt("{s}{s}type {s} = {{ {s} }}", {public_prefix, extern_prefix, node.d1 as ref char, fields})
+        return @fmt("{s}{s}type {s} = \\{ {s} \\}", {public_prefix, extern_prefix, node.d1 as ref char, fields})
     }
     if node.kind == parser.NK_ENUMDEF {
         val variants = render_variant_list(node.d2 as list[ref char], ", ")
-        return @fmt("{s}enum {s} = {{ {s} }}", {public_prefix, node.d1 as ref char, variants})
+        return @fmt("{s}enum {s} = \\{ {s} \\}", {public_prefix, node.d1 as ref char, variants})
     }
     if node.kind == parser.NK_UNIONDEF {
         val variants = render_type_list(node.d2 as list[ref parser.Node], " | ")
-        return @fmt("{s}union {s} = {{ {s} }}", {public_prefix, node.d1 as ref char, variants})
+        return @fmt("{s}union {s} = \\{ {s} \\}", {public_prefix, node.d1 as ref char, variants})
     }
     if node.kind == parser.NK_TAGGED_UNIONDEF {
         val variants = render_tagged_variants(node.d2 as list[ref parser.Node])
-        return @fmt("{s}union {s} = {{ {s} }}", {public_prefix, node.d1 as ref char, variants})
+        return @fmt("{s}union {s} = \\{ {s} \\}", {public_prefix, node.d1 as ref char, variants})
     }
     return ""
 }
