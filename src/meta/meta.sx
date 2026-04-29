@@ -12,6 +12,7 @@ pub fn print_usage() void = {
     std.stdio.puts("  init   <name>        Initialize a new project")
     std.stdio.puts("  build  <config>      Build using a config from sx.mod")
     std.stdio.puts("  run    <input.sx>    Compile and immediately run a program")
+    std.stdio.puts("  doc    <path>        Generate docs for a given .sx into ./docs-out/")
     std.stdio.puts("  add    <git-url>     Clone a git dependency into ./lib/ and record it")
     std.stdio.puts("  remove <dep-name>    Remove a dependency by repository name")
     std.stdio.puts("  ref                  Generate the language reference in the current directory")

@@ -1,0 +1,1053 @@
+val std      = use("std")
+val str      = use("std/string")
+val lexer    = use("../ast/lexer.sx")
+val parser   = use("../ast/parser.sx")
+val commands = use("commands.sx")
+
+type DocMap = {
+    lines: mut list[i64]
+    docs:  mut list[ref char]
+}
+
+type DocEntry = {
+    kind:         mut i64
+    line:         mut i64
+    name:         mut ref char
+    anchor:       mut ref char
+    signature:    mut ref char
+    docs:         mut ref char
+    availability: mut ref char
+    node:         mut ref parser.Node
+}
+
+type DocModule = {
+    source_path: mut ref char
+    rel_path:    mut ref char
+    module_name: mut ref char
+    output_path: mut ref char
+    is_root:     mut bool
+    entries:     mut list[ref DocEntry]
+}
+
+fn safe_cstr(s: ref char) ref char = {
+    if s == 0 as ref char { return "" }
+    return s
+}
+
+fn str_eq(a: ref char, b: ref char) bool = {
+    return str.rchar_cmp(safe_cstr(a), safe_cstr(b)) == 0
+}
+
+fn is_space(c: u8) bool = {
+    return c == 32 || c == 9 || c == 10 || c == 13
+}
+
+fn substr(src: ref char, start: i64, len: i64) ref char! = {
+    return str.substr(src, start, len)
+}
+
+fn trim_ws(src: ref char) ref char! = {
+    val len: i64 = str.len_raw(src)
+    if len == 0 { return "" }
+    val start: mut i64 = 0
+    for {
+        if start >= len { break }
+        val c: u8 = @load8(@ptradd(src as ref void, start))
+        if !is_space(c) { break }
+        start++
+    }
+    val finish: mut i64 = len
+    for {
+        if finish <= start { break }
+        val c: u8 = @load8(@ptradd(src as ref void, finish - 1))
+        if !is_space(c) { break }
+        finish--
+    }
+    return substr(src, start, finish - start)
+}
+
+fn trim_trailing_slash(src: ref char) ref char! = {
+    val len: i64 = str.len_raw(src)
+    if len <= 1 { return src }
+    if @load8(@ptradd(src as ref void, len - 1)) != 47 { return src }
+    return substr(src, 0, len - 1)
+}
+
+fn normalize_rel_path(path: ref char) ref char! = {
+    val no_dot = str.trim_prefix_raw(path, "./")
+    return trim_trailing_slash(no_dot)
+}
+
+fn path_dirname(path: ref char) ref char! = {
+    val len: i64 = str.len_raw(path)
+    val last_slash: mut i64 = -1
+    val i: mut i64 = 0
+    for {
+        if i >= len { break }
+        if @load8(@ptradd(path as ref void, i)) == 47 { last_slash = i }
+        i++
+    }
+    if last_slash < 0 { return "." }
+    if last_slash == 0 { return "/" }
+    return substr(path, 0, last_slash)
+}
+
+fn path_basename(path: ref char) ref char! = {
+    val len: i64 = str.len_raw(path)
+    val last_slash: mut i64 = -1
+    val i: mut i64 = 0
+    for {
+        if i >= len { break }
+        if @load8(@ptradd(path as ref void, i)) == 47 { last_slash = i }
+        i++
+    }
+    return substr(path, last_slash + 1, len - last_slash - 1)
+}
+
+fn strip_sx_ext(path: ref char) ref char! = {
+    if str.rchar_ends_with(path, ".sx") {
+        return str.trim_suffix_raw(path, ".sx")
+    }
+    return path
+}
+
+fn dir_exists(path: ref char) bool = {
+    val dir: ref void = std.fs.opendir(path)
+    if dir == 0 as ref void { return false }
+    std.fs.closedir(dir)
+    return true
+}
+
+fn ensure_dir(path: ref char) bool! = {
+    val clean = trim_trailing_slash(path)
+    if str_eq(clean, "") || str_eq(clean, ".") { return true }
+    if std.os.exists(clean) { return true }
+    val len: i64 = str.len_raw(clean)
+    val i: mut i64 = 0
+    for {
+        if i >= len { break }
+        val c: u8 = @load8(@ptradd(clean as ref void, i))
+        if c == 47 {
+            val part = substr(clean, 0, i)
+            if !str_eq(part, "") && !str_eq(part, ".") && !std.os.exists(part) {
+                if !std.fs.mkdir_path(part) { return false }
+            }
+        }
+        i++
+    }
+    if !std.os.exists(clean) {
+        return std.fs.mkdir_path(clean)
+    }
+    return true
+}
+
+fn ensure_parent_dir(file_path: ref char) bool! = {
+    val dir = path_dirname(file_path)
+    return ensure_dir(dir)
+}
+
+fn is_hidden_name(name: ref char) bool! = {
+    val len: i64 = str.len_raw(name)
+    if len == 0 { return false }
+    return @load8(name as ref void) == 46
+}
+
+fn collect_sx_files(dir: ref char, rel_dir: ref char, out: mut list[ref char]) void! = {
+    val entries_opt = std.fs.walk_dir(dir)
+    match entries_opt {
+        none => {}
+        some entries => {
+            val sorted = entries as list[ref char]
+            for entry in sorted {
+                if is_hidden_name(entry) { continue }
+                if str_eq(entry, "docs-out") { continue }
+                val child_path = std.path.join(dir, entry)
+                val child_rel: mut ref char = entry
+                if !str_eq(rel_dir, "") {
+                    child_rel = std.path.join(rel_dir, entry)
+                }
+                if dir_exists(child_path) {
+                    collect_sx_files(child_path, child_rel, out)
+                } elif str.rchar_ends_with(entry, ".sx") {
+                    @append(out, normalize_rel_path(child_rel))
+                }
+            }
+        }
+    }
+}
+
+fn is_doc_target_line(line: ref char) bool! = {
+    return str.rchar_starts_with(line, "fn ") ||
+           str.rchar_starts_with(line, "pub fn ") ||
+           str.rchar_starts_with(line, "extern ") ||
+           str.rchar_starts_with(line, "pub extern ") ||
+           str.rchar_starts_with(line, "type ") ||
+           str.rchar_starts_with(line, "pub type ") ||
+           str.rchar_starts_with(line, "enum ") ||
+           str.rchar_starts_with(line, "pub enum ") ||
+           str.rchar_starts_with(line, "union ") ||
+           str.rchar_starts_with(line, "pub union ")
+}
+
+fn doc_line_text(trimmed: ref char) ref char! = {
+    val len: i64 = str.len_raw(trimmed)
+    if len <= 3 { return "" }
+    if len > 3 && @load8(@ptradd(trimmed as ref void, 3)) == 32 {
+        return substr(trimmed, 4, len - 4)
+    }
+    return substr(trimmed, 3, len - 3)
+}
+
+fn extract_doc_map(src: ref char) ref DocMap! = {
+    val map: mut ref DocMap = @alloc(@sizeof(DocMap)) as ref DocMap
+    map.lines = []
+    map.docs = []
+    val len: i64 = str.len_raw(src)
+    val line_no: mut i64 = 1
+    val line_start: mut i64 = 0
+    val i: mut i64 = 0
+    val current_doc: mut ref char = ""
+    for {
+        if i > len { break }
+        val at_end: bool = i == len
+        val c: mut u8 = 0
+        if !at_end { c = @load8(@ptradd(src as ref void, i)) }
+        if at_end || c == 10 {
+            val line = substr(src, line_start, i - line_start)
+            val trimmed = trim_ws(line)
+            if str.rchar_starts_with(trimmed, "///") {
+                val text = doc_line_text(trimmed)
+                if str_eq(current_doc, "") {
+                    current_doc = text
+                } else {
+                    current_doc = @fmt("{s}\n{s}", {current_doc, text})
+                }
+            } elif !str_eq(current_doc, "") && is_doc_target_line(trimmed) {
+                @append(map.lines, line_no)
+                @append(map.docs, current_doc)
+                current_doc = ""
+            } else {
+                if !str_eq(trimmed, "") { current_doc = "" }
+            }
+            line_no++
+            line_start = i + 1
+        }
+        i++
+    }
+    return map
+}
+
+fn lookup_doc(map: ref DocMap, line: i64) ref char! = {
+    val len: i64 = @len(map.lines) as i64
+    val i: mut i64 = 0
+    for {
+        if i >= len { break }
+        val line_opt = @get(map.lines, i as usize)
+        match line_opt {
+            some v => {
+                if ((v as i64) == line) {
+                    val doc_opt = @get(map.docs, i as usize)
+                    match doc_opt {
+                        some d => { return d as ref char }
+                        none => {}
+                    }
+                }
+            }
+            none => {}
+        }
+        i++
+    }
+    return ""
+}
+
+fn slugify(text: ref char) ref char! = {
+    val sb: ref void = std.string.StringBuilder.new()
+    val len: i64 = str.len_raw(text)
+    val i: mut i64 = 0
+    val prev_dash: mut bool = false
+    for {
+        if i >= len { break }
+        val c: u8 = @load8(@ptradd(text as ref void, i))
+        val is_lower: bool = c >= 97 && c <= 122
+        val is_upper: bool = c >= 65 && c <= 90
+        val is_digit: bool = c >= 48 && c <= 57
+        if is_lower || is_digit {
+            std.string.StringBuilder.append_char(sb, c)
+            prev_dash = false
+        } elif is_upper {
+            std.string.StringBuilder.append_char(sb, (c + 32) as u8)
+            prev_dash = false
+        } else {
+            if !prev_dash {
+                std.string.StringBuilder.append_char(sb, 45 as u8)
+                prev_dash = true
+            }
+        }
+        i++
+    }
+    val built = std.string.StringBuilder.build(sb)
+    std.string.StringBuilder.free(sb)
+    return std.string.cstr(built)
+}
+
+fn anchor_for(kind_name: ref char, item_name: ref char, line: i64) ref char! = {
+    return slugify(@fmt("{s}-{s}-{lld}", {kind_name, item_name, line}))
+}
+
+fn render_type(ty: ref parser.Node) ref char! = {
+    if ty == 0 as ref parser.Node { return "" }
+    match ty.kind {
+        parser.TY_NAMED => { return ty.d0 as ref char }
+        parser.TY_REF => { return @fmt("ref {s}", {render_type(ty.d0 as ref parser.Node)}) }
+        parser.TY_MUT => { return @fmt("mut {s}", {render_type(ty.d0 as ref parser.Node)}) }
+        parser.TY_OPTION => { return @fmt("option[{s}]", {render_type(ty.d0 as ref parser.Node)}) }
+        parser.TY_LIST => { return @fmt("list[{s}]", {render_type(ty.d0 as ref parser.Node)}) }
+        parser.TY_RESULT => { return @fmt("result[{s}, {s}]", {render_type(ty.d0 as ref parser.Node), render_type(ty.d1 as ref parser.Node)}) }
+        parser.TY_SLICE => { return @fmt("[]{s}", {render_type(ty.d0 as ref parser.Node)}) }
+        parser.TY_FIXED_ARR => {
+            val size_name: ref char = parser.fixed_arr_size_name(ty)
+            if size_name != 0 as ref char {
+                return @fmt("[{s}]{s}", {size_name, render_type(parser.fixed_arr_inner(ty))})
+            }
+            return @fmt("[{lld}]{s}", {parser.fixed_arr_size(ty), render_type(parser.fixed_arr_inner(ty))})
+        }
+        parser.TY_FNPTR => {
+            val parts: mut ref char = ""
+            val params = ty.d0 as list[ref parser.Node]
+            for param in params {
+                val part = render_type(param)
+                if str_eq(parts, "") {
+                    parts = part
+                } else {
+                    parts = @fmt("{s}, {s}", {parts, part})
+                }
+            }
+            return @fmt("fn({s}) {s}", {parts, render_type(ty.d1 as ref parser.Node)})
+        }
+        parser.TY_VOID => { return "void" }
+        parser.TY_UNTYPED => { return "untyped" }
+    }
+    return "unknown"
+}
+
+fn render_fn_params(params: list[ref parser.Node]) ref char! = {
+    val out: mut ref char = ""
+    for param in params {
+        val param_name: ref char = param.d0 as ref char
+        val param_ty: ref parser.Node = param.d1 as ref parser.Node
+        val piece = @fmt("{s}: {s}", {param_name, render_type(param_ty)})
+        if str_eq(out, "") {
+            out = piece
+        } else {
+            out = @fmt("{s}, {s}", {out, piece})
+        }
+    }
+    return out
+}
+
+fn render_type_fields(fields: list[ref parser.Node]) ref char! = {
+    val out: mut ref char = ""
+    for field in fields {
+        val prefix: mut ref char = ""
+        if field.d1 != 0 { prefix = "mut " }
+        val piece = @fmt("{s}: {s}{s}", {field.d0 as ref char, prefix, render_type(field.d2 as ref parser.Node)})
+        if str_eq(out, "") {
+            out = piece
+        } else {
+            out = @fmt("{s}, {s}", {out, piece})
+        }
+    }
+    return out
+}
+
+fn render_type_list(types: list[ref parser.Node], delim: ref char) ref char! = {
+    val out: mut ref char = ""
+    for ty in types {
+        val piece = render_type(ty)
+        if str_eq(out, "") {
+            out = piece
+        } else {
+            out = @fmt("{s}{s}{s}", {out, delim, piece})
+        }
+    }
+    return out
+}
+
+fn render_variant_list(values: list[ref char], delim: ref char) ref char! = {
+    val out: mut ref char = ""
+    for value in values {
+        if str_eq(out, "") {
+            out = value
+        } else {
+            out = @fmt("{s}{s}{s}", {out, delim, value})
+        }
+    }
+    return out
+}
+
+fn render_tagged_variants(values: list[ref parser.Node]) ref char! = {
+    val out: mut ref char = ""
+    for value in values {
+        val types = value.d1 as list[ref parser.Node]
+        val rendered_types = render_type_list(types, ", ")
+        val piece: mut ref char = value.d0 as ref char
+        if !str_eq(rendered_types, "") {
+            piece = @fmt("{s}({s})", {piece, rendered_types})
+        } else {
+            piece = @fmt("{s}()", {piece})
+        }
+        if str_eq(out, "") {
+            out = piece
+        } else {
+            out = @fmt("{s} | {s}", {out, piece})
+        }
+    }
+    return out
+}
+
+fn render_type_signature(node: ref parser.Node) ref char! = {
+    val public_prefix: mut ref char = ""
+    if node.d0 != 0 { public_prefix = "pub " }
+    if node.kind == parser.NK_TYPEDEF || node.kind == parser.NK_EXTERN_TYPE {
+        val extern_prefix: mut ref char = ""
+        if node.kind == parser.NK_EXTERN_TYPE { extern_prefix = "extern " }
+        val fields = render_type_fields(node.d2 as list[ref parser.Node])
+        return @fmt("{s}{s}type {s} = {{ {s} }}", {public_prefix, extern_prefix, node.d1 as ref char, fields})
+    }
+    if node.kind == parser.NK_ENUMDEF {
+        val variants = render_variant_list(node.d2 as list[ref char], ", ")
+        return @fmt("{s}enum {s} = {{ {s} }}", {public_prefix, node.d1 as ref char, variants})
+    }
+    if node.kind == parser.NK_UNIONDEF {
+        val variants = render_type_list(node.d2 as list[ref parser.Node], " | ")
+        return @fmt("{s}union {s} = {{ {s} }}", {public_prefix, node.d1 as ref char, variants})
+    }
+    if node.kind == parser.NK_TAGGED_UNIONDEF {
+        val variants = render_tagged_variants(node.d2 as list[ref parser.Node])
+        return @fmt("{s}union {s} = {{ {s} }}", {public_prefix, node.d1 as ref char, variants})
+    }
+    return ""
+}
+
+fn render_fn_signature(node: ref parser.Node) ref char! = {
+    if node.kind == parser.NK_EXTERN_FN {
+        val public_prefix: mut ref char = ""
+        if node.d0 != 0 { public_prefix = "pub " }
+        val conv: ref char = node.d3 as ref char
+        val params = render_fn_params(node.d4 as list[ref parser.Node])
+        val variadic_suffix: mut ref char = ""
+        if parser.extern_fn_is_variadic(node) {
+            if str_eq(params, "") { variadic_suffix = "..." } else { variadic_suffix = ", ..." }
+        }
+        val header_mod: mut ref char = ""
+        if parser.extern_fn_uses_header(node) { header_mod = ", header" }
+        val unsafe_suffix: mut ref char = ""
+        if parser.fn_is_unsafe(node) { unsafe_suffix = "!" }
+        return @fmt("{s}extern ({s}{s}) fn {s}({s}{s}) {s}{s} = \"{s}\"", {
+            public_prefix,
+            conv,
+            header_mod,
+            node.d1 as ref char,
+            params,
+            variadic_suffix,
+            render_type(node.d5 as ref parser.Node),
+            unsafe_suffix,
+            node.d2 as ref char
+        })
+    }
+    val public_prefix: mut ref char = ""
+    if node.d0 != 0 { public_prefix = "pub " }
+    val receiver: mut ref char = ""
+    if node.d1 != 0 as i64 {
+        receiver = @fmt("({s}) ", {node.d1 as ref char})
+    }
+    val type_params: mut ref char = ""
+    if node.kind == parser.NK_GENERIC_FN {
+        val parts = render_variant_list(parser.generic_fn_type_params(node), ", ")
+        if !str_eq(parts, "") {
+            type_params = @fmt("[{s}]", {parts})
+        }
+    }
+    val unsafe_suffix: mut ref char = ""
+    if node.kind == parser.NK_FN && parser.fn_is_unsafe(node) { unsafe_suffix = "!" }
+    val params = render_fn_params(node.d3 as list[ref parser.Node])
+    return @fmt("{s}fn {s}{s}{s}({s}) {s}{s}", {
+        public_prefix,
+        receiver,
+        node.d2 as ref char,
+        type_params,
+        params,
+        render_type(node.d4 as ref parser.Node),
+        unsafe_suffix
+    })
+}
+
+fn entry_kind_name(kind: i64) ref char = {
+    if kind == parser.NK_FN || kind == parser.NK_GENERIC_FN || kind == parser.NK_EXTERN_FN { return "function" }
+    return "type"
+}
+
+fn entry_name(node: ref parser.Node) ref char! = {
+    if node.kind == parser.NK_EXTERN_FN { return node.d1 as ref char }
+    if node.kind == parser.NK_FN || node.kind == parser.NK_GENERIC_FN { return node.d2 as ref char }
+    return node.d1 as ref char
+}
+
+fn add_entry(entries: mut list[ref DocEntry], node: ref parser.Node, doc_map: ref DocMap, availability: ref char) void! = {
+    val item: mut ref DocEntry = @alloc(@sizeof(DocEntry)) as ref DocEntry
+    item.kind = node.kind
+    item.line = node.line
+    item.name = entry_name(node)
+    item.anchor = anchor_for(entry_kind_name(node.kind), item.name, node.line)
+    item.docs = lookup_doc(doc_map, node.line)
+    item.availability = availability
+    item.node = node
+    if node.kind == parser.NK_FN || node.kind == parser.NK_GENERIC_FN || node.kind == parser.NK_EXTERN_FN {
+        item.signature = render_fn_signature(node)
+    } else {
+        item.signature = render_type_signature(node)
+    }
+    @append(entries, item)
+}
+
+fn combine_availability(a: ref char, b: ref char) ref char! = {
+    if str_eq(a, "") { return b }
+    if str_eq(b, "") { return a }
+    return @fmt("{s}, {s}", {a, b})
+}
+
+fn collect_entries(items: list[ref parser.Node], doc_map: ref DocMap, out: mut list[ref DocEntry], availability: ref char) void! = {
+    for item in items {
+        if item.kind == parser.NK_WHEN_ITEMS {
+            val branch = combine_availability(availability, @fmt("when {s}", {item.d0 as ref char}))
+            collect_entries(item.d1 as list[ref parser.Node], doc_map, out, branch)
+            val or_branches = item.d2 as list[ref parser.Node]
+            for branch_item in or_branches {
+                val branch_avail = combine_availability(availability, @fmt("when {s}", {branch_item.d0 as ref char}))
+                collect_entries(branch_item.d1 as list[ref parser.Node], doc_map, out, branch_avail)
+            }
+            val otherwise_items = item.d3 as list[ref parser.Node]
+            if @len(otherwise_items) as i64 > 0 {
+                collect_entries(otherwise_items, doc_map, out, combine_availability(availability, "otherwise"))
+            }
+            continue
+        }
+        if item.kind == parser.NK_FN ||
+           item.kind == parser.NK_GENERIC_FN ||
+           item.kind == parser.NK_EXTERN_FN ||
+           item.kind == parser.NK_TYPEDEF ||
+           item.kind == parser.NK_EXTERN_TYPE ||
+           item.kind == parser.NK_ENUMDEF ||
+           item.kind == parser.NK_UNIONDEF ||
+           item.kind == parser.NK_TAGGED_UNIONDEF {
+            add_entry(out, item, doc_map, availability)
+        }
+    }
+}
+
+fn load_module(source_path: ref char, rel_path: ref char) ref DocModule! = {
+    val src_opt = std.fs.read_all(source_path)
+    val src: mut ref char = ""
+    match src_opt {
+        some text => { src = text as ref char }
+        none => {
+            std.stdio.print("error: could not read '{s}'\n", {source_path})
+            std.os.exit(1)
+        }
+    }
+    val toks_res = lexer.tokenize(src)
+    val toks: mut list[ref lexer.Token] = []
+    match toks_res {
+        ok t => { toks = t }
+        err e => {
+            std.stdio.print("error: {s}: {s}\n", {source_path, e})
+            std.os.exit(1)
+        }
+    }
+    val parse_res = parser.parse_module(toks, source_path)
+    val items: mut list[ref parser.Node] = []
+    match parse_res {
+        ok p => { items = p }
+        err e => {
+            std.stdio.print("error: {s}\n", {e})
+            std.os.exit(1)
+        }
+    }
+    val doc_map = extract_doc_map(src)
+    val mod: mut ref DocModule = @alloc(@sizeof(DocModule)) as ref DocModule
+    mod.source_path = source_path
+    mod.rel_path = rel_path
+    mod.module_name = strip_sx_ext(rel_path)
+    mod.output_path = ""
+    mod.is_root = false
+    mod.entries = []
+    collect_entries(items, doc_map, mod.entries, "")
+    return mod
+}
+
+fn find_root_module(modules: list[ref DocModule], root_rel: ref char) i64! = {
+    val len: i64 = @len(modules) as i64
+    val i: mut i64 = 0
+    for {
+        if i >= len { break }
+        val mod_opt = @get(modules, i as usize)
+        match mod_opt {
+            some v => {
+                val mod: ref DocModule = v as ref DocModule
+                if str_eq(mod.rel_path, root_rel) { return i }
+            }
+            none => {}
+        }
+        i++
+    }
+    return -1
+}
+
+fn module_output_path(module_name: ref char, markdown: bool) ref char! = {
+    val ext: ref char = "html"
+    if markdown { return @fmt("pages/{s}.md", {module_name}) }
+    return @fmt("pages/{s}.{s}", {module_name, ext})
+}
+
+fn assign_output_paths(modules: list[ref DocModule], markdown: bool, root_idx: i64) void! = {
+    val len: i64 = @len(modules) as i64
+    val i: mut i64 = 0
+    for {
+        if i >= len { break }
+        val mod_opt = @get(modules, i as usize)
+        match mod_opt {
+            some v => {
+                val mod: mut ref DocModule = v as ref DocModule
+                if i == root_idx {
+                    mod.is_root = true
+                    if markdown { mod.output_path = "index.md" } else { mod.output_path = "index.html" }
+                } else {
+                    mod.output_path = module_output_path(mod.module_name, markdown)
+                }
+            }
+            none => {}
+        }
+        i++
+    }
+}
+
+fn html_escape(text: ref char) ref char! = {
+    val sb: ref void = std.string.StringBuilder.new()
+    val len: i64 = str.len_raw(text)
+    val i: mut i64 = 0
+    for {
+        if i >= len { break }
+        val c: u8 = @load8(@ptradd(text as ref void, i))
+        if c == 38 {
+            std.string.StringBuilder.append_cstr(sb, "&amp;")
+        } elif c == 60 {
+            std.string.StringBuilder.append_cstr(sb, "&lt;")
+        } elif c == 62 {
+            std.string.StringBuilder.append_cstr(sb, "&gt;")
+        } elif c == 34 {
+            std.string.StringBuilder.append_cstr(sb, "&quot;")
+        } else {
+            std.string.StringBuilder.append_char(sb, c)
+        }
+        i++
+    }
+    val built = std.string.StringBuilder.build(sb)
+    std.string.StringBuilder.free(sb)
+    return std.string.cstr(built)
+}
+
+fn append_doc_html(sb: ref void, docs: ref char) void! = {
+    if str_eq(docs, "") { return }
+    val len: i64 = str.len_raw(docs)
+    val line_start: mut i64 = 0
+    val i: mut i64 = 0
+    val paragraph: mut ref char = ""
+    std.string.StringBuilder.append_cstr(sb, "<div class=\"docs\">")
+    for {
+        if i > len { break }
+        val at_end: bool = i == len
+        val c: mut u8 = 0
+        if !at_end { c = @load8(@ptradd(docs as ref void, i)) }
+        if at_end || c == 10 {
+            val line = trim_ws(substr(docs, line_start, i - line_start))
+            if str_eq(line, "") {
+                if !str_eq(paragraph, "") {
+                    std.string.StringBuilder.append_cstr(sb, "<p>")
+                    std.string.StringBuilder.append_cstr(sb, html_escape(paragraph))
+                    std.string.StringBuilder.append_cstr(sb, "</p>")
+                    paragraph = ""
+                }
+            } else {
+                if str_eq(paragraph, "") {
+                    paragraph = line
+                } else {
+                    paragraph = @fmt("{s} {s}", {paragraph, line})
+                }
+            }
+            line_start = i + 1
+        }
+        i++
+    }
+    if !str_eq(paragraph, "") {
+        std.string.StringBuilder.append_cstr(sb, "<p>")
+        std.string.StringBuilder.append_cstr(sb, html_escape(paragraph))
+        std.string.StringBuilder.append_cstr(sb, "</p>")
+    }
+    std.string.StringBuilder.append_cstr(sb, "</div>")
+}
+
+fn render_entry_details_html(sb: ref void, entry: ref DocEntry) void! = {
+    val node = entry.node
+    if node.kind == parser.NK_TYPEDEF || node.kind == parser.NK_EXTERN_TYPE {
+        val fields = node.d2 as list[ref parser.Node]
+        if @len(fields) as i64 > 0 {
+            std.string.StringBuilder.append_cstr(sb, "<h4>Fields</h4><ul class=\"details\">")
+            for field in fields {
+                val prefix: mut ref char = ""
+                if field.d1 != 0 { prefix = "mut " }
+                std.string.StringBuilder.append_cstr(sb, "<li><code>")
+                std.string.StringBuilder.append_cstr(sb, html_escape(@fmt("{s}: {s}{s}", {field.d0 as ref char, prefix, render_type(field.d2 as ref parser.Node)})))
+                std.string.StringBuilder.append_cstr(sb, "</code></li>")
+            }
+            std.string.StringBuilder.append_cstr(sb, "</ul>")
+        }
+    } elif node.kind == parser.NK_ENUMDEF {
+        std.string.StringBuilder.append_cstr(sb, "<h4>Variants</h4><ul class=\"details\">")
+        for variant in node.d2 as list[ref char] {
+            std.string.StringBuilder.append_cstr(sb, "<li><code>")
+            std.string.StringBuilder.append_cstr(sb, html_escape(variant))
+            std.string.StringBuilder.append_cstr(sb, "</code></li>")
+        }
+        std.string.StringBuilder.append_cstr(sb, "</ul>")
+    } elif node.kind == parser.NK_UNIONDEF {
+        std.string.StringBuilder.append_cstr(sb, "<h4>Variants</h4><ul class=\"details\">")
+        for variant in node.d2 as list[ref parser.Node] {
+            std.string.StringBuilder.append_cstr(sb, "<li><code>")
+            std.string.StringBuilder.append_cstr(sb, html_escape(render_type(variant)))
+            std.string.StringBuilder.append_cstr(sb, "</code></li>")
+        }
+        std.string.StringBuilder.append_cstr(sb, "</ul>")
+    } elif node.kind == parser.NK_TAGGED_UNIONDEF {
+        std.string.StringBuilder.append_cstr(sb, "<h4>Variants</h4><ul class=\"details\">")
+        for variant in node.d2 as list[ref parser.Node] {
+            val types = render_type_list(variant.d1 as list[ref parser.Node], ", ")
+            val text: mut ref char = variant.d0 as ref char
+            if !str_eq(types, "") { text = @fmt("{s}({s})", {text, types}) } else { text = @fmt("{s}()", {text}) }
+            std.string.StringBuilder.append_cstr(sb, "<li><code>")
+            std.string.StringBuilder.append_cstr(sb, html_escape(text))
+            std.string.StringBuilder.append_cstr(sb, "</code></li>")
+        }
+        std.string.StringBuilder.append_cstr(sb, "</ul>")
+    }
+}
+
+fn render_entry_html(sb: ref void, entry: ref DocEntry) void! = {
+    std.string.StringBuilder.append_cstr(sb, @fmt("<section class=\"entry\" id=\"{s}\">", {entry.anchor}))
+    std.string.StringBuilder.append_cstr(sb, @fmt("<h3>{s}</h3>", {html_escape(entry.name)}))
+    if !str_eq(entry.availability, "") {
+        std.string.StringBuilder.append_cstr(sb, @fmt("<div class=\"badge\">{s}</div>", {html_escape(entry.availability)}))
+    }
+    std.string.StringBuilder.append_cstr(sb, "<pre><code>")
+    std.string.StringBuilder.append_cstr(sb, html_escape(entry.signature))
+    std.string.StringBuilder.append_cstr(sb, "</code></pre>")
+    append_doc_html(sb, entry.docs)
+    render_entry_details_html(sb, entry)
+    std.string.StringBuilder.append_cstr(sb, "</section>")
+}
+
+fn render_toc_html(sb: ref void, module: ref DocModule) void! = {
+    if @len(module.entries) as i64 == 0 { return }
+    std.string.StringBuilder.append_cstr(sb, "<section class=\"toc\"><h2>On this page</h2><ul>")
+    for entry in module.entries {
+        std.string.StringBuilder.append_cstr(sb, @fmt("<li><a href=\"#{s}\">{s}</a></li>", {entry.anchor, html_escape(entry.name)}))
+    }
+    std.string.StringBuilder.append_cstr(sb, "</ul></section>")
+}
+
+fn depth_prefix(output_path: ref char) ref char! = {
+    val len: i64 = str.len_raw(output_path)
+    val depth: mut i64 = 0
+    val i: mut i64 = 0
+    for {
+        if i >= len { break }
+        if @load8(@ptradd(output_path as ref void, i)) == 47 { depth++ }
+        i++
+    }
+    val prefix: mut ref char = ""
+    val j: mut i64 = 0
+    for {
+        if j >= depth { break }
+        prefix = @fmt("{s}../", {prefix})
+        j++
+    }
+    return prefix
+}
+
+fn href_from(current_output: ref char, target_output: ref char) ref char! = {
+    return @fmt("{s}{s}", {depth_prefix(safe_cstr(current_output)), safe_cstr(target_output)})
+}
+
+fn append_nav_html(sb: ref void, modules: list[ref DocModule], current: ref DocModule) void! = {
+    std.string.StringBuilder.append_cstr(sb, "<nav class=\"sidebar\"><h2>Modules</h2><ul>")
+    for mod in modules {
+        val cls: mut ref char = ""
+        if str_eq(mod.rel_path, current.rel_path) { cls = " class=\"active\"" }
+        std.string.StringBuilder.append_cstr(sb, @fmt("<li{s}><a href=\"{s}\">{s}</a></li>", {
+            cls,
+            href_from(current.output_path, mod.output_path),
+            html_escape(safe_cstr(mod.module_name))
+        }))
+    }
+    std.string.StringBuilder.append_cstr(sb, "</ul></nav>")
+}
+
+fn render_module_page_html(module: ref DocModule, modules: list[ref DocModule]) ref char! = {
+    val sb: ref void = std.string.StringBuilder.new()
+    std.string.StringBuilder.append_cstr(sb, "<!doctype html><html><head><meta charset=\"utf-8\">")
+    std.string.StringBuilder.append_cstr(sb, @fmt("<title>{s} - Spectre Docs</title>", {html_escape(safe_cstr(module.module_name))}))
+    std.string.StringBuilder.append_cstr(sb, "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">")
+    std.string.StringBuilder.append_cstr(sb, "<style>body{margin:0;font-family:Inter,system-ui,sans-serif;background:#0b1020;color:#e5e7eb;}a{color:#8ab4ff;text-decoration:none}a:hover{text-decoration:underline}.layout{display:grid;grid-template-columns:280px 1fr;min-height:100vh}.sidebar{padding:24px;border-right:1px solid #1f2937;background:#111827}.sidebar h2,.content h1,.content h2,.content h3,.content h4{margin-top:0}.sidebar ul,.toc ul,.details{padding-left:18px}.sidebar li{margin:8px 0}.sidebar li.active a{font-weight:700;color:#fff}.content{padding:32px;max-width:1100px}.hero{margin-bottom:24px}.hero p{color:#9ca3af}.toc,.entry{background:#111827;border:1px solid #1f2937;border-radius:16px;padding:20px;margin-bottom:20px}.badge{display:inline-block;padding:4px 10px;border-radius:999px;background:#1f2937;color:#cbd5e1;font-size:12px;margin-bottom:12px}pre{overflow:auto;background:#0f172a;border-radius:12px;padding:16px;border:1px solid #1f2937}.docs p{line-height:1.7;color:#d1d5db}.details li{margin:6px 0}@media (max-width:900px){.layout{grid-template-columns:1fr}.sidebar{border-right:none;border-bottom:1px solid #1f2937}}</style>")
+    std.string.StringBuilder.append_cstr(sb, "</head><body><div class=\"layout\">")
+    if @len(modules) as i64 > 1 {
+        append_nav_html(sb, modules, module)
+    }
+    std.string.StringBuilder.append_cstr(sb, "<main class=\"content\">")
+    std.string.StringBuilder.append_cstr(sb, @fmt("<section class=\"hero\"><h1>{s}</h1><p>Source: <code>{s}</code></p></section>", {
+        html_escape(safe_cstr(module.module_name)),
+        html_escape(safe_cstr(module.rel_path))
+    }))
+    render_toc_html(sb, module)
+    for entry in module.entries {
+        render_entry_html(sb, entry)
+    }
+    if @len(module.entries) as i64 == 0 {
+        std.string.StringBuilder.append_cstr(sb, "<section class=\"entry\"><p>No top-level documented functions or types were found in this module.</p></section>")
+    }
+    std.string.StringBuilder.append_cstr(sb, "</main></div></body></html>")
+    val built = std.string.StringBuilder.build(sb)
+    std.string.StringBuilder.free(sb)
+    return std.string.cstr(built)
+}
+
+fn render_entry_details_md(sb: ref void, entry: ref DocEntry) void! = {
+    val node = entry.node
+    if node.kind == parser.NK_TYPEDEF || node.kind == parser.NK_EXTERN_TYPE {
+        val fields = node.d2 as list[ref parser.Node]
+        if @len(fields) as i64 > 0 {
+            std.string.StringBuilder.append_cstr(sb, "\n**Fields**\n\n")
+            for field in fields {
+                val prefix: mut ref char = ""
+                if field.d1 != 0 { prefix = "mut " }
+                std.string.StringBuilder.append_cstr(sb, @fmt("- `{s}: {s}{s}`\n", {field.d0 as ref char, prefix, render_type(field.d2 as ref parser.Node)}))
+            }
+        }
+    } elif node.kind == parser.NK_ENUMDEF {
+        std.string.StringBuilder.append_cstr(sb, "\n**Variants**\n\n")
+        for variant in node.d2 as list[ref char] {
+            std.string.StringBuilder.append_cstr(sb, @fmt("- `{s}`\n", {variant}))
+        }
+    } elif node.kind == parser.NK_UNIONDEF {
+        std.string.StringBuilder.append_cstr(sb, "\n**Variants**\n\n")
+        for variant in node.d2 as list[ref parser.Node] {
+            std.string.StringBuilder.append_cstr(sb, @fmt("- `{s}`\n", {render_type(variant)}))
+        }
+    } elif node.kind == parser.NK_TAGGED_UNIONDEF {
+        std.string.StringBuilder.append_cstr(sb, "\n**Variants**\n\n")
+        for variant in node.d2 as list[ref parser.Node] {
+            val types = render_type_list(variant.d1 as list[ref parser.Node], ", ")
+            val text: mut ref char = variant.d0 as ref char
+            if !str_eq(types, "") { text = @fmt("{s}({s})", {text, types}) } else { text = @fmt("{s}()", {text}) }
+            std.string.StringBuilder.append_cstr(sb, @fmt("- `{s}`\n", {text}))
+        }
+    }
+}
+
+fn render_module_page_md(module: ref DocModule, modules: list[ref DocModule]) ref char! = {
+    val sb: ref void = std.string.StringBuilder.new()
+    std.string.StringBuilder.append_cstr(sb, @fmt("# {s}\n\n", {safe_cstr(module.module_name)}))
+    std.string.StringBuilder.append_cstr(sb, @fmt("Source: `{s}`\n\n", {safe_cstr(module.rel_path)}))
+    if @len(modules) as i64 > 1 {
+        std.string.StringBuilder.append_cstr(sb, "## Modules\n\n")
+        for mod in modules {
+            std.string.StringBuilder.append_cstr(sb, @fmt("- [{s}]({s})\n", {safe_cstr(mod.module_name), href_from(module.output_path, mod.output_path)}))
+        }
+        std.string.StringBuilder.append_cstr(sb, "\n")
+    }
+    if @len(module.entries) as i64 > 0 {
+        std.string.StringBuilder.append_cstr(sb, "## On this page\n\n")
+        for entry in module.entries {
+            std.string.StringBuilder.append_cstr(sb, @fmt("- [{s}](#{s})\n", {entry.name, entry.anchor}))
+        }
+        std.string.StringBuilder.append_cstr(sb, "\n")
+    }
+    for entry in module.entries {
+        std.string.StringBuilder.append_cstr(sb, @fmt("## {s} {{#{s}}}\n\n", {entry.name, entry.anchor}))
+        if !str_eq(entry.availability, "") {
+            std.string.StringBuilder.append_cstr(sb, @fmt("Availability: `{s}`\n\n", {entry.availability}))
+        }
+        std.string.StringBuilder.append_cstr(sb, "```spectre\n")
+        std.string.StringBuilder.append_cstr(sb, entry.signature)
+        std.string.StringBuilder.append_cstr(sb, "\n```\n\n")
+        if !str_eq(entry.docs, "") {
+            std.string.StringBuilder.append_cstr(sb, entry.docs)
+            std.string.StringBuilder.append_cstr(sb, "\n")
+        }
+        render_entry_details_md(sb, entry)
+        std.string.StringBuilder.append_cstr(sb, "\n")
+    }
+    if @len(module.entries) as i64 == 0 {
+        std.string.StringBuilder.append_cstr(sb, "No top-level documented functions or types were found in this module.\n")
+    }
+    val built = std.string.StringBuilder.build(sb)
+    std.string.StringBuilder.free(sb)
+    return std.string.cstr(built)
+}
+
+fn render_overview_page(markdown: bool, modules: list[ref DocModule], output_path: ref char) ref char! = {
+    if markdown {
+        val sb = std.string.StringBuilder.new()
+        std.string.StringBuilder.append_cstr(sb, "# Spectre Docs\n\n## Modules\n\n")
+        for mod in modules {
+            std.string.StringBuilder.append_cstr(sb, @fmt("- [{s}]({s})\n", {mod.module_name, href_from(output_path, mod.output_path)}))
+        }
+        val built = std.string.StringBuilder.build(sb)
+        std.string.StringBuilder.free(sb)
+        return std.string.cstr(built)
+    }
+    val sb2 = std.string.StringBuilder.new()
+    std.string.StringBuilder.append_cstr(sb2, "<!doctype html><html><head><meta charset=\"utf-8\"><title>Spectre Docs</title><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><style>body{font-family:Inter,system-ui,sans-serif;background:#0b1020;color:#e5e7eb;padding:32px}a{color:#8ab4ff}.card{max-width:960px;margin:0 auto;background:#111827;border:1px solid #1f2937;border-radius:20px;padding:24px}li{margin:8px 0}</style></head><body><div class=\"card\"><h1>Spectre Docs</h1><p>Select a module:</p><ul>")
+    for mod in modules {
+        std.string.StringBuilder.append_cstr(sb2, @fmt("<li><a href=\"{s}\">{s}</a></li>", {href_from(output_path, mod.output_path), html_escape(mod.module_name)}))
+    }
+    std.string.StringBuilder.append_cstr(sb2, "</ul></div></body></html>")
+    val built2 = std.string.StringBuilder.build(sb2)
+    std.string.StringBuilder.free(sb2)
+    return std.string.cstr(built2)
+}
+
+fn write_page(path: ref char, content: ref char) bool! = {
+    if !ensure_parent_dir(path) { return false }
+    return std.fs.write_all(path, content)
+}
+
+fn maybe_root_rel_for_dir() ref char! = {
+    val sxmod_opt = commands.load_sxmod()
+    match sxmod_opt {
+        some cfg => {
+            val entry: ref char = (cfg as ref commands.SxMod).entry
+            if !str_eq(entry, "") { return normalize_rel_path(entry) }
+        }
+        none => {}
+    }
+    return ""
+}
+
+pub fn cmd_doc(target: ref char, markdown: bool) i32! = {
+    if str_eq(target, "") {
+        std.stdio.puts("error: doc requires a file or directory target")
+        return 1
+    }
+    val out_dir: ref char = "./docs-out"
+    if !ensure_dir(out_dir) {
+        std.stdio.print("error: could not create '{s}'\n", {out_dir})
+        return 1
+    }
+
+    if dir_exists(target) {
+        val clean_target = trim_trailing_slash(target)
+        val files: mut list[ref char] = []
+        collect_sx_files(clean_target, "", files)
+        if @len(files) as i64 == 0 {
+            std.stdio.print("error: no .sx files found in '{s}'\n", {target})
+            return 1
+        }
+        val modules: mut list[ref DocModule] = []
+        for rel in files {
+            val source_path: mut ref char = rel
+            if !str_eq(clean_target, ".") && !str_eq(clean_target, "") {
+                source_path = std.path.join(clean_target, rel)
+            } else {
+                source_path = @fmt("./{s}", {rel})
+            }
+            @append(modules, load_module(source_path, rel))
+        }
+        val root_rel = maybe_root_rel_for_dir()
+        val root_idx = find_root_module(modules, root_rel)
+        assign_output_paths(modules, markdown, root_idx)
+        if root_idx < 0 {
+            val index_rel: mut ref char = "index.html"
+            if markdown { index_rel = "index.md" }
+            val index_path = std.path.join("docs-out", index_rel)
+            if !write_page(index_path, render_overview_page(markdown, modules, index_rel)) {
+                std.stdio.print("error: could not write '{s}'\n", {index_path})
+                return 1
+            }
+        }
+        for mod in modules {
+            val full_path = std.path.join("docs-out", mod.output_path)
+            val content: mut ref char = ""
+            if markdown {
+                content = render_module_page_md(mod, modules)
+            } else {
+                content = render_module_page_html(mod, modules)
+            }
+            if !write_page(full_path, content) {
+                std.stdio.print("error: could not write '{s}'\n", {full_path})
+                return 1
+            }
+        }
+        std.stdio.print("wrote docs to {s}\n", {out_dir})
+        return 0
+    }
+
+    if !std.os.exists(target) {
+        std.stdio.print("error: could not read '{s}'\n", {target})
+        return 1
+    }
+    if !str.rchar_ends_with(target, ".sx") {
+        std.stdio.puts("error: doc expects a .sx file or a directory")
+        return 1
+    }
+    val rel_path = normalize_rel_path(path_basename(target))
+    val module: mut ref DocModule = load_module(target, rel_path)
+    module.is_root = true
+    if markdown { module.output_path = "index.md" } else { module.output_path = "index.html" }
+    val modules: mut list[ref DocModule] = []
+    @append(modules, module)
+    val content: mut ref char = ""
+    if markdown {
+        content = render_module_page_md(module, modules)
+    } else {
+        content = render_module_page_html(module, modules)
+    }
+    val out_path = std.path.join(out_dir, module.output_path)
+    if !write_page(out_path, content) {
+        std.stdio.print("error: could not write '{s}'\n", {out_path})
+        return 1
+    }
+    std.stdio.print("wrote docs to {s}\n", {out_dir})
+    return 0
+}
+
+test {
+    val docs = trust extract_doc_map(\\/// hello
+        \\/// world
+        \\fn greet() void = {}
+        \\type Point = { x: i64 }
+    )
+    assert(trust lookup_doc(docs, 3) == "hello\nworld")
+    assert(trust lookup_doc(docs, 4) == "")
+
+    assert(str_eq(trust slugify("Hello.World"), "hello-world"))
+    assert(str_eq(trust strip_sx_ext("src/meta/docs.sx"), "src/meta/docs"))
+
+    val toks = trust lexer.tokenize("fn add(a: i64, b: i64) i64! = { return a + b }")
+    val items = trust parser.parse_module(toks, "<test>")
+    val fn_opt = @get(items, 0 as usize)
+    match fn_opt {
+        some fn_item => {
+            assert(str_eq(trust render_fn_signature(fn_item as ref parser.Node), "fn add(a: i64, b: i64) i64!"))
+        }
+        none => { assert false }
+    }
+}

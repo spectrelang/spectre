@@ -16,6 +16,7 @@ val alt_codegen  = use("codegen/alt_codegen.sx")
 val module       = use("module/module.sx")
 val meta         = use("meta/meta.sx")
 val commands     = use("meta/commands.sx")
+val docs         = use("meta/docs.sx")
 val c_translate  = use("translate/c_translate.sx")
 val builds       = use("meta/builds.sx")
 
@@ -191,6 +192,34 @@ pub fn main() i32! = {
             none   => {}
         }
         val code: i32 = commands.cmd_build(config_name, exe_path)
+        allocators.Arena.free(arena)
+        return code
+    }
+
+    if std.string.rchar_cmp(input, "doc") == 0 {
+        val target_arg: mut ref char = "."
+        val md_mode: mut bool = false
+        val doc_arg_i: mut i64 = 2
+        for {
+            val arg_opt = @get(args, doc_arg_i)
+            match arg_opt {
+                some dv => {
+                    val arg: ref char = dv as ref char
+                    if std.string.rchar_cmp(arg, "--md") == 0 {
+                        md_mode = true
+                    } elif std.string.rchar_starts_with(arg, "-") {
+                        std.stdio.print("error: unknown doc option '{s}'\n", {arg})
+                        allocators.Arena.free(arena)
+                        return 1
+                    } else {
+                        target_arg = arg
+                    }
+                }
+                none => { break }
+            }
+            doc_arg_i++
+        }
+        val code: i32 = docs.cmd_doc(target_arg, md_mode)
         allocators.Arena.free(arena)
         return code
     }

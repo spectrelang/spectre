@@ -3459,7 +3459,7 @@ fn gen_match_tagged_union(ctx: mut ref CCtx, stmt: ref parser.Node) void! = {
 }
 
 fn get_std_child_names() mut list[ref char] = {
-    return ["allocators", "collections", "crypto", "fmt", "fs", "log", "math", "os", "path", "random", "reflection", "stdio", "string", "str", "time", "thread"]
+    return ["allocators", "collections", "crypto", "fmt", "fs", "log", "math", "os", "path", "algorithms", "random", "reflection", "stdio", "string", "str", "time", "thread"]
 }
 
 fn gen_fn_prefixed(ctx: mut ref CCtx, fn_node: ref parser.Node, mod_prefix: ref char) void! = {
