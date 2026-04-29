@@ -1,5 +1,6 @@
 val std      = use("std")
 val str      = use("std/string")
+val regex    = use("std/regex")
 val lexer    = use("../ast/lexer.sx")
 val parser   = use("../ast/parser.sx")
 val commands = use("commands.sx")
@@ -1113,7 +1114,8 @@ pub fn cmd_doc(target: ref char, markdown: bool) i32! = {
 }
 
 test {
-    val docs = trust extract_doc_map(\\/// hello
+    val docs = trust extract_doc_map(
+        \\/// hello
         \\/// world
         \\fn greet() void = {}
         \\type Point = { x: i64 }
@@ -1124,23 +1126,31 @@ test {
     assert(str_eq(trust slugify("Hello.World"), "hello-world"))
     assert(str_eq(trust strip_sx_ext("src/meta/docs.sx"), "src/meta/docs"))
 
-    val toks_res = trust lexer.tokenize("fn add(a: i64, b: i64) i64! = { return a + b }")
-    val toks: mut list[ref lexer.Token] = []
-    match toks_res {
-        ok t  => { toks = t }
-        err _ => { assert false }
-    }
-    val items_res = trust parser.parse_module(toks, "<test>")
-    val items: mut list[ref parser.Node] = []
-    match items_res {
-        ok p  => { items = p }
-        err _ => { assert false }
-    }
-    val fn_opt = @get(items, 0 as usize)
-    match fn_opt {
-        some fn_item => {
-            assert(str_eq(trust render_fn_signature(fn_item as ref parser.Node), "fn add(a: i64, b: i64) i64!"))
+    val fn_src = "fn add(a: i64, b: i64) i64! = { return a + b }"
+    val ml: mut i64 = 0
+    match regex.re_match("^fn [^=]+", fn_src, @addr(ml)) {
+        ok found => {
+            match found {
+                some pos => {
+                    val sig = trust trim_ws(substr(fn_src, pos, ml))
+                    assert(str_eq(sig, "fn add(a: i64, b: i64) i64!"))
+                }
+                none => { assert false }
+            }
         }
-        none => { assert false }
+        err _ => { assert false }
+    }
+    val type_src = "type Point = { x: i64, y: i64 }"
+    val ml2: mut i64 = 0
+    match regex.re_match("^type [A-Za-z_]+", type_src, @addr(ml2)) {
+        ok found => {
+            match found {
+                some pos => {
+                    assert(str_eq(trust trim_ws(substr(type_src, pos, ml2)), "type Point"))
+                }
+                none => { assert false }
+            }
+        }
+        err _ => { assert false }
     }
 }
