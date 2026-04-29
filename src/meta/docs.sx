@@ -804,11 +804,12 @@ fn render_entry_details_html(sb: ref void, entry: ref DocEntry) void! = {
 
 fn render_entry_html(sb: ref void, entry: ref DocEntry) void! = {
     std.string.StringBuilder.append_cstr(sb, @fmt("<section class=\"entry\" id=\"{s}\" data-name=\"{s}\">", {entry.anchor, html_escape(entry.name)}))
-    std.string.StringBuilder.append_cstr(sb, @fmt("<h3>{s}</h3>", {html_escape(entry.name)}))
+    std.string.StringBuilder.append_cstr(sb, @fmt("<div class=\"entry-header\"><h3>{s}</h3>", {html_escape(entry.name)}))
     if !str_eq(entry.availability, "") {
-        std.string.StringBuilder.append_cstr(sb, @fmt("<div class=\"badge\">{s}</div>", {html_escape(entry.availability)}))
+        std.string.StringBuilder.append_cstr(sb, @fmt("<span class=\"badge\">{s}</span>", {html_escape(entry.availability)}))
     }
-    std.string.StringBuilder.append_cstr(sb, "<pre><code>")
+    std.string.StringBuilder.append_cstr(sb, "</div>")
+    std.string.StringBuilder.append_cstr(sb, "<pre><code class=\"language-spectre\">")
     std.string.StringBuilder.append_cstr(sb, html_escape(entry.signature))
     std.string.StringBuilder.append_cstr(sb, "</code></pre>")
     append_doc_html(sb, entry.docs)
@@ -841,7 +842,7 @@ fn href_from(current_output: ref char, target_output: ref char) ref char! = {
 
 fn append_nav_html(sb: ref void, modules: list[ref DocModule], current: ref DocModule) void! = {
     if @len(modules) as i64 > 1 {
-        std.string.StringBuilder.append_cstr(sb, "<div class=\"nav-section\"><span class=\"nav-label\">Modules</span>")
+        std.string.StringBuilder.append_cstr(sb, "<div class=\"nav-section\"><div class=\"nav-label\">Modules</div>")
         for mod in modules {
             val cls: mut ref char = "nav-item"
             if str_eq(mod.rel_path, current.rel_path) { cls = "nav-item active" }
@@ -854,7 +855,7 @@ fn append_nav_html(sb: ref void, modules: list[ref DocModule], current: ref DocM
         std.string.StringBuilder.append_cstr(sb, "</div>")
     }
     if @len(current.entries) as i64 > 0 {
-        std.string.StringBuilder.append_cstr(sb, "<div class=\"nav-section\"><span class=\"nav-label\">On this page</span>")
+        std.string.StringBuilder.append_cstr(sb, "<div class=\"nav-section\"><div class=\"nav-label\">On this page</div>")
         for entry in current.entries {
             std.string.StringBuilder.append_cstr(sb, @fmt("<a class=\"nav-item\" href=\"#{s}\" data-name=\"{s}\">{s}</a>", {
                 entry.anchor,
@@ -869,101 +870,364 @@ fn append_nav_html(sb: ref void, modules: list[ref DocModule], current: ref DocM
 fn render_module_page_html(module: ref DocModule, modules: list[ref DocModule]) ref char! = {
     val sb: ref void = std.string.StringBuilder.new()
     std.string.StringBuilder.append_cstr(sb, "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\">")
-    std.string.StringBuilder.append_cstr(sb, @fmt("<title>{s} - Docs</title>", {html_escape(safe_cstr(module.module_name))}))
-    std.string.StringBuilder.append_cstr(sb, "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><style>")
-    std.string.StringBuilder.append_cstr(sb, \\*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-        \\body{font-family:Inter,system-ui,-apple-system,sans-serif;background:#030b1a;color:#b8c9e0;font-size:15px;line-height:1.65;overflow-x:hidden}
-        \\a{color:#5ba3f5;text-decoration:none}
-        \\a:hover{color:#82bfff;text-decoration:underline}
+    std.string.StringBuilder.append_cstr(sb, @fmt("<title>{s} — Docs</title>", {html_escape(safe_cstr(module.module_name))}))
+    std.string.StringBuilder.append_cstr(sb, "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">")
+    std.string.StringBuilder.append_cstr(sb, "<link rel=\"preconnect\" href=\"https://fonts.googleapis.com\">")
+    std.string.StringBuilder.append_cstr(sb, "<link href=\"https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap\" rel=\"stylesheet\">")
+    std.string.StringBuilder.append_cstr(sb, "<style>")
+    std.string.StringBuilder.append_cstr(sb,
+        \\:root{
+        \\  --bg:#f0f4fa;--bg2:#e4ecf7;--surface:#ffffff;--surface2:#f7f9fd;
+        \\  --border:#c8d8ee;--border2:#dde8f5;
+        \\  --text:#0f1f3d;--text2:#3a5275;--text3:#6b87a8;
+        \\  --accent:#1d6cf0;--accent2:#4a90f7;--accent3:#0a4fc4;
+        \\  --code-bg:#eaf0fb;--code-text:#1a3560;
+        \\  --kw:#1d6cf0;--ty:#0e7490;--lit:#0f5c2e;--op:#475569;--cm:#7a94b0;--fn-col:#7c3aed;
+        \\  --sb-w:272px;--radius:10px;--font:'IBM Plex Sans',system-ui,sans-serif;--mono:'IBM Plex Mono',monospace;
+        \\  --shadow:0 1px 3px rgba(15,31,61,.06),0 4px 16px rgba(15,31,61,.08);
+        \\  --shadow-lg:0 2px 8px rgba(15,31,61,.08),0 12px 40px rgba(15,31,61,.12);
+        \\}
+        \\html.dark{
+        \\  --bg:#080f1e;--bg2:#0c1528;--surface:#0f1d35;--surface2:#0a1628;
+        \\  --border:#162b52;--border2:#1a3260;
+        \\  --text:#d8e8ff;--text2:#8badd4;--text3:#4a6d96;
+        \\  --accent:#4a90f7;--accent2:#6aaeff;--accent3:#2e6fe0;
+        \\  --code-bg:#060e1c;--code-text:#93c5fd;
+        \\  --kw:#60a5fa;--ty:#22d3ee;--lit:#4ade80;--op:#94a3b8;--cm:#4a6d96;--fn-col:#a78bfa;
+        \\  --shadow:0 1px 3px rgba(0,0,0,.3),0 4px 16px rgba(0,0,0,.4);
+        \\  --shadow-lg:0 2px 8px rgba(0,0,0,.4),0 12px 40px rgba(0,0,0,.5);
+        \\}
+        \\*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+        \\html{scroll-behavior:smooth}
+        \\body{font-family:var(--font);background:var(--bg);color:var(--text);font-size:15px;line-height:1.65;overflow-x:hidden;transition:background .2s,color .2s}
+        \\a{color:var(--accent);text-decoration:none;transition:color .15s}
+        \\a:hover{color:var(--accent2)}
         \\.page{display:flex;min-height:100vh}
-        \\.sidebar{position:fixed;top:0;left:0;bottom:0;width:260px;background:#050e22;border-right:1px solid #0f2040;display:flex;flex-direction:column;transition:transform .3s cubic-bezier(.4,0,.2,1);z-index:100;overflow:hidden}
-        \\.sidebar.collapsed{transform:translateX(-260px)}
-        \\.sb-head{padding:18px 16px 14px;border-bottom:1px solid #0f2040;flex-shrink:0;display:flex;align-items:center;gap:8px}
-        \\.sb-logo{width:22px;height:22px;background:linear-gradient(135deg,#1a4a9e,#3b82f6);border-radius:6px;flex-shrink:0}
-        \\.sb-title{font-size:13px;font-weight:700;color:#e0ecff;letter-spacing:.01em}
-        \\.sb-search{padding:10px 12px;border-bottom:1px solid #0f2040;flex-shrink:0;position:relative}
-        \\.sb-search-icon{position:absolute;left:22px;top:50%;transform:translateY(-50%);color:#2e4a6e;pointer-events:none}
-        \\.sb-input{width:100%;padding:7px 8px 7px 30px;background:#020c1e;border:1px solid #0f2040;border-radius:8px;color:#b8c9e0;font-size:13px;font-family:inherit;outline:none;transition:border-color .15s}
-        \\.sb-input:focus{border-color:#1e4a8a;background:#030f1f}
-        \\.sb-input::placeholder{color:#233650}
-        \\.sb-nav{overflow-y:auto;flex:1;padding:8px 8px 20px}
-        \\.nav-section{margin-bottom:16px}
-        \\.nav-label{display:block;font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#1e3d6e;padding:6px 10px 5px}
-        \\.nav-item{display:block;padding:5px 10px;border-radius:6px;color:#6a8aaa;font-size:13px;transition:background .12s,color .12s;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-        \\.nav-item:hover{background:#0a1f42;color:#c0d4ee;text-decoration:none}
-        \\.nav-item.active{background:#0d2a5e;color:#82bfff;font-weight:600}
+        \\
+        \\/* ── Sidebar ── */
+        \\.sidebar{
+        \\  position:fixed;top:0;left:0;bottom:0;width:var(--sb-w);
+        \\  background:var(--bg2);border-right:1px solid var(--border);
+        \\  display:flex;flex-direction:column;
+        \\  transition:transform .28s cubic-bezier(.4,0,.2,1);
+        \\  z-index:100;overflow:hidden;
+        \\}
+        \\.sidebar.collapsed{transform:translateX(calc(-1 * var(--sb-w)))}
+        \\.sb-head{
+        \\  padding:20px 18px 16px;border-bottom:1px solid var(--border);
+        \\  flex-shrink:0;display:flex;align-items:center;gap:10px;
+        \\}
+        \\.sb-logo{
+        \\  width:26px;height:26px;flex-shrink:0;
+        \\  background:linear-gradient(135deg,var(--accent3),var(--accent2));
+        \\  border-radius:7px;display:flex;align-items:center;justify-content:center;
+        \\}
+        \\.sb-logo svg{width:14px;height:14px;fill:none;stroke:#fff;stroke-width:2.2;stroke-linecap:round}
+        \\.sb-title{font-size:13px;font-weight:700;color:var(--text);letter-spacing:.01em;font-family:var(--mono)}
+        \\.sb-search{padding:10px 14px;border-bottom:1px solid var(--border);flex-shrink:0;position:relative}
+        \\.sb-search-icon{position:absolute;left:24px;top:50%;transform:translateY(-50%);color:var(--text3);pointer-events:none;width:14px;height:14px}
+        \\.sb-input{
+        \\  width:100%;padding:7px 8px 7px 32px;
+        \\  background:var(--surface);border:1px solid var(--border2);
+        \\  border-radius:7px;color:var(--text);font-size:13px;font-family:var(--font);
+        \\  outline:none;transition:border-color .15s,box-shadow .15s;
+        \\}
+        \\.sb-input:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 15%,transparent)}
+        \\.sb-input::placeholder{color:var(--text3)}
+        \\.sb-nav{overflow-y:auto;flex:1;padding:10px 10px 24px}
+        \\.sb-nav::-webkit-scrollbar{width:4px}
+        \\.sb-nav::-webkit-scrollbar-track{background:transparent}
+        \\.sb-nav::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+        \\.nav-section{margin-bottom:20px}
+        \\.nav-label{
+        \\  display:block;font-size:10px;font-weight:700;
+        \\  letter-spacing:.1em;text-transform:uppercase;
+        \\  color:var(--text3);padding:6px 10px 5px;
+        \\}
+        \\.nav-item{
+        \\  display:block;padding:5px 10px;border-radius:6px;
+        \\  color:var(--text2);font-size:13px;font-family:var(--mono);
+        \\  transition:background .12s,color .12s;
+        \\  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+        \\}
+        \\.nav-item:hover{background:var(--surface);color:var(--text);text-decoration:none}
+        \\.nav-item.active{background:color-mix(in srgb,var(--accent) 12%,transparent);color:var(--accent);font-weight:600}
         \\.nav-item.hidden{display:none}
-        \\.toggle{position:fixed;top:14px;z-index:200;width:32px;height:32px;background:#050e22;border:1px solid #0f2040;border-radius:7px;color:#4a8fd4;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:15px;line-height:1;padding:0;transition:left .3s cubic-bezier(.4,0,.2,1),background .15s,color .15s;left:14px}
-        \\.toggle:hover{background:#0a1f42;color:#82bfff}
-        \\.toggle.sb-open{left:272px}
-        \\.content{margin-left:260px;padding:50px 56px;flex:1;max-width:1000px;transition:margin-left .3s cubic-bezier(.4,0,.2,1)}
+        \\
+        \\/* ── Toggle button ── */
+        \\.toggle{
+        \\  position:fixed;top:16px;z-index:200;
+        \\  width:34px;height:34px;
+        \\  background:var(--surface);border:1px solid var(--border);
+        \\  border-radius:8px;color:var(--text2);cursor:pointer;
+        \\  display:flex;align-items:center;justify-content:center;
+        \\  transition:left .28s cubic-bezier(.4,0,.2,1),background .15s,color .15s,box-shadow .15s;
+        \\  left:16px;box-shadow:var(--shadow);
+        \\}
+        \\.toggle:hover{background:var(--bg2);color:var(--text);box-shadow:var(--shadow-lg)}
+        \\.toggle.sb-open{left:calc(var(--sb-w) + 12px)}
+        \\.toggle svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round}
+        \\
+        \\/* ── Theme toggle ── */
+        \\.theme-btn{
+        \\  position:fixed;top:16px;right:16px;z-index:200;
+        \\  width:34px;height:34px;
+        \\  background:var(--surface);border:1px solid var(--border);
+        \\  border-radius:8px;color:var(--text2);cursor:pointer;
+        \\  display:flex;align-items:center;justify-content:center;
+        \\  box-shadow:var(--shadow);transition:background .15s,color .15s,box-shadow .15s;
+        \\}
+        \\.theme-btn:hover{background:var(--bg2);color:var(--text);box-shadow:var(--shadow-lg)}
+        \\.theme-btn svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round}
+        \\
+        \\/* ── Content ── */
+        \\.content{
+        \\  margin-left:var(--sb-w);padding:64px 60px 80px;
+        \\  flex:1;max-width:calc(var(--sb-w) + 820px);
+        \\  transition:margin-left .28s cubic-bezier(.4,0,.2,1);
+        \\}
         \\.content.sb-closed{margin-left:0}
-        \\.hero{margin-bottom:36px;padding-bottom:26px;border-bottom:1px solid #0f2040}
-        \\.hero h1{font-size:25px;font-weight:700;color:#e0ecff;margin-bottom:5px}
-        \\.hero p{color:#2e4a6e;font-size:13px}
-        \\.hero code{background:#071428;padding:2px 6px;border-radius:4px;color:#5ba3f5;font-size:12px;font-family:'JetBrains Mono','Fira Code',monospace}
-        \\.entry{background:#050e22;border:1px solid #0f2040;border-radius:12px;padding:24px 28px;margin-bottom:16px;transition:border-color .2s;scroll-margin-top:20px}
-        \\.entry:hover{border-color:#1a4080}
+        \\
+        \\.hero{margin-bottom:40px;padding-bottom:28px;border-bottom:1px solid var(--border)}
+        \\.hero h1{font-size:26px;font-weight:700;color:var(--text);margin-bottom:6px;letter-spacing:-.02em}
+        \\.hero-meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+        \\.hero-meta .label{font-size:12px;color:var(--text3)}
+        \\.hero-meta code{font-family:var(--mono);font-size:12px;background:var(--code-bg);color:var(--accent);padding:2px 8px;border-radius:5px;border:1px solid var(--border2)}
+        \\
+        \\/* ── Entry cards ── */
+        \\.entry{
+        \\  background:var(--surface);border:1px solid var(--border);
+        \\  border-radius:var(--radius);padding:24px 28px;margin-bottom:12px;
+        \\  transition:border-color .2s,box-shadow .2s;
+        \\  scroll-margin-top:24px;
+        \\}
+        \\.entry:hover{border-color:var(--accent3);box-shadow:var(--shadow)}
         \\.entry.s-hide{display:none}
-        \\.entry h3{font-size:16px;font-weight:600;color:#d8e8ff;margin-bottom:12px}
-        \\.badge{display:inline-flex;align-items:center;padding:3px 10px;border-radius:999px;background:#071428;color:#5ba3f5;font-size:11px;font-weight:600;letter-spacing:.04em;margin-bottom:12px;border:1px solid #0c2550}
-        \\pre{overflow:auto;background:#020c1e;border-radius:8px;padding:14px 16px;border:1px solid #0f2040;margin:0 0 14px}
-        \\code{font-family:'JetBrains Mono','Fira Code','Cascadia Code',monospace;font-size:12.5px;color:#7ab8f5}
-        \\.docs p{line-height:1.8;color:#6a8aaa;margin-bottom:8px}
-        \\h4{font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#1e3d6e;margin:16px 0 7px}
-        \\.details{list-style:none;padding:0}
-        \\.details li{margin:4px 0;font-size:13px}
-        \\.details li code{background:#071428;padding:2px 5px;border-radius:4px}
-        \\@media(max-width:900px){.sidebar{transform:translateX(-260px)}.sidebar.sb-open-m{transform:translateX(0)}.content{margin-left:0;padding:28px 18px}.toggle{left:14px}.toggle.sb-open{left:272px}}
+        \\.entry-header{display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap}
+        \\.entry-header h3{font-size:15px;font-weight:600;color:var(--text);font-family:var(--mono);letter-spacing:-.01em}
+        \\.badge{
+        \\  display:inline-flex;align-items:center;
+        \\  padding:2px 9px;border-radius:999px;
+        \\  background:color-mix(in srgb,var(--accent) 10%,transparent);
+        \\  color:var(--accent);font-size:11px;font-weight:600;
+        \\  letter-spacing:.03em;border:1px solid color-mix(in srgb,var(--accent) 25%,transparent);
+        \\  font-family:var(--mono);
+        \\}
+        \\
+        \\/* ── Code blocks ── */
+        \\pre{
+        \\  overflow:auto;background:var(--code-bg);
+        \\  border-radius:8px;padding:16px 18px;
+        \\  border:1px solid var(--border2);margin:0 0 16px;
+        \\  font-size:13px;line-height:1.7;
+        \\}
+        \\pre::-webkit-scrollbar{height:4px}
+        \\pre::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+        \\code{font-family:var(--mono);font-size:13px;color:var(--code-text)}
+        \\.hljs-keyword{color:var(--kw);font-weight:600}
+        \\.hljs-type{color:var(--ty)}
+        \\.hljs-built_in{color:var(--ty)}
+        \\.hljs-number{color:var(--lit)}
+        \\.hljs-string{color:var(--lit)}
+        \\.hljs-comment{color:var(--cm);font-style:italic}
+        \\.hljs-operator{color:var(--op)}
+        \\.hljs-punctuation{color:var(--op)}
+        \\.hljs-title{color:var(--fn-col);font-weight:600}
+        \\.hljs-params{color:var(--text2)}
+        \\.hljs-variable{color:var(--text)}
+        \\
+        \\/* ── Docs prose ── */
+        \\.docs{margin-top:2px}
+        \\.docs p{line-height:1.8;color:var(--text2);margin-bottom:8px;font-size:14px}
+        \\
+        \\/* ── Details list ── */
+        \\h4{
+        \\  font-size:10px;font-weight:700;letter-spacing:.1em;
+        \\  text-transform:uppercase;color:var(--text3);margin:18px 0 8px;
+        \\}
+        \\.details{list-style:none;padding:0;display:flex;flex-direction:column;gap:4px}
+        \\.details li code{
+        \\  font-family:var(--mono);font-size:12.5px;
+        \\  background:var(--code-bg);padding:3px 8px;
+        \\  border-radius:5px;color:var(--code-text);
+        \\  border:1px solid var(--border2);display:inline-block;
+        \\}
+        \\
+        \\/* ── Empty state ── */
+        \\.empty{
+        \\  background:var(--surface);border:1px dashed var(--border);
+        \\  border-radius:var(--radius);padding:40px 28px;
+        \\  color:var(--text3);text-align:center;font-size:14px;
+        \\}
+        \\
+        \\/* ── Responsive ── */
+        \\@media(max-width:860px){
+        \\  .sidebar{transform:translateX(calc(-1 * var(--sb-w)))}
+        \\  .sidebar.sb-open-m{transform:translateX(0)}
+        \\  .content{margin-left:0!important;padding:28px 20px 60px}
+        \\  .toggle{left:14px}
+        \\  .toggle.sb-open{left:calc(var(--sb-w) + 10px)}
+        \\}
     )
     std.string.StringBuilder.append_cstr(sb, "</style></head><body>")
-    std.string.StringBuilder.append_cstr(sb, "<button class=\"toggle\" id=\"toggle\" aria-label=\"Toggle sidebar\">&#9776;</button>")
+
+    std.string.StringBuilder.append_cstr(sb, "<button class=\"toggle\" id=\"toggle\" aria-label=\"Toggle sidebar\"><svg viewBox=\"0 0 24 24\"><line x1=\"3\" y1=\"6\" x2=\"21\" y2=\"6\"/><line x1=\"3\" y1=\"12\" x2=\"21\" y2=\"12\"/><line x1=\"3\" y1=\"18\" x2=\"21\" y2=\"18\"/></svg></button>")
+
+    std.string.StringBuilder.append_cstr(sb, "<button class=\"theme-btn\" id=\"theme-btn\" aria-label=\"Toggle theme\"><svg id=\"theme-icon\" viewBox=\"0 0 24 24\"><circle cx=\"12\" cy=\"12\" r=\"5\"/><line x1=\"12\" y1=\"1\" x2=\"12\" y2=\"3\"/><line x1=\"12\" y1=\"21\" x2=\"12\" y2=\"23\"/><line x1=\"4.22\" y1=\"4.22\" x2=\"5.64\" y2=\"5.64\"/><line x1=\"18.36\" y1=\"18.36\" x2=\"19.78\" y2=\"19.78\"/><line x1=\"1\" y1=\"12\" x2=\"3\" y2=\"12\"/><line x1=\"21\" y1=\"12\" x2=\"23\" y2=\"12\"/><line x1=\"4.22\" y1=\"19.78\" x2=\"5.64\" y2=\"18.36\"/><line x1=\"18.36\" y1=\"5.64\" x2=\"19.78\" y2=\"4.22\"/></svg></button>")
+
     std.string.StringBuilder.append_cstr(sb, "<div class=\"page\">")
+
     std.string.StringBuilder.append_cstr(sb, "<aside class=\"sidebar\" id=\"sidebar\">")
-    std.string.StringBuilder.append_cstr(sb, "<div class=\"sb-head\"><div class=\"sb-logo\"></div><span class=\"sb-title\">Docs</span></div>")
-    std.string.StringBuilder.append_cstr(sb, "<div class=\"sb-search\"><svg class=\"sb-search-icon\" width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"11\" cy=\"11\" r=\"8\"/><line x1=\"21\" y1=\"21\" x2=\"16.65\" y2=\"16.65\"/></svg><input class=\"sb-input\" id=\"search\" type=\"search\" placeholder=\"Search... (/)\" autocomplete=\"off\" spellcheck=\"false\"/></div>")
+    std.string.StringBuilder.append_cstr(sb, "<div class=\"sb-head\"><div class=\"sb-logo\"><svg viewBox=\"0 0 24 24\"><polyline points=\"16 18 22 12 16 6\"/><polyline points=\"8 6 2 12 8 18\"/></svg></div><span class=\"sb-title\">docs</span></div>")
+    std.string.StringBuilder.append_cstr(sb, "<div class=\"sb-search\"><svg class=\"sb-search-icon\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\"><circle cx=\"11\" cy=\"11\" r=\"8\"/><line x1=\"21\" y1=\"21\" x2=\"16.65\" y2=\"16.65\"/></svg><input class=\"sb-input\" id=\"search\" type=\"search\" placeholder=\"Search... (/)\" autocomplete=\"off\" spellcheck=\"false\"/></div>")
     std.string.StringBuilder.append_cstr(sb, "<nav class=\"sb-nav\" id=\"sb-nav\">")
     append_nav_html(sb, modules, module)
     std.string.StringBuilder.append_cstr(sb, "</nav></aside>")
+
     std.string.StringBuilder.append_cstr(sb, "<main class=\"content\" id=\"content\">")
-    std.string.StringBuilder.append_cstr(sb, @fmt("<div class=\"hero\"><h1>{s}</h1><p>Source: <code>{s}</code></p></div>", {
+    std.string.StringBuilder.append_cstr(sb, @fmt("<div class=\"hero\"><h1>{s}</h1><div class=\"hero-meta\"><span class=\"label\">source</span><code>{s}</code></div></div>", {
         html_escape(safe_cstr(module.module_name)),
         html_escape(safe_cstr(module.rel_path))
     }))
+
     for entry in module.entries {
         render_entry_html(sb, entry)
     }
     if @len(module.entries) as i64 == 0 {
-        std.string.StringBuilder.append_cstr(sb, "<div class=\"entry\"><p>No documented items found in this module.</p></div>")
+        std.string.StringBuilder.append_cstr(sb, "<div class=\"empty\">No documented items found in this module.</div>")
     }
-    std.string.StringBuilder.append_cstr(sb, "</main></div><script>")
-    std.string.StringBuilder.append_cstr(sb, \\(function(){
+    std.string.StringBuilder.append_cstr(sb, "</main></div>")
+
+    std.string.StringBuilder.append_cstr(sb, "<script>")
+    std.string.StringBuilder.append_cstr(sb,
+        \\(function(){
+        \\'use strict';
+        \\
+        \\/* ── Theme ── */
+        \\var html=document.documentElement;
+        \\var stored=localStorage.getItem('theme');
+        \\var prefersDark=window.matchMedia('(prefers-color-scheme:dark)').matches;
+        \\var dark=stored==='dark'||(stored===null&&prefersDark);
+        \\function applyTheme(d){
+        \\  html.classList.toggle('dark',d);
+        \\  dark=d;
+        \\  localStorage.setItem('theme',d?'dark':'light');
+        \\  var icon=document.getElementById('theme-icon');
+        \\  if(d){
+        \\    icon.innerHTML='<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>';
+        \\  } else {
+        \\    icon.innerHTML='<circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>';
+        \\  }
+        \\}
+        \\applyTheme(dark);
+        \\document.getElementById('theme-btn').addEventListener('click',function(){applyTheme(!dark);});
+        \\
+        \\/* ── Sidebar ── */
         \\var sb=document.getElementById('sidebar');
         \\var btn=document.getElementById('toggle');
         \\var ct=document.getElementById('content');
         \\var isOpen=localStorage.getItem('sb-open')!=='0';
         \\function setSidebar(open,animate){
-        \\  if(!animate){sb.style.transition='none';btn.style.transition='none';ct.style.transition='none';}
-        \\  if(open){sb.classList.remove('collapsed');ct.classList.remove('sb-closed');btn.classList.add('sb-open');}
-        \\  else{sb.classList.add('collapsed');ct.classList.add('sb-closed');btn.classList.remove('sb-open');}
-        \\  if(!animate){void sb.offsetWidth;sb.style.transition='';btn.style.transition='';ct.style.transition='';}
+        \\  if(!animate){
+        \\    sb.style.transition='none';btn.style.transition='none';ct.style.transition='none';
+        \\  }
+        \\  if(open){
+        \\    sb.classList.remove('collapsed');ct.classList.remove('sb-closed');btn.classList.add('sb-open');
+        \\  } else {
+        \\    sb.classList.add('collapsed');ct.classList.add('sb-closed');btn.classList.remove('sb-open');
+        \\  }
+        \\  if(!animate){
+        \\    void sb.offsetWidth;
+        \\    sb.style.transition='';btn.style.transition='';ct.style.transition='';
+        \\  }
         \\  isOpen=open;
         \\  localStorage.setItem('sb-open',open?'1':'0');
         \\}
         \\setSidebar(isOpen,false);
         \\btn.addEventListener('click',function(){setSidebar(!isOpen,true);});
+        \\
+        \\/* ── Search ── */
         \\var inp=document.getElementById('search');
         \\inp.addEventListener('input',function(){
         \\  var q=this.value.toLowerCase().trim();
         \\  var links=sb.querySelectorAll('.nav-item[data-name]');
-        \\  for(var i=0;i<links.length;i++){var l=links[i];l.classList.toggle('hidden',q!==''&&l.dataset.name.toLowerCase().indexOf(q)===-1);}
+        \\  for(var i=0;i<links.length;i++){
+        \\    var l=links[i];
+        \\    l.classList.toggle('hidden',q!==''&&l.dataset.name.toLowerCase().indexOf(q)===-1);
+        \\  }
         \\  var cards=ct.querySelectorAll('.entry[data-name]');
-        \\  for(var j=0;j<cards.length;j++){var c=cards[j];c.classList.toggle('s-hide',q!==''&&c.dataset.name.toLowerCase().indexOf(q)===-1);}
+        \\  for(var j=0;j<cards.length;j++){
+        \\    var c=cards[j];
+        \\    c.classList.toggle('s-hide',q!==''&&c.dataset.name.toLowerCase().indexOf(q)===-1);
+        \\  }
         \\});
         \\document.addEventListener('keydown',function(e){
-        \\  if(e.key==='/'&&document.activeElement!==inp){e.preventDefault();if(!isOpen)setSidebar(true,true);inp.focus();}
+        \\  if(e.key==='/'&&document.activeElement!==inp){
+        \\    e.preventDefault();
+        \\    if(!isOpen)setSidebar(true,true);
+        \\    inp.focus();
+        \\  }
         \\  if(e.key==='Escape'&&document.activeElement===inp){inp.blur();}
         \\});
+        \\
+        \\/* ── Spectre syntax highlighter ── */
+        \\(function(){
+        \\  var KW=/\b(fn|pub|val|mut|type|enum|union|extern|ref|if|elif|else|for|match|return|break|continue|use|in|as|is|true|false|void|untyped|some|none|ok|err|when|otherwise|guarded|pre|post|assert|test|and|or|not)\b/g;
+        \\  var TY=/\b(i8|i16|i32|i64|u8|u16|u32|u64|f32|f64|bool|char|usize|isize|list|ref|option|result)\b/g;
+        \\  var NUM=/\b(0x[0-9a-fA-F]+|\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)\b/g;
+        \\  var STR=/(\"(?:[^\"\\]|\\.)*\")/g;
+        \\  var CMT=/(\/\/[^\n]*)/g;
+        \\  var OP=/([(){}\[\]@!;,.|&^~<>=+\-*/%:])/g;
+        \\  var FN=/\bfn\s+([A-Za-z_][A-Za-z0-9_]*)/g;
+        \\
+        \\  function esc(s){
+        \\    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+        \\  }
+        \\
+        \\  function highlight(raw){
+        \\    var patterns=[
+        \\      {re:/\/\/[^\n]*/g,       cls:'hljs-comment'},
+        \\      {re:/"(?:[^"\\]|\\.)*"/g, cls:'hljs-string'},
+        \\      {re:/\b(fn|pub|val|mut|type|enum|union|extern|ref|if|elif|else|for|match|return|break|continue|use|in|as|is|true|false|void|untyped|some|none|ok|err|when|otherwise|guarded|pre|post|assert|test|and|or|not)\b/g, cls:'hljs-keyword'},
+        \\      {re:/\b(i8|i16|i32|i64|u8|u16|u32|u64|f32|f64|bool|usize|isize)\b/g, cls:'hljs-type'},
+        \\      {re:/\b(list|option|result)\b/g, cls:'hljs-built_in'},
+        \\      {re:/\b0x[0-9a-fA-F]+|\b\d+(?:\.\d+)?(?:[eE][+-]?\d+)?\b/g, cls:'hljs-number'},
+        \\      {re:/[(){}\[\]@!;,.|&^~<>=+\-*\/%:]/g, cls:'hljs-punctuation'},
+        \\    ];
+        \\
+        \\    var tokens=[];
+        \\    for(var pi=0;pi<patterns.length;pi++){
+        \\      var p=patterns[pi];
+        \\      p.re.lastIndex=0;
+        \\      var m;
+        \\      while((m=p.re.exec(raw))!==null){
+        \\        tokens.push({s:m.index,e:m.index+m[0].length,cls:p.cls,text:m[0]});
+        \\      }
+        \\    }
+        \\    tokens.sort(function(a,b){return a.s-b.s||(b.e-b.s)-(a.e-a.s);});
+        \\    var clean=[];var pos=0;
+        \\    for(var ti=0;ti<tokens.length;ti++){
+        \\      var t=tokens[ti];
+        \\      if(t.s<pos)continue;
+        \\      clean.push(t);pos=t.e;
+        \\    }
+        \\    var out='';var cur=0;
+        \\    for(var ci=0;ci<clean.length;ci++){
+        \\      var tk=clean[ci];
+        \\      if(cur<tk.s)out+=esc(raw.slice(cur,tk.s));
+        \\      out+='<span class="'+tk.cls+'">'+esc(tk.text)+'</span>';
+        \\      cur=tk.e;
+        \\    }
+        \\    if(cur<raw.length)out+=esc(raw.slice(cur));
+        \\    return out;
+        \\  }
+        \\
+        \\  document.querySelectorAll('pre code.language-spectre').forEach(function(el){
+        \\    var raw=el.textContent;
+        \\    el.innerHTML=highlight(raw);
+        \\  });
+        \\})();
+        \\
         \\})();
     )
     std.string.StringBuilder.append_cstr(sb, "</script></body></html>")
@@ -1062,11 +1326,47 @@ fn render_overview_page(markdown: bool, modules: list[ref DocModule], output_pat
         return std.string.cstr(built)
     }
     val sb2 = std.string.StringBuilder.new()
-    std.string.StringBuilder.append_cstr(sb2, "<!doctype html><html><head><meta charset=\"utf-8\"><title>Docs</title><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><style>*{box-sizing:border-box}body{margin:0;font-family:Inter,system-ui,sans-serif;background:#030b1a;color:#b8c9e0;display:flex;align-items:flex-start;justify-content:center;padding:56px 24px;min-height:100vh}a{color:#5ba3f5;text-decoration:none}a:hover{color:#82bfff;text-decoration:underline}.card{width:100%;max-width:640px;background:#050e22;border:1px solid #0f2040;border-radius:16px;padding:36px 40px}.card h1{margin:0 0 6px;font-size:26px;font-weight:700;color:#e0ecff}.card>.sub{color:#3d6290;margin:0 0 28px;font-size:13px}ul{padding:0;list-style:none;margin:0}li{margin:4px 0}li a{font-size:14.5px;display:block;padding:8px 12px;border-radius:8px;transition:background .12s}li a:hover{background:#0a1f42;text-decoration:none}</style></head><body><div class=\"card\"><h1>Docs</h1><p class=\"sub\">Select a module:</p><ul>")
+    std.string.StringBuilder.append_cstr(sb2,
+        \\"<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><title>Docs</title>
+        \\<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">
+        \\<link rel=\"preconnect\" href=\"https://fonts.googleapis.com\">
+        \\<link href=\"https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap\" rel=\"stylesheet\">
+        \\<style>
+        \\:root{--bg:#f0f4fa;--surface:#ffffff;--border:#c8d8ee;--text:#0f1f3d;--text2:#3a5275;--text3:#6b87a8;--accent:#1d6cf0;--accent2:#4a90f7;--mono:'IBM Plex Mono',monospace;--font:'IBM Plex Sans',system-ui,sans-serif}
+        \\html.dark{--bg:#080f1e;--surface:#0f1d35;--border:#162b52;--text:#d8e8ff;--text2:#8badd4;--text3:#4a6d96;--accent:#4a90f7;--accent2:#6aaeff}
+        \\*{box-sizing:border-box;margin:0;padding:0}
+        \\body{font-family:var(--font);background:var(--bg);color:var(--text);display:flex;align-items:flex-start;justify-content:center;padding:64px 24px;min-height:100vh;transition:background .2s,color .2s}
+        \\a{color:var(--accent);text-decoration:none}a:hover{color:var(--accent2)}
+        \\.card{width:100%;max-width:600px;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:40px 44px;box-shadow:0 4px 24px rgba(15,31,61,.07)}
+        \\.card h1{margin:0 0 4px;font-size:24px;font-weight:700;letter-spacing:-.02em}
+        \\.card .sub{color:var(--text3);margin:0 0 28px;font-size:13px;font-family:var(--mono)}
+        \\ul{padding:0;list-style:none;margin:0}
+        \\li{margin:3px 0}
+        \\li a{font-size:14px;font-family:var(--mono);display:block;padding:8px 12px;border-radius:7px;transition:background .12s,color .12s}
+        \\li a:hover{background:color-mix(in srgb,var(--accent) 8%,transparent);text-decoration:none}
+        \\.theme-btn{position:fixed;top:16px;right:16px;width:34px;height:34px;background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text2);cursor:pointer;display:flex;align-items:center;justify-content:center}
+        \\.theme-btn svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round}
+        \\</style></head><body>
+    )
+    std.string.StringBuilder.append_cstr(sb2, "<button class=\"theme-btn\" id=\"theme-btn\" aria-label=\"Toggle theme\"><svg id=\"theme-icon\" viewBox=\"0 0 24 24\"><circle cx=\"12\" cy=\"12\" r=\"5\"/><line x1=\"12\" y1=\"1\" x2=\"12\" y2=\"3\"/><line x1=\"12\" y1=\"21\" x2=\"12\" y2=\"23\"/><line x1=\"4.22\" y1=\"4.22\" x2=\"5.64\" y2=\"5.64\"/><line x1=\"18.36\" y1=\"18.36\" x2=\"19.78\" y2=\"19.78\"/><line x1=\"1\" y1=\"12\" x2=\"3\" y2=\"12\"/><line x1=\"21\" y1=\"12\" x2=\"23\" y2=\"12\"/><line x1=\"4.22\" y1=\"19.78\" x2=\"5.64\" y2=\"18.36\"/><line x1=\"18.36\" y1=\"5.64\" x2=\"19.78\" y2=\"4.22\"/></svg></button>")
+    std.string.StringBuilder.append_cstr(sb2, "<div class=\"card\"><h1>Docs</h1><p class=\"sub\">// select a module</p><ul>")
     for mod in modules {
         std.string.StringBuilder.append_cstr(sb2, @fmt("<li><a href=\"{s}\">{s}</a></li>", {href_from(output_path, mod.output_path), html_escape(mod.module_name)}))
     }
-    std.string.StringBuilder.append_cstr(sb2, "</ul></div></body></html>")
+    std.string.StringBuilder.append_cstr(sb2, "</ul></div>")
+    std.string.StringBuilder.append_cstr(sb2,
+        \\<script>(function(){
+        \\var h=document.documentElement;
+        \\var s=localStorage.getItem('theme');
+        \\var d=s==='dark'||(s===null&&window.matchMedia('(prefers-color-scheme:dark)').matches);
+        \\function apply(dark){h.classList.toggle('dark',dark);localStorage.setItem('theme',dark?'dark':'light');
+        \\var i=document.getElementById('theme-icon');
+        \\i.innerHTML=dark?'<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>':'<circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>';}
+        \\apply(d);
+        \\document.getElementById('theme-btn').addEventListener('click',function(){d=!d;apply(d);});
+        \\})();</script>
+    )
+    std.string.StringBuilder.append_cstr(sb2, "</body></html>")
     val built2 = std.string.StringBuilder.build(sb2)
     std.string.StringBuilder.free(sb2)
     return std.string.cstr(built2)
