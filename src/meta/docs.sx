@@ -1124,8 +1124,18 @@ test {
     assert(str_eq(trust slugify("Hello.World"), "hello-world"))
     assert(str_eq(trust strip_sx_ext("src/meta/docs.sx"), "src/meta/docs"))
 
-    val toks = trust lexer.tokenize("fn add(a: i64, b: i64) i64! = { return a + b }")
-    val items = trust parser.parse_module(toks, "<test>")
+    val toks_res = trust lexer.tokenize("fn add(a: i64, b: i64) i64! = { return a + b }")
+    val toks: mut list[ref lexer.Token] = []
+    match toks_res {
+        ok t  => { toks = t }
+        err _ => { assert false }
+    }
+    val items_res = trust parser.parse_module(toks, "<test>")
+    val items: mut list[ref parser.Node] = []
+    match items_res {
+        ok p  => { items = p }
+        err _ => { assert false }
+    }
     val fn_opt = @get(items, 0 as usize)
     match fn_opt {
         some fn_item => {
