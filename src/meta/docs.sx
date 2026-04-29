@@ -44,7 +44,26 @@ fn is_space(c: u8) bool = {
 }
 
 fn substr(src: ref char, start: i64, len: i64) ref char! = {
-    return str.substr(src, start, len)
+    guarded pre {
+        src_not_null : src != 0 as ref char
+    }
+
+    val src_len: i64 = str.len_raw(src)
+    val safe_start: mut i64 = start
+    if safe_start < 0 { safe_start = 0 }
+    if safe_start > src_len { safe_start = src_len }
+
+    val max_len: i64 = src_len - safe_start
+    val safe_len: mut i64 = len
+    if safe_len < 0 { safe_len = 0 }
+    if safe_len > max_len { safe_len = max_len }
+
+    val out = str.substr(src, safe_start, safe_len)
+
+    guarded post {
+        out_not_null : out != 0 as ref char
+    }
+    return out
 }
 
 fn trim_ws(src: ref char) ref char! = {
@@ -196,7 +215,43 @@ fn doc_line_text(trimmed: ref char) ref char! = {
     return substr(trimmed, 3, len - 3)
 }
 
+fn update_doc_map_for_line(map: ref DocMap, trimmed: ref char, line_no: i64, current_doc: ref char) ref char! = {
+    guarded pre {
+        map_not_null         : map != 0 as ref DocMap
+        trimmed_not_null     : trimmed != 0 as ref char
+        current_doc_not_null : current_doc != 0 as ref char
+        line_is_positive     : line_no > 0
+    }
+
+    if str.rchar_starts_with(trimmed, "///") {
+        val text = doc_line_text(trimmed)
+        if str_eq(current_doc, "") {
+            return text
+        }
+        return @fmt("{s}\n{s}", {current_doc, text})
+    }
+
+    if !str_eq(current_doc, "") && is_doc_target_line(trimmed) {
+        @append(map.lines, line_no)
+        @append(map.docs, current_doc)
+        return ""
+    }
+
+    if !str_eq(trimmed, "") {
+        return ""
+    }
+
+    guarded post {
+        lengths_match : @len(map.lines) == @len(map.docs)
+    }
+    return current_doc
+}
+
 fn extract_doc_map(src: ref char) ref DocMap! = {
+    guarded pre {
+        src_not_null : src != 0 as ref char
+    }
+
     val map: mut ref DocMap = @alloc(@sizeof(DocMap)) as ref DocMap
     map.lines = []
     map.docs = []
@@ -206,31 +261,27 @@ fn extract_doc_map(src: ref char) ref DocMap! = {
     val i: mut i64 = 0
     val current_doc: mut ref char = ""
     for {
-        if i > len { break }
-        val at_end: bool = i == len
-        val c: mut u8 = 0
-        if !at_end { c = @load8(@ptradd(src as ref void, i)) }
-        if at_end || c == 10 {
+        if i >= len {
+            val line = substr(src, line_start, len - line_start)
+            val trimmed = trim_ws(line)
+            current_doc = update_doc_map_for_line(map, trimmed, line_no, current_doc)
+            break
+        }
+
+        val c: u8 = @load8(@ptradd(src as ref void, i))
+        if c == 10 {
             val line = substr(src, line_start, i - line_start)
             val trimmed = trim_ws(line)
-            if str.rchar_starts_with(trimmed, "///") {
-                val text = doc_line_text(trimmed)
-                if str_eq(current_doc, "") {
-                    current_doc = text
-                } else {
-                    current_doc = @fmt("{s}\n{s}", {current_doc, text})
-                }
-            } elif !str_eq(current_doc, "") && is_doc_target_line(trimmed) {
-                @append(map.lines, line_no)
-                @append(map.docs, current_doc)
-                current_doc = ""
-            } else {
-                if !str_eq(trimmed, "") { current_doc = "" }
-            }
+            current_doc = update_doc_map_for_line(map, trimmed, line_no, current_doc)
             line_no++
             line_start = i + 1
         }
         i++
+    }
+
+    guarded post {
+        map_not_null    : map != 0 as ref DocMap
+        lengths_match   : @len(map.lines) == @len(map.docs)
     }
     return map
 }
@@ -662,11 +713,26 @@ fn append_doc_html(sb: ref void, docs: ref char) void! = {
     val paragraph: mut ref char = ""
     std.string.StringBuilder.append_cstr(sb, "<div class=\"docs\">")
     for {
-        if i > len { break }
-        val at_end: bool = i == len
-        val c: mut u8 = 0
-        if !at_end { c = @load8(@ptradd(docs as ref void, i)) }
-        if at_end || c == 10 {
+        if i >= len {
+            val line = trim_ws(substr(docs, line_start, len - line_start))
+            if str_eq(line, "") {
+                if !str_eq(paragraph, "") {
+                    std.string.StringBuilder.append_cstr(sb, "<p>")
+                    std.string.StringBuilder.append_cstr(sb, html_escape(paragraph))
+                    std.string.StringBuilder.append_cstr(sb, "</p>")
+                    paragraph = ""
+                }
+            } else {
+                if str_eq(paragraph, "") {
+                    paragraph = line
+                } else {
+                    paragraph = @fmt("{s} {s}", {paragraph, line})
+                }
+            }
+            break
+        }
+        val c: u8 = @load8(@ptradd(docs as ref void, i))
+        if c == 10 {
             val line = trim_ws(substr(docs, line_start, i - line_start))
             if str_eq(line, "") {
                 if !str_eq(paragraph, "") {
@@ -1114,6 +1180,10 @@ pub fn cmd_doc(target: ref char, markdown: bool) i32! = {
 }
 
 test {
+    assert(str_eq(trust substr("hello", -5, 2), "he"))
+    assert(str_eq(trust substr("hello", 10, 3), ""))
+    assert(str_eq(trust substr("hello", 1, 99), "ello"))
+
     val docs = trust extract_doc_map(
         \\/// hello
         \\/// world
@@ -1122,6 +1192,12 @@ test {
     )
     assert(str_eq(trust lookup_doc(docs, 3), "hello\nworld"))
     assert(str_eq(trust lookup_doc(docs, 4), ""))
+
+    val docs_no_trailing_nl = trust extract_doc_map(
+        \\/// tail docs
+        \\fn tail() void = {}
+    )
+    assert(str_eq(trust lookup_doc(docs_no_trailing_nl, 2), "tail docs"))
 
     assert(str_eq(trust slugify("Hello.World"), "hello-world"))
     assert(str_eq(trust strip_sx_ext("src/meta/docs.sx"), "src/meta/docs"))
