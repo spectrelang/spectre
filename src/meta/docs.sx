@@ -762,15 +762,17 @@ fn render_entry_details_html(sb: ref void, entry: ref DocEntry) void! = {
     if node.kind == parser.NK_TYPEDEF || node.kind == parser.NK_EXTERN_TYPE {
         val fields = node.d2 as list[ref parser.Node]
         if @len(fields) as i64 > 0 {
-            std.string.StringBuilder.append_cstr(sb, "<h4>Fields</h4><ul class=\"details\">")
+            std.string.StringBuilder.append_cstr(sb, "<h4>Fields</h4><div class=\"details-table-wrap\"><table class=\"details-table\"><thead><tr><th>Name</th><th>Type</th></tr></thead><tbody>")
             for field in fields {
                 val prefix: mut ref char = ""
                 if field.d1 != 0 { prefix = "mut " }
-                std.string.StringBuilder.append_cstr(sb, "<li><code>")
-                std.string.StringBuilder.append_cstr(sb, html_escape(@fmt("{s}: {s}{s}", {field.d0 as ref char, prefix, render_type(field.d2 as ref parser.Node)})))
-                std.string.StringBuilder.append_cstr(sb, "</code></li>")
+                std.string.StringBuilder.append_cstr(sb, "<tr><td><code>")
+                std.string.StringBuilder.append_cstr(sb, html_escape(field.d0 as ref char))
+                std.string.StringBuilder.append_cstr(sb, "</code></td><td><code>")
+                std.string.StringBuilder.append_cstr(sb, html_escape(@fmt("{s}{s}", {prefix, render_type(field.d2 as ref parser.Node)})))
+                std.string.StringBuilder.append_cstr(sb, "</code></td></tr>")
             }
-            std.string.StringBuilder.append_cstr(sb, "</ul>")
+            std.string.StringBuilder.append_cstr(sb, "</tbody></table></div>")
         }
     } elif node.kind == parser.NK_ENUMDEF {
         std.string.StringBuilder.append_cstr(sb, "<h4>Variants</h4><ul class=\"details\">")
@@ -1045,6 +1047,24 @@ fn render_module_page_html(module: ref DocModule, modules: list[ref DocModule]) 
         \\  font-size:10px;font-weight:700;letter-spacing:.1em;
         \\  text-transform:uppercase;color:var(--text3);margin:18px 0 8px;
         \\}
+        \\.details-table-wrap{overflow-x:auto}
+        \\.details-table{
+        \\  width:100%;border-collapse:collapse;border:1px solid var(--border2);
+        \\  border-radius:8px;overflow:hidden;background:var(--surface2);font-size:13px;
+        \\}
+        \\.details-table th,.details-table td{
+        \\  text-align:left;padding:10px 12px;border-bottom:1px solid var(--border2);vertical-align:top;
+        \\}
+        \\.details-table th{
+        \\  color:var(--text3);font-size:11px;letter-spacing:.06em;text-transform:uppercase;background:var(--bg2);
+        \\}
+        \\.details-table tbody tr:last-child td{border-bottom:none}
+        \\.details-table code{
+        \\  font-family:var(--mono);font-size:12.5px;
+        \\  background:var(--code-bg);padding:3px 8px;
+        \\  border-radius:5px;color:var(--code-text);
+        \\  border:1px solid var(--border2);display:inline-block;
+        \\}
         \\.details{list-style:none;padding:0;display:flex;flex-direction:column;gap:4px}
         \\.details li code{
         \\  font-family:var(--mono);font-size:12.5px;
@@ -1240,11 +1260,11 @@ fn render_entry_details_md(sb: ref void, entry: ref DocEntry) void! = {
     if node.kind == parser.NK_TYPEDEF || node.kind == parser.NK_EXTERN_TYPE {
         val fields = node.d2 as list[ref parser.Node]
         if @len(fields) as i64 > 0 {
-            std.string.StringBuilder.append_cstr(sb, "\n**Fields**\n\n")
+            std.string.StringBuilder.append_cstr(sb, "\n**Fields**\n\n| Name | Type |\n| --- | --- |\n")
             for field in fields {
                 val prefix: mut ref char = ""
                 if field.d1 != 0 { prefix = "mut " }
-                std.string.StringBuilder.append_cstr(sb, @fmt("- `{s}: {s}{s}`\n", {field.d0 as ref char, prefix, render_type(field.d2 as ref parser.Node)}))
+                std.string.StringBuilder.append_cstr(sb, @fmt("| `{s}` | `{s}{s}` |\n", {field.d0 as ref char, prefix, render_type(field.d2 as ref parser.Node)}))
             }
         }
     } elif node.kind == parser.NK_ENUMDEF {
@@ -1332,7 +1352,7 @@ fn render_overview_page(markdown: bool, modules: list[ref DocModule], output_pat
         \\<link href=\"https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap\" rel=\"stylesheet\">
         \\<style>
         \\:root{--bg:#f0f4fa;--surface:#ffffff;--border:#c8d8ee;--text:#0f1f3d;--text2:#3a5275;--text3:#6b87a8;--accent:#1d6cf0;--accent2:#4a90f7;--mono:'IBM Plex Mono',monospace;--font:'IBM Plex Sans',system-ui,sans-serif}
-        \\html.dark{--bg:#080f1e;--surface:#0f1d35;--border:#162b52;--text:#d8e8ff;--text2:#8badd4;--text3:#4a6d96;--accent:#4a90f7;--accent2:#6aaeff}
+        \\html.dark{--bg:#000000;--surface:#0f1d35;--border:#162b52;--text:#d8e8ff;--text2:#8badd4;--text3:#4a6d96;--accent:#4a90f7;--accent2:#6aaeff}
         \\*{box-sizing:border-box;margin:0;padding:0}
         \\body{font-family:var(--font);background:var(--bg);color:var(--text);display:flex;align-items:flex-start;justify-content:center;padding:64px 24px;min-height:100vh;transition:background .2s,color .2s}
         \\a{color:var(--accent);text-decoration:none}a:hover{color:var(--accent2)}
