@@ -1190,6 +1190,7 @@ test {
         \\fn greet() void = {}
         \\type Point = { x: i64 }
     )
+    
     assert(str_eq(trust lookup_doc(docs, 3), "hello\nworld"))
     assert(str_eq(trust lookup_doc(docs, 4), ""))
 
@@ -1197,13 +1198,14 @@ test {
         \\/// tail docs
         \\fn tail() void = {}
     )
-    assert(str_eq(trust lookup_doc(docs_no_trailing_nl, 2), "tail docs"))
 
+    assert(str_eq(trust lookup_doc(docs_no_trailing_nl, 2), "tail docs"))
     assert(str_eq(trust slugify("Hello.World"), "hello-world"))
     assert(str_eq(trust strip_sx_ext("src/meta/docs.sx"), "src/meta/docs"))
 
     val fn_src = "fn add(a: i64, b: i64) i64! = { return a + b }"
     val ml: mut i64 = 0
+    
     match regex.re_match("^fn [^=]+", fn_src, @addr(ml)) {
         ok found => {
             match found {
