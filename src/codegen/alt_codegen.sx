@@ -2073,9 +2073,17 @@ fn gen_call(ctx: mut ref CCtx, expr: ref parser.Node) ref char! = {
         val gtmp: i64 = ctx.tmp
         val gret_node: ref parser.Node = cc_lookup_fn_ret(ctx, c_mangled)
         val gret_ct: mut ref char = "int64_t"
-        if gret_node != 0 as ref parser.Node { gret_ct = cc_c_type_of(ctx, gret_node) }
+        val gret_is_void: mut bool = false
+        if gret_node != 0 as ref parser.Node {
+            gret_ct = cc_c_type_of(ctx, gret_node)
+            if gret_node.kind == parser.TY_VOID { gret_is_void = true }
+        }
         val gcall_buf: ref char = @alloc(4096) as ref char
-        @snprintf(gcall_buf, 4096, "{s} sx__gv{lld}={s}(", {gret_ct, gtmp, c_mangled})
+        if gret_is_void {
+            @snprintf(gcall_buf, 4096, "{s}(", {c_mangled})
+        } else {
+            @snprintf(gcall_buf, 4096, "{s} sx__gv{lld}={s}(", {gret_ct, gtmp, c_mangled})
+        }
         val aplen: i64 = @len(arg_parts) as i64
         val api: mut i64 = 0
         for {
@@ -2105,7 +2113,11 @@ fn gen_call(ctx: mut ref CCtx, expr: ref parser.Node) ref char! = {
         @free(gcall_buf)
         @free(c_mangled)
         val gres: ref char = @alloc(64) as ref char
-        @snprintf(gres, 64, "sx__gv{lld}", {gtmp})
+        if gret_is_void {
+            @snprintf(gres, 64, "((void)0)", {})
+        } else {
+            @snprintf(gres, 64, "sx__gv{lld}", {gtmp})
+        }
         return cc_expr_track(ctx, gres)
     }
 
