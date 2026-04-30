@@ -30,13 +30,6 @@ pub fn new() String! = {
     return s as String
 }
 
-/// Internal.
-///
-/// Either a String or a raw pointer to a String.
-pub union StrOrRChar = {
-    Str(String) | RChar(ref u8)
-}
-
 /// Extract `ref u8` from supported types.
 pub fn as_rchar[T](x: T) ref u8! = {
     when T is ref u8 {
