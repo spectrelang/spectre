@@ -1,21 +1,21 @@
-extern (C) fn fopen(path: ref char, mode: ref char) ref void! = "fopen"
+extern (C) fn fopen(path: ref u8, mode: ref u8) ref void! = "fopen"
 extern (C) fn fclose(stream: ref void) i32! = "fclose"
 extern (C) fn fread(buf: ref void, size: usize, count: usize, stream: ref void) usize! = "fread"
 extern (C) fn fwrite(buf: ref void, size: usize, count: usize, stream: ref void) usize! = "fwrite"
 extern (C) fn fseek(stream: ref void, offset: i64, whence: i32) i32! = "fseek"
 extern (C) fn ftell(stream: ref void) i64! = "ftell"
 extern (C) fn rewind(stream: ref void) void! = "rewind"
-extern (C) fn remove(path: ref char) i32! = "remove"
-extern (C) fn rename(old: ref char, new: ref char) i32! = "rename"
-extern (C) fn strlen(s: ref char) i64! = "strlen"
-extern (C) fn getcwd(buf: ref char, size: usize) ref char! = "getcwd"
-pub extern (C) fn getenv(name: ref char) ref char! = "getenv"
-pub extern (C) fn mkdir(path: ref char, mode: u32) i32! = "mkdir"
-pub extern (C) fn rmdir(path: ref char) i32! = "rmdir"
-pub extern (C) fn opendir(path: ref char) ref void! = "opendir"
+extern (C) fn remove(path: ref u8) i32! = "remove"
+extern (C) fn rename(old: ref u8, new: ref u8) i32! = "rename"
+extern (C) fn strlen(s: ref u8) i64! = "strlen"
+extern (C) fn getcwd(buf: ref u8, size: usize) ref u8! = "getcwd"
+pub extern (C) fn getenv(name: ref u8) ref u8! = "getenv"
+pub extern (C) fn mkdir(path: ref u8, mode: u32) i32! = "mkdir"
+pub extern (C) fn rmdir(path: ref u8) i32! = "rmdir"
+pub extern (C) fn opendir(path: ref u8) ref void! = "opendir"
 pub extern (C) fn closedir(dir: ref void) i32! = "closedir"
 pub extern (C) fn readdir(dir: ref void) ref Dirent! = "readdir"
-extern (C) fn strdup(s: ref char) ref char! = "strdup"
+extern (C) fn strdup(s: ref u8) ref u8! = "strdup"
 
 when linux {
     extern type Dirent = {
@@ -33,7 +33,7 @@ when darwin {
         d_reclen: u16
         d_namlen: u16
         d_type:   u8
-        d_name:   [1024]char
+        d_name:   [1024]u8
     }
 }
 
@@ -46,7 +46,7 @@ when freebsd {
         d_pad0:   u8
         d_namlen: u16
         d_pad1:   u16
-        d_name:   [256]char
+        d_name:   [256]u8
     }
 }
 
@@ -57,7 +57,7 @@ when openbsd {
         d_reclen: u16
         d_type:   u8
         d_namlen: u8
-        d_name:   [256]char
+        d_name:   [256]u8
     }
 }
 
@@ -67,7 +67,7 @@ when netbsd {
         d_reclen: u16
         d_namlen: u16
         d_type:   u8
-        d_name:   [512]char
+        d_name:   [512]u8
     }
 }
 
@@ -78,7 +78,7 @@ pub type File = {
 
 /// Open a file. Here, mode is a C fopen mode string: "r", "w", "a", "rb", etc.
 /// Returns none if the file could not be opened.
-pub fn open(path: ref char, mode: ref char) option[ref void]! = {
+pub fn open(path: ref u8, mode: ref u8) option[ref void]! = {
     val ptr: ref void = fopen(path, mode)
     if (ptr == 0) {
         return none
@@ -96,9 +96,9 @@ pub fn close(f: ref void) void! = {
 }
 
 /// Read the entire contents of a file into a heap-allocated buffer.
-/// Returns a null-terminated ref char, or none on error.
+/// Returns a null-terminated ref u8, or none on error.
 /// Caller is responsible for freeing the returned pointer.
-pub fn read_all(path: ref char) option[ref char]! = {
+pub fn read_all(path: ref u8) option[ref u8]! = {
     val handle = open(path, "rb")
     match handle {
         none => { return none }
@@ -119,7 +119,7 @@ pub fn read_all(path: ref char) option[ref char]! = {
 /// Read the next line from an open file handle into buf (max max_len bytes).
 /// Strips the trailing newline if present.
 /// Returns true if a line was read, false on EOF.
-pub fn read_line(f: ref void, buf: ref char, max_len: i64) bool! = {
+pub fn read_line(f: ref void, buf: ref u8, max_len: i64) bool! = {
     val ptr: ref void = @load(f)
     val result: ref void = @fgets(buf, max_len, ptr)
     if (result == 0) {
@@ -142,22 +142,22 @@ pub fn read_line(f: ref void, buf: ref char, max_len: i64) bool! = {
 }
 
 /// Write a string to a file opened in write mode.
-pub fn write(f: ref void, data: ref char) void! = {
+pub fn write(f: ref void, data: ref u8) void! = {
     val ptr: ref void = @load(f)
     val l: i64 = strlen(data)
     fwrite(data, 1 as usize, l as usize, ptr)
 }
 
 /// Write a string followed by a newline.
-pub fn write_line(f: ref void, data: ref char) void! = {
+pub fn write_line(f: ref void, data: ref u8) void! = {
     write(f, data)
-    val nl: ref char = "\n"
+    val nl: ref u8 = "\n"
     val ptr: ref void = @load(f)
     fwrite(nl, 1 as usize, 1 as usize, ptr)
 }
 
 /// Write the entire contents of data to path, overwriting any existing file.
-pub fn write_all(path: ref char, data: ref char) bool! = {
+pub fn write_all(path: ref u8, data: ref u8) bool! = {
     val handle = open(path, "w")
     match handle {
         none => { return false }
@@ -170,7 +170,7 @@ pub fn write_all(path: ref char, data: ref char) bool! = {
 }
 
 /// Append data to a file, creating it if it does not exist.
-pub fn append_all(path: ref char, data: ref char) bool! = {
+pub fn append_all(path: ref u8, data: ref u8) bool! = {
     val handle = open(path, "a")
     match handle {
         none => { return false }
@@ -184,28 +184,28 @@ pub fn append_all(path: ref char, data: ref char) bool! = {
 
 /// Delete a file.
 /// Returns true on success.
-pub fn delete(path: ref char) bool! = {
+pub fn delete(path: ref u8) bool! = {
     val r: i32 = remove(path)
     return r == 0
 }
 
 /// Rename (or move) a file or directory.
 /// Returns true on success.
-pub fn rename_path(old: ref char, new: ref char) bool! = {
+pub fn rename_path(old: ref u8, new: ref u8) bool! = {
     val r: i32 = rename(old, new)
     return r == 0
 }
 
 /// Create a directory. Mode is ignored on Windows; use 0755 on POSIX.
 /// Returns true on success.
-pub fn mkdir_path(path: ref char) bool! = {
+pub fn mkdir_path(path: ref u8) bool! = {
     val r: i32 = mkdir(path, 493 as u32)   // 0755 octal = 493 decimal
     return r == 0
 }
 
 /// Remove an empty directory.
 /// Returns true on success.
-pub fn rmdir_path(path: ref char) bool! = {
+pub fn rmdir_path(path: ref u8) bool! = {
     val r: i32 = rmdir(path)
     return r == 0
 }
@@ -213,9 +213,9 @@ pub fn rmdir_path(path: ref char) bool! = {
 /// Return the current working directory as a heap-allocated string.
 /// Returns none on failure.
 /// Caller must free the result.
-pub fn cwd() option[ref char] = {
-    val buf: ref char = @alloc(4096) as ref char
-    val result: ref char = trust getcwd(buf, 4096 as usize)
+pub fn cwd() option[ref u8] = {
+    val buf: ref u8 = @alloc(4096) as ref u8
+    val result: ref u8 = trust getcwd(buf, 4096 as usize)
     if (result == 0) {
         trust @free(buf)
         return none
@@ -225,16 +225,16 @@ pub fn cwd() option[ref char] = {
 
 /// Return the system temporary directory.
 /// Falls back to "/tmp" on POSIX if TMPDIR is not set.
-pub fn temp_dir() ref char! = {
+pub fn temp_dir() ref u8! = {
     when posix {
-        val t: ref char = getenv("TMPDIR")
+        val t: ref u8 = getenv("TMPDIR")
         if (t != 0) { return t }
         return "/tmp"
     }
     when windows {
-        val t: ref char = getenv("TEMP")
+        val t: ref u8 = getenv("TEMP")
         if (t != 0) { return t }
-        val t2: ref char = getenv("TMP")
+        val t2: ref u8 = getenv("TMP")
         if (t2 != 0) { return t2 }
         return "C:\\Windows\\Temp"
     }
@@ -243,16 +243,16 @@ pub fn temp_dir() ref char! = {
 
 /// Return the current user's home directory.
 /// Uses HOME on POSIX, USERPROFILE on Windows.
-pub fn home_dir() option[ref char]! = {
+pub fn home_dir() option[ref u8]! = {
     when posix {
-        val h: ref char = getenv("HOME")
+        val h: ref u8 = getenv("HOME")
         if (h != 0) { return some h }
         return none
     }
     when windows {
-        val h: ref char = getenv("USERPROFILE")
+        val h: ref u8 = getenv("USERPROFILE")
         if (h != 0) { return some h }
-        val h2: ref char = getenv("HOMEDRIVE")
+        val h2: ref u8 = getenv("HOMEDRIVE")
         if (h2 != 0) { return some h2 }
         return none
     }
@@ -264,23 +264,23 @@ pub fn home_dir() option[ref char]! = {
 ///   Windows: %APPDATA%
 /// Returns none if no suitable directory can be determined.
 /// The returned string is heap-allocated and must be freed by the caller.
-pub fn config_dir() option[ref char]! = {
+pub fn config_dir() option[ref u8]! = {
     when posix {
-        val xdg: ref char = getenv("XDG_CONFIG_HOME")
+        val xdg: ref u8 = getenv("XDG_CONFIG_HOME")
         if (xdg != 0) { return some xdg }
-        val h: ref char = getenv("HOME")
+        val h: ref u8 = getenv("HOME")
         if (h == 0) { return none }
         val hl: i64 = strlen(h)
-        val suffix: ref char = "/.config"
+        val suffix: ref u8 = "/.config"
         val sl: i64 = strlen(suffix)
-        val buf: ref char = @alloc(hl + sl + 1)
+        val buf: ref u8 = @alloc(hl + sl + 1)
         @memcpy(buf, h, hl)
         @memcpy(@ptradd(buf, hl), suffix, sl)
         @store8(@ptradd(buf, hl + sl), 0)
         return some buf
     }
     when windows {
-        val appdata: ref char = getenv("APPDATA")
+        val appdata: ref u8 = getenv("APPDATA")
         if (appdata != 0) { return some appdata }
         return none
     }
@@ -291,21 +291,21 @@ val stdio = use("stdio.sx")
 val str = use("string.sx")
 
 test {
-    val path: ref char = "test_file.txt"
+    val path: ref u8 = "test_file.txt"
     @puts("1")
     val success = trust write_all(path, "Hello, Spectre!")
     assert success
     @puts("2")
-    val content_opt: option[ref char] = trust read_all(path)
+    val content_opt: option[ref u8] = trust read_all(path)
     match content_opt {
         none => { assert false }
         some content => {
             @puts("2.5")
             trust @print("content: {s}\n", {content})
 
-            trust stdio.print("{s} {d}\n", {content, str.compare[ref char, ref char](content, "Hello, Spectre!")})
+            trust stdio.print("{s} {d}\n", {content, str.compare[ref u8, ref u8](content, "Hello, Spectre!")})
             @puts("2.6")
-            assert trust str.compare[ref char, ref char](content, "Hello, Spectre!") == 0
+            assert trust str.compare[ref u8, ref u8](content, "Hello, Spectre!") == 0
             trust @free(content)
         }
     }
@@ -318,7 +318,7 @@ test {
     match content2_opt {
         none => { assert false }
         some content2 => {
-            assert trust str.compare[ref char, ref char](content2, "Hello, Spectre! More text.") == 0
+            assert trust str.compare[ref u8, ref u8](content2, "Hello, Spectre! More text.") == 0
             trust @free(content2)
         }
     }
@@ -332,7 +332,7 @@ test {
     match content3_opt {
         none => { assert false }
         some content3 => {
-            assert trust str.compare[ref char, ref char](content3, "Overwritten.") == 0
+            assert trust str.compare[ref u8, ref u8](content3, "Overwritten.") == 0
             trust @free(content3)
         }
     }
@@ -353,7 +353,7 @@ test {
     val delete_missing = trust delete("test_file2.txt")
     assert !delete_missing
 
-    val lpath: ref char = "test_lines.txt"
+    val lpath: ref u8 = "test_lines.txt"
     val wh_opt = trust open(lpath, "w")
     match wh_opt {
         none => { assert false }
@@ -368,14 +368,14 @@ test {
     match rh_opt {
         none => { assert false }
         some rh => {
-            val buf: ref char = @alloc(128)
+            val buf: ref u8 = @alloc(128)
             val got1 = trust read_line(rh, buf, 128)
             assert got1
-            assert trust str.compare[ref char, ref char](buf, "line one") == 0
+            assert trust str.compare[ref u8, ref u8](buf, "line one") == 0
 
             val got2 = trust read_line(rh, buf, 128)
             assert got2
-            assert trust str.compare[ref char, ref char](buf, "line two") == 0
+            assert trust str.compare[ref u8, ref u8](buf, "line two") == 0
 
             val got3 = trust read_line(rh, buf, 128)
             assert !got3
@@ -386,7 +386,7 @@ test {
     }
     trust delete(lpath)
 
-    val dpath: ref char = "test_walk_dir"
+    val dpath: ref u8 = "test_walk_dir"
     val mkdir_ok = trust mkdir_path(dpath)
     assert mkdir_ok
 
@@ -400,27 +400,27 @@ test {
             val count: mut i64 = 0
             val seen_a: mut i32 = 0
             val seen_b: mut i32 = 0
-        
+
             for entry in entries {
                 count++
                 trust @print("entry: '{s}'\n", {entry})
-        
-                if trust str.compare[ref char, ref char](entry, "a.txt") == 0 {
+
+                if trust str.compare[ref u8, ref u8](entry, "a.txt") == 0 {
                     seen_a = 1
                 }
-                if trust str.compare[ref char, ref char](entry, "b.txt") == 0 {
+                if trust str.compare[ref u8, ref u8](entry, "b.txt") == 0 {
                     seen_b = 1
                 }
-        
+
                 val first: u8 = trust @load8(entry)
-                if first != 97 && first != 98 { 
-                    trust @print("BAD ENTRY (wrong first char): '{s}'\n", {entry})
+                if first != 97 && first != 98 {
+                    trust @print("BAD ENTRY (wrong first u8): '{s}'\n", {entry})
                     assert false
                 }
             }
-        
+
             trust @print("count: {d}\n", {count})
-        
+
             assert count == 2
             assert seen_a == 1
             assert seen_b == 1
@@ -451,20 +451,20 @@ test {
     stdio.puts("fs tests passed")
 }
 
-/// Walk a directory and return an iterable list[ref char] of entry names.
+/// Walk a directory and return an iterable list[ref u8] of entry names.
 ///
 /// Usage:
 ///   val entries = walk_dir("/some/path")?
 ///   for entry in entries {
 ///       std.stdio.print("{s}\n", {entry})
 ///   }
-pub fn walk_dir(path: ref char) option[list[ref char]]! = {
+pub fn walk_dir(path: ref u8) option[list[ref u8]]! = {
     val dir: ref void = opendir(path)
     if (dir == 0) {
         return none
     }
 
-    val result: mut list[ref char] = []
+    val result: mut list[ref u8] = []
 
     for {
         val entry: ref Dirent = readdir(dir)
@@ -473,7 +473,7 @@ pub fn walk_dir(path: ref char) option[list[ref char]]! = {
         }
 
         val base: ref void = entry as ref void
-        val name: ref char = @ptradd(base, 19) as ref char
+        val name: ref u8 = @ptradd(base, 19) as ref u8
         val c0: u8 = @load8(name)
         if (c0 == 46) {  // '.'
             val c1: u8 = @load8(@ptradd(name, 1))
@@ -485,16 +485,16 @@ pub fn walk_dir(path: ref char) option[list[ref char]]! = {
                     if (c2 == 0) {
                         // ".."
                     } else {
-                        val copy: ref char = strdup(name)
+                        val copy: ref u8 = strdup(name)
                         @append(result, copy)
                     }
                 } else {
-                    val copy: ref char = strdup(name)
+                    val copy: ref u8 = strdup(name)
                     @append(result, copy)
                 }
             }
         } else {
-            val copy: ref char = strdup(name)
+            val copy: ref u8 = strdup(name)
             @append(result, copy)
         }
     }

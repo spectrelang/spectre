@@ -9,10 +9,10 @@ pub union TokenKind = {
   | Continue()  | As()        | Assert()   | When()     | Union()
   | Enum()      | Extern()    | Link()     | Guarded()  | Not()
   | Test()
-  | Ident(ref char)
-  | Str(ref char)
-  | Int(ref char)
-  | Float(ref char)
+  | Ident(ref u8)
+  | Str(ref u8)
+  | Int(ref u8)
+  | Float(ref u8)
   | CharLit(i64)
   | LParen()    | RParen()    | LBrace()   | RBrace()
   | LBracket()  | RBracket()  | Colon()    | Semicolon()
@@ -47,16 +47,16 @@ fn kind_is_fn(k: TokenKind) bool! = {
 pub fn main() void! = {
     val t = make_fn_token()
     @dprintf(2, "Token at: {p}\n", {t})
-    
+
     val kind_ptr: ref void = @addr(t.kind) as ref void
     val tag_val: i64 = @load(kind_ptr) as i64
     @dprintf(2, "Tag value: {lld}\n", {tag_val})
-    
+
     val kind = t.kind
     @dprintf(2, "After copy, checking kind_is_fn...\n", {})
-    
+
     val result = kind_is_fn(kind)
-    
+
     if result {
         @puts("SUCCESS: Token is Fn()")
     } else {

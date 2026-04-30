@@ -1,6 +1,6 @@
 #include <stdio.h>
 
-int count_chars(const char* text) {
+int count_chars(const u8* text) {
     int n = 0;
 
     do {

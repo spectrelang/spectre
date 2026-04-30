@@ -10,9 +10,9 @@ pub enum ParseFloatError = {
     Overflow
 }
 
-pub fn i64_to_string(x: i64) ref char! = {
+pub fn i64_to_string(x: i64) ref u8! = {
     if x == 0 {
-        val buf: ref char = @alloc(2) as ref char
+        val buf: ref u8 = @alloc(2) as ref u8
         @store8(buf, 48)
         @store8(@ptradd(buf, 1), 0)
         return buf
@@ -20,7 +20,7 @@ pub fn i64_to_string(x: i64) ref char! = {
 
     val neg: bool = x < 0
     val n: mut i64 = 0
-    
+
     if neg { n = -x } else { n = x }
 
     val tmp: mut i64 = n
@@ -41,7 +41,7 @@ pub fn i64_to_string(x: i64) ref char! = {
     }
 
     val total: i64 = digits + offset
-    val buf: ref char = @alloc(total + 1) as ref char
+    val buf: ref u8 = @alloc(total + 1) as ref u8
     val i: mut i64 = total - 1
 
     for {
@@ -60,9 +60,9 @@ pub fn i64_to_string(x: i64) ref char! = {
     return buf
 }
 
-extern (C) fn strlen(s: ref char) i64! = "strlen"
+extern (C) fn strlen(s: ref u8) i64! = "strlen"
 
-pub fn string_to_i64(s: ref char) result[i64, ParseIntError] = {
+pub fn string_to_i64(s: ref u8) result[i64, ParseIntError] = {
     guarded pre {
         non_null: s != 0
     }
@@ -74,7 +74,7 @@ pub fn string_to_i64(s: ref char) result[i64, ParseIntError] = {
 
     val neg: bool = trust @load8(s) == 45
     val start: mut i64 = 0
-    
+
     if neg { start = 1 } else { start = 0 }
 
     if start >= len {
@@ -114,7 +114,7 @@ pub fn string_to_i64(s: ref char) result[i64, ParseIntError] = {
     return ok acc
 }
 
-pub fn f64_to_string(x: f64) ref char! = {
+pub fn f64_to_string(x: f64) ref u8! = {
     val neg: bool = x < 0.0
     val abs: mut f64 = 0.0
 
@@ -126,7 +126,7 @@ pub fn f64_to_string(x: f64) ref char! = {
 
     val int_part: mut i64 = abs as i64
     val frac_part: f64 = abs - (int_part as f64)
-    val int_str: mut ref char = i64_to_string(int_part)
+    val int_str: mut ref u8 = i64_to_string(int_part)
     val scale: i64 = 1000000
     val frac_i: mut i64 = (frac_part * scale as f64 + 0.5) as i64
 
@@ -136,7 +136,7 @@ pub fn f64_to_string(x: f64) ref char! = {
         @free(int_str)
         int_str = i64_to_string(int_part)
     }
-    val frac_buf: ref char = @alloc(7) as ref char
+    val frac_buf: ref u8 = @alloc(7) as ref u8
     val j: mut i64 = 5
     val tmp: mut i64 = frac_i
 
@@ -157,7 +157,7 @@ pub fn f64_to_string(x: f64) ref char! = {
     }
 
     val total: i64 = int_len + 1 + 6 + offset_x
-    val buf: ref char = @alloc(total + 1) as ref char
+    val buf: ref u8 = @alloc(total + 1) as ref u8
     val pos: mut i64 = 0
 
     if neg {
@@ -181,7 +181,7 @@ pub fn f64_to_string(x: f64) ref char! = {
     return buf
 }
 
-pub fn string_to_f64(s: ref char) result[f64, ParseFloatError] = {
+pub fn string_to_f64(s: ref u8) result[f64, ParseFloatError] = {
     guarded pre {
         non_null: s != 0
     }
@@ -193,7 +193,7 @@ pub fn string_to_f64(s: ref char) result[f64, ParseFloatError] = {
 
     val neg: bool = trust @load8(s) == 45
     val start: mut i64 = 0
-    
+
     if neg { start = 1 }
 
     if start >= len {
@@ -246,14 +246,14 @@ pub fn string_to_f64(s: ref char) result[f64, ParseFloatError] = {
 }
 
 fn test_i64_roundtrip(x: i64) void! = {
-    val s: mut ref char = i64_to_string(x)
+    val s: mut ref u8 = i64_to_string(x)
     val parsed = string_to_i64(s)
     assert parsed == ok x
     @free(s)
 }
 
 fn test_f64_roundtrip(x: f64) void! = {
-    val s: mut ref char = f64_to_string(x)
+    val s: mut ref u8 = f64_to_string(x)
     val parsed = string_to_f64(s)
     assert parsed == ok x
     @free(s)
@@ -262,10 +262,10 @@ fn test_f64_roundtrip(x: f64) void! = {
 val stdio = use("stdio.sx")
 
 test {
-    val s: mut ref char = ""
+    val s: mut ref u8 = ""
 
     s = trust i64_to_string(0)
-    
+
     match string_to_i64(s) {
         ok v => {
             trust stdio.print("worked: {d}\n", {v})

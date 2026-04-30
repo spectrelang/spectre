@@ -32,11 +32,11 @@ struct m_image
    int width;
    int height;
    int comp;
-   char type;
+   u8 type;
 };
 
 #define M_IMAGE_IDENTITY() {0, 0, 0, 0, 0, 0}
 
 int main() {
-    
+
 }

@@ -3,8 +3,8 @@ val fmt = use("std/fmt")
 val string = use("std/string")
 
 pub fn main() void = {
-    val buffer: mut ref char = @alloc(100) as ref char
-    val buffer2: mut ref char = @alloc(100) as ref char
+    val buffer: mut ref u8 = @alloc(100) as ref u8
+    val buffer2: mut ref u8 = @alloc(100) as ref u8
 
     trust stdio.read_line(buffer, 100)
     trust stdio.read_line(buffer2, 100)

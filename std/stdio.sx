@@ -1,5 +1,5 @@
 /// Print a string followed by a newline to stdout.
-pub fn puts(arg: ref char) void = {
+pub fn puts(arg: ref u8) void = {
     @puts(arg)
 }
 
@@ -7,7 +7,7 @@ pub fn puts(arg: ref char) void = {
 ///
 /// This trusts an unsafe printf call for the sake of making debugging pure
 /// functions easier, use with caution.
-pub fn print(fmt: ref char, args: untyped) void! = {
+pub fn print(fmt: ref u8, args: untyped) void! = {
     @print(fmt, args)
 }
 
@@ -25,7 +25,7 @@ when windows {
 }
 
 /// Print a string to stderr followed by a newline (fd 2).
-pub fn eputs(msg: ref char) void = {
+pub fn eputs(msg: ref u8) void = {
     when posix {
         trust @dprintf(2, "{s}\n", {msg})
     }
@@ -33,7 +33,7 @@ pub fn eputs(msg: ref char) void = {
     when windows {
         val handle = trust GetStdHandle(STD_ERROR_HANDLE)
         val len: mut u32 = 0
-        val p: mut ref char = msg
+        val p: mut ref u8 = msg
         for {
             if @deref(p) == 0 {
                 break
@@ -43,13 +43,13 @@ pub fn eputs(msg: ref char) void = {
         }
         val written: mut u32 = 0
         trust WriteFile(handle, msg as ref void, len, @addr(written), 0)
-        val nl: list[char] = ['\n']
+        val nl: list[u8] = ['\n']
         trust WriteFile(handle, @addr(@get(nl, 0)), 1 as u32, @addr(written), 0)
     }
 }
 
 /// Print a string to stderr followed by a newline (fd 2).
-pub fn eprint(fmt: ref char, args: untyped) void! = {
+pub fn eprint(fmt: ref u8, args: untyped) void! = {
     @dprintf(2, fmt, args)
 }
 
@@ -62,12 +62,12 @@ pub fn read_key() i32! = {
 /// Read a line from stdin into buf.
 /// (at most max_len bytes, including null terminator).
 /// Returns buf on success, or a null pointer on EOF/error.
-pub fn read_line(buf: ref char, max_len: i64) ref char! = {
+pub fn read_line(buf: ref u8, max_len: i64) ref u8! = {
     return @fgets(buf, max_len, @stdin())
 }
 
 test {
-    val buffer: mut ref char = ""
+    val buffer: mut ref u8 = ""
     val result = trust read_line(buffer, 100)
     trust print("{s}", result)
 }

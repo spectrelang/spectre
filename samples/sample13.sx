@@ -3,7 +3,7 @@ val stdio = use("std/stdio")
 type SomeType = {
     x: i32
     y: i32
-    z: ref char
+    z: ref u8
 }
 
 pub fn (SomeType) do_some_thing(s: self, times: usize) void! = {

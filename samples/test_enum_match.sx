@@ -4,7 +4,7 @@ pub enum Color = {
     Blue,
 }
 
-pub fn color_name(c: Color) ref char = {
+pub fn color_name(c: Color) ref u8 = {
     match c {
         Color.Red   => { return "red" }
         Color.Green => { return "green" }
@@ -16,5 +16,5 @@ pub fn color_name(c: Color) ref char = {
 val stdio = use("std/stdio")
 
 pub fn main() void = {
-    trust stdio.print("{s}\n", {color_name(Color.Red)})    
+    trust stdio.print("{s}\n", {color_name(Color.Red)})
 }

@@ -27,7 +27,7 @@ fn should_log(l: Level) bool = {
     return (l as i32) >= (min_level as i32)
 }
 
-fn get_time_string() ref char = {
+fn get_time_string() ref u8 = {
     val dt: DateTime = time.DateTime.now()
     return trust @fmt("{d}-{d}-{d} {d}:{d}:{d}", {
         time.DateTime.year(dt),
@@ -39,7 +39,7 @@ fn get_time_string() ref char = {
     )
 }
 
-fn log_out(msg: ref char, label: ref char, color: ref char) void! = {
+fn log_out(msg: ref u8, label: ref u8, color: ref u8) void! = {
     val ts = get_time_string()
     if colors {
         stdio.print(
@@ -52,7 +52,7 @@ fn log_out(msg: ref char, label: ref char, color: ref char) void! = {
     }
 }
 
-fn log_err(msg: ref char, label: ref char, color: ref char) void! = {
+fn log_err(msg: ref u8, label: ref u8, color: ref u8) void! = {
     val ts = get_time_string()
     if colors {
         stdio.eprint(
@@ -65,35 +65,35 @@ fn log_err(msg: ref char, label: ref char, color: ref char) void! = {
     }
 }
 
-pub fn debug(msg: ref char) void = {
+pub fn debug(msg: ref u8) void = {
     if !should_log(Level.Debug) {
         return
     }
     trust log_out(msg, "DEBUG", "\x1b[34m")
 }
 
-pub fn info(msg: ref char) void = {
+pub fn info(msg: ref u8) void = {
     if !should_log(Level.Info) {
         return
     }
     trust log_out(msg, "INFO", "\x1b[32m")
 }
 
-pub fn warn(msg: ref char) void = {
+pub fn warn(msg: ref u8) void = {
     if !should_log(Level.Warn) {
         return
     }
     trust log_err(msg, "WARN", "\x1b[33m")
 }
 
-pub fn error(msg: ref char) void = {
+pub fn error(msg: ref u8) void = {
     if !should_log(Level.Error) {
         return
     }
     trust log_err(msg, "ERROR", "\x1b[31m")
 }
 
-pub fn fatal(msg: ref char) void = {
+pub fn fatal(msg: ref u8) void = {
     trust log_err(msg, "FATAL", "\x1b[31m")
     trust os.exit(1)
 }

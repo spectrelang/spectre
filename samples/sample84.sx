@@ -3,11 +3,11 @@ val str = use("std/string")
 val stdio = use("std/stdio")
 
 pub type LLCtx = {
-    fn_names: mut list[ref char]
+    fn_names: mut list[ref u8]
     fn_params: mut list[ref void]
 }
 
-fn ll_lookup_fn_params(ctx: ref LLCtx, name: ref char) ref void! = {
+fn ll_lookup_fn_params(ctx: ref LLCtx, name: ref u8) ref void! = {
     val len: i64 = @len(ctx.fn_names) as i64
     val i: mut i64 = 0
     for {
@@ -15,7 +15,7 @@ fn ll_lookup_fn_params(ctx: ref LLCtx, name: ref char) ref void! = {
         val n_opt = @get(ctx.fn_names, i as usize)
         match n_opt {
             some n => {
-                if str.rchar_cmp(n as ref char, name) == 0 {
+                if str.rchar_cmp(n as ref u8, name) == 0 {
                     val p_opt = @get(ctx.fn_params, i as usize)
                     match p_opt {
                         some p => { return p as ref void }
@@ -37,7 +37,7 @@ pub fn main() i64 = {
     }
     val ctx_ptr: ref LLCtx = @alloc(@sizeof(LLCtx)) as ref LLCtx
     trust @store(ctx_ptr as ref void, ctx)
-    
+
     val result = trust ll_lookup_fn_params(ctx_ptr, "test_fn")
     if result == 0 as ref void {
         trust stdio.print("FAIL: lookup returned null\n", {})
@@ -46,4 +46,3 @@ pub fn main() i64 = {
     trust stdio.print("PASS: lookup succeeded\n", {})
     return 0
 }
-

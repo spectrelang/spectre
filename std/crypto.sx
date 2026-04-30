@@ -30,10 +30,10 @@ fn bytes_ptr[T](data: T) ref void = {
     when T is string.String {
         return trust @load(data) as ref void
     }
-    when T is ref char {
+    when T is ref u8 {
         return data as ref void
     }
-    when T !in (string.String, ref char) {
+    when T !in (string.String, ref u8) {
         @staticerror("invalid type for bytes_ptr")
     }
     return 0 as ref void
@@ -43,10 +43,10 @@ fn bytes_len[T](data: T) i64! = {
     when T is string.String {
         return string.len(data)
     }
-    when T is ref char {
+    when T is ref u8 {
         return string.len_raw(data)
     }
-    when T !in (string.String, ref char) {
+    when T !in (string.String, ref u8) {
         @staticerror("invalid type for bytes_len")
     }
     return 0
@@ -262,10 +262,10 @@ fn hex_value(ch: u8) i64 = {
 /// Hex-encode a string or byte string.
 ///
 /// Returns a newly allocated lowercase C string.
-pub fn hex_encode[T](data: T) ref char! = {
+pub fn hex_encode[T](data: T) ref u8! = {
     val src_ptr: ref void = bytes_ptr[T](data)
     val src_len: i64 = bytes_len[T](data)
-    val out: ref char = @alloc(src_len * 2 + 1) as ref char
+    val out: ref u8 = @alloc(src_len * 2 + 1) as ref u8
     val i: mut i64 = 0
     for {
         if i >= src_len { break }
@@ -281,7 +281,7 @@ pub fn hex_encode[T](data: T) ref char! = {
 /// Decode a hexadecimal C string.
 ///
 /// Returns an owned byte String on success.
-pub fn hex_decode(text: ref char) result[string.String, CryptoError]! = {
+pub fn hex_decode(text: ref u8) result[string.String, CryptoError]! = {
     val text_len: i64 = string.len_raw(text)
     if ((text_len % 2) != 0) {
         return err CryptoError.InvalidHexLength
@@ -327,11 +327,11 @@ fn b64_value(ch: u8) i64 = {
 /// Base64-encode a string or byte string using the standard alphabet.
 ///
 /// Returns a newly allocated C string with padding.
-pub fn base64_encode[T](data: T) ref char! = {
+pub fn base64_encode[T](data: T) ref u8! = {
     val src_ptr: ref void = bytes_ptr[T](data)
     val src_len: i64 = bytes_len[T](data)
     val out_len: i64 = ((src_len + 2) / 3) * 4
-    val out: ref char = @alloc(out_len + 1) as ref char
+    val out: ref u8 = @alloc(out_len + 1) as ref u8
 
     val si: mut i64 = 0
     val oi: mut i64 = 0
@@ -369,7 +369,7 @@ pub fn base64_encode[T](data: T) ref char! = {
 /// Decode a standard base64 C string with `=` padding.
 ///
 /// Returns an owned byte String on success.
-pub fn base64_decode(text: ref char) result[string.String, CryptoError]! = {
+pub fn base64_decode(text: ref u8) result[string.String, CryptoError]! = {
     val text_len: i64 = string.len_raw(text)
     if ((text_len % 4) != 0) {
         return err CryptoError.InvalidBase64Length
@@ -530,11 +530,11 @@ pub fn hmac_sha256[T](key: T, data: T) string.String! = {
 /// Generate a nonce-safe random string.
 ///
 /// Returns 24 random bytes encoded as lowercase hex (48 chars).
-pub fn unique_nonce() ref char! = {
+pub fn unique_nonce() ref u8! = {
     val buf: string.String = alloc_string(24)
     val ptr: ref void = @load(buf) as ref void
     random.random_bytes(ptr, 24 as usize)
-    val out: ref char = hex_encode[string.String](buf)
+    val out: ref u8 = hex_encode[string.String](buf)
     string.string_free(buf)
     return out
 }
@@ -542,20 +542,20 @@ pub fn unique_nonce() ref char! = {
 test {
     assert trust hash_fnv(0 as usize) != trust hash_fnv(1 as usize)
 
-    val sha: string.String = trust sha256[ref char]("abc")
-    val sha_hex: mut ref char = trust hex_encode[string.String](sha)
+    val sha: string.String = trust sha256[ref u8]("abc")
+    val sha_hex: mut ref u8 = trust hex_encode[string.String](sha)
     trust @free(sha_hex)
     trust string.string_free(sha)
 
-    val hmac_out: string.String = trust hmac_sha256[ref char](
+    val hmac_out: string.String = trust hmac_sha256[ref u8](
         "key",
         "The quick brown fox jumps over the lazy dog"
     )
-    val hmac_hex: mut ref char = trust hex_encode[string.String](hmac_out)
+    val hmac_hex: mut ref u8 = trust hex_encode[string.String](hmac_out)
     trust @free(hmac_hex)
     trust string.string_free(hmac_out)
 
-    val encoded_hex: mut ref char = trust hex_encode[ref char]("hi")
+    val encoded_hex: mut ref u8 = trust hex_encode[ref u8]("hi")
     trust @free(encoded_hex)
 
     val decoded_hex_res = trust hex_decode("6869")
@@ -575,7 +575,7 @@ test {
         err e => { assert e == CryptoError.InvalidHexDigit }
     }
 
-    val encoded_b64: mut ref char = trust base64_encode[ref char]("hello")
+    val encoded_b64: mut ref u8 = trust base64_encode[ref u8]("hello")
     trust @free(encoded_b64)
 
     val decoded_b64_res = trust base64_decode("aGVsbG8=")
@@ -597,12 +597,12 @@ test {
         }
     }
 
-    assert trust ct_eq[ref char]("same", "same")
-    assert !(trust ct_eq[ref char]("same", "different"))
-    assert !(trust ct_eq[ref char]("same", "same!"))
+    assert trust ct_eq[ref u8]("same", "same")
+    assert !(trust ct_eq[ref u8]("same", "different"))
+    assert !(trust ct_eq[ref u8]("same", "same!"))
 
-    val nonce1: mut ref char = trust unique_nonce()
-    val nonce2: mut ref char = trust unique_nonce()
+    val nonce1: mut ref u8 = trust unique_nonce()
+    val nonce2: mut ref u8 = trust unique_nonce()
     assert string.len_raw(nonce1) == 48
     assert string.len_raw(nonce2) == 48
     trust @free(nonce1)

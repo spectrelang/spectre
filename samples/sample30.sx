@@ -6,7 +6,7 @@ pub fn some_function() void! = {
         stdio.print("{d}\n", {x})
     }
 
-    val ys: list[ref char] = ["hello", "world"]
+    val ys: list[ref u8] = ["hello", "world"]
     for y in ys {
         stdio.print("{s}\n", {y})
     }

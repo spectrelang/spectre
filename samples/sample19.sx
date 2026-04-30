@@ -1,7 +1,7 @@
 val stdio = use("std/stdio")
 
 union SomeUnion = {
-    i32 | i64 | ref char
+    i32 | i64 | ref u8
 }
 
 fn some_function(x: SomeUnion) void! = {

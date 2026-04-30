@@ -1,4 +1,4 @@
-type SomeType = { x: i32 } 
+type SomeType = { x: i32 }
 type SomeOtherType = { y: i32 }
 
 pub fn some_gen[T](x: T) T = {
@@ -16,5 +16,5 @@ pub fn some_gen[T](x: T) T = {
 }
 
 pub fn main() void = {
-    some_gen[ref char]("should error")
+    some_gen[ref u8]("should error")
 }

@@ -1,12 +1,12 @@
 val stdio = use("std/stdio")
 
-fn get_platform_name() ref char = {
+fn get_platform_name() ref u8 = {
     return "Linux"
 }
 
 pub fn main() void = {
     val platform = get_platform_name()
-    
+
     match platform {
         "Windows" => {
             stdio.puts("Running on Windows")

@@ -1,4 +1,4 @@
-union Kind = { A() | B(ref char) }
+union Kind = { A() | B(ref u8) }
 type Thing = { kind: mut Kind }
 
 fn make_thing(k: Kind) ref Thing! = {
@@ -7,7 +7,7 @@ fn make_thing(k: Kind) ref Thing! = {
     return t
 }
 
-fn get_text(t: ref Thing) ref char! = {
+fn get_text(t: ref Thing) ref u8! = {
     match t.kind {
         A() => { return "got A" }
         B s => { return s }

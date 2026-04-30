@@ -19,7 +19,7 @@ Here, software correctness is a first-class citizen, we achieve this end by inte
 Variables are declared using the `val` keyword. Mutability must be explicitly opted into at the type level.
 * **Immutable**: `val x: i32 = 10`
 * **Mutable**: `val x: mut i32 = 10`
-* **Mutable Buffer**: `val buf: mut []char = "data"`
+* **Mutable Buffer**: `val buf: mut []u8 = "data"`
 
 ### 2.2 Functional Blocks
 Functions use an assignment-style syntax with braces.

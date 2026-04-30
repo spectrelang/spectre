@@ -1,8 +1,8 @@
 val collections = use("collections.sx")
 val stdio = use("stdio.sx")
 
-extern (C) fn strlen(s: ref char) i64! = "strlen"
-extern (C) fn strcmp(a: ref char, b: ref char) i64! = "strcmp"
+extern (C) fn strlen(s: ref u8) i64! = "strlen"
+extern (C) fn strcmp(a: ref u8, b: ref u8) i64! = "strcmp"
 
 /// A string builder or a raw pointer, used internally in ensure_cap
 /// to avoid double-loading the pointer and capacity fields.
@@ -14,7 +14,7 @@ pub union SbOrPtr = {
 ///
 /// An owned heap string: ptr, len, cap — each 8 bytes.
 pub type String = {
-    ptr: ref char
+    ptr: ref u8
     len: i64
     cap: i64
 }
@@ -34,24 +34,24 @@ pub fn new() String! = {
 ///
 /// Either a String or a raw pointer to a String.
 pub union StrOrRChar = {
-    Str(String) | RChar(ref char)
+    Str(String) | RChar(ref u8)
 }
 
-/// Extract `ref char` from supported types.
-pub fn as_rchar[T](x: T) ref char! = {
-    when T is ref char {
+/// Extract `ref u8` from supported types.
+pub fn as_rchar[T](x: T) ref u8! = {
+    when T is ref u8 {
         return x
     }
     when T is String {
         return x.ptr
     }
-    when T !in (ref char, String) {
+    when T !in (ref u8, String) {
         @staticerror("unsupported type for string comparison")
     }
 }
 
 /// Compare two raw strings.
-pub fn rchar_cmp(a: ref char, b: ref char) i64 = {
+pub fn rchar_cmp(a: ref u8, b: ref u8) i64 = {
     if a == none && b == none {
         return 0
     } elif a == none || b == none {
@@ -68,7 +68,7 @@ pub fn compare[A, B](a: A, b: B) i64! = {
 }
 
 /// Create from raw C string
-pub fn from(cstr: ref char) String! = {
+pub fn from(cstr: ref u8) String! = {
     val l: i64 = strlen(cstr)
     val buf: ref void = @alloc(l + 1)
     @memcpy(buf, cstr, l)
@@ -93,21 +93,21 @@ pub fn len(s: String) i64 = {
     return trust @load(@ptradd(s, 8)) as i64
 }
 
-/// Length of a raw char pointer
-pub fn len_raw(s: ref char) i64 = {
+/// Length of a raw u8 pointer
+pub fn len_raw(s: ref u8) i64 = {
     pre {
-        s != 0 as ref char
+        s != 0 as ref u8
     }
     return trust strlen(s)
 }
 
 /// Raw pointer
-pub fn cstr(s: String) ref char! = {
-    return @load(s as ref void) as ref char
+pub fn cstr(s: String) ref u8! = {
+    return @load(s as ref void) as ref u8
 }
 
 /// Returns true if s starts with prefix
-pub fn rchar_starts_with(s: ref char, prefix: ref char) bool = {
+pub fn rchar_starts_with(s: ref u8, prefix: ref u8) bool = {
     if (prefix == none) {
         return true
     }
@@ -115,8 +115,8 @@ pub fn rchar_starts_with(s: ref char, prefix: ref char) bool = {
         return false
     }
 
-    val ps: ref char = prefix
-    val ss: ref char = s
+    val ps: ref u8 = prefix
+    val ss: ref u8 = s
     val i: mut i64 = 0
 
     for {
@@ -140,7 +140,7 @@ pub fn rchar_starts_with(s: ref char, prefix: ref char) bool = {
     return true
 }
 
-pub fn rchar_ends_with(s: ref char, suffix: ref char) bool = {
+pub fn rchar_ends_with(s: ref u8, suffix: ref u8) bool = {
     if (suffix == none) {
         return true
     }
@@ -150,8 +150,8 @@ pub fn rchar_ends_with(s: ref char, suffix: ref char) bool = {
 
     val suffix_len: mut i64 = 0
     val s_len: mut i64 = 0
-    val ps: ref char = suffix
-    val ss: ref char = s
+    val ps: ref u8 = suffix
+    val ss: ref u8 = s
 
     for {
         val c: u8 = trust @load8(@ptradd(ps, suffix_len)) as u8
@@ -220,7 +220,7 @@ fn ensure_cap(s: SbOrPtr, needed: i64) void! = {
 }
 
 /// Append a C string in place
-pub fn push_cstr(s: String, other: ref char) void! = {
+pub fn push_cstr(s: String, other: ref u8) void! = {
     val l: i64 = @load(@ptradd(s, 8)) as i64
     val add_len: i64 = strlen(other)
     val new_len: i64 = l + add_len
@@ -292,12 +292,12 @@ pub fn reverse(s: String) void! = {
     }
 }
 
-/// Concat raw char pointers — returns a new heap-allocated ref char
-pub fn concat_raw(a: ref char, b: ref char) ref char! = {
+/// Concat raw u8 pointers — returns a new heap-allocated ref u8
+pub fn concat_raw(a: ref u8, b: ref u8) ref u8! = {
     val len_a: mut i64 = 0
-    if a != 0 as ref char { len_a = strlen(a) }
+    if a != 0 as ref u8 { len_a = strlen(a) }
     val len_b: mut i64 = 0
-    if b != 0 as ref char { len_b = strlen(b) }
+    if b != 0 as ref u8 { len_b = strlen(b) }
     val new_len: i64 = len_a + len_b
     val buf: mut ref void = @alloc(new_len + 1)
 
@@ -305,7 +305,7 @@ pub fn concat_raw(a: ref char, b: ref char) ref char! = {
     if len_b > 0 { @memcpy(@ptradd(buf, len_a), b, len_b) }
     @store8(@ptradd(buf, new_len), 0)
 
-    return buf as ref char
+    return buf as ref u8
 }
 
 /// Concat — returns a new heap-allocated String
@@ -357,8 +357,8 @@ pub fn get(s: String, i: i64) option[u8] = {
     return some (trust @load8(@ptradd(ptr, i)) as u8)
 }
 
-/// Get byte at index i from raw char pointer — returns none if out of bounds
-pub fn byte_at(s: ref char, i: i64) option[u8] = {
+/// Get byte at index i from raw u8 pointer — returns none if out of bounds
+pub fn byte_at(s: ref u8, i: i64) option[u8] = {
     guarded pre {
         i_nonneg: i >= 0
     }
@@ -657,8 +657,8 @@ pub fn replace(s: String, from: String, to: String) String! = {
     return out
 }
 
-/// If s starts with prefix, return a new ref char without it, otherwise clone
-pub fn trim_prefix_raw(s: ref char, prefix: ref char) ref char! = {
+/// If s starts with prefix, return a new ref u8 without it, otherwise clone
+pub fn trim_prefix_raw(s: ref u8, prefix: ref u8) ref u8! = {
     if (prefix == none) {
         return substr(s, 0, strlen(s))
     }
@@ -676,8 +676,8 @@ pub fn trim_prefix_raw(s: ref char, prefix: ref char) ref char! = {
     return substr(s, pl, sl - pl)
 }
 
-/// If s ends with suffix, return a new ref char without it, otherwise clone
-pub fn trim_suffix_raw(s: ref char, suffix: ref char) ref char! = {
+/// If s ends with suffix, return a new ref u8 without it, otherwise clone
+pub fn trim_suffix_raw(s: ref u8, suffix: ref u8) ref u8! = {
     if (suffix == none) {
         return substr(s, 0, strlen(s))
     }
@@ -903,7 +903,7 @@ pub fn ends_with(s: String, suffix: String) bool = {
 
 /// The almighty String builder
 pub type StringBuilder = {
-    ptr: ref char
+    ptr: ref u8
     len: i64
     cap: i64
 }
@@ -936,7 +936,7 @@ pub fn (StringBuilder) append(sb: self, s: String) void! = {
 }
 
 /// Append a C string to the builder
-pub fn (StringBuilder) append_cstr(sb: self, cstr: ref char) void! = {
+pub fn (StringBuilder) append_cstr(sb: self, cstr: ref u8) void! = {
     val l: i64 = @load(@ptradd(sb as ref void, 8)) as i64
     val add_len: i64 = strlen(cstr)
     val new_len: i64 = l + add_len
@@ -995,7 +995,7 @@ pub fn (StringBuilder) clear(sb: self) void! = {
 }
 
 /// Runtime rewrite of Spectre format specifiers to printf specifiers.
-fn rewrite_fmt(fmt: ref char) ref void! = {
+fn rewrite_fmt(fmt: ref u8) ref void! = {
     val fmtlen: i64 = strlen(fmt)
     val buf: ref void = @alloc(fmtlen * 2 + 1)
     val out_i: mut i64 = 0
@@ -1051,7 +1051,7 @@ fn rewrite_fmt(fmt: ref char) ref void! = {
 /// Format a string using printf-style specifiers, returning a new heap String.
 ///
 /// Example: format("{s} {d}", {name, age})
-pub fn format(fmt: ref char, args: untyped) String! = {
+pub fn format(fmt: ref u8, args: untyped) String! = {
     val rfmt: ref void = rewrite_fmt(fmt)
     val buf: ref void = @alloc(4096)
     val written: i64 = @snprintf(buf, 4096, rfmt, args) as i64
@@ -1067,17 +1067,17 @@ pub fn format(fmt: ref char, args: untyped) String! = {
     return out as String
 }
 
-/// Return a new ref char containing the substring of `src` starting at `start` with length `len`.
-pub fn substr(src: ref char, start: i64, len: i64) ref char! = {
+/// Return a new ref u8 containing the substring of `src` starting at `start` with length `len`.
+pub fn substr(src: ref u8, start: i64, len: i64) ref u8! = {
     val buf: ref void = @alloc(len + 1)
     @memcpy(buf, @ptradd(src, start), len)
     @store8(@ptradd(buf, len), 0)
-    return buf as ref char
+    return buf as ref u8
 }
 
 /// Copy `len` bytes from `src` to `dst`, starting at offset `dst_off` in dst.
 /// The result is NOT null-terminated beyond what was already there.
-pub fn copy(dst: ref char, dst_off: i64, src: ref char) void! = {
+pub fn copy(dst: ref u8, dst_off: i64, src: ref u8) void! = {
     val slen: i64 = strlen(src)
     @memcpy(@ptradd(dst, dst_off), src, slen)
 }

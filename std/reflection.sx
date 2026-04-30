@@ -15,52 +15,52 @@ pub enum Platform = {
 
 when darwin {
     extern type UnameResult = {
-        sysname: [256]char
-        nodename: [256]char
-        release: [256]char
-        version: [256]char
-        machine: [256]char
+        sysname: [256]u8
+        nodename: [256]u8
+        release: [256]u8
+        version: [256]u8
+        machine: [256]u8
     }
 }
 
 when linux {
     extern type UnameResult = {
-        sysname: [65]char
-        nodename: [65]char
-        release: [65]char
-        version: [65]char
-        machine: [65]char
-        domainname: [65]char
+        sysname: [65]u8
+        nodename: [65]u8
+        release: [65]u8
+        version: [65]u8
+        machine: [65]u8
+        domainname: [65]u8
     }
 }
 
 when freebsd {
     extern type UnameResult = {
-        sysname: [256]char
-        nodename: [256]char
-        release: [256]char
-        version: [256]char
-        machine: [256]char
+        sysname: [256]u8
+        nodename: [256]u8
+        release: [256]u8
+        version: [256]u8
+        machine: [256]u8
     }
 }
 
 when openbsd {
     extern type UnameResult = {
-        sysname: [256]char
-        nodename: [256]char
-        release: [256]char
-        version: [256]char
-        machine: [256]char
+        sysname: [256]u8
+        nodename: [256]u8
+        release: [256]u8
+        version: [256]u8
+        machine: [256]u8
     }
 }
 
 when netbsd {
     extern type UnameResult = {
-        sysname: [32]char
-        nodename: [256]char
-        release: [256]char
-        version: [256]char
-        machine: [256]char
+        sysname: [32]u8
+        nodename: [256]u8
+        release: [256]u8
+        version: [256]u8
+        machine: [256]u8
     }
 }
 
@@ -80,7 +80,7 @@ pub fn get_current_platform() Platform! = {
 
     val r = uname(@addr(buf))
     if r == 0 {
-        val sysname: ref char = @addr(buf.sysname) as ref char
+        val sysname: ref u8 = @addr(buf.sysname) as ref u8
         if string.rchar_cmp(sysname, "Linux") == 0 { return Platform.Linux }
         if string.rchar_cmp(sysname, "Darwin") == 0 { return Platform.Darwin }
         if string.rchar_cmp(sysname, "FreeBSD") == 0 { return Platform.FreeBSD }
@@ -92,7 +92,7 @@ pub fn get_current_platform() Platform! = {
 }
 
 /// Returns the current platform name as a lowercase string (e.g. "linux", "darwin").
-pub fn current_platform_name() ref char! = {
+pub fn current_platform_name() ref u8! = {
     val p = get_current_platform()
     match p {
         Platform.Linux        => { return "linux" }
@@ -111,16 +111,16 @@ pub fn current_platform_name() ref char! = {
 }
 
 when posix {
-    extern (C) fn readlink(path: ref char, buf: ref char, bufsiz: i64) i64! = "readlink"
+    extern (C) fn readlink(path: ref u8, buf: ref u8, bufsiz: i64) i64! = "readlink"
 }
 
 when windows {
-    extern (C) fn GetModuleFileNameA(module: ref void, buf: ref char, size: u32) u32! = "GetModuleFileNameA"
+    extern (C) fn GetModuleFileNameA(module: ref void, buf: ref u8, size: u32) u32! = "GetModuleFileNameA"
 }
 
 /// Returns the absolute path to the current executable.
-pub fn get_exe_path() ref char! = {
-    val buf: ref char = @alloc(1024) as ref char
+pub fn get_exe_path() ref u8! = {
+    val buf: ref u8 = @alloc(1024) as ref u8
     when posix {
         val n = readlink("/proc/self/exe", buf, 1024)
         if n > 0 {
@@ -145,7 +145,7 @@ test {
     stdio.puts("calling get_current_platform")
     val platform = trust get_current_platform()
     trust stdio.print("Current platform: {d}\n", {platform})
-    
+
     val exe_path = trust get_exe_path()
     trust stdio.print("Exe path: {s}\n", {exe_path})
 }

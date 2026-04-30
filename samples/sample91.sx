@@ -13,7 +13,7 @@ pub fn sum[T](items: list[T]) T = {
         when T in (i32, i64, f32, f64) {
             acc = acc + x
         }
-        when T is ref char {
+        when T is ref u8 {
             acc = trust str.concat_raw(acc, x)
         }
         when T is Vec2 {
@@ -35,10 +35,10 @@ pub fn main() void = {
 
     @puts("ok")
     val a = sum[i64](nums)
-    
+
     @puts("ok2")
-    val b = sum[ref char](words)
-    
+    val b = sum[ref u8](words)
+
     @puts("ok3")
     val c = sum[Vec2](points)
 

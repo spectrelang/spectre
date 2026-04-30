@@ -4,26 +4,26 @@ val meta   = use("meta.sx")
 val builds = use("builds.sx")
 
 pub type SxBuildConfig = {
-    name:   mut ref char
-    action: mut ref char
-    flags:  mut ref char
-    output: mut ref char
+    name:   mut ref u8
+    action: mut ref u8
+    flags:  mut ref u8
+    output: mut ref u8
 }
 
 pub type SxMod = {
-    entry:   mut ref char
-    version: mut ref char
-    deps:    mut list[ref char]
+    entry:   mut ref u8
+    version: mut ref u8
+    deps:    mut list[ref u8]
     builds:  mut list[ref SxBuildConfig]
 }
 
 type ParseCtx = {
-    text: mut ref char
+    text: mut ref u8
     pos:  mut i64
     len:  mut i64
 }
 
-fn new_ctx(text: ref char) ref ParseCtx = {
+fn new_ctx(text: ref u8) ref ParseCtx = {
     val ctx: mut ref ParseCtx = @alloc(@sizeof(ParseCtx)) as ref ParseCtx
     ctx.text = text
     ctx.pos  = 0
@@ -64,19 +64,19 @@ fn ctx_skip_ws(ctx: ref ParseCtx) void = {
     }
 }
 
-fn ctx_read_quoted(ctx: ref ParseCtx) ref char! = {
+fn ctx_read_quoted(ctx: ref ParseCtx) ref u8! = {
     ctx_skip_ws(ctx)
     if ctx_peek(ctx) != 34 { return "" }
     ctx_advance(ctx)
     val cap: mut i64 = 256
-    val buf: mut ref char = @alloc(cap) as ref char
+    val buf: mut ref u8 = @alloc(cap) as ref u8
     val i: mut i64 = 0
     for {
         val c: i64 = ctx_peek(ctx)
         if c == -1 || c == 34 { break }
         if i >= cap - 1 {
             cap = cap * 2
-            buf = @realloc(buf as ref void, cap) as ref char
+            buf = @realloc(buf as ref void, cap) as ref u8
         }
         @store8(@ptradd(buf as ref void, i), c as u8)
         i++
@@ -84,15 +84,15 @@ fn ctx_read_quoted(ctx: ref ParseCtx) ref char! = {
     }
     if ctx_peek(ctx) == 34 { ctx_advance(ctx) }
     @store8(@ptradd(buf as ref void, i), 0)
-    val result: ref char = @alloc(i + 1) as ref char
+    val result: ref u8 = @alloc(i + 1) as ref u8
     @memcpy(result as ref void, buf as ref void, (i + 1) as usize)
     @free(buf as ref void)
     return result
 }
 
-fn ctx_read_ident(ctx: ref ParseCtx) ref char! = {
+fn ctx_read_ident(ctx: ref ParseCtx) ref u8! = {
     ctx_skip_ws(ctx)
-    val buf: ref char = @alloc(256) as ref char
+    val buf: ref u8 = @alloc(256) as ref u8
     val i: mut i64 = 0
     for {
         val c: i64 = ctx_peek(ctx)
@@ -110,13 +110,13 @@ fn ctx_read_ident(ctx: ref ParseCtx) ref char! = {
         @free(buf as ref void)
         return ""
     }
-    val result: ref char = @alloc(i + 1) as ref char
+    val result: ref u8 = @alloc(i + 1) as ref u8
     @memcpy(result as ref void, buf as ref void, (i + 1) as usize)
     @free(buf as ref void)
     return result
 }
 
-pub fn parse_sxmod(content: ref char) ref SxMod! = {
+pub fn parse_sxmod(content: ref u8) ref SxMod! = {
     val ctx: ref ParseCtx = new_ctx(content)
     val m: mut ref SxMod = @alloc(@sizeof(SxMod)) as ref SxMod
     @memset(m as ref void, 0, @sizeof(SxMod) as usize)
@@ -127,7 +127,7 @@ pub fn parse_sxmod(content: ref char) ref SxMod! = {
     for {
         ctx_skip_ws(ctx)
         if ctx_peek(ctx) == -1 { break }
-        val kw: ref char = ctx_read_ident(ctx)
+        val kw: ref u8 = ctx_read_ident(ctx)
         if str.rchar_cmp(kw, "") == 0 { break }
         if str.rchar_cmp(kw, "entry") == 0 {
             m.entry = ctx_read_quoted(ctx)
@@ -148,7 +148,7 @@ pub fn parse_sxmod(content: ref char) ref SxMod! = {
                 ctx_skip_ws(ctx)
                 val c2: i64 = ctx_peek(ctx)
                 if c2 == -1 || c2 == 125 { break }
-                val inner: ref char = ctx_read_ident(ctx)
+                val inner: ref u8 = ctx_read_ident(ctx)
                 if str.rchar_cmp(inner, "") == 0 { break }
                 if str.rchar_cmp(inner, "action") == 0 {
                     cfg.action = ctx_read_quoted(ctx)
@@ -174,12 +174,12 @@ pub fn load_sxmod() option[ref SxMod] = {
     val content_opt = std.fs.read_all("sx.mod")
     match content_opt {
         none => { return none }
-        some content => { return some trust parse_sxmod(content as ref char) }
+        some content => { return some trust parse_sxmod(content as ref u8) }
     }
 }
 
-fn build_config_cmd(cfg: ref SxBuildConfig, exe_path: ref char, entry: ref char) ref char! = {
-    val cmd: mut ref char = ""
+fn build_config_cmd(cfg: ref SxBuildConfig, exe_path: ref u8, entry: ref u8) ref u8! = {
+    val cmd: mut ref u8 = ""
     if str.rchar_cmp(cfg.action, "") != 0 {
         cmd = cfg.action
     } else {
@@ -194,7 +194,7 @@ fn build_config_cmd(cfg: ref SxBuildConfig, exe_path: ref char, entry: ref char)
     return cmd
 }
 
-fn basename_of(path: ref char) ref char = {
+fn basename_of(path: ref u8) ref u8 = {
     val len: i64 = str.len_raw(path)
     if len == 0 { return "project" }
     val last_slash: mut i64 = -1
@@ -208,14 +208,14 @@ fn basename_of(path: ref char) ref char = {
     val start: i64 = last_slash + 1
     val name_len: i64 = len - start
     if name_len <= 0 { return "project" }
-    val buf: ref char = @alloc(name_len + 1) as ref char
+    val buf: ref u8 = @alloc(name_len + 1) as ref u8
     trust @memcpy(buf as ref void, @ptradd(path as ref void, start), name_len as usize)
     trust @store8(@ptradd(buf as ref void, name_len), 0)
     return buf
 }
 
-fn repo_name_from_url(url: ref char) ref char! = {
-    val base: ref char = basename_of(url)
+fn repo_name_from_url(url: ref u8) ref u8! = {
+    val base: ref u8 = basename_of(url)
     val blen: i64 = str.len_raw(base)
     if blen > 4 {
         val a: u8 = @load8(@ptradd(base as ref void, blen - 4)) as u8
@@ -223,7 +223,7 @@ fn repo_name_from_url(url: ref char) ref char! = {
         val c: u8 = @load8(@ptradd(base as ref void, blen - 2)) as u8
         val d: u8 = @load8(@ptradd(base as ref void, blen - 1)) as u8
         if a == 46 && b == 103 && c == 105 && d == 116 {
-            val trimmed: ref char = @alloc(blen - 3) as ref char
+            val trimmed: ref u8 = @alloc(blen - 3) as ref u8
             @memcpy(trimmed as ref void, base as ref void, (blen - 4) as usize)
             @store8(@ptradd(trimmed as ref void, blen - 4), 0)
             return trimmed
@@ -232,7 +232,7 @@ fn repo_name_from_url(url: ref char) ref char! = {
     return base
 }
 
-fn rchar_contains(haystack: ref char, needle: ref char) bool = {
+fn rchar_contains(haystack: ref u8, needle: ref u8) bool = {
     val hlen: i64 = str.len_raw(haystack)
     val nlen: i64 = str.len_raw(needle)
     if nlen == 0 { return true }
@@ -257,13 +257,13 @@ fn rchar_contains(haystack: ref char, needle: ref char) bool = {
 }
 
 /// Rewrite filepath, dropping lines that start with dep_prefix AND contain needle.
-fn drop_dep_lines(filepath: ref char, needle: ref char) void! = {
+fn drop_dep_lines(filepath: ref u8, needle: ref u8) void! = {
     val content_opt = std.fs.read_all(filepath)
     match content_opt {
         none => { return }
         some content => {
             val sb: ref void = std.string.StringBuilder.new()
-            val text: ref char = content as ref char
+            val text: ref u8 = content as ref u8
             val tlen: i64 = str.len_raw(text)
             val line_start: mut i64 = 0
             val i: mut i64 = 0
@@ -274,7 +274,7 @@ fn drop_dep_lines(filepath: ref char, needle: ref char) void! = {
                 if !at_end { c = @load8(@ptradd(text as ref void, i)) as u8 }
                 if at_end || c == 10 {
                     val line_len: i64 = i - line_start
-                    val line: ref char = @alloc(line_len + 1) as ref char
+                    val line: ref u8 = @alloc(line_len + 1) as ref u8
                     @memcpy(line as ref void, @ptradd(text as ref void, line_start), line_len as usize)
                     @store8(@ptradd(line as ref void, line_len), 0)
                     val is_dep: bool = str.rchar_starts_with(line, "dep ")
@@ -296,7 +296,7 @@ fn drop_dep_lines(filepath: ref char, needle: ref char) void! = {
 }
 
 pub fn cmd_ref() i32 = {
-    val path: ref char = "SPECTRE_LANGUAGE_REFERENCE.md"
+    val path: ref u8 = "SPECTRE_LANGUAGE_REFERENCE.md"
     val f_opt = std.fs.open(path, "w")
     match f_opt {
         none => {
@@ -340,7 +340,7 @@ pub fn cmd_ref() i32 = {
                 \\ | `f32`   | 32-bit float             |
                 \\ | `f64`   | 64-bit float             |
                 \\ | `bool`  | boolean (`true`/`false`) |
-                \\ | `char`  | single byte character    |
+                \\ | `u8`  | single byte character    |
                 \\ | `void`  | no value                 |
                 \\
             )
@@ -349,7 +349,7 @@ pub fn cmd_ref() i32 = {
                 \\ ## Reference and Pointer Types
                 \\
                 \\ ```
-                \\ val p: ref char = "hello"    // pointer to char (C string)
+                \\ val p: ref u8 = "hello"    // pointer to u8 (C string)
                 \\ val q: mut ref i64 = ...     // reassignable pointer
                 \\ ```
                 \\
@@ -389,11 +389,11 @@ pub fn cmd_ref() i32 = {
                 \\ ## Result Type
                 \\
                 \\ ```
-                \\ val r: result[i64, ref char] = ok 10
-                \\ val e: result[i64, ref char] = err "oops"
+                \\ val r: result[i64, ref u8] = ok 10
+                \\ val e: result[i64, ref u8] = err "oops"
                 \\
                 \\ match r {
-                \\     ok v  => { } // Use v 
+                \\     ok v  => { } // Use v
                 \\     err e => { } // Handle the error
                 \\ }
                 \\ ```
@@ -410,7 +410,7 @@ pub fn cmd_ref() i32 = {
                 \\ ## Strings
                 \\
                 \\ ```
-                \\ val s: ref char = "hello"           // C string literal
+                \\ val s: ref u8 = "hello"           // C string literal
                 \\ val raw = \\ a raw string literal   // raw string (no escape processing)
                 \\           \\ continued on next line // lines joined with \n
                 \\ ```
@@ -427,14 +427,14 @@ pub fn cmd_ref() i32 = {
                 \\     return a + b
                 \\ }
                 \\
-                \\ pub fn greet(name: ref char) void = {
+                \\ pub fn greet(name: ref u8) void = {
                 \\     @print("Hello, %s!\n", name)
                 \\ }
-                \\ 
+                \\
                 \\ pub enum SomeError = { FailedToDoSomeThing, OrSomethingElse }
-                \\ 
+                \\
                 \\ // Functions that may propagate errors use result[T, E]
-                \\ fn open_file(path: ref char) result[ref void, SomeError] = {
+                \\ fn open_file(path: ref u8) result[ref void, SomeError] = {
                 \\     // ... can use ? to propagate
                 \\ }
                 \\ ```
@@ -595,10 +595,10 @@ pub fn cmd_ref() i32 = {
                 \\ // prefix, like:
                 \\ //
                 \\ // trust read_file("some_file.txt")
-                \\ // 
+                \\ //
                 \\ // Note that trust statements inside untrusted functions marked with ! are redundant
                 \\ // and will result in a compile-time error.
-                \\ fn read_file(path: ref char) result[ref char, SomeError]! = {
+                \\ fn read_file(path: ref u8) result[ref u8, SomeError]! = {
                 \\     val f = some_fallible_call()?   // ? propagates err upward
                 \\     return f
                 \\ }
@@ -636,7 +636,7 @@ pub fn cmd_ref() i32 = {
                 \\ | `@fmt(fmt, {args})`           | heap-allocate a formatted string         |
                 \\ | `@snprintf(buf, n, fmt, {})` | printf into a buffer                     |
                 \\ | `@print(fmt, {args})`        | print to stdout                          |
-                \\ | `@args()`                     | command-line arguments as `list[ref char]` |
+                \\ | `@args()`                     | command-line arguments as `list[ref u8]` |
                 \\
             )
             std.fs.write(f, \\ ---
@@ -675,8 +675,8 @@ pub fn cmd_ref() i32 = {
                 \\ ## Extern Functions
                 \\
                 \\ ```
-                \\ extern (C) fn strlen(s: ref char) i64! = "strlen"
-                \\ extern (C) fn printf(fmt: ref char, ...) i32! = "printf"
+                \\ extern (C) fn strlen(s: ref u8) i64! = "strlen"
+                \\ extern (C) fn printf(fmt: ref u8, ...) i32! = "printf"
                 \\ ```
                 \\
                 \\ ---
@@ -728,13 +728,13 @@ pub fn cmd_ref() i32 = {
     return 0
 }
 
-pub fn cmd_init(name_arg: ref char) i32 = {
+pub fn cmd_init(name_arg: ref u8) i32 = {
     if std.os.exists("sx.mod") {
         std.stdio.puts("error: sx.mod already exists in this directory")
         return 1
     }
 
-    val proj_name: mut ref char = name_arg
+    val proj_name: mut ref u8 = name_arg
     if str.rchar_cmp(proj_name, "") == 0 {
         val cwd_opt = std.fs.cwd()
         match cwd_opt {
@@ -757,7 +757,7 @@ pub fn cmd_init(name_arg: ref char) i32 = {
 
     std.fs.mkdir_path("src")
 
-    val main_template: ref char = \\val stdio = use("std/stdio")
+    val main_template: ref u8 = \\val stdio = use("std/stdio")
         \\
         \\pub fn main() void = {
         \\    stdio.puts("Hello, world!")
@@ -773,7 +773,7 @@ pub fn cmd_init(name_arg: ref char) i32 = {
     return 0
 }
 
-pub fn cmd_build(config_name: ref char, exe_path: ref char) i32 = {
+pub fn cmd_build(config_name: ref u8, exe_path: ref u8) i32 = {
     val mod_opt = load_sxmod()
     match mod_opt {
         none => {
@@ -794,21 +794,21 @@ pub fn cmd_build(config_name: ref char, exe_path: ref char) i32 = {
                 return 1
             }
 
-            val cmd: ref char = trust build_config_cmd(found_cfg, exe_path, m.entry)
+            val cmd: ref u8 = trust build_config_cmd(found_cfg, exe_path, m.entry)
             val exit_code: i32 = std.os.run(cmd)
             return exit_code
         }
     }
 }
 
-pub fn cmd_add(url: ref char) i32! = {
+pub fn cmd_add(url: ref u8) i32! = {
     if !std.os.exists("sx.mod") {
         std.stdio.puts("error: sx.mod not found — run 'spectre init' first")
         return 1
     }
 
-    val name: ref char = repo_name_from_url(url)
-    val lib_path: ref char = @fmt("lib/{s}", {name})
+    val name: ref u8 = repo_name_from_url(url)
+    val lib_path: ref u8 = @fmt("lib/{s}", {name})
 
     if std.os.exists(lib_path) {
         std.stdio.print("error: dependency '{s}' already exists at {s}\n", {name, lib_path})
@@ -817,7 +817,7 @@ pub fn cmd_add(url: ref char) i32! = {
 
     std.fs.mkdir_path("lib")
 
-    val clone_cmd: ref char = @fmt("git clone {s} {s}", {url, lib_path})
+    val clone_cmd: ref u8 = @fmt("git clone {s} {s}", {url, lib_path})
     std.stdio.print("Cloning {s}...\n", {url})
     val exit_code: i32 = std.os.run(clone_cmd)
     if exit_code != 0 {
@@ -825,15 +825,15 @@ pub fn cmd_add(url: ref char) i32! = {
         return 1
     }
 
-    val dep_line: ref char = @fmt("dep \"{s}\"\n", {url})
+    val dep_line: ref u8 = @fmt("dep \"{s}\"\n", {url})
     std.fs.append_all("sx.mod", dep_line)
 
-    val hash_cmd: ref char = @fmt("git -C {s} rev-parse HEAD", {lib_path})
+    val hash_cmd: ref u8 = @fmt("git -C {s} rev-parse HEAD", {lib_path})
     val hash_res = std.os.exec(hash_cmd)
-    val hash: mut ref char = "unknown"
+    val hash: mut ref u8 = "unknown"
     match hash_res {
         ok v => {
-            val raw: ref char = std.string.cstr(v)
+            val raw: ref u8 = std.string.cstr(v)
             val raw_len: i64 = str.len_raw(raw)
             val trimmed_len: mut i64 = raw_len
             for {
@@ -841,7 +841,7 @@ pub fn cmd_add(url: ref char) i32! = {
                 val c: u8 = @load8(@ptradd(raw as ref void, trimmed_len - 1)) as u8
                 if c == 10 || c == 13 || c == 32 { trimmed_len-- } else { break }
             }
-            val h: ref char = @alloc(trimmed_len + 1) as ref char
+            val h: ref u8 = @alloc(trimmed_len + 1) as ref u8
             @memcpy(h as ref void, raw as ref void, trimmed_len as usize)
             @store8(@ptradd(h as ref void, trimmed_len), 0)
             hash = h
@@ -849,22 +849,22 @@ pub fn cmd_add(url: ref char) i32! = {
         err _ => {}
     }
 
-    val lock_line: ref char = @fmt("dep \"{s}\" \"{s}\"\n", {url, hash})
+    val lock_line: ref u8 = @fmt("dep \"{s}\" \"{s}\"\n", {url, hash})
     std.fs.append_all("sx.lock", lock_line)
 
     std.stdio.print("Added dependency '{s}' ({s})\n", {name, hash})
     return 0
 }
 
-pub fn cmd_remove(dep_name: ref char) i32 = {
+pub fn cmd_remove(dep_name: ref u8) i32 = {
     if !std.os.exists("sx.mod") {
         std.stdio.puts("error: sx.mod not found")
         return 1
     }
 
-    val lib_path: ref char = trust @fmt("lib/{s}", {dep_name})
+    val lib_path: ref u8 = trust @fmt("lib/{s}", {dep_name})
     if std.os.exists(lib_path) {
-        val rm_cmd: ref char = trust @fmt("rm -rf {s}", {lib_path})
+        val rm_cmd: ref u8 = trust @fmt("rm -rf {s}", {lib_path})
         std.os.run(rm_cmd)
         std.stdio.print("Removed {s}\n", {lib_path})
     } else {
@@ -894,11 +894,11 @@ pub fn cmd_clean() i32 = {
     return 0
 }
 
-fn tool_version(cmd: ref char) ref char = {
+fn tool_version(cmd: ref u8) ref u8 = {
     val res = std.os.exec(cmd)
     match res {
         ok v => {
-            val raw: ref char = std.string.cstr(v)
+            val raw: ref u8 = std.string.cstr(v)
             val raw_len: i64 = str.len_raw(raw)
             val end: mut i64 = raw_len
             for {
@@ -907,7 +907,7 @@ fn tool_version(cmd: ref char) ref char = {
                 if c == 10 || c == 13 { end-- } else { break }
             }
             if end <= 0 { return "unknown" }
-            val buf: ref char = @alloc(end + 1) as ref char
+            val buf: ref u8 = @alloc(end + 1) as ref u8
             trust @memcpy(buf as ref void, raw as ref void, end as usize)
             trust @store8(@ptradd(buf as ref void, end), 0)
             return buf
@@ -925,17 +925,17 @@ pub fn cmd_doctor() i32 = {
         err _ => { std.stdio.puts("os:      unknown") }
     }
 
-    val qbe_ver: ref char = tool_version("qbe -d 2>&1")
-    val qbe_installed_str: mut ref char = "installed"
+    val qbe_ver: ref u8 = tool_version("qbe -d 2>&1")
+    val qbe_installed_str: mut ref u8 = "installed"
     if std.string.contains(std.string.from(qbe_ver), std.string.from("not found")) {
         qbe_installed_str = "not installed"
     }
     std.stdio.print("qbe:     {s}\n", {qbe_installed_str})
 
-    val cc_ver: ref char = tool_version("cc --version 2>&1 | head -1")
+    val cc_ver: ref u8 = tool_version("cc --version 2>&1 | head -1")
     std.stdio.print("cc:      {s}\n", {cc_ver})
 
-    val git_ver: ref char = tool_version("git --version 2>&1")
+    val git_ver: ref u8 = tool_version("git --version 2>&1")
     std.stdio.print("git:     {s}\n", {git_ver})
 
     val cwd_opt = std.fs.cwd()

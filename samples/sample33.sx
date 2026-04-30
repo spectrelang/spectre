@@ -1,50 +1,50 @@
 when darwin {
     extern type UnameResult = {
-        sysname: [256]char
-        nodename: [256]char
-        release: [256]char
-        version: [256]char
-        machine: [256]char
+        sysname: [256]u8
+        nodename: [256]u8
+        release: [256]u8
+        version: [256]u8
+        machine: [256]u8
     }
 }
 
 when linux {
     extern type UnameResult = {
-        sysname: [65]char
-        nodename: [65]char
-        release: [65]char
-        version: [65]char
-        machine: [65]char
+        sysname: [65]u8
+        nodename: [65]u8
+        release: [65]u8
+        version: [65]u8
+        machine: [65]u8
     }
 }
 
 when freebsd {
     extern type UnameResult = {
-        sysname: [256]char
-        nodename: [256]char
-        release: [256]char
-        version: [256]char
-        machine: [256]char
+        sysname: [256]u8
+        nodename: [256]u8
+        release: [256]u8
+        version: [256]u8
+        machine: [256]u8
     }
 }
 
 when openbsd {
     extern type UnameResult = {
-        sysname: [256]char
-        nodename: [256]char
-        release: [256]char
-        version: [256]char
-        machine: [256]char
+        sysname: [256]u8
+        nodename: [256]u8
+        release: [256]u8
+        version: [256]u8
+        machine: [256]u8
     }
 }
 
 when netbsd {
     extern type UnameResult = {
-        sysname: [32]char
-        nodename: [256]char
-        release: [256]char
-        version: [256]char
-        machine: [256]char
+        sysname: [32]u8
+        nodename: [256]u8
+        release: [256]u8
+        version: [256]u8
+        machine: [256]u8
     }
 }
 

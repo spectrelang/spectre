@@ -1,16 +1,16 @@
 val std = use("std")
 
-fn get_str() ref char = {
+fn get_str() ref u8 = {
     return "hello"
 }
 
-fn identity(s: ref char) ref char = {
+fn identity(s: ref u8) ref u8 = {
     return s
 }
 
 pub fn main() i32 = {
-    val s: ref char = get_str()
-    val result: ref char = identity(s)
+    val s: ref u8 = get_str()
+    val result: ref u8 = identity(s)
     std.stdio.print("{s}", {result})
     return 0
 }

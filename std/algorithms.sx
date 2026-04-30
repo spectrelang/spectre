@@ -34,7 +34,7 @@ pub fn sort[T](input: list[T]) list[T] = {
             if j < 0 { break }
 
             val jo = @get(sorted, j as usize)
-            val jval: mut T = 0 as T 
+            val jval: mut T = 0 as T
             match jo {
                 none   => { break }
                 some v => { jval = v }
@@ -48,7 +48,7 @@ pub fn sort[T](input: list[T]) list[T] = {
             when T in (f64, f32) {
                 if jval <= key { should_break = 1 }
             }
-            when T is ref char {
+            when T is ref u8 {
                 if intern_strcmp(jval, key) <= 0 { should_break = 1 }
             }
             when _ {
@@ -64,12 +64,12 @@ pub fn sort[T](input: list[T]) list[T] = {
         @set(sorted, (j + 1) as usize, key)
         si++
     }
-    
+
     return sorted
 }
 
-/// Extract leading integer from a ref char. Returns -1 if none.
-fn parse_leading_num(name: ref char) i64 = {
+/// Extract leading integer from a ref u8. Returns -1 if none.
+fn parse_leading_num(name: ref u8) i64 = {
     val len: i64 = string.len_raw(name)
     if len == 0 { return -1 }
     val result: mut i64 = 0
@@ -96,10 +96,10 @@ fn parse_leading_num(name: ref char) i64 = {
     return result
 }
 
-/// Insertion-sort a list of ref char by their leading number (ascending).
-pub fn sort_by_num(files: list[ref char]) list[ref char] = {
+/// Insertion-sort a list of ref u8 by their leading number (ascending).
+pub fn sort_by_num(files: list[ref u8]) list[ref u8] = {
     val n: usize = @len(files)
-    val sorted: mut list[ref char] = []
+    val sorted: mut list[ref u8] = []
     val ci: mut usize = 0
     for {
         if ci >= n { break }
@@ -115,7 +115,7 @@ pub fn sort_by_num(files: list[ref char]) list[ref char] = {
     for {
         if si >= n { break }
         val ko = @get(sorted, si)
-        val key: mut ref char = 0 as ref char
+        val key: mut ref u8 = 0 as ref u8
         match ko {
             none   => { si++ }
             some v => { key = v }
@@ -125,7 +125,7 @@ pub fn sort_by_num(files: list[ref char]) list[ref char] = {
         for {
             if j < 0 { break }
             val jo = @get(sorted, j as usize)
-            val jval: mut ref char = 0 as ref char
+            val jval: mut ref u8 = 0 as ref u8
             match jo {
                 none   => { break }
                 some v => { jval = v }
@@ -245,7 +245,7 @@ pub fn sort_f64(input: list[f64]) list[f64] = {
 }
 
 /// Internal string comparison function for algo purposes.
-fn intern_strcmp(a: ref char, b: ref char) i32 = {
+fn intern_strcmp(a: ref u8, b: ref u8) i32 = {
     val i: mut i64 = 0
 
     for {
@@ -271,9 +271,9 @@ fn intern_strcmp(a: ref char, b: ref char) i32 = {
 }
 
 /// Sort some list of raw strings alphabetically.
-pub fn sort_alpha(files: list[ref char]) list[ref char] = {
+pub fn sort_alpha(files: list[ref u8]) list[ref u8] = {
     val n: usize = @len(files)
-    val sorted: mut list[ref char] = []
+    val sorted: mut list[ref u8] = []
     val ci: mut usize = 0
 
     for {
@@ -291,7 +291,7 @@ pub fn sort_alpha(files: list[ref char]) list[ref char] = {
         if si >= n { break }
 
         val ko = @get(sorted, si)
-        val key: mut ref char = 0 as ref char
+        val key: mut ref u8 = 0 as ref u8
         match ko {
             none   => { si++ }
             some v => { key = v }
@@ -303,7 +303,7 @@ pub fn sort_alpha(files: list[ref char]) list[ref char] = {
             if j < 0 { break }
 
             val jo = @get(sorted, j as usize)
-            val jval: mut ref char = 0 as ref char
+            val jval: mut ref u8 = 0 as ref u8
             match jo {
                 none   => { break }
                 some v => { jval = v }
@@ -323,19 +323,19 @@ pub fn sort_alpha(files: list[ref char]) list[ref char] = {
 }
 
 test {
-    val all: list[ref char] = ["1 - hi", "2 - hello", "0 hey", "5 :)", "3 :D"]
-    val sorted: list[ref char] = sort_by_num(all)
-    
+    val all: list[ref u8] = ["1 - hi", "2 - hello", "0 hey", "5 :)", "3 :D"]
+    val sorted: list[ref u8] = sort_by_num(all)
+
     for s in sorted {
         trust @print("{s}\n", {s})
     }
 
     @puts("ok1")
     val int_lst: list[i64] = [5, 2, 6, 1, 9, 10345, 234, 235]
-    
+
     @puts("ok2")
     val il_sorted = sort_i64(int_lst)
-   
+
     @puts("ok3")
     for il in il_sorted {
         trust @print("{d}\n", {il})

@@ -1,4 +1,4 @@
 pub fn main() void = {
-    val some_str: ref char = "i am some string."
+    val some_str: ref u8 = "i am some string."
     @print("{d}", {some_str})
 }

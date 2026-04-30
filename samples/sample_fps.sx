@@ -58,7 +58,7 @@ extern type Bullet = {
 }
 
 extern (C, header) fn SDL_Init(flags: u32) i32! = "SDL_Init"
-extern (C, header) fn SDL_CreateWindow(title: ref char, x: i32, y: i32, w: i32, h: i32, flags: u32) ref void! = "SDL_CreateWindow"
+extern (C, header) fn SDL_CreateWindow(title: ref u8, x: i32, y: i32, w: i32, h: i32, flags: u32) ref void! = "SDL_CreateWindow"
 extern (C, header) fn SDL_CreateRenderer(win: ref void, index: i32, flags: u32) ref void! = "SDL_CreateRenderer"
 extern (C, header) fn SDL_PollEvent(event: ref SDL_Event) i32! = "SDL_PollEvent"
 extern (C, header) fn SDL_GetTicks() u32! = "SDL_GetTicks"
@@ -75,7 +75,7 @@ extern (C, header) fn SDL_FreeSurface(surface: ref void) void! = "SDL_FreeSurfac
 extern (C, header) fn SDL_RenderCopy(renderer: ref void, texture: ref void, srcrect: ref void, dstrect: ref void) i32! = "SDL_RenderCopy"
 extern (C, header) fn SDL_SetTextureBlendMode(texture: ref void, blendMode: i32) i32! = "SDL_SetTextureBlendMode"
 extern (C, header) fn SDL_QueryTexture(texture: ref void, fmt: ref void, access: ref void, w: ref void, h: ref void) i32! = "SDL_QueryTexture"
-extern (C) fn IMG_Load(file: ref char) ref void! = "IMG_Load"
+extern (C) fn IMG_Load(file: ref u8) ref void! = "IMG_Load"
 extern (C) fn cosf(x: f32) f32! = "cosf"
 extern (C) fn sinf(x: f32) f32! = "sinf"
 extern (C) fn fabsf(x: f32) f32! = "fabsf"

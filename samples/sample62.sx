@@ -1,6 +1,6 @@
 pub union Kind = {
     Foo()
-  | Bar(ref char)
+  | Bar(ref u8)
 }
 
 type Token = {

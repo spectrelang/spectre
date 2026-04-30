@@ -495,10 +495,10 @@ test {
     stdio.puts("list tests passed")
 }
 
-/// A hash map with ref char (C string) keys and usize values.
+/// A hash map with ref u8 (C string) keys and usize values.
 /// Built on top of Map using a djb2 string hash.
 
-extern (C) fn strlen(s: ref char) i64! = "strlen"
+extern (C) fn strlen(s: ref u8) i64! = "strlen"
 
 /// Casts the string pointer to usize for use as a Map key seed, then hashes
 /// the actual bytes so distinct strings with the same address never collide.
@@ -506,7 +506,7 @@ pub fn hash_string(key: usize) usize = {
     pre {
         key > 0
     }
-    val s: ref char = key as ref char
+    val s: ref u8 = key as ref u8
     val h: mut usize = 5381
     val i: mut i64 = 0
     for {
@@ -523,7 +523,7 @@ pub fn hash_string(key: usize) usize = {
 }
 
 /// Compare two null-terminated C strings for equality.
-fn str_eq(a: ref char, b: ref char) bool! = {
+fn str_eq(a: ref u8, b: ref u8) bool! = {
     val i: mut i64 = 0
     for {
         val ca: u8 = @load8(@ptradd(a, i))
@@ -543,7 +543,7 @@ pub fn (StringMap) new(initial_cap: usize) ref void! = {
 /// Insert or update a string key with a usize value.
 ///
 /// The key is copied onto the heap; the copy is owned by the map.
-pub fn (StringMap) set(map: self, key: ref char, value: usize) void! = {
+pub fn (StringMap) set(map: self, key: ref u8, value: usize) void! = {
     val cap: usize = @load(@ptradd(map, 16)) as usize
     val buckets: ref void = @load(map)
     val kl: i64 = strlen(key)
@@ -559,7 +559,7 @@ pub fn (StringMap) set(map: self, key: ref char, value: usize) void! = {
             break
         }
         if (state == MAP_BUCKET_LIVE) {
-            val existing_key: ref char = @load(@ptradd(slot, 8)) as ref char
+            val existing_key: ref u8 = @load(@ptradd(slot, 8)) as ref u8
             if (str_eq(existing_key, key)) {
                 @store(@ptradd(slot, 16), value)
                 return
@@ -573,7 +573,7 @@ pub fn (StringMap) set(map: self, key: ref char, value: usize) void! = {
 }
 
 /// Look up a string key. Returns some(value) or none.
-pub fn (StringMap) get(map: self, key: ref char) option[usize] = {
+pub fn (StringMap) get(map: self, key: ref u8) option[usize] = {
     val cap: usize = trust @load(@ptradd(map, 16)) as usize
     val buckets: ref void = trust @load(map)
     val hash_fn: ref void = trust @load(@ptradd(map, 24))
@@ -588,7 +588,7 @@ pub fn (StringMap) get(map: self, key: ref char) option[usize] = {
             return none
         }
         if (state == MAP_BUCKET_LIVE) {
-            val existing_key: ref char = trust @load(@ptradd(slot, 8)) as ref char
+            val existing_key: ref u8 = trust @load(@ptradd(slot, 8)) as ref u8
             if (trust str_eq(existing_key, key)) {
                 return some (trust @load(@ptradd(slot, 16)) as usize)
             }
@@ -599,7 +599,7 @@ pub fn (StringMap) get(map: self, key: ref char) option[usize] = {
 }
 
 /// Check if a string key exists.
-pub fn (StringMap) contains(map: self, key: ref char) bool = {
+pub fn (StringMap) contains(map: self, key: ref u8) bool = {
     val result = StringMap.get(map, key)
     match result {
         some _ => { return true  }
@@ -608,7 +608,7 @@ pub fn (StringMap) contains(map: self, key: ref char) bool = {
 }
 
 /// Remove a string key. Returns 1 if found and removed, 0 otherwise.
-pub fn (StringMap) delete(map: self, key: ref char) usize! = {
+pub fn (StringMap) delete(map: self, key: ref u8) usize! = {
     val cap: usize = @load(@ptradd(map, 16)) as usize
     val buckets: ref void = @load(map)
     val hash_fn: ref void = @load(@ptradd(map, 24))
@@ -623,7 +623,7 @@ pub fn (StringMap) delete(map: self, key: ref char) usize! = {
             return 0
         }
         if (state == MAP_BUCKET_LIVE) {
-            val existing_key: ref char = @load(@ptradd(slot, 8)) as ref char
+            val existing_key: ref u8 = @load(@ptradd(slot, 8)) as ref u8
             if (str_eq(existing_key, key)) {
                 @free(existing_key)
                 @store(slot, MAP_BUCKET_DEAD)
@@ -649,7 +649,7 @@ pub fn (StringMap) free(map: self) void! = {
         val slot: ref void = @ptradd(buckets, i * MAP_BUCKET_SIZE)
         val state: usize = @load(slot) as usize
         if (state == MAP_BUCKET_LIVE) {
-            val k: ref char = @load(@ptradd(slot, 8)) as ref char
+            val k: ref u8 = @load(@ptradd(slot, 8)) as ref u8
             @free(k)
         }
     }
@@ -724,7 +724,7 @@ test {
     stdio.puts("string map tests passed")
 }
 
-/// An insertion-order preserving map with ref char keys and usize values.
+/// An insertion-order preserving map with ref u8 keys and usize values.
 ///
 /// Implemented as a StringMap for O(1) lookup plus a PtrList of keys
 /// to track insertion order.
@@ -754,7 +754,7 @@ pub fn (IndexMap) new(initial_cap: usize) ref void! = {
 }
 
 /// Insert or update a key-value pair, preserving insertion order for new keys.
-pub fn (IndexMap) set(map: self, key: ref char, value: usize) void! = {
+pub fn (IndexMap) set(map: self, key: ref u8, value: usize) void! = {
     val inner: ref void = @load(map)
     val keys:  ref void = @load(@ptradd(map, 8))
     val already = StringMap.contains(inner, key)
@@ -773,20 +773,20 @@ pub fn (IndexMap) set(map: self, key: ref char, value: usize) void! = {
 }
 
 /// Look up a key. Returns some(value) or none.
-pub fn (IndexMap) get(map: self, key: ref char) option[usize]! = {
+pub fn (IndexMap) get(map: self, key: ref u8) option[usize]! = {
     val inner: ref void = @load(map)
     return StringMap.get(inner, key)
 }
 
 /// Check if a key exists.
-pub fn (IndexMap) contains(map: self, key: ref char) bool = {
+pub fn (IndexMap) contains(map: self, key: ref u8) bool = {
     val inner: ref void = trust @load(map)
     return StringMap.contains(inner, key)
 }
 
 /// Remove a key. Returns 1 if found, 0 otherwise.
 /// Note: removal marks the key as a tombstone in the ordered list (sets to 0).
-pub fn (IndexMap) delete(map: self, key: ref char) usize! = {
+pub fn (IndexMap) delete(map: self, key: ref u8) usize! = {
     val inner: ref void = @load(map)
     val keys:  ref void = @load(@ptradd(map, 8))
     val removed = StringMap.delete(inner, key)
@@ -797,7 +797,7 @@ pub fn (IndexMap) delete(map: self, key: ref char) usize! = {
                 none   => {}
                 some p => {
                     if p != 0 {
-                        val k: ref char = p as ref char
+                        val k: ref u8 = p as ref u8
                         if str_eq(k, key) {
                             @free(k)
                             PtrList.set(keys, i, 0 as usize)
@@ -818,7 +818,7 @@ pub fn (IndexMap) len(map: self) usize = {
 }
 
 /// Iterate in insertion order. Calls callback(key, value) for each live entry.
-pub fn (IndexMap) each(map: self, cb: fn(ref char, usize) void) void! = {
+pub fn (IndexMap) each(map: self, cb: fn(ref u8, usize) void) void! = {
     val inner: ref void = @load(map)
     val keys:  ref void = @load(@ptradd(map, 8))
     val n: usize = PtrList.len(keys)
@@ -827,7 +827,7 @@ pub fn (IndexMap) each(map: self, cb: fn(ref char, usize) void) void! = {
             none   => {}
             some p => {
                 if p != 0 {
-                    val k: ref char = p as ref char
+                    val k: ref u8 = p as ref u8
                     match StringMap.get(inner, k) {
                         none   => {}
                         some v => { cb(k, v) }
@@ -840,7 +840,7 @@ pub fn (IndexMap) each(map: self, cb: fn(ref char, usize) void) void! = {
 
 /// Get the i-th key in insertion order (skipping tombstones).
 /// Returns none if out of range.
-pub fn (IndexMap) key_at(map: self, i: usize) option[ref char] = {
+pub fn (IndexMap) key_at(map: self, i: usize) option[ref u8] = {
     val keys: ref void = trust @load(@ptradd(map, 8))
     val n: usize = PtrList.len(keys)
     val live: mut usize = 0
@@ -849,7 +849,7 @@ pub fn (IndexMap) key_at(map: self, i: usize) option[ref char] = {
             none   => {}
             some p => {
                 if p != 0 {
-                    if live == i { return some (p as ref char) }
+                    if live == i { return some (p as ref u8) }
                     live++
                 }
             }

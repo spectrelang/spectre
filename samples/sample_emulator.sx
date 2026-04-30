@@ -33,7 +33,7 @@ val SDLK_v: i32 = 118
 
 extern (C) fn SDL_Init(flags: u32) i32!                                                             = "SDL_Init"
 extern (C) fn SDL_Quit() void!                                                                      = "SDL_Quit"
-extern (C) fn SDL_CreateWindow(title: ref char, x: i32, y: i32, w: i32, h: i32, flags: u32) ref void! = "SDL_CreateWindow"
+extern (C) fn SDL_CreateWindow(title: ref u8, x: i32, y: i32, w: i32, h: i32, flags: u32) ref void! = "SDL_CreateWindow"
 extern (C) fn SDL_DestroyWindow(win: ref void) void!                                                = "SDL_DestroyWindow"
 extern (C) fn SDL_CreateRenderer(win: ref void, index: i32, flags: u32) ref void!                  = "SDL_CreateRenderer"
 extern (C) fn SDL_DestroyRenderer(r: ref void) void!                                               = "SDL_DestroyRenderer"
@@ -46,9 +46,9 @@ extern (C) fn SDL_RenderCopy(r: ref void, t: ref void, src: ref void, dst: ref v
 extern (C) fn SDL_RenderPresent(r: ref void) void!                                                  = "SDL_RenderPresent"
 extern (C) fn SDL_PollEvent(event: ref void) i32!                                                   = "SDL_PollEvent"
 extern (C) fn SDL_Delay(ms: u32) void!                                                              = "SDL_Delay"
-extern (C) fn SDL_GetError() ref char!                                                              = "SDL_GetError"
+extern (C) fn SDL_GetError() ref u8!                                                              = "SDL_GetError"
 
-extern (C) fn fopen(path: ref char, mode: ref char) ref void!                     = "fopen"
+extern (C) fn fopen(path: ref u8, mode: ref u8) ref void!                     = "fopen"
 extern (C) fn fclose(f: ref void) i32!                                            = "fclose"
 extern (C) fn fread(buf: ref void, sz: usize, n: usize, f: ref void) usize!      = "fread"
 extern (C) fn fseek(f: ref void, off: i64, whence: i32) i32!                     = "fseek"
@@ -289,7 +289,7 @@ fn chip8_init(chip: mut ref Chip8) void = {
   }
 }
 
-fn chip8_load(chip: mut ref Chip8, path: ref char) bool = {
+fn chip8_load(chip: mut ref Chip8, path: ref u8) bool = {
   chip8_init(chip)
 
   val f: ref void = trust fopen(path, "rb")

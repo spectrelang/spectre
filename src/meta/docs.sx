@@ -8,36 +8,36 @@ val commands = use("commands.sx")
 
 type DocMap = {
     lines: mut list[i64]
-    docs:  mut list[ref char]
+    docs:  mut list[ref u8]
 }
 
 type DocEntry = {
     kind:         mut i64
     line:         mut i64
-    name:         mut ref char
-    nav_name:     mut ref char
-    anchor:       mut ref char
-    signature:    mut ref char
-    docs:         mut ref char
-    availability: mut ref char
+    name:         mut ref u8
+    nav_name:     mut ref u8
+    anchor:       mut ref u8
+    signature:    mut ref u8
+    docs:         mut ref u8
+    availability: mut ref u8
     node:         mut ref parser.Node
 }
 
 type DocModule = {
-    source_path: mut ref char
-    rel_path:    mut ref char
-    module_name: mut ref char
-    output_path: mut ref char
+    source_path: mut ref u8
+    rel_path:    mut ref u8
+    module_name: mut ref u8
+    output_path: mut ref u8
     is_root:     mut bool
     entries:     mut list[ref DocEntry]
 }
 
-fn safe_cstr(s: ref char) ref char = {
-    if s == 0 as ref char { return "" }
+fn safe_cstr(s: ref u8) ref u8 = {
+    if s == 0 as ref u8 { return "" }
     return s
 }
 
-fn str_eq(a: ref char, b: ref char) bool = {
+fn str_eq(a: ref u8, b: ref u8) bool = {
     return str.rchar_cmp(safe_cstr(a), safe_cstr(b)) == 0
 }
 
@@ -45,9 +45,9 @@ fn is_space(c: u8) bool = {
     return c == 32 || c == 9 || c == 10 || c == 13
 }
 
-fn substr(src: ref char, start: i64, len: i64) ref char! = {
+fn substr(src: ref u8, start: i64, len: i64) ref u8! = {
     guarded pre {
-        src_not_null : src != 0 as ref char
+        src_not_null : src != 0 as ref u8
     }
 
     val src_len: i64 = str.len_raw(src)
@@ -63,12 +63,12 @@ fn substr(src: ref char, start: i64, len: i64) ref char! = {
     val out = str.substr(src, safe_start, safe_len)
 
     guarded post {
-        out_not_null : out != 0 as ref char
+        out_not_null : out != 0 as ref u8
     }
     return out
 }
 
-fn trim_ws(src: ref char) ref char! = {
+fn trim_ws(src: ref u8) ref u8! = {
     val len: i64 = str.len_raw(src)
     if len == 0 { return "" }
     val start: mut i64 = 0
@@ -88,19 +88,19 @@ fn trim_ws(src: ref char) ref char! = {
     return substr(src, start, finish - start)
 }
 
-fn trim_trailing_slash(src: ref char) ref char! = {
+fn trim_trailing_slash(src: ref u8) ref u8! = {
     val len: i64 = str.len_raw(src)
     if len <= 1 { return src }
     if @load8(@ptradd(src as ref void, len - 1)) != 47 { return src }
     return substr(src, 0, len - 1)
 }
 
-fn normalize_rel_path(path: ref char) ref char! = {
+fn normalize_rel_path(path: ref u8) ref u8! = {
     val no_dot = str.trim_prefix_raw(path, "./")
     return trim_trailing_slash(no_dot)
 }
 
-fn path_dirname(path: ref char) ref char! = {
+fn path_dirname(path: ref u8) ref u8! = {
     val len: i64 = str.len_raw(path)
     val last_slash: mut i64 = -1
     val i: mut i64 = 0
@@ -114,7 +114,7 @@ fn path_dirname(path: ref char) ref char! = {
     return substr(path, 0, last_slash)
 }
 
-fn path_basename(path: ref char) ref char! = {
+fn path_basename(path: ref u8) ref u8! = {
     val len: i64 = str.len_raw(path)
     val last_slash: mut i64 = -1
     val i: mut i64 = 0
@@ -126,21 +126,21 @@ fn path_basename(path: ref char) ref char! = {
     return substr(path, last_slash + 1, len - last_slash - 1)
 }
 
-fn strip_sx_ext(path: ref char) ref char! = {
+fn strip_sx_ext(path: ref u8) ref u8! = {
     if str.rchar_ends_with(path, ".sx") {
         return str.trim_suffix_raw(path, ".sx")
     }
     return path
 }
 
-fn dir_exists(path: ref char) bool = {
+fn dir_exists(path: ref u8) bool = {
     val dir: ref void = std.fs.opendir(path)
     if dir == 0 as ref void { return false }
     std.fs.closedir(dir)
     return true
 }
 
-fn ensure_dir(path: ref char) bool! = {
+fn ensure_dir(path: ref u8) bool! = {
     val clean = trim_trailing_slash(path)
     if str_eq(clean, "") || str_eq(clean, ".") { return true }
     if std.os.exists(clean) { return true }
@@ -163,26 +163,26 @@ fn ensure_dir(path: ref char) bool! = {
     return true
 }
 
-fn ensure_parent_dir(file_path: ref char) bool! = {
+fn ensure_parent_dir(file_path: ref u8) bool! = {
     val dir = path_dirname(file_path)
     return ensure_dir(dir)
 }
 
-fn is_hidden_name(name: ref char) bool! = {
+fn is_hidden_name(name: ref u8) bool! = {
     val len: i64 = str.len_raw(name)
     if len == 0 { return false }
     return @load8(name as ref void) == 46
 }
 
-fn collect_sx_files(dir: ref char, rel_dir: ref char, out: mut list[ref char]) void! = {
+fn collect_sx_files(dir: ref u8, rel_dir: ref u8, out: mut list[ref u8]) void! = {
     val entries_opt = std.fs.walk_dir(dir)
     if entries_opt is some entries {
-        val sorted = entries as list[ref char]
+        val sorted = entries as list[ref u8]
         for entry in sorted {
             if is_hidden_name(entry) { continue }
             if str_eq(entry, "docs-out") { continue }
             val child_path = std.path.join(dir, entry)
-            val child_rel: mut ref char = entry
+            val child_rel: mut ref u8 = entry
             if !str_eq(rel_dir, "") {
                 child_rel = std.path.join(rel_dir, entry)
             }
@@ -195,7 +195,7 @@ fn collect_sx_files(dir: ref char, rel_dir: ref char, out: mut list[ref char]) v
     }
 }
 
-fn is_doc_target_line(line: ref char) bool! = {
+fn is_doc_target_line(line: ref u8) bool! = {
     return str.rchar_starts_with(line, "fn ") ||
            str.rchar_starts_with(line, "pub fn ") ||
            str.rchar_starts_with(line, "extern ") ||
@@ -208,7 +208,7 @@ fn is_doc_target_line(line: ref char) bool! = {
            str.rchar_starts_with(line, "pub union ")
 }
 
-fn doc_line_text(trimmed: ref char) ref char! = {
+fn doc_line_text(trimmed: ref u8) ref u8! = {
     val len: i64 = str.len_raw(trimmed)
     if len <= 3 { return "" }
     if len > 3 && @load8(@ptradd(trimmed as ref void, 3)) == 32 {
@@ -217,11 +217,11 @@ fn doc_line_text(trimmed: ref char) ref char! = {
     return substr(trimmed, 3, len - 3)
 }
 
-fn update_doc_map_for_line(map: ref DocMap, trimmed: ref char, line_no: i64, current_doc: ref char) ref char! = {
+fn update_doc_map_for_line(map: ref DocMap, trimmed: ref u8, line_no: i64, current_doc: ref u8) ref u8! = {
     guarded pre {
         map_not_null         : map != 0 as ref DocMap
-        trimmed_not_null     : trimmed != 0 as ref char
-        current_doc_not_null : current_doc != 0 as ref char
+        trimmed_not_null     : trimmed != 0 as ref u8
+        current_doc_not_null : current_doc != 0 as ref u8
         line_is_positive     : line_no > 0
     }
 
@@ -249,9 +249,9 @@ fn update_doc_map_for_line(map: ref DocMap, trimmed: ref char, line_no: i64, cur
     return current_doc
 }
 
-fn extract_doc_map(src: ref char) ref DocMap! = {
+fn extract_doc_map(src: ref u8) ref DocMap! = {
     guarded pre {
-        src_not_null : src != 0 as ref char
+        src_not_null : src != 0 as ref u8
     }
 
     val map: mut ref DocMap = @alloc(@sizeof(DocMap)) as ref DocMap
@@ -261,7 +261,7 @@ fn extract_doc_map(src: ref char) ref DocMap! = {
     val line_no: mut i64 = 1
     val line_start: mut i64 = 0
     val i: mut i64 = 0
-    val current_doc: mut ref char = ""
+    val current_doc: mut ref u8 = ""
     for {
         if i >= len {
             val line = substr(src, line_start, len - line_start)
@@ -288,7 +288,7 @@ fn extract_doc_map(src: ref char) ref DocMap! = {
     return map
 }
 
-fn lookup_doc(map: ref DocMap, line: i64) ref char! = {
+fn lookup_doc(map: ref DocMap, line: i64) ref u8! = {
     val len: i64 = @len(map.lines) as i64
     val i: mut i64 = 0
     for {
@@ -299,7 +299,7 @@ fn lookup_doc(map: ref DocMap, line: i64) ref char! = {
                 if ((v as i64) == line) {
                     val doc_opt = @get(map.docs, i as usize)
                     match doc_opt {
-                        some d => { return d as ref char }
+                        some d => { return d as ref u8 }
                         none => {}
                     }
                 }
@@ -311,7 +311,7 @@ fn lookup_doc(map: ref DocMap, line: i64) ref char! = {
     return ""
 }
 
-fn slugify(text: ref char) ref char! = {
+fn slugify(text: ref u8) ref u8! = {
     val sb: ref void = std.string.StringBuilder.new()
     val len: i64 = str.len_raw(text)
     val i: mut i64 = 0
@@ -341,14 +341,14 @@ fn slugify(text: ref char) ref char! = {
     return std.string.cstr(built)
 }
 
-fn anchor_for(kind_name: ref char, item_name: ref char, line: i64) ref char! = {
+fn anchor_for(kind_name: ref u8, item_name: ref u8, line: i64) ref u8! = {
     return slugify(@fmt("{s}-{s}-{lld}", {kind_name, item_name, line}))
 }
 
-fn render_type(ty: ref parser.Node) ref char! = {
+fn render_type(ty: ref parser.Node) ref u8! = {
     if ty == 0 as ref parser.Node { return "" }
     match ty.kind {
-        parser.TY_NAMED => { return ty.d0 as ref char }
+        parser.TY_NAMED => { return ty.d0 as ref u8 }
         parser.TY_REF => { return @fmt("ref {s}", {render_type(ty.d0 as ref parser.Node)}) }
         parser.TY_MUT => { return @fmt("mut {s}", {render_type(ty.d0 as ref parser.Node)}) }
         parser.TY_OPTION => { return @fmt("option[{s}]", {render_type(ty.d0 as ref parser.Node)}) }
@@ -356,14 +356,14 @@ fn render_type(ty: ref parser.Node) ref char! = {
         parser.TY_RESULT => { return @fmt("result[{s}, {s}]", {render_type(ty.d0 as ref parser.Node), render_type(ty.d1 as ref parser.Node)}) }
         parser.TY_SLICE => { return @fmt("[]{s}", {render_type(ty.d0 as ref parser.Node)}) }
         parser.TY_FIXED_ARR => {
-            val size_name: ref char = parser.fixed_arr_size_name(ty)
-            if size_name != 0 as ref char {
+            val size_name: ref u8 = parser.fixed_arr_size_name(ty)
+            if size_name != 0 as ref u8 {
                 return @fmt("[{s}]{s}", {size_name, render_type(parser.fixed_arr_inner(ty))})
             }
             return @fmt("[{lld}]{s}", {parser.fixed_arr_size(ty), render_type(parser.fixed_arr_inner(ty))})
         }
         parser.TY_FNPTR => {
-            val parts: mut ref char = ""
+            val parts: mut ref u8 = ""
             val params = ty.d0 as list[ref parser.Node]
             for param in params {
                 val part = render_type(param)
@@ -381,10 +381,10 @@ fn render_type(ty: ref parser.Node) ref char! = {
     return "unknown"
 }
 
-fn render_fn_params(params: list[ref parser.Node]) ref char! = {
-    val out: mut ref char = ""
+fn render_fn_params(params: list[ref parser.Node]) ref u8! = {
+    val out: mut ref u8 = ""
     for param in params {
-        val param_name: ref char = param.d0 as ref char
+        val param_name: ref u8 = param.d0 as ref u8
         val param_ty: ref parser.Node = param.d1 as ref parser.Node
         val piece = @fmt("{s}: {s}", {param_name, render_type(param_ty)})
         if str_eq(out, "") {
@@ -396,12 +396,12 @@ fn render_fn_params(params: list[ref parser.Node]) ref char! = {
     return out
 }
 
-fn render_type_fields(fields: list[ref parser.Node]) ref char! = {
-    val out: mut ref char = ""
+fn render_type_fields(fields: list[ref parser.Node]) ref u8! = {
+    val out: mut ref u8 = ""
     for field in fields {
-        val prefix: mut ref char = ""
+        val prefix: mut ref u8 = ""
         if field.d1 != 0 { prefix = "mut " }
-        val piece = @fmt("{s}: {s}{s}", {field.d0 as ref char, prefix, render_type(field.d2 as ref parser.Node)})
+        val piece = @fmt("{s}: {s}{s}", {field.d0 as ref u8, prefix, render_type(field.d2 as ref parser.Node)})
         if str_eq(out, "") {
             out = piece
         } else {
@@ -411,8 +411,8 @@ fn render_type_fields(fields: list[ref parser.Node]) ref char! = {
     return out
 }
 
-fn render_type_list(types: list[ref parser.Node], delim: ref char) ref char! = {
-    val out: mut ref char = ""
+fn render_type_list(types: list[ref parser.Node], delim: ref u8) ref u8! = {
+    val out: mut ref u8 = ""
     for ty in types {
         val piece = render_type(ty)
         if str_eq(out, "") {
@@ -424,8 +424,8 @@ fn render_type_list(types: list[ref parser.Node], delim: ref char) ref char! = {
     return out
 }
 
-fn render_variant_list(values: list[ref char], delim: ref char) ref char! = {
-    val out: mut ref char = ""
+fn render_variant_list(values: list[ref u8], delim: ref u8) ref u8! = {
+    val out: mut ref u8 = ""
     for value in values {
         if str_eq(out, "") {
             out = value
@@ -436,12 +436,12 @@ fn render_variant_list(values: list[ref char], delim: ref char) ref char! = {
     return out
 }
 
-fn render_tagged_variants(values: list[ref parser.Node]) ref char! = {
-    val out: mut ref char = ""
+fn render_tagged_variants(values: list[ref parser.Node]) ref u8! = {
+    val out: mut ref u8 = ""
     for value in values {
         val types = value.d1 as list[ref parser.Node]
         val rendered_types = render_type_list(types, ", ")
-        val piece: mut ref char = value.d0 as ref char
+        val piece: mut ref u8 = value.d0 as ref u8
         if !str_eq(rendered_types, "") {
             piece = @fmt("{s}({s})", {piece, rendered_types})
         } else {
@@ -456,76 +456,76 @@ fn render_tagged_variants(values: list[ref parser.Node]) ref char! = {
     return out
 }
 
-fn render_type_signature(node: ref parser.Node) ref char! = {
-    val public_prefix: mut ref char = ""
+fn render_type_signature(node: ref parser.Node) ref u8! = {
+    val public_prefix: mut ref u8 = ""
     if node.d0 != 0 { public_prefix = "pub " }
     if node.kind == parser.NK_TYPEDEF || node.kind == parser.NK_EXTERN_TYPE {
-        val extern_prefix: mut ref char = ""
+        val extern_prefix: mut ref u8 = ""
         if node.kind == parser.NK_EXTERN_TYPE { extern_prefix = "extern " }
         val fields = render_type_fields(node.d2 as list[ref parser.Node])
-        return @fmt("{s}{s}type {s} = \\{ {s} \\}", {public_prefix, extern_prefix, node.d1 as ref char, fields})
+        return @fmt("{s}{s}type {s} = \\{ {s} \\}", {public_prefix, extern_prefix, node.d1 as ref u8, fields})
     }
     if node.kind == parser.NK_ENUMDEF {
-        val variants = render_variant_list(node.d2 as list[ref char], ", ")
-        return @fmt("{s}enum {s} = \\{ {s} \\}", {public_prefix, node.d1 as ref char, variants})
+        val variants = render_variant_list(node.d2 as list[ref u8], ", ")
+        return @fmt("{s}enum {s} = \\{ {s} \\}", {public_prefix, node.d1 as ref u8, variants})
     }
     if node.kind == parser.NK_UNIONDEF {
         val variants = render_type_list(node.d2 as list[ref parser.Node], " | ")
-        return @fmt("{s}union {s} = \\{ {s} \\}", {public_prefix, node.d1 as ref char, variants})
+        return @fmt("{s}union {s} = \\{ {s} \\}", {public_prefix, node.d1 as ref u8, variants})
     }
     if node.kind == parser.NK_TAGGED_UNIONDEF {
         val variants = render_tagged_variants(node.d2 as list[ref parser.Node])
-        return @fmt("{s}union {s} = \\{ {s} \\}", {public_prefix, node.d1 as ref char, variants})
+        return @fmt("{s}union {s} = \\{ {s} \\}", {public_prefix, node.d1 as ref u8, variants})
     }
     return ""
 }
 
-fn render_fn_signature(node: ref parser.Node) ref char! = {
+fn render_fn_signature(node: ref parser.Node) ref u8! = {
     if node.kind == parser.NK_EXTERN_FN {
-        val public_prefix: mut ref char = ""
+        val public_prefix: mut ref u8 = ""
         if node.d0 != 0 { public_prefix = "pub " }
-        val conv: ref char = node.d3 as ref char
+        val conv: ref u8 = node.d3 as ref u8
         val params = render_fn_params(node.d4 as list[ref parser.Node])
-        val variadic_suffix: mut ref char = ""
+        val variadic_suffix: mut ref u8 = ""
         if parser.extern_fn_is_variadic(node) {
             if str_eq(params, "") { variadic_suffix = "..." } else { variadic_suffix = ", ..." }
         }
-        val header_mod: mut ref char = ""
+        val header_mod: mut ref u8 = ""
         if parser.extern_fn_uses_header(node) { header_mod = ", header" }
-        val unsafe_suffix: mut ref char = ""
+        val unsafe_suffix: mut ref u8 = ""
         if parser.fn_is_unsafe(node) { unsafe_suffix = "!" }
         return @fmt("{s}extern ({s}{s}) fn {s}({s}{s}) {s}{s} = \"{s}\"", {
             public_prefix,
             conv,
             header_mod,
-            node.d1 as ref char,
+            node.d1 as ref u8,
             params,
             variadic_suffix,
             render_type(node.d5 as ref parser.Node),
             unsafe_suffix,
-            node.d2 as ref char
+            node.d2 as ref u8
         })
     }
-    val public_prefix: mut ref char = ""
+    val public_prefix: mut ref u8 = ""
     if node.d0 != 0 { public_prefix = "pub " }
-    val receiver: mut ref char = ""
+    val receiver: mut ref u8 = ""
     if node.d1 != 0 as i64 {
-        receiver = @fmt("({s}) ", {node.d1 as ref char})
+        receiver = @fmt("({s}) ", {node.d1 as ref u8})
     }
-    val type_params: mut ref char = ""
+    val type_params: mut ref u8 = ""
     if node.kind == parser.NK_GENERIC_FN {
         val parts = render_variant_list(parser.generic_fn_type_params(node), ", ")
         if !str_eq(parts, "") {
             type_params = @fmt("[{s}]", {parts})
         }
     }
-    val unsafe_suffix: mut ref char = ""
+    val unsafe_suffix: mut ref u8 = ""
     if node.kind == parser.NK_FN && parser.fn_is_unsafe(node) { unsafe_suffix = "!" }
     val params = render_fn_params(node.d3 as list[ref parser.Node])
     return @fmt("{s}fn {s}{s}{s}({s}) {s}{s}", {
         public_prefix,
         receiver,
-        node.d2 as ref char,
+        node.d2 as ref u8,
         type_params,
         params,
         render_type(node.d4 as ref parser.Node),
@@ -533,25 +533,25 @@ fn render_fn_signature(node: ref parser.Node) ref char! = {
     })
 }
 
-fn entry_kind_name(kind: i64) ref char = {
+fn entry_kind_name(kind: i64) ref u8 = {
     if kind == parser.NK_FN || kind == parser.NK_GENERIC_FN || kind == parser.NK_EXTERN_FN { return "function" }
     return "type"
 }
 
-fn entry_name(node: ref parser.Node) ref char! = {
-    if node.kind == parser.NK_EXTERN_FN { return node.d1 as ref char }
-    if node.kind == parser.NK_FN || node.kind == parser.NK_GENERIC_FN { return node.d2 as ref char }
-    return node.d1 as ref char
+fn entry_name(node: ref parser.Node) ref u8! = {
+    if node.kind == parser.NK_EXTERN_FN { return node.d1 as ref u8 }
+    if node.kind == parser.NK_FN || node.kind == parser.NK_GENERIC_FN { return node.d2 as ref u8 }
+    return node.d1 as ref u8
 }
 
-fn entry_nav_name(node: ref parser.Node) ref char! = {
+fn entry_nav_name(node: ref parser.Node) ref u8! = {
     if ((node.kind == parser.NK_FN || node.kind == parser.NK_GENERIC_FN) && node.d1 != 0 as i64) {
-        return @fmt("{s}.{s}", {node.d1 as ref char, node.d2 as ref char})
+        return @fmt("{s}.{s}", {node.d1 as ref u8, node.d2 as ref u8})
     }
     return entry_name(node)
 }
 
-fn add_entry(entries: mut list[ref DocEntry], node: ref parser.Node, doc_map: ref DocMap, availability: ref char) void! = {
+fn add_entry(entries: mut list[ref DocEntry], node: ref parser.Node, doc_map: ref DocMap, availability: ref u8) void! = {
     val item: mut ref DocEntry = @alloc(@sizeof(DocEntry)) as ref DocEntry
     item.kind = node.kind
     item.line = node.line
@@ -569,20 +569,20 @@ fn add_entry(entries: mut list[ref DocEntry], node: ref parser.Node, doc_map: re
     @append(entries, item)
 }
 
-fn combine_availability(a: ref char, b: ref char) ref char! = {
+fn combine_availability(a: ref u8, b: ref u8) ref u8! = {
     if str_eq(a, "") { return b }
     if str_eq(b, "") { return a }
     return @fmt("{s}, {s}", {a, b})
 }
 
-fn collect_entries(items: list[ref parser.Node], doc_map: ref DocMap, out: mut list[ref DocEntry], availability: ref char) void! = {
+fn collect_entries(items: list[ref parser.Node], doc_map: ref DocMap, out: mut list[ref DocEntry], availability: ref u8) void! = {
     for item in items {
         if item.kind == parser.NK_WHEN_ITEMS {
-            val branch = combine_availability(availability, @fmt("when {s}", {item.d0 as ref char}))
+            val branch = combine_availability(availability, @fmt("when {s}", {item.d0 as ref u8}))
             collect_entries(item.d1 as list[ref parser.Node], doc_map, out, branch)
             val or_branches = item.d2 as list[ref parser.Node]
             for branch_item in or_branches {
-                val branch_avail = combine_availability(availability, @fmt("when {s}", {branch_item.d0 as ref char}))
+                val branch_avail = combine_availability(availability, @fmt("when {s}", {branch_item.d0 as ref u8}))
                 collect_entries(branch_item.d1 as list[ref parser.Node], doc_map, out, branch_avail)
             }
             val otherwise_items = item.d3 as list[ref parser.Node]
@@ -604,11 +604,11 @@ fn collect_entries(items: list[ref parser.Node], doc_map: ref DocMap, out: mut l
     }
 }
 
-fn load_module(source_path: ref char, rel_path: ref char) ref DocModule! = {
+fn load_module(source_path: ref u8, rel_path: ref u8) ref DocModule! = {
     val src_opt = std.fs.read_all(source_path)
-    val src: mut ref char = ""
+    val src: mut ref u8 = ""
     match src_opt {
-        some text => { src = text as ref char }
+        some text => { src = text as ref u8 }
         none => {
             std.stdio.print("error: could not read '{s}'\n", {source_path})
             std.os.exit(1)
@@ -644,7 +644,7 @@ fn load_module(source_path: ref char, rel_path: ref char) ref DocModule! = {
     return mod
 }
 
-fn find_root_module(modules: list[ref DocModule], root_rel: ref char) i64! = {
+fn find_root_module(modules: list[ref DocModule], root_rel: ref u8) i64! = {
     val len: i64 = @len(modules) as i64
     val i: mut i64 = 0
     for {
@@ -659,8 +659,8 @@ fn find_root_module(modules: list[ref DocModule], root_rel: ref char) i64! = {
     return -1
 }
 
-fn module_output_path(module_name: ref char, markdown: bool) ref char! = {
-    val ext: ref char = "html"
+fn module_output_path(module_name: ref u8, markdown: bool) ref u8! = {
+    val ext: ref u8 = "html"
     if markdown { return @fmt("pages/{s}.md", {module_name}) }
     return @fmt("pages/{s}.{s}", {module_name, ext})
 }
@@ -687,7 +687,7 @@ fn assign_output_paths(modules: list[ref DocModule], markdown: bool, root_idx: i
     }
 }
 
-fn html_escape(text: ref char) ref char! = {
+fn html_escape(text: ref u8) ref u8! = {
     val sb: ref void = std.string.StringBuilder.new()
     val len: i64 = str.len_raw(text)
     val i: mut i64 = 0
@@ -712,12 +712,12 @@ fn html_escape(text: ref char) ref char! = {
     return std.string.cstr(built)
 }
 
-fn append_doc_html(sb: ref void, docs: ref char) void! = {
+fn append_doc_html(sb: ref void, docs: ref u8) void! = {
     if str_eq(docs, "") { return }
     val len: i64 = str.len_raw(docs)
     val line_start: mut i64 = 0
     val i: mut i64 = 0
-    val paragraph: mut ref char = ""
+    val paragraph: mut ref u8 = ""
     std.string.StringBuilder.append_cstr(sb, "<div class=\"docs\">")
     for {
         if i >= len {
@@ -774,10 +774,10 @@ fn render_entry_details_html(sb: ref void, entry: ref DocEntry) void! = {
         if @len(fields) as i64 > 0 {
             std.string.StringBuilder.append_cstr(sb, "<h4>Fields</h4><div class=\"details-table-wrap\"><table class=\"details-table\"><thead><tr><th>Name</th><th>Type</th></tr></thead><tbody>")
             for field in fields {
-                val prefix: mut ref char = ""
+                val prefix: mut ref u8 = ""
                 if field.d1 != 0 { prefix = "mut " }
                 std.string.StringBuilder.append_cstr(sb, "<tr><td><code>")
-                std.string.StringBuilder.append_cstr(sb, html_escape(field.d0 as ref char))
+                std.string.StringBuilder.append_cstr(sb, html_escape(field.d0 as ref u8))
                 std.string.StringBuilder.append_cstr(sb, "</code></td><td><code>")
                 std.string.StringBuilder.append_cstr(sb, html_escape(@fmt("{s}{s}", {prefix, render_type(field.d2 as ref parser.Node)})))
                 std.string.StringBuilder.append_cstr(sb, "</code></td></tr>")
@@ -786,7 +786,7 @@ fn render_entry_details_html(sb: ref void, entry: ref DocEntry) void! = {
         }
     } elif node.kind == parser.NK_ENUMDEF {
         std.string.StringBuilder.append_cstr(sb, "<h4>Variants</h4><ul class=\"details\">")
-        for variant in node.d2 as list[ref char] {
+        for variant in node.d2 as list[ref u8] {
             std.string.StringBuilder.append_cstr(sb, "<li><code>")
             std.string.StringBuilder.append_cstr(sb, html_escape(variant))
             std.string.StringBuilder.append_cstr(sb, "</code></li>")
@@ -804,7 +804,7 @@ fn render_entry_details_html(sb: ref void, entry: ref DocEntry) void! = {
         std.string.StringBuilder.append_cstr(sb, "<h4>Variants</h4><ul class=\"details\">")
         for variant in node.d2 as list[ref parser.Node] {
             val types = render_type_list(variant.d1 as list[ref parser.Node], ", ")
-            val text: mut ref char = variant.d0 as ref char
+            val text: mut ref u8 = variant.d0 as ref u8
             if !str_eq(types, "") { text = @fmt("{s}({s})", {text, types}) } else { text = @fmt("{s}()", {text}) }
             std.string.StringBuilder.append_cstr(sb, "<li><code>")
             std.string.StringBuilder.append_cstr(sb, html_escape(text))
@@ -829,7 +829,7 @@ fn render_entry_html(sb: ref void, entry: ref DocEntry) void! = {
     std.string.StringBuilder.append_cstr(sb, "</section>")
 }
 
-fn depth_prefix(output_path: ref char) ref char! = {
+fn depth_prefix(output_path: ref u8) ref u8! = {
     val len: i64 = str.len_raw(output_path)
     val depth: mut i64 = 0
     val i: mut i64 = 0
@@ -838,7 +838,7 @@ fn depth_prefix(output_path: ref char) ref char! = {
         if @load8(@ptradd(output_path as ref void, i)) == 47 { depth++ }
         i++
     }
-    val prefix: mut ref char = ""
+    val prefix: mut ref u8 = ""
     val j: mut i64 = 0
     for {
         if j >= depth { break }
@@ -848,15 +848,15 @@ fn depth_prefix(output_path: ref char) ref char! = {
     return prefix
 }
 
-fn href_from(current_output: ref char, target_output: ref char) ref char! = {
+fn href_from(current_output: ref u8, target_output: ref u8) ref u8! = {
     return @fmt("{s}{s}", {depth_prefix(safe_cstr(current_output)), safe_cstr(target_output)})
 }
 
-fn nav_key(label: ref char, unique: ref char) ref char! = {
+fn nav_key(label: ref u8, unique: ref u8) ref u8! = {
     return @fmt("{s}\n{s}", {safe_cstr(label), safe_cstr(unique)})
 }
 
-fn nav_key_tail(key: ref char) ref char! = {
+fn nav_key_tail(key: ref u8) ref u8! = {
     val len: i64 = str.len_raw(key)
     val i: mut i64 = 0
     for {
@@ -870,7 +870,7 @@ fn nav_key_tail(key: ref char) ref char! = {
 }
 
 fn append_sorted_module_nav_html(sb: ref void, modules: list[ref DocModule], current: ref DocModule) void! = {
-    val keys: mut list[ref char] = []
+    val keys: mut list[ref u8] = []
     for mod in modules {
         @append(keys, nav_key(mod.module_name, mod.output_path))
     }
@@ -879,7 +879,7 @@ fn append_sorted_module_nav_html(sb: ref void, modules: list[ref DocModule], cur
         val target_output = nav_key_tail(key)
         for mod in modules {
             if !str_eq(mod.output_path, target_output) { continue }
-            val cls: mut ref char = "nav-item"
+            val cls: mut ref u8 = "nav-item"
             if str_eq(mod.rel_path, current.rel_path) { cls = "nav-item active" }
             std.string.StringBuilder.append_cstr(sb, @fmt("<a class=\"{s}\" href=\"{s}\">{s}</a>", {
                 cls,
@@ -892,7 +892,7 @@ fn append_sorted_module_nav_html(sb: ref void, modules: list[ref DocModule], cur
 }
 
 fn append_sorted_entry_nav_html(sb: ref void, entries: list[ref DocEntry]) void! = {
-    val keys: mut list[ref char] = []
+    val keys: mut list[ref u8] = []
     for entry in entries {
         @append(keys, nav_key(entry.nav_name, entry.anchor))
     }
@@ -924,7 +924,7 @@ fn append_nav_html(sb: ref void, modules: list[ref DocModule], current: ref DocM
     }
 }
 
-fn render_module_page_html(module: ref DocModule, modules: list[ref DocModule]) ref char! = {
+fn render_module_page_html(module: ref DocModule, modules: list[ref DocModule]) ref u8! = {
     val sb: ref void = std.string.StringBuilder.new()
     std.string.StringBuilder.append_cstr(sb, "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\">")
     std.string.StringBuilder.append_cstr(sb, @fmt("<title>{s} — Docs</title>", {html_escape(safe_cstr(module.module_name))}))
@@ -945,7 +945,7 @@ fn render_module_page_html(module: ref DocModule, modules: list[ref DocModule]) 
         \\  --shadow-lg:0 2px 8px rgba(15,31,61,.08),0 12px 40px rgba(15,31,61,.12);
         \\}
         \\html.dark{
-        \\  --bg:#000000;--bg2:#1b1c1c;--surface:#000000;--surface2:#1b1c1c; 
+        \\  --bg:#000000;--bg2:#1b1c1c;--surface:#000000;--surface2:#1b1c1c;
         \\  --border:#171717;--border2:#171717;
         \\  --text:#d8e8ff;--text2:#8badd4;--text3:#4a6d96;
         \\  --accent:#dde8f5;--accent2:#dde8f5;--accent3:#2e6fe0;
@@ -1247,7 +1247,7 @@ fn render_module_page_html(module: ref DocModule, modules: list[ref DocModule]) 
         \\/* ── Spectre syntax highlighter ── */
         \\(function(){
         \\  var KW=/\b(fn|pub|val|mut|type|enum|union|extern|ref|if|elif|else|for|match|return|break|continue|use|in|as|is|true|false|void|untyped|some|none|ok|err|when|otherwise|guarded|pre|post|assert|test|and|or|not)\b/g;
-        \\  var TY=/\b(i8|i16|i32|i64|u8|u16|u32|u64|f32|f64|bool|char|usize|isize|list|ref|option|result)\b/g;
+        \\  var TY=/\b(i8|i16|i32|i64|u8|u16|u32|u64|f32|f64|bool|u8|usize|isize|list|ref|option|result)\b/g;
         \\  var NUM=/\b(0x[0-9a-fA-F]+|\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)\b/g;
         \\  var STR=/(\"(?:[^\"\\]|\\.)*\")/g;
         \\  var CMT=/(\/\/[^\n]*)/g;
@@ -1317,14 +1317,14 @@ fn render_entry_details_md(sb: ref void, entry: ref DocEntry) void! = {
         if @len(fields) as i64 > 0 {
             std.string.StringBuilder.append_cstr(sb, "\n**Fields**\n\n| Name | Type |\n| --- | --- |\n")
             for field in fields {
-                val prefix: mut ref char = ""
+                val prefix: mut ref u8 = ""
                 if field.d1 != 0 { prefix = "mut " }
-                std.string.StringBuilder.append_cstr(sb, @fmt("| `{s}` | `{s}{s}` |\n", {field.d0 as ref char, prefix, render_type(field.d2 as ref parser.Node)}))
+                std.string.StringBuilder.append_cstr(sb, @fmt("| `{s}` | `{s}{s}` |\n", {field.d0 as ref u8, prefix, render_type(field.d2 as ref parser.Node)}))
             }
         }
     } elif node.kind == parser.NK_ENUMDEF {
         std.string.StringBuilder.append_cstr(sb, "\n**Variants**\n\n")
-        for variant in node.d2 as list[ref char] {
+        for variant in node.d2 as list[ref u8] {
             std.string.StringBuilder.append_cstr(sb, @fmt("- `{s}`\n", {variant}))
         }
     } elif node.kind == parser.NK_UNIONDEF {
@@ -1336,14 +1336,14 @@ fn render_entry_details_md(sb: ref void, entry: ref DocEntry) void! = {
         std.string.StringBuilder.append_cstr(sb, "\n**Variants**\n\n")
         for variant in node.d2 as list[ref parser.Node] {
             val types = render_type_list(variant.d1 as list[ref parser.Node], ", ")
-            val text: mut ref char = variant.d0 as ref char
+            val text: mut ref u8 = variant.d0 as ref u8
             if !str_eq(types, "") { text = @fmt("{s}({s})", {text, types}) } else { text = @fmt("{s}()", {text}) }
             std.string.StringBuilder.append_cstr(sb, @fmt("- `{s}`\n", {text}))
         }
     }
 }
 
-fn render_module_page_md(module: ref DocModule, modules: list[ref DocModule]) ref char! = {
+fn render_module_page_md(module: ref DocModule, modules: list[ref DocModule]) ref u8! = {
     val sb: ref void = std.string.StringBuilder.new()
     std.string.StringBuilder.append_cstr(sb, @fmt("# {s}\n\n", {safe_cstr(module.module_name)}))
     std.string.StringBuilder.append_cstr(sb, @fmt("Source: `{s}`\n\n", {safe_cstr(module.rel_path)}))
@@ -1388,7 +1388,7 @@ fn render_module_page_md(module: ref DocModule, modules: list[ref DocModule]) re
     return std.string.cstr(built)
 }
 
-fn render_overview_page(markdown: bool, modules: list[ref DocModule], output_path: ref char) ref char! = {
+fn render_overview_page(markdown: bool, modules: list[ref DocModule], output_path: ref u8) ref u8! = {
     if markdown {
         val sb = std.string.StringBuilder.new()
         std.string.StringBuilder.append_cstr(sb, "# Docs\n\n## Modules\n\n")
@@ -1446,16 +1446,16 @@ fn render_overview_page(markdown: bool, modules: list[ref DocModule], output_pat
     return std.string.cstr(built2)
 }
 
-fn write_page(path: ref char, content: ref char) bool! = {
+fn write_page(path: ref u8, content: ref u8) bool! = {
     if !ensure_parent_dir(path) { return false }
     return std.fs.write_all(path, content)
 }
 
-fn maybe_root_rel_for_dir() ref char! = {
+fn maybe_root_rel_for_dir() ref u8! = {
     val sxmod_opt = commands.load_sxmod()
     match sxmod_opt {
         some cfg => {
-            val entry: ref char = (cfg as ref commands.SxMod).entry
+            val entry: ref u8 = (cfg as ref commands.SxMod).entry
             if !str_eq(entry, "") { return normalize_rel_path(entry) }
         }
         none => {}
@@ -1463,12 +1463,12 @@ fn maybe_root_rel_for_dir() ref char! = {
     return ""
 }
 
-pub fn cmd_doc(target: ref char, markdown: bool) i32! = {
+pub fn cmd_doc(target: ref u8, markdown: bool) i32! = {
     if str_eq(target, "") {
         std.stdio.puts("error: doc requires a file or directory target")
         return 1
     }
-    val out_dir: ref char = "./docs-out"
+    val out_dir: ref u8 = "./docs-out"
     if !ensure_dir(out_dir) {
         std.stdio.print("error: could not create '{s}'\n", {out_dir})
         return 1
@@ -1476,7 +1476,7 @@ pub fn cmd_doc(target: ref char, markdown: bool) i32! = {
 
     if dir_exists(target) {
         val clean_target = trim_trailing_slash(target)
-        val files: mut list[ref char] = []
+        val files: mut list[ref u8] = []
         collect_sx_files(clean_target, "", files)
         if @len(files) as i64 == 0 {
             std.stdio.print("error: no .sx files found in '{s}'\n", {target})
@@ -1484,7 +1484,7 @@ pub fn cmd_doc(target: ref char, markdown: bool) i32! = {
         }
         val modules: mut list[ref DocModule] = []
         for rel in files {
-            val source_path: mut ref char = rel
+            val source_path: mut ref u8 = rel
             if !str_eq(clean_target, ".") && !str_eq(clean_target, "") {
                 source_path = std.path.join(clean_target, rel)
             } else {
@@ -1496,7 +1496,7 @@ pub fn cmd_doc(target: ref char, markdown: bool) i32! = {
         val root_idx = find_root_module(modules, root_rel)
         assign_output_paths(modules, markdown, root_idx)
         if root_idx < 0 {
-            val index_rel: mut ref char = "index.html"
+            val index_rel: mut ref u8 = "index.html"
             if markdown { index_rel = "index.md" }
             val index_path = std.path.join("docs-out", index_rel)
             if !write_page(index_path, render_overview_page(markdown, modules, index_rel)) {
@@ -1506,7 +1506,7 @@ pub fn cmd_doc(target: ref char, markdown: bool) i32! = {
         }
         for mod in modules {
             val full_path = std.path.join("docs-out", mod.output_path)
-            val content: mut ref char = ""
+            val content: mut ref u8 = ""
             if markdown {
                 content = render_module_page_md(mod, modules)
             } else {
@@ -1535,7 +1535,7 @@ pub fn cmd_doc(target: ref char, markdown: bool) i32! = {
     if markdown { module.output_path = "index.md" } else { module.output_path = "index.html" }
     val modules: mut list[ref DocModule] = []
     @append(modules, module)
-    val content: mut ref char = ""
+    val content: mut ref u8 = ""
     if markdown {
         content = render_module_page_md(module, modules)
     } else {
@@ -1561,7 +1561,7 @@ test {
         \\fn greet() void = {}
         \\type Point = { x: i64 }
     )
-    
+
     assert(str_eq(trust lookup_doc(docs, 3), "hello\nworld"))
     assert(str_eq(trust lookup_doc(docs, 4), ""))
 
@@ -1576,7 +1576,7 @@ test {
 
     val fn_src = "fn add(a: i64, b: i64) i64! = { return a + b }"
     val ml: mut i64 = 0
-    
+
     match regex.re_match("^fn [^=]+", fn_src, @addr(ml)) {
         ok found => {
             match found {

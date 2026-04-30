@@ -1,4 +1,4 @@
-fn wrap(s: ref char) option[ref char] = {
+fn wrap(s: ref u8) option[ref u8] = {
     return some s
 }
 

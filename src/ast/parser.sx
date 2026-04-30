@@ -132,7 +132,7 @@ pub fn make_node(kind: i64, line: i64) ref Node! = {
     return n
 }
 
-fn make_binop(op: i64, line: i64, left: ref Node, right: ref Node) result[ref Node, ref char]! = {
+fn make_binop(op: i64, line: i64, left: ref Node, right: ref Node) result[ref Node, ref u8]! = {
     val n: mut ref Node = make_node(NK_BINOP, line)
     n.d0 = op
     n.d1 = left as i64
@@ -144,17 +144,17 @@ pub fn binop_op(n: ref Node) i64 = { return n.d0 }
 pub fn binop_left(n: ref Node) ref Node = { return n.d1 as ref Node }
 pub fn binop_right(n: ref Node) ref Node = { return n.d2 as ref Node }
 
-pub fn generic_fn_type_params(n: ref Node) list[ref char] = { return n.d6 as list[ref char] }
+pub fn generic_fn_type_params(n: ref Node) list[ref u8] = { return n.d6 as list[ref u8] }
 pub fn generic_fn_is_unsafe(n: ref Node) bool = { return (n.d0 & 2) != 0 }
 pub fn generic_when_conditions(n: ref Node) list[ref Node] = { return n.d0 as list[ref Node] }
 pub fn generic_when_body(n: ref Node) ref Node = { return n.d1 as ref Node }
 pub fn generic_inst_base(n: ref Node) ref Node = { return n.d0 as ref Node }
 pub fn generic_inst_type_args(n: ref Node) list[ref Node] = { return n.d1 as list[ref Node] }
-pub fn gwhen_cond_tparam(n: ref Node) ref char = { return n.d0 as ref char }
+pub fn gwhen_cond_tparam(n: ref Node) ref u8 = { return n.d0 as ref u8 }
 pub fn gwhen_cond_kind(n: ref Node) i64 = { return n.d1 }
 pub fn gwhen_cond_types(n: ref Node) list[ref Node] = { return n.d2 as list[ref Node] }
 
-fn make_unop(op: i64, line: i64, inner: ref Node) result[ref Node, ref char]! = {
+fn make_unop(op: i64, line: i64, inner: ref Node) result[ref Node, ref u8]! = {
     val n: mut ref Node = make_node(NK_UNOP, line)
     n.d0 = op
     n.d1 = inner as i64
@@ -165,17 +165,17 @@ pub fn unop_op(n: ref Node) i64 = { return n.d0 }
 pub fn unop_inner(n: ref Node) ref Node = { return n.d1 as ref Node }
 pub fn fixed_arr_size(n: ref Node) i64 = { return n.d0 }
 pub fn fixed_arr_inner(n: ref Node) ref Node = { return n.d1 as ref Node }
-pub fn fixed_arr_size_name(n: ref Node) ref char = { return n.d2 as ref char }
-pub fn fn_is_unsafe(n: ref Node) bool = { 
+pub fn fixed_arr_size_name(n: ref Node) ref u8 = { return n.d2 as ref u8 }
+pub fn fn_is_unsafe(n: ref Node) bool = {
     if n.kind == NK_GENERIC_FN {
         return ((n.d0 >> 1) & 1) != 0
     }
-    return (n.d6 & FN_FLAG_UNSAFE) != 0 
+    return (n.d6 & FN_FLAG_UNSAFE) != 0
 }
 pub fn extern_fn_is_variadic(n: ref Node) bool = { return (n.d6 & EXTERN_FLAG_VARIADIC) != 0 }
 pub fn extern_fn_uses_header(n: ref Node) bool = { return (n.d6 & EXTERN_FLAG_HEADER) != 0 }
 
-fn make_field(base: ref Node, line: i64, name: ref char) result[ref Node, ref char]! = {
+fn make_field(base: ref Node, line: i64, name: ref u8) result[ref Node, ref u8]! = {
     val n: mut ref Node = make_node(NK_FIELD, line)
     n.d0 = base as i64
     n.d1 = name as i64
@@ -183,9 +183,9 @@ fn make_field(base: ref Node, line: i64, name: ref char) result[ref Node, ref ch
 }
 
 pub fn field_base(n: ref Node) ref Node = { return n.d0 as ref Node }
-pub fn field_name(n: ref Node) ref char = { return n.d1 as ref char }
+pub fn field_name(n: ref Node) ref u8 = { return n.d1 as ref u8 }
 
-fn make_call(callee: ref Node, line: i64, args: list[ref Node]) result[ref Node, ref char]! = {
+fn make_call(callee: ref Node, line: i64, args: list[ref Node]) result[ref Node, ref u8]! = {
     val n: mut ref Node = make_node(NK_CALL, line)
     n.d0 = callee as i64
     n.d1 = args as i64
@@ -195,7 +195,7 @@ fn make_call(callee: ref Node, line: i64, args: list[ref Node]) result[ref Node,
 pub fn call_callee(n: ref Node) ref Node! = { return n.d0 as ref Node }
 pub fn call_args(n: ref Node) list[ref Node]! = { return n.d1 as list[ref Node] }
 
-fn make_struct_field(name: ref char, line: i64, expr: ref Node) result[ref Node, ref char]! = {
+fn make_struct_field(name: ref u8, line: i64, expr: ref Node) result[ref Node, ref u8]! = {
     val n: mut ref Node = make_node(NK_FIELD, line)
     n.d0 = name as i64
     n.d1 = expr as i64
@@ -203,14 +203,14 @@ fn make_struct_field(name: ref char, line: i64, expr: ref Node) result[ref Node,
 }
 
 pub fn match_opt_expr(n: ref Node) ref Node     = { return n.d0 as ref Node }
-pub fn match_opt_some_bind(n: ref Node) ref char = { return n.d1 as ref char }
+pub fn match_opt_some_bind(n: ref Node) ref u8 = { return n.d1 as ref u8 }
 pub fn match_opt_some_body(n: ref Node) ref Node = { return n.d2 as ref Node }  // wrapper, .d0 = stmts list
 pub fn match_opt_none_body(n: ref Node) ref Node = { return n.d3 as ref Node }  // wrapper, .d0 = stmts list
 
 pub fn match_res_expr(n: ref Node) ref Node       = { return n.d0 as ref Node }
-pub fn match_res_ok_bind(n: ref Node) ref char    = { return n.d1 as ref char }
+pub fn match_res_ok_bind(n: ref Node) ref u8    = { return n.d1 as ref u8 }
 pub fn match_res_ok_body(n: ref Node) ref Node    = { return n.d2 as ref Node }  // wrapper, .d0 = stmts list
-pub fn match_res_err_bind(n: ref Node) ref char   = { return n.d3 as ref char }
+pub fn match_res_err_bind(n: ref Node) ref u8   = { return n.d3 as ref u8 }
 pub fn match_res_err_body(n: ref Node) ref Node   = { return n.d4 as ref Node }  // wrapper, .d0 = stmts list
 
 pub fn match_enum_expr(n: ref Node) ref Node               = { return n.d0 as ref Node }
@@ -226,7 +226,7 @@ pub fn match_value_arm_body(arm: ref Node) list[ref Node]  = { return arm.d1 as 
 pub fn match_str_expr(n: ref Node) ref Node                = { return n.d0 as ref Node }
 pub fn match_str_arms(n: ref Node) list[ref Node]          = { return n.d1 as list[ref Node] }
 pub fn match_str_else(n: ref Node) ref Node                = { return n.d2 as ref Node }  // wrapper, .d0 = stmts list
-pub fn match_str_arm_value(arm: ref Node) ref char        = { return arm.d0 as ref char }
+pub fn match_str_arm_value(arm: ref Node) ref u8        = { return arm.d0 as ref u8 }
 pub fn match_str_arm_body(arm: ref Node) list[ref Node]    = { return arm.d1 as list[ref Node] }
 
 pub fn match_union_expr(n: ref Node) ref Node              = { return n.d0 as ref Node }
@@ -238,45 +238,45 @@ pub fn match_union_arm_body(arm: ref Node) list[ref Node]  = { return arm.d1 as 
 pub fn match_tagged_union_expr(n: ref Node) ref Node           = { return n.d0 as ref Node }
 pub fn match_tagged_union_arms(n: ref Node) list[ref Node]     = { return n.d1 as list[ref Node] }
 pub fn match_tagged_union_else(n: ref Node) ref Node           = { return n.d2 as ref Node }  // wrapper, .d0 = stmts list
-pub fn match_tagged_union_arm_variant(arm: ref Node) ref char!  = { return arm.d0 as ref char }
-pub fn match_tagged_union_arm_bindings(arm: ref Node) list[ref char]! = { return arm.d1 as list[ref char] }
+pub fn match_tagged_union_arm_variant(arm: ref Node) ref u8!  = { return arm.d0 as ref u8 }
+pub fn match_tagged_union_arm_bindings(arm: ref Node) list[ref u8]! = { return arm.d1 as list[ref u8] }
 pub fn match_tagged_union_arm_body(arm: ref Node) list[ref Node]! = { return arm.d2 as list[ref Node] }
 
-fn make_int_lit(text: ref char, line: i64) result[ref Node, ref char]! = {
+fn make_int_lit(text: ref u8, line: i64) result[ref Node, ref u8]! = {
     val n: mut ref Node = make_node(NK_INT_LIT, line)
     n.d0 = text as i64
     return ok n
 }
 
-pub fn int_lit_text(n: ref Node) ref char = { return n.d0 as ref char }
+pub fn int_lit_text(n: ref Node) ref u8 = { return n.d0 as ref u8 }
 
-fn make_float_lit(text: ref char, line: i64) result[ref Node, ref char]! = {
+fn make_float_lit(text: ref u8, line: i64) result[ref Node, ref u8]! = {
     val n: mut ref Node = make_node(NK_FLOAT_LIT, line)
     n.d0 = text as i64
     return ok n
 }
 
-pub fn float_lit_text(n: ref Node) ref char = { return n.d0 as ref char }
+pub fn float_lit_text(n: ref Node) ref u8 = { return n.d0 as ref u8 }
 
-fn make_str_lit(text: ref char, line: i64) result[ref Node, ref char]! = {
+fn make_str_lit(text: ref u8, line: i64) result[ref Node, ref u8]! = {
     val n: mut ref Node = make_node(NK_STR_LIT, line)
     n.d0 = text as i64
     return ok n
 }
 
-pub fn str_lit_text(n: ref Node) ref char = { return n.d0 as ref char }
+pub fn str_lit_text(n: ref Node) ref u8 = { return n.d0 as ref u8 }
 
-fn str_eq(a: ref char, b: ref char) bool! = {
+fn str_eq(a: ref u8, b: ref u8) bool! = {
     return std.string.rchar_cmp(a, b) == 0
 }
 
 type Parser = {
     tokens:   mut list[ref lexer.Token]
     pos:      mut i64
-    filename: mut ref char
+    filename: mut ref u8
 }
 
-pub fn parser_new(tokens: list[ref lexer.Token], filename: ref char) ref Parser! = {
+pub fn parser_new(tokens: list[ref lexer.Token], filename: ref u8) ref Parser! = {
     val p: mut ref Parser = @alloc(@sizeof(Parser)) as ref Parser
     p.tokens   = tokens
     p.pos      = 0
@@ -310,17 +310,17 @@ fn p_advance(p: mut ref Parser) lexer.TokenKind! = {
     return k
 }
 
-fn p_advance_text(p: mut ref Parser) ref char! = {
-    val txt: ref char = lexer.tok_text(p.tokens, p.pos)
+fn p_advance_text(p: mut ref Parser) ref u8! = {
+    val txt: ref u8 = lexer.tok_text(p.tokens, p.pos)
     if p.pos + 1 < @len(p.tokens) as i64 { p.pos = p.pos + 1 }
     return txt
 }
 
 fn p_line(p: ref Parser) i64! = { return p_peek_line(p) }
 
-fn p_error(p: ref Parser, msg: ref char) ref char! = {
+fn p_error(p: ref Parser, msg: ref u8) ref u8! = {
     val line: i64 = p_peek_line(p)
-    val buf: ref char = @alloc(512) as ref char
+    val buf: ref u8 = @alloc(512) as ref u8
     @snprintf(buf, 512, "{s}:{lld}: {s}", {p.filename, line, msg})
     return buf
 }
@@ -330,21 +330,21 @@ fn p_eat_fn(p: ref Parser, is_kind: fn(lexer.TokenKind) bool) bool! = {
     return false
 }
 
-fn p_expect_kind(p: ref Parser, is_kind: fn(lexer.TokenKind) bool, name: ref char) result[ref char, ref char]! = {
+fn p_expect_kind(p: ref Parser, is_kind: fn(lexer.TokenKind) bool, name: ref u8) result[ref u8, ref u8]! = {
     if is_kind(p_peek_kind(p)) {
-        val txt: ref char = lexer.tok_text(p.tokens, p.pos)
+        val txt: ref u8 = lexer.tok_text(p.tokens, p.pos)
         p_advance(p)
         return ok txt
     }
-    val msg: ref char = @alloc(128) as ref char
+    val msg: ref u8 = @alloc(128) as ref u8
     @snprintf(msg, 128, "expected {s}", {name})
     return err p_error(p, msg)
 }
 
-fn p_expect_ident(p: ref Parser) result[ref char, ref char]! = {
+fn p_expect_ident(p: ref Parser) result[ref u8, ref u8]! = {
     match p_peek_kind(p) {
         Ident _ => {
-            val txt: ref char = lexer.tok_text(p.tokens, p.pos)
+            val txt: ref u8 = lexer.tok_text(p.tokens, p.pos)
             p_advance(p)
             return ok txt
         }
@@ -352,10 +352,10 @@ fn p_expect_ident(p: ref Parser) result[ref char, ref char]! = {
     }
 }
 
-fn p_expect_string(p: ref Parser) result[ref char, ref char]! = {
+fn p_expect_string(p: ref Parser) result[ref u8, ref u8]! = {
     match p_peek_kind(p) {
         Str _ => {
-            val txt: ref char = lexer.tok_text(p.tokens, p.pos)
+            val txt: ref u8 = lexer.tok_text(p.tokens, p.pos)
             p_advance(p)
             return ok txt
         }
@@ -363,18 +363,18 @@ fn p_expect_string(p: ref Parser) result[ref char, ref char]! = {
     }
 }
 
-fn p_expect_lbrace(p: ref Parser)   result[ref char, ref char]! = { return p_expect_kind(p, lexer.kind_is_lbrace,   "'{'" ) }
-fn p_expect_rbrace(p: ref Parser)   result[ref char, ref char]! = { return p_expect_kind(p, lexer.kind_is_rbrace,   "'}'" ) }
-fn p_expect_lparen(p: ref Parser)   result[ref char, ref char]! = { return p_expect_kind(p, lexer.kind_is_lparen,   "'('" ) }
-fn p_expect_rparen(p: ref Parser)   result[ref char, ref char]! = { return p_expect_kind(p, lexer.kind_is_rparen,   "')'" ) }
-fn p_expect_lbracket(p: ref Parser) result[ref char, ref char]! = { return p_expect_kind(p, lexer.kind_is_lbracket, "'['" ) }
-fn p_expect_rbracket(p: ref Parser) result[ref char, ref char]! = { return p_expect_kind(p, lexer.kind_is_rbracket, "']'" ) }
-fn p_expect_colon(p: ref Parser)    result[ref char, ref char]! = { return p_expect_kind(p, lexer.kind_is_colon,    "':'" ) }
-fn p_expect_comma(p: ref Parser)    result[ref char, ref char]! = { return p_expect_kind(p, lexer.kind_is_comma,    "','" ) }
-fn p_expect_eq(p: ref Parser)       result[ref char, ref char]! = { return p_expect_kind(p, kind_is_eq,       "'='" ) }
-fn p_expect_fatarrow(p: ref Parser) result[ref char, ref char]! = { return p_expect_kind(p, lexer.kind_is_fatarrow, "'=>'") }
-fn p_expect_semicolon(p: ref Parser) result[ref char, ref char]! = { return p_expect_kind(p, kind_is_semicolon, "';'") }
-fn p_expect_dot(p: ref Parser)      result[ref char, ref char]! = { return p_expect_kind(p, lexer.kind_is_dot,      "'.'" ) }
+fn p_expect_lbrace(p: ref Parser)   result[ref u8, ref u8]! = { return p_expect_kind(p, lexer.kind_is_lbrace,   "'{'" ) }
+fn p_expect_rbrace(p: ref Parser)   result[ref u8, ref u8]! = { return p_expect_kind(p, lexer.kind_is_rbrace,   "'}'" ) }
+fn p_expect_lparen(p: ref Parser)   result[ref u8, ref u8]! = { return p_expect_kind(p, lexer.kind_is_lparen,   "'('" ) }
+fn p_expect_rparen(p: ref Parser)   result[ref u8, ref u8]! = { return p_expect_kind(p, lexer.kind_is_rparen,   "')'" ) }
+fn p_expect_lbracket(p: ref Parser) result[ref u8, ref u8]! = { return p_expect_kind(p, lexer.kind_is_lbracket, "'['" ) }
+fn p_expect_rbracket(p: ref Parser) result[ref u8, ref u8]! = { return p_expect_kind(p, lexer.kind_is_rbracket, "']'" ) }
+fn p_expect_colon(p: ref Parser)    result[ref u8, ref u8]! = { return p_expect_kind(p, lexer.kind_is_colon,    "':'" ) }
+fn p_expect_comma(p: ref Parser)    result[ref u8, ref u8]! = { return p_expect_kind(p, lexer.kind_is_comma,    "','" ) }
+fn p_expect_eq(p: ref Parser)       result[ref u8, ref u8]! = { return p_expect_kind(p, kind_is_eq,       "'='" ) }
+fn p_expect_fatarrow(p: ref Parser) result[ref u8, ref u8]! = { return p_expect_kind(p, lexer.kind_is_fatarrow, "'=>'") }
+fn p_expect_semicolon(p: ref Parser) result[ref u8, ref u8]! = { return p_expect_kind(p, kind_is_semicolon, "';'") }
+fn p_expect_dot(p: ref Parser)      result[ref u8, ref u8]! = { return p_expect_kind(p, lexer.kind_is_dot,      "'.'" ) }
 
 fn kind_is_eq(k: lexer.TokenKind) bool! = { match k { Eq() => { return true } else => { return false } } }
 fn kind_is_semicolon(k: lexer.TokenKind) bool! = { match k { Semicolon() => { return true } else => { return false } } }
@@ -438,7 +438,7 @@ fn kind_is_char(k: lexer.TokenKind) bool! = { match k { CharLit _ => { return tr
 fn kind_char_val(k: lexer.TokenKind) i64! = { match k { CharLit v => { return v } else => { return 0 } } }
 fn kind_is_dotdotdot(k: lexer.TokenKind) bool! = { match k { DotDotDot() => { return true } else => { return false } } }
 
-pub fn parse_type(p: ref Parser) result[ref Node, ref char]! = {
+pub fn parse_type(p: ref Parser) result[ref Node, ref u8]! = {
     val line: i64 = p_line(p)
 
     if lexer.kind_is_lbracket(p_peek_kind(p)) {
@@ -451,9 +451,9 @@ pub fn parse_type(p: ref Parser) result[ref Node, ref char]! = {
             return ok n
         }
         val sz: mut i64 = 0
-        val sz_name: mut ref char = 0 as ref char
+        val sz_name: mut ref u8 = 0 as ref u8
         if kind_is_int(p_peek_kind(p)) {
-            val sz_text: ref char = p_advance_text(p)
+            val sz_text: ref u8 = p_advance_text(p)
             val sz_res = std.fmt.string_to_i64(sz_text)
             match sz_res {
                 ok v  => { sz = v }
@@ -520,7 +520,7 @@ pub fn parse_type(p: ref Parser) result[ref Node, ref char]! = {
     }
 
     if kind_is_ident(p_peek_kind(p)) {
-        val name: ref char = p_advance_text(p)
+        val name: ref u8 = p_advance_text(p)
         if str_eq(name, "void")    { return ok make_node(TY_VOID,    line) }
         if str_eq(name, "untyped") { return ok make_node(TY_UNTYPED, line) }
         if str_eq(name, "option") {
@@ -561,7 +561,7 @@ pub fn parse_type(p: ref Parser) result[ref Node, ref char]! = {
         }
         val full_str: ref void = std.string.StringBuilder.build(sb)
         std.string.StringBuilder.free(sb)
-        val full: ref char = std.string.cstr(full_str)
+        val full: ref u8 = std.string.cstr(full_str)
         val nn: mut ref Node = make_node(TY_NAMED, line)
         nn.d0 = full as i64
         return ok nn
@@ -570,9 +570,9 @@ pub fn parse_type(p: ref Parser) result[ref Node, ref char]! = {
     return err p_error(p, "expected type")
 }
 
-pub fn parse_expr(p: ref Parser) result[ref Node, ref char]! = { return parse_or(p) }
+pub fn parse_expr(p: ref Parser) result[ref Node, ref u8]! = { return parse_or(p) }
 
-fn parse_or(p: ref Parser) result[ref Node, ref char]! = {
+fn parse_or(p: ref Parser) result[ref Node, ref u8]! = {
     val lhs = parse_and(p)?
     val res: mut ref Node = lhs
     for {
@@ -584,7 +584,7 @@ fn parse_or(p: ref Parser) result[ref Node, ref char]! = {
     return ok res
 }
 
-fn parse_and(p: ref Parser) result[ref Node, ref char]! = {
+fn parse_and(p: ref Parser) result[ref Node, ref u8]! = {
     val lhs = parse_cmp(p)?
     val res: mut ref Node = lhs
     for {
@@ -596,7 +596,7 @@ fn parse_and(p: ref Parser) result[ref Node, ref char]! = {
     return ok res
 }
 
-fn parse_cmp(p: ref Parser) result[ref Node, ref char]! = {
+fn parse_cmp(p: ref Parser) result[ref Node, ref u8]! = {
     val lhs = parse_bitor(p)?
     val res: mut ref Node = lhs
     for {
@@ -616,7 +616,7 @@ fn parse_cmp(p: ref Parser) result[ref Node, ref char]! = {
     return ok res
 }
 
-fn parse_bitor(p: ref Parser) result[ref Node, ref char]! = {
+fn parse_bitor(p: ref Parser) result[ref Node, ref u8]! = {
     val lhs = parse_bitxor(p)?
     val res: mut ref Node = lhs
     for {
@@ -628,7 +628,7 @@ fn parse_bitor(p: ref Parser) result[ref Node, ref char]! = {
     return ok res
 }
 
-fn parse_bitxor(p: ref Parser) result[ref Node, ref char]! = {
+fn parse_bitxor(p: ref Parser) result[ref Node, ref u8]! = {
     val lhs = parse_bitand(p)?
     val res: mut ref Node = lhs
     for {
@@ -640,7 +640,7 @@ fn parse_bitxor(p: ref Parser) result[ref Node, ref char]! = {
     return ok res
 }
 
-fn parse_bitand(p: ref Parser) result[ref Node, ref char]! = {
+fn parse_bitand(p: ref Parser) result[ref Node, ref u8]! = {
     val lhs = parse_shift(p)?
     val res: mut ref Node = lhs
     for {
@@ -652,7 +652,7 @@ fn parse_bitand(p: ref Parser) result[ref Node, ref char]! = {
     return ok res
 }
 
-fn parse_shift(p: ref Parser) result[ref Node, ref char]! = {
+fn parse_shift(p: ref Parser) result[ref Node, ref u8]! = {
     val lhs = parse_add(p)?
     val res: mut ref Node = lhs
     for {
@@ -668,7 +668,7 @@ fn parse_shift(p: ref Parser) result[ref Node, ref char]! = {
     return ok res
 }
 
-fn parse_add(p: ref Parser) result[ref Node, ref char]! = {
+fn parse_add(p: ref Parser) result[ref Node, ref u8]! = {
     val lhs = parse_mul(p)?
     val res: mut ref Node = lhs
     for {
@@ -684,7 +684,7 @@ fn parse_add(p: ref Parser) result[ref Node, ref char]! = {
     return ok res
 }
 
-fn parse_mul(p: ref Parser) result[ref Node, ref char]! = {
+fn parse_mul(p: ref Parser) result[ref Node, ref u8]! = {
     val lhs = parse_unary(p)?
     val res: mut ref Node = lhs
     for {
@@ -701,7 +701,7 @@ fn parse_mul(p: ref Parser) result[ref Node, ref char]! = {
     return ok res
 }
 
-fn parse_unary(p: ref Parser) result[ref Node, ref char]! = {
+fn parse_unary(p: ref Parser) result[ref Node, ref u8]! = {
     val line: i64 = p_line(p)
     val k: lexer.TokenKind = p_peek_kind(p)
     if kind_is_bang(k) || kind_is_not(k) {
@@ -756,7 +756,7 @@ fn parse_unary(p: ref Parser) result[ref Node, ref char]! = {
     return parse_postfix(p)
 }
 
-fn parse_postfix(p: ref Parser) result[ref Node, ref char]! = {
+fn parse_postfix(p: ref Parser) result[ref Node, ref u8]! = {
     val base = parse_primary(p)?
     val res: mut ref Node = base
     for {
@@ -818,7 +818,7 @@ fn parse_postfix(p: ref Parser) result[ref Node, ref char]! = {
     return ok res
 }
 
-fn parse_primary(p: ref Parser) result[ref Node, ref char]! = {
+fn parse_primary(p: ref Parser) result[ref Node, ref u8]! = {
     val line: i64 = p_line(p)
     val k: lexer.TokenKind = p_peek_kind(p)
 
@@ -943,7 +943,7 @@ fn parse_primary(p: ref Parser) result[ref Node, ref char]! = {
     }
 
     if kind_is_ident(k) {
-        val name: ref char = p_advance_text(p)
+        val name: ref u8 = p_advance_text(p)
         if lexer.kind_is_lbrace(p_peek_kind(p)) && lexer.kind_is_rbrace(p_peek2_kind(p)) {
             p_advance(p) p_advance(p)
             val nz: mut ref Node = make_node(NK_ZERO_INIT, line)
@@ -958,12 +958,12 @@ fn parse_primary(p: ref Parser) result[ref Node, ref char]! = {
     return err p_error(p, "expected expression")
 }
 
-fn parse_contracts(p: ref Parser) result[list[ref Node], ref char]! = {
+fn parse_contracts(p: ref Parser) result[list[ref Node], ref u8]! = {
     val contracts: mut list[ref Node] = []
     for {
         if lexer.kind_is_rbrace(p_peek_kind(p)) { break }
         val line: i64 = p_line(p)
-        val label: mut ref char = 0 as ref char
+        val label: mut ref u8 = 0 as ref u8
         if kind_is_ident(p_peek_kind(p)) && lexer.kind_is_colon(p_peek2_kind(p)) {
             label = p_advance_text(p)
             p_advance(p)
@@ -976,7 +976,7 @@ fn parse_contracts(p: ref Parser) result[list[ref Node], ref char]! = {
     return ok contracts
 }
 
-pub fn parse_stmt(p: mut ref Parser) result[ref Node, ref char]! = {
+pub fn parse_stmt(p: mut ref Parser) result[ref Node, ref u8]! = {
     val line: i64 = p_line(p)
     val k: lexer.TokenKind = p_peek_kind(p)
 
@@ -1073,8 +1073,8 @@ pub fn parse_stmt(p: mut ref Parser) result[ref Node, ref char]! = {
 
         val peek_next_some: mut bool = false
         if lexer.kind_is_ident(p_peek_kind(p)) {
-            val ptxt: ref char = lexer.tok_text(p.tokens, p.pos)
-            if ptxt != 0 as ref char {
+            val ptxt: ref u8 = lexer.tok_text(p.tokens, p.pos)
+            if ptxt != 0 as ref u8 {
                 if str_eq(ptxt, "is") {
                     if kind_is_some(p_peek2_kind(p)) {
                         peek_next_some = true
@@ -1381,10 +1381,10 @@ pub fn parse_stmt(p: mut ref Parser) result[ref Node, ref char]! = {
         }
 
         if kind_is_ident(next_k) {
-            val next_txt: ref char = lexer.tok_text(p.tokens, p.pos)
+            val next_txt: ref u8 = lexer.tok_text(p.tokens, p.pos)
             if str_eq(next_txt, "is") {
                 val gconds2: mut list[ref Node] = []
-                val cur_tparam: mut ref char = ident_text
+                val cur_tparam: mut ref u8 = ident_text
                 for {
                     p_advance(p)
                     val gty2 = parse_type(p)?
@@ -1401,7 +1401,7 @@ pub fn parse_stmt(p: mut ref Parser) result[ref Node, ref char]! = {
                     if !kind_is_ident(p_peek_kind(p)) { break }
                     cur_tparam = p_advance_text(p)
                     if !kind_is_ident(p_peek_kind(p)) { break }
-                    val nis_txt: ref char = lexer.tok_text(p.tokens, p.pos)
+                    val nis_txt: ref u8 = lexer.tok_text(p.tokens, p.pos)
                     if !str_eq(nis_txt, "is") { break }
                 }
                 p_expect_lbrace(p)?
@@ -1434,7 +1434,7 @@ pub fn parse_stmt(p: mut ref Parser) result[ref Node, ref char]! = {
             return ok gnw3
         }
 
-        val plat: ref char = ident_text
+        val plat: ref u8 = ident_text
         p_expect_lbrace(p)?
         val wb = parse_stmts(p)?
         p_expect_rbrace(p)?
@@ -1442,7 +1442,7 @@ pub fn parse_stmt(p: mut ref Parser) result[ref Node, ref char]! = {
         for {
             val k2: lexer.TokenKind = p_peek_kind(p)
             if !kind_is_ident(k2) { break }
-            val txt: ref char = lexer.tok_text(p.tokens, p.pos)
+            val txt: ref u8 = lexer.tok_text(p.tokens, p.pos)
             if !str_eq(txt, "or") { break }
             val k3: lexer.TokenKind = p_peek2_kind(p)
             if !kind_is_when(k3) { break }
@@ -1461,7 +1461,7 @@ pub fn parse_stmt(p: mut ref Parser) result[ref Node, ref char]! = {
         val otherwise_stmts: mut list[ref Node] = []
         val k4: lexer.TokenKind = p_peek_kind(p)
         if kind_is_ident(k4) {
-            val txt2: ref char = lexer.tok_text(p.tokens, p.pos)
+            val txt2: ref u8 = lexer.tok_text(p.tokens, p.pos)
             if str_eq(txt2, "otherwise") {
                 p_advance(p)
                 p_expect_lbrace(p)?
@@ -1517,15 +1517,15 @@ pub fn parse_stmt(p: mut ref Parser) result[ref Node, ref char]! = {
     return ok nes
 }
 
-fn parse_match_stmt(p: ref Parser, line: i64) result[ref Node, ref char]! = {
+fn parse_match_stmt(p: ref Parser, line: i64) result[ref Node, ref u8]! = {
     p_advance(p)
     val expr = parse_expr(p)?
     p_expect_lbrace(p)?
 
     if kind_is_ok(p_peek_kind(p)) || kind_is_err(p_peek_kind(p)) {
-        val ok_bind: mut ref char = 0 as ref char
+        val ok_bind: mut ref u8 = 0 as ref u8
         val ok_body: mut ref Node = 0 as ref Node
-        val err_bind: mut ref char = 0 as ref char
+        val err_bind: mut ref u8 = 0 as ref u8
         val err_body: mut ref Node = 0 as ref Node
         for i = 0; i < 2; i++ {
             val ck: lexer.TokenKind = p_peek_kind(p)
@@ -1561,7 +1561,7 @@ fn parse_match_stmt(p: ref Parser, line: i64) result[ref Node, ref char]! = {
     }
 
     if kind_is_some(p_peek_kind(p)) || kind_is_none(p_peek_kind(p)) {
-        val some_bind: mut ref char = 0 as ref char
+        val some_bind: mut ref u8 = 0 as ref u8
         val some_body: mut ref Node = 0 as ref Node
         val none_body: mut ref Node = 0 as ref Node
         for i = 0; i < 2; i++ {
@@ -1640,7 +1640,7 @@ fn parse_match_stmt(p: ref Parser, line: i64) result[ref Node, ref char]! = {
                 else_body = ebn2
                 break
             }
-            val sv: ref char = p_advance_text(p)
+            val sv: ref u8 = p_advance_text(p)
             p_expect_fatarrow(p)?
             p_expect_lbrace(p)?
             val sab = parse_stmts(p)?
@@ -1720,7 +1720,7 @@ fn parse_match_stmt(p: ref Parser, line: i64) result[ref Node, ref char]! = {
             }
             val tline: i64 = p_line(p)
             val vname = p_expect_ident(p)?
-            val bindings: mut list[ref char] = []
+            val bindings: mut list[ref u8] = []
 
             if lexer.kind_is_lparen(p_peek_kind(p)) {
                 p_advance(p)
@@ -1740,7 +1740,7 @@ fn parse_match_stmt(p: ref Parser, line: i64) result[ref Node, ref char]! = {
             p_expect_rbrace(p)?
             val tarm: mut ref Node = make_node(NK_MATCH_TAGGED_UNION, tline)
             tarm.d0 = vname as i64
-            val bl: list[ref char] = bindings
+            val bl: list[ref u8] = bindings
             tarm.d1 = bl as i64
             val tabl: list[ref Node] = tab
             tarm.d2 = tabl as i64
@@ -1788,7 +1788,7 @@ fn parse_match_stmt(p: ref Parser, line: i64) result[ref Node, ref char]! = {
     return ok nmu
 }
 
-pub fn parse_stmts(p: ref Parser) result[list[ref Node], ref char]! = {
+pub fn parse_stmts(p: ref Parser) result[list[ref Node], ref u8]! = {
     val stmts: mut list[ref Node] = []
     for {
         if lexer.kind_is_rbrace(p_peek_kind(p)) { break }
@@ -1799,10 +1799,10 @@ pub fn parse_stmts(p: ref Parser) result[list[ref Node], ref char]! = {
     return ok stmts
 }
 
-fn parse_fn_item(p: ref Parser, public: i64) result[ref Node, ref char]! = {
+fn parse_fn_item(p: ref Parser, public: i64) result[ref Node, ref u8]! = {
     val line: i64 = p_line(p)
     p_expect_kind(p, kind_is_fn, "fn")?
-    val ns: mut ref char = 0 as ref char
+    val ns: mut ref u8 = 0 as ref u8
     if lexer.kind_is_lparen(p_peek_kind(p)) {
         if kind_is_ident(p_peek2_kind(p)) && lexer.kind_is_rparen(p_peek3_kind(p)) {
             p_advance(p)
@@ -1811,7 +1811,7 @@ fn parse_fn_item(p: ref Parser, public: i64) result[ref Node, ref char]! = {
         }
     }
     val name = p_expect_ident(p)?
-    val type_params: mut list[ref char] = []
+    val type_params: mut list[ref u8] = []
     if lexer.kind_is_lbracket(p_peek_kind(p)) {
         p_advance(p)
         for {
@@ -1831,8 +1831,8 @@ fn parse_fn_item(p: ref Parser, public: i64) result[ref Node, ref char]! = {
         val is_mut: bool = p_eat_fn(p, kind_is_mut)
         val pty = parse_type(p)?
         val actual_ty: mut ref Node = pty
-        if ns != 0 as ref char && pty.kind == TY_NAMED {
-            if str_eq(pty.d0 as ref char, "self") {
+        if ns != 0 as ref u8 && pty.kind == TY_NAMED {
+            if str_eq(pty.d0 as ref u8, "self") {
                 val rn: mut ref Node = make_node(TY_NAMED, line)
                 rn.d0 = ns as i64
                 actual_ty = rn
@@ -1864,7 +1864,7 @@ fn parse_fn_item(p: ref Parser, public: i64) result[ref Node, ref char]! = {
         nfn.d4 = ret_ty as i64
         val bl: list[ref Node] = body
         nfn.d5 = bl as i64
-        val tpl: list[ref char] = type_params
+        val tpl: list[ref u8] = type_params
         nfn.d6 = tpl as i64
         return ok nfn
     }
@@ -1879,7 +1879,7 @@ fn parse_fn_item(p: ref Parser, public: i64) result[ref Node, ref char]! = {
     return ok nfn
 }
 
-fn parse_type_def_item(p: ref Parser, public: i64, is_extern: i64) result[ref Node, ref char]! = {
+fn parse_type_def_item(p: ref Parser, public: i64, is_extern: i64) result[ref Node, ref u8]! = {
     val line: i64 = p_line(p)
     p_expect_kind(p, kind_is_type, "type")?
     val name = p_expect_ident(p)?
@@ -1929,13 +1929,13 @@ fn parse_type_def_item(p: ref Parser, public: i64, is_extern: i64) result[ref No
     return ok nt
 }
 
-fn parse_enum_def_item(p: ref Parser, public: i64) result[ref Node, ref char]! = {
+fn parse_enum_def_item(p: ref Parser, public: i64) result[ref Node, ref u8]! = {
     val line: i64 = p_line(p)
     p_expect_kind(p, kind_is_enum, "enum")?
     val name = p_expect_ident(p)?
     p_expect_eq(p)?
     p_expect_lbrace(p)?
-    val variants: mut list[ref char] = []
+    val variants: mut list[ref u8] = []
     for {
         if lexer.kind_is_rbrace(p_peek_kind(p)) { break }
         val v = p_expect_ident(p)?
@@ -1945,12 +1945,12 @@ fn parse_enum_def_item(p: ref Parser, public: i64) result[ref Node, ref char]! =
     p_expect_rbrace(p)?
     val ne: mut ref Node = make_node(NK_ENUMDEF, line)
     ne.d0 = public ne.d1 = name as i64
-    val vl: list[ref char] = variants
+    val vl: list[ref u8] = variants
     ne.d2 = vl as i64
     return ok ne
 }
 
-fn parse_union_def_item(p: ref Parser, public: i64) result[ref Node, ref char]! = {
+fn parse_union_def_item(p: ref Parser, public: i64) result[ref Node, ref u8]! = {
     val line: i64 = p_line(p)
     p_expect_kind(p, kind_is_union, "union")?
     val name = p_expect_ident(p)?
@@ -2004,7 +2004,7 @@ fn parse_union_def_item(p: ref Parser, public: i64) result[ref Node, ref char]! 
     return ok nu
 }
 
-fn parse_extern_fn_item(p: ref Parser, public: i64) result[ref Node, ref char]! = {
+fn parse_extern_fn_item(p: ref Parser, public: i64) result[ref Node, ref u8]! = {
     val line: i64 = p_line(p)
     p_expect_lparen(p)?
     val conv = p_expect_ident(p)?
@@ -2052,7 +2052,7 @@ fn parse_extern_fn_item(p: ref Parser, public: i64) result[ref Node, ref char]! 
     return ok nef
 }
 
-fn parse_extern_header_item(p: ref Parser) result[ref Node, ref char]! = {
+fn parse_extern_header_item(p: ref Parser) result[ref Node, ref u8]! = {
     val line: i64 = p_line(p)
     val header = p_expect_string(p)?
     val neh: mut ref Node = make_node(NK_EXTERN_HEADER, line)
@@ -2060,7 +2060,7 @@ fn parse_extern_header_item(p: ref Parser) result[ref Node, ref char]! = {
     return ok neh
 }
 
-pub fn parse_item(p: ref Parser) result[ref Node, ref char]! = {
+pub fn parse_item(p: ref Parser) result[ref Node, ref u8]! = {
     val line: i64 = p_line(p)
     val k: lexer.TokenKind = p_peek_kind(p)
 
@@ -2083,7 +2083,7 @@ pub fn parse_item(p: ref Parser) result[ref Node, ref char]! = {
         return ok nt
     }
 
-    if kind_is_when(k) {        
+    if kind_is_when(k) {
         p_advance(p)
         val plat = p_expect_ident(p)?
         p_expect_lbrace(p)?
@@ -2098,7 +2098,7 @@ pub fn parse_item(p: ref Parser) result[ref Node, ref char]! = {
         for {
             val k2: lexer.TokenKind = p_peek_kind(p)
             if !kind_is_ident(k2) { break }
-            val txt: ref char = lexer.tok_text(p.tokens, p.pos)
+            val txt: ref u8 = lexer.tok_text(p.tokens, p.pos)
             if !str_eq(txt, "or") { break }
             val k3: lexer.TokenKind = p_peek2_kind(p)
             if !kind_is_when(k3) { break }
@@ -2122,7 +2122,7 @@ pub fn parse_item(p: ref Parser) result[ref Node, ref char]! = {
         val otherwise_items: mut list[ref Node] = []
         val k4: lexer.TokenKind = p_peek_kind(p)
         if kind_is_ident(k4) {
-            val txt2: ref char = lexer.tok_text(p.tokens, p.pos)
+            val txt2: ref u8 = lexer.tok_text(p.tokens, p.pos)
             if str_eq(txt2, "otherwise") {
                 p_advance(p)
                 p_expect_lbrace(p)?
@@ -2193,7 +2193,7 @@ pub fn parse_item(p: ref Parser) result[ref Node, ref char]! = {
     return err p_error(p, "unexpected token at top level")
 }
 
-pub fn parse_module(tokens: list[ref lexer.Token], filename: ref char) result[list[ref Node], ref char]! = {
+pub fn parse_module(tokens: list[ref lexer.Token], filename: ref u8) result[list[ref Node], ref u8]! = {
     val p: ref Parser = parser_new(tokens, filename)
     val items: mut list[ref Node] = []
     for {
@@ -2204,7 +2204,7 @@ pub fn parse_module(tokens: list[ref lexer.Token], filename: ref char) result[li
     return ok items
 }
 
-fn parse_src(src: ref char) result[list[ref Node], ref char] = {
+fn parse_src(src: ref u8) result[list[ref Node], ref u8] = {
     val r = trust lexer.tokenize(src)
     match r {
         err e => { return err e }
@@ -2212,7 +2212,7 @@ fn parse_src(src: ref char) result[list[ref Node], ref char] = {
     }
 }
 
-fn parse_expr_src(src: ref char) result[ref Node, ref char] = {
+fn parse_expr_src(src: ref u8) result[ref Node, ref u8] = {
     val r = trust lexer.tokenize(src)
     match r {
         err e => { return err e }
@@ -2275,7 +2275,7 @@ test {
         err _ => { assert false }
         ok n  => {
             assert n.kind == NK_IDENT
-            assert std.string.rchar_cmp(n.d0 as ref char, "foo") == 0
+            assert std.string.rchar_cmp(n.d0 as ref u8, "foo") == 0
         }
     }
 
@@ -2383,7 +2383,7 @@ test {
     @puts("parser 16")
     val r16 = parse_src("fn add(a: i64, b: i64) i64! = { return a + b }")
     match r16 {
-        err e => { 
+        err e => {
             std.stdio.print("{s}\n", {e})
             assert false
         }

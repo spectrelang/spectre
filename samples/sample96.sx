@@ -1,4 +1,4 @@
-pub fn something(v: i32) option[ref char] = {
+pub fn something(v: i32) option[ref u8] = {
     if v < 10 {
         return some "hello"
     }

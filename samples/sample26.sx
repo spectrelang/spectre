@@ -3,9 +3,9 @@ pub enum ParseError = {
     InvalidDigit
 }
 
-extern (C) fn strlen(s: ref char) i64! = "strlen"
+extern (C) fn strlen(s: ref u8) i64! = "strlen"
 
-pub fn string_to_i64(s: ref char) result[i64, ParseError]! = {
+pub fn string_to_i64(s: ref u8) result[i64, ParseError]! = {
     if (s == none) {
         return err ParseError.Empty
     }
@@ -17,10 +17,10 @@ pub fn string_to_i64(s: ref char) result[i64, ParseError]! = {
 
     val neg: bool = @load8(s) == 45
     val start: mut i64 = 0
-    if (neg) { 
-        start = 1 
-    } else { 
-        start = 0 
+    if (neg) {
+        start = 1
+    } else {
+        start = 0
     }
     val result: mut i64 = 0
     val i: mut i64 = start
@@ -45,7 +45,7 @@ pub fn string_to_i64(s: ref char) result[i64, ParseError]! = {
     return ok result
 }
 
-pub fn add_two_strings(a: ref char, b: ref char) result[i64, ParseError]! = {
+pub fn add_two_strings(a: ref u8, b: ref u8) result[i64, ParseError]! = {
     // `?` propagation:
     // desugars to:
     // match string_to_i64(a) {

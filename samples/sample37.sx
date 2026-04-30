@@ -1,7 +1,7 @@
 val stdio = use("std/stdio")
 
 pub fn main() void! = {
-    val xs: list[ref char] = ["hello", "world", "this", "is", "a", "test"]
+    val xs: list[ref u8] = ["hello", "world", "this", "is", "a", "test"]
     for x in xs {
         stdio.print("{s}\n", {x})
     }

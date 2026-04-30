@@ -58,7 +58,7 @@ pub fn random_u32_below(upper_bound: u32) u32 = {
 /// The caller is responsible for freeing the returned pointer.
 ///
 /// Format: xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx  (RFC 4122)
-pub fn random_uuid() ref char! = {
+pub fn random_uuid() ref u8! = {
     val rnd: ref void = @alloc(16)
     random_bytes(rnd, 16 as usize)
 
@@ -66,7 +66,7 @@ pub fn random_uuid() ref char! = {
     val lo: u64 = @load(@ptradd(rnd, 8)) as u64
     val hi_v: u64 = (hi & 0xffffffffffff0fff) | 0x0000000000004000
     val lo_v: u64 = (lo & 0x3fffffffffffffff) | 0x8000000000000000
-    val out: ref char = @alloc(37) as ref char
+    val out: ref u8 = @alloc(37) as ref u8
 
     @snprintf(out, 37, "{08llx}-{04llx}-{04llx}-{04llx}-{012llx}",
         (hi_v >> 32) & 0xffffffff,
@@ -88,8 +88,8 @@ test {
     assert r3 >= 0
     assert r3 < 100
 
-    val uuid1: mut ref char = trust random_uuid()
-    val uuid2: mut ref char = trust random_uuid()
+    val uuid1: mut ref u8 = trust random_uuid()
+    val uuid2: mut ref u8 = trust random_uuid()
     assert uuid1 != 0
     assert uuid2 != 0
 

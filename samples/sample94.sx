@@ -1,7 +1,7 @@
 val MAP_SIZE = 10
 
 pub fn main() void = {
-    val lst0: list[list[ref char]] = [["hello"]]
+    val lst0: list[list[ref u8]] = [["hello"]]
     for i in lst0 {
         for y in i {
             trust @print("{s}\n", {y})
@@ -13,7 +13,7 @@ pub fn main() void = {
         [2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
     ]
     trust @print("{p}, {p}", {lst, lst2})
-    
+
     val lst_again: [2][2]f64 = [
         [2.4, 2.5],
         [2.9, 50.4]

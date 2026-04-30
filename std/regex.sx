@@ -23,7 +23,7 @@ val TOKEN_NOT_WHITESPACE: i64 = 15
 
 type RegexHandle = {
     tokens: mut ref void
-    ccl_buf: mut ref char
+    ccl_buf: mut ref u8
 }
 
 pub enum RegexMatchError = {
@@ -34,11 +34,11 @@ pub enum RegexMatchError = {
     CompileFailed
 }
 
-fn char_ptr(ptr: ref char, offset: i64) ref char = {
-    return trust @ptradd(ptr as ref void, offset) as ref char
+fn char_ptr(ptr: ref u8, offset: i64) ref u8 = {
+    return trust @ptradd(ptr as ref void, offset) as ref u8
 }
 
-fn char_at(ptr: ref char, offset: i64) u8 = {
+fn char_at(ptr: ref u8, offset: i64) u8 = {
     return trust @load8(char_ptr(ptr, offset)) as u8
 }
 
@@ -70,15 +70,15 @@ fn set_token_ch(token: ref void, ch: u8) void = {
     trust @store8(@ptradd(token, 8), ch)
 }
 
-fn token_ccl(token: ref void) ref char = {
-    return trust @load(@ptradd(token, 16)) as ref char
+fn token_ccl(token: ref void) ref u8 = {
+    return trust @load(@ptradd(token, 16)) as ref u8
 }
 
-fn set_token_ccl(token: ref void, ccl: ref char) void = {
+fn set_token_ccl(token: ref void, ccl: ref u8) void = {
     trust @store(@ptradd(token, 16), ccl)
 }
 
-fn ccl_slot(buf: ref char, idx: i64) ref char = {
+fn ccl_slot(buf: ref u8, idx: i64) ref u8 = {
     pre {
         idx_nonneg: idx >= 0
         idx_in_bounds: idx < MAX_CHAR_CLASS_LEN
@@ -109,7 +109,7 @@ fn alloc_handle() option[ref void]! = {
     @memset(ccl_raw, 0, MAX_CHAR_CLASS_LEN)
 
     handle.tokens = tokens
-    handle.ccl_buf = ccl_raw as ref char
+    handle.ccl_buf = ccl_raw as ref u8
 
     post {
         tokens_present: handle.tokens != none
@@ -133,7 +133,7 @@ pub fn re_free(pattern: ref void) void! = {
     @free(pattern)
 }
 
-pub fn re_compile(pattern: ref char) option[ref void] = {
+pub fn re_compile(pattern: ref u8) option[ref void] = {
     guard (pattern != none) else {
         return none
     }
@@ -284,7 +284,7 @@ fn matchalphanum(c: u8) bool = {
     return c == '_' || matchalpha(c) || matchdigit(c)
 }
 
-fn matchrange(c: u8, str: ref char) bool = {
+fn matchrange(c: u8, str: ref u8) bool = {
     return c != '-'
         && char_at(str, 0) != 0
         && char_at(str, 0) != '-'
@@ -302,7 +302,7 @@ fn ismetachar(c: u8) bool = {
     return c == 's' || c == 'S' || c == 'w' || c == 'W' || c == 'd' || c == 'D'
 }
 
-fn matchmetachar(c: u8, str: ref char) bool = {
+fn matchmetachar(c: u8, str: ref u8) bool = {
     val meta: u8 = char_at(str, 0)
     if (meta == 'd') {
         return matchdigit(c)
@@ -320,7 +320,7 @@ fn matchmetachar(c: u8, str: ref char) bool = {
     return c == meta
 }
 
-fn matchcharclass(c: u8, str: ref char) bool = {
+fn matchcharclass(c: u8, str: ref u8) bool = {
     val i: mut i64 = 0
     val prev: mut u8 = 0
 
@@ -382,14 +382,14 @@ fn matchone(token: ref void, c: u8) bool = {
     return token_ch(token) == c
 }
 
-fn matchpattern(pattern: ref void, text: ref char, matchlength: mut ref i64) bool = {
+fn matchpattern(pattern: ref void, text: ref u8, matchlength: mut ref i64) bool = {
     pre {
         text_present: text != none
         matchlength_present: matchlength != none
     }
 
     val pre_ml: i64 = @deref(matchlength)
-    val cursor: mut ref char = text
+    val cursor: mut ref u8 = text
     val current: mut ref void = pattern
 
     for {
@@ -420,14 +420,14 @@ fn matchpattern(pattern: ref void, text: ref char, matchlength: mut ref i64) boo
     return false
 }
 
-fn matchstar(token: ref void, pattern: ref void, text: ref char, matchlength: mut ref i64) bool = {
+fn matchstar(token: ref void, pattern: ref void, text: ref u8, matchlength: mut ref i64) bool = {
     pre {
         text_present: text != none
         matchlength_present: matchlength != none
     }
 
     val prelen: i64 = @deref(matchlength)
-    val cursor: mut ref char = text
+    val cursor: mut ref u8 = text
     val span: mut i64 = 0
 
     for {
@@ -455,13 +455,13 @@ fn matchstar(token: ref void, pattern: ref void, text: ref char, matchlength: mu
     return false
 }
 
-fn matchplus(token: ref void, pattern: ref void, text: ref char, matchlength: mut ref i64) bool = {
+fn matchplus(token: ref void, pattern: ref void, text: ref u8, matchlength: mut ref i64) bool = {
     pre {
         text_present: text != none
         matchlength_present: matchlength != none
     }
 
-    val cursor: mut ref char = text
+    val cursor: mut ref u8 = text
     val span: mut i64 = 0
 
     for {
@@ -488,7 +488,7 @@ fn matchplus(token: ref void, pattern: ref void, text: ref char, matchlength: mu
     return false
 }
 
-fn matchquestion(token: ref void, pattern: ref void, text: ref char, matchlength: mut ref i64) bool = {
+fn matchquestion(token: ref void, pattern: ref void, text: ref u8, matchlength: mut ref i64) bool = {
     pre {
         text_present: text != none
         matchlength_present: matchlength != none
@@ -512,7 +512,7 @@ fn matchquestion(token: ref void, pattern: ref void, text: ref char, matchlength
     return false
 }
 
-pub fn re_matchp(pattern: ref void, text: ref char, matchlength: mut ref i64) result[option[i64], RegexMatchError]! = {
+pub fn re_matchp(pattern: ref void, text: ref u8, matchlength: mut ref i64) result[option[i64], RegexMatchError]! = {
     guard (matchlength != none) else {
         return err RegexMatchError.NullMatchLength
     }
@@ -540,7 +540,7 @@ pub fn re_matchp(pattern: ref void, text: ref char, matchlength: mut ref i64) re
     }
 
     val idx: mut i64 = 0
-    val cursor: mut ref char = text
+    val cursor: mut ref u8 = text
 
     for {
         if (matchpattern(tokens, cursor, matchlength)) {
@@ -560,7 +560,7 @@ pub fn re_matchp(pattern: ref void, text: ref char, matchlength: mut ref i64) re
     return ok none
 }
 
-pub fn re_match(pattern: ref char, text: ref char, matchlength: mut ref i64) result[option[i64], RegexMatchError] = {
+pub fn re_match(pattern: ref u8, text: ref u8, matchlength: mut ref i64) result[option[i64], RegexMatchError] = {
     guard (matchlength != none) else {
         return err RegexMatchError.NullMatchLength
     }
@@ -589,7 +589,7 @@ pub fn re_match(pattern: ref char, text: ref char, matchlength: mut ref i64) res
     }
 }
 
-fn kind_name(kind: i64) ref char = {
+fn kind_name(kind: i64) ref u8 = {
     if (kind == TOKEN_UNUSED) { return "UNUSED" }
     if (kind == TOKEN_DOT) { return "DOT" }
     if (kind == TOKEN_BEGIN) { return "BEGIN" }
@@ -610,7 +610,7 @@ fn kind_name(kind: i64) ref char = {
 }
 
 fn print_char(c: u8) void! = {
-    val buf: ref char = @alloc(2) as ref char
+    val buf: ref u8 = @alloc(2) as ref u8
     @store8(buf, c)
     @store8(@ptradd(buf, 1), 0)
     stdio.print("{s}", {buf})
@@ -639,7 +639,7 @@ pub fn re_print(pattern: ref void) void = {
         trust stdio.print("type: {s}", {kind_name(kind)})
         if (kind == TOKEN_CHAR_CLASS || kind == TOKEN_INV_CHAR_CLASS) {
             trust stdio.print(" [", {})
-            val ccl: ref char = token_ccl(token)
+            val ccl: ref u8 = token_ccl(token)
             val j: mut i64 = 0
             for {
                 if (j >= MAX_CHAR_CLASS_LEN) {

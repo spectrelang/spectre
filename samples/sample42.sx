@@ -1,14 +1,14 @@
 val stdio = use("std/stdio")
 
 type String = {
-    cstr: ref char
+    cstr: ref u8
     len: mut i32
 }
 
 union SomeUnion = {
     Int32(i32)
   | Int64(i64)
-  | ChrPtr(ref char)
+  | ChrPtr(ref u8)
   | Str(String)
   | Pair(i32, i32)
 }
@@ -21,7 +21,7 @@ pub fn main() void! = {
         Str({ cstr: "world", len: 5 }),
         Pair(5, 10)
     ]
-    
+
     for x in examples {
         match x {
             Int32 a => {
@@ -35,7 +35,7 @@ pub fn main() void! = {
             }
 
             ChrPtr ptr => {
-                stdio.puts("Matched raw char pointer")
+                stdio.puts("Matched raw u8 pointer")
                 stdio.print("Value: {s}\n", {ptr})
             }
 

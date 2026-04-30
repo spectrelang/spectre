@@ -1,87 +1,87 @@
 val std = use("std")
 
 pub union TokenKind = {
-    Fn()        
-    | Val()      
-    | Mut()      
-    | Pub()      
+    Fn()
+    | Val()
+    | Mut()
+    | Pub()
     | Type()
-    | Pre()       
-    | Post()      
-    | Return()   
-    | If()       
+    | Pre()
+    | Post()
+    | Return()
+    | If()
     | Else()
-    | Elif()      
-    | Trust()     
-    | Use()      
-    | Ref()      
+    | Elif()
+    | Trust()
+    | Use()
+    | Ref()
     | For()
-    | In()        
-    | Some()      
-    | None()     
-    | Ok()       
+    | In()
+    | Some()
+    | None()
+    | Ok()
     | Err()
-    | Match()     
-    | True()      
-    | False()    
-    | Defer()    
+    | Match()
+    | True()
+    | False()
+    | Defer()
     | Break()
-    | Continue()  
-    | As()        
-    | Assert()   
-    | When()     
+    | Continue()
+    | As()
+    | Assert()
+    | When()
     | Union()
-    | Enum()      
-    | Extern()    
-    | Link()     
-    | Guarded()  
+    | Enum()
+    | Extern()
+    | Link()
+    | Guarded()
     | Not()
     | Test()
     | Guard()
     | Invariant()
-    | Ident(ref char)
-    | Str(ref char)
-    | Int(ref char)
-    | Float(ref char)
+    | Ident(ref u8)
+    | Str(ref u8)
+    | Int(ref u8)
+    | Float(ref u8)
     | CharLit(i64)
-    | LParen()    
-    | RParen()    
-    | LBrace()   
+    | LParen()
+    | RParen()
+    | LBrace()
     | RBrace()
-    | LBracket()  
-    | RBracket()  
-    | Colon()    
+    | LBracket()
+    | RBracket()
+    | Colon()
     | Semicolon()
-    | Comma()    
-    | Dot()      
+    | Comma()
+    | Dot()
     | DotDotDot()
-    | Eq()  
-    | Bang()    
-    | At()    
+    | Eq()
+    | Bang()
+    | At()
     | Plus()
     | Minus()
-    | Star() 
-    | Slash() 
-    | Percent() 
-    | PlusPlus() 
+    | Star()
+    | Slash()
+    | Percent()
+    | PlusPlus()
     | MinusMinus()
-    | PlusEq()  
-    | MinusEq() 
-    | EqEq() 
+    | PlusEq()
+    | MinusEq()
+    | EqEq()
     | BangEq()
     | Lt()
-    | Gt() 
+    | Gt()
     | LtEq()
     | GtEq()
-    | And() 
-    | Or() 
-    | BitAnd() 
+    | And()
+    | Or()
+    | BitAnd()
     | BitOr()
     | BitXor()
-    | Shl() 
-    | Shr()  
-    | Arrow() 
-    | FatArrow() 
+    | Shl()
+    | Shr()
+    | Arrow()
+    | FatArrow()
     | Tilde()
     | Question()
     | Eof()
@@ -114,7 +114,7 @@ fn make_tok(l: ref Lexer, kind: TokenKind, line: i64, col: i64) ref Token! = {
 }
 
 type Lexer = {
-    src:   mut ref char
+    src:   mut ref u8
     len:   mut i64
     pos:   mut i64
     line:  mut i64
@@ -122,7 +122,7 @@ type Lexer = {
     arena: mut ref void
 }
 
-pub fn lexer_new(src: ref char) ref Lexer! = {
+pub fn lexer_new(src: ref u8) ref Lexer! = {
     val slen: i64 = std.string.len_raw(src)
     val arena_cap: usize = (slen * 64 + 8192) as usize
     val arena_res = std.allocators.Arena.new(arena_cap)
@@ -130,7 +130,7 @@ pub fn lexer_new(src: ref char) ref Lexer! = {
 
     match arena_res {
         ok a  => { arena = a }
-        err _ => { 
+        err _ => {
             arena = 0 as ref void
         }
     }
@@ -188,19 +188,19 @@ fn is_space(c: i64) bool! = {
     return c == 32 || c == 9 || c == 10 || c == 13
 }
 
-fn substr(src: ref char, start: i64, end: i64) ref char! = {
+fn substr(src: ref u8, start: i64, end: i64) ref u8! = {
     val n: i64 = end - start
-    val buf: ref char = @alloc(n + 1) as ref char
+    val buf: ref u8 = @alloc(n + 1) as ref u8
     @memcpy(buf, @ptradd(src, start), n)
     @store8(@ptradd(buf, n), 0)
     return buf
 }
 
-fn str_eq(a: ref char, b: ref char) bool! = {
+fn str_eq(a: ref u8, b: ref u8) bool! = {
     return std.string.rchar_cmp(a, b) == 0
 }
 
-fn keyword_kind(s: ref char) TokenKind! = {
+fn keyword_kind(s: ref u8) TokenKind! = {
     if str_eq(s, "fn")       { return Fn() }
     if str_eq(s, "val")      { return Val() }
     if str_eq(s, "mut")      { return Mut() }
@@ -242,16 +242,16 @@ fn keyword_kind(s: ref char) TokenKind! = {
     return Ident(s)
 }
 
-fn lex_string(l: ref Lexer) ref char! = {
+fn lex_string(l: ref Lexer) ref u8! = {
     val buf_cap: mut i64 = 4096
-    val buf: mut ref char = @alloc(buf_cap) as ref char
+    val buf: mut ref u8 = @alloc(buf_cap) as ref u8
     val i: mut i64 = 0
     for {
         val c: i64 = lx_advance(l)
         if c == -1 || c == 34 { break }
         if i >= buf_cap - 2 {
             buf_cap = buf_cap * 2
-            buf = @realloc(buf as ref void, buf_cap) as ref char
+            buf = @realloc(buf as ref void, buf_cap) as ref u8
         }
         if c == 92 {
             val esc: i64 = lx_advance(l)
@@ -263,22 +263,22 @@ fn lex_string(l: ref Lexer) ref char! = {
                 val h1: i64 = lx_advance(l)
                 val h2: i64 = lx_advance(l)
                 val d1: mut i64 = 0
-                if h1 >= 97 { 
-                    d1 = h1 - 87 
+                if h1 >= 97 {
+                    d1 = h1 - 87
                 } elif h1 >= 65 {
-                    d1 = h1 - 55 
+                    d1 = h1 - 55
                 } else {
-                    d1 = h1 - 48 
+                    d1 = h1 - 48
                 }
                 val d2: mut i64 = 0
-                if h2 >= 97 { d2 = h2 - 87 } 
-                elif h2 >= 65 { d2 = h2 - 55 } 
+                if h2 >= 97 { d2 = h2 - 87 }
+                elif h2 >= 65 { d2 = h2 - 55 }
                 else { d2 = h2 - 48 }
                 @store8(@ptradd(buf, i), (d1 * 16 + d2) as u8)
-            } else { 
-                @store8(@ptradd(buf, i), 92 as u8) 
-                i++ 
-                @store8(@ptradd(buf, i), esc as u8) 
+            } else {
+                @store8(@ptradd(buf, i), 92 as u8)
+                i++
+                @store8(@ptradd(buf, i), esc as u8)
             }
         } else {
             @store8(@ptradd(buf, i), c as u8)
@@ -286,7 +286,7 @@ fn lex_string(l: ref Lexer) ref char! = {
         i++
     }
     @store8(@ptradd(buf, i), 0)
-    val result: ref char = @alloc(i + 1) as ref char
+    val result: ref u8 = @alloc(i + 1) as ref u8
     @memcpy(result, buf, i + 1)
     @free(buf)
     return result
@@ -315,7 +315,7 @@ fn lex_number(l: ref Lexer, line: i64, col: i64) ref Token! = {
             for { if !is_digit(lx_peek(l)) { break } lx_advance(l) }
         }
     }
-    val text: ref char = substr(l.src, start, l.pos)
+    val text: ref u8 = substr(l.src, start, l.pos)
     if is_float { return make_tok(l, Float(text), line, col) }
     return make_tok(l, Int(text), line, col)
 }
@@ -335,7 +335,7 @@ fn skip_comment(l: mut ref Lexer) bool! = {
 fn lex_raw_string(l: mut ref Lexer, line: i64, col: i64) ref Token! = {
     lx_advance(l)
     val buf_cap: mut i64 = 4096
-    val buf: mut ref char = @alloc(buf_cap) as ref char
+    val buf: mut ref u8 = @alloc(buf_cap) as ref u8
     val i: mut i64 = 0
     for {
         for {
@@ -344,7 +344,7 @@ fn lex_raw_string(l: mut ref Lexer, line: i64, col: i64) ref Token! = {
             lx_advance(l)
             if i >= buf_cap - 2 {
                 buf_cap = buf_cap * 2
-                buf = @realloc(buf as ref void, buf_cap) as ref char
+                buf = @realloc(buf as ref void, buf_cap) as ref u8
             }
             @store8(@ptradd(buf, i), ch as u8)
             i++
@@ -363,7 +363,7 @@ fn lex_raw_string(l: mut ref Lexer, line: i64, col: i64) ref Token! = {
         }
     }
     @store8(@ptradd(buf, i), 0)
-    val result: ref char = @alloc(i + 1) as ref char
+    val result: ref u8 = @alloc(i + 1) as ref u8
     @memcpy(result, buf, i + 1)
     @free(buf)
     return make_tok(l, Str(result), line, col)
@@ -389,7 +389,7 @@ fn lex_char_literal(l: mut ref Lexer, line: i64, col: i64) ref Token! = {
 fn lex_identifier(l: mut ref Lexer, line: i64, col: i64) ref Token! = {
     val start: i64 = l.pos - 1
     for { if !is_alnum(lx_peek(l)) { break } lx_advance(l) }
-    val text: ref char = substr(l.src, start, l.pos)
+    val text: ref u8 = substr(l.src, start, l.pos)
     return make_tok(l, keyword_kind(text), line, col)
 }
 
@@ -480,7 +480,7 @@ fn lex_operator(l: mut ref Lexer, c: i64, line: i64, col: i64) result[ref Token,
     return err false
 }
 
-pub fn tokenize(src: ref char) result[list[ref Token], ref char]! = {
+pub fn tokenize(src: ref u8) result[list[ref Token], ref u8]! = {
     val l: ref Lexer = lexer_new(src)
     val tokens: mut list[ref Token] = []
     for {
@@ -495,7 +495,7 @@ pub fn tokenize(src: ref char) result[list[ref Token], ref char]! = {
             @append(tokens, make_tok(l, Eof(), line, col))
             break
         }
-	
+
         lx_advance(l)
 
         if c == 92 && lx_peek(l) == 92 {
@@ -526,7 +526,7 @@ pub fn tokenize(src: ref char) result[list[ref Token], ref char]! = {
             ok t  => { @append(tokens, t) continue }
             err _ => {}
         }
-        val errbuf: ref char = @alloc(64) as ref char
+        val errbuf: ref u8 = @alloc(64) as ref u8
         @snprintf(errbuf, 64, "unexpected character at {lld}:{lld}", {line, col})
         return err errbuf
     }
@@ -543,7 +543,7 @@ pub fn tok_kind(tokens: list[ref Token], i: i64) TokenKind = {
 }
 
 // Extract text payload from Ident/Str/Int/Float variants, null otherwise.
-pub fn tok_text(tokens: list[ref Token], i: i64) ref char = {
+pub fn tok_text(tokens: list[ref Token], i: i64) ref u8 = {
     val opt = @get(tokens, i as usize)
     match opt {
         some t => {
@@ -553,10 +553,10 @@ pub fn tok_text(tokens: list[ref Token], i: i64) ref char = {
                 Str s    => { return s }
                 Int s    => { return s }
                 Float s  => { return s }
-                else     => { return 0 as ref char }
+                else     => { return 0 as ref u8 }
             }
         }
-        none => { return 0 as ref char }
+        none => { return 0 as ref u8 }
     }
 }
 
@@ -669,7 +669,7 @@ test {
         err _ => { assert false }
         ok toks => {
             assert kind_is_str(tok_kind(toks, 0))
-            val text: ref char = tok_text(toks, 0)
+            val text: ref u8 = tok_text(toks, 0)
             assert trust @load8(@ptradd(text, 5)) as i64 == 10
         }
     }

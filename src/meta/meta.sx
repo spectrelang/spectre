@@ -1,6 +1,6 @@
 val std = use("std")
 
-pub fn get_spectre_version() ref char = {
+pub fn get_spectre_version() ref u8 = {
     return "v0.0.7"
 }
 

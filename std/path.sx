@@ -2,7 +2,7 @@ val str = use("std/string")
 val stdio = use("std/stdio")
 val allocators = use("std/allocators")
 
-pub fn get_name_without_ext(arena: ref allocators.Arena, path: ref char) ref char = {
+pub fn get_name_without_ext(arena: ref allocators.Arena, path: ref u8) ref u8 = {
     val len: i64 = str.len_raw(path)
     val last_slash: mut i64 = -1
     val i: mut i64 = 0
@@ -17,7 +17,7 @@ pub fn get_name_without_ext(arena: ref allocators.Arena, path: ref char) ref cha
                 c = v
             }
             none => {}
-        } 
+        }
         if (c == 47) {
             last_slash = i
         }
@@ -53,7 +53,7 @@ pub fn get_name_without_ext(arena: ref allocators.Arena, path: ref char) ref cha
     } else {
         name_len = filename_len
     }
-    
+
     val buf_opt = allocators.Arena.alloc(arena, name_len + 1)
     val buf: mut ref void = 0 as ref void
     match buf_opt {
@@ -68,14 +68,14 @@ pub fn get_name_without_ext(arena: ref allocators.Arena, path: ref char) ref cha
     trust @memcpy(buf, @ptradd(path, filename_start), name_len)
     trust @store8(@ptradd(buf, name_len), 0)
 
-    return buf as ref char
+    return buf as ref u8
 }
 
 /// Join dir + "/" + name, returning a heap-allocated string.
-pub fn join(dir: ref char, name: ref char) ref char! = {
+pub fn join(dir: ref u8, name: ref u8) ref u8! = {
     val dlen: i64 = str.len_raw(dir)
     val nlen: i64 = str.len_raw(name)
-    val buf: ref char = @alloc(dlen + nlen + 2) as ref char
+    val buf: ref u8 = @alloc(dlen + nlen + 2) as ref u8
     @memcpy(buf as ref void, dir as ref void, dlen as usize)
     @store8(@ptradd(buf as ref void, dlen), '/')
     @memcpy(@ptradd(buf as ref void, dlen + 1), name as ref void, nlen as usize)
@@ -85,7 +85,7 @@ pub fn join(dir: ref char, name: ref char) ref char! = {
 
 /// Return the directory part of a path (everything up to and including last '/').
 /// Returns "." if no slash found.
-pub fn dir(path: ref char) ref char! = {
+pub fn dir(path: ref u8) ref u8! = {
     val len: i64 = str.len_raw(path)
     val last_slash: mut i64 = -1
     val i: mut i64 = 0
@@ -96,7 +96,7 @@ pub fn dir(path: ref char) ref char! = {
         i++
     }
     if last_slash < 0 { return "." }
-    val buf: ref char = @alloc(last_slash + 2) as ref char
+    val buf: ref u8 = @alloc(last_slash + 2) as ref u8
     @memcpy(buf as ref void, path as ref void, (last_slash + 1) as usize)
     @store8(@ptradd(buf as ref void, last_slash + 1), 0)
     return buf

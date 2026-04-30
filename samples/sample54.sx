@@ -9,10 +9,10 @@ pub union TokenKind = {
   | Continue()  | As()        | Assert()   | When()     | Union()
   | Enum()      | Extern()    | Link()     | Guarded()  | Not()
   | Test()
-  | Ident(ref char)
-  | Str(ref char)
-  | Int(ref char)
-  | Float(ref char)
+  | Ident(ref u8)
+  | Str(ref u8)
+  | Int(ref u8)
+  | Float(ref u8)
   | CharLit(i64)
   | LParen()    | RParen()    | LBrace()   | RBrace()
   | LBracket()  | RBracket()  | Colon()    | Semicolon()
@@ -45,7 +45,7 @@ fn kind_is_fn(k: TokenKind) bool! = {
 }
 
 pub fn main() void! = {
-   
+
     val y: TokenKind = Int("42")
     match y {
         Int _ => {

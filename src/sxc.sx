@@ -52,7 +52,7 @@ fn root_has_direct_links(items: list[ref parser.Node]) bool = {
     return false
 }
 
-fn input_is_in_std(input: ref char) bool = {
+fn input_is_in_std(input: ref u8) bool = {
     if std.string.rchar_starts_with(input, "std/") { return true }
     if std.string.rchar_starts_with(input, "./std/") { return true }
     if std.string.contains(std.string.from(input), std.string.from("/std/")) { return true }
@@ -60,21 +60,21 @@ fn input_is_in_std(input: ref char) bool = {
 }
 
 fn pick_alt_backend(
-    requested: ref char,
+    requested: ref u8,
     release_mode: bool,
-    input: ref char,
+    input: ref u8,
     root_items: list[ref parser.Node]
-) ref char = {
-    val selected: mut ref char = builds.select_alt_compiler(requested)
+) ref u8 = {
+    val selected: mut ref u8 = builds.select_alt_compiler(requested)
     if std.string.rchar_cmp(selected, "tcc") != 0 { return selected }
     if release_mode { return "clang" }
     if !input_is_in_std(input) && root_has_direct_links(root_items) { return "clang" }
     return selected
 }
 
-fn append_debug_runtime_links(links: mut list[ref char], exe_dir: ref char, quiet: bool, release_mode: bool) void! = {
+fn append_debug_runtime_links(links: mut list[ref u8], exe_dir: ref u8, quiet: bool, release_mode: bool) void! = {
     if release_mode { return }
-    val panic_o: ref char = path.join(exe_dir, "std/csources/panic_handler.o")
+    val panic_o: ref u8 = path.join(exe_dir, "std/csources/panic_handler.o")
     val panic_f = std.fs.open(panic_o, "r")
     match panic_f {
         some h => {
@@ -87,7 +87,7 @@ fn append_debug_runtime_links(links: mut list[ref char], exe_dir: ref char, quie
             }
         }
     }
-    val platform: ref char = reflection.current_platform_name()
+    val platform: ref u8 = reflection.current_platform_name()
     if std.string.rchar_cmp(platform, "windows") == 0 {
         @append(links, "-lDbgHelp")
     }
@@ -97,15 +97,15 @@ pub fn main() i32! = {
     val arena = allocators.Arena.new(65536)?
     val args = std.os.get_args()
     val argc: i64 = @len(args) as i64
-    val exe_path: mut ref char = "./spectre"
+    val exe_path: mut ref u8 = "./spectre"
     val exe_opt = @get(args, 0)
-    
+
     when windows {
         SetConsoleOutputCP(65001 as u32)
     }
 
     match exe_opt {
-        some v => { exe_path = v as ref char }
+        some v => { exe_path = v as ref u8 }
         none   => {}
     }
 
@@ -121,9 +121,9 @@ pub fn main() i32! = {
 
     val input_arg_i: mut i64 = 1
     val input_opt = @get(args, input_arg_i)
-    val input: mut ref char = ""
+    val input: mut ref u8 = ""
     match input_opt {
-        some a => { input = a as ref char }
+        some a => { input = a as ref u8 }
         none   => {
             std.stdio.puts("error: no input file")
             allocators.Arena.free(arena)
@@ -136,7 +136,7 @@ pub fn main() i32! = {
         input_arg_i = 2
         val run_input_opt = @get(args, input_arg_i)
         match run_input_opt {
-            some a => { input = a as ref char }
+            some a => { input = a as ref u8 }
             none   => {
                 std.stdio.puts("error: run requires an input file\n")
                 meta.print_usage()
@@ -173,10 +173,10 @@ pub fn main() i32! = {
     }
 
     if std.string.rchar_cmp(input, "init") == 0 {
-        val name_arg: mut ref char = ""
+        val name_arg: mut ref u8 = ""
         val name_opt = @get(args, 2)
         match name_opt {
-            some v => { name_arg = v as ref char }
+            some v => { name_arg = v as ref u8 }
             none   => {}
         }
         val code: i32 = commands.cmd_init(name_arg)
@@ -185,10 +185,10 @@ pub fn main() i32! = {
     }
 
     if std.string.rchar_cmp(input, "build") == 0 {
-        val config_name: mut ref char = "dev"
+        val config_name: mut ref u8 = "dev"
         val cfg_opt = @get(args, 2)
         match cfg_opt {
-            some v => { config_name = v as ref char }
+            some v => { config_name = v as ref u8 }
             none   => {}
         }
         val code: i32 = commands.cmd_build(config_name, exe_path)
@@ -197,14 +197,14 @@ pub fn main() i32! = {
     }
 
     if std.string.rchar_cmp(input, "doc") == 0 {
-        val target_arg: mut ref char = "."
+        val target_arg: mut ref u8 = "."
         val md_mode: mut bool = false
         val doc_arg_i: mut i64 = 2
         for {
             val arg_opt = @get(args, doc_arg_i)
             match arg_opt {
                 some dv => {
-                    val arg: ref char = dv as ref char
+                    val arg: ref u8 = dv as ref u8
                     if std.string.rchar_cmp(arg, "--md") == 0 {
                         md_mode = true
                     } elif std.string.rchar_starts_with(arg, "-") {
@@ -228,7 +228,7 @@ pub fn main() i32! = {
         val url_opt = @get(args, 2)
         match url_opt {
             some v => {
-                val code: i32 = commands.cmd_add(v as ref char)
+                val code: i32 = commands.cmd_add(v as ref u8)
                 allocators.Arena.free(arena)
                 return code
             }
@@ -244,7 +244,7 @@ pub fn main() i32! = {
         val dep_opt = @get(args, 2)
         match dep_opt {
             some v => {
-                val code: i32 = commands.cmd_remove(v as ref char)
+                val code: i32 = commands.cmd_remove(v as ref u8)
                 allocators.Arena.free(arena)
                 return code
             }
@@ -265,7 +265,7 @@ pub fn main() i32! = {
     if flag_first_translate_c {
         val next_opt = @get(args, 2)
         match next_opt {
-            some next_arg => { input = next_arg as ref char }
+            some next_arg => { input = next_arg as ref u8 }
             none => {
                 std.stdio.puts("error: --translate-c requires an input .c or .h file")
                 allocators.Arena.free(arena)
@@ -291,24 +291,24 @@ pub fn main() i32! = {
     val show_cmd: mut bool = false
     val test_mode: mut bool = false
     val release_mode: mut bool = false
-    val output_name: mut ref char = ""
+    val output_name: mut ref u8 = ""
     val build_dll: mut bool = false
     val compile_obj: mut bool = false
     val syntax_check: mut bool = false
     val print_ast: mut bool = false
     val use_alt: mut bool = false
-    val alt_compiler: mut ref char = ""
+    val alt_compiler: mut ref u8 = ""
     val translate_c_flag: mut bool = flag_first_translate_c
-    val extra_includes: mut list[ref char] = []
-    val inc_paths: mut list[ref char] = []
-    val src_target: mut ref char = ""
+    val extra_includes: mut list[ref u8] = []
+    val inc_paths: mut list[ref u8] = []
+    val src_target: mut ref u8 = ""
     val bootstrap_mode: mut bool = false
     val arg_i: mut i64 = input_arg_i + 1
 
     if flag_first_translate_c {
         arg_i = input_arg_i + 2
     }
-    
+
     when windows {
         use_alt = true
     }
@@ -320,14 +320,14 @@ pub fn main() i32! = {
         val arg_opt = @get(args, arg_i)
         match arg_opt {
             some arg_val => {
-                val arg: ref char = arg_val as ref char
+                val arg: ref u8 = arg_val as ref u8
 
                 if std.string.rchar_cmp(arg, "-o") == 0 || std.string.rchar_cmp(arg, "--output") == 0 {
                     val next_i: i64 = arg_i + 1
                     if (next_i < argc) {
                         val next_opt = @get(args, next_i)
                         match next_opt {
-                            some v => { output_name = v as ref char }
+                            some v => { output_name = v as ref u8 }
                             none => {
                                 std.stdio.puts("error: -o requires a value")
                                 allocators.Arena.free(arena)
@@ -399,7 +399,7 @@ pub fn main() i32! = {
                     }
                     arg_i++
                 } elif std.string.rchar_starts_with(arg, "--inc-path=") {
-                    val path_str: ref char = std.string.substr(arg, 11, std.string.len_raw(arg) - 11)
+                    val path_str: ref u8 = std.string.substr(arg, 11, std.string.len_raw(arg) - 11)
                     if std.string.rchar_cmp(path_str, "") == 0 {
                         std.stdio.puts("error: --inc-path requires a value")
                         allocators.Arena.free(arena)
@@ -440,8 +440,8 @@ pub fn main() i32! = {
         return code
     }
 
-    val exe_path2: ref char = reflection.get_exe_path()
-    val exe_dir: mut ref char = "."
+    val exe_path2: ref u8 = reflection.get_exe_path()
+    val exe_dir: mut ref u8 = "."
     if std.string.rchar_cmp(exe_path2, ".") != 0 {
         exe_dir = path.dir(exe_path2)
     }
@@ -475,7 +475,7 @@ pub fn main() i32! = {
 
     val quiet_flag: mut bool = false
     if quiet { quiet_flag = true }
-    val errors: list[ref char] = sema.check_module_tree(root_mod, quiet_flag)
+    val errors: list[ref u8] = sema.check_module_tree(root_mod, quiet_flag)
     val nerrors: i64 = @len(errors) as i64
     if nerrors > 0 {
         for e in errors {
@@ -502,7 +502,7 @@ pub fn main() i32! = {
     }
 
     if use_alt || emit_alt {
-        val c_ir: mut ref char = ""
+        val c_ir: mut ref u8 = ""
         val emit_ld: bool = !bootstrap_mode
         if test_mode { c_ir = alt_codegen.gen_module_c_test(root_mod, release_mode, extra_includes, src_target, emit_ld) }
         else { c_ir = alt_codegen.gen_module_c(root_mod, release_mode, extra_includes, src_target, emit_ld) }
@@ -513,7 +513,7 @@ pub fn main() i32! = {
             return 0
         }
 
-        val binary_name_alt: mut ref char = ""
+        val binary_name_alt: mut ref u8 = ""
         if std.string.rchar_cmp(output_name, "") == 0 {
             binary_name_alt = path.get_name_without_ext(arena, input)
         } else {
@@ -535,7 +535,7 @@ pub fn main() i32! = {
         }
 
         val output_specified_alt: bool = std.string.rchar_cmp(output_name, "") != 0
-        val final_output_alt: mut ref char = ""
+        val final_output_alt: mut ref u8 = ""
         if output_specified_alt != 0 {
             final_output_alt = binary_name_alt
         } else {
@@ -543,28 +543,28 @@ pub fn main() i32! = {
             final_output_alt = @fmt("./s-out/{s}", {binary_name_alt})
         }
 
-        val links_alt: mut list[ref char] = module.collect_used_links(root_mod, exe_dir)
+        val links_alt: mut list[ref u8] = module.collect_used_links(root_mod, exe_dir)
         append_debug_runtime_links(links_alt, exe_dir, quiet, release_mode)
-        val link_flags_alt: mut ref char = ""
+        val link_flags_alt: mut ref u8 = ""
         for lib in links_alt {
             link_flags_alt = @fmt("{s} {s}", {link_flags_alt, lib})
         }
-        val include_flags_alt: mut ref char = ""
+        val include_flags_alt: mut ref u8 = ""
         for inc_path in inc_paths {
             include_flags_alt = @fmt("{s} -I{s}", {include_flags_alt, inc_path})
         }
 
-        val cc_flags_alt: mut ref char = "-std=c99 -Wno-everything -O3"
+        val cc_flags_alt: mut ref u8 = "-std=c99 -Wno-everything -O3"
         if !release_mode { cc_flags_alt = "-std=c99 -Wno-everything -g" }
 
-        val selected_compiler: mut ref char = pick_alt_backend(alt_compiler, release_mode, input, root_mod.items)
-        val test_output_alt: ref char = builds.get_tmp_path("spectre_test_bin_alt")
-        val compile_output: mut ref char = test_output_alt
+        val selected_compiler: mut ref u8 = pick_alt_backend(alt_compiler, release_mode, input, root_mod.items)
+        val test_output_alt: ref u8 = builds.get_tmp_path("spectre_test_bin_alt")
+        val compile_output: mut ref u8 = test_output_alt
         if !test_mode {
             compile_output = final_output_alt
         }
 
-        val alt_cmd: mut ref char = ""
+        val alt_cmd: mut ref u8 = ""
         if std.string.rchar_cmp(selected_compiler, "tcc") == 0 {
             if test_mode {
                 alt_cmd = @fmt("tcc {s} -o {s} -w -std=c99{s} {s} 2>&1", {c_file, test_output_alt, include_flags_alt, link_flags_alt})
@@ -589,10 +589,10 @@ pub fn main() i32! = {
         val alt_res = std.os.exec(alt_cmd)
         match alt_res {
             ok v => {
-                val vstr: ref char = std.string.cstr(v)
+                val vstr: ref u8 = std.string.cstr(v)
                 val has_error: bool = std.string.contains(v, std.string.from("error:"))
                 if has_error {
-                    val display: mut ref char = vstr
+                    val display: mut ref u8 = vstr
                     if !bootstrap_mode { display = builds.filter_c_diagnostics(vstr) }
                     std.stdio.print("{s}", {display})
                     std.os.delete(c_file)
@@ -600,7 +600,7 @@ pub fn main() i32! = {
                     return 1
                 } else {
                     if std.string.len_raw(vstr) > 0 {
-                        val display: mut ref char = vstr
+                        val display: mut ref u8 = vstr
                         if !bootstrap_mode { display = builds.filter_c_diagnostics(vstr) }
                         std.stdio.print("{s}", {display})
                      }
@@ -638,7 +638,7 @@ pub fn main() i32! = {
         return 0
     }
 
-    val qbe_ir: mut ref char = ""
+    val qbe_ir: mut ref u8 = ""
 
     if test_mode {
         qbe_ir = codegen.gen_module_resolved_test(root_mod, release_mode, src_target)
@@ -650,7 +650,7 @@ pub fn main() i32! = {
         std.stdio.puts("[IV ]│ Module used-links collection")
     }
 
-    val links: mut list[ref char] = module.collect_used_links(root_mod, exe_dir)
+    val links: mut list[ref u8] = module.collect_used_links(root_mod, exe_dir)
     append_debug_runtime_links(links, exe_dir, quiet, release_mode)
 
     if emit_qbe != 0 {
@@ -659,7 +659,7 @@ pub fn main() i32! = {
         return 0
     }
 
-    val binary_name: mut ref char = ""
+    val binary_name: mut ref u8 = ""
 
     if std.string.rchar_cmp(output_name, "") == 0 {
         binary_name = path.get_name_without_ext(arena, input)
@@ -690,7 +690,7 @@ pub fn main() i32! = {
     }
     match qbe_res {
         ok v => {
-            val vstr: ref char = std.string.cstr(v)
+            val vstr: ref u8 = std.string.cstr(v)
             if std.string.len_raw(vstr) > 0 {
                 std.stdio.print("{s}", {vstr})
             }
@@ -713,7 +713,7 @@ pub fn main() i32! = {
         val asm_opt = std.fs.read_all(asm_file)
         match asm_opt {
             some asm_content => {
-                std.stdio.puts(asm_content as ref char)
+                std.stdio.puts(asm_content as ref u8)
             }
             none => {
                 std.stdio.puts("error: could not read assembly output")
@@ -726,20 +726,20 @@ pub fn main() i32! = {
     }
 
     val output_specified: bool = std.string.rchar_cmp(output_name, "") != 0
-    val cc_cmd: mut ref char = ""
-    val success_msg: mut ref char = ""
+    val cc_cmd: mut ref u8 = ""
+    val success_msg: mut ref u8 = ""
     val exit_code: mut i32 = 0
-    val link_flags: mut ref char = ""
-    val run_output: mut ref char = ""
-    val platform: ref char = reflection.current_platform_name()
+    val link_flags: mut ref u8 = ""
+    val run_output: mut ref u8 = ""
+    val platform: ref u8 = reflection.current_platform_name()
 
     for lib in links {
         link_flags = @fmt("{s} {s}", {link_flags, lib})
     }
 
-    val cc_flags: mut ref char = ""
+    val cc_flags: mut ref u8 = ""
     if !release_mode { cc_flags = "-g" }
-    val output_ext: mut ref char = ""
+    val output_ext: mut ref u8 = ""
 
     if compile_obj {
         cc_flags = @fmt("{s} -c", {cc_flags})
@@ -764,7 +764,7 @@ pub fn main() i32! = {
     }
 
     if test_mode {
-        val test_bin: ref char = builds.get_tmp_path("spectre_test_bin")
+        val test_bin: ref u8 = builds.get_tmp_path("spectre_test_bin")
         cc_cmd = @fmt("cc -o {s} {s}{s}", {test_bin, asm_file, link_flags})
         val cc_res2 = std.os.exec(cc_cmd)
         match cc_res2 {
@@ -792,7 +792,7 @@ pub fn main() i32! = {
     }
 
     if output_specified != 0 {
-        val final_output: mut ref char = binary_name
+        val final_output: mut ref u8 = binary_name
         if std.string.rchar_cmp(output_ext, "") != 0 {
             final_output = @fmt("{s}{s}", {binary_name, output_ext})
         }
@@ -805,7 +805,7 @@ pub fn main() i32! = {
         success_msg = @fmt("Compiled: {s}\n", {final_output})
     } else {
         std.os.exec("mkdir -p ./s-out")
-        val final_output: mut ref char = @fmt("./s-out/{s}", {binary_name})
+        val final_output: mut ref u8 = @fmt("./s-out/{s}", {binary_name})
         if std.string.rchar_cmp(output_ext, "") != 0 {
             final_output = @fmt("./s-out/{s}{s}", {binary_name, output_ext})
         }

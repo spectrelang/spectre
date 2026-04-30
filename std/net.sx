@@ -27,7 +27,7 @@ extern (C) fn curl_easy_cleanup(handle: ref void)                 void!     = "c
 extern (C) fn curl_easy_setopt(handle: ref void, opt: i32, ...)   i64!      = "curl_easy_setopt"
 extern (C) fn curl_easy_perform(handle: ref void)                 i64!      = "curl_easy_perform"
 extern (C) fn curl_easy_getinfo(handle: ref void, info: i32, ...) i64!      = "curl_easy_getinfo"
-extern (C) fn curl_slist_append(list: ref void, str: ref char)    ref void! = "curl_slist_append"
+extern (C) fn curl_slist_append(list: ref void, str: ref u8)    ref void! = "curl_slist_append"
 extern (C) fn curl_slist_free_all(list: ref void)                 void!     = "curl_slist_free_all"
 extern (C) fn curl_global_init(flags: i64)                        i64!      = "curl_global_init"
 extern (C) fn curl_global_cleanup()                               void!     = "curl_global_cleanup"
@@ -63,7 +63,7 @@ type Buffer = {
 
 /// A heap-allocated HTTP response.
 type Response = {
-    body:   mut ref char
+    body:   mut ref u8
     status: mut i64
     len:    mut i64
 }
@@ -72,7 +72,7 @@ type I32Slot = { value: mut i32 }
 type I64Slot = { value: mut i64 }
 
 /// Internal write callback for curl.
-/// Signature matches: size_t write_fn(char *ptr, size_t size, size_t nmemb, void *userdata)
+/// Signature matches: size_t write_fn(u8 *ptr, size_t size, size_t nmemb, void *userdata)
 pub fn curl_write_cb(ptr: ref void, size: i64, nmemb: i64, userdata: ref void) i64! = {
     val total: i64          = size * nmemb
     val buf: mut ref Buffer = userdata as mut ref Buffer
@@ -121,7 +121,7 @@ fn do_request(handle: ref void) ref Response! = {
     @free(buf as ref void)
 
     val resp: mut ref Response = @alloc(24) as mut ref Response
-    resp.body   = body_ptr as ref char
+    resp.body   = body_ptr as ref u8
     resp.status = status
     resp.len    = body_len
     return resp
@@ -146,7 +146,7 @@ pub fn (Http) cleanup() void! = {
 
 /// Perform an HTTP GET request.
 /// Returns a heap-allocated Response; caller must call Http.free_response().
-pub fn (Http) get(url: ref char) ref Response! = {
+pub fn (Http) get(url: ref u8) ref Response! = {
     val handle: ref void = curl_easy_init()
     curl_easy_setopt(handle, CURLOPT_URL, url)
     val resp: ref Response = do_request(handle)
@@ -156,7 +156,7 @@ pub fn (Http) get(url: ref char) ref Response! = {
 
 /// Perform an HTTP POST request with a body string.
 /// Returns a heap-allocated Response; caller must call Http.free_response().
-pub fn (Http) post_request(url: ref char, body: ref char, content_type: ref char) ref Response! = {
+pub fn (Http) post_request(url: ref u8, body: ref u8, content_type: ref u8) ref Response! = {
     val handle: ref void  = curl_easy_init()
     val headers: ref void = curl_slist_append(none, content_type)
 
@@ -172,7 +172,7 @@ pub fn (Http) post_request(url: ref char, body: ref char, content_type: ref char
 }
 
 /// Perform an arbitrary HTTP request (GET, POST, PUT, DELETE, PATCH …).
-pub fn (Http) request(method: ref char, url: ref char, body: ref char, headers: ref void) ref Response! = {
+pub fn (Http) request(method: ref u8, url: ref u8, body: ref u8, headers: ref void) ref Response! = {
     val handle: ref void = curl_easy_init()
 
     curl_easy_setopt(handle, CURLOPT_URL,           url)
@@ -202,7 +202,7 @@ pub fn (Http) status(resp: ref Response) i64 = {
 }
 
 /// Read the body pointer from a Response.
-pub fn (Http) body(resp: ref Response) ref char = {
+pub fn (Http) body(resp: ref Response) ref u8 = {
     return resp.body
 }
 
@@ -212,12 +212,12 @@ pub fn (Http) body_len(resp: ref Response) i64 = {
 }
 
 /// Build a curl slist header list from a single "Key: Value" string.
-pub fn (Http) make_headers(header: ref char) ref void! = {
+pub fn (Http) make_headers(header: ref u8) ref void! = {
     return curl_slist_append(none, header)
 }
 
 /// Append a header to an existing slist.
-pub fn (Http) append_header(list: ref void, header: ref char) ref void! = {
+pub fn (Http) append_header(list: ref void, header: ref u8) ref void! = {
     return curl_slist_append(list, header)
 }
 
@@ -277,13 +277,13 @@ pub fn (TcpServer) accept(server: ref ServerHandle) i32! = {
 
 /// Send bytes over a client socket fd.
 /// Returns the number of bytes sent, or -1 on error.
-pub fn (TcpServer) send(client_fd: i32, data: ref char, len: i64) i64! = {
+pub fn (TcpServer) send(client_fd: i32, data: ref u8, len: i64) i64! = {
     return send(client_fd, data, len, 0)
 }
 
 /// Receive bytes from a client socket fd into buf (at most max_len bytes).
 /// Returns the number of bytes received, or -1 on error / 0 on close.
-pub fn (TcpServer) recv(client_fd: i32, buf: ref char, max_len: i64) i64! = {
+pub fn (TcpServer) recv(client_fd: i32, buf: ref u8, max_len: i64) i64! = {
     return recv(client_fd, buf, max_len, 0)
 }
 
@@ -313,12 +313,12 @@ val stdio = use("stdio.sx")
 test {
     Http.init()
 
-    val url: ref char      = "https://example.com"
+    val url: ref u8      = "https://example.com"
     val resp: ref Response = trust Http.get(url)
     assert resp != none
 
     val status: i64    = Http.status(resp)
-    val body_ptr: ref char = Http.body(resp)
+    val body_ptr: ref u8 = Http.body(resp)
 
     trust stdio.print("{d} {s}\n", {status, body_ptr})
 

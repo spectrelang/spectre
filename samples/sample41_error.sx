@@ -1,12 +1,12 @@
 type String = {
-    cstr: ref char
+    cstr: ref u8
     len: mut i32
 }
 
 union SomeUnion = {
-    Int32(i32) 
-    | Int64(i64) 
-    | ChrPtr(ref char) 
+    Int32(i32)
+    | Int64(i64)
+    | ChrPtr(ref u8)
     | Str(String)
     | Pair(i32, i32)
 }

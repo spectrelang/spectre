@@ -1,28 +1,28 @@
 val std = use("std")
 
 pub union TokenKind = {
-    Fn() | Val() | Ident(ref char) | Eof()
+    Fn() | Val() | Ident(ref u8) | Eof()
 }
 
 pub type Token = {
     kind: mut TokenKind
 }
 
-pub fn tokenize_simple(_: ref char) list[ref Token]! = {
+pub fn tokenize_simple(_: ref u8) list[ref Token]! = {
     val tokens: mut list[ref Token] = []
-    
+
     val t1: mut ref Token = @alloc(@sizeof(Token)) as ref Token
     t1.kind = Fn()
     @append(tokens, t1)
-    
+
     val t2: mut ref Token = @alloc(@sizeof(Token)) as ref Token
     t2.kind = Val()
     @append(tokens, t2)
-    
+
     val t3: mut ref Token = @alloc(@sizeof(Token)) as ref Token
     t3.kind = Eof()
     @append(tokens, t3)
-    
+
     return tokens
 }
 
@@ -38,7 +38,7 @@ pub fn main() void! = {
     @puts("Simple test 1")
     val toks = tokenize_simple("dummy")
     @puts("Simple test 2")
-    
+
     val opt0 = @get(toks, 0 as usize)
     @puts("Simple test 3")
     match opt0 {
@@ -56,6 +56,6 @@ pub fn main() void! = {
         }
         none => { @puts("ERROR: no token") assert false }
     }
-    
+
     @puts("Simple test 7 - all passed")
 }
