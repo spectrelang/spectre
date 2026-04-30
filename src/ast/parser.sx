@@ -267,7 +267,7 @@ fn make_str_lit(text: ref char, line: i64) result[ref Node, ref char]! = {
 pub fn str_lit_text(n: ref Node) ref char = { return n.d0 as ref char }
 
 fn str_eq(a: ref char, b: ref char) bool! = {
-    return std.string.compare(std.string.RChar(a), std.string.RChar(b)) == 0
+    return std.string.rchar_cmp(a, b) == 0
 }
 
 type Parser = {
@@ -2233,7 +2233,7 @@ test {
         }
         ok n  => {
             assert n.kind == NK_INT_LIT
-            assert std.string.compare(int_lit_text(n), "42") == 0
+            assert std.string.rchar_cmp(int_lit_text(n), "42") == 0
         }
     }
 
@@ -2250,7 +2250,7 @@ test {
         err _ => { assert false }
         ok n  => {
             assert n.kind == NK_STR_LIT
-            assert std.string.compare(str_lit_text(n), "hello") == 0
+            assert std.string.rchar_cmp(str_lit_text(n), "hello") == 0
         }
     }
 
@@ -2275,7 +2275,7 @@ test {
         err _ => { assert false }
         ok n  => {
             assert n.kind == NK_IDENT
-            assert std.string.compare(n.d0 as ref char, "foo") == 0
+            assert std.string.rchar_cmp(n.d0 as ref char, "foo") == 0
         }
     }
 
@@ -2331,7 +2331,7 @@ test {
             assert n.kind == NK_FIELD
             val base: ref Node = field_base(n)
             assert base.kind == NK_IDENT
-            assert std.string.compare(field_name(n), "field") == 0
+            assert std.string.rchar_cmp(field_name(n), "field") == 0
         }
     }
 

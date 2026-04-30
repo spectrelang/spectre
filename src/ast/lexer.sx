@@ -197,7 +197,7 @@ fn substr(src: ref char, start: i64, end: i64) ref char! = {
 }
 
 fn str_eq(a: ref char, b: ref char) bool! = {
-    return std.string.compare(std.string.RChar(a), std.string.RChar(b)) == 0
+    return std.string.rchar_cmp(a, b) == 0
 }
 
 fn keyword_kind(s: ref char) TokenKind! = {
@@ -631,8 +631,8 @@ test {
             assert kind_is_ident(tok_kind(toks, 0))
             assert kind_is_ident(tok_kind(toks, 1))
             assert kind_is_ident(tok_kind(toks, 2))
-            assert std.string.compare(std.string.RChar(tok_text(toks, 0)), std.string.RChar("foobar")) == 0
-            assert std.string.compare(std.string.RChar(tok_text(toks, 1)), std.string.RChar("hello_world")) == 0
+            assert std.string.rchar_cmp(tok_text(toks, 0), "foobar") == 0
+            assert std.string.rchar_cmp(tok_text(toks, 1), "hello_world") == 0
         }
     }
 
@@ -645,8 +645,8 @@ test {
             assert kind_is_int(tok_kind(toks, 0))
             assert kind_is_float(tok_kind(toks, 1))
             assert kind_is_int(tok_kind(toks, 2))
-            assert std.string.compare(tok_text(toks, 0), "42") == 0
-            assert std.string.compare(tok_text(toks, 2), "0xff") == 0
+            assert std.string.rchar_cmp(tok_text(toks, 0), "42") == 0
+            assert std.string.rchar_cmp(tok_text(toks, 2), "0xff") == 0
         }
     }
 
@@ -657,7 +657,7 @@ test {
         err _ => { assert false }
         ok toks => {
             assert kind_is_str(tok_kind(toks, 0))
-            assert std.string.compare(tok_text(toks, 0), "hello") == 0
+            assert std.string.rchar_cmp(tok_text(toks, 0), "hello") == 0
         }
     }
 
