@@ -101,7 +101,7 @@ pub fn main() i32! = {
     val exe_opt = @get(args, 0)
     
     when windows {
-        SetConsoleOutputCP(65001)
+        SetConsoleOutputCP(65001 as u32)
     }
 
     match exe_opt {
