@@ -2994,7 +2994,7 @@ fn translate_switch_statement(lines: list[ref char], start: i64, indent: i64, ou
                     continue
                 }
                 if std.string.rchar_starts_with(trimmed, "case ") {
-                    val colon_i: i64 = find_char(trimmed, 58)
+                    val colon_i: i64 = find_char(trimmed, 58 as u8)
                     if colon_i > 5 {
                         val label: ref char = trim_raw(std.string.substr(trimmed, 5, colon_i - 5))
                         val tail2: ref char = trim_raw(std.string.substr(trimmed, colon_i + 1, std.string.len_raw(trimmed) - colon_i - 1))
