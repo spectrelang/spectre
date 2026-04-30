@@ -1567,7 +1567,15 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref char) v
         check_expr(ctx, inner, filename)
         if inner != 0 as ref parser.Node {
             if inner.kind == parser.NK_IDENT {
-                mark_name_mutated(ctx, inner.d0 as ref char)
+                val vname: ref char = inner.d0 as ref char
+                val is_mut: i64 = scope_lookup(ctx, vname)
+                val is_ref: i64 = scope_lookup_is_ref(ctx, vname)
+                if is_mut != -1 && is_mut == 0 && is_ref == 0 {
+                    val ebuf: ref char = @alloc(512) as ref char
+                    @snprintf(ebuf, 512, "{s}:{lld}: cannot take address of immutable variable '{s}'; declare it as 'mut'", {filename, line, vname})
+                    add_error(ctx, ebuf)
+                }
+                mark_name_mutated(ctx, vname)
             } elif inner.kind == parser.NK_FIELD {
                 val root: ref parser.Node = find_root_ident(inner)
                 if root != 0 as ref parser.Node {
@@ -1881,6 +1889,20 @@ fn check_stmt(ctx: ref SemaCtx, stmt: ref parser.Node, filename: ref char) void!
                         }
                     }
                 }
+            } else {
+                check_expr(ctx, target, filename)
+            }
+        } elif target.kind == parser.NK_DEREF {
+            val inner_deref: ref parser.Node = target.d0 as ref parser.Node
+            if inner_deref != 0 as ref parser.Node && inner_deref.kind == parser.NK_IDENT {
+                val dname: ref char = inner_deref.d0 as ref char
+                val dmut: i64 = scope_lookup(ctx, dname)
+                if dmut != -1 && dmut == 0 {
+                    val ebuf: ref char = @alloc(512) as ref char
+                    @snprintf(ebuf, 512, "{s}:{lld}: cannot assign through immutable reference '{s}'; parameter must be declared 'mut ref'", {filename, line, dname})
+                    add_error(ctx, ebuf)
+                }
+                mark_name_mutated(ctx, dname)
             } else {
                 check_expr(ctx, target, filename)
             }
