@@ -609,6 +609,99 @@ fn str_eq(a: ref char, b: ref char) bool! = {
     return std.string.rchar_cmp(a, b) == 0
 }
 
+/// Extract the unqualified type name from a potentially qualified name.
+fn unqualified_type_name(tname: ref char) ref char! = {
+    if tname == 0 as ref char { return tname }
+    val last_dot: mut i64 = -1
+    val i: mut i64 = 0
+    for {
+        val c: u8 = @load8(@ptradd(tname as ref void, i))
+        if c == 0 { break }
+        if c == 46 { last_dot = i }
+        i++
+    }
+    if last_dot >= 0 {
+        return @ptradd(tname, last_dot + 1) as ref char
+    }
+    return tname
+}
+
+/// Check if two type names are compatible, considering:
+///
+/// - Qualified vs unqualified names (lexer.TokenKind == TokenKind)
+/// - Safe numeric conversions (i32 -> i64, u8 -> i64, etc.)
+fn types_compatible(param_type: ref char, arg_type: ref char) bool! = {
+    if str_eq(param_type, arg_type) { return true }
+    
+    val param_unqual: ref char = unqualified_type_name(param_type)
+    val arg_unqual: ref char = unqualified_type_name(arg_type)
+    
+    if str_eq(param_unqual, arg_unqual) { return true }
+    
+    if str_eq(param_unqual, "i64") {
+        if str_eq(arg_unqual, "i8") || str_eq(arg_unqual, "i16") || str_eq(arg_unqual, "i32") ||
+           str_eq(arg_unqual, "u8") || str_eq(arg_unqual, "u16") || str_eq(arg_unqual, "u32") ||
+           str_eq(arg_unqual, "usize") || str_eq(arg_unqual, "isize") || str_eq(arg_unqual, "bool") {
+            return true
+        }
+    }
+    
+    if str_eq(param_unqual, "i32") {
+        if str_eq(arg_unqual, "i8") || str_eq(arg_unqual, "i16") ||
+           str_eq(arg_unqual, "u8") || str_eq(arg_unqual, "u16") || str_eq(arg_unqual, "bool") {
+            return true
+        }
+    }
+    
+    if str_eq(param_unqual, "i16") {
+        if str_eq(arg_unqual, "i8") || str_eq(arg_unqual, "u8") || str_eq(arg_unqual, "bool") {
+            return true
+        }
+    }
+    
+    if str_eq(param_unqual, "u64") {
+        if str_eq(arg_unqual, "u8") || str_eq(arg_unqual, "u16") || str_eq(arg_unqual, "u32") ||
+           str_eq(arg_unqual, "usize") || str_eq(arg_unqual, "bool") {
+            return true
+        }
+    }
+    
+    if str_eq(param_unqual, "u32") {
+        if str_eq(arg_unqual, "u8") || str_eq(arg_unqual, "u16") || str_eq(arg_unqual, "bool") {
+            return true
+        }
+    }
+    
+    if str_eq(param_unqual, "u16") {
+        if str_eq(arg_unqual, "u8") || str_eq(arg_unqual, "bool") {
+            return true
+        }
+    }
+    
+    if str_eq(param_unqual, "f64") {
+        if str_eq(arg_unqual, "f32") {
+            return true
+        }
+    }
+    
+    if str_eq(param_unqual, "usize") {
+        if str_eq(arg_unqual, "u8") || str_eq(arg_unqual, "u16") || str_eq(arg_unqual, "u32") ||
+           str_eq(arg_unqual, "u64") || str_eq(arg_unqual, "bool") {
+            return true
+        }
+    }
+    
+    if str_eq(param_unqual, "isize") {
+        if str_eq(arg_unqual, "i8") || str_eq(arg_unqual, "i16") || str_eq(arg_unqual, "i32") ||
+           str_eq(arg_unqual, "i64") || str_eq(arg_unqual, "u8") || str_eq(arg_unqual, "u16") ||
+           str_eq(arg_unqual, "u32") || str_eq(arg_unqual, "bool") {
+            return true
+        }
+    }
+    
+    return false
+}
+
 /// Returns true if `name` is referenced as an identifier anywhere in `stmts`.
 fn stmts_use_name(stmts: ref void, name: ref char) bool! = {
     if stmts == 0 as ref void { return false }
@@ -1402,12 +1495,8 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref char) v
                                                 }
                                             }
                                         } elif !param_expects_ref && arg_type_name != 0 as ref char && !str_eq(arg_type_name, "") {
-                                            if !str_eq(param_type_name, arg_type_name) {
-                                                if !(str_eq(param_type_name, "i64") && (str_eq(arg_type_name, "i8") || str_eq(arg_type_name, "i16") || str_eq(arg_type_name, "i32") || str_eq(arg_type_name, "u8") || str_eq(arg_type_name, "u16") || str_eq(arg_type_name, "u32") || str_eq(arg_type_name, "usize") || str_eq(arg_type_name, "isize") || str_eq(arg_type_name, "bool"))) {
-                                                    if !(str_eq(param_type_name, "f64") && str_eq(arg_type_name, "f32")) {
-                                                        type_mismatch = true
-                                                    }
-                                                }
+                                            if !types_compatible(param_type_name, arg_type_name) {
+                                                type_mismatch = true
                                             }
                                         }
                                         

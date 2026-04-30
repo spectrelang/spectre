@@ -5038,7 +5038,7 @@ fn strip_gnu_attributes(text: ref char) ref char = {
                         j++
                     }
                     if j < len && (trust @load8(@ptradd(text as ref void, j)) as u8) == 40 {
-                        val close_j: i64 = find_matching_delim(text, j, 40, 41)
+                        val close_j: i64 = find_matching_delim(text, j, 40 as u8, 41 as u8)
                         if close_j > j {
                             i = close_j + 1
                             continue
@@ -5059,24 +5059,24 @@ fn strip_gnu_attributes(text: ref char) ref char = {
 }
 
 fn translate_function_decl(text: ref char, current_dir: ref char, indent: i64, out: ref void, ctx: ref TranslationCtx) bool = {
-    val has_body: bool = find_char(text, 123) >= 0
+    val has_body: bool = find_char(text, 123 as u8) >= 0
     val signature_src: mut ref char = ""
     val body_src: mut ref char = ""
     if has_body {
-        val open_i: i64 = find_char(text, 123)
-        val close_i: i64 = find_last_char(text, 125)
+        val open_i: i64 = find_char(text, 123 as u8)
+        val close_i: i64 = find_last_char(text, 125 as u8)
         if close_i <= open_i { return false }
         signature_src = trim_raw(std.string.substr(text, 0, open_i))
         body_src = std.string.substr(text, open_i + 1, close_i - open_i - 1)
     } else {
-        val semi_i: i64 = find_last_char(text, 59)
+        val semi_i: i64 = find_last_char(text, 59 as u8)
         if semi_i < 0 { return false }
         signature_src = trim_raw(std.string.substr(text, 0, semi_i))
         body_src = ""
     }
     val signature: ref char = flatten_ws(strip_gnu_attributes(signature_src))
-    val open_paren: i64 = find_char(signature, 40)
-    val close_paren: i64 = find_matching_delim(signature, open_paren, 40, 41)
+    val open_paren: i64 = find_char(signature, 40 as u8)
+    val close_paren: i64 = find_matching_delim(signature, open_paren, 40 as u8, 41 as u8)
     if open_paren < 0 || close_paren <= open_paren { return false }
     val head: ref char = trim_raw(std.string.substr(signature, 0, open_paren))
     val params_raw: ref char = trim_raw(std.string.substr(signature, open_paren + 1, close_paren - open_paren - 1))
