@@ -104,11 +104,11 @@ pub fn read_all(path: ref char) option[ref char]! = {
         none => { return none }
         some f => {
             val ptr: ref void = @load(f)
-            fseek(ptr, 0, 2)          // SEEK_END = 2
+            fseek(ptr, 0, 2 as i32)          // SEEK_END = 2
             val size: i64 = ftell(ptr)
             rewind(ptr)
             val buf: ref void = @alloc(size + 1)
-            fread(buf, 1, size as usize, ptr)
+            fread(buf, 1 as usize, size as usize, ptr)
             @store8(@ptradd(buf, size), 0)
             close(f)
             return some buf
@@ -145,7 +145,7 @@ pub fn read_line(f: ref void, buf: ref char, max_len: i64) bool! = {
 pub fn write(f: ref void, data: ref char) void! = {
     val ptr: ref void = @load(f)
     val l: i64 = strlen(data)
-    fwrite(data, 1, l as usize, ptr)
+    fwrite(data, 1 as usize, l as usize, ptr)
 }
 
 /// Write a string followed by a newline.
@@ -153,7 +153,7 @@ pub fn write_line(f: ref void, data: ref char) void! = {
     write(f, data)
     val nl: ref char = "\n"
     val ptr: ref void = @load(f)
-    fwrite(nl, 1, 1, ptr)
+    fwrite(nl, 1 as usize, 1 as usize, ptr)
 }
 
 /// Write the entire contents of data to path, overwriting any existing file.
@@ -182,26 +182,29 @@ pub fn append_all(path: ref char, data: ref char) bool! = {
     }
 }
 
-/// Delete a file.  Returns true on success.
+/// Delete a file.
+/// Returns true on success.
 pub fn delete(path: ref char) bool! = {
     val r: i32 = remove(path)
     return r == 0
 }
 
-/// Rename (or move) a file or directory.  Returns true on success.
+/// Rename (or move) a file or directory.
+/// Returns true on success.
 pub fn rename_path(old: ref char, new: ref char) bool! = {
     val r: i32 = rename(old, new)
     return r == 0
 }
 
-/// Create a directory.  mode is ignored on Windows; use 0755 on POSIX.
+/// Create a directory. Mode is ignored on Windows; use 0755 on POSIX.
 /// Returns true on success.
 pub fn mkdir_path(path: ref char) bool! = {
-    val r: i32 = mkdir(path, 493)   // 0755 octal = 493 decimal
+    val r: i32 = mkdir(path, 493 as u32)   // 0755 octal = 493 decimal
     return r == 0
 }
 
-/// Remove an empty directory.  Returns true on success.
+/// Remove an empty directory.
+/// Returns true on success.
 pub fn rmdir_path(path: ref char) bool! = {
     val r: i32 = rmdir(path)
     return r == 0
@@ -212,7 +215,7 @@ pub fn rmdir_path(path: ref char) bool! = {
 /// Caller must free the result.
 pub fn cwd() option[ref char] = {
     val buf: ref char = @alloc(4096) as ref char
-    val result: ref char = trust getcwd(buf, 4096)
+    val result: ref char = trust getcwd(buf, 4096 as usize)
     if (result == 0) {
         trust @free(buf)
         return none
