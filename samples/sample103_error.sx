@@ -1,0 +1,20 @@
+type SomeType = { x: i32 } 
+type SomeOtherType = { y: i32 }
+
+pub fn some_gen[T](x: T) T = {
+    when T is SomeType {
+        @puts("ok")
+        return x
+    }
+    when T is SomeOtherType {
+        @puts("good")
+        return x
+    }
+    when T !in (SomeType, SomeOtherType) {
+        @staticerror("unsupported type")
+    }
+}
+
+pub fn main() void = {
+    some_gen[ref char]("should error")
+}
