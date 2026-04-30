@@ -55,7 +55,7 @@ extern (C) fn fseek(f: ref void, off: i64, whence: i32) i32!                    
 extern (C) fn ftell(f: ref void) i64!                                             = "ftell"
 extern (C) fn rewind(f: ref void) void!                                           = "rewind"
 
-val MEMORY_SIZE: usize  = 4096
+val MEMORY_SIZE: usize    = 4096
 val DISPLAY_WIDTH: usize  = 64
 val DISPLAY_HEIGHT: usize = 32
 val DISPLAY_SIZE: usize   = 2048
@@ -251,32 +251,32 @@ fn chip8_init(chip: mut ref Chip8) void = {
   val i: mut usize = 0
   for {
     if i >= DISPLAY_SIZE { break }
-    set_gfx(chip, i, 0)
-    i = i + 1
+    set_gfx(chip, i, 0 as u8)
+    i++
   }
   i = 0
   for {
     if i >= NUM_REGISTERS { break }
-    set_v(chip, i, 0)
-    i = i + 1
+    set_v(chip, i, 0 as u8)
+    i++
   }
   i = 0
   for {
     if i >= STACK_SIZE { break }
-    set_stack(chip, i, 0)
-    i = i + 1
+    set_stack(chip, i, 0 as u16)
+    i++
   }
   i = 0
   for {
     if i >= NUM_KEYS { break }
-    set_key(chip, i, 0)
-    i = i + 1
+    set_key(chip, i, 0 as u8)
+    i++
   }
   i = 0
   for {
     if i >= MEMORY_SIZE { break }
-    mem_set(chip, i as u16, 0)
-    i = i + 1
+    mem_set(chip, i as u16, 0 as u8)
+    i++
   }
   i = 0
   for {
@@ -285,7 +285,7 @@ fn chip8_init(chip: mut ref Chip8) void = {
       some b => { mem_set(chip, i as u16, b) }
       none => { }
     }
-    i = i + 1
+    i++
   }
 }
 
@@ -298,7 +298,7 @@ fn chip8_load(chip: mut ref Chip8, path: ref u8) bool = {
     return false
   }
 
-  trust fseek(f, 0, 2)
+  trust fseek(f, 0 as i32, 2 as i32)
   val rom_len: i64 = trust ftell(f)
   trust rewind(f)
 
@@ -309,7 +309,7 @@ fn chip8_load(chip: mut ref Chip8, path: ref u8) bool = {
   }
 
   val buf: ref void = @alloc(rom_len as usize)
-  trust fread(buf, 1, rom_len as usize, f)
+  trust fread(buf, 1 as usize, rom_len as usize, f)
   trust fclose(f)
 
   val j: mut i64 = 0
@@ -336,7 +336,7 @@ fn chip8_emulateCycle(chip: mut ref Chip8) void = {
       val i: mut usize = 0
       for {
         if i >= DISPLAY_SIZE { break }
-        set_gfx(chip, i, 0)
+        set_gfx(chip, i, 0 as u8)
         i = i + 1
       }
       chip.drawFlag = true
@@ -407,9 +407,9 @@ fn chip8_emulateCycle(chip: mut ref Chip8) void = {
       val vx: u8 = get_v(chip, x)
       val vy: u8 = get_v(chip, y)
       if vy > (0xFF as u8 - vx) {
-        set_v(chip, 0xF, 1)
+        set_v(chip, 0xF, 1 as u8)
       } else {
-        set_v(chip, 0xF, 0)
+        set_v(chip, 0xF, 0 as usize)
       }
       set_v(chip, x, vx + vy)
       chip.pc = chip.pc + 2
@@ -640,14 +640,14 @@ pub fn main() void = {
         return
       }
 
-      val renderer: ref void = trust SDL_CreateRenderer(window, -1, 0)
+      val renderer: ref void = trust SDL_CreateRenderer(window, -1 as i32, 0 as u32)
       trust SDL_RenderSetLogicalSize(renderer, WIN_W, WIN_H)
 
       val texture: ref void = trust SDL_CreateTexture(
         renderer,
         SDL_PIXELFORMAT_ARGB8888,
         SDL_TEXTUREACCESS_STREAMING,
-        64, 32
+        64 as i32, 32 as i32
       )
 
       val pixels: ref void = @alloc(DISPLAY_SIZE * 4)
@@ -677,7 +677,7 @@ pub fn main() void = {
               match @get(keypad_map, ki) {
                 some mapped => {
                   if mapped == sym {
-                    set_key(chip, ki, 1)
+                    set_key(chip, ki, 1 as u8)
                   }
                 }
                 none => { }
@@ -693,7 +693,7 @@ pub fn main() void = {
               match @get(keypad_map, ki) {
                 some mapped => {
                   if mapped == sym {
-                    set_key(chip, ki, 0)
+                    set_key(chip, ki, 0 as u8)
                   }
                 }
                 none => { }
@@ -723,7 +723,7 @@ pub fn main() void = {
           trust SDL_RenderPresent(renderer)
         }
 
-        trust SDL_Delay(1)
+        trust SDL_Delay(1 as u32)
       }
 
       trust @free(pixels)
