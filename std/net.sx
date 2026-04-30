@@ -246,21 +246,21 @@ pub fn (TcpServer) listen(port: i32) ref ServerHandle! = {
 
     val one: mut ref I32Slot = @alloc(4) as mut ref I32Slot
     one.value = 1
-    setsockopt(fd, sol_socket, so_reuseaddr, one as ref void, 4)
+    setsockopt(fd, sol_socket, so_reuseaddr, one as ref void, 4 as i32)
     @free(one as ref void)
 
     // sockaddr_in has i16 fields (sin_family, sin_port); no i16 in this language,
     // so build it manually: zero 16 bytes, store sin_family=AF_INET at byte 0,
     // then sin_port (network byte order) at byte 2.
     val address: mut ref void = @alloc(16)
-    memset(address, 0, 16)
+    memset(address, 0 as i32, 16)
     @store(address, 2)
     val net_port: i32     = htons(port)
     val port_ptr: mut ref void = @ptradd(address, 2)
     @store(port_ptr, net_port)
 
-    bind(fd, address, 16)
-    listen(fd, 128)
+    bind(fd, address, 16 as i32)
+    listen(fd, 128 as i32)
     @free(address)
 
     val handle: mut ref ServerHandle = @alloc(16) as mut ref ServerHandle
@@ -278,13 +278,13 @@ pub fn (TcpServer) accept(server: ref ServerHandle) i32! = {
 /// Send bytes over a client socket fd.
 /// Returns the number of bytes sent, or -1 on error.
 pub fn (TcpServer) send(client_fd: i32, data: ref u8, len: i64) i64! = {
-    return send(client_fd, data, len, 0)
+    return send(client_fd, data, len, 0 as i32)
 }
 
 /// Receive bytes from a client socket fd into buf (at most max_len bytes).
 /// Returns the number of bytes received, or -1 on error / 0 on close.
 pub fn (TcpServer) recv(client_fd: i32, buf: ref u8, max_len: i64) i64! = {
-    return recv(client_fd, buf, max_len, 0)
+    return recv(client_fd, buf, max_len, 0 as i32)
 }
 
 /// Close a client socket fd.
@@ -329,7 +329,7 @@ test {
     assert body_len >= 0
     trust Http.free_response(resp)
 
-    val server: ref ServerHandle = trust TcpServer.listen(8080)
+    val server: ref ServerHandle = trust TcpServer.listen(8080 as i32)
     assert server != none
     val listen_fd: i32    = TcpServer.fd(server)
     val listen_port: i64  = TcpServer.port(server)
