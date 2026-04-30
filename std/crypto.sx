@@ -544,20 +544,20 @@ pub fn unique_nonce() ref char! = {
 test {
     assert trust hash_fnv(0) != trust hash_fnv(1)
 
-    val sha: string.String = sha256[ref char]("abc")
-    val sha_hex: mut ref char = hex_encode[string.String](sha)
+    val sha: string.String = trust sha256[ref char]("abc")
+    val sha_hex: mut ref char = trust hex_encode[string.String](sha)
     trust @free(sha_hex)
     trust string.string_free(sha)
 
-    val hmac_out: string.String = hmac_sha256[ref char](
+    val hmac_out: string.String = trust hmac_sha256[ref char](
         "key",
         "The quick brown fox jumps over the lazy dog"
     )
-    val hmac_hex: mut ref char = hex_encode[string.String](hmac_out)
+    val hmac_hex: mut ref char = trust hex_encode[string.String](hmac_out)
     trust @free(hmac_hex)
     trust string.string_free(hmac_out)
 
-    val encoded_hex: mut ref char = hex_encode[ref char]("hi")
+    val encoded_hex: mut ref char = trust hex_encode[ref char]("hi")
     trust @free(encoded_hex)
 
     val decoded_hex_res = trust hex_decode("6869")
@@ -577,7 +577,7 @@ test {
         err e => { assert e == CryptoError.InvalidHexDigit }
     }
 
-    val encoded_b64: mut ref char = base64_encode[ref char]("hello")
+    val encoded_b64: mut ref char = trust base64_encode[ref char]("hello")
     trust @free(encoded_b64)
 
     val decoded_b64_res = trust base64_decode("aGVsbG8=")
@@ -599,9 +599,9 @@ test {
         }
     }
 
-    assert ct_eq[ref char]("same", "same")
-    assert !(ct_eq[ref char]("same", "different"))
-    assert !(ct_eq[ref char]("same", "same!"))
+    assert trust ct_eq[ref char]("same", "same")
+    assert !(trust ct_eq[ref char]("same", "different"))
+    assert !(trust ct_eq[ref char]("same", "same!"))
 
     val nonce1: mut ref char = trust unique_nonce()
     val nonce2: mut ref char = trust unique_nonce()

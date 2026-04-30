@@ -166,7 +166,12 @@ pub fn unop_inner(n: ref Node) ref Node = { return n.d1 as ref Node }
 pub fn fixed_arr_size(n: ref Node) i64 = { return n.d0 }
 pub fn fixed_arr_inner(n: ref Node) ref Node = { return n.d1 as ref Node }
 pub fn fixed_arr_size_name(n: ref Node) ref char = { return n.d2 as ref char }
-pub fn fn_is_unsafe(n: ref Node) bool = { return (n.d6 & FN_FLAG_UNSAFE) != 0 }
+pub fn fn_is_unsafe(n: ref Node) bool = { 
+    if n.kind == NK_GENERIC_FN {
+        return ((n.d0 >> 1) & 1) != 0
+    }
+    return (n.d6 & FN_FLAG_UNSAFE) != 0 
+}
 pub fn extern_fn_is_variadic(n: ref Node) bool = { return (n.d6 & EXTERN_FLAG_VARIADIC) != 0 }
 pub fn extern_fn_uses_header(n: ref Node) bool = { return (n.d6 & EXTERN_FLAG_HEADER) != 0 }
 
