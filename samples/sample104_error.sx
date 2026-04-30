@@ -1,0 +1,7 @@
+pub fn some_function(x: ref u8) void = {
+    trust @print("{s}", {x})
+}
+
+pub fn main() void = {
+    some_function(2)
+}
