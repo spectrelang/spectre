@@ -6,7 +6,7 @@ extern (C) fn puts(str: ref u8) void! = "puts"
 // compile-time error if theyre not.
 
 pub fn main() void! = {
-    val ptr: ref void = my_malloc(16)
+    val ptr: ref void = my_malloc(16 as usize)
     if (ptr != none) {
         my_free(ptr)
     }

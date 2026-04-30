@@ -8,5 +8,5 @@ pub fn safe_func(x: i32, y: i32) void = {
 }
 
 pub fn main() void = {
-    safe_func(11, 11)
+    safe_func(11 as i32, 11 as i32)
 }
