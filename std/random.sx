@@ -20,14 +20,14 @@ pub fn random_bytes(buf: ref void, len: usize) void = {
         trust arc4random_buf(buf, len)
     }
     when windows {
-        trust BCryptGenRandom(0 as ref void, buf, len as u32, 2)
+        trust BCryptGenRandom(0 as ref void, buf, len as u32, 2 as u32)
     }
 }
 
 /// Return a cryptographically secure random u64.
 pub fn random_u64() u64 = {
     val buf: ref void = @alloc(8)
-    random_bytes(buf, 8)
+    random_bytes(buf, 8 as u32)
     val result: u64 = trust @load(buf) as u64
     trust @free(buf)
     return result
@@ -45,7 +45,7 @@ pub fn random_u32_below(upper_bound: u32) u32 = {
         val threshold: u32 = (4294967295 as u32 % upper_bound + 1) % upper_bound
         for {
             val buf: ref void = @alloc(4)
-            trust BCryptGenRandom(0 as ref void, buf, 4, 2)
+            trust BCryptGenRandom(0 as ref void, buf, 4 as u32, 2 as u32)
             val r: u32 = trust @load(buf) as u32
             trust @free(buf)
             if r >= threshold { return r % upper_bound }
@@ -60,7 +60,7 @@ pub fn random_u32_below(upper_bound: u32) u32 = {
 /// Format: xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx  (RFC 4122)
 pub fn random_uuid() ref char! = {
     val rnd: ref void = @alloc(16)
-    random_bytes(rnd, 16)
+    random_bytes(rnd, 16 as usize)
 
     val hi: u64 = @load(rnd) as u64
     val lo: u64 = @load(@ptradd(rnd, 8)) as u64
@@ -84,7 +84,7 @@ test {
     val r2 = random_u64()
     assert r1 != r2
 
-    val r3 = random_u32_below(100)
+    val r3 = random_u32_below(100 as u32)
     assert r3 >= 0
     assert r3 < 100
 
