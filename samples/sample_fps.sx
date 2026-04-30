@@ -496,17 +496,17 @@ pub fn main() i32 = {
     g_dst_rect = @alloc(@sizeof(SDL_Rect)) as ref SDL_Rect
     g_aux_rect = @alloc(@sizeof(SDL_Rect)) as ref SDL_Rect
 
-    val ep0: ref Enemy = trust get_enemy(0)
+    val ep0: mut ref Enemy = trust get_enemy(0)
     @deref(ep0) = {x: 544.0, y: 544.0, health: 3, alive: 1, shootTimer: 2.0}
-    val ep1: ref Enemy = trust get_enemy(1)
+    val ep1: mut ref Enemy = trust get_enemy(1)
     @deref(ep1) = {x: 992.0, y: 96.0,  health: 3, alive: 1, shootTimer: 2.5}
-    val ep2: ref Enemy = trust get_enemy(2)
+    val ep2: mut ref Enemy = trust get_enemy(2)
     @deref(ep2) = {x: 672.0, y: 864.0, health: 3, alive: 1, shootTimer: 1.5}
-    val ep3: ref Enemy = trust get_enemy(3)
+    val ep3: mut ref Enemy = trust get_enemy(3)
     @deref(ep3) = {x: 352.0, y: 416.0, health: 3, alive: 1, shootTimer: 3.0}
-    val ep4: ref Enemy = trust get_enemy(4)
+    val ep4: mut ref Enemy = trust get_enemy(4)
     @deref(ep4) = {x: 224.0, y: 864.0, health: 3, alive: 1, shootTimer: 2.0}
-    val ep5: ref Enemy = trust get_enemy(5)
+    val ep5: mut ref Enemy = trust get_enemy(5)
     @deref(ep5) = {x: 928.0, y: 416.0, health: 3, alive: 1, shootTimer: 1.8}
 
     val es: ref void = trust IMG_Load("samples/sprites/enemy.gif")
@@ -639,12 +639,12 @@ pub fn main() i32 = {
             trust SDL_RenderClear(renderer)
 
             trust SDL_SetRenderDrawColor(renderer, 40 as u8, 40 as u8, 40 as u8, 255 as u8)
-            val ceiling: ref SDL_Rect = @alloc(@sizeof(SDL_Rect))
+            val ceiling: mut ref SDL_Rect = @alloc(@sizeof(SDL_Rect))
             @deref(ceiling) = {x: 0, y: 0, w: SCREEN_WIDTH, h: SCREEN_HEIGHT / 2}
             trust SDL_RenderFillRect(renderer, ceiling)
 
             trust SDL_SetRenderDrawColor(renderer, 25 as u8, 25 as u8, 25 as u8, 255 as u8)
-            val floorRect: ref SDL_Rect = @alloc(@sizeof(SDL_Rect))
+            val floorRect: mut ref SDL_Rect = @alloc(@sizeof(SDL_Rect))
             @deref(floorRect) = {x: 0, y: SCREEN_HEIGHT / 2, w: SCREEN_WIDTH, h: SCREEN_HEIGHT / 2}
             trust SDL_RenderFillRect(renderer, floorRect)
 
@@ -742,7 +742,7 @@ pub fn main() i32 = {
 
                     trust SDL_SetRenderDrawColor(renderer, r, 0 as u8, 0 as u8, 255 as u8)
 
-                    val slice: ref SDL_Rect = @alloc(@sizeof(SDL_Rect))
+                    val slice: mut ref SDL_Rect = @alloc(@sizeof(SDL_Rect))
                     @deref(slice) = {
                         x: i,
                         y: ((960.0 - h) / 2.0) as i32,
@@ -771,7 +771,7 @@ pub fn main() i32 = {
                                 some v => {
                                     if v > 0 {
                                         trust SDL_SetRenderDrawColor(renderer, 120 as u8, 120 as u8, 120 as u8, 255 as u8)
-                                        val w: ref SDL_Rect = @alloc(@sizeof(SDL_Rect))
+                                        val w: mut ref SDL_Rect = @alloc(@sizeof(SDL_Rect))
                                         @deref(w) = {
                                             x: (mar + (x as f32) * mt) as i32,
                                             y: (mar + (y as f32) * mt) as i32,
@@ -795,7 +795,7 @@ pub fn main() i32 = {
             }
 
             trust SDL_SetRenderDrawColor(renderer, 255 as u8, 255 as u8, 0 as u8, 255 as u8)
-            val mp: ref SDL_Rect = @alloc(@sizeof(SDL_Rect))
+            val mp: mut ref SDL_Rect = @alloc(@sizeof(SDL_Rect))
             @deref(mp) = {
                 x: (mar + player.x * ms - 4.0) as i32,
                 y: (mar + player.y * ms - 4.0) as i32,
@@ -813,7 +813,7 @@ pub fn main() i32 = {
                     } else {
                         trust SDL_SetRenderDrawColor(renderer, 60 as u8, 60 as u8, 60 as u8, 255 as u8)
                     }
-                    val meRect: ref SDL_Rect = @alloc(@sizeof(SDL_Rect))
+                    val meRect: mut ref SDL_Rect = @alloc(@sizeof(SDL_Rect))
                     @deref(meRect) = {
                         x: (mar + me.x * ms - 3.0) as i32,
                         y: (mar + me.y * ms - 3.0) as i32,
@@ -832,16 +832,16 @@ pub fn main() i32 = {
 
             if hitFlashTimer > 0.0 {
                 trust SDL_SetRenderDrawColor(renderer, 200 as u8, 0 as u8, 0 as u8, 255 as u8)
-                val ht: ref SDL_Rect = @alloc(@sizeof(SDL_Rect))
+                val ht: mut ref SDL_Rect = @alloc(@sizeof(SDL_Rect))
                 @deref(ht) = {x: 0, y: 0, w: SCREEN_WIDTH, h: 10}
                 trust SDL_RenderFillRect(renderer, ht)
-                val hb: ref SDL_Rect = @alloc(@sizeof(SDL_Rect))
+                val hb: mut ref SDL_Rect = @alloc(@sizeof(SDL_Rect))
                 @deref(hb) = {x: 0, y: SCREEN_HEIGHT - 10, w: SCREEN_WIDTH, h: 10}
                 trust SDL_RenderFillRect(renderer, hb)
-                val hl: ref SDL_Rect = @alloc(@sizeof(SDL_Rect))
+                val hl: mut ref SDL_Rect = @alloc(@sizeof(SDL_Rect))
                 @deref(hl) = {x: 0, y: 0, w: 10, h: SCREEN_HEIGHT}
                 trust SDL_RenderFillRect(renderer, hl)
-                val hr: ref SDL_Rect = @alloc(@sizeof(SDL_Rect))
+                val hr: mut ref SDL_Rect = @alloc(@sizeof(SDL_Rect))
                 @deref(hr) = {x: SCREEN_WIDTH - 10, y: 0, w: 10, h: SCREEN_HEIGHT}
                 trust SDL_RenderFillRect(renderer, hr)
             }
