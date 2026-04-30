@@ -22,7 +22,7 @@ fn some_function(_: i32) i32 = {
 pub fn main() void = {
     stdio.puts("Hello, world.")
     
-    some_function(10)
+    some_function(10 as i32)
     val st: SomeType = {x: 10, y: 20}
     val sum: i64 = SomeType.add(st)
 
