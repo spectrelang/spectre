@@ -10,7 +10,7 @@ extern (C) fn popen(cmd: ref char, mode: ref char) ref void! = "popen"
 extern (C) fn pclose(pipe: ref void) i32! = "pclose"
 extern (C) fn system(cmd: ref char) i32! = "system"
 
-pub extern (C) fn exit(code: i32) void! = "exit"
+pub extern (C) fn exit(code: i64) void! = "exit"
 
 pub enum ProcessError = {
     FailedToStart,
@@ -28,7 +28,7 @@ pub fn env(var: ref char) option[ref char] = {
 
 /// Check if a file exists at the given path.
 pub fn exists(path: ref char) bool = {
-    val result: i32 = trust access(path, 0)
+    val result: i32 = trust access(path, 0 as i32)
     return result == 0
 }
 

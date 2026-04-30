@@ -380,56 +380,56 @@ pub fn (Map) clear(map: self) void = {
 
 test {
     @puts("STARTING 2")
-    val m = trust Map.new(8, @addr(hash_identity))
+    val m = trust Map.new(8 as usize, @addr(hash_identity))
 
     assert Map.len(m) == 0
 
-    trust Map.set(m, 1, 100)
-    trust Map.set(m, 2, 200)
-    trust Map.set(m, 3, 300)
+    trust Map.set(m, 1 as usize, 100 as usize)
+    trust Map.set(m, 2 as usize, 200 as usize)
+    trust Map.set(m, 3 as usize, 300 as usize)
 
     assert Map.len(m) == 3
 
-    match Map.get(m, 1) {
+    match Map.get(m, 1 as usize) {
         some v => { assert(v == 100) }
         none   => { assert(false) }
     }
-    match Map.get(m, 2) {
+    match Map.get(m, 2 as usize) {
         some v => { assert(v == 200) }
         none   => { assert(false) }
     }
-    match Map.get(m, 3) {
+    match Map.get(m, 3 as usize) {
         some v => { assert(v == 300) }
         none   => { assert(false) }
     }
-    match Map.get(m, 99) {
+    match Map.get(m, 99 as usize) {
         some _ => { assert(false) }
         none   => {}
     }
 
-    trust Map.set(m, 1, 999)
-    match Map.get(m, 1) {
+    trust Map.set(m, 1 as usize, 999 as usize)
+    match Map.get(m, 1 as usize) {
         some v => { assert(v == 999) }
         none   => { assert(false) }
     }
 
     assert Map.len(m) == 3
-    assert Map.contains(m, 2)
-    assert !Map.contains(m, 42)
+    assert Map.contains(m, 2 as usize)
+    assert !Map.contains(m, 42 as usize)
 
-    val deleted = trust Map.delete(m, 2)
+    val deleted = trust Map.delete(m, 2 as usize)
     assert deleted == 1
     assert Map.len(m) == 2
-    assert !Map.contains(m, 2)
+    assert !Map.contains(m, 2 as usize)
 
-    val not_deleted = trust Map.delete(m, 2)
+    val not_deleted = trust Map.delete(m, 2 as usize)
     assert not_deleted == 0
 
     Map.clear(m)
     assert Map.len(m) == 0
-    assert !Map.contains(m, 1)
+    assert !Map.contains(m, 1 as usize)
 
-    val big = trust Map.new(4, @addr(hash_identity))
+    val big = trust Map.new(4 as usize, @addr(hash_identity))
 
     for (i = 0; i < 20; i++) {
         trust Map.set(big, i, i * 10)
@@ -450,7 +450,7 @@ test {
 
 
 test {
-    val list: ref void = trust PtrList.new(2)?
+    val list: ref void = trust PtrList.new(2 as usize)?
     defer {
         trust PtrList.free(list)
     }
@@ -458,39 +458,39 @@ test {
     assert(PtrList.len(list) == 0)
     assert(PtrList.cap(list) == 2)
 
-    trust PtrList.push(list, 42)?
-    trust PtrList.push(list, 84)?
+    trust PtrList.push(list, 42 as usize)?
+    trust PtrList.push(list, 84 as usize)?
 
     assert(PtrList.len(list) == 2)
-    assert(PtrList.get(list, 0) == some 42)
-    assert(PtrList.get(list, 1) == some 84)
+    assert(PtrList.get(list, 0 as usize) == some 42)
+    assert(PtrList.get(list, 1 as usize) == some 84)
 
-    trust PtrList.push(list, 126)?
+    trust PtrList.push(list, 126 as usize)?
 
     assert(PtrList.len(list) == 3)
     assert(PtrList.cap(list) >= 3)
-    assert(PtrList.get(list, 2) == some 126)
-    assert(PtrList.set(list, 1, 99) == 1)
-    assert(PtrList.get(list, 1) == some 99)
+    assert(PtrList.get(list, 2 as usize) == some 126)
+    assert(PtrList.set(list, 1 as usize, 99 as usize) == 1)
+    assert(PtrList.get(list, 1 as usize) == some 99)
     assert(PtrList.pop(list) == some 126)
     assert(PtrList.len(list) == 2)
     assert(PtrList.pop(list) == some 99)
     assert(PtrList.pop(list) == some 42)
 
-    val list2: ref void = trust PtrList.new(1)?
+    val list2: ref void = trust PtrList.new(1 as usize)?
     defer {
         trust PtrList.free(list2)
     }
 
-    trust PtrList.push(list2, 10)?
-    assert(PtrList.get(list2, 0) == some 10)
+    trust PtrList.push(list2, 10 as usize)?
+    assert(PtrList.get(list2, 0 as usize) == some 10)
 
-    val list3: ref void = trust PtrList.new(1)?
+    val list3: ref void = trust PtrList.new(1 as usize)?
     defer {
         trust PtrList.free(list3)
     }
 
-    trust PtrList.push(list3, 5)?
+    trust PtrList.push(list3, 5 as usize)?
 
     stdio.puts("list tests passed")
 }
@@ -569,7 +569,7 @@ pub fn (StringMap) set(map: self, key: ref char, value: usize) void! = {
     val copy: ref void = @alloc(kl + 1)
     @memcpy(copy, key, kl)
     @store8(@ptradd(copy, kl), 0)
-    Map.set(map, copy as usize, value)
+    Map.set(map as Map, copy as usize, value)
 }
 
 /// Look up a string key. Returns some(value) or none.
@@ -638,7 +638,7 @@ pub fn (StringMap) delete(map: self, key: ref char) usize! = {
 
 /// Return the number of live entries.
 pub fn (StringMap) len(map: self) usize = {
-    return Map.len(map)
+    return Map.len(map as Map)
 }
 
 /// Free all heap-copied keys, then free the map itself.
@@ -653,22 +653,21 @@ pub fn (StringMap) free(map: self) void! = {
             @free(k)
         }
     }
-    Map.free(map)
 }
 
 test {
     @puts("sm: new")
-    val m = trust StringMap.new(8)
+    val m = trust StringMap.new(8 as usize)
 
     @puts("sm: len==0")
     assert StringMap.len(m) == 0
 
     @puts("sm: set hello")
-    trust StringMap.set(m, "hello", 1)
+    trust StringMap.set(m, "hello", 1 as usize)
     @puts("sm: set world")
-    trust StringMap.set(m, "world", 2)
+    trust StringMap.set(m, "world", 2 as usize)
     @puts("sm: set foo")
-    trust StringMap.set(m, "foo",   3)
+    trust StringMap.set(m, "foo",   3 as usize)
 
     @puts("sm: len==3")
     assert StringMap.len(m) == 3
@@ -696,7 +695,7 @@ test {
     }
 
     @puts("sm: update hello=99")
-    trust StringMap.set(m, "hello", 99)
+    trust StringMap.set(m, "hello", 99 as usize)
     @puts("sm: get hello==99")
     match StringMap.get(m, "hello") {
         some v => { assert(v == 99) }
@@ -742,7 +741,7 @@ pub fn (IndexMap) new(initial_cap: usize) ref void! = {
     match keys_res {
         ok k  => { keys = k }
         err _ => {
-            val fallback = PtrList.new(1)
+            val fallback = PtrList.new(1 as usize)
             match fallback {
                 ok k  => { keys = k }
                 err _ => {}
@@ -801,7 +800,7 @@ pub fn (IndexMap) delete(map: self, key: ref char) usize! = {
                         val k: ref char = p as ref char
                         if str_eq(k, key) {
                             @free(k)
-                            PtrList.set(keys, i, 0)
+                            PtrList.set(keys, i, 0 as usize)
                             break
                         }
                     }
@@ -876,13 +875,13 @@ pub fn (IndexMap) free(map: mut self) void! = {
 }
 
 test {
-    val m = trust IndexMap.new(8)
+    val m = trust IndexMap.new(8 as usize)
 
     assert IndexMap.len(m) == 0
 
-    trust IndexMap.set(m, "c", 3)
-    trust IndexMap.set(m, "a", 1)
-    trust IndexMap.set(m, "b", 2)
+    trust IndexMap.set(m, "c", 3 as usize)
+    trust IndexMap.set(m, "a", 1 as usize)
+    trust IndexMap.set(m, "b", 2 as usize)
 
     assert IndexMap.len(m) == 3
     assert IndexMap.contains(m, "a")
@@ -903,22 +902,22 @@ test {
         none   => { assert false }
     }
 
-    trust IndexMap.set(m, "a", 99)
+    trust IndexMap.set(m, "a", 99 as usize)
     match trust IndexMap.get(m, "a") {
         some v => { assert v == 99 }
         none   => { assert false }
     }
     assert IndexMap.len(m) == 3
 
-    match IndexMap.key_at(m, 0) {
+    match IndexMap.key_at(m, 0 as usize) {
         some k => { assert trust str_eq(k, "c") }
         none   => { assert false }
     }
-    match IndexMap.key_at(m, 1) {
+    match IndexMap.key_at(m, 1 as usize) {
         some k => { assert trust str_eq(k, "a") }
         none   => { assert false }
     }
-    match IndexMap.key_at(m, 2) {
+    match IndexMap.key_at(m, 2 as usize) {
         some k => { assert trust str_eq(k, "b") }
         none   => { assert false }
     }
@@ -928,11 +927,11 @@ test {
     assert IndexMap.len(m) == 2
     assert !IndexMap.contains(m, "a")
 
-    match IndexMap.key_at(m, 0) {
+    match IndexMap.key_at(m, 0 as usize) {
         some k => { assert trust str_eq(k, "c") }
         none   => { assert false }
     }
-    match IndexMap.key_at(m, 1) {
+    match IndexMap.key_at(m, 1 as usize) {
         some k => { assert trust str_eq(k, "b") }
         none   => { assert false }
     }
