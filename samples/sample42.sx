@@ -15,11 +15,11 @@ union SomeUnion = {
 
 pub fn main() void! = {
     val examples: list[SomeUnion] = [
-        Int32(42),
+        Int32(42 as i32),
         Int64(1234567890123),
         ChrPtr("hello"),
         Str({ cstr: "world", len: 5 }),
-        Pair(5, 10)
+        Pair(5 as i32, 10 as i32)
     ]
 
     for x in examples {
