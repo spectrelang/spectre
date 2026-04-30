@@ -300,9 +300,9 @@ test {
             @puts("2.5")
             trust @print("content: {s}\n", {content})
 
-            trust stdio.print("{s} {d}\n", {content, str.compare(str.RChar(content), str.RChar("Hello, Spectre!"))})
+            trust stdio.print("{s} {d}\n", {content, str.compare[ref char, ref char](content, "Hello, Spectre!")})
             @puts("2.6")
-            assert trust str.compare(str.RChar(content), str.RChar("Hello, Spectre!")) == 0
+            assert str.compare[ref char, ref char](content, "Hello, Spectre!") == 0
             trust @free(content)
         }
     }
@@ -315,7 +315,7 @@ test {
     match content2_opt {
         none => { assert false }
         some content2 => {
-            assert trust str.compare(str.RChar(content2), str.RChar("Hello, Spectre! More text.")) == 0
+            assert str.compare[ref char, ref char](content2, "Hello, Spectre! More text.") == 0
             trust @free(content2)
         }
     }
@@ -329,7 +329,7 @@ test {
     match content3_opt {
         none => { assert false }
         some content3 => {
-            assert trust str.compare(str.RChar(content3), str.RChar("Overwritten.")) == 0
+            assert str.compare[ref char, ref char](content3, "Overwritten.") == 0
             trust @free(content3)
         }
     }
@@ -368,11 +368,11 @@ test {
             val buf: ref char = @alloc(128)
             val got1 = trust read_line(rh, buf, 128)
             assert got1
-            assert trust str.compare(str.RChar(buf), str.RChar("line one")) == 0
+            assert str.compare[ref char, ref char](buf, "line one") == 0
 
             val got2 = trust read_line(rh, buf, 128)
             assert got2
-            assert trust str.compare(str.RChar(buf), str.RChar("line two")) == 0
+            assert str.compare[ref char, ref char](buf, "line two") == 0
 
             val got3 = trust read_line(rh, buf, 128)
             assert !got3
@@ -402,10 +402,10 @@ test {
                 count++
                 trust @print("entry: '{s}'\n", {entry})
         
-                if trust str.compare(str.RChar(entry), str.RChar("a.txt")) == 0 {
+                if trust str.compare[ref char, ref char](entry, "a.txt") == 0 {
                     seen_a = 1
                 }
-                if trust str.compare(str.RChar(entry), str.RChar("b.txt")) == 0 {
+                if trust str.compare[ref char, ref char](entry, "b.txt") == 0 {
                     seen_b = 1
                 }
         
