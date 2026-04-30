@@ -1,5 +1,3 @@
-/// Portable crypto helpers for hashing, HMAC, encoding, and nonce generation.
-
 val string = use("string.sx")
 val random = use("random.sx")
 
