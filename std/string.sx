@@ -20,14 +20,14 @@ pub type String = {
 }
 
 /// Create empty string
-pub fn new() ref void! = {
+pub fn new() String! = {
     val s: ref void = @alloc(24)
     val buf: ref void = @alloc(1)
     @store8(buf, 0)
     @store(s, buf)
     @store(@ptradd(s, 8), 0)
     @store(@ptradd(s, 16), 1)
-    return s
+    return s as String
 }
 
 /// Internal.
@@ -82,10 +82,10 @@ pub fn from(cstr: ref char) String! = {
 }
 
 /// Free string
-pub fn string_free(s: ref void) void! = {
-    val ptr: ref void = @load(s)
+pub fn string_free(s: mut String) void! = {
+    val ptr: ref void = @load(s as ref void)
     @free(ptr)
-    @free(s)
+    @free(s as ref void)
 }
 
 /// Length of a String
@@ -102,8 +102,8 @@ pub fn len_raw(s: ref char) i64 = {
 }
 
 /// Raw pointer
-pub fn cstr(s: ref void) ref char! = {
-    return @load(s) as ref char
+pub fn cstr(s: String) ref char! = {
+    return @load(s as ref void) as ref char
 }
 
 /// Returns true if s starts with prefix
@@ -235,26 +235,26 @@ pub fn push_cstr(s: String, other: ref char) void! = {
 }
 
 /// Append another String in place
-pub fn push(s: ref void, other: ref void) void! = {
-    val other_ptr: ref void = @load(other)
-    val other_len: i64 = @load(@ptradd(other, 8)) as i64
+pub fn push(s: String, other: String) void! = {
+    val other_ptr: ref void = @load(other as ref void)
+    val other_len: i64 = @load(@ptradd(other as ref void, 8)) as i64
 
-    val l: i64 = @load(@ptradd(s, 8)) as i64
+    val l: i64 = @load(@ptradd(s as ref void, 8)) as i64
     val new_len: i64 = l + other_len
 
-    ensure_cap(Ptr(s), new_len + 1)
+    ensure_cap(Ptr(s as ref void), new_len + 1)
 
-    val ptr: ref void = @load(s)
+    val ptr: ref void = @load(s as ref void)
 
     @memcpy(@ptradd(ptr, l), other_ptr, other_len)
     @store8(@ptradd(ptr, new_len), 0)
-    @store(@ptradd(s, 8), new_len)
+    @store(@ptradd(s as ref void, 8), new_len)
 }
 
 /// Clone — returns a new heap-allocated String
-pub fn clone(s: ref void) ref void! = {
-    val l: i64 = @load(@ptradd(s, 8)) as i64
-    val ptr: ref void = @load(s)
+pub fn clone(s: String) String! = {
+    val l: i64 = @load(@ptradd(s as ref void, 8)) as i64
+    val ptr: ref void = @load(s as ref void)
     val buf: ref void = @alloc(l + 1)
 
     @memcpy(buf, ptr, l)
@@ -266,13 +266,13 @@ pub fn clone(s: ref void) ref void! = {
     @store(@ptradd(out, 8), l)
     @store(@ptradd(out, 16), l + 1)
 
-    return out
+    return out as String
 }
 
 /// Reverse in place
-pub fn reverse(s: ref void) void! = {
-    val ptr: ref void = @load(s)
-    val l: i64 = @load(@ptradd(s, 8)) as i64
+pub fn reverse(s: String) void! = {
+    val ptr: ref void = @load(s as ref void)
+    val l: i64 = @load(@ptradd(s as ref void, 8)) as i64
 
     val i: mut i64 = 0
     val j: mut i64 = l - 1
@@ -309,48 +309,48 @@ pub fn concat_raw(a: ref char, b: ref char) ref char! = {
 }
 
 /// Concat — returns a new heap-allocated String
-pub fn concat(a: ref void, b: ref void) ref void! = {
-    val out: ref void = clone(a)
+pub fn concat(a: String, b: String) String! = {
+    val out: String = clone(a)
     push(out, b)
     return out
 }
 
 /// Reserve at least cap bytes of capacity
-pub fn reserve(s: ref void, cap: i64) void! = {
-    ensure_cap(Ptr(s), cap)
+pub fn reserve(s: String, cap: i64) void! = {
+    ensure_cap(Ptr(s as ref void), cap)
 }
 
 /// Clear contents (set length to 0, keep allocation)
-pub fn clear(s: ref void) void! = {
-    val ptr: ref void = @load(s)
+pub fn clear(s: String) void! = {
+    val ptr: ref void = @load(s as ref void)
     @store8(ptr, 0)
-    @store(@ptradd(s, 8), 0)
+    @store(@ptradd(s as ref void, 8), 0)
 }
 
 /// Append a single byte character
-pub fn push_char(s: ref void, c: u8) void! = {
-    val l: i64 = @load(@ptradd(s, 8)) as i64
+pub fn push_char(s: String, c: u8) void! = {
+    val l: i64 = @load(@ptradd(s as ref void, 8)) as i64
     val new_len: i64 = l + 1
 
-    ensure_cap(Ptr(s), new_len + 1)
+    ensure_cap(Ptr(s as ref void), new_len + 1)
 
-    val ptr: ref void = @load(s)
+    val ptr: ref void = @load(s as ref void)
     @store8(@ptradd(ptr, l), c)
     @store8(@ptradd(ptr, new_len), 0)
-    @store(@ptradd(s, 8), new_len)
+    @store(@ptradd(s as ref void, 8), new_len)
 }
 
 /// Get byte at index i — returns none if out of bounds
-pub fn get(s: ref void, i: i64) option[u8] = {
+pub fn get(s: String, i: i64) option[u8] = {
     pre {
         s_not_null: s != 0
         i_nonneg:   i >= 0
     }
-    val l: i64 = trust @load(@ptradd(s, 8)) as i64
+    val l: i64 = trust @load(@ptradd(s as ref void, 8)) as i64
     if (i >= l) {
         return none
     }
-    val ptr: ref void = trust @load(s)
+    val ptr: ref void = trust @load(s as ref void)
     post {
         i_nonneg: i >= 0
     }
@@ -373,18 +373,18 @@ pub fn byte_at(s: ref char, i: i64) option[u8] = {
 }
 
 /// Set byte at index i (no-op if out of bounds)
-pub fn set(s: ref void, i: i64, c: u8) void! = {
-    val l: i64 = @load(@ptradd(s, 8)) as i64
+pub fn set(s: String, i: i64, c: u8) void! = {
+    val l: i64 = @load(@ptradd(s as ref void, 8)) as i64
     if (i >= l) {
         return
     }
-    val ptr: ref void = @load(s)
+    val ptr: ref void = @load(s as ref void)
     @store8(@ptradd(ptr, i), c)
 }
 
 /// Return a new heap String containing bytes [start, end)
-pub fn slice(s: ref void, start: i64, end: i64) ref void! = {
-    val l: i64 = @load(@ptradd(s, 8)) as i64
+pub fn slice(s: String, start: i64, end: i64) String! = {
+    val l: i64 = @load(@ptradd(s as ref void, 8)) as i64
 
     val real_start: mut i64 = start
     val real_end: mut i64 = end
@@ -400,7 +400,7 @@ pub fn slice(s: ref void, start: i64, end: i64) ref void! = {
         slice_len = 0
     }
 
-    val src_ptr: ref void = @load(s)
+    val src_ptr: ref void = @load(s as ref void)
     val buf: ref void = @alloc(slice_len + 1)
     @memcpy(buf, @ptradd(src_ptr, real_start), slice_len)
     @store8(@ptradd(buf, slice_len), 0)
@@ -409,18 +409,18 @@ pub fn slice(s: ref void, start: i64, end: i64) ref void! = {
     @store(out, buf)
     @store(@ptradd(out, 8), slice_len)
     @store(@ptradd(out, 16), slice_len + 1)
-    return out
+    return out as String
 }
 
 /// Find first occurrence of sub in s — returns some(index) or none
-pub fn find(s: ref void, sub: ref void) option[i64] = {
+pub fn find(s: String, sub: String) option[i64] = {
     pre {
         s_not_null:   s != 0
         sub_not_null: sub != 0
     }
 
-    val sl: i64 = trust @load(@ptradd(s, 8)) as i64
-    val subl: i64 = trust @load(@ptradd(sub, 8)) as i64
+    val sl: i64 = trust @load(@ptradd(s as ref void, 8)) as i64
+    val subl: i64 = trust @load(@ptradd(sub as ref void, 8)) as i64
 
     if (subl == 0) {
         return some 0
@@ -429,8 +429,8 @@ pub fn find(s: ref void, sub: ref void) option[i64] = {
         return none
     }
 
-    val sp: ref void = trust @load(s)
-    val subp: ref void = trust @load(sub)
+    val sp: ref void = trust @load(s as ref void)
+    val subp: ref void = trust @load(sub as ref void)
 
     val limit: i64 = sl - subl
     val i: mut i64 = 0
@@ -474,7 +474,7 @@ pub fn contains(s: String, sub: String) bool = {
         sub_not_null: sub != 0
     }
 
-    val result = find(s as ref void, sub as ref void)
+    val result = find(s, sub)
     val found: mut i64 = 0
     match result {
         some _ => { found = 1 }
@@ -489,9 +489,9 @@ pub fn contains(s: String, sub: String) bool = {
 }
 
 /// Convert to uppercase in place
-pub fn to_upper(s: ref void) void! = {
-    val l: i64 = @load(@ptradd(s, 8)) as i64
-    val ptr: ref void = @load(s)
+pub fn to_upper(s: String) void! = {
+    val l: i64 = @load(@ptradd(s as ref void, 8)) as i64
+    val ptr: ref void = @load(s as ref void)
     val i: mut i64 = 0
     for {
         if (i >= l) {
@@ -508,9 +508,9 @@ pub fn to_upper(s: ref void) void! = {
 }
 
 /// Convert to lowercase in place
-pub fn to_lower(s: ref void) void! = {
-    val l: i64 = @load(@ptradd(s, 8)) as i64
-    val ptr: ref void = @load(s)
+pub fn to_lower(s: String) void! = {
+    val l: i64 = @load(@ptradd(s as ref void, 8)) as i64
+    val ptr: ref void = @load(s as ref void)
     val i: mut i64 = 0
     for {
         if (i >= l) {
@@ -527,9 +527,9 @@ pub fn to_lower(s: ref void) void! = {
 }
 
 /// Trim leading whitespace in place
-pub fn trim_left(s: ref void) void! = {
-    val l: i64 = @load(@ptradd(s, 8)) as i64
-    val ptr: ref void = @load(s)
+pub fn trim_left(s: String) void! = {
+    val l: i64 = @load(@ptradd(s as ref void, 8)) as i64
+    val ptr: ref void = @load(s as ref void)
     val start: mut i64 = 0
     for {
         if (start >= l) {
@@ -553,13 +553,13 @@ pub fn trim_left(s: ref void) void! = {
     val new_len: i64 = l - start
     @memcpy(ptr, @ptradd(ptr, start), new_len)
     @store8(@ptradd(ptr, new_len), 0)
-    @store(@ptradd(s, 8), new_len)
+    @store(@ptradd(s as ref void, 8), new_len)
 }
 
 /// Trim trailing whitespace in place
-pub fn trim_right(s: ref void) void! = {
-    val l: mut i64 = @load(@ptradd(s, 8)) as i64
-    val ptr: ref void = @load(s)
+pub fn trim_right(s: String) void! = {
+    val l: mut i64 = @load(@ptradd(s as ref void, 8)) as i64
+    val ptr: ref void = @load(s as ref void)
     for {
         if (l <= 0) {
             break
@@ -577,30 +577,30 @@ pub fn trim_right(s: ref void) void! = {
         l--
     }
     @store8(@ptradd(ptr, l), 0)
-    @store(@ptradd(s, 8), l)
+    @store(@ptradd(s as ref void, 8), l)
 }
 
 /// Trim leading and trailing whitespace in place
-pub fn trim(s: ref void) void! = {
+pub fn trim(s: String) void! = {
     trim_right(s)
     trim_left(s)
 }
 
 /// Return a new String with all occurrences of `from` replaced by `to`
-pub fn replace(s: ref void, from: ref void, to: ref void) ref void! = {
-    val sl: i64 = @load(@ptradd(s, 8)) as i64
-    val froml: i64 = @load(@ptradd(from, 8)) as i64
-    val tol: i64 = @load(@ptradd(to, 8)) as i64
-    val out: ref void = new()
+pub fn replace(s: String, from: String, to: String) String! = {
+    val sl: i64 = @load(@ptradd(s as ref void, 8)) as i64
+    val froml: i64 = @load(@ptradd(from as ref void, 8)) as i64
+    val tol: i64 = @load(@ptradd(to as ref void, 8)) as i64
+    val out: String = new()
 
     if (froml == 0) {
         push(out, s)
         return out
     }
 
-    val sp: ref void = @load(s)
-    val fromp: ref void = @load(from)
-    val top: ref void = @load(to)
+    val sp: ref void = @load(s as ref void)
+    val fromp: ref void = @load(from as ref void)
+    val top: ref void = @load(to as ref void)
 
     val i: mut i64 = 0
     val j: mut i64 = 0
@@ -634,13 +634,13 @@ pub fn replace(s: ref void, from: ref void, to: ref void) ref void! = {
                 j++
             }
             if (matched != 0) {
-                out_l = @load(@ptradd(out, 8)) as i64
+                out_l = @load(@ptradd(out as ref void, 8)) as i64
                 new_len = out_l + tol
-                ensure_cap(Ptr(out), new_len + 1)
-                out_ptr = @load(out)
+                ensure_cap(Ptr(out as ref void), new_len + 1)
+                out_ptr = @load(out as ref void)
                 @memcpy(@ptradd(out_ptr, out_l), top, tol)
                 @store8(@ptradd(out_ptr, new_len), 0)
-                @store(@ptradd(out, 8), new_len)
+                @store(@ptradd(out as ref void, 8), new_len)
                 i += froml
             } else {
                 c = @load8(@ptradd(sp, i)) as u8
@@ -710,12 +710,12 @@ pub fn trim_suffix_raw(s: ref char, suffix: ref char) ref char! = {
     return substr(s, 0, sl - sul)
 }
 /// Split s by delim — returns a List of heap-allocated Strings
-pub fn split(s: ref void, delim: ref void) result[ref void, ListAllocError]! = {
+pub fn split(s: String, delim: String) result[ref void, ListAllocError]! = {
     val result: ref void = collections.PtrList.new(8)?
-    val sl: i64 = @load(@ptradd(s, 8)) as i64
-    val dl: i64 = @load(@ptradd(delim, 8)) as i64
-    val sp: ref void = @load(s)
-    val dp: ref void = @load(delim)
+    val sl: i64 = @load(@ptradd(s as ref void, 8)) as i64
+    val dl: i64 = @load(@ptradd(delim as ref void, 8)) as i64
+    val sp: ref void = @load(s as ref void)
+    val dp: ref void = @load(delim as ref void)
     val seg_start: mut i64 = 0
     val i: mut i64 = 0
     val j: mut i64 = 0
@@ -748,13 +748,13 @@ pub fn split(s: ref void, delim: ref void) result[ref void, ListAllocError]! = {
         }
 
         if (is_delim != 0) {
-            val seg: ref void = slice(s, seg_start, i)
+            val seg: String = slice(s, seg_start, i)
             collections.PtrList.push(result, seg as usize)?
             seg_start = i + dl
             i += dl
         } else {
             if (i == sl) {
-                val seg: ref void = slice(s, seg_start, sl)
+                val seg: String = slice(s, seg_start, sl)
                 collections.PtrList.push(result, seg as usize)?
                 break
             }
@@ -805,25 +805,25 @@ pub fn equals(x: String, y: String) bool = {
 /// If s starts with prefix, return s without it, otherwise clone
 pub fn trim_prefix(s: String, prefix: String) String! = {
     if (!starts_with(s, prefix)) {
-        return clone(s as ref void) as String
+        return clone(s)
     }
 
-    val pl: i64 = @load(@ptradd(prefix, 8)) as i64
-    val sl: i64 = @load(@ptradd(s, 8)) as i64
+    val pl: i64 = @load(@ptradd(prefix as ref void, 8)) as i64
+    val sl: i64 = @load(@ptradd(s as ref void, 8)) as i64
 
-    return slice(s as ref void, pl, sl) as String
+    return slice(s, pl, sl)
 }
 
 /// If s ends with suffix, return s without it, otherwise clone
 pub fn trim_suffix(s: String, suffix: String) String! = {
     if (!ends_with(s, suffix)) {
-        return clone(s as ref void) as String
+        return clone(s)
     }
 
-    val sl: i64 = @load(@ptradd(s, 8)) as i64
-    val sul: i64 = @load(@ptradd(suffix, 8)) as i64
+    val sl: i64 = @load(@ptradd(s as ref void, 8)) as i64
+    val sul: i64 = @load(@ptradd(suffix as ref void, 8)) as i64
 
-    return slice(s as ref void, 0, sl - sul) as String
+    return slice(s, 0, sl - sul)
 }
 
 /// Check if s starts with prefix
@@ -833,15 +833,15 @@ pub fn starts_with(s: String, prefix: String) bool = {
         prefix_not_null: prefix != 0
     }
 
-    val sl: i64 = trust @load(@ptradd(s, 8)) as i64
-    val pl: i64 = trust @load(@ptradd(prefix, 8)) as i64
+    val sl: i64 = trust @load(@ptradd(s as ref void, 8)) as i64
+    val pl: i64 = trust @load(@ptradd(prefix as ref void, 8)) as i64
 
     if (pl > sl) {
         return false
     }
 
-    val sp: ref void = trust @load(s)
-    val pp: ref void = trust @load(prefix)
+    val sp: ref void = trust @load(s as ref void)
+    val pp: ref void = trust @load(prefix as ref void)
 
     val i: mut i64 = 0
     for {
@@ -870,15 +870,15 @@ pub fn ends_with(s: String, suffix: String) bool = {
         suffix_not_null: suffix != 0
     }
 
-    val sl: i64 = trust @load(@ptradd(s, 8)) as i64
-    val sul: i64 = trust @load(@ptradd(suffix, 8)) as i64
+    val sl: i64 = trust @load(@ptradd(s as ref void, 8)) as i64
+    val sul: i64 = trust @load(@ptradd(suffix as ref void, 8)) as i64
 
     if (sul > sl) {
         return false
     }
 
-    val sp: ref void = trust @load(s)
-    val sup: ref void = trust @load(suffix)
+    val sp: ref void = trust @load(s as ref void)
+    val sup: ref void = trust @load(suffix as ref void)
     val offset: i64 = sl - sul
     val i: mut i64 = 0
 
@@ -909,51 +909,51 @@ pub type StringBuilder = {
 }
 
 /// Create a new empty StringBuilder
-pub fn (StringBuilder) new() ref void = {
+pub fn (StringBuilder) new() StringBuilder = {
     val s: ref void = @alloc(24)
     val buf: ref void = @alloc(64)
     trust @store8(buf, 0)
     trust @store(s, buf)
     trust @store(@ptradd(s, 8), 0)
     trust @store(@ptradd(s, 16), 64)
-    return s
+    return s as StringBuilder
 }
 
 /// Append a String to the builder
-pub fn (StringBuilder) append(sb: self, s: ref void) void! = {
-    val other_ptr: ref void = @load(s)
-    val other_len: i64 = @load(@ptradd(s, 8)) as i64
-    val l: i64 = @load(@ptradd(sb, 8)) as i64
+pub fn (StringBuilder) append(sb: self, s: String) void! = {
+    val other_ptr: ref void = @load(s as ref void)
+    val other_len: i64 = @load(@ptradd(s as ref void, 8)) as i64
+    val l: i64 = @load(@ptradd(sb as ref void, 8)) as i64
     val new_len: i64 = l + other_len
 
     ensure_cap(StrBuilder(sb), new_len + 1)
 
-    val ptr: ref void = @load(sb)
+    val ptr: ref void = @load(sb as ref void)
 
     @memcpy(@ptradd(ptr, l), other_ptr, other_len)
     @store8(@ptradd(ptr, new_len), 0)
-    @store(@ptradd(sb, 8), new_len)
+    @store(@ptradd(sb as ref void, 8), new_len)
 }
 
 /// Append a C string to the builder
 pub fn (StringBuilder) append_cstr(sb: self, cstr: ref char) void! = {
-    val l: i64 = @load(@ptradd(sb, 8)) as i64
+    val l: i64 = @load(@ptradd(sb as ref void, 8)) as i64
     val add_len: i64 = strlen(cstr)
     val new_len: i64 = l + add_len
 
     ensure_cap(StrBuilder(sb), new_len + 1)
 
-    val ptr: ref void = @load(sb)
+    val ptr: ref void = @load(sb as ref void)
 
     @memcpy(@ptradd(ptr, l), cstr, add_len)
     @store8(@ptradd(ptr, new_len), 0)
-    @store(@ptradd(sb, 8), new_len)
+    @store(@ptradd(sb as ref void, 8), new_len)
 }
 
 /// Build — returns a new heap-allocated String with the accumulated content
-pub fn (StringBuilder) build(sb: self) ref void! = {
-    val l: i64 = @load(@ptradd(sb, 8)) as i64
-    val ptr: ref void = @load(sb)
+pub fn (StringBuilder) build(sb: self) String! = {
+    val l: i64 = @load(@ptradd(sb as ref void, 8)) as i64
+    val ptr: ref void = @load(sb as ref void)
     val buf: ref void = @alloc(l + 1)
 
     @memcpy(buf, ptr, l)
@@ -965,33 +965,33 @@ pub fn (StringBuilder) build(sb: self) ref void! = {
     @store(@ptradd(out, 8), l)
     @store(@ptradd(out, 16), l + 1)
 
-    return out
+    return out as String
 }
 
 /// Free the StringBuilder's internal buffer and header
 pub fn (StringBuilder) free(sb: self) void! = {
-    val ptr: ref void = @load(sb)
+    val ptr: ref void = @load(sb as ref void)
     @free(ptr)
 }
 
 /// Append a single byte character
 pub fn (StringBuilder) append_char(sb: self, c: u8) void! = {
-    val l: i64 = @load(@ptradd(sb, 8)) as i64
+    val l: i64 = @load(@ptradd(sb as ref void, 8)) as i64
     val new_len: i64 = l + 1
 
     ensure_cap(StrBuilder(sb), new_len + 1)
 
-    val ptr: ref void = @load(sb)
+    val ptr: ref void = @load(sb as ref void)
     @store8(@ptradd(ptr, l), c)
     @store8(@ptradd(ptr, new_len), 0)
-    @store(@ptradd(sb, 8), new_len)
+    @store(@ptradd(sb as ref void, 8), new_len)
 }
 
 /// Clear the builder (reset length to 0, keep allocation)
 pub fn (StringBuilder) clear(sb: self) void! = {
-    val ptr: ref void = @load(sb)
+    val ptr: ref void = @load(sb as ref void)
     @store8(ptr, 0)
-    @store(@ptradd(sb, 8), 0)
+    @store(@ptradd(sb as ref void, 8), 0)
 }
 
 /// Runtime rewrite of Spectre format specifiers to printf specifiers.
@@ -1051,7 +1051,7 @@ fn rewrite_fmt(fmt: ref char) ref void! = {
 /// Format a string using printf-style specifiers, returning a new heap String.
 ///
 /// Example: format("{s} {d}", {name, age})
-pub fn format(fmt: ref char, args: untyped) ref void! = {
+pub fn format(fmt: ref char, args: untyped) String! = {
     val rfmt: ref void = rewrite_fmt(fmt)
     val buf: ref void = @alloc(4096)
     val written: i64 = @snprintf(buf, 4096, rfmt, args) as i64
@@ -1064,7 +1064,7 @@ pub fn format(fmt: ref char, args: untyped) ref void! = {
     @store(out, copy)
     @store(@ptradd(out, 8), written)
     @store(@ptradd(out, 16), written + 1)
-    return out
+    return out as String
 }
 
 /// Return a new ref char containing the substring of `src` starting at `start` with length `len`.
