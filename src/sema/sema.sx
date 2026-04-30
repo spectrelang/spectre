@@ -1536,7 +1536,14 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
                                                 }
                                             } elif !param_expects_ref && arg_type_name != 0 as ref u8 && !str_eq(arg_type_name, "") {
                                                 if !types_compatible(param_type_name, arg_type_name) {
-                                                    type_mismatch = true
+                                                    val union_def: ref parser.Node = sema_lookup_uniondef(ctx, param_type_name)
+                                                    if union_def != 0 as ref parser.Node {
+                                                        if !type_matches_union_variant(union_def, arg_type_name) {
+                                                            type_mismatch = true
+                                                        }
+                                                    } else {
+                                                        type_mismatch = true
+                                                    }
                                                 }
                                             }
 
@@ -1819,6 +1826,54 @@ fn sema_lookup_typedef(ctx: ref SemaCtx, type_name: ref u8) ref parser.Node! = {
         ti++
     }
     return 0 as ref parser.Node
+}
+
+/// Look up a NK_UNIONDEF node by type name. Returns 0 if not found.
+fn sema_lookup_uniondef(ctx: ref SemaCtx, type_name: ref u8) ref parser.Node! = {
+    if type_name == 0 as ref u8 { return 0 as ref parser.Node }
+    val tlen: i64 = @len(ctx.type_defs) as i64
+    val ti: mut i64 = 0
+    for {
+        if ti >= tlen { break }
+        val td_opt = @get(ctx.type_defs, ti as usize)
+        match td_opt {
+            some td => {
+                val tdnode: ref parser.Node = td as ref parser.Node
+                if tdnode.kind == parser.NK_UNIONDEF {
+                    val tdname: ref u8 = tdnode.d1 as ref u8
+                    if tdname != 0 as ref u8 {
+                        if std.string.rchar_cmp(tdname, type_name) == 0 {
+                            return tdnode
+                        }
+                    }
+                }
+            }
+            none => {}
+        }
+        ti++
+    }
+    return 0 as ref parser.Node
+}
+
+/// Check if arg_type matches any variant in the union definition.
+/// Returns true if arg_type is compatible with any union variant.
+fn type_matches_union_variant(union_def: ref parser.Node, arg_type: ref u8) bool! = {
+    if union_def == 0 as ref parser.Node || arg_type == 0 as ref u8 { return false }
+    if union_def.kind != parser.NK_UNIONDEF { return false }
+    
+    val variants: ref void = union_def.d2 as ref void
+    if variants == 0 as ref void { return false }
+    
+    for variant in variants as list[ref parser.Node] {
+        val variant_type_name: ref u8 = extract_type_name(variant)
+        if variant_type_name != 0 as ref u8 {
+            if types_compatible(variant_type_name, arg_type) {
+                return true
+            }
+        }
+    }
+    
+    return false
 }
 
 /// Sentinel value for unknown / cannot evaluate at compile time.
@@ -2526,7 +2581,7 @@ fn register_type_name(ctx: ref SemaCtx, item: ref parser.Node) void! = {
     if item.d1 != 0 as i64 {
         @append(ctx.type_names, item.d1 as ref u8)
     }
-    if k == parser.NK_TYPEDEF {
+    if k == parser.NK_TYPEDEF || k == parser.NK_UNIONDEF || k == parser.NK_ENUMDEF {
         @append(ctx.type_defs, item as ref void)
     }
     if k == parser.NK_TAGGED_UNIONDEF {

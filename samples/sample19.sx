@@ -1,15 +1,15 @@
 val stdio = use("std/stdio")
 
 union SomeUnion = {
-    i32 | i64 | ref u8
+    Int32(i32) | Int64(i64) | Str(ref u8)
 }
 
 fn some_function(x: SomeUnion) void! = {
     match x {
-        i32 => {
+        Int32 _ => {
             stdio.puts("hi inty int int")
         }
-        i64 => {
+        Int64 _ => {
             stdio.puts("hi bigger inty int")
         }
         else => {
@@ -19,5 +19,5 @@ fn some_function(x: SomeUnion) void! = {
 }
 
 pub fn main() void = {
-    trust some_function(12)
+    trust some_function(Str(12))
 }
