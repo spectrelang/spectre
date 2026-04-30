@@ -1313,6 +1313,39 @@ pub fn parse_stmt(p: mut ref Parser) result[ref Node, ref char]! = {
         val ident_text = p_expect_ident(p)?
         val next_k: lexer.TokenKind = p_peek_kind(p)
 
+        if lexer.kind_is_bang(next_k) {
+            p_advance(p)
+            val next_k2: lexer.TokenKind = p_peek_kind(p)
+            if kind_is_in(next_k2) {
+                p_advance(p)
+                p_expect_lparen(p)?
+                val gtypes: mut list[ref Node] = []
+                for {
+                    if lexer.kind_is_rparen(p_peek_kind(p)) { break }
+                    val gty = parse_type(p)?
+                    @append(gtypes, gty)
+                    if !p_eat_fn(p, lexer.kind_is_comma) { break }
+                }
+                p_expect_rparen(p)?
+                p_expect_lbrace(p)?
+                val gwb = parse_stmts(p)?
+                p_expect_rbrace(p)?
+                val gcond: mut ref Node = make_node(NK_GWHEN_COND, line)
+                gcond.d0 = ident_text as i64
+                gcond.d1 = 3
+                val gtl: list[ref Node] = gtypes
+                gcond.d2 = gtl as i64
+                val gconds: mut list[ref Node] = []
+                @append(gconds, gcond)
+                val gnw: mut ref Node = make_node(NK_GENERIC_WHEN, line)
+                val gcl: list[ref Node] = gconds
+                gnw.d0 = gcl as i64
+                val gbl: list[ref Node] = gwb
+                gnw.d1 = gbl as i64
+                return ok gnw
+            }
+        }
+
         if kind_is_in(next_k) {
             p_advance(p)
             p_expect_lparen(p)?

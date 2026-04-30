@@ -117,7 +117,8 @@ fn is_known_builtin(name: ref char) bool! = {
         "strcmp", 
         "atoi",
         "itoa",
-        "gettimeofday"
+        "gettimeofday",
+        "staticerror"
     ]
 
     for builtin in builtins {

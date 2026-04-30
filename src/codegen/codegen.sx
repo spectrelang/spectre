@@ -645,6 +645,25 @@ fn gwhen_matches_gsubst(ctx: ref CgCtx, when_node: ref parser.Node) bool! = {
                         }
                     }
                     if !matched2 { return false }
+                } elif ckind == 3 {
+                    val matched3: mut bool = false
+                    if ctypes != 0 as ref void {
+                        val tlen3: i64 = @len(ctypes as list[ref parser.Node]) as i64
+                        val ti3: mut i64 = 0
+                        for {
+                            if ti3 >= tlen3 { break }
+                            val t_opt3 = @get(ctypes as list[ref parser.Node], ti3 as usize)
+                            match t_opt3 {
+                                some t3 => {
+                                    val ts3: ref char = type_node_to_str(t3 as ref parser.Node)
+                                    if str.rchar_cmp(concrete_str, ts3) == 0 { matched3 = true }
+                                }
+                                none => {}
+                            }
+                            ti3++
+                        }
+                    }
+                    if matched3 { return false }
                 }
             }
             none => {}
@@ -6146,6 +6165,24 @@ fn expr_qtype(ctx: ref CgCtx, node: ref parser.Node) ref char! = {
 fn gen_builtin(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
     val name: ref char = expr.d0 as ref char
     val args: ref void = expr.d1 as ref void
+
+    if str.rchar_cmp(name, "staticerror") == 0 {
+        val msg: mut ref char = ""
+        if args != 0 as ref void {
+            val arg0_opt = @get(args, 0)
+            match arg0_opt {
+                some arg0 => {
+                    val arg_node: ref parser.Node = arg0 as ref parser.Node
+                    if arg_node.kind == parser.NK_STR_LIT {
+                        msg = arg_node.d0 as ref char
+                    }
+                }
+                none => {}
+            }
+        }
+        std.stdio.eprint("error: {s}\n", {msg})
+        std.os.exit(1)
+    }
 
     val tmp: mut i64 = fresh_tmp(ctx)
     val buf: ref char = @alloc(512) as ref char

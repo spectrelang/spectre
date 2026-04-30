@@ -805,6 +805,25 @@ fn cc_gwhen_matches(ctx: ref CCtx, when_node: ref parser.Node) bool! = {
                         }
                     }
                     if !matched2 { return false }
+                } elif ckind == 3 {
+                    val matched3: mut bool = false
+                    if ctypes != 0 as ref void {
+                        val tlen3: i64 = @len(ctypes as list[ref parser.Node]) as i64
+                        val ti3: mut i64 = 0
+                        for {
+                            if ti3 >= tlen3 { break }
+                            val t_opt3 = @get(ctypes as list[ref parser.Node], ti3 as usize)
+                            match t_opt3 {
+                                some t3 => {
+                                    val ts3: ref char = cc_type_node_to_str(t3 as ref parser.Node)
+                                    if str.rchar_cmp(concrete_str, ts3) == 0 { matched3 = true }
+                                }
+                                none => {}
+                            }
+                            ti3++
+                        }
+                    }
+                    if matched3 { return false }
                 }
             }
             none => {}
@@ -2262,6 +2281,25 @@ fn gen_call(ctx: mut ref CCtx, expr: ref parser.Node) ref char! = {
 fn gen_builtin(ctx: ref CCtx, expr: ref parser.Node) ref char! = {
     val bname: ref char = expr.d0 as ref char
     val args: ref void = expr.d1 as ref void
+    
+    if str.rchar_cmp(bname, "staticerror") == 0 {
+        val msg: mut ref char = ""
+        if args != 0 as ref void {
+            val arg0_opt = @get(args as list[ref parser.Node], 0)
+            match arg0_opt {
+                some arg0 => {
+                    val arg_node: ref parser.Node = arg0 as ref parser.Node
+                    if arg_node.kind == parser.NK_STR_LIT {
+                        msg = arg_node.d0 as ref char
+                    }
+                }
+                none => {}
+            }
+        }
+        std.stdio.eprint("error: {s}\n", {msg})
+        std.os.exit(1)
+    }
+    
     if str.rchar_cmp(bname, "alloc") == 0 { val sz: ref char = get_arg(ctx, args, 0)
         val buf: ref char = @alloc(128) as ref char
         @snprintf(buf, 128, "(int64_t)(intptr_t)calloc(1,(size_t)({s}))", {sz}) return cc_expr_track(ctx, buf) }

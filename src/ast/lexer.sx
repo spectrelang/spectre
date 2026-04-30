@@ -574,6 +574,7 @@ pub fn kind_is_str(k: TokenKind)      bool = { match k { Str _      => { return 
 pub fn kind_is_int(k: TokenKind)      bool = { match k { Int _      => { return true } else => { return false } } }
 pub fn kind_is_float(k: TokenKind)    bool = { match k { Float _    => { return true } else => { return false } } }
 pub fn kind_is_eqeq(k: TokenKind)     bool = { match k { EqEq()     => { return true } else => { return false } } }
+pub fn kind_is_bang(k: TokenKind)     bool = { match k { Bang()     => { return true } else => { return false } } }
 pub fn kind_is_bangeq(k: TokenKind)   bool = { match k { BangEq()   => { return true } else => { return false } } }
 pub fn kind_is_lteq(k: TokenKind)     bool = { match k { LtEq()     => { return true } else => { return false } } }
 pub fn kind_is_gteq(k: TokenKind)     bool = { match k { GtEq()     => { return true } else => { return false } } }
