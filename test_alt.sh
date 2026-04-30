@@ -109,7 +109,7 @@ echo
 echo "Bootstrap test:"
 
 ((total++))
-"$COMPILER" ./src/sxc.sx -o sxc2 --alt -l || { echo "[FAIL] stage1"; ((failed++)); exit 1; }
+"$COMPILER" ./src/sxc.sx -o sxc2 --alt -b -l || { echo "[FAIL] stage1"; ((failed++)); exit 1; }
 
 ((total++))
 ./sxc2 ./src/sxc.sx -o sxc3 --alt -l || { echo "[FAIL] stage2"; ((failed++)); exit 1; }

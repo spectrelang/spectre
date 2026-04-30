@@ -582,7 +582,6 @@ fn c_type_of(ty: ref parser.Node) ref u8! = {
         if str.rchar_cmp(name, "i64") == 0 { return "int64_t" }
         if str.rchar_cmp(name, "usize") == 0 { return "uint64_t" }
         if str.rchar_cmp(name, "bool") == 0 { return "int32_t" }
-        if str.rchar_cmp(name, "u8") == 0 { return "int32_t" }
         if str.rchar_cmp(name, "f32") == 0 { return "float" }
         if str.rchar_cmp(name, "f64") == 0 { return "double" }
         return "int64_t"
@@ -2048,14 +2047,14 @@ fn gen_field(ctx: ref CCtx, expr: ref parser.Node) ref u8! = {
         if off >= 0 {
             val fsz: i64 = cc_field_size_from_fields(ctx, fields, fname)
             val fct: ref u8 = cc_field_ctype_from_fields(ctx, fields, fname)
-            if fsz > 8 { @snprintf(buf, 512, "((int64_t)(intptr_t)((u8*)(intptr_t)({s})+{lld}))", {base, off}) }
-            else { @snprintf(buf, 512, "(*({s}*)((u8*)(intptr_t)({s})+{lld}))", {fct, base, off}) }
+            if fsz > 8 { @snprintf(buf, 512, "((int64_t)(intptr_t)((char*)(intptr_t)({s})+{lld}))", {base, off}) }
+            else { @snprintf(buf, 512, "(*({s}*)((char*)(intptr_t)({s})+{lld}))", {fct, base, off}) }
             return cc_expr_track(ctx, buf) } }
     if str.rchar_cmp(fname, "len") == 0 || str.rchar_cmp(fname, "length") == 0 {
-        @snprintf(buf, 512, "(*(int64_t*)((u8*)(intptr_t)({s})+8))", {base}) return cc_expr_track(ctx, buf) }
+        @snprintf(buf, 512, "(*(int64_t*)((char*)(intptr_t)({s})+8))", {base}) return cc_expr_track(ctx, buf) }
     if str.rchar_cmp(fname, "cap") == 0 || str.rchar_cmp(fname, "capacity") == 0 {
-        @snprintf(buf, 512, "(*(int64_t*)((u8*)(intptr_t)({s})+16))", {base}) return cc_expr_track(ctx, buf) }
-    @snprintf(buf, 512, "(*(int64_t*)((u8*)(intptr_t)({s})))", {base})
+        @snprintf(buf, 512, "(*(int64_t*)((char*)(intptr_t)({s})+16))", {base}) return cc_expr_track(ctx, buf) }
+    @snprintf(buf, 512, "(*(int64_t*)((char*)(intptr_t)({s})))", {base})
     return cc_expr_track(ctx, buf)
 }
 
@@ -2192,7 +2191,7 @@ fn gen_call(ctx: mut ref CCtx, expr: ref parser.Node) ref u8! = {
                         val av: ref u8 = gen_expr(ctx, a as ref parser.Node)
                         val offset: i64 = 8 + (ai * 8)
                         val assign_stmt: ref u8 = @alloc(512) as ref u8
-                        @snprintf(assign_stmt, 512, "*(int64_t*)(intptr_t)((u8*)(intptr_t)sx__uv{lld}+{lld})={s};\n", {t, offset, av})
+                        @snprintf(assign_stmt, 512, "*(int64_t*)(intptr_t)((char*)(intptr_t)sx__uv{lld}+{lld})={s};\n", {t, offset, av})
                         emit(ctx, assign_stmt)
                         @free(assign_stmt)
                     } none => {}
@@ -2237,8 +2236,8 @@ fn gen_call(ctx: mut ref CCtx, expr: ref parser.Node) ref u8! = {
                         val fmt_str: ref u8 = parser.str_lit_text(first_node)
                         val fmt_idx: i64 = intern_format_string(ctx, fmt_str)
                         val pbuf: ref u8 = @alloc(4096) as ref u8
-                        if is_eprint { @snprintf(pbuf, 4096, "sx__dprintf(2,(const u8*)(intptr_t)sx__str{lld}", {fmt_idx}) }
-                        else { @snprintf(pbuf, 4096, "printf((const u8*)(intptr_t)sx__str{lld}", {fmt_idx}) }
+                        if is_eprint { @snprintf(pbuf, 4096, "sx__dprintf(2,(const char*)(intptr_t)sx__str{lld}", {fmt_idx}) }
+                        else { @snprintf(pbuf, 4096, "printf((const char*)(intptr_t)sx__str{lld}", {fmt_idx}) }
                         val ai2: mut i64 = 1
                         for { if ai2 >= alen { break }
                             val pa_opt = @get(args as list[ref parser.Node], ai2 as usize)
@@ -2367,7 +2366,7 @@ fn gen_builtin(ctx: ref CCtx, expr: ref parser.Node) ref u8! = {
         @snprintf(buf, 256, "(memset((void*)(intptr_t)({s}),(int)({s}),(size_t)({s})),0)", {d, v, n}) return cc_expr_track(ctx, buf) }
     if str.rchar_cmp(bname, "ptradd") == 0 { val p: ref u8 = get_arg(ctx, args, 0) val o: ref u8 = get_arg(ctx, args, 1)
         val buf: ref u8 = @alloc(256) as ref u8
-        @snprintf(buf, 256, "(int64_t)(intptr_t)((u8*)(intptr_t)({s})+({s}))", {p, o}) return cc_expr_track(ctx, buf) }
+        @snprintf(buf, 256, "(int64_t)(intptr_t)((char*)(intptr_t)({s})+({s}))", {p, o}) return cc_expr_track(ctx, buf) }
     if str.rchar_cmp(bname, "load") == 0 || str.rchar_cmp(bname, "load64") == 0 {
         val p: ref u8 = get_arg(ctx, args, 0)
         val buf: ref u8 = @alloc(512) as ref u8
@@ -2396,7 +2395,7 @@ fn gen_builtin(ctx: ref CCtx, expr: ref parser.Node) ref u8! = {
         @snprintf(buf, 256, "(*(int32_t*)(intptr_t)({s})=(int32_t)({s}))", {p, v}) return cc_expr_track(ctx, buf) }
     if str.rchar_cmp(bname, "len") == 0 { val l: ref u8 = get_arg(ctx, args, 0)
         val buf: ref u8 = @alloc(256) as ref u8
-        @snprintf(buf, 256, "({s}==0?0:(*(int64_t*)((u8*)(intptr_t)({s})+8)))", {l, l}) return cc_expr_track(ctx, buf) }
+        @snprintf(buf, 256, "({s}==0?0:(*(int64_t*)((char*)(intptr_t)({s})+8)))", {l, l}) return cc_expr_track(ctx, buf) }
     if str.rchar_cmp(bname, "append") == 0 {
         val e: ref u8 = get_arg(ctx, args, 1)
         val buf: ref u8 = @alloc(512) as ref u8
@@ -2502,7 +2501,7 @@ fn gen_builtin(ctx: ref CCtx, expr: ref parser.Node) ref u8! = {
         @snprintf(buf, 256, "sx__rt_reserve((void*)(intptr_t)({s}),(int64_t)({s}))", {l, c}) return cc_expr_track(ctx, buf) }
     if str.rchar_cmp(bname, "capacity") == 0 { val l: ref u8 = get_arg(ctx, args, 0)
         val buf: ref u8 = @alloc(128) as ref u8
-        @snprintf(buf, 128, "(*(int64_t*)((u8*)(intptr_t)({s})+16))", {l}) return cc_expr_track(ctx, buf) }
+        @snprintf(buf, 128, "(*(int64_t*)((char*)(intptr_t)({s})+16))", {l}) return cc_expr_track(ctx, buf) }
     if str.rchar_cmp(bname, "fmt") == 0 {
         val f: ref u8 = get_format_arg(ctx, args, 0) val p: mut ref u8 = "0"
         if args != 0 as ref void { val alen: i64 = @len(args as list[ref parser.Node]) as i64
@@ -2518,17 +2517,17 @@ fn gen_builtin(ctx: ref CCtx, expr: ref parser.Node) ref u8! = {
                 }
             } }
         val buf: ref u8 = @alloc(512) as ref u8
-        @snprintf(buf, 512, "(int64_t)(intptr_t)sx__rt_fmt((const u8*)(intptr_t)({s}),(int64_t*)(intptr_t)({s}))", {f, p})
+        @snprintf(buf, 512, "(int64_t)(intptr_t)sx__rt_fmt((const char*)(intptr_t)({s}),(int64_t*)(intptr_t)({s}))", {f, p})
         return cc_expr_track(ctx, buf) }
     if str.rchar_cmp(bname, "args") == 0 { return "(int64_t)(intptr_t)sx__rt_get_args()" }
     if str.rchar_cmp(bname, "puts") == 0 { val s: ref u8 = get_arg(ctx, args, 0)
         val buf: ref u8 = @alloc(256) as ref u8
-        @snprintf(buf, 256, "puts((const u8*)(intptr_t)({s}))", {s}) return cc_expr_track(ctx, buf) }
+        @snprintf(buf, 256, "puts((const char*)(intptr_t)({s}))", {s}) return cc_expr_track(ctx, buf) }
     if str.rchar_cmp(bname, "stdin") == 0 {
         return "(int64_t)(intptr_t)stdin" }
     if str.rchar_cmp(bname, "fgets") == 0 { val b: ref u8 = get_arg(ctx, args, 0) val n: ref u8 = get_arg(ctx, args, 1) val s: ref u8 = get_arg(ctx, args, 2)
         val buf: ref u8 = @alloc(512) as ref u8
-        @snprintf(buf, 512, "(int64_t)(intptr_t)fgets((u8*)(intptr_t)({s}),(int)({s}),(FILE*)(intptr_t)({s}))", {b, n, s}) return cc_expr_track(ctx, buf) }
+        @snprintf(buf, 512, "(int64_t)(intptr_t)fgets((char*)(intptr_t)({s}),(int)({s}),(FILE*)(intptr_t)({s}))", {b, n, s}) return cc_expr_track(ctx, buf) }
     if str.rchar_cmp(bname, "getchar") == 0 {
         return "(int64_t)(int)getchar()" }
     if str.rchar_cmp(bname, "snprintf") == 0 {
@@ -2536,7 +2535,7 @@ fn gen_builtin(ctx: ref CCtx, expr: ref parser.Node) ref u8! = {
         val dest_arg: ref u8 = get_arg(ctx, args, 0)
         val sz_arg: ref u8 = get_arg(ctx, args, 1)
         val fmt_arg: ref u8 = get_format_arg(ctx, args, 2)
-        @snprintf(buf, 8192, "snprintf((u8*)(intptr_t)({s}),(size_t)({s}),(const u8*)(intptr_t)({s})", {dest_arg, sz_arg, fmt_arg})
+        @snprintf(buf, 8192, "snprintf((char*)(intptr_t)({s}),(size_t)({s}),(const char*)(intptr_t)({s})", {dest_arg, sz_arg, fmt_arg})
         if args != 0 as ref void { val alen: i64 = @len(args as list[ref parser.Node]) as i64
             if alen > 3 { val pack_opt = @get(args as list[ref parser.Node], 3 as usize)
                 match pack_opt { some pack_node => { val pn: ref parser.Node = pack_node as ref parser.Node
@@ -2562,7 +2561,7 @@ fn gen_builtin(ctx: ref CCtx, expr: ref parser.Node) ref u8! = {
                 match pack_opt { some pack_node => { val pn: ref parser.Node = pack_node as ref parser.Node
                     if pn.kind == parser.NK_ARGS_PACK { val pack: ref void = pn.d0 as ref void
                         val plen: i64 = @len(pack as list[ref parser.Node]) as i64 val pi: mut i64 = 0
-                        @snprintf(buf, 4096, "sx__dprintf((int)({s}),(const u8*)(intptr_t)({s})", {fd, fmt_arg})
+                        @snprintf(buf, 4096, "sx__dprintf((int)({s}),(const char*)(intptr_t)({s})", {fd, fmt_arg})
                         for { if pi >= plen { break } val pe_opt = @get(pack as list[ref parser.Node], pi as usize)
                             match pe_opt { some pe => { val av: ref u8 = gen_expr(ctx, pe as ref parser.Node)
                                 val ol: i64 = str.len_raw(buf) val ab: ref u8 = @alloc(256) as ref u8 @snprintf(ab, 256, ",({s})", {av})
@@ -2571,9 +2570,9 @@ fn gen_builtin(ctx: ref CCtx, expr: ref parser.Node) ref u8! = {
                         val cl: i64 = str.len_raw(buf) @store8(@ptradd(buf as ref void, cl), 41) @store8(@ptradd(buf as ref void, cl+1), 0) return cc_expr_track(ctx, buf)
                     } else { val av2: ref u8 = gen_expr(ctx, pn)
                         val packed: ref u8 = gen_vararg_scalar_pack(ctx, av2)
-                        @snprintf(buf, 4096, "sx__rt_dprintf((int)({s}),(const u8*)(intptr_t)({s}),(int64_t*)(intptr_t)({s}))", {fd, fmt_arg, packed}) return cc_expr_track(ctx, buf) }
+                        @snprintf(buf, 4096, "sx__rt_dprintf((int)({s}),(const char*)(intptr_t)({s}),(int64_t*)(intptr_t)({s}))", {fd, fmt_arg, packed}) return cc_expr_track(ctx, buf) }
                 } none => {} } } }
-        @snprintf(buf, 4096, "sx__dprintf((int)({s}),(const u8*)(intptr_t)({s}))", {fd, fmt_arg}) return cc_expr_track(ctx, buf)
+        @snprintf(buf, 4096, "sx__dprintf((int)({s}),(const char*)(intptr_t)({s}))", {fd, fmt_arg}) return cc_expr_track(ctx, buf)
     }
     if (str.rchar_cmp(bname, "print") == 0) {
         val buf: ref u8 = @alloc(4096) as ref u8
@@ -2583,7 +2582,7 @@ fn gen_builtin(ctx: ref CCtx, expr: ref parser.Node) ref u8! = {
                 match pack_opt { some pack_node => { val pn: ref parser.Node = pack_node as ref parser.Node
                     if pn.kind == parser.NK_ARGS_PACK { val pack: ref void = pn.d0 as ref void
                         val plen: i64 = @len(pack as list[ref parser.Node]) as i64 val pi: mut i64 = 0
-                        @snprintf(buf, 4096, "printf((const u8*)(intptr_t)({s})", {fmt_arg})
+                        @snprintf(buf, 4096, "printf((const char*)(intptr_t)({s})", {fmt_arg})
                         for { if pi >= plen { break } val pe_opt = @get(pack as list[ref parser.Node], pi as usize)
                             match pe_opt { some pe => { val av: ref u8 = gen_expr(ctx, pe as ref parser.Node)
                                 val ol: i64 = str.len_raw(buf) val ab: ref u8 = @alloc(256) as ref u8 @snprintf(ab, 256, ",({s})", {av})
@@ -2592,9 +2591,9 @@ fn gen_builtin(ctx: ref CCtx, expr: ref parser.Node) ref u8! = {
                         val cl: i64 = str.len_raw(buf) @store8(@ptradd(buf as ref void, cl), 41) @store8(@ptradd(buf as ref void, cl+1), 0) return cc_expr_track(ctx, buf)
                     } else { val av2: ref u8 = gen_expr(ctx, pn)
                         val packed: ref u8 = gen_vararg_scalar_pack(ctx, av2)
-                        @snprintf(buf, 4096, "sx__rt_printf((const u8*)(intptr_t)({s}),(int64_t*)(intptr_t)({s}))", {fmt_arg, packed}) return cc_expr_track(ctx, buf) }
+                        @snprintf(buf, 4096, "sx__rt_printf((const char*)(intptr_t)({s}),(int64_t*)(intptr_t)({s}))", {fmt_arg, packed}) return cc_expr_track(ctx, buf) }
                 } none => {} } } }
-        @snprintf(buf, 4096, "printf((const u8*)(intptr_t)({s}))", {fmt_arg}) return cc_expr_track(ctx, buf)
+        @snprintf(buf, 4096, "printf((const char*)(intptr_t)({s}))", {fmt_arg}) return cc_expr_track(ctx, buf)
     }
     if is_libc_fn(bname) {
         val buf: ref u8 = @alloc(8192) as ref u8 @snprintf(buf, 8192, "{s}(", {bname})
@@ -2650,12 +2649,12 @@ fn gen_struct_lit(ctx: ref CCtx, expr: ref parser.Node) ref u8! = {
                 }
                 if fld_sz > 8 {
                     if str.rchar_cmp(fval, "INT64_C(0)") == 0 || str.rchar_cmp(fval, "0") == 0 {
-                        @snprintf(fb, 512, "memset((u8*)sx__sl{lld}+{lld},0,(size_t){lld});\n", {t, off, fld_sz})
+                        @snprintf(fb, 512, "memset((char*)sx__sl{lld}+{lld},0,(size_t){lld});\n", {t, off, fld_sz})
                     } else {
-                        @snprintf(fb, 512, "memcpy((u8*)sx__sl{lld}+{lld},(void*)(intptr_t)({s}),(size_t){lld});\n", {t, off, fval, fld_sz})
+                        @snprintf(fb, 512, "memcpy((char*)sx__sl{lld}+{lld},(void*)(intptr_t)({s}),(size_t){lld});\n", {t, off, fval, fld_sz})
                     }
                 }
-                else { @snprintf(fb, 512, "*({s}*)((u8*)sx__sl{lld}+{lld})=({s})({s});\n", {fct, t, off, fct, fval}) }
+                else { @snprintf(fb, 512, "*({s}*)((char*)sx__sl{lld}+{lld})=({s})({s});\n", {fct, t, off, fct, fval}) }
                 emit(ctx, fb) @free(fb)
             } none => {} }
             li++ } }
@@ -2751,7 +2750,7 @@ fn gen_field_addr(ctx: ref CCtx, expr: ref parser.Node) ref u8! = {
     elif str.rchar_cmp(fname, "len") == 0 { off = 8 }
     elif str.rchar_cmp(fname, "cap") == 0 { off = 16 }
     val buf: ref u8 = @alloc(4096) as ref u8
-    @snprintf(buf, 4096, "(int64_t)(intptr_t)((u8*)(intptr_t)({s})+{lld})", {base, off})
+    @snprintf(buf, 4096, "(int64_t)(intptr_t)((char*)(intptr_t)({s})+{lld})", {base, off})
     return cc_expr_track(ctx, buf)
 }
 
@@ -3366,7 +3365,7 @@ fn gen_forin_stmt(ctx: mut ref CCtx, stmt: ref parser.Node) void! = {
     val iter: ref u8 = gen_expr(ctx, iter_node)
     val t: i64 = fresh_tmp(ctx)
     val buf: ref u8 = @alloc(1024) as ref u8
-    @snprintf(buf, 1024, "\{int64_t sx__it{lld}={s};int64_t sx__len{lld}=(sx__it{lld}==0?0:*(int64_t*)((u8*)(intptr_t)sx__it{lld}+8));int64_t*sx__buf{lld}=(sx__it{lld}==0?0:*(int64_t**)(intptr_t)sx__it{lld});int64_t sx__i{lld}=0;for(;sx__i{lld}<sx__len{lld};sx__i{lld}++)\{int64_t t_{s}=sx__buf{lld}[sx__i{lld}];\n",
+    @snprintf(buf, 1024, "\{int64_t sx__it{lld}={s};int64_t sx__len{lld}=(sx__it{lld}==0?0:*(int64_t*)((char*)(intptr_t)sx__it{lld}+8));int64_t*sx__buf{lld}=(sx__it{lld}==0?0:*(int64_t**)(intptr_t)sx__it{lld});int64_t sx__i{lld}=0;for(;sx__i{lld}<sx__len{lld};sx__i{lld}++)\{int64_t t_{s}=sx__buf{lld}[sx__i{lld}];\n",
         {t, iter, t, t, t, t, t, t, t, t, t, t, binding, t, t})
     emit(ctx, buf) @free(buf)
     cc_expr_drain(ctx)
@@ -3517,7 +3516,7 @@ fn gen_match_str(ctx: mut ref CCtx, stmt: ref parser.Node) void! = {
     if en != 0 as ref parser.Node { expr = gen_expr(ctx, en) }
     val arms: list[ref parser.Node] = parser.match_str_arms(stmt) val else_body: ref parser.Node = parser.match_str_else(stmt)
     val t: i64 = fresh_tmp(ctx) val buf: ref u8 = @alloc(4096) as ref u8
-    @snprintf(buf, 4096, "\{const u8*sx__sv{lld}=(const u8*)(intptr_t)({s});\n", {t, expr}) emit(ctx, buf) @free(buf)
+    @snprintf(buf, 4096, "\{const char*sx__sv{lld}=(const char*)(intptr_t)({s});\n", {t, expr}) emit(ctx, buf) @free(buf)
     cc_expr_drain(ctx)
     val alen: i64 = @len(arms) as i64
     if alen > 0 { val ai: mut i64 = 0
@@ -3593,7 +3592,7 @@ fn gen_match_tagged_union(ctx: mut ref CCtx, stmt: ref parser.Node) void! = {
                         match b_opt { some b => { val bn: ref u8 = b as ref u8
                             if str.rchar_cmp(bn, "_") != 0 { val off: i64 = 8 + bi * 8
                                 val bb: ref u8 = @alloc(1024) as ref u8
-                                @snprintf(bb, 1024, "int64_t t_{s}=*(int64_t*)((u8*)(intptr_t)sx__tv{lld}+{lld});\n", {bn, t, off})
+                                @snprintf(bb, 1024, "int64_t t_{s}=*(int64_t*)((char*)(intptr_t)sx__tv{lld}+{lld});\n", {bn, t, off})
                                 emit(ctx, bb) @free(bb) cc_register_local(ctx, bn, "int64_t", 0 as ref parser.Node, 0) }
                         } none => {} }
                         bi++ } }
@@ -3634,7 +3633,7 @@ fn gen_fn_prefixed(ctx: mut ref CCtx, fn_node: ref parser.Node, mod_prefix: ref 
     ctx.current_ret_ty = ret_ty
     cc_clear_locals(ctx)
     emit_line_directive(ctx, fn_node.line)
-    if is_main { emitln(ctx, "int32_t main(int argc,u8**argv){") }
+    if is_main { emitln(ctx, "int32_t main(int argc,char**argv){") }
     else {
         val sig: ref u8 = @alloc(1024) as ref u8 @snprintf(sig, 1024, "{s} {s}(", {ret_ct, mangled}) emit(ctx, sig) @free(sig)
         if params != 0 as ref void { val plen: i64 = @len(params) as i64
@@ -3939,11 +3938,11 @@ fn emit_c_preamble(ctx: ref CCtx) void! = {
     emitln_fwd(ctx, "static int64_t sx__rt_get(void*list,int64_t idx){if(!list)return 0;int64_t*hdr=(int64_t*)list;int64_t*buf=*(int64_t**)hdr;int64_t len=hdr[1];if(idx<0||idx>=len)return 0;return buf[idx]+1;}")
     emitln_fwd(ctx, "static int64_t sx__rt_remove(void*list,int64_t idx){int64_t*hdr=(int64_t*)list;int64_t*buf=*(int64_t**)hdr;int64_t len=hdr[1];if(idx<0||idx>=len)return 0;int64_t val=buf[idx];int64_t i;for(i=idx;i<len-1;i++)buf[i]=buf[i+1];hdr[1]=len-1;return val;}")
     emitln_fwd(ctx, "static void sx__rt_reserve(void*list,int64_t cap){int64_t*hdr=(int64_t*)list;int64_t cur=hdr[2];if(cap>cur){int64_t*buf=*(int64_t**)hdr;buf=(int64_t*)realloc(buf,(size_t)(cap*8));hdr[0]=(int64_t)(intptr_t)buf;hdr[2]=cap;}}")
-    emitln_fwd(ctx, "static void*sx__rt_get_args(void){int64_t*hdr=(int64_t*)calloc(1,24);int64_t c=sx__argc;int64_t*buf=(int64_t*)calloc(1,(size_t)(c*8));u8**av=(u8**)(intptr_t)sx__argv;int64_t i;for(i=0;i<c;i++)buf[i]=(int64_t)(intptr_t)av[i];hdr[0]=(int64_t)(intptr_t)buf;hdr[1]=c;hdr[2]=c;return hdr;}")
-    emitln_fwd(ctx, "static void sx__rt_printf(const u8* f, int64_t* p){if(!p){printf(\"%s\",f);return;} printf(f,p[0],p[1],p[2],p[3],p[4],p[5],p[6],p[7],p[8],p[9],p[10],p[11],p[12],p[13],p[14],p[15]);}")
-    emitln_fwd(ctx, "#ifdef _WIN32\n#include <stdarg.h>\nstatic int sx__dprintf(int fd,const u8*fmt,...){u8 buf[4096];va_list ap;va_start(ap,fmt);int n=vsnprintf(buf,(int)(sizeof(buf)-1),fmt,ap);va_end(ap);if(n>0)_write(fd,buf,(unsigned)n);return n;}\n#else\n#define sx__dprintf dprintf\n#endif")
-    emitln_fwd(ctx, "static void sx__rt_dprintf(int fd, const u8* f, int64_t* p){if(!p){sx__dprintf(fd,\"%s\",f);return;} sx__dprintf(fd,f,p[0],p[1],p[2],p[3],p[4],p[5],p[6],p[7],p[8],p[9],p[10],p[11],p[12],p[13],p[14],p[15]);}")
-    emitln_fwd(ctx, "static u8* sx__rt_fmt(const u8* f, int64_t* p){u8* b=(u8*)malloc(4096);if(!p){strcpy(b,f);return b;} snprintf(b,4096,f,p[0],p[1],p[2],p[3],p[4],p[5],p[6],p[7],p[8],p[9],p[10],p[11],p[12],p[13],p[14],p[15]);return b;}")
+    emitln_fwd(ctx, "static void*sx__rt_get_args(void){int64_t*hdr=(int64_t*)calloc(1,24);int64_t c=sx__argc;int64_t*buf=(int64_t*)calloc(1,(size_t)(c*8));char**av=(char**)(intptr_t)sx__argv;int64_t i;for(i=0;i<c;i++)buf[i]=(int64_t)(intptr_t)av[i];hdr[0]=(int64_t)(intptr_t)buf;hdr[1]=c;hdr[2]=c;return hdr;}")
+    emitln_fwd(ctx, "static void sx__rt_printf(const char* f, int64_t* p){if(!p){printf(\"%s\",f);return;} printf(f,p[0],p[1],p[2],p[3],p[4],p[5],p[6],p[7],p[8],p[9],p[10],p[11],p[12],p[13],p[14],p[15]);}")
+    emitln_fwd(ctx, "#ifdef _WIN32\n#include <stdarg.h>\nstatic int sx__dprintf(int fd,const char*fmt,...){char buf[4096];va_list ap;va_start(ap,fmt);int n=vsnprintf(buf,(int)(sizeof(buf)-1),fmt,ap);va_end(ap);if(n>0)_write(fd,buf,(unsigned)n);return n;}\n#else\n#define sx__dprintf dprintf\n#endif")
+    emitln_fwd(ctx, "static void sx__rt_dprintf(int fd, const char* f, int64_t* p){if(!p){sx__dprintf(fd,\"%s\",f);return;} sx__dprintf(fd,f,p[0],p[1],p[2],p[3],p[4],p[5],p[6],p[7],p[8],p[9],p[10],p[11],p[12],p[13],p[14],p[15]);}")
+    emitln_fwd(ctx, "static char* sx__rt_fmt(const char* f, int64_t* p){char* b=(char*)malloc(4096);if(!p){strcpy(b,f);return b;} snprintf(b,4096,f,p[0],p[1],p[2],p[3],p[4],p[5],p[6],p[7],p[8],p[9],p[10],p[11],p[12],p[13],p[14],p[15]);return b;}")
 }
 
 fn emit_c_panic_handler(ctx: ref CCtx) void! = {
@@ -3957,7 +3956,7 @@ fn emit_string_data(ctx: ref CCtx) void! = {
         val s_opt = @get(ctx.strs as list[ref u8], si as usize)
         match s_opt { some s => {
             val buf: ref u8 = @alloc(4096) as ref u8
-            @snprintf(buf, 4096, "static u8 sx__str{lld}[]=\"", {si})
+            @snprintf(buf, 4096, "static char sx__str{lld}[]=\"", {si})
             emit_to_fwd(ctx, buf) @free(buf)
             val raw: ref u8 = s as ref u8
             val rlen: i64 = str.len_raw(raw)
@@ -4104,7 +4103,7 @@ fn gen_test_fn_c(ctx: mut ref CCtx, body_stmts: ref parser.Node, test_id: i64) v
 }
 
 fn gen_test_main_c(ctx: ref CCtx, test_ids: list[i64]) void! = {
-    emitln(ctx, "int main(int argc,u8**argv) {")
+    emitln(ctx, "int main(int argc,char**argv) {")
     emitln(ctx, "sx__argc=(int64_t)argc;sx__argv=(int64_t)(intptr_t)argv;")
     emitln(ctx, "sx__init();")
     if !ctx.release_mode { emitln(ctx, "__sx_panic_init();") }
