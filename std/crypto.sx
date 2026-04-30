@@ -533,14 +533,14 @@ pub fn hmac_sha256[T](key: T, data: T) string.String! = {
 pub fn unique_nonce() ref char! = {
     val buf: string.String = alloc_string(24)
     val ptr: ref void = @load(buf) as ref void
-    random.random_bytes(ptr, 24)
+    random.random_bytes(ptr, 24 as usize)
     val out: ref char = hex_encode[string.String](buf)
     string.string_free(buf)
     return out
 }
 
 test {
-    assert trust hash_fnv(0) != trust hash_fnv(1)
+    assert trust hash_fnv(0 as usize) != trust hash_fnv(1 as usize)
 
     val sha: string.String = trust sha256[ref char]("abc")
     val sha_hex: mut ref char = trust hex_encode[string.String](sha)

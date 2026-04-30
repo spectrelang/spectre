@@ -46,7 +46,7 @@ pub fn (Thread) new(entry: fn(ref void) ref void, arg: ref void) result[ref void
     }
     when windows {
         val thread_id: ref u32 = 0
-        val h: ref void = CreateThread(0, 0, entry_addr, arg, 0, thread_id)
+        val h: ref void = CreateThread(0 as ref void, 0 as usize, entry_addr, arg, 0 as u32, thread_id)
         if (h == 0) {
             @free(handle)
             return err ThreadError.CreateFailed
