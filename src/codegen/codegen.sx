@@ -747,8 +747,10 @@ fn monomorphize_generic_fn(ctx: mut ref CgCtx, gfn_node: ref parser.Node, _: ref
     @snprintf(mono_base, 1024, "{s}__GENMONO{s}", {fn_name, suffix})
     @free(suffix)
 
-    val old_gsubst_names: list[ref char] = ctx.gsubst_names
-    val old_gsubst_tnodes: list[ref void] = ctx.gsubst_tnodes
+    val old_gsubst_names: mut list[ref char] = []
+    for n in ctx.gsubst_names { @append(old_gsubst_names, n) }
+    val old_gsubst_tnodes: mut list[ref void] = []
+    for t in ctx.gsubst_tnodes { @append(old_gsubst_tnodes, t) }
     ctx.gsubst_names = []
     ctx.gsubst_tnodes = []
 
