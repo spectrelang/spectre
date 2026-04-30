@@ -4,5 +4,5 @@ val some_mod = use("./submod/sub.sx")
 
 pub fn main() void! = {
     some_mod.some_function()
-    stdio.print("{d}", {str.compare(str.RChar("hi"), str.RChar("hi"))})
+    stdio.print("{d}", {str.compare[ref char, ref char]("hi", "hi")})
 }
