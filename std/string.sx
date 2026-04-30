@@ -218,7 +218,7 @@ pub fn push_cstr(s: String, other: ref u8) void! = {
     val add_len: i64 = strlen(other)
     val new_len: i64 = l + add_len
 
-    ensure_cap(StrBuilder(s), new_len + 1)
+    ensure_cap(StrBuilder(s as StringBuilder), new_len + 1)
 
     val ptr: ref void = @load(s)
 

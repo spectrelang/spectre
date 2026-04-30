@@ -1594,14 +1594,84 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
         }
 
         if fn_found == 0 as ref parser.Node && cargs != 0 as ref void {
-            for carg in cargs as list[ref parser.Node] {
-                val root_carg: ref parser.Node = unwrap_and_find_root(carg)
-                if root_carg != 0 as ref parser.Node {
-                    val aname: ref u8 = root_carg.d0 as ref u8
-                    if aname != 0 as ref u8 {
-                        if scope_lookup_is_ref(ctx, aname) == 1 {
-                            if scope_lookup(ctx, aname) == 1 {
-                                mark_name_mutated(ctx, aname)
+            if base_callee != 0 as ref parser.Node && base_callee.kind == parser.NK_IDENT {
+                val callee_name: ref u8 = base_callee.d0 as ref u8
+                val union_name_buf: mut ref u8 = 0 as ref u8
+                val variant_node: ref parser.Node = sema_lookup_tagged_variant(ctx, callee_name, @addr(union_name_buf) as ref void)
+                
+                if variant_node != 0 as ref parser.Node {
+                    val expected_types: ref void = variant_node.d1 as ref void
+                    val expected_count: mut i64 = 0
+                    if expected_types != 0 as ref void { 
+                        expected_count = @len(expected_types as list[ref parser.Node]) as i64 
+                    } 
+
+                    val arg_count: i64 = @len(cargs) as i64
+                    
+                    if arg_count != expected_count {
+                        val arity_buf: ref u8 = @alloc(512) as ref u8
+                        @snprintf(arity_buf, 512, "{s}:{lld}: variant constructor '{s}' expects {lld} argument(s) but got {lld}",
+                            {filename, line, callee_name, expected_count, arg_count})
+                        add_error(ctx, arity_buf)
+                    } else {
+                        val idx: mut i64 = 0
+                        for {
+                            if idx >= expected_count { break }
+                            val arg_opt = @get(cargs, idx as usize)
+                            val expected_ty_opt = @get(expected_types as list[ref parser.Node], idx as usize)
+                            
+                            match arg_opt {
+                                some arg_raw => {
+                                    val arg_node: ref parser.Node = arg_raw as ref parser.Node
+                                    match expected_ty_opt {
+                                        some expected_ty_raw => {
+                                            val expected_ty: ref parser.Node = expected_ty_raw as ref parser.Node
+                                            val expected_type_name: ref u8 = extract_type_name(expected_ty)
+                                            val arg_type_name: ref u8 = infer_expr_scope_type_name(ctx, arg_node)
+                                            
+                                            if expected_type_name != 0 as ref u8 && !str_eq(expected_type_name, "") &&
+                                               arg_type_name != 0 as ref u8 && !str_eq(arg_type_name, "") {
+                                                if !types_compatible(expected_type_name, arg_type_name) {
+                                                    val type_err_buf: ref u8 = @alloc(512) as ref u8
+                                                    @snprintf(type_err_buf, 512, "{s}:{lld}: type mismatch in variant constructor '{s}': argument {lld} expects type '{s}' but got '{s}'",
+                                                        {filename, line, callee_name, idx + 1, expected_type_name, arg_type_name})
+                                                    add_error(ctx, type_err_buf)
+                                                }
+                                            }
+                                        }
+                                        none => {}
+                                    }
+                                }
+                                none => {}
+                            }
+                            idx++
+                        }
+                    }
+                } else {
+                    for carg in cargs as list[ref parser.Node] {
+                        val root_carg: ref parser.Node = unwrap_and_find_root(carg)
+                        if root_carg != 0 as ref parser.Node {
+                            val aname: ref u8 = root_carg.d0 as ref u8
+                            if aname != 0 as ref u8 {
+                                if scope_lookup_is_ref(ctx, aname) == 1 {
+                                    if scope_lookup(ctx, aname) == 1 {
+                                        mark_name_mutated(ctx, aname)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            } else {
+                for carg in cargs as list[ref parser.Node] {
+                    val root_carg: ref parser.Node = unwrap_and_find_root(carg)
+                    if root_carg != 0 as ref parser.Node {
+                        val aname: ref u8 = root_carg.d0 as ref u8
+                        if aname != 0 as ref u8 {
+                            if scope_lookup_is_ref(ctx, aname) == 1 {
+                                if scope_lookup(ctx, aname) == 1 {
+                                    mark_name_mutated(ctx, aname)
+                                }
                             }
                         }
                     }
@@ -1844,6 +1914,42 @@ fn sema_lookup_uniondef(ctx: ref SemaCtx, type_name: ref u8) ref parser.Node! = 
                     if tdname != 0 as ref u8 {
                         if std.string.rchar_cmp(tdname, type_name) == 0 {
                             return tdnode
+                        }
+                    }
+                }
+            }
+            none => {}
+        }
+        ti++
+    }
+    return 0 as ref parser.Node
+}
+
+/// Look up a tagged union variant by name.
+/// Returns the variant node (NK_VAL with d0=name, d1=list of type nodes) and sets out_union_name.
+/// Returns 0 if not found.
+fn sema_lookup_tagged_variant(ctx: ref SemaCtx, variant_name: ref u8, out_union_name: ref void) ref parser.Node! = {
+    if variant_name == 0 as ref u8 { return 0 as ref parser.Node }
+    val tlen: i64 = @len(ctx.type_defs) as i64
+    val ti: mut i64 = 0
+    for {
+        if ti >= tlen { break }
+        val td_opt = @get(ctx.type_defs, ti as usize)
+        match td_opt {
+            some td => {
+                val tdnode: ref parser.Node = td as ref parser.Node
+                if tdnode.kind == parser.NK_TAGGED_UNIONDEF {
+                    val variants: ref void = tdnode.d2 as ref void
+                    if variants != 0 as ref void {
+                        for variant in variants as list[ref parser.Node] {
+                            val vname: ref u8 = variant.d0 as ref u8
+                            if vname != 0 as ref u8 && std.string.rchar_cmp(vname, variant_name) == 0 {
+                                if out_union_name != 0 as ref void {
+                                    val union_name: ref u8 = tdnode.d1 as ref u8
+                                    @store(out_union_name, union_name as usize)
+                                }
+                                return variant
+                            }
                         }
                     }
                 }
@@ -2581,7 +2687,7 @@ fn register_type_name(ctx: ref SemaCtx, item: ref parser.Node) void! = {
     if item.d1 != 0 as i64 {
         @append(ctx.type_names, item.d1 as ref u8)
     }
-    if k == parser.NK_TYPEDEF || k == parser.NK_UNIONDEF || k == parser.NK_ENUMDEF {
+    if k == parser.NK_TYPEDEF || k == parser.NK_UNIONDEF || k == parser.NK_ENUMDEF || k == parser.NK_TAGGED_UNIONDEF {
         @append(ctx.type_defs, item as ref void)
     }
     if k == parser.NK_TAGGED_UNIONDEF {
