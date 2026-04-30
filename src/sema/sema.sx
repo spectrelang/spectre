@@ -40,7 +40,7 @@ fn sema_new() ref SemaCtx! = {
 
 fn add_error(ctx: ref SemaCtx, msg: ref char) void! = {
     for existing in ctx.errors {
-        if std.string.compare(std.string.RChar(existing as ref char), std.string.RChar(msg)) == 0 { return }
+        if std.string.rchar_cmp(existing as ref char, msg) == 0 { return }
     }
     @append(ctx.errors, msg)
 }
@@ -161,7 +161,7 @@ fn pop_scope(ctx: ref SemaCtx, filename: ref char, _: i64) void! = {
                         some e => {
                             val entry: ref ScopeEntry = e as ref ScopeEntry
                             if entry.name != 0 as ref char {
-                                if std.string.compare(std.string.RChar(entry.name), std.string.RChar("_")) != 0 {
+                                if std.string.rchar_cmp(entry.name, "_") != 0 {
                                     if entry.used == 0 {
                                         val buf: ref char = @alloc(512) as ref char
                                         @snprintf(buf, 512, "{s}:{lld}: variable '{s}' declared but never used", {filename, entry.line, entry.name})
@@ -234,7 +234,7 @@ fn scope_set_implicit_mut(ctx: ref SemaCtx, name: ref char) void! = {
                     some e => {
                         val entry: mut ref ScopeEntry = e as ref ScopeEntry
                         if entry.name != 0 as ref char {
-                            if std.string.compare(std.string.RChar(entry.name), std.string.RChar(name)) == 0 {
+                            if std.string.rchar_cmp(entry.name, name) == 0 {
                                 entry.implicit_mut = 1
                             }
                         }
@@ -348,7 +348,7 @@ fn scope_lookup(ctx: ref SemaCtx, name: ref char) i64! = {
                     match e_opt {
                         some e => {
                             val entry: ref ScopeEntry = e as ref ScopeEntry
-                            if std.string.compare(std.string.RChar(entry.name), std.string.RChar(name)) == 0 {
+                            if std.string.rchar_cmp(entry.name, name) == 0 {
                                 return entry.mutable
                             }
                         }
@@ -386,7 +386,7 @@ fn scope_lookup_type(ctx: ref SemaCtx, name: ref char) ref char! = {
                     match e_opt {
                         some e => {
                             val entry: ref ScopeEntry = e as ref ScopeEntry
-                            if std.string.compare(std.string.RChar(entry.name), std.string.RChar(name)) == 0 {
+                            if std.string.rchar_cmp(entry.name, name) == 0 {
                                 return entry.type_name
                             }
                         }
@@ -424,7 +424,7 @@ fn scope_lookup_is_ref(ctx: ref SemaCtx, name: ref char) i64! = {
                     match e_opt {
                         some e => {
                             val entry: ref ScopeEntry = e as ref ScopeEntry
-                            if std.string.compare(std.string.RChar(entry.name), std.string.RChar(name)) == 0 {
+                            if std.string.rchar_cmp(entry.name, name) == 0 {
                                 return entry.is_ref
                             }
                         }
@@ -458,7 +458,7 @@ fn mark_name_used(ctx: ref SemaCtx, name: ref char) void! = {
                     match e_opt {
                         some e => {
                             val entry: mut ref ScopeEntry = e as ref ScopeEntry
-                            if std.string.compare(std.string.RChar(entry.name), std.string.RChar(name)) == 0 {
+                            if std.string.rchar_cmp(entry.name, name) == 0 {
                                 entry.used = 1
                                 return
                             }
@@ -491,7 +491,7 @@ fn mark_name_mutated(ctx: ref SemaCtx, name: ref char) void! = {
                     match e_opt {
                         some e => {
                             val entry: mut ref ScopeEntry = e as ref ScopeEntry
-                            if std.string.compare(std.string.RChar(entry.name), std.string.RChar(name)) == 0 {
+                            if std.string.rchar_cmp(entry.name, name) == 0 {
                                 entry.mutated = 1
                                 entry.used = 1
                                 return
@@ -520,7 +520,7 @@ fn find_field_mutable(ctx: ref SemaCtx, type_name: ref char, field_name: ref cha
             some td => {
                 val td_node: ref parser.Node = td as ref parser.Node
                 val td_name: ref char = td_node.d1 as ref char
-                if std.string.compare(std.string.RChar(td_name), std.string.RChar(type_name)) == 0 {
+                if std.string.rchar_cmp(td_name, type_name) == 0 {
                     val fields: ref void = td_node.d2 as ref void
                     if fields != 0 as ref void {
                         val flen: i64 = @len(fields) as i64
@@ -532,7 +532,7 @@ fn find_field_mutable(ctx: ref SemaCtx, type_name: ref char, field_name: ref cha
                                 some f => {
                                     val fnode: ref parser.Node = f as ref parser.Node
                                     val fname: ref char = fnode.d0 as ref char
-                                    if std.string.compare(std.string.RChar(fname), std.string.RChar(field_name)) == 0 {
+                                    if std.string.rchar_cmp(fname, field_name) == 0 {
                                         return fnode.d1
                                     }
                                 }
@@ -593,7 +593,7 @@ fn scope_defined_local(ctx: ref SemaCtx, name: ref char) bool! = {
                 match e_opt {
                     some e => {
                         val entry: ref ScopeEntry = e as ref ScopeEntry
-                        if std.string.compare(std.string.RChar(entry.name), std.string.RChar(name)) == 0 { return true }
+                        if std.string.rchar_cmp(entry.name, name) == 0 { return true }
                     }
                     none => {}
                 }
@@ -606,7 +606,7 @@ fn scope_defined_local(ctx: ref SemaCtx, name: ref char) bool! = {
 }
 
 fn str_eq(a: ref char, b: ref char) bool! = {
-    return std.string.compare(std.string.RChar(a), std.string.RChar(b)) == 0
+    return std.string.rchar_cmp(a, b) == 0
 }
 
 /// Returns true if `name` is referenced as an identifier anywhere in `stmts`.
@@ -1247,17 +1247,17 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref char) v
                             val is_match: mut bool = false
                             if target_ns != 0 as ref char {
                                 if fname_node1 != 0 as ref char && fname_node2 != 0 as ref char {
-                                    if std.string.compare(std.string.RChar(fname_node1), std.string.RChar(target_ns)) == 0 &&
-                                       std.string.compare(std.string.RChar(fname_node2), std.string.RChar(target_name)) == 0 {
+                                    if std.string.rchar_cmp(fname_node1, target_ns) == 0 &&
+                                       std.string.rchar_cmp(fname_node2, target_name) == 0 {
                                         is_match = true
                                     }
                                 }
                             } else {
                                 if fname_node1 != 0 as ref char {
-                                    if std.string.compare(std.string.RChar(fname_node1), std.string.RChar(target_name)) == 0 { is_match = true }
+                                    if std.string.rchar_cmp(fname_node1, target_name) == 0 { is_match = true }
                                 }
                                 if fname_node2 != 0 as ref char {
-                                    if std.string.compare(std.string.RChar(fname_node2), std.string.RChar(target_name)) == 0 { is_match = true }
+                                    if std.string.rchar_cmp(fname_node2, target_name) == 0 { is_match = true }
                                 }
                             }
                             if is_match {
@@ -1620,7 +1620,7 @@ fn sema_lookup_typedef(ctx: ref SemaCtx, type_name: ref char) ref parser.Node! =
                 val tdnode: ref parser.Node = td as ref parser.Node
                 val tdname: ref char = tdnode.d1 as ref char
                 if tdname != 0 as ref char {
-                    if std.string.compare(std.string.RChar(tdname), std.string.RChar(type_name)) == 0 {
+                    if std.string.rchar_cmp(tdname, type_name) == 0 {
                         return tdnode
                     }
                 }
@@ -1661,7 +1661,7 @@ fn sema_const_eval(expr: ref parser.Node, field_names: ref void, field_vals: ref
             val fn_opt = @get(field_names as list[ref char], fi as usize)
             match fn_opt {
                 some func => {
-                    if std.string.compare(std.string.RChar(func as ref char), std.string.RChar(iname)) == 0 {
+                    if std.string.rchar_cmp(func as ref char, iname) == 0 {
                         val fv_opt = @get(field_vals as list[i64], fi as usize)
                         match fv_opt {
                             some fv => { return fv as i64 }
@@ -2139,7 +2139,7 @@ fn check_stmt(ctx: ref SemaCtx, stmt: ref parser.Node, filename: ref char) void!
                 val bindings: ref void = tu_arm.d1 as ref void
                 if bindings != 0 as ref void {
                     for bname in bindings as list[ref char] {
-                        if std.string.compare(std.string.RChar(bname), std.string.RChar("_")) != 0 {
+                        if std.string.rchar_cmp(bname, "_") != 0 {
                             scope_define(ctx, bname, 1, 0 as ref char, 0, line)
                             scope_set_implicit_mut(ctx, bname)
                         }
@@ -2149,7 +2149,7 @@ fn check_stmt(ctx: ref SemaCtx, stmt: ref parser.Node, filename: ref char) void!
                 check_stmts(ctx, arm_body, filename)
                 if bindings != 0 as ref void {
                     for bname2 in bindings as list[ref char] {
-                        if std.string.compare(std.string.RChar(bname2), std.string.RChar("_")) != 0 {
+                        if std.string.rchar_cmp(bname2, "_") != 0 {
                             if !stmts_use_name(arm_body, bname2) {
                                 val buf: ref char = @alloc(256) as ref char
                                 @snprintf(buf, 256, "{s}:{lld}: match binding '{s}' is captured but never used (use '_' to discard)",
