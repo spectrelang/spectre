@@ -6187,10 +6187,19 @@ fn gen_builtin(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
         }
         val line: i64 = expr.line
         val filename: ref char = ctx.current_filename
+        val fn_context: ref char = ctx.current_fn_name
         if str.rchar_cmp(filename, "") == 0 {
-            std.stdio.eprint("error: line {lld}: {s}\n", {line, msg})
+            if str.rchar_cmp(fn_context, "") == 0 || fn_context == 0 as ref char {
+                std.stdio.eprint("error: line {d}: {s}\n", {line, msg})
+            } else {
+                std.stdio.eprint("error: line {d} in function '{s}': {s}\n", {line, fn_context, msg})
+            }
         } else {
-            std.stdio.eprint("error: {s}:{lld}: {s}\n", {filename, line, msg})
+            if str.rchar_cmp(fn_context, "") == 0 || fn_context == 0 as ref char {
+                std.stdio.eprint("error: {s}:{d}: {s}\n", {filename, line, msg})
+            } else {
+                std.stdio.eprint("error: {s}:{d} in function '{s}': {s}\n", {filename, line, fn_context, msg})
+            }
         }
         std.os.exit(1)
     }

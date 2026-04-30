@@ -46,7 +46,7 @@ pub fn as_rchar[T](x: T) ref char! = {
         return x.ptr
     }
     when T !in (ref char, String) {
-        @staticerror("unsupported type for string comparison")
+        @staticerror("as_rchar[T]: unsupported type T for string comparison (expected ref char or String)")
     }
 }
 
