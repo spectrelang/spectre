@@ -2,6 +2,8 @@ link "-lSDL2"
 link "-lSDL2_image"
 link "-lm"
 
+extern "SDL.h"
+
 val MAP_SIZE: i32 = 20
 val TILE_SIZE: i32 = 64
 val SCREEN_WIDTH: i32 = 1280
