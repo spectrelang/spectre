@@ -14,6 +14,6 @@ pub fn (SomeType) do_some_thing(s: self, times: usize) void! = {
 
 pub fn main() i32! = {
     val x: SomeType = {x: 10, y: 40, z: "hello"}
-    SomeType.do_some_thing(x, 20)
+    SomeType.do_some_thing(x, 20 as usize)
     return 0
 }
