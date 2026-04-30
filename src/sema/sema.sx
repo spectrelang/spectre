@@ -1495,7 +1495,25 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref char) v
                                     val arg_is_ref: i64 = infer_expr_scope_is_ref(ctx, arg_node)
                                     
                                     if param_type_name != 0 as ref char && !str_eq(param_type_name, "") {
+                                        val skip_type_check: mut bool = false
+                                        
                                         if is_type_parameter(ctx, param_type_name) || is_type_parameter(ctx, arg_type_name) {
+                                            skip_type_check = true
+                                        }
+                                        
+                                        if !skip_type_check && fn_found != 0 as ref parser.Node && fn_found.kind == parser.NK_GENERIC_FN {
+                                            val fn_type_params: ref void = fn_found.d6 as ref void
+                                            if fn_type_params != 0 as ref void {
+                                                for ftp in fn_type_params as list[ref char] {
+                                                    if str_eq(ftp as ref char, param_type_name) || str_eq(ftp as ref char, arg_type_name) {
+                                                        skip_type_check = true
+                                                        break
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        
+                                        if skip_type_check {
                                             if param_is_ref {
                                                 val root_node: ref parser.Node = unwrap_and_find_root(arg_node)
                                                 if root_node != 0 as ref parser.Node {
