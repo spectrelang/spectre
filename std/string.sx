@@ -37,6 +37,19 @@ pub union StrOrRChar = {
     Str(String) | RChar(ref char)
 }
 
+/// Extract `ref char` from supported types.
+pub fn as_rchar[T](x: T) ref char! = {
+    when T is ref char {
+        return x
+    }
+    when T is String {
+        return x.ptr
+    }
+    when T !in (ref char, String) {
+        @staticerror("unsupported type for string comparison")
+    }
+}
+
 /// Compare two raw strings.
 pub fn rchar_cmp(a: ref char, b: ref char) i64 = {
     if a == none && b == none {
@@ -47,18 +60,11 @@ pub fn rchar_cmp(a: ref char, b: ref char) i64 = {
     return trust strcmp(a, b)
 }
 
-pub fn compare(a: StrOrRChar, b: StrOrRChar) i64! = {
-    val aptr: mut ref char = ""
-    match a {
-        RChar p => { aptr = p }
-        Str s   => { aptr = s.ptr }
-    }
-    val bptr: mut ref char = ""
-    match b {
-        RChar p => { bptr = p }
-        Str s   => { bptr = s.ptr }
-    }
-    return strcmp(aptr, bptr)
+/// Compare a string or rchar with a string or rchar
+pub fn compare[A, B](a: A, b: B) i64! = {
+    val aptr = as_rchar[A](a)
+    val bptr = as_rchar[B](b)
+    return rchar_cmp(aptr, bptr)
 }
 
 /// Create from raw C string
@@ -1262,5 +1268,5 @@ test {
 
     trust stdio.print("{s}", {cstr(format("hello {d}", {1}))})
 
-    trust stdio.print("comparison: {d}\n", {compare(from("abc"), from("abc"))})
+    trust stdio.print("comparison: {d}\n", {compare[String, String](from("abc"), from("abc"))})
 }

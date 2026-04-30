@@ -625,7 +625,8 @@ fn gwhen_matches_gsubst(ctx: ref CgCtx, when_node: ref parser.Node) bool! = {
                             val t_opt = @get(ctypes as list[ref parser.Node], ti as usize)
                             match t_opt {
                                 some t => {
-                                    val ts: ref char = type_node_to_str(t as ref parser.Node)
+                                    val resolved_t: ref parser.Node = gsubst_resolve(ctx, t as ref parser.Node)
+                                    val ts: ref char = type_node_to_str(resolved_t)
                                     if str.rchar_cmp(concrete_str, ts) == 0 { matched = true }
                                 }
                                 none => {}
@@ -640,7 +641,8 @@ fn gwhen_matches_gsubst(ctx: ref CgCtx, when_node: ref parser.Node) bool! = {
                         val t_opt = @get(ctypes as list[ref parser.Node], 0)
                         match t_opt {
                             some t => {
-                                val ts: ref char = type_node_to_str(t as ref parser.Node)
+                                val resolved_t2: ref parser.Node = gsubst_resolve(ctx, t as ref parser.Node)
+                                val ts: ref char = type_node_to_str(resolved_t2)
                                 if str.rchar_cmp(concrete_str, ts) == 0 { matched2 = true }
                             }
                             none => {}
@@ -657,7 +659,8 @@ fn gwhen_matches_gsubst(ctx: ref CgCtx, when_node: ref parser.Node) bool! = {
                             val t_opt3 = @get(ctypes as list[ref parser.Node], ti3 as usize)
                             match t_opt3 {
                                 some t3 => {
-                                    val ts3: ref char = type_node_to_str(t3 as ref parser.Node)
+                                    val resolved_t3: ref parser.Node = gsubst_resolve(ctx, t3 as ref parser.Node)
+                                    val ts3: ref char = type_node_to_str(resolved_t3)
                                     if str.rchar_cmp(concrete_str, ts3) == 0 { matched3 = true }
                                 }
                                 none => {}
