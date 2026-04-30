@@ -2296,7 +2296,13 @@ fn gen_builtin(ctx: ref CCtx, expr: ref parser.Node) ref char! = {
                 none => {}
             }
         }
-        std.stdio.eprint("error: {s}\n", {msg})
+        val line: i64 = expr.line
+        val filename: ref char = ctx.current_src_file
+        if str.rchar_cmp(filename, "") == 0 {
+            std.stdio.eprint("error: line {lld}: {s}\n", {line, msg})
+        } else {
+            std.stdio.eprint("error: {s}:{lld}: {s}\n", {filename, line, msg})
+        }
         std.os.exit(1)
     }
     

@@ -66,6 +66,7 @@ pub type CgCtx = {
     gfn_prefixes:   mut list[ref char]
     gsubst_names:   mut list[ref char]
     gsubst_tnodes:  mut list[ref void]
+    current_filename: mut ref char
 }
 
 fn cg_new() ref CgCtx! = {
@@ -129,6 +130,7 @@ fn cg_new() ref CgCtx! = {
     ctx.gfn_prefixes = []
     ctx.gsubst_names = []
     ctx.gsubst_tnodes = []
+    ctx.current_filename = ""
     return ctx
 }
 
@@ -6180,7 +6182,13 @@ fn gen_builtin(ctx: ref CgCtx, expr: ref parser.Node) ref char! = {
                 none => {}
             }
         }
-        std.stdio.eprint("error: {s}\n", {msg})
+        val line: i64 = expr.line
+        val filename: ref char = ctx.current_filename
+        if str.rchar_cmp(filename, "") == 0 {
+            std.stdio.eprint("error: line {lld}: {s}\n", {line, msg})
+        } else {
+            std.stdio.eprint("error: {s}:{lld}: {s}\n", {filename, line, msg})
+        }
         std.os.exit(1)
     }
 
