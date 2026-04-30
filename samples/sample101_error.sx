@@ -1,0 +1,12 @@
+pub fn swap[T](x: ref T, y: ref T) void = {
+    val tmp = @deref(x)
+    @deref(x) = @deref(y)
+    @deref(y) = tmp
+}
+
+pub fn main() void = {
+    val x: i32 = 1
+    val y: i32 = 2
+    swap[i32](@addr(x), @addr(y))
+    trust @print("x: {d}\ny: {d}\n", {x, y})
+}
