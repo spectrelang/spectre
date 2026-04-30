@@ -1,0 +1,6 @@
+pub fn main() void = {
+    val emojis = ["😆", "😆", "😆"]
+    for emoji in emojis {
+        trust @print("{s}", {emoji})
+    }
+}
