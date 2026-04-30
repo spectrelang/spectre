@@ -1,5 +1,5 @@
 val collections = use("collections.sx")
-val stdio = use("stdio.sx")
+val stdio       = use("stdio.sx")
 
 extern (C) fn strlen(s: ref u8) i64! = "strlen"
 extern (C) fn strcmp(a: ref u8, b: ref u8) i64! = "strcmp"
@@ -12,7 +12,7 @@ pub union SbOrPtr = {
 
 /// This is the classic string type.
 ///
-/// An owned heap string: ptr, len, cap — each 8 bytes.
+/// An owned heap string: ptr, len, cap - each 8 bytes.
 pub type String = {
     ptr: ref u8
     len: i64
