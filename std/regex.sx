@@ -382,7 +382,7 @@ fn matchone(token: ref void, c: u8) bool = {
     return token_ch(token) == c
 }
 
-fn matchpattern(pattern: ref void, text: ref char, matchlength: ref i64) bool = {
+fn matchpattern(pattern: ref void, text: ref char, matchlength: mut ref i64) bool = {
     pre {
         text_present: text != none
         matchlength_present: matchlength != none
@@ -420,7 +420,7 @@ fn matchpattern(pattern: ref void, text: ref char, matchlength: ref i64) bool = 
     return false
 }
 
-fn matchstar(token: ref void, pattern: ref void, text: ref char, matchlength: ref i64) bool = {
+fn matchstar(token: ref void, pattern: ref void, text: ref char, matchlength: mut ref i64) bool = {
     pre {
         text_present: text != none
         matchlength_present: matchlength != none
@@ -455,7 +455,7 @@ fn matchstar(token: ref void, pattern: ref void, text: ref char, matchlength: re
     return false
 }
 
-fn matchplus(token: ref void, pattern: ref void, text: ref char, matchlength: ref i64) bool = {
+fn matchplus(token: ref void, pattern: ref void, text: ref char, matchlength: mut ref i64) bool = {
     pre {
         text_present: text != none
         matchlength_present: matchlength != none
@@ -488,7 +488,7 @@ fn matchplus(token: ref void, pattern: ref void, text: ref char, matchlength: re
     return false
 }
 
-fn matchquestion(token: ref void, pattern: ref void, text: ref char, matchlength: ref i64) bool = {
+fn matchquestion(token: ref void, pattern: ref void, text: ref char, matchlength: mut ref i64) bool = {
     pre {
         text_present: text != none
         matchlength_present: matchlength != none
@@ -512,7 +512,7 @@ fn matchquestion(token: ref void, pattern: ref void, text: ref char, matchlength
     return false
 }
 
-pub fn re_matchp(pattern: ref void, text: ref char, matchlength: ref i64) result[option[i64], RegexMatchError]! = {
+pub fn re_matchp(pattern: ref void, text: ref char, matchlength: mut ref i64) result[option[i64], RegexMatchError]! = {
     guard (matchlength != none) else {
         return err RegexMatchError.NullMatchLength
     }
@@ -560,7 +560,7 @@ pub fn re_matchp(pattern: ref void, text: ref char, matchlength: ref i64) result
     return ok none
 }
 
-pub fn re_match(pattern: ref char, text: ref char, matchlength: ref i64) result[option[i64], RegexMatchError] = {
+pub fn re_match(pattern: ref char, text: ref char, matchlength: mut ref i64) result[option[i64], RegexMatchError] = {
     guard (matchlength != none) else {
         return err RegexMatchError.NullMatchLength
     }

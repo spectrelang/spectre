@@ -1039,7 +1039,7 @@ fn file_date(path: ref char) ref char = {
         return trust string.substr("unknown", 0, 7)
     }
     
-    val mtime: i64 = st.st_mtime
+    val mtime: mut i64 = st.st_mtime
     val tm: ref void = trust localtime(@addr(mtime))
     val buf: ref char = @alloc(32) as ref char
     trust strftime(buf, 32 as usize, "%B %d, %Y", tm)
