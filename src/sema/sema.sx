@@ -30,6 +30,7 @@ type SemaCtx = {
     in_unsafe_fn:  mut i64
     in_trust:      mut i64
     trust_used:    mut i64
+    type_params:   mut list[ref char]
 }
 
 fn sema_new() ref SemaCtx! = {
@@ -602,6 +603,19 @@ fn scope_defined_local(ctx: ref SemaCtx, name: ref char) bool! = {
         }
         none => {}
     }
+    return false
+}
+
+/// Check if a type name is a type parameter.
+fn is_type_parameter(ctx: ref SemaCtx, tname: ref char) bool! = {
+    if tname == 0 as ref char { return false }
+    
+    for tp in ctx.type_params {
+        if str_eq(tp as ref char, tname) {
+            return true
+        }
+    }
+    
     return false
 }
 
@@ -1481,53 +1495,62 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref char) v
                                     val arg_is_ref: i64 = infer_expr_scope_is_ref(ctx, arg_node)
                                     
                                     if param_type_name != 0 as ref char && !str_eq(param_type_name, "") {
-                                        val type_mismatch: mut bool = false
-                                        val param_expects_ref: bool = pty.kind == parser.TY_REF || (pty.kind == parser.TY_MUT && pty.d0 != 0 as ref parser.Node && (pty.d0 as ref parser.Node).kind == parser.TY_REF)
-                                        
-                                        if param_expects_ref && str_eq(param_type_name, "char") {
-                                            if arg_node.kind == parser.NK_INT_LIT || arg_node.kind == parser.NK_FLOAT_LIT || arg_node.kind == parser.NK_BOOL {
-                                                type_mismatch = true
-                                            } elif arg_node.kind == parser.NK_IDENT && arg_is_ref == 0 {
-                                                if arg_type_name != 0 as ref char && !str_eq(arg_type_name, "") {
-                                                    if !str_eq(arg_type_name, "char") && !str_eq(arg_type_name, param_type_name) {
-                                                        type_mismatch = true
-                                                    }
+                                        if is_type_parameter(ctx, param_type_name) || is_type_parameter(ctx, arg_type_name) {
+                                            if param_is_ref {
+                                                val root_node: ref parser.Node = unwrap_and_find_root(arg_node)
+                                                if root_node != 0 as ref parser.Node {
+                                                    mark_name_mutated(ctx, root_node.d0 as ref char)
                                                 }
                                             }
-                                        } elif !param_expects_ref && arg_type_name != 0 as ref char && !str_eq(arg_type_name, "") {
-                                            if !types_compatible(param_type_name, arg_type_name) {
-                                                type_mismatch = true
+                                        } else {
+                                            val type_mismatch: mut bool = false
+                                            val param_expects_ref: bool = pty.kind == parser.TY_REF || (pty.kind == parser.TY_MUT && pty.d0 != 0 as ref parser.Node && (pty.d0 as ref parser.Node).kind == parser.TY_REF)
+                                            
+                                            if param_expects_ref && str_eq(param_type_name, "char") {
+                                                if arg_node.kind == parser.NK_INT_LIT || arg_node.kind == parser.NK_FLOAT_LIT || arg_node.kind == parser.NK_BOOL {
+                                                    type_mismatch = true
+                                                } elif arg_node.kind == parser.NK_IDENT && arg_is_ref == 0 {
+                                                    if arg_type_name != 0 as ref char && !str_eq(arg_type_name, "") {
+                                                        if !str_eq(arg_type_name, "char") && !str_eq(arg_type_name, param_type_name) {
+                                                            type_mismatch = true
+                                                        }
+                                                    }
+                                                }
+                                            } elif !param_expects_ref && arg_type_name != 0 as ref char && !str_eq(arg_type_name, "") {
+                                                if !types_compatible(param_type_name, arg_type_name) {
+                                                    type_mismatch = true
+                                                }
                                             }
-                                        }
-                                        
-                                        if type_mismatch {
-                                            val fn_name_for_err: mut ref char = 0 as ref char
-                                            if base_callee != 0 as ref parser.Node {
-                                                if base_callee.kind == parser.NK_IDENT { fn_name_for_err = base_callee.d0 as ref char }
-                                                elif base_callee.kind == parser.NK_FIELD { fn_name_for_err = parser.field_name(base_callee) }
+                                            
+                                            if type_mismatch {
+                                                val fn_name_for_err: mut ref char = 0 as ref char
+                                                if base_callee != 0 as ref parser.Node {
+                                                    if base_callee.kind == parser.NK_IDENT { fn_name_for_err = base_callee.d0 as ref char }
+                                                    elif base_callee.kind == parser.NK_FIELD { fn_name_for_err = parser.field_name(base_callee) }
+                                                }
+                                                val type_err_buf: ref char = @alloc(512) as ref char
+                                                val param_name: ref char = param_node.d0 as ref char
+                                                val param_type_str: mut ref char = param_type_name
+                                                if param_expects_ref {
+                                                    val ref_buf: ref char = @alloc(128) as ref char
+                                                    @snprintf(ref_buf, 128, "ref {s}", {param_type_name})
+                                                    param_type_str = ref_buf
+                                                }
+                                                val arg_type_str: mut ref char = arg_type_name
+                                                if arg_is_ref == 1 && arg_type_name != 0 as ref char {
+                                                    val arg_ref_buf: ref char = @alloc(128) as ref char
+                                                    @snprintf(arg_ref_buf, 128, "ref {s}", {arg_type_name})
+                                                    arg_type_str = arg_ref_buf
+                                                }
+                                                if fn_name_for_err != 0 as ref char {
+                                                    @snprintf(type_err_buf, 512, "{s}:{lld}: type mismatch in call to '{s}': parameter '{s}' expects type '{s}' but got '{s}'",
+                                                        {filename, line, fn_name_for_err, param_name, param_type_str, arg_type_str})
+                                                } else {
+                                                    @snprintf(type_err_buf, 512, "{s}:{lld}: type mismatch: parameter '{s}' expects type '{s}' but got '{s}'",
+                                                        {filename, line, param_name, param_type_str, arg_type_str})
+                                                }
+                                                add_error(ctx, type_err_buf)
                                             }
-                                            val type_err_buf: ref char = @alloc(512) as ref char
-                                            val param_name: ref char = param_node.d0 as ref char
-                                            val param_type_str: mut ref char = param_type_name
-                                            if param_expects_ref {
-                                                val ref_buf: ref char = @alloc(128) as ref char
-                                                @snprintf(ref_buf, 128, "ref {s}", {param_type_name})
-                                                param_type_str = ref_buf
-                                            }
-                                            val arg_type_str: mut ref char = arg_type_name
-                                            if arg_is_ref == 1 && arg_type_name != 0 as ref char {
-                                                val arg_ref_buf: ref char = @alloc(128) as ref char
-                                                @snprintf(arg_ref_buf, 128, "ref {s}", {arg_type_name})
-                                                arg_type_str = arg_ref_buf
-                                            }
-                                            if fn_name_for_err != 0 as ref char {
-                                                @snprintf(type_err_buf, 512, "{s}:{lld}: type mismatch in call to '{s}': parameter '{s}' expects type '{s}' but got '{s}'",
-                                                    {filename, line, fn_name_for_err, param_name, param_type_str, arg_type_str})
-                                            } else {
-                                                @snprintf(type_err_buf, 512, "{s}:{lld}: type mismatch: parameter '{s}' expects type '{s}' but got '{s}'",
-                                                    {filename, line, param_name, param_type_str, arg_type_str})
-                                            }
-                                            add_error(ctx, type_err_buf)
                                         }
                                     }
                                 }
@@ -2590,6 +2613,15 @@ fn check_generic_fn(ctx: mut ref SemaCtx, fn_node: ref parser.Node, filename: re
     if parser.generic_fn_is_unsafe(fn_node) { is_unsafe = 1 }
     val prev_unsafe: i64 = ctx.in_unsafe_fn
     ctx.in_unsafe_fn = is_unsafe
+    
+    val type_params: ref void = fn_node.d6 as ref void
+    val prev_type_params: list[ref char] = ctx.type_params
+    if type_params != 0 as ref void {
+        for tparam in type_params as list[ref char] {
+            @append(ctx.type_params, tparam)
+        }
+    }
+    
     push_scope(ctx)
     val params: ref void = fn_node.d3 as ref void
     if params != 0 as ref void {
@@ -2612,8 +2644,11 @@ fn check_generic_fn(ctx: mut ref SemaCtx, fn_node: ref parser.Node, filename: re
             mark_name_used(ctx, pname)
         }
     }
+    
     check_stmts(ctx, body, filename)
     pop_scope(ctx, filename, 0)
+    
+    ctx.type_params = prev_type_params
     ctx.in_unsafe_fn = prev_unsafe
 }
 
