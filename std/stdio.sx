@@ -44,7 +44,7 @@ pub fn eputs(msg: ref char) void = {
         val written: mut u32 = 0
         trust WriteFile(handle, msg as ref void, len, @addr(written), 0)
         val nl: list[char] = ['\n']
-        trust WriteFile(handle, @addr(@get(nl, 0)), 1, @addr(written), 0)
+        trust WriteFile(handle, @addr(@get(nl, 0)), 1 as u32, @addr(written), 0)
     }
 }
 

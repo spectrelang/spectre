@@ -1101,14 +1101,14 @@ test {
     stdio.puts("hi1.3")
 
     val pc = trust from("ab")
-    trust push_char(pc, 99) // 'c'
+    trust push_char(pc, 99 as u8) // 'c'
     assert(equals(pc, trust from("abc")))
     stdio.puts("hi1.4")
 
     val orig = trust from("clone me")
     val copy = trust clone(orig)
     assert(equals(orig, copy))
-    trust set(copy, 0, 88) // 'X'
+    trust set(copy, 0, 88 as u8) // 'X'
     assert(!equals(orig, copy))
 
     val cl = trust from("something")
@@ -1129,9 +1129,9 @@ test {
     match g3 { some _ => { assert(false) } none => {} }
 
     val st = trust from("abc")
-    trust set(st, 1, 120) // 'x'
+    trust set(st, 1, 120 as u8) // 'x'
     assert(equals(st, trust from("axc")))
-    trust set(st, 99, 121) // OOB no-op
+    trust set(st, 99, 121 as u8) // OOB no-op
     assert(equals(st, trust from("axc")))
 
     val sl = trust from("hello world")
@@ -1244,7 +1244,7 @@ test {
     trust StringBuilder.append_cstr(sb, "hello")
     trust StringBuilder.append(sb, from(" "))
     trust StringBuilder.append_cstr(sb, "world")
-    trust StringBuilder.append_char(sb, 33) // '!'
+    trust StringBuilder.append_char(sb, 33 as u8) // '!'
 
     val built = trust StringBuilder.build(sb)
     assert(equals(built, trust from("hello world!")))

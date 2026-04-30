@@ -102,19 +102,19 @@ pub fn (Arena) reset(arena: self) void! = {
 }
 
 test {
-    val arena = trust Arena.new(64)?
+    val arena = trust Arena.new(64 as usize)?
 
     stdio.puts("done making new arena")
     assert Arena.cap(arena) == 64
     assert Arena.used(arena) == 0
     assert Arena.remaining(arena) == 64
 
-    val a1 = Arena.alloc(arena, 8)
+    val a1 = Arena.alloc(arena, 8 as usize)
     assert a1 != none
     assert Arena.used(arena) == 8
     assert Arena.remaining(arena) == 56
 
-    val a2 = Arena.alloc(arena, 16)
+    val a2 = Arena.alloc(arena, 16 as usize)
     assert a2 != none
     assert Arena.used(arena) == 24
     assert Arena.remaining(arena) == 40
@@ -191,15 +191,15 @@ pub fn (Stack) free(stack: mut self) void! = {
 }
 
 test {
-    val stack = trust Stack.new(1024)
+    val stack = trust Stack.new(1024 as usize)
     val marker = Stack.save(stack)
-    val tmp1 = Stack.alloc(stack, 200)
+    val tmp1 = Stack.alloc(stack, 200 as usize)
 
     assert Stack.save(stack) > marker
     
     Stack.restore(stack, marker)
     
-    val p2 = Stack.alloc(stack, 50)
+    val p2 = Stack.alloc(stack, 50 as usize)
 
     assert p2 == tmp1
  

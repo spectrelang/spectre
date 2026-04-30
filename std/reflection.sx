@@ -134,7 +134,7 @@ pub fn get_exe_path() ref char! = {
         }
     }
     when windows {
-        if GetModuleFileNameA(0 as ref void, buf, 1024) != 0 {
+        if GetModuleFileNameA(0 as ref void, buf, 1024 as u32) != 0 {
             return buf
         }
     }
