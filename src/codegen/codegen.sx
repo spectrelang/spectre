@@ -9673,7 +9673,10 @@ fn gen_fn_prefixed(ctx: mut ref CgCtx, fn_node: ref parser.Node, mod_prefix: ref
                     val dollar_label: ref char = @alloc(260) as ref char
                     @snprintf(dollar_label, 260, "${s}", {glbl_buf})
                     cg_register_local_var(ctx, gn as ref char, dollar_label)
-                    cg_mark_as_slot(ctx, gn as ref char)
+                    val is_fixed_arr_global: bool = @load8(gann_buf as ref void) as i64 == 91
+                    if !is_fixed_arr_global {
+                        cg_mark_as_slot(ctx, gn as ref char)
+                    }
                     if str.rchar_cmp(gann_buf, "") != 0 {
                         val gann_copy: ref char = @alloc(str.len_raw(gann_buf) + 1) as ref char
                         @memcpy(gann_copy as ref void, gann_buf as ref void, str.len_raw(gann_buf) + 1)
@@ -10300,6 +10303,13 @@ fn gen_items_with_prefix(ctx: ref CgCtx, items: list[ref parser.Node], mod_prefi
                                 @snprintf(data_buf3, 256, "data ${s} = \{ w {s} \}\n", {const_label, bstr})
                                 emit(ctx, data_buf3)
                                 @free(data_buf3)
+                            } else {
+                                @free(const_label)
+                            }
+                        } elif cexpr.kind == parser.NK_LIST_LIT {
+                            if cg_emit_label_if_new(ctx, const_label) {
+                                emit_global_list_literal(ctx, const_label, cexpr)
+                                cg_register_global(ctx, cname, const_label, "l", "")
                             } else {
                                 @free(const_label)
                             }
@@ -10997,7 +11007,10 @@ fn gen_test_fn(ctx: ref CgCtx, body_stmts: ref parser.Node, test_id: i64) void! 
                     val dollar_label: ref char = @alloc(260) as ref char
                     @snprintf(dollar_label, 260, "${s}", {glbl_buf})
                     cg_register_local_var(ctx, gn as ref char, dollar_label)
-                    cg_mark_as_slot(ctx, gn as ref char)
+                    val is_fixed_arr_global2: bool = @load8(gann_buf as ref void) as i64 == 91
+                    if !is_fixed_arr_global2 {
+                        cg_mark_as_slot(ctx, gn as ref char)
+                    }
                     if str.rchar_cmp(gann_buf, "") != 0 {
                         val gann_copy: ref char = @alloc(str.len_raw(gann_buf) + 1) as ref char
                         @memcpy(gann_copy as ref void, gann_buf as ref void, str.len_raw(gann_buf) + 1)
@@ -11386,6 +11399,13 @@ fn gen_items_with_prefix_skip_links(ctx: ref CgCtx, items: list[ref parser.Node]
                             } else {
                                 @free(const_label)
                             }
+                        } elif cexpr.kind == parser.NK_LIST_LIT {
+                            if cg_emit_label_if_new(ctx, const_label) {
+                                emit_global_list_literal(ctx, const_label, cexpr)
+                                cg_register_global(ctx, cname, const_label, "l", "")
+                            } else {
+                                @free(const_label)
+                            }
                         } else {
                             @free(const_label)
                         }
@@ -11497,6 +11517,19 @@ fn gen_items_with_prefix_skip_main(ctx: ref CgCtx, items: list[ref parser.Node],
                                 cg_register_module_const(ctx, cname, "1")
                             } else {
                                 cg_register_module_const(ctx, cname, "0")
+                            }
+                        } elif cexpr.kind == parser.NK_LIST_LIT {
+                            val const_label2: ref char = @alloc(512) as ref char
+                            if str.rchar_cmp(mod_prefix, "") == 0 {
+                                @snprintf(const_label2, 512, "{s}", {cname})
+                            } else {
+                                @snprintf(const_label2, 512, "{s}__{s}", {mod_prefix, cname})
+                            }
+                            if cg_emit_label_if_new(ctx, const_label2) {
+                                emit_global_list_literal(ctx, const_label2, cexpr)
+                                cg_register_global(ctx, cname, const_label2, "l", "")
+                            } else {
+                                @free(const_label2)
                             }
                         }
                     }
