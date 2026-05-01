@@ -966,79 +966,6 @@ pub fn (StringBuilder) clear(sb: self) void! = {
     @store(@ptradd(sb as ref void, 8), 0)
 }
 
-/// Runtime rewrite of Spectre format specifiers to printf specifiers.
-fn rewrite_fmt(fmt: ref u8) ref void! = {
-    val fmtlen: i64 = strlen(fmt)
-    val buf: ref void = @alloc(fmtlen * 2 + 1)
-    val out_i: mut i64 = 0
-    val i: mut i64 = 0
-    for {
-        if (i >= fmtlen) {
-            break
-        }
-        val c: u8 = @load8(@ptradd(fmt, i)) as u8
-        if (c == 123) { // '{'
-            val j: mut i64 = i + 1
-            val found: mut i64 = 0
-            for {
-                if (j >= fmtlen) {
-                    break
-                }
-                val inner: u8 = @load8(@ptradd(fmt, j)) as u8
-                if (inner == 125) { // '}'
-                    found = 1
-                    break
-                }
-                j++
-            }
-            if (found != 0) {
-                @store8(@ptradd(buf, out_i), 37) // '%'
-                out_i++
-                val k: mut i64 = i + 1
-                for {
-                    if (k >= j) {
-                        break
-                    }
-                    val sc: u8 = @load8(@ptradd(fmt, k)) as u8
-                    @store8(@ptradd(buf, out_i), sc)
-                    out_i++
-                    k++
-                }
-                i = j + 1
-            } else {
-                @store8(@ptradd(buf, out_i), c)
-                out_i++
-                i++
-            }
-        } else {
-            @store8(@ptradd(buf, out_i), c)
-            out_i++
-            i++
-        }
-    }
-    @store8(@ptradd(buf, out_i), 0)
-    return buf
-}
-
-/// Format a string using printf-style specifiers, returning a new heap String.
-///
-/// Example: format("{s} {d}", {name, age})
-pub fn format(fmt: ref u8, args: untyped) String! = {
-    val rfmt: ref void = rewrite_fmt(fmt)
-    val buf: ref void = @alloc(4096)
-    val written: i64 = @snprintf(buf, 4096, rfmt, args) as i64
-    @free(rfmt)
-    val copy: ref void = @alloc(written + 1)
-    @memcpy(copy, buf, written)
-    @store8(@ptradd(copy, written), 0)
-    @free(buf)
-    val out: ref void = @alloc(24)
-    @store(out, copy)
-    @store(@ptradd(out, 8), written)
-    @store(@ptradd(out, 16), written + 1)
-    return out as String
-}
-
 /// Return a new ref u8 containing the substring of `src` starting at `start` with length `len`.
 pub fn substr(src: ref u8, start: i64, len: i64) ref u8! = {
     val buf: ref void = @alloc(len + 1)
@@ -1238,7 +1165,6 @@ test {
 
     stdio.puts("string tests passed")
 
-    trust stdio.print("{s}", {cstr(format("hello {d}", {1}))})
 
     trust stdio.print("comparison: {d}\n", {compare[String, String](from("abc"), from("abc"))})
 }

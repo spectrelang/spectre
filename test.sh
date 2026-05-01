@@ -26,7 +26,7 @@ if [ ! -x "$COMPILER" ]; then
 fi
 
 run_std_tests() {
-    for file in "$STD_DIR"/*.sx; do
+    for file in "$STD_DIR"/**/*.sx; do
         [ -e "$file" ] || continue
 
         filename=$(basename "$file")
