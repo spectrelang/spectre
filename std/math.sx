@@ -565,7 +565,8 @@ pub fn fma(a: f64, b: f64, c: f64) f64 = {
 
 test {
     @puts("running")
-    trust @print("HELLO: {f}", {logarithm(12.0)})
+
+    trust @print("HELLO: {f}", {12.0})
 
     assert clamp(10, 0, 5) == 5
     assert gcd(48, 18) == 6
@@ -582,25 +583,17 @@ test {
     assert approx_eq(cos(0.0), 1.0, 0.0001)
     assert approx_eq(cos(PI), -1.0, 0.0001)
     assert approx_eq(tan(0.0), 0.0, 0.0001)
-
     assert approx_eq(exp(0.0), 1.0, 0.0001)
     assert approx_eq(exp(1.0), E, 0.0001)
-
-
-
     assert approx_eq(logarithm(E), 1.0, 0.0001)
     assert approx_eq(logarithm(1.0), 0.0, 0.0001)
-    
     assert approx_eq(asin(0.0), 0.0, 0.0001)
     assert approx_eq(asin(1.0), PI / 2.0, 0.0001)
     assert approx_eq(acos(1.0), 0.0, 0.0001)
     assert approx_eq(atan(0.0), 0.0, 0.0001)
-    
     assert approx_eq(to_radians(180.0), PI, 0.0001)
     assert approx_eq(to_degrees(PI), 180.0, 0.0001)
-    
     assert approx_eq(round(3.4), 3.0, 0.0001)
     assert approx_eq(round(3.6), 4.0, 0.0001)
-    
     assert approx_eq(hypot(3.0, 4.0), 5.0, 0.0001)
 }
