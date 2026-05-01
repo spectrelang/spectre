@@ -139,8 +139,8 @@ pub fn exec_trim(cmd: ref u8) result[ref void, ProcessError]! = {
     }
 }
 
-val string = use("string.sx")
-val stdio = use("stdio.sx")
+val string = use("../string")
+val stdio = use("../stdio")
 
 test {
     val path = "test_file.txt"

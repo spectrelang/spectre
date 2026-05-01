@@ -287,8 +287,8 @@ pub fn config_dir() option[ref u8]! = {
     return none
 }
 
-val stdio = use("stdio.sx")
-val str = use("string.sx")
+val stdio = use("../stdio")
+val str = use("../string")
 
 test {
     val path: ref u8 = "test_file.txt"

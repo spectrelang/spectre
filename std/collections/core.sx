@@ -7,7 +7,7 @@
 /// Each element is one pointer-sized slot (8 bytes).
 /// Values are stored and retrieved as untyped (ref void / usize).
 
-val stdio = use("stdio.sx")
+val stdio = use("../stdio")
 
 val ELEMENT_SIZE: usize = 8
 

@@ -1,4 +1,4 @@
-val string = use("string.sx")
+val string = use("../string")
 
 extern (C) fn isdigit(c: i32) i32! = "isdigit"
 

@@ -1,5 +1,5 @@
-val string = use("string.sx")
-val random = use("random.sx")
+val string = use("../string")
+val random = use("../crypto/random")
 
 pub enum CryptoError = {
     InvalidHexLength,

@@ -64,8 +64,8 @@ when netbsd {
     }
 }
 
-val stdio = use("stdio.sx")
-val string = use("string.sx")
+val stdio = use("../stdio")
+val string = use("../string")
 
 extern (C) fn uname(buf: ref UnameResult) i32! = "uname"
 

@@ -1,8 +1,8 @@
 extern (C) fn isatty(fd: i64) i64! = "isatty"
 
-val time = use("time.sx")
-val stdio = use("stdio.sx")
-val os = use("os.sx")
+val time = use("../time")
+val stdio = use("../stdio")
+val os = use("../os")
 
 pub enum Level = {
     Debug,

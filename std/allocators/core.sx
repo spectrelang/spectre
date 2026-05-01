@@ -17,7 +17,7 @@ pub enum ArenaError = {
     OutOfMemory
 }
 
-val stdio = use("stdio.sx")
+val stdio = use("../stdio")
 
 /// Create a new arena backed by a block of `capacity` bytes.
 /// Capacity must be > 0.

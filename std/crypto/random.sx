@@ -2,7 +2,7 @@
 ///
 /// No seeding is required; the OS manages entropy automatically.
 
-val stdio = use("stdio.sx")
+val stdio = use("../stdio")
 
 when posix {
     extern (C) fn arc4random_buf(buf: ref void, len: usize) void! = "arc4random_buf"

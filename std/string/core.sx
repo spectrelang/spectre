@@ -1,5 +1,5 @@
-val collections = use("collections.sx")
-val stdio       = use("stdio.sx")
+val collections = use("../collections")
+val stdio       = use("../stdio")
 
 extern (C) fn strlen(s: ref u8) i64! = "strlen"
 extern (C) fn strcmp(a: ref u8, b: ref u8) i64! = "strcmp"

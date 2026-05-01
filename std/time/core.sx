@@ -1,4 +1,4 @@
-val stdio = use("stdio.sx")
+val stdio = use("../stdio")
 
 extern (C) fn localtime(timep: ref i64) ref void! = "localtime"
 

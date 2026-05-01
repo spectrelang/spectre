@@ -1,4 +1,4 @@
-val stdio = use("stdio.sx")
+val stdio = use("../stdio")
 
 pub val MAX_REGEXP_OBJECTS: i64 = 30
 pub val MAX_CHAR_CLASS_LEN: i64 = 40

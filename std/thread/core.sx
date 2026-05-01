@@ -1,4 +1,4 @@
-val stdio = use("stdio.sx")
+val stdio = use("../stdio")
 
 pub enum ThreadError = {
     CreateFailed,
