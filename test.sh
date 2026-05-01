@@ -25,34 +25,6 @@ if [ ! -x "$COMPILER" ]; then
     exit 1
 fi
 
-run_std_tests() {
-    for file in "$STD_DIR"/**/*.sx; do
-        [ -e "$file" ] || continue
-
-        filename=$(basename "$file")
-
-        ((total++))
-
-        if [[ "$filename" == std.sx ]]; then
-            echo "[SKIP] $filename (this is the std facade)"
-            ((skipped++))
-            continue
-        fi
-
-        "$COMPILER" "$file" --test > /dev/null 2>&1
-
-        status=$?
-
-        if [ $status -eq 0 ]; then
-            echo "[PASS] $filename"
-            ((passed++))
-        else
-            echo "[FAIL] $filename"
-            ((failed++))
-        fi
-    done
-}
-
 run_samples() {
     for file in "$SAMPLES_DIR"/*.sx; do
         [ -e "$file" ] || continue
@@ -68,7 +40,6 @@ run_samples() {
         ((total++))
 
         "$COMPILER" "$file" > /dev/null 2>&1
-
         status=$?
 
         if [[ "$filename" == *_error.sx ]]; then
@@ -91,37 +62,31 @@ run_samples() {
     done
 }
 
-if [ $BOOTSTRAP_ONLY -eq 0 ]; then
-
-    run_samples
-
-    echo
-    echo "Extra tests:"
-
-    for file in "$STD_DIR"/*.sx; do
-        [ -e "$file" ] || continue
-
+run_std_tests() {
+    find "$STD_DIR" -type f -name "*.sx" | sort | while IFS= read -r file; do
         filename=$(basename "$file")
 
         ((total++))
 
-        if [[ "$filename" == std.sx ]]; then
-            echo "[SKIP] $filename (this is the std facade)"
-            ((skipped++))
-            continue
-        fi
-
-        "$COMPILER" "$file" --test > /dev/null 2>&1
+        "$COMPILER" "$file" --test > /dev/null 2>&1 < /dev/null
         status=$?
 
         if [ $status -eq 0 ]; then
-            echo "[PASS] $filename"
+            echo "[PASS] $file"
             ((passed++))
         else
-            echo "[FAIL] $filename"
+            echo "[FAIL] $file"
             ((failed++))
         fi
     done
+}
+
+if [ $BOOTSTRAP_ONLY -eq 0 ]; then
+    run_samples
+
+    echo
+    echo "Extra tests:"
+    run_std_tests
 
     "$COMPILER" ./src/ast/lexer.sx -l --test
     "$COMPILER" ./src/ast/parser.sx -l --test
@@ -129,7 +94,6 @@ if [ $BOOTSTRAP_ONLY -eq 0 ]; then
     "$COMPILER" ./src/module/module.sx -l --test
     "$COMPILER" ./src/codegen/codegen.sx -l --test
     "$COMPILER" ./src/sxc.sx -l --test
-
 fi
 
 echo "Bootstrap test:"

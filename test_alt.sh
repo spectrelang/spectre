@@ -68,27 +68,19 @@ run_samples() {
 }
 
 run_std_tests() {
-    for file in "$STD_DIR"/*.sx; do
-        [ -e "$file" ] || continue
-
+    find "$STD_DIR" -type f -name "*.sx" | sort | while IFS= read -r file; do
         filename=$(basename "$file")
-
-        if [[ "$filename" == std.sx ]]; then
-            echo "[SKIP] $filename (std facade)"
-            ((skipped++))
-            continue
-        fi
 
         ((total++))
 
-        run_compiler "$file" --test --alt
+        "$COMPILER" "$file" --test --alt > /dev/null 2>&1 < /dev/null
         status=$?
 
         if [ $status -eq 0 ]; then
-            echo "[PASS] $filename"
+            echo "[PASS] $file"
             ((passed++))
         else
-            echo "[FAIL] $filename"
+            echo "[FAIL] $file"
             ((failed++))
         fi
     done
