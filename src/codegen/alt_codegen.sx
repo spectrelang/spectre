@@ -2523,6 +2523,8 @@ fn gen_builtin(ctx: ref CCtx, expr: ref parser.Node) ref u8! = {
     if str.rchar_cmp(bname, "puts") == 0 { val s: ref u8 = get_arg(ctx, args, 0)
         val buf: ref u8 = @alloc(256) as ref u8
         @snprintf(buf, 256, "puts((const char*)(intptr_t)({s}))", {s}) return cc_expr_track(ctx, buf) }
+    if str.rchar_cmp(bname, "flush") == 0 {
+        return "(fflush(stdout),0)" }
     if str.rchar_cmp(bname, "stdin") == 0 {
         return "(int64_t)(intptr_t)stdin" }
     if str.rchar_cmp(bname, "fgets") == 0 { val b: ref u8 = get_arg(ctx, args, 0) val n: ref u8 = get_arg(ctx, args, 1) val s: ref u8 = get_arg(ctx, args, 2)
@@ -3064,7 +3066,7 @@ fn gen_stmt(ctx: mut ref CCtx, stmt: ref parser.Node) void! = {
     if k == parser.NK_DEFER { cc_defer_push(ctx, stmt.d0 as ref parser.Node) return }
     if k == parser.NK_ASSERT { val cond: ref u8 = gen_expr(ctx, stmt.d0 as ref parser.Node) val line: i64 = stmt.line
         val buf: ref u8 = @alloc(512) as ref u8
-        @snprintf(buf, 512, "if(!({s}))\{fprintf(stderr,\"spectre: assertion failed at line {lld}\\n\");fflush(stderr);abort();}\n", {cond, line})
+        @snprintf(buf, 512, "if(!({s}))\{fprintf(stderr,\"spectre: assertion failed at line {lld}\\n\");fflush(stderr);exit(1);}\n", {cond, line})
         emit(ctx, buf) @free(buf) cc_expr_drain(ctx) return }
     if k == parser.NK_PRE || k == parser.NK_GUARDED_PRE || k == parser.NK_POST || k == parser.NK_GUARDED_POST {
         if ctx.release_mode { if k == parser.NK_PRE || k == parser.NK_POST { return } }
@@ -3078,8 +3080,8 @@ fn gen_stmt(ctx: mut ref CCtx, stmt: ref parser.Node) void! = {
                 match c_opt { some c => { val cn: ref parser.Node = c as ref parser.Node
                     val label: ref u8 = cn.d0 as ref u8 val cexpr: ref parser.Node = cn.d1 as ref parser.Node
                     val cv: ref u8 = gen_expr(ctx, cexpr) val buf: ref u8 = @alloc(1024) as ref u8
-                    if label != 0 as ref u8 { @snprintf(buf, 1024, "if(!({s}))\{fprintf(stderr,\"spectre: {s} '%%s' violated in function '%%s'\\n\",\"{s}\",\"{s}\");fflush(stderr);abort();}\n", {cv, ks, label, fn_n}) }
-                    else { @snprintf(buf, 1024, "if(!({s}))\{fprintf(stderr,\"spectre: {s} violated in function '%%s'\\n\",\"{s}\");fflush(stderr);abort();}\n", {cv, ks, fn_n}) }
+                    if label != 0 as ref u8 { @snprintf(buf, 1024, "if(!({s}))\{fprintf(stderr,\"spectre: {s} '%%s' violated in function '%%s'\\n\",\"{s}\",\"{s}\");fflush(stderr);exit(1);}\n", {cv, ks, label, fn_n}) }
+                    else { @snprintf(buf, 1024, "if(!({s}))\{fprintf(stderr,\"spectre: {s} violated in function '%%s'\\n\",\"{s}\");fflush(stderr);exit(1);}\n", {cv, ks, fn_n}) }
                     emit(ctx, buf) @free(buf) cc_expr_drain(ctx)
                 } none => {} }
                 ci++ } }

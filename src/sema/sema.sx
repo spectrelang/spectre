@@ -119,7 +119,8 @@ fn is_known_builtin(name: ref u8) bool! = {
         "atoi",
         "itoa",
         "gettimeofday",
-        "staticerror"
+        "staticerror",
+        "flush"
     ]
 
     for builtin in builtins {
