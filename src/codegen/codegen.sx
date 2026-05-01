@@ -2565,7 +2565,7 @@ fn infer_type_annotation(ctx: ref CgCtx, expr: ref parser.Node) ref u8! = {
                     return type_expr_to_annotation(ctx, ret_expr2 as ref parser.Node)
                 }
             }
-    	    }
+        }
     }
 
     if k == parser.NK_TRUST {
