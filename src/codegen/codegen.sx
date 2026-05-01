@@ -1579,10 +1579,10 @@ fn cg_lookup_ext_ret(ctx: ref CgCtx, name: ref u8) ref void! = {
 
 /// Register a tagged union variant: variant_name -> (union_name, tag_index, field_type_node).
 fn cg_register_tv(ctx: ref CgCtx, vname: ref u8, owner: ref u8, tag: i64, field_ty: ref void) void! = {
-    @append(cg_tv_names(ctx)  as list[ref u8], vname)
-    @append(cg_tv_owners(ctx) as list[ref u8], owner)
-    @append(cg_tv_tags(ctx)   as list[i64],      tag)
-    @append(cg_tv_fields(ctx) as list[ref void],  field_ty)
+    @append(cg_tv_names(ctx)  as list[ref u8],  vname)
+    @append(cg_tv_owners(ctx) as list[ref u8],  owner)
+    @append(cg_tv_tags(ctx)   as list[i64],     tag)
+    @append(cg_tv_fields(ctx) as list[ref void],field_ty)
 }
 
 /// Look up a tagged union variant by name.
