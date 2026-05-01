@@ -1,0 +1,301 @@
+val static = use("static.sx")
+val core = use("core.sx")
+
+/// 4x4 matrix stored in column-major order
+pub type Mat4x4 = {
+    m00: f64, m10: f64, m20: f64, m30: f64
+    m01: f64, m11: f64, m21: f64, m31: f64
+    m02: f64, m12: f64, m22: f64, m32: f64
+    m03: f64, m13: f64, m23: f64, m33: f64
+}
+
+/// 3D vector
+pub type Vec3 = {
+    x: f64
+    y: f64
+    z: f64
+}
+
+/// Create identity matrix
+pub fn (Mat4x4) identity() Mat4x4 = {
+    return {
+        m00: 1.0, m10: 0.0, m20: 0.0, m30: 0.0,
+        m01: 0.0, m11: 1.0, m21: 0.0, m31: 0.0,
+        m02: 0.0, m12: 0.0, m22: 1.0, m32: 0.0,
+        m03: 0.0, m13: 0.0, m23: 0.0, m33: 1.0
+    }
+}
+
+/// Create zero matrix
+pub fn (Mat4x4) zero() Mat4x4 = {
+    return {
+        m00: 0.0, m10: 0.0, m20: 0.0, m30: 0.0,
+        m01: 0.0, m11: 0.0, m21: 0.0, m31: 0.0,
+        m02: 0.0, m12: 0.0, m22: 0.0, m32: 0.0,
+        m03: 0.0, m13: 0.0, m23: 0.0, m33: 0.0
+    }
+}
+
+/// Matrix multiplication
+pub fn (Mat4x4) mul(a: self, b: Mat4x4) Mat4x4 = {
+    return {
+        m00: a.m00 * b.m00 + a.m01 * b.m10 + a.m02 * b.m20 + a.m03 * b.m30,
+        m10: a.m10 * b.m00 + a.m11 * b.m10 + a.m12 * b.m20 + a.m13 * b.m30,
+        m20: a.m20 * b.m00 + a.m21 * b.m10 + a.m22 * b.m20 + a.m23 * b.m30,
+        m30: a.m30 * b.m00 + a.m31 * b.m10 + a.m32 * b.m20 + a.m33 * b.m30,
+
+        m01: a.m00 * b.m01 + a.m01 * b.m11 + a.m02 * b.m21 + a.m03 * b.m31,
+        m11: a.m10 * b.m01 + a.m11 * b.m11 + a.m12 * b.m21 + a.m13 * b.m31,
+        m21: a.m20 * b.m01 + a.m21 * b.m11 + a.m22 * b.m21 + a.m23 * b.m31,
+        m31: a.m30 * b.m01 + a.m31 * b.m11 + a.m32 * b.m21 + a.m33 * b.m31,
+
+        m02: a.m00 * b.m02 + a.m01 * b.m12 + a.m02 * b.m22 + a.m03 * b.m32,
+        m12: a.m10 * b.m02 + a.m11 * b.m12 + a.m12 * b.m22 + a.m13 * b.m32,
+        m22: a.m20 * b.m02 + a.m21 * b.m12 + a.m22 * b.m22 + a.m23 * b.m32,
+        m32: a.m30 * b.m02 + a.m31 * b.m12 + a.m32 * b.m22 + a.m33 * b.m32,
+
+        m03: a.m00 * b.m03 + a.m01 * b.m13 + a.m02 * b.m23 + a.m03 * b.m33,
+        m13: a.m10 * b.m03 + a.m11 * b.m13 + a.m12 * b.m23 + a.m13 * b.m33,
+        m23: a.m20 * b.m03 + a.m21 * b.m13 + a.m22 * b.m23 + a.m23 * b.m33,
+        m33: a.m30 * b.m03 + a.m31 * b.m13 + a.m32 * b.m23 + a.m33 * b.m33
+    }
+}
+
+/// Scalar multiplication
+pub fn (Mat4x4) scale_scalar(m: self, s: f64) Mat4x4 = {
+    return {
+        m00: m.m00 * s, m10: m.m10 * s, m20: m.m20 * s, m30: m.m30 * s,
+        m01: m.m01 * s, m11: m.m11 * s, m21: m.m21 * s, m31: m.m31 * s,
+        m02: m.m02 * s, m12: m.m12 * s, m22: m.m22 * s, m32: m.m32 * s,
+        m03: m.m03 * s, m13: m.m13 * s, m23: m.m23 * s, m33: m.m33 * s
+    }
+}
+
+/// Matrix addition
+pub fn (Mat4x4) add(a: self, b: Mat4x4) Mat4x4 = {
+    return {
+        m00: a.m00 + b.m00, m10: a.m10 + b.m10, m20: a.m20 + b.m20, m30: a.m30 + b.m30,
+        m01: a.m01 + b.m01, m11: a.m11 + b.m11, m21: a.m21 + b.m21, m31: a.m31 + b.m31,
+        m02: a.m02 + b.m02, m12: a.m12 + b.m12, m22: a.m22 + b.m22, m32: a.m32 + b.m32,
+        m03: a.m03 + b.m03, m13: a.m13 + b.m13, m23: a.m23 + b.m23, m33: a.m33 + b.m33
+    }
+}
+
+/// Matrix transpose
+pub fn (Mat4x4) transpose(m: self) Mat4x4 = {
+    return {
+        m00: m.m00, m10: m.m01, m20: m.m02, m30: m.m03,
+        m01: m.m10, m11: m.m11, m21: m.m12, m31: m.m13,
+        m02: m.m20, m12: m.m21, m22: m.m22, m32: m.m23,
+        m03: m.m30, m13: m.m31, m23: m.m32, m33: m.m33
+    }
+}
+
+/// Create translation matrix
+pub fn (Mat4x4) translate(x: f64, y: f64, z: f64) Mat4x4 = {
+    return {
+        m00: 1.0, m10: 0.0, m20: 0.0, m30: 0.0,
+        m01: 0.0, m11: 1.0, m21: 0.0, m31: 0.0,
+        m02: 0.0, m12: 0.0, m22: 1.0, m32: 0.0,
+        m03: x,   m13: y,   m23: z,   m33: 1.0
+    }
+}
+
+/// Create scale matrix
+pub fn (Mat4x4) scale(x: f64, y: f64, z: f64) Mat4x4 = {
+    return {
+        m00: x,   m10: 0.0, m20: 0.0, m30: 0.0,
+        m01: 0.0, m11: y,   m21: 0.0, m31: 0.0,
+        m02: 0.0, m12: 0.0, m22: z,   m32: 0.0,
+        m03: 0.0, m13: 0.0, m23: 0.0, m33: 1.0
+    }
+}
+
+/// Create rotation matrix around X axis
+pub fn (Mat4x4) rotate_x(angle: f64) Mat4x4 = {
+    val c = core.cos(angle)
+    val s = core.sin(angle)
+    return {
+        m00: 1.0, m10: 0.0, m20: 0.0,  m30: 0.0,
+        m01: 0.0, m11: c,   m21: s,    m31: 0.0,
+        m02: 0.0, m12: -s,  m22: c,    m32: 0.0,
+        m03: 0.0, m13: 0.0, m23: 0.0,  m33: 1.0
+    }
+}
+
+/// Create rotation matrix around Y axis
+pub fn (Mat4x4) rotate_y(angle: f64) Mat4x4 = {
+    val c = core.cos(angle)
+    val s = core.sin(angle)
+    return {
+        m00: c,   m10: 0.0, m20: -s,   m30: 0.0,
+        m01: 0.0, m11: 1.0, m21: 0.0,  m31: 0.0,
+        m02: s,   m12: 0.0, m22: c,    m32: 0.0,
+        m03: 0.0, m13: 0.0, m23: 0.0,  m33: 1.0
+    }
+}
+
+/// Create rotation matrix around Z axis
+pub fn (Mat4x4) rotate_z(angle: f64) Mat4x4 = {
+    val c = core.cos(angle)
+    val s = core.sin(angle)
+    return {
+        m00: c,   m10: s,   m20: 0.0, m30: 0.0,
+        m01: -s,  m11: c,   m21: 0.0, m31: 0.0,
+        m02: 0.0, m12: 0.0, m22: 1.0, m32: 0.0,
+        m03: 0.0, m13: 0.0, m23: 0.0, m33: 1.0
+    }
+}
+
+/// Create perspective projection matrix
+pub fn (Mat4x4) perspective(fov: f64, aspect: f64, near: f64, far: f64) Mat4x4 = {
+    pre {
+        valid_fov: fov > 0.0 && fov < static.PI
+        valid_aspect: aspect > 0.0
+        valid_planes: near > 0.0 && far > near
+    }
+    
+    val tan_half_fov = core.tan(fov / 2.0)
+    val f = 1.0 / tan_half_fov
+    
+    return {
+        m00: f / aspect, m10: 0.0, m20: 0.0,                           m30: 0.0,
+        m01: 0.0,        m11: f,   m21: 0.0,                           m31: 0.0,
+        m02: 0.0,        m12: 0.0, m22: (far + near) / (near - far),  m32: -1.0,
+        m03: 0.0,        m13: 0.0, m23: (2.0 * far * near) / (near - far), m33: 0.0
+    }
+}
+
+/// Create orthographic projection matrix
+pub fn (Mat4x4) ortho(left: f64, right: f64, bottom: f64, top: f64, near: f64, far: f64) Mat4x4 = {
+    pre {
+        valid_lr: left != right
+        valid_bt: bottom != top
+        valid_nf: near != far
+    }
+    
+    return {
+        m00: 2.0 / (right - left), m10: 0.0,                  m20: 0.0,               m30: 0.0,
+        m01: 0.0,                  m11: 2.0 / (top - bottom), m21: 0.0,               m31: 0.0,
+        m02: 0.0,                  m12: 0.0,                  m22: -2.0 / (far - near), m32: 0.0,
+        m03: -(right + left) / (right - left), m13: -(top + bottom) / (top - bottom), 
+        m23: -(far + near) / (far - near), m33: 1.0
+    }
+}
+
+/// Create look-at view matrix
+pub fn (Mat4x4) look_at(eye: Vec3, center: Vec3, up: Vec3) Mat4x4 = {
+    val fx = center.x - eye.x
+    val fy = center.y - eye.y
+    val fz = center.z - eye.z
+    val f_len = core.sqrt(fx * fx + fy * fy + fz * fz)
+    val f_x = fx / f_len
+    val f_y = fy / f_len
+    val f_z = fz / f_len    
+    val sx = f_y * up.z - f_z * up.y
+    val sy = f_z * up.x - f_x * up.z
+    val sz = f_x * up.y - f_y * up.x
+    val s_len = core.sqrt(sx * sx + sy * sy + sz * sz)
+    val s_x = sx / s_len
+    val s_y = sy / s_len
+    val s_z = sz / s_len
+    val ux = s_y * f_z - s_z * f_y
+    val uy = s_z * f_x - s_x * f_z
+    val uz = s_x * f_y - s_y * f_x
+    
+    return {
+        m00: s_x,  m10: ux,   m20: -f_x, m30: 0.0,
+        m01: s_y,  m11: uy,   m21: -f_y, m31: 0.0,
+        m02: s_z,  m12: uz,   m22: -f_z, m32: 0.0,
+        m03: -(s_x * eye.x + s_y * eye.y + s_z * eye.z),
+        m13: -(ux * eye.x + uy * eye.y + uz * eye.z),
+        m23: (f_x * eye.x + f_y * eye.y + f_z * eye.z),
+        m33: 1.0
+    }
+}
+
+/// Calculate determinant of 4x4 matrix
+pub fn (Mat4x4) det(m: self) f64 = {
+    val a = m.m00 * m.m11 - m.m01 * m.m10
+    val b = m.m00 * m.m12 - m.m02 * m.m10
+    val c = m.m00 * m.m13 - m.m03 * m.m10
+    val d = m.m01 * m.m12 - m.m02 * m.m11
+    val e = m.m01 * m.m13 - m.m03 * m.m11
+    val f = m.m02 * m.m13 - m.m03 * m.m12
+    val g = m.m20 * m.m31 - m.m21 * m.m30
+    val h = m.m20 * m.m32 - m.m22 * m.m30
+    val i = m.m20 * m.m33 - m.m23 * m.m30
+    val j = m.m21 * m.m32 - m.m22 * m.m31
+    val k = m.m21 * m.m33 - m.m23 * m.m31
+    val l = m.m22 * m.m33 - m.m23 * m.m32
+    
+    return a * l - b * k + c * j + d * i - e * h + f * g
+}
+
+/// Create a new Vec3
+pub fn (Vec3) new(x: f64, y: f64, z: f64) Vec3 = {
+    return { x: x, y: y, z: z }
+}
+
+/// Vector dot product
+pub fn (Vec3) dot(a: self, b: Vec3) f64 = {
+    return a.x * b.x + a.y * b.y + a.z * b.z
+}
+
+/// Vector cross product
+pub fn (Vec3) cross(a: self, b: Vec3) Vec3 = {
+    return {
+        x: a.y * b.z - a.z * b.y,
+        y: a.z * b.x - a.x * b.z,
+        z: a.x * b.y - a.y * b.x
+    }
+}
+
+/// Vector length
+pub fn (Vec3) length(v: self) f64 = {
+    return core.sqrt(v.x * v.x + v.y * v.y + v.z * v.z)
+}
+
+/// Normalize vector
+pub fn (Vec3) normalize(v: self) Vec3 = {
+    val len = Vec3.length(v)
+    pre {
+        non_zero: len > static.F64_EPSILON
+    }
+    return {
+        x: v.x / len,
+        y: v.y / len,
+        z: v.z / len
+    }
+}
+
+/// Vector addition
+pub fn (Vec3) add(a: self, b: Vec3) Vec3 = {
+    return { x: a.x + b.x, y: a.y + b.y, z: a.z + b.z }
+}
+
+/// Vector subtraction
+pub fn (Vec3) sub(a: self, b: Vec3) Vec3 = {
+    return { x: a.x - b.x, y: a.y - b.y, z: a.z - b.z }
+}
+
+/// Vector scalar multiplication
+pub fn (Vec3) scale(v: self, s: f64) Vec3 = {
+    return { x: v.x * s, y: v.y * s, z: v.z * s }
+}
+
+test {
+    val identity = Mat4x4.identity()
+    assert core.approx_eq(identity.m00, 1.0, 0.0001)
+    assert core.approx_eq(identity.m11, 1.0, 0.0001)
+    assert core.approx_eq(identity.m22, 1.0, 0.0001)
+    assert core.approx_eq(identity.m33, 1.0, 0.0001)
+
+    val v1 = Vec3.new(1.0, 0.0, 0.0)
+    val v2 = Vec3.new(0.0, 1.0, 0.0)
+    val cross = Vec3.cross(v1, v2)
+    assert core.approx_eq(cross.z, 1.0, 0.0001)
+
+    val v3 = Vec3.new(3.0, 4.0, 0.0)
+    assert core.approx_eq(Vec3.length(v3), 5.0, 0.0001)
+}

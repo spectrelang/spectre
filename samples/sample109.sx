@@ -1,0 +1,6 @@
+val numerics = use("std/math/numerics")
+
+pub fn main() void = {
+    val x: numerics.Mat4x4 = numerics.Mat4x4.zero()
+    trust @print("hellew: {p}\n", {x})
+}

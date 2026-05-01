@@ -1,0 +1,584 @@
+val static = use("static.sx")
+
+/// Absolute value of a 64-bit signed integer.
+pub fn abs_i64(x: i64) i64 = {
+    pre { not_min: x != static.I64_MIN }
+    post { result_nonneg: abs_i64(x) >= 0 }
+    if (x < 0) {
+        return 0 - x
+    }
+    return x
+}
+
+/// Minimum of two i64 values.
+pub fn min_i64(a: i64, b: i64) i64 = {
+    post {
+        le_a: min_i64(a, b) <= a
+        le_b: min_i64(a, b) <= b
+    }
+    if (a < b) {
+        return a
+    }
+    return b
+}
+
+/// Maximum of two i64 values.
+pub fn max_i64(a: i64, b: i64) i64 = {
+    post {
+        ge_a: max_i64(a, b) >= a
+        ge_b: max_i64(a, b) >= b
+    }
+    if (a > b) {
+        return a
+    }
+    return b
+}
+
+/// Clamp `x` to [lo, hi].
+pub fn clamp_i64(x: i64, lo: i64, hi: i64) i64 = {
+    pre { valid_range: lo <= hi }
+    post {
+        at_least_lo: clamp_i64(x, lo, hi) >= lo
+        at_most_hi:  clamp_i64(x, lo, hi) <= hi
+    }
+    if (x < lo) {
+        return lo
+    }
+    if (x > hi) {
+        return hi
+    }
+    return x
+}
+
+/// Sign of an i64: returns -1, 0, or 1.
+pub fn sign_i64(x: i64) i64 = {
+    post {
+        valid_sign: sign_i64(x) == -1 || sign_i64(x) == 0 || sign_i64(x) == 1
+    }
+    if (x < 0) {
+        return -1
+    }
+    if (x > 0) {
+        return 1
+    }
+    return 0
+}
+
+pub fn rem(a: i64, b: i64) i64 = {
+    pre {
+        non_zero_divisor: b != 0
+    }
+    return a % b
+}
+
+/// Absolute value
+pub fn abs(x: i64) i64 = {
+    if (x < 0) {
+        return -x
+    }
+    return x
+}
+
+/// Min / Max
+pub fn min(a: i64, b: i64) i64 = {
+    if (a < b) { return a }
+    return b
+}
+
+pub fn max(a: i64, b: i64) i64 = {
+    if (a > b) { return a }
+    return b
+}
+
+/// Clamp value into [lo, hi]
+pub fn clamp(x: i64, lo: i64, hi: i64) i64 = {
+    pre {
+        valid_range: lo <= hi
+    }
+    if (x < lo) { return lo }
+    if (x > hi) { return hi }
+    return x
+}
+
+/// Power (integer, simple loop)
+pub fn pow(base: i64, exp: usize) i64 = {
+    val result: mut i64 = 1
+    for (i = 0; i < exp; i++) {
+        result = result * base
+    }
+    post {
+        !(exp == 0) || result == 1
+        !(exp == 1) || result == base
+        !(base == 0 && exp > 0) || result == 0
+        !(base < 0 && exp % 2 == 0) || result >= 0
+        !(base < 0 && exp % 2 == 1) || result <= 0
+    }
+    return result
+}
+
+/// Greatest Common Divisor (Euclidean)
+pub fn gcd(a: i64, b: i64) i64 = {
+    val x: mut i64 = abs(a)
+    val y: mut i64 = abs(b)
+
+    for {
+        if (y <= 0) {
+            break
+        }
+        val t = y
+        y = x % y
+        x = t
+    }
+
+    post {
+        nonneg: x >= 0
+        !(x == 0) || (a == 0 && b == 0)
+        !(x != 0) || (a % x == 0 && b % x == 0)
+    }
+
+    return x
+}
+
+/// Least Common Multiple
+pub fn lcm(a: i64, b: i64) i64 = {
+    pre {
+        non_zero: a != 0 && b != 0
+    }
+    return abs((a / gcd(a, b)) * b)
+}
+
+pub fn fmin(a: f64, b: f64) f64 = {
+    if (a < b) { return a }
+    return b
+}
+
+pub fn fmax(a: f64, b: f64) f64 = {
+    if (a > b) { return a }
+    return b
+}
+
+pub fn fabs(x: f64) f64 = {
+    if (x < 0.0) {
+        return -x
+    }
+    return x
+}
+
+pub fn fclamp(x: f64, lo: f64, hi: f64) f64 = {
+    pre {
+        valid_range: lo <= hi
+    }
+    if (x < lo) { return lo }
+    if (x > hi) { return hi }
+    return x
+}
+
+pub fn floor(x: f64) f64 = {
+    val i = x as i64
+    if (x < (i as f64)) {
+        return (i - 1) as f64
+    }
+    return i as f64
+}
+
+pub fn ceil(x: f64) f64 = {
+    val i = x as i64
+    if (x > (i as f64)) {
+        return (i + 1) as f64
+    }
+    return i as f64
+}
+
+pub fn trunc(x: f64) f64 = {
+    return (x as i64) as f64
+}
+
+pub fn fract(x: f64) f64 = {
+    return x - floor(x)
+}
+
+/// Square root using Newton's method
+pub fn sqrt(x: f64) f64 = {
+    pre {
+        non_negative: x >= 0.0
+    }
+
+    if (x == 0.0) {
+        return 0.0
+    }
+
+    val guess: mut f64 = x
+
+    for (i = 0; i < 20; i++) {
+        guess = 0.5 * (guess + x / guess)
+    }
+
+    return guess
+}
+
+pub fn fpow(base: f64, exp: usize) f64 = {
+    val result: mut f64 = 1.0
+    val b: mut f64 = base
+    val e: mut usize = exp
+    for {
+        if (e == 0) {
+            break
+        }
+        if (e % 2 == 1) {
+            result = result * b
+        }
+        b = b * b
+        e = e / 2
+    }
+    post {
+        !(exp == 0) || result == 1.0
+        !(exp == 1) || result == base
+        !(base == 0.0 && exp > 0) || result == 0.0
+    }
+    return result
+}
+
+/// Linear interpolation
+pub fn lerp(a: f64, b: f64, t: f64) f64 = {
+    pre {
+        t_in_range: t >= 0.0 && t <= 1.0
+    }
+    return a + (b - a) * t
+}
+
+/// Is this number even?
+pub fn is_even(x: i64) bool = {
+    return x % 2 == 0
+}
+
+/// Is this number odd?
+pub fn is_odd(x: i64) bool = {
+    return x % 2 != 0
+}
+
+/// Check approximate equality
+pub fn approx_eq(a: f64, b: f64, eps: f64) bool = {
+    pre {
+        positive_epsilon: eps > 0.0
+    }
+    
+    return fabs(a - b) <= eps
+}
+
+/// Exponential function (e^x) using Taylor series
+pub fn exp(x: f64) f64 = {
+    if (x > 700.0) {
+        return static.F64_MAX
+    }
+    if (x < -700.0) {
+        return 0.0
+    }
+
+    val result: mut f64 = 1.0
+    val term: mut f64 = 1.0
+    
+    for (i = 1; i < 50; i++) {
+        term = term * x / (i as f64)
+        result = result + term
+        if (fabs(term) < static.F64_EPSILON) {
+            break
+        }
+    }
+    
+    return result
+}
+
+/// Natural logarithm (ln(x)) using Newton's method
+pub fn logarithm(x: f64) f64 = {
+    pre {
+        positive: x > 0.0
+    }
+
+    if (x == 1.0) {
+        return 0.0
+    }
+
+    val guess: mut f64 = x - 1.0
+    
+    for (i = 0; i < 50; i++) {
+        val eg = exp(guess)
+        val next = guess - (eg - x) / eg
+        if (fabs(next - guess) < static.F64_EPSILON) {
+            break
+        }
+        guess = next
+    }
+    
+    return guess
+}
+
+/// Base-10 logarithm
+pub fn log10(x: f64) f64 = {
+    pre {
+        positive: x > 0.0
+    }
+    return logarithm(x) / static.LN10
+}
+
+/// Base-2 logarithm
+pub fn log2(x: f64) f64 = {
+    pre {
+        positive: x > 0.0
+    }
+    return logarithm(x) / static.LN2
+}
+
+/// Sine function using Taylor series
+pub fn sin(x: f64) f64 = {
+    val normalized: mut f64 = x
+    
+    for {
+        if (normalized <= static.PI && normalized >= -static.PI) {
+            break
+        }
+        if (normalized > static.PI) {
+            normalized = normalized - static.TAU
+        }
+        if (normalized < -static.PI) {
+            normalized = normalized + static.TAU
+        }
+    }
+    
+    val result: mut f64 = normalized
+    val term: mut f64 = normalized
+    
+    for (i = 1; i < 20; i++) {
+        term = -term * normalized * normalized / ((2 * i) as f64 * (2 * i + 1) as f64)
+        result = result + term
+        if (fabs(term) < static.F64_EPSILON) {
+            break
+        }
+    }
+    
+    return result
+}
+
+/// Cosine function
+pub fn cos(x: f64) f64 = {
+    return sin(x + static.PI / 2.0)
+}
+
+/// Tangent function
+pub fn tan(x: f64) f64 = {
+    val c = cos(x)
+    pre {
+        not_undefined: fabs(c) > static.F64_EPSILON
+    }
+    return sin(x) / c
+}
+
+/// Arcsine (inverse sine) using Newton's method
+pub fn asin(x: f64) f64 = {
+    pre {
+        in_range: x >= -1.0 && x <= 1.0
+    }
+
+    if (x == 1.0) {
+        return static.PI / 2.0
+    }
+    if (x == -1.0) {
+        return -static.PI / 2.0
+    }
+    if (x == 0.0) {
+        return 0.0
+    }
+
+    val guess: mut f64 = x
+    
+    for (i = 0; i < 20; i++) {
+        val s = sin(guess)
+        val c = cos(guess)
+        if (fabs(c) < static.F64_EPSILON) {
+            break
+        }
+        val next = guess - (s - x) / c
+        if (fabs(next - guess) < static.F64_EPSILON) {
+            break
+        }
+        guess = next
+    }
+    
+    return guess
+}
+
+/// Arccosine (inverse cosine)
+pub fn acos(x: f64) f64 = {
+    pre {
+        in_range: x >= -1.0 && x <= 1.0
+    }
+    return static.PI / 2.0 - asin(x)
+}
+
+/// Arctangent (inverse tangent) using series expansion
+pub fn atan(x: f64) f64 = {
+    if (x > 1.0) {
+        return static.PI / 2.0 - atan(1.0 / x)
+    }
+    if (x < -1.0) {
+        return -static.PI / 2.0 - atan(1.0 / x)
+    }
+
+    val result: mut f64 = x
+    val term: mut f64 = x
+    val x2 = x * x
+    
+    for (i = 1; i < 50; i++) {
+        term = -term * x2
+        val denom = (2 * i + 1) as f64
+        result = result + term / denom
+        if (fabs(term / denom) < static.F64_EPSILON) {
+            break
+        }
+    }
+    
+    return result
+}
+
+/// Two-argument arctangent (atan2)
+pub fn atan2(y: f64, x: f64) f64 = {
+    if (x > 0.0) {
+        return atan(y / x)
+    }
+    if (x < 0.0 && y >= 0.0) {
+        return atan(y / x) + static.PI
+    }
+    if (x < 0.0 && y < 0.0) {
+        return atan(y / x) - static.PI
+    }
+    if (x == 0.0 && y > 0.0) {
+        return static.PI / 2.0
+    }
+    if (x == 0.0 && y < 0.0) {
+        return -static.PI / 2.0
+    }
+    return 0.0
+}
+
+/// Hyperbolic sine
+pub fn sinh(x: f64) f64 = {
+    val ex = exp(x)
+    val emx = exp(-x)
+    return (ex - emx) / 2.0
+}
+
+/// Hyperbolic cosine
+pub fn cosh(x: f64) f64 = {
+    val ex = exp(x)
+    val emx = exp(-x)
+    return (ex + emx) / 2.0
+}
+
+/// Hyperbolic tangent
+pub fn tanh(x: f64) f64 = {
+    val ex = exp(x)
+    val emx = exp(-x)
+    return (ex - emx) / (ex + emx)
+}
+
+/// Convert degrees to radians
+pub fn to_radians(degrees: f64) f64 = {
+    return degrees * static.PI / 180.0
+}
+
+/// Convert radians to degrees
+pub fn to_degrees(radians: f64) f64 = {
+    return radians * 180.0 / static.PI
+}
+
+/// Round to nearest integer
+pub fn round(x: f64) f64 = {
+    if (x >= 0.0) {
+        return floor(x + 0.5)
+    }
+    return ceil(x - 0.5)
+}
+
+/// Compute x^y for floating point
+pub fn pow_f64(base: f64, exponent: f64) f64 = {
+    pre {
+        valid_base: base > 0.0
+    }
+    return exp(exponent * logarithm(base))
+}
+
+/// Cube root
+pub fn cbrt(x: f64) f64 = {
+    if (x == 0.0) {
+        return 0.0
+    }
+    
+    val sign: mut f64 = 1.0
+    
+    if (x < 0.0) { 
+        sign = -1.0
+    }
+
+    val abs_x = fabs(x)
+    
+    val guess: mut f64 = abs_x / 3.0
+    
+    for (i = 0; i < 20; i++) {
+        val g2 = guess * guess
+        guess = (2.0 * guess + abs_x / g2) / 3.0
+    }
+    
+    return sign * guess
+}
+
+/// Hypotenuse (sqrt(x^2 + y^2))
+pub fn hypot(x: f64, y: f64) f64 = {
+    return sqrt(x * x + y * y)
+}
+
+/// Copy sign from one number to another
+pub fn copysign(mag: f64, sign: f64) f64 = {
+    val abs_mag = fabs(mag)
+    if (sign < 0.0) {
+        return -abs_mag
+    }
+    return abs_mag
+}
+
+/// Fused multiply-add: (a * b) + c
+pub fn fma(a: f64, b: f64, c: f64) f64 = {
+    return a * b + c
+}
+
+test {
+    @puts("running")
+
+    assert clamp(10, 0, 5) == 5
+    assert gcd(48, 18) == 6
+    assert lcm(6, 8) == 24
+
+    val s = sqrt(25.0)
+    assert approx_eq(s, 5.0, 0.00001)
+
+    val x = lerp(0.0, 10.0, 0.5)
+
+    assert approx_eq(x, 5.0, 0.0001)
+    assert approx_eq(sin(0.0), 0.0, 0.0001)
+    assert approx_eq(sin(static.PI / 2.0), 1.0, 0.0001)
+    assert approx_eq(cos(0.0), 1.0, 0.0001)
+    assert approx_eq(cos(static.PI), -1.0, 0.0001)
+    assert approx_eq(tan(0.0), 0.0, 0.0001)
+    assert approx_eq(exp(0.0), 1.0, 0.0001)
+    assert approx_eq(exp(1.0), static.E, 0.0001)
+
+    assert approx_eq(logarithm(static.E), 1.0, 0.0001)
+    assert approx_eq(logarithm(1.0), 0.0, 0.0001)
+    assert approx_eq(asin(0.0), 0.0, 0.0001)
+    assert approx_eq(asin(1.0), static.PI / 2.0, 0.0001)
+    assert approx_eq(acos(1.0), 0.0, 0.0001)
+    assert approx_eq(atan(0.0), 0.0, 0.0001)
+    assert approx_eq(to_radians(180.0), static.PI, 0.0001)
+    assert approx_eq(to_degrees(static.PI), 180.0, 0.0001)
+    assert approx_eq(round(3.4), 3.0, 0.0001)
+    assert approx_eq(round(3.6), 4.0, 0.0001)
+    assert approx_eq(hypot(3.0, 4.0), 5.0, 0.0001)
+}
