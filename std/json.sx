@@ -44,7 +44,6 @@ extern (C) fn strlen(s: ref u8) usize! = "strlen"
 
 extern (C) fn yyjson_mut_doc_free(doc: ref void) void! = "sx_yyjson_mut_doc_free"
 extern (C) fn yyjson_mut_write_opts(doc: ref void, flg: u32, alc: ref void, len: ref usize, error: ref void) ref u8! = "sx_yyjson_mut_write_opts"
-
 extern (C) fn yyjson_mut_null(doc: ref void) ref void! = "sx_yyjson_mut_null"
 extern (C) fn yyjson_mut_bool(doc: ref void, v: bool) ref void! = "sx_yyjson_mut_bool"
 extern (C) fn yyjson_mut_int(doc: ref void, v: i64) ref void! = "sx_yyjson_mut_int"
