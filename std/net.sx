@@ -304,7 +304,7 @@ pub fn (TcpServer) fd(server: ref ServerHandle) i32 = {
     return server.fd
 }
 
-val stdio = use("stdio.sx")
+val stdio = use("stdio")
 
 test {
     Http.init()

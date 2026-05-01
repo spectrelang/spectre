@@ -5,9 +5,9 @@ when posix {
     link "-lyyjson"
 }
 
-val str = use("./string")
-val stdio = use("./stdio")
-val fmt = use("./fmt")
+val str = use("string")
+val stdio = use("stdio")
+val fmt = use("fmt")
 
 pub extern (C) fn yyjson_get_len(value: ref void) usize! = "sx_yyjson_get_len"
 extern (C) fn yyjson_get_type(value: ref void) u8! = "sx_yyjson_get_type"
