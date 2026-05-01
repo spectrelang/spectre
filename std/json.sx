@@ -9,7 +9,6 @@ val str = use("string.sx")
 val stdio = use("stdio.sx")
 val fmt = use("fmt.sx")
 
-
 pub extern (C) fn yyjson_get_len(value: ref void) usize! = "sx_yyjson_get_len"
 extern (C) fn yyjson_get_type(value: ref void) u8! = "sx_yyjson_get_type"
 extern (C) fn yyjson_get_subtype(value: ref void) u8! = "sx_yyjson_get_subtype"
