@@ -14,9 +14,6 @@ pub val F64_MIN_POS: f64 = 2.2250738585072014e-308
 pub val I64_MAX: i64 = 9223372036854775807
 pub val I64_MIN: i64 = -9223372036854775808
 
-extern (C) fn fflush(fp: ref void) i32! = "fflush"
-
-
 /// Absolute value of a 64-bit signed integer.
 pub fn abs_i64(x: i64) i64 = {
     pre { not_min: x != I64_MIN }
