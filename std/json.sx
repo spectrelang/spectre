@@ -88,7 +88,7 @@ fn _subtype_of(value: ref void) u8 = {
 
 pub fn parse(input: ref u8) option[ref void]! = {
     val len: usize = strlen(input)
-    val doc: ref void = yyjson_read_opts(input, len, 0, 0 as ref void, 0 as ref void)
+    val doc: ref void = yyjson_read_opts(input, len, 0 as u32, 0 as ref void, 0 as ref void)
     if doc == 0 as ref void {
         return none
     }
@@ -111,7 +111,7 @@ pub fn doc_root(handle: ref void) ref void = {
 pub fn doc_to_string(handle: ref void) ref u8! = {
     val doc: ref void = @load(handle)
     val len_slot: mut usize = 0
-    val s: ref u8 = yyjson_write_opts(doc, 0, 0 as ref void, @addr(len_slot), 0 as ref void)
+    val s: ref u8 = yyjson_write_opts(doc, 0 as u32, 0 as ref void, @addr(len_slot), 0 as ref void)
     return s
 }
 
@@ -206,13 +206,13 @@ pub fn builder_free(handle: ref void) void! = {
 pub fn builder_to_string(handle: ref void) ref u8! = {
     val doc: ref void = @load(handle)
     val len_slot: mut usize = 0
-    return yyjson_mut_write_opts(doc, 0, 0 as ref void, @addr(len_slot), 0 as ref void)
+    return yyjson_mut_write_opts(doc, 0 as u32, 0 as ref void, @addr(len_slot), 0 as ref void)
 }
 
 pub fn builder_to_string_pretty(handle: ref void) ref u8! = {
     val doc: ref void = @load(handle)
     val len_slot: mut usize = 0
-    return yyjson_mut_write_opts(doc, 1, 0 as ref void, @addr(len_slot), 0 as ref void)
+    return yyjson_mut_write_opts(doc, 1 as u32, 0 as ref void, @addr(len_slot), 0 as ref void)
 }
 
 pub fn build_null(handle: ref void) ref void! = {
@@ -306,7 +306,7 @@ test {
             assert val_is_array(root)
             assert arr_len(root) == 3
 
-            match trust arr_get(root, 0) {
+            match trust arr_get(root, 0 as usize) {
                 some v => { assert trust val_get_int(v) == 1 }
                 none   => { assert false }
             }
