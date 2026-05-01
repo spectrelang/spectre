@@ -9599,14 +9599,11 @@ fn gen_fn_prefixed(ctx: mut ref CgCtx, fn_node: ref parser.Node, mod_prefix: ref
     for {
         if scn_i >= scn_len { break }
         val scn_opt = @get(get_std_child_names(), scn_i as usize)
-        match scn_opt {
-            some scn => {
-                if str.rchar_cmp(scn as ref u8, mod_prefix) == 0 {
-                    is_std_child = true
-                    break
-                }
+        if scn_opt is some scn {
+            if str.rchar_cmp(scn as ref u8, mod_prefix) == 0 {
+                is_std_child = true
+                break
             }
-            none => {}
         }
         scn_i++
     }
