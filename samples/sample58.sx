@@ -4,7 +4,7 @@ pub type Node = {
 }
 
 pub fn main() void = {
-    val node: Node = {x: 10, y: 30}
+    val node: mut Node = {x: 10, y: 30}
     val ptr1: ref Node = @addr(node)
     val xs: list[ref Node] = [ptr1]
     for x in xs {
