@@ -319,7 +319,7 @@ pub fn logarithm(x: f64) f64 = {
     
     for (i = 0; i < 50; i++) {
         val eg = exp(guess)
-        val next = guess - (eg - x) / eg
+        val next: f64 = guess - (eg - x) / eg
         if (fabs(next - guess) < F64_EPSILON) {
             break
         }
@@ -413,7 +413,7 @@ pub fn asin(x: f64) f64 = {
         if (fabs(c) < F64_EPSILON) {
             break
         }
-        val next = guess - (s - x) / c
+        val next: f64 = guess - (s - x) / c
         if (fabs(next - guess) < F64_EPSILON) {
             break
         }
@@ -587,8 +587,6 @@ test {
     assert approx_eq(exp(0.0), 1.0, 0.0001)
     assert approx_eq(exp(1.0), E, 0.0001)
 
-    trust @print("log(E): {f}\n", {logarithm(E)})
-    @flush()
     assert approx_eq(logarithm(E), 1.0, 0.0001)
     assert approx_eq(logarithm(1.0), 0.0, 0.0001)
     assert approx_eq(asin(0.0), 0.0, 0.0001)
