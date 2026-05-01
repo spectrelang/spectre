@@ -2,5 +2,5 @@ val stdio = use("std/stdio")
 val submod = use("submod/sub.sx")
 
 pub fn main() void = {
-    stdio.print("{s}\n", submod.some_constant)
+    trust stdio.print("{s}\n", submod.some_constant)
 }
