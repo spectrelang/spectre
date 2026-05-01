@@ -259,7 +259,7 @@ fn test_f64_roundtrip(x: f64) void! = {
     @free(s)
 }
 
-val stdio = use("stdio.sx")
+val stdio = use("../stdio")
 
 test {
     val s: mut ref u8 = ""
