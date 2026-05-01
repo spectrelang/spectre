@@ -319,7 +319,7 @@ pub fn logarithm(x: f64) f64 = {
     
     for (i = 0; i < 50; i++) {
         val eg = exp(guess)
-        val next: f64 = guess - (eg - x) / eg
+        val next = guess - (eg - x) / eg
         if (fabs(next - guess) < F64_EPSILON) {
             break
         }
@@ -413,7 +413,7 @@ pub fn asin(x: f64) f64 = {
         if (fabs(c) < F64_EPSILON) {
             break
         }
-        val next: f64 = guess - (s - x) / c
+        val next = guess - (s - x) / c
         if (fabs(next - guess) < F64_EPSILON) {
             break
         }

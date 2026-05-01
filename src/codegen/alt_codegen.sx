@@ -308,6 +308,40 @@ fn cc_infer_expr_ty(ctx: ref CCtx, expr: ref parser.Node) ref parser.Node! = {
     if k == parser.NK_UNOP {
         return cc_infer_expr_ty(ctx, parser.unop_inner(expr))
     }
+    if k == parser.NK_BINOP {
+        val lhs: ref parser.Node = parser.binop_left(expr)
+        val rhs: ref parser.Node = parser.binop_right(expr)
+        val lhs_ty: ref parser.Node = cc_infer_expr_ty(ctx, lhs)
+        val rhs_ty: ref parser.Node = cc_infer_expr_ty(ctx, rhs)
+        
+        if lhs_ty != 0 as ref parser.Node && lhs_ty.kind == parser.TY_NAMED {
+            val lhs_name: ref u8 = lhs_ty.d0 as ref u8
+            if str.rchar_cmp(lhs_name, "f64") == 0 || str.rchar_cmp(lhs_name, "f32") == 0 {
+                return lhs_ty
+            }
+        }
+        if rhs_ty != 0 as ref parser.Node && rhs_ty.kind == parser.TY_NAMED {
+            val rhs_name: ref u8 = rhs_ty.d0 as ref u8
+            if str.rchar_cmp(rhs_name, "f64") == 0 || str.rchar_cmp(rhs_name, "f32") == 0 {
+                return rhs_ty
+            }
+        }
+        
+        val op: i64 = parser.binop_op(expr)
+        if op == parser.OP_EQ || op == parser.OP_NE || op == parser.OP_LT ||
+           op == parser.OP_GT || op == parser.OP_LE || op == parser.OP_GE ||
+           op == parser.OP_AND || op == parser.OP_OR {
+            val out: mut ref parser.Node = parser.make_node(parser.TY_NAMED, expr.line)
+            out.d0 = "bool" as i64
+            return out
+        }
+        
+        if lhs_ty != 0 as ref parser.Node { return lhs_ty }
+        if rhs_ty != 0 as ref parser.Node { return rhs_ty }
+        val out_i64: mut ref parser.Node = parser.make_node(parser.TY_NAMED, expr.line)
+        out_i64.d0 = "i64" as i64
+        return out_i64
+    }
     if k == parser.NK_CALL {
         val callee: ref parser.Node = parser.call_callee(expr)
         val ret: ref parser.Node = cc_infer_call_ret_ty(ctx, callee)

@@ -2636,6 +2636,32 @@ fn infer_type_annotation(ctx: ref CgCtx, expr: ref parser.Node) ref u8! = {
         return ""
     }
 
+    if k == parser.NK_BINOP {
+        val lhs: ref parser.Node = parser.binop_left(expr)
+        val rhs: ref parser.Node = parser.binop_right(expr)
+        val lhs_ann: ref u8 = infer_type_annotation(ctx, lhs)
+        val rhs_ann: ref u8 = infer_type_annotation(ctx, rhs)
+        
+        if str.rchar_cmp(lhs_ann, "f64") == 0 || str.rchar_cmp(rhs_ann, "f64") == 0 {
+            return "f64"
+        }
+        if str.rchar_cmp(lhs_ann, "f32") == 0 || str.rchar_cmp(rhs_ann, "f32") == 0 {
+            return "f32"
+        }
+        
+        val op: i64 = parser.binop_op(expr)
+        if op == parser.OP_EQ || op == parser.OP_NE || op == parser.OP_LT ||
+           op == parser.OP_GT || op == parser.OP_LE || op == parser.OP_GE {
+            return "bool"
+        }
+        
+        if op == parser.OP_AND || op == parser.OP_OR {
+            return "bool"
+        }
+        
+        return "i64"
+    }
+
     if k == parser.NK_BUILTIN {
         val bname_ann: ref u8 = expr.d0 as ref u8
         if str.rchar_cmp(bname_ann, "get") == 0 {
