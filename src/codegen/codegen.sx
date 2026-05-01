@@ -5520,7 +5520,19 @@ fn gen_call(ctx: ref CgCtx, expr: ref parser.Node) ref u8! = {
                         match ft_opt2 {
                             some ft2 => {
                                 val ft_node2: ref parser.Node = ft2 as ref parser.Node
-                                val fsize2: i64 = type_size(ft_node2)
+                                val fsize2: mut i64 = type_size(ft_node2)
+                                if ft_node2 != 0 as ref parser.Node && ft_node2.kind == parser.TY_NAMED {
+                                    val tname2: ref u8 = ft_node2.d0 as ref u8
+                                    val union_check2: ref void = cg_lookup_union_suffix(ctx, tname2)
+                                    if union_check2 != 0 as ref void {
+                                        fsize2 = 16
+                                    } else {
+                                        val struct_fields2: ref void = cg_lookup_struct(ctx, tname2)
+                                        if struct_fields2 != 0 as ref void {
+                                            fsize2 = struct_size(ctx, struct_fields2)
+                                        }
+                                    }
+                                }
                                 if fsize2 == 0 {
                                     payload_size2 = payload_size2 + 8
                                 } else {
@@ -5614,7 +5626,19 @@ fn gen_call(ctx: ref CgCtx, expr: ref parser.Node) ref u8! = {
                 match ft_opt {
                     some ft => {
                         val ft_node: ref parser.Node = ft as ref parser.Node
-                        val fsize: i64 = type_size(ft_node)
+                        val fsize: mut i64 = type_size(ft_node)
+                        if ft_node != 0 as ref parser.Node && ft_node.kind == parser.TY_NAMED {
+                            val tname: ref u8 = ft_node.d0 as ref u8
+                            val union_check: ref void = cg_lookup_union_suffix(ctx, tname)
+                            if union_check != 0 as ref void {
+                                fsize = 16
+                            } else {
+                                val struct_fields: ref void = cg_lookup_struct(ctx, tname)
+                                if struct_fields != 0 as ref void {
+                                    fsize = struct_size(ctx, struct_fields)
+                                }
+                            }
+                        }
                         if fsize == 0 {
                             payload_size = payload_size + 8
                         } else {
@@ -9442,6 +9466,7 @@ fn gen_match_tagged_union(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
                     @store(owner_slot, 0)
                     @store(field_slot, 0)
                     val tag_idx: i64 = cg_lookup_tv(ctx, vname, owner_slot, field_slot)
+                    val variant_fields: ref void = @load(field_slot) as ref void
                     @free(owner_slot)
                     @free(field_slot)
                     val actual_idx: mut i64 = ai
@@ -9468,15 +9493,50 @@ fn gen_match_tagged_union(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
                                     val bname: ref u8 = b as ref u8
                                     if str.rchar_cmp(bname, "_") != 0 {
                                         val offset: i64 = 8 + bi * 8
-                                        val payload_ptr: i64 = fresh_tmp(ctx)
-                                        val bbuf: ref u8 = @alloc(256) as ref u8
-                                        val payload_val: i64 = fresh_tmp(ctx)
-                                        @snprintf(bbuf, 256,
-                                            "    %%t{lld} =l add {s}, {lld}\n    %%t{lld} =l loadl %%t{lld}\n    %%{s} =l copy %%t{lld}\n",
-                                            {payload_ptr, expr, offset, payload_val, payload_ptr, bname, payload_val})
-                                        emit(ctx, bbuf)
-                                        @free(bbuf)
-                                        cg_dvars_add(ctx, bname, "l")
+                                        val is_inline_struct: mut bool = false
+                                        val struct_type_name: mut ref u8 = ""
+                                        
+                                        if variant_fields != 0 as ref void {
+                                            val field_ty_opt = @get(variant_fields as list[ref parser.Node], bi as usize)
+                                            match field_ty_opt {
+                                                some field_ty => {
+                                                    val fty: ref parser.Node = field_ty as ref parser.Node
+                                                    val concrete_fty: ref parser.Node = cg_concrete_ty(ctx, fty)
+                                                    if concrete_fty != 0 as ref parser.Node && concrete_fty.kind == parser.TY_NAMED {
+                                                        val type_name: ref u8 = concrete_fty.d0 as ref u8
+                                                        val is_struct: ref void = cg_lookup_struct(ctx, type_name)
+                                                        if is_struct != 0 as ref void {
+                                                            is_inline_struct = true
+                                                            struct_type_name = type_name
+                                                        }
+                                                    }
+                                                }
+                                                none => {}
+                                            }
+                                        }
+                                        
+                                        if is_inline_struct {
+                                            val payload_ptr: i64 = fresh_tmp(ctx)
+                                            val bbuf: ref u8 = @alloc(256) as ref u8
+                                            @snprintf(bbuf, 256,
+                                                "    %%t{lld} =l add {s}, {lld}\n    %%{s} =l copy %%t{lld}\n",
+                                                {payload_ptr, expr, offset, bname, payload_ptr})
+                                            emit(ctx, bbuf)
+                                            @free(bbuf)
+                                            cg_dvars_add(ctx, bname, "l")
+                                            cg_register_local_ref_type(ctx, bname)
+                                            cg_register_local_type(ctx, bname, struct_type_name)
+                                        } else {
+                                            val payload_ptr: i64 = fresh_tmp(ctx)
+                                            val bbuf: ref u8 = @alloc(256) as ref u8
+                                            val payload_val: i64 = fresh_tmp(ctx)
+                                            @snprintf(bbuf, 256,
+                                                "    %%t{lld} =l add {s}, {lld}\n    %%t{lld} =l loadl %%t{lld}\n    %%{s} =l copy %%t{lld}\n",
+                                                {payload_ptr, expr, offset, payload_val, payload_ptr, bname, payload_val})
+                                            emit(ctx, bbuf)
+                                            @free(bbuf)
+                                            cg_dvars_add(ctx, bname, "l")
+                                        }
                                     }
                                 }
                                 none => {}
