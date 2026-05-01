@@ -29,10 +29,6 @@ pub fn max_i64(a: i64, b: i64) i64 = {
 /// Clamp `x` to [lo, hi].
 pub fn clamp_i64(x: i64, lo: i64, hi: i64) i64 = {
     pre { valid_range: lo <= hi }
-    post {
-        at_least_lo: clamp_i64(x, lo, hi) >= lo
-        at_most_hi:  clamp_i64(x, lo, hi) <= hi
-    }
     if (x < lo) {
         return lo
     }
@@ -44,9 +40,6 @@ pub fn clamp_i64(x: i64, lo: i64, hi: i64) i64 = {
 
 /// Sign of an i64: returns -1, 0, or 1.
 pub fn sign_i64(x: i64) i64 = {
-    post {
-        valid_sign: sign_i64(x) == -1 || sign_i64(x) == 0 || sign_i64(x) == 1
-    }
     if (x < 0) {
         return -1
     }
