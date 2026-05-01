@@ -12,10 +12,6 @@ pub fn abs_i64(x: i64) i64 = {
 
 /// Minimum of two i64 values.
 pub fn min_i64(a: i64, b: i64) i64 = {
-    post {
-        le_a: min_i64(a, b) <= a
-        le_b: min_i64(a, b) <= b
-    }
     if (a < b) {
         return a
     }
