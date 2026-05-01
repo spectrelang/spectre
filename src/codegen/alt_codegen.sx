@@ -3959,7 +3959,7 @@ fn emit_c_preamble(ctx: ref CCtx) void! = {
         emitln_fwd(ctx, "#include <sys/time.h>")
         emitln_fwd(ctx, "#include <sys/types.h>")
         emitln_fwd(ctx, "#include <sys/stat.h>")
-        emitln_fwd(ctx, "#include <unih>")
+        emitln_fwd(ctx, "#include <unistd.h>")
         emitln_fwd(ctx, "#include <dirent.h>")
     }
     if cc_platform_matches(ctx, "windows") {
