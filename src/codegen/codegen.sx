@@ -1323,9 +1323,9 @@ fn cg_resolve_fn_name(ctx: ref CgCtx, name: ref u8) ref u8! = {
 
 /// Register a function's mangled name and its param list for call-site type checking.
 fn cg_register_fn(ctx: ref CgCtx, mangled: ref u8, params: ref void, ret_ty: ref void) void! = {
-    @append(cg_fn_names(ctx) as list[ref u8], mangled)
-    @append(cg_fn_params(ctx) as list[ref void], params)
-    @append(cg_fn_rets(ctx) as list[ref void], ret_ty)
+    @append(ctx.fn_names, mangled)
+    @append(ctx.fn_params as list[ref void], params)
+    @append(ctx.fn_rets as list[ref void], ret_ty)
 }
 
 /// Look up param list for a mangled function name. Returns 0 if not found.

@@ -1073,8 +1073,8 @@ fn cc_register_fn(ctx: ref CCtx, mangled: ref u8, params: ref void, ret_ty: ref 
         ni++
     }
     @append(ctx.fn_names, mangled)
-    @append(ctx.fn_params, params)
-    @append(ctx.fn_rets, ret_ty)
+    @append(ctx.fn_params as list[ref void], params)
+    @append(ctx.fn_rets as list[ref void], ret_ty)
     @append(ctx.fn_variadics, is_variadic)
     @append(ctx.fn_no_forward, no_forward)
 }

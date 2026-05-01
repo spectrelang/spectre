@@ -1,6 +1,6 @@
 val stdio = use("std/stdio")
 
-pub fn (Stack) push(s: mut self, vl: i32) void = {
+pub fn (Stack) push(s: mut self, vl: i64) void = {
     pre {
         not_full: s.len < @capacity(s.data)
     }
@@ -8,7 +8,7 @@ pub fn (Stack) push(s: mut self, vl: i32) void = {
     s.len = s.len + 1
 }
 
-pub fn (Stack) pop(s: mut self) option[i32] = {
+pub fn (Stack) pop(s: mut self) option[i64] = {
     pre { 
         not_empty: s.len > 0
     }
@@ -19,11 +19,11 @@ pub fn (Stack) pop(s: mut self) option[i32] = {
 }
 
 type Stack = {
-    data: mut list[i32]
+    data: mut list[i64]
     len:  mut usize
 }
 
-pub fn (Stack) peek(s: self) option[i32] = {
+pub fn (Stack) peek(s: self) option[i64] = {
     pre { 
         not_empty: s.len > 0 
     }
