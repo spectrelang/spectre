@@ -4,12 +4,6 @@ val stdio       = use("stdio.sx")
 extern (C) fn strlen(s: ref u8) i64! = "strlen"
 extern (C) fn strcmp(a: ref u8, b: ref u8) i64! = "strcmp"
 
-/// A string builder or a raw pointer, used internally in ensure_cap
-/// to avoid double-loading the pointer and capacity fields.
-pub union SbOrPtr = {
-    StrBuilder(StringBuilder) | Ptr(ref void)
-}
-
 /// This is the classic string type.
 ///
 /// An owned heap string: ptr, len, cap - each 8 bytes.
@@ -185,31 +179,16 @@ pub fn rchar_ends_with(s: ref u8, suffix: ref u8) bool = {
 }
 
 /// Ensure capacity (private helper)
-fn ensure_cap(s: SbOrPtr, needed: i64) void! = {
-    match s {
-        Ptr ptr => {
-            val cap: i64 = @load(@ptradd(ptr, 16)) as i64
-            if (needed <= cap) {
-                return
-            }
-            val new_cap: i64 = needed * 2
-            val old_ptr: ref void = @load(ptr)
-            val new_ptr: ref void = @realloc(old_ptr, new_cap)
-            @store(ptr, new_ptr)
-            @store(@ptradd(ptr, 16), new_cap)
-        }
-        StrBuilder sb => {
-            val cap: i64 = @load(@ptradd(sb, 16)) as i64
-            if (needed <= cap) {
-                return
-            }
-            val new_cap: i64 = needed * 2
-            val old_ptr: ref void = @load(sb)
-            val new_ptr: ref void = @realloc(old_ptr, new_cap)
-            @store(sb, new_ptr)
-            @store(@ptradd(sb, 16), new_cap)
-        }
+fn ensure_cap(ptr: ref void, needed: i64) void! = {
+    val cap: i64 = @load(@ptradd(ptr, 16)) as i64
+    if (needed <= cap) {
+        return
     }
+    val new_cap: i64 = needed * 2
+    val old_ptr: ref void = @load(ptr)
+    val new_ptr: ref void = @realloc(old_ptr, new_cap)
+    @store(ptr, new_ptr)
+    @store(@ptradd(ptr, 16), new_cap)
 }
 
 /// Append a C string in place
@@ -218,7 +197,7 @@ pub fn push_cstr(s: String, other: ref u8) void! = {
     val add_len: i64 = strlen(other)
     val new_len: i64 = l + add_len
 
-    ensure_cap(StrBuilder(s as StringBuilder), new_len + 1)
+    ensure_cap(s as ref void, new_len + 1)
 
     val ptr: ref void = @load(s)
 
@@ -235,7 +214,7 @@ pub fn push(s: String, other: String) void! = {
     val l: i64 = @load(@ptradd(s as ref void, 8)) as i64
     val new_len: i64 = l + other_len
 
-    ensure_cap(Ptr(s as ref void), new_len + 1)
+    ensure_cap(s as ref void, new_len + 1)
 
     val ptr: ref void = @load(s as ref void)
 
@@ -310,7 +289,7 @@ pub fn concat(a: String, b: String) String! = {
 
 /// Reserve at least cap bytes of capacity
 pub fn reserve(s: String, cap: i64) void! = {
-    ensure_cap(Ptr(s as ref void), cap)
+    ensure_cap(s as ref void, cap)
 }
 
 /// Clear contents (set length to 0, keep allocation)
@@ -325,7 +304,7 @@ pub fn push_char(s: String, c: u8) void! = {
     val l: i64 = @load(@ptradd(s as ref void, 8)) as i64
     val new_len: i64 = l + 1
 
-    ensure_cap(Ptr(s as ref void), new_len + 1)
+    ensure_cap(s as ref void, new_len + 1)
 
     val ptr: ref void = @load(s as ref void)
     @store8(@ptradd(ptr, l), c)
@@ -629,7 +608,7 @@ pub fn replace(s: String, from: String, to: String) String! = {
             if (matched != 0) {
                 out_l = @load(@ptradd(out as ref void, 8)) as i64
                 new_len = out_l + tol
-                ensure_cap(Ptr(out as ref void), new_len + 1)
+                ensure_cap(out as ref void, new_len + 1)
                 out_ptr = @load(out as ref void)
                 @memcpy(@ptradd(out_ptr, out_l), top, tol)
                 @store8(@ptradd(out_ptr, new_len), 0)
@@ -919,7 +898,7 @@ pub fn (StringBuilder) append(sb: self, s: String) void! = {
     val l: i64 = @load(@ptradd(sb as ref void, 8)) as i64
     val new_len: i64 = l + other_len
 
-    ensure_cap(StrBuilder(sb), new_len + 1)
+    ensure_cap(sb as ref void, new_len + 1)
 
     val ptr: ref void = @load(sb as ref void)
 
@@ -934,7 +913,7 @@ pub fn (StringBuilder) append_cstr(sb: self, cstr: ref u8) void! = {
     val add_len: i64 = strlen(cstr)
     val new_len: i64 = l + add_len
 
-    ensure_cap(StrBuilder(sb), new_len + 1)
+    ensure_cap(sb as ref void, new_len + 1)
 
     val ptr: ref void = @load(sb as ref void)
 
@@ -972,7 +951,7 @@ pub fn (StringBuilder) append_char(sb: self, c: u8) void! = {
     val l: i64 = @load(@ptradd(sb as ref void, 8)) as i64
     val new_len: i64 = l + 1
 
-    ensure_cap(StrBuilder(sb), new_len + 1)
+    ensure_cap(sb as ref void, new_len + 1)
 
     val ptr: ref void = @load(sb as ref void)
     @store8(@ptradd(ptr, l), c)
