@@ -2274,10 +2274,10 @@ fn cg_is_slot(ctx: ref CgCtx, src_name: ref u8) bool! = {
 }
 
 /// Look up the QBE temporary name for a source variable name. Returns "" if not found.
+/// Handles shadowing.
 fn cg_lookup_local_var(ctx: ref CgCtx, src_name: ref u8) ref u8! = {
     val nlen: i64 = @len(ctx.local_src_names as list[ref u8]) as i64
     val ni: mut i64 = nlen - 1
-    // Search backwards to find most recent declaration (handles shadowing)
     for {
         if ni < 0 { break }
         val n_opt = @get(ctx.local_src_names as list[ref u8], ni as usize)
