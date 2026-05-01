@@ -1,5 +1,8 @@
-val std        = use("std")
 val str        = use("std/string")
+val stdio      = use("std/stdio")
+val path       = use("std/path")
+val os         = use("std/os")
+val fs         = use("std/fs")
 val reflection = use("std/reflection")
 val parser     = use("../ast/parser.sx")
 val lexer      = use("../ast/lexer.sx")
@@ -27,9 +30,9 @@ pub fn new_resolved(items: list[ref parser.Node], filename: String, dir: String)
 
 /// Check if a file exists by trying to open it.
 fn file_exists(path: ref u8) bool! = {
-    val f = std.fs.open(path, "r")
+    val f = fs.open(path, "r")
     match f {
-        some h => { std.fs.close(h) return true }
+        some h => { fs.close(h) return true }
         none   => { return false }
     }
 }
@@ -42,9 +45,9 @@ fn find_workspace_root(start_dir: ref u8) ref u8! = {
     for {
         if limit <= 0 { break }
         limit--
-        val spectre_mod = std.path.join(cur, "sx.mod")
+        val spectre_mod = path.join(cur, "sx.mod")
         if file_exists(spectre_mod) { return cur }
-        val parent = std.path.dir(cur)
+        val parent = path.dir(cur)
         if str.rchar_cmp(parent, cur) == 0 { break }
         if str.rchar_cmp(parent, ".") == 0 { break }
         cur = parent
@@ -62,7 +65,7 @@ pub fn resolve_use_path(use_path: ref u8, file_dir: ref u8, exe_dir: ref u8, wor
         val c1: u8 = @load8(@ptradd(use_path as ref void, plen - 2))
         val c2: u8 = @load8(@ptradd(use_path as ref void, plen - 1))
         if c0 == 46 && c1 == 115 && c2 == 120 {
-            return std.path.join(file_dir, use_path)
+            return path.join(file_dir, use_path)
         }
     }
     val has_slash: mut bool = false
@@ -76,16 +79,16 @@ pub fn resolve_use_path(use_path: ref u8, file_dir: ref u8, exe_dir: ref u8, wor
     }
 
     if has_slash {
-        val candidate_exe = std.path.join(exe_dir, @fmt("{s}.sx", {use_path}))
+        val candidate_exe = path.join(exe_dir, @fmt("{s}.sx", {use_path}))
         if file_exists(candidate_exe) { return candidate_exe }
-        val candidate_ws = std.path.join(workspace, @fmt("{s}.sx", {use_path}))
+        val candidate_ws = path.join(workspace, @fmt("{s}.sx", {use_path}))
         if file_exists(candidate_ws) { return candidate_ws }
         return candidate_ws
     }
 
-    val candidate2_exe = std.path.join(exe_dir, @fmt("{s}/{s}.sx", {use_path, use_path}))
+    val candidate2_exe = path.join(exe_dir, @fmt("{s}/{s}.sx", {use_path, use_path}))
     if file_exists(candidate2_exe) { return candidate2_exe }
-    val candidate2_ws = std.path.join(workspace, @fmt("{s}/{s}.sx", {use_path, use_path}))
+    val candidate2_ws = path.join(workspace, @fmt("{s}/{s}.sx", {use_path, use_path}))
     if file_exists(candidate2_ws) { return candidate2_ws }
     return candidate2_ws
 }
@@ -851,7 +854,7 @@ fn resolve_module_impl(
         ci++
     }
 
-    val src_opt = std.fs.read_all(path)
+    val src_opt = fs.read_all(path)
     val src: mut ref u8 = ""
     match src_opt {
         some s => { src = s as ref u8 }
@@ -872,7 +875,7 @@ fn resolve_module_impl(
         err e => { return err @fmt("{s}: parse error: {s}", {path, e}) }
     }
 
-    val file_dir   = str.from(std.path.dir(path))
+    val file_dir   = str.from(path.dir(path))
     val file_dir_c = str.cstr(file_dir)
     val workspace  = find_workspace_root(file_dir_c)
     val m: ref ResolvedModule = new_resolved(items, str.from(path), file_dir)
@@ -880,9 +883,9 @@ fn resolve_module_impl(
     val cur_progress: mut list[ref u8] = in_progress
     @append(cur_progress, path)
 
-    val is_std_module: bool = str.rchar_cmp(path, "std/std.sx") == 0 ||
+    val is_std_module: bool = str.rchar_cmp(path, "std/sx") == 0 ||
                               (str.len_raw(path) >= 10 &&
-                               str.rchar_cmp(@ptradd(path as ref void, str.len_raw(path) - 10) as ref u8, "std/std.sx") == 0)
+                               str.rchar_cmp(@ptradd(path as ref void, str.len_raw(path) - 10) as ref u8, "std/sx") == 0)
 
     for item in items {
         val node: ref parser.Node = item
@@ -924,8 +927,8 @@ fn resolve_module_impl(
                     @append(m.import_modules, child as ref void)
                 }
                 err e => {
-                    std.stdio.eprint("error: could not resolve import '{s}': {s}\n", {import_name, e})
-                    std.os.exit(1)
+                    stdio.eprint("error: could not resolve import '{s}': {s}\n", {import_name, e})
+                    os.exit(1)
                 }
             }
         }
@@ -1276,7 +1279,7 @@ pub fn collect_links(items: list[ref parser.Node], exe_dir: ref u8) list[ref u8]
     val result: mut list[ref u8] = []
     for the_link in links {
         if str.rchar_cmp(the_link, "__sx__internal__json__") == 0 {
-            val shim_path: ref u8 = std.path.join(exe_dir, "std/csources/yyjson_shim.o")
+            val shim_path: ref u8 = path.join(exe_dir, "std/csources/yyjson_shim.o")
 
             if file_exists(shim_path) {
                 @append(result, shim_path)
@@ -1488,7 +1491,7 @@ fn import_in_list(import_names: list[ref u8], name: ref u8) bool! = {
 }
 
 /// Collect sub-module names accessed via <import_name>.<sub> in items.
-/// e.g. for import_name="std", finds "std.stdio" and returns ["stdio"]
+/// e.g. for import_name="std", finds "stdio" and returns ["stdio"]
 fn collect_needed_subnames(items: list[ref parser.Node], import_name: ref u8) list[ref u8]! = {
     val needed: list[ref u8] = []
     val items_len: i64 = @len(items) as i64

@@ -2,8 +2,10 @@
 ///
 /// GPL-3.0-only (C) Navid Momtahen - 2026
 
-val std        = use("std")
 val str        = use("std/string")
+val fmt        = use("std/fmt")
+val stdio      = use("std/stdio")
+val os         = use("std/os")
 val reflection = use("std/reflection")
 val parser     = use("../ast/parser.sx")
 val module     = use("../module/module.sx")
@@ -1411,7 +1413,7 @@ fn cc_fixed_arr_size_val(ctx: ref CCtx, ty: ref parser.Node) i64! = {
         ctext = cc_const_val(ctx, mapped)
     }
     if str.rchar_cmp(ctext, "") == 0 { return 0 }
-    val parsed = std.fmt.string_to_i64(ctext)
+    val parsed = fmt.string_to_i64(ctext)
     match parsed {
         ok v  => { return v }
         err _ => { return 0 }
@@ -2358,11 +2360,11 @@ fn gen_builtin(ctx: ref CCtx, expr: ref parser.Node) ref u8! = {
         val line: i64 = expr.line
         val filename: ref u8 = ctx.current_src_file
         if str.rchar_cmp(filename, "") == 0 {
-            std.stdio.eprint("error: line {lld}: {s}\n", {line, msg})
+            stdio.eprint("error: line {lld}: {s}\n", {line, msg})
         } else {
-            std.stdio.eprint("error: {s}:{lld}: {s}\n", {filename, line, msg})
+            stdio.eprint("error: {s}:{lld}: {s}\n", {filename, line, msg})
         }
-        std.os.exit(1)
+        os.exit(1)
     }
 
     if str.rchar_cmp(bname, "alloc") == 0 { val sz: ref u8 = get_arg(ctx, args, 0)
@@ -3957,7 +3959,7 @@ fn emit_c_preamble(ctx: ref CCtx) void! = {
         emitln_fwd(ctx, "#include <sys/time.h>")
         emitln_fwd(ctx, "#include <sys/types.h>")
         emitln_fwd(ctx, "#include <sys/stat.h>")
-        emitln_fwd(ctx, "#include <unistd.h>")
+        emitln_fwd(ctx, "#include <unih>")
         emitln_fwd(ctx, "#include <dirent.h>")
     }
     if cc_platform_matches(ctx, "windows") {

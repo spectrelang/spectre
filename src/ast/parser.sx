@@ -1,4 +1,6 @@
-val std   = use("std")
+val string = use("std/string")
+val fmt = use("std/fmt")
+val stdio = use("std/stdio")
 val lexer = use("lexer.sx")
 
 pub val NK_FN              : i64 = 1
@@ -267,7 +269,7 @@ fn make_str_lit(text: ref u8, line: i64) result[ref Node, ref u8]! = {
 pub fn str_lit_text(n: ref Node) ref u8 = { return n.d0 as ref u8 }
 
 fn str_eq(a: ref u8, b: ref u8) bool! = {
-    return std.string.rchar_cmp(a, b) == 0
+    return string.rchar_cmp(a, b) == 0
 }
 
 type Parser = {
@@ -454,24 +456,24 @@ pub fn parse_type(p: ref Parser) result[ref Node, ref u8]! = {
         val sz_name: mut ref u8 = 0 as ref u8
         if kind_is_int(p_peek_kind(p)) {
             val sz_text: ref u8 = p_advance_text(p)
-            val sz_res = std.fmt.string_to_i64(sz_text)
+            val sz_res = fmt.string_to_i64(sz_text)
             match sz_res {
                 ok v  => { sz = v }
                 err _ => { return err p_error(p, "invalid array size") }
             }
         } elif kind_is_ident(p_peek_kind(p)) {
-            val sb: ref void = std.string.StringBuilder.new()
-            std.string.StringBuilder.append_cstr(sb, p_advance_text(p))
+            val sb: ref void = string.StringBuilder.new()
+            string.StringBuilder.append_cstr(sb, p_advance_text(p))
             for {
                 if !lexer.kind_is_dot(p_peek_kind(p)) { break }
                 p_advance(p)
                 val seg = p_expect_ident(p)?
-                std.string.StringBuilder.append_char(sb, 46)
-                std.string.StringBuilder.append_cstr(sb, seg)
+                string.StringBuilder.append_char(sb, 46)
+                string.StringBuilder.append_cstr(sb, seg)
             }
-            val built: ref void = std.string.StringBuilder.build(sb)
-            std.string.StringBuilder.free(sb)
-            sz_name = std.string.cstr(built)
+            val built: ref void = string.StringBuilder.build(sb)
+            string.StringBuilder.free(sb)
+            sz_name = string.cstr(built)
         } else {
             return err p_error(p, "expected integer size in fixed array type")
         }
@@ -550,18 +552,18 @@ pub fn parse_type(p: ref Parser) result[ref Node, ref u8]! = {
             nl.d0 = inner6 as i64
             return ok nl
         }
-        val sb: ref void = std.string.StringBuilder.new()
-        std.string.StringBuilder.append_cstr(sb, name)
+        val sb: ref void = string.StringBuilder.new()
+        string.StringBuilder.append_cstr(sb, name)
         for {
             if !lexer.kind_is_dot(p_peek_kind(p)) { break }
             p_advance(p)
             val seg = p_expect_ident(p)?
-            std.string.StringBuilder.append_char(sb, 46)
-            std.string.StringBuilder.append_cstr(sb, seg)
+            string.StringBuilder.append_char(sb, 46)
+            string.StringBuilder.append_cstr(sb, seg)
         }
-        val full_str: ref void = std.string.StringBuilder.build(sb)
-        std.string.StringBuilder.free(sb)
-        val full: ref u8 = std.string.cstr(full_str)
+        val full_str: ref void = string.StringBuilder.build(sb)
+        string.StringBuilder.free(sb)
+        val full: ref u8 = string.cstr(full_str)
         val nn: mut ref Node = make_node(TY_NAMED, line)
         nn.d0 = full as i64
         return ok nn
@@ -2228,12 +2230,12 @@ test {
     val r1 = parse_expr_src("42")
     match r1 {
         err e => {
-            std.stdio.print("{s}", {e})
+            trust stdio.print("{s}", {e})
             assert false
         }
         ok n  => {
             assert n.kind == NK_INT_LIT
-            assert std.string.rchar_cmp(int_lit_text(n), "42") == 0
+            assert string.rchar_cmp(int_lit_text(n), "42") == 0
         }
     }
 
@@ -2250,7 +2252,7 @@ test {
         err _ => { assert false }
         ok n  => {
             assert n.kind == NK_STR_LIT
-            assert std.string.rchar_cmp(str_lit_text(n), "hello") == 0
+            assert string.rchar_cmp(str_lit_text(n), "hello") == 0
         }
     }
 
@@ -2275,7 +2277,7 @@ test {
         err _ => { assert false }
         ok n  => {
             assert n.kind == NK_IDENT
-            assert std.string.rchar_cmp(n.d0 as ref u8, "foo") == 0
+            assert string.rchar_cmp(n.d0 as ref u8, "foo") == 0
         }
     }
 
@@ -2331,7 +2333,7 @@ test {
             assert n.kind == NK_FIELD
             val base: ref Node = field_base(n)
             assert base.kind == NK_IDENT
-            assert std.string.rchar_cmp(field_name(n), "field") == 0
+            assert string.rchar_cmp(field_name(n), "field") == 0
         }
     }
 
@@ -2384,7 +2386,7 @@ test {
     val r16 = parse_src("fn add(a: i64, b: i64) i64! = { return a + b }")
     match r16 {
         err e => {
-            std.stdio.print("{s}\n", {e})
+            trust stdio.print("{s}\n", {e})
             assert false
         }
         ok items => {
@@ -2438,7 +2440,7 @@ test {
     val r18b = parse_src("type Token = { kind: mut i64 invariant { kind > 0 } }")
     match r18b {
         err e => {
-            std.stdio.print("{s}\n", {e})
+            trust stdio.print("{s}\n", {e})
             assert false
         }
         ok items => {

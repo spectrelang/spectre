@@ -42,7 +42,7 @@ pub fn print_usage() void = {
 }
 
 pub fn print_version() void = {
-    stdio.print("Spectre {s}\n(C) Navid Momtahen - GPL-3.0 - 2026", {get_spectre_version()})
+    trust stdio.print("Spectre {s}\n(C) Navid Momtahen - GPL-3.0 - 2026", {get_spectre_version()})
 }
 
 pub fn print_src_target_help() void = {

@@ -1,6 +1,10 @@
-val std      = use("std")
+val stdio    = use("std/stdio")
 val str      = use("std/string")
 val regex    = use("std/regex")
+val fs       = use("std/fs")
+val path     = use("std/path")
+val os       = use("std/os")
+val string   = use("std/string")
 val algo     = use("std/algorithms")
 val lexer    = use("../ast/lexer.sx")
 val parser   = use("../ast/parser.sx")
@@ -134,16 +138,16 @@ fn strip_sx_ext(path: ref u8) ref u8! = {
 }
 
 fn dir_exists(path: ref u8) bool = {
-    val dir: ref void = std.fs.opendir(path)
+    val dir: ref void = trust fs.opendir(path)
     if dir == 0 as ref void { return false }
-    std.fs.closedir(dir)
+    trust fs.closedir(dir)
     return true
 }
 
 fn ensure_dir(path: ref u8) bool! = {
     val clean = trim_trailing_slash(path)
     if str_eq(clean, "") || str_eq(clean, ".") { return true }
-    if std.os.exists(clean) { return true }
+    if os.exists(clean) { return true }
     val len: i64 = str.len_raw(clean)
     val i: mut i64 = 0
     for {
@@ -151,14 +155,14 @@ fn ensure_dir(path: ref u8) bool! = {
         val c: u8 = @load8(@ptradd(clean as ref void, i))
         if c == 47 {
             val part = substr(clean, 0, i)
-            if !str_eq(part, "") && !str_eq(part, ".") && !std.os.exists(part) {
-                if !std.fs.mkdir_path(part) { return false }
+            if !str_eq(part, "") && !str_eq(part, ".") && !os.exists(part) {
+                if !fs.mkdir_path(part) { return false }
             }
         }
         i++
     }
-    if !std.os.exists(clean) {
-        return std.fs.mkdir_path(clean)
+    if !os.exists(clean) {
+        return fs.mkdir_path(clean)
     }
     return true
 }
@@ -175,16 +179,16 @@ fn is_hidden_name(name: ref u8) bool! = {
 }
 
 fn collect_sx_files(dir: ref u8, rel_dir: ref u8, out: mut list[ref u8]) void! = {
-    val entries_opt = std.fs.walk_dir(dir)
+    val entries_opt = fs.walk_dir(dir)
     if entries_opt is some entries {
         val sorted = entries as list[ref u8]
         for entry in sorted {
             if is_hidden_name(entry) { continue }
             if str_eq(entry, "docs-out") { continue }
-            val child_path = std.path.join(dir, entry)
+            val child_path = path.join(dir, entry)
             val child_rel: mut ref u8 = entry
             if !str_eq(rel_dir, "") {
-                child_rel = std.path.join(rel_dir, entry)
+                child_rel = path.join(rel_dir, entry)
             }
             if dir_exists(child_path) {
                 collect_sx_files(child_path, child_rel, out)
@@ -312,7 +316,7 @@ fn lookup_doc(map: ref DocMap, line: i64) ref u8! = {
 }
 
 fn slugify(text: ref u8) ref u8! = {
-    val sb: ref void = std.string.StringBuilder.new()
+    val sb: ref void = string.StringBuilder.new()
     val len: i64 = str.len_raw(text)
     val i: mut i64 = 0
     val prev_dash: mut bool = false
@@ -323,22 +327,22 @@ fn slugify(text: ref u8) ref u8! = {
         val is_upper: bool = c >= 65 && c <= 90
         val is_digit: bool = c >= 48 && c <= 57
         if is_lower || is_digit {
-            std.string.StringBuilder.append_char(sb, c)
+            string.StringBuilder.append_char(sb, c)
             prev_dash = false
         } elif is_upper {
-            std.string.StringBuilder.append_char(sb, (c + 32) as u8)
+            string.StringBuilder.append_char(sb, (c + 32) as u8)
             prev_dash = false
         } else {
             if !prev_dash {
-                std.string.StringBuilder.append_char(sb, 45 as u8)
+                string.StringBuilder.append_char(sb, 45 as u8)
                 prev_dash = true
             }
         }
         i++
     }
-    val built = std.string.StringBuilder.build(sb)
-    std.string.StringBuilder.free(sb)
-    return std.string.cstr(built)
+    val built = string.StringBuilder.build(sb)
+    string.StringBuilder.free(sb)
+    return string.cstr(built)
 }
 
 fn anchor_for(kind_name: ref u8, item_name: ref u8, line: i64) ref u8! = {
@@ -605,13 +609,13 @@ fn collect_entries(items: list[ref parser.Node], doc_map: ref DocMap, out: mut l
 }
 
 fn load_module(source_path: ref u8, rel_path: ref u8) ref DocModule! = {
-    val src_opt = std.fs.read_all(source_path)
+    val src_opt = fs.read_all(source_path)
     val src: mut ref u8 = ""
     match src_opt {
         some text => { src = text as ref u8 }
         none => {
-            std.stdio.print("error: could not read '{s}'\n", {source_path})
-            std.os.exit(1)
+            stdio.print("error: could not read '{s}'\n", {source_path})
+            os.exit(1)
         }
     }
     val toks_res = lexer.tokenize(src)
@@ -619,8 +623,8 @@ fn load_module(source_path: ref u8, rel_path: ref u8) ref DocModule! = {
     match toks_res {
         ok t => { toks = t }
         err e => {
-            std.stdio.print("error: {s}: {s}\n", {source_path, e})
-            std.os.exit(1)
+            stdio.print("error: {s}: {s}\n", {source_path, e})
+            os.exit(1)
         }
     }
     val parse_res = parser.parse_module(toks, source_path)
@@ -628,8 +632,8 @@ fn load_module(source_path: ref u8, rel_path: ref u8) ref DocModule! = {
     match parse_res {
         ok p => { items = p }
         err e => {
-            std.stdio.print("error: {s}\n", {e})
-            std.os.exit(1)
+            stdio.print("error: {s}\n", {e})
+            os.exit(1)
         }
     }
     val doc_map = extract_doc_map(src)
@@ -688,28 +692,28 @@ fn assign_output_paths(modules: list[ref DocModule], markdown: bool, root_idx: i
 }
 
 fn html_escape(text: ref u8) ref u8! = {
-    val sb: ref void = std.string.StringBuilder.new()
+    val sb: ref void = string.StringBuilder.new()
     val len: i64 = str.len_raw(text)
     val i: mut i64 = 0
     for {
         if i >= len { break }
         val c: u8 = @load8(@ptradd(text as ref void, i))
         if c == 38 {
-            std.string.StringBuilder.append_cstr(sb, "&amp;")
+            string.StringBuilder.append_cstr(sb, "&amp;")
         } elif c == 60 {
-            std.string.StringBuilder.append_cstr(sb, "&lt;")
+            string.StringBuilder.append_cstr(sb, "&lt;")
         } elif c == 62 {
-            std.string.StringBuilder.append_cstr(sb, "&gt;")
+            string.StringBuilder.append_cstr(sb, "&gt;")
         } elif c == 34 {
-            std.string.StringBuilder.append_cstr(sb, "&quot;")
+            string.StringBuilder.append_cstr(sb, "&quot;")
         } else {
-            std.string.StringBuilder.append_char(sb, c)
+            string.StringBuilder.append_char(sb, c)
         }
         i++
     }
-    val built = std.string.StringBuilder.build(sb)
-    std.string.StringBuilder.free(sb)
-    return std.string.cstr(built)
+    val built = string.StringBuilder.build(sb)
+    string.StringBuilder.free(sb)
+    return string.cstr(built)
 }
 
 fn append_doc_html(sb: ref void, docs: ref u8) void! = {
@@ -718,15 +722,15 @@ fn append_doc_html(sb: ref void, docs: ref u8) void! = {
     val line_start: mut i64 = 0
     val i: mut i64 = 0
     val paragraph: mut ref u8 = ""
-    std.string.StringBuilder.append_cstr(sb, "<div class=\"docs\">")
+    string.StringBuilder.append_cstr(sb, "<div class=\"docs\">")
     for {
         if i >= len {
             val line = trim_ws(substr(docs, line_start, len - line_start))
             if str_eq(line, "") {
                 if !str_eq(paragraph, "") {
-                    std.string.StringBuilder.append_cstr(sb, "<p>")
-                    std.string.StringBuilder.append_cstr(sb, html_escape(paragraph))
-                    std.string.StringBuilder.append_cstr(sb, "</p>")
+                    string.StringBuilder.append_cstr(sb, "<p>")
+                    string.StringBuilder.append_cstr(sb, html_escape(paragraph))
+                    string.StringBuilder.append_cstr(sb, "</p>")
                     paragraph = ""
                 }
             } else {
@@ -743,9 +747,9 @@ fn append_doc_html(sb: ref void, docs: ref u8) void! = {
             val line = trim_ws(substr(docs, line_start, i - line_start))
             if str_eq(line, "") {
                 if !str_eq(paragraph, "") {
-                    std.string.StringBuilder.append_cstr(sb, "<p>")
-                    std.string.StringBuilder.append_cstr(sb, html_escape(paragraph))
-                    std.string.StringBuilder.append_cstr(sb, "</p>")
+                    string.StringBuilder.append_cstr(sb, "<p>")
+                    string.StringBuilder.append_cstr(sb, html_escape(paragraph))
+                    string.StringBuilder.append_cstr(sb, "</p>")
                     paragraph = ""
                 }
             } else {
@@ -760,11 +764,11 @@ fn append_doc_html(sb: ref void, docs: ref u8) void! = {
         i++
     }
     if !str_eq(paragraph, "") {
-        std.string.StringBuilder.append_cstr(sb, "<p>")
-        std.string.StringBuilder.append_cstr(sb, html_escape(paragraph))
-        std.string.StringBuilder.append_cstr(sb, "</p>")
+        string.StringBuilder.append_cstr(sb, "<p>")
+        string.StringBuilder.append_cstr(sb, html_escape(paragraph))
+        string.StringBuilder.append_cstr(sb, "</p>")
     }
-    std.string.StringBuilder.append_cstr(sb, "</div>")
+    string.StringBuilder.append_cstr(sb, "</div>")
 }
 
 fn render_entry_details_html(sb: ref void, entry: ref DocEntry) void! = {
@@ -772,61 +776,61 @@ fn render_entry_details_html(sb: ref void, entry: ref DocEntry) void! = {
     if node.kind == parser.NK_TYPEDEF || node.kind == parser.NK_EXTERN_TYPE {
         val fields = node.d2 as list[ref parser.Node]
         if @len(fields) as i64 > 0 {
-            std.string.StringBuilder.append_cstr(sb, "<h4>Fields</h4><div class=\"details-table-wrap\"><table class=\"details-table\"><thead><tr><th>Name</th><th>Type</th></tr></thead><tbody>")
+            string.StringBuilder.append_cstr(sb, "<h4>Fields</h4><div class=\"details-table-wrap\"><table class=\"details-table\"><thead><tr><th>Name</th><th>Type</th></tr></thead><tbody>")
             for field in fields {
                 val prefix: mut ref u8 = ""
                 if field.d1 != 0 { prefix = "mut " }
-                std.string.StringBuilder.append_cstr(sb, "<tr><td><code>")
-                std.string.StringBuilder.append_cstr(sb, html_escape(field.d0 as ref u8))
-                std.string.StringBuilder.append_cstr(sb, "</code></td><td><code>")
-                std.string.StringBuilder.append_cstr(sb, html_escape(@fmt("{s}{s}", {prefix, render_type(field.d2 as ref parser.Node)})))
-                std.string.StringBuilder.append_cstr(sb, "</code></td></tr>")
+                string.StringBuilder.append_cstr(sb, "<tr><td><code>")
+                string.StringBuilder.append_cstr(sb, html_escape(field.d0 as ref u8))
+                string.StringBuilder.append_cstr(sb, "</code></td><td><code>")
+                string.StringBuilder.append_cstr(sb, html_escape(@fmt("{s}{s}", {prefix, render_type(field.d2 as ref parser.Node)})))
+                string.StringBuilder.append_cstr(sb, "</code></td></tr>")
             }
-            std.string.StringBuilder.append_cstr(sb, "</tbody></table></div>")
+            string.StringBuilder.append_cstr(sb, "</tbody></table></div>")
         }
     } elif node.kind == parser.NK_ENUMDEF {
-        std.string.StringBuilder.append_cstr(sb, "<h4>Variants</h4><ul class=\"details\">")
+        string.StringBuilder.append_cstr(sb, "<h4>Variants</h4><ul class=\"details\">")
         for variant in node.d2 as list[ref u8] {
-            std.string.StringBuilder.append_cstr(sb, "<li><code>")
-            std.string.StringBuilder.append_cstr(sb, html_escape(variant))
-            std.string.StringBuilder.append_cstr(sb, "</code></li>")
+            string.StringBuilder.append_cstr(sb, "<li><code>")
+            string.StringBuilder.append_cstr(sb, html_escape(variant))
+            string.StringBuilder.append_cstr(sb, "</code></li>")
         }
-        std.string.StringBuilder.append_cstr(sb, "</ul>")
+        string.StringBuilder.append_cstr(sb, "</ul>")
     } elif node.kind == parser.NK_UNIONDEF {
-        std.string.StringBuilder.append_cstr(sb, "<h4>Variants</h4><ul class=\"details\">")
+        string.StringBuilder.append_cstr(sb, "<h4>Variants</h4><ul class=\"details\">")
         for variant in node.d2 as list[ref parser.Node] {
-            std.string.StringBuilder.append_cstr(sb, "<li><code>")
-            std.string.StringBuilder.append_cstr(sb, html_escape(render_type(variant)))
-            std.string.StringBuilder.append_cstr(sb, "</code></li>")
+            string.StringBuilder.append_cstr(sb, "<li><code>")
+            string.StringBuilder.append_cstr(sb, html_escape(render_type(variant)))
+            string.StringBuilder.append_cstr(sb, "</code></li>")
         }
-        std.string.StringBuilder.append_cstr(sb, "</ul>")
+        string.StringBuilder.append_cstr(sb, "</ul>")
     } elif node.kind == parser.NK_TAGGED_UNIONDEF {
-        std.string.StringBuilder.append_cstr(sb, "<h4>Variants</h4><ul class=\"details\">")
+        string.StringBuilder.append_cstr(sb, "<h4>Variants</h4><ul class=\"details\">")
         for variant in node.d2 as list[ref parser.Node] {
             val types = render_type_list(variant.d1 as list[ref parser.Node], ", ")
             val text: mut ref u8 = variant.d0 as ref u8
             if !str_eq(types, "") { text = @fmt("{s}({s})", {text, types}) } else { text = @fmt("{s}()", {text}) }
-            std.string.StringBuilder.append_cstr(sb, "<li><code>")
-            std.string.StringBuilder.append_cstr(sb, html_escape(text))
-            std.string.StringBuilder.append_cstr(sb, "</code></li>")
+            string.StringBuilder.append_cstr(sb, "<li><code>")
+            string.StringBuilder.append_cstr(sb, html_escape(text))
+            string.StringBuilder.append_cstr(sb, "</code></li>")
         }
-        std.string.StringBuilder.append_cstr(sb, "</ul>")
+        string.StringBuilder.append_cstr(sb, "</ul>")
     }
 }
 
 fn render_entry_html(sb: ref void, entry: ref DocEntry) void! = {
-    std.string.StringBuilder.append_cstr(sb, @fmt("<section class=\"entry\" id=\"{s}\" data-name=\"{s}\">", {entry.anchor, html_escape(entry.nav_name)}))
-    std.string.StringBuilder.append_cstr(sb, @fmt("<div class=\"entry-header\"><h3>{s}</h3>", {html_escape(entry.name)}))
+    string.StringBuilder.append_cstr(sb, @fmt("<section class=\"entry\" id=\"{s}\" data-name=\"{s}\">", {entry.anchor, html_escape(entry.nav_name)}))
+    string.StringBuilder.append_cstr(sb, @fmt("<div class=\"entry-header\"><h3>{s}</h3>", {html_escape(entry.name)}))
     if !str_eq(entry.availability, "") {
-        std.string.StringBuilder.append_cstr(sb, @fmt("<span class=\"badge\">{s}</span>", {html_escape(entry.availability)}))
+        string.StringBuilder.append_cstr(sb, @fmt("<span class=\"badge\">{s}</span>", {html_escape(entry.availability)}))
     }
-    std.string.StringBuilder.append_cstr(sb, "</div>")
-    std.string.StringBuilder.append_cstr(sb, "<pre><code class=\"language-spectre\">")
-    std.string.StringBuilder.append_cstr(sb, html_escape(entry.signature))
-    std.string.StringBuilder.append_cstr(sb, "</code></pre>")
+    string.StringBuilder.append_cstr(sb, "</div>")
+    string.StringBuilder.append_cstr(sb, "<pre><code class=\"language-spectre\">")
+    string.StringBuilder.append_cstr(sb, html_escape(entry.signature))
+    string.StringBuilder.append_cstr(sb, "</code></pre>")
     append_doc_html(sb, entry.docs)
     render_entry_details_html(sb, entry)
-    std.string.StringBuilder.append_cstr(sb, "</section>")
+    string.StringBuilder.append_cstr(sb, "</section>")
 }
 
 fn depth_prefix(output_path: ref u8) ref u8! = {
@@ -881,7 +885,7 @@ fn append_sorted_module_nav_html(sb: ref void, modules: list[ref DocModule], cur
             if !str_eq(mod.output_path, target_output) { continue }
             val cls: mut ref u8 = "nav-item"
             if str_eq(mod.rel_path, current.rel_path) { cls = "nav-item active" }
-            std.string.StringBuilder.append_cstr(sb, @fmt("<a class=\"{s}\" href=\"{s}\">{s}</a>", {
+            string.StringBuilder.append_cstr(sb, @fmt("<a class=\"{s}\" href=\"{s}\">{s}</a>", {
                 cls,
                 href_from(current.output_path, mod.output_path),
                 html_escape(safe_cstr(mod.module_name))
@@ -901,7 +905,7 @@ fn append_sorted_entry_nav_html(sb: ref void, entries: list[ref DocEntry]) void!
         val target_anchor = nav_key_tail(key)
         for entry in entries {
             if !str_eq(entry.anchor, target_anchor) { continue }
-            std.string.StringBuilder.append_cstr(sb, @fmt("<a class=\"nav-item\" href=\"#{s}\" data-name=\"{s}\">{s}</a>", {
+            string.StringBuilder.append_cstr(sb, @fmt("<a class=\"nav-item\" href=\"#{s}\" data-name=\"{s}\">{s}</a>", {
                 entry.anchor,
                 html_escape(entry.nav_name),
                 html_escape(entry.nav_name)
@@ -913,26 +917,26 @@ fn append_sorted_entry_nav_html(sb: ref void, entries: list[ref DocEntry]) void!
 
 fn append_nav_html(sb: ref void, modules: list[ref DocModule], current: ref DocModule) void! = {
     if @len(modules) as i64 > 1 {
-        std.string.StringBuilder.append_cstr(sb, "<div class=\"nav-section\"><div class=\"nav-label\">Modules</div>")
+        string.StringBuilder.append_cstr(sb, "<div class=\"nav-section\"><div class=\"nav-label\">Modules</div>")
         append_sorted_module_nav_html(sb, modules, current)
-        std.string.StringBuilder.append_cstr(sb, "</div>")
+        string.StringBuilder.append_cstr(sb, "</div>")
     }
     if @len(current.entries) as i64 > 0 {
-        std.string.StringBuilder.append_cstr(sb, "<div class=\"nav-section\"><div class=\"nav-label\">On this page</div>")
+        string.StringBuilder.append_cstr(sb, "<div class=\"nav-section\"><div class=\"nav-label\">On this page</div>")
         append_sorted_entry_nav_html(sb, current.entries)
-        std.string.StringBuilder.append_cstr(sb, "</div>")
+        string.StringBuilder.append_cstr(sb, "</div>")
     }
 }
 
 fn render_module_page_html(module: ref DocModule, modules: list[ref DocModule]) ref u8! = {
-    val sb: ref void = std.string.StringBuilder.new()
-    std.string.StringBuilder.append_cstr(sb, "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\">")
-    std.string.StringBuilder.append_cstr(sb, @fmt("<title>{s} — Docs</title>", {html_escape(safe_cstr(module.module_name))}))
-    std.string.StringBuilder.append_cstr(sb, "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">")
-    std.string.StringBuilder.append_cstr(sb, "<link rel=\"preconnect\" href=\"https://fonts.googleapis.com\">")
-    std.string.StringBuilder.append_cstr(sb, "<link href=\"https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap\" rel=\"stylesheet\">")
-    std.string.StringBuilder.append_cstr(sb, "<style>")
-    std.string.StringBuilder.append_cstr(sb,
+    val sb: ref void = string.StringBuilder.new()
+    string.StringBuilder.append_cstr(sb, "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\">")
+    string.StringBuilder.append_cstr(sb, @fmt("<title>{s} — Docs</title>", {html_escape(safe_cstr(module.module_name))}))
+    string.StringBuilder.append_cstr(sb, "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">")
+    string.StringBuilder.append_cstr(sb, "<link rel=\"preconnect\" href=\"https://fonts.googleapis.com\">")
+    string.StringBuilder.append_cstr(sb, "<link href=\"https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap\" rel=\"stylesheet\">")
+    string.StringBuilder.append_cstr(sb, "<style>")
+    string.StringBuilder.append_cstr(sb,
         \\:root{
         \\  --bg:#f0f4fa;--bg2:#e4ecf7;--surface:#ffffff;--surface2:#f7f9fd;
         \\  --border:#c8d8ee;--border2:#dde8f5;
@@ -1144,22 +1148,22 @@ fn render_module_page_html(module: ref DocModule, modules: list[ref DocModule]) 
         \\  .toggle.sb-open{left:calc(var(--sb-w) + 10px)}
         \\}
     )
-    std.string.StringBuilder.append_cstr(sb, "</style></head><body>")
+    string.StringBuilder.append_cstr(sb, "</style></head><body>")
 
-    std.string.StringBuilder.append_cstr(sb, "<button class=\"toggle\" id=\"toggle\" aria-label=\"Toggle sidebar\"><svg viewBox=\"0 0 24 24\"><line x1=\"3\" y1=\"6\" x2=\"21\" y2=\"6\"/><line x1=\"3\" y1=\"12\" x2=\"21\" y2=\"12\"/><line x1=\"3\" y1=\"18\" x2=\"21\" y2=\"18\"/></svg></button>")
+    string.StringBuilder.append_cstr(sb, "<button class=\"toggle\" id=\"toggle\" aria-label=\"Toggle sidebar\"><svg viewBox=\"0 0 24 24\"><line x1=\"3\" y1=\"6\" x2=\"21\" y2=\"6\"/><line x1=\"3\" y1=\"12\" x2=\"21\" y2=\"12\"/><line x1=\"3\" y1=\"18\" x2=\"21\" y2=\"18\"/></svg></button>")
 
-    std.string.StringBuilder.append_cstr(sb, "<button class=\"theme-btn\" id=\"theme-btn\" aria-label=\"Toggle theme\"><svg id=\"theme-icon\" viewBox=\"0 0 24 24\"><circle cx=\"12\" cy=\"12\" r=\"5\"/><line x1=\"12\" y1=\"1\" x2=\"12\" y2=\"3\"/><line x1=\"12\" y1=\"21\" x2=\"12\" y2=\"23\"/><line x1=\"4.22\" y1=\"4.22\" x2=\"5.64\" y2=\"5.64\"/><line x1=\"18.36\" y1=\"18.36\" x2=\"19.78\" y2=\"19.78\"/><line x1=\"1\" y1=\"12\" x2=\"3\" y2=\"12\"/><line x1=\"21\" y1=\"12\" x2=\"23\" y2=\"12\"/><line x1=\"4.22\" y1=\"19.78\" x2=\"5.64\" y2=\"18.36\"/><line x1=\"18.36\" y1=\"5.64\" x2=\"19.78\" y2=\"4.22\"/></svg></button>")
+    string.StringBuilder.append_cstr(sb, "<button class=\"theme-btn\" id=\"theme-btn\" aria-label=\"Toggle theme\"><svg id=\"theme-icon\" viewBox=\"0 0 24 24\"><circle cx=\"12\" cy=\"12\" r=\"5\"/><line x1=\"12\" y1=\"1\" x2=\"12\" y2=\"3\"/><line x1=\"12\" y1=\"21\" x2=\"12\" y2=\"23\"/><line x1=\"4.22\" y1=\"4.22\" x2=\"5.64\" y2=\"5.64\"/><line x1=\"18.36\" y1=\"18.36\" x2=\"19.78\" y2=\"19.78\"/><line x1=\"1\" y1=\"12\" x2=\"3\" y2=\"12\"/><line x1=\"21\" y1=\"12\" x2=\"23\" y2=\"12\"/><line x1=\"4.22\" y1=\"19.78\" x2=\"5.64\" y2=\"18.36\"/><line x1=\"18.36\" y1=\"5.64\" x2=\"19.78\" y2=\"4.22\"/></svg></button>")
 
-    std.string.StringBuilder.append_cstr(sb, "<div class=\"page\">")
+    string.StringBuilder.append_cstr(sb, "<div class=\"page\">")
 
-    std.string.StringBuilder.append_cstr(sb, "<aside class=\"sidebar\" id=\"sidebar\">")
-    std.string.StringBuilder.append_cstr(sb, "<div class=\"sb-search\"><svg class=\"sb-search-icon\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\"><circle cx=\"11\" cy=\"11\" r=\"8\"/><line x1=\"21\" y1=\"21\" x2=\"16.65\" y2=\"16.65\"/></svg><input class=\"sb-input\" id=\"search\" type=\"search\" placeholder=\"Search... (/)\" autocomplete=\"off\" spellcheck=\"false\"/></div>")
-    std.string.StringBuilder.append_cstr(sb, "<nav class=\"sb-nav\" id=\"sb-nav\">")
+    string.StringBuilder.append_cstr(sb, "<aside class=\"sidebar\" id=\"sidebar\">")
+    string.StringBuilder.append_cstr(sb, "<div class=\"sb-search\"><svg class=\"sb-search-icon\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\"><circle cx=\"11\" cy=\"11\" r=\"8\"/><line x1=\"21\" y1=\"21\" x2=\"16.65\" y2=\"16.65\"/></svg><input class=\"sb-input\" id=\"search\" type=\"search\" placeholder=\"Search... (/)\" autocomplete=\"off\" spellcheck=\"false\"/></div>")
+    string.StringBuilder.append_cstr(sb, "<nav class=\"sb-nav\" id=\"sb-nav\">")
     append_nav_html(sb, modules, module)
-    std.string.StringBuilder.append_cstr(sb, "</nav></aside>")
+    string.StringBuilder.append_cstr(sb, "</nav></aside>")
 
-    std.string.StringBuilder.append_cstr(sb, "<main class=\"content\" id=\"content\">")
-    std.string.StringBuilder.append_cstr(sb, @fmt("<div class=\"hero\"><h1>{s}</h1><div class=\"hero-meta\"><span class=\"label\">source</span><code>{s}</code></div></div>", {
+    string.StringBuilder.append_cstr(sb, "<main class=\"content\" id=\"content\">")
+    string.StringBuilder.append_cstr(sb, @fmt("<div class=\"hero\"><h1>{s}</h1><div class=\"hero-meta\"><span class=\"label\">source</span><code>{s}</code></div></div>", {
         html_escape(safe_cstr(module.module_name)),
         html_escape(safe_cstr(module.rel_path))
     }))
@@ -1168,12 +1172,12 @@ fn render_module_page_html(module: ref DocModule, modules: list[ref DocModule]) 
         render_entry_html(sb, entry)
     }
     if @len(module.entries) as i64 == 0 {
-        std.string.StringBuilder.append_cstr(sb, "<div class=\"empty\">No documented items found in this module.</div>")
+        string.StringBuilder.append_cstr(sb, "<div class=\"empty\">No documented items found in this module.</div>")
     }
-    std.string.StringBuilder.append_cstr(sb, "</main></div>")
+    string.StringBuilder.append_cstr(sb, "</main></div>")
 
-    std.string.StringBuilder.append_cstr(sb, "<script>")
-    std.string.StringBuilder.append_cstr(sb,
+    string.StringBuilder.append_cstr(sb, "<script>")
+    string.StringBuilder.append_cstr(sb,
         \\(function(){
         \\'use strict';
         \\
@@ -1304,10 +1308,10 @@ fn render_module_page_html(module: ref DocModule, modules: list[ref DocModule]) 
         \\
         \\})();
     )
-    std.string.StringBuilder.append_cstr(sb, "</script></body></html>")
-    val built = std.string.StringBuilder.build(sb)
-    std.string.StringBuilder.free(sb)
-    return std.string.cstr(built)
+    string.StringBuilder.append_cstr(sb, "</script></body></html>")
+    val built = string.StringBuilder.build(sb)
+    string.StringBuilder.free(sb)
+    return string.cstr(built)
 }
 
 fn render_entry_details_md(sb: ref void, entry: ref DocEntry) void! = {
@@ -1315,92 +1319,92 @@ fn render_entry_details_md(sb: ref void, entry: ref DocEntry) void! = {
     if node.kind == parser.NK_TYPEDEF || node.kind == parser.NK_EXTERN_TYPE {
         val fields = node.d2 as list[ref parser.Node]
         if @len(fields) as i64 > 0 {
-            std.string.StringBuilder.append_cstr(sb, "\n**Fields**\n\n| Name | Type |\n| --- | --- |\n")
+            string.StringBuilder.append_cstr(sb, "\n**Fields**\n\n| Name | Type |\n| --- | --- |\n")
             for field in fields {
                 val prefix: mut ref u8 = ""
                 if field.d1 != 0 { prefix = "mut " }
-                std.string.StringBuilder.append_cstr(sb, @fmt("| `{s}` | `{s}{s}` |\n", {field.d0 as ref u8, prefix, render_type(field.d2 as ref parser.Node)}))
+                string.StringBuilder.append_cstr(sb, @fmt("| `{s}` | `{s}{s}` |\n", {field.d0 as ref u8, prefix, render_type(field.d2 as ref parser.Node)}))
             }
         }
     } elif node.kind == parser.NK_ENUMDEF {
-        std.string.StringBuilder.append_cstr(sb, "\n**Variants**\n\n")
+        string.StringBuilder.append_cstr(sb, "\n**Variants**\n\n")
         for variant in node.d2 as list[ref u8] {
-            std.string.StringBuilder.append_cstr(sb, @fmt("- `{s}`\n", {variant}))
+            string.StringBuilder.append_cstr(sb, @fmt("- `{s}`\n", {variant}))
         }
     } elif node.kind == parser.NK_UNIONDEF {
-        std.string.StringBuilder.append_cstr(sb, "\n**Variants**\n\n")
+        string.StringBuilder.append_cstr(sb, "\n**Variants**\n\n")
         for variant in node.d2 as list[ref parser.Node] {
-            std.string.StringBuilder.append_cstr(sb, @fmt("- `{s}`\n", {render_type(variant)}))
+            string.StringBuilder.append_cstr(sb, @fmt("- `{s}`\n", {render_type(variant)}))
         }
     } elif node.kind == parser.NK_TAGGED_UNIONDEF {
-        std.string.StringBuilder.append_cstr(sb, "\n**Variants**\n\n")
+        string.StringBuilder.append_cstr(sb, "\n**Variants**\n\n")
         for variant in node.d2 as list[ref parser.Node] {
             val types = render_type_list(variant.d1 as list[ref parser.Node], ", ")
             val text: mut ref u8 = variant.d0 as ref u8
             if !str_eq(types, "") { text = @fmt("{s}({s})", {text, types}) } else { text = @fmt("{s}()", {text}) }
-            std.string.StringBuilder.append_cstr(sb, @fmt("- `{s}`\n", {text}))
+            string.StringBuilder.append_cstr(sb, @fmt("- `{s}`\n", {text}))
         }
     }
 }
 
 fn render_module_page_md(module: ref DocModule, modules: list[ref DocModule]) ref u8! = {
-    val sb: ref void = std.string.StringBuilder.new()
-    std.string.StringBuilder.append_cstr(sb, @fmt("# {s}\n\n", {safe_cstr(module.module_name)}))
-    std.string.StringBuilder.append_cstr(sb, @fmt("Source: `{s}`\n\n", {safe_cstr(module.rel_path)}))
+    val sb: ref void = string.StringBuilder.new()
+    string.StringBuilder.append_cstr(sb, @fmt("# {s}\n\n", {safe_cstr(module.module_name)}))
+    string.StringBuilder.append_cstr(sb, @fmt("Source: `{s}`\n\n", {safe_cstr(module.rel_path)}))
     if @len(modules) as i64 > 1 {
-        std.string.StringBuilder.append_cstr(sb, "## Modules\n\n")
+        string.StringBuilder.append_cstr(sb, "## Modules\n\n")
         for mod in modules {
-            std.string.StringBuilder.append_cstr(sb, @fmt("- [{s}]({s})\n", {safe_cstr(mod.module_name), href_from(module.output_path, mod.output_path)}))
+            string.StringBuilder.append_cstr(sb, @fmt("- [{s}]({s})\n", {safe_cstr(mod.module_name), href_from(module.output_path, mod.output_path)}))
         }
-        std.string.StringBuilder.append_cstr(sb, "\n")
+        string.StringBuilder.append_cstr(sb, "\n")
     }
     if @len(module.entries) as i64 > 0 {
-        std.string.StringBuilder.append_cstr(sb, "## On this page\n\n")
+        string.StringBuilder.append_cstr(sb, "## On this page\n\n")
         for entry in module.entries {
-            std.string.StringBuilder.append_cstr(sb, @fmt("- [{s}](#{s})\n", {entry.nav_name, entry.anchor}))
+            string.StringBuilder.append_cstr(sb, @fmt("- [{s}](#{s})\n", {entry.nav_name, entry.anchor}))
         }
-        std.string.StringBuilder.append_cstr(sb, "\n")
+        string.StringBuilder.append_cstr(sb, "\n")
     }
     for entry in module.entries {
-        std.string.StringBuilder.append_cstr(sb, "## ")
-        std.string.StringBuilder.append_cstr(sb, entry.name)
-        std.string.StringBuilder.append_cstr(sb, " {#")
-        std.string.StringBuilder.append_cstr(sb, entry.anchor)
-        std.string.StringBuilder.append_cstr(sb, "}\n\n")
+        string.StringBuilder.append_cstr(sb, "## ")
+        string.StringBuilder.append_cstr(sb, entry.name)
+        string.StringBuilder.append_cstr(sb, " {#")
+        string.StringBuilder.append_cstr(sb, entry.anchor)
+        string.StringBuilder.append_cstr(sb, "}\n\n")
         if !str_eq(entry.availability, "") {
-            std.string.StringBuilder.append_cstr(sb, @fmt("Availability: `{s}`\n\n", {entry.availability}))
+            string.StringBuilder.append_cstr(sb, @fmt("Availability: `{s}`\n\n", {entry.availability}))
         }
-        std.string.StringBuilder.append_cstr(sb, "```spectre\n")
-        std.string.StringBuilder.append_cstr(sb, entry.signature)
-        std.string.StringBuilder.append_cstr(sb, "\n```\n\n")
+        string.StringBuilder.append_cstr(sb, "```spectre\n")
+        string.StringBuilder.append_cstr(sb, entry.signature)
+        string.StringBuilder.append_cstr(sb, "\n```\n\n")
         if !str_eq(entry.docs, "") {
-            std.string.StringBuilder.append_cstr(sb, entry.docs)
-            std.string.StringBuilder.append_cstr(sb, "\n")
+            string.StringBuilder.append_cstr(sb, entry.docs)
+            string.StringBuilder.append_cstr(sb, "\n")
         }
         render_entry_details_md(sb, entry)
-        std.string.StringBuilder.append_cstr(sb, "\n")
+        string.StringBuilder.append_cstr(sb, "\n")
     }
     if @len(module.entries) as i64 == 0 {
-        std.string.StringBuilder.append_cstr(sb, "No top-level documented functions or types were found in this module.\n")
+        string.StringBuilder.append_cstr(sb, "No top-level documented functions or types were found in this module.\n")
     }
-    val built = std.string.StringBuilder.build(sb)
-    std.string.StringBuilder.free(sb)
-    return std.string.cstr(built)
+    val built = string.StringBuilder.build(sb)
+    string.StringBuilder.free(sb)
+    return string.cstr(built)
 }
 
 fn render_overview_page(markdown: bool, modules: list[ref DocModule], output_path: ref u8) ref u8! = {
     if markdown {
-        val sb = std.string.StringBuilder.new()
-        std.string.StringBuilder.append_cstr(sb, "# Docs\n\n## Modules\n\n")
+        val sb = string.StringBuilder.new()
+        string.StringBuilder.append_cstr(sb, "# Docs\n\n## Modules\n\n")
         for mod in modules {
-            std.string.StringBuilder.append_cstr(sb, @fmt("- [{s}]({s})\n", {mod.module_name, href_from(output_path, mod.output_path)}))
+            string.StringBuilder.append_cstr(sb, @fmt("- [{s}]({s})\n", {mod.module_name, href_from(output_path, mod.output_path)}))
         }
-        val built = std.string.StringBuilder.build(sb)
-        std.string.StringBuilder.free(sb)
-        return std.string.cstr(built)
+        val built = string.StringBuilder.build(sb)
+        string.StringBuilder.free(sb)
+        return string.cstr(built)
     }
-    val sb2 = std.string.StringBuilder.new()
-    std.string.StringBuilder.append_cstr(sb2,
+    val sb2 = string.StringBuilder.new()
+    string.StringBuilder.append_cstr(sb2,
         \\<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><title>Docs</title>
         \\<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">
         \\<link rel=\"preconnect\" href=\"https://fonts.googleapis.com\">
@@ -1422,13 +1426,13 @@ fn render_overview_page(markdown: bool, modules: list[ref DocModule], output_pat
         \\.theme-btn svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round}
         \\</style></head><body>
     )
-    std.string.StringBuilder.append_cstr(sb2, "<button class=\"theme-btn\" id=\"theme-btn\" aria-label=\"Toggle theme\"><svg id=\"theme-icon\" viewBox=\"0 0 24 24\"><circle cx=\"12\" cy=\"12\" r=\"5\"/><line x1=\"12\" y1=\"1\" x2=\"12\" y2=\"3\"/><line x1=\"12\" y1=\"21\" x2=\"12\" y2=\"23\"/><line x1=\"4.22\" y1=\"4.22\" x2=\"5.64\" y2=\"5.64\"/><line x1=\"18.36\" y1=\"18.36\" x2=\"19.78\" y2=\"19.78\"/><line x1=\"1\" y1=\"12\" x2=\"3\" y2=\"12\"/><line x1=\"21\" y1=\"12\" x2=\"23\" y2=\"12\"/><line x1=\"4.22\" y1=\"19.78\" x2=\"5.64\" y2=\"18.36\"/><line x1=\"18.36\" y1=\"5.64\" x2=\"19.78\" y2=\"4.22\"/></svg></button>")
-    std.string.StringBuilder.append_cstr(sb2, "<div class=\"card\"><h1>Docs</h1><ul>")
+    string.StringBuilder.append_cstr(sb2, "<button class=\"theme-btn\" id=\"theme-btn\" aria-label=\"Toggle theme\"><svg id=\"theme-icon\" viewBox=\"0 0 24 24\"><circle cx=\"12\" cy=\"12\" r=\"5\"/><line x1=\"12\" y1=\"1\" x2=\"12\" y2=\"3\"/><line x1=\"12\" y1=\"21\" x2=\"12\" y2=\"23\"/><line x1=\"4.22\" y1=\"4.22\" x2=\"5.64\" y2=\"5.64\"/><line x1=\"18.36\" y1=\"18.36\" x2=\"19.78\" y2=\"19.78\"/><line x1=\"1\" y1=\"12\" x2=\"3\" y2=\"12\"/><line x1=\"21\" y1=\"12\" x2=\"23\" y2=\"12\"/><line x1=\"4.22\" y1=\"19.78\" x2=\"5.64\" y2=\"18.36\"/><line x1=\"18.36\" y1=\"5.64\" x2=\"19.78\" y2=\"4.22\"/></svg></button>")
+    string.StringBuilder.append_cstr(sb2, "<div class=\"card\"><h1>Docs</h1><ul>")
     for mod in modules {
-        std.string.StringBuilder.append_cstr(sb2, @fmt("<li><a href=\"{s}\">{s}</a></li>", {href_from(output_path, mod.output_path), html_escape(mod.module_name)}))
+        string.StringBuilder.append_cstr(sb2, @fmt("<li><a href=\"{s}\">{s}</a></li>", {href_from(output_path, mod.output_path), html_escape(mod.module_name)}))
     }
-    std.string.StringBuilder.append_cstr(sb2, "</ul></div>")
-    std.string.StringBuilder.append_cstr(sb2,
+    string.StringBuilder.append_cstr(sb2, "</ul></div>")
+    string.StringBuilder.append_cstr(sb2,
         \\<script>(function(){
         \\var h=document.documentElement;
         \\var s=localStorage.getItem('theme');
@@ -1440,15 +1444,15 @@ fn render_overview_page(markdown: bool, modules: list[ref DocModule], output_pat
         \\document.getElementById('theme-btn').addEventListener('click',function(){d=!d;apply(d);});
         \\})();</script>
     )
-    std.string.StringBuilder.append_cstr(sb2, "</body></html>")
-    val built2 = std.string.StringBuilder.build(sb2)
-    std.string.StringBuilder.free(sb2)
-    return std.string.cstr(built2)
+    string.StringBuilder.append_cstr(sb2, "</body></html>")
+    val built2 = string.StringBuilder.build(sb2)
+    string.StringBuilder.free(sb2)
+    return string.cstr(built2)
 }
 
 fn write_page(path: ref u8, content: ref u8) bool! = {
     if !ensure_parent_dir(path) { return false }
-    return std.fs.write_all(path, content)
+    return fs.write_all(path, content)
 }
 
 fn maybe_root_rel_for_dir() ref u8! = {
@@ -1465,12 +1469,12 @@ fn maybe_root_rel_for_dir() ref u8! = {
 
 pub fn cmd_doc(target: ref u8, markdown: bool) i32! = {
     if str_eq(target, "") {
-        std.stdio.puts("error: doc requires a file or directory target")
+        stdio.puts("error: doc requires a file or directory target")
         return 1
     }
     val out_dir: ref u8 = "./docs-out"
     if !ensure_dir(out_dir) {
-        std.stdio.print("error: could not create '{s}'\n", {out_dir})
+        stdio.print("error: could not create '{s}'\n", {out_dir})
         return 1
     }
 
@@ -1479,14 +1483,14 @@ pub fn cmd_doc(target: ref u8, markdown: bool) i32! = {
         val files: mut list[ref u8] = []
         collect_sx_files(clean_target, "", files)
         if @len(files) as i64 == 0 {
-            std.stdio.print("error: no .sx files found in '{s}'\n", {target})
+            stdio.print("error: no .sx files found in '{s}'\n", {target})
             return 1
         }
         val modules: mut list[ref DocModule] = []
         for rel in files {
             val source_path: mut ref u8 = rel
             if !str_eq(clean_target, ".") && !str_eq(clean_target, "") {
-                source_path = std.path.join(clean_target, rel)
+                source_path = path.join(clean_target, rel)
             } else {
                 source_path = @fmt("./{s}", {rel})
             }
@@ -1498,14 +1502,14 @@ pub fn cmd_doc(target: ref u8, markdown: bool) i32! = {
         if root_idx < 0 {
             val index_rel: mut ref u8 = "index.html"
             if markdown { index_rel = "index.md" }
-            val index_path = std.path.join("docs-out", index_rel)
+            val index_path = path.join("docs-out", index_rel)
             if !write_page(index_path, render_overview_page(markdown, modules, index_rel)) {
-                std.stdio.print("error: could not write '{s}'\n", {index_path})
+                stdio.print("error: could not write '{s}'\n", {index_path})
                 return 1
             }
         }
         for mod in modules {
-            val full_path = std.path.join("docs-out", mod.output_path)
+            val full_path = path.join("docs-out", mod.output_path)
             val content: mut ref u8 = ""
             if markdown {
                 content = render_module_page_md(mod, modules)
@@ -1513,20 +1517,20 @@ pub fn cmd_doc(target: ref u8, markdown: bool) i32! = {
                 content = render_module_page_html(mod, modules)
             }
             if !write_page(full_path, content) {
-                std.stdio.print("error: could not write '{s}'\n", {full_path})
+                stdio.print("error: could not write '{s}'\n", {full_path})
                 return 1
             }
         }
-        std.stdio.print("wrote docs to {s}\n", {out_dir})
+        stdio.print("wrote docs to {s}\n", {out_dir})
         return 0
     }
 
-    if !std.os.exists(target) {
-        std.stdio.print("error: could not read '{s}'\n", {target})
+    if !os.exists(target) {
+        stdio.print("error: could not read '{s}'\n", {target})
         return 1
     }
     if !str.rchar_ends_with(target, ".sx") {
-        std.stdio.puts("error: doc expects a .sx file or a directory")
+        stdio.puts("error: doc expects a .sx file or a directory")
         return 1
     }
     val rel_path = normalize_rel_path(path_basename(target))
@@ -1541,12 +1545,12 @@ pub fn cmd_doc(target: ref u8, markdown: bool) i32! = {
     } else {
         content = render_module_page_html(module, modules)
     }
-    val out_path = std.path.join(out_dir, module.output_path)
+    val out_path = path.join(out_dir, module.output_path)
     if !write_page(out_path, content) {
-        std.stdio.print("error: could not write '{s}'\n", {out_path})
+        stdio.print("error: could not write '{s}'\n", {out_path})
         return 1
     }
-    std.stdio.print("wrote docs to {s}\n", {out_dir})
+    stdio.print("wrote docs to {s}\n", {out_dir})
     return 0
 }
 

@@ -1,7 +1,9 @@
-val std    = use("std")
 val str    = use("std/string")
+val fs     = use("std/fs")
 val meta   = use("meta.sx")
 val builds = use("builds.sx")
+val stdio  = use("std/stdio")
+val os     = use("std/os")
 
 pub type SxBuildConfig = {
     name:   mut ref u8
@@ -171,7 +173,7 @@ pub fn parse_sxmod(content: ref u8) ref SxMod! = {
 }
 
 pub fn load_sxmod() option[ref SxMod] = {
-    val content_opt = std.fs.read_all("sx.mod")
+    val content_opt = trust fs.read_all("sx.mod")
     match content_opt {
         none => { return none }
         some content => { return some trust parse_sxmod(content as ref u8) }
@@ -258,11 +260,11 @@ fn rchar_contains(haystack: ref u8, needle: ref u8) bool = {
 
 /// Rewrite filepath, dropping lines that start with dep_prefix AND contain needle.
 fn drop_dep_lines(filepath: ref u8, needle: ref u8) void! = {
-    val content_opt = std.fs.read_all(filepath)
+    val content_opt = fs.read_all(filepath)
     match content_opt {
         none => { return }
         some content => {
-            val sb: ref void = std.string.StringBuilder.new()
+            val sb: ref void = str.StringBuilder.new()
             val text: ref u8 = content as ref u8
             val tlen: i64 = str.len_raw(text)
             val line_start: mut i64 = 0
@@ -280,31 +282,31 @@ fn drop_dep_lines(filepath: ref u8, needle: ref u8) void! = {
                     val is_dep: bool = str.rchar_starts_with(line, "dep ")
                     val has_needle: bool = rchar_contains(line, needle)
                     if !(is_dep && has_needle) {
-                        std.string.StringBuilder.append_cstr(sb, line)
-                        if !at_end { std.string.StringBuilder.append_char(sb, 10) }
+                        str.StringBuilder.append_cstr(sb, line)
+                        if !at_end { str.StringBuilder.append_char(sb, 10) }
                     }
                     @free(line as ref void)
                     line_start = i + 1
                 }
                 i++
             }
-            val result: ref void = std.string.StringBuilder.build(sb)
-            std.fs.write_all(filepath, std.string.cstr(result))
-            std.string.StringBuilder.free(sb)
+            val result: ref void = str.StringBuilder.build(sb)
+            fs.write_all(filepath, str.cstr(result))
+            str.StringBuilder.free(sb)
         }
     }
 }
 
 pub fn cmd_ref() i32 = {
     val path: ref u8 = "SPECTRE_LANGUAGE_REFERENCE.md"
-    val f_opt = std.fs.open(path, "w")
+    val f_opt = trust fs.open(path, "w")
     match f_opt {
         none => {
-            std.stdio.print("error: could not write {s}\n", {path})
+            trust stdio.print("error: could not write {s}\n", {path})
             return 1
         }
         some f => {
-            std.fs.write(f, \\ # Spectre Language Reference
+            trust fs.write(f, \\ # Spectre Language Reference
                 \\
                 \\ ---
                 \\
@@ -325,7 +327,7 @@ pub fn cmd_ref() i32 = {
                 \\ ```
                 \\
             )
-            std.fs.write(f, \\ ---
+            trust fs.write(f, \\ ---
                 \\
                 \\ ## Primitive Types
                 \\
@@ -344,7 +346,7 @@ pub fn cmd_ref() i32 = {
                 \\ | `void`  | no value                 |
                 \\
             )
-            std.fs.write(f, \\ ---
+            trust fs.write(f, \\ ---
                 \\
                 \\ ## Reference and Pointer Types
                 \\
@@ -370,7 +372,7 @@ pub fn cmd_ref() i32 = {
                 \\ ```
                 \\
             )
-            std.fs.write(f, \\ ---
+            trust fs.write(f, \\ ---
                 \\
                 \\ ## Option Type
                 \\
@@ -405,7 +407,7 @@ pub fn cmd_ref() i32 = {
                 \\ ok v => { return hello } // VALID if hello is defined and matches the return type
                 \\ ```
             )
-            std.fs.write(f, \\ ---
+            trust fs.write(f, \\ ---
                 \\
                 \\ ## Strings
                 \\
@@ -440,7 +442,7 @@ pub fn cmd_ref() i32 = {
                 \\ ```
                 \\
             )
-            std.fs.write(f, \\ ---
+            trust fs.write(f, \\ ---
                 \\
                 \\ ## Namespaced Functions
                 \\
@@ -470,7 +472,7 @@ pub fn cmd_ref() i32 = {
                 \\ `mut self` means the method may mutate the receiver.
                 \\
             )
-            std.fs.write(f, \\ ---
+            trust fs.write(f, \\ ---
                 \\
                 \\ ## Control Flow
                 \\
@@ -523,7 +525,7 @@ pub fn cmd_ref() i32 = {
                 \\ ```
                 \\
             )
-            std.fs.write(f, \\ ---
+            trust fs.write(f, \\ ---
                 \\
                 \\ ## Type Definitions
                 \\
@@ -562,7 +564,7 @@ pub fn cmd_ref() i32 = {
                 \\ ```
                 \\
             )
-            std.fs.write(f, \\ ---
+            trust fs.write(f, \\ ---
                 \\
                 \\ ## Contracts
                 \\
@@ -609,7 +611,7 @@ pub fn cmd_ref() i32 = {
                 \\ returns, regardless of there being a ! in this return type or not.
                 \\
             )
-            std.fs.write(f, \\ ---
+            trust fs.write(f, \\ ---
                 \\
                 \\ ## Builtins
                 \\
@@ -639,7 +641,7 @@ pub fn cmd_ref() i32 = {
                 \\ | `@args()`                     | command-line arguments as `list[ref u8]` |
                 \\
             )
-            std.fs.write(f, \\ ---
+            trust fs.write(f, \\ ---
                 \\
                 \\ ## The `trust` Keyword
                 \\
@@ -692,7 +694,7 @@ pub fn cmd_ref() i32 = {
                 \\ Run with: `spectre <file.sx> --test`
                 \\
             )
-            std.fs.write(f, \\ ---
+            trust fs.write(f, \\ ---
                 \\
                 \\ ## sx.mod — This is the Project Manifest
                 \\
@@ -721,41 +723,41 @@ pub fn cmd_ref() i32 = {
                 \\   - `output`  — `-o` output path appended to the build command
                 \\
             )
-            std.fs.close(f)
+            trust fs.close(f)
         }
     }
-    std.stdio.puts("Generated SLR.")
+    stdio.puts("Generated SLR.")
     return 0
 }
 
 pub fn cmd_init(name_arg: ref u8) i32 = {
-    if std.os.exists("sx.mod") {
-        std.stdio.puts("error: sx.mod already exists in this directory")
+    if os.exists("sx.mod") {
+        stdio.puts("error: sx.mod already exists in this directory")
         return 1
     }
 
     val proj_name: mut ref u8 = name_arg
     if str.rchar_cmp(proj_name, "") == 0 {
-        val cwd_opt = std.fs.cwd()
+        val cwd_opt = fs.cwd()
         match cwd_opt {
             some cwd => { proj_name = basename_of(cwd) }
             none     => { proj_name = "my-project" }
         }
     }
 
-    val sb: ref void = std.string.StringBuilder.new()
-    std.string.StringBuilder.append_cstr(sb, "entry \"./src/main.sx\"\nversion \"v0.0.1\"\n\nbuild release {\n    flags \"--release\"\n    output \"./")
-    std.string.StringBuilder.append_cstr(sb, proj_name)
-    std.string.StringBuilder.append_cstr(sb, "\"\n}\n\nbuild dev {\n    output \"./")
-    std.string.StringBuilder.append_cstr(sb, proj_name)
-    std.string.StringBuilder.append_cstr(sb, "-dev\"\n}\n")
-    val sxmod_built: ref void = std.string.StringBuilder.build(sb)
-    std.fs.write_all("sx.mod", std.string.cstr(sxmod_built))
-    std.string.StringBuilder.free(sb)
-    std.fs.write_all("sx.lock", "version \"1\"\n")
-    std.fs.write_all(".gitignore", "SPECTRE_LANGUAGE_REFERENCE.md\nlib/\ns-out/\n")
+    val sb: ref void = str.StringBuilder.new()
+    str.StringBuilder.append_cstr(sb, "entry \"./src/main.sx\"\nversion \"v0.0.1\"\n\nbuild release {\n    flags \"--release\"\n    output \"./")
+    str.StringBuilder.append_cstr(sb, proj_name)
+    str.StringBuilder.append_cstr(sb, "\"\n}\n\nbuild dev {\n    output \"./")
+    str.StringBuilder.append_cstr(sb, proj_name)
+    str.StringBuilder.append_cstr(sb, "-dev\"\n}\n")
+    val sxmod_built: ref void = str.StringBuilder.build(sb)
+    trust fs.write_all("sx.mod", str.cstr(sxmod_built))
+    str.StringBuilder.free(sb)
+    trust fs.write_all("sx.lock", "version \"1\"\n")
+    trust fs.write_all(".gitignore", "SPECTRE_LANGUAGE_REFERENCE.md\nlib/\ns-out/\n")
 
-    std.fs.mkdir_path("src")
+    trust fs.mkdir_path("src")
 
     val main_template: ref u8 = \\val stdio = use("std/stdio")
         \\
@@ -763,13 +765,13 @@ pub fn cmd_init(name_arg: ref u8) i32 = {
         \\    stdio.puts("Hello, world!")
         \\}
         \\
-    std.fs.write_all("src/main.sx", main_template)
+    trust fs.write_all("src/main.sx", main_template)
 
-    std.stdio.print("Initialized project '{s}'\n", {proj_name})
-    std.stdio.puts("  sx.mod       project manifest")
-    std.stdio.puts("  sx.lock      dependency lockfile")
-    std.stdio.puts("  .gitignore")
-    std.stdio.puts("  src/main.sx  entry point")
+    trust stdio.print("Initialized project '{s}'\n", {proj_name})
+    stdio.puts("  sx.mod       project manifest")
+    stdio.puts("  sx.lock      dependency lockfile")
+    stdio.puts("  .gitignore")
+    stdio.puts("  src/main.sx  entry point")
     return 0
 }
 
@@ -777,7 +779,7 @@ pub fn cmd_build(config_name: ref u8, exe_path: ref u8) i32 = {
     val mod_opt = load_sxmod()
     match mod_opt {
         none => {
-            std.stdio.puts("error: sx.mod not found — run 'spectre init' first")
+            stdio.puts("error: sx.mod not found — run 'spectre init' first")
             return 1
         }
         some m => {
@@ -790,50 +792,50 @@ pub fn cmd_build(config_name: ref u8, exe_path: ref u8) i32 = {
                 }
             }
             if found_cfg == 0 as ref SxBuildConfig {
-                std.stdio.print("error: build config '{s}' not found in sx.mod\n", {config_name})
+                trust stdio.print("error: build config '{s}' not found in sx.mod\n", {config_name})
                 return 1
             }
 
             val cmd: ref u8 = trust build_config_cmd(found_cfg, exe_path, m.entry)
-            val exit_code: i32 = std.os.run(cmd)
+            val exit_code: i32 = trust os.run(cmd)
             return exit_code
         }
     }
 }
 
 pub fn cmd_add(url: ref u8) i32! = {
-    if !std.os.exists("sx.mod") {
-        std.stdio.puts("error: sx.mod not found — run 'spectre init' first")
+    if !os.exists("sx.mod") {
+        stdio.puts("error: sx.mod not found — run 'spectre init' first")
         return 1
     }
 
     val name: ref u8 = repo_name_from_url(url)
     val lib_path: ref u8 = @fmt("lib/{s}", {name})
 
-    if std.os.exists(lib_path) {
-        std.stdio.print("error: dependency '{s}' already exists at {s}\n", {name, lib_path})
+    if os.exists(lib_path) {
+        stdio.print("error: dependency '{s}' already exists at {s}\n", {name, lib_path})
         return 1
     }
 
-    std.fs.mkdir_path("lib")
+    fs.mkdir_path("lib")
 
     val clone_cmd: ref u8 = @fmt("git clone {s} {s}", {url, lib_path})
-    std.stdio.print("Cloning {s}...\n", {url})
-    val exit_code: i32 = std.os.run(clone_cmd)
+    stdio.print("Cloning {s}...\n", {url})
+    val exit_code: i32 = os.run(clone_cmd)
     if exit_code != 0 {
-        std.stdio.print("error: git clone failed for {s}\n", {url})
+        stdio.print("error: git clone failed for {s}\n", {url})
         return 1
     }
 
     val dep_line: ref u8 = @fmt("dep \"{s}\"\n", {url})
-    std.fs.append_all("sx.mod", dep_line)
+    fs.append_all("sx.mod", dep_line)
 
     val hash_cmd: ref u8 = @fmt("git -C {s} rev-parse HEAD", {lib_path})
-    val hash_res = std.os.exec(hash_cmd)
+    val hash_res = os.exec(hash_cmd)
     val hash: mut ref u8 = "unknown"
     match hash_res {
         ok v => {
-            val raw: ref u8 = std.string.cstr(v)
+            val raw: ref u8 = str.cstr(v)
             val raw_len: i64 = str.len_raw(raw)
             val trimmed_len: mut i64 = raw_len
             for {
@@ -850,55 +852,55 @@ pub fn cmd_add(url: ref u8) i32! = {
     }
 
     val lock_line: ref u8 = @fmt("dep \"{s}\" \"{s}\"\n", {url, hash})
-    std.fs.append_all("sx.lock", lock_line)
+    fs.append_all("sx.lock", lock_line)
 
-    std.stdio.print("Added dependency '{s}' ({s})\n", {name, hash})
+    stdio.print("Added dependency '{s}' ({s})\n", {name, hash})
     return 0
 }
 
 pub fn cmd_remove(dep_name: ref u8) i32 = {
-    if !std.os.exists("sx.mod") {
-        std.stdio.puts("error: sx.mod not found")
+    if !os.exists("sx.mod") {
+        stdio.puts("error: sx.mod not found")
         return 1
     }
 
     val lib_path: ref u8 = trust @fmt("lib/{s}", {dep_name})
-    if std.os.exists(lib_path) {
+    if os.exists(lib_path) {
         val rm_cmd: ref u8 = trust @fmt("rm -rf {s}", {lib_path})
-        std.os.run(rm_cmd)
-        std.stdio.print("Removed {s}\n", {lib_path})
+        trust os.run(rm_cmd)
+        trust stdio.print("Removed {s}\n", {lib_path})
     } else {
-        std.stdio.print("warning: {s} not found, updating manifests only\n", {lib_path})
+        trust stdio.print("warning: {s} not found, updating manifests only\n", {lib_path})
     }
 
     trust drop_dep_lines("sx.mod", dep_name)
     trust drop_dep_lines("sx.lock", dep_name)
-    std.stdio.print("Removed dependency '{s}'\n", {dep_name})
+    trust stdio.print("Removed dependency '{s}'\n", {dep_name})
     return 0
 }
 
 pub fn cmd_clean() i32 = {
-    if std.os.exists("s-out") {
+    if os.exists("s-out") {
         when windows {
-            std.os.run("rmdir /s /q s-out")
+            trust os.run("rmdir /s /q s-out")
         }
         when posix {
-            std.os.run("rm -rf s-out")
+            trust os.run("rm -rf s-out")
         }
-        std.stdio.puts("Removed s-out/")
+        stdio.puts("Removed s-out/")
     }
-    trust std.os.delete(builds.get_tmp_path("spectre_output.ssa"))
-    trust std.os.delete(builds.get_tmp_path("spectre_output.s"))
-    trust std.os.delete(builds.get_tmp_path("spectre_test_bin"))
-    std.stdio.puts("Clean complete.")
+    trust os.delete(builds.get_tmp_path("spectre_output.ssa"))
+    trust os.delete(builds.get_tmp_path("spectre_output.s"))
+    trust os.delete(builds.get_tmp_path("spectre_test_bin"))
+    stdio.puts("Clean complete.")
     return 0
 }
 
 fn tool_version(cmd: ref u8) ref u8 = {
-    val res = std.os.exec(cmd)
+    val res = trust os.exec(cmd)
     match res {
         ok v => {
-            val raw: ref u8 = std.string.cstr(v)
+            val raw: ref u8 = trust str.cstr(v)
             val raw_len: i64 = str.len_raw(raw)
             val end: mut i64 = raw_len
             for {
@@ -917,37 +919,37 @@ fn tool_version(cmd: ref u8) ref u8 = {
 }
 
 pub fn cmd_doctor() i32 = {
-    std.stdio.print("Spectre Compiler {s}\n\n", {meta.get_spectre_version()})
+    trust stdio.print("Spectre Compiler {s}\n\n", {meta.get_spectre_version()})
 
-    val platform_res = std.os.exec("uname -srm 2>&1")
+    val platform_res = trust os.exec("uname -srm 2>&1")
     match platform_res {
-        ok v => { std.stdio.print("os:      {s}", {std.string.cstr(v)}) }
-        err _ => { std.stdio.puts("os:      unknown") }
+        ok v => { trust stdio.print("os:      {s}", {str.cstr(v)}) }
+        err _ => { stdio.puts("os:      unknown") }
     }
 
     val qbe_ver: ref u8 = tool_version("qbe -d 2>&1")
     val qbe_installed_str: mut ref u8 = "installed"
-    if std.string.contains(std.string.from(qbe_ver), std.string.from("not found")) {
+    if str.contains(trust str.from(qbe_ver), trust str.from("not found")) {
         qbe_installed_str = "not installed"
     }
-    std.stdio.print("qbe:     {s}\n", {qbe_installed_str})
+    trust stdio.print("qbe:     {s}\n", {qbe_installed_str})
 
     val cc_ver: ref u8 = tool_version("cc --version 2>&1 | head -1")
-    std.stdio.print("cc:      {s}\n", {cc_ver})
+    trust stdio.print("cc:      {s}\n", {cc_ver})
 
     val git_ver: ref u8 = tool_version("git --version 2>&1")
-    std.stdio.print("git:     {s}\n", {git_ver})
+    trust stdio.print("git:     {s}\n", {git_ver})
 
-    val cwd_opt = std.fs.cwd()
+    val cwd_opt = fs.cwd()
     match cwd_opt {
-        some cwd => { std.stdio.print("cwd:     {s}\n", {cwd}) }
-        none     => { std.stdio.puts("cwd:     unknown") }
+        some cwd => { trust stdio.print("cwd:     {s}\n", {cwd}) }
+        none     => { stdio.puts("cwd:     unknown") }
     }
 
-    if std.os.exists("sx.mod") {
-        std.stdio.puts("sx.mod:  found")
+    if os.exists("sx.mod") {
+        stdio.puts("sx.mod:  found")
     } else {
-        std.stdio.puts("sx.mod:  not found")
+        stdio.puts("sx.mod:  not found")
     }
 
     return 0

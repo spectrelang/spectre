@@ -3,7 +3,10 @@
 /// GPL-3.0-only
 /// (C) Navid Momtahen - 2026
 
-val std          = use("std")
+val fs           = use("std/fs")
+val string       = use("std/string")
+val stdio        = use("std/stdio")
+val os           = use("std/os")
 val allocators   = use("std/allocators")
 val path         = use("std/path")
 val reflection   = use("std/reflection")
@@ -53,9 +56,9 @@ fn root_has_direct_links(items: list[ref parser.Node]) bool = {
 }
 
 fn input_is_in_std(input: ref u8) bool = {
-    if std.string.rchar_starts_with(input, "std/") { return true }
-    if std.string.rchar_starts_with(input, "./std/") { return true }
-    if std.string.contains(std.string.from(input), std.string.from("/std/")) { return true }
+    if string.rchar_starts_with(input, "std/") { return true }
+    if string.rchar_starts_with(input, "./std/") { return true }
+    if string.contains(trust string.from(input), trust string.from("/std/")) { return true }
     return false
 }
 
@@ -66,7 +69,7 @@ fn pick_alt_backend(
     root_items: list[ref parser.Node]
 ) ref u8 = {
     val selected: mut ref u8 = builds.select_alt_compiler(requested)
-    if std.string.rchar_cmp(selected, "tcc") != 0 { return selected }
+    if string.rchar_cmp(selected, "tcc") != 0 { return selected }
     if release_mode { return "clang" }
     if !input_is_in_std(input) && root_has_direct_links(root_items) { return "clang" }
     return selected
@@ -75,27 +78,27 @@ fn pick_alt_backend(
 fn append_debug_runtime_links(links: mut list[ref u8], exe_dir: ref u8, quiet: bool, release_mode: bool) void! = {
     if release_mode { return }
     val panic_o: ref u8 = path.join(exe_dir, "std/csources/panic_handler.o")
-    val panic_f = std.fs.open(panic_o, "r")
+    val panic_f = fs.open(panic_o, "r")
     match panic_f {
         some h => {
-            std.fs.close(h)
+            fs.close(h)
             @append(links, panic_o)
         }
         none => {
             if !quiet {
-                std.stdio.print("warning: panic_handler.o not found at: {s}\n", {panic_o})
+                stdio.print("warning: panic_handler.o not found at: {s}\n", {panic_o})
             }
         }
     }
     val platform: ref u8 = reflection.current_platform_name()
-    if std.string.rchar_cmp(platform, "windows") == 0 {
+    if string.rchar_cmp(platform, "windows") == 0 {
         @append(links, "-lDbgHelp")
     }
 }
 
 pub fn main() i32! = {
     val arena = allocators.Arena.new(65536)?
-    val args = std.os.get_args()
+    val args = os.get_args()
     val argc: i64 = @len(args) as i64
     val exe_path: mut ref u8 = "./spectre"
     val exe_opt = @get(args, 0)
@@ -113,7 +116,7 @@ pub fn main() i32! = {
     val run_mode: mut bool = false
 
     if argc < 2 {
-        std.stdio.puts("error: no input file provided\n")
+        stdio.puts("error: no input file provided\n")
         meta.print_usage()
         allocators.Arena.free(arena)
         return 1
@@ -125,20 +128,20 @@ pub fn main() i32! = {
     match input_opt {
         some a => { input = a as ref u8 }
         none   => {
-            std.stdio.puts("error: no input file")
+            stdio.puts("error: no input file")
             allocators.Arena.free(arena)
             return 1
         }
     }
 
-    if std.string.rchar_cmp(input, "run") == 0 {
+    if string.rchar_cmp(input, "run") == 0 {
         run_mode = true
         input_arg_i = 2
         val run_input_opt = @get(args, input_arg_i)
         match run_input_opt {
             some a => { input = a as ref u8 }
             none   => {
-                std.stdio.puts("error: run requires an input file\n")
+                stdio.puts("error: run requires an input file\n")
                 meta.print_usage()
                 allocators.Arena.free(arena)
                 return 1
@@ -146,33 +149,33 @@ pub fn main() i32! = {
         }
     }
 
-    val flag_first_translate_c: bool = std.string.rchar_cmp(input, "--translate-c") == 0
+    val flag_first_translate_c: bool = string.rchar_cmp(input, "--translate-c") == 0
 
-    if std.string.rchar_cmp(input, "-h") == 0 || std.string.rchar_cmp(input, "--help") == 0 {
+    if string.rchar_cmp(input, "-h") == 0 || string.rchar_cmp(input, "--help") == 0 {
         meta.print_usage()
         allocators.Arena.free(arena)
         return 0
     }
 
-    if std.string.rchar_cmp(input, "-v") == 0 || std.string.rchar_cmp(input, "--version") == 0 {
+    if string.rchar_cmp(input, "-v") == 0 || string.rchar_cmp(input, "--version") == 0 {
         meta.print_version()
         allocators.Arena.free(arena)
         return 0
     }
 
-    if std.string.rchar_cmp(input, "doctor") == 0 {
+    if string.rchar_cmp(input, "doctor") == 0 {
         val code: i32 = commands.cmd_doctor()
         allocators.Arena.free(arena)
         return code
     }
 
-    if std.string.rchar_cmp(input, "ref") == 0 {
+    if string.rchar_cmp(input, "ref") == 0 {
         val code: i32 = commands.cmd_ref()
         allocators.Arena.free(arena)
         return code
     }
 
-    if std.string.rchar_cmp(input, "init") == 0 {
+    if string.rchar_cmp(input, "init") == 0 {
         val name_arg: mut ref u8 = ""
         val name_opt = @get(args, 2)
         match name_opt {
@@ -184,7 +187,7 @@ pub fn main() i32! = {
         return code
     }
 
-    if std.string.rchar_cmp(input, "build") == 0 {
+    if string.rchar_cmp(input, "build") == 0 {
         val config_name: mut ref u8 = "dev"
         val cfg_opt = @get(args, 2)
         match cfg_opt {
@@ -196,7 +199,7 @@ pub fn main() i32! = {
         return code
     }
 
-    if std.string.rchar_cmp(input, "doc") == 0 {
+    if string.rchar_cmp(input, "doc") == 0 {
         val target_arg: mut ref u8 = "."
         val md_mode: mut bool = false
         val doc_arg_i: mut i64 = 2
@@ -205,10 +208,10 @@ pub fn main() i32! = {
             match arg_opt {
                 some dv => {
                     val arg: ref u8 = dv as ref u8
-                    if std.string.rchar_cmp(arg, "--md") == 0 {
+                    if string.rchar_cmp(arg, "--md") == 0 {
                         md_mode = true
-                    } elif std.string.rchar_starts_with(arg, "-") {
-                        std.stdio.print("error: unknown doc option '{s}'\n", {arg})
+                    } elif string.rchar_starts_with(arg, "-") {
+                        stdio.print("error: unknown doc option '{s}'\n", {arg})
                         allocators.Arena.free(arena)
                         return 1
                     } else {
@@ -224,7 +227,7 @@ pub fn main() i32! = {
         return code
     }
 
-    if std.string.rchar_cmp(input, "add") == 0 {
+    if string.rchar_cmp(input, "add") == 0 {
         val url_opt = @get(args, 2)
         match url_opt {
             some v => {
@@ -233,14 +236,14 @@ pub fn main() i32! = {
                 return code
             }
             none => {
-                std.stdio.puts("error: add requires a git repository URL")
+                stdio.puts("error: add requires a git repository URL")
                 allocators.Arena.free(arena)
                 return 1
             }
         }
     }
 
-    if std.string.rchar_cmp(input, "remove") == 0 {
+    if string.rchar_cmp(input, "remove") == 0 {
         val dep_opt = @get(args, 2)
         match dep_opt {
             some v => {
@@ -249,14 +252,14 @@ pub fn main() i32! = {
                 return code
             }
             none => {
-                std.stdio.puts("error: remove requires a dependency name")
+                stdio.puts("error: remove requires a dependency name")
                 allocators.Arena.free(arena)
                 return 1
             }
         }
     }
 
-    if std.string.rchar_cmp(input, "clean") == 0 {
+    if string.rchar_cmp(input, "clean") == 0 {
         val code: i32 = commands.cmd_clean()
         allocators.Arena.free(arena)
         return code
@@ -267,18 +270,18 @@ pub fn main() i32! = {
         match next_opt {
             some next_arg => { input = next_arg as ref u8 }
             none => {
-                std.stdio.puts("error: --translate-c requires an input .c or .h file")
+                stdio.puts("error: --translate-c requires an input .c or .h file")
                 allocators.Arena.free(arena)
                 return 1
             }
         }
     }
 
-    val src_opt = std.fs.read_all(input)
+    val src_opt = fs.read_all(input)
     match src_opt {
         some _ => {}
         none   => {
-            std.stdio.print("error: could not read '{s}'\n", {input})
+            stdio.print("error: could not read '{s}'\n", {input})
             allocators.Arena.free(arena)
             return 1
         }
@@ -322,93 +325,93 @@ pub fn main() i32! = {
             some arg_val => {
                 val arg: ref u8 = arg_val as ref u8
 
-                if std.string.rchar_cmp(arg, "-o") == 0 || std.string.rchar_cmp(arg, "--output") == 0 {
+                if string.rchar_cmp(arg, "-o") == 0 || string.rchar_cmp(arg, "--output") == 0 {
                     val next_i: i64 = arg_i + 1
                     if (next_i < argc) {
                         val next_opt = @get(args, next_i)
                         match next_opt {
                             some v => { output_name = v as ref u8 }
                             none => {
-                                std.stdio.puts("error: -o requires a value")
+                                stdio.puts("error: -o requires a value")
                                 allocators.Arena.free(arena)
                                 return 1
                             }
                         }
                         arg_i = next_i + 1
                     } else {
-                        std.stdio.puts("error: -o requires a value")
+                        stdio.puts("error: -o requires a value")
                         allocators.Arena.free(arena)
                         return 1
                     }
-                } elif std.string.rchar_cmp(arg, "--translate-c") == 0 {
+                } elif string.rchar_cmp(arg, "--translate-c") == 0 {
                     translate_c_flag = true
                     arg_i++
-                } elif std.string.rchar_cmp(arg, "--emit-ssa") == 0 {
+                } elif string.rchar_cmp(arg, "--emit-ssa") == 0 {
                     emit_qbe = true
                     arg_i++
-                } elif std.string.rchar_cmp(arg, "--emit-ll") == 0 {
+                } elif string.rchar_cmp(arg, "--emit-ll") == 0 {
                     emit_ll = true
                     arg_i++
-                } elif std.string.rchar_cmp(arg, "--emit-asm") == 0 {
+                } elif string.rchar_cmp(arg, "--emit-asm") == 0 {
                     emit_asm = true
                     arg_i++
-                } elif std.string.rchar_cmp(arg, "--emit-alt") == 0 {
+                } elif string.rchar_cmp(arg, "--emit-alt") == 0 {
                     emit_alt = true
                     arg_i++
-                } elif std.string.rchar_cmp(arg, "--show-cmd") == 0 {
+                } elif string.rchar_cmp(arg, "--show-cmd") == 0 {
                     show_cmd = true
                     arg_i++
-                } elif std.string.rchar_cmp(arg, "--test") == 0 {
+                } elif string.rchar_cmp(arg, "--test") == 0 {
                     test_mode = true
                     arg_i++
-                } elif std.string.rchar_cmp(arg, "--loud") == 0 || std.string.rchar_cmp(arg, "-l") == 0 {
+                } elif string.rchar_cmp(arg, "--loud") == 0 || string.rchar_cmp(arg, "-l") == 0 {
                     quiet = false
                     arg_i++
-                } elif std.string.rchar_cmp(arg, "--release") == 0 {
+                } elif string.rchar_cmp(arg, "--release") == 0 {
                     release_mode = true
                     arg_i++
-                } elif std.string.rchar_cmp(arg, "--dll") == 0 {
+                } elif string.rchar_cmp(arg, "--dll") == 0 {
                     build_dll = true
                     arg_i++
-                } elif std.string.rchar_cmp(arg, "-c") == 0 || std.string.rchar_cmp(arg, "--compile") == 0 {
+                } elif string.rchar_cmp(arg, "-c") == 0 || string.rchar_cmp(arg, "--compile") == 0 {
                     compile_obj = true
                     arg_i++
-                } elif std.string.rchar_cmp(arg, "--syntax-check") == 0 {
+                } elif string.rchar_cmp(arg, "--syntax-check") == 0 {
                     syntax_check = true
                     arg_i++
-                } elif std.string.rchar_cmp(arg, "--ast") == 0 {
+                } elif string.rchar_cmp(arg, "--ast") == 0 {
                     print_ast = true
                     arg_i++
-                } elif std.string.rchar_cmp(arg, "-b") == 0 || std.string.rchar_cmp(arg, "--bootstrap") == 0 {
+                } elif string.rchar_cmp(arg, "-b") == 0 || string.rchar_cmp(arg, "--bootstrap") == 0 {
                     bootstrap_mode = true
                     arg_i++
-                } elif std.string.rchar_cmp(arg, "--alt") == 0 {
+                } elif string.rchar_cmp(arg, "--alt") == 0 {
                     use_alt = true
                     arg_i++
-                } elif std.string.rchar_starts_with(arg, "--alt=") {
+                } elif string.rchar_starts_with(arg, "--alt=") {
                     use_alt = true
                     val compiler_str = builds.parse_alt_compiler_arg(arg)
-                    if std.string.rchar_cmp(compiler_str, "") != 0 {
+                    if string.rchar_cmp(compiler_str, "") != 0 {
                         alt_compiler = compiler_str
                     }
                     arg_i++
-                } elif std.string.rchar_starts_with(arg, "--src-target=") {
-                    val tgt_len: i64 = std.string.len_raw(arg) as i64 - 13
+                } elif string.rchar_starts_with(arg, "--src-target=") {
+                    val tgt_len: i64 = string.len_raw(arg) as i64 - 13
                     if tgt_len > 0 {
-                        src_target = std.string.substr(arg, 13, tgt_len)
+                        src_target = string.substr(arg, 13, tgt_len)
                     }
                     arg_i++
-                } elif std.string.rchar_starts_with(arg, "--inc-path=") {
-                    val path_str: ref u8 = std.string.substr(arg, 11, std.string.len_raw(arg) - 11)
-                    if std.string.rchar_cmp(path_str, "") == 0 {
-                        std.stdio.puts("error: --inc-path requires a value")
+                } elif string.rchar_starts_with(arg, "--inc-path=") {
+                    val path_str: ref u8 = string.substr(arg, 11, string.len_raw(arg) - 11)
+                    if string.rchar_cmp(path_str, "") == 0 {
+                        stdio.puts("error: --inc-path requires a value")
                         allocators.Arena.free(arena)
                         return 1
                     }
                     @append(inc_paths, path_str)
                     arg_i++
                 } else {
-                    std.stdio.print("error: unknown flag: {s}\n", {arg})
+                    stdio.print("error: unknown flag: {s}\n", {arg})
                     allocators.Arena.free(arena)
                     return 1
                 }
@@ -419,20 +422,20 @@ pub fn main() i32! = {
         }
     }
 
-    if std.string.rchar_cmp(src_target, "") != 0 && !emit_alt && !emit_qbe {
-        std.stdio.puts("error: --src-target requires --emit-alt or --emit-ssa")
+    if string.rchar_cmp(src_target, "") != 0 && !emit_alt && !emit_qbe {
+        stdio.puts("error: --src-target requires --emit-alt or --emit-ssa")
         allocators.Arena.free(arena)
         return 1
     }
 
     if run_mode && (translate_c_flag || emit_qbe || emit_ll || emit_asm || emit_alt || build_dll || compile_obj || syntax_check || print_ast) {
-        std.stdio.puts("error: run requires flags that produce a runnable executable")
+        stdio.puts("error: run requires flags that produce a runnable executable")
         allocators.Arena.free(arena)
         return 1
     }
 
     if translate_c_flag {
-        if std.string.rchar_cmp(output_name, "") == 0 {
+        if string.rchar_cmp(output_name, "") == 0 {
             output_name = @fmt("./src-out/{s}.sx", {path.get_name_without_ext(arena, input)})
         }
         val code: i32 = c_translate.translate_c(input, output_name)
@@ -442,12 +445,12 @@ pub fn main() i32! = {
 
     val exe_path2: ref u8 = reflection.get_exe_path()
     val exe_dir: mut ref u8 = "."
-    if std.string.rchar_cmp(exe_path2, ".") != 0 {
+    if string.rchar_cmp(exe_path2, ".") != 0 {
         exe_dir = path.dir(exe_path2)
     }
 
     if !quiet && !emit_qbe && !emit_ll && !emit_alt && !print_ast {
-        std.stdio.puts("[I  ]│ Resolving module")
+        stdio.puts("[I  ]│ Resolving module")
     }
 
     val resolve_result = module.resolve_module(input, [], exe_dir, 0 as ref void)
@@ -456,7 +459,7 @@ pub fn main() i32! = {
     match resolve_result {
         ok m  => { root_mod = m }
         err e => {
-            std.stdio.print("error: {s}\n", {e})
+            stdio.print("error: {s}\n", {e})
             allocators.Arena.free(arena)
             return 1
         }
@@ -470,7 +473,7 @@ pub fn main() i32! = {
     }
 
     if !quiet && !emit_qbe && !emit_ll && !emit_alt {
-        std.stdio.puts("[II ]│ Semantic analysis")
+        stdio.puts("[II ]│ Semantic analysis")
     }
 
     val quiet_flag: mut bool = false
@@ -479,24 +482,24 @@ pub fn main() i32! = {
     val nerrors: i64 = @len(errors) as i64
     if nerrors > 0 {
         for e in errors {
-            std.stdio.print("error: {s}\n", {e})
+            stdio.print("error: {s}\n", {e})
         }
         allocators.Arena.free(arena)
         return 1
     }
 
     if syntax_check {
-        std.stdio.puts("Syntax OK")
+        stdio.puts("Syntax OK")
         allocators.Arena.free(arena)
         return 0
     }
 
     if !quiet && !emit_qbe && !emit_ll && !emit_alt {
-        std.stdio.puts("[III]│ CG pass")
+        stdio.puts("[III]│ CG pass")
     }
 
     if ((@len(extra_includes) as i64) > 0 && !use_alt && !emit_alt) {
-        std.stdio.puts("error: -I<headers> requires the alt backend (--alt)")
+        stdio.puts("error: -I<headers> requires the alt backend (--alt)")
         allocators.Arena.free(arena)
         return 1
     }
@@ -508,38 +511,38 @@ pub fn main() i32! = {
         else { c_ir = alt_codegen.gen_module_c(root_mod, release_mode, extra_includes, src_target, emit_ld) }
 
         if emit_alt != false {
-            std.stdio.puts(c_ir)
+            stdio.puts(c_ir)
             allocators.Arena.free(arena)
             return 0
         }
 
         val binary_name_alt: mut ref u8 = ""
-        if std.string.rchar_cmp(output_name, "") == 0 {
+        if string.rchar_cmp(output_name, "") == 0 {
             binary_name_alt = path.get_name_without_ext(arena, input)
         } else {
             binary_name_alt = output_name
         }
 
         val c_file = builds.get_tmp_path("spectre_output.c")
-        val c_f = std.os.open(c_file, "w")
+        val c_f = os.open(c_file, "w")
         match c_f {
             some f => {
-                std.os.write(f, c_ir as ref void, std.string.len_raw(c_ir) as i64)
-                std.os.close(f)
+                os.write(f, c_ir as ref void, string.len_raw(c_ir) as i64)
+                os.close(f)
             }
             none => {
-                std.stdio.puts("\nerror: could not write C code")
+                stdio.puts("\nerror: could not write C code")
                 allocators.Arena.free(arena)
                 return 1
             }
         }
 
-        val output_specified_alt: bool = std.string.rchar_cmp(output_name, "") != 0
+        val output_specified_alt: bool = string.rchar_cmp(output_name, "") != 0
         val final_output_alt: mut ref u8 = ""
         if output_specified_alt != 0 {
             final_output_alt = binary_name_alt
         } else {
-            std.os.exec("mkdir -p ./s-out")
+            os.exec("mkdir -p ./s-out")
             final_output_alt = @fmt("./s-out/{s}", {binary_name_alt})
         }
 
@@ -565,14 +568,14 @@ pub fn main() i32! = {
         }
 
         val alt_cmd: mut ref u8 = ""
-        if std.string.rchar_cmp(selected_compiler, "tcc") == 0 {
+        if string.rchar_cmp(selected_compiler, "tcc") == 0 {
             if test_mode {
                 alt_cmd = @fmt("tcc {s} -o {s} -w -std=c99{s} {s} 2>&1", {c_file, test_output_alt, include_flags_alt, link_flags_alt})
             } else {
                 alt_cmd = @fmt("tcc {s} -o {s} -w -std=c99{s} {s} 2>&1", {c_file, final_output_alt, include_flags_alt, link_flags_alt})
             }
         } else {
-            if std.string.rchar_cmp(cc_flags_alt, "") == 0 {
+            if string.rchar_cmp(cc_flags_alt, "") == 0 {
                 alt_cmd = @fmt("{s}{s} -o {s} {s}{s} 2>&1", {selected_compiler, include_flags_alt, compile_output, c_file, link_flags_alt})
             } else {
                 alt_cmd = @fmt("{s} {s}{s} -o {s} {s}{s} 2>&1", {selected_compiler, cc_flags_alt, include_flags_alt, compile_output, c_file, link_flags_alt})
@@ -580,60 +583,60 @@ pub fn main() i32! = {
         }
 
         if !quiet && !emit_alt {
-            std.stdio.puts("[IV ]│ AMCS")
+            stdio.puts("[IV ]│ AMCS")
         }
         if show_cmd != 0 {
-            std.stdio.print("{s}\n", {alt_cmd})
+            stdio.print("{s}\n", {alt_cmd})
         }
 
-        val alt_res = std.os.exec(alt_cmd)
+        val alt_res = os.exec(alt_cmd)
         match alt_res {
             ok v => {
-                val vstr: ref u8 = std.string.cstr(v)
-                val has_error: bool = std.string.contains(v, std.string.from("error:"))
+                val vstr: ref u8 = string.cstr(v)
+                val has_error: bool = string.contains(v, string.from("error:"))
                 if has_error {
                     val display: mut ref u8 = vstr
                     if !bootstrap_mode { display = builds.filter_c_diagnostics(vstr) }
-                    std.stdio.print("{s}", {display})
-                    std.os.delete(c_file)
+                    stdio.print("{s}", {display})
+                    os.delete(c_file)
                     allocators.Arena.free(arena)
                     return 1
                 } else {
-                    if std.string.len_raw(vstr) > 0 {
+                    if string.len_raw(vstr) > 0 {
                         val display: mut ref u8 = vstr
                         if !bootstrap_mode { display = builds.filter_c_diagnostics(vstr) }
-                        std.stdio.print("{s}", {display})
+                        stdio.print("{s}", {display})
                      }
                      if test_mode {
-                         val run_res_alt = std.os.run(test_output_alt)
+                         val run_res_alt = os.run(test_output_alt)
                          if run_res_alt != 0 {
-                             std.stdio.puts("Test binary failed.")
-                            std.os.delete(c_file)
+                             stdio.puts("Test binary failed.")
+                            os.delete(c_file)
                             allocators.Arena.free(arena)
                             return 1
                          }
-                         std.os.delete(test_output_alt)
+                         os.delete(test_output_alt)
                      }
                      if run_mode {
-                         val run_res_alt: i32 = std.os.run(final_output_alt)
-                         std.os.delete(c_file)
+                         val run_res_alt: i32 = os.run(final_output_alt)
+                         os.delete(c_file)
                          allocators.Arena.free(arena)
                          return run_res_alt
                      }
                      if !quiet {
-                         std.stdio.print("Compiled (ALT): {s}\n", {final_output_alt})
+                         stdio.print("Compiled (ALT): {s}\n", {final_output_alt})
                      }
                  }
              }
             err _ => {
-                std.stdio.print("error: {s} stage failed\n", {selected_compiler})
-                std.os.delete(c_file)
+                stdio.print("error: {s} stage failed\n", {selected_compiler})
+                os.delete(c_file)
                 allocators.Arena.free(arena)
                 return 1
             }
         }
 
-        std.os.delete(c_file)
+        os.delete(c_file)
         allocators.Arena.free(arena)
         return 0
     }
@@ -647,21 +650,21 @@ pub fn main() i32! = {
     }
 
     if !quiet && !emit_qbe && !emit_ll {
-        std.stdio.puts("[IV ]│ Module used-links collection")
+        stdio.puts("[IV ]│ Module used-links collection")
     }
 
     val links: mut list[ref u8] = module.collect_used_links(root_mod, exe_dir)
     append_debug_runtime_links(links, exe_dir, quiet, release_mode)
 
     if emit_qbe != 0 {
-        std.stdio.puts(qbe_ir)
+        stdio.puts(qbe_ir)
         allocators.Arena.free(arena)
         return 0
     }
 
     val binary_name: mut ref u8 = ""
 
-    if std.string.rchar_cmp(output_name, "") == 0 {
+    if string.rchar_cmp(output_name, "") == 0 {
         binary_name = path.get_name_without_ext(arena, input)
     } else {
         binary_name = output_name
@@ -669,63 +672,63 @@ pub fn main() i32! = {
 
     val qbe_file = builds.get_tmp_path("spectre_output.ssa")
     val asm_file = builds.get_tmp_path("spectre_output.s")
-    val qbe_f = std.os.open(qbe_file, "w")
+    val qbe_f = os.open(qbe_file, "w")
 
     match qbe_f {
         some f => {
-            std.os.write(f, qbe_ir as ref void, std.string.len_raw(qbe_ir) as i64)
-            std.os.close(f)
+            os.write(f, qbe_ir as ref void, string.len_raw(qbe_ir) as i64)
+            os.close(f)
         }
         none => {
-            std.stdio.puts("\nerror: could not write QBE IR")
+            stdio.puts("\nerror: could not write QBE IR")
             allocators.Arena.free(arena)
             return 1
         }
     }
 
     val qbe_cmd = @fmt("qbe -o {s} {s} 2>&1", {asm_file, qbe_file})
-    val qbe_res = std.os.exec(qbe_cmd)
+    val qbe_res = os.exec(qbe_cmd)
     if show_cmd != 0 {
-        std.stdio.print("{s}\n", {qbe_cmd})
+        stdio.print("{s}\n", {qbe_cmd})
     }
     match qbe_res {
         ok v => {
-            val vstr: ref u8 = std.string.cstr(v)
-            if std.string.len_raw(vstr) > 0 {
-                std.stdio.print("{s}", {vstr})
+            val vstr: ref u8 = string.cstr(v)
+            if string.len_raw(vstr) > 0 {
+                stdio.print("{s}", {vstr})
             }
-            if std.string.starts_with(v, std.string.from("qbe:")) {
-                std.stdio.puts("error: qbe stage failed")
-                std.os.delete(qbe_file)
+            if string.starts_with(v, string.from("qbe:")) {
+                stdio.puts("error: qbe stage failed")
+                os.delete(qbe_file)
                 allocators.Arena.free(arena)
                 return 1
             }
         }
         err _ => {
-            std.stdio.puts("\nerror: failed to run qbe")
-            std.os.delete(qbe_file)
+            stdio.puts("\nerror: failed to run qbe")
+            os.delete(qbe_file)
             allocators.Arena.free(arena)
             return 1
         }
     }
 
     if emit_asm != 0 {
-        val asm_opt = std.fs.read_all(asm_file)
+        val asm_opt = fs.read_all(asm_file)
         match asm_opt {
             some asm_content => {
-                std.stdio.puts(asm_content as ref u8)
+                stdio.puts(asm_content as ref u8)
             }
             none => {
-                std.stdio.puts("error: could not read assembly output")
+                stdio.puts("error: could not read assembly output")
             }
         }
-        std.os.delete(qbe_file)
-        std.os.delete(asm_file)
+        os.delete(qbe_file)
+        os.delete(asm_file)
         allocators.Arena.free(arena)
         return 0
     }
 
-    val output_specified: bool = std.string.rchar_cmp(output_name, "") != 0
+    val output_specified: bool = string.rchar_cmp(output_name, "") != 0
     val cc_cmd: mut ref u8 = ""
     val success_msg: mut ref u8 = ""
     val exit_code: mut i32 = 0
@@ -743,16 +746,16 @@ pub fn main() i32! = {
 
     if compile_obj {
         cc_flags = @fmt("{s} -c", {cc_flags})
-        if std.string.rchar_cmp(platform, "windows") == 0 {
+        if string.rchar_cmp(platform, "windows") == 0 {
             output_ext = ".obj"
         } else {
             output_ext = ".o"
         }
     } elif build_dll {
-        if std.string.rchar_cmp(platform, "macos") == 0 {
+        if string.rchar_cmp(platform, "macos") == 0 {
             cc_flags = @fmt("{s} -dynamiclib", {cc_flags})
             output_ext = ".dylib"
-        } elif std.string.rchar_cmp(platform, "windows") == 0 {
+        } elif string.rchar_cmp(platform, "windows") == 0 {
             cc_flags = @fmt("{s} -shared", {cc_flags})
             output_ext = ".dll"
         } else {
@@ -766,51 +769,51 @@ pub fn main() i32! = {
     if test_mode {
         val test_bin: ref u8 = builds.get_tmp_path("spectre_test_bin")
         cc_cmd = @fmt("cc -o {s} {s}{s}", {test_bin, asm_file, link_flags})
-        val cc_res2 = std.os.exec(cc_cmd)
+        val cc_res2 = os.exec(cc_cmd)
         match cc_res2 {
             ok _ => {
                 if !quiet && !emit_qbe {
-                    std.stdio.print("[spectre] running tests for: {s}\n", {input})
+                    stdio.print("[spectre] running tests for: {s}\n", {input})
                 }
-                val run_res = std.os.run(test_bin)
+                val run_res = os.run(test_bin)
                 if run_res != 0 {
                     if !quiet && !emit_qbe {
-                        std.stdio.print("[spectre] test binary exited with: {s}\n", {"non-zero exit"})
+                        stdio.print("[spectre] test binary exited with: {s}\n", {"non-zero exit"})
                     }
                     exit_code = 1
                 }
             }
             err _ => {
-                std.stdio.puts("error: cc compilation failed")
+                stdio.puts("error: cc compilation failed")
                 exit_code = 1
             }
         }
-        std.os.delete(qbe_file)
-        std.os.delete(asm_file)
+        os.delete(qbe_file)
+        os.delete(asm_file)
         allocators.Arena.free(arena)
         return exit_code
     }
 
     if output_specified != 0 {
         val final_output: mut ref u8 = binary_name
-        if std.string.rchar_cmp(output_ext, "") != 0 {
+        if string.rchar_cmp(output_ext, "") != 0 {
             final_output = @fmt("{s}{s}", {binary_name, output_ext})
         }
         run_output = final_output
-        if std.string.rchar_cmp(cc_flags, "") == 0 {
+        if string.rchar_cmp(cc_flags, "") == 0 {
             cc_cmd = @fmt("cc -o {s} {s}{s}", {final_output, asm_file, link_flags})
         } else {
             cc_cmd = @fmt("cc {s} -o {s} {s}{s}", {cc_flags, final_output, asm_file, link_flags})
         }
         success_msg = @fmt("Compiled: {s}\n", {final_output})
     } else {
-        std.os.exec("mkdir -p ./s-out")
+        os.exec("mkdir -p ./s-out")
         val final_output: mut ref u8 = @fmt("./s-out/{s}", {binary_name})
-        if std.string.rchar_cmp(output_ext, "") != 0 {
+        if string.rchar_cmp(output_ext, "") != 0 {
             final_output = @fmt("./s-out/{s}{s}", {binary_name, output_ext})
         }
         run_output = final_output
-        if std.string.rchar_cmp(cc_flags, "") == 0 {
+        if string.rchar_cmp(cc_flags, "") == 0 {
             cc_cmd = @fmt("cc -o {s} {s}{s}", {final_output, asm_file, link_flags})
         } else {
             cc_cmd = @fmt("cc {s} -o {s} {s}{s}", {cc_flags, final_output, asm_file, link_flags})
@@ -819,32 +822,32 @@ pub fn main() i32! = {
     }
 
     if show_cmd != 0 {
-        std.stdio.print("{s}\n", {cc_cmd})
+        stdio.print("{s}\n", {cc_cmd})
     }
 
-    val cc_res = std.os.exec(@fmt("{s} {s}", {cc_cmd, " 2>&1"}))
+    val cc_res = os.exec(@fmt("{s} {s}", {cc_cmd, " 2>&1"}))
     match cc_res {
         ok v => {
-            if std.string.contains(v, std.string.from("error")) {
-                std.stdio.print("{s}\n", {std.string.cstr(v)})
-                std.stdio.puts("linking failed.")
+            if string.contains(v, string.from("error")) {
+                stdio.print("{s}\n", {string.cstr(v)})
+                stdio.puts("linking failed.")
                 exit_code = 1
             } else {
                 if !quiet && !emit_qbe {
-                    std.stdio.print("{s}", {success_msg})
+                    stdio.print("{s}", {success_msg})
                 }
                 if run_mode {
-                    exit_code = std.os.run(run_output)
+                    exit_code = os.run(run_output)
                 }
             }
         }
         err _ => {
-            std.stdio.puts("\nerror: cc compilation failed")
+            stdio.puts("\nerror: cc compilation failed")
         }
     }
 
-    std.os.delete(qbe_file)
-    std.os.delete(asm_file)
+    os.delete(qbe_file)
+    os.delete(asm_file)
     allocators.Arena.free(arena)
 
     return exit_code
