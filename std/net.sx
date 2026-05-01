@@ -232,7 +232,6 @@ type TcpServer = {}
 /// Returns a heap-allocated server handle; caller must call TcpServer.close().
 pub fn (TcpServer) listen(port: i32) ref ServerHandle! = {
     val sock_stream: i32 = 1
-
     val fd: i32 = socket(AF_INET, sock_stream, IPPROTO_TCP)
     val sol_socket:   mut i32 = 1
     val so_reuseaddr: mut i32 = 2
@@ -249,9 +248,6 @@ pub fn (TcpServer) listen(port: i32) ref ServerHandle! = {
     setsockopt(fd, sol_socket, so_reuseaddr, one as ref void, 4 as i32)
     @free(one as ref void)
 
-    // sockaddr_in has i16 fields (sin_family, sin_port); no i16 in this language,
-    // so build it manually: zero 16 bytes, store sin_family=AF_INET at byte 0,
-    // then sin_port (network byte order) at byte 2.
     val address: mut ref void = @alloc(16)
     memset(address, 0 as i32, 16)
     @store(address, 2)
