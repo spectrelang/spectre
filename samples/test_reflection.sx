@@ -2,6 +2,6 @@ val reflection = use("std/reflection")
 val stdio = use("std/stdio")
 
 pub fn main() void = {
-    val name: ref u8 = reflection.current_platform_name()
+    val name: ref u8 = trust reflection.current_platform_name()
     stdio.puts(name)
 }
