@@ -1,6 +1,6 @@
-val str = use("std/string")
-val stdio = use("std/stdio")
-val allocators = use("std/allocators")
+val str = use("string.sx")
+val stdio = use("stdio.sx")
+val allocators = use("allocators.sx")
 
 pub fn get_name_without_ext(arena: ref allocators.Arena, path: ref u8) ref u8 = {
     val len: i64 = str.len_raw(path)
