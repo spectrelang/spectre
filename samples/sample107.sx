@@ -1,0 +1,11 @@
+pub fn hello() void = {
+    @puts("hello")
+}
+
+pub fn main() void = {
+
+}
+
+test {
+    trust @print("hello {d}", {12})
+}
