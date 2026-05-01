@@ -576,8 +576,8 @@ test {
     assert approx_eq(s, 5.0, 0.00001)
 
     val x = lerp(0.0, 10.0, 0.5)
-    assert approx_eq(x, 5.0, 0.0001)
 
+    assert approx_eq(x, 5.0, 0.0001)
     assert approx_eq(sin(0.0), 0.0, 0.0001)
     assert approx_eq(sin(PI / 2.0), 1.0, 0.0001)
     assert approx_eq(cos(0.0), 1.0, 0.0001)
