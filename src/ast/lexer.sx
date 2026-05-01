@@ -1,4 +1,5 @@
-val std = use("std")
+val allocators = use("std/allocators")
+val string = use("std/string")
 
 pub union TokenKind = {
     Fn()
@@ -94,7 +95,7 @@ pub type Token = {
 }
 
 fn make_tok(l: ref Lexer, kind: TokenKind, line: i64, col: i64) ref Token! = {
-    val slot = std.allocators.Arena.alloc(l.arena, @sizeof(Token) as usize)
+    val slot = allocators.Arena.alloc(l.arena, @sizeof(Token) as usize)
     match slot {
         none => {
             val t: mut ref Token = @alloc(@sizeof(Token)) as ref Token
@@ -123,9 +124,9 @@ type Lexer = {
 }
 
 pub fn lexer_new(src: ref u8) ref Lexer! = {
-    val slen: i64 = std.string.len_raw(src)
+    val slen: i64 = string.len_raw(src)
     val arena_cap: usize = (slen * 64 + 8192) as usize
-    val arena_res = std.allocators.Arena.new(arena_cap)
+    val arena_res = allocators.Arena.new(arena_cap)
     val arena: mut ref void = 0 as ref void
 
     match arena_res {
@@ -197,7 +198,7 @@ fn substr(src: ref u8, start: i64, end: i64) ref u8! = {
 }
 
 fn str_eq(a: ref u8, b: ref u8) bool! = {
-    return std.string.rchar_cmp(a, b) == 0
+    return string.rchar_cmp(a, b) == 0
 }
 
 fn keyword_kind(s: ref u8) TokenKind! = {
@@ -631,8 +632,8 @@ test {
             assert kind_is_ident(tok_kind(toks, 0))
             assert kind_is_ident(tok_kind(toks, 1))
             assert kind_is_ident(tok_kind(toks, 2))
-            assert std.string.rchar_cmp(tok_text(toks, 0), "foobar") == 0
-            assert std.string.rchar_cmp(tok_text(toks, 1), "hello_world") == 0
+            assert string.rchar_cmp(tok_text(toks, 0), "foobar") == 0
+            assert string.rchar_cmp(tok_text(toks, 1), "hello_world") == 0
         }
     }
 
@@ -645,8 +646,8 @@ test {
             assert kind_is_int(tok_kind(toks, 0))
             assert kind_is_float(tok_kind(toks, 1))
             assert kind_is_int(tok_kind(toks, 2))
-            assert std.string.rchar_cmp(tok_text(toks, 0), "42") == 0
-            assert std.string.rchar_cmp(tok_text(toks, 2), "0xff") == 0
+            assert string.rchar_cmp(tok_text(toks, 0), "42") == 0
+            assert string.rchar_cmp(tok_text(toks, 2), "0xff") == 0
         }
     }
 
@@ -657,7 +658,7 @@ test {
         err _ => { assert false }
         ok toks => {
             assert kind_is_str(tok_kind(toks, 0))
-            assert std.string.rchar_cmp(tok_text(toks, 0), "hello") == 0
+            assert string.rchar_cmp(tok_text(toks, 0), "hello") == 0
         }
     }
 

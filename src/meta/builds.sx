@@ -1,13 +1,14 @@
-val std = use("std")
+val os = use("std/os")
+val string = use("std/string")
 
 /// Returns a platform-appropriate path for a temp file.
 pub fn get_tmp_path(name: ref u8) ref u8! = {
     when windows {
-        val tmp_dir: ref u8 = std.os.getenv("TEMP")
+        val tmp_dir: ref u8 = os.getenv("TEMP")
         if tmp_dir != none {
             return @fmt("{s}/{s}", {tmp_dir, name})
         }
-        val tmp2: ref u8 = std.os.getenv("TMP")
+        val tmp2: ref u8 = os.getenv("TMP")
         if tmp2 != none {
             return @fmt("{s}/{s}", {tmp2, name})
         }
@@ -17,7 +18,7 @@ pub fn get_tmp_path(name: ref u8) ref u8! = {
 }
 
 pub fn is_compiler_available(compiler: ref u8) bool = {
-    val res = std.os.exec(trust @fmt("{s} --version", {compiler}))
+    val res = os.exec(trust @fmt("{s} --version", {compiler}))
     match res {
         ok _ => { return true }
         err _ => { return false }
@@ -25,7 +26,7 @@ pub fn is_compiler_available(compiler: ref u8) bool = {
 }
 
 pub fn select_alt_compiler(requested: ref u8) ref u8 = {
-    if std.string.rchar_cmp(requested, "") != 0 {
+    if string.rchar_cmp(requested, "") != 0 {
         return requested
     }
     if is_compiler_available("tcc") {
@@ -41,15 +42,15 @@ pub fn select_alt_compiler(requested: ref u8) ref u8 = {
 }
 
 pub fn parse_alt_compiler_arg(arg: ref u8) ref u8 = {
-    if std.string.rchar_starts_with(arg, "--alt=") {
+    if string.rchar_starts_with(arg, "--alt=") {
         return trust @ptradd(arg, 6) as ref u8
     }
     return ""
 }
 
 pub fn filter_c_diagnostics(raw: ref u8) ref u8! = {
-    val sb: ref void = std.string.StringBuilder.new()
-    val len: i64 = std.string.len_raw(raw) as i64
+    val sb: ref void = string.StringBuilder.new()
+    val len: i64 = string.len_raw(raw) as i64
     val ls: mut i64 = 0
     val i: mut i64 = 0
     for {
@@ -66,18 +67,18 @@ pub fn filter_c_diagnostics(raw: ref u8) ref u8! = {
                     val ji: mut i64 = ls
                     for {
                         if ji >= ls + line_len { break }
-                        std.string.StringBuilder.append_char(sb, @load8(@ptradd(raw as ref void, ji)) as u8)
+                        string.StringBuilder.append_char(sb, @load8(@ptradd(raw as ref void, ji)) as u8)
                         ji++
                     }
-                    std.string.StringBuilder.append_char(sb, 10)
+                    string.StringBuilder.append_char(sb, 10)
                 }
             }
             ls = i + 1
         }
         i++
     }
-    val built: ref void = std.string.StringBuilder.build(sb)
-    val out: ref u8 = std.string.cstr(built)
-    std.string.StringBuilder.free(sb)
+    val built: ref void = string.StringBuilder.build(sb)
+    val out: ref u8 = string.cstr(built)
+    string.StringBuilder.free(sb)
     return out
 }
