@@ -312,7 +312,7 @@ pub fn push_char(s: String, c: u8) void! = {
     @store(@ptradd(s as ref void, 8), new_len)
 }
 
-/// Get byte at index i — returns none if out of bounds
+/// Get byte at index i, returns none if out of bounds
 pub fn get(s: String, i: i64) option[u8] = {
     pre {
         s_not_null: s != 0
@@ -329,7 +329,7 @@ pub fn get(s: String, i: i64) option[u8] = {
     return some (trust @load8(@ptradd(ptr, i)) as u8)
 }
 
-/// Get byte at index i from raw u8 pointer — returns none if out of bounds
+/// Get byte at index i from raw u8 pointer, returns none if out of bounds
 pub fn byte_at(s: ref u8, i: i64) option[u8] = {
     guarded pre {
         i_nonneg: i >= 0
