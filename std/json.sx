@@ -143,10 +143,10 @@ pub fn val_is_str(value: ref void)    bool = { return _type_of(value) == 5 }
 pub fn val_is_array(value: ref void)  bool = { return _type_of(value) == 6 }
 pub fn val_is_object(value: ref void) bool = { return _type_of(value) == 7 }
 
-pub fn val_get_bool(value: ref void)  bool!     = { return yyjson_get_bool(value) }
-pub fn val_get_int(value: ref void)   i64!      = { return yyjson_get_sint(value) }
-pub fn val_get_uint(value: ref void)  u64!      = { return yyjson_get_uint(value) }
-pub fn val_get_float(value: ref void) f64!      = { return yyjson_get_real(value) }
+pub fn val_get_bool(value: ref void)  bool!   = { return yyjson_get_bool(value) }
+pub fn val_get_int(value: ref void)   i64!    = { return yyjson_get_sint(value) }
+pub fn val_get_uint(value: ref void)  u64!    = { return yyjson_get_uint(value) }
+pub fn val_get_float(value: ref void) f64!    = { return yyjson_get_real(value) }
 pub fn val_get_str(value: ref void)   ref u8! = { return yyjson_get_str(value) }
 
 pub fn arr_len(arr: ref void) usize = {
