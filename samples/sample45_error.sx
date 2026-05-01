@@ -1,5 +1,5 @@
-val std = use("std")
+val string = use("std/string")
 
 pub fn main() void! = {
-    std.string.compare("hello", "world") // should error
+    string.compare("hello", "world") // should error
 }

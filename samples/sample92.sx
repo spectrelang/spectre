@@ -1,6 +1,6 @@
-val std = use("std")
+val os = use("std/os")
 
 pub fn main() void = {
     @puts("Hello, world.")
-    trust @print("{d}", {std.os.exists("life")})
+    trust @print("{d}\n", {os.exists("life")})
 }

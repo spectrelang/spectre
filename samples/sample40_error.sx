@@ -1,7 +1,7 @@
-val std = use("std")
+val stdio = use("std/stdio")
 
 pub fn main() void! = {
     val x: i32 = 10
     val y: i32 = x? // Should fail
-    std.stdio.print("{d}", {y})
+    stdio.print("{d}", {y})
 }

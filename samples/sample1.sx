@@ -1,4 +1,4 @@
-val std = use("std")
+val stdio = use("std/stdio")
 
 type Point = {
 	x: mut i32
@@ -21,7 +21,7 @@ fn some_function(some_arg: i32, some_other_arg: usize) void = {
 		z_is_thi : z == 30
 	}
 
-	std.stdio.print("{d} {d}", {x, y})
+	trust stdio.print("{d} {d}", {x, y})
 }
 
 pub val some_constant = 1000
@@ -38,7 +38,7 @@ fn can_fail(should_fail: bool) option[i32]! = {
 }
 
 pub fn some_other_function() void = {
-	std.stdio.puts("This is some function...without any preconds, postconds, or invariants, but since our puts function is trusted, we can call it here without marking the return type as !")
+	stdio.puts("This is some function...without any preconds, postconds, or invariants, but since our puts function is trusted, we can call it here without marking the return type as !")
 }
 
 pub fn main() void = {

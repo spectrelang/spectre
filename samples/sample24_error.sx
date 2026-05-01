@@ -1,12 +1,12 @@
-val std = use("std")
+val stdio = use("std/stdio")
 
 pub fn some_function(x: i32, y: i32) void! = {
     val x: ref u8 = "im shadowing the parameter, hehehe >:)" // should error
-    std.stdio.print("{d}", {x})
+    stdio.print("{d}", {x})
 }
 
 pub fn main() void! = {
     val x = 1
     val x = 2 // should error
-    std.stdio.print("{d}", {x})
+    stdio.print("{d}", {x})
 }

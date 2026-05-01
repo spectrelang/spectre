@@ -31,12 +31,12 @@ The compiler is tested under MacOS aarch64 and Linux x86_64, for Windows it is u
 ## Examples
 
 ```spectre
-val std = use("std")
+val stdio = use("std/stdio")
 
 pub fn main() void = {
     val xs = ["hello", "world", "this", "is", "a", "test"]
     for x in xs {
-        trust std.stdio.print("{s}\n", {x})
+        trust stdio.print("{s}\n", {x})
     }
 }
 ```
@@ -44,7 +44,7 @@ pub fn main() void = {
 Another example, with a simple demonstration of the trust system and pre/postconditions:
 
 ```spectre
-val std = use("std")
+val stdio = use("std/stdio")
 
 type Stack = {
     data: mut list[i32]
@@ -81,7 +81,7 @@ pub fn (Stack) print_top(s: mut self) void = {
 		has_items: s.len > 0 
 	}
     match Stack.peek(s) {
-        some v => { trust std.stdio.print("top: {d}\n", {v}) }
+        some v => { trust stdio.print("top: {d}\n", {v}) }
         none   => {}
     }
 }

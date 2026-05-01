@@ -2,10 +2,10 @@ pub fn takes_ref(buf: mut ref i32) void = {
     @deref(buf) = 42
 }
 
-val std = use("std")
+val stdio = use("std/stdio")
 
 pub fn main() void! = {
     val y: mut i32 = 30
     takes_ref(@addr(y))
-    std.stdio.print("{d}", {y})
+    stdio.print("{d}", {y})
 }

@@ -1,4 +1,4 @@
-val std = use("std")
+val stdio = use("std/stdio")
 
 fn get_str() ref u8 = {
     return "hello"
@@ -11,6 +11,6 @@ fn identity(s: ref u8) ref u8 = {
 pub fn main() i32 = {
     val s: ref u8 = get_str()
     val result: ref u8 = identity(s)
-    std.stdio.print("{s}", {result})
+    stdio.print("{s}", {result})
     return 0
 }

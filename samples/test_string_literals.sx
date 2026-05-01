@@ -1,4 +1,4 @@
-val std = use("std")
+val stdio = use("std/stdio")
 
 pub fn test_platform_name() ref u8 = {
     return "linux"
@@ -6,5 +6,5 @@ pub fn test_platform_name() ref u8 = {
 
 pub fn main() void = {
     val name: ref u8 = test_platform_name()
-    std.stdio.puts(name)
+    stdio.puts(name)
 }

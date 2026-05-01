@@ -1,5 +1,3 @@
-val std = use("std")
-
 pub union TokenKind = {
     Fn() | Val() | Ident(ref u8) | Eof()
 }
