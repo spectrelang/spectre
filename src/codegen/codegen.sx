@@ -4232,6 +4232,10 @@ fn expr_is_float(ctx: ref CgCtx, expr: ref parser.Node) bool! = {
         if str.rchar_cmp(ltype, "f64") == 0 || str.rchar_cmp(ltype, "f32") == 0 {
             return true
         }
+        val cval: ref u8 = cg_const_val(ctx, name)
+        if rchar_starts_with(cval, "d_") || rchar_starts_with(cval, "s_") {
+            return true
+        }
         return false
     }
     if k == parser.NK_FIELD {
@@ -4721,7 +4725,7 @@ fn gen_unop(ctx: ref CgCtx, expr: ref parser.Node) ref u8! = {
         if is_float {
             val neg_qt: mut ref u8 = "d"
             if str.rchar_cmp(inner_qt, "s") == 0 { neg_qt = "s" }
-            @snprintf(buf, 128, "    %%t{lld} ={s} neg {s}\n", {tmp, neg_qt, inner})
+            @snprintf(buf, 128, "    %%t{lld} ={s} sub {s}_0, {s}\n", {tmp, neg_qt, neg_qt, inner})
         } else {
             @snprintf(buf, 128, "    %%t{lld} =l neg {s}\n", {tmp, inner})
         }
