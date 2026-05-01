@@ -279,7 +279,294 @@ pub fn approx_eq(a: f64, b: f64, eps: f64) bool = {
     return fabs(a - b) <= eps
 }
 
+/// Exponential function (e^x) using Taylor series
+pub fn exp(x: f64) f64 = {
+    if (x > 700.0) {
+        return F64_MAX
+    }
+    if (x < -700.0) {
+        return 0.0
+    }
+
+    val result: mut f64 = 1.0
+    val term: mut f64 = 1.0
+    
+    for (i = 1; i < 50; i++) {
+        term = term * x / (i as f64)
+        result = result + term
+        if (fabs(term) < F64_EPSILON) {
+            break
+        }
+    }
+    
+    return result
+}
+
+/// Natural logarithm (ln(x)) using Newton's method
+pub fn logarithm(x: f64) f64 = {
+    pre {
+        positive: x > 0.0
+    }
+
+    if (x == 1.0) {
+        return 0.0
+    }
+
+    val guess: mut f64 = x - 1.0
+    
+    for (i = 0; i < 50; i++) {
+        val eg = exp(guess)
+        val next = guess - (eg - x) / eg
+        if (fabs(next - guess) < F64_EPSILON) {
+            break
+        }
+        guess = next
+    }
+    
+    return guess
+}
+
+/// Base-10 logarithm
+pub fn log10(x: f64) f64 = {
+    pre {
+        positive: x > 0.0
+    }
+    return logarithm(x) / LN10
+}
+
+/// Base-2 logarithm
+pub fn log2(x: f64) f64 = {
+    pre {
+        positive: x > 0.0
+    }
+    return logarithm(x) / LN2
+}
+
+/// Sine function using Taylor series
+pub fn sin(x: f64) f64 = {
+    val normalized: mut f64 = x
+    
+    for {
+        if (normalized <= PI && normalized >= -PI) {
+            break
+        }
+        if (normalized > PI) {
+            normalized = normalized - TAU
+        }
+        if (normalized < -PI) {
+            normalized = normalized + TAU
+        }
+    }
+    
+    val result: mut f64 = normalized
+    val term: mut f64 = normalized
+    
+    for (i = 1; i < 20; i++) {
+        term = -term * normalized * normalized / ((2 * i) as f64 * (2 * i + 1) as f64)
+        result = result + term
+        if (fabs(term) < F64_EPSILON) {
+            break
+        }
+    }
+    
+    return result
+}
+
+/// Cosine function
+pub fn cos(x: f64) f64 = {
+    return sin(x + PI / 2.0)
+}
+
+/// Tangent function
+pub fn tan(x: f64) f64 = {
+    val c = cos(x)
+    pre {
+        not_undefined: fabs(c) > F64_EPSILON
+    }
+    return sin(x) / c
+}
+
+/// Arcsine (inverse sine) using Newton's method
+pub fn asin(x: f64) f64 = {
+    pre {
+        in_range: x >= -1.0 && x <= 1.0
+    }
+
+    if (x == 1.0) {
+        return PI / 2.0
+    }
+    if (x == -1.0) {
+        return -PI / 2.0
+    }
+    if (x == 0.0) {
+        return 0.0
+    }
+
+    val guess: mut f64 = x
+    
+    for (i = 0; i < 20; i++) {
+        val s = sin(guess)
+        val c = cos(guess)
+        if (fabs(c) < F64_EPSILON) {
+            break
+        }
+        val next = guess - (s - x) / c
+        if (fabs(next - guess) < F64_EPSILON) {
+            break
+        }
+        guess = next
+    }
+    
+    return guess
+}
+
+/// Arccosine (inverse cosine)
+pub fn acos(x: f64) f64 = {
+    pre {
+        in_range: x >= -1.0 && x <= 1.0
+    }
+    return PI / 2.0 - asin(x)
+}
+
+/// Arctangent (inverse tangent) using series expansion
+pub fn atan(x: f64) f64 = {
+    if (x > 1.0) {
+        return PI / 2.0 - atan(1.0 / x)
+    }
+    if (x < -1.0) {
+        return -PI / 2.0 - atan(1.0 / x)
+    }
+
+    val result: mut f64 = x
+    val term: mut f64 = x
+    val x2 = x * x
+    
+    for (i = 1; i < 50; i++) {
+        term = -term * x2
+        val denom = (2 * i + 1) as f64
+        result = result + term / denom
+        if (fabs(term / denom) < F64_EPSILON) {
+            break
+        }
+    }
+    
+    return result
+}
+
+/// Two-argument arctangent (atan2)
+pub fn atan2(y: f64, x: f64) f64 = {
+    if (x > 0.0) {
+        return atan(y / x)
+    }
+    if (x < 0.0 && y >= 0.0) {
+        return atan(y / x) + PI
+    }
+    if (x < 0.0 && y < 0.0) {
+        return atan(y / x) - PI
+    }
+    if (x == 0.0 && y > 0.0) {
+        return PI / 2.0
+    }
+    if (x == 0.0 && y < 0.0) {
+        return -PI / 2.0
+    }
+    return 0.0
+}
+
+/// Hyperbolic sine
+pub fn sinh(x: f64) f64 = {
+    val ex = exp(x)
+    val emx = exp(-x)
+    return (ex - emx) / 2.0
+}
+
+/// Hyperbolic cosine
+pub fn cosh(x: f64) f64 = {
+    val ex = exp(x)
+    val emx = exp(-x)
+    return (ex + emx) / 2.0
+}
+
+/// Hyperbolic tangent
+pub fn tanh(x: f64) f64 = {
+    val ex = exp(x)
+    val emx = exp(-x)
+    return (ex - emx) / (ex + emx)
+}
+
+/// Convert degrees to radians
+pub fn to_radians(degrees: f64) f64 = {
+    return degrees * PI / 180.0
+}
+
+/// Convert radians to degrees
+pub fn to_degrees(radians: f64) f64 = {
+    return radians * 180.0 / PI
+}
+
+/// Round to nearest integer
+pub fn round(x: f64) f64 = {
+    if (x >= 0.0) {
+        return floor(x + 0.5)
+    }
+    return ceil(x - 0.5)
+}
+
+/// Compute x^y for floating point
+pub fn pow_f64(base: f64, exponent: f64) f64 = {
+    pre {
+        valid_base: base > 0.0
+    }
+    return exp(exponent * logarithm(base))
+}
+
+/// Cube root
+pub fn cbrt(x: f64) f64 = {
+    if (x == 0.0) {
+        return 0.0
+    }
+    
+    val sign: mut f64 = 1.0
+    
+    if (x < 0.0) { 
+        sign = -1.0
+    }
+
+    val abs_x = fabs(x)
+    
+    val guess: mut f64 = abs_x / 3.0
+    
+    for (i = 0; i < 20; i++) {
+        val g2 = guess * guess
+        guess = (2.0 * guess + abs_x / g2) / 3.0
+    }
+    
+    return sign * guess
+}
+
+/// Hypotenuse (sqrt(x^2 + y^2))
+pub fn hypot(x: f64, y: f64) f64 = {
+    return sqrt(x * x + y * y)
+}
+
+/// Copy sign from one number to another
+pub fn copysign(mag: f64, sign: f64) f64 = {
+    val abs_mag = fabs(mag)
+    if (sign < 0.0) {
+        return -abs_mag
+    }
+    return abs_mag
+}
+
+/// Fused multiply-add: (a * b) + c
+pub fn fma(a: f64, b: f64, c: f64) f64 = {
+    return a * b + c
+}
+
 test {
+    @puts("running")
+    trust @print("HELLO: {f}", {logarithm(12.0)})
+
     assert clamp(10, 0, 5) == 5
     assert gcd(48, 18) == 6
     assert lcm(6, 8) == 24
@@ -289,4 +576,31 @@ test {
 
     val x = lerp(0.0, 10.0, 0.5)
     assert approx_eq(x, 5.0, 0.0001)
+
+    assert approx_eq(sin(0.0), 0.0, 0.0001)
+    assert approx_eq(sin(PI / 2.0), 1.0, 0.0001)
+    assert approx_eq(cos(0.0), 1.0, 0.0001)
+    assert approx_eq(cos(PI), -1.0, 0.0001)
+    assert approx_eq(tan(0.0), 0.0, 0.0001)
+
+    assert approx_eq(exp(0.0), 1.0, 0.0001)
+    assert approx_eq(exp(1.0), E, 0.0001)
+
+
+
+    assert approx_eq(logarithm(E), 1.0, 0.0001)
+    assert approx_eq(logarithm(1.0), 0.0, 0.0001)
+    
+    assert approx_eq(asin(0.0), 0.0, 0.0001)
+    assert approx_eq(asin(1.0), PI / 2.0, 0.0001)
+    assert approx_eq(acos(1.0), 0.0, 0.0001)
+    assert approx_eq(atan(0.0), 0.0, 0.0001)
+    
+    assert approx_eq(to_radians(180.0), PI, 0.0001)
+    assert approx_eq(to_degrees(PI), 180.0, 0.0001)
+    
+    assert approx_eq(round(3.4), 3.0, 0.0001)
+    assert approx_eq(round(3.6), 4.0, 0.0001)
+    
+    assert approx_eq(hypot(3.0, 4.0), 5.0, 0.0001)
 }
