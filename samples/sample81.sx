@@ -11,6 +11,6 @@ fn identity(s: ref u8) ref u8 = {
 pub fn main() i32 = {
     val s: ref u8 = get_str()
     val result: ref u8 = identity(s)
-    stdio.print("{s}", {result})
+    trust stdio.print("{s}", {result})
     return 0
 }
