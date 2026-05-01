@@ -79,12 +79,22 @@ pub fn resolve_use_path(use_path: ref u8, file_dir: ref u8, exe_dir: ref u8, wor
     }
 
     if has_slash {
+        val core_exe = path.join(exe_dir, @fmt("{s}/core.sx", {use_path}))
+        if file_exists(core_exe) { return core_exe }
+        val core_ws = path.join(workspace, @fmt("{s}/core.sx", {use_path}))
+        if file_exists(core_ws) { return core_ws }
+
         val candidate_exe = path.join(exe_dir, @fmt("{s}.sx", {use_path}))
         if file_exists(candidate_exe) { return candidate_exe }
         val candidate_ws = path.join(workspace, @fmt("{s}.sx", {use_path}))
         if file_exists(candidate_ws) { return candidate_ws }
         return candidate_ws
     }
+
+    val core1_exe = path.join(exe_dir, @fmt("{s}/core.sx", {use_path}))
+    if file_exists(core1_exe) { return core1_exe }
+    val core1_ws = path.join(workspace, @fmt("{s}/core.sx", {use_path}))
+    if file_exists(core1_ws) { return core1_ws }
 
     val candidate2_exe = path.join(exe_dir, @fmt("{s}/{s}.sx", {use_path, use_path}))
     if file_exists(candidate2_exe) { return candidate2_exe }

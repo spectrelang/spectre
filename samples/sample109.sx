@@ -1,6 +1,5 @@
-val numerics = use("std/math/numerics")
+val math = use("std/math")
 
 pub fn main() void = {
-    val x: numerics.Mat4x4 = numerics.Mat4x4.zero()
-    trust @print("hellew: {p}\n", {x})
+    trust @print("{d}\n", {math.max_i64(10, 20)})
 }
