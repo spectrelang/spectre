@@ -1,9 +1,10 @@
-val std        = use("std")
-val str        = use("std/string")
-val stdio      = use("std/stdio")
-val reflection = use("std/reflection")
-val parser     = use("../ast/parser.sx")
-val module     = use("../module/module.sx")
+val std         = use("std")
+val str         = use("std/string")
+val stdio       = use("std/stdio")
+val reflection  = use("std/reflection")
+val collections = use("std/collections")
+val parser      = use("../ast/parser.sx")
+val module      = use("../module/module.sx")
 
 /// Codegen context
 pub type CgCtx = {
@@ -42,6 +43,8 @@ pub type CgCtx = {
     cont_lbl: mut i64
     mc_names: mut list[ref u8]
     mc_vals: mut list[ref u8]
+    mc_index: mut ref void
+    fn_name_index: mut ref void
     defer_stack: mut list[ref void]
     local_src_names: mut list[ref u8]
     local_qbe_names: mut list[ref u8]
@@ -106,6 +109,8 @@ fn cg_new() ref CgCtx! = {
     ctx.cont_lbl = -1
     ctx.mc_names = []
     ctx.mc_vals = []
+    ctx.mc_index = collections.IndexMap.new(64 as usize)
+    ctx.fn_name_index = collections.IndexMap.new(256 as usize)
     ctx.defer_stack = []
     ctx.local_src_names = []
     ctx.local_qbe_names = []
@@ -1008,31 +1013,17 @@ fn cg_mc_vals(ctx: ref CgCtx) ref void! = { return ctx.mc_vals as ref void }
 fn cg_register_module_const(ctx: ref CgCtx, name: ref u8, val_str: ref u8) void! = {
     @append(cg_mc_names(ctx) as list[ref u8], name)
     @append(cg_mc_vals(ctx)  as list[ref u8], val_str)
+    if !collections.IndexMap.contains(ctx.mc_index, name) {
+        collections.IndexMap.set(ctx.mc_index, name, val_str as usize)
+    }
 }
 
 /// Look up a module-level constant value by name. Returns "" if not found.
 fn cg_const_val(ctx: ref CgCtx, name: ref u8) ref u8! = {
-    val names: ref void = cg_mc_names(ctx)
-    val nlen: i64 = @len(names as list[ref u8]) as i64
-    val ni: mut i64 = 0
-    for {
-        if ni >= nlen { break }
-        val n_opt = @get(names as list[ref u8], ni as usize)
-        match n_opt {
-            some n => {
-                if str.rchar_cmp(n as ref u8, name) == 0 {
-                    val v_opt = @get(cg_mc_vals(ctx) as list[ref u8], ni as usize)
-                    match v_opt {
-                        some v => { return v as ref u8 }
-                        none   => { return "" }
-                    }
-                }
-            }
-            none => {}
-        }
-        ni++
+    match collections.IndexMap.get(ctx.mc_index, name) {
+        some v => { return v as ref u8 }
+        none   => { return "" }
     }
-    return ""
 }
 
 fn cg_is_int_const_val(cval: ref u8) bool! = {
