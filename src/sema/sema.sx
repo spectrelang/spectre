@@ -202,23 +202,20 @@ fn scope_define(ctx: ref SemaCtx, name: ref u8, mutable: i64, type_name: ref u8,
     val len: usize = @len(ctx.scopes)
     if len == 0 { return }
     val frame_opt = @get(ctx.scopes, len - 1)
-    match frame_opt {
-        some frame => {
-            val entry: mut ref ScopeEntry = @alloc(@sizeof(ScopeEntry)) as ref ScopeEntry
-            entry.name      = name
-            entry.mutable   = mutable
-            entry.type_name = type_name
-            entry.is_ref    = is_ref
-            entry.line      = decl_line
-            entry.used      = 0
-            entry.mutated   = 0
-            @append(frame as ref void, entry)
+    if frame_opt is some frame {
+        val entry: mut ref ScopeEntry = @alloc(@sizeof(ScopeEntry)) as ref ScopeEntry
+        entry.name      = name
+        entry.mutable   = mutable
+        entry.type_name = type_name
+        entry.is_ref    = is_ref
+        entry.line      = decl_line
+        entry.used      = 0
+        entry.mutated   = 0
+        @append(frame as ref void, entry)
 
-            guarded post {
-                entry_added : @len(frame as ref void) > 0
-            }
+        guarded post {
+            entry_added : @len(frame as ref void) > 0
         }
-        none => {}
     }
 }
 
