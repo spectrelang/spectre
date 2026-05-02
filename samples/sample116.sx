@@ -164,7 +164,7 @@ pub fn get_exe_path[T](ac: allocators.Allocator) ref u8! = {
     return "."
 }
 
-test {
+pub fn main() void = {
     val arena = allocators.Arena.new(10240)?
 
     stdio.puts("calling get_current_platform")
