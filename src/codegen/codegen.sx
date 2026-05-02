@@ -2543,6 +2543,18 @@ fn infer_type_annotation(ctx: ref CgCtx, expr: ref parser.Node) ref u8! = {
                 }
             }
         }
+        if base_expr != 0 as ref parser.Node && base_expr.kind == parser.NK_IDENT {
+            val base_name_f: ref u8 = base_expr.d0 as ref u8
+            val mod_key: ref u8 = @alloc(512) as ref u8
+            @snprintf(mod_key, 512, "{s}__{s}", {base_name_f, field_name})
+            val mod_cval: ref u8 = cg_const_val(ctx, mod_key)
+            @free(mod_key)
+            if str.rchar_cmp(mod_cval, "") != 0 {
+                if rchar_starts_with(mod_cval, "d_") { return "f64" }
+                if rchar_starts_with(mod_cval, "s_") { return "f32" }
+                return "i64"
+            }
+        }
         return ""
     }
 
