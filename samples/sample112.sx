@@ -1,0 +1,6 @@
+pub fn main() void = {
+    val x: ref void = 0 as ref void
+    if x == none {
+        @puts("it was none")
+    }
+}
