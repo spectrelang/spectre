@@ -1,0 +1,42 @@
+val core = use("core.sx")
+val stdio = use("../stdio")
+val string = use("../string")
+
+pub fn get_temp_path() option[ref u8] = {
+    when posix {
+        val candidates: list[ref u8] = ["TMPDIR", "TMP", "TEMP", "TEMPDIR"]
+        for (candidate in candidates) {
+            match core.env(candidate) {
+                some p => { return some p }
+                none => {}
+            }
+        }
+        return some "/tmp"
+    }
+
+    when windows {
+        match core.env("TEMP") {
+            some p => { return some p }
+            none => {}
+        }
+    }
+
+    return none
+}
+
+test {
+    val temp_path = get_temp_path()
+    match temp_path {
+        some p => {
+            trust stdio.print("Temp path: {s}\n", {p})
+            if (p == 0 as ref u8) {
+                trust stdio.print("Temp path is empty\n", {})
+                assert false
+            }
+        }
+        none => {
+            trust stdio.print("No temp path found\n", {})
+            assert false
+        }
+    }
+}
