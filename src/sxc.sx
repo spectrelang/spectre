@@ -75,7 +75,13 @@ fn pick_alt_backend(
     return selected
 }
 
-fn append_debug_runtime_links(links: mut list[ref u8], exe_dir: ref u8, quiet: bool, release_mode: bool) void! = {
+fn append_debug_runtime_links(
+    links: mut list[ref u8],
+    exe_dir: ref u8,
+    quiet: bool,
+    release_mode: bool,
+    arena: ref allocators.Arena
+) void! = {
     if release_mode { return }
     val panic_o: ref u8 = path.join(exe_dir, "std/csources/panic_handler.o")
     val panic_f = fs.open(panic_o, "r")
@@ -90,7 +96,7 @@ fn append_debug_runtime_links(links: mut list[ref u8], exe_dir: ref u8, quiet: b
             }
         }
     }
-    val platform: ref u8 = reflection.current_platform_name()
+    val platform: ref u8 = reflection.current_platform_name[allocators.Arena](arena)
     if string.rchar_cmp(platform, "windows") == 0 {
         @append(links, "-lDbgHelp")
     }
@@ -443,7 +449,7 @@ pub fn main() i32! = {
         return code
     }
 
-    val exe_path2: ref u8 = reflection.get_exe_path()
+    val exe_path2: ref u8 = reflection.get_exe_path[allocators.Arena](arena)
     val exe_dir: mut ref u8 = "."
     if string.rchar_cmp(exe_path2, ".") != 0 {
         exe_dir = path.dir(exe_path2)
@@ -547,7 +553,7 @@ pub fn main() i32! = {
         }
 
         val links_alt: mut list[ref u8] = module.collect_used_links(root_mod, exe_dir)
-        append_debug_runtime_links(links_alt, exe_dir, quiet, release_mode)
+        append_debug_runtime_links(links_alt, exe_dir, quiet, release_mode, arena)
         val link_flags_alt: mut ref u8 = ""
         for lib in links_alt {
             link_flags_alt = @fmt("{s} {s}", {link_flags_alt, lib})
@@ -654,7 +660,7 @@ pub fn main() i32! = {
     }
 
     val links: mut list[ref u8] = module.collect_used_links(root_mod, exe_dir)
-    append_debug_runtime_links(links, exe_dir, quiet, release_mode)
+    append_debug_runtime_links(links, exe_dir, quiet, release_mode, arena)
 
     if emit_qbe != 0 {
         stdio.puts(qbe_ir)
@@ -734,7 +740,7 @@ pub fn main() i32! = {
     val exit_code: mut i32 = 0
     val link_flags: mut ref u8 = ""
     val run_output: mut ref u8 = ""
-    val platform: ref u8 = reflection.current_platform_name()
+    val platform: ref u8 = reflection.current_platform_name[allocators.Arena](arena)
 
     for lib in links {
         link_flags = @fmt("{s} {s}", {link_flags, lib})

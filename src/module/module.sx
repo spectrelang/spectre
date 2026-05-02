@@ -4,6 +4,7 @@ val path       = use("std/path")
 val os         = use("std/os")
 val fs         = use("std/fs")
 val reflection = use("std/reflection")
+val allocators = use("std/allocators")
 val parser     = use("../ast/parser.sx")
 val lexer      = use("../ast/lexer.sx")
 
@@ -1225,8 +1226,9 @@ pub fn flatten_modules_with_files(
 /// Collect all link statements from a module's items.
 /// Returns a list of link flags (strings like "-lcurl" or full paths).
 pub fn collect_links(items: list[ref parser.Node], exe_dir: ref u8) list[ref u8]! = {
+    val arena = allocators.Arena.new(256)?
     val links: mut list[ref u8] = []
-    val p: i64 = reflection.get_current_platform() as i64
+    val p: i64 = reflection.get_current_platform[allocators.Arena](arena) as i64
     val platform: mut ref u8 = "unknown"
     if p == 0      { platform = "windows"      }
     elif p == 1    { platform = "linux"        }
@@ -1301,6 +1303,7 @@ pub fn collect_links(items: list[ref parser.Node], exe_dir: ref u8) list[ref u8]
         }
     }
 
+    allocators.Arena.free(arena)
     return result
 }
 
