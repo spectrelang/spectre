@@ -216,7 +216,7 @@ pub fn rmdir_path(path: ref u8) bool! = {
 pub fn cwd() option[ref u8] = {
     val buf: ref u8 = @alloc(4096) as ref u8
     val result: ref u8 = trust getcwd(buf, 4096 as usize)
-    if (result == 0) {
+    if (result == none) {
         trust @free(buf)
         return none
     }
@@ -228,14 +228,14 @@ pub fn cwd() option[ref u8] = {
 pub fn temp_dir() ref u8! = {
     when posix {
         val t: ref u8 = getenv("TMPDIR")
-        if (t != 0) { return t }
+        if (t != none) { return t }
         return "/tmp"
     }
     when windows {
         val t: ref u8 = getenv("TEMP")
-        if (t != 0) { return t }
+        if (t != none) { return t }
         val t2: ref u8 = getenv("TMP")
-        if (t2 != 0) { return t2 }
+        if (t2 != none) { return t2 }
         return "C:\\Windows\\Temp"
     }
     return "/tmp"
@@ -246,14 +246,14 @@ pub fn temp_dir() ref u8! = {
 pub fn home_dir() option[ref u8]! = {
     when posix {
         val h: ref u8 = getenv("HOME")
-        if (h != 0) { return some h }
+        if (h != none) { return some h }
         return none
     }
     when windows {
         val h: ref u8 = getenv("USERPROFILE")
-        if (h != 0) { return some h }
+        if (h != none) { return some h }
         val h2: ref u8 = getenv("HOMEDRIVE")
-        if (h2 != 0) { return some h2 }
+        if (h2 != none) { return some h2 }
         return none
     }
     return none
@@ -267,9 +267,9 @@ pub fn home_dir() option[ref u8]! = {
 pub fn config_dir() option[ref u8]! = {
     when posix {
         val xdg: ref u8 = getenv("XDG_CONFIG_HOME")
-        if (xdg != 0) { return some xdg }
+        if (xdg != none) { return some xdg }
         val h: ref u8 = getenv("HOME")
-        if (h == 0) { return none }
+        if (h == none) { return none }
         val hl: i64 = strlen(h)
         val suffix: ref u8 = "/.config"
         val sl: i64 = strlen(suffix)
@@ -281,7 +281,7 @@ pub fn config_dir() option[ref u8]! = {
     }
     when windows {
         val appdata: ref u8 = getenv("APPDATA")
-        if (appdata != 0) { return some appdata }
+        if (appdata != none) { return some appdata }
         return none
     }
     return none
@@ -468,7 +468,7 @@ pub fn walk_dir(path: ref u8) option[list[ref u8]]! = {
 
     for {
         val entry: ref Dirent = readdir(dir)
-        if (entry == 0) {
+        if (entry == none) {
             break
         }
 
