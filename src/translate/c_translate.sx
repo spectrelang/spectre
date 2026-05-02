@@ -256,17 +256,17 @@ fn flatten_ws(text: ref u8) ref u8 = {
         val c: u8 = trust @load8(@ptradd(text as ref void, i)) as u8
         if is_space(c) {
             if !last_space {
-                string.StringBuilder.append_char(sb, 32)
+                trust string.StringBuilder.append_char(sb, 32)
                 last_space = true
             }
         } else {
-            string.StringBuilder.append_char(sb, c)
+            trust string.StringBuilder.append_char(sb, c)
             last_space = false
         }
         i++
     }
-    val built: ref void = string.StringBuilder.build(sb)
-    string.StringBuilder.free(sb)
+    val built: ref void = trust string.StringBuilder.build(sb)
+    trust string.StringBuilder.free(sb)
     return trust trim_raw(string.cstr(built))
 }
 
@@ -331,17 +331,17 @@ fn join_lines(lines: list[ref u8], start: i64, end_exclusive: i64) ref u8 = {
         val line_opt = @get(lines, i as usize)
         match line_opt {
             some line_val => {
-                string.StringBuilder.append_cstr(sb, line_val as ref u8)
+                trust string.StringBuilder.append_cstr(sb, line_val as ref u8)
                 if i + 1 < end_exclusive {
-                    string.StringBuilder.append_char(sb, 10)
+                    trust string.StringBuilder.append_char(sb, 10)
                 }
             }
             none => {}
         }
         i++
     }
-    val built: ref void = string.StringBuilder.build(sb)
-    string.StringBuilder.free(sb)
+    val built: ref void = trust string.StringBuilder.build(sb)
+    trust string.StringBuilder.free(sb)
     return trust string.cstr(built)
 }
 
@@ -349,19 +349,19 @@ fn push_indent(sb: ref void, indent: i64) void = {
     val i: mut i64 = 0
     for {
         if i >= indent { break }
-        string.StringBuilder.append_cstr(sb, "    ")
+        trust string.StringBuilder.append_cstr(sb, "    ")
         i++
     }
 }
 
 fn append_line(sb: ref void, indent: i64, line: ref u8) void = {
     push_indent(sb, indent)
-    string.StringBuilder.append_cstr(sb, line)
-    string.StringBuilder.append_char(sb, 10)
+    trust string.StringBuilder.append_cstr(sb, line)
+    trust string.StringBuilder.append_char(sb, 10)
 }
 
 fn append_blank_line(sb: ref void) void = {
-    string.StringBuilder.append_char(sb, 10)
+    trust string.StringBuilder.append_char(sb, 10)
 }
 
 fn append_comment_line(sb: ref void, indent: i64, line: ref u8) void = {
@@ -371,9 +371,9 @@ fn append_comment_line(sb: ref void, indent: i64, line: ref u8) void = {
         return
     }
     push_indent(sb, indent)
-    string.StringBuilder.append_cstr(sb, "// ")
-    string.StringBuilder.append_cstr(sb, trimmed)
-    string.StringBuilder.append_char(sb, 10)
+    trust string.StringBuilder.append_cstr(sb, "// ")
+    trust string.StringBuilder.append_cstr(sb, trimmed)
+    trust string.StringBuilder.append_char(sb, 10)
 }
 
 fn list_contains(items: list[ref u8], value: ref u8) bool = {
@@ -764,7 +764,7 @@ fn append_main_prelude_line(ctx: ref TranslationCtx, line: ref u8) void = {
 }
 
 fn append_main_prelude_builder(ctx: ref TranslationCtx, sb: ref void) void = {
-    val built: ref void = string.StringBuilder.build(sb)
+    val built: ref void = trust string.StringBuilder.build(sb)
     val lines = trust split_lines(string.cstr(built))
     for line in lines {
         val trimmed: ref u8 = trim_raw(line)
@@ -1194,7 +1194,7 @@ fn lower_incdec_text(_: ref TranslationCtx, text: ref u8, indent: i64, out: ref 
         if i >= len { break }
         val c: u8 = trust @load8(@ptradd(trimmed as ref void, i)) as u8
         if in_string {
-            string.StringBuilder.append_char(sb, c)
+            trust string.StringBuilder.append_char(sb, c)
             if escaped {
                 escaped = false
             } elif c == 92 {
@@ -1206,7 +1206,7 @@ fn lower_incdec_text(_: ref TranslationCtx, text: ref u8, indent: i64, out: ref 
             continue
         }
         if in_char {
-            string.StringBuilder.append_char(sb, c)
+            trust string.StringBuilder.append_char(sb, c)
             if escaped {
                 escaped = false
             } elif c == 92 {
@@ -1219,13 +1219,13 @@ fn lower_incdec_text(_: ref TranslationCtx, text: ref u8, indent: i64, out: ref 
         }
         if c == 34 {
             in_string = true
-            string.StringBuilder.append_char(sb, c)
+            trust string.StringBuilder.append_char(sb, c)
             i++
             continue
         }
         if c == 39 {
             in_char = true
-            string.StringBuilder.append_char(sb, c)
+            trust string.StringBuilder.append_char(sb, c)
             i++
             continue
         }
@@ -1254,7 +1254,7 @@ fn lower_incdec_text(_: ref TranslationCtx, text: ref u8, indent: i64, out: ref 
                         }
                         val ident: ref u8 = trust string.substr(trimmed, start_name, j - start_name)
                         emit_incdec_stmt(ident, op, indent, out)
-                        string.StringBuilder.append_cstr(sb, rewrite_identifiers(ident))
+                        trust string.StringBuilder.append_cstr(sb, rewrite_identifiers(ident))
                         changed = true
                         i = j
                         continue
@@ -1286,20 +1286,20 @@ fn lower_incdec_text(_: ref TranslationCtx, text: ref u8, indent: i64, out: ref 
                     val op2: mut ref u8 = "+"
                     if c1 == 45 { op2 = "-" }
                     emit_incdec_stmt(ident2, op2, indent, out)
-                    string.StringBuilder.append_cstr(sb, ident2)
+                    trust string.StringBuilder.append_cstr(sb, ident2)
                     changed = true
                     i = j2 + 2
                     continue
                 }
             }
-            string.StringBuilder.append_cstr(sb, ident2)
+            trust string.StringBuilder.append_cstr(sb, ident2)
             continue
         }
-        string.StringBuilder.append_char(sb, c)
+        trust string.StringBuilder.append_char(sb, c)
         i++
     }
-    val built: ref void = string.StringBuilder.build(sb)
-    string.StringBuilder.free(sb)
+    val built: ref void = trust string.StringBuilder.build(sb)
+    trust string.StringBuilder.free(sb)
     return make_lowered_expr(trust string.cstr(built), changed)
 }
 
@@ -1474,13 +1474,13 @@ fn strip_system_includes(text: ref u8) ref u8 = {
             continue
         }
         if !first {
-            string.StringBuilder.append_char(sb, 10)
+            trust string.StringBuilder.append_char(sb, 10)
         }
-        string.StringBuilder.append_cstr(sb, line)
+        trust string.StringBuilder.append_cstr(sb, line)
         first = false
     }
-    val built: ref void = string.StringBuilder.build(sb)
-    string.StringBuilder.free(sb)
+    val built: ref void = trust string.StringBuilder.build(sb)
+    trust string.StringBuilder.free(sb)
     return trust string.cstr(built)
 }
 
@@ -1585,17 +1585,17 @@ fn remember_called_signature(ctx: ref TranslationCtx, call_name: ref u8, args: l
         val arg_opt = @get(args, i as usize)
         match arg_opt {
             some arg_val => {
-                if !first { string.StringBuilder.append_cstr(sb, ", ") }
+                if !first { trust string.StringBuilder.append_cstr(sb, ", ") }
                 val arg_type: ref u8 = infer_called_arg_type(ctx, arg_val as ref u8)
-                string.StringBuilder.append_cstr(sb, trust @fmt("arg{d}: {s}", {i, arg_type}))
+                trust string.StringBuilder.append_cstr(sb, @fmt("arg{d}: {s}", {i, arg_type}))
                 first = false
             }
             none => {}
         }
         i++
     }
-    val built: ref void = string.StringBuilder.build(sb)
-    string.StringBuilder.free(sb)
+    val built: ref void = trust string.StringBuilder.build(sb)
+    trust string.StringBuilder.free(sb)
     val params_text: ref u8 = trust string.cstr(built)
     val sig_len: i64 = @len(ctx.called_sig_names) as i64
     val sig_i: mut i64 = 0
@@ -1692,7 +1692,7 @@ fn qualify_enum_constants(ctx: ref TranslationCtx, text: ref u8) ref u8 = {
                     none => {
                         match lookup_enum_constant_type(ctx, ident) {
                             some enum_type => {
-                                string.StringBuilder.append_cstr(sb, trust @fmt("{s}.{s}", {enum_type as ref u8, sanitized_ident}))
+                                trust string.StringBuilder.append_cstr(sb, @fmt("{s}.{s}", {enum_type as ref u8, sanitized_ident}))
                                 continue
                             }
                             none => {}
@@ -1700,14 +1700,14 @@ fn qualify_enum_constants(ctx: ref TranslationCtx, text: ref u8) ref u8 = {
                     }
                 }
             }
-            string.StringBuilder.append_cstr(sb, ident)
+            trust string.StringBuilder.append_cstr(sb, ident)
             continue
         }
-        string.StringBuilder.append_char(sb, c)
+        trust string.StringBuilder.append_char(sb, c)
         i++
     }
-    val built: ref void = string.StringBuilder.build(sb)
-    string.StringBuilder.free(sb)
+    val built: ref void = trust string.StringBuilder.build(sb)
+    trust string.StringBuilder.free(sb)
     return trust string.cstr(built)
 }
 
@@ -1742,25 +1742,25 @@ fn rewrite_identifiers(text: ref u8) ref u8 = {
                 if j < len && (trust @load8(@ptradd(trimmed as ref void, j)) as u8) == 40 {
                     val close_j: i64 = find_matching_delim(trimmed, j, 40 as u8, 41 as u8)
                     if close_j > j {
-                        string.StringBuilder.append_cstr(sb, ident)
-                        string.StringBuilder.append_cstr(sb, trust string.substr(trimmed, j, close_j - j + 1))
+                        trust string.StringBuilder.append_cstr(sb, ident)
+                        trust string.StringBuilder.append_cstr(sb, string.substr(trimmed, j, close_j - j + 1))
                         i = close_j + 1
                         continue
                     }
                 }
             }
             if string.rchar_cmp(ident, "NULL") == 0 {
-                string.StringBuilder.append_cstr(sb, "0")
+                trust string.StringBuilder.append_cstr(sb, "0")
                 continue
             }
-            string.StringBuilder.append_cstr(sb, sanitize_identifier(ident))
+            trust string.StringBuilder.append_cstr(sb, sanitize_identifier(ident))
             continue
         }
-        string.StringBuilder.append_char(sb, c)
+        trust string.StringBuilder.append_char(sb, c)
         i++
     }
-    val built: ref void = string.StringBuilder.build(sb)
-    string.StringBuilder.free(sb)
+    val built: ref void = trust string.StringBuilder.build(sb)
+    trust string.StringBuilder.free(sb)
     return trust string.cstr(built)
 }
 
@@ -1775,16 +1775,16 @@ fn replace_arrow_access(text: ref u8) ref u8 = {
         if c == 45 && i + 1 < len {
             val next: u8 = trust @load8(@ptradd(trimmed as ref void, i + 1)) as u8
             if next == 62 {
-                string.StringBuilder.append_char(sb, 46)
+                trust string.StringBuilder.append_char(sb, 46)
                 i += 2
                 continue
             }
         }
-        string.StringBuilder.append_char(sb, c)
+        trust string.StringBuilder.append_char(sb, c)
         i++
     }
-    val built: ref void = string.StringBuilder.build(sb)
-    string.StringBuilder.free(sb)
+    val built: ref void = trust string.StringBuilder.build(sb)
+    trust string.StringBuilder.free(sb)
     return trust string.cstr(built)
 }
 
@@ -1823,12 +1823,12 @@ fn is_known_c_type_name(ctx: ref TranslationCtx, text: ref u8) bool = {
         if i >= len { break }
         val c: u8 = trust @load8(@ptradd(trimmed as ref void, i)) as u8
         if c != 42 {
-            string.StringBuilder.append_char(no_stars_sb, c)
+            trust string.StringBuilder.append_char(no_stars_sb, c)
         }
         i++
     }
-    val no_stars_built: ref void = string.StringBuilder.build(no_stars_sb)
-    string.StringBuilder.free(no_stars_sb)
+    val no_stars_built: ref void = trust string.StringBuilder.build(no_stars_sb)
+    trust string.StringBuilder.free(no_stars_sb)
     val base: ref u8 = trim_raw(trust string.cstr(no_stars_built))
     if string.rchar_cmp(base, "void") == 0               { return true }
     if string.rchar_cmp(base, "u8") == 0               { return true }
@@ -1973,20 +1973,20 @@ fn replace_pointer_indexing(ctx: ref TranslationCtx, text: ref u8) ref u8 = {
                     if close_i < len {
                         val inner: ref u8 = trim_raw(trust string.substr(trimmed, i + 1, close_i - i - 1))
                         val index_ptr: ref u8 = render_index_ptr_expr(ctx, ident, inner)
-                        string.StringBuilder.append_cstr(sb, trust @fmt("@load({s})", {index_ptr}))
+                        trust string.StringBuilder.append_cstr(sb, @fmt("@load({s})", {index_ptr}))
                         i = close_i + 1
                         continue
                     }
                 }
             }
-            string.StringBuilder.append_cstr(sb, ident)
+            trust string.StringBuilder.append_cstr(sb, ident)
             continue
         }
-        string.StringBuilder.append_char(sb, c)
+        trust string.StringBuilder.append_char(sb, c)
         i++
     }
-    val built: ref void = string.StringBuilder.build(sb)
-    string.StringBuilder.free(sb)
+    val built: ref void = trust string.StringBuilder.build(sb)
+    trust string.StringBuilder.free(sb)
     return trust string.cstr(built)
 }
 
@@ -2008,19 +2008,19 @@ fn ensure_intrinsic_prefixes(text: ref u8) ref u8 = {
             val nextc: u8 = trust @load8(@ptradd(trimmed as ref void, i + nlen)) as u8
             val already_intrinsic: bool = i > 0 && (trust @load8(@ptradd(trimmed as ref void, i - 1)) as u8) == 64
             if prev_ok && !already_intrinsic && nextc == 40 {
-                string.StringBuilder.append_char(sb, 64)
-                string.StringBuilder.append_cstr(sb, name)
+                trust string.StringBuilder.append_char(sb, 64)
+                trust string.StringBuilder.append_cstr(sb, name)
                 i += nlen
                 matched = true
                 break
             }
         }
         if matched { continue }
-        string.StringBuilder.append_char(sb, trust @load8(@ptradd(trimmed as ref void, i)) as u8)
+        trust string.StringBuilder.append_char(sb, @load8(@ptradd(trimmed as ref void, i)) as u8)
         i++
     }
-    val built: ref void = string.StringBuilder.build(sb)
-    string.StringBuilder.free(sb)
+    val built: ref void = trust string.StringBuilder.build(sb)
+    trust string.StringBuilder.free(sb)
     return trust string.cstr(built)
 }
 
@@ -2049,8 +2049,8 @@ fn normalize_intrinsic_prefixes(text: ref u8) ref u8 = {
                 val frag: ref u8 = trust string.substr(trimmed, i, nlen)
                 if string.rchar_cmp(frag, name) != 0 { continue }
                 if i + nlen < len && (trust @load8(@ptradd(trimmed as ref void, i + nlen)) as u8) == 40 {
-                    string.StringBuilder.append_char(sb, 64)
-                    string.StringBuilder.append_cstr(sb, name)
+                    trust string.StringBuilder.append_char(sb, 64)
+                    trust string.StringBuilder.append_cstr(sb, name)
                     i += nlen
                     matched = true
                     break
@@ -2060,16 +2060,16 @@ fn normalize_intrinsic_prefixes(text: ref u8) ref u8 = {
             val j: mut i64 = at_start
             for {
                 if j >= i { break }
-                string.StringBuilder.append_char(sb, 64)
+                trust string.StringBuilder.append_char(sb, 64)
                 j++
             }
             continue
         }
-        string.StringBuilder.append_char(sb, c)
+        trust string.StringBuilder.append_char(sb, c)
         i++
     }
-    val built: ref void = string.StringBuilder.build(sb)
-    string.StringBuilder.free(sb)
+    val built: ref void = trust string.StringBuilder.build(sb)
+    trust string.StringBuilder.free(sb)
     return trust string.cstr(built)
 }
 
@@ -2195,7 +2195,7 @@ fn translate_addr_deref_expr(ctx: ref TranslationCtx, text: ref u8) ref u8 = {
         if i >= len { break }
         val c: u8 = trust @load8(@ptradd(trimmed as ref void, i)) as u8
         if in_string {
-            string.StringBuilder.append_char(sb, c)
+            trust string.StringBuilder.append_char(sb, c)
             if escaped {
                 escaped = false
             } elif c == 92 {
@@ -2207,7 +2207,7 @@ fn translate_addr_deref_expr(ctx: ref TranslationCtx, text: ref u8) ref u8 = {
             continue
         }
         if in_char {
-            string.StringBuilder.append_char(sb, c)
+            trust string.StringBuilder.append_char(sb, c)
             if escaped {
                 escaped = false
             } elif c == 92 {
@@ -2220,13 +2220,13 @@ fn translate_addr_deref_expr(ctx: ref TranslationCtx, text: ref u8) ref u8 = {
         }
         if c == 34 {
             in_string = true
-            string.StringBuilder.append_char(sb, c)
+            trust string.StringBuilder.append_char(sb, c)
             i++
             continue
         }
         if c == 39 {
             in_char = true
-            string.StringBuilder.append_char(sb, c)
+            trust string.StringBuilder.append_char(sb, c)
             i++
             continue
         }
@@ -2260,12 +2260,12 @@ fn translate_addr_deref_expr(ctx: ref TranslationCtx, text: ref u8) ref u8 = {
                     val p1: u8 = trust @load8(@ptradd(trimmed as ref void, after_group)) as u8
                     val p2: u8 = trust @load8(@ptradd(trimmed as ref void, after_group + 1)) as u8
                     if ((p1 == 43 && p2 == 43) || (p1 == 45 && p2 == 45)) {
-                        string.StringBuilder.append_cstr(sb, trust @fmt("@deref({s}){c}{c}", {translated_inner, p1, p2}))
+                        trust string.StringBuilder.append_cstr(sb, @fmt("@deref({s}){c}{c}", {translated_inner, p1, p2}))
                         i = after_group + 2
                         continue
                     }
                 }
-                string.StringBuilder.append_cstr(sb, trust @fmt("@deref({s})", {translated_inner}))
+                trust string.StringBuilder.append_cstr(sb, @fmt("@deref({s})", {translated_inner}))
                 i = close_group + 1
                 continue
             }
@@ -2294,7 +2294,7 @@ fn translate_addr_deref_expr(ctx: ref TranslationCtx, text: ref u8) ref u8 = {
                             if !is_ident_part(cc) { break }
                             j++
                         }
-                        string.StringBuilder.append_cstr(sb, rewrite_identifiers(trust string.substr(trimmed, start_i, j - start_i)))
+                        trust string.StringBuilder.append_cstr(sb, rewrite_identifiers(string.substr(trimmed, start_i, j - start_i)))
                         i = j
                         continue
                     }
@@ -2314,18 +2314,18 @@ fn translate_addr_deref_expr(ctx: ref TranslationCtx, text: ref u8) ref u8 = {
                     val operand_end: i64 = scan_deref_operand_end(trimmed, j2)
                     if operand_end > j2 {
                         val operand_text: ref u8 = translate_addr_deref_expr(ctx, trim_raw(trust string.substr(trimmed, j2, operand_end - j2)))
-                        string.StringBuilder.append_cstr(sb, trust @fmt("@deref({s})", {operand_text}))
+                        trust string.StringBuilder.append_cstr(sb, @fmt("@deref({s})", {operand_text}))
                         i = operand_end
                         continue
                     }
                 }
             }
         }
-        string.StringBuilder.append_char(sb, c)
+        trust string.StringBuilder.append_char(sb, c)
         i++
     }
-    val built: ref void = string.StringBuilder.build(sb)
-    string.StringBuilder.free(sb)
+    val built: ref void = trust string.StringBuilder.build(sb)
+    trust string.StringBuilder.free(sb)
     return trust string.cstr(built)
 }
 
@@ -2362,7 +2362,7 @@ fn translate_printf_format(text: ref u8) ref u8 = {
     val last: u8 = trust @load8(@ptradd(trimmed as ref void, len - 1)) as u8
     if first != 34 || last != 34 { return trimmed }
     val sb: ref void = string.StringBuilder.new()
-    string.StringBuilder.append_char(sb, 34)
+    trust string.StringBuilder.append_char(sb, 34)
     val i: mut i64 = 1
     for {
         if i >= len - 1 { break }
@@ -2370,7 +2370,7 @@ fn translate_printf_format(text: ref u8) ref u8 = {
         if c == 37 && i + 1 < len - 1 {
             val next: u8 = trust @load8(@ptradd(trimmed as ref void, i + 1)) as u8
             if next == 37 {
-                string.StringBuilder.append_char(sb, 37)
+                trust string.StringBuilder.append_char(sb, 37)
                 i += 2
                 continue
             }
@@ -2403,28 +2403,28 @@ fn translate_printf_format(text: ref u8) ref u8 = {
                 if spec_i >= len - 1 { break }
                 val lm: u8 = trust @load8(@ptradd(trimmed as ref void, spec_i)) as u8
                 if !is_printf_length_char(lm) { break }
-                string.StringBuilder.append_char(length_sb, lm)
+                trust string.StringBuilder.append_char(length_sb, lm)
                 spec_i++
             }
             if spec_i < len - 1 {
                 val specifier: u8 = trust @load8(@ptradd(trimmed as ref void, spec_i)) as u8
-                val length_built: ref void = string.StringBuilder.build(length_sb)
-                string.StringBuilder.free(length_sb)
+                val length_built: ref void = trust string.StringBuilder.build(length_sb)
+                trust string.StringBuilder.free(length_sb)
                 val mapped: ref u8 = map_printf_specifier(trust string.cstr(length_built), specifier)
-                string.StringBuilder.append_char(sb, 123)
-                string.StringBuilder.append_cstr(sb, mapped)
-                string.StringBuilder.append_char(sb, 125)
+                trust string.StringBuilder.append_char(sb, 123)
+                trust string.StringBuilder.append_cstr(sb, mapped)
+                trust string.StringBuilder.append_char(sb, 125)
                 i = spec_i + 1
                 continue
             }
-            string.StringBuilder.free(length_sb)
+            trust string.StringBuilder.free(length_sb)
         }
-        string.StringBuilder.append_char(sb, c)
+        trust string.StringBuilder.append_char(sb, c)
         i++
     }
-    string.StringBuilder.append_char(sb, 34)
-    val built: ref void = string.StringBuilder.build(sb)
-    string.StringBuilder.free(sb)
+    trust string.StringBuilder.append_char(sb, 34)
+    val built: ref void = trust string.StringBuilder.build(sb)
+    trust string.StringBuilder.free(sb)
     return trust string.cstr(built)
 }
 
@@ -2436,7 +2436,7 @@ fn translate_printf_call(ctx: ref TranslationCtx, args: list[ref u8]) ref u8 = {
         none => {}
     }
     val sb: ref void = string.StringBuilder.new()
-    string.StringBuilder.append_char(sb, 123)
+    trust string.StringBuilder.append_char(sb, 123)
     val first: mut bool = true
     val idx: mut i64 = 1
     val len: i64 = @len(args) as i64
@@ -2445,23 +2445,23 @@ fn translate_printf_call(ctx: ref TranslationCtx, args: list[ref u8]) ref u8 = {
         val arg_opt = @get(args, idx as usize)
         match arg_opt {
             some arg_val => {
-                if !first { string.StringBuilder.append_cstr(sb, ", ") }
-                string.StringBuilder.append_cstr(sb, translate_expr_text(ctx, arg_val as ref u8))
+                if !first { trust string.StringBuilder.append_cstr(sb, ", ") }
+                trust string.StringBuilder.append_cstr(sb, translate_expr_text(ctx, arg_val as ref u8))
                 first = false
             }
             none => {}
         }
         idx++
     }
-    string.StringBuilder.append_char(sb, 125)
-    val args_built: ref void = string.StringBuilder.build(sb)
-    string.StringBuilder.free(sb)
+    trust string.StringBuilder.append_char(sb, 125)
+    val args_built: ref void = trust string.StringBuilder.build(sb)
+    trust string.StringBuilder.free(sb)
     return trust @fmt("@print({s}, {s})", {fmt_expr, string.cstr(args_built)})
 }
 
 fn translate_variadic_args(ctx: ref TranslationCtx, args: list[ref u8], start_index: i64) ref u8 = {
     val sb: ref void = string.StringBuilder.new()
-    string.StringBuilder.append_char(sb, 123)
+    trust string.StringBuilder.append_char(sb, 123)
     val first: mut bool = true
     val idx: mut i64 = start_index
     val len: i64 = @len(args) as i64
@@ -2470,17 +2470,17 @@ fn translate_variadic_args(ctx: ref TranslationCtx, args: list[ref u8], start_in
         val arg_opt = @get(args, idx as usize)
         match arg_opt {
             some arg_val => {
-                if !first { string.StringBuilder.append_cstr(sb, ", ") }
-                string.StringBuilder.append_cstr(sb, translate_expr_text(ctx, arg_val as ref u8))
+                if !first { trust string.StringBuilder.append_cstr(sb, ", ") }
+                trust string.StringBuilder.append_cstr(sb, translate_expr_text(ctx, arg_val as ref u8))
                 first = false
             }
             none => {}
         }
         idx++
     }
-    string.StringBuilder.append_char(sb, 125)
-    val built: ref void = string.StringBuilder.build(sb)
-    string.StringBuilder.free(sb)
+    trust string.StringBuilder.append_char(sb, 125)
+    val built: ref void = trust string.StringBuilder.build(sb)
+    trust string.StringBuilder.free(sb)
     return trust string.cstr(built)
 }
 
@@ -2539,16 +2539,16 @@ fn transform_call_expr(ctx: ref TranslationCtx, text: ref u8) ref u8 = {
     val first: mut bool = true
     for arg in args {
         val arg_trimmed: ref u8 = trim_raw(arg)
-        if !first { string.StringBuilder.append_cstr(sb, ", ") }
+        if !first { trust string.StringBuilder.append_cstr(sb, ", ") }
         if is_ident_text(arg_trimmed) && list_contains(ctx.defined_names, arg_trimmed) {
-            string.StringBuilder.append_cstr(sb, trust @fmt("@addr({s})", {arg_trimmed}))
+            trust string.StringBuilder.append_cstr(sb, @fmt("@addr({s})", {arg_trimmed}))
         } else {
-            string.StringBuilder.append_cstr(sb, translate_expr_text(ctx, arg_trimmed))
+            trust string.StringBuilder.append_cstr(sb, translate_expr_text(ctx, arg_trimmed))
         }
         first = false
     }
-    val args_built: ref void = string.StringBuilder.build(sb)
-    string.StringBuilder.free(sb)
+    val args_built: ref void = trust string.StringBuilder.build(sb)
+    trust string.StringBuilder.free(sb)
     val args_text: ref u8 = trust string.cstr(args_built)
     if string.rchar_cmp(call_name, "sizeof") == 0 {
         return trust @fmt("@sizeof({s})", {args_text})
@@ -2944,12 +2944,12 @@ fn render_switch_case_condition(ctx: ref TranslationCtx, switch_expr: ref u8, la
     val sb: ref void = string.StringBuilder.new()
     val first: mut bool = true
     for label in labels {
-        if !first { string.StringBuilder.append_cstr(sb, " || ") }
-        string.StringBuilder.append_cstr(sb, trust @fmt("{s} == {s}", {switch_expr, translate_expr_text(ctx, label)}))
+        if !first { trust string.StringBuilder.append_cstr(sb, " || ") }
+        trust string.StringBuilder.append_cstr(sb, @fmt("{s} == {s}", {switch_expr, translate_expr_text(ctx, label)}))
         first = false
     }
-    val built: ref void = string.StringBuilder.build(sb)
-    string.StringBuilder.free(sb)
+    val built: ref void = trust string.StringBuilder.build(sb)
+    trust string.StringBuilder.free(sb)
     return trust string.cstr(built)
 }
 
@@ -3274,7 +3274,7 @@ fn translate_designated_initializer(text: ref u8) ref u8 = {
                     i++
                 }
                 val field: ref u8 = trust string.substr(trimmed, start, i - start)
-                string.StringBuilder.append_cstr(sb, field)
+                trust string.StringBuilder.append_cstr(sb, field)
                 for {
                     if i >= len {
                         break
@@ -3286,7 +3286,7 @@ fn translate_designated_initializer(text: ref u8) ref u8 = {
                 if i < len {
                     val eq: u8 = trust @load8(@ptradd(trimmed as ref void, i)) as u8
                     if eq == 61 {
-                        string.StringBuilder.append_cstr(sb, ": ")
+                        trust string.StringBuilder.append_cstr(sb, ": ")
                         i++
                         continue
                     }
@@ -3294,11 +3294,11 @@ fn translate_designated_initializer(text: ref u8) ref u8 = {
                 continue
             }
         }
-        string.StringBuilder.append_char(sb, c)
+        trust string.StringBuilder.append_char(sb, c)
         i++
     }
-    val built: ref void = string.StringBuilder.build(sb)
-    string.StringBuilder.free(sb)
+    val built: ref void = trust string.StringBuilder.build(sb)
+    trust string.StringBuilder.free(sb)
     return trust string.cstr(built)
 }
 
@@ -3339,7 +3339,7 @@ fn translate_sizeof_expr(ctx: ref TranslationCtx, text: ref u8) ref u8 = {
                         if is_ident_text(inner) {
                             match lookup_local_array_type(ctx, inner) {
                                 some array_size_expr => {
-                                    string.StringBuilder.append_cstr(sb, array_size_expr as ref u8)
+                                    trust string.StringBuilder.append_cstr(sb, array_size_expr as ref u8)
                                     i = close_i + 1
                                     continue
                                 }
@@ -3350,13 +3350,13 @@ fn translate_sizeof_expr(ctx: ref TranslationCtx, text: ref u8) ref u8 = {
                         if string.rchar_cmp(index_target, "") != 0 {
                             val elem_type: ref u8 = lookup_index_element_type(ctx, index_target)
                             if string.rchar_cmp(elem_type, "") != 0 {
-                                string.StringBuilder.append_cstr(sb, trust @fmt("@sizeof({s})", {elem_type}))
+                                trust string.StringBuilder.append_cstr(sb, @fmt("@sizeof({s})", {elem_type}))
                                 i = close_i + 1
                                 continue
                             }
                         }
                         val mapped: ref u8 = translate_c_type_ctx(ctx, inner, "")
-                        string.StringBuilder.append_cstr(sb, trust @fmt("@sizeof({s})", {mapped}))
+                        trust string.StringBuilder.append_cstr(sb, @fmt("@sizeof({s})", {mapped}))
                         i = close_i + 1
                         continue
                     }
@@ -3364,11 +3364,11 @@ fn translate_sizeof_expr(ctx: ref TranslationCtx, text: ref u8) ref u8 = {
             }
         }
         val c: u8 = trust @load8(@ptradd(trimmed as ref void, i)) as u8
-        string.StringBuilder.append_char(sb, c)
+        trust string.StringBuilder.append_char(sb, c)
         i++
     }
-    val built: ref void = string.StringBuilder.build(sb)
-    string.StringBuilder.free(sb)
+    val built: ref void = trust string.StringBuilder.build(sb)
+    trust string.StringBuilder.free(sb)
     return trust string.cstr(built)
 }
 
@@ -3414,7 +3414,7 @@ fn translate_c_casts_in_expr(ctx: ref TranslationCtx, text: ref u8) ref u8 = {
         if i >= len { break }
         val c: u8 = trust @load8(@ptradd(trimmed as ref void, i)) as u8
         if in_string {
-            string.StringBuilder.append_char(sb, c)
+            trust string.StringBuilder.append_char(sb, c)
             if escaped { escaped = false }
             elif c == 92 { escaped = true }
             elif c == 34 { in_string = false }
@@ -3422,7 +3422,7 @@ fn translate_c_casts_in_expr(ctx: ref TranslationCtx, text: ref u8) ref u8 = {
             continue
         }
         if in_char {
-            string.StringBuilder.append_char(sb, c)
+            trust string.StringBuilder.append_char(sb, c)
             if escaped { escaped = false }
             elif c == 92 { escaped = true }
             elif c == 39 { in_char = false }
@@ -3431,13 +3431,13 @@ fn translate_c_casts_in_expr(ctx: ref TranslationCtx, text: ref u8) ref u8 = {
         }
         if c == 34 {
             in_string = true
-            string.StringBuilder.append_char(sb, c)
+            trust string.StringBuilder.append_char(sb, c)
             i++
             continue
         }
         if c == 39 {
             in_char = true
-            string.StringBuilder.append_char(sb, c)
+            trust string.StringBuilder.append_char(sb, c)
             i++
             continue
         }
@@ -3471,8 +3471,8 @@ fn translate_c_casts_in_expr(ctx: ref TranslationCtx, text: ref u8) ref u8 = {
                                 val operand: ref u8 = trim_raw(trust string.substr(trimmed, op_start, op_end - op_start))
                                 val mapped: ref u8 = translate_c_type_ctx(ctx, inner, "")
                                 val translated_op: ref u8 = translate_expr_text(ctx, operand)
-                                string.StringBuilder.append_cstr(sb, translated_op)
-                                string.StringBuilder.append_cstr(sb, trust @fmt(" as {s}", {mapped}))
+                                trust string.StringBuilder.append_cstr(sb, translated_op)
+                                trust string.StringBuilder.append_cstr(sb, @fmt(" as {s}", {mapped}))
                                 i = op_end
                                 continue
                             }
@@ -3481,11 +3481,11 @@ fn translate_c_casts_in_expr(ctx: ref TranslationCtx, text: ref u8) ref u8 = {
                 }
             }
         }
-        string.StringBuilder.append_char(sb, c)
+        trust string.StringBuilder.append_char(sb, c)
         i++
     }
-    val built: ref void = string.StringBuilder.build(sb)
-    string.StringBuilder.free(sb)
+    val built: ref void = trust string.StringBuilder.build(sb)
+    trust string.StringBuilder.free(sb)
     return trim_raw(trust string.cstr(built))
 }
 
@@ -4009,8 +4009,8 @@ fn normalize_type_phrase(text: ref u8) ref u8 = {
         if i >= len { break }
         val c0: u8 = trust @load8(@ptradd(flat as ref void, i)) as u8
         if c0 == 42 {
-            if !first { string.StringBuilder.append_char(sb, 32) }
-            string.StringBuilder.append_char(sb, 42)
+            if !first { trust string.StringBuilder.append_char(sb, 32) }
+            trust string.StringBuilder.append_char(sb, 42)
             first = false
             i++
             continue
@@ -4026,13 +4026,13 @@ fn normalize_type_phrase(text: ref u8) ref u8 = {
         }
         val word: ref u8 = trust string.substr(flat, start, i - start)
         if !keyword_ignored(word) {
-            if !first { string.StringBuilder.append_char(sb, 32) }
-            string.StringBuilder.append_cstr(sb, word)
+            if !first { trust string.StringBuilder.append_char(sb, 32) }
+            trust string.StringBuilder.append_cstr(sb, word)
             first = false
         }
     }
-    val built: ref void = string.StringBuilder.build(sb)
-    string.StringBuilder.free(sb)
+    val built: ref void = trust string.StringBuilder.build(sb)
+    trust string.StringBuilder.free(sb)
     return trim_raw(trust string.cstr(built))
 }
 
@@ -4110,12 +4110,12 @@ fn translate_c_type(type_src: ref u8, array_prefix: ref u8) ref u8 = {
         if c == 42 {
             star_count++
         } else {
-            string.StringBuilder.append_char(no_stars_sb, c)
+            trust string.StringBuilder.append_char(no_stars_sb, c)
         }
         i++
     }
-    val no_stars_built: ref void = string.StringBuilder.build(no_stars_sb)
-    string.StringBuilder.free(no_stars_sb)
+    val no_stars_built: ref void = trust string.StringBuilder.build(no_stars_sb)
+    trust string.StringBuilder.free(no_stars_sb)
     val base: ref u8 = trim_raw(trust string.cstr(no_stars_built))
     val mapped0: ref u8 = map_base_type(base)
     val mapped: mut ref u8 = mapped0
@@ -4434,8 +4434,8 @@ fn is_header_guard(lines: list[ref u8], line_index: i64, macro_name: ref u8) boo
 }
 
 fn append_builder(dst: ref void, src: ref void) void = {
-    val built: ref void = string.StringBuilder.build(src)
-    string.StringBuilder.append(dst, built)
+    val built: ref void = trust string.StringBuilder.build(src)
+    trust string.StringBuilder.append(dst, built)
 }
 
 fn translate_body_lines(lines: list[ref u8], current_dir: ref u8, start: i64, indent: i64, out: ref void, ctx: ref TranslationCtx) ref BlockResult = {
@@ -4865,8 +4865,8 @@ fn translate_params(ctx: ref TranslationCtx, params_text: ref u8) ref u8 = {
         val p: ref u8 = trim_raw(param)
         if string.rchar_cmp(p, "") == 0 { continue }
         if string.rchar_cmp(p, "...") == 0 {
-            if !first { string.StringBuilder.append_cstr(sb, ", ") }
-            string.StringBuilder.append_cstr(sb, "...")
+            if !first { trust string.StringBuilder.append_cstr(sb, ", ") }
+            trust string.StringBuilder.append_cstr(sb, "...")
             first = false
             continue
         }
@@ -4874,16 +4874,16 @@ fn translate_params(ctx: ref TranslationCtx, params_text: ref u8) ref u8 = {
         if str_contains(p, "(*") {
             val pname: ref u8 = parse_function_pointer_param_name(p, fallback)
             push_unique(ctx.fnptr_names, pname)
-            if !first { string.StringBuilder.append_cstr(sb, ", ") }
-            string.StringBuilder.append_cstr(sb, trust @fmt("{s}: ref void", {pname}))
+            if !first { trust string.StringBuilder.append_cstr(sb, ", ") }
+            trust string.StringBuilder.append_cstr(sb, @fmt("{s}: ref void", {pname}))
             first = false
             arg_index++
             continue
         }
         val decl: ref DeclInfo = parse_named_decl(ctx, p, fallback)
         if !decl.its_ok {
-            if !first { string.StringBuilder.append_cstr(sb, ", ") }
-            string.StringBuilder.append_cstr(sb, trust @fmt("{s}: void", {fallback}))
+            if !first { trust string.StringBuilder.append_cstr(sb, ", ") }
+            trust string.StringBuilder.append_cstr(sb, @fmt("{s}: void", {fallback}))
             first = false
             arg_index++
             continue
@@ -4894,13 +4894,13 @@ fn translate_params(ctx: ref TranslationCtx, params_text: ref u8) ref u8 = {
         }
         remember_local_type(ctx, decl.name, param_type)
         val rendered_type: ref u8 = render_binding_type(ctx, decl.name, param_type)
-        if !first { string.StringBuilder.append_cstr(sb, ", ") }
-        string.StringBuilder.append_cstr(sb, trust @fmt("{s}: {s}", {decl.name, rendered_type}))
+        if !first { trust string.StringBuilder.append_cstr(sb, ", ") }
+        trust string.StringBuilder.append_cstr(sb, @fmt("{s}: {s}", {decl.name, rendered_type}))
         first = false
         arg_index++
     }
-    val built: ref void = string.StringBuilder.build(sb)
-    string.StringBuilder.free(sb)
+    val built: ref void = trust string.StringBuilder.build(sb)
+    trust string.StringBuilder.free(sb)
     return trust string.cstr(built)
 }
 
@@ -5054,11 +5054,11 @@ fn strip_gnu_attributes(text: ref u8) ref u8 = {
             }
         }
         val c: u8 = trust @load8(@ptradd(text as ref void, i)) as u8
-        string.StringBuilder.append_char(sb, c)
+        trust string.StringBuilder.append_char(sb, c)
         i++
     }
-    val built: ref void = string.StringBuilder.build(sb)
-    string.StringBuilder.free(sb)
+    val built: ref void = trust string.StringBuilder.build(sb)
+    trust string.StringBuilder.free(sb)
     return trim_raw(trust string.cstr(built))
 }
 
@@ -5478,7 +5478,7 @@ pub fn translate_c(input_path: ref u8, output_path: ref u8) i32 = {
     append_blank_line(out)
     append_synthesized_externs(ctx, out)
     append_builder(out, body)
-    val built: ref void = string.StringBuilder.build(out)
+    val built: ref void = trust string.StringBuilder.build(out)
     val out_dir: ref u8 = trust path.dir(output_path)
     if string.rchar_cmp(out_dir, "") != 0 && string.rchar_cmp(out_dir, ".") != 0 {
         trust os.exec(@fmt("mkdir -p {s}", {out_dir}))

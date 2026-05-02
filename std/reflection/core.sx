@@ -162,7 +162,7 @@ pub fn get_exe_path[T: allocators.Allocator](ac: T) ref u8! = {
 }
 
 test {
-    val arena = allocators.Arena.new(10240)?
+    val arena = trust allocators.Arena.new(10240)?
 
     stdio.puts("calling get_current_platform")
     val platform = trust get_current_platform[allocators.Arena](arena)
@@ -171,5 +171,5 @@ test {
     val exe_path = trust get_exe_path[allocators.Arena](arena)
     trust stdio.print("Exe path: {s}\n", {exe_path})
 
-    allocators.Arena.free(arena)
+    trust allocators.Arena.free(arena)
 }

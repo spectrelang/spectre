@@ -746,14 +746,14 @@ pub fn cmd_init(name_arg: ref u8) i32 = {
     }
 
     val sb: ref void = str.StringBuilder.new()
-    str.StringBuilder.append_cstr(sb, "entry \"./src/main.sx\"\nversion \"v0.0.1\"\n\nbuild release {\n    flags \"--release\"\n    output \"./")
-    str.StringBuilder.append_cstr(sb, proj_name)
-    str.StringBuilder.append_cstr(sb, "\"\n}\n\nbuild dev {\n    output \"./")
-    str.StringBuilder.append_cstr(sb, proj_name)
-    str.StringBuilder.append_cstr(sb, "-dev\"\n}\n")
-    val sxmod_built: ref void = str.StringBuilder.build(sb)
+    trust str.StringBuilder.append_cstr(sb, "entry \"./src/main.sx\"\nversion \"v0.0.1\"\n\nbuild release {\n    flags \"--release\"\n    output \"./")
+    trust str.StringBuilder.append_cstr(sb, proj_name)
+    trust str.StringBuilder.append_cstr(sb, "\"\n}\n\nbuild dev {\n    output \"./")
+    trust str.StringBuilder.append_cstr(sb, proj_name)
+    trust str.StringBuilder.append_cstr(sb, "-dev\"\n}\n")
+    val sxmod_built: ref void = trust str.StringBuilder.build(sb)
     trust fs.write_all("sx.mod", str.cstr(sxmod_built))
-    str.StringBuilder.free(sb)
+    trust str.StringBuilder.free(sb)
     trust fs.write_all("sx.lock", "version \"1\"\n")
     trust fs.write_all(".gitignore", "SPECTRE_LANGUAGE_REFERENCE.md\nlib/\ns-out/\n")
 

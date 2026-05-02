@@ -2098,6 +2098,7 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
                 check_expr(ctx, carg, filename)
             }
         }
+        val resolved_fn: ref parser.Node = resolve_called_fn(ctx, callee)
         if base_callee != 0 as ref parser.Node {
             if base_callee.kind == parser.NK_IDENT {
                 val fname2: ref u8 = base_callee.d0 as ref u8
@@ -2216,25 +2217,6 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
                 }
                 add_error(ctx, gbuf)
             }
-            if parser.fn_is_unsafe(fn_found) {
-                if ctx.in_unsafe_fn == 0 && ctx.in_trust == 0 {
-                    val fn_name: mut ref u8 = 0 as ref u8
-                    if base_callee != 0 as ref parser.Node {
-                        if base_callee.kind == parser.NK_IDENT { fn_name = base_callee.d0 as ref u8 }
-                        elif base_callee.kind == parser.NK_FIELD { fn_name = parser.field_name(base_callee) }
-                    }
-                    val ebuf: ref u8 = @alloc(512) as ref u8
-                    if fn_name != 0 as ref u8 {
-                        @snprintf(ebuf, 512, "{s}:{lld}: cannot call unsafe function '{s}' from safe context, use 'trust' block or mark current function as unsafe with '!'", {filename, line, fn_name})
-                    } else {
-                        @snprintf(ebuf, 512, "{s}:{lld}: cannot call unsafe function from safe context, use 'trust' block or mark current function as unsafe with '!'", {filename, line})
-                    }
-                    add_error(ctx, ebuf)
-                } else {
-                    ctx.trust_used = 1
-                }
-            }
-
             val params: mut ref void = fn_found.d3 as ref void
             if fn_found.kind == parser.NK_EXTERN_FN { params = fn_found.d4 as ref void }
             if params != 0 as ref void && fn_found.kind != parser.NK_EXTERN_FN {
@@ -2547,6 +2529,24 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
                         }
                     }
                 }
+            }
+        }
+        if resolved_fn != 0 as ref parser.Node && parser.fn_is_unsafe(resolved_fn) {
+            if ctx.in_unsafe_fn == 0 && ctx.in_trust == 0 {
+                val fn_name: mut ref u8 = 0 as ref u8
+                if base_callee != 0 as ref parser.Node {
+                    if base_callee.kind == parser.NK_IDENT { fn_name = base_callee.d0 as ref u8 }
+                    elif base_callee.kind == parser.NK_FIELD { fn_name = parser.field_name(base_callee) }
+                }
+                val ebuf: ref u8 = @alloc(512) as ref u8
+                if fn_name != 0 as ref u8 {
+                    @snprintf(ebuf, 512, "{s}:{lld}: cannot call unsafe function '{s}' from safe context, use 'trust' block or mark current function as unsafe with '!'", {filename, line, fn_name})
+                } else {
+                    @snprintf(ebuf, 512, "{s}:{lld}: cannot call unsafe function from safe context, use 'trust' block or mark current function as unsafe with '!'", {filename, line})
+                }
+                add_error(ctx, ebuf)
+            } else {
+                ctx.trust_used = 1
             }
         }
         return

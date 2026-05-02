@@ -448,8 +448,12 @@ test {
     stdio.puts("map tests passed")
 }
 
+val allocators = use("../allocators")
 
 test {
+    val allocator: allocators.Arena = trust allocators.Arena.new(100 as usize)
+    trust @print("{p}\n", {allocator})
+
     val list: ref void = trust PtrList.new(2 as usize)?
     defer {
         trust PtrList.free(list)
