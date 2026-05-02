@@ -1,0 +1,26 @@
+pub spec Animal = {
+    pub fn speak(it: self, times: usize) void
+    fn do_internal_thing(it: self) void
+}
+
+pub type (Animal) Cat = {
+    age: mut i32 
+    name: ref u8
+}
+
+pub fn (Cat) speak(it: self, times: usize) void = { // Must exist to satisfy the spec, must be public
+    val i: mut usize = 0
+    for i < times {
+        trust @print("meow my name is {s}\n", {it.name})
+        i++
+    }
+}
+
+pub fn takes_animal(x: Animal) void = {
+    Animal.speak(x, 10 as usize)
+}
+
+pub fn main() void = {
+    val c: Cat = {age: 10, name: "garfield"}
+    takes_animal(c)
+}
