@@ -3803,7 +3803,7 @@ fn is_function_public(items: list[ref parser.Node], fn_name: ref u8) bool! = {
         if item == 0 as ref parser.Node { continue }
         val k: i64 = item.kind
         if k == parser.NK_FN || k == parser.NK_GENERIC_FN {
-            if item.d0 == 1 {
+            if item.d0 % 2 == 1 {
                 val name: ref u8 = item.d2 as ref u8
                 val full_name: ref u8 = fn_full_name(item.d1 as ref u8, name)
                 if full_name != 0 as ref u8 && str_eq(full_name, fn_name) {
@@ -3811,7 +3811,7 @@ fn is_function_public(items: list[ref parser.Node], fn_name: ref u8) bool! = {
                 }
             }
         } elif k == parser.NK_EXTERN_FN {
-            if item.d0 == 1 {
+            if item.d0 % 2 == 1 {
                 val name: ref u8 = item.d1 as ref u8
                 val full_name: ref u8 = fn_full_name(0 as ref u8, name)
                 if full_name != 0 as ref u8 && str_eq(full_name, fn_name) {
