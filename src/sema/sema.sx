@@ -2776,13 +2776,21 @@ fn check_fn(ctx: mut ref SemaCtx, fn_node: ref parser.Node, filename: ref u8) vo
 }
 
 /// Register a function name.
-fn register_fn_name(ctx: ref SemaCtx, ns: ref u8, nm: ref u8) void! = {
+fn fn_full_name(ns: ref u8, nm: ref u8) ref u8! = {
     if ns != 0 as ref u8 && nm != 0 as ref u8 {
         val buf: ref u8 = @alloc(256) as ref u8
         @snprintf(buf, 256, "{s}.{s}", {ns, nm})
-        @append(ctx.fn_names, buf)
+        return buf
     } elif nm != 0 as ref u8 {
-        @append(ctx.fn_names, nm)
+        return nm
+    }
+    return 0 as ref u8
+}
+
+fn register_fn_name(ctx: ref SemaCtx, ns: ref u8, nm: ref u8) void! = {
+    val full_name: ref u8 = fn_full_name(ns, nm)
+    if full_name != 0 as ref u8 {
+        @append(ctx.fn_names, full_name)
     }
 }
 
@@ -2844,11 +2852,10 @@ fn register_item_name(ctx: ref SemaCtx, item: ref parser.Node) void! = {
     }
     if k == parser.NK_FN || k == parser.NK_EXTERN_FN {
         if k == parser.NK_FN {
+            register_fn_name(ctx, item.d1 as ref u8, item.d2 as ref u8)
             if item.d0 == 1 {
                 val nm: ref u8 = item.d2 as ref u8
                 if nm != 0 as ref u8 { @append(ctx.global_names, nm) }
-            } else {
-                register_fn_name(ctx, item.d1 as ref u8, item.d2 as ref u8)
             }
             val fname: ref u8 = item.d2 as ref u8
             val params_node: ref void = item.d3 as ref void
@@ -3028,17 +3035,19 @@ fn is_function_public(items: list[ref parser.Node], fn_name: ref u8) bool! = {
     for item in items {
         if item == 0 as ref parser.Node { continue }
         val k: i64 = item.kind
-        if k == parser.NK_FN {
+        if k == parser.NK_FN || k == parser.NK_GENERIC_FN {
             if item.d0 == 1 {
                 val name: ref u8 = item.d2 as ref u8
-                if name != 0 as ref u8 && str_eq(name, fn_name) {
+                val full_name: ref u8 = fn_full_name(item.d1 as ref u8, name)
+                if full_name != 0 as ref u8 && str_eq(full_name, fn_name) {
                     return true
                 }
             }
         } elif k == parser.NK_EXTERN_FN {
             if item.d0 == 1 {
                 val name: ref u8 = item.d1 as ref u8
-                if name != 0 as ref u8 && str_eq(name, fn_name) {
+                val full_name: ref u8 = fn_full_name(0 as ref u8, name)
+                if full_name != 0 as ref u8 && str_eq(full_name, fn_name) {
                     return true
                 }
             }
