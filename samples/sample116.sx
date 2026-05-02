@@ -110,7 +110,7 @@ pub fn get_current_platform[T: allocators.Allocator](ac: T) Platform! = {
 }
 
 /// Returns the current platform name as a lowercase string (e.g. "linux", "darwin").
-pub fn current_platform_name[T](ac: allocators.Allocator) ref u8! = {
+pub fn current_platform_name[T: allocators.Allocator](ac: T) ref u8! = {
     val p = get_current_platform[T](ac)
     match p {
         Platform.Linux        => { return "linux" }
@@ -138,27 +138,24 @@ when windows {
 
 /// Returns the absolute path to the current executable.
 pub fn get_exe_path[T: allocators.Allocator](ac: T) ref u8! = {
-    val buf: ref u8 = T.alloc(ac, 1024)
-    if buf is some _ {
-        @puts("its some.")
-    } else {
-        @puts("its none")
-    }
-    when posix {
-        val n = readlink("/proc/self/exe", buf, 1024)
-        if n > 0 {
-            @store8(@ptradd(buf, n), 0)
-            return buf
+    val buf_opt: ref u8 = T.alloc(ac, 1024)
+    if buf_opt is some buf {
+        when posix {
+            val n = readlink("/proc/self/exe", buf, 1024)
+            if n > 0 {
+                @store8(@ptradd(buf, n), 0)
+                return buf
+            }
+            val n2 = readlink("/proc/curproc/file", buf, 1024)
+            if n2 > 0 {
+                @store8(@ptradd(buf, n2), 0)
+                return buf
+            }
         }
-        val n2 = readlink("/proc/curproc/file", buf, 1024)
-        if n2 > 0 {
-            @store8(@ptradd(buf, n2), 0)
-            return buf
-        }
-    }
-    when windows {
-        if GetModuleFileNameA(0 as ref void, buf, 1024 as u32) != 0 {
-            return buf
+        when windows {
+            if GetModuleFileNameA(0 as ref void, buf, 1024 as u32) != 0 {
+                return buf
+            }
         }
     }
     return "."
