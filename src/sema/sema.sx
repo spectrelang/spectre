@@ -13,6 +13,7 @@ type ScopeEntry = {
     used:         mut i64
     mutated:      mut i64
     implicit_mut: mut i64
+    wrap_kind:    mut i64
 }
 
 type SemaCtx = {
@@ -213,6 +214,7 @@ fn scope_define(ctx: ref SemaCtx, name: ref u8, mutable: i64, type_name: ref u8,
         entry.line      = decl_line
         entry.used      = 0
         entry.mutated   = 0
+        entry.wrap_kind = 0
         @append(frame as ref void, entry)
 
         guarded post {
@@ -548,6 +550,74 @@ fn scope_lookup_is_ref(ctx: ref SemaCtx, name: ref u8) i64! = {
 }
 
 
+/// Returns the wrap kind (0=none, 1=result, 2=option) recorded for a variable in scope.
+fn scope_lookup_wrap_kind(ctx: ref SemaCtx, name: ref u8) i64! = {
+    if ctx == 0 as ref SemaCtx { return 0 }
+    if name == 0 as ref u8 { return 0 }
+    val len: i64 = @len(ctx.scopes) as i64
+    val i: mut i64 = len - 1
+    for {
+        if i < 0 { break }
+        val frame_opt = @get(ctx.scopes, i as usize)
+        match frame_opt {
+            some frame => {
+                val flen: i64 = @len(frame as ref void) as i64
+                val j: mut i64 = flen - 1
+                for {
+                    if j < 0 { break }
+                    val e_opt = @get(frame as ref void, j as usize)
+                    match e_opt {
+                        some e => {
+                            val entry: ref ScopeEntry = e as ref ScopeEntry
+                            if string.rchar_cmp(entry.name, name) == 0 {
+                                return entry.wrap_kind
+                            }
+                        }
+                        none => {}
+                    }
+                    j--
+                }
+            }
+            none => {}
+        }
+        i--
+    }
+    return 0
+}
+
+/// Sets the wrap kind (0=none, 1=result, 2=option) on a variable in the current scope.
+fn scope_set_wrap_kind(ctx: ref SemaCtx, name: ref u8, kind: i64) void! = {
+    if ctx == 0 as ref SemaCtx { return }
+    if name == 0 as ref u8 { return }
+    val len: usize = @len(ctx.scopes)
+    if len == 0 { return }
+    val frame_opt = @get(ctx.scopes, len - 1)
+    match frame_opt {
+        some frame => {
+            val flen: i64 = @len(frame as ref void) as i64
+            val j: mut i64 = 0
+            for {
+                if j >= flen { break }
+                val e_opt = @get(frame as ref void, j as usize)
+                match e_opt {
+                    some e => {
+                        val entry: mut ref ScopeEntry = e as ref ScopeEntry
+                        if entry.name != 0 as ref u8 {
+                            if string.rchar_cmp(entry.name, name) == 0 {
+                                entry.wrap_kind = kind
+                                return
+                            }
+                        }
+                    }
+                    none => {}
+                }
+                j++
+            }
+        }
+        none => {}
+    }
+}
+
 fn mark_name_used(ctx: ref SemaCtx, name: ref u8) void! = {
     if name == 0 as ref u8 { return }
     val len: i64 = @len(ctx.scopes) as i64
@@ -726,6 +796,181 @@ fn unwrap_mut_type(ty_node: ref parser.Node) ref parser.Node! = {
         return cur
     }
     return 0 as ref parser.Node
+}
+
+/// Returns 0 (no wrap), 1 (result), or 2 (option) for a type node,
+/// peeling through TY_MUT.
+fn ty_wrap_kind(ty: ref parser.Node) i64! = {
+    val cur: mut ref parser.Node = ty
+    for {
+        if cur == 0 as ref parser.Node { return 0 }
+        val k: i64 = cur.kind
+        if k == parser.TY_RESULT { return 1 }
+        if k == parser.TY_OPTION { return 2 }
+        if k == parser.TY_MUT { cur = cur.d0 as ref parser.Node continue }
+        return 0
+    }
+    return 0
+}
+
+/// Find a function definition in ctx.fn_defs matching target_name (and optional namespace).
+fn find_fn_def_local(ctx: ref SemaCtx, target_name: ref u8, target_ns: ref u8) ref parser.Node! = {
+    if target_name == 0 as ref u8 { return 0 as ref parser.Node }
+    val lookup_ns: ref u8 = spec_impl_name(ctx, target_ns)
+    val flen: i64 = @len(ctx.fn_defs) as i64
+    val fi: mut i64 = 0
+    for {
+        if fi >= flen { break }
+        val f_opt = @get(ctx.fn_defs, fi as usize)
+        match f_opt {
+            some f => {
+                val fnode: ref parser.Node = f as ref parser.Node
+                val fname_node1: ref u8 = fnode.d1 as ref u8
+                val fname_node2: ref u8 = fnode.d2 as ref u8
+                val is_match: mut bool = false
+                if target_ns != 0 as ref u8 {
+                    if fname_node1 != 0 as ref u8 && fname_node2 != 0 as ref u8 {
+                        if string.rchar_cmp(fname_node1, lookup_ns) == 0 &&
+                           string.rchar_cmp(fname_node2, target_name) == 0 {
+                            is_match = true
+                        }
+                    }
+                } else {
+                    if fname_node1 != 0 as ref u8 {
+                        if string.rchar_cmp(fname_node1, target_name) == 0 { is_match = true }
+                    }
+                    if fname_node2 != 0 as ref u8 {
+                        if string.rchar_cmp(fname_node2, target_name) == 0 { is_match = true }
+                    }
+                }
+                if is_match { return fnode }
+            }
+            none => {}
+        }
+        fi++
+    }
+    return 0 as ref parser.Node
+}
+
+/// Find a function in an imported module by name and optional namespace.
+fn find_fn_in_module_with_ns(mod: ref modinfo.ResolvedModule, ns: ref u8, name: ref u8) ref parser.Node! = {
+    if mod == 0 as ref modinfo.ResolvedModule { return 0 as ref parser.Node }
+    if name == 0 as ref u8 { return 0 as ref parser.Node }
+    val items: list[ref parser.Node] = modinfo.module_items(mod)
+    for item in items {
+        if item == 0 as ref parser.Node { continue }
+        val k: i64 = item.kind
+        if k == parser.NK_FN || k == parser.NK_GENERIC_FN {
+            val item_ns: ref u8 = item.d1 as ref u8
+            val item_nm: ref u8 = item.d2 as ref u8
+            if item_nm == 0 as ref u8 { continue }
+            if !str_eq(item_nm, name) { continue }
+            if ns == 0 as ref u8 {
+                return item
+            }
+            if item_ns != 0 as ref u8 && str_eq(item_ns, ns) { return item }
+        } elif k == parser.NK_EXTERN_FN {
+            if ns != 0 as ref u8 { continue }
+            val ename: ref u8 = item.d1 as ref u8
+            if ename != 0 as ref u8 && str_eq(ename, name) { return item }
+        }
+    }
+    return 0 as ref parser.Node
+}
+
+/// Find an imported module by alias name on root_mod.
+fn find_imported_mod(ctx: ref SemaCtx, alias: ref u8) ref modinfo.ResolvedModule! = {
+    if ctx == 0 as ref SemaCtx { return 0 as ref modinfo.ResolvedModule }
+    if alias == 0 as ref u8 { return 0 as ref modinfo.ResolvedModule }
+    val rmod: ref modinfo.ResolvedModule = ctx.root_mod
+    if rmod == 0 as ref modinfo.ResolvedModule { return 0 as ref modinfo.ResolvedModule }
+    val n: i64 = modinfo.import_count(rmod)
+    val i: mut i64 = 0
+    for {
+        if i >= n { break }
+        val mname: ref u8 = modinfo.import_name_at(rmod, i as usize)
+        if mname != 0 as ref u8 && str_eq(mname, alias) {
+            return modinfo.import_module_at(rmod, i as usize)
+        }
+        i++
+    }
+    return 0 as ref modinfo.ResolvedModule
+}
+
+/// Resolve a NK_CALL's callee node to the actual function definition node, if findable.
+/// Handles: bare name, Type.fn (local), module.fn, and module.Type.fn forms.
+fn resolve_called_fn(ctx: ref SemaCtx, callee: ref parser.Node) ref parser.Node! = {
+    if callee == 0 as ref parser.Node { return 0 as ref parser.Node }
+    val base: ref parser.Node = unwrap_generic_callee(callee)
+    if base == 0 as ref parser.Node { return 0 as ref parser.Node }
+
+    if base.kind == parser.NK_IDENT {
+        val nm: ref u8 = base.d0 as ref u8
+        return find_fn_def_local(ctx, nm, 0 as ref u8)
+    }
+
+    if base.kind == parser.NK_FIELD {
+        val fname: ref u8 = parser.field_name(base)
+        val fbase: ref parser.Node = parser.field_base(base)
+        if fbase == 0 as ref parser.Node { return 0 as ref parser.Node }
+
+        if fbase.kind == parser.NK_IDENT {
+            val fb_name: ref u8 = fbase.d0 as ref u8
+            val local: ref parser.Node = find_fn_def_local(ctx, fname, fb_name)
+            if local != 0 as ref parser.Node { return local }
+            val mm: ref modinfo.ResolvedModule = find_imported_mod(ctx, fb_name)
+            if mm != 0 as ref modinfo.ResolvedModule {
+                return find_fn_in_module_with_ns(mm, 0 as ref u8, fname)
+            }
+            return 0 as ref parser.Node
+        }
+
+        if fbase.kind == parser.NK_FIELD {
+            val inner_base: ref parser.Node = parser.field_base(fbase)
+            val inner_name: ref u8 = parser.field_name(fbase)
+            if inner_base != 0 as ref parser.Node && inner_base.kind == parser.NK_IDENT {
+                val mod_name: ref u8 = inner_base.d0 as ref u8
+                val mm2: ref modinfo.ResolvedModule = find_imported_mod(ctx, mod_name)
+                if mm2 != 0 as ref modinfo.ResolvedModule {
+                    return find_fn_in_module_with_ns(mm2, inner_name, fname)
+                }
+            }
+        }
+    }
+    return 0 as ref parser.Node
+}
+
+/// Returns 0/1/2 for the wrap kind (none/result/option) of a function's return type.
+fn fn_return_wrap_kind(fn_node: ref parser.Node) i64! = {
+    if fn_node == 0 as ref parser.Node { return 0 }
+    val k: i64 = fn_node.kind
+    if k == parser.NK_FN || k == parser.NK_GENERIC_FN {
+        return ty_wrap_kind(fn_node.d4 as ref parser.Node)
+    }
+    if k == parser.NK_EXTERN_FN {
+        return ty_wrap_kind(fn_node.d5 as ref parser.Node)
+    }
+    return 0
+}
+
+/// Returns the wrap kind (0=none, 1=result, 2=option) of an expression's value.
+fn expr_wrap_kind(ctx: ref SemaCtx, expr: ref parser.Node) i64! = {
+    if expr == 0 as ref parser.Node { return 0 }
+    val k: i64 = expr.kind
+    if k == parser.NK_TRY { return 0 }
+    if k == parser.NK_TRUST { return expr_wrap_kind(ctx, expr.d0 as ref parser.Node) }
+    if k == parser.NK_SOME || k == parser.NK_NONE { return 2 }
+    if k == parser.NK_OK_VAL || k == parser.NK_ERR_VAL { return 1 }
+    if k == parser.NK_CAST { return ty_wrap_kind(expr.d1 as ref parser.Node) }
+    if k == parser.NK_CALL {
+        val callee: ref parser.Node = parser.call_callee(expr)
+        val fn_node: ref parser.Node = resolve_called_fn(ctx, callee)
+        return fn_return_wrap_kind(fn_node)
+    }
+    if k == parser.NK_IDENT {
+        return scope_lookup_wrap_kind(ctx, expr.d0 as ref u8)
+    }
+    return 0
 }
 
 fn scope_defined_local(ctx: ref SemaCtx, name: ref u8) bool! = {
@@ -1938,6 +2183,28 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
                                         }
                                     }
 
+                                    val arg_wrap: i64 = expr_wrap_kind(ctx, arg_node)
+                                    val param_wrap: i64 = ty_wrap_kind(pty)
+                                    if arg_wrap != 0 && arg_wrap != param_wrap {
+                                        val fn_name_w: mut ref u8 = 0 as ref u8
+                                        if base_callee != 0 as ref parser.Node {
+                                            if base_callee.kind == parser.NK_IDENT { fn_name_w = base_callee.d0 as ref u8 }
+                                            elif base_callee.kind == parser.NK_FIELD { fn_name_w = parser.field_name(base_callee) }
+                                        }
+                                        val arg_wrap_str: mut ref u8 = "option"
+                                        if arg_wrap == 1 { arg_wrap_str = "result" }
+                                        val pname_w: ref u8 = param_node.d0 as ref u8
+                                        val wbuf: ref u8 = @alloc(512) as ref u8
+                                        if fn_name_w != 0 as ref u8 {
+                                            @snprintf(wbuf, 512, "{s}:{lld}: type mismatch in call to '{s}': parameter '{s}' does not accept a {s} value; unwrap it first (with '?' or 'match')",
+                                                {filename, line, fn_name_w, pname_w, arg_wrap_str})
+                                        } else {
+                                            @snprintf(wbuf, 512, "{s}:{lld}: type mismatch: parameter '{s}' does not accept a {s} value; unwrap it first (with '?' or 'match')",
+                                                {filename, line, pname_w, arg_wrap_str})
+                                        }
+                                        add_error(ctx, wbuf)
+                                    }
+
                                     val param_type_name: ref u8 = extract_type_name(pty)
                                     val arg_type_name: ref u8 = infer_expr_scope_type_name(ctx, arg_node)
                                     val arg_is_ref: i64 = infer_expr_scope_is_ref(ctx, arg_node)
@@ -2611,6 +2878,14 @@ fn check_stmt(ctx: ref SemaCtx, stmt: ref parser.Node, filename: ref u8) void! =
                 }
             }
             scope_define(ctx, name, mutable, tname, is_ref_flag, line)
+            val explicit_wrap: i64 = ty_wrap_kind(ty_node)
+            val final_wrap: mut i64 = explicit_wrap
+            if final_wrap == 0 && init_expr != 0 as ref parser.Node {
+                final_wrap = expr_wrap_kind(ctx, init_expr)
+            }
+            if final_wrap != 0 {
+                scope_set_wrap_kind(ctx, name, final_wrap)
+            }
             if tname != 0 as ref u8 && init_expr != 0 as ref parser.Node {
                 val init_k: i64 = init_expr.kind
                 val tdef: ref parser.Node = sema_lookup_typedef(ctx, tname)
