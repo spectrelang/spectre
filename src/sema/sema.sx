@@ -120,7 +120,6 @@ fn is_known_builtin(name: ref u8) bool! = {
         "strcmp",
         "atoi",
         "itoa",
-        "gettimeofday",
         "staticerror",
         "flush"
     ]
