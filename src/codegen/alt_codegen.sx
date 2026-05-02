@@ -691,6 +691,32 @@ fn cc_gsubst_resolve(ctx: ref CCtx, ty: ref parser.Node) ref parser.Node! = {
     return ty
 }
 
+fn cc_gsubst_resolve_name(ctx: ref CCtx, name: ref u8) ref u8! = {
+    val nlen: i64 = @len(ctx.gsubst_names) as i64
+    val ni: mut i64 = 0
+    for {
+        if ni >= nlen { break }
+        val n_opt = @get(ctx.gsubst_names, ni as usize)
+        match n_opt {
+            some n => {
+                if str.rchar_cmp(n as ref u8, name) == 0 {
+                    val t_opt = @get(ctx.gsubst_tnodes as list[ref void], ni as usize)
+                    match t_opt {
+                        some t => {
+                            val resolved: ref parser.Node = t as ref parser.Node
+                            return cc_type_node_to_mangled_ident(resolved)
+                        }
+                        none => { return "" }
+                    }
+                }
+            }
+            none => {}
+        }
+        ni++
+    }
+    return ""
+}
+
 fn cc_clone_node(node: ref parser.Node) ref parser.Node! = {
     if node == 0 as ref parser.Node { return 0 as ref parser.Node }
     val out: mut ref parser.Node = parser.make_node(node.kind, node.line)
@@ -794,6 +820,21 @@ fn cc_type_node_to_mangle(ty: ref parser.Node) ref u8! = {
     }
     if k == parser.TY_VOID { return "void" }
     return "unknown"
+}
+
+fn cc_type_node_to_mangled_ident(ty: ref parser.Node) ref u8! = {
+    if ty == 0 as ref parser.Node { return "" }
+    val k: i64 = ty.kind
+    if k == parser.TY_NAMED { return cc_sanitize_mangle_atom(ty.d0 as ref u8) }
+    if k == parser.TY_MUT || k == parser.TY_REF || k == parser.TY_OPTION ||
+       k == parser.TY_LIST || k == parser.TY_RESULT || k == parser.TY_SLICE {
+        return cc_type_node_to_mangled_ident(ty.d0 as ref parser.Node)
+    }
+    if k == parser.TY_FIXED_ARR {
+        return cc_type_node_to_mangled_ident(ty.d1 as ref parser.Node)
+    }
+    if k == parser.TY_VOID { return "void" }
+    return cc_type_node_to_mangle(ty)
 }
 
 fn cc_gwhen_matches(ctx: ref CCtx, when_node: ref parser.Node) bool! = {
@@ -1483,30 +1524,47 @@ fn resolve_callee_name_tracked(ctx: ref CCtx, callee: ref parser.Node) ref u8! =
     if cc_is_c_escape_expr(callee) {
         return cc_expr_track(ctx, cc_raw_c_name(callee))
     }
-    if callee.kind == parser.NK_IDENT { return callee.d0 as ref u8 }
+    if callee.kind == parser.NK_IDENT {
+        val name: ref u8 = callee.d0 as ref u8
+        val resolved: ref u8 = cc_gsubst_resolve_name(ctx, name)
+        if str.rchar_cmp(resolved, "") != 0 { return resolved }
+        return name
+    }
     if callee.kind == parser.NK_FIELD {
         val base: ref parser.Node = parser.field_base(callee)
         val fname: ref u8 = parser.field_name(callee)
         if base != 0 as ref parser.Node {
             if base.kind == parser.NK_IDENT {
+                val bname: ref u8 = base.d0 as ref u8
+                val resolved_base: ref u8 = cc_gsubst_resolve_name(ctx, bname)
+                val use_base: mut ref u8 = bname
+                if str.rchar_cmp(resolved_base, "") != 0 { use_base = resolved_base }
                 val buf: ref u8 = @alloc(512) as ref u8
-                @snprintf(buf, 512, "{s}__{s}", {base.d0 as ref u8, fname})
+                @snprintf(buf, 512, "{s}__{s}", {use_base, fname})
                 return cc_expr_track(ctx, buf)
             }
             if base.kind == parser.NK_FIELD {
                 val b2: ref parser.Node = parser.field_base(base)
                 val f2: ref u8 = parser.field_name(base)
                 if b2 != 0 as ref parser.Node && b2.kind == parser.NK_IDENT {
+                    val bname2: ref u8 = b2.d0 as ref u8
+                    val resolved_base2: ref u8 = cc_gsubst_resolve_name(ctx, bname2)
+                    val use_base2: mut ref u8 = bname2
+                    if str.rchar_cmp(resolved_base2, "") != 0 { use_base2 = resolved_base2 }
                     val buf: ref u8 = @alloc(512) as ref u8
-                    @snprintf(buf, 512, "{s}__{s}__{s}", {b2.d0 as ref u8, f2, fname})
+                    @snprintf(buf, 512, "{s}__{s}__{s}", {use_base2, f2, fname})
                     return cc_expr_track(ctx, buf)
                 }
                 if b2 != 0 as ref parser.Node && b2.kind == parser.NK_FIELD {
                     val b3: ref parser.Node = parser.field_base(b2)
                     val f3: ref u8 = parser.field_name(b2)
                     if b3 != 0 as ref parser.Node && b3.kind == parser.NK_IDENT {
+                        val bname3: ref u8 = b3.d0 as ref u8
+                        val resolved_base3: ref u8 = cc_gsubst_resolve_name(ctx, bname3)
+                        val use_base3: mut ref u8 = bname3
+                        if str.rchar_cmp(resolved_base3, "") != 0 { use_base3 = resolved_base3 }
                         val buf: ref u8 = @alloc(512) as ref u8
-                        @snprintf(buf, 512, "{s}__{s}__{s}__{s}", {b3.d0 as ref u8, f3, f2, fname})
+                        @snprintf(buf, 512, "{s}__{s}__{s}__{s}", {use_base3, f3, f2, fname})
                         return cc_expr_track(ctx, buf)
                     }
                 }
@@ -1517,33 +1575,50 @@ fn resolve_callee_name_tracked(ctx: ref CCtx, callee: ref parser.Node) ref u8! =
     return "unknown"
 }
 
-fn resolve_callee_name(callee: ref parser.Node) ref u8! = {
+fn resolve_callee_name(ctx: ref CCtx, callee: ref parser.Node) ref u8! = {
     if callee == 0 as ref parser.Node { return "unknown" }
     if cc_is_c_escape_expr(callee) { return cc_raw_c_name(callee) }
-    if callee.kind == parser.NK_IDENT { return callee.d0 as ref u8 }
+    if callee.kind == parser.NK_IDENT {
+        val name: ref u8 = callee.d0 as ref u8
+        val resolved: ref u8 = cc_gsubst_resolve_name(ctx, name)
+        if str.rchar_cmp(resolved, "") != 0 { return resolved }
+        return name
+    }
     if callee.kind == parser.NK_FIELD {
         val base: ref parser.Node = parser.field_base(callee)
         val fname: ref u8 = parser.field_name(callee)
         if base != 0 as ref parser.Node {
             if base.kind == parser.NK_IDENT {
+                val bname: ref u8 = base.d0 as ref u8
+                val resolved_base: ref u8 = cc_gsubst_resolve_name(ctx, bname)
+                val use_base: mut ref u8 = bname
+                if str.rchar_cmp(resolved_base, "") != 0 { use_base = resolved_base }
                 val buf: ref u8 = @alloc(512) as ref u8
-                @snprintf(buf, 512, "{s}__{s}", {base.d0 as ref u8, fname})
+                @snprintf(buf, 512, "{s}__{s}", {use_base, fname})
                 return buf
             }
             if base.kind == parser.NK_FIELD {
                 val b2: ref parser.Node = parser.field_base(base)
                 val f2: ref u8 = parser.field_name(base)
                 if b2 != 0 as ref parser.Node && b2.kind == parser.NK_IDENT {
+                    val bname2: ref u8 = b2.d0 as ref u8
+                    val resolved_base2: ref u8 = cc_gsubst_resolve_name(ctx, bname2)
+                    val use_base2: mut ref u8 = bname2
+                    if str.rchar_cmp(resolved_base2, "") != 0 { use_base2 = resolved_base2 }
                     val buf: ref u8 = @alloc(512) as ref u8
-                    @snprintf(buf, 512, "{s}__{s}__{s}", {b2.d0 as ref u8, f2, fname})
+                    @snprintf(buf, 512, "{s}__{s}__{s}", {use_base2, f2, fname})
                     return buf
                 }
                 if b2 != 0 as ref parser.Node && b2.kind == parser.NK_FIELD {
                     val b3: ref parser.Node = parser.field_base(b2)
                     val f3: ref u8 = parser.field_name(b2)
                     if b3 != 0 as ref parser.Node && b3.kind == parser.NK_IDENT {
+                        val bname3: ref u8 = b3.d0 as ref u8
+                        val resolved_base3: ref u8 = cc_gsubst_resolve_name(ctx, bname3)
+                        val use_base3: mut ref u8 = bname3
+                        if str.rchar_cmp(resolved_base3, "") != 0 { use_base3 = resolved_base3 }
                         val buf: ref u8 = @alloc(512) as ref u8
-                        @snprintf(buf, 512, "{s}__{s}__{s}__{s}", {b3.d0 as ref u8, f3, f2, fname})
+                        @snprintf(buf, 512, "{s}__{s}__{s}__{s}", {use_base3, f3, f2, fname})
                         return buf
                     }
                 }
@@ -1595,7 +1670,7 @@ fn cc_infer_call_ret_ty(ctx: mut ref CCtx, callee: ref parser.Node) ref parser.N
         ctx.gsubst_tnodes = old_gsubst_tnodes
         return ret_ty
     }
-    val cname: ref u8 = resolve_callee_name(callee)
+    val cname: ref u8 = resolve_callee_name(ctx, callee)
     val ret: ref parser.Node = cc_lookup_fn_ret(ctx, cname)
     if ret != 0 as ref parser.Node { return cc_concrete_ty(ctx, ret) }
     return 0 as ref parser.Node

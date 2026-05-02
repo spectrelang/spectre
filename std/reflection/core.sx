@@ -75,7 +75,7 @@ when windows {
     extern (C) fn GetVersionExA(lpVersionInformation: ref void) i32! = "GetVersionExA"
 }
 
-pub fn get_current_platform() Platform! = {
+pub fn get_current_platform[T](allocator: T) Platform! = {
     val buf: mut UnameResult = {
         sysname: 0,
         nodename: 0,
@@ -85,7 +85,7 @@ pub fn get_current_platform() Platform! = {
     }
 
     when windows {
-        val osvi: mut ref void = @alloc(128) as ref void
+        val osvi: mut ref void = T.alloc(allocator, 128) as ref void
         @store8(osvi, 128)
         if GetVersionExA(osvi) == 0 {
             return Platform.Unknown
@@ -109,8 +109,8 @@ pub fn get_current_platform() Platform! = {
 }
 
 /// Returns the current platform name as a lowercase string (e.g. "linux", "darwin").
-pub fn current_platform_name() ref u8! = {
-    val p = get_current_platform()
+pub fn current_platform_name[T](allocator: T) ref u8! = {
+    val p = get_current_platform[T](allocator)
     match p {
         Platform.Linux        => { return "linux" }
         Platform.Darwin       => { return "darwin" }
@@ -136,8 +136,8 @@ when windows {
 }
 
 /// Returns the absolute path to the current executable.
-pub fn get_exe_path() ref u8! = {
-    val buf: ref u8 = @alloc(1024) as ref u8
+pub fn get_exe_path[T](allocator: T) ref u8! = {
+    val buf: ref u8 = T.alloc(allocator, 10240) as ref u8
     when posix {
         val n = readlink("/proc/self/exe", buf, 1024)
         if n > 0 {
@@ -158,11 +158,15 @@ pub fn get_exe_path() ref u8! = {
     return "."
 }
 
+val allocators = use("../allocators")
+
 test {
+    val arena = allocators.Arena.new(102400)
     stdio.puts("calling get_current_platform")
-    val platform = trust get_current_platform()
+    val platform = trust get_current_platform[allocators.Arena](arena)
     trust stdio.print("Current platform: {d}\n", {platform})
 
-    val exe_path = trust get_exe_path()
+    val exe_path = trust get_exe_path[allocators.Arena](arena)
     trust stdio.print("Exe path: {s}\n", {exe_path})
+    allocators.Arena.free(arena)
 }
