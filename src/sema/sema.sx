@@ -1273,16 +1273,16 @@ fn parse_fmt_specifiers(s: ref u8) list[ref u8]! = {
             if found {
                 val spec_len: i64 = j - i - 1
                 if spec_len > 0 {
-                    val spec: ref u8 = @alloc(spec_len + 1) as ref u8
+                    val specifier: ref u8 = @alloc(spec_len + 1) as ref u8
                     val si: mut i64 = 0
                     for {
                         if si >= spec_len { break }
                         val sc: u8 = @load8(@ptradd(s as ref void, i + 1 + si))
-                        @store8(@ptradd(spec as ref void, si), sc)
+                        @store8(@ptradd(specifier as ref void, si), sc)
                         si++
                     }
-                    @store8(@ptradd(spec as ref void, spec_len), 0)
-                    @append(result, spec)
+                    @store8(@ptradd(specifier as ref void, spec_len), 0)
+                    @append(result, specifier)
                 }
                 i = j + 1
             } else {
@@ -1297,28 +1297,28 @@ fn parse_fmt_specifiers(s: ref u8) list[ref u8]! = {
 
 /// Maps a format specifier string to its expected argument category.
 /// Returns "int", "str", "u8", "float", "ptr", or "unknown".
-fn fmt_specifier_category(spec: ref u8) ref u8! = {
-    if str_eq(spec, "s")   { return "str"   }
-    if str_eq(spec, "c")   { return "u8"  }
-    if str_eq(spec, "f")   { return "float" }
-    if str_eq(spec, "lf")  { return "float" }
-    if str_eq(spec, "g")   { return "float" }
-    if str_eq(spec, "e")   { return "float" }
-    if str_eq(spec, "d")   { return "int"   }
-    if str_eq(spec, "i")   { return "int"   }
-    if str_eq(spec, "u")   { return "int"   }
-    if str_eq(spec, "x")   { return "int"   }
-    if str_eq(spec, "X")   { return "int"   }
-    if str_eq(spec, "o")   { return "int"   }
-    if str_eq(spec, "ld")  { return "int"   }
-    if str_eq(spec, "li")  { return "int"   }
-    if str_eq(spec, "lu")  { return "int"   }
-    if str_eq(spec, "lld") { return "int"   }
-    if str_eq(spec, "lli") { return "int"   }
-    if str_eq(spec, "llu") { return "int"   }
-    if str_eq(spec, "lx")  { return "int"   }
-    if str_eq(spec, "llx") { return "int"   }
-    if str_eq(spec, "p")   { return "ptr"   }
+fn fmt_specifier_category(specifier: ref u8) ref u8! = {
+    if str_eq(specifier, "s")   { return "str"   }
+    if str_eq(specifier, "c")   { return "u8"  }
+    if str_eq(specifier, "f")   { return "float" }
+    if str_eq(specifier, "lf")  { return "float" }
+    if str_eq(specifier, "g")   { return "float" }
+    if str_eq(specifier, "e")   { return "float" }
+    if str_eq(specifier, "d")   { return "int"   }
+    if str_eq(specifier, "i")   { return "int"   }
+    if str_eq(specifier, "u")   { return "int"   }
+    if str_eq(specifier, "x")   { return "int"   }
+    if str_eq(specifier, "X")   { return "int"   }
+    if str_eq(specifier, "o")   { return "int"   }
+    if str_eq(specifier, "ld")  { return "int"   }
+    if str_eq(specifier, "li")  { return "int"   }
+    if str_eq(specifier, "lu")  { return "int"   }
+    if str_eq(specifier, "lld") { return "int"   }
+    if str_eq(specifier, "lli") { return "int"   }
+    if str_eq(specifier, "llu") { return "int"   }
+    if str_eq(specifier, "lx")  { return "int"   }
+    if str_eq(specifier, "llx") { return "int"   }
+    if str_eq(specifier, "p")   { return "ptr"   }
     return "unknown"
 }
 
@@ -1470,8 +1470,8 @@ fn check_printf_fmt(ctx: ref SemaCtx, fmt_str: ref u8, all_args: ref void,
         val spec_opt = @get(specs, idx as usize)
         match spec_opt {
             some spec_raw => {
-                val spec: ref u8 = spec_raw as ref u8
-                val exp_cat: ref u8 = fmt_specifier_category(spec)
+                val specifier: ref u8 = spec_raw as ref u8
+                val exp_cat: ref u8 = fmt_specifier_category(specifier)
                 if !str_eq(exp_cat, "unknown") {
                     val arg_node: mut ref parser.Node = 0 as ref parser.Node
                     if pack_style && pack_inner != 0 as ref void {
@@ -1498,7 +1498,7 @@ fn check_printf_fmt(ctx: ref SemaCtx, fmt_str: ref u8, all_args: ref void,
                                 val buf2: ref u8 = @alloc(512) as ref u8
                                 @snprintf(buf2, 512,
                                     "{s}:{lld}: format specifier \{{s}\} expects {s} argument but got {s}",
-                                    {filename, line, spec, exp_cat, act_cat})
+                                    {filename, line, specifier, exp_cat, act_cat})
                                 add_error(ctx, buf2)
                             }
                         }

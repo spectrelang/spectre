@@ -2333,25 +2333,25 @@ fn is_printf_length_char(c: u8) bool = {
     return c == 104 || c == 108 || c == 122 || c == 116 || c == 106 || c == 76
 }
 
-fn map_printf_specifier(length_mod: ref u8, spec: u8) ref u8 = {
+fn map_printf_specifier(length_mod: ref u8, specifier: u8) ref u8 = {
     val is_size_mod: bool = string.rchar_cmp(length_mod, "z") == 0
         || string.rchar_cmp(length_mod, "t") == 0
         || string.rchar_cmp(length_mod, "j") == 0
-    if is_size_mod && (spec == 105 || spec == 100 || spec == 117) { return "d" }
-    if is_size_mod && (spec == 120 || spec == 88 || spec == 111) { return trust @fmt("{c}", {spec}) }
-    if spec == 105 { return trust @fmt("{s}d", {length_mod}) }
-    if spec == 100 { return trust @fmt("{s}d", {length_mod}) }
-    if spec == 117 { return trust @fmt("{s}u", {length_mod}) }
-    if spec == 120 { return trust @fmt("{s}x", {length_mod}) }
-    if spec == 88 { return trust @fmt("{s}X", {length_mod}) }
-    if spec == 111 { return trust @fmt("{s}o", {length_mod}) }
-    if spec == 99 { return "c" }
-    if spec == 115 { return "s" }
-    if spec == 112 { return "p" }
-    if spec == 102 || spec == 70 || spec == 101 || spec == 69 || spec == 103 || spec == 71 || spec == 97 || spec == 65 {
+    if is_size_mod && (specifier == 105 || specifier == 100 || specifier == 117) { return "d" }
+    if is_size_mod && (specifier == 120 || specifier == 88 || specifier == 111) { return trust @fmt("{c}", {specifier}) }
+    if specifier == 105 { return trust @fmt("{s}d", {length_mod}) }
+    if specifier == 100 { return trust @fmt("{s}d", {length_mod}) }
+    if specifier == 117 { return trust @fmt("{s}u", {length_mod}) }
+    if specifier == 120 { return trust @fmt("{s}x", {length_mod}) }
+    if specifier == 88 { return trust @fmt("{s}X", {length_mod}) }
+    if specifier == 111 { return trust @fmt("{s}o", {length_mod}) }
+    if specifier == 99 { return "c" }
+    if specifier == 115 { return "s" }
+    if specifier == 112 { return "p" }
+    if specifier == 102 || specifier == 70 || specifier == 101 || specifier == 69 || specifier == 103 || specifier == 71 || specifier == 97 || specifier == 65 {
         return "f"
     }
-    return trust @fmt("{c}", {spec})
+    return trust @fmt("{c}", {specifier})
 }
 
 fn translate_printf_format(text: ref u8) ref u8 = {
@@ -2407,10 +2407,10 @@ fn translate_printf_format(text: ref u8) ref u8 = {
                 spec_i++
             }
             if spec_i < len - 1 {
-                val spec: u8 = trust @load8(@ptradd(trimmed as ref void, spec_i)) as u8
+                val specifier: u8 = trust @load8(@ptradd(trimmed as ref void, spec_i)) as u8
                 val length_built: ref void = string.StringBuilder.build(length_sb)
                 string.StringBuilder.free(length_sb)
-                val mapped: ref u8 = map_printf_specifier(trust string.cstr(length_built), spec)
+                val mapped: ref u8 = map_printf_specifier(trust string.cstr(length_built), specifier)
                 string.StringBuilder.append_char(sb, 123)
                 string.StringBuilder.append_cstr(sb, mapped)
                 string.StringBuilder.append_char(sb, 125)
