@@ -85,7 +85,7 @@ pub fn get_current_platform() Platform! = {
     }
 
     when windows {
-        val osvi: mut void = @alloc(128) as ref void
+        val osvi: mut ref void = @alloc(128) as ref void
         @store8(osvi, 128)
         if GetVersionExA(osvi) == 0 {
             return Platform.Unknown
@@ -104,7 +104,7 @@ pub fn get_current_platform() Platform! = {
             if string.rchar_cmp(sysname, "NetBSD") == 0 { return Platform.NetBSD }
         }
     }
-    
+
     return Platform.Unknown
 }
 
