@@ -4793,7 +4793,19 @@ fn gen_field(ctx: ref CgCtx, expr: ref parser.Node) ref u8! = {
             val const_val: ref u8 = cg_const_val(ctx, enum_key)
             @free(enum_key)
             if str.rchar_cmp(const_val, "") != 0 {
-                @snprintf(buf, 256, "    %%t{lld} =l copy {s}\n", {tmp, const_val})
+                if rchar_starts_with(const_val, "d_") || rchar_starts_with(const_val, "s_") {
+                    val ftext: ref u8 = @ptradd(const_val as ref void, 2) as ref u8
+                    val emit_qt: mut ref u8 = "d"
+                    if rchar_starts_with(const_val, "s_") { emit_qt = "s" }
+                    if ctx.expected_ty != 0 as ref void {
+                        val expected_qt_field: ref u8 = qbe_type_of(ctx.expected_ty as ref parser.Node)
+                        if str.rchar_cmp(expected_qt_field, "s") == 0 { emit_qt = "s" }
+                        elif str.rchar_cmp(expected_qt_field, "d") == 0 { emit_qt = "d" }
+                    }
+                    @snprintf(buf, 256, "    %%t{lld} ={s} copy {s}_{s}\n", {tmp, emit_qt, emit_qt, ftext})
+                } else {
+                    @snprintf(buf, 256, "    %%t{lld} =l copy {s}\n", {tmp, const_val})
+                }
             } else {
                 val qbe_key: ref u8 = @alloc(512) as ref u8
                 @snprintf(qbe_key, 512, "{s}__{s}", {base_name, field_name})
