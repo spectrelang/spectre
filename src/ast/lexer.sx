@@ -3,6 +3,7 @@ val string = use("std/string")
 
 pub union TokenKind = {
     Fn()
+    | Spec()
     | Val()
     | Mut()
     | Pub()
@@ -203,6 +204,7 @@ fn str_eq(a: ref u8, b: ref u8) bool! = {
 
 fn keyword_kind(s: ref u8) TokenKind! = {
     if str_eq(s, "fn")       { return Fn() }
+    if str_eq(s, "spec")     { return Spec() }
     if str_eq(s, "val")      { return Val() }
     if str_eq(s, "mut")      { return Mut() }
     if str_eq(s, "pub")      { return Pub() }
@@ -562,6 +564,7 @@ pub fn tok_text(tokens: list[ref Token], i: i64) ref u8 = {
 }
 
 pub fn kind_is_fn(k: TokenKind)       bool = { match k { Fn()       => { return true } else => { return false } } }
+pub fn kind_is_spec(k: TokenKind)     bool = { match k { Spec()     => { return true } else => { return false } } }
 pub fn kind_is_val(k: TokenKind)      bool = { match k { Val()      => { return true } else => { return false } } }
 pub fn kind_is_mut(k: TokenKind)      bool = { match k { Mut()      => { return true } else => { return false } } }
 pub fn kind_is_pub(k: TokenKind)      bool = { match k { Pub()      => { return true } else => { return false } } }

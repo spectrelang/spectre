@@ -14,6 +14,7 @@ pub val NK_EXTERN_TYPE     : i64 = 8
 pub val NK_LINK            : i64 = 9
 pub val NK_WHEN_ITEMS      : i64 = 10
 pub val NK_TAGGED_UNIONDEF : i64 = 11
+pub val NK_SPEC            : i64 = 12
 pub val NK_EXTERN_HEADER   : i64 = 53
 pub val NK_VAL             : i64 = 20
 pub val NK_ASSIGN          : i64 = 21
@@ -1854,10 +1855,12 @@ fn parse_fn_item(p: ref Parser, public: i64) result[ref Node, ref u8]! = {
     val ret_ty = parse_type(p)?
     val is_unsafe: mut i64 = 0
     if p_eat_fn(p, kind_is_bang) { is_unsafe = 1 }
-    p_expect_eq(p)?
-    p_expect_lbrace(p)?
-    val body = parse_stmts(p)?
-    p_expect_rbrace(p)?
+    val body: mut list[ref Node] = []
+    if p_eat_fn(p, kind_is_eq) {
+        p_expect_lbrace(p)?
+        body = parse_stmts(p)?
+        p_expect_rbrace(p)?
+    }
     if @len(type_params) as i64 > 0 {
         val nfn: mut ref Node = make_node(NK_GENERIC_FN, line)
         nfn.d0 = public | (is_unsafe << 1) nfn.d1 = ns as i64 nfn.d2 = name as i64
@@ -1884,6 +1887,12 @@ fn parse_fn_item(p: ref Parser, public: i64) result[ref Node, ref u8]! = {
 fn parse_type_def_item(p: ref Parser, public: i64, is_extern: i64) result[ref Node, ref u8]! = {
     val line: i64 = p_line(p)
     p_expect_kind(p, kind_is_type, "type")?
+    val spec_name: mut ref u8 = 0 as ref u8
+    if lexer.kind_is_lparen(p_peek_kind(p)) {
+        p_advance(p)
+        spec_name = p_expect_ident(p)?
+        p_expect_rparen(p)?
+    }
     val name = p_expect_ident(p)?
     p_expect_eq(p)?
     p_expect_lbrace(p)?
@@ -1928,7 +1937,31 @@ fn parse_type_def_item(p: ref Parser, public: i64, is_extern: i64) result[ref No
         val il: list[ref Node] = inv_exprs
         nt.d3 = il as i64
     }
+    nt.d4 = spec_name as i64
     return ok nt
+}
+
+fn parse_spec_item(p: ref Parser, public: i64) result[ref Node, ref u8]! = {
+    val line: i64 = p_line(p)
+    p_expect_kind(p, lexer.kind_is_spec, "spec")?
+    val name = p_expect_ident(p)?
+    p_expect_eq(p)?
+    p_expect_lbrace(p)?
+    val methods: mut list[ref Node] = []
+    for {
+        if lexer.kind_is_rbrace(p_peek_kind(p)) { break }
+        val method_public: mut i64 = 0
+        if p_eat_fn(p, kind_is_pub) { method_public = 1 }
+        val method = parse_fn_item(p, method_public)?
+        @append(methods, method)
+    }
+    p_expect_rbrace(p)?
+    val ns: mut ref Node = make_node(NK_SPEC, line)
+    ns.d0 = public
+    ns.d1 = name as i64
+    val ml: list[ref Node] = methods
+    ns.d2 = ml as i64
+    return ok ns
 }
 
 fn parse_enum_def_item(p: ref Parser, public: i64) result[ref Node, ref u8]! = {
@@ -2157,6 +2190,7 @@ pub fn parse_item(p: ref Parser) result[ref Node, ref u8]! = {
         if kind_is_type(p_peek_kind(p)) { return parse_type_def_item(p, public, 1) }
         return parse_extern_fn_item(p, public)
     }
+    if lexer.kind_is_spec(k2) { return parse_spec_item(p, public) }
     if kind_is_fn(k2)    { return parse_fn_item(p, public) }
     if kind_is_type(k2)  { return parse_type_def_item(p, public, 0) }
     if kind_is_enum(k2)  { return parse_enum_def_item(p, public) }

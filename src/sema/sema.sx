@@ -21,6 +21,8 @@ type SemaCtx = {
     fn_names:      mut list[ref u8]
     used_fns:      mut list[ref u8]
     type_names:    mut list[ref u8]
+    spec_names:    mut list[ref u8]
+    spec_impls:    mut list[ref u8]
     global_names:  mut list[ref u8]
     scopes:        mut list[ref void]
     type_defs:     mut list[ref void]
@@ -765,6 +767,30 @@ fn is_type_parameter(ctx: ref SemaCtx, tname: ref u8) bool! = {
     return false
 }
 
+fn spec_impl_name(ctx: ref SemaCtx, spec_name: ref u8) ref u8! = {
+    if spec_name == 0 as ref u8 { return 0 as ref u8 }
+    val slen: i64 = @len(ctx.spec_names) as i64
+    val si: mut i64 = 0
+    for {
+        if si >= slen { break }
+        val s_opt = @get(ctx.spec_names, si as usize)
+        match s_opt {
+            some s => {
+                if str_eq(s as ref u8, spec_name) {
+                    val impl_opt = @get(ctx.spec_impls, si as usize)
+                    match impl_opt {
+                        some impln => { return impln as ref u8 }
+                        none => { return spec_name }
+                    }
+                }
+            }
+            none => {}
+        }
+        si++
+    }
+    return spec_name
+}
+
 fn str_eq(a: ref u8, b: ref u8) bool! = {
     return string.rchar_cmp(a, b) == 0
 }
@@ -790,11 +816,14 @@ fn unqualified_type_name(tname: ref u8) ref u8! = {
 ///
 /// - Qualified vs unqualified names (lexer.TokenKind == TokenKind)
 /// - Safe numeric conversions (i32 -> i64, u8 -> i64, etc.)
-fn types_compatible(param_type: ref u8, arg_type: ref u8) bool! = {
+fn types_compatible(ctx: ref SemaCtx, param_type: ref u8, arg_type: ref u8) bool! = {
     if str_eq(param_type, arg_type) { return true }
 
     val param_unqual: ref u8 = unqualified_type_name(param_type)
     val arg_unqual: ref u8 = unqualified_type_name(arg_type)
+
+    if str_eq(spec_impl_name(ctx, param_unqual), arg_unqual) { return true }
+    if str_eq(spec_impl_name(ctx, arg_unqual), param_unqual) { return true }
 
     if str_eq(param_unqual, arg_unqual) { return true }
 
@@ -978,7 +1007,7 @@ fn comparison_operands_compatible(ctx: ref SemaCtx, lhs: ref parser.Node, rhs: r
         return str_eq(unqualified_type_name(lhs_type), unqualified_type_name(rhs_type))
     }
 
-    if types_compatible(lhs_type, rhs_type) || types_compatible(rhs_type, lhs_type) {
+    if types_compatible(ctx, lhs_type, rhs_type) || types_compatible(ctx, rhs_type, lhs_type) {
         return true
     }
 
@@ -1194,7 +1223,7 @@ fn infer_expr_scope_type_name(ctx: ref SemaCtx, node: ref parser.Node) ref u8! =
     if k == parser.NK_STR_LIT  { return "u8" }
     if k == parser.NK_IDENT {
         val tname: ref u8 = scope_lookup_type(ctx, node.d0 as ref u8)
-        if tname != 0 as ref u8 { return tname }
+        if tname != 0 as ref u8 { return spec_impl_name(ctx, tname) }
         return ""
     }
     if k == parser.NK_TRUST {
@@ -1640,6 +1669,7 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
                 }
             }
             if target_name != 0 as ref u8 {
+                val lookup_ns: ref u8 = spec_impl_name(ctx, target_ns)
                 val flen: i64 = @len(ctx.fn_defs) as i64
                 val fi: mut i64 = 0
                 for {
@@ -1653,7 +1683,7 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
                             val is_match: mut bool = false
                             if target_ns != 0 as ref u8 {
                                 if fname_node1 != 0 as ref u8 && fname_node2 != 0 as ref u8 {
-                                    if string.rchar_cmp(fname_node1, target_ns) == 0 &&
+                                    if string.rchar_cmp(fname_node1, lookup_ns) == 0 &&
                                        string.rchar_cmp(fname_node2, target_name) == 0 {
                                         is_match = true
                                     }
@@ -1834,10 +1864,10 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
                                                     }
                                                 }
                                             } elif !param_expects_ref && arg_type_name != 0 as ref u8 && !str_eq(arg_type_name, "") {
-                                                if !types_compatible(param_type_name, arg_type_name) {
+                                                if !types_compatible(ctx, param_type_name, arg_type_name) {
                                                     val union_def: ref parser.Node = sema_lookup_uniondef(ctx, param_type_name)
                                                     if union_def != 0 as ref parser.Node {
-                                                        if !type_matches_union_variant(union_def, arg_type_name) {
+                                                        if !type_matches_union_variant(ctx, union_def, arg_type_name) {
                                                             type_mismatch = true
                                                         }
                                                     } else {
@@ -1930,7 +1960,7 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
                                             
                                             if expected_type_name != 0 as ref u8 && !str_eq(expected_type_name, "") &&
                                                arg_type_name != 0 as ref u8 && !str_eq(arg_type_name, "") {
-                                                if !types_compatible(expected_type_name, arg_type_name) {
+                                                if !types_compatible(ctx, expected_type_name, arg_type_name) {
                                                     val type_err_buf: ref u8 = @alloc(512) as ref u8
                                                     @snprintf(type_err_buf, 512, "{s}:{lld}: type mismatch in variant constructor '{s}': argument {lld} expects type '{s}' but got '{s}'",
                                                         {filename, line, callee_name, idx + 1, expected_type_name, arg_type_name})
@@ -2262,7 +2292,7 @@ fn sema_lookup_tagged_variant(ctx: ref SemaCtx, variant_name: ref u8, out_union_
 
 /// Check if arg_type matches any variant in the union definition.
 /// Returns true if arg_type is compatible with any union variant.
-fn type_matches_union_variant(union_def: ref parser.Node, arg_type: ref u8) bool! = {
+fn type_matches_union_variant(ctx: ref SemaCtx, union_def: ref parser.Node, arg_type: ref u8) bool! = {
     if union_def == 0 as ref parser.Node || arg_type == 0 as ref u8 { return false }
     if union_def.kind != parser.NK_UNIONDEF { return false }
     
@@ -2272,7 +2302,7 @@ fn type_matches_union_variant(union_def: ref parser.Node, arg_type: ref u8) bool
     for variant in variants as list[ref parser.Node] {
         val variant_type_name: ref u8 = extract_type_name(variant)
         if variant_type_name != 0 as ref u8 {
-            if types_compatible(variant_type_name, arg_type) {
+            if types_compatible(ctx, variant_type_name, arg_type) {
                 return true
             }
         }
@@ -3041,6 +3071,13 @@ fn register_type_name(ctx: ref SemaCtx, item: ref parser.Node) void! = {
             }
         }
     }
+    if k == parser.NK_TYPEDEF {
+        val spec_name: ref u8 = item.d4 as ref u8
+        if spec_name != 0 as ref u8 && item.d1 != 0 as i64 {
+            @append(ctx.spec_names, spec_name)
+            @append(ctx.spec_impls, item.d1 as ref u8)
+        }
+    }
 }
 
 /// Register a named item (const/use/val/extern_fn) name.
@@ -3101,6 +3138,9 @@ fn register_item_name(ctx: ref SemaCtx, item: ref parser.Node) void! = {
     if k == parser.NK_TYPEDEF || k == parser.NK_EXTERN_TYPE ||
        k == parser.NK_ENUMDEF || k == parser.NK_UNIONDEF || k == parser.NK_TAGGED_UNIONDEF {
         register_type_name(ctx, item)
+    }
+    if k == parser.NK_SPEC {
+        if item.d1 != 0 as i64 { @append(ctx.type_names, item.d1 as ref u8) }
     }
     register_named_item(ctx, item)
     if k == parser.NK_WHEN_ITEMS {

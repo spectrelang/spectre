@@ -11,7 +11,7 @@ pub type (Animal) Cat = {
 pub fn (Cat) speak(it: self, times: usize) void = { // Must exist to satisfy the spec, must be public
     val i: mut usize = 0
     for i < times {
-        trust @print("meow my name is {s}", {it.name})
+        trust @print("meow my name is {s}\n", {it.name})
         i++
     }
 }
@@ -19,7 +19,7 @@ pub fn (Cat) speak(it: self, times: usize) void = { // Must exist to satisfy the
 fn (Cat) do_internal_thing(_: self) void = {} // Must exist to satisfy the spec, must be private
 
 pub fn takes_animal(x: Animal) void = {
-    Animal.speak(x, 10)
+    Animal.speak(x, 10 as usize)
 }
 
 pub fn main() void = {

@@ -3988,6 +3988,18 @@ fn gen_module_const_list(ctx: mut ref CCtx, node: ref parser.Node, mod_prefix: r
 }
 
 fn gen_items_with_prefix(ctx: mut ref CCtx, items: list[ref parser.Node], mod_prefix: ref u8) void! = {
+    val ilen0: i64 = @len(items) as i64 val i0: mut i64 = 0
+    for { if i0 >= ilen0 { break } val item_opt0 = @get(items, i0 as usize)
+        match item_opt0 { some item0 => { val node0: ref parser.Node = item0 as ref parser.Node
+            if node0.kind == parser.NK_TYPEDEF {
+                val spec_name: ref u8 = node0.d4 as ref u8
+                if spec_name != 0 as ref u8 {
+                    val alias_ty: mut ref parser.Node = parser.make_node(parser.TY_NAMED, node0.line)
+                    alias_ty.d0 = node0.d1 as i64
+                    cc_gsubst_push(ctx, spec_name, alias_ty)
+                }
+            } } none => {} }
+        i0++ }
     preregister_items(ctx, items, mod_prefix)
     val ilen: i64 = @len(items) as i64 val i: mut i64 = 0
     for { if i >= ilen { break } val item_opt = @get(items, i as usize)
