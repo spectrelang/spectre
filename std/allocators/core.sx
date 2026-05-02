@@ -7,32 +7,38 @@
 ///   offset 0:  buf    — ref void, pointer to the backing block
 ///   offset 8:  offset — usize, current bump position (bytes used)
 ///   offset 16: cap    — usize, total capacity in bytes
-pub type Arena = {
+pub type (Allocator) Arena = {
     buf: ref void
     offset: usize
     cap: usize
 }
 
-pub enum ArenaError = {
+pub enum AllocError = {
     OutOfMemory
 }
 
 val stdio = use("../stdio")
 
+pub spec Allocator = {
+   pub fn new(capacity: usize) result[Allocator, AllocError]
+   pub fn free(a: self) void
+   pub fn alloc(a: self, size: usize) option[ref void]
+}
+
 /// Create a new arena backed by a block of `capacity` bytes.
 /// Capacity must be > 0.
-pub fn (Arena) new(capacity: usize) result[Arena, ArenaError]! = {
+pub fn (Arena) new(capacity: usize) result[Allocator, AllocError]! = {
     pre { capacity_positive: capacity > 0 }
 
     val header: ref void = @alloc(24)
     if (header == none) {
-        return err ArenaError.OutOfMemory
+        return err AllocError.OutOfMemory
     }
 
     val buf: ref void = @alloc(capacity)
     if (buf == none) {
         @free(header)
-        return err ArenaError.OutOfMemory
+        return err AllocError.OutOfMemory
     }
 
     @memset(buf, 0, capacity)
@@ -130,21 +136,21 @@ test {
 ///    offset 0:  buf    — ref void
 ///    offset 8:  offset — usize
 ///    offset 16: cap    — usize
-type Stack = {
+type (Allocator) Stack = {
     buf: ref void
     offset: usize
     cap: usize
 }
 
 /// Create a new stack allocator.
-pub fn (Stack) new(capacity: usize) ref void! = {
+pub fn (Stack) new(capacity: usize) result[Allocator, AllocError]! = {
     pre { capacity_positive: capacity > 0 }
     val header: mut ref void = @alloc(24)
     val buf: ref void = @alloc(capacity)
     @store(header, buf)
     @store(@ptradd(header, 8), 0)
     @store(@ptradd(header, 16), capacity)
-    return header
+    return ok (header as Stack)
 }
 
 /// Allocate memory from the stack.
@@ -191,7 +197,7 @@ pub fn (Stack) free(stack: mut self) void! = {
 }
 
 test {
-    val stack = trust Stack.new(1024 as usize)
+    val stack = trust Stack.new(1024 as usize)?
     val marker = Stack.save(stack)
     val tmp1 = Stack.alloc(stack, 200 as usize)
 
