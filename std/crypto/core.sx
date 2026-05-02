@@ -519,7 +519,7 @@ pub fn hmac_sha256[T](key: T, data: T) string.String! = {
 
     @free(ipad)
     @free(opad)
-    if hashed_key != 0 { string.string_free(hashed_key) }
+    if hashed_key != none { string.string_free(hashed_key) }
     string.string_free(inner_digest)
 
     val out: string.String = sha256[T](outer)

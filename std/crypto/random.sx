@@ -90,8 +90,8 @@ test {
 
     val uuid1: mut ref u8 = trust random_uuid()
     val uuid2: mut ref u8 = trust random_uuid()
-    assert uuid1 != 0
-    assert uuid2 != 0
+    assert uuid1 != none
+    assert uuid2 != none
 
     stdio.puts(uuid1)
     stdio.puts(uuid2)
