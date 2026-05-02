@@ -896,12 +896,12 @@ fn validate_spec_impls(ctx: ref SemaCtx, items: list[ref parser.Node], filename:
                 val impl_fn: ref parser.Node = find_top_level_fn(items, impl_name, meth_name)
                 if impl_fn == 0 as ref parser.Node {
                     val ebuf2: ref u8 = @alloc(512) as ref u8
-                    @snprintf(ebuf2, 512, "{s}: spec '{s}' is unimplemented for '{s}': missing method '{s}'",
+                    @snprintf(ebuf2, 512, "{s}: spec '{s}' is unimplemented for '{s}': missing function '{s}'",
                         {filename, spec_name, impl_name, meth_name})
                     add_error(ctx, ebuf2)
                 } elif !function_matches_spec_method(meth, impl_fn, impl_name) {
                     val ebuf3: ref u8 = @alloc(512) as ref u8
-                    @snprintf(ebuf3, 512, "{s}: spec '{s}' is partially implemented for '{s}': method '{s}' has a mismatched signature",
+                    @snprintf(ebuf3, 512, "{s}: spec '{s}' is only partially implemented for '{s}': function '{s}' has a mismatched signature",
                         {filename, spec_name, impl_name, meth_name})
                     add_error(ctx, ebuf3)
                 }
