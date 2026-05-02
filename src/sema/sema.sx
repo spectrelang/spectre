@@ -791,6 +791,125 @@ fn spec_impl_name(ctx: ref SemaCtx, spec_name: ref u8) ref u8! = {
     return spec_name
 }
 
+fn type_node_matches_impl_type(spec_ty: ref parser.Node, impl_ty: ref parser.Node, impl_name: ref u8) bool! = {
+    if spec_ty == 0 as ref parser.Node || impl_ty == 0 as ref parser.Node { return false }
+    if spec_ty.kind != impl_ty.kind {
+        if spec_ty.kind == parser.TY_NAMED && str_eq(spec_ty.d0 as ref u8, "self") {
+            return str_eq(extract_type_name(impl_ty), impl_name)
+        }
+        return false
+    }
+    if spec_ty.kind == parser.TY_MUT {
+        return type_node_matches_impl_type(spec_ty.d0 as ref parser.Node, impl_ty.d0 as ref parser.Node, impl_name)
+    }
+    if spec_ty.kind == parser.TY_NAMED {
+        val sname: ref u8 = spec_ty.d0 as ref u8
+        if str_eq(sname, "self") { return str_eq(impl_name, impl_ty.d0 as ref u8) }
+        return str_eq(sname, impl_ty.d0 as ref u8)
+    }
+    if spec_ty.kind == parser.TY_REF || spec_ty.kind == parser.TY_OPTION ||
+       spec_ty.kind == parser.TY_LIST || spec_ty.kind == parser.TY_SLICE {
+        return type_node_matches_impl_type(spec_ty.d0 as ref parser.Node, impl_ty.d0 as ref parser.Node, impl_name)
+    }
+    if spec_ty.kind == parser.TY_RESULT {
+        return type_node_matches_impl_type(spec_ty.d0 as ref parser.Node, impl_ty.d0 as ref parser.Node, impl_name) &&
+               type_node_matches_impl_type(spec_ty.d1 as ref parser.Node, impl_ty.d1 as ref parser.Node, impl_name)
+    }
+    if spec_ty.kind == parser.TY_VOID { return true }
+    return false
+}
+
+fn function_matches_spec_method(spec_fn: ref parser.Node, impl_fn: ref parser.Node, impl_name: ref u8) bool! = {
+    if spec_fn == 0 as ref parser.Node || impl_fn == 0 as ref parser.Node { return false }
+    if spec_fn.d0 != impl_fn.d0 { return false }
+    val spec_params: ref void = spec_fn.d3 as ref void
+    val impl_params: ref void = impl_fn.d3 as ref void
+    if spec_params == 0 as ref void || impl_params == 0 as ref void {
+        return spec_params == impl_params
+    }
+    if @len(spec_params as list[ref parser.Node]) as i64 != @len(impl_params as list[ref parser.Node]) as i64 {
+        return false
+    }
+    val plen: i64 = @len(spec_params as list[ref parser.Node]) as i64
+    val pi: mut i64 = 0
+    for {
+        if pi >= plen { break }
+        val sp_opt = @get(spec_params as list[ref parser.Node], pi as usize)
+        val ip_opt = @get(impl_params as list[ref parser.Node], pi as usize)
+        match sp_opt {
+            some sp => {
+                match ip_opt {
+                    some ip => {
+                        val spn: ref parser.Node = sp as ref parser.Node
+                        val ipn: ref parser.Node = ip as ref parser.Node
+                        if !type_node_matches_impl_type(spn.d1 as ref parser.Node, ipn.d1 as ref parser.Node, impl_name) {
+                            return false
+                        }
+                    }
+                    none => { return false }
+                }
+            }
+            none => { return false }
+        }
+        pi++
+    }
+    return type_node_matches_impl_type(spec_fn.d4 as ref parser.Node, impl_fn.d4 as ref parser.Node, impl_name)
+}
+
+fn find_top_level_fn(items: list[ref parser.Node], ns: ref u8, name: ref u8) ref parser.Node! = {
+    for item in items {
+        if item == 0 as ref parser.Node { continue }
+        val k: i64 = item.kind
+        if k == parser.NK_FN || k == parser.NK_GENERIC_FN {
+            if str_eq(item.d1 as ref u8, ns) && str_eq(item.d2 as ref u8, name) {
+                return item
+            }
+        }
+    }
+    return 0 as ref parser.Node
+}
+
+fn validate_spec_impls(ctx: ref SemaCtx, items: list[ref parser.Node], filename: ref u8) void! = {
+    for item in items {
+        if item == 0 as ref parser.Node || item.kind != parser.NK_SPEC { continue }
+        val spec_name: ref u8 = item.d1 as ref u8
+        val methods: ref void = item.d2 as ref void
+        if methods == 0 as ref void { continue }
+        val impls: mut list[ref u8] = []
+        for impl_item in items {
+            if impl_item != 0 as ref parser.Node && impl_item.kind == parser.NK_TYPEDEF {
+                if str_eq(impl_item.d4 as ref u8, spec_name) {
+                    @append(impls, impl_item.d1 as ref u8)
+                }
+            }
+        }
+        if @len(impls) as i64 == 0 {
+            val ebuf: ref u8 = @alloc(256) as ref u8
+            @snprintf(ebuf, 256, "{s}: spec '{s}' has no implementing type", {filename, spec_name})
+            add_error(ctx, ebuf)
+            continue
+        }
+        for impl_name in impls {
+            for meth in methods as list[ref parser.Node] {
+                if meth == 0 as ref parser.Node { continue }
+                val meth_name: ref u8 = meth.d2 as ref u8
+                val impl_fn: ref parser.Node = find_top_level_fn(items, impl_name, meth_name)
+                if impl_fn == 0 as ref parser.Node {
+                    val ebuf2: ref u8 = @alloc(512) as ref u8
+                    @snprintf(ebuf2, 512, "{s}: spec '{s}' is unimplemented for '{s}': missing method '{s}'",
+                        {filename, spec_name, impl_name, meth_name})
+                    add_error(ctx, ebuf2)
+                } elif !function_matches_spec_method(meth, impl_fn, impl_name) {
+                    val ebuf3: ref u8 = @alloc(512) as ref u8
+                    @snprintf(ebuf3, 512, "{s}: spec '{s}' is partially implemented for '{s}': method '{s}' has a mismatched signature",
+                        {filename, spec_name, impl_name, meth_name})
+                    add_error(ctx, ebuf3)
+                }
+            }
+        }
+    }
+}
+
 fn str_eq(a: ref u8, b: ref u8) bool! = {
     return string.rchar_cmp(a, b) == 0
 }
@@ -3335,6 +3454,7 @@ pub fn check_module(items: list[ref parser.Node], filename: ref u8, root: ref mo
     for item2 in items {
         check_top_item(ctx, item2, filename)
     }
+    validate_spec_impls(ctx, items, filename)
 
     val fnlen: i64 = @len(ctx.fn_names) as i64
     val fi: mut i64 = 0
