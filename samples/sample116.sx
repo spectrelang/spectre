@@ -137,7 +137,7 @@ when windows {
 }
 
 /// Returns the absolute path to the current executable.
-pub fn get_exe_path[T](ac: allocators.Allocator) ref u8! = {
+pub fn get_exe_path[T](ac: T) ref u8! = {
     val buf: ref u8 = T.alloc(ac, 1024)
     if buf is some _ {
         @puts("its some.")
@@ -165,7 +165,7 @@ pub fn get_exe_path[T](ac: allocators.Allocator) ref u8! = {
 }
 
 test {
-    val arena = allocators.Arena.new(10240)?
+    val arena: result[allocators.Allocator, allocators.AllocError] = allocators.Arena.new(10240)
 
     stdio.puts("calling get_current_platform")
     val platform = trust get_current_platform[allocators.Arena](arena)
