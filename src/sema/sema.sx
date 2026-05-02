@@ -954,13 +954,14 @@ fn fn_return_wrap_kind(fn_node: ref parser.Node) i64! = {
 }
 
 /// Returns the wrap kind (0=none, 1=result, 2=option) of an expression's value.
+/// Note: if you have just 'none'/'some'/'ok'/'err' literals, they return 0 here because in spectre
+/// 'none' is also used as a null-pointer sentinel and can be passed to ref-typed
+/// parameters; only values whose wrappedness comes from a function return type
+/// or an explicit cast are reported.
 fn expr_wrap_kind(ctx: ref SemaCtx, expr: ref parser.Node) i64! = {
     if expr == 0 as ref parser.Node { return 0 }
     val k: i64 = expr.kind
     if k == parser.NK_TRY { return 0 }
-    if k == parser.NK_TRUST { return expr_wrap_kind(ctx, expr.d0 as ref parser.Node) }
-    if k == parser.NK_SOME || k == parser.NK_NONE { return 2 }
-    if k == parser.NK_OK_VAL || k == parser.NK_ERR_VAL { return 1 }
     if k == parser.NK_CAST { return ty_wrap_kind(expr.d1 as ref parser.Node) }
     if k == parser.NK_CALL {
         val callee: ref parser.Node = parser.call_callee(expr)
