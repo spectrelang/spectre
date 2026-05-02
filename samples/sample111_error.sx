@@ -1,0 +1,11 @@
+pub fn dup() void = {
+
+}
+
+pub fn dup() void = {
+
+}
+
+pub fn main() void = {
+    dup()
+}
