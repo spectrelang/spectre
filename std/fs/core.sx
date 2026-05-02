@@ -80,7 +80,7 @@ pub type File = {
 /// Returns none if the file could not be opened.
 pub fn open(path: ref u8, mode: ref u8) option[ref void]! = {
     val ptr: ref void = fopen(path, mode)
-    if (ptr == 0) {
+    if (ptr == none) {
         return none
     }
     val f: ref void = @alloc(8)
@@ -122,7 +122,7 @@ pub fn read_all(path: ref u8) option[ref u8]! = {
 pub fn read_line(f: ref void, buf: ref u8, max_len: i64) bool! = {
     val ptr: ref void = @load(f)
     val result: ref void = @fgets(buf, max_len, ptr)
-    if (result == 0) {
+    if (result == none) {
         return false
     }
     // Strip trailing '\n' (10) and '\r' (13)
@@ -460,7 +460,7 @@ test {
 ///   }
 pub fn walk_dir(path: ref u8) option[list[ref u8]]! = {
     val dir: ref void = opendir(path)
-    if (dir == 0) {
+    if (dir == none) {
         return none
     }
 

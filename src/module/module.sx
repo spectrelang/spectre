@@ -123,14 +123,14 @@ fn import_is_referenced(items: list[ref parser.Node], import_name: ref u8) bool!
                 val item: ref parser.Node = item_val as ref parser.Node
                 if item.kind == parser.NK_FN || item.kind == parser.NK_GENERIC_FN {
                     val body: ref void = item.d5 as ref void
-                    if body != 0 {
+                    if body != none {
                         if item_references_import_shallow(body, import_name) {
                             return true
                         }
                     }
                 } elif item.kind == parser.NK_TEST {
                     val body: ref void = item.d0 as ref void
-                    if body != 0 {
+                    if body != none {
                         if item_references_import_shallow(body, import_name) {
                             return true
                         }
@@ -152,7 +152,7 @@ fn import_is_referenced(items: list[ref parser.Node], import_name: ref u8) bool!
 
 /// Shallow check if a statement list references an import (just checks identifiers and fields).
 fn item_references_import_shallow(stmts_ptr: ref void, import_name: ref u8) bool! = {
-    if stmts_ptr == 0 {
+    if stmts_ptr == none {
         return false
     }
 
@@ -202,7 +202,7 @@ fn stmt_references_import_shallow(node: ref parser.Node, import_name: ref u8) bo
         return expr_references_import_shallow(node.d0 as ref parser.Node, import_name)
     } elif node.kind == parser.NK_WHEN_STMT {
         val when_body: ref void = node.d1 as ref void
-        if when_body != 0 {
+        if when_body != none {
             val wlen: i64 = @len(when_body) as i64
             val wi: mut i64 = 0
             for {
@@ -218,7 +218,7 @@ fn stmt_references_import_shallow(node: ref parser.Node, import_name: ref u8) bo
             }
         }
         val or_branches: ref void = node.d2 as ref void
-        if or_branches != 0 {
+        if or_branches != none {
             val olen: i64 = @len(or_branches) as i64
             val oi: mut i64 = 0
             for {
@@ -227,7 +227,7 @@ fn stmt_references_import_shallow(node: ref parser.Node, import_name: ref u8) bo
                 match or_opt {
                     some or_node => {
                         val or_body: ref void = (or_node as ref parser.Node).d1 as ref void
-                        if or_body != 0 {
+                        if or_body != none {
                             val orlen: i64 = @len(or_body) as i64
                             val ori: mut i64 = 0
                             for {
@@ -249,7 +249,7 @@ fn stmt_references_import_shallow(node: ref parser.Node, import_name: ref u8) bo
             }
         }
         val owise: ref void = node.d3 as ref void
-        if owise != 0 {
+        if owise != none {
             val olen: i64 = @len(owise) as i64
             val oi: mut i64 = 0
             for {
@@ -267,7 +267,7 @@ fn stmt_references_import_shallow(node: ref parser.Node, import_name: ref u8) bo
     } elif node.kind == parser.NK_GUARD {
         if expr_references_import_shallow(node.d0 as ref parser.Node, import_name) { return true }
         val guard_body: ref void = node.d1 as ref void
-        if guard_body != 0 {
+        if guard_body != none {
             val gblen: i64 = @len(guard_body) as i64
             val gbi: mut i64 = 0
             for {
@@ -285,7 +285,7 @@ fn stmt_references_import_shallow(node: ref parser.Node, import_name: ref u8) bo
     } elif node.kind == parser.NK_IF {
         if expr_references_import_shallow(node.d0 as ref parser.Node, import_name) { return true }
         val then_body: ref void = node.d1 as ref void
-        if then_body != 0 {
+        if then_body != none {
             val tlen: i64 = @len(then_body) as i64
             val ti: mut i64 = 0
             for {
@@ -301,7 +301,7 @@ fn stmt_references_import_shallow(node: ref parser.Node, import_name: ref u8) bo
             }
         }
         val elif_list: ref void = node.d2 as ref void
-        if elif_list != 0 {
+        if elif_list != none {
             val elen: i64 = @len(elif_list) as i64
             val ei: mut i64 = 0
             for {
@@ -319,7 +319,7 @@ fn stmt_references_import_shallow(node: ref parser.Node, import_name: ref u8) bo
         val else_body_node: ref parser.Node = node.d3 as ref parser.Node
         if else_body_node != none {
             val else_stmts: ref void = else_body_node.d0 as ref void
-            if else_stmts != 0 {
+            if else_stmts != none {
                 val eslen: i64 = @len(else_stmts) as i64
                 val esi: mut i64 = 0
                 for {
@@ -362,7 +362,7 @@ fn stmt_references_import_shallow(node: ref parser.Node, import_name: ref u8) bo
         val iter: ref parser.Node = node.d1 as ref parser.Node
         if iter != none && expr_references_import_shallow(iter, import_name) { return true }
         val body: ref void = node.d2 as ref void
-        if body != 0 {
+        if body != none {
             val blen: i64 = @len(body) as i64
             val bi: mut i64 = 0
             for {
@@ -382,7 +382,7 @@ fn stmt_references_import_shallow(node: ref parser.Node, import_name: ref u8) bo
         val some_body_node: ref parser.Node = node.d2 as ref parser.Node
         if some_body_node != none {
             val some_body: ref void = some_body_node.d0 as ref void
-            if some_body != 0 {
+            if some_body != none {
                 val slen: i64 = @len(some_body) as i64
                 val si: mut i64 = 0
                 for {
@@ -401,7 +401,7 @@ fn stmt_references_import_shallow(node: ref parser.Node, import_name: ref u8) bo
         val none_body_node: ref parser.Node = node.d3 as ref parser.Node
         if none_body_node != none {
             val none_body: ref void = none_body_node.d0 as ref void
-            if none_body != 0 {
+            if none_body != none {
                 val nlen: i64 = @len(none_body) as i64
                 val ni: mut i64 = 0
                 for {
@@ -460,7 +460,7 @@ fn stmt_references_import_shallow(node: ref parser.Node, import_name: ref u8) bo
     } elif node.kind == parser.NK_MATCH_ENUM {
         if expr_references_import_shallow(node.d0 as ref parser.Node, import_name) { return true }
         val arms: ref void = node.d1 as ref void
-        if arms != 0 {
+        if arms != none {
             val alen: i64 = @len(arms) as i64
             val ai: mut i64 = 0
             for {
@@ -470,7 +470,7 @@ fn stmt_references_import_shallow(node: ref parser.Node, import_name: ref u8) bo
                     some arm => {
                         val arm_node: ref parser.Node = arm as ref parser.Node
                         val body: ref void = arm_node.d1 as ref void
-                        if body != 0 {
+                        if body != none {
                             val blen: i64 = @len(body) as i64
                             val bi: mut i64 = 0
                             for {
@@ -494,7 +494,7 @@ fn stmt_references_import_shallow(node: ref parser.Node, import_name: ref u8) bo
     } elif node.kind == parser.NK_MATCH_VALUE {
         if expr_references_import_shallow(node.d0 as ref parser.Node, import_name) { return true }
         val arms: ref void = node.d1 as ref void
-        if arms != 0 {
+        if arms != none {
             val alen: i64 = @len(arms) as i64
             val ai: mut i64 = 0
             for {
@@ -505,7 +505,7 @@ fn stmt_references_import_shallow(node: ref parser.Node, import_name: ref u8) bo
                         val arm_node: ref parser.Node = arm as ref parser.Node
                         if expr_references_import_shallow(parser.match_value_arm_pattern(arm_node), import_name) { return true }
                         val body: ref void = parser.match_value_arm_body(arm_node) as ref void
-                        if body != 0 {
+                        if body != none {
                             val blen: i64 = @len(body) as i64
                             val bi: mut i64 = 0
                             for {
@@ -529,7 +529,7 @@ fn stmt_references_import_shallow(node: ref parser.Node, import_name: ref u8) bo
         val else_node: ref parser.Node = parser.match_value_else(node)
         if else_node != none {
             val else_body: ref void = else_node.d0 as ref void
-            if else_body != 0 {
+            if else_body != none {
                 val elen: i64 = @len(else_body) as i64
                 val ei: mut i64 = 0
                 for {
@@ -548,7 +548,7 @@ fn stmt_references_import_shallow(node: ref parser.Node, import_name: ref u8) bo
     } elif node.kind == parser.NK_MATCH_TAGGED_UNION {
         if expr_references_import_shallow(node.d0 as ref parser.Node, import_name) { return true }
         val arms: ref void = node.d1 as ref void
-        if arms != 0 {
+        if arms != none {
             val alen: i64 = @len(arms) as i64
             val ai: mut i64 = 0
             for {
@@ -558,7 +558,7 @@ fn stmt_references_import_shallow(node: ref parser.Node, import_name: ref u8) bo
                     some arm => {
                         val arm_node: ref parser.Node = arm as ref parser.Node
                         val body: ref void = arm_node.d2 as ref void
-                        if body != 0 {
+                        if body != none {
                             val blen: i64 = @len(body) as i64
                             val bi: mut i64 = 0
                             for {
@@ -582,7 +582,7 @@ fn stmt_references_import_shallow(node: ref parser.Node, import_name: ref u8) bo
         val else_node: ref parser.Node = node.d2 as ref parser.Node
         if else_node != none {
             val else_body: ref void = else_node.d0 as ref void
-            if else_body != 0 {
+            if else_body != none {
                 val elen: i64 = @len(else_body) as i64
                 val ei: mut i64 = 0
                 for {
@@ -601,7 +601,7 @@ fn stmt_references_import_shallow(node: ref parser.Node, import_name: ref u8) bo
     } elif node.kind == parser.NK_MATCH_UNION {
         if expr_references_import_shallow(node.d0 as ref parser.Node, import_name) { return true }
         val arms: ref void = node.d1 as ref void
-        if arms != 0 {
+        if arms != none {
             val alen: i64 = @len(arms) as i64
             val ai: mut i64 = 0
             for {
@@ -611,7 +611,7 @@ fn stmt_references_import_shallow(node: ref parser.Node, import_name: ref u8) bo
                     some arm => {
                         val arm_node: ref parser.Node = arm as ref parser.Node
                         val body: ref void = arm_node.d1 as ref void
-                        if body != 0 {
+                        if body != none {
                             val blen: i64 = @len(body) as i64
                             val bi: mut i64 = 0
                             for {
@@ -635,7 +635,7 @@ fn stmt_references_import_shallow(node: ref parser.Node, import_name: ref u8) bo
         val else_node: ref parser.Node = node.d2 as ref parser.Node
         if else_node != none {
             val else_body: ref void = else_node.d0 as ref void
-            if else_body != 0 {
+            if else_body != none {
                 val elen: i64 = @len(else_body) as i64
                 val ei: mut i64 = 0
                 for {
@@ -653,7 +653,7 @@ fn stmt_references_import_shallow(node: ref parser.Node, import_name: ref u8) bo
         }
     } elif node.kind == parser.NK_GENERIC_WHEN {
         val gbody: ref void = node.d1 as ref void
-        if gbody != 0 {
+        if gbody != none {
             val gblen: i64 = @len(gbody) as i64
             val gbi: mut i64 = 0
             for {
@@ -670,7 +670,7 @@ fn stmt_references_import_shallow(node: ref parser.Node, import_name: ref u8) bo
         }
     } elif node.kind == parser.NK_DEFER {
         val dbody: ref void = node.d0 as ref void
-        if dbody != 0 {
+        if dbody != none {
             val dblen: i64 = @len(dbody) as i64
             val dbi: mut i64 = 0
             for {
@@ -692,7 +692,7 @@ fn stmt_references_import_shallow(node: ref parser.Node, import_name: ref u8) bo
         return expr_references_import_shallow(node.d1 as ref parser.Node, import_name)
     } elif node.kind == parser.NK_PRE || node.kind == parser.NK_POST {
         val clist: ref void = node.d0 as ref void
-        if clist != 0 {
+        if clist != none {
             for c in clist as list[ref parser.Node] {
                 if expr_references_import_shallow(c.d1 as ref parser.Node, import_name) { return true }
             }
@@ -725,7 +725,7 @@ fn expr_references_import_shallow(node: ref parser.Node, import_name: ref u8) bo
     } elif node.kind == parser.NK_CALL {
         if expr_references_import_shallow(parser.call_callee(node), import_name) { return true }
         val args: ref void = parser.call_args(node) as ref void
-        if args != 0 {
+        if args != none {
             val alen: i64 = @len(args) as i64
             val ai: mut i64 = 0
             for {
@@ -742,7 +742,7 @@ fn expr_references_import_shallow(node: ref parser.Node, import_name: ref u8) bo
         }
     } elif node.kind == parser.NK_BUILTIN {
         val args: ref void = node.d1 as ref void
-        if args != 0 {
+        if args != none {
             val alen: i64 = @len(args) as i64
             val ai: mut i64 = 0
             for {
@@ -759,7 +759,7 @@ fn expr_references_import_shallow(node: ref parser.Node, import_name: ref u8) bo
         }
     } elif node.kind == parser.NK_ARGS_PACK {
         val elems: ref void = node.d0 as ref void
-        if elems != 0 {
+        if elems != none {
             val elen: i64 = @len(elems) as i64
             val ei: mut i64 = 0
             for {
@@ -785,7 +785,7 @@ fn expr_references_import_shallow(node: ref parser.Node, import_name: ref u8) bo
         if expr_references_import_shallow(node.d0 as ref parser.Node, import_name) { return true }
     } elif node.kind == parser.NK_STRUCT_LIT {
         val fields: ref void = node.d1 as ref void
-        if fields != 0 {
+        if fields != none {
             val flen: i64 = @len(fields) as i64
             val fi: mut i64 = 0
             for {
@@ -909,7 +909,7 @@ fn resolve_module_impl(
             val is_directly_referenced: bool = @len(needed_subs) > 0 || import_is_referenced(items, import_name)
             val is_needed_by_parent: mut bool = false
 
-            if needed_children != 0 {
+            if needed_children != none {
                 val needed_list: list[ref u8] = needed_children as list[ref u8]
                 is_needed_by_parent = import_in_list(needed_list, import_name)
             }
@@ -1514,12 +1514,12 @@ fn collect_needed_subnames(items: list[ref parser.Node], import_name: ref u8) li
                 val item: ref parser.Node = item_val as ref parser.Node
                 if item.kind == parser.NK_FN || item.kind == parser.NK_GENERIC_FN {
                     val body: ref void = item.d5 as ref void
-                    if body != 0 {
+                    if body != none {
                         collect_needed_subnames_in_stmts(body, import_name, needed)
                     }
                 } elif item.kind == parser.NK_TEST {
                     val body: ref void = item.d0 as ref void
-                    if body != 0 {
+                    if body != none {
                         collect_needed_subnames_in_stmts(body, import_name, needed)
                     }
                 } elif item.kind == parser.NK_CONST {
@@ -1537,7 +1537,7 @@ fn collect_needed_subnames(items: list[ref parser.Node], import_name: ref u8) li
 }
 
 fn collect_needed_subnames_in_stmts(stmts_ptr: ref void, import_name: ref u8, needed: list[ref u8]) void! = {
-    if stmts_ptr == 0 { return }
+    if stmts_ptr == none { return }
     val stmts: list[ref parser.Node] = stmts_ptr as list[ref parser.Node]
     val slen: i64 = @len(stmts) as i64
     val si: mut i64 = 0
@@ -1572,17 +1572,17 @@ fn collect_needed_subnames_in_stmt(stmt: ref parser.Node, import_name: ref u8, n
     } elif stmt.kind == parser.NK_GUARD {
         collect_needed_subnames_in_expr(stmt.d0 as ref parser.Node, import_name, needed)
         val guard_body2: ref void = stmt.d1 as ref void
-        if guard_body2 != 0 {
+        if guard_body2 != none {
             collect_needed_subnames_in_stmts(guard_body2, import_name, needed)
         }
     } elif stmt.kind == parser.NK_IF {
         collect_needed_subnames_in_expr(stmt.d0 as ref parser.Node, import_name, needed)
         val then_body: ref void = stmt.d1 as ref void
-        if then_body != 0 {
+        if then_body != none {
             collect_needed_subnames_in_stmts(then_body, import_name, needed)
         }
         val elif_list: ref void = stmt.d2 as ref void
-        if elif_list != 0 {
+        if elif_list != none {
             val elen: i64 = @len(elif_list) as i64
             val ei: mut i64 = 0
             for {
@@ -1593,7 +1593,7 @@ fn collect_needed_subnames_in_stmt(stmt: ref parser.Node, import_name: ref u8, n
                         val elif_stmt_node: ref parser.Node = elif_node as ref parser.Node
                         collect_needed_subnames_in_expr(elif_stmt_node.d0 as ref parser.Node, import_name, needed)
                         val elif_body: ref void = elif_stmt_node.d1 as ref void
-                        if elif_body != 0 {
+                        if elif_body != none {
                             collect_needed_subnames_in_stmts(elif_body, import_name, needed)
                         }
                     }
@@ -1605,7 +1605,7 @@ fn collect_needed_subnames_in_stmt(stmt: ref parser.Node, import_name: ref u8, n
         val else_node: ref parser.Node = stmt.d3 as ref parser.Node
         if else_node != none {
             val else_body: ref void = else_node.d0 as ref void
-            if else_body != 0 {
+            if else_body != none {
                 collect_needed_subnames_in_stmts(else_body, import_name, needed)
             }
         }
@@ -1623,7 +1623,7 @@ fn collect_needed_subnames_in_stmt(stmt: ref parser.Node, import_name: ref u8, n
             collect_needed_subnames_in_stmt(post_n, import_name, needed)
         }
         val body: ref void = stmt.d4 as ref void
-        if body != 0 {
+        if body != none {
             collect_needed_subnames_in_stmts(body, import_name, needed)
         }
     } elif stmt.kind == parser.NK_FORIN {
@@ -1632,7 +1632,7 @@ fn collect_needed_subnames_in_stmt(stmt: ref parser.Node, import_name: ref u8, n
             collect_needed_subnames_in_expr(iter, import_name, needed)
         }
         val body: ref void = stmt.d2 as ref void
-        if body != 0 {
+        if body != none {
             collect_needed_subnames_in_stmts(body, import_name, needed)
         }
     } elif stmt.kind == parser.NK_MATCH_OPT {
@@ -1640,14 +1640,14 @@ fn collect_needed_subnames_in_stmt(stmt: ref parser.Node, import_name: ref u8, n
         val some_body_node: ref parser.Node = stmt.d2 as ref parser.Node
         if some_body_node != none {
             val some_body: ref void = some_body_node.d0 as ref void
-            if some_body != 0 {
+            if some_body != none {
                 collect_needed_subnames_in_stmts(some_body, import_name, needed)
             }
         }
         val none_body_node: ref parser.Node = stmt.d3 as ref parser.Node
         if none_body_node != none {
             val none_body: ref void = none_body_node.d0 as ref void
-            if none_body != 0 {
+            if none_body != none {
                 collect_needed_subnames_in_stmts(none_body, import_name, needed)
             }
         }
@@ -1656,21 +1656,21 @@ fn collect_needed_subnames_in_stmt(stmt: ref parser.Node, import_name: ref u8, n
         val ok_body_node: ref parser.Node = stmt.d2 as ref parser.Node
         if ok_body_node != none {
             val ok_body: ref void = ok_body_node.d0 as ref void
-            if ok_body != 0 {
+            if ok_body != none {
                 collect_needed_subnames_in_stmts(ok_body, import_name, needed)
             }
         }
         val err_body_node: ref parser.Node = stmt.d4 as ref parser.Node
         if err_body_node != none {
             val err_body: ref void = err_body_node.d0 as ref void
-            if err_body != 0 {
+            if err_body != none {
                 collect_needed_subnames_in_stmts(err_body, import_name, needed)
             }
         }
     } elif stmt.kind == parser.NK_MATCH_ENUM {
         collect_needed_subnames_in_expr(stmt.d0 as ref parser.Node, import_name, needed)
         val arms: ref void = stmt.d1 as ref void
-        if arms != 0 {
+        if arms != none {
             val alen: i64 = @len(arms) as i64
             val ai: mut i64 = 0
             for {
@@ -1680,7 +1680,7 @@ fn collect_needed_subnames_in_stmt(stmt: ref parser.Node, import_name: ref u8, n
                     some arm => {
                         val arm_node: ref parser.Node = arm as ref parser.Node
                         val body: ref void = arm_node.d1 as ref void
-                        if body != 0 {
+                        if body != none {
                             collect_needed_subnames_in_stmts(body, import_name, needed)
                         }
                     }
@@ -1692,7 +1692,7 @@ fn collect_needed_subnames_in_stmt(stmt: ref parser.Node, import_name: ref u8, n
     } elif stmt.kind == parser.NK_MATCH_UNION {
         collect_needed_subnames_in_expr(stmt.d0 as ref parser.Node, import_name, needed)
         val arms: ref void = stmt.d1 as ref void
-        if arms != 0 {
+        if arms != none {
             val alen: i64 = @len(arms) as i64
             val ai: mut i64 = 0
             for {
@@ -1702,7 +1702,7 @@ fn collect_needed_subnames_in_stmt(stmt: ref parser.Node, import_name: ref u8, n
                     some arm => {
                         val arm_node: ref parser.Node = arm as ref parser.Node
                         val body: ref void = arm_node.d1 as ref void
-                        if body != 0 {
+                        if body != none {
                             collect_needed_subnames_in_stmts(body, import_name, needed)
                         }
                     }
@@ -1714,7 +1714,7 @@ fn collect_needed_subnames_in_stmt(stmt: ref parser.Node, import_name: ref u8, n
     } elif stmt.kind == parser.NK_MATCH_TAGGED_UNION {
         collect_needed_subnames_in_expr(stmt.d0 as ref parser.Node, import_name, needed)
         val arms: ref void = stmt.d1 as ref void
-        if arms != 0 {
+        if arms != none {
             val alen: i64 = @len(arms) as i64
             val ai: mut i64 = 0
             for {
@@ -1724,7 +1724,7 @@ fn collect_needed_subnames_in_stmt(stmt: ref parser.Node, import_name: ref u8, n
                     some arm => {
                         val arm_node: ref parser.Node = arm as ref parser.Node
                         val body: ref void = arm_node.d2 as ref void
-                        if body != 0 {
+                        if body != none {
                             collect_needed_subnames_in_stmts(body, import_name, needed)
                         }
                     }
@@ -1736,7 +1736,7 @@ fn collect_needed_subnames_in_stmt(stmt: ref parser.Node, import_name: ref u8, n
     } elif stmt.kind == parser.NK_MATCH_STR {
         collect_needed_subnames_in_expr(stmt.d0 as ref parser.Node, import_name, needed)
         val arms: ref void = stmt.d1 as ref void
-        if arms != 0 {
+        if arms != none {
             val alen: i64 = @len(arms) as i64
             val ai: mut i64 = 0
             for {
@@ -1746,7 +1746,7 @@ fn collect_needed_subnames_in_stmt(stmt: ref parser.Node, import_name: ref u8, n
                     some arm => {
                         val arm_node: ref parser.Node = arm as ref parser.Node
                         val body: ref void = arm_node.d1 as ref void
-                        if body != 0 {
+                        if body != none {
                             collect_needed_subnames_in_stmts(body, import_name, needed)
                         }
                     }
@@ -1758,7 +1758,7 @@ fn collect_needed_subnames_in_stmt(stmt: ref parser.Node, import_name: ref u8, n
     } elif stmt.kind == parser.NK_MATCH_VALUE {
         collect_needed_subnames_in_expr(parser.match_value_expr(stmt), import_name, needed)
         val arms: ref void = parser.match_value_arms(stmt) as ref void
-        if arms != 0 {
+        if arms != none {
             val alen: i64 = @len(arms) as i64
             val ai: mut i64 = 0
             for {
@@ -1769,7 +1769,7 @@ fn collect_needed_subnames_in_stmt(stmt: ref parser.Node, import_name: ref u8, n
                         val arm_node: ref parser.Node = arm as ref parser.Node
                         collect_needed_subnames_in_expr(parser.match_value_arm_pattern(arm_node), import_name, needed)
                         val body: ref void = parser.match_value_arm_body(arm_node) as ref void
-                        if body != 0 {
+                        if body != none {
                             collect_needed_subnames_in_stmts(body, import_name, needed)
                         }
                     }
@@ -1781,7 +1781,7 @@ fn collect_needed_subnames_in_stmt(stmt: ref parser.Node, import_name: ref u8, n
         val else_node: ref parser.Node = parser.match_value_else(stmt)
         if else_node != none {
             val else_body: ref void = else_node.d0 as ref void
-            if else_body != 0 {
+            if else_body != none {
                 collect_needed_subnames_in_stmts(else_body, import_name, needed)
             }
         }
@@ -1789,7 +1789,7 @@ fn collect_needed_subnames_in_stmt(stmt: ref parser.Node, import_name: ref u8, n
         collect_needed_subnames_in_expr(stmt.d0 as ref parser.Node, import_name, needed)
     } elif stmt.kind == parser.NK_WHEN_STMT {
         val when_body: ref void = stmt.d1 as ref void
-        if when_body != 0 {
+        if when_body != none {
             collect_needed_subnames_in_stmts(when_body, import_name, needed)
         }
     } elif stmt.kind == parser.NK_DEFER {
@@ -1802,7 +1802,7 @@ fn collect_needed_subnames_in_stmt(stmt: ref parser.Node, import_name: ref u8, n
         collect_needed_subnames_in_expr(stmt.d0 as ref parser.Node, import_name, needed)
     } elif stmt.kind == parser.NK_PRE || stmt.kind == parser.NK_POST {
         val contracts: ref void = stmt.d0 as ref void
-        if contracts != 0 {
+        if contracts != none {
             val clen: i64 = @len(contracts) as i64
             val ci: mut i64 = 0
             for {
@@ -1820,7 +1820,7 @@ fn collect_needed_subnames_in_stmt(stmt: ref parser.Node, import_name: ref u8, n
         }
     } elif stmt.kind == parser.NK_GENERIC_WHEN {
         val gbody: ref void = stmt.d1 as ref void
-        if gbody != 0 {
+        if gbody != none {
             collect_needed_subnames_in_stmts(gbody, import_name, needed)
         }
     } elif stmt.kind == parser.NK_INCREMENT || stmt.kind == parser.NK_DECREMENT {
@@ -1850,7 +1850,7 @@ fn collect_needed_subnames_in_expr(expr: ref parser.Node, import_name: ref u8, n
     } elif expr.kind == parser.NK_CALL {
         collect_needed_subnames_in_expr(parser.call_callee(expr), import_name, needed)
         val args: ref void = parser.call_args(expr) as ref void
-        if args != 0 {
+        if args != none {
             val alen: i64 = @len(args) as i64
             val ai: mut i64 = 0
             for {
@@ -1865,7 +1865,7 @@ fn collect_needed_subnames_in_expr(expr: ref parser.Node, import_name: ref u8, n
         }
     } elif expr.kind == parser.NK_BUILTIN {
         val args: ref void = expr.d1 as ref void
-        if args != 0 {
+        if args != none {
             val alen: i64 = @len(args) as i64
             val ai: mut i64 = 0
             for {
@@ -1889,7 +1889,7 @@ fn collect_needed_subnames_in_expr(expr: ref parser.Node, import_name: ref u8, n
         collect_needed_subnames_in_expr(expr.d0 as ref parser.Node, import_name, needed)
     } elif expr.kind == parser.NK_ARGS_PACK {
         val elems: ref void = expr.d0 as ref void
-        if elems != 0 {
+        if elems != none {
             val elen: i64 = @len(elems) as i64
             val ei: mut i64 = 0
             for {
@@ -1906,7 +1906,7 @@ fn collect_needed_subnames_in_expr(expr: ref parser.Node, import_name: ref u8, n
         }
     } elif expr.kind == parser.NK_STRUCT_LIT {
         val fields: ref void = expr.d0 as ref void
-        if fields != 0 {
+        if fields != none {
             val flen: i64 = @len(fields) as i64
             val fi: mut i64 = 0
             for {
@@ -1924,7 +1924,7 @@ fn collect_needed_subnames_in_expr(expr: ref parser.Node, import_name: ref u8, n
         }
     } elif expr.kind == parser.NK_LIST_LIT {
         val elems: ref void = expr.d0 as ref void
-        if elems != 0 {
+        if elems != none {
             val elen: i64 = @len(elems) as i64
             val ei: mut i64 = 0
             for {
@@ -1981,7 +1981,7 @@ fn collect_used_imports_expr(node: ref parser.Node, import_names: list[ref u8], 
     } elif node.kind == parser.NK_CALL {
         collect_used_imports_expr(parser.call_callee(node), import_names, used)
         val args: ref void = parser.call_args(node) as ref void
-        if args != 0 {
+        if args != none {
             val alen: i64 = @len(args) as i64
             val ai: mut i64 = 0
             for {
@@ -2005,7 +2005,7 @@ fn collect_used_imports_expr(node: ref parser.Node, import_names: list[ref u8], 
         collect_used_imports_expr(node.d0 as ref parser.Node, import_names, used)
     } elif node.kind == parser.NK_STRUCT_LIT {
         val fields: ref void = node.d1 as ref void
-        if fields != 0 {
+        if fields != none {
             val flen: i64 = @len(fields) as i64
             val fi: mut i64 = 0
             for {
@@ -2020,7 +2020,7 @@ fn collect_used_imports_expr(node: ref parser.Node, import_names: list[ref u8], 
         }
     } elif node.kind == parser.NK_LIST_LIT {
         val elems: ref void = node.d0 as ref void
-        if elems != 0 {
+        if elems != none {
             val elen: i64 = @len(elems) as i64
             val ei: mut i64 = 0
             for {
@@ -2035,7 +2035,7 @@ fn collect_used_imports_expr(node: ref parser.Node, import_names: list[ref u8], 
         }
     } elif node.kind == parser.NK_BUILTIN {
         val bargs: ref void = node.d1 as ref void
-        if bargs != 0 {
+        if bargs != none {
             val blen: i64 = @len(bargs) as i64
             val bi: mut i64 = 0
             for {
@@ -2050,7 +2050,7 @@ fn collect_used_imports_expr(node: ref parser.Node, import_names: list[ref u8], 
         }
     } elif node.kind == parser.NK_ARGS_PACK {
         val elems: ref void = node.d0 as ref void
-        if elems != 0 {
+        if elems != none {
             val elen: i64 = @len(elems) as i64
             val ei: mut i64 = 0
             for {
@@ -2087,7 +2087,7 @@ fn collect_used_imports_stmt(node: ref parser.Node, import_names: list[ref u8], 
         collect_used_imports_expr(node.d1 as ref parser.Node, import_names, used)
     } elif node.kind == parser.NK_DEFER {
         val body: ref void = node.d0 as ref void
-        if body != 0 {
+        if body != none {
             val blen: i64 = @len(body) as i64
             val bi: mut i64 = 0
             for {
@@ -2103,7 +2103,7 @@ fn collect_used_imports_stmt(node: ref parser.Node, import_names: list[ref u8], 
     } elif node.kind == parser.NK_GUARD {
         collect_used_imports_expr(node.d0 as ref parser.Node, import_names, used)
         val guard_body3: ref void = node.d1 as ref void
-        if guard_body3 != 0 {
+        if guard_body3 != none {
             val gb3len: i64 = @len(guard_body3) as i64
             val gb3i: mut i64 = 0
             for {
@@ -2119,7 +2119,7 @@ fn collect_used_imports_stmt(node: ref parser.Node, import_names: list[ref u8], 
     } elif node.kind == parser.NK_IF {
         collect_used_imports_expr(node.d0 as ref parser.Node, import_names, used)
         val then_body: ref void = node.d1 as ref void
-        if then_body != 0 {
+        if then_body != none {
             val tlen: i64 = @len(then_body) as i64
             val ti: mut i64 = 0
             for {
@@ -2133,7 +2133,7 @@ fn collect_used_imports_stmt(node: ref parser.Node, import_names: list[ref u8], 
             }
         }
         val elif_list: ref void = node.d2 as ref void
-        if elif_list != 0 {
+        if elif_list != none {
             val e2len: i64 = @len(elif_list) as i64
             val e2i: mut i64 = 0
             for {
@@ -2149,7 +2149,7 @@ fn collect_used_imports_stmt(node: ref parser.Node, import_names: list[ref u8], 
         val else_body_node: ref parser.Node = node.d3 as ref parser.Node
         if else_body_node != none {
             val else_stmts: ref void = else_body_node.d0 as ref void
-            if else_stmts != 0 {
+            if else_stmts != none {
                 val elen: i64 = @len(else_stmts) as i64
                 val ei: mut i64 = 0
                 for {
@@ -2171,7 +2171,7 @@ fn collect_used_imports_stmt(node: ref parser.Node, import_names: list[ref u8], 
         val post_n: ref parser.Node = node.d3 as ref parser.Node
         if post_n != none { collect_used_imports_stmt(post_n, import_names, used) }
         val body: ref void = node.d4 as ref void
-        if body != 0 {
+        if body != none {
             val blen: i64 = @len(body) as i64
             val bi: mut i64 = 0
             for {
@@ -2187,7 +2187,7 @@ fn collect_used_imports_stmt(node: ref parser.Node, import_names: list[ref u8], 
     } elif node.kind == parser.NK_FORIN {
         collect_used_imports_expr(node.d1 as ref parser.Node, import_names, used)
         val body: ref void = node.d2 as ref void
-        if body != 0 {
+        if body != none {
             val blen: i64 = @len(body) as i64
             val bi: mut i64 = 0
             for {
@@ -2205,7 +2205,7 @@ fn collect_used_imports_stmt(node: ref parser.Node, import_names: list[ref u8], 
         val some_body_node: ref parser.Node = node.d2 as ref parser.Node
         if some_body_node != none {
             val some_body: ref void = some_body_node.d0 as ref void
-            if some_body != 0 {
+            if some_body != none {
                 val slen: i64 = @len(some_body) as i64
                 val si: mut i64 = 0
                 for {
@@ -2222,7 +2222,7 @@ fn collect_used_imports_stmt(node: ref parser.Node, import_names: list[ref u8], 
         val none_body_node: ref parser.Node = node.d3 as ref parser.Node
         if none_body_node != none {
             val none_body: ref void = none_body_node.d0 as ref void
-            if none_body != 0 {
+            if none_body != none {
                 val nlen: i64 = @len(none_body) as i64
                 val ni: mut i64 = 0
                 for {
@@ -2241,7 +2241,7 @@ fn collect_used_imports_stmt(node: ref parser.Node, import_names: list[ref u8], 
         val ok_body_node: ref parser.Node = node.d2 as ref parser.Node
         if ok_body_node != none {
             val ok_body: ref void = ok_body_node.d0 as ref void
-            if ok_body != 0 {
+            if ok_body != none {
                 val olen: i64 = @len(ok_body) as i64
                 val oi: mut i64 = 0
                 for {
@@ -2258,7 +2258,7 @@ fn collect_used_imports_stmt(node: ref parser.Node, import_names: list[ref u8], 
         val err_body_node: ref parser.Node = node.d4 as ref parser.Node
         if err_body_node != none {
             val err_body: ref void = err_body_node.d0 as ref void
-            if err_body != 0 {
+            if err_body != none {
                 val elen: i64 = @len(err_body) as i64
                 val ei: mut i64 = 0
                 for {
@@ -2275,7 +2275,7 @@ fn collect_used_imports_stmt(node: ref parser.Node, import_names: list[ref u8], 
     } elif node.kind == parser.NK_MATCH_ENUM || node.kind == parser.NK_MATCH_STR || node.kind == parser.NK_MATCH_UNION || node.kind == parser.NK_MATCH_TAGGED_UNION {
         collect_used_imports_expr(node.d0 as ref parser.Node, import_names, used)
         val arms: ref void = node.d1 as ref void
-        if arms != 0 {
+        if arms != none {
             val alen: i64 = @len(arms) as i64
             val ai: mut i64 = 0
             for {
@@ -2287,7 +2287,7 @@ fn collect_used_imports_stmt(node: ref parser.Node, import_names: list[ref u8], 
                         val arm_body: mut ref void = 0 as ref void
                         if node.kind == parser.NK_MATCH_TAGGED_UNION { arm_body = arm_node.d2 as ref void }
                         else { arm_body = arm_node.d1 as ref void }
-                        if arm_body != 0 {
+                        if arm_body != none {
                             val blen: i64 = @len(arm_body) as i64
                             val bi: mut i64 = 0
                             for {
@@ -2309,7 +2309,7 @@ fn collect_used_imports_stmt(node: ref parser.Node, import_names: list[ref u8], 
         val else_node: ref parser.Node = node.d2 as ref parser.Node
         if else_node != none {
             val else_body: ref void = else_node.d0 as ref void
-            if else_body != 0 {
+            if else_body != none {
                 val elen: i64 = @len(else_body) as i64
                 val ei: mut i64 = 0
                 for {
@@ -2326,7 +2326,7 @@ fn collect_used_imports_stmt(node: ref parser.Node, import_names: list[ref u8], 
     } elif node.kind == parser.NK_MATCH_VALUE {
         collect_used_imports_expr(parser.match_value_expr(node), import_names, used)
         val arms: ref void = parser.match_value_arms(node) as ref void
-        if arms != 0 {
+        if arms != none {
             val alen: i64 = @len(arms) as i64
             val ai: mut i64 = 0
             for {
@@ -2337,7 +2337,7 @@ fn collect_used_imports_stmt(node: ref parser.Node, import_names: list[ref u8], 
                         val arm_node: ref parser.Node = arm as ref parser.Node
                         collect_used_imports_expr(parser.match_value_arm_pattern(arm_node), import_names, used)
                         val arm_body: ref void = parser.match_value_arm_body(arm_node) as ref void
-                        if arm_body != 0 {
+                        if arm_body != none {
                             val blen: i64 = @len(arm_body) as i64
                             val bi: mut i64 = 0
                             for {
@@ -2359,7 +2359,7 @@ fn collect_used_imports_stmt(node: ref parser.Node, import_names: list[ref u8], 
         val else_node: ref parser.Node = parser.match_value_else(node)
         if else_node != none {
             val else_body: ref void = else_node.d0 as ref void
-            if else_body != 0 {
+            if else_body != none {
                 val elen: i64 = @len(else_body) as i64
                 val ei: mut i64 = 0
                 for {
@@ -2375,7 +2375,7 @@ fn collect_used_imports_stmt(node: ref parser.Node, import_names: list[ref u8], 
         }
     } elif node.kind == parser.NK_PRE || node.kind == parser.NK_POST {
         val clist: ref void = node.d0 as ref void
-        if clist != 0 {
+        if clist != none {
             val clen: i64 = @len(clist) as i64
             val ci: mut i64 = 0
             for {
@@ -2392,7 +2392,7 @@ fn collect_used_imports_stmt(node: ref parser.Node, import_names: list[ref u8], 
         }
     } elif node.kind == parser.NK_GENERIC_WHEN {
         val gbody: ref void = node.d1 as ref void
-        if gbody != 0 {
+        if gbody != none {
             val gblen: i64 = @len(gbody) as i64
             val gbi: mut i64 = 0
             for {
@@ -2431,7 +2431,7 @@ fn collect_used_imports_items(items: list[ref parser.Node], import_names: list[r
 
                 if item.kind == parser.NK_FN || item.kind == parser.NK_GENERIC_FN {
                     val body: ref void = item.d5 as ref void
-                    if body != 0 {
+                    if body != none {
                         val blen: i64 = @len(body) as i64
                         if blen < 0 || blen > 100000 {
                             ii++
@@ -2450,7 +2450,7 @@ fn collect_used_imports_items(items: list[ref parser.Node], import_names: list[r
                     }
                 } elif item.kind == parser.NK_TEST {
                     val body: ref void = item.d0 as ref void
-                    if body != 0 {
+                    if body != none {
                         val blen: i64 = @len(body) as i64
                         if blen < 0 || blen > 100000 {
                             ii++

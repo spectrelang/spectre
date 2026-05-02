@@ -827,6 +827,7 @@ fn is_comparison_op(op: i64) bool! = {
 }
 
 fn format_type_for_error(type_name: ref u8, is_ref: i64) ref u8! = {
+    if is_ref == 1 && (type_name == 0 as ref u8 || str_eq(type_name, "")) { return "ref void" }
     if type_name == 0 as ref u8 || str_eq(type_name, "") { return "unknown" }
     if is_ref == 0 { return type_name }
     val buf: ref u8 = @alloc(128) as ref u8
@@ -834,14 +835,30 @@ fn format_type_for_error(type_name: ref u8, is_ref: i64) ref u8! = {
     return buf
 }
 
+fn expr_is_ref_void(ctx: ref SemaCtx, node: ref parser.Node) bool! = {
+    if node == 0 as ref parser.Node { return false }
+    if infer_expr_scope_is_ref(ctx, node) != 1 { return false }
+    val type_name: ref u8 = infer_expr_scope_type_name(ctx, node)
+    return type_name == 0 as ref u8 || str_eq(type_name, "")
+}
+
 fn comparison_operands_compatible(ctx: ref SemaCtx, lhs: ref parser.Node, rhs: ref parser.Node, _: i64) bool! = {
     val lhs_type: ref u8 = infer_expr_scope_type_name(ctx, lhs)
     val rhs_type: ref u8 = infer_expr_scope_type_name(ctx, rhs)
-    if lhs_type == 0 as ref u8 || rhs_type == 0 as ref u8 { return true }
-    if str_eq(lhs_type, "") || str_eq(rhs_type, "") { return true }
-
     val lhs_ref: i64 = infer_expr_scope_is_ref(ctx, lhs)
     val rhs_ref: i64 = infer_expr_scope_is_ref(ctx, rhs)
+    val lhs_is_ref_void: bool = expr_is_ref_void(ctx, lhs)
+    val rhs_is_ref_void: bool = expr_is_ref_void(ctx, rhs)
+
+    if lhs_is_ref_void || rhs_is_ref_void {
+        if lhs_is_ref_void && rhs_is_ref_void { return true }
+        if lhs_is_ref_void && rhs.kind == parser.NK_NONE { return true }
+        if rhs_is_ref_void && lhs.kind == parser.NK_NONE { return true }
+        return false
+    }
+
+    if lhs_type == 0 as ref u8 || rhs_type == 0 as ref u8 { return true }
+    if str_eq(lhs_type, "") || str_eq(rhs_type, "") { return true }
 
     if lhs_ref != rhs_ref { return false }
 
@@ -1404,6 +1421,11 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
                 val lhs_type: ref u8 = format_type_for_error(infer_expr_scope_type_name(ctx, lhs), infer_expr_scope_is_ref(ctx, lhs))
                 val rhs_type: ref u8 = format_type_for_error(infer_expr_scope_type_name(ctx, rhs), infer_expr_scope_is_ref(ctx, rhs))
                 val buf: ref u8 = @alloc(512) as ref u8
+                if string.rchar_cmp(lhs_type, "unknown") == 0 {
+                    return
+                } elif string.rchar_cmp(rhs_type, "unknown") == 0 {
+                    return
+                }
                 @snprintf(buf, 512, "{s}:{lld}: cannot compare values of type '{s}' and '{s}'", {filename, line, lhs_type, rhs_type})
                 add_error(ctx, buf)
             }
