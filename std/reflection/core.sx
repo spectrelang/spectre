@@ -67,7 +67,13 @@ when netbsd {
 val stdio = use("../stdio")
 val string = use("../string")
 
-extern (C) fn uname(buf: ref UnameResult) i32! = "uname"
+when posix {
+    extern (C) fn uname(buf: ref UnameResult) i32! = "uname"
+}
+
+when windows {
+    extern (C) fn GetVersionExA(lpVersionInformation: ref void) i32! = "GetVersionExA"
+}
 
 pub fn get_current_platform() Platform! = {
     val buf: mut UnameResult = {
@@ -78,16 +84,27 @@ pub fn get_current_platform() Platform! = {
         machine: 0
     }
 
-    val r = uname(@addr(buf))
-    if r == 0 {
-        val sysname: ref u8 = @addr(buf.sysname) as ref u8
-        if string.rchar_cmp(sysname, "Linux") == 0 { return Platform.Linux }
-        if string.rchar_cmp(sysname, "Darwin") == 0 { return Platform.Darwin }
-        if string.rchar_cmp(sysname, "FreeBSD") == 0 { return Platform.FreeBSD }
-        if string.rchar_cmp(sysname, "OpenBSD") == 0 { return Platform.OpenBSD }
-        if string.rchar_cmp(sysname, "NetBSD") == 0 { return Platform.NetBSD }
-        if string.rchar_cmp(sysname, "Windows") == 0 { return Platform.Windows }
+    when windows {
+        val osvi: mut void = @alloc(128) as ref void
+        @store8(osvi, 128)
+        if GetVersionExA(osvi) == 0 {
+            return Platform.Unknown
+        }
+        return Platform.Windows
     }
+
+    when posix {
+        val r = uname(@addr(buf))
+        if r == 0 {
+            val sysname: ref u8 = @addr(buf.sysname) as ref u8
+            if string.rchar_cmp(sysname, "Linux") == 0 { return Platform.Linux }
+            if string.rchar_cmp(sysname, "Darwin") == 0 { return Platform.Darwin }
+            if string.rchar_cmp(sysname, "FreeBSD") == 0 { return Platform.FreeBSD }
+            if string.rchar_cmp(sysname, "OpenBSD") == 0 { return Platform.OpenBSD }
+            if string.rchar_cmp(sysname, "NetBSD") == 0 { return Platform.NetBSD }
+        }
+    }
+    
     return Platform.Unknown
 }
 
