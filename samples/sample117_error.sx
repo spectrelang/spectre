@@ -1,0 +1,178 @@
+pub enum Platform = {
+    Windows,
+    Linux,
+    Darwin,
+    NetBSD,
+    DragonflyBSD,
+    FreeBSD,
+    OpenBSD,
+    Android,
+    Haiku,
+    Redox,
+    Plan9,
+    Unknown,
+}
+
+when darwin {
+    extern type UnameResult = {
+        sysname: [256]u8
+        nodename: [256]u8
+        release: [256]u8
+        version: [256]u8
+        machine: [256]u8
+    }
+}
+
+when linux {
+    extern type UnameResult = {
+        sysname: [65]u8
+        nodename: [65]u8
+        release: [65]u8
+        version: [65]u8
+        machine: [65]u8
+        domainname: [65]u8
+    }
+}
+
+when freebsd {
+    extern type UnameResult = {
+        sysname: [256]u8
+        nodename: [256]u8
+        release: [256]u8
+        version: [256]u8
+        machine: [256]u8
+    }
+}
+
+when openbsd {
+    extern type UnameResult = {
+        sysname: [256]u8
+        nodename: [256]u8
+        release: [256]u8
+        version: [256]u8
+        machine: [256]u8
+    }
+}
+
+when netbsd {
+    extern type UnameResult = {
+        sysname: [32]u8
+        nodename: [256]u8
+        release: [256]u8
+        version: [256]u8
+        machine: [256]u8
+    }
+}
+
+val stdio = use("std/stdio")
+val string = use("std/string")
+val allocators = use("std/allocators")
+
+when posix {
+    extern (C) fn uname(buf: ref UnameResult) i32! = "uname"
+}
+
+when windows {
+    extern (C) fn GetVersionExA(lpVersionInformation: ref void) i32! = "GetVersionExA"
+}
+
+pub fn get_current_platform[T](ac: allocators.Allocator) Platform! = {
+    val buf: mut UnameResult = {
+        sysname: 0,
+        nodename: 0,
+        release: 0,
+        version: 0,
+        machine: 0
+    }
+
+    when windows {
+        val osvi: mut ref void = T.alloc(ac, 128) as ref void
+        @store8(osvi, 128)
+        if GetVersionExA(osvi) == 0 {
+            return Platform.Unknown
+        }
+        return Platform.Windows
+    }
+
+    when posix {
+        val r = uname(@addr(buf))
+        if r == 0 {
+            val sysname: ref u8 = @addr(buf.sysname) as ref u8
+            if string.rchar_cmp(sysname, "Linux") == 0 { return Platform.Linux }
+            if string.rchar_cmp(sysname, "Darwin") == 0 { return Platform.Darwin }
+            if string.rchar_cmp(sysname, "FreeBSD") == 0 { return Platform.FreeBSD }
+            if string.rchar_cmp(sysname, "OpenBSD") == 0 { return Platform.OpenBSD }
+            if string.rchar_cmp(sysname, "NetBSD") == 0 { return Platform.NetBSD }
+        }
+    }
+
+    return Platform.Unknown
+}
+
+/// Returns the current platform name as a lowercase string (e.g. "linux", "darwin").
+pub fn current_platform_name[T](ac: allocators.Allocator) ref u8! = {
+    val p = get_current_platform[T](ac)
+    match p {
+        Platform.Linux        => { return "linux" }
+        Platform.Darwin       => { return "darwin" }
+        Platform.FreeBSD      => { return "freebsd" }
+        Platform.OpenBSD      => { return "openbsd" }
+        Platform.NetBSD       => { return "netbsd" }
+        Platform.DragonflyBSD => { return "dragonflybsd" }
+        Platform.Windows      => { return "windows" }
+        Platform.Android      => { return "android" }
+        Platform.Haiku        => { return "haiku" }
+        Platform.Redox        => { return "redox" }
+        Platform.Plan9        => { return "plan9" }
+    }
+    return "unknown"
+}
+
+when posix {
+    extern (C) fn readlink(path: ref u8, buf: ref u8, bufsiz: i64) i64! = "readlink"
+}
+
+when windows {
+    extern (C) fn GetModuleFileNameA(module: ref void, buf: ref u8, size: u32) u32! = "GetModuleFileNameA"
+}
+
+/// Returns the absolute path to the current executable.
+pub fn get_exe_path[T](ac: allocators.Allocator) ref u8! = {
+    val buf: ref u8 = T.alloc(ac, 1024)
+    if buf is some _ {
+        @puts("its some.")
+    } else {
+        @puts("its none")
+    }
+    when posix {
+        val n = readlink("/proc/self/exe", buf, 1024)
+        if n > 0 {
+            @store8(@ptradd(buf, n), 0)
+            return buf
+        }
+        val n2 = readlink("/proc/curproc/file", buf, 1024)
+        if n2 > 0 {
+            @store8(@ptradd(buf, n2), 0)
+            return buf
+        }
+    }
+    when windows {
+        if GetModuleFileNameA(0 as ref void, buf, 1024 as u32) != 0 {
+            return buf
+        }
+    }
+    return "."
+}
+
+test {
+    val arena = allocators.Arena.new(10240)
+
+    stdio.puts("calling get_current_platform")
+    val platform = trust get_current_platform[allocators.Arena](arena)
+    trust stdio.print("Current platform: {d}\n", {platform})
+
+    val exe_path = trust get_exe_path[allocators.Arena](arena)
+    trust stdio.print("Exe path: {s}\n", {exe_path})
+
+    allocators.Arena.free(arena)
+}
