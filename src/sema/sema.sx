@@ -1849,7 +1849,8 @@ fn check_generic_call_constraints(ctx: ref SemaCtx, fn_found: ref parser.Node, c
                             val ta_node: ref parser.Node = ta_raw as ref parser.Node
                             val constraint_name: ref u8 = extract_type_name(constraint)
                             val arg_type_name: ref u8 = extract_type_name(ta_node)
-                            if constraint_name != 0 as ref u8 && arg_type_name != 0 as ref u8 {
+                            if constraint_name != 0 as ref u8 && arg_type_name != 0 as ref u8 &&
+                               !is_type_parameter(ctx, arg_type_name) {
                                 val expected_spec: ref u8 = unqualified_type_name(constraint_name)
                                 val tdef: ref parser.Node = find_typedef_anywhere(ctx, arg_type_name)
                                 val impl_spec: mut ref u8 = 0 as ref u8
