@@ -3,7 +3,8 @@ val stdio = use("std/stdio")
 
 pub fn main() void! = {
     val raw_str = \\{"Alice": "asdf"}
-    val doc_opt = json.parse(raw_str)
+    val alc: ref void = 0 as ref void
+    val doc_opt = json.parse[ref void](alc, raw_str)
     match doc_opt {
         none => {
             @puts("Got nothing.")

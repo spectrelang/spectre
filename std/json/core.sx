@@ -84,9 +84,9 @@ fn _subtype_of(value: ref void) u8 = {
     return trust yyjson_get_subtype(value)
 }
 
-pub fn parse(input: ref u8) option[ref void]! = {
+pub fn parse[T](alloc: T, input: ref u8) option[ref void]! = {
     val len: usize = strlen(input)
-    val doc: ref void = yyjson_read_opts(input, len, 0 as u32, 0 as ref void, 0 as ref void)
+    val doc: ref void = yyjson_read_opts(input, len, 0 as u32, alloc as ref void, 0 as ref void)
     if doc == 0 as ref void {
         return none
     }
@@ -106,10 +106,10 @@ pub fn doc_root(handle: ref void) ref void = {
     return trust yyjson_doc_get_root(doc)
 }
 
-pub fn doc_to_string(handle: ref void) ref u8! = {
+pub fn doc_to_string[T](alloc: T, handle: ref void) ref u8! = {
     val doc: ref void = @load(handle)
     val len_slot: mut usize = 0
-    val s: ref u8 = yyjson_write_opts(doc, 0 as u32, 0 as ref void, @addr(len_slot), 0 as ref void)
+    val s: ref u8 = yyjson_write_opts(doc, 0 as u32, alloc as ref void, @addr(len_slot), 0 as ref void)
     return s
 }
 
@@ -188,8 +188,8 @@ pub fn obj_get_bool(obj: ref void, key: ref u8) option[bool]! = {
     return some yyjson_get_bool(v)
 }
 
-pub fn builder_new() ref void! = {
-    val doc: ref void = yyjson_mut_doc_new(0 as ref void)
+pub fn builder_new[T](alloc: T) ref void! = {
+    val doc: ref void = yyjson_mut_doc_new(alloc as ref void)
     val handle: ref void = @alloc(8)
     @store(handle, doc)
     return handle
@@ -201,16 +201,16 @@ pub fn builder_free(handle: ref void) void! = {
     @free(handle)
 }
 
-pub fn builder_to_string(handle: ref void) ref u8! = {
+pub fn builder_to_string[T](alloc: T, handle: ref void) ref u8! = {
     val doc: ref void = @load(handle)
     val len_slot: mut usize = 0
-    return yyjson_mut_write_opts(doc, 0 as u32, 0 as ref void, @addr(len_slot), 0 as ref void)
+    return yyjson_mut_write_opts(doc, 0 as u32, alloc as ref void, @addr(len_slot), 0 as ref void)
 }
 
-pub fn builder_to_string_pretty(handle: ref void) ref u8! = {
+pub fn builder_to_string_pretty[T](alloc: T, handle: ref void) ref u8! = {
     val doc: ref void = @load(handle)
     val len_slot: mut usize = 0
-    return yyjson_mut_write_opts(doc, 1 as u32, 0 as ref void, @addr(len_slot), 0 as ref void)
+    return yyjson_mut_write_opts(doc, 1 as u32, alloc as ref void, @addr(len_slot), 0 as ref void)
 }
 
 pub fn build_null(handle: ref void) ref void! = {
@@ -268,7 +268,8 @@ pub fn builder_set_root(handle: ref void, value: ref void) void! = {
 
 test {
     val input: ref u8 = \\{"name":"Alice","age":30,"active":true,"score":9.5}
-    val doc_opt = trust parse(input)
+    val alc: ref void = 0 as ref void
+    val doc_opt = trust parse[ref void](alc, input)
     match doc_opt {
         none => {
             trust @dprintf(2, "input was {s}", {input})
@@ -296,7 +297,7 @@ test {
     }
 
     val arr_input: ref u8 = \\[1,2,3]
-    val arr_opt = trust parse(arr_input)
+    val arr_opt = trust parse[ref void](alc, arr_input)
     match arr_opt {
         none => { assert false }
         some handle => {
@@ -312,7 +313,7 @@ test {
         }
     }
 
-    val b: ref void = trust builder_new()
+    val b: ref void = trust builder_new[ref void](alc)
     val obj: ref void = trust build_object(b)
     val k1: ref void = trust build_str(b, "hello")
     val v1: ref void = trust build_str(b, "world")
@@ -321,7 +322,7 @@ test {
     val v2: ref void = trust build_int(b, 42)
     trust object_add(obj, k2, v2)
     trust builder_set_root(b, obj)
-    val out: ref u8 = trust builder_to_string(b)
+    val out: ref u8 = trust builder_to_string[ref void](alc, b)
     assert out != 0 as ref u8
     trust json_str_free(out)
     trust builder_free(b)

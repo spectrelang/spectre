@@ -1506,6 +1506,11 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
                     }
                 }
                 if !is_known {
+                    for tp_name in ctx.type_params {
+                        if str_eq(tp_name, name) { is_known = true break }
+                    }
+                }
+                if !is_known {
                     for gname in ctx.global_names {
                         if str_eq(gname, name) { is_known = true break }
                     }
