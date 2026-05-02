@@ -168,13 +168,10 @@ fn print_list_of_nodes(nodes: list[ref parser.Node], indent: i64, start_idx: i64
     for {
         if start_idx + i >= nlen { break }
         val opt = @get(nodes, (start_idx + i) as usize)
-        match opt {
-            some v => {
-                val n: ref parser.Node = v as ref parser.Node
-                val is_last: bool = (start_idx + i == nlen - 1)
-                print_node_recursive(n, indent + 1, is_last)
-            }
-            none => {}
+        if opt is some v {
+            val n: ref parser.Node = v as ref parser.Node
+            val is_last: bool = (start_idx + i == nlen - 1)
+            print_node_recursive(n, indent + 1, is_last)
         }
         i++
     }
