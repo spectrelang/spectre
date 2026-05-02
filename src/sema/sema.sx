@@ -953,6 +953,51 @@ fn fn_return_wrap_kind(fn_node: ref parser.Node) i64! = {
     return 0
 }
 
+/// Find a typedef (NK_TYPEDEF or NK_EXTERN_TYPE) by name. Supports module-qualified
+/// names like "allocators.Arena" by looking up the module on root_mod.
+fn find_typedef_anywhere(ctx: ref SemaCtx, type_name: ref u8) ref parser.Node! = {
+    if type_name == 0 as ref u8 { return 0 as ref parser.Node }
+    val nlen: i64 = string.len_raw(type_name)
+    val dot_idx: mut i64 = -1
+    val i: mut i64 = 0
+    for {
+        if i >= nlen { break }
+        val c: u8 = @load8(@ptradd(type_name as ref void, i))
+        if c == 46 { dot_idx = i }
+        i++
+    }
+    if dot_idx > 0 {
+        val mod_name_buf: ref u8 = @alloc((dot_idx + 1) as usize) as ref u8
+        @memcpy(mod_name_buf as ref void, type_name as ref void, dot_idx as usize)
+        @store8(@ptradd(mod_name_buf as ref void, dot_idx), 0)
+        val unqual: ref u8 = @ptradd(type_name, dot_idx + 1) as ref u8
+        val mm: ref modinfo.ResolvedModule = find_imported_mod(ctx, mod_name_buf)
+        if mm == 0 as ref modinfo.ResolvedModule { return 0 as ref parser.Node }
+        val items: list[ref parser.Node] = modinfo.module_items(mm)
+        for item in items {
+            if item == 0 as ref parser.Node { continue }
+            if item.kind == parser.NK_TYPEDEF || item.kind == parser.NK_EXTERN_TYPE {
+                val nm: ref u8 = item.d1 as ref u8
+                if nm != 0 as ref u8 && str_eq(nm, unqual) { return item }
+            }
+            if item.kind == parser.NK_WHEN_ITEMS {
+                val witems: ref void = item.d1 as ref void
+                if witems != 0 as ref void {
+                    for w in witems as list[ref parser.Node] {
+                        if w == 0 as ref parser.Node { continue }
+                        if w.kind == parser.NK_TYPEDEF || w.kind == parser.NK_EXTERN_TYPE {
+                            val wnm: ref u8 = w.d1 as ref u8
+                            if wnm != 0 as ref u8 && str_eq(wnm, unqual) { return w }
+                        }
+                    }
+                }
+            }
+        }
+        return 0 as ref parser.Node
+    }
+    return sema_lookup_typedef(ctx, type_name)
+}
+
 /// Returns the wrap kind (0=none, 1=result, 2=option) of an expression's value.
 /// Note: if you have just 'none'/'some'/'ok'/'err' literals, they return 0 here because in spectre
 /// 'none' is also used as a null-pointer sentinel and can be passed to ref-typed
@@ -1776,8 +1821,63 @@ fn generic_targ_type_compatible(expected: ref u8, actual: ref u8, arg_node: ref 
     return false
 }
 
+/// Check that explicit type arguments to a generic function satisfy any
+/// `[T: SpecName]` constraints declared in the function's type-parameter list.
+fn check_generic_call_constraints(ctx: ref SemaCtx, fn_found: ref parser.Node, callee: ref parser.Node,
+                                    filename: ref u8, line: i64) void! = {
+    if fn_found == 0 as ref parser.Node || fn_found.kind != parser.NK_GENERIC_FN { return }
+    if callee == 0 as ref parser.Node || callee.kind != parser.NK_GENERIC_INST { return }
+    val tparams: ref void = fn_found.d6 as ref void
+    if tparams == 0 as ref void { return }
+    val gi_targs: list[ref parser.Node] = parser.generic_inst_type_args(callee)
+    val nparms: i64 = @len(tparams as list[ref parser.Node]) as i64
+    val nargs: i64 = @len(gi_targs) as i64
+    val n: mut i64 = nparms
+    if nargs < n { n = nargs }
+    val i: mut i64 = 0
+    for {
+        if i >= n { break }
+        val tp_opt = @get(tparams as list[ref parser.Node], i as usize)
+        val ta_opt = @get(gi_targs, i as usize)
+        match tp_opt {
+            some tp_raw => {
+                val tp_node: ref parser.Node = tp_raw as ref parser.Node
+                val constraint: ref parser.Node = parser.tparam_constraint(tp_node)
+                if constraint != 0 as ref parser.Node {
+                    match ta_opt {
+                        some ta_raw => {
+                            val ta_node: ref parser.Node = ta_raw as ref parser.Node
+                            val constraint_name: ref u8 = extract_type_name(constraint)
+                            val arg_type_name: ref u8 = extract_type_name(ta_node)
+                            if constraint_name != 0 as ref u8 && arg_type_name != 0 as ref u8 {
+                                val expected_spec: ref u8 = unqualified_type_name(constraint_name)
+                                val tdef: ref parser.Node = find_typedef_anywhere(ctx, arg_type_name)
+                                val impl_spec: mut ref u8 = 0 as ref u8
+                                if tdef != 0 as ref parser.Node { impl_spec = tdef.d4 as ref u8 }
+                                val its_ok: mut bool = false
+                                if impl_spec != 0 as ref u8 && str_eq(impl_spec, expected_spec) { its_ok = true }
+                                if !its_ok && str_eq(arg_type_name, constraint_name) { its_ok = true }
+                                if !its_ok {
+                                    val tp_name: ref u8 = parser.tparam_name(tp_node)
+                                    val ebuf: ref u8 = @alloc(512) as ref u8
+                                    @snprintf(ebuf, 512, "{s}:{lld}: type '{s}' does not satisfy constraint '{s}: {s}'",
+                                        {filename, line, arg_type_name, tp_name, constraint_name})
+                                    add_error(ctx, ebuf)
+                                }
+                            }
+                        }
+                        none => {}
+                    }
+                }
+            }
+            none => {}
+        }
+        i++
+    }
+}
+
 fn check_generic_call_arg_types(ctx: ref SemaCtx, fn_found: ref parser.Node, callee: ref parser.Node,
-                                 cargs: ref void, filename: ref u8, line: i64) void! = {
+                                  cargs: ref void, filename: ref u8, line: i64) void! = {
     if fn_found == 0 as ref parser.Node || fn_found.kind != parser.NK_GENERIC_FN { return }
     if callee == 0 as ref parser.Node || callee.kind != parser.NK_GENERIC_INST { return }
     if cargs == 0 as ref void { return }
@@ -1785,7 +1885,7 @@ fn check_generic_call_arg_types(ctx: ref SemaCtx, fn_found: ref parser.Node, cal
     val fn_params: ref void = fn_found.d3 as ref void
     if tparams == 0 as ref void || fn_params == 0 as ref void { return }
     val gi_targs: list[ref parser.Node] = parser.generic_inst_type_args(callee)
-    val ntparams: i64 = @len(tparams as list[ref u8]) as i64
+    val ntparams: i64 = @len(tparams as list[ref parser.Node]) as i64
     val ntargs: i64 = @len(gi_targs) as i64
     if ntparams == 0 || ntargs == 0 { return }
     val nfnparams: i64 = @len(fn_params as list[ref parser.Node]) as i64
@@ -1810,10 +1910,11 @@ fn check_generic_call_arg_types(ctx: ref SemaCtx, fn_found: ref parser.Node, cal
                             val ti: mut i64 = 0
                             for {
                                 if ti >= ntparams { break }
-                                val tp_opt = @get(tparams as list[ref u8], ti as usize)
+                                val tp_opt = @get(tparams as list[ref parser.Node], ti as usize)
                                 match tp_opt {
                                     some tp => {
-                                        if str_eq(tp as ref u8, tparam_name) && ti < ntargs {
+                                        val tp_node_check: ref parser.Node = tp as ref parser.Node
+                                        if str_eq(parser.tparam_name(tp_node_check), tparam_name) && ti < ntargs {
                                             val ta_opt = @get(gi_targs, ti as usize)
                                             match ta_opt {
                                                 some ta => {
@@ -1824,9 +1925,12 @@ fn check_generic_call_arg_types(ctx: ref SemaCtx, fn_found: ref parser.Node, cal
                                                     val ck: mut i64 = 0
                                                     for {
                                                         if ck >= ntparams { break }
-                                                        val ck_opt = @get(tparams as list[ref u8], ck as usize)
+                                                        val ck_opt = @get(tparams as list[ref parser.Node], ck as usize)
                                                         match ck_opt {
-                                                            some ckn => { if str_eq(ckn as ref u8, expected_tname) { expected_is_tparam = true } }
+                                                            some ckn => {
+                                                                val ckn_node: ref parser.Node = ckn as ref parser.Node
+                                                                if str_eq(parser.tparam_name(ckn_node), expected_tname) { expected_is_tparam = true }
+                                                            }
                                                             none => {}
                                                         }
                                                         ck++
@@ -2220,8 +2324,9 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
                                         if !skip_type_check && fn_found != 0 as ref parser.Node && fn_found.kind == parser.NK_GENERIC_FN {
                                             val fn_type_params: ref void = fn_found.d6 as ref void
                                             if fn_type_params != 0 as ref void {
-                                                for ftp in fn_type_params as list[ref u8] {
-                                                    if str_eq(ftp as ref u8, param_type_name) || str_eq(ftp as ref u8, arg_type_name) {
+                                                for ftp in fn_type_params as list[ref parser.Node] {
+                                                    val ftp_name: ref u8 = parser.tparam_name(ftp as ref parser.Node)
+                                                    if str_eq(ftp_name, param_type_name) || str_eq(ftp_name, arg_type_name) {
                                                         skip_type_check = true
                                                         break
                                                     }
@@ -2307,6 +2412,7 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
 
         if fn_found != 0 as ref parser.Node && has_explicit_targs {
             check_generic_call_arg_types(ctx, fn_found, callee, cargs, filename, line)
+            check_generic_call_constraints(ctx, fn_found, callee, filename, line)
         }
 
         if fn_found == 0 as ref parser.Node && cargs != 0 as ref void {
@@ -3569,8 +3675,8 @@ fn check_generic_fn(ctx: mut ref SemaCtx, fn_node: ref parser.Node, filename: re
     val type_params: ref void = fn_node.d6 as ref void
     val prev_type_params: list[ref u8] = ctx.type_params
     if type_params != 0 as ref void {
-        for tparam in type_params as list[ref u8] {
-            @append(ctx.type_params, tparam)
+        for tparam in type_params as list[ref parser.Node] {
+            @append(ctx.type_params, parser.tparam_name(tparam as ref parser.Node))
         }
     }
 

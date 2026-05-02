@@ -76,7 +76,7 @@ when windows {
     extern (C) fn GetVersionExA(lpVersionInformation: ref void) i32! = "GetVersionExA"
 }
 
-pub fn get_current_platform[T](ac: allocators.Allocator) Platform! = {
+pub fn get_current_platform[T: allocators.Allocator](ac: T) Platform! = {
     val buf: mut UnameResult = {
         sysname: 0,
         nodename: 0,
@@ -137,7 +137,7 @@ when windows {
 }
 
 /// Returns the absolute path to the current executable.
-pub fn get_exe_path[T](ac: allocators.Allocator) ref u8! = {
+pub fn get_exe_path[T: allocators.Allocator](ac: T) ref u8! = {
     val buf: ref u8 = T.alloc(ac, 1024)
     if buf is some _ {
         @puts("its some.")

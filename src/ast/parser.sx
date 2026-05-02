@@ -147,7 +147,9 @@ pub fn binop_op(n: ref Node) i64 = { return n.d0 }
 pub fn binop_left(n: ref Node) ref Node = { return n.d1 as ref Node }
 pub fn binop_right(n: ref Node) ref Node = { return n.d2 as ref Node }
 
-pub fn generic_fn_type_params(n: ref Node) list[ref u8] = { return n.d6 as list[ref u8] }
+pub fn generic_fn_type_params(n: ref Node) list[ref Node] = { return n.d6 as list[ref Node] }
+pub fn tparam_name(tp: ref Node) ref u8 = { return tp.d0 as ref u8 }
+pub fn tparam_constraint(tp: ref Node) ref Node = { return tp.d1 as ref Node }
 pub fn generic_fn_is_unsafe(n: ref Node) bool = { return (n.d0 & 2) != 0 }
 pub fn generic_when_conditions(n: ref Node) list[ref Node] = { return n.d0 as list[ref Node] }
 pub fn generic_when_body(n: ref Node) ref Node = { return n.d1 as ref Node }
@@ -1814,13 +1816,20 @@ fn parse_fn_item(p: ref Parser, public: i64) result[ref Node, ref u8]! = {
         }
     }
     val name = p_expect_ident(p)?
-    val type_params: mut list[ref u8] = []
+    val type_params: mut list[ref Node] = []
     if lexer.kind_is_lbracket(p_peek_kind(p)) {
         p_advance(p)
         for {
             if lexer.kind_is_rbracket(p_peek_kind(p)) { break }
-            val tp = p_expect_ident(p)?
-            @append(type_params, tp)
+            val tp_name = p_expect_ident(p)?
+            val tp_constraint: mut ref Node = 0 as ref Node
+            if p_eat_fn(p, lexer.kind_is_colon) {
+                tp_constraint = parse_type(p)?
+            }
+            val tp_node: mut ref Node = make_node(NK_VAL, line)
+            tp_node.d0 = tp_name as i64
+            tp_node.d1 = tp_constraint as i64
+            @append(type_params, tp_node)
             if !p_eat_fn(p, lexer.kind_is_comma) { break }
         }
         p_expect_rbracket(p)?
@@ -1869,7 +1878,7 @@ fn parse_fn_item(p: ref Parser, public: i64) result[ref Node, ref u8]! = {
         nfn.d4 = ret_ty as i64
         val bl: list[ref Node] = body
         nfn.d5 = bl as i64
-        val tpl: list[ref u8] = type_params
+        val tpl: list[ref Node] = type_params
         nfn.d6 = tpl as i64
         return ok nfn
     }

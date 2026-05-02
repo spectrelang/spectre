@@ -993,16 +993,16 @@ fn cc_monomorphize_generic_fn(ctx: mut ref CCtx, gfn_node: ref parser.Node, _: r
     ctx.gsubst_names = []
     ctx.gsubst_tnodes = []
     if tparams != 0 as ref void {
-        val nparms: i64 = @len(tparams as list[ref u8]) as i64
+        val nparms: i64 = @len(tparams as list[ref parser.Node]) as i64
         val pi: mut i64 = 0
         for {
             if pi >= nparms { break }
-            val pn_opt = @get(tparams as list[ref u8], pi as usize)
+            val pn_opt = @get(tparams as list[ref parser.Node], pi as usize)
             val ta_opt = @get(type_args, pi as usize)
             match pn_opt {
                 some pn => {
                     match ta_opt {
-                        some ta => { cc_gsubst_push(ctx, pn as ref u8, ta as ref parser.Node) }
+                        some ta => { cc_gsubst_push(ctx, parser.tparam_name(pn as ref parser.Node), ta as ref parser.Node) }
                         none => {}
                     }
                 }
@@ -1647,16 +1647,16 @@ fn cc_infer_call_ret_ty(ctx: mut ref CCtx, callee: ref parser.Node) ref parser.N
         ctx.gsubst_tnodes = []
         val tparams: ref void = gfn_node.d6 as ref void
         if tparams != 0 as ref void {
-            val nparms: i64 = @len(tparams as list[ref u8]) as i64
+            val nparms: i64 = @len(tparams as list[ref parser.Node]) as i64
             val pi: mut i64 = 0
             for {
                 if pi >= nparms { break }
-                val pn_opt = @get(tparams as list[ref u8], pi as usize)
+                val pn_opt = @get(tparams as list[ref parser.Node], pi as usize)
                 val ta_opt = @get(resolved_targs, pi as usize)
                 match pn_opt {
                     some pn => {
                         match ta_opt {
-                            some ta => { cc_gsubst_push(ctx, pn as ref u8, ta as ref parser.Node) }
+                            some ta => { cc_gsubst_push(ctx, parser.tparam_name(pn as ref parser.Node), ta as ref parser.Node) }
                             none => {}
                         }
                     }

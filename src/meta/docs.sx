@@ -518,7 +518,17 @@ fn render_fn_signature(node: ref parser.Node) ref u8! = {
     }
     val type_params: mut ref u8 = ""
     if node.kind == parser.NK_GENERIC_FN {
-        val parts = render_variant_list(parser.generic_fn_type_params(node), ", ")
+        val tp_nodes: list[ref parser.Node] = parser.generic_fn_type_params(node)
+        val tp_strs: mut list[ref u8] = []
+        for tp in tp_nodes {
+            val tp_constraint: ref parser.Node = parser.tparam_constraint(tp as ref parser.Node)
+            if tp_constraint != 0 as ref parser.Node {
+                @append(tp_strs, @fmt("{s}: {s}", {parser.tparam_name(tp as ref parser.Node), render_type(tp_constraint)}))
+            } else {
+                @append(tp_strs, parser.tparam_name(tp as ref parser.Node))
+            }
+        }
+        val parts = render_variant_list(tp_strs, ", ")
         if !str_eq(parts, "") {
             type_params = @fmt("[{s}]", {parts})
         }
