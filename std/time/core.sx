@@ -1,6 +1,12 @@
 val stdio = use("../stdio")
 
 extern (C) fn localtime(timep: ref i64) ref void! = "localtime"
+extern (C) fn gettimeofday(tv: ref TimeVal, tz: ref void) i32! = "gettimeofday"
+
+extern type TimeVal = {
+    tv_sec:  i64
+    tv_usec: i64  
+}
 
 /// A DateTime holds a calendar date and wall-clock time.
 type DateTime = {
@@ -52,21 +58,24 @@ pub fn (DateTime) free(dt: mut self) void! = {
 /// Return the current local time as a DateTime.
 /// Wraps the C `localtime` / `gettimeofday` pair.
 pub fn (DateTime) now() DateTime = {
-    val ts: ref void = @alloc(16)
+    val tv: ref TimeVal = @alloc(@sizeof(TimeVal))
 
-    @gettimeofday(ts, 0)
-    val usecs: i64 = trust @load(@ptradd(ts, 8)) as i64
-    val tm: ref void = trust localtime(ts)
+    trust gettimeofday(tv, 0)
 
-    trust @free(ts)
+    val seconds: mut i64 = tv.tv_sec
+    val usecs:   i64 = tv.tv_usec
+    val tm: ref void = trust localtime(@addr(seconds))
+
+    trust @free(tv)
 
     val year:   i64 = ((trust @load(@ptradd(tm, 20))) & 0xFFFFFFFF) as i64
     val month:  i64 = ((trust @load(@ptradd(tm, 16))) & 0xFFFFFFFF) as i64
     val day:    i64 = ((trust @load(@ptradd(tm, 12))) & 0xFFFFFFFF) as i64
-    val hour:   i64 = ((trust @load(@ptradd(tm, 8))) & 0xFFFFFFFF) as i64
-    val minute: i64 = ((trust @load(@ptradd(tm, 4))) & 0xFFFFFFFF) as i64
-    val second: i64 = ((trust @load(@ptradd(tm, 0))) & 0xFFFFFFFF) as i64
+    val hour:   i64 = ((trust @load(@ptradd(tm, 8)))  & 0xFFFFFFFF) as i64
+    val minute: i64 = ((trust @load(@ptradd(tm, 4)))  & 0xFFFFFFFF) as i64
+    val second: i64 = ((trust @load(@ptradd(tm, 0)))  & 0xFFFFFFFF) as i64
     val millis: i64 = usecs / 1000
+
     return DateTime.new(year + 1900, month + 1, day, hour, minute, second, millis)
 }
 
@@ -215,7 +224,7 @@ test {
     assert DateTime.after(dt, dt2)  == true
     assert DateTime.equals(dt, dt)  == true
 
-    trust stdio.print("year: {d}\n", {DateTime.year(dt)})
+    trust stdio.print("year: {d}\n", {DateTime.now().year})
 
     trust DateTime.free(dt)
     trust DateTime.free(dt2)
