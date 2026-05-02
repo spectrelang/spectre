@@ -291,7 +291,7 @@ pub fn (Map) set(map: self, key: usize, value: usize) void! = {
 /// Look up a key. Returns some(value) if found, none otherwise.
 pub fn (Map) get(map: self, key: usize) option[usize] = {
     pre {
-        map_not_null: map != 0
+        map_not_null: map != none
     }
     val cap: usize = trust @load(@ptradd(map, 16)) as usize
     val buckets: ref void = trust @load(map)
@@ -317,7 +317,7 @@ pub fn (Map) get(map: self, key: usize) option[usize] = {
     }
 
     post {
-        map_not_null: map != 0
+        map_not_null: map != none
     }
 
     return none
@@ -356,7 +356,7 @@ pub fn (Map) delete(map: self, key: usize) usize! = {
 /// Check if a key exists in the map.
 pub fn (Map) contains(map: self, key: usize) bool = {
     pre {
-        map_not_null: map != 0
+        map_not_null: map != none
     }
     val result = Map.get(map, key)
     val found: mut usize = 0
@@ -365,7 +365,7 @@ pub fn (Map) contains(map: self, key: usize) bool = {
         none   => { found = 0 }
     }
     post {
-        map_not_null: map != 0
+        map_not_null: map != none
     }
     return found != 0
 }
