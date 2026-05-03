@@ -211,3 +211,67 @@ test {
  
     trust Stack.free(stack)
 }
+
+pub spec GeneralAllocator = {
+    pub fn alloc(a: self, size: usize) option[ref void]
+    pub fn free(a: self, ptr: ref void) void
+    pub fn realloc(a: self, ptr: ref void, new_size: usize) option[ref void]
+}
+
+/// A simple heap-backed general allocator.
+pub type (GeneralAllocator) HeapAllocator = {}
+
+/// Allocate `size` bytes.
+pub fn (HeapAllocator) alloc(_: self, size: usize) option[ref void]! = {
+    pre { size_positive: size > 0 }
+    val total: usize = size + 8 
+    val raw: ref void = @alloc(total)
+    if raw == none {
+        return none
+    }
+    @store(raw, size)
+    val user_ptr: ref void = @ptradd(raw, 8)
+    return some user_ptr
+}
+
+/// Free a previously allocated block.
+pub fn (HeapAllocator) free(_: self, ptr: ref void) void! = {
+    val raw: ref void = @ptradd(ptr, -8)
+    @free(raw)
+}
+
+/// Reallocate a block.
+pub fn (HeapAllocator) realloc(_: self, ptr: ref void, new_size: usize) option[ref void]! = {
+    pre { new_size_positive: new_size > 0 }
+
+    val old_raw: ref void = @ptradd(ptr, -8)
+    val new_total: usize = new_size + 8
+    val new_raw: ref void = @realloc(old_raw, new_total)
+    
+    if new_raw == none {
+        return none
+    }
+
+    @store(new_raw, new_size)
+
+    val new_ptr: ref void = @ptradd(new_raw, 8)
+    return some new_ptr
+}
+
+
+test {
+    val alloc: HeapAllocator = 0 as HeapAllocator
+    val p1 = trust HeapAllocator.alloc(alloc, 16 as usize)
+    assert p1 != none
+
+    if p1 is some ptr1 {
+        trust @store(ptr1, 0xDEADBEEF as usize)
+        val raw1: ref void = trust @ptradd(ptr1, -8)
+        val size1: usize = trust @load(raw1) as usize
+        assert size1 == 16
+
+        trust HeapAllocator.free(alloc, ptr1)
+    }
+    
+    @puts("done with heap allocator")
+}
