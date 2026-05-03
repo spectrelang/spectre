@@ -1363,6 +1363,13 @@ fn sema_type_name_is_numeric(type_name: ref u8) bool! = {
            str_eq(name, "f")
 }
 
+fn sema_ty_is_numeric(ty: ref parser.Node) bool! = {
+    val resolved: ref parser.Node = unwrap_mut_type(ty)
+    if resolved == none { return false }
+    if resolved.kind != parser.TY_NAMED { return false }
+    return sema_type_name_is_numeric(resolved.d0 as ref u8)
+}
+
 fn sema_ty_is_definitely_non_numeric(ctx: ref SemaCtx, ty: ref parser.Node) bool! = {
     val resolved: ref parser.Node = unwrap_mut_type(ty)
     if resolved == none { return false }
@@ -1387,16 +1394,38 @@ fn expr_is_definitely_numeric_for_cast(ctx: ref SemaCtx, node: ref parser.Node) 
     return sema_type_name_is_numeric(infer_expr_scope_type_name(ctx, node))
 }
 
+fn expr_is_definitely_ptr_for_cast(ctx: ref SemaCtx, node: ref parser.Node) bool! = {
+    if node == none { return false }
+    if infer_expr_scope_is_ref(ctx, node) == 1 { return true }
+    val k: i64 = node.kind
+    if k == parser.NK_ADDR { return true }
+    if k == parser.NK_TRUST || k == parser.NK_UNOP {
+        return expr_is_definitely_ptr_for_cast(ctx, node.d0 as ref parser.Node)
+    }
+    if k == parser.NK_CAST {
+        return sema_ty_is_ref(node.d1 as ref parser.Node) == 1
+    }
+    return false
+}
+
 fn check_cast_type_boundary(ctx: ref SemaCtx, expr: ref parser.Node, filename: ref u8, line: i64) void! = {
     if expr == none || expr.kind != parser.NK_CAST { return }
     val inner: ref parser.Node = expr.d0 as ref parser.Node
     val target_ty: ref parser.Node = expr.d1 as ref parser.Node
+    val target_is_numeric: bool = sema_ty_is_numeric(target_ty)
     val target_is_non_numeric: bool = sema_ty_is_definitely_non_numeric(ctx, target_ty)
     val target_name: ref u8 = format_type_for_error(extract_type_name(target_ty), sema_ty_is_ref(target_ty))
 
     if expr_is_definitely_numeric_for_cast(ctx, inner) && target_is_non_numeric {
         val buf: ref u8 = @alloc(256) as ref u8
         @snprintf(buf, 256, "{s}:{lld}: cannot cast numeric value to non-numeric type '{s}'", {filename, line, target_name})
+        add_error(ctx, buf)
+        return
+    }
+
+    if expr_is_definitely_ptr_for_cast(ctx, inner) && target_is_numeric {
+        val buf: ref u8 = @alloc(256) as ref u8
+        @snprintf(buf, 256, "{s}:{lld}: cannot cast pointer value to numeric type '{s}'", {filename, line, target_name})
         add_error(ctx, buf)
     }
 }
