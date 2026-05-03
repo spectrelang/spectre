@@ -391,7 +391,7 @@ pub fn main() i32! = {
                 } elif string.rchar_cmp(arg, "-b") == 0 || string.rchar_cmp(arg, "--bootstrap") == 0 {
                     bootstrap_mode = true
                     arg_i++
-                } elif string.rchar_cmp(arg, "--alt") || string.rchar_cmp(arg, "-a") == 0 {
+                } elif string.rchar_cmp(arg, "--alt") == 0 || string.rchar_cmp(arg, "-a") == 0 {
                     use_alt = true
                     arg_i++
                 } elif string.rchar_starts_with(arg, "--alt=") {
