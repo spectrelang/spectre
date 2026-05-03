@@ -2336,8 +2336,11 @@ fn gen_call(ctx: mut ref CCtx, expr: ref parser.Node) ref u8! = {
     if tv_tag >= 0 {
         ctx.tmp = ctx.tmp + 1
         val t: i64 = ctx.tmp
+        val alen_pre: mut i64 = 0
+        if args != none { alen_pre = @len(args as list[ref parser.Node]) as i64 } 
+        val alloc_size: i64 = (1 + alen_pre) * 8
         val alloc_stmt: ref u8 = @alloc(512) as ref u8
-        @snprintf(alloc_stmt, 512, "int64_t sx__uv{lld}=(int64_t)(intptr_t)calloc(1,24);*(int64_t*)(intptr_t)sx__uv{lld}={lld};\n", {t, t, tv_tag})
+        @snprintf(alloc_stmt, 512, "int64_t sx__uv{lld}=(int64_t)(intptr_t)calloc(1,{lld});*(int64_t*)(intptr_t)sx__uv{lld}={lld};\n", {t, alloc_size, t, tv_tag})
         emit(ctx, alloc_stmt)
         @free(alloc_stmt)
 
