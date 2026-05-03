@@ -433,7 +433,7 @@ fn cg_concrete_ty(ctx: ref CgCtx, ty: ref parser.Node) ref parser.Node! = {
         val resolved_inner: ref parser.Node = cg_concrete_ty(ctx, inner)
         if resolved_inner == inner { return ty }
         val out: mut ref parser.Node = cg_clone_node(ty)
-        out.d0 = resolved_inner as i64
+        parser.node_store_slot[ref parser.Node](@addr(out.d0), resolved_inner)
         return out
     }
     if k == parser.TY_FIXED_ARR {
@@ -441,7 +441,7 @@ fn cg_concrete_ty(ctx: ref CgCtx, ty: ref parser.Node) ref parser.Node! = {
         val resolved_inner2: ref parser.Node = cg_concrete_ty(ctx, inner2)
         if resolved_inner2 == inner2 { return ty }
         val out2: mut ref parser.Node = cg_clone_node(ty)
-        out2.d1 = resolved_inner2 as i64
+        parser.node_store_slot[ref parser.Node](@addr(out2.d1), resolved_inner2)
         return out2
     }
     return ty
@@ -672,7 +672,7 @@ fn gwhen_matches_gsubst(ctx: ref CgCtx, when_node: ref parser.Node) bool! = {
                 }
                 val tparam: ref u8 = cond.d0 as ref u8
                 val dummy: mut ref parser.Node = parser.make_node(parser.TY_NAMED, 0)
-                dummy.d0 = tparam as i64
+                parser.node_store_slot[ref u8](@addr(dummy.d0), tparam)
                 val resolved: ref parser.Node = gsubst_resolve(ctx, dummy)
                 if resolved == dummy {
                     ci++
@@ -774,8 +774,8 @@ fn make_concrete_param(ctx: ref CgCtx, param: ref parser.Node) ref parser.Node! 
     val pty: ref parser.Node = param.d1 as ref parser.Node
     val resolved: ref parser.Node = gsubst_resolve(ctx, pty)
     val np: mut ref parser.Node = parser.make_node(parser.NK_VAL, param.line)
-    np.d0 = pname as i64
-    np.d1 = resolved as i64
+    parser.node_store_slot[ref u8](@addr(np.d0), pname)
+    parser.node_store_slot[ref parser.Node](@addr(np.d1), resolved)
     return np
 }
 
@@ -862,11 +862,11 @@ fn monomorphize_generic_fn(ctx: mut ref CgCtx, gfn_node: ref parser.Node, _: ref
         val syn: mut ref parser.Node = parser.make_node(parser.NK_FN, gfn_node.line)
         syn.d0 = 0
         syn.d1 = 0 as i64
-        syn.d2 = mono_base as i64
+        parser.node_store_slot[ref u8](@addr(syn.d2), mono_base)
         val pl: list[ref parser.Node] = new_params
-        syn.d3 = pl as i64
-        syn.d4 = new_ret as i64
-        syn.d5 = final_body as i64
+        parser.node_store_slot[list[ref parser.Node]](@addr(syn.d3), pl)
+        parser.node_store_slot[ref parser.Node](@addr(syn.d4), new_ret)
+        parser.node_store_slot[ref parser.Node](@addr(syn.d5), final_body)
         syn.d6 = 0
 
         val saved_sb = ctx.sb
@@ -1074,7 +1074,9 @@ fn cg_register_module_const(ctx: ref CgCtx, name: ref u8, val_str: ref u8) void!
     @append(cg_mc_names(ctx) as list[ref u8], name)
     @append(cg_mc_vals(ctx)  as list[ref u8], val_str)
     if !collections.IndexMap.contains(ctx.mc_index, name) {
-        collections.IndexMap.set(ctx.mc_index, name, val_str as usize)
+        val val_str_usize: mut usize = 0
+        @store(@addr(val_str_usize) as ref void, val_str)
+        collections.IndexMap.set(ctx.mc_index, name, val_str_usize)
     }
 }
 
@@ -1233,7 +1235,7 @@ fn cg_ann_word_extend_instr(ann: ref u8) ref u8! = {
 
 fn cg_normalize_qtype(qtype: ref u8) ref u8! = {
     if qtype == none { return "" }
-    val qv: i64 = qtype as i64
+    val qv: i64 = parser.ptr_to_i64[ref u8](qtype)
     if qv == 119 { return "w" }
     if qv == 108 { return "l" }
     if qv == 115 { return "s" }
@@ -6240,6 +6242,9 @@ fn resolve_callee_name(ctx: ref CgCtx, node: ref parser.Node) ref u8! = {
         @snprintf(buf, 256, "{s}__{s}", {base, field})
         return buf
     }
+    if k == parser.NK_GENERIC_INST {
+        return resolve_callee_name(ctx, parser.generic_inst_base(node))
+    }
     return "unknown"
 }
 
@@ -6679,15 +6684,15 @@ fn gen_builtin(ctx: ref CgCtx, expr: ref parser.Node) ref u8! = {
                             val fake_ty: mut ref parser.Node = none
                             if str.rchar_cmp(ltype, "i8") == 0 || str.rchar_cmp(ltype, "u8") == 0 || str.rchar_cmp(ltype, "u8") == 0 {
                                 fake_ty = parser.make_node(parser.TY_NAMED, 0)
-                                fake_ty.d0 = ltype as i64
+                                parser.node_store_slot[ref u8](@addr(fake_ty.d0), ltype)
                                 sizeof_val = type_size(fake_ty)
                             } elif str.rchar_cmp(ltype, "i16") == 0 || str.rchar_cmp(ltype, "u16") == 0 {
                                 fake_ty = parser.make_node(parser.TY_NAMED, 0)
-                                fake_ty.d0 = ltype as i64
+                                parser.node_store_slot[ref u8](@addr(fake_ty.d0), ltype)
                                 sizeof_val = type_size(fake_ty)
                             } elif str.rchar_cmp(ltype, "i32") == 0 || str.rchar_cmp(ltype, "u32") == 0 || str.rchar_cmp(ltype, "f32") == 0 {
                                 fake_ty = parser.make_node(parser.TY_NAMED, 0)
-                                fake_ty.d0 = ltype as i64
+                                parser.node_store_slot[ref u8](@addr(fake_ty.d0), ltype)
                                 sizeof_val = type_size(fake_ty)
                             } elif str.rchar_cmp(ltype, "i64") == 0 || str.rchar_cmp(ltype, "u64") == 0 || str.rchar_cmp(ltype, "f64") == 0 {
                                 sizeof_val = 8

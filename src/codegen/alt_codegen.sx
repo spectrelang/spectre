@@ -253,17 +253,17 @@ fn cc_infer_expr_ty(ctx: ref CCtx, expr: ref parser.Node) ref parser.Node! = {
     val k: i64 = expr.kind
     if k == parser.NK_INT_LIT {
         val out: mut ref parser.Node = parser.make_node(parser.TY_NAMED, expr.line)
-        out.d0 = "i64" as i64
+        parser.node_store_slot[ref u8](@addr(out.d0), "i64")
         return out
     }
     if k == parser.NK_FLOAT_LIT {
         val out: mut ref parser.Node = parser.make_node(parser.TY_NAMED, expr.line)
-        out.d0 = "f64" as i64
+        parser.node_store_slot[ref u8](@addr(out.d0), "f64")
         if ctx.expected_ty != none {
             val expected_ty: ref parser.Node = cc_concrete_ty(ctx, ctx.expected_ty)
             if expected_ty != none && expected_ty.kind == parser.TY_NAMED {
                 if str.rchar_cmp(expected_ty.d0 as ref u8, "f32") == 0 {
-                    out.d0 = "f32" as i64
+                    parser.node_store_slot[ref u8](@addr(out.d0), "f32")
                 }
             }
         }
@@ -271,12 +271,12 @@ fn cc_infer_expr_ty(ctx: ref CCtx, expr: ref parser.Node) ref parser.Node! = {
     }
     if k == parser.NK_BOOL {
         val out: mut ref parser.Node = parser.make_node(parser.TY_NAMED, expr.line)
-        out.d0 = "bool" as i64
+        parser.node_store_slot[ref u8](@addr(out.d0), "bool")
         return out
     }
     if k == parser.NK_CHAR_LIT {
         val out: mut ref parser.Node = parser.make_node(parser.TY_NAMED, expr.line)
-        out.d0 = "u8" as i64
+        parser.node_store_slot[ref u8](@addr(out.d0), "u8")
         return out
     }
     if k == parser.NK_CAST {
@@ -334,14 +334,14 @@ fn cc_infer_expr_ty(ctx: ref CCtx, expr: ref parser.Node) ref parser.Node! = {
            op == parser.OP_GT || op == parser.OP_LE || op == parser.OP_GE ||
            op == parser.OP_AND || op == parser.OP_OR {
             val out: mut ref parser.Node = parser.make_node(parser.TY_NAMED, expr.line)
-            out.d0 = "bool" as i64
+            parser.node_store_slot[ref u8](@addr(out.d0), "bool")
             return out
         }
         
         if lhs_ty != none { return lhs_ty }
         if rhs_ty != none { return rhs_ty }
         val out_i64: mut ref parser.Node = parser.make_node(parser.TY_NAMED, expr.line)
-        out_i64.d0 = "i64" as i64
+        parser.node_store_slot[ref u8](@addr(out_i64.d0), "i64")
         return out_i64
     }
     if k == parser.NK_CALL {
@@ -361,8 +361,13 @@ fn cc_infer_expr_ty(ctx: ref CCtx, expr: ref parser.Node) ref parser.Node! = {
                     val elem: ref parser.Node = cc_unwrap_get_elem_ty(list_expr_ty, blen - 1)
                     if elem != none {
                         val opt_node: mut ref parser.Node = parser.make_node(parser.TY_OPTION, 0)
-                        opt_node.d0 = elem as i64
-                        opt_node.d1 = 0 opt_node.d2 = 0 opt_node.d3 = 0 opt_node.d4 = 0 opt_node.d5 = 0 opt_node.d6 = 0
+                        parser.node_store_slot[ref parser.Node](@addr(opt_node.d0), elem)
+                        opt_node.d1 = 0
+                        opt_node.d2 = 0
+                        opt_node.d3 = 0
+                        opt_node.d4 = 0
+                        opt_node.d5 = 0
+                        opt_node.d6 = 0
                         return opt_node
                     }
                 } none => {} }
@@ -746,7 +751,7 @@ fn cc_concrete_ty(ctx: ref CCtx, ty: ref parser.Node) ref parser.Node! = {
         val resolved_inner: ref parser.Node = cc_concrete_ty(ctx, inner)
         if resolved_inner == inner { return ty }
         val out: mut ref parser.Node = cc_clone_node(ty)
-        out.d0 = resolved_inner as i64
+        parser.node_store_slot[ref parser.Node](@addr(out.d0), resolved_inner)
         return out
     }
     if k == parser.TY_FIXED_ARR {
@@ -754,7 +759,7 @@ fn cc_concrete_ty(ctx: ref CCtx, ty: ref parser.Node) ref parser.Node! = {
         val resolved_inner2: ref parser.Node = cc_concrete_ty(ctx, inner2)
         if resolved_inner2 == inner2 { return ty }
         val out2: mut ref parser.Node = cc_clone_node(ty)
-        out2.d1 = resolved_inner2 as i64
+        parser.node_store_slot[ref parser.Node](@addr(out2.d1), resolved_inner2)
         return out2
     }
     return ty
@@ -852,7 +857,7 @@ fn cc_gwhen_matches(ctx: ref CCtx, when_node: ref parser.Node) bool! = {
                 if ckind == 0 { ci++ continue }
                 val tparam: ref u8 = cond.d0 as ref u8
                 val dummy: mut ref parser.Node = parser.make_node(parser.TY_NAMED, 0)
-                dummy.d0 = tparam as i64
+                parser.node_store_slot[ref u8](@addr(dummy.d0), tparam)
                 val resolved: ref parser.Node = cc_gsubst_resolve(ctx, dummy)
                 if resolved == dummy {
                     ci++ continue
@@ -952,8 +957,8 @@ fn cc_make_concrete_param(ctx: ref CCtx, param: ref parser.Node) ref parser.Node
     val pty: ref parser.Node = param.d1 as ref parser.Node
     val resolved: ref parser.Node = cc_gsubst_resolve(ctx, pty)
     val np: mut ref parser.Node = parser.make_node(parser.NK_VAL, param.line)
-    np.d0 = pname as i64
-    np.d1 = resolved as i64
+    parser.node_store_slot[ref u8](@addr(np.d0), pname)
+    parser.node_store_slot[ref parser.Node](@addr(np.d1), resolved)
     return np
 }
 
@@ -1031,11 +1036,11 @@ fn cc_monomorphize_generic_fn(ctx: mut ref CCtx, gfn_node: ref parser.Node, _: r
         val syn: mut ref parser.Node = parser.make_node(parser.NK_FN, gfn_node.line)
         syn.d0 = 0
         syn.d1 = 0 as i64
-        syn.d2 = mono_base as i64
+        parser.node_store_slot[ref u8](@addr(syn.d2), mono_base)
         val pl: list[ref parser.Node] = new_params
-        syn.d3 = pl as i64
-        syn.d4 = new_ret as i64
-        syn.d5 = final_body as i64
+        parser.node_store_slot[list[ref parser.Node]](@addr(syn.d3), pl)
+        parser.node_store_slot[ref parser.Node](@addr(syn.d4), new_ret)
+        parser.node_store_slot[ref parser.Node](@addr(syn.d5), final_body)
         syn.d6 = 0
         val saved_sb: ref void = ctx.sb
         val saved_tmp: i64 = ctx.tmp
@@ -1640,6 +1645,9 @@ fn resolve_callee_name(ctx: ref CCtx, callee: ref parser.Node) ref u8! = {
             }
         }
         return fname
+    }
+    if callee.kind == parser.NK_GENERIC_INST {
+        return resolve_callee_name(ctx, parser.generic_inst_base(callee))
     }
     return "unknown"
 }

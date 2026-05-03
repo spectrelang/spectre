@@ -136,8 +136,36 @@ pub fn make_node(kind: i64, line: i64) ref Node! = {
     return n
 }
 
-fn node_store_slot[T](slot: ref i64, value: T) void! = {
+pub fn node_store_slot[T](slot: ref i64, value: T) void! = {
     @store(slot as ref void, value)
+}
+
+pub fn ptr_to_i64[T](p: T) i64! = {
+    val i: mut i64 = 0
+    @store(@addr(i) as ref void, p)
+    return i
+}
+
+fn i64_to_ptr[T](v: i64) T! = {
+    val result: mut T = none
+    @store(@addr(result) as ref void, v)
+    return result
+}
+
+pub fn ptr_to_usize[T](p: T) usize! = {
+    val u: mut usize = 0
+    @store(@addr(u) as ref void, p)
+    return u
+}
+
+fn usize_to_ptr[T](v: usize) T! = {
+    val result: mut T = none
+    @store(@addr(result) as ref void, v)
+    return result
+}
+
+fn is_null[T](p: T) bool! = {
+    return p == none
 }
 
 fn make_binop(op: i64, line: i64, left: ref Node, right: ref Node) result[ref Node, ref u8]! = {

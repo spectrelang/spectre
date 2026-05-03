@@ -2271,7 +2271,7 @@ fn infer_targ_for_tparam(ctx: ref SemaCtx, tparam_name: ref u8,
                                 val resolved_tn: ref u8 = resolve_arg_originating_type(ctx, arg_node)
                                 if resolved_tn != none && !str_eq(resolved_tn, "") && !str_eq(resolved_tn, "unknown") {
                                     val out: mut ref parser.Node = parser.make_node(parser.TY_NAMED, 0)
-                                    out.d0 = resolved_tn as i64
+                                    parser.node_store_slot[ref u8](@addr(out.d0), resolved_tn)
                                     return out
                                 }
                             }
@@ -3154,7 +3154,9 @@ fn sema_lookup_tagged_variant(ctx: ref SemaCtx, variant_name: ref u8, out_union_
                             if vname != none && string.rchar_cmp(vname, variant_name) == 0 {
                                 if out_union_name != none {
                                     val union_name: ref u8 = tdnode.d1 as ref u8
-                                    @store(out_union_name, union_name as usize)
+                                    val union_name_usize: mut usize = 0
+                                    @store(@addr(union_name_usize) as ref void, union_name)
+                                    @store(out_union_name, union_name_usize)
                                 }
                                 return variant
                             }

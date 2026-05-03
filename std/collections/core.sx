@@ -552,7 +552,9 @@ pub fn (StringMap) set(map: self, key: ref u8, value: usize) void! = {
     val buckets: ref void = @load(map)
     val kl: i64 = strlen(key)
     val hash_fn: ref void = @load(@ptradd(map, 24))
-    val h: usize = @call(hash_fn, key as usize)
+    val key_holder: mut usize = 0
+    @store(@addr(key_holder) as ref void, key)
+    val h: usize = @call(hash_fn, key_holder)
     val start: usize = h - (h / cap) * cap
 
     for (i = 0; i < cap; i++) {
@@ -573,7 +575,9 @@ pub fn (StringMap) set(map: self, key: ref u8, value: usize) void! = {
     val copy: ref void = @alloc(kl + 1)
     @memcpy(copy, key, kl)
     @store8(@ptradd(copy, kl), 0)
-    Map.set(map as Map, copy as usize, value)
+    val copy_holder: mut usize = 0
+    @store(@addr(copy_holder) as ref void, copy)
+    Map.set(map as Map, copy_holder, value)
 }
 
 /// Look up a string key. Returns some(value) or none.
@@ -581,7 +585,9 @@ pub fn (StringMap) get(map: self, key: ref u8) option[usize] = {
     val cap: usize = trust @load(@ptradd(map, 16)) as usize
     val buckets: ref void = trust @load(map)
     val hash_fn: ref void = trust @load(@ptradd(map, 24))
-    val h: usize = @call(hash_fn, key as usize)
+    val key_holder: mut usize = 0
+    trust @store(@addr(key_holder) as ref void, key)
+    val h: usize = @call(hash_fn, key_holder)
     val start: usize = h - (h / cap) * cap
 
     for (i = 0; i < cap; i++) {
@@ -616,7 +622,9 @@ pub fn (StringMap) delete(map: self, key: ref u8) usize! = {
     val cap: usize = @load(@ptradd(map, 16)) as usize
     val buckets: ref void = @load(map)
     val hash_fn: ref void = @load(@ptradd(map, 24))
-    val h: usize = @call(hash_fn, key as usize)
+    val key_holder: mut usize = 0
+    @store(@addr(key_holder) as ref void, key)
+    val h: usize = @call(hash_fn, key_holder)
     val start: usize = h - (h / cap) * cap
 
     for (i = 0; i < cap; i++) {
@@ -768,7 +776,9 @@ pub fn (IndexMap) set(map: self, key: ref u8, value: usize) void! = {
         val copy: ref void = @alloc(kl + 1)
         @memcpy(copy, key, kl)
         @store8(@ptradd(copy, kl), 0)
-        val push_res = PtrList.push(keys, copy as usize)
+        val copy_holder: mut usize = 0
+        @store(@addr(copy_holder) as ref void, copy)
+        val push_res = PtrList.push(keys, copy_holder)
         match push_res {
             ok _  => {}
             err _ => {}
