@@ -32,7 +32,7 @@ pub fn print_usage() void = {
     stdio.puts("  --test               Run the unit tests in the current file")
     stdio.puts("  --release            Build in release mode")
     stdio.puts("  --dll                Build a shared library")
-    stdio.puts("  --alt                Compile with fallback backend")
+    stdio.puts("  -a, --alt            Compile with fallback backend")
     stdio.puts("  -b, --bootstrap      Display backend output on error")
     stdio.puts("  -c, --compile        Compile only to produce object file, without linking")
     stdio.puts("  -o, --output <file>  Output path for binary or build artifact")
