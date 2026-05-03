@@ -84,6 +84,7 @@ pub val TY_FIXED_ARR       : i64 = 107
 pub val TY_FNPTR           : i64 = 108
 pub val TY_VOID            : i64 = 109
 pub val TY_UNTYPED         : i64 = 110
+pub val TY_INFER           : i64 = 111
 pub val OP_ADD             : i64 = 1
 pub val OP_SUB             : i64 = 2
 pub val OP_MUL             : i64 = 3
@@ -804,11 +805,17 @@ fn parse_postfix(p: ref Parser) result[ref Node, ref u8]! = {
         if lexer.kind_is_lbracket(k) {
             p_advance(p)
             val targs: mut list[ref Node] = []
-            for {
-                if lexer.kind_is_rbracket(p_peek_kind(p)) { break }
-                val ta = parse_type(p)?
-                @append(targs, ta)
-                if !p_eat_fn(p, lexer.kind_is_comma) { break }
+            if lexer.kind_is_question(p_peek_kind(p)) {
+                p_advance(p)
+                val infer_marker: mut ref Node = make_node(TY_INFER, line)
+                @append(targs, infer_marker)
+            } else {
+                for {
+                    if lexer.kind_is_rbracket(p_peek_kind(p)) { break }
+                    val ta = parse_type(p)?
+                    @append(targs, ta)
+                    if !p_eat_fn(p, lexer.kind_is_comma) { break }
+                }
             }
             p_expect_rbracket(p)?
             val ng: mut ref Node = make_node(NK_GENERIC_INST, line)

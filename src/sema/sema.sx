@@ -36,6 +36,8 @@ type SemaCtx = {
     in_trust:      mut i64
     trust_used:    mut i64
     type_params:   mut list[ref u8]
+    var_origin_names: mut list[ref u8]
+    var_origin_types: mut list[ref u8]
 }
 
 fn sema_new() ref SemaCtx! = {
@@ -1966,6 +1968,286 @@ fn check_generic_call_arg_types(ctx: ref SemaCtx, fn_found: ref parser.Node, cal
     }
 }
 
+/// Records the originating constructor namespace for a local variable so that
+/// inference can recover the concrete impl type later (e.g., arena -> "allocators.Arena").
+fn record_var_origin(ctx: mut ref SemaCtx, name: ref u8, origin: ref u8) void! = {
+    if name == 0 as ref u8 || origin == 0 as ref u8 { return }
+    @append(ctx.var_origin_names, name)
+    @append(ctx.var_origin_types, origin)
+}
+
+/// Look up the recorded originating type for a variable name, or 0 if none.
+fn lookup_var_origin(ctx: ref SemaCtx, name: ref u8) ref u8! = {
+    if name == 0 as ref u8 { return 0 as ref u8 }
+    val n: i64 = @len(ctx.var_origin_names) as i64
+    val i: mut i64 = n - 1
+    for {
+        if i < 0 { break }
+        val n_opt = @get(ctx.var_origin_names, i as usize)
+        match n_opt {
+            some nm => {
+                if str_eq(nm as ref u8, name) {
+                    val t_opt = @get(ctx.var_origin_types, i as usize)
+                    match t_opt {
+                        some t => { return t as ref u8 }
+                        none => { return 0 as ref u8 }
+                    }
+                }
+            }
+            none => {}
+        }
+        i--
+    }
+    return 0 as ref u8
+}
+
+/// Build a dotted name string from a NK_FIELD/NK_IDENT chain (e.g., "allocators.Arena").
+/// Returns 0 if the chain isn't purely identifiers and field accesses.
+fn dotted_chain_name(node: ref parser.Node) ref u8! = {
+    if node == 0 as ref parser.Node { return 0 as ref u8 }
+    if node.kind == parser.NK_IDENT {
+        return node.d0 as ref u8
+    }
+    if node.kind == parser.NK_FIELD {
+        val base: ref parser.Node = parser.field_base(node)
+        val fname: ref u8 = parser.field_name(node)
+        val base_str: ref u8 = dotted_chain_name(base)
+        if base_str == 0 as ref u8 { return 0 as ref u8 }
+        val out: ref u8 = @alloc(512) as ref u8
+        @snprintf(out, 512, "{s}.{s}", {base_str, fname})
+        return out
+    }
+    return 0 as ref u8
+}
+
+/// If init_expr is of the form `(trust)? X.Method(...)(?)`, return the dotted
+/// name of X (e.g., "allocators.Arena"); otherwise return 0.
+fn extract_constructor_namespace(expr: ref parser.Node) ref u8! = {
+    val cur: mut ref parser.Node = expr
+    for {
+        if cur == 0 as ref parser.Node { return 0 as ref u8 }
+        val ck: i64 = cur.kind
+        if ck == parser.NK_TRUST || ck == parser.NK_TRY {
+            cur = cur.d0 as ref parser.Node
+            continue
+        }
+        break
+    }
+    if cur == 0 as ref parser.Node { return 0 as ref u8 }
+    if cur.kind != parser.NK_CALL { return 0 as ref u8 }
+    val callee: ref parser.Node = parser.call_callee(cur)
+    if callee == 0 as ref parser.Node { return 0 as ref u8 }
+    if callee.kind != parser.NK_FIELD { return 0 as ref u8 }
+    val base: ref parser.Node = parser.field_base(callee)
+    return dotted_chain_name(base)
+}
+
+/// Returns true if the type-arg list of a NK_GENERIC_INST callee contains TY_INFER markers.
+fn generic_inst_has_infer(callee: ref parser.Node) bool! = {
+    if callee == 0 as ref parser.Node { return false }
+    if callee.kind != parser.NK_GENERIC_INST { return false }
+    val targs: list[ref parser.Node] = parser.generic_inst_type_args(callee)
+    val n: i64 = @len(targs) as i64
+    val i: mut i64 = 0
+    for {
+        if i >= n { break }
+        val t_opt = @get(targs, i as usize)
+        match t_opt {
+            some t => {
+                val tn: ref parser.Node = t as ref parser.Node
+                if tn.kind == parser.TY_INFER { return true }
+            }
+            none => {}
+        }
+        i++
+    }
+    return false
+}
+
+/// Resolves TY_INFER type-arg markers in a NK_GENERIC_INST callee by inspecting
+/// the corresponding actual call arguments. Mutates callee.d1 with the resolved
+/// type-arg list. Emits a compile error if any marker cannot be resolved.
+fn resolve_generic_inst_inference(ctx: mut ref SemaCtx, callee: mut ref parser.Node,
+                                    fn_found: ref parser.Node, cargs: ref void,
+                                    filename: ref u8, line: i64) void! = {
+    if !generic_inst_has_infer(callee) { return }
+    if fn_found == 0 as ref parser.Node || fn_found.kind != parser.NK_GENERIC_FN {
+        val ebuf: ref u8 = @alloc(512) as ref u8
+        @snprintf(ebuf, 512, "{s}:{lld}: cannot infer generic type argument(s): function definition not found",
+            {filename, line})
+        add_error(ctx, ebuf)
+        return
+    }
+    val tparams: ref void = fn_found.d6 as ref void
+    val fn_params: ref void = fn_found.d3 as ref void
+    val nparams: mut i64 = 0
+    if tparams != 0 as ref void { nparams = @len(tparams as list[ref parser.Node]) as i64 }
+    if nparams == 0 {
+        val ebuf2: ref u8 = @alloc(512) as ref u8
+        @snprintf(ebuf2, 512, "{s}:{lld}: cannot infer generic type argument(s): function has no type parameters",
+            {filename, line})
+        add_error(ctx, ebuf2)
+        return
+    }
+    val raw_targs: list[ref parser.Node] = parser.generic_inst_type_args(callee)
+    val nraw: i64 = @len(raw_targs) as i64
+
+    // Expand a single bare [?] to one TY_INFER per type parameter.
+    val effective: mut list[ref parser.Node] = []
+    val expand: mut bool = false
+    if nraw == 1 && nparams > 1 {
+        val first_opt = @get(raw_targs, 0 as usize)
+        match first_opt {
+            some first => {
+                if ((first as ref parser.Node).kind == parser.TY_INFER) { expand = true }
+            }
+            none => {}
+        }
+    }
+    if expand {
+        val first_opt2 = @get(raw_targs, 0 as usize)
+        match first_opt2 {
+            some first2 => {
+                val ei: mut i64 = 0
+                for {
+                    if ei >= nparams { break }
+                    @append(effective, first2 as ref parser.Node)
+                    ei++
+                }
+            }
+            none => {}
+        }
+    } else {
+        for ta in raw_targs { @append(effective, ta) }
+    }
+
+    val resolved: mut list[ref parser.Node] = []
+    val neff: i64 = @len(effective) as i64
+    val ri: mut i64 = 0
+    for {
+        if ri >= neff { break }
+        val ea_opt = @get(effective, ri as usize)
+        match ea_opt {
+            some ea => {
+                val ea_node: ref parser.Node = ea as ref parser.Node
+                if ea_node.kind == parser.TY_INFER {
+                    val tp_opt = @get(tparams as list[ref parser.Node], ri as usize)
+                    val inferred: mut ref parser.Node = 0 as ref parser.Node
+                    match tp_opt {
+                        some tp => {
+                            val tparam_name: ref u8 = parser.tparam_name(tp as ref parser.Node)
+                            inferred = infer_targ_for_tparam(ctx, tparam_name, fn_params, cargs)
+                        }
+                        none => {}
+                    }
+                    if inferred == 0 as ref parser.Node {
+                        val tname_for_err: mut ref u8 = "?"
+                        match tp_opt {
+                            some tp2 => { tname_for_err = parser.tparam_name(tp2 as ref parser.Node) }
+                            none => {}
+                        }
+                        val ebuf3: ref u8 = @alloc(512) as ref u8
+                        @snprintf(ebuf3, 512, "{s}:{lld}: cannot infer generic type argument for type parameter '{s}'; specify it explicitly",
+                            {filename, line, tname_for_err})
+                        add_error(ctx, ebuf3)
+                        return
+                    }
+                    @append(resolved, inferred)
+                } else {
+                    @append(resolved, ea_node)
+                }
+            }
+            none => {}
+        }
+        ri++
+    }
+
+    val rl: list[ref parser.Node] = resolved
+    callee.d1 = rl as i64
+}
+
+/// For a given type-parameter name, find the first function param whose declared
+/// type (after peeling `mut`/`ref`) is exactly that name, then return a TY_NAMED
+/// node with the inferred concrete type of the matching call argument.
+fn infer_targ_for_tparam(ctx: ref SemaCtx, tparam_name: ref u8,
+                          fn_params: ref void, cargs: ref void) ref parser.Node! = {
+    if fn_params == 0 as ref void { return 0 as ref parser.Node }
+    if cargs == 0 as ref void { return 0 as ref parser.Node }
+    val nfp: i64 = @len(fn_params as list[ref parser.Node]) as i64
+    val nca: i64 = @len(cargs as list[ref parser.Node]) as i64
+    val pi: mut i64 = 0
+    for {
+        if pi >= nfp { break }
+        val p_opt = @get(fn_params as list[ref parser.Node], pi as usize)
+        match p_opt {
+            some pp => {
+                val pn: ref parser.Node = pp as ref parser.Node
+                val pty: ref parser.Node = pn.d1 as ref parser.Node
+                val inner: ref parser.Node = peel_mut_ref(pty)
+                if inner != 0 as ref parser.Node && inner.kind == parser.TY_NAMED {
+                    if str_eq(inner.d0 as ref u8, tparam_name) && pi < nca {
+                        val ca_opt = @get(cargs as list[ref parser.Node], pi as usize)
+                        match ca_opt {
+                            some ca => {
+                                val arg_node: ref parser.Node = ca as ref parser.Node
+                                val resolved_tn: ref u8 = resolve_arg_originating_type(ctx, arg_node)
+                                if resolved_tn != 0 as ref u8 && !str_eq(resolved_tn, "") && !str_eq(resolved_tn, "unknown") {
+                                    val out: mut ref parser.Node = parser.make_node(parser.TY_NAMED, 0)
+                                    out.d0 = resolved_tn as i64
+                                    return out
+                                }
+                            }
+                            none => {}
+                        }
+                    }
+                }
+            }
+            none => {}
+        }
+        pi++
+    }
+    return 0 as ref parser.Node
+}
+
+/// Determine the most useful "concrete" type name for a call argument used in
+/// generic inference. Tries scope-known type, then identifier origin tracking,
+/// then a structural walk of the argument expression for a constructor call.
+fn resolve_arg_originating_type(ctx: ref SemaCtx, arg: ref parser.Node) ref u8! = {
+    if arg == 0 as ref parser.Node { return 0 as ref u8 }
+    val cur: mut ref parser.Node = arg
+    for {
+        if cur == 0 as ref parser.Node { break }
+        val ck: i64 = cur.kind
+        if ck == parser.NK_TRUST || ck == parser.NK_TRY {
+            cur = cur.d0 as ref parser.Node
+            continue
+        }
+        break
+    }
+    if cur != 0 as ref parser.Node && cur.kind == parser.NK_IDENT {
+        val ident_name: ref u8 = cur.d0 as ref u8
+        val origin: ref u8 = lookup_var_origin(ctx, ident_name)
+        if origin != 0 as ref u8 { return origin }
+    }
+    val from_expr: ref u8 = extract_constructor_namespace(arg)
+    if from_expr != 0 as ref u8 { return from_expr }
+    return infer_expr_scope_type_name(ctx, arg)
+}
+
+/// Peels TY_MUT and TY_REF wrappers to expose the inner type node.
+fn peel_mut_ref(ty: ref parser.Node) ref parser.Node! = {
+    val cur: mut ref parser.Node = ty
+    for {
+        if cur == 0 as ref parser.Node { return 0 as ref parser.Node }
+        if cur.kind == parser.TY_MUT || cur.kind == parser.TY_REF {
+            cur = cur.d0 as ref parser.Node
+            continue
+        }
+        return cur
+    }
+    return 0 as ref parser.Node
+}
+
 fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) void! = {
     if expr == 0 as ref parser.Node { return }
 
@@ -2391,6 +2673,10 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
                     idx++
                 }
             }
+        }
+
+        if generic_inst_has_infer(callee) {
+            resolve_generic_inst_inference(ctx, callee, fn_found, cargs, filename, line)
         }
 
         if fn_found != 0 as ref parser.Node && has_explicit_targs {
@@ -2986,6 +3272,12 @@ fn check_stmt(ctx: ref SemaCtx, stmt: ref parser.Node, filename: ref u8) void! =
                 }
             }
             scope_define(ctx, name, mutable, tname, is_ref_flag, line)
+            if tname == 0 as ref u8 && init_expr != 0 as ref parser.Node {
+                val origin_ns: ref u8 = extract_constructor_namespace(init_expr)
+                if origin_ns != 0 as ref u8 {
+                    record_var_origin(ctx, name, origin_ns)
+                }
+            }
             val explicit_wrap: i64 = ty_wrap_kind(ty_node)
             val final_wrap: mut i64 = explicit_wrap
             if final_wrap == 0 && init_expr != 0 as ref parser.Node {
