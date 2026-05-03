@@ -98,96 +98,9 @@ PANIC_HANDLER_SRC="${CSOURCES_DIR}/panic_handler.c"
 PANIC_HANDLER_OBJ="${CSOURCES_DIR}/panic_handler.o"
 YYJSON_SHIM_SRC="${CSOURCES_DIR}/yyjson_shim.c"
 YYJSON_SHIM_OBJ="${CSOURCES_DIR}/yyjson_shim.o"
-
-if [ "$QBE_OK" -eq 1 ]; then
-    BOOTSTRAP_SSA="${SPECTRE_DIR}/bootstrap/sxc.ssa"
-    BOOTSTRAP_OUT="${SPECTRE_DIR}/bootstrap/sxc_bootstrap"
-    OTHER_PREFIX="/usr/local"
-
-    [ -f "$BOOTSTRAP_SSA" ] || err "Missing bootstrap SSA at ${BOOTSTRAP_SSA}"
-
-    log "Bootstrapping Spectre with QBE..."
-
-    log "QBE Stage..."
-    qbe -o "${BOOTSTRAP_OUT}.s" "$BOOTSTRAP_SSA"
-
-    log "CC Stage I (C sources)..."
-    cc -O2 -c "${PANIC_HANDLER_SRC}" -o "${PANIC_HANDLER_OBJ}"
-    cc -O2 -c "${YYJSON_SHIM_SRC}" -o "${YYJSON_SHIM_OBJ}"
-
-    log "CC Stage II..."
-    cc -O2 \
-        "${BOOTSTRAP_OUT}.s" \
-        "${PANIC_HANDLER_OBJ}" \
-        "${YYJSON_SHIM_OBJ}" \
-        -L"${OTHER_PREFIX}/lib" \
-        -lyyjson \
-        -o "${BOOTSTRAP_OUT}"
-
-    log "Installing Spectre binary..."
-    /usr/bin/install -m 0755 \
-        "${BOOTSTRAP_OUT}" \
-        "${BIN_DIR}/spectre"
-else
-    POSIX_BOOTSTRAP_SRC="${SPECTRE_DIR}/bootstrap/sxc_posix.c"
-    POSIX_BOOTSTRAP_OUT="${SPECTRE_DIR}/bootstrap/sxc_posix_bootstrap"
-    OTHER_PREFIX="/usr/local"
-
-    [ -f "$POSIX_BOOTSTRAP_SRC" ] || err "Missing C bootstrap at ${POSIX_BOOTSTRAP_SRC}"
-
-    log "Bootstrapping Spectre from C source (sxc_posix.c)..."
-
-    log "CC Stage I (C sources)..."
-    cc -O2 -c "${PANIC_HANDLER_SRC}" -o "${PANIC_HANDLER_OBJ}"
-    cc -O2 -c "${YYJSON_SHIM_SRC}" -o "${YYJSON_SHIM_OBJ}"
-
-    log "CC Stage II (C bootstrap)..."
-    (cd "$SPECTRE_DIR" && cc -O2 \
-        bootstrap/sxc_posix.c \
-        "${PANIC_HANDLER_OBJ}" \
-        "${YYJSON_SHIM_OBJ}" \
-        -I"${OTHER_PREFIX}/include" \
-        -L"${OTHER_PREFIX}/lib" \
-        -lyyjson \
-        -o "${POSIX_BOOTSTRAP_OUT}")
-
-    log "Installing Spectre binary (C bootstrap)..."
-    /usr/bin/install -m 0755 \
-        "${POSIX_BOOTSTRAP_OUT}" \
-        "${BIN_DIR}/spectre"
-fi
-
-STDLIB_SRC="${SPECTRE_DIR}/std"
-STDLIB_DEST="${BIN_DIR}/std"
-
-[ -d "$STDLIB_SRC" ] || err "Spectre std library not found at ${STDLIB_SRC}"
-
-log "Installing standard library..."
-rm -rf "$STDLIB_DEST"
-mkdir -p "$STDLIB_DEST"
-
-(
-    cd "$STDLIB_SRC"
-    tar cf - .
-) | (
-    cd "$STDLIB_DEST"
-    tar xf -
-)
-
-log "Installing yyjson..."
-
-OS="$(uname -s)"
 OTHER_PREFIX="/usr/local"
-
-case "$OS" in
-    Darwin)
-        if [ -d "/opt/homebrew" ]; then
-            OTHER_PREFIX="/opt/homebrew"
-        fi
-        ;;
-esac
-
 YYJSON_DIR="${SRC_DIR}/yyjson"
+OS="$(uname -s)"
 
 if [ -d "$YYJSON_DIR" ]; then
     log "yyjson source already exists, updating..."
@@ -224,6 +137,92 @@ fi
 
 log "yyjson installed successfully."
 
+
+if [ "$QBE_OK" -eq 1 ]; then
+    BOOTSTRAP_SSA="${SPECTRE_DIR}/bootstrap/sxc.ssa"
+    BOOTSTRAP_OUT="${SPECTRE_DIR}/bootstrap/sxc_bootstrap"
+
+    [ -f "$BOOTSTRAP_SSA" ] || err "Missing bootstrap SSA at ${BOOTSTRAP_SSA}"
+
+    log "Bootstrapping Spectre with QBE..."
+
+    log "QBE Stage..."
+    qbe -o "${BOOTSTRAP_OUT}.s" "$BOOTSTRAP_SSA"
+
+    log "CC Stage I (C sources)..."
+    cc -O2 -c "${PANIC_HANDLER_SRC}" -o "${PANIC_HANDLER_OBJ}"
+    cc -O2 -c "${YYJSON_SHIM_SRC}" -o "${YYJSON_SHIM_OBJ}"
+
+    log "CC Stage II..."
+    cc -O2 \
+        "${BOOTSTRAP_OUT}.s" \
+        "${PANIC_HANDLER_OBJ}" \
+        "${YYJSON_SHIM_OBJ}" \
+        -L"${OTHER_PREFIX}/lib" \
+        -lyyjson \
+        -o "${BOOTSTRAP_OUT}"
+
+    log "Installing Spectre binary..."
+    /usr/bin/install -m 0755 \
+        "${BOOTSTRAP_OUT}" \
+        "${BIN_DIR}/spectre"
+else
+    POSIX_BOOTSTRAP_SRC="${SPECTRE_DIR}/bootstrap/sxc_posix.c"
+    POSIX_BOOTSTRAP_OUT="${SPECTRE_DIR}/bootstrap/sxc_posix_bootstrap"
+    OTHER_PREFIX="/usr/local"
+
+    [ -f "$POSIX_BOOTSTRAP_SRC" ] || err "Missing C bootstrap at ${POSIX_BOOTSTRAP_SRC}"
+
+    log "Bootstrapping Spectre from C source (sxc_posix.c)..."
+
+    log "CC Stage I (C sources)..."
+    cc -O2 -c "${PANIC_HANDLER_SRC}" -o "${PANIC_HANDLER_OBJ}"
+    cc -O2 -I"${OTHER_PREFIX}/include" -c "${YYJSON_SHIM_SRC}" -o "${YYJSON_SHIM_OBJ}"
+
+    log "CC Stage II (C bootstrap)..."
+    (cd "$SPECTRE_DIR" && cc -O2 \
+        bootstrap/sxc_posix.c \
+        "${PANIC_HANDLER_OBJ}" \
+        "${YYJSON_SHIM_OBJ}" \
+        -I"${OTHER_PREFIX}/include" \
+        -L"${OTHER_PREFIX}/lib" \
+        -lyyjson \
+        -o "${POSIX_BOOTSTRAP_OUT}")
+
+    log "Installing Spectre binary (C bootstrap)..."
+    /usr/bin/install -m 0755 \
+        "${POSIX_BOOTSTRAP_OUT}" \
+        "${BIN_DIR}/spectre"
+fi
+
+STDLIB_SRC="${SPECTRE_DIR}/std"
+STDLIB_DEST="${BIN_DIR}/std"
+
+[ -d "$STDLIB_SRC" ] || err "Spectre std library not found at ${STDLIB_SRC}"
+
+log "Installing standard library..."
+rm -rf "$STDLIB_DEST"
+mkdir -p "$STDLIB_DEST"
+
+(
+    cd "$STDLIB_SRC"
+    tar cf - .
+) | (
+    cd "$STDLIB_DEST"
+    tar xf -
+)
+
+log "Installing yyjson..."
+
+OTHER_PREFIX="/usr/local"
+
+case "$OS" in
+    Darwin)
+        if [ -d "/opt/homebrew" ]; then
+            OTHER_PREFIX="/opt/homebrew"
+        fi
+        ;;
+esac
 case ":$PATH:" in
     *":${BIN_DIR}:"*)
         log "PATH already contains ${BIN_DIR}"
