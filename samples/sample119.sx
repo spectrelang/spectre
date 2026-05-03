@@ -1,0 +1,6 @@
+type Something = {}
+
+pub fn main() void = {
+    val x: Something = {}
+    trust @print("{p}\n", {x})
+}
