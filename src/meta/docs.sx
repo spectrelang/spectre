@@ -37,7 +37,7 @@ type DocModule = {
 }
 
 fn safe_cstr(s: ref u8) ref u8 = {
-    if s == 0 as ref u8 { return "" }
+    if s == none { return "" }
     return s
 }
 
@@ -51,7 +51,7 @@ fn is_space(c: u8) bool = {
 
 fn substr(src: ref u8, start: i64, len: i64) ref u8! = {
     guarded pre {
-        src_not_null : src != 0 as ref u8
+        src_not_null : src != none
     }
 
     val src_len: i64 = str.len_raw(src)
@@ -67,7 +67,7 @@ fn substr(src: ref u8, start: i64, len: i64) ref u8! = {
     val out = str.substr(src, safe_start, safe_len)
 
     guarded post {
-        out_not_null : out != 0 as ref u8
+        out_not_null : out != none
     }
     return out
 }
@@ -139,7 +139,7 @@ fn strip_sx_ext(path: ref u8) ref u8! = {
 
 fn dir_exists(path: ref u8) bool = {
     val dir: ref void = trust fs.opendir(path)
-    if dir == 0 as ref void { return false }
+    if dir == none { return false }
     trust fs.closedir(dir)
     return true
 }
@@ -223,9 +223,9 @@ fn doc_line_text(trimmed: ref u8) ref u8! = {
 
 fn update_doc_map_for_line(map: ref DocMap, trimmed: ref u8, line_no: i64, current_doc: ref u8) ref u8! = {
     guarded pre {
-        map_not_null         : map != 0 as ref DocMap
-        trimmed_not_null     : trimmed != 0 as ref u8
-        current_doc_not_null : current_doc != 0 as ref u8
+        map_not_null         : map != none
+        trimmed_not_null     : trimmed != none
+        current_doc_not_null : current_doc != none
         line_is_positive     : line_no > 0
     }
 
@@ -255,7 +255,7 @@ fn update_doc_map_for_line(map: ref DocMap, trimmed: ref u8, line_no: i64, curre
 
 fn extract_doc_map(src: ref u8) ref DocMap! = {
     guarded pre {
-        src_not_null : src != 0 as ref u8
+        src_not_null : src != none
     }
 
     val map: mut ref DocMap = @alloc(@sizeof(DocMap)) as ref DocMap
@@ -286,7 +286,7 @@ fn extract_doc_map(src: ref u8) ref DocMap! = {
     }
 
     guarded post {
-        map_not_null    : map != 0 as ref DocMap
+        map_not_null    : map != none
         lengths_match   : @len(map.lines) == @len(map.docs)
     }
     return map
@@ -350,7 +350,7 @@ fn anchor_for(kind_name: ref u8, item_name: ref u8, line: i64) ref u8! = {
 }
 
 fn render_type(ty: ref parser.Node) ref u8! = {
-    if ty == 0 as ref parser.Node { return "" }
+    if ty == none { return "" }
     match ty.kind {
         parser.TY_NAMED => { return ty.d0 as ref u8 }
         parser.TY_REF => { return @fmt("ref {s}", {render_type(ty.d0 as ref parser.Node)}) }
@@ -361,7 +361,7 @@ fn render_type(ty: ref parser.Node) ref u8! = {
         parser.TY_SLICE => { return @fmt("[]{s}", {render_type(ty.d0 as ref parser.Node)}) }
         parser.TY_FIXED_ARR => {
             val size_name: ref u8 = parser.fixed_arr_size_name(ty)
-            if size_name != 0 as ref u8 {
+            if size_name != none {
                 return @fmt("[{s}]{s}", {size_name, render_type(parser.fixed_arr_inner(ty))})
             }
             return @fmt("[{lld}]{s}", {parser.fixed_arr_size(ty), render_type(parser.fixed_arr_inner(ty))})
@@ -522,7 +522,7 @@ fn render_fn_signature(node: ref parser.Node) ref u8! = {
         val tp_strs: mut list[ref u8] = []
         for tp in tp_nodes {
             val tp_constraint: ref parser.Node = parser.tparam_constraint(tp as ref parser.Node)
-            if tp_constraint != 0 as ref parser.Node {
+            if tp_constraint != none {
                 @append(tp_strs, @fmt("{s}: {s}", {parser.tparam_name(tp as ref parser.Node), render_type(tp_constraint)}))
             } else {
                 @append(tp_strs, parser.tparam_name(tp as ref parser.Node))

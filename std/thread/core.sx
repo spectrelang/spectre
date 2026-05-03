@@ -38,15 +38,15 @@ pub fn (Thread) new(entry: fn(ref void) ref void, arg: ref void) result[ref void
     val entry_addr: usize = entry as usize
 
     when posix {
-        val rc: i32 = pthread_create(handle, 0 as ref void, entry_addr, arg)
+        val rc: i32 = pthread_create(handle, none, entry_addr, arg)
         if (rc != 0) {
             @free(handle)
             return err ThreadError.CreateFailed
         }
     }
     when windows {
-        val thread_id: ref u32 = 0 as ref u32
-        val h: ref void = CreateThread(0 as ref void, 0 as usize, entry_addr, arg, 0 as u32, thread_id)
+        val thread_id: ref u32 = none
+        val h: ref void = CreateThread(none, 0 as usize, entry_addr, arg, 0 as u32, thread_id)
         if (h == none) {
             @free(handle)
             return err ThreadError.CreateFailed
@@ -97,7 +97,7 @@ pub fn (Thread) join(thread: self) result[ref void, ThreadError]! = {
         @store(@ptradd(thread, 8), true)
         CloseHandle(h)
     }
-    return ok 0 as ref void
+    return ok none
 }
 
 /// Detach a thread, allowing it to run independently.
@@ -195,7 +195,7 @@ pub fn (Mutex) new() option[ref void]! = {
     @memset(m, 0, MUTEX_SIZE)
 
     when posix {
-        val rc: i32 = pthread_mutex_init(m, 0 as ref void)
+        val rc: i32 = pthread_mutex_init(m, none)
         if (rc != 0) {
             @free(m)
             return none

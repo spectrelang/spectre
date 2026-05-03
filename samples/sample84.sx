@@ -26,7 +26,7 @@ fn ll_lookup_fn_params(ctx: ref LLCtx, name: ref u8) ref void! = {
         }
         i++
     }
-    return 0 as ref void
+    return none
 }
 
 pub fn main() i64 = {
@@ -38,7 +38,7 @@ pub fn main() i64 = {
     trust @store(ctx_ptr as ref void, ctx)
 
     val result = trust ll_lookup_fn_params(ctx_ptr, "test_fn")
-    if result == 0 as ref void {
+    if result == none {
         trust stdio.print("FAIL: lookup returned null\n", {})
         return 1
     }

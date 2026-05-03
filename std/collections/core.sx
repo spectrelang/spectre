@@ -740,7 +740,7 @@ val IMAP_HEADER_SIZE: usize = 16
 pub fn (IndexMap) new(initial_cap: usize) ref void! = {
     val header: ref void = @alloc(IMAP_HEADER_SIZE)
     val inner = StringMap.new(initial_cap)
-    val keys: mut ref void = 0 as ref void
+    val keys: mut ref void = none
     val keys_res = PtrList.new(initial_cap)
     match keys_res {
         ok k  => { keys = k }

@@ -36,7 +36,7 @@ fn root_has_direct_links(items: list[ref parser.Node]) bool = {
                 if w.kind == parser.NK_LINK { return true }
             }
             val or_branches: ref void = item.d2 as ref void
-            if or_branches != 0 as ref void {
+            if or_branches != none {
                 for ob in or_branches as list[ref parser.Node] {
                     val ob_items: list[ref parser.Node] = ob.d1 as list[ref parser.Node]
                     for obn in ob_items {
@@ -45,7 +45,7 @@ fn root_has_direct_links(items: list[ref parser.Node]) bool = {
                 }
             }
             val otherwise: ref void = item.d3 as ref void
-            if otherwise != 0 as ref void {
+            if otherwise != none {
                 for ow in otherwise as list[ref parser.Node] {
                     if ow.kind == parser.NK_LINK { return true }
                 }
@@ -459,8 +459,8 @@ pub fn main() i32! = {
         stdio.puts("[I  ]│ Resolving module")
     }
 
-    val resolve_result = module.resolve_module(input, [], exe_dir, 0 as ref void)
-    val root_mod: mut ref module.ResolvedModule = 0 as ref module.ResolvedModule
+    val resolve_result = module.resolve_module(input, [], exe_dir, none)
+    val root_mod: mut ref module.ResolvedModule = none
 
     match resolve_result {
         ok m  => { root_mod = m }

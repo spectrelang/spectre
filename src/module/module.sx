@@ -820,7 +820,7 @@ fn items_have_external_links(items: list[ref parser.Node]) bool! = {
                 return true
             }
             val or_when_branches3: ref void = item.d2 as ref void
-            if or_when_branches3 != 0 as ref void {
+            if or_when_branches3 != none {
                 for ow3 in or_when_branches3 as list[ref parser.Node] {
                     val ow_items3: list[ref parser.Node] = ow3.d1 as list[ref parser.Node]
                     if items_have_external_links(ow_items3) {
@@ -926,7 +926,7 @@ fn resolve_module_impl(
             }
 
             val resolved_path = resolve_use_path(use_path, file_dir_c, exe_dir, workspace)
-            val needed_grandchildren: mut ref void = 0 as ref void
+            val needed_grandchildren: mut ref void = none
             if @len(needed_subs) > 0 {
                 needed_grandchildren = needed_subs as ref void
             }
@@ -984,7 +984,7 @@ pub fn find_import_by_name(m: ref ResolvedModule, name: ref u8) ref ResolvedModu
         }
         i++
     }
-    return 0 as ref ResolvedModule
+    return none
 }
 
 /// Check whether a function named `fn_name` is declared `pub` in module `m`.
@@ -1000,12 +1000,12 @@ pub fn fn_is_public_in_module(m: ref ResolvedModule, fn_name: ref u8) bool! = {
                 val item: ref parser.Node = item_raw as ref parser.Node
                 if item.kind == parser.NK_FN || item.kind == parser.NK_GENERIC_FN {
                     val iname: ref u8 = item.d2 as ref u8
-                    if iname != 0 as ref u8 {
+                    if iname != none {
                         if str.rchar_cmp(iname, fn_name) == 0 { return (item.d0 & 1) != 0 }
                     }
                 } elif item.kind == parser.NK_EXTERN_FN {
                     val iname: ref u8 = item.d1 as ref u8
-                    if iname != 0 as ref u8 {
+                    if iname != none {
                         if str.rchar_cmp(iname, fn_name) == 0 { return item.d0 == 1 }
                     }
                 }
@@ -1028,7 +1028,7 @@ pub fn fn_is_unsafe_in_module(m: ref ResolvedModule, fn_name: ref u8) bool! = {
                 val item: ref parser.Node = item_raw as ref parser.Node
                 if item.kind == parser.NK_FN || item.kind == parser.NK_GENERIC_FN {
                     val iname: ref u8 = item.d2 as ref u8
-                    if iname != 0 as ref u8 {
+                    if iname != none {
                         if str.rchar_cmp(iname, fn_name) == 0 { return parser.fn_is_unsafe(item) }
                     }
                 }
@@ -1050,7 +1050,7 @@ pub fn import_module_at(m: ref ResolvedModule, i: usize) ref ResolvedModule! = {
     val opt = @get(m.import_modules, i)
     match opt {
         some child => { return child as ref ResolvedModule }
-        none       => { return 0 as ref ResolvedModule }
+        none       => { return none }
     }
 }
 
@@ -1059,7 +1059,7 @@ pub fn import_name_at(m: ref ResolvedModule, i: usize) ref u8! = {
     val opt = @get(m.import_names, i)
     match opt {
         some name => { return name as ref u8 }
-        none      => { return 0 as ref u8 }
+        none      => { return none }
     }
 }
 
@@ -1258,7 +1258,7 @@ pub fn collect_links(items: list[ref parser.Node], exe_dir: ref u8) list[ref u8]
             }
             if !matched {
                 val or_branches: ref void = item.d2 as ref void
-                if or_branches != 0 as ref void {
+                if or_branches != none {
                     for ob in or_branches as list[ref parser.Node] {
                         if !matched {
                             val ob_plat: ref u8 = ob.d0 as ref u8
@@ -1277,7 +1277,7 @@ pub fn collect_links(items: list[ref parser.Node], exe_dir: ref u8) list[ref u8]
             }
             if !matched {
                 val otherwise: ref void = item.d3 as ref void
-                if otherwise != 0 as ref void {
+                if otherwise != none {
                     for ow in otherwise as list[ref parser.Node] {
                         if ow.kind == parser.NK_LINK {
                             @append(links, ow.d0 as ref u8)
@@ -2287,7 +2287,7 @@ fn collect_used_imports_stmt(node: ref parser.Node, import_names: list[ref u8], 
                 match arm_opt {
                     some arm => {
                         val arm_node: ref parser.Node = arm as ref parser.Node
-                        val arm_body: mut ref void = 0 as ref void
+                        val arm_body: mut ref void = none
                         if node.kind == parser.NK_MATCH_TAGGED_UNION { arm_body = arm_node.d2 as ref void }
                         else { arm_body = arm_node.d1 as ref void }
                         if arm_body != none {

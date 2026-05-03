@@ -293,7 +293,7 @@ fn chip8_load(chip: mut ref Chip8, path: ref u8) bool = {
   chip8_init(chip)
 
   val f: ref void = trust fopen(path, "rb")
-  if f == 0 as ref void {
+  if f == none {
     stdio.puts("Failed to open ROM")
     return false
   }
@@ -634,7 +634,7 @@ pub fn main() void = {
         WIN_W, WIN_H,
         SDL_WINDOW_SHOWN
       )
-      if window == 0 as ref void {
+      if window == none {
         stdio.puts("Window could not be created")
         trust SDL_Quit()
         return
@@ -717,9 +717,9 @@ pub fn main() void = {
             }
             i = i + 1
           }
-          trust SDL_UpdateTexture(texture, 0 as ref void, pixels, 64 * 4)
+          trust SDL_UpdateTexture(texture, none, pixels, 64 * 4)
           trust SDL_RenderClear(renderer)
-          trust SDL_RenderCopy(renderer, texture, 0 as ref void, 0 as ref void)
+          trust SDL_RenderCopy(renderer, texture, none, none)
           trust SDL_RenderPresent(renderer)
         }
 

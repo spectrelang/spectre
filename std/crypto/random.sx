@@ -20,7 +20,7 @@ pub fn random_bytes(buf: ref void, len: usize) void = {
         trust arc4random_buf(buf, len)
     }
     when windows {
-        trust BCryptGenRandom(0 as ref void, buf, len as u32, 2 as u32)
+        trust BCryptGenRandom(none, buf, len as u32, 2 as u32)
     }
 }
 
@@ -45,7 +45,7 @@ pub fn random_u32_below(upper_bound: u32) u32 = {
         val threshold: u32 = (4294967295 as u32 % upper_bound + 1) % upper_bound
         for {
             val buf: ref void = @alloc(4)
-            trust BCryptGenRandom(0 as ref void, buf, 4 as u32, 2 as u32)
+            trust BCryptGenRandom(none, buf, 4 as u32, 2 as u32)
             val r: u32 = trust @load(buf) as u32
             trust @free(buf)
             if r >= threshold { return r % upper_bound }

@@ -1,5 +1,5 @@
 pub fn main() void = {
-    val p: ref i32 = 0 as ref i32
+    val p: ref i32 = none
     val x = @deref(p)
     
     if x == 123 {

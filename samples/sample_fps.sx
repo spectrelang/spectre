@@ -122,19 +122,19 @@ val shootCooldown: mut f32 = 0.0
 val muzzleFlashTimer: mut f32 = 0.0
 val hitFlashTimer: mut f32 = 0.0
 val walkTime: mut f32 = 0.0
-val enemies_buf: mut ref void = 0 as ref void
-val bullets_buf: mut ref void = 0 as ref void
-val zbuf: mut ref void = 0 as ref void
+val enemies_buf: mut ref void = none
+val bullets_buf: mut ref void = none
+val zbuf: mut ref void = none
 val enemyTexW: mut i32 = 1
 val enemyTexH: mut i32 = 1
 val gunTexW: mut i32 = 1
 val gunTexH: mut i32 = 1
-val g_renderer: mut ref void = 0 as ref void
-val g_enemyTex: mut ref void = 0 as ref void
-val g_gunTex: mut ref void = 0 as ref void
-val g_src_rect: mut ref SDL_Rect = 0 as ref SDL_Rect
-val g_dst_rect: mut ref SDL_Rect = 0 as ref SDL_Rect
-val g_aux_rect: mut ref SDL_Rect = 0 as ref SDL_Rect
+val g_renderer: mut ref void = none
+val g_enemyTex: mut ref void = none
+val g_gunTex: mut ref void = none
+val g_src_rect: mut ref SDL_Rect = none
+val g_dst_rect: mut ref SDL_Rect = none
+val g_aux_rect: mut ref SDL_Rect = none
 
 fn get_enemy(i: i32) mut ref Enemy! = {
     return @ptradd(enemies_buf, (i as usize) * @sizeof(Enemy)) as ref Enemy
@@ -417,7 +417,7 @@ fn render_sprites() void! = {
 }
 
 fn render_gun(bobY: i32, showFlash: bool) void! = {
-    if g_gunTex == 0 as ref void { return }
+    if g_gunTex == none { return }
 
     val gunW: i32 = SCREEN_WIDTH / 2
     val gunH: i32 = gunW * gunTexH / gunTexW
@@ -428,7 +428,7 @@ fn render_gun(bobY: i32, showFlash: bool) void! = {
     g_dst_rect.y = gunY
     g_dst_rect.w = gunW
     g_dst_rect.h = gunH
-    SDL_RenderCopy(g_renderer, g_gunTex, 0 as ref void, g_dst_rect as ref void)
+    SDL_RenderCopy(g_renderer, g_gunTex, none, g_dst_rect as ref void)
 
     if showFlash {
         val flashSize: i32 = 90
@@ -512,13 +512,13 @@ pub fn main() i32 = {
     @deref(ep5) = {x: 928.0, y: 416.0, health: 3, alive: 1, shootTimer: 1.8}
 
     val es: ref void = trust IMG_Load("samples/sprites/enemy.gif")
-    if es != 0 as ref void {
+    if es != none {
         g_enemyTex = trust SDL_CreateTextureFromSurface(renderer, es)
         trust SDL_FreeSurface(es)
         trust SDL_SetTextureBlendMode(g_enemyTex, 1)
         val tw: ref void = @alloc(4)
         val th: ref void = @alloc(4)
-        trust SDL_QueryTexture(g_enemyTex, 0 as ref void, 0 as ref void, tw, th)
+        trust SDL_QueryTexture(g_enemyTex, none, none, tw, th)
         enemyTexW = @load32(tw) as i32
         enemyTexH = @load32(th) as i32
         trust @free(tw)
@@ -528,13 +528,13 @@ pub fn main() i32 = {
     }
 
     val gs: ref void = trust IMG_Load("samples/sprites/centre_gun.png")
-    if gs != 0 as ref void {
+    if gs != none {
         g_gunTex = trust SDL_CreateTextureFromSurface(renderer, gs)
         trust SDL_FreeSurface(gs)
         trust SDL_SetTextureBlendMode(g_gunTex, 1)
         val gw: ref void = @alloc(4)
         val gh: ref void = @alloc(4)
-        trust SDL_QueryTexture(g_gunTex, 0 as ref void, 0 as ref void, gw, gh)
+        trust SDL_QueryTexture(g_gunTex, none, none, gw, gh)
         gunTexW = @load32(gw) as i32
         gunTexH = @load32(gh) as i32
         trust @free(gw)
@@ -563,7 +563,7 @@ pub fn main() i32 = {
                 }
             }
 
-            val keys: ref u8 = trust SDL_GetKeyboardState(0 as ref i32)
+            val keys: ref u8 = trust SDL_GetKeyboardState(none)
             val keyA: u8 = trust @load(@ptradd(keys, (C.SDL_SCANCODE_A) * @sizeof(u8)))
             val keyD: u8 = trust @load(@ptradd(keys, (C.SDL_SCANCODE_D) * @sizeof(u8)))
             val keyW: u8 = trust @load(@ptradd(keys, (C.SDL_SCANCODE_W) * @sizeof(u8)))

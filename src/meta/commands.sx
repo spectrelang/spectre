@@ -355,7 +355,7 @@ pub fn cmd_ref() i32 = {
                 \\ val q: mut ref i64 = ...     // reassignable pointer
                 \\ ```
                 \\
-                \\ `ref T` is a raw pointer.  Null is written as `0 as ref T`.
+                \\ `ref T` is a raw pointer.  Null is written as `none`.
                 \\
                 \\ ---
                 \\
@@ -783,7 +783,7 @@ pub fn cmd_build(config_name: ref u8, exe_path: ref u8) i32 = {
             return 1
         }
         some m => {
-            val found_cfg: mut ref SxBuildConfig = 0 as ref SxBuildConfig
+            val found_cfg: mut ref SxBuildConfig = none
             val builds: list[ref SxBuildConfig] = m.builds
             for cfg in builds {
                 if str.rchar_cmp(cfg.name, config_name) == 0 {
@@ -791,7 +791,7 @@ pub fn cmd_build(config_name: ref u8, exe_path: ref u8) i32 = {
                     break
                 }
             }
-            if found_cfg == 0 as ref SxBuildConfig {
+            if found_cfg == none {
                 trust stdio.print("error: build config '{s}' not found in sx.mod\n", {config_name})
                 return 1
             }

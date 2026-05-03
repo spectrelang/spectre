@@ -54,7 +54,7 @@ fn add_error(ctx: ref SemaCtx, msg: ref u8) void! = {
 }
 
 fn normalize_path(path: ref u8) ref u8! = {
-    if path == 0 as ref u8 { return path }
+    if path == none { return path }
     val sb: ref void = string.StringBuilder.new()
     val len: i64 = string.len_raw(path)
     val prev_slash: mut bool = false
@@ -137,7 +137,7 @@ fn is_known_builtin(name: ref u8) bool! = {
 
 fn push_scope(ctx: ref SemaCtx) void! = {
     guarded pre {
-        ctx_not_null : ctx != 0 as ref SemaCtx
+        ctx_not_null : ctx != none
     }
 
     val frame: ref list[ref ScopeEntry] = @alloc(@sizeof(list[ref ScopeEntry])) as ref list[ref ScopeEntry]
@@ -151,7 +151,7 @@ fn push_scope(ctx: ref SemaCtx) void! = {
 
 fn pop_scope(ctx: ref SemaCtx, filename: ref u8, _: i64) void! = {
     guarded pre {
-        ctx_not_null   : ctx != 0 as ref SemaCtx
+        ctx_not_null   : ctx != none
         has_scopes     : @len(ctx.scopes) > 0
     }
 
@@ -168,7 +168,7 @@ fn pop_scope(ctx: ref SemaCtx, filename: ref u8, _: i64) void! = {
                     match e_opt {
                         some e => {
                             val entry: ref ScopeEntry = e as ref ScopeEntry
-                            if entry.name != 0 as ref u8 {
+                            if entry.name != none {
                                 if string.rchar_cmp(entry.name, "_") != 0 {
                                     if entry.used == 0 {
                                         val buf: ref u8 = @alloc(512) as ref u8
@@ -199,8 +199,8 @@ fn pop_scope(ctx: ref SemaCtx, filename: ref u8, _: i64) void! = {
 
 fn scope_define(ctx: ref SemaCtx, name: ref u8, mutable: i64, type_name: ref u8, is_ref: i64, decl_line: i64) void! = {
     guarded pre {
-        ctx_not_null    : ctx != 0 as ref SemaCtx
-        name_not_null   : name != 0 as ref u8
+        ctx_not_null    : ctx != none
+        name_not_null   : name != none
         has_scope       : @len(ctx.scopes) > 0
     }
 
@@ -239,7 +239,7 @@ fn scope_set_implicit_mut(ctx: ref SemaCtx, name: ref u8) void! = {
                 match e_opt {
                     some e => {
                         val entry: mut ref ScopeEntry = e as ref ScopeEntry
-                        if entry.name != 0 as ref u8 {
+                        if entry.name != none {
                             if string.rchar_cmp(entry.name, name) == 0 {
                                 entry.implicit_mut = 1
                             }
@@ -262,16 +262,16 @@ fn find_root_ident(node: ref parser.Node) ref parser.Node! = {
         if cur.kind == parser.NK_FIELD {
             cur = parser.field_base(cur)
         } else {
-            return 0 as ref parser.Node
+            return none
         }
     }
-    return 0 as ref parser.Node
+    return none
 }
 
 fn is_c_escape_expr(node: ref parser.Node) bool! = {
-    if node == 0 as ref parser.Node || node.kind != parser.NK_FIELD { return false }
+    if node == none || node.kind != parser.NK_FIELD { return false }
     val root: ref parser.Node = find_root_ident(node)
-    if root == 0 as ref parser.Node { return false }
+    if root == none { return false }
     return str_eq(root.d0 as ref u8, "C")
 }
 
@@ -279,62 +279,62 @@ fn is_c_escape_expr(node: ref parser.Node) bool! = {
 fn unwrap_and_find_root(node: ref parser.Node) ref parser.Node! = {
     val cur: mut ref parser.Node = node
     for {
-        if cur == 0 as ref parser.Node { return 0 as ref parser.Node }
+        if cur == none { return none }
         if cur.kind == parser.NK_CAST || cur.kind == parser.NK_TRUST {
             cur = cur.d0 as ref parser.Node
         } else {
             return find_root_ident(cur)
         }
     }
-    return 0 as ref parser.Node
+    return none
 }
 
 fn sema_find_fn_in_module(mod: ref modinfo.ResolvedModule, name: ref u8) ref parser.Node! = {
-    if mod == 0 as ref modinfo.ResolvedModule { return 0 as ref parser.Node }
+    if mod == none { return none }
     val items: list[ref parser.Node] = modinfo.module_items(mod)
     for item in items {
         if item.kind == parser.NK_FN || item.kind == parser.NK_GENERIC_FN {
             val fname: ref u8 = item.d2 as ref u8
-            if fname != 0 as ref u8 && str_eq(fname, name) {
+            if fname != none && str_eq(fname, name) {
                 return item
             }
         } elif item.kind == parser.NK_EXTERN_FN {
             val fname: ref u8 = item.d1 as ref u8
-            if fname != 0 as ref u8 && str_eq(fname, name) {
+            if fname != none && str_eq(fname, name) {
                 return item
             }
         }
     }
-    return 0 as ref parser.Node
+    return none
 }
 
 /// Look up an imported module by its alias name.
 /// Returns the ResolvedModule for that alias, or 0 if not found.
 fn find_imported_module(mod: ref modinfo.ResolvedModule, alias: ref u8) ref modinfo.ResolvedModule! = {
-    if mod == 0 as ref modinfo.ResolvedModule { return 0 as ref modinfo.ResolvedModule }
-    if alias == 0 as ref u8 { return 0 as ref modinfo.ResolvedModule }
+    if mod == none { return none }
+    if alias == none { return none }
     val n: i64 = modinfo.import_count(mod)
     val i: mut i64 = 0
     for {
         if i >= n { break }
         val mname: ref u8 = modinfo.import_name_at(mod, i as usize)
-        if mname != 0 as ref u8 && str_eq(mname, alias) {
+        if mname != none && str_eq(mname, alias) {
             return modinfo.import_module_at(mod, i as usize)
         }
         i++
     }
-    return 0 as ref modinfo.ResolvedModule
+    return none
 }
 
 /// Returns true if `mod`'s items contain a `pub val name = use(...)` (i.e., a re-exported module alias).
 fn module_has_use_alias(mod: ref modinfo.ResolvedModule, name: ref u8) bool! = {
-    if mod == 0 as ref modinfo.ResolvedModule { return false }
-    if name == 0 as ref u8 { return false }
+    if mod == none { return false }
+    if name == none { return false }
     val items: list[ref parser.Node] = modinfo.module_items(mod)
     for item in items {
         if item.kind == parser.NK_USE {
             val alias: ref u8 = item.d1 as ref u8
-            if alias != 0 as ref u8 && str_eq(alias, name) {
+            if alias != none && str_eq(alias, name) {
                 return true
             }
         }
@@ -346,7 +346,7 @@ fn module_has_use_alias(mod: ref modinfo.ResolvedModule, name: ref u8) bool! = {
 /// two dotted segments form a module-to-module access. Only `module.Type` is
 /// allowed.
 fn check_no_module_to_module_type(ctx: ref SemaCtx, ty_node: ref parser.Node, line: i64, filename: ref u8) void! = {
-    if ty_node == 0 as ref parser.Node { return }
+    if ty_node == none { return }
     val k: i64 = ty_node.kind
     if k == parser.TY_REF || k == parser.TY_OPTION || k == parser.TY_LIST || k == parser.TY_MUT || k == parser.TY_SLICE {
         check_no_module_to_module_type(ctx, ty_node.d0 as ref parser.Node, line, filename)
@@ -359,7 +359,7 @@ fn check_no_module_to_module_type(ctx: ref SemaCtx, ty_node: ref parser.Node, li
     }
     if k != parser.TY_NAMED { return }
     val name: ref u8 = ty_node.d0 as ref u8
-    if name == 0 as ref u8 { return }
+    if name == none { return }
     val nlen: i64 = string.len_raw(name)
     val first_dot: mut i64 = -1
     val second_dot: mut i64 = -1
@@ -383,7 +383,7 @@ fn check_no_module_to_module_type(ctx: ref SemaCtx, ty_node: ref parser.Node, li
     @store8(@ptradd(second_seg as ref void, second_len), 0)
     val rmod: ref modinfo.ResolvedModule = ctx.root_mod
     val imported: ref modinfo.ResolvedModule = find_imported_module(rmod, first_seg)
-    if imported == 0 as ref modinfo.ResolvedModule { return }
+    if imported == none { return }
     if module_has_use_alias(imported, second_seg) {
         val ebuf: ref u8 = @alloc(512) as ref u8
         @snprintf(ebuf, 512, "{s}:{lld}: chained module access '{s}.{s}' is not allowed in type '{s}'; import '{s}' directly with `use(...)` instead", {filename, line, first_seg, second_seg, name, second_seg})
@@ -395,17 +395,17 @@ fn check_no_module_to_module_type(ctx: ref SemaCtx, ty_node: ref parser.Node, li
 /// `module` and the inner field are top-level `use(...)` aliases. Only direct
 /// `module.member` access is allowed.
 fn check_no_module_to_module_field(ctx: ref SemaCtx, expr: ref parser.Node, line: i64, filename: ref u8) void! = {
-    if expr == 0 as ref parser.Node { return }
+    if expr == none { return }
     if expr.kind != parser.NK_FIELD { return }
     val base: ref parser.Node = parser.field_base(expr)
     val field: ref u8 = parser.field_name(expr)
-    if base == 0 as ref parser.Node || field == 0 as ref u8 { return }
+    if base == none || field == none { return }
     if base.kind != parser.NK_IDENT { return }
     val root_name: ref u8 = base.d0 as ref u8
-    if root_name == 0 as ref u8 { return }
+    if root_name == none { return }
     val rmod: ref modinfo.ResolvedModule = ctx.root_mod
     val imported: ref modinfo.ResolvedModule = find_imported_module(rmod, root_name)
-    if imported == 0 as ref modinfo.ResolvedModule { return }
+    if imported == none { return }
     if module_has_use_alias(imported, field) {
         val ebuf: ref u8 = @alloc(512) as ref u8
         @snprintf(ebuf, 512, "{s}:{lld}: chained module access '{s}.{s}' is not allowed; import '{s}' directly with `use(...)` instead", {filename, line, root_name, field, field})
@@ -416,20 +416,20 @@ fn check_no_module_to_module_field(ctx: ref SemaCtx, expr: ref parser.Node, line
 fn unwrap_generic_callee(callee: ref parser.Node) ref parser.Node! = {
     val cur: mut ref parser.Node = callee
     for {
-        if cur == 0 as ref parser.Node { return 0 as ref parser.Node }
+        if cur == none { return none }
         if cur.kind == parser.NK_GENERIC_INST {
             cur = parser.generic_inst_base(cur)
             continue
         }
         return cur
     }
-    return 0 as ref parser.Node
+    return none
 }
 
 fn callee_has_explicit_type_args(callee: ref parser.Node) bool! = {
     val cur: mut ref parser.Node = callee
     for {
-        if cur == 0 as ref parser.Node { return false }
+        if cur == none { return false }
         if cur.kind != parser.NK_GENERIC_INST { return false }
         if @len(parser.generic_inst_type_args(cur)) > 0 { return true }
         cur = parser.generic_inst_base(cur)
@@ -440,8 +440,8 @@ fn callee_has_explicit_type_args(callee: ref parser.Node) bool! = {
 /// Returns mutable flag (0 or 1) or -1 if not found.
 fn scope_lookup(ctx: ref SemaCtx, name: ref u8) i64! = {
     guarded pre {
-        ctx_not_null  : ctx != 0 as ref SemaCtx
-        name_not_null : name != 0 as ref u8
+        ctx_not_null  : ctx != none
+        name_not_null : name != none
     }
 
     val len: i64 = @len(ctx.scopes) as i64
@@ -478,8 +478,8 @@ fn scope_lookup(ctx: ref SemaCtx, name: ref u8) i64! = {
 /// Returns the type name of a variable from scope, or null if not found.
 fn scope_lookup_type(ctx: ref SemaCtx, name: ref u8) ref u8! = {
     guarded pre {
-        ctx_not_null  : ctx != 0 as ref SemaCtx
-        name_not_null : name != 0 as ref u8
+        ctx_not_null  : ctx != none
+        name_not_null : name != none
     }
 
     val len: i64 = @len(ctx.scopes) as i64
@@ -510,14 +510,14 @@ fn scope_lookup_type(ctx: ref SemaCtx, name: ref u8) ref u8! = {
         }
         i--
     }
-    return 0 as ref u8
+    return none
 }
 
 /// Returns 1 if the variable was declared with a top-level ref type, 0 otherwise.
 fn scope_lookup_is_ref(ctx: ref SemaCtx, name: ref u8) i64! = {
     guarded pre {
-        ctx_not_null  : ctx != 0 as ref SemaCtx
-        name_not_null : name != 0 as ref u8
+        ctx_not_null  : ctx != none
+        name_not_null : name != none
     }
 
     val len: i64 = @len(ctx.scopes) as i64
@@ -554,8 +554,8 @@ fn scope_lookup_is_ref(ctx: ref SemaCtx, name: ref u8) i64! = {
 
 /// Returns the wrap kind (0=none, 1=result, 2=option) recorded for a variable in scope.
 fn scope_lookup_wrap_kind(ctx: ref SemaCtx, name: ref u8) i64! = {
-    if ctx == 0 as ref SemaCtx { return 0 }
-    if name == 0 as ref u8 { return 0 }
+    if ctx == none { return 0 }
+    if name == none { return 0 }
     val len: i64 = @len(ctx.scopes) as i64
     val i: mut i64 = len - 1
     for {
@@ -589,8 +589,8 @@ fn scope_lookup_wrap_kind(ctx: ref SemaCtx, name: ref u8) i64! = {
 
 /// Sets the wrap kind (0=none, 1=result, 2=option) on a variable in the current scope.
 fn scope_set_wrap_kind(ctx: ref SemaCtx, name: ref u8, kind: i64) void! = {
-    if ctx == 0 as ref SemaCtx { return }
-    if name == 0 as ref u8 { return }
+    if ctx == none { return }
+    if name == none { return }
     val len: usize = @len(ctx.scopes)
     if len == 0 { return }
     val frame_opt = @get(ctx.scopes, len - 1)
@@ -604,7 +604,7 @@ fn scope_set_wrap_kind(ctx: ref SemaCtx, name: ref u8, kind: i64) void! = {
                 match e_opt {
                     some e => {
                         val entry: mut ref ScopeEntry = e as ref ScopeEntry
-                        if entry.name != 0 as ref u8 {
+                        if entry.name != none {
                             if string.rchar_cmp(entry.name, name) == 0 {
                                 entry.wrap_kind = kind
                                 return
@@ -621,7 +621,7 @@ fn scope_set_wrap_kind(ctx: ref SemaCtx, name: ref u8, kind: i64) void! = {
 }
 
 fn mark_name_used(ctx: ref SemaCtx, name: ref u8) void! = {
-    if name == 0 as ref u8 { return }
+    if name == none { return }
     val len: i64 = @len(ctx.scopes) as i64
     val i: mut i64 = len - 1
     for {
@@ -654,7 +654,7 @@ fn mark_name_used(ctx: ref SemaCtx, name: ref u8) void! = {
 }
 
 fn mark_name_mutated(ctx: ref SemaCtx, name: ref u8) void! = {
-    if name == 0 as ref u8 { return }
+    if name == none { return }
     val len: i64 = @len(ctx.scopes) as i64
     val i: mut i64 = len - 1
     for {
@@ -701,7 +701,7 @@ fn find_field_mutable(ctx: ref SemaCtx, type_name: ref u8, field_name: ref u8) i
                 val td_name: ref u8 = td_node.d1 as ref u8
                 if string.rchar_cmp(td_name, type_name) == 0 {
                     val fields: ref void = td_node.d2 as ref void
-                    if fields != 0 as ref void {
+                    if fields != none {
                         val flen: i64 = @len(fields) as i64
                         val fi: mut i64 = 0
                         for {
@@ -743,7 +743,7 @@ fn find_field_type_node(ctx: ref SemaCtx, type_name: ref u8, field_name: ref u8)
                 val td_name: ref u8 = td_node.d1 as ref u8
                 if string.rchar_cmp(td_name, type_name) == 0 {
                     val fields: ref void = td_node.d2 as ref void
-                    if fields != 0 as ref void {
+                    if fields != none {
                         val flen: i64 = @len(fields) as i64
                         val fi: mut i64 = 0
                         for {
@@ -762,42 +762,42 @@ fn find_field_type_node(ctx: ref SemaCtx, type_name: ref u8, field_name: ref u8)
                             fi++
                         }
                     }
-                    return 0 as ref parser.Node
+                    return none
                 }
             }
             none => {}
         }
         ti++
     }
-    return 0 as ref parser.Node
+    return none
 }
 
 /// Extracts the innermost named type string from a type node (strips ref/mut wrappers).
 fn extract_type_name(ty_node: ref parser.Node) ref u8! = {
     val cur: mut ref parser.Node = ty_node
     for {
-        if cur == 0 as ref parser.Node { return 0 as ref u8 }
+        if cur == none { return none }
         if cur.kind == parser.TY_NAMED { return cur.d0 as ref u8 }
         if cur.kind == parser.TY_MUT || cur.kind == parser.TY_REF {
             cur = cur.d0 as ref parser.Node
         } else {
-            return 0 as ref u8
+            return none
         }
     }
-    return 0 as ref u8
+    return none
 }
 
 fn unwrap_mut_type(ty_node: ref parser.Node) ref parser.Node! = {
     val cur: mut ref parser.Node = ty_node
     for {
-        if cur == 0 as ref parser.Node { return 0 as ref parser.Node }
+        if cur == none { return none }
         if cur.kind == parser.TY_MUT {
             cur = cur.d0 as ref parser.Node
             continue
         }
         return cur
     }
-    return 0 as ref parser.Node
+    return none
 }
 
 /// Returns 0 (no wrap), 1 (result), or 2 (option) for a type node,
@@ -805,7 +805,7 @@ fn unwrap_mut_type(ty_node: ref parser.Node) ref parser.Node! = {
 fn ty_wrap_kind(ty: ref parser.Node) i64! = {
     val cur: mut ref parser.Node = ty
     for {
-        if cur == 0 as ref parser.Node { return 0 }
+        if cur == none { return 0 }
         val k: i64 = cur.kind
         if k == parser.TY_RESULT { return 1 }
         if k == parser.TY_OPTION { return 2 }
@@ -817,7 +817,7 @@ fn ty_wrap_kind(ty: ref parser.Node) i64! = {
 
 /// Find a function definition in ctx.fn_defs matching target_name (and optional namespace).
 fn find_fn_def_local(ctx: ref SemaCtx, target_name: ref u8, target_ns: ref u8) ref parser.Node! = {
-    if target_name == 0 as ref u8 { return 0 as ref parser.Node }
+    if target_name == none { return none }
     val lookup_ns: ref u8 = spec_impl_name(ctx, target_ns)
     val flen: i64 = @len(ctx.fn_defs) as i64
     val fi: mut i64 = 0
@@ -830,18 +830,18 @@ fn find_fn_def_local(ctx: ref SemaCtx, target_name: ref u8, target_ns: ref u8) r
                 val fname_node1: ref u8 = fnode.d1 as ref u8
                 val fname_node2: ref u8 = fnode.d2 as ref u8
                 val is_match: mut bool = false
-                if target_ns != 0 as ref u8 {
-                    if fname_node1 != 0 as ref u8 && fname_node2 != 0 as ref u8 {
+                if target_ns != none {
+                    if fname_node1 != none && fname_node2 != none {
                         if string.rchar_cmp(fname_node1, lookup_ns) == 0 &&
                            string.rchar_cmp(fname_node2, target_name) == 0 {
                             is_match = true
                         }
                     }
                 } else {
-                    if fname_node1 != 0 as ref u8 {
+                    if fname_node1 != none {
                         if string.rchar_cmp(fname_node1, target_name) == 0 { is_match = true }
                     }
-                    if fname_node2 != 0 as ref u8 {
+                    if fname_node2 != none {
                         if string.rchar_cmp(fname_node2, target_name) == 0 { is_match = true }
                     }
                 }
@@ -851,100 +851,100 @@ fn find_fn_def_local(ctx: ref SemaCtx, target_name: ref u8, target_ns: ref u8) r
         }
         fi++
     }
-    return 0 as ref parser.Node
+    return none
 }
 
 /// Find a function in an imported module by name and optional namespace.
 fn find_fn_in_module_with_ns(mod: ref modinfo.ResolvedModule, ns: ref u8, name: ref u8) ref parser.Node! = {
-    if mod == 0 as ref modinfo.ResolvedModule { return 0 as ref parser.Node }
-    if name == 0 as ref u8 { return 0 as ref parser.Node }
+    if mod == none { return none }
+    if name == none { return none }
     val items: list[ref parser.Node] = modinfo.module_items(mod)
     for item in items {
-        if item == 0 as ref parser.Node { continue }
+        if item == none { continue }
         val k: i64 = item.kind
         if k == parser.NK_FN || k == parser.NK_GENERIC_FN {
             val item_ns: ref u8 = item.d1 as ref u8
             val item_nm: ref u8 = item.d2 as ref u8
-            if item_nm == 0 as ref u8 { continue }
+            if item_nm == none { continue }
             if !str_eq(item_nm, name) { continue }
-            if ns == 0 as ref u8 {
+            if ns == none {
                 return item
             }
-            if item_ns != 0 as ref u8 && str_eq(item_ns, ns) { return item }
+            if item_ns != none && str_eq(item_ns, ns) { return item }
         } elif k == parser.NK_EXTERN_FN {
-            if ns != 0 as ref u8 { continue }
+            if ns != none { continue }
             val ename: ref u8 = item.d1 as ref u8
-            if ename != 0 as ref u8 && str_eq(ename, name) { return item }
+            if ename != none && str_eq(ename, name) { return item }
         }
     }
-    return 0 as ref parser.Node
+    return none
 }
 
 /// Find an imported module by alias name on root_mod.
 fn find_imported_mod(ctx: ref SemaCtx, alias: ref u8) ref modinfo.ResolvedModule! = {
-    if ctx == 0 as ref SemaCtx { return 0 as ref modinfo.ResolvedModule }
-    if alias == 0 as ref u8 { return 0 as ref modinfo.ResolvedModule }
+    if ctx == none { return none }
+    if alias == none { return none }
     val rmod: ref modinfo.ResolvedModule = ctx.root_mod
-    if rmod == 0 as ref modinfo.ResolvedModule { return 0 as ref modinfo.ResolvedModule }
+    if rmod == none { return none }
     val n: i64 = modinfo.import_count(rmod)
     val i: mut i64 = 0
     for {
         if i >= n { break }
         val mname: ref u8 = modinfo.import_name_at(rmod, i as usize)
-        if mname != 0 as ref u8 && str_eq(mname, alias) {
+        if mname != none && str_eq(mname, alias) {
             return modinfo.import_module_at(rmod, i as usize)
         }
         i++
     }
-    return 0 as ref modinfo.ResolvedModule
+    return none
 }
 
 /// Resolve a NK_CALL's callee node to the actual function definition node, if findable.
 /// Handles: bare name, Type.fn (local), module.fn, and module.Type.fn forms.
 fn resolve_called_fn(ctx: ref SemaCtx, callee: ref parser.Node) ref parser.Node! = {
-    if callee == 0 as ref parser.Node { return 0 as ref parser.Node }
+    if callee == none { return none }
     val base: ref parser.Node = unwrap_generic_callee(callee)
-    if base == 0 as ref parser.Node { return 0 as ref parser.Node }
+    if base == none { return none }
 
     if base.kind == parser.NK_IDENT {
         val nm: ref u8 = base.d0 as ref u8
-        return find_fn_def_local(ctx, nm, 0 as ref u8)
+        return find_fn_def_local(ctx, nm, none)
     }
 
     if base.kind == parser.NK_FIELD {
         val fname: ref u8 = parser.field_name(base)
         val fbase: ref parser.Node = parser.field_base(base)
-        if fbase == 0 as ref parser.Node { return 0 as ref parser.Node }
+        if fbase == none { return none }
 
         if fbase.kind == parser.NK_IDENT {
             val fb_name: ref u8 = fbase.d0 as ref u8
             val local: ref parser.Node = find_fn_def_local(ctx, fname, fb_name)
-            if local != 0 as ref parser.Node { return local }
+            if local != none { return local }
             val mm: ref modinfo.ResolvedModule = find_imported_mod(ctx, fb_name)
-            if mm != 0 as ref modinfo.ResolvedModule {
-                return find_fn_in_module_with_ns(mm, 0 as ref u8, fname)
+            if mm != none {
+                return find_fn_in_module_with_ns(mm, none, fname)
             }
-            return 0 as ref parser.Node
+            return none
         }
 
         if fbase.kind == parser.NK_FIELD {
             val inner_base: ref parser.Node = parser.field_base(fbase)
             val inner_name: ref u8 = parser.field_name(fbase)
-            if inner_base != 0 as ref parser.Node && inner_base.kind == parser.NK_IDENT {
+            if inner_base != none && inner_base.kind == parser.NK_IDENT {
                 val mod_name: ref u8 = inner_base.d0 as ref u8
                 val mm2: ref modinfo.ResolvedModule = find_imported_mod(ctx, mod_name)
-                if mm2 != 0 as ref modinfo.ResolvedModule {
+                if mm2 != none {
                     return find_fn_in_module_with_ns(mm2, inner_name, fname)
                 }
             }
         }
     }
-    return 0 as ref parser.Node
+    return none
 }
 
 /// Returns 0/1/2 for the wrap kind (none/result/option) of a function's return type.
 fn fn_return_wrap_kind(fn_node: ref parser.Node) i64! = {
-    if fn_node == 0 as ref parser.Node { return 0 }
+    if fn_node == none { return 0 }
     val k: i64 = fn_node.kind
     if k == parser.NK_FN || k == parser.NK_GENERIC_FN {
         return ty_wrap_kind(fn_node.d4 as ref parser.Node)
@@ -958,7 +958,7 @@ fn fn_return_wrap_kind(fn_node: ref parser.Node) i64! = {
 /// Find a typedef (NK_TYPEDEF or NK_EXTERN_TYPE) by name. Supports module-qualified
 /// names like "allocators.Arena" by looking up the module on root_mod.
 fn find_typedef_anywhere(ctx: ref SemaCtx, type_name: ref u8) ref parser.Node! = {
-    if type_name == 0 as ref u8 { return 0 as ref parser.Node }
+    if type_name == none { return none }
     val nlen: i64 = string.len_raw(type_name)
     val dot_idx: mut i64 = -1
     val i: mut i64 = 0
@@ -974,28 +974,28 @@ fn find_typedef_anywhere(ctx: ref SemaCtx, type_name: ref u8) ref parser.Node! =
         @store8(@ptradd(mod_name_buf as ref void, dot_idx), 0)
         val unqual: ref u8 = @ptradd(type_name, dot_idx + 1) as ref u8
         val mm: ref modinfo.ResolvedModule = find_imported_mod(ctx, mod_name_buf)
-        if mm == 0 as ref modinfo.ResolvedModule { return 0 as ref parser.Node }
+        if mm == none { return none }
         val items: list[ref parser.Node] = modinfo.module_items(mm)
         for item in items {
-            if item == 0 as ref parser.Node { continue }
+            if item == none { continue }
             if item.kind == parser.NK_TYPEDEF || item.kind == parser.NK_EXTERN_TYPE {
                 val nm: ref u8 = item.d1 as ref u8
-                if nm != 0 as ref u8 && str_eq(nm, unqual) { return item }
+                if nm != none && str_eq(nm, unqual) { return item }
             }
             if item.kind == parser.NK_WHEN_ITEMS {
                 val witems: ref void = item.d1 as ref void
-                if witems != 0 as ref void {
+                if witems != none {
                     for w in witems as list[ref parser.Node] {
-                        if w == 0 as ref parser.Node { continue }
+                        if w == none { continue }
                         if w.kind == parser.NK_TYPEDEF || w.kind == parser.NK_EXTERN_TYPE {
                             val wnm: ref u8 = w.d1 as ref u8
-                            if wnm != 0 as ref u8 && str_eq(wnm, unqual) { return w }
+                            if wnm != none && str_eq(wnm, unqual) { return w }
                         }
                     }
                 }
             }
         }
-        return 0 as ref parser.Node
+        return none
     }
     return sema_lookup_typedef(ctx, type_name)
 }
@@ -1006,7 +1006,7 @@ fn find_typedef_anywhere(ctx: ref SemaCtx, type_name: ref u8) ref parser.Node! =
 /// parameters; only values whose wrappedness comes from a function return type
 /// or an explicit cast are reported.
 fn expr_wrap_kind(ctx: ref SemaCtx, expr: ref parser.Node) i64! = {
-    if expr == 0 as ref parser.Node { return 0 }
+    if expr == none { return 0 }
     val k: i64 = expr.kind
     if k == parser.NK_TRY { return 0 }
     if k == parser.NK_CAST { return ty_wrap_kind(expr.d1 as ref parser.Node) }
@@ -1049,7 +1049,7 @@ fn scope_defined_local(ctx: ref SemaCtx, name: ref u8) bool! = {
 
 /// Check if a type name is a type parameter.
 fn is_type_parameter(ctx: ref SemaCtx, tname: ref u8) bool! = {
-    if tname == 0 as ref u8 { return false }
+    if tname == none { return false }
 
     for tp in ctx.type_params {
         if str_eq(tp as ref u8, tname) {
@@ -1061,7 +1061,7 @@ fn is_type_parameter(ctx: ref SemaCtx, tname: ref u8) bool! = {
 }
 
 fn spec_impl_name(ctx: ref SemaCtx, spec_name: ref u8) ref u8! = {
-    if spec_name == 0 as ref u8 { return 0 as ref u8 }
+    if spec_name == none { return none }
     val slen: i64 = @len(ctx.spec_names) as i64
     val si: mut i64 = 0
     for {
@@ -1085,7 +1085,7 @@ fn spec_impl_name(ctx: ref SemaCtx, spec_name: ref u8) ref u8! = {
 }
 
 fn type_node_matches_impl_type(spec_ty: ref parser.Node, impl_ty: ref parser.Node, impl_name: ref u8) bool! = {
-    if spec_ty == 0 as ref parser.Node || impl_ty == 0 as ref parser.Node { return false }
+    if spec_ty == none || impl_ty == none { return false }
     if spec_ty.kind != impl_ty.kind {
         if spec_ty.kind == parser.TY_NAMED && str_eq(spec_ty.d0 as ref u8, "self") {
             return str_eq(extract_type_name(impl_ty), impl_name)
@@ -1113,11 +1113,11 @@ fn type_node_matches_impl_type(spec_ty: ref parser.Node, impl_ty: ref parser.Nod
 }
 
 fn function_matches_spec_method(spec_fn: ref parser.Node, impl_fn: ref parser.Node, impl_name: ref u8) bool! = {
-    if spec_fn == 0 as ref parser.Node || impl_fn == 0 as ref parser.Node { return false }
+    if spec_fn == none || impl_fn == none { return false }
     if spec_fn.d0 != impl_fn.d0 { return false }
     val spec_params: ref void = spec_fn.d3 as ref void
     val impl_params: ref void = impl_fn.d3 as ref void
-    if spec_params == 0 as ref void || impl_params == 0 as ref void {
+    if spec_params == none || impl_params == none {
         return spec_params == impl_params
     }
     if @len(spec_params as list[ref parser.Node]) as i64 != @len(impl_params as list[ref parser.Node]) as i64 {
@@ -1151,7 +1151,7 @@ fn function_matches_spec_method(spec_fn: ref parser.Node, impl_fn: ref parser.No
 
 fn find_top_level_fn(items: list[ref parser.Node], ns: ref u8, name: ref u8) ref parser.Node! = {
     for item in items {
-        if item == 0 as ref parser.Node { continue }
+        if item == none { continue }
         val k: i64 = item.kind
         if k == parser.NK_FN || k == parser.NK_GENERIC_FN {
             if str_eq(item.d1 as ref u8, ns) && str_eq(item.d2 as ref u8, name) {
@@ -1159,18 +1159,18 @@ fn find_top_level_fn(items: list[ref parser.Node], ns: ref u8, name: ref u8) ref
             }
         }
     }
-    return 0 as ref parser.Node
+    return none
 }
 
 fn validate_spec_impls(ctx: ref SemaCtx, items: list[ref parser.Node], filename: ref u8) void! = {
     for item in items {
-        if item == 0 as ref parser.Node || item.kind != parser.NK_SPEC { continue }
+        if item == none || item.kind != parser.NK_SPEC { continue }
         val spec_name: ref u8 = item.d1 as ref u8
         val methods: ref void = item.d2 as ref void
-        if methods == 0 as ref void { continue }
+        if methods == none { continue }
         val impls: mut list[ref u8] = []
         for impl_item in items {
-            if impl_item != 0 as ref parser.Node && impl_item.kind == parser.NK_TYPEDEF {
+            if impl_item != none && impl_item.kind == parser.NK_TYPEDEF {
                 if str_eq(impl_item.d4 as ref u8, spec_name) {
                     @append(impls, impl_item.d1 as ref u8)
                 }
@@ -1184,10 +1184,10 @@ fn validate_spec_impls(ctx: ref SemaCtx, items: list[ref parser.Node], filename:
         }
         for impl_name in impls {
             for meth in methods as list[ref parser.Node] {
-                if meth == 0 as ref parser.Node { continue }
+                if meth == none { continue }
                 val meth_name: ref u8 = meth.d2 as ref u8
                 val impl_fn: ref parser.Node = find_top_level_fn(items, impl_name, meth_name)
-                if impl_fn == 0 as ref parser.Node {
+                if impl_fn == none {
                     val ebuf2: ref u8 = @alloc(512) as ref u8
                     @snprintf(ebuf2, 512, "{s}: spec '{s}' is unimplemented for '{s}': missing function '{s}'",
                         {filename, spec_name, impl_name, meth_name})
@@ -1209,7 +1209,7 @@ fn str_eq(a: ref u8, b: ref u8) bool! = {
 
 /// Extract the unqualified type name from a potentially qualified name.
 fn unqualified_type_name(tname: ref u8) ref u8! = {
-    if tname == 0 as ref u8 { return tname }
+    if tname == none { return tname }
     val last_dot: mut i64 = -1
     val i: mut i64 = 0
     for {
@@ -1310,8 +1310,8 @@ fn is_comparison_op(op: i64) bool! = {
 }
 
 fn format_type_for_error(type_name: ref u8, is_ref: i64) ref u8! = {
-    if is_ref == 1 && (type_name == 0 as ref u8 || str_eq(type_name, "")) { return "ref void" }
-    if type_name == 0 as ref u8 || str_eq(type_name, "") { return "unknown" }
+    if is_ref == 1 && (type_name == none || str_eq(type_name, "")) { return "ref void" }
+    if type_name == none || str_eq(type_name, "") { return "unknown" }
     if is_ref == 0 { return type_name }
     val buf: ref u8 = @alloc(128) as ref u8
     @snprintf(buf, 128, "ref {s}", {type_name})
@@ -1319,14 +1319,14 @@ fn format_type_for_error(type_name: ref u8, is_ref: i64) ref u8! = {
 }
 
 fn expr_is_ref_void(ctx: ref SemaCtx, node: ref parser.Node) bool! = {
-    if node == 0 as ref parser.Node { return false }
+    if node == none { return false }
     if infer_expr_scope_is_ref(ctx, node) != 1 { return false }
     val type_name: ref u8 = infer_expr_scope_type_name(ctx, node)
-    return type_name == 0 as ref u8 || str_eq(type_name, "")
+    return type_name == none || str_eq(type_name, "")
 }
 
 fn expr_is_numeric_value(ctx: ref SemaCtx, node: ref parser.Node) bool! = {
-    if node == 0 as ref parser.Node { return false }
+    if node == none { return false }
     val k: i64 = node.kind
     if k == parser.NK_INT_LIT || k == parser.NK_FLOAT_LIT { return true }
     if k == parser.NK_IDENT {
@@ -1355,7 +1355,7 @@ fn expr_is_numeric_value(ctx: ref SemaCtx, node: ref parser.Node) bool! = {
 fn type_nodes_equivalent(a: ref parser.Node, b: ref parser.Node) bool! = {
     val lhs: ref parser.Node = unwrap_mut_type(a)
     val rhs: ref parser.Node = unwrap_mut_type(b)
-    if lhs == 0 as ref parser.Node || rhs == 0 as ref parser.Node { return false }
+    if lhs == none || rhs == none { return false }
     if lhs.kind != rhs.kind { return false }
     if lhs.kind == parser.TY_REF || lhs.kind == parser.TY_OPTION || lhs.kind == parser.TY_LIST ||
        lhs.kind == parser.TY_SLICE {
@@ -1373,20 +1373,20 @@ fn type_nodes_equivalent(a: ref parser.Node, b: ref parser.Node) bool! = {
 }
 
 fn ref_type_names_match(expected: ref u8, actual: ref u8) bool! = {
-    if ((expected == 0 as ref u8 || str_eq(expected, "")) &&
-       (actual == 0 as ref u8 || str_eq(actual, ""))) {
+    if ((expected == none || str_eq(expected, "")) &&
+       (actual == none || str_eq(actual, ""))) {
         return true
     }
-    if expected == 0 as ref u8 || actual == 0 as ref u8 { return false }
+    if expected == none || actual == none { return false }
     return str_eq(unqualified_type_name(expected), unqualified_type_name(actual))
 }
 
 fn ref_assignment_rhs_ok(ctx: ref SemaCtx, target_type_name: ref u8, target_is_ref: i64, rhs: ref parser.Node) bool! = {
-    if rhs == 0 as ref parser.Node { return true }
+    if rhs == none { return true }
     if rhs.kind == parser.NK_NONE { return true }
     if rhs.kind == parser.NK_CAST {
         val cast_ty: ref parser.Node = rhs.d1 as ref parser.Node
-        if cast_ty == 0 as ref parser.Node { return false }
+        if cast_ty == none { return false }
         if sema_ty_is_ref(cast_ty) != 1 { return false }
         if target_is_ref != 1 { return false }
         return ref_type_names_match(target_type_name, extract_type_name(cast_ty))
@@ -1410,7 +1410,7 @@ fn comparison_operands_compatible(ctx: ref SemaCtx, lhs: ref parser.Node, rhs: r
         return false
     }
 
-    if lhs_type == 0 as ref u8 || rhs_type == 0 as ref u8 { return true }
+    if lhs_type == none || rhs_type == none { return true }
     if str_eq(lhs_type, "") || str_eq(rhs_type, "") { return true }
 
     if lhs_ref != rhs_ref { return false }
@@ -1425,7 +1425,7 @@ fn comparison_operands_compatible(ctx: ref SemaCtx, lhs: ref parser.Node, rhs: r
 
     val lhs_cat: ref u8 = get_expr_type_category(ctx, lhs)
     val rhs_cat: ref u8 = get_expr_type_category(ctx, rhs)
-    if lhs_cat != 0 as ref u8 && rhs_cat != 0 as ref u8 &&
+    if lhs_cat != none && rhs_cat != none &&
        !str_eq(lhs_cat, "unknown") && str_eq(lhs_cat, rhs_cat) {
         return true
     }
@@ -1435,7 +1435,7 @@ fn comparison_operands_compatible(ctx: ref SemaCtx, lhs: ref parser.Node, rhs: r
 
 /// Returns true if `name` is referenced as an identifier anywhere in `stmts`.
 fn stmts_use_name(stmts: ref void, name: ref u8) bool! = {
-    if stmts == 0 as ref void { return false }
+    if stmts == none { return false }
     for s in stmts as list[ref parser.Node] {
         if expr_uses_name(s, name) { return true }
     }
@@ -1443,7 +1443,7 @@ fn stmts_use_name(stmts: ref void, name: ref u8) bool! = {
 }
 
 fn expr_uses_name(node: ref parser.Node, name: ref u8) bool! = {
-    if node == 0 as ref parser.Node { return false }
+    if node == none { return false }
     val k: i64 = node.kind
     if k == parser.NK_IDENT {
         return str_eq(node.d0 as ref u8, name)
@@ -1471,7 +1471,7 @@ fn expr_uses_name(node: ref parser.Node, name: ref u8) bool! = {
     if k == parser.NK_CALL {
         if expr_uses_name(parser.call_callee(node), name) { return true }
         val cargs: ref void = parser.call_args(node) as ref void
-        if cargs != 0 as ref void {
+        if cargs != none {
             for carg in cargs as list[ref parser.Node] {
                 if expr_uses_name(carg, name) { return true }
             }
@@ -1480,7 +1480,7 @@ fn expr_uses_name(node: ref parser.Node, name: ref u8) bool! = {
     }
     if k == parser.NK_BUILTIN {
         val bargs: ref void = node.d1 as ref void
-        if bargs != 0 as ref void {
+        if bargs != none {
             for barg in bargs as list[ref parser.Node] {
                 if expr_uses_name(barg, name) { return true }
             }
@@ -1498,14 +1498,14 @@ fn expr_uses_name(node: ref parser.Node, name: ref u8) bool! = {
         if expr_uses_name(node.d0 as ref parser.Node, name) { return true }
         if stmts_use_name(node.d1 as ref void, name) { return true }
         val elif_list2: ref void = node.d2 as ref void
-        if elif_list2 != 0 as ref void {
+        if elif_list2 != none {
             for ep in elif_list2 as list[ref parser.Node] {
                 if expr_uses_name(ep.d0 as ref parser.Node, name) { return true }
                 if stmts_use_name(ep.d1 as ref void, name) { return true }
             }
         }
         val else_node: ref parser.Node = node.d3 as ref parser.Node
-        if else_node != 0 as ref parser.Node {
+        if else_node != none {
             return stmts_use_name(else_node.d0 as ref void, name)
         }
         return false
@@ -1521,7 +1521,7 @@ fn expr_uses_name(node: ref parser.Node, name: ref u8) bool! = {
     }
     if k == parser.NK_LIST_LIT || k == parser.NK_ARGS_PACK || k == parser.NK_STRUCT_LIT {
         val elist: ref void = node.d0 as ref void
-        if elist != 0 as ref void {
+        if elist != none {
             for e in elist as list[ref parser.Node] {
                 if expr_uses_name(e, name) { return true }
             }
@@ -1616,17 +1616,17 @@ fn fmt_specifier_category(specifier: ref u8) ref u8! = {
 }
 
 fn sema_ty_is_ref(ty: ref parser.Node) i64! = {
-    if ty == 0 as ref parser.Node { return 0 }
+    if ty == none { return 0 }
     if ty.kind == parser.TY_REF { return 1 }
     if ty.kind == parser.TY_MUT {
         val inner: ref parser.Node = ty.d0 as ref parser.Node
-        if inner != 0 as ref parser.Node && inner.kind == parser.TY_REF { return 1 }
+        if inner != none && inner.kind == parser.TY_REF { return 1 }
     }
     return 0
 }
 
 fn infer_expr_scope_type_name(ctx: ref SemaCtx, node: ref parser.Node) ref u8! = {
-    if node == 0 as ref parser.Node { return "" }
+    if node == none { return "" }
     val k: i64 = node.kind
     if k == parser.NK_INT_LIT  { return "i64" }
     if k == parser.NK_FLOAT_LIT { return "f64" }
@@ -1635,7 +1635,7 @@ fn infer_expr_scope_type_name(ctx: ref SemaCtx, node: ref parser.Node) ref u8! =
     if k == parser.NK_STR_LIT  { return "u8" }
     if k == parser.NK_IDENT {
         val tname: ref u8 = scope_lookup_type(ctx, node.d0 as ref u8)
-        if tname != 0 as ref u8 { return spec_impl_name(ctx, tname) }
+        if tname != none { return spec_impl_name(ctx, tname) }
         return ""
     }
     if k == parser.NK_TRUST {
@@ -1651,7 +1651,7 @@ fn infer_expr_scope_type_name(ctx: ref SemaCtx, node: ref parser.Node) ref u8! =
 }
 
 fn infer_expr_scope_is_ref(ctx: ref SemaCtx, node: ref parser.Node) i64! = {
-    if node == 0 as ref parser.Node { return 0 }
+    if node == none { return 0 }
     val k: i64 = node.kind
     if k == parser.NK_STR_LIT { return 1 }
     if k == parser.NK_IDENT { return scope_lookup_is_ref(ctx, node.d0 as ref u8) }
@@ -1664,7 +1664,7 @@ fn infer_expr_scope_is_ref(ctx: ref SemaCtx, node: ref parser.Node) i64! = {
 /// Infers a broad type category for an expression node.
 /// Returns "int", "str", "u8", "float", "ptr", or "unknown".
 fn get_expr_type_category(ctx: ref SemaCtx, node: ref parser.Node) ref u8! = {
-    if node == 0 as ref parser.Node { return "unknown" }
+    if node == none { return "unknown" }
     val k: i64 = node.kind
     if k == parser.NK_INT_LIT   { return "int"   }
     if k == parser.NK_FLOAT_LIT { return "float" }
@@ -1675,7 +1675,7 @@ fn get_expr_type_category(ctx: ref SemaCtx, node: ref parser.Node) ref u8! = {
         val vname: ref u8 = node.d0 as ref u8
         val tname: ref u8 = scope_lookup_type(ctx, vname)
         val iref: i64 = scope_lookup_is_ref(ctx, vname)
-        if tname == 0 as ref u8 { return "unknown" }
+        if tname == none { return "unknown" }
         if iref == 1 {
             if str_eq(tname, "u8") { return "str" }
             return "ptr"
@@ -1725,8 +1725,8 @@ fn check_printf_fmt(ctx: ref SemaCtx, fmt_str: ref u8, all_args: ref void,
     // Determine arg count and whether we have pack-style or individual-style args.
     val total_args: mut i64 = 0
     val pack_style: mut bool = false
-    val pack_inner: mut ref void = 0 as ref void
-    if all_args != 0 as ref void {
+    val pack_inner: mut ref void = none
+    if all_args != none {
         val alen: i64 = @len(all_args) as i64
         if alen > args_start_idx {
             val first_opt = @get(all_args, args_start_idx as usize)
@@ -1736,7 +1736,7 @@ fn check_printf_fmt(ctx: ref SemaCtx, fmt_str: ref u8, all_args: ref void,
                     if first_node.kind == parser.NK_ARGS_PACK {
                         pack_style = true
                         val inner: ref void = first_node.d0 as ref void
-                        if inner != 0 as ref void {
+                        if inner != none {
                             pack_inner = inner
                             total_args = @len(inner) as i64
                         }
@@ -1766,14 +1766,14 @@ fn check_printf_fmt(ctx: ref SemaCtx, fmt_str: ref u8, all_args: ref void,
                 val specifier: ref u8 = spec_raw as ref u8
                 val exp_cat: ref u8 = fmt_specifier_category(specifier)
                 if !str_eq(exp_cat, "unknown") {
-                    val arg_node: mut ref parser.Node = 0 as ref parser.Node
-                    if pack_style && pack_inner != 0 as ref void {
+                    val arg_node: mut ref parser.Node = none
+                    if pack_style && pack_inner != none {
                         val arg_opt = @get(pack_inner, idx as usize)
                         match arg_opt {
                             some arg_raw => { arg_node = arg_raw as ref parser.Node }
                             none => {}
                         }
-                    } elif !pack_style && all_args != 0 as ref void {
+                    } elif !pack_style && all_args != none {
                         val real_idx: i64 = args_start_idx + idx
                         val arg_opt = @get(all_args, real_idx as usize)
                         match arg_opt {
@@ -1781,7 +1781,7 @@ fn check_printf_fmt(ctx: ref SemaCtx, fmt_str: ref u8, all_args: ref void,
                             none => {}
                         }
                     }
-                    if arg_node != 0 as ref parser.Node {
+                    if arg_node != none {
                         val act_cat: ref u8 = get_expr_type_category(ctx, arg_node)
                         if !str_eq(act_cat, "unknown") {
                             val its_ok: mut bool = str_eq(exp_cat, act_cat)
@@ -1805,7 +1805,7 @@ fn check_printf_fmt(ctx: ref SemaCtx, fmt_str: ref u8, all_args: ref void,
 }
 
 fn find_import_module(ctx: ref SemaCtx, name: ref u8) ref modinfo.ResolvedModule! = {
-    if ctx.root_mod == 0 as ref modinfo.ResolvedModule { return 0 as ref modinfo.ResolvedModule }
+    if ctx.root_mod == none { return none }
     return modinfo.find_import_by_name(ctx.root_mod, name)
 }
 
@@ -1827,10 +1827,10 @@ fn generic_targ_type_compatible(expected: ref u8, actual: ref u8, arg_node: ref 
 /// `[T: SpecName]` constraints declared in the function's type-parameter list.
 fn check_generic_call_constraints(ctx: ref SemaCtx, fn_found: ref parser.Node, callee: ref parser.Node,
                                     filename: ref u8, line: i64) void! = {
-    if fn_found == 0 as ref parser.Node || fn_found.kind != parser.NK_GENERIC_FN { return }
-    if callee == 0 as ref parser.Node || callee.kind != parser.NK_GENERIC_INST { return }
+    if fn_found == none || fn_found.kind != parser.NK_GENERIC_FN { return }
+    if callee == none || callee.kind != parser.NK_GENERIC_INST { return }
     val tparams: ref void = fn_found.d6 as ref void
-    if tparams == 0 as ref void { return }
+    if tparams == none { return }
     val gi_targs: list[ref parser.Node] = parser.generic_inst_type_args(callee)
     val nparms: i64 = @len(tparams as list[ref parser.Node]) as i64
     val nargs: i64 = @len(gi_targs) as i64
@@ -1845,20 +1845,20 @@ fn check_generic_call_constraints(ctx: ref SemaCtx, fn_found: ref parser.Node, c
             some tp_raw => {
                 val tp_node: ref parser.Node = tp_raw as ref parser.Node
                 val constraint: ref parser.Node = parser.tparam_constraint(tp_node)
-                if constraint != 0 as ref parser.Node {
+                if constraint != none {
                     match ta_opt {
                         some ta_raw => {
                             val ta_node: ref parser.Node = ta_raw as ref parser.Node
                             val constraint_name: ref u8 = extract_type_name(constraint)
                             val arg_type_name: ref u8 = extract_type_name(ta_node)
-                            if constraint_name != 0 as ref u8 && arg_type_name != 0 as ref u8 &&
+                            if constraint_name != none && arg_type_name != none &&
                                !is_type_parameter(ctx, arg_type_name) {
                                 val expected_spec: ref u8 = unqualified_type_name(constraint_name)
                                 val tdef: ref parser.Node = find_typedef_anywhere(ctx, arg_type_name)
-                                val impl_spec: mut ref u8 = 0 as ref u8
-                                if tdef != 0 as ref parser.Node { impl_spec = tdef.d4 as ref u8 }
+                                val impl_spec: mut ref u8 = none
+                                if tdef != none { impl_spec = tdef.d4 as ref u8 }
                                 val its_ok: mut bool = false
-                                if impl_spec != 0 as ref u8 && str_eq(impl_spec, expected_spec) { its_ok = true }
+                                if impl_spec != none && str_eq(impl_spec, expected_spec) { its_ok = true }
                                 if !its_ok && str_eq(arg_type_name, constraint_name) { its_ok = true }
                                 if !its_ok {
                                     val tp_name: ref u8 = parser.tparam_name(tp_node)
@@ -1881,12 +1881,12 @@ fn check_generic_call_constraints(ctx: ref SemaCtx, fn_found: ref parser.Node, c
 
 fn check_generic_call_arg_types(ctx: ref SemaCtx, fn_found: ref parser.Node, callee: ref parser.Node,
                                   cargs: ref void, filename: ref u8, line: i64) void! = {
-    if fn_found == 0 as ref parser.Node || fn_found.kind != parser.NK_GENERIC_FN { return }
-    if callee == 0 as ref parser.Node || callee.kind != parser.NK_GENERIC_INST { return }
-    if cargs == 0 as ref void { return }
+    if fn_found == none || fn_found.kind != parser.NK_GENERIC_FN { return }
+    if callee == none || callee.kind != parser.NK_GENERIC_INST { return }
+    if cargs == none { return }
     val tparams: ref void = fn_found.d6 as ref void
     val fn_params: ref void = fn_found.d3 as ref void
-    if tparams == 0 as ref void || fn_params == 0 as ref void { return }
+    if tparams == none || fn_params == none { return }
     val gi_targs: list[ref parser.Node] = parser.generic_inst_type_args(callee)
     val ntparams: i64 = @len(tparams as list[ref parser.Node]) as i64
     val ntargs: i64 = @len(gi_targs) as i64
@@ -1908,7 +1908,7 @@ fn check_generic_call_arg_types(ctx: ref SemaCtx, fn_found: ref parser.Node, cal
                         val arg_node: ref parser.Node = arg_raw as ref parser.Node
                         val pty: ref parser.Node = param_node.d1 as ref parser.Node
                         val inner_pty: ref parser.Node = unwrap_mut_type(pty)
-                        if inner_pty != 0 as ref parser.Node && inner_pty.kind == parser.TY_NAMED {
+                        if inner_pty != none && inner_pty.kind == parser.TY_NAMED {
                             val tparam_name: ref u8 = inner_pty.d0 as ref u8
                             val ti: mut i64 = 0
                             for {
@@ -1938,9 +1938,9 @@ fn check_generic_call_arg_types(ctx: ref SemaCtx, fn_found: ref parser.Node, cal
                                                         }
                                                         ck++
                                                     }
-                                                    if expected_tname != 0 as ref u8 && !str_eq(expected_tname, "") &&
+                                                    if expected_tname != none && !str_eq(expected_tname, "") &&
                                                        !expected_is_tparam &&
-                                                       arg_tname != 0 as ref u8 && !str_eq(arg_tname, "") &&
+                                                       arg_tname != none && !str_eq(arg_tname, "") &&
                                                        !generic_targ_type_compatible(expected_tname, arg_tname, arg_node) {
                                                         val ebuf: ref u8 = @alloc(512) as ref u8
                                                         @snprintf(ebuf, 512, "{s}:{lld}: type mismatch in generic call: argument has type '{s}' but type parameter '{s}' is '{s}'",
@@ -1971,14 +1971,14 @@ fn check_generic_call_arg_types(ctx: ref SemaCtx, fn_found: ref parser.Node, cal
 /// Records the originating constructor namespace for a local variable so that
 /// inference can recover the concrete impl type later (e.g., arena -> "allocators.Arena").
 fn record_var_origin(ctx: mut ref SemaCtx, name: ref u8, origin: ref u8) void! = {
-    if name == 0 as ref u8 || origin == 0 as ref u8 { return }
+    if name == none || origin == none { return }
     @append(ctx.var_origin_names, name)
     @append(ctx.var_origin_types, origin)
 }
 
 /// Look up the recorded originating type for a variable name, or 0 if none.
 fn lookup_var_origin(ctx: ref SemaCtx, name: ref u8) ref u8! = {
-    if name == 0 as ref u8 { return 0 as ref u8 }
+    if name == none { return none }
     val n: i64 = @len(ctx.var_origin_names) as i64
     val i: mut i64 = n - 1
     for {
@@ -1990,7 +1990,7 @@ fn lookup_var_origin(ctx: ref SemaCtx, name: ref u8) ref u8! = {
                     val t_opt = @get(ctx.var_origin_types, i as usize)
                     match t_opt {
                         some t => { return t as ref u8 }
-                        none => { return 0 as ref u8 }
+                        none => { return none }
                     }
                 }
             }
@@ -1998,13 +1998,13 @@ fn lookup_var_origin(ctx: ref SemaCtx, name: ref u8) ref u8! = {
         }
         i--
     }
-    return 0 as ref u8
+    return none
 }
 
 /// Build a dotted name string from a NK_FIELD/NK_IDENT chain (e.g., "allocators.Arena").
 /// Returns 0 if the chain isn't purely identifiers and field accesses.
 fn dotted_chain_name(node: ref parser.Node) ref u8! = {
-    if node == 0 as ref parser.Node { return 0 as ref u8 }
+    if node == none { return none }
     if node.kind == parser.NK_IDENT {
         return node.d0 as ref u8
     }
@@ -2012,12 +2012,12 @@ fn dotted_chain_name(node: ref parser.Node) ref u8! = {
         val base: ref parser.Node = parser.field_base(node)
         val fname: ref u8 = parser.field_name(node)
         val base_str: ref u8 = dotted_chain_name(base)
-        if base_str == 0 as ref u8 { return 0 as ref u8 }
+        if base_str == none { return none }
         val out: ref u8 = @alloc(512) as ref u8
         @snprintf(out, 512, "{s}.{s}", {base_str, fname})
         return out
     }
-    return 0 as ref u8
+    return none
 }
 
 /// If init_expr is of the form `(trust)? X.Method(...)(?)`, return the dotted
@@ -2025,7 +2025,7 @@ fn dotted_chain_name(node: ref parser.Node) ref u8! = {
 fn extract_constructor_namespace(expr: ref parser.Node) ref u8! = {
     val cur: mut ref parser.Node = expr
     for {
-        if cur == 0 as ref parser.Node { return 0 as ref u8 }
+        if cur == none { return none }
         val ck: i64 = cur.kind
         if ck == parser.NK_TRUST || ck == parser.NK_TRY {
             cur = cur.d0 as ref parser.Node
@@ -2033,18 +2033,18 @@ fn extract_constructor_namespace(expr: ref parser.Node) ref u8! = {
         }
         break
     }
-    if cur == 0 as ref parser.Node { return 0 as ref u8 }
-    if cur.kind != parser.NK_CALL { return 0 as ref u8 }
+    if cur == none { return none }
+    if cur.kind != parser.NK_CALL { return none }
     val callee: ref parser.Node = parser.call_callee(cur)
-    if callee == 0 as ref parser.Node { return 0 as ref u8 }
-    if callee.kind != parser.NK_FIELD { return 0 as ref u8 }
+    if callee == none { return none }
+    if callee.kind != parser.NK_FIELD { return none }
     val base: ref parser.Node = parser.field_base(callee)
     return dotted_chain_name(base)
 }
 
 /// Returns true if the type-arg list of a NK_GENERIC_INST callee contains TY_INFER markers.
 fn generic_inst_has_infer(callee: ref parser.Node) bool! = {
-    if callee == 0 as ref parser.Node { return false }
+    if callee == none { return false }
     if callee.kind != parser.NK_GENERIC_INST { return false }
     val targs: list[ref parser.Node] = parser.generic_inst_type_args(callee)
     val n: i64 = @len(targs) as i64
@@ -2071,7 +2071,7 @@ fn resolve_generic_inst_inference(ctx: mut ref SemaCtx, callee: mut ref parser.N
                                     fn_found: ref parser.Node, cargs: ref void,
                                     filename: ref u8, line: i64) void! = {
     if !generic_inst_has_infer(callee) { return }
-    if fn_found == 0 as ref parser.Node || fn_found.kind != parser.NK_GENERIC_FN {
+    if fn_found == none || fn_found.kind != parser.NK_GENERIC_FN {
         val ebuf: ref u8 = @alloc(512) as ref u8
         @snprintf(ebuf, 512, "{s}:{lld}: cannot infer generic type argument(s): function definition not found",
             {filename, line})
@@ -2081,7 +2081,7 @@ fn resolve_generic_inst_inference(ctx: mut ref SemaCtx, callee: mut ref parser.N
     val tparams: ref void = fn_found.d6 as ref void
     val fn_params: ref void = fn_found.d3 as ref void
     val nparams: mut i64 = 0
-    if tparams != 0 as ref void { nparams = @len(tparams as list[ref parser.Node]) as i64 }
+    if tparams != none { nparams = @len(tparams as list[ref parser.Node]) as i64 }
     if nparams == 0 {
         val ebuf2: ref u8 = @alloc(512) as ref u8
         @snprintf(ebuf2, 512, "{s}:{lld}: cannot infer generic type argument(s): function has no type parameters",
@@ -2132,7 +2132,7 @@ fn resolve_generic_inst_inference(ctx: mut ref SemaCtx, callee: mut ref parser.N
                 val ea_node: ref parser.Node = ea as ref parser.Node
                 if ea_node.kind == parser.TY_INFER {
                     val tp_opt = @get(tparams as list[ref parser.Node], ri as usize)
-                    val inferred: mut ref parser.Node = 0 as ref parser.Node
+                    val inferred: mut ref parser.Node = none
                     match tp_opt {
                         some tp => {
                             val tparam_name: ref u8 = parser.tparam_name(tp as ref parser.Node)
@@ -2140,7 +2140,7 @@ fn resolve_generic_inst_inference(ctx: mut ref SemaCtx, callee: mut ref parser.N
                         }
                         none => {}
                     }
-                    if inferred == 0 as ref parser.Node {
+                    if inferred == none {
                         val tname_for_err: mut ref u8 = "?"
                         match tp_opt {
                             some tp2 => { tname_for_err = parser.tparam_name(tp2 as ref parser.Node) }
@@ -2171,8 +2171,8 @@ fn resolve_generic_inst_inference(ctx: mut ref SemaCtx, callee: mut ref parser.N
 /// node with the inferred concrete type of the matching call argument.
 fn infer_targ_for_tparam(ctx: ref SemaCtx, tparam_name: ref u8,
                           fn_params: ref void, cargs: ref void) ref parser.Node! = {
-    if fn_params == 0 as ref void { return 0 as ref parser.Node }
-    if cargs == 0 as ref void { return 0 as ref parser.Node }
+    if fn_params == none { return none }
+    if cargs == none { return none }
     val nfp: i64 = @len(fn_params as list[ref parser.Node]) as i64
     val nca: i64 = @len(cargs as list[ref parser.Node]) as i64
     val pi: mut i64 = 0
@@ -2184,14 +2184,14 @@ fn infer_targ_for_tparam(ctx: ref SemaCtx, tparam_name: ref u8,
                 val pn: ref parser.Node = pp as ref parser.Node
                 val pty: ref parser.Node = pn.d1 as ref parser.Node
                 val inner: ref parser.Node = peel_mut_ref(pty)
-                if inner != 0 as ref parser.Node && inner.kind == parser.TY_NAMED {
+                if inner != none && inner.kind == parser.TY_NAMED {
                     if str_eq(inner.d0 as ref u8, tparam_name) && pi < nca {
                         val ca_opt = @get(cargs as list[ref parser.Node], pi as usize)
                         match ca_opt {
                             some ca => {
                                 val arg_node: ref parser.Node = ca as ref parser.Node
                                 val resolved_tn: ref u8 = resolve_arg_originating_type(ctx, arg_node)
-                                if resolved_tn != 0 as ref u8 && !str_eq(resolved_tn, "") && !str_eq(resolved_tn, "unknown") {
+                                if resolved_tn != none && !str_eq(resolved_tn, "") && !str_eq(resolved_tn, "unknown") {
                                     val out: mut ref parser.Node = parser.make_node(parser.TY_NAMED, 0)
                                     out.d0 = resolved_tn as i64
                                     return out
@@ -2206,17 +2206,17 @@ fn infer_targ_for_tparam(ctx: ref SemaCtx, tparam_name: ref u8,
         }
         pi++
     }
-    return 0 as ref parser.Node
+    return none
 }
 
 /// Determine the most useful "concrete" type name for a call argument used in
 /// generic inference. Tries scope-known type, then identifier origin tracking,
 /// then a structural walk of the argument expression for a constructor call.
 fn resolve_arg_originating_type(ctx: ref SemaCtx, arg: ref parser.Node) ref u8! = {
-    if arg == 0 as ref parser.Node { return 0 as ref u8 }
+    if arg == none { return none }
     val cur: mut ref parser.Node = arg
     for {
-        if cur == 0 as ref parser.Node { break }
+        if cur == none { break }
         val ck: i64 = cur.kind
         if ck == parser.NK_TRUST || ck == parser.NK_TRY {
             cur = cur.d0 as ref parser.Node
@@ -2224,13 +2224,13 @@ fn resolve_arg_originating_type(ctx: ref SemaCtx, arg: ref parser.Node) ref u8! 
         }
         break
     }
-    if cur != 0 as ref parser.Node && cur.kind == parser.NK_IDENT {
+    if cur != none && cur.kind == parser.NK_IDENT {
         val ident_name: ref u8 = cur.d0 as ref u8
         val origin: ref u8 = lookup_var_origin(ctx, ident_name)
-        if origin != 0 as ref u8 { return origin }
+        if origin != none { return origin }
     }
     val from_expr: ref u8 = extract_constructor_namespace(arg)
-    if from_expr != 0 as ref u8 { return from_expr }
+    if from_expr != none { return from_expr }
     return infer_expr_scope_type_name(ctx, arg)
 }
 
@@ -2238,18 +2238,18 @@ fn resolve_arg_originating_type(ctx: ref SemaCtx, arg: ref parser.Node) ref u8! 
 fn peel_mut_ref(ty: ref parser.Node) ref parser.Node! = {
     val cur: mut ref parser.Node = ty
     for {
-        if cur == 0 as ref parser.Node { return 0 as ref parser.Node }
+        if cur == none { return none }
         if cur.kind == parser.TY_MUT || cur.kind == parser.TY_REF {
             cur = cur.d0 as ref parser.Node
             continue
         }
         return cur
     }
-    return 0 as ref parser.Node
+    return none
 }
 
 fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) void! = {
-    if expr == 0 as ref parser.Node { return }
+    if expr == none { return }
 
     val k: i64 = expr.kind
     val line: i64 = expr.line
@@ -2375,25 +2375,25 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
         val has_explicit_targs: bool = callee_has_explicit_type_args(callee)
         check_expr(ctx, callee, filename)
         val cargs: ref void = parser.call_args(expr) as ref void
-        if cargs != 0 as ref void {
+        if cargs != none {
             for carg in cargs as list[ref parser.Node] {
                 check_expr(ctx, carg, filename)
             }
         }
         val resolved_fn: ref parser.Node = resolve_called_fn(ctx, callee)
-        if base_callee != 0 as ref parser.Node {
+        if base_callee != none {
             if base_callee.kind == parser.NK_IDENT {
                 val fname2: ref u8 = base_callee.d0 as ref u8
                 @append(ctx.used_fns, fname2)
             } elif base_callee.kind == parser.NK_FIELD {
                 val fname: ref u8 = parser.field_name(base_callee)
-                if fname != 0 as ref u8 {
+                if fname != none {
                     @append(ctx.used_fns, fname)
                     val fbase: ref parser.Node = parser.field_base(base_callee)
-                    if fbase != 0 as ref parser.Node {
+                    if fbase != none {
                         if fbase.kind == parser.NK_IDENT {
                             val base_name: ref u8 = fbase.d0 as ref u8
-                            if base_name != 0 as ref u8 {
+                            if base_name != none {
                                 val qbuf: ref u8 = @alloc(256) as ref u8
                                 @snprintf(qbuf, 256, "{s}.{s}", {base_name, fname})
                                 @append(ctx.used_fns, qbuf)
@@ -2404,16 +2404,16 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
             }
         }
 
-        val fn_found: mut ref parser.Node = 0 as ref parser.Node
-        if base_callee != 0 as ref parser.Node {
-            val target_name: mut ref u8 = 0 as ref u8
-            val target_ns: mut ref u8 = 0 as ref u8
+        val fn_found: mut ref parser.Node = none
+        if base_callee != none {
+            val target_name: mut ref u8 = none
+            val target_ns: mut ref u8 = none
             if base_callee.kind == parser.NK_IDENT {
                 target_name = base_callee.d0 as ref u8
             } elif base_callee.kind == parser.NK_FIELD {
                 target_name = parser.field_name(base_callee)
                 val fbase: ref parser.Node = parser.field_base(base_callee)
-                if fbase != 0 as ref parser.Node {
+                if fbase != none {
                     if fbase.kind == parser.NK_IDENT {
                         target_ns = fbase.d0 as ref u8
                     } elif fbase.kind == parser.NK_FIELD {
@@ -2421,7 +2421,7 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
                     }
                 }
             }
-            if target_name != 0 as ref u8 {
+            if target_name != none {
                 val lookup_ns: ref u8 = spec_impl_name(ctx, target_ns)
                 val flen: i64 = @len(ctx.fn_defs) as i64
                 val fi: mut i64 = 0
@@ -2434,18 +2434,18 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
                             val fname_node1: ref u8 = fnode.d1 as ref u8
                             val fname_node2: ref u8 = fnode.d2 as ref u8
                             val is_match: mut bool = false
-                            if target_ns != 0 as ref u8 {
-                                if fname_node1 != 0 as ref u8 && fname_node2 != 0 as ref u8 {
+                            if target_ns != none {
+                                if fname_node1 != none && fname_node2 != none {
                                     if string.rchar_cmp(fname_node1, lookup_ns) == 0 &&
                                        string.rchar_cmp(fname_node2, target_name) == 0 {
                                         is_match = true
                                     }
                                 }
                             } else {
-                                if fname_node1 != 0 as ref u8 {
+                                if fname_node1 != none {
                                     if string.rchar_cmp(fname_node1, target_name) == 0 { is_match = true }
                                 }
-                                if fname_node2 != 0 as ref u8 {
+                                if fname_node2 != none {
                                     if string.rchar_cmp(fname_node2, target_name) == 0 { is_match = true }
                                 }
                             }
@@ -2461,19 +2461,19 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
             }
         }
 
-        if fn_found == 0 as ref parser.Node && base_callee != 0 as ref parser.Node && base_callee.kind == parser.NK_FIELD {
+        if fn_found == none && base_callee != none && base_callee.kind == parser.NK_FIELD {
             val fname: ref u8 = parser.field_name(base_callee)
             val fbase: ref parser.Node = parser.field_base(base_callee)
-            if fbase != 0 as ref parser.Node && fbase.kind == parser.NK_IDENT {
+            if fbase != none && fbase.kind == parser.NK_IDENT {
                 val modname: ref u8 = fbase.d0 as ref u8
                 val rmod: ref modinfo.ResolvedModule = ctx.root_mod
-                if rmod != 0 as ref modinfo.ResolvedModule {
+                if rmod != none {
                     val n: i64 = modinfo.import_count(rmod)
                     val i: mut i64 = 0
                     for {
                         if i >= n { break }
                         val mname: ref u8 = modinfo.import_name_at(rmod, i as usize)
-                        if mname != 0 as ref u8 && str_eq(mname, modname) {
+                        if mname != none && str_eq(mname, modname) {
                             val mm: ref modinfo.ResolvedModule = modinfo.import_module_at(rmod, i as usize)
                             fn_found = sema_find_fn_in_module(mm, fname)
                             break
@@ -2484,15 +2484,15 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
             }
         }
 
-        if fn_found != 0 as ref parser.Node {
+        if fn_found != none {
             if fn_found.kind == parser.NK_GENERIC_FN && !has_explicit_targs {
-                val fn_name: mut ref u8 = 0 as ref u8
-                if base_callee != 0 as ref parser.Node {
+                val fn_name: mut ref u8 = none
+                if base_callee != none {
                     if base_callee.kind == parser.NK_IDENT { fn_name = base_callee.d0 as ref u8 }
                     elif base_callee.kind == parser.NK_FIELD { fn_name = parser.field_name(base_callee) }
                 }
                 val gbuf: ref u8 = @alloc(512) as ref u8
-                if fn_name != 0 as ref u8 {
+                if fn_name != none {
                     @snprintf(gbuf, 512, "{s}:{lld}: generic function '{s}' requires explicit type specifiers, call it as '{s}[Type](...)'", {filename, line, fn_name, fn_name})
                 } else {
                     @snprintf(gbuf, 512, "{s}:{lld}: generic function calls require explicit type specifiers", {filename, line})
@@ -2501,18 +2501,18 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
             }
             val params: mut ref void = fn_found.d3 as ref void
             if fn_found.kind == parser.NK_EXTERN_FN { params = fn_found.d4 as ref void }
-            if params != 0 as ref void && fn_found.kind != parser.NK_EXTERN_FN {
+            if params != none && fn_found.kind != parser.NK_EXTERN_FN {
                 val arg_len: mut i64 = 0
-                if cargs != 0 as ref void { arg_len = @len(cargs) as i64 }
+                if cargs != none { arg_len = @len(cargs) as i64 }
                 val param_len: i64 = @len(params) as i64
                 if arg_len != param_len {
-                    val fn_name: mut ref u8 = 0 as ref u8
-                    if base_callee != 0 as ref parser.Node {
+                    val fn_name: mut ref u8 = none
+                    if base_callee != none {
                         if base_callee.kind == parser.NK_IDENT { fn_name = base_callee.d0 as ref u8 }
                         elif base_callee.kind == parser.NK_FIELD { fn_name = parser.field_name(base_callee) }
                     }
                     val arity_buf: ref u8 = @alloc(512) as ref u8
-                    if fn_name != 0 as ref u8 {
+                    if fn_name != none {
                         @snprintf(arity_buf, 512, "{s}:{lld}: function '{s}' expects {lld} argument(s) but got {lld}", {filename, line, fn_name, param_len, arg_len})
                     } else {
                         @snprintf(arity_buf, 512, "{s}:{lld}: function expects {lld} argument(s) but got {lld}", {filename, line, param_len, arg_len})
@@ -2520,7 +2520,7 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
                     add_error(ctx, arity_buf)
                 }
             }
-            if params != 0 as ref void && cargs != 0 as ref void {
+            if params != none && cargs != none {
                 val arg_len2: i64 = @len(cargs) as i64
                 val param_len2: i64 = @len(params) as i64
                 val min_len: mut i64 = param_len2
@@ -2542,13 +2542,13 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
                                     elif pty.kind == parser.TY_LIST { param_is_ref = true }
                                     elif pty.kind == parser.TY_MUT {
                                         val pty_inner: ref parser.Node = pty.d0 as ref parser.Node
-                                        if pty_inner != 0 as ref parser.Node && pty_inner.kind == parser.TY_REF { param_is_ref = true }
-                                        elif pty_inner != 0 as ref parser.Node && pty_inner.kind == parser.TY_LIST { param_is_ref = true }
-                                        elif pty_inner != 0 as ref parser.Node && pty_inner.kind == parser.TY_NAMED { param_is_ref = true }
+                                        if pty_inner != none && pty_inner.kind == parser.TY_REF { param_is_ref = true }
+                                        elif pty_inner != none && pty_inner.kind == parser.TY_LIST { param_is_ref = true }
+                                        elif pty_inner != none && pty_inner.kind == parser.TY_NAMED { param_is_ref = true }
                                     }
                                     if param_is_ref {
                                         val root_node: ref parser.Node = unwrap_and_find_root(arg_node)
-                                        if root_node != 0 as ref parser.Node {
+                                        if root_node != none {
                                             mark_name_mutated(ctx, root_node.d0 as ref u8)
                                         }
                                     }
@@ -2556,8 +2556,8 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
                                     val arg_wrap: i64 = expr_wrap_kind(ctx, arg_node)
                                     val param_wrap: i64 = ty_wrap_kind(pty)
                                     if arg_wrap != 0 && arg_wrap != param_wrap {
-                                        val fn_name_w: mut ref u8 = 0 as ref u8
-                                        if base_callee != 0 as ref parser.Node {
+                                        val fn_name_w: mut ref u8 = none
+                                        if base_callee != none {
                                             if base_callee.kind == parser.NK_IDENT { fn_name_w = base_callee.d0 as ref u8 }
                                             elif base_callee.kind == parser.NK_FIELD { fn_name_w = parser.field_name(base_callee) }
                                         }
@@ -2565,7 +2565,7 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
                                         if arg_wrap == 1 { arg_wrap_str = "result" }
                                         val pname_w: ref u8 = param_node.d0 as ref u8
                                         val wbuf: ref u8 = @alloc(512) as ref u8
-                                        if fn_name_w != 0 as ref u8 {
+                                        if fn_name_w != none {
                                             @snprintf(wbuf, 512, "{s}:{lld}: type mismatch in call to '{s}': parameter '{s}' does not accept a {s} value; unwrap it first (with '?' or 'match')",
                                                 {filename, line, fn_name_w, pname_w, arg_wrap_str})
                                         } else {
@@ -2579,16 +2579,16 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
                                     val arg_type_name: ref u8 = infer_expr_scope_type_name(ctx, arg_node)
                                     val arg_is_ref: i64 = infer_expr_scope_is_ref(ctx, arg_node)
 
-                                    if param_type_name != 0 as ref u8 && !str_eq(param_type_name, "") {
+                                    if param_type_name != none && !str_eq(param_type_name, "") {
                                         val skip_type_check: mut bool = false
 
                                         if is_type_parameter(ctx, param_type_name) || is_type_parameter(ctx, arg_type_name) {
                                             skip_type_check = true
                                         }
 
-                                        if !skip_type_check && fn_found != 0 as ref parser.Node && fn_found.kind == parser.NK_GENERIC_FN {
+                                        if !skip_type_check && fn_found != none && fn_found.kind == parser.NK_GENERIC_FN {
                                             val fn_type_params: ref void = fn_found.d6 as ref void
-                                            if fn_type_params != 0 as ref void {
+                                            if fn_type_params != none {
                                                 for ftp in fn_type_params as list[ref parser.Node] {
                                                     val ftp_name: ref u8 = parser.tparam_name(ftp as ref parser.Node)
                                                     if str_eq(ftp_name, param_type_name) || str_eq(ftp_name, arg_type_name) {
@@ -2602,28 +2602,28 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
                                         if skip_type_check {
                                             if param_is_ref {
                                                 val root_node: ref parser.Node = unwrap_and_find_root(arg_node)
-                                                if root_node != 0 as ref parser.Node {
+                                                if root_node != none {
                                                     mark_name_mutated(ctx, root_node.d0 as ref u8)
                                                 }
                                             }
                                         } else {
                                             val type_mismatch: mut bool = false
-                                            val param_expects_ref: bool = pty.kind == parser.TY_REF || (pty.kind == parser.TY_MUT && pty.d0 != 0 as ref parser.Node && (pty.d0 as ref parser.Node).kind == parser.TY_REF)
+                                            val param_expects_ref: bool = pty.kind == parser.TY_REF || (pty.kind == parser.TY_MUT && pty.d0 != none && (pty.d0 as ref parser.Node).kind == parser.TY_REF)
 
                                             if param_expects_ref && str_eq(param_type_name, "u8") {
                                                 if arg_node.kind == parser.NK_INT_LIT || arg_node.kind == parser.NK_FLOAT_LIT || arg_node.kind == parser.NK_BOOL {
                                                     type_mismatch = true
                                                 } elif arg_node.kind == parser.NK_IDENT && arg_is_ref == 0 {
-                                                    if arg_type_name != 0 as ref u8 && !str_eq(arg_type_name, "") {
+                                                    if arg_type_name != none && !str_eq(arg_type_name, "") {
                                                         if !str_eq(arg_type_name, "u8") && !str_eq(arg_type_name, param_type_name) {
                                                             type_mismatch = true
                                                         }
                                                     }
                                                 }
-                                            } elif !param_expects_ref && arg_type_name != 0 as ref u8 && !str_eq(arg_type_name, "") {
+                                            } elif !param_expects_ref && arg_type_name != none && !str_eq(arg_type_name, "") {
                                                 if !types_compatible(ctx, param_type_name, arg_type_name) {
                                                     val union_def: ref parser.Node = sema_lookup_uniondef(ctx, param_type_name)
-                                                    if union_def != 0 as ref parser.Node {
+                                                    if union_def != none {
                                                         if !type_matches_union_variant(ctx, union_def, arg_type_name) {
                                                             type_mismatch = true
                                                         }
@@ -2634,8 +2634,8 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
                                             }
 
                                             if type_mismatch {
-                                                val fn_name_for_err: mut ref u8 = 0 as ref u8
-                                                if base_callee != 0 as ref parser.Node {
+                                                val fn_name_for_err: mut ref u8 = none
+                                                if base_callee != none {
                                                     if base_callee.kind == parser.NK_IDENT { fn_name_for_err = base_callee.d0 as ref u8 }
                                                     elif base_callee.kind == parser.NK_FIELD { fn_name_for_err = parser.field_name(base_callee) }
                                                 }
@@ -2648,12 +2648,12 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
                                                     param_type_str = ref_buf
                                                 }
                                                 val arg_type_str: mut ref u8 = arg_type_name
-                                                if arg_is_ref == 1 && arg_type_name != 0 as ref u8 {
+                                                if arg_is_ref == 1 && arg_type_name != none {
                                                     val arg_ref_buf: ref u8 = @alloc(128) as ref u8
                                                     @snprintf(arg_ref_buf, 128, "ref {s}", {arg_type_name})
                                                     arg_type_str = arg_ref_buf
                                                 }
-                                                if fn_name_for_err != 0 as ref u8 {
+                                                if fn_name_for_err != none {
                                                     @snprintf(type_err_buf, 512, "{s}:{lld}: type mismatch in call to '{s}': parameter '{s}' expects type '{s}' but got '{s}'",
                                                         {filename, line, fn_name_for_err, param_name, param_type_str, arg_type_str})
                                                 } else {
@@ -2679,21 +2679,21 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
             resolve_generic_inst_inference(ctx, callee, fn_found, cargs, filename, line)
         }
 
-        if fn_found != 0 as ref parser.Node && has_explicit_targs {
+        if fn_found != none && has_explicit_targs {
             check_generic_call_arg_types(ctx, fn_found, callee, cargs, filename, line)
             check_generic_call_constraints(ctx, fn_found, callee, filename, line)
         }
 
-        if fn_found == 0 as ref parser.Node && cargs != 0 as ref void {
-            if base_callee != 0 as ref parser.Node && base_callee.kind == parser.NK_IDENT {
+        if fn_found == none && cargs != none {
+            if base_callee != none && base_callee.kind == parser.NK_IDENT {
                 val callee_name: ref u8 = base_callee.d0 as ref u8
-                val union_name_buf: mut ref u8 = 0 as ref u8
+                val union_name_buf: mut ref u8 = none
                 val variant_node: ref parser.Node = sema_lookup_tagged_variant(ctx, callee_name, @addr(union_name_buf) as ref void)
                 
-                if variant_node != 0 as ref parser.Node {
+                if variant_node != none {
                     val expected_types: ref void = variant_node.d1 as ref void
                     val expected_count: mut i64 = 0
-                    if expected_types != 0 as ref void { 
+                    if expected_types != none { 
                         expected_count = @len(expected_types as list[ref parser.Node]) as i64 
                     } 
 
@@ -2720,8 +2720,8 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
                                             val expected_type_name: ref u8 = extract_type_name(expected_ty)
                                             val arg_type_name: ref u8 = infer_expr_scope_type_name(ctx, arg_node)
                                             
-                                            if expected_type_name != 0 as ref u8 && !str_eq(expected_type_name, "") &&
-                                               arg_type_name != 0 as ref u8 && !str_eq(arg_type_name, "") {
+                                            if expected_type_name != none && !str_eq(expected_type_name, "") &&
+                                               arg_type_name != none && !str_eq(arg_type_name, "") {
                                                 if !types_compatible(ctx, expected_type_name, arg_type_name) {
                                                     val type_err_buf: ref u8 = @alloc(512) as ref u8
                                                     @snprintf(type_err_buf, 512, "{s}:{lld}: type mismatch in variant constructor '{s}': argument {lld} expects type '{s}' but got '{s}'",
@@ -2741,9 +2741,9 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
                 } else {
                     for carg in cargs as list[ref parser.Node] {
                         val root_carg: ref parser.Node = unwrap_and_find_root(carg)
-                        if root_carg != 0 as ref parser.Node {
+                        if root_carg != none {
                             val aname: ref u8 = root_carg.d0 as ref u8
-                            if aname != 0 as ref u8 {
+                            if aname != none {
                                 if scope_lookup_is_ref(ctx, aname) == 1 {
                                     if scope_lookup(ctx, aname) == 1 {
                                         mark_name_mutated(ctx, aname)
@@ -2756,9 +2756,9 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
             } else {
                 for carg in cargs as list[ref parser.Node] {
                     val root_carg: ref parser.Node = unwrap_and_find_root(carg)
-                    if root_carg != 0 as ref parser.Node {
+                    if root_carg != none {
                         val aname: ref u8 = root_carg.d0 as ref u8
-                        if aname != 0 as ref u8 {
+                        if aname != none {
                             if scope_lookup_is_ref(ctx, aname) == 1 {
                                 if scope_lookup(ctx, aname) == 1 {
                                     mark_name_mutated(ctx, aname)
@@ -2770,10 +2770,10 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
             }
         }
 
-        if base_callee != 0 as ref parser.Node && base_callee.kind == parser.NK_FIELD {
+        if base_callee != none && base_callee.kind == parser.NK_FIELD {
             val fname: ref u8 = parser.field_name(base_callee)
             val is_print_call: bool = str_eq(fname, "print") || str_eq(fname, "eprint")
-            if is_print_call && cargs != 0 as ref void && @len(cargs) > 0 {
+            if is_print_call && cargs != none && @len(cargs) > 0 {
                 val fmt_opt = @get(cargs, 0)
                 match fmt_opt {
                     some fmt_raw => {
@@ -2787,17 +2787,17 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
                 }
             }
         }
-        if base_callee != 0 as ref parser.Node {
+        if base_callee != none {
             if base_callee.kind == parser.NK_FIELD {
                 val vis_base: ref parser.Node = parser.field_base(base_callee)
-                if vis_base != 0 as ref parser.Node {
+                if vis_base != none {
                     if vis_base.kind == parser.NK_IDENT {
                         val vis_mod_name: ref u8 = vis_base.d0 as ref u8
                         val vis_fn_name: ref u8 = parser.field_name(base_callee)
-                        if vis_mod_name != 0 as ref u8 {
-                            if vis_fn_name != 0 as ref u8 {
+                        if vis_mod_name != none {
+                            if vis_fn_name != none {
                                 val import_mod: ref modinfo.ResolvedModule = find_import_module(ctx, vis_mod_name)
-                                if import_mod != 0 as ref modinfo.ResolvedModule {
+                                if import_mod != none {
                                     if !modinfo.fn_is_public_in_module(import_mod, vis_fn_name) {
                                         val buf: ref u8 = @alloc(256) as ref u8
                                         @snprintf(buf, 256, "{s}:{lld}: '{s}' is not public in module '{s}'",
@@ -2817,15 +2817,15 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
                 }
             }
         }
-        if resolved_fn != 0 as ref parser.Node && parser.fn_is_unsafe(resolved_fn) {
+        if resolved_fn != none && parser.fn_is_unsafe(resolved_fn) {
             if ctx.in_unsafe_fn == 0 && ctx.in_trust == 0 {
-                val fn_name: mut ref u8 = 0 as ref u8
-                if base_callee != 0 as ref parser.Node {
+                val fn_name: mut ref u8 = none
+                if base_callee != none {
                     if base_callee.kind == parser.NK_IDENT { fn_name = base_callee.d0 as ref u8 }
                     elif base_callee.kind == parser.NK_FIELD { fn_name = parser.field_name(base_callee) }
                 }
                 val ebuf: ref u8 = @alloc(512) as ref u8
-                if fn_name != 0 as ref u8 {
+                if fn_name != none {
                     @snprintf(ebuf, 512, "{s}:{lld}: cannot call unsafe function '{s}' from safe context, use 'trust' block or mark current function as unsafe with '!'", {filename, line, fn_name})
                 } else {
                     @snprintf(ebuf, 512, "{s}:{lld}: cannot call unsafe function from safe context, use 'trust' block or mark current function as unsafe with '!'", {filename, line})
@@ -2840,7 +2840,7 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
     if k == parser.NK_BUILTIN {
         val bname: ref u8 = expr.d0 as ref u8
         val bargs: ref void = expr.d1 as ref void
-        if bargs != 0 as ref void {
+        if bargs != none {
             for barg in bargs as list[ref parser.Node] {
                 check_expr(ctx, barg, filename)
             }
@@ -2872,7 +2872,7 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
             val args_start: mut i64 = 1
             if is_dprintf  { fmt_idx = 1 args_start = 2 }
             if is_snprintf { fmt_idx = 2 args_start = 3 }
-            if bargs != 0 as ref void {
+            if bargs != none {
                 val blen: i64 = @len(bargs) as i64
                 if blen > fmt_idx {
                     val fmt_opt = @get(bargs, fmt_idx as usize)
@@ -2890,12 +2890,12 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
             }
         }
         if str_eq(bname, "memcpy") || str_eq(bname, "store8") || str_eq(bname, "memset") || str_eq(bname, "addr") || str_eq(bname, "memmove") || str_eq(bname, "realloc") || str_eq(bname, "free") || str_eq(bname, "store") || str_eq(bname, "append") || str_eq(bname, "remove") || str_eq(bname, "reserve") {
-            if bargs != 0 as ref void {
+            if bargs != none {
                 val btarget_opt = @get(bargs as list[ref parser.Node], 0)
                 match btarget_opt {
                     some btarget => {
                         val root_node: ref parser.Node = unwrap_and_find_root(btarget)
-                        if root_node != 0 as ref parser.Node {
+                        if root_node != none {
                             val vname: ref u8 = root_node.d0 as ref u8
                             val is_mut: i64 = scope_lookup(ctx, vname)
                             val is_ref: i64 = scope_lookup_is_ref(ctx, vname)
@@ -2913,18 +2913,18 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
         }
 
         if str_eq(bname, "sizeof") {
-            if bargs != 0 as ref void {
+            if bargs != none {
                 for barg in bargs as list[ref parser.Node] {
                     if barg.kind == parser.NK_IDENT {
                         mark_name_used(ctx, barg.d0 as ref u8)
                     } elif barg.kind == parser.NK_FIELD {
                         val root_node2: ref parser.Node = find_root_ident(barg)
-                        if root_node2 != 0 as ref parser.Node {
+                        if root_node2 != none {
                             mark_name_used(ctx, root_node2.d0 as ref u8)
                         }
                     } elif barg.kind == parser.TY_NAMED {
                         val tname2: ref u8 = barg.d0 as ref u8
-                        if tname2 != 0 as ref u8 {
+                        if tname2 != none {
                             val lkup2: i64 = scope_lookup(ctx, tname2)
                             if lkup2 != -1 { mark_name_used(ctx, tname2) }
                         }
@@ -2941,7 +2941,7 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
     if k == parser.NK_ADDR {
         val inner: ref parser.Node = expr.d0 as ref parser.Node
         check_expr(ctx, inner, filename)
-        if inner != 0 as ref parser.Node {
+        if inner != none {
             if inner.kind == parser.NK_IDENT {
                 val vname: ref u8 = inner.d0 as ref u8
                 val is_mut: i64 = scope_lookup(ctx, vname)
@@ -2954,7 +2954,7 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
                 mark_name_mutated(ctx, vname)
             } elif inner.kind == parser.NK_FIELD {
                 val root: ref parser.Node = find_root_ident(inner)
-                if root != 0 as ref parser.Node {
+                if root != none {
                     mark_name_mutated(ctx, root.d0 as ref u8)
                 }
             }
@@ -2963,7 +2963,7 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
     }
     if k == parser.NK_STRUCT_LIT {
         val flist: ref void = expr.d0 as ref void
-        if flist != 0 as ref void {
+        if flist != none {
             for f in flist as list[ref parser.Node] {
                 check_expr(ctx, f.d1 as ref parser.Node, filename)
             }
@@ -2972,7 +2972,7 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
     }
     if k == parser.NK_LIST_LIT || k == parser.NK_ARGS_PACK {
         val elist: ref void = expr.d0 as ref void
-        if elist != 0 as ref void {
+        if elist != none {
             for e in elist as list[ref parser.Node] {
                 check_expr(ctx, e, filename)
             }
@@ -2984,7 +2984,7 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
 
 /// Look up a NK_TYPEDEF node by type name. Returns 0 if not found.
 fn sema_lookup_typedef(ctx: ref SemaCtx, type_name: ref u8) ref parser.Node! = {
-    if type_name == 0 as ref u8 { return 0 as ref parser.Node }
+    if type_name == none { return none }
     val tlen: i64 = @len(ctx.type_defs) as i64
     val ti: mut i64 = 0
     for {
@@ -2994,7 +2994,7 @@ fn sema_lookup_typedef(ctx: ref SemaCtx, type_name: ref u8) ref parser.Node! = {
             some td => {
                 val tdnode: ref parser.Node = td as ref parser.Node
                 val tdname: ref u8 = tdnode.d1 as ref u8
-                if tdname != 0 as ref u8 {
+                if tdname != none {
                     if string.rchar_cmp(tdname, type_name) == 0 {
                         return tdnode
                     }
@@ -3004,18 +3004,18 @@ fn sema_lookup_typedef(ctx: ref SemaCtx, type_name: ref u8) ref parser.Node! = {
         }
         ti++
     }
-    return 0 as ref parser.Node
+    return none
 }
 
 fn sema_rewrite_empty_struct_init(expr: ref parser.Node, tdef: ref parser.Node) bool! = {
-    if expr == 0 as ref parser.Node || tdef == 0 as ref parser.Node { return false }
+    if expr == none || tdef == none { return false }
     if expr.kind != parser.NK_ARGS_PACK { return false }
     val init_args: ref void = expr.d0 as ref void
-    if init_args != 0 as ref void && @len(init_args as list[ref parser.Node]) as i64 != 0 {
+    if init_args != none && @len(init_args as list[ref parser.Node]) as i64 != 0 {
         return false
     }
     val typedef_fields: ref void = tdef.d2 as ref void
-    if typedef_fields == 0 as ref void || @len(typedef_fields as list[ref parser.Node]) as i64 != 0 {
+    if typedef_fields == none || @len(typedef_fields as list[ref parser.Node]) as i64 != 0 {
         return false
     }
     val lit_expr: mut ref parser.Node = expr
@@ -3025,7 +3025,7 @@ fn sema_rewrite_empty_struct_init(expr: ref parser.Node, tdef: ref parser.Node) 
 
 /// Look up a NK_UNIONDEF node by type name. Returns 0 if not found.
 fn sema_lookup_uniondef(ctx: ref SemaCtx, type_name: ref u8) ref parser.Node! = {
-    if type_name == 0 as ref u8 { return 0 as ref parser.Node }
+    if type_name == none { return none }
     val tlen: i64 = @len(ctx.type_defs) as i64
     val ti: mut i64 = 0
     for {
@@ -3036,7 +3036,7 @@ fn sema_lookup_uniondef(ctx: ref SemaCtx, type_name: ref u8) ref parser.Node! = 
                 val tdnode: ref parser.Node = td as ref parser.Node
                 if tdnode.kind == parser.NK_UNIONDEF {
                     val tdname: ref u8 = tdnode.d1 as ref u8
-                    if tdname != 0 as ref u8 {
+                    if tdname != none {
                         if string.rchar_cmp(tdname, type_name) == 0 {
                             return tdnode
                         }
@@ -3047,14 +3047,14 @@ fn sema_lookup_uniondef(ctx: ref SemaCtx, type_name: ref u8) ref parser.Node! = 
         }
         ti++
     }
-    return 0 as ref parser.Node
+    return none
 }
 
 /// Look up a tagged union variant by name.
 /// Returns the variant node (NK_VAL with d0=name, d1=list of type nodes) and sets out_union_name.
 /// Returns 0 if not found.
 fn sema_lookup_tagged_variant(ctx: ref SemaCtx, variant_name: ref u8, out_union_name: ref void) ref parser.Node! = {
-    if variant_name == 0 as ref u8 { return 0 as ref parser.Node }
+    if variant_name == none { return none }
     val tlen: i64 = @len(ctx.type_defs) as i64
     val ti: mut i64 = 0
     for {
@@ -3065,11 +3065,11 @@ fn sema_lookup_tagged_variant(ctx: ref SemaCtx, variant_name: ref u8, out_union_
                 val tdnode: ref parser.Node = td as ref parser.Node
                 if tdnode.kind == parser.NK_TAGGED_UNIONDEF {
                     val variants: ref void = tdnode.d2 as ref void
-                    if variants != 0 as ref void {
+                    if variants != none {
                         for variant in variants as list[ref parser.Node] {
                             val vname: ref u8 = variant.d0 as ref u8
-                            if vname != 0 as ref u8 && string.rchar_cmp(vname, variant_name) == 0 {
-                                if out_union_name != 0 as ref void {
+                            if vname != none && string.rchar_cmp(vname, variant_name) == 0 {
+                                if out_union_name != none {
                                     val union_name: ref u8 = tdnode.d1 as ref u8
                                     @store(out_union_name, union_name as usize)
                                 }
@@ -3083,21 +3083,21 @@ fn sema_lookup_tagged_variant(ctx: ref SemaCtx, variant_name: ref u8, out_union_
         }
         ti++
     }
-    return 0 as ref parser.Node
+    return none
 }
 
 /// Check if arg_type matches any variant in the union definition.
 /// Returns true if arg_type is compatible with any union variant.
 fn type_matches_union_variant(ctx: ref SemaCtx, union_def: ref parser.Node, arg_type: ref u8) bool! = {
-    if union_def == 0 as ref parser.Node || arg_type == 0 as ref u8 { return false }
+    if union_def == none || arg_type == none { return false }
     if union_def.kind != parser.NK_UNIONDEF { return false }
     
     val variants: ref void = union_def.d2 as ref void
-    if variants == 0 as ref void { return false }
+    if variants == none { return false }
     
     for variant in variants as list[ref parser.Node] {
         val variant_type_name: ref u8 = extract_type_name(variant)
-        if variant_type_name != 0 as ref u8 {
+        if variant_type_name != none {
             if types_compatible(ctx, variant_type_name, arg_type) {
                 return true
             }
@@ -3114,7 +3114,7 @@ val SEMA_UNKNOWN: i64 = -9223372036854775807
 /// field_names and field_vals are parallel lists of (ref u8, i64).
 /// Returns SEMA_UNKNOWN if the expression can't be fully evaluated.
 fn sema_const_eval(expr: ref parser.Node, field_names: ref void, field_vals: ref void) i64! = {
-    if expr == 0 as ref parser.Node { return SEMA_UNKNOWN }
+    if expr == none { return SEMA_UNKNOWN }
     val k: i64 = expr.kind
     if k == parser.NK_INT_LIT {
         val s: ref u8 = expr.d0 as ref u8
@@ -3185,9 +3185,9 @@ fn sema_const_eval(expr: ref parser.Node, field_names: ref void, field_vals: ref
 fn sema_check_invariant_lit(ctx: ref SemaCtx, typedef_node: ref parser.Node,
                              args: ref void, filename: ref u8, line: i64) void! = {
     val inv_list: ref void = typedef_node.d3 as ref void
-    if inv_list == 0 as ref void { return }
+    if inv_list == none { return }
     val fields: ref void = typedef_node.d2 as ref void
-    if fields == 0 as ref void { return }
+    if fields == none { return }
 
     val fnames: mut list[ref u8] = []
     val fvals:  mut list[i64]      = []
@@ -3239,7 +3239,7 @@ fn sema_check_invariant_lit(ctx: ref SemaCtx, typedef_node: ref parser.Node,
 }
 
 fn check_stmts(ctx: ref SemaCtx, stmts: ref void, filename: ref u8) void! = {
-    if stmts == 0 as ref void { return }
+    if stmts == none { return }
     for s in stmts as list[ref parser.Node] {
         check_stmt(ctx, s, filename)
     }
@@ -3247,9 +3247,9 @@ fn check_stmts(ctx: ref SemaCtx, stmts: ref void, filename: ref u8) void! = {
 
 fn check_stmt(ctx: ref SemaCtx, stmt: ref parser.Node, filename: ref u8) void! = {
     guarded pre {
-        ctx_not_null      : ctx != 0 as ref SemaCtx
-        stmt_not_null     : stmt != 0 as ref parser.Node
-        filename_not_null : filename != 0 as ref u8
+        ctx_not_null      : ctx != none
+        stmt_not_null     : stmt != none
+        filename_not_null : filename != none
     }
 
     val k: i64 = stmt.kind
@@ -3268,18 +3268,18 @@ fn check_stmt(ctx: ref SemaCtx, stmt: ref parser.Node, filename: ref u8) void! =
             val ty_node: ref parser.Node = stmt.d2 as ref parser.Node
             val tname: ref u8 = extract_type_name(ty_node)
             val is_ref_flag: mut i64 = 0
-            if ty_node != 0 as ref parser.Node {
+            if ty_node != none {
                 if ty_node.kind == parser.TY_REF {
                     is_ref_flag = 1
                 } elif ty_node.kind == parser.TY_MUT {
                     val inner_ty: ref parser.Node = ty_node.d0 as ref parser.Node
-                    if inner_ty != 0 as ref parser.Node && inner_ty.kind == parser.TY_REF {
+                    if inner_ty != none && inner_ty.kind == parser.TY_REF {
                         is_ref_flag = 1
                     }
                 }
             }
             val init_expr: ref parser.Node = stmt.d3 as ref parser.Node
-            if is_ref_flag == 1 && init_expr != 0 as ref parser.Node {
+            if is_ref_flag == 1 && init_expr != none {
                 if !ref_assignment_rhs_ok(ctx, tname, is_ref_flag, init_expr) {
                     val target_ty: ref u8 = format_type_for_error(tname, is_ref_flag)
                     val buf: ref u8 = @alloc(256) as ref u8
@@ -3288,33 +3288,33 @@ fn check_stmt(ctx: ref SemaCtx, stmt: ref parser.Node, filename: ref u8) void! =
                 }
             }
             scope_define(ctx, name, mutable, tname, is_ref_flag, line)
-            if tname == 0 as ref u8 && init_expr != 0 as ref parser.Node {
+            if tname == none && init_expr != none {
                 val origin_ns: ref u8 = extract_constructor_namespace(init_expr)
-                if origin_ns != 0 as ref u8 {
+                if origin_ns != none {
                     record_var_origin(ctx, name, origin_ns)
                 }
             }
             val explicit_wrap: i64 = ty_wrap_kind(ty_node)
             val final_wrap: mut i64 = explicit_wrap
-            if final_wrap == 0 && init_expr != 0 as ref parser.Node {
+            if final_wrap == 0 && init_expr != none {
                 final_wrap = expr_wrap_kind(ctx, init_expr)
             }
             if final_wrap != 0 {
                 scope_set_wrap_kind(ctx, name, final_wrap)
             }
-            if tname != 0 as ref u8 && init_expr != 0 as ref parser.Node {
+            if tname != none && init_expr != none {
                 val init_k: i64 = init_expr.kind
                 val tdef: ref parser.Node = sema_lookup_typedef(ctx, tname)
-                if init_k == parser.NK_ARGS_PACK && tdef != 0 as ref parser.Node {
+                if init_k == parser.NK_ARGS_PACK && tdef != none {
                     if !sema_rewrite_empty_struct_init(init_expr, tdef) {
                         val buf: ref u8 = @alloc(256) as ref u8
                         @snprintf(buf, 256, "{s}:{lld}: positional struct literal not allowed for type '{s}'; use named field syntax", {filename, line, tname})
                         add_error(ctx, buf)
                     }
-                } elif init_k == parser.NK_STRUCT_LIT && tdef != 0 as ref parser.Node {
+                } elif init_k == parser.NK_STRUCT_LIT && tdef != none {
                     val typedef_fields: ref void = tdef.d2 as ref void
                     val lit_fields: ref void = init_expr.d0 as ref void
-                    if typedef_fields != 0 as ref void && lit_fields != 0 as ref void {
+                    if typedef_fields != none && lit_fields != none {
                         val ordered_args: mut list[ref parser.Node] = []
                         val missing_field: mut bool = false
                         val tflen: i64 = @len(typedef_fields as list[ref parser.Node]) as i64
@@ -3327,7 +3327,7 @@ fn check_stmt(ctx: ref SemaCtx, stmt: ref parser.Node, filename: ref u8) void! =
                                     val tfname: ref u8 = (tf as ref parser.Node).d0 as ref u8
                                     val lflen: i64 = @len(lit_fields as list[ref parser.Node]) as i64
                                     val lfi: mut i64 = 0
-                                    val found: mut ref parser.Node = 0 as ref parser.Node
+                                    val found: mut ref parser.Node = none
                                     for {
                                         if lfi >= lflen { break }
                                         val lf_opt = @get(lit_fields as list[ref parser.Node], lfi as usize)
@@ -3343,7 +3343,7 @@ fn check_stmt(ctx: ref SemaCtx, stmt: ref parser.Node, filename: ref u8) void! =
                                         }
                                         lfi++
                                     }
-                                    if found == 0 as ref parser.Node {
+                                    if found == none {
                                         missing_field = true
                                         val buf: ref u8 = @alloc(256) as ref u8
                                         @snprintf(buf, 256, "{s}:{lld}: missing initializer for field '{s}' of type '{s}'",
@@ -3381,7 +3381,7 @@ fn check_stmt(ctx: ref SemaCtx, stmt: ref parser.Node, filename: ref u8) void! =
             } else {
                 val target_is_ref: i64 = scope_lookup_is_ref(ctx, tname)
                 val target_type_name: ref u8 = scope_lookup_type(ctx, tname)
-                if target_is_ref == 1 && target_type_name != 0 as ref u8 {
+                if target_is_ref == 1 && target_type_name != none {
                     if !ref_assignment_rhs_ok(ctx, target_type_name, target_is_ref, rhs) {
                         val target_ty: ref u8 = format_type_for_error(target_type_name, target_is_ref)
                         val buf: ref u8 = @alloc(256) as ref u8
@@ -3392,7 +3392,7 @@ fn check_stmt(ctx: ref SemaCtx, stmt: ref parser.Node, filename: ref u8) void! =
             }
         } elif target.kind == parser.NK_FIELD {
             val root: ref parser.Node = find_root_ident(target)
-            if root != 0 as ref parser.Node {
+            if root != none {
                 val tname: ref u8 = root.d0 as ref u8
                 mark_name_mutated(ctx, tname)
                 val lkup: i64 = scope_lookup(ctx, tname)
@@ -3403,7 +3403,7 @@ fn check_stmt(ctx: ref SemaCtx, stmt: ref parser.Node, filename: ref u8) void! =
                 } else {
                     val field_name: ref u8 = parser.field_name(target)
                     val var_type: ref u8 = scope_lookup_type(ctx, tname)
-                    if var_type != 0 as ref u8 && field_name != 0 as ref u8 {
+                    if var_type != none && field_name != none {
                         val fmut: i64 = find_field_mutable(ctx, var_type, field_name)
                         if fmut == 0 {
                             val buf2: ref u8 = @alloc(256) as ref u8
@@ -3411,7 +3411,7 @@ fn check_stmt(ctx: ref SemaCtx, stmt: ref parser.Node, filename: ref u8) void! =
                             add_error(ctx, buf2)
                         } else {
                             val fty: ref parser.Node = find_field_type_node(ctx, var_type, field_name)
-                            if fty != 0 as ref parser.Node && sema_ty_is_ref(fty) == 1 {
+                            if fty != none && sema_ty_is_ref(fty) == 1 {
                                 val fty_name: ref u8 = extract_type_name(fty)
                                 if !ref_assignment_rhs_ok(ctx, fty_name, 1, rhs) {
                                     val target_ty: ref u8 = format_type_for_error(fty_name, 1)
@@ -3428,7 +3428,7 @@ fn check_stmt(ctx: ref SemaCtx, stmt: ref parser.Node, filename: ref u8) void! =
             }
         } elif target.kind == parser.NK_DEREF {
             val inner_deref: ref parser.Node = target.d0 as ref parser.Node
-            if inner_deref != 0 as ref parser.Node && inner_deref.kind == parser.NK_IDENT {
+            if inner_deref != none && inner_deref.kind == parser.NK_IDENT {
                 val dname: ref u8 = inner_deref.d0 as ref u8
                 val dmut: i64 = scope_lookup(ctx, dname)
                 if dmut != -1 && dmut == 0 {
@@ -3466,7 +3466,7 @@ fn check_stmt(ctx: ref SemaCtx, stmt: ref parser.Node, filename: ref u8) void! =
         check_stmts(ctx, gbody, filename)
         pop_scope(ctx, filename, line)
         val gbody_len: mut i64 = 0
-        if gbody != 0 as ref void { gbody_len = @len(gbody as list[ref parser.Node]) as i64 }
+        if gbody != none { gbody_len = @len(gbody as list[ref parser.Node]) as i64 }
         val ends_with_return: mut bool = false
         if gbody_len > 0 {
             val last_opt = @get(gbody as list[ref parser.Node], (gbody_len - 1) as usize)
@@ -3491,7 +3491,7 @@ fn check_stmt(ctx: ref SemaCtx, stmt: ref parser.Node, filename: ref u8) void! =
         check_stmts(ctx, stmt.d1 as ref void, filename)
         pop_scope(ctx, filename, line)
         val elif_list: ref void = stmt.d2 as ref void
-        if elif_list != 0 as ref void {
+        if elif_list != none {
             for ep in elif_list as list[ref parser.Node] {
                 check_expr(ctx, ep.d0 as ref parser.Node, filename)
                 push_scope(ctx)
@@ -3500,7 +3500,7 @@ fn check_stmt(ctx: ref SemaCtx, stmt: ref parser.Node, filename: ref u8) void! =
             }
         }
         val else_body: ref void = stmt.d3 as ref void
-        if else_body != 0 as ref void {
+        if else_body != none {
             push_scope(ctx)
             check_stmts(ctx, (stmt.d3 as ref parser.Node).d0 as ref void, filename)
             pop_scope(ctx, filename, line)
@@ -3511,7 +3511,7 @@ fn check_stmt(ctx: ref SemaCtx, stmt: ref parser.Node, filename: ref u8) void! =
     if k == parser.NK_FOR {
         push_scope(ctx)
         val init_name: ref u8 = stmt.d0 as ref u8
-        if init_name != 0 as ref u8 {
+        if init_name != none {
             check_expr(ctx, stmt.d1 as ref parser.Node, filename)
             if scope_lookup(ctx, init_name) != -1 {
                 val buf: ref u8 = @alloc(256) as ref u8
@@ -3519,7 +3519,7 @@ fn check_stmt(ctx: ref SemaCtx, stmt: ref parser.Node, filename: ref u8) void! =
                     {filename, line, init_name})
                 add_error(ctx, buf)
             } else {
-                scope_define(ctx, init_name, 1, 0 as ref u8, 0, line)
+                scope_define(ctx, init_name, 1, none, 0, line)
                 mark_name_mutated(ctx, init_name)
             }
         }
@@ -3533,7 +3533,7 @@ fn check_stmt(ctx: ref SemaCtx, stmt: ref parser.Node, filename: ref u8) void! =
         val binding: ref u8 = stmt.d0 as ref u8
         check_expr(ctx, stmt.d1 as ref parser.Node, filename)
         push_scope(ctx)
-        scope_define(ctx, binding, 0, 0 as ref u8, 0, line)
+        scope_define(ctx, binding, 0, none, 0, line)
         check_stmts(ctx, stmt.d2 as ref void, filename)
         pop_scope(ctx, filename, line)
         return
@@ -3548,7 +3548,7 @@ fn check_stmt(ctx: ref SemaCtx, stmt: ref parser.Node, filename: ref u8) void! =
 
     if k == parser.NK_PRE || k == parser.NK_POST || k == parser.NK_GUARDED_PRE || k == parser.NK_GUARDED_POST {
         val clist: ref void = stmt.d0 as ref void
-        if clist != 0 as ref void {
+        if clist != none {
             for c in clist as list[ref parser.Node] {
                 check_expr(ctx, c.d1 as ref parser.Node, filename)
             }
@@ -3562,7 +3562,7 @@ fn check_stmt(ctx: ref SemaCtx, stmt: ref parser.Node, filename: ref u8) void! =
         val match_ty: ref u8 = infer_expr_scope_type_name(ctx, match_expr)
         val match_cat: ref u8 = get_expr_type_category(ctx, match_expr)
         val arms: ref void = stmt.d1 as ref void
-        if arms != 0 as ref void {
+        if arms != none {
             for arm in arms as list[ref parser.Node] {
                 val pat: ref parser.Node = arm.d0 as ref parser.Node
                 check_expr(ctx, pat, filename)
@@ -3587,7 +3587,7 @@ fn check_stmt(ctx: ref SemaCtx, stmt: ref parser.Node, filename: ref u8) void! =
             }
         }
         val else_node: ref parser.Node = stmt.d2 as ref parser.Node
-        if else_node != 0 as ref parser.Node {
+        if else_node != none {
             push_scope(ctx)
             check_stmts(ctx, else_node.d0 as ref void, filename)
             pop_scope(ctx, filename, line)
@@ -3601,16 +3601,16 @@ fn check_stmt(ctx: ref SemaCtx, stmt: ref parser.Node, filename: ref u8) void! =
         val some_body_node: ref parser.Node = stmt.d2 as ref parser.Node
         val none_body_node: ref parser.Node = stmt.d3 as ref parser.Node
         push_scope(ctx)
-        if some_bind != 0 as ref u8 {
-            scope_define(ctx, some_bind, 1, 0 as ref u8, 0, line)
+        if some_bind != none {
+            scope_define(ctx, some_bind, 1, none, 0, line)
             scope_set_implicit_mut(ctx, some_bind)
         }
-        if some_body_node != 0 as ref parser.Node {
+        if some_body_node != none {
             check_stmts(ctx, some_body_node.d0 as ref void, filename)
         }
         pop_scope(ctx, filename, line)
         push_scope(ctx)
-        if none_body_node != 0 as ref parser.Node {
+        if none_body_node != none {
             check_stmts(ctx, none_body_node.d0 as ref void, filename)
         }
         pop_scope(ctx, filename, line)
@@ -3622,22 +3622,22 @@ fn check_stmt(ctx: ref SemaCtx, stmt: ref parser.Node, filename: ref u8) void! =
         val ok_bind: ref u8 = stmt.d1 as ref u8
         val ok_body_node: ref parser.Node = stmt.d2 as ref parser.Node
         push_scope(ctx)
-        if ok_bind != 0 as ref u8 {
-            scope_define(ctx, ok_bind, 1, 0 as ref u8, 0, line)
+        if ok_bind != none {
+            scope_define(ctx, ok_bind, 1, none, 0, line)
             scope_set_implicit_mut(ctx, ok_bind)
         }
-        if ok_body_node != 0 as ref parser.Node {
+        if ok_body_node != none {
             check_stmts(ctx, ok_body_node.d0 as ref void, filename)
         }
         pop_scope(ctx, filename, line)
         val err_bind: ref u8 = stmt.d3 as ref u8
         val err_body_node: ref parser.Node = stmt.d4 as ref parser.Node
         push_scope(ctx)
-        if err_bind != 0 as ref u8 {
-            scope_define(ctx, err_bind, 1, 0 as ref u8, 0, line)
+        if err_bind != none {
+            scope_define(ctx, err_bind, 1, none, 0, line)
             scope_set_implicit_mut(ctx, err_bind)
         }
-        if err_body_node != 0 as ref parser.Node {
+        if err_body_node != none {
             check_stmts(ctx, err_body_node.d0 as ref void, filename)
         }
         pop_scope(ctx, filename, line)
@@ -3647,7 +3647,7 @@ fn check_stmt(ctx: ref SemaCtx, stmt: ref parser.Node, filename: ref u8) void! =
     if k == parser.NK_MATCH_ENUM || k == parser.NK_MATCH_STR || k == parser.NK_MATCH_UNION {
         check_expr(ctx, stmt.d0 as ref parser.Node, filename)
         val arms: ref void = stmt.d1 as ref void
-        if arms != 0 as ref void {
+        if arms != none {
             for arm in arms as list[ref parser.Node] {
                 push_scope(ctx)
                 check_stmts(ctx, arm.d1 as ref void, filename)
@@ -3655,7 +3655,7 @@ fn check_stmt(ctx: ref SemaCtx, stmt: ref parser.Node, filename: ref u8) void! =
             }
         }
         val else_node: ref parser.Node = stmt.d2 as ref parser.Node
-        if else_node != 0 as ref parser.Node {
+        if else_node != none {
             push_scope(ctx)
             check_stmts(ctx, else_node.d0 as ref void, filename)
             pop_scope(ctx, filename, line)
@@ -3666,21 +3666,21 @@ fn check_stmt(ctx: ref SemaCtx, stmt: ref parser.Node, filename: ref u8) void! =
     if k == parser.NK_MATCH_TAGGED_UNION {
         check_expr(ctx, stmt.d0 as ref parser.Node, filename)
         val tu_arms: ref void = stmt.d1 as ref void
-        if tu_arms != 0 as ref void {
+        if tu_arms != none {
             for tu_arm in tu_arms as list[ref parser.Node] {
                 push_scope(ctx)
                 val bindings: ref void = tu_arm.d1 as ref void
-                if bindings != 0 as ref void {
+                if bindings != none {
                     for bname in bindings as list[ref u8] {
                         if string.rchar_cmp(bname, "_") != 0 {
-                            scope_define(ctx, bname, 1, 0 as ref u8, 0, line)
+                            scope_define(ctx, bname, 1, none, 0, line)
                             scope_set_implicit_mut(ctx, bname)
                         }
                     }
                 }
                 val arm_body: ref void = tu_arm.d2 as ref void
                 check_stmts(ctx, arm_body, filename)
-                if bindings != 0 as ref void {
+                if bindings != none {
                     for bname2 in bindings as list[ref u8] {
                         if string.rchar_cmp(bname2, "_") != 0 {
                             if !stmts_use_name(arm_body, bname2) {
@@ -3696,7 +3696,7 @@ fn check_stmt(ctx: ref SemaCtx, stmt: ref parser.Node, filename: ref u8) void! =
             }
         }
         val tu_else: ref parser.Node = stmt.d2 as ref parser.Node
-        if tu_else != 0 as ref parser.Node {
+        if tu_else != none {
             push_scope(ctx)
             check_stmts(ctx, tu_else.d0 as ref void, filename)
             pop_scope(ctx, filename, line)
@@ -3715,7 +3715,7 @@ fn check_stmt(ctx: ref SemaCtx, stmt: ref parser.Node, filename: ref u8) void! =
         check_stmts(ctx, stmt.d1 as ref void, filename)
         pop_scope(ctx, filename, line)
         val or_when_sema: ref void = stmt.d2 as ref void
-        if or_when_sema != 0 as ref void {
+        if or_when_sema != none {
             for ow_sema in or_when_sema as list[ref parser.Node] {
                 push_scope(ctx)
                 check_stmts(ctx, ow_sema.d1 as ref void, filename)
@@ -3723,7 +3723,7 @@ fn check_stmt(ctx: ref SemaCtx, stmt: ref parser.Node, filename: ref u8) void! =
             }
         }
         val otherwise_sema: ref void = stmt.d3 as ref void
-        if otherwise_sema != 0 as ref void {
+        if otherwise_sema != none {
             push_scope(ctx)
             check_stmts(ctx, otherwise_sema, filename)
             pop_scope(ctx, filename, line)
@@ -3743,7 +3743,7 @@ fn check_stmt(ctx: ref SemaCtx, stmt: ref parser.Node, filename: ref u8) void! =
             }
         } elif target2.kind == parser.NK_FIELD {
             val root2: ref parser.Node = find_root_ident(target2)
-            if root2 != 0 as ref parser.Node {
+            if root2 != none {
                 val tname2: ref u8 = root2.d0 as ref u8
                 mark_name_mutated(ctx, tname2)
                 val lkup2: i64 = scope_lookup(ctx, tname2)
@@ -3754,7 +3754,7 @@ fn check_stmt(ctx: ref SemaCtx, stmt: ref parser.Node, filename: ref u8) void! =
                 } else {
                     val field_name2: ref u8 = parser.field_name(target2)
                     val var_type2: ref u8 = scope_lookup_type(ctx, tname2)
-                    if var_type2 != 0 as ref u8 && field_name2 != 0 as ref u8 {
+                    if var_type2 != none && field_name2 != none {
                         val fmut2: i64 = find_field_mutable(ctx, var_type2, field_name2)
                         if fmut2 == 0 {
                             val buf2b: ref u8 = @alloc(256) as ref u8
@@ -3781,7 +3781,7 @@ fn check_stmt(ctx: ref SemaCtx, stmt: ref parser.Node, filename: ref u8) void! =
             }
         } elif target3.kind == parser.NK_FIELD {
             val root3: ref parser.Node = find_root_ident(target3)
-            if root3 != 0 as ref parser.Node {
+            if root3 != none {
                 val tname3: ref u8 = root3.d0 as ref u8
                 mark_name_mutated(ctx, tname3)
                 if scope_lookup(ctx, tname3) == 0 {
@@ -3798,23 +3798,23 @@ fn check_stmt(ctx: ref SemaCtx, stmt: ref parser.Node, filename: ref u8) void! =
 
 fn check_fn(ctx: mut ref SemaCtx, fn_node: ref parser.Node, filename: ref u8) void! = {
     guarded pre {
-        ctx_not_null      : ctx != 0 as ref SemaCtx
-        fn_node_not_null  : fn_node != 0 as ref parser.Node
+        ctx_not_null      : ctx != none
+        fn_node_not_null  : fn_node != none
         fn_kind_correct   : fn_node.kind == parser.NK_FN
-        filename_not_null : filename != 0 as ref u8
+        filename_not_null : filename != none
     }
 
     val fn_name: ref u8 = fn_node.d2 as ref u8
     val fn_ns: ref u8 = fn_node.d1 as ref u8
     val params: ref void = fn_node.d3 as ref void
-    if fn_name != 0 as ref u8 && fn_ns == 0 as ref u8 && str_eq(fn_name, "main") {
+    if fn_name != none && fn_ns == none && str_eq(fn_name, "main") {
         if fn_node.d0 != 1 {
             val buf: ref u8 = @alloc(256) as ref u8
             @snprintf(buf, 256, "{s}:{lld}: main must be public.", {filename, fn_node.line})
             add_error(ctx, buf)
         }
 
-        if params != 0 as ref void && @len(params) > 0 {
+        if params != none && @len(params) > 0 {
             val buf2: ref u8 = @alloc(256) as ref u8
             @snprintf(buf2, 256, "{s}:{lld}: main must not take any arguments.", {filename, fn_node.line})
             add_error(ctx, buf2)
@@ -3827,7 +3827,7 @@ fn check_fn(ctx: mut ref SemaCtx, fn_node: ref parser.Node, filename: ref u8) vo
     ctx.in_unsafe_fn = is_unsafe
 
     push_scope(ctx)
-    if params != 0 as ref void {
+    if params != none {
         for param in params as list[ref parser.Node] {
             val pname: ref u8 = param.d0 as ref u8
             val pty: ref parser.Node = param.d1 as ref parser.Node
@@ -3837,7 +3837,7 @@ fn check_fn(ctx: mut ref SemaCtx, fn_node: ref parser.Node, filename: ref u8) vo
             if pty.kind == parser.TY_MUT {
                 is_mut = 1
                 val pty_inner: ref parser.Node = pty.d0 as ref parser.Node
-                if pty_inner != 0 as ref parser.Node && pty_inner.kind == parser.TY_REF {
+                if pty_inner != none && pty_inner.kind == parser.TY_REF {
                     param_is_ref = 1
                 }
             } elif pty.kind == parser.TY_REF {
@@ -3854,26 +3854,26 @@ fn check_fn(ctx: mut ref SemaCtx, fn_node: ref parser.Node, filename: ref u8) vo
 
 /// Register a function name.
 fn fn_full_name(ns: ref u8, nm: ref u8) ref u8! = {
-    if ns != 0 as ref u8 && nm != 0 as ref u8 {
+    if ns != none && nm != none {
         val buf: ref u8 = @alloc(256) as ref u8
         @snprintf(buf, 256, "{s}.{s}", {ns, nm})
         return buf
-    } elif nm != 0 as ref u8 {
+    } elif nm != none {
         return nm
     }
-    return 0 as ref u8
+    return none
 }
 
 fn register_fn_name(ctx: ref SemaCtx, ns: ref u8, nm: ref u8) void! = {
     val full_name: ref u8 = fn_full_name(ns, nm)
-    if full_name != 0 as ref u8 {
+    if full_name != none {
         @append(ctx.fn_names, full_name)
     }
 }
 
 /// Register a type definition or type-related item name.
 fn register_type_name(ctx: ref SemaCtx, item: ref parser.Node) void! = {
-    if item == 0 as ref parser.Node { return }
+    if item == none { return }
     val k: i64 = item.kind
     if item.d1 != 0 as i64 {
         @append(ctx.type_names, item.d1 as ref u8)
@@ -3883,9 +3883,9 @@ fn register_type_name(ctx: ref SemaCtx, item: ref parser.Node) void! = {
     }
     if k == parser.NK_TAGGED_UNIONDEF {
         val tvariants: ref void = item.d2 as ref void
-        if tvariants != 0 as ref void {
+        if tvariants != none {
             for tv in tvariants as list[ref parser.Node] {
-                if tv != 0 as ref parser.Node && tv.d0 != 0 as i64 {
+                if tv != none && tv.d0 != 0 as i64 {
                     val vname: ref u8 = tv.d0 as ref u8
                     @append(ctx.fn_names, vname)
                     @append(ctx.variant_names, vname)
@@ -3895,7 +3895,7 @@ fn register_type_name(ctx: ref SemaCtx, item: ref parser.Node) void! = {
     }
     if k == parser.NK_TYPEDEF {
         val spec_name: ref u8 = item.d4 as ref u8
-        if spec_name != 0 as ref u8 && item.d1 != 0 as i64 {
+        if spec_name != none && item.d1 != 0 as i64 {
             @append(ctx.spec_names, spec_name)
             @append(ctx.spec_impls, item.d1 as ref u8)
         }
@@ -3904,7 +3904,7 @@ fn register_type_name(ctx: ref SemaCtx, item: ref parser.Node) void! = {
 
 /// Register a named item (const/use/val/extern_fn) name.
 fn register_named_item(ctx: ref SemaCtx, item: ref parser.Node) void! = {
-    if item == 0 as ref parser.Node { return }
+    if item == none { return }
     val k: i64 = item.kind
     if k == parser.NK_EXTERN_FN {
         if item.d1 != 0 as i64 {
@@ -3925,11 +3925,11 @@ fn register_named_item(ctx: ref SemaCtx, item: ref parser.Node) void! = {
 
 /// Register a single top-level item's name in the context.
 fn register_item_name(ctx: ref SemaCtx, item: ref parser.Node) void! = {
-    if item == 0 as ref parser.Node { return }
+    if item == none { return }
     val k: i64 = item.kind
     if k == parser.NK_GENERIC_FN {
         val nm: ref u8 = item.d2 as ref u8
-        if nm != 0 as ref u8 { @append(ctx.global_names, nm) }
+        if nm != none { @append(ctx.global_names, nm) }
         register_fn_name(ctx, item.d1 as ref u8, nm)
         @append(ctx.fn_defs, item as ref void)
         return
@@ -3939,11 +3939,11 @@ fn register_item_name(ctx: ref SemaCtx, item: ref parser.Node) void! = {
             register_fn_name(ctx, item.d1 as ref u8, item.d2 as ref u8)
             if item.d0 == 1 {
                 val nm: ref u8 = item.d2 as ref u8
-                if nm != 0 as ref u8 { @append(ctx.global_names, nm) }
+                if nm != none { @append(ctx.global_names, nm) }
             }
             val fname: ref u8 = item.d2 as ref u8
             val params_node: ref void = item.d3 as ref void
-            if fname != 0 as ref u8 {
+            if fname != none {
                 @append(ctx.fn_map_names, fname)
                 @append(ctx.fn_map_params, params_node)
             }
@@ -3967,7 +3967,7 @@ fn register_item_name(ctx: ref SemaCtx, item: ref parser.Node) void! = {
     register_named_item(ctx, item)
     if k == parser.NK_WHEN_ITEMS {
         val witems: ref void = item.d1 as ref void
-        if witems != 0 as ref void {
+        if witems != none {
             val wlen: i64 = @len(witems as list[ref parser.Node]) as i64
             val wi: mut i64 = 0
             for {
@@ -3987,7 +3987,7 @@ fn register_item_name(ctx: ref SemaCtx, item: ref parser.Node) void! = {
 
 fn check_generic_fn(ctx: mut ref SemaCtx, fn_node: ref parser.Node, filename: ref u8) void! = {
     val body: ref void = fn_node.d5 as ref void
-    if body == 0 as ref void { return }
+    if body == none { return }
     val is_unsafe: mut i64 = 0
     if parser.generic_fn_is_unsafe(fn_node) { is_unsafe = 1 }
     val prev_unsafe: i64 = ctx.in_unsafe_fn
@@ -3995,7 +3995,7 @@ fn check_generic_fn(ctx: mut ref SemaCtx, fn_node: ref parser.Node, filename: re
 
     val type_params: ref void = fn_node.d6 as ref void
     val prev_type_params: list[ref u8] = ctx.type_params
-    if type_params != 0 as ref void {
+    if type_params != none {
         for tparam in type_params as list[ref parser.Node] {
             @append(ctx.type_params, parser.tparam_name(tparam as ref parser.Node))
         }
@@ -4003,7 +4003,7 @@ fn check_generic_fn(ctx: mut ref SemaCtx, fn_node: ref parser.Node, filename: re
 
     push_scope(ctx)
     val params: ref void = fn_node.d3 as ref void
-    if params != 0 as ref void {
+    if params != none {
         for param in params as list[ref parser.Node] {
             val pname: ref u8 = param.d0 as ref u8
             val pty: ref parser.Node = param.d1 as ref parser.Node
@@ -4013,7 +4013,7 @@ fn check_generic_fn(ctx: mut ref SemaCtx, fn_node: ref parser.Node, filename: re
             if pty.kind == parser.TY_MUT {
                 is_mut = 1
                 val pty_inner: ref parser.Node = pty.d0 as ref parser.Node
-                if pty_inner != 0 as ref parser.Node && pty_inner.kind == parser.TY_REF {
+                if pty_inner != none && pty_inner.kind == parser.TY_REF {
                     param_is_ref = 1
                 }
             } elif pty.kind == parser.TY_REF {
@@ -4048,14 +4048,14 @@ fn check_top_item(ctx: ref SemaCtx, item: ref parser.Node, filename: ref u8) voi
     }
     if k == parser.NK_VAL {
         val init_node: ref parser.Node = item.d3 as ref parser.Node
-        if init_node != 0 as ref parser.Node {
+        if init_node != none {
             check_expr(ctx, init_node, filename)
         }
         return
     }
     if k == parser.NK_WHEN_ITEMS {
         val witems: ref void = item.d1 as ref void
-        if witems != 0 as ref void {
+        if witems != none {
             for wi in witems as list[ref parser.Node] {
                 if wi.kind == parser.NK_FN {
                     check_fn(ctx, wi, filename)
@@ -4063,10 +4063,10 @@ fn check_top_item(ctx: ref SemaCtx, item: ref parser.Node, filename: ref u8) voi
             }
         }
         val or_when_sema: ref void = item.d2 as ref void
-        if or_when_sema != 0 as ref void {
+        if or_when_sema != none {
             for ow_sema in or_when_sema as list[ref parser.Node] {
                 val ow_items: ref void = ow_sema.d1 as ref void
-                if ow_items != 0 as ref void {
+                if ow_items != none {
                     for wi3 in ow_items as list[ref parser.Node] {
                         if wi3.kind == parser.NK_FN {
                             check_fn(ctx, wi3, filename)
@@ -4076,7 +4076,7 @@ fn check_top_item(ctx: ref SemaCtx, item: ref parser.Node, filename: ref u8) voi
             }
         }
         val ow_otherwise: ref void = item.d3 as ref void
-        if ow_otherwise != 0 as ref void {
+        if ow_otherwise != none {
             for wi4 in ow_otherwise as list[ref parser.Node] {
                 if wi4.kind == parser.NK_FN {
                     check_fn(ctx, wi4, filename)
@@ -4120,21 +4120,21 @@ fn check_duplicates(ctx: ref SemaCtx, filename: ref u8) void! = {
 
 fn is_function_public(items: list[ref parser.Node], fn_name: ref u8) bool! = {
     for item in items {
-        if item == 0 as ref parser.Node { continue }
+        if item == none { continue }
         val k: i64 = item.kind
         if k == parser.NK_FN || k == parser.NK_GENERIC_FN {
             if item.d0 % 2 == 1 {
                 val name: ref u8 = item.d2 as ref u8
                 val full_name: ref u8 = fn_full_name(item.d1 as ref u8, name)
-                if full_name != 0 as ref u8 && str_eq(full_name, fn_name) {
+                if full_name != none && str_eq(full_name, fn_name) {
                     return true
                 }
             }
         } elif k == parser.NK_EXTERN_FN {
             if item.d0 % 2 == 1 {
                 val name: ref u8 = item.d1 as ref u8
-                val full_name: ref u8 = fn_full_name(0 as ref u8, name)
-                if full_name != 0 as ref u8 && str_eq(full_name, fn_name) {
+                val full_name: ref u8 = fn_full_name(none, name)
+                if full_name != none && str_eq(full_name, fn_name) {
                     return true
                 }
             }
@@ -4206,7 +4206,7 @@ fn check_module_seen(seen: list[ref void], mod: ref modinfo.ResolvedModule) bool
 }
 
 fn check_module_rec(mod: ref modinfo.ResolvedModule, all_errors: mut list[ref u8], seen: mut list[ref void], quiet: i64) void! = {
-    if mod == 0 as ref modinfo.ResolvedModule { return }
+    if mod == none { return }
     if check_module_seen(seen, mod) { return }
     @append(seen, mod as ref void)
 

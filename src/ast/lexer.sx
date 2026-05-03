@@ -128,12 +128,12 @@ pub fn lexer_new(src: ref u8) ref Lexer! = {
     val slen: i64 = string.len_raw(src)
     val arena_cap: usize = (slen * 64 + 8192) as usize
     val arena_res = allocators.Arena.new(arena_cap)
-    val arena: mut ref void = 0 as ref void
+    val arena: mut ref void = none
 
     match arena_res {
         ok a  => { arena = a }
         err _ => {
-            arena = 0 as ref void
+            arena = none
         }
     }
     val l: mut ref Lexer = @alloc(@sizeof(Lexer)) as ref Lexer
@@ -556,10 +556,10 @@ pub fn tok_text(tokens: list[ref Token], i: i64) ref u8 = {
                 Str s    => { return s }
                 Int s    => { return s }
                 Float s  => { return s }
-                else     => { return 0 as ref u8 }
+                else     => { return none }
             }
         }
-        none => { return 0 as ref u8 }
+        none => { return none }
     }
 }
 

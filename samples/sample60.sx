@@ -13,7 +13,7 @@ pub fn take_inner(x: Inner) i64! = {
 
 pub fn main() i64! = {
     val o: mut ref Outer = @alloc(@sizeof(Outer)) as ref Outer
-    o.inner.data = 0 as ref void
+    o.inner.data = none
     o.inner.len  = 42
     take_inner(o.inner)
     @puts("done")

@@ -29,7 +29,7 @@ test {
     match temp_path {
         some p => {
             trust stdio.print("Temp path: {s}\n", {p})
-            if (p == 0 as ref u8) {
+            if (p == none) {
                 trust stdio.print("Temp path is empty\n", {})
                 assert false
             }

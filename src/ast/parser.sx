@@ -457,7 +457,7 @@ pub fn parse_type(p: ref Parser) result[ref Node, ref u8]! = {
             return ok n
         }
         val sz: mut i64 = 0
-        val sz_name: mut ref u8 = 0 as ref u8
+        val sz_name: mut ref u8 = none
         if kind_is_int(p_peek_kind(p)) {
             val sz_text: ref u8 = p_advance_text(p)
             val sz_res = fmt.string_to_i64(sz_text)
@@ -988,7 +988,7 @@ fn parse_contracts(p: ref Parser) result[list[ref Node], ref u8]! = {
     for {
         if lexer.kind_is_rbrace(p_peek_kind(p)) { break }
         val line: i64 = p_line(p)
-        val label: mut ref u8 = 0 as ref u8
+        val label: mut ref u8 = none
         if kind_is_ident(p_peek_kind(p)) && lexer.kind_is_colon(p_peek2_kind(p)) {
             label = p_advance_text(p)
             p_advance(p)
@@ -1009,7 +1009,7 @@ pub fn parse_stmt(p: mut ref Parser) result[ref Node, ref u8]! = {
         p_advance(p)
         val name = p_expect_ident(p)?
         val mutable: mut i64 = 0
-        val ty: mut ref Node = 0 as ref Node
+        val ty: mut ref Node = none
         if p_eat_fn(p, lexer.kind_is_colon) {
             if p_eat_fn(p, kind_is_mut) { mutable = 1 }
             ty = parse_type(p)?
@@ -1099,7 +1099,7 @@ pub fn parse_stmt(p: mut ref Parser) result[ref Node, ref u8]! = {
         val peek_next_some: mut bool = false
         if lexer.kind_is_ident(p_peek_kind(p)) {
             val ptxt: ref u8 = lexer.tok_text(p.tokens, p.pos)
-            if ptxt != 0 as ref u8 {
+            if ptxt != none {
                 if str_eq(ptxt, "is") {
                     if kind_is_some(p_peek2_kind(p)) {
                         peek_next_some = true
@@ -1135,7 +1135,7 @@ pub fn parse_stmt(p: mut ref Parser) result[ref Node, ref u8]! = {
                 iep.d1 = iebl as i64
                 @append(is_elif_list, iep)
             }
-            val is_else_node: mut ref Node = 0 as ref Node
+            val is_else_node: mut ref Node = none
             if p_eat_fn(p, kind_is_else) {
                 p_expect_lbrace(p)?
                 val ieb = parse_stmts(p)?
@@ -1146,7 +1146,7 @@ pub fn parse_stmt(p: mut ref Parser) result[ref Node, ref u8]! = {
                 is_else_node = ien
             }
 
-            val is_none_body: mut ref Node = 0 as ref Node
+            val is_none_body: mut ref Node = none
             val is_elif_count: i64 = @len(is_elif_list) as i64
             if is_elif_count > 0 {
                 val ife0_opt = @get(is_elif_list, 0 as usize)
@@ -1179,7 +1179,7 @@ pub fn parse_stmt(p: mut ref Parser) result[ref Node, ref u8]! = {
                     }
                     none => {}
                 }
-            } elif is_else_node != 0 as ref Node {
+            } elif is_else_node != none {
                 is_none_body = is_else_node
             }
 
@@ -1210,7 +1210,7 @@ pub fn parse_stmt(p: mut ref Parser) result[ref Node, ref u8]! = {
             ep.d1 = tb as i64
             @append(elif_list, ep)
         }
-        val else_body: mut ref Node = 0 as ref Node
+        val else_body: mut ref Node = none
         if p_eat_fn(p, kind_is_else) {
             p_expect_lbrace(p)?
             val eb = parse_stmts(p)?
@@ -1264,7 +1264,7 @@ pub fn parse_stmt(p: mut ref Parser) result[ref Node, ref u8]! = {
                 p_expect_semicolon(p)?
                 val post_target = parse_expr(p)?
                 val post_kind: lexer.TokenKind = p_peek_kind(p)
-                val post_node: mut ref Node = 0 as ref Node
+                val post_node: mut ref Node = none
                 if lexer.kind_is_plusplus(post_kind) {
                     p_advance(p)
                     val pn: mut ref Node = make_node(NK_INCREMENT, line)
@@ -1548,10 +1548,10 @@ fn parse_match_stmt(p: ref Parser, line: i64) result[ref Node, ref u8]! = {
     p_expect_lbrace(p)?
 
     if kind_is_ok(p_peek_kind(p)) || kind_is_err(p_peek_kind(p)) {
-        val ok_bind: mut ref u8 = 0 as ref u8
-        val ok_body: mut ref Node = 0 as ref Node
-        val err_bind: mut ref u8 = 0 as ref u8
-        val err_body: mut ref Node = 0 as ref Node
+        val ok_bind: mut ref u8 = none
+        val ok_body: mut ref Node = none
+        val err_bind: mut ref u8 = none
+        val err_body: mut ref Node = none
         for i = 0; i < 2; i++ {
             val ck: lexer.TokenKind = p_peek_kind(p)
             if kind_is_ok(ck) {
@@ -1586,9 +1586,9 @@ fn parse_match_stmt(p: ref Parser, line: i64) result[ref Node, ref u8]! = {
     }
 
     if kind_is_some(p_peek_kind(p)) || kind_is_none(p_peek_kind(p)) {
-        val some_bind: mut ref u8 = 0 as ref u8
-        val some_body: mut ref Node = 0 as ref Node
-        val none_body: mut ref Node = 0 as ref Node
+        val some_bind: mut ref u8 = none
+        val some_body: mut ref Node = none
+        val none_body: mut ref Node = none
         for i = 0; i < 2; i++ {
             val ck2: lexer.TokenKind = p_peek_kind(p)
             if kind_is_some(ck2) {
@@ -1650,7 +1650,7 @@ fn parse_match_stmt(p: ref Parser, line: i64) result[ref Node, ref u8]! = {
 
     if kind_is_str(p_peek_kind(p)) {
         val sarms: mut list[ref Node] = []
-        val else_body: mut ref Node = 0 as ref Node
+        val else_body: mut ref Node = none
         for {
             if lexer.kind_is_rbrace(p_peek_kind(p)) { break }
             if kind_is_else(p_peek_kind(p)) {
@@ -1688,7 +1688,7 @@ fn parse_match_stmt(p: ref Parser, line: i64) result[ref Node, ref u8]! = {
        kind_is_true(p_peek_kind(p)) || kind_is_false(p_peek_kind(p)) ||
        (kind_is_minus(p_peek_kind(p)) && (kind_is_int(p_peek2_kind(p)) || kind_is_float(p_peek2_kind(p)))) {
         val varms: mut list[ref Node] = []
-        val else_body: mut ref Node = 0 as ref Node
+        val else_body: mut ref Node = none
         for {
             if lexer.kind_is_rbrace(p_peek_kind(p)) { break }
             if kind_is_else(p_peek_kind(p)) {
@@ -1724,7 +1724,7 @@ fn parse_match_stmt(p: ref Parser, line: i64) result[ref Node, ref u8]! = {
     }
 
     val uarms: mut list[ref Node] = []
-    val u_else: mut ref Node = 0 as ref Node
+    val u_else: mut ref Node = none
     val is_tagged_union_match: bool = kind_is_ident(p_peek_kind(p)) &&
         (kind_is_ident(p_peek2_kind(p)) || lexer.kind_is_lparen(p_peek2_kind(p)))
 
@@ -1827,7 +1827,7 @@ pub fn parse_stmts(p: ref Parser) result[list[ref Node], ref u8]! = {
 fn parse_fn_item(p: ref Parser, public: i64) result[ref Node, ref u8]! = {
     val line: i64 = p_line(p)
     p_expect_kind(p, kind_is_fn, "fn")?
-    val ns: mut ref u8 = 0 as ref u8
+    val ns: mut ref u8 = none
     if lexer.kind_is_lparen(p_peek_kind(p)) {
         if kind_is_ident(p_peek2_kind(p)) && lexer.kind_is_rparen(p_peek3_kind(p)) {
             p_advance(p)
@@ -1842,7 +1842,7 @@ fn parse_fn_item(p: ref Parser, public: i64) result[ref Node, ref u8]! = {
         for {
             if lexer.kind_is_rbracket(p_peek_kind(p)) { break }
             val tp_name = p_expect_ident(p)?
-            val tp_constraint: mut ref Node = 0 as ref Node
+            val tp_constraint: mut ref Node = none
             if p_eat_fn(p, lexer.kind_is_colon) {
                 tp_constraint = parse_type(p)?
             }
@@ -1863,7 +1863,7 @@ fn parse_fn_item(p: ref Parser, public: i64) result[ref Node, ref u8]! = {
         val is_mut: bool = p_eat_fn(p, kind_is_mut)
         val pty = parse_type(p)?
         val actual_ty: mut ref Node = pty
-        if ns != 0 as ref u8 && pty.kind == TY_NAMED {
+        if ns != none && pty.kind == TY_NAMED {
             if str_eq(pty.d0 as ref u8, "self") {
                 val rn: mut ref Node = make_node(TY_NAMED, line)
                 rn.d0 = ns as i64
@@ -1916,7 +1916,7 @@ fn parse_fn_item(p: ref Parser, public: i64) result[ref Node, ref u8]! = {
 fn parse_type_def_item(p: ref Parser, public: i64, is_extern: i64) result[ref Node, ref u8]! = {
     val line: i64 = p_line(p)
     p_expect_kind(p, kind_is_type, "type")?
-    val spec_name: mut ref u8 = 0 as ref u8
+    val spec_name: mut ref u8 = none
     if lexer.kind_is_lparen(p_peek_kind(p)) {
         p_advance(p)
         spec_name = p_expect_ident(p)?
@@ -2229,7 +2229,7 @@ pub fn parse_item(p: ref Parser) result[ref Node, ref u8]! = {
         p_advance(p)
         val vname = p_expect_ident(p)?
         val vmut: mut i64 = 0
-        val vty: mut ref Node = 0 as ref Node
+        val vty: mut ref Node = none
         if p_eat_fn(p, lexer.kind_is_colon) {
             if p_eat_fn(p, kind_is_mut) { vmut = 1 }
             vty = parse_type(p)?

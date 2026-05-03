@@ -83,7 +83,7 @@ pub fn len(s: String) i64 = {
 /// Length of a raw u8 pointer
 pub fn len_raw(s: ref u8) i64 = {
     pre {
-        s != 0 as ref u8
+        s != none
     }
     return trust strlen(s)
 }
@@ -267,9 +267,9 @@ pub fn reverse(s: String) void! = {
 /// Concat raw u8 pointers — returns a new heap-allocated ref u8
 pub fn concat_raw(a: ref u8, b: ref u8) ref u8! = {
     val len_a: mut i64 = 0
-    if a != 0 as ref u8 { len_a = strlen(a) }
+    if a != none { len_a = strlen(a) }
     val len_b: mut i64 = 0
-    if b != 0 as ref u8 { len_b = strlen(b) }
+    if b != none { len_b = strlen(b) }
     val new_len: i64 = len_a + len_b
     val buf: mut ref void = @alloc(new_len + 1)
 
@@ -582,7 +582,7 @@ pub fn replace(s: String, from: String, to: String) String! = {
     val b: mut u8 = 0
     val out_l: mut i64 = 0
     val new_len: mut i64 = 0
-    val out_ptr: mut ref void = 0 as ref void
+    val out_ptr: mut ref void = none
     val c: mut u8 = 0
 
     for {

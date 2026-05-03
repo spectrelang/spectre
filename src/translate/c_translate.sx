@@ -2986,11 +2986,11 @@ fn translate_switch_statement(lines: list[ref u8], start: i64, indent: i64, out:
             val body_text: ref u8 = trust string.substr(full_text, brace_i + 1, close_b - brace_i - 1)
             val body_lines = split_lines(body_text)
             val cases: mut list[ref SwitchCase] = []
-            val current: mut ref SwitchCase = 0 as ref SwitchCase
+            val current: mut ref SwitchCase = none
             for raw_line in body_lines {
                 val trimmed: ref u8 = trim_raw(raw_line)
                 if string.rchar_cmp(trimmed, "") == 0 {
-                    if (current != 0 as ref SwitchCase) {
+                    if (current != none) {
                         if ((@len(current.body_lines) as i64) > 0) {
                             @append(current.body_lines, raw_line)
                         }
@@ -3002,7 +3002,7 @@ fn translate_switch_statement(lines: list[ref u8], start: i64, indent: i64, out:
                     if colon_i > 5 {
                         val label: ref u8 = trim_raw(trust string.substr(trimmed, 5, colon_i - 5))
                         val tail2: ref u8 = trim_raw(trust string.substr(trimmed, colon_i + 1, string.len_raw(trimmed) - colon_i - 1))
-                        if current != 0 as ref SwitchCase {
+                        if current != none {
                             if !current.is_default && (@len(current.body_lines) as i64) == 0 {
                                 @append(current.labels, label)
                                 if string.rchar_cmp(tail2, "") != 0 && !is_switch_break_line(tail2) {
@@ -3011,7 +3011,7 @@ fn translate_switch_statement(lines: list[ref u8], start: i64, indent: i64, out:
                                 continue
                             }
                         }
-                        if current != 0 as ref SwitchCase { @append(cases, current) }
+                        if current != none { @append(cases, current) }
                         current = make_switch_case()
                         @append(current.labels, label)
                         if string.rchar_cmp(tail2, "") != 0 && !is_switch_break_line(tail2) {
@@ -3022,7 +3022,7 @@ fn translate_switch_statement(lines: list[ref u8], start: i64, indent: i64, out:
                 }
                 if string.rchar_starts_with(trimmed, "default:") {
                     val tail3: ref u8 = trim_raw(trust string.substr(trimmed, 8, string.len_raw(trimmed) - 8))
-                    if current != 0 as ref SwitchCase { @append(cases, current) }
+                    if current != none { @append(cases, current) }
                     current = make_switch_case()
                     current.is_default = true
                     if string.rchar_cmp(tail3, "") != 0 && !is_switch_break_line(tail3) {
@@ -3030,12 +3030,12 @@ fn translate_switch_statement(lines: list[ref u8], start: i64, indent: i64, out:
                     }
                     continue
                 }
-                if current != 0 as ref SwitchCase {
+                if current != none {
                     if is_switch_break_line(trimmed) { continue }
                     @append(current.body_lines, raw_line)
                 }
             }
-            if current != 0 as ref SwitchCase { @append(cases, current) }
+            if current != none { @append(cases, current) }
             val emitted_any: mut bool = false
             for case_item in cases {
                 if case_item.is_default {

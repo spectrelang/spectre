@@ -340,7 +340,7 @@ pub fn sort_by_num(files: list[ref u8]) list[ref u8] = {
     for {
         if si >= n { break }
         val ko = @get(sorted, si)
-        val key: mut ref u8 = 0 as ref u8
+        val key: mut ref u8 = none
         if ko is some v {
             key = v
         } else {
@@ -352,7 +352,7 @@ pub fn sort_by_num(files: list[ref u8]) list[ref u8] = {
         for {
             if j < 0 { break }
             val jo = @get(sorted, j as usize)
-            val jval: mut ref u8 = 0 as ref u8
+            val jval: mut ref u8 = none
             if jo is some v {
                 jval = v
             } else {
@@ -474,7 +474,7 @@ pub fn sort_alpha(files: list[ref u8]) list[ref u8] = {
         if si >= n { break }
 
         val ko = @get(sorted, si)
-        val key: mut ref u8 = 0 as ref u8
+        val key: mut ref u8 = none
         if ko is some v {
             key = v
         } else {
@@ -488,7 +488,7 @@ pub fn sort_alpha(files: list[ref u8]) list[ref u8] = {
             if j < 0 { break }
 
             val jo = @get(sorted, j as usize)
-            val jval: mut ref u8 = 0 as ref u8
+            val jval: mut ref u8 = none
             if jo is some v {
                 jval = v
             } else {

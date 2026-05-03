@@ -36,7 +36,7 @@ fn bytes_ptr[T](data: T) ref void = {
     when T !in (string.String, ref u8) {
         @staticerror("invalid type for bytes_ptr")
     }
-    return 0 as ref void
+    return none
 }
 
 fn bytes_len[T](data: T) i64! = {
