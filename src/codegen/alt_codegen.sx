@@ -2344,6 +2344,8 @@ fn gen_call(ctx: mut ref CCtx, expr: ref parser.Node) ref u8! = {
         emit(ctx, alloc_stmt)
         @free(alloc_stmt)
 
+        val vtfields: ref void = @load(tv_field_slot) as ref void
+
         if args != none {
             val alen: i64 = @len(args as list[ref parser.Node]) as i64
             val ai: mut i64 = 0
@@ -2354,7 +2356,24 @@ fn gen_call(ctx: mut ref CCtx, expr: ref parser.Node) ref u8! = {
                         val av: ref u8 = gen_expr(ctx, a as ref parser.Node)
                         val offset: i64 = 8 + (ai * 8)
                         val assign_stmt: ref u8 = @alloc(512) as ref u8
-                        @snprintf(assign_stmt, 512, "*(int64_t*)(intptr_t)((char*)(intptr_t)sx__uv{lld}+{lld})={s};\n", {t, offset, av})
+                        val is_float_field: mut bool = false
+                        val field_ct: mut ref u8 = "int64_t"
+                        if vtfields != none {
+                            val fty_opt = @get(vtfields as list[ref parser.Node], ai as usize)
+                            match fty_opt {
+                                some fty => {
+                                    val fct: ref u8 = c_type_of(fty as ref parser.Node)
+                                    if str.rchar_cmp(fct, "double") == 0 || str.rchar_cmp(fct, "float") == 0 {
+                                        is_float_field = true field_ct = fct
+                                    }
+                                } none => {}
+                            }
+                        }
+                        if is_float_field {
+                            @snprintf(assign_stmt, 512, "*({s}*)((char*)(intptr_t)sx__uv{lld}+{lld})=({s})({s});\n", {field_ct, t, offset, field_ct, av})
+                        } else {
+                            @snprintf(assign_stmt, 512, "*(int64_t*)(intptr_t)((char*)(intptr_t)sx__uv{lld}+{lld})={s};\n", {t, offset, av})
+                        }
                         emit(ctx, assign_stmt)
                         @free(assign_stmt)
                     } none => {}
@@ -2413,16 +2432,33 @@ fn gen_call(ctx: mut ref CCtx, expr: ref parser.Node) ref u8! = {
                                     for { if pi >= plen { break }
                                         val pe_opt = @get(pack as list[ref parser.Node], pi as usize)
                                         match pe_opt { some pe => {
-                                            val av: ref u8 = gen_expr(ctx, pe as ref parser.Node)
-                                            val ol: i64 = str.len_raw(pbuf) val ab: ref u8 = @alloc(256) as ref u8
-                                            @snprintf(ab, 256, ",({s})", {av}) val al: i64 = str.len_raw(ab)
+                                            val pex: ref parser.Node = pe as ref parser.Node
+                                            val av: ref u8 = gen_expr(ctx, pex)
+                                            val pe_ty: ref parser.Node = cc_infer_expr_ty(ctx, pex)
+                                            val is_float_arg: mut bool = false
+                                            if pe_ty != none && pe_ty.kind == parser.TY_NAMED {
+                                                val tname: ref u8 = pe_ty.d0 as ref u8
+                                                if str.rchar_cmp(tname, "f64") == 0 || str.rchar_cmp(tname, "f32") == 0 { is_float_arg = true }
+                                            }
+                                            val ol: i64 = str.len_raw(pbuf) val ab: ref u8 = @alloc(512) as ref u8
+                                            if is_float_arg { @snprintf(ab, 512, ",(int64_t)({s})", {av}) }
+                                            else { @snprintf(ab, 512, ",({s})", {av}) }
+                                            val al: i64 = str.len_raw(ab)
                                             @memcpy(@ptradd(pbuf as ref void, ol), ab as ref void, (al+1) as usize) @free(ab)
                                         } none => {} }
                                         pi++ }
                                 } else {
                                     val av2: ref u8 = gen_expr(ctx, pa_node)
-                                    val ol: i64 = str.len_raw(pbuf) val ab: ref u8 = @alloc(256) as ref u8
-                                    @snprintf(ab, 256, ",({s})", {av2}) val al: i64 = str.len_raw(ab)
+                                    val pa_ty: ref parser.Node = cc_infer_expr_ty(ctx, pa_node)
+                                    val is_float_arg2: mut bool = false
+                                    if pa_ty != none && pa_ty.kind == parser.TY_NAMED {
+                                        val tname2: ref u8 = pa_ty.d0 as ref u8
+                                        if str.rchar_cmp(tname2, "f64") == 0 || str.rchar_cmp(tname2, "f32") == 0 { is_float_arg2 = true }
+                                    }
+                                    val ol: i64 = str.len_raw(pbuf) val ab: ref u8 = @alloc(512) as ref u8
+                                    if is_float_arg2 { @snprintf(ab, 512, ",(int64_t)({s})", {av2}) }
+                                    else { @snprintf(ab, 512, ",({s})", {av2}) }
+                                    val al: i64 = str.len_raw(ab)
                                     @memcpy(@ptradd(pbuf as ref void, ol), ab as ref void, (al+1) as usize) @free(ab)
                                 }
                             } none => {} }
@@ -3769,7 +3805,9 @@ fn gen_match_tagged_union(ctx: mut ref CCtx, stmt: ref parser.Node) void! = {
                 val vname: ref u8 = parser.match_tagged_union_arm_variant(an)
                 val bindings: list[ref u8] = parser.match_tagged_union_arm_bindings(an)
                 val os: ref void = @alloc(8) val fs: ref void = @alloc(8) @store(os, 0) @store(fs, 0)
-                val ti: i64 = cc_lookup_tv(ctx, vname, os, fs) @free(os) @free(fs)
+                val ti: i64 = cc_lookup_tv(ctx, vname, os, fs)
+                val vtfields2: ref void = @load(fs) as ref void
+                @free(os) @free(fs)
                 val idx: mut i64 = ai if ti >= 0 { idx = ti }
                 val ab: ref u8 = @alloc(4096) as ref u8
                 if ai == 0 { @snprintf(ab, 4096, "if(sx__tt{lld}=={lld}){\n", {t, idx}) }
@@ -3781,8 +3819,31 @@ fn gen_match_tagged_union(ctx: mut ref CCtx, stmt: ref parser.Node) void! = {
                         match b_opt { some b => { val bn: ref u8 = b as ref u8
                             if str.rchar_cmp(bn, "_") != 0 { val off: i64 = 8 + bi * 8
                                 val bb: ref u8 = @alloc(1024) as ref u8
-                                @snprintf(bb, 1024, "int64_t t_{s}=*(int64_t*)((char*)(intptr_t)sx__tv{lld}+{lld});\n", {bn, t, off})
-                                emit(ctx, bb) @free(bb) cc_register_local(ctx, bn, "int64_t", none, 0) }
+                                val is_float_bind: mut bool = false
+                                val bind_ct: mut ref u8 = "int64_t"
+                                val bind_st: mut ref u8 = "int64_t"
+                                val bind_ty: mut ref parser.Node = none
+                                if vtfields2 != none {
+                                    val fty_opt2 = @get(vtfields2 as list[ref parser.Node], bi as usize)
+                                    match fty_opt2 {
+                                        some fty2 => {
+                                            val fct2: ref u8 = c_type_of(fty2 as ref parser.Node)
+                                            if str.rchar_cmp(fct2, "double") == 0 || str.rchar_cmp(fct2, "float") == 0 {
+                                                is_float_bind = true bind_ct = fct2
+                                                bind_st = cc_spectre_type_name_of(ctx, fty2 as ref parser.Node)
+                                                bind_ty = fty2 as ref parser.Node
+                                            }
+                                        } none => {}
+                                    }
+                                }
+                                if is_float_bind {
+                                    @snprintf(bb, 1024, "{s} t_{s}=*({s}*)((char*)(intptr_t)sx__tv{lld}+{lld});\n", {bind_ct, bn, bind_ct, t, off})
+                                    emit(ctx, bb) @free(bb) cc_register_local(ctx, bn, bind_st, bind_ty, 0)
+                                } else {
+                                    @snprintf(bb, 1024, "int64_t t_{s}=*(int64_t*)((char*)(intptr_t)sx__tv{lld}+{lld});\n", {bn, t, off})
+                                    emit(ctx, bb) @free(bb) cc_register_local(ctx, bn, "int64_t", none, 0)
+                                }
+                            }
                         } none => {} }
                         bi++ } }
                 gen_stmts(ctx, parser.match_tagged_union_arm_body(an) as ref parser.Node)
