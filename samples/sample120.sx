@@ -1,0 +1,9 @@
+type SomeType = {
+    x: i32
+    y: i32
+}
+
+pub fn main() void = {
+    val st: SomeType = @zeroed
+    trust @print("{d}", {st.x})   
+}
