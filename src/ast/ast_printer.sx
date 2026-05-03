@@ -213,18 +213,15 @@ fn print_struct_field_nodes(fields: list[ref parser.Node], indent: i64) void! = 
     for {
         if i >= nfields { break }
         val field_opt = @get(fields, i as usize)
-        match field_opt {
-            some field_val => {
-                val field: ref parser.Node = field_val as ref parser.Node
-                val prefix: ref u8 = build_prefix(indent + 1, i == nfields - 1)
-                val name: ref u8 = field.d0 as ref u8
-                val expr: ref parser.Node = field.d1 as ref parser.Node
-                stdio.print("{s}FIELD : {s}\n", {prefix, name})
-                if expr != none {
-                    print_node_recursive(expr, indent + 2, true)
-                }
+        if field_opt is some field_val {
+            val field: ref parser.Node = field_val as ref parser.Node
+            val prefix: ref u8 = build_prefix(indent + 1, i == nfields - 1)
+            val name: ref u8 = field.d0 as ref u8
+            val expr: ref parser.Node = field.d1 as ref parser.Node
+            stdio.print("{s}FIELD : {s}\n", {prefix, name})
+            if expr != none {
+                print_node_recursive(expr, indent + 2, true)
             }
-            none => {}
         }
         i++
     }
