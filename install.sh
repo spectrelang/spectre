@@ -5,6 +5,7 @@ PREFIX="${HOME}/.local"
 BIN_DIR="${PREFIX}/bin"
 SRC_DIR="${PREFIX}/src"
 
+QBE_MIRROR_REPO="https://github.com/8l/qbe.git"
 QBE_REPO="https://c9x.me/git/qbe.git"
 SPECTRE_REPO="https://github.com/spectrelang/spectre.git"
 YYJSON_REPO="https://github.com/ibireme/yyjson.git"
@@ -20,6 +21,23 @@ err() {
 
 require_cmd() {
     command -v "$1" >/dev/null 2>&1 || err "Missing required command: $1"
+}
+
+git_clone_with_fallback() {
+    REPO_PRIMARY="$1"
+    REPO_FALLBACK="$2"
+    DEST="$3"
+
+    if git clone "$REPO_PRIMARY" "$DEST"; then
+        return 0
+    fi
+
+    log "Primary clone failed, trying mirror..."
+    if git clone "$REPO_FALLBACK" "$DEST"; then
+        return 0
+    fi
+
+    err "Failed to clone repository from both primary and mirror."
 }
 
 log "Checking required tools..."
@@ -40,9 +58,13 @@ else
 
     if [ -d "$QBE_DIR" ]; then
         log "QBE source already exists, updating..."
-        git -C "$QBE_DIR" pull --ff-only
+        git -C "$QBE_DIR" pull --ff-only || {
+            log "Primary remote failed, trying to switch to mirror..."
+            git -C "$QBE_DIR" remote set-url origin "$QBE_MIRROR_REPO"
+            git -C "$QBE_DIR" pull --ff-only || err "Failed to update QBE from both remotes"
+        }
     else
-        git clone "$QBE_REPO" "$QBE_DIR"
+        git_clone_with_fallback "$QBE_REPO" "$QBE_MIRROR_REPO" "$QBE_DIR"
     fi
 
     log "Building QBE..."
