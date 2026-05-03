@@ -969,6 +969,19 @@ fn parse_primary(p: ref Parser) result[ref Node, ref u8]! = {
             node_store_slot[list[ref Node]](@addr(nb.d1), targs)
             return ok nb
         }
+        if str_eq(bname, "bitcast") {
+            val source_expr = parse_expr(p)?
+            p_expect_comma(p)?
+            val target_ty = parse_type(p)?
+            p_expect_rparen(p)?
+            val nb: mut ref Node = make_node(NK_BUILTIN, line)
+            node_store_slot[ref u8](@addr(nb.d0), bname)
+            val bargs: mut list[ref Node] = []
+            @append(bargs, target_ty)
+            @append(bargs, source_expr)
+            node_store_slot[list[ref Node]](@addr(nb.d1), bargs)
+            return ok nb
+        }
         val bargs: mut list[ref Node] = []
         for {
             if lexer.kind_is_rparen(p_peek_kind(p)) { break }

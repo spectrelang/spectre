@@ -373,6 +373,15 @@ fn cc_infer_expr_ty(ctx: ref CCtx, expr: ref parser.Node) ref parser.Node! = {
                 } none => {} }
             }
         }
+        if str.rchar_cmp(bname, "bitcast") == 0 {
+            val bargs2: ref void = expr.d1 as ref void
+            if bargs2 != none {
+                val first_opt2 = @get(bargs2 as list[ref parser.Node], 0 as usize)
+                match first_opt2 { some first2 => {
+                    return first2 as ref parser.Node
+                } none => {} }
+            }
+        }
     }
     if k == parser.NK_FIELD {
         val base_node: ref parser.Node = parser.field_base(expr)
@@ -2508,6 +2517,30 @@ fn gen_builtin(ctx: ref CCtx, expr: ref parser.Node) ref u8! = {
             }
         }
         return "8"
+    }
+    if str.rchar_cmp(bname, "bitcast") == 0 {
+        if args != none {
+            val alen: i64 = @len(args as list[ref parser.Node]) as i64
+            if alen > 1 {
+                val target_ty_opt = @get(args as list[ref parser.Node], 0 as usize)
+                val source_opt = @get(args as list[ref parser.Node], 1 as usize)
+                match target_ty_opt {
+                    some _ => {
+                        match source_opt {
+                            some source => {
+                                val source_expr: ref u8 = gen_expr(ctx, source as ref parser.Node)
+                                val buf: ref u8 = @alloc(256) as ref u8
+                                @snprintf(buf, 256, "(int64_t)(intptr_t)({s})", {source_expr})
+                                return cc_expr_track(ctx, buf)
+                            }
+                            none => {}
+                        }
+                    }
+                    none => {}
+                }
+            }
+        }
+        return "0"
     }
     if str.rchar_cmp(bname, "memcpy") == 0 { val d: ref u8 = get_arg(ctx, args, 0) val s: ref u8 = get_arg(ctx, args, 1) val n: ref u8 = get_arg(ctx, args, 2)
         val buf: ref u8 = @alloc(256) as ref u8

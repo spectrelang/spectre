@@ -2757,6 +2757,21 @@ fn infer_type_annotation(ctx: ref CgCtx, expr: ref parser.Node) ref u8! = {
                 }
             }
         }
+        if str.rchar_cmp(bname_ann, "bitcast") == 0 {
+            val bargs_ann2: ref void = expr.d1 as ref void
+            if bargs_ann2 != none {
+                val a0_opt2 = @get(bargs_ann2 as list[ref parser.Node], 0 as usize)
+                match a0_opt2 {
+                    some a0_2 => {
+                        val target_node: ref parser.Node = a0_2 as ref parser.Node
+                        if target_node != none && target_node.kind == parser.TY_NAMED {
+                            return target_node.d0 as ref u8
+                        }
+                    }
+                    none => {}
+                }
+            }
+        }
     }
 
     return ""
@@ -6735,6 +6750,10 @@ fn gen_builtin(ctx: ref CgCtx, expr: ref parser.Node) ref u8! = {
             }
         }
         @snprintf(buf, 512, "    %%t{lld} =l copy {lld}\n", {tmp, sizeof_val})
+        emit(ctx, buf)
+    } elif str.rchar_cmp(name, "bitcast") == 0 {
+        val source_expr: ref u8 = get_arg(ctx, args, 1)
+        @snprintf(buf, 512, "    %%t{lld} =l copy {s}\n", {tmp, source_expr})
         emit(ctx, buf)
     } elif str.rchar_cmp(name, "len") == 0 {
         val lst2: ref u8 = get_list_arg(ctx, args, 0)

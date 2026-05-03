@@ -76,7 +76,7 @@ pub fn (Thread) join(thread: self) result[ref void, ThreadError]! = {
         val pthread_id: usize = @load(handle) as usize
         val retval_slot: ref void = @alloc(8)
         @memset(retval_slot, 0, 8)
-        val rc: i32 = pthread_join(pthread_id as ref void, retval_slot)
+        val rc: i32 = pthread_join(@bitcast(pthread_id, ref void), retval_slot)
         val retval: ref void = @load(retval_slot)
         @free(retval_slot)
         if (rc != 0) {
@@ -113,7 +113,7 @@ pub fn (Thread) detach(thread: self) result[void, ThreadError]! = {
 
     when posix {
         val pthread_id: usize = @load(handle) as usize
-        val rc: i32 = pthread_detach(pthread_id as ref void)
+        val rc: i32 = pthread_detach(@bitcast(pthread_id, ref void))
         if (rc != 0) {
             return err ThreadError.DetachFailed
         }
@@ -137,7 +137,7 @@ pub fn (Thread) free(thread: mut self) void! = {
 pub fn current_thread_id() usize = {
     when posix {
         val tid: ref void = trust pthread_self()
-        return tid as usize
+        return trust @bitcast(tid, usize)
     }
     when windows {
         val tid: u32 = trust GetCurrentThreadId()

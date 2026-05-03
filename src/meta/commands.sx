@@ -629,6 +629,7 @@ pub fn cmd_ref() i32 = {
                 \\ | `@store(ptr, val)`            | store word to pointer                    |
                 \\ | `@load8(ptr)`                 | load byte from pointer                   |
                 \\ | `@store8(ptr, val)`           | store byte to pointer                    |
+                \\ | `@bitcast(T, expr)`           | unsafe bitcast expr to type T            |
                 \\ | `@append(list, val)`          | append to list                           |
                 \\ | `@remove(list, i)`            | remove element at index i                |
                 \\ | `@get(list, i)`               | get element at index (returns option)    |
