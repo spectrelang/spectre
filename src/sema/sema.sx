@@ -3316,6 +3316,7 @@ fn check_stmt(ctx: ref SemaCtx, stmt: ref parser.Node, filename: ref u8) void! =
                     val lit_fields: ref void = init_expr.d0 as ref void
                     if typedef_fields != 0 as ref void && lit_fields != 0 as ref void {
                         val ordered_args: mut list[ref parser.Node] = []
+                        val missing_field: mut bool = false
                         val tflen: i64 = @len(typedef_fields as list[ref parser.Node]) as i64
                         val tfi: mut i64 = 0
                         for {
@@ -3342,6 +3343,13 @@ fn check_stmt(ctx: ref SemaCtx, stmt: ref parser.Node, filename: ref u8) void! =
                                         }
                                         lfi++
                                     }
+                                    if found == 0 as ref parser.Node {
+                                        missing_field = true
+                                        val buf: ref u8 = @alloc(256) as ref u8
+                                        @snprintf(buf, 256, "{s}:{lld}: missing initializer for field '{s}' of type '{s}'",
+                                            {filename, line, tfname, tname})
+                                        add_error(ctx, buf)
+                                    }
                                     @append(ordered_args, found)
                                 }
                                 none => {}
@@ -3349,7 +3357,9 @@ fn check_stmt(ctx: ref SemaCtx, stmt: ref parser.Node, filename: ref u8) void! =
                             tfi++
                         }
                         val ordered_args_list: list[ref parser.Node] = ordered_args
-                        sema_check_invariant_lit(ctx, tdef, ordered_args_list as ref void, filename, line)
+                        if !missing_field {
+                            sema_check_invariant_lit(ctx, tdef, ordered_args_list as ref void, filename, line)
+                        }
                     }
                 }
             }

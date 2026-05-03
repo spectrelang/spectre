@@ -914,7 +914,20 @@ fn parse_primary(p: ref Parser) result[ref Node, ref u8]! = {
     if lexer.kind_is_at(k) {
         p_advance(p)
         val bname = p_expect_ident(p)?
+        if str_eq(bname, "zeroed") {
+            if !lexer.kind_is_lparen(p_peek_kind(p)) {
+                val nz0: mut ref Node = make_node(NK_ZERO_INIT, line)
+                nz0.d0 = bname as i64
+                return ok nz0
+            }
+        }
         p_expect_lparen(p)?
+        if str_eq(bname, "zeroed") {
+            p_expect_rparen(p)?
+            val nz1: mut ref Node = make_node(NK_ZERO_INIT, line)
+            nz1.d0 = bname as i64
+            return ok nz1
+        }
         if str_eq(bname, "addr") {
             val inner2 = parse_expr(p)?
             p_expect_rparen(p)?
