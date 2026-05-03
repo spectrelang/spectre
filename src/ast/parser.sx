@@ -807,7 +807,7 @@ fn parse_postfix(p: ref Parser) result[ref Node, ref u8]! = {
             val targs: mut list[ref Node] = []
             if lexer.kind_is_question(p_peek_kind(p)) {
                 p_advance(p)
-                val infer_marker: mut ref Node = make_node(TY_INFER, line)
+                val infer_marker: ref Node = make_node(TY_INFER, line)
                 @append(targs, infer_marker)
             } else {
                 for {
