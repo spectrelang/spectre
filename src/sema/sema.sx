@@ -1352,6 +1352,62 @@ fn expr_is_numeric_value(ctx: ref SemaCtx, node: ref parser.Node) bool! = {
     return false
 }
 
+fn sema_type_name_is_numeric(type_name: ref u8) bool! = {
+    if type_name == none || str_eq(type_name, "") { return false }
+    val name: ref u8 = unqualified_type_name(type_name)
+    return str_eq(name, "i8") || str_eq(name, "i16") || str_eq(name, "i32") ||
+           str_eq(name, "i64") || str_eq(name, "u8") || str_eq(name, "u16") ||
+           str_eq(name, "u32") || str_eq(name, "u64") || str_eq(name, "usize") ||
+           str_eq(name, "isize") || str_eq(name, "f32") || str_eq(name, "f64") ||
+           str_eq(name, "bool") || str_eq(name, "i") || str_eq(name, "u") ||
+           str_eq(name, "f")
+}
+
+fn sema_ty_is_numeric(ty: ref parser.Node) bool! = {
+    val resolved: ref parser.Node = unwrap_mut_type(ty)
+    if resolved == none { return false }
+    if resolved.kind != parser.TY_NAMED { return false }
+    return sema_type_name_is_numeric(resolved.d0 as ref u8)
+}
+
+fn sema_ty_is_definitely_non_numeric(ctx: ref SemaCtx, ty: ref parser.Node) bool! = {
+    val resolved: ref parser.Node = unwrap_mut_type(ty)
+    if resolved == none { return false }
+    val k: i64 = resolved.kind
+    if k == parser.TY_REF || k == parser.TY_LIST || k == parser.TY_SLICE ||
+       k == parser.TY_OPTION || k == parser.TY_RESULT || k == parser.TY_FIXED_ARR ||
+       k == parser.TY_FNPTR || k == parser.TY_VOID {
+        return true
+    }
+    if k != parser.TY_NAMED { return false }
+    val tname: ref u8 = resolved.d0 as ref u8
+    if sema_type_name_is_numeric(tname) { return false }
+    if sema_lookup_typedef(ctx, tname) != none { return true }
+    if sema_lookup_uniondef(ctx, tname) != none { return true }
+    return false
+}
+
+fn expr_is_definitely_numeric_for_cast(ctx: ref SemaCtx, node: ref parser.Node) bool! = {
+    if node == none { return false }
+    if infer_expr_scope_is_ref(ctx, node) == 1 { return false }
+    if expr_is_numeric_value(ctx, node) { return true }
+    return sema_type_name_is_numeric(infer_expr_scope_type_name(ctx, node))
+}
+
+fn check_cast_type_boundary(ctx: ref SemaCtx, expr: ref parser.Node, filename: ref u8, line: i64) void! = {
+    if expr == none || expr.kind != parser.NK_CAST { return }
+    val inner: ref parser.Node = expr.d0 as ref parser.Node
+    val target_ty: ref parser.Node = expr.d1 as ref parser.Node
+    val target_is_non_numeric: bool = sema_ty_is_definitely_non_numeric(ctx, target_ty)
+    val target_name: ref u8 = format_type_for_error(extract_type_name(target_ty), sema_ty_is_ref(target_ty))
+
+    if expr_is_definitely_numeric_for_cast(ctx, inner) && target_is_non_numeric {
+        val buf: ref u8 = @alloc(256) as ref u8
+        @snprintf(buf, 256, "{s}:{lld}: cannot cast numeric value to non-numeric type '{s}'", {filename, line, target_name})
+        add_error(ctx, buf)
+    }
+}
+
 fn type_nodes_equivalent(a: ref parser.Node, b: ref parser.Node) bool! = {
     val lhs: ref parser.Node = unwrap_mut_type(a)
     val rhs: ref parser.Node = unwrap_mut_type(b)
@@ -2934,7 +2990,12 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
         }
         return
     }
-    if k == parser.NK_CAST || k == parser.NK_DEREF {
+    if k == parser.NK_CAST {
+        check_expr(ctx, expr.d0 as ref parser.Node, filename)
+        check_cast_type_boundary(ctx, expr, filename, line)
+        return
+    }
+    if k == parser.NK_DEREF {
         check_expr(ctx, expr.d0 as ref parser.Node, filename)
         return
     }

@@ -260,7 +260,7 @@ pub fn (HeapAllocator) realloc(_: self, ptr: ref void, new_size: usize) option[r
 
 
 test {
-    val alloc: HeapAllocator = 0 as HeapAllocator
+    val alloc: HeapAllocator = @zeroed
     val p1 = trust HeapAllocator.alloc(alloc, 16 as usize)
     assert p1 != none
 
