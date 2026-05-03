@@ -5,6 +5,7 @@ PREFIX="${HOME}/.local"
 BIN_DIR="${PREFIX}/bin"
 SRC_DIR="${PREFIX}/src"
 
+QBE_OK=1
 QBE_MIRROR_REPO="https://github.com/8l/qbe.git"
 QBE_REPO="https://c9x.me/git/qbe.git"
 SPECTRE_REPO="https://github.com/spectrelang/spectre.git"
@@ -59,19 +60,26 @@ else
     if [ -d "$QBE_DIR" ]; then
         log "QBE source already exists, updating..."
         git -C "$QBE_DIR" pull --ff-only || {
-            log "Primary remote failed, trying to switch to mirror..."
+            log "Primary remote failed, trying mirror..."
             git -C "$QBE_DIR" remote set-url origin "$QBE_MIRROR_REPO"
-            git -C "$QBE_DIR" pull --ff-only || err "Failed to update QBE from both remotes"
+            git -C "$QBE_DIR" pull --ff-only || QBE_OK=0
         }
     else
-        git_clone_with_fallback "$QBE_REPO" "$QBE_MIRROR_REPO" "$QBE_DIR"
+        git_clone_with_fallback "$QBE_REPO" "$QBE_MIRROR_REPO" "$QBE_DIR" || QBE_OK=0
     fi
 
-    log "Building QBE..."
-    (cd "$QBE_DIR" && make)
+    if [ "$QBE_OK" -eq 1 ]; then
+        log "Building QBE..."
+        (cd "$QBE_DIR" && make) || QBE_OK=0
+    fi
 
-    log "Installing QBE to ${BIN_DIR}..."
-    /usr/bin/install -m 0755 "$QBE_DIR/qbe" "$BIN_DIR/qbe"
+    if [ "$QBE_OK" -eq 1 ] && [ -x "${QBE_DIR}/qbe" ]; then
+        log "Installing QBE to ${BIN_DIR}..."
+        /usr/bin/install -m 0755 "${QBE_DIR}/qbe" "$BIN_DIR/qbe"
+    else
+        log "QBE setup failed — will use C bootstrap fallback."
+        QBE_OK=0
+    fi
 fi
 
 log "Installing Spectre (self-hosted)..."
@@ -85,40 +93,69 @@ else
     git clone "$SPECTRE_REPO" "$SPECTRE_DIR"
 fi
 
-BOOTSTRAP_SSA="${SPECTRE_DIR}/bootstrap/sxc.ssa"
-BOOTSTRAP_OUT="${SPECTRE_DIR}/bootstrap/sxc_bootstrap"
-OTHER_PREFIX="/usr/local"
-
-[ -f "$BOOTSTRAP_SSA" ] || err "Missing bootstrap SSA at ${BOOTSTRAP_SSA}"
-
-log "Bootstrapping Spectre with QBE..."
-
 CSOURCES_DIR="${SPECTRE_DIR}/std/csources"
 PANIC_HANDLER_SRC="${CSOURCES_DIR}/panic_handler.c"
 PANIC_HANDLER_OBJ="${CSOURCES_DIR}/panic_handler.o"
 YYJSON_SHIM_SRC="${CSOURCES_DIR}/yyjson_shim.c"
 YYJSON_SHIM_OBJ="${CSOURCES_DIR}/yyjson_shim.o"
 
-log "QBE Stage..."
-qbe -o "${BOOTSTRAP_OUT}.s" "$BOOTSTRAP_SSA"
+if [ "$QBE_OK" -eq 1 ]; then
+    BOOTSTRAP_SSA="${SPECTRE_DIR}/bootstrap/sxc.ssa"
+    BOOTSTRAP_OUT="${SPECTRE_DIR}/bootstrap/sxc_bootstrap"
+    OTHER_PREFIX="/usr/local"
 
-log "CC Stage I (C sources)..."
-cc -O2 -c "${PANIC_HANDLER_SRC}" -o "${PANIC_HANDLER_OBJ}"
-cc -O2 -c "${YYJSON_SHIM_SRC}" -o "${YYJSON_SHIM_OBJ}"
+    [ -f "$BOOTSTRAP_SSA" ] || err "Missing bootstrap SSA at ${BOOTSTRAP_SSA}"
 
-log "CC Stage II..."
-cc -O2 \
-    "${BOOTSTRAP_OUT}.s" \
-    "${PANIC_HANDLER_OBJ}" \
-    "${YYJSON_SHIM_OBJ}" \
-    -L"${OTHER_PREFIX}/lib" \
-    -lyyjson \
-    -o "${BOOTSTRAP_OUT}"
+    log "Bootstrapping Spectre with QBE..."
 
-log "Installing Spectre binary..."
-/usr/bin/install -m 0755 \
-    "${BOOTSTRAP_OUT}" \
-    "${BIN_DIR}/spectre"
+    log "QBE Stage..."
+    qbe -o "${BOOTSTRAP_OUT}.s" "$BOOTSTRAP_SSA"
+
+    log "CC Stage I (C sources)..."
+    cc -O2 -c "${PANIC_HANDLER_SRC}" -o "${PANIC_HANDLER_OBJ}"
+    cc -O2 -c "${YYJSON_SHIM_SRC}" -o "${YYJSON_SHIM_OBJ}"
+
+    log "CC Stage II..."
+    cc -O2 \
+        "${BOOTSTRAP_OUT}.s" \
+        "${PANIC_HANDLER_OBJ}" \
+        "${YYJSON_SHIM_OBJ}" \
+        -L"${OTHER_PREFIX}/lib" \
+        -lyyjson \
+        -o "${BOOTSTRAP_OUT}"
+
+    log "Installing Spectre binary..."
+    /usr/bin/install -m 0755 \
+        "${BOOTSTRAP_OUT}" \
+        "${BIN_DIR}/spectre"
+else
+    POSIX_BOOTSTRAP_SRC="${SPECTRE_DIR}/bootstrap/sxc_posix.c"
+    POSIX_BOOTSTRAP_OUT="${SPECTRE_DIR}/bootstrap/sxc_posix_bootstrap"
+    OTHER_PREFIX="/usr/local"
+
+    [ -f "$POSIX_BOOTSTRAP_SRC" ] || err "Missing C bootstrap at ${POSIX_BOOTSTRAP_SRC}"
+
+    log "Bootstrapping Spectre from C source (sxc_posix.c)..."
+
+    log "CC Stage I (C sources)..."
+    cc -O2 -c "${PANIC_HANDLER_SRC}" -o "${PANIC_HANDLER_OBJ}"
+    cc -O2 -c "${YYJSON_SHIM_SRC}" -o "${YYJSON_SHIM_OBJ}"
+
+    log "CC Stage II (C bootstrap)..."
+    (cd "$SPECTRE_DIR" && cc -O2 \
+        bootstrap/sxc_posix.c \
+        "${PANIC_HANDLER_OBJ}" \
+        "${YYJSON_SHIM_OBJ}" \
+        -I"${OTHER_PREFIX}/include" \
+        -L"${OTHER_PREFIX}/lib" \
+        -lyyjson \
+        -o "${POSIX_BOOTSTRAP_OUT}")
+
+    log "Installing Spectre binary (C bootstrap)..."
+    /usr/bin/install -m 0755 \
+        "${POSIX_BOOTSTRAP_OUT}" \
+        "${BIN_DIR}/spectre"
+fi
 
 STDLIB_SRC="${SPECTRE_DIR}/std"
 STDLIB_DEST="${BIN_DIR}/std"
@@ -206,7 +243,11 @@ echo
 echo "Installed:"
 echo "  - spectre -> ${BIN_DIR}/spectre"
 echo "  - stdlib  -> ${BIN_DIR}/std"
-echo "  - qbe     -> ${BIN_DIR}/qbe"
+if [ "$QBE_OK" -eq 1 ]; then
+    echo "  - qbe     -> ${BIN_DIR}/qbe"
+else
+    echo "  - qbe     -> (skipped; used C bootstrap fallback)"
+fi
 echo "  - yyjson  -> ${OTHER_PREFIX}/lib/libyyjson.a"
 echo
 echo "Verify with:"
