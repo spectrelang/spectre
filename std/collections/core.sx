@@ -506,9 +506,9 @@ extern (C) fn strlen(s: ref u8) i64! = "strlen"
 
 /// Casts the string pointer to usize for use as a Map key seed, then hashes
 /// the actual bytes so distinct strings with the same address never collide.
-pub fn hash_string(key: usize) usize = {
+pub fn hash_string(key: ref u8) usize = {
     pre {
-        key > 0
+        key != none
     }
     val s: ref u8 = key as ref u8
     val h: mut usize = 5381

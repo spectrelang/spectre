@@ -1363,13 +1363,6 @@ fn sema_type_name_is_numeric(type_name: ref u8) bool! = {
            str_eq(name, "f")
 }
 
-fn sema_ty_is_numeric(ty: ref parser.Node) bool! = {
-    val resolved: ref parser.Node = unwrap_mut_type(ty)
-    if resolved == none { return false }
-    if resolved.kind != parser.TY_NAMED { return false }
-    return sema_type_name_is_numeric(resolved.d0 as ref u8)
-}
-
 fn sema_ty_is_definitely_non_numeric(ctx: ref SemaCtx, ty: ref parser.Node) bool! = {
     val resolved: ref parser.Node = unwrap_mut_type(ty)
     if resolved == none { return false }
