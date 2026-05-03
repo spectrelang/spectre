@@ -3007,6 +3007,22 @@ fn sema_lookup_typedef(ctx: ref SemaCtx, type_name: ref u8) ref parser.Node! = {
     return 0 as ref parser.Node
 }
 
+fn sema_rewrite_empty_struct_init(expr: ref parser.Node, tdef: ref parser.Node) bool! = {
+    if expr == 0 as ref parser.Node || tdef == 0 as ref parser.Node { return false }
+    if expr.kind != parser.NK_ARGS_PACK { return false }
+    val init_args: ref void = expr.d0 as ref void
+    if init_args != 0 as ref void && @len(init_args as list[ref parser.Node]) as i64 != 0 {
+        return false
+    }
+    val typedef_fields: ref void = tdef.d2 as ref void
+    if typedef_fields == 0 as ref void || @len(typedef_fields as list[ref parser.Node]) as i64 != 0 {
+        return false
+    }
+    val lit_expr: mut ref parser.Node = expr
+    lit_expr.kind = parser.NK_STRUCT_LIT
+    return true
+}
+
 /// Look up a NK_UNIONDEF node by type name. Returns 0 if not found.
 fn sema_lookup_uniondef(ctx: ref SemaCtx, type_name: ref u8) ref parser.Node! = {
     if type_name == 0 as ref u8 { return 0 as ref parser.Node }
@@ -3290,9 +3306,11 @@ fn check_stmt(ctx: ref SemaCtx, stmt: ref parser.Node, filename: ref u8) void! =
                 val init_k: i64 = init_expr.kind
                 val tdef: ref parser.Node = sema_lookup_typedef(ctx, tname)
                 if init_k == parser.NK_ARGS_PACK && tdef != 0 as ref parser.Node {
-                    val buf: ref u8 = @alloc(256) as ref u8
-                    @snprintf(buf, 256, "{s}:{lld}: positional struct literal not allowed for type '{s}'; use named field syntax", {filename, line, tname})
-                    add_error(ctx, buf)
+                    if !sema_rewrite_empty_struct_init(init_expr, tdef) {
+                        val buf: ref u8 = @alloc(256) as ref u8
+                        @snprintf(buf, 256, "{s}:{lld}: positional struct literal not allowed for type '{s}'; use named field syntax", {filename, line, tname})
+                        add_error(ctx, buf)
+                    }
                 } elif init_k == parser.NK_STRUCT_LIT && tdef != 0 as ref parser.Node {
                     val typedef_fields: ref void = tdef.d2 as ref void
                     val lit_fields: ref void = init_expr.d0 as ref void

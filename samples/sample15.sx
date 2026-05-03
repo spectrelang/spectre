@@ -8,7 +8,7 @@ pub fn main() i32! = {
     // Instead we can do:
 
     val Stack = allocators.Stack
-    val my_stack = trust Stack.new(1024)?
+    val my_stack = Stack.new(1024)?
     
     Stack.free(my_stack)
     

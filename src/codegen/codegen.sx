@@ -470,6 +470,20 @@ fn cg_struct_fields_for_type(ctx: ref CgCtx, ty: ref parser.Node) ref void! = {
     return 0 as ref void
 }
 
+fn cg_rewrite_empty_struct_init(ctx: ref CgCtx, expr: ref parser.Node) bool! = {
+    if expr == 0 as ref parser.Node || expr.kind != parser.NK_ARGS_PACK { return false }
+    val pack: ref void = expr.d0 as ref void
+    if pack != 0 as ref void && @len(pack as list[ref parser.Node]) as i64 != 0 { return false }
+    val expected_ty: ref parser.Node = ctx.expected_ty as ref parser.Node
+    val struct_fields: ref void = cg_struct_fields_for_type(ctx, expected_ty)
+    if struct_fields == 0 as ref void || @len(struct_fields as list[ref void]) as i64 != 0 {
+        return false
+    }
+    val lit_expr: mut ref parser.Node = expr
+    lit_expr.kind = parser.NK_STRUCT_LIT
+    return true
+}
+
 fn cg_alloc_size_for_type(ctx: ref CgCtx, ty: ref parser.Node) i64! = {
     val resolved: ref parser.Node = cg_concrete_ty(ctx, ty)
     if resolved == 0 as ref parser.Node { return 0 }
@@ -4220,6 +4234,9 @@ fn gen_expr(ctx: ref CgCtx, expr: ref parser.Node) ref u8! = {
     }
 
     if k == parser.NK_ARGS_PACK {
+        if cg_rewrite_empty_struct_init(ctx, expr) {
+            return gen_struct_lit(ctx, expr)
+        }
         // args pack — return the list pointer; caller handles unpacking
         val elist: ref void = expr.d0 as ref void
         val elen: i64 = @len(elist) as i64
