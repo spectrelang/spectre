@@ -1052,6 +1052,15 @@ fn cc_monomorphize_generic_fn(ctx: mut ref CCtx, gfn_node: ref parser.Node, _: r
         val saved_ret_ty = ctx.current_ret_ty
         val saved_expected_ty = ctx.expected_ty
 
+        val saved_local_names_hdr: ref void = @alloc(24)
+        @memcpy(saved_local_names_hdr, @addr(ctx.local_names) as ref void, 24 as usize)
+        val saved_local_ctypes_hdr: ref void = @alloc(24)
+        @memcpy(saved_local_ctypes_hdr, @addr(ctx.local_ctypes) as ref void, 24 as usize)
+        val saved_local_ty_nodes_hdr: ref void = @alloc(24)
+        @memcpy(saved_local_ty_nodes_hdr, @addr(ctx.local_ty_nodes) as ref void, 24 as usize)
+        val saved_local_is_slot_hdr: ref void = @alloc(24)
+        @memcpy(saved_local_is_slot_hdr, @addr(ctx.local_is_slot) as ref void, 24 as usize)
+
         val temp_mono_sb: ref void = str.StringBuilder.new()
         ctx.sb = temp_mono_sb
         gen_fn_prefixed(ctx, syn, "")
@@ -1065,6 +1074,10 @@ fn cc_monomorphize_generic_fn(ctx: mut ref CCtx, gfn_node: ref parser.Node, _: r
         ctx.current_ret_is_void = saved_ret_is_void
         ctx.current_ret_ty = saved_ret_ty
         ctx.expected_ty = saved_expected_ty
+        @memcpy(@addr(ctx.local_names) as ref void, saved_local_names_hdr, 24 as usize)
+        @memcpy(@addr(ctx.local_ctypes) as ref void, saved_local_ctypes_hdr, 24 as usize)
+        @memcpy(@addr(ctx.local_ty_nodes) as ref void, saved_local_ty_nodes_hdr, 24 as usize)
+        @memcpy(@addr(ctx.local_is_slot) as ref void, saved_local_is_slot_hdr, 24 as usize)
         val temp_built: ref void = str.StringBuilder.build(temp_mono_sb)
         str.StringBuilder.append_cstr(ctx.mono_sb, str.cstr(temp_built))
         str.StringBuilder.free(temp_mono_sb)
@@ -1968,7 +1981,8 @@ fn gen_expr(ctx: ref CCtx, expr: ref parser.Node) ref u8! = {
                    str.rchar_cmp(lt, "i16") != 0 && str.rchar_cmp(lt, "u16") != 0 &&
                    str.rchar_cmp(lt, "i8") != 0 && str.rchar_cmp(lt, "u8") != 0 &&
                    str.rchar_cmp(lt, "f64") != 0 && str.rchar_cmp(lt, "f32") != 0 &&
-                   str.rchar_cmp(lt, "u8") != 0 && str.rchar_cmp(lt, "bool") != 0 {
+                   str.rchar_cmp(lt, "u8") != 0 && str.rchar_cmp(lt, "bool") != 0 &&
+                   str.rchar_cmp(lt, "usize") != 0 && str.rchar_cmp(lt, "isize") != 0 {
                     val buf: ref u8 = @alloc(128) as ref u8
                     @snprintf(buf, 128, "t_{s}", {iname}) return cc_expr_track(ctx, buf) }
             }
