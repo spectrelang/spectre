@@ -32,7 +32,7 @@ fn ll_lookup_fn_params(ctx: ref LLCtx, name: ref u8) ref void! = {
 pub fn main() i64 = {
     val ctx: LLCtx = {
         fn_names: ["test_fn", "another_fn"],
-        fn_params: [1 as ref void, 2 as ref void]
+        fn_params: [trust @bitcast(1, ref void), trust @bitcast(2, ref void)]
     }
     val ctx_ptr: ref LLCtx = @alloc(@sizeof(LLCtx)) as ref LLCtx
     trust @store(ctx_ptr as ref void, ctx)
