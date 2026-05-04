@@ -1,0 +1,39 @@
+val stdio = use("std/stdio")
+val math  = use("std/math")
+
+union Shape = {
+    Circle(f64) | Rect(f64, f64) | Triangle(f64, f64, f64)
+}
+
+fn area(s: Shape) f64 = {
+    match s {
+        Circle r         => { return 3.14159265 * r * r }
+        Rect w, h        => { return w * h }
+        Triangle a, b, c => {
+            val sp = (a + b + c) / 2.0
+            return math.sqrt(sp * (sp-a) * (sp-b) * (sp-c))
+        }
+    }
+}
+
+fn label(s: Shape) ref u8 = {
+    match s {
+        Circle _      => { return "Circle" }
+        Rect _, _     => { return "Rect" }
+        Triangle _,_,_=> { return "Triangle" }
+    }
+}
+
+pub fn main() void = {
+    val shapes: list[Shape] = [
+        Circle(5.0),
+        Rect(4.0, 7.0),
+        Triangle(3.0, 4.0, 5.0),
+        Triangle(5.0, 12.0, 13.0),
+        Circle(1.0)
+    ]
+
+    for s in shapes {
+        trust stdio.print("{s}  area = {f}\n", {label(s), area(s)})
+    }
+}
