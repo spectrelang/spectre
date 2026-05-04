@@ -618,17 +618,13 @@ pub fn cmd_ref() i32 = {
                 \\ //
                 \\ // trust read_file("some_file.txt")
                 \\ //
-                \\ // Note that trust statements inside untrusted functions marked with ! are redundant
+                \\ // Note that trust statements inside verified functions are redundant
                 \\ // and will result in a compile-time error.
-                \\ fn read_file(path: ref u8) result[ref u8, SomeError]! = {
+                \\ fn read_file(path: ref u8) result[ref u8, SomeError] = trust {
                 \\     val f = some_fallible_call()?   // ? propagates err upward
                 \\     return f
                 \\ }
                 \\ ```
-                \\
-                \\ Do not confuse the trust system with the result propagation, ! in the return type has
-                \\ nothing to do with result propagation. Error propagation only works on result[T, E]
-                \\ returns, regardless of there being a ! in this return type or not.
                 \\
             )
             trust fs.write(f, \\ ---
