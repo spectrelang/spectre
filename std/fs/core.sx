@@ -78,7 +78,7 @@ pub type File = {
 
 /// Open a file. Here, mode is a C fopen mode string: "r", "w", "a", "rb", etc.
 /// Returns none if the file could not be opened.
-pub fn open(path: ref u8, mode: ref u8) option[ref void]! = {
+pub fn open(path: ref u8, mode: ref u8) option[ref void] = trust {
     val ptr: ref void = fopen(path, mode)
     if (ptr == none) {
         return none
@@ -89,7 +89,7 @@ pub fn open(path: ref u8, mode: ref u8) option[ref void]! = {
 }
 
 /// Close a file handle previously returned by open().
-pub fn close(f: ref void) void! = {
+pub fn close(f: ref void) void = trust {
     val ptr: ref void = @load(f)
     fclose(ptr)
     @free(f)
