@@ -2460,7 +2460,7 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
         if ctx.in_unsafe_fn != 0 || ctx.in_trust != 0 {
             val buf: ref u8 = @alloc(512) as ref u8
             if ctx.in_unsafe_fn != 0 {
-                @snprintf(buf, 512, "{s}:{lld}: redundant 'trust' statement; already in an unsafe context (marked with '!')", {filename, line})
+                @snprintf(buf, 512, "{s}:{lld}: redundant 'trust' statement; already in a trusted function", {filename, line})
             } else {
                 @snprintf(buf, 512, "{s}:{lld}: redundant 'trust' statement; already inside a 'trust' block", {filename, line})
             }
@@ -2994,7 +2994,7 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
         if is_unsafe_builtin {
             if ctx.in_unsafe_fn == 0 && ctx.in_trust == 0 {
                 val ebuf: ref u8 = @alloc(512) as ref u8
-                @snprintf(ebuf, 512, "{s}:{lld}: unsafe builtin '@{s}' can only be used in functions marked with '!' or inside 'trust' blocks", {filename, line, bname})
+                @snprintf(ebuf, 512, "{s}:{lld}: unsafe builtin '@{s}' can only be used inside 'trust' blocks", {filename, line, bname})
                 add_error(ctx, ebuf)
             } else {
                 ctx.trust_used = 1
@@ -3942,7 +3942,7 @@ fn check_stmt(ctx: mut ref SemaCtx, stmt: ref parser.Node, filename: ref u8) voi
         if ctx.in_unsafe_fn != 0 || ctx.in_trust != 0 {
             val buf: ref u8 = @alloc(512) as ref u8
             if ctx.in_unsafe_fn != 0 {
-                @snprintf(buf, 512, "{s}:{lld}: redundant 'trust' block; already in an unsafe context (marked with '!')", {filename, line})
+                @snprintf(buf, 512, "{s}:{lld}: redundant 'trust' block; already in a trusted function", {filename, line})
             } else {
                 @snprintf(buf, 512, "{s}:{lld}: redundant 'trust' block; already inside a 'trust' block", {filename, line})
             }
