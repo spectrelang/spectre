@@ -6,11 +6,70 @@ extern (C) fn fwrite(ptr: ref void, size: i64, nmemb: i64, file: ref void) i64! 
 extern (C) fn remove(path: ref u8) i32! = "remove"
 extern (C) fn rename(oldpath: ref u8, newpath: ref u8) i32! = "rename"
 extern (C) fn access(path: ref u8, mode: i32) i32! = "access"
+pub extern (C) fn mkdir(path: ref u8, mode: u32) i32! = "mkdir"
+pub extern (C) fn rmdir(path: ref u8) i32! = "rmdir"
+pub extern (C) fn opendir(path: ref u8) ref void! = "opendir"
+pub extern (C) fn closedir(dir: ref void) i32! = "closedir"
+pub extern (C) fn readdir(dir: ref void) ref Dirent! = "readdir"
 extern (C) fn popen(cmd: ref u8, mode: ref u8) ref void! = "popen"
 extern (C) fn pclose(pipe: ref void) i32! = "pclose"
 extern (C) fn system(cmd: ref u8) i32! = "system"
 
 pub extern (C) fn exit(code: i64) void! = "exit"
+
+when linux {
+    extern type Dirent = {
+        d_ino:    u64
+        d_off:    i64
+        d_reclen: u16
+        d_type:   u8
+    }
+}
+
+when darwin {
+    extern type Dirent = {
+        d_ino:    u64
+        d_seekoff: u64
+        d_reclen: u16
+        d_namlen: u16
+        d_type:   u8
+        d_name:   [1024]u8
+    }
+}
+
+when freebsd {
+    extern type Dirent = {
+        d_fileno: u64
+        d_off:    i64
+        d_reclen: u16
+        d_type:   u8
+        d_pad0:   u8
+        d_namlen: u16
+        d_pad1:   u16
+        d_name:   [256]u8
+    }
+}
+
+when openbsd {
+    extern type Dirent = {
+        d_fileno: u64
+        d_off:    i64
+        d_reclen: u16
+        d_type:   u8
+        d_namlen: u8
+        d_name:   [256]u8
+    }
+}
+
+when netbsd {
+    extern type Dirent = {
+        d_fileno: u64
+        d_reclen: u16
+        d_namlen: u16
+        d_type:   u8
+        d_name:   [512]u8
+    }
+}
 
 pub enum ProcessError = {
     FailedToStart,
@@ -71,6 +130,109 @@ pub fn delete(path: ref u8) i32! = {
 /// Rename a file. Returns 0 on success.
 pub fn rename_file(oldpath: ref u8, newpath: ref u8) i32! = {
     return rename(oldpath, newpath)
+}
+
+fn is_dot_dir_entry(name: ref u8) bool = {
+    val c0: u8 = trust @load8(name)
+    if c0 != 46 { return false }
+    val c1: u8 = trust @load8(@ptradd(name, 1))
+    if c1 == 0 { return true }
+    if c1 != 46 { return false }
+    val c2: u8 = trust @load8(@ptradd(name, 2))
+    return c2 == 0
+}
+
+fn ensure_dir(path: ref u8) bool! = {
+    if exists(path) { return true }
+    return mkdir(path, 493 as u32) == 0
+}
+
+/// Copy one file to another path.
+pub fn copy_file(src_path: ref u8, dst_path: ref u8) bool! = {
+    val src_opt = open(src_path, "rb")
+    match src_opt {
+        none => { return false }
+        some src_file => {
+            val dst_opt = open(dst_path, "wb")
+            match dst_opt {
+                none => {
+                    close(src_file)
+                    return false
+                }
+                some dst_file => {
+                    val buf_size: i64 = 4096
+                    val buf: ref void = @alloc(buf_size)
+                    val its_ok: mut bool = true
+                    for {
+                        val n: i64 = fread(buf, 1, buf_size, src_file)
+                        if n == 0 { break }
+                        val written: i64 = fwrite(buf, 1, n, dst_file)
+                        if written != n {
+                            its_ok = false
+                            break
+                        }
+                    }
+                    @free(buf)
+                    close(dst_file)
+                    close(src_file)
+                    return its_ok
+                }
+            }
+        }
+    }
+}
+
+/// Recursively copy a directory tree.
+pub fn copy_dir_recursive(src_dir: ref u8, dst_dir: ref u8) bool! = {
+    when windows {
+        return false
+    }
+    when posix {
+        if !ensure_dir(dst_dir) { return false }
+
+        val dir: ref void = opendir(src_dir)
+        if dir == none { return false }
+
+        val its_ok: mut bool = true
+        for {
+            val entry: ref Dirent = readdir(dir)
+            if entry == none { break }
+
+            val name: ref u8 = @ptradd(entry as ref void, 19) as ref u8
+            if is_dot_dir_entry(name) { continue }
+
+            val src_child: ref u8 = @fmt("{s}/{s}", {src_dir, name})
+            val dst_child: ref u8 = @fmt("{s}/{s}", {dst_dir, name})
+
+            val child_dir: ref void = opendir(src_child)
+            if child_dir != none {
+                closedir(child_dir)
+                if !copy_dir_recursive(src_child, dst_child) {
+                    its_ok = false
+                    break
+                }
+            } elif !copy_file(src_child, dst_child) {
+                its_ok = false
+                break
+            }
+        }
+
+        closedir(dir)
+        return its_ok
+    }
+    return false
+}
+
+fn bytes_equal(buf: ref void, expected: ref u8, len: i64) bool = {
+    val i: mut i64 = 0
+    for {
+        if i >= len { break }
+        val a: u8 = trust @load8(@ptradd(buf, i))
+        val b: u8 = trust @load8(@ptradd(expected, i))
+        if a != b { return false }
+        i++
+    }
+    return true
 }
 
 /// Get command-line arguments as a List of strings.
@@ -174,6 +336,70 @@ test {
             assert(false)
         }
     }
+
+    trust delete("test_copy_src.txt")
+    trust delete("test_copy_dst.txt")
+    trust delete("test_copy_tree_src/nested/value.txt")
+    trust rmdir("test_copy_tree_src/nested")
+    trust rmdir("test_copy_tree_src")
+    trust delete("test_copy_tree_dst/nested/value.txt")
+    trust rmdir("test_copy_tree_dst/nested")
+    trust rmdir("test_copy_tree_dst")
+
+    assert (trust copy_file("test_copy_src.txt", "test_copy_dst.txt")) == false
+
+    val src_copy_opt = open("test_copy_src.txt", "w")
+    match src_copy_opt {
+        some f => {
+            trust write(f, "copy me", 7)
+            trust close(f)
+        }
+        none => { assert false }
+    }
+
+    assert trust copy_file("test_copy_src.txt", "test_copy_dst.txt")
+    val copied_file_opt = open("test_copy_dst.txt", "rb")
+    match copied_file_opt {
+        some f => {
+            val text: mut ref u8 = trust read(f, 7)
+            trust close(f)
+            assert bytes_equal(text, "copy me", 7)
+            trust @free(text)
+        }
+        none => { assert false }
+    }
+
+    assert trust mkdir("test_copy_tree_src", 493 as u32) == 0
+    assert trust mkdir("test_copy_tree_src/nested", 493 as u32) == 0
+    val nested_opt = open("test_copy_tree_src/nested/value.txt", "w")
+    match nested_opt {
+        some f => {
+            trust write(f, "nested", 6)
+            trust close(f)
+        }
+        none => { assert false }
+    }
+
+    assert trust copy_dir_recursive("test_copy_tree_src", "test_copy_tree_dst")
+    val nested_file_opt = open("test_copy_tree_dst/nested/value.txt", "rb")
+    match nested_file_opt {
+        some f => {
+            val text: mut ref u8 = trust read(f, 6)
+            trust close(f)
+            assert bytes_equal(text, "nested", 6)
+            trust @free(text)
+        }
+        none => { assert false }
+    }
+
+    assert trust delete("test_copy_src.txt") == 0
+    assert trust delete("test_copy_dst.txt") == 0
+    assert trust delete("test_copy_tree_src/nested/value.txt") == 0
+    assert trust rmdir("test_copy_tree_src/nested") == 0
+    assert trust rmdir("test_copy_tree_src") == 0
+    assert trust delete("test_copy_tree_dst/nested/value.txt") == 0
+    assert trust rmdir("test_copy_tree_dst/nested") == 0
+    assert trust rmdir("test_copy_tree_dst") == 0
 
     trust exit(0)
 }

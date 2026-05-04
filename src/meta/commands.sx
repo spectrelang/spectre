@@ -1,9 +1,13 @@
-val str    = use("std/string")
-val fs     = use("std/fs")
-val meta   = use("meta.sx")
-val builds = use("builds.sx")
-val stdio  = use("std/stdio")
-val os     = use("std/os")
+val str        = use("std/string")
+val fs         = use("std/fs")
+val path       = use("std/path")
+val time       = use("std/time")
+val allocators = use("std/allocators")
+val reflection = use("std/reflection")
+val meta       = use("meta.sx")
+val builds     = use("builds.sx")
+val stdio      = use("std/stdio")
+val os         = use("std/os")
 
 pub type SxBuildConfig = {
     name:   mut ref u8
@@ -295,6 +299,22 @@ fn drop_dep_lines(filepath: ref u8, needle: ref u8) void! = {
             str.StringBuilder.free(sb)
         }
     }
+}
+
+fn copy_current_stdlib(snapshot_dir: ref u8) bool = {
+    val arena = trust allocators.Arena.new(1024)?
+    val exe_path = trust reflection.get_exe_path[allocators.Arena](arena)
+    val exe_dir = trust path.dir(exe_path)
+    val std_dir = trust path.join(exe_dir, "std")
+
+    if !os.exists(std_dir) {
+        trust allocators.Arena.free(arena)
+        return false
+    }
+
+    val its_ok: bool = trust os.copy_dir_recursive(std_dir, snapshot_dir)
+    trust allocators.Arena.free(arena)
+    return its_ok
 }
 
 pub fn cmd_ref() i32 = {
@@ -727,7 +747,15 @@ pub fn cmd_ref() i32 = {
             trust fs.close(f)
         }
     }
-    stdio.puts("Generated SLR.")
+
+    val unix_time: i64 = time.unix_now()
+    val std_snapshot_dir: ref u8 = trust @fmt("std__{d}", {unix_time})
+    if !(copy_current_stdlib(std_snapshot_dir)) {
+        trust stdio.print("error: could not copy stdlib into {s}\n", {std_snapshot_dir})
+        return 1
+    }
+
+    trust stdio.print("Generated SLR + Copied stdlib to {s}.\n", {std_snapshot_dir})
     return 0
 }
 
@@ -756,7 +784,7 @@ pub fn cmd_init(name_arg: ref u8) i32 = {
     trust fs.write_all("sx.mod", str.cstr(sxmod_built))
     trust str.StringBuilder.free(sb)
     trust fs.write_all("sx.lock", "version \"1\"\n")
-    trust fs.write_all(".gitignore", "SPECTRE_LANGUAGE_REFERENCE.md\nlib/\ns-out/\n")
+    trust fs.write_all(".gitignore", "SPECTRE_LANGUAGE_REFERENCE.md\nlib/\nstd__*\ns-out/\n")
 
     trust fs.mkdir_path("src")
 

@@ -79,6 +79,15 @@ pub fn (DateTime) now() DateTime = {
     return DateTime.new(year + 1900, month + 1, day, hour, minute, second, millis)
 }
 
+/// Return the current Unix timestamp in seconds since epoch.
+pub fn unix_now() i64 = {
+    val tv: ref TimeVal = @alloc(@sizeof(TimeVal))
+    trust gettimeofday(tv, 0)
+    val seconds: i64 = tv.tv_sec
+    trust @free(tv)
+    return seconds
+}
+
 /// Read the year field.
 pub fn (DateTime) year(dt: self) i64 = {
     return dt.year

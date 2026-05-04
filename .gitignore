@@ -3,6 +3,7 @@
 /target
 /s-out
 /docs-out
+std__*
 out
 .DS_Store
 spectre-dev
