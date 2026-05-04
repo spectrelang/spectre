@@ -113,9 +113,8 @@ pub fn main() i32! = {
         SetConsoleOutputCP(65001 as u32)
     }
 
-    match exe_opt {
-        some v => { exe_path = v as ref u8 }
-        none   => {}
+    if exe_opt is some v {
+        exe_path = v as ref u8
     }
 
     val quiet: mut bool = true
