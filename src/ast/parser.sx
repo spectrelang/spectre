@@ -190,9 +190,8 @@ pub fn fixed_arr_inner(n: ref Node) ref Node = { return n.d1 as ref Node }
 pub fn fixed_arr_size_name(n: ref Node) ref u8 = { return n.d2 as ref u8 }
 
 pub fn fn_is_unsafe(n: ref Node) bool = {
-    if n.kind == NK_GENERIC_FN {
-        return ((n.d0 >> 1) & 1) != 0
-    }
+    if n.kind == NK_EXTERN_FN  { return true }
+    if n.kind == NK_GENERIC_FN { return ((n.d0 >> 1) & 1) != 0 }
     return (n.d6 & FN_FLAG_UNSAFE) != 0
 }
 

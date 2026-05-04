@@ -2928,7 +2928,7 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
                                     }
                                     if modinfo.fn_is_unsafe_in_module(import_mod, vis_fn_name) && ctx.in_unsafe_fn == 0 && ctx.in_trust == 0 {
                                         val ubuf: ref u8 = @alloc(256) as ref u8
-                                        @snprintf(ubuf, 256, "{s}:{lld}: cannot call unsafe function '{s}' from module '{s}' in safe context, use 'trust' block or mark current function as unsafe with '!'",
+                                        @snprintf(ubuf, 256, "{s}:{lld}: cannot call unsafe function '{s}' from module '{s}' in safe context, use a 'trust' block",
                                             {filename, line, vis_fn_name, vis_mod_name})
                                         add_error(ctx, ubuf)
                                     }
@@ -2948,9 +2948,9 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
                 }
                 val ebuf: ref u8 = @alloc(512) as ref u8
                 if fn_name != none {
-                    @snprintf(ebuf, 512, "{s}:{lld}: cannot call unsafe function '{s}' from safe context, use 'trust' block or mark current function as unsafe with '!'", {filename, line, fn_name})
+                    @snprintf(ebuf, 512, "{s}:{lld}: cannot call unsafe function '{s}' from safe context, use a 'trust' block", {filename, line, fn_name})
                 } else {
-                    @snprintf(ebuf, 512, "{s}:{lld}: cannot call unsafe function from safe context, use 'trust' block or mark current function as unsafe with '!'", {filename, line})
+                    @snprintf(ebuf, 512, "{s}:{lld}: cannot call unsafe function from safe context, use a 'trust' block", {filename, line})
                 }
                 add_error(ctx, ebuf)
             } else {

@@ -2,7 +2,7 @@ val os = use("std/os")
 val string = use("std/string")
 
 /// Returns a platform-appropriate path for a temp file.
-pub fn get_tmp_path(name: ref u8) ref u8 = trust {
+pub fn get_tmp_path(name: ref u8) ref u8! = {
     when windows {
         val tmp_dir: ref u8 = os.getenv("TEMP")
         if tmp_dir != none {
@@ -48,7 +48,7 @@ pub fn parse_alt_compiler_arg(arg: ref u8) ref u8 = {
     return ""
 }
 
-pub fn filter_c_diagnostics(raw: ref u8) ref u8 = trust {
+pub fn filter_c_diagnostics(raw: ref u8) ref u8! = {
     val sb: ref void = string.StringBuilder.new()
     val len: i64 = string.len_raw(raw) as i64
     val ls: mut i64 = 0
