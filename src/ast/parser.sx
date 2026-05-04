@@ -64,6 +64,7 @@ pub val NK_FIELD             : i64 = 70
 pub val NK_CALL              : i64 = 71
 pub val NK_BUILTIN           : i64 = 72
 pub val NK_TRUST             : i64 = 73
+pub val NK_TRUST_BLOCK       : i64 = 84
 pub val NK_BINOP             : i64 = 74
 pub val NK_UNOP              : i64 = 75
 pub val NK_STRUCT_LIT        : i64 = 76
@@ -1548,6 +1549,17 @@ pub fn parse_stmt(p: mut ref Parser) result[ref Node, ref u8]! = {
     }
 
     if kind_is_match(k) { return parse_match_stmt(p, line) }
+
+    if kind_is_trust(k) && lexer.kind_is_lbrace(p_peek2_kind(p)) {
+        p_advance(p)
+        p_expect_lbrace(p)?
+        val tb = parse_stmts(p)?
+        p_expect_rbrace(p)?
+        val ntb: mut ref Node = make_node(NK_TRUST_BLOCK, line)
+        val tbl: list[ref Node] = tb
+        node_store_slot[list[ref Node]](@addr(ntb.d0), tbl)
+        return ok ntb
+    }
 
     val expr3 = parse_expr(p)?
     if p_eat_fn(p, kind_is_eq) {

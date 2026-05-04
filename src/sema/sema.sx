@@ -3389,7 +3389,7 @@ fn check_stmts(ctx: ref SemaCtx, stmts: ref void, filename: ref u8) void! = {
     }
 }
 
-fn check_stmt(ctx: ref SemaCtx, stmt: ref parser.Node, filename: ref u8) void! = {
+fn check_stmt(ctx: mut ref SemaCtx, stmt: ref parser.Node, filename: ref u8) void! = {
     guarded pre {
         ctx_not_null      : ctx != none
         stmt_not_null     : stmt != none
@@ -3935,6 +3935,33 @@ fn check_stmt(ctx: ref SemaCtx, stmt: ref parser.Node, filename: ref u8) void! =
                 }
             }
         }
+        return
+    }
+
+    if k == parser.NK_TRUST_BLOCK {
+        if ctx.in_unsafe_fn != 0 || ctx.in_trust != 0 {
+            val buf: ref u8 = @alloc(512) as ref u8
+            if ctx.in_unsafe_fn != 0 {
+                @snprintf(buf, 512, "{s}:{lld}: redundant 'trust' block; already in an unsafe context (marked with '!')", {filename, line})
+            } else {
+                @snprintf(buf, 512, "{s}:{lld}: redundant 'trust' block; already inside a 'trust' block", {filename, line})
+            }
+            add_error(ctx, buf)
+        }
+        val pt_used: i64 = ctx.trust_used
+        ctx.trust_used = 0
+        val prev_trust: i64 = ctx.in_trust
+        ctx.in_trust = 1
+        push_scope(ctx)
+        check_stmts(ctx, stmt.d0 as ref void, filename)
+        pop_scope(ctx, filename, line)
+        ctx.in_trust = prev_trust
+        if ctx.trust_used == 0 && ctx.in_unsafe_fn == 0 && ctx.in_trust == 0 {
+            val buf: ref u8 = @alloc(512) as ref u8
+            @snprintf(buf, 512, "{s}:{lld}: redundant 'trust' block; no unsafe operations inside", {filename, line})
+            add_error(ctx, buf)
+        }
+        ctx.trust_used = pt_used | ctx.trust_used
         return
     }
 }

@@ -3286,6 +3286,7 @@ fn gen_stmt(ctx: mut ref CCtx, stmt: ref parser.Node) void! = {
     if k == parser.NK_FORIN { gen_forin_stmt(ctx, stmt) return }
     if k == parser.NK_BREAK { emitln(ctx, "break;") return }
     if k == parser.NK_CONTINUE { emitln(ctx, "continue;") return }
+    if k == parser.NK_TRUST_BLOCK { gen_stmts(ctx, stmt.d0 as ref parser.Node) return }
     if k == parser.NK_DEFER { cc_defer_push(ctx, stmt.d0 as ref parser.Node) return }
     if k == parser.NK_ASSERT { val cond: ref u8 = gen_expr(ctx, stmt.d0 as ref parser.Node) val line: i64 = stmt.line
         val buf: ref u8 = @alloc(512) as ref u8

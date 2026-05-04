@@ -1,0 +1,11 @@
+pub fn untrusted() void! = {
+    @puts("wee woo")
+}
+
+pub fn main() void = {
+    trust {
+        untrusted()
+        @puts("hellew")
+    }
+    @print("hello", {})
+}

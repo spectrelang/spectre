@@ -8226,6 +8226,11 @@ fn gen_stmt(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
         return
     }
 
+    if k == parser.NK_TRUST_BLOCK {
+        gen_stmts(ctx, stmt.d0 as ref parser.Node)
+        return
+    }
+
     if k == parser.NK_DEFER {
         cg_defer_push(ctx, stmt.d0 as ref parser.Node)
         return
@@ -11038,6 +11043,11 @@ fn scan_node_for_calls_depth(ctx: ref CgCtx, node: ref parser.Node, depth: i64) 
     } elif k == parser.NK_EXPR_STMT {
         scan_node_for_calls_depth(ctx, node.d0 as ref parser.Node, depth + 1)
     } elif k == parser.NK_DEFER {
+        val body: ref void = node.d0 as ref void
+        if body != none {
+            scan_stmts_for_calls(ctx, body)
+        }
+    } elif k == parser.NK_TRUST_BLOCK {
         val body: ref void = node.d0 as ref void
         if body != none {
             scan_stmts_for_calls(ctx, body)

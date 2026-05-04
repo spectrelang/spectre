@@ -57,6 +57,7 @@ fn kind_to_name(kind: i64) ref u8 = {
     elif kind == parser.NK_CALL { return "CALL" }
     elif kind == parser.NK_BUILTIN { return "BUILTIN" }
     elif kind == parser.NK_TRUST { return "TRUST" }
+    elif kind == parser.NK_TRUST_BLOCK { return "TRUST_BLOCK" }
     elif kind == parser.NK_BINOP { return "BINOP" }
     elif kind == parser.NK_UNOP { return "UNOP" }
     elif kind == parser.NK_STRUCT_LIT { return "STRUCT_LIT" }
@@ -864,6 +865,10 @@ fn print_node_recursive(node: ref parser.Node, indent: i64, is_last: bool) void!
         stdio.print("{s}{s}\n", {prefix, kind_name})
         val inner: ref parser.Node = node.d0 as ref parser.Node
         print_node_recursive(inner, indent + 1, true)
+    } elif kind == parser.NK_TRUST_BLOCK {
+        stdio.print("{s}{s}\n", {prefix, kind_name})
+        val stmts: list[ref parser.Node] = node.d0 as list[ref parser.Node]
+        print_list_of_nodes(stmts, indent + 1, 0)
     } elif kind == parser.NK_STRUCT_LIT {
         stdio.print("{s}{s}\n", {prefix, kind_name})
         val fields: list[ref parser.Node] = node.d0 as list[ref parser.Node]
