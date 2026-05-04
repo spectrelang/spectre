@@ -1,4 +1,4 @@
-pub fn main() void! = {
+pub fn main() void = trust {
     val x: mut i32 = 10
     val y: i32 = x
     // So here there are two errors, x is not ever mutated (it is not marked as ref either, meaning it cannot ever be mutated)

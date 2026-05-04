@@ -3,9 +3,9 @@ pub enum ParseError = {
     InvalidDigit
 }
 
-extern (C) fn strlen(s: ref u8) i64! = "strlen"
+extern (C) fn strlen(s: ref u8) i64 = "strlen"
 
-pub fn string_to_i64(s: ref u8) result[i64, ParseError]! = {
+pub fn string_to_i64(s: ref u8) result[i64, ParseError] = trust {
     if (s == none) {
         return err ParseError.Empty
     }
@@ -45,7 +45,7 @@ pub fn string_to_i64(s: ref u8) result[i64, ParseError]! = {
     return ok result
 }
 
-pub fn add_two_strings(a: ref u8, b: ref u8) result[i64, ParseError]! = {
+pub fn add_two_strings(a: ref u8, b: ref u8) result[i64, ParseError] = trust {
     // `?` propagation:
     // desugars to:
     // match string_to_i64(a) {
@@ -61,7 +61,7 @@ pub fn add_two_strings(a: ref u8, b: ref u8) result[i64, ParseError]! = {
 
 val stdio = use("std/stdio")
 
-pub fn main() result[void, ParseError]! = {
+pub fn main() result[void, ParseError] = trust {
     val r = add_two_strings("123", "456")
 
     match r {

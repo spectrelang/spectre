@@ -1,7 +1,7 @@
 val json = use("std/json")
 val stdio = use("std/stdio")
 
-pub fn main() void! = {
+pub fn main() void = trust {
     val raw_str = \\{"Alice": "asdf"}
     val alc: ref void = none
     val doc_opt = json.parse[ref void](alc, raw_str)

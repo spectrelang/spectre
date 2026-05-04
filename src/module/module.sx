@@ -18,7 +18,7 @@ pub type ResolvedModule = {
     dir:            mut String
 }
 
-pub fn new_resolved(items: list[ref parser.Node], filename: String, dir: String) ref ResolvedModule! = {
+pub fn new_resolved(items: list[ref parser.Node], filename: String, dir: String) ref ResolvedModule = trust {
     val m: mut ref ResolvedModule = @alloc(@sizeof(ResolvedModule)) as ref ResolvedModule
     @memset(m as ref void, 0, @sizeof(ResolvedModule) as usize)
     m.items          = items
@@ -30,7 +30,7 @@ pub fn new_resolved(items: list[ref parser.Node], filename: String, dir: String)
 }
 
 /// Check if a file exists by trying to open it.
-fn file_exists(path: ref u8) bool! = {
+fn file_exists(path: ref u8) bool = trust {
     val f = fs.open(path, "r")
     match f {
         some h => { fs.close(h) return true }
@@ -40,7 +40,7 @@ fn file_exists(path: ref u8) bool! = {
 
 /// Walk up from `start_dir` looking for a directory containing "Cargo.toml".
 /// Returns the workspace root, or `start_dir` if not found.
-fn find_workspace_root(start_dir: ref u8) ref u8! = {
+fn find_workspace_root(start_dir: ref u8) ref u8 = trust {
     val cur: mut ref u8 = start_dir
     val limit: mut i64 = 32
     for {
@@ -58,7 +58,7 @@ fn find_workspace_root(start_dir: ref u8) ref u8! = {
 
 /// Resolve a use-path string relative to the current file's directory.
 /// The workspace param must be the pre-computed workspace root (from find_workspace_root).
-pub fn resolve_use_path(use_path: ref u8, file_dir: ref u8, exe_dir: ref u8, workspace: ref u8) ref u8! = {
+pub fn resolve_use_path(use_path: ref u8, file_dir: ref u8, exe_dir: ref u8, workspace: ref u8) ref u8 = trust {
     val plen: i64 = str.len_raw(use_path)
 
     if plen >= 3 {
@@ -104,7 +104,7 @@ pub fn resolve_use_path(use_path: ref u8, file_dir: ref u8, exe_dir: ref u8, wor
     return candidate2_ws
 }
 
-fn in_progress_contains(in_progress: list[ref u8], path: ref u8) bool! = {
+fn in_progress_contains(in_progress: list[ref u8], path: ref u8) bool = trust {
     for p in in_progress {
         if str.rchar_cmp(p, path) == 0 { return true }
     }
@@ -113,7 +113,7 @@ fn in_progress_contains(in_progress: list[ref u8], path: ref u8) bool! = {
 
 /// Check if an import name is referenced anywhere in the items (functions, tests, globals).
 /// This is used to determine if we should actually load an import or skip it.
-fn import_is_referenced(items: list[ref parser.Node], import_name: ref u8) bool! = {
+fn import_is_referenced(items: list[ref parser.Node], import_name: ref u8) bool = trust {
     val items_len: i64 = @len(items) as i64
     val ii: mut i64 = 0
     for {
@@ -152,7 +152,7 @@ fn import_is_referenced(items: list[ref parser.Node], import_name: ref u8) bool!
 }
 
 /// Shallow check if a statement list references an import (just checks identifiers and fields).
-fn item_references_import_shallow(stmts_ptr: ref void, import_name: ref u8) bool! = {
+fn item_references_import_shallow(stmts_ptr: ref void, import_name: ref u8) bool = trust {
     if stmts_ptr == none {
         return false
     }
@@ -187,7 +187,7 @@ fn item_references_import_shallow(stmts_ptr: ref void, import_name: ref u8) bool
 }
 
 /// Shallow check if a statement references an import.
-fn stmt_references_import_shallow(node: ref parser.Node, import_name: ref u8) bool! = {
+fn stmt_references_import_shallow(node: ref parser.Node, import_name: ref u8) bool = trust {
     if node == none { return false }
 
     if node.kind == parser.NK_VAL {
@@ -703,7 +703,7 @@ fn stmt_references_import_shallow(node: ref parser.Node, import_name: ref u8) bo
 }
 
 /// Shallow check if an expression references an import (only checks ident and field).
-fn expr_references_import_shallow(node: ref parser.Node, import_name: ref u8) bool! = {
+fn expr_references_import_shallow(node: ref parser.Node, import_name: ref u8) bool = trust {
     if node == none { return false }
 
     if node.kind == parser.NK_IDENT {
@@ -810,7 +810,7 @@ fn expr_references_import_shallow(node: ref parser.Node, import_name: ref u8) bo
 
 /// Recursively resolve a module from its source path.
 /// needed_children: optional list of child import names that must be loaded (for DCE)
-fn items_have_external_links(items: list[ref parser.Node]) bool! = {
+fn items_have_external_links(items: list[ref parser.Node]) bool = trust {
     for item in items {
         if item.kind == parser.NK_LINK {
             return true
@@ -840,7 +840,7 @@ fn resolve_module_impl(
     needed_children: ref void,
     cache_keys:      mut list[ref u8],
     cache_vals:      mut list[ref void]
-) result[ref ResolvedModule, ref u8]! = {
+) result[ref ResolvedModule, ref u8] = trust {
     if in_progress_contains(in_progress, path) {
         return err @fmt("cyclic import: {s}", {path})
     }
@@ -956,7 +956,7 @@ pub fn resolve_module(
     in_progress:     list[ref u8],
     exe_dir:         ref u8,
     needed_children: ref void
-) result[ref ResolvedModule, ref u8]! = {
+) result[ref ResolvedModule, ref u8] = trust {
     val cache_keys: mut list[ref u8] = []
     val cache_vals: mut list[ref void] = []
     return resolve_module_impl(path, in_progress, exe_dir, needed_children, cache_keys, cache_vals)
@@ -964,7 +964,7 @@ pub fn resolve_module(
 
 /// Look up a direct import of `m` by its alias name.
 /// Returns the child ResolvedModule if found, or null if not found.
-pub fn find_import_by_name(m: ref ResolvedModule, name: ref u8) ref ResolvedModule! = {
+pub fn find_import_by_name(m: ref ResolvedModule, name: ref u8) ref ResolvedModule = trust {
     val nlen: i64 = @len(m.import_names) as i64
     val i: mut i64 = 0
     for {
@@ -989,7 +989,7 @@ pub fn find_import_by_name(m: ref ResolvedModule, name: ref u8) ref ResolvedModu
 
 /// Check whether a function named `fn_name` is declared `pub` in module `m`.
 /// Returns true if public (or not found — conservative default for external fns).
-pub fn fn_is_public_in_module(m: ref ResolvedModule, fn_name: ref u8) bool! = {
+pub fn fn_is_public_in_module(m: ref ResolvedModule, fn_name: ref u8) bool = trust {
     val ilen: i64 = @len(m.items) as i64
     val i: mut i64 = 0
     for {
@@ -1017,7 +1017,7 @@ pub fn fn_is_public_in_module(m: ref ResolvedModule, fn_name: ref u8) bool! = {
     return true
 }
 
-pub fn fn_is_unsafe_in_module(m: ref ResolvedModule, fn_name: ref u8) bool! = {
+pub fn fn_is_unsafe_in_module(m: ref ResolvedModule, fn_name: ref u8) bool = trust {
     val ilen: i64 = @len(m.items) as i64
     val i: mut i64 = 0
     for {
@@ -1041,12 +1041,12 @@ pub fn fn_is_unsafe_in_module(m: ref ResolvedModule, fn_name: ref u8) bool! = {
 }
 
 /// Number of direct imports in module `m`.
-pub fn import_count(m: ref ResolvedModule) i64! = {
+pub fn import_count(m: ref ResolvedModule) i64 = trust {
     return @len(m.import_names) as i64
 }
 
 /// Return the i-th imported child module, or null.
-pub fn import_module_at(m: ref ResolvedModule, i: usize) ref ResolvedModule! = {
+pub fn import_module_at(m: ref ResolvedModule, i: usize) ref ResolvedModule = trust {
     val opt = @get(m.import_modules, i)
     match opt {
         some child => { return child as ref ResolvedModule }
@@ -1055,7 +1055,7 @@ pub fn import_module_at(m: ref ResolvedModule, i: usize) ref ResolvedModule! = {
 }
 
 /// Return the i-th import name, or null.
-pub fn import_name_at(m: ref ResolvedModule, i: usize) ref u8! = {
+pub fn import_name_at(m: ref ResolvedModule, i: usize) ref u8 = trust {
     val opt = @get(m.import_names, i)
     match opt {
         some name => { return name as ref u8 }
@@ -1064,18 +1064,18 @@ pub fn import_name_at(m: ref ResolvedModule, i: usize) ref u8! = {
 }
 
 /// Return the filename of module `m` as a raw C string.
-pub fn module_filename(m: ref ResolvedModule) ref u8! = {
+pub fn module_filename(m: ref ResolvedModule) ref u8 = trust {
     return str.cstr(m.filename)
 }
 
 /// Return the top-level items list of module `m`.
-pub fn module_items(m: ref ResolvedModule) list[ref parser.Node]! = {
+pub fn module_items(m: ref ResolvedModule) list[ref parser.Node] = trust {
     return m.items
 }
 
 /// Collect all unique filenames in the resolved module tree (depth-first).
 /// Used to avoid emitting the same module twice.
-fn collect_seen(m: ref ResolvedModule, seen: ref void) void! = {
+fn collect_seen(m: ref ResolvedModule, seen: ref void) void = trust {
     val mlen: i64 = @len(seen as list[String]) as i64
     val fi: mut i64 = 0
     for {
@@ -1115,7 +1115,7 @@ pub fn flatten_modules(
     out_prefixes: mut list[ref u8],
     out_items:    mut list[ref void],
     seen:         mut list[String]
-) void! = {
+) void = trust {
     val slen: i64 = @len(seen as list[String]) as i64
     val si: mut i64 = 0
     for {
@@ -1174,7 +1174,7 @@ pub fn flatten_modules_with_files(
     out_items:     mut list[ref void],
     out_filenames: mut list[ref u8],
     seen:          mut list[String]
-) void! = {
+) void = trust {
     val slen: i64 = @len(seen as list[String]) as i64
     val si: mut i64 = 0
     for {
@@ -1225,7 +1225,7 @@ pub fn flatten_modules_with_files(
 
 /// Collect all link statements from a module's items.
 /// Returns a list of link flags (strings like "-lcurl" or full paths).
-pub fn collect_links(items: list[ref parser.Node], exe_dir: ref u8) list[ref u8]! = {
+pub fn collect_links(items: list[ref parser.Node], exe_dir: ref u8) list[ref u8] = trust {
     val arena = allocators.Arena.new(256)?
     val links: mut list[ref u8] = []
     val p: i64 = reflection.get_current_platform[allocators.Arena](arena) as i64
@@ -1314,7 +1314,7 @@ pub fn collect_links_filtered(
     used_prefixes: list[ref u8],
     exe_dir: ref u8,
     seen: mut list[String]
-) list[ref u8]! = {
+) list[ref u8] = trust {
     val slen: i64 = @len(seen) as i64
     val si: mut i64 = 0
     for {
@@ -1403,7 +1403,7 @@ pub fn collect_links_all(
     prefix: ref u8,
     exe_dir: ref u8,
     seen: mut list[String]
-) list[ref u8]! = {
+) list[ref u8] = trust {
     val slen: i64 = @len(seen) as i64
     val si: mut i64 = 0
     for {
@@ -1467,7 +1467,7 @@ pub fn collect_links_all(
 
 /// Check if a platform name matches the current platform.
 /// Handles group aliases like "posix" matching linux/darwin/bsd/etc.
-fn platform_matches(current: ref u8, name: ref u8) bool! = {
+fn platform_matches(current: ref u8, name: ref u8) bool = trust {
     if str.rchar_cmp(name, current) == 0 { return true }
 
     if str.rchar_cmp(name, "posix") == 0 {
@@ -1486,7 +1486,7 @@ fn platform_matches(current: ref u8, name: ref u8) bool! = {
 }
 
 /// Check if an import name is in the list.
-fn import_in_list(import_names: list[ref u8], name: ref u8) bool! = {
+fn import_in_list(import_names: list[ref u8], name: ref u8) bool = trust {
     val len: i64 = @len(import_names) as i64
     val i: mut i64 = 0
     for {
@@ -1505,7 +1505,7 @@ fn import_in_list(import_names: list[ref u8], name: ref u8) bool! = {
 
 /// Collect sub-module names accessed via <import_name>.<sub> in items.
 /// e.g. for import_name="std", finds "stdio" and returns ["stdio"]
-fn collect_needed_subnames(items: list[ref parser.Node], import_name: ref u8) list[ref u8]! = {
+fn collect_needed_subnames(items: list[ref parser.Node], import_name: ref u8) list[ref u8] = trust {
     val needed: list[ref u8] = []
     val items_len: i64 = @len(items) as i64
     val ii: mut i64 = 0
@@ -1539,7 +1539,7 @@ fn collect_needed_subnames(items: list[ref parser.Node], import_name: ref u8) li
     return needed
 }
 
-fn collect_needed_subnames_in_stmts(stmts_ptr: ref void, import_name: ref u8, needed: list[ref u8]) void! = {
+fn collect_needed_subnames_in_stmts(stmts_ptr: ref void, import_name: ref u8, needed: list[ref u8]) void = trust {
     if stmts_ptr == none { return }
     val stmts: list[ref parser.Node] = stmts_ptr as list[ref parser.Node]
     val slen: i64 = @len(stmts) as i64
@@ -1560,7 +1560,7 @@ fn collect_needed_subnames_in_stmts(stmts_ptr: ref void, import_name: ref u8, ne
     }
 }
 
-fn collect_needed_subnames_in_stmt(stmt: ref parser.Node, import_name: ref u8, needed: list[ref u8]) void! = {
+fn collect_needed_subnames_in_stmt(stmt: ref parser.Node, import_name: ref u8, needed: list[ref u8]) void = trust {
     if stmt == none { return }
 
     if stmt.kind == parser.NK_VAL {
@@ -1834,7 +1834,7 @@ fn collect_needed_subnames_in_stmt(stmt: ref parser.Node, import_name: ref u8, n
     }
 }
 
-fn collect_needed_subnames_in_expr(expr: ref parser.Node, import_name: ref u8, needed: mut list[ref u8]) void! = {
+fn collect_needed_subnames_in_expr(expr: ref parser.Node, import_name: ref u8, needed: mut list[ref u8]) void = trust {
     if expr == none { return }
 
     if expr.kind == parser.NK_FIELD {
@@ -1955,12 +1955,12 @@ pub fn collect_needed_subnames_transitive(
     _: ref u8,
     _: ref u8,
     _: list[ref u8]
-) list[ref u8]! = {
+) list[ref u8] = trust {
     return collect_needed_subnames(items, import_name)
 }
 
 /// Collect used import names from an expression.
-fn collect_used_imports_expr(node: ref parser.Node, import_names: list[ref u8], used: mut list[ref u8]) void! = {
+fn collect_used_imports_expr(node: ref parser.Node, import_names: list[ref u8], used: mut list[ref u8]) void = trust {
     if node == none { return }
 
     if node.kind == parser.NK_IDENT {
@@ -2072,7 +2072,7 @@ fn collect_used_imports_expr(node: ref parser.Node, import_names: list[ref u8], 
 }
 
 /// Collect used import names from a statement.
-fn collect_used_imports_stmt(node: ref parser.Node, import_names: list[ref u8], used: list[ref u8]) void! = {
+fn collect_used_imports_stmt(node: ref parser.Node, import_names: list[ref u8], used: list[ref u8]) void = trust {
     if node == none { return }
 
     if node.kind == parser.NK_VAL {
@@ -2417,7 +2417,7 @@ fn collect_used_imports_stmt(node: ref parser.Node, import_names: list[ref u8], 
 }
 
 /// Collect used import names from a list of items.
-fn collect_used_imports_items(items: list[ref parser.Node], import_names: list[ref u8], used: list[ref u8]) void! = {
+fn collect_used_imports_items(items: list[ref parser.Node], import_names: list[ref u8], used: list[ref u8]) void = trust {
     val items_len: i64 = @len(items) as i64
 
     if items_len < 0 || items_len > 100000 {
@@ -2485,7 +2485,7 @@ fn collect_used_imports_items(items: list[ref parser.Node], import_names: list[r
 pub fn collect_used_links(
     m: ref ResolvedModule,
     exe_dir: ref u8
-) list[ref u8]! = {
+) list[ref u8] = trust {
     val result: mut list[ref u8] = []
     val seen: list[String] = []
 
@@ -2537,7 +2537,7 @@ fn collect_used_links_recursive(
     m: ref ResolvedModule,
     exe_dir: ref u8,
     seen: mut list[String]
-) list[ref u8]! = {
+) list[ref u8] = trust {
     val slen: i64 = @len(seen) as i64
     val si: mut i64 = 0
     for {

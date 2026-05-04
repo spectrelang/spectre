@@ -5,13 +5,13 @@
 val stdio = use("../stdio")
 
 when posix {
-    extern (C) fn arc4random_buf(buf: ref void, len: usize) void! = "arc4random_buf"
-    extern (C) fn arc4random_uniform(upper_bound: u32) u32! = "arc4random_uniform"
+    extern (C) fn arc4random_buf(buf: ref void, len: usize) void = "arc4random_buf"
+    extern (C) fn arc4random_uniform(upper_bound: u32) u32 = "arc4random_uniform"
 }
 
 when windows {
     link "-lbcrypt"
-    extern (C) fn BCryptGenRandom(hAlgorithm: ref void, pbBuffer: ref void, cbBuffer: u32, dwFlags: u32) i32! = "BCryptGenRandom"
+    extern (C) fn BCryptGenRandom(hAlgorithm: ref void, pbBuffer: ref void, cbBuffer: u32, dwFlags: u32) i32 = "BCryptGenRandom"
 }
 
 /// Fill `buf` with `len` cryptographically secure random bytes.
@@ -58,7 +58,7 @@ pub fn random_u32_below(upper_bound: u32) u32 = {
 /// The caller is responsible for freeing the returned pointer.
 ///
 /// Format: xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx  (RFC 4122)
-pub fn random_uuid() ref u8! = {
+pub fn random_uuid() ref u8 = trust {
     val rnd: ref void = @alloc(16)
     random_bytes(rnd, 16 as usize)
 

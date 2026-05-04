@@ -29,20 +29,20 @@ pub type Token = {
     kind: mut TokenKind
 }
 
-fn make_fn_token() ref Token! = {
+fn make_fn_token() ref Token = trust {
     val t: mut ref Token = @alloc(@sizeof(Token)) as ref Token
     t.kind = Fn()
     return t
 }
 
-fn kind_is_fn(k: TokenKind) bool! = {
+fn kind_is_fn(k: TokenKind) bool = trust {
     match k {
         Fn() => { return true }
         else => { return false }
     }
 }
 
-pub fn main() void! = {
+pub fn main() void = trust {
     val t = make_fn_token()
     @dprintf(2, "Token at: {p}\n", {t})
 

@@ -23,7 +23,7 @@ type PtrList = {
 }
 
 /// Allocate a new PtrList with the given initial capacity.
-pub fn (PtrList) new(initial_cap: usize) result[ref void, ListAllocError]! = {
+pub fn (PtrList) new(initial_cap: usize) result[ref void, ListAllocError] = trust {
     val header: ref void = @alloc(24)
     if (header == none) {
         return err ListAllocError.OutOfMemory
@@ -41,7 +41,7 @@ pub fn (PtrList) new(initial_cap: usize) result[ref void, ListAllocError]! = {
 }
 
 /// Free a PtrList and its backing buffer.
-pub fn (PtrList) free(list: mut self) void! = {
+pub fn (PtrList) free(list: mut self) void = trust {
     val buf: ref void = @load(list)
     @free(buf)
     @free(list)
@@ -78,7 +78,7 @@ fn (PtrList) grow(list: mut self, new_cap: usize) result[void, ListAllocError] =
 
 /// Append a value to the end of the list.
 /// Requires the list pointer to be non-null (non-zero).
-pub fn (PtrList) push(list: self, value: usize) result[void, ListAllocError]! = {
+pub fn (PtrList) push(list: self, value: usize) result[void, ListAllocError] = trust {
     val len: usize = @load(@ptradd(list, 8)) as usize
     val cap: usize = @load(@ptradd(list, 16)) as usize
     if (len >= cap) {
@@ -190,7 +190,7 @@ pub fn hash_identity(key: usize) usize = {
 
 /// Allocate a new Map with the given initial capacity and hash function.
 /// initial_cap must be > 0.
-pub fn (Map) new(initial_cap: usize, hash_fn: ref void) ref void! = {
+pub fn (Map) new(initial_cap: usize, hash_fn: ref void) ref void = trust {
     pre {
         cap_positive: initial_cap > 0
     }
@@ -205,7 +205,7 @@ pub fn (Map) new(initial_cap: usize, hash_fn: ref void) ref void! = {
 }
 
 /// Free the map and its backing bucket array.
-pub fn (Map) free(map: mut self) void! = {
+pub fn (Map) free(map: mut self) void = trust {
     val buckets: ref void = @load(map)
     @free(buckets)
     @free(map)
@@ -217,12 +217,12 @@ pub fn (Map) len(map: self) usize = {
 }
 
 /// Return the current bucket capacity.
-pub fn (Map) cap(map: self) usize! = {
+pub fn (Map) cap(map: self) usize = trust {
     return @load(@ptradd(map, 16)) as usize
 }
 
 /// Internal: grow the map to new_cap buckets and rehash all live entries.
-fn (Map) grow(map: mut self, new_cap: usize) void! = {
+fn (Map) grow(map: mut self, new_cap: usize) void = trust {
     pre {
         new_cap_positive: new_cap > 0
     }
@@ -250,7 +250,7 @@ fn (Map) grow(map: mut self, new_cap: usize) void! = {
 
 /// Insert or update a key-value pair.
 /// Grows the map (2x + 1) when load factor exceeds 70%.
-pub fn (Map) set(map: self, key: usize, value: usize) void! = {
+pub fn (Map) set(map: self, key: usize, value: usize) void = trust {
     val len: usize = @load(@ptradd(map, 8)) as usize
     val cap: usize = @load(@ptradd(map, 16)) as usize
 
@@ -324,7 +324,7 @@ pub fn (Map) get(map: self, key: usize) option[usize] = {
 }
 
 /// Remove a key. Returns 1 if the key was present, 0 otherwise.
-pub fn (Map) delete(map: self, key: usize) usize! = {
+pub fn (Map) delete(map: self, key: usize) usize = trust {
     val cap: usize = @load(@ptradd(map, 16)) as usize
     val buckets: ref void = @load(map)
     val hash_fn: ref void = @load(@ptradd(map, 24))
@@ -502,7 +502,7 @@ test {
 /// A hash map with ref u8 (C string) keys and usize values.
 /// Built on top of Map using a djb2 string hash.
 
-extern (C) fn strlen(s: ref u8) i64! = "strlen"
+extern (C) fn strlen(s: ref u8) i64 = "strlen"
 
 /// Casts the string pointer to usize for use as a Map key seed, then hashes
 /// the actual bytes so distinct strings with the same address never collide.
@@ -527,7 +527,7 @@ pub fn hash_string(key: ref u8) usize = {
 }
 
 /// Compare two null-terminated C strings for equality.
-fn str_eq(a: ref u8, b: ref u8) bool! = {
+fn str_eq(a: ref u8, b: ref u8) bool = trust {
     val i: mut i64 = 0
     for {
         val ca: u8 = @load8(@ptradd(a, i))
@@ -540,14 +540,14 @@ fn str_eq(a: ref u8, b: ref u8) bool! = {
 }
 
 /// Allocate a new StringMap with the given initial capacity.
-pub fn (StringMap) new(initial_cap: usize) ref void! = {
+pub fn (StringMap) new(initial_cap: usize) ref void = trust {
     return Map.new(initial_cap, @addr(hash_string))
 }
 
 /// Insert or update a string key with a usize value.
 ///
 /// The key is copied onto the heap; the copy is owned by the map.
-pub fn (StringMap) set(map: self, key: ref u8, value: usize) void! = {
+pub fn (StringMap) set(map: self, key: ref u8, value: usize) void = trust {
     val cap: usize = @load(@ptradd(map, 16)) as usize
     val buckets: ref void = @load(map)
     val kl: i64 = strlen(key)
@@ -618,7 +618,7 @@ pub fn (StringMap) contains(map: self, key: ref u8) bool = {
 }
 
 /// Remove a string key. Returns 1 if found and removed, 0 otherwise.
-pub fn (StringMap) delete(map: self, key: ref u8) usize! = {
+pub fn (StringMap) delete(map: self, key: ref u8) usize = trust {
     val cap: usize = @load(@ptradd(map, 16)) as usize
     val buckets: ref void = @load(map)
     val hash_fn: ref void = @load(@ptradd(map, 24))
@@ -654,7 +654,7 @@ pub fn (StringMap) len(map: self) usize = {
 }
 
 /// Free all heap-copied keys, then free the map itself.
-pub fn (StringMap) free(map: self) void! = {
+pub fn (StringMap) free(map: self) void = trust {
     val cap: usize = @load(@ptradd(map, 16)) as usize
     val buckets: ref void = @load(map)
     for (i = 0; i < cap; i++) {
@@ -745,7 +745,7 @@ type IndexMap = {}
 val IMAP_HEADER_SIZE: usize = 16
 
 /// Allocate a new IndexMap with the given initial capacity.
-pub fn (IndexMap) new(initial_cap: usize) ref void! = {
+pub fn (IndexMap) new(initial_cap: usize) ref void = trust {
     val header: ref void = @alloc(IMAP_HEADER_SIZE)
     val inner = StringMap.new(initial_cap)
     val keys: mut ref void = none
@@ -766,7 +766,7 @@ pub fn (IndexMap) new(initial_cap: usize) ref void! = {
 }
 
 /// Insert or update a key-value pair, preserving insertion order for new keys.
-pub fn (IndexMap) set(map: self, key: ref u8, value: usize) void! = {
+pub fn (IndexMap) set(map: self, key: ref u8, value: usize) void = trust {
     val inner: ref void = @load(map)
     val keys:  ref void = @load(@ptradd(map, 8))
     val already = StringMap.contains(inner, key)
@@ -787,7 +787,7 @@ pub fn (IndexMap) set(map: self, key: ref u8, value: usize) void! = {
 }
 
 /// Look up a key. Returns some(value) or none.
-pub fn (IndexMap) get(map: self, key: ref u8) option[usize]! = {
+pub fn (IndexMap) get(map: self, key: ref u8) option[usize] = trust {
     val inner: ref void = @load(map)
     return StringMap.get(inner, key)
 }
@@ -800,7 +800,7 @@ pub fn (IndexMap) contains(map: self, key: ref u8) bool = {
 
 /// Remove a key. Returns 1 if found, 0 otherwise.
 /// Note: removal marks the key as a tombstone in the ordered list (sets to 0).
-pub fn (IndexMap) delete(map: self, key: ref u8) usize! = {
+pub fn (IndexMap) delete(map: self, key: ref u8) usize = trust {
     val inner: ref void = @load(map)
     val keys:  ref void = @load(@ptradd(map, 8))
     val removed = StringMap.delete(inner, key)
@@ -832,7 +832,7 @@ pub fn (IndexMap) len(map: self) usize = {
 }
 
 /// Iterate in insertion order. Calls callback(key, value) for each live entry.
-pub fn (IndexMap) each(map: self, cb: fn(ref u8, usize) void) void! = {
+pub fn (IndexMap) each(map: self, cb: fn(ref u8, usize) void) void = trust {
     val inner: ref void = @load(map)
     val keys:  ref void = @load(@ptradd(map, 8))
     val n: usize = PtrList.len(keys)
@@ -873,7 +873,7 @@ pub fn (IndexMap) key_at(map: self, i: usize) option[ref u8] = {
 }
 
 /// Free the IndexMap and all owned key copies.
-pub fn (IndexMap) free(map: mut self) void! = {
+pub fn (IndexMap) free(map: mut self) void = trust {
     val inner: ref void = @load(map)
     val keys:  ref void = @load(@ptradd(map, 8))
     val n: usize = PtrList.len(keys)

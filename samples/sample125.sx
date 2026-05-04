@@ -1,4 +1,4 @@
-pub fn untrusted() void! = {
+pub fn untrusted() void = trust {
     @puts("wee woo")
 }
 

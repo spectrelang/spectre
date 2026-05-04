@@ -1,4 +1,4 @@
-pub fn main() void! = {
+pub fn main() void = trust {
     val x: mut f64 = 1.0
     x = 2.0
     @print("{f}", {x})

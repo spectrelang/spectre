@@ -1,5 +1,5 @@
 pub val some_constant = "hello, word."
 
-pub fn some_function() void! = {
+pub fn some_function() void = trust {
     @puts("Hello...")
 }

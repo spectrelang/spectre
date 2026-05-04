@@ -1,4 +1,4 @@
-extern (C) fn stat(path: ref u8, st: ref void) i32! = "stat"
+extern (C) fn stat(path: ref u8, st: ref void) i32 = "stat"
 
 when linux {
     extern type Stat = {

@@ -13,7 +13,7 @@ union SomeUnion = {
   | Pair(i32, i32)
 }
 
-pub fn main() void! = {
+pub fn main() void = trust {
     val examples: list[SomeUnion] = [
         Int32(42 as i32),
         Int64(1234567890123),

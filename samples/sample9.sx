@@ -2,14 +2,14 @@ val stdio = use("std/stdio")
 
 /// Allocates a zeroed buffer of `size` bytes.
 /// Returns ref void — raw memory with no type attached.
-fn make_buffer(size: usize) ref void! = {
+fn make_buffer(size: usize) ref void = trust {
     val buf: ref void = @alloc(size)
     @memset(buf, 0, size)
     return buf
 }
 
 /// Grows a buffer from old_size to new_size, zeroing the new region.
-fn grow_buffer(buf: ref void, old_size: usize, new_size: usize) ref void! = {
+fn grow_buffer(buf: ref void, old_size: usize, new_size: usize) ref void = trust {
     pre {
         new_size > old_size
     }
@@ -21,7 +21,7 @@ fn grow_buffer(buf: ref void, old_size: usize, new_size: usize) ref void! = {
     return new_buf
 }
 
-pub fn main() void! = {
+pub fn main() void = trust {
     val initial_size: usize = 64
     val buf: ref void = make_buffer(initial_size)
 

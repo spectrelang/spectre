@@ -74,7 +74,7 @@ pub type CgCtx = {
     current_filename: mut ref u8
 }
 
-fn cg_new() ref CgCtx! = {
+fn cg_new() ref CgCtx = trust {
     val ctx: mut ref CgCtx = @alloc(@sizeof(CgCtx)) as ref CgCtx
     ctx.sb = str.StringBuilder.new()
     ctx.mono_sb = str.StringBuilder.new()
@@ -141,27 +141,27 @@ fn cg_new() ref CgCtx! = {
     return ctx
 }
 
-fn cg_sb(ctx: ref CgCtx)      ref void! = { return ctx.sb as ref void }
-fn cg_tmp(ctx: ref CgCtx)     i64!      = { return ctx.tmp as i64}
-fn cg_lbl(ctx: ref CgCtx)     i64!      = { return ctx.lbl as i64 }
-fn cg_fn_name(ctx: ref CgCtx) ref u8! = { return ctx.fn_name as ref u8 }
-fn cg_strs(ctx: ref CgCtx)    ref void! = { return ctx.strs as ref void }
-fn cg_str_cnt(ctx: ref CgCtx) i64!      = { return ctx.str_cnt as i64 }
+fn cg_sb(ctx: ref CgCtx)      ref void = trust { return ctx.sb as ref void }
+fn cg_tmp(ctx: ref CgCtx)     i64      = { return ctx.tmp as i64}
+fn cg_lbl(ctx: ref CgCtx)     i64      = { return ctx.lbl as i64 }
+fn cg_fn_name(ctx: ref CgCtx) ref u8 = trust { return ctx.fn_name as ref u8 }
+fn cg_strs(ctx: ref CgCtx)    ref void = trust { return ctx.strs as ref void }
+fn cg_str_cnt(ctx: ref CgCtx) i64      = { return ctx.str_cnt as i64 }
 
-fn cg_set_tmp(ctx: mut ref CgCtx, v: i64) void! = {
+fn cg_set_tmp(ctx: mut ref CgCtx, v: i64) void = trust {
     ctx.tmp = v
 }
-fn cg_set_lbl(ctx: mut ref CgCtx, v: i64) void! = {
+fn cg_set_lbl(ctx: mut ref CgCtx, v: i64) void = trust {
     ctx.lbl = v
 }
-fn cg_set_fn_name(ctx: mut ref CgCtx, v: ref u8) void! = {
+fn cg_set_fn_name(ctx: mut ref CgCtx, v: ref u8) void = trust {
     ctx.fn_name = v
 }
-fn cg_set_str_cnt(ctx: mut ref CgCtx, v: i64) void! = {
+fn cg_set_str_cnt(ctx: mut ref CgCtx, v: i64) void = trust {
     ctx.str_cnt = v
 }
 
-fn cg_emit_label_if_new(ctx: ref CgCtx, label: ref u8) bool! = {
+fn cg_emit_label_if_new(ctx: ref CgCtx, label: ref u8) bool = trust {
     val elen: i64 = @len(ctx.emitted_labels as list[ref u8]) as i64
     val ei: mut i64 = 0
     for {
@@ -181,14 +181,14 @@ fn cg_emit_label_if_new(ctx: ref CgCtx, label: ref u8) bool! = {
     return true
 }
 
-fn cg_dvars(ctx: ref CgCtx) ref void! = { return ctx.dvars as ref void }
-fn cg_snames(ctx: ref CgCtx) ref void! = { return ctx.snames as ref void }
-fn cg_global_src_names(ctx: ref CgCtx) ref void! = { return ctx.global_src_names as ref void }
-fn cg_global_labels(ctx: ref CgCtx)    ref void! = { return ctx.global_labels as ref void }
-fn cg_global_qtypes(ctx: ref CgCtx)    ref void! = { return ctx.global_qtypes as ref void }
-fn cg_global_anns(ctx: ref CgCtx)      ref void! = { return ctx.global_anns as ref void }
+fn cg_dvars(ctx: ref CgCtx) ref void = trust { return ctx.dvars as ref void }
+fn cg_snames(ctx: ref CgCtx) ref void = trust { return ctx.snames as ref void }
+fn cg_global_src_names(ctx: ref CgCtx) ref void = trust { return ctx.global_src_names as ref void }
+fn cg_global_labels(ctx: ref CgCtx)    ref void = trust { return ctx.global_labels as ref void }
+fn cg_global_qtypes(ctx: ref CgCtx)    ref void = trust { return ctx.global_qtypes as ref void }
+fn cg_global_anns(ctx: ref CgCtx)      ref void = trust { return ctx.global_anns as ref void }
 
-fn cg_mark_prefix_used(ctx: ref CgCtx, prefix: ref u8) void! = {
+fn cg_mark_prefix_used(ctx: ref CgCtx, prefix: ref u8) void = trust {
     val nlen: i64 = @len(ctx.used_prefixes as list[ref u8]) as i64
     val ni: mut i64 = 0
     for {
@@ -207,7 +207,7 @@ fn cg_mark_prefix_used(ctx: ref CgCtx, prefix: ref u8) void! = {
     @append(ctx.used_prefixes as list[ref u8], prefix)
 }
 
-fn cg_is_prefix_used(ctx: ref CgCtx, prefix: ref u8) bool! = {
+fn cg_is_prefix_used(ctx: ref CgCtx, prefix: ref u8) bool = trust {
     val nlen: i64 = @len(ctx.used_prefixes as list[ref u8]) as i64
     val ni: mut i64 = 0
     for {
@@ -229,7 +229,7 @@ fn cg_is_prefix_used(ctx: ref CgCtx, prefix: ref u8) bool! = {
 /// Returns true if the given when-clause name matches the specified platform.
 /// When src_target is "" the real host platform is used.
 /// Handles group aliases: "posix" matches linux/darwin/*bsd/haiku/android/redox.
-pub fn platform_matches_with_target(name: ref u8, src_target: ref u8) bool! = {
+pub fn platform_matches_with_target(name: ref u8, src_target: ref u8) bool = trust {
     val arena = allocators.Arena.new(256)?
     val cur: mut ref u8 = reflection.current_platform_name[allocators.Arena](arena)
     if str.rchar_cmp(src_target, "") != 0 { cur = src_target }
@@ -254,24 +254,24 @@ pub fn platform_matches_with_target(name: ref u8, src_target: ref u8) bool! = {
 }
 
 /// Returns true if the given when-clause name matches the host platform (no override).
-pub fn platform_matches(name: ref u8) bool! = {
+pub fn platform_matches(name: ref u8) bool = trust {
     return platform_matches_with_target(name, "")
 }
 
 /// Returns true if the given when-clause name matches considering ctx.src_target.
-fn cg_platform_matches(ctx: ref CgCtx, name: ref u8) bool! = {
+fn cg_platform_matches(ctx: ref CgCtx, name: ref u8) bool = trust {
     return platform_matches_with_target(name, ctx.src_target)
 }
 
 /// Register a generic function node for later monomorphization.
-fn register_generic_fn(ctx: ref CgCtx, name: ref u8, node: ref parser.Node, prefix: ref u8) void! = {
+fn register_generic_fn(ctx: ref CgCtx, name: ref u8, node: ref parser.Node, prefix: ref u8) void = trust {
     @append(ctx.gfn_names, name)
     @append(ctx.gfn_nodes as list[ref void], node as ref void)
     @append(ctx.gfn_prefixes, prefix)
 }
 
 /// Look up a generic function node by base name. Returns null if not found.
-fn lookup_generic_fn(ctx: ref CgCtx, name: ref u8) ref parser.Node! = {
+fn lookup_generic_fn(ctx: ref CgCtx, name: ref u8) ref parser.Node = trust {
     val nlen: i64 = @len(ctx.gfn_names) as i64
     val ni: mut i64 = 0
     for {
@@ -295,7 +295,7 @@ fn lookup_generic_fn(ctx: ref CgCtx, name: ref u8) ref parser.Node! = {
 }
 
 /// Look up a generic function's module prefix by base name.
-fn lookup_generic_fn_prefix(ctx: ref CgCtx, name: ref u8) ref u8! = {
+fn lookup_generic_fn_prefix(ctx: ref CgCtx, name: ref u8) ref u8 = trust {
     val nlen: i64 = @len(ctx.gfn_names) as i64
     val ni: mut i64 = 0
     for {
@@ -319,13 +319,13 @@ fn lookup_generic_fn_prefix(ctx: ref CgCtx, name: ref u8) ref u8! = {
 }
 
 /// Push a type substitution (type_param_name -> concrete type node).
-fn gsubst_push(ctx: ref CgCtx, name: ref u8, ty: ref parser.Node) void! = {
+fn gsubst_push(ctx: ref CgCtx, name: ref u8, ty: ref parser.Node) void = trust {
     @append(ctx.gsubst_names, name)
     @append(ctx.gsubst_tnodes as list[ref void], ty as ref void)
 }
 
 /// Resolve a type node through current generic substitutions.
-fn gsubst_resolve(ctx: ref CgCtx, ty: ref parser.Node) ref parser.Node! = {
+fn gsubst_resolve(ctx: ref CgCtx, ty: ref parser.Node) ref parser.Node = trust {
     if ty == none { return ty }
     if ty.kind != parser.TY_NAMED { return ty }
     val name: ref u8 = ty.d0 as ref u8
@@ -352,7 +352,7 @@ fn gsubst_resolve(ctx: ref CgCtx, ty: ref parser.Node) ref parser.Node! = {
 }
 
 /// Resolve a generic type parameter name to its concrete substituted type name.
-fn gsubst_resolve_name(ctx: ref CgCtx, name: ref u8) ref u8! = {
+fn gsubst_resolve_name(ctx: ref CgCtx, name: ref u8) ref u8 = trust {
     val nlen: i64 = @len(ctx.gsubst_names) as i64
     val ni: mut i64 = 0
     for {
@@ -378,7 +378,7 @@ fn gsubst_resolve_name(ctx: ref CgCtx, name: ref u8) ref u8! = {
     return ""
 }
 
-fn cg_clone_node(node: ref parser.Node) ref parser.Node! = {
+fn cg_clone_node(node: ref parser.Node) ref parser.Node = trust {
     if node == none { return none }
     val out: mut ref parser.Node = parser.make_node(node.kind, node.line)
     out.d0 = node.d0
@@ -391,7 +391,7 @@ fn cg_clone_node(node: ref parser.Node) ref parser.Node! = {
     return out
 }
 
-fn cg_clone_char_list(xs: list[ref u8]) list[ref u8]! = {
+fn cg_clone_char_list(xs: list[ref u8]) list[ref u8] = trust {
     val out: mut list[ref u8] = []
     val len: i64 = @len(xs) as i64
     val i: mut i64 = 0
@@ -407,7 +407,7 @@ fn cg_clone_char_list(xs: list[ref u8]) list[ref u8]! = {
     return out
 }
 
-fn cg_clone_void_list(xs: list[ref void]) list[ref void]! = {
+fn cg_clone_void_list(xs: list[ref void]) list[ref void] = trust {
     val out: mut list[ref void] = []
     val len: i64 = @len(xs) as i64
     val i: mut i64 = 0
@@ -423,7 +423,7 @@ fn cg_clone_void_list(xs: list[ref void]) list[ref void]! = {
     return out
 }
 
-fn cg_concrete_ty(ctx: ref CgCtx, ty: ref parser.Node) ref parser.Node! = {
+fn cg_concrete_ty(ctx: ref CgCtx, ty: ref parser.Node) ref parser.Node = trust {
     if ty == none { return none }
     val k: i64 = ty.kind
     if k == parser.TY_NAMED { return gsubst_resolve(ctx, ty) }
@@ -448,7 +448,7 @@ fn cg_concrete_ty(ctx: ref CgCtx, ty: ref parser.Node) ref parser.Node! = {
 }
 
 /// Extract the list element type node from a type. Unwraps mut wrappers.
-fn cg_unwrap_list_elem_ty(ctx: ref CgCtx, ty: ref parser.Node) ref parser.Node! = {
+fn cg_unwrap_list_elem_ty(ctx: ref CgCtx, ty: ref parser.Node) ref parser.Node = trust {
     if ty == none { return none }
     val resolved: ref parser.Node = cg_concrete_ty(ctx, ty)
     val k: i64 = resolved.kind
@@ -457,7 +457,7 @@ fn cg_unwrap_list_elem_ty(ctx: ref CgCtx, ty: ref parser.Node) ref parser.Node! 
     return none
 }
 
-fn cg_struct_fields_for_type(ctx: ref CgCtx, ty: ref parser.Node) ref void! = {
+fn cg_struct_fields_for_type(ctx: ref CgCtx, ty: ref parser.Node) ref void = trust {
     val resolved: ref parser.Node = cg_concrete_ty(ctx, ty)
     if resolved == none { return none }
     val k: i64 = resolved.kind
@@ -470,7 +470,7 @@ fn cg_struct_fields_for_type(ctx: ref CgCtx, ty: ref parser.Node) ref void! = {
     return none
 }
 
-fn cg_rewrite_empty_struct_init(ctx: ref CgCtx, expr: ref parser.Node) bool! = {
+fn cg_rewrite_empty_struct_init(ctx: ref CgCtx, expr: ref parser.Node) bool = trust {
     if expr == none || expr.kind != parser.NK_ARGS_PACK { return false }
     val pack: ref void = expr.d0 as ref void
     if pack != none && @len(pack as list[ref parser.Node]) as i64 != 0 { return false }
@@ -484,7 +484,7 @@ fn cg_rewrite_empty_struct_init(ctx: ref CgCtx, expr: ref parser.Node) bool! = {
     return true
 }
 
-fn cg_alloc_size_for_type(ctx: ref CgCtx, ty: ref parser.Node) i64! = {
+fn cg_alloc_size_for_type(ctx: ref CgCtx, ty: ref parser.Node) i64 = trust {
     val resolved: ref parser.Node = cg_concrete_ty(ctx, ty)
     if resolved == none { return 0 }
     val k: i64 = resolved.kind
@@ -501,7 +501,7 @@ fn cg_alloc_size_for_type(ctx: ref CgCtx, ty: ref parser.Node) i64! = {
     return type_size(resolved)
 }
 
-fn cg_literal_matches_struct_fields(ctx: ref CgCtx, lit_fields: ref void, struct_fields: ref void) bool! = {
+fn cg_literal_matches_struct_fields(ctx: ref CgCtx, lit_fields: ref void, struct_fields: ref void) bool = trust {
     if lit_fields == none || struct_fields == none { return false }
     val lflen: i64 = @len(lit_fields as list[ref void]) as i64
     val li: mut i64 = 0
@@ -522,7 +522,7 @@ fn cg_literal_matches_struct_fields(ctx: ref CgCtx, lit_fields: ref void, struct
     return true
 }
 
-fn cg_literal_exact_struct_match(ctx: ref CgCtx, lit_fields: ref void, struct_fields: ref void) bool! = {
+fn cg_literal_exact_struct_match(ctx: ref CgCtx, lit_fields: ref void, struct_fields: ref void) bool = trust {
     if lit_fields == none || struct_fields == none { return false }
     if @len(lit_fields as list[ref void]) as i64 != @len(struct_fields as list[ref void]) as i64 {
         return false
@@ -530,7 +530,7 @@ fn cg_literal_exact_struct_match(ctx: ref CgCtx, lit_fields: ref void, struct_fi
     return cg_literal_matches_struct_fields(ctx, lit_fields, struct_fields)
 }
 
-fn cg_find_struct_fields_for_literal(ctx: ref CgCtx, lit_fields: ref void) ref void! = {
+fn cg_find_struct_fields_for_literal(ctx: ref CgCtx, lit_fields: ref void) ref void = trust {
     if lit_fields == none { return none }
     val sfields_list: ref void = cg_sfields(ctx)
     val slen: i64 = @len(sfields_list as list[ref void]) as i64
@@ -579,7 +579,7 @@ fn cg_find_struct_fields_for_literal(ctx: ref CgCtx, lit_fields: ref void) ref v
 }
 
 /// Serialize a type node to a canonical string for constraint matching.
-fn type_node_to_str(ty: ref parser.Node) ref u8! = {
+fn type_node_to_str(ty: ref parser.Node) ref u8 = trust {
     if ty == none { return "void" }
     val k: i64 = ty.kind
     if k == parser.TY_NAMED { return ty.d0 as ref u8 }
@@ -600,7 +600,7 @@ fn type_node_to_str(ty: ref parser.Node) ref u8! = {
 }
 
 /// Serialize a type node to a mangled identifier string for function naming.
-fn sanitize_mangle_atom(name: ref u8) ref u8! = {
+fn sanitize_mangle_atom(name: ref u8) ref u8 = trust {
     val nlen: i64 = str.len_raw(name)
     val out: ref u8 = @alloc(nlen * 2 + 1) as ref u8
     val si: mut i64 = 0
@@ -622,7 +622,7 @@ fn sanitize_mangle_atom(name: ref u8) ref u8! = {
     return out
 }
 
-fn type_node_to_mangle(ty: ref parser.Node) ref u8! = {
+fn type_node_to_mangle(ty: ref parser.Node) ref u8 = trust {
     if ty == none { return "void" }
     val k: i64 = ty.kind
     if k == parser.TY_NAMED { return sanitize_mangle_atom(ty.d0 as ref u8) }
@@ -642,7 +642,7 @@ fn type_node_to_mangle(ty: ref parser.Node) ref u8! = {
     return "unknown"
 }
 
-fn type_node_to_mangled_ident(ty: ref parser.Node) ref u8! = {
+fn type_node_to_mangled_ident(ty: ref parser.Node) ref u8 = trust {
     if ty == none { return "" }
     val k: i64 = ty.kind
     if k == parser.TY_NAMED { return sanitize_mangle_atom(ty.d0 as ref u8) }
@@ -654,7 +654,7 @@ fn type_node_to_mangled_ident(ty: ref parser.Node) ref u8! = {
 }
 
 /// Check whether a NK_GENERIC_WHEN node's conditions match current substitutions.
-fn gwhen_matches_gsubst(ctx: ref CgCtx, when_node: ref parser.Node) bool! = {
+fn gwhen_matches_gsubst(ctx: ref CgCtx, when_node: ref parser.Node) bool = trust {
     val conds: ref void = when_node.d0 as ref void
     if conds == none { return true }
     val clen: i64 = @len(conds as list[ref parser.Node]) as i64
@@ -745,7 +745,7 @@ fn gwhen_matches_gsubst(ctx: ref CgCtx, when_node: ref parser.Node) bool! = {
 
 /// Find the first matching NK_GENERIC_WHEN branch body in a function body, given current substitutions.
 /// Returns the body stmts (as ref parser.Node = list) or null if none found.
-fn find_matching_gwhen_body(ctx: ref CgCtx, fn_body: ref parser.Node) ref parser.Node! = {
+fn find_matching_gwhen_body(ctx: ref CgCtx, fn_body: ref parser.Node) ref parser.Node = trust {
     if fn_body == none { return none }
     val blen: i64 = @len(fn_body) as i64
     val bi: mut i64 = 0
@@ -769,7 +769,7 @@ fn find_matching_gwhen_body(ctx: ref CgCtx, fn_body: ref parser.Node) ref parser
 }
 
 /// Substitute TY_NAMED type params in a param node's type, returning new param node.
-fn make_concrete_param(ctx: ref CgCtx, param: ref parser.Node) ref parser.Node! = {
+fn make_concrete_param(ctx: ref CgCtx, param: ref parser.Node) ref parser.Node = trust {
     val pname: ref u8 = param.d0 as ref u8
     val pty: ref parser.Node = param.d1 as ref parser.Node
     val resolved: ref parser.Node = gsubst_resolve(ctx, pty)
@@ -781,7 +781,7 @@ fn make_concrete_param(ctx: ref CgCtx, param: ref parser.Node) ref parser.Node! 
 
 /// Monomorphize a generic function and emit it. Returns the base mangled name (without sx__ prefix).
 fn monomorphize_generic_fn(ctx: mut ref CgCtx, gfn_node: ref parser.Node, _: ref u8,
-                            type_args: list[ref parser.Node]) ref u8! = {
+                            type_args: list[ref parser.Node]) ref u8 = trust {
     val fn_name: ref u8 = gfn_node.d2 as ref u8
     val tparams: ref void = gfn_node.d6 as ref void
     val suffix: ref u8 = @alloc(512) as ref u8
@@ -920,14 +920,14 @@ fn monomorphize_generic_fn(ctx: mut ref CgCtx, gfn_node: ref parser.Node, _: ref
 }
 
 /// Extract the base name from a possibly-qualified callee (NK_IDENT or NK_FIELD).
-fn generic_callee_base_name(node: ref parser.Node) ref u8! = {
+fn generic_callee_base_name(node: ref parser.Node) ref u8 = trust {
     val k: i64 = node.kind
     if k == parser.NK_IDENT { return node.d0 as ref u8 }
     if k == parser.NK_FIELD { return parser.field_name(node) }
     return "unknown"
 }
 
-fn cg_is_c_escape_expr(node: ref parser.Node) bool! = {
+fn cg_is_c_escape_expr(node: ref parser.Node) bool = trust {
     if node == none || node.kind != parser.NK_FIELD { return false }
     val cur: mut ref parser.Node = node
     for {
@@ -941,7 +941,7 @@ fn cg_is_c_escape_expr(node: ref parser.Node) bool! = {
     return false
 }
 
-fn cg_raw_c_name(node: ref parser.Node) ref u8! = {
+fn cg_raw_c_name(node: ref parser.Node) ref u8 = trust {
     if node == none { return "" }
     if node.kind == parser.NK_IDENT {
         val name: ref u8 = node.d0 as ref u8
@@ -961,7 +961,7 @@ fn cg_raw_c_name(node: ref parser.Node) ref u8! = {
 
 /// Extract the module prefix from a mangled function name.
 /// E.g. "std__stdio__puts" with bare name "puts" -> "std__stdio"
-pub fn extract_prefix_from_mangled(mangled: ref u8, bare_name: ref u8) ref u8! = {
+pub fn extract_prefix_from_mangled(mangled: ref u8, bare_name: ref u8) ref u8 = trust {
     val mlen: i64 = str.len_raw(mangled)
     val blen: i64 = str.len_raw(bare_name)
     if mlen <= blen + 2 {
@@ -974,7 +974,7 @@ pub fn extract_prefix_from_mangled(mangled: ref u8, bare_name: ref u8) ref u8! =
     return prefix
 }
 
-fn cg_register_global(ctx: ref CgCtx, src_name: ref u8, label: ref u8, qtype: ref u8, ann: ref u8) void! = {
+fn cg_register_global(ctx: ref CgCtx, src_name: ref u8, label: ref u8, qtype: ref u8, ann: ref u8) void = trust {
     @append(cg_global_src_names(ctx) as list[ref u8], src_name)
     @append(cg_global_labels(ctx)    as list[ref u8], label)
     @append(cg_global_qtypes(ctx)    as list[ref u8], qtype)
@@ -982,7 +982,7 @@ fn cg_register_global(ctx: ref CgCtx, src_name: ref u8, label: ref u8, qtype: re
 }
 
 /// Look up a global by source name. Returns ("", "") if not found.
-fn cg_lookup_global(ctx: ref CgCtx, src_name: ref u8, out_label: ref u8, out_qtype: ref u8, out_ann: ref u8) bool! = {
+fn cg_lookup_global(ctx: ref CgCtx, src_name: ref u8, out_label: ref u8, out_qtype: ref u8, out_ann: ref u8) bool = trust {
     val names: ref void = cg_global_src_names(ctx)
     val len: i64 = @len(names) as i64
     val i: mut i64 = 0
@@ -1023,36 +1023,36 @@ fn cg_lookup_global(ctx: ref CgCtx, src_name: ref u8, out_label: ref u8, out_qty
     return false
 }
 
-fn cg_sfields(ctx: ref CgCtx) list[ref void]! = { return ctx.sfields }
-fn cg_unames(ctx: ref CgCtx) ref void! = { return ctx.unames as ref void }
-fn cg_uvariants(ctx: ref CgCtx) ref void! = { return ctx.uvariants as ref void }
-fn cg_fn_names(ctx: ref CgCtx) ref void! = { return ctx.fn_names as ref void }
-fn cg_fn_params(ctx: ref CgCtx) ref void! = { return ctx.fn_params as ref void }
-fn cg_fn_rets(ctx: ref CgCtx) ref void! = { return ctx.fn_rets as ref void }
-fn cg_extern_names(ctx: ref CgCtx) ref void! = { return ctx.ext_names as ref void }
-fn cg_extern_syms(ctx: ref CgCtx) ref void! = { return ctx.ext_syms as ref void }
-fn cg_ext_rets(ctx: ref CgCtx) ref void! = { return ctx.ext_rets as ref void }
-fn cg_tv_names(ctx: ref CgCtx) ref void! = { return ctx.tv_names as ref void }
-fn cg_tv_owners(ctx: ref CgCtx) ref void! = { return ctx.tv_owners as ref void }
-fn cg_tv_tags(ctx: ref CgCtx) ref void! = { return ctx.tv_tags as ref void }
-fn cg_tv_fields(ctx: ref CgCtx) ref void! = { return ctx.tv_fields as ref void }
-fn cg_break_lbl(ctx: ref CgCtx) i64! = { return ctx.break_lbl }
-fn cg_cont_lbl(ctx: ref CgCtx) i64! = { return ctx.cont_lbl }
-fn cg_set_break_lbl(ctx: mut ref CgCtx, v: i64) void! = { ctx.break_lbl = v }
-fn cg_set_cont_lbl(ctx: mut ref CgCtx, v: i64) void! = { ctx.cont_lbl = v }
-fn cg_defer_stack(ctx: ref CgCtx) ref void! = { return ctx.defer_stack as ref void }
+fn cg_sfields(ctx: ref CgCtx) list[ref void] = trust { return ctx.sfields }
+fn cg_unames(ctx: ref CgCtx) ref void = trust { return ctx.unames as ref void }
+fn cg_uvariants(ctx: ref CgCtx) ref void = trust { return ctx.uvariants as ref void }
+fn cg_fn_names(ctx: ref CgCtx) ref void = trust { return ctx.fn_names as ref void }
+fn cg_fn_params(ctx: ref CgCtx) ref void = trust { return ctx.fn_params as ref void }
+fn cg_fn_rets(ctx: ref CgCtx) ref void = trust { return ctx.fn_rets as ref void }
+fn cg_extern_names(ctx: ref CgCtx) ref void = trust { return ctx.ext_names as ref void }
+fn cg_extern_syms(ctx: ref CgCtx) ref void = trust { return ctx.ext_syms as ref void }
+fn cg_ext_rets(ctx: ref CgCtx) ref void = trust { return ctx.ext_rets as ref void }
+fn cg_tv_names(ctx: ref CgCtx) ref void = trust { return ctx.tv_names as ref void }
+fn cg_tv_owners(ctx: ref CgCtx) ref void = trust { return ctx.tv_owners as ref void }
+fn cg_tv_tags(ctx: ref CgCtx) ref void = trust { return ctx.tv_tags as ref void }
+fn cg_tv_fields(ctx: ref CgCtx) ref void = trust { return ctx.tv_fields as ref void }
+fn cg_break_lbl(ctx: ref CgCtx) i64 = trust { return ctx.break_lbl }
+fn cg_cont_lbl(ctx: ref CgCtx) i64 = trust { return ctx.cont_lbl }
+fn cg_set_break_lbl(ctx: mut ref CgCtx, v: i64) void = trust { ctx.break_lbl = v }
+fn cg_set_cont_lbl(ctx: mut ref CgCtx, v: i64) void = trust { ctx.cont_lbl = v }
+fn cg_defer_stack(ctx: ref CgCtx) ref void = trust { return ctx.defer_stack as ref void }
 
-fn cg_defer_push(ctx: ref CgCtx, body: ref parser.Node) void! = {
+fn cg_defer_push(ctx: ref CgCtx, body: ref parser.Node) void = trust {
     val stack: ref void = cg_defer_stack(ctx)
     @append(stack as list[ref void], body as ref void)
 }
 
-fn cg_defer_clear(ctx: mut ref CgCtx) void! = {
+fn cg_defer_clear(ctx: mut ref CgCtx) void = trust {
     ctx.defer_stack = []
 }
 
 /// Emit all deferred statements in LIFO order.
-fn cg_emit_defers(ctx: ref CgCtx) void! = {
+fn cg_emit_defers(ctx: ref CgCtx) void = trust {
     val stack: ref void = cg_defer_stack(ctx)
     val n: i64 = @len(stack as list[ref void]) as i64
     val i: mut i64 = n - 1
@@ -1067,10 +1067,10 @@ fn cg_emit_defers(ctx: ref CgCtx) void! = {
     }
 }
 
-fn cg_mc_names(ctx: ref CgCtx) ref void! = { return ctx.mc_names as ref void }
-fn cg_mc_vals(ctx: ref CgCtx) ref void! = { return ctx.mc_vals as ref void }
+fn cg_mc_names(ctx: ref CgCtx) ref void = trust { return ctx.mc_names as ref void }
+fn cg_mc_vals(ctx: ref CgCtx) ref void = trust { return ctx.mc_vals as ref void }
 
-fn cg_register_module_const(ctx: ref CgCtx, name: ref u8, val_str: ref u8) void! = {
+fn cg_register_module_const(ctx: ref CgCtx, name: ref u8, val_str: ref u8) void = trust {
     @append(cg_mc_names(ctx) as list[ref u8], name)
     @append(cg_mc_vals(ctx)  as list[ref u8], val_str)
     if !collections.IndexMap.contains(ctx.mc_index, name) {
@@ -1081,20 +1081,20 @@ fn cg_register_module_const(ctx: ref CgCtx, name: ref u8, val_str: ref u8) void!
 }
 
 /// Look up a module-level constant value by name. Returns "" if not found.
-fn cg_const_val(ctx: ref CgCtx, name: ref u8) ref u8! = {
+fn cg_const_val(ctx: ref CgCtx, name: ref u8) ref u8 = trust {
     match collections.IndexMap.get(ctx.mc_index, name) {
         some v => { return v as ref u8 }
         none   => { return "" }
     }
 }
 
-fn cg_is_int_const_val(cval: ref u8) bool! = {
+fn cg_is_int_const_val(cval: ref u8) bool = trust {
     if cval == none || str.rchar_cmp(cval, "") == 0 { return false }
     if rchar_starts_with(cval, "d_") || rchar_starts_with(cval, "s_") { return false }
     return true
 }
 
-fn cg_fixed_arr_size_text(_: ref CgCtx, ty: ref parser.Node) ref u8! = {
+fn cg_fixed_arr_size_text(_: ref CgCtx, ty: ref parser.Node) ref u8 = trust {
     if ty == none || ty.kind != parser.TY_FIXED_ARR { return "0" }
     val sz_name: ref u8 = parser.fixed_arr_size_name(ty)
     if sz_name != none && str.rchar_cmp(sz_name, "") != 0 { return sz_name }
@@ -1103,7 +1103,7 @@ fn cg_fixed_arr_size_text(_: ref CgCtx, ty: ref parser.Node) ref u8! = {
     return buf
 }
 
-fn cg_fixed_arr_size_val(ctx: ref CgCtx, ty: ref parser.Node) i64! = {
+fn cg_fixed_arr_size_val(ctx: ref CgCtx, ty: ref parser.Node) i64 = trust {
     if ty == none || ty.kind != parser.TY_FIXED_ARR { return 0 }
     val sz_name: ref u8 = parser.fixed_arr_size_name(ty)
     if sz_name == none || str.rchar_cmp(sz_name, "") == 0 {
@@ -1140,7 +1140,7 @@ fn cg_fixed_arr_size_val(ctx: ref CgCtx, ty: ref parser.Node) i64! = {
     }
 }
 
-fn cg_type_size(ctx: ref CgCtx, ty: ref parser.Node) i64! = {
+fn cg_type_size(ctx: ref CgCtx, ty: ref parser.Node) i64 = trust {
     if ty == none { return 8 }
     val k: i64 = ty.kind
     if k == parser.TY_FIXED_ARR {
@@ -1152,7 +1152,7 @@ fn cg_type_size(ctx: ref CgCtx, ty: ref parser.Node) i64! = {
     return type_size(ty)
 }
 
-fn ann_fixed_arr_close_index(ann: ref u8) i64! = {
+fn ann_fixed_arr_close_index(ann: ref u8) i64 = trust {
     val len: i64 = str.len_raw(ann)
     val i: mut i64 = 0
     for {
@@ -1164,20 +1164,20 @@ fn ann_fixed_arr_close_index(ann: ref u8) i64! = {
     return -1
 }
 
-fn ann_fixed_arr_len_text(ann: ref u8) ref u8! = {
+fn ann_fixed_arr_len_text(ann: ref u8) ref u8 = trust {
     val close_i: i64 = ann_fixed_arr_close_index(ann)
     if close_i <= 1 { return "" }
     return str.substr(ann, 1, close_i - 1)
 }
 
-fn ann_fixed_arr_inner(ann: ref u8) ref u8! = {
+fn ann_fixed_arr_inner(ann: ref u8) ref u8 = trust {
     val close_i: i64 = ann_fixed_arr_close_index(ann)
     val len: i64 = str.len_raw(ann)
     if close_i < 0 || close_i + 1 >= len { return "" }
     return str.substr(ann, close_i + 1, len - close_i - 1)
 }
 
-fn cg_ann_fixed_arr_len_val(ctx: ref CgCtx, ann: ref u8) i64! = {
+fn cg_ann_fixed_arr_len_val(ctx: ref CgCtx, ann: ref u8) i64 = trust {
     val ltxt: ref u8 = ann_fixed_arr_len_text(ann)
     if str.rchar_cmp(ltxt, "") == 0 { return 0 }
     val parsed = fmt.string_to_i64(ltxt)
@@ -1195,7 +1195,7 @@ fn cg_ann_fixed_arr_len_val(ctx: ref CgCtx, ann: ref u8) i64! = {
     }
 }
 
-fn cg_ann_size(ctx: ref CgCtx, ann: ref u8) i64! = {
+fn cg_ann_size(ctx: ref CgCtx, ann: ref u8) i64 = trust {
     if str.rchar_cmp(ann, "") == 0 { return 8 }
     if rchar_starts_with(ann, "[") {
         val count: i64 = cg_ann_fixed_arr_len_val(ctx, ann)
@@ -1209,7 +1209,7 @@ fn cg_ann_size(ctx: ref CgCtx, ann: ref u8) i64! = {
     return 8
 }
 
-fn cg_ann_load_instr(ann: ref u8) ref u8! = {
+fn cg_ann_load_instr(ann: ref u8) ref u8 = trust {
     if str.rchar_cmp(ann, "f64") == 0 { return "loadd" }
     if str.rchar_cmp(ann, "f32") == 0 { return "loads" }
     if str.rchar_cmp(ann, "i32") == 0 { return "loadsw" }
@@ -1221,19 +1221,19 @@ fn cg_ann_load_instr(ann: ref u8) ref u8! = {
     return "loadl"
 }
 
-fn cg_ann_qtype(ann: ref u8) ref u8! = {
+fn cg_ann_qtype(ann: ref u8) ref u8 = trust {
     if str.rchar_cmp(ann, "f64") == 0 { return "d" }
     if str.rchar_cmp(ann, "f32") == 0 { return "s" }
     if str.rchar_cmp(ann, "i32") == 0 || str.rchar_cmp(ann, "u32") == 0 || str.rchar_cmp(ann, "i16") == 0 || str.rchar_cmp(ann, "u16") == 0 || str.rchar_cmp(ann, "i8") == 0 || str.rchar_cmp(ann, "u8") == 0 || str.rchar_cmp(ann, "bool") == 0 || str.rchar_cmp(ann, "u8") == 0 { return "w" }
     return "l"
 }
 
-fn cg_ann_word_extend_instr(ann: ref u8) ref u8! = {
+fn cg_ann_word_extend_instr(ann: ref u8) ref u8 = trust {
     if str.rchar_cmp(ann, "u32") == 0 || str.rchar_cmp(ann, "u16") == 0 || str.rchar_cmp(ann, "u8") == 0 || str.rchar_cmp(ann, "bool") == 0 || str.rchar_cmp(ann, "u8") == 0 { return "extuw" }
     return "extsw"
 }
 
-fn cg_normalize_qtype(qtype: ref u8) ref u8! = {
+fn cg_normalize_qtype(qtype: ref u8) ref u8 = trust {
     if qtype == none { return "" }
     val qv: i64 = parser.ptr_to_i64[ref u8](qtype)
     if qv == 119 { return "w" }
@@ -1244,7 +1244,7 @@ fn cg_normalize_qtype(qtype: ref u8) ref u8! = {
     return qtype
 }
 
-fn cg_coerce_qtype(ctx: ref CgCtx, value: ref u8, src_qtype: ref u8, dst_qtype: ref u8) ref u8! = {
+fn cg_coerce_qtype(ctx: ref CgCtx, value: ref u8, src_qtype: ref u8, dst_qtype: ref u8) ref u8 = trust {
     val src_qtype_n: ref u8 = cg_normalize_qtype(src_qtype)
     val dst_qtype_n: ref u8 = cg_normalize_qtype(dst_qtype)
     if str.rchar_cmp(src_qtype_n, dst_qtype_n) == 0 { return value }
@@ -1281,7 +1281,7 @@ fn cg_coerce_qtype(ctx: ref CgCtx, value: ref u8, src_qtype: ref u8, dst_qtype: 
     return value
 }
 
-fn cg_ann_after_get_indices(ann: ref u8, dims: i64) ref u8! = {
+fn cg_ann_after_get_indices(ann: ref u8, dims: i64) ref u8 = trust {
     val cur: mut ref u8 = ann
     val di: mut i64 = 0
     for {
@@ -1294,7 +1294,7 @@ fn cg_ann_after_get_indices(ann: ref u8, dims: i64) ref u8! = {
 }
 
 /// Returns true if name is a registered function.
-fn cg_is_fn(ctx: ref CgCtx, name: ref u8) bool! = {
+fn cg_is_fn(ctx: ref CgCtx, name: ref u8) bool = trust {
     val names: ref void = cg_fn_names(ctx)
     val nlen: i64 = @len(names as list[ref u8]) as i64
     val ni: mut i64 = 0
@@ -1315,7 +1315,7 @@ fn cg_is_fn(ctx: ref CgCtx, name: ref u8) bool! = {
 /// Returns the mangled function name for a bare name, or 0 if not found.
 ///
 /// Tries exact match first, then suffix match (e.g. "hash_string" -> "collections__hash_string").
-fn cg_resolve_fn_name(ctx: ref CgCtx, name: ref u8) ref u8! = {
+fn cg_resolve_fn_name(ctx: ref CgCtx, name: ref u8) ref u8 = trust {
     val names: ref void = cg_fn_names(ctx)
     val nlen: i64 = @len(names as list[ref u8]) as i64
     val namelen: i64 = str.len_raw(name)
@@ -1375,14 +1375,14 @@ fn cg_resolve_fn_name(ctx: ref CgCtx, name: ref u8) ref u8! = {
 }
 
 /// Register a function's mangled name and its param list for call-site type checking.
-fn cg_register_fn(ctx: ref CgCtx, mangled: ref u8, params: ref void, ret_ty: ref void) void! = {
+fn cg_register_fn(ctx: ref CgCtx, mangled: ref u8, params: ref void, ret_ty: ref void) void = trust {
     @append(ctx.fn_names, mangled)
     @append(ctx.fn_params as list[ref void], params)
     @append(ctx.fn_rets as list[ref void], ret_ty)
 }
 
 /// Look up param list for a mangled function name. Returns 0 if not found.
-fn cg_lookup_fn_params(ctx: ref CgCtx, mangled: ref u8) ref void! = {
+fn cg_lookup_fn_params(ctx: ref CgCtx, mangled: ref u8) ref void = trust {
     val names: ref void = cg_fn_names(ctx)
     val nlen: i64 = @len(names as list[ref u8]) as i64
     val ni: mut i64 = 0
@@ -1409,7 +1409,7 @@ fn cg_lookup_fn_params(ctx: ref CgCtx, mangled: ref u8) ref void! = {
 /// Find a mangled function name whose suffix matches the given bare name.
 /// E.g. bare name "kind_is_eq" matches mangled "parser__kind_is_eq".
 /// Returns the mangled name, or empty string if not found.
-fn resolve_fn_mangled(ctx: ref CgCtx, bare_name: ref u8) ref u8! = {
+fn resolve_fn_mangled(ctx: ref CgCtx, bare_name: ref u8) ref u8 = trust {
     val names: ref void = cg_fn_names(ctx)
     val nlen: i64 = @len(names as list[ref u8]) as i64
     val ni: mut i64 = 0
@@ -1446,7 +1446,7 @@ fn resolve_fn_mangled(ctx: ref CgCtx, bare_name: ref u8) ref u8! = {
 }
 
 /// Look up the return type for a mangled function name. Returns 0 if not found.
-fn cg_lookup_fn_ret(ctx: ref CgCtx, mangled: ref u8) ref void! = {
+fn cg_lookup_fn_ret(ctx: ref CgCtx, mangled: ref u8) ref void = trust {
     val names: ref void = cg_fn_names(ctx)
     val nlen: i64 = @len(names as list[ref u8]) as i64
     val ni: mut i64 = 0
@@ -1473,7 +1473,7 @@ fn cg_lookup_fn_ret(ctx: ref CgCtx, mangled: ref u8) ref void! = {
 /// Look up the return TypeExpr for a function by its simple (unmangled) name.
 /// Uses suffix matching (same as cg_resolve_fn_name).
 /// Returns none if not found.
-fn cg_lookup_fn_ret_type_expr(ctx: ref CgCtx, name: ref u8) ref parser.Node! = {
+fn cg_lookup_fn_ret_type_expr(ctx: ref CgCtx, name: ref u8) ref parser.Node = trust {
     val names: ref void = cg_fn_names(ctx)
     val nlen: i64 = @len(names as list[ref u8]) as i64
     val namelen: i64 = str.len_raw(name)
@@ -1521,7 +1521,7 @@ fn cg_lookup_fn_ret_type_expr(ctx: ref CgCtx, name: ref u8) ref parser.Node! = {
 }
 
 /// Register an extern function: maps its declared name to its C symbol and stores return type.
-fn cg_register_extern(ctx: ref CgCtx, name: ref u8, symbol: ref u8, ret_ty: ref void) void! = {
+fn cg_register_extern(ctx: ref CgCtx, name: ref u8, symbol: ref u8, ret_ty: ref void) void = trust {
     @append(cg_extern_names(ctx) as list[ref u8], name)
     @append(cg_extern_syms(ctx)  as list[ref u8], symbol)
     @append(cg_ext_rets(ctx)     as list[ref void], ret_ty)
@@ -1529,7 +1529,7 @@ fn cg_register_extern(ctx: ref CgCtx, name: ref u8, symbol: ref u8, ret_ty: ref 
 
 /// Look up the C symbol for an extern function name. Returns 0 if not found.
 /// Tries exact match first, then suffix match (e.g. "std__os__exit" -> "exit").
-fn cg_lookup_extern_symbol(ctx: ref CgCtx, name: ref u8) ref u8! = {
+fn cg_lookup_extern_symbol(ctx: ref CgCtx, name: ref u8) ref u8 = trust {
     val names: ref void = cg_extern_names(ctx)
     val nlen: i64 = @len(names as list[ref u8]) as i64
     val ni: mut i64 = 0
@@ -1585,7 +1585,7 @@ fn cg_lookup_extern_symbol(ctx: ref CgCtx, name: ref u8) ref u8! = {
 
 /// Look up the return type for an extern function name. Returns 0 if not found.
 /// Tries exact match first, then suffix match.
-fn cg_lookup_ext_ret(ctx: ref CgCtx, name: ref u8) ref void! = {
+fn cg_lookup_ext_ret(ctx: ref CgCtx, name: ref u8) ref void = trust {
     val names: ref void = cg_extern_names(ctx)
     val nlen: i64 = @len(names as list[ref u8]) as i64
     val ni: mut i64 = 0
@@ -1640,7 +1640,7 @@ fn cg_lookup_ext_ret(ctx: ref CgCtx, name: ref u8) ref void! = {
 }
 
 /// Register a tagged union variant: variant_name -> (union_name, tag_index, field_type_node).
-fn cg_register_tv(ctx: ref CgCtx, vname: ref u8, owner: ref u8, tag: i64, field_ty: ref void) void! = {
+fn cg_register_tv(ctx: ref CgCtx, vname: ref u8, owner: ref u8, tag: i64, field_ty: ref void) void = trust {
     @append(cg_tv_names(ctx)  as list[ref u8],  vname)
     @append(cg_tv_owners(ctx) as list[ref u8],  owner)
     @append(cg_tv_tags(ctx)   as list[i64],     tag)
@@ -1650,7 +1650,7 @@ fn cg_register_tv(ctx: ref CgCtx, vname: ref u8, owner: ref u8, tag: i64, field_
 /// Look up a tagged union variant by name.
 /// Returns the tag index, or -1 if not found.
 /// Sets out_owner and out_field_ty if found (pass as ref void pointers to ref u8 / ref void).
-fn cg_lookup_tv(ctx: ref CgCtx, vname: ref u8, out_owner: ref void, out_field_ty: ref void) i64! = {
+fn cg_lookup_tv(ctx: ref CgCtx, vname: ref u8, out_owner: ref void, out_field_ty: ref void) i64 = trust {
     val names: ref void = cg_tv_names(ctx)
     val nlen: i64 = @len(names as list[ref u8]) as i64
     val ni: mut i64 = 0
@@ -1691,13 +1691,13 @@ fn cg_lookup_tv(ctx: ref CgCtx, vname: ref u8, out_owner: ref void, out_field_ty
 }
 
 /// Register a struct type's field list by name.
-fn cg_register_struct(ctx: ref CgCtx, type_name: ref u8, fields: ref void) void! = {
+fn cg_register_struct(ctx: ref CgCtx, type_name: ref u8, fields: ref void) void = trust {
     @append(cg_snames(ctx) as list[ref u8], type_name)
     @append(cg_sfields(ctx) as list[ref void], fields)
 }
 
 /// Look up the field list for a struct type name. Returns 0 if not found.
-fn cg_lookup_struct(ctx: ref CgCtx, type_name: ref u8) ref void! = {
+fn cg_lookup_struct(ctx: ref CgCtx, type_name: ref u8) ref void = trust {
     val names: ref void = cg_snames(ctx)
     val nlen: i64 = @len(names as list[ref u8]) as i64
     val ni: mut i64 = 0
@@ -1754,13 +1754,13 @@ fn cg_lookup_struct(ctx: ref CgCtx, type_name: ref u8) ref void! = {
 }
 
 /// Register an invariant expression list for a type name.
-fn cg_register_invariant(ctx: ref CgCtx, type_name: ref u8, inv_list: ref void) void! = {
+fn cg_register_invariant(ctx: ref CgCtx, type_name: ref u8, inv_list: ref void) void = trust {
     @append(ctx.inv_tnames as list[ref u8], type_name)
     @append(ctx.inv_tlists as list[ref void], inv_list)
 }
 
 /// Look up the invariant expression list for a type name. Returns 0 if not found.
-fn cg_lookup_invariant(ctx: ref CgCtx, type_name: ref u8) ref void! = {
+fn cg_lookup_invariant(ctx: ref CgCtx, type_name: ref u8) ref void = trust {
     val nlen: i64 = @len(ctx.inv_tnames as list[ref u8]) as i64
     val ni: mut i64 = 0
     for {
@@ -1785,7 +1785,7 @@ fn cg_lookup_invariant(ctx: ref CgCtx, type_name: ref u8) ref void! = {
 
 /// Emit runtime invariant checks for all mut-T params in the current function.
 /// No-ops in release mode.
-fn cg_emit_invariant_checks(ctx: ref CgCtx) void! = {
+fn cg_emit_invariant_checks(ctx: ref CgCtx) void = trust {
     if ctx.release_mode { return }
     val plen: i64 = @len(ctx.inv_cur_pnames as list[ref u8]) as i64
     if plen == 0 { return }
@@ -1896,13 +1896,13 @@ fn cg_emit_invariant_checks(ctx: ref CgCtx) void! = {
 }
 
 /// Register a union type's variant type-name list.
-fn cg_register_union(ctx: ref CgCtx, union_name: ref u8, variants: ref void) void! = {
+fn cg_register_union(ctx: ref CgCtx, union_name: ref u8, variants: ref void) void = trust {
     @append(cg_unames(ctx) as list[ref u8], union_name)
     @append(cg_uvariants(ctx) as list[ref void], variants)
 }
 
 /// Look up the variant list for a union type. Returns 0 if not found.
-fn cg_lookup_union(ctx: ref CgCtx, union_name: ref u8) ref void! = {
+fn cg_lookup_union(ctx: ref CgCtx, union_name: ref u8) ref void = trust {
     val names: ref void = cg_unames(ctx)
     val nlen: i64 = @len(names as list[ref u8]) as i64
     val ni: mut i64 = 0
@@ -1927,7 +1927,7 @@ fn cg_lookup_union(ctx: ref CgCtx, union_name: ref u8) ref void! = {
 }
 
 /// Check if a type name matches any registered union (tries exact match and suffix match for mangled names).
-fn is_union_type_name(ctx: ref CgCtx, type_name: ref u8) bool! = {
+fn is_union_type_name(ctx: ref CgCtx, type_name: ref u8) bool = trust {
     if cg_lookup_union_suffix(ctx, type_name) != none {
         return true
     }
@@ -1963,7 +1963,7 @@ fn is_union_type_name(ctx: ref CgCtx, type_name: ref u8) bool! = {
 }
 
 /// Compute the total byte size of a struct with the given fields.
-fn struct_size(ctx: ref CgCtx, fields: ref void) i64! = {
+fn struct_size(ctx: ref CgCtx, fields: ref void) i64 = trust {
     val flen: i64 = @len(fields as list[ref void]) as i64
     val has_fa: bool = fields_have_fixed_arr(fields)
     val offset: mut i64 = 0
@@ -2006,7 +2006,7 @@ fn struct_size(ctx: ref CgCtx, fields: ref void) i64! = {
     return offset
 }
 
-fn field_offset(ctx: ref CgCtx, fields: ref void, field_name: ref u8) i64! = {
+fn field_offset(ctx: ref CgCtx, fields: ref void, field_name: ref u8) i64 = trust {
     val flen: i64 = @len(fields as list[ref void]) as i64
     val has_fa: bool = fields_have_fixed_arr(fields)
     val offset: mut i64 = 0
@@ -2052,7 +2052,7 @@ fn field_offset(ctx: ref CgCtx, fields: ref void, field_name: ref u8) i64! = {
 }
 
 /// Look up the type name of a field in a struct by name. Returns "" if not found.
-fn field_type_name(_: ref CgCtx, fields: ref void, field_name: ref u8) ref u8! = {
+fn field_type_name(_: ref CgCtx, fields: ref void, field_name: ref u8) ref u8 = trust {
     val flen: i64 = @len(fields as list[ref void]) as i64
     val fi: mut i64 = 0
     for {
@@ -2078,7 +2078,7 @@ fn field_type_name(_: ref CgCtx, fields: ref void, field_name: ref u8) ref u8! =
 
 /// Compute the cumulative offset for a nested field access chain (e.g., o.inner.len).
 /// Returns -1 if the type cannot be resolved.
-fn nested_field_offset(ctx: ref CgCtx, node: ref parser.Node, field_name: ref u8) i64! = {
+fn nested_field_offset(ctx: ref CgCtx, node: ref parser.Node, field_name: ref u8) i64 = trust {
     if node == none { return -1 }
     if node.kind == parser.NK_IDENT {
         val bname: ref u8 = node.d0 as ref u8
@@ -2132,7 +2132,7 @@ fn nested_field_offset(ctx: ref CgCtx, node: ref parser.Node, field_name: ref u8
     return -1
 }
 
-fn cg_dvars_clear(ctx: mut ref CgCtx) void! = {
+fn cg_dvars_clear(ctx: mut ref CgCtx) void = trust {
     ctx.dvars = []
     ctx.dqtypes = []
     ctx.local_ref_types = []
@@ -2145,18 +2145,18 @@ fn cg_dvars_clear(ctx: mut ref CgCtx) void! = {
     cg_set_tmp(ctx, 0)
 }
 
-fn cg_register_local_type(ctx: ref CgCtx, name: ref u8, type_name: ref u8) void! = {
+fn cg_register_local_type(ctx: ref CgCtx, name: ref u8, type_name: ref u8) void = trust {
     @append(ctx.lnames as list[ref u8], name)
     @append(ctx.ltypes as list[ref u8], type_name)
 }
 
 /// Register a local variable as having a reference/pointer type
-fn cg_register_local_ref_type(ctx: ref CgCtx, name: ref u8) void! = {
+fn cg_register_local_ref_type(ctx: ref CgCtx, name: ref u8) void = trust {
     @append(ctx.local_ref_types as list[ref u8], name)
 }
 
 /// Check if a local variable has a reference/pointer type
-fn cg_is_local_ref_type(ctx: ref CgCtx, name: ref u8) bool! = {
+fn cg_is_local_ref_type(ctx: ref CgCtx, name: ref u8) bool = trust {
     val nlen: i64 = @len(ctx.local_ref_types as list[ref u8]) as i64
     val ni: mut i64 = 0
     for {
@@ -2173,7 +2173,7 @@ fn cg_is_local_ref_type(ctx: ref CgCtx, name: ref u8) bool! = {
     return false
 }
 
-fn cg_local_type(ctx: ref CgCtx, name: ref u8) ref u8! = {
+fn cg_local_type(ctx: ref CgCtx, name: ref u8) ref u8 = trust {
     val nlen: i64 = @len(ctx.lnames as list[ref u8]) as i64
     val ni: mut i64 = nlen - 1
     for {
@@ -2198,7 +2198,7 @@ fn cg_local_type(ctx: ref CgCtx, name: ref u8) ref u8! = {
 
 /// Generate a struct literal inline within a parent allocation (e.g., union payload).
 /// base_offset is the starting offset within the parent allocation.
-fn gen_struct_lit_inline(ctx: ref CgCtx, struct_node: ref parser.Node, parent_ptr: i64, base_offset: i64, fields: ref void) void! = {
+fn gen_struct_lit_inline(ctx: ref CgCtx, struct_node: ref parser.Node, parent_ptr: i64, base_offset: i64, fields: ref void) void = trust {
     val sfields_node: ref void = fields
     val lit_fields: ref void = struct_node.d0 as ref void
 
@@ -2255,13 +2255,13 @@ fn gen_struct_lit_inline(ctx: ref CgCtx, struct_node: ref parser.Node, parent_pt
     }
 }
 
-fn cg_dvars_add(ctx: ref CgCtx, name: ref u8, qtype: ref u8) void! = {
+fn cg_dvars_add(ctx: ref CgCtx, name: ref u8, qtype: ref u8) void = trust {
     @append(cg_dvars(ctx) as list[ref u8], name)
     @append(ctx.dqtypes as list[ref u8], qtype)
 }
 
 /// Get the QBE type for a variable (from dvars or inferred from local type)
-fn cg_var_qbe_type(ctx: ref CgCtx, name: ref u8) ref u8! = {
+fn cg_var_qbe_type(ctx: ref CgCtx, name: ref u8) ref u8 = trust {
     val dv: ref void = cg_dvars(ctx)
     val dlen: i64 = @len(dv as list[ref u8]) as i64
     val di: mut i64 = 0
@@ -2296,18 +2296,18 @@ fn cg_var_qbe_type(ctx: ref CgCtx, name: ref u8) ref u8! = {
 }
 
 /// Register a local variable: map source name to QBE temporary name
-fn cg_register_local_var(ctx: ref CgCtx, src_name: ref u8, qbe_name: ref u8) void! = {
+fn cg_register_local_var(ctx: ref CgCtx, src_name: ref u8, qbe_name: ref u8) void = trust {
     @append(ctx.local_src_names as list[ref u8], src_name)
     @append(ctx.local_qbe_names as list[ref u8], qbe_name)
 }
 
 /// Mark a variable as a slot (mutable, needs load/store)
-fn cg_mark_as_slot(ctx: ref CgCtx, src_name: ref u8) void! = {
+fn cg_mark_as_slot(ctx: ref CgCtx, src_name: ref u8) void = trust {
     @append(ctx.local_slot_names as list[ref u8], src_name)
 }
 
 /// Check if a variable is a slot (mutable)
-fn cg_is_slot(ctx: ref CgCtx, src_name: ref u8) bool! = {
+fn cg_is_slot(ctx: ref CgCtx, src_name: ref u8) bool = trust {
     val nlen: i64 = @len(ctx.local_slot_names as list[ref u8]) as i64
     val ni: mut i64 = 0
     for {
@@ -2328,7 +2328,7 @@ fn cg_is_slot(ctx: ref CgCtx, src_name: ref u8) bool! = {
 
 /// Look up the QBE temporary name for a source variable name. Returns "" if not found.
 /// Handles shadowing.
-fn cg_lookup_local_var(ctx: ref CgCtx, src_name: ref u8) ref u8! = {
+fn cg_lookup_local_var(ctx: ref CgCtx, src_name: ref u8) ref u8 = trust {
     val nlen: i64 = @len(ctx.local_src_names as list[ref u8]) as i64
     val ni: mut i64 = nlen - 1
     for {
@@ -2353,7 +2353,7 @@ fn cg_lookup_local_var(ctx: ref CgCtx, src_name: ref u8) ref u8! = {
 
 /// Convert a stored local QBE name into a usable operand reference.
 /// Stored names may be raw QBE values ("%t42", "$foo") or legacy temp ids ("42").
-fn cg_qbe_value_ref(qbe_name: ref u8) ref u8! = {
+fn cg_qbe_value_ref(qbe_name: ref u8) ref u8 = trust {
     if str.rchar_cmp(qbe_name, "") == 0 { return "" }
     val first: u8 = @load8(qbe_name as ref void) as u8
     val qlen: i64 = str.len_raw(qbe_name)
@@ -2366,14 +2366,14 @@ fn cg_qbe_value_ref(qbe_name: ref u8) ref u8! = {
     return out
 }
 
-fn cg_ann_deref(ann: ref u8) ref u8! = {
+fn cg_ann_deref(ann: ref u8) ref u8 = trust {
     if ann == none { return "" }
     if rchar_starts_with(ann, "mut ref ") { return @ptradd(ann, 8) as ref u8 }
     if rchar_starts_with(ann, "ref ") { return @ptradd(ann, 4) as ref u8 }
     return ann
 }
 
-fn cg_ann_is_indirect_value(ctx: ref CgCtx, ann: ref u8) bool! = {
+fn cg_ann_is_indirect_value(ctx: ref CgCtx, ann: ref u8) bool = trust {
     if str.rchar_cmp(ann, "") == 0 { return false }
     if rchar_starts_with(ann, "mut ref ") { return true }
     if rchar_starts_with(ann, "ref ") { return true }
@@ -2388,7 +2388,7 @@ fn cg_ann_is_indirect_value(ctx: ref CgCtx, ann: ref u8) bool! = {
 }
 
 /// Returns an empty ref u8, i.e. "" if not direct, else the qbe type ("w" or "l")
-fn cg_direct_type(ctx: ref CgCtx, name: ref u8) ref u8! = {
+fn cg_direct_type(ctx: ref CgCtx, name: ref u8) ref u8 = trust {
     val dv: ref void = cg_dvars(ctx)
     val dlen: i64 = @len(dv as list[ref u8]) as i64
     val di: mut i64 = 0
@@ -2412,28 +2412,28 @@ fn cg_direct_type(ctx: ref CgCtx, name: ref u8) ref u8! = {
     return ""
 }
 
-fn fresh_tmp(ctx: ref CgCtx) i64! = {
+fn fresh_tmp(ctx: ref CgCtx) i64 = trust {
     val n: i64 = cg_tmp(ctx)
     cg_set_tmp(ctx, n + 1)
     return n
 }
 
-fn fresh_lbl(ctx: ref CgCtx) i64! = {
+fn fresh_lbl(ctx: ref CgCtx) i64 = trust {
     val n: i64 = cg_lbl(ctx)
     cg_set_lbl(ctx, n + 1)
     return n
 }
 
-fn emit(ctx: ref CgCtx, s: ref u8) void! = {
+fn emit(ctx: ref CgCtx, s: ref u8) void = trust {
     str.StringBuilder.append_cstr(cg_sb(ctx), s)
 }
 
-fn emitln(ctx: ref CgCtx, s: ref u8) void! = {
+fn emitln(ctx: ref CgCtx, s: ref u8) void = trust {
     str.StringBuilder.append_cstr(cg_sb(ctx), s)
     str.StringBuilder.append_char(cg_sb(ctx), 10)
 }
 
-fn emit_fmt(ctx: ref CgCtx, fmt: ref u8, args: untyped) void! = {
+fn emit_fmt(ctx: ref CgCtx, fmt: ref u8, args: untyped) void = trust {
     val buf: ref u8 = @alloc(1024) as ref u8
     @snprintf(buf, 1024, fmt, args)
     emit(ctx, buf)
@@ -2441,7 +2441,7 @@ fn emit_fmt(ctx: ref CgCtx, fmt: ref u8, args: untyped) void! = {
 }
 
 /// Returns true if the type name maps to QBE word type (w).
-fn is_word_type_name(name: ref u8) bool! = {
+fn is_word_type_name(name: ref u8) bool = trust {
     if str.rchar_cmp(name, "u8")   == 0 { return true }
     if str.rchar_cmp(name, "i8")   == 0 { return true }
     if str.rchar_cmp(name, "u16")  == 0 { return true }
@@ -2453,13 +2453,13 @@ fn is_word_type_name(name: ref u8) bool! = {
     return false
 }
 
-fn is_float_type_name(name: ref u8) bool! = {
+fn is_float_type_name(name: ref u8) bool = trust {
     if str.rchar_cmp(name, "f32") == 0 { return true }
     if str.rchar_cmp(name, "f64") == 0 { return true }
     return false
 }
 
-fn qbe_type_of(ty: ref parser.Node) ref u8! = {
+fn qbe_type_of(ty: ref parser.Node) ref u8 = trust {
     if ty == none { return "l" }
     val k: i64 = ty.kind
     if k == parser.TY_VOID    { return "w" }
@@ -2486,7 +2486,7 @@ fn qbe_type_of(ty: ref parser.Node) ref u8! = {
 }
 
 /// Returns true if the type is a reference/pointer type (TY_REF or TY_MUT with ref inside).
-fn is_ref_type(ty: ref parser.Node) bool! = {
+fn is_ref_type(ty: ref parser.Node) bool = trust {
     if ty == none { return false }
     val k: i64 = ty.kind
     if k == parser.TY_REF { return true }
@@ -2496,7 +2496,7 @@ fn is_ref_type(ty: ref parser.Node) bool! = {
 
 /// Infer the result type from a list of statements (used for match body type inference).
 /// Looks for the last expression statement's type.
-fn infer_stmts_result_type(ctx: ref CgCtx, stmts: ref void) ref u8! = {
+fn infer_stmts_result_type(ctx: ref CgCtx, stmts: ref void) ref u8 = trust {
     if stmts == none { return "" }
     val slen: i64 = @len(stmts as list[ref void]) as i64
     if slen == 0 { return "" }
@@ -2511,7 +2511,7 @@ fn infer_stmts_result_type(ctx: ref CgCtx, stmts: ref void) ref u8! = {
 }
 
 /// Infer the result type from a single statement.
-fn infer_stmt_result_type(ctx: ref CgCtx, stmt: ref parser.Node) ref u8! = {
+fn infer_stmt_result_type(ctx: ref CgCtx, stmt: ref parser.Node) ref u8 = trust {
     if stmt == none { return "" }
     val k: i64 = stmt.kind
     if k == parser.NK_EXPR_STMT {
@@ -2529,7 +2529,7 @@ fn infer_stmt_result_type(ctx: ref CgCtx, stmt: ref parser.Node) ref u8! = {
 
 /// Infer the type annotation string for an expression.
 /// Handles: Ident (local vars, params, globals), Cast, Call (function return type).
-fn infer_type_annotation(ctx: ref CgCtx, expr: ref parser.Node) ref u8! = {
+fn infer_type_annotation(ctx: ref CgCtx, expr: ref parser.Node) ref u8 = trust {
     if expr == none { return "" }
     val k: i64 = expr.kind
 
@@ -2777,7 +2777,7 @@ fn infer_type_annotation(ctx: ref CgCtx, expr: ref parser.Node) ref u8! = {
     return ""
 }
 
-fn gen_variadic_arg(ctx: ref CgCtx, node: ref parser.Node) ref u8! = {
+fn gen_variadic_arg(ctx: ref CgCtx, node: ref parser.Node) ref u8 = trust {
     val qtype: mut ref u8 = expr_qbe_type(ctx, node)
     val value: mut ref u8 = gen_expr(ctx, node)
 
@@ -2821,7 +2821,7 @@ fn gen_variadic_arg(ctx: ref CgCtx, node: ref parser.Node) ref u8! = {
 }
 
 /// Check if a raw u8 pointer starts with a raw prefix.
-fn rchar_starts_with(src: ref u8, prefix: ref u8) bool! = {
+fn rchar_starts_with(src: ref u8, prefix: ref u8) bool = trust {
     val slen: i64 = str.len_raw(src)
     val plen: i64 = str.len_raw(prefix)
     if plen > slen { return false }
@@ -2835,7 +2835,7 @@ fn rchar_starts_with(src: ref u8, prefix: ref u8) bool! = {
 }
 
 /// Extract the inner type from a "option[T]" annotation str. Returns "" if not an option.
-fn parse_option_inner(ann: ref u8) ref u8! = {
+fn parse_option_inner(ann: ref u8) ref u8 = trust {
     if !rchar_starts_with(ann, "option[") { return "" }
     val alen: i64 = str.len_raw(ann)
     if @load8(@ptradd(ann, alen - 1)) != 93 { return "" }  // not ']'
@@ -2845,7 +2845,7 @@ fn parse_option_inner(ann: ref u8) ref u8! = {
 
 /// Extract the ok and err types from a "result[T, E]" annotation str. Returns 0 for each part if not a result.
 /// Caller provides two 256-byte buffers for the results.
-fn parse_result_types(ann: ref u8, ok_buf: ref u8, err_buf: ref u8) void! = {
+fn parse_result_types(ann: ref u8, ok_buf: ref u8, err_buf: ref u8) void = trust {
     if !rchar_starts_with(ann, "result[") {
         @store8(ok_buf, 0)
         @store8(err_buf, 0)
@@ -2899,7 +2899,7 @@ fn parse_result_types(ann: ref u8, ok_buf: ref u8, err_buf: ref u8) void! = {
 
 /// Convert a TypeExpr AST node to its annotation str.
 /// Handles all type kinds: NAMED, REF, MUT, RESULT, OPTION, LIST, SLICE, FIXED_ARR, FNPTR.
-fn type_expr_to_annotation(ctx: ref CgCtx, ty: ref parser.Node) ref u8! = {
+fn type_expr_to_annotation(ctx: ref CgCtx, ty: ref parser.Node) ref u8 = trust {
     if ty == none { return "" }
     val k: i64 = ty.kind
 
@@ -2960,7 +2960,7 @@ fn type_expr_to_annotation(ctx: ref CgCtx, ty: ref parser.Node) ref u8! = {
 
 /// Unwrap a type node to get the base named type, stripping ref/mut wrappers.
 /// Returns "" if not a named type. Kept for backward compatibility.
-fn unwrap_type_name(ty: ref parser.Node) ref u8! = {
+fn unwrap_type_name(ty: ref parser.Node) ref u8 = trust {
     if ty == none { return "" }
     val k: i64 = ty.kind
     if k == parser.TY_REF { return unwrap_type_name(ty.d0 as ref parser.Node) }
@@ -2970,7 +2970,7 @@ fn unwrap_type_name(ty: ref parser.Node) ref u8! = {
 }
 
 /// Check if a type is a tagged union. Returns the union name if it is, "" otherwise.
-fn is_union_type(ctx: ref CgCtx, ty: ref parser.Node) ref u8! = {
+fn is_union_type(ctx: ref CgCtx, ty: ref parser.Node) ref u8 = trust {
     if ty == none { return "" }
     val k: i64 = ty.kind
     if k == parser.TY_NAMED {
@@ -3014,7 +3014,7 @@ fn is_union_type(ctx: ref CgCtx, ty: ref parser.Node) ref u8! = {
     return ""
 }
 
-fn type_size(ty: ref parser.Node) i64! = {
+fn type_size(ty: ref parser.Node) i64 = trust {
     if ty == none { return 8 }
     val k: i64 = ty.kind
     if k == parser.TY_VOID    { return 0 }
@@ -3053,7 +3053,7 @@ fn type_size(ty: ref parser.Node) i64! = {
     return 8
 }
 
-fn type_align(ty: ref parser.Node) i64! = {
+fn type_align(ty: ref parser.Node) i64 = trust {
     if ty == none { return 8 }
     val k: i64 = ty.kind
     if k == parser.TY_MUT { return type_align(ty.d0 as ref parser.Node) }
@@ -3073,12 +3073,12 @@ fn type_align(ty: ref parser.Node) i64! = {
     return 8
 }
 
-fn align_to(n: i64, align: i64) i64! = {
+fn align_to(n: i64, align: i64) i64 = trust {
     if align <= 1 { return n }
     return (n + align - 1) / align * align
 }
 
-fn fields_have_fixed_arr(fields: ref void) bool! = {
+fn fields_have_fixed_arr(fields: ref void) bool = trust {
     val flen: i64 = @len(fields as list[ref void]) as i64
     val fi: mut i64 = 0
     for {
@@ -3101,7 +3101,7 @@ fn fields_have_fixed_arr(fields: ref void) bool! = {
 
 /// Rewrite format string: {d} -> %d, {s} -> %s, etc.
 /// Handles \{ and \} as escape sequences for literal { and }
-fn rewrite_fmt(s: ref u8) ref u8! = {
+fn rewrite_fmt(s: ref u8) ref u8 = trust {
     val slen: i64 = str.len_raw(s)
     val out: ref u8 = @alloc(slen * 2 + 1) as ref u8
     val oi: mut i64 = 0
@@ -3164,7 +3164,7 @@ fn rewrite_fmt(s: ref u8) ref u8! = {
 }
 
 /// Intern a string literal without format rewriting, return its global label index.
-fn intern_string(ctx: ref CgCtx, s: ref u8) i64! = {
+fn intern_string(ctx: ref CgCtx, s: ref u8) i64 = trust {
     val strs: ref void = cg_strs(ctx)
     val len: i64 = @len(strs) as i64
     val i: mut i64 = 0
@@ -3189,7 +3189,7 @@ fn intern_string(ctx: ref CgCtx, s: ref u8) i64! = {
 }
 
 /// Intern a format string with rewriting ({d} → %d), return its global label index.
-fn intern_format_string(ctx: ref CgCtx, s: ref u8) i64! = {
+fn intern_format_string(ctx: ref CgCtx, s: ref u8) i64 = trust {
     val rewritten: ref u8 = rewrite_fmt(s)
     val strs: ref void = cg_strs(ctx)
     val len: i64 = @len(strs) as i64
@@ -3212,7 +3212,7 @@ fn intern_format_string(ctx: ref CgCtx, s: ref u8) i64! = {
 }
 
 /// Emit all interned string data sections.
-fn emit_string_data(ctx: ref CgCtx) void! = {
+fn emit_string_data(ctx: ref CgCtx) void = trust {
     val strs: ref void = cg_strs(ctx)
     val len: i64 = @len(strs) as i64
     val i: mut i64 = 0
@@ -3254,7 +3254,7 @@ fn emit_string_data(ctx: ref CgCtx) void! = {
 }
 
 /// Generate an integer literal with a specific QBE type (w or l).
-fn gen_int_lit_as(ctx: ref CgCtx, text: ref u8, qbe_type: ref u8) ref u8! = {
+fn gen_int_lit_as(ctx: ref CgCtx, text: ref u8, qbe_type: ref u8) ref u8 = trust {
     val tmp: i64 = fresh_tmp(ctx)
     val buf: ref u8 = @alloc(64) as ref u8
     val emit_text: mut ref u8 = text
@@ -3284,7 +3284,7 @@ fn gen_int_lit_as(ctx: ref CgCtx, text: ref u8, qbe_type: ref u8) ref u8! = {
     return res
 }
 
-fn normalize_static_int_text(text: ref u8) ref u8! = {
+fn normalize_static_int_text(text: ref u8) ref u8 = trust {
     if text == none { return "0" }
     val start: mut ref u8 = text
     val sign: mut i64 = 1
@@ -3316,7 +3316,7 @@ fn normalize_static_int_text(text: ref u8) ref u8! = {
     return text
 }
 
-fn static_global_init_value(ctx: ref CgCtx, expr: ref parser.Node) ref u8! = {
+fn static_global_init_value(ctx: ref CgCtx, expr: ref parser.Node) ref u8 = trust {
     if expr == none { return "0" }
     val k: i64 = expr.kind
     if k == parser.NK_INT_LIT {
@@ -3361,7 +3361,7 @@ fn static_global_init_value(ctx: ref CgCtx, expr: ref parser.Node) ref u8! = {
     return ""
 }
 
-fn global_fixed_arr_type_qbe(ty: ref parser.Node) ref u8! = {
+fn global_fixed_arr_type_qbe(ty: ref parser.Node) ref u8 = trust {
     if ty == none { return "l" }
     val k: i64 = ty.kind
     if k == parser.TY_MUT { return global_fixed_arr_type_qbe(ty.d0 as ref parser.Node) }
@@ -3384,7 +3384,7 @@ fn global_fixed_arr_type_qbe(ty: ref parser.Node) ref u8! = {
     return "l"
 }
 
-fn static_global_init_value_typed(ctx: ref CgCtx, ty: ref parser.Node, expr: ref parser.Node) ref u8! = {
+fn static_global_init_value_typed(ctx: ref CgCtx, ty: ref parser.Node, expr: ref parser.Node) ref u8 = trust {
     if expr != none && ty != none {
         val tk: i64 = ty.kind
         if tk == parser.TY_MUT {
@@ -3425,7 +3425,7 @@ fn static_global_init_value_typed(ctx: ref CgCtx, ty: ref parser.Node, expr: ref
     return static_global_init_value(ctx, expr)
 }
 
-fn append_global_fixed_arr_zero_entries(ctx: ref CgCtx, ty: ref parser.Node, out: ref void) void! = {
+fn append_global_fixed_arr_zero_entries(ctx: ref CgCtx, ty: ref parser.Node, out: ref void) void = trust {
     if ty == none { return }
     val k: i64 = ty.kind
     if k == parser.TY_MUT {
@@ -3452,7 +3452,7 @@ fn append_global_fixed_arr_zero_entries(ctx: ref CgCtx, ty: ref parser.Node, out
     @append(out as list[ref u8], entry)
 }
 
-fn collect_global_fixed_arr_entries(ctx: ref CgCtx, ty: ref parser.Node, expr: ref parser.Node, out: ref void) bool! = {
+fn collect_global_fixed_arr_entries(ctx: ref CgCtx, ty: ref parser.Node, expr: ref parser.Node, out: ref void) bool = trust {
     if ty == none { return false }
     val k: i64 = ty.kind
     if k == parser.TY_MUT {
@@ -3497,7 +3497,7 @@ fn collect_global_fixed_arr_entries(ctx: ref CgCtx, ty: ref parser.Node, expr: r
     return true
 }
 
-fn emit_global_fixed_arr_literal(ctx: ref CgCtx, glabel: ref u8, gty: ref parser.Node, gexpr: ref parser.Node) bool! = {
+fn emit_global_fixed_arr_literal(ctx: ref CgCtx, glabel: ref u8, gty: ref parser.Node, gexpr: ref parser.Node) bool = trust {
     if gty == none { return false }
     val real_ty: ref parser.Node = cg_concrete_ty(ctx, gty)
     if real_ty == none { return false }
@@ -3526,7 +3526,7 @@ fn emit_global_fixed_arr_literal(ctx: ref CgCtx, glabel: ref u8, gty: ref parser
     return true
 }
 
-fn is_fixed_arr_type(ty: ref parser.Node) bool! = {
+fn is_fixed_arr_type(ty: ref parser.Node) bool = trust {
     if ty == none { return false }
     val k: i64 = ty.kind
     if k == parser.TY_FIXED_ARR { return true }
@@ -3534,7 +3534,7 @@ fn is_fixed_arr_type(ty: ref parser.Node) bool! = {
     return false
 }
 
-fn emit_global_list_literal(ctx: ref CgCtx, glabel: ref u8, gexpr: ref parser.Node) bool! = {
+fn emit_global_list_literal(ctx: ref CgCtx, glabel: ref u8, gexpr: ref parser.Node) bool = trust {
     if gexpr == none || gexpr.kind != parser.NK_LIST_LIT { return false }
     val elems: ref void = gexpr.d0 as ref void
     val elen: mut i64 = 0
@@ -3595,7 +3595,7 @@ fn emit_global_list_literal(ctx: ref CgCtx, glabel: ref u8, gexpr: ref parser.No
     return true
 }
 
-fn emit_global_val(ctx: ref CgCtx, mod_prefix: ref u8, node: ref parser.Node) void! = {
+fn emit_global_val(ctx: ref CgCtx, mod_prefix: ref u8, node: ref parser.Node) void = trust {
     val gname: ref u8 = node.d0 as ref u8
     val gty_node: ref parser.Node = node.d2 as ref parser.Node
     val gexpr: ref parser.Node = node.d3 as ref parser.Node
@@ -3641,7 +3641,7 @@ fn emit_global_val(ctx: ref CgCtx, mod_prefix: ref u8, node: ref parser.Node) vo
 }
 
 /// Generate an expression, with integer literals using the specified QBE type.
-fn gen_expr_with_type(ctx: ref CgCtx, expr: ref parser.Node, target_type: ref u8) ref u8! = {
+fn gen_expr_with_type(ctx: ref CgCtx, expr: ref parser.Node, target_type: ref u8) ref u8 = trust {
     if expr == none { return "0" }
     val k: i64 = expr.kind
     if k == parser.NK_INT_LIT {
@@ -3682,7 +3682,7 @@ fn gen_expr_with_type(ctx: ref CgCtx, expr: ref parser.Node, target_type: ref u8
     return gen_expr(ctx, expr)
 }
 
-fn gen_expr_expected(ctx: mut ref CgCtx, expr: ref parser.Node, expected_ty: ref parser.Node) ref u8! = {
+fn gen_expr_expected(ctx: mut ref CgCtx, expr: ref parser.Node, expected_ty: ref parser.Node) ref u8 = trust {
     val old_expected: ref parser.Node = ctx.expected_ty as ref parser.Node
     ctx.expected_ty = expected_ty as ref void
     val res: ref u8 = gen_expr(ctx, expr)
@@ -3690,7 +3690,7 @@ fn gen_expr_expected(ctx: mut ref CgCtx, expr: ref parser.Node, expected_ty: ref
     return res
 }
 
-fn gen_expr(ctx: ref CgCtx, expr: ref parser.Node) ref u8! = {
+fn gen_expr(ctx: ref CgCtx, expr: ref parser.Node) ref u8 = trust {
     if expr == none { return "0" }
 
     val k: i64 = expr.kind
@@ -4301,7 +4301,7 @@ fn gen_expr(ctx: ref CgCtx, expr: ref parser.Node) ref u8! = {
 }
 
 /// Check if an expression is float-typed by examining its structure
-fn expr_is_float(ctx: ref CgCtx, expr: ref parser.Node) bool! = {
+fn expr_is_float(ctx: ref CgCtx, expr: ref parser.Node) bool = trust {
     if expr == none { return false }
     val k: i64 = expr.kind
     if k == parser.NK_FLOAT_LIT { return true }
@@ -4344,7 +4344,7 @@ fn expr_is_float(ctx: ref CgCtx, expr: ref parser.Node) bool! = {
 }
 
 /// Infer the QBE type of an expression.
-fn expr_qbe_type(ctx: ref CgCtx, expr: ref parser.Node) ref u8! = {
+fn expr_qbe_type(ctx: ref CgCtx, expr: ref parser.Node) ref u8 = trust {
     if expr == none { return "l" }
 
     val k: i64 = expr.kind
@@ -4470,14 +4470,14 @@ fn expr_qbe_type(ctx: ref CgCtx, expr: ref parser.Node) ref u8! = {
     return "l"
 }
 
-fn expr_is_result(expr: ref parser.Node) bool! = {
+fn expr_is_result(expr: ref parser.Node) bool = trust {
     if expr == none { return false }
     val k: i64 = expr.kind
     if k == parser.NK_OK_VAL || k == parser.NK_ERR_VAL { return true }
     return false
 }
 
-fn gen_binop(ctx: ref CgCtx, expr: ref parser.Node) ref u8! = {
+fn gen_binop(ctx: ref CgCtx, expr: ref parser.Node) ref u8 = trust {
     val op: i64 = expr.d0 as i64
     val lhs_expr: ref parser.Node = expr.d1 as ref parser.Node
     val rhs_expr: ref parser.Node = expr.d2 as ref parser.Node
@@ -4793,7 +4793,7 @@ fn gen_binop(ctx: ref CgCtx, expr: ref parser.Node) ref u8! = {
     return res
 }
 
-fn gen_unop(ctx: ref CgCtx, expr: ref parser.Node) ref u8! = {
+fn gen_unop(ctx: ref CgCtx, expr: ref parser.Node) ref u8 = trust {
     val op: i64 = expr.d0 as i64
     val inner_expr: ref parser.Node = expr.d1 as ref parser.Node
     val inner: ref u8 = gen_expr(ctx, inner_expr)
@@ -4833,7 +4833,7 @@ fn gen_unop(ctx: ref CgCtx, expr: ref parser.Node) ref u8! = {
     return res
 }
 
-fn field_load_instr_for(ty: ref parser.Node) ref u8! = {
+fn field_load_instr_for(ty: ref parser.Node) ref u8 = trust {
     if ty == none { return "loadl" }
     val k: i64 = ty.kind
     if k == parser.TY_MUT { return field_load_instr_for(ty.d0 as ref parser.Node) }
@@ -4853,7 +4853,7 @@ fn field_load_instr_for(ty: ref parser.Node) ref u8! = {
     return "loadl"
 }
 
-fn gen_field(ctx: ref CgCtx, expr: ref parser.Node) ref u8! = {
+fn gen_field(ctx: ref CgCtx, expr: ref parser.Node) ref u8 = trust {
     val base_expr: ref parser.Node = expr.d0 as ref parser.Node
     val field_name: ref u8 = expr.d1 as ref u8
     if cg_is_c_escape_expr(expr) {
@@ -5236,7 +5236,7 @@ fn gen_field(ctx: ref CgCtx, expr: ref parser.Node) ref u8! = {
 
 /// Returns the address of a field (or list variable) without loading its value.
 /// Used by list builtins (@append, @len, @get, etc.) that need the list header address.
-fn gen_list_ptr(ctx: ref CgCtx, expr: ref parser.Node) ref u8! = {
+fn gen_list_ptr(ctx: ref CgCtx, expr: ref parser.Node) ref u8 = trust {
     if expr == none { return "0" }
     if expr.kind == parser.NK_FIELD {
         val base_expr: ref parser.Node = parser.field_base(expr)
@@ -5304,7 +5304,7 @@ fn gen_list_ptr(ctx: ref CgCtx, expr: ref parser.Node) ref u8! = {
     return gen_expr(ctx, expr)
 }
 
-fn gen_store_field_value(ctx: ref CgCtx, target: ref parser.Node, val_tmp2: ref u8, val_qtype: ref u8) void! = {
+fn gen_store_field_value(ctx: ref CgCtx, target: ref parser.Node, val_tmp2: ref u8, val_qtype: ref u8) void = trust {
     val val_qtype_n: ref u8 = cg_normalize_qtype(val_qtype)
     val ftarget: ref parser.Node = parser.field_base(target)
     val fname: ref u8 = parser.field_name(target)
@@ -5478,7 +5478,7 @@ fn gen_store_field_value(ctx: ref CgCtx, target: ref parser.Node, val_tmp2: ref 
     }
 }
 
-fn gen_call(ctx: ref CgCtx, expr: ref parser.Node) ref u8! = {
+fn gen_call(ctx: ref CgCtx, expr: ref parser.Node) ref u8 = trust {
     val callee_node: ref parser.Node = expr.d0 as ref parser.Node
     val args_list: ref void = expr.d1 as ref void
 
@@ -6261,7 +6261,7 @@ fn gen_call(ctx: ref CgCtx, expr: ref parser.Node) ref u8! = {
     return res
 }
 
-fn resolve_callee_name(ctx: ref CgCtx, node: ref parser.Node) ref u8! = {
+fn resolve_callee_name(ctx: ref CgCtx, node: ref parser.Node) ref u8 = trust {
     val k: i64 = node.kind as i64
     if k == parser.NK_IDENT {
         val name: ref u8 = node.d0 as ref u8
@@ -6287,7 +6287,7 @@ fn resolve_callee_name(ctx: ref CgCtx, node: ref parser.Node) ref u8! = {
     return "unknown"
 }
 
-fn get_arg(ctx: ref CgCtx, args: ref void, i: i64) ref u8! = {
+fn get_arg(ctx: ref CgCtx, args: ref void, i: i64) ref u8 = trust {
     val opt = @get(args, i as usize)
     match opt {
         some a => { return gen_expr(ctx, a as ref parser.Node) }
@@ -6296,7 +6296,7 @@ fn get_arg(ctx: ref CgCtx, args: ref void, i: i64) ref u8! = {
 }
 
 /// Like get_arg but for format strings - interns with format rewriting.
-fn get_format_arg(ctx: ref CgCtx, args: ref void, i: i64) ref u8! = {
+fn get_format_arg(ctx: ref CgCtx, args: ref void, i: i64) ref u8 = trust {
     val opt = @get(args, i as usize)
     match opt {
         some a => {
@@ -6321,7 +6321,7 @@ fn get_format_arg(ctx: ref CgCtx, args: ref void, i: i64) ref u8! = {
 }
 
 /// Like get_arg but returns the address of the list header (for list builtins).
-fn get_list_arg(ctx: ref CgCtx, args: ref void, i: i64) ref u8! = {
+fn get_list_arg(ctx: ref CgCtx, args: ref void, i: i64) ref u8 = trust {
     val opt = @get(args, i as usize)
     match opt {
         some a => { return gen_list_ptr(ctx, a as ref parser.Node) }
@@ -6330,7 +6330,7 @@ fn get_list_arg(ctx: ref CgCtx, args: ref void, i: i64) ref u8! = {
 }
 
 /// Returns the QBE type ("d", "s", or "l") for an expression node without generating code.
-fn expr_qtype(ctx: ref CgCtx, node: ref parser.Node) ref u8! = {
+fn expr_qtype(ctx: ref CgCtx, node: ref parser.Node) ref u8 = trust {
     if node == none { return "l" }
     val k: i64 = node.kind
     if k == parser.NK_FLOAT_LIT {
@@ -6359,7 +6359,7 @@ fn expr_qtype(ctx: ref CgCtx, node: ref parser.Node) ref u8! = {
     return "l"
 }
 
-fn gen_builtin(ctx: ref CgCtx, expr: ref parser.Node) ref u8! = {
+fn gen_builtin(ctx: ref CgCtx, expr: ref parser.Node) ref u8 = trust {
     val name: ref u8 = expr.d0 as ref u8
     val args: ref void = expr.d1 as ref void
 
@@ -7467,7 +7467,7 @@ fn gen_builtin(ctx: ref CgCtx, expr: ref parser.Node) ref u8! = {
     return res
 }
 
-fn gen_fixed_arr_lit(ctx: ref CgCtx, expr: ref parser.Node, ty: ref parser.Node) ref u8! = {
+fn gen_fixed_arr_lit(ctx: ref CgCtx, expr: ref parser.Node, ty: ref parser.Node) ref u8 = trust {
     if expr == none || ty == none || ty.kind != parser.TY_FIXED_ARR {
         return "0"
     }
@@ -7557,7 +7557,7 @@ fn gen_fixed_arr_lit(ctx: ref CgCtx, expr: ref parser.Node, ty: ref parser.Node)
     return res
 }
 
-fn gen_list_lit(ctx: ref CgCtx, expr: ref parser.Node) ref u8! = {
+fn gen_list_lit(ctx: ref CgCtx, expr: ref parser.Node) ref u8 = trust {
     val elems: ref void = expr.d0 as ref void
     val elen: mut i64 = 0
     if elems != none { elen = @len(elems) as i64 }
@@ -7638,7 +7638,7 @@ fn gen_list_lit(ctx: ref CgCtx, expr: ref parser.Node) ref u8! = {
     return res
 }
 
-fn gen_struct_lit(ctx: ref CgCtx, expr: ref parser.Node) ref u8! = {
+fn gen_struct_lit(ctx: ref CgCtx, expr: ref parser.Node) ref u8 = trust {
     val fields: ref void = expr.d0 as ref void
     val flen: mut i64 = 0
     if fields != none { flen = @len(fields) as i64 }
@@ -7759,7 +7759,7 @@ fn gen_struct_lit(ctx: ref CgCtx, expr: ref parser.Node) ref u8! = {
     return res
 }
 
-fn gen_try(ctx: ref CgCtx, expr: ref parser.Node) ref u8! = {
+fn gen_try(ctx: ref CgCtx, expr: ref parser.Node) ref u8 = trust {
     // expr? — if tag==0 (ok), unwrap value; if tag==1 (err), return result as-is
     val inner_node: ref parser.Node = expr.d0 as ref parser.Node
     val inner: ref u8 = gen_expr(ctx, inner_node)
@@ -7794,7 +7794,7 @@ fn gen_try(ctx: ref CgCtx, expr: ref parser.Node) ref u8! = {
 }
 
 /// Returns true if the last statement in a list is a terminator (return/break/continue).
-fn stmts_terminated(stmts: ref parser.Node) bool! = {
+fn stmts_terminated(stmts: ref parser.Node) bool = trust {
     if stmts == none { return false }
     val len: i64 = @len(stmts) as i64
     if len == 0 { return false }
@@ -7813,7 +7813,7 @@ fn stmts_terminated(stmts: ref parser.Node) bool! = {
 }
 
 /// Returns true if the active branch of a NK_WHEN_STMT is terminated.
-fn when_stmt_terminated(ctx: ref CgCtx, stmt: ref parser.Node) bool! = {
+fn when_stmt_terminated(ctx: ref CgCtx, stmt: ref parser.Node) bool = trust {
     val plat: ref u8 = stmt.d0 as ref u8
     if cg_platform_matches(ctx, plat) {
         return stmts_terminated(stmt.d1 as ref parser.Node)
@@ -7834,7 +7834,7 @@ fn when_stmt_terminated(ctx: ref CgCtx, stmt: ref parser.Node) bool! = {
     return false
 }
 
-fn gen_stmts(ctx: ref CgCtx, stmts: ref parser.Node) void! = {
+fn gen_stmts(ctx: ref CgCtx, stmts: ref parser.Node) void = trust {
     if stmts == none { return }
     val len: i64 = @len(stmts) as i64
     val i: mut i64 = 0
@@ -7875,7 +7875,7 @@ fn gen_stmts(ctx: ref CgCtx, stmts: ref parser.Node) void! = {
     }
 }
 
-fn gen_stmt(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
+fn gen_stmt(ctx: ref CgCtx, stmt: ref parser.Node) void = trust {
     if stmt == none { return }
     val k: i64 = stmt.kind
 
@@ -8670,7 +8670,7 @@ fn gen_stmt(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
     }
 }
 
-fn gen_update_deref_value(ctx: ref CgCtx, target: ref parser.Node, delta: i64) void! = {
+fn gen_update_deref_value(ctx: ref CgCtx, target: ref parser.Node, delta: i64) void = trust {
     val ptr_expr: ref parser.Node = target.d0 as ref parser.Node
     val ptr: ref u8 = gen_expr(ctx, ptr_expr)
     val deref_ann: ref u8 = infer_type_annotation(ctx, target)
@@ -8695,7 +8695,7 @@ fn gen_update_deref_value(ctx: ref CgCtx, target: ref parser.Node, delta: i64) v
     @free(buf)
 }
 
-fn block_ends_with_terminator(stmts: ref parser.Node) bool! = {
+fn block_ends_with_terminator(stmts: ref parser.Node) bool = trust {
     if stmts == none { return false }
     val len: i64 = @len(stmts) as i64
     if len == 0 { return false }
@@ -8710,12 +8710,12 @@ fn block_ends_with_terminator(stmts: ref parser.Node) bool! = {
 }
 
 /// Like block_ends_with_terminator but takes a body wrapper node (d0 = stmts list).
-fn body_ends_with_terminator(body_node: ref parser.Node) bool! = {
+fn body_ends_with_terminator(body_node: ref parser.Node) bool = trust {
     if body_node == none { return false }
     return block_ends_with_terminator(body_node.d0 as ref parser.Node)
 }
 
-fn gen_if_stmt(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
+fn gen_if_stmt(ctx: ref CgCtx, stmt: ref parser.Node) void = trust {
     val then_lbl: i64 = fresh_lbl(ctx)
     val end_lbl: i64 = fresh_lbl(ctx)
     val has_else: bool = stmt.d3 != 0
@@ -8830,7 +8830,7 @@ fn gen_if_stmt(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
     @free(endbuf)
 }
 
-fn gen_for_stmt(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
+fn gen_for_stmt(ctx: ref CgCtx, stmt: ref parser.Node) void = trust {
     val loop_lbl: i64 = fresh_lbl(ctx)
     val body_lbl: i64 = fresh_lbl(ctx)
     val cont_lbl: i64 = fresh_lbl(ctx)
@@ -8904,7 +8904,7 @@ fn gen_for_stmt(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
     cg_set_cont_lbl(ctx, prev_cont)
 }
 
-fn gen_forin_stmt(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
+fn gen_forin_stmt(ctx: ref CgCtx, stmt: ref parser.Node) void = trust {
     val binding: ref u8 = stmt.d0 as ref u8
     val iter: ref u8 = gen_expr(ctx, stmt.d1 as ref parser.Node)
     val body: ref void = stmt.d2 as ref void
@@ -9049,7 +9049,7 @@ fn gen_forin_stmt(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
     cg_set_cont_lbl(ctx, prev_cont2)
 }
 
-fn gen_match_opt(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
+fn gen_match_opt(ctx: ref CgCtx, stmt: ref parser.Node) void = trust {
     val expr_node = parser.match_opt_expr(stmt)
     val expr: mut ref u8 = "0"
     if expr_node != none { expr = gen_expr(ctx, expr_node) }
@@ -9134,7 +9134,7 @@ fn gen_match_opt(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
     @free(endbuf)
 }
 
-fn gen_match_res(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
+fn gen_match_res(ctx: ref CgCtx, stmt: ref parser.Node) void = trust {
     val expr_node = parser.match_res_expr(stmt)
     val expr: mut ref u8 = "0"
     if expr_node != none { expr = gen_expr(ctx, expr_node) }
@@ -9283,7 +9283,7 @@ fn gen_match_res(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
     @free(endbuf)
 }
 
-fn gen_match_enum(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
+fn gen_match_enum(ctx: ref CgCtx, stmt: ref parser.Node) void = trust {
     val expr_node = parser.match_enum_expr(stmt)
     val expr: mut ref u8 = "0"
     if expr_node != none { expr = gen_expr(ctx, expr_node) }
@@ -9341,7 +9341,7 @@ fn gen_match_enum(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
     @free(endbuf)
 }
 
-fn gen_match_value(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
+fn gen_match_value(ctx: ref CgCtx, stmt: ref parser.Node) void = trust {
     val expr_node = parser.match_value_expr(stmt)
     val expr_ann: ref u8 = infer_type_annotation(ctx, expr_node)
     val target_qt: ref u8 = cg_ann_qtype(expr_ann)
@@ -9425,7 +9425,7 @@ fn gen_match_value(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
     @free(endbuf)
 }
 
-fn gen_match_str(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
+fn gen_match_str(ctx: ref CgCtx, stmt: ref parser.Node) void = trust {
     val expr_node = parser.match_str_expr(stmt)
     val expr: mut ref u8 = "0"
     if expr_node != none { expr = gen_expr(ctx, expr_node) }
@@ -9482,7 +9482,7 @@ fn gen_match_str(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
 }
 
 /// Look up union variants by type name, trying exact match then suffix match for mangled names.
-fn cg_lookup_union_suffix(ctx: ref CgCtx, type_name: ref u8) ref void! = {
+fn cg_lookup_union_suffix(ctx: ref CgCtx, type_name: ref u8) ref void = trust {
     val exact = cg_lookup_union(ctx, type_name)
     if exact != none { return exact }
     val names: ref void = cg_unames(ctx)
@@ -9517,7 +9517,7 @@ fn cg_lookup_union_suffix(ctx: ref CgCtx, type_name: ref u8) ref void! = {
     return none
 }
 
-fn gen_match_union(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
+fn gen_match_union(ctx: ref CgCtx, stmt: ref parser.Node) void = trust {
     val expr_node = parser.match_union_expr(stmt)
     val expr: mut ref u8 = "0"
     if expr_node != none { expr = gen_expr(ctx, expr_node) }
@@ -9613,7 +9613,7 @@ fn gen_match_union(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
 /// Tagged union match: `match expr { VariantName binding => { ... } ... }`
 /// Node layout: d0=expr, d1=list[arm], d2=else_arm
 /// Arm layout: d0=variant_name(ref u8), d1=list[ref u8] bindings, d2=body stmts list
-fn gen_match_tagged_union(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
+fn gen_match_tagged_union(ctx: ref CgCtx, stmt: ref parser.Node) void = trust {
     val expr_node = parser.match_tagged_union_expr(stmt)
     val expr: mut ref u8 = "0"
     if expr_node != none { expr = gen_expr(ctx, expr_node) }
@@ -9766,7 +9766,7 @@ fn get_std_child_names() mut list[ref u8] = {
     return std_child_names
 }
 
-fn gen_fn_prefixed(ctx: mut ref CgCtx, fn_node: ref parser.Node, mod_prefix: ref u8) void! = {
+fn gen_fn_prefixed(ctx: mut ref CgCtx, fn_node: ref parser.Node, mod_prefix: ref u8) void = trust {
     val public: i64 = fn_node.d0 as i64
     val ns: ref u8 = fn_node.d1 as ref u8
     val name: ref u8 = fn_node.d2 as ref u8
@@ -10073,7 +10073,7 @@ fn gen_fn_prefixed(ctx: mut ref CgCtx, fn_node: ref parser.Node, mod_prefix: ref
 }
 
 /// Register all variants of a tagged union into the ctx variant table.
-fn gen_tagged_union_def(ctx: ref CgCtx, item: ref parser.Node, mod_prefix: ref u8) void! = {
+fn gen_tagged_union_def(ctx: ref CgCtx, item: ref parser.Node, mod_prefix: ref u8) void = trust {
     val name: ref u8 = item.d1 as ref u8
     val variants: ref void = item.d2 as ref void
     if variants == none { return }
@@ -10109,11 +10109,11 @@ fn gen_tagged_union_def(ctx: ref CgCtx, item: ref parser.Node, mod_prefix: ref u
     }
 }
 
-fn gen_extern_fn(ctx: ref CgCtx, item: ref parser.Node) void! = {
+fn gen_extern_fn(ctx: ref CgCtx, item: ref parser.Node) void = trust {
     gen_extern_fn_prefixed(ctx, item, "")
 }
 
-fn gen_extern_fn_prefixed(ctx: ref CgCtx, item: ref parser.Node, mod_prefix: ref u8) void! = {
+fn gen_extern_fn_prefixed(ctx: ref CgCtx, item: ref parser.Node, mod_prefix: ref u8) void = trust {
     val public: i64 = item.d0 as i64
     val name: ref u8 = item.d1 as ref u8
     val symbol: ref u8 = item.d2 as ref u8
@@ -10137,7 +10137,7 @@ fn gen_extern_fn_prefixed(ctx: ref CgCtx, item: ref parser.Node, mod_prefix: ref
     }
 }
 
-fn gen_union_def_prefixed(ctx: ref CgCtx, item: ref parser.Node, mod_prefix: ref u8) void! = {
+fn gen_union_def_prefixed(ctx: ref CgCtx, item: ref parser.Node, mod_prefix: ref u8) void = trust {
     val name: ref u8 = item.d1 as ref u8
     val variants: ref void = item.d2 as ref void
     if variants == none { return }
@@ -10172,7 +10172,7 @@ fn gen_union_def_prefixed(ctx: ref CgCtx, item: ref parser.Node, mod_prefix: ref
     cg_register_union(ctx, mangled_name, vl as ref void)
 }
 
-fn gen_enum_def_prefixed(ctx: ref CgCtx, item: ref parser.Node, mod_prefix: ref u8) void! = {
+fn gen_enum_def_prefixed(ctx: ref CgCtx, item: ref parser.Node, mod_prefix: ref u8) void = trust {
     val name: ref u8 = item.d1 as ref u8
     val variants: ref void = item.d2 as ref void
 
@@ -10214,7 +10214,7 @@ fn gen_enum_def_prefixed(ctx: ref CgCtx, item: ref parser.Node, mod_prefix: ref 
 }
 
 /// Generate the assert_fail handler and any needed runtime helpers.
-fn emit_runtime_helpers(ctx: ref CgCtx) void! = {
+fn emit_runtime_helpers(ctx: ref CgCtx) void = trust {
     emitln(ctx,
       \\data $str_w_mode = { b "w", b 0 }
       \\data $str_r_mode = { b "r", b 0 }
@@ -10310,7 +10310,7 @@ fn emit_runtime_helpers(ctx: ref CgCtx) void! = {
 
 /// Pre-registration pass: register all function names and tagged union variants
 /// before emitting any code, so forward references resolve correctly.
-fn preregister_items(ctx: ref CgCtx, items: list[ref parser.Node], mod_prefix: ref u8) void! = {
+fn preregister_items(ctx: ref CgCtx, items: list[ref parser.Node], mod_prefix: ref u8) void = trust {
     val ilen: i64 = @len(items) as i64
     val i: mut i64 = 0
     for {
@@ -10462,7 +10462,7 @@ fn preregister_items(ctx: ref CgCtx, items: list[ref parser.Node], mod_prefix: r
 }
 
 /// Emit all items from one module layer, using `mod_prefix` for name mangling.
-fn gen_items_with_prefix(ctx: ref CgCtx, items: list[ref parser.Node], mod_prefix: ref u8) void! = {
+fn gen_items_with_prefix(ctx: ref CgCtx, items: list[ref parser.Node], mod_prefix: ref u8) void = trust {
     val ilen0: i64 = @len(items) as i64
     val i0: mut i64 = 0
     for {
@@ -10643,7 +10643,7 @@ fn gen_items_with_prefix(ctx: ref CgCtx, items: list[ref parser.Node], mod_prefi
 }
 
 /// Returns true if the items contain any external link statements.
-fn items_have_external_links(items: list[ref parser.Node]) bool! = {
+fn items_have_external_links(items: list[ref parser.Node]) bool = trust {
     val ilen: i64 = @len(items) as i64
     val i: mut i64 = 0
     for {
@@ -10677,7 +10677,7 @@ fn items_have_external_links(items: list[ref parser.Node]) bool! = {
 }
 
 /// Scan items for function calls to track which modules are used, without emitting code.
-fn scan_items_for_usage(ctx: ref CgCtx, items: list[ref parser.Node], mod_prefix: ref u8) void! = {
+fn scan_items_for_usage(ctx: ref CgCtx, items: list[ref parser.Node], mod_prefix: ref u8) void = trust {
     val ilen: i64 = @len(items) as i64
     val i: mut i64 = 0
     for {
@@ -10720,7 +10720,7 @@ fn scan_items_for_usage(ctx: ref CgCtx, items: list[ref parser.Node], mod_prefix
 }
 
 /// Scan a statement list (function body) for calls.
-fn scan_stmts_for_calls(ctx: ref CgCtx, stmts: ref void) void! = {
+fn scan_stmts_for_calls(ctx: ref CgCtx, stmts: ref void) void = trust {
     if stmts == none { return }
 
     val slen: i64 = @len(stmts as list[ref parser.Node]) as i64
@@ -10743,7 +10743,7 @@ fn scan_stmts_for_calls(ctx: ref CgCtx, stmts: ref void) void! = {
 }
 
 /// Recursively scan a node tree for function calls to mark prefixes as used, with depth limit.
-fn scan_node_for_calls_depth(ctx: ref CgCtx, node: ref parser.Node, depth: i64) void! = {
+fn scan_node_for_calls_depth(ctx: ref CgCtx, node: ref parser.Node, depth: i64) void = trust {
     if node == none { return }
     if depth > 100 { return }
 
@@ -11069,7 +11069,7 @@ fn scan_node_for_calls_depth(ctx: ref CgCtx, node: ref parser.Node, depth: i64) 
 
 /// Main entry for the resolved module tree.
 /// Flattens children depth-first, emits each layer with its mangled prefix.
-pub fn gen_module_resolved(root: ref module.ResolvedModule, release_mode: bool, src_target: ref u8) ref u8! = {
+pub fn gen_module_resolved(root: ref module.ResolvedModule, release_mode: bool, src_target: ref u8) ref u8 = trust {
     val ctx: mut ref CgCtx = cg_new()
     ctx.release_mode = release_mode
     ctx.src_target = src_target
@@ -11213,7 +11213,7 @@ pub fn gen_module_resolved(root: ref module.ResolvedModule, release_mode: bool, 
     return result
 }
 
-pub fn get_used_prefixes(root: ref module.ResolvedModule) list[ref u8]! = {
+pub fn get_used_prefixes(root: ref module.ResolvedModule) list[ref u8] = trust {
     val ctx: ref CgCtx = cg_new()
 
     val out_prefixes: list[ref u8] = []
@@ -11308,7 +11308,7 @@ pub fn get_used_prefixes(root: ref module.ResolvedModule) list[ref u8]! = {
 }
 
 /// Emit a single test block as a numbered function. Returns the function name.
-fn gen_test_fn(ctx: ref CgCtx, body_stmts: ref parser.Node, test_id: i64) void! = {
+fn gen_test_fn(ctx: ref CgCtx, body_stmts: ref parser.Node, test_id: i64) void = trust {
     cg_dvars_clear(ctx)
     val fname: ref u8 = @fmt("__sx_test_{lld}", {test_id})
     val hdr: ref u8 = @fmt("export function w ${s}() {\n@start\n", {fname})
@@ -11364,7 +11364,7 @@ fn gen_test_fn(ctx: ref CgCtx, body_stmts: ref parser.Node, test_id: i64) void! 
 }
 
 /// Emit a $main that calls all collected test functions and prints a summary.
-fn gen_test_main(ctx: ref CgCtx, test_ids: list[i64]) void! = {
+fn gen_test_main(ctx: ref CgCtx, test_ids: list[i64]) void = trust {
     emitln(ctx, "export function w $main(w %argc, l %argv) {")
     emitln(ctx, "@start")
     emitln(ctx, "    %sx_argc_val =l extsw %argc")
@@ -11398,7 +11398,7 @@ fn gen_test_main(ctx: ref CgCtx, test_ids: list[i64]) void! = {
 
 /// Entry point for --test mode: emits test blocks from root module only,
 /// suppresses main(), and emits a test runner $main.
-pub fn gen_module_resolved_test(root: ref module.ResolvedModule, release_mode: bool, src_target: ref u8) ref u8! = {
+pub fn gen_module_resolved_test(root: ref module.ResolvedModule, release_mode: bool, src_target: ref u8) ref u8 = trust {
     val ctx: mut ref CgCtx = cg_new()
     ctx.release_mode = release_mode
     ctx.src_target = src_target
@@ -11601,7 +11601,7 @@ pub fn gen_module_resolved_test(root: ref module.ResolvedModule, release_mode: b
 
 /// Like gen_items_with_prefix but skips NK_LINK directives.
 /// Used to emit module code without pulling in external libraries.
-fn gen_items_with_prefix_skip_links(ctx: ref CgCtx, items: list[ref parser.Node], mod_prefix: ref u8) void! = {
+fn gen_items_with_prefix_skip_links(ctx: ref CgCtx, items: list[ref parser.Node], mod_prefix: ref u8) void = trust {
     preregister_items(ctx, items, mod_prefix)
     val ilen: i64 = @len(items) as i64
     val i: mut i64 = 0
@@ -11741,7 +11741,7 @@ fn gen_items_with_prefix_skip_links(ctx: ref CgCtx, items: list[ref parser.Node]
 }
 
 /// Kinda like gen_items_with_prefix but skips NK_FN named "main" and handles NK_TEST.
-fn gen_items_with_prefix_skip_main(ctx: ref CgCtx, items: list[ref parser.Node], mod_prefix: ref u8) void! = {
+fn gen_items_with_prefix_skip_main(ctx: ref CgCtx, items: list[ref parser.Node], mod_prefix: ref u8) void = trust {
     preregister_items(ctx, items, mod_prefix)
     val ilen: i64 = @len(items) as i64
     val i: mut i64 = 0
@@ -11866,7 +11866,7 @@ fn gen_items_with_prefix_skip_main(ctx: ref CgCtx, items: list[ref parser.Node],
 }
 
 // Main entry: generate QBE IR for a module (single-file, no imports).
-pub fn gen_module(items: list[ref parser.Node]) ref u8! = {
+pub fn gen_module(items: list[ref parser.Node]) ref u8 = trust {
     val ctx: ref CgCtx = cg_new()
 
     emit_runtime_helpers(ctx)

@@ -1,21 +1,21 @@
-pub extern (C) fn getenv(name: ref u8) ref u8! = "getenv"
-extern (C) fn fopen(path: ref u8, mode: ref u8) ref void! = "fopen"
-extern (C) fn fclose(file: ref void) i32! = "fclose"
-extern (C) fn fread(ptr: ref void, size: i64, nmemb: i64, file: ref void) i64! = "fread"
-extern (C) fn fwrite(ptr: ref void, size: i64, nmemb: i64, file: ref void) i64! = "fwrite"
-extern (C) fn remove(path: ref u8) i32! = "remove"
-extern (C) fn rename(oldpath: ref u8, newpath: ref u8) i32! = "rename"
-extern (C) fn access(path: ref u8, mode: i32) i32! = "access"
-pub extern (C) fn mkdir(path: ref u8, mode: u32) i32! = "mkdir"
-pub extern (C) fn rmdir(path: ref u8) i32! = "rmdir"
-pub extern (C) fn opendir(path: ref u8) ref void! = "opendir"
-pub extern (C) fn closedir(dir: ref void) i32! = "closedir"
-pub extern (C) fn readdir(dir: ref void) ref Dirent! = "readdir"
-extern (C) fn popen(cmd: ref u8, mode: ref u8) ref void! = "popen"
-extern (C) fn pclose(pipe: ref void) i32! = "pclose"
-extern (C) fn system(cmd: ref u8) i32! = "system"
+pub extern (C) fn getenv(name: ref u8) ref u8 = "getenv"
+extern (C) fn fopen(path: ref u8, mode: ref u8) ref void = "fopen"
+extern (C) fn fclose(file: ref void) i32 = "fclose"
+extern (C) fn fread(ptr: ref void, size: i64, nmemb: i64, file: ref void) i64 = "fread"
+extern (C) fn fwrite(ptr: ref void, size: i64, nmemb: i64, file: ref void) i64 = "fwrite"
+extern (C) fn remove(path: ref u8) i32 = "remove"
+extern (C) fn rename(oldpath: ref u8, newpath: ref u8) i32 = "rename"
+extern (C) fn access(path: ref u8, mode: i32) i32 = "access"
+pub extern (C) fn mkdir(path: ref u8, mode: u32) i32 = "mkdir"
+pub extern (C) fn rmdir(path: ref u8) i32 = "rmdir"
+pub extern (C) fn opendir(path: ref u8) ref void = "opendir"
+pub extern (C) fn closedir(dir: ref void) i32 = "closedir"
+pub extern (C) fn readdir(dir: ref void) ref Dirent = "readdir"
+extern (C) fn popen(cmd: ref u8, mode: ref u8) ref void = "popen"
+extern (C) fn pclose(pipe: ref void) i32 = "pclose"
+extern (C) fn system(cmd: ref u8) i32 = "system"
 
-pub extern (C) fn exit(code: i64) void! = "exit"
+pub extern (C) fn exit(code: i64) void = "exit"
 
 when linux {
     extern type Dirent = {
@@ -104,12 +104,12 @@ pub fn open(path: ref u8, mode: ref u8) option[ref void] = {
 }
 
 /// Close a file handle.
-pub fn close(file: ref void) void! = {
+pub fn close(file: ref void) void = trust {
     fclose(file)
 }
 
 /// Read up to `size` bytes from a file. Returns a heap buffer.
-pub fn read(file: ref void, size: i64) ref void! = {
+pub fn read(file: ref void, size: i64) ref void = trust {
     pre { size > 0 }
     val buf: ref void = @alloc(size)
     fread(buf, 1, size, file)
@@ -117,18 +117,18 @@ pub fn read(file: ref void, size: i64) ref void! = {
 }
 
 /// Write `size` bytes from a buffer to a file.
-pub fn write(file: ref void, buf: ref void, size: i64) i64! = {
+pub fn write(file: ref void, buf: ref void, size: i64) i64 = trust {
     pre { size > 0 }
     return fwrite(buf, 1, size, file)
 }
 
 /// Delete a file from the filesystem. Returns 0 on success.
-pub fn delete(path: ref u8) i32! = {
+pub fn delete(path: ref u8) i32 = trust {
     return remove(path)
 }
 
 /// Rename a file. Returns 0 on success.
-pub fn rename_file(oldpath: ref u8, newpath: ref u8) i32! = {
+pub fn rename_file(oldpath: ref u8, newpath: ref u8) i32 = trust {
     return rename(oldpath, newpath)
 }
 
@@ -142,13 +142,13 @@ fn is_dot_dir_entry(name: ref u8) bool = {
     return c2 == 0
 }
 
-fn ensure_dir(path: ref u8) bool! = {
+fn ensure_dir(path: ref u8) bool = trust {
     if exists(path) { return true }
     return mkdir(path, 493 as u32) == 0
 }
 
 /// Copy one file to another path.
-pub fn copy_file(src_path: ref u8, dst_path: ref u8) bool! = {
+pub fn copy_file(src_path: ref u8, dst_path: ref u8) bool = trust {
     val src_opt = open(src_path, "rb")
     match src_opt {
         none => { return false }
@@ -183,7 +183,7 @@ pub fn copy_file(src_path: ref u8, dst_path: ref u8) bool! = {
 }
 
 /// Recursively copy a directory tree.
-pub fn copy_dir_recursive(src_dir: ref u8, dst_dir: ref u8) bool! = {
+pub fn copy_dir_recursive(src_dir: ref u8, dst_dir: ref u8) bool = trust {
     when windows {
         return false
     }
@@ -236,17 +236,17 @@ fn bytes_equal(buf: ref void, expected: ref u8, len: i64) bool = {
 }
 
 /// Get command-line arguments as a List of strings.
-pub fn get_args() list[ref u8]! = {
+pub fn get_args() list[ref u8] = trust {
     return @args()
 }
 
 /// Execute a command inheriting stdout/stderr (no capture). Returns exit code.
-pub fn run(cmd: ref u8) i32! = {
+pub fn run(cmd: ref u8) i32 = trust {
     return system(cmd)
 }
 
 /// Execute some subprocess, capturing its output.
-pub fn exec(cmd: ref u8) result[String, ProcessError]! = {
+pub fn exec(cmd: ref u8) result[String, ProcessError] = trust {
     val pipe: ref void = popen(cmd, "r")
     if (pipe == none) {
         return err ProcessError.FailedToStart
@@ -288,7 +288,7 @@ pub fn exec(cmd: ref u8) result[String, ProcessError]! = {
 }
 
 /// Execute and trim output.
-pub fn exec_trim(cmd: ref u8) result[ref void, ProcessError]! = {
+pub fn exec_trim(cmd: ref u8) result[ref void, ProcessError] = trust {
     val res = exec(cmd)?
     match res {
         ok s => {

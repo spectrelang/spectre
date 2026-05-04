@@ -5,19 +5,19 @@ type Node = {
     y: i32
 }
 
-pub fn make_list() result[list[Node], ref u8]! = {
+pub fn make_list() result[list[Node], ref u8] = trust {
     val a: mut list[Node] = []
     @append(a, {x: 1, y: 2})
     @append(a, {x: 3, y: 4})
     return ok a
 }
 
-pub fn wrap() result[result[list[Node], ref u8], ref u8]! = {
+pub fn wrap() result[result[list[Node], ref u8], ref u8] = trust {
     val r = make_list()
     return ok r
 }
 
-pub fn main() void! = {
+pub fn main() void = trust {
     val r2 = wrap()
 
     match r2 {

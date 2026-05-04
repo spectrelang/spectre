@@ -81,7 +81,7 @@ fn append_debug_runtime_links(
     quiet: bool,
     release_mode: bool,
     arena: ref allocators.Arena
-) void! = {
+) void = trust {
     if release_mode { return }
     val panic_o: ref u8 = path.join(exe_dir, "std/csources/panic_handler.o")
     val panic_f = fs.open(panic_o, "r")
@@ -102,7 +102,7 @@ fn append_debug_runtime_links(
     }
 }
 
-pub fn main() i32! = {
+pub fn main() i32 = trust {
     val arena = allocators.Arena.new(65536)?
     val args = os.get_args()
     val argc: i64 = @len(args) as i64

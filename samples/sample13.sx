@@ -6,13 +6,13 @@ type SomeType = {
     z: ref u8
 }
 
-pub fn (SomeType) do_some_thing(s: self, times: usize) void! = {
+pub fn (SomeType) do_some_thing(s: self, times: usize) void = trust {
     for (i = 0; i < times; i++) {
         stdio.print("{d}, {d} - {s}\n", {s.x, s.y, s.z})
     }
 }
 
-pub fn main() i32! = {
+pub fn main() i32 = trust {
     val x: SomeType = {x: 10, y: 40, z: "hello"}
     SomeType.do_some_thing(x, 20 as usize)
     return 0

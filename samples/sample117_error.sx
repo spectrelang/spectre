@@ -69,14 +69,14 @@ val string = use("std/string")
 val allocators = use("std/allocators")
 
 when posix {
-    extern (C) fn uname(buf: ref UnameResult) i32! = "uname"
+    extern (C) fn uname(buf: ref UnameResult) i32 = "uname"
 }
 
 when windows {
-    extern (C) fn GetVersionExA(lpVersionInformation: ref void) i32! = "GetVersionExA"
+    extern (C) fn GetVersionExA(lpVersionInformation: ref void) i32 = "GetVersionExA"
 }
 
-pub fn get_current_platform[T](ac: allocators.Allocator) Platform! = {
+pub fn get_current_platform[T](ac: allocators.Allocator) Platform = trust {
     val buf: mut UnameResult = {
         sysname: 0,
         nodename: 0,
@@ -110,7 +110,7 @@ pub fn get_current_platform[T](ac: allocators.Allocator) Platform! = {
 }
 
 /// Returns the current platform name as a lowercase string (e.g. "linux", "darwin").
-pub fn current_platform_name[T](ac: allocators.Allocator) ref u8! = {
+pub fn current_platform_name[T](ac: allocators.Allocator) ref u8 = trust {
     val p = get_current_platform[T](ac)
     match p {
         Platform.Linux        => { return "linux" }
@@ -129,15 +129,15 @@ pub fn current_platform_name[T](ac: allocators.Allocator) ref u8! = {
 }
 
 when posix {
-    extern (C) fn readlink(path: ref u8, buf: ref u8, bufsiz: i64) i64! = "readlink"
+    extern (C) fn readlink(path: ref u8, buf: ref u8, bufsiz: i64) i64 = "readlink"
 }
 
 when windows {
-    extern (C) fn GetModuleFileNameA(module: ref void, buf: ref u8, size: u32) u32! = "GetModuleFileNameA"
+    extern (C) fn GetModuleFileNameA(module: ref void, buf: ref u8, size: u32) u32 = "GetModuleFileNameA"
 }
 
 /// Returns the absolute path to the current executable.
-pub fn get_exe_path[T](ac: allocators.Allocator) ref u8! = {
+pub fn get_exe_path[T](ac: allocators.Allocator) ref u8 = trust {
     val buf: ref u8 = T.alloc(ac, 1024)
     if buf is some _ {
         @puts("its some.")

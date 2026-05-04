@@ -1,21 +1,21 @@
-extern (C) fn fopen(path: ref u8, mode: ref u8) ref void! = "fopen"
-extern (C) fn fclose(stream: ref void) i32! = "fclose"
-extern (C) fn fread(buf: ref void, size: usize, count: usize, stream: ref void) usize! = "fread"
-extern (C) fn fwrite(buf: ref void, size: usize, count: usize, stream: ref void) usize! = "fwrite"
-extern (C) fn fseek(stream: ref void, offset: i64, whence: i32) i32! = "fseek"
-extern (C) fn ftell(stream: ref void) i64! = "ftell"
-extern (C) fn rewind(stream: ref void) void! = "rewind"
-extern (C) fn remove(path: ref u8) i32! = "remove"
-extern (C) fn rename(old: ref u8, new: ref u8) i32! = "rename"
-extern (C) fn strlen(s: ref u8) i64! = "strlen"
-extern (C) fn getcwd(buf: ref u8, size: usize) ref u8! = "getcwd"
-pub extern (C) fn getenv(name: ref u8) ref u8! = "getenv"
-pub extern (C) fn mkdir(path: ref u8, mode: u32) i32! = "mkdir"
-pub extern (C) fn rmdir(path: ref u8) i32! = "rmdir"
-pub extern (C) fn opendir(path: ref u8) ref void! = "opendir"
-pub extern (C) fn closedir(dir: ref void) i32! = "closedir"
-pub extern (C) fn readdir(dir: ref void) ref Dirent! = "readdir"
-extern (C) fn strdup(s: ref u8) ref u8! = "strdup"
+extern (C) fn fopen(path: ref u8, mode: ref u8) ref void = "fopen"
+extern (C) fn fclose(stream: ref void) i32 = "fclose"
+extern (C) fn fread(buf: ref void, size: usize, count: usize, stream: ref void) usize = "fread"
+extern (C) fn fwrite(buf: ref void, size: usize, count: usize, stream: ref void) usize = "fwrite"
+extern (C) fn fseek(stream: ref void, offset: i64, whence: i32) i32 = "fseek"
+extern (C) fn ftell(stream: ref void) i64 = "ftell"
+extern (C) fn rewind(stream: ref void) void = "rewind"
+extern (C) fn remove(path: ref u8) i32 = "remove"
+extern (C) fn rename(old: ref u8, new: ref u8) i32 = "rename"
+extern (C) fn strlen(s: ref u8) i64 = "strlen"
+extern (C) fn getcwd(buf: ref u8, size: usize) ref u8 = "getcwd"
+pub extern (C) fn getenv(name: ref u8) ref u8 = "getenv"
+pub extern (C) fn mkdir(path: ref u8, mode: u32) i32 = "mkdir"
+pub extern (C) fn rmdir(path: ref u8) i32 = "rmdir"
+pub extern (C) fn opendir(path: ref u8) ref void = "opendir"
+pub extern (C) fn closedir(dir: ref void) i32 = "closedir"
+pub extern (C) fn readdir(dir: ref void) ref Dirent = "readdir"
+extern (C) fn strdup(s: ref u8) ref u8 = "strdup"
 
 when linux {
     extern type Dirent = {
@@ -78,7 +78,7 @@ pub type File = {
 
 /// Open a file. Here, mode is a C fopen mode string: "r", "w", "a", "rb", etc.
 /// Returns none if the file could not be opened.
-pub fn open(path: ref u8, mode: ref u8) option[ref void]! = {
+pub fn open(path: ref u8, mode: ref u8) option[ref void] = trust {
     val ptr: ref void = fopen(path, mode)
     if (ptr == none) {
         return none
@@ -89,7 +89,7 @@ pub fn open(path: ref u8, mode: ref u8) option[ref void]! = {
 }
 
 /// Close a file handle previously returned by open().
-pub fn close(f: ref void) void! {
+pub fn close(f: ref void) void = trust {
     val ptr: ref void = @load(f)
     fclose(ptr)
     @free(f)
@@ -98,7 +98,7 @@ pub fn close(f: ref void) void! {
 /// Read the entire contents of a file into a heap-allocated buffer.
 /// Returns a null-terminated ref u8, or none on error.
 /// Caller is responsible for freeing the returned pointer.
-pub fn read_all(path: ref u8) option[ref u8]! = {
+pub fn read_all(path: ref u8) option[ref u8] = trust {
     val handle = open(path, "rb")
     match handle {
         none => { return none }
@@ -119,7 +119,7 @@ pub fn read_all(path: ref u8) option[ref u8]! = {
 /// Read the next line from an open file handle into buf (max max_len bytes).
 /// Strips the trailing newline if present.
 /// Returns true if a line was read, false on EOF.
-pub fn read_line(f: ref void, buf: ref u8, max_len: i64) bool! = {
+pub fn read_line(f: ref void, buf: ref u8, max_len: i64) bool = trust {
     val ptr: ref void = @load(f)
     val result: ref void = @fgets(buf, max_len, ptr)
     if (result == none) {
@@ -142,14 +142,14 @@ pub fn read_line(f: ref void, buf: ref u8, max_len: i64) bool! = {
 }
 
 /// Write a string to a file opened in write mode.
-pub fn write(f: ref void, data: ref u8) void! = {
+pub fn write(f: ref void, data: ref u8) void = trust {
     val ptr: ref void = @load(f)
     val l: i64 = strlen(data)
     fwrite(data, 1 as usize, l as usize, ptr)
 }
 
 /// Write a string followed by a newline.
-pub fn write_line(f: ref void, data: ref u8) void! = {
+pub fn write_line(f: ref void, data: ref u8) void = trust {
     write(f, data)
     val nl: ref u8 = "\n"
     val ptr: ref void = @load(f)
@@ -157,7 +157,7 @@ pub fn write_line(f: ref void, data: ref u8) void! = {
 }
 
 /// Write the entire contents of data to path, overwriting any existing file.
-pub fn write_all(path: ref u8, data: ref u8) bool! = {
+pub fn write_all(path: ref u8, data: ref u8) bool = trust {
     val handle = open(path, "w")
     match handle {
         none => { return false }
@@ -170,7 +170,7 @@ pub fn write_all(path: ref u8, data: ref u8) bool! = {
 }
 
 /// Append data to a file, creating it if it does not exist.
-pub fn append_all(path: ref u8, data: ref u8) bool! = {
+pub fn append_all(path: ref u8, data: ref u8) bool = trust {
     val handle = open(path, "a")
     match handle {
         none => { return false }
@@ -184,28 +184,28 @@ pub fn append_all(path: ref u8, data: ref u8) bool! = {
 
 /// Delete a file.
 /// Returns true on success.
-pub fn delete(path: ref u8) bool! = {
+pub fn delete(path: ref u8) bool = trust {
     val r: i32 = remove(path)
     return r == 0
 }
 
 /// Rename (or move) a file or directory.
 /// Returns true on success.
-pub fn rename_path(old: ref u8, new: ref u8) bool! = {
+pub fn rename_path(old: ref u8, new: ref u8) bool = trust {
     val r: i32 = rename(old, new)
     return r == 0
 }
 
 /// Create a directory. Mode is ignored on Windows; use 0755 on POSIX.
 /// Returns true on success.
-pub fn mkdir_path(path: ref u8) bool! = {
+pub fn mkdir_path(path: ref u8) bool = trust {
     val r: i32 = mkdir(path, 493 as u32)   // 0755 octal = 493 decimal
     return r == 0
 }
 
 /// Remove an empty directory.
 /// Returns true on success.
-pub fn rmdir_path(path: ref u8) bool! = {
+pub fn rmdir_path(path: ref u8) bool = trust {
     val r: i32 = rmdir(path)
     return r == 0
 }
@@ -225,7 +225,7 @@ pub fn cwd() option[ref u8] = {
 
 /// Return the system temporary directory.
 /// Falls back to "/tmp" on POSIX if TMPDIR is not set.
-pub fn temp_dir() ref u8! = {
+pub fn temp_dir() ref u8 = trust {
     when posix {
         val t: ref u8 = getenv("TMPDIR")
         if (t != none) { return t }
@@ -243,7 +243,7 @@ pub fn temp_dir() ref u8! = {
 
 /// Return the current user's home directory.
 /// Uses HOME on POSIX, USERPROFILE on Windows.
-pub fn home_dir() option[ref u8]! = {
+pub fn home_dir() option[ref u8] = trust {
     when posix {
         val h: ref u8 = getenv("HOME")
         if (h != none) { return some h }
@@ -264,7 +264,7 @@ pub fn home_dir() option[ref u8]! = {
 ///   Windows: %APPDATA%
 /// Returns none if no suitable directory can be determined.
 /// The returned string is heap-allocated and must be freed by the caller.
-pub fn config_dir() option[ref u8]! = {
+pub fn config_dir() option[ref u8] = trust {
     when posix {
         val xdg: ref u8 = getenv("XDG_CONFIG_HOME")
         if (xdg != none) { return some xdg }
@@ -458,7 +458,7 @@ test {
 ///   for entry in entries {
 ///       std.stdio.print("{s}\n", {entry})
 ///   }
-pub fn walk_dir(path: ref u8) option[list[ref u8]]! = {
+pub fn walk_dir(path: ref u8) option[list[ref u8]] = trust {
     val dir: ref void = opendir(path)
     if (dir == none) {
         return none

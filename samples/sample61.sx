@@ -3,14 +3,14 @@ pub union Shape = {
   | Rect(i64, i64)
 }
 
-fn is_circle(s: Shape) bool! = {
+fn is_circle(s: Shape) bool = trust {
     match s {
         Circle _ => { return true }
         else     => { return false }
     }
 }
 
-pub fn main() i64! = {
+pub fn main() i64 = trust {
     val s: Shape = Circle(42)
     val result = is_circle(s)
     if result {

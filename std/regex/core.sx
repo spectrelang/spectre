@@ -86,7 +86,7 @@ fn ccl_slot(buf: ref u8, idx: i64) ref u8 = {
     return char_ptr(buf, idx)
 }
 
-fn alloc_handle() option[ref void]! = {
+fn alloc_handle() option[ref void] = trust {
     val handle: mut ref RegexHandle = @alloc(16) as mut ref RegexHandle
     if (handle == none) {
         return none
@@ -118,7 +118,7 @@ fn alloc_handle() option[ref void]! = {
     return some (handle as ref void)
 }
 
-pub fn re_free(pattern: ref void) void! = {
+pub fn re_free(pattern: ref void) void = trust {
     guard (pattern != none) else {
         return
     }
@@ -512,7 +512,7 @@ fn matchquestion(token: ref void, pattern: ref void, text: ref u8, matchlength: 
     return false
 }
 
-pub fn re_matchp(pattern: ref void, text: ref u8, matchlength: mut ref i64) result[option[i64], RegexMatchError]! = {
+pub fn re_matchp(pattern: ref void, text: ref u8, matchlength: mut ref i64) result[option[i64], RegexMatchError] = trust {
     guard (matchlength != none) else {
         return err RegexMatchError.NullMatchLength
     }
@@ -609,7 +609,7 @@ fn kind_name(kind: i64) ref u8 = {
     return "UNKNOWN"
 }
 
-fn print_char(c: u8) void! = {
+fn print_char(c: u8) void = trust {
     val buf: ref u8 = @alloc(2) as ref u8
     @store8(buf, c)
     @store8(@ptradd(buf, 1), 0)

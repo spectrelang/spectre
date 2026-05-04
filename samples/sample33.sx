@@ -49,9 +49,9 @@ when netbsd {
 }
 
 val stdio = use("std/stdio")
-extern (C) fn uname(buf: ref UnameResult) i32! = "uname"
+extern (C) fn uname(buf: ref UnameResult) i32 = "uname"
 
-pub fn main() void! = {
+pub fn main() void = trust {
     when linux {
         stdio.puts("linux")
     }

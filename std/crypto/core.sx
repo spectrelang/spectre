@@ -12,7 +12,7 @@ pub enum CryptoError = {
 /// FNV-1a hash.
 ///
 /// This is for pointer-sized keys treated as raw integers.
-pub fn hash_fnv(key: usize) usize! = {
+pub fn hash_fnv(key: usize) usize = trust {
     val FNV_OFFSET: usize = 14695981039346656037
     val FNV_PRIME: usize = 1099511628211
     val h: mut usize = FNV_OFFSET
@@ -39,7 +39,7 @@ fn bytes_ptr[T](data: T) ref void = {
     return none
 }
 
-fn bytes_len[T](data: T) i64! = {
+fn bytes_len[T](data: T) i64 = trust {
     when T is string.String {
         return string.len(data)
     }
@@ -52,7 +52,7 @@ fn bytes_len[T](data: T) i64! = {
     return 0
 }
 
-fn alloc_string(len: i64) string.String! = {
+fn alloc_string(len: i64) string.String = trust {
     val buf: ref void = @alloc(len + 1)
     @memset(buf, 0, len + 1)
     val out: ref void = @alloc(24)
@@ -62,15 +62,15 @@ fn alloc_string(len: i64) string.String! = {
     return out as string.String
 }
 
-fn store_u32_slot(buf: ref void, idx: i64, value: u32) void! = {
+fn store_u32_slot(buf: ref void, idx: i64, value: u32) void = trust {
     @store(@ptradd(buf, idx * 8), value as u64)
 }
 
-fn load_u32_slot(buf: ref void, idx: i64) u32! = {
+fn load_u32_slot(buf: ref void, idx: i64) u32 = trust {
     return @load(@ptradd(buf, idx * 8)) as u32
 }
 
-fn read_be_u32(buf: ref void, offset: i64) u32! = {
+fn read_be_u32(buf: ref void, offset: i64) u32 = trust {
     val b0: u32 = @load8(@ptradd(buf, offset + 0)) as u32
     val b1: u32 = @load8(@ptradd(buf, offset + 1)) as u32
     val b2: u32 = @load8(@ptradd(buf, offset + 2)) as u32
@@ -78,7 +78,7 @@ fn read_be_u32(buf: ref void, offset: i64) u32! = {
     return (b0 << 24) | (b1 << 16) | (b2 << 8) | b3
 }
 
-fn write_be_u32(buf: ref void, offset: i64, value: u32) void! = {
+fn write_be_u32(buf: ref void, offset: i64, value: u32) void = trust {
     @store8(@ptradd(buf, offset + 0), ((value >> 24) & 255) as u8)
     @store8(@ptradd(buf, offset + 1), ((value >> 16) & 255) as u8)
     @store8(@ptradd(buf, offset + 2), ((value >> 8) & 255) as u8)
@@ -135,7 +135,7 @@ val SHA256_K: [64]u32 = [
 /// Compute the SHA-256 digest of a string or byte string.
 ///
 /// Returns a 32-byte owned String.
-pub fn sha256[T](data: T) string.String! = {
+pub fn sha256[T](data: T) string.String = trust {
     val src_ptr: ref void = bytes_ptr[T](data)
     val src_len: i64 = bytes_len[T](data)
 
@@ -262,7 +262,7 @@ fn hex_value(ch: u8) i64 = {
 /// Hex-encode a string or byte string.
 ///
 /// Returns a newly allocated lowercase C string.
-pub fn hex_encode[T](data: T) ref u8! = {
+pub fn hex_encode[T](data: T) ref u8 = trust {
     val src_ptr: ref void = bytes_ptr[T](data)
     val src_len: i64 = bytes_len[T](data)
     val out: ref u8 = @alloc(src_len * 2 + 1) as ref u8
@@ -281,7 +281,7 @@ pub fn hex_encode[T](data: T) ref u8! = {
 /// Decode a hexadecimal C string.
 ///
 /// Returns an owned byte String on success.
-pub fn hex_decode(text: ref u8) result[string.String, CryptoError]! = {
+pub fn hex_decode(text: ref u8) result[string.String, CryptoError] = trust {
     val text_len: i64 = string.len_raw(text)
     if ((text_len % 2) != 0) {
         return err CryptoError.InvalidHexLength
@@ -327,7 +327,7 @@ fn b64_value(ch: u8) i64 = {
 /// Base64-encode a string or byte string using the standard alphabet.
 ///
 /// Returns a newly allocated C string with padding.
-pub fn base64_encode[T](data: T) ref u8! = {
+pub fn base64_encode[T](data: T) ref u8 = trust {
     val src_ptr: ref void = bytes_ptr[T](data)
     val src_len: i64 = bytes_len[T](data)
     val out_len: i64 = ((src_len + 2) / 3) * 4
@@ -369,7 +369,7 @@ pub fn base64_encode[T](data: T) ref u8! = {
 /// Decode a standard base64 C string with `=` padding.
 ///
 /// Returns an owned byte String on success.
-pub fn base64_decode(text: ref u8) result[string.String, CryptoError]! = {
+pub fn base64_decode(text: ref u8) result[string.String, CryptoError] = trust {
     val text_len: i64 = string.len_raw(text)
     if ((text_len % 4) != 0) {
         return err CryptoError.InvalidBase64Length
@@ -448,7 +448,7 @@ pub fn base64_decode(text: ref u8) result[string.String, CryptoError]! = {
 }
 
 /// Compare two strings or byte strings without early exit.
-pub fn ct_eq[T](a: T, b: T) bool! = {
+pub fn ct_eq[T](a: T, b: T) bool = trust {
     val ap: ref void = bytes_ptr[T](a)
     val bp: ref void = bytes_ptr[T](b)
     val al: i64 = bytes_len[T](a)
@@ -473,7 +473,7 @@ pub fn ct_eq[T](a: T, b: T) bool! = {
 /// Compute HMAC-SHA256 for the given key and data.
 ///
 /// Returns a 32-byte owned String.
-pub fn hmac_sha256[T](key: T, data: T) string.String! = {
+pub fn hmac_sha256[T](key: T, data: T) string.String = trust {
     val block_size: i64 = 64
     val key_ptr: mut ref void = bytes_ptr[T](key)
     val key_len: mut i64 = bytes_len[T](key)
@@ -530,7 +530,7 @@ pub fn hmac_sha256[T](key: T, data: T) string.String! = {
 /// Generate a nonce-safe random string.
 ///
 /// Returns 24 random bytes encoded as lowercase hex (48 chars).
-pub fn unique_nonce() ref u8! = {
+pub fn unique_nonce() ref u8 = trust {
     val buf: string.String = alloc_string(24)
     val ptr: ref void = @load(buf) as ref void
     random.random_bytes(ptr, 24 as usize)

@@ -2,6 +2,6 @@ union SomeUnion = {
     Fn() | Thing()
 }
 
-pub fn main() void! = {
+pub fn main() void = trust {
     
 }

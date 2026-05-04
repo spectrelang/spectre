@@ -33,7 +33,7 @@ val SDLK_v: i32 = 118
 
 extern (C) fn SDL_Init(flags: u32) i32!                                                             = "SDL_Init"
 extern (C) fn SDL_Quit() void!                                                                      = "SDL_Quit"
-extern (C) fn SDL_CreateWindow(title: ref u8, x: i32, y: i32, w: i32, h: i32, flags: u32) ref void! = "SDL_CreateWindow"
+extern (C) fn SDL_CreateWindow(title: ref u8, x: i32, y: i32, w: i32, h: i32, flags: u32) ref void = "SDL_CreateWindow"
 extern (C) fn SDL_DestroyWindow(win: ref void) void!                                                = "SDL_DestroyWindow"
 extern (C) fn SDL_CreateRenderer(win: ref void, index: i32, flags: u32) ref void!                   = "SDL_CreateRenderer"
 extern (C) fn SDL_DestroyRenderer(r: ref void) void!                                                = "SDL_DestroyRenderer"

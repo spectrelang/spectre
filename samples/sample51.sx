@@ -6,7 +6,7 @@ pub type Token = {
     kind: mut TokenKind
 }
 
-pub fn tokenize_simple(_: ref u8) list[ref Token]! = {
+pub fn tokenize_simple(_: ref u8) list[ref Token] = trust {
     val tokens: mut list[ref Token] = []
 
     val t1: mut ref Token = @alloc(@sizeof(Token)) as ref Token
@@ -24,7 +24,7 @@ pub fn tokenize_simple(_: ref u8) list[ref Token]! = {
     return tokens
 }
 
-pub fn tok_kind_simple(tokens: list[ref Token], i: i64) TokenKind! = {
+pub fn tok_kind_simple(tokens: list[ref Token], i: i64) TokenKind = trust {
     val opt = @get(tokens, i as usize)
     match opt {
         some t => { return (t as ref Token).kind }
@@ -32,7 +32,7 @@ pub fn tok_kind_simple(tokens: list[ref Token], i: i64) TokenKind! = {
     }
 }
 
-pub fn main() void! = {
+pub fn main() void = trust {
     @puts("Simple test 1")
     val toks = tokenize_simple("dummy")
     @puts("Simple test 2")

@@ -4,7 +4,7 @@ pub fn takes_ref(buf: mut ref i32) void = {
 
 val stdio = use("std/stdio")
 
-pub fn main() void! = {
+pub fn main() void = trust {
     val y: mut i32 = 30
     takes_ref(@addr(y))
     stdio.print("{d}", {y})

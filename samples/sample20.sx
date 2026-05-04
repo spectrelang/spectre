@@ -5,7 +5,7 @@ enum SomeEnum = {
     WORLD
 }
 
-pub fn main() void! = {
+pub fn main() void = trust {
     stdio.print("{d}", {SomeEnum.HELLO})
     stdio.print("{d}", {SomeEnum.WORLD})
 }

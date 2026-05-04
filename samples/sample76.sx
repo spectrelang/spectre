@@ -3,7 +3,7 @@ type SxBuildConfig = {
     y: i32
 }
 
-pub fn main() void! = {
+pub fn main() void = trust {
     val cfg: mut SxBuildConfig = @alloc(@sizeof(SxBuildConfig)) 
     @memset(cfg as ref void, 0, @sizeof(SxBuildConfig) as usize)
 }

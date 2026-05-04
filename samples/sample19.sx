@@ -4,7 +4,7 @@ union SomeUnion = {
     Int32(i32) | Int64(i64) | Str(ref u8)
 }
 
-fn some_function(x: SomeUnion) void! = {
+fn some_function(x: SomeUnion) void = trust {
     match x {
         Int32 _ => {
             stdio.puts("hi inty int int")

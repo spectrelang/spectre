@@ -30,7 +30,7 @@ fn pure_function() void = {
 	// trust std.stdio.puts("This is trusted now, and can therefore run in a pure function")
 }
 
-fn can_fail(should_fail: bool) option[i32]! = {
+fn can_fail(should_fail: bool) option[i32] = trust {
 	if (should_fail) {
 		return some 10
 	}

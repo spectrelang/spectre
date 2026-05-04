@@ -37,7 +37,7 @@ fn new_ctx(text: ref u8) ref ParseCtx = {
     return ctx
 }
 
-fn ctx_peek(ctx: ref ParseCtx) i64! = {
+fn ctx_peek(ctx: ref ParseCtx) i64 = trust {
     if ctx.pos >= ctx.len { return -1 }
     return @load8(@ptradd(ctx.text as ref void, ctx.pos)) as i64
 }
@@ -70,7 +70,7 @@ fn ctx_skip_ws(ctx: ref ParseCtx) void = {
     }
 }
 
-fn ctx_read_quoted(ctx: ref ParseCtx) ref u8! = {
+fn ctx_read_quoted(ctx: ref ParseCtx) ref u8 = trust {
     ctx_skip_ws(ctx)
     if ctx_peek(ctx) != 34 { return "" }
     ctx_advance(ctx)
@@ -96,7 +96,7 @@ fn ctx_read_quoted(ctx: ref ParseCtx) ref u8! = {
     return result
 }
 
-fn ctx_read_ident(ctx: ref ParseCtx) ref u8! = {
+fn ctx_read_ident(ctx: ref ParseCtx) ref u8 = trust {
     ctx_skip_ws(ctx)
     val buf: ref u8 = @alloc(256) as ref u8
     val i: mut i64 = 0
@@ -122,7 +122,7 @@ fn ctx_read_ident(ctx: ref ParseCtx) ref u8! = {
     return result
 }
 
-pub fn parse_sxmod(content: ref u8) ref SxMod! = {
+pub fn parse_sxmod(content: ref u8) ref SxMod = trust {
     val ctx: ref ParseCtx = new_ctx(content)
     val m: mut ref SxMod = @alloc(@sizeof(SxMod)) as ref SxMod
     @memset(m as ref void, 0, @sizeof(SxMod) as usize)
@@ -184,7 +184,7 @@ pub fn load_sxmod() option[ref SxMod] = {
     }
 }
 
-fn build_config_cmd(cfg: ref SxBuildConfig, exe_path: ref u8, entry: ref u8) ref u8! = {
+fn build_config_cmd(cfg: ref SxBuildConfig, exe_path: ref u8, entry: ref u8) ref u8 = trust {
     val cmd: mut ref u8 = ""
     if str.rchar_cmp(cfg.action, "") != 0 {
         cmd = cfg.action
@@ -220,7 +220,7 @@ fn basename_of(path: ref u8) ref u8 = {
     return buf
 }
 
-fn repo_name_from_url(url: ref u8) ref u8! = {
+fn repo_name_from_url(url: ref u8) ref u8 = trust {
     val base: ref u8 = basename_of(url)
     val blen: i64 = str.len_raw(base)
     if blen > 4 {
@@ -263,7 +263,7 @@ fn rchar_contains(haystack: ref u8, needle: ref u8) bool = {
 }
 
 /// Rewrite filepath, dropping lines that start with dep_prefix AND contain needle.
-fn drop_dep_lines(filepath: ref u8, needle: ref u8) void! = {
+fn drop_dep_lines(filepath: ref u8, needle: ref u8) void = trust {
     val content_opt = fs.read_all(filepath)
     match content_opt {
         none => { return }
@@ -694,8 +694,8 @@ pub fn cmd_ref() i32 = {
                 \\ ## Extern Functions
                 \\
                 \\ ```
-                \\ extern (C) fn strlen(s: ref u8) i64! = "strlen"
-                \\ extern (C) fn printf(fmt: ref u8, ...) i32! = "printf"
+                \\ extern (C) fn strlen(s: ref u8) i64 = "strlen"
+                \\ extern (C) fn printf(fmt: ref u8, ...) i32 = "printf"
                 \\ ```
                 \\
                 \\ ---
@@ -828,7 +828,7 @@ pub fn cmd_build(config_name: ref u8, exe_path: ref u8) i32 = {
     }
 }
 
-pub fn cmd_add(url: ref u8) i32! = {
+pub fn cmd_add(url: ref u8) i32 = trust {
     if !os.exists("sx.mod") {
         stdio.puts("error: sx.mod not found — run 'spectre init' first")
         return 1

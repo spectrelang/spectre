@@ -27,7 +27,7 @@ pub spec Allocator = {
 
 /// Create a new arena backed by a block of `capacity` bytes.
 /// Capacity must be > 0.
-pub fn (Arena) new(capacity: usize) result[Allocator, AllocError]! = {
+pub fn (Arena) new(capacity: usize) result[Allocator, AllocError] = trust {
     pre { capacity_positive: capacity > 0 }
 
     val header: ref void = @alloc(24)
@@ -50,7 +50,7 @@ pub fn (Arena) new(capacity: usize) result[Allocator, AllocError]! = {
 }
 
 /// Free the entire arena and its backing block.
-pub fn (Arena) free(arena: mut self) void! = {
+pub fn (Arena) free(arena: mut self) void = trust {
     val buf: mut ref void = @load(arena)
     @free(buf)
     @free(arena)
@@ -100,7 +100,7 @@ pub fn (Arena) remaining(arena: self) usize = {
 }
 
 /// Reset the arena — all previously allocated pointers become invalid.
-pub fn (Arena) reset(arena: self) void! = {
+pub fn (Arena) reset(arena: self) void = trust {
     val buf: mut ref void = @load(arena)
     val cap: usize = @load(@ptradd(arena, 16)) as usize
     @memset(buf, 0, cap)
@@ -143,7 +143,7 @@ type (Allocator) Stack = {
 }
 
 /// Create a new stack allocator.
-pub fn (Stack) new(capacity: usize) result[Allocator, AllocError]! = {
+pub fn (Stack) new(capacity: usize) result[Allocator, AllocError] = trust {
     pre { capacity_positive: capacity > 0 }
     val header: mut ref void = @alloc(24)
     val buf: ref void = @alloc(capacity)
@@ -190,7 +190,7 @@ pub fn (Stack) restore(stack: self, checkpoint: usize) void = {
 }
 
 /// Free the underlying memory.
-pub fn (Stack) free(stack: mut self) void! = {
+pub fn (Stack) free(stack: mut self) void = trust {
     val buf: mut ref void = @load(stack)
     @free(buf)
     @free(stack)
@@ -222,7 +222,7 @@ pub spec GeneralAllocator = {
 pub type (GeneralAllocator) HeapAllocator = {}
 
 /// Allocate `size` bytes.
-pub fn (HeapAllocator) alloc(_: self, size: usize) option[ref void]! = {
+pub fn (HeapAllocator) alloc(_: self, size: usize) option[ref void] = trust {
     pre { size_positive: size > 0 }
     val total: usize = size + 8 
     val raw: ref void = @alloc(total)
@@ -235,13 +235,13 @@ pub fn (HeapAllocator) alloc(_: self, size: usize) option[ref void]! = {
 }
 
 /// Free a previously allocated block.
-pub fn (HeapAllocator) free(_: self, ptr: ref void) void! = {
+pub fn (HeapAllocator) free(_: self, ptr: ref void) void = trust {
     val raw: ref void = @ptradd(ptr, -8)
     @free(raw)
 }
 
 /// Reallocate a block.
-pub fn (HeapAllocator) realloc(_: self, ptr: ref void, new_size: usize) option[ref void]! = {
+pub fn (HeapAllocator) realloc(_: self, ptr: ref void, new_size: usize) option[ref void] = trust {
     pre { new_size_positive: new_size > 0 }
 
     val old_raw: ref void = @ptradd(ptr, -8)

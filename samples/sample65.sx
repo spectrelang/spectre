@@ -7,11 +7,11 @@ type Outer = {
     inner: mut Inner
 }
 
-fn take_inner(x: ref Inner) i64! = {
+fn take_inner(x: ref Inner) i64 = trust {
     return x.len
 }
 
-pub fn main() i64! = {
+pub fn main() i64 = trust {
     val o: mut ref Outer = @alloc(@sizeof(Outer)) as ref Outer
     o.inner.data = none
     o.inner.len  = 42

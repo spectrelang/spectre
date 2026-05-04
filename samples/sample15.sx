@@ -1,7 +1,7 @@
 val allocators = use("std/allocators")
 val stdio = use("std/stdio")
 
-pub fn main() i32! = {
+pub fn main() i32 = trust {
     //val my_stack = std.allocators.Stack.new(1024)
     //std.allocators.Stack.free(my_stack)
 

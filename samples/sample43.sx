@@ -1,6 +1,6 @@
 val log = use("std/log")
 
-pub fn main() void! = {
+pub fn main() void = trust {
     log.info("Hi")
     log.set_colors(false)
     log.info("Hi")

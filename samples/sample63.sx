@@ -8,18 +8,18 @@ type Token = {
     line: mut i64
 }
 
-fn get_kind(t: ref Token) Kind! = {
+fn get_kind(t: ref Token) Kind = trust {
     return t.kind
 }
 
-fn is_foo(k: Kind) bool! = {
+fn is_foo(k: Kind) bool = trust {
     match k {
         Foo() => { return true }
         else  => { return false }
     }
 }
 
-pub fn main() i64! = {
+pub fn main() i64 = trust {
     val t: mut ref Token = @alloc(@sizeof(Token)) as ref Token
     t.kind = Foo()
     t.line = 1

@@ -1,11 +1,11 @@
 val stdio = use("std/stdio")
 
-pub fn some_function(x: i32, y: i32) void! = {
+pub fn some_function(x: i32, y: i32) void = trust {
     val x: ref u8 = "im shadowing the parameter, hehehe >:)" // should error
     stdio.print("{d}", {x})
 }
 
-pub fn main() void! = {
+pub fn main() void = trust {
     val x = 1
     val x = 2 // should error
     stdio.print("{d}", {x})
