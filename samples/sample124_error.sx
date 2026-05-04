@@ -1,0 +1,4 @@
+pub fn main() void = {
+    val y = @get()
+    trust @print("{p}\n", {y})
+}

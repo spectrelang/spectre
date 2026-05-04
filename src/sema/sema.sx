@@ -76,6 +76,49 @@ fn normalize_path(path: ref u8) ref u8! = {
     return string.cstr(built)
 }
 
+fn builtin_min_arity(name: ref u8) i64! = {
+    if str_eq(name, "get")         { return 2 }
+    if str_eq(name, "set")         { return 3 }
+    if str_eq(name, "len")         { return 1 }
+    if str_eq(name, "append")      { return 2 }
+    if str_eq(name, "insert")      { return 3 }
+    if str_eq(name, "remove")      { return 2 }
+    if str_eq(name, "reserve")     { return 2 }
+    if str_eq(name, "capacity")    { return 1 }
+    if str_eq(name, "alloc")       { return 1 }
+    if str_eq(name, "free")        { return 1 }
+    if str_eq(name, "realloc")     { return 2 }
+    if str_eq(name, "load")        { return 1 }
+    if str_eq(name, "load8")       { return 1 }
+    if str_eq(name, "load16")      { return 1 }
+    if str_eq(name, "load32")      { return 1 }
+    if str_eq(name, "load64")      { return 1 }
+    if str_eq(name, "store")       { return 2 }
+    if str_eq(name, "store8")      { return 2 }
+    if str_eq(name, "store16")     { return 2 }
+    if str_eq(name, "store32")     { return 2 }
+    if str_eq(name, "store64")     { return 2 }
+    if str_eq(name, "ptradd")      { return 2 }
+    if str_eq(name, "memcpy")      { return 3 }
+    if str_eq(name, "memset")      { return 3 }
+    if str_eq(name, "memmove")     { return 3 }
+    if str_eq(name, "sizeof")      { return 1 }
+    if str_eq(name, "bitcast")     { return 2 }
+    if str_eq(name, "print")       { return 1 }
+    if str_eq(name, "dprintf")     { return 2 }
+    if str_eq(name, "snprintf")    { return 3 }
+    if str_eq(name, "fmt")         { return 1 }
+    if str_eq(name, "puts")        { return 1 }
+    if str_eq(name, "fgets")       { return 3 }
+    if str_eq(name, "strlen")      { return 1 }
+    if str_eq(name, "strcmp")      { return 2 }
+    if str_eq(name, "atoi")        { return 1 }
+    if str_eq(name, "itoa")        { return 1 }
+    if str_eq(name, "staticerror") { return 1 }
+    if str_eq(name, "call")        { return 1 }
+    return 0
+}
+
 fn is_known_builtin(name: ref u8) bool! = {
     val builtins: list[ref u8] = [
         "alloc",
@@ -2930,6 +2973,21 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
             @snprintf(ebuf, 512, "{s}:{lld}: unknown intrinsic '@{s}'", {filename, line, bname})
             add_error(ctx, ebuf)
             return
+        }
+
+        val min_arity: i64 = builtin_min_arity(bname)
+        if min_arity > 0 {
+            val actual_argc: mut i64 = 0
+            if bargs != none { actual_argc = @len(bargs as list[ref parser.Node]) as i64 }
+            if actual_argc < min_arity {
+                val plural: mut ref u8 = "s"
+                if min_arity == 1 { plural = "" }
+                val ebuf: ref u8 = @alloc(512) as ref u8
+                @snprintf(ebuf, 512, "{s}:{lld}: builtin '@{s}' requires at least {lld} argument{s}, got {lld}",
+                    {filename, line, bname, min_arity, plural, actual_argc})
+                add_error(ctx, ebuf)
+                return
+            }
         }
 
         val is_unsafe_builtin: bool = str_eq(bname, "store8") || str_eq(bname, "store") || str_eq(bname, "load8") || str_eq(bname, "load") || str_eq(bname, "ptradd") || str_eq(bname, "dprintf") || str_eq(bname, "print") || str_eq(bname, "fmt") || str_eq(bname, "memset") || str_eq(bname, "memcpy") || str_eq(bname, "memmove") || str_eq(bname, "free") || str_eq(bname, "realloc") || str_eq(bname, "addr") || str_eq(bname, "deref") || str_eq(bname, "bitcast")
