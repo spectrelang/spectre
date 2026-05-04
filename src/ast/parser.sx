@@ -1951,6 +1951,7 @@ fn parse_fn_item(p: ref Parser, public: i64) result[ref Node, ref u8]! = {
     if p_eat_fn(p, kind_is_bang) { is_unsafe = 1 }
     val body: mut list[ref Node] = []
     if p_eat_fn(p, kind_is_eq) {
+        if p_eat_fn(p, kind_is_trust) { is_unsafe = 1 }
         p_expect_lbrace(p)?
         body = parse_stmts(p)?
         p_expect_rbrace(p)?
