@@ -5725,8 +5725,20 @@ fn gen_call(ctx: ref CgCtx, expr: ref parser.Node) ref u8! = {
                                     val field_val2: ref u8 = gen_expr(ctx, fa2_node)
                                     val fptr2: i64 = fresh_tmp(ctx)
                                     val fbuf2: ref u8 = @alloc(128) as ref u8
-                                    @snprintf(fbuf2, 128, "    %%t{lld} =l add %%t{lld}, {lld}\n    storel {s}, %%t{lld}\n",
-                                        {fptr2, ptr2, offset2, field_val2, fptr2})
+                                    val store_op2: mut ref u8 = "storel"
+                                    if field_ty_list2 != none {
+                                        val fts2_opt = @get(field_ty_list2 as list[ref parser.Node], fi2 as usize)
+                                        match fts2_opt {
+                                            some fts2 => {
+                                                val li2: ref u8 = field_load_instr_for(fts2 as ref parser.Node)
+                                                if str.rchar_cmp(li2, "loadd") == 0 { store_op2 = "stored" }
+                                                elif str.rchar_cmp(li2, "loads") == 0 { store_op2 = "stores" }
+                                            }
+                                            none => {}
+                                        }
+                                    }
+                                    @snprintf(fbuf2, 128, "    %%t{lld} =l add %%t{lld}, {lld}\n    {s} {s}, %%t{lld}\n",
+                                        {fptr2, ptr2, offset2, store_op2, field_val2, fptr2})
                                     emit(ctx, fbuf2)
                                     @free(fbuf2)
                                 }
@@ -5832,8 +5844,20 @@ fn gen_call(ctx: ref CgCtx, expr: ref parser.Node) ref u8! = {
                             val field_val: ref u8 = gen_expr(ctx, fa_node)
                             val fptr: i64 = fresh_tmp(ctx)
                             val fbuf: ref u8 = @alloc(128) as ref u8
-                            @snprintf(fbuf, 128, "    %%t{lld} =l add %%t{lld}, {lld}\n    storel {s}, %%t{lld}\n",
-                                {fptr, ptr, offset, field_val, fptr})
+                            val store_op: mut ref u8 = "storel"
+                            if field_ty_list != none {
+                                val fts_opt = @get(field_ty_list as list[ref parser.Node], fi as usize)
+                                match fts_opt {
+                                    some fts => {
+                                        val li: ref u8 = field_load_instr_for(fts as ref parser.Node)
+                                        if str.rchar_cmp(li, "loadd") == 0 { store_op = "stored" }
+                                        elif str.rchar_cmp(li, "loads") == 0 { store_op = "stores" }
+                                    }
+                                    none => {}
+                                }
+                            }
+                            @snprintf(fbuf, 128, "    %%t{lld} =l add %%t{lld}, {lld}\n    {s} {s}, %%t{lld}\n",
+                                {fptr, ptr, offset, store_op, field_val, fptr})
                             emit(ctx, fbuf)
                             @free(fbuf)
                         }
@@ -9644,12 +9668,23 @@ fn gen_match_tagged_union(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
                                         val offset: i64 = 8 + bi * 8
                                         val is_inline_struct: mut bool = false
                                         val struct_type_name: mut ref u8 = ""
-                                        
+                                        val field_load_op: mut ref u8 = "loadl"
+                                        val field_qt2: mut ref u8 = "l"
+
                                         if variant_fields != none {
                                             val field_ty_opt = @get(variant_fields as list[ref parser.Node], bi as usize)
                                             match field_ty_opt {
                                                 some field_ty => {
                                                     val fty: ref parser.Node = field_ty as ref parser.Node
+                                                    field_load_op = field_load_instr_for(fty)
+                                                    if str.rchar_cmp(field_load_op, "loadd") == 0 { field_qt2 = "d" }
+                                                    elif str.rchar_cmp(field_load_op, "loads") == 0 { field_qt2 = "s" }
+                                                    elif str.rchar_cmp(field_load_op, "loadsw") == 0 { field_qt2 = "w" }
+                                                    elif str.rchar_cmp(field_load_op, "loaduw") == 0 { field_qt2 = "w" }
+                                                    elif str.rchar_cmp(field_load_op, "loadsh") == 0 { field_qt2 = "w" }
+                                                    elif str.rchar_cmp(field_load_op, "loaduh") == 0 { field_qt2 = "w" }
+                                                    elif str.rchar_cmp(field_load_op, "loadsb") == 0 { field_qt2 = "w" }
+                                                    elif str.rchar_cmp(field_load_op, "loadub") == 0 { field_qt2 = "w" }
                                                     val concrete_fty: ref parser.Node = cg_concrete_ty(ctx, fty)
                                                     if concrete_fty != none && concrete_fty.kind == parser.TY_NAMED {
                                                         val type_name: ref u8 = concrete_fty.d0 as ref u8
@@ -9663,7 +9698,7 @@ fn gen_match_tagged_union(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
                                                 none => {}
                                             }
                                         }
-                                        
+
                                         if is_inline_struct {
                                             val payload_ptr: i64 = fresh_tmp(ctx)
                                             val bbuf: ref u8 = @alloc(256) as ref u8
@@ -9680,11 +9715,11 @@ fn gen_match_tagged_union(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
                                             val bbuf: ref u8 = @alloc(256) as ref u8
                                             val payload_val: i64 = fresh_tmp(ctx)
                                             @snprintf(bbuf, 256,
-                                                "    %%t{lld} =l add {s}, {lld}\n    %%t{lld} =l loadl %%t{lld}\n    %%{s} =l copy %%t{lld}\n",
-                                                {payload_ptr, expr, offset, payload_val, payload_ptr, bname, payload_val})
+                                                "    %%t{lld} =l add {s}, {lld}\n    %%t{lld} ={s} {s} %%t{lld}\n    %%{s} ={s} copy %%t{lld}\n",
+                                                {payload_ptr, expr, offset, payload_val, field_qt2, field_load_op, payload_ptr, bname, field_qt2, payload_val})
                                             emit(ctx, bbuf)
                                             @free(bbuf)
-                                            cg_dvars_add(ctx, bname, "l")
+                                            cg_dvars_add(ctx, bname, field_qt2)
                                         }
                                     }
                                 }

@@ -2441,7 +2441,7 @@ fn gen_call(ctx: mut ref CCtx, expr: ref parser.Node) ref u8! = {
                                                 if str.rchar_cmp(tname, "f64") == 0 || str.rchar_cmp(tname, "f32") == 0 { is_float_arg = true }
                                             }
                                             val ol: i64 = str.len_raw(pbuf) val ab: ref u8 = @alloc(512) as ref u8
-                                            if is_float_arg { @snprintf(ab, 512, ",(int64_t)({s})", {av}) }
+                                            if is_float_arg { @snprintf(ab, 512, ",(double)({s})", {av}) }
                                             else { @snprintf(ab, 512, ",({s})", {av}) }
                                             val al: i64 = str.len_raw(ab)
                                             @memcpy(@ptradd(pbuf as ref void, ol), ab as ref void, (al+1) as usize) @free(ab)
@@ -2456,7 +2456,7 @@ fn gen_call(ctx: mut ref CCtx, expr: ref parser.Node) ref u8! = {
                                         if str.rchar_cmp(tname2, "f64") == 0 || str.rchar_cmp(tname2, "f32") == 0 { is_float_arg2 = true }
                                     }
                                     val ol: i64 = str.len_raw(pbuf) val ab: ref u8 = @alloc(512) as ref u8
-                                    if is_float_arg2 { @snprintf(ab, 512, ",(int64_t)({s})", {av2}) }
+                                    if is_float_arg2 { @snprintf(ab, 512, ",(double)({s})", {av2}) }
                                     else { @snprintf(ab, 512, ",({s})", {av2}) }
                                     val al: i64 = str.len_raw(ab)
                                     @memcpy(@ptradd(pbuf as ref void, ol), ab as ref void, (al+1) as usize) @free(ab)
