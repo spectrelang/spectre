@@ -24,22 +24,60 @@ require_cmd() {
     command -v "$1" >/dev/null 2>&1 || err "Missing required command: $1"
 }
 
-git_clone_with_fallback() {
-    REPO_PRIMARY="$1"
-    REPO_FALLBACK="$2"
-    DEST="$3"
-
-    if git clone "$REPO_PRIMARY" "$DEST"; then
-        return 0
+detect_pkg_manager() {
+    if   command -v zypper  >/dev/null 2>&1; then echo "zypper"
+    elif command -v apt-get >/dev/null 2>&1; then echo "apt"
+    elif command -v dnf     >/dev/null 2>&1; then echo "dnf"
+    elif command -v pacman  >/dev/null 2>&1; then echo "pacman"
+    elif command -v pkg     >/dev/null 2>&1; then echo "pkg"
+    else echo "unknown"
     fi
-
-    log "Primary clone failed, trying mirror..."
-    if git clone "$REPO_FALLBACK" "$DEST"; then
-        return 0
-    fi
-
-    err "Failed to clone repository from both primary and mirror."
 }
+
+install_pkg() {
+    PKG_MGR="$1"
+    shift
+    case "$PKG_MGR" in
+        zypper)  sudo zypper install --non-interactive "$@" ;;
+        apt)     sudo apt-get install -y "$@" ;;
+        dnf)     sudo dnf install -y "$@" ;;
+        pacman)  sudo pacman -S --noconfirm "$@" ;;
+        pkg)     sudo pkg install -y "$@" ;;
+        *)       err "No supported package manager found. Install $* manually." ;;
+    esac
+}
+
+log "Detecting package manager..."
+PKG_MGR="$(detect_pkg_manager)"
+log "Package manager: ${PKG_MGR}"
+
+case "$PKG_MGR" in
+    apt) sudo apt-get update -y ;;
+    dnf) sudo dnf check-update -y || true ;;
+esac
+
+log "Checking for clang..."
+if ! command -v clang >/dev/null 2>&1; then
+    log "clang not found — installing..."
+    install_pkg "$PKG_MGR" clang
+    command -v clang >/dev/null 2>&1 || err "clang installation failed or not in PATH."
+    log "clang installed successfully."
+else
+    log "clang already installed: $(command -v clang)"
+fi
+
+log "Checking for tcc..."
+if ! command -v tcc >/dev/null 2>&1; then
+    log "tcc not found — attempting install (optional)..."
+    install_pkg "$PKG_MGR" tcc 2>/dev/null || true
+    if command -v tcc >/dev/null 2>&1; then
+        log "tcc installed successfully."
+    else
+        log "tcc unavailable on this platform, clang will be used as alt backend instead."
+    fi
+else
+    log "tcc already installed: $(command -v tcc)"
+fi
 
 log "Checking required tools..."
 require_cmd git
@@ -137,7 +175,6 @@ fi
 
 log "yyjson installed successfully."
 
-
 if [ "$QBE_OK" -eq 1 ]; then
     BOOTSTRAP_SSA="${SPECTRE_DIR}/bootstrap/sxc.ssa"
     BOOTSTRAP_OUT="${SPECTRE_DIR}/bootstrap/sxc_bootstrap"
@@ -223,6 +260,7 @@ case "$OS" in
         fi
         ;;
 esac
+
 case ":$PATH:" in
     *":${BIN_DIR}:"*)
         log "PATH already contains ${BIN_DIR}"
@@ -245,8 +283,14 @@ echo "  - stdlib  -> ${BIN_DIR}/std"
 if [ "$QBE_OK" -eq 1 ]; then
     echo "  - qbe     -> ${BIN_DIR}/qbe"
 else
-    echo "  - qbe     -> (skipped; used C bootstrap fallback)"
+    echo "  - qbe     -> (skipped, used fallback)"
 fi
+if command -v tcc >/dev/null 2>&1; then
+    echo "  - tcc     -> $(command -v tcc)"
+else
+    echo "  - tcc     -> (unavailable, used fallback)"
+fi
+echo "  - clang   -> $(command -v clang)"
 echo "  - yyjson  -> ${OTHER_PREFIX}/lib/libyyjson.a"
 echo
 echo "Verify with:"
