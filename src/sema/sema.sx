@@ -2457,13 +2457,9 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
         return
     }
     if k == parser.NK_TRUST {
-        if ctx.in_unsafe_fn != 0 || ctx.in_trust != 0 {
+        if ctx.in_trust != 0 {
             val buf: ref u8 = @alloc(512) as ref u8
-            if ctx.in_unsafe_fn != 0 {
-                @snprintf(buf, 512, "{s}:{lld}: redundant 'trust' statement; already in an unsafe context (marked with '!')", {filename, line})
-            } else {
-                @snprintf(buf, 512, "{s}:{lld}: redundant 'trust' statement; already inside a 'trust' block", {filename, line})
-            }
+            @snprintf(buf, 512, "{s}:{lld}: redundant 'trust' statement; already inside a 'trust' block", {filename, line})
             add_error(ctx, buf)
         }
         val pt_used: i64 = ctx.trust_used
@@ -2472,7 +2468,7 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
         ctx.in_trust = 1
         check_expr(ctx, expr.d0 as ref parser.Node, filename)
         ctx.in_trust = prev_trust
-        if ctx.trust_used == 0 && ctx.in_unsafe_fn == 0 && ctx.in_trust == 0 {
+        if ctx.trust_used == 0 && prev_trust == 0 {
             val buf: ref u8 = @alloc(512) as ref u8
             @snprintf(buf, 512, "{s}:{lld}: redundant 'trust' statement; the expression is already pure", {filename, line})
             add_error(ctx, buf)
@@ -2937,6 +2933,20 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
                         }
                     }
                 }
+            }
+        }
+        if fn_found != none && fn_found.kind == parser.NK_EXTERN_FN {
+            val extern_name: ref u8 = dotted_chain_name(base_callee)
+            if ctx.in_trust == 0 {
+                val ebuf: ref u8 = @alloc(512) as ref u8
+                if extern_name != none {
+                    @snprintf(ebuf, 512, "{s}:{lld}: extern call to '{s}' requires 'trust'; prepend 'trust' or move the call into a 'trust' block", {filename, line, extern_name})
+                } else {
+                    @snprintf(ebuf, 512, "{s}:{lld}: extern calls require 'trust'; prepend 'trust' or move the call into a 'trust' block", {filename, line})
+                }
+                add_error(ctx, ebuf)
+            } else {
+                ctx.trust_used = 1
             }
         }
         if resolved_fn != none && parser.fn_is_unsafe(resolved_fn) {
@@ -3939,13 +3949,9 @@ fn check_stmt(ctx: mut ref SemaCtx, stmt: ref parser.Node, filename: ref u8) voi
     }
 
     if k == parser.NK_TRUST_BLOCK {
-        if ctx.in_unsafe_fn != 0 || ctx.in_trust != 0 {
+        if ctx.in_trust != 0 {
             val buf: ref u8 = @alloc(512) as ref u8
-            if ctx.in_unsafe_fn != 0 {
-                @snprintf(buf, 512, "{s}:{lld}: redundant 'trust' block; already in an unsafe context (marked with '!')", {filename, line})
-            } else {
-                @snprintf(buf, 512, "{s}:{lld}: redundant 'trust' block; already inside a 'trust' block", {filename, line})
-            }
+            @snprintf(buf, 512, "{s}:{lld}: redundant 'trust' block; already inside a 'trust' block", {filename, line})
             add_error(ctx, buf)
         }
         val pt_used: i64 = ctx.trust_used
@@ -3956,7 +3962,7 @@ fn check_stmt(ctx: mut ref SemaCtx, stmt: ref parser.Node, filename: ref u8) voi
         check_stmts(ctx, stmt.d0 as ref void, filename)
         pop_scope(ctx, filename, line)
         ctx.in_trust = prev_trust
-        if ctx.trust_used == 0 && ctx.in_unsafe_fn == 0 && ctx.in_trust == 0 {
+        if ctx.trust_used == 0 && prev_trust == 0 {
             val buf: ref u8 = @alloc(512) as ref u8
             @snprintf(buf, 512, "{s}:{lld}: redundant 'trust' block; no unsafe operations inside", {filename, line})
             add_error(ctx, buf)
