@@ -9484,6 +9484,11 @@ fn gen_match_str(ctx: ref CgCtx, stmt: ref parser.Node) void! = {
 fn cg_lookup_union_suffix(ctx: ref CgCtx, type_name: ref u8) ref void! = {
     val exact = cg_lookup_union(ctx, type_name)
     if exact != none { return exact }
+    val mangled_name: ref u8 = sanitize_mangle_atom(type_name)
+    if str.rchar_cmp(mangled_name, type_name) != 0 {
+        val mangled_exact = cg_lookup_union(ctx, mangled_name)
+        if mangled_exact != none { return mangled_exact }
+    }
     val names: ref void = cg_unames(ctx)
     val nlen: i64 = @len(names as list[ref u8]) as i64
     val tlen: i64 = str.len_raw(type_name)
@@ -9512,6 +9517,35 @@ fn cg_lookup_union_suffix(ctx: ref CgCtx, type_name: ref u8) ref void! = {
             none => {}
         }
         ni++
+    }
+    if str.rchar_cmp(mangled_name, type_name) != 0 {
+        val mlen: i64 = str.len_raw(mangled_name)
+        val mangled_suffix_len: i64 = mlen + 2
+        val mi: mut i64 = 0
+        for {
+            if mi >= nlen { break }
+            val m_opt = @get(names as list[ref u8], mi as usize)
+            match m_opt {
+                some m => {
+                    val candidate2: ref u8 = m as ref u8
+                    val clen2: i64 = str.len_raw(candidate2)
+                    if clen2 > mangled_suffix_len {
+                        val tail2: ref u8 = @ptradd(candidate2, clen2 - mangled_suffix_len) as ref u8
+                        val c1b: u8 = @load8(@ptradd(tail2 as ref void, 0))
+                        val c2b: u8 = @load8(@ptradd(tail2 as ref void, 1))
+                        if c1b == 95 && c2b == 95 {
+                            val rest2: ref u8 = @ptradd(tail2 as ref void, 2) as ref u8
+                            if str.rchar_cmp(rest2, mangled_name) == 0 {
+                                val v_opt2 = @get(cg_uvariants(ctx) as list[ref void], mi as usize)
+                                match v_opt2 { some v2 => { return v2 as ref void } none => {} }
+                            }
+                        }
+                    }
+                }
+                none => {}
+            }
+            mi++
+        }
     }
     return none
 }
