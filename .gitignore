@@ -1,5 +1,7 @@
 *.wasm
 *.js
+*.dSYM
+sxc
 /target
 /s-out
 /docs-out
