@@ -1,0 +1,10 @@
+pub fn returns_some() result[ref u8, i32] = {
+    return ok "it worked"
+}
+
+pub fn main() void = {
+    val x = returns_some()
+    if x is ok v {
+        trust @print("{s}\n", {v})
+    }
+}

@@ -1,0 +1,9 @@
+pub fn returns_some() result[i32, i32] = {
+    return ok 12
+}
+
+pub fn main() void = {
+    if returns_some() is some v {
+        @puts("should NOT compile")
+    }
+}

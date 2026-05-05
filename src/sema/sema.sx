@@ -1088,7 +1088,13 @@ fn expr_wrap_kind(ctx: ref SemaCtx, expr: ref parser.Node) i64 = trust {
     if expr == none { return 0 }
     val k: i64 = expr.kind
     if k == parser.NK_TRY { return 0 }
+    if k == parser.NK_TRUST { return expr_wrap_kind(ctx, expr.d0 as ref parser.Node) }
     if k == parser.NK_CAST { return ty_wrap_kind(expr.d1 as ref parser.Node) }
+    if k == parser.NK_BUILTIN {
+        val bname: ref u8 = expr.d0 as ref u8
+        if str_eq(bname, "get") { return 2 }
+        return 0
+    }
     if k == parser.NK_CALL {
         val callee: ref parser.Node = parser.call_callee(expr)
         val fn_node: ref parser.Node = resolve_called_fn(ctx, callee)
@@ -3789,7 +3795,16 @@ fn check_stmt(ctx: mut ref SemaCtx, stmt: ref parser.Node, filename: ref u8) voi
     }
 
     if k == parser.NK_MATCH_OPT {
-        check_expr(ctx, stmt.d0 as ref parser.Node, filename)
+        val match_expr: ref parser.Node = stmt.d0 as ref parser.Node
+        check_expr(ctx, match_expr, filename)
+        if parser.match_opt_is_sugar(stmt) {
+            val wrap_kind: i64 = expr_wrap_kind(ctx, match_expr)
+            if wrap_kind == 1 {
+                val buf: ref u8 = @alloc(512) as ref u8
+                @snprintf(buf, 512, "{s}:{lld}: cannot use 'is some' with a result value; use 'is ok' instead", {filename, line})
+                add_error(ctx, buf)
+            }
+        }
         val some_bind: ref u8 = stmt.d1 as ref u8
         val some_body_node: ref parser.Node = stmt.d2 as ref parser.Node
         val none_body_node: ref parser.Node = stmt.d3 as ref parser.Node
@@ -3811,7 +3826,16 @@ fn check_stmt(ctx: mut ref SemaCtx, stmt: ref parser.Node, filename: ref u8) voi
     }
 
     if k == parser.NK_MATCH_RES {
-        check_expr(ctx, stmt.d0 as ref parser.Node, filename)
+        val match_expr: ref parser.Node = stmt.d0 as ref parser.Node
+        check_expr(ctx, match_expr, filename)
+        if parser.match_res_is_sugar(stmt) {
+            val wrap_kind: i64 = expr_wrap_kind(ctx, match_expr)
+            if wrap_kind == 2 {
+                val buf: ref u8 = @alloc(512) as ref u8
+                @snprintf(buf, 512, "{s}:{lld}: cannot use 'is ok' with an option value; use 'is some' instead", {filename, line})
+                add_error(ctx, buf)
+            }
+        }
         val ok_bind: ref u8 = stmt.d1 as ref u8
         val ok_body_node: ref parser.Node = stmt.d2 as ref parser.Node
         push_scope(ctx)
