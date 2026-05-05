@@ -273,15 +273,16 @@ pub fn (Map) cap(map: self) usize = trust {
 }
 
 /// Internal: grow the map to new_cap buckets and rehash all live entries.
-fn (Map) grow[T: allocators.GeneralAllocator](ac: T, map: self, new_cap: usize) result[void, ListAllocError] = trust {
+fn (Map) grow[T: allocators.GeneralAllocator](ac: T, map: mut self, new_cap: usize) result[void, ListAllocError] = trust {
     pre {
         new_cap_positive: new_cap > 0
     }
+    
     val old_buckets: ref void = @load(map)
     val old_cap: usize = @load(@ptradd(map, 16)) as usize
     val new_buckets: ref void = alloc_or_error[T](ac, new_cap * MAP_BUCKET_SIZE)?
+    
     @memset(new_buckets, 0, new_cap * MAP_BUCKET_SIZE)
-
     @store(map, new_buckets)
     @store(@ptradd(map, 8), 0)
     @store(@ptradd(map, 16), new_cap)
