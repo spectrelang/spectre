@@ -287,6 +287,35 @@ pub fn exec(cmd: ref u8) result[String, ProcessError]! = {
     return ok out
 }
 
+/// Check if a binary is available in PATH.
+pub fn in_path(binary: ref u8) bool! = {
+    val path_env = env("PATH")
+    match path_env {
+        none => { return false }
+        some path => {
+            val sep: mut u8 = 58
+            when windows { sep = 59 } // ';'
+
+            val i: mut i64 = 0
+            val start: mut i64 = 0
+            for {
+                val c: u8 = @load8(@ptradd(path, i))
+                if c == sep || c == 0 {
+                    val dir_len: i64 = i - start
+                    if dir_len > 0 {
+                        val full: ref u8 = @fmt("{s}/{s}", {@ptradd(path, start) as ref u8, binary})
+                        if exists(full) { return true }
+                    }
+                    start = i + 1
+                }
+                if c == 0 { break }
+                i++
+            }
+            return false
+        }
+    }
+}
+
 /// Execute and trim output.
 pub fn exec_trim(cmd: ref u8) result[ref void, ProcessError]! = {
     val res = exec(cmd)?
