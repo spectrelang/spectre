@@ -201,7 +201,7 @@ pub fn hash_identity(key: usize) usize = {
     return key
 }
 
-fn map_insert_no_grow(map: self, key: usize, value: usize) void = trust {
+fn map_insert_no_grow(map: Map, key: usize, value: usize) void = trust {
     val cur_cap: usize = @load(@ptradd(map, 16)) as usize
     val buckets: ref void = @load(map)
     val hash_fn: ref void = @load(@ptradd(map, 24))
@@ -311,7 +311,7 @@ pub fn (Map) set[T: allocators.GeneralAllocator](ac: T, map: self, key: usize, v
         val new_cap: usize = cap * 2 + 1
         Map.grow[T](ac, map, new_cap)?
     }
-    map_insert_no_grow(map as self, key, value)
+    map_insert_no_grow(map, key, value)
     return ok ()
 }
 
