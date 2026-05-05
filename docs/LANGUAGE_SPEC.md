@@ -89,7 +89,7 @@ Standard signed/unsigned integers (`i32`, `u32`, `usize`), floats, and booleans.
 ### 4.2 Option Types
 Handled via the `option[T]` generic with `some` and `none` variants.
 ```rust
-fn check(fail: bool) option[i32]! = {
+fn check(fail: bool) option[i32] = trust {
     if (fail) { return some 10 }
     return none
 }

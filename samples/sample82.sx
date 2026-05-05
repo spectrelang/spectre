@@ -2,7 +2,7 @@ fn wrap(s: ref u8) option[ref u8] = {
     return some s
 }
 
-pub fn main() void! = {
+pub fn main() void = trust {
     match wrap("hello") {
         some v => { @puts(v) }
         none => { @puts("missing") }

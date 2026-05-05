@@ -5,7 +5,7 @@ type SomeType = {
     y: mut i32
 }
 
-pub fn main() void! = {
+pub fn main() void = trust {
     val st: mut SomeType = {x: 30, y: 40}
     st.y = 30
     stdio.print("{d}", {st.y})

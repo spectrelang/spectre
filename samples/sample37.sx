@@ -1,6 +1,6 @@
 val stdio = use("std/stdio")
 
-pub fn main() void! = {
+pub fn main() void = trust {
     val xs: list[ref u8] = ["hello", "world", "this", "is", "a", "test"]
     for x in xs {
         stdio.print("{s}\n", {x})

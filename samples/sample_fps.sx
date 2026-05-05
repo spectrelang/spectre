@@ -57,29 +57,29 @@ extern type Bullet = {
     isPlayer: mut i32
 }
 
-extern (C, header) fn SDL_Init(flags: u32) i32! = "SDL_Init"
-extern (C, header) fn SDL_CreateWindow(title: ref u8, x: i32, y: i32, w: i32, h: i32, flags: u32) ref void! = "SDL_CreateWindow"
-extern (C, header) fn SDL_CreateRenderer(win: ref void, index: i32, flags: u32) ref void! = "SDL_CreateRenderer"
-extern (C, header) fn SDL_PollEvent(event: ref SDL_Event) i32! = "SDL_PollEvent"
-extern (C, header) fn SDL_GetTicks() u32! = "SDL_GetTicks"
-extern (C, header) fn SDL_GetKeyboardState(numkeys: ref i32) ref u8! = "SDL_GetKeyboardState"
-extern (C, header) fn SDL_SetRenderDrawColor(renderer: ref void, r: u8, g: u8, b: u8, a: u8) i32! = "SDL_SetRenderDrawColor"
-extern (C, header) fn SDL_RenderClear(renderer: ref void) i32! = "SDL_RenderClear"
-extern (C, header) fn SDL_RenderFillRect(renderer: ref void, rect: ref SDL_Rect) i32! = "SDL_RenderFillRect"
-extern (C, header) fn SDL_RenderPresent(renderer: ref void) void! = "SDL_RenderPresent"
-extern (C, header) fn SDL_DestroyRenderer(renderer: ref void) void! = "SDL_DestroyRenderer"
-extern (C, header) fn SDL_DestroyWindow(window: ref void) void! = "SDL_DestroyWindow"
-extern (C, header) fn SDL_Quit() void! = "SDL_Quit"
-extern (C, header) fn SDL_CreateTextureFromSurface(renderer: ref void, surface: ref void) ref void! = "SDL_CreateTextureFromSurface"
-extern (C, header) fn SDL_FreeSurface(surface: ref void) void! = "SDL_FreeSurface"
-extern (C, header) fn SDL_RenderCopy(renderer: ref void, texture: ref void, srcrect: ref void, dstrect: ref void) i32! = "SDL_RenderCopy"
-extern (C, header) fn SDL_SetTextureBlendMode(texture: ref void, blendMode: i32) i32! = "SDL_SetTextureBlendMode"
-extern (C, header) fn SDL_QueryTexture(texture: ref void, fmt: ref void, access: ref void, w: ref void, h: ref void) i32! = "SDL_QueryTexture"
-extern (C) fn IMG_Load(file: ref u8) ref void! = "IMG_Load"
-extern (C) fn cosf(x: f32) f32! = "cosf"
-extern (C) fn sinf(x: f32) f32! = "sinf"
-extern (C) fn fabsf(x: f32) f32! = "fabsf"
-extern (C) fn sqrtf(x: f32) f32! = "sqrtf"
+extern (C, header) fn SDL_Init(flags: u32) i32 = "SDL_Init"
+extern (C, header) fn SDL_CreateWindow(title: ref u8, x: i32, y: i32, w: i32, h: i32, flags: u32) ref void = "SDL_CreateWindow"
+extern (C, header) fn SDL_CreateRenderer(win: ref void, index: i32, flags: u32) ref void = "SDL_CreateRenderer"
+extern (C, header) fn SDL_PollEvent(event: ref SDL_Event) i32 = "SDL_PollEvent"
+extern (C, header) fn SDL_GetTicks() u32 = "SDL_GetTicks"
+extern (C, header) fn SDL_GetKeyboardState(numkeys: ref i32) ref u8 = "SDL_GetKeyboardState"
+extern (C, header) fn SDL_SetRenderDrawColor(renderer: ref void, r: u8, g: u8, b: u8, a: u8) i32 = "SDL_SetRenderDrawColor"
+extern (C, header) fn SDL_RenderClear(renderer: ref void) i32 = "SDL_RenderClear"
+extern (C, header) fn SDL_RenderFillRect(renderer: ref void, rect: ref SDL_Rect) i32 = "SDL_RenderFillRect"
+extern (C, header) fn SDL_RenderPresent(renderer: ref void) void = "SDL_RenderPresent"
+extern (C, header) fn SDL_DestroyRenderer(renderer: ref void) void = "SDL_DestroyRenderer"
+extern (C, header) fn SDL_DestroyWindow(window: ref void) void = "SDL_DestroyWindow"
+extern (C, header) fn SDL_Quit() void = "SDL_Quit"
+extern (C, header) fn SDL_CreateTextureFromSurface(renderer: ref void, surface: ref void) ref void = "SDL_CreateTextureFromSurface"
+extern (C, header) fn SDL_FreeSurface(surface: ref void) void = "SDL_FreeSurface"
+extern (C, header) fn SDL_RenderCopy(renderer: ref void, texture: ref void, srcrect: ref void, dstrect: ref void) i32 = "SDL_RenderCopy"
+extern (C, header) fn SDL_SetTextureBlendMode(texture: ref void, blendMode: i32) i32 = "SDL_SetTextureBlendMode"
+extern (C, header) fn SDL_QueryTexture(texture: ref void, fmt: ref void, access: ref void, w: ref void, h: ref void) i32 = "SDL_QueryTexture"
+extern (C) fn IMG_Load(file: ref u8) ref void = "IMG_Load"
+extern (C) fn cosf(x: f32) f32 = "cosf"
+extern (C) fn sinf(x: f32) f32 = "sinf"
+extern (C) fn fabsf(x: f32) f32 = "fabsf"
+extern (C) fn sqrtf(x: f32) f32 = "sqrtf"
 
 val map: mut [20][20]i32 = [
     [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
@@ -136,15 +136,15 @@ val g_src_rect: mut ref SDL_Rect = none
 val g_dst_rect: mut ref SDL_Rect = none
 val g_aux_rect: mut ref SDL_Rect = none
 
-fn get_enemy(i: i32) mut ref Enemy! = {
+fn get_enemy(i: i32) mut ref Enemy = trust {
     return @ptradd(enemies_buf, (i as usize) * @sizeof(Enemy)) as ref Enemy
 }
 
-fn get_bullet(i: i32) mut ref Bullet! = {
+fn get_bullet(i: i32) mut ref Bullet = trust {
     return @ptradd(bullets_buf, (i as usize) * @sizeof(Bullet)) as ref Bullet
 }
 
-fn player_shoot() void! = {
+fn player_shoot() void = trust {
     if shootCooldown > 0.0 { return }
     shootCooldown = SHOOT_COOLDOWN_VAL
     muzzleFlashTimer = 0.14
@@ -186,7 +186,7 @@ fn player_shoot() void! = {
     }
 }
 
-fn update_enemies(dt: f32) void! = {
+fn update_enemies(dt: f32) void = trust {
     val pCX: f32 = player.x + 4.0
     val pCY: f32 = player.y + 4.0
 
@@ -256,7 +256,7 @@ fn update_enemies(dt: f32) void! = {
     }
 }
 
-fn update_bullets(dt: f32) void! = {
+fn update_bullets(dt: f32) void = trust {
     val pCX: f32 = player.x + 4.0
     val pCY: f32 = player.y + 4.0
 
@@ -302,7 +302,7 @@ fn update_bullets(dt: f32) void! = {
     }
 }
 
-fn render_sprites() void! = {
+fn render_sprites() void = trust {
     val pCX: f32 = player.x + 4.0
     val pCY: f32 = player.y + 4.0
     val det: f32 = player.planeX * player.dirY - player.dirX * player.planeY
@@ -416,7 +416,7 @@ fn render_sprites() void! = {
     }
 }
 
-fn render_gun(bobY: i32, showFlash: bool) void! = {
+fn render_gun(bobY: i32, showFlash: bool) void = trust {
     if g_gunTex == none { return }
 
     val gunW: i32 = SCREEN_WIDTH / 2
@@ -449,7 +449,7 @@ fn render_gun(bobY: i32, showFlash: bool) void! = {
     }
 }
 
-fn render_hud() void! = {
+fn render_hud() void = trust {
     SDL_SetRenderDrawColor(g_renderer, 80 as u8, 0 as u8, 0 as u8, 255 as u8)
     g_aux_rect.x = 18
     g_aux_rect.y = SCREEN_HEIGHT - 42

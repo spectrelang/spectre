@@ -1484,7 +1484,7 @@ fn strip_system_includes(text: ref u8) ref u8 = {
     return trust string.cstr(built)
 }
 
-fn preprocess_source(path: ref u8) option[ref u8]! = {
+fn preprocess_source(path: ref u8) option[ref u8] = trust {
     val content_opt = fs.read_all(path)
     match content_opt {
         none => { return none }
@@ -1522,7 +1522,7 @@ fn extract_call_name(text: ref u8) ref u8 = {
     return extract_identifier_before(text, open_i)
 }
 
-fn extract_call_args_text(text: ref u8) list[ref u8]! = {
+fn extract_call_args_text(text: ref u8) list[ref u8] = trust {
     val open_i: i64 = find_char(text, 40 as u8)
     val close_i: i64 = find_matching_delim(text, open_i, 40 as u8, 41 as u8)
     if open_i <= 0 || close_i <= open_i { return [] }
@@ -3886,31 +3886,31 @@ fn emit_known_extern(name: ref u8, out: ref void) bool = {
         return true
     }
     if string.rchar_cmp(name, "sprintf") == 0 {
-        append_line(out, 0, "extern (C) fn sprintf(dst: ref u8, fmt: ref u8, ...) i32! = \"sprintf\"")
+        append_line(out, 0, "extern (C) fn sprintf(dst: ref u8, fmt: ref u8, ...) i32 = \"sprintf\"")
         return true
     }
     if string.rchar_cmp(name, "puts") == 0 {
-        append_line(out, 0, "extern (C) fn puts(s: ref u8) i32! = \"puts\"")
+        append_line(out, 0, "extern (C) fn puts(s: ref u8) i32 = \"puts\"")
         return true
     }
     if string.rchar_cmp(name, "putchar") == 0 {
-        append_line(out, 0, "extern (C) fn putchar(c: i32) i32! = \"putchar\"")
+        append_line(out, 0, "extern (C) fn putchar(c: i32) i32 = \"putchar\"")
         return true
     }
     if string.rchar_cmp(name, "strlen") == 0 {
-        append_line(out, 0, "extern (C) fn strlen(s: ref u8) i64! = \"strlen\"")
+        append_line(out, 0, "extern (C) fn strlen(s: ref u8) i64 = \"strlen\"")
         return true
     }
     if string.rchar_cmp(name, "fgets") == 0 {
-        append_line(out, 0, "extern (C) fn fgets(dst: ref u8, n: i32, stream: ref void) ref u8! = \"fgets\"")
+        append_line(out, 0, "extern (C) fn fgets(dst: ref u8, n: i32, stream: ref void) ref u8 = \"fgets\"")
         return true
     }
     if string.rchar_cmp(name, "malloc") == 0 {
-        append_line(out, 0, "extern (C) fn malloc(size: usize) ref void! = \"malloc\"")
+        append_line(out, 0, "extern (C) fn malloc(size: usize) ref void = \"malloc\"")
         return true
     }
     if string.rchar_cmp(name, "free") == 0 {
-        append_line(out, 0, "extern (C) fn free(ptr: ref void) void! = \"free\"")
+        append_line(out, 0, "extern (C) fn free(ptr: ref void) void = \"free\"")
         return true
     }
     return false
@@ -3922,7 +3922,7 @@ fn emit_generic_extern(ctx: ref TranslationCtx, name: ref u8, out: ref void) boo
         some params_val => { params_text = params_val as ref u8 }
         none => {}
     }
-    append_line(out, 0, trust @fmt("extern (C) fn {s}({s}) i32! = \"{s}\"", {name, params_text, name}))
+    append_line(out, 0, trust @fmt("extern (C) fn {s}({s}) i32 = \"{s}\"", {name, params_text, name}))
     return true
 }
 
@@ -5109,7 +5109,7 @@ fn translate_function_decl(text: ref u8, current_dir: ref u8, indent: i64, out: 
         push_unique(ctx.defined_names, name)
         val fn_kw: mut ref u8 = "pub fn"
         if is_static { fn_kw = "fn" }
-        line = trust @fmt("{s} {s}({s}) {s}! = ", {fn_kw, name, params_text, return_type})
+        line = trust @fmt("{s} {s}({s}) {s} = ", {fn_kw, name, params_text, return_type})
         append_open_block_line(out, indent, line)
         if is_main {
             val body_lines = split_lines(body_src)
@@ -5143,7 +5143,7 @@ fn translate_function_decl(text: ref u8, current_dir: ref u8, indent: i64, out: 
     }
     if list_contains(ctx.extern_names, name) { return true }
     push_unique(ctx.extern_names, name)
-    line = trust @fmt("extern (C) fn {s}({s}) {s}! = \"{s}\"", {name, params_text, return_type, name})
+    line = trust @fmt("extern (C) fn {s}({s}) {s} = \"{s}\"", {name, params_text, return_type, name})
     append_line(out, indent, line)
     return true
 }

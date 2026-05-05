@@ -72,7 +72,7 @@ pub fn get_name_without_ext(arena: ref allocators.Arena, path: ref u8) ref u8 = 
 }
 
 /// Join dir + "/" + name, returning a heap-allocated string.
-pub fn join(dir: ref u8, name: ref u8) ref u8! = {
+pub fn join(dir: ref u8, name: ref u8) ref u8 = trust {
     val dlen: i64 = str.len_raw(dir)
     val nlen: i64 = str.len_raw(name)
     val buf: ref u8 = @alloc(dlen + nlen + 2) as ref u8
@@ -85,7 +85,7 @@ pub fn join(dir: ref u8, name: ref u8) ref u8! = {
 
 /// Return the directory part of a path (everything up to and including last '/').
 /// Returns "." if no slash found.
-pub fn dir(path: ref u8) ref u8! = {
+pub fn dir(path: ref u8) ref u8 = trust {
     val len: i64 = str.len_raw(path)
     val last_slash: mut i64 = -1
     val i: mut i64 = 0

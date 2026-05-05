@@ -1,7 +1,7 @@
 val stdio = use("std/stdio")
 val os = use("std/os")
 
-pub fn main() void! = {
+pub fn main() void = trust {
     val args = os.get_args()
     for arg in args {
         stdio.print("arg: {s}\n", {arg})

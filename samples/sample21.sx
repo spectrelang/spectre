@@ -1,11 +1,11 @@
-extern (C) fn my_malloc(space: usize) ref void! = "malloc" //also allow for stdcall, fastcall, sysv, etc as well as C
-extern (C) fn my_free(ptr: ref void) void! = "free"
-extern (C) fn puts(str: ref u8) void! = "puts"
+extern (C) fn my_malloc(space: usize) ref void = "malloc" //also allow for stdcall, fastcall, sysv, etc as well as C
+extern (C) fn my_free(ptr: ref void) void = "free"
+extern (C) fn puts(str: ref u8) void = "puts"
 
 // note that all extern return types must be suffixed with !, since they cannot be provably trusted.
 // compile-time error if theyre not.
 
-pub fn main() void! = {
+pub fn main() void = trust {
     val ptr: ref void = my_malloc(16 as usize)
     if (ptr != none) {
         my_free(ptr)

@@ -1,6 +1,6 @@
 val stdio = use("std/stdio")
 
-pub fn main() void! = {
+pub fn main() void = trust {
     val x: i32 = 10
     val y: i32 = x? // Should fail
     stdio.print("{d}", {y})

@@ -1,6 +1,6 @@
 val stdio = use("std/stdio")
 
-pub fn main() void! = {
+pub fn main() void = trust {
     if 1 == 1 && (2 == 2) {
         stdio.puts("yeah")
     }

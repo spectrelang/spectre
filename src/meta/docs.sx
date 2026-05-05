@@ -49,7 +49,7 @@ fn is_space(c: u8) bool = {
     return c == 32 || c == 9 || c == 10 || c == 13
 }
 
-fn substr(src: ref u8, start: i64, len: i64) ref u8! = {
+fn substr(src: ref u8, start: i64, len: i64) ref u8 = trust {
     guarded pre {
         src_not_null : src != none
     }
@@ -72,7 +72,7 @@ fn substr(src: ref u8, start: i64, len: i64) ref u8! = {
     return out
 }
 
-fn trim_ws(src: ref u8) ref u8! = {
+fn trim_ws(src: ref u8) ref u8 = trust {
     val len: i64 = str.len_raw(src)
     if len == 0 { return "" }
     val start: mut i64 = 0
@@ -92,19 +92,19 @@ fn trim_ws(src: ref u8) ref u8! = {
     return substr(src, start, finish - start)
 }
 
-fn trim_trailing_slash(src: ref u8) ref u8! = {
+fn trim_trailing_slash(src: ref u8) ref u8 = trust {
     val len: i64 = str.len_raw(src)
     if len <= 1 { return src }
     if @load8(@ptradd(src as ref void, len - 1)) != 47 { return src }
     return substr(src, 0, len - 1)
 }
 
-fn normalize_rel_path(path: ref u8) ref u8! = {
+fn normalize_rel_path(path: ref u8) ref u8 = trust {
     val no_dot = str.trim_prefix_raw(path, "./")
     return trim_trailing_slash(no_dot)
 }
 
-fn path_dirname(path: ref u8) ref u8! = {
+fn path_dirname(path: ref u8) ref u8 = trust {
     val len: i64 = str.len_raw(path)
     val last_slash: mut i64 = -1
     val i: mut i64 = 0
@@ -118,7 +118,7 @@ fn path_dirname(path: ref u8) ref u8! = {
     return substr(path, 0, last_slash)
 }
 
-fn path_basename(path: ref u8) ref u8! = {
+fn path_basename(path: ref u8) ref u8 = trust {
     val len: i64 = str.len_raw(path)
     val last_slash: mut i64 = -1
     val i: mut i64 = 0
@@ -130,7 +130,7 @@ fn path_basename(path: ref u8) ref u8! = {
     return substr(path, last_slash + 1, len - last_slash - 1)
 }
 
-fn strip_sx_ext(path: ref u8) ref u8! = {
+fn strip_sx_ext(path: ref u8) ref u8 = trust {
     if str.rchar_ends_with(path, ".sx") {
         return str.trim_suffix_raw(path, ".sx")
     }
@@ -144,7 +144,7 @@ fn dir_exists(path: ref u8) bool = {
     return true
 }
 
-fn ensure_dir(path: ref u8) bool! = {
+fn ensure_dir(path: ref u8) bool = trust {
     val clean = trim_trailing_slash(path)
     if str_eq(clean, "") || str_eq(clean, ".") { return true }
     if os.exists(clean) { return true }
@@ -167,18 +167,18 @@ fn ensure_dir(path: ref u8) bool! = {
     return true
 }
 
-fn ensure_parent_dir(file_path: ref u8) bool! = {
+fn ensure_parent_dir(file_path: ref u8) bool = trust {
     val dir = path_dirname(file_path)
     return ensure_dir(dir)
 }
 
-fn is_hidden_name(name: ref u8) bool! = {
+fn is_hidden_name(name: ref u8) bool = trust {
     val len: i64 = str.len_raw(name)
     if len == 0 { return false }
     return @load8(name as ref void) == 46
 }
 
-fn collect_sx_files(dir: ref u8, rel_dir: ref u8, out: mut list[ref u8]) void! = {
+fn collect_sx_files(dir: ref u8, rel_dir: ref u8, out: mut list[ref u8]) void = trust {
     val entries_opt = fs.walk_dir(dir)
     if entries_opt is some entries {
         val sorted = entries as list[ref u8]
@@ -199,7 +199,7 @@ fn collect_sx_files(dir: ref u8, rel_dir: ref u8, out: mut list[ref u8]) void! =
     }
 }
 
-fn is_doc_target_line(line: ref u8) bool! = {
+fn is_doc_target_line(line: ref u8) bool = trust {
     return str.rchar_starts_with(line, "fn ") ||
            str.rchar_starts_with(line, "pub fn ") ||
            str.rchar_starts_with(line, "extern ") ||
@@ -212,7 +212,7 @@ fn is_doc_target_line(line: ref u8) bool! = {
            str.rchar_starts_with(line, "pub union ")
 }
 
-fn doc_line_text(trimmed: ref u8) ref u8! = {
+fn doc_line_text(trimmed: ref u8) ref u8 = trust {
     val len: i64 = str.len_raw(trimmed)
     if len <= 3 { return "" }
     if len > 3 && @load8(@ptradd(trimmed as ref void, 3)) == 32 {
@@ -221,7 +221,7 @@ fn doc_line_text(trimmed: ref u8) ref u8! = {
     return substr(trimmed, 3, len - 3)
 }
 
-fn update_doc_map_for_line(map: ref DocMap, trimmed: ref u8, line_no: i64, current_doc: ref u8) ref u8! = {
+fn update_doc_map_for_line(map: ref DocMap, trimmed: ref u8, line_no: i64, current_doc: ref u8) ref u8 = trust {
     guarded pre {
         map_not_null         : map != none
         trimmed_not_null     : trimmed != none
@@ -253,7 +253,7 @@ fn update_doc_map_for_line(map: ref DocMap, trimmed: ref u8, line_no: i64, curre
     return current_doc
 }
 
-fn extract_doc_map(src: ref u8) ref DocMap! = {
+fn extract_doc_map(src: ref u8) ref DocMap = trust {
     guarded pre {
         src_not_null : src != none
     }
@@ -292,7 +292,7 @@ fn extract_doc_map(src: ref u8) ref DocMap! = {
     return map
 }
 
-fn lookup_doc(map: ref DocMap, line: i64) ref u8! = {
+fn lookup_doc(map: ref DocMap, line: i64) ref u8 = trust {
     val len: i64 = @len(map.lines) as i64
     val i: mut i64 = 0
     for {
@@ -315,7 +315,7 @@ fn lookup_doc(map: ref DocMap, line: i64) ref u8! = {
     return ""
 }
 
-fn slugify(text: ref u8) ref u8! = {
+fn slugify(text: ref u8) ref u8 = trust {
     val sb: ref void = string.StringBuilder.new()
     val len: i64 = str.len_raw(text)
     val i: mut i64 = 0
@@ -345,11 +345,11 @@ fn slugify(text: ref u8) ref u8! = {
     return string.cstr(built)
 }
 
-fn anchor_for(kind_name: ref u8, item_name: ref u8, line: i64) ref u8! = {
+fn anchor_for(kind_name: ref u8, item_name: ref u8, line: i64) ref u8 = trust {
     return slugify(@fmt("{s}-{s}-{lld}", {kind_name, item_name, line}))
 }
 
-fn render_type(ty: ref parser.Node) ref u8! = {
+fn render_type(ty: ref parser.Node) ref u8 = trust {
     if ty == none { return "" }
     match ty.kind {
         parser.TY_NAMED => { return ty.d0 as ref u8 }
@@ -385,7 +385,7 @@ fn render_type(ty: ref parser.Node) ref u8! = {
     return "unknown"
 }
 
-fn render_fn_params(params: list[ref parser.Node]) ref u8! = {
+fn render_fn_params(params: list[ref parser.Node]) ref u8 = trust {
     val out: mut ref u8 = ""
     for param in params {
         val param_name: ref u8 = param.d0 as ref u8
@@ -400,7 +400,7 @@ fn render_fn_params(params: list[ref parser.Node]) ref u8! = {
     return out
 }
 
-fn render_type_fields(fields: list[ref parser.Node]) ref u8! = {
+fn render_type_fields(fields: list[ref parser.Node]) ref u8 = trust {
     val out: mut ref u8 = ""
     for field in fields {
         val prefix: mut ref u8 = ""
@@ -415,7 +415,7 @@ fn render_type_fields(fields: list[ref parser.Node]) ref u8! = {
     return out
 }
 
-fn render_type_list(types: list[ref parser.Node], delim: ref u8) ref u8! = {
+fn render_type_list(types: list[ref parser.Node], delim: ref u8) ref u8 = trust {
     val out: mut ref u8 = ""
     for ty in types {
         val piece = render_type(ty)
@@ -428,7 +428,7 @@ fn render_type_list(types: list[ref parser.Node], delim: ref u8) ref u8! = {
     return out
 }
 
-fn render_variant_list(values: list[ref u8], delim: ref u8) ref u8! = {
+fn render_variant_list(values: list[ref u8], delim: ref u8) ref u8 = trust {
     val out: mut ref u8 = ""
     for value in values {
         if str_eq(out, "") {
@@ -440,7 +440,7 @@ fn render_variant_list(values: list[ref u8], delim: ref u8) ref u8! = {
     return out
 }
 
-fn render_tagged_variants(values: list[ref parser.Node]) ref u8! = {
+fn render_tagged_variants(values: list[ref parser.Node]) ref u8 = trust {
     val out: mut ref u8 = ""
     for value in values {
         val types = value.d1 as list[ref parser.Node]
@@ -460,7 +460,7 @@ fn render_tagged_variants(values: list[ref parser.Node]) ref u8! = {
     return out
 }
 
-fn render_type_signature(node: ref parser.Node) ref u8! = {
+fn render_type_signature(node: ref parser.Node) ref u8 = trust {
     val public_prefix: mut ref u8 = ""
     if node.d0 != 0 { public_prefix = "pub " }
     if node.kind == parser.NK_TYPEDEF || node.kind == parser.NK_EXTERN_TYPE {
@@ -484,7 +484,7 @@ fn render_type_signature(node: ref parser.Node) ref u8! = {
     return ""
 }
 
-fn render_fn_signature(node: ref parser.Node) ref u8! = {
+fn render_fn_signature(node: ref parser.Node) ref u8 = trust {
     if node.kind == parser.NK_EXTERN_FN {
         val public_prefix: mut ref u8 = ""
         if node.d0 != 0 { public_prefix = "pub " }
@@ -552,20 +552,20 @@ fn entry_kind_name(kind: i64) ref u8 = {
     return "type"
 }
 
-fn entry_name(node: ref parser.Node) ref u8! = {
+fn entry_name(node: ref parser.Node) ref u8 = trust {
     if node.kind == parser.NK_EXTERN_FN { return node.d1 as ref u8 }
     if node.kind == parser.NK_FN || node.kind == parser.NK_GENERIC_FN { return node.d2 as ref u8 }
     return node.d1 as ref u8
 }
 
-fn entry_nav_name(node: ref parser.Node) ref u8! = {
+fn entry_nav_name(node: ref parser.Node) ref u8 = trust {
     if ((node.kind == parser.NK_FN || node.kind == parser.NK_GENERIC_FN) && node.d1 != 0 as i64) {
         return @fmt("{s}.{s}", {node.d1 as ref u8, node.d2 as ref u8})
     }
     return entry_name(node)
 }
 
-fn add_entry(entries: mut list[ref DocEntry], node: ref parser.Node, doc_map: ref DocMap, availability: ref u8) void! = {
+fn add_entry(entries: mut list[ref DocEntry], node: ref parser.Node, doc_map: ref DocMap, availability: ref u8) void = trust {
     val item: mut ref DocEntry = @alloc(@sizeof(DocEntry)) as ref DocEntry
     item.kind = node.kind
     item.line = node.line
@@ -583,13 +583,13 @@ fn add_entry(entries: mut list[ref DocEntry], node: ref parser.Node, doc_map: re
     @append(entries, item)
 }
 
-fn combine_availability(a: ref u8, b: ref u8) ref u8! = {
+fn combine_availability(a: ref u8, b: ref u8) ref u8 = trust {
     if str_eq(a, "") { return b }
     if str_eq(b, "") { return a }
     return @fmt("{s}, {s}", {a, b})
 }
 
-fn collect_entries(items: list[ref parser.Node], doc_map: ref DocMap, out: mut list[ref DocEntry], availability: ref u8) void! = {
+fn collect_entries(items: list[ref parser.Node], doc_map: ref DocMap, out: mut list[ref DocEntry], availability: ref u8) void = trust {
     for item in items {
         if item.kind == parser.NK_WHEN_ITEMS {
             val branch = combine_availability(availability, @fmt("when {s}", {item.d0 as ref u8}))
@@ -618,7 +618,7 @@ fn collect_entries(items: list[ref parser.Node], doc_map: ref DocMap, out: mut l
     }
 }
 
-fn load_module(source_path: ref u8, rel_path: ref u8) ref DocModule! = {
+fn load_module(source_path: ref u8, rel_path: ref u8) ref DocModule = trust {
     val src_opt = fs.read_all(source_path)
     val src: mut ref u8 = ""
     match src_opt {
@@ -658,7 +658,7 @@ fn load_module(source_path: ref u8, rel_path: ref u8) ref DocModule! = {
     return mod
 }
 
-fn find_root_module(modules: list[ref DocModule], root_rel: ref u8) i64! = {
+fn find_root_module(modules: list[ref DocModule], root_rel: ref u8) i64 = trust {
     val len: i64 = @len(modules) as i64
     val i: mut i64 = 0
     for {
@@ -673,13 +673,13 @@ fn find_root_module(modules: list[ref DocModule], root_rel: ref u8) i64! = {
     return -1
 }
 
-fn module_output_path(module_name: ref u8, markdown: bool) ref u8! = {
+fn module_output_path(module_name: ref u8, markdown: bool) ref u8 = trust {
     val ext: ref u8 = "html"
     if markdown { return @fmt("pages/{s}.md", {module_name}) }
     return @fmt("pages/{s}.{s}", {module_name, ext})
 }
 
-fn assign_output_paths(modules: list[ref DocModule], markdown: bool, root_idx: i64) void! = {
+fn assign_output_paths(modules: list[ref DocModule], markdown: bool, root_idx: i64) void = trust {
     val len: i64 = @len(modules) as i64
     val i: mut i64 = 0
     for {
@@ -701,7 +701,7 @@ fn assign_output_paths(modules: list[ref DocModule], markdown: bool, root_idx: i
     }
 }
 
-fn html_escape(text: ref u8) ref u8! = {
+fn html_escape(text: ref u8) ref u8 = trust {
     val sb: ref void = string.StringBuilder.new()
     val len: i64 = str.len_raw(text)
     val i: mut i64 = 0
@@ -726,7 +726,7 @@ fn html_escape(text: ref u8) ref u8! = {
     return string.cstr(built)
 }
 
-fn append_doc_html(sb: ref void, docs: ref u8) void! = {
+fn append_doc_html(sb: ref void, docs: ref u8) void = trust {
     if str_eq(docs, "") { return }
     val len: i64 = str.len_raw(docs)
     val line_start: mut i64 = 0
@@ -781,7 +781,7 @@ fn append_doc_html(sb: ref void, docs: ref u8) void! = {
     string.StringBuilder.append_cstr(sb, "</div>")
 }
 
-fn render_entry_details_html(sb: ref void, entry: ref DocEntry) void! = {
+fn render_entry_details_html(sb: ref void, entry: ref DocEntry) void = trust {
     val node = entry.node
     if node.kind == parser.NK_TYPEDEF || node.kind == parser.NK_EXTERN_TYPE {
         val fields = node.d2 as list[ref parser.Node]
@@ -828,7 +828,7 @@ fn render_entry_details_html(sb: ref void, entry: ref DocEntry) void! = {
     }
 }
 
-fn render_entry_html(sb: ref void, entry: ref DocEntry) void! = {
+fn render_entry_html(sb: ref void, entry: ref DocEntry) void = trust {
     string.StringBuilder.append_cstr(sb, @fmt("<section class=\"entry\" id=\"{s}\" data-name=\"{s}\">", {entry.anchor, html_escape(entry.nav_name)}))
     string.StringBuilder.append_cstr(sb, @fmt("<div class=\"entry-header\"><h3>{s}</h3>", {html_escape(entry.name)}))
     if !str_eq(entry.availability, "") {
@@ -843,7 +843,7 @@ fn render_entry_html(sb: ref void, entry: ref DocEntry) void! = {
     string.StringBuilder.append_cstr(sb, "</section>")
 }
 
-fn depth_prefix(output_path: ref u8) ref u8! = {
+fn depth_prefix(output_path: ref u8) ref u8 = trust {
     val len: i64 = str.len_raw(output_path)
     val depth: mut i64 = 0
     val i: mut i64 = 0
@@ -862,15 +862,15 @@ fn depth_prefix(output_path: ref u8) ref u8! = {
     return prefix
 }
 
-fn href_from(current_output: ref u8, target_output: ref u8) ref u8! = {
+fn href_from(current_output: ref u8, target_output: ref u8) ref u8 = trust {
     return @fmt("{s}{s}", {depth_prefix(safe_cstr(current_output)), safe_cstr(target_output)})
 }
 
-fn nav_key(label: ref u8, unique: ref u8) ref u8! = {
+fn nav_key(label: ref u8, unique: ref u8) ref u8 = trust {
     return @fmt("{s}\n{s}", {safe_cstr(label), safe_cstr(unique)})
 }
 
-fn nav_key_tail(key: ref u8) ref u8! = {
+fn nav_key_tail(key: ref u8) ref u8 = trust {
     val len: i64 = str.len_raw(key)
     val i: mut i64 = 0
     for {
@@ -883,7 +883,7 @@ fn nav_key_tail(key: ref u8) ref u8! = {
     return ""
 }
 
-fn append_sorted_module_nav_html(sb: ref void, modules: list[ref DocModule], current: ref DocModule) void! = {
+fn append_sorted_module_nav_html(sb: ref void, modules: list[ref DocModule], current: ref DocModule) void = trust {
     val keys: mut list[ref u8] = []
     for mod in modules {
         @append(keys, nav_key(mod.module_name, mod.output_path))
@@ -905,7 +905,7 @@ fn append_sorted_module_nav_html(sb: ref void, modules: list[ref DocModule], cur
     }
 }
 
-fn append_sorted_entry_nav_html(sb: ref void, entries: list[ref DocEntry]) void! = {
+fn append_sorted_entry_nav_html(sb: ref void, entries: list[ref DocEntry]) void = trust {
     val keys: mut list[ref u8] = []
     for entry in entries {
         @append(keys, nav_key(entry.nav_name, entry.anchor))
@@ -925,7 +925,7 @@ fn append_sorted_entry_nav_html(sb: ref void, entries: list[ref DocEntry]) void!
     }
 }
 
-fn append_nav_html(sb: ref void, modules: list[ref DocModule], current: ref DocModule) void! = {
+fn append_nav_html(sb: ref void, modules: list[ref DocModule], current: ref DocModule) void = trust {
     if @len(modules) as i64 > 1 {
         string.StringBuilder.append_cstr(sb, "<div class=\"nav-section\"><div class=\"nav-label\">Modules</div>")
         append_sorted_module_nav_html(sb, modules, current)
@@ -938,7 +938,7 @@ fn append_nav_html(sb: ref void, modules: list[ref DocModule], current: ref DocM
     }
 }
 
-fn render_module_page_html(module: ref DocModule, modules: list[ref DocModule]) ref u8! = {
+fn render_module_page_html(module: ref DocModule, modules: list[ref DocModule]) ref u8 = trust {
     val sb: ref void = string.StringBuilder.new()
     string.StringBuilder.append_cstr(sb, "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\">")
     string.StringBuilder.append_cstr(sb, @fmt("<title>{s} — Docs</title>", {html_escape(safe_cstr(module.module_name))}))
@@ -1324,7 +1324,7 @@ fn render_module_page_html(module: ref DocModule, modules: list[ref DocModule]) 
     return string.cstr(built)
 }
 
-fn render_entry_details_md(sb: ref void, entry: ref DocEntry) void! = {
+fn render_entry_details_md(sb: ref void, entry: ref DocEntry) void = trust {
     val node = entry.node
     if node.kind == parser.NK_TYPEDEF || node.kind == parser.NK_EXTERN_TYPE {
         val fields = node.d2 as list[ref parser.Node]
@@ -1357,7 +1357,7 @@ fn render_entry_details_md(sb: ref void, entry: ref DocEntry) void! = {
     }
 }
 
-fn render_module_page_md(module: ref DocModule, modules: list[ref DocModule]) ref u8! = {
+fn render_module_page_md(module: ref DocModule, modules: list[ref DocModule]) ref u8 = trust {
     val sb: ref void = string.StringBuilder.new()
     string.StringBuilder.append_cstr(sb, @fmt("# {s}\n\n", {safe_cstr(module.module_name)}))
     string.StringBuilder.append_cstr(sb, @fmt("Source: `{s}`\n\n", {safe_cstr(module.rel_path)}))
@@ -1402,7 +1402,7 @@ fn render_module_page_md(module: ref DocModule, modules: list[ref DocModule]) re
     return string.cstr(built)
 }
 
-fn render_overview_page(markdown: bool, modules: list[ref DocModule], output_path: ref u8) ref u8! = {
+fn render_overview_page(markdown: bool, modules: list[ref DocModule], output_path: ref u8) ref u8 = trust {
     if markdown {
         val sb = string.StringBuilder.new()
         string.StringBuilder.append_cstr(sb, "# Docs\n\n## Modules\n\n")
@@ -1460,12 +1460,12 @@ fn render_overview_page(markdown: bool, modules: list[ref DocModule], output_pat
     return string.cstr(built2)
 }
 
-fn write_page(path: ref u8, content: ref u8) bool! = {
+fn write_page(path: ref u8, content: ref u8) bool = trust {
     if !ensure_parent_dir(path) { return false }
     return fs.write_all(path, content)
 }
 
-fn maybe_root_rel_for_dir() ref u8! = {
+fn maybe_root_rel_for_dir() ref u8 = trust {
     val sxmod_opt = commands.load_sxmod()
     match sxmod_opt {
         some cfg => {
@@ -1477,7 +1477,7 @@ fn maybe_root_rel_for_dir() ref u8! = {
     return ""
 }
 
-pub fn cmd_doc(target: ref u8, markdown: bool) i32! = {
+pub fn cmd_doc(target: ref u8, markdown: bool) i32 = trust {
     if str_eq(target, "") {
         stdio.puts("error: doc requires a file or directory target")
         return 1
@@ -1588,7 +1588,7 @@ test {
     assert(str_eq(trust slugify("Hello.World"), "hello-world"))
     assert(str_eq(trust strip_sx_ext("src/meta/docs.sx"), "src/meta/docs"))
 
-    val fn_src = "fn add(a: i64, b: i64) i64! = { return a + b }"
+    val fn_src = "fn add(a: i64, b: i64) i64 = trust { return a + b }"
     val ml: mut i64 = 0
 
     match regex.re_match("^fn [^=]+", fn_src, @addr(ml)) {

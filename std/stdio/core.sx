@@ -7,21 +7,21 @@ pub fn puts(arg: ref u8) void = {
 ///
 /// This trusts an unsafe printf call for the sake of making debugging pure
 /// functions easier, use with caution.
-pub fn print(fmt: ref u8, args: untyped) void! = {
+pub fn print(fmt: ref u8, args: untyped) void = trust {
     @print(fmt, args)
 }
 
 val STD_ERROR_HANDLE: i32 = -12
 
 when windows {
-    extern (C) fn GetStdHandle(nStdHandle: i32) ref void! = "GetStdHandle"
+    extern (C) fn GetStdHandle(nStdHandle: i32) ref void = "GetStdHandle"
     extern (C) fn WriteFile(
         hFile: ref void,
         lpBuffer: ref void,
         nNumberOfBytesToWrite: u32,
         lpNumberOfBytesWritten: ref u32,
         lpOverlapped: ref void
-    ) i32! = "WriteFile"
+    ) i32 = "WriteFile"
 }
 
 /// Print a string to stderr followed by a newline (fd 2).
@@ -49,20 +49,20 @@ pub fn eputs(msg: ref u8) void = {
 }
 
 /// Print a string to stderr followed by a newline (fd 2).
-pub fn eprint(fmt: ref u8, args: untyped) void! = {
+pub fn eprint(fmt: ref u8, args: untyped) void = trust {
     @dprintf(2, fmt, args)
 }
 
 /// Read a single character from stdin.
 /// Returns -1 on EOF.
-pub fn read_key() i32! = {
+pub fn read_key() i32 = trust {
     return @getchar()
 }
 
 /// Read a line from stdin into buf.
 /// (at most max_len bytes, including null terminator).
 /// Returns buf on success, or a null pointer on EOF/error.
-pub fn read_line(buf: ref u8, max_len: i64) ref u8! = {
+pub fn read_line(buf: ref u8, max_len: i64) ref u8 = trust {
     return @fgets(buf, max_len, @stdin())
 }
 

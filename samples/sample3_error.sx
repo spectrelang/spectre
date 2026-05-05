@@ -3,7 +3,7 @@ type SomeType = {
     y: mut i32
 }
 
-pub fn main() void! = {
+pub fn main() void = trust {
     val st: SomeType = {x: 30, y: 40}
     st.y = 30 // Should compile error, since st is immutable, regardless of the mut y field.
 }

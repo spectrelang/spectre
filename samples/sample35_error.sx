@@ -5,6 +5,6 @@ fn do_some_thing() i32 = {
     // Should error, since this code path doesnt return a value.
 }
 
-pub fn main() void! = {
+pub fn main() void = trust {
     do_some_thing()
 }

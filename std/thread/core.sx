@@ -14,23 +14,23 @@ pub type Thread = {
 }
 
 when posix {
-    extern (C) fn pthread_create(thread: ref void, attr: ref void, start_routine: usize, arg: ref void) i32! = "pthread_create"
-    extern (C) fn pthread_join(thread: ref void, retval: ref void) i32! = "pthread_join"
-    extern (C) fn pthread_detach(thread: ref void) i32! = "pthread_detach"
-    extern (C) fn pthread_self() ref void! = "pthread_self"
-    extern (C) fn sched_yield() i32! = "sched_yield"
+    extern (C) fn pthread_create(thread: ref void, attr: ref void, start_routine: usize, arg: ref void) i32 = "pthread_create"
+    extern (C) fn pthread_join(thread: ref void, retval: ref void) i32 = "pthread_join"
+    extern (C) fn pthread_detach(thread: ref void) i32 = "pthread_detach"
+    extern (C) fn pthread_self() ref void = "pthread_self"
+    extern (C) fn sched_yield() i32 = "sched_yield"
 }
 
 when windows {
-    extern (C) fn CreateThread(lpThreadAttributes: ref void, dwStackSize: usize, lpStartAddress: usize, lpParameter: ref void, dwCreationFlags: u32, lpThreadId: ref u32) ref void! = "CreateThread"
-    extern (C) fn WaitForSingleObject(hHandle: ref void, dwMilliseconds: u32) u32! = "WaitForSingleObject"
-    extern (C) fn CloseHandle(hObject: ref void) i32! = "CloseHandle"
-    extern (C) fn GetCurrentThreadId() u32! = "GetCurrentThreadId"
-    extern (C) fn SwitchToThread() i32! = "SwitchToThread"
+    extern (C) fn CreateThread(lpThreadAttributes: ref void, dwStackSize: usize, lpStartAddress: usize, lpParameter: ref void, dwCreationFlags: u32, lpThreadId: ref u32) ref void = "CreateThread"
+    extern (C) fn WaitForSingleObject(hHandle: ref void, dwMilliseconds: u32) u32 = "WaitForSingleObject"
+    extern (C) fn CloseHandle(hObject: ref void) i32 = "CloseHandle"
+    extern (C) fn GetCurrentThreadId() u32 = "GetCurrentThreadId"
+    extern (C) fn SwitchToThread() i32 = "SwitchToThread"
 }
 
 /// Create a new thread running `entry` with the given `arg`.
-pub fn (Thread) new(entry: fn(ref void) ref void, arg: ref void) result[ref void, ThreadError]! = {
+pub fn (Thread) new(entry: fn(ref void) ref void, arg: ref void) result[ref void, ThreadError] = trust {
     val handle_size: usize = 8
     val handle: ref void = @alloc(handle_size)
     @memset(handle, 0, handle_size)
@@ -64,7 +64,7 @@ pub fn (Thread) new(entry: fn(ref void) ref void, arg: ref void) result[ref void
 /// Returns the thread's return value, or an error if the thread cannot be joined.
 ///
 /// A thread can only be joined once. Subsequent calls will return AlreadyJoined.
-pub fn (Thread) join(thread: self) result[ref void, ThreadError]! = {
+pub fn (Thread) join(thread: self) result[ref void, ThreadError] = trust {
     val already_joined: bool = @load(@ptradd(thread, 8)) as bool
     if (already_joined) {
         return err ThreadError.AlreadyJoined
@@ -103,7 +103,7 @@ pub fn (Thread) join(thread: self) result[ref void, ThreadError]! = {
 /// Detach a thread, allowing it to run independently.
 /// Detached threads automatically release resources when they complete.
 /// Returns an error if detachment fails.
-pub fn (Thread) detach(thread: self) result[void, ThreadError]! = {
+pub fn (Thread) detach(thread: self) result[void, ThreadError] = trust {
     val already_joined: bool = @load(@ptradd(thread, 8)) as bool
     if (already_joined) {
         return err ThreadError.AlreadyJoined
@@ -128,7 +128,7 @@ pub fn (Thread) detach(thread: self) result[void, ThreadError]! = {
 }
 
 /// Free a thread handle after it has been joined or detached.
-pub fn (Thread) free(thread: mut self) void! = {
+pub fn (Thread) free(thread: mut self) void = trust {
     @free(thread)
 }
 
@@ -147,7 +147,7 @@ pub fn current_thread_id() usize = {
 }
 
 /// Yield the current thread's remaining time slice to allow other threads to run.
-pub fn yield_thread() void! = {
+pub fn yield_thread() void = trust {
     when posix {
         sched_yield()
     }
@@ -165,17 +165,17 @@ pub type Mutex = {
 }
 
 when posix {
-    extern (C) fn pthread_mutex_init(mutex: ref void, attr: ref void) i32! = "pthread_mutex_init"
-    extern (C) fn pthread_mutex_destroy(mutex: ref void) i32! = "pthread_mutex_destroy"
-    extern (C) fn pthread_mutex_lock(mutex: ref void) i32! = "pthread_mutex_lock"
-    extern (C) fn pthread_mutex_unlock(mutex: ref void) i32! = "pthread_mutex_unlock"
+    extern (C) fn pthread_mutex_init(mutex: ref void, attr: ref void) i32 = "pthread_mutex_init"
+    extern (C) fn pthread_mutex_destroy(mutex: ref void) i32 = "pthread_mutex_destroy"
+    extern (C) fn pthread_mutex_lock(mutex: ref void) i32 = "pthread_mutex_lock"
+    extern (C) fn pthread_mutex_unlock(mutex: ref void) i32 = "pthread_mutex_unlock"
 }
 
 when windows {
-    extern (C) fn InitializeCriticalSection(lpCriticalSection: ref void) void! = "InitializeCriticalSection"
-    extern (C) fn DeleteCriticalSection(lpCriticalSection: ref void) void! = "DeleteCriticalSection"
-    extern (C) fn EnterCriticalSection(lpCriticalSection: ref void) void! = "EnterCriticalSection"
-    extern (C) fn LeaveCriticalSection(lpCriticalSection: ref void) void! = "LeaveCriticalSection"
+    extern (C) fn InitializeCriticalSection(lpCriticalSection: ref void) void = "InitializeCriticalSection"
+    extern (C) fn DeleteCriticalSection(lpCriticalSection: ref void) void = "DeleteCriticalSection"
+    extern (C) fn EnterCriticalSection(lpCriticalSection: ref void) void = "EnterCriticalSection"
+    extern (C) fn LeaveCriticalSection(lpCriticalSection: ref void) void = "LeaveCriticalSection"
 }
 
 when linux {
@@ -190,7 +190,7 @@ when linux {
 
 /// Create and initialize a new mutex.
 /// Returns the mutex handle or none on failure.
-pub fn (Mutex) new() option[ref void]! = {
+pub fn (Mutex) new() option[ref void] = trust {
     val m: ref void = @alloc(MUTEX_SIZE)
     @memset(m, 0, MUTEX_SIZE)
 
@@ -219,7 +219,7 @@ pub fn (Mutex) lock(m: self) void = {
 }
 
 /// Unlock a previously locked mutex.
-pub fn (Mutex) unlock(m: self) void! = {
+pub fn (Mutex) unlock(m: self) void = trust {
     when posix {
         pthread_mutex_unlock(m)
     }
@@ -229,7 +229,7 @@ pub fn (Mutex) unlock(m: self) void! = {
 }
 
 /// Destroy and free a mutex.
-pub fn (Mutex) free(m: mut self) void! = {
+pub fn (Mutex) free(m: mut self) void = trust {
     when posix {
         pthread_mutex_destroy(m)
     }

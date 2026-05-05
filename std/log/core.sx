@@ -1,4 +1,4 @@
-extern (C) fn isatty(fd: i64) i64! = "isatty"
+extern (C) fn isatty(fd: i64) i64 = "isatty"
 
 val time = use("../time")
 val stdio = use("../stdio")
@@ -39,7 +39,7 @@ fn get_time_string() ref u8 = {
     )
 }
 
-fn log_out(msg: ref u8, label: ref u8, color: ref u8) void! = {
+fn log_out(msg: ref u8, label: ref u8, color: ref u8) void = trust {
     val ts = get_time_string()
     if colors {
         stdio.print(
@@ -52,7 +52,7 @@ fn log_out(msg: ref u8, label: ref u8, color: ref u8) void! = {
     }
 }
 
-fn log_err(msg: ref u8, label: ref u8, color: ref u8) void! = {
+fn log_err(msg: ref u8, label: ref u8, color: ref u8) void = trust {
     val ts = get_time_string()
     if colors {
         stdio.eprint(

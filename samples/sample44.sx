@@ -1,6 +1,6 @@
 val stdio = use("std/stdio")
 
-pub fn main() void! = {
+pub fn main() void = trust {
 // old syntax, should no longer compile:
 //     stdio.puts(`
 // Hello, world.

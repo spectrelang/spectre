@@ -2,7 +2,7 @@ val str = use("std/string")
 val stdio = use("std/stdio")
 val some_mod = use("./submod/sub.sx")
 
-pub fn main() void! = {
+pub fn main() void = trust {
     some_mod.some_function()
     stdio.print("{d}", {str.compare[ref u8, ref u8]("hi", "hi")})
 }

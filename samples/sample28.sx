@@ -1,5 +1,5 @@
 val stdio = use("std/stdio")
 
-pub fn main() void! = {
+pub fn main() void = trust {
     stdio.puts("hello, world")
 }

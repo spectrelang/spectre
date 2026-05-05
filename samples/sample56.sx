@@ -2,20 +2,20 @@ type Value = {
     kind: i64
 }
 
-fn is_zero(v: Value) bool! = {
+fn is_zero(v: Value) bool = trust {
     return v.kind == 0
 }
 
-fn is_one(v: Value) bool! = {
+fn is_one(v: Value) bool = trust {
     return v.kind == 1
 }
 
-fn check(v: Value, pred: fn(Value) bool) bool! = {
+fn check(v: Value, pred: fn(Value) bool) bool = trust {
     @puts("In check")
     return pred(v)
 }
 
-pub fn main() bool! = {
+pub fn main() bool = trust {
     val a: Value = { kind: 0 }
     val b: Value = { kind: 1 }
 

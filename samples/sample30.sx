@@ -1,6 +1,6 @@
 val stdio = use("std/stdio")
 
-pub fn some_function() void! = {
+pub fn some_function() void = trust {
     val xs: mut list[i32] = [1, 2, 3, 4]
     for x in xs {
         stdio.print("{d}\n", {x})
@@ -35,7 +35,7 @@ pub fn some_function() void! = {
     stdio.print("{d}\n", {cap})
 }
 
-pub fn main() i32! = {
+pub fn main() i32 = trust {
     some_function()
     return 0
 }

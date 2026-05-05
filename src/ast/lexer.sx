@@ -95,7 +95,7 @@ pub type Token = {
     col:  mut i64
 }
 
-fn make_tok(l: ref Lexer, kind: TokenKind, line: i64, col: i64) ref Token! = {
+fn make_tok(l: ref Lexer, kind: TokenKind, line: i64, col: i64) ref Token = trust {
     val slot = allocators.Arena.alloc(l.arena, @sizeof(Token) as usize)
     match slot {
         none => {
@@ -124,7 +124,7 @@ type Lexer = {
     arena: mut ref void
 }
 
-pub fn lexer_new(src: ref u8) ref Lexer! = {
+pub fn lexer_new(src: ref u8) ref Lexer = trust {
     val slen: i64 = string.len_raw(src)
     val arena_cap: usize = (slen * 64 + 8192) as usize
     val arena_res = allocators.Arena.new(arena_cap)
@@ -161,7 +161,7 @@ fn lx_peek2(l: ref Lexer) i64 = {
     return trust @load8(@ptradd(l.src, p)) as i64
 }
 
-fn lx_advance(l: mut ref Lexer) i64! = {
+fn lx_advance(l: mut ref Lexer) i64 = trust {
     if l.pos >= l.len { return -1 }
     val c: i64 = @load8(@ptradd(l.src, l.pos)) as i64
     l.pos = l.pos + 1
@@ -174,23 +174,23 @@ fn lx_advance(l: mut ref Lexer) i64! = {
     return c
 }
 
-fn is_alpha(c: i64) bool! = {
+fn is_alpha(c: i64) bool = trust {
     return (c >= 65 && c <= 90) || (c >= 97 && c <= 122) || c == 95
 }
 
-fn is_digit(c: i64) bool! = { return c >= 48 && c <= 57 }
+fn is_digit(c: i64) bool = trust { return c >= 48 && c <= 57 }
 
-fn is_alnum(c: i64) bool! = { return is_alpha(c) || is_digit(c) }
+fn is_alnum(c: i64) bool = trust { return is_alpha(c) || is_digit(c) }
 
-fn is_hex(c: i64) bool! = {
+fn is_hex(c: i64) bool = trust {
     return is_digit(c) || (c >= 65 && c <= 70) || (c >= 97 && c <= 102)
 }
 
-fn is_space(c: i64) bool! = {
+fn is_space(c: i64) bool = trust {
     return c == 32 || c == 9 || c == 10 || c == 13
 }
 
-fn substr(src: ref u8, start: i64, end: i64) ref u8! = {
+fn substr(src: ref u8, start: i64, end: i64) ref u8 = trust {
     val n: i64 = end - start
     val buf: ref u8 = @alloc(n + 1) as ref u8
     @memcpy(buf, @ptradd(src, start), n)
@@ -198,11 +198,11 @@ fn substr(src: ref u8, start: i64, end: i64) ref u8! = {
     return buf
 }
 
-fn str_eq(a: ref u8, b: ref u8) bool! = {
+fn str_eq(a: ref u8, b: ref u8) bool = trust {
     return string.rchar_cmp(a, b) == 0
 }
 
-fn keyword_kind(s: ref u8) TokenKind! = {
+fn keyword_kind(s: ref u8) TokenKind = trust {
     if str_eq(s, "fn")       { return Fn() }
     if str_eq(s, "spec")     { return Spec() }
     if str_eq(s, "val")      { return Val() }
@@ -245,7 +245,7 @@ fn keyword_kind(s: ref u8) TokenKind! = {
     return Ident(s)
 }
 
-fn lex_string(l: ref Lexer) ref u8! = {
+fn lex_string(l: ref Lexer) ref u8 = trust {
     val buf_cap: mut i64 = 4096
     val buf: mut ref u8 = @alloc(buf_cap) as ref u8
     val i: mut i64 = 0
@@ -295,7 +295,7 @@ fn lex_string(l: ref Lexer) ref u8! = {
     return result
 }
 
-fn lex_number(l: ref Lexer, line: i64, col: i64) ref Token! = {
+fn lex_number(l: ref Lexer, line: i64, col: i64) ref Token = trust {
     val start: i64 = l.pos - 1
     val is_float: mut bool = false
     val first: i64 = @load8(@ptradd(l.src, start)) as i64
@@ -323,11 +323,11 @@ fn lex_number(l: ref Lexer, line: i64, col: i64) ref Token! = {
     return make_tok(l, Int(text), line, col)
 }
 
-fn skip_whitespace(l: mut ref Lexer) void! = {
+fn skip_whitespace(l: mut ref Lexer) void = trust {
     for { if !is_space(lx_peek(l)) { break } lx_advance(l) }
 }
 
-fn skip_comment(l: mut ref Lexer) bool! = {
+fn skip_comment(l: mut ref Lexer) bool = trust {
     if lx_peek(l) == 47 && lx_peek2(l) == 47 {
         for { val c: i64 = lx_peek(l) if c == -1 || c == 10 { break } lx_advance(l) }
         return true
@@ -335,7 +335,7 @@ fn skip_comment(l: mut ref Lexer) bool! = {
     return false
 }
 
-fn lex_raw_string(l: mut ref Lexer, line: i64, col: i64) ref Token! = {
+fn lex_raw_string(l: mut ref Lexer, line: i64, col: i64) ref Token = trust {
     lx_advance(l)
     val buf_cap: mut i64 = 4096
     val buf: mut ref u8 = @alloc(buf_cap) as ref u8
@@ -372,7 +372,7 @@ fn lex_raw_string(l: mut ref Lexer, line: i64, col: i64) ref Token! = {
     return make_tok(l, Str(result), line, col)
 }
 
-fn lex_char_literal(l: mut ref Lexer, line: i64, col: i64) ref Token! = {
+fn lex_char_literal(l: mut ref Lexer, line: i64, col: i64) ref Token = trust {
     val ch: i64 = lx_advance(l)
     val char_val: mut i64 = ch
     if ch == 92 {
@@ -389,14 +389,14 @@ fn lex_char_literal(l: mut ref Lexer, line: i64, col: i64) ref Token! = {
     return make_tok(l, CharLit(char_val), line, col)
 }
 
-fn lex_identifier(l: mut ref Lexer, line: i64, col: i64) ref Token! = {
+fn lex_identifier(l: mut ref Lexer, line: i64, col: i64) ref Token = trust {
     val start: i64 = l.pos - 1
     for { if !is_alnum(lx_peek(l)) { break } lx_advance(l) }
     val text: ref u8 = substr(l.src, start, l.pos)
     return make_tok(l, keyword_kind(text), line, col)
 }
 
-fn lex_single_char(l: ref Lexer, c: i64, line: i64, col: i64) result[ref Token, bool]! = {
+fn lex_single_char(l: ref Lexer, c: i64, line: i64, col: i64) result[ref Token, bool] = trust {
     if c == 40  { return ok make_tok(l, LParen(),    line, col) }
     if c == 41  { return ok make_tok(l, RParen(),    line, col) }
     if c == 123 { return ok make_tok(l, LBrace(),    line, col) }
@@ -415,7 +415,7 @@ fn lex_single_char(l: ref Lexer, c: i64, line: i64, col: i64) result[ref Token, 
     return err false
 }
 
-fn lex_dot(l: mut ref Lexer, line: i64, col: i64) ref Token! = {
+fn lex_dot(l: mut ref Lexer, line: i64, col: i64) ref Token = trust {
     if lx_peek(l) == 46 && lx_peek2(l) == 46 {
         lx_advance(l) lx_advance(l)
         return make_tok(l, DotDotDot(), line, col)
@@ -423,53 +423,53 @@ fn lex_dot(l: mut ref Lexer, line: i64, col: i64) ref Token! = {
     return make_tok(l, Dot(), line, col)
 }
 
-fn lex_plus(l: mut ref Lexer, line: i64, col: i64) ref Token! = {
+fn lex_plus(l: mut ref Lexer, line: i64, col: i64) ref Token = trust {
     if lx_peek(l) == 43      { lx_advance(l) return make_tok(l, PlusPlus(), line, col) }
     if lx_peek(l) == 61      { lx_advance(l) return make_tok(l, PlusEq(),   line, col) }
     return make_tok(l, Plus(), line, col)
 }
 
-fn lex_minus(l: mut ref Lexer, line: i64, col: i64) ref Token! = {
+fn lex_minus(l: mut ref Lexer, line: i64, col: i64) ref Token = trust {
     if lx_peek(l) == 62      { lx_advance(l) return make_tok(l, Arrow(),      line, col) }
     if lx_peek(l) == 45      { lx_advance(l) return make_tok(l, MinusMinus(), line, col) }
     if lx_peek(l) == 61      { lx_advance(l) return make_tok(l, MinusEq(),    line, col) }
     return make_tok(l, Minus(), line, col)
 }
 
-fn lex_eq(l: mut ref Lexer, line: i64, col: i64) ref Token! = {
+fn lex_eq(l: mut ref Lexer, line: i64, col: i64) ref Token = trust {
     if lx_peek(l) == 61      { lx_advance(l) return make_tok(l, EqEq(),    line, col) }
     if lx_peek(l) == 62      { lx_advance(l) return make_tok(l, FatArrow(), line, col) }
     return make_tok(l, Eq(), line, col)
 }
 
-fn lex_bang(l: mut ref Lexer, line: i64, col: i64) ref Token! = {
+fn lex_bang(l: mut ref Lexer, line: i64, col: i64) ref Token = trust {
     if lx_peek(l) == 61      { lx_advance(l) return make_tok(l, BangEq(), line, col) }
     return make_tok(l, Bang(), line, col)
 }
 
-fn lex_lt(l: mut ref Lexer, line: i64, col: i64) ref Token! = {
+fn lex_lt(l: mut ref Lexer, line: i64, col: i64) ref Token = trust {
     if lx_peek(l) == 61      { lx_advance(l) return make_tok(l, LtEq(), line, col) }
     if lx_peek(l) == 60      { lx_advance(l) return make_tok(l, Shl(),  line, col) }
     return make_tok(l, Lt(), line, col)
 }
 
-fn lex_gt(l: mut ref Lexer, line: i64, col: i64) ref Token! = {
+fn lex_gt(l: mut ref Lexer, line: i64, col: i64) ref Token = trust {
     if lx_peek(l) == 61      { lx_advance(l) return make_tok(l, GtEq(), line, col) }
     if lx_peek(l) == 62      { lx_advance(l) return make_tok(l, Shr(),  line, col) }
     return make_tok(l, Gt(), line, col)
 }
 
-fn lex_amp(l: mut ref Lexer, line: i64, col: i64) ref Token! = {
+fn lex_amp(l: mut ref Lexer, line: i64, col: i64) ref Token = trust {
     if lx_peek(l) == 38      { lx_advance(l) return make_tok(l, And(),    line, col) }
     return make_tok(l, BitAnd(), line, col)
 }
 
-fn lex_pipe(l: mut ref Lexer, line: i64, col: i64) ref Token! = {
+fn lex_pipe(l: mut ref Lexer, line: i64, col: i64) ref Token = trust {
     if lx_peek(l) == 124     { lx_advance(l) return make_tok(l, Or(),    line, col) }
     return make_tok(l, BitOr(), line, col)
 }
 
-fn lex_operator(l: mut ref Lexer, c: i64, line: i64, col: i64) result[ref Token, bool]! = {
+fn lex_operator(l: mut ref Lexer, c: i64, line: i64, col: i64) result[ref Token, bool] = trust {
     if c == 46 { return ok lex_dot(l, line, col) }
     if c == 43 { return ok lex_plus(l, line, col) }
     if c == 45 { return ok lex_minus(l, line, col) }
@@ -483,7 +483,7 @@ fn lex_operator(l: mut ref Lexer, c: i64, line: i64, col: i64) result[ref Token,
     return err false
 }
 
-pub fn tokenize(src: ref u8) result[list[ref Token], ref u8]! = {
+pub fn tokenize(src: ref u8) result[list[ref Token], ref u8] = trust {
     val l: ref Lexer = lexer_new(src)
     val tokens: mut list[ref Token] = []
     for {

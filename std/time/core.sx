@@ -1,7 +1,7 @@
 val stdio = use("../stdio")
 
-extern (C) fn localtime(timep: ref i64) ref void! = "localtime"
-extern (C) fn gettimeofday(tv: ref TimeVal, tz: ref void) i32! = "gettimeofday"
+extern (C) fn localtime(timep: ref i64) ref void = "localtime"
+extern (C) fn gettimeofday(tv: ref TimeVal, tz: ref void) i32 = "gettimeofday"
 
 extern type TimeVal = {
     tv_sec:  i64
@@ -51,7 +51,7 @@ pub fn (DateTime) new(
 }
 
 /// Free a heap-allocated DateTime.
-pub fn (DateTime) free(dt: mut self) void! = {
+pub fn (DateTime) free(dt: mut self) void = trust {
     @free(dt)
 }
 

@@ -40,7 +40,7 @@ pub fn (Stack) print_top(s: self) void = {
     }
 }
 
-pub fn main() void! = {
+pub fn main() void = trust {
     val s: mut Stack = {data: [], len: 0}
     @reserve(s.data, 10)
     Stack.push(s, 10)

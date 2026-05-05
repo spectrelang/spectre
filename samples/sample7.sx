@@ -1,6 +1,6 @@
 val stdio = use("std/stdio")
 
-pub fn main() void! = {
+pub fn main() void = trust {
     val result = can_fail(true)
     match result {
         some x => {
@@ -12,7 +12,7 @@ pub fn main() void! = {
     }
 }
 
-fn can_fail(should_fail: bool) option[i32]! = {
+fn can_fail(should_fail: bool) option[i32] = trust {
 	if (!should_fail) {
 		return some 10
 	}
