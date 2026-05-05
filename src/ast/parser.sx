@@ -595,6 +595,45 @@ pub fn parse_type(p: ref Parser) result[ref Node, ref u8] = trust {
 
 pub fn parse_expr(p: ref Parser) result[ref Node, ref u8] = trust { return parse_or(p) }
 
+fn substitute_self_type(ty: ref Node, self_name: ref u8) ref Node = trust {
+    if ty == none || self_name == none { return ty }
+    if ty.kind == TY_NAMED {
+        if str_eq(ty.d0 as ref u8, "self") {
+            node_store_slot[ref u8](@addr(ty.d0), self_name)
+        }
+        return ty
+    }
+    if ty.kind == TY_REF || ty.kind == TY_MUT || ty.kind == TY_OPTION || ty.kind == TY_LIST || ty.kind == TY_SLICE {
+        val inner: ref Node = ty.d0 as ref Node
+        node_store_slot[ref Node](@addr(ty.d0), substitute_self_type(inner, self_name))
+        return ty
+    }
+    if ty.kind == TY_RESULT {
+        val ok_ty: ref Node = ty.d0 as ref Node
+        val err_ty: ref Node = ty.d1 as ref Node
+        node_store_slot[ref Node](@addr(ty.d0), substitute_self_type(ok_ty, self_name))
+        node_store_slot[ref Node](@addr(ty.d1), substitute_self_type(err_ty, self_name))
+        return ty
+    }
+    if ty.kind == TY_FIXED_ARR {
+        val inner2: ref Node = ty.d1 as ref Node
+        node_store_slot[ref Node](@addr(ty.d1), substitute_self_type(inner2, self_name))
+        return ty
+    }
+    if ty.kind == TY_FNPTR {
+        val params: ref void = ty.d0 as ref void
+        if params != none {
+            for p in params as list[ref Node] {
+                substitute_self_type(p as ref Node, self_name)
+            }
+        }
+        val ret_ty: ref Node = ty.d1 as ref Node
+        node_store_slot[ref Node](@addr(ty.d1), substitute_self_type(ret_ty, self_name))
+        return ty
+    }
+    return ty
+}
+
 fn parse_or(p: ref Parser) result[ref Node, ref u8] = trust {
     val lhs = parse_and(p)?
     val res: mut ref Node = lhs
@@ -1908,6 +1947,9 @@ fn parse_fn_item(p: ref Parser, public: i64) result[ref Node, ref u8] = trust {
             val tp_constraint: mut ref Node = none
             if p_eat_fn(p, lexer.kind_is_colon) {
                 tp_constraint = parse_type(p)?
+                if ns != none {
+                    tp_constraint = substitute_self_type(tp_constraint, ns)
+                }
             }
             val tp_node: mut ref Node = make_node(NK_VAL, line)
             node_store_slot[ref u8](@addr(tp_node.d0), tp_name)
@@ -1926,12 +1968,8 @@ fn parse_fn_item(p: ref Parser, public: i64) result[ref Node, ref u8] = trust {
         val is_mut: bool = p_eat_fn(p, kind_is_mut)
         val pty = parse_type(p)?
         val actual_ty: mut ref Node = pty
-        if ns != none && pty.kind == TY_NAMED {
-            if str_eq(pty.d0 as ref u8, "self") {
-                val rn: mut ref Node = make_node(TY_NAMED, line)
-                node_store_slot[ref u8](@addr(rn.d0), ns)
-                actual_ty = rn
-            }
+        if ns != none {
+            actual_ty = substitute_self_type(actual_ty, ns)
         }
         if is_mut {
             val mt: mut ref Node = make_node(TY_MUT, line)
@@ -1945,7 +1983,10 @@ fn parse_fn_item(p: ref Parser, public: i64) result[ref Node, ref u8] = trust {
         if !p_eat_fn(p, lexer.kind_is_comma) { break }
     }
     p_expect_rparen(p)?
-    val ret_ty = parse_type(p)?
+    val ret_ty: mut ref Node = parse_type(p)?
+    if ns != none {
+        ret_ty = substitute_self_type(ret_ty, ns)
+    }
     val is_unsafe: mut i64 = 0
     val body: mut list[ref Node] = []
     if p_eat_fn(p, kind_is_eq) {
