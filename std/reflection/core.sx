@@ -134,7 +134,7 @@ when posix {
 
 when darwin {
     extern (C) fn _NSGetExecutablePath(buf: ref u8, bufsize: ref u32) i32! = "_NSGetExecutablePath"
-    extern (C) fn realpath(path: ref u8, resolved: ref u8) ref u8! = "realpath"
+    extern (C, header) fn realpath(path: ref u8, resolved: ref u8) ref u8! = "realpath"
 }
 
 when windows {
