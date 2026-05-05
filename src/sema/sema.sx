@@ -1001,6 +1001,56 @@ fn fn_return_wrap_kind(fn_node: ref parser.Node) i64 = trust {
 
 /// Find a typedef (NK_TYPEDEF or NK_EXTERN_TYPE) by name. Supports module-qualified
 /// names like "allocators.Arena" by looking up the module on root_mod.
+fn find_typedef_in_items(items: list[ref parser.Node], type_name: ref u8) ref parser.Node = trust {
+    for item in items {
+        if item == none { continue }
+        if item.kind == parser.NK_TYPEDEF || item.kind == parser.NK_EXTERN_TYPE {
+            val nm: ref u8 = item.d1 as ref u8
+            if nm != none && str_eq(nm, type_name) { return item }
+        }
+        if item.kind == parser.NK_WHEN_ITEMS {
+            val witems: ref void = item.d1 as ref void
+            if witems != none {
+                val found_w: ref parser.Node = find_typedef_in_items(witems as list[ref parser.Node], type_name)
+                if found_w != none { return found_w }
+            }
+            val or_branches: ref void = item.d2 as ref void
+            if or_branches != none {
+                for ob in or_branches as list[ref parser.Node] {
+                    if ob == none { continue }
+                    val ob_items: ref void = ob.d1 as ref void
+                    if ob_items == none { continue }
+                    val found_ob: ref parser.Node = find_typedef_in_items(ob_items as list[ref parser.Node], type_name)
+                    if found_ob != none { return found_ob }
+                }
+            }
+            val otherwise: ref void = item.d3 as ref void
+            if otherwise != none {
+                val found_ow: ref parser.Node = find_typedef_in_items(otherwise as list[ref parser.Node], type_name)
+                if found_ow != none { return found_ow }
+            }
+        }
+    }
+    return none
+}
+
+fn find_imported_typedef_by_name(ctx: ref SemaCtx, type_name: ref u8) ref parser.Node = trust {
+    if ctx == none || ctx.root_mod == none || type_name == none { return none }
+    val rmod: ref modinfo.ResolvedModule = ctx.root_mod
+    val n: i64 = modinfo.import_count(rmod)
+    val i: mut i64 = 0
+    for {
+        if i >= n { break }
+        val mm: ref modinfo.ResolvedModule = modinfo.import_module_at(rmod, i as usize)
+        if mm != none {
+            val found: ref parser.Node = find_typedef_in_items(modinfo.module_items(mm), type_name)
+            if found != none { return found }
+        }
+        i++
+    }
+    return none
+}
+
 fn find_typedef_anywhere(ctx: ref SemaCtx, type_name: ref u8) ref parser.Node = trust {
     if type_name == none { return none }
     val nlen: i64 = string.len_raw(type_name)
@@ -1018,30 +1068,15 @@ fn find_typedef_anywhere(ctx: ref SemaCtx, type_name: ref u8) ref parser.Node = 
         @store8(@ptradd(mod_name_buf as ref void, dot_idx), 0)
         val unqual: ref u8 = @ptradd(type_name, dot_idx + 1) as ref u8
         val mm: ref modinfo.ResolvedModule = find_imported_mod(ctx, mod_name_buf)
-        if mm == none { return none }
-        val items: list[ref parser.Node] = modinfo.module_items(mm)
-        for item in items {
-            if item == none { continue }
-            if item.kind == parser.NK_TYPEDEF || item.kind == parser.NK_EXTERN_TYPE {
-                val nm: ref u8 = item.d1 as ref u8
-                if nm != none && str_eq(nm, unqual) { return item }
-            }
-            if item.kind == parser.NK_WHEN_ITEMS {
-                val witems: ref void = item.d1 as ref void
-                if witems != none {
-                    for w in witems as list[ref parser.Node] {
-                        if w == none { continue }
-                        if w.kind == parser.NK_TYPEDEF || w.kind == parser.NK_EXTERN_TYPE {
-                            val wnm: ref u8 = w.d1 as ref u8
-                            if wnm != none && str_eq(wnm, unqual) { return w }
-                        }
-                    }
-                }
-            }
+        if mm != none {
+            val found_mm: ref parser.Node = find_typedef_in_items(modinfo.module_items(mm), unqual)
+            if found_mm != none { return found_mm }
         }
-        return none
+        return find_imported_typedef_by_name(ctx, unqual)
     }
-    return sema_lookup_typedef(ctx, type_name)
+    val local: ref parser.Node = sema_lookup_typedef(ctx, type_name)
+    if local != none { return local }
+    return find_imported_typedef_by_name(ctx, type_name)
 }
 
 /// Returns the wrap kind (0=none, 1=result, 2=option) of an expression's value.

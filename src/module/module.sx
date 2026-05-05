@@ -123,6 +123,26 @@ fn import_is_referenced(items: list[ref parser.Node], import_name: ref u8) bool 
             some item_val => {
                 val item: ref parser.Node = item_val as ref parser.Node
                 if item.kind == parser.NK_FN || item.kind == parser.NK_GENERIC_FN {
+                    val params: ref void = item.d3 as ref void
+                    if params != none {
+                        for param in params as list[ref parser.Node] {
+                            if type_references_import_shallow((param as ref parser.Node).d1 as ref parser.Node, import_name) {
+                                return true
+                            }
+                        }
+                    }
+                    if type_references_import_shallow(item.d4 as ref parser.Node, import_name) {
+                        return true
+                    }
+                    if item.kind == parser.NK_GENERIC_FN {
+                        val tparams: ref void = item.d6 as ref void
+                        if tparams != none {
+                            for tparam in tparams as list[ref parser.Node] {
+                                val constraint: ref parser.Node = parser.tparam_constraint(tparam as ref parser.Node)
+                                if type_references_import_shallow(constraint, import_name) { return true }
+                            }
+                        }
+                    }
                     val body: ref void = item.d5 as ref void
                     if body != none {
                         if item_references_import_shallow(body, import_name) {
@@ -148,6 +168,37 @@ fn import_is_referenced(items: list[ref parser.Node], import_name: ref u8) bool 
         ii++
     }
 
+    return false
+}
+
+fn type_name_references_import(type_name: ref u8, import_name: ref u8) bool = trust {
+    if type_name == none || import_name == none { return false }
+    val import_len: i64 = str.len_raw(import_name)
+    val i: mut i64 = 0
+    for {
+        if i >= import_len { break }
+        val tc: u8 = @load8(@ptradd(type_name as ref void, i))
+        val ic: u8 = @load8(@ptradd(import_name as ref void, i))
+        if tc != ic { return false }
+        i++
+    }
+    val next: u8 = @load8(@ptradd(type_name as ref void, import_len))
+    return next == 46
+}
+
+fn type_references_import_shallow(ty: ref parser.Node, import_name: ref u8) bool = trust {
+    if ty == none { return false }
+    if ty.kind == parser.TY_NAMED {
+        val type_name: ref u8 = ty.d0 as ref u8
+        return type_name_references_import(type_name, import_name)
+    }
+    if ty.kind == parser.TY_MUT || ty.kind == parser.TY_REF || ty.kind == parser.TY_LIST {
+        return type_references_import_shallow(ty.d0 as ref parser.Node, import_name)
+    }
+    if ty.kind == parser.TY_RESULT {
+        if type_references_import_shallow(ty.d0 as ref parser.Node, import_name) { return true }
+        return type_references_import_shallow(ty.d1 as ref parser.Node, import_name)
+    }
     return false
 }
 
@@ -191,6 +242,7 @@ fn stmt_references_import_shallow(node: ref parser.Node, import_name: ref u8) bo
     if node == none { return false }
 
     if node.kind == parser.NK_VAL {
+        if type_references_import_shallow(node.d2 as ref parser.Node, import_name) { return true }
         return expr_references_import_shallow(node.d3 as ref parser.Node, import_name)
     } elif node.kind == parser.NK_ASSIGN {
         if expr_references_import_shallow(node.d0 as ref parser.Node, import_name) { return true }
@@ -781,6 +833,7 @@ fn expr_references_import_shallow(node: ref parser.Node, import_name: ref u8) bo
     } elif node.kind == parser.NK_UNOP {
         if expr_references_import_shallow(parser.unop_inner(node), import_name) { return true }
     } elif node.kind == parser.NK_CAST || node.kind == parser.NK_ADDR || node.kind == parser.NK_DEREF || node.kind == parser.NK_TRY || node.kind == parser.NK_TRUST {
+        if node.kind == parser.NK_CAST && type_references_import_shallow(node.d1 as ref parser.Node, import_name) { return true }
         if expr_references_import_shallow(node.d0 as ref parser.Node, import_name) { return true }
     } elif node.kind == parser.NK_SOME || node.kind == parser.NK_OK_VAL || node.kind == parser.NK_ERR_VAL {
         if expr_references_import_shallow(node.d0 as ref parser.Node, import_name) { return true }
@@ -802,6 +855,10 @@ fn expr_references_import_shallow(node: ref parser.Node, import_name: ref u8) bo
             }
         }
     } elif node.kind == parser.NK_GENERIC_INST {
+        val targs: list[ref parser.Node] = parser.generic_inst_type_args(node)
+        for targ in targs {
+            if type_references_import_shallow(targ, import_name) { return true }
+        }
         return expr_references_import_shallow(node.d0 as ref parser.Node, import_name)
     }
 

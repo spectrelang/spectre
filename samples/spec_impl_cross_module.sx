@@ -1,0 +1,9 @@
+val allocators = use("std/allocators")
+
+fn touch[T: allocators.GeneralAllocator](_: T) void = {}
+
+pub fn main() i32 = {
+    val heap: allocators.HeapAllocator = @zeroed
+    touch[allocators.HeapAllocator](heap)
+    return 0
+}

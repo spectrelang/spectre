@@ -1,0 +1,9 @@
+spec SomeSpec = {
+    fn some_func() void
+}
+
+type (SomeSpec) SomeType = {}
+
+pub fn main() void = {
+    SomeType.some_func()
+}
