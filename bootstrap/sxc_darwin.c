@@ -47435,15 +47435,7 @@ return(int64_t)((int64_t)(intptr_t)sx__rt_fmt((const char*)(intptr_t)(sx__str343
 }
 
 int32_t builds__is_compiler_available(int64_t t_compiler){
-int32_t t_res=(int32_t)(std__os__in_path(t_compiler));
-{int64_t*sx__rp0=(int64_t*)(intptr_t)(t_res);if(sx__rp0[0]==0){
-int64_t t__=sx__rp0[1];
-return(int32_t)(1);
-}else{
-int64_t t__=sx__rp0[1];
-return(int32_t)(0);
-}}
-return 0;
+return(int32_t)(std__os__in_path(t_compiler));
 }
 
 int64_t builds__select_alt_compiler(int64_t t_requested){
