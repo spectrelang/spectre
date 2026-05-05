@@ -8,6 +8,7 @@ when posix {
 val str = use("../string")
 val stdio = use("../stdio")
 val fmt = use("../fmt")
+val allocators = use("../allocators")
 
 pub extern (C) fn yyjson_get_len(value: ref void) usize = "sx_yyjson_get_len"
 extern (C) fn yyjson_get_type(value: ref void) u8 = "sx_yyjson_get_type"
@@ -84,37 +85,46 @@ fn _subtype_of(value: ref void) u8 = {
     return trust yyjson_get_subtype(value)
 }
 
-pub fn parse[T](alloc: T, input: ref u8) option[ref void] = trust {
+fn copy_json_string[T: allocators.Allocator](ac: T, src: ref u8, len: usize) ref u8 = trust {
+    if src == none { return none }
+    val dst_opt = T.alloc(ac, len + 1)
+    match dst_opt {
+        some dst_raw => {
+            val dst: ref u8 = dst_raw as ref u8
+            @memcpy(dst, src, len)
+            @store8(@ptradd(dst, len), 0)
+            return dst
+        }
+        none => { return none }
+    }
+}
+
+pub fn parse(input: ref u8) option[JsonDoc] = trust {
     val len: usize = strlen(input)
-    val doc: ref void = yyjson_read_opts(input, len, 0 as u32, alloc as ref void, none)
+    val doc: ref void = yyjson_read_opts(input, len, 0 as u32, none, none)
     if doc == none {
         return none
     }
-    val handle: ref void = @alloc(8)
-    @store(handle, doc)
-    return some handle
+    return some { ptr: doc }
 }
 
-pub fn doc_free(handle: ref void) void = trust {
-    val doc: ref void = @load(handle)
+pub fn doc_free(handle: JsonDoc) void = trust {
+    val doc: ref void = handle.ptr
     yyjson_doc_free(doc)
-    @free(handle)
 }
 
-pub fn doc_root(handle: ref void) ref void = {
-    val doc: ref void = trust @load(handle)
+pub fn doc_root(handle: JsonDoc) ref void = {
+    val doc: ref void = handle.ptr
     return trust yyjson_doc_get_root(doc)
 }
 
-pub fn doc_to_string[T](alloc: T, handle: ref void) ref u8 = trust {
-    val doc: ref void = @load(handle)
+pub fn doc_to_string[T: allocators.Allocator](ac: T, handle: JsonDoc) ref u8 = trust {
+    val doc: ref void = handle.ptr
     val len_slot: mut usize = 0
-    val s: ref u8 = yyjson_write_opts(doc, 0 as u32, alloc as ref void, @addr(len_slot), none)
-    return s
-}
-
-pub fn json_str_free(s: ref u8) void = trust {
-    free(s)
+    val raw: ref u8 = yyjson_write_opts(doc, 0 as u32, none, @addr(len_slot), none)
+    val out: ref u8 = copy_json_string[T](ac, raw, len_slot)
+    if raw != none { free(raw as ref void) }
+    return out
 }
 
 pub fn val_kind(value: ref void) JsonKind = trust {
@@ -188,68 +198,71 @@ pub fn obj_get_bool(obj: ref void, key: ref u8) option[bool] = trust {
     return some yyjson_get_bool(v)
 }
 
-pub fn builder_new[T](alloc: T) ref void = trust {
-    val doc: ref void = yyjson_mut_doc_new(alloc as ref void)
-    val handle: ref void = @alloc(8)
-    @store(handle, doc)
-    return handle
+pub fn builder_new() JsonBuilder = trust {
+    val doc: ref void = yyjson_mut_doc_new(none)
+    return { ptr: doc }
 }
 
-pub fn builder_free(handle: ref void) void = trust {
-    val doc: ref void = @load(handle)
+pub fn builder_free(handle: JsonBuilder) void = trust {
+    val doc: ref void = handle.ptr
     yyjson_mut_doc_free(doc)
-    @free(handle)
 }
 
-pub fn builder_to_string[T](alloc: T, handle: ref void) ref u8 = trust {
-    val doc: ref void = @load(handle)
+pub fn builder_to_string[T: allocators.Allocator](ac: T, handle: JsonBuilder) ref u8 = trust {
+    val doc: ref void = handle.ptr
     val len_slot: mut usize = 0
-    return yyjson_mut_write_opts(doc, 0 as u32, alloc as ref void, @addr(len_slot), none)
+    val raw: ref u8 = yyjson_mut_write_opts(doc, 0 as u32, none, @addr(len_slot), none)
+    val out: ref u8 = copy_json_string[T](ac, raw, len_slot)
+    if raw != none { free(raw as ref void) }
+    return out
 }
 
-pub fn builder_to_string_pretty[T](alloc: T, handle: ref void) ref u8 = trust {
-    val doc: ref void = @load(handle)
+pub fn builder_to_string_pretty[T: allocators.Allocator](ac: T, handle: JsonBuilder) ref u8 = trust {
+    val doc: ref void = handle.ptr
     val len_slot: mut usize = 0
-    return yyjson_mut_write_opts(doc, 1 as u32, alloc as ref void, @addr(len_slot), none)
+    val raw: ref u8 = yyjson_mut_write_opts(doc, 1 as u32, none, @addr(len_slot), none)
+    val out: ref u8 = copy_json_string[T](ac, raw, len_slot)
+    if raw != none { free(raw as ref void) }
+    return out
 }
 
-pub fn build_null(handle: ref void) ref void = trust {
-    val doc: ref void = @load(handle)
+pub fn build_null(handle: JsonBuilder) ref void = trust {
+    val doc: ref void = handle.ptr
     return yyjson_mut_null(doc)
 }
 
-pub fn build_bool(handle: ref void, v: bool) ref void = trust {
-    val doc: ref void = @load(handle)
+pub fn build_bool(handle: JsonBuilder, v: bool) ref void = trust {
+    val doc: ref void = handle.ptr
     return yyjson_mut_bool(doc, v)
 }
 
-pub fn build_int(handle: ref void, v: i64) ref void = trust {
-    val doc: ref void = @load(handle)
+pub fn build_int(handle: JsonBuilder, v: i64) ref void = trust {
+    val doc: ref void = handle.ptr
     return yyjson_mut_int(doc, v)
 }
 
-pub fn build_uint(handle: ref void, v: u64) ref void = trust {
-    val doc: ref void = @load(handle)
+pub fn build_uint(handle: JsonBuilder, v: u64) ref void = trust {
+    val doc: ref void = handle.ptr
     return yyjson_mut_uint(doc, v)
 }
 
-pub fn build_float(handle: ref void, v: f64) ref void = trust {
-    val doc: ref void = @load(handle)
+pub fn build_float(handle: JsonBuilder, v: f64) ref void = trust {
+    val doc: ref void = handle.ptr
     return yyjson_mut_real(doc, v)
 }
 
-pub fn build_str(handle: ref void, v: ref u8) ref void = trust {
-    val doc: ref void = @load(handle)
+pub fn build_str(handle: JsonBuilder, v: ref u8) ref void = trust {
+    val doc: ref void = handle.ptr
     return yyjson_mut_strcpy(doc, v)
 }
 
-pub fn build_array(handle: ref void) ref void = trust {
-    val doc: ref void = @load(handle)
+pub fn build_array(handle: JsonBuilder) ref void = trust {
+    val doc: ref void = handle.ptr
     return yyjson_mut_arr(doc)
 }
 
-pub fn build_object(handle: ref void) ref void = trust {
-    val doc: ref void = @load(handle)
+pub fn build_object(handle: JsonBuilder) ref void = trust {
+    val doc: ref void = handle.ptr
     return yyjson_mut_obj(doc)
 }
 
@@ -261,15 +274,15 @@ pub fn object_add(obj: ref void, key_val: ref void, value: ref void) bool = trus
     return yyjson_mut_obj_add(obj, key_val, value)
 }
 
-pub fn builder_set_root(handle: ref void, value: ref void) void = trust {
-    val doc: ref void = @load(handle)
+pub fn builder_set_root(handle: JsonBuilder, value: ref void) void = trust {
+    val doc: ref void = handle.ptr
     yyjson_mut_doc_set_root(doc, value)
 }
 
 test {
     val input: ref u8 = \\{"name":"Alice","age":30,"active":true,"score":9.5}
-    val alc: ref void = none
-    val doc_opt = trust parse[ref void](alc, input)
+    val arena = trust allocators.Arena.new(4096)?
+    val doc_opt = trust parse(input)
     match doc_opt {
         none => {
             trust @dprintf(2, "input was {s}", {input})
@@ -297,7 +310,7 @@ test {
     }
 
     val arr_input: ref u8 = \\[1,2,3]
-    val arr_opt = trust parse[ref void](alc, arr_input)
+    val arr_opt = trust parse(arr_input)
     match arr_opt {
         none => { assert false }
         some handle => {
@@ -313,7 +326,7 @@ test {
         }
     }
 
-    val b: ref void = trust builder_new[ref void](alc)
+    val b: JsonBuilder = trust builder_new()
     val obj: ref void = trust build_object(b)
     val k1: ref void = trust build_str(b, "hello")
     val v1: ref void = trust build_str(b, "world")
@@ -322,10 +335,10 @@ test {
     val v2: ref void = trust build_int(b, 42)
     trust object_add(obj, k2, v2)
     trust builder_set_root(b, obj)
-    val out: ref u8 = trust builder_to_string[ref void](alc, b)
+    val out: ref u8 = trust builder_to_string[allocators.Arena](arena, b)
     assert out != none
-    trust json_str_free(out)
     trust builder_free(b)
+    trust allocators.Arena.free(arena)
 
     stdio.puts("json tests passed")
 }
