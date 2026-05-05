@@ -805,8 +805,7 @@ pub fn cmd_init(name_arg: ref u8) i32 = {
 }
 
 pub fn cmd_build(config_name: ref u8, exe_path: ref u8) i32 = {
-    val mod_opt = load_sxmod()
-    match mod_opt {
+    match load_sxmod() {
         none => {
             stdio.puts("error: sx.mod not found — run 'spectre init' first")
             return 1
