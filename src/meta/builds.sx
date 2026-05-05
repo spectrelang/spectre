@@ -18,11 +18,7 @@ pub fn get_tmp_path(name: ref u8) ref u8! = {
 }
 
 pub fn is_compiler_available(compiler: ref u8) bool = {
-    val res = trust os.in_path(compiler)
-    match res {
-        ok _ => { return true }
-        err _ => { return false }
-    }
+    return trust os.in_path(compiler)
 }
 
 pub fn select_alt_compiler(requested: ref u8) ref u8 = {
