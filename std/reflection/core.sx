@@ -146,17 +146,13 @@ pub fn get_exe_path[T: allocators.Allocator](ac: T) ref u8! = {
     val buf_opt: ref u8 = T.alloc(ac, 1024)
     if buf_opt is some buf {
         when darwin {
-            @puts("darwin path.")
             val size: mut u32 = 1024 as u32
             val r = _NSGetExecutablePath(buf, @addr(size))
             if r == 0 {
-                @puts("r == 0")
                 val resolved: ref u8 = T.alloc(ac, 1024)
                 if resolved is some rp {
-                    @puts("resolved is some rp")
                     val canon: i64 = realpath(buf, rp)
                     if canon != 0 {
-                        @puts("canon != 0")
                         return rp
                     }
                 }
