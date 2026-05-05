@@ -151,9 +151,9 @@ pub fn get_exe_path[T: allocators.Allocator](ac: T) ref u8! = {
             if r == 0 {
                 val resolved: ref u8 = T.alloc(ac, 1024)
                 if resolved is some rp {
-                    val canon = realpath(buf, rp)
-                    if canon is some c {
-                        return c
+                    val canon: i64 = realpath(buf, rp)
+                    if canon != 0 {
+                        return rp
                     }
                 }
                 return buf

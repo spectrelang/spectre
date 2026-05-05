@@ -6524,11 +6524,9 @@ int64_t t_resolved=(int64_t)(std__allocators__Arena__alloc(t_ac,INT64_C(1024)));
 {int64_t sx__mv1=t_resolved;if(sx__mv1!=0){
 int64_t t_rp=sx__mv1-1;
 int64_t t_canon=(int64_t)(realpath(t_buf,t_rp));
-{int64_t sx__mv2=t_canon;if(sx__mv2!=0){
-int64_t t_c=sx__mv2-1;
-return(int64_t)(t_c);
-}else{
-}}
+if(((t_canon)!=(INT64_C(0)))){
+return(int64_t)(t_rp);
+}
 }else{
 }}
 return(int64_t)(t_buf);
