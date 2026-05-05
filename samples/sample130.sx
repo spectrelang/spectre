@@ -1,0 +1,17 @@
+pub fn returns_err() result[i32, i32] = {
+    return err 5
+}
+
+pub fn returns_none() option[i32] = {
+    return none
+}
+
+pub fn main() void = {
+    if returns_err() is err _ {
+        @puts("something went wrong")
+    }
+
+    if returns_none() is none { 
+        @puts("but actually it didnt :)")
+    }
+}
