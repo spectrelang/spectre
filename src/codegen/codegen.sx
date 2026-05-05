@@ -2433,13 +2433,6 @@ fn emitln(ctx: ref CgCtx, s: ref u8) void! = {
     str.StringBuilder.append_char(cg_sb(ctx), 10)
 }
 
-fn emit_fmt(ctx: ref CgCtx, fmt: ref u8, args: untyped) void! = {
-    val buf: ref u8 = @alloc(1024) as ref u8
-    @snprintf(buf, 1024, fmt, args)
-    emit(ctx, buf)
-    @free(buf)
-}
-
 /// Returns true if the type name maps to QBE word type (w).
 fn is_word_type_name(name: ref u8) bool! = {
     if str.rchar_cmp(name, "u8")   == 0 { return true }
