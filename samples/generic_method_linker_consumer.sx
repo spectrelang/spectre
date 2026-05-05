@@ -1,0 +1,22 @@
+val lib = use("./generic_method_linker_lib.sx")
+val allocators = use("std/allocators")
+
+pub type Holder = {
+    demo: lib.Demo
+    value: i64
+}
+
+pub fn build_holder[T: allocators.GeneralAllocator](ac: T) Holder = {
+    val d: lib.Demo = lib.Demo.new[T](ac)
+    val value: i64 = lib.Demo.set[T](d, ac)
+    return {
+        demo: d,
+        value: value
+    }
+}
+
+pub fn run() i64 = {
+    val heap: allocators.HeapAllocator = @zeroed
+    val holder: Holder = build_holder[allocators.HeapAllocator](heap)
+    return holder.value
+}

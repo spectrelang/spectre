@@ -1,0 +1,11 @@
+val allocators = use("../std/allocators")
+
+pub type Demo = {}
+
+pub fn (Demo) new[T: allocators.GeneralAllocator](_: T) Demo = {
+    return {}
+}
+
+pub fn (Demo) set[T: allocators.GeneralAllocator](_: self, _: T) i64 = {
+    return 7
+}

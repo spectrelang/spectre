@@ -1,0 +1,6 @@
+val consumer = use("./generic_method_linker_consumer.sx")
+
+pub fn main() void = trust {
+    val out: i64 = consumer.run()
+    @print("{d}\n", {out})
+}
