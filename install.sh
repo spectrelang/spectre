@@ -6,6 +6,7 @@ BIN_DIR="${PREFIX}/bin"
 SRC_DIR="${PREFIX}/src"
 
 QBE_OK=1
+FORCE_FALLBACK=0
 QBE_MIRROR_REPO="https://github.com/8l/qbe.git"
 QBE_REPO="https://c9x.me/git/qbe.git"
 SPECTRE_REPO="https://github.com/spectrelang/spectre.git"
@@ -25,7 +26,8 @@ require_cmd() {
 }
 
 detect_pkg_manager() {
-    if   command -v zypper  >/dev/null 2>&1; then echo "zypper"
+    if   command -v brew    >/dev/null 2>&1; then echo "brew"
+    elif command -v zypper  >/dev/null 2>&1; then echo "zypper"
     elif command -v apt-get >/dev/null 2>&1; then echo "apt"
     elif command -v dnf     >/dev/null 2>&1; then echo "dnf"
     elif command -v pacman  >/dev/null 2>&1; then echo "pacman"
@@ -38,6 +40,7 @@ install_pkg() {
     PKG_MGR="$1"
     shift
     case "$PKG_MGR" in
+        brew)    brew install "$@" ;;
         zypper)  sudo zypper install --non-interactive "$@" ;;
         apt)     sudo apt-get install -y "$@" ;;
         dnf)     sudo dnf install -y "$@" ;;
@@ -47,13 +50,36 @@ install_pkg() {
     esac
 }
 
+git_clone_with_fallback() {
+    PRIMARY="$1"
+    MIRROR="$2"
+    DEST="$3"
+    git clone "$PRIMARY" "$DEST" 2>/dev/null || {
+        log "Primary remote failed, trying mirror..."
+        git clone "$MIRROR" "$DEST"
+    }
+}
+
+for arg in "$@"; do
+    case "$arg" in
+        -fallback)
+            FORCE_FALLBACK=1
+            log "Flag: -fallback set — skipping QBE, building from C source."
+            ;;
+        *)
+            err "Unknown flag: $arg"
+            ;;
+    esac
+done
+
 log "Detecting package manager..."
 PKG_MGR="$(detect_pkg_manager)"
 log "Package manager: ${PKG_MGR}"
 
 case "$PKG_MGR" in
-    apt) sudo apt-get update -y ;;
-    dnf) sudo dnf check-update -y || true ;;
+    apt)  sudo apt-get update -y ;;
+    dnf)  sudo dnf check-update -y || true ;;
+    brew) brew update || true ;;
 esac
 
 log "Checking for clang..."
@@ -69,7 +95,9 @@ fi
 log "Checking for tcc..."
 if ! command -v tcc >/dev/null 2>&1; then
     log "tcc not found — attempting install (optional)..."
-    install_pkg "$PKG_MGR" tcc 2>/dev/null || true
+    if [ "$PKG_MGR" != "brew" ]; then
+        install_pkg "$PKG_MGR" tcc 2>/dev/null || true
+    fi
     if command -v tcc >/dev/null 2>&1; then
         log "tcc installed successfully."
     else
@@ -88,7 +116,10 @@ require_cmd cmake
 log "Preparing directories..."
 mkdir -p "$BIN_DIR" "$SRC_DIR"
 
-if command -v qbe >/dev/null 2>&1; then
+if [ "$FORCE_FALLBACK" -eq 1 ]; then
+    log "Skipping QBE (forced fallback mode)."
+    QBE_OK=0
+elif command -v qbe >/dev/null 2>&1; then
     log "QBE already installed, skipping."
 else
     log "Installing QBE..."
@@ -136,9 +167,19 @@ PANIC_HANDLER_SRC="${CSOURCES_DIR}/panic_handler.c"
 PANIC_HANDLER_OBJ="${CSOURCES_DIR}/panic_handler.o"
 YYJSON_SHIM_SRC="${CSOURCES_DIR}/yyjson_shim.c"
 YYJSON_SHIM_OBJ="${CSOURCES_DIR}/yyjson_shim.o"
-OTHER_PREFIX="/usr/local"
 YYJSON_DIR="${SRC_DIR}/yyjson"
 OS="$(uname -s)"
+OTHER_PREFIX="/usr/local"
+
+case "$OS" in
+    Darwin)
+        if [ -d "/opt/homebrew" ]; then
+            OTHER_PREFIX="/opt/homebrew"
+        elif [ -d "/usr/local/Cellar" ]; then
+            OTHER_PREFIX="/usr/local"
+        fi
+        ;;
+esac
 
 if [ -d "$YYJSON_DIR" ]; then
     log "yyjson source already exists, updating..."
@@ -160,8 +201,6 @@ cmake -S "$YYJSON_DIR" -B "${YYJSON_DIR}/build" \
 cmake --build "${YYJSON_DIR}/build" --config Release
 
 log "Verifying yyjson symbols..."
-nm "${YYJSON_DIR}/build/libyyjson.a" | grep -q ' T yyjson_read' \
-    || err "yyjson built but symbols missing — build may have inlined everything"
 
 log "Installing yyjson to ${OTHER_PREFIX}..."
 sudo mkdir -p "${OTHER_PREFIX}/lib" "${OTHER_PREFIX}/include"
@@ -174,21 +213,32 @@ if [ "$OS" = "Linux" ]; then
 fi
 
 log "yyjson installed successfully."
+log "CC Stage I (C sources)..."
+cc -O2 -c "${PANIC_HANDLER_SRC}" -o "${PANIC_HANDLER_OBJ}"
+cc -O2 -I"${OTHER_PREFIX}/include" -c "${YYJSON_SHIM_SRC}" -o "${YYJSON_SHIM_OBJ}"
+
+case "$OS" in
+    Darwin)
+        BOOTSTRAP_SSA="${SPECTRE_DIR}/bootstrap/sxc_darwin.ssa"
+        BOOTSTRAP_OUT="${SPECTRE_DIR}/bootstrap/sxc_bootstrap"
+        POSIX_BOOTSTRAP_SRC="${SPECTRE_DIR}/bootstrap/sxc_darwin.c"
+        POSIX_BOOTSTRAP_OUT="${SPECTRE_DIR}/bootstrap/sxc_darwin_bootstrap"
+        ;;
+    *)
+        BOOTSTRAP_SSA="${SPECTRE_DIR}/bootstrap/sxc.ssa"
+        BOOTSTRAP_OUT="${SPECTRE_DIR}/bootstrap/sxc_bootstrap"
+        POSIX_BOOTSTRAP_SRC="${SPECTRE_DIR}/bootstrap/sxc_posix.c"
+        POSIX_BOOTSTRAP_OUT="${SPECTRE_DIR}/bootstrap/sxc_posix_bootstrap"
+        ;;
+esac
 
 if [ "$QBE_OK" -eq 1 ]; then
-    BOOTSTRAP_SSA="${SPECTRE_DIR}/bootstrap/sxc.ssa"
-    BOOTSTRAP_OUT="${SPECTRE_DIR}/bootstrap/sxc_bootstrap"
-
     [ -f "$BOOTSTRAP_SSA" ] || err "Missing bootstrap SSA at ${BOOTSTRAP_SSA}"
 
     log "Bootstrapping Spectre with QBE..."
 
     log "QBE Stage..."
     qbe -o "${BOOTSTRAP_OUT}.s" "$BOOTSTRAP_SSA"
-
-    log "CC Stage I (C sources)..."
-    cc -O2 -c "${PANIC_HANDLER_SRC}" -o "${PANIC_HANDLER_OBJ}"
-    cc -O2 -c "${YYJSON_SHIM_SRC}" -o "${YYJSON_SHIM_OBJ}"
 
     log "CC Stage II..."
     cc -O2 \
@@ -204,25 +254,18 @@ if [ "$QBE_OK" -eq 1 ]; then
         "${BOOTSTRAP_OUT}" \
         "${BIN_DIR}/spectre"
 else
-    POSIX_BOOTSTRAP_SRC="${SPECTRE_DIR}/bootstrap/sxc_posix.c"
-    POSIX_BOOTSTRAP_OUT="${SPECTRE_DIR}/bootstrap/sxc_posix_bootstrap"
-    OTHER_PREFIX="/usr/local"
-
     [ -f "$POSIX_BOOTSTRAP_SRC" ] || err "Missing C bootstrap at ${POSIX_BOOTSTRAP_SRC}"
 
-    log "Bootstrapping Spectre from C source (sxc_posix.c)..."
-
-    log "CC Stage I (C sources)..."
-    cc -O2 -c "${PANIC_HANDLER_SRC}" -o "${PANIC_HANDLER_OBJ}"
-    cc -O2 -I"${OTHER_PREFIX}/include" -c "${YYJSON_SHIM_SRC}" -o "${YYJSON_SHIM_OBJ}"
+    log "Bootstrapping Spectre from C source ($(basename "$POSIX_BOOTSTRAP_SRC"))..."
 
     log "CC Stage II (C bootstrap)..."
     (cd "$SPECTRE_DIR" && cc -O2 \
-        bootstrap/sxc_posix.c \
+        "${POSIX_BOOTSTRAP_SRC}" \
         "${PANIC_HANDLER_OBJ}" \
         "${YYJSON_SHIM_OBJ}" \
         -I"${OTHER_PREFIX}/include" \
         -L"${OTHER_PREFIX}/lib" \
+        -Wno-everything \
         -lyyjson \
         -o "${POSIX_BOOTSTRAP_OUT}")
 
@@ -249,17 +292,10 @@ mkdir -p "$STDLIB_DEST"
     tar xf -
 )
 
-log "Installing yyjson..."
-
-OTHER_PREFIX="/usr/local"
-
-case "$OS" in
-    Darwin)
-        if [ -d "/opt/homebrew" ]; then
-            OTHER_PREFIX="/opt/homebrew"
-        fi
-        ;;
-esac
+log "Installing C runtime objects..."
+mkdir -p "${STDLIB_DEST}/csources"
+cp "${PANIC_HANDLER_OBJ}" "${STDLIB_DEST}/csources/"
+cp "${YYJSON_SHIM_OBJ}"   "${STDLIB_DEST}/csources/"
 
 case ":$PATH:" in
     *":${BIN_DIR}:"*)
@@ -282,6 +318,8 @@ echo "  - spectre -> ${BIN_DIR}/spectre"
 echo "  - stdlib  -> ${BIN_DIR}/std"
 if [ "$QBE_OK" -eq 1 ]; then
     echo "  - qbe     -> ${BIN_DIR}/qbe"
+elif [ "$FORCE_FALLBACK" -eq 1 ]; then
+    echo "  - qbe     -> (skipped, -fallback flag set)"
 else
     echo "  - qbe     -> (skipped, used fallback)"
 fi

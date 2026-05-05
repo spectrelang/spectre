@@ -132,6 +132,11 @@ when posix {
     extern (C) fn readlink(path: ref u8, buf: ref u8, bufsiz: i64) i64! = "readlink"
 }
 
+when darwin {
+    extern (C) fn _NSGetExecutablePath(buf: ref u8, bufsize: ref u32) i32! = "_NSGetExecutablePath"
+    extern (C) fn realpath(path: ref u8, resolved: ref u8) ref u8! = "realpath"
+}
+
 when windows {
     extern (C) fn GetModuleFileNameA(module: ref void, buf: ref u8, size: u32) u32! = "GetModuleFileNameA"
 }
@@ -140,15 +145,38 @@ when windows {
 pub fn get_exe_path[T: allocators.Allocator](ac: T) ref u8! = {
     val buf_opt: ref u8 = T.alloc(ac, 1024)
     if buf_opt is some buf {
-        when posix {
+        when darwin {
+            val size: mut u32 = 1024 as u32
+            val r = _NSGetExecutablePath(buf, @addr(size))
+            if r == 0 {
+                val resolved: ref u8 = T.alloc(ac, 1024)
+                if resolved is some rp {
+                    val canon = realpath(buf, rp)
+                    if canon is some c {
+                        return c
+                    }
+                }
+                return buf
+            }
+        }
+        when linux {
             val n = readlink("/proc/self/exe", buf, 1024)
             if n > 0 {
                 @store8(@ptradd(buf, n), 0)
                 return buf
             }
-            val n2 = readlink("/proc/curproc/file", buf, 1024)
-            if n2 > 0 {
-                @store8(@ptradd(buf, n2), 0)
+        }
+        when freebsd {
+            val n = readlink("/proc/curproc/file", buf, 1024)
+            if n > 0 {
+                @store8(@ptradd(buf, n), 0)
+                return buf
+            }
+        }
+        when netbsd {
+            val n = readlink("/proc/curproc/exe", buf, 1024)
+            if n > 0 {
+                @store8(@ptradd(buf, n), 0)
                 return buf
             }
         }
