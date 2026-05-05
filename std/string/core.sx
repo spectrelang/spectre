@@ -1,4 +1,5 @@
 val collections = use("../collections")
+val allocators  = use("../allocators")
 val stdio       = use("../stdio")
 
 extern (C) fn strlen(s: ref u8) i64 = "strlen"
@@ -682,8 +683,8 @@ pub fn trim_suffix_raw(s: ref u8, suffix: ref u8) ref u8 = trust {
     return substr(s, 0, sl - sul)
 }
 /// Split s by delim — returns a List of heap-allocated Strings
-pub fn split(s: String, delim: String) result[ref void, ListAllocError] = trust {
-    val result: ref void = collections.PtrList.new(8)?
+pub fn split[T: allocators.GeneralAllocator](ac: T, s: String, delim: String) result[ref void, ListAllocError] = trust {
+    val result: ref void = collections.PtrList.new[T](ac, 8 as usize)?
     val sl: i64 = @load(@ptradd(s as ref void, 8)) as i64
     val dl: i64 = @load(@ptradd(delim as ref void, 8)) as i64
     val sp: ref void = @load(s as ref void)
@@ -721,13 +722,13 @@ pub fn split(s: String, delim: String) result[ref void, ListAllocError] = trust 
 
         if (is_delim != 0) {
             val seg: String = slice(s, seg_start, i)
-            collections.PtrList.push(result, seg as usize)?
+            collections.PtrList.push[T](ac, result, seg as usize)?
             seg_start = i + dl
             i += dl
         } else {
             if (i == sl) {
                 val seg: String = slice(s, seg_start, sl)
-                collections.PtrList.push(result, seg as usize)?
+                collections.PtrList.push[T](ac, result, seg as usize)?
                 break
             }
             i++
@@ -1103,7 +1104,8 @@ test {
     stdio.puts("hi3.2.2")
     val sp = trust from("a,b,c")
     stdio.puts("hi3.2.3")
-    val parts = trust split(sp, from(","))?
+    val heap: allocators.HeapAllocator = @zeroed
+    val parts = trust split[allocators.HeapAllocator](heap, sp, from(","))?
     stdio.puts("hi3.3")
 
     assert(collections.PtrList.len(parts) == 3)
@@ -1121,7 +1123,7 @@ test {
     }
 
     val sp2 = trust from("a,b,")
-    val parts2 = trust split(sp2, from(","))?
+    val parts2 = trust split[allocators.HeapAllocator](heap, sp2, from(","))?
     assert(collections.PtrList.len(parts2) == 3)
     match collections.PtrList.get(parts2, 2) {
         some v => { assert(equals(v, trust from(""))) }
