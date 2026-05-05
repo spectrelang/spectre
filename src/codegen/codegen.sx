@@ -3221,7 +3221,10 @@ fn emit_string_data(ctx: ref CgCtx) void! = {
         val s_opt = @get(strs, i as usize)
         match s_opt {
             some s => {
-                emit_fmt(ctx, "data $__str%lld = { b \"", {i})
+                val str_buf: ref u8 = @alloc(64) as ref u8
+                @snprintf(str_buf, 64, "data $__str{lld} = \\{ b \"", {i})
+                emit(ctx, str_buf)
+                @free(str_buf)
                 // emit each byte, escaping special chars
                 val sptr: ref u8 = s as ref u8
                 val j: mut i64 = 0
@@ -3505,7 +3508,10 @@ fn emit_global_fixed_arr_literal(ctx: ref CgCtx, glabel: ref u8, gty: ref parser
     if rk != parser.TY_FIXED_ARR && rk != parser.TY_MUT { return false }
     val entries: mut list[ref u8] = []
     if !collect_global_fixed_arr_entries(ctx, real_ty, gexpr, entries as ref void) { return false }
-    emit_fmt(ctx, "data $%s = { ", {glabel})
+    val data_hdr_buf: ref u8 = @alloc(576) as ref u8
+    @snprintf(data_hdr_buf, 576, "data ${s} = \\{ ", {glabel})
+    emit(ctx, data_hdr_buf)
+    @free(data_hdr_buf)
     val elen: i64 = @len(entries as list[ref u8]) as i64
     if elen == 0 {
         emit(ctx, "z 0")
