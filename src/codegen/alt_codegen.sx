@@ -651,25 +651,64 @@ fn cc_register_generic_fn(ctx: ref CCtx, name: ref u8, node: ref parser.Node, pr
 
 fn cc_lookup_generic_fn(ctx: ref CCtx, name: ref u8) ref parser.Node = trust {
     val nlen: i64 = @len(ctx.gfn_names) as i64
+    val namelen: i64 = str.len_raw(name)
+    val suffix: ref u8 = @alloc(namelen + 3) as ref u8
+    @snprintf(suffix, namelen + 3, "__{s}", {name})
+    val found_idx: mut i64 = -1
     val ni: mut i64 = 0
     for {
         if ni >= nlen { break }
         val n_opt = @get(ctx.gfn_names, ni as usize)
         match n_opt {
             some n => {
-                if str.rchar_cmp(n as ref u8, name) == 0 {
+                val candidate: ref u8 = n as ref u8
+                if str.rchar_cmp(candidate, name) == 0 {
+                    @free(suffix)
                     val nd_opt = @get(ctx.gfn_nodes as list[ref void], ni as usize)
                     match nd_opt {
                         some nd => { return nd as ref parser.Node }
                         none => { return none }
                     }
                 }
+                val clen: i64 = str.len_raw(candidate)
+                val slen: i64 = namelen + 2
+                if clen > slen {
+                    val tail: ref u8 = @ptradd(candidate, clen - slen) as ref u8
+                    if str.rchar_cmp(tail, suffix) == 0 { found_idx = ni }
+                }
             }
             none => {}
         }
         ni++
     }
+    @free(suffix)
+    if found_idx >= 0 {
+        val nd_opt = @get(ctx.gfn_nodes as list[ref void], found_idx as usize)
+        match nd_opt {
+            some nd => { return nd as ref parser.Node }
+            none => { return none }
+        }
+    }
     return none
+}
+
+fn cc_generic_fn_qualified_name(node: ref parser.Node, mod_prefix: ref u8) ref u8 = trust {
+    val ns: ref u8 = node.d1 as ref u8
+    val name: ref u8 = node.d2 as ref u8
+    val base: ref u8 = @alloc(256) as ref u8
+    if ns != none { @snprintf(base, 256, "{s}__{s}", {ns, name}) }
+    else { @snprintf(base, 256, "{s}", {name}) }
+    val is_std_child: mut bool = false
+    for scn in get_std_child_names() {
+        if str.rchar_cmp(scn, mod_prefix) == 0 { is_std_child = true break }
+    }
+    val qualified: ref u8 = @alloc(512) as ref u8
+    if str.rchar_cmp(mod_prefix, "") == 0 {
+        if str.rchar_cmp(base, "main") == 0 { @snprintf(qualified, 512, "{s}", {base}) }
+        else { @snprintf(qualified, 512, "sx__{s}", {base}) }
+    } elif is_std_child { @snprintf(qualified, 512, "std__{s}__{s}", {mod_prefix, base}) }
+    else { @snprintf(qualified, 512, "{s}__{s}", {mod_prefix, base}) }
+    return qualified
 }
 
 fn cc_gsubst_push(ctx: ref CCtx, name: ref u8, ty: ref parser.Node) void = trust {
@@ -971,9 +1010,9 @@ fn cc_make_concrete_param(ctx: ref CCtx, param: ref parser.Node) ref parser.Node
     return np
 }
 
-fn cc_monomorphize_generic_fn(ctx: mut ref CCtx, gfn_node: ref parser.Node, _: ref u8,
+fn cc_monomorphize_generic_fn(ctx: mut ref CCtx, gfn_node: ref parser.Node, gfn_prefix: ref u8,
                                type_args: list[ref parser.Node]) ref u8 = trust {
-    val fn_name: ref u8 = gfn_node.d2 as ref u8
+    val fn_name: ref u8 = cc_generic_fn_qualified_name(gfn_node, gfn_prefix)
     val tparams: ref void = gfn_node.d6 as ref void
     val suffix: ref u8 = @alloc(512) as ref u8
     val spos: mut i64 = 0
@@ -1096,11 +1135,8 @@ fn cc_monomorphize_generic_fn(ctx: mut ref CCtx, gfn_node: ref parser.Node, _: r
     return mono_base
 }
 
-fn cc_generic_callee_base_name(node: ref parser.Node) ref u8 = trust {
-    val k: i64 = node.kind
-    if k == parser.NK_IDENT { return node.d0 as ref u8 }
-    if k == parser.NK_FIELD { return parser.field_name(node) }
-    return "unknown"
+fn cc_generic_callee_base_name(ctx: ref CCtx, node: ref parser.Node) ref u8 = trust {
+    return resolve_callee_name(ctx, node)
 }
 
 fn cc_is_c_escape_expr(node: ref parser.Node) bool = trust {
@@ -1679,7 +1715,7 @@ fn cc_infer_call_ret_ty(ctx: mut ref CCtx, callee: ref parser.Node) ref parser.N
     if callee.kind == parser.NK_GENERIC_INST {
         val gi_base: ref parser.Node = parser.generic_inst_base(callee)
         val gi_targs: list[ref parser.Node] = parser.generic_inst_type_args(callee)
-        val base_name: ref u8 = cc_generic_callee_base_name(gi_base)
+        val base_name: ref u8 = cc_generic_callee_base_name(ctx, gi_base)
         val gfn_node: ref parser.Node = cc_lookup_generic_fn(ctx, base_name)
         if gfn_node == none { return none }
         val resolved_targs: mut list[ref parser.Node] = []
@@ -2225,7 +2261,7 @@ fn gen_call(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
     if callee.kind == parser.NK_GENERIC_INST {
         val gi_base: ref parser.Node = parser.generic_inst_base(callee)
         val gi_targs: list[ref parser.Node] = parser.generic_inst_type_args(callee)
-        val base_name: ref u8 = cc_generic_callee_base_name(gi_base)
+        val base_name: ref u8 = cc_generic_callee_base_name(ctx, gi_base)
         val gfn_node: ref parser.Node = cc_lookup_generic_fn(ctx, base_name)
         val mono_base: mut ref u8 = none
         if gfn_node != none {
@@ -3995,7 +4031,7 @@ fn preregister_items(ctx: ref CCtx, items: list[ref parser.Node], mod_prefix: re
     val ilen: i64 = @len(items) as i64 val i: mut i64 = 0
     for { if i >= ilen { break } val item_opt = @get(items, i as usize)
         match item_opt { some item => { val node: ref parser.Node = item as ref parser.Node val k: i64 = node.kind
-            if k == parser.NK_GENERIC_FN { cc_register_generic_fn(ctx, node.d2 as ref u8, node, mod_prefix) }
+            if k == parser.NK_GENERIC_FN { cc_register_generic_fn(ctx, cc_generic_fn_qualified_name(node, mod_prefix), node, mod_prefix) }
             elif k == parser.NK_FN { val ns: ref u8 = node.d1 as ref u8 val name: ref u8 = node.d2 as ref u8
                 val params: ref void = node.d3 as ref void val ret_ty: ref void = node.d4 as ref void
                 val base: ref u8 = @alloc(256) as ref u8
@@ -4142,7 +4178,7 @@ fn gen_items_with_prefix(ctx: mut ref CCtx, items: list[ref parser.Node], mod_pr
     val ilen: i64 = @len(items) as i64 val i: mut i64 = 0
     for { if i >= ilen { break } val item_opt = @get(items, i as usize)
         match item_opt { some item => { val node: ref parser.Node = item as ref parser.Node val k: i64 = node.kind
-            if k == parser.NK_GENERIC_FN { cc_register_generic_fn(ctx, node.d2 as ref u8, node, mod_prefix) }
+            if k == parser.NK_GENERIC_FN { cc_register_generic_fn(ctx, cc_generic_fn_qualified_name(node, mod_prefix), node, mod_prefix) }
             elif k == parser.NK_FN { gen_fn_prefixed(ctx, node, mod_prefix) }
             elif k == parser.NK_VAL { gen_module_val(ctx, node, mod_prefix) }
             elif k == parser.NK_CONST {
