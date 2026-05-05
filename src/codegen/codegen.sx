@@ -76,6 +76,7 @@ pub type CgCtx = {
 
 fn cg_new() ref CgCtx = trust {
     val ctx: mut ref CgCtx = @alloc(@sizeof(CgCtx)) as ref CgCtx
+    val heap: allocators.HeapAllocator = @zeroed
     ctx.sb = str.StringBuilder.new()
     ctx.mono_sb = str.StringBuilder.new()
     ctx.tmp = 0
@@ -111,8 +112,16 @@ fn cg_new() ref CgCtx = trust {
     ctx.cont_lbl = -1
     ctx.mc_names = []
     ctx.mc_vals = []
-    ctx.mc_index = collections.IndexMap.new(64 as usize)
-    ctx.fn_name_index = collections.IndexMap.new(256 as usize)
+    val imap_opt = collections.IndexMap.new[allocators.HeapAllocator](heap, 64 as usize)
+    match imap_opt {
+        ok m => { ctx.mc_index = m }
+        err _ => { assert false }
+    }
+    val h_alloc = collections.IndexMap.new[allocators.HeapAllocator](heap, 256 as usize)
+    match h_alloc {
+        ok m => { ctx.fn_name_index = m }
+        err _ => { assert false }
+    }
     ctx.defer_stack = []
     ctx.local_src_names = []
     ctx.local_qbe_names = []
@@ -1071,12 +1080,16 @@ fn cg_mc_names(ctx: ref CgCtx) ref void = trust { return ctx.mc_names as ref voi
 fn cg_mc_vals(ctx: ref CgCtx) ref void = trust { return ctx.mc_vals as ref void }
 
 fn cg_register_module_const(ctx: ref CgCtx, name: ref u8, val_str: ref u8) void = trust {
+    val heap: allocators.HeapAllocator = @zeroed
     @append(cg_mc_names(ctx) as list[ref u8], name)
     @append(cg_mc_vals(ctx)  as list[ref u8], val_str)
     if !collections.IndexMap.contains(ctx.mc_index, name) {
         val val_str_usize: mut usize = 0
         @store(@addr(val_str_usize) as ref void, val_str)
-        collections.IndexMap.set(ctx.mc_index, name, val_str_usize)
+        match collections.IndexMap.set[allocators.HeapAllocator](heap, ctx.mc_index, name, val_str_usize) {
+            ok _ => {}
+            err _ => { assert false }
+        }
     }
 }
 
