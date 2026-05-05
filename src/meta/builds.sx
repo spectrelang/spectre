@@ -31,10 +31,14 @@ pub fn select_alt_compiler(requested: ref u8) ref u8 = {
     if is_compiler_available("clang") {
         return "clang"
     }
-    if is_compiler_available("gcc") {
-        return "gcc"
-    }
     return "cc"
+}
+
+pub fn compiler_warn_flag(compiler: ref u8) ref u8 = {
+    if string.rchar_cmp(compiler, "clang") == 0 {
+        return "-Wno-everything"
+    }
+    return "-w"
 }
 
 pub fn parse_alt_compiler_arg(arg: ref u8) ref u8 = {

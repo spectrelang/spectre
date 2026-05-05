@@ -68,11 +68,20 @@ fn pick_alt_backend(
     input: ref u8,
     root_items: list[ref parser.Node]
 ) ref u8 = {
-    val selected: mut ref u8 = builds.select_alt_compiler(requested)
-    if string.rchar_cmp(selected, "tcc") != 0 { return selected }
-    if release_mode { return "clang" }
-    if !input_is_in_std(input) && root_has_direct_links(root_items) { return "clang" }
-    return selected
+    if string.rchar_cmp(requested, "") != 0 {
+        return requested
+    }
+    if release_mode {
+        if builds.is_compiler_available("clang") { return "clang" }
+        if builds.is_compiler_available("tcc") { return "tcc" }
+        return "cc"
+    }
+    if !input_is_in_std(input) && root_has_direct_links(root_items) {
+        if builds.is_compiler_available("clang") { return "clang" }
+    }
+    if builds.is_compiler_available("tcc") { return "tcc" }
+    if builds.is_compiler_available("clang") { return "clang" }
+    return "cc"
 }
 
 fn append_debug_runtime_links(
@@ -562,10 +571,11 @@ pub fn main() i32! = {
             include_flags_alt = @fmt("{s} -I{s}", {include_flags_alt, inc_path})
         }
 
-        val cc_flags_alt: mut ref u8 = "-std=c99 -Wno-everything -O3"
-        if !release_mode { cc_flags_alt = "-std=c99 -Wno-everything -g" }
-
         val selected_compiler: mut ref u8 = pick_alt_backend(alt_compiler, release_mode, input, root_mod.items)
+
+        val warn_flag: ref u8 = builds.compiler_warn_flag(selected_compiler)
+        val cc_flags_alt: mut ref u8 = @fmt("-std=c99 {s} -O3", {warn_flag})
+        if !release_mode { cc_flags_alt = @fmt("-std=c99 {s} -g", {warn_flag}) }
         val test_output_alt: ref u8 = builds.get_tmp_path("spectre_test_bin_alt")
         val compile_output: mut ref u8 = test_output_alt
         if !test_mode {

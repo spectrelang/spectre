@@ -291,7 +291,9 @@ pub fn exec(cmd: ref u8) result[String, ProcessError]! = {
 pub fn in_path(binary: ref u8) bool! = {
     val path_env = env("PATH")
     match path_env {
-        none => { return false }
+        none => {
+            return false 
+        }
         some path => {
             val sep: mut u8 = 58
             when windows { sep = 59 } // ';'
@@ -303,7 +305,11 @@ pub fn in_path(binary: ref u8) bool! = {
                 if c == sep || c == 0 {
                     val dir_len: i64 = i - start
                     if dir_len > 0 {
-                        val full: ref u8 = @fmt("{s}/{s}", {@ptradd(path, start) as ref u8, binary})
+                        val dir_buf: ref void = @alloc(dir_len + 1)
+                        @memcpy(dir_buf, @ptradd(path, start), dir_len)
+                        @store8(@ptradd(dir_buf, dir_len), 0)
+                        val full: ref u8 = @fmt("{s}/{s}", {dir_buf as ref u8, binary})
+                        @free(dir_buf)
                         if exists(full) { return true }
                     }
                     start = i + 1
