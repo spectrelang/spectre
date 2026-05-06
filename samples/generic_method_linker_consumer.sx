@@ -20,3 +20,8 @@ pub fn run() i64 = {
     val holder: Holder = build_holder[allocators.HeapAllocator](heap)
     return holder.value
 }
+
+pub fn main() void = {
+    val result: i64 = run()
+    @print("result: {d}\n", {result})
+}
