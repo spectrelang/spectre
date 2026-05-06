@@ -10,3 +10,8 @@ build prod {
 build dev {
     output "./spectre-dev"
 }
+
+build quick {
+    flags "--alt"
+    output "./spectre-dev"
+}
