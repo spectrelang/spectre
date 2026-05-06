@@ -229,14 +229,16 @@ pub fn match_opt_expr(n: ref Node) ref Node      = { return n.d0 as ref Node }
 pub fn match_opt_some_bind(n: ref Node) ref u8   = { return n.d1 as ref u8 }
 pub fn match_opt_some_body(n: ref Node) ref Node = { return n.d2 as ref Node }  // wrapper, .d0 = stmts list
 pub fn match_opt_none_body(n: ref Node) ref Node = { return n.d3 as ref Node }  // wrapper, .d0 = stmts list
-pub fn match_opt_is_sugar(n: ref Node) bool      = { return n.d6 != 0 }
+pub fn match_opt_sugar_kind(n: ref Node) i64     = { return n.d6 }
+pub fn match_opt_is_sugar(n: ref Node) bool      = { return match_opt_sugar_kind(n) != 0 }
 
 pub fn match_res_expr(n: ref Node) ref Node       = { return n.d0 as ref Node }
 pub fn match_res_ok_bind(n: ref Node) ref u8      = { return n.d1 as ref u8 }
 pub fn match_res_ok_body(n: ref Node) ref Node    = { return n.d2 as ref Node }  // wrapper, .d0 = stmts list
 pub fn match_res_err_bind(n: ref Node) ref u8     = { return n.d3 as ref u8 }
 pub fn match_res_err_body(n: ref Node) ref Node   = { return n.d4 as ref Node }  // wrapper, .d0 = stmts list
-pub fn match_res_is_sugar(n: ref Node) bool       = { return n.d6 != 0 }
+pub fn match_res_sugar_kind(n: ref Node) i64      = { return n.d6 }
+pub fn match_res_is_sugar(n: ref Node) bool       = { return match_res_sugar_kind(n) != 0 }
 
 pub fn match_enum_expr(n: ref Node) ref Node               = { return n.d0 as ref Node }
 pub fn match_enum_arms(n: ref Node) list[ref Node]         = { return n.d1 as list[ref Node] }
@@ -1174,15 +1176,21 @@ pub fn parse_stmt(p: mut ref Parser) result[ref Node, ref u8] = trust {
         if has_paren { p_expect_rparen(p)? }
 
         val peek_next_some: mut bool = false
+        val peek_next_none: mut bool = false
         val peek_next_ok: mut bool = false
+        val peek_next_err: mut bool = false
         if lexer.kind_is_ident(p_peek_kind(p)) {
             val ptxt: ref u8 = lexer.tok_text(p.tokens, p.pos)
             if ptxt != none {
                 if str_eq(ptxt, "is") {
                     if kind_is_some(p_peek2_kind(p)) {
                         peek_next_some = true
+                    } elif kind_is_none(p_peek2_kind(p)) {
+                        peek_next_none = true
                     } elif kind_is_ok(p_peek2_kind(p)) {
                         peek_next_ok = true
+                    } elif kind_is_err(p_peek2_kind(p)) {
+                        peek_next_err = true
                     }
                 }
             }
@@ -1272,6 +1280,90 @@ pub fn parse_stmt(p: mut ref Parser) result[ref Node, ref u8] = trust {
             return ok nmo
         }
 
+        if peek_next_none {
+            p_advance(p)
+            p_advance(p)
+            p_expect_lbrace(p)?
+            val is_none_stmts = parse_stmts(p)?
+            p_expect_rbrace(p)?
+
+            val is_nbl: list[ref Node] = is_none_stmts
+            val is_none_body: mut ref Node = make_node(NK_MATCH_OPT, line)
+            node_store_slot[list[ref Node]](@addr(is_none_body.d0), is_nbl)
+
+            val is_elif_list: mut list[ref Node] = []
+            for {
+                if !kind_is_elif(p_peek_kind(p)) { break }
+                val iel: i64 = p_line(p) p_advance(p)
+                val iehp: bool = p_eat_fn(p, lexer.kind_is_lparen)
+                val iecond = parse_expr(p)?
+                if iehp { p_expect_rparen(p)? }
+                p_expect_lbrace(p)?
+                val iebody = parse_stmts(p)?
+                p_expect_rbrace(p)?
+                val iep: mut ref Node = make_node(NK_IF, iel)
+                node_store_slot[ref Node](@addr(iep.d0), iecond)
+                val iebl: list[ref Node] = iebody
+                node_store_slot[list[ref Node]](@addr(iep.d1), iebl)
+                @append(is_elif_list, iep)
+            }
+            val is_else_node: mut ref Node = none
+            if p_eat_fn(p, kind_is_else) {
+                p_expect_lbrace(p)?
+                val ieb = parse_stmts(p)?
+                p_expect_rbrace(p)?
+                val iebl2: list[ref Node] = ieb
+                val ien: mut ref Node = make_node(NK_IF, line)
+                node_store_slot[list[ref Node]](@addr(ien.d0), iebl2)
+                is_else_node = ien
+            }
+
+            val is_some_body: mut ref Node = none
+            val is_elif_count: i64 = @len(is_elif_list) as i64
+            if is_elif_count > 0 {
+                val ife0_opt = @get(is_elif_list, 0 as usize)
+                match ife0_opt {
+                    some ife0 => {
+                        val ife0n: ref Node = ife0 as ref Node
+                        val irest: mut list[ref Node] = []
+                        val iri: mut i64 = 1
+                        for {
+                            if iri >= is_elif_count { break }
+                            val ire_opt = @get(is_elif_list, iri as usize)
+                            match ire_opt {
+                                some ire => { @append(irest, ire as ref Node) }
+                                none => {}
+                            }
+                            iri++
+                        }
+                        val isyn: mut ref Node = make_node(NK_IF, ife0n.line)
+                        isyn.d0 = ife0n.d0
+                        isyn.d1 = ife0n.d1
+                        val irestl: list[ref Node] = irest
+                        node_store_slot[list[ref Node]](@addr(isyn.d2), irestl)
+                        node_store_slot[ref Node](@addr(isyn.d3), is_else_node)
+                        val instmts: mut list[ref Node] = []
+                        @append(instmts, isyn)
+                        val instl: list[ref Node] = instmts
+                        val inc: mut ref Node = make_node(NK_MATCH_OPT, line)
+                        node_store_slot[list[ref Node]](@addr(inc.d0), instl)
+                        is_some_body = inc
+                    }
+                    none => {}
+                }
+            } elif is_else_node != none {
+                is_some_body = is_else_node
+            }
+
+            val nmo: mut ref Node = make_node(NK_MATCH_OPT, line)
+            node_store_slot[ref Node](@addr(nmo.d0), cond)
+            node_store_slot[ref u8](@addr(nmo.d1), none)
+            node_store_slot[ref Node](@addr(nmo.d2), is_some_body)
+            node_store_slot[ref Node](@addr(nmo.d3), is_none_body)
+            nmo.d6 = 2
+            return ok nmo
+        }
+
         if peek_next_ok {
             p_advance(p)  
             p_advance(p) 
@@ -1355,6 +1447,92 @@ pub fn parse_stmt(p: mut ref Parser) result[ref Node, ref u8] = trust {
             node_store_slot[ref u8](@addr(nmr.d3), none)
             node_store_slot[ref Node](@addr(nmr.d4), is_err_body)
             nmr.d6 = 1
+            return ok nmr
+        }
+
+        if peek_next_err {
+            p_advance(p)
+            p_advance(p)
+            val is_bind = p_expect_ident(p)?
+            p_expect_lbrace(p)?
+            val is_err_stmts = parse_stmts(p)?
+            p_expect_rbrace(p)?
+
+            val is_ebl: list[ref Node] = is_err_stmts
+            val is_err_body: mut ref Node = make_node(NK_MATCH_RES, line)
+            node_store_slot[list[ref Node]](@addr(is_err_body.d0), is_ebl)
+
+            val is_elif_list: mut list[ref Node] = []
+            for {
+                if !kind_is_elif(p_peek_kind(p)) { break }
+                val iel: i64 = p_line(p) p_advance(p)
+                val iehp: bool = p_eat_fn(p, lexer.kind_is_lparen)
+                val iecond = parse_expr(p)?
+                if iehp { p_expect_rparen(p)? }
+                p_expect_lbrace(p)?
+                val iebody = parse_stmts(p)?
+                p_expect_rbrace(p)?
+                val iep: mut ref Node = make_node(NK_IF, iel)
+                node_store_slot[ref Node](@addr(iep.d0), iecond)
+                val iebl: list[ref Node] = iebody
+                node_store_slot[list[ref Node]](@addr(iep.d1), iebl)
+                @append(is_elif_list, iep)
+            }
+            val is_else_node: mut ref Node = none
+            if p_eat_fn(p, kind_is_else) {
+                p_expect_lbrace(p)?
+                val ieb = parse_stmts(p)?
+                p_expect_rbrace(p)?
+                val iebl2: list[ref Node] = ieb
+                val ien: mut ref Node = make_node(NK_IF, line)
+                node_store_slot[list[ref Node]](@addr(ien.d0), iebl2)
+                is_else_node = ien
+            }
+
+            val is_ok_body: mut ref Node = none
+            val is_elif_count: i64 = @len(is_elif_list) as i64
+            if is_elif_count > 0 {
+                val ife0_opt = @get(is_elif_list, 0 as usize)
+                match ife0_opt {
+                    some ife0 => {
+                        val ife0n: ref Node = ife0 as ref Node
+                        val irest: mut list[ref Node] = []
+                        val iri: mut i64 = 1
+                        for {
+                            if iri >= is_elif_count { break }
+                            val ire_opt = @get(is_elif_list, iri as usize)
+                            match ire_opt {
+                                some ire => { @append(irest, ire as ref Node) }
+                                none => {}
+                            }
+                            iri++
+                        }
+                        val isyn: mut ref Node = make_node(NK_IF, ife0n.line)
+                        isyn.d0 = ife0n.d0
+                        isyn.d1 = ife0n.d1
+                        val irestl: list[ref Node] = irest
+                        node_store_slot[list[ref Node]](@addr(isyn.d2), irestl)
+                        node_store_slot[ref Node](@addr(isyn.d3), is_else_node)
+                        val instmts: mut list[ref Node] = []
+                        @append(instmts, isyn)
+                        val instl: list[ref Node] = instmts
+                        val inc: mut ref Node = make_node(NK_MATCH_RES, line)
+                        node_store_slot[list[ref Node]](@addr(inc.d0), instl)
+                        is_ok_body = inc
+                    }
+                    none => {}
+                }
+            } elif is_else_node != none {
+                is_ok_body = is_else_node
+            }
+
+            val nmr: mut ref Node = make_node(NK_MATCH_RES, line)
+            node_store_slot[ref Node](@addr(nmr.d0), cond)
+            node_store_slot[ref u8](@addr(nmr.d1), none)
+            node_store_slot[ref Node](@addr(nmr.d2), is_ok_body)
+            node_store_slot[ref u8](@addr(nmr.d3), is_bind)
+            node_store_slot[ref Node](@addr(nmr.d4), is_err_body)
+            nmr.d6 = 2
             return ok nmr
         }
 

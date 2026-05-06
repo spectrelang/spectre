@@ -3799,9 +3799,14 @@ fn check_stmt(ctx: mut ref SemaCtx, stmt: ref parser.Node, filename: ref u8) voi
         check_expr(ctx, match_expr, filename)
         if parser.match_opt_is_sugar(stmt) {
             val wrap_kind: i64 = expr_wrap_kind(ctx, match_expr)
-            if wrap_kind == 1 {
+            val sugar_kind: i64 = parser.match_opt_sugar_kind(stmt)
+            if wrap_kind == 1 && sugar_kind == 1 {
                 val buf: ref u8 = @alloc(512) as ref u8
                 @snprintf(buf, 512, "{s}:{lld}: cannot use 'is some' with a result value; use 'is ok' instead", {filename, line})
+                add_error(ctx, buf)
+            } elif wrap_kind == 1 && sugar_kind == 2 {
+                val buf: ref u8 = @alloc(512) as ref u8
+                @snprintf(buf, 512, "{s}:{lld}: cannot use 'is none' with a result value; use 'is err' instead", {filename, line})
                 add_error(ctx, buf)
             }
         }
@@ -3830,9 +3835,14 @@ fn check_stmt(ctx: mut ref SemaCtx, stmt: ref parser.Node, filename: ref u8) voi
         check_expr(ctx, match_expr, filename)
         if parser.match_res_is_sugar(stmt) {
             val wrap_kind: i64 = expr_wrap_kind(ctx, match_expr)
-            if wrap_kind == 2 {
+            val sugar_kind: i64 = parser.match_res_sugar_kind(stmt)
+            if wrap_kind == 2 && sugar_kind == 1 {
                 val buf: ref u8 = @alloc(512) as ref u8
                 @snprintf(buf, 512, "{s}:{lld}: cannot use 'is ok' with an option value; use 'is some' instead", {filename, line})
+                add_error(ctx, buf)
+            } elif wrap_kind == 2 && sugar_kind == 2 {
+                val buf: ref u8 = @alloc(512) as ref u8
+                @snprintf(buf, 512, "{s}:{lld}: cannot use 'is err' with an option value; use 'is none' instead", {filename, line})
                 add_error(ctx, buf)
             }
         }
