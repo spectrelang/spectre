@@ -481,6 +481,19 @@ fn cc_unwrap_ref_inner_ty(ty: ref parser.Node) ref parser.Node = trust {
     return none
 }
 
+fn cc_expected_struct_ty(ctx: ref CCtx, ty: ref parser.Node) ref parser.Node = trust {
+    if ty == none { return none }
+    val resolved_ty: ref parser.Node = cc_concrete_ty(ctx, ty)
+    if resolved_ty == none { return none }
+    val k: i64 = resolved_ty.kind
+    if k == parser.TY_MUT || k == parser.TY_OPTION || k == parser.TY_RESULT {
+        return cc_expected_struct_ty(ctx, resolved_ty.d0 as ref parser.Node)
+    }
+    if k != parser.TY_NAMED { return none }
+    if cc_lookup_struct(ctx, resolved_ty.d0 as ref u8) == none { return none }
+    return resolved_ty
+}
+
 fn cc_register_local(ctx: ref CCtx, name: ref u8, ctype: ref u8, ty_node: ref parser.Node, is_slot: i64) void = trust {
     @append(ctx.local_names, name)
     @append(ctx.local_ctypes, ctype)
@@ -1488,8 +1501,8 @@ fn cc_rewrite_empty_struct_init(ctx: ref CCtx, expr: ref parser.Node) bool = tru
     if expr == none || expr.kind != parser.NK_ARGS_PACK { return false }
     val pack: ref void = expr.d0 as ref void
     if pack != none && @len(pack as list[ref parser.Node]) as i64 != 0 { return false }
-    val expected_ty: ref parser.Node = cc_concrete_ty(ctx, ctx.expected_ty)
-    if expected_ty == none || expected_ty.kind != parser.TY_NAMED { return false }
+    val expected_ty: ref parser.Node = cc_expected_struct_ty(ctx, ctx.expected_ty)
+    if expected_ty == none { return false }
     val struct_fields: ref void = cc_lookup_struct(ctx, expected_ty.d0 as ref u8)
     if struct_fields == none || @len(struct_fields as list[ref void]) as i64 != 0 {
         return false
@@ -3040,12 +3053,10 @@ fn gen_struct_lit(ctx: ref CCtx, expr: ref parser.Node) ref u8 = trust {
 
     val alloc_size: mut i64 = (fcount * 8) as i64
     val struct_fields: mut ref void = none
-    if ctx.expected_ty != none {
-        val expected_ty: ref parser.Node = cc_concrete_ty(ctx, ctx.expected_ty)
+    val expected_ty: ref parser.Node = cc_expected_struct_ty(ctx, ctx.expected_ty)
+    if expected_ty != none {
         alloc_size = c_size_of(ctx, expected_ty)
-        if expected_ty != none && expected_ty.kind == parser.TY_NAMED {
-            struct_fields = cc_lookup_struct(ctx, expected_ty.d0 as ref u8)
-        }
+        struct_fields = cc_lookup_struct(ctx, expected_ty.d0 as ref u8)
     }
     if fcount < 1 && alloc_size < 8 { alloc_size = 8 as i64 }
 
