@@ -262,7 +262,9 @@ fn register_generic_fn(ctx: ref CgCtx, name: ref u8, node: ref parser.Node, pref
     @append(ctx.gfn_prefixes, prefix)
 }
 
-/// Look up a generic function node by base name. Returns null if not found.
+/// Look up a generic function node by base name.
+///
+/// Returns null if not found.
 fn lookup_generic_fn(ctx: ref CgCtx, name: ref u8) ref parser.Node = trust {
     val nlen: i64 = @len(ctx.gfn_names) as i64
     val namelen: i64 = str.len_raw(name)
@@ -273,25 +275,22 @@ fn lookup_generic_fn(ctx: ref CgCtx, name: ref u8) ref parser.Node = trust {
     for {
         if ni >= nlen { break }
         val n_opt = @get(ctx.gfn_names, ni as usize)
-        match n_opt {
-            some n => {
-                val candidate: ref u8 = n as ref u8
-                if str.rchar_cmp(candidate, name) == 0 {
-                    @free(suffix)
-                    val nd_opt = @get(ctx.gfn_nodes as list[ref void], ni as usize)
-                    match nd_opt {
-                        some nd => { return nd as ref parser.Node }
-                        none   => { return none }
-                    }
-                }
-                val clen: i64 = str.len_raw(candidate)
-                val slen: i64 = namelen + 2
-                if clen > slen {
-                    val tail: ref u8 = @ptradd(candidate, clen - slen) as ref u8
-                    if str.rchar_cmp(tail, suffix) == 0 { found_idx = ni }
+        if n_opt is some n {
+            val candidate: ref u8 = n as ref u8
+            if str.rchar_cmp(candidate, name) == 0 {
+                @free(suffix)
+                val nd_opt = @get(ctx.gfn_nodes as list[ref void], ni as usize)
+                match nd_opt {
+                    some nd => { return nd as ref parser.Node }
+                    none    => { return none }
                 }
             }
-            none => {}
+            val clen: i64 = str.len_raw(candidate)
+            val slen: i64 = namelen + 2
+            if clen > slen {
+                val tail: ref u8 = @ptradd(candidate, clen - slen) as ref u8
+                if str.rchar_cmp(tail, suffix) == 0 { found_idx = ni }
+            }
         }
         ni++
     }
