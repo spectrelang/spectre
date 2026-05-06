@@ -56,7 +56,7 @@ fn root_has_direct_links(items: list[ref parser.Node]) bool = {
 }
 
 fn input_is_in_std(input: ref u8) bool = {
-    if string.rchar_starts_with(input, "std/") { return true }
+    if string.rchar_starts_with(input, "std/")   { return true }
     if string.rchar_starts_with(input, "./std/") { return true }
     if string.contains(trust string.from(input), trust string.from("/std/")) { return true }
     return false
