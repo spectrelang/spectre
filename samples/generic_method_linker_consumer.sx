@@ -23,5 +23,5 @@ pub fn run() i64 = {
 
 pub fn main() void = {
     val result: i64 = run()
-    @print("result: {d}\n", {result})
+    trust @print("result: {d}\n", {result})
 }
