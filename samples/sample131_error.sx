@@ -1,0 +1,9 @@
+pub fn returns_none() option[i32] = {
+    return none
+}
+
+pub fn main() void = {
+    if returns_none() is err _ {
+        @puts("should NOT compile")
+    }
+}
