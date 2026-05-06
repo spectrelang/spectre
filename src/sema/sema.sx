@@ -2940,6 +2940,21 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
             resolve_generic_inst_inference(ctx, callee, fn_found, cargs, filename, line)
         }
 
+        if fn_found != none && has_explicit_targs && fn_found.kind != parser.NK_GENERIC_FN {
+            val fn_name_for_targs: mut ref u8 = none
+            if base_callee != none {
+                if base_callee.kind == parser.NK_IDENT { fn_name_for_targs = base_callee.d0 as ref u8 }
+                elif base_callee.kind == parser.NK_FIELD { fn_name_for_targs = parser.field_name(base_callee) }
+            }
+            val targs_buf: ref u8 = @alloc(512) as ref u8
+            if fn_name_for_targs != none {
+                @snprintf(targs_buf, 512, "{s}:{lld}: function '{s}' does not take type arguments", {filename, line, fn_name_for_targs})
+            } else {
+                @snprintf(targs_buf, 512, "{s}:{lld}: this function does not take type arguments", {filename, line})
+            }
+            add_error(ctx, targs_buf)
+        }
+
         if fn_found != none && has_explicit_targs {
             check_generic_call_arg_types(ctx, fn_found, callee, cargs, filename, line)
             check_generic_call_constraints(ctx, fn_found, callee, filename, line)
