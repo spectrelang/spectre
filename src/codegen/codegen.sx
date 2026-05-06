@@ -418,20 +418,17 @@ fn gsubst_resolve_name(ctx: ref CgCtx, name: ref u8) ref u8 = trust {
     for {
         if ni >= nlen { break }
         val n_opt = @get(ctx.gsubst_names, ni as usize)
-        match n_opt {
-            some n => {
-                if str.rchar_cmp(n as ref u8, name) == 0 {
-                    val t_opt = @get(ctx.gsubst_tnodes as list[ref void], ni as usize)
-                    match t_opt {
-                        some t => {
-                            val resolved: ref parser.Node = t as ref parser.Node
-                            return type_node_to_mangled_ident(resolved)
-                        }
-                        none => { return "" }
+        if n_opt is some n {
+            if str.rchar_cmp(n as ref u8, name) == 0 {
+                val t_opt = @get(ctx.gsubst_tnodes as list[ref void], ni as usize)
+                match t_opt {
+                    some t => {
+                        val resolved: ref parser.Node = t as ref parser.Node
+                        return type_node_to_mangled_ident(resolved)
                     }
+                    none => { return "" }
                 }
             }
-            none => {}
         }
         ni++
     }
