@@ -1,6 +1,6 @@
 /// The Spectre Compiler
 ///
-/// GPL-3.0-only
+/// SPDX-License-Identifier: GPL-3.0-only
 /// (C) Navid Momtahen - 2026
 
 val fs           = use("std/fs")
