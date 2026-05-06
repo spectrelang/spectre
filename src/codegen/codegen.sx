@@ -230,15 +230,15 @@ pub fn platform_matches_with_target(name: ref u8, src_target: ref u8) bool = tru
     if str.rchar_cmp(name, cur) == 0 {
         matched = true
     } elif str.rchar_cmp(name, "posix") == 0 {
-        if str.rchar_cmp(cur, "linux")        == 0   { matched = true }
-        elif str.rchar_cmp(cur, "darwin")     == 0   { matched = true }
-        elif str.rchar_cmp(cur, "freebsd")    == 0   { matched = true }
-        elif str.rchar_cmp(cur, "openbsd")    == 0   { matched = true }
-        elif str.rchar_cmp(cur, "netbsd")     == 0   { matched = true }
+        if str.rchar_cmp(cur, "linux")          == 0 { matched = true }
+        elif str.rchar_cmp(cur, "darwin")       == 0 { matched = true }
+        elif str.rchar_cmp(cur, "freebsd")      == 0 { matched = true }
+        elif str.rchar_cmp(cur, "openbsd")      == 0 { matched = true }
+        elif str.rchar_cmp(cur, "netbsd")       == 0 { matched = true }
         elif str.rchar_cmp(cur, "dragonflybsd") == 0 { matched = true }
-        elif str.rchar_cmp(cur, "haiku")      == 0   { matched = true }
-        elif str.rchar_cmp(cur, "android")    == 0   { matched = true }
-        elif str.rchar_cmp(cur, "redox")      == 0   { matched = true }
+        elif str.rchar_cmp(cur, "haiku")        == 0 { matched = true }
+        elif str.rchar_cmp(cur, "android")      == 0 { matched = true }
+        elif str.rchar_cmp(cur, "redox")        == 0 { matched = true }
     }
 
     allocators.Arena.free(arena)
