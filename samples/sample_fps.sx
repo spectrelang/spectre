@@ -475,12 +475,12 @@ pub fn main() i32 = {
         C.SDL_WINDOWPOS_CENTERED,
         SCREEN_WIDTH,
         SCREEN_HEIGHT,
-        0
+        0 as u32
     )
 
     val renderer: ref void = trust SDL_CreateRenderer(
         window,
-        -1,
+        -1 as i32,
         C.SDL_RENDERER_ACCELERATED | C.SDL_RENDERER_PRESENTVSYNC
     )
     g_renderer = renderer
@@ -498,24 +498,24 @@ pub fn main() i32 = {
     g_dst_rect = @alloc(@sizeof(SDL_Rect)) as ref SDL_Rect
     g_aux_rect = @alloc(@sizeof(SDL_Rect)) as ref SDL_Rect
 
-    val ep0: mut ref Enemy = trust get_enemy(0)
+    val ep0: mut ref Enemy = trust get_enemy(0 as i32)
     @deref(ep0) = {x: 544.0, y: 544.0, health: 3, alive: 1, shootTimer: 2.0}
-    val ep1: mut ref Enemy = trust get_enemy(1)
+    val ep1: mut ref Enemy = trust get_enemy(1 as i32)
     @deref(ep1) = {x: 992.0, y: 96.0,  health: 3, alive: 1, shootTimer: 2.5}
-    val ep2: mut ref Enemy = trust get_enemy(2)
+    val ep2: mut ref Enemy = trust get_enemy(2 as i32)
     @deref(ep2) = {x: 672.0, y: 864.0, health: 3, alive: 1, shootTimer: 1.5}
-    val ep3: mut ref Enemy = trust get_enemy(3)
+    val ep3: mut ref Enemy = trust get_enemy(3 as i32)
     @deref(ep3) = {x: 352.0, y: 416.0, health: 3, alive: 1, shootTimer: 3.0}
-    val ep4: mut ref Enemy = trust get_enemy(4)
+    val ep4: mut ref Enemy = trust get_enemy(4 as i32)
     @deref(ep4) = {x: 224.0, y: 864.0, health: 3, alive: 1, shootTimer: 2.0}
-    val ep5: mut ref Enemy = trust get_enemy(5)
+    val ep5: mut ref Enemy = trust get_enemy(5 as i32)
     @deref(ep5) = {x: 928.0, y: 416.0, health: 3, alive: 1, shootTimer: 1.8}
 
     val es: ref void = trust IMG_Load("samples/sprites/enemy.gif")
     if es != none {
         g_enemyTex = trust SDL_CreateTextureFromSurface(renderer, es)
         trust SDL_FreeSurface(es)
-        trust SDL_SetTextureBlendMode(g_enemyTex, 1)
+        trust SDL_SetTextureBlendMode(g_enemyTex, 1 as i32)
         val tw: ref void = @alloc(4)
         val th: ref void = @alloc(4)
         trust SDL_QueryTexture(g_enemyTex, none, none, tw, th)
@@ -531,7 +531,7 @@ pub fn main() i32 = {
     if gs != none {
         g_gunTex = trust SDL_CreateTextureFromSurface(renderer, gs)
         trust SDL_FreeSurface(gs)
-        trust SDL_SetTextureBlendMode(g_gunTex, 1)
+        trust SDL_SetTextureBlendMode(g_gunTex, 1 as i32)
         val gw: ref void = @alloc(4)
         val gh: ref void = @alloc(4)
         trust SDL_QueryTexture(g_gunTex, none, none, gw, gh)
