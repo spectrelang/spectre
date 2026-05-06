@@ -300,7 +300,7 @@ fn lookup_generic_fn(ctx: ref CgCtx, name: ref u8) ref parser.Node = trust {
         val nd_opt = @get(ctx.gfn_nodes as list[ref void], found_idx as usize)
         match nd_opt {
             some nd => { return nd as ref parser.Node }
-            none   => { return none }
+            none    => { return none }
         }
     }
     return none
