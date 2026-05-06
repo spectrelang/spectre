@@ -159,6 +159,14 @@ fn import_is_referenced(items: list[ref parser.Node], import_name: ref u8) bool 
                             return true
                         }
                     }
+                } elif item.kind == parser.NK_VAL {
+                    if type_references_import_shallow(item.d2 as ref parser.Node, import_name) {
+                        return true
+                    }
+                    val init_expr: ref parser.Node = item.d3 as ref parser.Node
+                    if init_expr != none && expr_references_import_shallow(init_expr, import_name) {
+                        return true
+                    }
                 } elif item.kind == parser.NK_CONST {
                     val expr: ref parser.Node = item.d2 as ref parser.Node
                     if expr != none && expr_references_import_shallow(expr, import_name) {

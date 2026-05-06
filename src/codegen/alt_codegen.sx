@@ -1452,6 +1452,35 @@ fn cc_lookup_struct(ctx: ref CCtx, tname: ref u8) ref void = trust {
             val f_opt = @get(ctx.sfields as list[ref void], ni as usize)
             match f_opt { some f => { return f as ref void } none => { return none } } } } none => {} }
         ni++ }
+    val tlen: i64 = str.len_raw(tname)
+    val dotpos: mut i64 = -1
+    val ti: mut i64 = 0
+    for {
+        if ti >= tlen { break }
+        if @load8(@ptradd(tname as ref void, ti)) == 46 { dotpos = ti }
+        ti++
+    }
+    if dotpos >= 0 {
+        val suffix: ref u8 = @ptradd(tname as ref void, dotpos + 1) as ref u8
+        val si: mut i64 = 0
+        for {
+            if si >= nlen { break }
+            val sn_opt = @get(ctx.snames as list[ref u8], si as usize)
+            match sn_opt {
+                some sn => {
+                    if str.rchar_cmp(sn as ref u8, suffix) == 0 {
+                        val sf_opt = @get(ctx.sfields as list[ref void], si as usize)
+                        match sf_opt {
+                            some sf => { return sf as ref void }
+                            none => { return none }
+                        }
+                    }
+                }
+                none => {}
+            }
+            si++
+        }
+    }
     return none
 }
 
