@@ -2028,6 +2028,18 @@ fn check_printf_fmt(ctx: ref SemaCtx, fmt_str: ref u8, all_args: ref void,
                         }
                     }
                     if arg_node != none {
+                        val arg_wrap: i64 = expr_wrap_kind(ctx, arg_node)
+                        if arg_wrap != 0 && !str_eq(exp_cat, "ptr") {
+                            val wrap_name: mut ref u8 = "option"
+                            if arg_wrap == 1 { wrap_name = "result" }
+                            val buf_wrap: ref u8 = @alloc(512) as ref u8
+                            @snprintf(buf_wrap, 512,
+                                "{s}:{lld}: format specifier \\{{s}\\} does not accept a {s} value; unwrap it first",
+                                {filename, line, specifier, wrap_name})
+                            add_error(ctx, buf_wrap)
+                            idx++
+                            continue
+                        }
                         val act_cat: ref u8 = get_expr_type_category(ctx, arg_node)
                         if !str_eq(act_cat, "unknown") {
                             val its_ok: mut bool = str_eq(exp_cat, act_cat)
