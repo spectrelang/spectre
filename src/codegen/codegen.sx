@@ -142,11 +142,11 @@ fn cg_new() ref CgCtx = trust {
     return ctx
 }
 
-fn cg_sb(ctx: ref CgCtx)      ref void = trust { return ctx.sb as ref void }
+fn cg_sb(ctx: ref CgCtx)      ref void = { return ctx.sb as ref void }
 fn cg_tmp(ctx: ref CgCtx)     i64      = { return ctx.tmp as i64}
 fn cg_lbl(ctx: ref CgCtx)     i64      = { return ctx.lbl as i64 }
-fn cg_fn_name(ctx: ref CgCtx) ref u8 = trust { return ctx.fn_name as ref u8 }
-fn cg_strs(ctx: ref CgCtx)    ref void = trust { return ctx.strs as ref void }
+fn cg_fn_name(ctx: ref CgCtx) ref u8   = { return ctx.fn_name as ref u8 }
+fn cg_strs(ctx: ref CgCtx)    ref void = { return ctx.strs as ref void }
 fn cg_str_cnt(ctx: ref CgCtx) i64      = { return ctx.str_cnt as i64 }
 
 fn cg_set_tmp(ctx: mut ref CgCtx, v: i64) void = trust {
