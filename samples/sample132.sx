@@ -61,40 +61,40 @@ pub fn add_vec2(acc: Vec2, x: Vec2) Vec2 = {
     }
 }
 
-pub fn main() void = {
-    val f: fn(Vec2) Vec2 = shift_vec2
-    val v = @call(f, {x: 1.0, y: 2.0})
-
-    trust @print("{f} {f}\n", {v.x, v.y})
-}
-
-
 // pub fn main() void = {
-//     val nums = [1, 2, 3, 4]
-//     val nums2 = map[i32, i32](nums, double_i32)
-//     val sum_nums = reduce[i32, i32](nums2, 0, add_i32)
+//     val f: fn(Vec2) Vec2 = shift_vec2
+//     val v = @call(f, {x: 1.0, y: 2.0})
 // 
-//     trust @print("int = {d}\n", {sum_nums})
-// 
-//     val floats = [1.0, 2.0, 3.0]
-//     val floats2 = map[f64, f64](floats, half_f64)
-//     val sum_floats = reduce[f64, f64](floats2, 0.0, add_f64)
-// 
-//     trust @print("float = {f}\n", {sum_floats})
-// 
-//     val words = ["a", "b", "c"]
-//     val excited = map[ref u8, ref u8](words, excite_str)
-//     val sentence = reduce[ref u8, ref u8](excited, "" as ref u8, concat_str)
-// 
-//     trust @print("{s}\n", {sentence})
-// 
-//     val pts: list[Vec2] = [
-//         {x: 1.0, y: 2.0},
-//         {x: 3.0, y: 4.0}
-//     ]
-// 
-//     val moved = map[Vec2, Vec2](pts, shift_vec2)
-//     val total = reduce[Vec2, Vec2](moved, {x: 0.0, y: 0.0}, add_vec2)
-// 
-//     trust @print("vec = ({f}, {f})\n", {total.x, total.y})
+//     trust @print("{f} {f}\n", {v.x, v.y})
 // }
+
+
+pub fn main() void = {
+    val nums = [1, 2, 3, 4]
+    val nums2 = map[i32, i32](nums, double_i32)
+    val sum_nums = reduce[i32, i32](nums2, 0, add_i32)
+
+    trust @print("int = {d}\n", {sum_nums})
+
+    val floats = [1.0, 2.0, 3.0]
+    val floats2 = map[f64, f64](floats, half_f64)
+    val sum_floats = reduce[f64, f64](floats2, 0.0, add_f64)
+
+    trust @print("float = {f}\n", {sum_floats})
+
+    val words = ["a", "b", "c"]
+    val excited = map[ref u8, ref u8](words, excite_str)
+    val sentence = reduce[ref u8, ref u8](excited, "" as ref u8, concat_str)
+
+    trust @print("{s}\n", {sentence})
+
+    val pts: list[Vec2] = [
+        {x: 1.0, y: 2.0},
+        {x: 3.0, y: 4.0}
+    ]
+
+    val moved = map[Vec2, Vec2](pts, shift_vec2)
+    val total = reduce[Vec2, Vec2](moved, {x: 0.0, y: 0.0}, add_vec2)
+
+    trust @print("vec = ({f}, {f})\n", {total.x, total.y})
+}
