@@ -305,7 +305,7 @@ fn copy_current_stdlib(snapshot_dir: ref u8) bool = {
     val arena = trust allocators.Arena.new(1024)?
     val exe_path = trust reflection.get_exe_path[allocators.Arena](arena)
     val exe_dir = trust path.dir(exe_path)
-    val std_dir = trust path.join(exe_dir, "std")
+    val std_dir = trust path.join(exe_dir, "spectrelib")
 
     if !os.exists(std_dir) {
         trust allocators.Arena.free(arena)

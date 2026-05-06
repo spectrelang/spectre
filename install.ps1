@@ -141,7 +141,7 @@ if (-not (Test-Path $BOOTSTRAP_SRC)) {
     Err "Missing bootstrap source at $BOOTSTRAP_SRC"
 }
 
-$CSOURCES_DIR = "$SPECTRE_DIR\std\csources"
+$CSOURCES_DIR = "$SPECTRE_DIR\spectrelib\csources"
 $PANIC_HANDLER_SRC = "$CSOURCES_DIR\panic_handler.c"
 $YYJSON_SHIM_SRC   = "$CSOURCES_DIR\yyjson_shim.c"
 
@@ -164,8 +164,8 @@ Log "Installing Spectre binary..."
 
 Copy-Item $BOOTSTRAP_OUT "$BIN_DIR\spectre.exe" -Force
 
-$STDLIB_SRC  = "$SPECTRE_DIR\std"
-$STDLIB_DEST = "$BIN_DIR\std"
+$STDLIB_SRC  = "$SPECTRE_DIR\spectrelib"
+$STDLIB_DEST = "$BIN_DIR\spectrelib"
 
 if (-not (Test-Path $STDLIB_SRC)) {
     Err "Spectre std library not found"
@@ -189,7 +189,7 @@ Log "Installation complete."
 Write-Host ""
 Write-Host "Installed:"
 Write-Host "  - spectre -> $BIN_DIR\spectre.exe"
-Write-Host "  - stdlib  -> $BIN_DIR\std"
+Write-Host "  - stdlib  -> $BIN_DIR\spectrelib"
 Write-Host "  - clang   -> (system)"
 Write-Host "  - tcc     -> (system)"
 Write-Host "  - yyjson  -> $YYJSON_LIB"

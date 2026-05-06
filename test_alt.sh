@@ -3,7 +3,7 @@
 set -u
 
 SAMPLES_DIR="./samples"
-STD_DIR="./std"
+STD_DIR="./spectrelib"
 COMPILER="./spectre-dev"
 BOOTSTRAP_ONLY=0
 

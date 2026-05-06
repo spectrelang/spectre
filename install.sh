@@ -162,7 +162,7 @@ else
     git clone "$SPECTRE_REPO" "$SPECTRE_DIR"
 fi
 
-CSOURCES_DIR="${SPECTRE_DIR}/std/csources"
+CSOURCES_DIR="${SPECTRE_DIR}/spectrelib/csources"
 PANIC_HANDLER_SRC="${CSOURCES_DIR}/panic_handler.c"
 PANIC_HANDLER_OBJ="${CSOURCES_DIR}/panic_handler.o"
 YYJSON_SHIM_SRC="${CSOURCES_DIR}/yyjson_shim.c"
@@ -275,8 +275,8 @@ else
         "${BIN_DIR}/spectre"
 fi
 
-STDLIB_SRC="${SPECTRE_DIR}/std"
-STDLIB_DEST="${BIN_DIR}/std"
+STDLIB_SRC="${SPECTRE_DIR}/spectrelib"
+STDLIB_DEST="${BIN_DIR}/spectrelib"
 
 [ -d "$STDLIB_SRC" ] || err "Spectre std library not found at ${STDLIB_SRC}"
 
@@ -315,7 +315,7 @@ log "Installation complete."
 echo
 echo "Installed:"
 echo "  - spectre -> ${BIN_DIR}/spectre"
-echo "  - stdlib  -> ${BIN_DIR}/std"
+echo "  - stdlib  -> ${BIN_DIR}/spectrelib"
 if [ "$QBE_OK" -eq 1 ]; then
     echo "  - qbe     -> ${BIN_DIR}/qbe"
 elif [ "$FORCE_FALLBACK" -eq 1 ]; then

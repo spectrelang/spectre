@@ -92,7 +92,7 @@ fn append_debug_runtime_links(
     arena: ref allocators.Arena
 ) void = trust {
     if release_mode { return }
-    val panic_o: ref u8 = path.join(exe_dir, "std/csources/panic_handler.o")
+    val panic_o: ref u8 = path.join(exe_dir, "spectrelib/csources/panic_handler.o")
     val panic_f = fs.open(panic_o, "r")
     match panic_f {
         some h => {

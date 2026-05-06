@@ -12,8 +12,8 @@ for arg in "$@"; do
     esac
 done
 
-cc -c std/csources/panic_handler.c -o std/csources/panic_handler.o || exit 1
-cc -c std/csources/yyjson_shim.c -o std/csources/yyjson_shim.o || exit 1
+cc -c spectrelib/csources/panic_handler.c -o spectrelib/csources/panic_handler.o || exit 1
+cc -c spectrelib/csources/yyjson_shim.c -o spectrelib/csources/yyjson_shim.o || exit 1
 
 echo "Building spectre-dev..."
 spectre ./src/sxc.sx -o spectre-dev || exit 1
