@@ -1,0 +1,12 @@
+val defs = use("./submod/qualified_struct_defs.sx")
+
+val plane: mut defs.Plane = {
+    x: 1.0
+    y: 2.0
+    z: 3.0
+}
+
+pub fn main() void = {
+    plane.y = plane.x + plane.z
+    trust @print("{f}\n", {plane.y})
+}
