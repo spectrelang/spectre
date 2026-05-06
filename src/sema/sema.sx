@@ -2839,10 +2839,10 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
                                         val pname_w: ref u8 = param_node.d0 as ref u8
                                         val wbuf: ref u8 = @alloc(512) as ref u8
                                         if fn_name_w != none {
-                                            @snprintf(wbuf, 512, "{s}:{lld}: type mismatch in call to '{s}': parameter '{s}' does not accept a {s} value; unwrap it first (with '?' or 'match')",
+                                            @snprintf(wbuf, 512, "{s}:{lld}: type mismatch in call to '{s}': parameter '{s}' does not accept a {s} value; unwrap it first",
                                                 {filename, line, fn_name_w, pname_w, arg_wrap_str})
                                         } else {
-                                            @snprintf(wbuf, 512, "{s}:{lld}: type mismatch: parameter '{s}' does not accept a {s} value; unwrap it first (with '?' or 'match')",
+                                            @snprintf(wbuf, 512, "{s}:{lld}: type mismatch: parameter '{s}' does not accept a {s} value; unwrap it first')",
                                                 {filename, line, pname_w, arg_wrap_str})
                                         }
                                         add_error(ctx, wbuf)
