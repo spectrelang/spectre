@@ -227,7 +227,7 @@ case "$OS" in
     *)
         BOOTSTRAP_SSA="${SPECTRE_DIR}/bootstrap/sxc.ssa"
         BOOTSTRAP_OUT="${SPECTRE_DIR}/bootstrap/sxc_bootstrap"
-        POSIX_BOOTSTRAP_SRC="${SPECTRE_DIR}/bootstrap/sxc_posix.c"
+        POSIX_BOOTSTRAP_SRC="${SPECTRE_DIR}/bootstrap/sxc.c"
         POSIX_BOOTSTRAP_OUT="${SPECTRE_DIR}/bootstrap/sxc_posix_bootstrap"
         ;;
 esac
