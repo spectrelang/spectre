@@ -2,8 +2,7 @@ val json = use("std/json")
 
 pub fn main() void = {
 	val input: ref u8 = \\{"name":"Alice"}
-	val alc: ref void = none
-	val doc_opt = trust json.parse[ref void](alc, input)
+	val doc_opt = trust json.parse[ref void](input)
 	match doc_opt {
 		none => {
 			@puts("got nothing")
