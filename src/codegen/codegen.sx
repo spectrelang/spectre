@@ -192,13 +192,10 @@ fn cg_mark_prefix_used(ctx: ref CgCtx, prefix: ref u8) void = trust {
     for {
         if ni >= nlen { break }
         val n_opt = @get(ctx.used_prefixes as list[ref u8], ni as usize)
-        match n_opt {
-            some n => {
-                if str.rchar_cmp(n as ref u8, prefix) == 0 {
-                    return
-                }
+        if n_opt is some n {
+            if str.rchar_cmp(n as ref u8, prefix) == 0 {
+                return
             }
-            none => {}
         }
         ni++
     }
@@ -211,13 +208,10 @@ fn cg_is_prefix_used(ctx: ref CgCtx, prefix: ref u8) bool = trust {
     for {
         if ni >= nlen { break }
         val n_opt = @get(ctx.used_prefixes as list[ref u8], ni as usize)
-        match n_opt {
-            some n => {
-                if str.rchar_cmp(n as ref u8, prefix) == 0 {
-                    return true
-                }
+        if n_opt is some n {
+            if str.rchar_cmp(n as ref u8, prefix) == 0 {
+                return true
             }
-            none => {}
         }
         ni++
     }
@@ -236,15 +230,15 @@ pub fn platform_matches_with_target(name: ref u8, src_target: ref u8) bool = tru
     if str.rchar_cmp(name, cur) == 0 {
         matched = true
     } elif str.rchar_cmp(name, "posix") == 0 {
-        if str.rchar_cmp(cur, "linux")        == 0 { matched = true }
-        elif str.rchar_cmp(cur, "darwin")     == 0 { matched = true }
-        elif str.rchar_cmp(cur, "freebsd")    == 0 { matched = true }
-        elif str.rchar_cmp(cur, "openbsd")    == 0 { matched = true }
-        elif str.rchar_cmp(cur, "netbsd")     == 0 { matched = true }
+        if str.rchar_cmp(cur, "linux")        == 0   { matched = true }
+        elif str.rchar_cmp(cur, "darwin")     == 0   { matched = true }
+        elif str.rchar_cmp(cur, "freebsd")    == 0   { matched = true }
+        elif str.rchar_cmp(cur, "openbsd")    == 0   { matched = true }
+        elif str.rchar_cmp(cur, "netbsd")     == 0   { matched = true }
         elif str.rchar_cmp(cur, "dragonflybsd") == 0 { matched = true }
-        elif str.rchar_cmp(cur, "haiku")      == 0 { matched = true }
-        elif str.rchar_cmp(cur, "android")    == 0 { matched = true }
-        elif str.rchar_cmp(cur, "redox")      == 0 { matched = true }
+        elif str.rchar_cmp(cur, "haiku")      == 0   { matched = true }
+        elif str.rchar_cmp(cur, "android")    == 0   { matched = true }
+        elif str.rchar_cmp(cur, "redox")      == 0   { matched = true }
     }
 
     allocators.Arena.free(arena)
