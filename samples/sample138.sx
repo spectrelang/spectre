@@ -1,0 +1,78 @@
+val allocators = use("std/allocators")
+
+extern type Rect = {
+    x: mut i32
+    y: mut i32
+    w: mut i32
+    h: mut i32
+}
+
+extern type Event = {
+    type_value: mut u32
+    padding: mut [52]u8
+}
+
+type ScratchBuffers = {
+    arena: allocators.Arena
+    rect: ref Rect
+    evt: ref Event
+}
+
+fn create_scratch_buffers() option[ScratchBuffers] = trust {
+    match allocators.Arena.new((@sizeof(Rect) + @sizeof(Event) + 16) as usize) {
+        err _ => {
+            return none
+        }
+        ok arena => {
+            match allocators.Arena.alloc(arena, @sizeof(Rect) as usize) {
+                none => {
+                    allocators.Arena.free(arena)
+                    return none
+                }
+                some rect_mem => {
+                    match allocators.Arena.alloc(arena, @sizeof(Event) as usize) {
+                        none => {
+                            allocators.Arena.free(arena)
+                            return none
+                        }
+                        some evt_mem => {
+                            return some {
+                                arena: arena,
+                                rect: rect_mem as ref Rect,
+                                evt: evt_mem as ref Event
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+pub fn main() i32 = trust {
+    match create_scratch_buffers() {
+        none => {
+            return 1 as i32
+        }
+        some scratch => {
+            val rect: mut ref Rect = scratch.rect
+            val evt: mut ref Event = scratch.evt
+
+            rect.x = 11 as i32
+            rect.y = 22 as i32
+            rect.w = 33 as i32
+            rect.h = 44 as i32
+            evt.type_value = 55 as u32
+
+            val probe: ref void = @alloc(64)
+            if probe == none {
+                allocators.Arena.free(scratch.arena)
+                return 2 as i32
+            }
+
+            @free(probe)
+            allocators.Arena.free(scratch.arena)
+            return 0 as i32
+        }
+    }
+}
