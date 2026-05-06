@@ -2842,7 +2842,7 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
                                             @snprintf(wbuf, 512, "{s}:{lld}: type mismatch in call to '{s}': parameter '{s}' does not accept a {s} value; unwrap it first",
                                                 {filename, line, fn_name_w, pname_w, arg_wrap_str})
                                         } else {
-                                            @snprintf(wbuf, 512, "{s}:{lld}: type mismatch: parameter '{s}' does not accept a {s} value; unwrap it first')",
+                                            @snprintf(wbuf, 512, "{s}:{lld}: type mismatch: parameter '{s}' does not accept a {s} value; unwrap it first",
                                                 {filename, line, pname_w, arg_wrap_str})
                                         }
                                         add_error(ctx, wbuf)
