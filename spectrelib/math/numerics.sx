@@ -16,6 +16,29 @@ pub type Vec3 = {
     z: f64
 }
 
+/// Euler angles in radians: roll (X), pitch (Y), yaw (Z).
+pub type EulerAngles = {
+    roll: f64
+    pitch: f64
+    yaw: f64
+}
+
+/// Quaternion stored as vector part (x, y, z) and scalar part (w).
+pub type Quaternion = {
+    x: f64
+    y: f64
+    z: f64
+    w: f64
+}
+
+fn wrap_signed_radians(angle: f64) f64 = {
+    val out: mut f64 = core.normalize_radians(angle)
+    if out > static.PI {
+        return out - static.TAU
+    }
+    return out
+}
+
 /// Create identity matrix
 pub fn (Mat4x4) identity() Mat4x4 = {
     return {
@@ -237,6 +260,244 @@ pub fn (Vec3) new(x: f64, y: f64, z: f64) Vec3 = {
     return { x: x, y: y, z: z }
 }
 
+/// Create a new set of Euler angles in radians.
+pub fn (EulerAngles) new(roll: f64, pitch: f64, yaw: f64) EulerAngles = {
+    return { roll: roll, pitch: pitch, yaw: yaw }
+}
+
+/// Wrap Euler angles into a signed [-PI, PI] range.
+pub fn (EulerAngles) normalize(e: self) EulerAngles = {
+    return {
+        roll: wrap_signed_radians(e.roll),
+        pitch: wrap_signed_radians(e.pitch),
+        yaw: wrap_signed_radians(e.yaw)
+    }
+}
+
+/// Create a quaternion from its four components.
+pub fn (Quaternion) new(x: f64, y: f64, z: f64, w: f64) Quaternion = {
+    return { x: x, y: y, z: z, w: w }
+}
+
+/// Identity rotation quaternion.
+pub fn (Quaternion) identity() Quaternion = {
+    return { x: 0.0, y: 0.0, z: 0.0, w: 1.0 }
+}
+
+/// Dot product between two quaternions.
+pub fn (Quaternion) dot(a: self, b: Quaternion) f64 = {
+    return a.x * b.x + a.y * b.y + a.z * b.z + a.w * b.w
+}
+
+/// Squared quaternion length.
+pub fn (Quaternion) length_squared(q: self) f64 = {
+    return Quaternion.dot(q, q)
+}
+
+/// Quaternion length.
+pub fn (Quaternion) length(q: self) f64 = {
+    return core.sqrt(Quaternion.length_squared(q))
+}
+
+/// Scale a quaternion by a scalar.
+pub fn (Quaternion) scale(q: self, s: f64) Quaternion = {
+    return { x: q.x * s, y: q.y * s, z: q.z * s, w: q.w * s }
+}
+
+/// Add two quaternions component-wise.
+pub fn (Quaternion) add(a: self, b: Quaternion) Quaternion = {
+    return { x: a.x + b.x, y: a.y + b.y, z: a.z + b.z, w: a.w + b.w }
+}
+
+/// Return a normalized quaternion.
+pub fn (Quaternion) normalize(q: self) Quaternion = {
+    val len = Quaternion.length(q)
+    pre {
+        non_zero: len > static.F64_EPSILON
+    }
+    val inv_len = 1.0 / len
+    return Quaternion.scale(q, inv_len)
+}
+
+/// Conjugate of a quaternion.
+pub fn (Quaternion) conjugate(q: self) Quaternion = {
+    return { x: -q.x, y: -q.y, z: -q.z, w: q.w }
+}
+
+/// Inverse of a quaternion.
+pub fn (Quaternion) inverse(q: self) Quaternion = {
+    val len_sq = Quaternion.length_squared(q)
+    pre {
+        non_zero: len_sq > static.F64_EPSILON
+    }
+    return Quaternion.scale(Quaternion.conjugate(q), 1.0 / len_sq)
+}
+
+/// Hamilton product of two quaternions.
+pub fn (Quaternion) mul(a: self, b: Quaternion) Quaternion = {
+    return {
+        x: a.w * b.x + a.x * b.w + a.y * b.z - a.z * b.y,
+        y: a.w * b.y - a.x * b.z + a.y * b.w + a.z * b.x,
+        z: a.w * b.z + a.x * b.y - a.y * b.x + a.z * b.w,
+        w: a.w * b.w - a.x * b.x - a.y * b.y - a.z * b.z
+    }
+}
+
+/// Construct a quaternion from a normalized axis and angle in radians.
+pub fn (Quaternion) from_axis_angle(axis: Vec3, angle: f64) Quaternion = {
+    val axis_len = Vec3.length(axis)
+    pre {
+        non_zero_axis: axis_len > static.F64_EPSILON
+    }
+
+    val axis_n = Vec3.normalize(axis)
+    val half = angle * 0.5
+    val s = core.sin(half)
+    return Quaternion.normalize({
+        x: axis_n.x * s,
+        y: axis_n.y * s,
+        z: axis_n.z * s,
+        w: core.cos(half)
+    })
+}
+
+/// Construct a quaternion from roll (X), pitch (Y), yaw (Z) Euler angles in radians.
+pub fn (Quaternion) from_euler(roll: f64, pitch: f64, yaw: f64) Quaternion = {
+    val half_roll = roll * 0.5
+    val half_pitch = pitch * 0.5
+    val half_yaw = yaw * 0.5
+
+    val cr = core.cos(half_roll)
+    val sr = core.sin(half_roll)
+    val cp = core.cos(half_pitch)
+    val sp = core.sin(half_pitch)
+    val cy = core.cos(half_yaw)
+    val sy = core.sin(half_yaw)
+
+    return Quaternion.normalize({
+        x: sr * cp * cy - cr * sp * sy,
+        y: cr * sp * cy + sr * cp * sy,
+        z: cr * cp * sy - sr * sp * cy,
+        w: cr * cp * cy + sr * sp * sy
+    })
+}
+
+/// Construct a quaternion from Euler angles.
+pub fn (Quaternion) from_euler_angles(e: EulerAngles) Quaternion = {
+    return Quaternion.from_euler(e.roll, e.pitch, e.yaw)
+}
+
+/// Convert a quaternion to roll/pitch/yaw Euler angles in radians.
+pub fn (Quaternion) to_euler(q: self) EulerAngles = {
+    val qn = Quaternion.normalize(q)
+
+    val sinr_cosp = 2.0 * (qn.w * qn.x + qn.y * qn.z)
+    val cosr_cosp = 1.0 - 2.0 * (qn.x * qn.x + qn.y * qn.y)
+    val roll = core.atan2(sinr_cosp, cosr_cosp)
+
+    val sinp = 2.0 * (qn.w * qn.y - qn.z * qn.x)
+    val pitch: mut f64 = 0.0
+    if core.fabs(sinp) >= 1.0 {
+        pitch = core.copysign(static.PI / 2.0, sinp)
+    } else {
+        pitch = core.asin(sinp)
+    }
+
+    val siny_cosp = 2.0 * (qn.w * qn.z + qn.x * qn.y)
+    val cosy_cosp = 1.0 - 2.0 * (qn.y * qn.y + qn.z * qn.z)
+    val yaw = core.atan2(siny_cosp, cosy_cosp)
+
+    return EulerAngles.normalize({ roll: roll, pitch: pitch, yaw: yaw })
+}
+
+/// Rotate a vector by a quaternion.
+pub fn (Quaternion) rotate_vec3(q: self, v: Vec3) Vec3 = {
+    val qn = Quaternion.normalize(q)
+    val vq = Quaternion.new(v.x, v.y, v.z, 0.0)
+    val rotated = Quaternion.mul(Quaternion.mul(qn, vq), Quaternion.conjugate(qn))
+    return { x: rotated.x, y: rotated.y, z: rotated.z }
+}
+
+/// Convert a quaternion into a 4x4 rotation matrix.
+pub fn (Quaternion) to_mat4(q: self) Mat4x4 = {
+    val qn = Quaternion.normalize(q)
+    val xx = qn.x * qn.x
+    val yy = qn.y * qn.y
+    val zz = qn.z * qn.z
+    val xy = qn.x * qn.y
+    val xz = qn.x * qn.z
+    val yz = qn.y * qn.z
+    val wx = qn.w * qn.x
+    val wy = qn.w * qn.y
+    val wz = qn.w * qn.z
+
+    return {
+        m00: 1.0 - 2.0 * (yy + zz), m10: 2.0 * (xy + wz),       m20: 2.0 * (xz - wy),       m30: 0.0,
+        m01: 2.0 * (xy - wz),       m11: 1.0 - 2.0 * (xx + zz), m21: 2.0 * (yz + wx),       m31: 0.0,
+        m02: 2.0 * (xz + wy),       m12: 2.0 * (yz - wx),       m22: 1.0 - 2.0 * (xx + yy), m32: 0.0,
+        m03: 0.0,                   m13: 0.0,                   m23: 0.0,                   m33: 1.0
+    }
+}
+
+/// Normalized linear interpolation between two quaternions using the shortest path.
+pub fn (Quaternion) nlerp(a: self, b: Quaternion, t: f64) Quaternion = {
+    pre {
+        t_in_range: t >= 0.0 && t <= 1.0
+    }
+
+    val dot = Quaternion.dot(a, b)
+    val b_use: mut Quaternion = b
+    if dot < 0.0 {
+        b_use = Quaternion.scale(b, -1.0)
+    }
+
+    return Quaternion.normalize({
+        x: core.lerp(a.x, b_use.x, t),
+        y: core.lerp(a.y, b_use.y, t),
+        z: core.lerp(a.z, b_use.z, t),
+        w: core.lerp(a.w, b_use.w, t)
+    })
+}
+
+/// Spherical linear interpolation between two quaternions using the shortest path.
+pub fn (Quaternion) slerp(a: self, b: Quaternion, t: f64) Quaternion = {
+    pre {
+        t_in_range: t >= 0.0 && t <= 1.0
+    }
+
+    val qa = Quaternion.normalize(a)
+    val qb_raw = Quaternion.normalize(b)
+    val dot_raw = Quaternion.dot(qa, qb_raw)
+
+    val qb: mut Quaternion = qb_raw
+    val dot: mut f64 = dot_raw
+    if dot < 0.0 {
+        qb = Quaternion.scale(qb_raw, -1.0)
+        dot = -dot
+    }
+
+    if dot > 0.9995 {
+        return Quaternion.nlerp(qa, qb, t)
+    }
+
+    val theta0 = core.acos(core.fclamp(dot, -1.0, 1.0))
+    val sin_theta0 = core.sin(theta0)
+    if core.fabs(sin_theta0) <= static.F64_EPSILON {
+        return Quaternion.nlerp(qa, qb, t)
+    }
+
+    val theta = theta0 * t
+    val s0 = core.sin((1.0 - t) * theta0) / sin_theta0
+    val s1 = core.sin(theta) / sin_theta0
+
+    return Quaternion.normalize({
+        x: qa.x * s0 + qb.x * s1,
+        y: qa.y * s0 + qb.y * s1,
+        z: qa.z * s0 + qb.z * s1,
+        w: qa.w * s0 + qb.w * s1
+    })
+}
+
 /// Vector dot product
 pub fn (Vec3) dot(a: self, b: Vec3) f64 = {
     return a.x * b.x + a.y * b.y + a.z * b.z
@@ -329,4 +590,37 @@ test {
     assert core.approx_eq(v4.x, 2.5, 0.0001)
     assert core.approx_eq(v4.y, -2.5, 0.0001)
     assert core.approx_eq(v4.z, 5.0, 0.0001)
+
+    val e0 = EulerAngles.normalize(EulerAngles.new(static.TAU + 0.25, -static.TAU - 0.5, 3.0 * static.PI))
+    assert core.approx_eq(e0.roll, 0.25, 0.0001)
+    assert core.approx_eq(e0.pitch, -0.5, 0.0001)
+    assert core.approx_eq(e0.yaw, static.PI, 0.0001)
+
+    val qx = Quaternion.from_axis_angle(Vec3.new(1.0, 0.0, 0.0), static.PI / 2.0)
+    val vy = Quaternion.rotate_vec3(qx, Vec3.new(0.0, 1.0, 0.0))
+    assert core.approx_eq(vy.x, 0.0, 0.0001)
+    assert core.approx_eq(vy.y, 0.0, 0.0001)
+    assert core.approx_eq(vy.z, 1.0, 0.0001)
+
+    val mrx = Quaternion.to_mat4(qx)
+    assert core.approx_eq(mrx.m11, 0.0, 0.0001)
+    assert core.approx_eq(mrx.m12, -1.0, 0.0001)
+    assert core.approx_eq(mrx.m21, 1.0, 0.0001)
+    assert core.approx_eq(mrx.m22, 0.0, 0.0001)
+
+    val qe = Quaternion.from_euler(0.3, -0.2, 0.4)
+    val e1 = Quaternion.to_euler(qe)
+    assert core.approx_eq(e1.roll, 0.3, 0.0001)
+    assert core.approx_eq(e1.pitch, -0.2, 0.0001)
+    assert core.approx_eq(e1.yaw, 0.4, 0.0001)
+
+    val qz180 = Quaternion.from_axis_angle(Vec3.new(0.0, 0.0, 1.0), static.PI)
+    val qhalf = Quaternion.slerp(Quaternion.identity(), qz180, 0.5)
+    val vx = Quaternion.rotate_vec3(qhalf, Vec3.new(1.0, 0.0, 0.0))
+    assert core.approx_eq(vx.x, 0.0, 0.0001)
+    assert core.approx_eq(vx.y, 1.0, 0.0001)
+    assert core.approx_eq(vx.z, 0.0, 0.0001)
+
+    val qn = Quaternion.nlerp(Quaternion.identity(), qz180, 0.5)
+    assert core.approx_eq(Quaternion.length(qn), 1.0, 0.0001)
 }
