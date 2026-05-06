@@ -231,6 +231,71 @@ pub fn lerp(a: f64, b: f64, t: f64) f64 = {
     return a + (b - a) * t
 }
 
+/// Clamp a normalized scalar into [0, 1].
+pub fn clamp01(x: f64) f64 = {
+    return fclamp(x, 0.0, 1.0)
+}
+
+/// Compute the interpolation factor of `value` between `a` and `b`.
+pub fn inverse_lerp(a: f64, b: f64, value: f64) f64 = {
+    pre {
+        distinct_range: a != b
+    }
+    return (value - a) / (b - a)
+}
+
+/// Map a value from one range to another.
+pub fn remap(value: f64, in_lo: f64, in_hi: f64, out_lo: f64, out_hi: f64) f64 = {
+    pre {
+        distinct_input_range: in_lo != in_hi
+    }
+    val t = inverse_lerp(in_lo, in_hi, value)
+    return lerp(out_lo, out_hi, t)
+}
+
+/// Wrap radians into the half-open range [0, TAU).
+pub fn normalize_radians(angle: f64) f64 = {
+    val out: mut f64 = angle
+    for {
+        if out < 0.0 {
+            out = out + static.TAU
+            continue
+        }
+        if out >= static.TAU {
+            out = out - static.TAU
+            continue
+        }
+        break
+    }
+    return out
+}
+
+/// Wrap degrees into the half-open range [0, 360).
+pub fn normalize_degrees(angle: f64) f64 = {
+    val out: mut f64 = angle
+    for {
+        if out < 0.0 {
+            out = out + 360.0
+            continue
+        }
+        if out >= 360.0 {
+            out = out - 360.0
+            continue
+        }
+        break
+    }
+    return out
+}
+
+/// Return the shortest signed angular difference from `from` to `to`, in radians.
+pub fn shortest_angle_delta(from: f64, to: f64) f64 = {
+    val delta: mut f64 = normalize_radians(to - from)
+    if delta > static.PI {
+        delta = delta - static.TAU
+    }
+    return delta
+}
+
 /// Is this number even?
 pub fn is_even(x: i64) bool = {
     return x % 2 == 0
@@ -547,6 +612,12 @@ test {
     val x = lerp(0.0, 10.0, 0.5)
 
     assert approx_eq(x, 5.0, 0.0001)
+    assert approx_eq(clamp01(1.5), 1.0, 0.0001)
+    assert approx_eq(inverse_lerp(10.0, 20.0, 15.0), 0.5, 0.0001)
+    assert approx_eq(remap(0.5, 0.0, 1.0, -1.0, 1.0), 0.0, 0.0001)
+    assert approx_eq(normalize_radians(-static.PI / 2.0), static.TAU - static.PI / 2.0, 0.0001)
+    assert approx_eq(normalize_degrees(450.0), 90.0, 0.0001)
+    assert approx_eq(shortest_angle_delta(0.0, static.TAU - 0.1), -0.1, 0.0001)
     assert approx_eq(sin(0.0), 0.0, 0.0001)
     assert approx_eq(sin(static.PI / 2.0), 1.0, 0.0001)
     assert approx_eq(cos(0.0), 1.0, 0.0001)

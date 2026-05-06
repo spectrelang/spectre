@@ -284,6 +284,31 @@ pub fn (Vec3) scale(v: self, s: f64) Vec3 = {
     return { x: v.x * s, y: v.y * s, z: v.z * s }
 }
 
+/// Squared distance between two vectors.
+pub fn (Vec3) distance_squared(a: self, b: Vec3) f64 = {
+    val dx = a.x - b.x
+    val dy = a.y - b.y
+    val dz = a.z - b.z
+    return dx * dx + dy * dy + dz * dz
+}
+
+/// Distance between two vectors.
+pub fn (Vec3) distance(a: self, b: Vec3) f64 = {
+    return core.sqrt(Vec3.distance_squared(a, b))
+}
+
+/// Linear interpolation between two vectors.
+pub fn (Vec3) lerp(a: self, b: Vec3, t: f64) Vec3 = {
+    pre {
+        t_in_range: t >= 0.0 && t <= 1.0
+    }
+    return {
+        x: core.lerp(a.x, b.x, t),
+        y: core.lerp(a.y, b.y, t),
+        z: core.lerp(a.z, b.z, t)
+    }
+}
+
 test {
     val identity = Mat4x4.identity()
     assert core.approx_eq(identity.m00, 1.0, 0.0001)
@@ -298,4 +323,10 @@ test {
 
     val v3 = Vec3.new(3.0, 4.0, 0.0)
     assert core.approx_eq(Vec3.length(v3), 5.0, 0.0001)
+    assert core.approx_eq(Vec3.distance(Vec3.new(1.0, 2.0, 3.0), Vec3.new(4.0, 6.0, 3.0)), 5.0, 0.0001)
+
+    val v4 = Vec3.lerp(Vec3.new(0.0, 0.0, 0.0), Vec3.new(10.0, -10.0, 20.0), 0.25)
+    assert core.approx_eq(v4.x, 2.5, 0.0001)
+    assert core.approx_eq(v4.y, -2.5, 0.0001)
+    assert core.approx_eq(v4.z, 5.0, 0.0001)
 }

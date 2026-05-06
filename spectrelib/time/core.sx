@@ -3,6 +3,14 @@ val stdio = use("../stdio")
 extern (C) fn localtime(timep: ref i64) ref void = "localtime"
 extern (C) fn gettimeofday(tv: ref TimeVal, tz: ref void) i32 = "gettimeofday"
 
+when posix {
+    extern (C) fn usleep(usec: u32) i32 = "usleep"
+}
+
+when windows {
+    extern (C) fn Sleep(ms: u32) void = "Sleep"
+}
+
 extern type TimeVal = {
     tv_sec:  i64
     tv_usec: i64  
@@ -86,6 +94,59 @@ pub fn unix_now() i64 = {
     val seconds: i64 = tv.tv_sec
     trust @free(tv)
     return seconds
+}
+
+/// Return the current Unix timestamp in milliseconds since epoch.
+pub fn unix_now_millis() i64 = {
+    val tv: ref TimeVal = @alloc(@sizeof(TimeVal))
+    trust gettimeofday(tv, 0)
+    val millis: i64 = tv.tv_sec * 1000 + tv.tv_usec / 1000
+    trust @free(tv)
+    return millis
+}
+
+/// Return the current Unix timestamp in microseconds since epoch.
+pub fn unix_now_micros() i64 = {
+    val tv: ref TimeVal = @alloc(@sizeof(TimeVal))
+    trust gettimeofday(tv, 0)
+    val micros: i64 = tv.tv_sec * 1000000 + tv.tv_usec
+    trust @free(tv)
+    return micros
+}
+
+/// Sleep the current thread for approximately `ms` milliseconds.
+pub fn sleep_millis(ms: i64) void = trust {
+    pre {
+        non_negative: ms >= 0
+    }
+
+    when posix {
+        val remaining_us: mut i64 = ms * 1000
+        for {
+            if remaining_us <= 0 { break }
+            if remaining_us > 4294967295 {
+                usleep(4294967295 as u32)
+                remaining_us = remaining_us - 4294967295
+            } else {
+                usleep(remaining_us as u32)
+                break
+            }
+        }
+    }
+
+    when windows {
+        val remaining_ms: mut i64 = ms
+        for {
+            if remaining_ms <= 0 { break }
+            if remaining_ms > 4294967295 {
+                Sleep(4294967295 as u32)
+                remaining_ms = remaining_ms - 4294967295
+            } else {
+                Sleep(remaining_ms as u32)
+                break
+            }
+        }
+    }
 }
 
 /// Read the year field.
@@ -232,6 +293,8 @@ test {
     assert DateTime.before(dt2, dt) == true
     assert DateTime.after(dt, dt2)  == true
     assert DateTime.equals(dt, dt)  == true
+    assert unix_now_millis() >= unix_now() * 1000
+    assert unix_now_micros() >= unix_now_millis() * 1000
 
     trust stdio.print("year: {d}\n", {DateTime.now().year})
 
