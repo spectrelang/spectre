@@ -468,9 +468,9 @@ pub fn (Quaternion) slerp(a: self, b: Quaternion, t: f64) Quaternion = {
     val qa = Quaternion.normalize(a)
     val qb_raw = Quaternion.normalize(b)
     val dot_raw = Quaternion.dot(qa, qb_raw)
-
     val qb: mut Quaternion = qb_raw
     val dot: mut f64 = dot_raw
+
     if dot < 0.0 {
         qb = Quaternion.scale(qb_raw, -1.0)
         dot = -dot
@@ -482,6 +482,7 @@ pub fn (Quaternion) slerp(a: self, b: Quaternion, t: f64) Quaternion = {
 
     val theta0 = core.acos(core.fclamp(dot, -1.0, 1.0))
     val sin_theta0 = core.sin(theta0)
+
     if core.fabs(sin_theta0) <= static.F64_EPSILON {
         return Quaternion.nlerp(qa, qb, t)
     }
