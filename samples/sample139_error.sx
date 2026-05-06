@@ -1,0 +1,9 @@
+pub val algo = use("std/algorithms")
+
+pub fn main() void = {
+    val hi = [123123, 12, 124]
+    val sorted = algo.sort[i64](hi)
+    for s in sorted {
+        trust @print("{d}\n", {s})
+    }
+}
