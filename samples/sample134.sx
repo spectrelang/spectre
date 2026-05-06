@@ -1,0 +1,9 @@
+val samp = use("sample133.sx")
+
+pub fn do_stuff[T: samp.SomeSpec]() i32 = {
+    return T.do_some_thing()
+}
+
+pub fn main() void = {
+    trust @print("{d}\n", {do_stuff[samp.SomeType]()})
+}
