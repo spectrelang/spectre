@@ -168,13 +168,10 @@ fn cg_emit_label_if_new(ctx: ref CgCtx, label: ref u8) bool = trust {
     for {
         if ei >= elen { break }
         val e_opt = @get(ctx.emitted_labels as list[ref u8], ei as usize)
-        match e_opt {
-            some e => {
-                if str.rchar_cmp(e as ref u8, label) == 0 {
-                    return false
-                }
+        if e_opt is some e {
+            if str.rchar_cmp(e as ref u8, label) == 0 {
+                return false
             }
-            none => {}
         }
         ei++
     }
@@ -182,12 +179,12 @@ fn cg_emit_label_if_new(ctx: ref CgCtx, label: ref u8) bool = trust {
     return true
 }
 
-fn cg_dvars(ctx: ref CgCtx) ref void = trust { return ctx.dvars as ref void }
-fn cg_snames(ctx: ref CgCtx) ref void = trust { return ctx.snames as ref void }
-fn cg_global_src_names(ctx: ref CgCtx) ref void = trust { return ctx.global_src_names as ref void }
-fn cg_global_labels(ctx: ref CgCtx)    ref void = trust { return ctx.global_labels as ref void }
-fn cg_global_qtypes(ctx: ref CgCtx)    ref void = trust { return ctx.global_qtypes as ref void }
-fn cg_global_anns(ctx: ref CgCtx)      ref void = trust { return ctx.global_anns as ref void }
+fn cg_dvars(ctx: ref CgCtx)            ref void = { return ctx.dvars as ref void }
+fn cg_snames(ctx: ref CgCtx)           ref void = { return ctx.snames as ref void }
+fn cg_global_src_names(ctx: ref CgCtx) ref void = { return ctx.global_src_names as ref void }
+fn cg_global_labels(ctx: ref CgCtx)    ref void = { return ctx.global_labels as ref void }
+fn cg_global_qtypes(ctx: ref CgCtx)    ref void = { return ctx.global_qtypes as ref void }
+fn cg_global_anns(ctx: ref CgCtx)      ref void = { return ctx.global_anns as ref void }
 
 fn cg_mark_prefix_used(ctx: ref CgCtx, prefix: ref u8) void = trust {
     val nlen: i64 = @len(ctx.used_prefixes as list[ref u8]) as i64
