@@ -317,25 +317,22 @@ fn lookup_generic_fn_prefix(ctx: ref CgCtx, name: ref u8) ref u8 = trust {
     for {
         if ni >= nlen { break }
         val n_opt = @get(ctx.gfn_names, ni as usize)
-        match n_opt {
-            some n => {
-                val candidate: ref u8 = n as ref u8
-                if str.rchar_cmp(candidate, name) == 0 {
-                    @free(suffix)
-                    val p_opt = @get(ctx.gfn_prefixes, ni as usize)
-                    match p_opt {
-                        some p => { return p as ref u8 }
-                        none   => { return "" }
-                    }
-                }
-                val clen: i64 = str.len_raw(candidate)
-                val slen: i64 = namelen + 2
-                if clen > slen {
-                    val tail: ref u8 = @ptradd(candidate, clen - slen) as ref u8
-                    if str.rchar_cmp(tail, suffix) == 0 { found_idx = ni }
+        if n_opt is some n {
+            val candidate: ref u8 = n as ref u8
+            if str.rchar_cmp(candidate, name) == 0 {
+                @free(suffix)
+                val p_opt = @get(ctx.gfn_prefixes, ni as usize)
+                match p_opt {
+                    some p => { return p as ref u8 }
+                    none   => { return "" }
                 }
             }
-            none => {}
+            val clen: i64 = str.len_raw(candidate)
+            val slen: i64 = namelen + 2
+            if clen > slen {
+                val tail: ref u8 = @ptradd(candidate, clen - slen) as ref u8
+                if str.rchar_cmp(tail, suffix) == 0 { found_idx = ni }
+            }
         }
         ni++
     }
