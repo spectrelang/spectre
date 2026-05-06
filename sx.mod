@@ -1,5 +1,5 @@
 entry "./src/sxc.sx"
-version "v0.0.8"
+version "v0.0.9"
 
 build prod {
     action "./build.sh"
