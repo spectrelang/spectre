@@ -22,7 +22,9 @@ pub fn print_usage() void = {
     stdio.puts("options:")
     stdio.puts("  --ast                Print the AST in a unicode tree and exit")
     stdio.puts("  --syntax-check       Check validity of syntax given some program")
-    stdio.puts("  --emit-ssa           Print QBE IR to stdout and exit")
+    when posix {
+        stdio.puts("  --emit-ssa           Print QBE IR to stdout and exit")
+    }
     stdio.puts("  --emit-alt           Print alternative IR to stdout and exit")
     stdio.puts("  --emit-asm           Print assembly to stdout and exit")
     stdio.puts("  --src-target=<os>    Mock target OS for when-blocks in source output")
@@ -32,7 +34,9 @@ pub fn print_usage() void = {
     stdio.puts("  --test               Run the unit tests in the current file")
     stdio.puts("  --release            Build in release mode")
     stdio.puts("  --dll                Build a shared library")
-    stdio.puts("  -a, --alt            Compile with fallback backend")
+    when posix {
+        stdio.puts("  -a, --alt            Compile with fallback backend")
+    }
     stdio.puts("  -b, --bootstrap      Display backend output on error")
     stdio.puts("  -c, --compile        Compile only to produce object file, without linking")
     stdio.puts("  -o, --output <file>  Output path for binary or build artifact")
