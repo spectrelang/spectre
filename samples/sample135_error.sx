@@ -1,0 +1,7 @@
+pub fn normal_function(x: i32) i32 = {
+    return x
+}
+
+pub fn main() void = {
+    trust @print("{d}\n", {normal_function[ref void](12 as i32)})
+}
