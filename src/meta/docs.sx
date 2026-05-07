@@ -1080,7 +1080,7 @@ fn render_module_page_html(module: ref DocModule, modules: list[ref DocModule]) 
         \\.toggle.sb-open{left:calc(var(--sb-w) + 12px)}
         \\.toggle svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round}
         \\
-        \\.theme-btn{
+        \\.control-btn{
         \\  position:fixed;top:16px;right:16px;z-index:200;
         \\  width:34px;height:34px;
         \\  background:var(--surface);border:1px solid var(--border);
@@ -1088,8 +1088,11 @@ fn render_module_page_html(module: ref DocModule, modules: list[ref DocModule]) 
         \\  display:flex;align-items:center;justify-content:center;
         \\  box-shadow:var(--shadow);transition:background .15s,color .15s,box-shadow .15s;
         \\}
-        \\.theme-btn:hover{background:var(--bg2);color:var(--text);box-shadow:var(--shadow-lg)}
-        \\.theme-btn svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round}
+        \\.control-btn:hover{background:var(--bg2);color:var(--text);box-shadow:var(--shadow-lg)}
+        \\.control-btn svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+        \\.control-btn[aria-pressed="true"]{color:var(--accent);border-color:color-mix(in srgb,var(--accent) 40%,var(--border))}
+        \\.theme-btn{right:16px}
+        \\.private-toggle-btn{right:58px}
         \\
         \\.content{
         \\  margin-left:var(--sb-w);padding:64px 60px 80px;
@@ -1104,17 +1107,6 @@ fn render_module_page_html(module: ref DocModule, modules: list[ref DocModule]) 
         \\.hero-meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
         \\.hero-meta .label{font-size:12px;color:var(--text3)}
         \\.hero-meta code{font-family:var(--mono);font-size:12px;background:var(--code-bg);color:var(--accent);padding:2px 8px;border-radius:5px;border:1px solid var(--border2)}
-        \\.hero-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
-        \\.filter-btn{
-        \\  border:1px solid var(--border);background:var(--surface);color:var(--text2);
-        \\  border-radius:999px;padding:7px 12px;font-size:12px;font-weight:600;
-        \\  font-family:var(--mono);cursor:pointer;transition:background .15s,color .15s,border-color .15s,box-shadow .15s;
-        \\}
-        \\.filter-btn:hover{background:var(--bg2);color:var(--text)}
-        \\.filter-btn[aria-pressed="true"]{
-        \\  color:var(--accent);border-color:color-mix(in srgb,var(--accent) 40%,var(--border));
-        \\  box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 14%,transparent);
-        \\}
         \\
         \\.entry{
         \\  background:var(--surface);border:1px solid var(--border);
@@ -1216,7 +1208,11 @@ fn render_module_page_html(module: ref DocModule, modules: list[ref DocModule]) 
 
     string.StringBuilder.append_cstr(sb, "<button class=\"toggle\" id=\"toggle\" aria-label=\"Toggle sidebar\"><svg viewBox=\"0 0 24 24\"><line x1=\"3\" y1=\"6\" x2=\"21\" y2=\"6\"/><line x1=\"3\" y1=\"12\" x2=\"21\" y2=\"12\"/><line x1=\"3\" y1=\"18\" x2=\"21\" y2=\"18\"/></svg></button>")
 
-    string.StringBuilder.append_cstr(sb, "<button class=\"theme-btn\" id=\"theme-btn\" aria-label=\"Toggle theme\"><svg id=\"theme-icon\" viewBox=\"0 0 24 24\"><circle cx=\"12\" cy=\"12\" r=\"5\"/><line x1=\"12\" y1=\"1\" x2=\"12\" y2=\"3\"/><line x1=\"12\" y1=\"21\" x2=\"12\" y2=\"23\"/><line x1=\"4.22\" y1=\"4.22\" x2=\"5.64\" y2=\"5.64\"/><line x1=\"18.36\" y1=\"18.36\" x2=\"19.78\" y2=\"19.78\"/><line x1=\"1\" y1=\"12\" x2=\"3\" y2=\"12\"/><line x1=\"21\" y1=\"12\" x2=\"23\" y2=\"12\"/><line x1=\"4.22\" y1=\"19.78\" x2=\"5.64\" y2=\"18.36\"/><line x1=\"18.36\" y1=\"5.64\" x2=\"19.78\" y2=\"4.22\"/></svg></button>")
+    if has_private_functions {
+        string.StringBuilder.append_cstr(sb, "<button class=\"control-btn private-toggle-btn\" id=\"private-toggle\" type=\"button\" aria-pressed=\"false\" aria-label=\"Show private functions\" title=\"Show private functions\"><svg id=\"private-toggle-icon\" viewBox=\"0 0 24 24\"><path d=\"M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6z\"/><circle cx=\"12\" cy=\"12\" r=\"3\"/></svg></button>")
+    }
+
+    string.StringBuilder.append_cstr(sb, "<button class=\"control-btn theme-btn\" id=\"theme-btn\" aria-label=\"Toggle theme\"><svg id=\"theme-icon\" viewBox=\"0 0 24 24\"><circle cx=\"12\" cy=\"12\" r=\"5\"/><line x1=\"12\" y1=\"1\" x2=\"12\" y2=\"3\"/><line x1=\"12\" y1=\"21\" x2=\"12\" y2=\"23\"/><line x1=\"4.22\" y1=\"4.22\" x2=\"5.64\" y2=\"5.64\"/><line x1=\"18.36\" y1=\"18.36\" x2=\"19.78\" y2=\"19.78\"/><line x1=\"1\" y1=\"12\" x2=\"3\" y2=\"12\"/><line x1=\"21\" y1=\"12\" x2=\"23\" y2=\"12\"/><line x1=\"4.22\" y1=\"19.78\" x2=\"5.64\" y2=\"18.36\"/><line x1=\"18.36\" y1=\"5.64\" x2=\"19.78\" y2=\"4.22\"/></svg></button>")
 
     string.StringBuilder.append_cstr(sb, "<div class=\"page\">")
 
@@ -1231,9 +1227,6 @@ fn render_module_page_html(module: ref DocModule, modules: list[ref DocModule]) 
         html_escape(safe_cstr(module.module_name)),
         html_escape(safe_cstr(module.rel_path))
     }))
-    if has_private_functions {
-        string.StringBuilder.append_cstr(sb, "<div class=\"hero-actions\"><button class=\"filter-btn\" id=\"private-toggle\" type=\"button\" aria-pressed=\"false\">Show private functions</button></div>")
-    }
     string.StringBuilder.append_cstr(sb, "</div></div>")
 
     for entry in module.entries {
@@ -1295,11 +1288,18 @@ fn render_module_page_html(module: ref DocModule, modules: list[ref DocModule]) 
         \\/* ── Search ── */
         \\var inp=document.getElementById('search');
         \\var privateBtn=document.getElementById('private-toggle');
+        \\var privateIcon=document.getElementById('private-toggle-icon');
         \\var showPrivate=localStorage.getItem('docs-show-private')==='1';
         \\function syncPrivateToggle(){
         \\  if(!privateBtn)return;
         \\  privateBtn.setAttribute('aria-pressed',showPrivate?'true':'false');
-        \\  privateBtn.textContent=showPrivate?'Hide private functions':'Show private functions';
+        \\  privateBtn.setAttribute('aria-label',showPrivate?'Hide private functions':'Show private functions');
+        \\  privateBtn.setAttribute('title',showPrivate?'Hide private functions':'Show private functions');
+        \\  if(privateIcon){
+        \\    privateIcon.innerHTML=showPrivate
+        \\      ?'<path d="M3 3l18 18"/><path d="M10.58 10.58A3 3 0 0 0 12 15a3 3 0 0 0 2.42-4.42"/><path d="M9.88 5.09A10.94 10.94 0 0 1 12 5c6.5 0 10 7 10 7a17.56 17.56 0 0 1-4.04 4.94"/><path d="M6.61 6.61C4.62 8.06 3 12 3 12a17.32 17.32 0 0 0 5.39 5.39"/>'
+        \\      :'<path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6z"/><circle cx="12" cy="12" r="3"/>';
+        \\  }
         \\}
         \\function updateEntryVisibility(){
         \\  var q=inp.value.toLowerCase().trim();
@@ -1694,7 +1694,7 @@ test {
             }
 
             val ml_label: mut i64 = 0
-            match regex.re_match("Show private functions", docs_src, @addr(ml_label)) {
+            match regex.re_match("aria-label=\\\\\"Show private functions\\\\\"", docs_src, @addr(ml_label)) {
                 ok found => {
                     match found {
                         some _ => {}
