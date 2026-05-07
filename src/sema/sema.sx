@@ -275,16 +275,13 @@ fn scope_set_implicit_mut(ctx: ref SemaCtx, name: ref u8) void = trust {
             for {
                 if i >= flen { break }
                 val e_opt = @get(frame as ref void, i as usize)
-                match e_opt {
-                    some e => {
-                        val entry: mut ref ScopeEntry = e as ref ScopeEntry
-                        if entry.name != none {
-                            if string.rchar_cmp(entry.name, name) == 0 {
-                                entry.implicit_mut = 1
-                            }
+                if e_opt is some e {
+                    val entry: mut ref ScopeEntry = e as ref ScopeEntry
+                    if entry.name != none {
+                        if string.rchar_cmp(entry.name, name) == 0 {
+                            entry.implicit_mut = 1
                         }
                     }
-                    none => {}
                 }
                 i++
             }
