@@ -969,9 +969,11 @@ fn monomorphize_generic_fn(ctx: mut ref CgCtx, gfn_node: ref parser.Node, gfn_pr
         val saved_dvars = cg_clone_char_list(ctx.dvars)
         val saved_dqtypes = cg_clone_char_list(ctx.dqtypes)
         val saved_defer_stack = cg_clone_void_list(ctx.defer_stack)
+        val saved_module_prefix = ctx.current_module_prefix
 
         val temp_mono_sb: ref void = str.StringBuilder.new()
         ctx.sb = temp_mono_sb
+        ctx.current_module_prefix = gfn_prefix
         gen_fn_prefixed(ctx, syn, "")
 
         ctx.sb = saved_sb
@@ -991,6 +993,7 @@ fn monomorphize_generic_fn(ctx: mut ref CgCtx, gfn_node: ref parser.Node, gfn_pr
         ctx.dvars = saved_dvars
         ctx.dqtypes = saved_dqtypes
         ctx.defer_stack = saved_defer_stack
+        ctx.current_module_prefix = saved_module_prefix
         val temp_built: ref void = str.StringBuilder.build(temp_mono_sb)
         str.StringBuilder.append_cstr(ctx.mono_sb, str.cstr(temp_built))
         str.StringBuilder.free(temp_mono_sb)
@@ -1401,6 +1404,36 @@ fn cg_resolve_fn_name(ctx: ref CgCtx, name: ref u8) ref u8 = trust {
     val namelen: i64 = str.len_raw(name)
     val suffix: ref u8 = @alloc(namelen + 3) as ref u8
     @snprintf(suffix, namelen + 3, "__{s}", {name})
+    val cur_name: mut ref u8 = none
+    if str.rchar_cmp(ctx.current_module_prefix, "") != 0 {
+        val cur_prefix_len: i64 = str.len_raw(ctx.current_module_prefix)
+        val is_sc: mut bool = false
+        val scn_len: i64 = @len(get_std_child_names()) as i64
+        val scn_i: mut i64 = 0
+        for {
+            if scn_i >= scn_len { break }
+            val scn_opt = @get(get_std_child_names(), scn_i as usize)
+            match scn_opt {
+                some scn => {
+                    if str.rchar_cmp(scn as ref u8, ctx.current_module_prefix) == 0 {
+                        is_sc = true
+                        break
+                    }
+                }
+                none => {}
+            }
+            scn_i++
+        }
+        if is_sc {
+            val cur_name_cap: i64 = cur_prefix_len + namelen + 8
+            cur_name = @alloc(cur_name_cap) as ref u8
+            @snprintf(cur_name, cur_name_cap, "std__{s}__{s}", {ctx.current_module_prefix, name})
+        } else {
+            val cur_name_cap: i64 = cur_prefix_len + namelen + 3
+            cur_name = @alloc(cur_name_cap) as ref u8
+            @snprintf(cur_name, cur_name_cap, "{s}__{s}", {ctx.current_module_prefix, name})
+        }
+    }
     val ni: mut i64 = 0
     val found: mut ref u8 = none
     for {
@@ -1411,7 +1444,14 @@ fn cg_resolve_fn_name(ctx: ref CgCtx, name: ref u8) ref u8 = trust {
                 val candidate: ref u8 = n as ref u8
                 if str.rchar_cmp(candidate, name) == 0 {
                     @free(suffix)
+                    if cur_name != none { @free(cur_name) }
                     cg_mark_prefix_used(ctx, "")
+                    return candidate
+                }
+                if cur_name != none && str.rchar_cmp(candidate, cur_name) == 0 {
+                    @free(suffix)
+                    @free(cur_name)
+                    cg_mark_prefix_used(ctx, ctx.current_module_prefix)
                     return candidate
                 }
                 val clen: i64 = str.len_raw(candidate)
@@ -1428,6 +1468,7 @@ fn cg_resolve_fn_name(ctx: ref CgCtx, name: ref u8) ref u8 = trust {
         ni++
     }
     @free(suffix)
+    if cur_name != none { @free(cur_name) }
     if found != none {
         val prefix: ref u8 = extract_prefix_from_mangled(found, name)
 
@@ -10304,6 +10345,10 @@ fn gen_fn_prefixed(ctx: mut ref CgCtx, fn_node: ref parser.Node, mod_prefix: ref
     }
 
     cg_set_fn_name(ctx, mangled)
+    val saved_module_prefix = ctx.current_module_prefix
+    if str.rchar_cmp(mod_prefix, "") != 0 || str.rchar_cmp(saved_module_prefix, "") == 0 {
+        ctx.current_module_prefix = mod_prefix
+    }
 
     if params != none {
         cg_register_fn(ctx, fn_node, mangled, params, ret_ty as ref void)
@@ -10560,6 +10605,7 @@ fn gen_fn_prefixed(ctx: mut ref CgCtx, fn_node: ref parser.Node, mod_prefix: ref
     ctx.current_fn_ret_union = ""
     ctx.current_fn_ret_ty = none
     ctx.expected_ty = none
+    ctx.current_module_prefix = saved_module_prefix
     emitln(ctx, "}")
     emitln(ctx, "")
 }

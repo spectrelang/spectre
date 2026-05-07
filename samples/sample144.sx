@@ -9,7 +9,7 @@ pub fn main() void = trust {
         return
     }
 
-    val arena = allocators.Arena.new(256)?
+    val arena = allocators.Arena.new(256 as usize)?
     val rc = helper.probe_with[allocators.Arena](arena, "sx.mod")
     stdio.print("probe_rc={d}\n", {rc})
     allocators.Arena.free(arena)

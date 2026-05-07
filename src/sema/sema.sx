@@ -1072,11 +1072,11 @@ fn find_typedef_anywhere(ctx: ref SemaCtx, type_name: ref u8) ref parser.Node = 
             val found_mm: ref parser.Node = find_typedef_in_items(modinfo.module_items(mm), unqual)
             if found_mm != none { return found_mm }
         }
-        return find_imported_typedef_by_name(ctx, unqual)
+        return none
     }
     val local: ref parser.Node = sema_lookup_typedef(ctx, type_name)
     if local != none { return local }
-    return find_imported_typedef_by_name(ctx, type_name)
+    return none
 }
 
 /// Returns the wrap kind (0=none, 1=result, 2=option) of an expression's value.
@@ -1311,7 +1311,6 @@ fn unqualified_type_name(tname: ref u8) ref u8 = trust {
 
 /// Check if two type names are compatible, considering:
 ///
-/// - Qualified vs unqualified names (lexer.TokenKind == TokenKind)
 /// - Safe numeric conversions (i32 -> i64, u8 -> i64, etc.)
 fn types_compatible(ctx: ref SemaCtx, param_type: ref u8, arg_type: ref u8) bool = trust {
     if str_eq(param_type, arg_type) { return true }
@@ -1319,10 +1318,12 @@ fn types_compatible(ctx: ref SemaCtx, param_type: ref u8, arg_type: ref u8) bool
     val param_unqual: ref u8 = unqualified_type_name(param_type)
     val arg_unqual: ref u8 = unqualified_type_name(arg_type)
 
-    if str_eq(spec_impl_name(ctx, param_unqual), arg_unqual) { return true }
-    if str_eq(spec_impl_name(ctx, arg_unqual), param_unqual) { return true }
-
-    if str_eq(param_unqual, arg_unqual) { return true }
+    if str_eq(spec_impl_name(ctx, param_type), arg_type) { return true }
+    if str_eq(spec_impl_name(ctx, arg_type), param_type) { return true }
+    if str_eq(param_type, param_unqual) && str_eq(arg_type, arg_unqual) {
+        if str_eq(spec_impl_name(ctx, param_unqual), arg_unqual) { return true }
+        if str_eq(spec_impl_name(ctx, arg_unqual), param_unqual) { return true }
+    }
 
     if str_eq(param_unqual, "i64") {
         if str_eq(arg_unqual, "i8") || str_eq(arg_unqual, "i16") || str_eq(arg_unqual, "i32") ||
@@ -1624,7 +1625,7 @@ fn ref_type_names_match(expected: ref u8, actual: ref u8) bool = trust {
         return true
     }
     if expected == none || actual == none { return false }
-    return str_eq(unqualified_type_name(expected), unqualified_type_name(actual))
+    return str_eq(expected, actual)
 }
 
 fn ref_assignment_rhs_ok(ctx: ref SemaCtx, target_type_name: ref u8, target_is_ref: i64, rhs: ref parser.Node) bool = trust {
@@ -1662,7 +1663,7 @@ fn comparison_operands_compatible(ctx: ref SemaCtx, lhs: ref parser.Node, rhs: r
     if lhs_ref != rhs_ref { return false }
 
     if lhs_ref == 1 {
-        return str_eq(unqualified_type_name(lhs_type), unqualified_type_name(rhs_type))
+        return str_eq(lhs_type, rhs_type)
     }
 
     if types_compatible(ctx, lhs_type, rhs_type) || types_compatible(ctx, rhs_type, lhs_type) {
@@ -2111,7 +2112,7 @@ fn check_generic_call_constraints(ctx: ref SemaCtx, fn_found: ref parser.Node, c
                             val arg_type_name: ref u8 = extract_type_name(ta_node)
                             if constraint_name != none && arg_type_name != none &&
                                !is_type_parameter(ctx, arg_type_name) {
-                                val expected_spec: ref u8 = unqualified_type_name(constraint_name)
+                                val expected_spec: ref u8 = constraint_name
                                 val tdef: ref parser.Node = find_typedef_anywhere(ctx, arg_type_name)
                                 val impl_spec: mut ref u8 = none
                                 if tdef != none { impl_spec = tdef.d4 as ref u8 }
@@ -2678,85 +2679,7 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
             }
         }
 
-        val fn_found: mut ref parser.Node = none
-        if base_callee != none {
-            val target_name: mut ref u8 = none
-            val target_ns: mut ref u8 = none
-            if base_callee.kind == parser.NK_IDENT {
-                target_name = base_callee.d0 as ref u8
-            } elif base_callee.kind == parser.NK_FIELD {
-                target_name = parser.field_name(base_callee)
-                val fbase: ref parser.Node = parser.field_base(base_callee)
-                if fbase != none {
-                    if fbase.kind == parser.NK_IDENT {
-                        target_ns = fbase.d0 as ref u8
-                    } elif fbase.kind == parser.NK_FIELD {
-                        target_ns = parser.field_name(fbase)
-                    }
-                }
-            }
-            if target_name != none {
-                val lookup_ns: ref u8 = spec_impl_name(ctx, target_ns)
-                val flen: i64 = @len(ctx.fn_defs) as i64
-                val fi: mut i64 = 0
-                for {
-                    if fi >= flen { break }
-                    val f_opt = @get(ctx.fn_defs, fi as usize)
-                    match f_opt {
-                        some f => {
-                            val fnode: ref parser.Node = f as ref parser.Node
-                            val fname_node1: ref u8 = fnode.d1 as ref u8
-                            val fname_node2: ref u8 = fnode.d2 as ref u8
-                            val is_match: mut bool = false
-                            if target_ns != none {
-                                if fname_node1 != none && fname_node2 != none {
-                                    if string.rchar_cmp(fname_node1, lookup_ns) == 0 &&
-                                       string.rchar_cmp(fname_node2, target_name) == 0 {
-                                        is_match = true
-                                    }
-                                }
-                            } else {
-                                if fname_node1 != none {
-                                    if string.rchar_cmp(fname_node1, target_name) == 0 { is_match = true }
-                                }
-                                if fname_node2 != none {
-                                    if string.rchar_cmp(fname_node2, target_name) == 0 { is_match = true }
-                                }
-                            }
-                            if is_match {
-                                fn_found = fnode
-                                break
-                            }
-                        }
-                        none => {}
-                    }
-                    fi++
-                }
-            }
-        }
-
-        if fn_found == none && base_callee != none && base_callee.kind == parser.NK_FIELD {
-            val fname: ref u8 = parser.field_name(base_callee)
-            val fbase: ref parser.Node = parser.field_base(base_callee)
-            if fbase != none && fbase.kind == parser.NK_IDENT {
-                val modname: ref u8 = fbase.d0 as ref u8
-                val rmod: ref modinfo.ResolvedModule = ctx.root_mod
-                if rmod != none {
-                    val n: i64 = modinfo.import_count(rmod)
-                    val i: mut i64 = 0
-                    for {
-                        if i >= n { break }
-                        val mname: ref u8 = modinfo.import_name_at(rmod, i as usize)
-                        if mname != none && str_eq(mname, modname) {
-                            val mm: ref modinfo.ResolvedModule = modinfo.import_module_at(rmod, i as usize)
-                            fn_found = sema_find_fn_in_module(mm, fname)
-                            break
-                        }
-                        i++
-                    }
-                }
-            }
-        }
+        val fn_found: mut ref parser.Node = resolved_fn
 
         if fn_found != none {
             if fn_found.kind == parser.NK_GENERIC_FN && !has_explicit_targs {

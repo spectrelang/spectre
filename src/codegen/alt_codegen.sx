@@ -1221,7 +1221,10 @@ fn cc_monomorphize_generic_fn(ctx: mut ref CCtx, gfn_node: ref parser.Node, gfn_
 
         val temp_mono_sb: ref void = str.StringBuilder.new()
         ctx.sb = temp_mono_sb
+        val saved_prefix = ctx.current_prefix
+        ctx.current_prefix = gfn_prefix
         gen_fn_prefixed(ctx, syn, "")
+        ctx.current_prefix = saved_prefix
 
         ctx.sb = saved_sb
         ctx.tmp = saved_tmp
@@ -4172,7 +4175,9 @@ fn gen_fn_prefixed(ctx: mut ref CCtx, fn_node: ref parser.Node, mod_prefix: ref 
     if !cc_emit_label_if_new(ctx, mangled) { @free(mangled) @free(base) return }
     ctx.fn_name = mangled
     val saved_prefix: ref u8 = ctx.current_prefix
-    ctx.current_prefix = mod_prefix
+    if str.rchar_cmp(mod_prefix, "") != 0 || str.rchar_cmp(saved_prefix, "") == 0 {
+        ctx.current_prefix = mod_prefix
+    }
     if params != none { cc_register_fn(ctx, fn_node, mangled, params, ret_ty as ref void, false, false) }
     val ret_ct: ref u8 = c_ret_type_of(ctx, ret_ty)
     val is_main: bool = str.rchar_cmp(name, "main") == 0 && str.rchar_cmp(mod_prefix, "") == 0

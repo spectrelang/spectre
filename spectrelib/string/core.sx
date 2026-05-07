@@ -683,7 +683,7 @@ pub fn trim_suffix_raw(s: ref u8, suffix: ref u8) ref u8 = trust {
 }
 /// Split s by delim — returns a List of heap-allocated Strings
 pub fn split(s: String, delim: String) result[ref void, ListAllocError] = trust {
-    val result: ref void = collections.PtrList.new(8)?
+    val result: ref void = collections.PtrList.new(8 as usize)?
     val sl: i64 = @load(@ptradd(s as ref void, 8)) as i64
     val dl: i64 = @load(@ptradd(delim as ref void, 8)) as i64
     val sp: ref void = @load(s as ref void)
@@ -1107,15 +1107,15 @@ test {
     stdio.puts("hi3.3")
 
     assert(collections.PtrList.len(parts) == 3)
-    match collections.PtrList.get(parts, 0) {
+    match collections.PtrList.get(parts, 0 as usize) {
         some v => { assert(equals(v, trust from("a"))) }
         none => { assert(false) }
     }
-    match collections.PtrList.get(parts, 1) {
+    match collections.PtrList.get(parts, 1 as usize) {
         some v => { assert(equals(v, trust from("b"))) }
         none => { assert(false) }
     }
-    match collections.PtrList.get(parts, 2) {
+    match collections.PtrList.get(parts, 2 as usize) {
         some v => { assert(equals(v, trust from("c"))) }
         none => { assert(false) }
     }
@@ -1123,7 +1123,7 @@ test {
     val sp2 = trust from("a,b,")
     val parts2 = trust split(sp2, from(","))?
     assert(collections.PtrList.len(parts2) == 3)
-    match collections.PtrList.get(parts2, 2) {
+    match collections.PtrList.get(parts2, 2 as usize) {
         some v => { assert(equals(v, trust from(""))) }
         none => { assert(false) }
     }
