@@ -214,15 +214,15 @@ fn pop_scope(ctx: ref SemaCtx, filename: ref u8, _: i64) void = trust {
                     if entry.name != none {
                         if string.rchar_cmp(entry.name, "_") != 0 {
                             if entry.used == 0 {
-                               val buf: ref u8 = @alloc(512) as ref u8
+                                val buf: ref u8 = @alloc(512) as ref u8
                                 @snprintf(buf, 512, "{s}:{lld}: variable '{s}' declared but never used", {filename, entry.line, entry.name})
                                 add_error(ctx, buf)
-                           } elif entry.mutable == 1 && entry.mutated == 0 && entry.implicit_mut == 0 {
-                                val buf2: ref u8 = @alloc(512) as ref u8
-                                @snprintf(buf2, 512, "{s}:{lld}: mutable variable '{s}' declared mutable but never mutated", {filename, entry.line, entry.name})
-                                add_error(ctx, buf2)
-                           }
-                       }
+                            } elif entry.mutable == 1 && entry.mutated == 0 && entry.implicit_mut == 0 {
+                                 val buf2: ref u8 = @alloc(512) as ref u8
+                                 @snprintf(buf2, 512, "{s}:{lld}: mutable variable '{s}' declared mutable but never mutated", {filename, entry.line, entry.name})
+                                 add_error(ctx, buf2)
+                            }
+                        }
                     }
                 }
                 i++
