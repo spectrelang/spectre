@@ -1,0 +1,23 @@
+val allocators = use("std/allocators")
+val stdio = use("std/stdio")
+val helper = use("./sample143_helper.sx")
+
+pub fn main() void = trust {
+    val arena = allocators.Arena.new(32768)?
+
+    val read_len = helper.read_len[allocators.Arena](arena, "sx.mod")
+    stdio.print("read_len={d}\n", {read_len})
+
+    val cwd_len = helper.cwd_len[allocators.Arena](arena)
+    stdio.print("cwd_len={d}\n", {cwd_len})
+
+    val walk_count = helper.walk_count[allocators.Arena](arena, ".")
+    stdio.print("walk_count={d}\n", {walk_count})
+
+    match helper.passthrough_read[allocators.Arena](arena, "sx.mod") {
+        some text => { stdio.print("passthrough_len={d}\n", {@strlen(text as ref u8)}) }
+        none => { stdio.puts("passthrough_len=-1") }
+    }
+
+    allocators.Arena.free(arena)
+}
