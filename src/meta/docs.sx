@@ -516,7 +516,7 @@ fn render_fn_signature(node: ref parser.Node) ref u8 = trust {
         val header_mod: mut ref u8 = ""
         if parser.extern_fn_uses_header(node) { header_mod = ", header" }
         val unsafe_suffix: mut ref u8 = ""
-        if parser.fn_is_unsafe(node) { unsafe_suffix = "!" }
+        if parser.fn_is_unsafe(node) { unsafe_suffix = " = trust { ... }" }
         return @fmt("{s}extern ({s}{s}) fn {s}({s}{s}) {s}{s} = \"{s}\"", {
             public_prefix,
             conv,
@@ -553,7 +553,7 @@ fn render_fn_signature(node: ref parser.Node) ref u8 = trust {
         }
     }
     val unsafe_suffix: mut ref u8 = ""
-    if node.kind == parser.NK_FN && parser.fn_is_unsafe(node) { unsafe_suffix = "!" }
+    if node.kind == parser.NK_FN && parser.fn_is_unsafe(node) { unsafe_suffix = " = trust { ... }" }
     val params = render_fn_params(node.d3 as list[ref parser.Node])
     return @fmt("{s}fn {s}{s}{s}({s}) {s}{s}", {
         public_prefix,
@@ -1018,7 +1018,6 @@ fn render_module_page_html(module: ref DocModule, modules: list[ref DocModule]) 
         \\a:hover{color:var(--accent2)}
         \\.page{display:flex;min-height:100vh}
         \\
-        \\/* ── Sidebar ── */
         \\.sidebar{
         \\  position:fixed;top:0;left:0;bottom:0;width:var(--sb-w);
         \\  background:var(--bg2);border-right:1px solid var(--border);
@@ -1068,7 +1067,6 @@ fn render_module_page_html(module: ref DocModule, modules: list[ref DocModule]) 
         \\.nav-item.active{background:color-mix(in srgb,var(--accent) 12%,transparent);color:var(--accent);font-weight:600}
         \\.nav-item.hidden{display:none}
         \\
-        \\/* ── Toggle button ── */
         \\.toggle{
         \\  position:fixed;top:16px;z-index:200;
         \\  width:34px;height:34px;
@@ -1082,7 +1080,6 @@ fn render_module_page_html(module: ref DocModule, modules: list[ref DocModule]) 
         \\.toggle.sb-open{left:calc(var(--sb-w) + 12px)}
         \\.toggle svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round}
         \\
-        \\/* ── Theme toggle ── */
         \\.theme-btn{
         \\  position:fixed;top:16px;right:16px;z-index:200;
         \\  width:34px;height:34px;
@@ -1094,7 +1091,6 @@ fn render_module_page_html(module: ref DocModule, modules: list[ref DocModule]) 
         \\.theme-btn:hover{background:var(--bg2);color:var(--text);box-shadow:var(--shadow-lg)}
         \\.theme-btn svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round}
         \\
-        \\/* ── Content ── */
         \\.content{
         \\  margin-left:var(--sb-w);padding:64px 60px 80px;
         \\  flex:1;max-width:calc(var(--sb-w) + 820px);
@@ -1120,7 +1116,6 @@ fn render_module_page_html(module: ref DocModule, modules: list[ref DocModule]) 
         \\  box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 14%,transparent);
         \\}
         \\
-        \\/* ── Entry cards ── */
         \\.entry{
         \\  background:var(--surface);border:1px solid var(--border);
         \\  border-radius:var(--radius);padding:24px 28px;margin-bottom:12px;
@@ -1140,15 +1135,14 @@ fn render_module_page_html(module: ref DocModule, modules: list[ref DocModule]) 
         \\  font-family:var(--mono);
         \\}
         \\.badge-private{
-        \\  background:color-mix(in srgb,#d97706 12%,transparent);
-        \\  color:#b45309;border-color:color-mix(in srgb,#d97706 24%,transparent);
+        \\  background:color-mix(in srgb,#0ea5e9 12%,transparent);
+        \\  color:#0369a1;border-color:color-mix(in srgb,#000000 24%,transparent);
         \\}
         \\html.dark .badge-private{
-        \\  background:color-mix(in srgb,#f59e0b 15%,transparent);
-        \\  color:#fbbf24;border-color:color-mix(in srgb,#f59e0b 28%,transparent);
+        \\  background:color-mix(in srgb,#0ea5e9 15%,transparent);
+        \\  color:#0369a1;border-color:color-mix(in srgb,#000000 28%,transparent);
         \\}
         \\
-        \\/* ── Code blocks ── */
         \\pre{
         \\  overflow:auto;background:var(--code-bg);
         \\  border-radius:8px;padding:16px 18px;
@@ -1170,11 +1164,9 @@ fn render_module_page_html(module: ref DocModule, modules: list[ref DocModule]) 
         \\.hljs-params{color:var(--text2)}
         \\.hljs-variable{color:var(--text)}
         \\
-        \\/* ── Docs prose ── */
         \\.docs{margin-top:2px}
         \\.docs p{line-height:1.8;color:var(--text2);margin-bottom:8px;font-size:14px}
         \\
-        \\/* ── Details list ── */
         \\h4{
         \\  font-size:10px;font-weight:700;letter-spacing:.1em;
         \\  text-transform:uppercase;color:var(--text3);margin:18px 0 8px;
@@ -1205,14 +1197,12 @@ fn render_module_page_html(module: ref DocModule, modules: list[ref DocModule]) 
         \\  border:1px solid var(--border2);display:inline-block;
         \\}
         \\
-        \\/* ── Empty state ── */
         \\.empty{
         \\  background:var(--surface);border:1px dashed var(--border);
         \\  border-radius:var(--radius);padding:40px 28px;
         \\  color:var(--text3);text-align:center;font-size:14px;
         \\}
         \\
-        \\/* ── Responsive ── */
         \\@media(max-width:860px){
         \\  .sidebar{transform:translateX(calc(-1 * var(--sb-w)))}
         \\  .sidebar.sb-open-m{transform:translateX(0)}
