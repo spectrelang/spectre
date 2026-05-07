@@ -984,9 +984,13 @@ pub fn cmd_doctor() i32 = {
 
     val qbe_ver: ref u8 = tool_version("qbe -d 2>&1")
     val qbe_installed_str: mut ref u8 = "installed"
-    if str.contains(trust str.from(qbe_ver), trust str.from("not found")) {
+    val arena = trust allocators.Arena.new(256 as usize)?
+    val qbe_ver_string = trust str.from[allocators.Arena](arena, qbe_ver)
+    val not_found = trust str.from[allocators.Arena](arena, "not found")
+    if str.contains(qbe_ver_string, not_found) {
         qbe_installed_str = "not installed"
     }
+    trust allocators.Arena.free(arena)
     trust stdio.print("qbe:     {s}\n", {qbe_installed_str})
 
     val cc_ver: ref u8 = tool_version("cc --version 2>&1 | head -1")

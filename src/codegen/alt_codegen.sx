@@ -2640,10 +2640,10 @@ fn gen_call(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
 
     val is_print: bool = str.rchar_cmp(callee_name, "print") == 0
         || str.rchar_cmp(effective, "std__stdio__print") == 0
-        || str.ends_with(str.from(callee_name), str.from("__print"))
-        || str.ends_with(str.from(callee_name), str.from("__eprint"))
+        || str.rchar_ends_with(callee_name, "__print")
+        || str.rchar_ends_with(callee_name, "__eprint")
         || str.rchar_cmp(callee_name, "print") == 0
-    val is_eprint: bool = str.ends_with(str.from(callee_name), str.from("__eprint"))
+    val is_eprint: bool = str.rchar_ends_with(callee_name, "__eprint")
 
     if is_print && args != none {
         val alen: i64 = @len(args as list[ref parser.Node]) as i64

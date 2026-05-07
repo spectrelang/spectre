@@ -1,5 +1,6 @@
 val collections = use("../collections")
 val stdio       = use("../stdio")
+val allocators  = use("../allocators")
 
 extern (C) fn strlen(s: ref u8) i64 = "strlen"
 extern (C) fn strcmp(a: ref u8, b: ref u8) i64 = "strcmp"
@@ -11,6 +12,41 @@ pub type String = {
     ptr: ref u8
     len: i64
     cap: i64
+}
+
+fn alloc_in[T: allocators.Allocator](ac: T, size: i64) ref void = {
+    pre { size_positive: size > 0 }
+    val out_opt = T.alloc(ac, size as usize)
+    match out_opt {
+        some out => { return out as ref void }
+        none => { return none }
+    }
+}
+
+fn alloc_string_in[T: allocators.Allocator](ac: T, len: i64) String = trust {
+    val buf: ref void = alloc_in[T](ac, len + 1)
+    if buf == none { return none }
+    @memset(buf, 0, len + 1)
+
+    val s: ref void = alloc_in[T](ac, 24)
+    if s == none {
+        return none
+    }
+
+    @store(s, buf)
+    @store(@ptradd(s, 8), len)
+    @store(@ptradd(s, 16), len + 1)
+    return s as String
+}
+
+fn alloc_substr_in[T: allocators.Allocator](ac: T, src: ref u8, start: i64, len: i64) ref u8 = trust {
+    val buf: ref void = alloc_in[T](ac, len + 1)
+    if buf == none { return none }
+    @memset(buf, 0, len + 1)
+    if len > 0 {
+        @memcpy(buf, @ptradd(src, start), len)
+    }
+    return buf as ref u8
 }
 
 /// Create empty string
@@ -54,18 +90,16 @@ pub fn compare[A, B](a: A, b: B) i64 = trust {
     return rchar_cmp(aptr, bptr)
 }
 
-/// Create from raw C string
-pub fn from(cstr: ref u8) String = trust {
+/// Create from raw C string using the provided allocator.
+pub fn from[T: allocators.Allocator](ac: T, cstr: ref u8) String = trust {
     val l: i64 = strlen(cstr)
-    val buf: ref void = @alloc(l + 1)
-    @memcpy(buf, cstr, l)
-    @store8(@ptradd(buf, l), 0)
-
-    val s: ref void = @alloc(24)
-    @store(s, buf)
-    @store(@ptradd(s, 8), l)
-    @store(@ptradd(s, 16), l + 1)
-    return s as String
+    val s: String = alloc_string_in[T](ac, l)
+    if s == none { return none }
+    val buf: ref void = @load(s as ref void)
+    if l > 0 {
+        @memcpy(buf, cstr, l)
+    }
+    return s
 }
 
 /// Free string
@@ -629,29 +663,29 @@ pub fn replace(s: String, from: String, to: String) String = trust {
     return out
 }
 
-/// If s starts with prefix, return a new ref u8 without it, otherwise clone
-pub fn trim_prefix_raw(s: ref u8, prefix: ref u8) ref u8 = trust {
+/// If s starts with prefix, return a new ref u8 without it, otherwise clone.
+pub fn trim_prefix_raw[T: allocators.Allocator](ac: T, s: ref u8, prefix: ref u8) ref u8 = trust {
     if (prefix == none) {
-        return substr(s, 0, strlen(s))
+        return alloc_substr_in[T](ac, s, 0, strlen(s))
     }
     if (s == none) {
         return none
     }
 
     if (!rchar_starts_with(s, prefix)) {
-        return substr(s, 0, strlen(s))
+        return alloc_substr_in[T](ac, s, 0, strlen(s))
     }
 
     val pl: i64 = strlen(prefix)
     val sl: i64 = strlen(s)
 
-    return substr(s, pl, sl - pl)
+    return alloc_substr_in[T](ac, s, pl, sl - pl)
 }
 
-/// If s ends with suffix, return a new ref u8 without it, otherwise clone
-pub fn trim_suffix_raw(s: ref u8, suffix: ref u8) ref u8 = trust {
+/// If s ends with suffix, return a new ref u8 without it, otherwise clone.
+pub fn trim_suffix_raw[T: allocators.Allocator](ac: T, s: ref u8, suffix: ref u8) ref u8 = trust {
     if (suffix == none) {
-        return substr(s, 0, strlen(s))
+        return alloc_substr_in[T](ac, s, 0, strlen(s))
     }
     if (s == none) {
         return none
@@ -661,7 +695,7 @@ pub fn trim_suffix_raw(s: ref u8, suffix: ref u8) ref u8 = trust {
     val sul: i64 = strlen(suffix)
 
     if (sul > sl) {
-        return substr(s, 0, sl)
+        return alloc_substr_in[T](ac, s, 0, sl)
     }
 
     val offset: i64 = sl - sul
@@ -674,12 +708,12 @@ pub fn trim_suffix_raw(s: ref u8, suffix: ref u8) ref u8 = trust {
         val a: u8 = @load8(@ptradd(s, offset + i)) as u8
         val b: u8 = @load8(@ptradd(suffix, i)) as u8
         if (a != b) {
-            return substr(s, 0, sl)
+            return alloc_substr_in[T](ac, s, 0, sl)
         }
         i++
     }
 
-    return substr(s, 0, sl - sul)
+    return alloc_substr_in[T](ac, s, 0, sl - sul)
 }
 /// Split s by delim — returns a List of heap-allocated Strings
 pub fn split(s: String, delim: String) result[ref void, ListAllocError] = trust {
@@ -984,40 +1018,44 @@ pub fn copy(dst: ref u8, dst_off: i64, src: ref u8) void = trust {
 }
 
 test {
+    val arena = trust allocators.Arena.new(32768 as usize)?
     val empty = trust new()
     assert(len(empty) == 0)
 
     stdio.puts("hi")
-    val s = trust from("hello")
+    val s = trust from[allocators.Arena](arena, "hello")
     assert(len(s) == 5)
-    assert(equals(s, trust from("hello")))
-    val a = trust from("foo")
+    assert(equals(s, trust from[allocators.Arena](arena, "hello")))
+    val a = trust new()
+    trust push_cstr(a, "foo")
     trust push_cstr(a, "bar")
-    assert(equals(a, trust from("foobar")))
+    assert(equals(a, trust from[allocators.Arena](arena, "foobar")))
 
-    val b = trust from("foo")
-    val c = trust from("bar")
+    val b = trust new()
+    trust push_cstr(b, "foo")
+    val c = trust from[allocators.Arena](arena, "bar")
     trust push(b, c)
-    assert(equals(b, trust from("foobar")))
+    assert(equals(b, trust from[allocators.Arena](arena, "foobar")))
     stdio.puts("hi1.3")
 
-    val pc = trust from("ab")
+    val pc = trust new()
+    trust push_cstr(pc, "ab")
     trust push_char(pc, 99 as u8) // 'c'
-    assert(equals(pc, trust from("abc")))
+    assert(equals(pc, trust from[allocators.Arena](arena, "abc")))
     stdio.puts("hi1.4")
 
-    val orig = trust from("clone me")
+    val orig = trust from[allocators.Arena](arena, "clone me")
     val copy = trust clone(orig)
     assert(equals(orig, copy))
     trust set(copy, 0, 88 as u8) // 'X'
     assert(!equals(orig, copy))
 
-    val cl = trust from("something")
+    val cl = trust from[allocators.Arena](arena, "something")
     trust clear(cl)
     assert(len(cl) == 0)
-    assert(equals(cl, trust from("")))
+    assert(equals(cl, trust from[allocators.Arena](arena, "")))
 
-    val g = trust from("abc")
+    val g = trust from[allocators.Arena](arena, "abc")
     val g0 = get(g, 0)
     val g1 = get(g, 1)
     val g2 = get(g, 2)
@@ -1029,144 +1067,146 @@ test {
     match g2 { some v => { assert(v == 99) } none => { assert(false) } }
     match g3 { some _ => { assert(false) } none => {} }
 
-    val st = trust from("abc")
+    val st = trust from[allocators.Arena](arena, "abc")
     trust set(st, 1, 120 as u8) // 'x'
-    assert(equals(st, trust from("axc")))
+    assert(equals(st, trust from[allocators.Arena](arena, "axc")))
     trust set(st, 99, 121 as u8) // OOB no-op
-    assert(equals(st, trust from("axc")))
+    assert(equals(st, trust from[allocators.Arena](arena, "axc")))
 
-    val sl = trust from("hello world")
-    assert(equals(trust slice(sl, 0, 5), trust from("hello")))
-    assert(equals(trust slice(sl, 6, 11), trust from("world")))
-    assert(equals(trust slice(sl, -5, 5), trust from("hello")))
-    assert(equals(trust slice(sl, 6, 999), trust from("world")))
-    assert(equals(trust slice(sl, 5, 5), trust from("")))
+    val sl = trust from[allocators.Arena](arena, "hello world")
+    assert(equals(trust slice(sl, 0, 5), trust from[allocators.Arena](arena, "hello")))
+    assert(equals(trust slice(sl, 6, 11), trust from[allocators.Arena](arena, "world")))
+    assert(equals(trust slice(sl, -5, 5), trust from[allocators.Arena](arena, "hello")))
+    assert(equals(trust slice(sl, 6, 999), trust from[allocators.Arena](arena, "world")))
+    assert(equals(trust slice(sl, 5, 5), trust from[allocators.Arena](arena, "")))
 
-    val f = trust from("abc abc abc")
-    match find(f, trust from("abc")) {
+    val f = trust from[allocators.Arena](arena, "abc abc abc")
+    match find(f, trust from[allocators.Arena](arena, "abc")) {
         some i => { assert(i == 0) }
         none => { assert(false) }
     }
-    match find(f, trust from("bca")) {
+    match find(f, trust from[allocators.Arena](arena, "bca")) {
         some _ => { assert(false) }
         none => {}
     }
-    match find(f, trust from("")) {
+    match find(f, trust from[allocators.Arena](arena, "")) {
         some i => { assert(i == 0) }
         none => { assert(false) }
     }
 
-    assert(contains(f, trust from("abc")))
-    assert(!contains(f, trust from("zzz")))
+    assert(contains(f, trust from[allocators.Arena](arena, "abc")))
+    assert(!contains(f, trust from[allocators.Arena](arena, "zzz")))
 
-    val se = trust from("foobar")
-    assert(starts_with(se, trust from("foo")))
-    assert(!starts_with(se, trust from("bar")))
-    assert(ends_with(se, trust from("bar")))
-    assert(!ends_with(se, trust from("foo")))
+    val se = trust from[allocators.Arena](arena, "foobar")
+    assert(starts_with(se, trust from[allocators.Arena](arena, "foo")))
+    assert(!starts_with(se, trust from[allocators.Arena](arena, "bar")))
+    assert(ends_with(se, trust from[allocators.Arena](arena, "bar")))
+    assert(!ends_with(se, trust from[allocators.Arena](arena, "foo")))
 
-    val up = trust from("abcXYZ")
+    val up = trust from[allocators.Arena](arena, "abcXYZ")
     trust to_upper(up)
-    assert(equals(up, trust from("ABCXYZ")))
+    assert(equals(up, trust from[allocators.Arena](arena, "ABCXYZ")))
 
-    val low = trust from("ABCxyz")
+    val low = trust from[allocators.Arena](arena, "ABCxyz")
     trust to_lower(low)
-    assert(equals(low, trust from("abcxyz")))
+    assert(equals(low, trust from[allocators.Arena](arena, "abcxyz")))
 
     stdio.puts("hi3")
-    val tr = trust from("  \t hello \n ")
+    val tr = trust from[allocators.Arena](arena, "  \t hello \n ")
     trust trim(tr)
-    assert(equals(tr, trust from("hello")))
+    assert(equals(tr, trust from[allocators.Arena](arena, "hello")))
 
-    val tl = trust from("   hello")
+    val tl = trust from[allocators.Arena](arena, "   hello")
     trust trim_left(tl)
-    assert(equals(tl, trust from("hello")))
+    assert(equals(tl, trust from[allocators.Arena](arena, "hello")))
 
     stdio.puts("hi3.1")
-    val trr = trust from("hello   ")
+    val trr = trust from[allocators.Arena](arena, "hello   ")
     stdio.puts("hi3.1.1")
 
     trust trim_right(trr)
     stdio.puts("hi3.1.2")
-    assert(equals(trr, trust from("hello")))
+    assert(equals(trr, trust from[allocators.Arena](arena, "hello")))
     stdio.puts("hi3.1.3")
 
-    val rep = trust from("foo bar foo")
+    val rep = trust from[allocators.Arena](arena, "foo bar foo")
     stdio.puts("hi3.1.4" )
 
-    val rep2 = trust replace(rep, from("foo"), from("baz"))
+    val rep2 = trust replace(rep, from[allocators.Arena](arena, "foo"), from[allocators.Arena](arena, "baz"))
     stdio.puts("hi3.1.5")
-    assert(equals(rep2, trust from("baz bar baz")))
+    assert(equals(rep2, trust from[allocators.Arena](arena, "baz bar baz")))
     stdio.puts("hi3.2")
 
-    val rep3 = trust replace(rep, from("xxx"), from("yyy"))
+    val rep3 = trust replace(rep, from[allocators.Arena](arena, "xxx"), from[allocators.Arena](arena, "yyy"))
     stdio.puts("hi3.2.1")
-    assert(equals(rep3, trust from("foo bar foo")))
+    assert(equals(rep3, trust from[allocators.Arena](arena, "foo bar foo")))
     stdio.puts("hi3.2.2")
-    val sp = trust from("a,b,c")
+    val sp = trust from[allocators.Arena](arena, "a,b,c")
     stdio.puts("hi3.2.3")
-    val parts = trust split(sp, from(","))?
+    val parts = trust split(sp, from[allocators.Arena](arena, ","))?
     stdio.puts("hi3.3")
 
     assert(collections.PtrList.len(parts) == 3)
     match collections.PtrList.get(parts, 0 as usize) {
-        some v => { assert(equals(v, trust from("a"))) }
+        some v => { assert(equals(v, trust from[allocators.Arena](arena, "a"))) }
         none => { assert(false) }
     }
     match collections.PtrList.get(parts, 1 as usize) {
-        some v => { assert(equals(v, trust from("b"))) }
+        some v => { assert(equals(v, trust from[allocators.Arena](arena, "b"))) }
         none => { assert(false) }
     }
     match collections.PtrList.get(parts, 2 as usize) {
-        some v => { assert(equals(v, trust from("c"))) }
+        some v => { assert(equals(v, trust from[allocators.Arena](arena, "c"))) }
         none => { assert(false) }
     }
 
-    val sp2 = trust from("a,b,")
-    val parts2 = trust split(sp2, from(","))?
+    val sp2 = trust from[allocators.Arena](arena, "a,b,")
+    val parts2 = trust split(sp2, from[allocators.Arena](arena, ","))?
     assert(collections.PtrList.len(parts2) == 3)
     match collections.PtrList.get(parts2, 2 as usize) {
-        some v => { assert(equals(v, trust from(""))) }
+        some v => { assert(equals(v, trust from[allocators.Arena](arena, ""))) }
         none => { assert(false) }
     }
 
     stdio.puts("hi4")
-    val ca = trust from("foo")
-    val cb = trust from("bar")
+    val ca = trust from[allocators.Arena](arena, "foo")
+    val cb = trust from[allocators.Arena](arena, "bar")
     val cc = trust concat(ca, cb)
-    assert(equals(cc, trust from("foobar")))
+    assert(equals(cc, trust from[allocators.Arena](arena, "foobar")))
 
-    val rs = trust from("abc")
+    val rs = trust new()
+    trust push_cstr(rs, "abc")
     trust reserve(rs, 100)
     trust push_cstr(rs, "def")
-    assert(equals(rs, trust from("abcdef")))
+    assert(equals(rs, trust from[allocators.Arena](arena, "abcdef")))
 
     val sb = StringBuilder.new()
     trust StringBuilder.append_cstr(sb, "hello")
-    trust StringBuilder.append(sb, from(" "))
+    trust StringBuilder.append(sb, from[allocators.Arena](arena, " "))
     trust StringBuilder.append_cstr(sb, "world")
     trust StringBuilder.append_char(sb, 33 as u8) // '!'
 
     val built = trust StringBuilder.build(sb)
-    assert(equals(built, trust from("hello world!")))
+    assert(equals(built, trust from[allocators.Arena](arena, "hello world!")))
 
     trust StringBuilder.clear(sb)
     val built2 = trust StringBuilder.build(sb)
-    assert(equals(built2, trust from("")))
+    assert(equals(built2, trust from[allocators.Arena](arena, "")))
 
     trust StringBuilder.free(sb)
 
-    val rv = trust from("abcd")
+    val rv = trust from[allocators.Arena](arena, "abcd")
     trust reverse(rv)
-    assert(equals(rv, trust from("dcba")))
+    assert(equals(rv, trust from[allocators.Arena](arena, "dcba")))
 
 
-    val s2 = trust from("Hello world")
-    val out = trust trim_suffix(s2, from("world"))
-    assert(equals(out, trust from("Hello ")))
+    val s2 = trust from[allocators.Arena](arena, "Hello world")
+    val out = trust trim_suffix(s2, from[allocators.Arena](arena, "world"))
+    assert(equals(out, trust from[allocators.Arena](arena, "Hello ")))
 
     stdio.puts("string tests passed")
 
 
-    trust stdio.print("comparison: {d}\n", {compare[String, String](from("abc"), from("abc"))})
+    trust stdio.print("comparison: {d}\n", {compare[String, String](from[allocators.Arena](arena, "abc"), from[allocators.Arena](arena, "abc"))})
+    trust allocators.Arena.free(arena)
 }

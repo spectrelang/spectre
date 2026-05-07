@@ -6229,8 +6229,8 @@ fn gen_call(ctx: ref CgCtx, expr: ref parser.Node) ref u8 = trust {
     @free(tv_field_slot)
 
     val is_print: bool = str.rchar_cmp(callee_name, "print") == 0
-        || str.ends_with(str.from(callee_name), str.from("__print"))
-        || str.ends_with(str.from(callee_name), str.from("__eprint"))
+        || str.rchar_ends_with(callee_name, "__print")
+        || str.rchar_ends_with(callee_name, "__eprint")
 
     if is_print && args_list != none {
         val alen_p: i64 = @len(args_list) as i64

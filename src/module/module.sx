@@ -967,10 +967,13 @@ fn resolve_module_impl(
         err e => { return err @fmt("{s}: parse error: {s}", {path, e}) }
     }
 
-    val file_dir   = str.from(path.dir(path))
+    val file_dir = str.new()
+    str.push_cstr(file_dir, path.dir(path))
     val file_dir_c = str.cstr(file_dir)
     val workspace  = find_workspace_root(file_dir_c)
-    val m: ref ResolvedModule = new_resolved(items, str.from(path), file_dir)
+    val module_path = str.new()
+    str.push_cstr(module_path, path)
+    val m: ref ResolvedModule = new_resolved(items, module_path, file_dir)
 
     val cur_progress: mut list[ref u8] = in_progress
     @append(cur_progress, path)

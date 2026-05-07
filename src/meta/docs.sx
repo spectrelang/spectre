@@ -102,7 +102,10 @@ fn trim_trailing_slash(src: ref u8) ref u8 = trust {
 }
 
 fn normalize_rel_path(path: ref u8) ref u8 = trust {
-    val no_dot = str.trim_prefix_raw(path, "./")
+    val no_dot: mut ref u8 = path 
+    if str.rchar_starts_with(path, "./") {
+        no_dot = substr(path, 2, str.len_raw(path) - 2)
+    }
     return trim_trailing_slash(no_dot)
 }
 
@@ -134,7 +137,7 @@ fn path_basename(path: ref u8) ref u8 = trust {
 
 fn strip_sx_ext(path: ref u8) ref u8 = trust {
     if str.rchar_ends_with(path, ".sx") {
-        return str.trim_suffix_raw(path, ".sx")
+        return substr(path, 0, str.len_raw(path) - 3)
     }
     return path
 }

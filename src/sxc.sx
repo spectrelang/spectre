@@ -54,10 +54,13 @@ fn root_has_direct_links(items: list[ref parser.Node]) bool = {
     return false
 }
 
-fn input_is_in_std(input: ref u8) bool = {
+fn input_is_in_std(input: ref u8, arena: ref allocators.Arena) bool = {
     if string.rchar_starts_with(input, "std/")   { return true }
     if string.rchar_starts_with(input, "./std/") { return true }
-    if string.contains(trust string.from(input), trust string.from("/std/")) { return true }
+    val input_string = trust string.from[allocators.Arena](arena, input)
+    val std_segment = trust string.from[allocators.Arena](arena, "/std/")
+    val in_std: bool = string.contains(input_string, std_segment)
+    if in_std { return true }
     return false
 }
 
@@ -65,7 +68,8 @@ fn pick_alt_backend(
     requested: ref u8,
     release_mode: bool,
     input: ref u8,
-    root_items: list[ref parser.Node]
+    root_items: list[ref parser.Node],
+    arena: ref allocators.Arena
 ) ref u8 = {
     if string.rchar_cmp(requested, "") != 0 {
         return requested
@@ -75,7 +79,7 @@ fn pick_alt_backend(
         if builds.is_compiler_available("tcc") { return "tcc" }
         return "cc"
     }
-    if !input_is_in_std(input) && root_has_direct_links(root_items) {
+    if !input_is_in_std(input, arena) && root_has_direct_links(root_items) {
         if builds.is_compiler_available("clang") { return "clang" }
     }
     if builds.is_compiler_available("tcc") { return "tcc" }
@@ -570,7 +574,7 @@ pub fn main() i32 = trust {
             include_flags_alt = @fmt("{s} -I{s}", {include_flags_alt, inc_path})
         }
 
-        val selected_compiler: mut ref u8 = pick_alt_backend(alt_compiler, release_mode, input, root_mod.items)
+        val selected_compiler: mut ref u8 = pick_alt_backend(alt_compiler, release_mode, input, root_mod.items, arena)
 
         val warn_flag: ref u8 = builds.compiler_warn_flag(selected_compiler)
         val cc_flags_alt: mut ref u8 = @fmt("-std=c99 {s} -O3", {warn_flag})
@@ -607,7 +611,8 @@ pub fn main() i32 = trust {
         match alt_res {
             ok v => {
                 val vstr: ref u8 = string.cstr(v)
-                val has_error: bool = string.contains(v, string.from("error:"))
+                val error_prefix = string.from[allocators.Arena](arena, "error:")
+                val has_error: bool = string.contains(v, error_prefix)
                 if has_error {
                     val display: mut ref u8 = vstr
                     if !bootstrap_mode { display = builds.filter_c_diagnostics(vstr) }
@@ -711,7 +716,7 @@ pub fn main() i32 = trust {
             if string.len_raw(vstr) > 0 {
                 stdio.print("{s}", {vstr})
             }
-            if string.starts_with(v, string.from("qbe:")) {
+            if string.rchar_starts_with(vstr, "qbe:") {
                 stdio.puts("error: qbe stage failed")
                 os.delete(qbe_file)
                 allocators.Arena.free(arena)
@@ -858,7 +863,9 @@ pub fn main() i32 = trust {
     val cc_res = os.exec(@fmt("{s} {s}", {cc_cmd, " 2>&1"}))
     match cc_res {
         ok v => {
-            if string.contains(v, string.from("error")) {
+            val error_text = string.from[allocators.Arena](arena, "error")
+            val has_error: bool = string.contains(v, error_text)
+            if has_error {
                 stdio.print("{s}\n", {string.cstr(v)})
                 stdio.puts("linking failed.")
                 exit_code = 1
