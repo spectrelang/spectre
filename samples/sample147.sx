@@ -6,7 +6,7 @@ pub fn some_func[T](x: T, y: i32) i32 = {
 }
 
 pub fn main() void = {
-    val wrong = some_func[i32](12, 14 as i32)
-    trust @print("{d}\n", {wrong})
+    val correct = some_func[i32](12, 14 as i32)
+    trust @print("{d}\n", {correct})
 }
 
