@@ -1,0 +1,53 @@
+// Nested struct literal initialization with inline struct-typed fields is being lowered as pointer assignment instead of aggregate copy
+// Must be run with "run" subcommand to verify that the generated program crashes (the intended behaviour here is for it NOT to crash).
+type Vec3 = {
+ x: f32
+ y: f32
+ z: f32
+}
+
+type Sphere = {
+ position: Vec3
+ color: Vec3
+ radius: f32
+}
+
+type Scene = {
+ sphere: Sphere
+}
+
+fn vec3(x: f32, y: f32, z: f32) Vec3 = {
+ return { x: x, y: y, z: z }
+}
+
+fn make() Scene = {
+ return {
+     sphere: {
+         position: vec3(1.0 as f32, 2.0 as f32, 3.0 as f32),
+         color: vec3(4.0 as f32, 5.0 as f32, 6.0 as f32),
+         radius: 7.0 as f32
+     }
+ }
+}
+
+fn bad_lowering(scene: Scene) bool = {
+ return scene.sphere.position.x != (1.0 as f32) ||
+        scene.sphere.position.y != (2.0 as f32) ||
+        scene.sphere.position.z != (3.0 as f32) ||
+        scene.sphere.color.x != (4.0 as f32) ||
+        scene.sphere.color.y != (5.0 as f32) ||
+        scene.sphere.color.z != (6.0 as f32) ||
+        scene.sphere.radius != (7.0 as f32)
+}
+
+fn crash() void = trust {
+ @store8(none as ref void, 0 as u8)
+}
+
+pub fn main() i32 = {
+ val scene: Scene = make()
+ if bad_lowering(scene) {
+     trust crash()
+ }
+ return 0 as i32
+}
