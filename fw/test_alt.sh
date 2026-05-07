@@ -44,7 +44,17 @@ run_samples() {
 
         ((total++))
 
-        run_compiler "$file" --alt
+        extra_args=()
+
+        if [[ "$filename" == "sample_fps.sx" ]]; then
+            extra_args+=(--inc-path=/usr/include/SDL2/)
+        fi
+
+        if [[ "$filename" == "sample100.sx" ]]; then
+            extra_args+=(--inc-path=/usr/include/SDL2/)
+        fi
+
+        run_compiler "$file" --alt "${extra_args[@]}"
         status=$?
 
         if [[ "$filename" == *_error.sx ]]; then
