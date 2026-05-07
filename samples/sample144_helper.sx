@@ -1,0 +1,36 @@
+val allocators = use("std/allocators")
+
+extern (C) fn fopen(path: ref u8, mode: ref u8) ref void = "fopen"
+extern (C) fn fclose(stream: ref void) i32 = "fclose"
+extern (C) fn fseek(stream: ref void, offset: i64, whence: i32) i32 = "fseek"
+
+pub fn open(path: ref u8, mode: ref u8) option[ref void] = trust {
+    val ptr: ref void = fopen(path, mode)
+    if ptr == none {
+        return none
+    }
+    val f: ref void = @alloc(8)
+    @store(f, ptr)
+    return some f
+}
+
+pub fn close(f: ref void) void = trust {
+    val ptr: ref void = @load(f)
+    fclose(ptr)
+    @free(f)
+}
+
+pub fn probe_with[A: allocators.Allocator](_: A, path: ref u8) i32 = trust {
+    val handle = open(path, "rb")
+    match handle {
+        none => { return -1 }
+        some f => {
+            val ptr: ref void = @load(f)
+            val rc: i32 = fseek(ptr, 0, 2 as i32)
+            close(f)
+            return rc
+        }
+    }
+}
+
+pub fn main() void = {}
