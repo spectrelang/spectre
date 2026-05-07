@@ -1649,6 +1649,37 @@ fn c_size_of(ctx: ref CCtx, ty: ref parser.Node) i64 = trust {
     return 8
 }
 
+fn cc_expr_is_zero_init_like(expr: ref parser.Node) bool = trust {
+    if expr == none { return false }
+    if expr.kind == parser.NK_ZERO_INIT { return true }
+    if expr.kind == parser.NK_INT_LIT {
+        return str.rchar_cmp(parser.int_lit_text(expr), "0") == 0
+    }
+    if expr.kind == parser.NK_CAST {
+        val inner: ref parser.Node = expr.d0 as ref parser.Node
+        if inner != none && inner.kind == parser.NK_INT_LIT {
+            return str.rchar_cmp(parser.int_lit_text(inner), "0") == 0
+        }
+    }
+    return false
+}
+
+fn cc_type_needs_aggregate_copy(ctx: ref CCtx, ty: ref parser.Node) bool = trust {
+    val resolved_ty: ref parser.Node = cc_concrete_ty(ctx, ty)
+    if resolved_ty == none { return false }
+    val k: i64 = resolved_ty.kind
+    if k == parser.TY_MUT {
+        return cc_type_needs_aggregate_copy(ctx, resolved_ty.d0 as ref parser.Node)
+    }
+    if k == parser.TY_LIST || k == parser.TY_RESULT || k == parser.TY_SLICE || k == parser.TY_FIXED_ARR {
+        return true
+    }
+    if k == parser.TY_NAMED {
+        if cc_lookup_struct(ctx, resolved_ty.d0 as ref u8) != none { return true }
+    }
+    return false
+}
+
 fn struct_size_bytes(ctx: ref CCtx, fields: ref void) i64 = trust {
     val flen: i64 = @len(fields as list[ref void]) as i64
     val size: mut i64 = 0
@@ -2466,6 +2497,12 @@ fn gen_field(ctx: ref CCtx, expr: ref parser.Node) ref u8 = trust {
             }
         }
     }
+    if str.rchar_cmp(base_type, "") == 0 {
+        val base_ty2: ref parser.Node = cc_infer_expr_ty(ctx, base_node)
+        if base_ty2 != none {
+            base_type = cc_spectre_type_name_of(ctx, base_ty2)
+        }
+    }
     val fields: mut ref void = cc_lookup_struct(ctx, base_type)
     if fields == none && str.rchar_cmp(base_type, "") != 0 {
         val btlen: i64 = str.len_raw(base_type)
@@ -3213,7 +3250,7 @@ fn gen_builtin(ctx: ref CCtx, expr: ref parser.Node) ref u8 = trust {
     return "0"
 }
 
-fn gen_struct_lit(ctx: ref CCtx, expr: ref parser.Node) ref u8 = trust {
+fn gen_struct_lit(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
     val lit_fields: ref void = expr.d0 as ref void
     val fcount: mut i64 = 0
     if lit_fields != none { fcount = @len(lit_fields as list[ref void]) as i64 }
@@ -3236,15 +3273,15 @@ fn gen_struct_lit(ctx: ref CCtx, expr: ref parser.Node) ref u8 = trust {
         for { if li >= lflen { break }
             val lf_opt = @get(lit_fields as list[ref void], li as usize)
             match lf_opt { some lf => { val lf_node: ref parser.Node = lf as ref parser.Node
-                val fval: ref u8 = gen_expr(ctx, lf_node.d1 as ref parser.Node)
-
                 val off: mut i64 = li * 8
                 val fld_sz: mut i64 = 8
+                val field_ty: mut ref parser.Node = none
                 if struct_fields != none {
-                     val fname: ref u8 = lf_node.d0 as ref u8
-                     val roff: i64 = field_offset_bytes(ctx, struct_fields, fname)
-                     if roff >= 0 { off = roff }
-                     fld_sz = cc_field_size_from_fields(ctx, struct_fields, fname)
+                    val fname: ref u8 = lf_node.d0 as ref u8
+                    val roff: i64 = field_offset_bytes(ctx, struct_fields, fname)
+                    if roff >= 0 { off = roff }
+                    fld_sz = cc_field_size_from_fields(ctx, struct_fields, fname)
+                    field_ty = cc_field_ty_from_fields(ctx, struct_fields, fname)
                 }
 
                 val fb: ref u8 = @alloc(512) as ref u8
@@ -3252,8 +3289,12 @@ fn gen_struct_lit(ctx: ref CCtx, expr: ref parser.Node) ref u8 = trust {
                 if struct_fields != none {
                     fct = cc_field_ctype_from_fields(ctx, struct_fields, lf_node.d0 as ref u8)
                 }
-                if fld_sz > 8 {
-                    if str.rchar_cmp(fval, "INT64_C(0)") == 0 || str.rchar_cmp(fval, "0") == 0 {
+                val old_expected = ctx.expected_ty
+                if field_ty != none { ctx.expected_ty = field_ty }
+                val fval: ref u8 = gen_expr(ctx, lf_node.d1 as ref parser.Node)
+                ctx.expected_ty = old_expected
+                if cc_type_needs_aggregate_copy(ctx, field_ty) {
+                    if cc_expr_is_zero_init_like(lf_node.d1 as ref parser.Node) {
                         @snprintf(fb, 512, "memset((char*)sx__sl{lld}+{lld},0,(size_t){lld});\n", {t, off, fld_sz})
                     } else {
                         @snprintf(fb, 512, "memcpy((char*)sx__sl{lld}+{lld},(void*)(intptr_t)({s}),(size_t){lld});\n", {t, off, fval, fld_sz})
@@ -3441,6 +3482,10 @@ fn cc_field_size_of_expr(ctx: ref CCtx, expr: ref parser.Node) i64 = trust {
             }
         }
     }
+    if str.rchar_cmp(bt, "") == 0 {
+        val base_ty: ref parser.Node = cc_infer_expr_ty(ctx, base_node)
+        if base_ty != none { bt = cc_spectre_type_name_of(ctx, base_ty) }
+    }
     val fields: mut ref void = cc_lookup_struct(ctx, bt)
     if fields == none && str.rchar_cmp(bt, "") != 0 {
         val btlen2: i64 = str.len_raw(bt)
@@ -3499,6 +3544,10 @@ fn cc_field_ctype_of_expr(ctx: ref CCtx, expr: ref parser.Node) ref u8 = trust {
                     mfi4++ }
             }
         }
+    }
+    if str.rchar_cmp(bt, "") == 0 {
+        val base_ty: ref parser.Node = cc_infer_expr_ty(ctx, base_node)
+        if base_ty != none { bt = cc_spectre_type_name_of(ctx, base_ty) }
     }
     val fields: mut ref void = cc_lookup_struct(ctx, bt)
     if fields == none && str.rchar_cmp(bt, "") != 0 {

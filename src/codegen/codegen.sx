@@ -584,6 +584,39 @@ fn cg_alloc_size_for_type(ctx: ref CgCtx, ty: ref parser.Node) i64 = trust {
     return type_size(resolved)
 }
 
+fn cg_expr_is_zero_init_like(expr: ref parser.Node) bool = trust {
+    if expr == none { return false }
+    if expr.kind == parser.NK_ZERO_INIT { return true }
+    if expr.kind == parser.NK_INT_LIT {
+        return str.rchar_cmp(parser.int_lit_text(expr), "0") == 0
+    }
+    if expr.kind == parser.NK_CAST {
+        val inner: ref parser.Node = expr.d0 as ref parser.Node
+        if inner != none && inner.kind == parser.NK_INT_LIT {
+            return str.rchar_cmp(parser.int_lit_text(inner), "0") == 0
+        }
+    }
+    return false
+}
+
+fn cg_type_needs_aggregate_copy(ctx: ref CgCtx, ty: ref parser.Node) bool = trust {
+    val resolved: ref parser.Node = cg_concrete_ty(ctx, ty)
+    if resolved == none { return false }
+    val k: i64 = resolved.kind
+    if k == parser.TY_MUT {
+        return cg_type_needs_aggregate_copy(ctx, resolved.d0 as ref parser.Node)
+    }
+    if k == parser.TY_LIST || k == parser.TY_RESULT || k == parser.TY_SLICE || k == parser.TY_FIXED_ARR {
+        return true
+    }
+    if k == parser.TY_NAMED {
+        val tname: ref u8 = resolved.d0 as ref u8
+        if cg_lookup_struct(ctx, tname) != none { return true }
+        if cg_lookup_union_suffix(ctx, tname) != none { return true }
+    }
+    return false
+}
+
 fn cg_literal_matches_struct_fields(ctx: ref CgCtx, lit_fields: ref void, struct_fields: ref void) bool = trust {
     if lit_fields == none || struct_fields == none { return false }
     val lflen: i64 = @len(lit_fields as list[ref void]) as i64
@@ -2433,8 +2466,8 @@ fn gen_struct_lit_inline(ctx: ref CgCtx, struct_node: ref parser.Node, parent_pt
                     val actual_off: i64 = base_offset + off
                     val fptr: i64 = fresh_tmp(ctx)
                     val fbuf: ref u8 = @alloc(128) as ref u8
-                    val fval: ref u8 = gen_expr(ctx, lf_expr)
                     val lit_store_op: mut ref u8 = "storel"
+                    val fty_node: mut ref parser.Node = none
                     val sflen2: i64 = @len(sfields_node as list[ref void]) as i64
                     val sfi2: mut i64 = 0
                     for {
@@ -2446,6 +2479,7 @@ fn gen_struct_lit_inline(ctx: ref CgCtx, struct_node: ref parser.Node, parent_pt
                                 val sf2name: ref u8 = sf2n.d0 as ref u8
                                 if str.rchar_cmp(sf2name, lf_name) == 0 {
                                     val sf2ty: ref parser.Node = sf2n.d2 as ref parser.Node
+                                    fty_node = sf2ty
                                     val sf2qt: ref u8 = qbe_type_of(sf2ty)
                                     if str.rchar_cmp(sf2qt, "w") == 0 { lit_store_op = "storew" }
                                     elif str.rchar_cmp(sf2qt, "s") == 0 { lit_store_op = "stores" }
@@ -2457,8 +2491,21 @@ fn gen_struct_lit_inline(ctx: ref CgCtx, struct_node: ref parser.Node, parent_pt
                         }
                         sfi2++
                     }
-                    @snprintf(fbuf, 128, "    %%t{lld} =l add %%t{lld}, {lld}\n    {s} {s}, %%t{lld}\n",
-                        {fptr, parent_ptr, actual_off, lit_store_op, fval, fptr})
+                    if cg_type_needs_aggregate_copy(ctx, fty_node) {
+                        val copy_size: i64 = cg_alloc_size_for_type(ctx, fty_node)
+                        if cg_expr_is_zero_init_like(lf_expr) {
+                            @snprintf(fbuf, 128, "    %%t{lld} =l add %%t{lld}, {lld}\n    call $memset(l %%t{lld}, w 0, l {lld})\n",
+                                {fptr, parent_ptr, actual_off, fptr, copy_size})
+                        } else {
+                            val fval: ref u8 = gen_expr_expected(ctx, lf_expr, fty_node)
+                            @snprintf(fbuf, 128, "    %%t{lld} =l add %%t{lld}, {lld}\n    call $memcpy(l %%t{lld}, l {s}, l {lld})\n",
+                                {fptr, parent_ptr, actual_off, fptr, fval, copy_size})
+                        }
+                    } else {
+                        val fval: ref u8 = gen_expr_expected(ctx, lf_expr, fty_node)
+                        @snprintf(fbuf, 128, "    %%t{lld} =l add %%t{lld}, {lld}\n    {s} {s}, %%t{lld}\n",
+                            {fptr, parent_ptr, actual_off, lit_store_op, fval, fptr})
+                    }
                     emit(ctx, fbuf)
                     @free(fbuf)
                 }
@@ -5467,13 +5514,13 @@ fn gen_field(ctx: ref CgCtx, expr: ref parser.Node) ref u8 = trust {
             }
         }
     } elif base_expr.kind == parser.NK_FIELD {
-        val noff: i64 = nested_field_offset(ctx, base_expr, field_name)
-        if noff >= 0 { offset = noff }
         val inner_type3: ref u8 = infer_type_annotation(ctx, base_expr)
         val lookup_inner3: ref u8 = cg_ann_deref(inner_type3)
         if str.rchar_cmp(lookup_inner3, "") != 0 {
             val iflds3: ref void = cg_lookup_struct(ctx, lookup_inner3)
             if iflds3 != none {
+                val direct_off: i64 = field_offset(ctx, iflds3, field_name)
+                if direct_off >= 0 { offset = direct_off }
                 val sflen4: i64 = @len(iflds3 as list[ref void]) as i64
                 val sfi4: mut i64 = 0
                 for {
@@ -8239,6 +8286,25 @@ fn gen_struct_lit(ctx: ref CgCtx, expr: ref parser.Node) ref u8 = trust {
                         val fval2: ref u8 = gen_expr_expected(ctx, fexpr_node, fty_node)
                         val fbuf3: ref u8 = @alloc(128) as ref u8
                         @snprintf(fbuf3, 128, "    call $memcpy(l %%t{lld}, l {s}, l {lld})\n", {off_tmp2, fval2, fa_size})
+                        emit(ctx, fbuf3)
+                        @free(fbuf3)
+                    }
+                } elif cg_type_needs_aggregate_copy(ctx, fty_node) {
+                    val agg_size: i64 = cg_alloc_size_for_type(ctx, fty_node)
+                    val off_tmp2: i64 = fresh_tmp(ctx)
+                    val fbuf2: ref u8 = @alloc(256) as ref u8
+                    @snprintf(fbuf2, 256, "    %%t{lld} =l add %%t{lld}, {lld}\n", {off_tmp2, tmp, off})
+                    emit(ctx, fbuf2)
+                    @free(fbuf2)
+                    if cg_expr_is_zero_init_like(fexpr_node) {
+                        val fbuf3: ref u8 = @alloc(128) as ref u8
+                        @snprintf(fbuf3, 128, "    call $memset(l %%t{lld}, w 0, l {lld})\n", {off_tmp2, agg_size})
+                        emit(ctx, fbuf3)
+                        @free(fbuf3)
+                    } else {
+                        val fval2: ref u8 = gen_expr_expected(ctx, fexpr_node, fty_node)
+                        val fbuf3: ref u8 = @alloc(128) as ref u8
+                        @snprintf(fbuf3, 128, "    call $memcpy(l %%t{lld}, l {s}, l {lld})\n", {off_tmp2, fval2, agg_size})
                         emit(ctx, fbuf3)
                         @free(fbuf3)
                     }
