@@ -4821,7 +4821,7 @@ fn check_unused_imports(ctx: ref SemaCtx, items: list[ref parser.Node], filename
     for import_name in unused_imports {
         val use_line: i64 = find_use_line_in_items(items, import_name)
         val buf: ref u8 = @alloc(256) as ref u8
-        @snprintf(buf, 256, "{s}:{lld}: import '{s}' is never used", {filename, use_line, import_name})
+        @snprintf(buf, 256, "{s}:{lld}: use directive assigned to '{s}' is never used", {filename, use_line, import_name})
         add_error(ctx, buf)
     }
 }
