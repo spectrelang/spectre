@@ -28,7 +28,7 @@ fn should_log(l: Level) bool = {
 }
 
 fn get_time_string() ref u8 = {
-    val dt: DateTime = time.DateTime.now()
+    val dt: time.DateTime = time.DateTime.now()
     return trust @fmt("{d}-{d}-{d} {d}:{d}:{d}", {
         time.DateTime.year(dt),
         time.DateTime.month(dt),

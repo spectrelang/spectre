@@ -280,7 +280,7 @@ pub fn builder_set_root(handle: JsonBuilder, value: ref void) void = trust {
 
 test {
     val input: ref u8 = \\{"name":"Alice","age":30,"active":true,"score":9.5}
-    val arena = trust allocators.Arena.new(4096)?
+    val arena = trust allocators.Arena.new(4096 as usize)?
     val doc_opt = trust parse(input)
     match doc_opt {
         none => {
