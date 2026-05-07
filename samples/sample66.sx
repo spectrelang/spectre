@@ -1,5 +1,5 @@
 val stdio = use("std/stdio")
-val fmt = use("std/fmt")
+val fmt   = use("std/fmt")
 
 pub fn main() void = {
     val buffer: mut ref u8 = @alloc(100) as ref u8
