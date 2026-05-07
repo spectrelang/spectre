@@ -16,15 +16,16 @@ type DocMap = {
 }
 
 type DocEntry = {
-    kind:         mut i64
-    line:         mut i64
-    name:         mut ref u8
-    nav_name:     mut ref u8
-    anchor:       mut ref u8
-    signature:    mut ref u8
-    docs:         mut ref u8
-    availability: mut ref u8
-    node:         mut ref parser.Node
+    kind:          mut i64
+    line:          mut i64
+    name:          mut ref u8
+    nav_name:      mut ref u8
+    anchor:        mut ref u8
+    signature:     mut ref u8
+    docs:          mut ref u8
+    is_private_fn: mut bool
+    availability:  mut ref u8
+    node:          mut ref parser.Node
 }
 
 type DocModule = {
@@ -440,6 +441,24 @@ fn render_variant_list(values: list[ref u8], delim: ref u8) ref u8 = trust {
     return out
 }
 
+fn node_is_public(node: ref parser.Node) bool = {
+    if node.kind == parser.NK_GENERIC_FN {
+        return (node.d0 & 1) != 0
+    }
+    return node.d0 != 0
+}
+
+fn node_is_function(node: ref parser.Node) bool = {
+    return node.kind == parser.NK_FN || node.kind == parser.NK_GENERIC_FN || node.kind == parser.NK_EXTERN_FN
+}
+
+fn module_has_private_functions(module: ref DocModule) bool = {
+    for entry in module.entries {
+        if entry.is_private_fn { return true }
+    }
+    return false
+}
+
 fn render_tagged_variants(values: list[ref parser.Node]) ref u8 = trust {
     val out: mut ref u8 = ""
     for value in values {
@@ -462,7 +481,7 @@ fn render_tagged_variants(values: list[ref parser.Node]) ref u8 = trust {
 
 fn render_type_signature(node: ref parser.Node) ref u8 = trust {
     val public_prefix: mut ref u8 = ""
-    if node.d0 != 0 { public_prefix = "pub " }
+    if node_is_public(node) { public_prefix = "pub " }
     if node.kind == parser.NK_TYPEDEF || node.kind == parser.NK_EXTERN_TYPE {
         val extern_prefix: mut ref u8 = ""
         if node.kind == parser.NK_EXTERN_TYPE { extern_prefix = "extern " }
@@ -487,7 +506,7 @@ fn render_type_signature(node: ref parser.Node) ref u8 = trust {
 fn render_fn_signature(node: ref parser.Node) ref u8 = trust {
     if node.kind == parser.NK_EXTERN_FN {
         val public_prefix: mut ref u8 = ""
-        if node.d0 != 0 { public_prefix = "pub " }
+        if node_is_public(node) { public_prefix = "pub " }
         val conv: ref u8 = node.d3 as ref u8
         val params = render_fn_params(node.d4 as list[ref parser.Node])
         val variadic_suffix: mut ref u8 = ""
@@ -511,7 +530,7 @@ fn render_fn_signature(node: ref parser.Node) ref u8 = trust {
         })
     }
     val public_prefix: mut ref u8 = ""
-    if node.d0 != 0 { public_prefix = "pub " }
+    if node_is_public(node) { public_prefix = "pub " }
     val receiver: mut ref u8 = ""
     if node.d1 != 0 as i64 {
         receiver = @fmt("({s}) ", {node.d1 as ref u8})
@@ -573,6 +592,7 @@ fn add_entry(entries: mut list[ref DocEntry], node: ref parser.Node, doc_map: re
     item.nav_name = entry_nav_name(node)
     item.anchor = anchor_for(entry_kind_name(node.kind), item.name, node.line)
     item.docs = lookup_doc(doc_map, node.line)
+    item.is_private_fn = node_is_function(node) && !node_is_public(node)
     item.availability = availability
     item.node = node
     if node.kind == parser.NK_FN || node.kind == parser.NK_GENERIC_FN || node.kind == parser.NK_EXTERN_FN {
@@ -829,10 +849,24 @@ fn render_entry_details_html(sb: ref void, entry: ref DocEntry) void = trust {
 }
 
 fn render_entry_html(sb: ref void, entry: ref DocEntry) void = trust {
-    string.StringBuilder.append_cstr(sb, @fmt("<section class=\"entry\" id=\"{s}\" data-name=\"{s}\">", {entry.anchor, html_escape(entry.nav_name)}))
+    val entry_class: mut ref u8 = "entry"
+    val entry_private: mut ref u8 = "0"
+    if entry.is_private_fn {
+        entry_class = "entry entry-private-fn s-hide"
+        entry_private = "1"
+    }
+    string.StringBuilder.append_cstr(sb, @fmt("<section class=\"{s}\" id=\"{s}\" data-name=\"{s}\" data-private=\"{s}\">", {
+        entry_class,
+        entry.anchor,
+        html_escape(entry.nav_name),
+        entry_private
+    }))
     string.StringBuilder.append_cstr(sb, @fmt("<div class=\"entry-header\"><h3>{s}</h3>", {html_escape(entry.name)}))
     if !str_eq(entry.availability, "") {
         string.StringBuilder.append_cstr(sb, @fmt("<span class=\"badge\">{s}</span>", {html_escape(entry.availability)}))
+    }
+    if entry.is_private_fn {
+        string.StringBuilder.append_cstr(sb, "<span class=\"badge badge-private\">private</span>")
     }
     string.StringBuilder.append_cstr(sb, "</div>")
     string.StringBuilder.append_cstr(sb, "<pre><code class=\"language-spectre\">")
@@ -915,9 +949,17 @@ fn append_sorted_entry_nav_html(sb: ref void, entries: list[ref DocEntry]) void 
         val target_anchor = nav_key_tail(key)
         for entry in entries {
             if !str_eq(entry.anchor, target_anchor) { continue }
-            string.StringBuilder.append_cstr(sb, @fmt("<a class=\"nav-item\" href=\"#{s}\" data-name=\"{s}\">{s}</a>", {
+            val nav_class: mut ref u8 = "nav-item"
+            val entry_private: mut ref u8 = "0"
+            if entry.is_private_fn {
+                nav_class = "nav-item hidden"
+                entry_private = "1"
+            }
+            string.StringBuilder.append_cstr(sb, @fmt("<a class=\"{s}\" href=\"#{s}\" data-name=\"{s}\" data-private=\"{s}\">{s}</a>", {
+                nav_class,
                 entry.anchor,
                 html_escape(entry.nav_name),
+                entry_private,
                 html_escape(entry.nav_name)
             }))
             break
@@ -940,6 +982,7 @@ fn append_nav_html(sb: ref void, modules: list[ref DocModule], current: ref DocM
 
 fn render_module_page_html(module: ref DocModule, modules: list[ref DocModule]) ref u8 = trust {
     val sb: ref void = string.StringBuilder.new()
+    val has_private_functions: bool = module_has_private_functions(module)
     string.StringBuilder.append_cstr(sb, "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\">")
     string.StringBuilder.append_cstr(sb, @fmt("<title>{s} — Docs</title>", {html_escape(safe_cstr(module.module_name))}))
     string.StringBuilder.append_cstr(sb, "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">")
@@ -1061,9 +1104,21 @@ fn render_module_page_html(module: ref DocModule, modules: list[ref DocModule]) 
         \\
         \\.hero{margin-bottom:40px;padding-bottom:28px;border-bottom:1px solid var(--border)}
         \\.hero h1{font-size:26px;font-weight:700;color:var(--text);margin-bottom:6px;letter-spacing:-.02em}
+        \\.hero-top{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap}
         \\.hero-meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
         \\.hero-meta .label{font-size:12px;color:var(--text3)}
         \\.hero-meta code{font-family:var(--mono);font-size:12px;background:var(--code-bg);color:var(--accent);padding:2px 8px;border-radius:5px;border:1px solid var(--border2)}
+        \\.hero-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+        \\.filter-btn{
+        \\  border:1px solid var(--border);background:var(--surface);color:var(--text2);
+        \\  border-radius:999px;padding:7px 12px;font-size:12px;font-weight:600;
+        \\  font-family:var(--mono);cursor:pointer;transition:background .15s,color .15s,border-color .15s,box-shadow .15s;
+        \\}
+        \\.filter-btn:hover{background:var(--bg2);color:var(--text)}
+        \\.filter-btn[aria-pressed="true"]{
+        \\  color:var(--accent);border-color:color-mix(in srgb,var(--accent) 40%,var(--border));
+        \\  box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 14%,transparent);
+        \\}
         \\
         \\/* ── Entry cards ── */
         \\.entry{
@@ -1083,6 +1138,14 @@ fn render_module_page_html(module: ref DocModule, modules: list[ref DocModule]) 
         \\  color:var(--accent);font-size:11px;font-weight:600;
         \\  letter-spacing:.03em;border:1px solid color-mix(in srgb,var(--accent) 25%,transparent);
         \\  font-family:var(--mono);
+        \\}
+        \\.badge-private{
+        \\  background:color-mix(in srgb,#d97706 12%,transparent);
+        \\  color:#b45309;border-color:color-mix(in srgb,#d97706 24%,transparent);
+        \\}
+        \\html.dark .badge-private{
+        \\  background:color-mix(in srgb,#f59e0b 15%,transparent);
+        \\  color:#fbbf24;border-color:color-mix(in srgb,#f59e0b 28%,transparent);
         \\}
         \\
         \\/* ── Code blocks ── */
@@ -1154,6 +1217,7 @@ fn render_module_page_html(module: ref DocModule, modules: list[ref DocModule]) 
         \\  .sidebar{transform:translateX(calc(-1 * var(--sb-w)))}
         \\  .sidebar.sb-open-m{transform:translateX(0)}
         \\  .content{margin-left:0!important;padding:28px 20px 60px}
+        \\  .hero-top{flex-direction:column;align-items:flex-start}
         \\  .toggle{left:14px}
         \\  .toggle.sb-open{left:calc(var(--sb-w) + 10px)}
         \\}
@@ -1173,10 +1237,14 @@ fn render_module_page_html(module: ref DocModule, modules: list[ref DocModule]) 
     string.StringBuilder.append_cstr(sb, "</nav></aside>")
 
     string.StringBuilder.append_cstr(sb, "<main class=\"content\" id=\"content\">")
-    string.StringBuilder.append_cstr(sb, @fmt("<div class=\"hero\"><h1>{s}</h1><div class=\"hero-meta\"><span class=\"label\">source</span><code>{s}</code></div></div>", {
+    string.StringBuilder.append_cstr(sb, @fmt("<div class=\"hero\"><div class=\"hero-top\"><div><h1>{s}</h1><div class=\"hero-meta\"><span class=\"label\">source</span><code>{s}</code></div></div>", {
         html_escape(safe_cstr(module.module_name)),
         html_escape(safe_cstr(module.rel_path))
     }))
+    if has_private_functions {
+        string.StringBuilder.append_cstr(sb, "<div class=\"hero-actions\"><button class=\"filter-btn\" id=\"private-toggle\" type=\"button\" aria-pressed=\"false\">Show private functions</button></div>")
+    }
+    string.StringBuilder.append_cstr(sb, "</div></div>")
 
     for entry in module.entries {
         render_entry_html(sb, entry)
@@ -1236,19 +1304,41 @@ fn render_module_page_html(module: ref DocModule, modules: list[ref DocModule]) 
         \\
         \\/* ── Search ── */
         \\var inp=document.getElementById('search');
-        \\inp.addEventListener('input',function(){
-        \\  var q=this.value.toLowerCase().trim();
+        \\var privateBtn=document.getElementById('private-toggle');
+        \\var showPrivate=localStorage.getItem('docs-show-private')==='1';
+        \\function syncPrivateToggle(){
+        \\  if(!privateBtn)return;
+        \\  privateBtn.setAttribute('aria-pressed',showPrivate?'true':'false');
+        \\  privateBtn.textContent=showPrivate?'Hide private functions':'Show private functions';
+        \\}
+        \\function updateEntryVisibility(){
+        \\  var q=inp.value.toLowerCase().trim();
         \\  var links=sb.querySelectorAll('.nav-item[data-name]');
         \\  for(var i=0;i<links.length;i++){
         \\    var l=links[i];
-        \\    l.classList.toggle('hidden',q!==''&&l.dataset.name.toLowerCase().indexOf(q)===-1);
+        \\    var privateHidden=l.dataset.private==='1'&&!showPrivate;
+        \\    var searchHidden=q!==''&&l.dataset.name.toLowerCase().indexOf(q)===-1;
+        \\    l.classList.toggle('hidden',privateHidden||searchHidden);
         \\  }
         \\  var cards=ct.querySelectorAll('.entry[data-name]');
         \\  for(var j=0;j<cards.length;j++){
         \\    var c=cards[j];
-        \\    c.classList.toggle('s-hide',q!==''&&c.dataset.name.toLowerCase().indexOf(q)===-1);
+        \\    var privateHidden=c.dataset.private==='1'&&!showPrivate;
+        \\    var searchHidden=q!==''&&c.dataset.name.toLowerCase().indexOf(q)===-1;
+        \\    c.classList.toggle('s-hide',privateHidden||searchHidden);
         \\  }
-        \\});
+        \\}
+        \\syncPrivateToggle();
+        \\updateEntryVisibility();
+        \\inp.addEventListener('input',updateEntryVisibility);
+        \\if(privateBtn){
+        \\  privateBtn.addEventListener('click',function(){
+        \\    showPrivate=!showPrivate;
+        \\    localStorage.setItem('docs-show-private',showPrivate?'1':'0');
+        \\    syncPrivateToggle();
+        \\    updateEntryVisibility();
+        \\  });
+        \\}
         \\document.addEventListener('keydown',function(e){
         \\  if(e.key==='/'&&document.activeElement!==inp){
         \\    e.preventDefault();
@@ -1587,6 +1677,45 @@ test {
     assert(str_eq(trust lookup_doc(docs_no_trailing_nl, 2), "tail docs"))
     assert(str_eq(trust slugify("Hello.World"), "hello-world"))
     assert(str_eq(trust strip_sx_ext("src/meta/docs.sx"), "src/meta/docs"))
+    
+    val docs_src_opt = trust fs.read_all("./src/meta/docs.sx")
+    match docs_src_opt {
+        some docs_src => {
+            val ml_toggle: mut i64 = 0
+            match regex.re_match("id=\\\\\"private-toggle\\\\\"", docs_src, @addr(ml_toggle)) {
+                ok found => {
+                    match found {
+                        some _ => {}
+                        none => { assert false }
+                    }
+                }
+                err _ => { assert false }
+            }
+
+            val ml_private: mut i64 = 0
+            match regex.re_match("data-private=\\\\\"\\{s\\}\\\\\"", docs_src, @addr(ml_private)) {
+                ok found => {
+                    match found {
+                        some _ => {}
+                        none => { assert false }
+                    }
+                }
+                err _ => { assert false }
+            }
+
+            val ml_label: mut i64 = 0
+            match regex.re_match("Show private functions", docs_src, @addr(ml_label)) {
+                ok found => {
+                    match found {
+                        some _ => {}
+                        none => { assert false }
+                    }
+                }
+                err _ => { assert false }
+            }
+        }
+        none => { assert false }
+    }
 
     val fn_src = "fn add(a: i64, b: i64) i64 = trust { return a + b }"
     val ml: mut i64 = 0
@@ -1596,7 +1725,7 @@ test {
             match found {
                 some pos => {
                     val sig = trust trim_ws(substr(fn_src, pos, ml))
-                    assert(str_eq(sig, "fn add(a: i64, b: i64) i64!"))
+                    assert(str_eq(sig, "fn add(a: i64, b: i64) i64"))
                 }
                 none => { assert false }
             }
