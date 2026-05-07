@@ -8,7 +8,11 @@ This repository contains the compiler for the Spectre Programming Language.
 
 Spectre is a statically typed, design-by-contract language aiming to offer low-level control in combination with explicit correctness. The compiler is written entirely in Spectre itself.
 
-The complete documentation can be found at https://spectre-docs.pages.dev
+Resources:
+
+- [Documentation](https://spectre-docs.pages.dev)
+- [Playground](https://spectrelang.org/playground)
+- [Devlog](https://spectrelang.org/log/devlog)
 
 ## Installation
 
@@ -26,7 +30,7 @@ Then run to confirm installation:
 spectre -v
 ```
 
-The compiler is tested under MacOS aarch64 and Linux x86_64, for Windows it is untested, though might work under MSYS2.
+The compiler is tested under MacOS aarch64 and Linux x86_64.
 
 ## Examples
 
