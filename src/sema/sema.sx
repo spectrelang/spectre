@@ -203,36 +203,30 @@ fn pop_scope(ctx: ref SemaCtx, filename: ref u8, _: i64) void = trust {
     val len: usize = @len(ctx.scopes)
     if len > 0 {
         val frame_opt = @get(ctx.scopes, len - 1)
-        match frame_opt {
-            some frame => {
-                val flen: i64 = @len(frame as ref void) as i64
-                val i: mut i64 = 0
-                for {
-                    if i >= flen { break }
-                    val e_opt = @get(frame as ref void, i as usize)
-                    match e_opt {
-                        some e => {
-                            val entry: ref ScopeEntry = e as ref ScopeEntry
-                            if entry.name != none {
-                                if string.rchar_cmp(entry.name, "_") != 0 {
-                                    if entry.used == 0 {
-                                        val buf: ref u8 = @alloc(512) as ref u8
-                                        @snprintf(buf, 512, "{s}:{lld}: variable '{s}' declared but never used", {filename, entry.line, entry.name})
-                                        add_error(ctx, buf)
-                                    } elif entry.mutable == 1 && entry.mutated == 0 && entry.implicit_mut == 0 {
-                                        val buf2: ref u8 = @alloc(512) as ref u8
-                                        @snprintf(buf2, 512, "{s}:{lld}: mutable variable '{s}' declared mutable but never mutated", {filename, entry.line, entry.name})
-                                        add_error(ctx, buf2)
-                                    }
-                                }
-                            }
-                        }
-                        none => {}
+        if frame_opt is some frame {
+            val flen: i64 = @len(frame as ref void) as i64
+            val i: mut i64 = 0
+            for {
+                if i >= flen { break }
+                val e_opt = @get(frame as ref void, i as usize)
+                if e_opt is some e {
+                    val entry: ref ScopeEntry = e as ref ScopeEntry
+                    if entry.name != none {
+                        if string.rchar_cmp(entry.name, "_") != 0 {
+                            if entry.used == 0 {
+                               val buf: ref u8 = @alloc(512) as ref u8
+                                @snprintf(buf, 512, "{s}:{lld}: variable '{s}' declared but never used", {filename, entry.line, entry.name})
+                                add_error(ctx, buf)
+                           } elif entry.mutable == 1 && entry.mutated == 0 && entry.implicit_mut == 0 {
+                                val buf2: ref u8 = @alloc(512) as ref u8
+                                @snprintf(buf2, 512, "{s}:{lld}: mutable variable '{s}' declared mutable but never mutated", {filename, entry.line, entry.name})
+                                add_error(ctx, buf2)
+                           }
+                       }
                     }
-                    i++
                 }
+                i++
             }
-            none => {}
         }
         @remove(ctx.scopes, len - 1)
     }
