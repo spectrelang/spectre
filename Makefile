@@ -16,6 +16,10 @@ clean:
 ba:
 	@bash ./fw/bootstrap_all.sh
 
+test_all:
+	@sh ./fw/test.sh -bs
+	@bash ./fw/test_alt.sh -bs
+
 bt:
 	@sh ./fw/build.sh
 	@sh ./fw/test.sh -bs
