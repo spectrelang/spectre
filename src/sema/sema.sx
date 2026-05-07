@@ -1,6 +1,7 @@
 val string  = use("std/string")
 val fmt     = use("std/fmt")
 val stdio   = use("std/stdio")
+val math    = use("std/math")
 val parser  = use("../ast/parser.sx")
 val modinfo = use("../module/module.sx")
 
@@ -17,25 +18,25 @@ type ScopeEntry = {
 }
 
 type SemaCtx = {
-    errors:        mut list[ref u8]
-    warnings:      mut list[ref u8]
-    fn_names:      mut list[ref u8]
-    used_fns:      mut list[ref u8]
-    type_names:    mut list[ref u8]
-    spec_names:    mut list[ref u8]
-    spec_impls:    mut list[ref u8]
-    global_names:  mut list[ref u8]
-    scopes:        mut list[ref void]
-    type_defs:     mut list[ref void]
-    fn_defs:       mut list[ref void]
-    fn_map_names:  mut list[ref u8]
-    fn_map_params: mut list[ref void]
-    variant_names: mut list[ref u8]
-    root_mod:      mut ref modinfo.ResolvedModule
-    in_unsafe_fn:  mut i64
-    in_trust:      mut i64
-    trust_used:    mut i64
-    type_params:   mut list[ref u8]
+    errors:           mut list[ref u8]
+    warnings:         mut list[ref u8]
+    fn_names:         mut list[ref u8]
+    used_fns:         mut list[ref u8]
+    type_names:       mut list[ref u8]
+    spec_names:       mut list[ref u8]
+    spec_impls:       mut list[ref u8]
+    global_names:     mut list[ref u8]
+    scopes:           mut list[ref void]
+    type_defs:        mut list[ref void]
+    fn_defs:          mut list[ref void]
+    fn_map_names:     mut list[ref u8]
+    fn_map_params:    mut list[ref void]
+    variant_names:    mut list[ref u8]
+    root_mod:         mut ref modinfo.ResolvedModule
+    in_unsafe_fn:     mut i64
+    in_trust:         mut i64
+    trust_used:       mut i64
+    type_params:      mut list[ref u8]
     var_origin_names: mut list[ref u8]
     var_origin_types: mut list[ref u8]
 }
@@ -2165,8 +2166,6 @@ fn check_generic_call_constraints(ctx: ref SemaCtx, fn_found: ref parser.Node, c
         i++
     }
 }
-
-val math = use("std/math")
 
 fn concrete_generic_param_type_name(fn_found: ref parser.Node, callee: ref parser.Node,
                                     param_type_name: ref u8) ref u8 = trust {
