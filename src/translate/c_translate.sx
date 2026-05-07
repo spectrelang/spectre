@@ -3,6 +3,7 @@ val string = use("std/string")
 val path = use("std/path")
 val os = use("std/os")
 val fs = use("std/fs")
+val allocators = use("std/allocators")
 
 pub val STOP_EOF       : i64 = 0
 pub val STOP_ELSE      : i64 = 1
@@ -1485,9 +1486,21 @@ fn strip_system_includes(text: ref u8) ref u8 = {
 }
 
 fn preprocess_source(path: ref u8) option[ref u8] = trust {
-    val content_opt = fs.read_all(path)
-    match content_opt {
+    val size_opt = fs.file_size(path)
+    val arena_cap: mut i64 = 4096
+    match size_opt {
+        some sz => {
+            if ((sz as i64) > arena_cap) { arena_cap = sz as i64 }
+        }
         none => { return none }
+    }
+    val arena = allocators.Arena.new((arena_cap + 8) as usize)?
+    val content_opt = fs.read_all[allocators.Arena](arena, path)
+    match content_opt {
+        none => {
+            allocators.Arena.free(arena)
+            return none
+        }
         some content_val => {
             val original: ref u8 = content_val as ref u8
             val filtered: ref u8 = strip_system_includes(original)
@@ -1495,7 +1508,8 @@ fn preprocess_source(path: ref u8) option[ref u8] = trust {
             val temp_path: ref u8 = path.join(current_dir, "__spectre_translate_tmp__.c")
             val wrote: bool = fs.write_all(temp_path, filtered)
             if !wrote {
-                return some original
+                allocators.Arena.free(arena)
+                return some filtered
             }
             val cmd: ref u8 = @fmt("cc -E -P {s} 2>/dev/null || clang -E -P {s} 2>/dev/null", {temp_path, temp_path})
             val result = os.exec(cmd)
@@ -1503,12 +1517,14 @@ fn preprocess_source(path: ref u8) option[ref u8] = trust {
             match result {
                 ok out => {
                     val text: ref u8 = string.cstr(out)
+                    allocators.Arena.free(arena)
                     if string.rchar_cmp(trim_raw(text), "") == 0 {
                         return some filtered
                     }
                     return some text
                 }
                 err _ => {
+                    allocators.Arena.free(arena)
                     return some filtered
                 }
             }

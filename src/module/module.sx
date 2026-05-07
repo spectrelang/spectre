@@ -933,14 +933,27 @@ fn resolve_module_impl(
         ci++
     }
 
-    val src_opt = fs.read_all(path)
+    val src_size_opt = fs.file_size(path)
+    val src_arena_cap: mut i64 = 4096
+    match src_size_opt {
+        some sz => {
+            if ((sz as i64) > src_arena_cap) { src_arena_cap = sz as i64 }
+        }
+        none => { return err @fmt("cannot read module: {s}", {path}) }
+    }
+    val src_arena = allocators.Arena.new((src_arena_cap + 8) as usize)?
+    val src_opt = fs.read_all[allocators.Arena](src_arena, path)
     val src: mut ref u8 = ""
     match src_opt {
         some s => { src = s as ref u8 }
-        none   => { return err @fmt("cannot read module: {s}", {path}) }
+        none   => {
+            allocators.Arena.free(src_arena)
+            return err @fmt("cannot read module: {s}", {path})
+        }
     }
 
     val lex_result = lexer.tokenize(src)
+    allocators.Arena.free(src_arena)
     val tokens: mut list[ref lexer.Token] = []
     match lex_result {
         ok t  => { tokens = t }

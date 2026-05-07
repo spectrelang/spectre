@@ -6,6 +6,7 @@ val path     = use("std/path")
 val os       = use("std/os")
 val string   = use("std/string")
 val algo     = use("std/algorithms")
+val allocators = use("std/allocators")
 val lexer    = use("../ast/lexer.sx")
 val parser   = use("../ast/parser.sx")
 val commands = use("commands.sx")
@@ -180,7 +181,8 @@ fn is_hidden_name(name: ref u8) bool = trust {
 }
 
 fn collect_sx_files(dir: ref u8, rel_dir: ref u8, out: mut list[ref u8]) void = trust {
-    val entries_opt = fs.walk_dir(dir)
+    val walk_arena = allocators.Arena.new(65536 as usize)?
+    val entries_opt = fs.walk_dir[allocators.Arena](walk_arena, dir)
     if entries_opt is some entries {
         val sorted = entries as list[ref u8]
         for entry in sorted {
@@ -198,6 +200,7 @@ fn collect_sx_files(dir: ref u8, rel_dir: ref u8, out: mut list[ref u8]) void = 
             }
         }
     }
+    allocators.Arena.free(walk_arena)
 }
 
 fn is_doc_target_line(line: ref u8) bool = trust {
@@ -766,16 +769,30 @@ fn collect_entries(items: list[ref parser.Node], doc_map: ref DocMap, out: mut l
 }
 
 fn load_module(source_path: ref u8, rel_path: ref u8) ref DocModule = trust {
-    val src_opt = fs.read_all(source_path)
-    val src: mut ref u8 = ""
-    match src_opt {
-        some text => { src = text as ref u8 }
+    val src_size_opt = fs.file_size(source_path)
+    val src_arena_cap: mut i64 = 4096
+    match src_size_opt {
+        some sz => {
+            if ((sz as i64) > src_arena_cap) { src_arena_cap = sz as i64 }
+        }
         none => {
             stdio.print("error: could not read '{s}'\n", {source_path})
             os.exit(1)
         }
     }
+    val src_arena = allocators.Arena.new((src_arena_cap + 8) as usize)?
+    val src_opt = fs.read_all[allocators.Arena](src_arena, source_path)
+    val src: mut ref u8 = ""
+    match src_opt {
+        some text => { src = text as ref u8 }
+        none => {
+            allocators.Arena.free(src_arena)
+            stdio.print("error: could not read '{s}'\n", {source_path})
+            os.exit(1)
+        }
+    }
     val toks_res = lexer.tokenize(src)
+    allocators.Arena.free(src_arena)
     val toks: mut list[ref lexer.Token] = []
     match toks_res {
         ok t => { toks = t }
@@ -1801,7 +1818,8 @@ test {
     )
     assert(str_eq(trust lookup_doc(const_src, 2), "constant docs"))
     
-    val docs_src_opt = trust fs.read_all("./src/meta/docs.sx")
+    val docs_src_arena = trust allocators.Arena.new(131072 as usize)?
+    val docs_src_opt = trust fs.read_all[allocators.Arena](docs_src_arena, "./src/meta/docs.sx")
     match docs_src_opt {
         some docs_src => {
             val ml_toggle: mut i64 = 0
@@ -1861,6 +1879,7 @@ test {
         }
         none => { assert false }
     }
+    trust allocators.Arena.free(docs_src_arena)
 
     val fn_src = "fn add(a: i64, b: i64) i64 = trust { return a + b }"
     val ml: mut i64 = 0

@@ -177,10 +177,26 @@ pub fn parse_sxmod(content: ref u8) ref SxMod = trust {
 }
 
 pub fn load_sxmod() option[ref SxMod] = {
-    val content_opt = trust fs.read_all("sx.mod")
-    match content_opt {
+    val size_opt = trust fs.file_size("sx.mod")
+    val arena_cap: mut i64 = 4096
+    match size_opt {
+        some sz => {
+            if ((sz as i64) > arena_cap) { arena_cap = sz as i64 }
+        }
         none => { return none }
-        some content => { return some trust parse_sxmod(content as ref u8) }
+    }
+    val arena = trust allocators.Arena.new((arena_cap + 8) as usize)?
+    val content_opt = trust fs.read_all[allocators.Arena](arena, "sx.mod")
+    match content_opt {
+        none => {
+            trust allocators.Arena.free(arena)
+            return none
+        }
+        some content => {
+            val parsed = some trust parse_sxmod(content as ref u8)
+            trust allocators.Arena.free(arena)
+            return parsed
+        }
     }
 }
 
@@ -264,9 +280,21 @@ fn rchar_contains(haystack: ref u8, needle: ref u8) bool = {
 
 /// Rewrite filepath, dropping lines that start with dep_prefix AND contain needle.
 fn drop_dep_lines(filepath: ref u8, needle: ref u8) void = trust {
-    val content_opt = fs.read_all(filepath)
-    match content_opt {
+    val size_opt = fs.file_size(filepath)
+    val arena_cap: mut i64 = 4096
+    match size_opt {
+        some sz => {
+            if ((sz as i64) > arena_cap) { arena_cap = sz as i64 }
+        }
         none => { return }
+    }
+    val arena = allocators.Arena.new((arena_cap + 8) as usize)?
+    val content_opt = fs.read_all[allocators.Arena](arena, filepath)
+    match content_opt {
+        none => {
+            allocators.Arena.free(arena)
+            return
+        }
         some content => {
             val sb: ref void = str.StringBuilder.new()
             val text: ref u8 = content as ref u8
@@ -295,6 +323,7 @@ fn drop_dep_lines(filepath: ref u8, needle: ref u8) void = trust {
                 i++
             }
             val result: ref void = str.StringBuilder.build(sb)
+            allocators.Arena.free(arena)
             fs.write_all(filepath, str.cstr(result))
             str.StringBuilder.free(sb)
         }
@@ -763,11 +792,13 @@ pub fn cmd_init(name_arg: ref u8) i32 = {
 
     val proj_name: mut ref u8 = name_arg
     if str.rchar_cmp(proj_name, "") == 0 {
-        val cwd_opt = trust fs.cwd()
+        val cwd_arena = trust allocators.Arena.new(4096 as usize)?
+        val cwd_opt = trust fs.cwd[allocators.Arena](cwd_arena)
         match cwd_opt {
             some cwd => { proj_name = basename_of(cwd) }
             none     => { proj_name = "my-project" }
         }
+        trust allocators.Arena.free(cwd_arena)
     }
 
     val sb: ref void = str.StringBuilder.new()
@@ -964,11 +995,13 @@ pub fn cmd_doctor() i32 = {
     val git_ver: ref u8 = tool_version("git --version 2>&1")
     trust stdio.print("git:     {s}\n", {git_ver})
 
-    val cwd_opt = trust fs.cwd()
+    val cwd_arena = trust allocators.Arena.new(4096 as usize)?
+    val cwd_opt = trust fs.cwd[allocators.Arena](cwd_arena)
     match cwd_opt {
         some cwd => { trust stdio.print("cwd:     {s}\n", {cwd}) }
         none     => { stdio.puts("cwd:     unknown") }
     }
+    trust allocators.Arena.free(cwd_arena)
 
     if os.exists("sx.mod") {
         stdio.puts("sx.mod:  found")

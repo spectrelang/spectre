@@ -290,8 +290,8 @@ pub fn main() i32 = trust {
         }
     }
 
-    val src_opt = fs.read_all(input)
-    match src_opt {
+    val src_size_opt = fs.file_size(input)
+    match src_size_opt {
         some _ => {}
         none   => {
             stdio.print("error: could not read '{s}'\n", {input})
@@ -727,7 +727,22 @@ pub fn main() i32 = trust {
     }
 
     if emit_asm != 0 {
-        val asm_opt = fs.read_all(asm_file)
+        val asm_size_opt = fs.file_size(asm_file)
+        val asm_arena_cap: mut i64 = 4096
+        match asm_size_opt {
+            some sz => {
+                if ((sz as i64) > asm_arena_cap) { asm_arena_cap = sz as i64 }
+            }
+            none => {
+                stdio.puts("error: could not read assembly output")
+                os.delete(qbe_file)
+                os.delete(asm_file)
+                allocators.Arena.free(arena)
+                return 1
+            }
+        }
+        val asm_arena = allocators.Arena.new((asm_arena_cap + 8) as usize)?
+        val asm_opt = fs.read_all[allocators.Arena](asm_arena, asm_file)
         match asm_opt {
             some asm_content => {
                 stdio.puts(asm_content as ref u8)
@@ -736,6 +751,7 @@ pub fn main() i32 = trust {
                 stdio.puts("error: could not read assembly output")
             }
         }
+        allocators.Arena.free(asm_arena)
         os.delete(qbe_file)
         os.delete(asm_file)
         allocators.Arena.free(arena)

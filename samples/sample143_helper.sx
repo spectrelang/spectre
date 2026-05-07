@@ -3,21 +3,21 @@ val fs = use("std/fs")
 val string = use("std/string")
 
 pub fn read_len[A: allocators.Allocator](ac: A, path: ref u8) i64 = trust {
-    match fs.read_all_with[A](ac, path) {
+    match fs.read_all[A](ac, path) {
         some text => { return string.len_raw(text as ref u8) }
         none => { return -1 }
     }
 }
 
 pub fn cwd_len[A: allocators.Allocator](ac: A) i64 = trust {
-    match fs.cwd_with[A](ac) {
+    match fs.cwd[A](ac) {
         some dir => { return string.len_raw(dir as ref u8) }
         none => { return -1 }
     }
 }
 
 pub fn walk_count[A: allocators.Allocator](ac: A, path: ref u8) i64 = trust {
-    match fs.walk_dir_with[A](ac, path) {
+    match fs.walk_dir[A](ac, path) {
         some entries => {
             val count: mut i64 = 0
             for _ in entries { count++ }
@@ -28,7 +28,7 @@ pub fn walk_count[A: allocators.Allocator](ac: A, path: ref u8) i64 = trust {
 }
 
 pub fn passthrough_read[A: allocators.Allocator](ac: A, path: ref u8) option[ref u8] = trust {
-    return fs.read_all_with[A](ac, path)
+    return fs.read_all[A](ac, path)
 }
 
 pub fn main() void = {}
