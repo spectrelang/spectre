@@ -203,6 +203,8 @@ fn collect_sx_files(dir: ref u8, rel_dir: ref u8, out: mut list[ref u8]) void = 
 fn is_doc_target_line(line: ref u8) bool = trust {
     return str.rchar_starts_with(line, "fn ") ||
            str.rchar_starts_with(line, "pub fn ") ||
+           str.rchar_starts_with(line, "val ") ||
+           str.rchar_starts_with(line, "pub val ") ||
            str.rchar_starts_with(line, "extern ") ||
            str.rchar_starts_with(line, "pub extern ") ||
            str.rchar_starts_with(line, "type ") ||
@@ -441,6 +443,19 @@ fn render_variant_list(values: list[ref u8], delim: ref u8) ref u8 = trust {
     return out
 }
 
+fn render_expr_list(values: list[ref parser.Node], delim: ref u8) ref u8 = trust {
+    val out: mut ref u8 = ""
+    for value in values {
+        val piece = render_const_expr(value)
+        if str_eq(out, "") {
+            out = piece
+        } else {
+            out = @fmt("{s}{s}{s}", {out, delim, piece})
+        }
+    }
+    return out
+}
+
 fn node_is_public(node: ref parser.Node) bool = {
     if node.kind == parser.NK_GENERIC_FN {
         return (node.d0 & 1) != 0
@@ -457,6 +472,103 @@ fn module_has_private_functions(module: ref DocModule) bool = {
         if entry.is_private_fn { return true }
     }
     return false
+}
+
+fn binop_text(op: i64) ref u8 = {
+    if op == parser.OP_ADD { return "+" }
+    if op == parser.OP_SUB { return "-" }
+    if op == parser.OP_MUL { return "*" }
+    if op == parser.OP_DIV { return "/" }
+    if op == parser.OP_REM { return "%" }
+    if op == parser.OP_EQ { return "==" }
+    if op == parser.OP_NE { return "!=" }
+    if op == parser.OP_LT { return "<" }
+    if op == parser.OP_GT { return ">" }
+    if op == parser.OP_LE { return "<=" }
+    if op == parser.OP_GE { return ">=" }
+    if op == parser.OP_AND { return "and" }
+    if op == parser.OP_OR { return "or" }
+    if op == parser.OP_BAND { return "&" }
+    if op == parser.OP_BOR { return "|" }
+    if op == parser.OP_BXOR { return "^" }
+    if op == parser.OP_SHL { return "<<" }
+    if op == parser.OP_SHR { return ">>" }
+    return "?"
+}
+
+fn unop_text(op: i64) ref u8 = {
+    if op == parser.UOP_NOT { return "not " }
+    if op == parser.UOP_NEG { return "-" }
+    if op == parser.UOP_BNOT { return "~" }
+    return ""
+}
+
+fn render_const_expr(expr: ref parser.Node) ref u8 = trust {
+    if expr == none { return "..." }
+    val kind: i64 = expr.kind
+    if kind == parser.NK_INT_LIT { return parser.int_lit_text(expr) }
+    if kind == parser.NK_FLOAT_LIT { return parser.float_lit_text(expr) }
+    if kind == parser.NK_STR_LIT { return @fmt("\"{s}\"", {parser.str_lit_text(expr)}) }
+    if kind == parser.NK_IDENT { return expr.d0 as ref u8 }
+    if kind == parser.NK_BOOL {
+        if expr.d0 != 0 { return "true" }
+        return "false"
+    }
+    if kind == parser.NK_CHAR_LIT {
+        return @fmt("'{s}'", {expr.d0 as ref u8})
+    }
+    if kind == parser.NK_NONE { return "none" }
+    if kind == parser.NK_ZERO_INIT { return @fmt("@zeroed[{s}]", {expr.d0 as ref u8}) }
+    if kind == parser.NK_UNOP {
+        return @fmt("{s}{s}", {unop_text(parser.unop_op(expr)), render_const_expr(parser.unop_inner(expr))})
+    }
+    if kind == parser.NK_BINOP {
+        return @fmt("{s} {s} {s}", {
+            render_const_expr(parser.binop_left(expr)),
+            binop_text(parser.binop_op(expr)),
+            render_const_expr(parser.binop_right(expr))
+        })
+    }
+    if kind == parser.NK_FIELD {
+        return @fmt("{s}.{s}", {render_const_expr(parser.field_base(expr)), parser.field_name(expr)})
+    }
+    if kind == parser.NK_CALL {
+        return @fmt("{s}({s})", {
+            render_const_expr(parser.call_callee(expr)),
+            render_expr_list(parser.call_args(expr), ", ")
+        })
+    }
+    if kind == parser.NK_CAST {
+        return @fmt("{s} as {s}", {render_const_expr(expr.d1 as ref parser.Node), render_type(expr.d0 as ref parser.Node)})
+    }
+    if kind == parser.NK_ADDR {
+        return @fmt("@addr({s})", {render_const_expr(expr.d0 as ref parser.Node)})
+    }
+    if kind == parser.NK_DEREF {
+        return @fmt("*{s}", {render_const_expr(expr.d0 as ref parser.Node)})
+    }
+    if kind == parser.NK_TRY {
+        return @fmt("{s}?", {render_const_expr(expr.d0 as ref parser.Node)})
+    }
+    if kind == parser.NK_SOME {
+        return @fmt("some {s}", {render_const_expr(expr.d0 as ref parser.Node)})
+    }
+    if kind == parser.NK_OK_VAL {
+        return @fmt("ok {s}", {render_const_expr(expr.d0 as ref parser.Node)})
+    }
+    if kind == parser.NK_ERR_VAL {
+        return @fmt("err {s}", {render_const_expr(expr.d0 as ref parser.Node)})
+    }
+    if kind == parser.NK_BUILTIN {
+        return @fmt("@{s}({s})", {expr.d0 as ref u8, render_expr_list(expr.d1 as list[ref parser.Node], ", ")})
+    }
+    if kind == parser.NK_LIST_LIT {
+        return @fmt("[{s}]", {render_expr_list(expr.d0 as list[ref parser.Node], ", ")})
+    }
+    if kind == parser.NK_ARGS_PACK {
+        return @fmt("{{{s}}}", {render_expr_list(expr.d0 as list[ref parser.Node], ", ")})
+    }
+    return "..."
 }
 
 fn render_tagged_variants(values: list[ref parser.Node]) ref u8 = trust {
@@ -566,8 +678,19 @@ fn render_fn_signature(node: ref parser.Node) ref u8 = trust {
     })
 }
 
+fn render_const_signature(node: ref parser.Node) ref u8 = trust {
+    val public_prefix: mut ref u8 = ""
+    if node_is_public(node) { public_prefix = "pub " }
+    return @fmt("{s}val {s} = {s}", {
+        public_prefix,
+        node.d1 as ref u8,
+        render_const_expr(node.d2 as ref parser.Node)
+    })
+}
+
 fn entry_kind_name(kind: i64) ref u8 = {
     if kind == parser.NK_FN || kind == parser.NK_GENERIC_FN || kind == parser.NK_EXTERN_FN { return "function" }
+    if kind == parser.NK_CONST { return "constant" }
     return "type"
 }
 
@@ -597,6 +720,8 @@ fn add_entry(entries: mut list[ref DocEntry], node: ref parser.Node, doc_map: re
     item.node = node
     if node.kind == parser.NK_FN || node.kind == parser.NK_GENERIC_FN || node.kind == parser.NK_EXTERN_FN {
         item.signature = render_fn_signature(node)
+    } elif node.kind == parser.NK_CONST {
+        item.signature = render_const_signature(node)
     } else {
         item.signature = render_type_signature(node)
     }
@@ -633,6 +758,8 @@ fn collect_entries(items: list[ref parser.Node], doc_map: ref DocMap, out: mut l
            item.kind == parser.NK_ENUMDEF ||
            item.kind == parser.NK_UNIONDEF ||
            item.kind == parser.NK_TAGGED_UNIONDEF {
+            add_entry(out, item, doc_map, availability)
+        } elif item.kind == parser.NK_CONST && node_is_public(item) {
             add_entry(out, item, doc_map, availability)
         }
     }
@@ -1475,7 +1602,7 @@ fn render_module_page_md(module: ref DocModule, modules: list[ref DocModule]) re
         string.StringBuilder.append_cstr(sb, "\n")
     }
     if @len(module.entries) as i64 == 0 {
-        string.StringBuilder.append_cstr(sb, "No top-level documented functions or types were found in this module.\n")
+        string.StringBuilder.append_cstr(sb, "No top-level documented functions, constants, or types were found in this module.\n")
     }
     val built = string.StringBuilder.build(sb)
     string.StringBuilder.free(sb)
@@ -1667,6 +1794,12 @@ test {
     assert(str_eq(trust lookup_doc(docs_no_trailing_nl, 2), "tail docs"))
     assert(str_eq(trust slugify("Hello.World"), "hello-world"))
     assert(str_eq(trust strip_sx_ext("src/meta/docs.sx"), "src/meta/docs"))
+
+    val const_src = trust extract_doc_map(
+        \\/// constant docs
+        \\pub val some_constant = 100
+    )
+    assert(str_eq(trust lookup_doc(const_src, 2), "constant docs"))
     
     val docs_src_opt = trust fs.read_all("./src/meta/docs.sx")
     match docs_src_opt {
@@ -1695,6 +1828,28 @@ test {
 
             val ml_label: mut i64 = 0
             match regex.re_match("aria-label=\\\\\"Show private functions\\\\\"", docs_src, @addr(ml_label)) {
+                ok found => {
+                    match found {
+                        some _ => {}
+                        none => { assert false }
+                    }
+                }
+                err _ => { assert false }
+            }
+
+            val ml_const_kind: mut i64 = 0
+            match regex.re_match("item\\.kind == parser\\.NK_CONST && node_is_public\\(item\\)", docs_src, @addr(ml_const_kind)) {
+                ok found => {
+                    match found {
+                        some _ => {}
+                        none => { assert false }
+                    }
+                }
+                err _ => { assert false }
+            }
+
+            val ml_const_sig: mut i64 = 0
+            match regex.re_match("return @fmt\\(\"\\{s\\}val \\{s\\} = \\{s\\}\"", docs_src, @addr(ml_const_sig)) {
                 ok found => {
                     match found {
                         some _ => {}
