@@ -2104,7 +2104,7 @@ fn generic_targ_type_compatible(expected: ref u8, actual: ref u8, arg_node: ref 
 /// Check that explicit type arguments to a generic function satisfy any
 /// `[T: SpecName]` constraints declared in the function's type-parameter list.
 fn check_generic_call_constraints(ctx: ref SemaCtx, fn_found: ref parser.Node, callee: ref parser.Node,
-                                    filename: ref u8, line: i64) void = trust {
+                                  filename: ref u8, line: i64) void = trust {
     if fn_found == none || fn_found.kind != parser.NK_GENERIC_FN { return }
     if callee == none || callee.kind != parser.NK_GENERIC_INST { return }
     val tparams: ref void = fn_found.d6 as ref void
@@ -2164,6 +2164,41 @@ fn check_generic_call_constraints(ctx: ref SemaCtx, fn_found: ref parser.Node, c
         }
         i++
     }
+}
+
+val math = use("std/math")
+
+fn concrete_generic_param_type_name(fn_found: ref parser.Node, callee: ref parser.Node,
+                                    param_type_name: ref u8) ref u8 = trust {
+    if fn_found == none || fn_found.kind != parser.NK_GENERIC_FN { return none }
+    if callee == none || callee.kind != parser.NK_GENERIC_INST { return none }
+    if param_type_name == none || str_eq(param_type_name, "") { return none }
+    val tparams: ref void = fn_found.d6 as ref void
+    if tparams == none { return none }
+    val targs: list[ref parser.Node] = parser.generic_inst_type_args(callee)
+    val ntp: i64 = @len(tparams as list[ref parser.Node]) as i64
+    val nta: i64 = @len(targs) as i64
+    val n: i64 = math.min_i64(ntp, nta)
+    val i: mut i64 = 0
+    for {
+        if i >= n { break }
+        val tp_opt = @get(tparams as list[ref parser.Node], i as usize)
+        val ta_opt = @get(targs, i as usize)
+        match tp_opt {
+            some tp => {
+                val ftp_name: ref u8 = parser.tparam_name(tp as ref parser.Node)
+                if str_eq(ftp_name, param_type_name) {
+                    match ta_opt {
+                        some ta => { return extract_type_name(ta as ref parser.Node) }
+                        none => { return none }
+                    }
+                }
+            }
+            none => {}
+        }
+        i++
+    }
+    return none
 }
 
 fn check_generic_call_arg_types(_: ref SemaCtx, _: ref parser.Node, _: ref parser.Node,
@@ -2717,14 +2752,17 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
                                     }
 
                                     val raw_param_type_name: ref u8 = extract_type_name(pty)
-                                    val param_type_name: ref u8 = qualify_type_name_for_callee(ctx, callee, raw_param_type_name)
+                                    val concrete_param_type_name: ref u8 = concrete_generic_param_type_name(fn_found, callee, raw_param_type_name)
+                                    val effective_param_type_name: mut ref u8 = raw_param_type_name
+                                    if concrete_param_type_name != none && !str_eq(concrete_param_type_name, "") { effective_param_type_name = concrete_param_type_name }
+                                    val param_type_name: ref u8 = qualify_type_name_for_callee(ctx, callee, effective_param_type_name)
                                     val arg_type_name: ref u8 = infer_expr_scope_type_name(ctx, arg_node)
                                     val arg_is_ref: i64 = infer_expr_scope_is_ref(ctx, arg_node)
 
                                     if param_type_name != none && !str_eq(param_type_name, "") {
                                         val skip_type_check: mut bool = false
 
-                                        if is_type_parameter(ctx, raw_param_type_name) || is_type_parameter(ctx, arg_type_name) {
+                                        if ((is_type_parameter(ctx, raw_param_type_name) && concrete_param_type_name == none) || is_type_parameter(ctx, arg_type_name)) {
                                             skip_type_check = true
                                         }
 
@@ -2763,7 +2801,9 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
                                                     }
                                                 }
                                             } elif !param_expects_ref && arg_type_name != none && !str_eq(arg_type_name, "") {
-                                                if !types_compatible(ctx, param_type_name, arg_type_name) {
+                                                if arg_is_ref == 1 {
+                                                    type_mismatch = true
+                                                } elif !types_compatible(ctx, param_type_name, arg_type_name) {
                                                     val union_def: ref parser.Node = sema_lookup_uniondef(ctx, param_type_name)
                                                     if union_def != none {
                                                         if !type_matches_union_variant(ctx, union_def, arg_type_name) {
