@@ -4,7 +4,7 @@ all:
 ifeq ($(OS),Windows_NT)
 	@echo "Windows not yet supported"
 else
-	@sh ./build.sh
+	@sh ./fw/build.sh
 endif
 
 cprev:
@@ -14,12 +14,15 @@ clean:
 	@git clean -fdX
 
 bt:
-	@sh ./build.sh
-	@sh ./test.sh -bs
+	@sh ./fw/build.sh
+	@sh ./fw/test.sh -bs
+
+bta:
+	@bash ./fw/test_alt.sh -bs
 
 btfl:
-	@sh ./build.sh
-	@sh ./test.sh
+	@sh ./fw/build.sh
+	@sh ./fw/test.sh
 
 bs:
-	@sh ./build.sh -bs
+	@sh ./fw/build.sh -bs
