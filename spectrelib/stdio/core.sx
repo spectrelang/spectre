@@ -4,9 +4,6 @@ pub fn puts(arg: ref u8) void = {
 }
 
 /// Print a formatted string to stdout.
-///
-/// This trusts an unsafe printf call for the sake of making debugging pure
-/// functions easier, use with caution.
 pub fn print(fmt: ref u8, args: untyped) void = trust {
     @print(fmt, args)
 }
