@@ -30,3 +30,5 @@ pub fn walk_count[A: allocators.Allocator](ac: A, path: ref u8) i64 = trust {
 pub fn passthrough_read[A: allocators.Allocator](ac: A, path: ref u8) option[ref u8] = trust {
     return fs.read_all_with[A](ac, path)
 }
+
+pub fn main() void = {}
