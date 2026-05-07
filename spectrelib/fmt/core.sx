@@ -1,3 +1,7 @@
+val stdio = use("../stdio")
+val string = use("../string")
+val allocators = use("../allocators")
+
 pub enum ParseIntError = {
     Empty,
     InvalidDigit,
@@ -64,26 +68,48 @@ fn rewrite_fmt(fmt: ref u8) ref void = trust {
     return buf
 }
 
-/// Format a string using printf-style specifiers, returning a new heap String.
-///
-/// Example: format("{s} {d}", {name, age})
-pub fn format(fmt: ref u8, args: untyped) String = trust {
-    val rfmt: ref void = rewrite_fmt(fmt)
-    val buf: ref void = @alloc(4096)
-    val written: i64 = @snprintf(buf, 4096, rfmt, args) as i64
-    @free(rfmt)
-    val copy: ref void = @alloc(written + 1)
-    @memcpy(copy, buf, written)
-    @store8(@ptradd(copy, written), 0)
-    @free(buf)
-    val out: ref void = @alloc(24)
-    @store(out, copy)
-    @store(@ptradd(out, 8), written)
-    @store(@ptradd(out, 16), written + 1)
+fn alloc_in[A: allocators.Allocator](ac: A, len: i64) ref void = {
+    pre { len_positive: len > 0 }
+    val buf_opt = A.alloc(ac, len as usize)
+    match buf_opt {
+        some buf => { return buf }
+        none => { return none }
+    }
+}
+
+fn alloc_cstr[A: allocators.Allocator](ac: A, len: i64) ref u8 = trust {
+    val buf: ref void = alloc_in[A](ac, len + 1)
+    if buf == none { return none }
+    @memset(buf, 0, len + 1)
+    return buf as ref u8
+}
+
+fn alloc_string[A: allocators.Allocator](ac: A, len: i64) String = trust {
+    val buf: ref void = alloc_in[A](ac, len + 1)
+    if buf == none { return none }
+    @memset(buf, 0, len + 1)
+
+    val out: ref void = alloc_in[A](ac, 24)
+    if out == none { return none }
+
+    @store(out, buf)
+    @store(@ptradd(out, 8), len)
+    @store(@ptradd(out, 16), len + 1)
     return out as String
 }
 
-pub fn i64_to_string(x: i64) ref u8 = trust {
+fn copy_cstr[A: allocators.Allocator](ac: A, src: ref u8) ref u8 = trust {
+    if src == none { return none }
+    val len: i64 = string.len_raw(src)
+    val out: ref u8 = alloc_cstr[A](ac, len)
+    if out == none { return none }
+    if len > 0 {
+        @memcpy(out, src, len)
+    }
+    return out
+}
+
+fn i64_to_string_heap(x: i64) ref u8 = trust {
     if x == 0 {
         val buf: ref u8 = @alloc(2) as ref u8
         @store8(buf, 48)
@@ -131,6 +157,33 @@ pub fn i64_to_string(x: i64) ref u8 = trust {
 
     @store8(@ptradd(buf, total), 0)
     return buf
+}
+
+/// Format a string using printf-style specifiers, returning a new allocator-backed String.
+///
+/// Example: format[allocators.Arena](arena, "{s} {d}", {name, age})
+pub fn format[A: allocators.Allocator](ac: A, fmt: ref u8, args: untyped) String = trust {
+    val rfmt: ref void = rewrite_fmt(fmt)
+    val buf: ref void = @alloc(4096)
+    val written: i64 = @snprintf(buf, 4096, rfmt, args) as i64
+    @free(rfmt)
+
+    val out: String = alloc_string[A](ac, written)
+    if out == none { return none }
+
+    val copy: ref void = @load(out) as ref void
+    if written > 0 {
+        @memcpy(copy, buf, written)
+    }
+    @free(buf)
+    return out
+}
+
+pub fn i64_to_string[A: allocators.Allocator](ac: A, x: i64) ref u8 = trust {
+    val heap_buf: ref u8 = i64_to_string_heap(x)
+    val out: ref u8 = copy_cstr[A](ac, heap_buf)
+    @free(heap_buf)
+    return out
 }
 
 extern (C) fn strlen(s: ref u8) i64 = "strlen"
@@ -187,7 +240,7 @@ pub fn string_to_i64(s: ref u8) result[i64, ParseIntError] = {
     return ok acc
 }
 
-pub fn f64_to_string(x: f64) ref u8 = trust {
+pub fn f64_to_string[A: allocators.Allocator](ac: A, x: f64) ref u8 = trust {
     val neg: bool = x < 0.0
     val abs: mut f64 = 0.0
 
@@ -199,7 +252,7 @@ pub fn f64_to_string(x: f64) ref u8 = trust {
 
     val int_part: mut i64 = abs as i64
     val frac_part: f64 = abs - (int_part as f64)
-    val int_str: mut ref u8 = i64_to_string(int_part)
+    val int_str: mut ref u8 = i64_to_string_heap(int_part)
     val scale: i64 = 1000000
     val frac_i: mut i64 = (frac_part * scale as f64 + 0.5) as i64
 
@@ -207,7 +260,7 @@ pub fn f64_to_string(x: f64) ref u8 = trust {
         frac_i = 0
         int_part++
         @free(int_str)
-        int_str = i64_to_string(int_part)
+        int_str = i64_to_string_heap(int_part)
     }
     val frac_buf: ref u8 = @alloc(7) as ref u8
     val j: mut i64 = 5
@@ -230,7 +283,12 @@ pub fn f64_to_string(x: f64) ref u8 = trust {
     }
 
     val total: i64 = int_len + 1 + 6 + offset_x
-    val buf: ref u8 = @alloc(total + 1) as ref u8
+    val buf: ref u8 = alloc_cstr[A](ac, total)
+    if buf == none {
+        @free(int_str)
+        @free(frac_buf)
+        return none
+    }
     val pos: mut i64 = 0
 
     if neg {
@@ -319,26 +377,26 @@ pub fn string_to_f64(s: ref u8) result[f64, ParseFloatError] = {
 }
 
 fn test_i64_roundtrip(x: i64) void = trust {
-    val s: mut ref u8 = i64_to_string(x)
+    val arena = allocators.Arena.new(64)?
+    val s: mut ref u8 = i64_to_string[allocators.Arena](arena, x)
     val parsed = string_to_i64(s)
     assert parsed == ok x
-    @free(s)
+    allocators.Arena.free(arena)
 }
 
 fn test_f64_roundtrip(x: f64) void = trust {
-    val s: mut ref u8 = f64_to_string(x)
+    val arena = allocators.Arena.new(128)?
+    val s: mut ref u8 = f64_to_string[allocators.Arena](arena, x)
     val parsed = string_to_f64(s)
     assert parsed == ok x
-    @free(s)
+    allocators.Arena.free(arena)
 }
 
-val stdio = use("../stdio")
-val string = use("../string")
-
 test {
+    val arena = trust allocators.Arena.new(4096)?
     val s: mut ref u8 = ""
 
-    s = trust i64_to_string(0)
+    s = trust i64_to_string[allocators.Arena](arena, 0)
 
     match string_to_i64(s) {
         ok v => {
@@ -361,15 +419,11 @@ test {
 
     assert string_to_i64(s) == ok 0
 
-    trust @free(s)
-
-    s = trust i64_to_string(12345)
+    s = trust i64_to_string[allocators.Arena](arena, 12345)
     assert string_to_i64(s) == ok 12345
-    trust @free(s)
 
-    s = trust i64_to_string(-9876)
+    s = trust i64_to_string[allocators.Arena](arena, -9876)
     assert string_to_i64(s) == ok -9876
-    trust @free(s)
 
     assert string_to_i64("0") == ok 0
     assert string_to_i64("42") == ok 42
@@ -382,17 +436,14 @@ test {
     trust test_i64_roundtrip(123456)
     trust test_i64_roundtrip(-654321)
 
-    s = trust f64_to_string(0.0)
+    s = trust f64_to_string[allocators.Arena](arena, 0.0)
     assert string_to_f64(s) == ok 0.0
-    trust @free(s)
 
-    s = trust f64_to_string(123.456789)
+    s = trust f64_to_string[allocators.Arena](arena, 123.456789)
     assert string_to_f64(s) == ok 123.456789
-    trust @free(s)
 
-    s = trust f64_to_string(-3.14)
+    s = trust f64_to_string[allocators.Arena](arena, -3.14)
     assert string_to_f64(s) == ok -3.14
-    trust @free(s)
 
     assert string_to_f64("0") == ok 0.0
     assert string_to_f64("10.5") == ok 10.5
@@ -408,5 +459,6 @@ test {
     trust test_f64_roundtrip(-2.75)
     trust test_f64_roundtrip(123.000001)
 
-    trust stdio.print("{s}", {string.cstr(format("hello {d}", {1}))})
+    trust stdio.print("{s}", {string.cstr(format[allocators.Arena](arena, "hello {d}", {1}))})
+    trust allocators.Arena.free(arena)
 }
