@@ -1,4 +1,5 @@
 val stdio = use("../stdio")
+val allocators = use("../allocators")
 
 pub val MAX_REGEXP_OBJECTS: i64 = 30
 pub val MAX_CHAR_CLASS_LEN: i64 = 40
@@ -86,22 +87,35 @@ fn ccl_slot(buf: ref u8, idx: i64) ref u8 = {
     return char_ptr(buf, idx)
 }
 
-fn alloc_handle() option[ref void] = trust {
-    val handle: mut ref RegexHandle = @alloc(16) as mut ref RegexHandle
+fn alloc_in[T: allocators.GeneralAllocator](ac: T, size: i64) ref void = {
+    pre { size_positive: size > 0 }
+    val out_opt = T.alloc(ac, size as usize)
+    match out_opt {
+        some out => { return out as ref void }
+        none => { return none }
+    }
+}
+
+fn free_in[T: allocators.GeneralAllocator](ac: T, ptr: ref void) void = trust {
+    if ptr != none { T.free(ac, ptr) }
+}
+
+fn alloc_handle[T: allocators.GeneralAllocator](ac: T) option[ref void] = trust {
+    val handle: mut ref RegexHandle = alloc_in[T](ac, 16) as mut ref RegexHandle
     if (handle == none) {
         return none
     }
 
-    val tokens: ref void = @alloc(MAX_REGEXP_OBJECTS * REGEX_TOKEN_SIZE)
+    val tokens: ref void = alloc_in[T](ac, MAX_REGEXP_OBJECTS * REGEX_TOKEN_SIZE)
     if (tokens == none) {
-        @free(handle as ref void)
+        free_in[T](ac, handle as ref void)
         return none
     }
 
-    val ccl_raw: ref void = @alloc(MAX_CHAR_CLASS_LEN)
+    val ccl_raw: ref void = alloc_in[T](ac, MAX_CHAR_CLASS_LEN)
     if (ccl_raw == none) {
-        @free(tokens)
-        @free(handle as ref void)
+        free_in[T](ac, tokens)
+        free_in[T](ac, handle as ref void)
         return none
     }
 
@@ -118,27 +132,32 @@ fn alloc_handle() option[ref void] = trust {
     return some (handle as ref void)
 }
 
-pub fn re_free(pattern: ref void) void = trust {
+pub fn re_free_with[T: allocators.GeneralAllocator](ac: T, pattern: ref void) void = trust {
     guard (pattern != none) else {
         return
     }
 
     val handle: ref RegexHandle = pattern as ref RegexHandle
     if (handle.tokens != none) {
-        @free(handle.tokens)
+        free_in[T](ac, handle.tokens)
     }
     if (handle.ccl_buf != none) {
-        @free(handle.ccl_buf as ref void)
+        free_in[T](ac, handle.ccl_buf as ref void)
     }
-    @free(pattern)
+    free_in[T](ac, pattern)
 }
 
-pub fn re_compile(pattern: ref u8) option[ref void] = {
+pub fn re_free(pattern: ref void) void = trust {
+    val heap: allocators.HeapAllocator = @zeroed
+    re_free_with[allocators.HeapAllocator](heap, pattern)
+}
+
+pub fn re_compile_with[T: allocators.GeneralAllocator](ac: T, pattern: ref u8) option[ref void] = {
     guard (pattern != none) else {
         return none
     }
 
-    match trust alloc_handle() {
+    match trust alloc_handle[T](ac) {
         none => {
             return none
         }
@@ -171,7 +190,7 @@ pub fn re_compile(pattern: ref u8) option[ref void] = {
                 } elif (c == '\\') {
                     val next: u8 = char_at(pattern, i + 1)
                     if (next == 0) {
-                        trust re_free(raw_handle)
+                        trust re_free_with[T](ac, raw_handle)
                         return none
                     }
 
@@ -200,7 +219,7 @@ pub fn re_compile(pattern: ref u8) option[ref void] = {
                         set_token_kind(token, TOKEN_INV_CHAR_CLASS)
                         i += 1
                         if (char_at(pattern, i + 1) == 0) {
-                            trust re_free(raw_handle)
+                            trust re_free_with[T](ac, raw_handle)
                             return none
                         }
                     } else {
@@ -216,23 +235,23 @@ pub fn re_compile(pattern: ref u8) option[ref void] = {
 
                         if (cls_char == '\\') {
                             if (ccl_bufidx >= MAX_CHAR_CLASS_LEN - 1) {
-                                trust re_free(raw_handle)
+                                trust re_free_with[T](ac, raw_handle)
                                 return none
                             }
                             if (char_at(pattern, i + 1) == 0) {
-                                trust re_free(raw_handle)
+                                trust re_free_with[T](ac, raw_handle)
                                 return none
                             }
                             trust @store8(ccl_slot(handle.ccl_buf, ccl_bufidx), cls_char)
                             ccl_bufidx += 1
                             i += 1
                         } elif (ccl_bufidx >= MAX_CHAR_CLASS_LEN) {
-                            trust re_free(raw_handle)
+                            trust re_free_with[T](ac, raw_handle)
                             return none
                         }
 
                         if (ccl_bufidx >= MAX_CHAR_CLASS_LEN) {
-                            trust re_free(raw_handle)
+                            trust re_free_with[T](ac, raw_handle)
                             return none
                         }
 
@@ -241,7 +260,7 @@ pub fn re_compile(pattern: ref u8) option[ref void] = {
                     }
 
                     if (ccl_bufidx >= MAX_CHAR_CLASS_LEN) {
-                        trust re_free(raw_handle)
+                        trust re_free_with[T](ac, raw_handle)
                         return none
                     }
 
@@ -254,7 +273,7 @@ pub fn re_compile(pattern: ref u8) option[ref void] = {
                 }
 
                 if (char_at(pattern, i) == 0) {
-                    trust re_free(raw_handle)
+                    trust re_free_with[T](ac, raw_handle)
                     return none
                 }
 
@@ -266,6 +285,11 @@ pub fn re_compile(pattern: ref u8) option[ref void] = {
             return some raw_handle
         }
     }
+}
+
+pub fn re_compile(pattern: ref u8) option[ref void] = {
+    val heap: allocators.HeapAllocator = @zeroed
+    return re_compile_with[allocators.HeapAllocator](heap, pattern)
 }
 
 fn matchdigit(c: u8) bool = {
@@ -560,7 +584,7 @@ pub fn re_matchp(pattern: ref void, text: ref u8, matchlength: mut ref i64) resu
     return ok none
 }
 
-pub fn re_match(pattern: ref u8, text: ref u8, matchlength: mut ref i64) result[option[i64], RegexMatchError] = {
+pub fn re_match_with[T: allocators.GeneralAllocator](ac: T, pattern: ref u8, text: ref u8, matchlength: mut ref i64) result[option[i64], RegexMatchError] = {
     guard (matchlength != none) else {
         return err RegexMatchError.NullMatchLength
     }
@@ -574,10 +598,10 @@ pub fn re_match(pattern: ref u8, text: ref u8, matchlength: mut ref i64) result[
         return err RegexMatchError.NullText
     }
 
-    match re_compile(pattern) {
+    match re_compile_with[T](ac, pattern) {
         some compiled => {
             val out: result[option[i64], RegexMatchError] = trust re_matchp(compiled, text, matchlength)
-            trust re_free(compiled)
+            trust re_free_with[T](ac, compiled)
             post {
                 matchlength_nonneg: @deref(matchlength) >= 0
             }
@@ -587,6 +611,11 @@ pub fn re_match(pattern: ref u8, text: ref u8, matchlength: mut ref i64) result[
             return err RegexMatchError.CompileFailed
         }
     }
+}
+
+pub fn re_match(pattern: ref u8, text: ref u8, matchlength: mut ref i64) result[option[i64], RegexMatchError] = {
+    val heap: allocators.HeapAllocator = @zeroed
+    return re_match_with[allocators.HeapAllocator](heap, pattern, text, matchlength)
 }
 
 fn kind_name(kind: i64) ref u8 = {
@@ -610,11 +639,13 @@ fn kind_name(kind: i64) ref u8 = {
 }
 
 fn print_char(c: u8) void = trust {
-    val buf: ref u8 = @alloc(2) as ref u8
+    val heap: allocators.HeapAllocator = @zeroed
+    val buf: ref u8 = alloc_in[allocators.HeapAllocator](heap, 2) as ref u8
+    if buf == none { return }
     @store8(buf, c)
     @store8(@ptradd(buf, 1), 0)
     stdio.print("{s}", {buf})
-    @free(buf)
+    free_in[allocators.HeapAllocator](heap, buf as ref void)
 }
 
 pub fn re_print(pattern: ref void) void = {
@@ -664,6 +695,7 @@ pub fn re_print(pattern: ref void) void = {
 }
 
 test {
+    val heap: allocators.HeapAllocator = @zeroed
     val matchlength: mut i64 = 0
     match re_match("^h.llo$", "hello", @addr(matchlength)) {
         ok found => {
@@ -720,7 +752,7 @@ test {
         err _ => { assert false }
     }
 
-    match re_compile("[a-z]+") {
+    match re_compile_with[allocators.HeapAllocator](heap, "[a-z]+") {
         some compiled => {
             match trust re_matchp(compiled, "spectre", @addr(matchlength)) {
                 ok found => {
@@ -732,7 +764,7 @@ test {
                 }
                 err _ => { assert false }
             }
-            trust re_free(compiled)
+            trust re_free_with[allocators.HeapAllocator](heap, compiled)
         }
         none => {
             assert false
@@ -744,9 +776,9 @@ test {
         err e => { assert e == RegexMatchError.CompileFailed }
     }
 
-    match re_compile("[") {
+    match re_compile_with[allocators.HeapAllocator](heap, "[") {
         some compiled => {
-            trust re_free(compiled)
+            trust re_free_with[allocators.HeapAllocator](heap, compiled)
             assert false
         }
         none => {}
