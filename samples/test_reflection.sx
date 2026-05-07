@@ -3,7 +3,7 @@ val stdio = use("std/stdio")
 val allocators = use("std/allocators")
 
 pub fn main() void = {
-    val alc = trust allocators.Arena.new(1024)?
+    val alc = trust allocators.Arena.new(1024 as usize)?
     val name: ref u8 = trust reflection.current_platform_name[allocators.Arena](alc)
     stdio.puts(name)
 }
