@@ -61,6 +61,6 @@ pub fn main() i32 = {
         9.0 as f32, 10.0 as f32, 11.0 as f32, 12.0 as f32,
         13.0 as f32, 14.0 as f32, 15.0 as f32, 16.0 as f32
     )
-    val out: Mat4 = mat_mul(a, a)
-    return out.m00 as i32
+    mat_mul(a, a)
+    return 0
 }
