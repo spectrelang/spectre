@@ -16,6 +16,9 @@ clean:
 ba:
 	@bash ./fw/bootstrap_all.sh
 
+test_surface:
+	@bash ./fw/test_alt.sh
+
 test_all:
 	@sh ./fw/test.sh -bs
 	@bash ./fw/test_alt.sh -bs
