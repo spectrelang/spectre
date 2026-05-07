@@ -884,10 +884,12 @@ pub type StringBuilder = {
 pub fn (StringBuilder) new() StringBuilder = {
     val s: ref void = @alloc(24)
     val buf: ref void = @alloc(64)
-    trust @store8(buf, 0)
-    trust @store(s, buf)
-    trust @store(@ptradd(s, 8), 0)
-    trust @store(@ptradd(s, 16), 64)
+    trust {
+        @store8(buf, 0)
+        @store(s, buf)
+        @store(@ptradd(s, 8), 0)
+        @store(@ptradd(s, 16), 64)
+    }
     return s as StringBuilder
 }
 
