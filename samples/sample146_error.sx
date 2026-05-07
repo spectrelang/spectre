@@ -1,0 +1,11 @@
+pub fn some_func[T](x: T, y: i32) i32 = {
+    when T in (i32, i64, usize, isize) {
+        return x + y
+    }
+    return y
+}
+
+pub fn main() void = {
+    val wrong = some_func[i32](12.0, 14 as i32)
+    trust @print("{d}\n", {wrong})
+}
