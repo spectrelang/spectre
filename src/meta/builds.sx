@@ -70,7 +70,7 @@ pub fn filter_c_diagnostics(raw: ref u8) ref u8 = trust {
                         string.StringBuilder.append_char(sb, @load8(@ptradd(raw as ref void, ji)) as u8)
                         ji++
                     }
-                    string.StringBuilder.append_char(sb, 10)
+                    string.StringBuilder.append_char(sb, 10 as u8)
                 }
             }
             ls = i + 1

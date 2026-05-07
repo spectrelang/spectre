@@ -224,7 +224,7 @@ fn cg_is_prefix_used(ctx: ref CgCtx, prefix: ref u8) bool = trust {
 /// When src_target is "" the real host platform is used.
 /// Handles group aliases: "posix" matches linux/darwin/*bsd/haiku/android/redox.
 pub fn platform_matches_with_target(name: ref u8, src_target: ref u8) bool = trust {
-    val arena = allocators.Arena.new(256)?
+    val arena = allocators.Arena.new(256 as usize)?
     val cur: mut ref u8 = reflection.current_platform_name[allocators.Arena](arena)
     if str.rchar_cmp(src_target, "") != 0 { cur = src_target }
 
@@ -2644,7 +2644,7 @@ fn emit(ctx: ref CgCtx, s: ref u8) void = trust {
 
 fn emitln(ctx: ref CgCtx, s: ref u8) void = trust {
     str.StringBuilder.append_cstr(cg_sb(ctx), s)
-    str.StringBuilder.append_char(cg_sb(ctx), 10)
+    str.StringBuilder.append_char(cg_sb(ctx), 10 as u8)
 }
 
 /// Returns true if the type name maps to QBE word type (w).

@@ -256,7 +256,7 @@ fn flatten_ws(text: ref u8) ref u8 = {
         val c: u8 = trust @load8(@ptradd(text as ref void, i)) as u8
         if is_space(c) {
             if !last_space {
-                trust string.StringBuilder.append_char(sb, 32)
+                trust string.StringBuilder.append_char(sb, 32 as u8)
                 last_space = true
             }
         } else {
@@ -333,7 +333,7 @@ fn join_lines(lines: list[ref u8], start: i64, end_exclusive: i64) ref u8 = {
             some line_val => {
                 trust string.StringBuilder.append_cstr(sb, line_val as ref u8)
                 if i + 1 < end_exclusive {
-                    trust string.StringBuilder.append_char(sb, 10)
+                    trust string.StringBuilder.append_char(sb, 10 as u8)
                 }
             }
             none => {}
@@ -357,11 +357,11 @@ fn push_indent(sb: ref void, indent: i64) void = {
 fn append_line(sb: ref void, indent: i64, line: ref u8) void = {
     push_indent(sb, indent)
     trust string.StringBuilder.append_cstr(sb, line)
-    trust string.StringBuilder.append_char(sb, 10)
+    trust string.StringBuilder.append_char(sb, 10 as u8)
 }
 
 fn append_blank_line(sb: ref void) void = {
-    trust string.StringBuilder.append_char(sb, 10)
+    trust string.StringBuilder.append_char(sb, 10 as u8)
 }
 
 fn append_comment_line(sb: ref void, indent: i64, line: ref u8) void = {
@@ -373,7 +373,7 @@ fn append_comment_line(sb: ref void, indent: i64, line: ref u8) void = {
     push_indent(sb, indent)
     trust string.StringBuilder.append_cstr(sb, "// ")
     trust string.StringBuilder.append_cstr(sb, trimmed)
-    trust string.StringBuilder.append_char(sb, 10)
+    trust string.StringBuilder.append_char(sb, 10 as u8)
 }
 
 fn list_contains(items: list[ref u8], value: ref u8) bool = {
@@ -1474,7 +1474,7 @@ fn strip_system_includes(text: ref u8) ref u8 = {
             continue
         }
         if !first {
-            trust string.StringBuilder.append_char(sb, 10)
+            trust string.StringBuilder.append_char(sb, 10 as u8)
         }
         trust string.StringBuilder.append_cstr(sb, line)
         first = false
@@ -1775,7 +1775,7 @@ fn replace_arrow_access(text: ref u8) ref u8 = {
         if c == 45 && i + 1 < len {
             val next: u8 = trust @load8(@ptradd(trimmed as ref void, i + 1)) as u8
             if next == 62 {
-                trust string.StringBuilder.append_char(sb, 46)
+                trust string.StringBuilder.append_char(sb, 46 as u8)
                 i += 2
                 continue
             }
@@ -2008,7 +2008,7 @@ fn ensure_intrinsic_prefixes(text: ref u8) ref u8 = {
             val nextc: u8 = trust @load8(@ptradd(trimmed as ref void, i + nlen)) as u8
             val already_intrinsic: bool = i > 0 && (trust @load8(@ptradd(trimmed as ref void, i - 1)) as u8) == 64
             if prev_ok && !already_intrinsic && nextc == 40 {
-                trust string.StringBuilder.append_char(sb, 64)
+                trust string.StringBuilder.append_char(sb, 64 as u8)
                 trust string.StringBuilder.append_cstr(sb, name)
                 i += nlen
                 matched = true
@@ -2049,7 +2049,7 @@ fn normalize_intrinsic_prefixes(text: ref u8) ref u8 = {
                 val frag: ref u8 = trust string.substr(trimmed, i, nlen)
                 if string.rchar_cmp(frag, name) != 0 { continue }
                 if i + nlen < len && (trust @load8(@ptradd(trimmed as ref void, i + nlen)) as u8) == 40 {
-                    trust string.StringBuilder.append_char(sb, 64)
+                    trust string.StringBuilder.append_char(sb, 64 as u8)
                     trust string.StringBuilder.append_cstr(sb, name)
                     i += nlen
                     matched = true
@@ -2060,7 +2060,7 @@ fn normalize_intrinsic_prefixes(text: ref u8) ref u8 = {
             val j: mut i64 = at_start
             for {
                 if j >= i { break }
-                trust string.StringBuilder.append_char(sb, 64)
+                trust string.StringBuilder.append_char(sb, 64 as u8)
                 j++
             }
             continue
@@ -2362,7 +2362,7 @@ fn translate_printf_format(text: ref u8) ref u8 = {
     val last: u8 = trust @load8(@ptradd(trimmed as ref void, len - 1)) as u8
     if first != 34 || last != 34 { return trimmed }
     val sb: ref void = string.StringBuilder.new()
-    trust string.StringBuilder.append_char(sb, 34)
+    trust string.StringBuilder.append_char(sb, 34 as u8)
     val i: mut i64 = 1
     for {
         if i >= len - 1 { break }
@@ -2370,7 +2370,7 @@ fn translate_printf_format(text: ref u8) ref u8 = {
         if c == 37 && i + 1 < len - 1 {
             val next: u8 = trust @load8(@ptradd(trimmed as ref void, i + 1)) as u8
             if next == 37 {
-                trust string.StringBuilder.append_char(sb, 37)
+                trust string.StringBuilder.append_char(sb, 37 as u8)
                 i += 2
                 continue
             }
@@ -2411,9 +2411,9 @@ fn translate_printf_format(text: ref u8) ref u8 = {
                 val length_built: ref void = trust string.StringBuilder.build(length_sb)
                 trust string.StringBuilder.free(length_sb)
                 val mapped: ref u8 = map_printf_specifier(trust string.cstr(length_built), specifier)
-                trust string.StringBuilder.append_char(sb, 123)
+                trust string.StringBuilder.append_char(sb, 123 as u8)
                 trust string.StringBuilder.append_cstr(sb, mapped)
-                trust string.StringBuilder.append_char(sb, 125)
+                trust string.StringBuilder.append_char(sb, 125 as u8)
                 i = spec_i + 1
                 continue
             }
@@ -2422,7 +2422,7 @@ fn translate_printf_format(text: ref u8) ref u8 = {
         trust string.StringBuilder.append_char(sb, c)
         i++
     }
-    trust string.StringBuilder.append_char(sb, 34)
+    trust string.StringBuilder.append_char(sb, 34 as u8)
     val built: ref void = trust string.StringBuilder.build(sb)
     trust string.StringBuilder.free(sb)
     return trust string.cstr(built)
@@ -2436,7 +2436,7 @@ fn translate_printf_call(ctx: ref TranslationCtx, args: list[ref u8]) ref u8 = {
         none => {}
     }
     val sb: ref void = string.StringBuilder.new()
-    trust string.StringBuilder.append_char(sb, 123)
+    trust string.StringBuilder.append_char(sb, 123 as u8)
     val first: mut bool = true
     val idx: mut i64 = 1
     val len: i64 = @len(args) as i64
@@ -2453,7 +2453,7 @@ fn translate_printf_call(ctx: ref TranslationCtx, args: list[ref u8]) ref u8 = {
         }
         idx++
     }
-    trust string.StringBuilder.append_char(sb, 125)
+    trust string.StringBuilder.append_char(sb, 125 as u8)
     val args_built: ref void = trust string.StringBuilder.build(sb)
     trust string.StringBuilder.free(sb)
     return trust @fmt("@print({s}, {s})", {fmt_expr, string.cstr(args_built)})
@@ -2461,7 +2461,7 @@ fn translate_printf_call(ctx: ref TranslationCtx, args: list[ref u8]) ref u8 = {
 
 fn translate_variadic_args(ctx: ref TranslationCtx, args: list[ref u8], start_index: i64) ref u8 = {
     val sb: ref void = string.StringBuilder.new()
-    trust string.StringBuilder.append_char(sb, 123)
+    trust string.StringBuilder.append_char(sb, 123 as u8)
     val first: mut bool = true
     val idx: mut i64 = start_index
     val len: i64 = @len(args) as i64
@@ -2478,7 +2478,7 @@ fn translate_variadic_args(ctx: ref TranslationCtx, args: list[ref u8], start_in
         }
         idx++
     }
-    trust string.StringBuilder.append_char(sb, 125)
+    trust string.StringBuilder.append_char(sb, 125 as u8)
     val built: ref void = trust string.StringBuilder.build(sb)
     trust string.StringBuilder.free(sb)
     return trust string.cstr(built)
@@ -4009,8 +4009,8 @@ fn normalize_type_phrase(text: ref u8) ref u8 = {
         if i >= len { break }
         val c0: u8 = trust @load8(@ptradd(flat as ref void, i)) as u8
         if c0 == 42 {
-            if !first { trust string.StringBuilder.append_char(sb, 32) }
-            trust string.StringBuilder.append_char(sb, 42)
+            if !first { trust string.StringBuilder.append_char(sb, 32 as u8) }
+            trust string.StringBuilder.append_char(sb, 42 as u8)
             first = false
             i++
             continue
@@ -4026,7 +4026,7 @@ fn normalize_type_phrase(text: ref u8) ref u8 = {
         }
         val word: ref u8 = trust string.substr(flat, start, i - start)
         if !keyword_ignored(word) {
-            if !first { trust string.StringBuilder.append_char(sb, 32) }
+            if !first { trust string.StringBuilder.append_char(sb, 32 as u8) }
             trust string.StringBuilder.append_cstr(sb, word)
             first = false
         }
@@ -4037,55 +4037,55 @@ fn normalize_type_phrase(text: ref u8) ref u8 = {
 }
 
 fn map_base_type(base: ref u8) ref u8 = {
-    if string.rchar_cmp(base, "") == 0                   { return "void" }
-    if string.rchar_cmp(base, "void") == 0               { return "void" }
-    if string.rchar_cmp(base, "u8") == 0               { return "u8" }
-    if string.rchar_cmp(base, "short") == 0              { return "i16" }
-    if string.rchar_cmp(base, "int") == 0                { return "i32" }
-    if string.rchar_cmp(base, "long") == 0               { return "i64" }
-    if string.rchar_cmp(base, "long long") == 0          { return "i64" }
-    if string.rchar_cmp(base, "unsigned u8") == 0      { return "u8" }
-    if string.rchar_cmp(base, "unsigned short") == 0     { return "u16" }
-    if string.rchar_cmp(base, "unsigned") == 0           { return "u32" }
-    if string.rchar_cmp(base, "unsigned int") == 0       { return "u32" }
-    if string.rchar_cmp(base, "unsigned long") == 0         { return "u64" }
-    if string.rchar_cmp(base, "unsigned long long") == 0   { return "u64" }
-    if string.rchar_cmp(base, "long unsigned") == 0         { return "u64" }
-    if string.rchar_cmp(base, "long unsigned int") == 0     { return "u64" }
-    if string.rchar_cmp(base, "unsigned long int") == 0     { return "u64" }
-    if string.rchar_cmp(base, "long long unsigned") == 0    { return "u64" }
+    if string.rchar_cmp(base, "") == 0                       { return "void" }
+    if string.rchar_cmp(base, "void") == 0                   { return "void" }
+    if string.rchar_cmp(base, "u8") == 0                     { return "u8" }
+    if string.rchar_cmp(base, "short") == 0                  { return "i16" }
+    if string.rchar_cmp(base, "int") == 0                    { return "i32" }
+    if string.rchar_cmp(base, "long") == 0                   { return "i64" }
+    if string.rchar_cmp(base, "long long") == 0              { return "i64" }
+    if string.rchar_cmp(base, "unsigned u8") == 0            { return "u8" }
+    if string.rchar_cmp(base, "unsigned short") == 0         { return "u16" }
+    if string.rchar_cmp(base, "unsigned") == 0               { return "u32" }
+    if string.rchar_cmp(base, "unsigned int") == 0           { return "u32" }
+    if string.rchar_cmp(base, "unsigned long") == 0          { return "u64" }
+    if string.rchar_cmp(base, "unsigned long long") == 0     { return "u64" }
+    if string.rchar_cmp(base, "long unsigned") == 0          { return "u64" }
+    if string.rchar_cmp(base, "long unsigned int") == 0      { return "u64" }
+    if string.rchar_cmp(base, "unsigned long int") == 0      { return "u64" }
+    if string.rchar_cmp(base, "long long unsigned") == 0     { return "u64" }
     if string.rchar_cmp(base, "long long unsigned int") == 0 { return "u64" }
     if string.rchar_cmp(base, "unsigned long long int") == 0 { return "u64" }
-    if string.rchar_cmp(base, "long int") == 0              { return "i64" }
-    if string.rchar_cmp(base, "long long int") == 0         { return "i64" }
-    if string.rchar_cmp(base, "signed long") == 0           { return "i64" }
-    if string.rchar_cmp(base, "signed long int") == 0       { return "i64" }
-    if string.rchar_cmp(base, "signed long long") == 0      { return "i64" }
-    if string.rchar_cmp(base, "signed long long int") == 0  { return "i64" }
-    if string.rchar_cmp(base, "short int") == 0             { return "i16" }
-    if string.rchar_cmp(base, "signed short") == 0          { return "i16" }
-    if string.rchar_cmp(base, "signed short int") == 0      { return "i16" }
-    if string.rchar_cmp(base, "short unsigned int") == 0    { return "u16" }
-    if string.rchar_cmp(base, "unsigned short int") == 0    { return "u16" }
-    if string.rchar_cmp(base, "signed int") == 0            { return "i32" }
-    if string.rchar_cmp(base, "signed") == 0                { return "i32" }
-    if string.rchar_cmp(base, "signed u8") == 0           { return "i8" }
-    if string.rchar_cmp(base, "float") == 0              { return "f32" }
-    if string.rchar_cmp(base, "double") == 0             { return "f64" }
-    if string.rchar_cmp(base, "_Bool") == 0              { return "bool" }
-    if string.rchar_cmp(base, "bool") == 0               { return "bool" }
-    if string.rchar_cmp(base, "size_t") == 0             { return "usize" }
-    if string.rchar_cmp(base, "ssize_t") == 0            { return "i64" }
-    if string.rchar_cmp(base, "int8_t") == 0             { return "i8" }
-    if string.rchar_cmp(base, "uint8_t") == 0            { return "u8" }
-    if string.rchar_cmp(base, "int16_t") == 0            { return "i16" }
-    if string.rchar_cmp(base, "uint16_t") == 0           { return "u16" }
-    if string.rchar_cmp(base, "int32_t") == 0            { return "i32" }
-    if string.rchar_cmp(base, "uint32_t") == 0           { return "u32" }
-    if string.rchar_cmp(base, "int64_t") == 0            { return "i64" }
-    if string.rchar_cmp(base, "uint64_t") == 0           { return "u64" }
-    if string.rchar_cmp(base, "intptr_t") == 0           { return "i64" }
-    if string.rchar_cmp(base, "uintptr_t") == 0          { return "usize" }
+    if string.rchar_cmp(base, "long int") == 0               { return "i64" }
+    if string.rchar_cmp(base, "long long int") == 0          { return "i64" }
+    if string.rchar_cmp(base, "signed long") == 0            { return "i64" }
+    if string.rchar_cmp(base, "signed long int") == 0        { return "i64" }
+    if string.rchar_cmp(base, "signed long long") == 0       { return "i64" }
+    if string.rchar_cmp(base, "signed long long int") == 0   { return "i64" }
+    if string.rchar_cmp(base, "short int") == 0              { return "i16" }
+    if string.rchar_cmp(base, "signed short") == 0           { return "i16" }
+    if string.rchar_cmp(base, "signed short int") == 0       { return "i16" }
+    if string.rchar_cmp(base, "short unsigned int") == 0     { return "u16" }
+    if string.rchar_cmp(base, "unsigned short int") == 0     { return "u16" }
+    if string.rchar_cmp(base, "signed int") == 0             { return "i32" }
+    if string.rchar_cmp(base, "signed") == 0                 { return "i32" }
+    if string.rchar_cmp(base, "signed u8") == 0              { return "i8" }
+    if string.rchar_cmp(base, "float") == 0                  { return "f32" }
+    if string.rchar_cmp(base, "double") == 0                 { return "f64" }
+    if string.rchar_cmp(base, "_Bool") == 0                  { return "bool" }
+    if string.rchar_cmp(base, "bool") == 0                   { return "bool" }
+    if string.rchar_cmp(base, "size_t") == 0                 { return "usize" }
+    if string.rchar_cmp(base, "ssize_t") == 0                { return "i64" }
+    if string.rchar_cmp(base, "int8_t") == 0                 { return "i8" }
+    if string.rchar_cmp(base, "uint8_t") == 0                { return "u8" }
+    if string.rchar_cmp(base, "int16_t") == 0                { return "i16" }
+    if string.rchar_cmp(base, "uint16_t") == 0               { return "u16" }
+    if string.rchar_cmp(base, "int32_t") == 0                { return "i32" }
+    if string.rchar_cmp(base, "uint32_t") == 0               { return "u32" }
+    if string.rchar_cmp(base, "int64_t") == 0                { return "i64" }
+    if string.rchar_cmp(base, "uint64_t") == 0               { return "u64" }
+    if string.rchar_cmp(base, "intptr_t") == 0               { return "i64" }
+    if string.rchar_cmp(base, "uintptr_t") == 0              { return "usize" }
     if string.rchar_starts_with(base, "struct ") {
         return sanitize_identifier(trim_raw(trust string.substr(base, 7, string.len_raw(base) - 7)))
     }

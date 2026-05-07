@@ -422,7 +422,7 @@ pub fn config_dir() option[ref u8] = trust {
 }
 
 test {
-    val arena = trust allocators.Arena.new(8192)?
+    val arena = trust allocators.Arena.new(8192 as usize)?
     val path: ref u8 = "test_file.txt"
     @puts("1")
     val success = trust write_all(path, "Hello, Spectre!")

@@ -1294,7 +1294,7 @@ pub fn flatten_modules_with_files(
 /// Collect all link statements from a module's items.
 /// Returns a list of link flags (strings like "-lcurl" or full paths).
 pub fn collect_links(items: list[ref parser.Node], exe_dir: ref u8) list[ref u8] = trust {
-    val arena = allocators.Arena.new(256)?
+    val arena = allocators.Arena.new(256 as usize)?
     val links: mut list[ref u8] = []
     val p: i64 = reflection.get_current_platform[allocators.Arena](arena) as i64
     val platform: mut ref u8 = "unknown"

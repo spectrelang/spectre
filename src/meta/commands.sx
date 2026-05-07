@@ -287,7 +287,7 @@ fn drop_dep_lines(filepath: ref u8, needle: ref u8) void = trust {
                     val has_needle: bool = rchar_contains(line, needle)
                     if !(is_dep && has_needle) {
                         str.StringBuilder.append_cstr(sb, line)
-                        if !at_end { str.StringBuilder.append_char(sb, 10) }
+                        if !at_end { str.StringBuilder.append_char(sb, 10 as u8) }
                     }
                     @free(line as ref void)
                     line_start = i + 1
@@ -302,7 +302,7 @@ fn drop_dep_lines(filepath: ref u8, needle: ref u8) void = trust {
 }
 
 fn copy_current_stdlib(snapshot_dir: ref u8) bool = {
-    val arena = trust allocators.Arena.new(1024)?
+    val arena = trust allocators.Arena.new(1024 as usize)?
     val exe_path = trust reflection.get_exe_path[allocators.Arena](arena)
     val exe_dir = trust path.dir(exe_path)
     val std_dir = trust path.join(exe_dir, "spectrelib")

@@ -497,7 +497,7 @@ pub fn parse_type(p: ref Parser) result[ref Node, ref u8] = trust {
                 if !lexer.kind_is_dot(p_peek_kind(p)) { break }
                 p_advance(p)
                 val seg = p_expect_ident(p)?
-                string.StringBuilder.append_char(sb, 46)
+                string.StringBuilder.append_char(sb, 46 as u8)
                 string.StringBuilder.append_cstr(sb, seg)
             }
             val built: ref void = string.StringBuilder.build(sb)
@@ -587,7 +587,7 @@ pub fn parse_type(p: ref Parser) result[ref Node, ref u8] = trust {
             if !lexer.kind_is_dot(p_peek_kind(p)) { break }
             p_advance(p)
             val seg = p_expect_ident(p)?
-            string.StringBuilder.append_char(sb, 46)
+            string.StringBuilder.append_char(sb, 46 as u8)
             string.StringBuilder.append_cstr(sb, seg)
         }
         val full_str: ref void = string.StringBuilder.build(sb)

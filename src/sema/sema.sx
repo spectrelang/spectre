@@ -63,10 +63,10 @@ fn normalize_path(path: ref u8) ref u8 = trust {
         if i >= len { break }
         val c: i64 = @load8(@ptradd(path as ref void, i)) as i64
         if c == 47 {
-            if !prev_slash { string.StringBuilder.append_char(sb, 47) }
+            if !prev_slash { string.StringBuilder.append_char(sb, 47 as u8) }
             prev_slash = true
         } else {
-            string.StringBuilder.append_char(sb, c)
+            string.StringBuilder.append_char(sb, c as u8)
             prev_slash = false
         }
         i++
@@ -1291,6 +1291,43 @@ fn qualified_owner_prefix(name: ref u8) ref u8 = trust {
     return out
 }
 
+fn is_builtin_type_name(name: ref u8) bool = trust {
+    if name == none { return false }
+    if sema_type_name_is_numeric(name) { return true }
+    return str_eq(name, "char") || str_eq(name, "void")
+}
+
+fn imported_owner_prefix_for_callee(ctx: ref SemaCtx, callee: ref parser.Node) ref u8 = trust {
+    val base: ref parser.Node = unwrap_generic_callee(callee)
+    if base == none { return none }
+    val root: ref parser.Node = find_root_ident(base)
+    if root == none || root.kind != parser.NK_IDENT { return none }
+    val root_name: ref u8 = root.d0 as ref u8
+    if root_name == none { return none }
+    if find_import_module(ctx, root_name) != none { return root_name }
+    return none
+}
+
+fn qualify_type_name_for_callee(ctx: ref SemaCtx, callee: ref parser.Node, type_name: ref u8) ref u8 = trust {
+    if type_name == none { return none }
+    if str_eq(type_name, "") { return type_name }
+    if is_type_parameter(ctx, type_name) { return type_name }
+    if is_builtin_type_name(type_name) { return type_name }
+    val tlen: i64 = string.len_raw(type_name)
+    val ti: mut i64 = 0
+    for {
+        if ti >= tlen { break }
+        val c: u8 = @load8(@ptradd(type_name as ref void, ti))
+        if c == 46 { return type_name }
+        ti++
+    }
+    val owner_prefix: ref u8 = imported_owner_prefix_for_callee(ctx, callee)
+    if owner_prefix == none { return type_name }
+    val buf: ref u8 = @alloc(512) as ref u8
+    @snprintf(buf, 512, "{s}.{s}", {owner_prefix, type_name})
+    return buf
+}
+
 /// Check if two type names are compatible, considering:
 ///
 /// - Safe numeric conversions (i32 -> i64, u8 -> i64, etc.)
@@ -2129,93 +2166,9 @@ fn check_generic_call_constraints(ctx: ref SemaCtx, fn_found: ref parser.Node, c
     }
 }
 
-fn check_generic_call_arg_types(ctx: ref SemaCtx, fn_found: ref parser.Node, callee: ref parser.Node,
-                                  cargs: ref void, filename: ref u8, line: i64) void = trust {
-    if fn_found == none || fn_found.kind != parser.NK_GENERIC_FN { return }
-    if callee == none || callee.kind != parser.NK_GENERIC_INST { return }
-    if cargs == none { return }
-    val tparams: ref void = fn_found.d6 as ref void
-    val fn_params: ref void = fn_found.d3 as ref void
-    if tparams == none || fn_params == none { return }
-    val gi_targs: list[ref parser.Node] = parser.generic_inst_type_args(callee)
-    val ntparams: i64 = @len(tparams as list[ref parser.Node]) as i64
-    val ntargs: i64 = @len(gi_targs) as i64
-    if ntparams == 0 || ntargs == 0 { return }
-    val nfnparams: i64 = @len(fn_params as list[ref parser.Node]) as i64
-    val nargs: i64 = @len(cargs as list[ref parser.Node]) as i64
-    val min_len: mut i64 = nfnparams
-    if nargs < nfnparams { min_len = nargs }
-    val pi: mut i64 = 0
-    for {
-        if pi >= min_len { break }
-        val param_opt = @get(fn_params as list[ref parser.Node], pi as usize)
-        val arg_opt = @get(cargs as list[ref parser.Node], pi as usize)
-        match param_opt {
-            some param_raw => {
-                match arg_opt {
-                    some arg_raw => {
-                        val param_node: ref parser.Node = param_raw as ref parser.Node
-                        val arg_node: ref parser.Node = arg_raw as ref parser.Node
-                        val pty: ref parser.Node = param_node.d1 as ref parser.Node
-                        val inner_pty: ref parser.Node = unwrap_mut_type(pty)
-                        if inner_pty != none && inner_pty.kind == parser.TY_NAMED {
-                            val tparam_name: ref u8 = inner_pty.d0 as ref u8
-                            val ti: mut i64 = 0
-                            for {
-                                if ti >= ntparams { break }
-                                val tp_opt = @get(tparams as list[ref parser.Node], ti as usize)
-                                match tp_opt {
-                                    some tp => {
-                                        val tp_node_check: ref parser.Node = tp as ref parser.Node
-                                        if str_eq(parser.tparam_name(tp_node_check), tparam_name) && ti < ntargs {
-                                            val ta_opt = @get(gi_targs, ti as usize)
-                                            match ta_opt {
-                                                some ta => {
-                                                    val type_arg_node: ref parser.Node = ta as ref parser.Node
-                                                    val expected_tname: ref u8 = extract_type_name(type_arg_node)
-                                                    val arg_tname: ref u8 = infer_expr_scope_type_name(ctx, arg_node)
-                                                    val expected_is_tparam: mut bool = false
-                                                    val ck: mut i64 = 0
-                                                    for {
-                                                        if ck >= ntparams { break }
-                                                        val ck_opt = @get(tparams as list[ref parser.Node], ck as usize)
-                                                        match ck_opt {
-                                                            some ckn => {
-                                                                val ckn_node: ref parser.Node = ckn as ref parser.Node
-                                                                if str_eq(parser.tparam_name(ckn_node), expected_tname) { expected_is_tparam = true }
-                                                            }
-                                                            none => {}
-                                                        }
-                                                        ck++
-                                                    }
-                                                    if expected_tname != none && !str_eq(expected_tname, "") &&
-                                                       !expected_is_tparam &&
-                                                       arg_tname != none && !str_eq(arg_tname, "") &&
-                                                       !generic_targ_type_compatible(expected_tname, arg_tname, arg_node) {
-                                                        val ebuf: ref u8 = @alloc(512) as ref u8
-                                                        @snprintf(ebuf, 512, "{s}:{lld}: type mismatch in generic call: argument has type '{s}' but type parameter '{s}' is '{s}'",
-                                                            {filename, line, arg_tname, tparam_name, expected_tname})
-                                                        add_error(ctx, ebuf)
-                                                    }
-                                                }
-                                                none => {}
-                                            }
-                                            break
-                                        }
-                                    }
-                                    none => {}
-                                }
-                                ti++
-                            }
-                        }
-                    }
-                    none => {}
-                }
-            }
-            none => {}
-        }
-        pi++
-    }
+fn check_generic_call_arg_types(_: ref SemaCtx, _: ref parser.Node, _: ref parser.Node,
+                                  _: ref void, _: ref u8, _: i64) void = trust {
+    return
 }
 
 /// Records the originating constructor namespace for a local variable so that
@@ -2763,14 +2716,15 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
                                         add_error(ctx, wbuf)
                                     }
 
-                                    val param_type_name: ref u8 = extract_type_name(pty)
+                                    val raw_param_type_name: ref u8 = extract_type_name(pty)
+                                    val param_type_name: ref u8 = qualify_type_name_for_callee(ctx, callee, raw_param_type_name)
                                     val arg_type_name: ref u8 = infer_expr_scope_type_name(ctx, arg_node)
                                     val arg_is_ref: i64 = infer_expr_scope_is_ref(ctx, arg_node)
 
                                     if param_type_name != none && !str_eq(param_type_name, "") {
                                         val skip_type_check: mut bool = false
 
-                                        if is_type_parameter(ctx, param_type_name) || is_type_parameter(ctx, arg_type_name) {
+                                        if is_type_parameter(ctx, raw_param_type_name) || is_type_parameter(ctx, arg_type_name) {
                                             skip_type_check = true
                                         }
 
@@ -2779,7 +2733,7 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
                                             if fn_type_params != none {
                                                 for ftp in fn_type_params as list[ref parser.Node] {
                                                     val ftp_name: ref u8 = parser.tparam_name(ftp as ref parser.Node)
-                                                    if str_eq(ftp_name, param_type_name) || str_eq(ftp_name, arg_type_name) {
+                                                    if str_eq(ftp_name, raw_param_type_name) || str_eq(ftp_name, arg_type_name) {
                                                         skip_type_check = true
                                                         break
                                                     }

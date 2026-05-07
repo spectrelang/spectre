@@ -165,7 +165,7 @@ fn emit(ctx: ref CCtx, s: ref u8) void = trust {
 
 fn emitln(ctx: ref CCtx, s: ref u8) void = trust {
     str.StringBuilder.append_cstr(ctx.sb, s)
-    str.StringBuilder.append_char(ctx.sb, 10)
+    str.StringBuilder.append_char(ctx.sb, 10 as u8)
 }
 
 fn emit_line_directive(ctx: ref CCtx, line: i64) void = trust {
@@ -4471,7 +4471,7 @@ fn gen_items_with_prefix(ctx: mut ref CCtx, items: list[ref parser.Node], mod_pr
 }
 
 fn emit_to_fwd(ctx: ref CCtx, s: ref u8) void = trust { str.StringBuilder.append_cstr(ctx.fwd_sb, s) }
-fn emitln_fwd(ctx: ref CCtx, s: ref u8) void = trust { str.StringBuilder.append_cstr(ctx.fwd_sb, s) str.StringBuilder.append_char(ctx.fwd_sb, 10) }
+fn emitln_fwd(ctx: ref CCtx, s: ref u8) void = trust { str.StringBuilder.append_cstr(ctx.fwd_sb, s) str.StringBuilder.append_char(ctx.fwd_sb, 10 as u8) }
 
 fn emit_c_preamble(ctx: ref CCtx) void = trust {
     if cc_platform_matches(ctx, "posix") {
