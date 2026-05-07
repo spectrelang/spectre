@@ -682,7 +682,7 @@ pub fn hash_file_sha256[A: allocators.Allocator](ac: A, path: ref u8) result[str
 }
 
 test {
-    val arena = trust allocators.Arena.new(32768)?
+    val arena = trust allocators.Arena.new(32768 as usize)?
     val sha_hex_expected: ref u8 = "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
 
     assert trust hash_fnv(0 as usize) != trust hash_fnv(1 as usize)
