@@ -370,7 +370,7 @@ fn find_imported_module(mod: ref modinfo.ResolvedModule, alias: ref u8) ref modi
     return none
 }
 
-/// Returns true if `mod`'s items contain a `pub val name = use(...)` (i.e., a re-exported module alias).
+/// Returns true if `mod`'s items contain a top-level `val name = use(...)` alias.
 fn module_has_use_alias(mod: ref modinfo.ResolvedModule, name: ref u8) bool = trust {
     if mod == none { return false }
     if name == none { return false }
@@ -4722,6 +4722,14 @@ fn check_generic_fn(ctx: mut ref SemaCtx, fn_node: ref parser.Node, filename: re
 /// Check a single top-level item (functions, tests, when items).
 fn check_top_item(ctx: ref SemaCtx, item: ref parser.Node, filename: ref u8) void = trust {
     val k: i64 = item.kind
+    if k == parser.NK_USE {
+        if item.d0 != 0 {
+            val buf: ref u8 = @alloc(256) as ref u8
+            @snprintf(buf, 256, "{s}:{lld}: use statements cannot be public.", {filename, item.line})
+            add_error(ctx, buf)
+        }
+        return
+    }
     if k == parser.NK_GENERIC_FN {
         check_generic_fn(ctx, item, filename)
         return
