@@ -1464,6 +1464,9 @@ fn cg_register_fn(ctx: ref CgCtx, node: ref parser.Node, mangled: ref u8, params
 
 fn cg_lookup_fn_name_by_node(ctx: ref CgCtx, node: ref parser.Node) ref u8 = trust {
     if node == none { return none }
+    if node.kind == parser.NK_EXTERN_FN {
+        return node.d2 as ref u8
+    }
     val nlen: i64 = @len(ctx.fn_nodes as list[ref void]) as i64
     val ni: mut i64 = 0
     for {
