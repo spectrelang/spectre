@@ -763,7 +763,7 @@ pub fn cmd_init(name_arg: ref u8) i32 = {
 
     val proj_name: mut ref u8 = name_arg
     if str.rchar_cmp(proj_name, "") == 0 {
-        val cwd_opt = fs.cwd()
+        val cwd_opt = trust fs.cwd()
         match cwd_opt {
             some cwd => { proj_name = basename_of(cwd) }
             none     => { proj_name = "my-project" }
@@ -964,7 +964,7 @@ pub fn cmd_doctor() i32 = {
     val git_ver: ref u8 = tool_version("git --version 2>&1")
     trust stdio.print("git:     {s}\n", {git_ver})
 
-    val cwd_opt = fs.cwd()
+    val cwd_opt = trust fs.cwd()
     match cwd_opt {
         some cwd => { trust stdio.print("cwd:     {s}\n", {cwd}) }
         none     => { stdio.puts("cwd:     unknown") }
