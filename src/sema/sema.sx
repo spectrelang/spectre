@@ -2801,7 +2801,7 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
                                                     }
                                                 }
                                             } elif !param_expects_ref && arg_type_name != none && !str_eq(arg_type_name, "") {
-                                                if arg_is_ref == 1 {
+                                                if arg_is_ref == 1 && is_builtin_type_name(unqualified_type_name(param_type_name)) {
                                                     type_mismatch = true
                                                 } elif !types_compatible(ctx, param_type_name, arg_type_name) {
                                                     val union_def: ref parser.Node = sema_lookup_uniondef(ctx, param_type_name)
