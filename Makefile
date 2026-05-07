@@ -13,6 +13,9 @@ cprev:
 clean:
 	@git clean -fdX
 
+ba:
+	@bash ./fw/bootstrap_all.sh
+
 bt:
 	@sh ./fw/build.sh
 	@sh ./fw/test.sh -bs
