@@ -1,6 +1,5 @@
 val core = use("core.sx")
 val stdio = use("../stdio")
-val string = use("../string")
 
 pub fn get_temp_path() option[ref u8] = {
     when posix {

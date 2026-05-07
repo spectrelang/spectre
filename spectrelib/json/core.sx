@@ -7,7 +7,6 @@ when posix {
 
 val str = use("../string")
 val stdio = use("../stdio")
-val fmt = use("../fmt")
 val allocators = use("../allocators")
 
 pub extern (C) fn yyjson_get_len(value: ref void) usize = "sx_yyjson_get_len"

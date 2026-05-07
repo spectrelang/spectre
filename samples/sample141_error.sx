@@ -1,0 +1,5 @@
+val some_import = use("std/allocators")
+
+pub fn main() void = {
+    @puts("Hehehehehe >:D")
+}

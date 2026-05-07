@@ -4782,6 +4782,50 @@ fn check_top_item(ctx: ref SemaCtx, item: ref parser.Node, filename: ref u8) voi
     }
 }
 
+fn find_use_line_in_items(items: list[ref parser.Node], import_name: ref u8) i64 = trust {
+    for item in items {
+        if item == none { continue }
+        if item.kind == parser.NK_USE {
+            val item_name: ref u8 = item.d1 as ref u8
+            if item_name != none && str_eq(item_name, import_name) {
+                return item.line
+            }
+        } elif item.kind == parser.NK_WHEN_ITEMS {
+            val when_items: ref void = item.d1 as ref void
+            if when_items != none {
+                val when_line: i64 = find_use_line_in_items(when_items as list[ref parser.Node], import_name)
+                if when_line != 0 { return when_line }
+            }
+            val or_branches: ref void = item.d2 as ref void
+            if or_branches != none {
+                for or_node in or_branches as list[ref parser.Node] {
+                    val or_items: ref void = (or_node as ref parser.Node).d1 as ref void
+                    if or_items != none {
+                        val or_line: i64 = find_use_line_in_items(or_items as list[ref parser.Node], import_name)
+                        if or_line != 0 { return or_line }
+                    }
+                }
+            }
+            val otherwise_items: ref void = item.d3 as ref void
+            if otherwise_items != none {
+                val otherwise_line: i64 = find_use_line_in_items(otherwise_items as list[ref parser.Node], import_name)
+                if otherwise_line != 0 { return otherwise_line }
+            }
+        }
+    }
+    return 0
+}
+
+fn check_unused_imports(ctx: ref SemaCtx, items: list[ref parser.Node], filename: ref u8) void = trust {
+    val unused_imports: list[ref u8] = modinfo.collect_unused_import_names_in_items(items)
+    for import_name in unused_imports {
+        val use_line: i64 = find_use_line_in_items(items, import_name)
+        val buf: ref u8 = @alloc(256) as ref u8
+        @snprintf(buf, 256, "{s}:{lld}: import '{s}' is never used", {filename, use_line, import_name})
+        add_error(ctx, buf)
+    }
+}
+
 /// Check for duplicate function/type names.
 fn check_duplicates(ctx: ref SemaCtx, filename: ref u8) void = trust {
     val fnlen: i64 = @len(ctx.fn_names) as i64
@@ -4853,6 +4897,7 @@ pub fn check_module(items: list[ref parser.Node], filename: ref u8, root: ref mo
     for item2 in items {
         check_top_item(ctx, item2, filename)
     }
+    check_unused_imports(ctx, items, filename)
     validate_spec_impls(ctx, items, filename)
 
     val fnlen: i64 = @len(ctx.fn_names) as i64

@@ -2028,25 +2028,52 @@ pub fn collect_needed_subnames_transitive(
 }
 
 /// Collect used import names from an expression.
+fn mark_import_used(import_names: list[ref u8], used: mut list[ref u8], name: ref u8) void = trust {
+    if name == none { return }
+    if import_in_list(import_names, name) && !import_in_list(used, name) {
+        @append(used, name)
+    }
+}
+
+fn collect_used_imports_type(ty: ref parser.Node, import_names: list[ref u8], used: mut list[ref u8]) void = trust {
+    if ty == none { return }
+
+    if ty.kind == parser.TY_NAMED {
+        for import_name in import_names {
+            if type_name_references_import(ty.d0 as ref u8, import_name) {
+                mark_import_used(import_names, used, import_name)
+                return
+            }
+        }
+    } elif ty.kind == parser.TY_MUT || ty.kind == parser.TY_REF || ty.kind == parser.TY_OPTION || ty.kind == parser.TY_LIST || ty.kind == parser.TY_SLICE {
+        collect_used_imports_type(ty.d0 as ref parser.Node, import_names, used)
+    } elif ty.kind == parser.TY_RESULT {
+        collect_used_imports_type(ty.d0 as ref parser.Node, import_names, used)
+        collect_used_imports_type(ty.d1 as ref parser.Node, import_names, used)
+    } elif ty.kind == parser.TY_FIXED_ARR {
+        collect_used_imports_type(ty.d1 as ref parser.Node, import_names, used)
+    } elif ty.kind == parser.TY_FNPTR {
+        val params: ref void = ty.d0 as ref void
+        if params != none {
+            for param_ty in params as list[ref parser.Node] {
+                collect_used_imports_type(param_ty as ref parser.Node, import_names, used)
+            }
+        }
+        collect_used_imports_type(ty.d1 as ref parser.Node, import_names, used)
+    }
+}
+
 fn collect_used_imports_expr(node: ref parser.Node, import_names: list[ref u8], used: mut list[ref u8]) void = trust {
     if node == none { return }
 
     if node.kind == parser.NK_IDENT {
         val name: ref u8 = node.d0 as ref u8
-        if import_in_list(import_names, name) {
-            if !import_in_list(used, name) {
-                @append(used, name)
-            }
-        }
+        mark_import_used(import_names, used, name)
     } elif node.kind == parser.NK_FIELD {
         val base: ref parser.Node = parser.field_base(node)
         if base != none && base.kind == parser.NK_IDENT {
             val name: ref u8 = base.d0 as ref u8
-            if import_in_list(import_names, name) {
-                if !import_in_list(used, name) {
-                    @append(used, name)
-                }
-            }
+            mark_import_used(import_names, used, name)
         }
         collect_used_imports_expr(base, import_names, used)
     } elif node.kind == parser.NK_CALL {
@@ -2071,6 +2098,7 @@ fn collect_used_imports_expr(node: ref parser.Node, import_names: list[ref u8], 
     } elif node.kind == parser.NK_UNOP {
         collect_used_imports_expr(parser.unop_inner(node), import_names, used)
     } elif node.kind == parser.NK_CAST {
+        collect_used_imports_type(node.d1 as ref parser.Node, import_names, used)
         collect_used_imports_expr(node.d0 as ref parser.Node, import_names, used)
     } elif node.kind == parser.NK_SOME || node.kind == parser.NK_OK_VAL || node.kind == parser.NK_ERR_VAL || node.kind == parser.NK_TRY || node.kind == parser.NK_TRUST || node.kind == parser.NK_ADDR || node.kind == parser.NK_DEREF {
         collect_used_imports_expr(node.d0 as ref parser.Node, import_names, used)
@@ -2136,6 +2164,10 @@ fn collect_used_imports_expr(node: ref parser.Node, import_names: list[ref u8], 
         }
     } elif node.kind == parser.NK_GENERIC_INST {
         collect_used_imports_expr(node.d0 as ref parser.Node, import_names, used)
+        val targs: list[ref parser.Node] = parser.generic_inst_type_args(node)
+        for targ in targs {
+            collect_used_imports_type(targ as ref parser.Node, import_names, used)
+        }
     }
 }
 
@@ -2144,6 +2176,7 @@ fn collect_used_imports_stmt(node: ref parser.Node, import_names: list[ref u8], 
     if node == none { return }
 
     if node.kind == parser.NK_VAL {
+        collect_used_imports_type(node.d2 as ref parser.Node, import_names, used)
         collect_used_imports_expr(node.d3 as ref parser.Node, import_names, used)
     } elif node.kind == parser.NK_ASSIGN {
         collect_used_imports_expr(node.d0 as ref parser.Node, import_names, used)
@@ -2155,7 +2188,66 @@ fn collect_used_imports_stmt(node: ref parser.Node, import_names: list[ref u8], 
     } elif node.kind == parser.NK_ASSERT {
         collect_used_imports_expr(node.d0 as ref parser.Node, import_names, used)
     } elif node.kind == parser.NK_ADD_ASSIGN || node.kind == parser.NK_SUB_ASSIGN {
+        collect_used_imports_expr(node.d0 as ref parser.Node, import_names, used)
         collect_used_imports_expr(node.d1 as ref parser.Node, import_names, used)
+    } elif node.kind == parser.NK_WHEN_STMT {
+        val when_body: ref void = node.d1 as ref void
+        if when_body != none {
+            val wlen: i64 = @len(when_body) as i64
+            val wi: mut i64 = 0
+            for {
+                if wi >= wlen { break }
+                val stmt_opt = @get(when_body, wi as usize)
+                match stmt_opt {
+                    some stmt => { collect_used_imports_stmt(stmt as ref parser.Node, import_names, used) }
+                    none => {}
+                }
+                wi++
+            }
+        }
+        val or_branches: ref void = node.d2 as ref void
+        if or_branches != none {
+            val olen: i64 = @len(or_branches) as i64
+            val oi: mut i64 = 0
+            for {
+                if oi >= olen { break }
+                val or_opt = @get(or_branches, oi as usize)
+                match or_opt {
+                    some or_node => {
+                        val or_body: ref void = (or_node as ref parser.Node).d1 as ref void
+                        if or_body != none {
+                            val orlen: i64 = @len(or_body) as i64
+                            val ori: mut i64 = 0
+                            for {
+                                if ori >= orlen { break }
+                                val or_stmt_opt = @get(or_body, ori as usize)
+                                match or_stmt_opt {
+                                    some or_stmt => { collect_used_imports_stmt(or_stmt as ref parser.Node, import_names, used) }
+                                    none => {}
+                                }
+                                ori++
+                            }
+                        }
+                    }
+                    none => {}
+                }
+                oi++
+            }
+        }
+        val owise: ref void = node.d3 as ref void
+        if owise != none {
+            val olen: i64 = @len(owise) as i64
+            val oi: mut i64 = 0
+            for {
+                if oi >= olen { break }
+                val o_stmt_opt = @get(owise, oi as usize)
+                match o_stmt_opt {
+                    some o_stmt => { collect_used_imports_stmt(o_stmt as ref parser.Node, import_names, used) }
+                    none => {}
+                }
+                oi++
+            }
+        }
     } elif node.kind == parser.NK_DEFER {
         val body: ref void = node.d0 as ref void
         if body != none {
@@ -2478,9 +2570,129 @@ fn collect_used_imports_stmt(node: ref parser.Node, import_names: list[ref u8], 
         }
     } elif node.kind == parser.NK_INCREMENT || node.kind == parser.NK_DECREMENT {
         collect_used_imports_expr(node.d0 as ref parser.Node, import_names, used)
-    } elif node.kind == parser.NK_ADD_ASSIGN || node.kind == parser.NK_SUB_ASSIGN {
-        collect_used_imports_expr(node.d0 as ref parser.Node, import_names, used)
-        collect_used_imports_expr(node.d1 as ref parser.Node, import_names, used)
+    }
+}
+
+fn collect_used_imports_item(item: ref parser.Node, import_names: list[ref u8], used: list[ref u8]) void = trust {
+    if item == none { return }
+
+    if item.kind == parser.NK_FN || item.kind == parser.NK_GENERIC_FN {
+        val params: ref void = item.d3 as ref void
+        if params != none {
+            for param in params as list[ref parser.Node] {
+                collect_used_imports_type((param as ref parser.Node).d1 as ref parser.Node, import_names, used)
+            }
+        }
+        collect_used_imports_type(item.d4 as ref parser.Node, import_names, used)
+        if item.kind == parser.NK_GENERIC_FN {
+            val tparams: ref void = item.d6 as ref void
+            if tparams != none {
+                for tparam in tparams as list[ref parser.Node] {
+                    collect_used_imports_type(parser.tparam_constraint(tparam as ref parser.Node), import_names, used)
+                }
+            }
+        }
+        val body: ref void = item.d5 as ref void
+        if body != none {
+            val blen: i64 = @len(body) as i64
+            if blen < 0 || blen > 100000 { return }
+            val bi: mut i64 = 0
+            for {
+                if bi >= blen { break }
+                val stmt_opt = @get(body, bi as usize)
+                match stmt_opt {
+                    some stmt => { collect_used_imports_stmt(stmt as ref parser.Node, import_names, used) }
+                    none => {}
+                }
+                bi++
+            }
+        }
+    } elif item.kind == parser.NK_EXTERN_FN {
+        val params: ref void = item.d4 as ref void
+        if params != none {
+            for param in params as list[ref parser.Node] {
+                collect_used_imports_type((param as ref parser.Node).d1 as ref parser.Node, import_names, used)
+            }
+        }
+        collect_used_imports_type(item.d5 as ref parser.Node, import_names, used)
+    } elif item.kind == parser.NK_TEST {
+        val body: ref void = item.d0 as ref void
+        if body != none {
+            val blen: i64 = @len(body) as i64
+            if blen < 0 || blen > 100000 { return }
+            val bi: mut i64 = 0
+            for {
+                if bi >= blen { break }
+                val stmt_opt = @get(body, bi as usize)
+                match stmt_opt {
+                    some stmt => { collect_used_imports_stmt(stmt as ref parser.Node, import_names, used) }
+                    none => {}
+                }
+                bi++
+            }
+        }
+    } elif item.kind == parser.NK_VAL {
+        collect_used_imports_type(item.d2 as ref parser.Node, import_names, used)
+        collect_used_imports_expr(item.d3 as ref parser.Node, import_names, used)
+    } elif item.kind == parser.NK_CONST {
+        collect_used_imports_expr(item.d2 as ref parser.Node, import_names, used)
+    } elif item.kind == parser.NK_TYPEDEF || item.kind == parser.NK_EXTERN_TYPE {
+        val fields: ref void = item.d2 as ref void
+        if fields != none {
+            for field in fields as list[ref parser.Node] {
+                collect_used_imports_type((field as ref parser.Node).d2 as ref parser.Node, import_names, used)
+            }
+        }
+        val invariants: ref void = item.d3 as ref void
+        if invariants != none {
+            for inv in invariants as list[ref parser.Node] {
+                collect_used_imports_expr(inv as ref parser.Node, import_names, used)
+            }
+        }
+    } elif item.kind == parser.NK_UNIONDEF {
+        val variants: ref void = item.d2 as ref void
+        if variants != none {
+            for variant in variants as list[ref parser.Node] {
+                collect_used_imports_type(variant as ref parser.Node, import_names, used)
+            }
+        }
+    } elif item.kind == parser.NK_TAGGED_UNIONDEF {
+        val variants: ref void = item.d2 as ref void
+        if variants != none {
+            for variant in variants as list[ref parser.Node] {
+                val vtypes: ref void = (variant as ref parser.Node).d1 as ref void
+                if vtypes != none {
+                    for vtype in vtypes as list[ref parser.Node] {
+                        collect_used_imports_type(vtype as ref parser.Node, import_names, used)
+                    }
+                }
+            }
+        }
+    } elif item.kind == parser.NK_SPEC {
+        val methods: ref void = item.d2 as ref void
+        if methods != none {
+            for method in methods as list[ref parser.Node] {
+                collect_used_imports_item(method as ref parser.Node, import_names, used)
+            }
+        }
+    } elif item.kind == parser.NK_WHEN_ITEMS {
+        val when_items: ref void = item.d1 as ref void
+        if when_items != none {
+            collect_used_imports_items(when_items as list[ref parser.Node], import_names, used)
+        }
+        val or_branches: ref void = item.d2 as ref void
+        if or_branches != none {
+            for or_node in or_branches as list[ref parser.Node] {
+                val or_items: ref void = (or_node as ref parser.Node).d1 as ref void
+                if or_items != none {
+                    collect_used_imports_items(or_items as list[ref parser.Node], import_names, used)
+                }
+            }
+        }
+        val otherwise_items: ref void = item.d3 as ref void
+        if otherwise_items != none {
+            collect_used_imports_items(otherwise_items as list[ref parser.Node], import_names, used)
+        }
     }
 }
 
@@ -2498,54 +2710,59 @@ fn collect_used_imports_items(items: list[ref parser.Node], import_names: list[r
         val item_opt = @get(items, ii as usize)
         match item_opt {
             some item_val => {
-                val item: ref parser.Node = item_val as ref parser.Node
-
-                if item.kind == parser.NK_FN || item.kind == parser.NK_GENERIC_FN {
-                    val body: ref void = item.d5 as ref void
-                    if body != none {
-                        val blen: i64 = @len(body) as i64
-                        if blen < 0 || blen > 100000 {
-                            ii++
-                            continue
-                        }
-                        val bi: mut i64 = 0
-                        for {
-                            if bi >= blen { break }
-                            val stmt_opt = @get(body, bi as usize)
-                            match stmt_opt {
-                                some stmt => { collect_used_imports_stmt(stmt as ref parser.Node, import_names, used) }
-                                none => {}
-                            }
-                            bi++
-                        }
-                    }
-                } elif item.kind == parser.NK_TEST {
-                    val body: ref void = item.d0 as ref void
-                    if body != none {
-                        val blen: i64 = @len(body) as i64
-                        if blen < 0 || blen > 100000 {
-                            ii++
-                            continue
-                        }
-                        val bi: mut i64 = 0
-                        for {
-                            if bi >= blen { break }
-                            val stmt_opt = @get(body, bi as usize)
-                            match stmt_opt {
-                                some stmt => { collect_used_imports_stmt(stmt as ref parser.Node, import_names, used) }
-                                none => {}
-                            }
-                            bi++
-                        }
-                    }
-                } elif item.kind == parser.NK_CONST {
-                    collect_used_imports_expr(item.d2 as ref parser.Node, import_names, used)
-                }
+                collect_used_imports_item(item_val as ref parser.Node, import_names, used)
             }
             none => {}
         }
         ii++
     }
+}
+
+fn append_import_aliases(items: list[ref parser.Node], aliases: mut list[ref u8]) void = trust {
+    for item in items {
+        if item == none { continue }
+        if item.kind == parser.NK_USE {
+            val import_name: ref u8 = item.d1 as ref u8
+            if import_name != none && !import_in_list(aliases, import_name) {
+                @append(aliases, import_name)
+            }
+        } elif item.kind == parser.NK_WHEN_ITEMS {
+            val when_items: ref void = item.d1 as ref void
+            if when_items != none {
+                append_import_aliases(when_items as list[ref parser.Node], aliases)
+            }
+            val or_branches: ref void = item.d2 as ref void
+            if or_branches != none {
+                for or_node in or_branches as list[ref parser.Node] {
+                    val or_items: ref void = (or_node as ref parser.Node).d1 as ref void
+                    if or_items != none {
+                        append_import_aliases(or_items as list[ref parser.Node], aliases)
+                    }
+                }
+            }
+            val otherwise_items: ref void = item.d3 as ref void
+            if otherwise_items != none {
+                append_import_aliases(otherwise_items as list[ref parser.Node], aliases)
+            }
+        }
+    }
+}
+
+pub fn collect_unused_import_names_in_items(items: list[ref parser.Node]) list[ref u8] = trust {
+    val import_names: mut list[ref u8] = []
+    append_import_aliases(items, import_names)
+    if @len(import_names) == 0 { return [] }
+
+    val used_imports: mut list[ref u8] = []
+    collect_used_imports_items(items, import_names, used_imports)
+
+    val unused_imports: mut list[ref u8] = []
+    for import_name in import_names {
+        if !import_in_list(used_imports, import_name) {
+            @append(unused_imports, import_name)
+        }
+    }
+    return unused_imports
 }
 
 /// Collect links only from modules that are actually used.
