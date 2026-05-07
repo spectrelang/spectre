@@ -42,6 +42,23 @@ run_samples() {
             continue
         fi
 
+        if [[ "$filename" == *_rv.sx ]]; then
+            ((total++))
+
+            "$COMPILER" run "$file" > /dev/null 2>&1
+            status=$?
+
+            if [ $status -eq 0 ]; then
+                echo "[PASS] $filename (runtime check)"
+                ((passed++))
+            else
+                echo "[FAIL] $filename (runtime check)"
+                ((failed++))
+            fi
+
+            continue
+        fi
+
         ((total++))
 
         extra_args=()
