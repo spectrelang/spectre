@@ -8,14 +8,15 @@ extern (C) fn rewind(stream: ref void) void = "rewind"
 extern (C) fn remove(path: ref u8) i32 = "remove"
 extern (C) fn rename(old: ref u8, new: ref u8) i32 = "rename"
 extern (C) fn strlen(s: ref u8) i64 = "strlen"
+extern (C) fn strdup(s: ref u8) ref u8 = "strdup"
 extern (C) fn getcwd(buf: ref u8, size: usize) ref u8 = "getcwd"
+
 pub extern (C) fn getenv(name: ref u8) ref u8 = "getenv"
 pub extern (C) fn mkdir(path: ref u8, mode: u32) i32 = "mkdir"
 pub extern (C) fn rmdir(path: ref u8) i32 = "rmdir"
 pub extern (C) fn opendir(path: ref u8) ref void = "opendir"
 pub extern (C) fn closedir(dir: ref void) i32 = "closedir"
 pub extern (C) fn readdir(dir: ref void) ref Dirent = "readdir"
-extern (C) fn strdup(s: ref u8) ref u8 = "strdup"
 
 when linux {
     extern type Dirent = {
