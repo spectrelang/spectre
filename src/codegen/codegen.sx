@@ -32,6 +32,7 @@ pub type CgCtx = {
     ltypes: mut list[ref u8]
     unames: mut list[ref u8]
     uvariants:mut list[ref void]
+    fn_nodes: mut list[ref void]
     fn_names: mut list[ref u8]
     fn_params: mut list[ref void]
     fn_rets: mut list[ref void]
@@ -98,6 +99,7 @@ fn cg_new() ref CgCtx = trust {
     ctx.ltypes = []
     ctx.unames = []
     ctx.uvariants = []
+    ctx.fn_nodes = []
     ctx.fn_names = []
     ctx.fn_params = []
     ctx.fn_rets = []
@@ -342,6 +344,30 @@ fn lookup_generic_fn_prefix(ctx: ref CgCtx, name: ref u8) ref u8 = trust {
             some p => { return p as ref u8 }
             none   => { return "" }
         }
+    }
+    return ""
+}
+
+fn lookup_generic_fn_prefix_by_node(ctx: ref CgCtx, node: ref parser.Node) ref u8 = trust {
+    if node == none { return "" }
+    val nlen: i64 = @len(ctx.gfn_nodes as list[ref void]) as i64
+    val ni: mut i64 = 0
+    for {
+        if ni >= nlen { break }
+        val nd_opt = @get(ctx.gfn_nodes as list[ref void], ni as usize)
+        match nd_opt {
+            some nd => {
+                if nd as ref parser.Node == node {
+                    val p_opt = @get(ctx.gfn_prefixes, ni as usize)
+                    match p_opt {
+                        some p => { return p as ref u8 }
+                        none   => { return "" }
+                    }
+                }
+            }
+            none => {}
+        }
+        ni++
     }
     return ""
 }
@@ -1429,10 +1455,35 @@ fn cg_resolve_fn_name(ctx: ref CgCtx, name: ref u8) ref u8 = trust {
 }
 
 /// Register a function's mangled name and its param list for call-site type checking.
-fn cg_register_fn(ctx: ref CgCtx, mangled: ref u8, params: ref void, ret_ty: ref void) void = trust {
+fn cg_register_fn(ctx: ref CgCtx, node: ref parser.Node, mangled: ref u8, params: ref void, ret_ty: ref void) void = trust {
+    @append(ctx.fn_nodes as list[ref void], node as ref void)
     @append(ctx.fn_names, mangled)
     @append(ctx.fn_params as list[ref void], params)
     @append(ctx.fn_rets as list[ref void], ret_ty)
+}
+
+fn cg_lookup_fn_name_by_node(ctx: ref CgCtx, node: ref parser.Node) ref u8 = trust {
+    if node == none { return none }
+    val nlen: i64 = @len(ctx.fn_nodes as list[ref void]) as i64
+    val ni: mut i64 = 0
+    for {
+        if ni >= nlen { break }
+        val nd_opt = @get(ctx.fn_nodes as list[ref void], ni as usize)
+        match nd_opt {
+            some nd => {
+                if nd as ref parser.Node == node {
+                    val n_opt = @get(ctx.fn_names, ni as usize)
+                    match n_opt {
+                        some n => { return n as ref u8 }
+                        none   => { return none }
+                    }
+                }
+            }
+            none => {}
+        }
+        ni++
+    }
+    return none
 }
 
 /// Look up param list for a mangled function name. Returns 0 if not found.
@@ -1574,15 +1625,32 @@ fn cg_lookup_fn_ret_type_expr(ctx: ref CgCtx, name: ref u8) ref parser.Node = tr
     return none
 }
 
-fn cg_infer_call_ret_ty(ctx: mut ref CgCtx, callee: ref parser.Node) ref parser.Node = trust {
+fn cg_infer_call_ret_ty(ctx: mut ref CgCtx, expr: ref parser.Node) ref parser.Node = trust {
+    if expr == none || expr.kind != parser.NK_CALL { return none }
+    val callee: ref parser.Node = parser.call_callee(expr)
     if callee == none { return none }
+    val resolved_fn: ref parser.Node = parser.call_resolved_fn(expr)
 
-    if callee.kind != parser.NK_GENERIC_INST { return none }
+    if callee.kind != parser.NK_GENERIC_INST {
+        if resolved_fn == none { return none }
+        if resolved_fn.kind == parser.NK_FN || resolved_fn.kind == parser.NK_GENERIC_FN {
+            return cg_concrete_ty(ctx, resolved_fn.d4 as ref parser.Node)
+        }
+        if resolved_fn.kind == parser.NK_EXTERN_FN {
+            return cg_concrete_ty(ctx, resolved_fn.d5 as ref parser.Node)
+        }
+        return none
+    }
 
     val gi_base: ref parser.Node = parser.generic_inst_base(callee)
     val gi_targs: list[ref parser.Node] = parser.generic_inst_type_args(callee)
     val base_name: ref u8 = generic_callee_base_name(ctx, gi_base)
-    val gfn_node: ref parser.Node = lookup_generic_fn(ctx, base_name)
+    val gfn_node: mut ref parser.Node = none
+    if resolved_fn != none && resolved_fn.kind == parser.NK_GENERIC_FN {
+        gfn_node = resolved_fn
+    } else {
+        gfn_node = lookup_generic_fn(ctx, base_name)
+    }
     if gfn_node == none { return none }
 
     val resolved_targs: mut list[ref parser.Node] = []
@@ -2719,7 +2787,7 @@ fn infer_type_annotation(ctx: ref CgCtx, expr: ref parser.Node) ref u8 = trust {
 
     if k == parser.NK_CALL {
         val callee: ref parser.Node = parser.call_callee(expr)
-        val ret_expr: ref parser.Node = cg_infer_call_ret_ty(ctx, callee)
+        val ret_expr: ref parser.Node = cg_infer_call_ret_ty(ctx, expr)
         if ret_expr != none {
             return type_expr_to_annotation(ctx, ret_expr)
         }
@@ -4625,7 +4693,7 @@ fn expr_qbe_type(ctx: ref CgCtx, expr: ref parser.Node) ref u8 = trust {
 
     if k == parser.NK_CALL {
         val callee_node: ref parser.Node = parser.call_callee(expr)
-        val ret_ty_node: ref parser.Node = cg_infer_call_ret_ty(ctx, callee_node)
+        val ret_ty_node: ref parser.Node = cg_infer_call_ret_ty(ctx, expr)
         if ret_ty_node != none {
             return qbe_type_of(ret_ty_node)
         }
@@ -4835,7 +4903,7 @@ fn gen_binop(ctx: ref CgCtx, expr: ref parser.Node) ref u8 = trust {
     val rhs_is_word: mut bool = str.rchar_cmp(rhs_qbt, "w") == 0
     if !lhs_is_word && lhs_expr.kind == parser.NK_CALL {
         val lhs_cn: ref parser.Node = parser.call_callee(lhs_expr)
-        val lhs_ret: mut ref parser.Node = cg_infer_call_ret_ty(ctx, lhs_cn)
+        val lhs_ret: mut ref parser.Node = cg_infer_call_ret_ty(ctx, lhs_expr)
         if lhs_ret == none {
             val lhs_cname: ref u8 = resolve_callee_name(ctx, lhs_cn)
             lhs_ret = cg_lookup_fn_ret_type_expr(ctx, lhs_cname)
@@ -4846,7 +4914,7 @@ fn gen_binop(ctx: ref CgCtx, expr: ref parser.Node) ref u8 = trust {
     }
     if !rhs_is_word && rhs_expr.kind == parser.NK_CALL {
         val rhs_cn: ref parser.Node = parser.call_callee(rhs_expr)
-        val rhs_ret: mut ref parser.Node = cg_infer_call_ret_ty(ctx, rhs_cn)
+        val rhs_ret: mut ref parser.Node = cg_infer_call_ret_ty(ctx, rhs_expr)
         if rhs_ret == none {
             val rhs_cname: ref u8 = resolve_callee_name(ctx, rhs_cn)
             rhs_ret = cg_lookup_fn_ret_type_expr(ctx, rhs_cname)
@@ -5716,6 +5784,7 @@ fn gen_call(ctx: ref CgCtx, expr: ref parser.Node) ref u8 = trust {
         val gi_base: ref parser.Node = parser.generic_inst_base(callee_node)
         val gi_targs: list[ref parser.Node] = parser.generic_inst_type_args(callee_node)
         val base_name: ref u8 = generic_callee_base_name(ctx, gi_base)
+        val resolved_fn_node: ref parser.Node = parser.call_resolved_fn(expr)
         val arg_tmps_g: mut list[ref u8] = []
         val arg_qts_g: mut list[ref u8] = []
         if args_list != none {
@@ -5757,10 +5826,19 @@ fn gen_call(ctx: ref CgCtx, expr: ref parser.Node) ref u8 = trust {
                 gai++
             }
         }
-        val gfn_node: ref parser.Node = lookup_generic_fn(ctx, base_name)
+        val gfn_node: mut ref parser.Node = none
         val mono_base: mut ref u8 = none
+        val gfn_prefix: mut ref u8 = ""
+        if resolved_fn_node != none && resolved_fn_node.kind == parser.NK_GENERIC_FN {
+            gfn_node = resolved_fn_node
+            gfn_prefix = lookup_generic_fn_prefix_by_node(ctx, gfn_node)
+        } else {
+            gfn_node = lookup_generic_fn(ctx, base_name)
+            if gfn_node != none {
+                gfn_prefix = lookup_generic_fn_prefix(ctx, base_name)
+            }
+        }
         if gfn_node != none {
-            val gfn_prefix: ref u8 = lookup_generic_fn_prefix(ctx, base_name)
             val resolved_targs: mut list[ref parser.Node] = []
             for ta in gi_targs { @append(resolved_targs, cg_concrete_ty(ctx, ta as ref parser.Node)) }
             mono_base = monomorphize_generic_fn(ctx, gfn_node, gfn_prefix, resolved_targs)
@@ -6255,8 +6333,16 @@ fn gen_call(ctx: ref CgCtx, expr: ref parser.Node) ref u8 = trust {
     }
 
     val tmp: mut i64 = fresh_tmp(ctx)
-    val resolved_callee: ref u8 = cg_resolve_fn_name(ctx, callee_name)
-    val ext_sym2: ref u8 = cg_lookup_extern_symbol(ctx, callee_name)
+    val resolved_fn_node: ref parser.Node = parser.call_resolved_fn(expr)
+    val exact_callee: ref u8 = cg_lookup_fn_name_by_node(ctx, resolved_fn_node)
+    val resolved_callee: mut ref u8 = exact_callee
+    if resolved_callee == none {
+        resolved_callee = cg_resolve_fn_name(ctx, callee_name)
+    }
+    val ext_sym2: mut ref u8 = none
+    if exact_callee == none {
+        ext_sym2 = cg_lookup_extern_symbol(ctx, callee_name)
+    }
     val effective_callee: mut ref u8 = ""
     if resolved_callee != none {
         effective_callee = resolved_callee
@@ -8316,7 +8402,7 @@ fn gen_stmt(ctx: ref CgCtx, stmt: ref parser.Node) void = trust {
         } elif expr != none && expr.kind == parser.NK_CALL {
             val callee: ref parser.Node = parser.call_callee(expr)
             val callee_name: ref u8 = resolve_callee_name(ctx, callee)
-            val ret_expr: mut ref parser.Node = cg_infer_call_ret_ty(ctx, callee)
+            val ret_expr: mut ref parser.Node = cg_infer_call_ret_ty(ctx, expr)
             if ret_expr == none &&
                callee != none &&
                callee_name != none &&
@@ -10217,7 +10303,7 @@ fn gen_fn_prefixed(ctx: mut ref CgCtx, fn_node: ref parser.Node, mod_prefix: ref
     cg_set_fn_name(ctx, mangled)
 
     if params != none {
-        cg_register_fn(ctx, mangled, params, ret_ty as ref void)
+        cg_register_fn(ctx, fn_node, mangled, params, ret_ty as ref void)
     }
 
     val export_kw: mut ref u8 = ""
@@ -10526,7 +10612,7 @@ fn gen_extern_fn_prefixed(ctx: ref CgCtx, item: ref parser.Node, mod_prefix: ref
     cg_register_extern(ctx, name, symbol, ret_ty)
 
     if params != none {
-        cg_register_fn(ctx, symbol, params, ret_ty)
+        cg_register_fn(ctx, item, symbol, params, ret_ty)
     }
 
     if public == 1 && str.rchar_cmp(mod_prefix, "") != 0 {
@@ -10534,7 +10620,7 @@ fn gen_extern_fn_prefixed(ctx: ref CgCtx, item: ref parser.Node, mod_prefix: ref
         @snprintf(mangled_name, 512, "{s}__{s}", {mod_prefix, name})
         cg_register_extern(ctx, mangled_name, symbol, ret_ty)
         if params != none {
-            cg_register_fn(ctx, mangled_name, params, ret_ty)
+            cg_register_fn(ctx, item, mangled_name, params, ret_ty)
         }
         @free(mangled_name)
     }
@@ -10763,7 +10849,7 @@ fn preregister_items(ctx: ref CgCtx, items: list[ref parser.Node], mod_prefix: r
                         @snprintf(mangled, 512, "{s}__{s}", {mod_prefix, base})
                     }
                     if params != none {
-                        cg_register_fn(ctx, mangled, params, ret_ty)
+                        cg_register_fn(ctx, node, mangled, params, ret_ty)
                     }
                 } elif k == parser.NK_TAGGED_UNIONDEF {
                     gen_tagged_union_def(ctx, node, mod_prefix)

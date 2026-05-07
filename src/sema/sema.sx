@@ -2654,6 +2654,7 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
             }
         }
         val resolved_fn: ref parser.Node = resolve_called_fn(ctx, callee)
+        parser.call_set_resolved_fn(expr, resolved_fn)
         if base_callee != none {
             if base_callee.kind == parser.NK_IDENT {
                 val fname2: ref u8 = base_callee.d0 as ref u8

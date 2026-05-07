@@ -21,6 +21,7 @@ pub type CCtx = {
     sfields: mut list[ref void]
     unames: mut list[ref u8]
     uvariants: mut list[ref void]
+    fn_nodes: mut list[ref void]
     fn_names: mut list[ref u8]
     fn_params: mut list[ref void]
     fn_rets: mut list[ref void]
@@ -83,6 +84,7 @@ fn cc_new() ref CCtx = trust {
     ctx.sfields = []
     ctx.unames = []
     ctx.uvariants = []
+    ctx.fn_nodes = []
     ctx.fn_names = []
     ctx.fn_params = []
     ctx.fn_rets = []
@@ -344,8 +346,7 @@ fn cc_infer_expr_ty(ctx: ref CCtx, expr: ref parser.Node) ref parser.Node = trus
         return out_i64
     }
     if k == parser.NK_CALL {
-        val callee: ref parser.Node = parser.call_callee(expr)
-        val ret: ref parser.Node = cc_infer_call_ret_ty(ctx, callee)
+        val ret: ref parser.Node = cc_infer_call_ret_ty(ctx, expr)
         if ret != none { return ret }
     }
     if k == parser.NK_BUILTIN {
@@ -732,6 +733,30 @@ fn cc_register_generic_fn(ctx: ref CCtx, name: ref u8, node: ref parser.Node, pr
     @append(ctx.gfn_names, name)
     @append(ctx.gfn_nodes as list[ref void], node as ref void)
     @append(ctx.gfn_prefixes, prefix)
+}
+
+fn cc_lookup_generic_fn_prefix_by_node(ctx: ref CCtx, node: ref parser.Node) ref u8 = trust {
+    if node == none { return "" }
+    val nlen: i64 = @len(ctx.gfn_nodes as list[ref void]) as i64
+    val ni: mut i64 = 0
+    for {
+        if ni >= nlen { break }
+        val nd_opt = @get(ctx.gfn_nodes as list[ref void], ni as usize)
+        match nd_opt {
+            some nd => {
+                if nd as ref parser.Node == node {
+                    val p_opt = @get(ctx.gfn_prefixes, ni as usize)
+                    match p_opt {
+                        some p => { return p as ref u8 }
+                        none   => { return "" }
+                    }
+                }
+            }
+            none => {}
+        }
+        ni++
+    }
+    return ""
 }
 
 fn cc_lookup_generic_fn(ctx: ref CCtx, name: ref u8) ref parser.Node = trust {
@@ -1283,7 +1308,7 @@ fn cc_spectre_type_name_of(ctx: ref CCtx, ty: ref parser.Node) ref u8 = trust {
     return spectre_type_name_of(cc_concrete_ty(ctx, ty))
 }
 
-fn cc_register_fn(ctx: ref CCtx, mangled: ref u8, params: ref void, ret_ty: ref void, is_variadic: bool, no_forward: bool) void = trust {
+fn cc_register_fn(ctx: ref CCtx, node: ref parser.Node, mangled: ref u8, params: ref void, ret_ty: ref void, is_variadic: bool, no_forward: bool) void = trust {
     val nlen: i64 = @len(ctx.fn_names as list[ref u8]) as i64
     val ni: mut i64 = 0
     for {
@@ -1297,11 +1322,36 @@ fn cc_register_fn(ctx: ref CCtx, mangled: ref u8, params: ref void, ret_ty: ref 
         }
         ni++
     }
+    @append(ctx.fn_nodes as list[ref void], node as ref void)
     @append(ctx.fn_names, mangled)
     @append(ctx.fn_params as list[ref void], params)
     @append(ctx.fn_rets as list[ref void], ret_ty)
     @append(ctx.fn_variadics, is_variadic)
     @append(ctx.fn_no_forward, no_forward)
+}
+
+fn cc_lookup_fn_name_by_node(ctx: ref CCtx, node: ref parser.Node) ref u8 = trust {
+    if node == none { return none }
+    val nlen: i64 = @len(ctx.fn_nodes as list[ref void]) as i64
+    val ni: mut i64 = 0
+    for {
+        if ni >= nlen { break }
+        val nd_opt = @get(ctx.fn_nodes as list[ref void], ni as usize)
+        match nd_opt {
+            some nd => {
+                if nd as ref parser.Node == node {
+                    val n_opt = @get(ctx.fn_names as list[ref u8], ni as usize)
+                    match n_opt {
+                        some n => { return n as ref u8 }
+                        none   => { return none }
+                    }
+                }
+            }
+            none => {}
+        }
+        ni++
+    }
+    return none
 }
 
 fn cc_lookup_fn_params(ctx: ref CCtx, mangled: ref u8) ref void = trust {
@@ -1824,13 +1874,21 @@ fn resolve_callee_name(ctx: ref CCtx, callee: ref parser.Node) ref u8 = trust {
     return "unknown"
 }
 
-fn cc_infer_call_ret_ty(ctx: mut ref CCtx, callee: ref parser.Node) ref parser.Node = trust {
+fn cc_infer_call_ret_ty(ctx: mut ref CCtx, expr: ref parser.Node) ref parser.Node = trust {
+    if expr == none || expr.kind != parser.NK_CALL { return none }
+    val callee: ref parser.Node = parser.call_callee(expr)
     if callee == none { return none }
+    val resolved_fn: ref parser.Node = parser.call_resolved_fn(expr)
     if callee.kind == parser.NK_GENERIC_INST {
         val gi_base: ref parser.Node = parser.generic_inst_base(callee)
         val gi_targs: list[ref parser.Node] = parser.generic_inst_type_args(callee)
         val base_name: ref u8 = cc_generic_callee_base_name(ctx, gi_base)
-        val gfn_node: ref parser.Node = cc_lookup_generic_fn(ctx, base_name)
+        val gfn_node: mut ref parser.Node = none
+        if resolved_fn != none && resolved_fn.kind == parser.NK_GENERIC_FN {
+            gfn_node = resolved_fn
+        } else {
+            gfn_node = cc_lookup_generic_fn(ctx, base_name)
+        }
         if gfn_node == none { return none }
         val resolved_targs: mut list[ref parser.Node] = []
         for ta in gi_targs { @append(resolved_targs, cc_concrete_ty(ctx, ta as ref parser.Node)) }
@@ -1865,9 +1923,14 @@ fn cc_infer_call_ret_ty(ctx: mut ref CCtx, callee: ref parser.Node) ref parser.N
         ctx.gsubst_tnodes = old_gsubst_tnodes
         return ret_ty
     }
-    val cname: ref u8 = resolve_callee_name(ctx, callee)
-    val ret: ref parser.Node = cc_lookup_fn_ret(ctx, cname)
-    if ret != none { return cc_concrete_ty(ctx, ret) }
+    if resolved_fn != none {
+        if resolved_fn.kind == parser.NK_FN || resolved_fn.kind == parser.NK_GENERIC_FN {
+            return cc_concrete_ty(ctx, resolved_fn.d4 as ref parser.Node)
+        }
+        if resolved_fn.kind == parser.NK_EXTERN_FN {
+            return cc_concrete_ty(ctx, resolved_fn.d5 as ref parser.Node)
+        }
+    }
     return none
 }
 
@@ -2376,7 +2439,18 @@ fn gen_call(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
         val gi_base: ref parser.Node = parser.generic_inst_base(callee)
         val gi_targs: list[ref parser.Node] = parser.generic_inst_type_args(callee)
         val base_name: ref u8 = cc_generic_callee_base_name(ctx, gi_base)
-        val gfn_node: ref parser.Node = cc_lookup_generic_fn(ctx, base_name)
+        val resolved_fn: ref parser.Node = parser.call_resolved_fn(expr)
+        val gfn_node: mut ref parser.Node = none
+        val gfn_prefix: mut ref u8 = ""
+        if resolved_fn != none && resolved_fn.kind == parser.NK_GENERIC_FN {
+            gfn_node = resolved_fn
+            gfn_prefix = cc_lookup_generic_fn_prefix_by_node(ctx, gfn_node)
+        } else {
+            gfn_node = cc_lookup_generic_fn(ctx, base_name)
+            if gfn_node != none {
+                gfn_prefix = cc_lookup_generic_fn_prefix_by_node(ctx, gfn_node)
+            }
+        }
         val mono_base: mut ref u8 = none
         if gfn_node != none {
             val resolved_targs: mut list[ref parser.Node] = []
@@ -2386,7 +2460,7 @@ fn gen_call(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
                 @append(resolved_targs, resolved_ta)
                 targ_idx++
             }
-            mono_base = cc_monomorphize_generic_fn(ctx, gfn_node, "", resolved_targs)
+            mono_base = cc_monomorphize_generic_fn(ctx, gfn_node, gfn_prefix, resolved_targs)
         }
         if mono_base == none { mono_base = base_name }
         val c_mangled: ref u8 = @alloc(1024) as ref u8
@@ -2542,8 +2616,16 @@ fn gen_call(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
     @free(tv_owner_slot)
     @free(tv_field_slot)
 
-    val resolved: ref u8 = cc_resolve_fn_name(ctx, callee_name)
-    val ext_sym: ref u8 = cc_lookup_extern_symbol(ctx, callee_name)
+    val resolved_fn_node: ref parser.Node = parser.call_resolved_fn(expr)
+    val exact_callee: ref u8 = cc_lookup_fn_name_by_node(ctx, resolved_fn_node)
+    val resolved: mut ref u8 = exact_callee
+    if resolved == none {
+        resolved = cc_resolve_fn_name(ctx, callee_name)
+    }
+    val ext_sym: mut ref u8 = none
+    if exact_callee == none {
+        ext_sym = cc_lookup_extern_symbol(ctx, callee_name)
+    }
     val is_fn_ptr: bool = resolved == none && ext_sym == none && cc_is_local_declared(ctx, callee_name)
 
     val effective: mut ref u8 = callee_name
@@ -3406,7 +3488,7 @@ fn gen_stmt(ctx: mut ref CCtx, stmt: ref parser.Node) void = trust {
                 ie = init_expr.d0 as ref parser.Node
             }
             if ie != none && ie.kind == parser.NK_CALL {
-                val ret: ref parser.Node = cc_infer_call_ret_ty(ctx, parser.call_callee(ie))
+                val ret: ref parser.Node = cc_infer_call_ret_ty(ctx, ie)
                 if ret != none {
                     val rk: i64 = ret.kind
                     if rk == parser.TY_RESULT || rk == parser.TY_OPTION {
@@ -4088,7 +4170,7 @@ fn gen_fn_prefixed(ctx: mut ref CCtx, fn_node: ref parser.Node, mod_prefix: ref 
     ctx.fn_name = mangled
     val saved_prefix: ref u8 = ctx.current_prefix
     ctx.current_prefix = mod_prefix
-    if params != none { cc_register_fn(ctx, mangled, params, ret_ty as ref void, false, false) }
+    if params != none { cc_register_fn(ctx, fn_node, mangled, params, ret_ty as ref void, false, false) }
     val ret_ct: ref u8 = c_ret_type_of(ctx, ret_ty)
     val is_main: bool = str.rchar_cmp(name, "main") == 0 && str.rchar_cmp(mod_prefix, "") == 0
     ctx.current_ret_ctype = ret_ct
@@ -4220,7 +4302,7 @@ fn preregister_items(ctx: ref CCtx, items: list[ref parser.Node], mod_prefix: re
                     else { @snprintf(mangled, 512, "sx__{s}", {base}) }
                 } elif is_sc { @snprintf(mangled, 512, "std__{s}__{s}", {mod_prefix, base}) }
                 else { @snprintf(mangled, 512, "{s}__{s}", {mod_prefix, base}) }
-                if params != none { cc_register_fn(ctx, mangled, params, ret_ty, false, false) }
+                if params != none { cc_register_fn(ctx, node, mangled, params, ret_ty, false, false) }
             } elif k == parser.NK_TAGGED_UNIONDEF { gen_tagged_union_def(ctx, node, mod_prefix) }
             elif k == parser.NK_UNIONDEF { gen_union_def_prefixed(ctx, node, mod_prefix) }
             elif k == parser.NK_ENUMDEF { gen_enum_def_prefixed(ctx, node, mod_prefix) }
@@ -4235,13 +4317,13 @@ fn preregister_items(ctx: ref CCtx, items: list[ref parser.Node], mod_prefix: re
                 val is_sc2: mut bool = false
                 for scn2 in get_std_child_names() { if str.rchar_cmp(scn2, mod_prefix) == 0 { is_sc2 = true break } }
                 cc_register_extern(ctx, name, symbol, ret_ty)
-                if params != none { cc_register_fn(ctx, symbol, params, ret_ty, is_var, no_forward) }
+                if params != none { cc_register_fn(ctx, node, symbol, params, ret_ty, is_var, no_forward) }
                 if str.rchar_cmp(mod_prefix, "") != 0 { val m: ref u8 = @alloc(512) as ref u8
                     @snprintf(m, 512, "{s}__{s}", {mod_prefix, name}) cc_register_extern(ctx, m, symbol, ret_ty)
-                    if params != none { cc_register_fn(ctx, m, params, ret_ty, is_var, no_forward) } }
+                    if params != none { cc_register_fn(ctx, node, m, params, ret_ty, is_var, no_forward) } }
                 if is_sc2 { val sm: ref u8 = @alloc(512) as ref u8
                     @snprintf(sm, 512, "std__{s}__{s}", {mod_prefix, name}) cc_register_extern(ctx, sm, symbol, ret_ty)
-                    if params != none { cc_register_fn(ctx, sm, params, ret_ty, is_var, no_forward) } }
+                    if params != none { cc_register_fn(ctx, node, sm, params, ret_ty, is_var, no_forward) } }
             }
             elif k == parser.NK_CONST { val cn: ref u8 = node.d1 as ref u8 val ce: ref parser.Node = node.d2 as ref parser.Node
                 val cv: mut ref u8 = none

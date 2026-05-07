@@ -217,6 +217,10 @@ fn make_call(callee: ref Node, line: i64, args: list[ref Node]) result[ref Node,
 
 pub fn call_callee(n: ref Node) ref Node = trust { return n.d0 as ref Node }
 pub fn call_args(n: ref Node) list[ref Node] = trust { return n.d1 as list[ref Node] }
+pub fn call_resolved_fn(n: ref Node) ref Node = trust { return n.d2 as ref Node }
+pub fn call_set_resolved_fn(n: ref Node, fn_node: ref Node) void = trust {
+    node_store_slot[ref Node](@addr(n.d2), fn_node)
+}
 
 fn make_struct_field(name: ref u8, line: i64, expr: ref Node) result[ref Node, ref u8] = trust {
     val n: mut ref Node = make_node(NK_FIELD, line)
