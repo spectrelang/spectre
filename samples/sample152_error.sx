@@ -1,0 +1,13 @@
+pub fn integral_only[T](value: T, delta: T) T = {
+    when T in (i32, i64, usize, isize) {
+        return value + delta
+    }
+    when T !in (i32, i64, usize, isize) {
+        @staticerror("integral_only expects an integral type")
+    }
+}
+
+pub fn main() void = {
+    val wrong = integral_only[f64](1.0, 2.0)
+    trust @print("{f}\n", {wrong})
+}

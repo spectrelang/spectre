@@ -1,0 +1,15 @@
+val str = use("std/string")
+
+pub fn join_only[T, U](left: T, right: U) T = {
+    when T is ref u8 && U is ref u8 {
+        return trust str.concat_raw(left, right)
+    }
+    when _ {
+        @staticerror("join_only expects two strings")
+    }
+}
+
+pub fn main() void = {
+    val wrong = join_only[ref u8, i32]("value: ", 7)
+    trust @print("{s}\n", {wrong})
+}

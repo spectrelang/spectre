@@ -1,0 +1,11 @@
+pub fn add_same[T](left: T, right: T) T = {
+    when T in (i32, i64, usize, isize) {
+        return left + right
+    }
+    return left
+}
+
+pub fn main() void = {
+    val wrong = add_same[i32](20 as i32, 22.0)
+    trust @print("{d}\n", {wrong})
+}
