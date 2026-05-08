@@ -137798,47 +137798,45 @@ function l $alt_codegen__gen_unop(l %ctx, l %expr) {
     %t0 =l call $parser__unop_op(l %expr)
     %t1 =l call $parser__unop_inner(l %expr)
     %t2 =l call $alt_codegen__gen_expr(l %ctx, l %t1)
-    %t4 =l copy 256
-    %t3 =l call $malloc(l %t4)
-    %t5 =l copy %t3
-    %t6 =l copy 1
-    %t7 =w ceql %t0, %t6
-    jnz %t7, @lbl27523, @lbl27525
+    %t3 =l call $std__string__len_raw(l %t2)
+    %t4 =l copy 16
+    %t5 =l add %t3, %t4
+    %t6 =l call $malloc(l %t5)
+    %t7 =l copy %t6
+    %t8 =l copy 1
+    %t9 =w ceql %t0, %t8
+    jnz %t9, @lbl27523, @lbl27525
 @lbl27523
-    %t9 =l copy 256
-    %t10 =l copy $__str990
-    %t8 =w call $snprintf(l %t5, l %t9, l %t10, ..., l %t2)
-    %t11 =l extsw %t8
+    %t11 =l copy $__str990
+    %t10 =w call $snprintf(l %t7, l %t5, l %t11, ..., l %t2)
+    %t12 =l extsw %t10
     jmp @lbl27524
 @lbl27525
-    %t12 =l copy 2
-    %t13 =w ceql %t0, %t12
-    jnz %t13, @lbl27526, @lbl27527
+    %t13 =l copy 2
+    %t14 =w ceql %t0, %t13
+    jnz %t14, @lbl27526, @lbl27527
 @lbl27526
-    %t15 =l copy 256
     %t16 =l copy $__str991
-    %t14 =w call $snprintf(l %t5, l %t15, l %t16, ..., l %t2)
-    %t17 =l extsw %t14
+    %t15 =w call $snprintf(l %t7, l %t5, l %t16, ..., l %t2)
+    %t17 =l extsw %t15
     jmp @lbl27524
 @lbl27527
     %t18 =l copy 3
     %t19 =w ceql %t0, %t18
     jnz %t19, @lbl27528, @lbl27529
 @lbl27528
-    %t21 =l copy 256
-    %t22 =l copy $__str992
-    %t20 =w call $snprintf(l %t5, l %t21, l %t22, ..., l %t2)
-    %t23 =l extsw %t20
+    %t21 =l copy $__str992
+    %t20 =w call $snprintf(l %t7, l %t5, l %t21, ..., l %t2)
+    %t22 =l extsw %t20
     jmp @lbl27524
 @lbl27529
-    %t25 =l copy 256
-    %t26 =l copy $__str943
-    %t24 =w call $snprintf(l %t5, l %t25, l %t26, ..., l %t2)
-    %t27 =l extsw %t24
+    %t24 =l copy $__str943
+    %t23 =w call $snprintf(l %t7, l %t5, l %t24, ..., l %t2)
+    %t25 =l extsw %t23
     jmp @lbl27524
 @lbl27524
-    %t28 =l call $alt_codegen__cc_expr_track(l %ctx, l %t5)
-    ret %t28
+    %t26 =l call $alt_codegen__cc_expr_track(l %ctx, l %t7)
+    ret %t26
 }
 
 function l $alt_codegen__gen_field(l %ctx, l %expr) {
