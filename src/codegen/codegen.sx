@@ -10361,7 +10361,7 @@ fn gen_match_tagged_union(ctx: ref CgCtx, stmt: ref parser.Node) void = trust {
 }
 
 fn get_std_child_names() mut list[ref u8] = {
-    val std_child_names: list[ref u8] = ["allocators", "collections", "crypto", "fmt", "fs", "log", "math", "os", "path", "random", "reflection", "stdio", "string", "str", "time", "thread", "algorithms"]
+    val std_child_names: list[ref u8] = ["allocators", "collections", "crypto", "fmt", "fs", "log", "math", "os", "path", "random", "reflection", "stdio", "string", "str", "time", "thread", "algorithms", "encoding"]
     return std_child_names
 }
 
