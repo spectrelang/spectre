@@ -1,0 +1,5 @@
+val stdio: i32 = use("std/stdio")
+
+pub fn main() void = {
+    stdio.puts("hi")
+}
