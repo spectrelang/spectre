@@ -1,0 +1,102 @@
+/// Read some u16 from a data pointer (little-endian)
+pub fn read_u16_le(data: ref u8, offset: usize) u16 = trust {
+    val b0: u16 = @load8(@ptradd(data, offset + (0 as usize))) as u16
+    val b1: u16 = @load8(@ptradd(data, offset + (1 as usize))) as u16
+    return b0 | (b1 << 8)
+}
+
+/// Read some u32 from a data pointer (little-endian)
+pub fn read_u32_le(data: ref u8, offset: usize) u32 = trust {
+    val b0: u32 = @load8(@ptradd(data, offset + (0 as usize))) as u32
+    val b1: u32 = @load8(@ptradd(data, offset + (1 as usize))) as u32
+    val b2: u32 = @load8(@ptradd(data, offset + (2 as usize))) as u32
+    val b3: u32 = @load8(@ptradd(data, offset + (3 as usize))) as u32
+    return b0 | (b1 << 8) | (b2 << 16) | (b3 << 24)
+}
+
+/// Read some u64 from a data pointer (little-endian)
+pub fn read_u64_le(data: ref u8, offset: usize) u64 = trust {
+    val b0: u64 = @load8(@ptradd(data, offset + (0 as usize))) as u64
+    val b1: u64 = @load8(@ptradd(data, offset + (1 as usize))) as u64
+    val b2: u64 = @load8(@ptradd(data, offset + (2 as usize))) as u64
+    val b3: u64 = @load8(@ptradd(data, offset + (3 as usize))) as u64
+    val b4: u64 = @load8(@ptradd(data, offset + (4 as usize))) as u64
+    val b5: u64 = @load8(@ptradd(data, offset + (5 as usize))) as u64
+    val b6: u64 = @load8(@ptradd(data, offset + (6 as usize))) as u64
+    val b7: u64 = @load8(@ptradd(data, offset + (7 as usize))) as u64
+
+    return b0
+        | (b1 << 8)
+        | (b2 << 16)
+        | (b3 << 24)
+        | (b4 << 32)
+        | (b5 << 40)
+        | (b6 << 48)
+        | (b7 << 56)
+}
+
+/// Write some u16 into a data pointer (little-endian)
+pub fn write_u16_le(data: ref u8, offset: usize, value: u16) void = trust {
+    @store8(@ptradd(data, offset + (0 as usize)), (value & 255) as u8)
+    @store8(@ptradd(data, offset + (1 as usize)), ((value >> 8) & 255) as u8)
+}
+
+/// Write some u32 into a data pointer (little-endian)
+pub fn write_u32_le(data: ref u8, offset: usize, value: u32) void = trust {
+    @store8(@ptradd(data, offset + (0 as usize)), (value & 255) as u8)
+    @store8(@ptradd(data, offset + (1 as usize)), ((value >> 8) & 255) as u8)
+    @store8(@ptradd(data, offset + (2 as usize)), ((value >> 16) & 255) as u8)
+    @store8(@ptradd(data, offset + (3 as usize)), ((value >> 24) & 255) as u8)
+}
+
+/// Write some u64 into a data pointer (little-endian)
+pub fn write_u64_le(data: ref u8, offset: usize, value: u64) void = trust {
+    @store8(@ptradd(data, offset + (0 as usize)), (value & 255) as u8)
+    @store8(@ptradd(data, offset + (1 as usize)), ((value >> 8) & 255) as u8)
+    @store8(@ptradd(data, offset + (2 as usize)), ((value >> 16) & 255) as u8)
+    @store8(@ptradd(data, offset + (3 as usize)), ((value >> 24) & 255) as u8)
+    @store8(@ptradd(data, offset + (4 as usize)), ((value >> 32) & 255) as u8)
+    @store8(@ptradd(data, offset + (5 as usize)), ((value >> 40) & 255) as u8)
+    @store8(@ptradd(data, offset + (6 as usize)), ((value >> 48) & 255) as u8)
+    @store8(@ptradd(data, offset + (7 as usize)), ((value >> 56) & 255) as u8)
+}
+
+test {
+    val data: [32]u8 = @zeroed
+
+    trust {
+        write_u16_le(data as ref u8, 0 as usize, 0x1234 as u16)
+        assert(read_u16_le(data as ref u8, 0 as usize) == (0x1234 as u16))
+
+        write_u32_le(data as ref u8, 4 as usize, 0xDEADBEEF as u32)
+        assert(read_u32_le(data as ref u8, 4 as usize) == (0xDEADBEEF as u32))
+
+        write_u64_le(data as ref u8, 8 as usize, 0x1122334455667788 as u64)
+        assert(read_u64_le(data as ref u8, 8 as usize) == (0x1122334455667788 as u64))
+
+        
+        if @get(data, 0) is some v {
+            assert v == 0x34 as u8
+        } else {
+            assert false
+        }
+        
+        if @get(data, 1) is some v {
+            assert v == (0x12 as u8)
+        } else {
+            assert false
+        }
+
+        if @get(data, 4) is some v { 
+            assert v == (0xEF as u8)
+        } else {
+            assert false
+        }
+
+        if @get(data, 5) is some v {
+            assert v == 0xBE as u8
+        } else {
+            assert false
+        }
+    }
+}
