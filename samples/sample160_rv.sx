@@ -1,0 +1,21 @@
+type Manager = {
+    scenes: list[i32]
+    active_index: usize
+}
+
+type App = {
+    scene_manager: mut Manager
+}
+
+pub fn main() i32 = {
+    val app: App = {
+        scene_manager: {
+            scenes: [7 as i32],
+            active_index: 0 as usize
+        }
+    }
+    if @get(app.scene_manager.scenes, app.scene_manager.active_index) is some value {
+        return value
+    }
+    return 0 as i32
+}

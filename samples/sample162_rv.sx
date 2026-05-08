@@ -1,0 +1,26 @@
+type Scene = {
+    target_exposure: f32
+}
+
+type Manager = {
+    scenes: list[Scene]
+    active_index: usize
+}
+
+type App = {
+    scene_manager: mut Manager
+}
+
+pub fn main() i32 = trust {
+    val app: App = {
+        scene_manager: {
+            scenes: [{ target_exposure: 1.0 as f32 }],
+            active_index: 0 as usize
+        }
+    }
+    val current_exposure: mut f32 = 0.86 as f32
+    if @get(app.scene_manager.scenes, app.scene_manager.active_index) is some scene {
+        current_exposure = scene.target_exposure
+    }
+    return current_exposure as i32
+}
