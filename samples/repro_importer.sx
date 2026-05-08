@@ -1,3 +1,5 @@
+// Problem: C emission for list element assignments inside a returned struct literal corrupts when imported
+// symbol names are long enough.
 val abcdef = use("abcdef.sx")
 
 fn build_demo_scene() abcdef.Scene3D = {
