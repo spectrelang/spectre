@@ -1,0 +1,65 @@
+pub type Vec3 = {
+    x: f32
+    y: f32
+    z: f32
+}
+
+pub type Star = {
+    position: Vec3
+    color: Vec3
+    radius: f32
+    glow: f32
+}
+
+pub type Particle = {
+    center: Vec3
+    color: Vec3
+    radius: f32
+    orbit_radius: f32
+    speed: f32
+    phase: f32
+    height: f32
+    glow: f32
+}
+
+pub type Demo = {
+    stars: list[Star]
+    particles: list[Particle]
+}
+
+pub fn make_vec3(x: f32, y: f32, z: f32) Vec3 = {
+    return { x: x, y: y, z: z }
+}
+
+pub fn make_star(position: Vec3, color: Vec3, radius: f32, glow: f32) Star = {
+    return {
+        position: position,
+        color: color,
+        radius: radius,
+        glow: glow
+    }
+}
+
+pub fn make_particle(
+    center: Vec3,
+    color: Vec3,
+    radius: f32,
+    orbit_radius: f32,
+    speed: f32,
+    phase: f32,
+    height: f32,
+    glow: f32
+) Particle = {
+    return {
+        center: center,
+        color: color,
+        radius: radius,
+        orbit_radius: orbit_radius,
+        speed: speed,
+        phase: phase,
+        height: height,
+        glow: glow
+    }
+}
+
+pub fn main() void = {}

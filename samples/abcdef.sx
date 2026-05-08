@@ -1,0 +1,133 @@
+pub type Vec3 = {
+    x: f32
+    y: f32
+    z: f32
+}
+
+pub type SphereEntity = {
+    position: Vec3
+    color: Vec3
+    radius: f32
+}
+
+pub type CubeEntity = {
+    position: Vec3
+    color: Vec3
+    size: f32
+    rotation_speed: f32
+}
+
+pub type StarEntity = {
+    position: Vec3
+    color: Vec3
+    radius: f32
+    glow: f32
+}
+
+pub type ParticleEntity = {
+    center: Vec3
+    color: Vec3
+    radius: f32
+    orbit_radius: f32
+    speed: f32
+    phase: f32
+    height: f32
+    glow: f32
+}
+
+pub type Environment3D = {
+    sky_bottom: Vec3
+    sky_top: Vec3
+    ambient_strength: f32
+    floor_tint: Vec3
+    floor_alpha: f32
+    floor_reflectivity: f32
+}
+
+pub type GlbModel = {
+    valid: mut bool
+    byte_length: mut usize
+    json_length: mut usize
+    bin_length: mut usize
+    mesh_name: mut ref u8
+    primitive_count: mut i32
+    vertex_count: mut i32
+    index_count: mut i32
+    has_normals: mut bool
+    has_uvs: mut bool
+}
+
+pub type Scene3D = {
+    sphere0: SphereEntity
+    sphere1: SphereEntity
+    cube0: CubeEntity
+    cube1: CubeEntity
+    stars: list[StarEntity]
+    particles: list[ParticleEntity]
+    environment: Environment3D
+    model: mut GlbModel
+}
+
+pub fn make_vec3(x: f32, y: f32, z: f32) Vec3 = {
+    return { x: x, y: y, z: z }
+}
+
+pub fn make_sphere(position: Vec3, color: Vec3, radius: f32) SphereEntity = {
+    return { position: position, color: color, radius: radius }
+}
+
+pub fn make_cube(position: Vec3, color: Vec3, size: f32, rotation_speed: f32) CubeEntity = {
+    return { position: position, color: color, size: size, rotation_speed: rotation_speed }
+}
+
+pub fn make_star(position: Vec3, color: Vec3, radius: f32, glow: f32) StarEntity = {
+    return { position: position, color: color, radius: radius, glow: glow }
+}
+
+pub fn make_particle(
+    center: Vec3,
+    color: Vec3,
+    radius: f32,
+    orbit_radius: f32,
+    speed: f32,
+    phase: f32,
+    height: f32,
+    glow: f32
+) ParticleEntity = {
+    return {
+        center: center,
+        color: color,
+        radius: radius,
+        orbit_radius: orbit_radius,
+        speed: speed,
+        phase: phase,
+        height: height,
+        glow: glow
+    }
+}
+
+pub fn default_environment() Environment3D = {
+    return {
+        sky_bottom: make_vec3(0.12 as f32, 0.18 as f32, 0.34 as f32),
+        sky_top: make_vec3(0.40 as f32, 0.62 as f32, 0.98 as f32),
+        ambient_strength: 0.58 as f32,
+        floor_tint: make_vec3(0.08 as f32, 0.10 as f32, 0.14 as f32),
+        floor_alpha: 0.38 as f32,
+        floor_reflectivity: 0.42 as f32
+    }
+}
+
+pub fn empty_model() GlbModel = {
+    return {
+        valid: false,
+        byte_length: 0 as usize,
+        json_length: 0 as usize,
+        bin_length: 0 as usize,
+        mesh_name: "",
+        primitive_count: 0 as i32,
+        vertex_count: 0 as i32,
+        index_count: 0 as i32,
+        has_normals: false,
+        has_uvs: false
+    }
+}

@@ -1,0 +1,29 @@
+type Pair = {
+    x: f32
+    y: f32
+}
+
+type Demo = {
+    stars: list[Pair]
+    particles: list[Pair]
+}
+
+fn make_pair(x: f32, y: f32) Pair = {
+    return { x: x, y: y }
+}
+
+pub fn main() i32 = {
+    val d: Demo = {
+        stars: [
+            make_pair(0.1 as f32, 0.2 as f32)
+        ],
+        particles: [
+            make_pair(1.2 as f32, 1.4 as f32),
+            make_pair(0.5 as f32, 0.3 as f32),
+            make_pair(2.1 as f32, 0.6 as f32),
+            make_pair(2.4 as f32, 0.7 as f32)
+        ]
+    }
+    trust @print("{p}\n", {d})
+    return 0
+}
