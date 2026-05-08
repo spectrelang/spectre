@@ -145642,127 +145642,129 @@ function w $alt_codegen__gen_match_opt(l %ctx, l %stmt) {
     %t10 =l call $parser__match_opt_none_body(l %stmt)
     %t11 =l loadl %t0
     %t12 =l call $alt_codegen__fresh_tmp(l %t11)
-    %t14 =l copy 256
-    %t13 =l call $malloc(l %t14)
-    %t15 =l copy %t13
-    %t17 =l copy 256
-    %t18 =l copy $__str1124
-    %t19 =l loadl %t3
-    %t16 =w call $snprintf(l %t15, l %t17, l %t18, ..., l %t12, l %t19, l %t12)
-    %t20 =l extsw %t16
-    %t21 =l loadl %t0
-    %t22 =w call $alt_codegen__emit(l %t21, l %t15)
-    call $free(l %t15)
-    %t23 =l copy 0
-    %t24 =l loadl %t0
-    %t25 =l copy $__str947
-    %t26 =w call $alt_codegen__emitln(l %t24, l %t25)
-    %t27 =l loadl %t0
-    %t28 =w call $alt_codegen__cc_expr_drain(l %t27)
-    %t29 =l copy 0
-    %t30 =w cnel %t8, %t29
-    jnz %t30, @lbl29040, @lbl29041
+    %t13 =l loadl %t3
+    %t14 =l call $std__string__len_raw(l %t13)
+    %t15 =l copy 64
+    %t16 =l add %t14, %t15
+    %t17 =l call $malloc(l %t16)
+    %t18 =l copy %t17
+    %t20 =l copy $__str1124
+    %t21 =l loadl %t3
+    %t19 =w call $snprintf(l %t18, l %t16, l %t20, ..., l %t12, l %t21, l %t12)
+    %t22 =l extsw %t19
+    %t23 =l loadl %t0
+    %t24 =w call $alt_codegen__emit(l %t23, l %t18)
+    call $free(l %t18)
+    %t25 =l copy 0
+    %t26 =l loadl %t0
+    %t27 =l copy $__str947
+    %t28 =w call $alt_codegen__emitln(l %t26, l %t27)
+    %t29 =l loadl %t0
+    %t30 =w call $alt_codegen__cc_expr_drain(l %t29)
+    %t31 =l copy 0
+    %t32 =w cnel %t8, %t31
+    jnz %t32, @lbl29040, @lbl29041
 @lbl29040
-    %t31 =l copy $__str916
-    %t32 =l alloc8 8
-    storel %t31, %t32
     %t33 =l copy $__str916
     %t34 =l alloc8 8
     storel %t33, %t34
-    %t35 =l copy 0
+    %t35 =l copy $__str916
     %t36 =l alloc8 8
     storel %t35, %t36
-    %t37 =l loadl %t0
-    %t38 =l call $alt_codegen__cc_infer_expr_ty(l %t37, l %t1)
-    %t39 =l call $alt_codegen__cc_unwrap_option_inner_ty(l %t38)
-    %t40 =l copy 0
-    %t41 =w cnel %t39, %t40
-    jnz %t41, @lbl29043, @lbl29044
+    %t37 =l copy 0
+    %t38 =l alloc8 8
+    storel %t37, %t38
+    %t39 =l loadl %t0
+    %t40 =l call $alt_codegen__cc_infer_expr_ty(l %t39, l %t1)
+    %t41 =l call $alt_codegen__cc_unwrap_option_inner_ty(l %t40)
+    %t42 =l copy 0
+    %t43 =w cnel %t41, %t42
+    jnz %t43, @lbl29043, @lbl29044
 @lbl29043
-    %t42 =l loadl %t0
-    %t43 =l call $alt_codegen__cc_spectre_type_name_of(l %t42, l %t39)
-    storel %t43, %t32
-    %t44 =l call $alt_codegen__c_type_of(l %t39)
-    storel %t44, %t34
-    storel %t39, %t36
+    %t44 =l loadl %t0
+    %t45 =l call $alt_codegen__cc_spectre_type_name_of(l %t44, l %t41)
+    storel %t45, %t34
+    %t46 =l call $alt_codegen__c_type_of(l %t41)
+    storel %t46, %t36
+    storel %t41, %t38
     jmp @lbl29044
 @lbl29044
-    %t46 =l copy 256
-    %t45 =l call $malloc(l %t46)
-    %t47 =l copy %t45
-    %t48 =l loadl %t34
-    %t49 =l copy $__str926
-    %t50 =l call $std__string__rchar_cmp(l %t48, l %t49)
-    %t51 =l copy 0
-    %t52 =w ceql %t50, %t51
-    %t53 =l alloc4 1
-    storew %t52, %t53
-    jnz %t52, @lbl29050, @lbl29049
+    %t48 =l copy 256
+    %t47 =l call $malloc(l %t48)
+    %t49 =l copy %t47
+    %t50 =l loadl %t36
+    %t51 =l copy $__str926
+    %t52 =l call $std__string__rchar_cmp(l %t50, l %t51)
+    %t53 =l copy 0
+    %t54 =w ceql %t52, %t53
+    %t55 =l alloc4 1
+    storew %t54, %t55
+    jnz %t54, @lbl29050, @lbl29049
 @lbl29049
-    %t54 =l loadl %t34
-    %t55 =l copy $__str433
-    %t56 =l call $std__string__rchar_cmp(l %t54, l %t55)
-    %t57 =l copy 0
-    %t58 =w ceql %t56, %t57
-    storew %t58, %t53
+    %t56 =l loadl %t36
+    %t57 =l copy $__str433
+    %t58 =l call $std__string__rchar_cmp(l %t56, l %t57)
+    %t59 =l copy 0
+    %t60 =w ceql %t58, %t59
+    storew %t60, %t55
     jmp @lbl29050
 @lbl29050
-    %t59 =w loadw %t53
-    jnz %t59, @lbl29046, @lbl29048
+    %t61 =w loadw %t55
+    jnz %t61, @lbl29046, @lbl29048
 @lbl29046
-    %t61 =l copy 256
-    %t62 =l copy $__str1125
-    %t63 =l loadl %t34
-    %t64 =l loadl %t34
-    %t60 =w call $snprintf(l %t47, l %t61, l %t62, ..., l %t63, l %t8, l %t64, l %t12)
-    %t65 =l extsw %t60
+    %t63 =l copy 256
+    %t64 =l copy $__str1125
+    %t65 =l loadl %t36
+    %t66 =l loadl %t36
+    %t62 =w call $snprintf(l %t49, l %t63, l %t64, ..., l %t65, l %t8, l %t66, l %t12)
+    %t67 =l extsw %t62
     jmp @lbl29047
 @lbl29048
-    %t67 =l copy 256
-    %t68 =l copy $__str1126
-    %t66 =w call $snprintf(l %t47, l %t67, l %t68, ..., l %t8, l %t12)
-    %t69 =l extsw %t66
+    %t69 =l copy 256
+    %t70 =l copy $__str1126
+    %t68 =w call $snprintf(l %t49, l %t69, l %t70, ..., l %t8, l %t12)
+    %t71 =l extsw %t68
     jmp @lbl29047
 @lbl29047
-    %t70 =l loadl %t0
-    %t71 =w call $alt_codegen__emit(l %t70, l %t47)
-    call $free(l %t47)
-    %t72 =l copy 0
-    %t73 =l loadl %t0
-    %t74 =l loadl %t32
-    %t75 =l loadl %t36
-    %t76 =l copy 0
-    %t77 =w call $alt_codegen__cc_register_local(l %t73, l %t8, l %t74, l %t75, l %t76)
+    %t72 =l loadl %t0
+    %t73 =w call $alt_codegen__emit(l %t72, l %t49)
+    call $free(l %t49)
+    %t74 =l copy 0
+    %t75 =l loadl %t0
+    %t76 =l loadl %t34
+    %t77 =l loadl %t38
+    %t78 =l copy 0
+    %t79 =w call $alt_codegen__cc_register_local(l %t75, l %t8, l %t76, l %t77, l %t78)
     jmp @lbl29041
 @lbl29041
-    %t78 =l copy 0
-    %t79 =w cnel %t9, %t78
-    jnz %t79, @lbl29051, @lbl29052
+    %t80 =l copy 0
+    %t81 =w cnel %t9, %t80
+    jnz %t81, @lbl29051, @lbl29052
 @lbl29051
-    %t80 =l loadl %t0
-    %t82 =l add %t9, 16
-    %t81 =l loadl %t82
-    %t83 =l copy %t81
-    %t84 =w call $alt_codegen__gen_stmts(l %t80, l %t83)
+    %t82 =l loadl %t0
+    %t84 =l add %t9, 16
+    %t83 =l loadl %t84
+    %t85 =l copy %t83
+    %t86 =w call $alt_codegen__gen_stmts(l %t82, l %t85)
     jmp @lbl29052
 @lbl29052
-    %t85 =l loadl %t0
-    %t86 =l copy $__str1105
-    %t87 =w call $alt_codegen__emitln(l %t85, l %t86)
-    %t88 =l copy 0
-    %t89 =w cnel %t10, %t88
-    jnz %t89, @lbl29054, @lbl29055
+    %t87 =l loadl %t0
+    %t88 =l copy $__str1105
+    %t89 =w call $alt_codegen__emitln(l %t87, l %t88)
+    %t90 =l copy 0
+    %t91 =w cnel %t10, %t90
+    jnz %t91, @lbl29054, @lbl29055
 @lbl29054
-    %t90 =l loadl %t0
-    %t92 =l add %t10, 16
-    %t91 =l loadl %t92
-    %t93 =l copy %t91
-    %t94 =w call $alt_codegen__gen_stmts(l %t90, l %t93)
+    %t92 =l loadl %t0
+    %t94 =l add %t10, 16
+    %t93 =l loadl %t94
+    %t95 =l copy %t93
+    %t96 =w call $alt_codegen__gen_stmts(l %t92, l %t95)
     jmp @lbl29055
 @lbl29055
-    %t95 =l loadl %t0
-    %t96 =l copy $__str1123
-    %t97 =w call $alt_codegen__emitln(l %t95, l %t96)
+    %t97 =l loadl %t0
+    %t98 =l copy $__str1123
+    %t99 =w call $alt_codegen__emitln(l %t97, l %t98)
     ret 0
 }
 
