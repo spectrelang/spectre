@@ -141908,113 +141908,115 @@ function l $alt_codegen__gen_struct_lit(l %ctx, l %expr) {
     storel %t110, %t92
     jmp @lbl28307
 @lbl28307
-    %t112 =l copy 512
-    %t111 =l call $malloc(l %t112)
-    %t113 =l copy %t111
-    %t114 =l copy $__str914
-    %t115 =l alloc8 8
-    storel %t114, %t115
-    %t116 =l loadl %t19
-    %t117 =l copy 0
-    %t118 =w cnel %t116, %t117
-    jnz %t118, @lbl28312, @lbl28313
+    %t111 =l copy $__str914
+    %t112 =l alloc8 8
+    storel %t111, %t112
+    %t113 =l loadl %t19
+    %t114 =l copy 0
+    %t115 =w cnel %t113, %t114
+    jnz %t115, @lbl28312, @lbl28313
 @lbl28312
-    %t119 =l loadl %t0
-    %t120 =l loadl %t19
-    %t122 =l add %t84, 16
-    %t121 =l loadl %t122
-    %t123 =l copy %t121
-    %t124 =l call $alt_codegen__cc_field_ctype_from_fields(l %t119, l %t120, l %t123)
-    storel %t124, %t115
+    %t116 =l loadl %t0
+    %t117 =l loadl %t19
+    %t119 =l add %t84, 16
+    %t118 =l loadl %t119
+    %t120 =l copy %t118
+    %t121 =l call $alt_codegen__cc_field_ctype_from_fields(l %t116, l %t117, l %t120)
+    storel %t121, %t112
     jmp @lbl28313
 @lbl28313
-    %t125 =l loadl %t0
-    %t127 =l add %t125, 968
-    %t126 =l loadl %t127
-    %t128 =l loadl %t92
-    %t129 =l copy 0
-    %t130 =w cnel %t128, %t129
-    jnz %t130, @lbl28315, @lbl28316
+    %t122 =l loadl %t0
+    %t124 =l add %t122, 968
+    %t123 =l loadl %t124
+    %t125 =l loadl %t92
+    %t126 =l copy 0
+    %t127 =w cnel %t125, %t126
+    jnz %t127, @lbl28315, @lbl28316
 @lbl28315
-    %t131 =l loadl %t92
-    %t132 =l loadl %t0
-    %t133 =l add %t132, 968
-    storel %t131, %t133
+    %t128 =l loadl %t92
+    %t129 =l loadl %t0
+    %t130 =l add %t129, 968
+    storel %t128, %t130
     jmp @lbl28316
 @lbl28316
-    %t134 =l loadl %t0
-    %t136 =l add %t84, 24
-    %t135 =l loadl %t136
-    %t137 =l copy %t135
-    %t138 =l call $alt_codegen__gen_expr(l %t134, l %t137)
-    %t139 =l loadl %t0
-    %t140 =l add %t139, 968
-    storel %t126, %t140
-    %t141 =l loadl %t0
-    %t142 =l loadl %t92
-    %t143 =w call $alt_codegen__cc_type_needs_aggregate_copy(l %t141, l %t142)
-    jnz %t143, @lbl28318, @lbl28320
+    %t131 =l loadl %t0
+    %t133 =l add %t84, 24
+    %t132 =l loadl %t133
+    %t134 =l copy %t132
+    %t135 =l call $alt_codegen__gen_expr(l %t131, l %t134)
+    %t136 =l loadl %t0
+    %t137 =l add %t136, 968
+    storel %t123, %t137
+    %t138 =l call $std__string__len_raw(l %t135)
+    %t139 =l loadl %t112
+    %t140 =l call $std__string__len_raw(l %t139)
+    %t141 =l add %t138, %t140
+    %t142 =l copy 160
+    %t143 =l add %t141, %t142
+    %t144 =l call $malloc(l %t143)
+    %t145 =l copy %t144
+    %t146 =l loadl %t0
+    %t147 =l loadl %t92
+    %t148 =w call $alt_codegen__cc_type_needs_aggregate_copy(l %t146, l %t147)
+    jnz %t148, @lbl28318, @lbl28320
 @lbl28318
-    %t145 =l add %t84, 24
-    %t144 =l loadl %t145
-    %t146 =l copy %t144
-    %t147 =w call $alt_codegen__cc_expr_is_zero_init_like(l %t146)
-    jnz %t147, @lbl28321, @lbl28323
+    %t150 =l add %t84, 24
+    %t149 =l loadl %t150
+    %t151 =l copy %t149
+    %t152 =w call $alt_codegen__cc_expr_is_zero_init_like(l %t151)
+    jnz %t152, @lbl28321, @lbl28323
 @lbl28321
-    %t149 =l copy 512
-    %t150 =l copy $__str1060
-    %t151 =l loadl %t88
-    %t152 =l loadl %t90
-    %t148 =w call $snprintf(l %t113, l %t149, l %t150, ..., l %t45, l %t151, l %t152)
-    %t153 =l extsw %t148
+    %t154 =l copy $__str1060
+    %t155 =l loadl %t88
+    %t156 =l loadl %t90
+    %t153 =w call $snprintf(l %t145, l %t143, l %t154, ..., l %t45, l %t155, l %t156)
+    %t157 =l extsw %t153
     jmp @lbl28322
 @lbl28323
-    %t155 =l copy 512
-    %t156 =l copy $__str1061
-    %t157 =l loadl %t88
-    %t158 =l loadl %t90
-    %t154 =w call $snprintf(l %t113, l %t155, l %t156, ..., l %t45, l %t157, l %t138, l %t158)
-    %t159 =l extsw %t154
+    %t159 =l copy $__str1061
+    %t160 =l loadl %t88
+    %t161 =l loadl %t90
+    %t158 =w call $snprintf(l %t145, l %t143, l %t159, ..., l %t45, l %t160, l %t135, l %t161)
+    %t162 =l extsw %t158
     jmp @lbl28322
 @lbl28322
     jmp @lbl28319
 @lbl28320
-    %t161 =l copy 512
-    %t162 =l copy $__str1062
-    %t163 =l loadl %t115
-    %t164 =l loadl %t88
-    %t165 =l loadl %t115
-    %t160 =w call $snprintf(l %t113, l %t161, l %t162, ..., l %t163, l %t45, l %t164, l %t165, l %t138)
-    %t166 =l extsw %t160
+    %t164 =l copy $__str1062
+    %t165 =l loadl %t112
+    %t166 =l loadl %t88
+    %t167 =l loadl %t112
+    %t163 =w call $snprintf(l %t145, l %t143, l %t164, ..., l %t165, l %t45, l %t166, l %t167, l %t135)
+    %t168 =l extsw %t163
     jmp @lbl28319
 @lbl28319
-    %t167 =l loadl %t0
-    %t168 =w call $alt_codegen__emit(l %t167, l %t113)
-    call $free(l %t113)
-    %t169 =l copy 0
+    %t169 =l loadl %t0
+    %t170 =w call $alt_codegen__emit(l %t169, l %t145)
+    call $free(l %t145)
+    %t171 =l copy 0
     jmp @lbl28305
 @lbl28304
     jmp @lbl28305
 @lbl28305
-    %t170 =l loadl %t65
-    %t171 =l add %t170, 1
-    storel %t171, %t65
+    %t172 =l loadl %t65
+    %t173 =l add %t172, 1
+    storel %t173, %t65
     jmp @lbl28295
 @lbl28295
     jmp @lbl28293
 @lbl28296
     jmp @lbl28291
 @lbl28291
-    %t173 =l copy 64
-    %t172 =l call $malloc(l %t173)
-    %t174 =l copy %t172
-    %t176 =l copy 64
-    %t177 =l copy $__str1063
-    %t175 =w call $snprintf(l %t174, l %t176, l %t177, ..., l %t45)
-    %t178 =l extsw %t175
-    %t179 =l loadl %t0
-    %t180 =l call $alt_codegen__cc_expr_track(l %t179, l %t174)
-    ret %t180
+    %t175 =l copy 64
+    %t174 =l call $malloc(l %t175)
+    %t176 =l copy %t174
+    %t178 =l copy 64
+    %t179 =l copy $__str1063
+    %t177 =w call $snprintf(l %t176, l %t178, l %t179, ..., l %t45)
+    %t180 =l extsw %t177
+    %t181 =l loadl %t0
+    %t182 =l call $alt_codegen__cc_expr_track(l %t181, l %t176)
+    ret %t182
 }
 
 function l $alt_codegen__gen_list_lit(l %ctx, l %expr) {
@@ -142136,41 +142138,42 @@ function l $alt_codegen__gen_list_lit(l %ctx, l %expr) {
     %t75 =l loadl %t0
     %t76 =l add %t75, 968
     storel %t66, %t76
-    %t78 =l copy 256
-    %t77 =l call $malloc(l %t78)
-    %t79 =l copy %t77
-    %t81 =l copy 256
-    %t82 =l copy $__str1065
-    %t83 =l loadl %t45
-    %t80 =w call $snprintf(l %t79, l %t81, l %t82, ..., l %t18, l %t83, l %t74)
-    %t84 =l extsw %t80
-    %t85 =l loadl %t0
-    %t86 =w call $alt_codegen__emit(l %t85, l %t79)
-    call $free(l %t79)
-    %t87 =l copy 0
+    %t77 =l call $std__string__len_raw(l %t74)
+    %t78 =l copy 96
+    %t79 =l add %t77, %t78
+    %t80 =l call $malloc(l %t79)
+    %t81 =l copy %t80
+    %t83 =l copy $__str1065
+    %t84 =l loadl %t45
+    %t82 =w call $snprintf(l %t81, l %t79, l %t83, ..., l %t18, l %t84, l %t74)
+    %t85 =l extsw %t82
+    %t86 =l loadl %t0
+    %t87 =w call $alt_codegen__emit(l %t86, l %t81)
+    call $free(l %t81)
+    %t88 =l copy 0
     jmp @lbl28345
 @lbl28344
     jmp @lbl28345
 @lbl28345
-    %t88 =l loadl %t45
-    %t89 =l add %t88, 1
-    storel %t89, %t45
+    %t89 =l loadl %t45
+    %t90 =l add %t89, 1
+    storel %t90, %t45
     jmp @lbl28335
 @lbl28335
     jmp @lbl28333
 @lbl28336
     jmp @lbl28331
 @lbl28331
-    %t91 =l copy 64
-    %t90 =l call $malloc(l %t91)
-    %t92 =l copy %t90
-    %t94 =l copy 64
-    %t95 =l copy $__str1066
-    %t93 =w call $snprintf(l %t92, l %t94, l %t95, ..., l %t18)
-    %t96 =l extsw %t93
-    %t97 =l loadl %t0
-    %t98 =l call $alt_codegen__cc_expr_track(l %t97, l %t92)
-    ret %t98
+    %t92 =l copy 64
+    %t91 =l call $malloc(l %t92)
+    %t93 =l copy %t91
+    %t95 =l copy 64
+    %t96 =l copy $__str1066
+    %t94 =w call $snprintf(l %t93, l %t95, l %t96, ..., l %t18)
+    %t97 =l extsw %t94
+    %t98 =l loadl %t0
+    %t99 =l call $alt_codegen__cc_expr_track(l %t98, l %t93)
+    ret %t99
 }
 
 function l $alt_codegen__gen_field_addr(l %ctx, l %expr) {
