@@ -1,0 +1,29 @@
+
+extern (C) fn write(fd: i32, buf: ref void, count: usize) i64 = "write"
+ 
+extern type Inner = {
+    value: mut i32
+    flag: mut bool
+    pad1: mut u8
+    pad2: mut u8
+}
+
+extern type Outer = {
+    format: mut i32
+    inner: mut Inner
+}
+
+pub fn main() i32 = trust {
+    val x: mut Outer = {
+        format: 0x11223344 as i32,
+        inner: {
+            value: 0x55667788 as i32,
+            flag: true,
+            pad1: 0xAA as u8,
+            pad2: 0xBB as u8
+        }
+    }
+
+    write(1 as i32, @addr(x) as ref void, @sizeof(Outer) as usize)
+    return @sizeof(Outer) as i32
+}

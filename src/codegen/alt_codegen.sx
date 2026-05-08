@@ -19,6 +19,7 @@ pub type CCtx = {
     str_cnt: mut i64
     snames: mut list[ref u8]
     sfields: mut list[ref void]
+    sis_extern: mut list[bool]
     unames: mut list[ref u8]
     uvariants: mut list[ref void]
     fn_nodes: mut list[ref void]
@@ -83,6 +84,7 @@ fn cc_new() ref CCtx = trust {
     ctx.str_cnt = 0
     ctx.snames = []
     ctx.sfields = []
+    ctx.sis_extern = []
     ctx.unames = []
     ctx.uvariants = []
     ctx.fn_nodes = []
@@ -1559,8 +1561,8 @@ fn cc_lookup_extern_symbol(ctx: ref CCtx, name: ref u8) ref u8 = trust {
     return none
 }
 
-fn cc_register_struct(ctx: ref CCtx, tname: ref u8, fields: ref void) void = trust {
-    @append(ctx.snames, tname) @append(ctx.sfields, fields)
+fn cc_register_struct(ctx: ref CCtx, tname: ref u8, fields: ref void, is_extern: bool) void = trust {
+    @append(ctx.snames, tname) @append(ctx.sfields, fields) @append(ctx.sis_extern, is_extern)
 }
 
 fn cc_lookup_struct(ctx: ref CCtx, tname: ref u8) ref void = trust {
@@ -1602,6 +1604,57 @@ fn cc_lookup_struct(ctx: ref CCtx, tname: ref u8) ref void = trust {
         }
     }
     return none
+}
+
+fn cc_struct_uses_c_abi(ctx: ref CCtx, fields: ref void) bool = trust {
+    if fields == none { return false }
+    val nlen: i64 = @len(ctx.sfields as list[ref void]) as i64
+    val ni: mut i64 = 0
+    for {
+        if ni >= nlen { break }
+        val f_opt = @get(ctx.sfields as list[ref void], ni as usize)
+        match f_opt {
+            some f => {
+                if f as ref void == fields {
+                    val ex_opt = @get(ctx.sis_extern as list[bool], ni as usize)
+                    match ex_opt {
+                        some is_extern => { return is_extern }
+                        none => { return false }
+                    }
+                }
+            }
+            none => {}
+        }
+        ni++
+    }
+    return false
+}
+
+fn cc_align_to(n: i64, align: i64) i64 = trust {
+    if align <= 1 { return n }
+    return ((n + align - 1) / align) * align
+}
+
+fn cc_struct_align_bytes(ctx: ref CCtx, fields: ref void) i64 = trust {
+    if fields == none { return 1 }
+    if !cc_struct_uses_c_abi(ctx, fields) { return 8 }
+    val flen: i64 = @len(fields as list[ref void]) as i64
+    val max_align: mut i64 = 1
+    val fi: mut i64 = 0
+    for {
+        if fi >= flen { break }
+        val f_opt = @get(fields as list[ref void], fi as usize)
+        match f_opt {
+            some f => {
+                val fn_node: ref parser.Node = f as ref parser.Node
+                val falign: i64 = cc_c_abi_align_of(ctx, fn_node.d2 as ref parser.Node)
+                if falign > max_align { max_align = falign }
+            }
+            none => {}
+        }
+        fi++
+    }
+    return max_align
 }
 
 fn cc_rewrite_empty_struct_init(ctx: ref CCtx, expr: ref parser.Node) bool = trust {
@@ -1649,6 +1702,69 @@ fn c_size_of(ctx: ref CCtx, ty: ref parser.Node) i64 = trust {
     return 8
 }
 
+fn cc_c_abi_size_of(ctx: ref CCtx, ty: ref parser.Node) i64 = trust {
+    if ty == none { return 8 }
+    val resolved_ty: ref parser.Node = cc_concrete_ty(ctx, ty)
+    val k: i64 = resolved_ty.kind
+    if k == parser.TY_VOID { return 0 }
+    if k == parser.TY_MUT { return cc_c_abi_size_of(ctx, resolved_ty.d0 as ref parser.Node) }
+    if k == parser.TY_REF || k == parser.TY_OPTION || k == parser.TY_RESULT || k == parser.TY_FNPTR { return 8 }
+    if k == parser.TY_LIST { return 24 }
+    if k == parser.TY_SLICE { return 16 }
+    if k == parser.TY_FIXED_ARR {
+        val sz: i64 = cc_fixed_arr_size_val(ctx, resolved_ty)
+        return sz * cc_c_abi_size_of(ctx, resolved_ty.d1 as ref parser.Node)
+    }
+    if k == parser.TY_NAMED {
+        val name: ref u8 = resolved_ty.d0 as ref u8
+        if str.rchar_cmp(name, "i8") == 0 || str.rchar_cmp(name, "u8") == 0 { return 1 }
+        if str.rchar_cmp(name, "bool") == 0 { return 1 }
+        if str.rchar_cmp(name, "i16") == 0 || str.rchar_cmp(name, "u16") == 0 { return 2 }
+        if str.rchar_cmp(name, "i32") == 0 || str.rchar_cmp(name, "u32") == 0 || str.rchar_cmp(name, "f32") == 0 { return 4 }
+        if str.rchar_cmp(name, "i64") == 0 || str.rchar_cmp(name, "u64") == 0 || str.rchar_cmp(name, "usize") == 0 || str.rchar_cmp(name, "isize") == 0 || str.rchar_cmp(name, "f64") == 0 { return 8 }
+        val fields: ref void = cc_lookup_struct(ctx, name)
+        if fields != none { return struct_size_bytes(ctx, fields) }
+    }
+    return c_size_of(ctx, resolved_ty)
+}
+
+fn cc_c_abi_align_of(ctx: ref CCtx, ty: ref parser.Node) i64 = trust {
+    if ty == none { return 8 }
+    val resolved_ty: ref parser.Node = cc_concrete_ty(ctx, ty)
+    val k: i64 = resolved_ty.kind
+    if k == parser.TY_VOID { return 1 }
+    if k == parser.TY_MUT { return cc_c_abi_align_of(ctx, resolved_ty.d0 as ref parser.Node) }
+    if k == parser.TY_REF || k == parser.TY_OPTION || k == parser.TY_RESULT || k == parser.TY_FNPTR { return 8 }
+    if k == parser.TY_LIST || k == parser.TY_SLICE { return 8 }
+    if k == parser.TY_FIXED_ARR { return cc_c_abi_align_of(ctx, resolved_ty.d1 as ref parser.Node) }
+    if k == parser.TY_NAMED {
+        val name: ref u8 = resolved_ty.d0 as ref u8
+        if str.rchar_cmp(name, "i8") == 0 || str.rchar_cmp(name, "u8") == 0 || str.rchar_cmp(name, "bool") == 0 { return 1 }
+        if str.rchar_cmp(name, "i16") == 0 || str.rchar_cmp(name, "u16") == 0 { return 2 }
+        if str.rchar_cmp(name, "i32") == 0 || str.rchar_cmp(name, "u32") == 0 || str.rchar_cmp(name, "f32") == 0 { return 4 }
+        if str.rchar_cmp(name, "i64") == 0 || str.rchar_cmp(name, "u64") == 0 || str.rchar_cmp(name, "usize") == 0 || str.rchar_cmp(name, "isize") == 0 || str.rchar_cmp(name, "f64") == 0 { return 8 }
+        val fields: ref void = cc_lookup_struct(ctx, name)
+        if fields != none {
+            if cc_struct_uses_c_abi(ctx, fields) { return cc_struct_align_bytes(ctx, fields) }
+            return 8
+        }
+    }
+    return 8
+}
+
+fn cc_c_abi_type_of(ctx: ref CCtx, ty: ref parser.Node) ref u8 = trust {
+    if ty == none { return "int64_t" }
+    val resolved_ty: ref parser.Node = cc_concrete_ty(ctx, ty)
+    if resolved_ty != none && resolved_ty.kind == parser.TY_MUT {
+        return cc_c_abi_type_of(ctx, resolved_ty.d0 as ref parser.Node)
+    }
+    if resolved_ty != none && resolved_ty.kind == parser.TY_NAMED {
+        val name: ref u8 = resolved_ty.d0 as ref u8
+        if str.rchar_cmp(name, "bool") == 0 { return "_Bool" }
+    }
+    return cc_c_type_of(ctx, resolved_ty)
+}
+
 fn cc_expr_is_zero_init_like(expr: ref parser.Node) bool = trust {
     if expr == none { return false }
     if expr.kind == parser.NK_ZERO_INIT { return true }
@@ -1681,6 +1797,29 @@ fn cc_type_needs_aggregate_copy(ctx: ref CCtx, ty: ref parser.Node) bool = trust
 }
 
 fn struct_size_bytes(ctx: ref CCtx, fields: ref void) i64 = trust {
+    if cc_struct_uses_c_abi(ctx, fields) {
+        val flen2: i64 = @len(fields as list[ref void]) as i64
+        val off2: mut i64 = 0
+        val max_align2: mut i64 = 1
+        val fi2: mut i64 = 0
+        for {
+            if fi2 >= flen2 { break }
+            val f_opt2 = @get(fields as list[ref void], fi2 as usize)
+            match f_opt2 {
+                some f2 => {
+                    val fn_node2: ref parser.Node = f2 as ref parser.Node
+                    val fty2: ref parser.Node = fn_node2.d2 as ref parser.Node
+                    val falign2: i64 = cc_c_abi_align_of(ctx, fty2)
+                    if falign2 > max_align2 { max_align2 = falign2 }
+                    off2 = cc_align_to(off2, falign2)
+                    off2 = off2 + cc_c_abi_size_of(ctx, fty2)
+                }
+                none => {}
+            }
+            fi2++
+        }
+        return cc_align_to(off2, max_align2)
+    }
     val flen: i64 = @len(fields as list[ref void]) as i64
     val size: mut i64 = 0
     val fi: mut i64 = 0
@@ -1830,6 +1969,27 @@ fn cc_handle_block_defers(ctx: ref CCtx, target_depth: i64) void = trust {
 }
 
 fn field_offset_bytes(ctx: ref CCtx, fields: ref void, field_name: ref u8) i64 = trust {
+    if cc_struct_uses_c_abi(ctx, fields) {
+        val flen2: i64 = @len(fields as list[ref void]) as i64
+        val off2: mut i64 = 0
+        val fi2: mut i64 = 0
+        for {
+            if fi2 >= flen2 { break }
+            val f_opt2 = @get(fields as list[ref void], fi2 as usize)
+            match f_opt2 {
+                some f2 => {
+                    val fn_node2: ref parser.Node = f2 as ref parser.Node
+                    val fty2: ref parser.Node = fn_node2.d2 as ref parser.Node
+                    off2 = cc_align_to(off2, cc_c_abi_align_of(ctx, fty2))
+                    if str.rchar_cmp(fn_node2.d0 as ref u8, field_name) == 0 { return off2 }
+                    off2 = off2 + cc_c_abi_size_of(ctx, fty2)
+                }
+                none => {}
+            }
+            fi2++
+        }
+        return -1
+    }
     val flen: i64 = @len(fields as list[ref void]) as i64
     val off: mut i64 = 0
     val fi: mut i64 = 0
@@ -3410,6 +3570,7 @@ fn gen_field_addr(ctx: ref CCtx, expr: ref parser.Node) ref u8 = trust {
 
 fn cc_field_size_from_fields(ctx: ref CCtx, fields: ref void, fname: ref u8) i64 = trust {
     if fields == none { return 8 }
+    val use_c_abi: bool = cc_struct_uses_c_abi(ctx, fields)
     val flen: i64 = @len(fields as list[ref void]) as i64
     val fi: mut i64 = 0
     for { if fi >= flen { break }
@@ -3417,6 +3578,7 @@ fn cc_field_size_from_fields(ctx: ref CCtx, fields: ref void, fname: ref u8) i64
         match f_opt { some f => {
             val fn_node: ref parser.Node = f as ref parser.Node
             if str.rchar_cmp(fn_node.d0 as ref u8, fname) == 0 {
+                if use_c_abi { return cc_c_abi_size_of(ctx, fn_node.d2 as ref parser.Node) }
                 return c_size_of(ctx, fn_node.d2 as ref parser.Node)
             }
         } none => {} }
@@ -3443,6 +3605,7 @@ fn cc_field_ty_from_fields(ctx: ref CCtx, fields: ref void, fname: ref u8) ref p
 fn cc_field_ctype_from_fields(ctx: ref CCtx, fields: ref void, fname: ref u8) ref u8 = trust {
     val fty: ref parser.Node = cc_field_ty_from_fields(ctx, fields, fname)
     if fty == none { return "int64_t" }
+    if cc_struct_uses_c_abi(ctx, fields) { return cc_c_abi_type_of(ctx, fty) }
     return cc_c_type_of(ctx, fty)
 }
 
@@ -4484,9 +4647,9 @@ fn preregister_items(ctx: ref CCtx, items: list[ref parser.Node], mod_prefix: re
             } elif k == parser.NK_TAGGED_UNIONDEF { gen_tagged_union_def(ctx, node, mod_prefix) }
             elif k == parser.NK_UNIONDEF { gen_union_def_prefixed(ctx, node, mod_prefix) }
             elif k == parser.NK_ENUMDEF { gen_enum_def_prefixed(ctx, node, mod_prefix) }
-            elif k == parser.NK_TYPEDEF { cc_register_struct(ctx, node.d1 as ref u8, node.d2 as ref void)
+            elif k == parser.NK_TYPEDEF { cc_register_struct(ctx, node.d1 as ref u8, node.d2 as ref void, false)
                 if node.d3 != 0 as i64 { cc_register_invariant(ctx, node.d1 as ref u8, node.d3 as ref void) } }
-            elif k == parser.NK_EXTERN_TYPE { cc_register_struct(ctx, node.d1 as ref u8, node.d2 as ref void) }
+            elif k == parser.NK_EXTERN_TYPE { cc_register_struct(ctx, node.d1 as ref u8, node.d2 as ref void, true) }
             elif k == parser.NK_EXTERN_FN {
                 val name: ref u8 = node.d1 as ref u8 val symbol: ref u8 = node.d2 as ref u8
                 val params: ref void = node.d4 as ref void val ret_ty: ref void = node.d5 as ref void
@@ -4626,9 +4789,9 @@ fn gen_items_with_prefix(ctx: mut ref CCtx, items: list[ref parser.Node], mod_pr
             elif k == parser.NK_ENUMDEF { gen_enum_def_prefixed(ctx, node, mod_prefix) }
             elif k == parser.NK_UNIONDEF { gen_union_def_prefixed(ctx, node, mod_prefix) }
             elif k == parser.NK_TAGGED_UNIONDEF { gen_tagged_union_def(ctx, node, mod_prefix) }
-            elif k == parser.NK_TYPEDEF { cc_register_struct(ctx, node.d1 as ref u8, node.d2 as ref void)
+            elif k == parser.NK_TYPEDEF { cc_register_struct(ctx, node.d1 as ref u8, node.d2 as ref void, false)
                 if node.d3 != 0 as i64 { cc_register_invariant(ctx, node.d1 as ref u8, node.d3 as ref void) } }
-            elif k == parser.NK_EXTERN_TYPE { cc_register_struct(ctx, node.d1 as ref u8, node.d2 as ref void) }
+            elif k == parser.NK_EXTERN_TYPE { cc_register_struct(ctx, node.d1 as ref u8, node.d2 as ref void, true) }
             elif k == parser.NK_WHEN_ITEMS { val plat: ref u8 = node.d0 as ref u8
                 if cc_platform_matches(ctx, plat) { gen_items_with_prefix(ctx, node.d1 as list[ref parser.Node], mod_prefix) }
                 else { val ow: ref void = node.d2 as ref void val matched: mut bool = false
@@ -4806,9 +4969,9 @@ fn gen_items_with_prefix_skip_main(ctx: mut ref CCtx, items: list[ref parser.Nod
             elif k == parser.NK_ENUMDEF { gen_enum_def_prefixed(ctx, node, mod_prefix) }
             elif k == parser.NK_UNIONDEF { gen_union_def_prefixed(ctx, node, mod_prefix) }
             elif k == parser.NK_TAGGED_UNIONDEF { gen_tagged_union_def(ctx, node, mod_prefix) }
-            elif k == parser.NK_TYPEDEF { cc_register_struct(ctx, node.d1 as ref u8, node.d2 as ref void)
+            elif k == parser.NK_TYPEDEF { cc_register_struct(ctx, node.d1 as ref u8, node.d2 as ref void, false)
                 if node.d3 != 0 as i64 { cc_register_invariant(ctx, node.d1 as ref u8, node.d3 as ref void) } }
-            elif k == parser.NK_EXTERN_TYPE { cc_register_struct(ctx, node.d1 as ref u8, node.d2 as ref void) }
+            elif k == parser.NK_EXTERN_TYPE { cc_register_struct(ctx, node.d1 as ref u8, node.d2 as ref void, true) }
             elif k == parser.NK_WHEN_ITEMS { val plat: ref u8 = node.d0 as ref u8
                 if cc_platform_matches(ctx, plat) { gen_items_with_prefix_skip_main(ctx, node.d1 as list[ref parser.Node], mod_prefix) }
                 else { val ow: ref void = node.d2 as ref void val matched: mut bool = false
