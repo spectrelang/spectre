@@ -82,13 +82,13 @@ test {
         }
         
         if @get(data, 1) is some v {
-            assert v == (0x12 as u8)
+            assert v == 0x12 as u8
         } else {
             assert false
         }
 
         if @get(data, 4) is some v { 
-            assert v == (0xEF as u8)
+            assert v == 0xEF as u8
         } else {
             assert false
         }
