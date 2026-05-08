@@ -2390,11 +2390,12 @@ fn gen_binop(ctx: ref CCtx, expr: ref parser.Node) ref u8 = trust {
 fn gen_unop(ctx: ref CCtx, expr: ref parser.Node) ref u8 = trust {
     val op: i64 = parser.unop_op(expr)
     val inner: ref u8 = gen_expr(ctx, parser.unop_inner(expr))
-    val buf: ref u8 = @alloc(256) as ref u8
-    if op == parser.UOP_NOT { @snprintf(buf, 256, "(!({s}))", {inner}) }
-    elif op == parser.UOP_NEG { @snprintf(buf, 256, "(-({s}))", {inner}) }
-    elif op == parser.UOP_BNOT { @snprintf(buf, 256, "(~({s}))", {inner}) }
-    else { @snprintf(buf, 256, "({s})", {inner}) }
+    val buf_cap: i64 = str.len_raw(inner) + 16
+    val buf: ref u8 = @alloc(buf_cap) as ref u8
+    if op == parser.UOP_NOT { @snprintf(buf, buf_cap, "(!({s}))", {inner}) }
+    elif op == parser.UOP_NEG { @snprintf(buf, buf_cap, "(-({s}))", {inner}) }
+    elif op == parser.UOP_BNOT { @snprintf(buf, buf_cap, "(~({s}))", {inner}) }
+    else { @snprintf(buf, buf_cap, "({s})", {inner}) }
     return cc_expr_track(ctx, buf)
 }
 
