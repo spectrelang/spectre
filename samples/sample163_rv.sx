@@ -1,0 +1,7 @@
+val bin = use("std/encoding/binary")
+
+pub fn main() void = {
+    val data: [32]u8 = @zeroed
+    trust bin.write_u64_le(data as ref u8, 8 as usize, 0x1122334455667788 as u64)
+    assert(trust bin.read_u64_le(data as ref u8, 8 as usize) == (0x1122334455667788 as u64))
+}
