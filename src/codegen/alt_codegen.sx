@@ -3284,7 +3284,6 @@ fn gen_struct_lit(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
                     field_ty = cc_field_ty_from_fields(ctx, struct_fields, fname)
                 }
 
-                val fb: ref u8 = @alloc(512) as ref u8
                 val fct: mut ref u8 = "int64_t"
                 if struct_fields != none {
                     fct = cc_field_ctype_from_fields(ctx, struct_fields, lf_node.d0 as ref u8)
@@ -3293,14 +3292,16 @@ fn gen_struct_lit(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
                 if field_ty != none { ctx.expected_ty = field_ty }
                 val fval: ref u8 = gen_expr(ctx, lf_node.d1 as ref parser.Node)
                 ctx.expected_ty = old_expected
+                val stmt_cap: i64 = str.len_raw(fval) + str.len_raw(fct) + 160
+                val fb: ref u8 = @alloc(stmt_cap) as ref u8
                 if cc_type_needs_aggregate_copy(ctx, field_ty) {
                     if cc_expr_is_zero_init_like(lf_node.d1 as ref parser.Node) {
-                        @snprintf(fb, 512, "memset((char*)sx__sl{lld}+{lld},0,(size_t){lld});\n", {t, off, fld_sz})
+                        @snprintf(fb, stmt_cap, "memset((char*)sx__sl{lld}+{lld},0,(size_t){lld});\n", {t, off, fld_sz})
                     } else {
-                        @snprintf(fb, 512, "memcpy((char*)sx__sl{lld}+{lld},(void*)(intptr_t)({s}),(size_t){lld});\n", {t, off, fval, fld_sz})
+                        @snprintf(fb, stmt_cap, "memcpy((char*)sx__sl{lld}+{lld},(void*)(intptr_t)({s}),(size_t){lld});\n", {t, off, fval, fld_sz})
                     }
                 }
-                else { @snprintf(fb, 512, "*({s}*)((char*)sx__sl{lld}+{lld})=({s})({s});\n", {fct, t, off, fct, fval}) }
+                else { @snprintf(fb, stmt_cap, "*({s}*)((char*)sx__sl{lld}+{lld})=({s})({s});\n", {fct, t, off, fct, fval}) }
                 emit(ctx, fb) @free(fb)
             } none => {} }
             li++ } }
@@ -3326,8 +3327,9 @@ fn gen_list_lit(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
                 if elem_ty != none { ctx.expected_ty = elem_ty }
                 val ev: ref u8 = gen_expr(ctx, e as ref parser.Node)
                 ctx.expected_ty = old_expected
-                val eb: ref u8 = @alloc(256) as ref u8
-                @snprintf(eb, 256, "sx__lld{lld}[{lld}]=(int64_t)({s});\n", {t, ei, ev}) emit(ctx, eb) @free(eb)
+                val stmt_cap: i64 = str.len_raw(ev) + 96
+                val eb: ref u8 = @alloc(stmt_cap) as ref u8
+                @snprintf(eb, stmt_cap, "sx__lld{lld}[{lld}]=(int64_t)({s});\n", {t, ei, ev}) emit(ctx, eb) @free(eb)
             } none => {} }
             ei++ } }
     val res: ref u8 = @alloc(64) as ref u8

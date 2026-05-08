@@ -131,3 +131,5 @@ pub fn empty_model() GlbModel = {
         has_uvs: false
     }
 }
+
+pub fn main() void = {}
