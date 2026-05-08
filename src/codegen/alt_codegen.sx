@@ -2516,12 +2516,13 @@ fn gen_field(ctx: ref CCtx, expr: ref parser.Node) ref u8 = trust {
         if dotpos >= 0 {
             val suffix: ref u8 = @ptradd(base_type as ref void, dotpos + 1) as ref u8
             fields = cc_lookup_struct(ctx, suffix) } }
+    val field_ty: ref parser.Node = cc_infer_expr_ty(ctx, expr)
     if fields != none {
         val off: i64 = field_offset_bytes(ctx, fields, fname)
         if off >= 0 {
             val fsz: i64 = cc_field_size_from_fields(ctx, fields, fname)
             val fct: ref u8 = cc_field_ctype_from_fields(ctx, fields, fname)
-            if fsz > 8 { @snprintf(buf, 512, "((int64_t)(intptr_t)((char*)(intptr_t)({s})+{lld}))", {base, off}) }
+            if cc_type_needs_aggregate_copy(ctx, field_ty) || fsz > 8 { @snprintf(buf, 512, "((int64_t)(intptr_t)((char*)(intptr_t)({s})+{lld}))", {base, off}) }
             else { @snprintf(buf, 512, "(*({s}*)((char*)(intptr_t)({s})+{lld}))", {fct, base, off}) }
             return cc_expr_track(ctx, buf) } }
     if str.rchar_cmp(fname, "len") == 0 || str.rchar_cmp(fname, "length") == 0 {
@@ -3701,8 +3702,9 @@ fn gen_stmt(ctx: mut ref CCtx, stmt: ref parser.Node) void = trust {
         elif target.kind == parser.NK_FIELD {
             val fsz: i64 = cc_field_size_of_expr(ctx, target)
             val fct: ref u8 = cc_field_ctype_of_expr(ctx, target)
+            val fty: ref parser.Node = cc_infer_expr_ty(ctx, target)
             val fa: ref u8 = gen_field_addr(ctx, target) val buf: ref u8 = @alloc(4096) as ref u8
-            if fsz > 8 { @snprintf(buf, 4096, "memcpy((void*)(intptr_t)({s}),(void*)(intptr_t)({s}),(size_t){lld});\n", {fa, val_str, fsz}) }
+            if cc_type_needs_aggregate_copy(ctx, fty) || fsz > 8 { @snprintf(buf, 4096, "memcpy((void*)(intptr_t)({s}),(void*)(intptr_t)({s}),(size_t){lld});\n", {fa, val_str, fsz}) }
             else { @snprintf(buf, 4096, "*({s}*)(intptr_t)({s})=({s})({s});\n", {fct, fa, fct, val_str}) }
             emit(ctx, buf) @free(buf) }
         elif target.kind == parser.NK_DEREF {
@@ -3712,7 +3714,7 @@ fn gen_stmt(ctx: mut ref CCtx, stmt: ref parser.Node) void = trust {
             val isz: i64 = c_size_of(ctx, inner_ty)
             val ict: ref u8 = cc_c_type_of(ctx, inner_ty)
             val buf: ref u8 = @alloc(4096) as ref u8
-            if isz > 8 { @snprintf(buf, 4096, "memcpy((void*)(intptr_t)({s}),(void*)(intptr_t)({s}),(size_t){lld});\n", {ptr, val_str, isz}) }
+            if cc_type_needs_aggregate_copy(ctx, inner_ty) || isz > 8 { @snprintf(buf, 4096, "memcpy((void*)(intptr_t)({s}),(void*)(intptr_t)({s}),(size_t){lld});\n", {ptr, val_str, isz}) }
             else { @snprintf(buf, 4096, "*({s}*)(intptr_t)({s})=({s})({s});\n", {ict, ptr, ict, val_str}) }
             emit(ctx, buf) @free(buf)
         }

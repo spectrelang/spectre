@@ -1,0 +1,24 @@
+type Inner = {
+    x: mut i32
+    y: mut i32
+}
+
+type Outer = {
+    inner: mut Inner
+    z: mut i32
+}
+
+fn make() i32 = {
+    val foo: Outer = {
+        inner: {
+            x: 1 as i32,
+            y: 2 as i32
+        },
+        z: 3 as i32
+    }
+    return foo.inner.x + foo.inner.y + foo.z
+}
+
+pub fn main() i32 = {
+    return make()
+}
