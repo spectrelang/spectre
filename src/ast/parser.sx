@@ -2635,6 +2635,7 @@ pub fn parse_item(p: ref Parser) result[ref Node, ref u8] = trust {
             nu.d0 = public
             node_store_slot[ref u8](@addr(nu.d1), vname)
             node_store_slot[ref u8](@addr(nu.d2), path)
+            node_store_slot[ref Node](@addr(nu.d3), vty)
             return ok nu
         }
         val vexpr = parse_expr(p)?

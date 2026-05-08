@@ -4713,6 +4713,12 @@ fn check_top_item(ctx: ref SemaCtx, item: ref parser.Node, filename: ref u8) voi
             @snprintf(buf, 256, "{s}:{lld}: use statements cannot be public.", {filename, item.line})
             add_error(ctx, buf)
         }
+        val annotated_use_ty: ref parser.Node = item.d3 as ref parser.Node
+        if annotated_use_ty != none {
+            val buf2: ref u8 = @alloc(256) as ref u8
+            @snprintf(buf2, 256, "{s}:{lld}: invalid type annotation on value assigned to use directive.", {filename, item.line})
+            add_error(ctx, buf2)
+        }
         return
     }
     if k == parser.NK_GENERIC_FN {
