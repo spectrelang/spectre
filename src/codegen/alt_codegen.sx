@@ -4072,7 +4072,11 @@ fn gen_match_opt(ctx: mut ref CCtx, stmt: ref parser.Node) void = trust {
     if en != none { expr = gen_expr(ctx, en) }
     val sb: ref u8 = parser.match_opt_some_bind(stmt) val sbody: ref parser.Node = parser.match_opt_some_body(stmt)
     val nbody: ref parser.Node = parser.match_opt_none_body(stmt) val t: i64 = fresh_tmp(ctx)
-    val buf: ref u8 = @alloc(256) as ref u8 @snprintf(buf, 256, "\{int64_t sx__mv{lld}={s};if(sx__mv{lld}!=0)\n", {t, expr, t}) emit(ctx, buf) @free(buf)
+    val stmt_cap: i64 = str.len_raw(expr) + 64
+    val buf: ref u8 = @alloc(stmt_cap) as ref u8
+    @snprintf(buf, stmt_cap, "\{int64_t sx__mv{lld}={s};if(sx__mv{lld}!=0)\n", {t, expr, t})
+    emit(ctx, buf)
+    @free(buf)
     emitln(ctx, "{")
     cc_expr_drain(ctx)
     if sb != none {
