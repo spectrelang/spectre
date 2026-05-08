@@ -2167,8 +2167,9 @@ fn gen_expr(ctx: ref CCtx, expr: ref parser.Node) ref u8 = trust {
         val inner_expr: ref u8 = gen_expr(ctx, expr.d0 as ref parser.Node)
         val t: i64 = fresh_tmp(ctx)
         val buf: ref u8 = @alloc(8192) as ref u8
-        @snprintf(buf, 8192, "int64_t* sx__try{lld} = (int64_t*)(intptr_t)({s});\nif(sx__try{lld}[0] != 0) {\n", {t, inner_expr, t})
+        @snprintf(buf, 8192, "int64_t* sx__try{lld} = (int64_t*)(intptr_t)({s});\nif(sx__try{lld}[0] != 0)\n", {t, inner_expr, t})
         emit(ctx, buf)
+        emitln(ctx, "{")
         cc_emit_defers(ctx)
         if ctx.current_ret_is_void {
             @snprintf(buf, 8192, "return;\n}\nint64_t sx__val{lld} = sx__try{lld}[1];\n", {t, t})
@@ -3710,7 +3711,8 @@ fn gen_stmt(ctx: mut ref CCtx, stmt: ref parser.Node) void = trust {
         val buf: ref u8 = @alloc(8192) as ref u8 @snprintf(buf, 8192, "(void)({s});\n", {ev}) emit(ctx, buf) @free(buf) cc_expr_drain(ctx) return }
     if k == parser.NK_IF { gen_if_stmt(ctx, stmt) return }
     if k == parser.NK_GUARD { val gc: ref u8 = gen_expr(ctx, stmt.d0 as ref parser.Node)
-        val buf: ref u8 = @alloc(4096) as ref u8 @snprintf(buf, 4096, "if(!({s})){\n", {gc}) emit(ctx, buf) @free(buf)
+        val buf: ref u8 = @alloc(4096) as ref u8 @snprintf(buf, 4096, "if(!({s}))\n", {gc}) emit(ctx, buf) @free(buf)
+        emitln(ctx, "{")
         cc_expr_drain(ctx)
         gen_stmts(ctx, stmt.d1 as ref parser.Node) emitln(ctx, "}") return }
     if k == parser.NK_FOR { gen_for_stmt(ctx, stmt) return }
@@ -3850,7 +3852,8 @@ fn gen_stmt(ctx: mut ref CCtx, stmt: ref parser.Node) void = trust {
 
 fn gen_if_stmt(ctx: mut ref CCtx, stmt: ref parser.Node) void = trust {
     val cond: ref u8 = gen_expr(ctx, stmt.d0 as ref parser.Node)
-    val buf: ref u8 = @alloc(4096) as ref u8 @snprintf(buf, 4096, "if({s}){\n", {cond}) emit(ctx, buf) @free(buf)
+    val buf: ref u8 = @alloc(4096) as ref u8 @snprintf(buf, 4096, "if({s})\n", {cond}) emit(ctx, buf) @free(buf)
+    emitln(ctx, "{")
     cc_expr_drain(ctx)
     gen_stmts(ctx, stmt.d1 as ref parser.Node)
     val elif_list: ref void = stmt.d2 as ref void
@@ -3862,7 +3865,8 @@ fn gen_if_stmt(ctx: mut ref CCtx, stmt: ref parser.Node) void = trust {
                match ep_opt {
                    some ep => { val econd: ref u8 = gen_expr(ctx, (ep as ref parser.Node).d0 as ref parser.Node)
                    val eb: ref u8 = @alloc(4096) as ref u8
-                   @snprintf(eb, 4096, "}else if({s}){\n", {econd}) emit(ctx, eb)
+                   @snprintf(eb, 4096, "}else if({s})\n", {econd}) emit(ctx, eb)
+                   emitln(ctx, "{")
                    @free(eb)
                    cc_expr_drain(ctx)
                    gen_stmts(ctx, (ep as ref parser.Node).d1 as ref parser.Node) } none => {}
@@ -3900,14 +3904,16 @@ fn gen_for_stmt(ctx: mut ref CCtx, stmt: ref parser.Node) void = trust {
         if pst != none {
             val pst_str: ref u8 = gen_for_post_expr(ctx, pst as ref parser.Node)
             val wb: ref u8 = @alloc(512) as ref u8
-            @snprintf(wb, 512, "for(;{s};{s}){\n", {cond, pst_str})
+            @snprintf(wb, 512, "for(;{s};{s})\n", {cond, pst_str})
             emit(ctx, wb)
             @free(wb)
+            emitln(ctx, "{")
         } else {
             val wb: ref u8 = @alloc(256) as ref u8
-            @snprintf(wb, 256, "while({s}){\n", {cond})
+            @snprintf(wb, 256, "while({s})\n", {cond})
             emit(ctx, wb)
             @free(wb)
+            emitln(ctx, "{")
         }
         cc_expr_drain(ctx)
     } else { emitln(ctx, "for(;;){") }
@@ -4043,7 +4049,8 @@ fn gen_match_opt(ctx: mut ref CCtx, stmt: ref parser.Node) void = trust {
     if en != none { expr = gen_expr(ctx, en) }
     val sb: ref u8 = parser.match_opt_some_bind(stmt) val sbody: ref parser.Node = parser.match_opt_some_body(stmt)
     val nbody: ref parser.Node = parser.match_opt_none_body(stmt) val t: i64 = fresh_tmp(ctx)
-    val buf: ref u8 = @alloc(256) as ref u8 @snprintf(buf, 256, "\{int64_t sx__mv{lld}={s};if(sx__mv{lld}!=0){\n", {t, expr, t}) emit(ctx, buf) @free(buf)
+    val buf: ref u8 = @alloc(256) as ref u8 @snprintf(buf, 256, "\{int64_t sx__mv{lld}={s};if(sx__mv{lld}!=0)\n", {t, expr, t}) emit(ctx, buf) @free(buf)
+    emitln(ctx, "{")
     cc_expr_drain(ctx)
     if sb != none {
         val bind_stype: mut ref u8 = "int64_t"
@@ -4077,7 +4084,8 @@ fn gen_match_res(ctx: mut ref CCtx, stmt: ref parser.Node) void = trust {
     val ob: ref u8 = parser.match_res_ok_bind(stmt) val obody: ref parser.Node = parser.match_res_ok_body(stmt)
     val eb: ref u8 = parser.match_res_err_bind(stmt) val ebody: ref parser.Node = parser.match_res_err_body(stmt)
     val t: i64 = fresh_tmp(ctx) val buf: ref u8 = @alloc(4096) as ref u8
-    @snprintf(buf, 4096, "\{int64_t*sx__rp{lld}=(int64_t*)(intptr_t)({s});if(sx__rp{lld}[0]==0){\n", {t, expr, t}) emit(ctx, buf) @free(buf)
+    @snprintf(buf, 4096, "\{int64_t*sx__rp{lld}=(int64_t*)(intptr_t)({s});if(sx__rp{lld}[0]==0)\n", {t, expr, t}) emit(ctx, buf) @free(buf)
+    emitln(ctx, "{")
     cc_expr_drain(ctx)
     val expr_ty: ref parser.Node = cc_infer_expr_ty(ctx, en)
     val ok_ty: ref parser.Node = cc_unwrap_result_ok_ty(expr_ty)
@@ -4122,10 +4130,10 @@ fn gen_match_enum(ctx: mut ref CCtx, stmt: ref parser.Node) void = trust {
                 if str.rchar_cmp(found, "") != 0 { @snprintf(eval_str, 32, "{s}", {found}) }
             }
             val ab: ref u8 = @alloc(128) as ref u8
-            if ai == 0 { @snprintf(ab, 128, "if(sx__ev{lld}=={s}){\n", {t, eval_str}) }
-            else { @snprintf(ab, 128, "}else if(sx__ev{lld}=={s}){\n", {t, eval_str}) }
+            if ai == 0 { @snprintf(ab, 128, "if(sx__ev{lld}=={s})\n", {t, eval_str}) }
+            else { @snprintf(ab, 128, "}else if(sx__ev{lld}=={s})\n", {t, eval_str}) }
             @free(eval_str)
-            emit(ctx, ab) @free(ab) gen_stmts(ctx, parser.match_enum_arm_body(an) as ref parser.Node)
+            emit(ctx, ab) @free(ab) emitln(ctx, "{") gen_stmts(ctx, parser.match_enum_arm_body(an) as ref parser.Node)
         } none => {} }
         ai++ }
     emitln(ctx, "}}")
@@ -4159,9 +4167,9 @@ fn gen_match_value(ctx: mut ref CCtx, stmt: ref parser.Node) void = trust {
                 val pat: ref u8 = gen_expr(ctx, parser.match_value_arm_pattern(an))
                 ctx.expected_ty = saved_expected
                 val ab: ref u8 = @alloc(4096) as ref u8
-                if ai == 0 { @snprintf(ab, 4096, "if(sx__mv{lld}==({s})({s})){\n", {t, ct, pat}) }
-                else { @snprintf(ab, 4096, "}else if(sx__mv{lld}==({s})({s})){\n", {t, ct, pat}) }
-                emit(ctx, ab) @free(ab) gen_stmts(ctx, parser.match_value_arm_body(an) as ref parser.Node)
+                if ai == 0 { @snprintf(ab, 4096, "if(sx__mv{lld}==({s})({s}))\n", {t, ct, pat}) }
+                else { @snprintf(ab, 4096, "}else if(sx__mv{lld}==({s})({s}))\n", {t, ct, pat}) }
+                emit(ctx, ab) @free(ab) emitln(ctx, "{") gen_stmts(ctx, parser.match_value_arm_body(an) as ref parser.Node)
             } none => {} }
             ai++ } }
     if else_body != none { emitln(ctx, "}else{") gen_stmts(ctx, else_body.d0 as ref parser.Node) }
@@ -4181,9 +4189,9 @@ fn gen_match_str(ctx: mut ref CCtx, stmt: ref parser.Node) void = trust {
             match arm_opt { some arm => { val an: ref parser.Node = arm as ref parser.Node
                 val pat: ref u8 = parser.match_str_arm_value(an) val pi: i64 = intern_string(ctx, pat)
                 val ab: ref u8 = @alloc(4096) as ref u8
-                if ai == 0 { @snprintf(ab, 4096, "if(strcmp(sx__sv{lld},sx__str{lld})==0){\n", {t, pi}) }
-                else { @snprintf(ab, 4096, "}else if(strcmp(sx__sv{lld},sx__str{lld})==0){\n", {t, pi}) }
-                emit(ctx, ab) @free(ab) gen_stmts(ctx, parser.match_str_arm_body(an) as ref parser.Node)
+                if ai == 0 { @snprintf(ab, 4096, "if(strcmp(sx__sv{lld},sx__str{lld})==0)\n", {t, pi}) }
+                else { @snprintf(ab, 4096, "}else if(strcmp(sx__sv{lld},sx__str{lld})==0)\n", {t, pi}) }
+                emit(ctx, ab) @free(ab) emitln(ctx, "{") gen_stmts(ctx, parser.match_str_arm_body(an) as ref parser.Node)
             } none => {} }
             ai++ } }
     if else_body != none { emitln(ctx, "}else{") gen_stmts(ctx, else_body.d0 as ref parser.Node) }
@@ -4208,9 +4216,9 @@ fn gen_match_union(ctx: mut ref CCtx, stmt: ref parser.Node) void = trust {
             match arm_opt {
                 some arm => {
                     val ab: ref u8 = @alloc(128) as ref u8
-                    if ai == 0 { @snprintf(ab, 128, "if(sx__ut{lld}=={lld}){\n", {t, ai}) }
-                    else { @snprintf(ab, 128, "}else if(sx__ut{lld}=={lld}){\n", {t, ai}) }
-                    emit(ctx, ab) @free(ab) gen_stmts(ctx, parser.match_union_arm_body(arm as ref parser.Node) as ref parser.Node)
+                    if ai == 0 { @snprintf(ab, 128, "if(sx__ut{lld}=={lld})\n", {t, ai}) }
+                    else { @snprintf(ab, 128, "}else if(sx__ut{lld}=={lld})\n", {t, ai}) }
+                    emit(ctx, ab) @free(ab) emitln(ctx, "{") gen_stmts(ctx, parser.match_union_arm_body(arm as ref parser.Node) as ref parser.Node)
                 } none => {}
             }
             ai++
@@ -4242,9 +4250,10 @@ fn gen_match_tagged_union(ctx: mut ref CCtx, stmt: ref parser.Node) void = trust
                 @free(os) @free(fs)
                 val idx: mut i64 = ai if ti >= 0 { idx = ti }
                 val ab: ref u8 = @alloc(4096) as ref u8
-                if ai == 0 { @snprintf(ab, 4096, "if(sx__tt{lld}=={lld}){\n", {t, idx}) }
-                else { @snprintf(ab, 4096, "}else if(sx__tt{lld}=={lld}){\n", {t, idx}) }
+                if ai == 0 { @snprintf(ab, 4096, "if(sx__tt{lld}=={lld})\n", {t, idx}) }
+                else { @snprintf(ab, 4096, "}else if(sx__tt{lld}=={lld})\n", {t, idx}) }
                 emit(ctx, ab) @free(ab)
+                emitln(ctx, "{")
                 val blen: i64 = @len(bindings) as i64
                 if blen > 0 { val bi: mut i64 = 0
                     for { if bi >= blen { break } val b_opt = @get(bindings, bi as usize)
