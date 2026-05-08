@@ -3047,10 +3047,9 @@ fn gen_builtin(ctx: ref CCtx, expr: ref parser.Node) ref u8 = trust {
             if concrete_target_ty.kind == parser.TY_FIXED_ARR {
                 val res_t: i64 = fresh_tmp(ctx)
                 val cur_t: i64 = fresh_tmp(ctx)
-                val opt_t: i64 = fresh_tmp(ctx)
                 val decl: ref u8 = @alloc(512) as ref u8
                 val base_expr: ref u8 = get_arg(ctx, args, 0)
-                @snprintf(decl, 512, "int64_t sx__getr{lld}=0;int64_t sx__getc{lld}=(int64_t)({s});int64_t sx__geto{lld}=0;\n", {res_t, cur_t, base_expr, opt_t})
+                @snprintf(decl, 512, "int64_t sx__getr{lld}=0;int64_t sx__getc{lld}=(int64_t)({s});\n", {res_t, cur_t, base_expr})
                 emit(ctx, decl) @free(decl)
 
                 val cur_ty: mut ref parser.Node = concrete_target_ty
@@ -3065,30 +3064,34 @@ fn gen_builtin(ctx: ref CCtx, expr: ref parser.Node) ref u8 = trust {
                         break
                     }
                     val idx_expr: ref u8 = get_arg(ctx, args, ai)
+                    val idx_t: i64 = fresh_tmp(ctx)
                     val next_ty: ref parser.Node = parser.fixed_arr_inner(cur_ty)
-                    val step_buf: ref u8 = @alloc(512) as ref u8
-                    @snprintf(step_buf, 512, "sx__geto{lld}=sx__rt_get((void*)(intptr_t)(sx__getc{lld}),(int64_t)({s}));if(sx__geto{lld}==0)goto sx__get_none{lld};\n",
-                        {opt_t, cur_t, idx_expr, opt_t, res_t})
+                    val cur_len: i64 = cc_fixed_arr_size_val(ctx, cur_ty)
+                    val elem_sz: i64 = c_size_of(ctx, next_ty)
+                    val step_buf: ref u8 = @alloc(1024) as ref u8
+                    @snprintf(step_buf, 1024, "int64_t sx__geti{lld}=(int64_t)({s});if(sx__geti{lld}<0||sx__geti{lld}>={lld})goto sx__get_none{lld};\n",
+                        {idx_t, idx_expr, idx_t, idx_t, cur_len, res_t})
                     emit(ctx, step_buf) @free(step_buf)
                     if ai == arg_len - 1 {
-                        if next_ty != none && next_ty.kind == parser.TY_FIXED_ARR {
+                        if next_ty != none && (next_ty.kind == parser.TY_FIXED_ARR || cc_type_needs_aggregate_copy(ctx, next_ty)) {
                             val done_buf: ref u8 = @alloc(256) as ref u8
-                            @snprintf(done_buf, 256, "sx__getr{lld}=sx__geto{lld};goto sx__get_end{lld};\n", {res_t, opt_t, res_t})
+                            @snprintf(done_buf, 256, "sx__getr{lld}=((int64_t)(intptr_t)((char*)(intptr_t)sx__getc{lld}+(sx__geti{lld}*{lld})))+1;goto sx__get_end{lld};\n", {res_t, cur_t, idx_t, elem_sz, res_t})
                             emit(ctx, done_buf) @free(done_buf)
                         } else {
                             val elem_ct: ref u8 = cc_c_type_of(ctx, next_ty)
                             val done_buf: ref u8 = @alloc(768) as ref u8
                             if str.rchar_cmp(elem_ct, "double") == 0 || str.rchar_cmp(elem_ct, "float") == 0 {
-                                @snprintf(done_buf, 768, "{s}*sx__getbox{lld}=({s}*)calloc(1,sizeof({s}));*sx__getbox{lld}=({s})(sx__geto{lld}-1);sx__getr{lld}=((int64_t)(intptr_t)sx__getbox{lld})+1;goto sx__get_end{lld};\n",
-                                    {elem_ct, res_t, elem_ct, elem_ct, res_t, elem_ct, opt_t, res_t, res_t, res_t})
+                                @snprintf(done_buf, 768, "{s}*sx__getbox{lld}=({s}*)calloc(1,sizeof({s}));*sx__getbox{lld}=*({s}*)(intptr_t)((int64_t)(intptr_t)((char*)(intptr_t)sx__getc{lld}+(sx__geti{lld}*{lld})));sx__getr{lld}=((int64_t)(intptr_t)sx__getbox{lld})+1;goto sx__get_end{lld};\n",
+                                    {elem_ct, res_t, elem_ct, elem_ct, res_t, elem_ct, cur_t, idx_t, elem_sz, res_t, res_t, res_t})
                             } else {
-                                @snprintf(done_buf, 768, "sx__getr{lld}=sx__geto{lld};goto sx__get_end{lld};\n", {res_t, opt_t, res_t})
+                                @snprintf(done_buf, 768, "sx__getr{lld}=((int64_t)(*({s}*)(intptr_t)((int64_t)(intptr_t)((char*)(intptr_t)sx__getc{lld}+(sx__geti{lld}*{lld})))))+1;goto sx__get_end{lld};\n",
+                                    {res_t, elem_ct, cur_t, idx_t, elem_sz, res_t})
                             }
                             emit(ctx, done_buf) @free(done_buf)
                         }
                     } else {
                         val mid_buf: ref u8 = @alloc(256) as ref u8
-                        @snprintf(mid_buf, 256, "sx__getc{lld}=sx__geto{lld}-1;\n", {cur_t, opt_t})
+                        @snprintf(mid_buf, 256, "sx__getc{lld}=(int64_t)(intptr_t)((char*)(intptr_t)sx__getc{lld}+(sx__geti{lld}*{lld}));\n", {cur_t, cur_t, idx_t, elem_sz})
                         emit(ctx, mid_buf) @free(mid_buf)
                         cur_ty = next_ty
                     }
@@ -3646,6 +3649,26 @@ fn gen_stmt(ctx: mut ref CCtx, stmt: ref parser.Node) void = trust {
         ctx.expected_ty = old_expected
         val ct: mut ref u8 = "int64_t"
         if ty_node != none { ct = cc_c_type_of(ctx, ty_node) }
+
+        if ty_node != none && ty_node.kind == parser.TY_FIXED_ARR {
+            val arr_sz: i64 = c_size_of(ctx, ty_node)
+            val decl_cap: i64 = str.len_raw(name) + 128
+            val decl: ref u8 = @alloc(decl_cap) as ref u8
+            @snprintf(decl, decl_cap, "int64_t t_{s}=(int64_t)(intptr_t)calloc(1,{lld});\n", {name, arr_sz})
+            emit(ctx, decl)
+            @free(decl)
+            if !cc_expr_is_zero_init_like(init_expr) {
+                val copy_cap: i64 = str.len_raw(name) + str.len_raw(val_str) + 160
+                val copy: ref u8 = @alloc(copy_cap) as ref u8
+                @snprintf(copy, copy_cap, "memcpy((void*)(intptr_t)t_{s},(void*)(intptr_t)({s}),(size_t){lld});\n", {name, val_str, arr_sz})
+                emit(ctx, copy)
+                @free(copy)
+            }
+            cc_expr_drain(ctx)
+            val is_slot_arr: mut i64 = 0 if mutable != 0 { is_slot_arr = 1 }
+            cc_register_local(ctx, name, cc_spectre_type_name_of(ctx, ty_node), ty_node, is_slot_arr)
+            return
+        }
 
         val buf: ref u8 = @alloc(8192) as ref u8
         @snprintf(buf, 8192, "{s} t_{s}=({s})({s});\n", {ct, name, ct, val_str}) emit(ctx, buf) @free(buf)
