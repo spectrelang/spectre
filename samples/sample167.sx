@@ -1,0 +1,50 @@
+link "-lSDL3"
+
+extern (C) fn SDL_AcquireGPUCommandBuffer(device: ref void) ref void = "SDL_AcquireGPUCommandBuffer"
+extern (C) fn SDL_WaitAndAcquireGPUSwapchainTexture(command_buffer: ref void, window: ref void, swapchain_texture: ref ref void, swapchain_texture_width: ref u32, swapchain_texture_height: ref u32) bool = "SDL_WaitAndAcquireGPUSwapchainTexture"
+extern (C) fn SDL_CancelGPUCommandBuffer(command_buffer: ref void) bool = "SDL_CancelGPUCommandBuffer"
+
+type ExoSDL3Runtime = {
+    window: mut ref void
+    device: mut ref void
+    scene_pipeline: mut ref void
+    floor_pipeline: mut ref void
+    glow_pipeline: mut ref void
+    linear_sampler: mut ref void
+    reflection_color: mut ref void
+    reflection_depth: mut ref void
+    scene_depth: mut ref void
+    swapchain_texture: mut ref void
+    command_buffer: mut ref void
+    current_pass: mut ref void
+    swapchain_format: mut i32
+    render_width: mut u32
+    render_height: mut u32
+    frame_active: mut bool
+}
+
+fn begin_frame(runtime_raw: ref void) bool = trust {
+    if runtime_raw == none {
+        return false
+    }
+    val runtime: mut ref ExoSDL3Runtime = runtime_raw as mut ref ExoSDL3Runtime
+    if runtime.frame_active {
+        return false
+    }
+    runtime.command_buffer = SDL_AcquireGPUCommandBuffer(runtime.device)
+    if runtime.command_buffer == none {
+        return false
+    }
+    val swap_width: mut u32 = 0 as u32
+    val swap_height: mut u32 = 0 as u32
+    if !(SDL_WaitAndAcquireGPUSwapchainTexture(runtime.command_buffer, runtime.window, @addr(runtime.swapchain_texture), @addr(swap_width), @addr(swap_height))) {
+        SDL_CancelGPUCommandBuffer(runtime.command_buffer)
+        runtime.command_buffer = none
+        return false
+    }
+    return true
+}
+
+pub fn main() i32 = {
+    return 0
+}

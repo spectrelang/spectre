@@ -1,0 +1,18 @@
+type Item = {
+    value: mut i32
+}
+
+fn allocate_item(out: ref ref Item) void = trust {
+    val item: mut ref Item = @alloc(@sizeof(Item)) as ref Item
+    item.value = 42 as i32
+    @store8(out, item)
+}
+
+pub fn main() i32 = {
+    val ptr: mut ref Item = none
+    trust allocate_item(@addr(ptr))
+    if ptr != none {
+        return ptr.value
+    }
+    return 0
+}

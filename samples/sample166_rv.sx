@@ -1,0 +1,17 @@
+extern (C) fn strtol(
+    text: ref u8,
+    endptr: ref ref u8,
+    base: i32
+) i64 = "strtol"
+
+pub fn main() i32 = trust {
+    val end: mut ref u8 = none
+
+    val value = strtol("123abc", @addr(end), 10 as i32)
+
+    if end != none {
+        return value as i32
+    }
+
+    return 0
+}

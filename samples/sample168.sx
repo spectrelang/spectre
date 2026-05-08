@@ -1,0 +1,71 @@
+extern (C) fn posix_spawn_file_actions_addtcsetpgrp_np(
+    actions: ref void,
+    tcfd: i32
+) i32 = "posix_spawn_file_actions_addtcsetpgrp_np"
+
+extern (C) fn posix_spawn_file_actions_addclosefrom_np(
+    actions: ref void,
+    from: i32
+) i32 = "posix_spawn_file_actions_addclosefrom_np"
+
+type Runtime = {
+    command_buffer: mut ref void
+    swapchain_texture: mut ref void
+    render_width: mut u32
+    render_height: mut u32
+    frame_active: mut bool
+}
+
+fn begin_frame(runtime_raw: ref void) bool = trust {
+    if runtime_raw == none {
+        return false
+    }
+
+    val runtime: mut ref Runtime =
+        runtime_raw as mut ref Runtime
+
+    if runtime.frame_active {
+        return false
+    }
+
+    // exercise very long extern symbol names
+    val result0: i32 =
+        posix_spawn_file_actions_addtcsetpgrp_np(
+            none,
+            0 as i32
+        )
+
+    val result1: i32 =
+        posix_spawn_file_actions_addclosefrom_np(
+            none,
+            0 as i32
+        )
+
+    // keep some state changes so optimizer/codegen
+    // still has work to do
+    runtime.command_buffer =
+        posix_spawn_file_actions_addtcsetpgrp_np as ref void
+
+    runtime.swapchain_texture =
+        posix_spawn_file_actions_addclosefrom_np as ref void
+
+    runtime.render_width = result0 as u32
+    runtime.render_height = result1 as u32
+    runtime.frame_active = true
+
+    return true
+}
+
+pub fn main() i32 = {
+    val runtime: mut Runtime = {
+        command_buffer: none,
+        swapchain_texture: none,
+        render_width: 0 as u32,
+        render_height: 0 as u32,
+        frame_active: false
+    }
+
+    trust begin_frame(@addr(runtime) as ref void)
+
+    return 0
+}
