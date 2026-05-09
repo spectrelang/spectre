@@ -1,0 +1,13 @@
+pub type (UnknownSpec) SomeType = {
+    x: i32
+    y: i32
+    z: i32
+}
+
+pub fn (SomeType) some_func() void = {
+    @puts("hi")
+}
+
+pub fn main() void = {
+    SomeType.some_func()        
+}
