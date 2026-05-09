@@ -1,0 +1,28 @@
+pub type SomeType = {
+    x: i32
+    y: i32
+    z: option[i32]
+    a: i32
+    b: i32
+}
+
+pub type SomeOtherType = {
+    a: option[SomeType]
+}
+
+fn make_some_type() SomeType = {
+    return {
+        x: 1
+        y: 2
+        z: some 12
+        a: 124
+        b: 1245
+    }
+}
+
+pub fn main() void = {
+    val x: SomeOtherType = {
+        a: some make_some_type()
+    }
+    trust @print("{p}\n", {x})
+}

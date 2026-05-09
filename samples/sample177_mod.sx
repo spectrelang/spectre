@@ -1,0 +1,31 @@
+pub type Vec3 = {
+    x: f32
+    y: f32
+    z: f32
+}
+
+pub type WaterSurface = {
+    y:              f32
+    wave_speed:     f32
+    wave_amplitude: f32
+    wave_frequency: f32
+    size_x:         f32
+    size_z:         f32
+    color:          Vec3
+}
+
+pub fn make_vec3(x: f32, y: f32, z: f32) Vec3 = {
+    return { x: x, y: y, z: z }
+}
+
+pub fn make_water(y: f32, size_x: f32, size_z: f32, color: Vec3, wave_speed: f32, wave_amplitude: f32, wave_frequency: f32) WaterSurface = {
+    return {
+        y:              y,
+        wave_speed:     wave_speed,
+        wave_amplitude: wave_amplitude,
+        wave_frequency: wave_frequency,
+        size_x:         size_x,
+        size_z:         size_z,
+        color:          color
+    }
+}
