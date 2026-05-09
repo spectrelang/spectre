@@ -5,3 +5,7 @@ pub spec SomeSpec = {
 pub fn do_some_thing[T: SomeSpec](x: T) void = {
     T.whatever()
 }
+
+pub fn main() void = {
+    @puts("hi")
+}

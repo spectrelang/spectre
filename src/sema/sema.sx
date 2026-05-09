@@ -2243,7 +2243,7 @@ fn check_generic_call_constraints(ctx: ref SemaCtx, fn_found: ref parser.Node, c
                             val arg_type_name: ref u8 = extract_type_name(ta_node)
                             if constraint_name != none && arg_type_name != none &&
                                !is_type_parameter(ctx, arg_type_name) {
-                                val expected_spec: ref u8 = constraint_name
+                                val expected_spec: ref u8 = qualify_type_name_for_callee(ctx, callee, constraint_name)
                                 val tdef: ref parser.Node = find_typedef_anywhere(ctx, arg_type_name)
                                 val impl_spec: mut ref u8 = none
                                 if tdef != none { impl_spec = tdef.d4 as ref u8 }
