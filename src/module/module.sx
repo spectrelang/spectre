@@ -2839,7 +2839,26 @@ pub fn collect_used_links(
         }
     }
 
-    return result
+    val deduped: mut list[ref u8] = []
+    for lnk in result {
+        val dlen: i64 = @len(deduped) as i64
+        val di: mut i64 = 0
+        val already: mut bool = false
+        for {
+            if di >= dlen { break }
+            val d_opt = @get(deduped, di as usize)
+            match d_opt {
+                some d => {
+                    if str.rchar_cmp(d as ref u8, lnk) == 0 { already = true break }
+                }
+                none => {}
+            }
+            di++
+        }
+        if !already { @append(deduped, lnk) }
+    }
+
+    return deduped
 }
 
 /// Recursively collect links from a module and its used imports.
