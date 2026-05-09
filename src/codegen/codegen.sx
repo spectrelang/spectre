@@ -8651,7 +8651,7 @@ fn gen_stmt(ctx: ref CgCtx, stmt: ref parser.Node) void = trust {
 
         if ty_node != none {
             val local_ann: mut ref u8 = ""
-            if ty_node.kind == parser.TY_LIST || ty_node.kind == parser.TY_FIXED_ARR || ty_node.kind == parser.TY_FNPTR {
+            if ty_node.kind == parser.TY_LIST || ty_node.kind == parser.TY_FIXED_ARR || ty_node.kind == parser.TY_FNPTR || ty_node.kind == parser.TY_OPTION || ty_node.kind == parser.TY_RESULT {
                 val full_type: ref u8 = type_expr_to_annotation(ctx, ty_node)
                 if str.rchar_cmp(full_type, "") != 0 {
                     cg_register_local_type(ctx, name, full_type)
