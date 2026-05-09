@@ -1036,6 +1036,66 @@ fn find_typedef_anywhere(ctx: ref SemaCtx, type_name: ref u8) ref parser.Node = 
     return none
 }
 
+fn find_spec_in_items(items: list[ref parser.Node], spec_name: ref u8) ref parser.Node = trust {
+    for item in items {
+        if item == none { continue }
+        if item.kind == parser.NK_SPEC {
+            val nm: ref u8 = item.d1 as ref u8
+            if nm != none && str_eq(nm, spec_name) { return item }
+        }
+        if item.kind == parser.NK_WHEN_ITEMS {
+            val witems: ref void = item.d1 as ref void
+            if witems != none {
+                val found_w: ref parser.Node = find_spec_in_items(witems as list[ref parser.Node], spec_name)
+                if found_w != none { return found_w }
+            }
+            val or_branches: ref void = item.d2 as ref void
+            if or_branches != none {
+                for ob in or_branches as list[ref parser.Node] {
+                    if ob == none { continue }
+                    val ob_items: ref void = ob.d1 as ref void
+                    if ob_items == none { continue }
+                    val found_ob: ref parser.Node = find_spec_in_items(ob_items as list[ref parser.Node], spec_name)
+                    if found_ob != none { return found_ob }
+                }
+            }
+            val otherwise: ref void = item.d3 as ref void
+            if otherwise != none {
+                val found_ow: ref parser.Node = find_spec_in_items(otherwise as list[ref parser.Node], spec_name)
+                if found_ow != none { return found_ow }
+            }
+        }
+    }
+    return none
+}
+
+fn find_spec_anywhere(ctx: ref SemaCtx, spec_name: ref u8) ref parser.Node = trust {
+    if ctx == none || spec_name == none { return none }
+    if ctx.root_mod == none { return none }
+    val nlen: i64 = string.len_raw(spec_name)
+    val dot_idx: mut i64 = -1
+    val i: mut i64 = 0
+    for {
+        if i >= nlen { break }
+        val c: u8 = @load8(@ptradd(spec_name as ref void, i))
+        if c == 46 {
+            dot_idx = i
+            break
+        }
+        i++
+    }
+    if dot_idx > 0 {
+        val mod_name_buf: ref u8 = @alloc((dot_idx + 1) as usize) as ref u8
+        @memcpy(mod_name_buf as ref void, spec_name as ref void, dot_idx as usize)
+        @store8(@ptradd(mod_name_buf as ref void, dot_idx), 0)
+        val unqual: ref u8 = @ptradd(spec_name, dot_idx + 1) as ref u8
+        val mm: ref modinfo.ResolvedModule = find_imported_mod(ctx, mod_name_buf)
+        if mm == none { return none }
+        return find_spec_in_items(modinfo.module_items(mm), unqual)
+    }
+    return find_spec_in_items(modinfo.module_items(ctx.root_mod), spec_name)
+}
+
 /// Returns the wrap kind (0=none, 1=result, 2=option) of an expression's value.
 /// Note: if you have just 'none'/'some'/'ok'/'err' literals, they return 0 here because in spectre
 /// 'none' is also used as a null-pointer sentinel and can be passed to ref-typed
@@ -1243,6 +1303,64 @@ fn validate_spec_impls(ctx: ref SemaCtx, items: list[ref parser.Node], filename:
             }
         }
     }
+}
+
+fn validate_derived_specs_in_items(ctx: ref SemaCtx, items: list[ref parser.Node], filename: ref u8) void = trust {
+    for item in items {
+        if item == none { continue }
+        val k: i64 = item.kind
+        if k == parser.NK_TYPEDEF || k == parser.NK_EXTERN_TYPE {
+            val spec_name: ref u8 = item.d4 as ref u8
+            if spec_name != none {
+                val has_dot: mut bool = false
+                val i: mut i64 = 0
+                for {
+                    val c: u8 = @load8(@ptradd(spec_name as ref void, i))
+                    if c == 0 { break }
+                    if c == 46 {
+                        has_dot = true
+                        break
+                    }
+                    i++
+                }
+                if !has_dot {
+                    val spec_def: ref parser.Node = find_spec_anywhere(ctx, spec_name)
+                    if spec_def == none {
+                        val type_name: ref u8 = item.d1 as ref u8
+                        val ebuf: ref u8 = @alloc(512) as ref u8
+                        @snprintf(ebuf, 512, "{s}:{lld}: type '{s}' derives unknown spec '{s}'",
+                            {filename, item.line, type_name, spec_name})
+                        add_error(ctx, ebuf)
+                    }
+                }
+            }
+            continue
+        }
+        if k == parser.NK_WHEN_ITEMS {
+            val when_items: ref void = item.d1 as ref void
+            if when_items != none {
+                validate_derived_specs_in_items(ctx, when_items as list[ref parser.Node], filename)
+            }
+            val or_branches: ref void = item.d2 as ref void
+            if or_branches != none {
+                for or_node in or_branches as list[ref parser.Node] {
+                    if or_node == none { continue }
+                    val or_items: ref void = (or_node as ref parser.Node).d1 as ref void
+                    if or_items != none {
+                        validate_derived_specs_in_items(ctx, or_items as list[ref parser.Node], filename)
+                    }
+                }
+            }
+            val otherwise_items: ref void = item.d3 as ref void
+            if otherwise_items != none {
+                validate_derived_specs_in_items(ctx, otherwise_items as list[ref parser.Node], filename)
+            }
+        }
+    }
+}
+
+fn validate_derived_specs(ctx: ref SemaCtx, items: list[ref parser.Node], filename: ref u8) void = trust {
+    validate_derived_specs_in_items(ctx, items, filename)
 }
 
 fn str_eq(a: ref u8, b: ref u8) bool = trust {
@@ -4889,6 +5007,7 @@ pub fn check_module(items: list[ref parser.Node], filename: ref u8, root: ref mo
         check_top_item(ctx, item2, filename)
     }
     check_unused_imports(ctx, items, filename)
+    validate_derived_specs(ctx, items, filename)
     validate_spec_impls(ctx, items, filename)
 
     val fnlen: i64 = @len(ctx.fn_names) as i64
