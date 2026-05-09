@@ -2358,8 +2358,10 @@ fn gen_expr(ctx: ref CCtx, expr: ref parser.Node) ref u8 = trust {
                 return cc_expr_track(ctx, boxed_res)
             }
         }
-        val buf: ref u8 = @alloc(128) as ref u8
-        @snprintf(buf, 128, "(({s})+1)", {inner}) return cc_expr_track(ctx, buf) }
+        val inner_len: i64 = str.len_raw(inner)
+        val buf_sz: i64 = inner_len + 16
+        val buf: ref u8 = @alloc(buf_sz) as ref u8
+        @snprintf(buf, buf_sz, "(({s})+1)", {inner}) return cc_expr_track(ctx, buf) }
     if k == parser.NK_OK_VAL {
         val t: i64 = fresh_tmp(ctx)
         val buf: ref u8 = @alloc(512) as ref u8
@@ -2440,8 +2442,9 @@ fn gen_expr(ctx: ref CCtx, expr: ref parser.Node) ref u8 = trust {
         }
         val inner: ref u8 = gen_expr(ctx, inner_node)
         val ct: ref u8 = cc_c_type_of(ctx, target_ty)
-        val buf: ref u8 = @alloc(256) as ref u8
-        @snprintf(buf, 256, "({s})({s})", {ct, inner}) return cc_expr_track(ctx, buf) }
+        val cast_buf_sz: i64 = str.len_raw(inner) + str.len_raw(ct) + 8
+        val buf: ref u8 = @alloc(cast_buf_sz) as ref u8
+        @snprintf(buf, cast_buf_sz, "({s})({s})", {ct, inner}) return cc_expr_track(ctx, buf) }
     if k == parser.NK_ADDR {
         val inner_node: ref parser.Node = expr.d0 as ref parser.Node
         if inner_node.kind == parser.NK_IDENT {

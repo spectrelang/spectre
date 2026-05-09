@@ -29,3 +29,5 @@ pub fn make_water(y: f32, size_x: f32, size_z: f32, color: Vec3, wave_speed: f32
         color:          color
     }
 }
+
+pub fn main() void = {}
