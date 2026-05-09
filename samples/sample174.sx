@@ -1,0 +1,7 @@
+pub spec SomeSpec = {
+    pub fn whatever() void
+}
+
+pub fn do_some_thing[T: SomeSpec](x: T) void = {
+    T.whatever()
+}

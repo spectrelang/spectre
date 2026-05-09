@@ -1,0 +1,15 @@
+val smp = use("sample174.sx")
+
+pub type (smp.SomeSpec) SomeType = {
+    x: i32
+    y: i32
+}
+
+pub fn (SomeType) whatever() void = {
+    @puts("whatever")
+}
+
+pub fn main() void = {
+    val x: SomeType = {x: 12, y: 14}
+    smp.do_some_thing[SomeType](x)
+}
