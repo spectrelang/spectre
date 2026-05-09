@@ -38971,7 +38971,7 @@ int64_t t_arg_type_name=(int64_t)(sema__extract_type_name(t_ta_node));
 if(((((((t_constraint_name)!=(0)))?(((t_arg_type_name)!=(0))):(0)))?((!(sema__is_type_parameter(t_ctx,t_arg_type_name)))):(0)))
 {
 #line 2246 "./src//sema/sema.sx"
-int64_t t_expected_spec=(int64_t)(t_constraint_name);
+int64_t t_expected_spec=(int64_t)(sema__qualify_type_name_for_callee(t_ctx,t_callee,t_constraint_name));
 #line 2247 "./src//sema/sema.sx"
 int64_t t_tdef=(int64_t)(sema__find_typedef_anywhere(t_ctx,t_arg_type_name));
 #line 2248 "./src//sema/sema.sx"

@@ -55333,132 +55333,133 @@ function w $sema__check_generic_call_constraints(l %ctx, l %fn_found, l %callee,
     %t83 =w loadw %t80
     jnz %t83, @lbl10983, @lbl10984
 @lbl10983
-    %t84 =l call $sema__find_typedef_anywhere(l %ctx, l %t73)
-    %t85 =l copy 0
-    %t86 =l alloc8 8
-    storel %t85, %t86
-    %t87 =l copy 0
-    %t88 =w cnel %t84, %t87
-    jnz %t88, @lbl10990, @lbl10991
+    %t84 =l call $sema__qualify_type_name_for_callee(l %ctx, l %callee, l %t72)
+    %t85 =l call $sema__find_typedef_anywhere(l %ctx, l %t73)
+    %t86 =l copy 0
+    %t87 =l alloc8 8
+    storel %t86, %t87
+    %t88 =l copy 0
+    %t89 =w cnel %t85, %t88
+    jnz %t89, @lbl10990, @lbl10991
 @lbl10990
-    %t90 =l add %t84, 48
-    %t89 =l loadl %t90
-    %t91 =l copy %t89
-    storel %t91, %t86
+    %t91 =l add %t85, 48
+    %t90 =l loadl %t91
+    %t92 =l copy %t90
+    storel %t92, %t87
     jmp @lbl10991
 @lbl10991
-    %t92 =l copy 0
-    %t93 =l alloc8 8
-    storew %t92, %t93
-    %t94 =l loadl %t86
-    %t95 =l copy 0
-    %t96 =w cnel %t94, %t95
-    %t97 =l alloc4 1
-    storew %t96, %t97
-    jnz %t96, @lbl10996, @lbl10997
+    %t93 =l copy 0
+    %t94 =l alloc8 8
+    storew %t93, %t94
+    %t95 =l loadl %t87
+    %t96 =l copy 0
+    %t97 =w cnel %t95, %t96
+    %t98 =l alloc4 1
+    storew %t97, %t98
+    jnz %t97, @lbl10996, @lbl10997
 @lbl10996
-    %t98 =l loadl %t86
-    %t99 =w call $sema__str_eq(l %t98, l %t72)
-    storew %t99, %t97
+    %t99 =l loadl %t87
+    %t100 =w call $sema__str_eq(l %t99, l %t84)
+    storew %t100, %t98
     jmp @lbl10997
 @lbl10997
-    %t100 =w loadw %t97
-    jnz %t100, @lbl10993, @lbl10994
+    %t101 =w loadw %t98
+    jnz %t101, @lbl10993, @lbl10994
 @lbl10993
-    %t101 =l copy 1
-    storew %t101, %t93
+    %t102 =l copy 1
+    storew %t102, %t94
     jmp @lbl10994
 @lbl10994
-    %t103 =w loadw %t93
-    %t102 =l extsw %t103
-    %t104 =w ceqw %t102, 0
-    %t105 =l alloc4 1
-    storew %t104, %t105
-    jnz %t104, @lbl11001, @lbl11002
+    %t104 =w loadw %t94
+    %t103 =l extsw %t104
+    %t105 =w ceqw %t103, 0
+    %t106 =l alloc4 1
+    storew %t105, %t106
+    jnz %t105, @lbl11001, @lbl11002
 @lbl11001
-    %t106 =l loadl %t86
-    %t107 =l copy 0
-    %t108 =w cnel %t106, %t107
-    storew %t108, %t105
+    %t107 =l loadl %t87
+    %t108 =l copy 0
+    %t109 =w cnel %t107, %t108
+    storew %t109, %t106
     jmp @lbl11002
 @lbl11002
-    %t109 =w loadw %t105
-    jnz %t109, @lbl10998, @lbl10999
+    %t110 =w loadw %t106
+    jnz %t110, @lbl10998, @lbl10999
 @lbl10998
-    %t110 =l call $sema__qualified_owner_prefix(l %t73)
-    %t111 =l call $sema__qualified_owner_prefix(l %t72)
-    %t112 =l copy 0
-    %t113 =w cnel %t110, %t112
-    %t114 =l alloc4 1
-    storew %t113, %t114
-    jnz %t113, @lbl11006, @lbl11007
+    %t111 =l call $sema__qualified_owner_prefix(l %t73)
+    %t112 =l call $sema__qualified_owner_prefix(l %t84)
+    %t113 =l copy 0
+    %t114 =w cnel %t111, %t113
+    %t115 =l alloc4 1
+    storew %t114, %t115
+    jnz %t114, @lbl11006, @lbl11007
 @lbl11006
-    %t115 =l copy 0
-    %t116 =w cnel %t111, %t115
-    storew %t116, %t114
+    %t116 =l copy 0
+    %t117 =w cnel %t112, %t116
+    storew %t117, %t115
     jmp @lbl11007
 @lbl11007
-    %t117 =w loadw %t114
-    %t118 =l alloc4 1
-    storew %t117, %t118
-    jnz %t117, @lbl11008, @lbl11009
+    %t118 =w loadw %t115
+    %t119 =l alloc4 1
+    storew %t118, %t119
+    jnz %t118, @lbl11008, @lbl11009
 @lbl11008
-    %t119 =w call $sema__str_eq(l %t110, l %t111)
-    storew %t119, %t118
+    %t120 =w call $sema__str_eq(l %t111, l %t112)
+    storew %t120, %t119
     jmp @lbl11009
 @lbl11009
-    %t120 =w loadw %t118
-    %t121 =l alloc4 1
-    storew %t120, %t121
-    jnz %t120, @lbl11010, @lbl11011
+    %t121 =w loadw %t119
+    %t122 =l alloc4 1
+    storew %t121, %t122
+    jnz %t121, @lbl11010, @lbl11011
 @lbl11010
-    %t122 =l loadl %t86
-    %t123 =l call $sema__unqualified_type_name(l %t72)
-    %t124 =w call $sema__str_eq(l %t122, l %t123)
-    storew %t124, %t121
+    %t123 =l loadl %t87
+    %t124 =l call $sema__unqualified_type_name(l %t84)
+    %t125 =w call $sema__str_eq(l %t123, l %t124)
+    storew %t125, %t122
     jmp @lbl11011
 @lbl11011
-    %t125 =w loadw %t121
-    jnz %t125, @lbl11003, @lbl11004
+    %t126 =w loadw %t122
+    jnz %t126, @lbl11003, @lbl11004
 @lbl11003
-    %t126 =l copy 1
-    storew %t126, %t93
+    %t127 =l copy 1
+    storew %t127, %t94
     jmp @lbl11004
 @lbl11004
     jmp @lbl10999
 @lbl10999
-    %t128 =w loadw %t93
-    %t127 =l extsw %t128
-    %t129 =w ceqw %t127, 0
-    %t130 =l alloc4 1
-    storew %t129, %t130
-    jnz %t129, @lbl11015, @lbl11016
+    %t129 =w loadw %t94
+    %t128 =l extsw %t129
+    %t130 =w ceqw %t128, 0
+    %t131 =l alloc4 1
+    storew %t130, %t131
+    jnz %t130, @lbl11015, @lbl11016
 @lbl11015
-    %t131 =w call $sema__str_eq(l %t73, l %t72)
-    storew %t131, %t130
+    %t132 =w call $sema__str_eq(l %t73, l %t72)
+    storew %t132, %t131
     jmp @lbl11016
 @lbl11016
-    %t132 =w loadw %t130
-    jnz %t132, @lbl11012, @lbl11013
+    %t133 =w loadw %t131
+    jnz %t133, @lbl11012, @lbl11013
 @lbl11012
-    %t133 =l copy 1
-    storew %t133, %t93
+    %t134 =l copy 1
+    storew %t134, %t94
     jmp @lbl11013
 @lbl11013
-    %t135 =w loadw %t93
-    %t134 =l extsw %t135
-    %t136 =w ceqw %t134, 0
-    jnz %t136, @lbl11017, @lbl11018
+    %t136 =w loadw %t94
+    %t135 =l extsw %t136
+    %t137 =w ceqw %t135, 0
+    jnz %t137, @lbl11017, @lbl11018
 @lbl11017
-    %t137 =l call $parser__tparam_name(l %t65)
-    %t139 =l copy 512
-    %t138 =l call $malloc(l %t139)
-    %t140 =l copy %t138
-    %t142 =l copy 512
-    %t143 =l copy $__str465
-    %t141 =w call $snprintf(l %t140, l %t142, l %t143, ..., l %filename, l %line, l %t73, l %t137, l %t72)
-    %t144 =l extsw %t141
-    %t145 =w call $sema__add_error(l %ctx, l %t140)
+    %t138 =l call $parser__tparam_name(l %t65)
+    %t140 =l copy 512
+    %t139 =l call $malloc(l %t140)
+    %t141 =l copy %t139
+    %t143 =l copy 512
+    %t144 =l copy $__str465
+    %t142 =w call $snprintf(l %t141, l %t143, l %t144, ..., l %filename, l %line, l %t73, l %t138, l %t72)
+    %t145 =l extsw %t142
+    %t146 =w call $sema__add_error(l %ctx, l %t141)
     jmp @lbl11018
 @lbl11018
     jmp @lbl10984
@@ -55473,9 +55474,9 @@ function w $sema__check_generic_call_constraints(l %ctx, l %fn_found, l %callee,
 @lbl10975
     jmp @lbl10976
 @lbl10976
-    %t146 =l loadl %t33
-    %t147 =l add %t146, 1
-    storel %t147, %t33
+    %t147 =l loadl %t33
+    %t148 =l add %t147, 1
+    storel %t148, %t33
     jmp @lbl10963
 @lbl10963
     jmp @lbl10961
