@@ -1,0 +1,5 @@
+val m = use("repro_mod.sx")
+
+pub fn wrapped_add(a: i32, b: i32) i32 = {
+    return m.add(a, b)
+}

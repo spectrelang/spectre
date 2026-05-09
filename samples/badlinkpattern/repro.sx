@@ -1,0 +1,9 @@
+// Bug: link directives from a module that is imported by multiple other
+// modules get emitted multiple times on the clang command line, causing
+// "multiple definition" linker errors for .o files.
+val a = use("repro_mod.sx")
+val b = use("repro_mod.sx")
+
+pub fn main() i32 = {
+    return a.add(1 as i32, 2 as i32) - b.add(1 as i32, 2 as i32)
+}

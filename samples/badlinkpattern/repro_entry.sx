@@ -1,0 +1,6 @@
+val m       = use("repro_mod.sx")
+val wrapper = use("repro_wrapper.sx")
+
+pub fn main() i32 = {
+    return m.add(1 as i32, 2 as i32) - wrapper.wrapped_add(1 as i32, 2 as i32)
+}

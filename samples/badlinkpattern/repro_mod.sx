@@ -1,0 +1,7 @@
+link "./repro_clib.o"
+
+extern (C) fn repro_add(a: i32, b: i32) i32 = "repro_add"
+
+pub fn add(a: i32, b: i32) i32 = {
+    return trust repro_add(a, b)
+}
