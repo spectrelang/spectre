@@ -1,0 +1,3 @@
+pub spec SomeSpec = {
+    pub fn some_function() void
+}

@@ -2302,7 +2302,19 @@ fn parse_type_def_item(p: ref Parser, public: i64, is_extern: i64) result[ref No
     val spec_name: mut ref u8 = none
     if lexer.kind_is_lparen(p_peek_kind(p)) {
         p_advance(p)
-        spec_name = p_expect_ident(p)?
+        val spec_first = p_expect_ident(p)?
+        val sb: ref void = string.StringBuilder.new()
+        string.StringBuilder.append_cstr(sb, spec_first)
+        for {
+            if !lexer.kind_is_dot(p_peek_kind(p)) { break }
+            p_advance(p)
+            val seg = p_expect_ident(p)?
+            string.StringBuilder.append_char(sb, 46 as u8)
+            string.StringBuilder.append_cstr(sb, seg)
+        }
+        val full_spec: ref void = string.StringBuilder.build(sb)
+        string.StringBuilder.free(sb)
+        spec_name = string.cstr(full_spec)
         p_expect_rparen(p)?
     }
     val name = p_expect_ident(p)?

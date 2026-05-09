@@ -2653,6 +2653,15 @@ fn collect_used_imports_item(item: ref parser.Node, import_names: list[ref u8], 
     } elif item.kind == parser.NK_CONST {
         collect_used_imports_expr(item.d2 as ref parser.Node, import_names, used)
     } elif item.kind == parser.NK_TYPEDEF || item.kind == parser.NK_EXTERN_TYPE {
+        val derived_spec_name: ref u8 = item.d4 as ref u8
+        if derived_spec_name != none {
+            for import_name in import_names {
+                if type_name_references_import(derived_spec_name, import_name) {
+                    mark_import_used(import_names, used, import_name)
+                    break
+                }
+            }
+        }
         val fields: ref void = item.d2 as ref void
         if fields != none {
             for field in fields as list[ref parser.Node] {

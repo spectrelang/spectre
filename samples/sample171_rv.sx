@@ -1,0 +1,14 @@
+val spec_mod = use("sample171_mod.sx")
+
+type (spec_mod.SomeSpec) SomeType = {
+    x: i32
+    y: i32
+}
+
+pub fn (SomeType) some_func() void = {
+    @puts("Hello.")
+}
+
+pub fn main() void = {
+    SomeType.some_func()
+}
