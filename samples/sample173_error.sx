@@ -1,0 +1,7 @@
+spec SomeUnusedSpec = {
+    fn whatever() void
+}
+
+pub fn main() void = {
+    @puts("hello")
+}

@@ -1279,9 +1279,11 @@ fn validate_spec_impls(ctx: ref SemaCtx, items: list[ref parser.Node], filename:
             }
         }
         if @len(impls) as i64 == 0 {
-            val ebuf: ref u8 = @alloc(256) as ref u8
-            @snprintf(ebuf, 256, "{s}: spec '{s}' has no implementing type", {filename, spec_name})
-            add_error(ctx, ebuf)
+            if item.d0 == 0 {
+                val ebuf: ref u8 = @alloc(256) as ref u8
+                @snprintf(ebuf, 256, "{s}: spec '{s}' has no implementing type", {filename, spec_name})
+                add_error(ctx, ebuf)
+            }
             continue
         }
         for impl_name in impls {
