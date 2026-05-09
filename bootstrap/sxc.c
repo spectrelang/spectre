@@ -33766,112 +33766,157 @@ t_ci++;
 }
 }}
 #line 2842 "./src//sema//../module/module.sx"
-return(int64_t)(t_result);
-}
-
+int64_t*sx__ll8=(int64_t*)calloc(1,24);int64_t*sx__lld8=(int64_t*)calloc(1,64);sx__ll8[0]=(int64_t)(intptr_t)sx__lld8;sx__ll8[1]=0;sx__ll8[2]=8;
+int64_t t_deduped=(int64_t)((int64_t)(intptr_t)sx__ll8);
+#line 2843 "./src//sema//../module/module.sx"
+{int64_t sx__it9=t_result;int64_t sx__len9=(sx__it9==0?0:*(int64_t*)((char*)(intptr_t)sx__it9+8));int64_t*sx__buf9=(sx__it9==0?0:*(int64_t**)(intptr_t)sx__it9);int64_t sx__i9=0;for(;sx__i9<sx__len9;sx__i9++){int64_t t_lnk=sx__buf9[sx__i9];
+#line 2844 "./src//sema//../module/module.sx"
+int64_t t_dlen=(int64_t)((int64_t)((t_deduped==0?0:(*(int64_t*)((char*)(intptr_t)(t_deduped)+8)))));
+#line 2845 "./src//sema//../module/module.sx"
+int64_t t_di=(int64_t)(INT64_C(0));
 #line 2846 "./src//sema//../module/module.sx"
-int64_t modinfo__collect_used_links_recursive(int64_t t_m,int64_t t_exe_dir,int64_t t_seen){
-#line 2851 "./src//sema//../module/module.sx"
-int64_t t_slen=(int64_t)((int64_t)((t_seen==0?0:(*(int64_t*)((char*)(intptr_t)(t_seen)+8)))));
-#line 2852 "./src//sema//../module/module.sx"
-int64_t t_si=(int64_t)(INT64_C(0));
-#line 2853 "./src//sema//../module/module.sx"
+int32_t t_already=(int32_t)(0);
+#line 2847 "./src//sema//../module/module.sx"
 for(;;){
-#line 2854 "./src//sema//../module/module.sx"
-if(((t_si)>=(t_slen)))
+#line 2848 "./src//sema//../module/module.sx"
+if(((t_di)>=(t_dlen)))
 {
-#line 2854 "./src//sema//../module/module.sx"
+#line 2848 "./src//sema//../module/module.sx"
 break;
 }
-#line 2855 "./src//sema//../module/module.sx"
-int64_t t_s_opt=(int64_t)(sx__rt_get((void*)(intptr_t)(t_seen),(int64_t)((uint64_t)(t_si))));
+#line 2849 "./src//sema//../module/module.sx"
+int64_t t_d_opt=(int64_t)(sx__rt_get((void*)(intptr_t)(t_deduped),(int64_t)((uint64_t)(t_di))));
+#line 2850 "./src//sema//../module/module.sx"
+{int64_t sx__mv10=t_d_opt;if(sx__mv10!=0)
+{
+int64_t t_d=sx__mv10-1;
+#line 2852 "./src//sema//../module/module.sx"
+if(((std__string__rchar_cmp((int64_t)(t_d),t_lnk))==(INT64_C(0))))
+{
+#line 2852 "./src//sema//../module/module.sx"
+t_already=(1);
+#line 2852 "./src//sema//../module/module.sx"
+break;
+}
+}else{
+}}
 #line 2856 "./src//sema//../module/module.sx"
+t_di++;
+}
+#line 2858 "./src//sema//../module/module.sx"
+if((!(t_already)))
+{
+#line 2858 "./src//sema//../module/module.sx"
+(void)(sx__rt_append_f((int64_t*)&t_deduped,(int64_t)(t_lnk)));
+}
+}}
+#line 2861 "./src//sema//../module/module.sx"
+return(int64_t)(t_deduped);
+}
+
+#line 2865 "./src//sema//../module/module.sx"
+int64_t modinfo__collect_used_links_recursive(int64_t t_m,int64_t t_exe_dir,int64_t t_seen){
+#line 2870 "./src//sema//../module/module.sx"
+int64_t t_slen=(int64_t)((int64_t)((t_seen==0?0:(*(int64_t*)((char*)(intptr_t)(t_seen)+8)))));
+#line 2871 "./src//sema//../module/module.sx"
+int64_t t_si=(int64_t)(INT64_C(0));
+#line 2872 "./src//sema//../module/module.sx"
+for(;;){
+#line 2873 "./src//sema//../module/module.sx"
+if(((t_si)>=(t_slen)))
+{
+#line 2873 "./src//sema//../module/module.sx"
+break;
+}
+#line 2874 "./src//sema//../module/module.sx"
+int64_t t_s_opt=(int64_t)(sx__rt_get((void*)(intptr_t)(t_seen),(int64_t)((uint64_t)(t_si))));
+#line 2875 "./src//sema//../module/module.sx"
 {int64_t sx__mv0=t_s_opt;if(sx__mv0!=0)
 {
 int64_t t_s=sx__mv0-1;
-#line 2858 "./src//sema//../module/module.sx"
+#line 2877 "./src//sema//../module/module.sx"
 if(((t_s)==(INT64_C(0))))
 {
-#line 2858 "./src//sema//../module/module.sx"
+#line 2877 "./src//sema//../module/module.sx"
 continue;
 }
-#line 2859 "./src//sema//../module/module.sx"
+#line 2878 "./src//sema//../module/module.sx"
 if(std__string__equals(t_s,((int64_t)(intptr_t)((char*)(intptr_t)(t_m)+72))))
 {
-#line 2859 "./src//sema//../module/module.sx"
+#line 2878 "./src//sema//../module/module.sx"
 int64_t*sx__ll1=(int64_t*)calloc(1,24);int64_t*sx__lld1=(int64_t*)calloc(1,64);sx__ll1[0]=(int64_t)(intptr_t)sx__lld1;sx__ll1[1]=0;sx__ll1[2]=8;
 return(int64_t)((int64_t)(intptr_t)sx__ll1);
 }
 }else{
 }}
-#line 2863 "./src//sema//../module/module.sx"
+#line 2882 "./src//sema//../module/module.sx"
 t_si++;
 }
-#line 2866 "./src//sema//../module/module.sx"
+#line 2885 "./src//sema//../module/module.sx"
 (void)(sx__rt_append_f((int64_t*)&t_seen,(int64_t)(((int64_t)(intptr_t)((char*)(intptr_t)(t_m)+72)))));
-#line 2868 "./src//sema//../module/module.sx"
+#line 2887 "./src//sema//../module/module.sx"
 int64_t*sx__ll2=(int64_t*)calloc(1,24);int64_t*sx__lld2=(int64_t*)calloc(1,64);sx__ll2[0]=(int64_t)(intptr_t)sx__lld2;sx__ll2[1]=0;sx__ll2[2]=8;
 int64_t t_result=(int64_t)((int64_t)(intptr_t)sx__ll2);
-#line 2870 "./src//sema//../module/module.sx"
+#line 2889 "./src//sema//../module/module.sx"
 int64_t t_my_links=(int64_t)(modinfo__collect_links(((int64_t)(intptr_t)((char*)(intptr_t)(t_m)+0)),t_exe_dir));
-#line 2871 "./src//sema//../module/module.sx"
+#line 2890 "./src//sema//../module/module.sx"
 {int64_t sx__it3=t_my_links;int64_t sx__len3=(sx__it3==0?0:*(int64_t*)((char*)(intptr_t)sx__it3+8));int64_t*sx__buf3=(sx__it3==0?0:*(int64_t**)(intptr_t)sx__it3);int64_t sx__i3=0;for(;sx__i3<sx__len3;sx__i3++){int64_t t_lnk=sx__buf3[sx__i3];
-#line 2872 "./src//sema//../module/module.sx"
+#line 2891 "./src//sema//../module/module.sx"
 (void)(sx__rt_append_f((int64_t*)&t_result,(int64_t)(t_lnk)));
 }}
-#line 2875 "./src//sema//../module/module.sx"
+#line 2894 "./src//sema//../module/module.sx"
 int64_t*sx__ll4=(int64_t*)calloc(1,24);int64_t*sx__lld4=(int64_t*)calloc(1,64);sx__ll4[0]=(int64_t)(intptr_t)sx__lld4;sx__ll4[1]=0;sx__ll4[2]=8;
 int64_t t_used_imports=(int64_t)((int64_t)(intptr_t)sx__ll4);
-#line 2876 "./src//sema//../module/module.sx"
+#line 2895 "./src//sema//../module/module.sx"
 (void)(modinfo__collect_used_imports_items(((int64_t)(intptr_t)((char*)(intptr_t)(t_m)+0)),((int64_t)(intptr_t)((char*)(intptr_t)(t_m)+24)),t_used_imports));
-#line 2878 "./src//sema//../module/module.sx"
+#line 2897 "./src//sema//../module/module.sx"
 {int64_t sx__it5=t_used_imports;int64_t sx__len5=(sx__it5==0?0:*(int64_t*)((char*)(intptr_t)sx__it5+8));int64_t*sx__buf5=(sx__it5==0?0:*(int64_t**)(intptr_t)sx__it5);int64_t sx__i5=0;for(;sx__i5<sx__len5;sx__i5++){int64_t t_used_name=sx__buf5[sx__i5];
-#line 2879 "./src//sema//../module/module.sx"
+#line 2898 "./src//sema//../module/module.sx"
 int64_t t_clen=(int64_t)((int64_t)((((int64_t)(intptr_t)((char*)(intptr_t)(t_m)+48))==0?0:(*(int64_t*)((char*)(intptr_t)(((int64_t)(intptr_t)((char*)(intptr_t)(t_m)+48)))+8)))));
-#line 2880 "./src//sema//../module/module.sx"
+#line 2899 "./src//sema//../module/module.sx"
 int64_t t_ci=(int64_t)(INT64_C(0));
-#line 2881 "./src//sema//../module/module.sx"
+#line 2900 "./src//sema//../module/module.sx"
 for(;;){
-#line 2882 "./src//sema//../module/module.sx"
+#line 2901 "./src//sema//../module/module.sx"
 if(((t_ci)>=(t_clen)))
 {
-#line 2882 "./src//sema//../module/module.sx"
+#line 2901 "./src//sema//../module/module.sx"
 break;
 }
-#line 2883 "./src//sema//../module/module.sx"
+#line 2902 "./src//sema//../module/module.sx"
 int64_t t_name_opt=(int64_t)(sx__rt_get((void*)(intptr_t)(((int64_t)(intptr_t)((char*)(intptr_t)(t_m)+24))),(int64_t)((uint64_t)(t_ci))));
-#line 2884 "./src//sema//../module/module.sx"
+#line 2903 "./src//sema//../module/module.sx"
 int64_t t_mod_opt=(int64_t)(sx__rt_get((void*)(intptr_t)(((int64_t)(intptr_t)((char*)(intptr_t)(t_m)+48))),(int64_t)((uint64_t)(t_ci))));
-#line 2885 "./src//sema//../module/module.sx"
+#line 2904 "./src//sema//../module/module.sx"
 {int64_t sx__mv6=t_name_opt;if(sx__mv6!=0)
 {
 int64_t t_name=sx__mv6-1;
-#line 2887 "./src//sema//../module/module.sx"
+#line 2906 "./src//sema//../module/module.sx"
 if(((std__string__rchar_cmp((int64_t)(t_name),t_used_name))==(INT64_C(0))))
 {
-#line 2888 "./src//sema//../module/module.sx"
+#line 2907 "./src//sema//../module/module.sx"
 {int64_t sx__mv7=t_mod_opt;if(sx__mv7!=0)
 {
 int64_t t_child=sx__mv7-1;
-#line 2890 "./src//sema//../module/module.sx"
+#line 2909 "./src//sema//../module/module.sx"
 int64_t t_child_links=(int64_t)(modinfo__collect_used_links_recursive((int64_t)(t_child),t_exe_dir,t_seen));
-#line 2895 "./src//sema//../module/module.sx"
+#line 2914 "./src//sema//../module/module.sx"
 {int64_t sx__it8=t_child_links;int64_t sx__len8=(sx__it8==0?0:*(int64_t*)((char*)(intptr_t)sx__it8+8));int64_t*sx__buf8=(sx__it8==0?0:*(int64_t**)(intptr_t)sx__it8);int64_t sx__i8=0;for(;sx__i8<sx__len8;sx__i8++){int64_t t_clink=sx__buf8[sx__i8];
-#line 2896 "./src//sema//../module/module.sx"
+#line 2915 "./src//sema//../module/module.sx"
 (void)(sx__rt_append_f((int64_t*)&t_result,(int64_t)(t_clink)));
 }}
 }else{
 }}
-#line 2901 "./src//sema//../module/module.sx"
+#line 2920 "./src//sema//../module/module.sx"
 break;
 }
 }else{
 }}
-#line 2906 "./src//sema//../module/module.sx"
+#line 2925 "./src//sema//../module/module.sx"
 t_ci++;
 }
 }}
-#line 2910 "./src//sema//../module/module.sx"
+#line 2929 "./src//sema//../module/module.sx"
 return(int64_t)(t_result);
 }
 
@@ -50539,112 +50584,157 @@ t_ci++;
 }
 }}
 #line 2842 "./src//codegen//../module/module.sx"
-return(int64_t)(t_result);
-}
-
+int64_t*sx__ll8=(int64_t*)calloc(1,24);int64_t*sx__lld8=(int64_t*)calloc(1,64);sx__ll8[0]=(int64_t)(intptr_t)sx__lld8;sx__ll8[1]=0;sx__ll8[2]=8;
+int64_t t_deduped=(int64_t)((int64_t)(intptr_t)sx__ll8);
+#line 2843 "./src//codegen//../module/module.sx"
+{int64_t sx__it9=t_result;int64_t sx__len9=(sx__it9==0?0:*(int64_t*)((char*)(intptr_t)sx__it9+8));int64_t*sx__buf9=(sx__it9==0?0:*(int64_t**)(intptr_t)sx__it9);int64_t sx__i9=0;for(;sx__i9<sx__len9;sx__i9++){int64_t t_lnk=sx__buf9[sx__i9];
+#line 2844 "./src//codegen//../module/module.sx"
+int64_t t_dlen=(int64_t)((int64_t)((t_deduped==0?0:(*(int64_t*)((char*)(intptr_t)(t_deduped)+8)))));
+#line 2845 "./src//codegen//../module/module.sx"
+int64_t t_di=(int64_t)(INT64_C(0));
 #line 2846 "./src//codegen//../module/module.sx"
-int64_t module__collect_used_links_recursive(int64_t t_m,int64_t t_exe_dir,int64_t t_seen){
-#line 2851 "./src//codegen//../module/module.sx"
-int64_t t_slen=(int64_t)((int64_t)((t_seen==0?0:(*(int64_t*)((char*)(intptr_t)(t_seen)+8)))));
-#line 2852 "./src//codegen//../module/module.sx"
-int64_t t_si=(int64_t)(INT64_C(0));
-#line 2853 "./src//codegen//../module/module.sx"
+int32_t t_already=(int32_t)(0);
+#line 2847 "./src//codegen//../module/module.sx"
 for(;;){
-#line 2854 "./src//codegen//../module/module.sx"
-if(((t_si)>=(t_slen)))
+#line 2848 "./src//codegen//../module/module.sx"
+if(((t_di)>=(t_dlen)))
 {
-#line 2854 "./src//codegen//../module/module.sx"
+#line 2848 "./src//codegen//../module/module.sx"
 break;
 }
-#line 2855 "./src//codegen//../module/module.sx"
-int64_t t_s_opt=(int64_t)(sx__rt_get((void*)(intptr_t)(t_seen),(int64_t)((uint64_t)(t_si))));
+#line 2849 "./src//codegen//../module/module.sx"
+int64_t t_d_opt=(int64_t)(sx__rt_get((void*)(intptr_t)(t_deduped),(int64_t)((uint64_t)(t_di))));
+#line 2850 "./src//codegen//../module/module.sx"
+{int64_t sx__mv10=t_d_opt;if(sx__mv10!=0)
+{
+int64_t t_d=sx__mv10-1;
+#line 2852 "./src//codegen//../module/module.sx"
+if(((std__string__rchar_cmp((int64_t)(t_d),t_lnk))==(INT64_C(0))))
+{
+#line 2852 "./src//codegen//../module/module.sx"
+t_already=(1);
+#line 2852 "./src//codegen//../module/module.sx"
+break;
+}
+}else{
+}}
 #line 2856 "./src//codegen//../module/module.sx"
+t_di++;
+}
+#line 2858 "./src//codegen//../module/module.sx"
+if((!(t_already)))
+{
+#line 2858 "./src//codegen//../module/module.sx"
+(void)(sx__rt_append_f((int64_t*)&t_deduped,(int64_t)(t_lnk)));
+}
+}}
+#line 2861 "./src//codegen//../module/module.sx"
+return(int64_t)(t_deduped);
+}
+
+#line 2865 "./src//codegen//../module/module.sx"
+int64_t module__collect_used_links_recursive(int64_t t_m,int64_t t_exe_dir,int64_t t_seen){
+#line 2870 "./src//codegen//../module/module.sx"
+int64_t t_slen=(int64_t)((int64_t)((t_seen==0?0:(*(int64_t*)((char*)(intptr_t)(t_seen)+8)))));
+#line 2871 "./src//codegen//../module/module.sx"
+int64_t t_si=(int64_t)(INT64_C(0));
+#line 2872 "./src//codegen//../module/module.sx"
+for(;;){
+#line 2873 "./src//codegen//../module/module.sx"
+if(((t_si)>=(t_slen)))
+{
+#line 2873 "./src//codegen//../module/module.sx"
+break;
+}
+#line 2874 "./src//codegen//../module/module.sx"
+int64_t t_s_opt=(int64_t)(sx__rt_get((void*)(intptr_t)(t_seen),(int64_t)((uint64_t)(t_si))));
+#line 2875 "./src//codegen//../module/module.sx"
 {int64_t sx__mv0=t_s_opt;if(sx__mv0!=0)
 {
 int64_t t_s=sx__mv0-1;
-#line 2858 "./src//codegen//../module/module.sx"
+#line 2877 "./src//codegen//../module/module.sx"
 if(((t_s)==(INT64_C(0))))
 {
-#line 2858 "./src//codegen//../module/module.sx"
+#line 2877 "./src//codegen//../module/module.sx"
 continue;
 }
-#line 2859 "./src//codegen//../module/module.sx"
+#line 2878 "./src//codegen//../module/module.sx"
 if(std__string__equals(t_s,((int64_t)(intptr_t)((char*)(intptr_t)(t_m)+72))))
 {
-#line 2859 "./src//codegen//../module/module.sx"
+#line 2878 "./src//codegen//../module/module.sx"
 int64_t*sx__ll1=(int64_t*)calloc(1,24);int64_t*sx__lld1=(int64_t*)calloc(1,64);sx__ll1[0]=(int64_t)(intptr_t)sx__lld1;sx__ll1[1]=0;sx__ll1[2]=8;
 return(int64_t)((int64_t)(intptr_t)sx__ll1);
 }
 }else{
 }}
-#line 2863 "./src//codegen//../module/module.sx"
+#line 2882 "./src//codegen//../module/module.sx"
 t_si++;
 }
-#line 2866 "./src//codegen//../module/module.sx"
+#line 2885 "./src//codegen//../module/module.sx"
 (void)(sx__rt_append_f((int64_t*)&t_seen,(int64_t)(((int64_t)(intptr_t)((char*)(intptr_t)(t_m)+72)))));
-#line 2868 "./src//codegen//../module/module.sx"
+#line 2887 "./src//codegen//../module/module.sx"
 int64_t*sx__ll2=(int64_t*)calloc(1,24);int64_t*sx__lld2=(int64_t*)calloc(1,64);sx__ll2[0]=(int64_t)(intptr_t)sx__lld2;sx__ll2[1]=0;sx__ll2[2]=8;
 int64_t t_result=(int64_t)((int64_t)(intptr_t)sx__ll2);
-#line 2870 "./src//codegen//../module/module.sx"
+#line 2889 "./src//codegen//../module/module.sx"
 int64_t t_my_links=(int64_t)(module__collect_links(((int64_t)(intptr_t)((char*)(intptr_t)(t_m)+0)),t_exe_dir));
-#line 2871 "./src//codegen//../module/module.sx"
+#line 2890 "./src//codegen//../module/module.sx"
 {int64_t sx__it3=t_my_links;int64_t sx__len3=(sx__it3==0?0:*(int64_t*)((char*)(intptr_t)sx__it3+8));int64_t*sx__buf3=(sx__it3==0?0:*(int64_t**)(intptr_t)sx__it3);int64_t sx__i3=0;for(;sx__i3<sx__len3;sx__i3++){int64_t t_lnk=sx__buf3[sx__i3];
-#line 2872 "./src//codegen//../module/module.sx"
+#line 2891 "./src//codegen//../module/module.sx"
 (void)(sx__rt_append_f((int64_t*)&t_result,(int64_t)(t_lnk)));
 }}
-#line 2875 "./src//codegen//../module/module.sx"
+#line 2894 "./src//codegen//../module/module.sx"
 int64_t*sx__ll4=(int64_t*)calloc(1,24);int64_t*sx__lld4=(int64_t*)calloc(1,64);sx__ll4[0]=(int64_t)(intptr_t)sx__lld4;sx__ll4[1]=0;sx__ll4[2]=8;
 int64_t t_used_imports=(int64_t)((int64_t)(intptr_t)sx__ll4);
-#line 2876 "./src//codegen//../module/module.sx"
+#line 2895 "./src//codegen//../module/module.sx"
 (void)(module__collect_used_imports_items(((int64_t)(intptr_t)((char*)(intptr_t)(t_m)+0)),((int64_t)(intptr_t)((char*)(intptr_t)(t_m)+24)),t_used_imports));
-#line 2878 "./src//codegen//../module/module.sx"
+#line 2897 "./src//codegen//../module/module.sx"
 {int64_t sx__it5=t_used_imports;int64_t sx__len5=(sx__it5==0?0:*(int64_t*)((char*)(intptr_t)sx__it5+8));int64_t*sx__buf5=(sx__it5==0?0:*(int64_t**)(intptr_t)sx__it5);int64_t sx__i5=0;for(;sx__i5<sx__len5;sx__i5++){int64_t t_used_name=sx__buf5[sx__i5];
-#line 2879 "./src//codegen//../module/module.sx"
+#line 2898 "./src//codegen//../module/module.sx"
 int64_t t_clen=(int64_t)((int64_t)((((int64_t)(intptr_t)((char*)(intptr_t)(t_m)+48))==0?0:(*(int64_t*)((char*)(intptr_t)(((int64_t)(intptr_t)((char*)(intptr_t)(t_m)+48)))+8)))));
-#line 2880 "./src//codegen//../module/module.sx"
+#line 2899 "./src//codegen//../module/module.sx"
 int64_t t_ci=(int64_t)(INT64_C(0));
-#line 2881 "./src//codegen//../module/module.sx"
+#line 2900 "./src//codegen//../module/module.sx"
 for(;;){
-#line 2882 "./src//codegen//../module/module.sx"
+#line 2901 "./src//codegen//../module/module.sx"
 if(((t_ci)>=(t_clen)))
 {
-#line 2882 "./src//codegen//../module/module.sx"
+#line 2901 "./src//codegen//../module/module.sx"
 break;
 }
-#line 2883 "./src//codegen//../module/module.sx"
+#line 2902 "./src//codegen//../module/module.sx"
 int64_t t_name_opt=(int64_t)(sx__rt_get((void*)(intptr_t)(((int64_t)(intptr_t)((char*)(intptr_t)(t_m)+24))),(int64_t)((uint64_t)(t_ci))));
-#line 2884 "./src//codegen//../module/module.sx"
+#line 2903 "./src//codegen//../module/module.sx"
 int64_t t_mod_opt=(int64_t)(sx__rt_get((void*)(intptr_t)(((int64_t)(intptr_t)((char*)(intptr_t)(t_m)+48))),(int64_t)((uint64_t)(t_ci))));
-#line 2885 "./src//codegen//../module/module.sx"
+#line 2904 "./src//codegen//../module/module.sx"
 {int64_t sx__mv6=t_name_opt;if(sx__mv6!=0)
 {
 int64_t t_name=sx__mv6-1;
-#line 2887 "./src//codegen//../module/module.sx"
+#line 2906 "./src//codegen//../module/module.sx"
 if(((std__string__rchar_cmp((int64_t)(t_name),t_used_name))==(INT64_C(0))))
 {
-#line 2888 "./src//codegen//../module/module.sx"
+#line 2907 "./src//codegen//../module/module.sx"
 {int64_t sx__mv7=t_mod_opt;if(sx__mv7!=0)
 {
 int64_t t_child=sx__mv7-1;
-#line 2890 "./src//codegen//../module/module.sx"
+#line 2909 "./src//codegen//../module/module.sx"
 int64_t t_child_links=(int64_t)(module__collect_used_links_recursive((int64_t)(t_child),t_exe_dir,t_seen));
-#line 2895 "./src//codegen//../module/module.sx"
+#line 2914 "./src//codegen//../module/module.sx"
 {int64_t sx__it8=t_child_links;int64_t sx__len8=(sx__it8==0?0:*(int64_t*)((char*)(intptr_t)sx__it8+8));int64_t*sx__buf8=(sx__it8==0?0:*(int64_t**)(intptr_t)sx__it8);int64_t sx__i8=0;for(;sx__i8<sx__len8;sx__i8++){int64_t t_clink=sx__buf8[sx__i8];
-#line 2896 "./src//codegen//../module/module.sx"
+#line 2915 "./src//codegen//../module/module.sx"
 (void)(sx__rt_append_f((int64_t*)&t_result,(int64_t)(t_clink)));
 }}
 }else{
 }}
-#line 2901 "./src//codegen//../module/module.sx"
+#line 2920 "./src//codegen//../module/module.sx"
 break;
 }
 }else{
 }}
-#line 2906 "./src//codegen//../module/module.sx"
+#line 2925 "./src//codegen//../module/module.sx"
 t_ci++;
 }
 }}
-#line 2910 "./src//codegen//../module/module.sx"
+#line 2929 "./src//codegen//../module/module.sx"
 return(int64_t)(t_result);
 }
 
