@@ -377,7 +377,7 @@ pub fn string_to_f64(s: ref u8) result[f64, ParseFloatError] = {
 }
 
 fn test_i64_roundtrip(x: i64) void = trust {
-    val arena = allocators.Arena.new(64 as usize)?
+    val arena: mut allocators.Arena = allocators.Arena.new(64 as usize)?
     val s: mut ref u8 = i64_to_string[allocators.Arena](arena, x)
     val parsed = string_to_i64(s)
     assert parsed == ok x
@@ -385,7 +385,7 @@ fn test_i64_roundtrip(x: i64) void = trust {
 }
 
 fn test_f64_roundtrip(x: f64) void = trust {
-    val arena = allocators.Arena.new(128 as usize)?
+    val arena: mut allocators.Arena = allocators.Arena.new(128 as usize)?
     val s: mut ref u8 = f64_to_string[allocators.Arena](arena, x)
     val parsed = string_to_f64(s)
     assert parsed == ok x
@@ -393,7 +393,7 @@ fn test_f64_roundtrip(x: f64) void = trust {
 }
 
 test {
-    val arena = trust allocators.Arena.new(4096 as usize)?
+    val arena: mut allocators.Arena = trust allocators.Arena.new(4096 as usize)?
     val s: mut ref u8 = ""
 
     s = trust i64_to_string[allocators.Arena](arena, 0)

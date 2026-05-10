@@ -2819,7 +2819,7 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
         return
     }
     if k == parser.NK_CALL {
-        val callee: ref parser.Node = parser.call_callee(expr)
+        val callee: mut ref parser.Node = parser.call_callee(expr)
         val base_callee: ref parser.Node = unwrap_generic_callee(callee)
         val has_explicit_targs: bool = callee_has_explicit_type_args(callee)
         check_expr(ctx, callee, filename)
@@ -3987,7 +3987,7 @@ fn stmts_guarantee_return(ctx: ref SemaCtx, stmts: ref void) bool = trust {
     return false
 }
 
-fn check_stmts(ctx: ref SemaCtx, stmts: ref void, filename: ref u8) void = trust {
+fn check_stmts(ctx: mut ref SemaCtx, stmts: ref void, filename: ref u8) void = trust {
     if stmts == none { return }
     for s in stmts as list[ref parser.Node] {
         check_stmt(ctx, s, filename)
@@ -4850,7 +4850,7 @@ fn check_generic_fn(ctx: mut ref SemaCtx, fn_node: ref parser.Node, filename: re
 }
 
 /// Check a single top-level item (functions, tests, when items).
-fn check_top_item(ctx: ref SemaCtx, item: ref parser.Node, filename: ref u8) void = trust {
+fn check_top_item(ctx: mut ref SemaCtx, item: ref parser.Node, filename: ref u8) void = trust {
     val k: i64 = item.kind
     if k == parser.NK_USE {
         if item.d0 != 0 {
