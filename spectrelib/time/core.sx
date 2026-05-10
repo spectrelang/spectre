@@ -274,7 +274,7 @@ pub fn (DateTime) diff_seconds(a: self, b: self) i64 = {
 
 
 test {
-    val dt = DateTime.new(2026, 4, 2, 14, 30, 0, 0)
+    val dt: mut DateTime = DateTime.new(2026, 4, 2, 14, 30, 0, 0)
     assert DateTime.year(dt)   == 2026
     assert DateTime.month(dt)  == 4
     assert DateTime.day(dt)    == 2
@@ -286,7 +286,7 @@ test {
     assert DateTime.is_leap_year(dt) == false
     assert DateTime.days_in_month(dt) == 30
 
-    val dt2 = DateTime.new(2024, 2, 1, 0, 0, 0, 0)
+    val dt2: mut DateTime = DateTime.new(2024, 2, 1, 0, 0, 0, 0)
     assert DateTime.is_leap_year(dt2) == true
     assert DateTime.days_in_month(dt2) == 29
 

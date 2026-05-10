@@ -717,7 +717,7 @@ pub fn trim_suffix_raw[T: allocators.Allocator](ac: T, s: ref u8, suffix: ref u8
 }
 /// Split s by delim — returns a List of heap-allocated Strings
 pub fn split(s: String, delim: String) result[ref void, ListAllocError] = trust {
-    val result: ref void = collections.PtrList.new(8 as usize)?
+    val result: mut ref void = collections.PtrList.new(8 as usize)?
     val sl: i64 = @load(@ptradd(s as ref void, 8)) as i64
     val dl: i64 = @load(@ptradd(delim as ref void, 8)) as i64
     val sp: ref void = @load(s as ref void)
@@ -1018,7 +1018,7 @@ pub fn copy(dst: ref u8, dst_off: i64, src: ref u8) void = trust {
 }
 
 test {
-    val arena = trust allocators.Arena.new(32768 as usize)?
+    val arena: mut allocators.Arena = trust allocators.Arena.new(32768 as usize)?
     val empty = trust new()
     assert(len(empty) == 0)
 

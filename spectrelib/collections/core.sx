@@ -768,7 +768,7 @@ pub fn (IndexMap) new(initial_cap: usize) ref void = trust {
 /// Insert or update a key-value pair, preserving insertion order for new keys.
 pub fn (IndexMap) set(map: self, key: ref u8, value: usize) void = trust {
     val inner: mut ref void = @load(map)
-    val keys:  ref void = @load(@ptradd(map, 8))
+    val keys:  mut ref void = @load(@ptradd(map, 8))
     val already = StringMap.contains(inner, key)
     StringMap.set(inner, key, value)
     if !already {

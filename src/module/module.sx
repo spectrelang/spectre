@@ -941,7 +941,7 @@ fn resolve_module_impl(
         }
         none => { return err @fmt("cannot read module: {s}", {path}) }
     }
-    val src_arena = allocators.Arena.new((src_arena_cap + 8) as usize)?
+    val src_arena: mut allocators.Arena = allocators.Arena.new((src_arena_cap + 8) as usize)?
     val src_opt = fs.read_all[allocators.Arena](src_arena, path)
     val src: mut ref u8 = ""
     match src_opt {
@@ -1590,7 +1590,7 @@ fn import_in_list(import_names: list[ref u8], name: ref u8) bool = trust {
 /// Collect sub-module names accessed via <import_name>.<sub> in items.
 /// e.g. for import_name="std", finds "stdio" and returns ["stdio"]
 fn collect_needed_subnames(items: list[ref parser.Node], import_name: ref u8) list[ref u8] = trust {
-    val needed: list[ref u8] = []
+    val needed: mut list[ref u8] = []
     val items_len: i64 = @len(items) as i64
     val ii: mut i64 = 0
     for {
