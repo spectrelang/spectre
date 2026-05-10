@@ -162,7 +162,7 @@ pub fn get_exe_path[T: allocators.Allocator](ac: T) ref u8 = trust {
 }
 
 pub fn main() void = {
-    val arena = trust allocators.Arena.new(10240 as usize)?
+    val arena: mut allocators.Arena = trust allocators.Arena.new(10240 as usize)?
 
     stdio.puts("calling get_current_platform")
     val platform = trust get_current_platform[allocators.Arena](arena)

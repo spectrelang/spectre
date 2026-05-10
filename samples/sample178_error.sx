@@ -1,0 +1,11 @@
+pub fn mutates_list(l: mut list[ref u8]) void = {
+    @append(l, "hello")
+}
+
+pub fn main() void = {
+    val l: list[ref u8] = ["hello, world"]
+    mutates_list(l)
+    for ls in l {
+        trust @print("{s}\n", {ls})
+    }
+}

@@ -3,7 +3,7 @@ val stdio = use("std/stdio")
 val helper = use("./sample143_helper.sx")
 
 pub fn main() void = trust {
-    val arena = allocators.Arena.new(32768 as usize)?
+    val arena: mut allocators.Arena = allocators.Arena.new(32768 as usize)?
 
     val read_len = helper.read_len[allocators.Arena](arena, "sx.mod")
     stdio.print("read_len={d}\n", {read_len})
