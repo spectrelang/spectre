@@ -184,7 +184,7 @@ fn is_hidden_name(name: ref u8) bool = trust {
 }
 
 fn collect_sx_files(dir: ref u8, rel_dir: ref u8, out: mut list[ref u8]) void = trust {
-    val walk_arena = allocators.Arena.new(65536 as usize)?
+    val walk_arena: mut allocators.Arena = allocators.Arena.new(65536 as usize)?
     val entries_opt = fs.walk_dir[allocators.Arena](walk_arena, dir)
     if entries_opt is some entries {
         val sorted = entries as list[ref u8]
@@ -783,7 +783,7 @@ fn load_module(source_path: ref u8, rel_path: ref u8) ref DocModule = trust {
             os.exit(1)
         }
     }
-    val src_arena = allocators.Arena.new((src_arena_cap + 8) as usize)?
+    val src_arena: mut allocators.Arena = allocators.Arena.new((src_arena_cap + 8) as usize)?
     val src_opt = fs.read_all[allocators.Arena](src_arena, source_path)
     val src: mut ref u8 = ""
     match src_opt {
@@ -1821,7 +1821,7 @@ test {
     )
     assert(str_eq(trust lookup_doc(const_src, 2), "constant docs"))
     
-    val docs_src_arena = trust allocators.Arena.new(131072 as usize)?
+    val docs_src_arena: mut allocators.Arena = trust allocators.Arena.new(131072 as usize)?
     val docs_src_opt = trust fs.read_all[allocators.Arena](docs_src_arena, "./src/meta/docs.sx")
     match docs_src_opt {
         some docs_src => {
