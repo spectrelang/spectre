@@ -226,7 +226,7 @@ fn cg_is_prefix_used(ctx: ref CgCtx, prefix: ref u8) bool = trust {
 /// When src_target is "" the real host platform is used.
 /// Handles group aliases: "posix" matches linux/darwin/*bsd/haiku/android/redox.
 pub fn platform_matches_with_target(name: ref u8, src_target: ref u8) bool = trust {
-    val arena = allocators.Arena.new(256 as usize)?
+    val arena: mut allocators.Arena = allocators.Arena.new(256 as usize)?
     val cur: mut ref u8 = reflection.current_platform_name[allocators.Arena](arena)
     if str.rchar_cmp(src_target, "") != 0 { cur = src_target }
 
@@ -2591,7 +2591,7 @@ fn cg_local_type(ctx: ref CgCtx, name: ref u8) ref u8 = trust {
 
 /// Generate a struct literal inline within a parent allocation (e.g., union payload).
 /// base_offset is the starting offset within the parent allocation.
-fn gen_struct_lit_inline(ctx: ref CgCtx, struct_node: ref parser.Node, parent_ptr: i64, base_offset: i64, fields: ref void) void = trust {
+fn gen_struct_lit_inline(ctx: mut ref CgCtx, struct_node: ref parser.Node, parent_ptr: i64, base_offset: i64, fields: ref void) void = trust {
     val sfields_node: ref void = fields
     val lit_fields: ref void = struct_node.d0 as ref void
 

@@ -151,7 +151,7 @@ fn cc_heap_copy_cstr(s: ref u8) ref u8 = trust {
 }
 
 fn cc_sb_build_cstr(sb: ref void) ref u8 = trust {
-    val built: str.String = str.StringBuilder.build(sb) as str.String
+    val built: mut str.String = str.StringBuilder.build(sb) as str.String
     val out: ref u8 = cc_heap_copy_cstr(str.cstr(built))
     str.string_free(built)
     return out
@@ -285,7 +285,7 @@ fn cc_clear_locals(ctx: mut ref CCtx) void = trust {
 }
 
 /// Infer the type node of an expression. Returns 0 if unknown.
-fn cc_infer_expr_ty(ctx: ref CCtx, expr: ref parser.Node) ref parser.Node = trust {
+fn cc_infer_expr_ty(ctx: mut ref CCtx, expr: ref parser.Node) ref parser.Node = trust {
     if expr == none { return none }
     val k: i64 = expr.kind
     if k == parser.NK_INT_LIT {
@@ -1942,7 +1942,7 @@ fn cc_register_invariant(ctx: ref CCtx, tname: ref u8, inv_list: ref void) void 
 
 fn cc_defer_push(ctx: ref CCtx, body: ref parser.Node) void = trust { @append(ctx.defer_stack, body as ref void) }
 
-fn cc_emit_defers(ctx: ref CCtx) void = trust {
+fn cc_emit_defers(ctx: mut ref CCtx) void = trust {
     val n: i64 = @len(ctx.defer_stack) as i64
     val i: mut i64 = n - 1
     for {
@@ -1955,7 +1955,7 @@ fn cc_emit_defers(ctx: ref CCtx) void = trust {
     }
 }
 
-fn cc_handle_block_defers(ctx: ref CCtx, target_depth: i64) void = trust {
+fn cc_handle_block_defers(ctx: mut ref CCtx, target_depth: i64) void = trust {
     for {
         val n: i64 = @len(ctx.defer_stack) as i64
         if n <= target_depth { break }
@@ -2183,7 +2183,7 @@ fn cc_infer_call_ret_ty(ctx: mut ref CCtx, expr: ref parser.Node) ref parser.Nod
     return none
 }
 
-fn get_arg(ctx: ref CCtx, args: ref void, idx: i64) ref u8 = trust {
+fn get_arg(ctx: mut ref CCtx, args: ref void, idx: i64) ref u8 = trust {
     if args == none { return "0" }
     val a_opt = @get(args as list[ref parser.Node], idx as usize)
     match a_opt { some a => { return gen_expr(ctx, a as ref parser.Node) } none => { return "0" } }
@@ -2208,7 +2208,7 @@ fn get_format_arg(ctx: mut ref CCtx, args: ref void, idx: i64) ref u8 = trust {
     }
 }
 
-fn gen_vararg_scalar_pack(ctx: ref CCtx, value: ref u8) ref u8 = trust {
+fn gen_vararg_scalar_pack(ctx: mut ref CCtx, value: ref u8) ref u8 = trust {
     val t: i64 = fresh_tmp(ctx)
     val decl: ref u8 = @alloc(512) as ref u8
     @snprintf(decl, 512, "int64_t sx__vap{lld}[16]=\{(int64_t)({s}),0,0,0,0,0,0,0,0,0,0,0,0,0,0,0\};\n", {t, value})
@@ -2219,7 +2219,7 @@ fn gen_vararg_scalar_pack(ctx: ref CCtx, value: ref u8) ref u8 = trust {
     return cc_expr_track(ctx, res)
 }
 
-fn gen_vararg_pack(ctx: ref CCtx, pack: ref void) ref u8 = trust {
+fn gen_vararg_pack(ctx: mut ref CCtx, pack: ref void) ref u8 = trust {
     val t: i64 = fresh_tmp(ctx)
     val sb: ref void = str.StringBuilder.new()
     val hdr: ref u8 = @alloc(64) as ref u8
@@ -2263,7 +2263,7 @@ fn gen_vararg_pack(ctx: ref CCtx, pack: ref void) ref u8 = trust {
 }
 
 
-fn gen_expr(ctx: ref CCtx, expr: ref parser.Node) ref u8 = trust {
+fn gen_expr(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
     if expr == none { return "0" }
     val k: i64 = expr.kind
     if k == parser.NK_INT_LIT {
@@ -2496,7 +2496,7 @@ fn gen_expr(ctx: ref CCtx, expr: ref parser.Node) ref u8 = trust {
     return "0"
 }
 
-fn gen_binop(ctx: ref CCtx, expr: ref parser.Node) ref u8 = trust {
+fn gen_binop(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
     val op: i64 = parser.binop_op(expr)
     val lhs_expr: ref parser.Node = parser.binop_left(expr)
     val rhs_expr: ref parser.Node = parser.binop_right(expr)
@@ -2550,7 +2550,7 @@ fn gen_binop(ctx: ref CCtx, expr: ref parser.Node) ref u8 = trust {
     return cc_expr_track(ctx, buf)
 }
 
-fn gen_unop(ctx: ref CCtx, expr: ref parser.Node) ref u8 = trust {
+fn gen_unop(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
     val op: i64 = parser.unop_op(expr)
     val inner: ref u8 = gen_expr(ctx, parser.unop_inner(expr))
     val buf_cap: i64 = str.len_raw(inner) + 16
@@ -2562,7 +2562,7 @@ fn gen_unop(ctx: ref CCtx, expr: ref parser.Node) ref u8 = trust {
     return cc_expr_track(ctx, buf)
 }
 
-fn gen_field(ctx: ref CCtx, expr: ref parser.Node) ref u8 = trust {
+fn gen_field(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
     val base_node: ref parser.Node = parser.field_base(expr)
     val fname: ref u8 = parser.field_name(expr)
     if cc_is_c_escape_expr(expr) {
@@ -2995,7 +2995,7 @@ fn gen_call(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
     return cc_expr_track(ctx, buf)
 }
 
-fn gen_builtin(ctx: ref CCtx, expr: ref parser.Node) ref u8 = trust {
+fn gen_builtin(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
     val bname: ref u8 = expr.d0 as ref u8
     val args: ref void = expr.d1 as ref void
 
@@ -3505,7 +3505,7 @@ fn gen_list_lit(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
     @snprintf(res, 64, "(int64_t)(intptr_t)sx__ll{lld}", {t}) return cc_expr_track(ctx, res)
 }
 
-fn gen_field_addr(ctx: ref CCtx, expr: ref parser.Node) ref u8 = trust {
+fn gen_field_addr(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
     val base_node: ref parser.Node = parser.field_base(expr)
     val fname: ref u8 = parser.field_name(expr)
     val base: ref u8 = gen_expr(ctx, base_node)
@@ -3612,7 +3612,7 @@ fn cc_field_ctype_from_fields(ctx: ref CCtx, fields: ref void, fname: ref u8) re
     return cc_c_type_of(ctx, fty)
 }
 
-fn cc_field_size_of_expr(ctx: ref CCtx, expr: ref parser.Node) i64 = trust {
+fn cc_field_size_of_expr(ctx: mut ref CCtx, expr: ref parser.Node) i64 = trust {
     val base_node: ref parser.Node = parser.field_base(expr)
     val fname: ref u8 = parser.field_name(expr)
     val bt: mut ref u8 = ""
@@ -3675,7 +3675,7 @@ fn cc_field_size_of_expr(ctx: ref CCtx, expr: ref parser.Node) i64 = trust {
     return 8
 }
 
-fn cc_field_ctype_of_expr(ctx: ref CCtx, expr: ref parser.Node) ref u8 = trust {
+fn cc_field_ctype_of_expr(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
     val base_node: ref parser.Node = parser.field_base(expr)
     val fname: ref u8 = parser.field_name(expr)
     val bt: mut ref u8 = ""
@@ -3738,7 +3738,7 @@ fn cc_field_ctype_of_expr(ctx: ref CCtx, expr: ref parser.Node) ref u8 = trust {
     return "int64_t"
 }
 
-fn gen_stmts(ctx: ref CCtx, stmts: ref parser.Node) void = trust {
+fn gen_stmts(ctx: mut ref CCtx, stmts: ref parser.Node) void = trust {
     if stmts == none { return }
     val old_depth: i64 = @len(ctx.defer_stack) as i64
     val len: i64 = @len(stmts) as i64
@@ -4117,7 +4117,7 @@ fn gen_for_stmt(ctx: mut ref CCtx, stmt: ref parser.Node) void = trust {
 }
 
 /// Convert a for-loop post-step statement node into an expression string
-fn gen_for_post_expr(ctx: ref CCtx, pst: ref parser.Node) ref u8 = trust {
+fn gen_for_post_expr(ctx: mut ref CCtx, pst: ref parser.Node) ref u8 = trust {
     if pst == none { return "" }
     val k: i64 = pst.kind
     val tgt: ref parser.Node = pst.d0 as ref parser.Node
@@ -4629,7 +4629,7 @@ fn gen_enum_def_prefixed(ctx: ref CCtx, item: ref parser.Node, mod_prefix: ref u
         vi++ }
 }
 
-fn preregister_items(ctx: ref CCtx, items: list[ref parser.Node], mod_prefix: ref u8) void = trust {
+fn preregister_items(ctx: mut ref CCtx, items: list[ref parser.Node], mod_prefix: ref u8) void = trust {
     val ilen: i64 = @len(items) as i64 val i: mut i64 = 0
     for { if i >= ilen { break } val item_opt = @get(items, i as usize)
         match item_opt { some item => { val node: ref parser.Node = item as ref parser.Node val k: i64 = node.kind
@@ -5004,7 +5004,7 @@ fn gen_test_fn_c(ctx: mut ref CCtx, body_stmts: ref parser.Node, test_id: i64) v
     emitln(ctx, "")
 }
 
-fn gen_test_main_c(ctx: ref CCtx, test_ids: list[i64]) void = trust {
+fn gen_test_main_c(ctx: mut ref CCtx, test_ids: list[i64]) void = trust {
     emitln(ctx, "int main(int argc,char**argv) {")
     emitln(ctx, "sx__argc=(int64_t)argc;sx__argv=(int64_t)(intptr_t)argv;")
     emitln(ctx, "sx__init();")
@@ -5037,10 +5037,10 @@ pub fn gen_module_c_test(root: ref module.ResolvedModule, release_mode: bool, ex
     val ctx: mut ref CCtx = cc_new()
     ctx.release_mode = release_mode
     ctx.src_target = src_target
-    val out_prefixes: list[ref u8] = []
-    val out_items: list[ref void] = []
-    val out_filenames: list[ref u8] = []
-    val seen: list[String] = []
+    val out_prefixes: mut list[ref u8] = []
+    val out_items: mut list[ref void] = []
+    val out_filenames: mut list[ref u8] = []
+    val seen: mut list[String] = []
     module.flatten_modules_with_files(root, "", out_prefixes, out_items, out_filenames, seen)
     val layers: i64 = @len(out_prefixes) as i64
     cc_mark_prefix_used(ctx, "")
@@ -5139,10 +5139,10 @@ pub fn gen_module_c(root: ref module.ResolvedModule, release_mode: bool, extra_i
     val ctx: mut ref CCtx = cc_new()
     ctx.release_mode = release_mode
     ctx.src_target = src_target
-    val out_prefixes: list[ref u8] = []
-    val out_items: list[ref void] = []
-    val out_filenames: list[ref u8] = []
-    val seen: list[String] = []
+    val out_prefixes: mut list[ref u8] = []
+    val out_items: mut list[ref void] = []
+    val out_filenames: mut list[ref u8] = []
+    val seen: mut list[String] = []
     module.flatten_modules_with_files(root, "", out_prefixes, out_items, out_filenames, seen)
     val layers: i64 = @len(out_prefixes) as i64
     cc_mark_prefix_used(ctx, "")
