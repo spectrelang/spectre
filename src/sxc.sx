@@ -115,7 +115,7 @@ fn append_debug_runtime_links(
 }
 
 pub fn main() i32 = trust {
-    val arena = allocators.Arena.new(65536 as usize)?
+    val arena: mut allocators.Arena = allocators.Arena.new(65536 as usize)?
     val args = os.get_args()
     val argc: i64 = @len(args) as i64
     val exe_path: mut ref u8 = "./spectre"
