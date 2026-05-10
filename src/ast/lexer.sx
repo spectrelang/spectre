@@ -245,7 +245,7 @@ fn keyword_kind(s: ref u8) TokenKind = trust {
     return Ident(s)
 }
 
-fn lex_string(l: ref Lexer) ref u8 = trust {
+fn lex_string(l: mut ref Lexer) ref u8 = trust {
     val buf_cap: mut i64 = 4096
     val buf: mut ref u8 = @alloc(buf_cap) as ref u8
     val i: mut i64 = 0
@@ -295,7 +295,7 @@ fn lex_string(l: ref Lexer) ref u8 = trust {
     return result
 }
 
-fn lex_number(l: ref Lexer, line: i64, col: i64) ref Token = trust {
+fn lex_number(l: mut ref Lexer, line: i64, col: i64) ref Token = trust {
     val start: i64 = l.pos - 1
     val is_float: mut bool = false
     val first: i64 = @load8(@ptradd(l.src, start)) as i64
@@ -484,7 +484,7 @@ fn lex_operator(l: mut ref Lexer, c: i64, line: i64, col: i64) result[ref Token,
 }
 
 pub fn tokenize(src: ref u8) result[list[ref Token], ref u8] = trust {
-    val l: ref Lexer = lexer_new(src)
+    val l: mut ref Lexer = lexer_new(src)
     val tokens: mut list[ref Token] = []
     for {
     	skip_whitespace(l)
