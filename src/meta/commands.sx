@@ -55,7 +55,7 @@ fn ctx_skip_line(ctx: mut ref ParseCtx) void = {
     }
 }
 
-fn ctx_skip_ws(ctx: ref ParseCtx) void = {
+fn ctx_skip_ws(ctx: mut ref ParseCtx) void = {
     for {
         val c: i64 = trust ctx_peek(ctx)
         if c == -1 { break }
@@ -185,7 +185,7 @@ pub fn load_sxmod() option[ref SxMod] = {
         }
         none => { return none }
     }
-    val arena = trust allocators.Arena.new((arena_cap + 8) as usize)?
+    val arena: mut allocators.Arena = trust allocators.Arena.new((arena_cap + 8) as usize)?
     val content_opt = trust fs.read_all[allocators.Arena](arena, "sx.mod")
     match content_opt {
         none => {
@@ -288,7 +288,7 @@ fn drop_dep_lines(filepath: ref u8, needle: ref u8) void = trust {
         }
         none => { return }
     }
-    val arena = allocators.Arena.new((arena_cap + 8) as usize)?
+    val arena: mut allocators.Arena = allocators.Arena.new((arena_cap + 8) as usize)?
     val content_opt = fs.read_all[allocators.Arena](arena, filepath)
     match content_opt {
         none => {
@@ -331,7 +331,7 @@ fn drop_dep_lines(filepath: ref u8, needle: ref u8) void = trust {
 }
 
 fn copy_current_stdlib(snapshot_dir: ref u8) bool = {
-    val arena = trust allocators.Arena.new(1024 as usize)?
+    val arena: mut allocators.Arena = trust allocators.Arena.new(1024 as usize)?
     val exe_path = trust reflection.get_exe_path[allocators.Arena](arena)
     val exe_dir = trust path.dir(exe_path)
     val std_dir = trust path.join(exe_dir, "spectrelib")
@@ -792,7 +792,7 @@ pub fn cmd_init(name_arg: ref u8) i32 = {
 
     val proj_name: mut ref u8 = name_arg
     if str.rchar_cmp(proj_name, "") == 0 {
-        val cwd_arena = trust allocators.Arena.new(4096 as usize)?
+        val cwd_arena: mut allocators.Arena = trust allocators.Arena.new(4096 as usize)?
         val cwd_opt = trust fs.cwd[allocators.Arena](cwd_arena)
         match cwd_opt {
             some cwd => { proj_name = basename_of(cwd) }
@@ -984,7 +984,7 @@ pub fn cmd_doctor() i32 = {
 
     val qbe_ver: ref u8 = tool_version("qbe -d 2>&1")
     val qbe_installed_str: mut ref u8 = "installed"
-    val arena = trust allocators.Arena.new(256 as usize)?
+    val arena: mut allocators.Arena = trust allocators.Arena.new(256 as usize)?
     val qbe_ver_string = trust str.from[allocators.Arena](arena, qbe_ver)
     val not_found = trust str.from[allocators.Arena](arena, "not found")
     if str.contains(qbe_ver_string, not_found) {
@@ -999,7 +999,7 @@ pub fn cmd_doctor() i32 = {
     val git_ver: ref u8 = tool_version("git --version 2>&1")
     trust stdio.print("git:     {s}\n", {git_ver})
 
-    val cwd_arena = trust allocators.Arena.new(4096 as usize)?
+    val cwd_arena: mut allocators.Arena = trust allocators.Arena.new(4096 as usize)?
     val cwd_opt = trust fs.cwd[allocators.Arena](cwd_arena)
     match cwd_opt {
         some cwd => { trust stdio.print("cwd:     {s}\n", {cwd}) }
