@@ -323,7 +323,7 @@ fn sha256_heap[T](data: T) string.String = trust {
 ///
 /// Returns a 32-byte String allocated with the provided allocator.
 pub fn sha256[A: allocators.Allocator, T](ac: A, data: T) string.String = trust {
-    val heap_out: string.String = sha256_heap[T](data)
+    val heap_out: mut string.String = sha256_heap[T](data)
     if heap_out == none { return none }
 
     val out: string.String = copy_string[A](ac, heap_out)
@@ -584,17 +584,17 @@ fn hmac_sha256_heap[T](key: T, data: T) string.String = trust {
     val data_ptr: ref void = bytes_ptr[T](data)
     val data_len: i64 = bytes_len[T](data)
 
-    val inner: string.String = alloc_heap_string(block_size + data_len)
+    val inner: mut string.String = alloc_heap_string(block_size + data_len)
     val inner_ptr: ref void = @load(inner) as ref void
     @memcpy(inner_ptr, ipad, block_size)
     if data_len > 0 {
         @memcpy(@ptradd(inner_ptr, block_size), data_ptr, data_len)
     }
-    val inner_digest: string.String = sha256_heap[string.String](inner)
+    val inner_digest: mut string.String = sha256_heap[string.String](inner)
     string.string_free(inner)
 
     val inner_digest_ptr: ref void = @load(inner_digest) as ref void
-    val outer: string.String = alloc_heap_string(block_size + 32)
+    val outer: mut string.String = alloc_heap_string(block_size + 32)
     val outer_ptr: ref void = @load(outer) as ref void
     @memcpy(outer_ptr, opad, block_size)
     @memcpy(@ptradd(outer_ptr, block_size), inner_digest_ptr, 32)
@@ -613,7 +613,7 @@ fn hmac_sha256_heap[T](key: T, data: T) string.String = trust {
 ///
 /// Returns a 32-byte String allocated with the provided allocator.
 pub fn hmac_sha256[A: allocators.Allocator, T](ac: A, key: T, data: T) string.String = trust {
-    val heap_out: string.String = hmac_sha256_heap[T](key, data)
+    val heap_out: mut string.String = hmac_sha256_heap[T](key, data)
     if heap_out == none { return none }
 
     val out: string.String = copy_string[A](ac, heap_out)
@@ -625,7 +625,7 @@ pub fn hmac_sha256[A: allocators.Allocator, T](ac: A, key: T, data: T) string.St
 ///
 /// Returns 24 random bytes encoded as lowercase hex (48 chars) from the provided allocator.
 pub fn unique_nonce[A: allocators.Allocator](ac: A) ref u8 = trust {
-    val buf: string.String = alloc_heap_string(24)
+    val buf: mut string.String = alloc_heap_string(24)
     val ptr: ref void = @load(buf) as ref void
     random.random_bytes(ptr, 24 as usize)
     val out: ref u8 = hex_encode[A, string.String](ac, buf)
@@ -655,7 +655,7 @@ pub fn hash_file_sha256[A: allocators.Allocator](ac: A, path: ref u8) result[str
 
     rewind(file)
 
-    val data: string.String = alloc_heap_string(file_len)
+    val data: mut string.String = alloc_heap_string(file_len)
     if data == none {
         fclose(file)
         return err CryptoError.OutOfMemory
@@ -682,7 +682,7 @@ pub fn hash_file_sha256[A: allocators.Allocator](ac: A, path: ref u8) result[str
 }
 
 test {
-    val arena = trust allocators.Arena.new(32768 as usize)?
+    val arena: mut allocators.Arena = trust allocators.Arena.new(32768 as usize)?
     val sha_hex_expected: ref u8 = "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
 
     assert trust hash_fnv(0 as usize) != trust hash_fnv(1 as usize)

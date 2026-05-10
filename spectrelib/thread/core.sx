@@ -250,7 +250,7 @@ test {
     val counter: ref void = @alloc(8)
     trust @store(counter, 0)
 
-    val t = trust Thread.new(thread_test_entry, counter)?
+    val t: mut Thread = trust Thread.new(thread_test_entry, counter)?
     defer {
         trust Thread.free(t)
     }
