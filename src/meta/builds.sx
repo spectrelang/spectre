@@ -1,5 +1,11 @@
 val os = use("std/os")
 val string = use("std/string")
+val fs = use("std/fs")
+val stdio = use("std/stdio")
+val path = use("std/path")
+val reflection = use("std/reflection")
+val allocators = use("std/allocators")
+val parser = use("../ast/parser.sx")
 
 /// Returns a platform-appropriate path for a temp file.
 pub fn get_tmp_path(name: ref u8) ref u8 = trust {
@@ -81,4 +87,92 @@ pub fn filter_c_diagnostics(raw: ref u8) ref u8 = trust {
     val out: ref u8 = string.cstr(built)
     string.StringBuilder.free(sb)
     return out
+}
+
+pub fn root_has_direct_links(items: list[ref parser.Node]) bool = {
+    for item in items {
+        if item.kind == parser.NK_LINK { return true }
+        if item.kind == parser.NK_WHEN_ITEMS {
+            val when_items: list[ref parser.Node] = item.d1 as list[ref parser.Node]
+            for w in when_items {
+                if w.kind == parser.NK_LINK { return true }
+            }
+            val or_branches: ref void = item.d2 as ref void
+            if or_branches != none {
+                for ob in or_branches as list[ref parser.Node] {
+                    val ob_items: list[ref parser.Node] = ob.d1 as list[ref parser.Node]
+                    for obn in ob_items {
+                        if obn.kind == parser.NK_LINK { return true }
+                    }
+                }
+            }
+            val owise: ref void = item.d3 as ref void
+            if owise != none {
+                for ow in owise as list[ref parser.Node] {
+                    if ow.kind == parser.NK_LINK { return true }
+                }
+            }
+        }
+    }
+    return false
+}
+
+pub fn input_is_in_std(input: ref u8, arena: ref allocators.Arena) bool = {
+    if string.rchar_starts_with(input, "std/")   { return true }
+    if string.rchar_starts_with(input, "./std/") { return true }
+    val input_string = trust string.from[allocators.Arena](arena, input)
+    val std_segment = trust string.from[allocators.Arena](arena, "/std/")
+    val in_std: bool = string.contains(input_string, std_segment)
+    if in_std { return true }
+    return false
+}
+
+pub fn pick_alt_backend(
+    requested: ref u8,
+    release_mode: bool,
+    input: ref u8,
+    root_items: list[ref parser.Node],
+    arena: ref allocators.Arena
+) ref u8 = {
+    if string.rchar_cmp(requested, "") != 0 {
+        return requested
+    }
+    if release_mode {
+        if is_compiler_available("clang") { return "clang" }
+        if is_compiler_available("tcc") { return "tcc" }
+        return "cc"
+    }
+    if !input_is_in_std(input, arena) && root_has_direct_links(root_items) {
+        if is_compiler_available("clang") { return "clang" }
+    }
+    if is_compiler_available("tcc") { return "tcc" }
+    if is_compiler_available("clang") { return "clang" }
+    return "cc"
+}
+
+pub fn append_debug_runtime_links(
+    links: mut list[ref u8],
+    exe_dir: ref u8,
+    quiet: bool,
+    release_mode: bool,
+    arena: ref allocators.Arena
+) void = trust {
+    if release_mode { return }
+    val panic_o: ref u8 = path.join(exe_dir, "spectrelib/csources/panic_handler.o")
+    val panic_f = fs.open(panic_o, "r")
+    match panic_f {
+        some h => {
+            fs.close(h)
+            @append(links, panic_o)
+        }
+        none => {
+            if !quiet {
+                stdio.print("warning: panic_handler.o not found at: {s}\n", {panic_o})
+            }
+        }
+    }
+    val platform: ref u8 = reflection.current_platform_name[allocators.Arena](arena)
+    if string.rchar_cmp(platform, "windows") == 0 {
+        @append(links, "-lDbgHelp")
+    }
 }

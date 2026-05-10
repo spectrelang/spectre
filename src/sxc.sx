@@ -26,94 +26,6 @@ when windows {
     extern (C) fn SetConsoleOutputCP(codepage_id: u32) bool = "SetConsoleOutputCP"
 }
 
-fn root_has_direct_links(items: list[ref parser.Node]) bool = {
-    for item in items {
-        if item.kind == parser.NK_LINK { return true }
-        if item.kind == parser.NK_WHEN_ITEMS {
-            val when_items: list[ref parser.Node] = item.d1 as list[ref parser.Node]
-            for w in when_items {
-                if w.kind == parser.NK_LINK { return true }
-            }
-            val or_branches: ref void = item.d2 as ref void
-            if or_branches != none {
-                for ob in or_branches as list[ref parser.Node] {
-                    val ob_items: list[ref parser.Node] = ob.d1 as list[ref parser.Node]
-                    for obn in ob_items {
-                        if obn.kind == parser.NK_LINK { return true }
-                    }
-                }
-            }
-            val owise: ref void = item.d3 as ref void
-            if owise != none {
-                for ow in owise as list[ref parser.Node] {
-                    if ow.kind == parser.NK_LINK { return true }
-                }
-            }
-        }
-    }
-    return false
-}
-
-fn input_is_in_std(input: ref u8, arena: ref allocators.Arena) bool = {
-    if string.rchar_starts_with(input, "std/")   { return true }
-    if string.rchar_starts_with(input, "./std/") { return true }
-    val input_string = trust string.from[allocators.Arena](arena, input)
-    val std_segment = trust string.from[allocators.Arena](arena, "/std/")
-    val in_std: bool = string.contains(input_string, std_segment)
-    if in_std { return true }
-    return false
-}
-
-fn pick_alt_backend(
-    requested: ref u8,
-    release_mode: bool,
-    input: ref u8,
-    root_items: list[ref parser.Node],
-    arena: ref allocators.Arena
-) ref u8 = {
-    if string.rchar_cmp(requested, "") != 0 {
-        return requested
-    }
-    if release_mode {
-        if builds.is_compiler_available("clang") { return "clang" }
-        if builds.is_compiler_available("tcc") { return "tcc" }
-        return "cc"
-    }
-    if !input_is_in_std(input, arena) && root_has_direct_links(root_items) {
-        if builds.is_compiler_available("clang") { return "clang" }
-    }
-    if builds.is_compiler_available("tcc") { return "tcc" }
-    if builds.is_compiler_available("clang") { return "clang" }
-    return "cc"
-}
-
-fn append_debug_runtime_links(
-    links: mut list[ref u8],
-    exe_dir: ref u8,
-    quiet: bool,
-    release_mode: bool,
-    arena: ref allocators.Arena
-) void = trust {
-    if release_mode { return }
-    val panic_o: ref u8 = path.join(exe_dir, "spectrelib/csources/panic_handler.o")
-    val panic_f = fs.open(panic_o, "r")
-    match panic_f {
-        some h => {
-            fs.close(h)
-            @append(links, panic_o)
-        }
-        none => {
-            if !quiet {
-                stdio.print("warning: panic_handler.o not found at: {s}\n", {panic_o})
-            }
-        }
-    }
-    val platform: ref u8 = reflection.current_platform_name[allocators.Arena](arena)
-    if string.rchar_cmp(platform, "windows") == 0 {
-        @append(links, "-lDbgHelp")
-    }
-}
-
 pub fn main() i32 = trust {
     val arena: mut allocators.Arena = allocators.Arena.new(65536 as usize)?
     val args = os.get_args()
@@ -564,7 +476,7 @@ pub fn main() i32 = trust {
         }
 
         val links_alt: mut list[ref u8] = module.collect_used_links(root_mod, exe_dir)
-        append_debug_runtime_links(links_alt, exe_dir, quiet, release_mode, arena)
+        builds.append_debug_runtime_links(links_alt, exe_dir, quiet, release_mode, arena)
         val link_flags_alt: mut ref u8 = ""
         for lib in links_alt {
             link_flags_alt = @fmt("{s} {s}", {link_flags_alt, lib})
@@ -574,7 +486,7 @@ pub fn main() i32 = trust {
             include_flags_alt = @fmt("{s} -I{s}", {include_flags_alt, inc_path})
         }
 
-        val selected_compiler: mut ref u8 = pick_alt_backend(alt_compiler, release_mode, input, root_mod.items, arena)
+        val selected_compiler: mut ref u8 = builds.pick_alt_backend(alt_compiler, release_mode, input, root_mod.items, arena)
 
         val warn_flag: ref u8 = builds.compiler_warn_flag(selected_compiler)
         val cc_flags_alt: mut ref u8 = @fmt("-std=c99 {s} -O3", {warn_flag})
@@ -673,7 +585,7 @@ pub fn main() i32 = trust {
     }
 
     val links: mut list[ref u8] = module.collect_used_links(root_mod, exe_dir)
-    append_debug_runtime_links(links, exe_dir, quiet, release_mode, arena)
+    builds.append_debug_runtime_links(links, exe_dir, quiet, release_mode, arena)
 
     if emit_qbe != 0 {
         stdio.puts(qbe_ir)
