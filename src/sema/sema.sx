@@ -4927,9 +4927,244 @@ fn find_use_line_in_items(items: list[ref parser.Node], import_name: ref u8) i64
     return 0
 }
 
+fn type_name_has_import_prefix(type_name: ref u8, import_name: ref u8) bool = trust {
+    if type_name == none || import_name == none { return false }
+    val nlen: i64 = string.len_raw(import_name)
+    if nlen <= 0 { return false }
+    val i: mut i64 = 0
+    for {
+        if i >= nlen { break }
+        val tc: u8 = @load8(@ptradd(type_name as ref void, i))
+        val ic: u8 = @load8(@ptradd(import_name as ref void, i))
+        if tc == 0 || tc != ic { return false }
+        i++
+    }
+    return @load8(@ptradd(type_name as ref void, nlen)) == 46
+}
+
+fn type_uses_import_alias(ty: ref parser.Node, import_name: ref u8) bool = trust {
+    if ty == none || import_name == none { return false }
+    if ty.kind == parser.TY_NAMED {
+        return type_name_has_import_prefix(ty.d0 as ref u8, import_name)
+    }
+    if ty.kind == parser.TY_MUT || ty.kind == parser.TY_REF || ty.kind == parser.TY_OPTION || ty.kind == parser.TY_LIST || ty.kind == parser.TY_SLICE {
+        return type_uses_import_alias(ty.d0 as ref parser.Node, import_name)
+    }
+    if ty.kind == parser.TY_RESULT {
+        if type_uses_import_alias(ty.d0 as ref parser.Node, import_name) { return true }
+        return type_uses_import_alias(ty.d1 as ref parser.Node, import_name)
+    }
+    if ty.kind == parser.TY_FIXED_ARR {
+        return type_uses_import_alias(ty.d1 as ref parser.Node, import_name)
+    }
+    if ty.kind == parser.TY_FNPTR {
+        val params: ref void = ty.d0 as ref void
+        if params != none {
+            for param_ty in params as list[ref parser.Node] {
+                if type_uses_import_alias(param_ty as ref parser.Node, import_name) { return true }
+            }
+        }
+        return type_uses_import_alias(ty.d1 as ref parser.Node, import_name)
+    }
+    return false
+}
+
+fn expr_uses_import_alias(node: ref parser.Node, import_name: ref u8) bool = trust {
+    if node == none || import_name == none { return false }
+    val k: i64 = node.kind
+    if k == parser.NK_IDENT {
+        return str_eq(node.d0 as ref u8, import_name)
+    }
+    if k == parser.NK_FIELD {
+        val base: ref parser.Node = parser.field_base(node)
+        if base != none && base.kind == parser.NK_IDENT {
+            if str_eq(base.d0 as ref u8, import_name) { return true }
+        }
+        return expr_uses_import_alias(base, import_name)
+    }
+    if k == parser.NK_CALL {
+        if expr_uses_import_alias(parser.call_callee(node), import_name) { return true }
+        val args: ref void = parser.call_args(node) as ref void
+        if args != none {
+            for arg in args as list[ref parser.Node] {
+                if expr_uses_import_alias(arg, import_name) { return true }
+            }
+        }
+        return false
+    }
+    if k == parser.NK_BUILTIN {
+        val bargs: ref void = node.d1 as ref void
+        if bargs != none {
+            for barg in bargs as list[ref parser.Node] {
+                if expr_uses_import_alias(barg, import_name) { return true }
+            }
+        }
+        return false
+    }
+    if k == parser.NK_BINOP {
+        if expr_uses_import_alias(parser.binop_left(node), import_name) { return true }
+        return expr_uses_import_alias(parser.binop_right(node), import_name)
+    }
+    if k == parser.NK_UNOP {
+        return expr_uses_import_alias(parser.unop_inner(node), import_name)
+    }
+    if k == parser.NK_CAST {
+        if type_uses_import_alias(node.d1 as ref parser.Node, import_name) { return true }
+        return expr_uses_import_alias(node.d0 as ref parser.Node, import_name)
+    }
+    if k == parser.NK_TRUST || k == parser.NK_TRY || k == parser.NK_ADDR || k == parser.NK_DEREF ||
+       k == parser.NK_SOME || k == parser.NK_OK_VAL || k == parser.NK_ERR_VAL {
+        return expr_uses_import_alias(node.d0 as ref parser.Node, import_name)
+    }
+    if k == parser.NK_LIST_LIT || k == parser.NK_ARGS_PACK {
+        val elems: ref void = node.d0 as ref void
+        if elems != none {
+            for e in elems as list[ref parser.Node] {
+                if expr_uses_import_alias(e, import_name) { return true }
+            }
+        }
+        return false
+    }
+    if k == parser.NK_STRUCT_LIT {
+        val fields: ref void = node.d0 as ref void
+        if fields != none {
+            for f in fields as list[ref parser.Node] {
+                if expr_uses_import_alias((f as ref parser.Node).d1 as ref parser.Node, import_name) { return true }
+            }
+        }
+        return false
+    }
+    if k == parser.NK_GENERIC_INST {
+        if expr_uses_import_alias(node.d0 as ref parser.Node, import_name) { return true }
+        val targs: ref void = node.d1 as ref void
+        if targs != none {
+            for targ in targs as list[ref parser.Node] {
+                if type_uses_import_alias(targ as ref parser.Node, import_name) { return true }
+            }
+        }
+        return false
+    }
+    return false
+}
+
+fn stmts_use_import_alias(stmts: ref void, import_name: ref u8) bool = trust {
+    if stmts == none || import_name == none { return false }
+    for s in stmts as list[ref parser.Node] {
+        if s == none { continue }
+        val k: i64 = s.kind
+        if k == parser.NK_VAL {
+            if type_uses_import_alias(s.d2 as ref parser.Node, import_name) { return true }
+            if expr_uses_import_alias(s.d3 as ref parser.Node, import_name) { return true }
+        } elif k == parser.NK_ASSIGN || k == parser.NK_ADD_ASSIGN || k == parser.NK_SUB_ASSIGN {
+            if expr_uses_import_alias(s.d0 as ref parser.Node, import_name) { return true }
+            if expr_uses_import_alias(s.d1 as ref parser.Node, import_name) { return true }
+        } elif k == parser.NK_RETURN || k == parser.NK_EXPR_STMT || k == parser.NK_ASSERT ||
+                 k == parser.NK_INCREMENT || k == parser.NK_DECREMENT {
+            if expr_uses_import_alias(s.d0 as ref parser.Node, import_name) { return true }
+        } elif k == parser.NK_GUARD {
+            if expr_uses_import_alias(s.d0 as ref parser.Node, import_name) { return true }
+            if stmts_use_import_alias(s.d1 as ref void, import_name) { return true }
+        } elif k == parser.NK_IF {
+            if expr_uses_import_alias(s.d0 as ref parser.Node, import_name) { return true }
+            if stmts_use_import_alias(s.d1 as ref void, import_name) { return true }
+            val elifs: ref void = s.d2 as ref void
+            if elifs != none {
+                for ep in elifs as list[ref parser.Node] {
+                    if expr_uses_import_alias((ep as ref parser.Node).d0 as ref parser.Node, import_name) { return true }
+                    if stmts_use_import_alias((ep as ref parser.Node).d1 as ref void, import_name) { return true }
+                }
+            }
+            val else_node: ref parser.Node = s.d3 as ref parser.Node
+            if else_node != none && stmts_use_import_alias(else_node.d0 as ref void, import_name) { return true }
+        } elif k == parser.NK_FOR {
+            if expr_uses_import_alias(s.d1 as ref parser.Node, import_name) { return true }
+            if expr_uses_import_alias(s.d2 as ref parser.Node, import_name) { return true }
+            if s.d3 as ref parser.Node != none && stmts_use_import_alias([s.d3 as ref parser.Node], import_name) { return true }
+            if stmts_use_import_alias(s.d4 as ref void, import_name) { return true }
+        } elif k == parser.NK_FORIN {
+            if expr_uses_import_alias(s.d1 as ref parser.Node, import_name) { return true }
+            if stmts_use_import_alias(s.d2 as ref void, import_name) { return true }
+        } elif k == parser.NK_DEFER || k == parser.NK_TRUST_BLOCK {
+            if stmts_use_import_alias(s.d0 as ref void, import_name) { return true }
+        } elif k == parser.NK_WHEN_STMT {
+            if stmts_use_import_alias(s.d1 as ref void, import_name) { return true }
+            val or_branches: ref void = s.d2 as ref void
+            if or_branches != none {
+                for ow in or_branches as list[ref parser.Node] {
+                    if stmts_use_import_alias((ow as ref parser.Node).d1 as ref void, import_name) { return true }
+                }
+            }
+            if stmts_use_import_alias(s.d3 as ref void, import_name) { return true }
+        } elif k == parser.NK_MATCH_VALUE || k == parser.NK_MATCH_OPT || k == parser.NK_MATCH_RES ||
+                 k == parser.NK_MATCH_ENUM || k == parser.NK_MATCH_UNION || k == parser.NK_MATCH_TAGGED_UNION ||
+                 k == parser.NK_MATCH_STR {
+            if expr_uses_import_alias(s.d0 as ref parser.Node, import_name) { return true }
+            val arms: ref void = s.d1 as ref void
+            if arms != none {
+                for arm in arms as list[ref parser.Node] {
+                    if expr_uses_import_alias((arm as ref parser.Node).d0 as ref parser.Node, import_name) { return true }
+                    if stmts_use_import_alias((arm as ref parser.Node).d1 as ref void, import_name) { return true }
+                    if stmts_use_import_alias((arm as ref parser.Node).d2 as ref void, import_name) { return true }
+                }
+            }
+            val else_node2: ref parser.Node = s.d2 as ref parser.Node
+            if else_node2 != none && stmts_use_import_alias(else_node2.d0 as ref void, import_name) { return true }
+            val err_body: ref parser.Node = s.d4 as ref parser.Node
+            if err_body != none && stmts_use_import_alias(err_body.d0 as ref void, import_name) { return true }
+        } elif k == parser.NK_PRE || k == parser.NK_POST || k == parser.NK_GUARDED_PRE || k == parser.NK_GUARDED_POST {
+            val contracts: ref void = s.d0 as ref void
+            if contracts != none {
+                for c in contracts as list[ref parser.Node] {
+                    if expr_uses_import_alias((c as ref parser.Node).d1 as ref parser.Node, import_name) { return true }
+                }
+            }
+        }
+    }
+    return false
+}
+
+fn items_use_import_alias(items: list[ref parser.Node], import_name: ref u8) bool = trust {
+    if import_name == none { return false }
+    for item in items {
+        if item == none { continue }
+        val k: i64 = item.kind
+        if k == parser.NK_FN || k == parser.NK_GENERIC_FN {
+            val params: ref void = item.d3 as ref void
+            if params != none {
+                for p in params as list[ref parser.Node] {
+                    if type_uses_import_alias((p as ref parser.Node).d1 as ref parser.Node, import_name) { return true }
+                }
+            }
+            if type_uses_import_alias(item.d4 as ref parser.Node, import_name) { return true }
+            if stmts_use_import_alias(item.d5 as ref void, import_name) { return true }
+        } elif k == parser.NK_TEST {
+            if stmts_use_import_alias(item.d0 as ref void, import_name) { return true }
+        } elif k == parser.NK_VAL {
+            if type_uses_import_alias(item.d2 as ref parser.Node, import_name) { return true }
+            if expr_uses_import_alias(item.d3 as ref parser.Node, import_name) { return true }
+        } elif k == parser.NK_CONST {
+            if expr_uses_import_alias(item.d2 as ref parser.Node, import_name) { return true }
+        } elif k == parser.NK_WHEN_ITEMS {
+            val when_items: ref void = item.d1 as ref void
+            if when_items != none && items_use_import_alias(when_items as list[ref parser.Node], import_name) { return true }
+            val or_branches: ref void = item.d2 as ref void
+            if or_branches != none {
+                for or_node in or_branches as list[ref parser.Node] {
+                    val or_items: ref void = (or_node as ref parser.Node).d1 as ref void
+                    if or_items != none && items_use_import_alias(or_items as list[ref parser.Node], import_name) { return true }
+                }
+            }
+            val otherwise_items: ref void = item.d3 as ref void
+            if otherwise_items != none && items_use_import_alias(otherwise_items as list[ref parser.Node], import_name) { return true }
+        }
+    }
+    return false
+}
+
 fn check_unused_imports(ctx: ref SemaCtx, items: list[ref parser.Node], filename: ref u8) void = trust {
     val unused_imports: list[ref u8] = modinfo.collect_unused_import_names_in_items(items)
     for import_name in unused_imports {
+        if items_use_import_alias(items, import_name) { continue }
         val use_line: i64 = find_use_line_in_items(items, import_name)
         val buf: ref u8 = @alloc(256) as ref u8
         @snprintf(buf, 256, "{s}:{lld}: use directive assigned to '{s}' is never used", {filename, use_line, import_name})
