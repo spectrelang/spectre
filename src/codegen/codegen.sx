@@ -2816,7 +2816,7 @@ fn cg_direct_type(ctx: ref CgCtx, name: ref u8) ref u8 = trust {
     return ""
 }
 
-fn fresh_tmp(ctx: ref CgCtx) i64 = trust {
+fn fresh_tmp(ctx: mut ref CgCtx) i64 = trust {
     val n: i64 = cg_tmp(ctx)
     cg_set_tmp(ctx, n + 1)
     return n
@@ -11224,7 +11224,7 @@ fn preregister_items(ctx: ref CgCtx, items: list[ref parser.Node], mod_prefix: r
 }
 
 /// Emit all items from one module layer, using `mod_prefix` for name mangling.
-fn gen_items_with_prefix(ctx: ref CgCtx, items: list[ref parser.Node], mod_prefix: ref u8) void = trust {
+fn gen_items_with_prefix(ctx: mut ref CgCtx, items: list[ref parser.Node], mod_prefix: ref u8) void = trust {
     val ilen0: i64 = @len(items) as i64
     val i0: mut i64 = 0
     for {
@@ -11837,9 +11837,9 @@ pub fn gen_module_resolved(root: ref module.ResolvedModule, release_mode: bool, 
     ctx.src_target = src_target
     emit_runtime_helpers(ctx)
 
-    val out_prefixes: list[ref u8] = []
-    val out_items:    list[ref void] = []
-    val seen:         list[String] = []
+    val out_prefixes: mut list[ref u8] = []
+    val out_items:    mut list[ref void] = []
+    val seen:         mut list[String] = []
 
     module.flatten_modules(
         root, "",
@@ -11978,9 +11978,9 @@ pub fn gen_module_resolved(root: ref module.ResolvedModule, release_mode: bool, 
 pub fn get_used_prefixes(root: ref module.ResolvedModule) list[ref u8] = trust {
     val ctx: ref CgCtx = cg_new()
 
-    val out_prefixes: list[ref u8] = []
-    val out_items:    list[ref void] = []
-    val seen:         list[String] = []
+    val out_prefixes: mut list[ref u8] = []
+    val out_items:    mut list[ref void] = []
+    val seen:         mut list[String] = []
 
     module.flatten_modules(
         root, "",
@@ -12070,7 +12070,7 @@ pub fn get_used_prefixes(root: ref module.ResolvedModule) list[ref u8] = trust {
 }
 
 /// Emit a single test block as a numbered function. Returns the function name.
-fn gen_test_fn(ctx: ref CgCtx, body_stmts: ref parser.Node, test_id: i64) void = trust {
+fn gen_test_fn(ctx: mut ref CgCtx, body_stmts: ref parser.Node, test_id: i64) void = trust {
     cg_dvars_clear(ctx)
     val fname: ref u8 = @fmt("__sx_test_{lld}", {test_id})
     val hdr: ref u8 = @fmt("export function w ${s}() {\n@start\n", {fname})
@@ -12126,7 +12126,7 @@ fn gen_test_fn(ctx: ref CgCtx, body_stmts: ref parser.Node, test_id: i64) void =
 }
 
 /// Emit a $main that calls all collected test functions and prints a summary.
-fn gen_test_main(ctx: ref CgCtx, test_ids: list[i64]) void = trust {
+fn gen_test_main(ctx: mut ref CgCtx, test_ids: list[i64]) void = trust {
     emitln(ctx, "export function w $main(w %argc, l %argv) {")
     emitln(ctx, "@start")
     emitln(ctx, "    %sx_argc_val =l extsw %argc")
@@ -12166,9 +12166,9 @@ pub fn gen_module_resolved_test(root: ref module.ResolvedModule, release_mode: b
     ctx.src_target = src_target
     emit_runtime_helpers(ctx)
 
-    val out_prefixes: list[ref u8] = []
-    val out_items:    list[ref void] = []
-    val seen:         list[String] = []
+    val out_prefixes: mut list[ref u8] = []
+    val out_items:    mut list[ref void] = []
+    val seen:         mut list[String] = []
 
     module.flatten_modules(
         root, "",
@@ -12363,7 +12363,7 @@ pub fn gen_module_resolved_test(root: ref module.ResolvedModule, release_mode: b
 
 /// Like gen_items_with_prefix but skips NK_LINK directives.
 /// Used to emit module code without pulling in external libraries.
-fn gen_items_with_prefix_skip_links(ctx: ref CgCtx, items: list[ref parser.Node], mod_prefix: ref u8) void = trust {
+fn gen_items_with_prefix_skip_links(ctx: mut ref CgCtx, items: list[ref parser.Node], mod_prefix: ref u8) void = trust {
     preregister_items(ctx, items, mod_prefix)
     val ilen: i64 = @len(items) as i64
     val i: mut i64 = 0
@@ -12503,7 +12503,7 @@ fn gen_items_with_prefix_skip_links(ctx: ref CgCtx, items: list[ref parser.Node]
 }
 
 /// Kinda like gen_items_with_prefix but skips NK_FN named "main" and handles NK_TEST.
-fn gen_items_with_prefix_skip_main(ctx: ref CgCtx, items: list[ref parser.Node], mod_prefix: ref u8) void = trust {
+fn gen_items_with_prefix_skip_main(ctx: mut ref CgCtx, items: list[ref parser.Node], mod_prefix: ref u8) void = trust {
     preregister_items(ctx, items, mod_prefix)
     val ilen: i64 = @len(items) as i64
     val i: mut i64 = 0
@@ -12629,7 +12629,7 @@ fn gen_items_with_prefix_skip_main(ctx: ref CgCtx, items: list[ref parser.Node],
 
 // Main entry: generate QBE IR for a module (single-file, no imports).
 pub fn gen_module(items: list[ref parser.Node]) ref u8 = trust {
-    val ctx: ref CgCtx = cg_new()
+    val ctx: mut ref CgCtx = cg_new()
 
     emit_runtime_helpers(ctx)
     preregister_items(ctx, items, "")

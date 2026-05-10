@@ -986,7 +986,7 @@ fn resolve_module_impl(
         val node: ref parser.Node = item
         if node.kind == parser.NK_USE {
             val import_name: ref u8 = node.d1 as ref u8
-            val use_path:    ref u8 = node.d2 as ref u8
+            val use_path:    mut ref u8 = node.d2 as ref u8
             val is_json_or_net: bool = str.rchar_cmp(import_name, "json") == 0 ||
                                        str.rchar_cmp(import_name, "net") == 0
             val skip_std_dce: bool = is_std_module && !is_json_or_net
@@ -1009,7 +1009,7 @@ fn resolve_module_impl(
                 }
             }
 
-            val resolved_path = resolve_use_path(use_path, file_dir_c, exe_dir, workspace)
+            val resolved_path: mut ref u8 = resolve_use_path(use_path, file_dir_c, exe_dir, workspace)
             val needed_grandchildren: mut ref void = none
             if @len(needed_subs) > 0 {
                 needed_grandchildren = needed_subs as ref void
@@ -1310,7 +1310,7 @@ pub fn flatten_modules_with_files(
 /// Collect all link statements from a module's items.
 /// Returns a list of link flags (strings like "-lcurl" or full paths).
 pub fn collect_links(items: list[ref parser.Node], exe_dir: ref u8) list[ref u8] = trust {
-    val arena = allocators.Arena.new(256 as usize)?
+    val arena: mut allocators.Arena = allocators.Arena.new(256 as usize)?
     val links: mut list[ref u8] = []
     val p: i64 = reflection.get_current_platform[allocators.Arena](arena) as i64
     val platform: mut ref u8 = "unknown"
@@ -1623,7 +1623,7 @@ fn collect_needed_subnames(items: list[ref parser.Node], import_name: ref u8) li
     return needed
 }
 
-fn collect_needed_subnames_in_stmts(stmts_ptr: ref void, import_name: ref u8, needed: list[ref u8]) void = trust {
+fn collect_needed_subnames_in_stmts(stmts_ptr: ref void, import_name: ref u8, needed: mut list[ref u8]) void = trust {
     if stmts_ptr == none { return }
     val stmts: list[ref parser.Node] = stmts_ptr as list[ref parser.Node]
     val slen: i64 = @len(stmts) as i64
@@ -1644,7 +1644,7 @@ fn collect_needed_subnames_in_stmts(stmts_ptr: ref void, import_name: ref u8, ne
     }
 }
 
-fn collect_needed_subnames_in_stmt(stmt: ref parser.Node, import_name: ref u8, needed: list[ref u8]) void = trust {
+fn collect_needed_subnames_in_stmt(stmt: ref parser.Node, import_name: ref u8, needed: mut list[ref u8]) void = trust {
     if stmt == none { return }
 
     if stmt.kind == parser.NK_VAL {
@@ -2188,7 +2188,7 @@ fn collect_used_imports_expr(node: ref parser.Node, import_names: list[ref u8], 
 }
 
 /// Collect used import names from a statement.
-fn collect_used_imports_stmt(node: ref parser.Node, import_names: list[ref u8], used: list[ref u8]) void = trust {
+fn collect_used_imports_stmt(node: ref parser.Node, import_names: list[ref u8], used: mut list[ref u8]) void = trust {
     if node == none { return }
 
     if node.kind == parser.NK_VAL {
@@ -2589,7 +2589,7 @@ fn collect_used_imports_stmt(node: ref parser.Node, import_names: list[ref u8], 
     }
 }
 
-fn collect_used_imports_item(item: ref parser.Node, import_names: list[ref u8], used: list[ref u8]) void = trust {
+fn collect_used_imports_item(item: ref parser.Node, import_names: list[ref u8], used: mut list[ref u8]) void = trust {
     if item == none { return }
 
     if item.kind == parser.NK_FN || item.kind == parser.NK_GENERIC_FN {
@@ -2722,7 +2722,7 @@ fn collect_used_imports_item(item: ref parser.Node, import_names: list[ref u8], 
 }
 
 /// Collect used import names from a list of items.
-fn collect_used_imports_items(items: list[ref parser.Node], import_names: list[ref u8], used: list[ref u8]) void = trust {
+fn collect_used_imports_items(items: list[ref parser.Node], import_names: list[ref u8], used: mut list[ref u8]) void = trust {
     val items_len: i64 = @len(items) as i64
 
     if items_len < 0 || items_len > 100000 {
@@ -2797,14 +2797,14 @@ pub fn collect_used_links(
     exe_dir: ref u8
 ) list[ref u8] = trust {
     val result: mut list[ref u8] = []
-    val seen: list[String] = []
+    val seen: mut list[String] = []
 
     val my_links: list[ref u8] = collect_links(m.items, exe_dir)
     for lnk in my_links {
         @append(result, lnk)
     }
 
-    val used_imports: list[ref u8] = []
+    val used_imports: mut list[ref u8] = []
     collect_used_imports_items(m.items, m.import_names, used_imports)
 
     for used_name in used_imports {
@@ -2891,7 +2891,7 @@ fn collect_used_links_recursive(
         @append(result, lnk)
     }
 
-    val used_imports: list[ref u8] = []
+    val used_imports: mut list[ref u8] = []
     collect_used_imports_items(m.items, m.import_names, used_imports)
 
     for used_name in used_imports {
