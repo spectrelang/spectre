@@ -46,7 +46,7 @@ fn ctx_advance(ctx: mut ref ParseCtx) void = {
     ctx.pos = ctx.pos + 1
 }
 
-fn ctx_skip_line(ctx: ref ParseCtx) void = {
+fn ctx_skip_line(ctx: mut ref ParseCtx) void = {
     for {
         val c: i64 = trust ctx_peek(ctx)
         if c == -1 { break }
@@ -70,7 +70,7 @@ fn ctx_skip_ws(ctx: ref ParseCtx) void = {
     }
 }
 
-fn ctx_read_quoted(ctx: ref ParseCtx) ref u8 = trust {
+fn ctx_read_quoted(ctx: mut ref ParseCtx) ref u8 = trust {
     ctx_skip_ws(ctx)
     if ctx_peek(ctx) != 34 { return "" }
     ctx_advance(ctx)
@@ -96,7 +96,7 @@ fn ctx_read_quoted(ctx: ref ParseCtx) ref u8 = trust {
     return result
 }
 
-fn ctx_read_ident(ctx: ref ParseCtx) ref u8 = trust {
+fn ctx_read_ident(ctx: mut ref ParseCtx) ref u8 = trust {
     ctx_skip_ws(ctx)
     val buf: ref u8 = @alloc(256) as ref u8
     val i: mut i64 = 0
@@ -123,7 +123,7 @@ fn ctx_read_ident(ctx: ref ParseCtx) ref u8 = trust {
 }
 
 pub fn parse_sxmod(content: ref u8) ref SxMod = trust {
-    val ctx: ref ParseCtx = new_ctx(content)
+    val ctx: mut ref ParseCtx = new_ctx(content)
     val m: mut ref SxMod = @alloc(@sizeof(SxMod)) as ref SxMod
     @memset(m as ref void, 0, @sizeof(SxMod) as usize)
     m.entry   = ""

@@ -399,7 +399,7 @@ fn clear_local_types(ctx: mut ref TranslationCtx) void = {
     ctx.temp_counter = 0
 }
 
-fn register_typedef_alias(ctx: ref TranslationCtx, alias_name: ref u8, spectre_type: ref u8) void = {
+fn register_typedef_alias(ctx: mut ref TranslationCtx, alias_name: ref u8, spectre_type: ref u8) void = {
     val len: i64 = @len(ctx.typedef_alias_names) as i64
     val i: mut i64 = 0
     for {
@@ -731,12 +731,12 @@ fn lookup_flex_field_type(ctx: ref TranslationCtx, struct_name: ref u8) option[r
     return none
 }
 
-fn mark_mutable_name(ctx: ref TranslationCtx, name: ref u8) void = {
+fn mark_mutable_name(ctx: mut ref TranslationCtx, name: ref u8) void = {
     if string.rchar_cmp(name, "") == 0 { return }
     push_unique(ctx.mutable_names, name)
 }
 
-fn mark_address_taken_name(ctx: ref TranslationCtx, name: ref u8) void = {
+fn mark_address_taken_name(ctx: mut ref TranslationCtx, name: ref u8) void = {
     if string.rchar_cmp(name, "") == 0 { return }
     push_unique(ctx.address_taken_names, name)
 }
@@ -885,7 +885,7 @@ fn parse_brace_initializer_items(text: ref u8) list[ref u8] = {
     return items
 }
 
-fn emit_array_initializer_stores(ctx: ref TranslationCtx, out: ref void, indent: i64, name: ref u8, items: list[ref u8]) void = {
+fn emit_array_initializer_stores(ctx: mut ref TranslationCtx, out: ref void, indent: i64, name: ref u8, items: list[ref u8]) void = {
     val init_len: i64 = @len(items) as i64
     val init_i: mut i64 = 0
     for {
@@ -993,7 +993,7 @@ fn find_top_level_else(text: ref u8) i64 = {
     return -1
 }
 
-fn analyze_mutations_in_statement(ctx: ref TranslationCtx, line: ref u8) void = {
+fn analyze_mutations_in_statement(ctx: mut ref TranslationCtx, line: ref u8) void = {
     val stripped: ref u8 = strip_trailing_semicolon(trim_raw(line))
     if string.rchar_cmp(stripped, "") == 0 { return }
     if string.rchar_starts_with(stripped, "else") {
@@ -1321,7 +1321,7 @@ fn contains_incdec_ops(text: ref u8) bool = {
     return str_contains(text, "++") || str_contains(text, "--")
 }
 
-fn analyze_address_taken_in_statement(ctx: ref TranslationCtx, line: ref u8) void = {
+fn analyze_address_taken_in_statement(ctx: mut ref TranslationCtx, line: ref u8) void = {
     val stripped: ref u8 = strip_trailing_semicolon(trim_raw(line))
     if string.rchar_cmp(stripped, "") == 0 { return }
     val len: i64 = string.len_raw(stripped)
@@ -1399,7 +1399,7 @@ fn analyze_address_taken_in_statement(ctx: ref TranslationCtx, line: ref u8) voi
     }
 }
 
-fn analyze_mutable_names(ctx: ref TranslationCtx, lines: list[ref u8], start: i64) void = {
+fn analyze_mutable_names(ctx: mut ref TranslationCtx, lines: list[ref u8], start: i64) void = {
     val len: i64 = @len(lines) as i64
     val i: mut i64 = start
     for {
@@ -1413,7 +1413,7 @@ fn analyze_mutable_names(ctx: ref TranslationCtx, lines: list[ref u8], start: i6
     }
 }
 
-fn analyze_address_taken_names(ctx: ref TranslationCtx, lines: list[ref u8], start: i64) void = {
+fn analyze_address_taken_names(ctx: mut ref TranslationCtx, lines: list[ref u8], start: i64) void = {
     val len: i64 = @len(lines) as i64
     val i: mut i64 = start
     for {
@@ -1494,7 +1494,7 @@ fn preprocess_source(path: ref u8) option[ref u8] = trust {
         }
         none => { return none }
     }
-    val arena = allocators.Arena.new((arena_cap + 8) as usize)?
+    val arena: mut allocators.Arena = allocators.Arena.new((arena_cap + 8) as usize)?
     val content_opt = fs.read_all[allocators.Arena](arena, path)
     match content_opt {
         none => {
@@ -1664,7 +1664,7 @@ fn lookup_called_signature(ctx: ref TranslationCtx, call_name: ref u8) option[re
     return none
 }
 
-fn track_called_expr(ctx: ref TranslationCtx, expr: ref u8) void = {
+fn track_called_expr(ctx: mut ref TranslationCtx, expr: ref u8) void = {
     val call_name: ref u8 = extract_call_name(expr)
     if string.rchar_cmp(call_name, "") != 0 && !string.rchar_starts_with(expr, "@") {
         push_unique(ctx.called_names, call_name)
@@ -2697,7 +2697,7 @@ fn collect_brace_block(lines: list[ref u8], start: i64) ref BlockResult = {
     return make_block_result(i, STOP_EOF, "")
 }
 
-fn translate_for_loop(lines: list[ref u8], current_dir: ref u8, start: i64, indent: i64, out: ref void, ctx: ref TranslationCtx) ref BlockResult = {
+fn translate_for_loop(lines: list[ref u8], current_dir: ref u8, start: i64, indent: i64, out: ref void, ctx: mut ref TranslationCtx) ref BlockResult = {
     val line_opt = @get(lines, start as usize)
     match line_opt {
         none => { return make_block_result(start + 1, STOP_EOF, "") }
@@ -2774,7 +2774,7 @@ fn translate_for_loop(lines: list[ref u8], current_dir: ref u8, start: i64, inde
     }
 }
 
-fn translate_while_loop(lines: list[ref u8], current_dir: ref u8, start: i64, indent: i64, out: ref void, ctx: ref TranslationCtx) ref BlockResult = {
+fn translate_while_loop(lines: list[ref u8], current_dir: ref u8, start: i64, indent: i64, out: ref void, ctx: mut ref TranslationCtx) ref BlockResult = {
     val line_opt = @get(lines, start as usize)
     match line_opt {
         none => { return make_block_result(start + 1, STOP_EOF, "") }
@@ -2829,7 +2829,7 @@ fn translate_while_loop(lines: list[ref u8], current_dir: ref u8, start: i64, in
     }
 }
 
-fn translate_brace_block(lines: list[ref u8], start: i64, indent: i64, out: ref void, ctx: ref TranslationCtx) ref BlockResult = {
+fn translate_brace_block(lines: list[ref u8], start: i64, indent: i64, out: ref void, ctx: mut ref TranslationCtx) ref BlockResult = {
     val span: ref BlockResult = collect_brace_block(lines, start)
     val full_text: ref u8 = join_lines(lines, start, span.next_index)
     val open_i: i64 = find_char(full_text, 123 as u8)
@@ -2844,14 +2844,14 @@ fn translate_brace_block(lines: list[ref u8], start: i64, indent: i64, out: ref 
     return span
 }
 
-fn translate_inline_statement(ctx: ref TranslationCtx, text: ref u8, indent: i64, out: ref void) void = {
+fn translate_inline_statement(ctx: mut ref TranslationCtx, text: ref u8, indent: i64, out: ref void) void = {
     val trimmed: ref u8 = strip_trailing_semicolon(trim_raw(text))
     if string.rchar_cmp(trimmed, "") == 0 { return }
     if translate_body_statement(ctx, trimmed, indent, out) { return }
     append_comment_line(out, indent, trimmed)
 }
 
-fn translate_if_text(lines: list[ref u8], current_dir: ref u8, line_index: i64, if_text: ref u8, indent: i64, out: ref void, ctx: ref TranslationCtx) ref BlockResult = {
+fn translate_if_text(lines: list[ref u8], current_dir: ref u8, line_index: i64, if_text: ref u8, indent: i64, out: ref void, ctx: mut ref TranslationCtx) ref BlockResult = {
     val trimmed: ref u8 = trim_raw(if_text)
     val open_i: i64 = find_char(trimmed, 40 as u8)
     val close_i: i64 = find_matching_delim(trimmed, open_i, 40 as u8, 41 as u8)
@@ -2943,7 +2943,7 @@ fn translate_if_text(lines: list[ref u8], current_dir: ref u8, line_index: i64, 
     return make_block_result(next_i, STOP_EOF, "")
 }
 
-fn translate_if_statement(lines: list[ref u8], current_dir: ref u8, start: i64, indent: i64, out: ref void, ctx: ref TranslationCtx) ref BlockResult = {
+fn translate_if_statement(lines: list[ref u8], current_dir: ref u8, start: i64, indent: i64, out: ref void, ctx: mut ref TranslationCtx) ref BlockResult = {
     val line_opt = @get(lines, start as usize)
     match line_opt {
         some line_val => { return translate_if_text(lines, current_dir, start, trim_raw(line_val as ref u8), indent, out, ctx) }
@@ -2969,7 +2969,7 @@ fn render_switch_case_condition(ctx: ref TranslationCtx, switch_expr: ref u8, la
     return trust string.cstr(built)
 }
 
-fn translate_switch_statement(lines: list[ref u8], start: i64, indent: i64, out: ref void, ctx: ref TranslationCtx) ref BlockResult = {
+fn translate_switch_statement(lines: list[ref u8], start: i64, indent: i64, out: ref void, ctx: mut ref TranslationCtx) ref BlockResult = {
     val line_opt = @get(lines, start as usize)
     match line_opt {
         none => { return make_block_result(start + 1, STOP_EOF, "") }
@@ -3081,7 +3081,7 @@ fn translate_switch_statement(lines: list[ref u8], start: i64, indent: i64, out:
     }
 }
 
-fn translate_do_while_loop(lines: list[ref u8], start: i64, indent: i64, out: ref void, ctx: ref TranslationCtx) ref BlockResult = {
+fn translate_do_while_loop(lines: list[ref u8], start: i64, indent: i64, out: ref void, ctx: mut ref TranslationCtx) ref BlockResult = {
     val line_opt = @get(lines, start as usize)
     match line_opt {
         none => { return make_block_result(start + 1, STOP_EOF, "") }
@@ -3144,7 +3144,7 @@ fn translate_do_while_loop(lines: list[ref u8], start: i64, indent: i64, out: re
     }
 }
 
-fn translate_statement_at(lines: list[ref u8], current_dir: ref u8, start: i64, indent: i64, out: ref void, ctx: ref TranslationCtx) ref BlockResult = {
+fn translate_statement_at(lines: list[ref u8], current_dir: ref u8, start: i64, indent: i64, out: ref void, ctx: mut ref TranslationCtx) ref BlockResult = {
     val line_opt = @get(lines, start as usize)
     match line_opt {
         none => { return make_block_result(start + 1, STOP_EOF, "") }
@@ -3559,7 +3559,7 @@ fn rewrite_null_comparison(ctx: ref TranslationCtx, text: ref u8) option[ref u8]
     return some trust @fmt("{s} != {s}", {translated_expr, zero_expr})
 }
 
-fn emit_condition_assignment(ctx: ref TranslationCtx, lhs: ref u8, rhs: ref u8, indent: i64, out: ref void) ref u8 = {
+fn emit_condition_assignment(ctx: mut ref TranslationCtx, lhs: ref u8, rhs: ref u8, indent: i64, out: ref void) ref u8 = {
     val lhs_arrow: ref u8 = replace_arrow_access(lhs)
     val lhs_rewritten: ref u8 = rewrite_identifiers(translate_addr_deref_expr(ctx, lhs_arrow))
     val lowered_rhs: ref LoweredExpr = lower_incdec_expr(ctx, rhs, indent, out)
@@ -3584,7 +3584,7 @@ fn emit_condition_assignment(ctx: ref TranslationCtx, lhs: ref u8, rhs: ref u8, 
     return lhs_rewritten
 }
 
-fn rewrite_condition_assignments(ctx: ref TranslationCtx, text: ref u8, indent: i64, out: ref void) ref u8 = {
+fn rewrite_condition_assignments(ctx: mut ref TranslationCtx, text: ref u8, indent: i64, out: ref void) ref u8 = {
     val trimmed: ref u8 = trim_raw(text)
     val inner: ref u8 = unwrap_outer_parens(trimmed)
     val cmp_i: i64 = find_top_level_equality(inner)
@@ -3625,7 +3625,7 @@ fn translate_expr_text(ctx: ref TranslationCtx, text: ref u8) ref u8 = {
     return normalized_intrinsics
 }
 
-fn translate_condition_text(ctx: ref TranslationCtx, text: ref u8, indent: i64, out: ref void) ref u8 = {
+fn translate_condition_text(ctx: mut ref TranslationCtx, text: ref u8, indent: i64, out: ref void) ref u8 = {
     val condition_src: mut ref u8 = text
     if contains_incdec_ops(text) {
         val lowered_text: ref LoweredExpr = lower_incdec_text(ctx, text, indent, out)
@@ -3639,7 +3639,7 @@ fn translate_condition_text(ctx: ref TranslationCtx, text: ref u8, indent: i64, 
     return translate_expr_text(ctx, rewritten_assigns)
 }
 
-fn translate_body_statement(ctx: ref TranslationCtx, line: ref u8, indent: i64, out: ref void) bool = {
+fn translate_body_statement(ctx: mut ref TranslationCtx, line: ref u8, indent: i64, out: ref void) bool = {
     val stripped: ref u8 = strip_trailing_semicolon(line)
     if string.rchar_cmp(stripped, "") == 0 {
         append_blank_line(out)
@@ -3942,7 +3942,7 @@ fn emit_generic_extern(ctx: ref TranslationCtx, name: ref u8, out: ref void) boo
     return true
 }
 
-fn append_synthesized_externs(ctx: ref TranslationCtx, out: ref void) void = {
+fn append_synthesized_externs(ctx: mut ref TranslationCtx, out: ref void) void = {
     val emitted_any: mut bool = false
     for name in ctx.called_names {
         if list_contains(ctx.defined_names, name) { continue }
@@ -4454,7 +4454,7 @@ fn append_builder(dst: ref void, src: ref void) void = {
     trust string.StringBuilder.append(dst, built)
 }
 
-fn translate_body_lines(lines: list[ref u8], current_dir: ref u8, start: i64, indent: i64, out: ref void, ctx: ref TranslationCtx) ref BlockResult = {
+fn translate_body_lines(lines: list[ref u8], current_dir: ref u8, start: i64, indent: i64, out: ref void, ctx: mut ref TranslationCtx) ref BlockResult = {
     val len: i64 = @len(lines) as i64
     val i: mut i64 = start
     for {
@@ -4618,7 +4618,7 @@ fn collect_function(lines: list[ref u8], start: i64) ref BlockResult = {
     return make_block_result(i, STOP_EOF, "")
 }
 
-fn translate_struct_decl(text: ref u8, indent: i64, out: ref void, ctx: ref TranslationCtx) bool = {
+fn translate_struct_decl(text: ref u8, indent: i64, out: ref void, ctx: mut ref TranslationCtx) bool = {
     val flat: ref u8 = flatten_ws(text)
     val open_i: i64 = find_char(flat, 123 as u8)
     val close_i: i64 = find_last_char(flat, 125 as u8)
@@ -4690,7 +4690,7 @@ fn translate_struct_decl(text: ref u8, indent: i64, out: ref void, ctx: ref Tran
     return true
 }
 
-fn translate_enum_decl(text: ref u8, indent: i64, out: ref void, ctx: ref TranslationCtx) bool = {
+fn translate_enum_decl(text: ref u8, indent: i64, out: ref void, ctx: mut ref TranslationCtx) bool = {
     val flat: ref u8 = flatten_ws(text)
     val open_i: i64 = find_char(flat, 123 as u8)
     val close_i: i64 = find_last_char(flat, 125 as u8)
@@ -4815,7 +4815,7 @@ fn emit_union_type(alias: ref u8, body: ref u8, indent: i64, out: ref void, ctx:
     append_blank_line(out)
 }
 
-fn translate_anonymous_union_field(field_text: ref u8, indent: i64, out: ref void, ctx: ref TranslationCtx) option[ref u8] = {
+fn translate_anonymous_union_field(field_text: ref u8, indent: i64, out: ref void, ctx: mut ref TranslationCtx) option[ref u8] = {
     val trimmed: ref u8 = trim_raw(field_text)
     if !string.rchar_starts_with(trimmed, "union") { return none }
     val open_i: i64 = find_char(trimmed, 123 as u8)
@@ -4834,7 +4834,7 @@ fn translate_anonymous_union_field(field_text: ref u8, indent: i64, out: ref voi
     return some trust @fmt("{s}: {s}", {field_name, render_mutable_type(union_name)})
 }
 
-fn translate_union_decl(text: ref u8, indent: i64, out: ref void, ctx: ref TranslationCtx) bool = {
+fn translate_union_decl(text: ref u8, indent: i64, out: ref void, ctx: mut ref TranslationCtx) bool = {
     val flat: ref u8 = flatten_ws(text)
     val open_i: i64 = find_char(flat, 123 as u8)
     val close_i: i64 = find_last_char(flat, 125 as u8)
@@ -4869,7 +4869,7 @@ fn translate_union_decl(text: ref u8, indent: i64, out: ref void, ctx: ref Trans
     return true
 }
 
-fn translate_params(ctx: ref TranslationCtx, params_text: ref u8) ref u8 = {
+fn translate_params(ctx: mut ref TranslationCtx, params_text: ref u8) ref u8 = {
     val trimmed: ref u8 = trim_raw(params_text)
     if string.rchar_cmp(trimmed, "") == 0 { return "" }
     if string.rchar_cmp(trimmed, "void") == 0 { return "" }
@@ -5078,7 +5078,7 @@ fn strip_gnu_attributes(text: ref u8) ref u8 = {
     return trim_raw(trust string.cstr(built))
 }
 
-fn translate_function_decl(text: ref u8, current_dir: ref u8, indent: i64, out: ref void, ctx: ref TranslationCtx) bool = {
+fn translate_function_decl(text: ref u8, current_dir: ref u8, indent: i64, out: ref void, ctx: mut ref TranslationCtx) bool = {
     val has_body: bool = find_char(text, 123 as u8) >= 0
     val signature_src: mut ref u8 = ""
     val body_src: mut ref u8 = ""
@@ -5164,7 +5164,7 @@ fn translate_function_decl(text: ref u8, current_dir: ref u8, indent: i64, out: 
     return true
 }
 
-fn translate_top_level_decl(text: ref u8, indent: i64, out: ref void, ctx: ref TranslationCtx) bool = {
+fn translate_top_level_decl(text: ref u8, indent: i64, out: ref void, ctx: mut ref TranslationCtx) bool = {
     val stripped: ref u8 = strip_trailing_semicolon(trim_raw(text))
     if string.rchar_cmp(stripped, "") == 0 { return false }
     val multi_decls = split_multi_decl(ctx, stripped)
@@ -5263,7 +5263,7 @@ fn translate_top_level_decl(text: ref u8, indent: i64, out: ref void, ctx: ref T
     return false
 }
 
-fn translate_file(path: ref u8, out: ref void, seen: mut list[ref u8], ctx: ref TranslationCtx) bool = {
+fn translate_file(path: ref u8, out: ref void, seen: mut list[ref u8], ctx: mut ref TranslationCtx) bool = {
     if list_contains(seen, path) { return true }
     @append(seen, path)
     val content_opt = trust preprocess_source(path)
@@ -5292,7 +5292,7 @@ pub fn translate_top_level(
     indent: i64,
     out: ref void,
     seen: mut list[ref u8],
-    ctx: ref TranslationCtx
+    ctx: mut ref TranslationCtx
 ) ref BlockResult = {
     val len: i64 = @len(lines) as i64
     val i: mut i64 = start
@@ -5483,7 +5483,7 @@ pub fn translate_top_level(
 pub fn translate_c(input_path: ref u8, output_path: ref u8) i32 = {
     val body: ref void = string.StringBuilder.new()
     val seen: mut list[ref u8] = []
-    val ctx: ref TranslationCtx = new_translation_ctx()
+    val ctx: mut ref TranslationCtx = new_translation_ctx()
     val its_ok: bool = translate_file(input_path, body, seen, ctx)
     if !its_ok {
         trust stdio.print("error: failed to translate '{s}'\n", {input_path})
