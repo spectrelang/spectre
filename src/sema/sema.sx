@@ -2925,6 +2925,31 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
                                         }
                                     }
 
+                                    if pty.kind == parser.TY_MUT {
+                                        val root_arg: ref parser.Node = unwrap_and_find_root(arg_node)
+                                        if root_arg != none && root_arg.kind == parser.NK_IDENT {
+                                            val aname: ref u8 = root_arg.d0 as ref u8
+                                            val arg_mutability: i64 = scope_lookup(ctx, aname)
+                                            if arg_mutability == 0 {
+                                                val mut_err_buf: ref u8 = @alloc(512) as ref u8
+                                                val pname_m: ref u8 = param_node.d0 as ref u8
+                                                val fn_name_m: mut ref u8 = none
+                                                if base_callee != none {
+                                                    if base_callee.kind == parser.NK_IDENT { fn_name_m = base_callee.d0 as ref u8 }
+                                                    elif base_callee.kind == parser.NK_FIELD { fn_name_m = parser.field_name(base_callee) }
+                                                }
+                                                if fn_name_m != none {
+                                                    @snprintf(mut_err_buf, 512, "{s}:{lld}: cannot pass immutable '{s}' to mut parameter '{s}' of '{s}'",
+                                                        {filename, line, aname, pname_m, fn_name_m})
+                                                } else {
+                                                    @snprintf(mut_err_buf, 512, "{s}:{lld}: cannot pass immutable '{s}' to mut parameter '{s}'",
+                                                        {filename, line, aname, pname_m})
+                                                }
+                                                add_error(ctx, mut_err_buf)
+                                            }
+                                        }
+                                    }
+
                                     val arg_wrap: i64 = expr_wrap_kind(ctx, arg_node)
                                     val param_wrap: i64 = ty_wrap_kind(pty)
                                     if arg_wrap != 0 && arg_wrap != param_wrap {
