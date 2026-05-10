@@ -78,7 +78,7 @@ fn (PtrList) grow(list: mut self, new_cap: usize) result[void, ListAllocError] =
 
 /// Append a value to the end of the list.
 /// Requires the list pointer to be non-null (non-zero).
-pub fn (PtrList) push(list: self, value: usize) result[void, ListAllocError] = trust {
+pub fn (PtrList) push(list: mut self, value: usize) result[void, ListAllocError] = trust {
     val len: usize = @load(@ptradd(list, 8)) as usize
     val cap: usize = @load(@ptradd(list, 16)) as usize
     if (len >= cap) {
@@ -250,7 +250,7 @@ fn (Map) grow(map: mut self, new_cap: usize) void = trust {
 
 /// Insert or update a key-value pair.
 /// Grows the map (2x + 1) when load factor exceeds 70%.
-pub fn (Map) set(map: self, key: usize, value: usize) void = trust {
+pub fn (Map) set(map: mut self, key: usize, value: usize) void = trust {
     val len: usize = @load(@ptradd(map, 8)) as usize
     val cap: usize = @load(@ptradd(map, 16)) as usize
 
@@ -380,7 +380,7 @@ pub fn (Map) clear(map: self) void = {
 
 test {
     @puts("STARTING 2")
-    val m = trust Map.new(8 as usize, @addr(hash_identity))
+    val m: mut Map = trust Map.new(8 as usize, @addr(hash_identity))
 
     assert Map.len(m) == 0
 
@@ -429,7 +429,7 @@ test {
     assert Map.len(m) == 0
     assert !Map.contains(m, 1 as usize)
 
-    val big = trust Map.new(4 as usize, @addr(hash_identity))
+    val big: mut Map = trust Map.new(4 as usize, @addr(hash_identity))
 
     for (i = 0; i < 20; i++) {
         trust Map.set(big, i, i * 10)
@@ -454,7 +454,7 @@ test {
     val allocator: allocators.Arena = trust allocators.Arena.new(100 as usize)
     trust @print("{p}\n", {allocator})
 
-    val list: ref void = trust PtrList.new(2 as usize)?
+    val list: mut ref void = trust PtrList.new(2 as usize)?
     defer {
         trust PtrList.free(list)
     }
@@ -481,7 +481,7 @@ test {
     assert(PtrList.pop(list) == some 99)
     assert(PtrList.pop(list) == some 42)
 
-    val list2: ref void = trust PtrList.new(1 as usize)?
+    val list2: mut ref void = trust PtrList.new(1 as usize)?
     defer {
         trust PtrList.free(list2)
     }
@@ -489,7 +489,7 @@ test {
     trust PtrList.push(list2, 10 as usize)?
     assert(PtrList.get(list2, 0 as usize) == some 10)
 
-    val list3: ref void = trust PtrList.new(1 as usize)?
+    val list3: mut ref void = trust PtrList.new(1 as usize)?
     defer {
         trust PtrList.free(list3)
     }
@@ -547,7 +547,7 @@ pub fn (StringMap) new(initial_cap: usize) ref void = trust {
 /// Insert or update a string key with a usize value.
 ///
 /// The key is copied onto the heap; the copy is owned by the map.
-pub fn (StringMap) set(map: self, key: ref u8, value: usize) void = trust {
+pub fn (StringMap) set(map: mut self, key: ref u8, value: usize) void = trust {
     val cap: usize = @load(@ptradd(map, 16)) as usize
     val buckets: ref void = @load(map)
     val kl: i64 = strlen(key)
@@ -669,7 +669,7 @@ pub fn (StringMap) free(map: self) void = trust {
 
 test {
     @puts("sm: new")
-    val m = trust StringMap.new(8 as usize)
+    val m: mut StringMap = trust StringMap.new(8 as usize)
 
     @puts("sm: len==0")
     assert StringMap.len(m) == 0
@@ -767,7 +767,7 @@ pub fn (IndexMap) new(initial_cap: usize) ref void = trust {
 
 /// Insert or update a key-value pair, preserving insertion order for new keys.
 pub fn (IndexMap) set(map: self, key: ref u8, value: usize) void = trust {
-    val inner: ref void = @load(map)
+    val inner: mut ref void = @load(map)
     val keys:  ref void = @load(@ptradd(map, 8))
     val already = StringMap.contains(inner, key)
     StringMap.set(inner, key, value)
@@ -875,7 +875,7 @@ pub fn (IndexMap) key_at(map: self, i: usize) option[ref u8] = {
 /// Free the IndexMap and all owned key copies.
 pub fn (IndexMap) free(map: mut self) void = trust {
     val inner: ref void = @load(map)
-    val keys:  ref void = @load(@ptradd(map, 8))
+    val keys:  mut ref void = @load(@ptradd(map, 8))
     val n: usize = PtrList.len(keys)
     for (i = 0; i < n; i++) {
         match PtrList.get(keys, i) {
@@ -889,7 +889,7 @@ pub fn (IndexMap) free(map: mut self) void = trust {
 }
 
 test {
-    val m = trust IndexMap.new(8 as usize)
+    val m: mut IndexMap = trust IndexMap.new(8 as usize)
 
     assert IndexMap.len(m) == 0
 

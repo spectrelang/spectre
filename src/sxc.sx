@@ -746,7 +746,7 @@ pub fn main() i32 = trust {
                 return 1
             }
         }
-        val asm_arena = allocators.Arena.new((asm_arena_cap + 8) as usize)?
+        val asm_arena: mut allocators.Arena = allocators.Arena.new((asm_arena_cap + 8) as usize)?
         val asm_opt = fs.read_all[allocators.Arena](asm_arena, asm_file)
         match asm_opt {
             some asm_content => {

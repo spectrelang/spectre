@@ -108,7 +108,7 @@ pub fn (Arena) reset(arena: self) void = trust {
 }
 
 test {
-    val arena = trust Arena.new(64 as usize)?
+    val arena: mut Arena = trust Arena.new(64 as usize)?
 
     stdio.puts("done making new arena")
     assert Arena.cap(arena) == 64
@@ -197,7 +197,7 @@ pub fn (Stack) free(stack: mut self) void = trust {
 }
 
 test {
-    val stack = trust Stack.new(1024 as usize)?
+    val stack: mut Stack = trust Stack.new(1024 as usize)?
     val marker = Stack.save(stack)
     val tmp1 = Stack.alloc(stack, 200 as usize)
 
