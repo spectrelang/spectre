@@ -2,7 +2,7 @@ entry "./src/sxc.sx"
 version "v0.0.9"
 
 build prod {
-    action "./build.sh"
+    action "./fw/build.sh"
     // flags "--release"
     // output "./spectre"
 }
