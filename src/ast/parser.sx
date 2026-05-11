@@ -1097,6 +1097,9 @@ pub fn parse_stmt(p: mut ref Parser) result[ref Node, ref u8] = trust {
         }
         p_expect_eq(p)?
         val expr = parse_expr(p)?
+        if expr.kind == NK_IDENT && lexer.kind_is_lbrace(p_peek_kind(p)) {
+            return err p_error(p, "type-prefixed struct initialization is not valid")
+        }
         val n: mut ref Node = make_node(NK_VAL, line)
         node_store_slot[ref u8](@addr(n.d0), name)
         n.d1 = mutable
@@ -1878,6 +1881,9 @@ pub fn parse_stmt(p: mut ref Parser) result[ref Node, ref u8] = trust {
     val expr3 = parse_expr(p)?
     if p_eat_fn(p, kind_is_eq) {
         val rhs = parse_expr(p)?
+        if rhs.kind == NK_IDENT && lexer.kind_is_lbrace(p_peek_kind(p)) {
+            return err p_error(p, "type-prefixed struct initialization is not valid")
+        }
         val na2: mut ref Node = make_node(NK_ASSIGN, line)
         node_store_slot[ref Node](@addr(na2.d0), expr3)
         node_store_slot[ref Node](@addr(na2.d1), rhs)
