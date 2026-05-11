@@ -1,0 +1,14 @@
+type SomeType = {
+    x: i32
+    y: i32
+}
+
+pub fn main() void = {
+    // This is wrong:
+    val st = SomeType {1, 20}
+
+    // This is the correct version: 
+    val st: SomeType = {x: 1, y: 20}
+
+    trust @print("{p}\n", {st})
+}

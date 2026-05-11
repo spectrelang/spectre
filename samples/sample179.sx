@@ -1,0 +1,46 @@
+// Repro attempt: trust function that allocates a struct, assigns all fields
+// including one added after initial definition, then reads them back via
+// rchar_cmp — testing whether struct layout / sizeof is correct inside a
+// trust block after a field is appended to the type.
+//
+// Expected: prints "ok" and returns 0.
+
+val str = use("std/string")
+
+type Config = {
+    name:   mut ref u8
+    action: mut ref u8
+    flags:  mut ref u8
+    output: mut ref u8
+    entry:  mut ref u8
+}
+
+fn make_config() ref Config = trust {
+    val cfg: mut ref Config = @alloc(@sizeof(Config)) as ref Config
+    @memset(cfg as ref void, 0, @sizeof(Config) as usize)
+    cfg.name   = "release"
+    cfg.action = ""
+    cfg.flags  = "--release"
+    cfg.output = "./myapp"
+    cfg.entry  = "./src/main.sx"
+    return cfg
+}
+
+fn check_config(cfg: ref Config) bool = trust {
+    if str.rchar_cmp(cfg.name,   "release")      != 0 { return false }
+    if str.rchar_cmp(cfg.action, "")             != 0 { return false }
+    if str.rchar_cmp(cfg.flags,  "--release")    != 0 { return false }
+    if str.rchar_cmp(cfg.output, "./myapp")      != 0 { return false }
+    if str.rchar_cmp(cfg.entry,  "./src/main.sx") != 0 { return false }
+    return true
+}
+
+pub fn main() i32 = trust {
+    val cfg = make_config()
+    if check_config(cfg) {
+        @print("ok\n", {})
+        return 0
+    }
+    @print("field mismatch (wrong)\n", {})
+    return 1
+}

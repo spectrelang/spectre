@@ -1,0 +1,92 @@
+type Vec3 = {
+    x: f32
+    y: f32
+    z: f32
+}
+
+type Particle = {
+    center: Vec3
+    color: Vec3
+    radius: f32
+    orbit_radius: f32
+    speed: f32
+    phase: f32
+    height: f32
+    glow: f32
+}
+
+fn vec3(x: f32, y: f32, z: f32) Vec3 = {
+    return {
+        x: x,
+        y: y,
+        z: z
+    }
+}
+
+fn particle_energy(p: Particle) f32 = {
+    return p.radius * p.glow * p.orbit_radius
+}
+
+fn is_visible(p: Particle, time: f32) bool = {
+    val energy: f32 = particle_energy(p)
+
+    if energy > 0.12 as f32
+        && p.glow > 0.25 as f32
+        && p.radius < 0.10 as f32
+        && p.center.y + p.height > 0.5 as f32
+        && p.speed * time + p.phase < 12.0 as f32 {
+
+        return true
+    }
+
+    return false
+}
+pub fn should_render(
+    distance: f32,
+    brightness: f32,
+    visible: bool,
+    occluded: bool,
+    debug: bool
+) bool = {
+
+    if visible
+        && !occluded
+        && distance < 25.0 as f32
+        || brightness > 0.85 as f32
+        && debug
+        || distance * brightness < 4.0 as f32
+        && visible {
+
+        return true
+    }
+
+    return false
+}
+fn print_particle_state(p: Particle, time: f32) void = {
+    if is_visible(p, time)
+        && p.color.x > 0.7 as f32
+        && p.color.z > p.color.y
+        && p.center.z < -1.0 as f32 {
+
+        trust @print("visible energetic particle\n")
+    } else {
+        trust @print("inactive particle\n")
+    }
+}
+
+pub fn main() i32 = {
+    val p: Particle = {
+        center: vec3(1.55 as f32, 0.72 as f32, -2.30 as f32),
+        color: vec3(0.78 as f32, 0.96 as f32, 1.00 as f32),
+        radius: 0.05 as f32,
+        orbit_radius: 0.64 as f32,
+        speed: -1.10 as f32,
+        phase: 2.1 as f32,
+        height: 0.66 as f32,
+        glow: 0.30 as f32
+    }
+
+    print_particle_state(p, 4.0 as f32)
+
+    return 0 as i32
+}
