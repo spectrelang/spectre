@@ -14,6 +14,7 @@ pub type SxBuildConfig = {
     action: mut ref u8
     flags:  mut ref u8
     output: mut ref u8
+    entry:  mut ref u8
 }
 
 pub type SxMod = {
@@ -148,6 +149,7 @@ pub fn parse_sxmod(content: ref u8) ref SxMod = trust {
             cfg.action = ""
             cfg.flags  = ""
             cfg.output = ""
+            cfg.entry  = ""
             ctx_skip_ws(ctx)
             if ctx_peek(ctx) == 123 { ctx_advance(ctx) }
             for {
@@ -162,6 +164,8 @@ pub fn parse_sxmod(content: ref u8) ref SxMod = trust {
                     cfg.flags = ctx_read_quoted(ctx)
                 } elif str.rchar_cmp(inner, "output") == 0 {
                     cfg.output = ctx_read_quoted(ctx)
+                } elif str.rchar_cmp(inner, "entry") == 0 {
+                    cfg.entry = ctx_read_quoted(ctx)
                 } else {
                     ctx_skip_line(ctx)
                 }
@@ -174,6 +178,17 @@ pub fn parse_sxmod(content: ref u8) ref SxMod = trust {
     }
     @free(ctx as ref void)
     return m
+}
+
+fn validate_sxmod(m: ref SxMod) bool = {
+    if str.rchar_cmp(m.entry, "") == 0 { return true }
+    for cfg in m.builds {
+        if str.rchar_cmp(cfg.entry, "") != 0 {
+            stdio.puts("error: sx.mod cannot mix a top-level 'entry' with per-build 'entry' fields")
+            return false
+        }
+    }
+    return true
 }
 
 pub fn load_sxmod() option[ref SxMod] = {
@@ -193,9 +208,10 @@ pub fn load_sxmod() option[ref SxMod] = {
             return none
         }
         some content => {
-            val parsed = some trust parse_sxmod(content as ref u8)
+            val m: ref SxMod = trust parse_sxmod(content as ref u8)
             trust allocators.Arena.free(arena)
-            return parsed
+            if !validate_sxmod(m) { return none }
+            return some m
         }
     }
 }
@@ -851,7 +867,9 @@ pub fn cmd_build(config_name: ref u8, exe_path: ref u8) i32 = {
                 return 1
             }
 
-            val cmd: ref u8 = trust build_config_cmd(found_cfg, exe_path, m.entry)
+            val entry: mut ref u8 = m.entry 
+            if str.rchar_cmp(found_cfg.entry, "") != 0 { entry = found_cfg.entry }
+            val cmd: ref u8 = trust build_config_cmd(found_cfg, exe_path, entry)
             val exit_code: i32 = trust os.run(cmd)
             return exit_code
         }
