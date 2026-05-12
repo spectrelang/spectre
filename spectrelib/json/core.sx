@@ -38,8 +38,6 @@ extern (C) fn yyjson_read_opts(dat: ref u8, len: usize, flg: u32, alc: ref void,
 extern (C) fn yyjson_doc_free(doc: ref void) void = "sx_yyjson_doc_free"
 extern (C) fn yyjson_doc_get_root(doc: ref void) ref void = "sx_yyjson_doc_get_root"
 extern (C) fn yyjson_write_opts(doc: ref void, flg: u32, alc: ref void, len: ref usize, error: ref void) ref u8 = "sx_yyjson_write_opts"
-extern (C) fn free(ptr: ref void) void = "free"
-extern (C) fn strlen(s: ref u8) usize = "strlen"
 extern (C) fn yyjson_mut_doc_free(doc: ref void) void = "sx_yyjson_mut_doc_free"
 extern (C) fn yyjson_mut_write_opts(doc: ref void, flg: u32, alc: ref void, len: ref usize, error: ref void) ref u8 = "sx_yyjson_mut_write_opts"
 extern (C) fn yyjson_mut_null(doc: ref void) ref void = "sx_yyjson_mut_null"
@@ -97,7 +95,7 @@ fn copy_json_string[T: allocators.Allocator](ac: T, src: ref u8, len: usize) ref
 }
 
 pub fn parse(input: ref u8) option[JsonDoc] = trust {
-    val len: usize = strlen(input)
+    val len: usize = str.len_raw(input)
     val doc: ref void = yyjson_read_opts(input, len, 0 as u32, none, none)
     if doc == none {
         return none
@@ -120,7 +118,7 @@ pub fn doc_to_string[T: allocators.Allocator](ac: T, handle: JsonDoc) ref u8 = t
     val len_slot: mut usize = 0
     val raw: ref u8 = yyjson_write_opts(doc, 0 as u32, none, @addr(len_slot), none)
     val out: ref u8 = copy_json_string[T](ac, raw, len_slot)
-    if raw != none { free(raw as ref void) }
+    if raw != none { @free(raw as ref void) }
     return out
 }
 
@@ -210,7 +208,7 @@ pub fn builder_to_string[T: allocators.Allocator](ac: T, handle: JsonBuilder) re
     val len_slot: mut usize = 0
     val raw: ref u8 = yyjson_mut_write_opts(doc, 0 as u32, none, @addr(len_slot), none)
     val out: ref u8 = copy_json_string[T](ac, raw, len_slot)
-    if raw != none { free(raw as ref void) }
+    if raw != none { @free(raw as ref void) }
     return out
 }
 
@@ -219,7 +217,7 @@ pub fn builder_to_string_pretty[T: allocators.Allocator](ac: T, handle: JsonBuil
     val len_slot: mut usize = 0
     val raw: ref u8 = yyjson_mut_write_opts(doc, 1 as u32, none, @addr(len_slot), none)
     val out: ref u8 = copy_json_string[T](ac, raw, len_slot)
-    if raw != none { free(raw as ref void) }
+    if raw != none { @free(raw as ref void) }
     return out
 }
 
