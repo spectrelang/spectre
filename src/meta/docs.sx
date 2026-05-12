@@ -74,6 +74,18 @@ fn substr(src: ref u8, start: i64, len: i64) ref u8 = trust {
     return out
 }
 
+fn copy_cstr(src: ref u8) ref u8 = trust {
+    if src == none { return none }
+    val len: i64 = str.len_raw(src)
+    val out: ref u8 = @alloc(len + 1) as ref u8
+    if out == none { return none }
+    @memset(out as ref void, 0, len + 1)
+    if len > 0 {
+        @memcpy(out as ref void, src as ref void, len)
+    }
+    return out
+}
+
 fn trim_ws(src: ref u8) ref u8 = trust {
     val len: i64 = str.len_raw(src)
     if len == 0 { return "" }
@@ -200,7 +212,7 @@ fn collect_sx_files(dir: ref u8, rel_dir: ref u8, out: mut list[ref u8]) void = 
             if dir_exists(child_path) {
                 collect_sx_files(child_path, child_rel, out)
             } elif str.rchar_ends_with(entry, ".sx") {
-                @append(out, normalize_rel_path(child_rel))
+                @append(out, copy_cstr(normalize_rel_path(child_rel)))
             }
         }
     }
@@ -1715,7 +1727,6 @@ pub fn cmd_doc(target: ref u8, markdown: bool) i32 = trust {
         stdio.print("error: could not create '{s}'\n", {out_dir})
         return 1
     }
-    @puts("ok1")
     if dir_exists(target) {
         val clean_target = trim_trailing_slash(target)
         val files: mut list[ref u8] = []
@@ -1725,7 +1736,6 @@ pub fn cmd_doc(target: ref u8, markdown: bool) i32 = trust {
             return 1
         }
         val modules: mut list[ref DocModule] = []
-        @puts("ok2")
         for rel in files {
             val source_path: mut ref u8 = rel
             if !str_eq(clean_target, ".") && !str_eq(clean_target, "") {
@@ -1736,7 +1746,6 @@ pub fn cmd_doc(target: ref u8, markdown: bool) i32 = trust {
             @append(modules, load_module(source_path, rel))
         }
 
-        @puts("ok3")
         val root_rel = maybe_root_rel_for_dir()
         val root_idx = find_root_module(modules, root_rel)
         assign_output_paths(modules, markdown, root_idx)
@@ -1750,7 +1759,6 @@ pub fn cmd_doc(target: ref u8, markdown: bool) i32 = trust {
             }
         }
 
-        @puts("ok4")
         for mod in modules {
             val full_path = path.join("docs-out", mod.output_path)
             val content: mut ref u8 = ""

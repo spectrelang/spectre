@@ -104,6 +104,17 @@ fn copy_cstr[A: allocators.Allocator](ac: A, text: ref u8) ref u8 = trust {
     return buf
 }
 
+fn copy_cstr_len[A: allocators.Allocator](ac: A, text: ref u8, len: i64) ref u8 = trust {
+    if text == none { return none }
+    if len < 0 { return none }
+    val buf: ref u8 = alloc_cstr[A](ac, len)
+    if buf == none { return none }
+    if len > 0 {
+        @memcpy(buf as ref void, text as ref void, len as usize)
+    }
+    return buf
+}
+
 fn raw_alloc_cstr(len: i64) ref u8 = trust {
     val buf: ref u8 = @alloc(len + 1) as ref u8
     if buf == none { return none }
@@ -120,6 +131,41 @@ fn raw_copy_cstr(text: ref u8) ref u8 = trust {
         @memcpy(buf as ref void, text as ref void, len as usize)
     }
     return buf
+}
+
+fn raw_copy_cstr_len(text: ref u8, len: i64) ref u8 = trust {
+    if text == none { return none }
+    if len < 0 { return none }
+    val buf: ref u8 = raw_alloc_cstr(len)
+    if buf == none { return none }
+    if len > 0 {
+        @memcpy(buf as ref void, text as ref void, len as usize)
+    }
+    return buf
+}
+
+fn dirent_name_len(entry: ref Dirent) i64 = trust {
+    when darwin {
+        return entry.d_namlen as i64
+    }
+    when freebsd {
+        return entry.d_namlen as i64
+    }
+    when openbsd {
+        return entry.d_namlen as i64
+    }
+    when netbsd {
+        return entry.d_namlen as i64
+    }
+    return strlen(@addr(entry.d_name) as ref u8)
+}
+
+fn copy_dirent_name[A: allocators.Allocator](ac: A, entry: ref Dirent) ref u8 = trust {
+    return copy_cstr_len[A](ac, @addr(entry.d_name) as ref u8, dirent_name_len(entry))
+}
+
+fn raw_copy_dirent_name(entry: ref Dirent) ref u8 = trust {
+    return raw_copy_cstr_len(@addr(entry.d_name) as ref u8, dirent_name_len(entry))
 }
 
 /// Open a file. Here, mode is a C fopen mode string: "r", "w", "a", "rb", etc.
@@ -593,6 +639,21 @@ test {
         }
     }
 
+    when darwin {
+        val fake_dirent: mut ref Dirent = @alloc(@sizeof(Dirent)) as ref Dirent
+        trust {
+            @memset(fake_dirent as ref void, 0, @sizeof(Dirent))
+            fake_dirent.d_namlen = 3 as u16
+            @store8(@addr(fake_dirent.d_name) as ref void, 97)
+            @store8(@ptradd(@addr(fake_dirent.d_name) as ref void, 1), 98)
+            @store8(@ptradd(@addr(fake_dirent.d_name) as ref void, 2), 99)
+            @store8(@ptradd(@addr(fake_dirent.d_name) as ref void, 3), 96)
+        }
+        val fake_name = trust copy_dirent_name[allocators.Arena](arena, fake_dirent)
+        assert trust str.compare[ref u8, ref u8](fake_name, "abc") == 0
+        trust @free(fake_dirent)
+    }
+
     stdio.puts("fs tests passed")
     trust allocators.Arena.free(arena)
 }
@@ -630,7 +691,7 @@ pub fn walk_dir[A: allocators.Allocator](ac: A, path: ref u8) option[list[ref u8
                     if (c2 == 0) {
                         // ".."
                     } else {
-                        val copy: ref u8 = copy_cstr[A](ac, name)
+                        val copy: ref u8 = copy_dirent_name[A](ac, entry)
                         if copy == none {
                             closedir(dir)
                             return none
@@ -638,7 +699,7 @@ pub fn walk_dir[A: allocators.Allocator](ac: A, path: ref u8) option[list[ref u8
                         @append(result, copy)
                     }
                 } else {
-                    val copy: ref u8 = copy_cstr[A](ac, name)
+                    val copy: ref u8 = copy_dirent_name[A](ac, entry)
                     if copy == none {
                         closedir(dir)
                         return none
@@ -647,7 +708,7 @@ pub fn walk_dir[A: allocators.Allocator](ac: A, path: ref u8) option[list[ref u8
                 }
             }
         } else {
-            val copy: ref u8 = copy_cstr[A](ac, name)
+            val copy: ref u8 = copy_dirent_name[A](ac, entry)
             if copy == none {
                 closedir(dir)
                 return none
@@ -684,7 +745,7 @@ pub fn walk_dir_raw(path: ref u8) option[list[ref u8]] = trust {
                     val c2: u8 = @load8(@ptradd(name, 2))
                     if (c2 == 0) {
                     } else {
-                        val copy: ref u8 = raw_copy_cstr(name)
+                        val copy: ref u8 = raw_copy_dirent_name(entry)
                         if copy == none {
                             closedir(dir)
                             return none
@@ -692,7 +753,7 @@ pub fn walk_dir_raw(path: ref u8) option[list[ref u8]] = trust {
                         @append(result, copy)
                     }
                 } else {
-                    val copy: ref u8 = raw_copy_cstr(name)
+                    val copy: ref u8 = raw_copy_dirent_name(entry)
                     if copy == none {
                         closedir(dir)
                         return none
@@ -701,7 +762,7 @@ pub fn walk_dir_raw(path: ref u8) option[list[ref u8]] = trust {
                 }
             }
         } else {
-            val copy: ref u8 = raw_copy_cstr(name)
+            val copy: ref u8 = raw_copy_dirent_name(entry)
             if copy == none {
                 closedir(dir)
                 return none
