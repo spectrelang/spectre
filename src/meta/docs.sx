@@ -189,6 +189,7 @@ fn collect_sx_files(dir: ref u8, rel_dir: ref u8, out: mut list[ref u8]) void = 
     if entries_opt is some entries {
         val sorted = entries as list[ref u8]
         for entry in sorted {
+            if str_eq(entry, "") { continue }
             if is_hidden_name(entry) { continue }
             if str_eq(entry, "docs-out") { continue }
             val child_path = path.join(dir, entry)
@@ -1714,7 +1715,7 @@ pub fn cmd_doc(target: ref u8, markdown: bool) i32 = trust {
         stdio.print("error: could not create '{s}'\n", {out_dir})
         return 1
     }
-
+    @puts("ok1")
     if dir_exists(target) {
         val clean_target = trim_trailing_slash(target)
         val files: mut list[ref u8] = []
@@ -1724,6 +1725,7 @@ pub fn cmd_doc(target: ref u8, markdown: bool) i32 = trust {
             return 1
         }
         val modules: mut list[ref DocModule] = []
+        @puts("ok2")
         for rel in files {
             val source_path: mut ref u8 = rel
             if !str_eq(clean_target, ".") && !str_eq(clean_target, "") {
@@ -1733,6 +1735,8 @@ pub fn cmd_doc(target: ref u8, markdown: bool) i32 = trust {
             }
             @append(modules, load_module(source_path, rel))
         }
+
+        @puts("ok3")
         val root_rel = maybe_root_rel_for_dir()
         val root_idx = find_root_module(modules, root_rel)
         assign_output_paths(modules, markdown, root_idx)
@@ -1745,6 +1749,8 @@ pub fn cmd_doc(target: ref u8, markdown: bool) i32 = trust {
                 return 1
             }
         }
+
+        @puts("ok4")
         for mod in modules {
             val full_path = path.join("docs-out", mod.output_path)
             val content: mut ref u8 = ""
