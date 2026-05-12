@@ -1,0 +1,7 @@
+pub fn main() void = {
+    val arg_list = @args()
+    if arg_list is some _ {
+        @puts("unreachable")
+        // should error at compile time
+    }
+}
