@@ -32,7 +32,7 @@ pub type Quaternion = {
 }
 
 fn wrap_signed_radians(angle: f64) f64 = {
-    val out: mut f64 = core.normalize_radians(angle)
+    val out: f64 = core.normalize_radians(angle)
     if out > static.PI {
         return out - static.TAU
     }
