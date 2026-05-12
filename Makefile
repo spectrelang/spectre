@@ -39,3 +39,6 @@ btfl:
 
 bs:
 	@sh ./fw/build.sh -bs
+
+setup:
+	@bash ./fw/setup_devenv.sh
