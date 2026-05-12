@@ -54,6 +54,58 @@ fn add_error(ctx: ref SemaCtx, msg: ref u8) void = trust {
     @append(ctx.errors, msg)
 }
 
+fn canonicalize_path(path: ref u8) ref u8 = trust {
+    if path == none { return path }
+    val len: i64 = string.len_raw(path)
+    val segs: mut list[ref u8] = []
+    val i: mut i64 = 0
+    for {
+        if i >= len { break }
+        val c: u8 = @load8(@ptradd(path as ref void, i))
+        if c == 47 {
+            i++
+            continue
+        }
+        val start: i64 = i
+        for {
+            if i >= len { break }
+            val c2: u8 = @load8(@ptradd(path as ref void, i))
+            if c2 == 47 { break }
+            i++
+        }
+        val seg_len: i64 = i - start
+        val seg: ref u8 = @alloc((seg_len + 1) as usize) as ref u8
+        @memcpy(seg as ref void, @ptradd(path as ref void, start), seg_len as usize)
+        @store8(@ptradd(seg as ref void, seg_len), 0)
+        if string.rchar_cmp(seg, "..") == 0 {
+            if @len(segs) as i64 > 0 {
+                @remove(segs, @len(segs) - 1)
+            }
+        } elif string.rchar_cmp(seg, ".") != 0 {
+            @append(segs, seg)
+        }
+    }
+    val sb: ref void = string.StringBuilder.new()
+    val c0: u8 = @load8(@ptradd(path as ref void, 0))
+    if c0 == 47 { string.StringBuilder.append_char(sb, 47 as u8) }
+    val si: mut i64 = 0
+    for {
+        if si >= @len(segs) as i64 { break }
+        val s_opt = @get(segs, si as usize)
+        match s_opt {
+            some s => {
+                if si > 0 { string.StringBuilder.append_char(sb, 47 as u8) }
+                string.StringBuilder.append_cstr(sb, s as ref u8)
+            }
+            none => {}
+        }
+        si++
+    }
+    val built: ref void = string.StringBuilder.build(sb)
+    string.StringBuilder.free(sb)
+    return string.cstr(built)
+}
+
 fn normalize_path(path: ref u8) ref u8 = trust {
     if path == none { return path }
     val sb: ref void = string.StringBuilder.new()
@@ -2253,9 +2305,29 @@ fn check_generic_call_constraints(ctx: ref SemaCtx, fn_found: ref parser.Node, c
                                     val arg_owner: ref u8 = qualified_owner_prefix(arg_type_name)
                                     val expected_owner: ref u8 = qualified_owner_prefix(expected_spec)
                                     if arg_owner != none && expected_owner != none &&
-                                       str_eq(arg_owner, expected_owner) &&
                                        str_eq(impl_spec, unqualified_type_name(expected_spec)) {
-                                        its_ok = true
+                                        if str_eq(arg_owner, expected_owner) {
+                                            its_ok = true
+                                        }
+                                        if !its_ok {
+                                            val arg_mod: ref modinfo.ResolvedModule = find_import_module(ctx, arg_owner)
+                                            val callee_prefix: ref u8 = imported_owner_prefix_for_callee(ctx, callee)
+                                            if callee_prefix != none {
+                                                val callee_mod: ref modinfo.ResolvedModule = find_import_module(ctx, callee_prefix)
+                                                if callee_mod != none {
+                                                    val expected_mod: ref modinfo.ResolvedModule = modinfo.find_import_by_name(callee_mod, expected_owner)
+                                                    val dbg_exp_null: mut ref u8 = "non-null"
+                                                    if expected_mod == none { dbg_exp_null = "null" }
+                                                    if arg_mod != none && expected_mod != none {
+                                                        val arg_fname: ref u8 = canonicalize_path(modinfo.module_filename(arg_mod))
+                                                        val exp_fname: ref u8 = canonicalize_path(modinfo.module_filename(expected_mod))
+                                                        if arg_fname != none && exp_fname != none && str_eq(arg_fname, exp_fname) {
+                                                            its_ok = true
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
                                     }
                                 }
                                 if !its_ok && str_eq(arg_type_name, constraint_name) { its_ok = true }
