@@ -121,6 +121,8 @@ run_std_tests() {
 echo "Running C backend tests (--alt)..."
 
 if [ $BOOTSTRAP_ONLY -eq 0 ]; then
+    echo
+
     run_samples
 
     echo
