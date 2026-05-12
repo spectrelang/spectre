@@ -1,0 +1,6 @@
+pub fn main() void = trust {
+    val args = @args()
+    for arg in args {
+        @print("{s}, ", {arg})
+    }
+}

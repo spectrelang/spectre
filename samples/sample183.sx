@@ -1,0 +1,13 @@
+val fs = use("std/fs")
+val alc = use("std/allocators")
+val algorithms = use("std/algorithms")
+
+pub fn main() void = trust {
+    val arena: alc.Arena = alc.Arena.new(10240 as usize)?
+    val files = fs.walk_dir[alc.Arena](arena, ".")
+    if files is some f {
+        for fls in algorithms.sort[ref u8](f) {
+            @print("-> {s}\n", {fls})
+        }
+    }
+}
