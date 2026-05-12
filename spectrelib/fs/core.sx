@@ -23,6 +23,7 @@ when linux {
         d_off:    i64
         d_reclen: u16
         d_type:   u8
+        d_name:   [256]u8
     }
 }
 
@@ -33,7 +34,6 @@ when darwin {
         d_reclen:   u16
         d_namlen:   u16
         d_type:     u8
-        _padding:   [3]u8
         d_name:     [1024]u8
     }
 }
@@ -618,8 +618,7 @@ pub fn walk_dir[A: allocators.Allocator](ac: A, path: ref u8) option[list[ref u8
             break
         }
 
-        val base: ref void = entry as ref void
-        val name: ref u8 = @ptradd(base, 19) as ref u8
+        val name: ref u8 = @addr(entry.d_name) as ref u8
         val c0: u8 = @load8(name)
         if (c0 == 46) {  // '.'
             val c1: u8 = @load8(@ptradd(name, 1))
@@ -675,8 +674,7 @@ pub fn walk_dir_raw(path: ref u8) option[list[ref u8]] = trust {
             break
         }
 
-        val base: ref void = entry as ref void
-        val name: ref u8 = @ptradd(base, 19) as ref u8
+        val name: ref u8 = @addr(entry.d_name) as ref u8
         val c0: u8 = @load8(name)
         if (c0 == 46) {
             val c1: u8 = @load8(@ptradd(name, 1))
