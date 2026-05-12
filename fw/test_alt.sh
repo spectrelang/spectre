@@ -71,7 +71,12 @@ run_samples() {
             extra_args+=(--inc-path=/usr/include/SDL2/)
         fi
 
-        run_compiler "$file" --alt "${extra_args[@]}"
+        if [ ${#extra_args[@]} -gt 0 ]; then
+            run_compiler "$file" --alt "${extra_args[@]}"
+        else
+            run_compiler "$file" --alt
+        fi
+
         status=$?
 
         if [[ "$filename" == *_error.sx ]]; then

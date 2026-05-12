@@ -122,17 +122,6 @@ fn raw_alloc_cstr(len: i64) ref u8 = trust {
     return buf
 }
 
-fn raw_copy_cstr(text: ref u8) ref u8 = trust {
-    if text == none { return none }
-    val len: i64 = strlen(text)
-    val buf: ref u8 = raw_alloc_cstr(len)
-    if buf == none { return none }
-    if len > 0 {
-        @memcpy(buf as ref void, text as ref void, len as usize)
-    }
-    return buf
-}
-
 fn raw_copy_cstr_len(text: ref u8, len: i64) ref u8 = trust {
     if text == none { return none }
     if len < 0 { return none }
