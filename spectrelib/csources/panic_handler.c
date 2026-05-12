@@ -55,7 +55,7 @@ static int sx_print_frame(int idx, const char *sym_str)
         FILE *fp = popen(cmd, "r");
         if (!fp) goto raw;
         char resolved[512] = "";
-        fgets(resolved, sizeof(resolved), fp);
+        char* _ = fgets(resolved, sizeof(resolved), fp);
         pclose(fp);
 
         size_t n = strlen(resolved);
