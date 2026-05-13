@@ -10,5 +10,9 @@ build dev {
     flags "--alt --inc-path=/usr/include/SDL2/"
     output "./samples-dev"
 }
-dep "https://github.com/spectrelang/ssdl2.git"
+
+build qbe {
+    output "./samples-dev"
+}
+
 dep "https://github.com/spectrelang/ssdl2.git"
