@@ -834,7 +834,7 @@ pub fn cmd_init(name_arg: ref u8) i32 = {
     val main_template: ref u8 = \\val stdio = use("std/stdio")
         \\
         \\pub fn main() void = {
-        \\    stdio.puts("Hello, world!")
+        \\    stdio.puts("Hello, world.")
         \\}
         \\
     trust fs.write_all("src/main.sx", main_template)
