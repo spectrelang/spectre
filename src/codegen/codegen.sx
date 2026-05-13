@@ -8643,7 +8643,10 @@ fn gen_stmt(ctx: mut ref CgCtx, stmt: ref parser.Node) void = trust {
 
         if ty_node != none && expr != none {
             val decl_qbe_type: ref u8 = qbe_type_of(ty_node)
+            val old_expected_decl: ref parser.Node = ctx.expected_ty as ref parser.Node
+            ctx.expected_ty = ty_node as ref void
             val expr_qbe_type_val: ref u8 = expr_qbe_type(ctx, expr)
+            ctx.expected_ty = old_expected_decl as ref void
             if !(str.rchar_cmp(expr_qbe_type_val, "w") == 0 && str.rchar_cmp(decl_qbe_type, "l") == 0 && is_ref_type(ty_node)) {
                 val_tmp = cg_coerce_qtype(ctx, val_tmp, expr_qbe_type_val, decl_qbe_type)
             }
@@ -8835,12 +8838,32 @@ fn gen_stmt(ctx: mut ref CgCtx, stmt: ref parser.Node) void = trust {
             val val_qtype2: ref u8 = expr_qbe_type(ctx, value)
             gen_store_field_value(ctx, target, val_tmp2_raw, val_qtype2)
         } elif tk == parser.NK_DEREF {
-            val val_tmp2_raw: ref u8 = gen_expr(ctx, value)
-            val ptr: ref u8 = gen_expr(ctx, target.d0 as ref parser.Node)
-            val buf4: ref u8 = @alloc(128) as ref u8
-            @snprintf(buf4, 128, "    storel {s}, {s}\n", {val_tmp2_raw, ptr})
-            emit(ctx, buf4)
-            @free(buf4)
+            val inner_target4: ref parser.Node = target.d0 as ref parser.Node
+            val ptr: ref u8 = gen_expr(ctx, inner_target4)
+            if value.kind == parser.NK_ARGS_PACK || value.kind == parser.NK_STRUCT_LIT {
+                val target_ann4: ref u8 = infer_type_annotation(ctx, inner_target4)
+                val struct_fields4: ref void = cg_lookup_struct(ctx, target_ann4)
+                if struct_fields4 != none {
+                    val ptr_tmp4: i64 = fresh_tmp(ctx)
+                    val ptr_buf4: ref u8 = @alloc(64) as ref u8
+                    @snprintf(ptr_buf4, 64, "    %%t{lld} =l copy {s}\n", {ptr_tmp4, ptr})
+                    emit(ctx, ptr_buf4)
+                    @free(ptr_buf4)
+                    gen_struct_lit_inline(ctx, value, ptr_tmp4, 0, struct_fields4)
+                } else {
+                    val val_tmp2_raw: ref u8 = gen_expr(ctx, value)
+                    val buf4: ref u8 = @alloc(128) as ref u8
+                    @snprintf(buf4, 128, "    storel {s}, {s}\n", {val_tmp2_raw, ptr})
+                    emit(ctx, buf4)
+                    @free(buf4)
+                }
+            } else {
+                val val_tmp2_raw: ref u8 = gen_expr(ctx, value)
+                val buf4: ref u8 = @alloc(128) as ref u8
+                @snprintf(buf4, 128, "    storel {s}, {s}\n", {val_tmp2_raw, ptr})
+                emit(ctx, buf4)
+                @free(buf4)
+            }
         }
         return
     }
