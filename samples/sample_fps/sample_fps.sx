@@ -1,3 +1,6 @@
+val sdl_input = use("lib/ssdl2/controls.sx")
+val sdl_init  = use("lib/ssdl2/init.sx")
+
 link "-lSDL2"
 link "-lSDL2_image"
 link "-lm"
@@ -467,7 +470,7 @@ fn render_hud() void = trust {
 }
 
 pub fn main() i32 = {
-    trust SDL_Init(C.SDL_INIT_VIDEO)
+    trust SDL_Init(sdl_init.SDL_INIT_VIDEO)
 
     val window: ref void = trust SDL_CreateWindow(
         "cubedoom",
@@ -564,11 +567,11 @@ pub fn main() i32 = {
             }
 
             val keys: ref u8 = trust SDL_GetKeyboardState(none)
-            val keyA: u8 = trust @load(@ptradd(keys, (C.SDL_SCANCODE_A) * @sizeof(u8)))
-            val keyD: u8 = trust @load(@ptradd(keys, (C.SDL_SCANCODE_D) * @sizeof(u8)))
-            val keyW: u8 = trust @load(@ptradd(keys, (C.SDL_SCANCODE_W) * @sizeof(u8)))
-            val keyS: u8 = trust @load(@ptradd(keys, (C.SDL_SCANCODE_S) * @sizeof(u8)))
-            val keySpace: u8 = trust @load(@ptradd(keys, (C.SDL_SCANCODE_SPACE) * @sizeof(u8)))
+            val keyA: u8 = trust @load(@ptradd(keys, (sdl_input.SDL_SCANCODE_A) * @sizeof(u8)))
+            val keyD: u8 = trust @load(@ptradd(keys, (sdl_input.SDL_SCANCODE_D) * @sizeof(u8)))
+            val keyW: u8 = trust @load(@ptradd(keys, (sdl_input.SDL_SCANCODE_W) * @sizeof(u8)))
+            val keyS: u8 = trust @load(@ptradd(keys, (sdl_input.SDL_SCANCODE_S) * @sizeof(u8)))
+            val keySpace: u8 = trust @load(@ptradd(keys, (sdl_input.SDL_SCANCODE_SPACE) * @sizeof(u8)))
 
             if shootCooldown > 0.0 { shootCooldown -= deltaTime }
             if muzzleFlashTimer > 0.0 { muzzleFlashTimer -= deltaTime }

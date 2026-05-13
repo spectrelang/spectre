@@ -1,0 +1,2 @@
+version "1"
+dep "https://github.com/spectrelang/ssdl2.git" "67e13129acc7f1ec38d619fdbe0e189ccd06f97a"
