@@ -8807,7 +8807,7 @@ fn gen_stmt(ctx: mut ref CgCtx, stmt: ref parser.Node) void = trust {
             }
             val val_tmp2_raw: ref u8 = gen_expr_with_type(ctx, value, dst_qtype2)
             val val_qtype2: mut ref u8 = expr_qbe_type(ctx, value)
-            if ((value.kind == parser.NK_INT_LIT || value.kind == parser.NK_FLOAT_LIT) && str.rchar_cmp(dst_qtype2, "") != 0) {
+            if str.rchar_cmp(dst_qtype2, "") != 0 {
                 val_qtype2 = dst_qtype2
             }
             val val_tmp2: mut ref u8 = val_tmp2_raw
