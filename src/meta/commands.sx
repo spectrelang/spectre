@@ -827,7 +827,7 @@ pub fn cmd_init(name_arg: ref u8) i32 = {
     trust fs.write_all("sx.mod", str.cstr(sxmod_built))
     trust str.StringBuilder.free(sb)
     trust fs.write_all("sx.lock", "version \"1\"\n")
-    trust fs.write_all(".gitignore", "SPECTRE_LANGUAGE_REFERENCE.md\nlib/\nstd__*\ns-out/\n")
+    trust fs.write_all(".gitignore", "SPECTRE_LANGUAGE_REFERENCE.md\nlib/\nstd__*\ns-out/\ndocs-out/\n")
 
     trust fs.mkdir_path("src")
 
