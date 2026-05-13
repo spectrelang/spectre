@@ -15,6 +15,7 @@ pub fn print_usage() void = {
     stdio.puts("  doc    <path>        Generate docs for a given .sx into ./docs-out/")
     stdio.puts("  add    <git-url>     Clone a git dependency into ./lib/ and record it")
     stdio.puts("  remove <dep-name>    Remove a dependency by repository name")
+    stdio.puts("  restore              Restore all dependencies from mod and lockfile into ./lib/")
     stdio.puts("  ref                  Generate the language reference in the current directory")
     stdio.puts("  clean                Remove build artifacts")
     stdio.puts("  doctor               Show system and Spectre installation information")

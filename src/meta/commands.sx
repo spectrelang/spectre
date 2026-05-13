@@ -24,6 +24,11 @@ pub type SxMod = {
     builds:  mut list[ref SxBuildConfig]
 }
 
+type SxLockDep = {
+    url:  mut ref u8
+    hash: mut ref u8
+}
+
 type ParseCtx = {
     text: mut ref u8
     pos:  mut i64
@@ -214,6 +219,65 @@ pub fn load_sxmod() option[ref SxMod] = {
             return some m
         }
     }
+}
+
+fn parse_sxlock(content: ref u8) list[ref SxLockDep] = trust {
+    val ctx: mut ref ParseCtx = new_ctx(content)
+    val deps: mut list[ref SxLockDep] = []
+    for {
+        ctx_skip_ws(ctx)
+        if ctx_peek(ctx) == -1 { break }
+        val kw: ref u8 = ctx_read_ident(ctx)
+        if str.rchar_cmp(kw, "") == 0 { break }
+        if str.rchar_cmp(kw, "dep") == 0 {
+            val url: ref u8 = ctx_read_quoted(ctx)
+            val hash: ref u8 = ctx_read_quoted(ctx)
+            if str.rchar_cmp(url, "") != 0 && str.rchar_cmp(hash, "") != 0 {
+                val dep: mut ref SxLockDep = @alloc(@sizeof(SxLockDep)) as ref SxLockDep
+                @memset(dep as ref void, 0, @sizeof(SxLockDep) as usize)
+                dep.url = url
+                dep.hash = hash
+                @append(deps, dep)
+            }
+        } else {
+            ctx_skip_line(ctx)
+        }
+    }
+    @free(ctx as ref void)
+    return deps
+}
+
+fn load_sxlock() option[list[ref SxLockDep]] = {
+    val size_opt = trust fs.file_size("sx.lock")
+    val arena_cap: mut i64 = 4096
+    match size_opt {
+        some sz => {
+            if ((sz as i64) > arena_cap) { arena_cap = sz as i64 }
+        }
+        none => { return none }
+    }
+    val arena: mut allocators.Arena = trust allocators.Arena.new((arena_cap + 8) as usize)?
+    val content_opt = trust fs.read_all[allocators.Arena](arena, "sx.lock")
+    match content_opt {
+        none => {
+            trust allocators.Arena.free(arena)
+            return none
+        }
+        some content => {
+            val deps: list[ref SxLockDep] = trust parse_sxlock(content as ref u8)
+            trust allocators.Arena.free(arena)
+            return some deps
+        }
+    }
+}
+
+fn lock_hash_for_url(lock_deps: list[ref SxLockDep], url: ref u8) ref u8 = {
+    for dep in lock_deps {
+        if str.rchar_cmp(dep.url, url) == 0 {
+            return dep.hash
+        }
+    }
+    return ""
 }
 
 fn build_config_cmd(cfg: ref SxBuildConfig, exe_path: ref u8, entry: ref u8) ref u8 = trust {
@@ -838,12 +902,7 @@ pub fn cmd_init(name_arg: ref u8) i32 = {
         \\}
         \\
     trust fs.write_all("src/main.sx", main_template)
-
     trust stdio.print("Initialized project '{s}'\n", {proj_name})
-    stdio.puts("  sx.mod       project manifest")
-    stdio.puts("  sx.lock      dependency lockfile")
-    stdio.puts("  .gitignore")
-    stdio.puts("  src/main.sx  entry point")
     return 0
 }
 
@@ -949,6 +1008,66 @@ pub fn cmd_remove(dep_name: ref u8) i32 = {
     trust drop_dep_lines("sx.mod", dep_name)
     trust drop_dep_lines("sx.lock", dep_name)
     trust stdio.print("Removed dependency '{s}'\n", {dep_name})
+    return 0
+}
+
+pub fn cmd_restore() i32 = trust {
+    val mod_opt = load_sxmod()
+    val sxmod: mut ref SxMod = none
+    match mod_opt {
+        none => {
+            stdio.puts("error: sx.mod not found, run 'spectre init' first")
+            return 1
+        }
+        some m => { sxmod = m }
+    }
+
+    val lock_opt = load_sxlock()
+    val lock_deps: mut list[ref SxLockDep] = []
+    match lock_opt {
+        none => {
+            stdio.puts("error: sx.lock not found, add dependencies or generate a lockfile first")
+            return 1
+        }
+        some deps => { lock_deps = deps }
+    }
+
+    if os.exists("lib") {
+        when windows {
+            os.run("rmdir /s /q lib")
+        }
+        when posix {
+            os.run("rm -rf lib")
+        }
+    }
+    fs.mkdir_path("lib")
+
+    for dep_url in sxmod.deps {
+        val hash: ref u8 = lock_hash_for_url(lock_deps, dep_url)
+        if str.rchar_cmp(hash, "") == 0 {
+            stdio.print("error: dependency '{s}' is missing from sx.lock\n", {dep_url})
+            return 1
+        }
+
+        val name: ref u8 = repo_name_from_url(dep_url)
+        val lib_path: ref u8 = @fmt("lib/{s}", {name})
+        val clone_cmd: ref u8 = @fmt("git clone {s} {s}", {dep_url, lib_path})
+        stdio.print("Restoring {s}...\n", {dep_url})
+        if os.run(clone_cmd) != 0 {
+            stdio.print("error: git clone failed for {s}\n", {dep_url})
+            return 1
+        }
+
+        if str.rchar_cmp(hash, "unknown") != 0 {
+            val checkout_cmd: ref u8 = @fmt("git -C {s} checkout --quiet {s}", {lib_path, hash})
+            if os.run(checkout_cmd) != 0 {
+                stdio.print("error: failed to checkout {s} for {s}\n", {hash, dep_url})
+                return 1
+            }
+        }
+    }
+
+    stdio.puts("Restored dependencies to ./lib")
     return 0
 }
 

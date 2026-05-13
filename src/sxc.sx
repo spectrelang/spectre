@@ -188,6 +188,12 @@ pub fn main() i32 = trust {
         }
     }
 
+    if string.rchar_cmp(input, "restore") == 0 {
+        val code: i32 = commands.cmd_restore()
+        allocators.Arena.free(arena)
+        return code
+    }
+
     if string.rchar_cmp(input, "clean") == 0 {
         val code: i32 = commands.cmd_clean()
         allocators.Arena.free(arena)
