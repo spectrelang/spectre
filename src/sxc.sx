@@ -194,6 +194,12 @@ pub fn main() i32 = trust {
         return code
     }
 
+    if string.rchar_cmp(input, "graph") == 0 {
+        val code: i32 = commands.cmd_graph()
+        allocators.Arena.free(arena)
+        return code
+    }
+
     if string.rchar_cmp(input, "clean") == 0 {
         val code: i32 = commands.cmd_clean()
         allocators.Arena.free(arena)

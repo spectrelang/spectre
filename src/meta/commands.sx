@@ -271,6 +271,56 @@ fn load_sxlock() option[list[ref SxLockDep]] = {
     }
 }
 
+fn load_sxmod_at(dir: ref u8) option[ref SxMod] = trust {
+    val mod_path: ref u8 = @fmt("{s}/sx.mod", {dir})
+    val size_opt = fs.file_size(mod_path)
+    val arena_cap: mut i64 = 4096
+    match size_opt {
+        some sz => {
+            if ((sz as i64) > arena_cap) { arena_cap = sz as i64 }
+        }
+        none => { return none }
+    }
+    val arena: mut allocators.Arena = allocators.Arena.new((arena_cap + 8) as usize)?
+    val content_opt = fs.read_all[allocators.Arena](arena, mod_path)
+    match content_opt {
+        none => {
+            allocators.Arena.free(arena)
+            return none
+        }
+        some content => {
+            val m: ref SxMod = parse_sxmod(content as ref u8)
+            allocators.Arena.free(arena)
+            return some m
+        }
+    }
+}
+
+fn load_sxlock_at(dir: ref u8) option[list[ref SxLockDep]] = trust {
+    val lock_path: ref u8 = @fmt("{s}/sx.lock", {dir})
+    val size_opt = fs.file_size(lock_path)
+    val arena_cap: mut i64 = 4096
+    match size_opt {
+        some sz => {
+            if ((sz as i64) > arena_cap) { arena_cap = sz as i64 }
+        }
+        none => { return none }
+    }
+    val arena: mut allocators.Arena = allocators.Arena.new((arena_cap + 8) as usize)?
+    val content_opt = fs.read_all[allocators.Arena](arena, lock_path)
+    match content_opt {
+        none => {
+            allocators.Arena.free(arena)
+            return none
+        }
+        some content => {
+            val deps: list[ref SxLockDep] = parse_sxlock(content as ref u8)
+            allocators.Arena.free(arena)
+            return some deps
+        }
+    }
+}
+
 fn lock_hash_for_url(lock_deps: list[ref SxLockDep], url: ref u8) ref u8 = {
     for dep in lock_deps {
         if str.rchar_cmp(dep.url, url) == 0 {
@@ -909,7 +959,7 @@ pub fn cmd_init(name_arg: ref u8) i32 = {
 pub fn cmd_build(config_name: ref u8, exe_path: ref u8) i32 = {
     match load_sxmod() {
         none => {
-            stdio.puts("error: sx.mod not found — run 'spectre init' first")
+            stdio.puts("error: sx.mod not found, run 'spectre init' first")
             return 1
         }
         some m => {
@@ -937,7 +987,7 @@ pub fn cmd_build(config_name: ref u8, exe_path: ref u8) i32 = {
 
 pub fn cmd_add(url: ref u8) i32 = trust {
     if !os.exists("sx.mod") {
-        stdio.puts("error: sx.mod not found — run 'spectre init' first")
+        stdio.puts("error: sx.mod not found, run 'spectre init' first")
         return 1
     }
 
@@ -1011,6 +1061,71 @@ pub fn cmd_remove(dep_name: ref u8) i32 = {
     return 0
 }
 
+fn restore_in_dir(base_dir: ref u8, visited: mut list[ref u8]) i32 = trust {
+    for v in visited {
+        if str.rchar_cmp(v, base_dir) == 0 { return 0 }
+    }
+    @append(visited, base_dir)
+
+    val sxmod_opt = load_sxmod_at(base_dir)
+    val sxmod: mut ref SxMod = none
+    match sxmod_opt {
+        none => { return 0 }
+        some m => { sxmod = m }
+    }
+
+    if ((@len(sxmod.deps) as i64) == 0) { return 0 }
+
+    val lock_opt = load_sxlock_at(base_dir)
+    val lock_deps: mut list[ref SxLockDep] = []
+    match lock_opt {
+        none => {
+            stdio.print("warning: no sx.lock in {s}, skipping transitive deps\n", {base_dir})
+            return 0
+        }
+        some deps => { lock_deps = deps }
+    }
+
+    val lib_dir: ref u8 = @fmt("{s}/lib", {base_dir})
+    if os.exists(lib_dir) {
+        when windows {
+            os.run(@fmt("rmdir /s /q {s}", {lib_dir}))
+        }
+        when posix {
+            os.run(@fmt("rm -rf {s}", {lib_dir}))
+        }
+    }
+    fs.mkdir_path(lib_dir)
+
+    for dep_url in sxmod.deps {
+        val hash: ref u8 = lock_hash_for_url(lock_deps, dep_url)
+        if str.rchar_cmp(hash, "") == 0 {
+            stdio.print("error: '{s}' missing from sx.lock in {s}\n", {dep_url, base_dir})
+            return 1
+        }
+
+        val name: ref u8 = repo_name_from_url(dep_url)
+        val lib_path: ref u8 = @fmt("{s}/{s}", {lib_dir, name})
+        stdio.print("Restoring {s}...\n", {dep_url})
+        if os.run(@fmt("git clone {s} {s}", {dep_url, lib_path})) != 0 {
+            stdio.print("error: git clone failed for {s}\n", {dep_url})
+            return 1
+        }
+
+        if str.rchar_cmp(hash, "unknown") != 0 {
+            if os.run(@fmt("git -C {s} checkout --quiet {s}", {lib_path, hash})) != 0 {
+                stdio.print("error: failed to checkout {s} for {s}\n", {hash, dep_url})
+                return 1
+            }
+        }
+
+        val sub_code: i32 = restore_in_dir(lib_path, visited)
+        if sub_code != 0 { return sub_code }
+    }
+
+    return 0
+}
+
 pub fn cmd_restore() i32 = trust {
     val mod_opt = load_sxmod()
     val sxmod: mut ref SxMod = none
@@ -1042,6 +1157,9 @@ pub fn cmd_restore() i32 = trust {
     }
     fs.mkdir_path("lib")
 
+    val visited: mut list[ref u8] = []
+    @append(visited, ".")
+
     for dep_url in sxmod.deps {
         val hash: ref u8 = lock_hash_for_url(lock_deps, dep_url)
         if str.rchar_cmp(hash, "") == 0 {
@@ -1065,9 +1183,99 @@ pub fn cmd_restore() i32 = trust {
                 return 1
             }
         }
+
+        val sub_code: i32 = restore_in_dir(lib_path, visited)
+        if sub_code != 0 { return sub_code }
     }
 
     stdio.puts("Restored dependencies to ./lib")
+    return 0
+}
+
+fn print_graph_node(
+    base_dir: ref u8,
+    name:     ref u8,
+    url:      ref u8,
+    prefix:   ref u8,
+    is_last:  bool,
+    visited:  mut list[ref u8]
+) void = trust {
+    val conn: mut ref u8 = "├── "
+    if is_last { conn = "└── " }
+
+    val line: mut ref u8 = @fmt("{s}{s}{s}", {prefix, conn, name})
+    if str.rchar_cmp(url, "") != 0 {
+        line = @fmt("{s} ({s})", {line, url})
+    }
+    stdio.puts(line)
+
+    for v in visited {
+        if str.rchar_cmp(v, base_dir) == 0 { return }
+    }
+    @append(visited, base_dir)
+
+    val child_mod_opt = load_sxmod_at(base_dir)
+    match child_mod_opt {
+        none => { return }
+        some child_mod => {
+            val ndeps: i64 = @len(child_mod.deps) as i64
+            if ndeps == 0 { return }
+            val child_prefix: mut ref u8 = @fmt("{s}│   ", {prefix})
+            if is_last { child_prefix = @fmt("{s}    ", {prefix}) }
+            val i: mut i64 = 0
+            for dep_url in child_mod.deps {
+                val dep_name: ref u8 = repo_name_from_url(dep_url)
+                val dep_dir: ref u8 = @fmt("{s}/lib/{s}", {base_dir, dep_name})
+                print_graph_node(dep_dir, dep_name, dep_url, child_prefix, i == ndeps - 1, visited)
+                i++
+            }
+        }
+    }
+}
+
+pub fn cmd_graph() i32 = trust {
+    val mod_opt = load_sxmod()
+    val sxmod: mut ref SxMod = none
+    match mod_opt {
+        none => {
+            stdio.puts("error: sx.mod not found, run 'spectre init' first")
+            return 1
+        }
+        some m => { sxmod = m }
+    }
+
+    val cwd_arena: mut allocators.Arena = allocators.Arena.new(4096 as usize)?
+    val cwd_opt = fs.cwd[allocators.Arena](cwd_arena)
+    val proj_name: mut ref u8 = "project"
+    match cwd_opt {
+        some cwd => { proj_name = basename_of(cwd) }
+        none => {}
+    }
+    allocators.Arena.free(cwd_arena)
+
+    if str.rchar_cmp(sxmod.version, "") == 0 {
+        stdio.puts(proj_name)
+    } else {
+        stdio.puts(@fmt("{s} ({s})", {proj_name, sxmod.version}))
+    }
+
+    val ndeps: i64 = @len(sxmod.deps) as i64
+    if ndeps == 0 {
+        stdio.puts("(no dependencies)")
+        return 0
+    }
+
+    val visited: mut list[ref u8] = []
+    @append(visited, ".")
+
+    val i: mut i64 = 0
+    for dep_url in sxmod.deps {
+        val dep_name: ref u8 = repo_name_from_url(dep_url)
+        val dep_dir: ref u8 = @fmt("lib/{s}", {dep_name})
+        print_graph_node(dep_dir, dep_name, dep_url, "", i == ndeps - 1, visited)
+        i++
+    }
+
     return 0
 }
 
