@@ -1,0 +1,5 @@
+val json = use("std/json")
+
+pub fn main() void = {
+    trust @print("{d}\n", {json.JsonKind.Int})
+}
