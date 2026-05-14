@@ -5423,6 +5423,40 @@ fn gen_field(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
         @snprintf(raw_res, 16, "%%t{lld}", {tmp_raw})
         return raw_res
     }
+
+    if base_expr != none && base_expr.kind == parser.NK_FIELD {
+        val mid_expr: ref parser.Node = parser.field_base(base_expr)
+        val mid_name: ref u8 = parser.field_name(base_expr)
+        if mid_expr != none && mid_expr.kind == parser.NK_IDENT {
+            val mid_base_name: ref u8 = mid_expr.d0 as ref u8
+            val enum_key3: ref u8 = @alloc(512) as ref u8
+            @snprintf(enum_key3, 512, "{s}__{s}__{s}", {mid_base_name, mid_name, field_name})
+            val const_val3: ref u8 = cg_const_val(ctx, enum_key3)
+            @free(enum_key3)
+            if str.rchar_cmp(const_val3, "") != 0 {
+                val tmp3: i64 = fresh_tmp(ctx)
+                val buf3: ref u8 = @alloc(256) as ref u8
+                if rchar_starts_with(const_val3, "d_") || rchar_starts_with(const_val3, "s_") {
+                    val ftext3: ref u8 = @ptradd(const_val3 as ref void, 2) as ref u8
+                    val emit_qt3: mut ref u8 = "d"
+                    if rchar_starts_with(const_val3, "s_") { emit_qt3 = "s" }
+                    if ctx.expected_ty != none {
+                        val expected_qt_field3: ref u8 = qbe_type_of(ctx.expected_ty as ref parser.Node)
+                        if str.rchar_cmp(expected_qt_field3, "s") == 0 { emit_qt3 = "s" }
+                        elif str.rchar_cmp(expected_qt_field3, "d") == 0 { emit_qt3 = "d" }
+                    }
+                    @snprintf(buf3, 256, "    %%t{lld} ={s} copy {s}_{s}\n", {tmp3, emit_qt3, emit_qt3, ftext3})
+                } else {
+                    @snprintf(buf3, 256, "    %%t{lld} =l copy {s}\n", {tmp3, const_val3})
+                }
+                emit(ctx, buf3)
+                @free(buf3)
+                val res3: ref u8 = @alloc(16) as ref u8
+                @snprintf(res3, 16, "%%t{lld}", {tmp3})
+                return res3
+            }
+        }
+    }
     val offset: mut i64 = 0
 
     if base_expr.kind == parser.NK_IDENT {
