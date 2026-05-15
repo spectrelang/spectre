@@ -6641,12 +6641,18 @@ fn gen_call(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
         effective_callee = callee_name
     }
     val fn_params_list: ref void = cg_lookup_fn_params(ctx, effective_callee)
+    val fixed_params_len: mut i64 = 0
     if fn_params_list != none {
-        val plen: i64 = @len(fn_params_list) as i64
+        fixed_params_len = @len(fn_params_list as list[ref void]) as i64
+    }
+    val is_variadic_extern: bool = resolved_fn_node != none
+        && resolved_fn_node.kind == parser.NK_EXTERN_FN
+        && parser.extern_fn_is_variadic(resolved_fn_node)
+    if fn_params_list != none {
         val tlen0: i64 = @len(arg_tmps) as i64
         val wi: mut i64 = 0
         for {
-            if wi >= plen { break }
+            if wi >= fixed_params_len { break }
             if wi >= tlen0 { break }
             val p_opt = @get(fn_params_list, wi as usize)
             match p_opt {
@@ -6788,6 +6794,7 @@ fn gen_call(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
     }
 
     val ti: mut i64 = 0
+    val variadic_started: mut bool = false
     for {
         if ti >= tlen { break }
         val t_opt = @get(arg_tmps, ti as usize)
@@ -6795,15 +6802,25 @@ fn gen_call(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
             some t => {
                 val tbuf: ref u8 = @alloc(64) as ref u8
                 val src_qtype: mut ref u8 = "l"
-                if ti > 0 {
+                val is_variadic_arg: bool = is_variadic_extern && ti >= fixed_params_len
+                if is_variadic_arg && !variadic_started {
+                    if ti > 0 || returns_union {
+                        @memcpy(@ptradd(call_buf as ref void, call_pos), ", ..." as ref void, 5)
+                        call_pos = call_pos + 5
+                    } else {
+                        @memcpy(@ptradd(call_buf as ref void, call_pos), "..." as ref void, 3)
+                        call_pos = call_pos + 3
+                    }
+                    variadic_started = true
+                }
+                if ti > 0 || is_variadic_arg {
                     @memcpy(@ptradd(call_buf as ref void, call_pos), ", " as ref void, 2)
                     call_pos = call_pos + 2
                 }
 
                 val arg_qtype: mut ref u8 = "l"
-                if fn_params_list != none {
-                    val params_len: i64 = @len(fn_params_list as list[ref void]) as i64
-                    if ti < params_len {
+                if !is_variadic_arg && fn_params_list != none {
+                    if ti < fixed_params_len {
                         val param_opt = @get(fn_params_list as list[ref void], ti as usize)
                         match param_opt {
                             some param => {
@@ -6823,6 +6840,15 @@ fn gen_call(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
                 match src_qt_opt {
                     some sq => { src_qtype = sq as ref u8 }
                     none => {}
+                }
+                if is_variadic_arg {
+                    if str.rchar_cmp(src_qtype, "w") == 0 {
+                        arg_qtype = "l"
+                    } elif str.rchar_cmp(src_qtype, "s") == 0 {
+                        arg_qtype = "d"
+                    } else {
+                        arg_qtype = src_qtype
+                    }
                 }
                 val call_arg: ref u8 = cg_coerce_qtype(ctx, t as ref u8, src_qtype, arg_qtype)
                 @snprintf(tbuf, 64, "{s} {s}", {arg_qtype, call_arg})
