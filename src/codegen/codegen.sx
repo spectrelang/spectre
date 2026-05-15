@@ -8592,8 +8592,18 @@ fn gen_try(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
     return res
 }
 
-/// Returns true if the last statement in a list is a terminator (return/break/continue).
-fn stmts_terminated(stmts: ref parser.Node) bool = trust {
+fn stmt_terminated(ctx: mut ref CgCtx, stmt: ref parser.Node) bool = trust {
+    if stmt == none { return false }
+    val k: i64 = stmt.kind
+    if k == parser.NK_RETURN   { return true }
+    if k == parser.NK_BREAK    { return true }
+    if k == parser.NK_CONTINUE { return true }
+    if k == parser.NK_WHEN_STMT { return when_stmt_terminated(ctx, stmt) }
+    return false
+}
+
+/// Returns true if the effective last statement in a list is a terminator.
+fn stmts_terminated(ctx: mut ref CgCtx, stmts: ref parser.Node) bool = trust {
     if stmts == none { return false }
     val len: i64 = @len(stmts) as i64
     if len == 0 { return false }
@@ -8601,11 +8611,38 @@ fn stmts_terminated(stmts: ref parser.Node) bool = trust {
     match last_opt {
         some last => {
             val s: ref parser.Node = last as ref parser.Node
-            val k: i64 = s.kind
-            if k == parser.NK_RETURN  { return true }
-            if k == parser.NK_BREAK   { return true }
-            if k == parser.NK_CONTINUE { return true }
-            return false
+            if s.kind == parser.NK_GENERIC_WHEN {
+                val start: mut i64 = len - 1
+                for {
+                    if start <= 0 { break }
+                    val prev_opt = @get(stmts, (start - 1) as usize)
+                    match prev_opt {
+                        some prev => {
+                            if ((prev as ref parser.Node).kind != parser.NK_GENERIC_WHEN) { break }
+                            start--
+                        }
+                        none => { break }
+                    }
+                }
+                val gi: mut i64 = start
+                for {
+                    if gi >= len { break }
+                    val g_opt = @get(stmts, gi as usize)
+                    match g_opt {
+                        some g => {
+                            val gnode: ref parser.Node = g as ref parser.Node
+                            if gnode.kind != parser.NK_GENERIC_WHEN { break }
+                            if gwhen_matches_gsubst(ctx, gnode) {
+                                return stmts_terminated(ctx, gnode.d1 as ref parser.Node)
+                            }
+                        }
+                        none => { break }
+                    }
+                    gi++
+                }
+                return false
+            }
+            return stmt_terminated(ctx, s)
         }
         none => { return false }
     }
@@ -8615,20 +8652,20 @@ fn stmts_terminated(stmts: ref parser.Node) bool = trust {
 fn when_stmt_terminated(ctx: mut ref CgCtx, stmt: ref parser.Node) bool = trust {
     val plat: ref u8 = stmt.d0 as ref u8
     if cg_platform_matches(ctx, plat) {
-        return stmts_terminated(stmt.d1 as ref parser.Node)
+        return stmts_terminated(ctx, stmt.d1 as ref parser.Node)
     }
     val or_when_branches: ref void = stmt.d2 as ref void
     if or_when_branches != none {
         for ow_node in or_when_branches as list[ref parser.Node] {
             val ow_plat: ref u8 = ow_node.d0 as ref u8
             if cg_platform_matches(ctx, ow_plat) {
-                return stmts_terminated(ow_node.d1 as ref parser.Node)
+                return stmts_terminated(ctx, ow_node.d1 as ref parser.Node)
             }
         }
     }
     val otherwise_stmts: ref void = stmt.d3 as ref void
     if otherwise_stmts != none {
-        return stmts_terminated(stmt.d3 as ref parser.Node)
+        return stmts_terminated(ctx, stmt.d3 as ref parser.Node)
     }
     return false
 }
@@ -8644,6 +8681,7 @@ fn gen_stmts(ctx: mut ref CgCtx, stmts: ref parser.Node) void = trust {
             val snode: ref parser.Node = s as ref parser.Node
             if snode.kind == parser.NK_GENERIC_WHEN {
                 val matched: mut bool = false
+                val matched_terminated: mut bool = false
                 val j: mut i64 = i
                 for {
                     if j >= len { break }
@@ -8655,12 +8693,14 @@ fn gen_stmts(ctx: mut ref CgCtx, stmts: ref parser.Node) void = trust {
                             if !matched && gwhen_matches_gsubst(ctx, sn2) {
                                 gen_stmts(ctx, sn2.d1 as ref parser.Node)
                                 matched = true
+                                matched_terminated = stmts_terminated(ctx, sn2.d1 as ref parser.Node)
                             }
                         }
                         none => { break }
                     }
                     j++
                 }
+                if matched_terminated { break }
                 i = j
                 continue
             } else {
@@ -10891,18 +10931,7 @@ fn gen_fn_prefixed(ctx: mut ref CgCtx, fn_node: ref parser.Node, mod_prefix: ref
 
     gen_stmts(ctx, body)
 
-    val blen: i64 = @len(body) as i64
-    val needs_ret: mut bool = true
-    if blen > 0 {
-        val last_opt = @get(body, (blen - 1) as usize)
-        match last_opt {
-            some last => {
-                val lk: i64 = (last as ref parser.Node).kind
-                if lk == parser.NK_RETURN { needs_ret = false }
-            }
-            none => {}
-        }
-    }
+    val needs_ret: bool = !stmts_terminated(ctx, body)
     if needs_ret {
         cg_emit_invariant_checks(ctx)
         cg_emit_defers(ctx)
