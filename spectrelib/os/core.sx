@@ -203,8 +203,8 @@ pub fn copy_dir_recursive(src_dir: ref u8, dst_dir: ref u8) bool = trust {
 
             val src_child: ref u8 = @fmt("{s}/{s}", {src_dir, name})
             val dst_child: ref u8 = @fmt("{s}/{s}", {dst_dir, name})
-
             val child_dir: ref void = opendir(src_child)
+
             if child_dir != none {
                 closedir(child_dir)
                 if !copy_dir_recursive(src_child, dst_child) {
