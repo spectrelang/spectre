@@ -841,12 +841,10 @@ test {
 /// Implemented as a StringMap for O(1) lookup plus a PtrList of keys
 /// to track insertion order.
 type IndexMap = {
-    inner: StringMap
+    inner_header: ref void
     keys: ref void
 }
-type RawIndexMap = {
-    inner: IndexMap
-}
+type RawIndexMap = {}
 
 val IMAP_HEADER_SIZE: usize = 16
 
@@ -868,14 +866,14 @@ pub fn (IndexMap) new[A: allocators.GeneralAllocator](ac: A, initial_cap: usize)
     if inner.header == none || keys == none {
         if keys != none { PtrList.free[A](ac, keys) }
         if inner.header != none { StringMap.free[A](ac, inner) }
-        return { inner: { header: none }, keys: none }
+        return { inner_header: none, keys: none }
     }
-    return { inner: inner, keys: keys }
+    return { inner_header: inner.header, keys: keys }
 }
 
 /// Insert or update a key-value pair, preserving insertion order for new keys.
 pub fn (IndexMap) set[A: allocators.GeneralAllocator](ac: A, map: self, key: ref u8, value: usize) void = trust {
-    val inner: StringMap = map.inner
+    val inner: StringMap = { header: map.inner_header }
     val keys:  mut ref void = map.keys
     val already = StringMap.contains(inner, key)
     StringMap.set[A](ac, inner, key, value)
@@ -901,18 +899,18 @@ pub fn (IndexMap) set[A: allocators.GeneralAllocator](ac: A, map: self, key: ref
 
 /// Look up a key. Returns some(value) or none.
 pub fn (IndexMap) get(map: self, key: ref u8) option[usize] = trust {
-    return StringMap.get(map.inner, key)
+    return StringMap.get({ header: map.inner_header }, key)
 }
 
 /// Check if a key exists.
 pub fn (IndexMap) contains(map: self, key: ref u8) bool = {
-    return StringMap.contains(map.inner, key)
+    return StringMap.contains({ header: map.inner_header }, key)
 }
 
 /// Remove a key. Returns 1 if found, 0 otherwise.
 /// Note: removal marks the key as a tombstone in the ordered list (sets to 0).
 pub fn (IndexMap) delete[A: allocators.GeneralAllocator](ac: A, map: self, key: ref u8) usize = trust {
-    val inner: StringMap = map.inner
+    val inner: StringMap = { header: map.inner_header }
     val keys:  ref void = map.keys
     val removed = StringMap.delete[A](ac, inner, key)
     if removed == 1 {
@@ -938,12 +936,12 @@ pub fn (IndexMap) delete[A: allocators.GeneralAllocator](ac: A, map: self, key: 
 
 /// Return the number of live entries.
 pub fn (IndexMap) len(map: self) usize = {
-    return StringMap.len(map.inner)
+    return StringMap.len({ header: map.inner_header })
 }
 
 /// Iterate in insertion order. Calls callback(key, value) for each live entry.
 pub fn (IndexMap) each(map: self, cb: fn(ref u8, usize) void) void = trust {
-    val inner: StringMap = map.inner
+    val inner: StringMap = { header: map.inner_header }
     val keys:  ref void = map.keys
     val n: usize = PtrList.len(keys)
     for (i = 0; i < n; i++) {
@@ -984,7 +982,7 @@ pub fn (IndexMap) key_at(map: self, i: usize) option[ref u8] = {
 
 /// Free the IndexMap and all owned key copies.
 pub fn (IndexMap) free[A: allocators.GeneralAllocator](ac: A, map: self) void = trust {
-    val inner: StringMap = map.inner
+    val inner: StringMap = { header: map.inner_header }
     val keys:  mut ref void = map.keys
     val n: usize = PtrList.len(keys)
     for (i = 0; i < n; i++) {
@@ -997,44 +995,92 @@ pub fn (IndexMap) free[A: allocators.GeneralAllocator](ac: A, map: self) void = 
     StringMap.free[A](ac, inner)
 }
 
-pub fn (RawIndexMap) new(initial_cap: usize) self = trust {
+pub fn (RawIndexMap) new(initial_cap: usize) ref void = trust {
     val heap: allocators.HeapAllocator = @zeroed
-    return { inner: IndexMap.new[allocators.HeapAllocator](heap, initial_cap) }
+    val inner: IndexMap = IndexMap.new[allocators.HeapAllocator](heap, initial_cap)
+    if inner.inner_header == none || inner.keys == none {
+        return none
+    }
+    val raw_opt = allocators.HeapAllocator.alloc(heap, IMAP_HEADER_SIZE)
+    match raw_opt {
+        some raw => {
+            @store(raw, inner.inner_header)
+            @store(@ptradd(raw, 8), inner.keys)
+            return raw
+        }
+        none => {
+            IndexMap.free[allocators.HeapAllocator](heap, inner)
+            return none
+        }
+    }
 }
 
-pub fn (RawIndexMap) set(map: self, key: ref u8, value: usize) void = trust {
+pub fn (RawIndexMap) set(map: ref void, key: ref u8, value: usize) void = trust {
     val heap: allocators.HeapAllocator = @zeroed
-    IndexMap.set[allocators.HeapAllocator](heap, map.inner, key, value)
+    val inner: IndexMap = {
+        inner_header: @load(map) as ref void
+        keys: @load(@ptradd(map, 8)) as ref void
+    }
+    IndexMap.set[allocators.HeapAllocator](heap, inner, key, value)
 }
 
-pub fn (RawIndexMap) get(map: self, key: ref u8) option[usize] = trust {
-    return IndexMap.get(map.inner, key)
+pub fn (RawIndexMap) get(map: ref void, key: ref u8) option[usize] = trust {
+    val inner: IndexMap = {
+        inner_header: @load(map) as ref void
+        keys: @load(@ptradd(map, 8)) as ref void
+    }
+    return IndexMap.get(inner, key)
 }
 
-pub fn (RawIndexMap) contains(map: self, key: ref u8) bool = {
-    return IndexMap.contains(map.inner, key)
+pub fn (RawIndexMap) contains(map: ref void, key: ref u8) bool = {
+    val inner: IndexMap = trust {
+        inner_header: @load(map) as ref void
+        keys: @load(@ptradd(map, 8)) as ref void
+    }
+    return IndexMap.contains(inner, key)
 }
 
-pub fn (RawIndexMap) delete(map: self, key: ref u8) usize = trust {
+pub fn (RawIndexMap) delete(map: ref void, key: ref u8) usize = trust {
     val heap: allocators.HeapAllocator = @zeroed
-    return IndexMap.delete[allocators.HeapAllocator](heap, map.inner, key)
+    val inner: IndexMap = {
+        inner_header: @load(map) as ref void
+        keys: @load(@ptradd(map, 8)) as ref void
+    }
+    return IndexMap.delete[allocators.HeapAllocator](heap, inner, key)
 }
 
-pub fn (RawIndexMap) len(map: self) usize = {
-    return IndexMap.len(map.inner)
+pub fn (RawIndexMap) len(map: ref void) usize = {
+    val inner: IndexMap = trust {
+        inner_header: @load(map) as ref void
+        keys: @load(@ptradd(map, 8)) as ref void
+    }
+    return IndexMap.len(inner)
 }
 
-pub fn (RawIndexMap) each(map: self, cb: fn(ref u8, usize) void) void = trust {
-    IndexMap.each(map.inner, cb)
+pub fn (RawIndexMap) each(map: ref void, cb: fn(ref u8, usize) void) void = trust {
+    val inner: IndexMap = {
+        inner_header: @load(map) as ref void
+        keys: @load(@ptradd(map, 8)) as ref void
+    }
+    IndexMap.each(inner, cb)
 }
 
-pub fn (RawIndexMap) key_at(map: self, i: usize) option[ref u8] = {
-    return IndexMap.key_at(map.inner, i)
+pub fn (RawIndexMap) key_at(map: ref void, i: usize) option[ref u8] = {
+    val inner: IndexMap = trust {
+        inner_header: @load(map) as ref void
+        keys: @load(@ptradd(map, 8)) as ref void
+    }
+    return IndexMap.key_at(inner, i)
 }
 
-pub fn (RawIndexMap) free(map: self) void = trust {
+pub fn (RawIndexMap) free(map: ref void) void = trust {
     val heap: allocators.HeapAllocator = @zeroed
-    IndexMap.free[allocators.HeapAllocator](heap, map.inner)
+    val inner: IndexMap = {
+        inner_header: @load(map) as ref void
+        keys: @load(@ptradd(map, 8)) as ref void
+    }
+    IndexMap.free[allocators.HeapAllocator](heap, inner)
+    allocators.HeapAllocator.free(heap, map)
 }
 
 test {
@@ -1106,7 +1152,7 @@ test {
 }
 
 test {
-    val m: RawIndexMap = trust RawIndexMap.new(8 as usize)
+    val m: ref void = trust RawIndexMap.new(8 as usize)
     trust RawIndexMap.set(m, "hello", 11 as usize)
     assert RawIndexMap.contains(m, "hello")
     match trust RawIndexMap.get(m, "hello") {
