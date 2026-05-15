@@ -868,12 +868,8 @@ fn assign_output_paths(modules: list[ref DocModule], markdown: bool, root_idx: i
         match mod_opt {
             some v => {
                 val mod: mut ref DocModule = v as ref DocModule
-                if i == root_idx {
-                    mod.is_root = true
-                    if markdown { mod.output_path = "index.md" } else { mod.output_path = "index.html" }
-                } else {
-                    mod.output_path = module_output_path(mod.module_name, markdown)
-                }
+                mod.is_root = i == root_idx
+                mod.output_path = module_output_path(mod.module_name, markdown)
             }
             none => {}
         }
@@ -1089,9 +1085,10 @@ fn append_sorted_module_nav_html(sb: ref void, modules: list[ref DocModule], cur
             if !str_eq(mod.output_path, target_output) { continue }
             val cls: mut ref u8 = "nav-item"
             if str_eq(mod.rel_path, current.rel_path) { cls = "nav-item active" }
-            string.StringBuilder.append_cstr(sb, @fmt("<a class=\"{s}\" href=\"{s}\">{s}</a>", {
+            string.StringBuilder.append_cstr(sb, @fmt("<a class=\"{s}\" href=\"{s}\" data-name=\"{s}\" data-private=\"0\">{s}</a>", {
                 cls,
                 href_from(current.output_path, mod.output_path),
+                html_escape(safe_cstr(mod.module_name)),
                 html_escape(safe_cstr(mod.module_name))
             }))
             break
@@ -1140,11 +1137,279 @@ fn append_nav_html(sb: ref void, modules: list[ref DocModule], current: ref DocM
     }
 }
 
-fn render_module_page_html(module: ref DocModule, modules: list[ref DocModule]) ref u8 = trust {
-    val sb: ref void = string.StringBuilder.new()
-    val has_private_functions: bool = module_has_private_functions(module)
+fn read_text_file_or_empty(file_path: ref u8) ref u8 = trust {
+    val size_opt = fs.file_size(file_path)
+    val arena_cap: mut i64 = 4096
+    match size_opt {
+        some sz => {
+            if ((sz as i64) > arena_cap) { arena_cap = sz as i64 }
+        }
+        none => { return "" }
+    }
+    val arena: mut allocators.Arena = allocators.Arena.new((arena_cap + 8) as usize)?
+    val content_opt = fs.read_all[allocators.Arena](arena, file_path)
+    val content: mut ref u8 = ""
+    match content_opt {
+        some text => { content = copy_cstr(text as ref u8) }
+        none => {}
+    }
+    allocators.Arena.free(arena)
+    if content == none { return "" }
+    return content
+}
+
+fn load_directory_readme(dir_path: ref u8) ref u8 = trust {
+    val base_dir: mut ref u8 = dir_path
+    if str_eq(base_dir, "") { base_dir = "." }
+    val readme_md = path.join(base_dir, "README.md")
+    if os.exists(readme_md) { return read_text_file_or_empty(readme_md) }
+    val readme_plain = path.join(base_dir, "README")
+    if os.exists(readme_plain) { return read_text_file_or_empty(readme_plain) }
+    return ""
+}
+
+fn markdown_heading_level(line: ref u8) i64 = trust {
+    val len: i64 = str.len_raw(line)
+    val level: mut i64 = 0
+    for {
+        if level >= len || level >= 6 { break }
+        if @load8(@ptradd(line as ref void, level)) != 35 { break }
+        level++
+    }
+    if level == 0 || level >= len { return 0 }
+    if @load8(@ptradd(line as ref void, level)) != 32 { return 0 }
+    return level
+}
+
+fn markdown_title(markdown: ref u8, fallback: ref u8) ref u8 = trust {
+    val len: i64 = str.len_raw(markdown)
+    val line_start: mut i64 = 0
+    val i: mut i64 = 0
+    for {
+        if i >= len {
+            val line = trim_ws(substr(markdown, line_start, len - line_start))
+            val level = markdown_heading_level(line)
+            if level > 0 {
+                return trim_ws(substr(line, level + 1, str.len_raw(line) - level - 1))
+            }
+            break
+        }
+        if @load8(@ptradd(markdown as ref void, i)) == 10 {
+            val line = trim_ws(substr(markdown, line_start, i - line_start))
+            val level = markdown_heading_level(line)
+            if level > 0 {
+                return trim_ws(substr(line, level + 1, str.len_raw(line) - level - 1))
+            }
+            line_start = i + 1
+        }
+        i++
+    }
+    return fallback
+}
+
+fn find_byte(text: ref u8, start: i64, needle: u8) i64 = trust {
+    val len: i64 = str.len_raw(text)
+    val i: mut i64 = start
+    for {
+        if i >= len { break }
+        if @load8(@ptradd(text as ref void, i)) == needle { return i }
+        i++
+    }
+    return -1
+}
+
+fn append_html_escaped_char(sb: ref void, c: u8) void = trust {
+    if c == 38 {
+        string.StringBuilder.append_cstr(sb, "&amp;")
+    } elif c == 60 {
+        string.StringBuilder.append_cstr(sb, "&lt;")
+    } elif c == 62 {
+        string.StringBuilder.append_cstr(sb, "&gt;")
+    } elif c == 34 {
+        string.StringBuilder.append_cstr(sb, "&quot;")
+    } else {
+        string.StringBuilder.append_char(sb, c)
+    }
+}
+
+fn append_markdown_inline_html(sb: ref void, text: ref u8) void = trust {
+    val len: i64 = str.len_raw(text)
+    val i: mut i64 = 0
+    for {
+        if i >= len { break }
+        val c: u8 = @load8(@ptradd(text as ref void, i))
+        if c == 33 && i + 1 < len && @load8(@ptradd(text as ref void, i + 1)) == 91 {
+            val alt_end = find_byte(text, i + 2, 93 as u8)
+            if alt_end >= 0 && alt_end + 1 < len && @load8(@ptradd(text as ref void, alt_end + 1)) == 40 {
+                val url_end = find_byte(text, alt_end + 2, 41 as u8)
+                if url_end >= 0 {
+                    val alt = substr(text, i + 2, alt_end - i - 2)
+                    val src = substr(text, alt_end + 2, url_end - alt_end - 2)
+                    string.StringBuilder.append_cstr(sb, @fmt("<img src=\"{s}\" alt=\"{s}\" loading=\"lazy\">", {
+                        html_escape(src),
+                        html_escape(alt)
+                    }))
+                    i = url_end + 1
+                    continue
+                }
+            }
+        }
+        if c == 91 {
+            val label_end = find_byte(text, i + 1, 93 as u8)
+            if label_end >= 0 && label_end + 1 < len && @load8(@ptradd(text as ref void, label_end + 1)) == 40 {
+                val href_end = find_byte(text, label_end + 2, 41 as u8)
+                if href_end >= 0 {
+                    val label = substr(text, i + 1, label_end - i - 1)
+                    val href = substr(text, label_end + 2, href_end - label_end - 2)
+                    string.StringBuilder.append_cstr(sb, @fmt("<a href=\"{s}\">", {html_escape(href)}))
+                    append_markdown_inline_html(sb, label)
+                    string.StringBuilder.append_cstr(sb, "</a>")
+                    i = href_end + 1
+                    continue
+                }
+            }
+        }
+        if c == 96 {
+            val code_end = find_byte(text, i + 1, 96 as u8)
+            if code_end >= 0 {
+                string.StringBuilder.append_cstr(sb, "<code>")
+                string.StringBuilder.append_cstr(sb, html_escape(substr(text, i + 1, code_end - i - 1)))
+                string.StringBuilder.append_cstr(sb, "</code>")
+                i = code_end + 1
+                continue
+            }
+        }
+        append_html_escaped_char(sb, c)
+        i++
+    }
+}
+
+fn flush_markdown_paragraph_html(sb: ref void, paragraph: mut ref u8) void = trust {
+    if str_eq(paragraph, "") { return }
+    string.StringBuilder.append_cstr(sb, "<p>")
+    append_markdown_inline_html(sb, paragraph)
+    string.StringBuilder.append_cstr(sb, "</p>")
+    paragraph = ""
+}
+
+fn close_markdown_list_html(sb: ref void, in_list: mut bool) void = trust {
+    if !in_list { return }
+    string.StringBuilder.append_cstr(sb, "</ul>")
+    in_list = false
+}
+
+fn append_markdown_html(sb: ref void, markdown: ref u8) void = trust {
+    val len: i64 = str.len_raw(markdown)
+    val line_start: mut i64 = 0
+    val i: mut i64 = 0
+    val paragraph: mut ref u8 = ""
+    val in_list: mut bool = false
+    val in_code: mut bool = false
+    val code_lang: mut ref u8 = ""
+
+    for {
+        if i >= len {
+            val line = substr(markdown, line_start, len - line_start)
+            val trimmed = trim_ws(line)
+            if in_code {
+                if !str_eq(line, "") { string.StringBuilder.append_cstr(sb, html_escape(line)) }
+                string.StringBuilder.append_cstr(sb, "</code></pre>")
+            } elif str_eq(trimmed, "") {
+                flush_markdown_paragraph_html(sb, paragraph)
+                close_markdown_list_html(sb, in_list)
+            } else {
+                val level = markdown_heading_level(trimmed)
+                if level > 0 {
+                    flush_markdown_paragraph_html(sb, paragraph)
+                    close_markdown_list_html(sb, in_list)
+                    val heading_text = trim_ws(substr(trimmed, level + 1, str.len_raw(trimmed) - level - 1))
+                    val tag = @fmt("h{lld}", {level})
+                    string.StringBuilder.append_cstr(sb, @fmt("<{s}>", {tag}))
+                    append_markdown_inline_html(sb, heading_text)
+                    string.StringBuilder.append_cstr(sb, @fmt("</{s}>", {tag}))
+                } elif str.rchar_starts_with(trimmed, "- ") || str.rchar_starts_with(trimmed, "* ") {
+                    flush_markdown_paragraph_html(sb, paragraph)
+                    if !in_list {
+                        string.StringBuilder.append_cstr(sb, "<ul>")
+                        in_list = true
+                    }
+                    string.StringBuilder.append_cstr(sb, "<li>")
+                    append_markdown_inline_html(sb, trim_ws(substr(trimmed, 2, str.len_raw(trimmed) - 2)))
+                    string.StringBuilder.append_cstr(sb, "</li>")
+                } else {
+                    close_markdown_list_html(sb, in_list)
+                    if str_eq(paragraph, "") {
+                        paragraph = trimmed
+                    } else {
+                        paragraph = @fmt("{s} {s}", {paragraph, trimmed})
+                    }
+                    flush_markdown_paragraph_html(sb, paragraph)
+                }
+            }
+            break
+        }
+        if @load8(@ptradd(markdown as ref void, i)) == 10 {
+            val line = substr(markdown, line_start, i - line_start)
+            val trimmed = trim_ws(line)
+            if in_code {
+                if str.rchar_starts_with(trimmed, "```") {
+                    string.StringBuilder.append_cstr(sb, "</code></pre>")
+                    in_code = false
+                    code_lang = ""
+                } else {
+                    string.StringBuilder.append_cstr(sb, html_escape(line))
+                    string.StringBuilder.append_cstr(sb, "\n")
+                }
+            } elif str.rchar_starts_with(trimmed, "```") {
+                flush_markdown_paragraph_html(sb, paragraph)
+                close_markdown_list_html(sb, in_list)
+                code_lang = trim_ws(substr(trimmed, 3, str.len_raw(trimmed) - 3))
+                if str_eq(code_lang, "") {
+                    string.StringBuilder.append_cstr(sb, "<pre><code>")
+                } else {
+                    string.StringBuilder.append_cstr(sb, @fmt("<pre><code class=\"language-{s}\">", {html_escape(code_lang)}))
+                }
+                in_code = true
+            } elif str_eq(trimmed, "") {
+                flush_markdown_paragraph_html(sb, paragraph)
+                close_markdown_list_html(sb, in_list)
+            } else {
+                val level = markdown_heading_level(trimmed)
+                if level > 0 {
+                    flush_markdown_paragraph_html(sb, paragraph)
+                    close_markdown_list_html(sb, in_list)
+                    val heading_text = trim_ws(substr(trimmed, level + 1, str.len_raw(trimmed) - level - 1))
+                    val tag = @fmt("h{lld}", {level})
+                    string.StringBuilder.append_cstr(sb, @fmt("<{s}>", {tag}))
+                    append_markdown_inline_html(sb, heading_text)
+                    string.StringBuilder.append_cstr(sb, @fmt("</{s}>", {tag}))
+                } elif str.rchar_starts_with(trimmed, "- ") || str.rchar_starts_with(trimmed, "* ") {
+                    flush_markdown_paragraph_html(sb, paragraph)
+                    if !in_list {
+                        string.StringBuilder.append_cstr(sb, "<ul>")
+                        in_list = true
+                    }
+                    string.StringBuilder.append_cstr(sb, "<li>")
+                    append_markdown_inline_html(sb, trim_ws(substr(trimmed, 2, str.len_raw(trimmed) - 2)))
+                    string.StringBuilder.append_cstr(sb, "</li>")
+                } else {
+                    close_markdown_list_html(sb, in_list)
+                    if str_eq(paragraph, "") {
+                        paragraph = trimmed
+                    } else {
+                        paragraph = @fmt("{s} {s}", {paragraph, trimmed})
+                    }
+                }
+            }
+            line_start = i + 1
+        }
+        i++
+    }
+}
+
+fn append_page_head_html(sb: ref void, title: ref u8) void = trust {
     string.StringBuilder.append_cstr(sb, "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\">")
-    string.StringBuilder.append_cstr(sb, @fmt("<title>{s} — Docs</title>", {html_escape(safe_cstr(module.module_name))}))
+    string.StringBuilder.append_cstr(sb, @fmt("<title>{s} — Docs</title>", {html_escape(safe_cstr(title))}))
     string.StringBuilder.append_cstr(sb, "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">")
     string.StringBuilder.append_cstr(sb, "<link rel=\"preconnect\" href=\"https://fonts.googleapis.com\">")
     string.StringBuilder.append_cstr(sb, "<link href=\"https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap\" rel=\"stylesheet\">")
@@ -1319,6 +1584,37 @@ fn render_module_page_html(module: ref DocModule, modules: list[ref DocModule]) 
         \\.docs{margin-top:2px}
         \\.docs p{line-height:1.8;color:var(--text2);margin-bottom:8px;font-size:14px}
         \\
+        \\.doc-article{color:var(--text2)}
+        \\.doc-article>:last-child{margin-bottom:0}
+        \\.doc-article h1,.doc-article h2,.doc-article h3,.doc-article h4,.doc-article h5,.doc-article h6{
+        \\  color:var(--text);letter-spacing:-.02em;line-height:1.25;text-transform:none;
+        \\}
+        \\.doc-article h1{font-size:28px;margin:0 0 18px}
+        \\.doc-article h2{font-size:22px;margin:30px 0 14px}
+        \\.doc-article h3{font-size:18px;margin:24px 0 12px}
+        \\.doc-article h4,.doc-article h5,.doc-article h6{font-size:15px;margin:18px 0 10px}
+        \\.doc-article p{line-height:1.85;color:var(--text2);margin:0 0 12px;font-size:14px}
+        \\.doc-article ul{margin:0 0 14px 20px;color:var(--text2)}
+        \\.doc-article li{margin:0 0 6px}
+        \\.doc-article a{color:var(--accent)}
+        \\.doc-article img{max-width:100%;height:auto;border-radius:8px;vertical-align:middle}
+        \\.doc-article code{
+        \\  font-family:var(--mono);font-size:12.5px;
+        \\  background:var(--code-bg);padding:3px 8px;
+        \\  border-radius:5px;color:var(--code-text);
+        \\  border:1px solid var(--border2);
+        \\}
+        \\.doc-article pre{margin:0 0 16px}
+        \\.module-list{list-style:none;padding:0;margin:0;display:grid;gap:8px}
+        \\.module-list li{margin:0}
+        \\.module-list a{
+        \\  display:block;padding:10px 12px;border-radius:8px;
+        \\  border:1px solid var(--border2);background:var(--surface2);
+        \\  color:var(--text);font-family:var(--mono);font-size:13px;
+        \\  transition:border-color .15s,background .15s,color .15s;
+        \\}
+        \\.module-list a:hover{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 8%,var(--surface2));text-decoration:none}
+        \\
         \\h4{
         \\  font-size:10px;font-weight:700;letter-spacing:.1em;
         \\  text-transform:uppercase;color:var(--text3);margin:18px 0 8px;
@@ -1365,7 +1661,9 @@ fn render_module_page_html(module: ref DocModule, modules: list[ref DocModule]) 
         \\}
     )
     string.StringBuilder.append_cstr(sb, "</style></head><body>")
+}
 
+fn append_page_shell_start_html(sb: ref void, modules: list[ref DocModule], current: ref DocModule, has_private_functions: bool) void = trust {
     string.StringBuilder.append_cstr(sb, "<button class=\"toggle\" id=\"toggle\" aria-label=\"Toggle sidebar\"><svg viewBox=\"0 0 24 24\"><line x1=\"3\" y1=\"6\" x2=\"21\" y2=\"6\"/><line x1=\"3\" y1=\"12\" x2=\"21\" y2=\"12\"/><line x1=\"3\" y1=\"18\" x2=\"21\" y2=\"18\"/></svg></button>")
 
     if has_private_functions {
@@ -1379,24 +1677,14 @@ fn render_module_page_html(module: ref DocModule, modules: list[ref DocModule]) 
     string.StringBuilder.append_cstr(sb, "<aside class=\"sidebar\" id=\"sidebar\">")
     string.StringBuilder.append_cstr(sb, "<div class=\"sb-search\"><svg class=\"sb-search-icon\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\"><circle cx=\"11\" cy=\"11\" r=\"8\"/><line x1=\"21\" y1=\"21\" x2=\"16.65\" y2=\"16.65\"/></svg><input class=\"sb-input\" id=\"search\" type=\"search\" placeholder=\"Search... (/)\" autocomplete=\"off\" spellcheck=\"false\"/></div>")
     string.StringBuilder.append_cstr(sb, "<nav class=\"sb-nav\" id=\"sb-nav\">")
-    append_nav_html(sb, modules, module)
+    append_nav_html(sb, modules, current)
     string.StringBuilder.append_cstr(sb, "</nav></aside>")
 
     string.StringBuilder.append_cstr(sb, "<main class=\"content\" id=\"content\">")
-    string.StringBuilder.append_cstr(sb, @fmt("<div class=\"hero\"><div class=\"hero-top\"><div><h1>{s}</h1><div class=\"hero-meta\"><span class=\"label\">source</span><code>{s}</code></div></div>", {
-        html_escape(safe_cstr(module.module_name)),
-        html_escape(safe_cstr(module.rel_path))
-    }))
-    string.StringBuilder.append_cstr(sb, "</div></div>")
+}
 
-    for entry in module.entries {
-        render_entry_html(sb, entry)
-    }
-    if @len(module.entries) as i64 == 0 {
-        string.StringBuilder.append_cstr(sb, "<div class=\"empty\">No documented items found in this module.</div>")
-    }
+fn append_page_shell_end_html(sb: ref void) void = trust {
     string.StringBuilder.append_cstr(sb, "</main></div>")
-
     string.StringBuilder.append_cstr(sb, "<script>")
     string.StringBuilder.append_cstr(sb,
         \\(function(){
@@ -1559,6 +1847,26 @@ fn render_module_page_html(module: ref DocModule, modules: list[ref DocModule]) 
         \\})();
     )
     string.StringBuilder.append_cstr(sb, "</script></body></html>")
+}
+
+fn render_module_page_html(module: ref DocModule, modules: list[ref DocModule]) ref u8 = trust {
+    val sb: ref void = string.StringBuilder.new()
+    val has_private_functions: bool = module_has_private_functions(module)
+    append_page_head_html(sb, safe_cstr(module.module_name))
+    append_page_shell_start_html(sb, modules, module, has_private_functions)
+    string.StringBuilder.append_cstr(sb, @fmt("<div class=\"hero\"><div class=\"hero-top\"><div><h1>{s}</h1><div class=\"hero-meta\"><span class=\"label\">source</span><code>{s}</code></div></div>", {
+        html_escape(safe_cstr(module.module_name)),
+        html_escape(safe_cstr(module.rel_path))
+    }))
+    string.StringBuilder.append_cstr(sb, "</div></div>")
+
+    for entry in module.entries {
+        render_entry_html(sb, entry)
+    }
+    if @len(module.entries) as i64 == 0 {
+        string.StringBuilder.append_cstr(sb, "<div class=\"empty\">No documented items found in this module.</div>")
+    }
+    append_page_shell_end_html(sb)
     val built = string.StringBuilder.build(sb)
     string.StringBuilder.free(sb)
     return string.cstr(built)
@@ -1642,10 +1950,43 @@ fn render_module_page_md(module: ref DocModule, modules: list[ref DocModule]) re
     return string.cstr(built)
 }
 
-fn render_overview_page(markdown: bool, modules: list[ref DocModule], output_path: ref u8) ref u8 = trust {
+fn make_overview_module(output_path: ref u8) ref DocModule = trust {
+    val module: mut ref DocModule = @alloc(@sizeof(DocModule)) as ref DocModule
+    module.source_path = ""
+    module.rel_path = "__overview__"
+    module.module_name = "Docs"
+    module.output_path = output_path
+    module.is_root = false
+    module.entries = []
+    return module
+}
+
+fn append_modules_overview_html(sb: ref void, modules: list[ref DocModule], current_output: ref u8) void = trust {
+    string.StringBuilder.append_cstr(sb, "<section class=\"entry\"><div class=\"entry-header\"><h3>Modules</h3></div><ul class=\"module-list\">")
+    for mod in modules {
+        string.StringBuilder.append_cstr(sb, @fmt("<li><a href=\"{s}\">{s}</a></li>", {
+            href_from(current_output, mod.output_path),
+            html_escape(safe_cstr(mod.module_name))
+        }))
+    }
+    string.StringBuilder.append_cstr(sb, "</ul></section>")
+}
+
+fn render_overview_page(markdown: bool, modules: list[ref DocModule], output_path: ref u8, source_dir: ref u8, readme: ref u8) ref u8 = trust {
+    val page_title = markdown_title(readme, "Docs")
     if markdown {
         val sb = string.StringBuilder.new()
-        string.StringBuilder.append_cstr(sb, "# Docs\n\n## Modules\n\n")
+        if !str_eq(readme, "") {
+            string.StringBuilder.append_cstr(sb, readme)
+            if !str_eq(substr(readme, str.len_raw(readme) - 1, 1), "\n") {
+                string.StringBuilder.append_cstr(sb, "\n")
+            }
+            string.StringBuilder.append_cstr(sb, "\n")
+        } else {
+            string.StringBuilder.append_cstr(sb, @fmt("# {s}\n\n", {page_title}))
+            string.StringBuilder.append_cstr(sb, @fmt("Source: `{s}`\n\n", {source_dir}))
+        }
+        string.StringBuilder.append_cstr(sb, "## Modules\n\n")
         for mod in modules {
             string.StringBuilder.append_cstr(sb, @fmt("- [{s}]({s})\n", {mod.module_name, href_from(output_path, mod.output_path)}))
         }
@@ -1654,47 +1995,22 @@ fn render_overview_page(markdown: bool, modules: list[ref DocModule], output_pat
         return string.cstr(built)
     }
     val sb2 = string.StringBuilder.new()
-    string.StringBuilder.append_cstr(sb2,
-        \\<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><title>Docs</title>
-        \\<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">
-        \\<link rel=\"preconnect\" href=\"https://fonts.googleapis.com\">
-        \\<link href=\"https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap\" rel=\"stylesheet\">
-        \\<style>
-        \\:root{--bg:#f0f4fa;--surface:#ffffff;--border:#c8d8ee;--text:#0f1f3d;--text2:#3a5275;--text3:#6b87a8;--accent:#1d6cf0;--accent2:#4a90f7;--mono:'IBM Plex Mono',monospace;--font:'IBM Plex Sans',system-ui,sans-serif}
-        \\html.dark{--bg:#000000;--surface:#0f1d35;--border:#162b52;--text:#d8e8ff;--text2:#8badd4;--text3:#4a6d96;--accent:#4a90f7;--accent2:#6aaeff}
-        \\*{box-sizing:border-box;margin:0;padding:0}
-        \\body{font-family:var(--font);background:var(--bg);color:var(--text);display:flex;align-items:flex-start;justify-content:center;padding:64px 24px;min-height:100vh;transition:background .2s,color .2s}
-        \\a{color:var(--accent);text-decoration:none}a:hover{color:var(--accent2)}
-        \\.card{width:100%;max-width:600px;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:40px 44px;box-shadow:0 4px 24px rgba(15,31,61,.07)}
-        \\.card h1{margin:0 0 4px;font-size:24px;font-weight:700;letter-spacing:-.02em}
-        \\.card .sub{color:var(--text3);margin:0 0 28px;font-size:13px;font-family:var(--mono)}
-        \\ul{padding:0;list-style:none;margin:0}
-        \\li{margin:3px 0}
-        \\li a{font-size:14px;font-family:var(--mono);display:block;padding:8px 12px;border-radius:7px;transition:background .12s,color .12s}
-        \\li a:hover{background:color-mix(in srgb,var(--accent) 8%,transparent);text-decoration:none}
-        \\.theme-btn{position:fixed;top:16px;right:16px;width:34px;height:34px;background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text2);cursor:pointer;display:flex;align-items:center;justify-content:center}
-        \\.theme-btn svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round}
-        \\</style></head><body>
-    )
-    string.StringBuilder.append_cstr(sb2, "<button class=\"theme-btn\" id=\"theme-btn\" aria-label=\"Toggle theme\"><svg id=\"theme-icon\" viewBox=\"0 0 24 24\"><circle cx=\"12\" cy=\"12\" r=\"5\"/><line x1=\"12\" y1=\"1\" x2=\"12\" y2=\"3\"/><line x1=\"12\" y1=\"21\" x2=\"12\" y2=\"23\"/><line x1=\"4.22\" y1=\"4.22\" x2=\"5.64\" y2=\"5.64\"/><line x1=\"18.36\" y1=\"18.36\" x2=\"19.78\" y2=\"19.78\"/><line x1=\"1\" y1=\"12\" x2=\"3\" y2=\"12\"/><line x1=\"21\" y1=\"12\" x2=\"23\" y2=\"12\"/><line x1=\"4.22\" y1=\"19.78\" x2=\"5.64\" y2=\"18.36\"/><line x1=\"18.36\" y1=\"5.64\" x2=\"19.78\" y2=\"4.22\"/></svg></button>")
-    string.StringBuilder.append_cstr(sb2, "<div class=\"card\"><h1>Docs</h1><ul>")
-    for mod in modules {
-        string.StringBuilder.append_cstr(sb2, @fmt("<li><a href=\"{s}\">{s}</a></li>", {href_from(output_path, mod.output_path), html_escape(mod.module_name)}))
+    val overview_module = make_overview_module(output_path)
+    append_page_head_html(sb2, page_title)
+    append_page_shell_start_html(sb2, modules, overview_module, false)
+    string.StringBuilder.append_cstr(sb2, @fmt("<div class=\"hero\"><div class=\"hero-top\"><div><h1>{s}</h1><div class=\"hero-meta\"><span class=\"label\">source</span><code>{s}</code></div></div></div></div>", {
+        html_escape(page_title),
+        html_escape(source_dir)
+    }))
+    if !str_eq(readme, "") {
+        string.StringBuilder.append_cstr(sb2, "<section class=\"entry\"><div class=\"doc-article\">")
+        append_markdown_html(sb2, readme)
+        string.StringBuilder.append_cstr(sb2, "</div></section>")
+    } else {
+        string.StringBuilder.append_cstr(sb2, "<div class=\"empty\">No README.md or README found for this directory.</div>")
     }
-    string.StringBuilder.append_cstr(sb2, "</ul></div>")
-    string.StringBuilder.append_cstr(sb2,
-        \\<script>(function(){
-        \\var h=document.documentElement;
-        \\var s=localStorage.getItem('theme');
-        \\var d=s==='dark'||(s===null&&window.matchMedia('(prefers-color-scheme:dark)').matches);
-        \\function apply(dark){h.classList.toggle('dark',dark);localStorage.setItem('theme',dark?'dark':'light');
-        \\var i=document.getElementById('theme-icon');
-        \\i.innerHTML=dark?'<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>':'<circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>';}
-        \\apply(d);
-        \\document.getElementById('theme-btn').addEventListener('click',function(){d=!d;apply(d);});
-        \\})();</script>
-    )
-    string.StringBuilder.append_cstr(sb2, "</body></html>")
+    append_modules_overview_html(sb2, modules, output_path)
+    append_page_shell_end_html(sb2)
     val built2 = string.StringBuilder.build(sb2)
     string.StringBuilder.free(sb2)
     return string.cstr(built2)
@@ -1749,14 +2065,13 @@ pub fn cmd_doc(target: ref u8, markdown: bool) i32 = trust {
         val root_rel = maybe_root_rel_for_dir()
         val root_idx = find_root_module(modules, root_rel)
         assign_output_paths(modules, markdown, root_idx)
-        if root_idx < 0 {
-            val index_rel: mut ref u8 = "index.html"
-            if markdown { index_rel = "index.md" }
-            val index_path = path.join("docs-out", index_rel)
-            if !write_page(index_path, render_overview_page(markdown, modules, index_rel)) {
-                stdio.print("error: could not write '{s}'\n", {index_path})
-                return 1
-            }
+        val index_rel: mut ref u8 = "index.html"
+        if markdown { index_rel = "index.md" }
+        val index_path = path.join("docs-out", index_rel)
+        val readme = load_directory_readme(clean_target)
+        if !write_page(index_path, render_overview_page(markdown, modules, index_rel, clean_target, readme)) {
+            stdio.print("error: could not write '{s}'\n", {index_path})
+            return 1
         }
 
         for mod in modules {
