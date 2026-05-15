@@ -17,6 +17,8 @@ extern (C) fn popen(cmd: ref u8, mode: ref u8) ref void = "popen"
 extern (C) fn pclose(pipe: ref void) i32 = "pclose"
 extern (C) fn system(cmd: ref u8) i32 = "system"
 
+val str = use("../string")
+
 when linux {
     extern type Dirent = {
         d_ino:    u64
@@ -93,7 +95,7 @@ pub fn exists(path: ref u8) bool = {
 
 /// Open a file in the given mode ("r", "w", "a", etc.). Returns the file handle or none.
 pub fn open(path: ref u8, mode: ref u8) option[ref void] = {
-    pre {
+    guarded pre {
         mode != ""
     }
     val f: ref void = trust fopen(path, mode)
@@ -197,10 +199,26 @@ pub fn copy_dir_recursive(src_dir: ref u8, dst_dir: ref u8) bool = trust {
         for {
             val entry: ref Dirent = readdir(dir)
             if entry == none { break }
+            val name: mut ref u8 = @ptradd(entry as ref void, 19) as ref u8
 
-            val name: ref u8 = @ptradd(entry as ref void, 19) as ref u8
+            when darwin {
+                name = entry.d_name    
+            }
+                       
             if is_dot_dir_entry(name) { continue }
 
+            if str.rchar_cmp(src_dir, "") == 0 {
+                break 
+            }
+
+            if str.rchar_cmp(dst_dir, "") == 0 {
+                break
+            }
+
+            if str.rchar_cmp(name, "") == 0 {
+                break
+            }
+            
             val src_child: ref u8 = @fmt("{s}/{s}", {src_dir, name})
             val dst_child: ref u8 = @fmt("{s}/{s}", {dst_dir, name})
             val child_dir: ref void = opendir(src_child)
