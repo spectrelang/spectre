@@ -13,6 +13,11 @@ Resources:
 - [Documentation](https://spectre-docs.pages.dev)
 - [Playground](https://spectrelang.org/playground)
 - [Devlog](https://spectrelang.org/log/devlog)
+- [Matrix](https://matrix.to/#/%23spectrelang:matrix.org)
+- [Discord](https://discord.gg/aCnnVwAUWU)
+- [Visual Studio Code Extension](https://marketplace.visualstudio.com/items?itemName=NavidM.spectre-lang)
+- [Neovim Extension](https://github.com/spectrelang/spectre-nvim)
+- [Language Server](https://github.com/spectrelang/spectre-ls)
 
 ## Installation
 
@@ -64,9 +69,9 @@ pub fn (Stack) push(s: mut self, vl: i32) void = {
 }
 
 pub fn (Stack) pop(s: mut self) option[i32] = {
-    pre { 
-		not_empty: s.len > 0
-	}
+    pre {
+		    not_empty: s.len > 0
+	  }
     val top = trust @get(s.data, s.len - 1)
     trust @remove(s.data, s.len - 1)
     s.len = s.len - 1
@@ -74,16 +79,16 @@ pub fn (Stack) pop(s: mut self) option[i32] = {
 }
 
 pub fn (Stack) peek(s: mut self) option[i32] = {
-    pre { 
-		not_empty: s.len > 0 
-	}
+    pre {
+		    not_empty: s.len > 0
+	  }
     return trust @get(s.data, s.len - 1)
 }
 
 pub fn (Stack) print_top(s: mut self) void = {
-    guarded pre { 
-		has_items: s.len > 0 
-	}
+    guarded pre {
+		    has_items: s.len > 0
+	  }
     match Stack.peek(s) {
         some v => { trust stdio.print("top: {d}\n", {v}) }
         none   => {}
