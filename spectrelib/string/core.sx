@@ -49,6 +49,32 @@ fn alloc_substr_in[T: allocators.Allocator](ac: T, src: ref u8, start: i64, len:
     return buf as ref u8
 }
 
+fn alloc_in_general[T: allocators.GeneralAllocator](ac: T, size: i64) ref void = {
+    pre { size_positive: size > 0 }
+    val out_opt = T.alloc(ac, size as usize)
+    match out_opt {
+        some out => { return out as ref void }
+        none => { return none }
+    }
+}
+
+fn alloc_string_in_general[T: allocators.GeneralAllocator](ac: T, len: i64) String = trust {
+    val buf: ref void = alloc_in_general[T](ac, len + 1)
+    if buf == none { return none }
+    @memset(buf, 0, len + 1)
+
+    val s: ref void = alloc_in_general[T](ac, 24)
+    if s == none {
+        T.free(ac, buf)
+        return none
+    }
+
+    @store(s, buf)
+    @store(@ptradd(s, 8), len)
+    @store(@ptradd(s, 16), len + 1)
+    return s as String
+}
+
 /// Create empty string
 pub fn new() String = trust {
     val s: ref void = @alloc(24)
@@ -418,6 +444,36 @@ pub fn slice(s: String, start: i64, end: i64) String = trust {
     return out as String
 }
 
+fn slice_general[T: allocators.GeneralAllocator](ac: T, s: String, start: i64, end: i64) String = trust {
+    val l: i64 = @load(@ptradd(s as ref void, 8)) as i64
+
+    val real_start: mut i64 = start
+    val real_end: mut i64 = end
+    if (real_start < 0) {
+        real_start = 0
+    }
+    if (real_end > l) {
+        real_end = l
+    }
+
+    val slice_len: mut i64 = real_end - real_start
+    if (slice_len < 0) {
+        slice_len = 0
+    }
+
+    val out: String = alloc_string_in_general[T](ac, slice_len)
+    if out == none {
+        return none
+    }
+
+    val src_ptr: ref void = @load(s as ref void)
+    val out_ptr: ref void = @load(out as ref void)
+    if slice_len > 0 {
+        @memcpy(out_ptr, @ptradd(src_ptr, real_start), slice_len)
+    }
+    return out
+}
+
 /// Find first occurrence of sub in s — returns some(index) or none
 pub fn find(s: String, sub: String) option[i64] = {
     pre {
@@ -715,9 +771,10 @@ pub fn trim_suffix_raw[T: allocators.Allocator](ac: T, s: ref u8, suffix: ref u8
 
     return alloc_substr_in[T](ac, s, 0, sl - sul)
 }
-/// Split s by delim — returns a List of heap-allocated Strings
-pub fn split(s: String, delim: String) result[ref void, ListAllocError] = trust {
-    val result: mut ref void = collections.PtrList.new(8 as usize)?
+
+/// Split s by delim, returns an opaque list of Strings allocated with the provided general allocator.
+pub fn split[T: allocators.GeneralAllocator](ac: T, s: String, delim: String) result[ref void, ListAllocError] = trust {
+    val result: mut ref void = collections.PtrList.new[T](ac, 8 as usize)?
     val sl: i64 = @load(@ptradd(s as ref void, 8)) as i64
     val dl: i64 = @load(@ptradd(delim as ref void, 8)) as i64
     val sp: ref void = @load(s as ref void)
@@ -754,14 +811,14 @@ pub fn split(s: String, delim: String) result[ref void, ListAllocError] = trust 
         }
 
         if (is_delim != 0) {
-            val seg: String = slice(s, seg_start, i)
-            collections.PtrList.push(result, seg as usize)?
+            val seg: String = slice_general[T](ac, s, seg_start, i)
+            collections.PtrList.push[T](ac, result, seg as usize)?
             seg_start = i + dl
             i += dl
         } else {
             if (i == sl) {
-                val seg: String = slice(s, seg_start, sl)
-                collections.PtrList.push(result, seg as usize)?
+                val seg: String = slice_general[T](ac, s, seg_start, sl)
+                collections.PtrList.push[T](ac, result, seg as usize)?
                 break
             }
             i++
@@ -1143,7 +1200,8 @@ test {
     stdio.puts("hi3.2.2")
     val sp = trust from[allocators.Arena](arena, "a,b,c")
     stdio.puts("hi3.2.3")
-    val parts = trust split(sp, from[allocators.Arena](arena, ","))?
+    val split_heap: allocators.HeapAllocator = @zeroed
+    val parts = trust split[allocators.HeapAllocator](split_heap, sp, from[allocators.Arena](arena, ","))?
     stdio.puts("hi3.3")
 
     assert(collections.PtrList.len(parts) == 3)
@@ -1161,7 +1219,7 @@ test {
     }
 
     val sp2 = trust from[allocators.Arena](arena, "a,b,")
-    val parts2 = trust split(sp2, from[allocators.Arena](arena, ","))?
+    val parts2 = trust split[allocators.HeapAllocator](split_heap, sp2, from[allocators.Arena](arena, ","))?
     assert(collections.PtrList.len(parts2) == 3)
     match collections.PtrList.get(parts2, 2 as usize) {
         some v => { assert(equals(v, trust from[allocators.Arena](arena, ""))) }

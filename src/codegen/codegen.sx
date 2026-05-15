@@ -116,8 +116,8 @@ fn cg_new() ref CgCtx = trust {
     ctx.cont_lbl = -1
     ctx.mc_names = []
     ctx.mc_vals = []
-    ctx.mc_index = collections.IndexMap.new(64 as usize)
-    ctx.fn_name_index = collections.IndexMap.new(256 as usize)
+    ctx.mc_index = collections.RawIndexMap.new(64 as usize)
+    ctx.fn_name_index = collections.RawIndexMap.new(256 as usize)
     ctx.defer_stack = []
     ctx.local_src_names = []
     ctx.local_qbe_names = []
@@ -1192,16 +1192,16 @@ fn cg_mc_vals(ctx: ref CgCtx) ref void = trust { return ctx.mc_vals as ref void 
 fn cg_register_module_const(ctx: mut ref CgCtx, name: ref u8, val_str: ref u8) void = trust {
     @append(cg_mc_names(ctx) as list[ref u8], name)
     @append(cg_mc_vals(ctx)  as list[ref u8], val_str)
-    if !collections.IndexMap.contains(ctx.mc_index, name) {
+    if !collections.RawIndexMap.contains(ctx.mc_index, name) {
         val val_str_usize: mut usize = 0
         @store(@addr(val_str_usize) as ref void, val_str)
-        collections.IndexMap.set(ctx.mc_index, name, val_str_usize)
+        collections.RawIndexMap.set(ctx.mc_index, name, val_str_usize)
     }
 }
 
 /// Look up a module-level constant value by name. Returns "" if not found.
 fn cg_const_val(ctx: ref CgCtx, name: ref u8) ref u8 = trust {
-    match collections.IndexMap.get(ctx.mc_index, name) {
+    match collections.RawIndexMap.get(ctx.mc_index, name) {
         some v => { return v as ref u8 }
         none   => { return "" }
     }
