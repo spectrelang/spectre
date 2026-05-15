@@ -35,7 +35,7 @@ Then run to confirm installation:
 spectre -v
 ```
 
-The compiler is tested under MacOS aarch64 and Linux x86_64, a Windows implementation exists, though is currently not as well-maintained.
+The compiler is tested under MacOS aarch64 and Linux x86_64, a Windows implementation exists, though is currently not as maintained.
 
 An example program:
 
