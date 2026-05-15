@@ -30,12 +30,12 @@ when linux {
 
 when darwin {
     extern type Dirent = {
-        d_ino:    u64
+        d_ino:     u64
         d_seekoff: u64
-        d_reclen: u16
-        d_namlen: u16
-        d_type:   u8
-        d_name:   [1024]u8
+        d_reclen:  u16
+        d_namlen:  u16
+        d_type:    u8
+        d_name:    [1024]u8
     }
 }
 
