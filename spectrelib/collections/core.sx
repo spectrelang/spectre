@@ -12,29 +12,6 @@ val allocators = use("../allocators")
 
 val ELEMENT_SIZE: usize = 8
 
-fn alloc_in[A: allocators.GeneralAllocator](ac: A, size: usize) option[ref void] = {
-    pre {
-        size_positive: size > 0
-    }
-    return A.alloc(ac, size)
-}
-
-fn free_in[A: allocators.GeneralAllocator](ac: A, ptr: ref void) void = trust {
-    if ptr != none {
-        A.free(ac, ptr)
-    }
-}
-
-fn realloc_in[A: allocators.GeneralAllocator](ac: A, ptr: ref void, new_size: usize) option[ref void] = {
-    pre {
-        new_size_positive: new_size > 0
-    }
-    if ptr == none {
-        return A.alloc(ac, new_size)
-    }
-    return A.realloc(ac, ptr, new_size)
-}
-
 fn copy_cstr_in[A: allocators.GeneralAllocator](ac: A, src: ref u8) option[ref u8] = trust {
     val len: mut i64 = 0
     for {
@@ -42,7 +19,7 @@ fn copy_cstr_in[A: allocators.GeneralAllocator](ac: A, src: ref u8) option[ref u
         if c == 0 { break }
         len++
     }
-    val buf_opt = alloc_in[A](ac, (len + 1) as usize)
+    val buf_opt = allocators.alloc_in[A](ac, (len + 1) as usize)
     match buf_opt {
         some buf => {
             @memcpy(buf, src, len)
@@ -68,7 +45,7 @@ type PtrList = {
 
 /// Allocate a new PtrList with the given initial capacity.
 pub fn (PtrList) new[A: allocators.GeneralAllocator](ac: A, initial_cap: usize) result[ref void, ListAllocError] = trust {
-    val header_opt = alloc_in[A](ac, 24 as usize)
+    val header_opt = allocators.alloc_in[A](ac, 24 as usize)
     match header_opt {
         none => {
             return err ListAllocError.OutOfMemory
@@ -76,14 +53,14 @@ pub fn (PtrList) new[A: allocators.GeneralAllocator](ac: A, initial_cap: usize) 
         some header => {
             val buf: mut ref void = none
             if initial_cap > 0 {
-                val buf_opt = alloc_in[A](ac, initial_cap * ELEMENT_SIZE)
+                val buf_opt = allocators.alloc_in[A](ac, initial_cap * ELEMENT_SIZE)
                 match buf_opt {
                     some raw => {
                         buf = raw
                         @memset(buf, 0, initial_cap * ELEMENT_SIZE)
                     }
                     none => {
-                        free_in[A](ac, header)
+                        allocators.free_in[A](ac, header)
                         return err ListAllocError.OutOfMemory
                     }
                 }
@@ -99,8 +76,8 @@ pub fn (PtrList) new[A: allocators.GeneralAllocator](ac: A, initial_cap: usize) 
 /// Free a PtrList and its backing buffer.
 pub fn (PtrList) free[A: allocators.GeneralAllocator](ac: A, list: mut self) void = trust {
     val buf: ref void = @load(list)
-    free_in[A](ac, buf)
-    free_in[A](ac, list)
+    allocators.free_in[A](ac, buf)
+    allocators.free_in[A](ac, list)
 }
 
 /// Return the number of elements in the list.
@@ -123,7 +100,7 @@ fn (PtrList) grow[A: allocators.GeneralAllocator](ac: A, list: mut self, new_cap
     val old_cap: usize = trust @load(@ptradd(list, 16)) as usize
     val old_size: usize = old_cap * ELEMENT_SIZE
     val new_size: usize = new_cap * ELEMENT_SIZE
-    val new_buf_opt = realloc_in[A](ac, old_buf, new_size)
+    val new_buf_opt = allocators.realloc_in[A](ac, old_buf, new_size)
     val new_buf: mut ref void = none
     match new_buf_opt {
         some raw => { new_buf = raw }
@@ -257,10 +234,10 @@ pub fn (Map) new[A: allocators.GeneralAllocator](ac: A, initial_cap: usize, hash
     pre {
         cap_positive: initial_cap > 0
     }
-    val header_opt = alloc_in[A](ac, MAP_HEADER_SIZE)
+    val header_opt = allocators.alloc_in[A](ac, MAP_HEADER_SIZE)
     match header_opt {
         some header => {
-            val buckets_opt = alloc_in[A](ac, initial_cap * MAP_BUCKET_SIZE)
+            val buckets_opt = allocators.alloc_in[A](ac, initial_cap * MAP_BUCKET_SIZE)
             match buckets_opt {
                 some buckets => {
                     @memset(buckets, 0, initial_cap * MAP_BUCKET_SIZE)
@@ -271,7 +248,7 @@ pub fn (Map) new[A: allocators.GeneralAllocator](ac: A, initial_cap: usize, hash
                     return { header: header }
                 }
                 none => {
-                    free_in[A](ac, header)
+                    allocators.free_in[A](ac, header)
                     return { header: none }
                 }
             }
@@ -287,8 +264,8 @@ pub fn (Map) free[A: allocators.GeneralAllocator](ac: A, map: self) void = trust
     val header: ref void = map.header
     if header != none {
         val buckets: ref void = @load(header)
-        free_in[A](ac, buckets)
-        free_in[A](ac, header)
+        allocators.free_in[A](ac, buckets)
+        allocators.free_in[A](ac, header)
     }
 }
 
@@ -310,7 +287,7 @@ fn (Map) grow[A: allocators.GeneralAllocator](ac: A, map: mut self, new_cap: usi
     val header: ref void = map.header
     val old_buckets: ref void = @load(header)
     val old_cap: usize = @load(@ptradd(header, 16)) as usize
-    val new_buckets_opt = alloc_in[A](ac, new_cap * MAP_BUCKET_SIZE)
+    val new_buckets_opt = allocators.alloc_in[A](ac, new_cap * MAP_BUCKET_SIZE)
     match new_buckets_opt {
         some new_buckets => {
             @memset(new_buckets, 0, new_cap * MAP_BUCKET_SIZE)
@@ -329,7 +306,7 @@ fn (Map) grow[A: allocators.GeneralAllocator](ac: A, map: mut self, new_cap: usi
                 }
             }
 
-            free_in[A](ac, old_buckets)
+            allocators.free_in[A](ac, old_buckets)
         }
         none => {}
     }
@@ -732,7 +709,7 @@ pub fn (StringMap) delete[A: allocators.GeneralAllocator](ac: A, map: self, key:
         if (state == MAP_BUCKET_LIVE) {
             val existing_key: ref u8 = @load(@ptradd(slot, 8)) as ref u8
             if (str_eq(existing_key, key)) {
-                free_in[A](ac, existing_key as ref void)
+                allocators.free_in[A](ac, existing_key as ref void)
                 @store(slot, MAP_BUCKET_DEAD)
                 @store(@ptradd(header, 8), @load(@ptradd(header, 8)) - 1)
                 return 1
@@ -759,11 +736,11 @@ pub fn (StringMap) free[A: allocators.GeneralAllocator](ac: A, map: self) void =
         val state: usize = @load(slot) as usize
         if (state == MAP_BUCKET_LIVE) {
             val k: ref u8 = @load(@ptradd(slot, 8)) as ref u8
-            free_in[A](ac, k as ref void)
+            allocators.free_in[A](ac, k as ref void)
         }
     }
-    free_in[A](ac, buckets)
-    free_in[A](ac, header)
+    allocators.free_in[A](ac, buckets)
+    allocators.free_in[A](ac, header)
 }
 
 test {
@@ -889,7 +866,7 @@ pub fn (IndexMap) set[A: allocators.GeneralAllocator](ac: A, map: self, key: ref
                 val push_res = PtrList.push[A](ac, keys, copy_holder)
                 match push_res {
                     ok _  => {}
-                    err _ => { free_in[A](ac, copy as ref void) }
+                    err _ => { allocators.free_in[A](ac, copy as ref void) }
                 }
             }
             none => {}
@@ -922,7 +899,7 @@ pub fn (IndexMap) delete[A: allocators.GeneralAllocator](ac: A, map: self, key: 
                     if p != 0 {
                         val k: ref u8 = p as ref u8
                         if str_eq(k, key) {
-                            free_in[A](ac, k as ref void)
+                            allocators.free_in[A](ac, k as ref void)
                             PtrList.set(keys, i, 0 as usize)
                             break
                         }
@@ -988,7 +965,7 @@ pub fn (IndexMap) free[A: allocators.GeneralAllocator](ac: A, map: self) void = 
     for (i = 0; i < n; i++) {
         match PtrList.get(keys, i) {
             none   => {}
-            some p => { if p != 0 { free_in[A](ac, p as ref void) } }
+            some p => { if p != 0 { allocators.free_in[A](ac, p as ref void) } }
         }
     }
     PtrList.free[A](ac, keys)
