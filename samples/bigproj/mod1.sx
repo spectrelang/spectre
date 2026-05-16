@@ -1,3 +1,3 @@
 pub fn say(x: ref u8) void = {
-	@print("{s}!\n", {x})
+	trust @print("{s}!\n", {x})
 }
