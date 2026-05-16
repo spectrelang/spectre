@@ -1,10 +1,25 @@
 val stdio = use("../stdio")
+val allocators = use("../allocators")
 
 pub enum ThreadError = {
+    OutOfMemory,
     CreateFailed,
     JoinFailed,
     DetachFailed,
     AlreadyJoined
+}
+
+fn alloc_in[A: allocators.GeneralAllocator](ac: A, size: usize) option[ref void] = {
+    pre {
+        size_positive: size > 0
+    }
+    return A.alloc(ac, size)
+}
+
+fn free_in[A: allocators.GeneralAllocator](ac: A, ptr: ref void) void = trust {
+    if ptr != none {
+        A.free(ac, ptr)
+    }
 }
 
 /// Opaque thread handle — wraps pthread_t on POSIX, HANDLE on Windows.
@@ -30,41 +45,66 @@ when windows {
 }
 
 /// Create a new thread running `entry` with the given `arg`.
-pub fn (Thread) new(entry: fn(ref void) ref void, arg: ref void) result[ref void, ThreadError] = trust {
+pub fn (Thread) new[A: allocators.GeneralAllocator](ac: A, entry: fn(ref void) ref void, arg: ref void) result[ref void, ThreadError] = trust {
     val handle_size: usize = 8
-    val handle: ref void = @alloc(handle_size)
-    @memset(handle, 0, handle_size)
+    val handle_opt = alloc_in[A](ac, handle_size)
+    match handle_opt {
+        none => {
+            return err ThreadError.OutOfMemory
+        }
+        some handle => {
+            @memset(handle, 0, handle_size)
 
-    val entry_addr: usize = entry as usize
+            val entry_addr: usize = entry as usize
 
-    when posix {
-        val rc: i32 = pthread_create(handle, none, entry_addr, arg)
-        if (rc != 0) {
-            @free(handle)
-            return err ThreadError.CreateFailed
+            when posix {
+                val rc: i32 = pthread_create(handle, none, entry_addr, arg)
+                if (rc != 0) {
+                    A.free(ac, handle)
+                    return err ThreadError.CreateFailed
+                }
+            }
+            when windows {
+                val thread_id: ref u32 = none
+                val h: ref void = CreateThread(none, 0 as usize, entry_addr, arg, 0 as u32, thread_id)
+                if (h == none) {
+                    A.free(ac, handle)
+                    return err ThreadError.CreateFailed
+                }
+                @store(handle, h)
+            }
+
+            val thread_opt = A.alloc(ac, 16 as usize)
+            match thread_opt {
+                none => {
+                    when posix {
+                        val pthread_id: usize = @load(handle) as usize
+                        pthread_detach(@bitcast(pthread_id, ref void))
+                    }
+                    when windows {
+                        val h: ref void = @load(handle)
+                        if h != none {
+                            CloseHandle(h)
+                        }
+                    }
+                    free_in[A](ac, handle)
+                    return err ThreadError.OutOfMemory
+                }
+                some thread => {
+                    @store(thread, handle)
+                    @store(@ptradd(thread, 8), false)
+                    return ok thread
+                }
+            }
         }
     }
-    when windows {
-        val thread_id: ref u32 = none
-        val h: ref void = CreateThread(none, 0 as usize, entry_addr, arg, 0 as u32, thread_id)
-        if (h == none) {
-            @free(handle)
-            return err ThreadError.CreateFailed
-        }
-        @store(handle, h)
-    }
-
-    val thread: ref void = @alloc(16)
-    @store(thread, handle)
-    @store(@ptradd(thread, 8), false)
-    return ok thread
 }
 
 /// Join a thread, blocking until it completes.
 /// Returns the thread's return value, or an error if the thread cannot be joined.
 ///
 /// A thread can only be joined once. Subsequent calls will return AlreadyJoined.
-pub fn (Thread) join(thread: self) result[ref void, ThreadError] = trust {
+pub fn (Thread) join[A: allocators.GeneralAllocator](ac: A, thread: self) result[ref void, ThreadError] = trust {
     val already_joined: bool = @load(@ptradd(thread, 8)) as bool
     if (already_joined) {
         return err ThreadError.AlreadyJoined
@@ -83,7 +123,7 @@ pub fn (Thread) join(thread: self) result[ref void, ThreadError] = trust {
             return err ThreadError.JoinFailed
         }
         @store(@ptradd(thread, 8), true)
-        @free(handle)
+        free_in[A](ac, handle)
         return ok retval
     }
     when windows {
@@ -96,6 +136,7 @@ pub fn (Thread) join(thread: self) result[ref void, ThreadError] = trust {
         }
         @store(@ptradd(thread, 8), true)
         CloseHandle(h)
+        free_in[A](ac, handle)
     }
     return ok none
 }
@@ -103,7 +144,7 @@ pub fn (Thread) join(thread: self) result[ref void, ThreadError] = trust {
 /// Detach a thread, allowing it to run independently.
 /// Detached threads automatically release resources when they complete.
 /// Returns an error if detachment fails.
-pub fn (Thread) detach(thread: self) result[void, ThreadError] = trust {
+pub fn (Thread) detach[A: allocators.GeneralAllocator](ac: A, thread: self) result[void, ThreadError] = trust {
     val already_joined: bool = @load(@ptradd(thread, 8)) as bool
     if (already_joined) {
         return err ThreadError.AlreadyJoined
@@ -118,18 +159,20 @@ pub fn (Thread) detach(thread: self) result[void, ThreadError] = trust {
             return err ThreadError.DetachFailed
         }
         @store(@ptradd(thread, 8), true)
-        @free(handle)
+        free_in[A](ac, handle)
     }
     when windows {
-        CloseHandle(handle)
+        val h: ref void = @load(handle)
+        CloseHandle(h)
         @store(@ptradd(thread, 8), true)
+        free_in[A](ac, handle)
     }
     return ok ()
 }
 
 /// Free a thread handle after it has been joined or detached.
-pub fn (Thread) free(thread: mut self) void = trust {
-    @free(thread)
+pub fn (Thread) free[A: allocators.GeneralAllocator](ac: A, thread: mut self) void = trust {
+    free_in[A](ac, thread)
 }
 
 /// Get the current thread's ID.
@@ -190,22 +233,29 @@ when linux {
 
 /// Create and initialize a new mutex.
 /// Returns the mutex handle or none on failure.
-pub fn (Mutex) new() option[ref void] = trust {
-    val m: ref void = @alloc(MUTEX_SIZE)
-    @memset(m, 0, MUTEX_SIZE)
-
-    when posix {
-        val rc: i32 = pthread_mutex_init(m, none)
-        if (rc != 0) {
-            @free(m)
+pub fn (Mutex) new[A: allocators.GeneralAllocator](ac: A) option[ref void] = trust {
+    val m_opt = A.alloc(ac, MUTEX_SIZE)
+    match m_opt {
+        none => {
             return none
         }
-    }
-    when windows {
-        InitializeCriticalSection(m)
-    }
+        some m => {
+            @memset(m, 0, MUTEX_SIZE)
 
-    return some m
+            when posix {
+                val rc: i32 = pthread_mutex_init(m, none)
+                if (rc != 0) {
+                    free_in[A](ac, m)
+                    return none
+                }
+            }
+            when windows {
+                InitializeCriticalSection(m)
+            }
+
+            return some m
+        }
+    }
 }
 
 /// Lock a mutex, blocking until it becomes available.
@@ -229,14 +279,14 @@ pub fn (Mutex) unlock(m: self) void = trust {
 }
 
 /// Destroy and free a mutex.
-pub fn (Mutex) free(m: mut self) void = trust {
+pub fn (Mutex) free[A: allocators.GeneralAllocator](ac: A, m: mut self) void = trust {
     when posix {
         pthread_mutex_destroy(m)
     }
     when windows {
         DeleteCriticalSection(m)
     }
-    @free(m)
+    free_in[A](ac, m)
 }
 
 fn thread_test_entry(arg: ref void) ref void = {
@@ -247,16 +297,14 @@ fn thread_test_entry(arg: ref void) ref void = {
 }
 
 test {
+    val ac: allocators.HeapAllocator = @zeroed
     val counter: ref void = @alloc(8)
     trust @store(counter, 0)
 
-    val t: mut Thread = trust Thread.new(thread_test_entry, counter)?
-    defer {
-        trust Thread.free(t)
-    }
+    val t: Thread = trust Thread.new[?](ac, thread_test_entry, counter)?
     stdio.puts("it worked :D")
 
-    trust Thread.join(t)?
+    trust Thread.join[?](ac, t)?
     stdio.puts("it worked :D2")
 
     val final_val: i64 = trust @load(counter)
@@ -264,11 +312,10 @@ test {
 
     assert final_val == 1
 
-
-    match trust Mutex.new() {
+    match trust Mutex.new[?](ac) {
         some m => {
             defer {
-                trust Mutex.free(m)
+                trust Mutex.free[?](ac, m)
             }
             stdio.puts("it worked :D4")
 
