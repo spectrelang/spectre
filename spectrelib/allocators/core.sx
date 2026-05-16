@@ -259,6 +259,19 @@ pub fn (HeapAllocator) realloc(_: self, ptr: ref void, new_size: usize) option[r
 }
 
 
+pub fn alloc_in[A: allocators.GeneralAllocator](ac: A, size: usize) option[ref void] = {
+    pre {
+        size_positive: size > 0
+    }
+    return A.alloc(ac, size)
+}
+
+pub fn free_in[A: allocators.GeneralAllocator](ac: A, ptr: ref void) void = trust {
+    if ptr != none {
+        A.free(ac, ptr)
+    }
+}
+
 test {
     val alloc: HeapAllocator = @zeroed
     val p1 = trust HeapAllocator.alloc(alloc, 16 as usize)

@@ -74,19 +74,6 @@ type Response = {
 type I32Slot = { value: mut i32 }
 type I64Slot = { value: mut i64 }
 
-fn alloc_in[A: allocators.GeneralAllocator](ac: A, size: usize) option[ref void] = {
-    pre {
-        size_positive: size > 0
-    }
-    return A.alloc(ac, size)
-}
-
-fn free_in[A: allocators.GeneralAllocator](ac: A, ptr: ref void) void = trust {
-    if ptr != none {
-        A.free(ac, ptr)
-    }
-}
-
 /// Internal write callback for curl.
 /// Signature matches: size_t write_fn(u8 *ptr, size_t size, size_t nmemb, void *userdata)
 pub fn curl_write_cb(ptr: ref void, size: i64, nmemb: i64, userdata: ref void) i64 = trust {
@@ -165,7 +152,7 @@ fn do_request[A: allocators.GeneralAllocator](ac: A, handle: ref void) ref Respo
     val body_len: i64      = buf.len
     @free(buf as ref void)
 
-    val body_copy_opt = alloc_in[A](ac, (body_len + 1) as usize)
+    val body_copy_opt = allocators.alloc_in[A](ac, (body_len + 1) as usize)
     match body_copy_opt {
         none => {
             @free(body_ptr)
@@ -175,10 +162,10 @@ fn do_request[A: allocators.GeneralAllocator](ac: A, handle: ref void) ref Respo
             memcpy(body_copy, body_ptr, body_len + 1)
             @free(body_ptr)
 
-            val resp_opt = alloc_in[A](ac, 24 as usize)
+            val resp_opt = allocators.alloc_in[A](ac, 24 as usize)
             match resp_opt {
                 none => {
-                    free_in[A](ac, body_copy)
+                    allocators.free_in[A](ac, body_copy)
                     return none
                 }
                 some resp_raw => {
@@ -267,8 +254,8 @@ pub fn (Http) request[A: allocators.GeneralAllocator](ac: A, method: ref u8, url
 
 /// Free a Response returned by Http.get / Http.post / Http.request with the same allocator used to create it.
 pub fn (Http) free_response[A: allocators.GeneralAllocator](ac: A, resp: ref Response) void = trust {
-    free_in[A](ac, resp.body as ref void)
-    free_in[A](ac, resp as ref void)
+    allocators.free_in[A](ac, resp.body as ref void)
+    allocators.free_in[A](ac, resp as ref void)
 }
 
 /// Read the HTTP status code from a Response.
@@ -334,7 +321,7 @@ pub fn (TcpServer) listen[A: allocators.GeneralAllocator](ac: A, port: i32) ref 
     listen(fd, 128 as i32)
     @free(address)
 
-    val handle_opt = alloc_in[A](ac, 16 as usize)
+    val handle_opt = allocators.alloc_in[A](ac, 16 as usize)
     match handle_opt {
         none => {
             close(fd)
@@ -375,7 +362,7 @@ pub fn (TcpServer) close_client(client_fd: i32) void = trust {
 /// Shut down and free the server handle.
 pub fn (TcpServer) close[A: allocators.GeneralAllocator](ac: A, server: ref ServerHandle) void = trust {
     close(server.fd)
-    free_in[A](ac, server as ref void)
+    allocators.free_in[A](ac, server as ref void)
 }
 
 /// Read the listening port from a server handle.
