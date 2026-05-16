@@ -259,20 +259,31 @@ pub fn (HeapAllocator) realloc(_: self, ptr: ref void, new_size: usize) option[r
 }
 
 
-pub fn alloc_in[A: allocators.GeneralAllocator](ac: A, size: usize) option[ref void] = {
+pub fn bump_alloc_unwrap[A: Allocator](ac: A, size: usize) ref void= {
+    pre {
+        size_positive: size > 0
+    }
+    val opt = A.alloc(ac, size)
+    if opt is some v {
+        return v
+    }
+    return none
+}
+
+pub fn alloc_in[A: GeneralAllocator](ac: A, size: usize) option[ref void] = {
     pre {
         size_positive: size > 0
     }
     return A.alloc(ac, size)
 }
 
-pub fn free_in[A: allocators.GeneralAllocator](ac: A, ptr: ref void) void = trust {
+pub fn free_in[A: GeneralAllocator](ac: A, ptr: ref void) void = trust {
     if ptr != none {
         A.free(ac, ptr)
     }
 }
 
-pub fn realloc_in[A: allocators.GeneralAllocator](ac: A, ptr: ref void, new_size: usize) option[ref void] = {
+pub fn realloc_in[A: GeneralAllocator](ac: A, ptr: ref void, new_size: usize) option[ref void] = {
     pre {
         new_size_positive: new_size > 0
     }

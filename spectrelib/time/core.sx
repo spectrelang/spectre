@@ -1,4 +1,5 @@
 val stdio = use("../stdio")
+val allocators = use("../allocators")
 
 extern (C) fn localtime(timep: ref i64) ref void = "localtime"
 extern (C) fn gettimeofday(tv: ref TimeVal, tz: ref void) i32 = "gettimeofday"
@@ -18,18 +19,19 @@ extern type TimeVal = {
 
 /// A DateTime holds a calendar date and wall-clock time.
 type DateTime = {
-    year:   i64
-    month:  i64
-    day:    i64
-    hour:   i64
-    minute: i64
-    second: i64
-    millis: i64
+    year:   mut i64
+    month:  mut i64
+    day:    mut i64
+    hour:   mut i64
+    minute: mut i64
+    second: mut i64
+    millis: mut i64
 }
 
 /// Allocate and return a new DateTime on the heap.
 /// All fields are validated on construction.
-pub fn (DateTime) new(
+pub fn (DateTime) new[A: allocators.Allocator](
+    ac: A,
     year: i64, 
     month: i64, 
     day: i64, 
@@ -46,35 +48,30 @@ pub fn (DateTime) new(
         valid_second : second >= 0  && second <= 59
         valid_millis : millis >= 0  && millis <= 999
     }
-    val ptr: DateTime = {
-        year: year
-        month: month
-        day: day
-        hour: hour
-        minute: minute
-        second: second
-        millis: millis
-    }
-    return ptr
-}
 
-/// Free a heap-allocated DateTime.
-pub fn (DateTime) free(dt: mut self) void = trust {
-    @free(dt)
+    val ptr: mut ref DateTime = A.alloc(ac, @sizeof(DateTime)) as ref DateTime
+
+    ptr.year = year
+    ptr.month = month
+    ptr.day = day
+    ptr.hour = hour
+    ptr.minute = minute
+    ptr.second = second
+    ptr.millis = millis
+    
+    return ptr
 }
 
 /// Return the current local time as a DateTime.
 /// Wraps the C `localtime` / `gettimeofday` pair.
-pub fn (DateTime) now() DateTime = {
-    val tv: ref TimeVal = @alloc(@sizeof(TimeVal))
+pub fn (DateTime) now[A: allocators.Allocator](ac: A) DateTime = {
+    val tv: ref TimeVal = A.alloc(ac, @sizeof(TimeVal))
 
     trust gettimeofday(tv, 0)
 
     val seconds: mut i64 = tv.tv_sec
     val usecs:   i64 = tv.tv_usec
     val tm: ref void = trust localtime(@addr(seconds))
-
-    trust @free(tv)
 
     val year:   i64 = ((trust @load(@ptradd(tm, 20))) & 0xFFFFFFFF) as i64
     val month:  i64 = ((trust @load(@ptradd(tm, 16))) & 0xFFFFFFFF) as i64
@@ -84,33 +81,30 @@ pub fn (DateTime) now() DateTime = {
     val second: i64 = ((trust @load(@ptradd(tm, 0)))  & 0xFFFFFFFF) as i64
     val millis: i64 = usecs / 1000
 
-    return DateTime.new(year + 1900, month + 1, day, hour, minute, second, millis)
+    return DateTime.new[A](ac, year + 1900, month + 1, day, hour, minute, second, millis)
 }
 
 /// Return the current Unix timestamp in seconds since epoch.
-pub fn unix_now() i64 = {
-    val tv: ref TimeVal = @alloc(@sizeof(TimeVal))
+pub fn unix_now[A: allocators.Allocator](ac: A) i64 = {
+    val tv: ref TimeVal = allocators.bump_alloc_unwrap[A](ac, @sizeof(TimeVal))
     trust gettimeofday(tv, 0)
     val seconds: i64 = tv.tv_sec
-    trust @free(tv)
     return seconds
 }
 
 /// Return the current Unix timestamp in milliseconds since epoch.
-pub fn unix_now_millis() i64 = {
-    val tv: ref TimeVal = @alloc(@sizeof(TimeVal))
+pub fn unix_now_millis[A: allocators.Allocator](ac: A) i64 = {
+    val tv: ref TimeVal = allocators.bump_alloc_unwrap[A](ac, @sizeof(TimeVal))
     trust gettimeofday(tv, 0)
     val millis: i64 = tv.tv_sec * 1000 + tv.tv_usec / 1000
-    trust @free(tv)
     return millis
 }
 
 /// Return the current Unix timestamp in microseconds since epoch.
-pub fn unix_now_micros() i64 = {
-    val tv: ref TimeVal = @alloc(@sizeof(TimeVal))
+pub fn unix_now_micros[A: allocators.Allocator](ac: A) i64 = {
+    val tv: ref TimeVal = allocators.bump_alloc_unwrap[A](ac, @sizeof(TimeVal))
     trust gettimeofday(tv, 0)
     val micros: i64 = tv.tv_sec * 1000000 + tv.tv_usec
-    trust @free(tv)
     return micros
 }
 
@@ -193,11 +187,11 @@ pub fn (DateTime) to_unix(dt: self) i64 = {
     val h:  i64 = DateTime.hour(dt)
     val mi: i64 = DateTime.minute(dt)
     val s:  i64 = DateTime.second(dt)
-    val years_since: i64 = y - 1970
-    val leap_days:   i64 = (years_since - 1) / 4
+    val years_since: i64  = y - 1970
+    val leap_days:   i64  = (years_since - 1) / 4
     val days_in_year: i64 = years_since * 365 + leap_days
-    val month_days: i64 = (mo - 1) * 30 + (mo - 1) / 2
-    val total_days: i64 = days_in_year + month_days + (d - 1)
+    val month_days: i64   = (mo - 1) * 30 + (mo - 1) / 2
+    val total_days: i64   = days_in_year + month_days + (d - 1)
     return total_days * 86400 + h * 3600 + mi * 60 + s
 }
 
@@ -272,9 +266,9 @@ pub fn (DateTime) diff_seconds(a: self, b: self) i64 = {
     return ua - ub
 }
 
-
 test {
-    val dt: mut DateTime = DateTime.new(2026, 4, 2, 14, 30, 0, 0)
+    val ac: mut allocators.Arena = trust allocators.Arena.new(10240 as usize)?
+    val dt: DateTime = DateTime.new[?](ac, 2026, 4, 2, 14, 30, 0, 0)
     assert DateTime.year(dt)   == 2026
     assert DateTime.month(dt)  == 4
     assert DateTime.day(dt)    == 2
@@ -282,22 +276,18 @@ test {
     assert DateTime.minute(dt) == 30
     assert DateTime.second(dt) == 0
     assert DateTime.millis(dt) == 0
-
     assert DateTime.is_leap_year(dt) == false
     assert DateTime.days_in_month(dt) == 30
 
-    val dt2: mut DateTime = DateTime.new(2024, 2, 1, 0, 0, 0, 0)
+    val dt2: DateTime = DateTime.new[?](ac, 2024, 2, 1, 0, 0, 0, 0)
     assert DateTime.is_leap_year(dt2) == true
     assert DateTime.days_in_month(dt2) == 29
-
     assert DateTime.before(dt2, dt) == true
     assert DateTime.after(dt, dt2)  == true
     assert DateTime.equals(dt, dt)  == true
-    assert unix_now_millis() >= unix_now() * 1000
-    assert unix_now_micros() >= unix_now_millis() * 1000
-
-    trust stdio.print("year: {d}\n", {DateTime.now().year})
-
-    trust DateTime.free(dt)
-    trust DateTime.free(dt2)
+    assert unix_now_millis[?](ac) >= unix_now[?](ac) * 1000
+    assert unix_now_micros[?](ac) >= unix_now_millis[?](ac) * 1000
+    
+    trust stdio.print("year: {d}\n", {DateTime.now[?](ac).year})
+    trust allocators.Arena.free(ac)
 }
