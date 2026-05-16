@@ -1,3 +1,7 @@
+val stdio      = use("../stdio")
+val str        = use("../string")
+val allocators = use("../allocators")
+
 extern (C) fn fopen(path: ref u8, mode: ref u8) ref void = "fopen"
 extern (C) fn fclose(stream: ref void) i32 = "fclose"
 extern (C) fn fread(buf: ref void, size: usize, count: usize, stream: ref void) usize = "fread"
@@ -763,6 +767,4 @@ pub fn walk_dir_raw(path: ref u8) option[list[ref u8]] = trust {
     closedir(dir)
     return some result
 }
-val stdio = use("../stdio")
-val str = use("../string")
-val allocators = use("../allocators")
+
