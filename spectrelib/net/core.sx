@@ -1,5 +1,7 @@
 link "-lcurl"
 
+val allocators = use("../allocators")
+
 when darwin {
     link "-L/opt/homebrew/opt/curl/lib"
     link "-framework CoreFoundation"
@@ -59,9 +61,10 @@ type Buffer = {
     data: mut ref void
     len:  mut i64
     cap:  mut i64
+    failed: mut bool
 }
 
-/// A heap-allocated HTTP response.
+/// An owned HTTP response.
 type Response = {
     body:   mut ref u8
     status: mut i64
@@ -70,6 +73,19 @@ type Response = {
 
 type I32Slot = { value: mut i32 }
 type I64Slot = { value: mut i64 }
+
+fn alloc_in[A: allocators.GeneralAllocator](ac: A, size: usize) option[ref void] = {
+    pre {
+        size_positive: size > 0
+    }
+    return A.alloc(ac, size)
+}
+
+fn free_in[A: allocators.GeneralAllocator](ac: A, ptr: ref void) void = trust {
+    if ptr != none {
+        A.free(ac, ptr)
+    }
+}
 
 /// Internal write callback for curl.
 /// Signature matches: size_t write_fn(u8 *ptr, size_t size, size_t nmemb, void *userdata)
@@ -80,7 +96,12 @@ pub fn curl_write_cb(ptr: ref void, size: i64, nmemb: i64, userdata: ref void) i
 
     if (new_len + 1 > buf.cap) {
         val new_cap: i64 = (new_len + 1) * 2
-        buf.data = @realloc(buf.data, new_cap)
+        val resized: ref void = @realloc(buf.data, new_cap)
+        if resized == none {
+            buf.failed = true
+            return 0
+        }
+        buf.data = resized
         buf.cap  = new_cap
         memcpy(@ptradd(buf.data, buf.len), ptr, total)
         @store(@ptradd(buf.data, new_len), 0)
@@ -94,23 +115,47 @@ pub fn curl_write_cb(ptr: ref void, size: i64, nmemb: i64, userdata: ref void) i
 }
 
 fn buf_new() ref Buffer = trust {
-    val b: mut ref Buffer = @alloc(24) as mut ref Buffer
-    b.data = @alloc(256)
+    val b_raw: ref void = @alloc(32)
+    if b_raw == none {
+        return none
+    }
+    val data: ref void = @alloc(256)
+    if data == none {
+        @free(b_raw)
+        return none
+    }
+    val b: mut ref Buffer = b_raw as mut ref Buffer
+    b.data = data
     b.len  = 0
     b.cap  = 256
+    b.failed = false
     return b
 }
 
 /// Perform a curl request, capturing the response body via the write callback.
-/// Returns a heap-allocated Response.
-fn do_request(handle: ref void) ref Response = trust {
+/// Returns a Response allocated with the provided allocator.
+fn do_request[A: allocators.GeneralAllocator](ac: A, handle: ref void) ref Response = trust {
     val buf: ref Buffer = buf_new()
+    if buf == none {
+        return none
+    }
 
     curl_easy_setopt(handle, CURLOPT_WRITEFUNCTION, @addr(curl_write_cb))
     curl_easy_setopt(handle, CURLOPT_WRITEDATA,     buf as ref void)
     curl_easy_perform(handle)
 
+    if buf.failed {
+        @free(buf.data)
+        @free(buf as ref void)
+        return none
+    }
+
     val sc: mut ref I64Slot = @alloc(8) as mut ref I64Slot
+    if sc == none {
+        @free(buf.data)
+        @free(buf as ref void)
+        return none
+    }
     sc.value = 0
     curl_easy_getinfo(handle, CURLINFO_RESPONSE_CODE, sc as ref void)
     val status: i64 = sc.value
@@ -120,11 +165,32 @@ fn do_request(handle: ref void) ref Response = trust {
     val body_len: i64      = buf.len
     @free(buf as ref void)
 
-    val resp: mut ref Response = @alloc(24) as mut ref Response
-    resp.body   = body_ptr as ref u8
-    resp.status = status
-    resp.len    = body_len
-    return resp
+    val body_copy_opt = alloc_in[A](ac, (body_len + 1) as usize)
+    match body_copy_opt {
+        none => {
+            @free(body_ptr)
+            return none
+        }
+        some body_copy => {
+            memcpy(body_copy, body_ptr, body_len + 1)
+            @free(body_ptr)
+
+            val resp_opt = alloc_in[A](ac, 24 as usize)
+            match resp_opt {
+                none => {
+                    free_in[A](ac, body_copy)
+                    return none
+                }
+                some resp_raw => {
+                    val resp: mut ref Response = resp_raw as mut ref Response
+                    resp.body   = body_copy as ref u8
+                    resp.status = status
+                    resp.len    = body_len
+                    return resp
+                }
+            }
+        }
+    }
 }
 
 type Http = {}
@@ -145,26 +211,32 @@ pub fn (Http) cleanup() void = trust {
 }
 
 /// Perform an HTTP GET request.
-/// Returns a heap-allocated Response; caller must call Http.free_response().
-pub fn (Http) get(url: ref u8) ref Response = trust {
+/// Returns a Response allocated with the provided allocator; caller must call Http.free_response().
+pub fn (Http) get[A: allocators.GeneralAllocator](ac: A, url: ref u8) ref Response = trust {
     val handle: ref void = curl_easy_init()
+    if handle == none {
+        return none
+    }
     curl_easy_setopt(handle, CURLOPT_URL, url)
-    val resp: ref Response = do_request(handle)
+    val resp: ref Response = do_request[A](ac, handle)
     curl_easy_cleanup(handle)
     return resp
 }
 
 /// Perform an HTTP POST request with a body string.
-/// Returns a heap-allocated Response; caller must call Http.free_response().
-pub fn (Http) post_request(url: ref u8, body: ref u8, content_type: ref u8) ref Response = trust {
+/// Returns a Response allocated with the provided allocator; caller must call Http.free_response().
+pub fn (Http) post_request[A: allocators.GeneralAllocator](ac: A, url: ref u8, body: ref u8, content_type: ref u8) ref Response = trust {
     val handle: ref void  = curl_easy_init()
+    if handle == none {
+        return none
+    }
     val headers: ref void = curl_slist_append(none, content_type)
 
     curl_easy_setopt(handle, CURLOPT_URL,        url)
     curl_easy_setopt(handle, CURLOPT_POSTFIELDS,  body)
     curl_easy_setopt(handle, CURLOPT_HTTPHEADER,  headers)
 
-    val resp: ref Response = do_request(handle)
+    val resp: ref Response = do_request[A](ac, handle)
 
     curl_slist_free_all(headers)
     curl_easy_cleanup(handle)
@@ -172,8 +244,11 @@ pub fn (Http) post_request(url: ref u8, body: ref u8, content_type: ref u8) ref 
 }
 
 /// Perform an arbitrary HTTP request (GET, POST, PUT, DELETE, PATCH …).
-pub fn (Http) request(method: ref u8, url: ref u8, body: ref u8, headers: ref void) ref Response = trust {
+pub fn (Http) request[A: allocators.GeneralAllocator](ac: A, method: ref u8, url: ref u8, body: ref u8, headers: ref void) ref Response = trust {
     val handle: ref void = curl_easy_init()
+    if handle == none {
+        return none
+    }
 
     curl_easy_setopt(handle, CURLOPT_URL,           url)
     curl_easy_setopt(handle, CURLOPT_CUSTOMREQUEST,  method)
@@ -185,15 +260,15 @@ pub fn (Http) request(method: ref u8, url: ref u8, body: ref u8, headers: ref vo
         curl_easy_setopt(handle, CURLOPT_HTTPHEADER, headers)
     }
 
-    val resp: ref Response = do_request(handle)
+    val resp: ref Response = do_request[A](ac, handle)
     curl_easy_cleanup(handle)
     return resp
 }
 
-/// Free a Response returned by Http.get / Http.post / Http.request.
-pub fn (Http) free_response(resp: ref Response) void = trust {
-    @free(resp.body as ref void)
-    @free(resp as ref void)
+/// Free a Response returned by Http.get / Http.post / Http.request with the same allocator used to create it.
+pub fn (Http) free_response[A: allocators.GeneralAllocator](ac: A, resp: ref Response) void = trust {
+    free_in[A](ac, resp.body as ref void)
+    free_in[A](ac, resp as ref void)
 }
 
 /// Read the HTTP status code from a Response.
@@ -229,8 +304,8 @@ pub fn (Http) free_headers(list: ref void) void = trust {
 type TcpServer = {}
 
 /// Create a TCP server bound to `port` and start listening.
-/// Returns a heap-allocated server handle; caller must call TcpServer.close().
-pub fn (TcpServer) listen(port: i32) ref ServerHandle = trust {
+/// Returns a server handle allocated with the provided allocator; caller must call TcpServer.close().
+pub fn (TcpServer) listen[A: allocators.GeneralAllocator](ac: A, port: i32) ref ServerHandle = trust {
     val sock_stream: i32 = 1
     val fd: i32 = socket(AF_INET, sock_stream, IPPROTO_TCP)
     val sol_socket:   mut i32 = 1
@@ -259,10 +334,19 @@ pub fn (TcpServer) listen(port: i32) ref ServerHandle = trust {
     listen(fd, 128 as i32)
     @free(address)
 
-    val handle: mut ref ServerHandle = @alloc(16) as mut ref ServerHandle
-    handle.port = port as i64
-    handle.fd   = fd
-    return handle
+    val handle_opt = alloc_in[A](ac, 16 as usize)
+    match handle_opt {
+        none => {
+            close(fd)
+            return none
+        }
+        some handle_raw => {
+            val handle: mut ref ServerHandle = handle_raw as mut ref ServerHandle
+            handle.port = port as i64
+            handle.fd   = fd
+            return handle
+        }
+    }
 }
 
 /// Accept the next incoming connection.
@@ -289,9 +373,9 @@ pub fn (TcpServer) close_client(client_fd: i32) void = trust {
 }
 
 /// Shut down and free the server handle.
-pub fn (TcpServer) close(server: ref ServerHandle) void = trust {
+pub fn (TcpServer) close[A: allocators.GeneralAllocator](ac: A, server: ref ServerHandle) void = trust {
     close(server.fd)
-    @free(server as ref void)
+    free_in[A](ac, server as ref void)
 }
 
 /// Read the listening port from a server handle.
@@ -307,10 +391,11 @@ pub fn (TcpServer) fd(server: ref ServerHandle) i32 = {
 val stdio = use("../stdio")
 
 test {
+    val ac: allocators.HeapAllocator = @zeroed
     Http.init()
 
     val url: ref u8        = "https://example.com"
-    val resp: ref Response = trust Http.get(url)
+    val resp: ref Response = trust Http.get[?](ac, url)
     assert resp != none
 
     val status: i64      = Http.status(resp)
@@ -324,15 +409,15 @@ test {
     assert status > 0
     assert body_ptr != none
     assert body_len >= 0
-    trust Http.free_response(resp)
+    trust Http.free_response[?](ac, resp)
 
-    val server: ref ServerHandle = trust TcpServer.listen(8080 as i32)
+    val server: ref ServerHandle = trust TcpServer.listen[?](ac, 8080 as i32)
     assert server != none
     val listen_fd: i32    = TcpServer.fd(server)
     val listen_port: i64  = TcpServer.port(server)
     assert listen_fd > 0
     assert listen_port == 8080
 
-    trust TcpServer.close(server)
+    trust TcpServer.close[?](ac, server)
     trust Http.cleanup()
 }
