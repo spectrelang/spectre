@@ -102,6 +102,92 @@ pub fn dir(path: ref u8) ref u8 = trust {
     return buf
 }
 
-test {
+pub fn canonicalize_path(path: ref u8) ref u8 = trust {
+    if path == none { return path }
+    val len: i64 = str.len_raw(path)
+    if len == 0 { return path }
+    val is_abs: bool = @load8(@ptradd(path as ref void, 0)) == 47
+    val keep_dot_prefix: bool = len >= 2 &&
+                                @load8(@ptradd(path as ref void, 0)) == 46 &&
+                                @load8(@ptradd(path as ref void, 1)) == 47
+    val segs: mut list[ref u8] = []
+    val i: mut i64 = 0
+    for {
+        if i >= len { break }
+        val c: u8 = @load8(@ptradd(path as ref void, i))
+        if c == 47 {
+            i++
+            continue
+        }
+        val start: i64 = i
+        for {
+            if i >= len { break }
+            val c2: u8 = @load8(@ptradd(path as ref void, i))
+            if c2 == 47 { break }
+            i++
+        }
+        val seg_len: i64 = i - start
+        val seg: ref u8 = @alloc((seg_len + 1) as usize) as ref u8
+        @memcpy(seg as ref void, @ptradd(path as ref void, start), seg_len as usize)
+        @store8(@ptradd(seg as ref void, seg_len), 0)
+        if str.rchar_cmp(seg, ".") == 0 {
+            continue
+        }
+        if str.rchar_cmp(seg, "..") == 0 {
+            val segs_len: i64 = @len(segs) as i64
+            if segs_len > 0 {
+                val last_opt = @get(segs, (segs_len - 1) as usize)
+                match last_opt {
+                    some last => {
+                        if str.rchar_cmp(last as ref u8, "..") != 0 {
+                            @remove(segs, segs_len - 1)
+                        } elif !is_abs {
+                            @append(segs, seg)
+                        }
+                    }
+                    none => {
+                        if !is_abs { @append(segs, seg) }
+                    }
+                }
+            } elif !is_abs {
+                @append(segs, seg)
+            }
+            continue
+        }
+        @append(segs, seg)
+    }
+    val sb: ref void = str.StringBuilder.new()
+    if is_abs {
+        str.StringBuilder.append_char(sb, 47 as u8)
+    }
+    val si: mut i64 = 0
+    for {
+        if si >= @len(segs) as i64 { break }
+        val s_opt = @get(segs, si as usize)
+        match s_opt {
+            some s => {
+                if si > 0 { str.StringBuilder.append_char(sb, 47 as u8) }
+                str.StringBuilder.append_cstr(sb, s as ref u8)
+            }
+            none => {}
+        }
+        si++
+    }
+    val built: ref void = str.StringBuilder.build(sb)
+    val out: ref u8 = str.cstr(built)
+    str.StringBuilder.free(sb)
+    if str.len_raw(out) == 0 {
+        if is_abs { return "/" }
+        return "."
+    }
+    if keep_dot_prefix && @load8(@ptradd(out as ref void, 0)) != 46 {
+        return @fmt("./{s}", {out})
+    }
+    return out
+}
 
+test {
+    assert str.rchar_cmp(trust canonicalize_path("./samples/bigproj/hi/../mod1.sx"), "./samples/bigproj/mod1.sx") == 0
+    assert str.rchar_cmp(trust canonicalize_path("samples/bigproj/hi//../mod1.sx"), "samples/bigproj/mod1.sx") == 0
+    assert str.rchar_cmp(trust canonicalize_path("../samples/../mod1.sx"), "../mod1.sx") == 0
 }
