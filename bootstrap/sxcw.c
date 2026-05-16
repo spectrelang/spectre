@@ -5599,6 +5599,18 @@ int64_t std__string__substr(int64_t,int64_t,int64_t);
 int32_t std__string__copy(int64_t,int64_t,int64_t);
 int64_t os__getenv(int64_t);
 int64_t std__os__getenv(int64_t);
+int32_t os__mkdir(int64_t,uint32_t);
+int32_t std__os__mkdir(int64_t,uint32_t);
+int32_t os__rmdir(int64_t);
+int32_t std__os__rmdir(int64_t);
+int64_t os__opendir(int64_t);
+int64_t std__os__opendir(int64_t);
+int32_t os__closedir(int64_t);
+int32_t std__os__closedir(int64_t);
+int64_t os__readdir(int64_t);
+int64_t std__os__readdir(int64_t);
+int32_t os__exit(int64_t);
+int32_t std__os__exit(int64_t);
 int64_t os__fopen(int64_t,int64_t);
 int64_t std__os__fopen(int64_t,int64_t);
 int32_t os__fclose(int64_t);
@@ -5613,24 +5625,12 @@ int32_t os__rename(int64_t,int64_t);
 int32_t std__os__rename(int64_t,int64_t);
 int32_t os__access(int64_t,int32_t);
 int32_t std__os__access(int64_t,int32_t);
-int32_t os__mkdir(int64_t,uint32_t);
-int32_t std__os__mkdir(int64_t,uint32_t);
-int32_t os__rmdir(int64_t);
-int32_t std__os__rmdir(int64_t);
-int64_t os__opendir(int64_t);
-int64_t std__os__opendir(int64_t);
-int32_t os__closedir(int64_t);
-int32_t std__os__closedir(int64_t);
-int64_t os__readdir(int64_t);
-int64_t std__os__readdir(int64_t);
 int64_t os__popen(int64_t,int64_t);
 int64_t std__os__popen(int64_t,int64_t);
 int32_t os__pclose(int64_t);
 int32_t std__os__pclose(int64_t);
 int32_t os__system(int64_t);
 int32_t std__os__system(int64_t);
-int32_t os__exit(int64_t);
-int32_t std__os__exit(int64_t);
 int64_t std__os__env(int64_t);
 int32_t std__os__exists(int64_t);
 int64_t std__os__open(int64_t,int64_t);
@@ -6453,7 +6453,8 @@ int64_t codegen__gen_fixed_arr_lit(int64_t,int64_t,int64_t);
 int64_t codegen__gen_list_lit(int64_t,int64_t);
 int64_t codegen__gen_struct_lit(int64_t,int64_t);
 int64_t codegen__gen_try(int64_t,int64_t);
-int32_t codegen__stmts_terminated(int64_t);
+int32_t codegen__stmt_terminated(int64_t,int64_t);
+int32_t codegen__stmts_terminated(int64_t,int64_t);
 int32_t codegen__when_stmt_terminated(int64_t,int64_t);
 int32_t codegen__gen_stmts(int64_t,int64_t);
 int32_t codegen__gen_stmt(int64_t,int64_t);
@@ -47999,7 +48000,32 @@ int64_t t_res=(int64_t)((int64_t)((int64_t)(intptr_t)calloc(1,(size_t)(INT64_C(1
 return(int64_t)(t_res);
 }
 
-int32_t codegen__stmts_terminated(int64_t t_stmts){
+int32_t codegen__stmt_terminated(int64_t t_ctx,int64_t t_stmt){
+if(((t_stmt)==(0)))
+{
+return(int32_t)(0);
+}
+int64_t t_k=(int64_t)((*(int64_t*)((char*)(intptr_t)(t_stmt)+0)));
+if(((t_k)==((22))))
+{
+return(int32_t)(1);
+}
+if(((t_k)==((26))))
+{
+return(int32_t)(1);
+}
+if(((t_k)==((27))))
+{
+return(int32_t)(1);
+}
+if(((t_k)==((39))))
+{
+return(int32_t)(codegen__when_stmt_terminated(t_ctx,t_stmt));
+}
+return(int32_t)(0);
+}
+
+int32_t codegen__stmts_terminated(int64_t t_ctx,int64_t t_stmts){
 if(((t_stmts)==(0)))
 {
 return(int32_t)(0);
@@ -48014,20 +48040,54 @@ int64_t t_last_opt=(int64_t)(sx__rt_get((void*)(intptr_t)(t_stmts),(int64_t)((ui
 {
 int64_t t_last=sx__mv0-1;
 int64_t t_s=(int64_t)((int64_t)(t_last));
-int64_t t_k=(int64_t)((*(int64_t*)((char*)(intptr_t)(t_s)+0)));
-if(((t_k)==((22))))
+if((((*(int64_t*)((char*)(intptr_t)(t_s)+0)))==((49))))
 {
-return(int32_t)(1);
+int64_t t_start=(int64_t)(((t_len)-(INT64_C(1))));
+for(;;){
+if(((t_start)<=(INT64_C(0))))
+{
+break;
 }
-if(((t_k)==((26))))
+int64_t t_prev_opt=(int64_t)(sx__rt_get((void*)(intptr_t)(t_stmts),(int64_t)((uint64_t)(((t_start)-(INT64_C(1)))))));
+{int64_t sx__mv1=t_prev_opt;if(sx__mv1!=0)
 {
-return(int32_t)(1);
+int64_t t_prev=sx__mv1-1;
+if((((*(int64_t*)((char*)(intptr_t)((int64_t)(t_prev))+0)))!=((49))))
+{
+break;
 }
-if(((t_k)==((27))))
+t_start--;
+}else{
+break;
+}}
+}
+int64_t t_gi=(int64_t)(t_start);
+for(;;){
+if(((t_gi)>=(t_len)))
 {
-return(int32_t)(1);
+break;
+}
+int64_t t_g_opt=(int64_t)(sx__rt_get((void*)(intptr_t)(t_stmts),(int64_t)((uint64_t)(t_gi))));
+{int64_t sx__mv2=t_g_opt;if(sx__mv2!=0)
+{
+int64_t t_g=sx__mv2-1;
+int64_t t_gnode=(int64_t)((int64_t)(t_g));
+if((((*(int64_t*)((char*)(intptr_t)(t_gnode)+0)))!=((49))))
+{
+break;
+}
+if(codegen__gwhen_matches_gsubst(t_ctx,t_gnode))
+{
+return(int32_t)(codegen__stmts_terminated(t_ctx,(int64_t)((*(int64_t*)((char*)(intptr_t)(t_gnode)+24)))));
+}
+}else{
+break;
+}}
+t_gi++;
 }
 return(int32_t)(0);
+}
+return(int32_t)(codegen__stmt_terminated(t_ctx,t_s));
 }else{
 return(int32_t)(0);
 }}
@@ -48038,7 +48098,7 @@ int32_t codegen__when_stmt_terminated(int64_t t_ctx,int64_t t_stmt){
 int64_t t_plat=(int64_t)((int64_t)((*(int64_t*)((char*)(intptr_t)(t_stmt)+16))));
 if(codegen__cg_platform_matches(t_ctx,t_plat))
 {
-return(int32_t)(codegen__stmts_terminated((int64_t)((*(int64_t*)((char*)(intptr_t)(t_stmt)+24)))));
+return(int32_t)(codegen__stmts_terminated(t_ctx,(int64_t)((*(int64_t*)((char*)(intptr_t)(t_stmt)+24)))));
 }
 int64_t t_or_when_branches=(int64_t)((int64_t)((*(int64_t*)((char*)(intptr_t)(t_stmt)+32))));
 if(((t_or_when_branches)!=(0)))
@@ -48047,14 +48107,14 @@ if(((t_or_when_branches)!=(0)))
 int64_t t_ow_plat=(int64_t)((int64_t)((*(int64_t*)((char*)(intptr_t)(t_ow_node)+16))));
 if(codegen__cg_platform_matches(t_ctx,t_ow_plat))
 {
-return(int32_t)(codegen__stmts_terminated((int64_t)((*(int64_t*)((char*)(intptr_t)(t_ow_node)+24)))));
+return(int32_t)(codegen__stmts_terminated(t_ctx,(int64_t)((*(int64_t*)((char*)(intptr_t)(t_ow_node)+24)))));
 }
 }}
 }
 int64_t t_otherwise_stmts=(int64_t)((int64_t)((*(int64_t*)((char*)(intptr_t)(t_stmt)+40))));
 if(((t_otherwise_stmts)!=(0)))
 {
-return(int32_t)(codegen__stmts_terminated((int64_t)((*(int64_t*)((char*)(intptr_t)(t_stmt)+40)))));
+return(int32_t)(codegen__stmts_terminated(t_ctx,(int64_t)((*(int64_t*)((char*)(intptr_t)(t_stmt)+40)))));
 }
 return(int32_t)(0);
 }
@@ -48079,6 +48139,7 @@ int64_t t_snode=(int64_t)((int64_t)(t_s));
 if((((*(int64_t*)((char*)(intptr_t)(t_snode)+0)))==((49))))
 {
 int32_t t_matched=(int32_t)(0);
+int32_t t_matched_terminated=(int32_t)(0);
 int64_t t_j=(int64_t)(t_i);
 for(;;){
 if(((t_j)>=(t_len)))
@@ -48098,11 +48159,16 @@ if((((!(t_matched)))?(codegen__gwhen_matches_gsubst(t_ctx,t_sn2)):(0)))
 {
 (void)(codegen__gen_stmts(t_ctx,(int64_t)((*(int64_t*)((char*)(intptr_t)(t_sn2)+24)))));
 t_matched=(1);
+t_matched_terminated=(codegen__stmts_terminated(t_ctx,(int64_t)((*(int64_t*)((char*)(intptr_t)(t_sn2)+24)))));
 }
 }else{
 break;
 }}
 t_j++;
+}
+if(t_matched_terminated)
+{
+break;
 }
 t_i=(t_j);
 continue;
@@ -50600,22 +50666,7 @@ t_pi2++;
 }
 }
 (void)(codegen__gen_stmts(t_ctx,t_body));
-int64_t t_blen=(int64_t)((int64_t)((t_body==0?0:(*(int64_t*)((char*)(intptr_t)(t_body)+8)))));
-int32_t t_needs_ret=(int32_t)(1);
-if(((t_blen)>(INT64_C(0))))
-{
-int64_t t_last_opt=(int64_t)(sx__rt_get((void*)(intptr_t)(t_body),(int64_t)((uint64_t)(((t_blen)-(INT64_C(1)))))));
-{int64_t sx__mv7=t_last_opt;if(sx__mv7!=0)
-{
-int64_t t_last=sx__mv7-1;
-int64_t t_lk=(int64_t)((*(int64_t*)((char*)(intptr_t)((int64_t)(t_last))+0)));
-if(((t_lk)==((22))))
-{
-t_needs_ret=(0);
-}
-}else{
-}}
-}
+int32_t t_needs_ret=(int32_t)((!(codegen__stmts_terminated(t_ctx,t_body))));
 if(t_needs_ret)
 {
 (void)(codegen__cg_emit_invariant_checks(t_ctx));
