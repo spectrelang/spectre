@@ -6524,12 +6524,6 @@ int32_t std__time__gettimeofday(int64_t,int64_t);
 int32_t usleep(uint32_t);
 int32_t time__usleep(uint32_t);
 int32_t std__time__usleep(uint32_t);
-int64_t std__time__DateTime__new(int64_t,int64_t,int64_t,int64_t,int64_t,int64_t,int64_t);
-int32_t std__time__DateTime__free(int64_t);
-int64_t std__time__DateTime__now(void);
-int64_t std__time__unix_now(void);
-int64_t std__time__unix_now_millis(void);
-int64_t std__time__unix_now_micros(void);
 int32_t std__time__sleep_millis(int64_t);
 int64_t std__time__DateTime__year(int64_t);
 int64_t std__time__DateTime__month(int64_t);
@@ -6927,6 +6921,8 @@ int64_t sx__std__str__from__GENMONO__allocators__Arena(int64_t,int64_t);
 int64_t sx__std__str__alloc_string_in__GENMONO__allocators__Arena(int64_t,int64_t);
 int64_t sx__std__str__alloc_in__GENMONO__allocators__Arena(int64_t,int64_t);
 int64_t sx__std__reflection__get_exe_path__GENMONO__allocators__Arena(int64_t);
+int64_t sx__std__time__unix_now__GENMONO__allocators__Arena(int64_t);
+int64_t sx__std__allocators__bump_alloc_unwrap__GENMONO__allocators__Arena(int64_t,uint64_t);
 int64_t sx__std__fs__cwd__GENMONO__allocators__Arena(int64_t);
 int64_t sx__std__fs__alloc_cstr__GENMONO__allocators__Arena(int64_t,int64_t);
 int32_t sx__regex__re_free_with__GENMONO__allocators__HeapAllocator(int64_t,int64_t);
@@ -7796,6 +7792,26 @@ return(int64_t)(t_buf);
 }else{
 }}
 return(int64_t)(((int64_t)(intptr_t)sx__str3702));
+}
+
+int64_t sx__std__allocators__bump_alloc_unwrap__GENMONO__allocators__Arena(int64_t t_ac,uint64_t t_size){
+if(!(((t_size)>(INT64_C(0))))){fprintf(stderr,"spectre: precondition '%s' violated in function '%s'\n","size_positive","sx__std__allocators__bump_alloc_unwrap__GENMONO__allocators__Arena");fflush(stderr);exit(1);}
+int64_t t_opt=(int64_t)(std__allocators__Arena__alloc(t_ac,t_size));
+{int64_t sx__mv0=t_opt;if(sx__mv0!=0)
+{
+int64_t t_v=sx__mv0-1;
+return(int64_t)(t_v);
+}else{
+}}
+return(int64_t)(0);
+}
+
+int64_t sx__std__time__unix_now__GENMONO__allocators__Arena(int64_t t_ac){
+int64_t sx__gv1=sx__std__allocators__bump_alloc_unwrap__GENMONO__allocators__Arena(t_ac,INT64_C(16));
+int64_t t_tv=(int64_t)(sx__gv1);
+(void)(gettimeofday(t_tv,INT64_C(0)));
+int64_t t_seconds=(int64_t)((*(int64_t*)((char*)(intptr_t)(t_tv)+0)));
+return(int64_t)(t_seconds);
 }
 
 int64_t sx__std__fs__alloc_cstr__GENMONO__allocators__Arena(int64_t t_ac,int64_t t_len){
@@ -51979,8 +51995,8 @@ int64_t t_lhs_expr=(int64_t)(parser__binop_left(t_expr));
 int64_t t_rhs_expr=(int64_t)(parser__binop_right(t_expr));
 if(((((t_op)==((12))))?(1):(((t_op)==((13))))))
 {
-int64_t t_lhs=(int64_t)(alt_codegen__gen_expr(t_ctx,t_lhs_expr));
-int64_t t_rhs=(int64_t)(alt_codegen__gen_expr(t_ctx,t_rhs_expr));
+int64_t t_lhs=(int64_t)(alt_codegen__cc_heap_copy_cstr(alt_codegen__gen_expr(t_ctx,t_lhs_expr)));
+int64_t t_rhs=(int64_t)(alt_codegen__cc_heap_copy_cstr(alt_codegen__gen_expr(t_ctx,t_rhs_expr)));
 int64_t t_buf=(int64_t)((int64_t)((int64_t)(intptr_t)calloc(1,(size_t)(INT64_C(8192)))));
 if(((t_op)==((12))))
 {
@@ -51988,12 +52004,14 @@ if(((t_op)==((12))))
 }else{
 (void)(snprintf((char*)(intptr_t)(t_buf),(size_t)(INT64_C(8192)),(const char*)(intptr_t)(sx__str2882),(t_lhs),(t_rhs)));
 }
+(void)((free((void*)(intptr_t)(t_lhs)),0));
+(void)((free((void*)(intptr_t)(t_rhs)),0));
 return(int64_t)(alt_codegen__cc_expr_track(t_ctx,t_buf));
 }
 int32_t t_lhs_is_result=(int32_t)((((((*(int64_t*)((char*)(intptr_t)(t_lhs_expr)+0)))==((67))))?(1):((((*(int64_t*)((char*)(intptr_t)(t_lhs_expr)+0)))==((68))))));
 int32_t t_rhs_is_result=(int32_t)((((((*(int64_t*)((char*)(intptr_t)(t_rhs_expr)+0)))==((67))))?(1):((((*(int64_t*)((char*)(intptr_t)(t_rhs_expr)+0)))==((68))))));
-int64_t t_lhs=(int64_t)(alt_codegen__gen_expr(t_ctx,t_lhs_expr));
-int64_t t_rhs=(int64_t)(alt_codegen__gen_expr(t_ctx,t_rhs_expr));
+int64_t t_lhs=(int64_t)(alt_codegen__cc_heap_copy_cstr(alt_codegen__gen_expr(t_ctx,t_lhs_expr)));
+int64_t t_rhs=(int64_t)(alt_codegen__cc_heap_copy_cstr(alt_codegen__gen_expr(t_ctx,t_rhs_expr)));
 int64_t t_buf=(int64_t)((int64_t)((int64_t)(intptr_t)calloc(1,(size_t)(INT64_C(8192)))));
 if(((((t_lhs_is_result)?(1):(t_rhs_is_result)))?(((((t_op)==((6))))?(1):(((t_op)==((7)))))):(0)))
 {
@@ -52008,6 +52026,8 @@ if(((t_op)==((6))))
 }else{
 (void)(snprintf((char*)(intptr_t)(t_buf),(size_t)(INT64_C(8192)),(const char*)(intptr_t)(sx__str2885),(t_t),(t_t),(t_t),(t_t)));
 }
+(void)((free((void*)(intptr_t)(t_lhs)),0));
+(void)((free((void*)(intptr_t)(t_rhs)),0));
 return(int64_t)(alt_codegen__cc_expr_track(t_ctx,t_buf));
 }
 if(((t_op)==((1))))
@@ -52061,6 +52081,8 @@ if(((t_op)==((1))))
 }else{
 (void)(snprintf((char*)(intptr_t)(t_buf),(size_t)(INT64_C(8192)),(const char*)(intptr_t)(sx__str2902),(t_lhs),(t_rhs)));
 }
+(void)((free((void*)(intptr_t)(t_lhs)),0));
+(void)((free((void*)(intptr_t)(t_rhs)),0));
 return(int64_t)(alt_codegen__cc_expr_track(t_ctx,t_buf));
 }
 
@@ -56817,71 +56839,6 @@ int32_t meta__print_src_target_help(void){
 return;
 }
 
-int64_t std__time__DateTime__new(int64_t t_year,int64_t t_month,int64_t t_day,int64_t t_hour,int64_t t_minute,int64_t t_second,int64_t t_millis){
-if(!(((((t_month)>=(INT64_C(1))))?(((t_month)<=(INT64_C(12)))):(0)))){fprintf(stderr,"spectre: precondition '%s' violated in function '%s'\n","valid_month","std__time__DateTime__new");fflush(stderr);exit(1);}
-if(!(((((t_day)>=(INT64_C(1))))?(((t_day)<=(INT64_C(31)))):(0)))){fprintf(stderr,"spectre: precondition '%s' violated in function '%s'\n","valid_day","std__time__DateTime__new");fflush(stderr);exit(1);}
-if(!(((((t_hour)>=(INT64_C(0))))?(((t_hour)<=(INT64_C(23)))):(0)))){fprintf(stderr,"spectre: precondition '%s' violated in function '%s'\n","valid_hour","std__time__DateTime__new");fflush(stderr);exit(1);}
-if(!(((((t_minute)>=(INT64_C(0))))?(((t_minute)<=(INT64_C(59)))):(0)))){fprintf(stderr,"spectre: precondition '%s' violated in function '%s'\n","valid_minute","std__time__DateTime__new");fflush(stderr);exit(1);}
-if(!(((((t_second)>=(INT64_C(0))))?(((t_second)<=(INT64_C(59)))):(0)))){fprintf(stderr,"spectre: precondition '%s' violated in function '%s'\n","valid_second","std__time__DateTime__new");fflush(stderr);exit(1);}
-if(!(((((t_millis)>=(INT64_C(0))))?(((t_millis)<=(INT64_C(999)))):(0)))){fprintf(stderr,"spectre: precondition '%s' violated in function '%s'\n","valid_millis","std__time__DateTime__new");fflush(stderr);exit(1);}
-int64_t*sx__sl0=(int64_t*)calloc(1,56);
-*(int64_t*)((char*)sx__sl0+0)=(int64_t)(t_year);
-*(int64_t*)((char*)sx__sl0+8)=(int64_t)(t_month);
-*(int64_t*)((char*)sx__sl0+16)=(int64_t)(t_day);
-*(int64_t*)((char*)sx__sl0+24)=(int64_t)(t_hour);
-*(int64_t*)((char*)sx__sl0+32)=(int64_t)(t_minute);
-*(int64_t*)((char*)sx__sl0+40)=(int64_t)(t_second);
-*(int64_t*)((char*)sx__sl0+48)=(int64_t)(t_millis);
-int64_t t_ptr=(int64_t)((int64_t)(intptr_t)sx__sl0);
-return(int64_t)(t_ptr);
-}
-
-int32_t std__time__DateTime__free(int64_t t_dt){
-(void)((free((void*)(intptr_t)(t_dt)),0));
-return;
-}
-
-int64_t std__time__DateTime__now(void){
-int64_t t_tv=(int64_t)((int64_t)(intptr_t)calloc(1,(size_t)(INT64_C(16))));
-(void)(gettimeofday(t_tv,INT64_C(0)));
-int64_t t_seconds=(int64_t)((*(int64_t*)((char*)(intptr_t)(t_tv)+0)));
-int64_t t_usecs=(int64_t)((*(int64_t*)((char*)(intptr_t)(t_tv)+8)));
-int64_t t_tm=(int64_t)(localtime((int64_t)(intptr_t)&t_seconds));
-(void)((free((void*)(intptr_t)(t_tv)),0));
-int64_t t_year=(int64_t)((int64_t)((((*(int64_t*)(intptr_t)((int64_t)(intptr_t)((char*)(intptr_t)(t_tm)+(INT64_C(20))))))&(((int64_t)0xFFFFFFFF)))));
-int64_t t_month=(int64_t)((int64_t)((((*(int64_t*)(intptr_t)((int64_t)(intptr_t)((char*)(intptr_t)(t_tm)+(INT64_C(16))))))&(((int64_t)0xFFFFFFFF)))));
-int64_t t_day=(int64_t)((int64_t)((((*(int64_t*)(intptr_t)((int64_t)(intptr_t)((char*)(intptr_t)(t_tm)+(INT64_C(12))))))&(((int64_t)0xFFFFFFFF)))));
-int64_t t_hour=(int64_t)((int64_t)((((*(int64_t*)(intptr_t)((int64_t)(intptr_t)((char*)(intptr_t)(t_tm)+(INT64_C(8))))))&(((int64_t)0xFFFFFFFF)))));
-int64_t t_minute=(int64_t)((int64_t)((((*(int64_t*)(intptr_t)((int64_t)(intptr_t)((char*)(intptr_t)(t_tm)+(INT64_C(4))))))&(((int64_t)0xFFFFFFFF)))));
-int64_t t_second=(int64_t)((int64_t)((((*(int64_t*)(intptr_t)((int64_t)(intptr_t)((char*)(intptr_t)(t_tm)+(INT64_C(0))))))&(((int64_t)0xFFFFFFFF)))));
-int64_t t_millis=(int64_t)(((t_usecs)/(INT64_C(1000))));
-return(int64_t)(std__time__DateTime__new(((t_year)+(INT64_C(1900))),((t_month)+(INT64_C(1))),t_day,t_hour,t_minute,t_second,t_millis));
-}
-
-int64_t std__time__unix_now(void){
-int64_t t_tv=(int64_t)((int64_t)(intptr_t)calloc(1,(size_t)(INT64_C(16))));
-(void)(gettimeofday(t_tv,INT64_C(0)));
-int64_t t_seconds=(int64_t)((*(int64_t*)((char*)(intptr_t)(t_tv)+0)));
-(void)((free((void*)(intptr_t)(t_tv)),0));
-return(int64_t)(t_seconds);
-}
-
-int64_t std__time__unix_now_millis(void){
-int64_t t_tv=(int64_t)((int64_t)(intptr_t)calloc(1,(size_t)(INT64_C(16))));
-(void)(gettimeofday(t_tv,INT64_C(0)));
-int64_t t_millis=(int64_t)((((((*(int64_t*)((char*)(intptr_t)(t_tv)+0)))*(INT64_C(1000))))+((((*(int64_t*)((char*)(intptr_t)(t_tv)+8)))/(INT64_C(1000))))));
-(void)((free((void*)(intptr_t)(t_tv)),0));
-return(int64_t)(t_millis);
-}
-
-int64_t std__time__unix_now_micros(void){
-int64_t t_tv=(int64_t)((int64_t)(intptr_t)calloc(1,(size_t)(INT64_C(16))));
-(void)(gettimeofday(t_tv,INT64_C(0)));
-int64_t t_micros=(int64_t)((((((*(int64_t*)((char*)(intptr_t)(t_tv)+0)))*(INT64_C(1000000))))+((*(int64_t*)((char*)(intptr_t)(t_tv)+8)))));
-(void)((free((void*)(intptr_t)(t_tv)),0));
-return(int64_t)(t_micros);
-}
-
 int32_t std__time__sleep_millis(int64_t t_ms){
 if(!(((t_ms)>=(INT64_C(0))))){fprintf(stderr,"spectre: precondition '%s' violated in function '%s'\n","non_negative","std__time__sleep_millis");fflush(stderr);exit(1);}
 int64_t t_remaining_us=(int64_t)(((t_ms)*(INT64_C(1000))));
@@ -57904,15 +57861,24 @@ int64_t t_f=sx__mv0-1;
 (void)(printf((const char*)(intptr_t)sx__str3718,(t_path)));
 return(int32_t)(INT64_C(1));
 }}
-int64_t t_unix_time=(int64_t)(std__time__unix_now());
-int64_t sx__vap1[16]={(int64_t)(t_unix_time),0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
-int64_t t_std_snapshot_dir=(int64_t)((int64_t)(intptr_t)sx__rt_fmt((const char*)(intptr_t)(sx__str3719),(int64_t*)(intptr_t)(sx__vap1)));
+int64_t* sx__try1 = (int64_t*)(intptr_t)(std__allocators__Arena__new((uint64_t)(INT64_C(4096))));
+if(sx__try1[0] != 0)
+{
+return (int32_t)(intptr_t)sx__try1;
+}
+int64_t sx__val1 = sx__try1[1];
+int64_t t_time_arena=(int64_t)(sx__val1);
+int64_t sx__gv3=sx__std__time__unix_now__GENMONO__allocators__Arena(t_time_arena);
+int64_t t_unix_time=(int64_t)(sx__gv3);
+int64_t sx__vap3[16]={(int64_t)(t_unix_time),0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
+int64_t t_std_snapshot_dir=(int64_t)((int64_t)(intptr_t)sx__rt_fmt((const char*)(intptr_t)(sx__str3719),(int64_t*)(intptr_t)(sx__vap3)));
 if((!(commands__copy_current_stdlib(t_std_snapshot_dir))))
 {
 (void)(printf((const char*)(intptr_t)sx__str3720,(t_std_snapshot_dir)));
 return(int32_t)(INT64_C(1));
 }
 (void)(printf((const char*)(intptr_t)sx__str3721,(t_std_snapshot_dir)));
+(void)(std__allocators__Arena__free(t_time_arena));
 return(int32_t)(INT64_C(0));
 }
 
