@@ -56,6 +56,90 @@ fn find_workspace_root(start_dir: ref u8) ref u8 = trust {
     return start_dir
 }
 
+fn canonicalize_path(path: ref u8) ref u8 = trust {
+    if path == none { return path }
+    val len: i64 = str.len_raw(path)
+    if len == 0 { return path }
+    val is_abs: bool = @load8(@ptradd(path as ref void, 0)) == 47
+    val keep_dot_prefix: bool = len >= 2 &&
+                                @load8(@ptradd(path as ref void, 0)) == 46 &&
+                                @load8(@ptradd(path as ref void, 1)) == 47
+    val segs: mut list[ref u8] = []
+    val i: mut i64 = 0
+    for {
+        if i >= len { break }
+        val c: u8 = @load8(@ptradd(path as ref void, i))
+        if c == 47 {
+            i++
+            continue
+        }
+        val start: i64 = i
+        for {
+            if i >= len { break }
+            val c2: u8 = @load8(@ptradd(path as ref void, i))
+            if c2 == 47 { break }
+            i++
+        }
+        val seg_len: i64 = i - start
+        val seg: ref u8 = @alloc((seg_len + 1) as usize) as ref u8
+        @memcpy(seg as ref void, @ptradd(path as ref void, start), seg_len as usize)
+        @store8(@ptradd(seg as ref void, seg_len), 0)
+        if str.rchar_cmp(seg, ".") == 0 {
+            continue
+        }
+        if str.rchar_cmp(seg, "..") == 0 {
+            val segs_len: i64 = @len(segs) as i64
+            if segs_len > 0 {
+                val last_opt = @get(segs, (segs_len - 1) as usize)
+                match last_opt {
+                    some last => {
+                        if str.rchar_cmp(last as ref u8, "..") != 0 {
+                            @remove(segs, segs_len - 1)
+                        } elif !is_abs {
+                            @append(segs, seg)
+                        }
+                    }
+                    none => {
+                        if !is_abs { @append(segs, seg) }
+                    }
+                }
+            } elif !is_abs {
+                @append(segs, seg)
+            }
+            continue
+        }
+        @append(segs, seg)
+    }
+    val sb: ref void = str.StringBuilder.new()
+    if is_abs {
+        str.StringBuilder.append_char(sb, 47 as u8)
+    }
+    val si: mut i64 = 0
+    for {
+        if si >= @len(segs) as i64 { break }
+        val s_opt = @get(segs, si as usize)
+        match s_opt {
+            some s => {
+                if si > 0 { str.StringBuilder.append_char(sb, 47 as u8) }
+                str.StringBuilder.append_cstr(sb, s as ref u8)
+            }
+            none => {}
+        }
+        si++
+    }
+    val built: ref void = str.StringBuilder.build(sb)
+    val out: ref u8 = str.cstr(built)
+    str.StringBuilder.free(sb)
+    if str.len_raw(out) == 0 {
+        if is_abs { return "/" }
+        return "."
+    }
+    if keep_dot_prefix && @load8(@ptradd(out as ref void, 0)) != 46 {
+        return @fmt("./{s}", {out})
+    }
+    return out
+}
+
 /// Resolve a use-path string relative to the current file's directory.
 /// The workspace param must be the pre-computed workspace root (from find_workspace_root).
 pub fn resolve_use_path(use_path: mut ref u8, file_dir: ref u8, exe_dir: ref u8, workspace: ref u8) ref u8 = trust {
@@ -69,7 +153,7 @@ pub fn resolve_use_path(use_path: mut ref u8, file_dir: ref u8, exe_dir: ref u8,
         val c1: u8 = @load8(@ptradd(use_path as ref void, plen - 2))
         val c2: u8 = @load8(@ptradd(use_path as ref void, plen - 1))
         if c0 == 46 && c1 == 115 && c2 == 120 {
-            return path.join(file_dir, use_path)
+            return canonicalize_path(path.join(file_dir, use_path))
         }
     }
     val has_slash: mut bool = false
@@ -84,27 +168,27 @@ pub fn resolve_use_path(use_path: mut ref u8, file_dir: ref u8, exe_dir: ref u8,
 
     if has_slash {
         val core_exe = path.join(exe_dir, @fmt("{s}/core.sx", {use_path}))
-        if file_exists(core_exe) { return core_exe }
+        if file_exists(core_exe) { return canonicalize_path(core_exe) }
         val core_ws = path.join(workspace, @fmt("{s}/core.sx", {use_path}))
-        if file_exists(core_ws) { return core_ws }
+        if file_exists(core_ws) { return canonicalize_path(core_ws) }
 
         val candidate_exe = path.join(exe_dir, @fmt("{s}.sx", {use_path}))
-        if file_exists(candidate_exe) { return candidate_exe }
+        if file_exists(candidate_exe) { return canonicalize_path(candidate_exe) }
         val candidate_ws = path.join(workspace, @fmt("{s}.sx", {use_path}))
-        if file_exists(candidate_ws) { return candidate_ws }
-        return candidate_ws
+        if file_exists(candidate_ws) { return canonicalize_path(candidate_ws) }
+        return canonicalize_path(candidate_ws)
     }
 
     val core1_exe = path.join(exe_dir, @fmt("{s}/core.sx", {use_path}))
-    if file_exists(core1_exe) { return core1_exe }
+    if file_exists(core1_exe) { return canonicalize_path(core1_exe) }
     val core1_ws = path.join(workspace, @fmt("{s}/core.sx", {use_path}))
-    if file_exists(core1_ws) { return core1_ws }
+    if file_exists(core1_ws) { return canonicalize_path(core1_ws) }
 
     val candidate2_exe = path.join(exe_dir, @fmt("{s}/{s}.sx", {use_path, use_path}))
-    if file_exists(candidate2_exe) { return candidate2_exe }
+    if file_exists(candidate2_exe) { return canonicalize_path(candidate2_exe) }
     val candidate2_ws = path.join(workspace, @fmt("{s}/{s}.sx", {use_path, use_path}))
-    if file_exists(candidate2_ws) { return candidate2_ws }
-    return candidate2_ws
+    if file_exists(candidate2_ws) { return canonicalize_path(candidate2_ws) }
+    return canonicalize_path(candidate2_ws)
 }
 
 fn in_progress_contains(in_progress: list[ref u8], path: ref u8) bool = trust {
@@ -909,8 +993,9 @@ fn resolve_module_impl(
     cache_keys:      mut list[ref u8],
     cache_vals:      mut list[ref void]
 ) result[ref ResolvedModule, ref u8] = trust {
-    if in_progress_contains(in_progress, path) {
-        return err @fmt("cyclic import: {s}", {path})
+    val canonical_path: ref u8 = canonicalize_path(path)
+    if in_progress_contains(in_progress, canonical_path) {
+        return err @fmt("cyclic import: {s}", {canonical_path})
     }
 
     val cn: i64 = @len(cache_keys) as i64
@@ -920,7 +1005,7 @@ fn resolve_module_impl(
         val ck_opt = @get(cache_keys, ci as usize)
         match ck_opt {
             some ck => {
-                if str.rchar_cmp(ck as ref u8, path) == 0 {
+                if str.rchar_cmp(ck as ref u8, canonical_path) == 0 {
                     val cv_opt = @get(cache_vals, ci as usize)
                     match cv_opt {
                         some cv => { return ok (cv as ref ResolvedModule) }
@@ -933,22 +1018,22 @@ fn resolve_module_impl(
         ci++
     }
 
-    val src_size_opt = fs.file_size(path)
+    val src_size_opt = fs.file_size(canonical_path)
     val src_arena_cap: mut i64 = 4096
     match src_size_opt {
         some sz => {
             if ((sz as i64) > src_arena_cap) { src_arena_cap = sz as i64 }
         }
-        none => { return err @fmt("cannot read module: {s}", {path}) }
+        none => { return err @fmt("cannot read module: {s}", {canonical_path}) }
     }
     val src_arena: mut allocators.Arena = allocators.Arena.new((src_arena_cap + 8) as usize)?
-    val src_opt = fs.read_all[allocators.Arena](src_arena, path)
+    val src_opt = fs.read_all[allocators.Arena](src_arena, canonical_path)
     val src: mut ref u8 = ""
     match src_opt {
         some s => { src = s as ref u8 }
         none   => {
             allocators.Arena.free(src_arena)
-            return err @fmt("cannot read module: {s}", {path})
+            return err @fmt("cannot read module: {s}", {canonical_path})
         }
     }
 
@@ -957,30 +1042,30 @@ fn resolve_module_impl(
     val tokens: mut list[ref lexer.Token] = []
     match lex_result {
         ok t  => { tokens = t }
-        err e => { return err @fmt("{s}: lex error: {s}", {path, e}) }
+        err e => { return err @fmt("{s}: lex error: {s}", {canonical_path, e}) }
     }
 
-    val parse_result = parser.parse_module(tokens, path)
+    val parse_result = parser.parse_module(tokens, canonical_path)
     val items: mut list[ref parser.Node] = []
     match parse_result {
         ok i  => { items = i }
-        err e => { return err @fmt("{s}: parse error: {s}", {path, e}) }
+        err e => { return err @fmt("{s}: parse error: {s}", {canonical_path, e}) }
     }
 
     val file_dir = str.new()
-    str.push_cstr(file_dir, path.dir(path))
+    str.push_cstr(file_dir, path.dir(canonical_path))
     val file_dir_c = str.cstr(file_dir)
     val workspace  = find_workspace_root(file_dir_c)
     val module_path = str.new()
-    str.push_cstr(module_path, path)
+    str.push_cstr(module_path, canonical_path)
     val m: ref ResolvedModule = new_resolved(items, module_path, file_dir)
 
     val cur_progress: mut list[ref u8] = in_progress
-    @append(cur_progress, path)
+    @append(cur_progress, canonical_path)
 
-    val is_std_module: bool = str.rchar_cmp(path, "std/sx") == 0 ||
-                              (str.len_raw(path) >= 10 &&
-                               str.rchar_cmp(@ptradd(path as ref void, str.len_raw(path) - 10) as ref u8, "std/sx") == 0)
+    val is_std_module: bool = str.rchar_cmp(canonical_path, "std/sx") == 0 ||
+                              (str.len_raw(canonical_path) >= 10 &&
+                               str.rchar_cmp(@ptradd(canonical_path as ref void, str.len_raw(canonical_path) - 10) as ref u8, "std/sx") == 0)
 
     for item in items {
         val node: ref parser.Node = item
@@ -1030,7 +1115,7 @@ fn resolve_module_impl(
     }
 
     @remove(cur_progress, @len(cur_progress) - 1)
-    @append(cache_keys, path)
+    @append(cache_keys, canonical_path)
     @append(cache_vals, m as ref void)
     return ok m
 }
@@ -2927,4 +3012,11 @@ fn collect_used_links_recursive(
     }
 
     return result
+}
+
+test {
+    assert str.rchar_cmp(trust canonicalize_path("./samples/bigproj/hi/../mod1.sx"), "./samples/bigproj/mod1.sx") == 0
+    assert str.rchar_cmp(trust canonicalize_path("samples/bigproj/hi//../mod1.sx"), "samples/bigproj/mod1.sx") == 0
+    assert str.rchar_cmp(trust canonicalize_path("../samples/../mod1.sx"), "../mod1.sx") == 0
+    assert str.rchar_cmp(trust resolve_use_path("../mod1.sx", "./samples/bigproj/hi/", ".", "."), "./samples/bigproj/mod1.sx") == 0
 }
