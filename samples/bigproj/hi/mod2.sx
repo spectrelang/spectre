@@ -1,0 +1,8 @@
+val mod1 = use("../mod1.sx")
+val mod2 = use("../mod1.sx")
+
+pub fn main() void = {
+	@puts("hello, world.")
+	mod1.say("hi")
+	mod2.say("heheh")
+}
