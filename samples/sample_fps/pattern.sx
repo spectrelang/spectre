@@ -1,0 +1,122 @@
+val sdl_init = use("lib/ssdl2/init.sx")
+
+link "-lSDL2"
+
+extern "SDL.h"
+
+val SCREEN_W: i32 = 512
+val SCREEN_H: i32 = 512
+
+extern type SDL_Rect = {
+    x: mut i32
+    y: mut i32
+    w: mut i32
+    h: mut i32
+}
+
+extern type SDL_Event = {
+    type_value: mut u32
+    padding: mut [52]u8
+}
+
+extern (C, header) fn SDL_CreateWindow(
+    title: ref u8,
+    x: i32,
+    y: i32,
+    w: i32,
+    h: i32,
+    flags: u32
+) ref void = "SDL_CreateWindow"
+
+extern (C, header) fn SDL_CreateRenderer(
+    window: ref void,
+    index: i64,
+    flags: u32
+) ref void = "SDL_CreateRenderer"
+
+extern (C, header) fn SDL_PollEvent(e: ref SDL_Event) i32 = "SDL_PollEvent"
+extern (C, header) fn SDL_SetRenderDrawColor(r: ref void, rr: u8, g: u8, b: u8, a: u8) i32 = "SDL_SetRenderDrawColor"
+extern (C, header) fn SDL_RenderClear(r: ref void) i32 = "SDL_RenderClear"
+extern (C, header) fn SDL_RenderFillRect(r: ref void, rect: ref SDL_Rect) i32 = "SDL_RenderFillRect"
+extern (C, header) fn SDL_RenderPresent(r: ref void) void = "SDL_RenderPresent"
+extern (C, header) fn SDL_Quit() void = "SDL_Quit"
+extern (C, header) fn SDL_Init(flags: u32) i32 = "SDL_Init"
+
+extern type Context = {
+    renderer: ref void
+}
+
+fn draw_triangle(renderer: ref void, x: i32, y: i32, size: i32) void = trust {
+    val r: mut ref SDL_Rect = @alloc(@sizeof(SDL_Rect))
+
+    SDL_SetRenderDrawColor(renderer, 255 as u8, 255 as u8, 255 as u8, 255 as u8)
+    r.x = x
+    r.y = y
+    r.w = size
+    r.h = size
+
+    SDL_RenderFillRect(renderer, r)
+}
+
+fn sierpinski(renderer: ref void, depth: i32, x: i32, y: i32, size: i32) void = trust {
+    if depth == 0 {
+        draw_triangle(renderer, x, y, size)
+        return
+    }
+
+    val half: i32 = size / 2
+
+    sierpinski(renderer, depth - 1, x + half / 2, y, half)
+    sierpinski(renderer, depth - 1, x, y + half, half)
+    sierpinski(renderer, depth - 1, x + half, y + half, half)
+}
+
+pub fn main() i32 = trust {
+    SDL_Init(sdl_init.SDL_INIT_VIDEO)
+
+    val window: ref void = SDL_CreateWindow(
+        "sierpinski-sdl",
+        C.SDL_WINDOWPOS_CENTERED,
+        C.SDL_WINDOWPOS_CENTERED,
+        SCREEN_W,
+        SCREEN_H,
+        0 as u32
+    )
+
+    val renderer: ref void = SDL_CreateRenderer(
+        window,
+        -1,
+        C.SDL_RENDERER_ACCELERATED | C.SDL_RENDERER_PRESENTVSYNC
+    )
+
+    val evt: ref SDL_Event = @alloc(@sizeof(SDL_Event))
+    val quit: mut bool = false
+
+    for {
+        if !quit {
+
+            for {
+                if SDL_PollEvent(evt) != 0 {
+                    if evt.type_value == C.SDL_QUIT {
+                        quit = true
+                    }
+                } else {
+                    break
+                }
+            }
+
+            SDL_SetRenderDrawColor(renderer, 0 as u8, 0 as u8, 0 as u8, 255 as u8)
+            SDL_RenderClear(renderer)
+
+            sierpinski(renderer, 6 as i32, 50 as i32, 50 as i32, 400 as i32)
+
+            SDL_RenderPresent(renderer)
+
+        } else {
+            break
+        }
+    }
+
+    SDL_Quit()
+    return 0
+}
