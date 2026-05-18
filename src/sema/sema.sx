@@ -966,6 +966,18 @@ fn find_imported_mod(ctx: ref SemaCtx, alias: ref u8) ref modinfo.ResolvedModule
         }
         i++
     }
+    val j: mut i64 = 0
+    for {
+        if j >= n { break }
+        val imported: ref modinfo.ResolvedModule = modinfo.import_module_at(rmod, j as usize)
+        if imported != none {
+            val canonical_prefix: ref u8 = canonical_type_prefix_for_imported_module(imported)
+            if canonical_prefix != none && str_eq(canonical_prefix, alias) {
+                return imported
+            }
+        }
+        j++
+    }
     return none
 }
 
@@ -1491,6 +1503,103 @@ fn qualify_type_name_for_callee(ctx: ref SemaCtx, callee: ref parser.Node, type_
     val buf: ref u8 = @alloc(512) as ref u8
     @snprintf(buf, 512, "{s}.{s}", {owner_prefix, type_name})
     return buf
+}
+
+fn canonical_type_prefix_for_imported_module(imported: ref modinfo.ResolvedModule) ref u8 = trust {
+    if imported == none { return none }
+    val fname: ref u8 = canonicalize_path(modinfo.module_filename(imported))
+    if fname == none { return none }
+    val len: i64 = string.len_raw(fname)
+    if len <= 0 { return none }
+
+    val end: mut i64 = len
+    if len >= 8 {
+        val tail_core: ref u8 = @ptradd(fname as ref void, len - 8) as ref u8
+        if str_eq(tail_core, "/core.sx") {
+            end = len - 8
+        }
+    }
+    if end == len && len >= 3 {
+        val c0: u8 = @load8(@ptradd(fname as ref void, len - 3))
+        val c1: u8 = @load8(@ptradd(fname as ref void, len - 2))
+        val c2: u8 = @load8(@ptradd(fname as ref void, len - 1))
+        if c0 == 46 && c1 == 115 && c2 == 120 {
+            end = len - 3
+        }
+    }
+    if end <= 0 { return none }
+
+    val start: mut i64 = end - 1
+    for {
+        if start < 0 { break }
+        val c: u8 = @load8(@ptradd(fname as ref void, start))
+        if c == 47 {
+            start++
+            break
+        }
+        start--
+    }
+    if start < 0 { start = 0 }
+    val out_len: i64 = end - start
+    if out_len <= 0 { return none }
+    val out: ref u8 = @alloc((out_len + 1) as usize) as ref u8
+    @memcpy(out as ref void, @ptradd(fname as ref void, start), out_len as usize)
+    @store8(@ptradd(out as ref void, out_len), 0)
+    return out
+}
+
+fn canonicalize_import_alias_type_name(ctx: ref SemaCtx, type_name: ref u8) ref u8 = trust {
+    if type_name == none { return none }
+    if str_eq(type_name, "") { return type_name }
+    val owner: ref u8 = qualified_owner_prefix(type_name)
+    if owner == none { return type_name }
+    val imported: ref modinfo.ResolvedModule = find_imported_mod(ctx, owner)
+    if imported == none { return type_name }
+    val canonical_prefix: ref u8 = canonical_type_prefix_for_imported_module(imported)
+    if canonical_prefix == none || str_eq(canonical_prefix, owner) { return type_name }
+    val inner_name: ref u8 = unqualified_type_name(type_name)
+    val buf: ref u8 = @alloc(512) as ref u8
+    @snprintf(buf, 512, "{s}.{s}", {canonical_prefix, inner_name})
+    return buf
+}
+
+fn canonicalize_import_aliases_in_type_node(ctx: ref SemaCtx, ty_node: ref parser.Node) void = trust {
+    if ty_node == none { return }
+    val k: i64 = ty_node.kind
+    if k == parser.TY_NAMED {
+        parser.node_store_slot[ref u8](@addr(ty_node.d0), canonicalize_import_alias_type_name(ctx, ty_node.d0 as ref u8))
+        return
+    }
+    if k == parser.TY_MUT || k == parser.TY_REF || k == parser.TY_OPTION || k == parser.TY_LIST || k == parser.TY_SLICE {
+        canonicalize_import_aliases_in_type_node(ctx, ty_node.d0 as ref parser.Node)
+        return
+    }
+    if k == parser.TY_RESULT {
+        canonicalize_import_aliases_in_type_node(ctx, ty_node.d0 as ref parser.Node)
+        canonicalize_import_aliases_in_type_node(ctx, ty_node.d1 as ref parser.Node)
+        return
+    }
+    if k == parser.TY_FIXED_ARR {
+        canonicalize_import_aliases_in_type_node(ctx, ty_node.d1 as ref parser.Node)
+        return
+    }
+    if k == parser.TY_FNPTR {
+        val params: ref void = ty_node.d0 as ref void
+        if params != none {
+            for param_ty in params as list[ref parser.Node] {
+                canonicalize_import_aliases_in_type_node(ctx, param_ty)
+            }
+        }
+        canonicalize_import_aliases_in_type_node(ctx, ty_node.d1 as ref parser.Node)
+    }
+}
+
+fn canonicalize_generic_inst_type_args(ctx: ref SemaCtx, callee: ref parser.Node) void = trust {
+    if callee == none || callee.kind != parser.NK_GENERIC_INST { return }
+    val targs: list[ref parser.Node] = parser.generic_inst_type_args(callee)
+    for targ in targs {
+        canonicalize_import_aliases_in_type_node(ctx, targ)
+    }
 }
 
 /// Check if two type names are compatible, considering:
@@ -2248,20 +2357,21 @@ fn check_printf_fmt(ctx: ref SemaCtx, fmt_str: ref u8, all_args: ref void,
 }
 
 fn find_import_module(ctx: ref SemaCtx, name: ref u8) ref modinfo.ResolvedModule = trust {
-    if ctx.root_mod == none { return none }
-    return modinfo.find_import_by_name(ctx.root_mod, name)
+    return find_imported_mod(ctx, name)
 }
 
-fn generic_targ_type_compatible(expected: ref u8, actual: ref u8, arg_node: ref parser.Node) bool = trust {
-    if str_eq(expected, actual) { return true }
+fn generic_targ_type_compatible(ctx: ref SemaCtx, expected: ref u8, actual: ref u8, arg_node: ref parser.Node) bool = trust {
+    val canon_expected: ref u8 = canonicalize_import_alias_type_name(ctx, expected)
+    val canon_actual: ref u8 = canonicalize_import_alias_type_name(ctx, actual)
+    if str_eq(canon_expected, canon_actual) { return true }
     if arg_node.kind == parser.NK_INT_LIT {
-        if str_eq(expected, "i8")  || str_eq(expected, "i16") || str_eq(expected, "i32") ||
-           str_eq(expected, "i64") || str_eq(expected, "u8")  || str_eq(expected, "u16") ||
-           str_eq(expected, "u32") || str_eq(expected, "u64") || str_eq(expected, "usize") ||
-           str_eq(expected, "isize") || str_eq(expected, "bool") { return true }
+        if str_eq(canon_expected, "i8")  || str_eq(canon_expected, "i16") || str_eq(canon_expected, "i32") ||
+           str_eq(canon_expected, "i64") || str_eq(canon_expected, "u8")  || str_eq(canon_expected, "u16") ||
+           str_eq(canon_expected, "u32") || str_eq(canon_expected, "u64") || str_eq(canon_expected, "usize") ||
+           str_eq(canon_expected, "isize") || str_eq(canon_expected, "bool") { return true }
     }
     if arg_node.kind == parser.NK_FLOAT_LIT {
-        if str_eq(expected, "f32") || str_eq(expected, "f64") { return true }
+        if str_eq(canon_expected, "f32") || str_eq(canon_expected, "f64") { return true }
     }
     return false
 }
@@ -2448,7 +2558,7 @@ fn check_generic_call_arg_types(ctx: ref SemaCtx, fn_found: ref parser.Node, cal
                                                     if expected_tname != none && !str_eq(expected_tname, "") &&
                                                        !expected_is_tparam &&
                                                        arg_tname != none && !str_eq(arg_tname, "") &&
-                                                       !generic_targ_type_compatible(expected_tname, arg_tname, arg_node) {
+                                                       !generic_targ_type_compatible(ctx, expected_tname, arg_tname, arg_node) {
                                                         val ebuf: ref u8 = @alloc(512) as ref u8
                                                         @snprintf(ebuf, 512, "{s}:{lld}: type mismatch in generic call: argument has type '{s}' but type parameter '{s}' is '{s}'",
                                                             {filename, line, arg_tname, tparam_name, expected_tname})
@@ -3154,6 +3264,7 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
         if generic_inst_has_infer(callee) {
             resolve_generic_inst_inference(ctx, callee, fn_found, cargs, filename, line)
         }
+        canonicalize_generic_inst_type_args(ctx, callee)
 
         if fn_found != none && has_explicit_targs && fn_found.kind != parser.NK_GENERIC_FN {
             val fn_name_for_targs: mut ref u8 = none
