@@ -14348,7 +14348,7 @@ if(lexer__kind_is_rbracket(parser__p_peek_kind(t_p)))
 break;
 }
 int64_t t_ta=(int64_t)(0);
-if(((lexer__kind_is_question(parser__p_peek_kind(t_p)))?(1):(((parser__kind_is_ident(parser__p_peek_kind(t_p)))?(parser__str_eq(lexer__tok_text(((int64_t)(intptr_t)((char*)(intptr_t)(t_p)+0)),(*(int64_t*)((char*)(intptr_t)(t_p)+24))),((int64_t)(intptr_t)sx__str98))):(0)))))
+if(((parser__kind_is_ident(parser__p_peek_kind(t_p)))?(parser__str_eq(lexer__tok_text(((int64_t)(intptr_t)((char*)(intptr_t)(t_p)+0)),(*(int64_t*)((char*)(intptr_t)(t_p)+24))),((int64_t)(intptr_t)sx__str98))):(0)))
 {
 (void)(parser__p_advance(t_p));
 t_ta=(parser__make_node((111),t_line));
