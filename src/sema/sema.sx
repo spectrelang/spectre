@@ -2599,7 +2599,7 @@ fn resolve_generic_inst_inference(ctx: mut ref SemaCtx, callee: mut ref parser.N
     val raw_targs: list[ref parser.Node] = parser.generic_inst_type_args(callee)
     val nraw: i64 = @len(raw_targs) as i64
 
-    // Expand a single bare [?] to one TY_INFER per type parameter.
+    // Expand a single bare [_] to one TY_INFER per type parameter.
     val effective: mut list[ref parser.Node] = []
     val expand: mut bool = false
     if nraw == 1 && nparams > 1 {

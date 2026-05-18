@@ -904,7 +904,7 @@ pub fn cmd_ref() i32 = {
     }
 
     val time_arena: mut allocators.Arena = trust allocators.Arena.new(4096 as usize)?
-    val unix_time: i64 = time.unix_now[?](time_arena)
+    val unix_time: i64 = time.unix_now[_](time_arena)
     val std_snapshot_dir: ref u8 = trust @fmt("std__{d}", {unix_time})
     if !(copy_current_stdlib(std_snapshot_dir)) {
         trust stdio.print("error: could not copy stdlib into {s}\n", {std_snapshot_dir})

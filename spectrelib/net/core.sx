@@ -382,7 +382,7 @@ test {
     Http.init()
 
     val url: ref u8        = "https://example.com"
-    val resp: ref Response = trust Http.get[?](ac, url)
+    val resp: ref Response = trust Http.get[_](ac, url)
     assert resp != none
 
     val status: i64      = Http.status(resp)
@@ -396,15 +396,15 @@ test {
     assert status > 0
     assert body_ptr != none
     assert body_len >= 0
-    trust Http.free_response[?](ac, resp)
+    trust Http.free_response[_](ac, resp)
 
-    val server: ref ServerHandle = trust TcpServer.listen[?](ac, 8080 as i32)
+    val server: ref ServerHandle = trust TcpServer.listen[_](ac, 8080 as i32)
     assert server != none
     val listen_fd: i32    = TcpServer.fd(server)
     val listen_port: i64  = TcpServer.port(server)
     assert listen_fd > 0
     assert listen_port == 8080
 
-    trust TcpServer.close[?](ac, server)
+    trust TcpServer.close[_](ac, server)
     trust Http.cleanup()
 }

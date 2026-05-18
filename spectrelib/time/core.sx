@@ -268,7 +268,7 @@ pub fn (DateTime) diff_seconds(a: self, b: self) i64 = {
 
 test {
     val ac: mut allocators.Arena = trust allocators.Arena.new(10240 as usize)?
-    val dt: DateTime = DateTime.new[?](ac, 2026, 4, 2, 14, 30, 0, 0)
+    val dt: DateTime = DateTime.new[_](ac, 2026, 4, 2, 14, 30, 0, 0)
     assert DateTime.year(dt)   == 2026
     assert DateTime.month(dt)  == 4
     assert DateTime.day(dt)    == 2
@@ -279,15 +279,15 @@ test {
     assert DateTime.is_leap_year(dt) == false
     assert DateTime.days_in_month(dt) == 30
 
-    val dt2: DateTime = DateTime.new[?](ac, 2024, 2, 1, 0, 0, 0, 0)
+    val dt2: DateTime = DateTime.new[_](ac, 2024, 2, 1, 0, 0, 0, 0)
     assert DateTime.is_leap_year(dt2) == true
     assert DateTime.days_in_month(dt2) == 29
     assert DateTime.before(dt2, dt) == true
     assert DateTime.after(dt, dt2)  == true
     assert DateTime.equals(dt, dt)  == true
-    assert unix_now_millis[?](ac) >= unix_now[?](ac) * 1000
-    assert unix_now_micros[?](ac) >= unix_now_millis[?](ac) * 1000
+    assert unix_now_millis[_](ac) >= unix_now[_](ac) * 1000
+    assert unix_now_micros[_](ac) >= unix_now_millis[_](ac) * 1000
     
-    trust stdio.print("year: {d}\n", {DateTime.now[?](ac).year})
+    trust stdio.print("year: {d}\n", {DateTime.now[_](ac).year})
     trust allocators.Arena.free(ac)
 }

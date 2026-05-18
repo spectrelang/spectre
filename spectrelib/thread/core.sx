@@ -301,10 +301,10 @@ test {
     val counter: ref void = @alloc(8)
     trust @store(counter, 0)
 
-    val t: Thread = trust Thread.new[?](ac, thread_test_entry, counter)?
+    val t: Thread = trust Thread.new[_](ac, thread_test_entry, counter)?
     stdio.puts("it worked :D")
 
-    trust Thread.join[?](ac, t)?
+    trust Thread.join[_](ac, t)?
     stdio.puts("it worked :D2")
 
     val final_val: i64 = trust @load(counter)
@@ -312,10 +312,10 @@ test {
 
     assert final_val == 1
 
-    match trust Mutex.new[?](ac) {
+    match trust Mutex.new[_](ac) {
         some m => {
             defer {
-                trust Mutex.free[?](ac, m)
+                trust Mutex.free[_](ac, m)
             }
             stdio.puts("it worked :D4")
 
