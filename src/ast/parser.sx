@@ -875,8 +875,7 @@ fn parse_postfix(p: mut ref Parser) result[ref Node, ref u8] = trust {
             for {
                 if lexer.kind_is_rbracket(p_peek_kind(p)) { break }
                 val ta: mut ref Node = none
-                if lexer.kind_is_question(p_peek_kind(p)) ||
-                   (kind_is_ident(p_peek_kind(p)) && str_eq(lexer.tok_text(p.tokens, p.pos), "_")) {
+                if kind_is_ident(p_peek_kind(p)) && str_eq(lexer.tok_text(p.tokens, p.pos), "_") {
                     p_advance(p)
                     ta = make_node(TY_INFER, line)
                 } else {
