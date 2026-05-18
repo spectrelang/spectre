@@ -166,10 +166,11 @@ pub fn main() void = {
 
     stdio.puts("calling get_current_platform")
     val platform = trust get_current_platform[?](arena)
+
     trust stdio.print("Current platform: {d}\n", {platform})
 
     val exe_path = trust get_exe_path[?](arena)
-    trust stdio.print("Exe path: {s}\n", {exe_path})
 
+    trust stdio.print("Exe path: {s}\n", {exe_path})
     trust allocators.Arena.free(arena)
 }
