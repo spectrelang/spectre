@@ -972,7 +972,9 @@ fn find_imported_mod(ctx: ref SemaCtx, alias: ref u8) ref modinfo.ResolvedModule
         val imported: ref modinfo.ResolvedModule = modinfo.import_module_at(rmod, j as usize)
         if imported != none {
             val canonical_prefix: ref u8 = canonical_type_prefix_for_imported_module(imported)
-            if canonical_prefix != none && str_eq(canonical_prefix, alias) {
+            val emitted_prefix: ref u8 = emitted_type_prefix_for_imported_module(ctx, imported)
+            if ((canonical_prefix != none && str_eq(canonical_prefix, alias)) ||
+               (emitted_prefix != none && str_eq(emitted_prefix, alias))) {
                 return imported
             }
         }
@@ -1548,6 +1550,59 @@ fn canonical_type_prefix_for_imported_module(imported: ref modinfo.ResolvedModul
     return out
 }
 
+fn path_contains_segment(path: ref u8, segment: ref u8) bool = trust {
+    if path == none || segment == none { return false }
+    val plen: i64 = string.len_raw(path)
+    val slen: i64 = string.len_raw(segment)
+    if slen <= 0 || plen < slen { return false }
+    val i: mut i64 = 0
+    for {
+        if i + slen > plen { break }
+        val candidate: ref u8 = @ptradd(path as ref void, i) as ref u8
+        val matched: mut bool = true
+        val j: mut i64 = 0
+        for {
+            if j >= slen { break }
+            val pc: u8 = @load8(@ptradd(candidate as ref void, j))
+            val sc: u8 = @load8(@ptradd(segment as ref void, j))
+            if pc != sc {
+                matched = false
+                break
+            }
+            j++
+        }
+        if matched { return true }
+        i++
+    }
+    return false
+}
+
+fn emitted_type_prefix_for_imported_module(ctx: ref SemaCtx, imported: ref modinfo.ResolvedModule) ref u8 = trust {
+    if imported == none { return none }
+    val fname: ref u8 = canonicalize_path(modinfo.module_filename(imported))
+    if fname == none { return none }
+    if path_contains_segment(fname, "/spectrelib/") {
+        return canonical_type_prefix_for_imported_module(imported)
+    }
+    if ctx != none && ctx.root_mod != none {
+        val n: i64 = modinfo.import_count(ctx.root_mod)
+        val i: mut i64 = 0
+        for {
+            if i >= n { break }
+            val imported_mod: ref modinfo.ResolvedModule = modinfo.import_module_at(ctx.root_mod, i as usize)
+            if imported_mod != none {
+                val imported_fname: ref u8 = canonicalize_path(modinfo.module_filename(imported_mod))
+                if imported_fname != none && str_eq(imported_fname, fname) {
+                    val alias_name: ref u8 = modinfo.import_name_at(ctx.root_mod, i as usize)
+                    if alias_name != none { return alias_name }
+                }
+            }
+            i++
+        }
+    }
+    return canonical_type_prefix_for_imported_module(imported)
+}
+
 fn canonicalize_import_alias_type_name(ctx: ref SemaCtx, type_name: ref u8) ref u8 = trust {
     if type_name == none { return none }
     if str_eq(type_name, "") { return type_name }
@@ -1555,7 +1610,7 @@ fn canonicalize_import_alias_type_name(ctx: ref SemaCtx, type_name: ref u8) ref 
     if owner == none { return type_name }
     val imported: ref modinfo.ResolvedModule = find_imported_mod(ctx, owner)
     if imported == none { return type_name }
-    val canonical_prefix: ref u8 = canonical_type_prefix_for_imported_module(imported)
+    val canonical_prefix: ref u8 = emitted_type_prefix_for_imported_module(ctx, imported)
     if canonical_prefix == none || str_eq(canonical_prefix, owner) { return type_name }
     val inner_name: ref u8 = unqualified_type_name(type_name)
     val buf: ref u8 = @alloc(512) as ref u8
@@ -2406,10 +2461,15 @@ fn check_generic_call_constraints(ctx: ref SemaCtx, fn_found: ref parser.Node, c
                             val arg_type_name: ref u8 = extract_type_name(ta_node)
                             if constraint_name != none && arg_type_name != none &&
                                !is_type_parameter(ctx, arg_type_name) {
-                                val expected_spec: ref u8 = qualify_type_name_for_callee(ctx, callee, constraint_name)
+                                val expected_spec: ref u8 = canonicalize_import_alias_type_name(
+                                    ctx,
+                                    qualify_type_name_for_callee(ctx, callee, constraint_name)
+                                )
                                 val tdef: ref parser.Node = find_typedef_anywhere(ctx, arg_type_name)
                                 val impl_spec: mut ref u8 = none
-                                if tdef != none { impl_spec = tdef.d4 as ref u8 }
+                                if tdef != none {
+                                    impl_spec = canonicalize_import_alias_type_name(ctx, tdef.d4 as ref u8)
+                                }
                                 val its_ok: mut bool = false
                                 if impl_spec != none && str_eq(impl_spec, expected_spec) { its_ok = true }
                                 if !its_ok && impl_spec != none {
