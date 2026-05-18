@@ -92,29 +92,23 @@ pub fn main() i32 = trust {
     val evt: ref SDL_Event = @alloc(@sizeof(SDL_Event))
     val quit: mut bool = false
 
-    for {
-        if !quit {
-
-            for {
-                if SDL_PollEvent(evt) != 0 {
-                    if evt.type_value == C.SDL_QUIT {
-                        quit = true
-                    }
-                } else {
-                    break
+    for !quit {
+        for {
+            if SDL_PollEvent(evt) != 0 {
+                if evt.type_value == C.SDL_QUIT {
+                    quit = true
                 }
+            } else {
+                break
             }
-
-            SDL_SetRenderDrawColor(renderer, 0 as u8, 0 as u8, 0 as u8, 255 as u8)
-            SDL_RenderClear(renderer)
-
-            sierpinski(renderer, 6 as i32, 50 as i32, 50 as i32, 400 as i32)
-
-            SDL_RenderPresent(renderer)
-
-        } else {
-            break
         }
+
+        SDL_SetRenderDrawColor(renderer, 0 as u8, 0 as u8, 0 as u8, 255 as u8)
+        SDL_RenderClear(renderer)
+
+        sierpinski(renderer, 6 as i32, 50 as i32, 50 as i32, 400 as i32)
+
+        SDL_RenderPresent(renderer)
     }
 
     SDL_Quit()
