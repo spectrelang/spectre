@@ -1,0 +1,8 @@
+pub fn some_func[T](x: T) T = {
+	return x
+}
+
+pub fn main() void = {
+	val x: i32 = 12
+	trust @print("{d}", {some_func[_](x)})	
+}
