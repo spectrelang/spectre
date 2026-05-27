@@ -1,0 +1,5 @@
+pub val x = 0xDEADBEEF
+
+pub fn main() void = {
+	trust @print("{X}", {x})
+}
