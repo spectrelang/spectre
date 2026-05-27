@@ -3804,18 +3804,20 @@ fn normalize_static_int_text(text: ref u8) ref u8 = trust {
     if text == none { return "0" }
     val start: mut ref u8 = text
     val sign: mut i64 = 1
-    if @load8(start as ref void) == 45 {
+    val sc_sign: i64 = @load8(@ptradd(start, 0)) as i64
+    if sc_sign == 45 {
         sign = -1
-        start = @ptradd(start as ref void, 1) as ref u8
+        start = @ptradd(start, 1) as ref u8
     }
-    if @load8(start as ref void) == 48 {
-        val next: i64 = @load8(@ptradd(start as ref void, 1)) as i64
-        if next == 120 || next == 88 {
-            val hex_start: ref u8 = @ptradd(start as ref void, 2) as ref u8
+    val fc: i64 = @load8(@ptradd(start, 0)) as i64
+    if fc == 48 {
+        val sc: i64 = @load8(@ptradd(start, 1)) as i64
+        if sc == 120 || sc == 88 {
+            val hex_start: ref u8 = @ptradd(start, 2) as ref u8
             val val_: mut i64 = 0
             val hi: mut i64 = 0
             for {
-                val hc: i64 = @load8(@ptradd(hex_start as ref void, hi)) as i64
+                val hc: i64 = @load8(@ptradd(hex_start, hi)) as i64
                 if hc == 0 { break }
                 val digit: mut i64 = hc - 48
                 if hc >= 97 { digit = hc - 87 }
@@ -4223,22 +4225,26 @@ fn gen_expr(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
         val buf: ref u8 = @alloc(64) as ref u8
         val emit_text: mut ref u8 = text
 
-        if @load8(text as ref void) == 48 && @load8(@ptradd(text as ref void, 1)) == 120 {
-            val hex_start: ref u8 = @ptradd(text as ref void, 2) as ref u8
-            val val_: mut i64 = 0
-            val hi: mut i64 = 0
-            for {
-                val hc: i64 = @load8(@ptradd(hex_start as ref void, hi)) as i64
-                if hc == 0 { break }
-                val digit: mut i64 = hc - 48
-                if hc >= 97 { digit = hc - 87 }
-                elif hc >= 65 { digit = hc - 55 }
-                val_ = val_ * 16 + digit
-                hi++
+        val fch: i64 = @load8(@ptradd(text, 0)) as i64
+        if fch == 48 {
+            val sch: i64 = @load8(@ptradd(text, 1)) as i64
+            if sch == 120 || sch == 88 {
+                val hex_start: ref u8 = @ptradd(text, 2) as ref u8
+                val val_: mut i64 = 0
+                val hi: mut i64 = 0
+                for {
+                    val hc: i64 = @load8(@ptradd(hex_start, hi)) as i64
+                    if hc == 0 { break }
+                    val digit: mut i64 = hc - 48
+                    if hc >= 97 { digit = hc - 87 }
+                    elif hc >= 65 { digit = hc - 55 }
+                    val_ = val_ * 16 + digit
+                    hi++
+                }
+                val dec_buf: ref u8 = @alloc(32) as ref u8
+                @snprintf(dec_buf, 32, "{lld}", {val_})
+                emit_text = dec_buf
             }
-            val dec_buf: ref u8 = @alloc(32) as ref u8
-            @snprintf(dec_buf, 32, "{lld}", {val_})
-            emit_text = dec_buf
         }
         @snprintf(buf, 64, "    %%t{lld} =l copy {s}\n", {tmp, emit_text})
         emit(ctx, buf)
@@ -11257,7 +11263,7 @@ fn preregister_items(ctx: mut ref CgCtx, items: list[ref parser.Node], mod_prefi
                     val cval_reg: mut ref u8 = none
                     if cexpr != none {
                         if cexpr.kind == parser.NK_INT_LIT {
-                            cval_reg = parser.int_lit_text(cexpr)
+                            cval_reg = normalize_static_int_text(parser.int_lit_text(cexpr))
                         } elif cexpr.kind == parser.NK_FLOAT_LIT {
                             val ftext: ref u8 = parser.float_lit_text(cexpr)
                             val fval: ref u8 = @alloc(128) as ref u8
@@ -11269,7 +11275,7 @@ fn preregister_items(ctx: mut ref CgCtx, items: list[ref parser.Node], mod_prefi
                             if inner != none {
                                 if uop == parser.UOP_NEG {
                                     if inner.kind == parser.NK_INT_LIT {
-                                        val itext: ref u8 = parser.int_lit_text(inner)
+                                        val itext: ref u8 = normalize_static_int_text(parser.int_lit_text(inner))
                                         val ival: ref u8 = @alloc(128) as ref u8
                                         @snprintf(ival, 128, "-{s}", {itext})
                                         cval_reg = ival
@@ -11431,7 +11437,7 @@ fn gen_items_with_prefix(ctx: mut ref CgCtx, items: list[ref parser.Node], mod_p
                         }
 
                         if cexpr.kind == parser.NK_INT_LIT {
-                            val cval: ref u8 = parser.int_lit_text(cexpr)
+                            val cval: ref u8 = normalize_static_int_text(parser.int_lit_text(cexpr))
                             cg_register_module_const(ctx, cname, cval)
                             if cg_emit_label_if_new(ctx, const_label) {
                                 val data_buf: ref u8 = @alloc(256) as ref u8
@@ -11453,7 +11459,7 @@ fn gen_items_with_prefix(ctx: mut ref CgCtx, items: list[ref parser.Node], mod_p
                             if inner != none {
                                 if uop == parser.UOP_NEG {
                                     if inner.kind == parser.NK_INT_LIT {
-                                        val itext: ref u8 = parser.int_lit_text(inner)
+                                        val itext: ref u8 = normalize_static_int_text(parser.int_lit_text(inner))
                                         val ival: ref u8 = @alloc(128) as ref u8
                                         @snprintf(ival, 128, "-{s}", {itext})
                                         cg_register_module_const(ctx, cname, ival)
@@ -12529,7 +12535,7 @@ fn gen_items_with_prefix_skip_links(ctx: mut ref CgCtx, items: list[ref parser.N
                         }
 
                         if cexpr.kind == parser.NK_INT_LIT {
-                            val cval: ref u8 = parser.int_lit_text(cexpr)
+                            val cval: ref u8 = normalize_static_int_text(parser.int_lit_text(cexpr))
                             cg_register_module_const(ctx, cname, cval)
                             if cg_emit_label_if_new(ctx, const_label) {
                                 val data_buf: ref u8 = @alloc(256) as ref u8
@@ -12551,7 +12557,7 @@ fn gen_items_with_prefix_skip_links(ctx: mut ref CgCtx, items: list[ref parser.N
                             if inner != none {
                                 if uop == parser.UOP_NEG {
                                     if inner.kind == parser.NK_INT_LIT {
-                                        val itext: ref u8 = parser.int_lit_text(inner)
+                                        val itext: ref u8 = normalize_static_int_text(parser.int_lit_text(inner))
                                         val ival: ref u8 = @alloc(128) as ref u8
                                         @snprintf(ival, 128, "-{s}", {itext})
                                         cg_register_module_const(ctx, cname, ival)
@@ -12683,7 +12689,7 @@ fn gen_items_with_prefix_skip_main(ctx: mut ref CgCtx, items: list[ref parser.No
                     val cexpr: ref parser.Node = node.d2 as ref parser.Node
                     if cexpr != none {
                         if cexpr.kind == parser.NK_INT_LIT {
-                            cg_register_module_const(ctx, cname, parser.int_lit_text(cexpr))
+                            cg_register_module_const(ctx, cname, normalize_static_int_text(parser.int_lit_text(cexpr)))
                         } elif cexpr.kind == parser.NK_FLOAT_LIT {
                             val ftext3: ref u8 = parser.float_lit_text(cexpr)
                             val fval3: ref u8 = @alloc(128) as ref u8
@@ -12695,7 +12701,7 @@ fn gen_items_with_prefix_skip_main(ctx: mut ref CgCtx, items: list[ref parser.No
                             if inner2 != none {
                                 if uop2 == parser.UOP_NEG {
                                     if inner2.kind == parser.NK_INT_LIT {
-                                        val itext2: ref u8 = parser.int_lit_text(inner2)
+                                        val itext2: ref u8 = normalize_static_int_text(parser.int_lit_text(inner2))
                                         val ival2: ref u8 = @alloc(128) as ref u8
                                         @snprintf(ival2, 128, "-{s}", {itext2})
                                         cg_register_module_const(ctx, cname, ival2)
