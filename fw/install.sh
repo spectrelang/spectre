@@ -7,8 +7,9 @@ SRC_DIR="${PREFIX}/src"
 
 QBE_OK=1
 FORCE_FALLBACK=0
-QBE_MIRROR_REPO="https://github.com/8l/qbe.git"
-QBE_REPO="https://c9x.me/git/qbe.git"
+#QBE_MIRROR_REPO="https://github.com/8l/qbe.git"
+QBE_REPO="git://c9x.me/qbe.git"
+QBE_MIRROR_REPO="git://c9x.me/qbe.git"
 SPECTRE_REPO="https://github.com/spectrelang/spectre.git"
 YYJSON_REPO="https://github.com/ibireme/yyjson.git"
 
