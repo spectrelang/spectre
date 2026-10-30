@@ -19,6 +19,7 @@ val module       = use("module/module.sx")
 val meta         = use("meta/meta.sx")
 val commands     = use("meta/commands.sx")
 val docs         = use("meta/docs.sx")
+val formatter    = use("meta/fmt.sx")
 val c_translate  = use("translate/c_translate.sx")
 val builds       = use("meta/builds.sx")
 
@@ -112,6 +113,30 @@ pub fn main() i32 = trust {
             none   => {}
         }
         val code: i32 = commands.cmd_init(name_arg)
+        allocators.Arena.free(arena)
+        return code
+    }
+
+    if string.rchar_cmp(input, "fmt") == 0 {
+        val fmt_paths: mut list[ref u8] = []
+        val fmt_arg_i: mut i64 = 2
+        for {
+            val fmt_arg_opt = @get(args, fmt_arg_i)
+            match fmt_arg_opt {
+                some fv => {
+                    val arg: ref u8 = fv as ref u8
+                    if string.rchar_cmp(arg, "-h") == 0 || string.rchar_cmp(arg, "--help") == 0 {
+                        stdio.puts("usage: spectre fmt <file.sx|directory>...")
+                        allocators.Arena.free(arena)
+                        return 0
+                    }
+                    @append(fmt_paths, arg)
+                }
+                none => { break }
+            }
+            fmt_arg_i++
+        }
+        val code: i32 = formatter.cmd_fmt(fmt_paths)
         allocators.Arena.free(arena)
         return code
     }

@@ -528,7 +528,7 @@ fn copy_current_stdlib(snapshot_dir: ref u8) bool = trust {
         stdio.puts("error: failed to copy the standard library")
         stdio.print("  from: {s}\n", {std_dir})
         stdio.print("  to:   {s}\n", {snapshot_dir})
-        stdio.print("  check that both directories are readable and writable\n")
+        stdio.puts("  check that both directories are readable and writable")
     } else {
         val marker = path.join(snapshot_dir, "stdio/core.sx")
         if !os.exists(marker) {
