@@ -3129,24 +3129,24 @@ fn infer_type_annotation(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = tru
         val rhs: ref parser.Node = parser.binop_right(expr)
         val lhs_ann: ref u8 = infer_type_annotation(ctx, lhs)
         val rhs_ann: ref u8 = infer_type_annotation(ctx, rhs)
-        
+
         if str.rchar_cmp(lhs_ann, "f64") == 0 || str.rchar_cmp(rhs_ann, "f64") == 0 {
             return "f64"
         }
         if str.rchar_cmp(lhs_ann, "f32") == 0 || str.rchar_cmp(rhs_ann, "f32") == 0 {
             return "f32"
         }
-        
+
         val op: i64 = parser.binop_op(expr)
         if op == parser.OP_EQ || op == parser.OP_NE || op == parser.OP_LT ||
            op == parser.OP_GT || op == parser.OP_LE || op == parser.OP_GE {
             return "bool"
         }
-        
+
         if op == parser.OP_AND || op == parser.OP_OR {
             return "bool"
         }
-        
+
         return "i64"
     }
 
@@ -5842,7 +5842,7 @@ fn gen_list_ptr(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
             val base_name: ref u8 = base_expr.d0 as ref u8
             val local_type: ref u8 = cg_local_type(ctx, base_name)
             if str.rchar_cmp(local_type, "") != 0 {
-                val fields: ref void = cg_lookup_struct(ctx, local_type)
+                val fields: ref void = cg_lookup_struct(ctx, cg_ann_deref(local_type))
                 if fields != none {
                     val off: i64 = field_offset(ctx, fields, field_name)
                     if off >= 0 { offset = off }
@@ -8759,19 +8759,11 @@ fn gen_stmt(ctx: mut ref CgCtx, stmt: ref parser.Node) void = trust {
         }
 
         if ty_node != none {
-            val local_ann: mut ref u8 = ""
-            if ty_node.kind == parser.TY_LIST || ty_node.kind == parser.TY_FIXED_ARR || ty_node.kind == parser.TY_FNPTR || ty_node.kind == parser.TY_OPTION || ty_node.kind == parser.TY_RESULT {
-                val full_type: ref u8 = type_expr_to_annotation(ctx, ty_node)
-                if str.rchar_cmp(full_type, "") != 0 {
-                    cg_register_local_type(ctx, name, full_type)
-                    local_ann = full_type
-                }
-            } else {
-                val tname: ref u8 = unwrap_type_name(ty_node)
-                if str.rchar_cmp(tname, "") != 0 {
-                    cg_register_local_type(ctx, name, tname)
-                    local_ann = tname
-                }
+            // Preserve the full annotation (including ref/mut wrappers) so that
+            // later inference and variadic argument promotion see the real type.
+            val local_ann: ref u8 = type_expr_to_annotation(ctx, ty_node)
+            if str.rchar_cmp(local_ann, "") != 0 {
+                cg_register_local_type(ctx, name, local_ann)
             }
             if is_ref_type(ty_node) || cg_ann_is_indirect_value(ctx, local_ann) {
                 cg_register_local_ref_type(ctx, name)
@@ -10422,7 +10414,7 @@ fn gen_match_union(ctx: mut ref CgCtx, stmt: ref parser.Node) void = trust {
         val ename: ref u8 = expr_node.d0 as ref u8
         val local_ty: ref u8 = cg_local_type(ctx, ename)
         if str.rchar_cmp(local_ty, "") != 0 {
-            union_variants = cg_lookup_union_suffix(ctx, local_ty)
+            union_variants = cg_lookup_union_suffix(ctx, cg_ann_deref(local_ty))
         }
     }
 
@@ -10800,16 +10792,11 @@ fn gen_fn_prefixed(ctx: mut ref CgCtx, fn_node: ref parser.Node, mod_prefix: ref
                 some param2 => {
                     val pname2: ref u8 = (param2 as ref parser.Node).d0 as ref u8
                     val pty2: ref parser.Node = cg_concrete_ty(ctx, (param2 as ref parser.Node).d1 as ref parser.Node)
-                    val pty_name2: ref u8 = unwrap_type_name(pty2)
-                    if pty2 != none && (pty2.kind == parser.TY_LIST || pty2.kind == parser.TY_FIXED_ARR || pty2.kind == parser.TY_FNPTR) {
-                        val full_ptype: ref u8 = type_expr_to_annotation(ctx, pty2)
-                        if str.rchar_cmp(full_ptype, "") != 0 {
-                            cg_register_local_type(ctx, pname2, full_ptype)
-                        }
-                    } elif str.rchar_cmp(pty_name2, "") != 0 {
-                        cg_register_local_type(ctx, pname2, pty_name2)
+                    val full_ptype: ref u8 = type_expr_to_annotation(ctx, pty2)
+                    if str.rchar_cmp(full_ptype, "") != 0 {
+                        cg_register_local_type(ctx, pname2, full_ptype)
                     }
-                    if is_ref_type(pty2) {
+                    if is_ref_type(pty2) || cg_ann_is_indirect_value(ctx, full_ptype) {
                         cg_register_local_ref_type(ctx, pname2)
                     }
 
@@ -10901,19 +10888,10 @@ fn gen_fn_prefixed(ctx: mut ref CgCtx, fn_node: ref parser.Node, mod_prefix: ref
                     if ptk != parser.TY_MUT {
                         cg_dvars_add(ctx, pname2, qbe_type_of(pty2))
                     }
-                    if ptk == parser.TY_NAMED {
-                        val tname: ref u8 = pty2.d0 as ref u8
-                        cg_register_local_type(ctx, pname2, tname)
-                    } elif ptk == parser.TY_FIXED_ARR || ptk == parser.TY_LIST {
-                        val full_ptype2: ref u8 = type_expr_to_annotation(ctx, pty2)
-                        if str.rchar_cmp(full_ptype2, "") != 0 {
-                            cg_register_local_type(ctx, pname2, full_ptype2)
-                        }
-                    } elif ptk == parser.TY_MUT {
+                    if ptk == parser.TY_MUT {
                         val inner: ref parser.Node = pty2.d0 as ref parser.Node
                         if inner != none && inner.kind == parser.TY_NAMED {
                             val tname2: ref u8 = inner.d0 as ref u8
-                            cg_register_local_type(ctx, pname2, tname2)
                             if !ctx.release_mode {
                                 val has_inv: ref void = cg_lookup_invariant(ctx, tname2)
                                 if has_inv != none {
@@ -10921,11 +10899,13 @@ fn gen_fn_prefixed(ctx: mut ref CgCtx, fn_node: ref parser.Node, mod_prefix: ref
                                     @append(ctx.inv_cur_ptypes as list[ref u8], tname2)
                                 }
                             }
-                        } elif inner != none && inner.kind == parser.TY_FIXED_ARR {
-                            val full_ptype3: ref u8 = type_expr_to_annotation(ctx, inner)
-                            if str.rchar_cmp(full_ptype3, "") != 0 {
-                                cg_register_local_type(ctx, pname2, full_ptype3)
-                            }
+                        }
+                    }
+                    val full_ptype2: ref u8 = type_expr_to_annotation(ctx, pty2)
+                    if str.rchar_cmp(full_ptype2, "") != 0 {
+                        cg_register_local_type(ctx, pname2, full_ptype2)
+                        if cg_ann_is_indirect_value(ctx, full_ptype2) {
+                            cg_register_local_ref_type(ctx, pname2)
                         }
                     }
                 }

@@ -1,0 +1,15 @@
+fn print_copy(p: ref u8) void = {
+    val pp = p
+    trust @print("param={s}\n", {pp})
+    val ppp = pp
+    trust @print("param2={s}\n", {ppp})
+}
+
+pub fn main() void = {
+    val p: ref u8 = "hello"
+    val pp = p
+    trust @print("pp {p}, p {p}\n", {pp, p})
+    trust @print("pp={s}, p={s}\n", {pp, p})
+    trust @print("pp={s}, p={s}\n", {pp as ref u8, p})
+    print_copy(p)
+}

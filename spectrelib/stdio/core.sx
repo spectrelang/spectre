@@ -11,8 +11,8 @@ pub fn print(fmt: ref u8, args: untyped) void = trust {
 val STD_ERROR_HANDLE: i32 = -12
 
 when windows {
-    extern (C) fn GetStdHandle(nStdHandle: i32) ref void = "GetStdHandle"
-    extern (C) fn WriteFile(
+    extern (C, header) fn GetStdHandle(nStdHandle: i32) ref void = "GetStdHandle"
+    extern (C, header) fn WriteFile(
         hFile: ref void,
         lpBuffer: ref void,
         nNumberOfBytesToWrite: u32,
@@ -40,8 +40,8 @@ pub fn eputs(msg: ref u8) void = {
         }
         val written: mut u32 = 0
         trust WriteFile(handle, msg as ref void, len, @addr(written), 0)
-        val nl: list[u8] = ['\n']
-        trust WriteFile(handle, @addr(@get(nl, 0)), 1 as u32, @addr(written), 0)
+        val nl: mut u8 = 10
+        trust WriteFile(handle, @addr(nl), 1 as u32, @addr(written), 0)
     }
 }
 

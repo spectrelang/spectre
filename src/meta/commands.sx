@@ -460,19 +460,84 @@ fn drop_dep_lines(filepath: ref u8, needle: ref u8) void = trust {
     }
 }
 
-fn copy_current_stdlib(snapshot_dir: ref u8) bool = {
-    val arena: mut allocators.Arena = trust allocators.Arena.new(1024 as usize)?
-    val exe_path = trust reflection.get_exe_path[allocators.Arena](arena)
-    val exe_dir = trust path.dir(exe_path)
-    val std_dir = trust path.join(exe_dir, "spectrelib")
+fn add_stdlib_candidate(candidates: mut list[ref u8], dir: ref u8) void = trust {
+    if str.rchar_cmp(dir, "") == 0 { return }
+    @append(candidates, dir)
+}
 
-    if !os.exists(std_dir) {
-        trust allocators.Arena.free(arena)
+fn is_directory(dir: ref u8) bool = trust {
+    val handle: ref void = fs.opendir(dir)
+    if handle == none { return false }
+    fs.closedir(handle)
+    return true
+}
+
+fn copy_current_stdlib(snapshot_dir: ref u8) bool = trust {
+    val arena: mut allocators.Arena = allocators.Arena.new(4096 as usize)?
+    val exe_path = reflection.get_exe_path[allocators.Arena](arena)
+    val exe_dir = path.dir(exe_path)
+    val candidates: mut list[ref u8] = []
+    val stdlib_env = os.env("SPECTRE_STDLIB")
+
+    match stdlib_env {
+        some v => {
+            val dir: ref u8 = v as ref u8
+            add_stdlib_candidate(candidates, dir)
+            add_stdlib_candidate(candidates, path.join(dir, "spectrelib"))
+        }
+        none => {}
+    }
+
+    val root_env = os.env("SPECTRE_ROOT")
+    match root_env {
+        some v => {
+            add_stdlib_candidate(candidates, path.join(v as ref u8, "spectrelib"))
+        }
+        none => {}
+    }
+
+    add_stdlib_candidate(candidates, path.join(exe_dir, "spectrelib"))
+    add_stdlib_candidate(candidates, path.join(exe_dir, "../share/spectre/spectrelib"))
+    add_stdlib_candidate(candidates, path.join(exe_dir, "../lib/spectre/spectrelib"))
+    add_stdlib_candidate(candidates, path.join(exe_dir, "../lib/spectrelib"))
+    add_stdlib_candidate(candidates, "spectrelib")
+
+    val std_dir: mut ref u8 = ""
+    for candidate in candidates {
+        if is_directory(candidate) {
+            std_dir = candidate
+            break
+        }
+    }
+
+    if str.rchar_cmp(std_dir, "") == 0 {
+        stdio.puts("error: could not locate the Spectre standard library ('spectrelib')")
+        stdio.print("  executable: {s}\n", {exe_path})
+        stdio.print("  directory:  {s}\n", {exe_dir})
+        stdio.puts("  looked in:")
+        for candidate in candidates {
+            stdio.print("    - {s}\n", {candidate})
+        }
+        stdio.puts("  set SPECTRE_STDLIB=/path/to/spectrelib to override")
+        allocators.Arena.free(arena)
         return false
     }
 
-    val its_ok: bool = trust os.copy_dir_recursive(std_dir, snapshot_dir)
-    trust allocators.Arena.free(arena)
+    val its_ok: mut bool = os.copy_dir_recursive(std_dir, snapshot_dir)
+    if !its_ok {
+        stdio.puts("error: failed to copy the standard library")
+        stdio.print("  from: {s}\n", {std_dir})
+        stdio.print("  to:   {s}\n", {snapshot_dir})
+        stdio.print("  check that both directories are readable and writable\n")
+    } else {
+        val marker = path.join(snapshot_dir, "stdio/core.sx")
+        if !os.exists(marker) {
+            stdio.print("error: standard library copy at {s} looks incomplete (missing {s})\n", {snapshot_dir, marker})
+            its_ok = false
+        }
+    }
+
+    allocators.Arena.free(arena)
     return its_ok
 }
 
@@ -906,7 +971,7 @@ pub fn cmd_ref() i32 = {
     val time_arena: mut allocators.Arena = trust allocators.Arena.new(4096 as usize)?
     val unix_time: i64 = time.unix_now[_](time_arena)
     val std_snapshot_dir: ref u8 = trust @fmt("std__{d}", {unix_time})
-    if !(copy_current_stdlib(std_snapshot_dir)) {
+    if !(trust copy_current_stdlib(std_snapshot_dir)) {
         trust stdio.print("error: could not copy stdlib into {s}\n", {std_snapshot_dir})
         return 1
     }
@@ -980,7 +1045,7 @@ pub fn cmd_build(config_name: ref u8, exe_path: ref u8) i32 = {
                 return 1
             }
 
-            val entry: mut ref u8 = m.entry 
+            val entry: mut ref u8 = m.entry
             if str.rchar_cmp(found_cfg.entry, "") != 0 { entry = found_cfg.entry }
             val cmd: ref u8 = trust build_config_cmd(found_cfg, exe_path, entry)
             val exit_code: i32 = trust os.run(cmd)

@@ -17,6 +17,31 @@ extern (C) fn popen(cmd: ref u8, mode: ref u8) ref void = "popen"
 extern (C) fn pclose(pipe: ref void) i32 = "pclose"
 extern (C) fn system(cmd: ref u8) i32 = "system"
 
+when windows {
+    extern type WinFindDataA = {
+        dwFileAttributes:   u32
+        ftCreationLow:      u32
+        ftCreationHigh:     u32
+        ftLastAccessLow:    u32
+        ftLastAccessHigh:   u32
+        ftLastWriteLow:     u32
+        ftLastWriteHigh:    u32
+        nFileSizeHigh:      u32
+        nFileSizeLow:       u32
+        dwReserved0:        u32
+        dwReserved1:        u32
+        cFileName:          [260]u8
+        cAlternateFileName: [14]u8
+    }
+
+    extern (C, header) fn CreateDirectoryA(path: ref u8, security: ref void) i32 = "CreateDirectoryA"
+    extern (C, header) fn FindFirstFileA(pattern: ref u8, data: ref WinFindDataA) ref void = "FindFirstFileA"
+    extern (C, header) fn FindNextFileA(handle: ref void, data: ref WinFindDataA) i32 = "FindNextFileA"
+    extern (C, header) fn FindClose(handle: ref void) i32 = "FindClose"
+    extern (C, header) fn CopyFileA(existing: ref u8, new_file: ref u8, fail_if_exists: i32) i32 = "CopyFileA"
+    extern (C, header) fn GetFileAttributesA(path: ref u8) u32 = "GetFileAttributesA"
+}
+
 val str = use("../string")
 
 when linux {
@@ -25,6 +50,7 @@ when linux {
         d_off:    i64
         d_reclen: u16
         d_type:   u8
+        d_name:   [256]u8
     }
 }
 
@@ -146,7 +172,13 @@ fn is_dot_dir_entry(name: ref u8) bool = {
 
 fn ensure_dir(path: ref u8) bool = trust {
     if exists(path) { return true }
-    return mkdir(path, 493 as u32) == 0
+    when windows {
+        return CreateDirectoryA(path, none) != 0
+    }
+    when posix {
+        return mkdir(path, 493 as u32) == 0
+    }
+    return false
 }
 
 /// Copy one file to another path.
@@ -187,7 +219,46 @@ pub fn copy_file(src_path: ref u8, dst_path: ref u8) bool = trust {
 /// Recursively copy a directory tree.
 pub fn copy_dir_recursive(src_dir: ref u8, dst_dir: ref u8) bool = trust {
     when windows {
-        return false
+        if !ensure_dir(dst_dir) { return false }
+
+        val sep: ref u8 = "\\"
+        val pattern: ref u8 = @fmt("{s}{s}*", {src_dir, sep})
+        val data: mut ref WinFindDataA = @alloc(@sizeof(WinFindDataA)) as ref WinFindDataA
+        val handle: ref void = FindFirstFileA(pattern, data)
+        if @bitcast(handle, i64) == -1 {
+            @free(data as ref void)
+            @free(pattern as ref void)
+            return false
+        }
+
+        val invalid_attributes: u32 = 4294967295 as u32  // INVALID_FILE_ATTRIBUTES
+        val directory_attribute: u32 = 16 as u32         // FILE_ATTRIBUTE_DIRECTORY
+        val its_ok: mut bool = true
+        for {
+            val name: ref u8 = @addr(data.cFileName) as ref u8
+            if !(str.rchar_cmp(name, ".") == 0 || str.rchar_cmp(name, "..") == 0) {
+                val src_child: ref u8 = @fmt("{s}{s}{s}", {src_dir, sep, name})
+                val dst_child: ref u8 = @fmt("{s}{s}{s}", {dst_dir, sep, name})
+                val attrs: u32 = GetFileAttributesA(src_child)
+
+                if attrs != invalid_attributes && (attrs & directory_attribute) != (0 as u32) {
+                    if !copy_dir_recursive(src_child, dst_child) {
+                        its_ok = false
+                        break
+                    }
+                } elif CopyFileA(src_child, dst_child, 0 as i32) == 0 {
+                    its_ok = false
+                    break
+                }
+            }
+
+            if FindNextFileA(handle, data) == 0 { break }
+        }
+
+        FindClose(handle)
+        @free(data as ref void)
+        @free(pattern as ref void)
+        return its_ok
     }
     when posix {
         if !ensure_dir(dst_dir) { return false }
@@ -199,12 +270,8 @@ pub fn copy_dir_recursive(src_dir: ref u8, dst_dir: ref u8) bool = trust {
         for {
             val entry: ref Dirent = readdir(dir)
             if entry == none { break }
-            val name: mut ref u8 = @ptradd(entry as ref void, 19) as ref u8
+            val name: ref u8 = @addr(entry.d_name) as ref u8
 
-            when darwin {
-                name = entry.d_name    
-            }
-                       
             if is_dot_dir_entry(name) { continue }
 
             if str.rchar_cmp(src_dir, "") == 0 {
