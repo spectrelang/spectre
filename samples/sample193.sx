@@ -1,0 +1,9 @@
+pub fn main() void = {
+    @puts("Hello, world.")
+    val x = 10
+    if x is some _ {
+        @puts("wow")
+    } else {
+        @puts("oh")
+    }
+}
