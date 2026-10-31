@@ -210,17 +210,13 @@ fn update_enemies(dt: f32) void = trust {
 
                     val tx: i32 = ((newX + 4.0) / 64.0) as i32
                     val ty: i32 = ((e.y + 4.0) / 64.0) as i32
-                    match @get(map, ty, tx) {
-                        some v => { if v == 0 { e.x = newX } }
-                        none => {}
-                    }
+                    if @get(map, ty, tx) is some v {
+                        if v == 0 { e.x = newX } }
 
                     val tx2: i32 = ((e.x + 4.0) / 64.0) as i32
                     val ty2: i32 = ((newY + 4.0) / 64.0) as i32
-                    match @get(map, ty2, tx2) {
-                        some v2 => { if v2 == 0 { e.y = newY } }
-                        none => {}
-                    }
+                    if @get(map, ty2, tx2) is some v2 {
+                        if v2 == 0 { e.y = newY } }
                 }
 
                 e.shootTimer -= dt
@@ -277,10 +273,8 @@ fn update_bullets(dt: f32) void = trust {
                 if tx < 0 || tx >= MAP_SIZE || ty < 0 || ty >= MAP_SIZE {
                     hitWall = 1
                 } else {
-                    match @get(map, ty, tx) {
-                        some v => { if v > 0 { hitWall = 1 } }
-                        none => { hitWall = 1 }
-                    }
+                    if @get(map, ty, tx) is some v {
+                        if v > 0 { hitWall = 1 } } else { hitWall = 1 }
                 }
 
                 if hitWall != 0 {
@@ -612,24 +606,18 @@ pub fn main() i32 = {
 
                 val moveY0: i32 = ((player.y + 4.0) / 64.0) as i32
                 val moveX0: i32 = ((player.x + 4.0 + stepX) / 64.0) as i32
-                match @get(map, moveY0, moveX0) {
-                    some v => {
-                        if v == 0 {
-                            player.x += stepX
-                        }
+                if @get(map, moveY0, moveX0) is some v {
+                    if v == 0 {
+                        player.x += stepX
                     }
-                    none => {}
                 }
 
                 val moveY1: i32 = ((player.y + 4.0 + stepY) / 64.0) as i32
                 val moveX1: i32 = ((player.x + 4.0) / 64.0) as i32
-                match @get(map, moveY1, moveX1) {
-                    some v => {
-                        if v == 0 {
-                            player.y += stepY
-                        }
+                if @get(map, moveY1, moveX1) is some v {
+                    if v == 0 {
+                        player.y += stepY
                     }
-                    none => {}
                 }
             }
 
@@ -715,13 +703,10 @@ pub fn main() i32 = {
                             if mX < 0 || mX >= MAP_SIZE || mY < 0 || mY >= MAP_SIZE {
                                 break
                             }
-                            match @get(map, mY, mX) {
-                                some v => {
-                                    if v > 0 {
-                                        hit = 1
-                                    }
+                            if @get(map, mY, mX) is some v {
+                                if v > 0 {
+                                    hit = 1
                                 }
-                                none => {}
                             }
                         } else {
                             break
@@ -772,21 +757,18 @@ pub fn main() i32 = {
                     val x: mut i32 = 0
                     for {
                         if x < MAP_SIZE {
-                            match @get(map, y, x) {
-                                some v => {
-                                    if v > 0 {
-                                        trust SDL_SetRenderDrawColor(renderer, 120 as u8, 120 as u8, 120 as u8, 255 as u8)
-                                        val w: mut ref SDL_Rect = @alloc(@sizeof(SDL_Rect))
-                                        @deref(w) = {
-                                            x: (mar + (x as f32) * mt) as i32,
-                                            y: (mar + (y as f32) * mt) as i32,
-                                            w: mt as i32,
-                                            h: mt as i32
-                                        }
-                                        trust SDL_RenderFillRect(renderer, w)
+                            if @get(map, y, x) is some v {
+                                if v > 0 {
+                                    trust SDL_SetRenderDrawColor(renderer, 120 as u8, 120 as u8, 120 as u8, 255 as u8)
+                                    val w: mut ref SDL_Rect = @alloc(@sizeof(SDL_Rect))
+                                    @deref(w) = {
+                                        x: (mar + (x as f32) * mt) as i32,
+                                        y: (mar + (y as f32) * mt) as i32,
+                                        w: mt as i32,
+                                        h: mt as i32
                                     }
+                                    trust SDL_RenderFillRect(renderer, w)
                                 }
-                                none => {}
                             }
                             x++
                         } else {

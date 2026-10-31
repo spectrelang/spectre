@@ -6,6 +6,5 @@ enum SomeEnum = {
 val stdio = use("std/stdio")
 
 pub fn main() void = {
-    trust stdio.print("{d}\n", {SomeEnum.WORLD})    
+    trust stdio.print("{d}\n", {SomeEnum.WORLD})
 }
-

@@ -1,10 +1,10 @@
 val stdio = use("std/stdio")
 
 pub fn do_some_thing() void = {
-	stdio.puts("hello, world")
+    stdio.puts("hello, world")
 }
 
 pub fn main() void = trust {
-	do_some_thing()
-	stdio.print("{d} {s}", {1, "asdf"})	
+    do_some_thing()
+    stdio.print("{d} {s}", {1, "asdf"})
 }

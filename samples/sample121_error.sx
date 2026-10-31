@@ -5,5 +5,5 @@ type SomeType = {
 
 pub fn main() void = {
     val st: SomeType = {x: 10}
-    trust @print("{d}", {st.y})   
+    trust @print("{d}", {st.y})
 }

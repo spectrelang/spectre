@@ -26,18 +26,14 @@ fn generic_raw_with_alloc[A: allocators.GeneralAllocator](ac: A, path: ref u8) i
     val tmp_opt = A.alloc(ac, 8 as usize)
     val file: ref void = fopen(path, "rb")
     if file == none {
-        match tmp_opt {
-            some tmp => { A.free(ac, tmp as ref void) }
-            none => {}
-        }
+        if tmp_opt is some tmp {
+            A.free(ac, tmp as ref void) }
         return -1
     }
     val rc: i32 = fseek(file, 0, 2 as i32)
     fclose(file)
-    match tmp_opt {
-        some tmp => { A.free(ac, tmp as ref void) }
-        none => {}
-    }
+    if tmp_opt is some tmp {
+        A.free(ac, tmp as ref void) }
     return rc
 }
 
@@ -49,10 +45,8 @@ fn generic_fs_like[A: allocators.GeneralAllocator](ac: A, path: ref u8) i32 = tr
             val ptr: ref void = @load(f)
             val tmp_opt = A.alloc(ac, 8 as usize)
             val rc: i32 = fseek(ptr, 0, 2 as i32)
-            match tmp_opt {
-                some tmp => { A.free(ac, tmp as ref void) }
-                none => {}
-            }
+            if tmp_opt is some tmp {
+                A.free(ac, tmp as ref void) }
             fs.close(f)
             return rc
         }

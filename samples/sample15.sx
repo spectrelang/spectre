@@ -9,9 +9,9 @@ pub fn main() i32 = trust {
 
     val Stack = allocators.Stack
     val my_stack = Stack.new(1024)?
-    
+
     Stack.free(my_stack)
-    
+
     stdio.puts("freed.")
     return 0
 }

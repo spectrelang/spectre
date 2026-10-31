@@ -1,14 +1,12 @@
 pub union Kind = {
     Foo()
-  | Bar(i64)
+    | Bar(i64)
 }
 
 fn get_kind(items: list[ref Kind], i: i64) Kind = trust {
     val opt = @get(items, i as usize)
-    match opt {
-        some t => { return (t as ref Kind) }
-        none   => { return Foo() }
-    }
+    if opt is some t {
+        return (t as ref Kind) } else { return Foo() }
 }
 
 pub fn main() i64 = trust {

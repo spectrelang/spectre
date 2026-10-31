@@ -12,4 +12,3 @@ pub fn main() void = {
         trust @print("{d} {d}\n", {@deref(x).x, @deref(x).y})
     }
 }
-

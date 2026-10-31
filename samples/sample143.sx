@@ -14,10 +14,8 @@ pub fn main() void = trust {
     val walk_count = helper.walk_count[allocators.Arena](arena, ".")
     stdio.print("walk_count={d}\n", {walk_count})
 
-    match helper.passthrough_read[allocators.Arena](arena, "sx.mod") {
-        some text => { stdio.print("passthrough_len={d}\n", {@strlen(text as ref u8)}) }
-        none => { stdio.puts("passthrough_len=-1") }
-    }
+    if helper.passthrough_read[allocators.Arena](arena, "sx.mod") is some text {
+        stdio.print("passthrough_len={d}\n", {@strlen(text as ref u8)}) } else { stdio.puts("passthrough_len=-1") }
 
     allocators.Arena.free(arena)
 }

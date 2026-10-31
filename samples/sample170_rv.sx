@@ -1,6 +1,6 @@
 
 extern (C) fn write(fd: i32, buf: ref void, count: usize) i64 = "write"
- 
+
 extern type Inner = {
     value: mut i32
     flag: mut bool

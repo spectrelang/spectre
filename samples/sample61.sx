@@ -1,6 +1,6 @@
 pub union Shape = {
     Circle(i64)
-  | Rect(i64, i64)
+    | Rect(i64, i64)
 }
 
 fn is_circle(s: Shape) bool = trust {

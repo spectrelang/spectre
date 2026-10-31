@@ -1,7 +1,7 @@
 pub fn main() void = {
     val p: ref i32 = none
     val x = @deref(p)
-    
+
     if x == 123 {
         @store(p, x)
     }

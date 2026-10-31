@@ -9,4 +9,3 @@ pub fn main() void = {
     val correct = some_func[i32](12, 14 as i32)
     trust @print("{d}\n", {correct})
 }
-

@@ -12,7 +12,7 @@ pub fn main() void = {
             @puts("what2")
         }
     }
-    
+
     // We should be able to do this:
     val x = 10
     match x {

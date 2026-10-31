@@ -1,7 +1,7 @@
 pub fn main() void = {
-	if 1 {
-		@puts("true")
-	} else {
-		@puts("false")
-	}
+    if 1 {
+        @puts("true")
+    } else {
+        @puts("false")
+    }
 }

@@ -32,13 +32,10 @@ pub fn main() void = trust {
                         if i >= n { break }
 
                         val v = @get(lst, i as usize)
-                        match v {
-                            some x => {
-                                stdio.print("{d} {d}\n", {x.x, x.y})
-                            }
-                            none => {
-                                stdio.print("CORRUPTED LIST\n", {})
-                            }
+                        if v is some x {
+                            stdio.print("{d} {d}\n", {x.x, x.y})
+                        } else {
+                            stdio.print("CORRUPTED LIST\n", {})
                         }
                         i++
                     }

@@ -3,11 +3,11 @@ val fs = use("std/fs")
 val allocators = use("std/allocators")
 
 pub fn main() void = trust {
-	val arena = allocators.Arena.new(1024 as usize)?
+    val arena = allocators.Arena.new(1024 as usize)?
     val walk_opt = fs.walk_dir[_](arena, ".")
-	if walk_opt is some v {
-		for f in algorithms.sort[ref u8](v) {
-			@print("-> {s}\n", {f})
-		}
-	}
+    if walk_opt is some v {
+        for f in algorithms.sort[ref u8](v) {
+            @print("-> {s}\n", {f})
+        }
+    }
 }

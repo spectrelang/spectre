@@ -12,17 +12,12 @@ fn ll_lookup_fn_params(ctx: ref LLCtx, name: ref u8) ref void = trust {
     for {
         if i >= len { break }
         val n_opt = @get(ctx.fn_names, i as usize)
-        match n_opt {
-            some n => {
-                if str.rchar_cmp(n as ref u8, name) == 0 {
-                    val p_opt = @get(ctx.fn_params, i as usize)
-                    match p_opt {
-                        some p => { return p as ref void }
-                        none => {}
-                    }
-                }
+        if n_opt is some n {
+            if str.rchar_cmp(n as ref u8, name) == 0 {
+                val p_opt = @get(ctx.fn_params, i as usize)
+                if p_opt is some p {
+                    return p as ref void }
             }
-            none => {}
         }
         i++
     }

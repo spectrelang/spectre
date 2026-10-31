@@ -12,4 +12,3 @@ pub fn main() void = {
     val bad = some_func[f64](12.0, 14 as i32)
     trust @print("{d}\n", {bad})
 }
-

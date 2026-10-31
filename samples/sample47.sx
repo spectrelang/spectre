@@ -3,5 +3,5 @@ union SomeUnion = {
 }
 
 pub fn main() void = trust {
-    
+
 }

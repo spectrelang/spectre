@@ -9,5 +9,5 @@ pub fn (SomeType) some_func() void = {
 }
 
 pub fn main() void = {
-    SomeType.some_func()        
+    SomeType.some_func()
 }

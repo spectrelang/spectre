@@ -3,8 +3,6 @@ fn wrap(s: ref u8) option[ref u8] = {
 }
 
 pub fn main() void = trust {
-    match wrap("hello") {
-        some v => { @puts(v) }
-        none => { @puts("missing") }
-    }
+    if wrap("hello") is some v {
+        @puts(v) } else { @puts("missing") }
 }

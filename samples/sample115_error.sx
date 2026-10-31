@@ -4,7 +4,7 @@ pub spec Animal = {
 }
 
 pub type (Animal) Cat = {
-    age: mut i32 
+    age: mut i32
     name: ref u8
 }
 

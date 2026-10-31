@@ -64,7 +64,7 @@ pub fn add_vec2(acc: Vec2, x: Vec2) Vec2 = {
 // pub fn main() void = {
 //     val f: fn(Vec2) Vec2 = shift_vec2
 //     val v = @call(f, {x: 1.0, y: 2.0})
-// 
+//
 //     trust @print("{f} {f}\n", {v.x, v.y})
 // }
 

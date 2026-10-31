@@ -1,5 +1,5 @@
 val subb = use("submod/sub.sx")
 
 pub fn main() void = {
-	trust subb.some_function()
+    trust subb.some_function()
 }

@@ -6,5 +6,5 @@ val stdio = use("std/stdio")
 
 pub fn main() void = trust {
     val result = some_function(10, 20.5) // Should not compile without a cast, like 20.5 as i32, which would become 20.
-    stdio.print("The result is {d}\n", {result})    
+    stdio.print("The result is {d}\n", {result})
 }

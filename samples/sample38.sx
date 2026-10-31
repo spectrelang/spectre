@@ -9,7 +9,7 @@ pub fn (Stack) push(s: mut self, vl: i64) void = {
 }
 
 pub fn (Stack) pop(s: mut self) option[i64] = {
-    pre { 
+    pre {
         not_empty: s.len > 0
     }
     val top = @get(s.data, s.len - 1)
@@ -24,20 +24,18 @@ type Stack = {
 }
 
 pub fn (Stack) peek(s: self) option[i64] = {
-    pre { 
-        not_empty: s.len > 0 
+    pre {
+        not_empty: s.len > 0
     }
     return @get(s.data, s.len - 1)
 }
 
 pub fn (Stack) print_top(s: self) void = {
-    guarded pre { 
-        has_items: s.len > 0 
+    guarded pre {
+        has_items: s.len > 0
     }
-    match Stack.peek(s) {
-        some v => { trust stdio.print("top: {d}\n", {v}) }
-        none   => {}
-    }
+    if Stack.peek(s) is some v {
+        trust stdio.print("top: {d}\n", {v}) }
 }
 
 pub fn main() void = trust {

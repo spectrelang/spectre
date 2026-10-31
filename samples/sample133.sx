@@ -10,5 +10,5 @@ pub fn (SomeType) do_some_thing() i32 = {
 }
 
 pub fn main() void = {
-   SomeType.do_some_thing() 
+    SomeType.do_some_thing()
 }

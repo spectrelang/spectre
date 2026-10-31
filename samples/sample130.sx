@@ -11,7 +11,7 @@ pub fn main() void = {
         @puts("something went wrong")
     }
 
-    if returns_none() is none { 
+    if returns_none() is none {
         @puts("but actually it didnt :)")
     }
 }

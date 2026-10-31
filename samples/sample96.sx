@@ -7,11 +7,8 @@ pub fn something(v: i32) option[ref u8] = {
 
 pub fn main() void = {
     // Current syntax:
-    match something(11 as i32) {
-        some v => {
-            trust @print("{s}\n", {v})
-        }
-        none => {}
+    if something(11 as i32) is some v {
+        trust @print("{s}\n", {v})
     }
 
     // Instead of that, we can do this:

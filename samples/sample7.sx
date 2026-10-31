@@ -2,19 +2,16 @@ val stdio = use("std/stdio")
 
 pub fn main() void = trust {
     val result = can_fail(true)
-    match result {
-        some x => {
-            stdio.print("hooray: {d}", {x})
-        }
-        none => {
-            stdio.puts(":(")
-        }
+    if result is some x {
+        stdio.print("hooray: {d}", {x})
+    } else {
+        stdio.puts(":(")
     }
 }
 
 fn can_fail(should_fail: bool) option[i32] = trust {
-	if (!should_fail) {
-		return some 10
-	}
-	return none
+    if (!should_fail) {
+        return some 10
+    }
+    return none
 }

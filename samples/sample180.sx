@@ -31,10 +31,10 @@ fn is_visible(p: Particle, time: f32) bool = {
     val energy: f32 = particle_energy(p)
 
     if energy > 0.12 as f32
-        && p.glow > 0.25 as f32
-        && p.radius < 0.10 as f32
-        && p.center.y + p.height > 0.5 as f32
-        && p.speed * time + p.phase < 12.0 as f32 {
+    && p.glow > 0.25 as f32
+    && p.radius < 0.10 as f32
+    && p.center.y + p.height > 0.5 as f32
+    && p.speed * time + p.phase < 12.0 as f32 {
 
         return true
     }
@@ -50,12 +50,12 @@ pub fn should_render(
 ) bool = {
 
     if visible
-        && !occluded
-        && distance < 25.0 as f32
-        || brightness > 0.85 as f32
-        && debug
-        || distance * brightness < 4.0 as f32
-        && visible {
+    && !occluded
+    && distance < 25.0 as f32
+    || brightness > 0.85 as f32
+    && debug
+    || distance * brightness < 4.0 as f32
+    && visible {
 
         return true
     }
@@ -64,9 +64,9 @@ pub fn should_render(
 }
 fn print_particle_state(p: Particle, time: f32) void = {
     if is_visible(p, time)
-        && p.color.x > 0.7 as f32
-        && p.color.z > p.color.y
-        && p.center.z < -1.0 as f32 {
+    && p.color.x > 0.7 as f32
+    && p.color.z > p.color.y
+    && p.center.z < -1.0 as f32 {
 
         trust @print("visible energetic particle\n")
     } else {
