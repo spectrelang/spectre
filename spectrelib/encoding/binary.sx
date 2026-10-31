@@ -133,13 +133,13 @@ test {
 
     trust {
         write_u16_le(data as ref u8, 0 as usize, 0x1234 as u16)
-        assert(read_u16_le(data as ref u8, 0 as usize) == (0x1234 as u16))
+        assert read_u16_le(data as ref u8, 0 as usize) == (0x1234 as u16)
 
         write_u32_le(data as ref u8, 4 as usize, 0xDEADBEEF as u32)
-        assert(read_u32_le(data as ref u8, 4 as usize) == (0xDEADBEEF as u32))
+        assert read_u32_le(data as ref u8, 4 as usize) == (0xDEADBEEF as u32)
 
         write_u64_le(data as ref u8, 8 as usize, 0x1122334455667788 as u64)
-        assert(read_u64_le(data as ref u8, 8 as usize) == (0x1122334455667788 as u64))
+        assert read_u64_le(data as ref u8, 8 as usize) == (0x1122334455667788 as u64)
 
         if @get(data, 0) is some v {
             assert v == 0x34 as u8
@@ -154,13 +154,13 @@ test {
         }
 
         write_u16_be(data as ref u8, 16 as usize, 0x1234 as u16)
-        assert(read_u16_be(data as ref u8, 16 as usize) == (0x1234 as u16))
+        assert read_u16_be(data as ref u8, 16 as usize) == (0x1234 as u16)
 
         write_u32_be(data as ref u8, 20 as usize, 0xDEADBEEF as u32)
-        assert(read_u32_be(data as ref u8, 20 as usize) == (0xDEADBEEF as u32))
+        assert read_u32_be(data as ref u8, 20 as usize) == (0xDEADBEEF as u32)
 
         write_u64_be(data as ref u8, 24 as usize, 0x1122334455667788 as u64)
-        assert(read_u64_be(data as ref u8, 24 as usize) == (0x1122334455667788 as u64))
+        assert read_u64_be(data as ref u8, 24 as usize) == (0x1122334455667788 as u64)
 
         if @get(data, 16) is some v {
             assert v == 0x12 as u8

@@ -468,39 +468,39 @@ test {
 
     match Map.get(m, 1 as usize) {
         some v => {
-            assert(v == 100)
+            assert v == 100
         }
         none => {
-            assert(false)
+            assert false
         }
     }
     match Map.get(m, 2 as usize) {
         some v => {
-            assert(v == 200)
+            assert v == 200
         }
         none => {
-            assert(false)
+            assert false
         }
     }
     match Map.get(m, 3 as usize) {
         some v => {
-            assert(v == 300)
+            assert v == 300
         }
         none => {
-            assert(false)
+            assert false
         }
     }
     if Map.get(m, 99 as usize) is some _ {
-        assert(false)
+        assert false
     }
 
     trust Map.set[allocators.HeapAllocator](heap, m, 1 as usize, 999 as usize)
     match Map.get(m, 1 as usize) {
         some v => {
-            assert(v == 999)
+            assert v == 999
         }
         none => {
-            assert(false)
+            assert false
         }
     }
 
@@ -529,10 +529,10 @@ test {
     for (i = 0; i < 20; i++) {
         match Map.get(big, i) {
             some v => {
-                assert(v == i * 10)
+                assert v == i * 10
             }
             none => {
-                assert(false)
+                assert false
             }
         }
     }
@@ -551,27 +551,27 @@ test {
         trust PtrList.free[allocators.HeapAllocator](heap, list)
     }
 
-    assert(PtrList.len(list) == 0)
-    assert(PtrList.cap(list) == 2)
+    assert PtrList.len(list) == 0
+    assert PtrList.cap(list) == 2
 
     trust PtrList.push[allocators.HeapAllocator](heap, list, 42 as usize)?
     trust PtrList.push[allocators.HeapAllocator](heap, list, 84 as usize)?
 
-    assert(PtrList.len(list) == 2)
-    assert(PtrList.get(list, 0 as usize) == some 42)
-    assert(PtrList.get(list, 1 as usize) == some 84)
+    assert PtrList.len(list) == 2
+    assert PtrList.get(list, 0 as usize) == some 42
+    assert PtrList.get(list, 1 as usize) == some 84
 
     trust PtrList.push[allocators.HeapAllocator](heap, list, 126 as usize)?
 
-    assert(PtrList.len(list) == 3)
-    assert(PtrList.cap(list) >= 3)
-    assert(PtrList.get(list, 2 as usize) == some 126)
-    assert(PtrList.set(list, 1 as usize, 99 as usize) == 1)
-    assert(PtrList.get(list, 1 as usize) == some 99)
-    assert(PtrList.pop(list) == some 126)
-    assert(PtrList.len(list) == 2)
-    assert(PtrList.pop(list) == some 99)
-    assert(PtrList.pop(list) == some 42)
+    assert PtrList.len(list) == 3
+    assert PtrList.cap(list) >= 3
+    assert PtrList.get(list, 2 as usize) == some 126
+    assert PtrList.set(list, 1 as usize, 99 as usize) == 1
+    assert PtrList.get(list, 1 as usize) == some 99
+    assert PtrList.pop(list) == some 126
+    assert PtrList.len(list) == 2
+    assert PtrList.pop(list) == some 99
+    assert PtrList.pop(list) == some 42
 
     val list2: mut ref void = trust PtrList.new[allocators.HeapAllocator](heap, 1 as usize)?
     defer {
@@ -579,7 +579,7 @@ test {
     }
 
     trust PtrList.push[allocators.HeapAllocator](heap, list2, 10 as usize)?
-    assert(PtrList.get(list2, 0 as usize) == some 10)
+    assert PtrList.get(list2, 0 as usize) == some 10
 
     val list3: mut ref void = trust PtrList.new[allocators.HeapAllocator](heap, 1 as usize)?
     defer {
@@ -803,24 +803,24 @@ test {
     @puts("sm: get hello")
     match StringMap.get(m, "hello") {
         some v => {
-            assert(v == 1)
+            assert v == 1
         }
         none => {
-            assert(false)
+            assert false
         }
     }
     @puts("sm: get world")
     match StringMap.get(m, "world") {
         some v => {
-            assert(v == 2)
+            assert v == 2
         }
         none => {
-            assert(false)
+            assert false
         }
     }
     @puts("sm: get missing")
     if StringMap.get(m, "missing") is some _ {
-        assert(false)
+        assert false
     }
 
     @puts("sm: update hello=99")
@@ -828,10 +828,10 @@ test {
     @puts("sm: get hello==99")
     match StringMap.get(m, "hello") {
         some v => {
-            assert(v == 99)
+            assert v == 99
         }
         none => {
-            assert(false)
+            assert false
         }
     }
     @puts("sm: len==3 again")

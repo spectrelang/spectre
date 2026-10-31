@@ -1109,40 +1109,40 @@ pub fn copy(dst: ref u8, dst_off: i64, src: ref u8) void = trust {
 test {
     val arena: mut allocators.Arena = trust allocators.Arena.new(32768 as usize)?
     val empty = trust new()
-    assert(len(empty) == 0)
+    assert len(empty) == 0
 
     stdio.puts("hi")
     val s = trust from[allocators.Arena](arena, "hello")
-    assert(len(s) == 5)
-    assert(equals(s, trust from[allocators.Arena](arena, "hello")))
+    assert len(s) == 5
+    assert equals(s, trust from[allocators.Arena](arena, "hello"))
     val a = trust new()
     trust push_cstr(a, "foo")
     trust push_cstr(a, "bar")
-    assert(equals(a, trust from[allocators.Arena](arena, "foobar")))
+    assert equals(a, trust from[allocators.Arena](arena, "foobar"))
 
     val b = trust new()
     trust push_cstr(b, "foo")
     val c = trust from[allocators.Arena](arena, "bar")
     trust push(b, c)
-    assert(equals(b, trust from[allocators.Arena](arena, "foobar")))
+    assert equals(b, trust from[allocators.Arena](arena, "foobar"))
     stdio.puts("hi1.3")
 
     val pc = trust new()
     trust push_cstr(pc, "ab")
     trust push_char(pc, 99 as u8) // 'c'
-    assert(equals(pc, trust from[allocators.Arena](arena, "abc")))
+    assert equals(pc, trust from[allocators.Arena](arena, "abc"))
     stdio.puts("hi1.4")
 
     val orig = trust from[allocators.Arena](arena, "clone me")
     val copy = trust clone(orig)
-    assert(equals(orig, copy))
+    assert equals(orig, copy)
     trust set(copy, 0, 88 as u8) // 'X'
-    assert(!equals(orig, copy))
+    assert !equals(orig, copy)
 
     val cl = trust from[allocators.Arena](arena, "something")
     trust clear(cl)
-    assert(len(cl) == 0)
-    assert(equals(cl, trust from[allocators.Arena](arena, "")))
+    assert len(cl) == 0
+    assert equals(cl, trust from[allocators.Arena](arena, ""))
 
     val g = trust from[allocators.Arena](arena, "abc")
     val g0 = get(g, 0)
@@ -1153,91 +1153,91 @@ test {
     stdio.puts("hi2")
     match g0 {
         some v => {
-            assert(v == 97)
+            assert v == 97
         }
         none => {
-            assert(false)
+            assert false
         }
     }
     match g1 {
         some v => {
-            assert(v == 98)
+            assert v == 98
         }
         none => {
-            assert(false)
+            assert false
         }
     }
     match g2 {
         some v => {
-            assert(v == 99)
+            assert v == 99
         }
         none => {
-            assert(false)
+            assert false
         }
     }
     if g3 is some _ {
-        assert(false)
+        assert false
     }
 
     val st = trust from[allocators.Arena](arena, "abc")
     trust set(st, 1, 120 as u8) // 'x'
-    assert(equals(st, trust from[allocators.Arena](arena, "axc")))
+    assert equals(st, trust from[allocators.Arena](arena, "axc"))
     trust set(st, 99, 121 as u8) // OOB no-op
-    assert(equals(st, trust from[allocators.Arena](arena, "axc")))
+    assert equals(st, trust from[allocators.Arena](arena, "axc"))
 
     val sl = trust from[allocators.Arena](arena, "hello world")
-    assert(equals(trust slice(sl, 0, 5), trust from[allocators.Arena](arena, "hello")))
-    assert(equals(trust slice(sl, 6, 11), trust from[allocators.Arena](arena, "world")))
-    assert(equals(trust slice(sl, -5, 5), trust from[allocators.Arena](arena, "hello")))
-    assert(equals(trust slice(sl, 6, 999), trust from[allocators.Arena](arena, "world")))
-    assert(equals(trust slice(sl, 5, 5), trust from[allocators.Arena](arena, "")))
+    assert equals(trust slice(sl, 0, 5), trust from[allocators.Arena](arena, "hello"))
+    assert equals(trust slice(sl, 6, 11), trust from[allocators.Arena](arena, "world"))
+    assert equals(trust slice(sl, -5, 5), trust from[allocators.Arena](arena, "hello"))
+    assert equals(trust slice(sl, 6, 999), trust from[allocators.Arena](arena, "world"))
+    assert equals(trust slice(sl, 5, 5), trust from[allocators.Arena](arena, ""))
 
     val f = trust from[allocators.Arena](arena, "abc abc abc")
     match find(f, trust from[allocators.Arena](arena, "abc")) {
         some i => {
-            assert(i == 0)
+            assert i == 0
         }
         none => {
-            assert(false)
+            assert false
         }
     }
     if find(f, trust from[allocators.Arena](arena, "bca")) is some _ {
-        assert(false)
+        assert false
     }
     match find(f, trust from[allocators.Arena](arena, "")) {
         some i => {
-            assert(i == 0)
+            assert i == 0
         }
         none => {
-            assert(false)
+            assert false
         }
     }
 
-    assert(contains(f, trust from[allocators.Arena](arena, "abc")))
-    assert(!contains(f, trust from[allocators.Arena](arena, "zzz")))
+    assert contains(f, trust from[allocators.Arena](arena, "abc"))
+    assert !contains(f, trust from[allocators.Arena](arena, "zzz"))
 
     val se = trust from[allocators.Arena](arena, "foobar")
-    assert(starts_with(se, trust from[allocators.Arena](arena, "foo")))
-    assert(!starts_with(se, trust from[allocators.Arena](arena, "bar")))
-    assert(ends_with(se, trust from[allocators.Arena](arena, "bar")))
-    assert(!ends_with(se, trust from[allocators.Arena](arena, "foo")))
+    assert starts_with(se, trust from[allocators.Arena](arena, "foo"))
+    assert !starts_with(se, trust from[allocators.Arena](arena, "bar"))
+    assert ends_with(se, trust from[allocators.Arena](arena, "bar"))
+    assert !ends_with(se, trust from[allocators.Arena](arena, "foo"))
 
     val up = trust from[allocators.Arena](arena, "abcXYZ")
     trust to_upper(up)
-    assert(equals(up, trust from[allocators.Arena](arena, "ABCXYZ")))
+    assert equals(up, trust from[allocators.Arena](arena, "ABCXYZ"))
 
     val low = trust from[allocators.Arena](arena, "ABCxyz")
     trust to_lower(low)
-    assert(equals(low, trust from[allocators.Arena](arena, "abcxyz")))
+    assert equals(low, trust from[allocators.Arena](arena, "abcxyz"))
 
     stdio.puts("hi3")
     val tr = trust from[allocators.Arena](arena, "  \t hello \n ")
     trust trim(tr)
-    assert(equals(tr, trust from[allocators.Arena](arena, "hello")))
+    assert equals(tr, trust from[allocators.Arena](arena, "hello"))
 
     val tl = trust from[allocators.Arena](arena, "   hello")
     trust trim_left(tl)
-    assert(equals(tl, trust from[allocators.Arena](arena, "hello")))
+    assert equals(tl, trust from[allocators.Arena](arena, "hello"))
 
     stdio.puts("hi3.1")
     val trr = trust from[allocators.Arena](arena, "hello   ")
@@ -1245,7 +1245,7 @@ test {
 
     trust trim_right(trr)
     stdio.puts("hi3.1.2")
-    assert(equals(trr, trust from[allocators.Arena](arena, "hello")))
+    assert equals(trr, trust from[allocators.Arena](arena, "hello"))
     stdio.puts("hi3.1.3")
 
     val rep = trust from[allocators.Arena](arena, "foo bar foo")
@@ -1253,12 +1253,12 @@ test {
 
     val rep2 = trust replace(rep, from[allocators.Arena](arena, "foo"), from[allocators.Arena](arena, "baz"))
     stdio.puts("hi3.1.5")
-    assert(equals(rep2, trust from[allocators.Arena](arena, "baz bar baz")))
+    assert equals(rep2, trust from[allocators.Arena](arena, "baz bar baz"))
     stdio.puts("hi3.2")
 
     val rep3 = trust replace(rep, from[allocators.Arena](arena, "xxx"), from[allocators.Arena](arena, "yyy"))
     stdio.puts("hi3.2.1")
-    assert(equals(rep3, trust from[allocators.Arena](arena, "foo bar foo")))
+    assert equals(rep3, trust from[allocators.Arena](arena, "foo bar foo"))
     stdio.puts("hi3.2.2")
     val sp = trust from[allocators.Arena](arena, "a,b,c")
     stdio.puts("hi3.2.3")
@@ -1266,41 +1266,41 @@ test {
     val parts = trust split[allocators.HeapAllocator](split_heap, sp, from[allocators.Arena](arena, ","))?
     stdio.puts("hi3.3")
 
-    assert(collections.PtrList.len(parts) == 3)
+    assert collections.PtrList.len(parts) == 3
     match collections.PtrList.get(parts, 0 as usize) {
         some v => {
-            assert(equals(v, trust from[allocators.Arena](arena, "a")))
+            assert equals(v, trust from[allocators.Arena](arena, "a"))
         }
         none => {
-            assert(false)
+            assert false
         }
     }
     match collections.PtrList.get(parts, 1 as usize) {
         some v => {
-            assert(equals(v, trust from[allocators.Arena](arena, "b")))
+            assert equals(v, trust from[allocators.Arena](arena, "b"))
         }
         none => {
-            assert(false)
+            assert false
         }
     }
     match collections.PtrList.get(parts, 2 as usize) {
         some v => {
-            assert(equals(v, trust from[allocators.Arena](arena, "c")))
+            assert equals(v, trust from[allocators.Arena](arena, "c"))
         }
         none => {
-            assert(false)
+            assert false
         }
     }
 
     val sp2 = trust from[allocators.Arena](arena, "a,b,")
     val parts2 = trust split[allocators.HeapAllocator](split_heap, sp2, from[allocators.Arena](arena, ","))?
-    assert(collections.PtrList.len(parts2) == 3)
+    assert collections.PtrList.len(parts2) == 3
     match collections.PtrList.get(parts2, 2 as usize) {
         some v => {
-            assert(equals(v, trust from[allocators.Arena](arena, "")))
+            assert equals(v, trust from[allocators.Arena](arena, ""))
         }
         none => {
-            assert(false)
+            assert false
         }
     }
 
@@ -1308,13 +1308,13 @@ test {
     val ca = trust from[allocators.Arena](arena, "foo")
     val cb = trust from[allocators.Arena](arena, "bar")
     val cc = trust concat(ca, cb)
-    assert(equals(cc, trust from[allocators.Arena](arena, "foobar")))
+    assert equals(cc, trust from[allocators.Arena](arena, "foobar"))
 
     val rs = trust new()
     trust push_cstr(rs, "abc")
     trust reserve(rs, 100)
     trust push_cstr(rs, "def")
-    assert(equals(rs, trust from[allocators.Arena](arena, "abcdef")))
+    assert equals(rs, trust from[allocators.Arena](arena, "abcdef"))
 
     val sb = StringBuilder.new()
     trust StringBuilder.append_cstr(sb, "hello")
@@ -1323,22 +1323,22 @@ test {
     trust StringBuilder.append_char(sb, 33 as u8) // '!'
 
     val built = trust StringBuilder.build(sb)
-    assert(equals(built, trust from[allocators.Arena](arena, "hello world!")))
+    assert equals(built, trust from[allocators.Arena](arena, "hello world!"))
 
     trust StringBuilder.clear(sb)
     val built2 = trust StringBuilder.build(sb)
-    assert(equals(built2, trust from[allocators.Arena](arena, "")))
+    assert equals(built2, trust from[allocators.Arena](arena, ""))
 
     trust StringBuilder.free(sb)
 
     val rv = trust from[allocators.Arena](arena, "abcd")
     trust reverse(rv)
-    assert(equals(rv, trust from[allocators.Arena](arena, "dcba")))
+    assert equals(rv, trust from[allocators.Arena](arena, "dcba"))
 
 
     val s2 = trust from[allocators.Arena](arena, "Hello world")
     val out = trust trim_suffix(s2, from[allocators.Arena](arena, "world"))
-    assert(equals(out, trust from[allocators.Arena](arena, "Hello ")))
+    assert equals(out, trust from[allocators.Arena](arena, "Hello "))
 
     stdio.puts("string tests passed")
 
