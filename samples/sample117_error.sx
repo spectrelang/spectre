@@ -1,16 +1,16 @@
 pub enum Platform = {
-    Windows,
-    Linux,
-    Darwin,
-    NetBSD,
-    DragonflyBSD,
-    FreeBSD,
-    OpenBSD,
-    Android,
-    Haiku,
-    Redox,
-    Plan9,
-    Unknown,
+    Windows
+    Linux
+    Darwin
+    NetBSD
+    DragonflyBSD
+    FreeBSD
+    OpenBSD
+    Android
+    Haiku
+    Redox
+    Plan9
+    Unknown
 }
 
 when darwin {

@@ -1,7 +1,7 @@
 pub enum Color = {
-    Red,
-    Green,
-    Blue,
+    Red
+    Green
+    Blue
 }
 
 pub fn color_name(c: Color) ref u8 = {

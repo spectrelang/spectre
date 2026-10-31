@@ -87,7 +87,7 @@ pub union TokenKind = {
 pub type Token = {
     kind: mut TokenKind
     line: mut i64
-    col:  mut i64
+    col: mut i64
 
     invariant {
         line > 10

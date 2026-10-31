@@ -1,7 +1,7 @@
 val stdio = use("std/stdio")
 
 enum SomeEnum = {
-    HELLO,
+    HELLO
     WORLD
 }
 

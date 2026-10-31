@@ -1,7 +1,7 @@
 val stdio = use("std/stdio")
 
 type Node = {
-    x: i32,
+    x: i32
     y: i32
 }
 

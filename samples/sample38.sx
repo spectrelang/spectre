@@ -20,7 +20,7 @@ pub fn (Stack) pop(s: mut self) option[i64] = {
 
 type Stack = {
     data: mut list[i64]
-    len:  mut usize
+    len: mut usize
 }
 
 pub fn (Stack) peek(s: self) option[i64] = {

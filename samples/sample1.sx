@@ -7,8 +7,8 @@ type Point = {
 
 fn some_function(some_arg: i32, some_other_arg: usize) void = {
     pre {
-        is_bigger_than_ten      : some_arg > 10
-        is_bigger_than_twenty   : some_other_arg > 20
+        is_bigger_than_ten: some_arg > 10
+        is_bigger_than_twenty: some_other_arg > 20
     }
 
     val x: i32 = 10                          // This cannot change.
@@ -16,9 +16,9 @@ fn some_function(some_arg: i32, some_other_arg: usize) void = {
     val z: i32 = 30                          // Or this.
 
     post {
-        x_is_ten : x == 10
-        y_is_twe : y == 20
-        z_is_thi : z == 30
+        x_is_ten: x == 10
+        y_is_twe: y == 20
+        z_is_thi: z == 30
     }
 
     trust stdio.print("{d} {d}", {x, y})

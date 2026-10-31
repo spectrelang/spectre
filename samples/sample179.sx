@@ -8,21 +8,21 @@
 val str = use("std/string")
 
 type Config = {
-    name:   mut ref u8
+    name: mut ref u8
     action: mut ref u8
-    flags:  mut ref u8
+    flags: mut ref u8
     output: mut ref u8
-    entry:  mut ref u8
+    entry: mut ref u8
 }
 
 fn make_config() ref Config = trust {
     val cfg: mut ref Config = @alloc(@sizeof(Config)) as ref Config
     @memset(cfg as ref void, 0, @sizeof(Config) as usize)
-    cfg.name   = "release"
+    cfg.name = "release"
     cfg.action = ""
-    cfg.flags  = "--release"
+    cfg.flags = "--release"
     cfg.output = "./myapp"
-    cfg.entry  = "./src/main.sx"
+    cfg.entry = "./src/main.sx"
     return cfg
 }
 

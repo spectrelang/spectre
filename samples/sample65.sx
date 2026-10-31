@@ -1,6 +1,6 @@
 type Inner = {
     data: mut ref void
-    len:  mut i64
+    len: mut i64
 }
 
 type Outer = {
@@ -14,7 +14,7 @@ fn take_inner(x: ref Inner) i64 = trust {
 pub fn main() i64 = trust {
     val o: mut ref Outer = @alloc(@sizeof(Outer)) as ref Outer
     o.inner.data = none
-    o.inner.len  = 42
+    o.inner.len = 42
     val result = take_inner(o.inner)
     if result == 42 {
         @puts("ok")
