@@ -1,0 +1,30 @@
+val json  = use("std/json")
+val stdio = use("std/stdio")
+val time  = use("std/time")
+
+val iterations = 1000000
+
+pub fn main() void = trust {
+    val input: ref u8 = \\{
+    \\ "name":"Spectre",
+    \\ "version":12,
+    \\ "active":true,
+    \\ "values":[1,2,3,4,5,6,7,8,9,10]
+    \\}
+
+    val start = time.now_ns()
+
+    for i = 0, i < iterations, i++ {
+        val doc = json.parse(input)
+        if doc is some v {
+            val root = json.doc_root(v)
+            json.obj_get_int(root, "version")
+            json.obj_get_bool(root, "active")
+            json.doc_free(v)
+        }
+    }
+
+    val elapsed = time.now_ns() - start
+    stdio.print("Spectre: {d} ns\n", {elapsed})
+    stdio.print("Spectre: {d} ns/op\n", {elapsed/iterations})
+}

@@ -108,6 +108,14 @@ pub fn unix_now_micros[A: allocators.Allocator](ac: A) i64 = {
     return micros
 }
 
+/// Return the current Unix timestamp in nanoseconds since epoch.
+/// The time value is kept on the stack; no allocator is required.
+pub fn now_ns() i64 = {
+    val tv: mut TimeVal = {tv_sec: 0, tv_usec: 0}
+    trust gettimeofday(@addr(tv), 0)
+    return tv.tv_sec * 1000000000 + tv.tv_usec * 1000
+}
+
 /// Sleep the current thread for approximately `ms` milliseconds.
 pub fn sleep_millis(ms: i64) void = trust {
     pre {
@@ -307,6 +315,7 @@ test {
     assert DateTime.equals(dt, dt) == true
     assert unix_now_millis[_](ac) >= unix_now[_](ac) * 1000
     assert unix_now_micros[_](ac) >= unix_now_millis[_](ac) * 1000
+    assert now_ns() >= unix_now_micros[_](ac) * 1000
 
     trust stdio.print("year: {d}\n", {DateTime.now[_](ac).year})
     trust allocators.Arena.free(ac)
