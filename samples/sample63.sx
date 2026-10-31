@@ -17,7 +17,7 @@ fn is_foo(k: Kind) bool = trust {
         Foo() => {
             return true
         }
-        else  => {
+        else => {
             return false
         }
     }

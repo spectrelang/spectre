@@ -1,6 +1,7 @@
 type SomeType = {
     x: i32
 }
+
 type SomeOtherType = {
     y: i32
 }

@@ -6,13 +6,13 @@ pub enum Color = {
 
 pub fn color_name(c: Color) ref u8 = {
     match c {
-        Color.Red   => {
+        Color.Red => {
             return "red"
         }
         Color.Green => {
             return "green"
         }
-        Color.Blue  => {
+        Color.Blue => {
             return "blue"
         }
     }

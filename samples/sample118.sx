@@ -123,37 +123,37 @@ pub fn get_current_platform[T: allocators.Allocator](ac: T) Platform = trust {
 pub fn current_platform_name[T: allocators.Allocator](ac: T) ref u8 = trust {
     val p = get_current_platform[T](ac)
     match p {
-        Platform.Linux        => {
+        Platform.Linux => {
             return "linux"
         }
-        Platform.Darwin       => {
+        Platform.Darwin => {
             return "darwin"
         }
-        Platform.FreeBSD      => {
+        Platform.FreeBSD => {
             return "freebsd"
         }
-        Platform.OpenBSD      => {
+        Platform.OpenBSD => {
             return "openbsd"
         }
-        Platform.NetBSD       => {
+        Platform.NetBSD => {
             return "netbsd"
         }
         Platform.DragonflyBSD => {
             return "dragonflybsd"
         }
-        Platform.Windows      => {
+        Platform.Windows => {
             return "windows"
         }
-        Platform.Android      => {
+        Platform.Android => {
             return "android"
         }
-        Platform.Haiku        => {
+        Platform.Haiku => {
             return "haiku"
         }
-        Platform.Redox        => {
+        Platform.Redox => {
             return "redox"
         }
-        Platform.Plan9        => {
+        Platform.Plan9 => {
             return "plan9"
         }
     }

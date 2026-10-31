@@ -1,6 +1,7 @@
 union Kind = {
     A() | B(ref u8)
 }
+
 type Thing = {
     kind: mut Kind
 }

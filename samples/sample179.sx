@@ -27,16 +27,16 @@ fn make_config() ref Config = trust {
 }
 
 fn check_config(cfg: ref Config) bool = trust {
-    if str.raw_cmp(cfg.name,   "release")      != 0 {
+    if str.raw_cmp(cfg.name,   "release") != 0 {
         return false
     }
-    if str.raw_cmp(cfg.action, "")             != 0 {
+    if str.raw_cmp(cfg.action, "") != 0 {
         return false
     }
-    if str.raw_cmp(cfg.flags,  "--release")    != 0 {
+    if str.raw_cmp(cfg.flags,  "--release") != 0 {
         return false
     }
-    if str.raw_cmp(cfg.output, "./myapp")      != 0 {
+    if str.raw_cmp(cfg.output, "./myapp") != 0 {
         return false
     }
     if str.raw_cmp(cfg.entry,  "./src/main.sx") != 0 {

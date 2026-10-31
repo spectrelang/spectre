@@ -7,10 +7,10 @@ union Shape = {
 
 fn area(s: Shape) f64 = {
     match s {
-        Circle r         => {
+        Circle r => {
             return 3.14159265 * r * r
         }
-        Rect w, h        => {
+        Rect w, h => {
             return w * h
         }
         Triangle a, b, c => {
@@ -22,10 +22,10 @@ fn area(s: Shape) f64 = {
 
 fn label(s: Shape) ref u8 = {
     match s {
-        Circle _      => {
+        Circle _ => {
             return "Circle"
         }
-        Rect _, _     => {
+        Rect _, _ => {
             return "Rect"
         }
         Triangle _, _, _ => {
