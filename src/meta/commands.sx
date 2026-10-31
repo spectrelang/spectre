@@ -1030,7 +1030,7 @@ pub fn cmd_ref() i32 = {
                 \\
                 \\ | Builtin                        | Description                              |
                 \\ |-------------------------------|------------------------------------------|
-                \\ | `@alloc(n)`                   | allocate n bytes, returns `ref void`     |
+                \\ | `@alloc(n)`                   | allocate n bytes, returns `ref void`, remember it is always better to use an allocator     |
                 \\ | `@realloc(ptr, n)`            | resize allocation                        |
                 \\ | `@free(ptr)`                  | free allocation                          |
                 \\ | `@sizeof(T)`                  | size of type T in bytes                  |
