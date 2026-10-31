@@ -98,11 +98,21 @@ pub fn get_current_platform[T: allocators.Allocator](ac: T) Platform = trust {
         val r = uname(@addr(buf))
         if r == 0 {
             val sysname: ref u8 = @addr(buf.sysname) as ref u8
-            if string.rchar_cmp(sysname, "Linux") == 0 { return Platform.Linux }
-            if string.rchar_cmp(sysname, "Darwin") == 0 { return Platform.Darwin }
-            if string.rchar_cmp(sysname, "FreeBSD") == 0 { return Platform.FreeBSD }
-            if string.rchar_cmp(sysname, "OpenBSD") == 0 { return Platform.OpenBSD }
-            if string.rchar_cmp(sysname, "NetBSD") == 0 { return Platform.NetBSD }
+            if string.rchar_cmp(sysname, "Linux") == 0 {
+                return Platform.Linux
+            }
+            if string.rchar_cmp(sysname, "Darwin") == 0 {
+                return Platform.Darwin
+            }
+            if string.rchar_cmp(sysname, "FreeBSD") == 0 {
+                return Platform.FreeBSD
+            }
+            if string.rchar_cmp(sysname, "OpenBSD") == 0 {
+                return Platform.OpenBSD
+            }
+            if string.rchar_cmp(sysname, "NetBSD") == 0 {
+                return Platform.NetBSD
+            }
         }
     }
 
@@ -113,17 +123,39 @@ pub fn get_current_platform[T: allocators.Allocator](ac: T) Platform = trust {
 pub fn current_platform_name[T: allocators.Allocator](ac: T) ref u8 = trust {
     val p = get_current_platform[T](ac)
     match p {
-        Platform.Linux        => { return "linux" }
-        Platform.Darwin       => { return "darwin" }
-        Platform.FreeBSD      => { return "freebsd" }
-        Platform.OpenBSD      => { return "openbsd" }
-        Platform.NetBSD       => { return "netbsd" }
-        Platform.DragonflyBSD => { return "dragonflybsd" }
-        Platform.Windows      => { return "windows" }
-        Platform.Android      => { return "android" }
-        Platform.Haiku        => { return "haiku" }
-        Platform.Redox        => { return "redox" }
-        Platform.Plan9        => { return "plan9" }
+        Platform.Linux        => {
+            return "linux"
+        }
+        Platform.Darwin       => {
+            return "darwin"
+        }
+        Platform.FreeBSD      => {
+            return "freebsd"
+        }
+        Platform.OpenBSD      => {
+            return "openbsd"
+        }
+        Platform.NetBSD       => {
+            return "netbsd"
+        }
+        Platform.DragonflyBSD => {
+            return "dragonflybsd"
+        }
+        Platform.Windows      => {
+            return "windows"
+        }
+        Platform.Android      => {
+            return "android"
+        }
+        Platform.Haiku        => {
+            return "haiku"
+        }
+        Platform.Redox        => {
+            return "redox"
+        }
+        Platform.Plan9        => {
+            return "plan9"
+        }
     }
     return "unknown"
 }

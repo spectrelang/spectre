@@ -82,26 +82,38 @@ pub type File = {
 }
 
 fn alloc_in[A: allocators.Allocator](ac: A, len: i64) ref void = {
-    pre { len_positive: len > 0 }
+    pre {
+        len_positive: len > 0
+    }
     val buf_opt = A.alloc(ac, len as usize)
     match buf_opt {
-        some buf => { return buf }
-        none => { return none }
+        some buf => {
+            return buf
+        }
+        none => {
+            return none
+        }
     }
 }
 
 fn alloc_cstr[A: allocators.Allocator](ac: A, len: i64) ref u8 = trust {
     val buf: ref void = alloc_in[A](ac, len + 1)
-    if buf == none { return none }
+    if buf == none {
+        return none
+    }
     @memset(buf, 0, len + 1)
     return buf as ref u8
 }
 
 fn copy_cstr[A: allocators.Allocator](ac: A, text: ref u8) ref u8 = trust {
-    if text == none { return none }
+    if text == none {
+        return none
+    }
     val len: i64 = strlen(text)
     val buf: ref u8 = alloc_cstr[A](ac, len)
-    if buf == none { return none }
+    if buf == none {
+        return none
+    }
     if len > 0 {
         @memcpy(buf as ref void, text as ref void, len as usize)
     }
@@ -109,10 +121,16 @@ fn copy_cstr[A: allocators.Allocator](ac: A, text: ref u8) ref u8 = trust {
 }
 
 fn copy_cstr_len[A: allocators.Allocator](ac: A, text: ref u8, len: i64) ref u8 = trust {
-    if text == none { return none }
-    if len < 0 { return none }
+    if text == none {
+        return none
+    }
+    if len < 0 {
+        return none
+    }
     val buf: ref u8 = alloc_cstr[A](ac, len)
-    if buf == none { return none }
+    if buf == none {
+        return none
+    }
     if len > 0 {
         @memcpy(buf as ref void, text as ref void, len as usize)
     }
@@ -121,16 +139,24 @@ fn copy_cstr_len[A: allocators.Allocator](ac: A, text: ref u8, len: i64) ref u8 
 
 fn raw_alloc_cstr(len: i64) ref u8 = trust {
     val buf: ref u8 = @alloc(len + 1) as ref u8
-    if buf == none { return none }
+    if buf == none {
+        return none
+    }
     @memset(buf, 0, len + 1)
     return buf
 }
 
 fn raw_copy_cstr_len(text: ref u8, len: i64) ref u8 = trust {
-    if text == none { return none }
-    if len < 0 { return none }
+    if text == none {
+        return none
+    }
+    if len < 0 {
+        return none
+    }
     val buf: ref u8 = raw_alloc_cstr(len)
-    if buf == none { return none }
+    if buf == none {
+        return none
+    }
     if len > 0 {
         @memcpy(buf as ref void, text as ref void, len as usize)
     }
@@ -185,7 +211,9 @@ pub fn close(f: ref void) void = trust {
 pub fn file_size(path: ref u8) option[i64] = trust {
     val handle = open(path, "rb")
     match handle {
-        none => { return none }
+        none => {
+            return none
+        }
         some f => {
             val ptr: ref void = @load(f)
             fseek(ptr, 0, 2 as i32)
@@ -202,7 +230,9 @@ pub fn file_size(path: ref u8) option[i64] = trust {
 pub fn read_all[A: allocators.Allocator](ac: A, path: ref u8) option[ref u8] = trust {
     val handle = open(path, "rb")
     match handle {
-        none => { return none }
+        none => {
+            return none
+        }
         some f => {
             val ptr: ref void = @load(f)
             fseek(ptr, 0, 2 as i32)          // SEEK_END = 2
@@ -224,7 +254,9 @@ pub fn read_all[A: allocators.Allocator](ac: A, path: ref u8) option[ref u8] = t
 pub fn read_all_raw(path: ref u8) option[ref u8] = trust {
     val handle = open(path, "rb")
     match handle {
-        none => { return none }
+        none => {
+            return none
+        }
         some f => {
             val ptr: ref void = @load(f)
             fseek(ptr, 0, 2 as i32)
@@ -254,7 +286,9 @@ pub fn read_line(f: ref void, buf: ref u8, max_len: i64) bool = trust {
     }
     val l: mut i64 = strlen(buf)
     for {
-        if (l <= 0) { break }
+        if (l <= 0) {
+            break
+        }
         val c: u8 = @load8(@ptradd(buf, l - 1))
         if (c != 10) {
             if (c != 13) {
@@ -286,7 +320,9 @@ pub fn write_line(f: ref void, data: ref u8) void = trust {
 pub fn write_all(path: ref u8, data: ref u8) bool = trust {
     val handle = open(path, "w")
     match handle {
-        none => { return false }
+        none => {
+            return false
+        }
         some f => {
             write(f, data)
             close(f)
@@ -299,7 +335,9 @@ pub fn write_all(path: ref u8, data: ref u8) bool = trust {
 pub fn append_all(path: ref u8, data: ref u8) bool = trust {
     val handle = open(path, "a")
     match handle {
-        none => { return false }
+        none => {
+            return false
+        }
         some f => {
             write(f, data)
             close(f)
@@ -340,7 +378,9 @@ pub fn rmdir_path(path: ref u8) bool = trust {
 /// Returns none on failure.
 pub fn cwd[A: allocators.Allocator](ac: A) option[ref u8] = trust {
     val buf: ref u8 = alloc_cstr[A](ac, 4095)
-    if buf == none { return none }
+    if buf == none {
+        return none
+    }
     val result: ref u8 = getcwd(buf, 4096 as usize)
     if (result == none) {
         return none
@@ -350,7 +390,9 @@ pub fn cwd[A: allocators.Allocator](ac: A) option[ref u8] = trust {
 
 pub fn cwd_raw() option[ref u8] = trust {
     val buf: ref u8 = raw_alloc_cstr(4095)
-    if buf == none { return none }
+    if buf == none {
+        return none
+    }
     val result: ref u8 = getcwd(buf, 4096 as usize)
     if result == none {
         @free(buf)
@@ -364,14 +406,20 @@ pub fn cwd_raw() option[ref u8] = trust {
 pub fn temp_dir[A: allocators.Allocator](ac: A) ref u8 = trust {
     when posix {
         val t: ref u8 = getenv("TMPDIR")
-        if (t != none) { return copy_cstr[A](ac, t) }
+        if (t != none) {
+            return copy_cstr[A](ac, t)
+        }
         return copy_cstr[A](ac, "/tmp")
     }
     when windows {
         val t: ref u8 = getenv("TEMP")
-        if (t != none) { return copy_cstr[A](ac, t) }
+        if (t != none) {
+            return copy_cstr[A](ac, t)
+        }
         val t2: ref u8 = getenv("TMP")
-        if (t2 != none) { return copy_cstr[A](ac, t2) }
+        if (t2 != none) {
+            return copy_cstr[A](ac, t2)
+        }
         return copy_cstr[A](ac, "C:\\Windows\\Temp")
     }
     return copy_cstr[A](ac, "/tmp")
@@ -380,14 +428,20 @@ pub fn temp_dir[A: allocators.Allocator](ac: A) ref u8 = trust {
 pub fn temp_dir_raw() ref u8 = trust {
     when posix {
         val t: ref u8 = getenv("TMPDIR")
-        if t != none { return t }
+        if t != none {
+            return t
+        }
         return "/tmp"
     }
     when windows {
         val t: ref u8 = getenv("TEMP")
-        if t != none { return t }
+        if t != none {
+            return t
+        }
         val t2: ref u8 = getenv("TMP")
-        if t2 != none { return t2 }
+        if t2 != none {
+            return t2
+        }
         return "C:\\Windows\\Temp"
     }
     return "/tmp"
@@ -398,14 +452,20 @@ pub fn temp_dir_raw() ref u8 = trust {
 pub fn home_dir[A: allocators.Allocator](ac: A) option[ref u8] = trust {
     when posix {
         val h: ref u8 = getenv("HOME")
-        if (h != none) { return some copy_cstr[A](ac, h) }
+        if (h != none) {
+            return some copy_cstr[A](ac, h)
+        }
         return none
     }
     when windows {
         val h: ref u8 = getenv("USERPROFILE")
-        if (h != none) { return some copy_cstr[A](ac, h) }
+        if (h != none) {
+            return some copy_cstr[A](ac, h)
+        }
         val h2: ref u8 = getenv("HOMEDRIVE")
-        if (h2 != none) { return some copy_cstr[A](ac, h2) }
+        if (h2 != none) {
+            return some copy_cstr[A](ac, h2)
+        }
         return none
     }
     return none
@@ -414,14 +474,20 @@ pub fn home_dir[A: allocators.Allocator](ac: A) option[ref u8] = trust {
 pub fn home_dir_raw() option[ref u8] = trust {
     when posix {
         val h: ref u8 = getenv("HOME")
-        if h != none { return some h }
+        if h != none {
+            return some h
+        }
         return none
     }
     when windows {
         val h: ref u8 = getenv("USERPROFILE")
-        if h != none { return some h }
+        if h != none {
+            return some h
+        }
         val h2: ref u8 = getenv("HOMEDRIVE")
-        if h2 != none { return some h2 }
+        if h2 != none {
+            return some h2
+        }
         return none
     }
     return none
@@ -434,21 +500,29 @@ pub fn home_dir_raw() option[ref u8] = trust {
 pub fn config_dir[A: allocators.Allocator](ac: A) option[ref u8] = trust {
     when posix {
         val xdg: ref u8 = getenv("XDG_CONFIG_HOME")
-        if (xdg != none) { return some copy_cstr[A](ac, xdg) }
+        if (xdg != none) {
+            return some copy_cstr[A](ac, xdg)
+        }
         val h: ref u8 = getenv("HOME")
-        if (h == none) { return none }
+        if (h == none) {
+            return none
+        }
         val hl: i64 = strlen(h)
         val suffix: ref u8 = "/.config"
         val sl: i64 = strlen(suffix)
         val buf: ref u8 = alloc_cstr[A](ac, hl + sl)
-        if buf == none { return none }
+        if buf == none {
+            return none
+        }
         @memcpy(buf, h, hl)
         @memcpy(@ptradd(buf, hl), suffix, sl)
         return some buf
     }
     when windows {
         val appdata: ref u8 = getenv("APPDATA")
-        if (appdata != none) { return some copy_cstr[A](ac, appdata) }
+        if (appdata != none) {
+            return some copy_cstr[A](ac, appdata)
+        }
         return none
     }
     return none
@@ -457,21 +531,29 @@ pub fn config_dir[A: allocators.Allocator](ac: A) option[ref u8] = trust {
 pub fn config_dir_raw() option[ref u8] = trust {
     when posix {
         val xdg: ref u8 = getenv("XDG_CONFIG_HOME")
-        if xdg != none { return some xdg }
+        if xdg != none {
+            return some xdg
+        }
         val h: ref u8 = getenv("HOME")
-        if h == none { return none }
+        if h == none {
+            return none
+        }
         val hl: i64 = strlen(h)
         val suffix: ref u8 = "/.config"
         val sl: i64 = strlen(suffix)
         val buf: ref u8 = raw_alloc_cstr(hl + sl)
-        if buf == none { return none }
+        if buf == none {
+            return none
+        }
         @memcpy(buf, h, hl)
         @memcpy(@ptradd(buf, hl), suffix, sl)
         return some buf
     }
     when windows {
         val appdata: ref u8 = getenv("APPDATA")
-        if appdata != none { return some appdata }
+        if appdata != none {
+            return some appdata
+        }
         return none
     }
     return none
@@ -486,7 +568,9 @@ test {
     @puts("2")
     val content_opt: option[ref u8] = trust read_all[allocators.Arena](arena, path)
     match content_opt {
-        none => { assert false }
+        none => {
+            assert false
+        }
         some content => {
             @puts("2.5")
             trust @print("content: {s}\n", {content})
@@ -503,7 +587,9 @@ test {
 
     val content2_opt = trust read_all[allocators.Arena](arena, path)
     match content2_opt {
-        none => { assert false }
+        none => {
+            assert false
+        }
         some content2 => {
             assert trust str.compare[ref u8, ref u8](content2, "Hello, Spectre! More text.") == 0
         }
@@ -516,7 +602,9 @@ test {
 
     val content3_opt = trust read_all[allocators.Arena](arena, path)
     match content3_opt {
-        none => { assert false }
+        none => {
+            assert false
+        }
         some content3 => {
             assert trust str.compare[ref u8, ref u8](content3, "Overwritten.") == 0
         }
@@ -529,7 +617,9 @@ test {
     val gone_opt = trust read_all[allocators.Arena](arena, path)
     match gone_opt {
         none => {}
-        some _ => { assert false }
+        some _ => {
+            assert false
+        }
     }
 
     val delete_ok = trust delete("test_file2.txt")
@@ -541,7 +631,9 @@ test {
     val lpath: ref u8 = "test_lines.txt"
     val wh_opt = trust open(lpath, "w")
     match wh_opt {
-        none => { assert false }
+        none => {
+            assert false
+        }
         some wh => {
             trust write_line(wh, "line one")
             trust write_line(wh, "line two")
@@ -551,7 +643,9 @@ test {
 
     val rh_opt = trust open(lpath, "r")
     match rh_opt {
-        none => { assert false }
+        none => {
+            assert false
+        }
         some rh => {
             val buf: ref u8 = @alloc(128)
             val got1 = trust read_line(rh, buf, 128)
@@ -580,7 +674,9 @@ test {
 
     val entries_opt = trust walk_dir[allocators.Arena](arena, dpath)
     match entries_opt {
-        none => { assert false }
+        none => {
+            assert false
+        }
         some entries => {
             val count: mut i64 = 0
             val seen_a: mut i32 = 0
@@ -615,7 +711,9 @@ test {
     val bad_opt = trust walk_dir[allocators.Arena](arena, "__no_such_dir__")
     match bad_opt {
         none => {}
-        some _ => { assert false }
+        some _ => {
+            assert false
+        }
     }
 
     trust delete("test_walk_dir/a.txt")
@@ -625,7 +723,9 @@ test {
 
     val cwd_opt = trust cwd[allocators.Arena](arena)
     match cwd_opt {
-        none => { assert false }
+        none => {
+            assert false
+        }
         some dir => {
             val l: i64 = trust strlen(dir)
             assert l > 0
@@ -767,4 +867,3 @@ pub fn walk_dir_raw(path: ref u8) option[list[ref u8]] = trust {
     closedir(dir)
     return some result
 }
-

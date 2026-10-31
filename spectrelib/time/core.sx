@@ -14,7 +14,7 @@ when windows {
 
 extern type TimeVal = {
     tv_sec:  i64
-    tv_usec: i64  
+    tv_usec: i64
 }
 
 /// A DateTime holds a calendar date and wall-clock time.
@@ -32,12 +32,12 @@ type DateTime = {
 /// All fields are validated on construction.
 pub fn (DateTime) new[A: allocators.Allocator](
     ac: A,
-    year: i64, 
-    month: i64, 
-    day: i64, 
-    hour: i64, 
-    minute: i64, 
-    second: i64, 
+    year: i64,
+    month: i64,
+    day: i64,
+    hour: i64,
+    minute: i64,
+    second: i64,
     millis: i64
 ) DateTime = {
     pre {
@@ -58,7 +58,7 @@ pub fn (DateTime) new[A: allocators.Allocator](
     ptr.minute = minute
     ptr.second = second
     ptr.millis = millis
-    
+
     return ptr
 }
 
@@ -117,7 +117,9 @@ pub fn sleep_millis(ms: i64) void = trust {
     when posix {
         val remaining_us: mut i64 = ms * 1000
         for {
-            if remaining_us <= 0 { break }
+            if remaining_us <= 0 {
+                break
+            }
             if remaining_us > 4294967295 {
                 usleep(4294967295 as u32)
                 remaining_us = remaining_us - 4294967295
@@ -131,7 +133,9 @@ pub fn sleep_millis(ms: i64) void = trust {
     when windows {
         val remaining_ms: mut i64 = ms
         for {
-            if remaining_ms <= 0 { break }
+            if remaining_ms <= 0 {
+                break
+            }
             if remaining_ms > 4294967295 {
                 Sleep(4294967295 as u32)
                 remaining_ms = remaining_ms - 4294967295
@@ -150,12 +154,12 @@ pub fn (DateTime) year(dt: self) i64 = {
 
 /// Read the month field (1–12).
 pub fn (DateTime) month(dt: self) i64 = {
-    return dt.month 
+    return dt.month
 }
 
 /// Read the day field (1–31).
 pub fn (DateTime) day(dt: self) i64 = {
-    return dt.day 
+    return dt.day
 }
 
 /// Read the hour field (0–23).
@@ -198,8 +202,12 @@ pub fn (DateTime) to_unix(dt: self) i64 = {
 /// Return true if the year is a leap year.
 pub fn (DateTime) is_leap_year(dt: self) bool = {
     val y: i64 = DateTime.year(dt)
-    if (y % 400 == 0) { return true }
-    if (y % 100 == 0) { return false }
+    if (y % 400 == 0) {
+        return true
+    }
+    if (y % 100 == 0) {
+        return false
+    }
     return y % 4 == 0
 }
 
@@ -209,7 +217,9 @@ pub fn (DateTime) days_in_month(dt: self) i64 = {
     val leap: bool = DateTime.is_leap_year(dt)
 
     if (mo == 2) {
-        if (leap) { return 29 }
+        if (leap) {
+            return 29
+        }
         return 28
     }
     if (mo == 4 || mo == 6 || mo == 9 || mo == 11) {
@@ -222,23 +232,33 @@ pub fn (DateTime) days_in_month(dt: self) i64 = {
 pub fn (DateTime) equals(a: self, b: self) bool = {
     val ay: i64 = DateTime.year(a)
     val by: i64 = DateTime.year(b)
-    if (ay != by) { return false }
+    if (ay != by) {
+        return false
+    }
 
     val amo: i64 = DateTime.month(a)
     val bmo: i64 = DateTime.month(b)
-    if (amo != bmo) { return false }
+    if (amo != bmo) {
+        return false
+    }
 
     val ad: i64 = DateTime.day(a)
     val bd: i64 = DateTime.day(b)
-    if (ad != bd) { return false }
+    if (ad != bd) {
+        return false
+    }
 
     val ah: i64 = DateTime.hour(a)
     val bh: i64 = DateTime.hour(b)
-    if (ah != bh) { return false }
+    if (ah != bh) {
+        return false
+    }
 
     val ami: i64 = DateTime.minute(a)
     val bmi: i64 = DateTime.minute(b)
-    if (ami != bmi) { return false }
+    if (ami != bmi) {
+        return false
+    }
 
     val as_: i64 = DateTime.second(a)
     val bs_: i64 = DateTime.second(b)
@@ -287,7 +307,7 @@ test {
     assert DateTime.equals(dt, dt)  == true
     assert unix_now_millis[_](ac) >= unix_now[_](ac) * 1000
     assert unix_now_micros[_](ac) >= unix_now_millis[_](ac) * 1000
-    
+
     trust stdio.print("year: {d}\n", {DateTime.now[_](ac).year})
     trust allocators.Arena.free(ac)
 }

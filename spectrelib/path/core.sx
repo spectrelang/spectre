@@ -13,11 +13,8 @@ pub fn get_name_without_ext(arena: ref allocators.Arena, path: ref u8) ref u8 = 
             break
         }
         val c: mut u8 = '\0'
-        match str.byte_at(path, i) {
-            some v => {
-                c = v
-            }
-            none => {}
+        if str.byte_at(path, i) is some v {
+            c = v
         }
         if (c == 47) {
             last_slash = i
@@ -40,11 +37,8 @@ pub fn get_name_without_ext(arena: ref allocators.Arena, path: ref u8) ref u8 = 
             break
         }
         val c: mut u8 = '\0'
-        match str.byte_at(path, filename_start + j) {
-            some v => {
-                c = v
-            }
-            none => {}
+        if str.byte_at(path, filename_start + j) is some v {
+            c = v
         }
         if (c == 46) {
             last_dot = j
@@ -96,15 +90,23 @@ pub fn dir(path: ref u8) ref u8 = trust {
     val last_slash: mut i64 = -1
     val i: mut i64 = 0
     for {
-        if i >= len { break }
+        if i >= len {
+            break
+        }
         val c: u8 = @load8(@ptradd(path as ref void, i))
-        if c == 47 { last_slash = i }
+        if c == 47 {
+            last_slash = i
+        }
         when windows {
-            if c == 92 { last_slash = i }
+            if c == 92 {
+                last_slash = i
+            }
         }
         i++
     }
-    if last_slash < 0 { return "." }
+    if last_slash < 0 {
+        return "."
+    }
     val buf: ref u8 = @alloc(last_slash + 2) as ref u8
     @memcpy(buf as ref void, path as ref void, (last_slash + 1) as usize)
     @store8(@ptradd(buf as ref void, last_slash + 1), 0)
@@ -113,17 +115,23 @@ pub fn dir(path: ref u8) ref u8 = trust {
 
 /// Returns the path with all .. or parent references resolved.
 pub fn canonicalize_path(path: ref u8) ref u8 = trust {
-    if path == none { return path }
+    if path == none {
+        return path
+    }
     val len: i64 = str.len_raw(path)
-    if len == 0 { return path }
+    if len == 0 {
+        return path
+    }
     val is_abs: bool = @load8(@ptradd(path as ref void, 0)) == 47
     val keep_dot_prefix: bool = len >= 2 &&
-                                @load8(@ptradd(path as ref void, 0)) == 46 &&
-                                @load8(@ptradd(path as ref void, 1)) == 47
+    @load8(@ptradd(path as ref void, 0)) == 46 &&
+    @load8(@ptradd(path as ref void, 1)) == 47
     val segs: mut list[ref u8] = []
     val i: mut i64 = 0
     for {
-        if i >= len { break }
+        if i >= len {
+            break
+        }
         val c: u8 = @load8(@ptradd(path as ref void, i))
         if c == 47 {
             i++
@@ -131,9 +139,13 @@ pub fn canonicalize_path(path: ref u8) ref u8 = trust {
         }
         val start: i64 = i
         for {
-            if i >= len { break }
+            if i >= len {
+                break
+            }
             val c2: u8 = @load8(@ptradd(path as ref void, i))
-            if c2 == 47 { break }
+            if c2 == 47 {
+                break
+            }
             i++
         }
         val seg_len: i64 = i - start
@@ -156,7 +168,9 @@ pub fn canonicalize_path(path: ref u8) ref u8 = trust {
                         }
                     }
                     none => {
-                        if !is_abs { @append(segs, seg) }
+                        if !is_abs {
+                            @append(segs, seg)
+                        }
                     }
                 }
             } elif !is_abs {
@@ -172,14 +186,15 @@ pub fn canonicalize_path(path: ref u8) ref u8 = trust {
     }
     val si: mut i64 = 0
     for {
-        if si >= @len(segs) as i64 { break }
+        if si >= @len(segs) as i64 {
+            break
+        }
         val s_opt = @get(segs, si as usize)
-        match s_opt {
-            some s => {
-                if si > 0 { str.StringBuilder.append_char(sb, 47 as u8) }
-                str.StringBuilder.append_cstr(sb, s as ref u8)
+        if s_opt is some s {
+            if si > 0 {
+                str.StringBuilder.append_char(sb, 47 as u8)
             }
-            none => {}
+            str.StringBuilder.append_cstr(sb, s as ref u8)
         }
         si++
     }
@@ -187,7 +202,9 @@ pub fn canonicalize_path(path: ref u8) ref u8 = trust {
     val out: ref u8 = str.cstr(built)
     str.StringBuilder.free(sb)
     if str.len_raw(out) == 0 {
-        if is_abs { return "/" }
+        if is_abs {
+            return "/"
+        }
         return "."
     }
     if keep_dot_prefix && @load8(@ptradd(out as ref void, 0)) != 46 {

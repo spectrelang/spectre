@@ -13,7 +13,9 @@ pub fn sort[T](input: list[T]) list[T] = {
     val sorted: mut list[T] = []
     val i: mut usize = 0
     for {
-        if i >= n { break }
+        if i >= n {
+            break
+        }
         val v = @get(input, i)
         if v is some x {
             @append(sorted, x)
@@ -23,7 +25,9 @@ pub fn sort[T](input: list[T]) list[T] = {
 
     val si: mut usize = 1
     for {
-        if si >= n { break }
+        if si >= n {
+            break
+        }
 
         val ko = @get(sorted, si)
         val key: mut T = 0 as T
@@ -37,7 +41,9 @@ pub fn sort[T](input: list[T]) list[T] = {
         val j: mut i64 = (si as i64) - 1
 
         for {
-            if j < 0 { break }
+            if j < 0 {
+                break
+            }
 
             val jo = @get(sorted, j as usize)
             val jval: mut T = 0 as T
@@ -50,19 +56,29 @@ pub fn sort[T](input: list[T]) list[T] = {
             val should_break: mut i32 = 0
 
             when T in (i64, i32) {
-                if jval <= key { should_break = 1 }
+                if jval <= key {
+                    should_break = 1
+                }
             }
             when T in (f64, f32) {
-                if jval <= key { should_break = 1 }
+                if jval <= key {
+                    should_break = 1
+                }
             }
             when T is ref u8 {
-                if intern_strcmp(jval, key) <= 0 { should_break = 1 }
+                if intern_strcmp(jval, key) <= 0 {
+                    should_break = 1
+                }
             }
             when _ {
-                if jval <= key { should_break = 1 }
+                if jval <= key {
+                    should_break = 1
+                }
             }
 
-            if should_break != 0 { break }
+            if should_break != 0 {
+                break
+            }
 
             @set(sorted, (j + 1) as usize, jval)
             j = j - 1
@@ -80,7 +96,9 @@ pub fn sort_numeric_radix[T](input: list[T]) list[T] = {
         val raw: mut list[i64] = []
         val ri: mut usize = 0
         for {
-            if ri >= @len(input) { break }
+            if ri >= @len(input) {
+                break
+            }
             val v = @get(input, ri)
             if v is some x {
                 @append(raw, x as i64)
@@ -99,7 +117,9 @@ pub fn sort_numeric_radix[T](input: list[T]) list[T] = {
         val rawu: mut list[u64] = []
         val ui: mut usize = 0
         for {
-            if ui >= @len(input) { break }
+            if ui >= @len(input) {
+                break
+            }
             val v = @get(input, ui)
             if v is some x {
                 @append(rawu, x as u64)
@@ -120,12 +140,16 @@ pub fn sort_numeric_radix[T](input: list[T]) list[T] = {
 /// Fast radix sort for signed i64 values (ascending).
 pub fn sort_radix_i64(input: list[i64]) list[i64] = {
     val n: usize = @len(input)
-    if n <= 1 { return input }
+    if n <= 1 {
+        return input
+    }
 
     val values: mut list[i64] = []
     val vi: mut usize = 0
     for {
-        if vi >= n { break }
+        if vi >= n {
+            break
+        }
         val v = @get(input, vi)
         if v is some x {
             @append(values, x)
@@ -137,12 +161,16 @@ pub fn sort_radix_i64(input: list[i64]) list[i64] = {
     val sign_mask: u64 = 1 as u64 << 63
     val pass: mut i64 = 0
     for {
-        if pass >= passes { break }
+        if pass >= passes {
+            break
+        }
 
         val counts: mut list[i64] = []
         val ci: mut i64 = 0
         for {
-            if ci >= 256 { break }
+            if ci >= 256 {
+                break
+            }
             @append(counts, 0)
             ci++
         }
@@ -151,7 +179,9 @@ pub fn sort_radix_i64(input: list[i64]) list[i64] = {
         val byte_mask: u64 = 255
         val scan_i: mut usize = 0
         for {
-            if scan_i >= n { break }
+            if scan_i >= n {
+                break
+            }
             val item_opt = @get(values, scan_i)
             if item_opt is some item {
                 val key: u64 = (item as u64) ^ sign_mask
@@ -167,7 +197,9 @@ pub fn sort_radix_i64(input: list[i64]) list[i64] = {
         val total: mut i64 = 0
         val bi: mut usize = 0
         for {
-            if bi >= 256 { break }
+            if bi >= 256 {
+                break
+            }
             val count_opt = @get(counts, bi)
             if count_opt is some count {
                 @set(counts, bi, total)
@@ -179,14 +211,18 @@ pub fn sort_radix_i64(input: list[i64]) list[i64] = {
         val out: mut list[i64] = []
         val oi: mut usize = 0
         for {
-            if oi >= n { break }
+            if oi >= n {
+                break
+            }
             @append(out, 0)
             oi++
         }
 
         scan_i = 0
         for {
-            if scan_i >= n { break }
+            if scan_i >= n {
+                break
+            }
             val item_opt = @get(values, scan_i)
             if item_opt is some item {
                 val key: u64 = (item as u64) ^ sign_mask
@@ -210,12 +246,16 @@ pub fn sort_radix_i64(input: list[i64]) list[i64] = {
 /// Fast radix sort for unsigned u64 values (ascending).
 pub fn sort_radix_u64(input: list[u64]) list[u64] = {
     val n: usize = @len(input)
-    if n <= 1 { return input }
+    if n <= 1 {
+        return input
+    }
 
     val values: mut list[u64] = []
     val vi: mut usize = 0
     for {
-        if vi >= n { break }
+        if vi >= n {
+            break
+        }
         val v = @get(input, vi)
         if v is some x {
             @append(values, x)
@@ -226,12 +266,16 @@ pub fn sort_radix_u64(input: list[u64]) list[u64] = {
     val passes: i64 = 8
     val pass: mut i64 = 0
     for {
-        if pass >= passes { break }
+        if pass >= passes {
+            break
+        }
 
         val counts: mut list[i64] = []
         val ci: mut i64 = 0
         for {
-            if ci >= 256 { break }
+            if ci >= 256 {
+                break
+            }
             @append(counts, 0)
             ci++
         }
@@ -240,7 +284,9 @@ pub fn sort_radix_u64(input: list[u64]) list[u64] = {
         val byte_mask: u64 = 255
         val scan_i: mut usize = 0
         for {
-            if scan_i >= n { break }
+            if scan_i >= n {
+                break
+            }
             val item_opt = @get(values, scan_i)
             if item_opt is some item {
                 val bucket: usize = (((item >> shift) & byte_mask) as usize)
@@ -255,7 +301,9 @@ pub fn sort_radix_u64(input: list[u64]) list[u64] = {
         val total: mut i64 = 0
         val bi: mut usize = 0
         for {
-            if bi >= 256 { break }
+            if bi >= 256 {
+                break
+            }
             val count_opt = @get(counts, bi)
             if count_opt is some count {
                 @set(counts, bi, total)
@@ -267,14 +315,18 @@ pub fn sort_radix_u64(input: list[u64]) list[u64] = {
         val out: mut list[u64] = []
         val oi: mut usize = 0
         for {
-            if oi >= n { break }
+            if oi >= n {
+                break
+            }
             @append(out, 0)
             oi++
         }
 
         scan_i = 0
         for {
-            if scan_i >= n { break }
+            if scan_i >= n {
+                break
+            }
             val item_opt = @get(values, scan_i)
             if item_opt is some item {
                 val bucket: usize = (((item >> shift) & byte_mask) as usize)
@@ -297,17 +349,25 @@ pub fn sort_radix_u64(input: list[u64]) list[u64] = {
 /// Extract leading integer from a ref u8. Returns -1 if none.
 fn parse_leading_num(name: ref u8) i64 = {
     val len: i64 = string.len_raw(name)
-    if len == 0 { return -1 }
+    if len == 0 {
+        return -1
+    }
     val result: mut i64 = 0
     val found: mut i32 = 0
     val i: mut i64 = 0
     for {
-        if i >= len { break }
+        if i >= len {
+            break
+        }
         val cb = string.byte_at(name, i)
         val c: mut u8 = 0
         match cb {
-            none   => { break }
-            some v => { c = v }
+            none   => {
+                break
+            }
+            some v => {
+                c = v
+            }
         }
         val is_dig: i32 = trust isdigit(c as i32)
         if is_dig != 0 {
@@ -318,7 +378,9 @@ fn parse_leading_num(name: ref u8) i64 = {
         }
         i++
     }
-    if found == 0 { return -1 }
+    if found == 0 {
+        return -1
+    }
     return result
 }
 
@@ -328,7 +390,9 @@ pub fn sort_by_num(files: list[ref u8]) list[ref u8] = {
     val sorted: mut list[ref u8] = []
     val ci: mut usize = 0
     for {
-        if ci >= n { break }
+        if ci >= n {
+            break
+        }
         val fo = @get(files, ci)
         if fo is some v {
             @append(sorted, v)
@@ -338,7 +402,9 @@ pub fn sort_by_num(files: list[ref u8]) list[ref u8] = {
 
     val si: mut usize = 1
     for {
-        if si >= n { break }
+        if si >= n {
+            break
+        }
         val ko = @get(sorted, si)
         val key: mut ref u8 = none
         if ko is some v {
@@ -350,7 +416,9 @@ pub fn sort_by_num(files: list[ref u8]) list[ref u8] = {
         val knum: i64 = parse_leading_num(key)
         val j: mut i64 = (si as i64) - 1
         for {
-            if j < 0 { break }
+            if j < 0 {
+                break
+            }
             val jo = @get(sorted, j as usize)
             val jval: mut ref u8 = none
             if jo is some v {
@@ -359,7 +427,9 @@ pub fn sort_by_num(files: list[ref u8]) list[ref u8] = {
                 break
             }
             val jnum: i64 = parse_leading_num(jval)
-            if jnum <= knum { break }
+            if jnum <= knum {
+                break
+            }
             @set(sorted, (j + 1) as usize, jval)
             j = j - 1
         }
@@ -381,7 +451,9 @@ pub fn sort_f64(input: list[f64]) list[f64] = {
     val sorted: mut list[f64] = []
     val i: mut usize = 0
     for {
-        if i >= n { break }
+        if i >= n {
+            break
+        }
         val v = @get(input, i)
         if v is some x {
             @append(sorted, x)
@@ -391,7 +463,9 @@ pub fn sort_f64(input: list[f64]) list[f64] = {
 
     val si: mut usize = 1
     for {
-        if si >= n { break }
+        if si >= n {
+            break
+        }
 
         val ko = @get(sorted, si)
         val key: mut f64 = 0.0
@@ -405,7 +479,9 @@ pub fn sort_f64(input: list[f64]) list[f64] = {
         val j: mut i64 = (si as i64) - 1
 
         for {
-            if j < 0 { break }
+            if j < 0 {
+                break
+            }
 
             val jo = @get(sorted, j as usize)
             val jval: mut f64 = 0.0
@@ -415,7 +491,9 @@ pub fn sort_f64(input: list[f64]) list[f64] = {
                 break
             }
 
-            if jval <= key { break }
+            if jval <= key {
+                break
+            }
 
             @set(sorted, (j + 1) as usize, jval)
             j = j - 1
@@ -439,10 +517,26 @@ fn intern_strcmp(a: ref u8, b: ref u8) i32 = {
         val ca: mut u8 = 0
         val cb: mut u8 = 0
 
-        match ca_o { none => { ca = 0 } some v => { ca = v } }
-        match cb_o { none => { cb = 0 } some v => { cb = v } }
+        match ca_o {
+            none => {
+                ca = 0
+            }
+            some v => {
+                ca = v
+            }
+        }
+        match cb_o {
+            none => {
+                cb = 0
+            }
+            some v => {
+                cb = v
+            }
+        }
 
-        if ca == 0 && cb == 0 { return 0 }
+        if ca == 0 && cb == 0 {
+            return 0
+        }
 
         if ca != cb {
             return (ca as i32) - (cb as i32)
@@ -461,7 +555,9 @@ pub fn sort_alpha(files: list[ref u8]) list[ref u8] = {
     val ci: mut usize = 0
 
     for {
-        if ci >= n { break }
+        if ci >= n {
+            break
+        }
         val fo = @get(files, ci)
         if fo is some v {
             @append(sorted, v)
@@ -471,7 +567,9 @@ pub fn sort_alpha(files: list[ref u8]) list[ref u8] = {
 
     val si: mut usize = 1
     for {
-        if si >= n { break }
+        if si >= n {
+            break
+        }
 
         val ko = @get(sorted, si)
         val key: mut ref u8 = none
@@ -485,7 +583,9 @@ pub fn sort_alpha(files: list[ref u8]) list[ref u8] = {
         val j: mut i64 = (si as i64) - 1
 
         for {
-            if j < 0 { break }
+            if j < 0 {
+                break
+            }
 
             val jo = @get(sorted, j as usize)
             val jval: mut ref u8 = none
@@ -495,7 +595,9 @@ pub fn sort_alpha(files: list[ref u8]) list[ref u8] = {
                 break
             }
 
-            if intern_strcmp(jval, key) <= 0 { break }
+            if intern_strcmp(jval, key) <= 0 {
+                break
+            }
 
             @set(sorted, (j + 1) as usize, jval)
             j = j - 1
@@ -550,7 +652,9 @@ test {
     assert @len(fast_i64_sorted) == @len(fast_i64_expected)
     val fi: mut usize = 0
     for {
-        if fi >= @len(fast_i64_expected) { break }
+        if fi >= @len(fast_i64_expected) {
+            break
+        }
         val got_opt = @get(fast_i64_sorted, fi)
         val exp_opt = @get(fast_i64_expected, fi)
         if got_opt is some got {
@@ -567,7 +671,9 @@ test {
     assert @len(fast_u64_sorted) == @len(fast_u64_expected)
     val fj: mut usize = 0
     for {
-        if fj >= @len(fast_u64_expected) { break }
+        if fj >= @len(fast_u64_expected) {
+            break
+        }
         val got_opt2 = @get(fast_u64_sorted, fj)
         val exp_opt2 = @get(fast_u64_expected, fj)
         if got_opt2 is some got2 {

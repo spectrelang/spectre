@@ -26,13 +26,13 @@ pub fn read_u64_le(data: ref u8, offset: usize) u64 = trust {
     val b7: u64 = @load8(@ptradd(data, offset + (7 as usize))) as u64
 
     return b0
-        | (b1 << 8)
-        | (b2 << 16)
-        | (b3 << 24)
-        | (b4 << 32)
-        | (b5 << 40)
-        | (b6 << 48)
-        | (b7 << 56)
+    | (b1 << 8)
+    | (b2 << 16)
+    | (b3 << 24)
+    | (b4 << 32)
+    | (b5 << 40)
+    | (b6 << 48)
+    | (b7 << 56)
 }
 
 /// Write some u16 into a data pointer (little-endian)
@@ -76,9 +76,9 @@ pub fn read_u32_be(data: ref u8, offset: usize) u32 = trust {
     val b3: u32 = @load8(@ptradd(data, offset + (3 as usize))) as u32
 
     return (b0 << 24)
-        | (b1 << 16)
-        | (b2 << 8)
-        | b3
+    | (b1 << 16)
+    | (b2 << 8)
+    | b3
 }
 
 /// Read some u64 from a data pointer (big-endian)
@@ -93,13 +93,13 @@ pub fn read_u64_be(data: ref u8, offset: usize) u64 = trust {
     val b7: u64 = @load8(@ptradd(data, offset + (7 as usize))) as u64
 
     return (b0 << 56)
-        | (b1 << 48)
-        | (b2 << 40)
-        | (b3 << 32)
-        | (b4 << 24)
-        | (b5 << 16)
-        | (b6 << 8)
-        | b7
+    | (b1 << 48)
+    | (b2 << 40)
+    | (b3 << 32)
+    | (b4 << 24)
+    | (b5 << 16)
+    | (b6 << 8)
+    | b7
 }
 
 /// Write some u16 into a data pointer (big-endian)

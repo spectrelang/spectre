@@ -40,15 +40,21 @@ pub fn random_u32_below(upper_bound: u32) u32 = {
         return trust arc4random_uniform(upper_bound)
     }
     when windows {
-        if upper_bound == 0 { return 0 }
-        if upper_bound == 1 { return 0 }
+        if upper_bound == 0 {
+            return 0
+        }
+        if upper_bound == 1 {
+            return 0
+        }
         val threshold: u32 = (4294967295 as u32 % upper_bound + 1) % upper_bound
         for {
             val buf: ref void = @alloc(4)
             trust BCryptGenRandom(none, buf, 4 as u32, 2 as u32)
             val r: u32 = trust @load(buf) as u32
             trust @free(buf)
-            if r >= threshold { return r % upper_bound }
+            if r >= threshold {
+                return r % upper_bound
+            }
         }
     }
     return 0

@@ -647,17 +647,20 @@ fn rewrite_match_at(
     val s_start: i64 = token_start(tokens, starts, arm0.start)
     val s_open: i64 = token_start(tokens, starts, arm0.open)
     val s_close: i64 = token_start(tokens, starts, arm0.close)
-    val n_start: i64 = token_start(tokens, starts, arm1.start)
-    val n_arrow: i64 = token_start(tokens, starts, arm1.arrow)
     val n_open: i64 = token_start(tokens, starts, arm1.open)
     val n_close: i64 = token_start(tokens, starts, arm1.close)
     val m_close: i64 = token_start(tokens, starts, body_close)
 
     val s_open_end: i64 = s_open + 1
     val s_close_end: i64 = s_close + 1
-    val n_arrow_end: i64 = n_arrow + 2
-    val n_close_end: i64 = n_close + 1
     val m_close_end: i64 = m_close + 1
+
+    // Only collapse the match when the none arm is empty. A non-empty none
+    // arm is real fallback logic and should stay as a match.
+    val none_body_empty: bool = range_is_whitespace(src, n_open + 1, n_close)
+    if !none_body_empty {
+        return none
+    }
 
     val edits: mut list[ref Edit] = []
 
@@ -677,15 +680,10 @@ fn rewrite_match_at(
         }
         ws_start--
     }
-    @append(edits, edit_new(ws_start, m_open, ""))
 
-    // Insert ` is some <binding>` before the match body brace.
+    @append(edits, edit_new(ws_start, m_open, ""))
     @append(edits, edit_new(m_open, m_open, @fmt(" is some {s} ", {bind})))
 
-    // Drop the `some <binding> => {` opener. The match body brace becomes
-    // the if body brace, so the some arm's own body braces are unnecessary.
-    // If the arm starts on its own line, only remove that line, keeping any
-    // comment lines that came before it inside the new if body.
     val some_removal_start: mut i64 = m_open + 1
     val nl_scan: mut i64 = m_open + 1
     for {
@@ -723,23 +721,10 @@ fn rewrite_match_at(
             }
         }
     }
-    @append(edits, edit_new(some_removal_start, some_removal_end, ""))
 
-    val none_body_empty: bool = range_is_whitespace(src, n_open + 1, n_close)
-    if none_body_empty {
-        // Remove the whole empty none arm, plus the original match close.
-        @append(edits, edit_new(s_close_end, m_close, ""))
-        @append(edits, edit_new(m_close, m_close_end, ""))
-    } else {
-        // Turn `none =>` into `else`. If the arms were on separate lines,
-        // attach the else to the previous closing brace.
-        if range_is_whitespace(src, s_close_end, n_start) {
-            @append(edits, edit_new(s_close_end, n_start, " "))
-        }
-        @append(edits, edit_new(n_start, n_arrow_end, "else"))
-        @append(edits, edit_new(n_close_end, m_close, ""))
-        @append(edits, edit_new(m_close, m_close_end, ""))
-    }
+    @append(edits, edit_new(some_removal_start, some_removal_end, ""))
+    @append(edits, edit_new(s_close_end, m_close, ""))
+    @append(edits, edit_new(m_close, m_close_end, ""))
 
     return some apply_edits(src, edits)
 }

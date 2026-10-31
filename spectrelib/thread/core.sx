@@ -223,11 +223,14 @@ when windows {
 
 when linux {
     val MUTEX_SIZE: usize = 40
-} or when darwin {
+}
+or when darwin {
     val MUTEX_SIZE: usize = 64
-} or when windows {
+}
+or when windows {
     val MUTEX_SIZE: usize = 40
-} otherwise {
+}
+otherwise {
     val MUTEX_SIZE: usize = 8
 }
 

@@ -177,10 +177,10 @@ pub fn (Mat4x4) perspective(fov: f64, aspect: f64, near: f64, far: f64) Mat4x4 =
         valid_aspect: aspect > 0.0
         valid_planes: near > 0.0 && far > near
     }
-    
+
     val tan_half_fov = core.tan(fov / 2.0)
     val f = 1.0 / tan_half_fov
-    
+
     return {
         m00: f / aspect, m10: 0.0, m20: 0.0,                           m30: 0.0,
         m01: 0.0,        m11: f,   m21: 0.0,                           m31: 0.0,
@@ -196,12 +196,12 @@ pub fn (Mat4x4) ortho(left: f64, right: f64, bottom: f64, top: f64, near: f64, f
         valid_bt: bottom != top
         valid_nf: near != far
     }
-    
+
     return {
         m00: 2.0 / (right - left), m10: 0.0,                  m20: 0.0,               m30: 0.0,
         m01: 0.0,                  m11: 2.0 / (top - bottom), m21: 0.0,               m31: 0.0,
         m02: 0.0,                  m12: 0.0,                  m22: -2.0 / (far - near), m32: 0.0,
-        m03: -(right + left) / (right - left), m13: -(top + bottom) / (top - bottom), 
+        m03: -(right + left) / (right - left), m13: -(top + bottom) / (top - bottom),
         m23: -(far + near) / (far - near), m33: 1.0
     }
 }
@@ -214,7 +214,7 @@ pub fn (Mat4x4) look_at(eye: Vec3, center: Vec3, up: Vec3) Mat4x4 = {
     val f_len = core.sqrt(fx * fx + fy * fy + fz * fz)
     val f_x = fx / f_len
     val f_y = fy / f_len
-    val f_z = fz / f_len    
+    val f_z = fz / f_len
     val sx = f_y * up.z - f_z * up.y
     val sy = f_z * up.x - f_x * up.z
     val sz = f_x * up.y - f_y * up.x
@@ -225,7 +225,7 @@ pub fn (Mat4x4) look_at(eye: Vec3, center: Vec3, up: Vec3) Mat4x4 = {
     val ux = s_y * f_z - s_z * f_y
     val uy = s_z * f_x - s_x * f_z
     val uz = s_x * f_y - s_y * f_x
-    
+
     return {
         m00: s_x,  m10: ux,   m20: -f_x, m30: 0.0,
         m01: s_y,  m11: uy,   m21: -f_y, m31: 0.0,
@@ -251,7 +251,7 @@ pub fn (Mat4x4) det(m: self) f64 = {
     val j = m.m21 * m.m32 - m.m22 * m.m31
     val k = m.m21 * m.m33 - m.m23 * m.m31
     val l = m.m22 * m.m33 - m.m23 * m.m32
-    
+
     return a * l - b * k + c * j + d * i - e * h + f * g
 }
 
@@ -354,11 +354,11 @@ pub fn (Quaternion) from_axis_angle(axis: Vec3, angle: f64) Quaternion = {
     val half = angle * 0.5
     val s = core.sin(half)
     return Quaternion.normalize({
-        x: axis_n.x * s,
-        y: axis_n.y * s,
-        z: axis_n.z * s,
-        w: core.cos(half)
-    })
+            x: axis_n.x * s,
+            y: axis_n.y * s,
+            z: axis_n.z * s,
+            w: core.cos(half)
+        })
 }
 
 /// Construct a quaternion from roll (X), pitch (Y), yaw (Z) Euler angles in radians.
@@ -375,11 +375,11 @@ pub fn (Quaternion) from_euler(roll: f64, pitch: f64, yaw: f64) Quaternion = {
     val sy = core.sin(half_yaw)
 
     return Quaternion.normalize({
-        x: sr * cp * cy - cr * sp * sy,
-        y: cr * sp * cy + sr * cp * sy,
-        z: cr * cp * sy - sr * sp * cy,
-        w: cr * cp * cy + sr * sp * sy
-    })
+            x: sr * cp * cy - cr * sp * sy,
+            y: cr * sp * cy + sr * cp * sy,
+            z: cr * cp * sy - sr * sp * cy,
+            w: cr * cp * cy + sr * sp * sy
+        })
 }
 
 /// Construct a quaternion from Euler angles.
@@ -452,11 +452,11 @@ pub fn (Quaternion) nlerp(a: self, b: Quaternion, t: f64) Quaternion = {
     }
 
     return Quaternion.normalize({
-        x: core.lerp(a.x, b_use.x, t),
-        y: core.lerp(a.y, b_use.y, t),
-        z: core.lerp(a.z, b_use.z, t),
-        w: core.lerp(a.w, b_use.w, t)
-    })
+            x: core.lerp(a.x, b_use.x, t),
+            y: core.lerp(a.y, b_use.y, t),
+            z: core.lerp(a.z, b_use.z, t),
+            w: core.lerp(a.w, b_use.w, t)
+        })
 }
 
 /// Spherical linear interpolation between two quaternions using the shortest path.
@@ -492,11 +492,11 @@ pub fn (Quaternion) slerp(a: self, b: Quaternion, t: f64) Quaternion = {
     val s1 = core.sin(theta) / sin_theta0
 
     return Quaternion.normalize({
-        x: qa.x * s0 + qb.x * s1,
-        y: qa.y * s0 + qb.y * s1,
-        z: qa.z * s0 + qb.z * s1,
-        w: qa.w * s0 + qb.w * s1
-    })
+            x: qa.x * s0 + qb.x * s1,
+            y: qa.y * s0 + qb.y * s1,
+            z: qa.z * s0 + qb.z * s1,
+            w: qa.w * s0 + qb.w * s1
+        })
 }
 
 /// Vector dot product

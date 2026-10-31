@@ -15,17 +15,25 @@ pub type String = {
 }
 
 fn alloc_in[T: allocators.Allocator](ac: T, size: i64) ref void = {
-    pre { size_positive: size > 0 }
+    pre {
+        size_positive: size > 0
+    }
     val out_opt = T.alloc(ac, size as usize)
     match out_opt {
-        some out => { return out as ref void }
-        none => { return none }
+        some out => {
+            return out as ref void
+        }
+        none => {
+            return none
+        }
     }
 }
 
 fn alloc_string_in[T: allocators.Allocator](ac: T, len: i64) String = trust {
     val buf: ref void = alloc_in[T](ac, len + 1)
-    if buf == none { return none }
+    if buf == none {
+        return none
+    }
     @memset(buf, 0, len + 1)
 
     val s: ref void = alloc_in[T](ac, 24)
@@ -41,7 +49,9 @@ fn alloc_string_in[T: allocators.Allocator](ac: T, len: i64) String = trust {
 
 fn alloc_substr_in[T: allocators.Allocator](ac: T, src: ref u8, start: i64, len: i64) ref u8 = trust {
     val buf: ref void = alloc_in[T](ac, len + 1)
-    if buf == none { return none }
+    if buf == none {
+        return none
+    }
     @memset(buf, 0, len + 1)
     if len > 0 {
         @memcpy(buf, @ptradd(src, start), len)
@@ -50,17 +60,25 @@ fn alloc_substr_in[T: allocators.Allocator](ac: T, src: ref u8, start: i64, len:
 }
 
 fn alloc_in_general[T: allocators.GeneralAllocator](ac: T, size: i64) ref void = {
-    pre { size_positive: size > 0 }
+    pre {
+        size_positive: size > 0
+    }
     val out_opt = T.alloc(ac, size as usize)
     match out_opt {
-        some out => { return out as ref void }
-        none => { return none }
+        some out => {
+            return out as ref void
+        }
+        none => {
+            return none
+        }
     }
 }
 
 fn alloc_string_in_general[T: allocators.GeneralAllocator](ac: T, len: i64) String = trust {
     val buf: ref void = alloc_in_general[T](ac, len + 1)
-    if buf == none { return none }
+    if buf == none {
+        return none
+    }
     @memset(buf, 0, len + 1)
 
     val s: ref void = alloc_in_general[T](ac, 24)
@@ -120,7 +138,9 @@ pub fn compare[A, B](a: A, b: B) i64 = trust {
 pub fn from[T: allocators.Allocator](ac: T, cstr: ref u8) String = trust {
     val l: i64 = strlen(cstr)
     val s: String = alloc_string_in[T](ac, l)
-    if s == none { return none }
+    if s == none {
+        return none
+    }
     val buf: ref void = @load(s as ref void)
     if l > 0 {
         @memcpy(buf, cstr, l)
@@ -327,14 +347,22 @@ pub fn reverse(s: String) void = trust {
 /// Concat raw u8 pointers — returns a new heap-allocated ref u8
 pub fn concat_raw(a: ref u8, b: ref u8) ref u8 = trust {
     val len_a: mut i64 = 0
-    if a != none { len_a = strlen(a) }
+    if a != none {
+        len_a = strlen(a)
+    }
     val len_b: mut i64 = 0
-    if b != none { len_b = strlen(b) }
+    if b != none {
+        len_b = strlen(b)
+    }
     val new_len: i64 = len_a + len_b
     val buf: mut ref void = @alloc(new_len + 1)
 
-    if len_a > 0 { @memcpy(buf, a, len_a) }
-    if len_b > 0 { @memcpy(@ptradd(buf, len_a), b, len_b) }
+    if len_a > 0 {
+        @memcpy(buf, a, len_a)
+    }
+    if len_b > 0 {
+        @memcpy(@ptradd(buf, len_a), b, len_b)
+    }
     @store8(@ptradd(buf, new_len), 0)
 
     return buf as ref u8
@@ -539,8 +567,12 @@ pub fn contains(s: String, sub: String) bool = {
     val result = find(s, sub)
     val found: mut i64 = 0
     match result {
-        some _ => { found = 1 }
-        none   => { found = 0 }
+        some _ => {
+            found = 1
+        }
+        none   => {
+            found = 0
+        }
     }
 
     post {
@@ -1119,10 +1151,33 @@ test {
     val g3 = get(g, 3)
 
     stdio.puts("hi2")
-    match g0 { some v => { assert(v == 97) } none => { assert(false) } }
-    match g1 { some v => { assert(v == 98) } none => { assert(false) } }
-    match g2 { some v => { assert(v == 99) } none => { assert(false) } }
-    match g3 { some _ => { assert(false) } none => {} }
+    match g0 {
+        some v => {
+            assert(v == 97)
+        }
+        none => {
+            assert(false)
+        }
+    }
+    match g1 {
+        some v => {
+            assert(v == 98)
+        }
+        none => {
+            assert(false)
+        }
+    }
+    match g2 {
+        some v => {
+            assert(v == 99)
+        }
+        none => {
+            assert(false)
+        }
+    }
+    if g3 is some _ {
+        assert(false)
+    }
 
     val st = trust from[allocators.Arena](arena, "abc")
     trust set(st, 1, 120 as u8) // 'x'
@@ -1139,16 +1194,23 @@ test {
 
     val f = trust from[allocators.Arena](arena, "abc abc abc")
     match find(f, trust from[allocators.Arena](arena, "abc")) {
-        some i => { assert(i == 0) }
-        none => { assert(false) }
+        some i => {
+            assert(i == 0)
+        }
+        none => {
+            assert(false)
+        }
     }
-    match find(f, trust from[allocators.Arena](arena, "bca")) {
-        some _ => { assert(false) }
-        none => {}
+    if find(f, trust from[allocators.Arena](arena, "bca")) is some _ {
+        assert(false)
     }
     match find(f, trust from[allocators.Arena](arena, "")) {
-        some i => { assert(i == 0) }
-        none => { assert(false) }
+        some i => {
+            assert(i == 0)
+        }
+        none => {
+            assert(false)
+        }
     }
 
     assert(contains(f, trust from[allocators.Arena](arena, "abc")))
@@ -1206,24 +1268,40 @@ test {
 
     assert(collections.PtrList.len(parts) == 3)
     match collections.PtrList.get(parts, 0 as usize) {
-        some v => { assert(equals(v, trust from[allocators.Arena](arena, "a"))) }
-        none => { assert(false) }
+        some v => {
+            assert(equals(v, trust from[allocators.Arena](arena, "a")))
+        }
+        none => {
+            assert(false)
+        }
     }
     match collections.PtrList.get(parts, 1 as usize) {
-        some v => { assert(equals(v, trust from[allocators.Arena](arena, "b"))) }
-        none => { assert(false) }
+        some v => {
+            assert(equals(v, trust from[allocators.Arena](arena, "b")))
+        }
+        none => {
+            assert(false)
+        }
     }
     match collections.PtrList.get(parts, 2 as usize) {
-        some v => { assert(equals(v, trust from[allocators.Arena](arena, "c"))) }
-        none => { assert(false) }
+        some v => {
+            assert(equals(v, trust from[allocators.Arena](arena, "c")))
+        }
+        none => {
+            assert(false)
+        }
     }
 
     val sp2 = trust from[allocators.Arena](arena, "a,b,")
     val parts2 = trust split[allocators.HeapAllocator](split_heap, sp2, from[allocators.Arena](arena, ","))?
     assert(collections.PtrList.len(parts2) == 3)
     match collections.PtrList.get(parts2, 2 as usize) {
-        some v => { assert(equals(v, trust from[allocators.Arena](arena, ""))) }
-        none => { assert(false) }
+        some v => {
+            assert(equals(v, trust from[allocators.Arena](arena, "")))
+        }
+        none => {
+            assert(false)
+        }
     }
 
     stdio.puts("hi4")

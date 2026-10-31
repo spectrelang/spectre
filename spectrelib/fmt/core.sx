@@ -69,28 +69,40 @@ fn rewrite_fmt(fmt: ref u8) ref void = trust {
 }
 
 fn alloc_in[A: allocators.Allocator](ac: A, len: i64) ref void = {
-    pre { len_positive: len > 0 }
+    pre {
+        len_positive: len > 0
+    }
     val buf_opt = A.alloc(ac, len as usize)
     match buf_opt {
-        some buf => { return buf }
-        none => { return none }
+        some buf => {
+            return buf
+        }
+        none => {
+            return none
+        }
     }
 }
 
 fn alloc_cstr[A: allocators.Allocator](ac: A, len: i64) ref u8 = trust {
     val buf: ref void = alloc_in[A](ac, len + 1)
-    if buf == none { return none }
+    if buf == none {
+        return none
+    }
     @memset(buf, 0, len + 1)
     return buf as ref u8
 }
 
 fn alloc_string[A: allocators.Allocator](ac: A, len: i64) String = trust {
     val buf: ref void = alloc_in[A](ac, len + 1)
-    if buf == none { return none }
+    if buf == none {
+        return none
+    }
     @memset(buf, 0, len + 1)
 
     val out: ref void = alloc_in[A](ac, 24)
-    if out == none { return none }
+    if out == none {
+        return none
+    }
 
     @store(out, buf)
     @store(@ptradd(out, 8), len)
@@ -99,10 +111,14 @@ fn alloc_string[A: allocators.Allocator](ac: A, len: i64) String = trust {
 }
 
 fn copy_cstr[A: allocators.Allocator](ac: A, src: ref u8) ref u8 = trust {
-    if src == none { return none }
+    if src == none {
+        return none
+    }
     val len: i64 = string.len_raw(src)
     val out: ref u8 = alloc_cstr[A](ac, len)
-    if out == none { return none }
+    if out == none {
+        return none
+    }
     if len > 0 {
         @memcpy(out, src, len)
     }
@@ -120,13 +136,19 @@ fn i64_to_string_heap(x: i64) ref u8 = trust {
     val neg: bool = x < 0
     val n: mut i64 = 0
 
-    if neg { n = -x } else { n = x }
+    if neg {
+        n = -x
+    } else {
+        n = x
+    }
 
     val tmp: mut i64 = n
     val digits: mut i64 = 0
 
     for {
-        if tmp == 0 { break }
+        if tmp == 0 {
+            break
+        }
         tmp = tmp / 10
         digits++
     }
@@ -144,7 +166,9 @@ fn i64_to_string_heap(x: i64) ref u8 = trust {
     val i: mut i64 = total - 1
 
     for {
-        if n == 0 { break }
+        if n == 0 {
+            break
+        }
         val d: i64 = n % 10
         @store8(@ptradd(buf, i), (48 + d) as u8)
         n = n / 10
@@ -169,7 +193,9 @@ pub fn format[A: allocators.Allocator](ac: A, fmt: ref u8, args: untyped) String
     @free(rfmt)
 
     val out: String = alloc_string[A](ac, written)
-    if out == none { return none }
+    if out == none {
+        return none
+    }
 
     val copy: ref void = @load(out) as ref void
     if written > 0 {
@@ -201,7 +227,11 @@ pub fn string_to_i64(s: ref u8) result[i64, ParseIntError] = {
     val neg: bool = trust @load8(s) == 45
     val start: mut i64 = 0
 
-    if neg { start = 1 } else { start = 0 }
+    if neg {
+        start = 1
+    } else {
+        start = 0
+    }
 
     if start >= len {
         return err ParseIntError.InvalidDigit
@@ -211,7 +241,9 @@ pub fn string_to_i64(s: ref u8) result[i64, ParseIntError] = {
     val i: mut i64 = start
 
     for {
-        if i >= len { break }
+        if i >= len {
+            break
+        }
 
         val c: u8 = trust @load8(@ptradd(s, i))
         if c < 48 || c > 57 {
@@ -222,7 +254,7 @@ pub fn string_to_i64(s: ref u8) result[i64, ParseIntError] = {
 
         pre {
             no_overflow:
-                acc <= (9223372036854775807 - digit) / 10
+            acc <= (9223372036854775807 - digit) / 10
         }
 
         acc = acc * 10 + digit
@@ -267,7 +299,9 @@ pub fn f64_to_string[A: allocators.Allocator](ac: A, x: f64) ref u8 = trust {
     val tmp: mut i64 = frac_i
 
     for {
-        if j < 0 { break }
+        if j < 0 {
+            break
+        }
         val d: i64 = tmp % 10
         @store8(@ptradd(frac_buf, j), (48 + d) as u8)
         tmp = tmp / 10
@@ -325,7 +359,9 @@ pub fn string_to_f64(s: ref u8) result[f64, ParseFloatError] = {
     val neg: bool = trust @load8(s) == 45
     val start: mut i64 = 0
 
-    if neg { start = 1 }
+    if neg {
+        start = 1
+    }
 
     if start >= len {
         return err ParseFloatError.Invalid
@@ -338,7 +374,9 @@ pub fn string_to_f64(s: ref u8) result[f64, ParseFloatError] = {
     val seen_dot: mut bool = false
 
     for {
-        if i >= len { break }
+        if i >= len {
+            break
+        }
 
         val c: u8 = trust @load8(@ptradd(s, i))
 

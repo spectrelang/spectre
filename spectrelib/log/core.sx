@@ -31,12 +31,12 @@ fn should_log(l: Level) bool = {
 fn get_time_string[A: allocators.Allocator](ac: A) ref u8 = {
     val dt: time.DateTime = time.DateTime.now[A](ac)
     return trust @fmt("{d}-{d}-{d} {d}:{d}:{d}", {
-        time.DateTime.year(dt),
-        time.DateTime.month(dt),
-        time.DateTime.day(dt),
-        time.DateTime.hour(dt),
-        time.DateTime.minute(dt),
-        time.DateTime.second(dt)}
+            time.DateTime.year(dt),
+            time.DateTime.month(dt),
+            time.DateTime.day(dt),
+            time.DateTime.hour(dt),
+            time.DateTime.minute(dt),
+            time.DateTime.second(dt)}
     )
 }
 

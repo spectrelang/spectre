@@ -88,16 +88,24 @@ fn ccl_slot(buf: ref u8, idx: i64) ref u8 = {
 }
 
 fn alloc_in[T: allocators.GeneralAllocator](ac: T, size: i64) ref void = {
-    pre { size_positive: size > 0 }
+    pre {
+        size_positive: size > 0
+    }
     val out_opt = T.alloc(ac, size as usize)
     match out_opt {
-        some out => { return out as ref void }
-        none => { return none }
+        some out => {
+            return out as ref void
+        }
+        none => {
+            return none
+        }
     }
 }
 
 fn free_in[T: allocators.GeneralAllocator](ac: T, ptr: ref void) void = trust {
-    if ptr != none { T.free(ac, ptr) }
+    if ptr != none {
+        T.free(ac, ptr)
+    }
 }
 
 fn alloc_handle[T: allocators.GeneralAllocator](ac: T) option[ref void] = trust {
@@ -310,12 +318,12 @@ fn matchalphanum(c: u8) bool = {
 
 fn matchrange(c: u8, str: ref u8) bool = {
     return c != '-'
-        && char_at(str, 0) != 0
-        && char_at(str, 0) != '-'
-        && char_at(str, 1) == '-'
-        && char_at(str, 2) != 0
-        && c >= char_at(str, 0)
-        && c <= char_at(str, 2)
+    && char_at(str, 0) != 0
+    && char_at(str, 0) != '-'
+    && char_at(str, 1) == '-'
+    && char_at(str, 2) != 0
+    && c >= char_at(str, 0)
+    && c <= char_at(str, 2)
 }
 
 fn matchdot(c: u8) bool = {
@@ -619,29 +627,63 @@ pub fn re_match(pattern: ref u8, text: ref u8, matchlength: mut ref i64) result[
 }
 
 fn kind_name(kind: i64) ref u8 = {
-    if (kind == TOKEN_UNUSED) { return "UNUSED" }
-    if (kind == TOKEN_DOT) { return "DOT" }
-    if (kind == TOKEN_BEGIN) { return "BEGIN" }
-    if (kind == TOKEN_END) { return "END" }
-    if (kind == TOKEN_QUESTIONMARK) { return "QUESTIONMARK" }
-    if (kind == TOKEN_STAR) { return "STAR" }
-    if (kind == TOKEN_PLUS) { return "PLUS" }
-    if (kind == TOKEN_CHAR) { return "CHAR" }
-    if (kind == TOKEN_CHAR_CLASS) { return "CHAR_CLASS" }
-    if (kind == TOKEN_INV_CHAR_CLASS) { return "INV_CHAR_CLASS" }
-    if (kind == TOKEN_DIGIT) { return "DIGIT" }
-    if (kind == TOKEN_NOT_DIGIT) { return "NOT_DIGIT" }
-    if (kind == TOKEN_ALPHA) { return "ALPHA" }
-    if (kind == TOKEN_NOT_ALPHA) { return "NOT_ALPHA" }
-    if (kind == TOKEN_WHITESPACE) { return "WHITESPACE" }
-    if (kind == TOKEN_NOT_WHITESPACE) { return "NOT_WHITESPACE" }
+    if (kind == TOKEN_UNUSED) {
+        return "UNUSED"
+    }
+    if (kind == TOKEN_DOT) {
+        return "DOT"
+    }
+    if (kind == TOKEN_BEGIN) {
+        return "BEGIN"
+    }
+    if (kind == TOKEN_END) {
+        return "END"
+    }
+    if (kind == TOKEN_QUESTIONMARK) {
+        return "QUESTIONMARK"
+    }
+    if (kind == TOKEN_STAR) {
+        return "STAR"
+    }
+    if (kind == TOKEN_PLUS) {
+        return "PLUS"
+    }
+    if (kind == TOKEN_CHAR) {
+        return "CHAR"
+    }
+    if (kind == TOKEN_CHAR_CLASS) {
+        return "CHAR_CLASS"
+    }
+    if (kind == TOKEN_INV_CHAR_CLASS) {
+        return "INV_CHAR_CLASS"
+    }
+    if (kind == TOKEN_DIGIT) {
+        return "DIGIT"
+    }
+    if (kind == TOKEN_NOT_DIGIT) {
+        return "NOT_DIGIT"
+    }
+    if (kind == TOKEN_ALPHA) {
+        return "ALPHA"
+    }
+    if (kind == TOKEN_NOT_ALPHA) {
+        return "NOT_ALPHA"
+    }
+    if (kind == TOKEN_WHITESPACE) {
+        return "WHITESPACE"
+    }
+    if (kind == TOKEN_NOT_WHITESPACE) {
+        return "NOT_WHITESPACE"
+    }
     return "UNKNOWN"
 }
 
 fn print_char(c: u8) void = trust {
     val heap: allocators.HeapAllocator = @zeroed
     val buf: ref u8 = alloc_in[allocators.HeapAllocator](heap, 2) as ref u8
-    if buf == none { return }
+    if buf == none {
+        return
+    }
     @store8(buf, c)
     @store8(@ptradd(buf, 1), 0)
     stdio.print("{s}", {buf})
@@ -700,56 +742,81 @@ test {
     match re_match("^h.llo$", "hello", @addr(matchlength)) {
         ok found => {
             match found {
-                some pos => { assert pos == 0 }
-                none => { assert false }
+                some pos => {
+                    assert pos == 0
+                }
+                none => {
+                    assert false
+                }
             }
             assert matchlength == 5
         }
-        err _ => { assert false }
+        err _ => {
+            assert false
+        }
     }
 
     match re_match("a*bc", "aaabc", @addr(matchlength)) {
         ok found => {
             match found {
-                some pos => { assert pos == 0 }
-                none => { assert false }
+                some pos => {
+                    assert pos == 0
+                }
+                none => {
+                    assert false
+                }
             }
             assert matchlength == 5
         }
-        err _ => { assert false }
+        err _ => {
+            assert false
+        }
     }
 
     match re_match("colou?r", "color", @addr(matchlength)) {
         ok found => {
             match found {
-                some pos => { assert pos == 0 }
-                none => { assert false }
+                some pos => {
+                    assert pos == 0
+                }
+                none => {
+                    assert false
+                }
             }
             assert matchlength == 5
         }
-        err _ => { assert false }
+        err _ => {
+            assert false
+        }
     }
 
     match re_match("\\d+", "abc123z", @addr(matchlength)) {
         ok found => {
             match found {
-                some pos => { assert pos == 3 }
-                none => { assert false }
+                some pos => {
+                    assert pos == 3
+                }
+                none => {
+                    assert false
+                }
             }
             assert matchlength == 3
         }
-        err _ => { assert false }
+        err _ => {
+            assert false
+        }
     }
 
     match re_match("xyz", "hello", @addr(matchlength)) {
         ok found => {
-            match found {
-                some _ => { assert false }
-                none => {}
+            if found is some _ {
+                assert false
             }
             assert matchlength == 0
         }
-        err _ => { assert false }
+        err _ => {
+            assert false
+        }
     }
 
     match re_compile_with[allocators.HeapAllocator](heap, "[a-z]+") {
@@ -757,12 +824,18 @@ test {
             match trust re_matchp(compiled, "spectre", @addr(matchlength)) {
                 ok found => {
                     match found {
-                        some pos => { assert pos == 0 }
-                        none => { assert false }
+                        some pos => {
+                            assert pos == 0
+                        }
+                        none => {
+                            assert false
+                        }
                     }
                     assert matchlength == 7
                 }
-                err _ => { assert false }
+                err _ => {
+                    assert false
+                }
             }
             trust re_free_with[allocators.HeapAllocator](heap, compiled)
         }
@@ -772,16 +845,17 @@ test {
     }
 
     match re_match("[", "hello", @addr(matchlength)) {
-        ok _ => { assert false }
-        err e => { assert e == RegexMatchError.CompileFailed }
-    }
-
-    match re_compile_with[allocators.HeapAllocator](heap, "[") {
-        some compiled => {
-            trust re_free_with[allocators.HeapAllocator](heap, compiled)
+        ok _ => {
             assert false
         }
-        none => {}
+        err e => {
+            assert e == RegexMatchError.CompileFailed
+        }
+    }
+
+    if re_compile_with[allocators.HeapAllocator](heap, "[") is some compiled {
+        trust re_free_with[allocators.HeapAllocator](heap, compiled)
+        assert false
     }
 
     stdio.puts("regex tests passed")

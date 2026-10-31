@@ -20,15 +20,17 @@ pub enum AllocError = {
 val stdio = use("../stdio")
 
 pub spec Allocator = {
-   pub fn new(capacity: usize) result[Allocator, AllocError]
-   pub fn free(a: self) void
-   pub fn alloc(a: self, size: usize) option[ref void]
+    pub fn new(capacity: usize) result[Allocator, AllocError]
+    pub fn free(a: self) void
+    pub fn alloc(a: self, size: usize) option[ref void]
 }
 
 /// Create a new arena backed by a block of `capacity` bytes.
 /// Capacity must be > 0.
 pub fn (Arena) new(capacity: usize) result[Allocator, AllocError] = trust {
-    pre { capacity_positive: capacity > 0 }
+    pre {
+        capacity_positive: capacity > 0
+    }
 
     val header: ref void = @alloc(24)
     if (header == none) {
@@ -144,7 +146,9 @@ type (Allocator) Stack = {
 
 /// Create a new stack allocator.
 pub fn (Stack) new(capacity: usize) result[Allocator, AllocError] = trust {
-    pre { capacity_positive: capacity > 0 }
+    pre {
+        capacity_positive: capacity > 0
+    }
     val header: mut ref void = @alloc(24)
     val buf: ref void = @alloc(capacity)
     @store(header, buf)
@@ -155,19 +159,21 @@ pub fn (Stack) new(capacity: usize) result[Allocator, AllocError] = trust {
 
 /// Allocate memory from the stack.
 pub fn (Stack) alloc(stack: self, size: usize) option[ref void] = {
-    pre { size_positive: size > 0 }
+    pre {
+        size_positive: size > 0
+    }
 
     val off: usize = trust @load(@ptradd(stack, 8)) as usize
     val cap: usize = trust @load(@ptradd(stack, 16)) as usize
     val aligned: usize = (size + 7) & ~7
-    
+
     if (off + aligned > cap) {
         return none
     }
-    
+
     val buf: ref void = trust @load(stack)
     val ptr: ref void = trust @ptradd(buf, off)
-    
+
     trust @store(@ptradd(stack, 8), off + aligned)
     return some ptr
 }
@@ -181,9 +187,9 @@ pub fn (Stack) save(stack: self) usize = {
 /// Restore the stack to a previous checkpoint.
 /// This effectively "frees" everything allocated after the 'save' call.
 pub fn (Stack) restore(stack: self, checkpoint: usize) void = {
-    pre { 
+    pre {
         valid_checkpoint: checkpoint <= trust @load(@ptradd(stack, 16))
-        no_rewind_past_zero: checkpoint >= 0 
+        no_rewind_past_zero: checkpoint >= 0
     }
     // Hmm...
     trust @store(@ptradd(stack, 8), checkpoint)
@@ -202,13 +208,13 @@ test {
     val tmp1 = Stack.alloc(stack, 200 as usize)
 
     assert Stack.save(stack) > marker
-    
+
     Stack.restore(stack, marker)
-    
+
     val p2 = Stack.alloc(stack, 50 as usize)
 
     assert p2 == tmp1
- 
+
     trust Stack.free(stack)
 }
 
@@ -223,8 +229,10 @@ pub type (GeneralAllocator) HeapAllocator = {}
 
 /// Allocate `size` bytes.
 pub fn (HeapAllocator) alloc(_: self, size: usize) option[ref void] = trust {
-    pre { size_positive: size > 0 }
-    val total: usize = size + 8 
+    pre {
+        size_positive: size > 0
+    }
+    val total: usize = size + 8
     val raw: ref void = @alloc(total)
     if raw == none {
         return none
@@ -242,12 +250,14 @@ pub fn (HeapAllocator) free(_: self, ptr: ref void) void = trust {
 
 /// Reallocate a block.
 pub fn (HeapAllocator) realloc(_: self, ptr: ref void, new_size: usize) option[ref void] = trust {
-    pre { new_size_positive: new_size > 0 }
+    pre {
+        new_size_positive: new_size > 0
+    }
 
     val old_raw: ref void = @ptradd(ptr, -8)
     val new_total: usize = new_size + 8
     val new_raw: ref void = @realloc(old_raw, new_total)
-    
+
     if new_raw == none {
         return none
     }
@@ -306,6 +316,6 @@ test {
 
         trust HeapAllocator.free(alloc, ptr1)
     }
-    
+
     @puts("done with heap allocator")
 }

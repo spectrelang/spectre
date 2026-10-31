@@ -16,7 +16,9 @@ fn copy_cstr_in[A: allocators.GeneralAllocator](ac: A, src: ref u8) option[ref u
     val len: mut i64 = 0
     for {
         val c: u8 = @load8(@ptradd(src, len))
-        if c == 0 { break }
+        if c == 0 {
+            break
+        }
         len++
     }
     val buf_opt = allocators.alloc_in[A](ac, (len + 1) as usize)
@@ -103,8 +105,12 @@ fn (PtrList) grow[A: allocators.GeneralAllocator](ac: A, list: mut self, new_cap
     val new_buf_opt = allocators.realloc_in[A](ac, old_buf, new_size)
     val new_buf: mut ref void = none
     match new_buf_opt {
-        some raw => { new_buf = raw }
-        none => { return err ListAllocError.OutOfMemory }
+        some raw => {
+            new_buf = raw
+        }
+        none => {
+            return err ListAllocError.OutOfMemory
+        }
     }
     if new_size > old_size {
         trust @memset(@ptradd(new_buf, old_size), 0, new_size - old_size)
@@ -288,27 +294,24 @@ fn (Map) grow[A: allocators.GeneralAllocator](ac: A, map: mut self, new_cap: usi
     val old_buckets: ref void = @load(header)
     val old_cap: usize = @load(@ptradd(header, 16)) as usize
     val new_buckets_opt = allocators.alloc_in[A](ac, new_cap * MAP_BUCKET_SIZE)
-    match new_buckets_opt {
-        some new_buckets => {
-            @memset(new_buckets, 0, new_cap * MAP_BUCKET_SIZE)
+    if new_buckets_opt is some new_buckets {
+        @memset(new_buckets, 0, new_cap * MAP_BUCKET_SIZE)
 
-            @store(header, new_buckets)
-            @store(@ptradd(header, 8), 0)
-            @store(@ptradd(header, 16), new_cap)
+        @store(header, new_buckets)
+        @store(@ptradd(header, 8), 0)
+        @store(@ptradd(header, 16), new_cap)
 
-            for (i = 0; i < old_cap; i++) {
-                val slot: ref void = @ptradd(old_buckets, i * MAP_BUCKET_SIZE)
-                val state: usize = @load(slot) as usize
-                if (state == MAP_BUCKET_LIVE) {
-                    val k: usize = @load(@ptradd(slot, 8)) as usize
-                    val v: usize = @load(@ptradd(slot, 16)) as usize
-                    Map.set[A](ac, map, k, v)
-                }
+        for (i = 0; i < old_cap; i++) {
+            val slot: ref void = @ptradd(old_buckets, i * MAP_BUCKET_SIZE)
+            val state: usize = @load(slot) as usize
+            if (state == MAP_BUCKET_LIVE) {
+                val k: usize = @load(@ptradd(slot, 8)) as usize
+                val v: usize = @load(@ptradd(slot, 16)) as usize
+                Map.set[A](ac, map, k, v)
             }
-
-            allocators.free_in[A](ac, old_buckets)
         }
-        none => {}
+
+        allocators.free_in[A](ac, old_buckets)
     }
 }
 
@@ -428,8 +431,12 @@ pub fn (Map) contains(map: self, key: usize) bool = {
     val result = Map.get(map, key)
     val found: mut usize = 0
     match result {
-        some _ => { found = 1 }
-        none   => { found = 0 }
+        some _ => {
+            found = 1
+        }
+        none   => {
+            found = 0
+        }
     }
     post {
         map_not_null: map.header != none
@@ -460,26 +467,41 @@ test {
     assert Map.len(m) == 3
 
     match Map.get(m, 1 as usize) {
-        some v => { assert(v == 100) }
-        none   => { assert(false) }
+        some v => {
+            assert(v == 100)
+        }
+        none   => {
+            assert(false)
+        }
     }
     match Map.get(m, 2 as usize) {
-        some v => { assert(v == 200) }
-        none   => { assert(false) }
+        some v => {
+            assert(v == 200)
+        }
+        none   => {
+            assert(false)
+        }
     }
     match Map.get(m, 3 as usize) {
-        some v => { assert(v == 300) }
-        none   => { assert(false) }
+        some v => {
+            assert(v == 300)
+        }
+        none   => {
+            assert(false)
+        }
     }
-    match Map.get(m, 99 as usize) {
-        some _ => { assert(false) }
-        none   => {}
+    if Map.get(m, 99 as usize) is some _ {
+        assert(false)
     }
 
     trust Map.set[allocators.HeapAllocator](heap, m, 1 as usize, 999 as usize)
     match Map.get(m, 1 as usize) {
-        some v => { assert(v == 999) }
-        none   => { assert(false) }
+        some v => {
+            assert(v == 999)
+        }
+        none   => {
+            assert(false)
+        }
     }
 
     assert Map.len(m) == 3
@@ -506,8 +528,12 @@ test {
     assert Map.len(big) == 20
     for (i = 0; i < 20; i++) {
         match Map.get(big, i) {
-            some v => { assert(v == i * 10) }
-            none   => { assert(false) }
+            some v => {
+                assert(v == i * 10)
+            }
+            none   => {
+                assert(false)
+            }
         }
     }
 
@@ -580,7 +606,9 @@ pub fn hash_string(key: ref u8) usize = {
     val i: mut i64 = 0
     for {
         val c: u8 = trust @load8(@ptradd(s, i))
-        if (c == 0) { break }
+        if (c == 0) {
+            break
+        }
         h = (h * 33) - ((h * 33) / 4294967296) * 4294967296
         h = h - (h / 4294967296) * 4294967296
         val cu: usize = c as usize
@@ -597,8 +625,12 @@ fn str_eq(a: ref u8, b: ref u8) bool = trust {
     for {
         val ca: u8 = @load8(@ptradd(a, i))
         val cb: u8 = @load8(@ptradd(b, i))
-        if (ca != cb) { return false }
-        if (ca == 0)  { return true  }
+        if (ca != cb) {
+            return false
+        }
+        if (ca == 0) {
+            return true
+        }
         i++
     }
     return true
@@ -639,14 +671,11 @@ pub fn (StringMap) set[A: allocators.GeneralAllocator](ac: A, map: self, key: re
         }
     }
     val copy_opt = copy_cstr_in[A](ac, key)
-    match copy_opt {
-        some copy => {
-            val copy_holder: mut usize = 0
-            @store(@addr(copy_holder) as ref void, copy)
-            val base: mut Map = { header: header }
-            Map.set[A](ac, base, copy_holder, value)
-        }
-        none => {}
+    if copy_opt is some copy {
+        val copy_holder: mut usize = 0
+        @store(@addr(copy_holder) as ref void, copy)
+        val base: mut Map = { header: header }
+        Map.set[A](ac, base, copy_holder, value)
     }
 }
 
@@ -683,8 +712,12 @@ pub fn (StringMap) get(map: self, key: ref u8) option[usize] = {
 pub fn (StringMap) contains(map: self, key: ref u8) bool = {
     val result = StringMap.get(map, key)
     match result {
-        some _ => { return true  }
-        none   => { return false }
+        some _ => {
+            return true
+        }
+        none   => {
+            return false
+        }
     }
 }
 
@@ -769,26 +802,37 @@ test {
 
     @puts("sm: get hello")
     match StringMap.get(m, "hello") {
-        some v => { assert(v == 1) }
-        none   => { assert(false) }
+        some v => {
+            assert(v == 1)
+        }
+        none   => {
+            assert(false)
+        }
     }
     @puts("sm: get world")
     match StringMap.get(m, "world") {
-        some v => { assert(v == 2) }
-        none   => { assert(false) }
+        some v => {
+            assert(v == 2)
+        }
+        none   => {
+            assert(false)
+        }
     }
     @puts("sm: get missing")
-    match StringMap.get(m, "missing") {
-        some _ => { assert(false) }
-        none   => {}
+    if StringMap.get(m, "missing") is some _ {
+        assert(false)
     }
 
     @puts("sm: update hello=99")
     trust StringMap.set[allocators.HeapAllocator](heap, m, "hello", 99 as usize)
     @puts("sm: get hello==99")
     match StringMap.get(m, "hello") {
-        some v => { assert(v == 99) }
-        none   => { assert(false) }
+        some v => {
+            assert(v == 99)
+        }
+        none   => {
+            assert(false)
+        }
     }
     @puts("sm: len==3 again")
     assert StringMap.len(m) == 3
@@ -831,18 +875,26 @@ pub fn (IndexMap) new[A: allocators.GeneralAllocator](ac: A, initial_cap: usize)
     val keys: mut ref void = none
     val keys_res = PtrList.new[A](ac, initial_cap)
     match keys_res {
-        ok k => { keys = k }
+        ok k => {
+            keys = k
+        }
         err _ => {
             val fallback = PtrList.new[A](ac, 1 as usize)
             match fallback {
-                ok k => { keys = k }
+                ok k => {
+                    keys = k
+                }
                 err _ => {}
             }
         }
     }
     if inner.header == none || keys == none {
-        if keys != none { PtrList.free[A](ac, keys) }
-        if inner.header != none { StringMap.free[A](ac, inner) }
+        if keys != none {
+            PtrList.free[A](ac, keys)
+        }
+        if inner.header != none {
+            StringMap.free[A](ac, inner)
+        }
         return { inner_header: none, keys: none }
     }
     return { inner_header: inner.header, keys: keys }
@@ -859,17 +911,16 @@ pub fn (IndexMap) set[A: allocators.GeneralAllocator](ac: A, map: self, key: ref
             return
         }
         val copy_opt = copy_cstr_in[A](ac, key)
-        match copy_opt {
-            some copy => {
-                val copy_holder: mut usize = 0
-                @store(@addr(copy_holder) as ref void, copy)
-                val push_res = PtrList.push[A](ac, keys, copy_holder)
-                match push_res {
-                    ok _  => {}
-                    err _ => { allocators.free_in[A](ac, copy as ref void) }
+        if copy_opt is some copy {
+            val copy_holder: mut usize = 0
+            @store(@addr(copy_holder) as ref void, copy)
+            val push_res = PtrList.push[A](ac, keys, copy_holder)
+            match push_res {
+                ok _  => {}
+                err _ => {
+                    allocators.free_in[A](ac, copy as ref void)
                 }
             }
-            none => {}
         }
     }
 }
@@ -929,7 +980,9 @@ pub fn (IndexMap) each(map: self, cb: fn(ref u8, usize) void) void = trust {
                     val k: ref u8 = p as ref u8
                     match StringMap.get(inner, k) {
                         none   => {}
-                        some v => { cb(k, v) }
+                        some v => {
+                            cb(k, v)
+                        }
                     }
                 }
             }
@@ -948,7 +1001,9 @@ pub fn (IndexMap) key_at(map: self, i: usize) option[ref u8] = {
             none   => {}
             some p => {
                 if p != 0 {
-                    if live == i { return some (p as ref u8) }
+                    if live == i {
+                        return some (p as ref u8)
+                    }
                     live++
                 }
             }
@@ -965,7 +1020,11 @@ pub fn (IndexMap) free[A: allocators.GeneralAllocator](ac: A, map: self) void = 
     for (i = 0; i < n; i++) {
         match PtrList.get(keys, i) {
             none   => {}
-            some p => { if p != 0 { allocators.free_in[A](ac, p as ref void) } }
+            some p => {
+                if p != 0 {
+                    allocators.free_in[A](ac, p as ref void)
+                }
+            }
         }
     }
     PtrList.free[A](ac, keys)
@@ -1077,36 +1136,64 @@ test {
     assert !IndexMap.contains(m, "z")
 
     match trust IndexMap.get(m, "a") {
-        some v => { assert v == 1 }
-        none   => { assert false }
+        some v => {
+            assert v == 1
+        }
+        none   => {
+            assert false
+        }
     }
     match trust IndexMap.get(m, "b") {
-        some v => { assert v == 2 }
-        none   => { assert false }
+        some v => {
+            assert v == 2
+        }
+        none   => {
+            assert false
+        }
     }
     match trust IndexMap.get(m, "c") {
-        some v => { assert v == 3 }
-        none   => { assert false }
+        some v => {
+            assert v == 3
+        }
+        none   => {
+            assert false
+        }
     }
 
     trust IndexMap.set[allocators.HeapAllocator](heap, m, "a", 99 as usize)
     match trust IndexMap.get(m, "a") {
-        some v => { assert v == 99 }
-        none   => { assert false }
+        some v => {
+            assert v == 99
+        }
+        none   => {
+            assert false
+        }
     }
     assert IndexMap.len(m) == 3
 
     match IndexMap.key_at(m, 0 as usize) {
-        some k => { assert trust str_eq(k, "c") }
-        none   => { assert false }
+        some k => {
+            assert trust str_eq(k, "c")
+        }
+        none   => {
+            assert false
+        }
     }
     match IndexMap.key_at(m, 1 as usize) {
-        some k => { assert trust str_eq(k, "a") }
-        none   => { assert false }
+        some k => {
+            assert trust str_eq(k, "a")
+        }
+        none   => {
+            assert false
+        }
     }
     match IndexMap.key_at(m, 2 as usize) {
-        some k => { assert trust str_eq(k, "b") }
-        none   => { assert false }
+        some k => {
+            assert trust str_eq(k, "b")
+        }
+        none   => {
+            assert false
+        }
     }
 
     val deleted = trust IndexMap.delete[allocators.HeapAllocator](heap, m, "a")
@@ -1115,12 +1202,20 @@ test {
     assert !IndexMap.contains(m, "a")
 
     match IndexMap.key_at(m, 0 as usize) {
-        some k => { assert trust str_eq(k, "c") }
-        none   => { assert false }
+        some k => {
+            assert trust str_eq(k, "c")
+        }
+        none   => {
+            assert false
+        }
     }
     match IndexMap.key_at(m, 1 as usize) {
-        some k => { assert trust str_eq(k, "b") }
-        none   => { assert false }
+        some k => {
+            assert trust str_eq(k, "b")
+        }
+        none   => {
+            assert false
+        }
     }
 
     trust IndexMap.free[allocators.HeapAllocator](heap, m)
@@ -1133,8 +1228,12 @@ test {
     trust RawIndexMap.set(m, "hello", 11 as usize)
     assert RawIndexMap.contains(m, "hello")
     match trust RawIndexMap.get(m, "hello") {
-        some v => { assert v == 11 }
-        none => { assert false }
+        some v => {
+            assert v == 11
+        }
+        none => {
+            assert false
+        }
     }
     trust RawIndexMap.free(m)
 }

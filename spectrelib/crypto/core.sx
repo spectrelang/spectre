@@ -65,11 +65,17 @@ fn bytes_len[T](data: T) i64 = trust {
 }
 
 fn alloc_in[A: allocators.Allocator](ac: A, len: i64) ref void = {
-    pre { len > 0 }
+    pre {
+        len > 0
+    }
     val buf_opt = A.alloc(ac, len as usize)
     match buf_opt {
-        some buf => { return buf }
-        none => { return none }
+        some buf => {
+            return buf
+        }
+        none => {
+            return none
+        }
     }
 }
 
@@ -85,11 +91,15 @@ fn alloc_heap_string(len: i64) string.String = trust {
 
 fn alloc_string[A: allocators.Allocator](ac: A, len: i64) string.String = trust {
     val buf: ref void = alloc_in[A](ac, len + 1)
-    if buf == none { return none }
+    if buf == none {
+        return none
+    }
     @memset(buf, 0, len + 1)
 
     val out: ref void = alloc_in[A](ac, 24)
-    if out == none { return none }
+    if out == none {
+        return none
+    }
 
     @store(out, buf)
     @store(@ptradd(out, 8), len)
@@ -98,11 +108,15 @@ fn alloc_string[A: allocators.Allocator](ac: A, len: i64) string.String = trust 
 }
 
 fn copy_string[A: allocators.Allocator](ac: A, src: string.String) string.String = trust {
-    if src == none { return none }
+    if src == none {
+        return none
+    }
 
     val len: i64 = string.len(src)
     val out: string.String = alloc_string[A](ac, len)
-    if out == none { return none }
+    if out == none {
+        return none
+    }
 
     val src_ptr: ref void = @load(src) as ref void
     val out_ptr: ref void = @load(out) as ref void
@@ -242,18 +256,24 @@ fn sha256_heap[T](data: T) string.String = trust {
 
     val offset: mut i64 = 0
     for {
-        if offset >= total_len { break }
+        if offset >= total_len {
+            break
+        }
 
         val t0: mut i64 = 0
         for {
-            if t0 >= 16 { break }
+            if t0 >= 16 {
+                break
+            }
             store_u32_slot(w, t0, read_be_u32(padded, offset + t0 * 4))
             t0++
         }
 
         val t1: mut i64 = 16
         for {
-            if t1 >= 64 { break }
+            if t1 >= 64 {
+                break
+            }
             val s0: u64 = sha256_small_sigma0(load_u32_slot(w, t1 - 15))
             val s1: u64 = sha256_small_sigma1(load_u32_slot(w, t1 - 2))
             val next: u64 = add32_4(load_u32_slot(w, t1 - 16), s0, load_u32_slot(w, t1 - 7), s1)
@@ -272,12 +292,13 @@ fn sha256_heap[T](data: T) string.String = trust {
 
         val round: mut i64 = 0
         for {
-            if round >= 64 { break }
+            if round >= 64 {
+                break
+            }
             val k_opt = @get(SHA256_K, round as usize)
             val k: mut u64 = 0
-            match k_opt {
-                some v => { k = v as u64 }
-                none => {}
+            if k_opt is some v {
+                k = v as u64
             }
             val temp1: u64 = add32_5(h, sha256_big_sigma1(e), sha256_ch(e, f, g), k, load_u32_slot(w, round))
             val temp2: u64 = add32(sha256_big_sigma0(a), sha256_maj(a, b, c))
@@ -324,7 +345,9 @@ fn sha256_heap[T](data: T) string.String = trust {
 /// Returns a 32-byte String allocated with the provided allocator.
 pub fn sha256[A: allocators.Allocator, T](ac: A, data: T) string.String = trust {
     val heap_out: mut string.String = sha256_heap[T](data)
-    if heap_out == none { return none }
+    if heap_out == none {
+        return none
+    }
 
     val out: string.String = copy_string[A](ac, heap_out)
     string.string_free(heap_out)
@@ -332,14 +355,22 @@ pub fn sha256[A: allocators.Allocator, T](ac: A, data: T) string.String = trust 
 }
 
 fn hex_char(nibble: u8) u8 = {
-    if nibble < 10 { return 48 + nibble }
+    if nibble < 10 {
+        return 48 + nibble
+    }
     return 97 + (nibble - 10)
 }
 
 fn hex_value(ch: u8) i64 = {
-    if ch >= 48 && ch <= 57 { return (ch - 48) as i64 }
-    if ch >= 65 && ch <= 70 { return (ch - 65 + 10) as i64 }
-    if ch >= 97 && ch <= 102 { return (ch - 97 + 10) as i64 }
+    if ch >= 48 && ch <= 57 {
+        return (ch - 48) as i64
+    }
+    if ch >= 65 && ch <= 70 {
+        return (ch - 65 + 10) as i64
+    }
+    if ch >= 97 && ch <= 102 {
+        return (ch - 97 + 10) as i64
+    }
     return -1
 }
 
@@ -350,10 +381,14 @@ pub fn hex_encode[A: allocators.Allocator, T](ac: A, data: T) ref u8 = trust {
     val src_ptr: ref void = bytes_ptr[T](data)
     val src_len: i64 = bytes_len[T](data)
     val out: ref u8 = alloc_in[A](ac, src_len * 2 + 1) as ref u8
-    if out == none { return none }
+    if out == none {
+        return none
+    }
     val i: mut i64 = 0
     for {
-        if i >= src_len { break }
+        if i >= src_len {
+            break
+        }
         val byte: u8 = @load8(@ptradd(src_ptr, i)) as u8
         @store8(@ptradd(out as ref void, i * 2 + 0), hex_char((byte >> 4) & 15))
         @store8(@ptradd(out as ref void, i * 2 + 1), hex_char(byte & 15))
@@ -374,12 +409,16 @@ pub fn hex_decode[A: allocators.Allocator](ac: A, text: ref u8) result[string.St
 
     val out_len: i64 = text_len / 2
     val out: string.String = alloc_string[A](ac, out_len)
-    if out == none { return err CryptoError.OutOfMemory }
+    if out == none {
+        return err CryptoError.OutOfMemory
+    }
     val out_ptr: ref void = @load(out) as ref void
 
     val i: mut i64 = 0
     for {
-        if i >= out_len { break }
+        if i >= out_len {
+            break
+        }
         val hi: i64 = hex_value(@load8(@ptradd(text as ref void, i * 2 + 0)) as u8)
         val lo: i64 = hex_value(@load8(@ptradd(text as ref void, i * 2 + 1)) as u8)
         if hi < 0 || lo < 0 {
@@ -393,19 +432,37 @@ pub fn hex_decode[A: allocators.Allocator](ac: A, text: ref u8) result[string.St
 }
 
 fn b64_char(v: u8) u8 = {
-    if v < 26 { return 65 + v }
-    if v < 52 { return 97 + (v - 26) }
-    if v < 62 { return 48 + (v - 52) }
-    if v == 62 { return 43 }
+    if v < 26 {
+        return 65 + v
+    }
+    if v < 52 {
+        return 97 + (v - 26)
+    }
+    if v < 62 {
+        return 48 + (v - 52)
+    }
+    if v == 62 {
+        return 43
+    }
     return 47
 }
 
 fn b64_value(ch: u8) i64 = {
-    if ch >= 65 && ch <= 90 { return (ch - 65) as i64 }
-    if ch >= 97 && ch <= 122 { return (ch - 97 + 26) as i64 }
-    if ch >= 48 && ch <= 57 { return (ch - 48 + 52) as i64 }
-    if ch == 43 { return 62 }
-    if ch == 47 { return 63 }
+    if ch >= 65 && ch <= 90 {
+        return (ch - 65) as i64
+    }
+    if ch >= 97 && ch <= 122 {
+        return (ch - 97 + 26) as i64
+    }
+    if ch >= 48 && ch <= 57 {
+        return (ch - 48 + 52) as i64
+    }
+    if ch == 43 {
+        return 62
+    }
+    if ch == 47 {
+        return 63
+    }
     return -1
 }
 
@@ -417,19 +474,27 @@ pub fn base64_encode[A: allocators.Allocator, T](ac: A, data: T) ref u8 = trust 
     val src_len: i64 = bytes_len[T](data)
     val out_len: i64 = ((src_len + 2) / 3) * 4
     val out: ref u8 = alloc_in[A](ac, out_len + 1) as ref u8
-    if out == none { return none }
+    if out == none {
+        return none
+    }
 
     val si: mut i64 = 0
     val oi: mut i64 = 0
     for {
-        if si >= src_len { break }
+        if si >= src_len {
+            break
+        }
 
         val rem: i64 = src_len - si
         val b0: u8 = @load8(@ptradd(src_ptr, si)) as u8
         val b1: mut u8 = 0
         val b2: mut u8 = 0
-        if rem > 1 { b1 = @load8(@ptradd(src_ptr, si + 1)) as u8 }
-        if rem > 2 { b2 = @load8(@ptradd(src_ptr, si + 2)) as u8 }
+        if rem > 1 {
+            b1 = @load8(@ptradd(src_ptr, si + 1)) as u8
+        }
+        if rem > 2 {
+            b2 = @load8(@ptradd(src_ptr, si + 2)) as u8
+        }
 
         @store8(@ptradd(out as ref void, oi + 0), b64_char((b0 >> 2) & 63))
         @store8(@ptradd(out as ref void, oi + 1), b64_char((((b0 & 3) << 4) | (b1 >> 4)) & 63))
@@ -462,18 +527,26 @@ pub fn base64_decode[A: allocators.Allocator](ac: A, text: ref u8) result[string
     }
 
     val pad: mut i64 = 0
-    if text_len > 0 && (@load8(@ptradd(text as ref void, text_len - 1)) as u8) == 61 { pad++ }
-    if text_len > 1 && (@load8(@ptradd(text as ref void, text_len - 2)) as u8) == 61 { pad++ }
+    if text_len > 0 && (@load8(@ptradd(text as ref void, text_len - 1)) as u8) == 61 {
+        pad++
+    }
+    if text_len > 1 && (@load8(@ptradd(text as ref void, text_len - 2)) as u8) == 61 {
+        pad++
+    }
 
     val out_len: i64 = (text_len / 4) * 3 - pad
     val out: string.String = alloc_string[A](ac, out_len)
-    if out == none { return err CryptoError.OutOfMemory }
+    if out == none {
+        return err CryptoError.OutOfMemory
+    }
     val out_ptr: ref void = @load(out) as ref void
 
     val i: mut i64 = 0
     val oi: mut i64 = 0
     for {
-        if i >= text_len { break }
+        if i >= text_len {
+            break
+        }
 
         val c0: u8 = @load8(@ptradd(text as ref void, i + 0)) as u8
         val c1: u8 = @load8(@ptradd(text as ref void, i + 1)) as u8
@@ -536,16 +609,24 @@ pub fn ct_eq[T](a: T, b: T) bool = trust {
     val al: i64 = bytes_len[T](a)
     val bl: i64 = bytes_len[T](b)
     val max_len: mut i64 = al
-    if bl > max_len { max_len = bl }
+    if bl > max_len {
+        max_len = bl
+    }
 
     val diff: mut i64 = al ^ bl
     val i: mut i64 = 0
     for {
-        if i >= max_len { break }
+        if i >= max_len {
+            break
+        }
         val av: mut u8 = 0
         val bv: mut u8 = 0
-        if i < al { av = @load8(@ptradd(ap, i)) as u8 }
-        if i < bl { bv = @load8(@ptradd(bp, i)) as u8 }
+        if i < al {
+            av = @load8(@ptradd(ap, i)) as u8
+        }
+        if i < bl {
+            bv = @load8(@ptradd(bp, i)) as u8
+        }
         diff = diff | ((av ^ bv) as i64)
         i++
     }
@@ -574,7 +655,9 @@ fn hmac_sha256_heap[T](key: T, data: T) string.String = trust {
 
     val i: mut i64 = 0
     for {
-        if i >= key_len { break }
+        if i >= key_len {
+            break
+        }
         val kb: u8 = @load8(@ptradd(key_ptr, i)) as u8
         @store8(@ptradd(ipad, i), ((@load8(@ptradd(ipad, i)) as u8) ^ kb) as u8)
         @store8(@ptradd(opad, i), ((@load8(@ptradd(opad, i)) as u8) ^ kb) as u8)
@@ -601,7 +684,9 @@ fn hmac_sha256_heap[T](key: T, data: T) string.String = trust {
 
     @free(ipad)
     @free(opad)
-    if hashed_key != none { string.string_free(hashed_key) }
+    if hashed_key != none {
+        string.string_free(hashed_key)
+    }
     string.string_free(inner_digest)
 
     val out: string.String = sha256_heap[string.String](outer)
@@ -614,7 +699,9 @@ fn hmac_sha256_heap[T](key: T, data: T) string.String = trust {
 /// Returns a 32-byte String allocated with the provided allocator.
 pub fn hmac_sha256[A: allocators.Allocator, T](ac: A, key: T, data: T) string.String = trust {
     val heap_out: mut string.String = hmac_sha256_heap[T](key, data)
-    if heap_out == none { return none }
+    if heap_out == none {
+        return none
+    }
 
     val out: string.String = copy_string[A](ac, heap_out)
     string.string_free(heap_out)
@@ -709,7 +796,9 @@ test {
             val decoded_hex_roundtrip: ref u8 = trust hex_encode[allocators.Arena, string.String](arena, decoded_hex)
             assert string.rchar_cmp(decoded_hex_roundtrip, "6869") == 0
         }
-        err _ => { assert false }
+        err _ => {
+            assert false
+        }
     }
 
     val bad_hex_res = trust hex_decode[allocators.Arena](arena, "0z")
@@ -717,7 +806,9 @@ test {
         ok _ => {
             assert false
         }
-        err e => { assert e == CryptoError.InvalidHexDigit }
+        err e => {
+            assert e == CryptoError.InvalidHexDigit
+        }
     }
 
     val encoded_b64: ref u8 = trust base64_encode[allocators.Arena, ref u8](arena, "hello")
@@ -729,7 +820,9 @@ test {
             val decoded_b64_roundtrip: ref u8 = trust hex_encode[allocators.Arena, string.String](arena, decoded_b64)
             assert string.rchar_cmp(decoded_b64_roundtrip, "68656c6c6f") == 0
         }
-        err _ => { assert false }
+        err _ => {
+            assert false
+        }
     }
 
     val bad_b64_res = trust base64_decode[allocators.Arena](arena, "abcd*===")
@@ -758,14 +851,20 @@ test {
             val file_hash_hex: ref u8 = trust hex_encode[allocators.Arena, string.String](arena, file_hash)
             assert string.rchar_cmp(file_hash_hex, sha_hex_expected) == 0
         }
-        err _ => { assert false }
+        err _ => {
+            assert false
+        }
     }
     assert trust fs.delete("crypto_hash_file_sha256_test.txt")
 
     val missing_file_hash_res = trust hash_file_sha256[allocators.Arena](arena, "crypto_hash_file_sha256_missing.txt")
     match missing_file_hash_res {
-        ok _ => { assert false }
-        err e => { assert e == CryptoError.FileOpenFailed }
+        ok _ => {
+            assert false
+        }
+        err e => {
+            assert e == CryptoError.FileOpenFailed
+        }
     }
 
     trust allocators.Arena.free(arena)

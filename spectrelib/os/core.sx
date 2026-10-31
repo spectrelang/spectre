@@ -138,7 +138,9 @@ pub fn close(file: ref void) void = trust {
 
 /// Read up to `size` bytes from a file. Returns a heap buffer.
 pub fn read(file: ref void, size: i64) ref void = trust {
-    pre { size > 0 }
+    pre {
+        size > 0
+    }
     val buf: ref void = @alloc(size)
     fread(buf, 1, size, file)
     return buf
@@ -146,7 +148,9 @@ pub fn read(file: ref void, size: i64) ref void = trust {
 
 /// Write `size` bytes from a buffer to a file.
 pub fn write(file: ref void, buf: ref void, size: i64) i64 = trust {
-    pre { size > 0 }
+    pre {
+        size > 0
+    }
     return fwrite(buf, 1, size, file)
 }
 
@@ -162,16 +166,24 @@ pub fn rename_file(oldpath: ref u8, newpath: ref u8) i32 = trust {
 
 fn is_dot_dir_entry(name: ref u8) bool = {
     val c0: u8 = trust @load8(name)
-    if c0 != 46 { return false }
+    if c0 != 46 {
+        return false
+    }
     val c1: u8 = trust @load8(@ptradd(name, 1))
-    if c1 == 0 { return true }
-    if c1 != 46 { return false }
+    if c1 == 0 {
+        return true
+    }
+    if c1 != 46 {
+        return false
+    }
     val c2: u8 = trust @load8(@ptradd(name, 2))
     return c2 == 0
 }
 
 fn ensure_dir(path: ref u8) bool = trust {
-    if exists(path) { return true }
+    if exists(path) {
+        return true
+    }
     when windows {
         return CreateDirectoryA(path, none) != 0
     }
@@ -185,7 +197,9 @@ fn ensure_dir(path: ref u8) bool = trust {
 pub fn copy_file(src_path: ref u8, dst_path: ref u8) bool = trust {
     val src_opt = open(src_path, "rb")
     match src_opt {
-        none => { return false }
+        none => {
+            return false
+        }
         some src_file => {
             val dst_opt = open(dst_path, "wb")
             match dst_opt {
@@ -199,7 +213,9 @@ pub fn copy_file(src_path: ref u8, dst_path: ref u8) bool = trust {
                     val its_ok: mut bool = true
                     for {
                         val n: i64 = fread(buf, 1, buf_size, src_file)
-                        if n == 0 { break }
+                        if n == 0 {
+                            break
+                        }
                         val written: i64 = fwrite(buf, 1, n, dst_file)
                         if written != n {
                             its_ok = false
@@ -219,7 +235,9 @@ pub fn copy_file(src_path: ref u8, dst_path: ref u8) bool = trust {
 /// Recursively copy a directory tree.
 pub fn copy_dir_recursive(src_dir: ref u8, dst_dir: ref u8) bool = trust {
     when windows {
-        if !ensure_dir(dst_dir) { return false }
+        if !ensure_dir(dst_dir) {
+            return false
+        }
 
         val sep: ref u8 = "\\"
         val pattern: ref u8 = @fmt("{s}{s}*", {src_dir, sep})
@@ -252,7 +270,9 @@ pub fn copy_dir_recursive(src_dir: ref u8, dst_dir: ref u8) bool = trust {
                 }
             }
 
-            if FindNextFileA(handle, data) == 0 { break }
+            if FindNextFileA(handle, data) == 0 {
+                break
+            }
         }
 
         FindClose(handle)
@@ -261,21 +281,29 @@ pub fn copy_dir_recursive(src_dir: ref u8, dst_dir: ref u8) bool = trust {
         return its_ok
     }
     when posix {
-        if !ensure_dir(dst_dir) { return false }
+        if !ensure_dir(dst_dir) {
+            return false
+        }
 
         val dir: ref void = opendir(src_dir)
-        if dir == none { return false }
+        if dir == none {
+            return false
+        }
 
         val its_ok: mut bool = true
         for {
             val entry: ref Dirent = readdir(dir)
-            if entry == none { break }
+            if entry == none {
+                break
+            }
             val name: ref u8 = @addr(entry.d_name) as ref u8
 
-            if is_dot_dir_entry(name) { continue }
+            if is_dot_dir_entry(name) {
+                continue
+            }
 
             if str.rchar_cmp(src_dir, "") == 0 {
-                break 
+                break
             }
 
             if str.rchar_cmp(dst_dir, "") == 0 {
@@ -285,7 +313,7 @@ pub fn copy_dir_recursive(src_dir: ref u8, dst_dir: ref u8) bool = trust {
             if str.rchar_cmp(name, "") == 0 {
                 break
             }
-            
+
             val src_child: ref u8 = @fmt("{s}/{s}", {src_dir, name})
             val dst_child: ref u8 = @fmt("{s}/{s}", {dst_dir, name})
             val child_dir: ref void = opendir(src_child)
@@ -311,10 +339,14 @@ pub fn copy_dir_recursive(src_dir: ref u8, dst_dir: ref u8) bool = trust {
 fn bytes_equal(buf: ref void, expected: ref u8, len: i64) bool = {
     val i: mut i64 = 0
     for {
-        if i >= len { break }
+        if i >= len {
+            break
+        }
         val a: u8 = trust @load8(@ptradd(buf, i))
         val b: u8 = trust @load8(@ptradd(expected, i))
-        if a != b { return false }
+        if a != b {
+            return false
+        }
         i++
     }
     return true
@@ -356,7 +388,9 @@ pub fn exec(cmd: ref u8) result[String, ProcessError] = trust {
 
         val i: mut i64 = 0
         for {
-            if (i >= n) { break }
+            if (i >= n) {
+                break
+            }
             val c: u8 = @load8(@ptradd(buf, i))
             string.StringBuilder.append_char(sb, c)
             i++
@@ -377,11 +411,13 @@ pub fn in_path(binary: ref u8) bool = trust {
     val path_env = env("PATH")
     match path_env {
         none => {
-            return false 
+            return false
         }
         some path => {
             val sep: mut u8 = 58
-            when windows { sep = 59 } // ';'
+            when windows {
+                sep = 59
+            } // ';'
 
             val i: mut i64 = 0
             val start: mut i64 = 0
@@ -395,11 +431,15 @@ pub fn in_path(binary: ref u8) bool = trust {
                         @store8(@ptradd(dir_buf, dir_len), 0)
                         val full: ref u8 = @fmt("{s}/{s}", {dir_buf as ref u8, binary})
                         @free(dir_buf)
-                        if exists(full) { return true }
+                        if exists(full) {
+                            return true
+                        }
                     }
                     start = i + 1
                 }
-                if c == 0 { break }
+                if c == 0 {
+                    break
+                }
                 i++
             }
             return false
@@ -431,12 +471,9 @@ test {
     assert exists(path) == false
     val f_opt = open(path, "w")
     assert f_opt != none
-    match f_opt {
-        some f => {
-            trust write(f, content, 11)
-            trust close(f)
-        }
-        none => {}
+    if f_opt is some f {
+        trust write(f, content, 11)
+        trust close(f)
     }
     assert exists(path) == true
     val new_path = "test_file_renamed.txt"
@@ -474,7 +511,9 @@ test {
             trust write(f, "copy me", 7)
             trust close(f)
         }
-        none => { assert false }
+        none => {
+            assert false
+        }
     }
 
     assert trust copy_file("test_copy_src.txt", "test_copy_dst.txt")
@@ -486,7 +525,9 @@ test {
             assert bytes_equal(text, "copy me", 7)
             trust @free(text)
         }
-        none => { assert false }
+        none => {
+            assert false
+        }
     }
 
     assert trust mkdir("test_copy_tree_src", 493 as u32) == 0
@@ -497,7 +538,9 @@ test {
             trust write(f, "nested", 6)
             trust close(f)
         }
-        none => { assert false }
+        none => {
+            assert false
+        }
     }
 
     assert trust copy_dir_recursive("test_copy_tree_src", "test_copy_tree_dst")
@@ -509,7 +552,9 @@ test {
             assert bytes_equal(text, "nested", 6)
             trust @free(text)
         }
-        none => { assert false }
+        none => {
+            assert false
+        }
     }
 
     assert trust delete("test_copy_src.txt") == 0
