@@ -27,10 +27,8 @@ pub fn main() void = trust {
             checksum = checksum ^ ((checksum << 7) | (checksum >> 3))
         }
     }
-    @puts("5")
 
     val elapsed = time.now_ns() - start
-    @puts("6")
 
     stdio.print("Spectre: {d} ns\n", {elapsed})
     stdio.print("Spectre: {d} ns/op\n", {elapsed / iterations})
