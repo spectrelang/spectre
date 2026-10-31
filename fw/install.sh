@@ -407,19 +407,19 @@ echo "  - spectre    -> ${BIN_DIR}/spectre"
 echo "  - spectre-ls -> ${BIN_DIR}/spectre-ls"
 echo "  - stdlib     -> ${BIN_DIR}/spectrelib"
 if [ "$QBE_OK" -eq 1 ]; then
-	echo "  - qbe     -> ${BIN_DIR}/qbe"
+	echo "  - qbe        -> ${BIN_DIR}/qbe"
 elif [ "$FORCE_FALLBACK" -eq 1 ]; then
-	echo "  - qbe     -> (skipped, -fallback flag set)"
+	echo "  - qbe        -> (skipped, -fallback flag set)"
 else
-	echo "  - qbe     -> (skipped, used fallback)"
+	echo "  - qbe        -> (skipped, used fallback)"
 fi
 if command -v tcc >/dev/null 2>&1; then
-	echo "  - tcc     -> $(command -v tcc)"
+	echo "  - tcc        -> $(command -v tcc)"
 else
-	echo "  - tcc     -> (unavailable, used fallback)"
+	echo "  - tcc        -> (unavailable, used fallback)"
 fi
-echo "  - clang   -> $(command -v clang)"
-echo "  - yyjson  -> ${OTHER_PREFIX}/lib/libyyjson.a"
+echo "  - clang      -> $(command -v clang)"
+echo "  - yyjson     -> ${OTHER_PREFIX}/lib/libyyjson.a"
 echo
 echo "Verify with:"
 echo "  spectre -v"
