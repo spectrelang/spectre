@@ -10,6 +10,7 @@ FORCE_FALLBACK=0
 QBE_MIRROR_REPO="https://github.com/spectrelang/qbe-mirror.git"
 QBE_REPO="https://c9x.me/git/qbe.git"
 SPECTRE_REPO="https://github.com/spectrelang/spectre.git"
+SPECTRE_LS_REPO="https://github.com/spectrelang/spectre-ls.git"
 YYJSON_REPO="https://github.com/ibireme/yyjson.git"
 
 log() {
@@ -327,6 +328,64 @@ mkdir -p "${STDLIB_DEST}/csources"
 cp "${PANIC_HANDLER_OBJ}" "${STDLIB_DEST}/csources/"
 cp "${YYJSON_SHIM_OBJ}" "${STDLIB_DEST}/csources/"
 
+log "Installing spectre-ls (language server)..."
+
+SPECTRE_LS_DIR="${SRC_DIR}/spectre-ls"
+
+if [ -d "$SPECTRE_LS_DIR" ]; then
+	if [ -f "${SPECTRE_LS_DIR}/sx.mod.install.bak" ]; then
+		mv "${SPECTRE_LS_DIR}/sx.mod.install.bak" "${SPECTRE_LS_DIR}/sx.mod"
+	fi
+	log "spectre-ls source already exists, updating..."
+	git -C "$SPECTRE_LS_DIR" pull --ff-only
+else
+	git clone "$SPECTRE_LS_REPO" "$SPECTRE_LS_DIR"
+fi
+
+SPECTRE_LS_SXMOD="${SPECTRE_LS_DIR}/sx.mod"
+[ -f "$SPECTRE_LS_SXMOD" ] || err "spectre-ls sx.mod not found at ${SPECTRE_LS_SXMOD}"
+
+SPECTRE_LS_REQUIRED="$(
+	sed -n 's/^[[:space:]]*spectre_version[[:space:]]*"\([^"]*\)".*/\1/p' "$SPECTRE_LS_SXMOD" | head -n 1
+)"
+INSTALLED_SPECTRE="$("${BIN_DIR}/spectre" -v | sed -n '1s/^Spectre[[:space:]]\{1,\}\([^[:space:]]*\).*/\1/p')"
+
+SPECTRE_LS_SXMOD_PATCHED=0
+if [ -n "$INSTALLED_SPECTRE" ] && [ -n "$SPECTRE_LS_REQUIRED" ] &&
+	[ "$SPECTRE_LS_REQUIRED" != "$INSTALLED_SPECTRE" ]; then
+	log "spectre-ls expects Spectre ${SPECTRE_LS_REQUIRED}, installed is ${INSTALLED_SPECTRE} — building against installed version."
+	cp "$SPECTRE_LS_SXMOD" "${SPECTRE_LS_SXMOD}.install.bak"
+	sed "s|^\([[:space:]]*spectre_version[[:space:]]*\)\"[^\"]*\"|\1\"${INSTALLED_SPECTRE}\"|" \
+		"$SPECTRE_LS_SXMOD" >"${SPECTRE_LS_SXMOD}.install.tmp"
+	mv "${SPECTRE_LS_SXMOD}.install.tmp" "$SPECTRE_LS_SXMOD"
+	SPECTRE_LS_SXMOD_PATCHED=1
+fi
+
+if [ "$QBE_OK" -eq 0 ]; then
+	log "QBE unavailable — building spectre-ls with the fallback backend."
+	if [ "$SPECTRE_LS_SXMOD_PATCHED" -eq 0 ]; then
+		cp "$SPECTRE_LS_SXMOD" "${SPECTRE_LS_SXMOD}.install.bak"
+		SPECTRE_LS_SXMOD_PATCHED=1
+	fi
+	sed 's|^\([[:space:]]*flags[[:space:]]*\)"\(.*\)"|\1"\2 --alt"|' \
+		"$SPECTRE_LS_SXMOD" >"${SPECTRE_LS_SXMOD}.install.tmp"
+	mv "${SPECTRE_LS_SXMOD}.install.tmp" "$SPECTRE_LS_SXMOD"
+fi
+
+log "Building spectre-ls..."
+SPECTRE_LS_BUILD_OK=1
+(cd "$SPECTRE_LS_DIR" && "${BIN_DIR}/spectre" build release) || SPECTRE_LS_BUILD_OK=0
+
+if [ "$SPECTRE_LS_SXMOD_PATCHED" -eq 1 ]; then
+	mv "${SPECTRE_LS_SXMOD}.install.bak" "$SPECTRE_LS_SXMOD"
+fi
+
+[ "$SPECTRE_LS_BUILD_OK" -eq 1 ] || err "Failed to build spectre-ls."
+[ -x "${SPECTRE_LS_DIR}/spectre-ls" ] || err "spectre-ls binary not found after build."
+
+log "Installing spectre-ls to ${BIN_DIR}..."
+/usr/bin/install -m 0755 "${SPECTRE_LS_DIR}/spectre-ls" "${BIN_DIR}/spectre-ls"
+
 case ":$PATH:" in
 *":${BIN_DIR}:"*)
 	log "PATH already contains ${BIN_DIR}"
@@ -344,8 +403,9 @@ esac
 log "Installation complete."
 echo
 echo "Installed:"
-echo "  - spectre -> ${BIN_DIR}/spectre"
-echo "  - stdlib  -> ${BIN_DIR}/spectrelib"
+echo "  - spectre    -> ${BIN_DIR}/spectre"
+echo "  - spectre-ls -> ${BIN_DIR}/spectre-ls"
+echo "  - stdlib     -> ${BIN_DIR}/spectrelib"
 if [ "$QBE_OK" -eq 1 ]; then
 	echo "  - qbe     -> ${BIN_DIR}/qbe"
 elif [ "$FORCE_FALLBACK" -eq 1 ]; then
