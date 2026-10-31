@@ -2,10 +2,20 @@ type Point = {
     x: i32
     y: i32
 }
+
 union Value = {
     Int(i64) | Text(ref u8)
 }
+
 enum Mode = {
     Fast
     Slow
 }
+
+spec Named = {
+    fn name() ref u8
+}
+
+fn first() void = {}
+
+fn second() void = {}

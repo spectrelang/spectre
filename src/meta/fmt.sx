@@ -1360,22 +1360,48 @@ fn segment_starts_with(src: ref u8, start: i64, end: i64, prefix: ref u8) bool =
     return true
 }
 
-fn line_is_function_start(src: ref u8, start: i64, end: i64) bool = trust {
-    if segment_starts_with(src, start, end, "pub fn") {
-        if start + 6 < end {
-            val c: i64 = byte_at(src, start + 6)
-            if c == 32 || c == 40 {
-                return true
-            }
-        }
+fn segment_starts_with_keyword(src: ref u8, start: i64, end: i64, keyword: ref u8) bool = trust {
+    if !segment_starts_with(src, start, end, keyword) {
+        return false
     }
-    if segment_starts_with(src, start, end, "fn") {
-        if start + 2 < end {
-            val c: i64 = byte_at(src, start + 2)
-            if c == 32 || c == 40 {
-                return true
-            }
-        }
+    val after: i64 = start + str.len_raw(keyword)
+    if after >= end {
+        return false
+    }
+    val c: i64 = byte_at(src, after)
+    return c == 32 || c == 40 || c == 9
+}
+
+fn line_is_block_decl_start(src: ref u8, start: i64, end: i64) bool = trust {
+    if segment_starts_with_keyword(src, start, end, "pub fn") {
+        return true
+    }
+    if segment_starts_with_keyword(src, start, end, "fn") {
+        return true
+    }
+    if segment_starts_with_keyword(src, start, end, "pub type") {
+        return true
+    }
+    if segment_starts_with_keyword(src, start, end, "type") {
+        return true
+    }
+    if segment_starts_with_keyword(src, start, end, "pub union") {
+        return true
+    }
+    if segment_starts_with_keyword(src, start, end, "union") {
+        return true
+    }
+    if segment_starts_with_keyword(src, start, end, "pub enum") {
+        return true
+    }
+    if segment_starts_with_keyword(src, start, end, "enum") {
+        return true
+    }
+    if segment_starts_with_keyword(src, start, end, "pub spec") {
+        return true
+    }
+    if segment_starts_with_keyword(src, start, end, "spec") {
+        return true
     }
     return false
 }
@@ -1524,12 +1550,15 @@ fn format_import_alignment(src: ref u8) ref u8 = trust {
     return buf_build(out)
 }
 
-fn format_top_level_function_gaps(src: ref u8) ref u8 = trust {
+fn format_top_level_decl_gaps(src: ref u8) ref u8 = trust {
     val len: i64 = str.len_raw(src)
     val out: mut ref Buf = buf_new(len + 64)
-    val line_start: mut i64 = 0
+    val nesting: mut ref Nesting = @alloc(@sizeof(Nesting)) as ref Nesting
+    val depth: mut i64 = 0
+    val in_decl: mut bool = false
+    val prev_decl_end: mut bool = false
     val prev_blank: mut bool = false
-    val prev_close: mut bool = false
+    val line_start: mut i64 = 0
 
     for {
         if line_start > len {
@@ -1572,9 +1601,10 @@ fn format_top_level_function_gaps(src: ref u8) ref u8 = trust {
         }
 
         val blank: bool = content_start >= content_end
-        val is_fn: bool = !blank && line_is_function_start(src, content_start, content_end)
+        val is_decl_start: bool =
+        !blank && depth == 0 && line_is_block_decl_start(src, content_start, content_end)
 
-        if is_fn && prev_close && !prev_blank {
+        if is_decl_start && prev_decl_end && !prev_blank {
             buf_append_char(out, 10 as u8)
         }
 
@@ -1586,8 +1616,26 @@ fn format_top_level_function_gaps(src: ref u8) ref u8 = trust {
             buf_append_char(out, 10 as u8)
         }
 
+        scan_nesting(src, content_start, content_end, nesting)
+        depth = depth + nesting.braces
+        if depth < 0 {
+            depth = 0
+        }
+
+        if is_decl_start {
+            if depth > 0 {
+                in_decl = true
+            }
+        }
+
+        prev_decl_end = false
+        if depth == 0 {
+            if is_decl_start || in_decl {
+                prev_decl_end = true
+            }
+            in_decl = false
+        }
         prev_blank = blank
-        prev_close = !blank && content_end - content_start == 1 && byte_at(src, content_start) == 125
 
         if line_end >= len {
             break
@@ -1802,7 +1850,7 @@ fn format_source(src: ref u8) ref u8 = trust {
     val return_spaced: ref u8 = format_fn_return_spacing(brace_spaced)
     val indented: ref u8 = reindent(return_spaced)
     val imports_aligned: ref u8 = format_import_alignment(indented)
-    return format_top_level_function_gaps(imports_aligned)
+    return format_top_level_decl_gaps(imports_aligned)
 }
 
 fn has_sx_suffix(file: ref u8) bool = {
