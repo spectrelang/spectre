@@ -20,6 +20,7 @@ pub type SxBuildConfig = {
 pub type SxMod = {
     entry: mut ref u8
     version: mut ref u8
+    spectre_version: mut ref u8
     deps: mut list[ref u8]
     builds: mut list[ref SxBuildConfig]
 }
@@ -156,6 +157,7 @@ pub fn parse_sxmod(content: ref u8) ref SxMod = trust {
     @memset(m as ref void, 0, @sizeof(SxMod) as usize)
     m.entry = ""
     m.version = ""
+    m.spectre_version = ""
     m.deps = []
     m.builds = []
     for {
@@ -171,6 +173,8 @@ pub fn parse_sxmod(content: ref u8) ref SxMod = trust {
             m.entry = ctx_read_quoted(ctx)
         } elif str.raw_cmp(kw, "version") == 0 {
             m.version = ctx_read_quoted(ctx)
+        } elif str.raw_cmp(kw, "spectre_version") == 0 {
+            m.spectre_version = ctx_read_quoted(ctx)
         } elif str.raw_cmp(kw, "dep") == 0 {
             @append(m.deps, ctx_read_quoted(ctx))
         } elif str.raw_cmp(kw, "build") == 0 {
@@ -228,6 +232,25 @@ fn validate_sxmod(m: ref SxMod) bool = {
             stdio.puts("error: sx.mod cannot mix a top-level 'entry' with per-build 'entry' fields")
             return false
         }
+    }
+    return true
+}
+
+fn validate_spectre_version(m: ref SxMod) bool = trust {
+    val installed: ref u8 = meta.get_spectre_version()
+    if str.raw_cmp(m.spectre_version, "") == 0 {
+        stdio.puts("error: sx.mod is missing the required 'spectre_version' field")
+        stdio.print("-> installed compiler: {s}\n", {installed})
+        stdio.print("-> add this line to sx.mod: spectre_version \"{s}\"\n", {installed})
+        return false
+    }
+    if str.raw_cmp(m.spectre_version, installed) != 0 {
+        stdio.puts("error: Spectre version mismatch")
+        stdio.print("  installed compiler:      {s}\n", {installed})
+        stdio.print("  project spectre_version: {s}\n", {m.spectre_version})
+        stdio.print("  install the required compiler with: ./fw/install.sh -v {s}\n", {m.spectre_version})
+        stdio.puts("  or update 'spectre_version' in sx.mod to match the installed compiler")
+        return false
     }
     return true
 }
@@ -1018,6 +1041,7 @@ pub fn cmd_ref() i32 = {
                 \\ ```
                 \\ entry "./src/main.sx"
                 \\ version "v0.0.1"
+                \\ spectre_version "v0.0.12"
                 \\
                 \\ dep "https://github.com/user/some-lib"
                 \\
@@ -1033,6 +1057,7 @@ pub fn cmd_ref() i32 = {
                 \\
                 \\ - `entry`   — source file passed to the compiler
                 \\ - `version` — project version string
+                \\ - `spectre_version` — required Spectre compiler version
                 \\ - `dep`     — git dependency URL (cloned to `lib/`)
                 \\ - `build`   — named build configuration
                 \\   - `action`  — base shell command for this build config
@@ -1078,7 +1103,8 @@ pub fn cmd_init(name_arg: ref u8) i32 = {
     }
 
     val sb: ref void = str.StringBuilder.new()
-    trust str.StringBuilder.append_cstr(sb, "entry \"./src/main.sx\"\nversion \"v0.0.1\"\n\nbuild release {\n    flags \"--release\"\n    output \"./")
+    val init_header: ref u8 = trust @fmt("entry \"./src/main.sx\"\nversion \"v0.0.1\"\nspectre_version \"{s}\"\n\nbuild release {\n    flags \"--release\"\n    output \"./", {meta.get_spectre_version()})
+    trust str.StringBuilder.append_cstr(sb, init_header)
     trust str.StringBuilder.append_cstr(sb, proj_name)
     trust str.StringBuilder.append_cstr(sb, "\"\n}\n\nbuild dev {\n    output \"./")
     trust str.StringBuilder.append_cstr(sb, proj_name)
@@ -1109,6 +1135,10 @@ pub fn cmd_build(config_name: ref u8, exe_path: ref u8) i32 = {
             return 1
         }
         some m => {
+            if !trust validate_spectre_version(m) {
+                return 1
+            }
+
             val found_cfg: mut ref SxBuildConfig = none
             val builds: list[ref SxBuildConfig] = m.builds
             for cfg in builds {

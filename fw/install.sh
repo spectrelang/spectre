@@ -67,14 +67,23 @@ git_clone_with_fallback() {
 	}
 }
 
-for arg in "$@"; do
-	case "$arg" in
+SPECTRE_VERSION=""
+
+while [ "$#" -gt 0 ]; do
+	case "$1" in
 	-fallback)
 		FORCE_FALLBACK=1
 		log "Flag: -fallback set — skipping QBE, building from C source."
+		shift
+		;;
+	-v)
+		[ "$#" -ge 2 ] || err "Missing value for -v (expected a tag, e.g. -v v0.0.9)"
+		SPECTRE_VERSION="$2"
+		log "Flag: -v set — installing Spectre ${SPECTRE_VERSION}."
+		shift 2
 		;;
 	*)
-		err "Unknown flag: $arg"
+		err "Unknown flag: $1"
 		;;
 	esac
 done
@@ -164,9 +173,23 @@ SPECTRE_DIR="${SRC_DIR}/spectre"
 
 if [ -d "$SPECTRE_DIR" ]; then
 	log "Spectre source already exists, updating..."
-	git -C "$SPECTRE_DIR" pull --ff-only
+	if [ -n "$SPECTRE_VERSION" ]; then
+		git -C "$SPECTRE_DIR" fetch --tags --force
+	else
+		DEFAULT_BRANCH="$(git -C "$SPECTRE_DIR" symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's@^origin/@@')"
+		if [ -n "$DEFAULT_BRANCH" ]; then
+			git -C "$SPECTRE_DIR" checkout --quiet "$DEFAULT_BRANCH" || true
+		fi
+		git -C "$SPECTRE_DIR" pull --ff-only
+	fi
 else
 	git clone "$SPECTRE_REPO" "$SPECTRE_DIR"
+fi
+
+if [ -n "$SPECTRE_VERSION" ]; then
+	log "Checking out Spectre tag ${SPECTRE_VERSION}..."
+	git -C "$SPECTRE_DIR" checkout --quiet "$SPECTRE_VERSION" ||
+		err "Could not checkout Spectre tag '${SPECTRE_VERSION}'. Check that the tag exists."
 fi
 
 CSOURCES_DIR="${SPECTRE_DIR}/spectrelib/csources"
