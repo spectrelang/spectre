@@ -116,23 +116,29 @@ pub fn main() i32 = trust {
 
     if string.raw_cmp(input, "fmt") == 0 {
         val fmt_paths: mut list[ref u8] = []
+        val fmt_stdout: mut bool = false
         val fmt_arg_i: mut i64 = 2
         for {
             val fmt_arg_opt = @get(args, fmt_arg_i)
             if fmt_arg_opt is some fv {
                 val arg: ref u8 = fv as ref u8
                 if string.raw_cmp(arg, "-h") == 0 || string.raw_cmp(arg, "--help") == 0 {
-                    stdio.puts("usage: spectre fmt <file.sx|directory>...")
+                    stdio.puts("usage: spectre fmt [--stdio] <file.sx|directory>...")
+                    stdio.puts("")
+                    stdio.puts("  --stdio   Write formatted output to stdout instead of in place")
                     allocators.Arena.free(arena)
                     return 0
+                } elif string.raw_cmp(arg, "--stdio") == 0 {
+                    fmt_stdout = true
+                } else {
+                    @append(fmt_paths, arg)
                 }
-                @append(fmt_paths, arg)
             } else {
                 break
             }
             fmt_arg_i++
         }
-        val code: i32 = formatter.cmd_fmt(fmt_paths)
+        val code: i32 = formatter.cmd_fmt(fmt_paths, fmt_stdout)
         allocators.Arena.free(arena)
         return code
     }

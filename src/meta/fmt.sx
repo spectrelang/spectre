@@ -1818,7 +1818,7 @@ fn is_directory(dir: ref u8) bool = trust {
     return true
 }
 
-fn format_file(file: ref u8) i32 = trust {
+fn format_file(file: ref u8, to_stdout: bool) i32 = trust {
     val size_opt = fs.file_size(file)
     val size: mut i64 = 0
     if size_opt is some s {
@@ -1850,7 +1850,9 @@ fn format_file(file: ref u8) i32 = trust {
     }
 
     val formatted: ref u8 = format_source(content)
-    if str.raw_cmp(formatted, content) != 0 {
+    if to_stdout {
+        stdio.print("{s}", {formatted})
+    } elif str.raw_cmp(formatted, content) != 0 {
         if !fs.write_all(file, formatted) {
             stdio.print("error: could not write '{s}'\n", {file})
             return 1
@@ -1894,7 +1896,7 @@ fn collect_files(target: ref u8, out: mut list[ref u8], explicit: bool) i32 = tr
     return 1
 }
 
-pub fn cmd_fmt(targets: list[ref u8]) i32 = trust {
+pub fn cmd_fmt(targets: list[ref u8], to_stdout: bool) i32 = trust {
     val n_targets: i64 = @len(targets) as i64
     if n_targets == 0 {
         stdio.puts("error: fmt requires at least one .sx file or directory")
@@ -1910,7 +1912,7 @@ pub fn cmd_fmt(targets: list[ref u8]) i32 = trust {
     }
 
     for file in files {
-        val code: i32 = format_file(file)
+        val code: i32 = format_file(file, to_stdout)
         if code != 0 {
             return code
         }

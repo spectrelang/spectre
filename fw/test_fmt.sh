@@ -112,6 +112,22 @@ else
 	fi
 fi
 
+total=$((total + 1))
+stdout_file="$tmpdir/stdout_bad1.sx"
+cp "$FIXTURES/bad1.sx" "$stdout_file"
+
+if ! "$COMPILER" fmt --stdio "$stdout_file" >"$tmpdir/stdout1.out" 2>/dev/null; then
+	fail "stdio mode (formatter exited non-zero)"
+elif ! cmp -s "$tmpdir/stdout1.out" "$FIXTURES/good1.sx"; then
+	echo "[FAIL] stdio mode (stdout differs from good1)"
+	diff -u "$FIXTURES/good1.sx" "$tmpdir/stdout1.out" | head -40 | sed 's/^/    /'
+	failed=$((failed + 1))
+elif ! cmp -s "$stdout_file" "$FIXTURES/bad1.sx"; then
+	fail "stdio mode (source was modified in place)"
+else
+	pass "stdio mode"
+fi
+
 echo
 echo "Formatter Test Summary:"
 echo "Total tests : $total"
