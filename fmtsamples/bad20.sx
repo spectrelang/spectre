@@ -1,0 +1,17 @@
+pub fn main() void = trust {
+    for i = 0; i < 10; i++ {
+        @print("{d}\n", {i})
+    }
+
+    for (j = 0; j < 10; j++) {
+        @print("{d}\n", {j})
+    }
+
+    for (k < 10) {
+        @print("{d}\n", {k})
+    }
+
+    for n = 0, (n < 10), n++ {
+        @print("{d}\n", {n})
+    }
+}

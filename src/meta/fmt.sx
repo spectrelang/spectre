@@ -332,6 +332,17 @@ fn kind_is_semicolon(k: lexer.TokenKind) bool = {
     }
 }
 
+fn kind_is_in(k: lexer.TokenKind) bool = {
+    match k {
+        In() => {
+            return true
+        }
+        else => {
+            return false
+        }
+    }
+}
+
 fn kind_is_decl_keyword(k: lexer.TokenKind) bool = {
     match k {
         Fn() => {
@@ -2164,9 +2175,294 @@ fn reindent(src: ref u8) ref u8 = trust {
     return buf_build(out)
 }
 
+fn find_for_body_open(tokens: list[ref lexer.Token], start: i64) i64 = trust {
+    val n: i64 = @len(tokens) as i64
+    val parens: mut i64 = 0
+    val brackets: mut i64 = 0
+    val i: mut i64 = start
+
+    for {
+        if i >= n {
+            break
+        }
+        val k: lexer.TokenKind = lexer.tok_kind(tokens, i)
+        if lexer.kind_is_lparen(k) {
+            parens++
+        } elif lexer.kind_is_rparen(k) {
+            if parens > 0 {
+                parens--
+            }
+        } elif lexer.kind_is_lbracket(k) {
+            brackets++
+        } elif lexer.kind_is_rbracket(k) {
+            if brackets > 0 {
+                brackets--
+            }
+        } elif lexer.kind_is_lbrace(k) {
+            if parens == 0 && brackets == 0 {
+                return i
+            }
+        } elif lexer.kind_is_rbrace(k) {
+            return -1
+        }
+        i++
+    }
+
+    return -1
+}
+
+fn append_remove_paren_open(src: ref u8, tokens: list[ref lexer.Token], starts: list[i64], open_idx: i64, next_idx: i64, edits: mut list[ref Edit]) void = trust {
+    val open_pos: i64 = token_start(tokens, starts, open_idx)
+    val n: i64 = @len(tokens) as i64
+    if next_idx >= 0 && next_idx < n && token_line(tokens, next_idx) == token_line(tokens, open_idx) {
+        val next_pos: i64 = token_start(tokens, starts, next_idx)
+        if range_is_whitespace(src, open_pos + 1, next_pos) {
+            @append(edits, edit_new(open_pos, next_pos, ""))
+            return
+        }
+    }
+    @append(edits, edit_new(open_pos, open_pos + 1, ""))
+}
+
+fn append_remove_paren_close(src: ref u8, tokens: list[ref lexer.Token], starts: list[i64], close_idx: i64, prev_idx: i64, edits: mut list[ref Edit]) void = trust {
+    val close_pos: i64 = token_start(tokens, starts, close_idx)
+    if prev_idx >= 0 && token_line(tokens, prev_idx) == token_line(tokens, close_idx) {
+        val prev_pos: i64 = token_start(tokens, starts, prev_idx)
+        val ws_start: mut i64 = close_pos
+        for {
+            if ws_start <= prev_pos {
+                break
+            }
+            val c: i64 = byte_at(src, ws_start - 1)
+            if c != 32 && c != 9 {
+                break
+            }
+            ws_start--
+        }
+        if ws_start > prev_pos {
+            @append(edits, edit_new(ws_start, close_pos + 1, ""))
+            return
+        }
+    }
+    @append(edits, edit_new(close_pos, close_pos + 1, ""))
+}
+
+fn append_for_separator(src: ref u8, tokens: list[ref lexer.Token], starts: list[i64], idx: i64, edits: mut list[ref Edit]) void = trust {
+    val comma_pos: i64 = token_start(tokens, starts, idx)
+    val ws_start: mut i64 = comma_pos
+    for {
+        if ws_start <= 0 {
+            break
+        }
+        val c: i64 = byte_at(src, ws_start - 1)
+        if c != 32 && c != 9 {
+            break
+        }
+        ws_start--
+    }
+
+    val n: i64 = @len(tokens) as i64
+    if idx + 1 < n && token_line(tokens, idx + 1) == token_line(tokens, idx) {
+        val next_pos: i64 = token_start(tokens, starts, idx + 1)
+        if range_is_whitespace(src, comma_pos + 1, next_pos) {
+            @append(edits, edit_new(ws_start, next_pos, ", "))
+            return
+        }
+    }
+
+    @append(edits, edit_new(ws_start, comma_pos + 1, ","))
+}
+
+fn format_for_headers(src: ref u8) ref u8 = trust {
+    val tok_res = lexer.tokenize(src)
+    val tokens: mut list[ref lexer.Token] = []
+    match tok_res {
+        ok toks => {
+            tokens = toks
+        }
+        err _ => {
+            return src
+        }
+    }
+
+    val len: i64 = str.len_raw(src)
+    val starts: list[i64] = collect_line_starts(src, len)
+    val ntokens: i64 = @len(tokens) as i64
+    val edits: mut list[ref Edit] = []
+    val i: mut i64 = 0
+
+    for {
+        if i >= ntokens {
+            break
+        }
+        val k: lexer.TokenKind = lexer.tok_kind(tokens, i)
+
+        if lexer.kind_is_for(k) {
+            val header_start: i64 = i + 1
+            if header_start < ntokens {
+                val header_kind: lexer.TokenKind = lexer.tok_kind(tokens, header_start)
+
+                // `for { ... }` has no header.
+                if !lexer.kind_is_lbrace(header_kind) {
+                    // Leave `for item in items` headers alone.
+                    val probe: mut i64 = header_start
+                    if lexer.kind_is_lparen(header_kind) {
+                        probe = header_start + 1
+                    }
+                    val is_for_in: bool =
+                    probe + 1 < ntokens &&
+                    lexer.kind_is_ident(lexer.tok_kind(tokens, probe)) &&
+                    kind_is_in(lexer.tok_kind(tokens, probe + 1))
+
+                    if !is_for_in {
+                        val body_open: i64 = find_for_body_open(tokens, header_start)
+                        if body_open > header_start {
+                            val header_end: i64 = body_open - 1
+                            val for_pos: i64 = token_start(tokens, starts, i)
+                            val header_pos: i64 = token_start(tokens, starts, header_start)
+                            val keyword_end: i64 = for_pos + 3
+
+                            if token_line(tokens, header_start) == token_line(tokens, i) &&
+                            range_is_whitespace(src, keyword_end, header_pos) {
+                                val already_one: bool =
+                                header_pos - keyword_end == 1 && byte_at(src, keyword_end) == 32
+                                if !already_one {
+                                    @append(edits, edit_new(keyword_end, header_pos, " "))
+                                }
+                            }
+
+                            val outer: bool =
+                            lexer.kind_is_lparen(header_kind) &&
+                            find_matching_paren(tokens, header_start) == header_end
+                            val inner_start: mut i64 = header_start
+                            val inner_end: mut i64 = header_end
+
+                            if outer {
+                                inner_start = header_start + 1
+                                inner_end = header_end - 1
+                                val next_inner: mut i64 = -1
+                                if inner_start <= inner_end {
+                                    next_inner = inner_start
+                                }
+                                append_remove_paren_open(src, tokens, starts, header_start, next_inner, edits)
+                            }
+
+                            if inner_start <= inner_end {
+                                val seps: mut list[i64] = []
+                                val parens: mut i64 = 0
+                                val brackets: mut i64 = 0
+                                val j: mut i64 = inner_start
+
+                                for {
+                                    if j > inner_end {
+                                        break
+                                    }
+                                    val jk: lexer.TokenKind = lexer.tok_kind(tokens, j)
+                                    if lexer.kind_is_lparen(jk) {
+                                        parens++
+                                    } elif lexer.kind_is_rparen(jk) {
+                                        if parens > 0 {
+                                            parens--
+                                        }
+                                    } elif lexer.kind_is_lbracket(jk) {
+                                        brackets++
+                                    } elif lexer.kind_is_rbracket(jk) {
+                                        if brackets > 0 {
+                                            brackets--
+                                        }
+                                    }
+                                    val is_sep: bool = lexer.kind_is_comma(jk) || kind_is_semicolon(jk)
+                                    if is_sep && parens == 0 && brackets == 0 {
+                                        @append(seps, j)
+                                    }
+                                    j++
+                                }
+
+                                val nseps: i64 = @len(seps) as i64
+                                val cond_first: mut i64 = inner_start
+                                val cond_last: mut i64 = inner_end
+                                val has_condition: mut bool = nseps == 0
+
+                                if nseps == 2 {
+                                    val first_sep_opt = @get(seps, 0 as usize)
+                                    val second_sep_opt = @get(seps, 1 as usize)
+                                    if first_sep_opt is some first_sep {
+                                        if second_sep_opt is some second_sep {
+                                            cond_first = (first_sep as i64) + 1
+                                            cond_last = (second_sep as i64) - 1
+                                            has_condition = true
+                                        }
+                                    }
+                                }
+
+                                val cond_open: mut i64 = -1
+                                val cond_close: mut i64 = -1
+                                if has_condition && cond_first <= cond_last &&
+                                lexer.kind_is_lparen(lexer.tok_kind(tokens, cond_first)) {
+                                    val match_close: i64 = find_matching_paren(tokens, cond_first)
+                                    if match_close == cond_last {
+                                        cond_open = cond_first
+                                        cond_close = cond_last
+                                    }
+                                }
+
+                                val sep_idx: mut i64 = 0
+                                val jj: mut i64 = inner_start
+                                for {
+                                    if jj > inner_end {
+                                        break
+                                    }
+                                    if jj == cond_open {
+                                        val next_inner: mut i64 = -1
+                                        if jj + 1 <= inner_end {
+                                            next_inner = jj + 1
+                                        }
+                                        append_remove_paren_open(src, tokens, starts, jj, next_inner, edits)
+                                    }
+                                    if jj == cond_close {
+                                        val prev_inner: mut i64 = -1
+                                        if jj - 1 >= inner_start {
+                                            prev_inner = jj - 1
+                                        }
+                                        append_remove_paren_close(src, tokens, starts, jj, prev_inner, edits)
+                                    }
+                                    if sep_idx < nseps {
+                                        val sep_opt = @get(seps, sep_idx as usize)
+                                        if sep_opt is some sep_val {
+                                            val sep: i64 = sep_val as i64
+                                            if sep == jj {
+                                                append_for_separator(src, tokens, starts, jj, edits)
+                                                sep_idx++
+                                            }
+                                        }
+                                    }
+                                    jj++
+                                }
+                            }
+
+                            if outer {
+                                val prev_inner: mut i64 = -1
+                                if inner_end >= inner_start {
+                                    prev_inner = inner_end
+                                }
+                                append_remove_paren_close(src, tokens, starts, header_end, prev_inner, edits)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        i++
+    }
+
+    return apply_edits(src, edits)
+}
+
 fn format_source(src: ref u8) ref u8 = trust {
     val rewritten: ref u8 = rewrite_matches(src)
-    val assert_spaced: ref u8 = format_assert_spacing(rewritten)
+    val for_normalized: ref u8 = format_for_headers(rewritten)
+    val assert_spaced: ref u8 = format_assert_spacing(for_normalized)
     val braced: ref u8 = format_block_braces(assert_spaced)
     val decl_separated: ref u8 = format_decl_separators(braced)
     val arm_spaced: ref u8 = format_match_arm_spacing(decl_separated)

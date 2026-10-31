@@ -635,10 +635,6 @@ fn p_expect_fatarrow(p: mut ref Parser) result[ref u8, ref u8] = trust {
     return p_expect_kind(p, lexer.kind_is_fatarrow, "'=>'")
 }
 
-fn p_expect_semicolon(p: mut ref Parser) result[ref u8, ref u8] = trust {
-    return p_expect_kind(p, kind_is_semicolon, "';'")
-}
-
 fn p_expect_dot(p: mut ref Parser) result[ref u8, ref u8] = trust {
     return p_expect_kind(p, lexer.kind_is_dot,      "'.'" )
 }
@@ -646,16 +642,6 @@ fn p_expect_dot(p: mut ref Parser) result[ref u8, ref u8] = trust {
 fn kind_is_eq(k: lexer.TokenKind) bool = trust {
     match k {
         Eq() => {
-            return true
-        } else => {
-            return false
-        }
-    }
-}
-
-fn kind_is_semicolon(k: lexer.TokenKind) bool = trust {
-    match k {
-        Semicolon() => {
             return true
         } else => {
             return false
@@ -2514,9 +2500,9 @@ pub fn parse_stmt(p: mut ref Parser) result[ref Node, ref u8] = trust {
             }
             if p_eat_fn(p, kind_is_eq) {
                 val init_expr = parse_expr(p)?
-                p_expect_semicolon(p)?
+                p_expect_comma(p)?
                 val cond2 = parse_expr(p)?
-                p_expect_semicolon(p)?
+                p_expect_comma(p)?
                 val post_target = parse_expr(p)?
                 val post_kind: lexer.TokenKind = p_peek_kind(p)
                 val post_node: mut ref Node = none
@@ -2860,7 +2846,7 @@ fn parse_match_stmt(p: mut ref Parser, line: i64) result[ref Node, ref u8] = tru
         val ok_body: mut ref Node = none
         val err_bind: mut ref u8 = none
         val err_body: mut ref Node = none
-        for i = 0; i < 2; i++ {
+        for i = 0, i < 2, i++ {
             val ck: lexer.TokenKind = p_peek_kind(p)
             if kind_is_ok(ck) {
                 p_advance(p)
@@ -2900,7 +2886,7 @@ fn parse_match_stmt(p: mut ref Parser, line: i64) result[ref Node, ref u8] = tru
         val some_bind: mut ref u8 = none
         val some_body: mut ref Node = none
         val none_body: mut ref Node = none
-        for i = 0; i < 2; i++ {
+        for i = 0, i < 2, i++ {
             val ck2: lexer.TokenKind = p_peek_kind(p)
             if kind_is_some(ck2) {
                 p_advance(p)
@@ -4083,6 +4069,28 @@ test {
     @puts("parser 20")
     val r20 = parse_src("fn (")
     match r20 {
+        ok _ => {
+            assert false
+        }
+        err _ => {
+            assert true
+        }
+    }
+
+    @puts("parser 21")
+    val r21 = parse_src("fn f() void = { for i = 0, i < 10, i++ { } }")
+    match r21 {
+        err _ => {
+            assert false
+        }
+        ok items => {
+            assert @len(items) as i64 == 1
+        }
+    }
+
+    @puts("parser 22")
+    val r22 = parse_src("fn f() void = { for i = 0; i < 10; i++ { } }")
+    match r22 {
         ok _ => {
             assert false
         }

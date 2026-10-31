@@ -301,7 +301,7 @@ fn (Map) grow[A: allocators.GeneralAllocator](ac: A, map: mut self, new_cap: usi
         @store(@ptradd(header, 8), 0)
         @store(@ptradd(header, 16), new_cap)
 
-        for (i = 0; i < old_cap; i++) {
+        for i = 0, i < old_cap, i++ {
             val slot: ref void = @ptradd(old_buckets, i * MAP_BUCKET_SIZE)
             val state: usize = @load(slot) as usize
             if (state == MAP_BUCKET_LIVE) {
@@ -333,7 +333,7 @@ pub fn (Map) set[A: allocators.GeneralAllocator](ac: A, map: mut self, key: usiz
     val h: usize = @call(hash_fn, key)
     val start: usize = h - (h / cur_cap) * cur_cap
 
-    for (i = 0; i < cur_cap; i++) {
+    for i = 0, i < cur_cap, i++ {
         val idx: usize = (start + i) - ((start + i) / cur_cap) * cur_cap
         val slot: ref void = @ptradd(buckets, idx * MAP_BUCKET_SIZE)
         val state: usize = @load(slot) as usize
@@ -368,7 +368,7 @@ pub fn (Map) get(map: self, key: usize) option[usize] = {
     val h: usize = @call(hash_fn, key)
     val start: usize = h - (h / cap) * cap
 
-    for (i = 0; i < cap; i++) {
+    for i = 0, i < cap, i++ {
         val idx: usize = (start + i) - ((start + i) / cap) * cap
         val slot: ref void = trust @ptradd(buckets, idx * MAP_BUCKET_SIZE)
         val state: usize = trust @load(slot) as usize
@@ -401,7 +401,7 @@ pub fn (Map) delete(map: self, key: usize) usize = trust {
     val h: usize = @call(hash_fn, key)
     val start: usize = h - (h / cap) * cap
 
-    for (i = 0; i < cap; i++) {
+    for i = 0, i < cap, i++ {
         val idx: usize = (start + i) - ((start + i) / cap) * cap
         val slot: ref void = @ptradd(buckets, idx * MAP_BUCKET_SIZE)
         val state: usize = @load(slot) as usize
@@ -522,11 +522,11 @@ test {
 
     val big: mut Map = trust Map.new[allocators.HeapAllocator](heap, 4 as usize, @addr(hash_identity))
 
-    for (i = 0; i < 20; i++) {
+    for i = 0, i < 20, i++ {
         trust Map.set[allocators.HeapAllocator](heap, big, i, i * 10)
     }
     assert Map.len(big) == 20
-    for (i = 0; i < 20; i++) {
+    for i = 0, i < 20, i++ {
         match Map.get(big, i) {
             some v => {
                 assert v == i * 10
@@ -655,7 +655,7 @@ pub fn (StringMap) set[A: allocators.GeneralAllocator](ac: A, map: self, key: re
     val h: usize = @call(hash_fn, key_holder)
     val start: usize = h - (h / cap) * cap
 
-    for (i = 0; i < cap; i++) {
+    for i = 0, i < cap, i++ {
         val idx: usize = (start + i) - ((start + i) / cap) * cap
         val slot: ref void = @ptradd(buckets, idx * MAP_BUCKET_SIZE)
         val state: usize = @load(slot) as usize
@@ -690,7 +690,7 @@ pub fn (StringMap) get(map: self, key: ref u8) option[usize] = {
     val h: usize = @call(hash_fn, key_holder)
     val start: usize = h - (h / cap) * cap
 
-    for (i = 0; i < cap; i++) {
+    for i = 0, i < cap, i++ {
         val idx: usize = (start + i) - ((start + i) / cap) * cap
         val slot: ref void = trust @ptradd(buckets, idx * MAP_BUCKET_SIZE)
         val state: usize = trust @load(slot) as usize
@@ -732,7 +732,7 @@ pub fn (StringMap) delete[A: allocators.GeneralAllocator](ac: A, map: self, key:
     val h: usize = @call(hash_fn, key_holder)
     val start: usize = h - (h / cap) * cap
 
-    for (i = 0; i < cap; i++) {
+    for i = 0, i < cap, i++ {
         val idx: usize = (start + i) - ((start + i) / cap) * cap
         val slot: ref void = @ptradd(buckets, idx * MAP_BUCKET_SIZE)
         val state: usize = @load(slot) as usize
@@ -764,7 +764,7 @@ pub fn (StringMap) free[A: allocators.GeneralAllocator](ac: A, map: self) void =
     val header: ref void = map.header
     val cap: usize = @load(@ptradd(header, 16)) as usize
     val buckets: ref void = @load(header)
-    for (i = 0; i < cap; i++) {
+    for i = 0, i < cap, i++ {
         val slot: ref void = @ptradd(buckets, i * MAP_BUCKET_SIZE)
         val state: usize = @load(slot) as usize
         if (state == MAP_BUCKET_LIVE) {
@@ -944,7 +944,7 @@ pub fn (IndexMap) delete[A: allocators.GeneralAllocator](ac: A, map: self, key: 
     val removed = StringMap.delete[A](ac, inner, key)
     if removed == 1 {
         val n: usize = PtrList.len(keys)
-        for (i = 0; i < n; i++) {
+        for i = 0, i < n, i++ {
             match PtrList.get(keys, i) {
                 none => {}
                 some p => {
@@ -973,7 +973,7 @@ pub fn (IndexMap) each(map: self, cb: fn(ref u8, usize) void) void = trust {
     val inner: StringMap = { header: map.inner_header }
     val keys: ref void = map.keys
     val n: usize = PtrList.len(keys)
-    for (i = 0; i < n; i++) {
+    for i = 0, i < n, i++ {
         match PtrList.get(keys, i) {
             none => {}
             some p => {
@@ -997,7 +997,7 @@ pub fn (IndexMap) key_at(map: self, i: usize) option[ref u8] = {
     val keys: ref void = map.keys
     val n: usize = PtrList.len(keys)
     val live: mut usize = 0
-    for (j = 0; j < n; j++) {
+    for j = 0, j < n, j++ {
         match PtrList.get(keys, j) {
             none => {}
             some p => {
@@ -1018,7 +1018,7 @@ pub fn (IndexMap) free[A: allocators.GeneralAllocator](ac: A, map: self) void = 
     val inner: StringMap = { header: map.inner_header }
     val keys: mut ref void = map.keys
     val n: usize = PtrList.len(keys)
-    for (i = 0; i < n; i++) {
+    for i = 0, i < n, i++ {
         match PtrList.get(keys, i) {
             none => {}
             some p => {

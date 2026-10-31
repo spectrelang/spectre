@@ -7,7 +7,7 @@ type SomeType = {
 }
 
 pub fn (SomeType) do_some_thing(s: self, times: usize) void = trust {
-    for (i = 0; i < times; i++) {
+    for i = 0, i < times, i++ {
         stdio.print("{d}, {d} - {s}\n", {s.x, s.y, s.z})
     }
 }
