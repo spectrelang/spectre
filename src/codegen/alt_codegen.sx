@@ -2,12 +2,12 @@
 ///
 /// GPL-3.0-only (C) Navid Momtahen - 2026
 
-val str = use("std/string")
-val fmt = use("std/fmt")
-val stdio = use("std/stdio")
-val os = use("std/os")
-val parser = use("../ast/parser.sx")
-val module = use("../module/module.sx")
+val str     = use("std/string")
+val fmt     = use("std/fmt")
+val stdio   = use("std/stdio")
+val os      = use("std/os")
+val parser  = use("../ast/parser.sx")
+val module  = use("../module/module.sx")
 val codegen = use("codegen.sx")
 
 pub type CCtx = {

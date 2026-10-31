@@ -1,8 +1,8 @@
-val string = use("std/string")
-val fmt = use("std/fmt")
-val stdio = use("std/stdio")
-val math = use("std/math")
-val parser = use("../ast/parser.sx")
+val string  = use("std/string")
+val fmt     = use("std/fmt")
+val stdio   = use("std/stdio")
+val math    = use("std/math")
+val parser  = use("../ast/parser.sx")
 val modinfo = use("../module/module.sx")
 
 type ScopeEntry = {

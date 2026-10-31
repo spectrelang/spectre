@@ -1,6 +1,6 @@
 val allocators = use("std/allocators")
-val stdio = use("std/stdio")
-val helper = use("./sample143_helper.sx")
+val stdio      = use("std/stdio")
+val helper     = use("./sample143_helper.sx")
 
 pub fn main() void = trust {
     val arena: mut allocators.Arena = allocators.Arena.new(32768 as usize)?

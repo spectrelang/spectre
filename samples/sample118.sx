@@ -64,8 +64,8 @@ when netbsd {
     }
 }
 
-val stdio = use("std/stdio")
-val string = use("std/string")
+val stdio      = use("std/stdio")
+val string     = use("std/string")
 val allocators = use("std/allocators")
 
 when posix {

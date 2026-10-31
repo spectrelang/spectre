@@ -1,4 +1,4 @@
-val str = use("std/string")
+val str   = use("std/string")
 val stdio = use("std/stdio")
 
 pub type LLCtx = {

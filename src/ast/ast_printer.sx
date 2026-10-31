@@ -1,4 +1,4 @@
-val stdio = use("std/stdio")
+val stdio  = use("std/stdio")
 val parser = use("parser.sx")
 
 fn kind_to_name(kind: i64) ref u8 = {

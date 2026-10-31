@@ -1,4 +1,4 @@
-val lib = use("./generic_method_linker_lib.sx")
+val lib        = use("./generic_method_linker_lib.sx")
 val allocators = use("std/allocators")
 
 pub type Holder = {

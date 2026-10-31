@@ -1,4 +1,4 @@
-val log = use("std/log")
+val log        = use("std/log")
 val allocators = use("std/allocators")
 
 pub fn main() void = trust {

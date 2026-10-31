@@ -3,9 +3,9 @@
 /// SPDX-License-Identifier: GPL-3.0-only
 /// (C) Navid Momtahen - 2026
 
-val str = use("std/string")
-val fs = use("std/fs")
-val path = use("std/path")
+val str   = use("std/string")
+val fs    = use("std/fs")
+val path  = use("std/path")
 val stdio = use("std/stdio")
 val lexer = use("../ast/lexer.sx")
 
@@ -32,6 +32,14 @@ type Nesting = {
     braces: mut i64
     parens: mut i64
     brackets: mut i64
+}
+
+type ImportRec = {
+    line_start: mut i64
+    line_end: mut i64
+    eq: mut i64
+    left_len: mut i64
+    has_nl: mut bool
 }
 
 fn byte_at(src: ref u8, i: i64) i64 = trust {
@@ -1372,6 +1380,150 @@ fn line_is_function_start(src: ref u8, start: i64, end: i64) bool = trust {
     return false
 }
 
+fn import_eq_pos(src: ref u8, start: i64, end: i64) i64 = trust {
+    val is_import: bool =
+    segment_starts_with(src, start, end, "val ") ||
+    segment_starts_with(src, start, end, "pub val ")
+
+    if !is_import {
+        return -1
+    }
+
+    val eq: mut i64 = -1
+    val i: mut i64 = start
+    for {
+        if i >= end {
+            break
+        }
+        if byte_at(src, i) == 61 {
+            eq = i
+            break
+        }
+        i++
+    }
+    if eq < 0 {
+        return -1
+    }
+
+    val use_start: mut i64 = eq + 1
+    for {
+        if use_start >= end {
+            break
+        }
+        val c: i64 = byte_at(src, use_start)
+        if c != 32 && c != 9 {
+            break
+        }
+        use_start++
+    }
+    if use_start < end && segment_starts_with(src, use_start, end, "use(") {
+        return eq
+    }
+    return -1
+}
+
+fn flush_import_group(src: ref u8, out: mut ref Buf, group: list[ref ImportRec]) void = trust {
+    val n: i64 = @len(group) as i64
+    if n == 0 {
+        return
+    }
+
+    val max_left: mut i64 = 0
+    for rec in group {
+        if rec.left_len > max_left {
+            max_left = rec.left_len
+        }
+    }
+
+    for rec in group {
+        buf_append_bytes(out, src, rec.line_start, rec.left_len)
+
+        val pad: mut i64 = max_left - rec.left_len + 1
+        for {
+            if pad <= 0 {
+                break
+            }
+            buf_append_char(out, 32 as u8)
+            pad--
+        }
+
+        buf_append_char(out, 61 as u8)
+
+        val right_start: i64 = rec.eq + 1
+        if right_start < rec.line_end {
+            buf_append_bytes(out, src, right_start, rec.line_end - right_start)
+        }
+        if rec.has_nl {
+            buf_append_char(out, 10 as u8)
+        }
+    }
+}
+
+fn format_import_alignment(src: ref u8) ref u8 = trust {
+    val len: i64 = str.len_raw(src)
+    val out: mut ref Buf = buf_new(len + 64)
+    val group: mut list[ref ImportRec] = []
+    val line_start: mut i64 = 0
+
+    for {
+        if line_start > len {
+            break
+        }
+
+        val line_end: mut i64 = line_start
+        for {
+            if line_end >= len {
+                break
+            }
+            if byte_at(src, line_end) == 10 {
+                break
+            }
+            line_end++
+        }
+
+        val eq: i64 = import_eq_pos(src, line_start, line_end)
+        if eq >= 0 {
+            val left_end: mut i64 = eq
+            for {
+                if left_end <= line_start {
+                    break
+                }
+                val c: i64 = byte_at(src, left_end - 1)
+                if c != 32 && c != 9 {
+                    break
+                }
+                left_end--
+            }
+
+            val rec: mut ref ImportRec = @alloc(@sizeof(ImportRec)) as ref ImportRec
+            rec.line_start = line_start
+            rec.line_end = line_end
+            rec.eq = eq
+            rec.left_len = left_end - line_start
+            rec.has_nl = line_end < len
+            @append(group, rec)
+        } else {
+            flush_import_group(src, out, group)
+            group = []
+
+            if line_end > line_start {
+                buf_append_bytes(out, src, line_start, line_end - line_start)
+            }
+            if line_end < len {
+                buf_append_char(out, 10 as u8)
+            }
+        }
+
+        if line_end >= len {
+            break
+        }
+        line_start = line_end + 1
+    }
+
+    flush_import_group(src, out, group)
+    return buf_build(out)
+}
+
 fn format_top_level_function_gaps(src: ref u8) ref u8 = trust {
     val len: i64 = str.len_raw(src)
     val out: mut ref Buf = buf_new(len + 64)
@@ -1649,7 +1801,8 @@ fn format_source(src: ref u8) ref u8 = trust {
     val brace_spaced: ref u8 = format_block_brace_spacing(eq_spaced)
     val return_spaced: ref u8 = format_fn_return_spacing(brace_spaced)
     val indented: ref u8 = reindent(return_spaced)
-    return format_top_level_function_gaps(indented)
+    val imports_aligned: ref u8 = format_import_alignment(indented)
+    return format_top_level_function_gaps(imports_aligned)
 }
 
 fn has_sx_suffix(file: ref u8) bool = {

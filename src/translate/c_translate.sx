@@ -1,8 +1,8 @@
-val stdio = use("std/stdio")
-val string = use("std/string")
-val path = use("std/path")
-val os = use("std/os")
-val fs = use("std/fs")
+val stdio      = use("std/stdio")
+val string     = use("std/string")
+val path       = use("std/path")
+val os         = use("std/os")
+val fs         = use("std/fs")
 val allocators = use("std/allocators")
 
 pub val STOP_EOF: i64 = 0

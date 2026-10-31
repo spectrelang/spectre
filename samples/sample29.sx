@@ -1,5 +1,5 @@
 val stdio = use("std/stdio")
-val os = use("std/os")
+val os    = use("std/os")
 
 pub fn main() void = trust {
     val args = os.get_args()

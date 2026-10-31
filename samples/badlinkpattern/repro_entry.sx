@@ -1,4 +1,4 @@
-val m = use("repro_mod.sx")
+val m       = use("repro_mod.sx")
 val wrapper = use("repro_wrapper.sx")
 
 pub fn main() i32 = {

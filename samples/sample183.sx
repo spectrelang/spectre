@@ -1,5 +1,5 @@
-val fs = use("std/fs")
-val alc = use("std/allocators")
+val fs         = use("std/fs")
+val alc        = use("std/allocators")
 val algorithms = use("std/algorithms")
 
 pub fn main() void = trust {

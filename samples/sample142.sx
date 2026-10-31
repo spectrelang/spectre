@@ -1,6 +1,6 @@
 val allocators = use("std/allocators")
-val stdio = use("std/stdio")
-val fs = use("std/fs")
+val stdio      = use("std/stdio")
+val fs         = use("std/fs")
 
 extern (C) fn fopen(path: ref u8, mode: ref u8) ref void = "fopen"
 extern (C) fn fclose(stream: ref void) i32 = "fclose"

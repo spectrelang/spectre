@@ -1,13 +1,13 @@
-val str = use("std/string")
-val fs = use("std/fs")
-val path = use("std/path")
-val time = use("std/time")
+val str        = use("std/string")
+val fs         = use("std/fs")
+val path       = use("std/path")
+val time       = use("std/time")
 val allocators = use("std/allocators")
 val reflection = use("std/reflection")
-val meta = use("meta.sx")
-val builds = use("builds.sx")
-val stdio = use("std/stdio")
-val os = use("std/os")
+val meta       = use("meta.sx")
+val builds     = use("builds.sx")
+val stdio      = use("std/stdio")
+val os         = use("std/os")
 
 pub type SxBuildConfig = {
     name: mut ref u8

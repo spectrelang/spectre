@@ -1,5 +1,5 @@
 val allocators = use("std/allocators")
-val string = use("std/string")
+val string     = use("std/string")
 
 pub union TokenKind = {
     Fn()

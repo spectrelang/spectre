@@ -1,5 +1,5 @@
 val stdio = use("std/stdio")
-val math = use("std/math")
+val math  = use("std/math")
 
 union Shape = {
     Circle(f64) | Rect(f64, f64) | Triangle(f64, f64, f64)

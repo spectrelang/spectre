@@ -1,5 +1,5 @@
 val reflection = use("std/reflection")
-val stdio = use("std/stdio")
+val stdio      = use("std/stdio")
 val allocators = use("std/allocators")
 
 pub fn main() void = {

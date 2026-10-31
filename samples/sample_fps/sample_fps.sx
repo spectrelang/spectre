@@ -1,5 +1,5 @@
 val sdl_input = use("lib/ssdl2/controls.sx")
-val sdl_init = use("lib/ssdl2/init.sx")
+val sdl_init  = use("lib/ssdl2/init.sx")
 
 link "-lSDL2"
 link "-lSDL2_image"

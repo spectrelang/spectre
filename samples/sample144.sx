@@ -1,7 +1,7 @@
 val allocators = use("std/allocators")
-val stdio = use("std/stdio")
-val helper = use("./sample144_helper.sx")
-val os = use("std/os")
+val stdio      = use("std/stdio")
+val helper     = use("./sample144_helper.sx")
+val os         = use("std/os")
 
 pub fn main() void = trust {
     if !os.exists("sx.mod") {
