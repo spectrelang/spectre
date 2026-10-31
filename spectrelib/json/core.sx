@@ -365,7 +365,7 @@ test {
 
             match trust obj_get_str(root, "name") {
                 some s => {
-                    assert str.rchar_cmp(s, "Alice") == 0
+                    assert str.raw_cmp(s, "Alice") == 0
                 }
                 none   => {
                     assert false

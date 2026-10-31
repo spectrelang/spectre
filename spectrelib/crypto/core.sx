@@ -777,7 +777,7 @@ test {
     val sha: string.String = trust sha256[allocators.Arena, ref u8](arena, "abc")
     val sha_hex: ref u8 = trust hex_encode[allocators.Arena, string.String](arena, sha)
 
-    assert string.rchar_cmp(sha_hex, sha_hex_expected) == 0
+    assert string.raw_cmp(sha_hex, sha_hex_expected) == 0
 
     val hmac_out: string.String = trust hmac_sha256[allocators.Arena, ref u8](
         arena,
@@ -785,16 +785,16 @@ test {
         "The quick brown fox jumps over the lazy dog"
     )
     val hmac_hex: ref u8 = trust hex_encode[allocators.Arena, string.String](arena, hmac_out)
-    assert string.rchar_cmp(hmac_hex, "f7bc83f430538424b13298e6aa6fb143ef4d59a14946175997479dbc2d1a3cd8") == 0
+    assert string.raw_cmp(hmac_hex, "f7bc83f430538424b13298e6aa6fb143ef4d59a14946175997479dbc2d1a3cd8") == 0
 
     val encoded_hex: ref u8 = trust hex_encode[allocators.Arena, ref u8](arena, "hi")
-    assert string.rchar_cmp(encoded_hex, "6869") == 0
+    assert string.raw_cmp(encoded_hex, "6869") == 0
 
     val decoded_hex_res = trust hex_decode[allocators.Arena](arena, "6869")
     match decoded_hex_res {
         ok decoded_hex => {
             val decoded_hex_roundtrip: ref u8 = trust hex_encode[allocators.Arena, string.String](arena, decoded_hex)
-            assert string.rchar_cmp(decoded_hex_roundtrip, "6869") == 0
+            assert string.raw_cmp(decoded_hex_roundtrip, "6869") == 0
         }
         err _ => {
             assert false
@@ -812,13 +812,13 @@ test {
     }
 
     val encoded_b64: ref u8 = trust base64_encode[allocators.Arena, ref u8](arena, "hello")
-    assert string.rchar_cmp(encoded_b64, "aGVsbG8=") == 0
+    assert string.raw_cmp(encoded_b64, "aGVsbG8=") == 0
 
     val decoded_b64_res = trust base64_decode[allocators.Arena](arena, "aGVsbG8=")
     match decoded_b64_res {
         ok decoded_b64 => {
             val decoded_b64_roundtrip: ref u8 = trust hex_encode[allocators.Arena, string.String](arena, decoded_b64)
-            assert string.rchar_cmp(decoded_b64_roundtrip, "68656c6c6f") == 0
+            assert string.raw_cmp(decoded_b64_roundtrip, "68656c6c6f") == 0
         }
         err _ => {
             assert false
@@ -849,7 +849,7 @@ test {
     match file_hash_res {
         ok file_hash => {
             val file_hash_hex: ref u8 = trust hex_encode[allocators.Arena, string.String](arena, file_hash)
-            assert string.rchar_cmp(file_hash_hex, sha_hex_expected) == 0
+            assert string.raw_cmp(file_hash_hex, sha_hex_expected) == 0
         }
         err _ => {
             assert false

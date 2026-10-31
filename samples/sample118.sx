@@ -98,19 +98,19 @@ pub fn get_current_platform[T: allocators.Allocator](ac: T) Platform = trust {
         val r = uname(@addr(buf))
         if r == 0 {
             val sysname: ref u8 = @addr(buf.sysname) as ref u8
-            if string.rchar_cmp(sysname, "Linux") == 0 {
+            if string.raw_cmp(sysname, "Linux") == 0 {
                 return Platform.Linux
             }
-            if string.rchar_cmp(sysname, "Darwin") == 0 {
+            if string.raw_cmp(sysname, "Darwin") == 0 {
                 return Platform.Darwin
             }
-            if string.rchar_cmp(sysname, "FreeBSD") == 0 {
+            if string.raw_cmp(sysname, "FreeBSD") == 0 {
                 return Platform.FreeBSD
             }
-            if string.rchar_cmp(sysname, "OpenBSD") == 0 {
+            if string.raw_cmp(sysname, "OpenBSD") == 0 {
                 return Platform.OpenBSD
             }
-            if string.rchar_cmp(sysname, "NetBSD") == 0 {
+            if string.raw_cmp(sysname, "NetBSD") == 0 {
                 return Platform.NetBSD
             }
         }

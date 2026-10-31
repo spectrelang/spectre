@@ -1850,7 +1850,7 @@ fn format_file(file: ref u8) i32 = trust {
     }
 
     val formatted: ref u8 = format_source(content)
-    if str.rchar_cmp(formatted, content) != 0 {
+    if str.raw_cmp(formatted, content) != 0 {
         if !fs.write_all(file, formatted) {
             stdio.print("error: could not write '{s}'\n", {file})
             return 1

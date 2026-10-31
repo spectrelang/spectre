@@ -209,7 +209,7 @@ fn emitln(ctx: ref CCtx, s: ref u8) void = trust {
 }
 
 fn emit_line_directive(ctx: ref CCtx, line: i64) void = trust {
-    if str.rchar_cmp(ctx.current_src_file, "") == 0 {
+    if str.raw_cmp(ctx.current_src_file, "") == 0 {
         return
     }
     if line <= 0 {
@@ -325,7 +325,7 @@ fn cc_emit_label_if_new(ctx: ref CCtx, label: ref u8) bool = trust {
         }
         val e_opt = @get(ctx.emitted_labels as list[ref u8], ei as usize)
         if e_opt is some e {
-            if str.rchar_cmp(e as ref u8, label) == 0 {
+            if str.raw_cmp(e as ref u8, label) == 0 {
                 return false
             }
         }
@@ -363,7 +363,7 @@ fn cc_infer_expr_ty(ctx: mut ref CCtx, expr: ref parser.Node) ref parser.Node = 
         if ctx.expected_ty != none {
             val expected_ty: ref parser.Node = cc_concrete_ty(ctx, ctx.expected_ty)
             if expected_ty != none && expected_ty.kind == parser.TY_NAMED {
-                if str.rchar_cmp(expected_ty.d0 as ref u8, "f32") == 0 {
+                if str.raw_cmp(expected_ty.d0 as ref u8, "f32") == 0 {
                     parser.node_store_slot[ref u8](@addr(out.d0), "f32")
                 }
             }
@@ -403,7 +403,7 @@ fn cc_infer_expr_ty(ctx: mut ref CCtx, expr: ref parser.Node) ref parser.Node = 
                 val p_opt = @get(fparams as list[ref parser.Node], pi as usize)
                 if p_opt is some p {
                     val pn: ref u8 = (p as ref parser.Node).d0 as ref u8
-                    if str.rchar_cmp(pn, expr.d0 as ref u8) == 0 {
+                    if str.raw_cmp(pn, expr.d0 as ref u8) == 0 {
                         return (p as ref parser.Node).d1 as ref parser.Node
                     }
                 }
@@ -426,13 +426,13 @@ fn cc_infer_expr_ty(ctx: mut ref CCtx, expr: ref parser.Node) ref parser.Node = 
 
         if lhs_ty != none && lhs_ty.kind == parser.TY_NAMED {
             val lhs_name: ref u8 = lhs_ty.d0 as ref u8
-            if str.rchar_cmp(lhs_name, "f64") == 0 || str.rchar_cmp(lhs_name, "f32") == 0 {
+            if str.raw_cmp(lhs_name, "f64") == 0 || str.raw_cmp(lhs_name, "f32") == 0 {
                 return lhs_ty
             }
         }
         if rhs_ty != none && rhs_ty.kind == parser.TY_NAMED {
             val rhs_name: ref u8 = rhs_ty.d0 as ref u8
-            if str.rchar_cmp(rhs_name, "f64") == 0 || str.rchar_cmp(rhs_name, "f32") == 0 {
+            if str.raw_cmp(rhs_name, "f64") == 0 || str.raw_cmp(rhs_name, "f32") == 0 {
                 return rhs_ty
             }
         }
@@ -464,7 +464,7 @@ fn cc_infer_expr_ty(ctx: mut ref CCtx, expr: ref parser.Node) ref parser.Node = 
     }
     if k == parser.NK_BUILTIN {
         val bname: ref u8 = expr.d0 as ref u8
-        if str.rchar_cmp(bname, "call") == 0 {
+        if str.raw_cmp(bname, "call") == 0 {
             val bargs: ref void = expr.d1 as ref void
             if bargs != none {
                 val first_opt = @get(bargs as list[ref parser.Node], 0 as usize)
@@ -487,7 +487,7 @@ fn cc_infer_expr_ty(ctx: mut ref CCtx, expr: ref parser.Node) ref parser.Node = 
                 }
             }
         }
-        if str.rchar_cmp(bname, "get") == 0 {
+        if str.raw_cmp(bname, "get") == 0 {
             val bargs: ref void = expr.d1 as ref void
             if bargs != none {
                 val blen: i64 = @len(bargs as list[ref parser.Node]) as i64
@@ -509,7 +509,7 @@ fn cc_infer_expr_ty(ctx: mut ref CCtx, expr: ref parser.Node) ref parser.Node = 
                 }
             }
         }
-        if str.rchar_cmp(bname, "bitcast") == 0 {
+        if str.raw_cmp(bname, "bitcast") == 0 {
             val bargs2: ref void = expr.d1 as ref void
             if bargs2 != none {
                 val first_opt2 = @get(bargs2 as list[ref parser.Node], 0 as usize)
@@ -536,7 +536,7 @@ fn cc_infer_expr_ty(ctx: mut ref CCtx, expr: ref parser.Node) ref parser.Node = 
                     val f_opt = @get(fields as list[ref void], fi as usize)
                     if f_opt is some f {
                         val fn_node: ref parser.Node = f as ref parser.Node
-                        if str.rchar_cmp(fn_node.d0 as ref u8, fname) == 0 {
+                        if str.raw_cmp(fn_node.d0 as ref u8, fname) == 0 {
                             return fn_node.d2 as ref parser.Node
                         }
                     }
@@ -667,7 +667,7 @@ fn cc_is_local_declared(ctx: ref CCtx, name: ref u8) bool = trust {
         }
         val n_opt = @get(ctx.local_names as list[ref u8], ni as usize)
         if n_opt is some n {
-            if str.rchar_cmp(n as ref u8, name) == 0 {
+            if str.raw_cmp(n as ref u8, name) == 0 {
                 return true
             }
         }
@@ -685,7 +685,7 @@ fn cc_lookup_local_type(ctx: ref CCtx, name: ref u8) ref u8 = trust {
         }
         val n_opt = @get(ctx.local_names as list[ref u8], ni as usize)
         if n_opt is some n {
-            if str.rchar_cmp(n as ref u8, name) == 0 {
+            if str.raw_cmp(n as ref u8, name) == 0 {
                 val t_opt = @get(ctx.local_ctypes as list[ref u8], ni as usize)
                 if t_opt is some t {
                     return t as ref u8
@@ -708,7 +708,7 @@ fn cc_lookup_local_ty_node(ctx: ref CCtx, name: ref u8) ref parser.Node = trust 
         }
         val n_opt = @get(ctx.local_names as list[ref u8], ni as usize)
         if n_opt is some n {
-            if str.rchar_cmp(n as ref u8, name) == 0 {
+            if str.raw_cmp(n as ref u8, name) == 0 {
                 val t_opt = @get(ctx.local_ty_nodes as list[ref parser.Node], ni as usize)
                 if t_opt is some t {
                     return t as ref parser.Node
@@ -737,7 +737,7 @@ fn cc_has_module_val(ctx: ref CCtx, name: ref u8) bool = trust {
         }
         val n_opt = @get(ctx.gnames as list[ref u8], ni as usize)
         if n_opt is some n {
-            if str.rchar_cmp(n as ref u8, name) == 0 {
+            if str.raw_cmp(n as ref u8, name) == 0 {
                 return true
             }
         }
@@ -748,7 +748,7 @@ fn cc_has_module_val(ctx: ref CCtx, name: ref u8) bool = trust {
 
 fn cc_register_module_global(ctx: ref CCtx, name: ref u8, mod_prefix: ref u8, ty_node: ref parser.Node) ref u8 = trust {
     val mangled: ref u8 = @alloc(512) as ref u8
-    if str.rchar_cmp(mod_prefix, "") == 0 {
+    if str.raw_cmp(mod_prefix, "") == 0 {
         @snprintf(mangled, 512, "sx__{s}", {name})
     }
     else {
@@ -757,7 +757,7 @@ fn cc_register_module_global(ctx: ref CCtx, name: ref u8, mod_prefix: ref u8, ty
     if !cc_has_module_val(ctx, name) {
         cc_register_module_val(ctx, name, mangled, ty_node)
     }
-    if str.rchar_cmp(mod_prefix, "") != 0 {
+    if str.raw_cmp(mod_prefix, "") != 0 {
         val m: ref u8 = @alloc(512) as ref u8
         @snprintf(m, 512, "{s}__{s}", {mod_prefix, name})
         if !cc_has_module_val(ctx, m) {
@@ -776,7 +776,7 @@ fn cc_resolve_module_val(ctx: ref CCtx, name: ref u8) ref u8 = trust {
         }
         val n_opt = @get(ctx.gnames as list[ref u8], ni as usize)
         if n_opt is some n {
-            if str.rchar_cmp(n as ref u8, name) == 0 {
+            if str.raw_cmp(n as ref u8, name) == 0 {
                 val s_opt = @get(ctx.gsyms as list[ref u8], ni as usize)
                 if s_opt is some s {
                     return s as ref u8
@@ -799,7 +799,7 @@ fn cc_lookup_module_val_ty_node(ctx: ref CCtx, name: ref u8) ref parser.Node = t
         }
         val n_opt = @get(ctx.gnames as list[ref u8], ni as usize)
         if n_opt is some n {
-            if str.rchar_cmp(n as ref u8, name) == 0 {
+            if str.raw_cmp(n as ref u8, name) == 0 {
                 val t_opt = @get(ctx.gty_nodes as list[ref parser.Node], ni as usize)
                 if t_opt is some t {
                     return t as ref parser.Node
@@ -815,7 +815,7 @@ fn cc_lookup_module_val_ty_node(ctx: ref CCtx, name: ref u8) ref parser.Node = t
 
 fn cc_lookup_ident_type(ctx: ref CCtx, name: ref u8) ref u8 = trust {
     val lt: ref u8 = cc_lookup_local_type(ctx, name)
-    if str.rchar_cmp(lt, "") != 0 {
+    if str.raw_cmp(lt, "") != 0 {
         return lt
     }
     val gt: ref parser.Node = cc_lookup_module_val_ty_node(ctx, name)
@@ -834,7 +834,7 @@ fn cc_mark_prefix_used(ctx: ref CCtx, prefix: ref u8) void = trust {
         }
         val n_opt = @get(ctx.used_prefixes as list[ref u8], ni as usize)
         if n_opt is some n {
-            if str.rchar_cmp(n as ref u8, prefix) == 0 {
+            if str.raw_cmp(n as ref u8, prefix) == 0 {
                 return
             }
         }
@@ -859,37 +859,37 @@ fn c_type_of(ty: ref parser.Node) ref u8 = trust {
     }
     if k == parser.TY_NAMED {
         val name: ref u8 = ty.d0 as ref u8
-        if str.rchar_cmp(name, "i8") == 0 {
+        if str.raw_cmp(name, "i8") == 0 {
             return "int8_t"
         }
-        if str.rchar_cmp(name, "u8") == 0 {
+        if str.raw_cmp(name, "u8") == 0 {
             return "uint8_t"
         }
-        if str.rchar_cmp(name, "i16") == 0 {
+        if str.raw_cmp(name, "i16") == 0 {
             return "int16_t"
         }
-        if str.rchar_cmp(name, "u16") == 0 {
+        if str.raw_cmp(name, "u16") == 0 {
             return "uint16_t"
         }
-        if str.rchar_cmp(name, "i32") == 0 {
+        if str.raw_cmp(name, "i32") == 0 {
             return "int32_t"
         }
-        if str.rchar_cmp(name, "u32") == 0 {
+        if str.raw_cmp(name, "u32") == 0 {
             return "uint32_t"
         }
-        if str.rchar_cmp(name, "i64") == 0 {
+        if str.raw_cmp(name, "i64") == 0 {
             return "int64_t"
         }
-        if str.rchar_cmp(name, "usize") == 0 {
+        if str.raw_cmp(name, "usize") == 0 {
             return "uint64_t"
         }
-        if str.rchar_cmp(name, "bool") == 0 {
+        if str.raw_cmp(name, "bool") == 0 {
             return "int32_t"
         }
-        if str.rchar_cmp(name, "f32") == 0 {
+        if str.raw_cmp(name, "f32") == 0 {
             return "float"
         }
-        if str.rchar_cmp(name, "f64") == 0 {
+        if str.raw_cmp(name, "f64") == 0 {
             return "double"
         }
         return "int64_t"
@@ -1003,7 +1003,7 @@ fn cc_lookup_generic_fn(ctx: ref CCtx, name: ref u8) ref parser.Node = trust {
         val n_opt = @get(ctx.gfn_names, ni as usize)
         if n_opt is some n {
             val candidate: ref u8 = n as ref u8
-            if str.rchar_cmp(candidate, name) == 0 {
+            if str.raw_cmp(candidate, name) == 0 {
                 @free(suffix)
                 val nd_opt = @get(ctx.gfn_nodes as list[ref void], ni as usize)
                 if nd_opt is some nd {
@@ -1016,7 +1016,7 @@ fn cc_lookup_generic_fn(ctx: ref CCtx, name: ref u8) ref parser.Node = trust {
             val slen: i64 = namelen + 2
             if clen > slen {
                 val tail: ref u8 = @ptradd(candidate, clen - slen) as ref u8
-                if str.rchar_cmp(tail, suffix) == 0 {
+                if str.raw_cmp(tail, suffix) == 0 {
                     found_idx = ni
                 }
             }
@@ -1047,13 +1047,13 @@ fn cc_generic_fn_qualified_name(node: ref parser.Node, mod_prefix: ref u8) ref u
     }
     val is_std_child: mut bool = false
     for scn in get_std_child_names() {
-        if str.rchar_cmp(scn, mod_prefix) == 0 {
+        if str.raw_cmp(scn, mod_prefix) == 0 {
             is_std_child = true break
         }
     }
     val qualified: ref u8 = @alloc(512) as ref u8
-    if str.rchar_cmp(mod_prefix, "") == 0 {
-        if str.rchar_cmp(base, "main") == 0 {
+    if str.raw_cmp(mod_prefix, "") == 0 {
+        if str.raw_cmp(base, "main") == 0 {
             @snprintf(qualified, 512, "{s}", {base})
         }
         else {
@@ -1089,7 +1089,7 @@ fn cc_gsubst_resolve(ctx: ref CCtx, ty: ref parser.Node) ref parser.Node = trust
         }
         val n_opt = @get(ctx.gsubst_names, ni as usize)
         if n_opt is some n {
-            if str.rchar_cmp(n as ref u8, name) == 0 {
+            if str.raw_cmp(n as ref u8, name) == 0 {
                 val t_opt = @get(ctx.gsubst_tnodes as list[ref void], ni as usize)
                 if t_opt is some t {
                     return t as ref parser.Node
@@ -1112,7 +1112,7 @@ fn cc_gsubst_resolve_name(ctx: ref CCtx, name: ref u8) ref u8 = trust {
         }
         val n_opt = @get(ctx.gsubst_names, ni as usize)
         if n_opt is some n {
-            if str.rchar_cmp(n as ref u8, name) == 0 {
+            if str.raw_cmp(n as ref u8, name) == 0 {
                 val t_opt = @get(ctx.gsubst_tnodes as list[ref void], ni as usize)
                 if t_opt is some t {
                     val resolved: ref parser.Node = t as ref parser.Node
@@ -1315,7 +1315,7 @@ fn cc_gwhen_matches(ctx: ref CCtx, when_node: ref parser.Node) bool = trust {
                         if t_opt is some t {
                             val resolved_t: ref parser.Node = cc_gsubst_resolve(ctx, t as ref parser.Node)
                             val ts: ref u8 = cc_type_node_to_str(resolved_t)
-                            if str.rchar_cmp(concrete_str, ts) == 0 {
+                            if str.raw_cmp(concrete_str, ts) == 0 {
                                 matched = true
                             }
                         }
@@ -1332,7 +1332,7 @@ fn cc_gwhen_matches(ctx: ref CCtx, when_node: ref parser.Node) bool = trust {
                     if t_opt is some t {
                         val resolved_t2: ref parser.Node = cc_gsubst_resolve(ctx, t as ref parser.Node)
                         val ts: ref u8 = cc_type_node_to_str(resolved_t2)
-                        if str.rchar_cmp(concrete_str, ts) == 0 {
+                        if str.raw_cmp(concrete_str, ts) == 0 {
                             matched2 = true
                         }
                     }
@@ -1353,7 +1353,7 @@ fn cc_gwhen_matches(ctx: ref CCtx, when_node: ref parser.Node) bool = trust {
                         if t_opt3 is some t3 {
                             val resolved_t3: ref parser.Node = cc_gsubst_resolve(ctx, t3 as ref parser.Node)
                             val ts3: ref u8 = cc_type_node_to_str(resolved_t3)
-                            if str.rchar_cmp(concrete_str, ts3) == 0 {
+                            if str.raw_cmp(concrete_str, ts3) == 0 {
                                 matched3 = true
                             }
                         }
@@ -1547,7 +1547,7 @@ fn cc_is_c_escape_expr(node: ref parser.Node) bool = trust {
             return false
         }
         if cur.kind == parser.NK_IDENT {
-            return str.rchar_cmp(cur.d0 as ref u8, "C") == 0
+            return str.raw_cmp(cur.d0 as ref u8, "C") == 0
         }
         if cur.kind != parser.NK_FIELD {
             return false
@@ -1563,7 +1563,7 @@ fn cc_raw_c_name(node: ref parser.Node) ref u8 = trust {
     }
     if node.kind == parser.NK_IDENT {
         val name: ref u8 = node.d0 as ref u8
-        if str.rchar_cmp(name, "C") == 0 {
+        if str.raw_cmp(name, "C") == 0 {
             return ""
         }
         return name
@@ -1571,7 +1571,7 @@ fn cc_raw_c_name(node: ref parser.Node) ref u8 = trust {
     if node.kind == parser.NK_FIELD {
         val base_raw: ref u8 = cc_raw_c_name(parser.field_base(node))
         val fname: ref u8 = parser.field_name(node)
-        if str.rchar_cmp(base_raw, "") == 0 {
+        if str.raw_cmp(base_raw, "") == 0 {
             return fname
         }
         val buf: ref u8 = @alloc(512) as ref u8
@@ -1587,7 +1587,7 @@ fn cc_raw_c_name_tracked(ctx: ref CCtx, node: ref parser.Node) ref u8 = trust {
     }
     if node.kind == parser.NK_IDENT {
         val name: ref u8 = node.d0 as ref u8
-        if str.rchar_cmp(name, "C") == 0 {
+        if str.raw_cmp(name, "C") == 0 {
             return cc_expr_track_borrowed(ctx, "")
         }
         return cc_expr_track_borrowed(ctx, name)
@@ -1595,7 +1595,7 @@ fn cc_raw_c_name_tracked(ctx: ref CCtx, node: ref parser.Node) ref u8 = trust {
     if node.kind == parser.NK_FIELD {
         val base_raw: ref u8 = cc_raw_c_name_tracked(ctx, parser.field_base(node))
         val fname: ref u8 = parser.field_name(node)
-        if str.rchar_cmp(base_raw, "") == 0 {
+        if str.raw_cmp(base_raw, "") == 0 {
             return cc_expr_track_borrowed(ctx, fname)
         }
         val buf: ref u8 = @alloc(512) as ref u8
@@ -1649,7 +1649,7 @@ fn cc_register_fn(ctx: ref CCtx, node: ref parser.Node, mangled: ref u8, params:
         }
         val n_opt = @get(ctx.fn_names as list[ref u8], ni as usize)
         if n_opt is some n {
-            if str.rchar_cmp(n as ref u8, mangled) == 0 {
+            if str.raw_cmp(n as ref u8, mangled) == 0 {
                 return
             }
         }
@@ -1704,7 +1704,7 @@ fn cc_lookup_fn_params(ctx: ref CCtx, mangled: ref u8) ref void = trust {
         }
         val n_opt = @get(ctx.fn_names as list[ref u8], ni as usize)
         if n_opt is some n {
-            if str.rchar_cmp(n as ref u8, mangled) == 0 {
+            if str.raw_cmp(n as ref u8, mangled) == 0 {
                 val p_opt = @get(ctx.fn_params as list[ref void], ni as usize)
                 if p_opt is some p {
                     return p as ref void
@@ -1730,13 +1730,13 @@ fn cc_lookup_fn_ret(ctx: ref CCtx, name: ref u8) ref parser.Node = trust {
         val n_opt = @get(ctx.fn_names as list[ref u8], ni as usize)
         if n_opt is some n {
             val candidate: ref u8 = n as ref u8
-            val matches: mut bool = str.rchar_cmp(candidate, name) == 0
+            val matches: mut bool = str.raw_cmp(candidate, name) == 0
             if !matches {
                 val clen: i64 = str.len_raw(candidate)
                 val slen: i64 = str.len_raw(name) + 2
                 if clen > slen {
                     val tail: ref u8 = @ptradd(candidate, clen - slen) as ref u8
-                    if str.rchar_cmp(tail, suffix) == 0 {
+                    if str.raw_cmp(tail, suffix) == 0 {
                         matches = true
                     }
                 }
@@ -1766,11 +1766,11 @@ fn cc_resolve_fn_name(ctx: ref CCtx, name: ref u8) ref u8 = trust {
     val sx_name: ref u8 = @alloc(namelen + 5) as ref u8
     @snprintf(sx_name, namelen + 5, "sx__{s}", {name})
     val cur_name: mut ref u8 = none
-    if str.rchar_cmp(ctx.current_prefix, "") != 0 {
+    if str.raw_cmp(ctx.current_prefix, "") != 0 {
         val cur_prefix_len: i64 = str.len_raw(ctx.current_prefix)
         val is_sc: mut bool = false
         for scn in get_std_child_names() {
-            if str.rchar_cmp(scn, ctx.current_prefix) == 0 {
+            if str.raw_cmp(scn, ctx.current_prefix) == 0 {
                 is_sc = true break
             }
         }
@@ -1793,7 +1793,7 @@ fn cc_resolve_fn_name(ctx: ref CCtx, name: ref u8) ref u8 = trust {
         val n_opt = @get(ctx.fn_names as list[ref u8], ni as usize)
         if n_opt is some n {
             val candidate: ref u8 = n as ref u8
-            if str.rchar_cmp(candidate, name) == 0 {
+            if str.raw_cmp(candidate, name) == 0 {
                 @free(suffix)
                 @free(sx_name)
                 if cur_name != none {
@@ -1802,7 +1802,7 @@ fn cc_resolve_fn_name(ctx: ref CCtx, name: ref u8) ref u8 = trust {
                 cc_mark_prefix_used(ctx, "")
                 return candidate
             }
-            if str.rchar_cmp(candidate, sx_name) == 0 {
+            if str.raw_cmp(candidate, sx_name) == 0 {
                 @free(suffix)
                 @free(sx_name)
                 if cur_name != none {
@@ -1811,7 +1811,7 @@ fn cc_resolve_fn_name(ctx: ref CCtx, name: ref u8) ref u8 = trust {
                 cc_mark_prefix_used(ctx, "")
                 return candidate
             }
-            if cur_name != none && str.rchar_cmp(candidate, cur_name) == 0 {
+            if cur_name != none && str.raw_cmp(candidate, cur_name) == 0 {
                 @free(suffix)
                 @free(sx_name)
                 @free(cur_name)
@@ -1822,7 +1822,7 @@ fn cc_resolve_fn_name(ctx: ref CCtx, name: ref u8) ref u8 = trust {
             val slen: i64 = namelen + 2
             if clen > slen {
                 val tail: ref u8 = @ptradd(candidate, clen - slen) as ref u8
-                if str.rchar_cmp(tail, suffix) == 0 {
+                if str.raw_cmp(tail, suffix) == 0 {
                     found = candidate
                 }
             }
@@ -1856,7 +1856,7 @@ fn cc_lookup_extern_symbol(ctx: ref CCtx, name: ref u8) ref u8 = trust {
         }
         val n_opt = @get(ctx.ext_names as list[ref u8], ni as usize)
         if n_opt is some n {
-            if str.rchar_cmp(n as ref u8, name) == 0 {
+            if str.raw_cmp(n as ref u8, name) == 0 {
                 val s_opt = @get(ctx.ext_syms as list[ref u8], ni as usize)
                 if s_opt is some s {
                     return s as ref u8
@@ -1883,7 +1883,7 @@ fn cc_lookup_struct(ctx: ref CCtx, tname: ref u8) ref void = trust {
         }
         val n_opt = @get(ctx.snames as list[ref u8], ni as usize)
         if n_opt is some n {
-            if str.rchar_cmp(n as ref u8, tname) == 0 {
+            if str.raw_cmp(n as ref u8, tname) == 0 {
                 val f_opt = @get(ctx.sfields as list[ref void], ni as usize)
                 if f_opt is some f {
                     return f as ref void
@@ -1915,7 +1915,7 @@ fn cc_lookup_struct(ctx: ref CCtx, tname: ref u8) ref void = trust {
             }
             val sn_opt = @get(ctx.snames as list[ref u8], si as usize)
             if sn_opt is some sn {
-                if str.rchar_cmp(sn as ref u8, suffix) == 0 {
+                if str.raw_cmp(sn as ref u8, suffix) == 0 {
                     val sf_opt = @get(ctx.sfields as list[ref void], si as usize)
                     if sf_opt is some sf {
                         return sf as ref void
@@ -2039,19 +2039,19 @@ fn c_size_of(ctx: ref CCtx, ty: ref parser.Node) i64 = trust {
     }
     if k == parser.TY_NAMED {
         val name: ref u8 = resolved_ty.d0 as ref u8
-        if str.rchar_cmp(name, "i8") == 0 || str.rchar_cmp(name, "u8") == 0 {
+        if str.raw_cmp(name, "i8") == 0 || str.raw_cmp(name, "u8") == 0 {
             return 1
         }
-        if str.rchar_cmp(name, "i16") == 0 || str.rchar_cmp(name, "u16") == 0 {
+        if str.raw_cmp(name, "i16") == 0 || str.raw_cmp(name, "u16") == 0 {
             return 2
         }
-        if str.rchar_cmp(name, "i32") == 0 || str.rchar_cmp(name, "u32") == 0 || str.rchar_cmp(name, "bool") == 0 || str.rchar_cmp(name, "u8") == 0 {
+        if str.raw_cmp(name, "i32") == 0 || str.raw_cmp(name, "u32") == 0 || str.raw_cmp(name, "bool") == 0 || str.raw_cmp(name, "u8") == 0 {
             return 4
         }
-        if str.rchar_cmp(name, "i64") == 0 || str.rchar_cmp(name, "usize") == 0 || str.rchar_cmp(name, "f64") == 0 {
+        if str.raw_cmp(name, "i64") == 0 || str.raw_cmp(name, "usize") == 0 || str.raw_cmp(name, "f64") == 0 {
             return 8
         }
-        if str.rchar_cmp(name, "f32") == 0 {
+        if str.raw_cmp(name, "f32") == 0 {
             return 4
         }
 
@@ -2090,19 +2090,19 @@ fn cc_c_abi_size_of(ctx: ref CCtx, ty: ref parser.Node) i64 = trust {
     }
     if k == parser.TY_NAMED {
         val name: ref u8 = resolved_ty.d0 as ref u8
-        if str.rchar_cmp(name, "i8") == 0 || str.rchar_cmp(name, "u8") == 0 {
+        if str.raw_cmp(name, "i8") == 0 || str.raw_cmp(name, "u8") == 0 {
             return 1
         }
-        if str.rchar_cmp(name, "bool") == 0 {
+        if str.raw_cmp(name, "bool") == 0 {
             return 1
         }
-        if str.rchar_cmp(name, "i16") == 0 || str.rchar_cmp(name, "u16") == 0 {
+        if str.raw_cmp(name, "i16") == 0 || str.raw_cmp(name, "u16") == 0 {
             return 2
         }
-        if str.rchar_cmp(name, "i32") == 0 || str.rchar_cmp(name, "u32") == 0 || str.rchar_cmp(name, "f32") == 0 {
+        if str.raw_cmp(name, "i32") == 0 || str.raw_cmp(name, "u32") == 0 || str.raw_cmp(name, "f32") == 0 {
             return 4
         }
-        if str.rchar_cmp(name, "i64") == 0 || str.rchar_cmp(name, "u64") == 0 || str.rchar_cmp(name, "usize") == 0 || str.rchar_cmp(name, "isize") == 0 || str.rchar_cmp(name, "f64") == 0 {
+        if str.raw_cmp(name, "i64") == 0 || str.raw_cmp(name, "u64") == 0 || str.raw_cmp(name, "usize") == 0 || str.raw_cmp(name, "isize") == 0 || str.raw_cmp(name, "f64") == 0 {
             return 8
         }
         val fields: ref void = cc_lookup_struct(ctx, name)
@@ -2136,16 +2136,16 @@ fn cc_c_abi_align_of(ctx: ref CCtx, ty: ref parser.Node) i64 = trust {
     }
     if k == parser.TY_NAMED {
         val name: ref u8 = resolved_ty.d0 as ref u8
-        if str.rchar_cmp(name, "i8") == 0 || str.rchar_cmp(name, "u8") == 0 || str.rchar_cmp(name, "bool") == 0 {
+        if str.raw_cmp(name, "i8") == 0 || str.raw_cmp(name, "u8") == 0 || str.raw_cmp(name, "bool") == 0 {
             return 1
         }
-        if str.rchar_cmp(name, "i16") == 0 || str.rchar_cmp(name, "u16") == 0 {
+        if str.raw_cmp(name, "i16") == 0 || str.raw_cmp(name, "u16") == 0 {
             return 2
         }
-        if str.rchar_cmp(name, "i32") == 0 || str.rchar_cmp(name, "u32") == 0 || str.rchar_cmp(name, "f32") == 0 {
+        if str.raw_cmp(name, "i32") == 0 || str.raw_cmp(name, "u32") == 0 || str.raw_cmp(name, "f32") == 0 {
             return 4
         }
-        if str.rchar_cmp(name, "i64") == 0 || str.rchar_cmp(name, "u64") == 0 || str.rchar_cmp(name, "usize") == 0 || str.rchar_cmp(name, "isize") == 0 || str.rchar_cmp(name, "f64") == 0 {
+        if str.raw_cmp(name, "i64") == 0 || str.raw_cmp(name, "u64") == 0 || str.raw_cmp(name, "usize") == 0 || str.raw_cmp(name, "isize") == 0 || str.raw_cmp(name, "f64") == 0 {
             return 8
         }
         val fields: ref void = cc_lookup_struct(ctx, name)
@@ -2169,7 +2169,7 @@ fn cc_c_abi_type_of(ctx: ref CCtx, ty: ref parser.Node) ref u8 = trust {
     }
     if resolved_ty != none && resolved_ty.kind == parser.TY_NAMED {
         val name: ref u8 = resolved_ty.d0 as ref u8
-        if str.rchar_cmp(name, "bool") == 0 {
+        if str.raw_cmp(name, "bool") == 0 {
             return "_Bool"
         }
     }
@@ -2184,12 +2184,12 @@ fn cc_expr_is_zero_init_like(expr: ref parser.Node) bool = trust {
         return true
     }
     if expr.kind == parser.NK_INT_LIT {
-        return str.rchar_cmp(parser.int_lit_text(expr), "0") == 0
+        return str.raw_cmp(parser.int_lit_text(expr), "0") == 0
     }
     if expr.kind == parser.NK_CAST {
         val inner: ref parser.Node = expr.d0 as ref parser.Node
         if inner != none && inner.kind == parser.NK_INT_LIT {
-            return str.rchar_cmp(parser.int_lit_text(inner), "0") == 0
+            return str.raw_cmp(parser.int_lit_text(inner), "0") == 0
         }
     }
     return false
@@ -2276,7 +2276,7 @@ fn cc_lookup_tv(ctx: ref CCtx, vname: ref u8, out_owner: ref void, out_field_ty:
         }
         val n_opt = @get(ctx.tv_names as list[ref u8], ni as usize)
         if n_opt is some n {
-            if str.rchar_cmp(n as ref u8, vname) == 0 {
+            if str.raw_cmp(n as ref u8, vname) == 0 {
                 val tag_opt = @get(ctx.tv_tags as list[i64], ni as usize)
                 if tag_opt is some tag {
                     val o_opt = @get(ctx.tv_owners as list[ref u8], ni as usize)
@@ -2310,7 +2310,7 @@ fn cc_const_val(ctx: ref CCtx, name: ref u8) ref u8 = trust {
         }
         val n_opt = @get(ctx.mc_names as list[ref u8], ni as usize)
         if n_opt is some n {
-            if str.rchar_cmp(n as ref u8, name) == 0 {
+            if str.raw_cmp(n as ref u8, name) == 0 {
                 val v_opt = @get(ctx.mc_vals as list[ref u8], ni as usize)
                 if v_opt is some v {
                     return v as ref u8
@@ -2327,12 +2327,12 @@ fn cc_fixed_arr_size_val(ctx: ref CCtx, ty: ref parser.Node) i64 = trust {
         return 0
     }
     val sz_name: ref u8 = parser.fixed_arr_size_name(ty)
-    if sz_name == none || str.rchar_cmp(sz_name, "") == 0 {
+    if sz_name == none || str.raw_cmp(sz_name, "") == 0 {
         return parser.fixed_arr_size(ty)
     }
     val exact: ref u8 = cc_const_val(ctx, sz_name)
     val ctext: mut ref u8 = exact
-    if str.rchar_cmp(ctext, "") == 0 {
+    if str.raw_cmp(ctext, "") == 0 {
         val slen: i64 = str.len_raw(sz_name)
         val mapped: ref u8 = @alloc(slen * 2 + 1) as ref u8
         val si: mut i64 = 0
@@ -2355,7 +2355,7 @@ fn cc_fixed_arr_size_val(ctx: ref CCtx, ty: ref parser.Node) i64 = trust {
         @store8(@ptradd(mapped as ref void, mi), 0)
         ctext = cc_const_val(ctx, mapped)
     }
-    if str.rchar_cmp(ctext, "") == 0 {
+    if str.raw_cmp(ctext, "") == 0 {
         return 0
     }
     val parsed = fmt.string_to_i64(ctext)
@@ -2425,7 +2425,7 @@ fn field_offset_bytes(ctx: ref CCtx, fields: ref void, field_name: ref u8) i64 =
                 val fn_node2: ref parser.Node = f2 as ref parser.Node
                 val fty2: ref parser.Node = fn_node2.d2 as ref parser.Node
                 off2 = cc_align_to(off2, cc_c_abi_align_of(ctx, fty2))
-                if str.rchar_cmp(fn_node2.d0 as ref u8, field_name) == 0 {
+                if str.raw_cmp(fn_node2.d0 as ref u8, field_name) == 0 {
                     return off2
                 }
                 off2 = off2 + cc_c_abi_size_of(ctx, fty2)
@@ -2445,7 +2445,7 @@ fn field_offset_bytes(ctx: ref CCtx, fields: ref void, field_name: ref u8) i64 =
         if f_opt is some f {
             val fn_node: ref parser.Node = f as ref parser.Node
             val fn_: ref u8 = fn_node.d0 as ref u8
-            if str.rchar_cmp(fn_, field_name) == 0 {
+            if str.raw_cmp(fn_, field_name) == 0 {
                 return off
             }
             val fty: ref parser.Node = fn_node.d2 as ref parser.Node
@@ -2466,7 +2466,7 @@ fn resolve_callee_name_tracked(ctx: ref CCtx, callee: ref parser.Node) ref u8 = 
     if callee.kind == parser.NK_IDENT {
         val name: ref u8 = callee.d0 as ref u8
         val resolved: ref u8 = cc_gsubst_resolve_name(ctx, name)
-        if str.rchar_cmp(resolved, "") != 0 {
+        if str.raw_cmp(resolved, "") != 0 {
             return resolved
         }
         return name
@@ -2479,7 +2479,7 @@ fn resolve_callee_name_tracked(ctx: ref CCtx, callee: ref parser.Node) ref u8 = 
                 val bname: ref u8 = base.d0 as ref u8
                 val resolved_base: ref u8 = cc_gsubst_resolve_name(ctx, bname)
                 val use_base: mut ref u8 = bname
-                if str.rchar_cmp(resolved_base, "") != 0 {
+                if str.raw_cmp(resolved_base, "") != 0 {
                     use_base = resolved_base
                 }
                 val buf: ref u8 = @alloc(512) as ref u8
@@ -2493,7 +2493,7 @@ fn resolve_callee_name_tracked(ctx: ref CCtx, callee: ref parser.Node) ref u8 = 
                     val bname2: ref u8 = b2.d0 as ref u8
                     val resolved_base2: ref u8 = cc_gsubst_resolve_name(ctx, bname2)
                     val use_base2: mut ref u8 = bname2
-                    if str.rchar_cmp(resolved_base2, "") != 0 {
+                    if str.raw_cmp(resolved_base2, "") != 0 {
                         use_base2 = resolved_base2
                     }
                     val buf: ref u8 = @alloc(512) as ref u8
@@ -2507,7 +2507,7 @@ fn resolve_callee_name_tracked(ctx: ref CCtx, callee: ref parser.Node) ref u8 = 
                         val bname3: ref u8 = b3.d0 as ref u8
                         val resolved_base3: ref u8 = cc_gsubst_resolve_name(ctx, bname3)
                         val use_base3: mut ref u8 = bname3
-                        if str.rchar_cmp(resolved_base3, "") != 0 {
+                        if str.raw_cmp(resolved_base3, "") != 0 {
                             use_base3 = resolved_base3
                         }
                         val buf: ref u8 = @alloc(512) as ref u8
@@ -2532,7 +2532,7 @@ fn resolve_callee_name(ctx: ref CCtx, callee: ref parser.Node) ref u8 = trust {
     if callee.kind == parser.NK_IDENT {
         val name: ref u8 = callee.d0 as ref u8
         val resolved: ref u8 = cc_gsubst_resolve_name(ctx, name)
-        if str.rchar_cmp(resolved, "") != 0 {
+        if str.raw_cmp(resolved, "") != 0 {
             return resolved
         }
         return name
@@ -2545,7 +2545,7 @@ fn resolve_callee_name(ctx: ref CCtx, callee: ref parser.Node) ref u8 = trust {
                 val bname: ref u8 = base.d0 as ref u8
                 val resolved_base: ref u8 = cc_gsubst_resolve_name(ctx, bname)
                 val use_base: mut ref u8 = bname
-                if str.rchar_cmp(resolved_base, "") != 0 {
+                if str.raw_cmp(resolved_base, "") != 0 {
                     use_base = resolved_base
                 }
                 val buf: ref u8 = @alloc(512) as ref u8
@@ -2559,7 +2559,7 @@ fn resolve_callee_name(ctx: ref CCtx, callee: ref parser.Node) ref u8 = trust {
                     val bname2: ref u8 = b2.d0 as ref u8
                     val resolved_base2: ref u8 = cc_gsubst_resolve_name(ctx, bname2)
                     val use_base2: mut ref u8 = bname2
-                    if str.rchar_cmp(resolved_base2, "") != 0 {
+                    if str.raw_cmp(resolved_base2, "") != 0 {
                         use_base2 = resolved_base2
                     }
                     val buf: ref u8 = @alloc(512) as ref u8
@@ -2573,7 +2573,7 @@ fn resolve_callee_name(ctx: ref CCtx, callee: ref parser.Node) ref u8 = trust {
                         val bname3: ref u8 = b3.d0 as ref u8
                         val resolved_base3: ref u8 = cc_gsubst_resolve_name(ctx, bname3)
                         val use_base3: mut ref u8 = bname3
-                        if str.rchar_cmp(resolved_base3, "") != 0 {
+                        if str.raw_cmp(resolved_base3, "") != 0 {
                             use_base3 = resolved_base3
                         }
                         val buf: ref u8 = @alloc(512) as ref u8
@@ -2802,17 +2802,17 @@ fn gen_expr(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
     if k == parser.NK_IDENT {
         val name: ref u8 = expr.d0 as ref u8
         val cval: ref u8 = cc_const_val(ctx, name)
-        if str.rchar_cmp(cval, "") != 0 {
+        if str.raw_cmp(cval, "") != 0 {
             val buf: ref u8 = @alloc(128) as ref u8
             @snprintf(buf, 128, "({s})", {cval}) return cc_expr_track(ctx, buf)
         }
         val lt: ref u8 = cc_lookup_local_type(ctx, name)
-        if str.rchar_cmp(lt, "") != 0 {
+        if str.raw_cmp(lt, "") != 0 {
             val buf: ref u8 = @alloc(128) as ref u8
             @snprintf(buf, 128, "t_{s}", {name}) return cc_expr_track(ctx, buf)
         }
         val gn: ref u8 = cc_resolve_global_name(ctx, name)
-        if str.rchar_cmp(gn, "") != 0 {
+        if str.raw_cmp(gn, "") != 0 {
             val buf: ref u8 = @alloc(128) as ref u8
             @snprintf(buf, 128, "{s}", {gn}) return cc_expr_track(ctx, buf)
         }
@@ -2851,7 +2851,7 @@ fn gen_expr(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
         val inner_ty_some: ref parser.Node = cc_infer_expr_ty(ctx, expr.d0 as ref parser.Node)
         if inner_ty_some != none {
             val inner_ct_some: ref u8 = c_type_of(inner_ty_some)
-            if str.rchar_cmp(inner_ct_some, "double") == 0 || str.rchar_cmp(inner_ct_some, "float") == 0 {
+            if str.raw_cmp(inner_ct_some, "double") == 0 || str.raw_cmp(inner_ct_some, "float") == 0 {
                 val tbox: i64 = fresh_tmp(ctx)
                 val decl_box: ref u8 = @alloc(512) as ref u8
                 @snprintf(decl_box, 512, "{s}*sx__some{lld}=({s}*)calloc(1,sizeof({s}));*sx__some{lld}=({s})({s});\n",
@@ -2951,7 +2951,7 @@ fn gen_expr(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
         val inner_node: ref parser.Node = expr.d0 as ref parser.Node
         if inner_node != none && inner_node.kind == parser.NK_INT_LIT {
             val itext: ref u8 = parser.int_lit_text(inner_node)
-            if str.rchar_cmp(itext, "0") == 0 &&
+            if str.raw_cmp(itext, "0") == 0 &&
             target_ty != none &&
             target_ty.kind == parser.TY_NAMED {
                 val sfields: ref void = cc_lookup_struct(ctx, target_ty.d0 as ref u8)
@@ -2984,14 +2984,14 @@ fn gen_expr(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
                 @snprintf(buf, 256, "(int64_t)(intptr_t)&{s}", {resolved}) return cc_expr_track(ctx, buf)
             }
             val lt: ref u8 = cc_lookup_local_type(ctx, iname)
-            if str.rchar_cmp(lt, "") != 0 {
-                if str.rchar_cmp(lt, "i64") != 0 && str.rchar_cmp(lt, "u64") != 0 &&
-                str.rchar_cmp(lt, "i32") != 0 && str.rchar_cmp(lt, "u32") != 0 &&
-                str.rchar_cmp(lt, "i16") != 0 && str.rchar_cmp(lt, "u16") != 0 &&
-                str.rchar_cmp(lt, "i8") != 0 && str.rchar_cmp(lt, "u8") != 0 &&
-                str.rchar_cmp(lt, "f64") != 0 && str.rchar_cmp(lt, "f32") != 0 &&
-                str.rchar_cmp(lt, "u8") != 0 && str.rchar_cmp(lt, "bool") != 0 &&
-                str.rchar_cmp(lt, "usize") != 0 && str.rchar_cmp(lt, "isize") != 0 {
+            if str.raw_cmp(lt, "") != 0 {
+                if str.raw_cmp(lt, "i64") != 0 && str.raw_cmp(lt, "u64") != 0 &&
+                str.raw_cmp(lt, "i32") != 0 && str.raw_cmp(lt, "u32") != 0 &&
+                str.raw_cmp(lt, "i16") != 0 && str.raw_cmp(lt, "u16") != 0 &&
+                str.raw_cmp(lt, "i8") != 0 && str.raw_cmp(lt, "u8") != 0 &&
+                str.raw_cmp(lt, "f64") != 0 && str.raw_cmp(lt, "f32") != 0 &&
+                str.raw_cmp(lt, "u8") != 0 && str.raw_cmp(lt, "bool") != 0 &&
+                str.raw_cmp(lt, "usize") != 0 && str.raw_cmp(lt, "isize") != 0 {
                     val buf: ref u8 = @alloc(128) as ref u8
                     @snprintf(buf, 128, "t_{s}", {iname}) return cc_expr_track(ctx, buf)
                 }
@@ -3007,9 +3007,9 @@ fn gen_expr(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
         }
         if inner_node.kind == parser.NK_BUILTIN {
             val bname: ref u8 = inner_node.d0 as ref u8
-            if str.rchar_cmp(bname, "alloc") == 0 || str.rchar_cmp(bname, "realloc") == 0 ||
-            str.rchar_cmp(bname, "ptradd") == 0 || str.rchar_cmp(bname, "fmt") == 0 ||
-            str.rchar_cmp(bname, "args") == 0 {
+            if str.raw_cmp(bname, "alloc") == 0 || str.raw_cmp(bname, "realloc") == 0 ||
+            str.raw_cmp(bname, "ptradd") == 0 || str.raw_cmp(bname, "fmt") == 0 ||
+            str.raw_cmp(bname, "args") == 0 {
                 return gen_expr(ctx, inner_node)
             }
         }
@@ -3161,15 +3161,15 @@ fn gen_field(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
         @snprintf(key, 512, "{s}__{s}", {base_name, fname})
         val cval: ref u8 = cc_const_val(ctx, key)
         @free(key)
-        if str.rchar_cmp(cval, "") != 0 {
+        if str.raw_cmp(cval, "") != 0 {
             @snprintf(buf, 512, "({s})", {cval}) return cc_expr_track(ctx, buf)
         }
         val base_lt: ref u8 = cc_lookup_ident_type(ctx, base_name)
-        if str.rchar_cmp(base_lt, "") == 0 {
+        if str.raw_cmp(base_lt, "") == 0 {
             val qkey: ref u8 = @alloc(512) as ref u8
             @snprintf(qkey, 512, "{s}__{s}", {base_name, fname})
             val gn: ref u8 = cc_resolve_global_name(ctx, qkey)
-            if str.rchar_cmp(gn, "") != 0 {
+            if str.raw_cmp(gn, "") != 0 {
                 @free(qkey)
                 @snprintf(buf, 512, "((int64_t){s})", {gn})
                 return cc_expr_track(ctx, buf)
@@ -3192,11 +3192,11 @@ fn gen_field(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
             @snprintf(key, 512, "{s}__{s}__{s}", {mid_node.d0 as ref u8, mid_name, fname})
             val cval: ref u8 = cc_const_val(ctx, key)
             @free(key)
-            if str.rchar_cmp(cval, "") != 0 {
+            if str.raw_cmp(cval, "") != 0 {
                 @snprintf(buf, 512, "({s})", {cval}) return cc_expr_track(ctx, buf)
             }
             val mid_lt: ref u8 = cc_lookup_ident_type(ctx, mid_node.d0 as ref u8)
-            if str.rchar_cmp(mid_lt, "") == 0 {
+            if str.raw_cmp(mid_lt, "") == 0 {
                 val qkey: ref u8 = @alloc(512) as ref u8
                 @snprintf(qkey, 512, "{s}__{s}__{s}", {mid_node.d0 as ref u8, mid_name, fname})
                 val resolved: ref u8 = cc_resolve_fn_name(ctx, qkey)
@@ -3228,7 +3228,7 @@ fn gen_field(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
         if mid_node2 != none && mid_node2.kind == parser.NK_IDENT {
             mid_type = cc_lookup_ident_type(ctx, mid_node2.d0 as ref u8)
         }
-        if str.rchar_cmp(mid_type, "") != 0 {
+        if str.raw_cmp(mid_type, "") != 0 {
             val mid_fields: mut ref void = cc_lookup_struct(ctx, mid_type)
             if mid_fields == none {
                 val mtlen: i64 = str.len_raw(mid_type)
@@ -3258,7 +3258,7 @@ fn gen_field(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
                     val mf_opt = @get(mid_fields as list[ref void], mfi as usize)
                     if mf_opt is some mf {
                         val mf_node: ref parser.Node = mf as ref parser.Node
-                        if str.rchar_cmp(mf_node.d0 as ref u8, mid_name2) == 0 {
+                        if str.raw_cmp(mf_node.d0 as ref u8, mid_name2) == 0 {
                             val fty: ref parser.Node = mf_node.d2 as ref parser.Node
                             if fty != none {
                                 base_type = cc_spectre_type_name_of(ctx, fty)
@@ -3270,14 +3270,14 @@ fn gen_field(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
             }
         }
     }
-    if str.rchar_cmp(base_type, "") == 0 {
+    if str.raw_cmp(base_type, "") == 0 {
         val base_ty2: ref parser.Node = cc_infer_expr_ty(ctx, base_node)
         if base_ty2 != none {
             base_type = cc_spectre_type_name_of(ctx, base_ty2)
         }
     }
     val fields: mut ref void = cc_lookup_struct(ctx, base_type)
-    if fields == none && str.rchar_cmp(base_type, "") != 0 {
+    if fields == none && str.raw_cmp(base_type, "") != 0 {
         val btlen: i64 = str.len_raw(base_type)
         val dotpos: mut i64 = -1
         val bi: mut i64 = 0
@@ -3310,10 +3310,10 @@ fn gen_field(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
             return cc_expr_track(ctx, buf)
         }
     }
-    if str.rchar_cmp(fname, "len") == 0 || str.rchar_cmp(fname, "length") == 0 {
+    if str.raw_cmp(fname, "len") == 0 || str.raw_cmp(fname, "length") == 0 {
         @snprintf(buf, 512, "(*(int64_t*)((char*)(intptr_t)({s})+8))", {base}) return cc_expr_track(ctx, buf)
     }
-    if str.rchar_cmp(fname, "cap") == 0 || str.rchar_cmp(fname, "capacity") == 0 {
+    if str.raw_cmp(fname, "cap") == 0 || str.raw_cmp(fname, "capacity") == 0 {
         @snprintf(buf, 512, "(*(int64_t*)((char*)(intptr_t)({s})+16))", {base}) return cc_expr_track(ctx, buf)
     }
     @snprintf(buf, 512, "(*(int64_t*)((char*)(intptr_t)({s})))", {base})
@@ -3479,7 +3479,7 @@ fn gen_call(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
                         val fty_opt = @get(vtfields as list[ref parser.Node], ai as usize)
                         if fty_opt is some fty {
                             val fct: ref u8 = c_type_of(fty as ref parser.Node)
-                            if str.rchar_cmp(fct, "double") == 0 || str.rchar_cmp(fct, "float") == 0 {
+                            if str.raw_cmp(fct, "double") == 0 || str.raw_cmp(fct, "float") == 0 {
                                 is_float_field = true field_ct = fct
                             }
                         }
@@ -3527,11 +3527,11 @@ fn gen_call(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
         effective = ext_sym
     }
 
-    val is_print: bool = str.rchar_cmp(callee_name, "print") == 0
-    || str.rchar_cmp(effective, "std__stdio__print") == 0
+    val is_print: bool = str.raw_cmp(callee_name, "print") == 0
+    || str.raw_cmp(effective, "std__stdio__print") == 0
     || str.rchar_ends_with(callee_name, "__print")
     || str.rchar_ends_with(callee_name, "__eprint")
-    || str.rchar_cmp(callee_name, "print") == 0
+    || str.raw_cmp(callee_name, "print") == 0
     val is_eprint: bool = str.rchar_ends_with(callee_name, "__eprint")
 
     if is_print && args != none {
@@ -3577,7 +3577,7 @@ fn gen_call(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
                                         val is_float_arg: mut bool = false
                                         if pe_ty != none && pe_ty.kind == parser.TY_NAMED {
                                             val tname: ref u8 = pe_ty.d0 as ref u8
-                                            if str.rchar_cmp(tname, "f64") == 0 || str.rchar_cmp(tname, "f32") == 0 {
+                                            if str.raw_cmp(tname, "f64") == 0 || str.raw_cmp(tname, "f32") == 0 {
                                                 is_float_arg = true
                                             }
                                         }
@@ -3598,7 +3598,7 @@ fn gen_call(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
                                 val is_float_arg2: mut bool = false
                                 if pa_ty != none && pa_ty.kind == parser.TY_NAMED {
                                     val tname2: ref u8 = pa_ty.d0 as ref u8
-                                    if str.rchar_cmp(tname2, "f64") == 0 || str.rchar_cmp(tname2, "f32") == 0 {
+                                    if str.raw_cmp(tname2, "f64") == 0 || str.raw_cmp(tname2, "f32") == 0 {
                                         is_float_arg2 = true
                                     }
                                 }
@@ -3660,7 +3660,7 @@ fn gen_builtin(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
     val bname: ref u8 = expr.d0 as ref u8
     val args: ref void = expr.d1 as ref void
 
-    if str.rchar_cmp(bname, "staticerror") == 0 {
+    if str.raw_cmp(bname, "staticerror") == 0 {
         val msg: mut ref u8 = ""
         if args != none {
             val arg0_opt = @get(args as list[ref parser.Node], 0)
@@ -3673,7 +3673,7 @@ fn gen_builtin(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
         }
         val line: i64 = expr.line
         val filename: ref u8 = ctx.current_src_file
-        if str.rchar_cmp(filename, "") == 0 {
+        if str.raw_cmp(filename, "") == 0 {
             stdio.eprint("error: line {lld}: {s}\n", {line, msg})
         } else {
             stdio.eprint("error: {s}:{lld}: {s}\n", {filename, line, msg})
@@ -3681,22 +3681,22 @@ fn gen_builtin(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
         os.exit(1)
     }
 
-    if str.rchar_cmp(bname, "alloc") == 0 {
+    if str.raw_cmp(bname, "alloc") == 0 {
         val sz: ref u8 = get_arg(ctx, args, 0)
         val buf: ref u8 = @alloc(128) as ref u8
         @snprintf(buf, 128, "(int64_t)(intptr_t)calloc(1,(size_t)({s}))", {sz}) return cc_expr_track(ctx, buf)
     }
-    if str.rchar_cmp(bname, "free") == 0 {
+    if str.raw_cmp(bname, "free") == 0 {
         val ptr: ref u8 = get_arg(ctx, args, 0)
         val buf: ref u8 = @alloc(128) as ref u8
         @snprintf(buf, 128, "(free((void*)(intptr_t)({s})),0)", {ptr}) return cc_expr_track(ctx, buf)
     }
-    if str.rchar_cmp(bname, "realloc") == 0 {
+    if str.raw_cmp(bname, "realloc") == 0 {
         val p: ref u8 = get_arg(ctx, args, 0) val s: ref u8 = get_arg(ctx, args, 1)
         val buf: ref u8 = @alloc(256) as ref u8
         @snprintf(buf, 256, "(int64_t)(intptr_t)realloc((void*)(intptr_t)({s}),(size_t)({s}))", {p, s}) return cc_expr_track(ctx, buf)
     }
-    if str.rchar_cmp(bname, "sizeof") == 0 {
+    if str.raw_cmp(bname, "sizeof") == 0 {
         if args != none {
             val alen: i64 = @len(args as list[ref parser.Node]) as i64
             if alen > 0 {
@@ -3711,7 +3711,7 @@ fn gen_builtin(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
         }
         return "8"
     }
-    if str.rchar_cmp(bname, "bitcast") == 0 {
+    if str.raw_cmp(bname, "bitcast") == 0 {
         if args != none {
             val alen: i64 = @len(args as list[ref parser.Node]) as i64
             if alen > 1 {
@@ -3729,7 +3729,7 @@ fn gen_builtin(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
         }
         return "0"
     }
-    if str.rchar_cmp(bname, "call") == 0 {
+    if str.raw_cmp(bname, "call") == 0 {
         if args == none {
             return "0"
         }
@@ -3785,7 +3785,7 @@ fn gen_builtin(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
             str.StringBuilder.append_cstr(call_sb, ")")
             val call_line_cstr: ref u8 = cc_sb_build_cstr(call_sb)
             str.StringBuilder.free(call_sb)
-            if str.rchar_cmp(ret_ct, "void") == 0 {
+            if str.raw_cmp(ret_ct, "void") == 0 {
                 val void_buf: ref u8 = @alloc(1024) as ref u8
                 @snprintf(void_buf, 1024, "({s},INT64_C(0))", {call_line_cstr})
                 @free(call_line_cstr)
@@ -3795,67 +3795,67 @@ fn gen_builtin(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
         }
         return "0"
     }
-    if str.rchar_cmp(bname, "memcpy") == 0 {
+    if str.raw_cmp(bname, "memcpy") == 0 {
         val d: ref u8 = get_arg(ctx, args, 0) val s: ref u8 = get_arg(ctx, args, 1) val n: ref u8 = get_arg(ctx, args, 2)
         val buf: ref u8 = @alloc(256) as ref u8
         @snprintf(buf, 256, "(memcpy((void*)(intptr_t)({s}),(void*)(intptr_t)({s}),(size_t)({s})),0)", {d, s, n}) return cc_expr_track(ctx, buf)
     }
-    if str.rchar_cmp(bname, "memset") == 0 {
+    if str.raw_cmp(bname, "memset") == 0 {
         val d: ref u8 = get_arg(ctx, args, 0) val v: ref u8 = get_arg(ctx, args, 1) val n: ref u8 = get_arg(ctx, args, 2)
         val buf: ref u8 = @alloc(256) as ref u8
         @snprintf(buf, 256, "(memset((void*)(intptr_t)({s}),(int)({s}),(size_t)({s})),0)", {d, v, n}) return cc_expr_track(ctx, buf)
     }
-    if str.rchar_cmp(bname, "ptradd") == 0 {
+    if str.raw_cmp(bname, "ptradd") == 0 {
         val p: ref u8 = get_arg(ctx, args, 0) val o: ref u8 = get_arg(ctx, args, 1)
         val buf: ref u8 = @alloc(256) as ref u8
         @snprintf(buf, 256, "(int64_t)(intptr_t)((char*)(intptr_t)({s})+({s}))", {p, o}) return cc_expr_track(ctx, buf)
     }
-    if str.rchar_cmp(bname, "load") == 0 || str.rchar_cmp(bname, "load64") == 0 {
+    if str.raw_cmp(bname, "load") == 0 || str.raw_cmp(bname, "load64") == 0 {
         val p: ref u8 = get_arg(ctx, args, 0)
         val buf: ref u8 = @alloc(512) as ref u8
         @snprintf(buf, 512, "(*(int64_t*)(intptr_t)({s}))", {p}) return cc_expr_track(ctx, buf)
     }
-    if str.rchar_cmp(bname, "load8") == 0 {
+    if str.raw_cmp(bname, "load8") == 0 {
         val p: ref u8 = get_arg(ctx, args, 0)
         val buf: ref u8 = @alloc(512) as ref u8
         @snprintf(buf, 512, "((int64_t)(*(uint8_t*)(intptr_t)({s})))", {p}) return cc_expr_track(ctx, buf)
     }
-    if str.rchar_cmp(bname, "load16") == 0 {
+    if str.raw_cmp(bname, "load16") == 0 {
         val p: ref u8 = get_arg(ctx, args, 0)
         val buf: ref u8 = @alloc(512) as ref u8
         @snprintf(buf, 512, "((int64_t)(*(uint16_t*)(intptr_t)({s})))", {p}) return cc_expr_track(ctx, buf)
     }
-    if str.rchar_cmp(bname, "load32") == 0 {
+    if str.raw_cmp(bname, "load32") == 0 {
         val p: ref u8 = get_arg(ctx, args, 0)
         val buf: ref u8 = @alloc(512) as ref u8
         @snprintf(buf, 512, "((int64_t)(*(int32_t*)(intptr_t)({s})))", {p}) return cc_expr_track(ctx, buf)
     }
-    if str.rchar_cmp(bname, "store") == 0 || str.rchar_cmp(bname, "store64") == 0 {
+    if str.raw_cmp(bname, "store") == 0 || str.raw_cmp(bname, "store64") == 0 {
         val p: ref u8 = get_arg(ctx, args, 0) val v: ref u8 = get_arg(ctx, args, 1)
         val buf: ref u8 = @alloc(256) as ref u8
         @snprintf(buf, 256, "(*(int64_t*)(intptr_t)({s})=(int64_t)({s}))", {p, v}) return cc_expr_track(ctx, buf)
     }
-    if str.rchar_cmp(bname, "store8") == 0 {
+    if str.raw_cmp(bname, "store8") == 0 {
         val p: ref u8 = get_arg(ctx, args, 0) val v: ref u8 = get_arg(ctx, args, 1)
         val buf: ref u8 = @alloc(256) as ref u8
         @snprintf(buf, 256, "(*(uint8_t*)(intptr_t)({s})=(uint8_t)({s}))", {p, v}) return cc_expr_track(ctx, buf)
     }
-    if str.rchar_cmp(bname, "store16") == 0 {
+    if str.raw_cmp(bname, "store16") == 0 {
         val p: ref u8 = get_arg(ctx, args, 0) val v: ref u8 = get_arg(ctx, args, 1)
         val buf: ref u8 = @alloc(256) as ref u8
         @snprintf(buf, 256, "(*(uint16_t*)(intptr_t)({s})=(uint16_t)({s}))", {p, v}) return cc_expr_track(ctx, buf)
     }
-    if str.rchar_cmp(bname, "store32") == 0 {
+    if str.raw_cmp(bname, "store32") == 0 {
         val p: ref u8 = get_arg(ctx, args, 0) val v: ref u8 = get_arg(ctx, args, 1)
         val buf: ref u8 = @alloc(256) as ref u8
         @snprintf(buf, 256, "(*(int32_t*)(intptr_t)({s})=(int32_t)({s}))", {p, v}) return cc_expr_track(ctx, buf)
     }
-    if str.rchar_cmp(bname, "len") == 0 {
+    if str.raw_cmp(bname, "len") == 0 {
         val l: ref u8 = get_arg(ctx, args, 0)
         val buf: ref u8 = @alloc(256) as ref u8
         @snprintf(buf, 256, "({s}==0?0:(*(int64_t*)((char*)(intptr_t)({s})+8)))", {l, l}) return cc_expr_track(ctx, buf)
     }
-    if str.rchar_cmp(bname, "append") == 0 {
+    if str.raw_cmp(bname, "append") == 0 {
         val e: ref u8 = get_arg(ctx, args, 1)
         val buf: ref u8 = @alloc(512) as ref u8
         val list_arg_opt = @get(args as list[ref parser.Node], 0 as usize)
@@ -3868,7 +3868,7 @@ fn gen_builtin(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
             if lan.kind == parser.NK_IDENT {
                 val iname: ref u8 = lan.d0 as ref u8
                 val lt2: ref u8 = cc_lookup_local_type(ctx, iname)
-                if str.rchar_cmp(lt2, "") != 0 {
+                if str.raw_cmp(lt2, "") != 0 {
                     @snprintf(buf, 512, "sx__rt_append_f((int64_t*)&t_{s},(int64_t)({s}))", {iname, e}) return cc_expr_track(ctx, buf)
                 }
             }
@@ -3876,7 +3876,7 @@ fn gen_builtin(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
         val l: ref u8 = get_arg(ctx, args, 0)
         @snprintf(buf, 512, "sx__rt_append((void*)(intptr_t)({s}),(int64_t)({s}))", {l, e}) return cc_expr_track(ctx, buf)
     }
-    if str.rchar_cmp(bname, "get") == 0 {
+    if str.raw_cmp(bname, "get") == 0 {
         val target_opt = @get(args as list[ref parser.Node], 0 as usize)
         val target_ty: mut ref parser.Node = none
         if target_opt is some target_node {
@@ -3922,7 +3922,7 @@ fn gen_builtin(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
                         } else {
                             val elem_ct: ref u8 = cc_c_type_of(ctx, next_ty)
                             val done_buf: ref u8 = @alloc(768) as ref u8
-                            if str.rchar_cmp(elem_ct, "double") == 0 || str.rchar_cmp(elem_ct, "float") == 0 {
+                            if str.raw_cmp(elem_ct, "double") == 0 || str.raw_cmp(elem_ct, "float") == 0 {
                                 @snprintf(done_buf, 768, "{s}*sx__getbox{lld}=({s}*)calloc(1,sizeof({s}));*sx__getbox{lld}=*({s}*)(intptr_t)((int64_t)(intptr_t)((char*)(intptr_t)sx__getc{lld}+(sx__geti{lld}*{lld})));sx__getr{lld}=((int64_t)(intptr_t)sx__getbox{lld})+1;goto sx__get_end{lld};\n",
                                     {elem_ct, res_t, elem_ct, elem_ct, res_t, elem_ct, cur_t, idx_t, elem_sz, res_t, res_t, res_t})
                             } else {
@@ -3952,27 +3952,27 @@ fn gen_builtin(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
         val buf: ref u8 = @alloc(256) as ref u8
         @snprintf(buf, 256, "sx__rt_get((void*)(intptr_t)({s}),(int64_t)({s}))", {l, i}) return cc_expr_track(ctx, buf)
     }
-    if str.rchar_cmp(bname, "set") == 0 {
+    if str.raw_cmp(bname, "set") == 0 {
         val l: ref u8 = get_arg(ctx, args, 0) val i: ref u8 = get_arg(ctx, args, 1) val v: ref u8 = get_arg(ctx, args, 2)
         val buf: ref u8 = @alloc(512) as ref u8
         @snprintf(buf, 512, "((*(int64_t**)(intptr_t)({s}))[(int64_t)({s})]=(int64_t)({s}),0)", {l, i, v}) return cc_expr_track(ctx, buf)
     }
-    if str.rchar_cmp(bname, "remove") == 0 {
+    if str.raw_cmp(bname, "remove") == 0 {
         val l: ref u8 = get_arg(ctx, args, 0) val i: ref u8 = get_arg(ctx, args, 1)
         val buf: ref u8 = @alloc(256) as ref u8
         @snprintf(buf, 256, "sx__rt_remove((void*)(intptr_t)({s}),(int64_t)({s}))", {l, i}) return cc_expr_track(ctx, buf)
     }
-    if str.rchar_cmp(bname, "reserve") == 0 {
+    if str.raw_cmp(bname, "reserve") == 0 {
         val l: ref u8 = get_arg(ctx, args, 0) val c: ref u8 = get_arg(ctx, args, 1)
         val buf: ref u8 = @alloc(256) as ref u8
         @snprintf(buf, 256, "sx__rt_reserve((void*)(intptr_t)({s}),(int64_t)({s}))", {l, c}) return cc_expr_track(ctx, buf)
     }
-    if str.rchar_cmp(bname, "capacity") == 0 {
+    if str.raw_cmp(bname, "capacity") == 0 {
         val l: ref u8 = get_arg(ctx, args, 0)
         val buf: ref u8 = @alloc(128) as ref u8
         @snprintf(buf, 128, "(*(int64_t*)((char*)(intptr_t)({s})+16))", {l}) return cc_expr_track(ctx, buf)
     }
-    if str.rchar_cmp(bname, "fmt") == 0 {
+    if str.raw_cmp(bname, "fmt") == 0 {
         val f: ref u8 = get_format_arg(ctx, args, 0) val p: mut ref u8 = "0"
         if args != none {
             val alen: i64 = @len(args as list[ref parser.Node]) as i64
@@ -3993,29 +3993,29 @@ fn gen_builtin(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
         @snprintf(buf, 512, "(int64_t)(intptr_t)sx__rt_fmt((const char*)(intptr_t)({s}),(int64_t*)(intptr_t)({s}))", {f, p})
         return cc_expr_track(ctx, buf)
     }
-    if str.rchar_cmp(bname, "args") == 0 {
+    if str.raw_cmp(bname, "args") == 0 {
         return "(int64_t)(intptr_t)sx__rt_get_args()"
     }
-    if str.rchar_cmp(bname, "puts") == 0 {
+    if str.raw_cmp(bname, "puts") == 0 {
         val s: ref u8 = get_arg(ctx, args, 0)
         val buf: ref u8 = @alloc(256) as ref u8
         @snprintf(buf, 256, "puts((const char*)(intptr_t)({s}))", {s}) return cc_expr_track(ctx, buf)
     }
-    if str.rchar_cmp(bname, "flush") == 0 {
+    if str.raw_cmp(bname, "flush") == 0 {
         return "(fflush(stdout),0)"
     }
-    if str.rchar_cmp(bname, "stdin") == 0 {
+    if str.raw_cmp(bname, "stdin") == 0 {
         return "(int64_t)(intptr_t)stdin"
     }
-    if str.rchar_cmp(bname, "fgets") == 0 {
+    if str.raw_cmp(bname, "fgets") == 0 {
         val b: ref u8 = get_arg(ctx, args, 0) val n: ref u8 = get_arg(ctx, args, 1) val s: ref u8 = get_arg(ctx, args, 2)
         val buf: ref u8 = @alloc(512) as ref u8
         @snprintf(buf, 512, "(int64_t)(intptr_t)fgets((char*)(intptr_t)({s}),(int)({s}),(FILE*)(intptr_t)({s}))", {b, n, s}) return cc_expr_track(ctx, buf)
     }
-    if str.rchar_cmp(bname, "getchar") == 0 {
+    if str.raw_cmp(bname, "getchar") == 0 {
         return "(int64_t)(int)getchar()"
     }
-    if str.rchar_cmp(bname, "snprintf") == 0 {
+    if str.raw_cmp(bname, "snprintf") == 0 {
         val sb: ref void = str.StringBuilder.new()
         val dest_arg: ref u8 = get_arg(ctx, args, 0)
         val sz_arg: ref u8 = get_arg(ctx, args, 1)
@@ -4058,7 +4058,7 @@ fn gen_builtin(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
         str.StringBuilder.free(sb)
         return cc_expr_track(ctx, buf)
     }
-    if str.rchar_cmp(bname, "dprintf") == 0 {
+    if str.raw_cmp(bname, "dprintf") == 0 {
         val fd: ref u8 = get_arg(ctx, args, 0)
         val fmt_arg: ref u8 = get_format_arg(ctx, args, 1)
         if args != none {
@@ -4103,7 +4103,7 @@ fn gen_builtin(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
         val buf: ref u8 = @alloc(4096) as ref u8
         @snprintf(buf, 4096, "sx__dprintf((int)({s}),(const char*)(intptr_t)({s}))", {fd, fmt_arg}) return cc_expr_track(ctx, buf)
     }
-    if (str.rchar_cmp(bname, "print") == 0) {
+    if (str.raw_cmp(bname, "print") == 0) {
         val fmt_arg: ref u8 = get_format_arg(ctx, args, 0)
         if args != none {
             val alen: i64 = @len(args as list[ref parser.Node]) as i64
@@ -4315,7 +4315,7 @@ fn gen_field_addr(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
         if mid_node3 != none && mid_node3.kind == parser.NK_IDENT {
             mid_type3 = cc_lookup_ident_type(ctx, mid_node3.d0 as ref u8)
         }
-        if str.rchar_cmp(mid_type3, "") != 0 {
+        if str.raw_cmp(mid_type3, "") != 0 {
             val mid_fields3: mut ref void = cc_lookup_struct(ctx, mid_type3)
             if mid_fields3 == none {
                 val mtlen3: i64 = str.len_raw(mid_type3)
@@ -4345,7 +4345,7 @@ fn gen_field_addr(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
                     val mf_opt3 = @get(mid_fields3 as list[ref void], mfi3 as usize)
                     if mf_opt3 is some mf3 {
                         val mfn3: ref parser.Node = mf3 as ref parser.Node
-                        if str.rchar_cmp(mfn3.d0 as ref u8, mid_name3) == 0 {
+                        if str.raw_cmp(mfn3.d0 as ref u8, mid_name3) == 0 {
                             val fty3: ref parser.Node = mfn3.d2 as ref parser.Node
                             if fty3 != none {
                                 bt = cc_spectre_type_name_of(ctx, fty3)
@@ -4358,7 +4358,7 @@ fn gen_field_addr(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
         }
     }
     val fields: mut ref void = cc_lookup_struct(ctx, bt)
-    if fields == none && str.rchar_cmp(bt, "") != 0 {
+    if fields == none && str.raw_cmp(bt, "") != 0 {
         val btlen2: i64 = str.len_raw(bt)
         val dotpos2: mut i64 = -1
         val bi2: mut i64 = 0
@@ -4382,10 +4382,10 @@ fn gen_field_addr(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
             off = ro
         }
     }
-    elif str.rchar_cmp(fname, "len") == 0 {
+    elif str.raw_cmp(fname, "len") == 0 {
         off = 8
     }
-    elif str.rchar_cmp(fname, "cap") == 0 {
+    elif str.raw_cmp(fname, "cap") == 0 {
         off = 16
     }
     val buf: ref u8 = @alloc(4096) as ref u8
@@ -4407,7 +4407,7 @@ fn cc_field_size_from_fields(ctx: ref CCtx, fields: ref void, fname: ref u8) i64
         val f_opt = @get(fields as list[ref void], fi as usize)
         if f_opt is some f {
             val fn_node: ref parser.Node = f as ref parser.Node
-            if str.rchar_cmp(fn_node.d0 as ref u8, fname) == 0 {
+            if str.raw_cmp(fn_node.d0 as ref u8, fname) == 0 {
                 if use_c_abi {
                     return cc_c_abi_size_of(ctx, fn_node.d2 as ref parser.Node)
                 }
@@ -4432,7 +4432,7 @@ fn cc_field_ty_from_fields(ctx: ref CCtx, fields: ref void, fname: ref u8) ref p
         val f_opt = @get(fields as list[ref void], fi as usize)
         if f_opt is some f {
             val fn_node: ref parser.Node = f as ref parser.Node
-            if str.rchar_cmp(fn_node.d0 as ref u8, fname) == 0 {
+            if str.raw_cmp(fn_node.d0 as ref u8, fname) == 0 {
                 return cc_concrete_ty(ctx, fn_node.d2 as ref parser.Node)
             }
         }
@@ -4472,7 +4472,7 @@ fn cc_field_size_of_expr(ctx: mut ref CCtx, expr: ref parser.Node) i64 = trust {
         if mid_node4 != none && mid_node4.kind == parser.NK_IDENT {
             mid_type4 = cc_lookup_ident_type(ctx, mid_node4.d0 as ref u8)
         }
-        if str.rchar_cmp(mid_type4, "") != 0 {
+        if str.raw_cmp(mid_type4, "") != 0 {
             val mid_fields4: mut ref void = cc_lookup_struct(ctx, mid_type4)
             if mid_fields4 == none {
                 val mtlen4: i64 = str.len_raw(mid_type4)
@@ -4502,7 +4502,7 @@ fn cc_field_size_of_expr(ctx: mut ref CCtx, expr: ref parser.Node) i64 = trust {
                     val mf_opt4 = @get(mid_fields4 as list[ref void], mfi4 as usize)
                     if mf_opt4 is some mf4 {
                         val mfn4: ref parser.Node = mf4 as ref parser.Node
-                        if str.rchar_cmp(mfn4.d0 as ref u8, mid_name4) == 0 {
+                        if str.raw_cmp(mfn4.d0 as ref u8, mid_name4) == 0 {
                             val fty4: ref parser.Node = mfn4.d2 as ref parser.Node
                             if fty4 != none {
                                 bt = cc_spectre_type_name_of(ctx, fty4)
@@ -4514,14 +4514,14 @@ fn cc_field_size_of_expr(ctx: mut ref CCtx, expr: ref parser.Node) i64 = trust {
             }
         }
     }
-    if str.rchar_cmp(bt, "") == 0 {
+    if str.raw_cmp(bt, "") == 0 {
         val base_ty: ref parser.Node = cc_infer_expr_ty(ctx, base_node)
         if base_ty != none {
             bt = cc_spectre_type_name_of(ctx, base_ty)
         }
     }
     val fields: mut ref void = cc_lookup_struct(ctx, bt)
-    if fields == none && str.rchar_cmp(bt, "") != 0 {
+    if fields == none && str.raw_cmp(bt, "") != 0 {
         val btlen2: i64 = str.len_raw(bt)
         val dotpos2: mut i64 = -1
         val bi2: mut i64 = 0
@@ -4565,7 +4565,7 @@ fn cc_field_ctype_of_expr(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = tru
         if mid_node4 != none && mid_node4.kind == parser.NK_IDENT {
             mid_type4 = cc_lookup_ident_type(ctx, mid_node4.d0 as ref u8)
         }
-        if str.rchar_cmp(mid_type4, "") != 0 {
+        if str.raw_cmp(mid_type4, "") != 0 {
             val mid_fields4: mut ref void = cc_lookup_struct(ctx, mid_type4)
             if mid_fields4 == none {
                 val mtlen4: i64 = str.len_raw(mid_type4)
@@ -4595,7 +4595,7 @@ fn cc_field_ctype_of_expr(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = tru
                     val mf_opt4 = @get(mid_fields4 as list[ref void], mfi4 as usize)
                     if mf_opt4 is some mf4 {
                         val mfn4: ref parser.Node = mf4 as ref parser.Node
-                        if str.rchar_cmp(mfn4.d0 as ref u8, mid_name4) == 0 {
+                        if str.raw_cmp(mfn4.d0 as ref u8, mid_name4) == 0 {
                             val fty4: ref parser.Node = mfn4.d2 as ref parser.Node
                             if fty4 != none {
                                 bt = cc_spectre_type_name_of(ctx, fty4)
@@ -4607,14 +4607,14 @@ fn cc_field_ctype_of_expr(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = tru
             }
         }
     }
-    if str.rchar_cmp(bt, "") == 0 {
+    if str.raw_cmp(bt, "") == 0 {
         val base_ty: ref parser.Node = cc_infer_expr_ty(ctx, base_node)
         if base_ty != none {
             bt = cc_spectre_type_name_of(ctx, base_ty)
         }
     }
     val fields: mut ref void = cc_lookup_struct(ctx, bt)
-    if fields == none && str.rchar_cmp(bt, "") != 0 {
+    if fields == none && str.raw_cmp(bt, "") != 0 {
         val btlen2: i64 = str.len_raw(bt)
         val dotpos2: mut i64 = -1
         val bi2: mut i64 = 0
@@ -4777,7 +4777,7 @@ fn gen_stmt(ctx: mut ref CCtx, stmt: ref parser.Node) void = trust {
             val name: ref u8 = target.d0 as ref u8
             val gn: ref u8 = cc_resolve_global_name(ctx, name)
             val buf: ref u8 = @alloc(4096) as ref u8
-            if str.rchar_cmp(gn, "") != 0 {
+            if str.raw_cmp(gn, "") != 0 {
                 @snprintf(buf, 4096, "{s}=({s});\n", {gn, val_str})
             }
             else {
@@ -4966,7 +4966,7 @@ fn gen_stmt(ctx: mut ref CCtx, stmt: ref parser.Node) void = trust {
             val name: ref u8 = tgt.d0 as ref u8
             val gn: ref u8 = cc_resolve_global_name(ctx, name)
             val buf: ref u8 = @alloc(128) as ref u8
-            if str.rchar_cmp(gn, "") != 0 {
+            if str.raw_cmp(gn, "") != 0 {
                 @snprintf(buf, 128, "{s}++;\n", {gn})
             }
             else {
@@ -4994,7 +4994,7 @@ fn gen_stmt(ctx: mut ref CCtx, stmt: ref parser.Node) void = trust {
             val name: ref u8 = tgt.d0 as ref u8
             val gn: ref u8 = cc_resolve_global_name(ctx, name)
             val buf: ref u8 = @alloc(128) as ref u8
-            if str.rchar_cmp(gn, "") != 0 {
+            if str.raw_cmp(gn, "") != 0 {
                 @snprintf(buf, 128, "{s}--;\n", {gn})
             }
             else {
@@ -5022,7 +5022,7 @@ fn gen_stmt(ctx: mut ref CCtx, stmt: ref parser.Node) void = trust {
             val name: ref u8 = tgt.d0 as ref u8
             val gn: ref u8 = cc_resolve_global_name(ctx, name)
             val buf: ref u8 = @alloc(256) as ref u8
-            if str.rchar_cmp(gn, "") != 0 {
+            if str.raw_cmp(gn, "") != 0 {
                 @snprintf(buf, 256, "{s}+=({s});\n", {gn, rhs})
             }
             else {
@@ -5047,7 +5047,7 @@ fn gen_stmt(ctx: mut ref CCtx, stmt: ref parser.Node) void = trust {
             val name: ref u8 = tgt.d0 as ref u8
             val gn: ref u8 = cc_resolve_global_name(ctx, name)
             val buf: ref u8 = @alloc(256) as ref u8
-            if str.rchar_cmp(gn, "") != 0 {
+            if str.raw_cmp(gn, "") != 0 {
                 @snprintf(buf, 256, "{s}-=({s});\n", {gn, rhs})
             }
             else {
@@ -5294,7 +5294,7 @@ fn gen_match_opt(ctx: mut ref CCtx, stmt: ref parser.Node) void = trust {
             bind_ty = opt_inner
         }
         val vb: ref u8 = @alloc(256) as ref u8
-        if str.rchar_cmp(bind_ctype, "double") == 0 || str.rchar_cmp(bind_ctype, "float") == 0 {
+        if str.raw_cmp(bind_ctype, "double") == 0 || str.raw_cmp(bind_ctype, "float") == 0 {
             @snprintf(vb, 256, "{s} t_{s}=*(({s}*)(intptr_t)(sx__mv{lld}-1));\n", {bind_ctype, sb, bind_ctype, t})
         } else {
             @snprintf(vb, 256, "int64_t t_{s}=sx__mv{lld}-1;\n", {sb, t})
@@ -5372,12 +5372,12 @@ fn gen_match_enum(ctx: mut ref CCtx, stmt: ref parser.Node) void = trust {
             val type_name: ref u8 = an.d2 as ref u8
             val eval_str: ref u8 = @alloc(32) as ref u8
             @snprintf(eval_str, 32, "{lld}", {ai})
-            if type_name != none && str.rchar_cmp(type_name, "") != 0 {
+            if type_name != none && str.raw_cmp(type_name, "") != 0 {
                 val key: ref u8 = @alloc(512) as ref u8
                 @snprintf(key, 512, "{s}__{s}", {type_name, variant_name})
                 val found: ref u8 = cc_const_val(ctx, key)
                 @free(key)
-                if str.rchar_cmp(found, "") != 0 {
+                if str.raw_cmp(found, "") != 0 {
                     @snprintf(eval_str, 32, "{s}", {found})
                 }
             }
@@ -5574,7 +5574,7 @@ fn gen_match_tagged_union(ctx: mut ref CCtx, stmt: ref parser.Node) void = trust
                         val b_opt = @get(bindings, bi as usize)
                         if b_opt is some b {
                             val bn: ref u8 = b as ref u8
-                            if str.rchar_cmp(bn, "_") != 0 {
+                            if str.raw_cmp(bn, "_") != 0 {
                                 val off: i64 = 8 + bi * 8
                                 val bb: ref u8 = @alloc(1024) as ref u8
                                 val is_float_bind: mut bool = false
@@ -5585,7 +5585,7 @@ fn gen_match_tagged_union(ctx: mut ref CCtx, stmt: ref parser.Node) void = trust
                                     val fty_opt2 = @get(vtfields2 as list[ref parser.Node], bi as usize)
                                     if fty_opt2 is some fty2 {
                                         val fct2: ref u8 = c_type_of(fty2 as ref parser.Node)
-                                        if str.rchar_cmp(fct2, "double") == 0 || str.rchar_cmp(fct2, "float") == 0 {
+                                        if str.raw_cmp(fct2, "double") == 0 || str.raw_cmp(fct2, "float") == 0 {
                                             is_float_bind = true bind_ct = fct2
                                             bind_st = cc_spectre_type_name_of(ctx, fty2 as ref parser.Node)
                                             bind_ty = fty2 as ref parser.Node
@@ -5631,13 +5631,13 @@ fn gen_fn_prefixed(ctx: mut ref CCtx, fn_node: ref parser.Node, mod_prefix: ref 
     }
     val is_std_child: mut bool = false
     for scn in get_std_child_names() {
-        if str.rchar_cmp(scn, mod_prefix) == 0 {
+        if str.raw_cmp(scn, mod_prefix) == 0 {
             is_std_child = true break
         }
     }
     val mangled: ref u8 = @alloc(512) as ref u8
-    if str.rchar_cmp(mod_prefix, "") == 0 {
-        if str.rchar_cmp(base, "main") == 0 {
+    if str.raw_cmp(mod_prefix, "") == 0 {
+        if str.raw_cmp(base, "main") == 0 {
             @snprintf(mangled, 512, "{s}", {base})
         }
         else {
@@ -5654,14 +5654,14 @@ fn gen_fn_prefixed(ctx: mut ref CCtx, fn_node: ref parser.Node, mod_prefix: ref 
     }
     ctx.fn_name = mangled
     val saved_prefix: ref u8 = ctx.current_prefix
-    if str.rchar_cmp(mod_prefix, "") != 0 || str.rchar_cmp(saved_prefix, "") == 0 {
+    if str.raw_cmp(mod_prefix, "") != 0 || str.raw_cmp(saved_prefix, "") == 0 {
         ctx.current_prefix = mod_prefix
     }
     if params != none {
         cc_register_fn(ctx, fn_node, mangled, params, ret_ty as ref void, false, false)
     }
     val ret_ct: ref u8 = c_ret_type_of(ctx, ret_ty)
-    val is_main: bool = str.rchar_cmp(name, "main") == 0 && str.rchar_cmp(mod_prefix, "") == 0
+    val is_main: bool = str.raw_cmp(name, "main") == 0 && str.raw_cmp(mod_prefix, "") == 0
     ctx.current_ret_ctype = ret_ct
     ctx.current_ret_is_void = is_void_ret(ret_ty)
     ctx.current_ret_ty = ret_ty
@@ -5690,7 +5690,7 @@ fn gen_fn_prefixed(ctx: mut ref CCtx, fn_node: ref parser.Node, mod_prefix: ref 
                         emit(ctx, ",")
                     }
                     val pb: ref u8 = @alloc(1024) as ref u8
-                    if str.rchar_cmp(pn, "_") == 0 {
+                    if str.raw_cmp(pn, "_") == 0 {
                         @snprintf(pb, 1024, "{s} t__{lld}", {pct, pi})
                     } else {
                         @snprintf(pb, 1024, "{s} t_{s}", {pct, pn})
@@ -5758,12 +5758,12 @@ fn gen_tagged_union_def(ctx: ref CCtx, item: ref parser.Node, mod_prefix: ref u8
     }
     val is_sc: mut bool = false
     for scn in get_std_child_names() {
-        if str.rchar_cmp(scn, mod_prefix) == 0 {
+        if str.raw_cmp(scn, mod_prefix) == 0 {
             is_sc = true break
         }
     }
     val vlen: i64 = @len(variants) as i64 val mangled: ref u8 = @alloc(256) as ref u8
-    if str.rchar_cmp(mod_prefix, "") == 0 {
+    if str.raw_cmp(mod_prefix, "") == 0 {
         @snprintf(mangled, 256, "{s}", {name})
     }
     else {
@@ -5779,7 +5779,7 @@ fn gen_tagged_union_def(ctx: ref CCtx, item: ref parser.Node, mod_prefix: ref u8
         if v_opt is some v {
             val vn: ref parser.Node = v as ref parser.Node val vname: ref u8 = vn.d0 as ref u8
             cc_register_tv(ctx, vname, mangled, vi, vn.d1 as ref void)
-            if str.rchar_cmp(mod_prefix, "") != 0 {
+            if str.raw_cmp(mod_prefix, "") != 0 {
                 val pv: ref u8 = @alloc(256) as ref u8
                 @snprintf(pv, 256, "{s}__{s}", {mod_prefix, vname}) cc_register_tv(ctx, pv, mangled, vi, vn.d1 as ref void)
             }
@@ -5815,7 +5815,7 @@ fn gen_union_def_prefixed(ctx: ref CCtx, item: ref parser.Node, mod_prefix: ref 
         vi++
     }
     val mangled: ref u8 = @alloc(256) as ref u8
-    if str.rchar_cmp(mod_prefix, "") == 0 {
+    if str.raw_cmp(mod_prefix, "") == 0 {
         @snprintf(mangled, 256, "{s}", {name})
     }
     else {
@@ -5838,14 +5838,14 @@ fn gen_enum_def_prefixed(ctx: ref CCtx, item: ref parser.Node, mod_prefix: ref u
         if v_opt is some v {
             val vname: ref u8 = v as ref u8
             val ck: ref u8 = @alloc(512) as ref u8 val is: ref u8 = @alloc(32) as ref u8 @snprintf(is, 32, "{lld}", {vi})
-            if str.rchar_cmp(mod_prefix, "") == 0 {
+            if str.raw_cmp(mod_prefix, "") == 0 {
                 @snprintf(ck, 512, "{s}__{s}", {name, vname})
             }
             else {
                 @snprintf(ck, 512, "{s}__{s}__{s}", {mod_prefix, name, vname})
             }
             cc_register_module_const(ctx, ck, is)
-            if str.rchar_cmp(mod_prefix, "") != 0 {
+            if str.raw_cmp(mod_prefix, "") != 0 {
                 val bk: ref u8 = @alloc(256) as ref u8 @snprintf(bk, 256, "{s}__{s}", {name, vname})
                 val is2: ref u8 = @alloc(32) as ref u8 @snprintf(is2, 32, "{lld}", {vi}) cc_register_module_const(ctx, bk, is2)
             }
@@ -5877,13 +5877,13 @@ fn preregister_items(ctx: mut ref CCtx, items: list[ref parser.Node], mod_prefix
                 }
                 val is_sc: mut bool = false
                 for scn in get_std_child_names() {
-                    if str.rchar_cmp(scn, mod_prefix) == 0 {
+                    if str.raw_cmp(scn, mod_prefix) == 0 {
                         is_sc = true break
                     }
                 }
                 val mangled: ref u8 = @alloc(512) as ref u8
-                if str.rchar_cmp(mod_prefix, "") == 0 {
-                    if str.rchar_cmp(base, "main") == 0 {
+                if str.raw_cmp(mod_prefix, "") == 0 {
+                    if str.raw_cmp(base, "main") == 0 {
                         @snprintf(mangled, 512, "{s}", {base})
                     }
                     else {
@@ -5923,7 +5923,7 @@ fn preregister_items(ctx: mut ref CCtx, items: list[ref parser.Node], mod_prefix
                 val no_forward: bool = parser.extern_fn_uses_header(node)
                 val is_sc2: mut bool = false
                 for scn2 in get_std_child_names() {
-                    if str.rchar_cmp(scn2, mod_prefix) == 0 {
+                    if str.raw_cmp(scn2, mod_prefix) == 0 {
                         is_sc2 = true break
                     }
                 }
@@ -5931,7 +5931,7 @@ fn preregister_items(ctx: mut ref CCtx, items: list[ref parser.Node], mod_prefix
                 if params != none {
                     cc_register_fn(ctx, node, symbol, params, ret_ty, is_var, no_forward)
                 }
-                if str.rchar_cmp(mod_prefix, "") != 0 {
+                if str.raw_cmp(mod_prefix, "") != 0 {
                     val m: ref u8 = @alloc(512) as ref u8
                     @snprintf(m, 512, "{s}__{s}", {mod_prefix, name}) cc_register_extern(ctx, m, symbol, ret_ty)
                     if params != none {
@@ -5984,13 +5984,13 @@ fn preregister_items(ctx: mut ref CCtx, items: list[ref parser.Node], mod_prefix
                 }
                 if cv != none {
                     cc_register_module_const(ctx, cn, cv)
-                    if str.rchar_cmp(mod_prefix, "") != 0 {
+                    if str.raw_cmp(mod_prefix, "") != 0 {
                         val pk: ref u8 = @alloc(512) as ref u8 @snprintf(pk, 512, "{s}__{s}", {mod_prefix, cn})
                         cc_register_module_const(ctx, pk, cv)
                     }
                     val is_sc3: mut bool = false
                     for scn3 in get_std_child_names() {
-                        if str.rchar_cmp(scn3, mod_prefix) == 0 {
+                        if str.raw_cmp(scn3, mod_prefix) == 0 {
                             is_sc3 = true break
                         }
                     }
@@ -6297,7 +6297,7 @@ fn is_libc_fn(name: ref u8) bool = trust {
     ]
 
     for fun in libc_fns {
-        if str.rchar_cmp(name, fun) == 0 {
+        if str.raw_cmp(name, fun) == 0 {
             return true
         }
     }
@@ -6314,7 +6314,7 @@ fn emit_forward_decls(ctx: ref CCtx) void = trust {
         val mangled_opt = @get(ctx.fn_names as list[ref u8], fi as usize)
         if mangled_opt is some mangled_ref {
             val mangled: ref u8 = mangled_ref as ref u8
-            if str.rchar_cmp(mangled, "main") == 0 {
+            if str.raw_cmp(mangled, "main") == 0 {
                 fi++ continue
             }
             if is_libc_fn(mangled) {
@@ -6399,7 +6399,7 @@ fn gen_items_with_prefix_skip_main(ctx: mut ref CCtx, items: list[ref parser.Nod
             val node: ref parser.Node = item as ref parser.Node val k: i64 = node.kind
             if k == parser.NK_FN {
                 val fname: ref u8 = node.d2 as ref u8
-                if str.rchar_cmp(fname, "main") != 0 {
+                if str.raw_cmp(fname, "main") != 0 {
                     gen_fn_prefixed(ctx, node, mod_prefix)
                 }
             } elif k == parser.NK_VAL {
@@ -6559,7 +6559,7 @@ pub fn gen_module_c_test(root: ref module.ResolvedModule, release_mode: bool, ex
         }
         if pfx_opt is some pfx {
             if items_opt is some ip {
-                val is_root: bool = str.rchar_cmp(pfx as ref u8, "") == 0
+                val is_root: bool = str.raw_cmp(pfx as ref u8, "") == 0
                 if is_root {
                     gen_items_with_prefix_skip_main(ctx, ip as list[ref parser.Node], "")
                 }

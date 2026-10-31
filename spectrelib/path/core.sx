@@ -152,16 +152,16 @@ pub fn canonicalize_path(path: ref u8) ref u8 = trust {
         val seg: ref u8 = @alloc((seg_len + 1) as usize) as ref u8
         @memcpy(seg as ref void, @ptradd(path as ref void, start), seg_len as usize)
         @store8(@ptradd(seg as ref void, seg_len), 0)
-        if str.rchar_cmp(seg, ".") == 0 {
+        if str.raw_cmp(seg, ".") == 0 {
             continue
         }
-        if str.rchar_cmp(seg, "..") == 0 {
+        if str.raw_cmp(seg, "..") == 0 {
             val segs_len: i64 = @len(segs) as i64
             if segs_len > 0 {
                 val last_opt = @get(segs, (segs_len - 1) as usize)
                 match last_opt {
                     some last => {
-                        if str.rchar_cmp(last as ref u8, "..") != 0 {
+                        if str.raw_cmp(last as ref u8, "..") != 0 {
                             @remove(segs, segs_len - 1)
                         } elif !is_abs {
                             @append(segs, seg)
@@ -214,7 +214,7 @@ pub fn canonicalize_path(path: ref u8) ref u8 = trust {
 }
 
 test {
-    assert str.rchar_cmp(trust canonicalize_path("./samples/bigproj/hi/../mod1.sx"), "./samples/bigproj/mod1.sx") == 0
-    assert str.rchar_cmp(trust canonicalize_path("samples/bigproj/hi//../mod1.sx"), "samples/bigproj/mod1.sx") == 0
-    assert str.rchar_cmp(trust canonicalize_path("../samples/../mod1.sx"), "../mod1.sx") == 0
+    assert str.raw_cmp(trust canonicalize_path("./samples/bigproj/hi/../mod1.sx"), "./samples/bigproj/mod1.sx") == 0
+    assert str.raw_cmp(trust canonicalize_path("samples/bigproj/hi//../mod1.sx"), "samples/bigproj/mod1.sx") == 0
+    assert str.raw_cmp(trust canonicalize_path("../samples/../mod1.sx"), "../mod1.sx") == 0
 }

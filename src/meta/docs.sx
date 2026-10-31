@@ -46,7 +46,7 @@ fn safe_cstr(s: ref u8) ref u8 = {
 }
 
 fn str_eq(a: ref u8, b: ref u8) bool = {
-    return str.rchar_cmp(safe_cstr(a), safe_cstr(b)) == 0
+    return str.raw_cmp(safe_cstr(a), safe_cstr(b)) == 0
 }
 
 fn is_space(c: u8) bool = {

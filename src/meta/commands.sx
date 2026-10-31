@@ -164,16 +164,16 @@ pub fn parse_sxmod(content: ref u8) ref SxMod = trust {
             break
         }
         val kw: ref u8 = ctx_read_ident(ctx)
-        if str.rchar_cmp(kw, "") == 0 {
+        if str.raw_cmp(kw, "") == 0 {
             break
         }
-        if str.rchar_cmp(kw, "entry") == 0 {
+        if str.raw_cmp(kw, "entry") == 0 {
             m.entry = ctx_read_quoted(ctx)
-        } elif str.rchar_cmp(kw, "version") == 0 {
+        } elif str.raw_cmp(kw, "version") == 0 {
             m.version = ctx_read_quoted(ctx)
-        } elif str.rchar_cmp(kw, "dep") == 0 {
+        } elif str.raw_cmp(kw, "dep") == 0 {
             @append(m.deps, ctx_read_quoted(ctx))
-        } elif str.rchar_cmp(kw, "build") == 0 {
+        } elif str.raw_cmp(kw, "build") == 0 {
             val cfg: mut ref SxBuildConfig = @alloc(@sizeof(SxBuildConfig)) as ref SxBuildConfig
             @memset(cfg as ref void, 0, @sizeof(SxBuildConfig) as usize)
             cfg.name = ctx_read_ident(ctx)
@@ -192,16 +192,16 @@ pub fn parse_sxmod(content: ref u8) ref SxMod = trust {
                     break
                 }
                 val inner: ref u8 = ctx_read_ident(ctx)
-                if str.rchar_cmp(inner, "") == 0 {
+                if str.raw_cmp(inner, "") == 0 {
                     break
                 }
-                if str.rchar_cmp(inner, "action") == 0 {
+                if str.raw_cmp(inner, "action") == 0 {
                     cfg.action = ctx_read_quoted(ctx)
-                } elif str.rchar_cmp(inner, "flags") == 0 {
+                } elif str.raw_cmp(inner, "flags") == 0 {
                     cfg.flags = ctx_read_quoted(ctx)
-                } elif str.rchar_cmp(inner, "output") == 0 {
+                } elif str.raw_cmp(inner, "output") == 0 {
                     cfg.output = ctx_read_quoted(ctx)
-                } elif str.rchar_cmp(inner, "entry") == 0 {
+                } elif str.raw_cmp(inner, "entry") == 0 {
                     cfg.entry = ctx_read_quoted(ctx)
                 } else {
                     ctx_skip_line(ctx)
@@ -220,11 +220,11 @@ pub fn parse_sxmod(content: ref u8) ref SxMod = trust {
 }
 
 fn validate_sxmod(m: ref SxMod) bool = {
-    if str.rchar_cmp(m.entry, "") == 0 {
+    if str.raw_cmp(m.entry, "") == 0 {
         return true
     }
     for cfg in m.builds {
-        if str.rchar_cmp(cfg.entry, "") != 0 {
+        if str.raw_cmp(cfg.entry, "") != 0 {
             stdio.puts("error: sx.mod cannot mix a top-level 'entry' with per-build 'entry' fields")
             return false
         }
@@ -269,13 +269,13 @@ fn parse_sxlock(content: ref u8) list[ref SxLockDep] = trust {
             break
         }
         val kw: ref u8 = ctx_read_ident(ctx)
-        if str.rchar_cmp(kw, "") == 0 {
+        if str.raw_cmp(kw, "") == 0 {
             break
         }
-        if str.rchar_cmp(kw, "dep") == 0 {
+        if str.raw_cmp(kw, "dep") == 0 {
             val url: ref u8 = ctx_read_quoted(ctx)
             val hash: ref u8 = ctx_read_quoted(ctx)
-            if str.rchar_cmp(url, "") != 0 && str.rchar_cmp(hash, "") != 0 {
+            if str.raw_cmp(url, "") != 0 && str.raw_cmp(hash, "") != 0 {
                 val dep: mut ref SxLockDep = @alloc(@sizeof(SxLockDep)) as ref SxLockDep
                 @memset(dep as ref void, 0, @sizeof(SxLockDep) as usize)
                 dep.url = url
@@ -369,7 +369,7 @@ fn load_sxlock_at(dir: ref u8) option[list[ref SxLockDep]] = trust {
 
 fn lock_hash_for_url(lock_deps: list[ref SxLockDep], url: ref u8) ref u8 = {
     for dep in lock_deps {
-        if str.rchar_cmp(dep.url, url) == 0 {
+        if str.raw_cmp(dep.url, url) == 0 {
             return dep.hash
         }
     }
@@ -378,15 +378,15 @@ fn lock_hash_for_url(lock_deps: list[ref SxLockDep], url: ref u8) ref u8 = {
 
 fn build_config_cmd(cfg: ref SxBuildConfig, exe_path: ref u8, entry: ref u8) ref u8 = trust {
     val cmd: mut ref u8 = ""
-    if str.rchar_cmp(cfg.action, "") != 0 {
+    if str.raw_cmp(cfg.action, "") != 0 {
         cmd = cfg.action
     } else {
         cmd = @fmt("{s} {s}", {exe_path, entry})
     }
-    if str.rchar_cmp(cfg.flags, "") != 0 {
+    if str.raw_cmp(cfg.flags, "") != 0 {
         cmd = @fmt("{s} {s}", {cmd, cfg.flags})
     }
-    if str.rchar_cmp(cfg.output, "") != 0 {
+    if str.raw_cmp(cfg.output, "") != 0 {
         cmd = @fmt("{s} -o {s}", {cmd, cfg.output})
     }
     return cmd
@@ -534,7 +534,7 @@ fn drop_dep_lines(filepath: ref u8, needle: ref u8) void = trust {
 }
 
 fn add_stdlib_candidate(candidates: mut list[ref u8], dir: ref u8) void = trust {
-    if str.rchar_cmp(dir, "") == 0 {
+    if str.raw_cmp(dir, "") == 0 {
         return
     }
     @append(candidates, dir)
@@ -581,7 +581,7 @@ fn copy_current_stdlib(snapshot_dir: ref u8) bool = trust {
         }
     }
 
-    if str.rchar_cmp(std_dir, "") == 0 {
+    if str.raw_cmp(std_dir, "") == 0 {
         stdio.puts("error: could not locate the Spectre standard library ('spectrelib')")
         stdio.print("  executable: {s}\n", {exe_path})
         stdio.print("  directory:  {s}\n", {exe_dir})
@@ -1066,7 +1066,7 @@ pub fn cmd_init(name_arg: ref u8) i32 = {
     }
 
     val proj_name: mut ref u8 = name_arg
-    if str.rchar_cmp(proj_name, "") == 0 {
+    if str.raw_cmp(proj_name, "") == 0 {
         val cwd_arena: mut allocators.Arena = trust allocators.Arena.new(4096 as usize)?
         val cwd_opt = trust fs.cwd[allocators.Arena](cwd_arena)
         if cwd_opt is some cwd {
@@ -1112,7 +1112,7 @@ pub fn cmd_build(config_name: ref u8, exe_path: ref u8) i32 = {
             val found_cfg: mut ref SxBuildConfig = none
             val builds: list[ref SxBuildConfig] = m.builds
             for cfg in builds {
-                if str.rchar_cmp(cfg.name, config_name) == 0 {
+                if str.raw_cmp(cfg.name, config_name) == 0 {
                     found_cfg = cfg
                     break
                 }
@@ -1123,7 +1123,7 @@ pub fn cmd_build(config_name: ref u8, exe_path: ref u8) i32 = {
             }
 
             val entry: mut ref u8 = m.entry
-            if str.rchar_cmp(found_cfg.entry, "") != 0 {
+            if str.raw_cmp(found_cfg.entry, "") != 0 {
                 entry = found_cfg.entry
             }
             val cmd: ref u8 = trust build_config_cmd(found_cfg, exe_path, entry)
@@ -1217,7 +1217,7 @@ pub fn cmd_remove(dep_name: ref u8) i32 = {
 
 fn restore_in_dir(base_dir: ref u8, visited: mut list[ref u8]) i32 = trust {
     for v in visited {
-        if str.rchar_cmp(v, base_dir) == 0 {
+        if str.raw_cmp(v, base_dir) == 0 {
             return 0
         }
     }
@@ -1263,7 +1263,7 @@ fn restore_in_dir(base_dir: ref u8, visited: mut list[ref u8]) i32 = trust {
 
     for dep_url in sxmod.deps {
         val hash: ref u8 = lock_hash_for_url(lock_deps, dep_url)
-        if str.rchar_cmp(hash, "") == 0 {
+        if str.raw_cmp(hash, "") == 0 {
             stdio.print("error: '{s}' missing from sx.lock in {s}\n", {dep_url, base_dir})
             return 1
         }
@@ -1276,7 +1276,7 @@ fn restore_in_dir(base_dir: ref u8, visited: mut list[ref u8]) i32 = trust {
             return 1
         }
 
-        if str.rchar_cmp(hash, "unknown") != 0 {
+        if str.raw_cmp(hash, "unknown") != 0 {
             if os.run(@fmt("git -C {s} checkout --quiet {s}", {lib_path, hash})) != 0 {
                 stdio.print("error: failed to checkout {s} for {s}\n", {hash, dep_url})
                 return 1
@@ -1332,7 +1332,7 @@ pub fn cmd_restore() i32 = trust {
 
     for dep_url in sxmod.deps {
         val hash: ref u8 = lock_hash_for_url(lock_deps, dep_url)
-        if str.rchar_cmp(hash, "") == 0 {
+        if str.raw_cmp(hash, "") == 0 {
             stdio.print("error: dependency '{s}' is missing from sx.lock\n", {dep_url})
             return 1
         }
@@ -1346,7 +1346,7 @@ pub fn cmd_restore() i32 = trust {
             return 1
         }
 
-        if str.rchar_cmp(hash, "unknown") != 0 {
+        if str.raw_cmp(hash, "unknown") != 0 {
             val checkout_cmd: ref u8 = @fmt("git -C {s} checkout --quiet {s}", {lib_path, hash})
             if os.run(checkout_cmd) != 0 {
                 stdio.print("error: failed to checkout {s} for {s}\n", {hash, dep_url})
@@ -1378,13 +1378,13 @@ fn print_graph_node(
     }
 
     val line: mut ref u8 = @fmt("{s}{s}{s}", {prefix, conn, name})
-    if str.rchar_cmp(url, "") != 0 {
+    if str.raw_cmp(url, "") != 0 {
         line = @fmt("{s} ({s})", {line, url})
     }
     stdio.puts(line)
 
     for v in visited {
-        if str.rchar_cmp(v, base_dir) == 0 {
+        if str.raw_cmp(v, base_dir) == 0 {
             return
         }
     }
@@ -1436,7 +1436,7 @@ pub fn cmd_graph() i32 = trust {
     }
     allocators.Arena.free(cwd_arena)
 
-    if str.rchar_cmp(sxmod.version, "") == 0 {
+    if str.raw_cmp(sxmod.version, "") == 0 {
         stdio.puts(proj_name)
     } else {
         stdio.puts(@fmt("{s} ({s})", {proj_name, sxmod.version}))

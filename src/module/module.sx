@@ -54,10 +54,10 @@ fn find_workspace_root(start_dir: ref u8) ref u8 = trust {
             return cur
         }
         val parent = path.dir(cur)
-        if str.rchar_cmp(parent, cur) == 0 {
+        if str.raw_cmp(parent, cur) == 0 {
             break
         }
-        if str.rchar_cmp(parent, ".") == 0 {
+        if str.raw_cmp(parent, ".") == 0 {
             break
         }
         cur = parent
@@ -138,7 +138,7 @@ pub fn resolve_use_path(use_path: mut ref u8, file_dir: ref u8, exe_dir: ref u8,
 
 fn in_progress_contains(in_progress: list[ref u8], path: ref u8) bool = trust {
     for p in in_progress {
-        if str.rchar_cmp(p, path) == 0 {
+        if str.raw_cmp(p, path) == 0 {
             return true
         }
     }
@@ -867,7 +867,7 @@ fn expr_references_import_shallow(node: ref parser.Node, import_name: ref u8) bo
 
     if node.kind == parser.NK_IDENT {
         val name: ref u8 = node.d0 as ref u8
-        if str.rchar_cmp(name, import_name) == 0 {
+        if str.raw_cmp(name, import_name) == 0 {
             return true
         }
     } elif node.kind == parser.NK_FIELD {
@@ -875,7 +875,7 @@ fn expr_references_import_shallow(node: ref parser.Node, import_name: ref u8) bo
         if base != none {
             if base.kind == parser.NK_IDENT {
                 val base_name: ref u8 = base.d0 as ref u8
-                if str.rchar_cmp(base_name, import_name) == 0 {
+                if str.raw_cmp(base_name, import_name) == 0 {
                     return true
                 }
             } elif base.kind == parser.NK_FIELD {
@@ -1040,7 +1040,7 @@ fn resolve_module_impl(
         }
         val ck_opt = @get(cache_keys, ci as usize)
         if ck_opt is some ck {
-            if str.rchar_cmp(ck as ref u8, canonical_path) == 0 {
+            if str.raw_cmp(ck as ref u8, canonical_path) == 0 {
                 val cv_opt = @get(cache_vals, ci as usize)
                 if cv_opt is some cv {
                     return ok (cv as ref ResolvedModule)
@@ -1103,17 +1103,17 @@ fn resolve_module_impl(
     val cur_progress: mut list[ref u8] = in_progress
     @append(cur_progress, canonical_path)
 
-    val is_std_module: bool = str.rchar_cmp(canonical_path, "std/sx") == 0 ||
+    val is_std_module: bool = str.raw_cmp(canonical_path, "std/sx") == 0 ||
     (str.len_raw(canonical_path) >= 10 &&
-        str.rchar_cmp(@ptradd(canonical_path as ref void, str.len_raw(canonical_path) - 10) as ref u8, "std/sx") == 0)
+        str.raw_cmp(@ptradd(canonical_path as ref void, str.len_raw(canonical_path) - 10) as ref u8, "std/sx") == 0)
 
     for item in items {
         val node: ref parser.Node = item
         if node.kind == parser.NK_USE {
             val import_name: ref u8 = node.d1 as ref u8
             val use_path: mut ref u8 = node.d2 as ref u8
-            val is_json_or_net: bool = str.rchar_cmp(import_name, "json") == 0 ||
-            str.rchar_cmp(import_name, "net") == 0
+            val is_json_or_net: bool = str.raw_cmp(import_name, "json") == 0 ||
+            str.raw_cmp(import_name, "net") == 0
             val skip_std_dce: bool = is_std_module && !is_json_or_net
             val needed_subs: list[ref u8] = collect_needed_subnames_transitive(items, import_name, use_path, file_dir_c, exe_dir, cur_progress)
             val is_directly_referenced: bool = @len(needed_subs) > 0 || import_is_referenced(items, import_name)
@@ -1182,7 +1182,7 @@ pub fn find_import_by_name(m: ref ResolvedModule, name: ref u8) ref ResolvedModu
         }
         val n_opt = @get(m.import_names, i as usize)
         if n_opt is some n {
-            if str.rchar_cmp(n as ref u8, name) == 0 {
+            if str.raw_cmp(n as ref u8, name) == 0 {
                 val mod_opt = @get(m.import_modules, i as usize)
                 if mod_opt is some child {
                     return child as ref ResolvedModule
@@ -1209,14 +1209,14 @@ pub fn fn_is_public_in_module(m: ref ResolvedModule, fn_name: ref u8) bool = tru
             if item.kind == parser.NK_FN || item.kind == parser.NK_GENERIC_FN {
                 val iname: ref u8 = item.d2 as ref u8
                 if iname != none {
-                    if str.rchar_cmp(iname, fn_name) == 0 {
+                    if str.raw_cmp(iname, fn_name) == 0 {
                         return (item.d0 & 1) != 0
                     }
                 }
             } elif item.kind == parser.NK_EXTERN_FN {
                 val iname: ref u8 = item.d1 as ref u8
                 if iname != none {
-                    if str.rchar_cmp(iname, fn_name) == 0 {
+                    if str.raw_cmp(iname, fn_name) == 0 {
                         return item.d0 == 1
                     }
                 }
@@ -1240,7 +1240,7 @@ pub fn fn_is_unsafe_in_module(m: ref ResolvedModule, fn_name: ref u8) bool = tru
             if item.kind == parser.NK_FN || item.kind == parser.NK_GENERIC_FN {
                 val iname: ref u8 = item.d2 as ref u8
                 if iname != none {
-                    if str.rchar_cmp(iname, fn_name) == 0 {
+                    if str.raw_cmp(iname, fn_name) == 0 {
                         return parser.fn_is_unsafe(item)
                     }
                 }
@@ -1519,7 +1519,7 @@ pub fn collect_links(items: list[ref parser.Node], exe_dir: ref u8) list[ref u8]
 
     val result: mut list[ref u8] = []
     for the_link in links {
-        if str.rchar_cmp(the_link, "__sx__internal__json__") == 0 {
+        if str.raw_cmp(the_link, "__sx__internal__json__") == 0 {
             val shim_path: ref u8 = path.join(exe_dir, "spectrelib/csources/yyjson_shim.o")
 
             if file_exists(shim_path) {
@@ -1575,7 +1575,7 @@ pub fn collect_links_filtered(
         }
         val u_opt = @get(used_prefixes, ui as usize)
         if u_opt is some u {
-            if str.rchar_cmp(u as ref u8, prefix) == 0 {
+            if str.raw_cmp(u as ref u8, prefix) == 0 {
                 is_used = true
                 break
             }
@@ -1601,7 +1601,7 @@ pub fn collect_links_filtered(
         if name_opt is some name {
             if mod_opt is some child {
                 val child_prefix: mut ref u8 = ""
-                if str.rchar_cmp(prefix, "") == 0 {
+                if str.raw_cmp(prefix, "") == 0 {
                     child_prefix = name as ref u8
                 } else {
                     child_prefix = @fmt("{s}__{s}", {prefix, name as ref u8})
@@ -1669,7 +1669,7 @@ pub fn collect_links_all(
         if name_opt is some name {
             if mod_opt is some child {
                 val child_prefix: mut ref u8 = ""
-                if str.rchar_cmp(prefix, "") == 0 {
+                if str.raw_cmp(prefix, "") == 0 {
                     child_prefix = name as ref u8
                 } else {
                     child_prefix = @fmt("{s}__{s}", {prefix, name as ref u8})
@@ -1694,36 +1694,36 @@ pub fn collect_links_all(
 /// Check if a platform name matches the current platform.
 /// Handles group aliases like "posix" matching linux/darwin/bsd/etc.
 fn platform_matches(current: ref u8, name: ref u8) bool = trust {
-    if str.rchar_cmp(name, current) == 0 {
+    if str.raw_cmp(name, current) == 0 {
         return true
     }
 
-    if str.rchar_cmp(name, "posix") == 0 {
-        if str.rchar_cmp(current, "linux")        == 0 {
+    if str.raw_cmp(name, "posix") == 0 {
+        if str.raw_cmp(current, "linux")        == 0 {
             return true
         }
-        if str.rchar_cmp(current, "darwin")       == 0 {
+        if str.raw_cmp(current, "darwin")       == 0 {
             return true
         }
-        if str.rchar_cmp(current, "freebsd")      == 0 {
+        if str.raw_cmp(current, "freebsd")      == 0 {
             return true
         }
-        if str.rchar_cmp(current, "openbsd")      == 0 {
+        if str.raw_cmp(current, "openbsd")      == 0 {
             return true
         }
-        if str.rchar_cmp(current, "netbsd")       == 0 {
+        if str.raw_cmp(current, "netbsd")       == 0 {
             return true
         }
-        if str.rchar_cmp(current, "dragonflybsd") == 0 {
+        if str.raw_cmp(current, "dragonflybsd") == 0 {
             return true
         }
-        if str.rchar_cmp(current, "haiku")        == 0 {
+        if str.raw_cmp(current, "haiku")        == 0 {
             return true
         }
-        if str.rchar_cmp(current, "android")      == 0 {
+        if str.raw_cmp(current, "android")      == 0 {
             return true
         }
-        if str.rchar_cmp(current, "redox")        == 0 {
+        if str.raw_cmp(current, "redox")        == 0 {
             return true
         }
     }
@@ -1741,7 +1741,7 @@ fn import_in_list(import_names: list[ref u8], name: ref u8) bool = trust {
         }
         val opt = @get(import_names, i as usize)
         if opt is some n {
-            if str.rchar_cmp(n as ref u8, name) == 0 {
+            if str.raw_cmp(n as ref u8, name) == 0 {
                 return true
             }
         }
@@ -2087,7 +2087,7 @@ fn collect_needed_subnames_in_expr(expr: ref parser.Node, import_name: ref u8, n
 
         if base != none && base.kind == parser.NK_IDENT {
             val base_name: ref u8 = base.d0 as ref u8
-            if str.rchar_cmp(base_name, import_name) == 0 {
+            if str.raw_cmp(base_name, import_name) == 0 {
                 if !import_in_list(needed, field_name) {
                     @append(needed, field_name)
                 }
@@ -3025,7 +3025,7 @@ pub fn collect_used_links(
             val name_opt = @get(m.import_names, ci as usize)
             val mod_opt = @get(m.import_modules, ci as usize)
             if name_opt is some name {
-                if str.rchar_cmp(name as ref u8, used_name) == 0 {
+                if str.raw_cmp(name as ref u8, used_name) == 0 {
                     if mod_opt is some child {
                         val child_links: list[ref u8] = collect_used_links_recursive(
                             child as ref ResolvedModule,
@@ -3054,7 +3054,7 @@ pub fn collect_used_links(
             }
             val d_opt = @get(deduped, di as usize)
             if d_opt is some d {
-                if str.rchar_cmp(d as ref u8, lnk) == 0 {
+                if str.raw_cmp(d as ref u8, lnk) == 0 {
                     already = true break
                 }
             }
@@ -3114,7 +3114,7 @@ fn collect_used_links_recursive(
             val name_opt = @get(m.import_names, ci as usize)
             val mod_opt = @get(m.import_modules, ci as usize)
             if name_opt is some name {
-                if str.rchar_cmp(name as ref u8, used_name) == 0 {
+                if str.raw_cmp(name as ref u8, used_name) == 0 {
                     if mod_opt is some child {
                         val child_links: list[ref u8] = collect_used_links_recursive(
                             child as ref ResolvedModule,

@@ -63,7 +63,7 @@ pub fn main() i32 = trust {
         return 1
     }
 
-    if string.rchar_cmp(input, "run") == 0 {
+    if string.raw_cmp(input, "run") == 0 {
         run_mode = true
         input_arg_i = 2
         val run_input_opt = @get(args, input_arg_i)
@@ -77,33 +77,33 @@ pub fn main() i32 = trust {
         }
     }
 
-    val flag_first_translate_c: bool = string.rchar_cmp(input, "--translate-c") == 0
+    val flag_first_translate_c: bool = string.raw_cmp(input, "--translate-c") == 0
 
-    if string.rchar_cmp(input, "-h") == 0 || string.rchar_cmp(input, "--help") == 0 {
+    if string.raw_cmp(input, "-h") == 0 || string.raw_cmp(input, "--help") == 0 {
         meta.print_usage()
         allocators.Arena.free(arena)
         return 0
     }
 
-    if string.rchar_cmp(input, "-v") == 0 || string.rchar_cmp(input, "--version") == 0 {
+    if string.raw_cmp(input, "-v") == 0 || string.raw_cmp(input, "--version") == 0 {
         meta.print_version()
         allocators.Arena.free(arena)
         return 0
     }
 
-    if string.rchar_cmp(input, "doctor") == 0 {
+    if string.raw_cmp(input, "doctor") == 0 {
         val code: i32 = commands.cmd_doctor()
         allocators.Arena.free(arena)
         return code
     }
 
-    if string.rchar_cmp(input, "ref") == 0 {
+    if string.raw_cmp(input, "ref") == 0 {
         val code: i32 = commands.cmd_ref()
         allocators.Arena.free(arena)
         return code
     }
 
-    if string.rchar_cmp(input, "init") == 0 {
+    if string.raw_cmp(input, "init") == 0 {
         val name_arg: mut ref u8 = ""
         val name_opt = @get(args, 2)
         if name_opt is some v {
@@ -114,14 +114,14 @@ pub fn main() i32 = trust {
         return code
     }
 
-    if string.rchar_cmp(input, "fmt") == 0 {
+    if string.raw_cmp(input, "fmt") == 0 {
         val fmt_paths: mut list[ref u8] = []
         val fmt_arg_i: mut i64 = 2
         for {
             val fmt_arg_opt = @get(args, fmt_arg_i)
             if fmt_arg_opt is some fv {
                 val arg: ref u8 = fv as ref u8
-                if string.rchar_cmp(arg, "-h") == 0 || string.rchar_cmp(arg, "--help") == 0 {
+                if string.raw_cmp(arg, "-h") == 0 || string.raw_cmp(arg, "--help") == 0 {
                     stdio.puts("usage: spectre fmt <file.sx|directory>...")
                     allocators.Arena.free(arena)
                     return 0
@@ -137,7 +137,7 @@ pub fn main() i32 = trust {
         return code
     }
 
-    if string.rchar_cmp(input, "build") == 0 {
+    if string.raw_cmp(input, "build") == 0 {
         val config_name: mut ref u8 = "dev"
         val cfg_opt = @get(args, 2)
         if cfg_opt is some v {
@@ -148,7 +148,7 @@ pub fn main() i32 = trust {
         return code
     }
 
-    if string.rchar_cmp(input, "doc") == 0 {
+    if string.raw_cmp(input, "doc") == 0 {
         val target_arg: mut ref u8 = "."
         val md_mode: mut bool = false
         val doc_arg_i: mut i64 = 2
@@ -156,7 +156,7 @@ pub fn main() i32 = trust {
             val arg_opt = @get(args, doc_arg_i)
             if arg_opt is some dv {
                 val arg: ref u8 = dv as ref u8
-                if string.rchar_cmp(arg, "--md") == 0 {
+                if string.raw_cmp(arg, "--md") == 0 {
                     md_mode = true
                 } elif string.rchar_starts_with(arg, "-") {
                     stdio.print("error: unknown doc option '{s}'\n", {arg})
@@ -175,7 +175,7 @@ pub fn main() i32 = trust {
         return code
     }
 
-    if string.rchar_cmp(input, "add") == 0 {
+    if string.raw_cmp(input, "add") == 0 {
         val url_opt = @get(args, 2)
         if url_opt is some v {
             val code: i32 = commands.cmd_add(v as ref u8)
@@ -188,7 +188,7 @@ pub fn main() i32 = trust {
         }
     }
 
-    if string.rchar_cmp(input, "remove") == 0 {
+    if string.raw_cmp(input, "remove") == 0 {
         val dep_opt = @get(args, 2)
         if dep_opt is some v {
             val code: i32 = commands.cmd_remove(v as ref u8)
@@ -201,19 +201,19 @@ pub fn main() i32 = trust {
         }
     }
 
-    if string.rchar_cmp(input, "restore") == 0 {
+    if string.raw_cmp(input, "restore") == 0 {
         val code: i32 = commands.cmd_restore()
         allocators.Arena.free(arena)
         return code
     }
 
-    if string.rchar_cmp(input, "graph") == 0 {
+    if string.raw_cmp(input, "graph") == 0 {
         val code: i32 = commands.cmd_graph()
         allocators.Arena.free(arena)
         return code
     }
 
-    if string.rchar_cmp(input, "clean") == 0 {
+    if string.raw_cmp(input, "clean") == 0 {
         val code: i32 = commands.cmd_clean()
         allocators.Arena.free(arena)
         return code
@@ -275,7 +275,7 @@ pub fn main() i32 = trust {
         if arg_opt is some arg_val {
             val arg: ref u8 = arg_val as ref u8
 
-            if string.rchar_cmp(arg, "-o") == 0 || string.rchar_cmp(arg, "--output") == 0 {
+            if string.raw_cmp(arg, "-o") == 0 || string.raw_cmp(arg, "--output") == 0 {
                 val next_i: i64 = arg_i + 1
                 if (next_i < argc) {
                     val next_opt = @get(args, next_i)
@@ -292,55 +292,55 @@ pub fn main() i32 = trust {
                     allocators.Arena.free(arena)
                     return 1
                 }
-            } elif string.rchar_cmp(arg, "--translate-c") == 0 {
+            } elif string.raw_cmp(arg, "--translate-c") == 0 {
                 translate_c_flag = true
                 arg_i++
-            } elif string.rchar_cmp(arg, "--emit-ssa") == 0 {
+            } elif string.raw_cmp(arg, "--emit-ssa") == 0 {
                 emit_qbe = true
                 arg_i++
-            } elif string.rchar_cmp(arg, "--emit-ll") == 0 {
+            } elif string.raw_cmp(arg, "--emit-ll") == 0 {
                 emit_ll = true
                 arg_i++
-            } elif string.rchar_cmp(arg, "--emit-asm") == 0 {
+            } elif string.raw_cmp(arg, "--emit-asm") == 0 {
                 emit_asm = true
                 arg_i++
-            } elif string.rchar_cmp(arg, "--emit-alt") == 0 {
+            } elif string.raw_cmp(arg, "--emit-alt") == 0 {
                 emit_alt = true
                 arg_i++
-            } elif string.rchar_cmp(arg, "--show-cmd") == 0 {
+            } elif string.raw_cmp(arg, "--show-cmd") == 0 {
                 show_cmd = true
                 arg_i++
-            } elif string.rchar_cmp(arg, "--test") == 0 {
+            } elif string.raw_cmp(arg, "--test") == 0 {
                 test_mode = true
                 arg_i++
-            } elif string.rchar_cmp(arg, "--loud") == 0 || string.rchar_cmp(arg, "-l") == 0 {
+            } elif string.raw_cmp(arg, "--loud") == 0 || string.raw_cmp(arg, "-l") == 0 {
                 quiet = false
                 arg_i++
-            } elif string.rchar_cmp(arg, "--release") == 0 {
+            } elif string.raw_cmp(arg, "--release") == 0 {
                 release_mode = true
                 arg_i++
-            } elif string.rchar_cmp(arg, "--dll") == 0 {
+            } elif string.raw_cmp(arg, "--dll") == 0 {
                 build_dll = true
                 arg_i++
-            } elif string.rchar_cmp(arg, "-c") == 0 || string.rchar_cmp(arg, "--compile") == 0 {
+            } elif string.raw_cmp(arg, "-c") == 0 || string.raw_cmp(arg, "--compile") == 0 {
                 compile_obj = true
                 arg_i++
-            } elif string.rchar_cmp(arg, "--syntax-check") == 0 {
+            } elif string.raw_cmp(arg, "--syntax-check") == 0 {
                 syntax_check = true
                 arg_i++
-            } elif string.rchar_cmp(arg, "--ast") == 0 {
+            } elif string.raw_cmp(arg, "--ast") == 0 {
                 print_ast = true
                 arg_i++
-            } elif string.rchar_cmp(arg, "-b") == 0 || string.rchar_cmp(arg, "--bootstrap") == 0 {
+            } elif string.raw_cmp(arg, "-b") == 0 || string.raw_cmp(arg, "--bootstrap") == 0 {
                 bootstrap_mode = true
                 arg_i++
-            } elif string.rchar_cmp(arg, "--alt") == 0 || string.rchar_cmp(arg, "-a") == 0 {
+            } elif string.raw_cmp(arg, "--alt") == 0 || string.raw_cmp(arg, "-a") == 0 {
                 use_alt = true
                 arg_i++
             } elif string.rchar_starts_with(arg, "--alt=") {
                 use_alt = true
                 val compiler_str = builds.parse_alt_compiler_arg(arg)
-                if string.rchar_cmp(compiler_str, "") != 0 {
+                if string.raw_cmp(compiler_str, "") != 0 {
                     alt_compiler = compiler_str
                 }
                 arg_i++
@@ -352,7 +352,7 @@ pub fn main() i32 = trust {
                 arg_i++
             } elif string.rchar_starts_with(arg, "--inc-path=") {
                 val path_str: ref u8 = string.substr(arg, 11, string.len_raw(arg) - 11)
-                if string.rchar_cmp(path_str, "") == 0 {
+                if string.raw_cmp(path_str, "") == 0 {
                     stdio.puts("error: --inc-path requires a value")
                     allocators.Arena.free(arena)
                     return 1
@@ -369,7 +369,7 @@ pub fn main() i32 = trust {
         }
     }
 
-    if string.rchar_cmp(src_target, "") != 0 && !emit_alt && !emit_qbe {
+    if string.raw_cmp(src_target, "") != 0 && !emit_alt && !emit_qbe {
         stdio.puts("error: --src-target requires --emit-alt or --emit-ssa")
         allocators.Arena.free(arena)
         return 1
@@ -382,7 +382,7 @@ pub fn main() i32 = trust {
     }
 
     if translate_c_flag {
-        if string.rchar_cmp(output_name, "") == 0 {
+        if string.raw_cmp(output_name, "") == 0 {
             output_name = @fmt("./src-out/{s}.sx", {path.get_name_without_ext(arena, input)})
         }
         val code: i32 = c_translate.translate_c(input, output_name)
@@ -392,7 +392,7 @@ pub fn main() i32 = trust {
 
     val exe_path2: ref u8 = reflection.get_exe_path[allocators.Arena](arena)
     val exe_dir: mut ref u8 = "."
-    if string.rchar_cmp(exe_path2, ".") != 0 {
+    if string.raw_cmp(exe_path2, ".") != 0 {
         exe_dir = path.dir(exe_path2)
     }
 
@@ -472,7 +472,7 @@ pub fn main() i32 = trust {
         }
 
         val binary_name_alt: mut ref u8 = ""
-        if string.rchar_cmp(output_name, "") == 0 {
+        if string.raw_cmp(output_name, "") == 0 {
             binary_name_alt = path.get_name_without_ext(arena, input)
         } else {
             binary_name_alt = output_name
@@ -489,7 +489,7 @@ pub fn main() i32 = trust {
             return 1
         }
 
-        val output_specified_alt: bool = string.rchar_cmp(output_name, "") != 0
+        val output_specified_alt: bool = string.raw_cmp(output_name, "") != 0
         val final_output_alt: mut ref u8 = ""
         if output_specified_alt != 0 {
             final_output_alt = binary_name_alt
@@ -523,14 +523,14 @@ pub fn main() i32 = trust {
         }
 
         val alt_cmd: mut ref u8 = ""
-        if string.rchar_cmp(selected_compiler, "tcc") == 0 {
+        if string.raw_cmp(selected_compiler, "tcc") == 0 {
             if test_mode {
                 alt_cmd = @fmt("tcc {s} -o {s} -w -std=c99{s} {s} 2>&1", {c_file, test_output_alt, include_flags_alt, link_flags_alt})
             } else {
                 alt_cmd = @fmt("tcc {s} -o {s} -w -std=c99{s} {s} 2>&1", {c_file, final_output_alt, include_flags_alt, link_flags_alt})
             }
         } else {
-            if string.rchar_cmp(cc_flags_alt, "") == 0 {
+            if string.raw_cmp(cc_flags_alt, "") == 0 {
                 alt_cmd = @fmt("{s}{s} -o {s} {s}{s} 2>&1", {selected_compiler, include_flags_alt, compile_output, c_file, link_flags_alt})
             } else {
                 alt_cmd = @fmt("{s} {s}{s} -o {s} {s}{s} 2>&1", {selected_compiler, cc_flags_alt, include_flags_alt, compile_output, c_file, link_flags_alt})
@@ -624,7 +624,7 @@ pub fn main() i32 = trust {
 
     val binary_name: mut ref u8 = ""
 
-    if string.rchar_cmp(output_name, "") == 0 {
+    if string.raw_cmp(output_name, "") == 0 {
         binary_name = path.get_name_without_ext(arena, input)
     } else {
         binary_name = output_name
@@ -697,7 +697,7 @@ pub fn main() i32 = trust {
         return 0
     }
 
-    val output_specified: bool = string.rchar_cmp(output_name, "") != 0
+    val output_specified: bool = string.raw_cmp(output_name, "") != 0
     val cc_cmd: mut ref u8 = ""
     val success_msg: mut ref u8 = ""
     val exit_code: mut i32 = 0
@@ -717,16 +717,16 @@ pub fn main() i32 = trust {
 
     if compile_obj {
         cc_flags = @fmt("{s} -c", {cc_flags})
-        if string.rchar_cmp(platform, "windows") == 0 {
+        if string.raw_cmp(platform, "windows") == 0 {
             output_ext = ".obj"
         } else {
             output_ext = ".o"
         }
     } elif build_dll {
-        if string.rchar_cmp(platform, "macos") == 0 {
+        if string.raw_cmp(platform, "macos") == 0 {
             cc_flags = @fmt("{s} -dynamiclib", {cc_flags})
             output_ext = ".dylib"
-        } elif string.rchar_cmp(platform, "windows") == 0 {
+        } elif string.raw_cmp(platform, "windows") == 0 {
             cc_flags = @fmt("{s} -shared", {cc_flags})
             output_ext = ".dll"
         } else {
@@ -767,11 +767,11 @@ pub fn main() i32 = trust {
 
     if output_specified != 0 {
         val final_output: mut ref u8 = binary_name
-        if string.rchar_cmp(output_ext, "") != 0 {
+        if string.raw_cmp(output_ext, "") != 0 {
             final_output = @fmt("{s}{s}", {binary_name, output_ext})
         }
         run_output = final_output
-        if string.rchar_cmp(cc_flags, "") == 0 {
+        if string.raw_cmp(cc_flags, "") == 0 {
             cc_cmd = @fmt("cc -o {s} {s}{s}", {final_output, asm_file, link_flags})
         } else {
             cc_cmd = @fmt("cc {s} -o {s} {s}{s}", {cc_flags, final_output, asm_file, link_flags})
@@ -780,11 +780,11 @@ pub fn main() i32 = trust {
     } else {
         os.exec("mkdir -p ./s-out")
         val final_output: mut ref u8 = @fmt("./s-out/{s}", {binary_name})
-        if string.rchar_cmp(output_ext, "") != 0 {
+        if string.raw_cmp(output_ext, "") != 0 {
             final_output = @fmt("./s-out/{s}{s}", {binary_name, output_ext})
         }
         run_output = final_output
-        if string.rchar_cmp(cc_flags, "") == 0 {
+        if string.raw_cmp(cc_flags, "") == 0 {
             cc_cmd = @fmt("cc -o {s} {s}{s}", {final_output, asm_file, link_flags})
         } else {
             cc_cmd = @fmt("cc {s} -o {s} {s}{s}", {cc_flags, final_output, asm_file, link_flags})

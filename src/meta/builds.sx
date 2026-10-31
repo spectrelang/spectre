@@ -28,7 +28,7 @@ pub fn is_compiler_available(compiler: ref u8) bool = {
 }
 
 pub fn select_alt_compiler(requested: ref u8) ref u8 = {
-    if string.rchar_cmp(requested, "") != 0 {
+    if string.raw_cmp(requested, "") != 0 {
         return requested
     }
     if is_compiler_available("tcc") {
@@ -41,7 +41,7 @@ pub fn select_alt_compiler(requested: ref u8) ref u8 = {
 }
 
 pub fn compiler_warn_flag(compiler: ref u8) ref u8 = {
-    if string.rchar_cmp(compiler, "clang") == 0 {
+    if string.raw_cmp(compiler, "clang") == 0 {
         return "-Wno-everything"
     }
     return "-w"
@@ -154,7 +154,7 @@ pub fn pick_alt_backend(
     root_items: list[ref parser.Node],
     arena: ref allocators.Arena
 ) ref u8 = {
-    if string.rchar_cmp(requested, "") != 0 {
+    if string.raw_cmp(requested, "") != 0 {
         return requested
     }
     if release_mode {
@@ -201,7 +201,7 @@ pub fn append_debug_runtime_links(
         }
     }
     val platform: ref u8 = reflection.current_platform_name[allocators.Arena](arena)
-    if string.rchar_cmp(platform, "windows") == 0 {
+    if string.raw_cmp(platform, "windows") == 0 {
         @append(links, "-lDbgHelp")
     }
 }

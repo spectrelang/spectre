@@ -207,7 +207,7 @@ fn substr(src: ref u8, start: i64, end: i64) ref u8 = trust {
 }
 
 fn str_eq(a: ref u8, b: ref u8) bool = trust {
-    return string.rchar_cmp(a, b) == 0
+    return string.raw_cmp(a, b) == 0
 }
 
 fn keyword_kind(s: ref u8) TokenKind = trust {
@@ -1263,8 +1263,8 @@ test {
             assert kind_is_ident(tok_kind(toks, 0))
             assert kind_is_ident(tok_kind(toks, 1))
             assert kind_is_ident(tok_kind(toks, 2))
-            assert string.rchar_cmp(tok_text(toks, 0), "foobar") == 0
-            assert string.rchar_cmp(tok_text(toks, 1), "hello_world") == 0
+            assert string.raw_cmp(tok_text(toks, 0), "foobar") == 0
+            assert string.raw_cmp(tok_text(toks, 1), "hello_world") == 0
         }
     }
 
@@ -1279,8 +1279,8 @@ test {
             assert kind_is_int(tok_kind(toks, 0))
             assert kind_is_float(tok_kind(toks, 1))
             assert kind_is_int(tok_kind(toks, 2))
-            assert string.rchar_cmp(tok_text(toks, 0), "42") == 0
-            assert string.rchar_cmp(tok_text(toks, 2), "0xff") == 0
+            assert string.raw_cmp(tok_text(toks, 0), "42") == 0
+            assert string.raw_cmp(tok_text(toks, 2), "0xff") == 0
         }
     }
 
@@ -1293,7 +1293,7 @@ test {
         }
         ok toks => {
             assert kind_is_str(tok_kind(toks, 0))
-            assert string.rchar_cmp(tok_text(toks, 0), "hello") == 0
+            assert string.raw_cmp(tok_text(toks, 0), "hello") == 0
         }
     }
 

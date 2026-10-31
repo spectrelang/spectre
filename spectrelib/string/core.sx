@@ -118,7 +118,7 @@ pub fn as_rchar[T](x: T) ref u8 = trust {
 }
 
 /// Compare two raw strings.
-pub fn rchar_cmp(a: ref u8, b: ref u8) i64 = {
+pub fn raw_cmp(a: ref u8, b: ref u8) i64 = {
     if a == none && b == none {
         return 0
     } elif a == none || b == none {
@@ -131,7 +131,7 @@ pub fn rchar_cmp(a: ref u8, b: ref u8) i64 = {
 pub fn compare[A, B](a: A, b: B) i64 = trust {
     val aptr = as_rchar[A](a)
     val bptr = as_rchar[B](b)
-    return rchar_cmp(aptr, bptr)
+    return raw_cmp(aptr, bptr)
 }
 
 /// Create from raw C string using the provided allocator.

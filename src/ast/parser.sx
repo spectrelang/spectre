@@ -478,7 +478,7 @@ pub fn str_lit_text(n: ref Node) ref u8 = {
 }
 
 fn str_eq(a: ref u8, b: ref u8) bool = trust {
-    return string.rchar_cmp(a, b) == 0
+    return string.raw_cmp(a, b) == 0
 }
 
 type Parser = {
@@ -3746,7 +3746,7 @@ test {
         }
         ok n  => {
             assert n.kind == NK_INT_LIT
-            assert string.rchar_cmp(int_lit_text(n), "42") == 0
+            assert string.raw_cmp(int_lit_text(n), "42") == 0
         }
     }
 
@@ -3769,7 +3769,7 @@ test {
         }
         ok n  => {
             assert n.kind == NK_STR_LIT
-            assert string.rchar_cmp(str_lit_text(n), "hello") == 0
+            assert string.raw_cmp(str_lit_text(n), "hello") == 0
         }
     }
 
@@ -3802,7 +3802,7 @@ test {
         }
         ok n  => {
             assert n.kind == NK_IDENT
-            assert string.rchar_cmp(n.d0 as ref u8, "foo") == 0
+            assert string.raw_cmp(n.d0 as ref u8, "foo") == 0
         }
     }
 
@@ -3868,7 +3868,7 @@ test {
             assert n.kind == NK_FIELD
             val base: ref Node = field_base(n)
             assert base.kind == NK_IDENT
-            assert string.rchar_cmp(field_name(n), "field") == 0
+            assert string.raw_cmp(field_name(n), "field") == 0
         }
     }
 

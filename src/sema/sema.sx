@@ -49,7 +49,7 @@ fn sema_new() ref SemaCtx = trust {
 
 fn add_error(ctx: ref SemaCtx, msg: ref u8) void = trust {
     for existing in ctx.errors {
-        if string.rchar_cmp(existing as ref u8, msg) == 0 {
+        if string.raw_cmp(existing as ref u8, msg) == 0 {
             return
         }
     }
@@ -87,11 +87,11 @@ fn canonicalize_path(path: ref u8) ref u8 = trust {
         val seg: ref u8 = @alloc((seg_len + 1) as usize) as ref u8
         @memcpy(seg as ref void, @ptradd(path as ref void, start), seg_len as usize)
         @store8(@ptradd(seg as ref void, seg_len), 0)
-        if string.rchar_cmp(seg, "..") == 0 {
+        if string.raw_cmp(seg, "..") == 0 {
             if @len(segs) as i64 > 0 {
                 @remove(segs, @len(segs) - 1)
             }
-        } elif string.rchar_cmp(seg, ".") != 0 {
+        } elif string.raw_cmp(seg, ".") != 0 {
             @append(segs, seg)
         }
     }
@@ -365,7 +365,7 @@ fn pop_scope(ctx: ref SemaCtx, filename: ref u8, _: i64) void = trust {
                 if e_opt is some e {
                     val entry: ref ScopeEntry = e as ref ScopeEntry
                     if entry.name != none {
-                        if string.rchar_cmp(entry.name, "_") != 0 {
+                        if string.raw_cmp(entry.name, "_") != 0 {
                             if entry.used == 0 {
                                 val buf: ref u8 = @alloc(512) as ref u8
                                 @snprintf(buf, 512, "{s}:{lld}: variable '{s}' declared but never used", {filename, entry.line, entry.name})
@@ -436,7 +436,7 @@ fn scope_set_implicit_mut(ctx: ref SemaCtx, name: ref u8) void = trust {
             if e_opt is some e {
                 val entry: mut ref ScopeEntry = e as ref ScopeEntry
                 if entry.name != none {
-                    if string.rchar_cmp(entry.name, name) == 0 {
+                    if string.raw_cmp(entry.name, name) == 0 {
                         entry.implicit_mut = 1
                     }
                 }
@@ -689,7 +689,7 @@ fn scope_lookup(ctx: ref SemaCtx, name: ref u8) i64 = trust {
                 val e_opt = @get(frame as ref void, j as usize)
                 if e_opt is some e {
                     val entry: ref ScopeEntry = e as ref ScopeEntry
-                    if string.rchar_cmp(entry.name, name) == 0 {
+                    if string.raw_cmp(entry.name, name) == 0 {
                         return entry.mutable
                     }
                 }
@@ -725,7 +725,7 @@ fn scope_lookup_type(ctx: ref SemaCtx, name: ref u8) ref u8 = trust {
                 val e_opt = @get(frame as ref void, j as usize)
                 if e_opt is some e {
                     val entry: ref ScopeEntry = e as ref ScopeEntry
-                    if string.rchar_cmp(entry.name, name) == 0 {
+                    if string.raw_cmp(entry.name, name) == 0 {
                         return entry.type_name
                     }
                 }
@@ -761,7 +761,7 @@ fn scope_lookup_is_ref(ctx: ref SemaCtx, name: ref u8) i64 = trust {
                 val e_opt = @get(frame as ref void, j as usize)
                 if e_opt is some e {
                     val entry: ref ScopeEntry = e as ref ScopeEntry
-                    if string.rchar_cmp(entry.name, name) == 0 {
+                    if string.raw_cmp(entry.name, name) == 0 {
                         return entry.is_ref
                     }
                 }
@@ -799,7 +799,7 @@ fn scope_lookup_wrap_kind(ctx: ref SemaCtx, name: ref u8) i64 = trust {
                 val e_opt = @get(frame as ref void, j as usize)
                 if e_opt is some e {
                     val entry: ref ScopeEntry = e as ref ScopeEntry
-                    if string.rchar_cmp(entry.name, name) == 0 {
+                    if string.raw_cmp(entry.name, name) == 0 {
                         return entry.wrap_kind
                     }
                 }
@@ -835,7 +835,7 @@ fn scope_set_wrap_kind(ctx: ref SemaCtx, name: ref u8, kind: i64) void = trust {
             if e_opt is some e {
                 val entry: mut ref ScopeEntry = e as ref ScopeEntry
                 if entry.name != none {
-                    if string.rchar_cmp(entry.name, name) == 0 {
+                    if string.raw_cmp(entry.name, name) == 0 {
                         entry.wrap_kind = kind
                         return
                     }
@@ -867,7 +867,7 @@ fn mark_name_used(ctx: ref SemaCtx, name: ref u8) void = trust {
                 val e_opt = @get(frame as ref void, j as usize)
                 if e_opt is some e {
                     val entry: mut ref ScopeEntry = e as ref ScopeEntry
-                    if string.rchar_cmp(entry.name, name) == 0 {
+                    if string.raw_cmp(entry.name, name) == 0 {
                         entry.used = 1
                         return
                     }
@@ -900,7 +900,7 @@ fn mark_name_mutated(ctx: ref SemaCtx, name: ref u8) void = trust {
                 val e_opt = @get(frame as ref void, j as usize)
                 if e_opt is some e {
                     val entry: mut ref ScopeEntry = e as ref ScopeEntry
-                    if string.rchar_cmp(entry.name, name) == 0 {
+                    if string.raw_cmp(entry.name, name) == 0 {
                         entry.mutated = 1
                         entry.used = 1
                         return
@@ -926,7 +926,7 @@ fn find_field_mutable(ctx: ref SemaCtx, type_name: ref u8, field_name: ref u8) i
         if td_opt is some td {
             val td_node: ref parser.Node = td as ref parser.Node
             val td_name: ref u8 = td_node.d1 as ref u8
-            if string.rchar_cmp(td_name, type_name) == 0 {
+            if string.raw_cmp(td_name, type_name) == 0 {
                 val fields: ref void = td_node.d2 as ref void
                 if fields != none {
                     val flen: i64 = @len(fields) as i64
@@ -939,7 +939,7 @@ fn find_field_mutable(ctx: ref SemaCtx, type_name: ref u8, field_name: ref u8) i
                         if f_opt is some f {
                             val fnode: ref parser.Node = f as ref parser.Node
                             val fname: ref u8 = fnode.d0 as ref u8
-                            if string.rchar_cmp(fname, field_name) == 0 {
+                            if string.raw_cmp(fname, field_name) == 0 {
                                 return fnode.d1
                             }
                         }
@@ -966,7 +966,7 @@ fn find_field_type_node(ctx: ref SemaCtx, type_name: ref u8, field_name: ref u8)
         if td_opt is some td {
             val td_node: ref parser.Node = td as ref parser.Node
             val td_name: ref u8 = td_node.d1 as ref u8
-            if string.rchar_cmp(td_name, type_name) == 0 {
+            if string.raw_cmp(td_name, type_name) == 0 {
                 val fields: ref void = td_node.d2 as ref void
                 if fields != none {
                     val flen: i64 = @len(fields) as i64
@@ -979,7 +979,7 @@ fn find_field_type_node(ctx: ref SemaCtx, type_name: ref u8, field_name: ref u8)
                         if f_opt is some f {
                             val fnode: ref parser.Node = f as ref parser.Node
                             val fname: ref u8 = fnode.d0 as ref u8
-                            if string.rchar_cmp(fname, field_name) == 0 {
+                            if string.raw_cmp(fname, field_name) == 0 {
                                 return fnode.d2 as ref parser.Node
                             }
                         }
@@ -1071,19 +1071,19 @@ fn find_fn_def_local(ctx: ref SemaCtx, target_name: ref u8, target_ns: ref u8) r
             val is_match: mut bool = false
             if target_ns != none {
                 if fname_node1 != none && fname_node2 != none {
-                    if string.rchar_cmp(fname_node1, lookup_ns) == 0 &&
-                    string.rchar_cmp(fname_node2, target_name) == 0 {
+                    if string.raw_cmp(fname_node1, lookup_ns) == 0 &&
+                    string.raw_cmp(fname_node2, target_name) == 0 {
                         is_match = true
                     }
                 }
             } else {
                 if fname_node1 != none {
-                    if string.rchar_cmp(fname_node1, target_name) == 0 {
+                    if string.raw_cmp(fname_node1, target_name) == 0 {
                         is_match = true
                     }
                 }
                 if fname_node2 != none {
-                    if string.rchar_cmp(fname_node2, target_name) == 0 {
+                    if string.raw_cmp(fname_node2, target_name) == 0 {
                         is_match = true
                     }
                 }
@@ -1473,7 +1473,7 @@ fn scope_defined_local(ctx: ref SemaCtx, name: ref u8) bool = trust {
             val e_opt = @get(frame as ref void, j as usize)
             if e_opt is some e {
                 val entry: ref ScopeEntry = e as ref ScopeEntry
-                if string.rchar_cmp(entry.name, name) == 0 {
+                if string.raw_cmp(entry.name, name) == 0 {
                     return true
                 }
             }
@@ -1728,7 +1728,7 @@ fn validate_derived_specs(ctx: ref SemaCtx, items: list[ref parser.Node], filena
 }
 
 fn str_eq(a: ref u8, b: ref u8) bool = trust {
-    return string.rchar_cmp(a, b) == 0
+    return string.raw_cmp(a, b) == 0
 }
 
 /// Extract the unqualified type name from a potentially qualified name.
@@ -3726,9 +3726,9 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
                 val lhs_type: ref u8 = format_type_for_error(infer_expr_scope_type_name(ctx, lhs), infer_expr_scope_is_ref(ctx, lhs))
                 val rhs_type: ref u8 = format_type_for_error(infer_expr_scope_type_name(ctx, rhs), infer_expr_scope_is_ref(ctx, rhs))
                 val buf: ref u8 = @alloc(512) as ref u8
-                if string.rchar_cmp(lhs_type, "unknown") == 0 {
+                if string.raw_cmp(lhs_type, "unknown") == 0 {
                     return
-                } elif string.rchar_cmp(rhs_type, "unknown") == 0 {
+                } elif string.raw_cmp(rhs_type, "unknown") == 0 {
                     return
                 }
                 @snprintf(buf, 512, "{s}:{lld}: cannot compare values of type '{s}' and '{s}'", {filename, line, lhs_type, rhs_type})
@@ -4467,7 +4467,7 @@ fn sema_lookup_typedef(ctx: ref SemaCtx, type_name: ref u8) ref parser.Node = tr
             val tdnode: ref parser.Node = td as ref parser.Node
             val tdname: ref u8 = tdnode.d1 as ref u8
             if tdname != none {
-                if string.rchar_cmp(tdname, type_name) == 0 {
+                if string.raw_cmp(tdname, type_name) == 0 {
                     return tdnode
                 }
             }
@@ -4514,7 +4514,7 @@ fn sema_lookup_uniondef(ctx: ref SemaCtx, type_name: ref u8) ref parser.Node = t
             if tdnode.kind == parser.NK_UNIONDEF {
                 val tdname: ref u8 = tdnode.d1 as ref u8
                 if tdname != none {
-                    if string.rchar_cmp(tdname, type_name) == 0 {
+                    if string.raw_cmp(tdname, type_name) == 0 {
                         return tdnode
                     }
                 }
@@ -4546,7 +4546,7 @@ fn sema_lookup_tagged_variant(ctx: ref SemaCtx, variant_name: ref u8, out_union_
                 if variants != none {
                     for variant in variants as list[ref parser.Node] {
                         val vname: ref u8 = variant.d0 as ref u8
-                        if vname != none && string.rchar_cmp(vname, variant_name) == 0 {
+                        if vname != none && string.raw_cmp(vname, variant_name) == 0 {
                             if out_union_name != none {
                                 val union_name: ref u8 = tdnode.d1 as ref u8
                                 val union_name_usize: mut usize = 0
@@ -4627,7 +4627,7 @@ fn sema_const_eval(expr: ref parser.Node, field_names: ref void, field_vals: ref
             }
             val fn_opt = @get(field_names as list[ref u8], fi as usize)
             if fn_opt is some func {
-                if string.rchar_cmp(func as ref u8, iname) == 0 {
+                if string.raw_cmp(func as ref u8, iname) == 0 {
                     val fv_opt = @get(field_vals as list[i64], fi as usize)
                     if fv_opt is some fv {
                         return fv as i64
@@ -4814,7 +4814,7 @@ fn sema_lookup_enumdef(ctx: ref SemaCtx, type_name: ref u8) ref parser.Node = tr
             val tdnode: ref parser.Node = td as ref parser.Node
             if tdnode.kind == parser.NK_ENUMDEF {
                 val tdname: ref u8 = tdnode.d1 as ref u8
-                if tdname != none && string.rchar_cmp(tdname, type_name) == 0 {
+                if tdname != none && string.raw_cmp(tdname, type_name) == 0 {
                     return tdnode
                 }
             }
@@ -4839,7 +4839,7 @@ fn sema_lookup_tagged_uniondef(ctx: ref SemaCtx, type_name: ref u8) ref parser.N
             val tdnode: ref parser.Node = td as ref parser.Node
             if tdnode.kind == parser.NK_TAGGED_UNIONDEF {
                 val tdname: ref u8 = tdnode.d1 as ref u8
-                if tdname != none && string.rchar_cmp(tdname, type_name) == 0 {
+                if tdname != none && string.raw_cmp(tdname, type_name) == 0 {
                     return tdnode
                 }
             }
@@ -5656,7 +5656,7 @@ fn check_stmt(ctx: mut ref SemaCtx, stmt: ref parser.Node, filename: ref u8) voi
                 val bindings: ref void = tu_arm.d1 as ref void
                 if bindings != none {
                     for bname in bindings as list[ref u8] {
-                        if string.rchar_cmp(bname, "_") != 0 {
+                        if string.raw_cmp(bname, "_") != 0 {
                             scope_define(ctx, bname, 1, none, 0, line)
                             scope_set_implicit_mut(ctx, bname)
                         }
@@ -5666,7 +5666,7 @@ fn check_stmt(ctx: mut ref SemaCtx, stmt: ref parser.Node, filename: ref u8) voi
                 check_stmts(ctx, arm_body, filename)
                 if bindings != none {
                     for bname2 in bindings as list[ref u8] {
-                        if string.rchar_cmp(bname2, "_") != 0 {
+                        if string.raw_cmp(bname2, "_") != 0 {
                             if !stmts_use_name(arm_body, bname2) {
                                 val buf: ref u8 = @alloc(256) as ref u8
                                 @snprintf(buf, 256, "{s}:{lld}: match binding '{s}' is captured but never used (use '_' to discard)",
