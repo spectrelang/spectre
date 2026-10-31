@@ -208,6 +208,17 @@ fn kind_is_eq(k: lexer.TokenKind) bool = {
     }
 }
 
+fn kind_is_as(k: lexer.TokenKind) bool = {
+    match k {
+        As() => {
+            return true
+        }
+        else => {
+            return false
+        }
+    }
+}
+
 fn kind_is_elif(k: lexer.TokenKind) bool = {
     match k {
         Elif() => {
@@ -978,8 +989,18 @@ fn format_match_arm_spacing(src: ref u8) ref u8 = trust {
                 }
                 ws_arrow--
             }
-            if ws_arrow == arrow_pos {
-                @append(edits, edit_new(arrow_pos, arrow_pos, " "))
+
+            val arrow_at_line_start: bool =
+            ws_arrow == 0 ||
+            byte_at(src, ws_arrow - 1) == 10 ||
+            byte_at(src, ws_arrow - 1) == 13
+
+            if !arrow_at_line_start {
+                val arrow_gap: i64 = arrow_pos - ws_arrow
+                val arrow_one: bool = arrow_gap == 1 && byte_at(src, ws_arrow) == 32
+                if !arrow_one {
+                    @append(edits, edit_new(ws_arrow, arrow_pos, " "))
+                }
             }
         }
 
@@ -1190,6 +1211,75 @@ fn format_eq_spacing(src: ref u8) ref u8 = trust {
                     next_pos - (eq_pos + 1) == 1 && byte_at(src, eq_pos + 1) == 32
                     if !already_one_after {
                         @append(edits, edit_new(eq_pos + 1, next_pos, " "))
+                    }
+                }
+            }
+        }
+
+        i++
+    }
+
+    return apply_edits(src, edits)
+}
+
+fn format_as_spacing(src: ref u8) ref u8 = trust {
+    val tok_res = lexer.tokenize(src)
+    val tokens: mut list[ref lexer.Token] = []
+    match tok_res {
+        ok toks => {
+            tokens = toks
+        }
+        err _   => {
+            return src
+        }
+    }
+
+    val len: i64 = str.len_raw(src)
+    val starts: list[i64] = collect_line_starts(src, len)
+    val ntokens: i64 = @len(tokens) as i64
+    val edits: mut list[ref Edit] = []
+    val i: mut i64 = 0
+
+    for {
+        if i >= ntokens {
+            break
+        }
+        val k: lexer.TokenKind = lexer.tok_kind(tokens, i)
+
+        if kind_is_as(k) {
+            val as_pos: i64 = token_start(tokens, starts, i)
+            val ws_before: mut i64 = as_pos
+            for {
+                if ws_before <= 0 {
+                    break
+                }
+                val c: i64 = byte_at(src, ws_before - 1)
+                if c != 32 && c != 9 {
+                    break
+                }
+                ws_before--
+            }
+
+            val at_line_start: bool =
+            ws_before == 0 ||
+            byte_at(src, ws_before - 1) == 10 ||
+            byte_at(src, ws_before - 1) == 13
+
+            if !at_line_start {
+                val gap: i64 = as_pos - ws_before
+                val already_one: bool = gap == 1 && byte_at(src, ws_before) == 32
+                if !already_one {
+                    @append(edits, edit_new(ws_before, as_pos, " "))
+                }
+            }
+
+            if i + 1 < ntokens && token_line(tokens, i + 1) == token_line(tokens, i) {
+                val next_pos: i64 = token_start(tokens, starts, i + 1)
+                if range_is_whitespace(src, as_pos + 1, next_pos) {
+                    val already_one_after: bool =
+                    next_pos - (as_pos + 1) == 1 && byte_at(src, as_pos + 1) == 32
+                    if !already_one_after {
+                        @append(edits, edit_new(as_pos + 1, next_pos, " "))
                     }
                 }
             }
@@ -1846,7 +1936,8 @@ fn format_source(src: ref u8) ref u8 = trust {
     val arm_spaced: ref u8 = format_match_arm_spacing(decl_separated)
     val colon_spaced: ref u8 = format_colon_spacing(arm_spaced)
     val eq_spaced: ref u8 = format_eq_spacing(colon_spaced)
-    val brace_spaced: ref u8 = format_block_brace_spacing(eq_spaced)
+    val as_spaced: ref u8 = format_as_spacing(eq_spaced)
+    val brace_spaced: ref u8 = format_block_brace_spacing(as_spaced)
     val return_spaced: ref u8 = format_fn_return_spacing(brace_spaced)
     val indented: ref u8 = reindent(return_spaced)
     val imports_aligned: ref u8 = format_import_alignment(indented)

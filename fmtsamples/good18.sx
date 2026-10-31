@@ -1,0 +1,23 @@
+fn cg_register_global(ctx: mut ref CgCtx, src_name: ref u8, label: ref u8, qtype: ref u8, ann: ref u8) void = trust {
+    @append(cg_global_src_names(ctx) as list[ref u8], src_name)
+    @append(cg_global_labels(ctx) as list[ref u8], label)
+    @append(cg_global_qtypes(ctx) as list[ref u8], qtype)
+    @append(cg_global_anns(ctx) as list[ref u8], ann)
+    val copy = (label) as ref u8
+}
+
+fn current_platform_name() ref u8 = {
+    val p = get_current_platform()
+    match p {
+        Platform.Linux => {
+            return "linux"
+        }
+        Platform.Darwin => {
+            return "darwin"
+        }
+        Platform.FreeBSD => {
+            return "freebsd"
+        }
+    }
+    return "unknown"
+}
