@@ -1,10 +1,8 @@
-val log        = use("std/log")
-val allocators = use("std/allocators")
+val log = use("std/log")
 
 pub fn main() void = trust {
-    val arena = allocators.Arena.new(1024 as usize)?
     log.set_colors(true)
-    log.info[_](arena, "Hi")
+    log.info("Hi")
     log.set_colors(false)
-    log.info[_](arena, "Hi")
+    log.info("Hi")
 }
