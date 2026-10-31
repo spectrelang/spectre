@@ -432,6 +432,24 @@ fn insert_newlines(src: ref u8, pos: mut list[i64]) ref u8 = trust {
     return buf_build(out)
 }
 
+fn find_matching_paren(tokens: list[ref lexer.Token], open_idx: i64) i64 = trust {
+    val n: i64 = @len(tokens) as i64
+    val depth: mut i64 = 0
+    val i: mut i64 = open_idx
+    for {
+        if i >= n { break }
+        val k: lexer.TokenKind = lexer.tok_kind(tokens, i)
+        if lexer.kind_is_lparen(k) {
+            depth++
+        } elif lexer.kind_is_rparen(k) {
+            depth--
+            if depth == 0 { return i }
+        }
+        i++
+    }
+    return -1
+}
+
 fn find_matching_brace(tokens: list[ref lexer.Token], open_idx: i64) i64 = trust {
     val n: i64 = @len(tokens) as i64
     val depth: mut i64 = 0
@@ -952,6 +970,211 @@ fn format_match_arm_spacing(src: ref u8) ref u8 = trust {
     return apply_edits(src, edits)
 }
 
+fn format_block_brace_spacing(src: ref u8) ref u8 = trust {
+    val tok_res = lexer.tokenize(src)
+    val tokens: mut list[ref lexer.Token] = []
+    match tok_res {
+        ok toks => { tokens = toks }
+        err _   => { return src }
+    }
+
+    val len: i64 = str.len_raw(src)
+    val starts: list[i64] = collect_line_starts(src, len)
+    val ntokens: i64 = @len(tokens) as i64
+    val edits: mut list[ref Edit] = []
+    val i: mut i64 = 0
+
+    for {
+        if i >= ntokens { break }
+        val k: lexer.TokenKind = lexer.tok_kind(tokens, i)
+
+        if lexer.kind_is_lbrace(k) && brace_is_block(tokens, i) {
+            val brace_pos: i64 = token_start(tokens, starts, i)
+            val ws_start: mut i64 = brace_pos
+            for {
+                if ws_start <= 0 { break }
+                val c: i64 = byte_at(src, ws_start - 1)
+                if c != 32 && c != 9 { break }
+                ws_start--
+            }
+
+            val at_line_start: bool =
+                ws_start == 0 ||
+                byte_at(src, ws_start - 1) == 10 ||
+                byte_at(src, ws_start - 1) == 13
+
+            if !at_line_start {
+                val gap: i64 = brace_pos - ws_start
+                val already_one: bool = gap == 1 && byte_at(src, ws_start) == 32
+                if !already_one {
+                    @append(edits, edit_new(ws_start, brace_pos, " "))
+                }
+            }
+        }
+
+        i++
+    }
+
+    return apply_edits(src, edits)
+}
+
+fn find_fn_params_open(tokens: list[ref lexer.Token], fn_idx: i64) i64 = trust {
+    val n: i64 = @len(tokens) as i64
+    val p: mut i64 = fn_idx + 1
+
+    if p < n && lexer.kind_is_lparen(lexer.tok_kind(tokens, p)) {
+        val r: i64 = find_matching_paren(tokens, p)
+        if r > p && r + 1 < n && lexer.kind_is_ident(lexer.tok_kind(tokens, r + 1)) {
+            // Method receiver `(Type)`: continue after the method name.
+            p = r + 2
+        } else {
+            return p
+        }
+    }
+
+    for {
+        if p >= n { break }
+        val k: lexer.TokenKind = lexer.tok_kind(tokens, p)
+        if lexer.kind_is_lparen(k) { return p }
+        if lexer.kind_is_lbrace(k) || kind_is_eq(k) { break }
+        p++
+    }
+
+    return -1
+}
+
+fn format_fn_return_spacing(src: ref u8) ref u8 = trust {
+    val tok_res = lexer.tokenize(src)
+    val tokens: mut list[ref lexer.Token] = []
+    match tok_res {
+        ok toks => { tokens = toks }
+        err _   => { return src }
+    }
+
+    val len: i64 = str.len_raw(src)
+    val starts: list[i64] = collect_line_starts(src, len)
+    val ntokens: i64 = @len(tokens) as i64
+    val edits: mut list[ref Edit] = []
+    val i: mut i64 = 0
+
+    for {
+        if i >= ntokens { break }
+        val k: lexer.TokenKind = lexer.tok_kind(tokens, i)
+
+        if lexer.kind_is_fn(k) {
+            val params_open: i64 = find_fn_params_open(tokens, i)
+            if params_open >= 0 {
+                val params_close: i64 = find_matching_paren(tokens, params_open)
+                if params_close > params_open && params_close + 1 < ntokens {
+                    val close_line: i64 = token_line(tokens, params_close)
+                    val next_line: i64 = token_line(tokens, params_close + 1)
+                    if close_line == next_line {
+                        val close_end: i64 = token_start(tokens, starts, params_close) + 1
+                        val next_pos: i64 = token_start(tokens, starts, params_close + 1)
+                        if range_is_whitespace(src, close_end, next_pos) {
+                            val already_one: bool =
+                                next_pos - close_end == 1 && byte_at(src, close_end) == 32
+                            if !already_one {
+                                @append(edits, edit_new(close_end, next_pos, " "))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        i++
+    }
+
+    return apply_edits(src, edits)
+}
+
+fn segment_starts_with(src: ref u8, start: i64, end: i64, prefix: ref u8) bool = trust {
+    val plen: i64 = str.len_raw(prefix)
+    if end - start < plen { return false }
+    val i: mut i64 = 0
+    for {
+        if i >= plen { break }
+        if byte_at(src, start + i) != byte_at(prefix, i) { return false }
+        i++
+    }
+    return true
+}
+
+fn line_is_function_start(src: ref u8, start: i64, end: i64) bool = trust {
+    if segment_starts_with(src, start, end, "pub fn") {
+        if start + 6 < end {
+            val c: i64 = byte_at(src, start + 6)
+            if c == 32 || c == 40 { return true }
+        }
+    }
+    if segment_starts_with(src, start, end, "fn") {
+        if start + 2 < end {
+            val c: i64 = byte_at(src, start + 2)
+            if c == 32 || c == 40 { return true }
+        }
+    }
+    return false
+}
+
+fn format_top_level_function_gaps(src: ref u8) ref u8 = trust {
+    val len: i64 = str.len_raw(src)
+    val out: mut ref Buf = buf_new(len + 64)
+    val line_start: mut i64 = 0
+    val prev_blank: mut bool = false
+    val prev_close: mut bool = false
+
+    for {
+        if line_start > len { break }
+
+        val line_end: mut i64 = line_start
+        for {
+            if line_end >= len { break }
+            if byte_at(src, line_end) == 10 { break }
+            line_end++
+        }
+
+        val content_start: mut i64 = line_start
+        for {
+            if content_start >= line_end { break }
+            val c: i64 = byte_at(src, content_start)
+            if c != 32 && c != 9 { break }
+            content_start++
+        }
+
+        val content_end: mut i64 = line_end
+        for {
+            if content_end <= content_start { break }
+            val c: i64 = byte_at(src, content_end - 1)
+            if c != 32 && c != 9 && c != 13 { break }
+            content_end--
+        }
+
+        val blank: bool = content_start >= content_end
+        val is_fn: bool = !blank && line_is_function_start(src, content_start, content_end)
+
+        if is_fn && prev_close && !prev_blank {
+            buf_append_char(out, 10 as u8)
+        }
+
+        if !blank {
+            buf_append_bytes(out, src, line_start, content_end - line_start)
+        }
+
+        if line_end < len {
+            buf_append_char(out, 10 as u8)
+        }
+
+        prev_blank = blank
+        prev_close = !blank && content_end - content_start == 1 && byte_at(src, content_start) == 125
+
+        if line_end >= len { break }
+        line_start = line_end + 1
+    }
+
+    return buf_build(out)
+}
+
 fn scan_nesting(src: ref u8, start: i64, end: i64, out: mut ref Nesting) void = trust {
     out.braces = 0
     out.parens = 0
@@ -1148,8 +1371,11 @@ fn reindent(src: ref u8) ref u8 = trust {
 fn format_source(src: ref u8) ref u8 = trust {
     val rewritten: ref u8 = rewrite_matches(src)
     val braced: ref u8 = format_block_braces(rewritten)
-    val spaced: ref u8 = format_match_arm_spacing(braced)
-    return reindent(spaced)
+    val arm_spaced: ref u8 = format_match_arm_spacing(braced)
+    val brace_spaced: ref u8 = format_block_brace_spacing(arm_spaced)
+    val return_spaced: ref u8 = format_fn_return_spacing(brace_spaced)
+    val indented: ref u8 = reindent(return_spaced)
+    return format_top_level_function_gaps(indented)
 }
 
 fn has_sx_suffix(file: ref u8) bool = {
