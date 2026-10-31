@@ -28,7 +28,7 @@ fn label(s: Shape) ref u8 = {
         Rect _, _     => {
             return "Rect"
         }
-        Triangle _,_,_=> {
+        Triangle _, _, _ => {
             return "Triangle"
         }
     }

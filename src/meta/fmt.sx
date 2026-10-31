@@ -172,6 +172,13 @@ fn kind_is_eq(k: lexer.TokenKind) bool = {
     }
 }
 
+fn kind_is_elif(k: lexer.TokenKind) bool = {
+    match k {
+        Elif() => { return true }
+        else   => { return false }
+    }
+}
+
 fn kind_is_semicolon(k: lexer.TokenKind) bool = {
     match k {
         Semicolon() => { return true }
@@ -598,19 +605,38 @@ fn format_block_braces(src: ref u8) ref u8 = trust {
         if lexer.kind_is_lbrace(k) {
             if brace_is_block(tokens, i) {
                 val close: i64 = find_matching_brace(tokens, i)
-                if close > i + 1 {
-                    val open_line: i64 = token_line(tokens, i)
-                    val next_line: i64 = token_line(tokens, i + 1)
-                    if open_line == next_line {
-                        val open_pos: i64 = token_start(tokens, starts, i) + 1
-                        @append(newlines, open_pos)
+                if close > i {
+                    if close > i + 1 {
+                        val open_line: i64 = token_line(tokens, i)
+                        val next_line: i64 = token_line(tokens, i + 1)
+                        if open_line == next_line {
+                            val open_pos: i64 = token_start(tokens, starts, i) + 1
+                            @append(newlines, open_pos)
+                        }
+
+                        val prev_line: i64 = token_line(tokens, close - 1)
+                        val close_line: i64 = token_line(tokens, close)
+                        if prev_line == close_line {
+                            val close_pos: i64 = token_start(tokens, starts, close)
+                            @append(newlines, close_pos)
+                        }
                     }
 
-                    val prev_line: i64 = token_line(tokens, close - 1)
-                    val close_line: i64 = token_line(tokens, close)
-                    if prev_line == close_line {
-                        val close_pos: i64 = token_start(tokens, starts, close)
-                        @append(newlines, close_pos)
+                    if close + 1 < ntokens {
+                        val close_line2: i64 = token_line(tokens, close)
+                        val after_line: i64 = token_line(tokens, close + 1)
+                        if close_line2 == after_line {
+                            val nk: lexer.TokenKind = lexer.tok_kind(tokens, close + 1)
+                            val same_line: bool =
+                                lexer.kind_is_else(nk) || kind_is_elif(nk) ||
+                                lexer.kind_is_comma(nk) || lexer.kind_is_rparen(nk) ||
+                                lexer.kind_is_rbracket(nk) || kind_is_semicolon(nk) ||
+                                lexer.kind_is_rbrace(nk)
+                            if !same_line {
+                                val after_pos: i64 = token_start(tokens, starts, close + 1)
+                                @append(newlines, after_pos)
+                            }
+                        }
                     }
                 }
             }
@@ -620,6 +646,89 @@ fn format_block_braces(src: ref u8) ref u8 = trust {
     }
 
     return insert_newlines(src, newlines)
+}
+
+fn format_match_arm_spacing(src: ref u8) ref u8 = trust {
+    val tok_res = lexer.tokenize(src)
+    val tokens: mut list[ref lexer.Token] = []
+    match tok_res {
+        ok toks => { tokens = toks }
+        err _   => { return src }
+    }
+
+    val len: i64 = str.len_raw(src)
+    val starts: list[i64] = collect_line_starts(src, len)
+    val ntokens: i64 = @len(tokens) as i64
+    val edits: mut list[ref Edit] = []
+    val i: mut i64 = 0
+
+    for {
+        if i >= ntokens { break }
+        val k: lexer.TokenKind = lexer.tok_kind(tokens, i)
+
+        if lexer.kind_is_fatarrow(k) {
+            val arrow_line: i64 = token_line(tokens, i)
+
+            val pstart: mut i64 = i - 1
+            for {
+                if pstart < 0 { break }
+                if token_line(tokens, pstart) != arrow_line { break }
+                val pk: lexer.TokenKind = lexer.tok_kind(tokens, pstart)
+                if lexer.kind_is_lbrace(pk) || lexer.kind_is_rbrace(pk) { break }
+                pstart--
+            }
+            pstart++
+
+            val j: mut i64 = pstart
+            for {
+                if j >= i { break }
+                val jk: lexer.TokenKind = lexer.tok_kind(tokens, j)
+
+                if lexer.kind_is_comma(jk) {
+                    val comma_pos: i64 = token_start(tokens, starts, j)
+
+                    val ws_before: mut i64 = comma_pos
+                    for {
+                        if ws_before <= 0 { break }
+                        val c: i64 = byte_at(src, ws_before - 1)
+                        if c != 32 && c != 9 { break }
+                        ws_before--
+                    }
+                    if ws_before < comma_pos {
+                        @append(edits, edit_new(ws_before, comma_pos, ""))
+                    }
+
+                    if j + 1 < i {
+                        val next_line: i64 = token_line(tokens, j + 1)
+                        if next_line == arrow_line {
+                            val next_pos: i64 = token_start(tokens, starts, j + 1)
+                            if range_is_whitespace(src, comma_pos + 1, next_pos) {
+                                @append(edits, edit_new(comma_pos + 1, next_pos, " "))
+                            }
+                        }
+                    }
+                }
+
+                j++
+            }
+
+            val arrow_pos: i64 = token_start(tokens, starts, i)
+            val ws_arrow: mut i64 = arrow_pos
+            for {
+                if ws_arrow <= 0 { break }
+                val c: i64 = byte_at(src, ws_arrow - 1)
+                if c != 32 && c != 9 { break }
+                ws_arrow--
+            }
+            if ws_arrow == arrow_pos {
+                @append(edits, edit_new(arrow_pos, arrow_pos, " "))
+            }
+        }
+
+        i++
+    }
+
+    return apply_edits(src, edits)
 }
 
 fn scan_nesting(src: ref u8, start: i64, end: i64, out: mut ref Nesting) void = trust {
@@ -786,7 +895,8 @@ fn reindent(src: ref u8) ref u8 = trust {
 fn format_source(src: ref u8) ref u8 = trust {
     val rewritten: ref u8 = rewrite_matches(src)
     val braced: ref u8 = format_block_braces(rewritten)
-    return reindent(braced)
+    val spaced: ref u8 = format_match_arm_spacing(braced)
+    return reindent(spaced)
 }
 
 fn has_sx_suffix(file: ref u8) bool = {
