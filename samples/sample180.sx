@@ -41,6 +41,7 @@ fn is_visible(p: Particle, time: f32) bool = {
 
     return false
 }
+
 pub fn should_render(
     distance: f32,
     brightness: f32,
@@ -62,6 +63,7 @@ pub fn should_render(
 
     return false
 }
+
 fn print_particle_state(p: Particle, time: f32) void = {
     if is_visible(p, time)
     && p.color.x > 0.7 as f32
