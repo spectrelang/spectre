@@ -4,5 +4,7 @@ pub fn main() void = trust {
         2,
         3
     ]
-    @print("{d}\n", {xs[0]})
+    if @get(xs, 0) is some v {
+        @print("{d}", {v})
+    }
 }
