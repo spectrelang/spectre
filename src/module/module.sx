@@ -7,6 +7,7 @@ val reflection = use("std/reflection")
 val allocators = use("std/allocators")
 val parser     = use("../ast/parser.sx")
 val lexer      = use("../ast/lexer.sx")
+val defines    = use("../meta/defines.sx")
 
 /// A resolved module: its parsed items plus a map of named child imports.
 /// Stored as parallel lists: import_names[i] <-> import_modules[i].
@@ -1135,6 +1136,9 @@ fn resolve_module_impl(
             }
 
             val resolved_path: mut ref u8 = resolve_use_path(use_path, file_dir_c, exe_dir, workspace)
+            if defines.is_env_module_path(resolved_path) {
+                defines.register_env_alias(import_name)
+            }
             val needed_grandchildren: mut ref void = none
             if @len(needed_subs) > 0 {
                 needed_grandchildren = needed_subs as ref void

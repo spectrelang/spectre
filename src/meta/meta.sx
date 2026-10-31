@@ -1,8 +1,17 @@
 val stdio = use("std/stdio")
 val str   = use("std/string")
+val env   = use("env.sx")
 
 pub fn get_spectre_version() ref u8 = {
     return "v0.0.12"
+}
+
+pub fn get_commit_hash() ref u8 = {
+    val hash: ref u8 = env.get("GIT_HASH")
+    if str.raw_cmp(hash, "") == 0 {
+        return "unknown"
+    }
+    return hash
 }
 
 pub fn print_usage() void = {
@@ -44,6 +53,7 @@ pub fn print_usage() void = {
     }
     stdio.puts("  -b, --bootstrap      Display backend output on error")
     stdio.puts("  -c, --compile        Compile only to produce object file, without linking")
+    stdio.puts("  -d<NAME>=<value>     Define a compile-time environment variable")
     stdio.puts("  -o, --output <file>  Output path for binary or build artifact")
     stdio.puts("  -l, --loud           Show stages of compilation with verbose output")
     stdio.puts("  -v, --version        Show the version of the Spectre compiler")
@@ -51,7 +61,7 @@ pub fn print_usage() void = {
 }
 
 pub fn print_version() void = {
-    trust stdio.print("Spectre {s}\n(C) Navid Momtahen - GPL-3.0 - 2026", {get_spectre_version()})
+    trust stdio.print("Spectre {s} ({s})\n(C) Navid Momtahen - GPL-3.0 - 2026\n", {get_spectre_version(), get_commit_hash()})
 }
 
 fn print_flag_help(name: ref u8, summary: ref u8, usage: ref u8) void = trust {
@@ -98,7 +108,8 @@ pub fn print_help(topic: ref u8) i32 = trust {
         stdio.puts("")
         stdio.puts("The configuration name defaults to \"dev\".")
         stdio.puts("sx.mod must contain a spectre_version that matches the installed")
-        stdio.puts("compiler, or the build is rejected.")
+        stdio.puts("compiler, or the build is rejected. A build configuration may also")
+        stdio.puts("define compile-time environment variables with an env { } block.")
         return 0
     }
 
@@ -278,6 +289,11 @@ pub fn print_help(topic: ref u8) i32 = trust {
 
     if str.raw_cmp(topic, "-c") == 0 || str.raw_cmp(topic, "--compile") == 0 {
         print_flag_help("-c, --compile", "Compile only to produce an object file, without linking.", "spectre <input.sx> --compile")
+        return 0
+    }
+
+    if str.raw_cmp(topic, "-d") == 0 || str.rchar_starts_with(topic, "-d") {
+        print_flag_help("-d<NAME>=<value>", "Define a compile-time environment variable. Reads through env.get(\"NAME\") are replaced with the supplied value at compile time.", "spectre -dGIT_HASH=abcdef <input.sx>")
         return 0
     }
 

@@ -17,6 +17,7 @@ val codegen     = use("codegen/codegen.sx")
 val alt_codegen = use("codegen/alt_codegen.sx")
 val module      = use("module/module.sx")
 val meta        = use("meta/meta.sx")
+val defines     = use("meta/defines.sx")
 val commands    = use("meta/commands.sx")
 val docs        = use("meta/docs.sx")
 val formatter   = use("meta/fmt.sx")
@@ -53,6 +54,41 @@ pub fn main() i32 = trust {
     }
 
     val input_arg_i: mut i64 = 1
+    for {
+        val pre_opt = @get(args, input_arg_i)
+        if pre_opt is some pre_val {
+            val pre_arg: ref u8 = pre_val as ref u8
+            if string.raw_cmp(pre_arg, "-d") == 0 {
+                val spec_i: i64 = input_arg_i + 1
+                val spec_opt = @get(args, spec_i)
+                if spec_opt is some spec_val {
+                    val def_spec: ref u8 = spec_val as ref u8
+                    if !defines.add_spec(def_spec) {
+                        stdio.print("error: invalid define '{s}', expected NAME=VALUE\n", {def_spec})
+                        allocators.Arena.free(arena)
+                        return 1
+                    }
+                    input_arg_i = spec_i + 1
+                } else {
+                    stdio.puts("error: -d requires a NAME=VALUE argument")
+                    allocators.Arena.free(arena)
+                    return 1
+                }
+            } elif string.rchar_starts_with(pre_arg, "-d") {
+                val def_spec: ref u8 = string.substr(pre_arg, 2, string.len_raw(pre_arg) - 2)
+                if !defines.add_spec(def_spec) {
+                    stdio.print("error: invalid define '{s}', expected -dNAME=VALUE\n", {pre_arg})
+                    allocators.Arena.free(arena)
+                    return 1
+                }
+                input_arg_i++
+            } else {
+                break
+            }
+        } else {
+            break
+        }
+    }
     val input_opt = @get(args, input_arg_i)
     val input: mut ref u8 = ""
     if input_opt is some a {
@@ -65,7 +101,7 @@ pub fn main() i32 = trust {
 
     if string.raw_cmp(input, "run") == 0 {
         run_mode = true
-        input_arg_i = 2
+        input_arg_i = input_arg_i + 1
         val run_input_opt = @get(args, input_arg_i)
         if run_input_opt is some a {
             input = a as ref u8
@@ -307,6 +343,36 @@ pub fn main() i32 = trust {
                     allocators.Arena.free(arena)
                     return 1
                 }
+            } elif string.raw_cmp(arg, "-d") == 0 {
+                val next_i: i64 = arg_i + 1
+                if next_i < argc {
+                    val next_opt = @get(args, next_i)
+                    if next_opt is some dv {
+                        val def_spec: ref u8 = dv as ref u8
+                        if !defines.add_spec(def_spec) {
+                            stdio.print("error: invalid define '{s}', expected NAME=VALUE\n", {def_spec})
+                            allocators.Arena.free(arena)
+                            return 1
+                        }
+                    } else {
+                        stdio.puts("error: -d requires a NAME=VALUE argument")
+                        allocators.Arena.free(arena)
+                        return 1
+                    }
+                    arg_i = next_i + 1
+                } else {
+                    stdio.puts("error: -d requires a NAME=VALUE argument")
+                    allocators.Arena.free(arena)
+                    return 1
+                }
+            } elif string.rchar_starts_with(arg, "-d") {
+                val def_spec: ref u8 = string.substr(arg, 2, string.len_raw(arg) - 2)
+                if !defines.add_spec(def_spec) {
+                    stdio.print("error: invalid define '{s}', expected -dNAME=VALUE\n", {arg})
+                    allocators.Arena.free(arena)
+                    return 1
+                }
+                arg_i++
             } elif string.raw_cmp(arg, "--translate-c") == 0 {
                 translate_c_flag = true
                 arg_i++

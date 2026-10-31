@@ -9,6 +9,7 @@ val os      = use("std/os")
 val parser  = use("../ast/parser.sx")
 val module  = use("../module/module.sx")
 val codegen = use("codegen.sx")
+val defines = use("../meta/defines.sx")
 
 pub type CCtx = {
     sb: mut ref void
@@ -3324,6 +3325,33 @@ fn gen_call(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
     val callee: ref parser.Node = parser.call_callee(expr)
     val args: ref void = parser.call_args(expr) as ref void
 
+    // `env.get("NAME")` is resolved at compile time when NAME was supplied
+    // through a -d definition (or an sx.mod env block).
+    if callee.kind == parser.NK_FIELD {
+        val env_base: ref parser.Node = parser.field_base(callee)
+        val env_name: ref u8 = parser.field_name(callee)
+        if env_base != none && env_base.kind == parser.NK_IDENT &&
+        defines.is_env_alias(env_base.d0 as ref u8) &&
+        str.raw_cmp(env_name, "get") == 0 {
+            if args != none && (@len(args as list[ref parser.Node]) as i64) > 0 {
+                val key_opt = @get(args as list[ref parser.Node], 0 as usize)
+                if key_opt is some key_val {
+                    val key_node: ref parser.Node = key_val as ref parser.Node
+                    if key_node.kind == parser.NK_STR_LIT {
+                        val key: ref u8 = parser.str_lit_text(key_node)
+                        val value_opt = defines.get(key)
+                        if value_opt is some value {
+                            val idx: i64 = intern_string(ctx, value as ref u8)
+                            val sbuf: ref u8 = @alloc(128) as ref u8
+                            @snprintf(sbuf, 128, "((int64_t)(intptr_t)sx__str{lld})", {idx})
+                            return cc_expr_track(ctx, sbuf)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     if callee.kind == parser.NK_GENERIC_INST {
         val gi_base: ref parser.Node = parser.generic_inst_base(callee)
         val gi_targs: list[ref parser.Node] = parser.generic_inst_type_args(callee)
@@ -5616,7 +5644,7 @@ fn gen_match_tagged_union(ctx: mut ref CCtx, stmt: ref parser.Node) void = trust
 }
 
 fn get_std_child_names() mut list[ref u8] = {
-    return ["allocators", "collections", "crypto", "fmt", "encoding", "fs", "log", "math", "os", "path", "algorithms", "random", "reflection", "stdio", "string", "str", "time", "thread"]
+    return ["allocators", "collections", "crypto", "env", "fmt", "encoding", "fs", "log", "math", "os", "path", "algorithms", "random", "reflection", "stdio", "string", "str", "time", "thread"]
 }
 
 fn gen_fn_prefixed(ctx: mut ref CCtx, fn_node: ref parser.Node, mod_prefix: ref u8) void = trust {

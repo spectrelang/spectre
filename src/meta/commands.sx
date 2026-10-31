@@ -15,6 +15,7 @@ pub type SxBuildConfig = {
     flags: mut ref u8
     output: mut ref u8
     entry: mut ref u8
+    envs: mut list[ref u8]
 }
 
 pub type SxMod = {
@@ -151,6 +152,39 @@ fn ctx_read_ident(ctx: mut ref ParseCtx) ref u8 = trust {
     return result
 }
 
+fn ctx_read_env_value(ctx: mut ref ParseCtx) ref u8 = trust {
+    ctx_skip_ws(ctx)
+    if ctx_peek(ctx) == 34 {
+        return ctx_read_quoted(ctx)
+    }
+
+    val cap: mut i64 = 256
+    val buf: mut ref u8 = @alloc(cap) as ref u8
+    val i: mut i64 = 0
+    for {
+        val c: i64 = ctx_peek(ctx)
+        if c == -1 || c == 32 || c == 9 || c == 10 || c == 13 || c == 125 {
+            break
+        }
+        if i >= cap - 1 {
+            cap = cap * 2
+            buf = @realloc(buf as ref void, cap) as ref u8
+        }
+        @store8(@ptradd(buf as ref void, i), c as u8)
+        i++
+        ctx_advance(ctx)
+    }
+    @store8(@ptradd(buf as ref void, i), 0)
+    if i == 0 {
+        @free(buf as ref void)
+        return ""
+    }
+    val result: ref u8 = @alloc(i + 1) as ref u8
+    @memcpy(result as ref void, buf as ref void, (i + 1) as usize)
+    @free(buf as ref void)
+    return result
+}
+
 pub fn parse_sxmod(content: ref u8) ref SxMod = trust {
     val ctx: mut ref ParseCtx = new_ctx(content)
     val m: mut ref SxMod = @alloc(@sizeof(SxMod)) as ref SxMod
@@ -185,6 +219,7 @@ pub fn parse_sxmod(content: ref u8) ref SxMod = trust {
             cfg.flags = ""
             cfg.output = ""
             cfg.entry = ""
+            cfg.envs = []
             ctx_skip_ws(ctx)
             if ctx_peek(ctx) == 123 {
                 ctx_advance(ctx)
@@ -207,6 +242,31 @@ pub fn parse_sxmod(content: ref u8) ref SxMod = trust {
                     cfg.output = ctx_read_quoted(ctx)
                 } elif str.raw_cmp(inner, "entry") == 0 {
                     cfg.entry = ctx_read_quoted(ctx)
+                } elif str.raw_cmp(inner, "env") == 0 {
+                    ctx_skip_ws(ctx)
+                    if ctx_peek(ctx) == 123 {
+                        ctx_advance(ctx)
+                    }
+                    for {
+                        ctx_skip_ws(ctx)
+                        val ec: i64 = ctx_peek(ctx)
+                        if ec == -1 || ec == 125 {
+                            break
+                        }
+                        val env_name: ref u8 = ctx_read_ident(ctx)
+                        if str.raw_cmp(env_name, "") == 0 {
+                            break
+                        }
+                        ctx_skip_ws(ctx)
+                        if ctx_peek(ctx) == 61 {
+                            ctx_advance(ctx)
+                        }
+                        val env_value: ref u8 = ctx_read_env_value(ctx)
+                        @append(cfg.envs, @fmt("{s}={s}", {env_name, env_value}))
+                    }
+                    if ctx_peek(ctx) == 125 {
+                        ctx_advance(ctx)
+                    }
                 } else {
                     ctx_skip_line(ctx)
                 }
@@ -411,6 +471,20 @@ fn build_config_cmd(cfg: ref SxBuildConfig, exe_path: ref u8, entry: ref u8) ref
     }
     if str.raw_cmp(cfg.output, "") != 0 {
         cmd = @fmt("{s} -o {s}", {cmd, cfg.output})
+    }
+    val nenv: i64 = @len(cfg.envs) as i64
+    if nenv > 0 {
+        if str.raw_cmp(cfg.action, "") == 0 {
+            for e in cfg.envs {
+                cmd = @fmt("{s} -d{s}", {cmd, e})
+            }
+        } else {
+            val prefix: mut ref u8 = ""
+            for e in cfg.envs {
+                prefix = @fmt("{s}{s} ", {prefix, e})
+            }
+            cmd = @fmt("{s}{s}", {prefix, cmd})
+        }
     }
     return cmd
 }
@@ -1052,6 +1126,9 @@ pub fn cmd_ref() i32 = {
                 \\
                 \\ build dev {
                 \\     output "./myapp-dev"
+                \\     env {
+                \\         GIT_HASH=abcdef
+                \\     }
                 \\ }
                 \\ ```
                 \\
@@ -1063,6 +1140,7 @@ pub fn cmd_ref() i32 = {
                 \\   - `action`  — base shell command for this build config
                 \\   - `flags`   — extra flags appended to the build command
                 \\   - `output`  — `-o` output path appended to the build command
+                \\   - `env`     — compile-time environment variables for this build
                 \\
             )
             trust fs.close(f)

@@ -8,6 +8,7 @@ val collections = use("std/collections")
 val lexer       = use("../ast/lexer.sx")
 val parser      = use("../ast/parser.sx")
 val module      = use("../module/module.sx")
+val defines     = use("../meta/defines.sx")
 
 /// Codegen context
 pub type CgCtx = {
@@ -6973,6 +6974,33 @@ fn gen_call(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
     val callee_node: ref parser.Node = expr.d0 as ref parser.Node
     val args_list: ref void = expr.d1 as ref void
 
+    // `env.get("NAME")` is resolved at compile time when NAME was supplied
+    // through a -d definition (or an sx.mod env block).
+    if callee_node.kind == parser.NK_FIELD {
+        val env_base: ref parser.Node = parser.field_base(callee_node)
+        val env_name: ref u8 = parser.field_name(callee_node)
+        if env_base != none && env_base.kind == parser.NK_IDENT &&
+        defines.is_env_alias(env_base.d0 as ref u8) &&
+        str.raw_cmp(env_name, "get") == 0 {
+            if args_list != none && (@len(args_list as list[ref parser.Node]) as i64) > 0 {
+                val key_opt = @get(args_list as list[ref parser.Node], 0 as usize)
+                if key_opt is some key_val {
+                    val key_node: ref parser.Node = key_val as ref parser.Node
+                    if key_node.kind == parser.NK_STR_LIT {
+                        val key: ref u8 = parser.str_lit_text(key_node)
+                        val value_opt = defines.get(key)
+                        if value_opt is some value {
+                            val idx: i64 = intern_string(ctx, value as ref u8)
+                            val sbuf: ref u8 = @alloc(64) as ref u8
+                            @snprintf(sbuf, 64, "$__str{lld}", {idx})
+                            return sbuf
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     if callee_node.kind == parser.NK_GENERIC_INST {
         val gi_base: ref parser.Node = parser.generic_inst_base(callee_node)
         val gi_targs: list[ref parser.Node] = parser.generic_inst_type_args(callee_node)
@@ -11609,7 +11637,7 @@ fn gen_match_tagged_union(ctx: mut ref CgCtx, stmt: ref parser.Node) void = trus
 }
 
 fn get_std_child_names() mut list[ref u8] = {
-    val std_child_names: list[ref u8] = ["allocators", "collections", "crypto", "fmt", "fs", "log", "math", "os", "path", "random", "reflection", "stdio", "string", "str", "time", "thread", "algorithms", "encoding"]
+    val std_child_names: list[ref u8] = ["allocators", "collections", "crypto", "env", "fmt", "fs", "log", "math", "os", "path", "random", "reflection", "stdio", "string", "str", "time", "thread", "algorithms", "encoding"]
     return std_child_names
 }
 

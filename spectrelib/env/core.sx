@@ -1,0 +1,30 @@
+/// Environment variable access.
+///
+/// SPDX-License-Identifier: GPL-3.0-only
+/// (C) Navid Momtahen - 2026
+
+extern (C) fn getenv(name: ref u8) ref u8 = "getenv"
+
+/// Get an environment variable.
+/// Returns an empty string when the variable is not set.
+pub fn get(name: ref u8) ref u8 = {
+    val value: ref u8 = trust getenv(name)
+    if value == none {
+        return ""
+    }
+    return value
+}
+
+/// Get an environment variable, or `none` when it is not set.
+pub fn get_opt(name: ref u8) option[ref u8] = {
+    val value: ref u8 = trust getenv(name)
+    if value == none {
+        return none
+    }
+    return some value
+}
+
+/// Check whether an environment variable is set.
+pub fn has(name: ref u8) bool = {
+    return trust getenv(name) != none
+}

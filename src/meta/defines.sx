@@ -1,0 +1,123 @@
+/// Compile-time environment definitions supplied with -d or sx.mod env blocks.
+///
+/// SPDX-License-Identifier: GPL-3.0-only
+/// (C) Navid Momtahen - 2026
+
+val str = use("std/string")
+
+pub type Define = {
+    name: mut ref u8
+    value: mut ref u8
+    next: mut ref Define
+}
+
+pub type EnvAlias = {
+    name: mut ref u8
+    next: mut ref EnvAlias
+}
+
+val defs: mut ref Define = none
+val env_aliases: mut ref EnvAlias = none
+
+/// Return true when a resolved module path is the standard or compiler-local
+/// environment module.
+pub fn is_env_module_path(module_path: ref u8) bool = trust {
+    if str.rchar_ends_with(module_path, "/spectrelib/env/core.sx") {
+        return true
+    }
+    if str.rchar_ends_with(module_path, "/src/meta/env.sx") {
+        return true
+    }
+    return false
+}
+
+/// Register an import alias that refers to the environment module.
+pub fn register_env_alias(name: ref u8) void = trust {
+    val cur: mut ref EnvAlias = env_aliases
+    for {
+        if cur == none {
+            break
+        }
+        if str.raw_cmp(cur.name, name) == 0 {
+            return
+        }
+        cur = cur.next
+    }
+    val alias: mut ref EnvAlias = @alloc(@sizeof(EnvAlias)) as ref EnvAlias
+    alias.name = name
+    alias.next = env_aliases
+    env_aliases = alias
+}
+
+/// Return true when an identifier is an import alias for the environment module.
+pub fn is_env_alias(name: ref u8) bool = {
+    val cur: mut ref EnvAlias = env_aliases
+    for {
+        if cur == none {
+            break
+        }
+        if str.raw_cmp(cur.name, name) == 0 {
+            return true
+        }
+        cur = cur.next
+    }
+    return false
+}
+
+pub fn set(name: ref u8, value: ref u8) void = trust {
+    val cur: mut ref Define = defs
+    for {
+        if cur == none {
+            break
+        }
+        if str.raw_cmp(cur.name, name) == 0 {
+            cur.value = value
+            return
+        }
+        cur = cur.next
+    }
+    val d: mut ref Define = @alloc(@sizeof(Define)) as ref Define
+    d.name = name
+    d.value = value
+    d.next = defs
+    defs = d
+}
+
+pub fn get(name: ref u8) option[ref u8] = {
+    val cur: mut ref Define = defs
+    for {
+        if cur == none {
+            break
+        }
+        if str.raw_cmp(cur.name, name) == 0 {
+            return some cur.value
+        }
+        cur = cur.next
+    }
+    return none
+}
+
+/// Parse a NAME=VALUE definition and add it to the compile-time environment.
+pub fn add_spec(definition: ref u8) bool = trust {
+    val len: i64 = str.len_raw(definition)
+    val eq: mut i64 = -1
+    val i: mut i64 = 0
+    for {
+        if i >= len {
+            break
+        }
+        val c: u8 = @load8(@ptradd(definition as ref void, i)) as u8
+        if c == 61 {
+            eq = i
+            break
+        }
+        i++
+    }
+    if eq <= 0 {
+        return false
+    }
+    val name: ref u8 = str.substr(definition, 0, eq)
+    val value: ref u8 = str.substr(definition, eq + 1, len - eq - 1)
+    set(name, value)
+    return true
+}
