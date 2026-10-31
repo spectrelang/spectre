@@ -60,10 +60,14 @@ pub fn filter_c_diagnostics(raw: ref u8) ref u8 = trust {
     val ls: mut i64 = 0
     val i: mut i64 = 0
     for {
-        if i > len { break }
+        if i > len {
+            break
+        }
         val at_end: bool = i == len
         val c: mut u8 = 0
-        if !at_end { c = @load8(@ptradd(raw as ref void, i)) as u8 }
+        if !at_end {
+            c = @load8(@ptradd(raw as ref void, i)) as u8
+        }
         if at_end || c == 10 {
             val line_len: i64 = i - ls
             if line_len > 0 {
@@ -72,7 +76,9 @@ pub fn filter_c_diagnostics(raw: ref u8) ref u8 = trust {
                 if !is_context {
                     val ji: mut i64 = ls
                     for {
-                        if ji >= ls + line_len { break }
+                        if ji >= ls + line_len {
+                            break
+                        }
                         string.StringBuilder.append_char(sb, @load8(@ptradd(raw as ref void, ji)) as u8)
                         ji++
                     }
@@ -91,25 +97,33 @@ pub fn filter_c_diagnostics(raw: ref u8) ref u8 = trust {
 
 pub fn root_has_direct_links(items: list[ref parser.Node]) bool = {
     for item in items {
-        if item.kind == parser.NK_LINK { return true }
+        if item.kind == parser.NK_LINK {
+            return true
+        }
         if item.kind == parser.NK_WHEN_ITEMS {
             val when_items: list[ref parser.Node] = item.d1 as list[ref parser.Node]
             for w in when_items {
-                if w.kind == parser.NK_LINK { return true }
+                if w.kind == parser.NK_LINK {
+                    return true
+                }
             }
             val or_branches: ref void = item.d2 as ref void
             if or_branches != none {
                 for ob in or_branches as list[ref parser.Node] {
                     val ob_items: list[ref parser.Node] = ob.d1 as list[ref parser.Node]
                     for obn in ob_items {
-                        if obn.kind == parser.NK_LINK { return true }
+                        if obn.kind == parser.NK_LINK {
+                            return true
+                        }
                     }
                 }
             }
             val owise: ref void = item.d3 as ref void
             if owise != none {
                 for ow in owise as list[ref parser.Node] {
-                    if ow.kind == parser.NK_LINK { return true }
+                    if ow.kind == parser.NK_LINK {
+                        return true
+                    }
                 }
             }
         }
@@ -118,46 +132,64 @@ pub fn root_has_direct_links(items: list[ref parser.Node]) bool = {
 }
 
 pub fn input_is_in_std(input: ref u8, arena: ref allocators.Arena) bool = {
-    if string.rchar_starts_with(input, "std/")   { return true }
-    if string.rchar_starts_with(input, "./std/") { return true }
+    if string.rchar_starts_with(input, "std/")   {
+        return true
+    }
+    if string.rchar_starts_with(input, "./std/") {
+        return true
+    }
     val input_string = trust string.from[allocators.Arena](arena, input)
     val std_segment = trust string.from[allocators.Arena](arena, "/std/")
     val in_std: bool = string.contains(input_string, std_segment)
-    if in_std { return true }
+    if in_std {
+        return true
+    }
     return false
 }
 
 pub fn pick_alt_backend(
-requested: ref u8,
-release_mode: bool,
-input: ref u8,
-root_items: list[ref parser.Node],
-arena: ref allocators.Arena
+    requested: ref u8,
+    release_mode: bool,
+    input: ref u8,
+    root_items: list[ref parser.Node],
+    arena: ref allocators.Arena
 ) ref u8 = {
     if string.rchar_cmp(requested, "") != 0 {
         return requested
     }
     if release_mode {
-        if is_compiler_available("clang") { return "clang" }
-        if is_compiler_available("tcc") { return "tcc" }
+        if is_compiler_available("clang") {
+            return "clang"
+        }
+        if is_compiler_available("tcc") {
+            return "tcc"
+        }
         return "cc"
     }
     if !input_is_in_std(input, arena) && root_has_direct_links(root_items) {
-        if is_compiler_available("clang") { return "clang" }
+        if is_compiler_available("clang") {
+            return "clang"
+        }
     }
-    if is_compiler_available("tcc") { return "tcc" }
-    if is_compiler_available("clang") { return "clang" }
+    if is_compiler_available("tcc") {
+        return "tcc"
+    }
+    if is_compiler_available("clang") {
+        return "clang"
+    }
     return "cc"
 }
 
 pub fn append_debug_runtime_links(
-links: mut list[ref u8],
-exe_dir: ref u8,
-quiet: bool,
-release_mode: bool,
-arena: ref allocators.Arena
+    links: mut list[ref u8],
+    exe_dir: ref u8,
+    quiet: bool,
+    release_mode: bool,
+    arena: ref allocators.Arena
 ) void = trust {
-    if release_mode { return }
+    if release_mode {
+        return
+    }
     val panic_o: ref u8 = path.join(exe_dir, "spectrelib/csources/panic_handler.o")
     val panic_f = fs.open(panic_o, "r")
     if panic_f is some h {

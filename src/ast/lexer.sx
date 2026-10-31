@@ -131,7 +131,9 @@ pub fn lexer_new(src: ref u8) ref Lexer = trust {
     val arena: mut ref void = none
 
     match arena_res {
-        ok a  => { arena = a }
+        ok a  => {
+            arena = a
+        }
         err _ => {
             arena = none
         }
@@ -162,7 +164,9 @@ fn lx_peek2(l: ref Lexer) i64 = {
 }
 
 fn lx_advance(l: mut ref Lexer) i64 = trust {
-    if l.pos >= l.len { return -1 }
+    if l.pos >= l.len {
+        return -1
+    }
     val c: i64 = @load8(@ptradd(l.src, l.pos)) as i64
     l.pos = l.pos + 1
     if c == 10 {
@@ -178,9 +182,13 @@ fn is_alpha(c: i64) bool = trust {
     return (c >= 65 && c <= 90) || (c >= 97 && c <= 122) || c == 95
 }
 
-fn is_digit(c: i64) bool = trust { return c >= 48 && c <= 57 }
+fn is_digit(c: i64) bool = trust {
+    return c >= 48 && c <= 57
+}
 
-fn is_alnum(c: i64) bool = trust { return is_alpha(c) || is_digit(c) }
+fn is_alnum(c: i64) bool = trust {
+    return is_alpha(c) || is_digit(c)
+}
 
 fn is_hex(c: i64) bool = trust {
     return is_digit(c) || (c >= 65 && c <= 70) || (c >= 97 && c <= 102)
@@ -203,45 +211,123 @@ fn str_eq(a: ref u8, b: ref u8) bool = trust {
 }
 
 fn keyword_kind(s: ref u8) TokenKind = trust {
-    if str_eq(s, "fn")       { return Fn() }
-    if str_eq(s, "spec")     { return Spec() }
-    if str_eq(s, "val")      { return Val() }
-    if str_eq(s, "mut")      { return Mut() }
-    if str_eq(s, "pub")      { return Pub() }
-    if str_eq(s, "type")     { return Type() }
-    if str_eq(s, "pre")      { return Pre() }
-    if str_eq(s, "post")     { return Post() }
-    if str_eq(s, "return")   { return Return() }
-    if str_eq(s, "if")       { return If() }
-    if str_eq(s, "else")     { return Else() }
-    if str_eq(s, "elif")     { return Elif() }
-    if str_eq(s, "trust")    { return Trust() }
-    if str_eq(s, "use")      { return Use() }
-    if str_eq(s, "ref")      { return Ref() }
-    if str_eq(s, "for")      { return For() }
-    if str_eq(s, "in")       { return In() }
-    if str_eq(s, "some")     { return Some() }
-    if str_eq(s, "none")     { return None() }
-    if str_eq(s, "ok")       { return Ok() }
-    if str_eq(s, "err")      { return Err() }
-    if str_eq(s, "match")    { return Match() }
-    if str_eq(s, "true")     { return True() }
-    if str_eq(s, "false")    { return False() }
-    if str_eq(s, "defer")    { return Defer() }
-    if str_eq(s, "break")    { return Break() }
-    if str_eq(s, "continue") { return Continue() }
-    if str_eq(s, "as")       { return As() }
-    if str_eq(s, "assert")   { return Assert() }
-    if str_eq(s, "when")     { return When() }
-    if str_eq(s, "union")    { return Union() }
-    if str_eq(s, "enum")     { return Enum() }
-    if str_eq(s, "extern")   { return Extern() }
-    if str_eq(s, "link")     { return Link() }
-    if str_eq(s, "guarded")  { return Guarded() }
-    if str_eq(s, "not")      { return Not() }
-    if str_eq(s, "test")      { return Test() }
-    if str_eq(s, "guard")     { return Guard() }
-    if str_eq(s, "invariant") { return Invariant() }
+    if str_eq(s, "fn")       {
+        return Fn()
+    }
+    if str_eq(s, "spec")     {
+        return Spec()
+    }
+    if str_eq(s, "val")      {
+        return Val()
+    }
+    if str_eq(s, "mut")      {
+        return Mut()
+    }
+    if str_eq(s, "pub")      {
+        return Pub()
+    }
+    if str_eq(s, "type")     {
+        return Type()
+    }
+    if str_eq(s, "pre")      {
+        return Pre()
+    }
+    if str_eq(s, "post")     {
+        return Post()
+    }
+    if str_eq(s, "return")   {
+        return Return()
+    }
+    if str_eq(s, "if")       {
+        return If()
+    }
+    if str_eq(s, "else")     {
+        return Else()
+    }
+    if str_eq(s, "elif")     {
+        return Elif()
+    }
+    if str_eq(s, "trust")    {
+        return Trust()
+    }
+    if str_eq(s, "use")      {
+        return Use()
+    }
+    if str_eq(s, "ref")      {
+        return Ref()
+    }
+    if str_eq(s, "for")      {
+        return For()
+    }
+    if str_eq(s, "in")       {
+        return In()
+    }
+    if str_eq(s, "some")     {
+        return Some()
+    }
+    if str_eq(s, "none")     {
+        return None()
+    }
+    if str_eq(s, "ok")       {
+        return Ok()
+    }
+    if str_eq(s, "err")      {
+        return Err()
+    }
+    if str_eq(s, "match")    {
+        return Match()
+    }
+    if str_eq(s, "true")     {
+        return True()
+    }
+    if str_eq(s, "false")    {
+        return False()
+    }
+    if str_eq(s, "defer")    {
+        return Defer()
+    }
+    if str_eq(s, "break")    {
+        return Break()
+    }
+    if str_eq(s, "continue") {
+        return Continue()
+    }
+    if str_eq(s, "as")       {
+        return As()
+    }
+    if str_eq(s, "assert")   {
+        return Assert()
+    }
+    if str_eq(s, "when")     {
+        return When()
+    }
+    if str_eq(s, "union")    {
+        return Union()
+    }
+    if str_eq(s, "enum")     {
+        return Enum()
+    }
+    if str_eq(s, "extern")   {
+        return Extern()
+    }
+    if str_eq(s, "link")     {
+        return Link()
+    }
+    if str_eq(s, "guarded")  {
+        return Guarded()
+    }
+    if str_eq(s, "not")      {
+        return Not()
+    }
+    if str_eq(s, "test")      {
+        return Test()
+    }
+    if str_eq(s, "guard")     {
+        return Guard()
+    }
+    if str_eq(s, "invariant") {
+        return Invariant()
+    }
     return Ident(s)
 }
 
@@ -251,17 +337,27 @@ fn lex_string(l: mut ref Lexer) ref u8 = trust {
     val i: mut i64 = 0
     for {
         val c: i64 = lx_advance(l)
-        if c == -1 || c == 34 { break }
+        if c == -1 || c == 34 {
+            break
+        }
         if i >= buf_cap - 2 {
             buf_cap = buf_cap * 2
             buf = @realloc(buf as ref void, buf_cap) as ref u8
         }
         if c == 92 {
             val esc: i64 = lx_advance(l)
-            if esc == 110      { @store8(@ptradd(buf, i), 10) }
-            elif esc == 116    { @store8(@ptradd(buf, i), 9) }
-            elif esc == 34     { @store8(@ptradd(buf, i), 34) }
-            elif esc == 92     { @store8(@ptradd(buf, i), 92) }
+            if esc == 110      {
+                @store8(@ptradd(buf, i), 10)
+            }
+            elif esc == 116    {
+                @store8(@ptradd(buf, i), 9)
+            }
+            elif esc == 34     {
+                @store8(@ptradd(buf, i), 34)
+            }
+            elif esc == 92     {
+                @store8(@ptradd(buf, i), 92)
+            }
             elif esc == 120 {  // '\x' hex escape: read exactly 2 hex digits
                 val h1: i64 = lx_advance(l)
                 val h2: i64 = lx_advance(l)
@@ -274,9 +370,15 @@ fn lex_string(l: mut ref Lexer) ref u8 = trust {
                     d1 = h1 - 48
                 }
                 val d2: mut i64 = 0
-                if h2 >= 97 { d2 = h2 - 87 }
-                elif h2 >= 65 { d2 = h2 - 55 }
-                else { d2 = h2 - 48 }
+                if h2 >= 97 {
+                    d2 = h2 - 87
+                }
+                elif h2 >= 65 {
+                    d2 = h2 - 55
+                }
+                else {
+                    d2 = h2 - 48
+                }
                 @store8(@ptradd(buf, i), (d1 * 16 + d2) as u8)
             } else {
                 @store8(@ptradd(buf, i), 92 as u8)
@@ -302,34 +404,68 @@ fn lex_number(l: mut ref Lexer, line: i64, col: i64) ref Token = trust {
 
     if first == 48 && lx_peek(l) == 120 {
         lx_advance(l)
-        for { if !is_hex(lx_peek(l)) { break } lx_advance(l) }
+        for {
+            if !is_hex(lx_peek(l)) {
+                break
+            }
+            lx_advance(l)
+        }
         return make_tok(l, Int(substr(l.src, start, l.pos)), line, col)
     }
-    for { if !is_digit(lx_peek(l)) { break } lx_advance(l) }
+    for {
+        if !is_digit(lx_peek(l)) {
+            break
+        }
+        lx_advance(l)
+    }
     if lx_peek(l) == 46 || lx_peek(l) == 101 || lx_peek(l) == 69 {
         is_float = true
         if lx_peek(l) == 46 {
             lx_advance(l)
-            for { if !is_digit(lx_peek(l)) { break } lx_advance(l) }
+            for {
+                if !is_digit(lx_peek(l)) {
+                    break
+                }
+                lx_advance(l)
+            }
         }
         if lx_peek(l) == 101 || lx_peek(l) == 69 {
             lx_advance(l)
-            if lx_peek(l) == 43 || lx_peek(l) == 45 { lx_advance(l) }
-            for { if !is_digit(lx_peek(l)) { break } lx_advance(l) }
+            if lx_peek(l) == 43 || lx_peek(l) == 45 {
+                lx_advance(l)
+            }
+            for {
+                if !is_digit(lx_peek(l)) {
+                    break
+                }
+                lx_advance(l)
+            }
         }
     }
     val text: ref u8 = substr(l.src, start, l.pos)
-    if is_float { return make_tok(l, Float(text), line, col) }
+    if is_float {
+        return make_tok(l, Float(text), line, col)
+    }
     return make_tok(l, Int(text), line, col)
 }
 
 fn skip_whitespace(l: mut ref Lexer) void = trust {
-    for { if !is_space(lx_peek(l)) { break } lx_advance(l) }
+    for {
+        if !is_space(lx_peek(l)) {
+            break
+        }
+        lx_advance(l)
+    }
 }
 
 fn skip_comment(l: mut ref Lexer) bool = trust {
     if lx_peek(l) == 47 && lx_peek2(l) == 47 {
-        for { val c: i64 = lx_peek(l) if c == -1 || c == 10 { break } lx_advance(l) }
+        for {
+            val c: i64 = lx_peek(l) if c == -1 || c == 10 {
+                break
+            }
+            lx_advance(l)
+        }
         return true
     }
     return false
@@ -343,7 +479,9 @@ fn lex_raw_string(l: mut ref Lexer, line: i64, col: i64) ref Token = trust {
     for {
         for {
             val ch: i64 = lx_peek(l)
-            if ch == -1 || ch == 10 { break }
+            if ch == -1 || ch == 10 {
+                break
+            }
             lx_advance(l)
             if i >= buf_cap - 2 {
                 buf_cap = buf_cap * 2
@@ -355,7 +493,12 @@ fn lex_raw_string(l: mut ref Lexer, line: i64, col: i64) ref Token = trust {
         if lx_peek(l) == 10 {
             lx_advance(l)
         }
-        for { if !is_space(lx_peek(l)) || lx_peek(l) == 10 { break } lx_advance(l) }
+        for {
+            if !is_space(lx_peek(l)) || lx_peek(l) == 10 {
+                break
+            }
+            lx_advance(l)
+        }
         if lx_peek(l) == 92 && lx_peek2(l) == 92 {
             @store8(@ptradd(buf, i), 10)
             i++
@@ -377,13 +520,27 @@ fn lex_char_literal(l: mut ref Lexer, line: i64, col: i64) ref Token = trust {
     val char_val: mut i64 = ch
     if ch == 92 {
         val esc: i64 = lx_advance(l)
-        if esc == 110      { char_val = 10 }
-        elif esc == 116    { char_val = 9  }
-        elif esc == 114    { char_val = 13 }
-        elif esc == 48     { char_val = 0  }
-        elif esc == 39     { char_val = 39 }
-        elif esc == 92     { char_val = 92 }
-        else               { char_val = esc }
+        if esc == 110      {
+            char_val = 10
+        }
+        elif esc == 116    {
+            char_val = 9
+        }
+        elif esc == 114    {
+            char_val = 13
+        }
+        elif esc == 48     {
+            char_val = 0
+        }
+        elif esc == 39     {
+            char_val = 39
+        }
+        elif esc == 92     {
+            char_val = 92
+        }
+        else               {
+            char_val = esc
+        }
     }
     lx_advance(l)
     return make_tok(l, CharLit(char_val), line, col)
@@ -391,27 +548,62 @@ fn lex_char_literal(l: mut ref Lexer, line: i64, col: i64) ref Token = trust {
 
 fn lex_identifier(l: mut ref Lexer, line: i64, col: i64) ref Token = trust {
     val start: i64 = l.pos - 1
-    for { if !is_alnum(lx_peek(l)) { break } lx_advance(l) }
+    for {
+        if !is_alnum(lx_peek(l)) {
+            break
+        }
+        lx_advance(l)
+    }
     val text: ref u8 = substr(l.src, start, l.pos)
     return make_tok(l, keyword_kind(text), line, col)
 }
 
 fn lex_single_char(l: ref Lexer, c: i64, line: i64, col: i64) result[ref Token, bool] = trust {
-    if c == 40  { return ok make_tok(l, LParen(),    line, col) }
-    if c == 41  { return ok make_tok(l, RParen(),    line, col) }
-    if c == 123 { return ok make_tok(l, LBrace(),    line, col) }
-    if c == 125 { return ok make_tok(l, RBrace(),    line, col) }
-    if c == 91  { return ok make_tok(l, LBracket(),  line, col) }
-    if c == 93  { return ok make_tok(l, RBracket(),  line, col) }
-    if c == 58  { return ok make_tok(l, Colon(),     line, col) }
-    if c == 59  { return ok make_tok(l, Semicolon(), line, col) }
-    if c == 44  { return ok make_tok(l, Comma(),     line, col) }
-    if c == 64  { return ok make_tok(l, At(),        line, col) }
-    if c == 126 { return ok make_tok(l, Tilde(),     line, col) }
-    if c == 63  { return ok make_tok(l, Question(),  line, col) }
-    if c == 37  { return ok make_tok(l, Percent(),   line, col) }
-    if c == 94  { return ok make_tok(l, BitXor(),    line, col) }
-    if c == 42  { return ok make_tok(l, Star(),      line, col) }
+    if c == 40  {
+        return ok make_tok(l, LParen(),    line, col)
+    }
+    if c == 41  {
+        return ok make_tok(l, RParen(),    line, col)
+    }
+    if c == 123 {
+        return ok make_tok(l, LBrace(),    line, col)
+    }
+    if c == 125 {
+        return ok make_tok(l, RBrace(),    line, col)
+    }
+    if c == 91  {
+        return ok make_tok(l, LBracket(),  line, col)
+    }
+    if c == 93  {
+        return ok make_tok(l, RBracket(),  line, col)
+    }
+    if c == 58  {
+        return ok make_tok(l, Colon(),     line, col)
+    }
+    if c == 59  {
+        return ok make_tok(l, Semicolon(), line, col)
+    }
+    if c == 44  {
+        return ok make_tok(l, Comma(),     line, col)
+    }
+    if c == 64  {
+        return ok make_tok(l, At(),        line, col)
+    }
+    if c == 126 {
+        return ok make_tok(l, Tilde(),     line, col)
+    }
+    if c == 63  {
+        return ok make_tok(l, Question(),  line, col)
+    }
+    if c == 37  {
+        return ok make_tok(l, Percent(),   line, col)
+    }
+    if c == 94  {
+        return ok make_tok(l, BitXor(),    line, col)
+    }
+    if c == 42  {
+        return ok make_tok(l, Star(),      line, col)
+    }
     return err false
 }
 
@@ -424,62 +616,110 @@ fn lex_dot(l: mut ref Lexer, line: i64, col: i64) ref Token = trust {
 }
 
 fn lex_plus(l: mut ref Lexer, line: i64, col: i64) ref Token = trust {
-    if lx_peek(l) == 43      { lx_advance(l) return make_tok(l, PlusPlus(), line, col) }
-    if lx_peek(l) == 61      { lx_advance(l) return make_tok(l, PlusEq(),   line, col) }
+    if lx_peek(l) == 43      {
+        lx_advance(l) return make_tok(l, PlusPlus(), line, col)
+    }
+    if lx_peek(l) == 61      {
+        lx_advance(l) return make_tok(l, PlusEq(),   line, col)
+    }
     return make_tok(l, Plus(), line, col)
 }
 
 fn lex_minus(l: mut ref Lexer, line: i64, col: i64) ref Token = trust {
-    if lx_peek(l) == 62      { lx_advance(l) return make_tok(l, Arrow(),      line, col) }
-    if lx_peek(l) == 45      { lx_advance(l) return make_tok(l, MinusMinus(), line, col) }
-    if lx_peek(l) == 61      { lx_advance(l) return make_tok(l, MinusEq(),    line, col) }
+    if lx_peek(l) == 62      {
+        lx_advance(l) return make_tok(l, Arrow(),      line, col)
+    }
+    if lx_peek(l) == 45      {
+        lx_advance(l) return make_tok(l, MinusMinus(), line, col)
+    }
+    if lx_peek(l) == 61      {
+        lx_advance(l) return make_tok(l, MinusEq(),    line, col)
+    }
     return make_tok(l, Minus(), line, col)
 }
 
 fn lex_eq(l: mut ref Lexer, line: i64, col: i64) ref Token = trust {
-    if lx_peek(l) == 61      { lx_advance(l) return make_tok(l, EqEq(),    line, col) }
-    if lx_peek(l) == 62      { lx_advance(l) return make_tok(l, FatArrow(), line, col) }
+    if lx_peek(l) == 61      {
+        lx_advance(l) return make_tok(l, EqEq(),    line, col)
+    }
+    if lx_peek(l) == 62      {
+        lx_advance(l) return make_tok(l, FatArrow(), line, col)
+    }
     return make_tok(l, Eq(), line, col)
 }
 
 fn lex_bang(l: mut ref Lexer, line: i64, col: i64) ref Token = trust {
-    if lx_peek(l) == 61      { lx_advance(l) return make_tok(l, BangEq(), line, col) }
+    if lx_peek(l) == 61      {
+        lx_advance(l) return make_tok(l, BangEq(), line, col)
+    }
     return make_tok(l, Bang(), line, col)
 }
 
 fn lex_lt(l: mut ref Lexer, line: i64, col: i64) ref Token = trust {
-    if lx_peek(l) == 61      { lx_advance(l) return make_tok(l, LtEq(), line, col) }
-    if lx_peek(l) == 60      { lx_advance(l) return make_tok(l, Shl(),  line, col) }
+    if lx_peek(l) == 61      {
+        lx_advance(l) return make_tok(l, LtEq(), line, col)
+    }
+    if lx_peek(l) == 60      {
+        lx_advance(l) return make_tok(l, Shl(),  line, col)
+    }
     return make_tok(l, Lt(), line, col)
 }
 
 fn lex_gt(l: mut ref Lexer, line: i64, col: i64) ref Token = trust {
-    if lx_peek(l) == 61      { lx_advance(l) return make_tok(l, GtEq(), line, col) }
-    if lx_peek(l) == 62      { lx_advance(l) return make_tok(l, Shr(),  line, col) }
+    if lx_peek(l) == 61      {
+        lx_advance(l) return make_tok(l, GtEq(), line, col)
+    }
+    if lx_peek(l) == 62      {
+        lx_advance(l) return make_tok(l, Shr(),  line, col)
+    }
     return make_tok(l, Gt(), line, col)
 }
 
 fn lex_amp(l: mut ref Lexer, line: i64, col: i64) ref Token = trust {
-    if lx_peek(l) == 38      { lx_advance(l) return make_tok(l, And(),    line, col) }
+    if lx_peek(l) == 38      {
+        lx_advance(l) return make_tok(l, And(),    line, col)
+    }
     return make_tok(l, BitAnd(), line, col)
 }
 
 fn lex_pipe(l: mut ref Lexer, line: i64, col: i64) ref Token = trust {
-    if lx_peek(l) == 124     { lx_advance(l) return make_tok(l, Or(),    line, col) }
+    if lx_peek(l) == 124     {
+        lx_advance(l) return make_tok(l, Or(),    line, col)
+    }
     return make_tok(l, BitOr(), line, col)
 }
 
 fn lex_operator(l: mut ref Lexer, c: i64, line: i64, col: i64) result[ref Token, bool] = trust {
-    if c == 46 { return ok lex_dot(l, line, col) }
-    if c == 43 { return ok lex_plus(l, line, col) }
-    if c == 45 { return ok lex_minus(l, line, col) }
-    if c == 47 { return ok make_tok(l, Slash(), line, col) }
-    if c == 61 { return ok lex_eq(l, line, col) }
-    if c == 33 { return ok lex_bang(l, line, col) }
-    if c == 60 { return ok lex_lt(l, line, col) }
-    if c == 62 { return ok lex_gt(l, line, col) }
-    if c == 38 { return ok lex_amp(l, line, col) }
-    if c == 124 { return ok lex_pipe(l, line, col) }
+    if c == 46 {
+        return ok lex_dot(l, line, col)
+    }
+    if c == 43 {
+        return ok lex_plus(l, line, col)
+    }
+    if c == 45 {
+        return ok lex_minus(l, line, col)
+    }
+    if c == 47 {
+        return ok make_tok(l, Slash(), line, col)
+    }
+    if c == 61 {
+        return ok lex_eq(l, line, col)
+    }
+    if c == 33 {
+        return ok lex_bang(l, line, col)
+    }
+    if c == 60 {
+        return ok lex_lt(l, line, col)
+    }
+    if c == 62 {
+        return ok lex_gt(l, line, col)
+    }
+    if c == 38 {
+        return ok lex_amp(l, line, col)
+    }
+    if c == 124 {
+        return ok lex_pipe(l, line, col)
+    }
     return err false
 }
 
@@ -488,7 +728,9 @@ pub fn tokenize(src: ref u8) result[list[ref Token], ref u8] = trust {
     val tokens: mut list[ref Token] = []
     for {
         skip_whitespace(l)
-        if skip_comment(l) { continue }
+        if skip_comment(l) {
+            continue
+        }
 
         val line: i64 = l.line
         val col:  i64 = l.col
@@ -522,11 +764,15 @@ pub fn tokenize(src: ref u8) result[list[ref Token], ref u8] = trust {
             continue
         }
         match lex_single_char(l, c, line, col) {
-            ok t  => { @append(tokens, t) continue }
+            ok t  => {
+                @append(tokens, t) continue
+            }
             err _ => {}
         }
         match lex_operator(l, c, line, col) {
-            ok t  => { @append(tokens, t) continue }
+            ok t  => {
+                @append(tokens, t) continue
+            }
             err _ => {}
         }
         val errbuf: ref u8 = @alloc(64) as ref u8
@@ -540,7 +786,10 @@ pub fn tokenize(src: ref u8) result[list[ref Token], ref u8] = trust {
 pub fn tok_kind(tokens: list[ref Token], i: i64) TokenKind = {
     val opt = @get(tokens, i as usize)
     if opt is some t {
-        return (t as ref Token).kind } else { return Eof() }
+        return (t as ref Token).kind
+    } else {
+        return Eof()
+    }
 }
 
 // Extract text payload from Ident/Str/Int/Float variants, null otherwise.
@@ -549,62 +798,404 @@ pub fn tok_text(tokens: list[ref Token], i: i64) ref u8 = {
     if opt is some t {
         val tok: ref Token = t as ref Token
         match tok.kind {
-            Ident s  => { return s }
-            Str s    => { return s }
-            Int s    => { return s }
-            Float s  => { return s }
-            else     => { return none }
+            Ident s  => {
+                return s
+            }
+            Str s    => {
+                return s
+            }
+            Int s    => {
+                return s
+            }
+            Float s  => {
+                return s
+            }
+            else     => {
+                return none
+            }
         }
-    } else { return none }
+    } else {
+        return none
+    }
 }
 
-pub fn kind_is_fn(k: TokenKind)       bool = { match k { Fn()       => { return true } else => { return false } } }
-pub fn kind_is_spec(k: TokenKind)     bool = { match k { Spec()     => { return true } else => { return false } } }
-pub fn kind_is_val(k: TokenKind)      bool = { match k { Val()      => { return true } else => { return false } } }
-pub fn kind_is_mut(k: TokenKind)      bool = { match k { Mut()      => { return true } else => { return false } } }
-pub fn kind_is_pub(k: TokenKind)      bool = { match k { Pub()      => { return true } else => { return false } } }
-pub fn kind_is_return(k: TokenKind)   bool = { match k { Return()   => { return true } else => { return false } } }
-pub fn kind_is_if(k: TokenKind)       bool = { match k { If()       => { return true } else => { return false } } }
-pub fn kind_is_else(k: TokenKind)     bool = { match k { Else()     => { return true } else => { return false } } }
-pub fn kind_is_for(k: TokenKind)      bool = { match k { For()      => { return true } else => { return false } } }
-pub fn kind_is_eof(k: TokenKind)      bool = { match k { Eof()      => { return true } else => { return false } } }
-pub fn kind_is_ident(k: TokenKind)    bool = { match k { Ident _    => { return true } else => { return false } } }
-pub fn kind_is_str(k: TokenKind)      bool = { match k { Str _      => { return true } else => { return false } } }
-pub fn kind_is_int(k: TokenKind)      bool = { match k { Int _      => { return true } else => { return false } } }
-pub fn kind_is_float(k: TokenKind)    bool = { match k { Float _    => { return true } else => { return false } } }
-pub fn kind_is_eqeq(k: TokenKind)     bool = { match k { EqEq()     => { return true } else => { return false } } }
-pub fn kind_is_bang(k: TokenKind)     bool = { match k { Bang()     => { return true } else => { return false } } }
-pub fn kind_is_bangeq(k: TokenKind)   bool = { match k { BangEq()   => { return true } else => { return false } } }
-pub fn kind_is_lteq(k: TokenKind)     bool = { match k { LtEq()     => { return true } else => { return false } } }
-pub fn kind_is_gteq(k: TokenKind)     bool = { match k { GtEq()     => { return true } else => { return false } } }
-pub fn kind_is_and(k: TokenKind)      bool = { match k { And()      => { return true } else => { return false } } }
-pub fn kind_is_or(k: TokenKind)       bool = { match k { Or()       => { return true } else => { return false } } }
-pub fn kind_is_plusplus(k: TokenKind) bool = { match k { PlusPlus() => { return true } else => { return false } } }
-pub fn kind_is_minusminus(k: TokenKind) bool = { match k { MinusMinus() => { return true } else => { return false } } }
-pub fn kind_is_arrow(k: TokenKind)     bool = { match k { Arrow()    => { return true } else => { return false } } }
-pub fn kind_is_fatarrow(k: TokenKind)  bool = { match k { FatArrow() => { return true } else => { return false } } }
-pub fn kind_is_shl(k: TokenKind)       bool = { match k { Shl()      => { return true } else => { return false } } }
-pub fn kind_is_shr(k: TokenKind)       bool = { match k { Shr()      => { return true } else => { return false } } }
-pub fn kind_is_lparen(k: TokenKind)    bool = { match k { LParen()   => { return true } else => { return false } } }
-pub fn kind_is_rparen(k: TokenKind)    bool = { match k { RParen()   => { return true } else => { return false } } }
-pub fn kind_is_lbrace(k: TokenKind)    bool = { match k { LBrace()   => { return true } else => { return false } } }
-pub fn kind_is_rbrace(k: TokenKind)    bool = { match k { RBrace()   => { return true } else => { return false } } }
-pub fn kind_is_lbracket(k: TokenKind)  bool = { match k { LBracket() => { return true } else => { return false } } }
-pub fn kind_is_rbracket(k: TokenKind)  bool = { match k { RBracket() => { return true } else => { return false } } }
-pub fn kind_is_colon(k: TokenKind)     bool = { match k { Colon()    => { return true } else => { return false } } }
-pub fn kind_is_comma(k: TokenKind)     bool = { match k { Comma()    => { return true } else => { return false } } }
-pub fn kind_is_dot(k: TokenKind)       bool = { match k { Dot()      => { return true } else => { return false } } }
-pub fn kind_is_dotdotdot(k: TokenKind) bool = { match k { DotDotDot() => { return true } else => { return false } } }
-pub fn kind_is_at(k: TokenKind)        bool = { match k { At()       => { return true } else => { return false } } }
-pub fn kind_is_question(k: TokenKind)  bool = { match k { Question() => { return true } else => { return false } } }
-pub fn kind_is_guard(k: TokenKind)     bool = { match k { Guard()     => { return true } else => { return false } } }
-pub fn kind_is_invariant(k: TokenKind) bool = { match k { Invariant() => { return true } else => { return false } } }
+pub fn kind_is_fn(k: TokenKind)       bool = {
+    match k {
+        Fn()       => {
+            return true
+        } else => {
+            return false
+        }
+    }
+}
+pub fn kind_is_spec(k: TokenKind)     bool = {
+    match k {
+        Spec()     => {
+            return true
+        } else => {
+            return false
+        }
+    }
+}
+pub fn kind_is_val(k: TokenKind)      bool = {
+    match k {
+        Val()      => {
+            return true
+        } else => {
+            return false
+        }
+    }
+}
+pub fn kind_is_mut(k: TokenKind)      bool = {
+    match k {
+        Mut()      => {
+            return true
+        } else => {
+            return false
+        }
+    }
+}
+pub fn kind_is_pub(k: TokenKind)      bool = {
+    match k {
+        Pub()      => {
+            return true
+        } else => {
+            return false
+        }
+    }
+}
+pub fn kind_is_return(k: TokenKind)   bool = {
+    match k {
+        Return()   => {
+            return true
+        } else => {
+            return false
+        }
+    }
+}
+pub fn kind_is_if(k: TokenKind)       bool = {
+    match k {
+        If()       => {
+            return true
+        } else => {
+            return false
+        }
+    }
+}
+pub fn kind_is_else(k: TokenKind)     bool = {
+    match k {
+        Else()     => {
+            return true
+        } else => {
+            return false
+        }
+    }
+}
+pub fn kind_is_for(k: TokenKind)      bool = {
+    match k {
+        For()      => {
+            return true
+        } else => {
+            return false
+        }
+    }
+}
+pub fn kind_is_eof(k: TokenKind)      bool = {
+    match k {
+        Eof()      => {
+            return true
+        } else => {
+            return false
+        }
+    }
+}
+pub fn kind_is_ident(k: TokenKind)    bool = {
+    match k {
+        Ident _    => {
+            return true
+        } else => {
+            return false
+        }
+    }
+}
+pub fn kind_is_str(k: TokenKind)      bool = {
+    match k {
+        Str _      => {
+            return true
+        } else => {
+            return false
+        }
+    }
+}
+pub fn kind_is_int(k: TokenKind)      bool = {
+    match k {
+        Int _      => {
+            return true
+        } else => {
+            return false
+        }
+    }
+}
+pub fn kind_is_float(k: TokenKind)    bool = {
+    match k {
+        Float _    => {
+            return true
+        } else => {
+            return false
+        }
+    }
+}
+pub fn kind_is_eqeq(k: TokenKind)     bool = {
+    match k {
+        EqEq()     => {
+            return true
+        } else => {
+            return false
+        }
+    }
+}
+pub fn kind_is_bang(k: TokenKind)     bool = {
+    match k {
+        Bang()     => {
+            return true
+        } else => {
+            return false
+        }
+    }
+}
+pub fn kind_is_bangeq(k: TokenKind)   bool = {
+    match k {
+        BangEq()   => {
+            return true
+        } else => {
+            return false
+        }
+    }
+}
+pub fn kind_is_lteq(k: TokenKind)     bool = {
+    match k {
+        LtEq()     => {
+            return true
+        } else => {
+            return false
+        }
+    }
+}
+pub fn kind_is_gteq(k: TokenKind)     bool = {
+    match k {
+        GtEq()     => {
+            return true
+        } else => {
+            return false
+        }
+    }
+}
+pub fn kind_is_and(k: TokenKind)      bool = {
+    match k {
+        And()      => {
+            return true
+        } else => {
+            return false
+        }
+    }
+}
+pub fn kind_is_or(k: TokenKind)       bool = {
+    match k {
+        Or()       => {
+            return true
+        } else => {
+            return false
+        }
+    }
+}
+pub fn kind_is_plusplus(k: TokenKind) bool = {
+    match k {
+        PlusPlus() => {
+            return true
+        } else => {
+            return false
+        }
+    }
+}
+pub fn kind_is_minusminus(k: TokenKind) bool = {
+    match k {
+        MinusMinus() => {
+            return true
+        } else => {
+            return false
+        }
+    }
+}
+pub fn kind_is_arrow(k: TokenKind)     bool = {
+    match k {
+        Arrow()    => {
+            return true
+        } else => {
+            return false
+        }
+    }
+}
+pub fn kind_is_fatarrow(k: TokenKind)  bool = {
+    match k {
+        FatArrow() => {
+            return true
+        } else => {
+            return false
+        }
+    }
+}
+pub fn kind_is_shl(k: TokenKind)       bool = {
+    match k {
+        Shl()      => {
+            return true
+        } else => {
+            return false
+        }
+    }
+}
+pub fn kind_is_shr(k: TokenKind)       bool = {
+    match k {
+        Shr()      => {
+            return true
+        } else => {
+            return false
+        }
+    }
+}
+pub fn kind_is_lparen(k: TokenKind)    bool = {
+    match k {
+        LParen()   => {
+            return true
+        } else => {
+            return false
+        }
+    }
+}
+pub fn kind_is_rparen(k: TokenKind)    bool = {
+    match k {
+        RParen()   => {
+            return true
+        } else => {
+            return false
+        }
+    }
+}
+pub fn kind_is_lbrace(k: TokenKind)    bool = {
+    match k {
+        LBrace()   => {
+            return true
+        } else => {
+            return false
+        }
+    }
+}
+pub fn kind_is_rbrace(k: TokenKind)    bool = {
+    match k {
+        RBrace()   => {
+            return true
+        } else => {
+            return false
+        }
+    }
+}
+pub fn kind_is_lbracket(k: TokenKind)  bool = {
+    match k {
+        LBracket() => {
+            return true
+        } else => {
+            return false
+        }
+    }
+}
+pub fn kind_is_rbracket(k: TokenKind)  bool = {
+    match k {
+        RBracket() => {
+            return true
+        } else => {
+            return false
+        }
+    }
+}
+pub fn kind_is_colon(k: TokenKind)     bool = {
+    match k {
+        Colon()    => {
+            return true
+        } else => {
+            return false
+        }
+    }
+}
+pub fn kind_is_comma(k: TokenKind)     bool = {
+    match k {
+        Comma()    => {
+            return true
+        } else => {
+            return false
+        }
+    }
+}
+pub fn kind_is_dot(k: TokenKind)       bool = {
+    match k {
+        Dot()      => {
+            return true
+        } else => {
+            return false
+        }
+    }
+}
+pub fn kind_is_dotdotdot(k: TokenKind) bool = {
+    match k {
+        DotDotDot() => {
+            return true
+        } else => {
+            return false
+        }
+    }
+}
+pub fn kind_is_at(k: TokenKind)        bool = {
+    match k {
+        At()       => {
+            return true
+        } else => {
+            return false
+        }
+    }
+}
+pub fn kind_is_question(k: TokenKind)  bool = {
+    match k {
+        Question() => {
+            return true
+        } else => {
+            return false
+        }
+    }
+}
+pub fn kind_is_guard(k: TokenKind)     bool = {
+    match k {
+        Guard()     => {
+            return true
+        } else => {
+            return false
+        }
+    }
+}
+pub fn kind_is_invariant(k: TokenKind) bool = {
+    match k {
+        Invariant() => {
+            return true
+        } else => {
+            return false
+        }
+    }
+}
 
 test {
     @puts("1")
     val r1 = trust tokenize("fn val mut pub return if else for")
     match r1 {
-        err _ => { assert false }
+        err _ => {
+            assert false
+        }
         ok toks => {
             @puts("assertion1")
             val kind = tok_kind(toks, 0)
@@ -625,7 +1216,9 @@ test {
     @puts("2")
     val r2 = trust tokenize("foobar hello_world _x")
     match r2 {
-        err _ => { assert false }
+        err _ => {
+            assert false
+        }
         ok toks => {
             assert kind_is_ident(tok_kind(toks, 0))
             assert kind_is_ident(tok_kind(toks, 1))
@@ -639,7 +1232,9 @@ test {
     @puts("3")
     val r3 = trust tokenize("42 3.14 0xff")
     match r3 {
-        err _ => { assert false }
+        err _ => {
+            assert false
+        }
         ok toks => {
             assert kind_is_int(tok_kind(toks, 0))
             assert kind_is_float(tok_kind(toks, 1))
@@ -653,7 +1248,9 @@ test {
     @puts("4")
     val r4 = trust tokenize("\"hello\"")
     match r4 {
-        err _ => { assert false }
+        err _ => {
+            assert false
+        }
         ok toks => {
             assert kind_is_str(tok_kind(toks, 0))
             assert string.rchar_cmp(tok_text(toks, 0), "hello") == 0
@@ -665,7 +1262,9 @@ test {
     val the_string = "\"line1\\nline2\""
     val r5 = trust tokenize(the_string)
     match r5 {
-        err _ => { assert false }
+        err _ => {
+            assert false
+        }
         ok toks => {
             assert kind_is_str(tok_kind(toks, 0))
             val text: ref u8 = tok_text(toks, 0)
@@ -675,7 +1274,9 @@ test {
 
     val r6 = trust tokenize("== != <= >= && || ++ -- -> => << >>")
     match r6 {
-        err _ => { assert false }
+        err _ => {
+            assert false
+        }
         ok toks => {
             assert kind_is_eqeq(tok_kind(toks, 0))
             assert kind_is_bangeq(tok_kind(toks, 1))
@@ -694,7 +1295,9 @@ test {
 
     val r7 = trust tokenize("( ) { } [ ] : , . @ ~ ?")
     match r7 {
-        err _ => { assert false }
+        err _ => {
+            assert false
+        }
         ok toks => {
             assert kind_is_lparen(tok_kind(toks, 0))
             assert kind_is_rparen(tok_kind(toks, 1))
@@ -712,7 +1315,9 @@ test {
 
     val r8 = trust tokenize("...")
     match r8 {
-        err _ => { assert false }
+        err _ => {
+            assert false
+        }
         ok toks => {
             assert kind_is_dotdotdot(tok_kind(toks, 0))
             assert kind_is_eof(tok_kind(toks, 1))
@@ -721,7 +1326,9 @@ test {
 
     val r9 = trust tokenize("fn // this is a comment\nval")
     match r9 {
-        err _ => { assert false }
+        err _ => {
+            assert false
+        }
         ok toks => {
             assert kind_is_fn(tok_kind(toks, 0))
             assert kind_is_val(tok_kind(toks, 1))
@@ -731,7 +1338,9 @@ test {
 
     val r10 = trust tokenize("fn\nval")
     match r10 {
-        err _ => { assert false }
+        err _ => {
+            assert false
+        }
         ok toks => {
             val opt0 = @get(toks, 0 as usize)
             val opt1 = @get(toks, 1 as usize)
@@ -739,17 +1348,23 @@ test {
                 val tok0: ref Token = t as ref Token
                 assert tok0.line == 1
                 assert tok0.col  == 1
-            } else { assert false }
+            } else {
+                assert false
+            }
             if opt1 is some t {
                 val tok1: ref Token = t as ref Token
                 assert tok1.line == 2
-            } else { assert false }
+            } else {
+                assert false
+            }
         }
     }
 
     val r11 = trust tokenize("")
     match r11 {
-        err _ => { assert false }
+        err _ => {
+            assert false
+        }
         ok toks => {
             assert @len(toks) as i64 == 1
             assert kind_is_eof(tok_kind(toks, 0))
@@ -758,7 +1373,11 @@ test {
 
     val r12 = trust tokenize("#")
     match r12 {
-        ok _  => { assert false }
-        err _ => { assert true }
+        ok _  => {
+            assert false
+        }
+        err _ => {
+            assert true
+        }
     }
 }

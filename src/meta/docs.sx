@@ -39,7 +39,9 @@ type DocModule = {
 }
 
 fn safe_cstr(s: ref u8) ref u8 = {
-    if s == none { return "" }
+    if s == none {
+        return ""
+    }
     return s
 }
 
@@ -58,13 +60,21 @@ fn substr(src: ref u8, start: i64, len: i64) ref u8 = trust {
 
     val src_len: i64 = str.len_raw(src)
     val safe_start: mut i64 = start
-    if safe_start < 0 { safe_start = 0 }
-    if safe_start > src_len { safe_start = src_len }
+    if safe_start < 0 {
+        safe_start = 0
+    }
+    if safe_start > src_len {
+        safe_start = src_len
+    }
 
     val max_len: i64 = src_len - safe_start
     val safe_len: mut i64 = len
-    if safe_len < 0 { safe_len = 0 }
-    if safe_len > max_len { safe_len = max_len }
+    if safe_len < 0 {
+        safe_len = 0
+    }
+    if safe_len > max_len {
+        safe_len = max_len
+    }
 
     val out = str.substr(src, safe_start, safe_len)
 
@@ -75,10 +85,14 @@ fn substr(src: ref u8, start: i64, len: i64) ref u8 = trust {
 }
 
 fn copy_cstr(src: ref u8) ref u8 = trust {
-    if src == none { return none }
+    if src == none {
+        return none
+    }
     val len: i64 = str.len_raw(src)
     val out: ref u8 = @alloc(len + 1) as ref u8
-    if out == none { return none }
+    if out == none {
+        return none
+    }
     @memset(out as ref void, 0, len + 1)
     if len > 0 {
         @memcpy(out as ref void, src as ref void, len)
@@ -88,19 +102,29 @@ fn copy_cstr(src: ref u8) ref u8 = trust {
 
 fn trim_ws(src: ref u8) ref u8 = trust {
     val len: i64 = str.len_raw(src)
-    if len == 0 { return "" }
+    if len == 0 {
+        return ""
+    }
     val start: mut i64 = 0
     for {
-        if start >= len { break }
+        if start >= len {
+            break
+        }
         val c: u8 = @load8(@ptradd(src as ref void, start))
-        if !is_space(c) { break }
+        if !is_space(c) {
+            break
+        }
         start++
     }
     val finish: mut i64 = len
     for {
-        if finish <= start { break }
+        if finish <= start {
+            break
+        }
         val c: u8 = @load8(@ptradd(src as ref void, finish - 1))
-        if !is_space(c) { break }
+        if !is_space(c) {
+            break
+        }
         finish--
     }
     return substr(src, start, finish - start)
@@ -108,8 +132,12 @@ fn trim_ws(src: ref u8) ref u8 = trust {
 
 fn trim_trailing_slash(src: ref u8) ref u8 = trust {
     val len: i64 = str.len_raw(src)
-    if len <= 1 { return src }
-    if @load8(@ptradd(src as ref void, len - 1)) != 47 { return src }
+    if len <= 1 {
+        return src
+    }
+    if @load8(@ptradd(src as ref void, len - 1)) != 47 {
+        return src
+    }
     return substr(src, 0, len - 1)
 }
 
@@ -126,12 +154,20 @@ fn path_dirname(path: ref u8) ref u8 = trust {
     val last_slash: mut i64 = -1
     val i: mut i64 = 0
     for {
-        if i >= len { break }
-        if @load8(@ptradd(path as ref void, i)) == 47 { last_slash = i }
+        if i >= len {
+            break
+        }
+        if @load8(@ptradd(path as ref void, i)) == 47 {
+            last_slash = i
+        }
         i++
     }
-    if last_slash < 0 { return "." }
-    if last_slash == 0 { return "/" }
+    if last_slash < 0 {
+        return "."
+    }
+    if last_slash == 0 {
+        return "/"
+    }
     return substr(path, 0, last_slash)
 }
 
@@ -140,8 +176,12 @@ fn path_basename(path: ref u8) ref u8 = trust {
     val last_slash: mut i64 = -1
     val i: mut i64 = 0
     for {
-        if i >= len { break }
-        if @load8(@ptradd(path as ref void, i)) == 47 { last_slash = i }
+        if i >= len {
+            break
+        }
+        if @load8(@ptradd(path as ref void, i)) == 47 {
+            last_slash = i
+        }
         i++
     }
     return substr(path, last_slash + 1, len - last_slash - 1)
@@ -156,24 +196,34 @@ fn strip_sx_ext(path: ref u8) ref u8 = trust {
 
 fn dir_exists(path: ref u8) bool = {
     val dir: ref void = trust fs.opendir(path)
-    if dir == none { return false }
+    if dir == none {
+        return false
+    }
     trust fs.closedir(dir)
     return true
 }
 
 fn ensure_dir(path: ref u8) bool = trust {
     val clean = trim_trailing_slash(path)
-    if str_eq(clean, "") || str_eq(clean, ".") { return true }
-    if os.exists(clean) { return true }
+    if str_eq(clean, "") || str_eq(clean, ".") {
+        return true
+    }
+    if os.exists(clean) {
+        return true
+    }
     val len: i64 = str.len_raw(clean)
     val i: mut i64 = 0
     for {
-        if i >= len { break }
+        if i >= len {
+            break
+        }
         val c: u8 = @load8(@ptradd(clean as ref void, i))
         if c == 47 {
             val part = substr(clean, 0, i)
             if !str_eq(part, "") && !str_eq(part, ".") && !os.exists(part) {
-                if !fs.mkdir_path(part) { return false }
+                if !fs.mkdir_path(part) {
+                    return false
+                }
             }
         }
         i++
@@ -191,7 +241,9 @@ fn ensure_parent_dir(file_path: ref u8) bool = trust {
 
 fn is_hidden_name(name: ref u8) bool = trust {
     val len: i64 = str.len_raw(name)
-    if len == 0 { return false }
+    if len == 0 {
+        return false
+    }
     return @load8(name as ref void) == 46
 }
 
@@ -201,9 +253,15 @@ fn collect_sx_files(dir: ref u8, rel_dir: ref u8, out: mut list[ref u8]) void = 
     if entries_opt is some entries {
         val sorted = entries as list[ref u8]
         for entry in sorted {
-            if str_eq(entry, "") { continue }
-            if is_hidden_name(entry) { continue }
-            if str_eq(entry, "docs-out") { continue }
+            if str_eq(entry, "") {
+                continue
+            }
+            if is_hidden_name(entry) {
+                continue
+            }
+            if str_eq(entry, "docs-out") {
+                continue
+            }
             val child_path = path.join(dir, entry)
             val child_rel: mut ref u8 = entry
             if !str_eq(rel_dir, "") {
@@ -236,7 +294,9 @@ fn is_doc_target_line(line: ref u8) bool = trust {
 
 fn doc_line_text(trimmed: ref u8) ref u8 = trust {
     val len: i64 = str.len_raw(trimmed)
-    if len <= 3 { return "" }
+    if len <= 3 {
+        return ""
+    }
     if len > 3 && @load8(@ptradd(trimmed as ref void, 3)) == 32 {
         return substr(trimmed, 4, len - 4)
     }
@@ -318,13 +378,16 @@ fn lookup_doc(map: ref DocMap, line: i64) ref u8 = trust {
     val len: i64 = @len(map.lines) as i64
     val i: mut i64 = 0
     for {
-        if i >= len { break }
+        if i >= len {
+            break
+        }
         val line_opt = @get(map.lines, i as usize)
         if line_opt is some v {
             if ((v as i64) == line) {
                 val doc_opt = @get(map.docs, i as usize)
                 if doc_opt is some d {
-                    return d as ref u8 }
+                    return d as ref u8
+                }
             }
         }
         i++
@@ -338,7 +401,9 @@ fn slugify(text: ref u8) ref u8 = trust {
     val i: mut i64 = 0
     val prev_dash: mut bool = false
     for {
-        if i >= len { break }
+        if i >= len {
+            break
+        }
         val c: u8 = @load8(@ptradd(text as ref void, i))
         val is_lower: bool = c >= 97 && c <= 122
         val is_upper: bool = c >= 65 && c <= 90
@@ -367,15 +432,31 @@ fn anchor_for(kind_name: ref u8, item_name: ref u8, line: i64) ref u8 = trust {
 }
 
 fn render_type(ty: ref parser.Node) ref u8 = trust {
-    if ty == none { return "" }
+    if ty == none {
+        return ""
+    }
     match ty.kind {
-        parser.TY_NAMED => { return ty.d0 as ref u8 }
-        parser.TY_REF => { return @fmt("ref {s}", {render_type(ty.d0 as ref parser.Node)}) }
-        parser.TY_MUT => { return @fmt("mut {s}", {render_type(ty.d0 as ref parser.Node)}) }
-        parser.TY_OPTION => { return @fmt("option[{s}]", {render_type(ty.d0 as ref parser.Node)}) }
-        parser.TY_LIST => { return @fmt("list[{s}]", {render_type(ty.d0 as ref parser.Node)}) }
-        parser.TY_RESULT => { return @fmt("result[{s}, {s}]", {render_type(ty.d0 as ref parser.Node), render_type(ty.d1 as ref parser.Node)}) }
-        parser.TY_SLICE => { return @fmt("[]{s}", {render_type(ty.d0 as ref parser.Node)}) }
+        parser.TY_NAMED => {
+            return ty.d0 as ref u8
+        }
+        parser.TY_REF => {
+            return @fmt("ref {s}", {render_type(ty.d0 as ref parser.Node)})
+        }
+        parser.TY_MUT => {
+            return @fmt("mut {s}", {render_type(ty.d0 as ref parser.Node)})
+        }
+        parser.TY_OPTION => {
+            return @fmt("option[{s}]", {render_type(ty.d0 as ref parser.Node)})
+        }
+        parser.TY_LIST => {
+            return @fmt("list[{s}]", {render_type(ty.d0 as ref parser.Node)})
+        }
+        parser.TY_RESULT => {
+            return @fmt("result[{s}, {s}]", {render_type(ty.d0 as ref parser.Node), render_type(ty.d1 as ref parser.Node)})
+        }
+        parser.TY_SLICE => {
+            return @fmt("[]{s}", {render_type(ty.d0 as ref parser.Node)})
+        }
         parser.TY_FIXED_ARR => {
             val size_name: ref u8 = parser.fixed_arr_size_name(ty)
             if size_name != none {
@@ -396,8 +477,12 @@ fn render_type(ty: ref parser.Node) ref u8 = trust {
             }
             return @fmt("fn({s}) {s}", {parts, render_type(ty.d1 as ref parser.Node)})
         }
-        parser.TY_VOID => { return "void" }
-        parser.TY_UNTYPED => { return "untyped" }
+        parser.TY_VOID => {
+            return "void"
+        }
+        parser.TY_UNTYPED => {
+            return "untyped"
+        }
     }
     return "unknown"
 }
@@ -421,7 +506,9 @@ fn render_type_fields(fields: list[ref parser.Node]) ref u8 = trust {
     val out: mut ref u8 = ""
     for field in fields {
         val prefix: mut ref u8 = ""
-        if field.d1 != 0 { prefix = "mut " }
+        if field.d1 != 0 {
+            prefix = "mut "
+        }
         val piece = @fmt("{s}: {s}{s}", {field.d0 as ref u8, prefix, render_type(field.d2 as ref parser.Node)})
         if str_eq(out, "") {
             out = piece
@@ -483,74 +570,134 @@ fn node_is_function(node: ref parser.Node) bool = {
 
 fn module_has_private_functions(module: ref DocModule) bool = {
     for entry in module.entries {
-        if entry.is_private_fn { return true }
+        if entry.is_private_fn {
+            return true
+        }
     }
     return false
 }
 
 fn binop_text(op: i64) ref u8 = {
-    if op == parser.OP_ADD { return "+" }
-    if op == parser.OP_SUB { return "-" }
-    if op == parser.OP_MUL { return "*" }
-    if op == parser.OP_DIV { return "/" }
-    if op == parser.OP_REM { return "%" }
-    if op == parser.OP_EQ { return "==" }
-    if op == parser.OP_NE { return "!=" }
-    if op == parser.OP_LT { return "<" }
-    if op == parser.OP_GT { return ">" }
-    if op == parser.OP_LE { return "<=" }
-    if op == parser.OP_GE { return ">=" }
-    if op == parser.OP_AND { return "and" }
-    if op == parser.OP_OR { return "or" }
-    if op == parser.OP_BAND { return "&" }
-    if op == parser.OP_BOR { return "|" }
-    if op == parser.OP_BXOR { return "^" }
-    if op == parser.OP_SHL { return "<<" }
-    if op == parser.OP_SHR { return ">>" }
+    if op == parser.OP_ADD {
+        return "+"
+    }
+    if op == parser.OP_SUB {
+        return "-"
+    }
+    if op == parser.OP_MUL {
+        return "*"
+    }
+    if op == parser.OP_DIV {
+        return "/"
+    }
+    if op == parser.OP_REM {
+        return "%"
+    }
+    if op == parser.OP_EQ {
+        return "=="
+    }
+    if op == parser.OP_NE {
+        return "!="
+    }
+    if op == parser.OP_LT {
+        return "<"
+    }
+    if op == parser.OP_GT {
+        return ">"
+    }
+    if op == parser.OP_LE {
+        return "<="
+    }
+    if op == parser.OP_GE {
+        return ">="
+    }
+    if op == parser.OP_AND {
+        return "and"
+    }
+    if op == parser.OP_OR {
+        return "or"
+    }
+    if op == parser.OP_BAND {
+        return "&"
+    }
+    if op == parser.OP_BOR {
+        return "|"
+    }
+    if op == parser.OP_BXOR {
+        return "^"
+    }
+    if op == parser.OP_SHL {
+        return "<<"
+    }
+    if op == parser.OP_SHR {
+        return ">>"
+    }
     return "?"
 }
 
 fn unop_text(op: i64) ref u8 = {
-    if op == parser.UOP_NOT { return "not " }
-    if op == parser.UOP_NEG { return "-" }
-    if op == parser.UOP_BNOT { return "~" }
+    if op == parser.UOP_NOT {
+        return "not "
+    }
+    if op == parser.UOP_NEG {
+        return "-"
+    }
+    if op == parser.UOP_BNOT {
+        return "~"
+    }
     return ""
 }
 
 fn render_const_expr(expr: ref parser.Node) ref u8 = trust {
-    if expr == none { return "..." }
+    if expr == none {
+        return "..."
+    }
     val kind: i64 = expr.kind
-    if kind == parser.NK_INT_LIT { return parser.int_lit_text(expr) }
-    if kind == parser.NK_FLOAT_LIT { return parser.float_lit_text(expr) }
-    if kind == parser.NK_STR_LIT { return @fmt("\"{s}\"", {parser.str_lit_text(expr)}) }
-    if kind == parser.NK_IDENT { return expr.d0 as ref u8 }
+    if kind == parser.NK_INT_LIT {
+        return parser.int_lit_text(expr)
+    }
+    if kind == parser.NK_FLOAT_LIT {
+        return parser.float_lit_text(expr)
+    }
+    if kind == parser.NK_STR_LIT {
+        return @fmt("\"{s}\"", {parser.str_lit_text(expr)})
+    }
+    if kind == parser.NK_IDENT {
+        return expr.d0 as ref u8
+    }
     if kind == parser.NK_BOOL {
-        if expr.d0 != 0 { return "true" }
+        if expr.d0 != 0 {
+            return "true"
+        }
         return "false"
     }
     if kind == parser.NK_CHAR_LIT {
         return @fmt("'{s}'", {expr.d0 as ref u8})
     }
-    if kind == parser.NK_NONE { return "none" }
-    if kind == parser.NK_ZERO_INIT { return @fmt("@zeroed[{s}]", {expr.d0 as ref u8}) }
+    if kind == parser.NK_NONE {
+        return "none"
+    }
+    if kind == parser.NK_ZERO_INIT {
+        return @fmt("@zeroed[{s}]", {expr.d0 as ref u8})
+    }
     if kind == parser.NK_UNOP {
         return @fmt("{s}{s}", {unop_text(parser.unop_op(expr)), render_const_expr(parser.unop_inner(expr))})
     }
     if kind == parser.NK_BINOP {
         return @fmt("{s} {s} {s}", {
-            render_const_expr(parser.binop_left(expr)),
-            binop_text(parser.binop_op(expr)),
-            render_const_expr(parser.binop_right(expr))
-        })
+                render_const_expr(parser.binop_left(expr)),
+                binop_text(parser.binop_op(expr)),
+                render_const_expr(parser.binop_right(expr))
+            })
     }
     if kind == parser.NK_FIELD {
         return @fmt("{s}.{s}", {render_const_expr(parser.field_base(expr)), parser.field_name(expr)})
     }
     if kind == parser.NK_CALL {
         return @fmt("{s}({s})", {
-            render_const_expr(parser.call_callee(expr)),
-            render_expr_list(parser.call_args(expr), ", ")
-        })
+                render_const_expr(parser.call_callee(expr)),
+                render_expr_list(parser.call_args(expr), ", ")
+            })
     }
     if kind == parser.NK_CAST {
         return @fmt("{s} as {s}", {render_const_expr(expr.d1 as ref parser.Node), render_type(expr.d0 as ref parser.Node)})
@@ -607,10 +754,14 @@ fn render_tagged_variants(values: list[ref parser.Node]) ref u8 = trust {
 
 fn render_type_signature(node: ref parser.Node) ref u8 = trust {
     val public_prefix: mut ref u8 = ""
-    if node_is_public(node) { public_prefix = "pub " }
+    if node_is_public(node) {
+        public_prefix = "pub "
+    }
     if node.kind == parser.NK_TYPEDEF || node.kind == parser.NK_EXTERN_TYPE {
         val extern_prefix: mut ref u8 = ""
-        if node.kind == parser.NK_EXTERN_TYPE { extern_prefix = "extern " }
+        if node.kind == parser.NK_EXTERN_TYPE {
+            extern_prefix = "extern "
+        }
         val fields = render_type_fields(node.d2 as list[ref parser.Node])
         return @fmt("{s}{s}type {s} = \\{ {s} \\}", {public_prefix, extern_prefix, node.d1 as ref u8, fields})
     }
@@ -632,31 +783,43 @@ fn render_type_signature(node: ref parser.Node) ref u8 = trust {
 fn render_fn_signature(node: ref parser.Node) ref u8 = trust {
     if node.kind == parser.NK_EXTERN_FN {
         val public_prefix: mut ref u8 = ""
-        if node_is_public(node) { public_prefix = "pub " }
+        if node_is_public(node) {
+            public_prefix = "pub "
+        }
         val conv: ref u8 = node.d3 as ref u8
         val params = render_fn_params(node.d4 as list[ref parser.Node])
         val variadic_suffix: mut ref u8 = ""
         if parser.extern_fn_is_variadic(node) {
-            if str_eq(params, "") { variadic_suffix = "..." } else { variadic_suffix = ", ..." }
+            if str_eq(params, "") {
+                variadic_suffix = "..."
+            } else {
+                variadic_suffix = ", ..."
+            }
         }
         val header_mod: mut ref u8 = ""
-        if parser.extern_fn_uses_header(node) { header_mod = ", header" }
+        if parser.extern_fn_uses_header(node) {
+            header_mod = ", header"
+        }
         val unsafe_suffix: mut ref u8 = ""
-        if parser.fn_is_unsafe(node) { unsafe_suffix = " = trust { ... }" }
+        if parser.fn_is_unsafe(node) {
+            unsafe_suffix = " = trust { ... }"
+        }
         return @fmt("{s}extern ({s}{s}) fn {s}({s}{s}) {s}{s} = \"{s}\"", {
-            public_prefix,
-            conv,
-            header_mod,
-            node.d1 as ref u8,
-            params,
-            variadic_suffix,
-            render_type(node.d5 as ref parser.Node),
-            unsafe_suffix,
-            node.d2 as ref u8
-        })
+                public_prefix,
+                conv,
+                header_mod,
+                node.d1 as ref u8,
+                params,
+                variadic_suffix,
+                render_type(node.d5 as ref parser.Node),
+                unsafe_suffix,
+                node.d2 as ref u8
+            })
     }
     val public_prefix: mut ref u8 = ""
-    if node_is_public(node) { public_prefix = "pub " }
+    if node_is_public(node) {
+        public_prefix = "pub "
+    }
     val receiver: mut ref u8 = ""
     if node.d1 != 0 as i64 {
         receiver = @fmt("({s}) ", {node.d1 as ref u8})
@@ -679,38 +842,50 @@ fn render_fn_signature(node: ref parser.Node) ref u8 = trust {
         }
     }
     val unsafe_suffix: mut ref u8 = ""
-    if node.kind == parser.NK_FN && parser.fn_is_unsafe(node) { unsafe_suffix = " = trust { ... }" }
+    if node.kind == parser.NK_FN && parser.fn_is_unsafe(node) {
+        unsafe_suffix = " = trust { ... }"
+    }
     val params = render_fn_params(node.d3 as list[ref parser.Node])
     return @fmt("{s}fn {s}{s}{s}({s}) {s}{s}", {
-        public_prefix,
-        receiver,
-        node.d2 as ref u8,
-        type_params,
-        params,
-        render_type(node.d4 as ref parser.Node),
-        unsafe_suffix
-    })
+            public_prefix,
+            receiver,
+            node.d2 as ref u8,
+            type_params,
+            params,
+            render_type(node.d4 as ref parser.Node),
+            unsafe_suffix
+        })
 }
 
 fn render_const_signature(node: ref parser.Node) ref u8 = trust {
     val public_prefix: mut ref u8 = ""
-    if node_is_public(node) { public_prefix = "pub " }
+    if node_is_public(node) {
+        public_prefix = "pub "
+    }
     return @fmt("{s}val {s} = {s}", {
-        public_prefix,
-        node.d1 as ref u8,
-        render_const_expr(node.d2 as ref parser.Node)
-    })
+            public_prefix,
+            node.d1 as ref u8,
+            render_const_expr(node.d2 as ref parser.Node)
+        })
 }
 
 fn entry_kind_name(kind: i64) ref u8 = {
-    if kind == parser.NK_FN || kind == parser.NK_GENERIC_FN || kind == parser.NK_EXTERN_FN { return "function" }
-    if kind == parser.NK_CONST { return "constant" }
+    if kind == parser.NK_FN || kind == parser.NK_GENERIC_FN || kind == parser.NK_EXTERN_FN {
+        return "function"
+    }
+    if kind == parser.NK_CONST {
+        return "constant"
+    }
     return "type"
 }
 
 fn entry_name(node: ref parser.Node) ref u8 = trust {
-    if node.kind == parser.NK_EXTERN_FN { return node.d1 as ref u8 }
-    if node.kind == parser.NK_FN || node.kind == parser.NK_GENERIC_FN { return node.d2 as ref u8 }
+    if node.kind == parser.NK_EXTERN_FN {
+        return node.d1 as ref u8
+    }
+    if node.kind == parser.NK_FN || node.kind == parser.NK_GENERIC_FN {
+        return node.d2 as ref u8
+    }
     return node.d1 as ref u8
 }
 
@@ -743,8 +918,12 @@ fn add_entry(entries: mut list[ref DocEntry], node: ref parser.Node, doc_map: re
 }
 
 fn combine_availability(a: ref u8, b: ref u8) ref u8 = trust {
-    if str_eq(a, "") { return b }
-    if str_eq(b, "") { return a }
+    if str_eq(a, "") {
+        return b
+    }
+    if str_eq(b, "") {
+        return a
+    }
     return @fmt("{s}, {s}", {a, b})
 }
 
@@ -783,7 +962,9 @@ fn load_module(source_path: ref u8, rel_path: ref u8) ref DocModule = trust {
     val src_size_opt = fs.file_size(source_path)
     val src_arena_cap: mut i64 = 4096
     if src_size_opt is some sz {
-        if ((sz as i64) > src_arena_cap) { src_arena_cap = sz as i64 }
+        if ((sz as i64) > src_arena_cap) {
+            src_arena_cap = sz as i64
+        }
     } else {
         stdio.print("error: could not read '{s}'\n", {source_path})
         os.exit(1)
@@ -792,7 +973,8 @@ fn load_module(source_path: ref u8, rel_path: ref u8) ref DocModule = trust {
     val src_opt = fs.read_all[allocators.Arena](src_arena, source_path)
     val src: mut ref u8 = ""
     if src_opt is some text {
-        src = text as ref u8 } else {
+        src = text as ref u8
+    } else {
         allocators.Arena.free(src_arena)
         stdio.print("error: could not read '{s}'\n", {source_path})
         os.exit(1)
@@ -801,7 +983,9 @@ fn load_module(source_path: ref u8, rel_path: ref u8) ref DocModule = trust {
     allocators.Arena.free(src_arena)
     val toks: mut list[ref lexer.Token] = []
     match toks_res {
-        ok t => { toks = t }
+        ok t => {
+            toks = t
+        }
         err e => {
             stdio.print("error: {s}: {s}\n", {source_path, e})
             os.exit(1)
@@ -810,7 +994,9 @@ fn load_module(source_path: ref u8, rel_path: ref u8) ref DocModule = trust {
     val parse_res = parser.parse_module(toks, source_path)
     val items: mut list[ref parser.Node] = []
     match parse_res {
-        ok p => { items = p }
+        ok p => {
+            items = p
+        }
         err e => {
             stdio.print("error: {s}\n", {e})
             os.exit(1)
@@ -832,11 +1018,15 @@ fn find_root_module(modules: list[ref DocModule], root_rel: ref u8) i64 = trust 
     val len: i64 = @len(modules) as i64
     val i: mut i64 = 0
     for {
-        if i >= len { break }
+        if i >= len {
+            break
+        }
         val mod_opt = @get(modules, i as usize)
         if mod_opt is some v {
             val mod: ref DocModule = v as ref DocModule
-            if str_eq(mod.rel_path, root_rel) { return i }
+            if str_eq(mod.rel_path, root_rel) {
+                return i
+            }
         }
         i++
     }
@@ -845,7 +1035,9 @@ fn find_root_module(modules: list[ref DocModule], root_rel: ref u8) i64 = trust 
 
 fn module_output_path(module_name: ref u8, markdown: bool) ref u8 = trust {
     val ext: ref u8 = "html"
-    if markdown { return @fmt("pages/{s}.md", {module_name}) }
+    if markdown {
+        return @fmt("pages/{s}.md", {module_name})
+    }
     return @fmt("pages/{s}.{s}", {module_name, ext})
 }
 
@@ -853,7 +1045,9 @@ fn assign_output_paths(modules: list[ref DocModule], markdown: bool, root_idx: i
     val len: i64 = @len(modules) as i64
     val i: mut i64 = 0
     for {
-        if i >= len { break }
+        if i >= len {
+            break
+        }
         val mod_opt = @get(modules, i as usize)
         if mod_opt is some v {
             val mod: mut ref DocModule = v as ref DocModule
@@ -869,7 +1063,9 @@ fn html_escape(text: ref u8) ref u8 = trust {
     val len: i64 = str.len_raw(text)
     val i: mut i64 = 0
     for {
-        if i >= len { break }
+        if i >= len {
+            break
+        }
         val c: u8 = @load8(@ptradd(text as ref void, i))
         if c == 38 {
             string.StringBuilder.append_cstr(sb, "&amp;")
@@ -890,7 +1086,9 @@ fn html_escape(text: ref u8) ref u8 = trust {
 }
 
 fn append_doc_html(sb: ref void, docs: ref u8) void = trust {
-    if str_eq(docs, "") { return }
+    if str_eq(docs, "") {
+        return
+    }
     val len: i64 = str.len_raw(docs)
     val line_start: mut i64 = 0
     val i: mut i64 = 0
@@ -952,7 +1150,9 @@ fn render_entry_details_html(sb: ref void, entry: ref DocEntry) void = trust {
             string.StringBuilder.append_cstr(sb, "<h4>Fields</h4><div class=\"details-table-wrap\"><table class=\"details-table\"><thead><tr><th>Name</th><th>Type</th></tr></thead><tbody>")
             for field in fields {
                 val prefix: mut ref u8 = ""
-                if field.d1 != 0 { prefix = "mut " }
+                if field.d1 != 0 {
+                    prefix = "mut "
+                }
                 string.StringBuilder.append_cstr(sb, "<tr><td><code>")
                 string.StringBuilder.append_cstr(sb, html_escape(field.d0 as ref u8))
                 string.StringBuilder.append_cstr(sb, "</code></td><td><code>")
@@ -982,7 +1182,11 @@ fn render_entry_details_html(sb: ref void, entry: ref DocEntry) void = trust {
         for variant in node.d2 as list[ref parser.Node] {
             val types = render_type_list(variant.d1 as list[ref parser.Node], ", ")
             val text: mut ref u8 = variant.d0 as ref u8
-            if !str_eq(types, "") { text = @fmt("{s}({s})", {text, types}) } else { text = @fmt("{s}()", {text}) }
+            if !str_eq(types, "") {
+                text = @fmt("{s}({s})", {text, types})
+            } else {
+                text = @fmt("{s}()", {text})
+            }
             string.StringBuilder.append_cstr(sb, "<li><code>")
             string.StringBuilder.append_cstr(sb, html_escape(text))
             string.StringBuilder.append_cstr(sb, "</code></li>")
@@ -999,11 +1203,11 @@ fn render_entry_html(sb: ref void, entry: ref DocEntry) void = trust {
         entry_private = "1"
     }
     string.StringBuilder.append_cstr(sb, @fmt("<section class=\"{s}\" id=\"{s}\" data-name=\"{s}\" data-private=\"{s}\">", {
-        entry_class,
-        entry.anchor,
-        html_escape(entry.nav_name),
-        entry_private
-    }))
+                entry_class,
+                entry.anchor,
+                html_escape(entry.nav_name),
+                entry_private
+            }))
     string.StringBuilder.append_cstr(sb, @fmt("<div class=\"entry-header\"><h3>{s}</h3>", {html_escape(entry.name)}))
     if !str_eq(entry.availability, "") {
         string.StringBuilder.append_cstr(sb, @fmt("<span class=\"badge\">{s}</span>", {html_escape(entry.availability)}))
@@ -1025,14 +1229,20 @@ fn depth_prefix(output_path: ref u8) ref u8 = trust {
     val depth: mut i64 = 0
     val i: mut i64 = 0
     for {
-        if i >= len { break }
-        if @load8(@ptradd(output_path as ref void, i)) == 47 { depth++ }
+        if i >= len {
+            break
+        }
+        if @load8(@ptradd(output_path as ref void, i)) == 47 {
+            depth++
+        }
         i++
     }
     val prefix: mut ref u8 = ""
     val j: mut i64 = 0
     for {
-        if j >= depth { break }
+        if j >= depth {
+            break
+        }
         prefix = @fmt("{s}../", {prefix})
         j++
     }
@@ -1051,7 +1261,9 @@ fn nav_key_tail(key: ref u8) ref u8 = trust {
     val len: i64 = str.len_raw(key)
     val i: mut i64 = 0
     for {
-        if i >= len { break }
+        if i >= len {
+            break
+        }
         if @load8(@ptradd(key as ref void, i)) == 10 {
             return substr(key, i + 1, len - i - 1)
         }
@@ -1069,15 +1281,19 @@ fn append_sorted_module_nav_html(sb: ref void, modules: list[ref DocModule], cur
     for key in sorted {
         val target_output = nav_key_tail(key)
         for mod in modules {
-            if !str_eq(mod.output_path, target_output) { continue }
+            if !str_eq(mod.output_path, target_output) {
+                continue
+            }
             val cls: mut ref u8 = "nav-item"
-            if str_eq(mod.rel_path, current.rel_path) { cls = "nav-item active" }
+            if str_eq(mod.rel_path, current.rel_path) {
+                cls = "nav-item active"
+            }
             string.StringBuilder.append_cstr(sb, @fmt("<a class=\"{s}\" href=\"{s}\" data-name=\"{s}\" data-private=\"0\">{s}</a>", {
-                cls,
-                href_from(current.output_path, mod.output_path),
-                html_escape(safe_cstr(mod.module_name)),
-                html_escape(safe_cstr(mod.module_name))
-            }))
+                        cls,
+                        href_from(current.output_path, mod.output_path),
+                        html_escape(safe_cstr(mod.module_name)),
+                        html_escape(safe_cstr(mod.module_name))
+                    }))
             break
         }
     }
@@ -1092,7 +1308,9 @@ fn append_sorted_entry_nav_html(sb: ref void, entries: list[ref DocEntry]) void 
     for key in sorted {
         val target_anchor = nav_key_tail(key)
         for entry in entries {
-            if !str_eq(entry.anchor, target_anchor) { continue }
+            if !str_eq(entry.anchor, target_anchor) {
+                continue
+            }
             val nav_class: mut ref u8 = "nav-item"
             val entry_private: mut ref u8 = "0"
             if entry.is_private_fn {
@@ -1100,12 +1318,12 @@ fn append_sorted_entry_nav_html(sb: ref void, entries: list[ref DocEntry]) void 
                 entry_private = "1"
             }
             string.StringBuilder.append_cstr(sb, @fmt("<a class=\"{s}\" href=\"#{s}\" data-name=\"{s}\" data-private=\"{s}\">{s}</a>", {
-                nav_class,
-                entry.anchor,
-                html_escape(entry.nav_name),
-                entry_private,
-                html_escape(entry.nav_name)
-            }))
+                        nav_class,
+                        entry.anchor,
+                        html_escape(entry.nav_name),
+                        entry_private,
+                        html_escape(entry.nav_name)
+                    }))
             break
         }
     }
@@ -1128,25 +1346,38 @@ fn read_text_file_or_empty(file_path: ref u8) ref u8 = trust {
     val size_opt = fs.file_size(file_path)
     val arena_cap: mut i64 = 4096
     if size_opt is some sz {
-        if ((sz as i64) > arena_cap) { arena_cap = sz as i64 }
-    } else { return "" }
+        if ((sz as i64) > arena_cap) {
+            arena_cap = sz as i64
+        }
+    } else {
+        return ""
+    }
     val arena: mut allocators.Arena = allocators.Arena.new((arena_cap + 8) as usize)?
     val content_opt = fs.read_all[allocators.Arena](arena, file_path)
     val content: mut ref u8 = ""
     if content_opt is some text {
-        content = copy_cstr(text as ref u8) }
+        content = copy_cstr(text as ref u8)
+    }
     allocators.Arena.free(arena)
-    if content == none { return "" }
+    if content == none {
+        return ""
+    }
     return content
 }
 
 fn load_directory_readme(dir_path: ref u8) ref u8 = trust {
     val base_dir: mut ref u8 = dir_path
-    if str_eq(base_dir, "") { base_dir = "." }
+    if str_eq(base_dir, "") {
+        base_dir = "."
+    }
     val readme_md = path.join(base_dir, "README.md")
-    if os.exists(readme_md) { return read_text_file_or_empty(readme_md) }
+    if os.exists(readme_md) {
+        return read_text_file_or_empty(readme_md)
+    }
     val readme_plain = path.join(base_dir, "README")
-    if os.exists(readme_plain) { return read_text_file_or_empty(readme_plain) }
+    if os.exists(readme_plain) {
+        return read_text_file_or_empty(readme_plain)
+    }
     return ""
 }
 
@@ -1154,12 +1385,20 @@ fn markdown_heading_level(line: ref u8) i64 = trust {
     val len: i64 = str.len_raw(line)
     val level: mut i64 = 0
     for {
-        if level >= len || level >= 6 { break }
-        if @load8(@ptradd(line as ref void, level)) != 35 { break }
+        if level >= len || level >= 6 {
+            break
+        }
+        if @load8(@ptradd(line as ref void, level)) != 35 {
+            break
+        }
         level++
     }
-    if level == 0 || level >= len { return 0 }
-    if @load8(@ptradd(line as ref void, level)) != 32 { return 0 }
+    if level == 0 || level >= len {
+        return 0
+    }
+    if @load8(@ptradd(line as ref void, level)) != 32 {
+        return 0
+    }
     return level
 }
 
@@ -1193,8 +1432,12 @@ fn find_byte(text: ref u8, start: i64, needle: u8) i64 = trust {
     val len: i64 = str.len_raw(text)
     val i: mut i64 = start
     for {
-        if i >= len { break }
-        if @load8(@ptradd(text as ref void, i)) == needle { return i }
+        if i >= len {
+            break
+        }
+        if @load8(@ptradd(text as ref void, i)) == needle {
+            return i
+        }
         i++
     }
     return -1
@@ -1218,7 +1461,9 @@ fn append_markdown_inline_html(sb: ref void, text: ref u8) void = trust {
     val len: i64 = str.len_raw(text)
     val i: mut i64 = 0
     for {
-        if i >= len { break }
+        if i >= len {
+            break
+        }
         val c: u8 = @load8(@ptradd(text as ref void, i))
         if c == 33 && i + 1 < len && @load8(@ptradd(text as ref void, i + 1)) == 91 {
             val alt_end = find_byte(text, i + 2, 93 as u8)
@@ -1228,9 +1473,9 @@ fn append_markdown_inline_html(sb: ref void, text: ref u8) void = trust {
                     val alt = substr(text, i + 2, alt_end - i - 2)
                     val src = substr(text, alt_end + 2, url_end - alt_end - 2)
                     string.StringBuilder.append_cstr(sb, @fmt("<img src=\"{s}\" alt=\"{s}\" loading=\"lazy\">", {
-                        html_escape(src),
-                        html_escape(alt)
-                    }))
+                                html_escape(src),
+                                html_escape(alt)
+                            }))
                     i = url_end + 1
                     continue
                 }
@@ -1267,7 +1512,9 @@ fn append_markdown_inline_html(sb: ref void, text: ref u8) void = trust {
 }
 
 fn flush_markdown_paragraph_html(sb: ref void, paragraph: mut ref u8) void = trust {
-    if str_eq(paragraph, "") { return }
+    if str_eq(paragraph, "") {
+        return
+    }
     string.StringBuilder.append_cstr(sb, "<p>")
     append_markdown_inline_html(sb, paragraph)
     string.StringBuilder.append_cstr(sb, "</p>")
@@ -1275,7 +1522,9 @@ fn flush_markdown_paragraph_html(sb: ref void, paragraph: mut ref u8) void = tru
 }
 
 fn close_markdown_list_html(sb: ref void, in_list: mut bool) void = trust {
-    if !in_list { return }
+    if !in_list {
+        return
+    }
     string.StringBuilder.append_cstr(sb, "</ul>")
     in_list = false
 }
@@ -1294,7 +1543,9 @@ fn append_markdown_html(sb: ref void, markdown: ref u8) void = trust {
             val line = substr(markdown, line_start, len - line_start)
             val trimmed = trim_ws(line)
             if in_code {
-                if !str_eq(line, "") { string.StringBuilder.append_cstr(sb, html_escape(line)) }
+                if !str_eq(line, "") {
+                    string.StringBuilder.append_cstr(sb, html_escape(line))
+                }
                 string.StringBuilder.append_cstr(sb, "</code></pre>")
             } elif str_eq(trimmed, "") {
                 flush_markdown_paragraph_html(sb, paragraph)
@@ -1397,250 +1648,250 @@ fn append_page_head_html(sb: ref void, title: ref u8) void = trust {
     string.StringBuilder.append_cstr(sb, "<link href=\"https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap\" rel=\"stylesheet\">")
     string.StringBuilder.append_cstr(sb, "<style>")
     string.StringBuilder.append_cstr(sb,
-    \\:root{
-    \\  --bg:#f0f4fa;--bg2:#e4ecf7;--surface:#ffffff;--surface2:#f7f9fd;
-    \\  --border:#c8d8ee;--border2:#dde8f5;
-    \\  --text:#0f1f3d;--text2:#3a5275;--text3:#6b87a8;
-    \\  --accent:#1d6cf0;--accent2:#4a90f7;--accent3:#0a4fc4;
-    \\  --code-bg:#eaf0fb;--code-text:#1a3560;
-    \\  --kw:#1d6cf0;--ty:#0e7490;--lit:#0f5c2e;--op:#475569;--cm:#7a94b0;--fn-col:#7c3aed;
-    \\  --sb-w:272px;--radius:10px;--font:'IBM Plex Sans',system-ui,sans-serif;--mono:'IBM Plex Mono',monospace;
-    \\  --shadow:0 1px 3px rgba(15,31,61,.06),0 4px 16px rgba(15,31,61,.08);
-    \\  --shadow-lg:0 2px 8px rgba(15,31,61,.08),0 12px 40px rgba(15,31,61,.12);
-    \\}
-    \\html.dark{
-    \\  --bg:#000000;--bg2:#1b1c1c;--surface:#000000;--surface2:#1b1c1c;
-    \\  --border:#171717;--border2:#171717;
-    \\  --text:#d8e8ff;--text2:#8badd4;--text3:#4a6d96;
-    \\  --accent:#dde8f5;--accent2:#dde8f5;--accent3:#2e6fe0;
-    \\  --code-bg:#171717;--code-text:#dde8f5;
-    \\  --kw:#60a5fa;--ty:#22d3ee;--lit:#4ade80;--op:#94a3b8;--cm:#4a6d96;--fn-col:#a78bfa;
-    \\  --shadow:0 1px 3px rgba(0,0,0,.3),0 4px 16px rgba(0,0,0,.4);
-    \\  --shadow-lg:0 2px 8px rgba(0,0,0,.4),0 12px 40px rgba(0,0,0,.5);
-    \\}
-    \\*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-    \\html{scroll-behavior:smooth}
-    \\body{font-family:var(--font);background:var(--bg);color:var(--text);font-size:15px;line-height:1.65;overflow-x:hidden;transition:background .2s,color .2s}
-    \\a{color:var(--accent);text-decoration:none;transition:color .15s}
-    \\a:hover{color:var(--accent2)}
-    \\.page{display:flex;min-height:100vh}
-    \\
-    \\.sidebar{
-    \\  position:fixed;top:0;left:0;bottom:0;width:var(--sb-w);
-    \\  background:var(--bg2);border-right:1px solid var(--border);
-    \\  display:flex;flex-direction:column;
-    \\  transition:transform .28s cubic-bezier(.4,0,.2,1);
-    \\  z-index:100;overflow:hidden;
-    \\}
-    \\.sidebar.collapsed{transform:translateX(calc(-1 * var(--sb-w)))}
-    \\.sb-head{
-    \\  padding:20px 18px 16px;border-bottom:1px solid var(--border);
-    \\  flex-shrink:0;display:flex;align-items:center;gap:10px;
-    \\}
-    \\.sb-logo{
-    \\  width:26px;height:26px;flex-shrink:0;
-    \\  background:linear-gradient(135deg,var(--accent3),var(--accent2));
-    \\  border-radius:7px;display:flex;align-items:center;justify-content:center;
-    \\}
-    \\.sb-logo svg{width:14px;height:14px;fill:none;stroke:#fff;stroke-width:2.2;stroke-linecap:round}
-    \\.sb-title{font-size:13px;font-weight:700;color:var(--text);letter-spacing:.01em;font-family:var(--mono)}
-    \\.sb-search{padding:10px 14px;border-bottom:1px solid var(--border);flex-shrink:0;position:relative}
-    \\.sb-search-icon{position:absolute;left:24px;top:50%;transform:translateY(-50%);color:var(--text3);pointer-events:none;width:14px;height:14px}
-    \\.sb-input{
-    \\  width:100%;padding:7px 8px 7px 32px;
-    \\  background:var(--surface);border:1px solid var(--border2);
-    \\  border-radius:7px;color:var(--text);font-size:13px;font-family:var(--font);
-    \\  outline:none;transition:border-color .15s,box-shadow .15s;
-    \\}
-    \\.sb-input:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 15%,transparent)}
-    \\.sb-input::placeholder{color:var(--text3)}
-    \\.sb-nav{overflow-y:auto;flex:1;padding:10px 10px 24px}
-    \\.sb-nav::-webkit-scrollbar{width:4px}
-    \\.sb-nav::-webkit-scrollbar-track{background:transparent}
-    \\.sb-nav::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
-    \\.nav-section{margin-bottom:20px}
-    \\.nav-label{
-    \\  display:block;font-size:10px;font-weight:700;
-    \\  letter-spacing:.1em;text-transform:uppercase;
-    \\  color:var(--text3);padding:6px 10px 5px;
-    \\}
-    \\.nav-item{
-    \\  display:block;padding:5px 10px;border-radius:6px;
-    \\  color:var(--text2);font-size:13px;font-family:var(--mono);
-    \\  transition:background .12s,color .12s;
-    \\  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
-    \\}
-    \\.nav-item:hover{background:var(--surface);color:var(--text);text-decoration:none}
-    \\.nav-item.active{background:color-mix(in srgb,var(--accent) 12%,transparent);color:var(--accent);font-weight:600}
-    \\.nav-item.hidden{display:none}
-    \\
-    \\.toggle{
-    \\  position:fixed;top:16px;z-index:200;
-    \\  width:34px;height:34px;
-    \\  background:var(--surface);border:1px solid var(--border);
-    \\  border-radius:8px;color:var(--text2);cursor:pointer;
-    \\  display:flex;align-items:center;justify-content:center;
-    \\  transition:left .28s cubic-bezier(.4,0,.2,1),background .15s,color .15s,box-shadow .15s;
-    \\  left:16px;box-shadow:var(--shadow);
-    \\}
-    \\.toggle:hover{background:var(--bg2);color:var(--text);box-shadow:var(--shadow-lg)}
-    \\.toggle.sb-open{left:calc(var(--sb-w) + 12px)}
-    \\.toggle svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round}
-    \\
-    \\.control-btn{
-    \\  position:fixed;top:16px;right:16px;z-index:200;
-    \\  width:34px;height:34px;
-    \\  background:var(--surface);border:1px solid var(--border);
-    \\  border-radius:8px;color:var(--text2);cursor:pointer;
-    \\  display:flex;align-items:center;justify-content:center;
-    \\  box-shadow:var(--shadow);transition:background .15s,color .15s,box-shadow .15s;
-    \\}
-    \\.control-btn:hover{background:var(--bg2);color:var(--text);box-shadow:var(--shadow-lg)}
-    \\.control-btn svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
-    \\.control-btn[aria-pressed="true"]{color:var(--accent);border-color:color-mix(in srgb,var(--accent) 40%,var(--border))}
-    \\.theme-btn{right:16px}
-    \\.private-toggle-btn{right:58px}
-    \\
-    \\.content{
-    \\  margin-left:var(--sb-w);padding:64px 60px 80px;
-    \\  flex:1;max-width:calc(var(--sb-w) + 820px);
-    \\  transition:margin-left .28s cubic-bezier(.4,0,.2,1);
-    \\}
-    \\.content.sb-closed{margin-left:0}
-    \\
-    \\.hero{margin-bottom:40px;padding-bottom:28px;border-bottom:1px solid var(--border)}
-    \\.hero h1{font-size:26px;font-weight:700;color:var(--text);margin-bottom:6px;letter-spacing:-.02em}
-    \\.hero-top{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap}
-    \\.hero-meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-    \\.hero-meta .label{font-size:12px;color:var(--text3)}
-    \\.hero-meta code{font-family:var(--mono);font-size:12px;background:var(--code-bg);color:var(--accent);padding:2px 8px;border-radius:5px;border:1px solid var(--border2)}
-    \\
-    \\.entry{
-    \\  background:var(--surface);border:1px solid var(--border);
-    \\  border-radius:var(--radius);padding:24px 28px;margin-bottom:12px;
-    \\  transition:border-color .2s,box-shadow .2s;
-    \\  scroll-margin-top:24px;
-    \\}
-    \\.entry:hover{border-color:var(--accent3);box-shadow:var(--shadow)}
-    \\.entry.s-hide{display:none}
-    \\.entry-header{display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap}
-    \\.entry-header h3{font-size:15px;font-weight:600;color:var(--text);font-family:var(--mono);letter-spacing:-.01em}
-    \\.badge{
-    \\  display:inline-flex;align-items:center;
-    \\  padding:2px 9px;border-radius:999px;
-    \\  background:color-mix(in srgb,var(--accent) 10%,transparent);
-    \\  color:var(--accent);font-size:11px;font-weight:600;
-    \\  letter-spacing:.03em;border:1px solid color-mix(in srgb,var(--accent) 25%,transparent);
-    \\  font-family:var(--mono);
-    \\}
-    \\.badge-private{
-    \\  background:color-mix(in srgb,#0ea5e9 12%,transparent);
-    \\  color:#0369a1;border-color:color-mix(in srgb,#000000 24%,transparent);
-    \\}
-    \\html.dark .badge-private{
-    \\  background:color-mix(in srgb,#0ea5e9 15%,transparent);
-    \\  color:#0369a1;border-color:color-mix(in srgb,#000000 28%,transparent);
-    \\}
-    \\
-    \\pre{
-    \\  overflow:auto;background:var(--code-bg);
-    \\  border-radius:8px;padding:16px 18px;
-    \\  border:1px solid var(--border2);margin:0 0 16px;
-    \\  font-size:13px;line-height:1.7;
-    \\}
-    \\pre::-webkit-scrollbar{height:4px}
-    \\pre::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
-    \\code{font-family:var(--mono);font-size:13px;color:var(--code-text)}
-    \\.hljs-keyword{color:var(--kw);font-weight:600}
-    \\.hljs-type{color:var(--ty)}
-    \\.hljs-built_in{color:var(--ty)}
-    \\.hljs-number{color:var(--lit)}
-    \\.hljs-string{color:var(--lit)}
-    \\.hljs-comment{color:var(--cm);font-style:italic}
-    \\.hljs-operator{color:var(--op)}
-    \\.hljs-punctuation{color:var(--op)}
-    \\.hljs-title{color:var(--fn-col);font-weight:600}
-    \\.hljs-params{color:var(--text2)}
-    \\.hljs-variable{color:var(--text)}
-    \\
-    \\.docs{margin-top:2px}
-    \\.docs p{line-height:1.8;color:var(--text2);margin-bottom:8px;font-size:14px}
-    \\
-    \\.doc-article{color:var(--text2)}
-    \\.doc-article>:last-child{margin-bottom:0}
-    \\.doc-article h1,.doc-article h2,.doc-article h3,.doc-article h4,.doc-article h5,.doc-article h6{
-    \\  color:var(--text);letter-spacing:-.02em;line-height:1.25;text-transform:none;
-    \\}
-    \\.doc-article h1{font-size:28px;margin:0 0 18px}
-    \\.doc-article h2{font-size:22px;margin:30px 0 14px}
-    \\.doc-article h3{font-size:18px;margin:24px 0 12px}
-    \\.doc-article h4,.doc-article h5,.doc-article h6{font-size:15px;margin:18px 0 10px}
-    \\.doc-article p{line-height:1.85;color:var(--text2);margin:0 0 12px;font-size:14px}
-    \\.doc-article ul{margin:0 0 14px 20px;color:var(--text2)}
-    \\.doc-article li{margin:0 0 6px}
-    \\.doc-article a{color:var(--accent)}
-    \\.doc-article img{max-width:100%;height:auto;border-radius:8px;vertical-align:middle}
-    \\.doc-article code{
-    \\  font-family:var(--mono);font-size:12.5px;
-    \\  background:var(--code-bg);padding:3px 8px;
-    \\  border-radius:5px;color:var(--code-text);
-    \\  border:1px solid var(--border2);
-    \\}
-    \\.doc-article pre{margin:0 0 16px}
-    \\.module-list{list-style:none;padding:0;margin:0;display:grid;gap:8px}
-    \\.module-list li{margin:0}
-    \\.module-list a{
-    \\  display:block;padding:10px 12px;border-radius:8px;
-    \\  border:1px solid var(--border2);background:var(--surface2);
-    \\  color:var(--text);font-family:var(--mono);font-size:13px;
-    \\  transition:border-color .15s,background .15s,color .15s;
-    \\}
-    \\.module-list a:hover{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 8%,var(--surface2));text-decoration:none}
-    \\
-    \\h4{
-    \\  font-size:10px;font-weight:700;letter-spacing:.1em;
-    \\  text-transform:uppercase;color:var(--text3);margin:18px 0 8px;
-    \\}
-    \\.details-table-wrap{overflow-x:auto}
-    \\.details-table{
-    \\  width:100%;border-collapse:collapse;border:1px solid var(--border2);
-    \\  border-radius:8px;overflow:hidden;background:var(--surface2);font-size:13px;
-    \\}
-    \\.details-table th,.details-table td{
-    \\  text-align:left;padding:10px 12px;border-bottom:1px solid var(--border2);vertical-align:top;
-    \\}
-    \\.details-table th{
-    \\  color:var(--text3);font-size:11px;letter-spacing:.06em;text-transform:uppercase;background:var(--bg2);
-    \\}
-    \\.details-table tbody tr:last-child td{border-bottom:none}
-    \\.details-table code{
-    \\  font-family:var(--mono);font-size:12.5px;
-    \\  background:var(--code-bg);padding:3px 8px;
-    \\  border-radius:5px;color:var(--code-text);
-    \\  border:1px solid var(--border2);display:inline-block;
-    \\}
-    \\.details{list-style:none;padding:0;display:flex;flex-direction:column;gap:4px}
-    \\.details li code{
-    \\  font-family:var(--mono);font-size:12.5px;
-    \\  background:var(--code-bg);padding:3px 8px;
-    \\  border-radius:5px;color:var(--code-text);
-    \\  border:1px solid var(--border2);display:inline-block;
-    \\}
-    \\
-    \\.empty{
-    \\  background:var(--surface);border:1px dashed var(--border);
-    \\  border-radius:var(--radius);padding:40px 28px;
-    \\  color:var(--text3);text-align:center;font-size:14px;
-    \\}
-    \\
-    \\@media(max-width:860px){
-    \\  .sidebar{transform:translateX(calc(-1 * var(--sb-w)))}
-    \\  .sidebar.sb-open-m{transform:translateX(0)}
-    \\  .content{margin-left:0!important;padding:28px 20px 60px}
-    \\  .hero-top{flex-direction:column;align-items:flex-start}
-    \\  .toggle{left:14px}
-    \\  .toggle.sb-open{left:calc(var(--sb-w) + 10px)}
-    \\}
+        \\:root{
+        \\  --bg:#f0f4fa;--bg2:#e4ecf7;--surface:#ffffff;--surface2:#f7f9fd;
+        \\  --border:#c8d8ee;--border2:#dde8f5;
+        \\  --text:#0f1f3d;--text2:#3a5275;--text3:#6b87a8;
+        \\  --accent:#1d6cf0;--accent2:#4a90f7;--accent3:#0a4fc4;
+        \\  --code-bg:#eaf0fb;--code-text:#1a3560;
+        \\  --kw:#1d6cf0;--ty:#0e7490;--lit:#0f5c2e;--op:#475569;--cm:#7a94b0;--fn-col:#7c3aed;
+        \\  --sb-w:272px;--radius:10px;--font:'IBM Plex Sans',system-ui,sans-serif;--mono:'IBM Plex Mono',monospace;
+        \\  --shadow:0 1px 3px rgba(15,31,61,.06),0 4px 16px rgba(15,31,61,.08);
+        \\  --shadow-lg:0 2px 8px rgba(15,31,61,.08),0 12px 40px rgba(15,31,61,.12);
+        \\}
+        \\html.dark{
+        \\  --bg:#000000;--bg2:#1b1c1c;--surface:#000000;--surface2:#1b1c1c;
+        \\  --border:#171717;--border2:#171717;
+        \\  --text:#d8e8ff;--text2:#8badd4;--text3:#4a6d96;
+        \\  --accent:#dde8f5;--accent2:#dde8f5;--accent3:#2e6fe0;
+        \\  --code-bg:#171717;--code-text:#dde8f5;
+        \\  --kw:#60a5fa;--ty:#22d3ee;--lit:#4ade80;--op:#94a3b8;--cm:#4a6d96;--fn-col:#a78bfa;
+        \\  --shadow:0 1px 3px rgba(0,0,0,.3),0 4px 16px rgba(0,0,0,.4);
+        \\  --shadow-lg:0 2px 8px rgba(0,0,0,.4),0 12px 40px rgba(0,0,0,.5);
+        \\}
+        \\*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+        \\html{scroll-behavior:smooth}
+        \\body{font-family:var(--font);background:var(--bg);color:var(--text);font-size:15px;line-height:1.65;overflow-x:hidden;transition:background .2s,color .2s}
+        \\a{color:var(--accent);text-decoration:none;transition:color .15s}
+        \\a:hover{color:var(--accent2)}
+        \\.page{display:flex;min-height:100vh}
+        \\
+        \\.sidebar{
+        \\  position:fixed;top:0;left:0;bottom:0;width:var(--sb-w);
+        \\  background:var(--bg2);border-right:1px solid var(--border);
+        \\  display:flex;flex-direction:column;
+        \\  transition:transform .28s cubic-bezier(.4,0,.2,1);
+        \\  z-index:100;overflow:hidden;
+        \\}
+        \\.sidebar.collapsed{transform:translateX(calc(-1 * var(--sb-w)))}
+        \\.sb-head{
+        \\  padding:20px 18px 16px;border-bottom:1px solid var(--border);
+        \\  flex-shrink:0;display:flex;align-items:center;gap:10px;
+        \\}
+        \\.sb-logo{
+        \\  width:26px;height:26px;flex-shrink:0;
+        \\  background:linear-gradient(135deg,var(--accent3),var(--accent2));
+        \\  border-radius:7px;display:flex;align-items:center;justify-content:center;
+        \\}
+        \\.sb-logo svg{width:14px;height:14px;fill:none;stroke:#fff;stroke-width:2.2;stroke-linecap:round}
+        \\.sb-title{font-size:13px;font-weight:700;color:var(--text);letter-spacing:.01em;font-family:var(--mono)}
+        \\.sb-search{padding:10px 14px;border-bottom:1px solid var(--border);flex-shrink:0;position:relative}
+        \\.sb-search-icon{position:absolute;left:24px;top:50%;transform:translateY(-50%);color:var(--text3);pointer-events:none;width:14px;height:14px}
+        \\.sb-input{
+        \\  width:100%;padding:7px 8px 7px 32px;
+        \\  background:var(--surface);border:1px solid var(--border2);
+        \\  border-radius:7px;color:var(--text);font-size:13px;font-family:var(--font);
+        \\  outline:none;transition:border-color .15s,box-shadow .15s;
+        \\}
+        \\.sb-input:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 15%,transparent)}
+        \\.sb-input::placeholder{color:var(--text3)}
+        \\.sb-nav{overflow-y:auto;flex:1;padding:10px 10px 24px}
+        \\.sb-nav::-webkit-scrollbar{width:4px}
+        \\.sb-nav::-webkit-scrollbar-track{background:transparent}
+        \\.sb-nav::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+        \\.nav-section{margin-bottom:20px}
+        \\.nav-label{
+        \\  display:block;font-size:10px;font-weight:700;
+        \\  letter-spacing:.1em;text-transform:uppercase;
+        \\  color:var(--text3);padding:6px 10px 5px;
+        \\}
+        \\.nav-item{
+        \\  display:block;padding:5px 10px;border-radius:6px;
+        \\  color:var(--text2);font-size:13px;font-family:var(--mono);
+        \\  transition:background .12s,color .12s;
+        \\  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+        \\}
+        \\.nav-item:hover{background:var(--surface);color:var(--text);text-decoration:none}
+        \\.nav-item.active{background:color-mix(in srgb,var(--accent) 12%,transparent);color:var(--accent);font-weight:600}
+        \\.nav-item.hidden{display:none}
+        \\
+        \\.toggle{
+        \\  position:fixed;top:16px;z-index:200;
+        \\  width:34px;height:34px;
+        \\  background:var(--surface);border:1px solid var(--border);
+        \\  border-radius:8px;color:var(--text2);cursor:pointer;
+        \\  display:flex;align-items:center;justify-content:center;
+        \\  transition:left .28s cubic-bezier(.4,0,.2,1),background .15s,color .15s,box-shadow .15s;
+        \\  left:16px;box-shadow:var(--shadow);
+        \\}
+        \\.toggle:hover{background:var(--bg2);color:var(--text);box-shadow:var(--shadow-lg)}
+        \\.toggle.sb-open{left:calc(var(--sb-w) + 12px)}
+        \\.toggle svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round}
+        \\
+        \\.control-btn{
+        \\  position:fixed;top:16px;right:16px;z-index:200;
+        \\  width:34px;height:34px;
+        \\  background:var(--surface);border:1px solid var(--border);
+        \\  border-radius:8px;color:var(--text2);cursor:pointer;
+        \\  display:flex;align-items:center;justify-content:center;
+        \\  box-shadow:var(--shadow);transition:background .15s,color .15s,box-shadow .15s;
+        \\}
+        \\.control-btn:hover{background:var(--bg2);color:var(--text);box-shadow:var(--shadow-lg)}
+        \\.control-btn svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+        \\.control-btn[aria-pressed="true"]{color:var(--accent);border-color:color-mix(in srgb,var(--accent) 40%,var(--border))}
+        \\.theme-btn{right:16px}
+        \\.private-toggle-btn{right:58px}
+        \\
+        \\.content{
+        \\  margin-left:var(--sb-w);padding:64px 60px 80px;
+        \\  flex:1;max-width:calc(var(--sb-w) + 820px);
+        \\  transition:margin-left .28s cubic-bezier(.4,0,.2,1);
+        \\}
+        \\.content.sb-closed{margin-left:0}
+        \\
+        \\.hero{margin-bottom:40px;padding-bottom:28px;border-bottom:1px solid var(--border)}
+        \\.hero h1{font-size:26px;font-weight:700;color:var(--text);margin-bottom:6px;letter-spacing:-.02em}
+        \\.hero-top{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap}
+        \\.hero-meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+        \\.hero-meta .label{font-size:12px;color:var(--text3)}
+        \\.hero-meta code{font-family:var(--mono);font-size:12px;background:var(--code-bg);color:var(--accent);padding:2px 8px;border-radius:5px;border:1px solid var(--border2)}
+        \\
+        \\.entry{
+        \\  background:var(--surface);border:1px solid var(--border);
+        \\  border-radius:var(--radius);padding:24px 28px;margin-bottom:12px;
+        \\  transition:border-color .2s,box-shadow .2s;
+        \\  scroll-margin-top:24px;
+        \\}
+        \\.entry:hover{border-color:var(--accent3);box-shadow:var(--shadow)}
+        \\.entry.s-hide{display:none}
+        \\.entry-header{display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap}
+        \\.entry-header h3{font-size:15px;font-weight:600;color:var(--text);font-family:var(--mono);letter-spacing:-.01em}
+        \\.badge{
+        \\  display:inline-flex;align-items:center;
+        \\  padding:2px 9px;border-radius:999px;
+        \\  background:color-mix(in srgb,var(--accent) 10%,transparent);
+        \\  color:var(--accent);font-size:11px;font-weight:600;
+        \\  letter-spacing:.03em;border:1px solid color-mix(in srgb,var(--accent) 25%,transparent);
+        \\  font-family:var(--mono);
+        \\}
+        \\.badge-private{
+        \\  background:color-mix(in srgb,#0ea5e9 12%,transparent);
+        \\  color:#0369a1;border-color:color-mix(in srgb,#000000 24%,transparent);
+        \\}
+        \\html.dark .badge-private{
+        \\  background:color-mix(in srgb,#0ea5e9 15%,transparent);
+        \\  color:#0369a1;border-color:color-mix(in srgb,#000000 28%,transparent);
+        \\}
+        \\
+        \\pre{
+        \\  overflow:auto;background:var(--code-bg);
+        \\  border-radius:8px;padding:16px 18px;
+        \\  border:1px solid var(--border2);margin:0 0 16px;
+        \\  font-size:13px;line-height:1.7;
+        \\}
+        \\pre::-webkit-scrollbar{height:4px}
+        \\pre::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+        \\code{font-family:var(--mono);font-size:13px;color:var(--code-text)}
+        \\.hljs-keyword{color:var(--kw);font-weight:600}
+        \\.hljs-type{color:var(--ty)}
+        \\.hljs-built_in{color:var(--ty)}
+        \\.hljs-number{color:var(--lit)}
+        \\.hljs-string{color:var(--lit)}
+        \\.hljs-comment{color:var(--cm);font-style:italic}
+        \\.hljs-operator{color:var(--op)}
+        \\.hljs-punctuation{color:var(--op)}
+        \\.hljs-title{color:var(--fn-col);font-weight:600}
+        \\.hljs-params{color:var(--text2)}
+        \\.hljs-variable{color:var(--text)}
+        \\
+        \\.docs{margin-top:2px}
+        \\.docs p{line-height:1.8;color:var(--text2);margin-bottom:8px;font-size:14px}
+        \\
+        \\.doc-article{color:var(--text2)}
+        \\.doc-article>:last-child{margin-bottom:0}
+        \\.doc-article h1,.doc-article h2,.doc-article h3,.doc-article h4,.doc-article h5,.doc-article h6{
+        \\  color:var(--text);letter-spacing:-.02em;line-height:1.25;text-transform:none;
+        \\}
+        \\.doc-article h1{font-size:28px;margin:0 0 18px}
+        \\.doc-article h2{font-size:22px;margin:30px 0 14px}
+        \\.doc-article h3{font-size:18px;margin:24px 0 12px}
+        \\.doc-article h4,.doc-article h5,.doc-article h6{font-size:15px;margin:18px 0 10px}
+        \\.doc-article p{line-height:1.85;color:var(--text2);margin:0 0 12px;font-size:14px}
+        \\.doc-article ul{margin:0 0 14px 20px;color:var(--text2)}
+        \\.doc-article li{margin:0 0 6px}
+        \\.doc-article a{color:var(--accent)}
+        \\.doc-article img{max-width:100%;height:auto;border-radius:8px;vertical-align:middle}
+        \\.doc-article code{
+        \\  font-family:var(--mono);font-size:12.5px;
+        \\  background:var(--code-bg);padding:3px 8px;
+        \\  border-radius:5px;color:var(--code-text);
+        \\  border:1px solid var(--border2);
+        \\}
+        \\.doc-article pre{margin:0 0 16px}
+        \\.module-list{list-style:none;padding:0;margin:0;display:grid;gap:8px}
+        \\.module-list li{margin:0}
+        \\.module-list a{
+        \\  display:block;padding:10px 12px;border-radius:8px;
+        \\  border:1px solid var(--border2);background:var(--surface2);
+        \\  color:var(--text);font-family:var(--mono);font-size:13px;
+        \\  transition:border-color .15s,background .15s,color .15s;
+        \\}
+        \\.module-list a:hover{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 8%,var(--surface2));text-decoration:none}
+        \\
+        \\h4{
+        \\  font-size:10px;font-weight:700;letter-spacing:.1em;
+        \\  text-transform:uppercase;color:var(--text3);margin:18px 0 8px;
+        \\}
+        \\.details-table-wrap{overflow-x:auto}
+        \\.details-table{
+        \\  width:100%;border-collapse:collapse;border:1px solid var(--border2);
+        \\  border-radius:8px;overflow:hidden;background:var(--surface2);font-size:13px;
+        \\}
+        \\.details-table th,.details-table td{
+        \\  text-align:left;padding:10px 12px;border-bottom:1px solid var(--border2);vertical-align:top;
+        \\}
+        \\.details-table th{
+        \\  color:var(--text3);font-size:11px;letter-spacing:.06em;text-transform:uppercase;background:var(--bg2);
+        \\}
+        \\.details-table tbody tr:last-child td{border-bottom:none}
+        \\.details-table code{
+        \\  font-family:var(--mono);font-size:12.5px;
+        \\  background:var(--code-bg);padding:3px 8px;
+        \\  border-radius:5px;color:var(--code-text);
+        \\  border:1px solid var(--border2);display:inline-block;
+        \\}
+        \\.details{list-style:none;padding:0;display:flex;flex-direction:column;gap:4px}
+        \\.details li code{
+        \\  font-family:var(--mono);font-size:12.5px;
+        \\  background:var(--code-bg);padding:3px 8px;
+        \\  border-radius:5px;color:var(--code-text);
+        \\  border:1px solid var(--border2);display:inline-block;
+        \\}
+        \\
+        \\.empty{
+        \\  background:var(--surface);border:1px dashed var(--border);
+        \\  border-radius:var(--radius);padding:40px 28px;
+        \\  color:var(--text3);text-align:center;font-size:14px;
+        \\}
+        \\
+        \\@media(max-width:860px){
+        \\  .sidebar{transform:translateX(calc(-1 * var(--sb-w)))}
+        \\  .sidebar.sb-open-m{transform:translateX(0)}
+        \\  .content{margin-left:0!important;padding:28px 20px 60px}
+        \\  .hero-top{flex-direction:column;align-items:flex-start}
+        \\  .toggle{left:14px}
+        \\  .toggle.sb-open{left:calc(var(--sb-w) + 10px)}
+        \\}
     )
     string.StringBuilder.append_cstr(sb, "</style></head><body>")
 }
@@ -1669,164 +1920,164 @@ fn append_page_shell_end_html(sb: ref void) void = trust {
     string.StringBuilder.append_cstr(sb, "</main></div>")
     string.StringBuilder.append_cstr(sb, "<script>")
     string.StringBuilder.append_cstr(sb,
-    \\(function(){
-    \\'use strict';
-    \\
-    \\/* ── Theme ── */
-    \\var html=document.documentElement;
-    \\var stored=localStorage.getItem('theme');
-    \\var prefersDark=window.matchMedia('(prefers-color-scheme:dark)').matches;
-    \\var dark=stored==='dark'||(stored===null&&prefersDark);
-    \\function applyTheme(d){
-    \\  html.classList.toggle('dark',d);
-    \\  dark=d;
-    \\  localStorage.setItem('theme',d?'dark':'light');
-    \\  var icon=document.getElementById('theme-icon');
-    \\  if(d){
-    \\    icon.innerHTML='<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>';
-    \\  } else {
-    \\    icon.innerHTML='<circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>';
-    \\  }
-    \\}
-    \\applyTheme(dark);
-    \\document.getElementById('theme-btn').addEventListener('click',function(){applyTheme(!dark);});
-    \\
-    \\/* ── Sidebar ── */
-    \\var sb=document.getElementById('sidebar');
-    \\var btn=document.getElementById('toggle');
-    \\var ct=document.getElementById('content');
-    \\var isOpen=localStorage.getItem('sb-open')!=='0';
-    \\function setSidebar(open,animate){
-    \\  if(!animate){
-    \\    sb.style.transition='none';btn.style.transition='none';ct.style.transition='none';
-    \\  }
-    \\  if(open){
-    \\    sb.classList.remove('collapsed');ct.classList.remove('sb-closed');btn.classList.add('sb-open');
-    \\  } else {
-    \\    sb.classList.add('collapsed');ct.classList.add('sb-closed');btn.classList.remove('sb-open');
-    \\  }
-    \\  if(!animate){
-    \\    void sb.offsetWidth;
-    \\    sb.style.transition='';btn.style.transition='';ct.style.transition='';
-    \\  }
-    \\  isOpen=open;
-    \\  localStorage.setItem('sb-open',open?'1':'0');
-    \\}
-    \\setSidebar(isOpen,false);
-    \\btn.addEventListener('click',function(){setSidebar(!isOpen,true);});
-    \\
-    \\/* ── Search ── */
-    \\var inp=document.getElementById('search');
-    \\var privateBtn=document.getElementById('private-toggle');
-    \\var privateIcon=document.getElementById('private-toggle-icon');
-    \\var showPrivate=localStorage.getItem('docs-show-private')==='1';
-    \\function syncPrivateToggle(){
-    \\  if(!privateBtn)return;
-    \\  privateBtn.setAttribute('aria-pressed',showPrivate?'true':'false');
-    \\  privateBtn.setAttribute('aria-label',showPrivate?'Hide private functions':'Show private functions');
-    \\  privateBtn.setAttribute('title',showPrivate?'Hide private functions':'Show private functions');
-    \\  if(privateIcon){
-    \\    privateIcon.innerHTML=showPrivate
-    \\      ?'<path d="M3 3l18 18"/><path d="M10.58 10.58A3 3 0 0 0 12 15a3 3 0 0 0 2.42-4.42"/><path d="M9.88 5.09A10.94 10.94 0 0 1 12 5c6.5 0 10 7 10 7a17.56 17.56 0 0 1-4.04 4.94"/><path d="M6.61 6.61C4.62 8.06 3 12 3 12a17.32 17.32 0 0 0 5.39 5.39"/>'
-    \\      :'<path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6z"/><circle cx="12" cy="12" r="3"/>';
-    \\  }
-    \\}
-    \\function updateEntryVisibility(){
-    \\  var q=inp.value.toLowerCase().trim();
-    \\  var links=sb.querySelectorAll('.nav-item[data-name]');
-    \\  for(var i=0;i<links.length;i++){
-    \\    var l=links[i];
-    \\    var privateHidden=l.dataset.private==='1'&&!showPrivate;
-    \\    var searchHidden=q!==''&&l.dataset.name.toLowerCase().indexOf(q)===-1;
-    \\    l.classList.toggle('hidden',privateHidden||searchHidden);
-    \\  }
-    \\  var cards=ct.querySelectorAll('.entry[data-name]');
-    \\  for(var j=0;j<cards.length;j++){
-    \\    var c=cards[j];
-    \\    var privateHidden=c.dataset.private==='1'&&!showPrivate;
-    \\    var searchHidden=q!==''&&c.dataset.name.toLowerCase().indexOf(q)===-1;
-    \\    c.classList.toggle('s-hide',privateHidden||searchHidden);
-    \\  }
-    \\}
-    \\syncPrivateToggle();
-    \\updateEntryVisibility();
-    \\inp.addEventListener('input',updateEntryVisibility);
-    \\if(privateBtn){
-    \\  privateBtn.addEventListener('click',function(){
-    \\    showPrivate=!showPrivate;
-    \\    localStorage.setItem('docs-show-private',showPrivate?'1':'0');
-    \\    syncPrivateToggle();
-    \\    updateEntryVisibility();
-    \\  });
-    \\}
-    \\document.addEventListener('keydown',function(e){
-    \\  if(e.key==='/'&&document.activeElement!==inp){
-    \\    e.preventDefault();
-    \\    if(!isOpen)setSidebar(true,true);
-    \\    inp.focus();
-    \\  }
-    \\  if(e.key==='Escape'&&document.activeElement===inp){inp.blur();}
-    \\});
-    \\
-    \\/* ── Spectre syntax highlighter ── */
-    \\(function(){
-    \\  var KW=/\b(fn|pub|val|mut|type|enum|union|extern|ref|if|elif|else|for|match|return|break|continue|use|in|as|is|true|false|void|untyped|some|none|ok|err|when|otherwise|guarded|pre|post|assert|test|and|or|not)\b/g;
-    \\  var TY=/\b(i8|i16|i32|i64|u8|u16|u32|u64|f32|f64|bool|u8|usize|isize|list|ref|option|result)\b/g;
-    \\  var NUM=/\b(0x[0-9a-fA-F]+|\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)\b/g;
-    \\  var STR=/(\"(?:[^\"\\]|\\.)*\")/g;
-    \\  var CMT=/(\/\/[^\n]*)/g;
-    \\  var OP=/([(){}\[\]@!;,.|&^~<>=+\-*/%:])/g;
-    \\  var FN=/\bfn\s+([A-Za-z_][A-Za-z0-9_]*)/g;
-    \\
-    \\  function esc(s){
-    \\    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-    \\  }
-    \\
-    \\  function highlight(raw){
-    \\    var patterns=[
-    \\      {re:/\/\/[^\n]*/g,       cls:'hljs-comment'},
-    \\      {re:/"(?:[^"\\]|\\.)*"/g, cls:'hljs-string'},
-    \\      {re:/\b(fn|pub|val|mut|type|enum|union|extern|ref|if|elif|else|for|match|return|break|continue|use|in|as|is|true|false|void|untyped|some|none|ok|err|when|otherwise|guarded|pre|post|assert|test|and|or|not)\b/g, cls:'hljs-keyword'},
-    \\      {re:/\b(i8|i16|i32|i64|u8|u16|u32|u64|f32|f64|bool|usize|isize)\b/g, cls:'hljs-type'},
-    \\      {re:/\b(list|option|result)\b/g, cls:'hljs-built_in'},
-    \\      {re:/\b0x[0-9a-fA-F]+|\b\d+(?:\.\d+)?(?:[eE][+-]?\d+)?\b/g, cls:'hljs-number'},
-    \\      {re:/[(){}\[\]@!;,.|&^~<>=+\-*\/%:]/g, cls:'hljs-punctuation'},
-    \\    ];
-    \\
-    \\    var tokens=[];
-    \\    for(var pi=0;pi<patterns.length;pi++){
-    \\      var p=patterns[pi];
-    \\      p.re.lastIndex=0;
-    \\      var m;
-    \\      while((m=p.re.exec(raw))!==null){
-    \\        tokens.push({s:m.index,e:m.index+m[0].length,cls:p.cls,text:m[0]});
-    \\      }
-    \\    }
-    \\    tokens.sort(function(a,b){return a.s-b.s||(b.e-b.s)-(a.e-a.s);});
-    \\    var clean=[];var pos=0;
-    \\    for(var ti=0;ti<tokens.length;ti++){
-    \\      var t=tokens[ti];
-    \\      if(t.s<pos)continue;
-    \\      clean.push(t);pos=t.e;
-    \\    }
-    \\    var out='';var cur=0;
-    \\    for(var ci=0;ci<clean.length;ci++){
-    \\      var tk=clean[ci];
-    \\      if(cur<tk.s)out+=esc(raw.slice(cur,tk.s));
-    \\      out+='<span class="'+tk.cls+'">'+esc(tk.text)+'</span>';
-    \\      cur=tk.e;
-    \\    }
-    \\    if(cur<raw.length)out+=esc(raw.slice(cur));
-    \\    return out;
-    \\  }
-    \\
-    \\  document.querySelectorAll('pre code.language-spectre').forEach(function(el){
-    \\    var raw=el.textContent;
-    \\    el.innerHTML=highlight(raw);
-    \\  });
-    \\})();
-    \\
-    \\})();
+        \\(function(){
+        \\'use strict';
+        \\
+        \\/* ── Theme ── */
+        \\var html=document.documentElement;
+        \\var stored=localStorage.getItem('theme');
+        \\var prefersDark=window.matchMedia('(prefers-color-scheme:dark)').matches;
+        \\var dark=stored==='dark'||(stored===null&&prefersDark);
+        \\function applyTheme(d){
+        \\  html.classList.toggle('dark',d);
+        \\  dark=d;
+        \\  localStorage.setItem('theme',d?'dark':'light');
+        \\  var icon=document.getElementById('theme-icon');
+        \\  if(d){
+        \\    icon.innerHTML='<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>';
+        \\  } else {
+        \\    icon.innerHTML='<circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>';
+        \\  }
+        \\}
+        \\applyTheme(dark);
+        \\document.getElementById('theme-btn').addEventListener('click',function(){applyTheme(!dark);});
+        \\
+        \\/* ── Sidebar ── */
+        \\var sb=document.getElementById('sidebar');
+        \\var btn=document.getElementById('toggle');
+        \\var ct=document.getElementById('content');
+        \\var isOpen=localStorage.getItem('sb-open')!=='0';
+        \\function setSidebar(open,animate){
+        \\  if(!animate){
+        \\    sb.style.transition='none';btn.style.transition='none';ct.style.transition='none';
+        \\  }
+        \\  if(open){
+        \\    sb.classList.remove('collapsed');ct.classList.remove('sb-closed');btn.classList.add('sb-open');
+        \\  } else {
+        \\    sb.classList.add('collapsed');ct.classList.add('sb-closed');btn.classList.remove('sb-open');
+        \\  }
+        \\  if(!animate){
+        \\    void sb.offsetWidth;
+        \\    sb.style.transition='';btn.style.transition='';ct.style.transition='';
+        \\  }
+        \\  isOpen=open;
+        \\  localStorage.setItem('sb-open',open?'1':'0');
+        \\}
+        \\setSidebar(isOpen,false);
+        \\btn.addEventListener('click',function(){setSidebar(!isOpen,true);});
+        \\
+        \\/* ── Search ── */
+        \\var inp=document.getElementById('search');
+        \\var privateBtn=document.getElementById('private-toggle');
+        \\var privateIcon=document.getElementById('private-toggle-icon');
+        \\var showPrivate=localStorage.getItem('docs-show-private')==='1';
+        \\function syncPrivateToggle(){
+        \\  if(!privateBtn)return;
+        \\  privateBtn.setAttribute('aria-pressed',showPrivate?'true':'false');
+        \\  privateBtn.setAttribute('aria-label',showPrivate?'Hide private functions':'Show private functions');
+        \\  privateBtn.setAttribute('title',showPrivate?'Hide private functions':'Show private functions');
+        \\  if(privateIcon){
+        \\    privateIcon.innerHTML=showPrivate
+        \\      ?'<path d="M3 3l18 18"/><path d="M10.58 10.58A3 3 0 0 0 12 15a3 3 0 0 0 2.42-4.42"/><path d="M9.88 5.09A10.94 10.94 0 0 1 12 5c6.5 0 10 7 10 7a17.56 17.56 0 0 1-4.04 4.94"/><path d="M6.61 6.61C4.62 8.06 3 12 3 12a17.32 17.32 0 0 0 5.39 5.39"/>'
+        \\      :'<path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6z"/><circle cx="12" cy="12" r="3"/>';
+        \\  }
+        \\}
+        \\function updateEntryVisibility(){
+        \\  var q=inp.value.toLowerCase().trim();
+        \\  var links=sb.querySelectorAll('.nav-item[data-name]');
+        \\  for(var i=0;i<links.length;i++){
+        \\    var l=links[i];
+        \\    var privateHidden=l.dataset.private==='1'&&!showPrivate;
+        \\    var searchHidden=q!==''&&l.dataset.name.toLowerCase().indexOf(q)===-1;
+        \\    l.classList.toggle('hidden',privateHidden||searchHidden);
+        \\  }
+        \\  var cards=ct.querySelectorAll('.entry[data-name]');
+        \\  for(var j=0;j<cards.length;j++){
+        \\    var c=cards[j];
+        \\    var privateHidden=c.dataset.private==='1'&&!showPrivate;
+        \\    var searchHidden=q!==''&&c.dataset.name.toLowerCase().indexOf(q)===-1;
+        \\    c.classList.toggle('s-hide',privateHidden||searchHidden);
+        \\  }
+        \\}
+        \\syncPrivateToggle();
+        \\updateEntryVisibility();
+        \\inp.addEventListener('input',updateEntryVisibility);
+        \\if(privateBtn){
+        \\  privateBtn.addEventListener('click',function(){
+        \\    showPrivate=!showPrivate;
+        \\    localStorage.setItem('docs-show-private',showPrivate?'1':'0');
+        \\    syncPrivateToggle();
+        \\    updateEntryVisibility();
+        \\  });
+        \\}
+        \\document.addEventListener('keydown',function(e){
+        \\  if(e.key==='/'&&document.activeElement!==inp){
+        \\    e.preventDefault();
+        \\    if(!isOpen)setSidebar(true,true);
+        \\    inp.focus();
+        \\  }
+        \\  if(e.key==='Escape'&&document.activeElement===inp){inp.blur();}
+        \\});
+        \\
+        \\/* ── Spectre syntax highlighter ── */
+        \\(function(){
+        \\  var KW=/\b(fn|pub|val|mut|type|enum|union|extern|ref|if|elif|else|for|match|return|break|continue|use|in|as|is|true|false|void|untyped|some|none|ok|err|when|otherwise|guarded|pre|post|assert|test|and|or|not)\b/g;
+        \\  var TY=/\b(i8|i16|i32|i64|u8|u16|u32|u64|f32|f64|bool|u8|usize|isize|list|ref|option|result)\b/g;
+        \\  var NUM=/\b(0x[0-9a-fA-F]+|\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)\b/g;
+        \\  var STR=/(\"(?:[^\"\\]|\\.)*\")/g;
+        \\  var CMT=/(\/\/[^\n]*)/g;
+        \\  var OP=/([(){}\[\]@!;,.|&^~<>=+\-*/%:])/g;
+        \\  var FN=/\bfn\s+([A-Za-z_][A-Za-z0-9_]*)/g;
+        \\
+        \\  function esc(s){
+        \\    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+        \\  }
+        \\
+        \\  function highlight(raw){
+        \\    var patterns=[
+        \\      {re:/\/\/[^\n]*/g,       cls:'hljs-comment'},
+        \\      {re:/"(?:[^"\\]|\\.)*"/g, cls:'hljs-string'},
+        \\      {re:/\b(fn|pub|val|mut|type|enum|union|extern|ref|if|elif|else|for|match|return|break|continue|use|in|as|is|true|false|void|untyped|some|none|ok|err|when|otherwise|guarded|pre|post|assert|test|and|or|not)\b/g, cls:'hljs-keyword'},
+        \\      {re:/\b(i8|i16|i32|i64|u8|u16|u32|u64|f32|f64|bool|usize|isize)\b/g, cls:'hljs-type'},
+        \\      {re:/\b(list|option|result)\b/g, cls:'hljs-built_in'},
+        \\      {re:/\b0x[0-9a-fA-F]+|\b\d+(?:\.\d+)?(?:[eE][+-]?\d+)?\b/g, cls:'hljs-number'},
+        \\      {re:/[(){}\[\]@!;,.|&^~<>=+\-*\/%:]/g, cls:'hljs-punctuation'},
+        \\    ];
+        \\
+        \\    var tokens=[];
+        \\    for(var pi=0;pi<patterns.length;pi++){
+        \\      var p=patterns[pi];
+        \\      p.re.lastIndex=0;
+        \\      var m;
+        \\      while((m=p.re.exec(raw))!==null){
+        \\        tokens.push({s:m.index,e:m.index+m[0].length,cls:p.cls,text:m[0]});
+        \\      }
+        \\    }
+        \\    tokens.sort(function(a,b){return a.s-b.s||(b.e-b.s)-(a.e-a.s);});
+        \\    var clean=[];var pos=0;
+        \\    for(var ti=0;ti<tokens.length;ti++){
+        \\      var t=tokens[ti];
+        \\      if(t.s<pos)continue;
+        \\      clean.push(t);pos=t.e;
+        \\    }
+        \\    var out='';var cur=0;
+        \\    for(var ci=0;ci<clean.length;ci++){
+        \\      var tk=clean[ci];
+        \\      if(cur<tk.s)out+=esc(raw.slice(cur,tk.s));
+        \\      out+='<span class="'+tk.cls+'">'+esc(tk.text)+'</span>';
+        \\      cur=tk.e;
+        \\    }
+        \\    if(cur<raw.length)out+=esc(raw.slice(cur));
+        \\    return out;
+        \\  }
+        \\
+        \\  document.querySelectorAll('pre code.language-spectre').forEach(function(el){
+        \\    var raw=el.textContent;
+        \\    el.innerHTML=highlight(raw);
+        \\  });
+        \\})();
+        \\
+        \\})();
     )
     string.StringBuilder.append_cstr(sb, "</script></body></html>")
 }
@@ -1837,9 +2088,9 @@ fn render_module_page_html(module: ref DocModule, modules: list[ref DocModule]) 
     append_page_head_html(sb, safe_cstr(module.module_name))
     append_page_shell_start_html(sb, modules, module, has_private_functions)
     string.StringBuilder.append_cstr(sb, @fmt("<div class=\"hero\"><div class=\"hero-top\"><div><h1>{s}</h1><div class=\"hero-meta\"><span class=\"label\">source</span><code>{s}</code></div></div>", {
-        html_escape(safe_cstr(module.module_name)),
-        html_escape(safe_cstr(module.rel_path))
-    }))
+                html_escape(safe_cstr(module.module_name)),
+                html_escape(safe_cstr(module.rel_path))
+            }))
     string.StringBuilder.append_cstr(sb, "</div></div>")
 
     for entry in module.entries {
@@ -1862,7 +2113,9 @@ fn render_entry_details_md(sb: ref void, entry: ref DocEntry) void = trust {
             string.StringBuilder.append_cstr(sb, "\n**Fields**\n\n| Name | Type |\n| --- | --- |\n")
             for field in fields {
                 val prefix: mut ref u8 = ""
-                if field.d1 != 0 { prefix = "mut " }
+                if field.d1 != 0 {
+                    prefix = "mut "
+                }
                 string.StringBuilder.append_cstr(sb, @fmt("| `{s}` | `{s}{s}` |\n", {field.d0 as ref u8, prefix, render_type(field.d2 as ref parser.Node)}))
             }
         }
@@ -1881,7 +2134,11 @@ fn render_entry_details_md(sb: ref void, entry: ref DocEntry) void = trust {
         for variant in node.d2 as list[ref parser.Node] {
             val types = render_type_list(variant.d1 as list[ref parser.Node], ", ")
             val text: mut ref u8 = variant.d0 as ref u8
-            if !str_eq(types, "") { text = @fmt("{s}({s})", {text, types}) } else { text = @fmt("{s}()", {text}) }
+            if !str_eq(types, "") {
+                text = @fmt("{s}({s})", {text, types})
+            } else {
+                text = @fmt("{s}()", {text})
+            }
             string.StringBuilder.append_cstr(sb, @fmt("- `{s}`\n", {text}))
         }
     }
@@ -1947,9 +2204,9 @@ fn append_modules_overview_html(sb: ref void, modules: list[ref DocModule], curr
     string.StringBuilder.append_cstr(sb, "<section class=\"entry\"><div class=\"entry-header\"><h3>Modules</h3></div><ul class=\"module-list\">")
     for mod in modules {
         string.StringBuilder.append_cstr(sb, @fmt("<li><a href=\"{s}\">{s}</a></li>", {
-            href_from(current_output, mod.output_path),
-            html_escape(safe_cstr(mod.module_name))
-        }))
+                    href_from(current_output, mod.output_path),
+                    html_escape(safe_cstr(mod.module_name))
+                }))
     }
     string.StringBuilder.append_cstr(sb, "</ul></section>")
 }
@@ -1981,9 +2238,9 @@ fn render_overview_page(markdown: bool, modules: list[ref DocModule], output_pat
     append_page_head_html(sb2, page_title)
     append_page_shell_start_html(sb2, modules, overview_module, false)
     string.StringBuilder.append_cstr(sb2, @fmt("<div class=\"hero\"><div class=\"hero-top\"><div><h1>{s}</h1><div class=\"hero-meta\"><span class=\"label\">source</span><code>{s}</code></div></div></div></div>", {
-        html_escape(page_title),
-        html_escape(source_dir)
-    }))
+                html_escape(page_title),
+                html_escape(source_dir)
+            }))
     if !str_eq(readme, "") {
         string.StringBuilder.append_cstr(sb2, "<section class=\"entry\"><div class=\"doc-article\">")
         append_markdown_html(sb2, readme)
@@ -1999,7 +2256,9 @@ fn render_overview_page(markdown: bool, modules: list[ref DocModule], output_pat
 }
 
 fn write_page(path: ref u8, content: ref u8) bool = trust {
-    if !ensure_parent_dir(path) { return false }
+    if !ensure_parent_dir(path) {
+        return false
+    }
     return fs.write_all(path, content)
 }
 
@@ -2007,7 +2266,9 @@ fn maybe_root_rel_for_dir() ref u8 = trust {
     val sxmod_opt = commands.load_sxmod()
     if sxmod_opt is some cfg {
         val entry: ref u8 = (cfg as ref commands.SxMod).entry
-        if !str_eq(entry, "") { return normalize_rel_path(entry) }
+        if !str_eq(entry, "") {
+            return normalize_rel_path(entry)
+        }
     }
     return ""
 }
@@ -2045,7 +2306,9 @@ pub fn cmd_doc(target: ref u8, markdown: bool) i32 = trust {
         val root_idx = find_root_module(modules, root_rel)
         assign_output_paths(modules, markdown, root_idx)
         val index_rel: mut ref u8 = "index.html"
-        if markdown { index_rel = "index.md" }
+        if markdown {
+            index_rel = "index.md"
+        }
         val index_path = path.join("docs-out", index_rel)
         val readme = load_directory_readme(clean_target)
         if !write_page(index_path, render_overview_page(markdown, modules, index_rel, clean_target, readme)) {
@@ -2081,7 +2344,11 @@ pub fn cmd_doc(target: ref u8, markdown: bool) i32 = trust {
     val rel_path = normalize_rel_path(path_basename(target))
     val module: mut ref DocModule = load_module(target, rel_path)
     module.is_root = true
-    if markdown { module.output_path = "index.md" } else { module.output_path = "index.html" }
+    if markdown {
+        module.output_path = "index.md"
+    } else {
+        module.output_path = "index.html"
+    }
     val modules: mut list[ref DocModule] = []
     @append(modules, module)
     val content: mut ref u8 = ""
@@ -2105,18 +2372,18 @@ test {
     assert(str_eq(trust substr("hello", 1, 99), "ello"))
 
     val docs = trust extract_doc_map(
-    \\/// hello
-    \\/// world
-    \\fn greet() void = {}
-    \\type Point = { x: i64 }
+        \\/// hello
+        \\/// world
+        \\fn greet() void = {}
+        \\type Point = { x: i64 }
     )
 
     assert(str_eq(trust lookup_doc(docs, 3), "hello\nworld"))
     assert(str_eq(trust lookup_doc(docs, 4), ""))
 
     val docs_no_trailing_nl = trust extract_doc_map(
-    \\/// tail docs
-    \\fn tail() void = {}
+        \\/// tail docs
+        \\fn tail() void = {}
     )
 
     assert(str_eq(trust lookup_doc(docs_no_trailing_nl, 2), "tail docs"))
@@ -2124,8 +2391,8 @@ test {
     assert(str_eq(trust strip_sx_ext("src/meta/docs.sx"), "src/meta/docs"))
 
     val const_src = trust extract_doc_map(
-    \\/// constant docs
-    \\pub val some_constant = 100
+        \\/// constant docs
+        \\pub val some_constant = 100
     )
     assert(str_eq(trust lookup_doc(const_src, 2), "constant docs"))
 
@@ -2136,47 +2403,69 @@ test {
         match regex.re_match("id=\\\\\"private-toggle\\\\\"", docs_src, @addr(ml_toggle)) {
             ok found => {
                 if found is some _ {
-                } else { assert false }
+                } else {
+                    assert false
+                }
             }
-            err _ => { assert false }
+            err _ => {
+                assert false
+            }
         }
 
         val ml_private: mut i64 = 0
         match regex.re_match("data-private=\\\\\"\\{s\\}\\\\\"", docs_src, @addr(ml_private)) {
             ok found => {
                 if found is some _ {
-                } else { assert false }
+                } else {
+                    assert false
+                }
             }
-            err _ => { assert false }
+            err _ => {
+                assert false
+            }
         }
 
         val ml_label: mut i64 = 0
         match regex.re_match("aria-label=\\\\\"Show private functions\\\\\"", docs_src, @addr(ml_label)) {
             ok found => {
                 if found is some _ {
-                } else { assert false }
+                } else {
+                    assert false
+                }
             }
-            err _ => { assert false }
+            err _ => {
+                assert false
+            }
         }
 
         val ml_const_kind: mut i64 = 0
         match regex.re_match("item\\.kind == parser\\.NK_CONST && node_is_public\\(item\\)", docs_src, @addr(ml_const_kind)) {
             ok found => {
                 if found is some _ {
-                } else { assert false }
+                } else {
+                    assert false
+                }
             }
-            err _ => { assert false }
+            err _ => {
+                assert false
+            }
         }
 
         val ml_const_sig: mut i64 = 0
         match regex.re_match("return @fmt\\(\"\\{s\\}val \\{s\\} = \\{s\\}\"", docs_src, @addr(ml_const_sig)) {
             ok found => {
                 if found is some _ {
-                } else { assert false }
+                } else {
+                    assert false
+                }
             }
-            err _ => { assert false }
+            err _ => {
+                assert false
+            }
         }
-    } else { assert false }
+    } else {
+        assert false
+    }
     trust allocators.Arena.free(docs_src_arena)
 
     val fn_src = "fn add(a: i64, b: i64) i64 = trust { return a + b }"
@@ -2187,9 +2476,13 @@ test {
             if found is some pos {
                 val sig = trust trim_ws(substr(fn_src, pos, ml))
                 assert(str_eq(sig, "fn add(a: i64, b: i64) i64"))
-            } else { assert false }
+            } else {
+                assert false
+            }
         }
-        err _ => { assert false }
+        err _ => {
+            assert false
+        }
     }
     val type_src = "type Point = { x: i64, y: i64 }"
     val ml2: mut i64 = 0
@@ -2197,8 +2490,12 @@ test {
         ok found => {
             if found is some pos {
                 assert(str_eq(trust trim_ws(substr(type_src, pos, ml2)), "type Point"))
-            } else { assert false }
+            } else {
+                assert false
+            }
         }
-        err _ => { assert false }
+        err _ => {
+            assert false
+        }
     }
 }

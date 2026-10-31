@@ -53,10 +53,14 @@ fn buf_new(cap: i64) ref Buf = trust {
 
 fn buf_reserve(b: mut ref Buf, extra: i64) void = trust {
     val needed: i64 = b.len + extra + 1
-    if needed <= b.cap { return }
+    if needed <= b.cap {
+        return
+    }
     val new_cap: mut i64 = b.cap
     for {
-        if new_cap >= needed { break }
+        if new_cap >= needed {
+            break
+        }
         new_cap = new_cap * 2
     }
     b.ptr = @realloc(b.ptr as ref void, new_cap as usize) as ref u8
@@ -64,7 +68,9 @@ fn buf_reserve(b: mut ref Buf, extra: i64) void = trust {
 }
 
 fn buf_append_bytes(b: mut ref Buf, src: ref u8, start: i64, count: i64) void = trust {
-    if count <= 0 { return }
+    if count <= 0 {
+        return
+    }
     buf_reserve(b, count)
     @memcpy(@ptradd(b.ptr as ref void, b.len), @ptradd(src as ref void, start), count as usize)
     b.len = b.len + count
@@ -118,8 +124,12 @@ fn apply_edits(src: ref u8, edits: list[ref Edit]) ref u8 = trust {
 fn range_is_whitespace(src: ref u8, start: i64, end: i64) bool = {
     val i: mut i64 = start
     for {
-        if i >= end { break }
-        if !is_space_byte(trust byte_at(src, i)) { return false }
+        if i >= end {
+            break
+        }
+        if !is_space_byte(trust byte_at(src, i)) {
+            return false
+        }
         i++
     }
     return true
@@ -130,7 +140,9 @@ fn collect_line_starts(src: ref u8, len: i64) list[i64] = trust {
     @append(starts, 0)
     val i: mut i64 = 0
     for {
-        if i >= len { break }
+        if i >= len {
+            break
+        }
         if byte_at(src, i) == 10 {
             @append(starts, i + 1)
         }
@@ -147,120 +159,221 @@ fn token_start(tokens: list[ref lexer.Token], starts: list[i64], idx: i64) i64 =
         val start_opt = @get(starts, line_idx as usize)
         if start_opt is some line_start {
             return (line_start as i64) + tok.col - 1
-        } else { return 0 }
-    } else { return 0 }
+        } else {
+            return 0
+        }
+    } else {
+        return 0
+    }
 }
 
 fn kind_is_some(k: lexer.TokenKind) bool = {
     match k {
-        Some() => { return true }
-        else   => { return false }
+        Some() => {
+            return true
+        }
+        else   => {
+            return false
+        }
     }
 }
 
 fn kind_is_none(k: lexer.TokenKind) bool = {
     match k {
-        None() => { return true }
-        else   => { return false }
+        None() => {
+            return true
+        }
+        else   => {
+            return false
+        }
     }
 }
 
 fn kind_is_eq(k: lexer.TokenKind) bool = {
     match k {
-        Eq() => { return true }
-        else => { return false }
+        Eq() => {
+            return true
+        }
+        else => {
+            return false
+        }
     }
 }
 
 fn kind_is_elif(k: lexer.TokenKind) bool = {
     match k {
-        Elif() => { return true }
-        else   => { return false }
+        Elif() => {
+            return true
+        }
+        else   => {
+            return false
+        }
     }
 }
 
 fn kind_is_semicolon(k: lexer.TokenKind) bool = {
     match k {
-        Semicolon() => { return true }
-        else        => { return false }
+        Semicolon() => {
+            return true
+        }
+        else        => {
+            return false
+        }
     }
 }
 
 fn kind_is_decl_keyword(k: lexer.TokenKind) bool = {
     match k {
-        Fn()    => { return true }
-        Type()  => { return true }
-        Union() => { return true }
-        Enum()  => { return true }
-        Spec()  => { return true }
-        else    => { return false }
+        Fn()    => {
+            return true
+        }
+        Type()  => {
+            return true
+        }
+        Union() => {
+            return true
+        }
+        Enum()  => {
+            return true
+        }
+        Spec()  => {
+            return true
+        }
+        else    => {
+            return false
+        }
     }
 }
 
 fn kind_starts_literal(k: lexer.TokenKind) bool = {
     match k {
-        Return()  => { return true }
-        LParen()  => { return true }
-        LBracket() => { return true }
-        Comma()   => { return true }
-        Colon()   => { return true }
-        Plus()    => { return true }
-        Minus()   => { return true }
-        Star()    => { return true }
-        Slash()   => { return true }
-        Percent() => { return true }
-        EqEq()    => { return true }
-        BangEq()  => { return true }
-        Lt()      => { return true }
-        Gt()      => { return true }
-        LtEq()    => { return true }
-        GtEq()    => { return true }
-        And()     => { return true }
-        Or()      => { return true }
-        BitAnd()  => { return true }
-        BitOr()   => { return true }
-        BitXor()  => { return true }
-        Shl()     => { return true }
-        Shr()     => { return true }
-        Question() => { return true }
-        Bang()    => { return true }
-        Tilde()   => { return true }
-        Dot()     => { return true }
-        else      => { return false }
+        Return()  => {
+            return true
+        }
+        LParen()  => {
+            return true
+        }
+        LBracket() => {
+            return true
+        }
+        Comma()   => {
+            return true
+        }
+        Colon()   => {
+            return true
+        }
+        Plus()    => {
+            return true
+        }
+        Minus()   => {
+            return true
+        }
+        Star()    => {
+            return true
+        }
+        Slash()   => {
+            return true
+        }
+        Percent() => {
+            return true
+        }
+        EqEq()    => {
+            return true
+        }
+        BangEq()  => {
+            return true
+        }
+        Lt()      => {
+            return true
+        }
+        Gt()      => {
+            return true
+        }
+        LtEq()    => {
+            return true
+        }
+        GtEq()    => {
+            return true
+        }
+        And()     => {
+            return true
+        }
+        Or()      => {
+            return true
+        }
+        BitAnd()  => {
+            return true
+        }
+        BitOr()   => {
+            return true
+        }
+        BitXor()  => {
+            return true
+        }
+        Shl()     => {
+            return true
+        }
+        Shr()     => {
+            return true
+        }
+        Question() => {
+            return true
+        }
+        Bang()    => {
+            return true
+        }
+        Tilde()   => {
+            return true
+        }
+        Dot()     => {
+            return true
+        }
+        else      => {
+            return false
+        }
     }
 }
 
 fn token_line(tokens: list[ref lexer.Token], idx: i64) i64 = trust {
     val tok_opt = @get(tokens, idx as usize)
-    match tok_opt {
-        some tok_val => {
-            val tok: ref lexer.Token = tok_val as ref lexer.Token
-            return tok.line
-        }
-        none => { return -1 }
+    if tok_opt is some tok_val {
+        val tok: ref lexer.Token = tok_val as ref lexer.Token
+        return tok.line
+    } else {
+        return -1
     }
 }
 
 fn brace_is_block(tokens: list[ref lexer.Token], i: i64) bool = trust {
-    if i <= 0 { return true }
+    if i <= 0 {
+        return true
+    }
     val pk: lexer.TokenKind = lexer.tok_kind(tokens, i - 1)
-    if lexer.kind_is_fatarrow(pk) { return true }
+    if lexer.kind_is_fatarrow(pk) {
+        return true
+    }
 
     if kind_is_eq(pk) {
         val j: mut i64 = i - 2
         for {
-            if j < 0 { break }
+            if j < 0 {
+                break
+            }
             val jk: lexer.TokenKind = lexer.tok_kind(tokens, j)
             if lexer.kind_is_lbrace(jk) || lexer.kind_is_rbrace(jk) || kind_is_semicolon(jk) {
                 break
             }
-            if kind_is_decl_keyword(jk) { return true }
+            if kind_is_decl_keyword(jk) {
+                return true
+            }
             j--
         }
         return false
     }
 
-    if kind_starts_literal(pk) { return false }
+    if kind_starts_literal(pk) {
+        return false
+    }
     return true
 }
 
@@ -268,23 +381,27 @@ fn sort_positions(pos: mut list[i64]) void = trust {
     val n: i64 = @len(pos) as i64
     val i: mut i64 = 1
     for {
-        if i >= n { break }
+        if i >= n {
+            break
+        }
         val cur_opt = @get(pos, i as usize)
         val cur: mut i64 = 0
-        match cur_opt {
-            some v => { cur = v as i64 }
-            none => {}
+        if cur_opt is some v {
+            cur = v as i64
         }
         val j: mut i64 = i - 1
         for {
-            if j < 0 { break }
+            if j < 0 {
+                break
+            }
             val prev_opt = @get(pos, j as usize)
             val prev: mut i64 = 0
-            match prev_opt {
-                some v => { prev = v as i64 }
-                none => {}
+            if prev_opt is some v {
+                prev = v as i64
             }
-            if prev <= cur { break }
+            if prev <= cur {
+                break
+            }
             @set(pos, (j + 1) as usize, prev)
             j--
         }
@@ -300,7 +417,9 @@ fn insert_newlines(src: ref u8, pos: mut list[i64]) ref u8 = trust {
     val last: mut i64 = 0
 
     for p in pos {
-        if p <= last { continue }
+        if p <= last {
+            continue
+        }
         buf_append_bytes(out, src, last, p - last)
         buf_append_char(out, 10 as u8)
         last = p
@@ -318,13 +437,17 @@ fn find_matching_brace(tokens: list[ref lexer.Token], open_idx: i64) i64 = trust
     val depth: mut i64 = 0
     val i: mut i64 = open_idx
     for {
-        if i >= n { break }
+        if i >= n {
+            break
+        }
         val k: lexer.TokenKind = lexer.tok_kind(tokens, i)
         if lexer.kind_is_lbrace(k) {
             depth++
         } elif lexer.kind_is_rbrace(k) {
             depth--
-            if depth == 0 { return i }
+            if depth == 0 {
+                return i
+            }
         }
         i++
     }
@@ -336,13 +459,17 @@ fn collect_arms(tokens: list[ref lexer.Token], body_open: i64, body_close: i64) 
     val i: mut i64 = body_open + 1
 
     for {
-        if i >= body_close { break }
+        if i >= body_close {
+            break
+        }
 
         val pat_start: i64 = i
         val arrow: mut i64 = -1
         val j: mut i64 = i
         for {
-            if j >= body_close { break }
+            if j >= body_close {
+                break
+            }
             val jk: lexer.TokenKind = lexer.tok_kind(tokens, j)
             if lexer.kind_is_fatarrow(jk) {
                 arrow = j
@@ -354,14 +481,22 @@ fn collect_arms(tokens: list[ref lexer.Token], body_open: i64, body_close: i64) 
             j++
         }
 
-        if arrow < 0 { break }
+        if arrow < 0 {
+            break
+        }
 
         val open: i64 = arrow + 1
-        if open >= body_close { break }
-        if !lexer.kind_is_lbrace(lexer.tok_kind(tokens, open)) { break }
+        if open >= body_close {
+            break
+        }
+        if !lexer.kind_is_lbrace(lexer.tok_kind(tokens, open)) {
+            break
+        }
 
         val close: i64 = find_matching_brace(tokens, open)
-        if close < 0 || close > body_close { break }
+        if close < 0 || close > body_close {
+            break
+        }
 
         val arm: mut ref Arm = @alloc(@sizeof(Arm)) as ref Arm
         arm.start = pat_start
@@ -383,16 +518,22 @@ fn find_match_body_open(tokens: list[ref lexer.Token], match_idx: i64) i64 = tru
     val i: mut i64 = match_idx + 1
 
     for {
-        if i >= n { break }
+        if i >= n {
+            break
+        }
         val k: lexer.TokenKind = lexer.tok_kind(tokens, i)
         if lexer.kind_is_lparen(k) {
             paren++
         } elif lexer.kind_is_rparen(k) {
-            if paren > 0 { paren-- }
+            if paren > 0 {
+                paren--
+            }
         } elif lexer.kind_is_lbracket(k) {
             bracket++
         } elif lexer.kind_is_rbracket(k) {
-            if bracket > 0 { bracket-- }
+            if bracket > 0 {
+                bracket--
+            }
         } elif lexer.kind_is_lbrace(k) {
             if paren == 0 && bracket == 0 {
                 return i
@@ -405,21 +546,27 @@ fn find_match_body_open(tokens: list[ref lexer.Token], match_idx: i64) i64 = tru
 }
 
 fn rewrite_match_at(
-src:     ref u8,
-tokens:  list[ref lexer.Token],
-starts:  list[i64],
-match_i: i64
+    src:     ref u8,
+    tokens:  list[ref lexer.Token],
+    starts:  list[i64],
+    match_i: i64
 ) option[ref u8] = trust {
     val len_src: i64 = str.len_raw(src)
     val body_open: i64 = find_match_body_open(tokens, match_i)
-    if body_open < 0 { return none }
+    if body_open < 0 {
+        return none
+    }
 
     val body_close: i64 = find_matching_brace(tokens, body_open)
-    if body_close < 0 { return none }
+    if body_close < 0 {
+        return none
+    }
 
     val arms: list[ref Arm] = collect_arms(tokens, body_open, body_close)
     val n_arms: i64 = @len(arms) as i64
-    if n_arms != 2 { return none }
+    if n_arms != 2 {
+        return none
+    }
 
     val arm0_opt = @get(arms, 0 as usize)
     val arm1_opt = @get(arms, 1 as usize)
@@ -427,29 +574,51 @@ match_i: i64
     val arm1: mut ref Arm = none
 
     if arm0_opt is some a {
-        arm0 = a as ref Arm } else { return none }
+        arm0 = a as ref Arm
+    } else {
+        return none
+    }
     if arm1_opt is some a {
-        arm1 = a as ref Arm } else { return none }
+        arm1 = a as ref Arm
+    } else {
+        return none
+    }
 
-    if !kind_is_some(lexer.tok_kind(tokens, arm0.start)) { return none }
-    if !kind_is_none(lexer.tok_kind(tokens, arm1.start)) { return none }
+    if !kind_is_some(lexer.tok_kind(tokens, arm0.start)) {
+        return none
+    }
+    if !kind_is_none(lexer.tok_kind(tokens, arm1.start)) {
+        return none
+    }
 
     // The some arm must be exactly `some <binding> => { ... }`.
-    if arm0.arrow != arm0.start + 2 { return none }
-    if !lexer.kind_is_ident(lexer.tok_kind(tokens, arm0.start + 1)) { return none }
+    if arm0.arrow != arm0.start + 2 {
+        return none
+    }
+    if !lexer.kind_is_ident(lexer.tok_kind(tokens, arm0.start + 1)) {
+        return none
+    }
 
     // The none arm must be exactly `none => { ... }`.
-    if arm1.arrow != arm1.start + 1 { return none }
+    if arm1.arrow != arm1.start + 1 {
+        return none
+    }
 
     val bind_opt = @get(tokens, (arm0.start + 1) as usize)
     val bind: mut ref u8 = "_"
     if bind_opt is some bind_val {
         val bind_tok: ref lexer.Token = bind_val as ref lexer.Token
         match bind_tok.kind {
-            Ident s => { bind = s }
-            else    => { return none }
+            Ident s => {
+                bind = s
+            }
+            else    => {
+                return none
+            }
         }
-    } else { return none }
+    } else {
+        return none
+    }
 
     val m_start: i64 = token_start(tokens, starts, match_i)
     val m_open: i64 = token_start(tokens, starts, body_open)
@@ -477,9 +646,13 @@ match_i: i64
     // condition does not end up with doubled spaces or a missing space.
     val ws_start: mut i64 = m_open
     for {
-        if ws_start <= 0 { break }
+        if ws_start <= 0 {
+            break
+        }
         val c: i64 = byte_at(src, ws_start - 1)
-        if !is_space_byte(c) { break }
+        if !is_space_byte(c) {
+            break
+        }
         ws_start--
     }
     @append(edits, edit_new(ws_start, m_open, ""))
@@ -494,8 +667,12 @@ match_i: i64
     val some_removal_start: mut i64 = m_open + 1
     val nl_scan: mut i64 = m_open + 1
     for {
-        if nl_scan >= s_start { break }
-        if byte_at(src, nl_scan) == 10 { some_removal_start = nl_scan + 1 }
+        if nl_scan >= s_start {
+            break
+        }
+        if byte_at(src, nl_scan) == 10 {
+            some_removal_start = nl_scan + 1
+        }
         nl_scan++
     }
 
@@ -503,9 +680,13 @@ match_i: i64
     if some_removal_start > m_open + 1 {
         val after_open: mut i64 = s_open_end
         for {
-            if after_open >= len_src { break }
+            if after_open >= len_src {
+                break
+            }
             val c: i64 = byte_at(src, after_open)
-            if c != 32 && c != 9 { break }
+            if c != 32 && c != 9 {
+                break
+            }
             after_open++
         }
         if after_open < len_src {
@@ -545,8 +726,12 @@ fn rewrite_one_match(src: ref u8) option[ref u8] = trust {
     val tok_res = lexer.tokenize(src)
     val tokens: mut list[ref lexer.Token] = []
     match tok_res {
-        ok toks => { tokens = toks }
-        err _   => { return none }
+        ok toks => {
+            tokens = toks
+        }
+        err _   => {
+            return none
+        }
     }
 
     val len: i64 = str.len_raw(src)
@@ -555,13 +740,16 @@ fn rewrite_one_match(src: ref u8) option[ref u8] = trust {
     val i: mut i64 = 0
 
     for {
-        if i >= ntokens { break }
+        if i >= ntokens {
+            break
+        }
         val k: lexer.TokenKind = lexer.tok_kind(tokens, i)
         match k {
             Match() => {
                 val rewritten = rewrite_match_at(src, tokens, starts, i)
                 if rewritten is some out {
-                    return some out }
+                    return some out
+                }
             }
             else => {}
         }
@@ -575,10 +763,15 @@ fn rewrite_matches(src: ref u8) ref u8 = trust {
     val current: mut ref u8 = src
     val rounds: mut i64 = 0
     for {
-        if rounds >= 100000 { break }
+        if rounds >= 100000 {
+            break
+        }
         val next = rewrite_one_match(current)
         if next is some out {
-            current = out } else { break }
+            current = out
+        } else {
+            break
+        }
         rounds++
     }
     return current
@@ -588,8 +781,12 @@ fn format_block_braces(src: ref u8) ref u8 = trust {
     val tok_res = lexer.tokenize(src)
     val tokens: mut list[ref lexer.Token] = []
     match tok_res {
-        ok toks => { tokens = toks }
-        err _   => { return src }
+        ok toks => {
+            tokens = toks
+        }
+        err _   => {
+            return src
+        }
     }
 
     val len: i64 = str.len_raw(src)
@@ -599,7 +796,9 @@ fn format_block_braces(src: ref u8) ref u8 = trust {
     val i: mut i64 = 0
 
     for {
-        if i >= ntokens { break }
+        if i >= ntokens {
+            break
+        }
         val k: lexer.TokenKind = lexer.tok_kind(tokens, i)
 
         if lexer.kind_is_lbrace(k) {
@@ -628,10 +827,10 @@ fn format_block_braces(src: ref u8) ref u8 = trust {
                         if close_line2 == after_line {
                             val nk: lexer.TokenKind = lexer.tok_kind(tokens, close + 1)
                             val same_line: bool =
-                                lexer.kind_is_else(nk) || kind_is_elif(nk) ||
-                                lexer.kind_is_comma(nk) || lexer.kind_is_rparen(nk) ||
-                                lexer.kind_is_rbracket(nk) || kind_is_semicolon(nk) ||
-                                lexer.kind_is_rbrace(nk)
+                            lexer.kind_is_else(nk) || kind_is_elif(nk) ||
+                            lexer.kind_is_comma(nk) || lexer.kind_is_rparen(nk) ||
+                            lexer.kind_is_rbracket(nk) || kind_is_semicolon(nk) ||
+                            lexer.kind_is_rbrace(nk)
                             if !same_line {
                                 val after_pos: i64 = token_start(tokens, starts, close + 1)
                                 @append(newlines, after_pos)
@@ -652,8 +851,12 @@ fn format_match_arm_spacing(src: ref u8) ref u8 = trust {
     val tok_res = lexer.tokenize(src)
     val tokens: mut list[ref lexer.Token] = []
     match tok_res {
-        ok toks => { tokens = toks }
-        err _   => { return src }
+        ok toks => {
+            tokens = toks
+        }
+        err _   => {
+            return src
+        }
     }
 
     val len: i64 = str.len_raw(src)
@@ -663,7 +866,9 @@ fn format_match_arm_spacing(src: ref u8) ref u8 = trust {
     val i: mut i64 = 0
 
     for {
-        if i >= ntokens { break }
+        if i >= ntokens {
+            break
+        }
         val k: lexer.TokenKind = lexer.tok_kind(tokens, i)
 
         if lexer.kind_is_fatarrow(k) {
@@ -671,17 +876,25 @@ fn format_match_arm_spacing(src: ref u8) ref u8 = trust {
 
             val pstart: mut i64 = i - 1
             for {
-                if pstart < 0 { break }
-                if token_line(tokens, pstart) != arrow_line { break }
+                if pstart < 0 {
+                    break
+                }
+                if token_line(tokens, pstart) != arrow_line {
+                    break
+                }
                 val pk: lexer.TokenKind = lexer.tok_kind(tokens, pstart)
-                if lexer.kind_is_lbrace(pk) || lexer.kind_is_rbrace(pk) { break }
+                if lexer.kind_is_lbrace(pk) || lexer.kind_is_rbrace(pk) {
+                    break
+                }
                 pstart--
             }
             pstart++
 
             val j: mut i64 = pstart
             for {
-                if j >= i { break }
+                if j >= i {
+                    break
+                }
                 val jk: lexer.TokenKind = lexer.tok_kind(tokens, j)
 
                 if lexer.kind_is_comma(jk) {
@@ -689,9 +902,13 @@ fn format_match_arm_spacing(src: ref u8) ref u8 = trust {
 
                     val ws_before: mut i64 = comma_pos
                     for {
-                        if ws_before <= 0 { break }
+                        if ws_before <= 0 {
+                            break
+                        }
                         val c: i64 = byte_at(src, ws_before - 1)
-                        if c != 32 && c != 9 { break }
+                        if c != 32 && c != 9 {
+                            break
+                        }
                         ws_before--
                     }
                     if ws_before < comma_pos {
@@ -715,9 +932,13 @@ fn format_match_arm_spacing(src: ref u8) ref u8 = trust {
             val arrow_pos: i64 = token_start(tokens, starts, i)
             val ws_arrow: mut i64 = arrow_pos
             for {
-                if ws_arrow <= 0 { break }
+                if ws_arrow <= 0 {
+                    break
+                }
                 val c: i64 = byte_at(src, ws_arrow - 1)
-                if c != 32 && c != 9 { break }
+                if c != 32 && c != 9 {
+                    break
+                }
                 ws_arrow--
             }
             if ws_arrow == arrow_pos {
@@ -738,7 +959,9 @@ fn scan_nesting(src: ref u8, start: i64, end: i64, out: mut ref Nesting) void = 
     val i: mut i64 = start
 
     for {
-        if i >= end { break }
+        if i >= end {
+            break
+        }
         val c: i64 = byte_at(src, i)
 
         if c == 47 && i + 1 < end && byte_at(src, i + 1) == 47 {
@@ -750,7 +973,9 @@ fn scan_nesting(src: ref u8, start: i64, end: i64, out: mut ref Nesting) void = 
         if c == 34 {
             i++
             for {
-                if i >= end { break }
+                if i >= end {
+                    break
+                }
                 val sc: i64 = byte_at(src, i)
                 if sc == 92 {
                     i = i + 2
@@ -764,7 +989,9 @@ fn scan_nesting(src: ref u8, start: i64, end: i64, out: mut ref Nesting) void = 
         } elif c == 39 {
             i++
             for {
-                if i >= end { break }
+                if i >= end {
+                    break
+                }
                 val cc: i64 = byte_at(src, i)
                 if cc == 92 {
                     i = i + 2
@@ -809,28 +1036,42 @@ fn reindent(src: ref u8) ref u8 = trust {
     val line_start: mut i64 = 0
 
     for {
-        if line_start > len { break }
+        if line_start > len {
+            break
+        }
 
         val line_end: mut i64 = line_start
         for {
-            if line_end >= len { break }
-            if byte_at(src, line_end) == 10 { break }
+            if line_end >= len {
+                break
+            }
+            if byte_at(src, line_end) == 10 {
+                break
+            }
             line_end++
         }
 
         val content_start: mut i64 = line_start
         for {
-            if content_start >= line_end { break }
+            if content_start >= line_end {
+                break
+            }
             val c: i64 = byte_at(src, content_start)
-            if c != 32 && c != 9 { break }
+            if c != 32 && c != 9 {
+                break
+            }
             content_start++
         }
 
         val content_end: mut i64 = line_end
         for {
-            if content_end <= content_start { break }
+            if content_end <= content_start {
+                break
+            }
             val c: i64 = byte_at(src, content_end - 1)
-            if c != 32 && c != 9 && c != 13 { break }
+            if c != 32 && c != 9 && c != 13 {
+                break
+            }
             content_end--
         }
 
@@ -846,7 +1087,9 @@ fn reindent(src: ref u8) ref u8 = trust {
             val spaces: i64 = indent_depth * 4
             val s: mut i64 = 0
             for {
-                if s >= spaces { break }
+                if s >= spaces {
+                    break
+                }
                 buf_append_char(out, 32 as u8)
                 s++
             }
@@ -857,23 +1100,33 @@ fn reindent(src: ref u8) ref u8 = trust {
             depth = depth + nesting.braces
             paren_depth = paren_depth + nesting.parens
             bracket_depth = bracket_depth + nesting.brackets
-            if depth < 0 { depth = 0 }
-            if paren_depth < 0 { paren_depth = 0 }
-            if bracket_depth < 0 { bracket_depth = 0 }
+            if depth < 0 {
+                depth = 0
+            }
+            if paren_depth < 0 {
+                paren_depth = 0
+            }
+            if bracket_depth < 0 {
+                bracket_depth = 0
+            }
         }
 
         if line_end < len {
             buf_append_char(out, 10 as u8)
         }
 
-        if line_end >= len { break }
+        if line_end >= len {
+            break
+        }
         line_start = line_end + 1
     }
 
     // Normalize the end of the file: no trailing blank lines, one final newline.
     if out.len > 0 {
         for {
-            if out.len <= 1 { break }
+            if out.len <= 1 {
+                break
+            }
             val last: i64 = @load8(@ptradd(out.ptr as ref void, out.len - 1)) as i64
             val prev: i64 = @load8(@ptradd(out.ptr as ref void, out.len - 2)) as i64
             if last == 10 && prev == 10 {
@@ -905,7 +1158,9 @@ fn has_sx_suffix(file: ref u8) bool = {
 
 fn is_directory(dir: ref u8) bool = trust {
     val handle: ref void = fs.opendir(dir)
-    if handle == none { return false }
+    if handle == none {
+        return false
+    }
     fs.closedir(handle)
     return true
 }
@@ -914,7 +1169,8 @@ fn format_file(file: ref u8) i32 = trust {
     val size_opt = fs.file_size(file)
     val size: mut i64 = 0
     if size_opt is some s {
-        size = s as i64 } else {
+        size = s as i64
+    } else {
         stdio.print("error: could not read '{s}'\n", {file})
         return 1
     }
@@ -922,14 +1178,17 @@ fn format_file(file: ref u8) i32 = trust {
     val content_opt = fs.read_all_raw(file)
     val content: mut ref u8 = none
     if content_opt is some c {
-        content = c } else {
+        content = c
+    } else {
         stdio.print("error: could not read '{s}'\n", {file})
         return 1
     }
 
     val i: mut i64 = 0
     for {
-        if i >= size { break }
+        if i >= size {
+            break
+        }
         if byte_at(content, i) == 0 {
             stdio.print("error: '{s}' is not a plaintext .sx file\n", {file})
             return 1
@@ -960,7 +1219,9 @@ fn collect_files(target: ref u8, out: mut list[ref u8], explicit: bool) i32 = tr
                 for entry in entries {
                     val child: ref u8 = path.join(target, entry)
                     val code: i32 = collect_files(child, out, false)
-                    if code != 0 { return code }
+                    if code != 0 {
+                        return code
+                    }
                 }
             }
         }
@@ -972,7 +1233,9 @@ fn collect_files(target: ref u8, out: mut list[ref u8], explicit: bool) i32 = tr
         return 0
     }
 
-    if !explicit { return 0 }
+    if !explicit {
+        return 0
+    }
 
     stdio.print("error: fmt only formats .sx files: '{s}'\n", {target})
     return 1
@@ -988,12 +1251,16 @@ pub fn cmd_fmt(targets: list[ref u8]) i32 = trust {
     val files: mut list[ref u8] = []
     for target in targets {
         val code: i32 = collect_files(target, files, true)
-        if code != 0 { return code }
+        if code != 0 {
+            return code
+        }
     }
 
     for file in files {
         val code: i32 = format_file(file)
-        if code != 0 { return code }
+        if code != 0 {
+            return code
+        }
     }
 
     return 0

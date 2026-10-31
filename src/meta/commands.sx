@@ -44,7 +44,9 @@ fn new_ctx(text: ref u8) ref ParseCtx = {
 }
 
 fn ctx_peek(ctx: ref ParseCtx) i64 = trust {
-    if ctx.pos >= ctx.len { return -1 }
+    if ctx.pos >= ctx.len {
+        return -1
+    }
     return @load8(@ptradd(ctx.text as ref void, ctx.pos)) as i64
 }
 
@@ -55,21 +57,31 @@ fn ctx_advance(ctx: mut ref ParseCtx) void = {
 fn ctx_skip_line(ctx: mut ref ParseCtx) void = {
     for {
         val c: i64 = trust ctx_peek(ctx)
-        if c == -1 { break }
+        if c == -1 {
+            break
+        }
         ctx_advance(ctx)
-        if c == 10 { break }
+        if c == 10 {
+            break
+        }
     }
 }
 
 fn ctx_skip_ws(ctx: mut ref ParseCtx) void = {
     for {
         val c: i64 = trust ctx_peek(ctx)
-        if c == -1 { break }
+        if c == -1 {
+            break
+        }
         if c == 32 || c == 9 || c == 10 || c == 13 {
             ctx_advance(ctx)
         } elif c == 47 && ctx.pos + 1 < ctx.len {
             val c2: i64 = trust @load8(@ptradd(ctx.text as ref void, ctx.pos + 1)) as i64
-            if c2 == 47 { ctx_skip_line(ctx) } else { break }
+            if c2 == 47 {
+                ctx_skip_line(ctx)
+            } else {
+                break
+            }
         } else {
             break
         }
@@ -78,14 +90,18 @@ fn ctx_skip_ws(ctx: mut ref ParseCtx) void = {
 
 fn ctx_read_quoted(ctx: mut ref ParseCtx) ref u8 = trust {
     ctx_skip_ws(ctx)
-    if ctx_peek(ctx) != 34 { return "" }
+    if ctx_peek(ctx) != 34 {
+        return ""
+    }
     ctx_advance(ctx)
     val cap: mut i64 = 256
     val buf: mut ref u8 = @alloc(cap) as ref u8
     val i: mut i64 = 0
     for {
         val c: i64 = ctx_peek(ctx)
-        if c == -1 || c == 34 { break }
+        if c == -1 || c == 34 {
+            break
+        }
         if i >= cap - 1 {
             cap = cap * 2
             buf = @realloc(buf as ref void, cap) as ref u8
@@ -94,7 +110,9 @@ fn ctx_read_quoted(ctx: mut ref ParseCtx) ref u8 = trust {
         i++
         ctx_advance(ctx)
     }
-    if ctx_peek(ctx) == 34 { ctx_advance(ctx) }
+    if ctx_peek(ctx) == 34 {
+        ctx_advance(ctx)
+    }
     @store8(@ptradd(buf as ref void, i), 0)
     val result: ref u8 = @alloc(i + 1) as ref u8
     @memcpy(result as ref void, buf as ref void, (i + 1) as usize)
@@ -108,11 +126,15 @@ fn ctx_read_ident(ctx: mut ref ParseCtx) ref u8 = trust {
     val i: mut i64 = 0
     for {
         val c: i64 = ctx_peek(ctx)
-        if c == -1 { break }
+        if c == -1 {
+            break
+        }
         val alpha: bool = (c >= 65 && c <= 90) || (c >= 97 && c <= 122)
         val digit: bool = c >= 48 && c <= 57
         val special: bool = c == 95 || c == 45 || c == 46 || c == 47
-        if !alpha && !digit && !special { break }
+        if !alpha && !digit && !special {
+            break
+        }
         @store8(@ptradd(buf as ref void, i), c as u8)
         i++
         ctx_advance(ctx)
@@ -138,9 +160,13 @@ pub fn parse_sxmod(content: ref u8) ref SxMod = trust {
     m.builds  = []
     for {
         ctx_skip_ws(ctx)
-        if ctx_peek(ctx) == -1 { break }
+        if ctx_peek(ctx) == -1 {
+            break
+        }
         val kw: ref u8 = ctx_read_ident(ctx)
-        if str.rchar_cmp(kw, "") == 0 { break }
+        if str.rchar_cmp(kw, "") == 0 {
+            break
+        }
         if str.rchar_cmp(kw, "entry") == 0 {
             m.entry = ctx_read_quoted(ctx)
         } elif str.rchar_cmp(kw, "version") == 0 {
@@ -156,13 +182,19 @@ pub fn parse_sxmod(content: ref u8) ref SxMod = trust {
             cfg.output = ""
             cfg.entry  = ""
             ctx_skip_ws(ctx)
-            if ctx_peek(ctx) == 123 { ctx_advance(ctx) }
+            if ctx_peek(ctx) == 123 {
+                ctx_advance(ctx)
+            }
             for {
                 ctx_skip_ws(ctx)
                 val c2: i64 = ctx_peek(ctx)
-                if c2 == -1 || c2 == 125 { break }
+                if c2 == -1 || c2 == 125 {
+                    break
+                }
                 val inner: ref u8 = ctx_read_ident(ctx)
-                if str.rchar_cmp(inner, "") == 0 { break }
+                if str.rchar_cmp(inner, "") == 0 {
+                    break
+                }
                 if str.rchar_cmp(inner, "action") == 0 {
                     cfg.action = ctx_read_quoted(ctx)
                 } elif str.rchar_cmp(inner, "flags") == 0 {
@@ -175,7 +207,9 @@ pub fn parse_sxmod(content: ref u8) ref SxMod = trust {
                     ctx_skip_line(ctx)
                 }
             }
-            if ctx_peek(ctx) == 125 { ctx_advance(ctx) }
+            if ctx_peek(ctx) == 125 {
+                ctx_advance(ctx)
+            }
             @append(m.builds, cfg)
         } else {
             ctx_skip_line(ctx)
@@ -186,7 +220,9 @@ pub fn parse_sxmod(content: ref u8) ref SxMod = trust {
 }
 
 fn validate_sxmod(m: ref SxMod) bool = {
-    if str.rchar_cmp(m.entry, "") == 0 { return true }
+    if str.rchar_cmp(m.entry, "") == 0 {
+        return true
+    }
     for cfg in m.builds {
         if str.rchar_cmp(cfg.entry, "") != 0 {
             stdio.puts("error: sx.mod cannot mix a top-level 'entry' with per-build 'entry' fields")
@@ -200,8 +236,12 @@ pub fn load_sxmod() option[ref SxMod] = {
     val size_opt = trust fs.file_size("sx.mod")
     val arena_cap: mut i64 = 4096
     if size_opt is some sz {
-        if ((sz as i64) > arena_cap) { arena_cap = sz as i64 }
-    } else { return none }
+        if ((sz as i64) > arena_cap) {
+            arena_cap = sz as i64
+        }
+    } else {
+        return none
+    }
     val arena: mut allocators.Arena = trust allocators.Arena.new((arena_cap + 8) as usize)?
     val content_opt = trust fs.read_all[allocators.Arena](arena, "sx.mod")
     match content_opt {
@@ -212,7 +252,9 @@ pub fn load_sxmod() option[ref SxMod] = {
         some content => {
             val m: ref SxMod = trust parse_sxmod(content as ref u8)
             trust allocators.Arena.free(arena)
-            if !validate_sxmod(m) { return none }
+            if !validate_sxmod(m) {
+                return none
+            }
             return some m
         }
     }
@@ -223,9 +265,13 @@ fn parse_sxlock(content: ref u8) list[ref SxLockDep] = trust {
     val deps: mut list[ref SxLockDep] = []
     for {
         ctx_skip_ws(ctx)
-        if ctx_peek(ctx) == -1 { break }
+        if ctx_peek(ctx) == -1 {
+            break
+        }
         val kw: ref u8 = ctx_read_ident(ctx)
-        if str.rchar_cmp(kw, "") == 0 { break }
+        if str.rchar_cmp(kw, "") == 0 {
+            break
+        }
         if str.rchar_cmp(kw, "dep") == 0 {
             val url: ref u8 = ctx_read_quoted(ctx)
             val hash: ref u8 = ctx_read_quoted(ctx)
@@ -248,8 +294,12 @@ fn load_sxlock() option[list[ref SxLockDep]] = {
     val size_opt = trust fs.file_size("sx.lock")
     val arena_cap: mut i64 = 4096
     if size_opt is some sz {
-        if ((sz as i64) > arena_cap) { arena_cap = sz as i64 }
-    } else { return none }
+        if ((sz as i64) > arena_cap) {
+            arena_cap = sz as i64
+        }
+    } else {
+        return none
+    }
     val arena: mut allocators.Arena = trust allocators.Arena.new((arena_cap + 8) as usize)?
     val content_opt = trust fs.read_all[allocators.Arena](arena, "sx.lock")
     match content_opt {
@@ -270,8 +320,12 @@ fn load_sxmod_at(dir: ref u8) option[ref SxMod] = trust {
     val size_opt = fs.file_size(mod_path)
     val arena_cap: mut i64 = 4096
     if size_opt is some sz {
-        if ((sz as i64) > arena_cap) { arena_cap = sz as i64 }
-    } else { return none }
+        if ((sz as i64) > arena_cap) {
+            arena_cap = sz as i64
+        }
+    } else {
+        return none
+    }
     val arena: mut allocators.Arena = allocators.Arena.new((arena_cap + 8) as usize)?
     val content_opt = fs.read_all[allocators.Arena](arena, mod_path)
     match content_opt {
@@ -292,8 +346,12 @@ fn load_sxlock_at(dir: ref u8) option[list[ref SxLockDep]] = trust {
     val size_opt = fs.file_size(lock_path)
     val arena_cap: mut i64 = 4096
     if size_opt is some sz {
-        if ((sz as i64) > arena_cap) { arena_cap = sz as i64 }
-    } else { return none }
+        if ((sz as i64) > arena_cap) {
+            arena_cap = sz as i64
+        }
+    } else {
+        return none
+    }
     val arena: mut allocators.Arena = allocators.Arena.new((arena_cap + 8) as usize)?
     val content_opt = fs.read_all[allocators.Arena](arena, lock_path)
     match content_opt {
@@ -336,18 +394,26 @@ fn build_config_cmd(cfg: ref SxBuildConfig, exe_path: ref u8, entry: ref u8) ref
 
 fn basename_of(path: ref u8) ref u8 = {
     val len: i64 = str.len_raw(path)
-    if len == 0 { return "project" }
+    if len == 0 {
+        return "project"
+    }
     val last_slash: mut i64 = -1
     val i: mut i64 = 0
     for {
-        if i >= len { break }
+        if i >= len {
+            break
+        }
         val c: u8 = trust @load8(@ptradd(path as ref void, i)) as u8
-        if c == 47 { last_slash = i }
+        if c == 47 {
+            last_slash = i
+        }
         i++
     }
     val start: i64 = last_slash + 1
     val name_len: i64 = len - start
-    if name_len <= 0 { return "project" }
+    if name_len <= 0 {
+        return "project"
+    }
     val buf: ref u8 = @alloc(name_len + 1) as ref u8
     trust @memcpy(buf as ref void, @ptradd(path as ref void, start), name_len as usize)
     trust @store8(@ptradd(buf as ref void, name_len), 0)
@@ -375,22 +441,34 @@ fn repo_name_from_url(url: ref u8) ref u8 = trust {
 fn rchar_contains(haystack: ref u8, needle: ref u8) bool = {
     val hlen: i64 = str.len_raw(haystack)
     val nlen: i64 = str.len_raw(needle)
-    if nlen == 0 { return true }
-    if nlen > hlen { return false }
+    if nlen == 0 {
+        return true
+    }
+    if nlen > hlen {
+        return false
+    }
     val limit: i64 = hlen - nlen
     val i: mut i64 = 0
     for {
-        if i > limit { break }
+        if i > limit {
+            break
+        }
         val j: mut i64 = 0
         val matched: mut bool = true
         for {
-            if j >= nlen { break }
+            if j >= nlen {
+                break
+            }
             val x: u8 = trust @load8(@ptradd(haystack as ref void, i + j)) as u8
             val y: u8 = trust @load8(@ptradd(needle as ref void, j)) as u8
-            if x != y { matched = false break }
+            if x != y {
+                matched = false break
+            }
             j++
         }
-        if matched { return true }
+        if matched {
+            return true
+        }
         i++
     }
     return false
@@ -401,8 +479,12 @@ fn drop_dep_lines(filepath: ref u8, needle: ref u8) void = trust {
     val size_opt = fs.file_size(filepath)
     val arena_cap: mut i64 = 4096
     if size_opt is some sz {
-        if ((sz as i64) > arena_cap) { arena_cap = sz as i64 }
-    } else { return }
+        if ((sz as i64) > arena_cap) {
+            arena_cap = sz as i64
+        }
+    } else {
+        return
+    }
     val arena: mut allocators.Arena = allocators.Arena.new((arena_cap + 8) as usize)?
     val content_opt = fs.read_all[allocators.Arena](arena, filepath)
     match content_opt {
@@ -417,10 +499,14 @@ fn drop_dep_lines(filepath: ref u8, needle: ref u8) void = trust {
             val line_start: mut i64 = 0
             val i: mut i64 = 0
             for {
-                if i > tlen { break }
+                if i > tlen {
+                    break
+                }
                 val at_end: bool = i == tlen
                 val c: mut u8 = 0
-                if !at_end { c = @load8(@ptradd(text as ref void, i)) as u8 }
+                if !at_end {
+                    c = @load8(@ptradd(text as ref void, i)) as u8
+                }
                 if at_end || c == 10 {
                     val line_len: i64 = i - line_start
                     val line: ref u8 = @alloc(line_len + 1) as ref u8
@@ -430,7 +516,9 @@ fn drop_dep_lines(filepath: ref u8, needle: ref u8) void = trust {
                     val has_needle: bool = rchar_contains(line, needle)
                     if !(is_dep && has_needle) {
                         str.StringBuilder.append_cstr(sb, line)
-                        if !at_end { str.StringBuilder.append_char(sb, 10 as u8) }
+                        if !at_end {
+                            str.StringBuilder.append_char(sb, 10 as u8)
+                        }
                     }
                     @free(line as ref void)
                     line_start = i + 1
@@ -446,13 +534,17 @@ fn drop_dep_lines(filepath: ref u8, needle: ref u8) void = trust {
 }
 
 fn add_stdlib_candidate(candidates: mut list[ref u8], dir: ref u8) void = trust {
-    if str.rchar_cmp(dir, "") == 0 { return }
+    if str.rchar_cmp(dir, "") == 0 {
+        return
+    }
     @append(candidates, dir)
 }
 
 fn is_directory(dir: ref u8) bool = trust {
     val handle: ref void = fs.opendir(dir)
-    if handle == none { return false }
+    if handle == none {
+        return false
+    }
     fs.closedir(handle)
     return true
 }
@@ -530,418 +622,418 @@ pub fn cmd_ref() i32 = {
         }
         some f => {
             trust fs.write(f, \\ # Spectre Language Reference
-            \\
-            \\ ---
-            \\
-            \\ ## Comments
-            \\
-            \\ ```
-            \\ // This is a line comment
-            \\ ```
-            \\
-            \\ ---
-            \\
-            \\ ## Variables
-            \\
-            \\ ```
-            \\ val x: i64 = 42          // immutable binding
-            \\ val y: mut i64 = 0       // mutable binding
-            \\ y = y + 1
-            \\ ```
-            \\
+                \\
+                \\ ---
+                \\
+                \\ ## Comments
+                \\
+                \\ ```
+                \\ // This is a line comment
+                \\ ```
+                \\
+                \\ ---
+                \\
+                \\ ## Variables
+                \\
+                \\ ```
+                \\ val x: i64 = 42          // immutable binding
+                \\ val y: mut i64 = 0       // mutable binding
+                \\ y = y + 1
+                \\ ```
+                \\
             )
             trust fs.write(f, \\ ---
-            \\
-            \\ ## Primitive Types
-            \\
-            \\ | Type    | Description              |
-            \\ |---------|--------------------------|
-            \\ | `i32`   | 32-bit signed integer    |
-            \\ | `i64`   | 64-bit signed integer    |
-            \\ | `u8`    | 8-bit unsigned integer   |
-            \\ | `u32`   | 32-bit unsigned integer  |
-            \\ | `u64`   | 64-bit unsigned integer  |
-            \\ | `usize` | pointer-sized unsigned   |
-            \\ | `f32`   | 32-bit float             |
-            \\ | `f64`   | 64-bit float             |
-            \\ | `bool`  | boolean (`true`/`false`) |
-            \\ | `u8`  | single byte character    |
-            \\ | `void`  | no value                 |
-            \\
+                \\
+                \\ ## Primitive Types
+                \\
+                \\ | Type    | Description              |
+                \\ |---------|--------------------------|
+                \\ | `i32`   | 32-bit signed integer    |
+                \\ | `i64`   | 64-bit signed integer    |
+                \\ | `u8`    | 8-bit unsigned integer   |
+                \\ | `u32`   | 32-bit unsigned integer  |
+                \\ | `u64`   | 64-bit unsigned integer  |
+                \\ | `usize` | pointer-sized unsigned   |
+                \\ | `f32`   | 32-bit float             |
+                \\ | `f64`   | 64-bit float             |
+                \\ | `bool`  | boolean (`true`/`false`) |
+                \\ | `u8`  | single byte character    |
+                \\ | `void`  | no value                 |
+                \\
             )
             trust fs.write(f, \\ ---
-            \\
-            \\ ## Reference and Pointer Types
-            \\
-            \\ ```
-            \\ val p: ref u8 = "hello"    // pointer to u8 (C string)
-            \\ val q: mut ref i64 = ...     // reassignable pointer
-            \\ ```
-            \\
-            \\ `ref T` is a raw pointer.  Null is written as `none`.
-            \\
-            \\ ---
-            \\
-            \\ ## List Type
-            \\
-            \\ ```
-            \\ val xs: mut list[i64] = []
-            \\ @append(xs, 1)
-            \\ @append(xs, 2)
-            \\ val n: usize = @len(xs)
-            \\ val opt = @get(xs, 0)        // returns option[i64]
-            \\ @remove(xs, 0)
-            \\ @reserve(xs, 64)
-            \\ ```
-            \\
+                \\
+                \\ ## Reference and Pointer Types
+                \\
+                \\ ```
+                \\ val p: ref u8 = "hello"    // pointer to u8 (C string)
+                \\ val q: mut ref i64 = ...     // reassignable pointer
+                \\ ```
+                \\
+                \\ `ref T` is a raw pointer.  Null is written as `none`.
+                \\
+                \\ ---
+                \\
+                \\ ## List Type
+                \\
+                \\ ```
+                \\ val xs: mut list[i64] = []
+                \\ @append(xs, 1)
+                \\ @append(xs, 2)
+                \\ val n: usize = @len(xs)
+                \\ val opt = @get(xs, 0)        // returns option[i64]
+                \\ @remove(xs, 0)
+                \\ @reserve(xs, 64)
+                \\ ```
+                \\
             )
             trust fs.write(f, \\ ---
-            \\
-            \\ ## Option Type
-            \\
-            \\ ```
-            \\ val a: option[i64] = some 42
-            \\ val b: option[i64] = none
-            \\
-            \\ match a {
-            \\     some v => { /* use v */ }
-            \\     none   => { /* handle missing */ }
-            \\ }
-            \\ ```
-            \\
-            \\ ---
-            \\
-            \\ ## Result Type
-            \\
-            \\ ```
-            \\ val r: result[i64, ref u8] = ok 10
-            \\ val e: result[i64, ref u8] = err "oops"
-            \\
-            \\ match r {
-            \\     ok v  => { } // Use v
-            \\     err e => { } // Handle the error
-            \\ }
-            \\ ```
-            \\
-            \\ Note that braces in match arms are not optional. You must use braces, for example:
-            \\
-            \\ ```
-            \\ ok v => hello // INVALID
-            \\ ok v => { return hello } // VALID if hello is defined and matches the return type
-            \\ ```
+                \\
+                \\ ## Option Type
+                \\
+                \\ ```
+                \\ val a: option[i64] = some 42
+                \\ val b: option[i64] = none
+                \\
+                \\ match a {
+                \\     some v => { /* use v */ }
+                \\     none   => { /* handle missing */ }
+                \\ }
+                \\ ```
+                \\
+                \\ ---
+                \\
+                \\ ## Result Type
+                \\
+                \\ ```
+                \\ val r: result[i64, ref u8] = ok 10
+                \\ val e: result[i64, ref u8] = err "oops"
+                \\
+                \\ match r {
+                \\     ok v  => { } // Use v
+                \\     err e => { } // Handle the error
+                \\ }
+                \\ ```
+                \\
+                \\ Note that braces in match arms are not optional. You must use braces, for example:
+                \\
+                \\ ```
+                \\ ok v => hello // INVALID
+                \\ ok v => { return hello } // VALID if hello is defined and matches the return type
+                \\ ```
             )
             trust fs.write(f, \\ ---
-            \\
-            \\ ## Strings
-            \\
-            \\ ```
-            \\ val s: ref u8 = "hello"           // C string literal
-            \\ val raw = \\ a raw string literal   // raw string (no escape processing)
-            \\           \\ continued on next line // lines joined with \n
-            \\ ```
-            \\
-            \\ The standard library (`std/string`) provides `String` (owned heap string)
-            \\ and `StringBuilder` for building strings dynamically.
-            \\
-            \\ ---
-            \\
-            \\ ## Functions
-            \\
-            \\ ```
-            \\ fn add(a: i64, b: i64) i64 = {
-            \\     return a + b
-            \\ }
-            \\
-            \\ pub fn greet(name: ref u8) void = {
-            \\     @print("Hello, %s!\n", name)
-            \\ }
-            \\
-            \\ pub enum SomeError = { FailedToDoSomeThing, OrSomethingElse }
-            \\
-            \\ // Functions that may propagate errors use result[T, E]
-            \\ fn open_file(path: ref u8) result[ref void, SomeError] = {
-            \\     // ... can use ? to propagate
-            \\ }
-            \\ ```
-            \\
+                \\
+                \\ ## Strings
+                \\
+                \\ ```
+                \\ val s: ref u8 = "hello"           // C string literal
+                \\ val raw = \\ a raw string literal   // raw string (no escape processing)
+                \\           \\ continued on next line // lines joined with \n
+                \\ ```
+                \\
+                \\ The standard library (`std/string`) provides `String` (owned heap string)
+                \\ and `StringBuilder` for building strings dynamically.
+                \\
+                \\ ---
+                \\
+                \\ ## Functions
+                \\
+                \\ ```
+                \\ fn add(a: i64, b: i64) i64 = {
+                \\     return a + b
+                \\ }
+                \\
+                \\ pub fn greet(name: ref u8) void = {
+                \\     @print("Hello, %s!\n", name)
+                \\ }
+                \\
+                \\ pub enum SomeError = { FailedToDoSomeThing, OrSomethingElse }
+                \\
+                \\ // Functions that may propagate errors use result[T, E]
+                \\ fn open_file(path: ref u8) result[ref void, SomeError] = {
+                \\     // ... can use ? to propagate
+                \\ }
+                \\ ```
+                \\
             )
             trust fs.write(f, \\ ---
-            \\
-            \\ ## Namespaced Functions
-            \\
-            \\ ```
-            \\ type Counter = {
-            \\     value: mut i64
-            \\ }
-            \\
-            \\ pub fn (Counter) new() ref Counter = {
-            \\     val c: ref Counter = trust @alloc(@sizeof(Counter)) as ref Counter
-            \\     // Note that "trust" needs to be used above as @alloc is an untrusted intrinsic
-            \\     // as per the contract system.
-            \\     c.value = 0
-            \\     return c
-            \\ }
-            \\
-            \\ pub fn (Counter) inc(s: mut self) void = {
-            \\     s.value = s.value + 1
-            \\ }
-            \\
-            \\ // Call site:
-            \\ val c = Counter.new()
-            \\ Counter.inc(c)
-            \\ ```
-            \\
-            \\ `self` in a parameter position refers to the enclosing type.
-            \\ `mut self` means the method may mutate the receiver.
-            \\
+                \\
+                \\ ## Namespaced Functions
+                \\
+                \\ ```
+                \\ type Counter = {
+                \\     value: mut i64
+                \\ }
+                \\
+                \\ pub fn (Counter) new() ref Counter = {
+                \\     val c: ref Counter = trust @alloc(@sizeof(Counter)) as ref Counter
+                \\     // Note that "trust" needs to be used above as @alloc is an untrusted intrinsic
+                \\     // as per the contract system.
+                \\     c.value = 0
+                \\     return c
+                \\ }
+                \\
+                \\ pub fn (Counter) inc(s: mut self) void = {
+                \\     s.value = s.value + 1
+                \\ }
+                \\
+                \\ // Call site:
+                \\ val c = Counter.new()
+                \\ Counter.inc(c)
+                \\ ```
+                \\
+                \\ `self` in a parameter position refers to the enclosing type.
+                \\ `mut self` means the method may mutate the receiver.
+                \\
             )
             trust fs.write(f, \\ ---
-            \\
-            \\ ## Control Flow
-            \\
-            \\ ```
-            \\ // if / elif / else
-            \\ if x > 0 {
-            \\     // ...
-            \\ } elif x == 0 {
-            \\     // ...
-            \\ } else {
-            \\     // ...
-            \\ }
-            \\
-            \\ // infinite loop with break
-            \\ for {
-            \\     if done { break }
-            \\ }
-            \\
-            \\ // for-in over a list
-            \\ for item in my_list {
-            \\     // use item
-            \\ }
-            \\
-            \\ // early return
-            \\ return value
-            \\ ```
-            \\
-            \\ ---
-            \\
-            \\ ## Pattern Matching
-            \\
-            \\ ```
-            \\ // option
-            \\ match maybe_val {
-            \\     some v => { /* v is the unwrapped value */ }
-            \\     none   => { }
-            \\ }
-            \\
-            \\ // result
-            \\ match result_val {
-            \\     ok v  => { }
-            \\     err e => { }
-            \\ }
-            \\
-            \\ // union
-            \\ match shape {
-            \\     Circle r    => { }
-            \\     Rectangle w h => { }
-            \\ }
-            \\ ```
-            \\
+                \\
+                \\ ## Control Flow
+                \\
+                \\ ```
+                \\ // if / elif / else
+                \\ if x > 0 {
+                \\     // ...
+                \\ } elif x == 0 {
+                \\     // ...
+                \\ } else {
+                \\     // ...
+                \\ }
+                \\
+                \\ // infinite loop with break
+                \\ for {
+                \\     if done { break }
+                \\ }
+                \\
+                \\ // for-in over a list
+                \\ for item in my_list {
+                \\     // use item
+                \\ }
+                \\
+                \\ // early return
+                \\ return value
+                \\ ```
+                \\
+                \\ ---
+                \\
+                \\ ## Pattern Matching
+                \\
+                \\ ```
+                \\ // option
+                \\ match maybe_val {
+                \\     some v => { /* v is the unwrapped value */ }
+                \\     none   => { }
+                \\ }
+                \\
+                \\ // result
+                \\ match result_val {
+                \\     ok v  => { }
+                \\     err e => { }
+                \\ }
+                \\
+                \\ // union
+                \\ match shape {
+                \\     Circle r    => { }
+                \\     Rectangle w h => { }
+                \\ }
+                \\ ```
+                \\
             )
             trust fs.write(f, \\ ---
-            \\
-            \\ ## Type Definitions
-            \\
-            \\ ```
-            \\ // struct
-            \\ pub type Point = {
-            \\     x: mut f64
-            \\     y: mut f64
-            \\ }
-            \\
-            \\ // union (tagged)
-            \\ pub union Shape = {
-            \\     Circle(f64) | Rectangle(f64, f64)
-            \\ }
-            \\
-            \\ // enum
-            \\ pub enum Color = {
-            \\     Red, Green, Blue
-            \\ }
-            \\ ```
-            \\
-            \\ ---
-            \\
-            \\ ## Modules
-            \\
-            \\ ```
-            \\ // import a module
-            \\ val io = use("std/stdio")
-            \\ val mymod = use("path/to/module.sx")
-            \\
-            \\ // use it
-            \\ io.puts("hello")
-            \\
-            \\ // pub makes a declaration visible to importers
-            \\ pub fn my_fn() void = { }
-            \\ ```
-            \\
+                \\
+                \\ ## Type Definitions
+                \\
+                \\ ```
+                \\ // struct
+                \\ pub type Point = {
+                \\     x: mut f64
+                \\     y: mut f64
+                \\ }
+                \\
+                \\ // union (tagged)
+                \\ pub union Shape = {
+                \\     Circle(f64) | Rectangle(f64, f64)
+                \\ }
+                \\
+                \\ // enum
+                \\ pub enum Color = {
+                \\     Red, Green, Blue
+                \\ }
+                \\ ```
+                \\
+                \\ ---
+                \\
+                \\ ## Modules
+                \\
+                \\ ```
+                \\ // import a module
+                \\ val io = use("std/stdio")
+                \\ val mymod = use("path/to/module.sx")
+                \\
+                \\ // use it
+                \\ io.puts("hello")
+                \\
+                \\ // pub makes a declaration visible to importers
+                \\ pub fn my_fn() void = { }
+                \\ ```
+                \\
             )
             trust fs.write(f, \\ ---
-            \\
-            \\ ## Contracts
-            \\
-            \\ ```
-            \\ fn divide(a: i64, b: i64) i64 = {
-            \\     pre  { nonzero: b != 0 }
-            \\     post { result_valid: true }
-            \\     return a / b
-            \\ }
-            \\
-            \\ // guarded: contract violation checks persist in --release builds
-            \\ fn safe_div(a: i64, b: i64) i64 = {
-            \\     guarded pre { nonzero: b != 0 }
-            \\     return a / b
-            \\ }
-            \\
-            \\ // type level invariant: checked at compile time where possible
-            \\ type SomeType = {
-            \\     x: i32
-            \\     y: i32
-            \\
-            \\     invariant {
-            \\         x > 10 && y > 5
-            \\     }
-            \\ }
-            \\
-            \\ ```
-            \\ // ! in return type means the function is untrusted as per the contract system
-            \\ // this means that you would need to call this function read_file with the `trust`
-            \\ // prefix, like:
-            \\ //
-            \\ // trust read_file("some_file.txt")
-            \\ //
-            \\ // Note that trust statements inside verified functions are redundant
-            \\ // and will result in a compile-time error.
-            \\ fn read_file(path: ref u8) result[ref u8, SomeError] = trust {
-            \\     val f = some_fallible_call()?   // ? propagates err upward
-            \\     return f
-            \\ }
-            \\ ```
-            \\
+                \\
+                \\ ## Contracts
+                \\
+                \\ ```
+                \\ fn divide(a: i64, b: i64) i64 = {
+                \\     pre  { nonzero: b != 0 }
+                \\     post { result_valid: true }
+                \\     return a / b
+                \\ }
+                \\
+                \\ // guarded: contract violation checks persist in --release builds
+                \\ fn safe_div(a: i64, b: i64) i64 = {
+                \\     guarded pre { nonzero: b != 0 }
+                \\     return a / b
+                \\ }
+                \\
+                \\ // type level invariant: checked at compile time where possible
+                \\ type SomeType = {
+                \\     x: i32
+                \\     y: i32
+                \\
+                \\     invariant {
+                \\         x > 10 && y > 5
+                \\     }
+                \\ }
+                \\
+                \\ ```
+                \\ // ! in return type means the function is untrusted as per the contract system
+                \\ // this means that you would need to call this function read_file with the `trust`
+                \\ // prefix, like:
+                \\ //
+                \\ // trust read_file("some_file.txt")
+                \\ //
+                \\ // Note that trust statements inside verified functions are redundant
+                \\ // and will result in a compile-time error.
+                \\ fn read_file(path: ref u8) result[ref u8, SomeError] = trust {
+                \\     val f = some_fallible_call()?   // ? propagates err upward
+                \\     return f
+                \\ }
+                \\ ```
+                \\
             )
             trust fs.write(f, \\ ---
-            \\
-            \\ ## Builtins
-            \\
-            \\ | Builtin                        | Description                              |
-            \\ |-------------------------------|------------------------------------------|
-            \\ | `@alloc(n)`                   | allocate n bytes, returns `ref void`     |
-            \\ | `@realloc(ptr, n)`            | resize allocation                        |
-            \\ | `@free(ptr)`                  | free allocation                          |
-            \\ | `@sizeof(T)`                  | size of type T in bytes                  |
-            \\ | `@memcpy(dst, src, n)`        | copy n bytes                             |
-            \\ | `@memset(dst, val, n)`        | fill n bytes with val                    |
-            \\ | `@memmove(dst, src, n)`       | overlapping-safe copy                    |
-            \\ | `@ptradd(ptr, n)`             | pointer arithmetic                       |
-            \\ | `@load(ptr)`                  | load word from pointer                   |
-            \\ | `@store(ptr, val)`            | store word to pointer                    |
-            \\ | `@load8(ptr)`                 | load byte from pointer                   |
-            \\ | `@store8(ptr, val)`           | store byte to pointer                    |
-            \\ | `@bitcast(T, expr)`           | unsafe bitcast expr to type T            |
-            \\ | `@append(list, val)`          | append to list                           |
-            \\ | `@remove(list, i)`            | remove element at index i                |
-            \\ | `@get(list, i)`               | get element at index (returns option)    |
-            \\ | `@len(list)`                  | list length (returns usize)              |
-            \\ | `@reserve(list, n)`           | reserve capacity                         |
-            \\ | `@capacity(list)`             | current capacity                         |
-            \\ | `@fmt(fmt, {args})`           | heap-allocate a formatted string         |
-            \\ | `@snprintf(buf, n, fmt, {})` | printf into a buffer                     |
-            \\ | `@print(fmt, {args})`        | print to stdout                          |
-            \\ | `@args()`                     | command-line arguments as `list[ref u8]` |
-            \\
+                \\
+                \\ ## Builtins
+                \\
+                \\ | Builtin                        | Description                              |
+                \\ |-------------------------------|------------------------------------------|
+                \\ | `@alloc(n)`                   | allocate n bytes, returns `ref void`     |
+                \\ | `@realloc(ptr, n)`            | resize allocation                        |
+                \\ | `@free(ptr)`                  | free allocation                          |
+                \\ | `@sizeof(T)`                  | size of type T in bytes                  |
+                \\ | `@memcpy(dst, src, n)`        | copy n bytes                             |
+                \\ | `@memset(dst, val, n)`        | fill n bytes with val                    |
+                \\ | `@memmove(dst, src, n)`       | overlapping-safe copy                    |
+                \\ | `@ptradd(ptr, n)`             | pointer arithmetic                       |
+                \\ | `@load(ptr)`                  | load word from pointer                   |
+                \\ | `@store(ptr, val)`            | store word to pointer                    |
+                \\ | `@load8(ptr)`                 | load byte from pointer                   |
+                \\ | `@store8(ptr, val)`           | store byte to pointer                    |
+                \\ | `@bitcast(T, expr)`           | unsafe bitcast expr to type T            |
+                \\ | `@append(list, val)`          | append to list                           |
+                \\ | `@remove(list, i)`            | remove element at index i                |
+                \\ | `@get(list, i)`               | get element at index (returns option)    |
+                \\ | `@len(list)`                  | list length (returns usize)              |
+                \\ | `@reserve(list, n)`           | reserve capacity                         |
+                \\ | `@capacity(list)`             | current capacity                         |
+                \\ | `@fmt(fmt, {args})`           | heap-allocate a formatted string         |
+                \\ | `@snprintf(buf, n, fmt, {})` | printf into a buffer                     |
+                \\ | `@print(fmt, {args})`        | print to stdout                          |
+                \\ | `@args()`                     | command-line arguments as `list[ref u8]` |
+                \\
             )
             trust fs.write(f, \\ ---
-            \\
-            \\ ## The `trust` Keyword
-            \\
-            \\ `trust expr` evaluates `expr` while suppressing all contract checks.
-            \\ Use it when you have external guarantees that contracts cannot express.
-            \\
-            \\ ```
-            \\ val ptr: ref void = trust @load(some_raw_ptr)
-            \\ ```
-            \\
-            \\ ---
-            \\
-            \\ ## `assert`
-            \\
-            \\ ```
-            \\ assert x > 0           // aborts if false
-            \\ assert my_fn() == ok 1
-            \\ ```
-            \\
-            \\ ---
-            \\
-            \\ ## Platform Conditionals
-            \\
-            \\ ```
-            \\ when linux   {  }
-            \\ when darwin  {  }
-            \\ when windows {  }
-            \\ when posix   {  }
-            \\ ```
-            \\
-            \\ ---
-            \\
-            \\ ## Extern Functions
-            \\
-            \\ ```
-            \\ extern (C) fn strlen(s: ref u8) i64 = "strlen"
-            \\ extern (C) fn printf(fmt: ref u8, ...) i32 = "printf"
-            \\ ```
-            \\
-            \\ ---
-            \\
-            \\ ## Tests
-            \\
-            \\ ```
-            \\ test {
-            \\     assert add(1, 2) == 3
-            \\ }
-            \\ ```
-            \\
-            \\ Run with: `spectre <file.sx> --test`
-            \\
+                \\
+                \\ ## The `trust` Keyword
+                \\
+                \\ `trust expr` evaluates `expr` while suppressing all contract checks.
+                \\ Use it when you have external guarantees that contracts cannot express.
+                \\
+                \\ ```
+                \\ val ptr: ref void = trust @load(some_raw_ptr)
+                \\ ```
+                \\
+                \\ ---
+                \\
+                \\ ## `assert`
+                \\
+                \\ ```
+                \\ assert x > 0           // aborts if false
+                \\ assert my_fn() == ok 1
+                \\ ```
+                \\
+                \\ ---
+                \\
+                \\ ## Platform Conditionals
+                \\
+                \\ ```
+                \\ when linux   {  }
+                \\ when darwin  {  }
+                \\ when windows {  }
+                \\ when posix   {  }
+                \\ ```
+                \\
+                \\ ---
+                \\
+                \\ ## Extern Functions
+                \\
+                \\ ```
+                \\ extern (C) fn strlen(s: ref u8) i64 = "strlen"
+                \\ extern (C) fn printf(fmt: ref u8, ...) i32 = "printf"
+                \\ ```
+                \\
+                \\ ---
+                \\
+                \\ ## Tests
+                \\
+                \\ ```
+                \\ test {
+                \\     assert add(1, 2) == 3
+                \\ }
+                \\ ```
+                \\
+                \\ Run with: `spectre <file.sx> --test`
+                \\
             )
             trust fs.write(f, \\ ---
-            \\
-            \\ ## sx.mod — This is the Project Manifest
-            \\
-            \\ ```
-            \\ entry "./src/main.sx"
-            \\ version "v0.0.1"
-            \\
-            \\ dep "https://github.com/user/some-lib"
-            \\
-            \\ build release {
-            \\     flags  "--release"
-            \\     output "./myapp"
-            \\ }
-            \\
-            \\ build dev {
-            \\     output "./myapp-dev"
-            \\ }
-            \\ ```
-            \\
-            \\ - `entry`   — source file passed to the compiler
-            \\ - `version` — project version string
-            \\ - `dep`     — git dependency URL (cloned to `lib/`)
-            \\ - `build`   — named build configuration
-            \\   - `action`  — base shell command for this build config
-            \\   - `flags`   — extra flags appended to the build command
-            \\   - `output`  — `-o` output path appended to the build command
-            \\
+                \\
+                \\ ## sx.mod — This is the Project Manifest
+                \\
+                \\ ```
+                \\ entry "./src/main.sx"
+                \\ version "v0.0.1"
+                \\
+                \\ dep "https://github.com/user/some-lib"
+                \\
+                \\ build release {
+                \\     flags  "--release"
+                \\     output "./myapp"
+                \\ }
+                \\
+                \\ build dev {
+                \\     output "./myapp-dev"
+                \\ }
+                \\ ```
+                \\
+                \\ - `entry`   — source file passed to the compiler
+                \\ - `version` — project version string
+                \\ - `dep`     — git dependency URL (cloned to `lib/`)
+                \\ - `build`   — named build configuration
+                \\   - `action`  — base shell command for this build config
+                \\   - `flags`   — extra flags appended to the build command
+                \\   - `output`  — `-o` output path appended to the build command
+                \\
             )
             trust fs.close(f)
         }
@@ -973,7 +1065,10 @@ pub fn cmd_init(name_arg: ref u8) i32 = {
         val cwd_arena: mut allocators.Arena = trust allocators.Arena.new(4096 as usize)?
         val cwd_opt = trust fs.cwd[allocators.Arena](cwd_arena)
         if cwd_opt is some cwd {
-            proj_name = basename_of(cwd) } else { proj_name = "my-project" }
+            proj_name = basename_of(cwd)
+        } else {
+            proj_name = "my-project"
+        }
         trust allocators.Arena.free(cwd_arena)
     }
 
@@ -1023,7 +1118,9 @@ pub fn cmd_build(config_name: ref u8, exe_path: ref u8) i32 = {
             }
 
             val entry: mut ref u8 = m.entry
-            if str.rchar_cmp(found_cfg.entry, "") != 0 { entry = found_cfg.entry }
+            if str.rchar_cmp(found_cfg.entry, "") != 0 {
+                entry = found_cfg.entry
+            }
             val cmd: ref u8 = trust build_config_cmd(found_cfg, exe_path, entry)
             val exit_code: i32 = trust os.run(cmd)
             return exit_code
@@ -1067,9 +1164,15 @@ pub fn cmd_add(url: ref u8) i32 = trust {
             val raw_len: i64 = str.len_raw(raw)
             val trimmed_len: mut i64 = raw_len
             for {
-                if trimmed_len <= 0 { break }
+                if trimmed_len <= 0 {
+                    break
+                }
                 val c: u8 = @load8(@ptradd(raw as ref void, trimmed_len - 1)) as u8
-                if c == 10 || c == 13 || c == 32 { trimmed_len-- } else { break }
+                if c == 10 || c == 13 || c == 32 {
+                    trimmed_len--
+                } else {
+                    break
+                }
             }
             val h: ref u8 = @alloc(trimmed_len + 1) as ref u8
             @memcpy(h as ref void, raw as ref void, trimmed_len as usize)
@@ -1109,18 +1212,26 @@ pub fn cmd_remove(dep_name: ref u8) i32 = {
 
 fn restore_in_dir(base_dir: ref u8, visited: mut list[ref u8]) i32 = trust {
     for v in visited {
-        if str.rchar_cmp(v, base_dir) == 0 { return 0 }
+        if str.rchar_cmp(v, base_dir) == 0 {
+            return 0
+        }
     }
     @append(visited, base_dir)
 
     val sxmod_opt = load_sxmod_at(base_dir)
     val sxmod: mut ref SxMod = none
     match sxmod_opt {
-        none => { return 0 }
-        some m => { sxmod = m }
+        none => {
+            return 0
+        }
+        some m => {
+            sxmod = m
+        }
     }
 
-    if ((@len(sxmod.deps) as i64) == 0) { return 0 }
+    if ((@len(sxmod.deps) as i64) == 0) {
+        return 0
+    }
 
     val lock_opt = load_sxlock_at(base_dir)
     val lock_deps: mut list[ref SxLockDep] = []
@@ -1129,7 +1240,9 @@ fn restore_in_dir(base_dir: ref u8, visited: mut list[ref u8]) i32 = trust {
             stdio.print("warning: no sx.lock in {s}, skipping transitive deps\n", {base_dir})
             return 0
         }
-        some deps => { lock_deps = deps }
+        some deps => {
+            lock_deps = deps
+        }
     }
 
     val lib_dir: ref u8 = @fmt("{s}/lib", {base_dir})
@@ -1166,7 +1279,9 @@ fn restore_in_dir(base_dir: ref u8, visited: mut list[ref u8]) i32 = trust {
         }
 
         val sub_code: i32 = restore_in_dir(lib_path, visited)
-        if sub_code != 0 { return sub_code }
+        if sub_code != 0 {
+            return sub_code
+        }
     }
 
     return 0
@@ -1180,7 +1295,9 @@ pub fn cmd_restore() i32 = trust {
             stdio.puts("error: sx.mod not found, run 'spectre init' first")
             return 1
         }
-        some m => { sxmod = m }
+        some m => {
+            sxmod = m
+        }
     }
 
     val lock_opt = load_sxlock()
@@ -1190,7 +1307,9 @@ pub fn cmd_restore() i32 = trust {
             stdio.puts("error: sx.lock not found, add dependencies or generate a lockfile first")
             return 1
         }
-        some deps => { lock_deps = deps }
+        some deps => {
+            lock_deps = deps
+        }
     }
 
     if os.exists("lib") {
@@ -1231,7 +1350,9 @@ pub fn cmd_restore() i32 = trust {
         }
 
         val sub_code: i32 = restore_in_dir(lib_path, visited)
-        if sub_code != 0 { return sub_code }
+        if sub_code != 0 {
+            return sub_code
+        }
     }
 
     stdio.puts("Restored dependencies to ./lib")
@@ -1239,15 +1360,17 @@ pub fn cmd_restore() i32 = trust {
 }
 
 fn print_graph_node(
-base_dir: ref u8,
-name:     ref u8,
-url:      ref u8,
-prefix:   ref u8,
-is_last:  bool,
-visited:  mut list[ref u8]
+    base_dir: ref u8,
+    name:     ref u8,
+    url:      ref u8,
+    prefix:   ref u8,
+    is_last:  bool,
+    visited:  mut list[ref u8]
 ) void = trust {
     val conn: mut ref u8 = "├── "
-    if is_last { conn = "└── " }
+    if is_last {
+        conn = "└── "
+    }
 
     val line: mut ref u8 = @fmt("{s}{s}{s}", {prefix, conn, name})
     if str.rchar_cmp(url, "") != 0 {
@@ -1256,18 +1379,26 @@ visited:  mut list[ref u8]
     stdio.puts(line)
 
     for v in visited {
-        if str.rchar_cmp(v, base_dir) == 0 { return }
+        if str.rchar_cmp(v, base_dir) == 0 {
+            return
+        }
     }
     @append(visited, base_dir)
 
     val child_mod_opt = load_sxmod_at(base_dir)
     match child_mod_opt {
-        none => { return }
+        none => {
+            return
+        }
         some child_mod => {
             val ndeps: i64 = @len(child_mod.deps) as i64
-            if ndeps == 0 { return }
+            if ndeps == 0 {
+                return
+            }
             val child_prefix: mut ref u8 = @fmt("{s}│   ", {prefix})
-            if is_last { child_prefix = @fmt("{s}    ", {prefix}) }
+            if is_last {
+                child_prefix = @fmt("{s}    ", {prefix})
+            }
             val i: mut i64 = 0
             for dep_url in child_mod.deps {
                 val dep_name: ref u8 = repo_name_from_url(dep_url)
@@ -1287,14 +1418,17 @@ pub fn cmd_graph() i32 = trust {
             stdio.puts("error: sx.mod not found, run 'spectre init' first")
             return 1
         }
-        some m => { sxmod = m }
+        some m => {
+            sxmod = m
+        }
     }
 
     val cwd_arena: mut allocators.Arena = allocators.Arena.new(4096 as usize)?
     val cwd_opt = fs.cwd[allocators.Arena](cwd_arena)
     val proj_name: mut ref u8 = "project"
     if cwd_opt is some cwd {
-        proj_name = basename_of(cwd) }
+        proj_name = basename_of(cwd)
+    }
     allocators.Arena.free(cwd_arena)
 
     if str.rchar_cmp(sxmod.version, "") == 0 {
@@ -1348,17 +1482,27 @@ fn tool_version(cmd: ref u8) ref u8 = {
             val raw_len: i64 = str.len_raw(raw)
             val end: mut i64 = raw_len
             for {
-                if end <= 0 { break }
+                if end <= 0 {
+                    break
+                }
                 val c: u8 = trust @load8(@ptradd(raw as ref void, end - 1)) as u8
-                if c == 10 || c == 13 { end-- } else { break }
+                if c == 10 || c == 13 {
+                    end--
+                } else {
+                    break
+                }
             }
-            if end <= 0 { return "unknown" }
+            if end <= 0 {
+                return "unknown"
+            }
             val buf: ref u8 = @alloc(end + 1) as ref u8
             trust @memcpy(buf as ref void, raw as ref void, end as usize)
             trust @store8(@ptradd(buf as ref void, end), 0)
             return buf
         }
-        err _ => { return "not found" }
+        err _ => {
+            return "not found"
+        }
     }
 }
 
@@ -1367,8 +1511,12 @@ pub fn cmd_doctor() i32 = {
 
     val platform_res = trust os.exec("uname -srm 2>&1")
     match platform_res {
-        ok v => { trust stdio.print("os:      {s}", {str.cstr(v)}) }
-        err _ => { stdio.puts("os:      unknown") }
+        ok v => {
+            trust stdio.print("os:      {s}", {str.cstr(v)})
+        }
+        err _ => {
+            stdio.puts("os:      unknown")
+        }
     }
 
     val qbe_ver: ref u8 = tool_version("qbe -d 2>&1")
@@ -1391,7 +1539,10 @@ pub fn cmd_doctor() i32 = {
     val cwd_arena: mut allocators.Arena = trust allocators.Arena.new(4096 as usize)?
     val cwd_opt = trust fs.cwd[allocators.Arena](cwd_arena)
     if cwd_opt is some cwd {
-        trust stdio.print("cwd:     {s}\n", {cwd}) } else { stdio.puts("cwd:     unknown") }
+        trust stdio.print("cwd:     {s}\n", {cwd})
+    } else {
+        stdio.puts("cwd:     unknown")
+    }
     trust allocators.Arena.free(cwd_arena)
 
     if os.exists("sx.mod") {
