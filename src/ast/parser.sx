@@ -2029,11 +2029,7 @@ pub fn parse_stmt(p: mut ref Parser) result[ref Node, ref u8] = trust {
 
     if kind_is_guard(k) {
         p_advance(p)
-        val has_paren_g: bool = p_eat_fn(p, lexer.kind_is_lparen)
         val gcond = parse_expr(p)?
-        if has_paren_g {
-            p_expect_rparen(p)?
-        }
         if !kind_is_else(p_peek_kind(p)) {
             return err p_error(p, "expected 'else' after guard condition")
         }
@@ -2050,11 +2046,7 @@ pub fn parse_stmt(p: mut ref Parser) result[ref Node, ref u8] = trust {
 
     if kind_is_if(k) {
         p_advance(p)
-        val has_paren: bool = p_eat_fn(p, lexer.kind_is_lparen)
         val cond = parse_expr(p)?
-        if has_paren {
-            p_expect_rparen(p)?
-        }
 
         val peek_next_some: mut bool = false
         val peek_next_none: mut bool = false
@@ -2094,11 +2086,7 @@ pub fn parse_stmt(p: mut ref Parser) result[ref Node, ref u8] = trust {
                     break
                 }
                 val iel: i64 = p_line(p) p_advance(p)
-                val iehp: bool = p_eat_fn(p, lexer.kind_is_lparen)
                 val iecond = parse_expr(p)?
-                if iehp {
-                    p_expect_rparen(p)?
-                }
                 p_expect_lbrace(p)?
                 val iebody = parse_stmts(p)?
                 p_expect_rbrace(p)?
@@ -2180,11 +2168,7 @@ pub fn parse_stmt(p: mut ref Parser) result[ref Node, ref u8] = trust {
                     break
                 }
                 val iel: i64 = p_line(p) p_advance(p)
-                val iehp: bool = p_eat_fn(p, lexer.kind_is_lparen)
                 val iecond = parse_expr(p)?
-                if iehp {
-                    p_expect_rparen(p)?
-                }
                 p_expect_lbrace(p)?
                 val iebody = parse_stmts(p)?
                 p_expect_rbrace(p)?
@@ -2267,11 +2251,7 @@ pub fn parse_stmt(p: mut ref Parser) result[ref Node, ref u8] = trust {
                     break
                 }
                 val iel: i64 = p_line(p) p_advance(p)
-                val iehp: bool = p_eat_fn(p, lexer.kind_is_lparen)
                 val iecond = parse_expr(p)?
-                if iehp {
-                    p_expect_rparen(p)?
-                }
                 p_expect_lbrace(p)?
                 val iebody = parse_stmts(p)?
                 p_expect_rbrace(p)?
@@ -2355,11 +2335,7 @@ pub fn parse_stmt(p: mut ref Parser) result[ref Node, ref u8] = trust {
                     break
                 }
                 val iel: i64 = p_line(p) p_advance(p)
-                val iehp: bool = p_eat_fn(p, lexer.kind_is_lparen)
                 val iecond = parse_expr(p)?
-                if iehp {
-                    p_expect_rparen(p)?
-                }
                 p_expect_lbrace(p)?
                 val iebody = parse_stmts(p)?
                 p_expect_rbrace(p)?
@@ -2434,11 +2410,7 @@ pub fn parse_stmt(p: mut ref Parser) result[ref Node, ref u8] = trust {
                 break
             }
             val el: i64 = p_line(p) p_advance(p)
-            val ehp: bool = p_eat_fn(p, lexer.kind_is_lparen)
             val econd = parse_expr(p)?
-            if ehp {
-                p_expect_rparen(p)?
-            }
             p_expect_lbrace(p)?
             val ebody = parse_stmts(p)?
             p_expect_rbrace(p)?
@@ -4096,6 +4068,18 @@ test {
         }
         err _ => {
             assert true
+        }
+    }
+
+    @puts("parser 23")
+    val r23 = parse_src("fn f(x: i64) void = { if (x & 1) == 0 { } else { } }")
+    match r23 {
+        err e => {
+            trust stdio.print("{s}\n", {e})
+            assert false
+        }
+        ok items => {
+            assert @len(items) as i64 == 1
         }
     }
 }

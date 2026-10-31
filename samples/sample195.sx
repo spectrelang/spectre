@@ -1,0 +1,38 @@
+val stdio = use("std/stdio")
+val time  = use("std/time")
+
+val iterations = 10000000
+val array_size = 1024
+
+pub fn main() void = trust {
+    val data: mut [1024]i32 = @zeroed()
+
+    for i = 0, i < array_size, i++ {
+        @memset(data, (i * 17 + 13) % 997, i)
+    }
+
+    val start = time.now_ns()
+    val checksum: mut i64 = 0
+
+    for i = 0, i < iterations, i++ {
+        val idx = (i * 31) % array_size
+        val x_opt = @get(data, idx)
+
+        if x_opt is some x {
+            if (x & 1) == 0 {
+                checksum += x * 3 + i % 97
+            } else {
+                checksum -= x * 2 - i % 53
+            }
+            checksum = checksum ^ ((checksum << 7) | (checksum >> 3))
+        }
+    }
+    @puts("5")
+
+    val elapsed = time.now_ns() - start
+    @puts("6")
+
+    stdio.print("Spectre: {d} ns\n", {elapsed})
+    stdio.print("Spectre: {d} ns/op\n", {elapsed / iterations})
+    stdio.print("Checksum: {d}\n", {checksum})
+}
