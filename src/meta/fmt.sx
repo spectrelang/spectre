@@ -135,20 +135,14 @@ fn collect_line_starts(src: ref u8, len: i64) list[i64] = trust {
 
 fn token_start(tokens: list[ref lexer.Token], starts: list[i64], idx: i64) i64 = trust {
     val tok_opt = @get(tokens, idx as usize)
-    match tok_opt {
-        some tok_val => {
-            val tok: ref lexer.Token = tok_val as ref lexer.Token
-            val line_idx: i64 = tok.line - 1
-            val start_opt = @get(starts, line_idx as usize)
-            match start_opt {
-                some line_start => {
-                    return (line_start as i64) + tok.col - 1
-                }
-                none => { return 0 }
-            }
-        }
-        none => { return 0 }
-    }
+    if tok_opt is some tok_val {
+        val tok: ref lexer.Token = tok_val as ref lexer.Token
+        val line_idx: i64 = tok.line - 1
+        val start_opt = @get(starts, line_idx as usize)
+        if start_opt is some line_start {
+            return (line_start as i64) + tok.col - 1
+        } else { return 0 }
+    } else { return 0 }
 }
 
 fn kind_is_some(k: lexer.TokenKind) bool = {
@@ -257,10 +251,10 @@ fn find_match_body_open(tokens: list[ref lexer.Token], match_idx: i64) i64 = tru
 }
 
 fn rewrite_match_at(
-    src:     ref u8,
-    tokens:  list[ref lexer.Token],
-    starts:  list[i64],
-    match_i: i64
+src:     ref u8,
+tokens:  list[ref lexer.Token],
+starts:  list[i64],
+match_i: i64
 ) option[ref u8] = trust {
     val len_src: i64 = str.len_raw(src)
     val body_open: i64 = find_match_body_open(tokens, match_i)
@@ -278,14 +272,10 @@ fn rewrite_match_at(
     val arm0: mut ref Arm = none
     val arm1: mut ref Arm = none
 
-    match arm0_opt {
-        some a => { arm0 = a as ref Arm }
-        none => { return none }
-    }
-    match arm1_opt {
-        some a => { arm1 = a as ref Arm }
-        none => { return none }
-    }
+    if arm0_opt is some a {
+        arm0 = a as ref Arm } else { return none }
+    if arm1_opt is some a {
+        arm1 = a as ref Arm } else { return none }
 
     if !kind_is_some(lexer.tok_kind(tokens, arm0.start)) { return none }
     if !kind_is_none(lexer.tok_kind(tokens, arm1.start)) { return none }
@@ -299,16 +289,13 @@ fn rewrite_match_at(
 
     val bind_opt = @get(tokens, (arm0.start + 1) as usize)
     val bind: mut ref u8 = "_"
-    match bind_opt {
-        some bind_val => {
-            val bind_tok: ref lexer.Token = bind_val as ref lexer.Token
-            match bind_tok.kind {
-                Ident s => { bind = s }
-                else    => { return none }
-            }
+    if bind_opt is some bind_val {
+        val bind_tok: ref lexer.Token = bind_val as ref lexer.Token
+        match bind_tok.kind {
+            Ident s => { bind = s }
+            else    => { return none }
         }
-        none => { return none }
-    }
+    } else { return none }
 
     val m_start: i64 = token_start(tokens, starts, match_i)
     val m_open: i64 = token_start(tokens, starts, body_open)
@@ -419,10 +406,8 @@ fn rewrite_one_match(src: ref u8) option[ref u8] = trust {
         match k {
             Match() => {
                 val rewritten = rewrite_match_at(src, tokens, starts, i)
-                match rewritten {
-                    some out => { return some out }
-                    none => {}
-                }
+                if rewritten is some out {
+                    return some out }
             }
             else => {}
         }
@@ -438,10 +423,8 @@ fn rewrite_matches(src: ref u8) ref u8 = trust {
     for {
         if rounds >= 100000 { break }
         val next = rewrite_one_match(current)
-        match next {
-            some out => { current = out }
-            none => { break }
-        }
+        if next is some out {
+            current = out } else { break }
         rounds++
     }
     return current
@@ -606,22 +589,18 @@ fn is_directory(dir: ref u8) bool = trust {
 fn format_file(file: ref u8) i32 = trust {
     val size_opt = fs.file_size(file)
     val size: mut i64 = 0
-    match size_opt {
-        some s => { size = s as i64 }
-        none => {
-            stdio.print("error: could not read '{s}'\n", {file})
-            return 1
-        }
+    if size_opt is some s {
+        size = s as i64 } else {
+        stdio.print("error: could not read '{s}'\n", {file})
+        return 1
     }
 
     val content_opt = fs.read_all_raw(file)
     val content: mut ref u8 = none
-    match content_opt {
-        some c => { content = c }
-        none => {
-            stdio.print("error: could not read '{s}'\n", {file})
-            return 1
-        }
+    if content_opt is some c {
+        content = c } else {
+        stdio.print("error: could not read '{s}'\n", {file})
+        return 1
     }
 
     val i: mut i64 = 0

@@ -114,7 +114,7 @@ fn trim_trailing_slash(src: ref u8) ref u8 = trust {
 }
 
 fn normalize_rel_path(path: ref u8) ref u8 = trust {
-    val no_dot: mut ref u8 = path 
+    val no_dot: mut ref u8 = path
     if str.rchar_starts_with(path, "./") {
         no_dot = substr(path, 2, str.len_raw(path) - 2)
     }
@@ -221,17 +221,17 @@ fn collect_sx_files(dir: ref u8, rel_dir: ref u8, out: mut list[ref u8]) void = 
 
 fn is_doc_target_line(line: ref u8) bool = trust {
     return str.rchar_starts_with(line, "fn ") ||
-           str.rchar_starts_with(line, "pub fn ") ||
-           str.rchar_starts_with(line, "val ") ||
-           str.rchar_starts_with(line, "pub val ") ||
-           str.rchar_starts_with(line, "extern ") ||
-           str.rchar_starts_with(line, "pub extern ") ||
-           str.rchar_starts_with(line, "type ") ||
-           str.rchar_starts_with(line, "pub type ") ||
-           str.rchar_starts_with(line, "enum ") ||
-           str.rchar_starts_with(line, "pub enum ") ||
-           str.rchar_starts_with(line, "union ") ||
-           str.rchar_starts_with(line, "pub union ")
+    str.rchar_starts_with(line, "pub fn ") ||
+    str.rchar_starts_with(line, "val ") ||
+    str.rchar_starts_with(line, "pub val ") ||
+    str.rchar_starts_with(line, "extern ") ||
+    str.rchar_starts_with(line, "pub extern ") ||
+    str.rchar_starts_with(line, "type ") ||
+    str.rchar_starts_with(line, "pub type ") ||
+    str.rchar_starts_with(line, "enum ") ||
+    str.rchar_starts_with(line, "pub enum ") ||
+    str.rchar_starts_with(line, "union ") ||
+    str.rchar_starts_with(line, "pub union ")
 }
 
 fn doc_line_text(trimmed: ref u8) ref u8 = trust {
@@ -320,17 +320,12 @@ fn lookup_doc(map: ref DocMap, line: i64) ref u8 = trust {
     for {
         if i >= len { break }
         val line_opt = @get(map.lines, i as usize)
-        match line_opt {
-            some v => {
-                if ((v as i64) == line) {
-                    val doc_opt = @get(map.docs, i as usize)
-                    match doc_opt {
-                        some d => { return d as ref u8 }
-                        none => {}
-                    }
-                }
+        if line_opt is some v {
+            if ((v as i64) == line) {
+                val doc_opt = @get(map.docs, i as usize)
+                if doc_opt is some d {
+                    return d as ref u8 }
             }
-            none => {}
         }
         i++
     }
@@ -770,13 +765,13 @@ fn collect_entries(items: list[ref parser.Node], doc_map: ref DocMap, out: mut l
             continue
         }
         if item.kind == parser.NK_FN ||
-           item.kind == parser.NK_GENERIC_FN ||
-           item.kind == parser.NK_EXTERN_FN ||
-           item.kind == parser.NK_TYPEDEF ||
-           item.kind == parser.NK_EXTERN_TYPE ||
-           item.kind == parser.NK_ENUMDEF ||
-           item.kind == parser.NK_UNIONDEF ||
-           item.kind == parser.NK_TAGGED_UNIONDEF {
+        item.kind == parser.NK_GENERIC_FN ||
+        item.kind == parser.NK_EXTERN_FN ||
+        item.kind == parser.NK_TYPEDEF ||
+        item.kind == parser.NK_EXTERN_TYPE ||
+        item.kind == parser.NK_ENUMDEF ||
+        item.kind == parser.NK_UNIONDEF ||
+        item.kind == parser.NK_TAGGED_UNIONDEF {
             add_entry(out, item, doc_map, availability)
         } elif item.kind == parser.NK_CONST && node_is_public(item) {
             add_entry(out, item, doc_map, availability)
@@ -787,25 +782,20 @@ fn collect_entries(items: list[ref parser.Node], doc_map: ref DocMap, out: mut l
 fn load_module(source_path: ref u8, rel_path: ref u8) ref DocModule = trust {
     val src_size_opt = fs.file_size(source_path)
     val src_arena_cap: mut i64 = 4096
-    match src_size_opt {
-        some sz => {
-            if ((sz as i64) > src_arena_cap) { src_arena_cap = sz as i64 }
-        }
-        none => {
-            stdio.print("error: could not read '{s}'\n", {source_path})
-            os.exit(1)
-        }
+    if src_size_opt is some sz {
+        if ((sz as i64) > src_arena_cap) { src_arena_cap = sz as i64 }
+    } else {
+        stdio.print("error: could not read '{s}'\n", {source_path})
+        os.exit(1)
     }
     val src_arena: mut allocators.Arena = allocators.Arena.new((src_arena_cap + 8) as usize)?
     val src_opt = fs.read_all[allocators.Arena](src_arena, source_path)
     val src: mut ref u8 = ""
-    match src_opt {
-        some text => { src = text as ref u8 }
-        none => {
-            allocators.Arena.free(src_arena)
-            stdio.print("error: could not read '{s}'\n", {source_path})
-            os.exit(1)
-        }
+    if src_opt is some text {
+        src = text as ref u8 } else {
+        allocators.Arena.free(src_arena)
+        stdio.print("error: could not read '{s}'\n", {source_path})
+        os.exit(1)
     }
     val toks_res = lexer.tokenize(src)
     allocators.Arena.free(src_arena)
@@ -865,13 +855,10 @@ fn assign_output_paths(modules: list[ref DocModule], markdown: bool, root_idx: i
     for {
         if i >= len { break }
         val mod_opt = @get(modules, i as usize)
-        match mod_opt {
-            some v => {
-                val mod: mut ref DocModule = v as ref DocModule
-                mod.is_root = i == root_idx
-                mod.output_path = module_output_path(mod.module_name, markdown)
-            }
-            none => {}
+        if mod_opt is some v {
+            val mod: mut ref DocModule = v as ref DocModule
+            mod.is_root = i == root_idx
+            mod.output_path = module_output_path(mod.module_name, markdown)
         }
         i++
     }
@@ -1140,19 +1127,14 @@ fn append_nav_html(sb: ref void, modules: list[ref DocModule], current: ref DocM
 fn read_text_file_or_empty(file_path: ref u8) ref u8 = trust {
     val size_opt = fs.file_size(file_path)
     val arena_cap: mut i64 = 4096
-    match size_opt {
-        some sz => {
-            if ((sz as i64) > arena_cap) { arena_cap = sz as i64 }
-        }
-        none => { return "" }
-    }
+    if size_opt is some sz {
+        if ((sz as i64) > arena_cap) { arena_cap = sz as i64 }
+    } else { return "" }
     val arena: mut allocators.Arena = allocators.Arena.new((arena_cap + 8) as usize)?
     val content_opt = fs.read_all[allocators.Arena](arena, file_path)
     val content: mut ref u8 = ""
-    match content_opt {
-        some text => { content = copy_cstr(text as ref u8) }
-        none => {}
-    }
+    if content_opt is some text {
+        content = copy_cstr(text as ref u8) }
     allocators.Arena.free(arena)
     if content == none { return "" }
     return content
@@ -1415,250 +1397,250 @@ fn append_page_head_html(sb: ref void, title: ref u8) void = trust {
     string.StringBuilder.append_cstr(sb, "<link href=\"https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap\" rel=\"stylesheet\">")
     string.StringBuilder.append_cstr(sb, "<style>")
     string.StringBuilder.append_cstr(sb,
-        \\:root{
-        \\  --bg:#f0f4fa;--bg2:#e4ecf7;--surface:#ffffff;--surface2:#f7f9fd;
-        \\  --border:#c8d8ee;--border2:#dde8f5;
-        \\  --text:#0f1f3d;--text2:#3a5275;--text3:#6b87a8;
-        \\  --accent:#1d6cf0;--accent2:#4a90f7;--accent3:#0a4fc4;
-        \\  --code-bg:#eaf0fb;--code-text:#1a3560;
-        \\  --kw:#1d6cf0;--ty:#0e7490;--lit:#0f5c2e;--op:#475569;--cm:#7a94b0;--fn-col:#7c3aed;
-        \\  --sb-w:272px;--radius:10px;--font:'IBM Plex Sans',system-ui,sans-serif;--mono:'IBM Plex Mono',monospace;
-        \\  --shadow:0 1px 3px rgba(15,31,61,.06),0 4px 16px rgba(15,31,61,.08);
-        \\  --shadow-lg:0 2px 8px rgba(15,31,61,.08),0 12px 40px rgba(15,31,61,.12);
-        \\}
-        \\html.dark{
-        \\  --bg:#000000;--bg2:#1b1c1c;--surface:#000000;--surface2:#1b1c1c;
-        \\  --border:#171717;--border2:#171717;
-        \\  --text:#d8e8ff;--text2:#8badd4;--text3:#4a6d96;
-        \\  --accent:#dde8f5;--accent2:#dde8f5;--accent3:#2e6fe0;
-        \\  --code-bg:#171717;--code-text:#dde8f5;
-        \\  --kw:#60a5fa;--ty:#22d3ee;--lit:#4ade80;--op:#94a3b8;--cm:#4a6d96;--fn-col:#a78bfa;
-        \\  --shadow:0 1px 3px rgba(0,0,0,.3),0 4px 16px rgba(0,0,0,.4);
-        \\  --shadow-lg:0 2px 8px rgba(0,0,0,.4),0 12px 40px rgba(0,0,0,.5);
-        \\}
-        \\*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-        \\html{scroll-behavior:smooth}
-        \\body{font-family:var(--font);background:var(--bg);color:var(--text);font-size:15px;line-height:1.65;overflow-x:hidden;transition:background .2s,color .2s}
-        \\a{color:var(--accent);text-decoration:none;transition:color .15s}
-        \\a:hover{color:var(--accent2)}
-        \\.page{display:flex;min-height:100vh}
-        \\
-        \\.sidebar{
-        \\  position:fixed;top:0;left:0;bottom:0;width:var(--sb-w);
-        \\  background:var(--bg2);border-right:1px solid var(--border);
-        \\  display:flex;flex-direction:column;
-        \\  transition:transform .28s cubic-bezier(.4,0,.2,1);
-        \\  z-index:100;overflow:hidden;
-        \\}
-        \\.sidebar.collapsed{transform:translateX(calc(-1 * var(--sb-w)))}
-        \\.sb-head{
-        \\  padding:20px 18px 16px;border-bottom:1px solid var(--border);
-        \\  flex-shrink:0;display:flex;align-items:center;gap:10px;
-        \\}
-        \\.sb-logo{
-        \\  width:26px;height:26px;flex-shrink:0;
-        \\  background:linear-gradient(135deg,var(--accent3),var(--accent2));
-        \\  border-radius:7px;display:flex;align-items:center;justify-content:center;
-        \\}
-        \\.sb-logo svg{width:14px;height:14px;fill:none;stroke:#fff;stroke-width:2.2;stroke-linecap:round}
-        \\.sb-title{font-size:13px;font-weight:700;color:var(--text);letter-spacing:.01em;font-family:var(--mono)}
-        \\.sb-search{padding:10px 14px;border-bottom:1px solid var(--border);flex-shrink:0;position:relative}
-        \\.sb-search-icon{position:absolute;left:24px;top:50%;transform:translateY(-50%);color:var(--text3);pointer-events:none;width:14px;height:14px}
-        \\.sb-input{
-        \\  width:100%;padding:7px 8px 7px 32px;
-        \\  background:var(--surface);border:1px solid var(--border2);
-        \\  border-radius:7px;color:var(--text);font-size:13px;font-family:var(--font);
-        \\  outline:none;transition:border-color .15s,box-shadow .15s;
-        \\}
-        \\.sb-input:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 15%,transparent)}
-        \\.sb-input::placeholder{color:var(--text3)}
-        \\.sb-nav{overflow-y:auto;flex:1;padding:10px 10px 24px}
-        \\.sb-nav::-webkit-scrollbar{width:4px}
-        \\.sb-nav::-webkit-scrollbar-track{background:transparent}
-        \\.sb-nav::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
-        \\.nav-section{margin-bottom:20px}
-        \\.nav-label{
-        \\  display:block;font-size:10px;font-weight:700;
-        \\  letter-spacing:.1em;text-transform:uppercase;
-        \\  color:var(--text3);padding:6px 10px 5px;
-        \\}
-        \\.nav-item{
-        \\  display:block;padding:5px 10px;border-radius:6px;
-        \\  color:var(--text2);font-size:13px;font-family:var(--mono);
-        \\  transition:background .12s,color .12s;
-        \\  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
-        \\}
-        \\.nav-item:hover{background:var(--surface);color:var(--text);text-decoration:none}
-        \\.nav-item.active{background:color-mix(in srgb,var(--accent) 12%,transparent);color:var(--accent);font-weight:600}
-        \\.nav-item.hidden{display:none}
-        \\
-        \\.toggle{
-        \\  position:fixed;top:16px;z-index:200;
-        \\  width:34px;height:34px;
-        \\  background:var(--surface);border:1px solid var(--border);
-        \\  border-radius:8px;color:var(--text2);cursor:pointer;
-        \\  display:flex;align-items:center;justify-content:center;
-        \\  transition:left .28s cubic-bezier(.4,0,.2,1),background .15s,color .15s,box-shadow .15s;
-        \\  left:16px;box-shadow:var(--shadow);
-        \\}
-        \\.toggle:hover{background:var(--bg2);color:var(--text);box-shadow:var(--shadow-lg)}
-        \\.toggle.sb-open{left:calc(var(--sb-w) + 12px)}
-        \\.toggle svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round}
-        \\
-        \\.control-btn{
-        \\  position:fixed;top:16px;right:16px;z-index:200;
-        \\  width:34px;height:34px;
-        \\  background:var(--surface);border:1px solid var(--border);
-        \\  border-radius:8px;color:var(--text2);cursor:pointer;
-        \\  display:flex;align-items:center;justify-content:center;
-        \\  box-shadow:var(--shadow);transition:background .15s,color .15s,box-shadow .15s;
-        \\}
-        \\.control-btn:hover{background:var(--bg2);color:var(--text);box-shadow:var(--shadow-lg)}
-        \\.control-btn svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
-        \\.control-btn[aria-pressed="true"]{color:var(--accent);border-color:color-mix(in srgb,var(--accent) 40%,var(--border))}
-        \\.theme-btn{right:16px}
-        \\.private-toggle-btn{right:58px}
-        \\
-        \\.content{
-        \\  margin-left:var(--sb-w);padding:64px 60px 80px;
-        \\  flex:1;max-width:calc(var(--sb-w) + 820px);
-        \\  transition:margin-left .28s cubic-bezier(.4,0,.2,1);
-        \\}
-        \\.content.sb-closed{margin-left:0}
-        \\
-        \\.hero{margin-bottom:40px;padding-bottom:28px;border-bottom:1px solid var(--border)}
-        \\.hero h1{font-size:26px;font-weight:700;color:var(--text);margin-bottom:6px;letter-spacing:-.02em}
-        \\.hero-top{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap}
-        \\.hero-meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-        \\.hero-meta .label{font-size:12px;color:var(--text3)}
-        \\.hero-meta code{font-family:var(--mono);font-size:12px;background:var(--code-bg);color:var(--accent);padding:2px 8px;border-radius:5px;border:1px solid var(--border2)}
-        \\
-        \\.entry{
-        \\  background:var(--surface);border:1px solid var(--border);
-        \\  border-radius:var(--radius);padding:24px 28px;margin-bottom:12px;
-        \\  transition:border-color .2s,box-shadow .2s;
-        \\  scroll-margin-top:24px;
-        \\}
-        \\.entry:hover{border-color:var(--accent3);box-shadow:var(--shadow)}
-        \\.entry.s-hide{display:none}
-        \\.entry-header{display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap}
-        \\.entry-header h3{font-size:15px;font-weight:600;color:var(--text);font-family:var(--mono);letter-spacing:-.01em}
-        \\.badge{
-        \\  display:inline-flex;align-items:center;
-        \\  padding:2px 9px;border-radius:999px;
-        \\  background:color-mix(in srgb,var(--accent) 10%,transparent);
-        \\  color:var(--accent);font-size:11px;font-weight:600;
-        \\  letter-spacing:.03em;border:1px solid color-mix(in srgb,var(--accent) 25%,transparent);
-        \\  font-family:var(--mono);
-        \\}
-        \\.badge-private{
-        \\  background:color-mix(in srgb,#0ea5e9 12%,transparent);
-        \\  color:#0369a1;border-color:color-mix(in srgb,#000000 24%,transparent);
-        \\}
-        \\html.dark .badge-private{
-        \\  background:color-mix(in srgb,#0ea5e9 15%,transparent);
-        \\  color:#0369a1;border-color:color-mix(in srgb,#000000 28%,transparent);
-        \\}
-        \\
-        \\pre{
-        \\  overflow:auto;background:var(--code-bg);
-        \\  border-radius:8px;padding:16px 18px;
-        \\  border:1px solid var(--border2);margin:0 0 16px;
-        \\  font-size:13px;line-height:1.7;
-        \\}
-        \\pre::-webkit-scrollbar{height:4px}
-        \\pre::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
-        \\code{font-family:var(--mono);font-size:13px;color:var(--code-text)}
-        \\.hljs-keyword{color:var(--kw);font-weight:600}
-        \\.hljs-type{color:var(--ty)}
-        \\.hljs-built_in{color:var(--ty)}
-        \\.hljs-number{color:var(--lit)}
-        \\.hljs-string{color:var(--lit)}
-        \\.hljs-comment{color:var(--cm);font-style:italic}
-        \\.hljs-operator{color:var(--op)}
-        \\.hljs-punctuation{color:var(--op)}
-        \\.hljs-title{color:var(--fn-col);font-weight:600}
-        \\.hljs-params{color:var(--text2)}
-        \\.hljs-variable{color:var(--text)}
-        \\
-        \\.docs{margin-top:2px}
-        \\.docs p{line-height:1.8;color:var(--text2);margin-bottom:8px;font-size:14px}
-        \\
-        \\.doc-article{color:var(--text2)}
-        \\.doc-article>:last-child{margin-bottom:0}
-        \\.doc-article h1,.doc-article h2,.doc-article h3,.doc-article h4,.doc-article h5,.doc-article h6{
-        \\  color:var(--text);letter-spacing:-.02em;line-height:1.25;text-transform:none;
-        \\}
-        \\.doc-article h1{font-size:28px;margin:0 0 18px}
-        \\.doc-article h2{font-size:22px;margin:30px 0 14px}
-        \\.doc-article h3{font-size:18px;margin:24px 0 12px}
-        \\.doc-article h4,.doc-article h5,.doc-article h6{font-size:15px;margin:18px 0 10px}
-        \\.doc-article p{line-height:1.85;color:var(--text2);margin:0 0 12px;font-size:14px}
-        \\.doc-article ul{margin:0 0 14px 20px;color:var(--text2)}
-        \\.doc-article li{margin:0 0 6px}
-        \\.doc-article a{color:var(--accent)}
-        \\.doc-article img{max-width:100%;height:auto;border-radius:8px;vertical-align:middle}
-        \\.doc-article code{
-        \\  font-family:var(--mono);font-size:12.5px;
-        \\  background:var(--code-bg);padding:3px 8px;
-        \\  border-radius:5px;color:var(--code-text);
-        \\  border:1px solid var(--border2);
-        \\}
-        \\.doc-article pre{margin:0 0 16px}
-        \\.module-list{list-style:none;padding:0;margin:0;display:grid;gap:8px}
-        \\.module-list li{margin:0}
-        \\.module-list a{
-        \\  display:block;padding:10px 12px;border-radius:8px;
-        \\  border:1px solid var(--border2);background:var(--surface2);
-        \\  color:var(--text);font-family:var(--mono);font-size:13px;
-        \\  transition:border-color .15s,background .15s,color .15s;
-        \\}
-        \\.module-list a:hover{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 8%,var(--surface2));text-decoration:none}
-        \\
-        \\h4{
-        \\  font-size:10px;font-weight:700;letter-spacing:.1em;
-        \\  text-transform:uppercase;color:var(--text3);margin:18px 0 8px;
-        \\}
-        \\.details-table-wrap{overflow-x:auto}
-        \\.details-table{
-        \\  width:100%;border-collapse:collapse;border:1px solid var(--border2);
-        \\  border-radius:8px;overflow:hidden;background:var(--surface2);font-size:13px;
-        \\}
-        \\.details-table th,.details-table td{
-        \\  text-align:left;padding:10px 12px;border-bottom:1px solid var(--border2);vertical-align:top;
-        \\}
-        \\.details-table th{
-        \\  color:var(--text3);font-size:11px;letter-spacing:.06em;text-transform:uppercase;background:var(--bg2);
-        \\}
-        \\.details-table tbody tr:last-child td{border-bottom:none}
-        \\.details-table code{
-        \\  font-family:var(--mono);font-size:12.5px;
-        \\  background:var(--code-bg);padding:3px 8px;
-        \\  border-radius:5px;color:var(--code-text);
-        \\  border:1px solid var(--border2);display:inline-block;
-        \\}
-        \\.details{list-style:none;padding:0;display:flex;flex-direction:column;gap:4px}
-        \\.details li code{
-        \\  font-family:var(--mono);font-size:12.5px;
-        \\  background:var(--code-bg);padding:3px 8px;
-        \\  border-radius:5px;color:var(--code-text);
-        \\  border:1px solid var(--border2);display:inline-block;
-        \\}
-        \\
-        \\.empty{
-        \\  background:var(--surface);border:1px dashed var(--border);
-        \\  border-radius:var(--radius);padding:40px 28px;
-        \\  color:var(--text3);text-align:center;font-size:14px;
-        \\}
-        \\
-        \\@media(max-width:860px){
-        \\  .sidebar{transform:translateX(calc(-1 * var(--sb-w)))}
-        \\  .sidebar.sb-open-m{transform:translateX(0)}
-        \\  .content{margin-left:0!important;padding:28px 20px 60px}
-        \\  .hero-top{flex-direction:column;align-items:flex-start}
-        \\  .toggle{left:14px}
-        \\  .toggle.sb-open{left:calc(var(--sb-w) + 10px)}
-        \\}
+    \\:root{
+    \\  --bg:#f0f4fa;--bg2:#e4ecf7;--surface:#ffffff;--surface2:#f7f9fd;
+    \\  --border:#c8d8ee;--border2:#dde8f5;
+    \\  --text:#0f1f3d;--text2:#3a5275;--text3:#6b87a8;
+    \\  --accent:#1d6cf0;--accent2:#4a90f7;--accent3:#0a4fc4;
+    \\  --code-bg:#eaf0fb;--code-text:#1a3560;
+    \\  --kw:#1d6cf0;--ty:#0e7490;--lit:#0f5c2e;--op:#475569;--cm:#7a94b0;--fn-col:#7c3aed;
+    \\  --sb-w:272px;--radius:10px;--font:'IBM Plex Sans',system-ui,sans-serif;--mono:'IBM Plex Mono',monospace;
+    \\  --shadow:0 1px 3px rgba(15,31,61,.06),0 4px 16px rgba(15,31,61,.08);
+    \\  --shadow-lg:0 2px 8px rgba(15,31,61,.08),0 12px 40px rgba(15,31,61,.12);
+    \\}
+    \\html.dark{
+    \\  --bg:#000000;--bg2:#1b1c1c;--surface:#000000;--surface2:#1b1c1c;
+    \\  --border:#171717;--border2:#171717;
+    \\  --text:#d8e8ff;--text2:#8badd4;--text3:#4a6d96;
+    \\  --accent:#dde8f5;--accent2:#dde8f5;--accent3:#2e6fe0;
+    \\  --code-bg:#171717;--code-text:#dde8f5;
+    \\  --kw:#60a5fa;--ty:#22d3ee;--lit:#4ade80;--op:#94a3b8;--cm:#4a6d96;--fn-col:#a78bfa;
+    \\  --shadow:0 1px 3px rgba(0,0,0,.3),0 4px 16px rgba(0,0,0,.4);
+    \\  --shadow-lg:0 2px 8px rgba(0,0,0,.4),0 12px 40px rgba(0,0,0,.5);
+    \\}
+    \\*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    \\html{scroll-behavior:smooth}
+    \\body{font-family:var(--font);background:var(--bg);color:var(--text);font-size:15px;line-height:1.65;overflow-x:hidden;transition:background .2s,color .2s}
+    \\a{color:var(--accent);text-decoration:none;transition:color .15s}
+    \\a:hover{color:var(--accent2)}
+    \\.page{display:flex;min-height:100vh}
+    \\
+    \\.sidebar{
+    \\  position:fixed;top:0;left:0;bottom:0;width:var(--sb-w);
+    \\  background:var(--bg2);border-right:1px solid var(--border);
+    \\  display:flex;flex-direction:column;
+    \\  transition:transform .28s cubic-bezier(.4,0,.2,1);
+    \\  z-index:100;overflow:hidden;
+    \\}
+    \\.sidebar.collapsed{transform:translateX(calc(-1 * var(--sb-w)))}
+    \\.sb-head{
+    \\  padding:20px 18px 16px;border-bottom:1px solid var(--border);
+    \\  flex-shrink:0;display:flex;align-items:center;gap:10px;
+    \\}
+    \\.sb-logo{
+    \\  width:26px;height:26px;flex-shrink:0;
+    \\  background:linear-gradient(135deg,var(--accent3),var(--accent2));
+    \\  border-radius:7px;display:flex;align-items:center;justify-content:center;
+    \\}
+    \\.sb-logo svg{width:14px;height:14px;fill:none;stroke:#fff;stroke-width:2.2;stroke-linecap:round}
+    \\.sb-title{font-size:13px;font-weight:700;color:var(--text);letter-spacing:.01em;font-family:var(--mono)}
+    \\.sb-search{padding:10px 14px;border-bottom:1px solid var(--border);flex-shrink:0;position:relative}
+    \\.sb-search-icon{position:absolute;left:24px;top:50%;transform:translateY(-50%);color:var(--text3);pointer-events:none;width:14px;height:14px}
+    \\.sb-input{
+    \\  width:100%;padding:7px 8px 7px 32px;
+    \\  background:var(--surface);border:1px solid var(--border2);
+    \\  border-radius:7px;color:var(--text);font-size:13px;font-family:var(--font);
+    \\  outline:none;transition:border-color .15s,box-shadow .15s;
+    \\}
+    \\.sb-input:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 15%,transparent)}
+    \\.sb-input::placeholder{color:var(--text3)}
+    \\.sb-nav{overflow-y:auto;flex:1;padding:10px 10px 24px}
+    \\.sb-nav::-webkit-scrollbar{width:4px}
+    \\.sb-nav::-webkit-scrollbar-track{background:transparent}
+    \\.sb-nav::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+    \\.nav-section{margin-bottom:20px}
+    \\.nav-label{
+    \\  display:block;font-size:10px;font-weight:700;
+    \\  letter-spacing:.1em;text-transform:uppercase;
+    \\  color:var(--text3);padding:6px 10px 5px;
+    \\}
+    \\.nav-item{
+    \\  display:block;padding:5px 10px;border-radius:6px;
+    \\  color:var(--text2);font-size:13px;font-family:var(--mono);
+    \\  transition:background .12s,color .12s;
+    \\  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+    \\}
+    \\.nav-item:hover{background:var(--surface);color:var(--text);text-decoration:none}
+    \\.nav-item.active{background:color-mix(in srgb,var(--accent) 12%,transparent);color:var(--accent);font-weight:600}
+    \\.nav-item.hidden{display:none}
+    \\
+    \\.toggle{
+    \\  position:fixed;top:16px;z-index:200;
+    \\  width:34px;height:34px;
+    \\  background:var(--surface);border:1px solid var(--border);
+    \\  border-radius:8px;color:var(--text2);cursor:pointer;
+    \\  display:flex;align-items:center;justify-content:center;
+    \\  transition:left .28s cubic-bezier(.4,0,.2,1),background .15s,color .15s,box-shadow .15s;
+    \\  left:16px;box-shadow:var(--shadow);
+    \\}
+    \\.toggle:hover{background:var(--bg2);color:var(--text);box-shadow:var(--shadow-lg)}
+    \\.toggle.sb-open{left:calc(var(--sb-w) + 12px)}
+    \\.toggle svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round}
+    \\
+    \\.control-btn{
+    \\  position:fixed;top:16px;right:16px;z-index:200;
+    \\  width:34px;height:34px;
+    \\  background:var(--surface);border:1px solid var(--border);
+    \\  border-radius:8px;color:var(--text2);cursor:pointer;
+    \\  display:flex;align-items:center;justify-content:center;
+    \\  box-shadow:var(--shadow);transition:background .15s,color .15s,box-shadow .15s;
+    \\}
+    \\.control-btn:hover{background:var(--bg2);color:var(--text);box-shadow:var(--shadow-lg)}
+    \\.control-btn svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+    \\.control-btn[aria-pressed="true"]{color:var(--accent);border-color:color-mix(in srgb,var(--accent) 40%,var(--border))}
+    \\.theme-btn{right:16px}
+    \\.private-toggle-btn{right:58px}
+    \\
+    \\.content{
+    \\  margin-left:var(--sb-w);padding:64px 60px 80px;
+    \\  flex:1;max-width:calc(var(--sb-w) + 820px);
+    \\  transition:margin-left .28s cubic-bezier(.4,0,.2,1);
+    \\}
+    \\.content.sb-closed{margin-left:0}
+    \\
+    \\.hero{margin-bottom:40px;padding-bottom:28px;border-bottom:1px solid var(--border)}
+    \\.hero h1{font-size:26px;font-weight:700;color:var(--text);margin-bottom:6px;letter-spacing:-.02em}
+    \\.hero-top{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap}
+    \\.hero-meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+    \\.hero-meta .label{font-size:12px;color:var(--text3)}
+    \\.hero-meta code{font-family:var(--mono);font-size:12px;background:var(--code-bg);color:var(--accent);padding:2px 8px;border-radius:5px;border:1px solid var(--border2)}
+    \\
+    \\.entry{
+    \\  background:var(--surface);border:1px solid var(--border);
+    \\  border-radius:var(--radius);padding:24px 28px;margin-bottom:12px;
+    \\  transition:border-color .2s,box-shadow .2s;
+    \\  scroll-margin-top:24px;
+    \\}
+    \\.entry:hover{border-color:var(--accent3);box-shadow:var(--shadow)}
+    \\.entry.s-hide{display:none}
+    \\.entry-header{display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap}
+    \\.entry-header h3{font-size:15px;font-weight:600;color:var(--text);font-family:var(--mono);letter-spacing:-.01em}
+    \\.badge{
+    \\  display:inline-flex;align-items:center;
+    \\  padding:2px 9px;border-radius:999px;
+    \\  background:color-mix(in srgb,var(--accent) 10%,transparent);
+    \\  color:var(--accent);font-size:11px;font-weight:600;
+    \\  letter-spacing:.03em;border:1px solid color-mix(in srgb,var(--accent) 25%,transparent);
+    \\  font-family:var(--mono);
+    \\}
+    \\.badge-private{
+    \\  background:color-mix(in srgb,#0ea5e9 12%,transparent);
+    \\  color:#0369a1;border-color:color-mix(in srgb,#000000 24%,transparent);
+    \\}
+    \\html.dark .badge-private{
+    \\  background:color-mix(in srgb,#0ea5e9 15%,transparent);
+    \\  color:#0369a1;border-color:color-mix(in srgb,#000000 28%,transparent);
+    \\}
+    \\
+    \\pre{
+    \\  overflow:auto;background:var(--code-bg);
+    \\  border-radius:8px;padding:16px 18px;
+    \\  border:1px solid var(--border2);margin:0 0 16px;
+    \\  font-size:13px;line-height:1.7;
+    \\}
+    \\pre::-webkit-scrollbar{height:4px}
+    \\pre::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+    \\code{font-family:var(--mono);font-size:13px;color:var(--code-text)}
+    \\.hljs-keyword{color:var(--kw);font-weight:600}
+    \\.hljs-type{color:var(--ty)}
+    \\.hljs-built_in{color:var(--ty)}
+    \\.hljs-number{color:var(--lit)}
+    \\.hljs-string{color:var(--lit)}
+    \\.hljs-comment{color:var(--cm);font-style:italic}
+    \\.hljs-operator{color:var(--op)}
+    \\.hljs-punctuation{color:var(--op)}
+    \\.hljs-title{color:var(--fn-col);font-weight:600}
+    \\.hljs-params{color:var(--text2)}
+    \\.hljs-variable{color:var(--text)}
+    \\
+    \\.docs{margin-top:2px}
+    \\.docs p{line-height:1.8;color:var(--text2);margin-bottom:8px;font-size:14px}
+    \\
+    \\.doc-article{color:var(--text2)}
+    \\.doc-article>:last-child{margin-bottom:0}
+    \\.doc-article h1,.doc-article h2,.doc-article h3,.doc-article h4,.doc-article h5,.doc-article h6{
+    \\  color:var(--text);letter-spacing:-.02em;line-height:1.25;text-transform:none;
+    \\}
+    \\.doc-article h1{font-size:28px;margin:0 0 18px}
+    \\.doc-article h2{font-size:22px;margin:30px 0 14px}
+    \\.doc-article h3{font-size:18px;margin:24px 0 12px}
+    \\.doc-article h4,.doc-article h5,.doc-article h6{font-size:15px;margin:18px 0 10px}
+    \\.doc-article p{line-height:1.85;color:var(--text2);margin:0 0 12px;font-size:14px}
+    \\.doc-article ul{margin:0 0 14px 20px;color:var(--text2)}
+    \\.doc-article li{margin:0 0 6px}
+    \\.doc-article a{color:var(--accent)}
+    \\.doc-article img{max-width:100%;height:auto;border-radius:8px;vertical-align:middle}
+    \\.doc-article code{
+    \\  font-family:var(--mono);font-size:12.5px;
+    \\  background:var(--code-bg);padding:3px 8px;
+    \\  border-radius:5px;color:var(--code-text);
+    \\  border:1px solid var(--border2);
+    \\}
+    \\.doc-article pre{margin:0 0 16px}
+    \\.module-list{list-style:none;padding:0;margin:0;display:grid;gap:8px}
+    \\.module-list li{margin:0}
+    \\.module-list a{
+    \\  display:block;padding:10px 12px;border-radius:8px;
+    \\  border:1px solid var(--border2);background:var(--surface2);
+    \\  color:var(--text);font-family:var(--mono);font-size:13px;
+    \\  transition:border-color .15s,background .15s,color .15s;
+    \\}
+    \\.module-list a:hover{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 8%,var(--surface2));text-decoration:none}
+    \\
+    \\h4{
+    \\  font-size:10px;font-weight:700;letter-spacing:.1em;
+    \\  text-transform:uppercase;color:var(--text3);margin:18px 0 8px;
+    \\}
+    \\.details-table-wrap{overflow-x:auto}
+    \\.details-table{
+    \\  width:100%;border-collapse:collapse;border:1px solid var(--border2);
+    \\  border-radius:8px;overflow:hidden;background:var(--surface2);font-size:13px;
+    \\}
+    \\.details-table th,.details-table td{
+    \\  text-align:left;padding:10px 12px;border-bottom:1px solid var(--border2);vertical-align:top;
+    \\}
+    \\.details-table th{
+    \\  color:var(--text3);font-size:11px;letter-spacing:.06em;text-transform:uppercase;background:var(--bg2);
+    \\}
+    \\.details-table tbody tr:last-child td{border-bottom:none}
+    \\.details-table code{
+    \\  font-family:var(--mono);font-size:12.5px;
+    \\  background:var(--code-bg);padding:3px 8px;
+    \\  border-radius:5px;color:var(--code-text);
+    \\  border:1px solid var(--border2);display:inline-block;
+    \\}
+    \\.details{list-style:none;padding:0;display:flex;flex-direction:column;gap:4px}
+    \\.details li code{
+    \\  font-family:var(--mono);font-size:12.5px;
+    \\  background:var(--code-bg);padding:3px 8px;
+    \\  border-radius:5px;color:var(--code-text);
+    \\  border:1px solid var(--border2);display:inline-block;
+    \\}
+    \\
+    \\.empty{
+    \\  background:var(--surface);border:1px dashed var(--border);
+    \\  border-radius:var(--radius);padding:40px 28px;
+    \\  color:var(--text3);text-align:center;font-size:14px;
+    \\}
+    \\
+    \\@media(max-width:860px){
+    \\  .sidebar{transform:translateX(calc(-1 * var(--sb-w)))}
+    \\  .sidebar.sb-open-m{transform:translateX(0)}
+    \\  .content{margin-left:0!important;padding:28px 20px 60px}
+    \\  .hero-top{flex-direction:column;align-items:flex-start}
+    \\  .toggle{left:14px}
+    \\  .toggle.sb-open{left:calc(var(--sb-w) + 10px)}
+    \\}
     )
     string.StringBuilder.append_cstr(sb, "</style></head><body>")
 }
@@ -1687,164 +1669,164 @@ fn append_page_shell_end_html(sb: ref void) void = trust {
     string.StringBuilder.append_cstr(sb, "</main></div>")
     string.StringBuilder.append_cstr(sb, "<script>")
     string.StringBuilder.append_cstr(sb,
-        \\(function(){
-        \\'use strict';
-        \\
-        \\/* ── Theme ── */
-        \\var html=document.documentElement;
-        \\var stored=localStorage.getItem('theme');
-        \\var prefersDark=window.matchMedia('(prefers-color-scheme:dark)').matches;
-        \\var dark=stored==='dark'||(stored===null&&prefersDark);
-        \\function applyTheme(d){
-        \\  html.classList.toggle('dark',d);
-        \\  dark=d;
-        \\  localStorage.setItem('theme',d?'dark':'light');
-        \\  var icon=document.getElementById('theme-icon');
-        \\  if(d){
-        \\    icon.innerHTML='<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>';
-        \\  } else {
-        \\    icon.innerHTML='<circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>';
-        \\  }
-        \\}
-        \\applyTheme(dark);
-        \\document.getElementById('theme-btn').addEventListener('click',function(){applyTheme(!dark);});
-        \\
-        \\/* ── Sidebar ── */
-        \\var sb=document.getElementById('sidebar');
-        \\var btn=document.getElementById('toggle');
-        \\var ct=document.getElementById('content');
-        \\var isOpen=localStorage.getItem('sb-open')!=='0';
-        \\function setSidebar(open,animate){
-        \\  if(!animate){
-        \\    sb.style.transition='none';btn.style.transition='none';ct.style.transition='none';
-        \\  }
-        \\  if(open){
-        \\    sb.classList.remove('collapsed');ct.classList.remove('sb-closed');btn.classList.add('sb-open');
-        \\  } else {
-        \\    sb.classList.add('collapsed');ct.classList.add('sb-closed');btn.classList.remove('sb-open');
-        \\  }
-        \\  if(!animate){
-        \\    void sb.offsetWidth;
-        \\    sb.style.transition='';btn.style.transition='';ct.style.transition='';
-        \\  }
-        \\  isOpen=open;
-        \\  localStorage.setItem('sb-open',open?'1':'0');
-        \\}
-        \\setSidebar(isOpen,false);
-        \\btn.addEventListener('click',function(){setSidebar(!isOpen,true);});
-        \\
-        \\/* ── Search ── */
-        \\var inp=document.getElementById('search');
-        \\var privateBtn=document.getElementById('private-toggle');
-        \\var privateIcon=document.getElementById('private-toggle-icon');
-        \\var showPrivate=localStorage.getItem('docs-show-private')==='1';
-        \\function syncPrivateToggle(){
-        \\  if(!privateBtn)return;
-        \\  privateBtn.setAttribute('aria-pressed',showPrivate?'true':'false');
-        \\  privateBtn.setAttribute('aria-label',showPrivate?'Hide private functions':'Show private functions');
-        \\  privateBtn.setAttribute('title',showPrivate?'Hide private functions':'Show private functions');
-        \\  if(privateIcon){
-        \\    privateIcon.innerHTML=showPrivate
-        \\      ?'<path d="M3 3l18 18"/><path d="M10.58 10.58A3 3 0 0 0 12 15a3 3 0 0 0 2.42-4.42"/><path d="M9.88 5.09A10.94 10.94 0 0 1 12 5c6.5 0 10 7 10 7a17.56 17.56 0 0 1-4.04 4.94"/><path d="M6.61 6.61C4.62 8.06 3 12 3 12a17.32 17.32 0 0 0 5.39 5.39"/>'
-        \\      :'<path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6z"/><circle cx="12" cy="12" r="3"/>';
-        \\  }
-        \\}
-        \\function updateEntryVisibility(){
-        \\  var q=inp.value.toLowerCase().trim();
-        \\  var links=sb.querySelectorAll('.nav-item[data-name]');
-        \\  for(var i=0;i<links.length;i++){
-        \\    var l=links[i];
-        \\    var privateHidden=l.dataset.private==='1'&&!showPrivate;
-        \\    var searchHidden=q!==''&&l.dataset.name.toLowerCase().indexOf(q)===-1;
-        \\    l.classList.toggle('hidden',privateHidden||searchHidden);
-        \\  }
-        \\  var cards=ct.querySelectorAll('.entry[data-name]');
-        \\  for(var j=0;j<cards.length;j++){
-        \\    var c=cards[j];
-        \\    var privateHidden=c.dataset.private==='1'&&!showPrivate;
-        \\    var searchHidden=q!==''&&c.dataset.name.toLowerCase().indexOf(q)===-1;
-        \\    c.classList.toggle('s-hide',privateHidden||searchHidden);
-        \\  }
-        \\}
-        \\syncPrivateToggle();
-        \\updateEntryVisibility();
-        \\inp.addEventListener('input',updateEntryVisibility);
-        \\if(privateBtn){
-        \\  privateBtn.addEventListener('click',function(){
-        \\    showPrivate=!showPrivate;
-        \\    localStorage.setItem('docs-show-private',showPrivate?'1':'0');
-        \\    syncPrivateToggle();
-        \\    updateEntryVisibility();
-        \\  });
-        \\}
-        \\document.addEventListener('keydown',function(e){
-        \\  if(e.key==='/'&&document.activeElement!==inp){
-        \\    e.preventDefault();
-        \\    if(!isOpen)setSidebar(true,true);
-        \\    inp.focus();
-        \\  }
-        \\  if(e.key==='Escape'&&document.activeElement===inp){inp.blur();}
-        \\});
-        \\
-        \\/* ── Spectre syntax highlighter ── */
-        \\(function(){
-        \\  var KW=/\b(fn|pub|val|mut|type|enum|union|extern|ref|if|elif|else|for|match|return|break|continue|use|in|as|is|true|false|void|untyped|some|none|ok|err|when|otherwise|guarded|pre|post|assert|test|and|or|not)\b/g;
-        \\  var TY=/\b(i8|i16|i32|i64|u8|u16|u32|u64|f32|f64|bool|u8|usize|isize|list|ref|option|result)\b/g;
-        \\  var NUM=/\b(0x[0-9a-fA-F]+|\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)\b/g;
-        \\  var STR=/(\"(?:[^\"\\]|\\.)*\")/g;
-        \\  var CMT=/(\/\/[^\n]*)/g;
-        \\  var OP=/([(){}\[\]@!;,.|&^~<>=+\-*/%:])/g;
-        \\  var FN=/\bfn\s+([A-Za-z_][A-Za-z0-9_]*)/g;
-        \\
-        \\  function esc(s){
-        \\    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-        \\  }
-        \\
-        \\  function highlight(raw){
-        \\    var patterns=[
-        \\      {re:/\/\/[^\n]*/g,       cls:'hljs-comment'},
-        \\      {re:/"(?:[^"\\]|\\.)*"/g, cls:'hljs-string'},
-        \\      {re:/\b(fn|pub|val|mut|type|enum|union|extern|ref|if|elif|else|for|match|return|break|continue|use|in|as|is|true|false|void|untyped|some|none|ok|err|when|otherwise|guarded|pre|post|assert|test|and|or|not)\b/g, cls:'hljs-keyword'},
-        \\      {re:/\b(i8|i16|i32|i64|u8|u16|u32|u64|f32|f64|bool|usize|isize)\b/g, cls:'hljs-type'},
-        \\      {re:/\b(list|option|result)\b/g, cls:'hljs-built_in'},
-        \\      {re:/\b0x[0-9a-fA-F]+|\b\d+(?:\.\d+)?(?:[eE][+-]?\d+)?\b/g, cls:'hljs-number'},
-        \\      {re:/[(){}\[\]@!;,.|&^~<>=+\-*\/%:]/g, cls:'hljs-punctuation'},
-        \\    ];
-        \\
-        \\    var tokens=[];
-        \\    for(var pi=0;pi<patterns.length;pi++){
-        \\      var p=patterns[pi];
-        \\      p.re.lastIndex=0;
-        \\      var m;
-        \\      while((m=p.re.exec(raw))!==null){
-        \\        tokens.push({s:m.index,e:m.index+m[0].length,cls:p.cls,text:m[0]});
-        \\      }
-        \\    }
-        \\    tokens.sort(function(a,b){return a.s-b.s||(b.e-b.s)-(a.e-a.s);});
-        \\    var clean=[];var pos=0;
-        \\    for(var ti=0;ti<tokens.length;ti++){
-        \\      var t=tokens[ti];
-        \\      if(t.s<pos)continue;
-        \\      clean.push(t);pos=t.e;
-        \\    }
-        \\    var out='';var cur=0;
-        \\    for(var ci=0;ci<clean.length;ci++){
-        \\      var tk=clean[ci];
-        \\      if(cur<tk.s)out+=esc(raw.slice(cur,tk.s));
-        \\      out+='<span class="'+tk.cls+'">'+esc(tk.text)+'</span>';
-        \\      cur=tk.e;
-        \\    }
-        \\    if(cur<raw.length)out+=esc(raw.slice(cur));
-        \\    return out;
-        \\  }
-        \\
-        \\  document.querySelectorAll('pre code.language-spectre').forEach(function(el){
-        \\    var raw=el.textContent;
-        \\    el.innerHTML=highlight(raw);
-        \\  });
-        \\})();
-        \\
-        \\})();
+    \\(function(){
+    \\'use strict';
+    \\
+    \\/* ── Theme ── */
+    \\var html=document.documentElement;
+    \\var stored=localStorage.getItem('theme');
+    \\var prefersDark=window.matchMedia('(prefers-color-scheme:dark)').matches;
+    \\var dark=stored==='dark'||(stored===null&&prefersDark);
+    \\function applyTheme(d){
+    \\  html.classList.toggle('dark',d);
+    \\  dark=d;
+    \\  localStorage.setItem('theme',d?'dark':'light');
+    \\  var icon=document.getElementById('theme-icon');
+    \\  if(d){
+    \\    icon.innerHTML='<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>';
+    \\  } else {
+    \\    icon.innerHTML='<circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>';
+    \\  }
+    \\}
+    \\applyTheme(dark);
+    \\document.getElementById('theme-btn').addEventListener('click',function(){applyTheme(!dark);});
+    \\
+    \\/* ── Sidebar ── */
+    \\var sb=document.getElementById('sidebar');
+    \\var btn=document.getElementById('toggle');
+    \\var ct=document.getElementById('content');
+    \\var isOpen=localStorage.getItem('sb-open')!=='0';
+    \\function setSidebar(open,animate){
+    \\  if(!animate){
+    \\    sb.style.transition='none';btn.style.transition='none';ct.style.transition='none';
+    \\  }
+    \\  if(open){
+    \\    sb.classList.remove('collapsed');ct.classList.remove('sb-closed');btn.classList.add('sb-open');
+    \\  } else {
+    \\    sb.classList.add('collapsed');ct.classList.add('sb-closed');btn.classList.remove('sb-open');
+    \\  }
+    \\  if(!animate){
+    \\    void sb.offsetWidth;
+    \\    sb.style.transition='';btn.style.transition='';ct.style.transition='';
+    \\  }
+    \\  isOpen=open;
+    \\  localStorage.setItem('sb-open',open?'1':'0');
+    \\}
+    \\setSidebar(isOpen,false);
+    \\btn.addEventListener('click',function(){setSidebar(!isOpen,true);});
+    \\
+    \\/* ── Search ── */
+    \\var inp=document.getElementById('search');
+    \\var privateBtn=document.getElementById('private-toggle');
+    \\var privateIcon=document.getElementById('private-toggle-icon');
+    \\var showPrivate=localStorage.getItem('docs-show-private')==='1';
+    \\function syncPrivateToggle(){
+    \\  if(!privateBtn)return;
+    \\  privateBtn.setAttribute('aria-pressed',showPrivate?'true':'false');
+    \\  privateBtn.setAttribute('aria-label',showPrivate?'Hide private functions':'Show private functions');
+    \\  privateBtn.setAttribute('title',showPrivate?'Hide private functions':'Show private functions');
+    \\  if(privateIcon){
+    \\    privateIcon.innerHTML=showPrivate
+    \\      ?'<path d="M3 3l18 18"/><path d="M10.58 10.58A3 3 0 0 0 12 15a3 3 0 0 0 2.42-4.42"/><path d="M9.88 5.09A10.94 10.94 0 0 1 12 5c6.5 0 10 7 10 7a17.56 17.56 0 0 1-4.04 4.94"/><path d="M6.61 6.61C4.62 8.06 3 12 3 12a17.32 17.32 0 0 0 5.39 5.39"/>'
+    \\      :'<path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6z"/><circle cx="12" cy="12" r="3"/>';
+    \\  }
+    \\}
+    \\function updateEntryVisibility(){
+    \\  var q=inp.value.toLowerCase().trim();
+    \\  var links=sb.querySelectorAll('.nav-item[data-name]');
+    \\  for(var i=0;i<links.length;i++){
+    \\    var l=links[i];
+    \\    var privateHidden=l.dataset.private==='1'&&!showPrivate;
+    \\    var searchHidden=q!==''&&l.dataset.name.toLowerCase().indexOf(q)===-1;
+    \\    l.classList.toggle('hidden',privateHidden||searchHidden);
+    \\  }
+    \\  var cards=ct.querySelectorAll('.entry[data-name]');
+    \\  for(var j=0;j<cards.length;j++){
+    \\    var c=cards[j];
+    \\    var privateHidden=c.dataset.private==='1'&&!showPrivate;
+    \\    var searchHidden=q!==''&&c.dataset.name.toLowerCase().indexOf(q)===-1;
+    \\    c.classList.toggle('s-hide',privateHidden||searchHidden);
+    \\  }
+    \\}
+    \\syncPrivateToggle();
+    \\updateEntryVisibility();
+    \\inp.addEventListener('input',updateEntryVisibility);
+    \\if(privateBtn){
+    \\  privateBtn.addEventListener('click',function(){
+    \\    showPrivate=!showPrivate;
+    \\    localStorage.setItem('docs-show-private',showPrivate?'1':'0');
+    \\    syncPrivateToggle();
+    \\    updateEntryVisibility();
+    \\  });
+    \\}
+    \\document.addEventListener('keydown',function(e){
+    \\  if(e.key==='/'&&document.activeElement!==inp){
+    \\    e.preventDefault();
+    \\    if(!isOpen)setSidebar(true,true);
+    \\    inp.focus();
+    \\  }
+    \\  if(e.key==='Escape'&&document.activeElement===inp){inp.blur();}
+    \\});
+    \\
+    \\/* ── Spectre syntax highlighter ── */
+    \\(function(){
+    \\  var KW=/\b(fn|pub|val|mut|type|enum|union|extern|ref|if|elif|else|for|match|return|break|continue|use|in|as|is|true|false|void|untyped|some|none|ok|err|when|otherwise|guarded|pre|post|assert|test|and|or|not)\b/g;
+    \\  var TY=/\b(i8|i16|i32|i64|u8|u16|u32|u64|f32|f64|bool|u8|usize|isize|list|ref|option|result)\b/g;
+    \\  var NUM=/\b(0x[0-9a-fA-F]+|\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)\b/g;
+    \\  var STR=/(\"(?:[^\"\\]|\\.)*\")/g;
+    \\  var CMT=/(\/\/[^\n]*)/g;
+    \\  var OP=/([(){}\[\]@!;,.|&^~<>=+\-*/%:])/g;
+    \\  var FN=/\bfn\s+([A-Za-z_][A-Za-z0-9_]*)/g;
+    \\
+    \\  function esc(s){
+    \\    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    \\  }
+    \\
+    \\  function highlight(raw){
+    \\    var patterns=[
+    \\      {re:/\/\/[^\n]*/g,       cls:'hljs-comment'},
+    \\      {re:/"(?:[^"\\]|\\.)*"/g, cls:'hljs-string'},
+    \\      {re:/\b(fn|pub|val|mut|type|enum|union|extern|ref|if|elif|else|for|match|return|break|continue|use|in|as|is|true|false|void|untyped|some|none|ok|err|when|otherwise|guarded|pre|post|assert|test|and|or|not)\b/g, cls:'hljs-keyword'},
+    \\      {re:/\b(i8|i16|i32|i64|u8|u16|u32|u64|f32|f64|bool|usize|isize)\b/g, cls:'hljs-type'},
+    \\      {re:/\b(list|option|result)\b/g, cls:'hljs-built_in'},
+    \\      {re:/\b0x[0-9a-fA-F]+|\b\d+(?:\.\d+)?(?:[eE][+-]?\d+)?\b/g, cls:'hljs-number'},
+    \\      {re:/[(){}\[\]@!;,.|&^~<>=+\-*\/%:]/g, cls:'hljs-punctuation'},
+    \\    ];
+    \\
+    \\    var tokens=[];
+    \\    for(var pi=0;pi<patterns.length;pi++){
+    \\      var p=patterns[pi];
+    \\      p.re.lastIndex=0;
+    \\      var m;
+    \\      while((m=p.re.exec(raw))!==null){
+    \\        tokens.push({s:m.index,e:m.index+m[0].length,cls:p.cls,text:m[0]});
+    \\      }
+    \\    }
+    \\    tokens.sort(function(a,b){return a.s-b.s||(b.e-b.s)-(a.e-a.s);});
+    \\    var clean=[];var pos=0;
+    \\    for(var ti=0;ti<tokens.length;ti++){
+    \\      var t=tokens[ti];
+    \\      if(t.s<pos)continue;
+    \\      clean.push(t);pos=t.e;
+    \\    }
+    \\    var out='';var cur=0;
+    \\    for(var ci=0;ci<clean.length;ci++){
+    \\      var tk=clean[ci];
+    \\      if(cur<tk.s)out+=esc(raw.slice(cur,tk.s));
+    \\      out+='<span class="'+tk.cls+'">'+esc(tk.text)+'</span>';
+    \\      cur=tk.e;
+    \\    }
+    \\    if(cur<raw.length)out+=esc(raw.slice(cur));
+    \\    return out;
+    \\  }
+    \\
+    \\  document.querySelectorAll('pre code.language-spectre').forEach(function(el){
+    \\    var raw=el.textContent;
+    \\    el.innerHTML=highlight(raw);
+    \\  });
+    \\})();
+    \\
+    \\})();
     )
     string.StringBuilder.append_cstr(sb, "</script></body></html>")
 }
@@ -2023,12 +2005,9 @@ fn write_page(path: ref u8, content: ref u8) bool = trust {
 
 fn maybe_root_rel_for_dir() ref u8 = trust {
     val sxmod_opt = commands.load_sxmod()
-    match sxmod_opt {
-        some cfg => {
-            val entry: ref u8 = (cfg as ref commands.SxMod).entry
-            if !str_eq(entry, "") { return normalize_rel_path(entry) }
-        }
-        none => {}
+    if sxmod_opt is some cfg {
+        val entry: ref u8 = (cfg as ref commands.SxMod).entry
+        if !str_eq(entry, "") { return normalize_rel_path(entry) }
     }
     return ""
 }
@@ -2126,18 +2105,18 @@ test {
     assert(str_eq(trust substr("hello", 1, 99), "ello"))
 
     val docs = trust extract_doc_map(
-        \\/// hello
-        \\/// world
-        \\fn greet() void = {}
-        \\type Point = { x: i64 }
+    \\/// hello
+    \\/// world
+    \\fn greet() void = {}
+    \\type Point = { x: i64 }
     )
 
     assert(str_eq(trust lookup_doc(docs, 3), "hello\nworld"))
     assert(str_eq(trust lookup_doc(docs, 4), ""))
 
     val docs_no_trailing_nl = trust extract_doc_map(
-        \\/// tail docs
-        \\fn tail() void = {}
+    \\/// tail docs
+    \\fn tail() void = {}
     )
 
     assert(str_eq(trust lookup_doc(docs_no_trailing_nl, 2), "tail docs"))
@@ -2145,72 +2124,59 @@ test {
     assert(str_eq(trust strip_sx_ext("src/meta/docs.sx"), "src/meta/docs"))
 
     val const_src = trust extract_doc_map(
-        \\/// constant docs
-        \\pub val some_constant = 100
+    \\/// constant docs
+    \\pub val some_constant = 100
     )
     assert(str_eq(trust lookup_doc(const_src, 2), "constant docs"))
-    
+
     val docs_src_arena: mut allocators.Arena = trust allocators.Arena.new(131072 as usize)?
     val docs_src_opt = trust fs.read_all[allocators.Arena](docs_src_arena, "./src/meta/docs.sx")
-    match docs_src_opt {
-        some docs_src => {
-            val ml_toggle: mut i64 = 0
-            match regex.re_match("id=\\\\\"private-toggle\\\\\"", docs_src, @addr(ml_toggle)) {
-                ok found => {
-                    match found {
-                        some _ => {}
-                        none => { assert false }
-                    }
-                }
-                err _ => { assert false }
+    if docs_src_opt is some docs_src {
+        val ml_toggle: mut i64 = 0
+        match regex.re_match("id=\\\\\"private-toggle\\\\\"", docs_src, @addr(ml_toggle)) {
+            ok found => {
+                if found is some _ {
+                } else { assert false }
             }
-
-            val ml_private: mut i64 = 0
-            match regex.re_match("data-private=\\\\\"\\{s\\}\\\\\"", docs_src, @addr(ml_private)) {
-                ok found => {
-                    match found {
-                        some _ => {}
-                        none => { assert false }
-                    }
-                }
-                err _ => { assert false }
-            }
-
-            val ml_label: mut i64 = 0
-            match regex.re_match("aria-label=\\\\\"Show private functions\\\\\"", docs_src, @addr(ml_label)) {
-                ok found => {
-                    match found {
-                        some _ => {}
-                        none => { assert false }
-                    }
-                }
-                err _ => { assert false }
-            }
-
-            val ml_const_kind: mut i64 = 0
-            match regex.re_match("item\\.kind == parser\\.NK_CONST && node_is_public\\(item\\)", docs_src, @addr(ml_const_kind)) {
-                ok found => {
-                    match found {
-                        some _ => {}
-                        none => { assert false }
-                    }
-                }
-                err _ => { assert false }
-            }
-
-            val ml_const_sig: mut i64 = 0
-            match regex.re_match("return @fmt\\(\"\\{s\\}val \\{s\\} = \\{s\\}\"", docs_src, @addr(ml_const_sig)) {
-                ok found => {
-                    match found {
-                        some _ => {}
-                        none => { assert false }
-                    }
-                }
-                err _ => { assert false }
-            }
+            err _ => { assert false }
         }
-        none => { assert false }
-    }
+
+        val ml_private: mut i64 = 0
+        match regex.re_match("data-private=\\\\\"\\{s\\}\\\\\"", docs_src, @addr(ml_private)) {
+            ok found => {
+                if found is some _ {
+                } else { assert false }
+            }
+            err _ => { assert false }
+        }
+
+        val ml_label: mut i64 = 0
+        match regex.re_match("aria-label=\\\\\"Show private functions\\\\\"", docs_src, @addr(ml_label)) {
+            ok found => {
+                if found is some _ {
+                } else { assert false }
+            }
+            err _ => { assert false }
+        }
+
+        val ml_const_kind: mut i64 = 0
+        match regex.re_match("item\\.kind == parser\\.NK_CONST && node_is_public\\(item\\)", docs_src, @addr(ml_const_kind)) {
+            ok found => {
+                if found is some _ {
+                } else { assert false }
+            }
+            err _ => { assert false }
+        }
+
+        val ml_const_sig: mut i64 = 0
+        match regex.re_match("return @fmt\\(\"\\{s\\}val \\{s\\} = \\{s\\}\"", docs_src, @addr(ml_const_sig)) {
+            ok found => {
+                if found is some _ {
+                } else { assert false }
+            }
+            err _ => { assert false }
+        }
+    } else { assert false }
     trust allocators.Arena.free(docs_src_arena)
 
     val fn_src = "fn add(a: i64, b: i64) i64 = trust { return a + b }"
@@ -2218,13 +2184,10 @@ test {
 
     match regex.re_match("^fn [^=]+", fn_src, @addr(ml)) {
         ok found => {
-            match found {
-                some pos => {
-                    val sig = trust trim_ws(substr(fn_src, pos, ml))
-                    assert(str_eq(sig, "fn add(a: i64, b: i64) i64"))
-                }
-                none => { assert false }
-            }
+            if found is some pos {
+                val sig = trust trim_ws(substr(fn_src, pos, ml))
+                assert(str_eq(sig, "fn add(a: i64, b: i64) i64"))
+            } else { assert false }
         }
         err _ => { assert false }
     }
@@ -2232,12 +2195,9 @@ test {
     val ml2: mut i64 = 0
     match regex.re_match("^type [A-Za-z_]+", type_src, @addr(ml2)) {
         ok found => {
-            match found {
-                some pos => {
-                    assert(str_eq(trust trim_ws(substr(type_src, pos, ml2)), "type Point"))
-                }
-                none => { assert false }
-            }
+            if found is some pos {
+                assert(str_eq(trust trim_ws(substr(type_src, pos, ml2)), "type Point"))
+            } else { assert false }
         }
         err _ => { assert false }
     }

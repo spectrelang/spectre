@@ -128,11 +128,11 @@ pub fn input_is_in_std(input: ref u8, arena: ref allocators.Arena) bool = {
 }
 
 pub fn pick_alt_backend(
-    requested: ref u8,
-    release_mode: bool,
-    input: ref u8,
-    root_items: list[ref parser.Node],
-    arena: ref allocators.Arena
+requested: ref u8,
+release_mode: bool,
+input: ref u8,
+root_items: list[ref parser.Node],
+arena: ref allocators.Arena
 ) ref u8 = {
     if string.rchar_cmp(requested, "") != 0 {
         return requested
@@ -151,24 +151,21 @@ pub fn pick_alt_backend(
 }
 
 pub fn append_debug_runtime_links(
-    links: mut list[ref u8],
-    exe_dir: ref u8,
-    quiet: bool,
-    release_mode: bool,
-    arena: ref allocators.Arena
+links: mut list[ref u8],
+exe_dir: ref u8,
+quiet: bool,
+release_mode: bool,
+arena: ref allocators.Arena
 ) void = trust {
     if release_mode { return }
     val panic_o: ref u8 = path.join(exe_dir, "spectrelib/csources/panic_handler.o")
     val panic_f = fs.open(panic_o, "r")
-    match panic_f {
-        some h => {
-            fs.close(h)
-            @append(links, panic_o)
-        }
-        none => {
-            if !quiet {
-                stdio.print("warning: panic_handler.o not found at: {s}\n", {panic_o})
-            }
+    if panic_f is some h {
+        fs.close(h)
+        @append(links, panic_o)
+    } else {
+        if !quiet {
+            stdio.print("warning: panic_handler.o not found at: {s}\n", {panic_o})
         }
     }
     val platform: ref u8 = reflection.current_platform_name[allocators.Arena](arena)

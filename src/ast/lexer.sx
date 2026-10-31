@@ -487,7 +487,7 @@ pub fn tokenize(src: ref u8) result[list[ref Token], ref u8] = trust {
     val l: mut ref Lexer = lexer_new(src)
     val tokens: mut list[ref Token] = []
     for {
-    	skip_whitespace(l)
+        skip_whitespace(l)
         if skip_comment(l) { continue }
 
         val line: i64 = l.line
@@ -539,28 +539,23 @@ pub fn tokenize(src: ref u8) result[list[ref Token], ref u8] = trust {
 
 pub fn tok_kind(tokens: list[ref Token], i: i64) TokenKind = {
     val opt = @get(tokens, i as usize)
-    match opt {
-        some t => { return (t as ref Token).kind }
-        none   => { return Eof() }
-    }
+    if opt is some t {
+        return (t as ref Token).kind } else { return Eof() }
 }
 
 // Extract text payload from Ident/Str/Int/Float variants, null otherwise.
 pub fn tok_text(tokens: list[ref Token], i: i64) ref u8 = {
     val opt = @get(tokens, i as usize)
-    match opt {
-        some t => {
-            val tok: ref Token = t as ref Token
-            match tok.kind {
-                Ident s  => { return s }
-                Str s    => { return s }
-                Int s    => { return s }
-                Float s  => { return s }
-                else     => { return none }
-            }
+    if opt is some t {
+        val tok: ref Token = t as ref Token
+        match tok.kind {
+            Ident s  => { return s }
+            Str s    => { return s }
+            Int s    => { return s }
+            Float s  => { return s }
+            else     => { return none }
         }
-        none => { return none }
-    }
+    } else { return none }
 }
 
 pub fn kind_is_fn(k: TokenKind)       bool = { match k { Fn()       => { return true } else => { return false } } }
@@ -740,21 +735,15 @@ test {
         ok toks => {
             val opt0 = @get(toks, 0 as usize)
             val opt1 = @get(toks, 1 as usize)
-            match opt0 {
-                some t => {
-                    val tok0: ref Token = t as ref Token
-                    assert tok0.line == 1
-                    assert tok0.col  == 1
-                }
-                none => { assert false }
-            }
-            match opt1 {
-                some t => {
-                    val tok1: ref Token = t as ref Token
-                    assert tok1.line == 2
-                }
-                none => { assert false }
-            }
+            if opt0 is some t {
+                val tok0: ref Token = t as ref Token
+                assert tok0.line == 1
+                assert tok0.col  == 1
+            } else { assert false }
+            if opt1 is some t {
+                val tok1: ref Token = t as ref Token
+                assert tok1.line == 2
+            } else { assert false }
         }
     }
 

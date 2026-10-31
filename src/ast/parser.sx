@@ -329,10 +329,8 @@ fn p_peek3_kind(p: ref Parser) lexer.TokenKind = trust {
 
 fn p_peek_line(p: ref Parser) i64 = trust {
     val opt = @get(p.tokens, p.pos as usize)
-    match opt {
-        some t => { return (t as ref lexer.Token).line }
-        none   => { return 0 }
-    }
+    if opt is some t {
+        return (t as ref lexer.Token).line } else { return 0 }
 }
 
 fn p_advance(p: mut ref Parser) lexer.TokenKind = trust {
@@ -647,7 +645,7 @@ fn parse_or(p: mut ref Parser) result[ref Node, ref u8] = trust {
     val res: mut ref Node = lhs
     for {
         if !lexer.kind_is_or(p_peek_kind(p)) { break }
-        val line: i64 = p_line(p) 
+        val line: i64 = p_line(p)
         p_advance(p)
         val rhs = parse_and(p)?
         res = make_binop(OP_OR, line, res, rhs)?
@@ -660,7 +658,7 @@ fn parse_and(p: mut ref Parser) result[ref Node, ref u8] = trust {
     val res: mut ref Node = lhs
     for {
         if !lexer.kind_is_and(p_peek_kind(p)) { break }
-        val line: i64 = p_line(p) 
+        val line: i64 = p_line(p)
         p_advance(p)
         val rhs = parse_cmp(p)?
         res = make_binop(OP_AND, line, res, rhs)?
@@ -1205,8 +1203,8 @@ pub fn parse_stmt(p: mut ref Parser) result[ref Node, ref u8] = trust {
             }
         }
         if peek_next_some {
-            p_advance(p)  
-            p_advance(p) 
+            p_advance(p)
+            p_advance(p)
             val is_bind = p_expect_ident(p)?
             p_expect_lbrace(p)?
             val is_some_stmts = parse_stmts(p)?
@@ -1247,34 +1245,29 @@ pub fn parse_stmt(p: mut ref Parser) result[ref Node, ref u8] = trust {
             val is_elif_count: i64 = @len(is_elif_list) as i64
             if is_elif_count > 0 {
                 val ife0_opt = @get(is_elif_list, 0 as usize)
-                match ife0_opt {
-                    some ife0 => {
-                        val ife0n: ref Node = ife0 as ref Node
-                        val irest: mut list[ref Node] = []
-                        val iri: mut i64 = 1
-                        for {
-                            if iri >= is_elif_count { break }
-                            val ire_opt = @get(is_elif_list, iri as usize)
-                            match ire_opt {
-                                some ire => { @append(irest, ire as ref Node) }
-                                none => {}
-                            }
-                            iri++
-                        }
-                        val isyn: mut ref Node = make_node(NK_IF, ife0n.line)
-                        isyn.d0 = ife0n.d0
-                        isyn.d1 = ife0n.d1
-                        val irestl: list[ref Node] = irest
-                        node_store_slot[list[ref Node]](@addr(isyn.d2), irestl)
-                        node_store_slot[ref Node](@addr(isyn.d3), is_else_node)
-                        val instmts: mut list[ref Node] = []
-                        @append(instmts, isyn)
-                        val instl: list[ref Node] = instmts
-                        val inc: mut ref Node = make_node(NK_MATCH_OPT, line)
-                        node_store_slot[list[ref Node]](@addr(inc.d0), instl)
-                        is_none_body = inc
+                if ife0_opt is some ife0 {
+                    val ife0n: ref Node = ife0 as ref Node
+                    val irest: mut list[ref Node] = []
+                    val iri: mut i64 = 1
+                    for {
+                        if iri >= is_elif_count { break }
+                        val ire_opt = @get(is_elif_list, iri as usize)
+                        if ire_opt is some ire {
+                            @append(irest, ire as ref Node) }
+                        iri++
                     }
-                    none => {}
+                    val isyn: mut ref Node = make_node(NK_IF, ife0n.line)
+                    isyn.d0 = ife0n.d0
+                    isyn.d1 = ife0n.d1
+                    val irestl: list[ref Node] = irest
+                    node_store_slot[list[ref Node]](@addr(isyn.d2), irestl)
+                    node_store_slot[ref Node](@addr(isyn.d3), is_else_node)
+                    val instmts: mut list[ref Node] = []
+                    @append(instmts, isyn)
+                    val instl: list[ref Node] = instmts
+                    val inc: mut ref Node = make_node(NK_MATCH_OPT, line)
+                    node_store_slot[list[ref Node]](@addr(inc.d0), instl)
+                    is_none_body = inc
                 }
             } elif is_else_node != none {
                 is_none_body = is_else_node
@@ -1331,34 +1324,29 @@ pub fn parse_stmt(p: mut ref Parser) result[ref Node, ref u8] = trust {
             val is_elif_count: i64 = @len(is_elif_list) as i64
             if is_elif_count > 0 {
                 val ife0_opt = @get(is_elif_list, 0 as usize)
-                match ife0_opt {
-                    some ife0 => {
-                        val ife0n: ref Node = ife0 as ref Node
-                        val irest: mut list[ref Node] = []
-                        val iri: mut i64 = 1
-                        for {
-                            if iri >= is_elif_count { break }
-                            val ire_opt = @get(is_elif_list, iri as usize)
-                            match ire_opt {
-                                some ire => { @append(irest, ire as ref Node) }
-                                none => {}
-                            }
-                            iri++
-                        }
-                        val isyn: mut ref Node = make_node(NK_IF, ife0n.line)
-                        isyn.d0 = ife0n.d0
-                        isyn.d1 = ife0n.d1
-                        val irestl: list[ref Node] = irest
-                        node_store_slot[list[ref Node]](@addr(isyn.d2), irestl)
-                        node_store_slot[ref Node](@addr(isyn.d3), is_else_node)
-                        val instmts: mut list[ref Node] = []
-                        @append(instmts, isyn)
-                        val instl: list[ref Node] = instmts
-                        val inc: mut ref Node = make_node(NK_MATCH_OPT, line)
-                        node_store_slot[list[ref Node]](@addr(inc.d0), instl)
-                        is_some_body = inc
+                if ife0_opt is some ife0 {
+                    val ife0n: ref Node = ife0 as ref Node
+                    val irest: mut list[ref Node] = []
+                    val iri: mut i64 = 1
+                    for {
+                        if iri >= is_elif_count { break }
+                        val ire_opt = @get(is_elif_list, iri as usize)
+                        if ire_opt is some ire {
+                            @append(irest, ire as ref Node) }
+                        iri++
                     }
-                    none => {}
+                    val isyn: mut ref Node = make_node(NK_IF, ife0n.line)
+                    isyn.d0 = ife0n.d0
+                    isyn.d1 = ife0n.d1
+                    val irestl: list[ref Node] = irest
+                    node_store_slot[list[ref Node]](@addr(isyn.d2), irestl)
+                    node_store_slot[ref Node](@addr(isyn.d3), is_else_node)
+                    val instmts: mut list[ref Node] = []
+                    @append(instmts, isyn)
+                    val instl: list[ref Node] = instmts
+                    val inc: mut ref Node = make_node(NK_MATCH_OPT, line)
+                    node_store_slot[list[ref Node]](@addr(inc.d0), instl)
+                    is_some_body = inc
                 }
             } elif is_else_node != none {
                 is_some_body = is_else_node
@@ -1374,8 +1362,8 @@ pub fn parse_stmt(p: mut ref Parser) result[ref Node, ref u8] = trust {
         }
 
         if peek_next_ok {
-            p_advance(p)  
-            p_advance(p) 
+            p_advance(p)
+            p_advance(p)
             val is_bind = p_expect_ident(p)?
             p_expect_lbrace(p)?
             val is_ok_stmts = parse_stmts(p)?
@@ -1416,34 +1404,29 @@ pub fn parse_stmt(p: mut ref Parser) result[ref Node, ref u8] = trust {
             val is_elif_count: i64 = @len(is_elif_list) as i64
             if is_elif_count > 0 {
                 val ife0_opt = @get(is_elif_list, 0 as usize)
-                match ife0_opt {
-                    some ife0 => {
-                        val ife0n: ref Node = ife0 as ref Node
-                        val irest: mut list[ref Node] = []
-                        val iri: mut i64 = 1
-                        for {
-                            if iri >= is_elif_count { break }
-                            val ire_opt = @get(is_elif_list, iri as usize)
-                            match ire_opt {
-                                some ire => { @append(irest, ire as ref Node) }
-                                none => {}
-                            }
-                            iri++
-                        }
-                        val isyn: mut ref Node = make_node(NK_IF, ife0n.line)
-                        isyn.d0 = ife0n.d0
-                        isyn.d1 = ife0n.d1
-                        val irestl: list[ref Node] = irest
-                        node_store_slot[list[ref Node]](@addr(isyn.d2), irestl)
-                        node_store_slot[ref Node](@addr(isyn.d3), is_else_node)
-                        val instmts: mut list[ref Node] = []
-                        @append(instmts, isyn)
-                        val instl: list[ref Node] = instmts
-                        val inc: mut ref Node = make_node(NK_MATCH_RES, line)
-                        node_store_slot[list[ref Node]](@addr(inc.d0), instl)
-                        is_err_body = inc
+                if ife0_opt is some ife0 {
+                    val ife0n: ref Node = ife0 as ref Node
+                    val irest: mut list[ref Node] = []
+                    val iri: mut i64 = 1
+                    for {
+                        if iri >= is_elif_count { break }
+                        val ire_opt = @get(is_elif_list, iri as usize)
+                        if ire_opt is some ire {
+                            @append(irest, ire as ref Node) }
+                        iri++
                     }
-                    none => {}
+                    val isyn: mut ref Node = make_node(NK_IF, ife0n.line)
+                    isyn.d0 = ife0n.d0
+                    isyn.d1 = ife0n.d1
+                    val irestl: list[ref Node] = irest
+                    node_store_slot[list[ref Node]](@addr(isyn.d2), irestl)
+                    node_store_slot[ref Node](@addr(isyn.d3), is_else_node)
+                    val instmts: mut list[ref Node] = []
+                    @append(instmts, isyn)
+                    val instl: list[ref Node] = instmts
+                    val inc: mut ref Node = make_node(NK_MATCH_RES, line)
+                    node_store_slot[list[ref Node]](@addr(inc.d0), instl)
+                    is_err_body = inc
                 }
             } elif is_else_node != none {
                 is_err_body = is_else_node
@@ -1502,34 +1485,29 @@ pub fn parse_stmt(p: mut ref Parser) result[ref Node, ref u8] = trust {
             val is_elif_count: i64 = @len(is_elif_list) as i64
             if is_elif_count > 0 {
                 val ife0_opt = @get(is_elif_list, 0 as usize)
-                match ife0_opt {
-                    some ife0 => {
-                        val ife0n: ref Node = ife0 as ref Node
-                        val irest: mut list[ref Node] = []
-                        val iri: mut i64 = 1
-                        for {
-                            if iri >= is_elif_count { break }
-                            val ire_opt = @get(is_elif_list, iri as usize)
-                            match ire_opt {
-                                some ire => { @append(irest, ire as ref Node) }
-                                none => {}
-                            }
-                            iri++
-                        }
-                        val isyn: mut ref Node = make_node(NK_IF, ife0n.line)
-                        isyn.d0 = ife0n.d0
-                        isyn.d1 = ife0n.d1
-                        val irestl: list[ref Node] = irest
-                        node_store_slot[list[ref Node]](@addr(isyn.d2), irestl)
-                        node_store_slot[ref Node](@addr(isyn.d3), is_else_node)
-                        val instmts: mut list[ref Node] = []
-                        @append(instmts, isyn)
-                        val instl: list[ref Node] = instmts
-                        val inc: mut ref Node = make_node(NK_MATCH_RES, line)
-                        node_store_slot[list[ref Node]](@addr(inc.d0), instl)
-                        is_ok_body = inc
+                if ife0_opt is some ife0 {
+                    val ife0n: ref Node = ife0 as ref Node
+                    val irest: mut list[ref Node] = []
+                    val iri: mut i64 = 1
+                    for {
+                        if iri >= is_elif_count { break }
+                        val ire_opt = @get(is_elif_list, iri as usize)
+                        if ire_opt is some ire {
+                            @append(irest, ire as ref Node) }
+                        iri++
                     }
-                    none => {}
+                    val isyn: mut ref Node = make_node(NK_IF, ife0n.line)
+                    isyn.d0 = ife0n.d0
+                    isyn.d1 = ife0n.d1
+                    val irestl: list[ref Node] = irest
+                    node_store_slot[list[ref Node]](@addr(isyn.d2), irestl)
+                    node_store_slot[ref Node](@addr(isyn.d3), is_else_node)
+                    val instmts: mut list[ref Node] = []
+                    @append(instmts, isyn)
+                    val instl: list[ref Node] = instmts
+                    val inc: mut ref Node = make_node(NK_MATCH_RES, line)
+                    node_store_slot[list[ref Node]](@addr(inc.d0), instl)
+                    is_ok_body = inc
                 }
             } elif is_else_node != none {
                 is_ok_body = is_else_node
@@ -2067,8 +2045,8 @@ fn parse_match_stmt(p: mut ref Parser, line: i64) result[ref Node, ref u8] = tru
     }
 
     if kind_is_int(p_peek_kind(p)) || kind_is_float(p_peek_kind(p)) ||
-       kind_is_true(p_peek_kind(p)) || kind_is_false(p_peek_kind(p)) ||
-       (kind_is_minus(p_peek_kind(p)) && (kind_is_int(p_peek2_kind(p)) || kind_is_float(p_peek2_kind(p)))) {
+    kind_is_true(p_peek_kind(p)) || kind_is_false(p_peek_kind(p)) ||
+    (kind_is_minus(p_peek_kind(p)) && (kind_is_int(p_peek2_kind(p)) || kind_is_float(p_peek2_kind(p)))) {
         val varms: mut list[ref Node] = []
         val else_body: mut ref Node = none
         for {
@@ -2108,7 +2086,7 @@ fn parse_match_stmt(p: mut ref Parser, line: i64) result[ref Node, ref u8] = tru
     val uarms: mut list[ref Node] = []
     val u_else: mut ref Node = none
     val is_tagged_union_match: bool = kind_is_ident(p_peek_kind(p)) &&
-        (kind_is_ident(p_peek2_kind(p)) || lexer.kind_is_lparen(p_peek2_kind(p)))
+    (kind_is_ident(p_peek2_kind(p)) || lexer.kind_is_lparen(p_peek2_kind(p)))
 
     if is_tagged_union_match {
         for {
