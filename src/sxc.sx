@@ -485,7 +485,7 @@ pub fn main() i32 = trust {
     val root_mod: mut ref module.ResolvedModule = none
 
     match resolve_result {
-        ok m  => {
+        ok m => {
             root_mod = m
         }
         err e => {

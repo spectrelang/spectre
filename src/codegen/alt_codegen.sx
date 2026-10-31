@@ -2361,7 +2361,7 @@ fn cc_fixed_arr_size_val(ctx: ref CCtx, ty: ref parser.Node) i64 = trust {
     }
     val parsed = fmt.string_to_i64(ctext)
     match parsed {
-        ok v  => {
+        ok v => {
             return v
         }
         err _ => {

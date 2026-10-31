@@ -362,7 +362,7 @@ fn parse_leading_num(name: ref u8) i64 = {
         val cb = string.byte_at(name, i)
         val c: mut u8 = 0
         match cb {
-            none   => {
+            none => {
                 break
             }
             some v => {

@@ -1273,9 +1273,9 @@ pub fn extract_prefix_from_mangled(mangled: ref u8, bare_name: ref u8) ref u8 = 
 
 fn cg_register_global(ctx: mut ref CgCtx, src_name: ref u8, label: ref u8, qtype: ref u8, ann: ref u8) void = trust {
     @append(cg_global_src_names(ctx) as list[ref u8], src_name)
-    @append(cg_global_labels(ctx)    as list[ref u8], label)
-    @append(cg_global_qtypes(ctx)    as list[ref u8], qtype)
-    @append(cg_global_anns(ctx)      as list[ref u8], ann)
+    @append(cg_global_labels(ctx) as list[ref u8], label)
+    @append(cg_global_qtypes(ctx) as list[ref u8], qtype)
+    @append(cg_global_anns(ctx) as list[ref u8], ann)
 }
 
 /// Look up a global by source name. Returns ("", "") if not found.
@@ -1422,7 +1422,7 @@ fn cg_mc_vals(ctx: ref CgCtx) ref void = trust {
 
 fn cg_register_module_const(ctx: mut ref CgCtx, name: ref u8, val_str: ref u8) void = trust {
     @append(cg_mc_names(ctx) as list[ref u8], name)
-    @append(cg_mc_vals(ctx)  as list[ref u8], val_str)
+    @append(cg_mc_vals(ctx) as list[ref u8], val_str)
     if !collections.RawIndexMap.contains(ctx.mc_index, name) {
         val val_str_usize: mut usize = 0
         @store(@addr(val_str_usize) as ref void, val_str)
@@ -1500,7 +1500,7 @@ fn cg_fixed_arr_size_val(ctx: mut ref CgCtx, ty: ref parser.Node) i64 = trust {
     }
     val parsed = fmt.string_to_i64(ctext)
     match parsed {
-        ok v  => {
+        ok v => {
             return v
         }
         err _ => {
@@ -2108,8 +2108,8 @@ fn cg_infer_call_ret_ty(ctx: mut ref CgCtx, expr: ref parser.Node) ref parser.No
 /// Register an extern function: maps its declared name to its C symbol and stores return type.
 fn cg_register_extern(ctx: mut ref CgCtx, name: ref u8, symbol: ref u8, ret_ty: ref void) void = trust {
     @append(cg_extern_names(ctx) as list[ref u8], name)
-    @append(cg_extern_syms(ctx)  as list[ref u8], symbol)
-    @append(cg_ext_rets(ctx)     as list[ref void], ret_ty)
+    @append(cg_extern_syms(ctx) as list[ref u8], symbol)
+    @append(cg_ext_rets(ctx) as list[ref void], ret_ty)
 }
 
 /// Look up the C symbol for an extern function name. Returns 0 if not found.
@@ -2222,9 +2222,9 @@ fn cg_lookup_ext_ret(ctx: mut ref CgCtx, name: ref u8) ref void = trust {
 
 /// Register a tagged union variant: variant_name -> (union_name, tag_index, field_type_node).
 fn cg_register_tv(ctx: mut ref CgCtx, vname: ref u8, owner: ref u8, tag: i64, field_ty: ref void) void = trust {
-    @append(cg_tv_names(ctx)  as list[ref u8],  vname)
+    @append(cg_tv_names(ctx) as list[ref u8],  vname)
     @append(cg_tv_owners(ctx) as list[ref u8],  owner)
-    @append(cg_tv_tags(ctx)   as list[i64],     tag)
+    @append(cg_tv_tags(ctx) as list[i64],     tag)
     @append(cg_tv_fields(ctx) as list[ref void],field_ty)
 }
 

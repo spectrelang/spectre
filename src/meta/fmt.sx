@@ -180,7 +180,7 @@ fn kind_is_some(k: lexer.TokenKind) bool = {
         Some() => {
             return true
         }
-        else   => {
+        else => {
             return false
         }
     }
@@ -191,7 +191,7 @@ fn kind_is_none(k: lexer.TokenKind) bool = {
         None() => {
             return true
         }
-        else   => {
+        else => {
             return false
         }
     }
@@ -224,7 +224,7 @@ fn kind_is_elif(k: lexer.TokenKind) bool = {
         Elif() => {
             return true
         }
-        else   => {
+        else => {
             return false
         }
     }
@@ -235,7 +235,7 @@ fn kind_is_type(k: lexer.TokenKind) bool = {
         Type() => {
             return true
         }
-        else   => {
+        else => {
             return false
         }
     }
@@ -246,7 +246,7 @@ fn kind_is_enum(k: lexer.TokenKind) bool = {
         Enum() => {
             return true
         }
-        else   => {
+        else => {
             return false
         }
     }
@@ -257,7 +257,7 @@ fn kind_is_semicolon(k: lexer.TokenKind) bool = {
         Semicolon() => {
             return true
         }
-        else        => {
+        else => {
             return false
         }
     }
@@ -265,22 +265,22 @@ fn kind_is_semicolon(k: lexer.TokenKind) bool = {
 
 fn kind_is_decl_keyword(k: lexer.TokenKind) bool = {
     match k {
-        Fn()    => {
+        Fn() => {
             return true
         }
-        Type()  => {
+        Type() => {
             return true
         }
         Union() => {
             return true
         }
-        Enum()  => {
+        Enum() => {
             return true
         }
-        Spec()  => {
+        Spec() => {
             return true
         }
-        else    => {
+        else => {
             return false
         }
     }
@@ -288,88 +288,88 @@ fn kind_is_decl_keyword(k: lexer.TokenKind) bool = {
 
 fn kind_starts_literal(k: lexer.TokenKind) bool = {
     match k {
-        Return()  => {
+        Return() => {
             return true
         }
-        LParen()  => {
+        LParen() => {
             return true
         }
         LBracket() => {
             return true
         }
-        Comma()   => {
+        Comma() => {
             return true
         }
-        Colon()   => {
+        Colon() => {
             return true
         }
-        Plus()    => {
+        Plus() => {
             return true
         }
-        Minus()   => {
+        Minus() => {
             return true
         }
-        Star()    => {
+        Star() => {
             return true
         }
-        Slash()   => {
+        Slash() => {
             return true
         }
         Percent() => {
             return true
         }
-        EqEq()    => {
+        EqEq() => {
             return true
         }
-        BangEq()  => {
+        BangEq() => {
             return true
         }
-        Lt()      => {
+        Lt() => {
             return true
         }
-        Gt()      => {
+        Gt() => {
             return true
         }
-        LtEq()    => {
+        LtEq() => {
             return true
         }
-        GtEq()    => {
+        GtEq() => {
             return true
         }
-        And()     => {
+        And() => {
             return true
         }
-        Or()      => {
+        Or() => {
             return true
         }
-        BitAnd()  => {
+        BitAnd() => {
             return true
         }
-        BitOr()   => {
+        BitOr() => {
             return true
         }
-        BitXor()  => {
+        BitXor() => {
             return true
         }
-        Shl()     => {
+        Shl() => {
             return true
         }
-        Shr()     => {
+        Shr() => {
             return true
         }
         Question() => {
             return true
         }
-        Bang()    => {
+        Bang() => {
             return true
         }
-        Tilde()   => {
+        Tilde() => {
             return true
         }
-        Dot()     => {
+        Dot() => {
             return true
         }
-        else      => {
+        else => {
             return false
         }
     }
@@ -675,7 +675,7 @@ fn rewrite_match_at(
             Ident s => {
                 bind = s
             }
-            else    => {
+            else => {
                 return none
             }
         }
@@ -777,7 +777,7 @@ fn rewrite_one_match(src: ref u8) option[ref u8] = trust {
         ok toks => {
             tokens = toks
         }
-        err _   => {
+        err _ => {
             return none
         }
     }
@@ -832,7 +832,7 @@ fn format_block_braces(src: ref u8) ref u8 = trust {
         ok toks => {
             tokens = toks
         }
-        err _   => {
+        err _ => {
             return src
         }
     }
@@ -902,7 +902,7 @@ fn format_match_arm_spacing(src: ref u8) ref u8 = trust {
         ok toks => {
             tokens = toks
         }
-        err _   => {
+        err _ => {
             return src
         }
     }
@@ -1017,7 +1017,7 @@ fn format_decl_separators(src: ref u8) ref u8 = trust {
         ok toks => {
             tokens = toks
         }
-        err _   => {
+        err _ => {
             return src
         }
     }
@@ -1102,7 +1102,7 @@ fn format_colon_spacing(src: ref u8) ref u8 = trust {
         ok toks => {
             tokens = toks
         }
-        err _   => {
+        err _ => {
             return src
         }
     }
@@ -1160,7 +1160,7 @@ fn format_eq_spacing(src: ref u8) ref u8 = trust {
         ok toks => {
             tokens = toks
         }
-        err _   => {
+        err _ => {
             return src
         }
     }
@@ -1229,7 +1229,7 @@ fn format_as_spacing(src: ref u8) ref u8 = trust {
         ok toks => {
             tokens = toks
         }
-        err _   => {
+        err _ => {
             return src
         }
     }
@@ -1298,7 +1298,7 @@ fn format_block_brace_spacing(src: ref u8) ref u8 = trust {
         ok toks => {
             tokens = toks
         }
-        err _   => {
+        err _ => {
             return src
         }
     }
@@ -1387,7 +1387,7 @@ fn format_fn_return_spacing(src: ref u8) ref u8 = trust {
         ok toks => {
             tokens = toks
         }
-        err _   => {
+        err _ => {
             return src
         }
     }

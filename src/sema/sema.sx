@@ -4610,7 +4610,7 @@ fn sema_const_eval(expr: ref parser.Node, field_names: ref void, field_vals: ref
             ok parsed => {
                 v = parsed
             }
-            err _     => {}
+            err _ => {}
         }
         return v
     }
@@ -4752,14 +4752,14 @@ fn sema_check_invariant_lit(ctx: ref SemaCtx, typedef_node: ref parser.Node,
     val fnames: mut list[ref u8] = []
     val fvals: mut list[i64] = []
     val flen: i64 = @len(fields as list[ref parser.Node]) as i64
-    val alen: i64 = @len(args   as list[ref parser.Node]) as i64
+    val alen: i64 = @len(args as list[ref parser.Node]) as i64
     val fi: mut i64 = 0
     for {
         if fi >= flen || fi >= alen {
             break
         }
         val field_opt = @get(fields as list[ref parser.Node], fi as usize)
-        val arg_opt = @get(args   as list[ref parser.Node], fi as usize)
+        val arg_opt = @get(args as list[ref parser.Node], fi as usize)
         if field_opt is some fld {
             if arg_opt is some arg {
                 val fname: ref u8 = (fld as ref parser.Node).d0 as ref u8

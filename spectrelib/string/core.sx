@@ -570,7 +570,7 @@ pub fn contains(s: String, sub: String) bool = {
         some _ => {
             found = 1
         }
-        none   => {
+        none => {
             found = 0
         }
     }

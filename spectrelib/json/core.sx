@@ -367,7 +367,7 @@ test {
                 some s => {
                     assert str.raw_cmp(s, "Alice") == 0
                 }
-                none   => {
+                none => {
                     assert false
                 }
             }
@@ -375,7 +375,7 @@ test {
                 some n => {
                     assert n == 30
                 }
-                none   => {
+                none => {
                     assert false
                 }
             }
@@ -383,7 +383,7 @@ test {
                 some b => {
                     assert b == true
                 }
-                none   => {
+                none => {
                     assert false
                 }
             }
@@ -407,7 +407,7 @@ test {
                 some v => {
                     assert trust val_get_int(v) == 1
                 }
-                none   => {
+                none => {
                     assert false
                 }
             }

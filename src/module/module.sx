@@ -1074,7 +1074,7 @@ fn resolve_module_impl(
     allocators.Arena.free(src_arena)
     val tokens: mut list[ref lexer.Token] = []
     match lex_result {
-        ok t  => {
+        ok t => {
             tokens = t
         }
         err e => {
@@ -1085,7 +1085,7 @@ fn resolve_module_impl(
     val parse_result = parser.parse_module(tokens, canonical_path)
     val items: mut list[ref parser.Node] = []
     match parse_result {
-        ok i  => {
+        ok i => {
             items = i
         }
         err e => {

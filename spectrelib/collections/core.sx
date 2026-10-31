@@ -434,7 +434,7 @@ pub fn (Map) contains(map: self, key: usize) bool = {
         some _ => {
             found = 1
         }
-        none   => {
+        none => {
             found = 0
         }
     }
@@ -470,7 +470,7 @@ test {
         some v => {
             assert(v == 100)
         }
-        none   => {
+        none => {
             assert(false)
         }
     }
@@ -478,7 +478,7 @@ test {
         some v => {
             assert(v == 200)
         }
-        none   => {
+        none => {
             assert(false)
         }
     }
@@ -486,7 +486,7 @@ test {
         some v => {
             assert(v == 300)
         }
-        none   => {
+        none => {
             assert(false)
         }
     }
@@ -499,7 +499,7 @@ test {
         some v => {
             assert(v == 999)
         }
-        none   => {
+        none => {
             assert(false)
         }
     }
@@ -531,7 +531,7 @@ test {
             some v => {
                 assert(v == i * 10)
             }
-            none   => {
+            none => {
                 assert(false)
             }
         }
@@ -715,7 +715,7 @@ pub fn (StringMap) contains(map: self, key: ref u8) bool = {
         some _ => {
             return true
         }
-        none   => {
+        none => {
             return false
         }
     }
@@ -805,7 +805,7 @@ test {
         some v => {
             assert(v == 1)
         }
-        none   => {
+        none => {
             assert(false)
         }
     }
@@ -814,7 +814,7 @@ test {
         some v => {
             assert(v == 2)
         }
-        none   => {
+        none => {
             assert(false)
         }
     }
@@ -830,7 +830,7 @@ test {
         some v => {
             assert(v == 99)
         }
-        none   => {
+        none => {
             assert(false)
         }
     }
@@ -917,7 +917,7 @@ pub fn (IndexMap) set[A: allocators.GeneralAllocator](ac: A, map: self, key: ref
             @store(@addr(copy_holder) as ref void, copy)
             val push_res = PtrList.push[A](ac, keys, copy_holder)
             match push_res {
-                ok _  => {}
+                ok _ => {}
                 err _ => {
                     allocators.free_in[A](ac, copy as ref void)
                 }
@@ -946,7 +946,7 @@ pub fn (IndexMap) delete[A: allocators.GeneralAllocator](ac: A, map: self, key: 
         val n: usize = PtrList.len(keys)
         for (i = 0; i < n; i++) {
             match PtrList.get(keys, i) {
-                none   => {}
+                none => {}
                 some p => {
                     if p != 0 {
                         val k: ref u8 = p as ref u8
@@ -975,12 +975,12 @@ pub fn (IndexMap) each(map: self, cb: fn(ref u8, usize) void) void = trust {
     val n: usize = PtrList.len(keys)
     for (i = 0; i < n; i++) {
         match PtrList.get(keys, i) {
-            none   => {}
+            none => {}
             some p => {
                 if p != 0 {
                     val k: ref u8 = p as ref u8
                     match StringMap.get(inner, k) {
-                        none   => {}
+                        none => {}
                         some v => {
                             cb(k, v)
                         }
@@ -999,7 +999,7 @@ pub fn (IndexMap) key_at(map: self, i: usize) option[ref u8] = {
     val live: mut usize = 0
     for (j = 0; j < n; j++) {
         match PtrList.get(keys, j) {
-            none   => {}
+            none => {}
             some p => {
                 if p != 0 {
                     if live == i {
@@ -1020,7 +1020,7 @@ pub fn (IndexMap) free[A: allocators.GeneralAllocator](ac: A, map: self) void = 
     val n: usize = PtrList.len(keys)
     for (i = 0; i < n; i++) {
         match PtrList.get(keys, i) {
-            none   => {}
+            none => {}
             some p => {
                 if p != 0 {
                     allocators.free_in[A](ac, p as ref void)
@@ -1140,7 +1140,7 @@ test {
         some v => {
             assert v == 1
         }
-        none   => {
+        none => {
             assert false
         }
     }
@@ -1148,7 +1148,7 @@ test {
         some v => {
             assert v == 2
         }
-        none   => {
+        none => {
             assert false
         }
     }
@@ -1156,7 +1156,7 @@ test {
         some v => {
             assert v == 3
         }
-        none   => {
+        none => {
             assert false
         }
     }
@@ -1166,7 +1166,7 @@ test {
         some v => {
             assert v == 99
         }
-        none   => {
+        none => {
             assert false
         }
     }
@@ -1176,7 +1176,7 @@ test {
         some k => {
             assert trust str_eq(k, "c")
         }
-        none   => {
+        none => {
             assert false
         }
     }
@@ -1184,7 +1184,7 @@ test {
         some k => {
             assert trust str_eq(k, "a")
         }
-        none   => {
+        none => {
             assert false
         }
     }
@@ -1192,7 +1192,7 @@ test {
         some k => {
             assert trust str_eq(k, "b")
         }
-        none   => {
+        none => {
             assert false
         }
     }
@@ -1206,7 +1206,7 @@ test {
         some k => {
             assert trust str_eq(k, "c")
         }
-        none   => {
+        none => {
             assert false
         }
     }
@@ -1214,7 +1214,7 @@ test {
         some k => {
             assert trust str_eq(k, "b")
         }
-        none   => {
+        none => {
             assert false
         }
     }

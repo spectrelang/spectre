@@ -1271,7 +1271,7 @@ pub fn parse_type(p: mut ref Parser) result[ref Node, ref u8] = trust {
             val sz_text: ref u8 = p_advance_text(p)
             val sz_res = fmt.string_to_i64(sz_text)
             match sz_res {
-                ok v  => {
+                ok v => {
                     sz = v
                 }
                 err _ => {
@@ -3752,7 +3752,7 @@ test {
             trust stdio.print("{s}", {e})
             assert false
         }
-        ok n  => {
+        ok n => {
             assert n.kind == NK_INT_LIT
             assert string.raw_cmp(int_lit_text(n), "42") == 0
         }
@@ -3764,7 +3764,7 @@ test {
         err _ => {
             assert false
         }
-        ok n  => {
+        ok n => {
             assert n.kind == NK_FLOAT_LIT
         }
     }
@@ -3775,7 +3775,7 @@ test {
         err _ => {
             assert false
         }
-        ok n  => {
+        ok n => {
             assert n.kind == NK_STR_LIT
             assert string.raw_cmp(str_lit_text(n), "hello") == 0
         }
@@ -3787,7 +3787,7 @@ test {
         err _ => {
             assert false
         }
-        ok n  => {
+        ok n => {
             assert n.kind == NK_BOOL
             assert n.d0 == 1
         }
@@ -3797,7 +3797,7 @@ test {
         err _ => {
             assert false
         }
-        ok n  => {
+        ok n => {
             assert n.kind == NK_BOOL assert n.d0 == 0
         }
     }
@@ -3808,7 +3808,7 @@ test {
         err _ => {
             assert false
         }
-        ok n  => {
+        ok n => {
             assert n.kind == NK_IDENT
             assert string.raw_cmp(n.d0 as ref u8, "foo") == 0
         }
@@ -3820,7 +3820,7 @@ test {
         err _ => {
             assert false
         }
-        ok n  => {
+        ok n => {
             assert n.kind == NK_BINOP
             assert binop_op(n) == OP_ADD
             val lhs: ref Node = binop_left(n)
@@ -3836,7 +3836,7 @@ test {
         err _ => {
             assert false
         }
-        ok n  => {
+        ok n => {
             assert n.kind == NK_BINOP
             assert binop_op(n) == OP_EQ
         }
@@ -3848,7 +3848,7 @@ test {
         err _ => {
             assert false
         }
-        ok n  => {
+        ok n => {
             assert n.kind == NK_UNOP
             assert unop_op(n) == UOP_NEG
         }
@@ -3860,7 +3860,7 @@ test {
         err _ => {
             assert false
         }
-        ok n  => {
+        ok n => {
             assert n.kind == NK_UNOP
             assert unop_op(n) == UOP_NOT
         }
@@ -3872,7 +3872,7 @@ test {
         err _ => {
             assert false
         }
-        ok n  => {
+        ok n => {
             assert n.kind == NK_FIELD
             val base: ref Node = field_base(n)
             assert base.kind == NK_IDENT
@@ -3886,7 +3886,7 @@ test {
         err _ => {
             assert false
         }
-        ok n  => {
+        ok n => {
             assert n.kind == NK_CALL
         }
     }
@@ -3897,7 +3897,7 @@ test {
         err _ => {
             assert false
         }
-        ok n  => {
+        ok n => {
             assert n.kind == NK_CAST
         }
     }
@@ -3908,7 +3908,7 @@ test {
         err _ => {
             assert false
         }
-        ok n  => {
+        ok n => {
             assert n.kind == NK_LIST_LIT
         }
     }
@@ -3919,7 +3919,7 @@ test {
         err _ => {
             assert false
         }
-        ok n  => {
+        ok n => {
             assert n.kind == NK_NONE
         }
     }
@@ -3934,7 +3934,7 @@ test {
             assert @len(items) as i64 == 1
             val opt15 = @get(items, 0 as usize)
             match opt15 {
-                none   => {
+                none => {
                     assert false
                 }
                 some v => {
@@ -3956,7 +3956,7 @@ test {
             assert @len(items) as i64 == 1
             val opt16 = @get(items, 0 as usize)
             match opt16 {
-                none   => {
+                none => {
                     assert false
                 }
                 some v => {
@@ -3977,7 +3977,7 @@ test {
         ok items => {
             val opt17 = @get(items, 0 as usize)
             match opt17 {
-                none   => {
+                none => {
                     assert false
                 }
                 some v => {
@@ -3998,7 +3998,7 @@ test {
         ok items => {
             val opt18 = @get(items, 0 as usize)
             match opt18 {
-                none   => {
+                none => {
                     assert false
                 }
                 some v => {
@@ -4035,7 +4035,7 @@ test {
     @puts("parser 18c")
     val r18c = parse_src("type Token = { kind: mut i64 } invariant { kind > 0 }")
     match r18c {
-        ok _  => {
+        ok _ => {
             assert false
         }
         err _ => {
@@ -4071,7 +4071,7 @@ test {
         err _ => {
             assert false
         }
-        ok n  => {
+        ok n => {
             assert n.kind == NK_BINOP
             assert binop_op(n) == OP_ADD
             val rhs: ref Node = binop_right(n)
@@ -4083,7 +4083,7 @@ test {
     @puts("parser 20")
     val r20 = parse_src("fn (")
     match r20 {
-        ok _  => {
+        ok _ => {
             assert false
         }
         err _ => {
