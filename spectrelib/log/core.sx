@@ -1,8 +1,8 @@
 extern (C) fn isatty(fd: i64) i64 = "isatty"
 
-val time = use("../time")
-val stdio = use("../stdio")
-val os = use("../os")
+val time       = use("../time")
+val stdio      = use("../stdio")
+val os         = use("../os")
 val allocators = use("../allocators")
 
 pub enum Level = {

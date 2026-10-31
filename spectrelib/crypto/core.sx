@@ -1,7 +1,7 @@
-val string = use("../string")
-val random = use("../crypto/random")
+val string     = use("../string")
+val random     = use("../crypto/random")
 val allocators = use("../allocators")
-val fs = use("../fs")
+val fs         = use("../fs")
 
 pub enum CryptoError = {
     InvalidHexLength

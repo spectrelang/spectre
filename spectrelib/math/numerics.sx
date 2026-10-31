@@ -1,5 +1,5 @@
 val static = use("static.sx")
-val core = use("core.sx")
+val core   = use("core.sx")
 
 /// 4x4 matrix stored in column-major order
 pub type Mat4x4 = {

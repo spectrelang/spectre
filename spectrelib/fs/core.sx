@@ -1,5 +1,5 @@
-val stdio = use("../stdio")
-val str = use("../string")
+val stdio      = use("../stdio")
+val str        = use("../string")
 val allocators = use("../allocators")
 
 extern (C) fn fopen(path: ref u8, mode: ref u8) ref void = "fopen"

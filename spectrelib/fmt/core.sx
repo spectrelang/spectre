@@ -1,5 +1,5 @@
-val stdio = use("../stdio")
-val string = use("../string")
+val stdio      = use("../stdio")
+val string     = use("../string")
 val allocators = use("../allocators")
 
 pub enum ParseIntError = {

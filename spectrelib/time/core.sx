@@ -1,4 +1,4 @@
-val stdio = use("../stdio")
+val stdio      = use("../stdio")
 val allocators = use("../allocators")
 
 extern (C) fn localtime(timep: ref i64) ref void = "localtime"

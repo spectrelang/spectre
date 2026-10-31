@@ -462,7 +462,7 @@ pub fn exec_trim(cmd: ref u8) result[ref void, ProcessError] = trust {
 }
 
 val string = use("../string")
-val stdio = use("../stdio")
+val stdio  = use("../stdio")
 
 test {
     val path = "test_file.txt"

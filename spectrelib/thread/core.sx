@@ -1,4 +1,4 @@
-val stdio = use("../stdio")
+val stdio      = use("../stdio")
 val allocators = use("../allocators")
 
 pub enum ThreadError = {

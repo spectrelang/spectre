@@ -5,8 +5,8 @@ when posix {
     link "-lyyjson"
 }
 
-val str = use("../string")
-val stdio = use("../stdio")
+val str        = use("../string")
+val stdio      = use("../stdio")
 val allocators = use("../allocators")
 
 pub extern (C) fn yyjson_get_tag(value: ref void) u8 = "sx_yyjson_get_tag"

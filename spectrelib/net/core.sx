@@ -74,6 +74,7 @@ type Response = {
 type I32Slot = {
     value: mut i32
 }
+
 type I64Slot = {
     value: mut i64
 }

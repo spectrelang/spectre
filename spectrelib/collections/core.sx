@@ -7,7 +7,7 @@
 /// Each element is one pointer-sized slot (8 bytes).
 /// Values are stored and retrieved as untyped (ref void / usize).
 
-val stdio = use("../stdio")
+val stdio      = use("../stdio")
 val allocators = use("../allocators")
 
 val ELEMENT_SIZE: usize = 8
@@ -865,6 +865,7 @@ type IndexMap = {
     inner_header: ref void
     keys: ref void
 }
+
 type RawIndexMap = {}
 
 val IMAP_HEADER_SIZE: usize = 16
