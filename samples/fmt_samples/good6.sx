@@ -1,0 +1,17 @@
+union Shape = {
+    Circle(f64) | Rect(f64,f64) | Triangle(f64,f64,f64)
+}
+
+fn label(s: Shape) ref u8 = {
+    match s {
+        Circle _ => {
+            return "Circle"
+        }
+        Rect _, _ => {
+            return "Rect"
+        }
+        Triangle _, _, _ => {
+            return "Triangle"
+        }
+    }
+}

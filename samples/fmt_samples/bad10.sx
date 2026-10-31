@@ -1,0 +1,8 @@
+pub fn main() void = trust {
+ val s = \\raw { brace
+   \\more } content
+ // comment with } and {
+ if true {
+ @print("{s}\n", {s})
+ }
+}

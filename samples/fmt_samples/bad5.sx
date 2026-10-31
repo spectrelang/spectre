@@ -1,0 +1,11 @@
+fn pick(flag: bool) option[i64] = {
+  if flag { return some 1 }
+  return none
+}
+
+fn fallback(x: option[i64]) i64 = trust {
+  match x {
+    some v => { return v }
+    none => { return 0 }
+  }
+}

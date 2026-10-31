@@ -1,0 +1,62 @@
+pub type CCtx = {
+    sb:              mut ref void
+    tmp:                 mut i64
+    lbl:              mut i64
+    fn_name:           mut ref u8
+    strs:              mut list[ref u8]
+    str_cnt:            mut i64
+    snames:             mut list[ref u8]
+    sfields:            mut list[ref void]
+    sis_extern:          mut list[bool]
+    unames:             mut list[ref u8]
+    uvariants:   mut list[ref void]
+    fn_nodes:         mut list[ref void]
+    fn_names:          mut list[ref u8]
+    fn_params:          mut list[ref void]
+    fn_rets:          mut list[ref void]
+    fn_variadics:        mut list[bool]
+    fn_no_forward:       mut list[bool]
+    ext_names:        mut list[ref u8]
+    ext_syms:          mut list[ref u8]
+    ext_rets:        mut list[ref void]
+    tv_names:         mut list[ref u8]
+    tv_owners:     mut list[ref u8]
+    tv_tags:          mut list[i64]
+    tv_fields:         mut list[ref void]
+    mc_names:          mut list[ref u8]
+    mc_vals:         mut list[ref u8]
+    gnames:             mut list[ref u8]
+    gsyms:              mut list[ref u8]
+    gty_nodes:          mut list[ref parser.Node]
+    break_lbl:          mut i64
+    cont_lbl:           mut i64
+    defer_stack:         mut list[ref void]
+    local_names:         mut list[ref u8]
+    local_ctypes:        mut list[ref u8]
+    local_ty_nodes:      mut list[ref parser.Node]
+    local_is_slot:       mut list[i64]
+    used_prefixes:       mut list[ref u8]
+    emitted_labels:      mut list[ref u8]
+    expr_arena:          mut list[ref void]
+    expr_arena_owned:    mut list[bool]
+    release_mode:        mut bool
+    current_ret_ctype:   mut ref u8
+    current_ret_is_void: mut bool
+    current_ret_ty:      mut ref parser.Node
+    current_prefix:      mut ref u8
+    fwd_sb:              mut ref void
+    inv_tnames:          mut list[ref u8]
+    inv_tlists:          mut list[ref void]
+    inv_cur_pnames:      mut list[ref u8]
+    inv_cur_ptypes:      mut list[ref u8]
+    expected_ty:         mut ref parser.Node
+    init_sb:             mut ref void
+    gfn_names:           mut list[ref u8]
+    gfn_nodes:           mut list[ref void]
+    gfn_prefixes:        mut list[ref u8]
+    gsubst_names:        mut list[ref u8]
+    gsubst_tnodes:       mut list[ref void]
+    mono_sb:             mut ref void
+    src_target:          mut ref u8
+    current_src_file:    mut ref u8
+}

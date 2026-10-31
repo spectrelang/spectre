@@ -1,0 +1,13 @@
+fn pick(flag: bool) option[i64] = {
+    if flag {
+        return some 1
+    }
+    return none
+}
+
+pub fn main() void = trust {
+    val x = pick(true)
+    if x is some v {
+        @print("{d}\n", {v})
+    }
+}

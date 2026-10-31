@@ -1,0 +1,2 @@
+pub fn positive(k: i64)      bool = { return k > 0 }
+pub fn identity(k: i64)  i64 = { return k }

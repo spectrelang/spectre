@@ -1,0 +1,11 @@
+type Point = {
+    x: i32
+    y: i32
+}
+union Value = {
+    Int(i64) | Text(ref u8)
+}
+enum Mode = {
+    Fast
+    Slow
+}

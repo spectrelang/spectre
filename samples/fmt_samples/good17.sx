@@ -1,0 +1,11 @@
+pub type Counter = {
+    value: mut i64
+}
+
+pub fn (Counter) new() ref Counter = {
+    return none
+}
+
+pub fn (Counter) inc(c: mut Counter) void = {
+    c.value = c.value + 1
+}

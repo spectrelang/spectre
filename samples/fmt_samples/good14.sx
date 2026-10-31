@@ -1,0 +1,17 @@
+union Sh = {
+    A() | B(i64) | C(i64,i64)
+}
+
+fn value(s: Sh) i64 = {
+    match s {
+        A() => {
+            return 0
+        }
+        B x => {
+            return x
+        }
+        C x, y => {
+            return x + y
+        }
+    }
+}

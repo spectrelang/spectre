@@ -1,0 +1,8 @@
+pub fn main() void = trust {
+ val xs = [
+ 1,
+ 2,
+ 3
+ ]
+ @print("{d}\n", {xs[0]})
+}

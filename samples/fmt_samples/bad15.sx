@@ -1,0 +1,9 @@
+fn pick(o: option[i64]) i64 = trust {
+  match o {
+    // comment before the some arm
+    some v => { // inline comment
+      return v
+    }
+    none => {}
+  }
+}

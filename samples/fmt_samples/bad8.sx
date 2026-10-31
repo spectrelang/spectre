@@ -1,0 +1,11 @@
+fn add(a: i64, b: i64) i64 = {
+ return a + b
+}
+
+pub fn main() void = trust {
+ val x = add(
+ 1,
+ 2
+ )
+ @print("{d}\n", {x})
+}

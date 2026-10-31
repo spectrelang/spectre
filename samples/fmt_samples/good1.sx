@@ -1,0 +1,10 @@
+type SomeType = {
+    x: i32
+    y: i64
+    calibration: usize
+    really_long_name: ref u8
+}
+
+pub fn main() void = {
+    @puts("badly formatted")
+}

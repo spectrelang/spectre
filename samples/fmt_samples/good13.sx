@@ -1,0 +1,10 @@
+pub type Point = {
+    x: i32
+    y: i32
+}
+
+fn point() Point = {
+    return { x: 1, y: 2 }
+}
+
+fn empty() void = {}
