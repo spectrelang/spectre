@@ -10,7 +10,7 @@ pub fn print_usage() void = {
     stdio.puts("")
     stdio.puts("commands:")
     stdio.puts("  init   <name>        Initialize a new project")
-    stdio.puts("  fmt    <path...>     Format .sx files or directories in place")
+    stdio.puts("  fmt    <path>        Format .sx files or directories in place")
     stdio.puts("  build  <config>      Build using a config from sx.mod")
     stdio.puts("  run    <input.sx>    Compile and immediately run a program")
     stdio.puts("  doc    <path>        Generate docs for a given .sx into ./docs-out/")
