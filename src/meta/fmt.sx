@@ -219,6 +219,75 @@ fn kind_is_as(k: lexer.TokenKind) bool = {
     }
 }
 
+fn kind_is_assert(k: lexer.TokenKind) bool = {
+    match k {
+        Assert() => {
+            return true
+        }
+        else => {
+            return false
+        }
+    }
+}
+
+fn kind_is_operator_spacing(k: lexer.TokenKind) bool = {
+    match k {
+        EqEq() => {
+            return true
+        }
+        BangEq() => {
+            return true
+        }
+        Lt() => {
+            return true
+        }
+        Gt() => {
+            return true
+        }
+        LtEq() => {
+            return true
+        }
+        GtEq() => {
+            return true
+        }
+        And() => {
+            return true
+        }
+        Or() => {
+            return true
+        }
+        else => {
+            return false
+        }
+    }
+}
+
+fn operator_len(k: lexer.TokenKind) i64 = {
+    match k {
+        EqEq() => {
+            return 2
+        }
+        BangEq() => {
+            return 2
+        }
+        LtEq() => {
+            return 2
+        }
+        GtEq() => {
+            return 2
+        }
+        And() => {
+            return 2
+        }
+        Or() => {
+            return 2
+        }
+        else => {
+            return 1
+        }
+    }
+}
+
 fn kind_is_elif(k: lexer.TokenKind) bool = {
     match k {
         Elif() => {
@@ -1291,6 +1360,172 @@ fn format_as_spacing(src: ref u8) ref u8 = trust {
     return apply_edits(src, edits)
 }
 
+fn format_operator_spacing(src: ref u8) ref u8 = trust {
+    val tok_res = lexer.tokenize(src)
+    val tokens: mut list[ref lexer.Token] = []
+    match tok_res {
+        ok toks => {
+            tokens = toks
+        }
+        err _ => {
+            return src
+        }
+    }
+
+    val len: i64 = str.len_raw(src)
+    val starts: list[i64] = collect_line_starts(src, len)
+    val ntokens: i64 = @len(tokens) as i64
+    val edits: mut list[ref Edit] = []
+    val i: mut i64 = 0
+
+    for {
+        if i >= ntokens {
+            break
+        }
+        val k: lexer.TokenKind = lexer.tok_kind(tokens, i)
+
+        if kind_is_operator_spacing(k) {
+            val op_pos: i64 = token_start(tokens, starts, i)
+            val op_len: i64 = operator_len(k)
+            val ws_before: mut i64 = op_pos
+            for {
+                if ws_before <= 0 {
+                    break
+                }
+                val c: i64 = byte_at(src, ws_before - 1)
+                if c != 32 && c != 9 {
+                    break
+                }
+                ws_before--
+            }
+
+            val at_line_start: bool =
+            ws_before == 0 ||
+            byte_at(src, ws_before - 1) == 10 ||
+            byte_at(src, ws_before - 1) == 13
+
+            if !at_line_start {
+                val gap: i64 = op_pos - ws_before
+                val already_one: bool = gap == 1 && byte_at(src, ws_before) == 32
+                if !already_one {
+                    @append(edits, edit_new(ws_before, op_pos, " "))
+                }
+            }
+
+            if i + 1 < ntokens && token_line(tokens, i + 1) == token_line(tokens, i) {
+                val next_pos: i64 = token_start(tokens, starts, i + 1)
+                if range_is_whitespace(src, op_pos + op_len, next_pos) {
+                    val already_one_after: bool =
+                    next_pos - (op_pos + op_len) == 1 && byte_at(src, op_pos + op_len) == 32
+                    if !already_one_after {
+                        @append(edits, edit_new(op_pos + op_len, next_pos, " "))
+                    }
+                }
+            }
+        }
+
+        i++
+    }
+
+    return apply_edits(src, edits)
+}
+
+fn format_assert_spacing(src: ref u8) ref u8 = trust {
+    val tok_res = lexer.tokenize(src)
+    val tokens: mut list[ref lexer.Token] = []
+    match tok_res {
+        ok toks => {
+            tokens = toks
+        }
+        err _ => {
+            return src
+        }
+    }
+
+    val len: i64 = str.len_raw(src)
+    val starts: list[i64] = collect_line_starts(src, len)
+    val ntokens: i64 = @len(tokens) as i64
+    val edits: mut list[ref Edit] = []
+    val i: mut i64 = 0
+
+    for {
+        if i >= ntokens {
+            break
+        }
+        val k: lexer.TokenKind = lexer.tok_kind(tokens, i)
+
+        if kind_is_assert(k) {
+            val assert_pos: i64 = token_start(tokens, starts, i)
+            val keyword_end: i64 = assert_pos + 6
+
+            if i + 1 < ntokens {
+                val next_kind: lexer.TokenKind = lexer.tok_kind(tokens, i + 1)
+                if lexer.kind_is_lparen(next_kind) {
+                    val open_pos: i64 = token_start(tokens, starts, i + 1)
+                    val close: i64 = find_matching_paren(tokens, i + 1)
+                    if close > i + 1 {
+                        val after: i64 = close + 1
+                        val ends_expr: mut bool = after >= ntokens
+                        if !ends_expr {
+                            val after_kind: lexer.TokenKind = lexer.tok_kind(tokens, after)
+                            if token_line(tokens, after) > token_line(tokens, close) {
+                                ends_expr = true
+                            } elif lexer.kind_is_rbrace(after_kind) || kind_is_semicolon(after_kind) ||
+                            lexer.kind_is_eof(after_kind) {
+                                ends_expr = true
+                            }
+                        }
+
+                        if ends_expr {
+                            val close_pos: i64 = token_start(tokens, starts, close)
+                            val content_start: mut i64 = open_pos + 1
+                            for {
+                                if content_start >= close_pos {
+                                    break
+                                }
+                                val c: i64 = byte_at(src, content_start)
+                                if c != 32 && c != 9 {
+                                    break
+                                }
+                                content_start++
+                            }
+                            @append(edits, edit_new(keyword_end, content_start, " "))
+
+                            val content_end: mut i64 = close_pos
+                            for {
+                                if content_end <= content_start {
+                                    break
+                                }
+                                val c: i64 = byte_at(src, content_end - 1)
+                                if c != 32 && c != 9 {
+                                    break
+                                }
+                                content_end--
+                            }
+                            @append(edits, edit_new(content_end, close_pos + 1, ""))
+                        } elif token_line(tokens, i + 1) == token_line(tokens, i) && range_is_whitespace(src, keyword_end, open_pos) {
+                            @append(edits, edit_new(keyword_end, open_pos, " "))
+                        }
+                    }
+                } elif token_line(tokens, i + 1) == token_line(tokens, i) {
+                    val next_pos: i64 = token_start(tokens, starts, i + 1)
+                    if range_is_whitespace(src, keyword_end, next_pos) {
+                        val already_one: bool =
+                        next_pos - keyword_end == 1 && byte_at(src, keyword_end) == 32
+                        if !already_one {
+                            @append(edits, edit_new(keyword_end, next_pos, " "))
+                        }
+                    }
+                }
+            }
+        }
+
+        i++
+    }
+
+    return apply_edits(src, edits)
+}
+
 fn format_block_brace_spacing(src: ref u8) ref u8 = trust {
     val tok_res = lexer.tokenize(src)
     val tokens: mut list[ref lexer.Token] = []
@@ -1931,13 +2166,15 @@ fn reindent(src: ref u8) ref u8 = trust {
 
 fn format_source(src: ref u8) ref u8 = trust {
     val rewritten: ref u8 = rewrite_matches(src)
-    val braced: ref u8 = format_block_braces(rewritten)
+    val assert_spaced: ref u8 = format_assert_spacing(rewritten)
+    val braced: ref u8 = format_block_braces(assert_spaced)
     val decl_separated: ref u8 = format_decl_separators(braced)
     val arm_spaced: ref u8 = format_match_arm_spacing(decl_separated)
     val colon_spaced: ref u8 = format_colon_spacing(arm_spaced)
     val eq_spaced: ref u8 = format_eq_spacing(colon_spaced)
     val as_spaced: ref u8 = format_as_spacing(eq_spaced)
-    val brace_spaced: ref u8 = format_block_brace_spacing(as_spaced)
+    val op_spaced: ref u8 = format_operator_spacing(as_spaced)
+    val brace_spaced: ref u8 = format_block_brace_spacing(op_spaced)
     val return_spaced: ref u8 = format_fn_return_spacing(brace_spaced)
     val indented: ref u8 = reindent(return_spaced)
     val imports_aligned: ref u8 = format_import_alignment(indented)
