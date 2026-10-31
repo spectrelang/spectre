@@ -91,6 +91,17 @@ pub fn main() i32 = trust {
         return 0
     }
 
+    if string.raw_cmp(input, "help") == 0 {
+        val topic: mut ref u8 = ""
+        val topic_opt = @get(args, 2)
+        if topic_opt is some t {
+            topic = t as ref u8
+        }
+        val code: i32 = meta.print_help(topic)
+        allocators.Arena.free(arena)
+        return code
+    }
+
     if string.raw_cmp(input, "doctor") == 0 {
         val code: i32 = commands.cmd_doctor()
         allocators.Arena.free(arena)
@@ -123,11 +134,9 @@ pub fn main() i32 = trust {
             if fmt_arg_opt is some fv {
                 val arg: ref u8 = fv as ref u8
                 if string.raw_cmp(arg, "-h") == 0 || string.raw_cmp(arg, "--help") == 0 {
-                    stdio.puts("usage: spectre fmt [--stdio] <file.sx|directory>...")
-                    stdio.puts("")
-                    stdio.puts("  --stdio   Write formatted output to stdout instead of in place")
+                    val code: i32 = meta.print_help("fmt")
                     allocators.Arena.free(arena)
-                    return 0
+                    return code
                 } elif string.raw_cmp(arg, "--stdio") == 0 {
                     fmt_stdout = true
                 } else {
