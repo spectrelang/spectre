@@ -69,7 +69,7 @@ fn find_workspace_root(start_dir: ref u8) ref u8 = trust {
 /// Resolve a use-path string relative to the current file's directory.
 /// The workspace param must be the pre-computed workspace root (from find_workspace_root).
 pub fn resolve_use_path(use_path: mut ref u8, file_dir: ref u8, exe_dir: ref u8, workspace: ref u8) ref u8 = trust {
-    if str.rchar_starts_with(use_path, "std/") {
+    if str.raw_starts_with(use_path, "std/") {
         use_path = @fmt("spectrelib/{s}", {@ptradd(use_path as ref void, 4) as ref u8})
     }
     val plen: i64 = str.len_raw(use_path)

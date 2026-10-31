@@ -1443,7 +1443,7 @@ fn cg_is_int_const_val(cval: ref u8) bool = trust {
     if cval == none || str.raw_cmp(cval, "") == 0 {
         return false
     }
-    if rchar_starts_with(cval, "d_") || rchar_starts_with(cval, "s_") {
+    if raw_starts_with(cval, "d_") || raw_starts_with(cval, "s_") {
         return false
     }
     return true
@@ -1590,7 +1590,7 @@ fn cg_ann_size(ctx: mut ref CgCtx, ann: ref u8) i64 = trust {
     if str.raw_cmp(ann, "") == 0 {
         return 8
     }
-    if rchar_starts_with(ann, "[") {
+    if raw_starts_with(ann, "[") {
         val count: i64 = cg_ann_fixed_arr_len_val(ctx, ann)
         val inner: ref u8 = ann_fixed_arr_inner(ann)
         return count * cg_ann_size(ctx, inner)
@@ -1727,7 +1727,7 @@ fn cg_ann_after_get_indices(ann: ref u8, dims: i64) ref u8 = trust {
         if di >= dims {
             break
         }
-        if !rchar_starts_with(cur, "[") {
+        if !raw_starts_with(cur, "[") {
             return ""
         }
         cur = ann_fixed_arr_inner(cur)
@@ -3162,10 +3162,10 @@ fn cg_ann_deref(ann: ref u8) ref u8 = trust {
     if ann == none {
         return ""
     }
-    if rchar_starts_with(ann, "mut ref ") {
+    if raw_starts_with(ann, "mut ref ") {
         return @ptradd(ann, 8) as ref u8
     }
-    if rchar_starts_with(ann, "ref ") {
+    if raw_starts_with(ann, "ref ") {
         return @ptradd(ann, 4) as ref u8
     }
     return ann
@@ -3175,22 +3175,22 @@ fn cg_ann_is_indirect_value(ctx: mut ref CgCtx, ann: ref u8) bool = trust {
     if str.raw_cmp(ann, "") == 0 {
         return false
     }
-    if rchar_starts_with(ann, "mut ref ") {
+    if raw_starts_with(ann, "mut ref ") {
         return true
     }
-    if rchar_starts_with(ann, "ref ") {
+    if raw_starts_with(ann, "ref ") {
         return true
     }
-    if rchar_starts_with(ann, "list[") {
+    if raw_starts_with(ann, "list[") {
         return true
     }
-    if rchar_starts_with(ann, "slice[") {
+    if raw_starts_with(ann, "slice[") {
         return true
     }
-    if rchar_starts_with(ann, "option[") {
+    if raw_starts_with(ann, "option[") {
         return true
     }
-    if rchar_starts_with(ann, "result[") {
+    if raw_starts_with(ann, "result[") {
         return true
     }
     if @load8(ann as ref void) as i64 == 91 {
@@ -3502,10 +3502,10 @@ fn infer_type_annotation(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = tru
             val mod_cval: ref u8 = cg_const_val(ctx, mod_key)
             @free(mod_key)
             if str.raw_cmp(mod_cval, "") != 0 {
-                if rchar_starts_with(mod_cval, "d_") {
+                if raw_starts_with(mod_cval, "d_") {
                     return "f64"
                 }
-                if rchar_starts_with(mod_cval, "s_") {
+                if raw_starts_with(mod_cval, "s_") {
                     return "f32"
                 }
                 return "i64"
@@ -3572,10 +3572,10 @@ fn infer_type_annotation(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = tru
     if k == parser.NK_DEREF {
         val inner_expr: ref parser.Node = expr.d0 as ref parser.Node
         val inner_ann: ref u8 = infer_type_annotation(ctx, inner_expr)
-        if rchar_starts_with(inner_ann, "mut ref ") {
+        if raw_starts_with(inner_ann, "mut ref ") {
             return @ptradd(inner_ann, 8) as ref u8
         }
-        if rchar_starts_with(inner_ann, "ref ") {
+        if raw_starts_with(inner_ann, "ref ") {
             return @ptradd(inner_ann, 4) as ref u8
         }
         return inner_ann
@@ -3655,14 +3655,14 @@ fn infer_type_annotation(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = tru
                 val a0_opt = @get(bargs_ann as list[ref parser.Node], 0 as usize)
                 if a0_opt is some a0 {
                     val base_ann: ref u8 = infer_type_annotation(ctx, a0 as ref parser.Node)
-                    if rchar_starts_with(base_ann, "list[") {
+                    if raw_starts_with(base_ann, "list[") {
                         val la_len: i64 = str.len_raw(base_ann)
                         val elem_t: ref u8 = str.substr(base_ann, 5, la_len - 6)
                         val opt_a: ref u8 = @alloc(256) as ref u8
                         @snprintf(opt_a, 256, "option[{s}]", {elem_t})
                         return opt_a
                     }
-                    if rchar_starts_with(base_ann, "[") && blen > 1 {
+                    if raw_starts_with(base_ann, "[") && blen > 1 {
                         val elem_t2: ref u8 = cg_ann_after_get_indices(base_ann, blen - 1)
                         if str.raw_cmp(elem_t2, "") != 0 {
                             val opt_a2: ref u8 = @alloc(256) as ref u8
@@ -3734,7 +3734,7 @@ fn gen_variadic_arg(ctx: mut ref CgCtx, node: ref parser.Node) ref u8 = trust {
 }
 
 /// Check if a raw u8 pointer starts with a raw prefix.
-fn rchar_starts_with(src: ref u8, prefix: ref u8) bool = trust {
+fn raw_starts_with(src: ref u8, prefix: ref u8) bool = trust {
     val slen: i64 = str.len_raw(src)
     val plen: i64 = str.len_raw(prefix)
     if plen > slen {
@@ -3755,7 +3755,7 @@ fn rchar_starts_with(src: ref u8, prefix: ref u8) bool = trust {
 
 /// Extract the inner type from a "option[T]" annotation str. Returns "" if not an option.
 fn parse_option_inner(ann: ref u8) ref u8 = trust {
-    if !rchar_starts_with(ann, "option[") {
+    if !raw_starts_with(ann, "option[") {
         return ""
     }
     val alen: i64 = str.len_raw(ann)
@@ -3769,7 +3769,7 @@ fn parse_option_inner(ann: ref u8) ref u8 = trust {
 /// Extract the ok and err types from a "result[T, E]" annotation str. Returns 0 for each part if not a result.
 /// Caller provides two 256-byte buffers for the results.
 fn parse_result_types(ann: ref u8, ok_buf: ref u8, err_buf: ref u8) void = trust {
-    if !rchar_starts_with(ann, "result[") {
+    if !raw_starts_with(ann, "result[") {
         @store8(ok_buf, 0)
         @store8(err_buf, 0)
         return
@@ -5054,10 +5054,10 @@ fn gen_expr(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
             if ctx.expected_ty != none {
                 expected_qt2 = qbe_type_of(ctx.expected_ty as ref parser.Node)
             }
-            if rchar_starts_with(cval, "d_") || rchar_starts_with(cval, "s_") {
+            if raw_starts_with(cval, "d_") || raw_starts_with(cval, "s_") {
                 val ftext: ref u8 = @ptradd(cval as ref void, 2) as ref u8
                 val emit_qt: mut ref u8 = "d"
-                if rchar_starts_with(cval, "s_") {
+                if raw_starts_with(cval, "s_") {
                     emit_qt = "s"
                 }
                 if str.raw_cmp(expected_qt2, "s") == 0 {
@@ -5439,12 +5439,12 @@ fn gen_expr(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
                 if cg_is_slot(ctx, iname) {
                     val local_type_addr: ref u8 = cg_local_type(ctx, iname)
                     val slot_is_indirect_addr: mut bool = false
-                    if !rchar_starts_with(local_type_addr, "ref ") &&
-                    !rchar_starts_with(local_type_addr, "mut ref ") {
-                        if rchar_starts_with(local_type_addr, "list[") ||
-                        rchar_starts_with(local_type_addr, "slice[") ||
-                        rchar_starts_with(local_type_addr, "result[") ||
-                        rchar_starts_with(local_type_addr, "[") {
+                    if !raw_starts_with(local_type_addr, "ref ") &&
+                    !raw_starts_with(local_type_addr, "mut ref ") {
+                        if raw_starts_with(local_type_addr, "list[") ||
+                        raw_starts_with(local_type_addr, "slice[") ||
+                        raw_starts_with(local_type_addr, "result[") ||
+                        raw_starts_with(local_type_addr, "[") {
                             slot_is_indirect_addr = true
                         } elif str.raw_cmp(local_type_addr, "") != 0 {
                             if cg_lookup_struct(ctx, local_type_addr) != none {
@@ -5582,7 +5582,7 @@ fn expr_is_float(ctx: mut ref CgCtx, expr: ref parser.Node) bool = trust {
             return true
         }
         val cval: ref u8 = cg_const_val(ctx, name)
-        if rchar_starts_with(cval, "d_") || rchar_starts_with(cval, "s_") {
+        if raw_starts_with(cval, "d_") || raw_starts_with(cval, "s_") {
             return true
         }
         return false
@@ -5637,10 +5637,10 @@ fn expr_qbe_type(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
         val name: ref u8 = expr.d0 as ref u8
         val cval_ident: ref u8 = cg_const_val(ctx, name)
         if str.raw_cmp(cval_ident, "") != 0 {
-            if rchar_starts_with(cval_ident, "s_") {
+            if raw_starts_with(cval_ident, "s_") {
                 return "s"
             }
-            if rchar_starts_with(cval_ident, "d_") {
+            if raw_starts_with(cval_ident, "d_") {
                 if ctx.expected_ty != none {
                     val expected_qt_ident: ref u8 = qbe_type_of(ctx.expected_ty as ref parser.Node)
                     if str.raw_cmp(expected_qt_ident, "s") == 0 {
@@ -6306,10 +6306,10 @@ fn gen_field(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
             if str.raw_cmp(const_val3, "") != 0 {
                 val tmp3: i64 = fresh_tmp(ctx)
                 val buf3: ref u8 = @alloc(256) as ref u8
-                if rchar_starts_with(const_val3, "d_") || rchar_starts_with(const_val3, "s_") {
+                if raw_starts_with(const_val3, "d_") || raw_starts_with(const_val3, "s_") {
                     val ftext3: ref u8 = @ptradd(const_val3 as ref void, 2) as ref u8
                     val emit_qt3: mut ref u8 = "d"
-                    if rchar_starts_with(const_val3, "s_") {
+                    if raw_starts_with(const_val3, "s_") {
                         emit_qt3 = "s"
                     }
                     if ctx.expected_ty != none {
@@ -6355,10 +6355,10 @@ fn gen_field(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
             val const_val: ref u8 = cg_const_val(ctx, enum_key)
             @free(enum_key)
             if str.raw_cmp(const_val, "") != 0 {
-                if rchar_starts_with(const_val, "d_") || rchar_starts_with(const_val, "s_") {
+                if raw_starts_with(const_val, "d_") || raw_starts_with(const_val, "s_") {
                     val ftext: ref u8 = @ptradd(const_val as ref void, 2) as ref u8
                     val emit_qt: mut ref u8 = "d"
-                    if rchar_starts_with(const_val, "s_") {
+                    if raw_starts_with(const_val, "s_") {
                         emit_qt = "s"
                     }
                     if ctx.expected_ty != none {
@@ -6470,7 +6470,7 @@ fn gen_field(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
         if inner.kind == parser.NK_IDENT {
             val inner_name: ref u8 = inner.d0 as ref u8
             val inner_type: ref u8 = cg_local_type(ctx, inner_name)
-            if str.raw_cmp(inner_type, "") != 0 && rchar_starts_with(inner_type, "ref ") {
+            if str.raw_cmp(inner_type, "") != 0 && raw_starts_with(inner_type, "ref ") {
                 val deref_type: ref u8 = @ptradd(inner_type, 4) as ref u8
                 val fields: ref void = cg_lookup_struct(ctx, deref_type)
                 if fields != none {
@@ -7399,8 +7399,8 @@ fn gen_call(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
     @free(tv_field_slot)
 
     val is_print: bool = str.raw_cmp(callee_name, "print") == 0
-    || str.rchar_ends_with(callee_name, "__print")
-    || str.rchar_ends_with(callee_name, "__eprint")
+    || str.raw_ends_with(callee_name, "__print")
+    || str.raw_ends_with(callee_name, "__eprint")
 
     if is_print && args_list != none {
         val alen_p: i64 = @len(args_list) as i64
@@ -8332,7 +8332,7 @@ fn gen_builtin(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
             base_ann = infer_type_annotation(ctx, a0 as ref parser.Node)
         }
 
-        if rchar_starts_with(base_ann, "[") {
+        if raw_starts_with(base_ann, "[") {
             val arg_count: i64 = @len(args as list[ref parser.Node]) as i64
             val result_slot: i64 = fresh_tmp(ctx)
             val none_lbl: i64 = fresh_lbl(ctx)
@@ -8350,7 +8350,7 @@ fn gen_builtin(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
                 if ai >= arg_count {
                     break
                 }
-                if !rchar_starts_with(cur_ann, "[") {
+                if !raw_starts_with(cur_ann, "[") {
                     val fail_buf: ref u8 = @alloc(64) as ref u8
                     @snprintf(fail_buf, 64, "    jmp @lbl{lld}\n", {none_lbl})
                     emit(ctx, fail_buf)
@@ -8384,7 +8384,7 @@ fn gen_builtin(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
                 ai++
             }
 
-            if rchar_starts_with(cur_ann, "[") {
+            if raw_starts_with(cur_ann, "[") {
                 val some_ptr: i64 = fresh_tmp(ctx)
                 val some_buf: ref u8 = @alloc(128) as ref u8
                 @snprintf(some_buf, 128, "    %%t{lld} =l add {s}, 1\n    storel %%t{lld}, %%t{lld}\n    jmp @lbl{lld}\n",
@@ -8434,7 +8434,7 @@ fn gen_builtin(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
             val lst3: ref u8 = get_list_arg(ctx, args, 0)
             val idx: ref u8 = get_arg(ctx, args, 1)
             val elem_ann_list: mut ref u8 = ""
-            if rchar_starts_with(base_ann, "list[") {
+            if raw_starts_with(base_ann, "list[") {
                 val ba_len: i64 = str.len_raw(base_ann)
                 elem_ann_list = str.substr(base_ann, 5, ba_len - 6)
             }
@@ -10775,7 +10775,7 @@ fn gen_forin_stmt(ctx: mut ref CgCtx, stmt: ref parser.Node) void = trust {
             }
         }
     }
-    if str.raw_cmp(iter_type2, "") != 0 && rchar_starts_with(iter_type2, "list[") {
+    if str.raw_cmp(iter_type2, "") != 0 && raw_starts_with(iter_type2, "list[") {
         val elem_type2: ref u8 = @ptradd(iter_type2, 5) as ref u8 // skip "list["
         val elem_len2: i64 = str.len_raw(elem_type2)
         if elem_len2 > 1 {
@@ -10825,7 +10825,7 @@ fn gen_forin_stmt(ctx: mut ref CgCtx, stmt: ref parser.Node) void = trust {
             }
         }
     }
-    if str.raw_cmp(iter_type, "") != 0 && rchar_starts_with(iter_type, "list[") {
+    if str.raw_cmp(iter_type, "") != 0 && raw_starts_with(iter_type, "list[") {
         val elem_type: ref u8 = @ptradd(iter_type, 5) as ref u8 // skip "list["
         val elem_len: i64 = str.len_raw(elem_type)
         val yo = @load8(@ptradd(elem_type as ref void, elem_len - 1)) as i64
@@ -10834,7 +10834,7 @@ fn gen_forin_stmt(ctx: mut ref CgCtx, stmt: ref parser.Node) void = trust {
             @memcpy(elem_type_copy as ref void, elem_type as ref void, (elem_len - 1) as usize)
             @store8(@ptradd(elem_type_copy as ref void, elem_len - 1), 0)
             cg_register_local_type(ctx, binding, elem_type_copy)
-            if rchar_starts_with(elem_type_copy, "ref ") {
+            if raw_starts_with(elem_type_copy, "ref ") {
                 cg_register_local_ref_type(ctx, binding)
             }
         }
@@ -10904,7 +10904,7 @@ fn gen_match_opt(ctx: mut ref CgCtx, stmt: ref parser.Node) void = trust {
         cg_register_local_var(ctx, some_bind, tmp_str)
         if str.raw_cmp(inner_type, "") != 0 {
             cg_register_local_type(ctx, some_bind, inner_type)
-            if rchar_starts_with(inner_type, "ref ") {
+            if raw_starts_with(inner_type, "ref ") {
                 cg_register_local_ref_type(ctx, some_bind)
             }
         } else {
@@ -10962,7 +10962,7 @@ fn gen_match_res(ctx: mut ref CgCtx, stmt: ref parser.Node) void = trust {
     val ok_type_buf: ref u8 = @alloc(256) as ref u8
     val err_type_buf: ref u8 = @alloc(256) as ref u8
     parse_result_types(result_ann, ok_type_buf, err_type_buf)
-    val is_real_result: bool = str.raw_cmp(result_ann, "") == 0 || rchar_starts_with(result_ann, "result[")
+    val is_real_result: bool = str.raw_cmp(result_ann, "") == 0 || raw_starts_with(result_ann, "result[")
 
     if is_real_result {
         val is_direct_param: mut bool = false
@@ -11006,7 +11006,7 @@ fn gen_match_res(ctx: mut ref CgCtx, stmt: ref parser.Node) void = trust {
             val ok_inner: ref u8 = ok_type_buf
             if str.raw_cmp(ok_inner, "") != 0 {
                 cg_register_local_type(ctx, ok_bind, ok_inner)
-                if rchar_starts_with(ok_inner, "ref ") {
+                if raw_starts_with(ok_inner, "ref ") {
                     cg_register_local_ref_type(ctx, ok_bind)
                 }
             }
@@ -11856,7 +11856,7 @@ fn gen_fn_prefixed(ctx: mut ref CgCtx, fn_node: ref parser.Node, mod_prefix: ref
                     val gann_copy: ref u8 = @alloc(str.len_raw(gann_buf) + 1) as ref u8
                     @memcpy(gann_copy as ref void, gann_buf as ref void, str.len_raw(gann_buf) + 1)
                     cg_register_local_type(ctx, gn as ref u8, gann_copy)
-                    if rchar_starts_with(gann_copy, "ref ") || rchar_starts_with(gann_copy, "mut ref ") || cg_ann_is_indirect_value(ctx, gann_copy) {
+                    if raw_starts_with(gann_copy, "ref ") || raw_starts_with(gann_copy, "mut ref ") || cg_ann_is_indirect_value(ctx, gann_copy) {
                         cg_register_local_ref_type(ctx, gn as ref u8)
                     }
                 } elif str.raw_cmp(gqt_buf, "w") == 0 {
@@ -13218,7 +13218,7 @@ fn gen_test_fn(ctx: mut ref CgCtx, body_stmts: ref parser.Node, test_id: i64) vo
                     val gann_copy: ref u8 = @alloc(str.len_raw(gann_buf) + 1) as ref u8
                     @memcpy(gann_copy as ref void, gann_buf as ref void, str.len_raw(gann_buf) + 1)
                     cg_register_local_type(ctx, gn as ref u8, gann_copy)
-                    if rchar_starts_with(gann_copy, "ref ") || rchar_starts_with(gann_copy, "mut ref ") || cg_ann_is_indirect_value(ctx, gann_copy) {
+                    if raw_starts_with(gann_copy, "ref ") || raw_starts_with(gann_copy, "mut ref ") || cg_ann_is_indirect_value(ctx, gann_copy) {
                         cg_register_local_ref_type(ctx, gn as ref u8)
                     }
                 } elif str.raw_cmp(gqt_buf, "w") == 0 {

@@ -22,10 +22,10 @@ val env_aliases: mut ref EnvAlias = none
 /// Return true when a resolved module path is the standard or compiler-local
 /// environment module.
 pub fn is_env_module_path(module_path: ref u8) bool = trust {
-    if str.rchar_ends_with(module_path, "/spectrelib/env/core.sx") {
+    if str.raw_ends_with(module_path, "/spectrelib/env/core.sx") {
         return true
     }
-    if str.rchar_ends_with(module_path, "/src/meta/env.sx") {
+    if str.raw_ends_with(module_path, "/src/meta/env.sx") {
         return true
     }
     return false

@@ -143,7 +143,7 @@ fn trim_trailing_slash(src: ref u8) ref u8 = trust {
 
 fn normalize_rel_path(path: ref u8) ref u8 = trust {
     val no_dot: mut ref u8 = path
-    if str.rchar_starts_with(path, "./") {
+    if str.raw_starts_with(path, "./") {
         no_dot = substr(path, 2, str.len_raw(path) - 2)
     }
     return trim_trailing_slash(no_dot)
@@ -188,7 +188,7 @@ fn path_basename(path: ref u8) ref u8 = trust {
 }
 
 fn strip_sx_ext(path: ref u8) ref u8 = trust {
-    if str.rchar_ends_with(path, ".sx") {
+    if str.raw_ends_with(path, ".sx") {
         return substr(path, 0, str.len_raw(path) - 3)
     }
     return path
@@ -269,7 +269,7 @@ fn collect_sx_files(dir: ref u8, rel_dir: ref u8, out: mut list[ref u8]) void = 
             }
             if dir_exists(child_path) {
                 collect_sx_files(child_path, child_rel, out)
-            } elif str.rchar_ends_with(entry, ".sx") {
+            } elif str.raw_ends_with(entry, ".sx") {
                 @append(out, copy_cstr(normalize_rel_path(child_rel)))
             }
         }
@@ -278,18 +278,18 @@ fn collect_sx_files(dir: ref u8, rel_dir: ref u8, out: mut list[ref u8]) void = 
 }
 
 fn is_doc_target_line(line: ref u8) bool = trust {
-    return str.rchar_starts_with(line, "fn ") ||
-    str.rchar_starts_with(line, "pub fn ") ||
-    str.rchar_starts_with(line, "val ") ||
-    str.rchar_starts_with(line, "pub val ") ||
-    str.rchar_starts_with(line, "extern ") ||
-    str.rchar_starts_with(line, "pub extern ") ||
-    str.rchar_starts_with(line, "type ") ||
-    str.rchar_starts_with(line, "pub type ") ||
-    str.rchar_starts_with(line, "enum ") ||
-    str.rchar_starts_with(line, "pub enum ") ||
-    str.rchar_starts_with(line, "union ") ||
-    str.rchar_starts_with(line, "pub union ")
+    return str.raw_starts_with(line, "fn ") ||
+    str.raw_starts_with(line, "pub fn ") ||
+    str.raw_starts_with(line, "val ") ||
+    str.raw_starts_with(line, "pub val ") ||
+    str.raw_starts_with(line, "extern ") ||
+    str.raw_starts_with(line, "pub extern ") ||
+    str.raw_starts_with(line, "type ") ||
+    str.raw_starts_with(line, "pub type ") ||
+    str.raw_starts_with(line, "enum ") ||
+    str.raw_starts_with(line, "pub enum ") ||
+    str.raw_starts_with(line, "union ") ||
+    str.raw_starts_with(line, "pub union ")
 }
 
 fn doc_line_text(trimmed: ref u8) ref u8 = trust {
@@ -311,7 +311,7 @@ fn update_doc_map_for_line(map: ref DocMap, trimmed: ref u8, line_no: i64, curre
         line_is_positive: line_no > 0
     }
 
-    if str.rchar_starts_with(trimmed, "///") {
+    if str.raw_starts_with(trimmed, "///") {
         val text = doc_line_text(trimmed)
         if str_eq(current_doc, "") {
             return text
@@ -1560,7 +1560,7 @@ fn append_markdown_html(sb: ref void, markdown: ref u8) void = trust {
                     string.StringBuilder.append_cstr(sb, @fmt("<{s}>", {tag}))
                     append_markdown_inline_html(sb, heading_text)
                     string.StringBuilder.append_cstr(sb, @fmt("</{s}>", {tag}))
-                } elif str.rchar_starts_with(trimmed, "- ") || str.rchar_starts_with(trimmed, "* ") {
+                } elif str.raw_starts_with(trimmed, "- ") || str.raw_starts_with(trimmed, "* ") {
                     flush_markdown_paragraph_html(sb, paragraph)
                     if !in_list {
                         string.StringBuilder.append_cstr(sb, "<ul>")
@@ -1585,7 +1585,7 @@ fn append_markdown_html(sb: ref void, markdown: ref u8) void = trust {
             val line = substr(markdown, line_start, i - line_start)
             val trimmed = trim_ws(line)
             if in_code {
-                if str.rchar_starts_with(trimmed, "```") {
+                if str.raw_starts_with(trimmed, "```") {
                     string.StringBuilder.append_cstr(sb, "</code></pre>")
                     in_code = false
                     code_lang = ""
@@ -1593,7 +1593,7 @@ fn append_markdown_html(sb: ref void, markdown: ref u8) void = trust {
                     string.StringBuilder.append_cstr(sb, html_escape(line))
                     string.StringBuilder.append_cstr(sb, "\n")
                 }
-            } elif str.rchar_starts_with(trimmed, "```") {
+            } elif str.raw_starts_with(trimmed, "```") {
                 flush_markdown_paragraph_html(sb, paragraph)
                 close_markdown_list_html(sb, in_list)
                 code_lang = trim_ws(substr(trimmed, 3, str.len_raw(trimmed) - 3))
@@ -1616,7 +1616,7 @@ fn append_markdown_html(sb: ref void, markdown: ref u8) void = trust {
                     string.StringBuilder.append_cstr(sb, @fmt("<{s}>", {tag}))
                     append_markdown_inline_html(sb, heading_text)
                     string.StringBuilder.append_cstr(sb, @fmt("</{s}>", {tag}))
-                } elif str.rchar_starts_with(trimmed, "- ") || str.rchar_starts_with(trimmed, "* ") {
+                } elif str.raw_starts_with(trimmed, "- ") || str.raw_starts_with(trimmed, "* ") {
                     flush_markdown_paragraph_html(sb, paragraph)
                     if !in_list {
                         string.StringBuilder.append_cstr(sb, "<ul>")
@@ -2337,7 +2337,7 @@ pub fn cmd_doc(target: ref u8, markdown: bool) i32 = trust {
         stdio.print("error: could not read '{s}'\n", {target})
         return 1
     }
-    if !str.rchar_ends_with(target, ".sx") {
+    if !str.raw_ends_with(target, ".sx") {
         stdio.puts("error: doc expects a .sx file or a directory")
         return 1
     }

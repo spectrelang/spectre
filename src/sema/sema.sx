@@ -2964,7 +2964,7 @@ fn get_expr_type_category(ctx: ref SemaCtx, node: ref parser.Node) ref u8 = trus
 fn check_printf_fmt(ctx: ref SemaCtx, fmt_str: ref u8, all_args: ref void,
     args_start_idx: i64, filename: ref u8, line: i64) void = trust {
     if has_c_style_specifier(fmt_str) {
-        if !string.rchar_ends_with(filename, "codegen.sx") {
+        if !string.raw_ends_with(filename, "codegen.sx") {
             val buf: ref u8 = @alloc(256) as ref u8
             @snprintf(buf, 256, "{s}:{lld}: C-style format specifiers are not allowed; use \{d\}, \{s\} etc.",
                 {filename, line})

@@ -74,7 +74,7 @@ pub fn main() i32 = trust {
                     allocators.Arena.free(arena)
                     return 1
                 }
-            } elif string.rchar_starts_with(pre_arg, "-d") {
+            } elif string.raw_starts_with(pre_arg, "-d") {
                 val def_spec: ref u8 = string.substr(pre_arg, 2, string.len_raw(pre_arg) - 2)
                 if !defines.add_spec(def_spec) {
                     stdio.print("error: invalid define '{s}', expected -dNAME=VALUE\n", {pre_arg})
@@ -209,7 +209,7 @@ pub fn main() i32 = trust {
                 val arg: ref u8 = dv as ref u8
                 if string.raw_cmp(arg, "--md") == 0 {
                     md_mode = true
-                } elif string.rchar_starts_with(arg, "-") {
+                } elif string.raw_starts_with(arg, "-") {
                     stdio.print("error: unknown doc option '{s}'\n", {arg})
                     allocators.Arena.free(arena)
                     return 1
@@ -365,7 +365,7 @@ pub fn main() i32 = trust {
                     allocators.Arena.free(arena)
                     return 1
                 }
-            } elif string.rchar_starts_with(arg, "-d") {
+            } elif string.raw_starts_with(arg, "-d") {
                 val def_spec: ref u8 = string.substr(arg, 2, string.len_raw(arg) - 2)
                 if !defines.add_spec(def_spec) {
                     stdio.print("error: invalid define '{s}', expected -dNAME=VALUE\n", {arg})
@@ -418,20 +418,20 @@ pub fn main() i32 = trust {
             } elif string.raw_cmp(arg, "--alt") == 0 || string.raw_cmp(arg, "-a") == 0 {
                 use_alt = true
                 arg_i++
-            } elif string.rchar_starts_with(arg, "--alt=") {
+            } elif string.raw_starts_with(arg, "--alt=") {
                 use_alt = true
                 val compiler_str = builds.parse_alt_compiler_arg(arg)
                 if string.raw_cmp(compiler_str, "") != 0 {
                     alt_compiler = compiler_str
                 }
                 arg_i++
-            } elif string.rchar_starts_with(arg, "--src-target=") {
+            } elif string.raw_starts_with(arg, "--src-target=") {
                 val tgt_len: i64 = string.len_raw(arg) as i64 - 13
                 if tgt_len > 0 {
                     src_target = string.substr(arg, 13, tgt_len)
                 }
                 arg_i++
-            } elif string.rchar_starts_with(arg, "--inc-path=") {
+            } elif string.raw_starts_with(arg, "--inc-path=") {
                 val path_str: ref u8 = string.substr(arg, 11, string.len_raw(arg) - 11)
                 if string.raw_cmp(path_str, "") == 0 {
                     stdio.puts("error: --inc-path requires a value")
@@ -735,7 +735,7 @@ pub fn main() i32 = trust {
             if string.len_raw(vstr) > 0 {
                 stdio.print("{s}", {vstr})
             }
-            if string.rchar_starts_with(vstr, "qbe:") {
+            if string.raw_starts_with(vstr, "qbe:") {
                 stdio.puts("error: qbe stage failed")
                 os.delete(qbe_file)
                 allocators.Arena.free(arena)

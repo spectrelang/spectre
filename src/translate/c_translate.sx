@@ -386,7 +386,7 @@ fn starts_keyword_paren(text: ref u8, keyword: ref u8) bool = {
     if len <= kw_len {
         return false
     }
-    if !string.rchar_starts_with(trimmed, keyword) {
+    if !string.raw_starts_with(trimmed, keyword) {
         return false
     }
     val i: mut i64 = kw_len
@@ -408,7 +408,7 @@ fn starts_keyword_paren(text: ref u8, keyword: ref u8) bool = {
 
 fn starts_do_statement(text: ref u8) bool = {
     val trimmed: ref u8 = trim_raw(text)
-    if !string.rchar_starts_with(trimmed, "do") {
+    if !string.raw_starts_with(trimmed, "do") {
         return false
     }
     val len: i64 = string.len_raw(trimmed)
@@ -862,14 +862,14 @@ fn render_binding_type(ctx: ref TranslationCtx, name: ref u8, type_name: ref u8)
     if !is_mutable_name(ctx, name) {
         return type_name
     }
-    if string.rchar_starts_with(type_name, "mut ") {
+    if string.raw_starts_with(type_name, "mut ") {
         return type_name
     }
     return trust @fmt("mut {s}", {type_name})
 }
 
 fn render_mutable_type(type_name: ref u8) ref u8 = {
-    if string.rchar_starts_with(type_name, "mut ") {
+    if string.raw_starts_with(type_name, "mut ") {
         return type_name
     }
     return trust @fmt("mut {s}", {type_name})
@@ -892,7 +892,7 @@ fn append_main_prelude_builder(ctx: ref TranslationCtx, sb: ref void) void = {
 }
 
 fn is_array_type_name(type_name: ref u8) bool = {
-    return string.rchar_starts_with(type_name, "[")
+    return string.raw_starts_with(type_name, "[")
 }
 
 fn array_type_close_index(type_name: ref u8) i64 = {
@@ -1164,7 +1164,7 @@ fn analyze_mutations_in_statement(ctx: mut ref TranslationCtx, line: ref u8) voi
     if string.raw_cmp(stripped, "") == 0 {
         return
     }
-    if string.rchar_starts_with(stripped, "else") {
+    if string.raw_starts_with(stripped, "else") {
         val tail: ref u8 = trim_raw(trust string.substr(stripped, 4, string.len_raw(stripped) - 4))
         if string.raw_cmp(tail, "") != 0 {
             analyze_mutations_in_statement(ctx, tail)
@@ -1202,7 +1202,7 @@ fn analyze_mutations_in_statement(ctx: mut ref TranslationCtx, line: ref u8) voi
     if assign_i > 0 {
         val lhs: ref u8 = trim_raw(trust string.substr(stripped, 0, assign_i))
         val can_be_decl: bool = str_contains(lhs, " ") || str_contains(lhs, "*")
-        || string.rchar_starts_with(lhs, "struct ") || string.rchar_starts_with(lhs, "enum ")
+        || string.raw_starts_with(lhs, "struct ") || string.raw_starts_with(lhs, "enum ")
         if !can_be_decl {
             mark_mutable_name(ctx, extract_assignment_base(lhs))
         }
@@ -1530,7 +1530,7 @@ fn lower_incdec_expr(ctx: ref TranslationCtx, text: ref u8, indent: i64, out: re
 fn body_has_explicit_return(lines: list[ref u8]) bool = {
     for line in lines {
         val trimmed: ref u8 = trim_raw(line)
-        if string.rchar_starts_with(trimmed, "return") {
+        if string.raw_starts_with(trimmed, "return") {
             return true
         }
     }
@@ -1719,7 +1719,7 @@ fn strip_system_includes(text: ref u8) ref u8 = {
     val first: mut bool = true
     for line in lines {
         val trimmed: ref u8 = trim_raw(line)
-        if string.rchar_starts_with(trimmed, "#include") && is_system_include(trimmed) {
+        if string.raw_starts_with(trimmed, "#include") && is_system_include(trimmed) {
             continue
         }
         if !first {
@@ -1839,7 +1839,7 @@ fn infer_called_arg_type(ctx: ref TranslationCtx, text: ref u8) ref u8 = {
     if string.raw_cmp(trimmed, "NULL") == 0 || string.raw_cmp(trimmed, "0") == 0 {
         return "ref void"
     }
-    if string.rchar_starts_with(trimmed, "@addr(") {
+    if string.raw_starts_with(trimmed, "@addr(") {
         return "ref void"
     }
     if is_string_literal_text(trimmed) {
@@ -1939,7 +1939,7 @@ fn lookup_called_signature(ctx: ref TranslationCtx, call_name: ref u8) option[re
 
 fn track_called_expr(ctx: mut ref TranslationCtx, expr: ref u8) void = {
     val call_name: ref u8 = extract_call_name(expr)
-    if string.raw_cmp(call_name, "") != 0 && !string.rchar_starts_with(expr, "@") {
+    if string.raw_cmp(call_name, "") != 0 && !string.raw_starts_with(expr, "@") {
         push_unique(ctx.called_names, call_name)
         remember_called_signature(ctx, call_name, trust extract_call_args_text(expr))
     }
@@ -2228,13 +2228,13 @@ fn is_known_c_type_name(ctx: ref TranslationCtx, text: ref u8) bool = {
     if string.raw_cmp(base, "uintptr_t") == 0 {
         return true
     }
-    if string.rchar_starts_with(base, "struct ") {
+    if string.raw_starts_with(base, "struct ") {
         return true
     }
-    if string.rchar_starts_with(base, "enum ") {
+    if string.raw_starts_with(base, "enum ") {
         return true
     }
-    if string.rchar_starts_with(base, "union ") {
+    if string.raw_starts_with(base, "union ") {
         return true
     }
     return list_contains(ctx.translated_type_names, base)
@@ -2290,7 +2290,7 @@ fn lookup_index_element_type(ctx: ref TranslationCtx, base: ref u8) ref u8 = {
     }
     if lookup_local_type(ctx, base) is some type_name {
         val t: ref u8 = trim_raw(type_name as ref u8)
-        if string.rchar_starts_with(t, "ref ") {
+        if string.raw_starts_with(t, "ref ") {
             return trim_raw(trust string.substr(t, 4, string.len_raw(t) - 4))
         }
         if is_array_type_name(t) {
@@ -3096,7 +3096,7 @@ fn transform_call_expr(ctx: ref TranslationCtx, text: ref u8) ref u8 = {
         return trimmed
     }
     val intrinsic_prefix: mut ref u8 = ""
-    if string.rchar_starts_with(trimmed, "@") {
+    if string.raw_starts_with(trimmed, "@") {
         intrinsic_prefix = "@"
     }
     val args_raw: ref u8 = trim_raw(trust string.substr(trimmed, open_i + 1, close_i - open_i - 1))
@@ -3342,7 +3342,7 @@ fn translate_for_loop(lines: list[ref u8], current_dir: ref u8, start: i64, inde
                 body_indent = indent + 2
             }
             if string.raw_cmp(tail, "") != 0 {
-                if string.rchar_starts_with(tail, "{") {
+                if string.raw_starts_with(tail, "{") {
                     val body_span: ref BlockResult = translate_brace_block(lines, start, body_indent, out, ctx)
                     next_i = body_span.next_index
                 } else {
@@ -3354,7 +3354,7 @@ fn translate_for_loop(lines: list[ref u8], current_dir: ref u8, start: i64, inde
                     val next_opt = @get(lines, next_body_i as usize)
                     if next_opt is some next_line {
                         val next_trimmed: ref u8 = trim_raw(next_line as ref u8)
-                        if string.rchar_starts_with(next_trimmed, "{") {
+                        if string.raw_starts_with(next_trimmed, "{") {
                             val body_span2: ref BlockResult = translate_brace_block(lines, next_body_i, body_indent, out, ctx)
                             next_i = body_span2.next_index
                         } else {
@@ -3401,7 +3401,7 @@ fn translate_while_loop(lines: list[ref u8], current_dir: ref u8, start: i64, in
             append_line(out, indent + 1, trust @fmt("if ({s}) {", {cond_text}))
             val next_i: mut i64 = start + 1
             if string.raw_cmp(tail, "") != 0 {
-                if string.rchar_starts_with(tail, "{") {
+                if string.raw_starts_with(tail, "{") {
                     val body_span: ref BlockResult = translate_brace_block(lines, start, indent + 2, out, ctx)
                     next_i = body_span.next_index
                 } else {
@@ -3413,7 +3413,7 @@ fn translate_while_loop(lines: list[ref u8], current_dir: ref u8, start: i64, in
                     val next_opt = @get(lines, next_body_i as usize)
                     if next_opt is some next_line {
                         val next_trimmed: ref u8 = trim_raw(next_line as ref u8)
-                        if string.rchar_starts_with(next_trimmed, "{") {
+                        if string.raw_starts_with(next_trimmed, "{") {
                             val body_span2: ref BlockResult = translate_brace_block(lines, next_body_i, indent + 2, out, ctx)
                             next_i = body_span2.next_index
                         } else {
@@ -3472,7 +3472,7 @@ fn translate_if_text(lines: list[ref u8], current_dir: ref u8, line_index: i64, 
     append_line(out, indent, trust @fmt("if ({s}) {", {cond_text}))
     val next_i: mut i64 = line_index + 1
     if string.raw_cmp(tail, "") != 0 {
-        if string.rchar_starts_with(tail, "{") {
+        if string.raw_starts_with(tail, "{") {
             val then_span: ref BlockResult = translate_brace_block(lines, line_index, indent + 1, out, ctx)
             next_i = then_span.next_index
         } else {
@@ -3484,7 +3484,7 @@ fn translate_if_text(lines: list[ref u8], current_dir: ref u8, line_index: i64, 
             val next_opt = @get(lines, next_body_i as usize)
             if next_opt is some next_line {
                 val next_trimmed: ref u8 = trim_raw(next_line as ref u8)
-                if string.rchar_starts_with(next_trimmed, "{") {
+                if string.raw_starts_with(next_trimmed, "{") {
                     val then_span2: ref BlockResult = translate_brace_block(lines, next_body_i, indent + 1, out, ctx)
                     next_i = then_span2.next_index
                 } else {
@@ -3499,7 +3499,7 @@ fn translate_if_text(lines: list[ref u8], current_dir: ref u8, line_index: i64, 
         val else_opt = @get(lines, else_i as usize)
         if else_opt is some else_line {
             val else_trimmed: ref u8 = trim_raw(else_line as ref u8)
-            if string.rchar_starts_with(else_trimmed, "else") {
+            if string.raw_starts_with(else_trimmed, "else") {
                 val else_tail: ref u8 = trim_raw(trust string.substr(else_trimmed, 4, string.len_raw(else_trimmed) - 4))
                 append_line(out, indent, "} else {")
                 if starts_keyword_paren(else_tail, "if") {
@@ -3508,7 +3508,7 @@ fn translate_if_text(lines: list[ref u8], current_dir: ref u8, line_index: i64, 
                     return make_block_result(nested_result.next_index, STOP_EOF, "")
                 }
                 if string.raw_cmp(else_tail, "") != 0 {
-                    if string.rchar_starts_with(else_tail, "{") {
+                    if string.raw_starts_with(else_tail, "{") {
                         val else_span: ref BlockResult = translate_brace_block(lines, else_i, indent + 1, out, ctx)
                         append_line(out, indent, "}")
                         return make_block_result(else_span.next_index, STOP_EOF, "")
@@ -3522,7 +3522,7 @@ fn translate_if_text(lines: list[ref u8], current_dir: ref u8, line_index: i64, 
                     val else_body_opt = @get(lines, else_body_i as usize)
                     if else_body_opt is some else_body_line {
                         val else_body_trimmed: ref u8 = trim_raw(else_body_line as ref u8)
-                        if string.rchar_starts_with(else_body_trimmed, "{") {
+                        if string.raw_starts_with(else_body_trimmed, "{") {
                             val else_span2: ref BlockResult = translate_brace_block(lines, else_body_i, indent + 1, out, ctx)
                             append_line(out, indent, "}")
                             return make_block_result(else_span2.next_index, STOP_EOF, "")
@@ -3587,7 +3587,7 @@ fn translate_switch_statement(lines: list[ref u8], start: i64, indent: i64, out:
             val switch_expr: ref u8 = lower_incdec_expr(ctx, trim_raw(trust string.substr(line, open_i + 1, close_i - open_i - 1)), indent, out).expr
             val body_start: mut i64 = start
             val tail: ref u8 = trim_raw(trust string.substr(line, close_i + 1, string.len_raw(line) - close_i - 1))
-            if !string.rchar_starts_with(tail, "{") {
+            if !string.raw_starts_with(tail, "{") {
                 body_start = next_significant_line(lines, start + 1)
             }
             if body_start < 0 {
@@ -3616,7 +3616,7 @@ fn translate_switch_statement(lines: list[ref u8], start: i64, indent: i64, out:
                     }
                     continue
                 }
-                if string.rchar_starts_with(trimmed, "case ") {
+                if string.raw_starts_with(trimmed, "case ") {
                     val colon_i: i64 = find_char(trimmed, 58 as u8)
                     if colon_i > 5 {
                         val label: ref u8 = trim_raw(trust string.substr(trimmed, 5, colon_i - 5))
@@ -3641,7 +3641,7 @@ fn translate_switch_statement(lines: list[ref u8], start: i64, indent: i64, out:
                         continue
                     }
                 }
-                if string.rchar_starts_with(trimmed, "default:") {
+                if string.raw_starts_with(trimmed, "default:") {
                     val tail3: ref u8 = trim_raw(trust string.substr(trimmed, 8, string.len_raw(trimmed) - 8))
                     if current != none {
                         @append(cases, current)
@@ -3702,7 +3702,7 @@ fn translate_do_while_loop(lines: list[ref u8], start: i64, indent: i64, out: re
             val line: ref u8 = trim_raw(line_val as ref u8)
             val body_start: mut i64 = start
             val tail_after_do: ref u8 = trim_raw(trust string.substr(line, 2, string.len_raw(line) - 2))
-            if !string.rchar_starts_with(tail_after_do, "{") {
+            if !string.raw_starts_with(tail_after_do, "{") {
                 body_start = next_significant_line(lines, start + 1)
             }
             if body_start < 0 {
@@ -3928,7 +3928,7 @@ fn find_top_level_compound_assign(text: ref u8) i64 = {
 
 fn translate_designated_initializer(text: ref u8) ref u8 = {
     val trimmed: ref u8 = trim_raw(text)
-    if !string.rchar_starts_with(trimmed, "{") {
+    if !string.raw_starts_with(trimmed, "{") {
         return trimmed
     }
     if !str_contains(trimmed, ".") {
@@ -4376,7 +4376,7 @@ fn translate_body_statement(ctx: mut ref TranslationCtx, line: ref u8, indent: i
         }
         return true
     }
-    if string.rchar_starts_with(stripped, "return") {
+    if string.raw_starts_with(stripped, "return") {
         val tail: ref u8 = trim_raw(trust string.substr(stripped, 6, string.len_raw(stripped) - 6))
         if string.raw_cmp(tail, "") == 0 {
             append_line(out, indent, "return")
@@ -4415,7 +4415,7 @@ fn translate_body_statement(ctx: mut ref TranslationCtx, line: ref u8, indent: i
         val lhs: ref u8 = trim_raw(trust string.substr(stripped, 0, assign_i))
         val rhs: ref u8 = trim_raw(trust string.substr(stripped, assign_i + 1, string.len_raw(stripped) - assign_i - 1))
         val can_be_decl: bool = str_contains(lhs, " ")
-        || string.rchar_starts_with(lhs, "struct ") || string.rchar_starts_with(lhs, "enum ")
+        || string.raw_starts_with(lhs, "struct ") || string.raw_starts_with(lhs, "enum ")
         if can_be_decl {
             val decl: ref DeclInfo = parse_named_decl(ctx, lhs, "")
             if decl.its_ok && string.raw_cmp(decl.name, "") != 0 && string.raw_cmp(trim_raw(decl.type_src), "") != 0 {
@@ -4453,7 +4453,7 @@ fn translate_body_statement(ctx: mut ref TranslationCtx, line: ref u8, indent: i
                     }
                     return true
                 }
-                if is_address_taken_name(ctx, decl.name) && !string.rchar_starts_with(decl.type_name, "ref ") {
+                if is_address_taken_name(ctx, decl.name) && !string.raw_starts_with(decl.type_name, "ref ") {
                     val ref_type: ref u8 = trust @fmt("ref {s}", {decl.type_name})
                     remember_local_type(ctx, decl.name, ref_type)
                     append_line(out, indent, trust @fmt("val {s}: {s} = @alloc(@sizeof({s}))", {decl.name, render_binding_type(ctx, decl.name, ref_type), decl.type_name}))
@@ -4500,8 +4500,8 @@ fn translate_body_statement(ctx: mut ref TranslationCtx, line: ref u8, indent: i
                 }
                 track_called_expr(ctx, rhs_expr)
                 append_line(out, indent, trust @fmt("val {s}: {s} = {s}", {decl.name, rendered_type, rhs_expr}))
-                if string.rchar_starts_with(decl.type_name, "ref ")
-                && string.rchar_starts_with(rhs_expr, "@alloc(") {
+                if string.raw_starts_with(decl.type_name, "ref ")
+                && string.raw_starts_with(rhs_expr, "@alloc(") {
                     val struct_name: ref u8 = trust @ptradd(decl.type_name, 4)
                     if lookup_flex_field_name(ctx, struct_name) is some flex_field {
                         if lookup_flex_field_type(ctx, struct_name) is some flex_type {
@@ -4558,7 +4558,7 @@ fn translate_body_statement(ctx: mut ref TranslationCtx, line: ref u8, indent: i
         return true
     }
     val can_be_bare_decl: bool = (str_contains(stripped, " ") || str_contains(stripped, "*")
-        || string.rchar_starts_with(stripped, "struct ") || string.rchar_starts_with(stripped, "enum "))
+        || string.raw_starts_with(stripped, "struct ") || string.raw_starts_with(stripped, "enum "))
     && !str_contains(stripped, "(")
     if can_be_bare_decl {
         val decl2: ref DeclInfo = parse_named_decl(ctx, stripped, "")
@@ -4571,7 +4571,7 @@ fn translate_body_statement(ctx: mut ref TranslationCtx, line: ref u8, indent: i
                 append_line(out, indent, trust @fmt("val {s}: {s} = @alloc({s})", {decl2.name, render_binding_type(ctx, decl2.name, decayed_type2), alloc_expr2}))
                 return true
             }
-            if is_address_taken_name(ctx, decl2.name) && !string.rchar_starts_with(decl2.type_name, "ref ") {
+            if is_address_taken_name(ctx, decl2.name) && !string.raw_starts_with(decl2.type_name, "ref ") {
                 val ref_type2: ref u8 = trust @fmt("ref {s}", {decl2.type_name})
                 remember_local_type(ctx, decl2.name, ref_type2)
                 append_line(out, indent, trust @fmt("val {s}: {s} = @alloc(@sizeof({s}))", {decl2.name, render_binding_type(ctx, decl2.name, ref_type2), decl2.type_name}))
@@ -4600,10 +4600,10 @@ fn translate_body_statement(ctx: mut ref TranslationCtx, line: ref u8, indent: i
         return true
     }
     if str_contains(stripped, "(")
-    && !string.rchar_starts_with(stripped, "if")
-    && !string.rchar_starts_with(stripped, "for")
-    && !string.rchar_starts_with(stripped, "while")
-    && !string.rchar_starts_with(stripped, "switch") {
+    && !string.raw_starts_with(stripped, "if")
+    && !string.raw_starts_with(stripped, "for")
+    && !string.raw_starts_with(stripped, "while")
+    && !string.raw_starts_with(stripped, "switch") {
         val lowered_expr: ref LoweredExpr = lower_incdec_expr(ctx, stripped, indent, out)
         val expr: ref u8 = lowered_expr.expr
         track_called_expr(ctx, expr)
@@ -4698,7 +4698,7 @@ fn file_exists(path: ref u8) bool = {
 }
 
 fn resolve_include_path(name: ref u8, current_dir: ref u8) option[ref u8] = {
-    if string.rchar_starts_with(name, "/") {
+    if string.raw_starts_with(name, "/") {
         if file_exists(name) {
             return some name
         }
@@ -4987,13 +4987,13 @@ fn map_base_type(base: ref u8) ref u8 = {
     if string.raw_cmp(base, "uintptr_t") == 0 {
         return "usize"
     }
-    if string.rchar_starts_with(base, "struct ") {
+    if string.raw_starts_with(base, "struct ") {
         return sanitize_identifier(trim_raw(trust string.substr(base, 7, string.len_raw(base) - 7)))
     }
-    if string.rchar_starts_with(base, "enum ") {
+    if string.raw_starts_with(base, "enum ") {
         return sanitize_identifier(trim_raw(trust string.substr(base, 5, string.len_raw(base) - 5)))
     }
-    if string.rchar_starts_with(base, "union ") {
+    if string.raw_starts_with(base, "union ") {
         return sanitize_identifier(trim_raw(trust string.substr(base, 6, string.len_raw(base) - 6)))
     }
     return sanitize_identifier(base)
@@ -5361,7 +5361,7 @@ fn parse_include_name(line: ref u8) ref u8 = {
 fn parse_macro_name(line: ref u8, keyword: ref u8) ref u8 = {
     val flat: ref u8 = flatten_ws(line)
     val prefix: ref u8 = trust @fmt("{s} ", {keyword})
-    if !string.rchar_starts_with(flat, prefix) {
+    if !string.raw_starts_with(flat, prefix) {
         return ""
     }
     return trim_raw(trust string.substr(flat, string.len_raw(prefix), string.len_raw(flat) - string.len_raw(prefix)))
@@ -5428,16 +5428,16 @@ fn translate_body_lines(lines: list[ref u8], current_dir: ref u8, start: i64, in
                 i++
                 continue
             }
-            if string.rchar_starts_with(trimmed, "#else") {
+            if string.raw_starts_with(trimmed, "#else") {
                 return make_block_result(i + 1, STOP_ELSE, trimmed)
             }
-            if string.rchar_starts_with(trimmed, "#endif") {
+            if string.raw_starts_with(trimmed, "#endif") {
                 return make_block_result(i + 1, STOP_ENDIF, trimmed)
             }
-            if string.rchar_starts_with(trimmed, "#elif") {
+            if string.raw_starts_with(trimmed, "#elif") {
                 return make_block_result(i + 1, STOP_ELIF, trimmed)
             }
-            if string.rchar_starts_with(trimmed, "#include") {
+            if string.raw_starts_with(trimmed, "#include") {
                 i++
                 continue
             }
@@ -5593,12 +5593,12 @@ fn translate_struct_decl(text: ref u8, indent: i64, out: ref void, ctx: mut ref 
     val header: ref u8 = trim_raw(trust string.substr(flat, 0, open_i))
     val after: ref u8 = strip_trailing_semicolon(trim_raw(trust string.substr(flat, close_i + 1, string.len_raw(flat) - close_i - 1)))
     val before_body_name: mut ref u8 = ""
-    if string.rchar_starts_with(header, "typedef struct") {
+    if string.raw_starts_with(header, "typedef struct") {
         val tail_len: i64 = string.len_raw(header) - 14
         if tail_len > 0 {
             before_body_name = trim_raw(trust string.substr(header, 14, tail_len))
         }
-    } elif string.rchar_starts_with(header, "struct") {
+    } elif string.raw_starts_with(header, "struct") {
         val tail_len: i64 = string.len_raw(header) - 6
         if tail_len > 0 {
             before_body_name = trim_raw(trust string.substr(header, 6, tail_len))
@@ -5645,7 +5645,7 @@ fn translate_struct_decl(text: ref u8, indent: i64, out: ref void, ctx: mut ref 
                 continue
             }
             val field_type: mut ref u8 = decl.type_name
-            if string.rchar_starts_with(field_type, "[]") {
+            if string.raw_starts_with(field_type, "[]") {
                 field_type = trust @fmt("ref {s}", {@ptradd(field_type, 2)})
                 remember_flex_field(ctx, alias, decl.name, field_type)
             }
@@ -5670,12 +5670,12 @@ fn translate_enum_decl(text: ref u8, indent: i64, out: ref void, ctx: mut ref Tr
     val header: ref u8 = trim_raw(trust string.substr(flat, 0, open_i))
     val after: ref u8 = strip_trailing_semicolon(trim_raw(trust string.substr(flat, close_i + 1, string.len_raw(flat) - close_i - 1)))
     val before_body_name: mut ref u8 = ""
-    if string.rchar_starts_with(header, "typedef enum") {
+    if string.raw_starts_with(header, "typedef enum") {
         val tail_len: i64 = string.len_raw(header) - 12
         if tail_len > 0 {
             before_body_name = trim_raw(trust string.substr(header, 12, tail_len))
         }
-    } elif string.rchar_starts_with(header, "enum") {
+    } elif string.raw_starts_with(header, "enum") {
         val tail_len: i64 = string.len_raw(header) - 4
         if tail_len > 0 {
             before_body_name = trim_raw(trust string.substr(header, 4, tail_len))
@@ -5802,7 +5802,7 @@ fn emit_union_type(alias: ref u8, body: ref u8, indent: i64, out: ref void, ctx:
 
 fn translate_anonymous_union_field(field_text: ref u8, indent: i64, out: ref void, ctx: mut ref TranslationCtx) option[ref u8] = {
     val trimmed: ref u8 = trim_raw(field_text)
-    if !string.rchar_starts_with(trimmed, "union") {
+    if !string.raw_starts_with(trimmed, "union") {
         return none
     }
     val open_i: i64 = find_char(trimmed, 123 as u8)
@@ -5837,12 +5837,12 @@ fn translate_union_decl(text: ref u8, indent: i64, out: ref void, ctx: mut ref T
     val header: ref u8 = trim_raw(trust string.substr(flat, 0, open_i))
     val after: ref u8 = strip_trailing_semicolon(trim_raw(trust string.substr(flat, close_i + 1, string.len_raw(flat) - close_i - 1)))
     val before_body_name: mut ref u8 = ""
-    if string.rchar_starts_with(header, "typedef union") {
+    if string.raw_starts_with(header, "typedef union") {
         val tail_len: i64 = string.len_raw(header) - 13
         if tail_len > 0 {
             before_body_name = trim_raw(trust string.substr(header, 13, tail_len))
         }
-    } elif string.rchar_starts_with(header, "union") {
+    } elif string.raw_starts_with(header, "union") {
         val tail_len: i64 = string.len_raw(header) - 5
         if tail_len > 0 {
             before_body_name = trim_raw(trust string.substr(header, 5, tail_len))
@@ -6241,10 +6241,10 @@ fn translate_top_level_decl(text: ref u8, indent: i64, out: ref void, ctx: mut r
         }
         return any_ok
     }
-    if string.rchar_starts_with(stripped, "typedef ")
-    && !string.rchar_starts_with(stripped, "typedef struct")
-    && !string.rchar_starts_with(stripped, "typedef enum")
-    && !string.rchar_starts_with(stripped, "typedef union")
+    if string.raw_starts_with(stripped, "typedef ")
+    && !string.raw_starts_with(stripped, "typedef struct")
+    && !string.raw_starts_with(stripped, "typedef enum")
+    && !string.raw_starts_with(stripped, "typedef union")
     && !str_contains(stripped, "(") {
         val after_typedef: ref u8 = trim_raw(trust string.substr(stripped, 8, string.len_raw(stripped) - 8))
         val alias_decl: ref DeclInfo = parse_named_decl(ctx, after_typedef, "")
@@ -6259,9 +6259,9 @@ fn translate_top_level_decl(text: ref u8, indent: i64, out: ref void, ctx: mut r
         val lhs: ref u8 = trim_raw(trust string.substr(stripped, 0, assign_i))
         val rhs: ref u8 = trim_raw(trust string.substr(stripped, assign_i + 1, string.len_raw(stripped) - assign_i - 1))
         val can_be_decl: bool = str_contains(lhs, " ")
-        || string.rchar_starts_with(lhs, "struct ")
-        || string.rchar_starts_with(lhs, "enum ")
-        || string.rchar_starts_with(lhs, "union ")
+        || string.raw_starts_with(lhs, "struct ")
+        || string.raw_starts_with(lhs, "enum ")
+        || string.raw_starts_with(lhs, "union ")
         if !can_be_decl {
             return false
         }
@@ -6309,8 +6309,8 @@ fn translate_top_level_decl(text: ref u8, indent: i64, out: ref void, ctx: mut r
         return true
     }
     val can_be_bare_decl: bool = (str_contains(stripped, " ") || str_contains(stripped, "*")
-        || string.rchar_starts_with(stripped, "struct ") || string.rchar_starts_with(stripped, "enum ")
-        || string.rchar_starts_with(stripped, "union "))
+        || string.raw_starts_with(stripped, "struct ") || string.raw_starts_with(stripped, "enum ")
+        || string.raw_starts_with(stripped, "union "))
     && !str_contains(stripped, "(")
     if can_be_bare_decl {
         val decl2: ref DeclInfo = parse_named_decl(ctx, stripped, "")
@@ -6378,20 +6378,20 @@ pub fn translate_top_level(
                 i++
                 continue
             }
-            if string.rchar_starts_with(trimmed, "#else") {
+            if string.raw_starts_with(trimmed, "#else") {
                 return make_block_result(i + 1, STOP_ELSE, trimmed)
             }
-            if string.rchar_starts_with(trimmed, "#endif") {
+            if string.raw_starts_with(trimmed, "#endif") {
                 return make_block_result(i + 1, STOP_ENDIF, trimmed)
             }
-            if string.rchar_starts_with(trimmed, "#elif") {
+            if string.raw_starts_with(trimmed, "#elif") {
                 return make_block_result(i + 1, STOP_ELIF, trimmed)
             }
-            if string.rchar_starts_with(trimmed, "#pragma once") {
+            if string.raw_starts_with(trimmed, "#pragma once") {
                 i++
                 continue
             }
-            if string.rchar_starts_with(trimmed, "#include") {
+            if string.raw_starts_with(trimmed, "#include") {
                 val include_name: ref u8 = parse_include_name(trimmed)
                 if string.raw_cmp(include_name, "") == 0 {
                     append_comment_line(out, indent, trimmed)
@@ -6462,23 +6462,23 @@ pub fn translate_top_level(
                 }
                 continue
             }
-            if string.rchar_starts_with(trimmed, "#define")
-            || string.rchar_starts_with(trimmed, "#undef")
-            || string.rchar_starts_with(trimmed, "#pragma")
-            || string.rchar_starts_with(trimmed, "#error")
-            || string.rchar_starts_with(trimmed, "#if")
-            || string.rchar_starts_with(trimmed, "#ifndef")
-            || string.rchar_starts_with(trimmed, "#ifdef") {
+            if string.raw_starts_with(trimmed, "#define")
+            || string.raw_starts_with(trimmed, "#undef")
+            || string.raw_starts_with(trimmed, "#pragma")
+            || string.raw_starts_with(trimmed, "#error")
+            || string.raw_starts_with(trimmed, "#if")
+            || string.raw_starts_with(trimmed, "#ifndef")
+            || string.raw_starts_with(trimmed, "#ifdef") {
                 append_comment_line(out, indent, trimmed)
                 i++
                 continue
             }
-            val starts_struct_decl: bool = string.rchar_starts_with(trimmed, "typedef struct")
-            || string.rchar_starts_with(trimmed, "struct ")
-            val starts_enum_decl: bool = string.rchar_starts_with(trimmed, "typedef enum")
-            || string.rchar_starts_with(trimmed, "enum ")
-            val starts_union_decl: bool = string.rchar_starts_with(trimmed, "typedef union")
-            || string.rchar_starts_with(trimmed, "union ")
+            val starts_struct_decl: bool = string.raw_starts_with(trimmed, "typedef struct")
+            || string.raw_starts_with(trimmed, "struct ")
+            val starts_enum_decl: bool = string.raw_starts_with(trimmed, "typedef enum")
+            || string.raw_starts_with(trimmed, "enum ")
+            val starts_union_decl: bool = string.raw_starts_with(trimmed, "typedef union")
+            || string.raw_starts_with(trimmed, "union ")
             val type_decl_has_brace: mut bool = str_contains(trimmed, "{")
             if ((starts_struct_decl || starts_enum_decl || starts_union_decl) && !type_decl_has_brace) {
                 val next_i_struct: i64 = next_significant_line(lines, i + 1)
@@ -6520,11 +6520,11 @@ pub fn translate_top_level(
                 continue
             }
             if str_contains(trimmed, "(")
-            && !string.rchar_starts_with(trimmed, "if")
-            && !string.rchar_starts_with(trimmed, "for")
-            && !string.rchar_starts_with(trimmed, "while")
-            && !string.rchar_starts_with(trimmed, "switch")
-            && !string.rchar_starts_with(trimmed, "return") {
+            && !string.raw_starts_with(trimmed, "if")
+            && !string.raw_starts_with(trimmed, "for")
+            && !string.raw_starts_with(trimmed, "while")
+            && !string.raw_starts_with(trimmed, "switch")
+            && !string.raw_starts_with(trimmed, "return") {
                 val span2 = collect_function(lines, i)
                 val full_text2: ref u8 = join_lines(lines, i, span2.next_index)
                 if translate_function_decl(full_text2, current_dir, indent, out, ctx) {

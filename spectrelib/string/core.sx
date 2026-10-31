@@ -1,6 +1,6 @@
 val collections = use("../collections")
-val stdio = use("../stdio")
-val allocators = use("../allocators")
+val stdio       = use("../stdio")
+val allocators  = use("../allocators")
 
 extern (C) fn strlen(s: ref u8) i64 = "strlen"
 extern (C) fn strcmp(a: ref u8, b: ref u8) i64 = "strcmp"
@@ -105,7 +105,7 @@ pub fn new() String = trust {
 }
 
 /// Extract `ref u8` from supported types.
-pub fn as_rchar[T](x: T) ref u8 = trust {
+pub fn as_raw[T](x: T) ref u8 = trust {
     when T is ref u8 {
         return x
     }
@@ -127,10 +127,10 @@ pub fn raw_cmp(a: ref u8, b: ref u8) i64 = {
     return trust strcmp(a, b)
 }
 
-/// Compare a string or rchar with a string or rchar
+/// Compare a string or raw with a string or raw
 pub fn compare[A, B](a: A, b: B) i64 = trust {
-    val aptr = as_rchar[A](a)
-    val bptr = as_rchar[B](b)
+    val aptr = as_raw[A](a)
+    val bptr = as_raw[B](b)
     return raw_cmp(aptr, bptr)
 }
 
@@ -174,7 +174,7 @@ pub fn cstr(s: String) ref u8 = trust {
 }
 
 /// Returns true if s starts with prefix
-pub fn rchar_starts_with(s: ref u8, prefix: ref u8) bool = {
+pub fn raw_starts_with(s: ref u8, prefix: ref u8) bool = {
     if (prefix == none) {
         return true
     }
@@ -207,7 +207,7 @@ pub fn rchar_starts_with(s: ref u8, prefix: ref u8) bool = {
     return true
 }
 
-pub fn rchar_ends_with(s: ref u8, suffix: ref u8) bool = {
+pub fn raw_ends_with(s: ref u8, suffix: ref u8) bool = {
     if (suffix == none) {
         return true
     }
@@ -760,7 +760,7 @@ pub fn trim_prefix_raw[T: allocators.Allocator](ac: T, s: ref u8, prefix: ref u8
         return none
     }
 
-    if (!rchar_starts_with(s, prefix)) {
+    if (!raw_starts_with(s, prefix)) {
         return alloc_substr_in[T](ac, s, 0, strlen(s))
     }
 

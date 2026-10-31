@@ -292,7 +292,7 @@ pub fn print_help(topic: ref u8) i32 = trust {
         return 0
     }
 
-    if str.raw_cmp(topic, "-d") == 0 || str.rchar_starts_with(topic, "-d") {
+    if str.raw_cmp(topic, "-d") == 0 || str.raw_starts_with(topic, "-d") {
         print_flag_help("-d<NAME>=<value>", "Define a compile-time environment variable. Reads through env.get(\"NAME\") are replaced with the supplied value at compile time.", "spectre -dGIT_HASH=abcdef <input.sx>")
         return 0
     }
