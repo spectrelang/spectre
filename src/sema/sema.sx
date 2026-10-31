@@ -149,121 +149,121 @@ fn normalize_path(path: ref u8) ref u8 = trust {
 }
 
 fn builtin_min_arity(name: ref u8) i64 = trust {
-    if str_eq(name, "get")         {
+    if str_eq(name, "get") {
         return 2
     }
-    if str_eq(name, "set")         {
+    if str_eq(name, "set") {
         return 3
     }
-    if str_eq(name, "len")         {
+    if str_eq(name, "len") {
         return 1
     }
-    if str_eq(name, "append")      {
+    if str_eq(name, "append") {
         return 2
     }
-    if str_eq(name, "insert")      {
+    if str_eq(name, "insert") {
         return 3
     }
-    if str_eq(name, "remove")      {
+    if str_eq(name, "remove") {
         return 2
     }
-    if str_eq(name, "reserve")     {
+    if str_eq(name, "reserve") {
         return 2
     }
-    if str_eq(name, "capacity")    {
+    if str_eq(name, "capacity") {
         return 1
     }
-    if str_eq(name, "alloc")       {
+    if str_eq(name, "alloc") {
         return 1
     }
-    if str_eq(name, "free")        {
+    if str_eq(name, "free") {
         return 1
     }
-    if str_eq(name, "realloc")     {
+    if str_eq(name, "realloc") {
         return 2
     }
-    if str_eq(name, "load")        {
+    if str_eq(name, "load") {
         return 1
     }
-    if str_eq(name, "load8")       {
+    if str_eq(name, "load8") {
         return 1
     }
-    if str_eq(name, "load16")      {
+    if str_eq(name, "load16") {
         return 1
     }
-    if str_eq(name, "load32")      {
+    if str_eq(name, "load32") {
         return 1
     }
-    if str_eq(name, "load64")      {
+    if str_eq(name, "load64") {
         return 1
     }
-    if str_eq(name, "store")       {
+    if str_eq(name, "store") {
         return 2
     }
-    if str_eq(name, "store8")      {
+    if str_eq(name, "store8") {
         return 2
     }
-    if str_eq(name, "store16")     {
+    if str_eq(name, "store16") {
         return 2
     }
-    if str_eq(name, "store32")     {
+    if str_eq(name, "store32") {
         return 2
     }
-    if str_eq(name, "store64")     {
+    if str_eq(name, "store64") {
         return 2
     }
-    if str_eq(name, "ptradd")      {
+    if str_eq(name, "ptradd") {
         return 2
     }
-    if str_eq(name, "memcpy")      {
+    if str_eq(name, "memcpy") {
         return 3
     }
-    if str_eq(name, "memset")      {
+    if str_eq(name, "memset") {
         return 3
     }
-    if str_eq(name, "memmove")     {
+    if str_eq(name, "memmove") {
         return 3
     }
-    if str_eq(name, "sizeof")      {
+    if str_eq(name, "sizeof") {
         return 1
     }
-    if str_eq(name, "bitcast")     {
+    if str_eq(name, "bitcast") {
         return 2
     }
-    if str_eq(name, "print")       {
+    if str_eq(name, "print") {
         return 1
     }
-    if str_eq(name, "dprintf")     {
+    if str_eq(name, "dprintf") {
         return 2
     }
-    if str_eq(name, "snprintf")    {
+    if str_eq(name, "snprintf") {
         return 3
     }
-    if str_eq(name, "fmt")         {
+    if str_eq(name, "fmt") {
         return 1
     }
-    if str_eq(name, "puts")        {
+    if str_eq(name, "puts") {
         return 1
     }
-    if str_eq(name, "fgets")       {
+    if str_eq(name, "fgets") {
         return 3
     }
-    if str_eq(name, "strlen")      {
+    if str_eq(name, "strlen") {
         return 1
     }
-    if str_eq(name, "strcmp")      {
+    if str_eq(name, "strcmp") {
         return 2
     }
-    if str_eq(name, "atoi")        {
+    if str_eq(name, "atoi") {
         return 1
     }
-    if str_eq(name, "itoa")        {
+    if str_eq(name, "itoa") {
         return 1
     }
     if str_eq(name, "staticerror") {
         return 1
     }
-    if str_eq(name, "call")        {
+    if str_eq(name, "call") {
         return 1
     }
     return 0
@@ -2721,49 +2721,49 @@ fn parse_fmt_specifiers(s: ref u8) list[ref u8] = trust {
 /// Maps a format specifier string to its expected argument category.
 /// Returns "int", "str", "u8", "float", "ptr", or "unknown".
 fn fmt_specifier_category(specifier: ref u8) ref u8 = trust {
-    if str_eq(specifier, "s")   {
+    if str_eq(specifier, "s") {
         return "str"
     }
-    if str_eq(specifier, "c")   {
+    if str_eq(specifier, "c") {
         return "u8"
     }
-    if str_eq(specifier, "f")   {
+    if str_eq(specifier, "f") {
         return "float"
     }
-    if str_eq(specifier, "lf")  {
+    if str_eq(specifier, "lf") {
         return "float"
     }
-    if str_eq(specifier, "g")   {
+    if str_eq(specifier, "g") {
         return "float"
     }
-    if str_eq(specifier, "e")   {
+    if str_eq(specifier, "e") {
         return "float"
     }
-    if str_eq(specifier, "d")   {
+    if str_eq(specifier, "d") {
         return "int"
     }
-    if str_eq(specifier, "i")   {
+    if str_eq(specifier, "i") {
         return "int"
     }
-    if str_eq(specifier, "u")   {
+    if str_eq(specifier, "u") {
         return "int"
     }
-    if str_eq(specifier, "x")   {
+    if str_eq(specifier, "x") {
         return "int"
     }
-    if str_eq(specifier, "X")   {
+    if str_eq(specifier, "X") {
         return "int"
     }
-    if str_eq(specifier, "o")   {
+    if str_eq(specifier, "o") {
         return "int"
     }
-    if str_eq(specifier, "ld")  {
+    if str_eq(specifier, "ld") {
         return "int"
     }
-    if str_eq(specifier, "li")  {
+    if str_eq(specifier, "li") {
         return "int"
     }
-    if str_eq(specifier, "lu")  {
+    if str_eq(specifier, "lu") {
         return "int"
     }
     if str_eq(specifier, "lld") {
@@ -2775,13 +2775,13 @@ fn fmt_specifier_category(specifier: ref u8) ref u8 = trust {
     if str_eq(specifier, "llu") {
         return "int"
     }
-    if str_eq(specifier, "lx")  {
+    if str_eq(specifier, "lx") {
         return "int"
     }
     if str_eq(specifier, "llx") {
         return "int"
     }
-    if str_eq(specifier, "p")   {
+    if str_eq(specifier, "p") {
         return "ptr"
     }
     return "unknown"
@@ -2808,19 +2808,19 @@ fn infer_expr_scope_type_name(ctx: ref SemaCtx, node: ref parser.Node) ref u8 = 
         return ""
     }
     val k: i64 = node.kind
-    if k == parser.NK_INT_LIT  {
+    if k == parser.NK_INT_LIT {
         return "i64"
     }
     if k == parser.NK_FLOAT_LIT {
         return "f64"
     }
-    if k == parser.NK_BOOL     {
+    if k == parser.NK_BOOL {
         return "bool"
     }
     if k == parser.NK_CHAR_LIT {
         return "u8"
     }
-    if k == parser.NK_STR_LIT  {
+    if k == parser.NK_STR_LIT {
         return "u8"
     }
     if k == parser.NK_IDENT {
@@ -2872,19 +2872,19 @@ fn get_expr_type_category(ctx: ref SemaCtx, node: ref parser.Node) ref u8 = trus
         return "unknown"
     }
     val k: i64 = node.kind
-    if k == parser.NK_INT_LIT   {
+    if k == parser.NK_INT_LIT {
         return "int"
     }
     if k == parser.NK_FLOAT_LIT {
         return "float"
     }
-    if k == parser.NK_STR_LIT   {
+    if k == parser.NK_STR_LIT {
         return "str"
     }
-    if k == parser.NK_CHAR_LIT  {
+    if k == parser.NK_CHAR_LIT {
         return "u8"
     }
-    if k == parser.NK_BOOL      {
+    if k == parser.NK_BOOL {
         return "int"
     }
     if k == parser.NK_IDENT {
@@ -2900,31 +2900,31 @@ fn get_expr_type_category(ctx: ref SemaCtx, node: ref parser.Node) ref u8 = trus
             }
             return "ptr"
         }
-        if str_eq(tname, "u8")  {
+        if str_eq(tname, "u8") {
             return "u8"
         }
-        if str_eq(tname, "i8")    {
+        if str_eq(tname, "i8") {
             return "int"
         }
-        if str_eq(tname, "i16")   {
+        if str_eq(tname, "i16") {
             return "int"
         }
-        if str_eq(tname, "i32")   {
+        if str_eq(tname, "i32") {
             return "int"
         }
-        if str_eq(tname, "i64")   {
+        if str_eq(tname, "i64") {
             return "int"
         }
-        if str_eq(tname, "u8")    {
+        if str_eq(tname, "u8") {
             return "int"
         }
-        if str_eq(tname, "u16")   {
+        if str_eq(tname, "u16") {
             return "int"
         }
-        if str_eq(tname, "u32")   {
+        if str_eq(tname, "u32") {
             return "int"
         }
-        if str_eq(tname, "u64")   {
+        if str_eq(tname, "u64") {
             return "int"
         }
         if str_eq(tname, "usize") {
@@ -2933,22 +2933,22 @@ fn get_expr_type_category(ctx: ref SemaCtx, node: ref parser.Node) ref u8 = trus
         if str_eq(tname, "isize") {
             return "int"
         }
-        if str_eq(tname, "i")     {
+        if str_eq(tname, "i") {
             return "int"
         }
-        if str_eq(tname, "u")     {
+        if str_eq(tname, "u") {
             return "int"
         }
-        if str_eq(tname, "bool")  {
+        if str_eq(tname, "bool") {
             return "int"
         }
-        if str_eq(tname, "f32")   {
+        if str_eq(tname, "f32") {
             return "float"
         }
-        if str_eq(tname, "f64")   {
+        if str_eq(tname, "f64") {
             return "float"
         }
-        if str_eq(tname, "f")     {
+        if str_eq(tname, "f") {
             return "float"
         }
         return "unknown"
@@ -4334,7 +4334,7 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
         if is_printf || is_dprintf || is_snprintf {
             val fmt_idx: mut i64 = 0
             val args_start: mut i64 = 1
-            if is_dprintf  {
+            if is_dprintf {
                 fmt_idx = 1 args_start = 2
             }
             if is_snprintf {
@@ -4666,42 +4666,42 @@ fn sema_const_eval(expr: ref parser.Node, field_names: ref void, field_vals: ref
         if lv == SEMA_UNKNOWN || rv == SEMA_UNKNOWN {
             return SEMA_UNKNOWN
         }
-        if op == parser.OP_GT  {
-            if lv > rv  {
+        if op == parser.OP_GT {
+            if lv > rv {
                 return 1
             } else {
                 return 0
             }
         }
-        if op == parser.OP_GE  {
+        if op == parser.OP_GE {
             if lv >= rv {
                 return 1
             } else {
                 return 0
             }
         }
-        if op == parser.OP_LT  {
-            if lv < rv  {
+        if op == parser.OP_LT {
+            if lv < rv {
                 return 1
             } else {
                 return 0
             }
         }
-        if op == parser.OP_LE  {
+        if op == parser.OP_LE {
             if lv <= rv {
                 return 1
             } else {
                 return 0
             }
         }
-        if op == parser.OP_EQ  {
+        if op == parser.OP_EQ {
             if lv == rv {
                 return 1
             } else {
                 return 0
             }
         }
-        if op == parser.OP_NE  {
+        if op == parser.OP_NE {
             if lv != rv {
                 return 1
             } else {
@@ -4715,7 +4715,7 @@ fn sema_const_eval(expr: ref parser.Node, field_names: ref void, field_vals: ref
                 return 0
             }
         }
-        if op == parser.OP_OR  {
+        if op == parser.OP_OR {
             if lv != 0 || rv != 0 {
                 return 1
             } else {

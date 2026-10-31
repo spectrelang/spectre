@@ -1441,31 +1441,31 @@ pub fn collect_links(items: list[ref parser.Node], exe_dir: ref u8) list[ref u8]
     val links: mut list[ref u8] = []
     val p: i64 = reflection.get_current_platform[allocators.Arena](arena) as i64
     val platform: mut ref u8 = "unknown"
-    if p == 0      {
+    if p == 0 {
         platform = "windows"
     }
-    elif p == 1    {
+    elif p == 1 {
         platform = "linux"
     }
-    elif p == 2    {
+    elif p == 2 {
         platform = "darwin"
     }
-    elif p == 3    {
+    elif p == 3 {
         platform = "netbsd"
     }
-    elif p == 4    {
+    elif p == 4 {
         platform = "dragonflybsd"
     }
-    elif p == 5    {
+    elif p == 5 {
         platform = "freebsd"
     }
-    elif p == 6    {
+    elif p == 6 {
         platform = "openbsd"
     }
-    elif p == 7    {
+    elif p == 7 {
         platform = "android"
     }
-    elif p == 8    {
+    elif p == 8 {
         platform = "haiku"
     }
 

@@ -135,115 +135,115 @@ fn is_ident_part(c: u8) bool = {
 }
 
 fn sanitize_identifier(name: ref u8) ref u8 = {
-    if string.rchar_cmp(name, "fn") == 0        {
+    if string.rchar_cmp(name, "fn") == 0 {
         return "func"
     }
-    if string.rchar_cmp(name, "val") == 0       {
+    if string.rchar_cmp(name, "val") == 0 {
         return "value"
     }
-    if string.rchar_cmp(name, "mut") == 0       {
+    if string.rchar_cmp(name, "mut") == 0 {
         return "mutable"
     }
-    if string.rchar_cmp(name, "pub") == 0       {
+    if string.rchar_cmp(name, "pub") == 0 {
         return "public"
     }
-    if string.rchar_cmp(name, "type") == 0      {
+    if string.rchar_cmp(name, "type") == 0 {
         return "type_value"
     }
-    if string.rchar_cmp(name, "pre") == 0       {
+    if string.rchar_cmp(name, "pre") == 0 {
         return "precond"
     }
-    if string.rchar_cmp(name, "post") == 0      {
+    if string.rchar_cmp(name, "post") == 0 {
         return "postcond"
     }
-    if string.rchar_cmp(name, "return") == 0    {
+    if string.rchar_cmp(name, "return") == 0 {
         return "return_value"
     }
-    if string.rchar_cmp(name, "if") == 0        {
+    if string.rchar_cmp(name, "if") == 0 {
         return "if_value"
     }
-    if string.rchar_cmp(name, "else") == 0      {
+    if string.rchar_cmp(name, "else") == 0 {
         return "else_value"
     }
-    if string.rchar_cmp(name, "elif") == 0      {
+    if string.rchar_cmp(name, "elif") == 0 {
         return "elif_value"
     }
-    if string.rchar_cmp(name, "trust") == 0     {
+    if string.rchar_cmp(name, "trust") == 0 {
         return "trusted_value"
     }
-    if string.rchar_cmp(name, "use") == 0       {
+    if string.rchar_cmp(name, "use") == 0 {
         return "used_value"
     }
-    if string.rchar_cmp(name, "ref") == 0       {
+    if string.rchar_cmp(name, "ref") == 0 {
         return "reference"
     }
-    if string.rchar_cmp(name, "for") == 0       {
+    if string.rchar_cmp(name, "for") == 0 {
         return "loop_value"
     }
-    if string.rchar_cmp(name, "in") == 0        {
+    if string.rchar_cmp(name, "in") == 0 {
         return "in_value"
     }
-    if string.rchar_cmp(name, "some") == 0      {
+    if string.rchar_cmp(name, "some") == 0 {
         return "some_value"
     }
-    if string.rchar_cmp(name, "none") == 0      {
+    if string.rchar_cmp(name, "none") == 0 {
         return "none_value"
     }
-    if string.rchar_cmp(name, "ok") == 0        {
+    if string.rchar_cmp(name, "ok") == 0 {
         return "ok_value"
     }
-    if string.rchar_cmp(name, "err") == 0       {
+    if string.rchar_cmp(name, "err") == 0 {
         return "error_value"
     }
-    if string.rchar_cmp(name, "match") == 0     {
+    if string.rchar_cmp(name, "match") == 0 {
         return "match_value"
     }
-    if string.rchar_cmp(name, "true") == 0      {
+    if string.rchar_cmp(name, "true") == 0 {
         return "true_value"
     }
-    if string.rchar_cmp(name, "false") == 0     {
+    if string.rchar_cmp(name, "false") == 0 {
         return "false_value"
     }
-    if string.rchar_cmp(name, "defer") == 0     {
+    if string.rchar_cmp(name, "defer") == 0 {
         return "deferred_value"
     }
-    if string.rchar_cmp(name, "break") == 0     {
+    if string.rchar_cmp(name, "break") == 0 {
         return "break_value"
     }
-    if string.rchar_cmp(name, "continue") == 0  {
+    if string.rchar_cmp(name, "continue") == 0 {
         return "continue_value"
     }
-    if string.rchar_cmp(name, "as") == 0        {
+    if string.rchar_cmp(name, "as") == 0 {
         return "as_value"
     }
-    if string.rchar_cmp(name, "assert") == 0    {
+    if string.rchar_cmp(name, "assert") == 0 {
         return "assert_value"
     }
-    if string.rchar_cmp(name, "when") == 0      {
+    if string.rchar_cmp(name, "when") == 0 {
         return "when_value"
     }
-    if string.rchar_cmp(name, "union") == 0     {
+    if string.rchar_cmp(name, "union") == 0 {
         return "union_value"
     }
-    if string.rchar_cmp(name, "enum") == 0      {
+    if string.rchar_cmp(name, "enum") == 0 {
         return "enum_value"
     }
-    if string.rchar_cmp(name, "extern") == 0    {
+    if string.rchar_cmp(name, "extern") == 0 {
         return "external_value"
     }
-    if string.rchar_cmp(name, "link") == 0      {
+    if string.rchar_cmp(name, "link") == 0 {
         return "link_value"
     }
-    if string.rchar_cmp(name, "guarded") == 0   {
+    if string.rchar_cmp(name, "guarded") == 0 {
         return "guarded_value"
     }
-    if string.rchar_cmp(name, "not") == 0       {
+    if string.rchar_cmp(name, "not") == 0 {
         return "not_value"
     }
-    if string.rchar_cmp(name, "test") == 0      {
+    if string.rchar_cmp(name, "test") == 0 {
         return "test_value"
     }
-    if string.rchar_cmp(name, "guard") == 0     {
+    if string.rchar_cmp(name, "guard") == 0 {
         return "guard_value"
     }
     if string.rchar_cmp(name, "invariant") == 0 {
@@ -2144,97 +2144,97 @@ fn is_known_c_type_name(ctx: ref TranslationCtx, text: ref u8) bool = {
     val no_stars_built: ref void = trust string.StringBuilder.build(no_stars_sb)
     trust string.StringBuilder.free(no_stars_sb)
     val base: ref u8 = trim_raw(trust string.cstr(no_stars_built))
-    if string.rchar_cmp(base, "void") == 0               {
+    if string.rchar_cmp(base, "void") == 0 {
         return true
     }
-    if string.rchar_cmp(base, "u8") == 0               {
+    if string.rchar_cmp(base, "u8") == 0 {
         return true
     }
-    if string.rchar_cmp(base, "short") == 0              {
+    if string.rchar_cmp(base, "short") == 0 {
         return true
     }
-    if string.rchar_cmp(base, "int") == 0                {
+    if string.rchar_cmp(base, "int") == 0 {
         return true
     }
-    if string.rchar_cmp(base, "long") == 0               {
+    if string.rchar_cmp(base, "long") == 0 {
         return true
     }
-    if string.rchar_cmp(base, "long long") == 0          {
+    if string.rchar_cmp(base, "long long") == 0 {
         return true
     }
-    if string.rchar_cmp(base, "unsigned u8") == 0      {
+    if string.rchar_cmp(base, "unsigned u8") == 0 {
         return true
     }
-    if string.rchar_cmp(base, "unsigned short") == 0     {
+    if string.rchar_cmp(base, "unsigned short") == 0 {
         return true
     }
-    if string.rchar_cmp(base, "unsigned") == 0           {
+    if string.rchar_cmp(base, "unsigned") == 0 {
         return true
     }
-    if string.rchar_cmp(base, "unsigned int") == 0       {
+    if string.rchar_cmp(base, "unsigned int") == 0 {
         return true
     }
-    if string.rchar_cmp(base, "unsigned long") == 0      {
+    if string.rchar_cmp(base, "unsigned long") == 0 {
         return true
     }
     if string.rchar_cmp(base, "unsigned long long") == 0 {
         return true
     }
-    if string.rchar_cmp(base, "float") == 0              {
+    if string.rchar_cmp(base, "float") == 0 {
         return true
     }
-    if string.rchar_cmp(base, "double") == 0             {
+    if string.rchar_cmp(base, "double") == 0 {
         return true
     }
-    if string.rchar_cmp(base, "_Bool") == 0              {
+    if string.rchar_cmp(base, "_Bool") == 0 {
         return true
     }
-    if string.rchar_cmp(base, "bool") == 0               {
+    if string.rchar_cmp(base, "bool") == 0 {
         return true
     }
-    if string.rchar_cmp(base, "size_t") == 0             {
+    if string.rchar_cmp(base, "size_t") == 0 {
         return true
     }
-    if string.rchar_cmp(base, "ssize_t") == 0            {
+    if string.rchar_cmp(base, "ssize_t") == 0 {
         return true
     }
-    if string.rchar_cmp(base, "int8_t") == 0             {
+    if string.rchar_cmp(base, "int8_t") == 0 {
         return true
     }
-    if string.rchar_cmp(base, "uint8_t") == 0            {
+    if string.rchar_cmp(base, "uint8_t") == 0 {
         return true
     }
-    if string.rchar_cmp(base, "int16_t") == 0            {
+    if string.rchar_cmp(base, "int16_t") == 0 {
         return true
     }
-    if string.rchar_cmp(base, "uint16_t") == 0           {
+    if string.rchar_cmp(base, "uint16_t") == 0 {
         return true
     }
-    if string.rchar_cmp(base, "int32_t") == 0            {
+    if string.rchar_cmp(base, "int32_t") == 0 {
         return true
     }
-    if string.rchar_cmp(base, "uint32_t") == 0           {
+    if string.rchar_cmp(base, "uint32_t") == 0 {
         return true
     }
-    if string.rchar_cmp(base, "int64_t") == 0            {
+    if string.rchar_cmp(base, "int64_t") == 0 {
         return true
     }
-    if string.rchar_cmp(base, "uint64_t") == 0           {
+    if string.rchar_cmp(base, "uint64_t") == 0 {
         return true
     }
-    if string.rchar_cmp(base, "intptr_t") == 0           {
+    if string.rchar_cmp(base, "intptr_t") == 0 {
         return true
     }
-    if string.rchar_cmp(base, "uintptr_t") == 0          {
+    if string.rchar_cmp(base, "uintptr_t") == 0 {
         return true
     }
-    if string.rchar_starts_with(base, "struct ")         {
+    if string.rchar_starts_with(base, "struct ") {
         return true
     }
-    if string.rchar_starts_with(base, "enum ")           {
+    if string.rchar_starts_with(base, "enum ") {
         return true
     }
-    if string.rchar_starts_with(base, "union ")          {
+    if string.rchar_starts_with(base, "union ") {
         return true
     }
     return list_contains(ctx.translated_type_names, base)
@@ -4724,55 +4724,55 @@ fn resolve_include_path(name: ref u8, current_dir: ref u8) option[ref u8] = {
 }
 
 fn keyword_ignored(word: ref u8) bool = {
-    if string.rchar_cmp(word, "const") == 0       {
+    if string.rchar_cmp(word, "const") == 0 {
         return true
     }
-    if string.rchar_cmp(word, "__const") == 0     {
+    if string.rchar_cmp(word, "__const") == 0 {
         return true
     }
-    if string.rchar_cmp(word, "__const__") == 0   {
+    if string.rchar_cmp(word, "__const__") == 0 {
         return true
     }
-    if string.rchar_cmp(word, "volatile") == 0    {
+    if string.rchar_cmp(word, "volatile") == 0 {
         return true
     }
     if string.rchar_cmp(word, "__volatile__") == 0 {
         return true
     }
-    if string.rchar_cmp(word, "restrict") == 0    {
+    if string.rchar_cmp(word, "restrict") == 0 {
         return true
     }
-    if string.rchar_cmp(word, "__restrict") == 0  {
+    if string.rchar_cmp(word, "__restrict") == 0 {
         return true
     }
     if string.rchar_cmp(word, "__restrict__") == 0 {
         return true
     }
-    if string.rchar_cmp(word, "register") == 0    {
+    if string.rchar_cmp(word, "register") == 0 {
         return true
     }
-    if string.rchar_cmp(word, "static") == 0      {
+    if string.rchar_cmp(word, "static") == 0 {
         return true
     }
-    if string.rchar_cmp(word, "extern") == 0      {
+    if string.rchar_cmp(word, "extern") == 0 {
         return true
     }
-    if string.rchar_cmp(word, "inline") == 0      {
+    if string.rchar_cmp(word, "inline") == 0 {
         return true
     }
-    if string.rchar_cmp(word, "__inline") == 0    {
+    if string.rchar_cmp(word, "__inline") == 0 {
         return true
     }
-    if string.rchar_cmp(word, "__inline__") == 0  {
+    if string.rchar_cmp(word, "__inline__") == 0 {
         return true
     }
-    if string.rchar_cmp(word, "typedef") == 0     {
+    if string.rchar_cmp(word, "typedef") == 0 {
         return true
     }
-    if string.rchar_cmp(word, "signed") == 0      {
+    if string.rchar_cmp(word, "signed") == 0 {
         return true
     }
-    if string.rchar_cmp(word, "__signed__") == 0  {
+    if string.rchar_cmp(word, "__signed__") == 0 {
         return true
     }
     if string.rchar_cmp(word, "__extension__") == 0 {
@@ -4840,55 +4840,55 @@ fn normalize_type_phrase(text: ref u8) ref u8 = {
 }
 
 fn map_base_type(base: ref u8) ref u8 = {
-    if string.rchar_cmp(base, "") == 0                       {
+    if string.rchar_cmp(base, "") == 0 {
         return "void"
     }
-    if string.rchar_cmp(base, "void") == 0                   {
+    if string.rchar_cmp(base, "void") == 0 {
         return "void"
     }
-    if string.rchar_cmp(base, "u8") == 0                     {
+    if string.rchar_cmp(base, "u8") == 0 {
         return "u8"
     }
-    if string.rchar_cmp(base, "short") == 0                  {
+    if string.rchar_cmp(base, "short") == 0 {
         return "i16"
     }
-    if string.rchar_cmp(base, "int") == 0                    {
+    if string.rchar_cmp(base, "int") == 0 {
         return "i32"
     }
-    if string.rchar_cmp(base, "long") == 0                   {
+    if string.rchar_cmp(base, "long") == 0 {
         return "i64"
     }
-    if string.rchar_cmp(base, "long long") == 0              {
+    if string.rchar_cmp(base, "long long") == 0 {
         return "i64"
     }
-    if string.rchar_cmp(base, "unsigned u8") == 0            {
+    if string.rchar_cmp(base, "unsigned u8") == 0 {
         return "u8"
     }
-    if string.rchar_cmp(base, "unsigned short") == 0         {
+    if string.rchar_cmp(base, "unsigned short") == 0 {
         return "u16"
     }
-    if string.rchar_cmp(base, "unsigned") == 0               {
+    if string.rchar_cmp(base, "unsigned") == 0 {
         return "u32"
     }
-    if string.rchar_cmp(base, "unsigned int") == 0           {
+    if string.rchar_cmp(base, "unsigned int") == 0 {
         return "u32"
     }
-    if string.rchar_cmp(base, "unsigned long") == 0          {
+    if string.rchar_cmp(base, "unsigned long") == 0 {
         return "u64"
     }
-    if string.rchar_cmp(base, "unsigned long long") == 0     {
+    if string.rchar_cmp(base, "unsigned long long") == 0 {
         return "u64"
     }
-    if string.rchar_cmp(base, "long unsigned") == 0          {
+    if string.rchar_cmp(base, "long unsigned") == 0 {
         return "u64"
     }
-    if string.rchar_cmp(base, "long unsigned int") == 0      {
+    if string.rchar_cmp(base, "long unsigned int") == 0 {
         return "u64"
     }
-    if string.rchar_cmp(base, "unsigned long int") == 0      {
+    if string.rchar_cmp(base, "unsigned long int") == 0 {
         return "u64"
     }
-    if string.rchar_cmp(base, "long long unsigned") == 0     {
+    if string.rchar_cmp(base, "long long unsigned") == 0 {
         return "u64"
     }
     if string.rchar_cmp(base, "long long unsigned int") == 0 {
@@ -4897,94 +4897,94 @@ fn map_base_type(base: ref u8) ref u8 = {
     if string.rchar_cmp(base, "unsigned long long int") == 0 {
         return "u64"
     }
-    if string.rchar_cmp(base, "long int") == 0               {
+    if string.rchar_cmp(base, "long int") == 0 {
         return "i64"
     }
-    if string.rchar_cmp(base, "long long int") == 0          {
+    if string.rchar_cmp(base, "long long int") == 0 {
         return "i64"
     }
-    if string.rchar_cmp(base, "signed long") == 0            {
+    if string.rchar_cmp(base, "signed long") == 0 {
         return "i64"
     }
-    if string.rchar_cmp(base, "signed long int") == 0        {
+    if string.rchar_cmp(base, "signed long int") == 0 {
         return "i64"
     }
-    if string.rchar_cmp(base, "signed long long") == 0       {
+    if string.rchar_cmp(base, "signed long long") == 0 {
         return "i64"
     }
-    if string.rchar_cmp(base, "signed long long int") == 0   {
+    if string.rchar_cmp(base, "signed long long int") == 0 {
         return "i64"
     }
-    if string.rchar_cmp(base, "short int") == 0              {
+    if string.rchar_cmp(base, "short int") == 0 {
         return "i16"
     }
-    if string.rchar_cmp(base, "signed short") == 0           {
+    if string.rchar_cmp(base, "signed short") == 0 {
         return "i16"
     }
-    if string.rchar_cmp(base, "signed short int") == 0       {
+    if string.rchar_cmp(base, "signed short int") == 0 {
         return "i16"
     }
-    if string.rchar_cmp(base, "short unsigned int") == 0     {
+    if string.rchar_cmp(base, "short unsigned int") == 0 {
         return "u16"
     }
-    if string.rchar_cmp(base, "unsigned short int") == 0     {
+    if string.rchar_cmp(base, "unsigned short int") == 0 {
         return "u16"
     }
-    if string.rchar_cmp(base, "signed int") == 0             {
+    if string.rchar_cmp(base, "signed int") == 0 {
         return "i32"
     }
-    if string.rchar_cmp(base, "signed") == 0                 {
+    if string.rchar_cmp(base, "signed") == 0 {
         return "i32"
     }
-    if string.rchar_cmp(base, "signed u8") == 0              {
+    if string.rchar_cmp(base, "signed u8") == 0 {
         return "i8"
     }
-    if string.rchar_cmp(base, "float") == 0                  {
+    if string.rchar_cmp(base, "float") == 0 {
         return "f32"
     }
-    if string.rchar_cmp(base, "double") == 0                 {
+    if string.rchar_cmp(base, "double") == 0 {
         return "f64"
     }
-    if string.rchar_cmp(base, "_Bool") == 0                  {
+    if string.rchar_cmp(base, "_Bool") == 0 {
         return "bool"
     }
-    if string.rchar_cmp(base, "bool") == 0                   {
+    if string.rchar_cmp(base, "bool") == 0 {
         return "bool"
     }
-    if string.rchar_cmp(base, "size_t") == 0                 {
+    if string.rchar_cmp(base, "size_t") == 0 {
         return "usize"
     }
-    if string.rchar_cmp(base, "ssize_t") == 0                {
+    if string.rchar_cmp(base, "ssize_t") == 0 {
         return "i64"
     }
-    if string.rchar_cmp(base, "int8_t") == 0                 {
+    if string.rchar_cmp(base, "int8_t") == 0 {
         return "i8"
     }
-    if string.rchar_cmp(base, "uint8_t") == 0                {
+    if string.rchar_cmp(base, "uint8_t") == 0 {
         return "u8"
     }
-    if string.rchar_cmp(base, "int16_t") == 0                {
+    if string.rchar_cmp(base, "int16_t") == 0 {
         return "i16"
     }
-    if string.rchar_cmp(base, "uint16_t") == 0               {
+    if string.rchar_cmp(base, "uint16_t") == 0 {
         return "u16"
     }
-    if string.rchar_cmp(base, "int32_t") == 0                {
+    if string.rchar_cmp(base, "int32_t") == 0 {
         return "i32"
     }
-    if string.rchar_cmp(base, "uint32_t") == 0               {
+    if string.rchar_cmp(base, "uint32_t") == 0 {
         return "u32"
     }
-    if string.rchar_cmp(base, "int64_t") == 0                {
+    if string.rchar_cmp(base, "int64_t") == 0 {
         return "i64"
     }
-    if string.rchar_cmp(base, "uint64_t") == 0               {
+    if string.rchar_cmp(base, "uint64_t") == 0 {
         return "u64"
     }
-    if string.rchar_cmp(base, "intptr_t") == 0               {
+    if string.rchar_cmp(base, "intptr_t") == 0 {
         return "i64"
     }
-    if string.rchar_cmp(base, "uintptr_t") == 0              {
+    if string.rchar_cmp(base, "uintptr_t") == 0 {
         return "usize"
     }
     if string.rchar_starts_with(base, "struct ") {

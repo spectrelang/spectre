@@ -146,21 +146,26 @@ fn cg_new() ref CgCtx = trust {
     return ctx
 }
 
-fn cg_sb(ctx: ref CgCtx)      ref void = {
+fn cg_sb(ctx: ref CgCtx) ref void = {
     return ctx.sb as ref void
 }
-fn cg_tmp(ctx: ref CgCtx)     i64      = {
+
+fn cg_tmp(ctx: ref CgCtx) i64      = {
     return ctx.tmp as i64
 }
-fn cg_lbl(ctx: ref CgCtx)     i64      = {
+
+fn cg_lbl(ctx: ref CgCtx) i64      = {
     return ctx.lbl as i64
 }
+
 fn cg_fn_name(ctx: ref CgCtx) ref u8   = {
     return ctx.fn_name as ref u8
 }
-fn cg_strs(ctx:ref CgCtx)    ref void = {
+
+fn cg_strs(ctx:ref CgCtx) ref void = {
     return ctx.strs as ref void
 }
+
 fn cg_str_cnt(ctx: ref CgCtx) i64      = {
     return ctx.str_cnt as i64
 }
@@ -168,12 +173,15 @@ fn cg_str_cnt(ctx: ref CgCtx) i64      = {
 fn cg_set_tmp(ctx: mut ref CgCtx, v: i64) void = trust {
     ctx.tmp = v
 }
+
 fn cg_set_lbl(ctx: mut ref CgCtx, v: i64) void = trust {
     ctx.lbl = v
 }
+
 fn cg_set_fn_name(ctx: mut ref CgCtx, v: ref u8) void = trust {
     ctx.fn_name = v
 }
+
 fn cg_set_str_cnt(ctx: mut ref CgCtx, v: i64) void = trust {
     ctx.str_cnt = v
 }
@@ -197,22 +205,27 @@ fn cg_emit_label_if_new(ctx: mut ref CgCtx, label: ref u8) bool = trust {
     return true
 }
 
-fn cg_dvars(ctx: ref CgCtx)            ref void = {
+fn cg_dvars(ctx: ref CgCtx) ref void = {
     return ctx.dvars as ref void
 }
-fn cg_snames(ctx: ref CgCtx)           ref void = {
+
+fn cg_snames(ctx: ref CgCtx) ref void = {
     return ctx.snames as ref void
 }
+
 fn cg_global_src_names(ctx: ref CgCtx) ref void = {
     return ctx.global_src_names as ref void
 }
-fn cg_global_labels(ctx: ref CgCtx)    ref void = {
+
+fn cg_global_labels(ctx: ref CgCtx) ref void = {
     return ctx.global_labels as ref void
 }
-fn cg_global_qtypes(ctx: ref CgCtx)    ref void = {
+
+fn cg_global_qtypes(ctx: ref CgCtx) ref void = {
     return ctx.global_qtypes as ref void
 }
-fn cg_global_anns(ctx: ref CgCtx)      ref void = {
+
+fn cg_global_anns(ctx: ref CgCtx) ref void = {
     return ctx.global_anns as ref void
 }
 
@@ -1299,57 +1312,75 @@ fn cg_lookup_global(ctx: mut ref CgCtx, src_name: ref u8, out_label: ref u8, out
 fn cg_sfields(ctx: ref CgCtx) list[ref void] = trust {
     return ctx.sfields
 }
+
 fn cg_sis_extern(ctx: ref CgCtx) list[bool] = trust {
     return ctx.sis_extern
 }
+
 fn cg_unames(ctx: ref CgCtx) ref void = trust {
     return ctx.unames as ref void
 }
+
 fn cg_uvariants(ctx: ref CgCtx) ref void = trust {
     return ctx.uvariants as ref void
 }
+
 fn cg_fn_names(ctx: ref CgCtx) ref void = trust {
     return ctx.fn_names as ref void
 }
+
 fn cg_fn_params(ctx: ref CgCtx) ref void = trust {
     return ctx.fn_params as ref void
 }
+
 fn cg_fn_rets(ctx: ref CgCtx) ref void = trust {
     return ctx.fn_rets as ref void
 }
+
 fn cg_extern_names(ctx: ref CgCtx) ref void = trust {
     return ctx.ext_names as ref void
 }
+
 fn cg_extern_syms(ctx: ref CgCtx) ref void = trust {
     return ctx.ext_syms as ref void
 }
+
 fn cg_ext_rets(ctx: ref CgCtx) ref void = trust {
     return ctx.ext_rets as ref void
 }
+
 fn cg_tv_names(ctx: ref CgCtx) ref void = trust {
     return ctx.tv_names as ref void
 }
+
 fn cg_tv_owners(ctx: ref CgCtx) ref void = trust {
     return ctx.tv_owners as ref void
 }
+
 fn cg_tv_tags(ctx: ref CgCtx) ref void = trust {
     return ctx.tv_tags as ref void
 }
+
 fn cg_tv_fields(ctx: ref CgCtx) ref void = trust {
     return ctx.tv_fields as ref void
 }
+
 fn cg_break_lbl(ctx: ref CgCtx) i64 = trust {
     return ctx.break_lbl
 }
+
 fn cg_cont_lbl(ctx: ref CgCtx) i64 = trust {
     return ctx.cont_lbl
 }
+
 fn cg_set_break_lbl(ctx: mut ref CgCtx, v: i64) void = trust {
     ctx.break_lbl = v
 }
+
 fn cg_set_cont_lbl(ctx: mut ref CgCtx, v: i64) void = trust {
     ctx.cont_lbl = v
 }
+
 fn cg_defer_stack(ctx: ref CgCtx) ref void = trust {
     return ctx.defer_stack as ref void
 }
@@ -1383,6 +1414,7 @@ fn cg_emit_defers(ctx: mut ref CgCtx) void = trust {
 fn cg_mc_names(ctx: ref CgCtx) ref void = trust {
     return ctx.mc_names as ref void
 }
+
 fn cg_mc_vals(ctx: ref CgCtx) ref void = trust {
     return ctx.mc_vals as ref void
 }
@@ -1642,7 +1674,7 @@ fn cg_normalize_qtype(qtype: ref u8) ref u8 = trust {
     if qv == 100 {
         return "d"
     }
-    if qv == 97  {
+    if qv == 97 {
         return "a"
     }
     return qtype
@@ -3262,28 +3294,28 @@ fn qbe_type_of(ty: ref parser.Node) ref u8 = trust {
         return "l"
     }
     val k: i64 = ty.kind
-    if k == parser.TY_VOID    {
+    if k == parser.TY_VOID {
         return "w"
     }
-    if k == parser.TY_MUT     {
+    if k == parser.TY_MUT {
         return qbe_type_of(ty.d0 as ref parser.Node)
     }
-    if k == parser.TY_REF     {
+    if k == parser.TY_REF {
         return "l"
     }
-    if k == parser.TY_OPTION  {
+    if k == parser.TY_OPTION {
         return "l"
     }
-    if k == parser.TY_LIST    {
+    if k == parser.TY_LIST {
         return "l"
     }
-    if k == parser.TY_RESULT  {
+    if k == parser.TY_RESULT {
         return "l"
     }
-    if k == parser.TY_SLICE   {
+    if k == parser.TY_SLICE {
         return "l"
     }
-    if k == parser.TY_FNPTR   {
+    if k == parser.TY_FNPTR {
         return "l"
     }
     if k == parser.TY_FIXED_ARR {
@@ -4040,28 +4072,28 @@ fn type_size(ty: ref parser.Node) i64 = trust {
         return 8
     }
     val k: i64 = ty.kind
-    if k == parser.TY_VOID    {
+    if k == parser.TY_VOID {
         return 0
     }
-    if k == parser.TY_MUT     {
+    if k == parser.TY_MUT {
         return type_size(ty.d0 as ref parser.Node)
     }
-    if k == parser.TY_REF     {
+    if k == parser.TY_REF {
         return 8
     }
-    if k == parser.TY_LIST    {
+    if k == parser.TY_LIST {
         return 24
     }
-    if k == parser.TY_OPTION  {
+    if k == parser.TY_OPTION {
         return 8
     }
-    if k == parser.TY_RESULT  {
+    if k == parser.TY_RESULT {
         return 16
     }
-    if k == parser.TY_SLICE   {
+    if k == parser.TY_SLICE {
         return 16
     }
-    if k == parser.TY_FNPTR   {
+    if k == parser.TY_FNPTR {
         return 8
     }
     if k == parser.TY_NAMED {
@@ -5998,7 +6030,7 @@ fn gen_binop(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
     }
 
     if is_float {
-        if op == parser.OP_ADD  {
+        if op == parser.OP_ADD {
             @snprintf(buf, 256, "    %%t{lld} =d add {s}, {s}\n",  {tmp, lhs_l, rhs_l})
         }
         elif op == parser.OP_SUB {
@@ -6013,29 +6045,29 @@ fn gen_binop(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
         elif op == parser.OP_REM {
             @snprintf(buf, 256, "    %%t{lld} =d rem {s}, {s}\n",  {tmp, lhs_l, rhs_l})
         }
-        elif op == parser.OP_EQ  {
+        elif op == parser.OP_EQ {
             @snprintf(buf, 256, "    %%t{lld} =w ceqd {s}, {s}\n", {tmp, lhs_l, rhs_l})
         }
-        elif op == parser.OP_NE  {
+        elif op == parser.OP_NE {
             @snprintf(buf, 256, "    %%t{lld} =w cned {s}, {s}\n", {tmp, lhs_l, rhs_l})
         }
-        elif op == parser.OP_LT  {
+        elif op == parser.OP_LT {
             @snprintf(buf, 256, "    %%t{lld} =w cltd {s}, {s}\n", {tmp, lhs_l, rhs_l})
         }
-        elif op == parser.OP_GT  {
+        elif op == parser.OP_GT {
             @snprintf(buf, 256, "    %%t{lld} =w cgtd {s}, {s}\n", {tmp, lhs_l, rhs_l})
         }
-        elif op == parser.OP_LE  {
+        elif op == parser.OP_LE {
             @snprintf(buf, 256, "    %%t{lld} =w cled {s}, {s}\n", {tmp, lhs_l, rhs_l})
         }
-        elif op == parser.OP_GE  {
+        elif op == parser.OP_GE {
             @snprintf(buf, 256, "    %%t{lld} =w cged {s}, {s}\n", {tmp, lhs_l, rhs_l})
         }
         else {
             @snprintf(buf, 256, "    %%t{lld} =l copy 0\n", {tmp})
         }
     } else {
-        if op == parser.OP_ADD  {
+        if op == parser.OP_ADD {
             @snprintf(buf, 256, "    %%t{lld} =l add {s}, {s}\n",  {tmp, lhs_l, rhs_l})
         }
         elif op == parser.OP_SUB {
@@ -6050,42 +6082,42 @@ fn gen_binop(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
         elif op == parser.OP_REM {
             @snprintf(buf, 256, "    %%t{lld} =l rem {s}, {s}\n",  {tmp, lhs_l, rhs_l})
         }
-        elif op == parser.OP_EQ  {
+        elif op == parser.OP_EQ {
             if both_word {
                 @snprintf(buf, 256, "    %%t{lld} =w ceqw {s}, {s}\n", {tmp, lhs, rhs})
             } else {
                 @snprintf(buf, 256, "    %%t{lld} =w ceql {s}, {s}\n", {tmp, lhs_l, rhs_l})
             }
         }
-        elif op == parser.OP_NE  {
+        elif op == parser.OP_NE {
             if both_word {
                 @snprintf(buf, 256, "    %%t{lld} =w cnew {s}, {s}\n", {tmp, lhs, rhs})
             } else {
                 @snprintf(buf, 256, "    %%t{lld} =w cnel {s}, {s}\n", {tmp, lhs_l, rhs_l})
             }
         }
-        elif op == parser.OP_LT  {
+        elif op == parser.OP_LT {
             if both_word {
                 @snprintf(buf, 256, "    %%t{lld} =w csltw {s}, {s}\n", {tmp, lhs, rhs})
             } else {
                 @snprintf(buf, 256, "    %%t{lld} =w csltl {s}, {s}\n", {tmp, lhs_l, rhs_l})
             }
         }
-        elif op == parser.OP_GT  {
+        elif op == parser.OP_GT {
             if both_word {
                 @snprintf(buf, 256, "    %%t{lld} =w csgtw {s}, {s}\n", {tmp, lhs, rhs})
             } else {
                 @snprintf(buf, 256, "    %%t{lld} =w csgtl {s}, {s}\n", {tmp, lhs_l, rhs_l})
             }
         }
-        elif op == parser.OP_LE  {
+        elif op == parser.OP_LE {
             if both_word {
                 @snprintf(buf, 256, "    %%t{lld} =w cslew {s}, {s}\n", {tmp, lhs, rhs})
             } else {
                 @snprintf(buf, 256, "    %%t{lld} =w cslel {s}, {s}\n", {tmp, lhs_l, rhs_l})
             }
         }
-        elif op == parser.OP_GE  {
+        elif op == parser.OP_GE {
             val lt: i64 = fresh_tmp(ctx)
             if both_word {
                 @snprintf(buf, 256, "    %%t{lld} =w csltw {s}, {s}\n    %%t{lld} =w ceqw %%t{lld}, 0\n", {lt, lhs, rhs, tmp, lt})
@@ -6096,16 +6128,16 @@ fn gen_binop(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
         elif op == parser.OP_BAND {
             @snprintf(buf, 256, "    %%t{lld} =l and {s}, {s}\n", {tmp, lhs_l, rhs_l})
         }
-        elif op == parser.OP_BOR  {
+        elif op == parser.OP_BOR {
             @snprintf(buf, 256, "    %%t{lld} =l or {s}, {s}\n",  {tmp, lhs_l, rhs_l})
         }
         elif op == parser.OP_BXOR {
             @snprintf(buf, 256, "    %%t{lld} =l xor {s}, {s}\n", {tmp, lhs_l, rhs_l})
         }
-        elif op == parser.OP_SHL  {
+        elif op == parser.OP_SHL {
             @snprintf(buf, 256, "    %%t{lld} =l shl {s}, {s}\n", {tmp, lhs_l, rhs_l})
         }
-        elif op == parser.OP_SHR  {
+        elif op == parser.OP_SHR {
             @snprintf(buf, 256, "    %%t{lld} =l shr {s}, {s}\n", {tmp, lhs_l, rhs_l})
         }
         else {
@@ -9442,10 +9474,10 @@ fn stmt_terminated(ctx: mut ref CgCtx, stmt: ref parser.Node) bool = trust {
         return false
     }
     val k: i64 = stmt.kind
-    if k == parser.NK_RETURN   {
+    if k == parser.NK_RETURN {
         return true
     }
-    if k == parser.NK_BREAK    {
+    if k == parser.NK_BREAK {
         return true
     }
     if k == parser.NK_CONTINUE {

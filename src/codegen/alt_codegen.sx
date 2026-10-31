@@ -6184,6 +6184,7 @@ fn gen_items_with_prefix(ctx: mut ref CCtx, items: list[ref parser.Node], mod_pr
 fn emit_to_fwd(ctx: ref CCtx, s: ref u8) void = trust {
     str.StringBuilder.append_cstr(ctx.fwd_sb, s)
 }
+
 fn emitln_fwd(ctx: ref CCtx, s: ref u8) void = trust {
     str.StringBuilder.append_cstr(ctx.fwd_sb, s) str.StringBuilder.append_char(ctx.fwd_sb, 10 as u8)
 }

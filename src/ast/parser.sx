@@ -164,42 +164,55 @@ fn make_binop(op: i64, line: i64, left: ref Node, right: ref Node) result[ref No
 pub fn binop_op(n: ref Node) i64 = {
     return n.d0
 }
+
 pub fn binop_left(n: ref Node) ref Node = {
     return n.d1 as ref Node
 }
+
 pub fn binop_right(n: ref Node) ref Node = {
     return n.d2 as ref Node
 }
+
 pub fn generic_fn_type_params(n: ref Node) list[ref Node] = {
     return n.d6 as list[ref Node]
 }
+
 pub fn tparam_name(tp: ref Node) ref u8 = {
     return tp.d0 as ref u8
 }
+
 pub fn tparam_constraint(tp: ref Node) ref Node = {
     return tp.d1 as ref Node
 }
+
 pub fn generic_fn_is_unsafe(n: ref Node) bool = {
     return (n.d0 & 2) != 0
 }
+
 pub fn generic_when_conditions(n: ref Node) list[ref Node] = {
     return n.d0 as list[ref Node]
 }
+
 pub fn generic_when_body(n: ref Node) ref Node = {
     return n.d1 as ref Node
 }
+
 pub fn generic_inst_base(n: ref Node) ref Node = {
     return n.d0 as ref Node
 }
+
 pub fn generic_inst_type_args(n: ref Node) list[ref Node] = {
     return n.d1 as list[ref Node]
 }
+
 pub fn gwhen_cond_tparam(n: ref Node) ref u8 = {
     return n.d0 as ref u8
 }
+
 pub fn gwhen_cond_kind(n: ref Node) i64 = {
     return n.d1
 }
+
 pub fn gwhen_cond_types(n: ref Node) list[ref Node] = {
     return n.d2 as list[ref Node]
 }
@@ -214,21 +227,25 @@ fn make_unop(op: i64, line: i64, inner: ref Node) result[ref Node, ref u8] = tru
 pub fn unop_op(n: ref Node) i64 = {
     return n.d0
 }
+
 pub fn unop_inner(n: ref Node) ref Node = {
     return n.d1 as ref Node
 }
+
 pub fn fixed_arr_size(n: ref Node) i64 = {
     return n.d0
 }
+
 pub fn fixed_arr_inner(n: ref Node) ref Node = {
     return n.d1 as ref Node
 }
+
 pub fn fixed_arr_size_name(n: ref Node) ref u8 = {
     return n.d2 as ref u8
 }
 
 pub fn fn_is_unsafe(n: ref Node) bool = {
-    if n.kind == NK_EXTERN_FN  {
+    if n.kind == NK_EXTERN_FN {
         return true
     }
     if n.kind == NK_GENERIC_FN {
@@ -240,6 +257,7 @@ pub fn fn_is_unsafe(n: ref Node) bool = {
 pub fn extern_fn_is_variadic(n: ref Node) bool = {
     return (n.d6 & EXTERN_FLAG_VARIADIC) != 0
 }
+
 pub fn extern_fn_uses_header(n: ref Node) bool = {
     return (n.d6 & EXTERN_FLAG_HEADER) != 0
 }
@@ -254,6 +272,7 @@ fn make_field(base: ref Node, line: i64, name: ref u8) result[ref Node, ref u8] 
 pub fn field_base(n: ref Node) ref Node = {
     return n.d0 as ref Node
 }
+
 pub fn field_name(n: ref Node) ref u8 = {
     return n.d1 as ref u8
 }
@@ -268,12 +287,15 @@ fn make_call(callee: ref Node, line: i64, args: list[ref Node]) result[ref Node,
 pub fn call_callee(n: ref Node) ref Node = trust {
     return n.d0 as ref Node
 }
+
 pub fn call_args(n: ref Node) list[ref Node] = trust {
     return n.d1 as list[ref Node]
 }
+
 pub fn call_resolved_fn(n: ref Node) ref Node = trust {
     return n.d2 as ref Node
 }
+
 pub fn call_set_resolved_fn(n: ref Node, fn_node: ref Node) void = trust {
     node_store_slot[ref Node](@addr(n.d2), fn_node)
 }
@@ -288,9 +310,11 @@ fn make_struct_field(name: ref u8, line: i64, expr: ref Node) result[ref Node, r
 pub fn match_opt_expr(n: ref Node) ref Node      = {
     return n.d0 as ref Node
 }
+
 pub fn match_opt_some_bind(n: ref Node) ref u8   = {
     return n.d1 as ref u8
 }
+
 pub fn match_opt_some_body(n: ref Node) ref Node = {
     return n.d2 as ref Node
 }  // wrapper, .d0 = stmts list
@@ -300,6 +324,7 @@ pub fn match_opt_none_body(n: ref Node) ref Node = {
 pub fn match_opt_sugar_kind(n: ref Node) i64     = {
     return n.d6
 }
+
 pub fn match_opt_is_sugar(n: ref Node) bool      = {
     return match_opt_sugar_kind(n) != 0
 }
@@ -307,21 +332,25 @@ pub fn match_opt_is_sugar(n: ref Node) bool      = {
 pub fn match_res_expr(n: ref Node) ref Node       = {
     return n.d0 as ref Node
 }
+
 pub fn match_res_ok_bind(n: ref Node) ref u8      = {
     return n.d1 as ref u8
 }
+
 pub fn match_res_ok_body(n: ref Node) ref Node    = {
     return n.d2 as ref Node
 }  // wrapper, .d0 = stmts list
 pub fn match_res_err_bind(n: ref Node) ref u8     = {
     return n.d3 as ref u8
 }
+
 pub fn match_res_err_body(n: ref Node) ref Node   = {
     return n.d4 as ref Node
 }  // wrapper, .d0 = stmts list
 pub fn match_res_sugar_kind(n: ref Node) i64      = {
     return n.d6
 }
+
 pub fn match_res_is_sugar(n: ref Node) bool       = {
     return match_res_sugar_kind(n) != 0
 }
@@ -329,9 +358,11 @@ pub fn match_res_is_sugar(n: ref Node) bool       = {
 pub fn match_enum_expr(n: ref Node) ref Node               = {
     return n.d0 as ref Node
 }
+
 pub fn match_enum_arms(n: ref Node) list[ref Node]         = {
     return n.d1 as list[ref Node]
 }
+
 pub fn match_enum_arm_body(arm: ref Node) list[ref Node]   = {
     return arm.d1 as list[ref Node]
 }
@@ -339,15 +370,18 @@ pub fn match_enum_arm_body(arm: ref Node) list[ref Node]   = {
 pub fn match_value_expr(n: ref Node) ref Node              = {
     return n.d0 as ref Node
 }
+
 pub fn match_value_arms(n: ref Node) list[ref Node]        = {
     return n.d1 as list[ref Node]
 }
+
 pub fn match_value_else(n: ref Node) ref Node              = {
     return n.d2 as ref Node
 }  // wrapper, .d0 = stmts list
 pub fn match_value_arm_pattern(arm: ref Node) ref Node     = {
     return arm.d0 as ref Node
 }
+
 pub fn match_value_arm_body(arm: ref Node) list[ref Node]  = {
     return arm.d1 as list[ref Node]
 }
@@ -355,15 +389,18 @@ pub fn match_value_arm_body(arm: ref Node) list[ref Node]  = {
 pub fn match_str_expr(n: ref Node) ref Node                = {
     return n.d0 as ref Node
 }
+
 pub fn match_str_arms(n: ref Node) list[ref Node]          = {
     return n.d1 as list[ref Node]
 }
+
 pub fn match_str_else(n: ref Node) ref Node                = {
     return n.d2 as ref Node
 }  // wrapper, .d0 = stmts list
 pub fn match_str_arm_value(arm: ref Node) ref u8           = {
     return arm.d0 as ref u8
 }
+
 pub fn match_str_arm_body(arm: ref Node) list[ref Node]    = {
     return arm.d1 as list[ref Node]
 }
@@ -371,15 +408,18 @@ pub fn match_str_arm_body(arm: ref Node) list[ref Node]    = {
 pub fn match_union_expr(n: ref Node) ref Node              = {
     return n.d0 as ref Node
 }
+
 pub fn match_union_arms(n: ref Node) list[ref Node]        = {
     return n.d1 as list[ref Node]
 }
+
 pub fn match_union_else(n: ref Node) ref Node              = {
     return n.d2 as ref Node
 }  // wrapper, .d0 = stmts list
 pub fn match_union_arm_type(arm: ref Node) ref Node        = {
     return arm.d0 as ref Node
 }
+
 pub fn match_union_arm_body(arm: ref Node) list[ref Node]  = {
     return arm.d1 as list[ref Node]
 }
@@ -387,18 +427,22 @@ pub fn match_union_arm_body(arm: ref Node) list[ref Node]  = {
 pub fn match_tagged_union_expr(n: ref Node) ref Node           = {
     return n.d0 as ref Node
 }
+
 pub fn match_tagged_union_arms(n: ref Node) list[ref Node]     = {
     return n.d1 as list[ref Node]
 }
+
 pub fn match_tagged_union_else(n: ref Node) ref Node           = {
     return n.d2 as ref Node
 }  // wrapper, .d0 = stmts list
-pub fn match_tagged_union_arm_variant(arm: ref Node) ref u8    =  {
+pub fn match_tagged_union_arm_variant(arm: ref Node) ref u8    = {
     return arm.d0 as ref u8
 }
+
 pub fn match_tagged_union_arm_bindings(arm: ref Node) list[ref u8] = {
     return arm.d1 as list[ref u8]
 }
+
 pub fn match_tagged_union_arm_body(arm: ref Node) list[ref Node]   = {
     return arm.d2 as list[ref Node]
 }
@@ -543,40 +587,51 @@ fn p_expect_string(p: mut ref Parser) result[ref u8, ref u8] = trust {
     }
 }
 
-fn p_expect_lbrace(p: mut ref Parser)   result[ref u8, ref u8] = trust {
+fn p_expect_lbrace(p: mut ref Parser) result[ref u8, ref u8] = trust {
     return p_expect_kind(p, lexer.kind_is_lbrace,   "'{'" )
 }
-fn p_expect_rbrace(p: mut ref Parser)   result[ref u8, ref u8] = trust {
+
+fn p_expect_rbrace(p: mut ref Parser) result[ref u8, ref u8] = trust {
     return p_expect_kind(p, lexer.kind_is_rbrace,   "'}'" )
 }
-fn p_expect_lparen(p: mut ref Parser)   result[ref u8, ref u8] = trust {
+
+fn p_expect_lparen(p: mut ref Parser) result[ref u8, ref u8] = trust {
     return p_expect_kind(p, lexer.kind_is_lparen,   "'('" )
 }
-fn p_expect_rparen(p: mut ref Parser)   result[ref u8, ref u8] = trust {
+
+fn p_expect_rparen(p: mut ref Parser) result[ref u8, ref u8] = trust {
     return p_expect_kind(p, lexer.kind_is_rparen,   "')'" )
 }
+
 fn p_expect_lbracket(p: mut ref Parser) result[ref u8, ref u8] = trust {
     return p_expect_kind(p, lexer.kind_is_lbracket, "'['" )
 }
+
 fn p_expect_rbracket(p: mut ref Parser) result[ref u8, ref u8] = trust {
     return p_expect_kind(p, lexer.kind_is_rbracket, "']'" )
 }
-fn p_expect_colon(p: mut ref Parser)    result[ref u8, ref u8] = trust {
+
+fn p_expect_colon(p: mut ref Parser) result[ref u8, ref u8] = trust {
     return p_expect_kind(p, lexer.kind_is_colon,    "':'" )
 }
-fn p_expect_comma(p: mut ref Parser)    result[ref u8, ref u8] = trust {
+
+fn p_expect_comma(p: mut ref Parser) result[ref u8, ref u8] = trust {
     return p_expect_kind(p, lexer.kind_is_comma,    "','" )
 }
-fn p_expect_eq(p: mut ref Parser)       result[ref u8, ref u8] = trust {
+
+fn p_expect_eq(p: mut ref Parser) result[ref u8, ref u8] = trust {
     return p_expect_kind(p, kind_is_eq,       "'='" )
 }
+
 fn p_expect_fatarrow(p: mut ref Parser) result[ref u8, ref u8] = trust {
     return p_expect_kind(p, lexer.kind_is_fatarrow, "'=>'")
 }
+
 fn p_expect_semicolon(p: mut ref Parser) result[ref u8, ref u8] = trust {
     return p_expect_kind(p, kind_is_semicolon, "';'")
 }
-fn p_expect_dot(p: mut ref Parser)      result[ref u8, ref u8] = trust {
+
+fn p_expect_dot(p: mut ref Parser) result[ref u8, ref u8] = trust {
     return p_expect_kind(p, lexer.kind_is_dot,      "'.'" )
 }
 
@@ -589,6 +644,7 @@ fn kind_is_eq(k: lexer.TokenKind) bool = trust {
         }
     }
 }
+
 fn kind_is_semicolon(k: lexer.TokenKind) bool = trust {
     match k {
         Semicolon() => {
@@ -598,6 +654,7 @@ fn kind_is_semicolon(k: lexer.TokenKind) bool = trust {
         }
     }
 }
+
 fn kind_is_pluseq(k: lexer.TokenKind) bool = trust {
     match k {
         PlusEq() => {
@@ -607,6 +664,7 @@ fn kind_is_pluseq(k: lexer.TokenKind) bool = trust {
         }
     }
 }
+
 fn kind_is_minuseq(k: lexer.TokenKind) bool = trust {
     match k {
         MinusEq() => {
@@ -616,6 +674,7 @@ fn kind_is_minuseq(k: lexer.TokenKind) bool = trust {
         }
     }
 }
+
 fn kind_is_bang(k: lexer.TokenKind) bool = trust {
     match k {
         Bang() => {
@@ -625,6 +684,7 @@ fn kind_is_bang(k: lexer.TokenKind) bool = trust {
         }
     }
 }
+
 fn kind_is_minus(k: lexer.TokenKind) bool = trust {
     match k {
         Minus() => {
@@ -634,6 +694,7 @@ fn kind_is_minus(k: lexer.TokenKind) bool = trust {
         }
     }
 }
+
 fn kind_is_tilde(k: lexer.TokenKind) bool = trust {
     match k {
         Tilde() => {
@@ -643,6 +704,7 @@ fn kind_is_tilde(k: lexer.TokenKind) bool = trust {
         }
     }
 }
+
 fn kind_is_star(k: lexer.TokenKind) bool = trust {
     match k {
         Star() => {
@@ -652,6 +714,7 @@ fn kind_is_star(k: lexer.TokenKind) bool = trust {
         }
     }
 }
+
 fn kind_is_slash(k: lexer.TokenKind) bool = trust {
     match k {
         Slash() => {
@@ -661,6 +724,7 @@ fn kind_is_slash(k: lexer.TokenKind) bool = trust {
         }
     }
 }
+
 fn kind_is_percent(k: lexer.TokenKind) bool = trust {
     match k {
         Percent() => {
@@ -670,6 +734,7 @@ fn kind_is_percent(k: lexer.TokenKind) bool = trust {
         }
     }
 }
+
 fn kind_is_plus(k: lexer.TokenKind) bool = trust {
     match k {
         Plus() => {
@@ -679,6 +744,7 @@ fn kind_is_plus(k: lexer.TokenKind) bool = trust {
         }
     }
 }
+
 fn kind_is_lt(k: lexer.TokenKind) bool = trust {
     match k {
         Lt() => {
@@ -688,6 +754,7 @@ fn kind_is_lt(k: lexer.TokenKind) bool = trust {
         }
     }
 }
+
 fn kind_is_gt(k: lexer.TokenKind) bool = trust {
     match k {
         Gt() => {
@@ -697,6 +764,7 @@ fn kind_is_gt(k: lexer.TokenKind) bool = trust {
         }
     }
 }
+
 fn kind_is_bitand(k: lexer.TokenKind) bool = trust {
     match k {
         BitAnd() => {
@@ -706,6 +774,7 @@ fn kind_is_bitand(k: lexer.TokenKind) bool = trust {
         }
     }
 }
+
 fn kind_is_bitor(k: lexer.TokenKind) bool = trust {
     match k {
         BitOr() => {
@@ -715,6 +784,7 @@ fn kind_is_bitor(k: lexer.TokenKind) bool = trust {
         }
     }
 }
+
 fn kind_is_bitxor(k: lexer.TokenKind) bool = trust {
     match k {
         BitXor() => {
@@ -724,6 +794,7 @@ fn kind_is_bitxor(k: lexer.TokenKind) bool = trust {
         }
     }
 }
+
 fn kind_is_as(k: lexer.TokenKind) bool = trust {
     match k {
         As() => {
@@ -733,6 +804,7 @@ fn kind_is_as(k: lexer.TokenKind) bool = trust {
         }
     }
 }
+
 fn kind_is_trust(k: lexer.TokenKind) bool = trust {
     match k {
         Trust() => {
@@ -742,6 +814,7 @@ fn kind_is_trust(k: lexer.TokenKind) bool = trust {
         }
     }
 }
+
 fn kind_is_some(k: lexer.TokenKind) bool = trust {
     match k {
         Some() => {
@@ -751,6 +824,7 @@ fn kind_is_some(k: lexer.TokenKind) bool = trust {
         }
     }
 }
+
 fn kind_is_none(k: lexer.TokenKind) bool = trust {
     match k {
         None() => {
@@ -760,6 +834,7 @@ fn kind_is_none(k: lexer.TokenKind) bool = trust {
         }
     }
 }
+
 fn kind_is_ok(k: lexer.TokenKind) bool = trust {
     match k {
         Ok() => {
@@ -769,6 +844,7 @@ fn kind_is_ok(k: lexer.TokenKind) bool = trust {
         }
     }
 }
+
 fn kind_is_err(k: lexer.TokenKind) bool = trust {
     match k {
         Err() => {
@@ -778,6 +854,7 @@ fn kind_is_err(k: lexer.TokenKind) bool = trust {
         }
     }
 }
+
 fn kind_is_true(k: lexer.TokenKind) bool = trust {
     match k {
         True() => {
@@ -787,6 +864,7 @@ fn kind_is_true(k: lexer.TokenKind) bool = trust {
         }
     }
 }
+
 fn kind_is_false(k: lexer.TokenKind) bool = trust {
     match k {
         False() => {
@@ -796,6 +874,7 @@ fn kind_is_false(k: lexer.TokenKind) bool = trust {
         }
     }
 }
+
 fn kind_is_fn(k: lexer.TokenKind) bool = trust {
     match k {
         Fn() => {
@@ -805,6 +884,7 @@ fn kind_is_fn(k: lexer.TokenKind) bool = trust {
         }
     }
 }
+
 fn kind_is_val(k: lexer.TokenKind) bool = trust {
     match k {
         Val() => {
@@ -814,6 +894,7 @@ fn kind_is_val(k: lexer.TokenKind) bool = trust {
         }
     }
 }
+
 fn kind_is_mut(k: lexer.TokenKind) bool = trust {
     match k {
         Mut() => {
@@ -823,6 +904,7 @@ fn kind_is_mut(k: lexer.TokenKind) bool = trust {
         }
     }
 }
+
 fn kind_is_pub(k: lexer.TokenKind) bool = trust {
     match k {
         Pub() => {
@@ -832,6 +914,7 @@ fn kind_is_pub(k: lexer.TokenKind) bool = trust {
         }
     }
 }
+
 fn kind_is_type(k: lexer.TokenKind) bool = trust {
     match k {
         Type() => {
@@ -841,6 +924,7 @@ fn kind_is_type(k: lexer.TokenKind) bool = trust {
         }
     }
 }
+
 fn kind_is_pre(k: lexer.TokenKind) bool = trust {
     match k {
         Pre() => {
@@ -850,6 +934,7 @@ fn kind_is_pre(k: lexer.TokenKind) bool = trust {
         }
     }
 }
+
 fn kind_is_post(k: lexer.TokenKind) bool = trust {
     match k {
         Post() => {
@@ -859,6 +944,7 @@ fn kind_is_post(k: lexer.TokenKind) bool = trust {
         }
     }
 }
+
 fn kind_is_return(k: lexer.TokenKind) bool = trust {
     match k {
         Return() => {
@@ -868,6 +954,7 @@ fn kind_is_return(k: lexer.TokenKind) bool = trust {
         }
     }
 }
+
 fn kind_is_if(k: lexer.TokenKind) bool = trust {
     match k {
         If() => {
@@ -877,6 +964,7 @@ fn kind_is_if(k: lexer.TokenKind) bool = trust {
         }
     }
 }
+
 fn kind_is_elif(k: lexer.TokenKind) bool = trust {
     match k {
         Elif() => {
@@ -886,6 +974,7 @@ fn kind_is_elif(k: lexer.TokenKind) bool = trust {
         }
     }
 }
+
 fn kind_is_else(k: lexer.TokenKind) bool = trust {
     match k {
         Else() => {
@@ -895,6 +984,7 @@ fn kind_is_else(k: lexer.TokenKind) bool = trust {
         }
     }
 }
+
 fn kind_is_for(k: lexer.TokenKind) bool = trust {
     match k {
         For() => {
@@ -904,6 +994,7 @@ fn kind_is_for(k: lexer.TokenKind) bool = trust {
         }
     }
 }
+
 fn kind_is_in(k: lexer.TokenKind) bool = trust {
     match k {
         In() => {
@@ -913,6 +1004,7 @@ fn kind_is_in(k: lexer.TokenKind) bool = trust {
         }
     }
 }
+
 fn kind_is_match(k: lexer.TokenKind) bool = trust {
     match k {
         Match() => {
@@ -922,6 +1014,7 @@ fn kind_is_match(k: lexer.TokenKind) bool = trust {
         }
     }
 }
+
 fn kind_is_defer(k: lexer.TokenKind) bool = trust {
     match k {
         Defer() => {
@@ -931,6 +1024,7 @@ fn kind_is_defer(k: lexer.TokenKind) bool = trust {
         }
     }
 }
+
 fn kind_is_break(k: lexer.TokenKind) bool = trust {
     match k {
         Break() => {
@@ -940,6 +1034,7 @@ fn kind_is_break(k: lexer.TokenKind) bool = trust {
         }
     }
 }
+
 fn kind_is_continue(k: lexer.TokenKind) bool = trust {
     match k {
         Continue() => {
@@ -949,6 +1044,7 @@ fn kind_is_continue(k: lexer.TokenKind) bool = trust {
         }
     }
 }
+
 fn kind_is_assert(k: lexer.TokenKind) bool = trust {
     match k {
         Assert() => {
@@ -958,6 +1054,7 @@ fn kind_is_assert(k: lexer.TokenKind) bool = trust {
         }
     }
 }
+
 fn kind_is_when(k: lexer.TokenKind) bool = trust {
     match k {
         When() => {
@@ -967,6 +1064,7 @@ fn kind_is_when(k: lexer.TokenKind) bool = trust {
         }
     }
 }
+
 fn kind_is_union(k: lexer.TokenKind) bool = trust {
     match k {
         Union() => {
@@ -976,6 +1074,7 @@ fn kind_is_union(k: lexer.TokenKind) bool = trust {
         }
     }
 }
+
 fn kind_is_enum(k: lexer.TokenKind) bool = trust {
     match k {
         Enum() => {
@@ -985,6 +1084,7 @@ fn kind_is_enum(k: lexer.TokenKind) bool = trust {
         }
     }
 }
+
 fn kind_is_extern(k: lexer.TokenKind) bool = trust {
     match k {
         Extern() => {
@@ -994,6 +1094,7 @@ fn kind_is_extern(k: lexer.TokenKind) bool = trust {
         }
     }
 }
+
 fn kind_is_link(k: lexer.TokenKind) bool = trust {
     match k {
         Link() => {
@@ -1003,6 +1104,7 @@ fn kind_is_link(k: lexer.TokenKind) bool = trust {
         }
     }
 }
+
 fn kind_is_guarded(k: lexer.TokenKind) bool = trust {
     match k {
         Guarded() => {
@@ -1012,6 +1114,7 @@ fn kind_is_guarded(k: lexer.TokenKind) bool = trust {
         }
     }
 }
+
 fn kind_is_not(k: lexer.TokenKind) bool = trust {
     match k {
         Not() => {
@@ -1021,6 +1124,7 @@ fn kind_is_not(k: lexer.TokenKind) bool = trust {
         }
     }
 }
+
 fn kind_is_ref(k: lexer.TokenKind) bool = trust {
     match k {
         Ref() => {
@@ -1030,6 +1134,7 @@ fn kind_is_ref(k: lexer.TokenKind) bool = trust {
         }
     }
 }
+
 fn kind_is_use(k: lexer.TokenKind) bool = trust {
     match k {
         Use() => {
@@ -1039,6 +1144,7 @@ fn kind_is_use(k: lexer.TokenKind) bool = trust {
         }
     }
 }
+
 fn kind_is_test(k: lexer.TokenKind) bool = trust {
     match k {
         Test() => {
@@ -1048,6 +1154,7 @@ fn kind_is_test(k: lexer.TokenKind) bool = trust {
         }
     }
 }
+
 fn kind_is_guard(k: lexer.TokenKind) bool = trust {
     match k {
         Guard() => {
@@ -1057,6 +1164,7 @@ fn kind_is_guard(k: lexer.TokenKind) bool = trust {
         }
     }
 }
+
 fn kind_is_eof(k: lexer.TokenKind) bool = trust {
     match k {
         Eof() => {
@@ -1066,6 +1174,7 @@ fn kind_is_eof(k: lexer.TokenKind) bool = trust {
         }
     }
 }
+
 fn kind_is_ident(k: lexer.TokenKind) bool = trust {
     match k {
         Ident _ => {
@@ -1075,6 +1184,7 @@ fn kind_is_ident(k: lexer.TokenKind) bool = trust {
         }
     }
 }
+
 fn kind_is_str(k: lexer.TokenKind) bool = trust {
     match k {
         Str _ => {
@@ -1084,6 +1194,7 @@ fn kind_is_str(k: lexer.TokenKind) bool = trust {
         }
     }
 }
+
 fn kind_is_int(k: lexer.TokenKind) bool = trust {
     match k {
         Int _ => {
@@ -1093,6 +1204,7 @@ fn kind_is_int(k: lexer.TokenKind) bool = trust {
         }
     }
 }
+
 fn kind_is_float(k: lexer.TokenKind) bool = trust {
     match k {
         Float _ => {
@@ -1102,6 +1214,7 @@ fn kind_is_float(k: lexer.TokenKind) bool = trust {
         }
     }
 }
+
 fn kind_is_char(k: lexer.TokenKind) bool = trust {
     match k {
         CharLit _ => {
@@ -1111,6 +1224,7 @@ fn kind_is_char(k: lexer.TokenKind) bool = trust {
         }
     }
 }
+
 fn kind_char_val(k: lexer.TokenKind) i64 = trust {
     match k {
         CharLit v => {
@@ -1120,6 +1234,7 @@ fn kind_char_val(k: lexer.TokenKind) i64 = trust {
         }
     }
 }
+
 fn kind_is_dotdotdot(k: lexer.TokenKind) bool = trust {
     match k {
         DotDotDot() => {
@@ -1223,7 +1338,7 @@ pub fn parse_type(p: mut ref Parser) result[ref Node, ref u8] = trust {
 
     if kind_is_ident(p_peek_kind(p)) {
         val name: ref u8 = p_advance_text(p)
-        if str_eq(name, "void")    {
+        if str_eq(name, "void") {
             return ok make_node(TY_VOID,    line)
         }
         if str_eq(name, "untyped") {
@@ -1359,22 +1474,22 @@ fn parse_cmp(p: mut ref Parser) result[ref Node, ref u8] = trust {
     for {
         val k: lexer.TokenKind = p_peek_kind(p)
         val op: mut i64 = 0
-        if lexer.kind_is_eqeq(k)   {
+        if lexer.kind_is_eqeq(k) {
             op = OP_EQ
         }
         elif lexer.kind_is_bangeq(k) {
             op = OP_NE
         }
-        elif kind_is_lt(k)           {
+        elif kind_is_lt(k) {
             op = OP_LT
         }
-        elif kind_is_gt(k)           {
+        elif kind_is_gt(k) {
             op = OP_GT
         }
-        elif lexer.kind_is_lteq(k)   {
+        elif lexer.kind_is_lteq(k) {
             op = OP_LE
         }
-        elif lexer.kind_is_gteq(k)   {
+        elif lexer.kind_is_gteq(k) {
             op = OP_GE
         }
         if op == 0 {
@@ -1457,7 +1572,7 @@ fn parse_add(p: mut ref Parser) result[ref Node, ref u8] = trust {
     for {
         val k: lexer.TokenKind = p_peek_kind(p)
         val op: mut i64 = 0
-        if kind_is_plus(k)    {
+        if kind_is_plus(k) {
             op = OP_ADD
         }
         elif kind_is_minus(k) {
@@ -1479,10 +1594,10 @@ fn parse_mul(p: mut ref Parser) result[ref Node, ref u8] = trust {
     for {
         val k: lexer.TokenKind = p_peek_kind(p)
         val op: mut i64 = 0
-        if kind_is_star(k)      {
+        if kind_is_star(k) {
             op = OP_MUL
         }
-        elif kind_is_slash(k)   {
+        elif kind_is_slash(k) {
             op = OP_DIV
         }
         elif kind_is_percent(k) {
@@ -1644,13 +1759,13 @@ fn parse_primary(p: mut ref Parser) result[ref Node, ref u8] = trust {
         return make_str_lit(p_advance_text(p), line)
     }
 
-    if kind_is_true(k)  {
+    if kind_is_true(k) {
         p_advance(p) val n4: mut ref Node = make_node(NK_BOOL, line) n4.d0 = 1 return ok n4
     }
     if kind_is_false(k) {
         p_advance(p) val n5: mut ref Node = make_node(NK_BOOL, line) n5.d0 = 0 return ok n5
     }
-    if kind_is_none(k)  {
+    if kind_is_none(k) {
         p_advance(p) return ok make_node(NK_NONE, line)
     }
     if kind_is_char(k) {
@@ -2467,7 +2582,7 @@ pub fn parse_stmt(p: mut ref Parser) result[ref Node, ref u8] = trust {
         return ok nd
     }
 
-    if kind_is_break(k)    {
+    if kind_is_break(k) {
         p_advance(p) return ok make_node(NK_BREAK, line)
     }
     if kind_is_continue(k) {
@@ -3028,7 +3143,7 @@ pub fn parse_stmts(p: mut ref Parser) result[list[ref Node], ref u8] = trust {
         if lexer.kind_is_rbrace(p_peek_kind(p)) {
             break
         }
-        if kind_is_eof(p_peek_kind(p))          {
+        if kind_is_eof(p_peek_kind(p)) {
             break
         }
         val s = parse_stmt(p)?
@@ -3528,13 +3643,13 @@ pub fn parse_item(p: mut ref Parser) result[ref Node, ref u8] = trust {
     if lexer.kind_is_spec(k2) {
         return parse_spec_item(p, public)
     }
-    if kind_is_fn(k2)    {
+    if kind_is_fn(k2) {
         return parse_fn_item(p, public)
     }
-    if kind_is_type(k2)  {
+    if kind_is_type(k2) {
         return parse_type_def_item(p, public, 0)
     }
-    if kind_is_enum(k2)  {
+    if kind_is_enum(k2) {
         return parse_enum_def_item(p, public)
     }
     if kind_is_union(k2) {

@@ -437,13 +437,17 @@ fn find_matching_paren(tokens: list[ref lexer.Token], open_idx: i64) i64 = trust
     val depth: mut i64 = 0
     val i: mut i64 = open_idx
     for {
-        if i >= n { break }
+        if i >= n {
+            break
+        }
         val k: lexer.TokenKind = lexer.tok_kind(tokens, i)
         if lexer.kind_is_lparen(k) {
             depth++
         } elif lexer.kind_is_rparen(k) {
             depth--
-            if depth == 0 { return i }
+            if depth == 0 {
+                return i
+            }
         }
         i++
     }
@@ -974,8 +978,12 @@ fn format_block_brace_spacing(src: ref u8) ref u8 = trust {
     val tok_res = lexer.tokenize(src)
     val tokens: mut list[ref lexer.Token] = []
     match tok_res {
-        ok toks => { tokens = toks }
-        err _   => { return src }
+        ok toks => {
+            tokens = toks
+        }
+        err _   => {
+            return src
+        }
     }
 
     val len: i64 = str.len_raw(src)
@@ -985,23 +993,29 @@ fn format_block_brace_spacing(src: ref u8) ref u8 = trust {
     val i: mut i64 = 0
 
     for {
-        if i >= ntokens { break }
+        if i >= ntokens {
+            break
+        }
         val k: lexer.TokenKind = lexer.tok_kind(tokens, i)
 
         if lexer.kind_is_lbrace(k) && brace_is_block(tokens, i) {
             val brace_pos: i64 = token_start(tokens, starts, i)
             val ws_start: mut i64 = brace_pos
             for {
-                if ws_start <= 0 { break }
+                if ws_start <= 0 {
+                    break
+                }
                 val c: i64 = byte_at(src, ws_start - 1)
-                if c != 32 && c != 9 { break }
+                if c != 32 && c != 9 {
+                    break
+                }
                 ws_start--
             }
 
             val at_line_start: bool =
-                ws_start == 0 ||
-                byte_at(src, ws_start - 1) == 10 ||
-                byte_at(src, ws_start - 1) == 13
+            ws_start == 0 ||
+            byte_at(src, ws_start - 1) == 10 ||
+            byte_at(src, ws_start - 1) == 13
 
             if !at_line_start {
                 val gap: i64 = brace_pos - ws_start
@@ -1033,10 +1047,16 @@ fn find_fn_params_open(tokens: list[ref lexer.Token], fn_idx: i64) i64 = trust {
     }
 
     for {
-        if p >= n { break }
+        if p >= n {
+            break
+        }
         val k: lexer.TokenKind = lexer.tok_kind(tokens, p)
-        if lexer.kind_is_lparen(k) { return p }
-        if lexer.kind_is_lbrace(k) || kind_is_eq(k) { break }
+        if lexer.kind_is_lparen(k) {
+            return p
+        }
+        if lexer.kind_is_lbrace(k) || kind_is_eq(k) {
+            break
+        }
         p++
     }
 
@@ -1047,8 +1067,12 @@ fn format_fn_return_spacing(src: ref u8) ref u8 = trust {
     val tok_res = lexer.tokenize(src)
     val tokens: mut list[ref lexer.Token] = []
     match tok_res {
-        ok toks => { tokens = toks }
-        err _   => { return src }
+        ok toks => {
+            tokens = toks
+        }
+        err _   => {
+            return src
+        }
     }
 
     val len: i64 = str.len_raw(src)
@@ -1058,7 +1082,9 @@ fn format_fn_return_spacing(src: ref u8) ref u8 = trust {
     val i: mut i64 = 0
 
     for {
-        if i >= ntokens { break }
+        if i >= ntokens {
+            break
+        }
         val k: lexer.TokenKind = lexer.tok_kind(tokens, i)
 
         if lexer.kind_is_fn(k) {
@@ -1073,7 +1099,7 @@ fn format_fn_return_spacing(src: ref u8) ref u8 = trust {
                         val next_pos: i64 = token_start(tokens, starts, params_close + 1)
                         if range_is_whitespace(src, close_end, next_pos) {
                             val already_one: bool =
-                                next_pos - close_end == 1 && byte_at(src, close_end) == 32
+                            next_pos - close_end == 1 && byte_at(src, close_end) == 32
                             if !already_one {
                                 @append(edits, edit_new(close_end, next_pos, " "))
                             }
@@ -1091,11 +1117,17 @@ fn format_fn_return_spacing(src: ref u8) ref u8 = trust {
 
 fn segment_starts_with(src: ref u8, start: i64, end: i64, prefix: ref u8) bool = trust {
     val plen: i64 = str.len_raw(prefix)
-    if end - start < plen { return false }
+    if end - start < plen {
+        return false
+    }
     val i: mut i64 = 0
     for {
-        if i >= plen { break }
-        if byte_at(src, start + i) != byte_at(prefix, i) { return false }
+        if i >= plen {
+            break
+        }
+        if byte_at(src, start + i) != byte_at(prefix, i) {
+            return false
+        }
         i++
     }
     return true
@@ -1105,13 +1137,17 @@ fn line_is_function_start(src: ref u8, start: i64, end: i64) bool = trust {
     if segment_starts_with(src, start, end, "pub fn") {
         if start + 6 < end {
             val c: i64 = byte_at(src, start + 6)
-            if c == 32 || c == 40 { return true }
+            if c == 32 || c == 40 {
+                return true
+            }
         }
     }
     if segment_starts_with(src, start, end, "fn") {
         if start + 2 < end {
             val c: i64 = byte_at(src, start + 2)
-            if c == 32 || c == 40 { return true }
+            if c == 32 || c == 40 {
+                return true
+            }
         }
     }
     return false
@@ -1125,28 +1161,42 @@ fn format_top_level_function_gaps(src: ref u8) ref u8 = trust {
     val prev_close: mut bool = false
 
     for {
-        if line_start > len { break }
+        if line_start > len {
+            break
+        }
 
         val line_end: mut i64 = line_start
         for {
-            if line_end >= len { break }
-            if byte_at(src, line_end) == 10 { break }
+            if line_end >= len {
+                break
+            }
+            if byte_at(src, line_end) == 10 {
+                break
+            }
             line_end++
         }
 
         val content_start: mut i64 = line_start
         for {
-            if content_start >= line_end { break }
+            if content_start >= line_end {
+                break
+            }
             val c: i64 = byte_at(src, content_start)
-            if c != 32 && c != 9 { break }
+            if c != 32 && c != 9 {
+                break
+            }
             content_start++
         }
 
         val content_end: mut i64 = line_end
         for {
-            if content_end <= content_start { break }
+            if content_end <= content_start {
+                break
+            }
             val c: i64 = byte_at(src, content_end - 1)
-            if c != 32 && c != 9 && c != 13 { break }
+            if c != 32 && c != 9 && c != 13 {
+                break
+            }
             content_end--
         }
 
@@ -1168,7 +1218,9 @@ fn format_top_level_function_gaps(src: ref u8) ref u8 = trust {
         prev_blank = blank
         prev_close = !blank && content_end - content_start == 1 && byte_at(src, content_start) == 125
 
-        if line_end >= len { break }
+        if line_end >= len {
+            break
+        }
         line_start = line_end + 1
     }
 
