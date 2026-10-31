@@ -3,14 +3,14 @@ val string = use("../string")
 val allocators = use("../allocators")
 
 pub enum ParseIntError = {
-    Empty,
-    InvalidDigit,
+    Empty
+    InvalidDigit
     Overflow
 }
 
 pub enum ParseFloatError = {
-    Empty,
-    Invalid,
+    Empty
+    Invalid
     Overflow
 }
 

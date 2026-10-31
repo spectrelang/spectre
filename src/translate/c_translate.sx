@@ -5,29 +5,29 @@ val os = use("std/os")
 val fs = use("std/fs")
 val allocators = use("std/allocators")
 
-pub val STOP_EOF       : i64 = 0
-pub val STOP_ELSE      : i64 = 1
-pub val STOP_ENDIF     : i64 = 2
-pub val STOP_ELIF      : i64 = 3
-pub val COND_NONE      : i64 = 0
-pub val COND_WIN_TRUE  : i64 = 1
-pub val COND_WIN_FALSE : i64 = 2
+pub val STOP_EOF: i64 = 0
+pub val STOP_ELSE: i64 = 1
+pub val STOP_ENDIF: i64 = 2
+pub val STOP_ELIF: i64 = 3
+pub val COND_NONE: i64 = 0
+pub val COND_WIN_TRUE: i64 = 1
+pub val COND_WIN_FALSE: i64 = 2
 
 type BlockResult = {
     next_index: mut i64
-    stop_kind:  mut i64
-    stop_line:  mut ref u8
+    stop_kind: mut i64
+    stop_line: mut ref u8
 }
 
 type DeclInfo = {
-    its_ok:    mut bool
-    name:      mut ref u8
+    its_ok: mut bool
+    name: mut ref u8
     type_name: mut ref u8
-    type_src:  mut ref u8
+    type_src: mut ref u8
 }
 
 type LoweredExpr = {
-    expr:    mut ref u8
+    expr: mut ref u8
     changed: mut bool
 }
 
@@ -39,16 +39,16 @@ type SwitchCase = {
 
 type TranslationCtx = {
     defined_names: mut list[ref u8]
-    called_names:  mut list[ref u8]
+    called_names: mut list[ref u8]
     called_sig_names: mut list[ref u8]
     called_sig_params: mut list[ref u8]
-    extern_names:  mut list[ref u8]
-    fnptr_names:   mut list[ref u8]
+    extern_names: mut list[ref u8]
+    fnptr_names: mut list[ref u8]
     translated_type_names: mut list[ref u8]
     enum_constant_names: mut list[ref u8]
     enum_constant_types: mut list[ref u8]
-    local_names:   mut list[ref u8]
-    local_types:   mut list[ref u8]
+    local_names: mut list[ref u8]
+    local_types: mut list[ref u8]
     local_array_names: mut list[ref u8]
     local_array_types: mut list[ref u8]
     global_names: mut list[ref u8]
@@ -58,36 +58,36 @@ type TranslationCtx = {
     mutable_names: mut list[ref u8]
     address_taken_names: mut list[ref u8]
     flex_struct_names: mut list[ref u8]
-    flex_field_names:  mut list[ref u8]
-    flex_field_types:  mut list[ref u8]
+    flex_field_names: mut list[ref u8]
+    flex_field_types: mut list[ref u8]
     typedef_alias_names: mut list[ref u8]
     typedef_alias_types: mut list[ref u8]
     main_prelude_lines: mut list[ref u8]
-    temp_counter:  mut i64
+    temp_counter: mut i64
     union_counter: mut i64
 }
 
 fn make_block_result(next_index: i64, stop_kind: i64, stop_line: ref u8) ref BlockResult = {
     val result: mut ref BlockResult = @alloc(@sizeof(BlockResult)) as ref BlockResult
     result.next_index = next_index
-    result.stop_kind  = stop_kind
-    result.stop_line  = stop_line
+    result.stop_kind = stop_kind
+    result.stop_line = stop_line
     return result
 }
 
 fn new_translation_ctx() ref TranslationCtx = {
     val ctx: mut ref TranslationCtx = @alloc(@sizeof(TranslationCtx)) as ref TranslationCtx
     ctx.defined_names = []
-    ctx.called_names  = []
+    ctx.called_names = []
     ctx.called_sig_names = []
     ctx.called_sig_params = []
-    ctx.extern_names  = []
-    ctx.fnptr_names   = []
+    ctx.extern_names = []
+    ctx.fnptr_names = []
     ctx.translated_type_names = []
     ctx.enum_constant_names = []
     ctx.enum_constant_types = []
-    ctx.local_names   = []
-    ctx.local_types   = []
+    ctx.local_names = []
+    ctx.local_types = []
     ctx.local_array_names = []
     ctx.local_array_types = []
     ctx.global_names = []
@@ -97,8 +97,8 @@ fn new_translation_ctx() ref TranslationCtx = {
     ctx.mutable_names = []
     ctx.address_taken_names = []
     ctx.flex_struct_names = []
-    ctx.flex_field_names  = []
-    ctx.flex_field_types  = []
+    ctx.flex_field_names = []
+    ctx.flex_field_types = []
     ctx.typedef_alias_names = []
     ctx.typedef_alias_types = []
     ctx.main_prelude_lines = []
@@ -5081,10 +5081,10 @@ fn strip_initializer(text: ref u8) ref u8 = {
 
 fn parse_named_decl(ctx: ref TranslationCtx, text: ref u8, fallback_name: ref u8) ref DeclInfo = {
     val info: mut ref DeclInfo = @alloc(@sizeof(DeclInfo)) as ref DeclInfo
-    info.its_ok    = false
-    info.name      = fallback_name
+    info.its_ok = false
+    info.name = fallback_name
     info.type_name = ""
-    info.type_src  = ""
+    info.type_src = ""
     val trimmed0: ref u8 = trim_raw(strip_initializer(text))
     val len0: i64 = string.len_raw(trimmed0)
     if len0 == 0 {

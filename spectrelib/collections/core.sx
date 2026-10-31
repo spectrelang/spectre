@@ -96,7 +96,7 @@ pub fn (PtrList) cap(list: self) usize = {
 /// Requires new_cap > 0 to avoid a zero-size allocation.
 fn (PtrList) grow[A: allocators.GeneralAllocator](ac: A, list: mut self, new_cap: usize) result[void, ListAllocError] = {
     pre {
-        new_cap_positive : new_cap > 0
+        new_cap_positive: new_cap > 0
     }
     val old_buf: ref void = trust @load(list)
     val old_cap: usize = trust @load(@ptradd(list, 16)) as usize
@@ -118,7 +118,7 @@ fn (PtrList) grow[A: allocators.GeneralAllocator](ac: A, list: mut self, new_cap
     trust @store(list, new_buf)
     trust @store(@ptradd(list, 16), new_cap)
     post {
-        new_cap_positive : new_cap > 0
+        new_cap_positive: new_cap > 0
     }
     return ok ()
 }
@@ -144,7 +144,7 @@ pub fn (PtrList) push[A: allocators.GeneralAllocator](ac: A, list: mut self, val
 /// Returns none if out of bounds (defensive, belt-and-suspenders).
 pub fn (PtrList) get(list: self, i: usize) option[usize] = {
     pre {
-        in_bounds : i < trust @load(@ptradd(list, 8))
+        in_bounds: i < trust @load(@ptradd(list, 8))
     }
     val len: usize = trust @load(@ptradd(list, 8)) as usize
     if (i >= len) {
@@ -153,7 +153,7 @@ pub fn (PtrList) get(list: self, i: usize) option[usize] = {
     val buf: ref void = trust @load(list)
     val slot: ref void = trust @ptradd(buf, i * ELEMENT_SIZE)
     post {
-        in_bounds : i < len
+        in_bounds: i < len
     }
     return some (trust @load(slot) as usize)
 }
@@ -163,7 +163,7 @@ pub fn (PtrList) get(list: self, i: usize) option[usize] = {
 /// Returns 1 on success, 0 if out of bounds (defensive).
 pub fn (PtrList) set(list: self, i: usize, value: usize) usize = {
     pre {
-        in_bounds : i < trust @load(@ptradd(list, 8))
+        in_bounds: i < trust @load(@ptradd(list, 8))
     }
     val len: usize = trust @load(@ptradd(list, 8)) as usize
     if (i >= len) {
@@ -173,7 +173,7 @@ pub fn (PtrList) set(list: self, i: usize, value: usize) usize = {
     val slot: ref void = trust @ptradd(buf, i * ELEMENT_SIZE)
     trust @store(slot, value)
     post {
-        in_bounds : i < len
+        in_bounds: i < len
     }
     return 1
 }
@@ -182,7 +182,7 @@ pub fn (PtrList) set(list: self, i: usize, value: usize) usize = {
 /// Requires the list to be non-empty.
 pub fn (PtrList) pop(list: self) option[usize] = {
     pre {
-        not_empty : trust @load(@ptradd(list, 8)) > 0
+        not_empty: trust @load(@ptradd(list, 8)) > 0
     }
     val len: usize = trust @load(@ptradd(list, 8)) as usize
     if (len == 0) {
@@ -194,7 +194,7 @@ pub fn (PtrList) pop(list: self) option[usize] = {
     val value: usize = trust @load(slot) as usize
     trust @store(@ptradd(list, 8), new_len)
     post {
-        not_empty : len > 0
+        not_empty: len > 0
     }
     return some value
 }
@@ -903,7 +903,7 @@ pub fn (IndexMap) new[A: allocators.GeneralAllocator](ac: A, initial_cap: usize)
 /// Insert or update a key-value pair, preserving insertion order for new keys.
 pub fn (IndexMap) set[A: allocators.GeneralAllocator](ac: A, map: self, key: ref u8, value: usize) void = trust {
     val inner: StringMap = { header: map.inner_header }
-    val keys:  mut ref void = map.keys
+    val keys: mut ref void = map.keys
     val already = StringMap.contains(inner, key)
     StringMap.set[A](ac, inner, key, value)
     if !already {
@@ -939,7 +939,7 @@ pub fn (IndexMap) contains(map: self, key: ref u8) bool = {
 /// Note: removal marks the key as a tombstone in the ordered list (sets to 0).
 pub fn (IndexMap) delete[A: allocators.GeneralAllocator](ac: A, map: self, key: ref u8) usize = trust {
     val inner: StringMap = { header: map.inner_header }
-    val keys:  ref void = map.keys
+    val keys: ref void = map.keys
     val removed = StringMap.delete[A](ac, inner, key)
     if removed == 1 {
         val n: usize = PtrList.len(keys)
@@ -970,7 +970,7 @@ pub fn (IndexMap) len(map: self) usize = {
 /// Iterate in insertion order. Calls callback(key, value) for each live entry.
 pub fn (IndexMap) each(map: self, cb: fn(ref u8, usize) void) void = trust {
     val inner: StringMap = { header: map.inner_header }
-    val keys:  ref void = map.keys
+    val keys: ref void = map.keys
     val n: usize = PtrList.len(keys)
     for (i = 0; i < n; i++) {
         match PtrList.get(keys, i) {
@@ -1015,7 +1015,7 @@ pub fn (IndexMap) key_at(map: self, i: usize) option[ref u8] = {
 /// Free the IndexMap and all owned key copies.
 pub fn (IndexMap) free[A: allocators.GeneralAllocator](ac: A, map: self) void = trust {
     val inner: StringMap = { header: map.inner_header }
-    val keys:  mut ref void = map.keys
+    val keys: mut ref void = map.keys
     val n: usize = PtrList.len(keys)
     for (i = 0; i < n; i++) {
         match PtrList.get(keys, i) {

@@ -3,10 +3,22 @@ val core = use("core.sx")
 
 /// 4x4 matrix stored in column-major order
 pub type Mat4x4 = {
-    m00: f64, m10: f64, m20: f64, m30: f64
-    m01: f64, m11: f64, m21: f64, m31: f64
-    m02: f64, m12: f64, m22: f64, m32: f64
-    m03: f64, m13: f64, m23: f64, m33: f64
+    m00: f64
+    m10: f64
+    m20: f64
+    m30: f64
+    m01: f64
+    m11: f64
+    m21: f64
+    m31: f64
+    m02: f64
+    m12: f64
+    m22: f64
+    m32: f64
+    m03: f64
+    m13: f64
+    m23: f64
+    m33: f64
 }
 
 /// 3D vector

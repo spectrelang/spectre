@@ -1,42 +1,42 @@
-val string  = use("std/string")
-val fmt     = use("std/fmt")
-val stdio   = use("std/stdio")
-val math    = use("std/math")
-val parser  = use("../ast/parser.sx")
+val string = use("std/string")
+val fmt = use("std/fmt")
+val stdio = use("std/stdio")
+val math = use("std/math")
+val parser = use("../ast/parser.sx")
 val modinfo = use("../module/module.sx")
 
 type ScopeEntry = {
-    name:         mut ref u8
-    mutable:      mut i64
-    type_name:    mut ref u8
-    is_ref:       mut i64
-    line:         mut i64
-    used:         mut i64
-    mutated:      mut i64
+    name: mut ref u8
+    mutable: mut i64
+    type_name: mut ref u8
+    is_ref: mut i64
+    line: mut i64
+    used: mut i64
+    mutated: mut i64
     implicit_mut: mut i64
-    wrap_kind:    mut i64
+    wrap_kind: mut i64
 }
 
 type SemaCtx = {
-    errors:           mut list[ref u8]
-    warnings:         mut list[ref u8]
-    fn_names:         mut list[ref u8]
-    used_fns:         mut list[ref u8]
-    type_names:       mut list[ref u8]
-    spec_names:       mut list[ref u8]
-    spec_impls:       mut list[ref u8]
-    global_names:     mut list[ref u8]
-    scopes:           mut list[ref void]
-    type_defs:        mut list[ref void]
-    fn_defs:          mut list[ref void]
-    fn_map_names:     mut list[ref u8]
-    fn_map_params:    mut list[ref void]
-    variant_names:    mut list[ref u8]
-    root_mod:         mut ref modinfo.ResolvedModule
-    in_unsafe_fn:     mut i64
-    in_trust:         mut i64
-    trust_used:       mut i64
-    type_params:      mut list[ref u8]
+    errors: mut list[ref u8]
+    warnings: mut list[ref u8]
+    fn_names: mut list[ref u8]
+    used_fns: mut list[ref u8]
+    type_names: mut list[ref u8]
+    spec_names: mut list[ref u8]
+    spec_impls: mut list[ref u8]
+    global_names: mut list[ref u8]
+    scopes: mut list[ref void]
+    type_defs: mut list[ref void]
+    fn_defs: mut list[ref void]
+    fn_map_names: mut list[ref u8]
+    fn_map_params: mut list[ref void]
+    variant_names: mut list[ref u8]
+    root_mod: mut ref modinfo.ResolvedModule
+    in_unsafe_fn: mut i64
+    in_trust: mut i64
+    trust_used: mut i64
+    type_params: mut list[ref u8]
     var_origin_names: mut list[ref u8]
     var_origin_types: mut list[ref u8]
 }
@@ -333,7 +333,7 @@ fn is_known_builtin(name: ref u8) bool = trust {
 
 fn push_scope(ctx: ref SemaCtx) void = trust {
     guarded pre {
-        ctx_not_null : ctx != none
+        ctx_not_null: ctx != none
     }
 
     val frame: ref list[ref ScopeEntry] = @alloc(@sizeof(list[ref ScopeEntry])) as ref list[ref ScopeEntry]
@@ -341,14 +341,14 @@ fn push_scope(ctx: ref SemaCtx) void = trust {
     @append(ctx.scopes, frame as ref void)
 
     guarded post {
-        scope_created : @len(ctx.scopes) > 0
+        scope_created: @len(ctx.scopes) > 0
     }
 }
 
 fn pop_scope(ctx: ref SemaCtx, filename: ref u8, _: i64) void = trust {
     guarded pre {
-        ctx_not_null   : ctx != none
-        has_scopes     : @len(ctx.scopes) > 0
+        ctx_not_null: ctx != none
+        has_scopes: @len(ctx.scopes) > 0
     }
 
     val len: usize = @len(ctx.scopes)
@@ -385,15 +385,15 @@ fn pop_scope(ctx: ref SemaCtx, filename: ref u8, _: i64) void = trust {
     }
 
     guarded post {
-        scope_removed : true
+        scope_removed: true
     }
 }
 
 fn scope_define(ctx: ref SemaCtx, name: ref u8, mutable: i64, type_name: ref u8, is_ref: i64, decl_line: i64) void = trust {
     guarded pre {
-        ctx_not_null    : ctx != none
-        name_not_null   : name != none
-        has_scope       : @len(ctx.scopes) > 0
+        ctx_not_null: ctx != none
+        name_not_null: name != none
+        has_scope: @len(ctx.scopes) > 0
     }
 
     val len: usize = @len(ctx.scopes)
@@ -403,18 +403,18 @@ fn scope_define(ctx: ref SemaCtx, name: ref u8, mutable: i64, type_name: ref u8,
     val frame_opt = @get(ctx.scopes, len - 1)
     if frame_opt is some frame {
         val entry: mut ref ScopeEntry = @alloc(@sizeof(ScopeEntry)) as ref ScopeEntry
-        entry.name      = name
-        entry.mutable   = mutable
+        entry.name = name
+        entry.mutable = mutable
         entry.type_name = type_name
-        entry.is_ref    = is_ref
-        entry.line      = decl_line
-        entry.used      = 0
-        entry.mutated   = 0
+        entry.is_ref = is_ref
+        entry.line = decl_line
+        entry.used = 0
+        entry.mutated = 0
         entry.wrap_kind = 0
         @append(frame as ref void, entry)
 
         guarded post {
-            entry_added : @len(frame as ref void) > 0
+            entry_added: @len(frame as ref void) > 0
         }
     }
 }
@@ -668,8 +668,8 @@ fn callee_has_explicit_type_args(callee: ref parser.Node) bool = trust {
 /// Returns mutable flag (0 or 1) or -1 if not found.
 fn scope_lookup(ctx: ref SemaCtx, name: ref u8) i64 = trust {
     guarded pre {
-        ctx_not_null  : ctx != none
-        name_not_null : name != none
+        ctx_not_null: ctx != none
+        name_not_null: name != none
     }
 
     val len: i64 = @len(ctx.scopes) as i64
@@ -704,8 +704,8 @@ fn scope_lookup(ctx: ref SemaCtx, name: ref u8) i64 = trust {
 /// Returns the type name of a variable from scope, or null if not found.
 fn scope_lookup_type(ctx: ref SemaCtx, name: ref u8) ref u8 = trust {
     guarded pre {
-        ctx_not_null  : ctx != none
-        name_not_null : name != none
+        ctx_not_null: ctx != none
+        name_not_null: name != none
     }
 
     val len: i64 = @len(ctx.scopes) as i64
@@ -740,8 +740,8 @@ fn scope_lookup_type(ctx: ref SemaCtx, name: ref u8) ref u8 = trust {
 /// Returns 1 if the variable was declared with a top-level ref type, 0 otherwise.
 fn scope_lookup_is_ref(ctx: ref SemaCtx, name: ref u8) i64 = trust {
     guarded pre {
-        ctx_not_null  : ctx != none
-        name_not_null : name != none
+        ctx_not_null: ctx != none
+        name_not_null: name != none
     }
 
     val len: i64 = @len(ctx.scopes) as i64
@@ -4328,8 +4328,8 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
             }
         }
 
-        val is_printf:   bool = str_eq(bname, "print")
-        val is_dprintf:  bool = str_eq(bname, "dprintf")
+        val is_printf: bool = str_eq(bname, "print")
+        val is_dprintf: bool = str_eq(bname, "dprintf")
         val is_snprintf: bool = str_eq(bname, "snprintf")
         if is_printf || is_dprintf || is_snprintf {
             val fmt_idx: mut i64 = 0
@@ -4750,7 +4750,7 @@ fn sema_check_invariant_lit(ctx: ref SemaCtx, typedef_node: ref parser.Node,
     }
 
     val fnames: mut list[ref u8] = []
-    val fvals:  mut list[i64]      = []
+    val fvals: mut list[i64] = []
     val flen: i64 = @len(fields as list[ref parser.Node]) as i64
     val alen: i64 = @len(args   as list[ref parser.Node]) as i64
     val fi: mut i64 = 0
@@ -4759,7 +4759,7 @@ fn sema_check_invariant_lit(ctx: ref SemaCtx, typedef_node: ref parser.Node,
             break
         }
         val field_opt = @get(fields as list[ref parser.Node], fi as usize)
-        val arg_opt   = @get(args   as list[ref parser.Node], fi as usize)
+        val arg_opt = @get(args   as list[ref parser.Node], fi as usize)
         if field_opt is some fld {
             if arg_opt is some arg {
                 val fname: ref u8 = (fld as ref parser.Node).d0 as ref u8
@@ -5200,9 +5200,9 @@ fn check_stmts(ctx: mut ref SemaCtx, stmts: ref void, filename: ref u8) void = t
 
 fn check_stmt(ctx: mut ref SemaCtx, stmt: ref parser.Node, filename: ref u8) void = trust {
     guarded pre {
-        ctx_not_null      : ctx != none
-        stmt_not_null     : stmt != none
-        filename_not_null : filename != none
+        ctx_not_null: ctx != none
+        stmt_not_null: stmt != none
+        filename_not_null: filename != none
     }
 
     val k: i64 = stmt.kind
@@ -5809,10 +5809,10 @@ fn check_stmt(ctx: mut ref SemaCtx, stmt: ref parser.Node, filename: ref u8) voi
 
 fn check_fn(ctx: mut ref SemaCtx, fn_node: ref parser.Node, filename: ref u8) void = trust {
     guarded pre {
-        ctx_not_null      : ctx != none
-        fn_node_not_null  : fn_node != none
-        fn_kind_correct   : fn_node.kind == parser.NK_FN
-        filename_not_null : filename != none
+        ctx_not_null: ctx != none
+        fn_node_not_null: fn_node != none
+        fn_kind_correct: fn_node.kind == parser.NK_FN
+        filename_not_null: filename != none
     }
 
     val fn_name: ref u8 = fn_node.d2 as ref u8

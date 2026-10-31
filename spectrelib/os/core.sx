@@ -19,18 +19,18 @@ extern (C) fn system(cmd: ref u8) i32 = "system"
 
 when windows {
     extern type WinFindDataA = {
-        dwFileAttributes:   u32
-        ftCreationLow:      u32
-        ftCreationHigh:     u32
-        ftLastAccessLow:    u32
-        ftLastAccessHigh:   u32
-        ftLastWriteLow:     u32
-        ftLastWriteHigh:    u32
-        nFileSizeHigh:      u32
-        nFileSizeLow:       u32
-        dwReserved0:        u32
-        dwReserved1:        u32
-        cFileName:          [260]u8
+        dwFileAttributes: u32
+        ftCreationLow: u32
+        ftCreationHigh: u32
+        ftLastAccessLow: u32
+        ftLastAccessHigh: u32
+        ftLastWriteLow: u32
+        ftLastWriteHigh: u32
+        nFileSizeHigh: u32
+        nFileSizeLow: u32
+        dwReserved0: u32
+        dwReserved1: u32
+        cFileName: [260]u8
         cAlternateFileName: [14]u8
     }
 
@@ -46,46 +46,46 @@ val str = use("../string")
 
 when linux {
     extern type Dirent = {
-        d_ino:    u64
-        d_off:    i64
+        d_ino: u64
+        d_off: i64
         d_reclen: u16
-        d_type:   u8
-        d_name:   [256]u8
+        d_type: u8
+        d_name: [256]u8
     }
 }
 
 when darwin {
     extern type Dirent = {
-        d_ino:     u64
+        d_ino: u64
         d_seekoff: u64
-        d_reclen:  u16
-        d_namlen:  u16
-        d_type:    u8
-        d_name:    [1024]u8
+        d_reclen: u16
+        d_namlen: u16
+        d_type: u8
+        d_name: [1024]u8
     }
 }
 
 when freebsd {
     extern type Dirent = {
         d_fileno: u64
-        d_off:    i64
+        d_off: i64
         d_reclen: u16
-        d_type:   u8
-        d_pad0:   u8
+        d_type: u8
+        d_pad0: u8
         d_namlen: u16
-        d_pad1:   u16
-        d_name:   [256]u8
+        d_pad1: u16
+        d_name: [256]u8
     }
 }
 
 when openbsd {
     extern type Dirent = {
         d_fileno: u64
-        d_off:    i64
+        d_off: i64
         d_reclen: u16
-        d_type:   u8
+        d_type: u8
         d_namlen: u8
-        d_name:   [256]u8
+        d_name: [256]u8
     }
 }
 
@@ -94,13 +94,13 @@ when netbsd {
         d_fileno: u64
         d_reclen: u16
         d_namlen: u16
-        d_type:   u8
-        d_name:   [512]u8
+        d_type: u8
+        d_name: [512]u8
     }
 }
 
 pub enum ProcessError = {
-    FailedToStart,
+    FailedToStart
     ReadFailed
 }
 

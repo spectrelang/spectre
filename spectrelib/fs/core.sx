@@ -1,5 +1,5 @@
-val stdio      = use("../stdio")
-val str        = use("../string")
+val stdio = use("../stdio")
+val str = use("../string")
 val allocators = use("../allocators")
 
 extern (C) fn fopen(path: ref u8, mode: ref u8) ref void = "fopen"
@@ -23,46 +23,46 @@ pub extern (C) fn readdir(dir: ref void) ref Dirent = "readdir"
 
 when linux {
     extern type Dirent = {
-        d_ino:    u64
-        d_off:    i64
+        d_ino: u64
+        d_off: i64
         d_reclen: u16
-        d_type:   u8
-        d_name:   [256]u8
+        d_type: u8
+        d_name: [256]u8
     }
 }
 
 when darwin {
     extern type Dirent = {
-        d_ino:      u64
-        d_seekoff:  u64
-        d_reclen:   u16
-        d_namlen:   u16
-        d_type:     u8
-        d_name:     [1024]u8
+        d_ino: u64
+        d_seekoff: u64
+        d_reclen: u16
+        d_namlen: u16
+        d_type: u8
+        d_name: [1024]u8
     }
 }
 
 when freebsd {
     extern type Dirent = {
         d_fileno: u64
-        d_off:    i64
+        d_off: i64
         d_reclen: u16
-        d_type:   u8
-        d_pad0:   u8
+        d_type: u8
+        d_pad0: u8
         d_namlen: u16
-        d_pad1:   u16
-        d_name:   [256]u8
+        d_pad1: u16
+        d_name: [256]u8
     }
 }
 
 when openbsd {
     extern type Dirent = {
         d_fileno: u64
-        d_off:    i64
+        d_off: i64
         d_reclen: u16
-        d_type:   u8
+        d_type: u8
         d_namlen: u8
-        d_name:   [256]u8
+        d_name: [256]u8
     }
 }
 
@@ -71,8 +71,8 @@ when netbsd {
         d_fileno: u64
         d_reclen: u16
         d_namlen: u16
-        d_type:   u8
-        d_name:   [512]u8
+        d_type: u8
+        d_name: [512]u8
     }
 }
 

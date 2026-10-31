@@ -92,7 +92,7 @@ pub union TokenKind = {
 pub type Token = {
     kind: mut TokenKind
     line: mut i64
-    col:  mut i64
+    col: mut i64
 }
 
 fn make_tok(l: ref Lexer, kind: TokenKind, line: i64, col: i64) ref Token = trust {
@@ -102,25 +102,25 @@ fn make_tok(l: ref Lexer, kind: TokenKind, line: i64, col: i64) ref Token = trus
             val t: mut ref Token = @alloc(@sizeof(Token)) as ref Token
             t.kind = kind
             t.line = line
-            t.col  = col
+            t.col = col
             return t
         }
         some ptr => {
             val t: mut ref Token = ptr as ref Token
             t.kind = kind
             t.line = line
-            t.col  = col
+            t.col = col
             return t
         }
     }
 }
 
 type Lexer = {
-    src:   mut ref u8
-    len:   mut i64
-    pos:   mut i64
-    line:  mut i64
-    col:   mut i64
+    src: mut ref u8
+    len: mut i64
+    pos: mut i64
+    line: mut i64
+    col: mut i64
     arena: mut ref void
 }
 
@@ -139,11 +139,11 @@ pub fn lexer_new(src: ref u8) ref Lexer = trust {
         }
     }
     val l: mut ref Lexer = @alloc(@sizeof(Lexer)) as ref Lexer
-    l.src   = src
-    l.len   = slen
-    l.pos   = 0
-    l.line  = 1
-    l.col   = 1
+    l.src = src
+    l.len = slen
+    l.pos = 0
+    l.line = 1
+    l.col = 1
     l.arena = arena
     return l
 }
@@ -171,7 +171,7 @@ fn lx_advance(l: mut ref Lexer) i64 = trust {
     l.pos = l.pos + 1
     if c == 10 {
         l.line = l.line + 1
-        l.col  = 1
+        l.col = 1
     } else {
         l.col = l.col + 1
     }
@@ -733,7 +733,7 @@ pub fn tokenize(src: ref u8) result[list[ref Token], ref u8] = trust {
         }
 
         val line: i64 = l.line
-        val col:  i64 = l.col
+        val col: i64 = l.col
         val c: i64 = lx_peek(l)
 
         if c == -1 {

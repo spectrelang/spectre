@@ -1,30 +1,30 @@
-val str        = use("std/string")
-val stdio      = use("std/stdio")
-val path       = use("std/path")
-val os         = use("std/os")
-val fs         = use("std/fs")
+val str = use("std/string")
+val stdio = use("std/stdio")
+val path = use("std/path")
+val os = use("std/os")
+val fs = use("std/fs")
 val reflection = use("std/reflection")
 val allocators = use("std/allocators")
-val parser     = use("../ast/parser.sx")
-val lexer      = use("../ast/lexer.sx")
+val parser = use("../ast/parser.sx")
+val lexer = use("../ast/lexer.sx")
 
 /// A resolved module: its parsed items plus a map of named child imports.
 /// Stored as parallel lists: import_names[i] <-> import_modules[i].
 pub type ResolvedModule = {
-    items:          mut list[ref parser.Node]
-    import_names:   mut list[ref u8]
+    items: mut list[ref parser.Node]
+    import_names: mut list[ref u8]
     import_modules: mut list[ref ResolvedModule]
-    filename:       mut String
-    dir:            mut String
+    filename: mut String
+    dir: mut String
 }
 
 pub fn new_resolved(items: list[ref parser.Node], filename: String, dir: String) ref ResolvedModule = trust {
     val m: mut ref ResolvedModule = @alloc(@sizeof(ResolvedModule)) as ref ResolvedModule
     @memset(m as ref void, 0, @sizeof(ResolvedModule) as usize)
-    m.items          = items
-    m.filename       = filename
-    m.dir            = dir
-    m.import_names   = []
+    m.items = items
+    m.filename = filename
+    m.dir = dir
+    m.import_names = []
     m.import_modules = []
     return m
 }
@@ -1020,12 +1020,12 @@ fn items_have_external_links(items: list[ref parser.Node]) bool = trust {
 }
 
 fn resolve_module_impl(
-    path:            ref u8,
-    in_progress:     list[ref u8],
-    exe_dir:         ref u8,
+    path: ref u8,
+    in_progress: list[ref u8],
+    exe_dir: ref u8,
     needed_children: ref void,
-    cache_keys:      mut list[ref u8],
-    cache_vals:      mut list[ref void]
+    cache_keys: mut list[ref u8],
+    cache_vals: mut list[ref void]
 ) result[ref ResolvedModule, ref u8] = trust {
     val canonical_path: ref u8 = path.canonicalize_path(path)
     if in_progress_contains(in_progress, canonical_path) {
@@ -1095,7 +1095,7 @@ fn resolve_module_impl(
     val file_dir = str.new()
     str.push_cstr(file_dir, path.dir(canonical_path))
     val file_dir_c = str.cstr(file_dir)
-    val workspace  = find_workspace_root(file_dir_c)
+    val workspace = find_workspace_root(file_dir_c)
     val module_path = str.new()
     str.push_cstr(module_path, canonical_path)
     val m: ref ResolvedModule = new_resolved(items, module_path, file_dir)
@@ -1111,7 +1111,7 @@ fn resolve_module_impl(
         val node: ref parser.Node = item
         if node.kind == parser.NK_USE {
             val import_name: ref u8 = node.d1 as ref u8
-            val use_path:    mut ref u8 = node.d2 as ref u8
+            val use_path: mut ref u8 = node.d2 as ref u8
             val is_json_or_net: bool = str.rchar_cmp(import_name, "json") == 0 ||
             str.rchar_cmp(import_name, "net") == 0
             val skip_std_dce: bool = is_std_module && !is_json_or_net
@@ -1161,9 +1161,9 @@ fn resolve_module_impl(
 }
 
 pub fn resolve_module(
-    path:            ref u8,
-    in_progress:     list[ref u8],
-    exe_dir:         ref u8,
+    path: ref u8,
+    in_progress: list[ref u8],
+    exe_dir: ref u8,
     needed_children: ref void
 ) result[ref ResolvedModule, ref u8] = trust {
     val cache_keys: mut list[ref u8] = []
@@ -1325,11 +1325,11 @@ fn collect_seen(m: ref ResolvedModule, seen: ref void) void = trust {
 /// children before parents, no duplicates.
 /// `prefix` is the mangled module prefix (e.g. "std__stdio"), empty for root.
 pub fn flatten_modules(
-    m:      ref ResolvedModule,
+    m: ref ResolvedModule,
     prefix: ref u8,
     out_prefixes: mut list[ref u8],
-    out_items:    mut list[ref void],
-    seen:         mut list[String]
+    out_items: mut list[ref void],
+    seen: mut list[String]
 ) void = trust {
     val slen: i64 = @len(seen as list[String]) as i64
     val si: mut i64 = 0
@@ -1356,7 +1356,7 @@ pub fn flatten_modules(
             break
         }
         val name_opt = @get(m.import_names, ci as usize)
-        val mod_opt  = @get(m.import_modules, ci as usize)
+        val mod_opt = @get(m.import_modules, ci as usize)
         if name_opt is some name {
             if mod_opt is some child {
                 val child_prefix: ref u8 = name as ref u8
@@ -1380,12 +1380,12 @@ pub fn flatten_modules(
 }
 
 pub fn flatten_modules_with_files(
-    m:             ref ResolvedModule,
-    prefix:        ref u8,
-    out_prefixes:  mut list[ref u8],
-    out_items:     mut list[ref void],
+    m: ref ResolvedModule,
+    prefix: ref u8,
+    out_prefixes: mut list[ref u8],
+    out_items: mut list[ref void],
     out_filenames: mut list[ref u8],
-    seen:          mut list[String]
+    seen: mut list[String]
 ) void = trust {
     val slen: i64 = @len(seen as list[String]) as i64
     val si: mut i64 = 0
@@ -1411,7 +1411,7 @@ pub fn flatten_modules_with_files(
             break
         }
         val name_opt = @get(m.import_names, ci as usize)
-        val mod_opt  = @get(m.import_modules, ci as usize)
+        val mod_opt = @get(m.import_modules, ci as usize)
         if name_opt is some name {
             if mod_opt is some child {
                 flatten_modules_with_files(
@@ -1597,7 +1597,7 @@ pub fn collect_links_filtered(
             break
         }
         val name_opt = @get(m.import_names, ci as usize)
-        val mod_opt  = @get(m.import_modules, ci as usize)
+        val mod_opt = @get(m.import_modules, ci as usize)
         if name_opt is some name {
             if mod_opt is some child {
                 val child_prefix: mut ref u8 = ""
@@ -1665,7 +1665,7 @@ pub fn collect_links_all(
             break
         }
         val name_opt = @get(m.import_names, ci as usize)
-        val mod_opt  = @get(m.import_modules, ci as usize)
+        val mod_opt = @get(m.import_modules, ci as usize)
         if name_opt is some name {
             if mod_opt is some child {
                 val child_prefix: mut ref u8 = ""
@@ -3023,7 +3023,7 @@ pub fn collect_used_links(
                 break
             }
             val name_opt = @get(m.import_names, ci as usize)
-            val mod_opt  = @get(m.import_modules, ci as usize)
+            val mod_opt = @get(m.import_modules, ci as usize)
             if name_opt is some name {
                 if str.rchar_cmp(name as ref u8, used_name) == 0 {
                     if mod_opt is some child {
@@ -3112,7 +3112,7 @@ fn collect_used_links_recursive(
                 break
             }
             val name_opt = @get(m.import_names, ci as usize)
-            val mod_opt  = @get(m.import_modules, ci as usize)
+            val mod_opt = @get(m.import_modules, ci as usize)
             if name_opt is some name {
                 if str.rchar_cmp(name as ref u8, used_name) == 0 {
                     if mod_opt is some child {

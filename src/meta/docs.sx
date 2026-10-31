@@ -1,41 +1,41 @@
-val stdio      = use("std/stdio")
-val str        = use("std/string")
-val regex      = use("std/regex")
-val fs         = use("std/fs")
-val path       = use("std/path")
-val os         = use("std/os")
-val string     = use("std/string")
-val algo       = use("std/algorithms")
+val stdio = use("std/stdio")
+val str = use("std/string")
+val regex = use("std/regex")
+val fs = use("std/fs")
+val path = use("std/path")
+val os = use("std/os")
+val string = use("std/string")
+val algo = use("std/algorithms")
 val allocators = use("std/allocators")
-val lexer      = use("../ast/lexer.sx")
-val parser     = use("../ast/parser.sx")
-val commands   = use("commands.sx")
+val lexer = use("../ast/lexer.sx")
+val parser = use("../ast/parser.sx")
+val commands = use("commands.sx")
 
 type DocMap = {
     lines: mut list[i64]
-    docs:  mut list[ref u8]
+    docs: mut list[ref u8]
 }
 
 type DocEntry = {
-    kind:          mut i64
-    line:          mut i64
-    name:          mut ref u8
-    nav_name:      mut ref u8
-    anchor:        mut ref u8
-    signature:     mut ref u8
-    docs:          mut ref u8
+    kind: mut i64
+    line: mut i64
+    name: mut ref u8
+    nav_name: mut ref u8
+    anchor: mut ref u8
+    signature: mut ref u8
+    docs: mut ref u8
     is_private_fn: mut bool
-    availability:  mut ref u8
-    node:          mut ref parser.Node
+    availability: mut ref u8
+    node: mut ref parser.Node
 }
 
 type DocModule = {
     source_path: mut ref u8
-    rel_path:    mut ref u8
+    rel_path: mut ref u8
     module_name: mut ref u8
     output_path: mut ref u8
-    is_root:     mut bool
-    entries:     mut list[ref DocEntry]
+    is_root: mut bool
+    entries: mut list[ref DocEntry]
 }
 
 fn safe_cstr(s: ref u8) ref u8 = {
@@ -55,7 +55,7 @@ fn is_space(c: u8) bool = {
 
 fn substr(src: ref u8, start: i64, len: i64) ref u8 = trust {
     guarded pre {
-        src_not_null : src != none
+        src_not_null: src != none
     }
 
     val src_len: i64 = str.len_raw(src)
@@ -79,7 +79,7 @@ fn substr(src: ref u8, start: i64, len: i64) ref u8 = trust {
     val out = str.substr(src, safe_start, safe_len)
 
     guarded post {
-        out_not_null : out != none
+        out_not_null: out != none
     }
     return out
 }
@@ -305,10 +305,10 @@ fn doc_line_text(trimmed: ref u8) ref u8 = trust {
 
 fn update_doc_map_for_line(map: ref DocMap, trimmed: ref u8, line_no: i64, current_doc: ref u8) ref u8 = trust {
     guarded pre {
-        map_not_null         : map != none
-        trimmed_not_null     : trimmed != none
-        current_doc_not_null : current_doc != none
-        line_is_positive     : line_no > 0
+        map_not_null: map != none
+        trimmed_not_null: trimmed != none
+        current_doc_not_null: current_doc != none
+        line_is_positive: line_no > 0
     }
 
     if str.rchar_starts_with(trimmed, "///") {
@@ -330,14 +330,14 @@ fn update_doc_map_for_line(map: ref DocMap, trimmed: ref u8, line_no: i64, curre
     }
 
     guarded post {
-        lengths_match : @len(map.lines) == @len(map.docs)
+        lengths_match: @len(map.lines) == @len(map.docs)
     }
     return current_doc
 }
 
 fn extract_doc_map(src: ref u8) ref DocMap = trust {
     guarded pre {
-        src_not_null : src != none
+        src_not_null: src != none
     }
 
     val map: mut ref DocMap = @alloc(@sizeof(DocMap)) as ref DocMap
@@ -368,8 +368,8 @@ fn extract_doc_map(src: ref u8) ref DocMap = trust {
     }
 
     guarded post {
-        map_not_null    : map != none
-        lengths_match   : @len(map.lines) == @len(map.docs)
+        map_not_null: map != none
+        lengths_match: @len(map.lines) == @len(map.docs)
     }
     return map
 }

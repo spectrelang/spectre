@@ -6,10 +6,10 @@ val os = use("../os")
 val allocators = use("../allocators")
 
 pub enum Level = {
-    Debug,
-    Info,
-    Warn,
-    Error,
+    Debug
+    Info
+    Warn
+    Error
     Fatal
 }
 

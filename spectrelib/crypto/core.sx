@@ -4,13 +4,13 @@ val allocators = use("../allocators")
 val fs = use("../fs")
 
 pub enum CryptoError = {
-    InvalidHexLength,
-    InvalidHexDigit,
-    InvalidBase64Length,
-    InvalidBase64Char,
-    InvalidBase64Padding,
-    OutOfMemory,
-    FileOpenFailed,
+    InvalidHexLength
+    InvalidHexDigit
+    InvalidBase64Length
+    InvalidBase64Char
+    InvalidBase64Padding
+    OutOfMemory
+    FileOpenFailed
     FileReadFailed
 }
 

@@ -1,45 +1,45 @@
-val str        = use("std/string")
-val fs         = use("std/fs")
-val path       = use("std/path")
-val time       = use("std/time")
+val str = use("std/string")
+val fs = use("std/fs")
+val path = use("std/path")
+val time = use("std/time")
 val allocators = use("std/allocators")
 val reflection = use("std/reflection")
-val meta       = use("meta.sx")
-val builds     = use("builds.sx")
-val stdio      = use("std/stdio")
-val os         = use("std/os")
+val meta = use("meta.sx")
+val builds = use("builds.sx")
+val stdio = use("std/stdio")
+val os = use("std/os")
 
 pub type SxBuildConfig = {
-    name:   mut ref u8
+    name: mut ref u8
     action: mut ref u8
-    flags:  mut ref u8
+    flags: mut ref u8
     output: mut ref u8
-    entry:  mut ref u8
+    entry: mut ref u8
 }
 
 pub type SxMod = {
-    entry:   mut ref u8
+    entry: mut ref u8
     version: mut ref u8
-    deps:    mut list[ref u8]
-    builds:  mut list[ref SxBuildConfig]
+    deps: mut list[ref u8]
+    builds: mut list[ref SxBuildConfig]
 }
 
 type SxLockDep = {
-    url:  mut ref u8
+    url: mut ref u8
     hash: mut ref u8
 }
 
 type ParseCtx = {
     text: mut ref u8
-    pos:  mut i64
-    len:  mut i64
+    pos: mut i64
+    len: mut i64
 }
 
 fn new_ctx(text: ref u8) ref ParseCtx = {
     val ctx: mut ref ParseCtx = @alloc(@sizeof(ParseCtx)) as ref ParseCtx
     ctx.text = text
-    ctx.pos  = 0
-    ctx.len  = str.len_raw(text)
+    ctx.pos = 0
+    ctx.len = str.len_raw(text)
     return ctx
 }
 
@@ -154,10 +154,10 @@ pub fn parse_sxmod(content: ref u8) ref SxMod = trust {
     val ctx: mut ref ParseCtx = new_ctx(content)
     val m: mut ref SxMod = @alloc(@sizeof(SxMod)) as ref SxMod
     @memset(m as ref void, 0, @sizeof(SxMod) as usize)
-    m.entry   = ""
+    m.entry = ""
     m.version = ""
-    m.deps    = []
-    m.builds  = []
+    m.deps = []
+    m.builds = []
     for {
         ctx_skip_ws(ctx)
         if ctx_peek(ctx) == -1 {
@@ -176,11 +176,11 @@ pub fn parse_sxmod(content: ref u8) ref SxMod = trust {
         } elif str.rchar_cmp(kw, "build") == 0 {
             val cfg: mut ref SxBuildConfig = @alloc(@sizeof(SxBuildConfig)) as ref SxBuildConfig
             @memset(cfg as ref void, 0, @sizeof(SxBuildConfig) as usize)
-            cfg.name   = ctx_read_ident(ctx)
+            cfg.name = ctx_read_ident(ctx)
             cfg.action = ""
-            cfg.flags  = ""
+            cfg.flags = ""
             cfg.output = ""
-            cfg.entry  = ""
+            cfg.entry = ""
             ctx_skip_ws(ctx)
             if ctx_peek(ctx) == 123 {
                 ctx_advance(ctx)
@@ -748,7 +748,10 @@ pub fn cmd_ref() i32 = {
                 \\     @print("Hello, %s!\n", name)
                 \\ }
                 \\
-                \\ pub enum SomeError = { FailedToDoSomeThing, OrSomethingElse }
+                \\ pub enum SomeError = {
+                \\     FailedToDoSomeThing
+                \\     OrSomethingElse
+                \\ }
                 \\
                 \\ // Functions that may propagate errors use result[T, E]
                 \\ fn open_file(path: ref u8) result[ref void, SomeError] = {
@@ -858,7 +861,9 @@ pub fn cmd_ref() i32 = {
                 \\
                 \\ // enum
                 \\ pub enum Color = {
-                \\     Red, Green, Blue
+                \\     Red
+                \\     Green
+                \\     Blue
                 \\ }
                 \\ ```
                 \\
@@ -1361,11 +1366,11 @@ pub fn cmd_restore() i32 = trust {
 
 fn print_graph_node(
     base_dir: ref u8,
-    name:     ref u8,
-    url:      ref u8,
-    prefix:   ref u8,
-    is_last:  bool,
-    visited:  mut list[ref u8]
+    name: ref u8,
+    url: ref u8,
+    prefix: ref u8,
+    is_last: bool,
+    visited: mut list[ref u8]
 ) void = trust {
     val conn: mut ref u8 = "├── "
     if is_last {

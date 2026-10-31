@@ -28,10 +28,10 @@ type RegexHandle = {
 }
 
 pub enum RegexMatchError = {
-    NullPattern,
-    NullText,
-    NullMatchLength,
-    InvalidCompiledPattern,
+    NullPattern
+    NullText
+    NullMatchLength
+    InvalidCompiledPattern
     CompileFailed
 }
 

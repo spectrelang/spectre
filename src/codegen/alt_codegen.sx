@@ -2,13 +2,13 @@
 ///
 /// GPL-3.0-only (C) Navid Momtahen - 2026
 
-val str        = use("std/string")
-val fmt        = use("std/fmt")
-val stdio      = use("std/stdio")
-val os         = use("std/os")
-val parser     = use("../ast/parser.sx")
-val module     = use("../module/module.sx")
-val codegen    = use("codegen.sx")
+val str = use("std/string")
+val fmt = use("std/fmt")
+val stdio = use("std/stdio")
+val os = use("std/os")
+val parser = use("../ast/parser.sx")
+val module = use("../module/module.sx")
+val codegen = use("codegen.sx")
 
 pub type CCtx = {
     sb: mut ref void
@@ -63,8 +63,8 @@ pub type CCtx = {
     inv_cur_ptypes: mut list[ref u8]
     expected_ty: mut ref parser.Node
     init_sb: mut ref void
-    gfn_names:   mut list[ref u8]
-    gfn_nodes:   mut list[ref void]
+    gfn_names: mut list[ref u8]
+    gfn_nodes: mut list[ref void]
     gfn_prefixes: mut list[ref u8]
     gsubst_names: mut list[ref u8]
     gsubst_tnodes: mut list[ref void]
