@@ -1703,31 +1703,31 @@ fn platform_matches(current: ref u8, name: ref u8) bool = trust {
     }
 
     if str.raw_cmp(name, "posix") == 0 {
-        if str.raw_cmp(current, "linux")        == 0 {
+        if str.raw_cmp(current, "linux") == 0 {
             return true
         }
-        if str.raw_cmp(current, "darwin")       == 0 {
+        if str.raw_cmp(current, "darwin") == 0 {
             return true
         }
-        if str.raw_cmp(current, "freebsd")      == 0 {
+        if str.raw_cmp(current, "freebsd") == 0 {
             return true
         }
-        if str.raw_cmp(current, "openbsd")      == 0 {
+        if str.raw_cmp(current, "openbsd") == 0 {
             return true
         }
-        if str.raw_cmp(current, "netbsd")       == 0 {
+        if str.raw_cmp(current, "netbsd") == 0 {
             return true
         }
         if str.raw_cmp(current, "dragonflybsd") == 0 {
             return true
         }
-        if str.raw_cmp(current, "haiku")        == 0 {
+        if str.raw_cmp(current, "haiku") == 0 {
             return true
         }
-        if str.raw_cmp(current, "android")      == 0 {
+        if str.raw_cmp(current, "android") == 0 {
             return true
         }
-        if str.raw_cmp(current, "redox")        == 0 {
+        if str.raw_cmp(current, "redox") == 0 {
             return true
         }
     }

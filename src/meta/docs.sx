@@ -2367,9 +2367,9 @@ pub fn cmd_doc(target: ref u8, markdown: bool) i32 = trust {
 }
 
 test {
-    assert(str_eq(trust substr("hello", -5, 2), "he"))
-    assert(str_eq(trust substr("hello", 10, 3), ""))
-    assert(str_eq(trust substr("hello", 1, 99), "ello"))
+    assert str_eq(trust substr("hello", -5, 2), "he")
+    assert str_eq(trust substr("hello", 10, 3), "")
+    assert str_eq(trust substr("hello", 1, 99), "ello")
 
     val docs = trust extract_doc_map(
         \\/// hello
@@ -2378,23 +2378,23 @@ test {
         \\type Point = { x: i64 }
     )
 
-    assert(str_eq(trust lookup_doc(docs, 3), "hello\nworld"))
-    assert(str_eq(trust lookup_doc(docs, 4), ""))
+    assert str_eq(trust lookup_doc(docs, 3), "hello\nworld")
+    assert str_eq(trust lookup_doc(docs, 4), "")
 
     val docs_no_trailing_nl = trust extract_doc_map(
         \\/// tail docs
         \\fn tail() void = {}
     )
 
-    assert(str_eq(trust lookup_doc(docs_no_trailing_nl, 2), "tail docs"))
-    assert(str_eq(trust slugify("Hello.World"), "hello-world"))
-    assert(str_eq(trust strip_sx_ext("src/meta/docs.sx"), "src/meta/docs"))
+    assert str_eq(trust lookup_doc(docs_no_trailing_nl, 2), "tail docs")
+    assert str_eq(trust slugify("Hello.World"), "hello-world")
+    assert str_eq(trust strip_sx_ext("src/meta/docs.sx"), "src/meta/docs")
 
     val const_src = trust extract_doc_map(
         \\/// constant docs
         \\pub val some_constant = 100
     )
-    assert(str_eq(trust lookup_doc(const_src, 2), "constant docs"))
+    assert str_eq(trust lookup_doc(const_src, 2), "constant docs")
 
     val docs_src_arena: mut allocators.Arena = trust allocators.Arena.new(131072 as usize)?
     val docs_src_opt = trust fs.read_all[allocators.Arena](docs_src_arena, "./src/meta/docs.sx")
@@ -2475,7 +2475,7 @@ test {
         ok found => {
             if found is some pos {
                 val sig = trust trim_ws(substr(fn_src, pos, ml))
-                assert(str_eq(sig, "fn add(a: i64, b: i64) i64"))
+                assert str_eq(sig, "fn add(a: i64, b: i64) i64")
             } else {
                 assert false
             }
@@ -2489,7 +2489,7 @@ test {
     match regex.re_match("^type [A-Za-z_]+", type_src, @addr(ml2)) {
         ok found => {
             if found is some pos {
-                assert(str_eq(trust trim_ws(substr(type_src, pos, ml2)), "type Point"))
+                assert str_eq(trust trim_ws(substr(type_src, pos, ml2)), "type Point")
             } else {
                 assert false
             }

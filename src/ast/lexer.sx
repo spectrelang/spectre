@@ -1387,7 +1387,7 @@ test {
             if opt0 is some t {
                 val tok0: ref Token = t as ref Token
                 assert tok0.line == 1
-                assert tok0.col  == 1
+                assert tok0.col == 1
             } else {
                 assert false
             }

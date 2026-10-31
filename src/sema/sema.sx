@@ -3052,7 +3052,7 @@ fn check_printf_fmt(ctx: ref SemaCtx, fmt_str: ref u8, all_args: ref void,
                         if str_eq(exp_cat, "u8") && str_eq(act_cat, "int") {
                             its_ok = true
                         }
-                        if str_eq(exp_cat, "ptr")  && str_eq(act_cat, "str") {
+                        if str_eq(exp_cat, "ptr") && str_eq(act_cat, "str") {
                             its_ok = true
                         }
                         if !its_ok {
@@ -3081,8 +3081,8 @@ fn generic_targ_type_compatible(ctx: ref SemaCtx, expected: ref u8, actual: ref 
         return true
     }
     if arg_node.kind == parser.NK_INT_LIT {
-        if str_eq(canon_expected, "i8")  || str_eq(canon_expected, "i16") || str_eq(canon_expected, "i32") ||
-        str_eq(canon_expected, "i64") || str_eq(canon_expected, "u8")  || str_eq(canon_expected, "u16") ||
+        if str_eq(canon_expected, "i8") || str_eq(canon_expected, "i16") || str_eq(canon_expected, "i32") ||
+        str_eq(canon_expected, "i64") || str_eq(canon_expected, "u8") || str_eq(canon_expected, "u16") ||
         str_eq(canon_expected, "u32") || str_eq(canon_expected, "u64") || str_eq(canon_expected, "usize") ||
         str_eq(canon_expected, "isize") || str_eq(canon_expected, "bool") {
             return true
@@ -3650,7 +3650,7 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
     val line: i64 = expr.line
 
     if k == parser.NK_INT_LIT || k == parser.NK_FLOAT_LIT || k == parser.NK_STR_LIT ||
-    k == parser.NK_BOOL    || k == parser.NK_NONE       || k == parser.NK_CHAR_LIT {
+    k == parser.NK_BOOL || k == parser.NK_NONE || k == parser.NK_CHAR_LIT {
         return
     }
 

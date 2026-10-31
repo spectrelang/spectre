@@ -280,31 +280,31 @@ pub fn platform_matches_with_target(name: ref u8, src_target: ref u8) bool = tru
     if str.raw_cmp(name, cur) == 0 {
         matched = true
     } elif str.raw_cmp(name, "posix") == 0 {
-        if str.raw_cmp(cur, "linux")          == 0 {
+        if str.raw_cmp(cur, "linux") == 0 {
             matched = true
         }
-        elif str.raw_cmp(cur, "darwin")       == 0 {
+        elif str.raw_cmp(cur, "darwin") == 0 {
             matched = true
         }
-        elif str.raw_cmp(cur, "freebsd")      == 0 {
+        elif str.raw_cmp(cur, "freebsd") == 0 {
             matched = true
         }
-        elif str.raw_cmp(cur, "openbsd")      == 0 {
+        elif str.raw_cmp(cur, "openbsd") == 0 {
             matched = true
         }
-        elif str.raw_cmp(cur, "netbsd")       == 0 {
+        elif str.raw_cmp(cur, "netbsd") == 0 {
             matched = true
         }
         elif str.raw_cmp(cur, "dragonflybsd") == 0 {
             matched = true
         }
-        elif str.raw_cmp(cur, "haiku")        == 0 {
+        elif str.raw_cmp(cur, "haiku") == 0 {
             matched = true
         }
-        elif str.raw_cmp(cur, "android")      == 0 {
+        elif str.raw_cmp(cur, "android") == 0 {
             matched = true
         }
-        elif str.raw_cmp(cur, "redox")        == 0 {
+        elif str.raw_cmp(cur, "redox") == 0 {
             matched = true
         }
     }
@@ -3253,22 +3253,22 @@ fn emitln(ctx: mut ref CgCtx, s: ref u8) void = trust {
 
 /// Returns true if the type name maps to QBE word type (w).
 fn is_word_type_name(name: ref u8) bool = trust {
-    if str.raw_cmp(name, "u8")   == 0 {
+    if str.raw_cmp(name, "u8") == 0 {
         return true
     }
-    if str.raw_cmp(name, "i8")   == 0 {
+    if str.raw_cmp(name, "i8") == 0 {
         return true
     }
-    if str.raw_cmp(name, "u16")  == 0 {
+    if str.raw_cmp(name, "u16") == 0 {
         return true
     }
-    if str.raw_cmp(name, "i16")  == 0 {
+    if str.raw_cmp(name, "i16") == 0 {
         return true
     }
-    if str.raw_cmp(name, "u32")  == 0 {
+    if str.raw_cmp(name, "u32") == 0 {
         return true
     }
-    if str.raw_cmp(name, "i32")  == 0 {
+    if str.raw_cmp(name, "i32") == 0 {
         return true
     }
     if str.raw_cmp(name, "bool") == 0 {
@@ -3327,7 +3327,7 @@ fn qbe_type_of(ty: ref parser.Node) ref u8 = trust {
         if str.raw_cmp(name, "i32") == 0 || str.raw_cmp(name, "u32") == 0 {
             return "w"
         }
-        if str.raw_cmp(name, "i8")  == 0 || str.raw_cmp(name, "u8")  == 0 {
+        if str.raw_cmp(name, "i8") == 0 || str.raw_cmp(name, "u8") == 0 {
             return "w"
         }
         if str.raw_cmp(name, "i16") == 0 || str.raw_cmp(name, "u16") == 0 {
@@ -4099,37 +4099,37 @@ fn type_size(ty: ref parser.Node) i64 = trust {
     }
     if k == parser.TY_NAMED {
         val tname: ref u8 = ty.d0 as ref u8
-        if str.raw_cmp(tname, "i8")   == 0 {
-            return 1
-        }
-        if str.raw_cmp(tname, "u8")   == 0 {
+        if str.raw_cmp(tname, "i8") == 0 {
             return 1
         }
         if str.raw_cmp(tname, "u8") == 0 {
             return 1
         }
-        if str.raw_cmp(tname, "i16")  == 0 {
+        if str.raw_cmp(tname, "u8") == 0 {
+            return 1
+        }
+        if str.raw_cmp(tname, "i16") == 0 {
             return 2
         }
-        if str.raw_cmp(tname, "u16")  == 0 {
+        if str.raw_cmp(tname, "u16") == 0 {
             return 2
         }
-        if str.raw_cmp(tname, "i32")  == 0 {
+        if str.raw_cmp(tname, "i32") == 0 {
             return 4
         }
-        if str.raw_cmp(tname, "u32")  == 0 {
+        if str.raw_cmp(tname, "u32") == 0 {
             return 4
         }
-        if str.raw_cmp(tname, "f32")  == 0 {
+        if str.raw_cmp(tname, "f32") == 0 {
             return 4
         }
-        if str.raw_cmp(tname, "i64")  == 0 {
+        if str.raw_cmp(tname, "i64") == 0 {
             return 8
         }
-        if str.raw_cmp(tname, "u64")  == 0 {
+        if str.raw_cmp(tname, "u64") == 0 {
             return 8
         }
-        if str.raw_cmp(tname, "f64")  == 0 {
+        if str.raw_cmp(tname, "f64") == 0 {
             return 8
         }
         if str.raw_cmp(tname, "bool") == 0 {
@@ -4167,28 +4167,28 @@ fn type_align(ty: ref parser.Node) i64 = trust {
     }
     if k == parser.TY_NAMED {
         val tname: ref u8 = ty.d0 as ref u8
-        if str.raw_cmp(tname, "i8")   == 0 {
-            return 1
-        }
-        if str.raw_cmp(tname, "u8")   == 0 {
+        if str.raw_cmp(tname, "i8") == 0 {
             return 1
         }
         if str.raw_cmp(tname, "u8") == 0 {
             return 1
         }
-        if str.raw_cmp(tname, "i16")  == 0 {
+        if str.raw_cmp(tname, "u8") == 0 {
+            return 1
+        }
+        if str.raw_cmp(tname, "i16") == 0 {
             return 2
         }
-        if str.raw_cmp(tname, "u16")  == 0 {
+        if str.raw_cmp(tname, "u16") == 0 {
             return 2
         }
-        if str.raw_cmp(tname, "i32")  == 0 {
+        if str.raw_cmp(tname, "i32") == 0 {
             return 4
         }
-        if str.raw_cmp(tname, "u32")  == 0 {
+        if str.raw_cmp(tname, "u32") == 0 {
             return 4
         }
-        if str.raw_cmp(tname, "f32")  == 0 {
+        if str.raw_cmp(tname, "f32") == 0 {
             return 4
         }
         return 8
@@ -6205,28 +6205,28 @@ fn field_load_instr_for(ty: ref parser.Node) ref u8 = trust {
     }
     if k == parser.TY_NAMED {
         val name: ref u8 = ty.d0 as ref u8
-        if str.raw_cmp(name, "f64")  == 0 {
+        if str.raw_cmp(name, "f64") == 0 {
             return "loadd"
         }
-        if str.raw_cmp(name, "f32")  == 0 {
+        if str.raw_cmp(name, "f32") == 0 {
             return "loads"
         }
-        if str.raw_cmp(name, "i32")  == 0 {
+        if str.raw_cmp(name, "i32") == 0 {
             return "loadsw"
         }
-        if str.raw_cmp(name, "u32")  == 0 {
+        if str.raw_cmp(name, "u32") == 0 {
             return "loaduw"
         }
-        if str.raw_cmp(name, "i16")  == 0 {
+        if str.raw_cmp(name, "i16") == 0 {
             return "loadsh"
         }
-        if str.raw_cmp(name, "u16")  == 0 {
+        if str.raw_cmp(name, "u16") == 0 {
             return "loaduh"
         }
-        if str.raw_cmp(name, "i8")   == 0 {
+        if str.raw_cmp(name, "i8") == 0 {
             return "loadsb"
         }
-        if str.raw_cmp(name, "u8")   == 0 {
+        if str.raw_cmp(name, "u8") == 0 {
             return "loadub"
         }
         if str.raw_cmp(name, "bool") == 0 {
