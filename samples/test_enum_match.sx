@@ -6,9 +6,15 @@ pub enum Color = {
 
 pub fn color_name(c: Color) ref u8 = {
     match c {
-        Color.Red   => { return "red" }
-        Color.Green => { return "green" }
-        Color.Blue  => { return "blue" }
+        Color.Red   => {
+            return "red"
+        }
+        Color.Green => {
+            return "green"
+        }
+        Color.Blue  => {
+            return "blue"
+        }
     }
     return "unknown"
 }

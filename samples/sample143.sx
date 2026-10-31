@@ -15,7 +15,10 @@ pub fn main() void = trust {
     stdio.print("walk_count={d}\n", {walk_count})
 
     if helper.passthrough_read[allocators.Arena](arena, "sx.mod") is some text {
-        stdio.print("passthrough_len={d}\n", {@strlen(text as ref u8)}) } else { stdio.puts("passthrough_len=-1") }
+        stdio.print("passthrough_len={d}\n", {@strlen(text as ref u8)})
+    } else {
+        stdio.puts("passthrough_len=-1")
+    }
 
     allocators.Arena.free(arena)
 }

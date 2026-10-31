@@ -10,8 +10,12 @@ type Token = {
 
 fn is_foo(k: Kind) bool = trust {
     match k {
-        Foo() => { return true }
-        else  => { return false }
+        Foo() => {
+            return true
+        }
+        else  => {
+            return false
+        }
     }
 }
 

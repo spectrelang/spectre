@@ -1,5 +1,9 @@
-union Kind = { A() | B(ref u8) }
-type Thing = { kind: mut Kind }
+union Kind = {
+    A() | B(ref u8)
+}
+type Thing = {
+    kind: mut Kind
+}
 
 fn make_thing(k: Kind) ref Thing = trust {
     val t: mut ref Thing = @alloc(@sizeof(Thing)) as ref Thing
@@ -9,9 +13,15 @@ fn make_thing(k: Kind) ref Thing = trust {
 
 fn get_text(t: ref Thing) ref u8 = trust {
     match t.kind {
-        A() => { return "got A" }
-        B s => { return s }
-        else => { return "unknown" }
+        A() => {
+            return "got A"
+        }
+        B s => {
+            return s
+        }
+        else => {
+            return "unknown"
+        }
     }
 }
 

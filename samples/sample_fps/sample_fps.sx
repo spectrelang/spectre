@@ -148,14 +148,18 @@ fn get_bullet(i: i32) mut ref Bullet = trust {
 }
 
 fn player_shoot() void = trust {
-    if shootCooldown > 0.0 { return }
+    if shootCooldown > 0.0 {
+        return
+    }
     shootCooldown = SHOOT_COOLDOWN_VAL
     muzzleFlashTimer = 0.14
 
     val pCX: f32 = player.x + 4.0
     val pCY: f32 = player.y + 4.0
     val det: f32 = player.planeX * player.dirY - player.dirX * player.planeY
-    if det == 0.0 { return }
+    if det == 0.0 {
+        return
+    }
     val invDet: f32 = 1.0 / det
 
     val ei: mut i32 = 0
@@ -211,12 +215,18 @@ fn update_enemies(dt: f32) void = trust {
                     val tx: i32 = ((newX + 4.0) / 64.0) as i32
                     val ty: i32 = ((e.y + 4.0) / 64.0) as i32
                     if @get(map, ty, tx) is some v {
-                        if v == 0 { e.x = newX } }
+                        if v == 0 {
+                            e.x = newX
+                        }
+                    }
 
                     val tx2: i32 = ((e.x + 4.0) / 64.0) as i32
                     val ty2: i32 = ((newY + 4.0) / 64.0) as i32
                     if @get(map, ty2, tx2) is some v2 {
-                        if v2 == 0 { e.y = newY } }
+                        if v2 == 0 {
+                            e.y = newY
+                        }
+                    }
                 }
 
                 e.shootTimer -= dt
@@ -274,7 +284,12 @@ fn update_bullets(dt: f32) void = trust {
                     hitWall = 1
                 } else {
                     if @get(map, ty, tx) is some v {
-                        if v > 0 { hitWall = 1 } } else { hitWall = 1 }
+                        if v > 0 {
+                            hitWall = 1
+                        }
+                    } else {
+                        hitWall = 1
+                    }
                 }
 
                 if hitWall != 0 {
@@ -303,7 +318,9 @@ fn render_sprites() void = trust {
     val pCX: f32 = player.x + 4.0
     val pCY: f32 = player.y + 4.0
     val det: f32 = player.planeX * player.dirY - player.dirX * player.planeY
-    if det == 0.0 { return }
+    if det == 0.0 {
+        return
+    }
     val invDet: f32 = 1.0 / det
 
     val ei: mut i32 = 0
@@ -325,13 +342,21 @@ fn render_sprites() void = trust {
                     if spriteW > 0 {
                         val drawStartY: mut i32 = SCREEN_HEIGHT / 2 - spriteH / 2
                         val drawEndY: mut i32 = SCREEN_HEIGHT / 2 + spriteH / 2
-                        if drawStartY < 0 { drawStartY = 0 }
-                        if drawEndY >= SCREEN_HEIGHT { drawEndY = SCREEN_HEIGHT - 1 }
+                        if drawStartY < 0 {
+                            drawStartY = 0
+                        }
+                        if drawEndY >= SCREEN_HEIGHT {
+                            drawEndY = SCREEN_HEIGHT - 1
+                        }
 
                         val drawStartX: mut i32 = screenX - spriteW / 2
                         val drawEndX: mut i32 = screenX + spriteW / 2
-                        if drawStartX < 0 { drawStartX = 0 }
-                        if drawEndX >= SCREEN_WIDTH { drawEndX = SCREEN_WIDTH - 1 }
+                        if drawStartX < 0 {
+                            drawStartX = 0
+                        }
+                        if drawEndX >= SCREEN_WIDTH {
+                            drawEndX = SCREEN_WIDTH - 1
+                        }
 
                         val scaledDist: usize = (depth * 100000.0) as usize
                         val spriteLeft: i32 = screenX - spriteW / 2
@@ -380,17 +405,29 @@ fn render_sprites() void = trust {
                     val depth: f32 = bty / (TILE_SIZE as f32)
                     val bsx: i32 = ((SCREEN_WIDTH as f32 / 2.0) * (1.0 + btx / bty)) as i32
                     val bH: mut i32 = (fabsf(SCREEN_HEIGHT as f32 / depth)) as i32 / 8
-                    if bH < 3 { bH = 3 }
-                    if bH > 80 { bH = 80 }
+                    if bH < 3 {
+                        bH = 3
+                    }
+                    if bH > 80 {
+                        bH = 80
+                    }
 
                     val bsX: mut i32 = bsx - bH / 2
                     val beX: mut i32 = bsx + bH / 2
                     val bsY: mut i32 = SCREEN_HEIGHT / 2 - bH / 2
                     val beY: mut i32 = SCREEN_HEIGHT / 2 + bH / 2
-                    if bsX < 0 { bsX = 0 }
-                    if beX >= SCREEN_WIDTH { beX = SCREEN_WIDTH - 1 }
-                    if bsY < 0 { bsY = 0 }
-                    if beY >= SCREEN_HEIGHT { beY = SCREEN_HEIGHT - 1 }
+                    if bsX < 0 {
+                        bsX = 0
+                    }
+                    if beX >= SCREEN_WIDTH {
+                        beX = SCREEN_WIDTH - 1
+                    }
+                    if bsY < 0 {
+                        bsY = 0
+                    }
+                    if beY >= SCREEN_HEIGHT {
+                        beY = SCREEN_HEIGHT - 1
+                    }
 
                     if bsx >= 0 && bsx < SCREEN_WIDTH {
                         val bZdist: usize = @load(@ptradd(zbuf, (bsx as usize) * 8)) as usize
@@ -414,7 +451,9 @@ fn render_sprites() void = trust {
 }
 
 fn render_gun(bobY: i32, showFlash: bool) void = trust {
-    if g_gunTex == none { return }
+    if g_gunTex == none {
+        return
+    }
 
     val gunW: i32 = SCREEN_WIDTH / 2
     val gunH: i32 = gunW * gunTexH / gunTexW
@@ -520,8 +559,12 @@ pub fn main() i32 = {
         enemyTexH = @load32(th) as i32
         trust @free(tw)
         trust @free(th)
-        if enemyTexW <= 0 { enemyTexW = 1 }
-        if enemyTexH <= 0 { enemyTexH = 1 }
+        if enemyTexW <= 0 {
+            enemyTexW = 1
+        }
+        if enemyTexH <= 0 {
+            enemyTexH = 1
+        }
     }
 
     val gs: ref void = trust IMG_Load("samples/sprites/centre_gun.png")
@@ -536,8 +579,12 @@ pub fn main() i32 = {
         gunTexH = @load32(gh) as i32
         trust @free(gw)
         trust @free(gh)
-        if gunTexW <= 0 { gunTexW = 1 }
-        if gunTexH <= 0 { gunTexH = 1 }
+        if gunTexW <= 0 {
+            gunTexW = 1
+        }
+        if gunTexH <= 0 {
+            gunTexH = 1
+        }
     }
 
     val quit: mut bool = false
@@ -567,9 +614,15 @@ pub fn main() i32 = {
             val keyS: u8 = trust @load(@ptradd(keys, (sdl_input.SDL_SCANCODE_S) * @sizeof(u8)))
             val keySpace: u8 = trust @load(@ptradd(keys, (sdl_input.SDL_SCANCODE_SPACE) * @sizeof(u8)))
 
-            if shootCooldown > 0.0 { shootCooldown -= deltaTime }
-            if muzzleFlashTimer > 0.0 { muzzleFlashTimer -= deltaTime }
-            if hitFlashTimer > 0.0 { hitFlashTimer -= deltaTime }
+            if shootCooldown > 0.0 {
+                shootCooldown -= deltaTime
+            }
+            if muzzleFlashTimer > 0.0 {
+                muzzleFlashTimer -= deltaTime
+            }
+            if hitFlashTimer > 0.0 {
+                hitFlashTimer -= deltaTime
+            }
 
             val isMoving: bool = keyW != 0 || keyS != 0
             if isMoving {

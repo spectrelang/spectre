@@ -8,7 +8,9 @@ extern (C) fn fseek(stream: ref void, offset: i64, whence: i32) i32 = "fseek"
 
 fn baseline_raw(path: ref u8) i32 = trust {
     val file: ref void = fopen(path, "rb")
-    if file == none { return -1 }
+    if file == none {
+        return -1
+    }
     val rc: i32 = fseek(file, 0, 2 as i32)
     fclose(file)
     return rc
@@ -16,7 +18,9 @@ fn baseline_raw(path: ref u8) i32 = trust {
 
 fn generic_raw[A: allocators.GeneralAllocator](_: A, path: ref u8) i32 = trust {
     val file: ref void = fopen(path, "rb")
-    if file == none { return -1 }
+    if file == none {
+        return -1
+    }
     val rc: i32 = fseek(file, 0, 2 as i32)
     fclose(file)
     return rc
@@ -27,26 +31,31 @@ fn generic_raw_with_alloc[A: allocators.GeneralAllocator](ac: A, path: ref u8) i
     val file: ref void = fopen(path, "rb")
     if file == none {
         if tmp_opt is some tmp {
-            A.free(ac, tmp as ref void) }
+            A.free(ac, tmp as ref void)
+        }
         return -1
     }
     val rc: i32 = fseek(file, 0, 2 as i32)
     fclose(file)
     if tmp_opt is some tmp {
-        A.free(ac, tmp as ref void) }
+        A.free(ac, tmp as ref void)
+    }
     return rc
 }
 
 fn generic_fs_like[A: allocators.GeneralAllocator](ac: A, path: ref u8) i32 = trust {
     val handle = fs.open(path, "rb")
     match handle {
-        none => { return -1 }
+        none => {
+            return -1
+        }
         some f => {
             val ptr: ref void = @load(f)
             val tmp_opt = A.alloc(ac, 8 as usize)
             val rc: i32 = fseek(ptr, 0, 2 as i32)
             if tmp_opt is some tmp {
-                A.free(ac, tmp as ref void) }
+                A.free(ac, tmp as ref void)
+            }
             fs.close(f)
             return rc
         }

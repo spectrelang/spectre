@@ -35,7 +35,8 @@ pub fn (Stack) print_top(s: self) void = {
         has_items: s.len > 0
     }
     if Stack.peek(s) is some v {
-        trust stdio.print("top: {d}\n", {v}) }
+        trust stdio.print("top: {d}\n", {v})
+    }
 }
 
 pub fn main() void = trust {

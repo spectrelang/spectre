@@ -37,8 +37,12 @@ fn make_fn_token() ref Token = trust {
 
 fn kind_is_fn(k: TokenKind) bool = trust {
     match k {
-        Fn() => { return true }
-        else => { return false }
+        Fn() => {
+            return true
+        }
+        else => {
+            return false
+        }
     }
 }
 

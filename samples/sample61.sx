@@ -5,8 +5,12 @@ pub union Shape = {
 
 fn is_circle(s: Shape) bool = trust {
     match s {
-        Circle _ => { return true }
-        else     => { return false }
+        Circle _ => {
+            return true
+        }
+        else     => {
+            return false
+        }
     }
 }
 

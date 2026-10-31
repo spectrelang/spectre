@@ -26,7 +26,9 @@ pub fn string_to_i64(s: ref u8) result[i64, ParseError] = trust {
     val i: mut i64 = start
 
     for {
-        if (i >= len) { break }
+        if (i >= len) {
+            break
+        }
 
         val c: u8 = @load8(@ptradd(s, i))
 

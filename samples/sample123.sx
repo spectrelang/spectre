@@ -7,8 +7,12 @@ union Shape = {
 
 fn area(s: Shape) f64 = {
     match s {
-        Circle r         => { return 3.14159265 * r * r }
-        Rect w, h        => { return w * h }
+        Circle r         => {
+            return 3.14159265 * r * r
+        }
+        Rect w, h        => {
+            return w * h
+        }
         Triangle a, b, c => {
             val sp = (a + b + c) / 2.0
             return math.sqrt(sp * (sp-a) * (sp-b) * (sp-c))
@@ -18,9 +22,15 @@ fn area(s: Shape) f64 = {
 
 fn label(s: Shape) ref u8 = {
     match s {
-        Circle _      => { return "Circle" }
-        Rect _, _     => { return "Rect" }
-        Triangle _,_,_=> { return "Triangle" }
+        Circle _      => {
+            return "Circle"
+        }
+        Rect _, _     => {
+            return "Rect"
+        }
+        Triangle _,_,_=> {
+            return "Triangle"
+        }
     }
 }
 

@@ -29,7 +29,9 @@ pub fn main() void = trust {
 
                     val i: mut i64 = 0
                     for {
-                        if i >= n { break }
+                        if i >= n {
+                            break
+                        }
 
                         val v = @get(lst, i as usize)
                         if v is some x {
@@ -40,9 +42,13 @@ pub fn main() void = trust {
                         i++
                     }
                 }
-                err e => { stdio.print("inner err: {s}\n", {e}) }
+                err e => {
+                    stdio.print("inner err: {s}\n", {e})
+                }
             }
         }
-        err e => { stdio.print("outer err: {s}\n", {e}) }
+        err e => {
+            stdio.print("outer err: {s}\n", {e})
+        }
     }
 }
