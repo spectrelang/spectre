@@ -23,10 +23,16 @@ Resources:
 
 Prerequisite: cmake
 
-Run the following in the terminal:
+Run the following in the terminal (Linux/Mac):
 
 ```
 curl https://spectrelang.org/get.sh | sh
+```
+
+Or in Windows PowerShell:
+
+```
+irm https://spectrelang.org/get.ps1 | iex
 ```
 
 Then run to confirm installation:
