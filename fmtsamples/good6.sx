@@ -1,5 +1,5 @@
 union Shape = {
-    Circle(f64) | Rect(f64,f64) | Triangle(f64,f64,f64)
+    Circle(f64) | Rect(f64, f64) | Triangle(f64, f64, f64)
 }
 
 fn label(s: Shape) ref u8 = {

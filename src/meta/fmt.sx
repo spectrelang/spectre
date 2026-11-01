@@ -1175,6 +1175,73 @@ fn format_decl_separators(src: ref u8) ref u8 = trust {
     return apply_edits(src, edits)
 }
 
+fn format_paren_separators(src: ref u8) ref u8 = trust {
+    val tok_res = lexer.tokenize(src)
+    val tokens: mut list[ref lexer.Token] = []
+    match tok_res {
+        ok toks => {
+            tokens = toks
+        }
+        err _ => {
+            return src
+        }
+    }
+
+    val len: i64 = str.len_raw(src)
+    val starts: list[i64] = collect_line_starts(src, len)
+    val ntokens: i64 = @len(tokens) as i64
+    val edits: mut list[ref Edit] = []
+    val paren_depth: mut i64 = 0
+    val i: mut i64 = 0
+
+    for {
+        if i >= ntokens {
+            break
+        }
+        val k: lexer.TokenKind = lexer.tok_kind(tokens, i)
+
+        if lexer.kind_is_lparen(k) {
+            paren_depth++
+        } elif lexer.kind_is_rparen(k) {
+            if paren_depth > 0 {
+                paren_depth--
+            }
+        } elif lexer.kind_is_comma(k) {
+            if paren_depth > 0 {
+                val comma_pos: i64 = token_start(tokens, starts, i)
+                val ws_before: mut i64 = comma_pos
+                for {
+                    if ws_before <= 0 {
+                        break
+                    }
+                    val c: i64 = byte_at(src, ws_before - 1)
+                    if c != 32 && c != 9 {
+                        break
+                    }
+                    ws_before--
+                }
+                if ws_before < comma_pos {
+                    @append(edits, edit_new(ws_before, comma_pos, ""))
+                }
+
+                if i + 1 < ntokens && token_line(tokens, i + 1) == token_line(tokens, i) {
+                    val next_kind: lexer.TokenKind = lexer.tok_kind(tokens, i + 1)
+                    if !lexer.kind_is_rparen(next_kind) {
+                        val next_pos: i64 = token_start(tokens, starts, i + 1)
+                        if range_is_whitespace(src, comma_pos + 1, next_pos) {
+                            @append(edits, edit_new(comma_pos + 1, next_pos, " "))
+                        }
+                    }
+                }
+            }
+        }
+
+        i++
+    }
+
+    return apply_edits(src, edits)
+}
+
 fn format_colon_spacing(src: ref u8) ref u8 = trust {
     val tok_res = lexer.tokenize(src)
     val tokens: mut list[ref lexer.Token] = []
@@ -2488,7 +2555,8 @@ fn format_source(src: ref u8) ref u8 = trust {
     val assert_spaced: ref u8 = format_assert_spacing(for_normalized)
     val braced: ref u8 = format_block_braces(assert_spaced)
     val decl_separated: ref u8 = format_decl_separators(braced)
-    val arm_spaced: ref u8 = format_match_arm_spacing(decl_separated)
+    val paren_separated: ref u8 = format_paren_separators(decl_separated)
+    val arm_spaced: ref u8 = format_match_arm_spacing(paren_separated)
     val colon_spaced: ref u8 = format_colon_spacing(arm_spaced)
     val eq_spaced: ref u8 = format_eq_spacing(colon_spaced)
     val as_spaced: ref u8 = format_as_spacing(eq_spaced)

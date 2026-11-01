@@ -1,0 +1,5 @@
+fn call_args() void = {
+    foo(1, 2, 3, 4)
+    bar(alpha, beta)
+    qux(foo(1, 2), 3)
+}

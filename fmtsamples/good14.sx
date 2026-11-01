@@ -1,5 +1,5 @@
 union Sh = {
-    A() | B(i64) | C(i64,i64)
+    A() | B(i64) | C(i64, i64)
 }
 
 fn value(s: Sh) i64 = {
