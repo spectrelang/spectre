@@ -19,6 +19,7 @@ pub enum AllocError = {
 
 val stdio = use("../stdio")
 
+/// Interface for the classic bump allocator.
 pub spec Allocator = {
     pub fn new(capacity: usize) result[Allocator, AllocError]
     pub fn free(a: self) void
@@ -268,7 +269,7 @@ pub fn (HeapAllocator) realloc(_: self, ptr: ref void, new_size: usize) option[r
     return some new_ptr
 }
 
-
+/// Allocates memory, returns the pointer on success, and returns none on failure.
 pub fn bump_alloc_unwrap[A: Allocator](ac: A, size: usize) ref void = {
     pre {
         size_positive: size > 0
@@ -280,6 +281,12 @@ pub fn bump_alloc_unwrap[A: Allocator](ac: A, size: usize) ref void = {
     return none
 }
 
+/// Allocates "size" bytes using the specified allocator.
+///
+/// Returns some containing a pointer to the allocated memory on success,
+/// or none if the allocation fails.
+///
+/// Requires size to be greater than zero.
 pub fn alloc_in[A: GeneralAllocator](ac: A, size: usize) option[ref void] = {
     pre {
         size_positive: size > 0
@@ -287,10 +294,30 @@ pub fn alloc_in[A: GeneralAllocator](ac: A, size: usize) option[ref void] = {
     return A.alloc(ac, size)
 }
 
+/// Frees memory allocated by the specified allocator.
+///
+/// Does nothing if ptr is none.
 pub fn free_in[A: GeneralAllocator](ac: A, ptr: ref void) void = trust {
     if ptr != none {
         A.free(ac, ptr)
     }
+}
+
+/// Resizes a memory allocation using the specified allocator.
+///
+/// If ptr is none, allocates a new memory block of new_size bytes.
+/// Otherwise, resizes the existing allocation to new_size bytes.
+/// Returns some containing a pointer to the resized memory on success,
+/// or none if the allocation fails.
+/// Requires new_size to be greater than zero.
+pub fn realloc_in[A: GeneralAllocator](ac: A, ptr: ref void, new_size: usize) option[ref void] = {
+    pre {
+        new_size_positive: new_size > 0
+    }
+    if ptr == none {
+        return A.alloc(ac, new_size)
+    }
+    return A.realloc(ac, ptr, new_size)
 }
 
 pub fn realloc_in[A: GeneralAllocator](ac: A, ptr: ref void, new_size: usize) option[ref void] = {
