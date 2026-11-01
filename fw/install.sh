@@ -68,6 +68,46 @@ git_clone_with_fallback() {
 	}
 }
 
+install_network_deps() {
+	if command -v pkg-config >/dev/null 2>&1 &&
+		pkg-config --exists libcurl libnghttp2 openssl zlib libbrotlidec libbrotlicommon; then
+		log "Networking development dependencies already installed."
+		return
+	fi
+
+	log "Checking networking development dependencies (libcurl, nghttp2, openssl, zlib, brotli)..."
+	case "$PKG_MGR" in
+	apt)
+		NET_DEPS="libcurl4-openssl-dev libnghttp2-dev libssl-dev zlib1g-dev libbrotli-dev"
+		;;
+	dnf)
+		NET_DEPS="libcurl-devel libnghttp2-devel openssl-devel zlib-devel brotli-devel"
+		;;
+	zypper)
+		NET_DEPS="libcurl-devel libnghttp2-devel libopenssl-devel zlib-devel libbrotli-devel"
+		;;
+	pacman)
+		NET_DEPS="curl nghttp2 openssl zlib brotli"
+		;;
+	brew)
+		NET_DEPS="curl nghttp2 openssl zlib brotli"
+		;;
+	pkg)
+		NET_DEPS="curl nghttp2 openssl zlib brotli"
+		;;
+	*)
+		log "warning: cannot install networking dependencies automatically; install libcurl, nghttp2, openssl, zlib, and brotli development packages manually."
+		return
+		;;
+	esac
+
+	if install_pkg "$PKG_MGR" $NET_DEPS; then
+		log "Networking development dependencies installed."
+	else
+		log "warning: failed to install networking development dependencies; std/net/http may be unavailable."
+	fi
+}
+
 SPECTRE_VERSION=""
 
 while [ "$#" -gt 0 ]; do
@@ -129,6 +169,8 @@ require_cmd git
 require_cmd make
 require_cmd cc
 require_cmd cmake
+
+install_network_deps
 
 log "Preparing directories..."
 mkdir -p "$BIN_DIR" "$SRC_DIR"

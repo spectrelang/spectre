@@ -1,0 +1,18 @@
+val http       = use("std/net/http")
+val allocators = use("std/allocators")
+val stdio      = use("std/stdio")
+
+pub fn main() void = trust {
+    val ac: allocators.HeapAllocator = @zeroed
+
+    http.Http.init()
+    val response = http.Http.get[allocators.HeapAllocator](ac, "https://example.com")
+    if response != none {
+        stdio.print("{d}\n", {http.Http.status(response)})
+        stdio.print("{s}\n", {http.Http.body(response)})
+        http.Http.free_response[allocators.HeapAllocator](ac, response)
+    } else {
+        stdio.print("request failed\n", {})
+    }
+    http.Http.cleanup()
+}

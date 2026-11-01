@@ -1,0 +1,681 @@
+val net        = use("../net/core.sx")
+val allocators = use("../allocators")
+val string     = use("../string")
+
+pub val DEFAULT_MAX_ROUTES: i64 = 32
+pub val DEFAULT_MAX_CLIENTS: i64 = 64
+pub val DEFAULT_REQUEST_SIZE: i64 = 8192
+pub val DEFAULT_RESPONSE_SIZE: i64 = 16384
+
+/// A parsed HTTP request. All string fields point into the connection's
+/// request buffer and remain valid for the duration of the handler call.
+pub type Request = {
+    method: mut ref u8
+    path: mut ref u8
+    query: mut ref u8
+    version: mut ref u8
+    body: mut ref u8
+    body_len: mut i64
+}
+
+/// A response builder. Bodies written through `write`, `text`, or `json` are
+/// copied into a connection-owned buffer.
+pub type Response = {
+    status_code: mut i32
+    content_type: mut ref u8
+    body: mut ref u8
+    body_len: mut i64
+    body_cap: mut i64
+}
+
+pub type Route = {
+    method: mut ref u8
+    path: mut ref u8
+    handler: mut fn(ref Request, mut ref Response) void
+}
+
+type Client = {
+    fd: mut i64
+    request_buffer: mut ref u8
+    request_len: mut i64
+    response_buffer: mut ref u8
+    response_cap: mut i64
+    request: mut ref Request
+    response: mut ref Response
+}
+
+pub type WebServer = {
+    port: mut i32
+    handle: mut ref net.ServerHandle
+    loop: mut ref void
+    listen_fd: mut i64
+    routes: mut ref Route
+    route_count: mut i64
+    max_routes: mut i64
+    clients: mut ref Client
+    max_clients: mut i64
+    running: mut bool
+}
+
+fn alloc_or_none[A: allocators.GeneralAllocator](ac: A, size: usize) ref void = trust {
+    val value_opt = allocators.alloc_in[A](ac, size)
+    match value_opt {
+        some value => {
+            return value as ref void
+        }
+        none => {
+            return none
+        }
+    }
+}
+
+fn route_at(server: ref WebServer, index: i64) ref Route = trust {
+    return @ptradd(server.routes, index * (@sizeof(Route) as i64)) as ref Route
+}
+
+fn client_at(server: ref WebServer, index: i64) ref Client = trust {
+    return @ptradd(server.clients, index * (@sizeof(Client) as i64)) as ref Client
+}
+
+/// Create a server with the default route and connection limits.
+pub fn (WebServer) new[A: allocators.GeneralAllocator](ac: A, port: i32) ref WebServer = trust {
+    return WebServer.new_with_capacity[A](ac, port, DEFAULT_MAX_ROUTES, DEFAULT_MAX_CLIENTS)
+}
+
+/// Create a server with explicit route and connection limits.
+pub fn (WebServer) new_with_capacity[A: allocators.GeneralAllocator](
+    ac: A,
+    port: i32,
+    max_routes: i64,
+    max_clients: i64
+) ref WebServer = trust {
+    pre {
+        valid_routes: max_routes > 0
+        valid_clients: max_clients > 0
+    }
+
+    val server_opt = allocators.alloc_in[A](ac, @sizeof(WebServer) as usize)
+    val server: mut ref WebServer = none
+    match server_opt {
+        some raw => {
+            server = raw as mut ref WebServer
+        }
+        none => {
+            return none
+        }
+    }
+
+    server.port = port
+    server.handle = none
+    server.loop = none
+    server.listen_fd = -1
+    server.routes = none
+    server.route_count = 0
+    server.max_routes = max_routes
+    server.clients = none
+    server.max_clients = max_clients
+    server.running = false
+
+    val routes_raw: ref void = alloc_or_none[A](ac, (max_routes * (@sizeof(Route) as i64)) as usize)
+    val clients_raw: ref void = alloc_or_none[A](ac, (max_clients * (@sizeof(Client) as i64)) as usize)
+    if routes_raw == none || clients_raw == none {
+        WebServer.free[A](ac, server)
+        return none
+    }
+
+    server.routes = routes_raw as mut ref Route
+    server.clients = clients_raw as mut ref Client
+    @memset(clients_raw, 0, (max_clients * (@sizeof(Client) as i64)) as usize)
+
+    val i: mut i64 = 0
+    for {
+        if i >= max_clients {
+            break
+        }
+        val client: mut ref Client = client_at(server, i)
+        client.fd = -1
+        client.request_len = 0
+        client.response_cap = DEFAULT_RESPONSE_SIZE
+        client.request_buffer = alloc_or_none[A](ac, DEFAULT_REQUEST_SIZE as usize) as mut ref u8
+        client.response_buffer = alloc_or_none[A](ac, DEFAULT_RESPONSE_SIZE as usize) as mut ref u8
+        client.request = alloc_or_none[A](ac, @sizeof(Request) as usize) as mut ref Request
+        client.response = alloc_or_none[A](ac, @sizeof(Response) as usize) as mut ref Response
+        if client.request_buffer == none || client.response_buffer == none ||
+        client.request == none || client.response == none {
+            WebServer.free[A](ac, server)
+            return none
+        }
+        @store8(client.request_buffer, 0)
+        @store8(client.response_buffer, 0)
+        val response: mut ref Response = client.response
+        response.status_code = 200
+        response.content_type = "text/plain; charset=utf-8"
+        response.body = client.response_buffer
+        response.body_len = 0
+        response.body_cap = DEFAULT_RESPONSE_SIZE
+        i++
+    }
+
+    val handle = net.TcpServer.listen[A](ac, port)
+    if handle == none {
+        WebServer.free[A](ac, server)
+        return none
+    }
+    server.handle = handle
+    server.listen_fd = net.TcpServer.fd(handle)
+    if !net.TcpServer.set_non_blocking(server.listen_fd) {
+        WebServer.free[A](ac, server)
+        return none
+    }
+
+    val loop = net.EventLoop.new()
+    server.loop = loop as ref void
+    net.EventLoop.watch(loop, server.listen_fd, net.POLL_READ)
+    return server
+}
+
+fn (WebServer) add_route(
+    server: mut self,
+    method: ref u8,
+    path: ref u8,
+    handler: fn(ref Request, mut ref Response) void
+) bool = trust {
+    if server.route_count >= server.max_routes {
+        return false
+    }
+    val route: mut ref Route = route_at(server, server.route_count)
+    route.method = method
+    route.path = path
+    route.handler = handler
+    server.route_count += 1
+    return true
+}
+
+/// Register a GET route.
+pub fn (WebServer) get(server: mut self, path: ref u8, handler: fn(ref Request, mut ref Response) void) bool = trust {
+    return WebServer.add_route(server, "GET", path, handler)
+}
+
+/// Register a POST route.
+pub fn (WebServer) post_route(server: mut self, path: ref u8, handler: fn(ref Request, mut ref Response) void) bool = trust {
+    return WebServer.add_route(server, "POST", path, handler)
+}
+
+/// Register a PUT route.
+pub fn (WebServer) put(server: mut self, path: ref u8, handler: fn(ref Request, mut ref Response) void) bool = trust {
+    return WebServer.add_route(server, "PUT", path, handler)
+}
+
+/// Register a PATCH route.
+pub fn (WebServer) patch(server: mut self, path: ref u8, handler: fn(ref Request, mut ref Response) void) bool = trust {
+    return WebServer.add_route(server, "PATCH", path, handler)
+}
+
+/// Register a DELETE route.
+pub fn (WebServer) delete(server: mut self, path: ref u8, handler: fn(ref Request, mut ref Response) void) bool = trust {
+    return WebServer.add_route(server, "DELETE", path, handler)
+}
+
+/// Set the HTTP status code.
+pub fn (Response) set_status(res: mut self, code: i32) void = trust {
+    res.status_code = code
+}
+
+/// Reset the response to a fresh 200 text response.
+pub fn (Response) reset(res: mut self) void = trust {
+    res.status_code = 200
+    res.content_type = "text/plain; charset=utf-8"
+    res.body_len = 0
+    if res.body != none {
+        @store8(res.body, 0)
+    }
+}
+
+/// Append text to the response body.
+pub fn (Response) write(res: mut self, text: ref u8) void = trust {
+    if text == none || res.body == none || res.body_cap <= 1 {
+        return
+    }
+    val text_len: i64 = string.len_raw(text)
+    val available: i64 = res.body_cap - res.body_len - 1
+    if available <= 0 {
+        return
+    }
+    val copy_len: mut i64 = text_len
+    if copy_len > available {
+        copy_len = available
+    }
+    if copy_len > 0 {
+        @memcpy(@ptradd(res.body, res.body_len), text, copy_len)
+        res.body_len += copy_len
+    }
+    @store8(@ptradd(res.body, res.body_len), 0)
+}
+
+/// Set a plain-text response body.
+pub fn (Response) text(res: mut self, body: ref u8) void = trust {
+    res.content_type = "text/plain; charset=utf-8"
+    res.body_len = 0
+    Response.write(res, body)
+}
+
+/// Set a JSON response body.
+pub fn (Response) json(res: mut self, body: ref u8) void = trust {
+    res.content_type = "application/json"
+    res.body_len = 0
+    Response.write(res, body)
+}
+
+/// Set an HTML response body.
+pub fn (Response) html(res: mut self, body: ref u8) void = trust {
+    res.content_type = "text/html; charset=utf-8"
+    res.body_len = 0
+    Response.write(res, body)
+}
+
+fn status_text(code: i32) ref u8 = {
+    if code == 200 {
+        return "OK"
+    }
+    if code == 201 {
+        return "Created"
+    }
+    if code == 204 {
+        return "No Content"
+    }
+    if code == 400 {
+        return "Bad Request"
+    }
+    if code == 404 {
+        return "Not Found"
+    }
+    if code == 405 {
+        return "Method Not Allowed"
+    }
+    if code == 413 {
+        return "Payload Too Large"
+    }
+    if code == 500 {
+        return "Internal Server Error"
+    }
+    return "OK"
+}
+
+fn find_header_end(raw: ref u8, len: i64) i64 = trust {
+    if len < 2 {
+        return -1
+    }
+    val i: mut i64 = 0
+    for {
+        if i + 1 >= len {
+            break
+        }
+        if @load8(@ptradd(raw, i)) == 10 && @load8(@ptradd(raw, i + 1)) == 10 {
+            return i + 2
+        }
+        if i + 3 < len &&
+        @load8(@ptradd(raw, i)) == 13 &&
+        @load8(@ptradd(raw, i + 1)) == 10 &&
+        @load8(@ptradd(raw, i + 2)) == 13 &&
+        @load8(@ptradd(raw, i + 3)) == 10 {
+            return i + 4
+        }
+        i++
+    }
+    return -1
+}
+
+fn parse_request(raw: ref u8, len: i64, req: mut ref Request) bool = trust {
+    val header_end: i64 = find_header_end(raw, len)
+    if header_end < 0 {
+        return false
+    }
+
+    val line_end: mut i64 = 0
+    for {
+        if line_end >= len {
+            return false
+        }
+        val c: u8 = @load8(@ptradd(raw, line_end))
+        if c == 10 {
+            break
+        }
+        line_end++
+    }
+    if line_end > 0 && @load8(@ptradd(raw, line_end - 1)) == 13 {
+        @store8(@ptradd(raw, line_end - 1), 0)
+    } else {
+        @store8(@ptradd(raw, line_end), 0)
+    }
+
+    val first_space: i64 = find_byte(raw, 0, line_end, 32 as u8)
+    if first_space < 0 {
+        return false
+    }
+    val second_space: i64 = find_byte(raw, first_space + 1, line_end, 32 as u8)
+    if second_space < 0 {
+        return false
+    }
+
+    @store8(@ptradd(raw, first_space), 0)
+    @store8(@ptradd(raw, second_space), 0)
+
+    req.method = raw
+    req.path = @ptradd(raw, first_space + 1)
+    req.version = @ptradd(raw, second_space + 1)
+    req.query = ""
+    req.body = ""
+    req.body_len = 0
+
+    val path_len: i64 = second_space - first_space - 1
+    val question: i64 = find_byte(req.path, 0, path_len, 63 as u8)
+    if question >= 0 {
+        @store8(@ptradd(req.path, question), 0)
+        req.query = @ptradd(req.path, question + 1)
+    }
+
+    if header_end < len {
+        req.body = @ptradd(raw, header_end)
+        req.body_len = len - header_end
+    }
+    return true
+}
+
+fn find_byte(text: ref u8, start: i64, len: i64, needle: u8) i64 = trust {
+    val i: mut i64 = start
+    for {
+        if i >= len {
+            break
+        }
+        if @load8(@ptradd(text, i)) == needle {
+            return i
+        }
+        i++
+    }
+    return -1
+}
+
+fn send_all(client: i64, data: ref u8, len: i64) void = trust {
+    val sent: mut i64 = 0
+    for {
+        if sent >= len {
+            break
+        }
+        val written = net.TcpServer.send(client, @ptradd(data, sent), len - sent)
+        if written <= 0 {
+            break
+        }
+        sent += written
+    }
+}
+
+fn send_response(client: ref Client) void = trust {
+    val res = client.response
+    val sb = string.StringBuilder.new()
+    string.StringBuilder.append_cstr(sb, "HTTP/1.1 ")
+    string.StringBuilder.append_cstr(sb, @fmt("{d}", {res.status_code}))
+    string.StringBuilder.append_cstr(sb, " ")
+    string.StringBuilder.append_cstr(sb, status_text(res.status_code))
+    string.StringBuilder.append_cstr(sb, "\r\nContent-Type: ")
+    string.StringBuilder.append_cstr(sb, res.content_type)
+    string.StringBuilder.append_cstr(sb, "\r\nContent-Length: ")
+    string.StringBuilder.append_cstr(sb, @fmt("{d}", {res.body_len}))
+    string.StringBuilder.append_cstr(sb, "\r\nConnection: close\r\n\r\n")
+    if res.body_len > 0 {
+        string.StringBuilder.append_cstr(sb, @fmt("{s}", {res.body}))
+    }
+
+    val response: mut string.String = string.StringBuilder.build(sb)
+    send_all(client.fd, string.cstr(response), string.len(response))
+    string.string_free(response)
+    string.StringBuilder.free(sb)
+}
+
+fn dispatch(server: ref WebServer, req: ref Request, res: mut ref Response) void = trust {
+    val count: i64 = server.route_count
+    val i: mut i64 = 0
+    for {
+        if i >= count {
+            break
+        }
+        val route = route_at(server, i)
+        if string.raw_cmp(req.method, route.method) == 0 && string.raw_cmp(req.path, route.path) == 0 {
+            @call(route.handler, req, res)
+            return
+        }
+        i++
+    }
+
+    i = 0
+    for {
+        if i >= count {
+            break
+        }
+        val route = route_at(server, i)
+        if string.raw_cmp(req.path, route.path) == 0 {
+            Response.set_status(res, 405 as i32)
+            Response.json(res, "{\"error\":\"Method not allowed\"}")
+            return
+        }
+        i++
+    }
+
+    Response.set_status(res, 404 as i32)
+    Response.json(res, "{\"error\":\"Not found\"}")
+}
+
+fn find_client(server: ref WebServer, fd: i64) option[ref Client] = trust {
+    val count: i64 = server.max_clients
+    val i: mut i64 = 0
+    for {
+        if i >= count {
+            break
+        }
+        val client = client_at(server, i)
+        if client.fd == fd {
+            return some client
+        }
+        i++
+    }
+    return none
+}
+
+fn find_free_client(server: ref WebServer) option[ref Client] = trust {
+    val count: i64 = server.max_clients
+    val i: mut i64 = 0
+    for {
+        if i >= count {
+            break
+        }
+        val client = client_at(server, i)
+        if client.fd < 0 {
+            return some client
+        }
+        i++
+    }
+    return none
+}
+
+fn close_client(server: ref WebServer, client: mut ref Client) void = trust {
+    net.EventLoop.unwatch(server.loop as net.EventLoop, client.fd)
+    net.TcpServer.close_client(client.fd)
+    client.fd = -1
+    client.request_len = 0
+}
+
+fn accept_clients(server: mut ref WebServer) void = trust {
+    for {
+        val client_fd = net.TcpServer.accept(server.handle)
+        if client_fd < 0 {
+            break
+        }
+        net.TcpServer.set_non_blocking(client_fd)
+
+        match find_free_client(server) {
+            none => {
+                net.TcpServer.close_client(client_fd)
+            }
+            some client => {
+                client.fd = client_fd
+                client.request_len = 0
+                @store8(client.request_buffer, 0)
+                net.EventLoop.watch(server.loop as net.EventLoop, client_fd, net.POLL_READ)
+            }
+        }
+    }
+}
+
+fn handle_client(server: mut ref WebServer, client: mut ref Client, revents: i32) void = trust {
+    if (revents & net.POLL_ERROR) != 0 {
+        close_client(server, client)
+        return
+    }
+    if (revents & net.POLL_READ) == 0 {
+        return
+    }
+
+    val remaining: i64 = DEFAULT_REQUEST_SIZE - 1 - client.request_len
+    if remaining <= 0 {
+        Response.set_status(client.response, 413 as i32)
+        Response.json(client.response, "{\"error\":\"Request too large\"}")
+        send_response(client)
+        close_client(server, client)
+        return
+    }
+
+    val received = net.TcpServer.recv(
+        client.fd,
+        @ptradd(client.request_buffer, client.request_len),
+        remaining
+    )
+    if received <= 0 {
+        close_client(server, client)
+        return
+    }
+
+    client.request_len += received
+    @store8(@ptradd(client.request_buffer, client.request_len), 0)
+
+    if find_header_end(client.request_buffer, client.request_len) < 0 {
+        return
+    }
+
+    Response.reset(client.response)
+    if parse_request(client.request_buffer, client.request_len, client.request) {
+        dispatch(server, client.request, client.response)
+    } else {
+        Response.set_status(client.response, 400 as i32)
+        Response.json(client.response, "{\"error\":\"Bad request\"}")
+    }
+
+    send_response(client)
+    close_client(server, client)
+}
+
+/// Start serving requests. Blocks until `stop` is called or `wait` fails.
+pub fn (WebServer) serve(server: mut self) void = trust {
+    server.running = true
+    for {
+        if !server.running {
+            break
+        }
+
+        val ready = net.EventLoop.wait(server.loop as net.EventLoop, 1000 as i32)
+        if ready < 0 {
+            break
+        }
+        if ready == 0 {
+            continue
+        }
+
+        val count: i64 = net.EventLoop.count(server.loop as net.EventLoop)
+        val i: mut i64 = count - 1
+        for {
+            if i < 0 {
+                break
+            }
+            val fd: i64 = net.EventLoop.fd_at(server.loop as net.EventLoop, i)
+            val revents: i32 = net.EventLoop.revents_at(server.loop as net.EventLoop, i)
+
+            if fd == server.listen_fd {
+                if (revents & net.POLL_READ) != 0 {
+                    accept_clients(server)
+                }
+            } else {
+                match find_client(server, fd) {
+                    none => {
+                        net.EventLoop.unwatch(server.loop as net.EventLoop, fd)
+                    }
+                    some client => {
+                        handle_client(server, client, revents)
+                    }
+                }
+            }
+            i--
+        }
+    }
+}
+
+/// Ask a running server to stop after the current poll iteration.
+pub fn (WebServer) stop(server: mut self) void = trust {
+    server.running = false
+}
+
+/// Return the configured listening port.
+pub fn (WebServer) port(server: ref WebServer) i32 = {
+    return server.port
+}
+
+/// Free a server and all buffers allocated with the same allocator.
+pub fn (WebServer) free[A: allocators.GeneralAllocator](ac: A, server: mut ref WebServer) void = trust {
+    if server == none {
+        return
+    }
+    if server.clients != none {
+        val count: i64 = server.max_clients
+        val i: mut i64 = 0
+        for {
+            if i >= count {
+                break
+            }
+            val client = client_at(server, i)
+            if client.request_buffer != none {
+                allocators.free_in[A](ac, client.request_buffer)
+            }
+            if client.response_buffer != none {
+                allocators.free_in[A](ac, client.response_buffer)
+            }
+            if client.request != none {
+                allocators.free_in[A](ac, client.request)
+            }
+            if client.response != none {
+                allocators.free_in[A](ac, client.response)
+            }
+            i++
+        }
+        allocators.free_in[A](ac, server.clients)
+    }
+    if server.handle != none {
+        net.TcpServer.close[A](ac, server.handle)
+    }
+    if server.loop != none {
+        net.EventLoop.free(server.loop as mut net.EventLoop)
+    }
+    if server.routes != none {
+        allocators.free_in[A](ac, server.routes)
+    }
+    allocators.free_in[A](ac, server)
+}
+
+test {
+    val ac: allocators.HeapAllocator = @zeroed
+    val server: mut ref WebServer = trust WebServer.new[allocators.HeapAllocator](ac, 8091 as i32)
+    assert server != none
+    assert WebServer.port(server) == 8091
+    assert trust WebServer.get(server, "/health", health_test_handler)
+    trust WebServer.free[allocators.HeapAllocator](ac, server)
+}
+
+fn health_test_handler(_: ref Request, res: mut ref Response) void = trust {
+    Response.json(res, "{\"status\":\"ok\"}")
+}

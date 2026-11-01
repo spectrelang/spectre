@@ -24,7 +24,10 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libsdl2-dev libsdl3-dev
+          sudo apt-get install -y \
+            libsdl2-dev libsdl3-dev \
+            libcurl4-openssl-dev libnghttp2-dev \
+            libssl-dev zlib1g-dev libbrotli-dev
 
       - name: Install Spectre toolchain
         run: curl -fsSL https://spectrelang.org/get.sh | sh
@@ -40,6 +43,10 @@ jobs:
         run: |
           echo "::group::System"
           uname -a
+          echo "::endgroup::"
+
+          echo "::group::Networking libraries"
+          pkg-config --modversion libcurl libnghttp2 openssl zlib 2>/dev/null || true
           echo "::endgroup::"
 
           echo "::group::Network: https://example.com"

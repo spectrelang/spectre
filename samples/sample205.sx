@@ -1,0 +1,31 @@
+val netx       = use("std/netx")
+val allocators = use("std/allocators")
+val stdio      = use("std/stdio")
+
+fn index(_: ref netx.Request, res: mut ref netx.Response) void = trust {
+    netx.Response.json(res, "{\"name\":\"Spectre API\",\"version\":\"0.1.0\",\"endpoints\":[\"/health\",\"/hello\"]}")
+}
+
+fn health(_: ref netx.Request, res: mut ref netx.Response) void = trust {
+    netx.Response.json(res, "{\"status\":\"ok\"}")
+}
+
+fn hello(_: ref netx.Request, res: mut ref netx.Response) void = trust {
+    netx.Response.json(res, "{\"message\":\"Hello, world!\"}")
+}
+
+pub fn main() void = trust {
+    val ac: allocators.HeapAllocator = @zeroed
+    val app: mut ref netx.WebServer = netx.WebServer.new[allocators.HeapAllocator](ac, 8080 as i32)
+    if app == none {
+        stdio.print("Failed to start server\n", {})
+        return
+    }
+
+    netx.WebServer.get(app, "/", index)
+    netx.WebServer.get(app, "/health", health)
+    netx.WebServer.get(app, "/hello", hello)
+
+    stdio.print("netx API listening on port {d}\n", {netx.WebServer.port(app)})
+    netx.WebServer.serve(app)
+}
