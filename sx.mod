@@ -4,8 +4,6 @@ spectre_version "v0.0.12"
 
 build prod {
     action "./fw/build.sh"
-    // flags "--release"
-    // output "./spectre"
 }
 
 build dev {
