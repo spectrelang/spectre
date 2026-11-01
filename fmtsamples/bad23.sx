@@ -1,0 +1,57 @@
+pub fn classify(x: i64) i64 = {
+    if x > 10 {
+        return 2
+    }
+    else {
+        return 1
+    }
+}
+
+pub fn sign(x: i64) i64 = {
+    if x > 0 {
+        return 1
+    }
+    elif x == 0 {
+        return 0
+    }
+    else {
+        return -1
+    }
+}
+
+pub fn nested(x: i64) i64 = {
+    if x > 0 {
+        if x > 10 {
+            return 2
+        }
+        else {
+            return 1
+        }
+    }
+    elif x == 0 {
+        return 0
+    }
+    else {
+        return -1
+    }
+}
+
+pub fn unwrap(o: option[i64]) i64 = {
+    if o is some v {
+        return v
+    }
+    else {
+        return 0
+    }
+}
+
+pub fn pick(x: i64) i64 = {
+    match x {
+        1 => {
+            return 10
+        }
+        else => {
+            return 0
+        }
+    }
+}
