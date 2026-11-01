@@ -1,0 +1,27 @@
+pub fn main() i32 = trust {
+    val keys: ref u8 = @alloc(16) as ref u8
+    @memset(keys, 0, 16)
+    @store8(@ptradd(keys, 7), 1)
+
+    val keyA: u8 = @load(@ptradd(keys, 4))
+    val keyD: u8 = @load(@ptradd(keys, 7))
+    if keyA != 0 {
+        return 1
+    }
+    if keyD != 1 {
+        return 2
+    }
+
+    @store8(@ptradd(keys, 4), 1)
+    val keyA2: u8 = @load(@ptradd(keys, 4))
+    val keyD2: u8 = @load(@ptradd(keys, 7))
+    if keyA2 != 1 {
+        return 3
+    }
+    if keyD2 != 1 {
+        return 4
+    }
+
+    @free(keys)
+    return 0
+}

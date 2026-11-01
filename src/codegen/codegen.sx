@@ -1811,6 +1811,51 @@ fn cg_coerce_qtype(ctx: mut ref CgCtx, value: ref u8, src_qtype: ref u8, dst_qty
     return value
 }
 
+/// Truncate an integer value to the declared sub-word type (u8/i8/u16/i16)
+/// or to 32 bits for word-sized integer types.
+fn cg_narrow_int_for_ann(ctx: mut ref CgCtx, value: ref u8, ann: ref u8) ref u8 = trust {
+    if ann == none || str.raw_cmp(ann, "") == 0 {
+        return value
+    }
+
+    val is_u8: bool = str.raw_cmp(ann, "u8") == 0 || str.raw_cmp(ann, "bool") == 0
+    val is_i8: bool = str.raw_cmp(ann, "i8") == 0
+    val is_u16: bool = str.raw_cmp(ann, "u16") == 0
+    val is_i16: bool = str.raw_cmp(ann, "i16") == 0
+    val is_u32: bool = str.raw_cmp(ann, "u32") == 0
+    val is_i32: bool = str.raw_cmp(ann, "i32") == 0
+    if !is_u8 && !is_i8 && !is_u16 && !is_i16 && !is_u32 && !is_i32 {
+        return value
+    }
+
+    val w_tmp: i64 = fresh_tmp(ctx)
+    val w_buf: ref u8 = @alloc(64) as ref u8
+    @snprintf(w_buf, 64, "    %%t{lld} =w copy {s}\n", {w_tmp, value})
+    emit(ctx, w_buf)
+    @free(w_buf)
+
+    val out_tmp: mut i64 = w_tmp
+    if is_u8 || is_i8 || is_u16 || is_i16 {
+        out_tmp = fresh_tmp(ctx)
+        val op: mut ref u8 = "extub"
+        if is_i8 {
+            op = "extsb"
+        } elif is_u16 {
+            op = "extuh"
+        } elif is_i16 {
+            op = "extsh"
+        }
+        val narrow_buf: ref u8 = @alloc(64) as ref u8
+        @snprintf(narrow_buf, 64, "    %%t{lld} =w {s} %%t{lld}\n", {out_tmp, op, w_tmp})
+        emit(ctx, narrow_buf)
+        @free(narrow_buf)
+    }
+
+    val res: ref u8 = @alloc(16) as ref u8
+    @snprintf(res, 16, "%%t{lld}", {out_tmp})
+    return res
+}
+
 fn cg_ann_after_get_indices(ann: ref u8, dims: i64) ref u8 = trust {
     val cur: mut ref u8 = ann
     val di: mut i64 = 0
@@ -8050,13 +8095,7 @@ fn expr_qtype(ctx: mut ref CgCtx, node: ref parser.Node) ref u8 = trust {
         if str.raw_cmp(ltype, "f32") == 0 {
             return "s"
         }
-        if str.raw_cmp(ltype, "i32") == 0 {
-            return "w"
-        }
-        if str.raw_cmp(ltype, "u32") == 0 {
-            return "w"
-        }
-        if str.raw_cmp(ltype, "bool") == 0 {
+        if is_word_type_name(ltype) {
             return "w"
         }
     }
@@ -9897,6 +9936,11 @@ fn gen_stmt(ctx: mut ref CgCtx, stmt: ref parser.Node) void = trust {
         }
 
         if ty_node != none {
+            val narrow_ann: ref u8 = type_expr_to_annotation(ctx, ty_node)
+            val_tmp = cg_narrow_int_for_ann(ctx, val_tmp, narrow_ann)
+        }
+
+        if ty_node != none {
             // Preserve the full annotation (including ref/mut wrappers) so that
             // later inference and variadic argument promotion see the real type.
             val local_ann: ref u8 = type_expr_to_annotation(ctx, ty_node)
@@ -10067,6 +10111,7 @@ fn gen_stmt(ctx: mut ref CgCtx, stmt: ref parser.Node) void = trust {
                 if str.raw_cmp(dst_qtype2, "") != 0 {
                     val_tmp2 = cg_coerce_qtype(ctx, val_tmp2, val_qtype2, dst_qtype2)
                 }
+                val_tmp2 = cg_narrow_int_for_ann(ctx, val_tmp2, ltype3)
             }
 
             if str.raw_cmp(qbe_var, "") != 0 {
