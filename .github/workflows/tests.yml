@@ -1,0 +1,78 @@
+name: Tests
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  compiler-tests:
+    name: Compiler test suites
+    runs-on: ubuntu-26.04
+    timeout-minutes: 60
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libsdl2-dev libsdl3-dev
+
+      - name: Install Spectre toolchain
+        run: curl -fsSL https://spectrelang.org/get.sh | sh
+
+      - name: Add Spectre to PATH
+        run: echo "${HOME}/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Build spectre-dev
+        id: build
+        run: ./fw/build.sh
+
+      - name: Run fw/test_alt.sh (C backend)
+        run: |
+          set -o pipefail
+          ./fw/test_alt.sh | tee test_alt.log
+
+      - name: Run fw/test_critic.sh
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: |
+          set -o pipefail
+          ./fw/test_critic.sh | tee test_critic.log
+
+      - name: Run fw/test_fmt.sh
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: |
+          set -o pipefail
+          ./fw/test_fmt.sh | tee test_fmt.log
+
+      - name: Run fw/test.sh (QBE backend, known failures)
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          ./fw/test.sh | tee test_qbe.log
+
+      - name: Publish test summary
+        if: always()
+        run: |
+          {
+            echo "## Test results"
+            for log in test_alt.log test_qbe.log test_critic.log test_fmt.log; do
+              [ -f "$log" ] || continue
+              echo
+              echo "### ${log}"
+              echo '```'
+              sed -n '/^\(Final\|Critic\|Formatter\).*Summary:/,$p' "$log"
+              echo '```'
+            done
+          } >> "$GITHUB_STEP_SUMMARY"
