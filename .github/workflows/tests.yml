@@ -55,7 +55,7 @@ jobs:
           set -o pipefail
           ./fw/test_fmt.sh | tee test_fmt.log
 
-      - name: Run fw/test.sh (QBE backend, known failures)
+      - name: Run fw/test.sh (QBE backend)
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         continue-on-error: true
         run: |
