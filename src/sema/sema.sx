@@ -2269,6 +2269,32 @@ fn sema_try_operand_type_name(ctx: ref SemaCtx, expr: ref parser.Node) ref u8 = 
     return none
 }
 
+/// Returns the wrap kind used by comparison checking. Unlike `expr_wrap_kind`,
+/// this also recognizes `some`/`ok`/`err` literals as wrapped values.
+fn comparison_wrap_kind(ctx: ref SemaCtx, expr: ref parser.Node) i64 = trust {
+    if expr == none {
+        return 0
+    }
+    if expr.kind == parser.NK_SOME {
+        return 2
+    }
+    if expr.kind == parser.NK_OK_VAL || expr.kind == parser.NK_ERR_VAL {
+        return 1
+    }
+    return expr_wrap_kind(ctx, expr)
+}
+
+fn comparison_type_name(ctx: ref SemaCtx, expr: ref parser.Node) ref u8 = trust {
+    val wrap_kind: i64 = comparison_wrap_kind(ctx, expr)
+    if wrap_kind == 1 {
+        return "result"
+    }
+    if wrap_kind == 2 {
+        return "option"
+    }
+    return format_type_for_error(infer_expr_scope_type_name(ctx, expr), infer_expr_scope_is_ref(ctx, expr))
+}
+
 fn sema_try_operand_proves_not_result(ctx: ref SemaCtx, expr: ref parser.Node) bool = trust {
     if expr == none {
         return false
@@ -2485,6 +2511,23 @@ fn comparison_operands_compatible(ctx: ref SemaCtx, lhs: ref parser.Node, rhs: r
             return true
         }
         return false
+    }
+
+    val lhs_wrap: i64 = comparison_wrap_kind(ctx, lhs)
+    val rhs_wrap: i64 = comparison_wrap_kind(ctx, rhs)
+
+    if lhs_wrap == 1 || rhs_wrap == 1 {
+        if lhs_wrap != rhs_wrap {
+            return false
+        }
+    }
+
+    if lhs_wrap == 2 || rhs_wrap == 2 {
+        if lhs_wrap != rhs_wrap {
+            if lhs.kind != parser.NK_NONE && rhs.kind != parser.NK_NONE {
+                return false
+            }
+        }
     }
 
     if lhs_type == none || rhs_type == none {
@@ -3722,8 +3765,8 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
             val lhs: ref parser.Node = parser.binop_left(expr)
             val rhs: ref parser.Node = parser.binop_right(expr)
             if !comparison_operands_compatible(ctx, lhs, rhs, op) {
-                val lhs_type: ref u8 = format_type_for_error(infer_expr_scope_type_name(ctx, lhs), infer_expr_scope_is_ref(ctx, lhs))
-                val rhs_type: ref u8 = format_type_for_error(infer_expr_scope_type_name(ctx, rhs), infer_expr_scope_is_ref(ctx, rhs))
+                val lhs_type: ref u8 = comparison_type_name(ctx, lhs)
+                val rhs_type: ref u8 = comparison_type_name(ctx, rhs)
                 val buf: ref u8 = @alloc(512) as ref u8
                 if string.raw_cmp(lhs_type, "unknown") == 0 {
                     return

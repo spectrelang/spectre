@@ -1,0 +1,17 @@
+pub fn returns_result() result[bool, ref u8] = {
+    return err "didnt work buddy"
+}
+
+pub fn main() void = {
+    if returns_result() == 100 {
+        @puts("shouldnt compile.")
+    }
+    match returns_result() {
+        ok _ => {
+            // ok
+        }
+        err e => {
+            trust @print("{s}\n", {e})
+        }
+    }
+}
