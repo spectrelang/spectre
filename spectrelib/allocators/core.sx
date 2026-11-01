@@ -13,6 +13,7 @@ pub type (Allocator) Arena = {
     cap: usize
 }
 
+/// An error that occurs when attempting to allocate memory.
 pub enum AllocError = {
     OutOfMemory
 }
