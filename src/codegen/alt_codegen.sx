@@ -3010,6 +3010,10 @@ fn gen_expr(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
         return gen_struct_lit(ctx, expr)
     }
     if k == parser.NK_LIST_LIT {
+        val fixed_arr_ty: ref parser.Node = cc_fixed_arr_ty(ctx, ctx.expected_ty as ref parser.Node)
+        if fixed_arr_ty != none {
+            return gen_fixed_arr_lit(ctx, expr, fixed_arr_ty)
+        }
         return gen_list_lit(ctx, expr)
     }
     if k == parser.NK_ZERO_INIT {
@@ -3782,18 +3786,21 @@ fn gen_builtin(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
     }
     if str.raw_cmp(bname, "memcpy") == 0 {
         val d: ref u8 = get_arg(ctx, args, 0) val s: ref u8 = get_arg(ctx, args, 1) val n: ref u8 = get_arg(ctx, args, 2)
-        val buf: ref u8 = @alloc(256) as ref u8
-        @snprintf(buf, 256, "(memcpy((void*)(intptr_t)({s}),(void*)(intptr_t)({s}),(size_t)({s})),0)", {d, s, n}) return cc_expr_track(ctx, buf)
+        val cap: i64 = str.len_raw(d) + str.len_raw(s) + str.len_raw(n) + 96
+        val buf: ref u8 = @alloc(cap) as ref u8
+        @snprintf(buf, cap, "(memcpy((void*)(intptr_t)({s}),(void*)(intptr_t)({s}),(size_t)({s})),0)", {d, s, n}) return cc_expr_track(ctx, buf)
     }
     if str.raw_cmp(bname, "memset") == 0 {
         val d: ref u8 = get_arg(ctx, args, 0) val v: ref u8 = get_arg(ctx, args, 1) val n: ref u8 = get_arg(ctx, args, 2)
-        val buf: ref u8 = @alloc(256) as ref u8
-        @snprintf(buf, 256, "(memset((void*)(intptr_t)({s}),(int)({s}),(size_t)({s})),0)", {d, v, n}) return cc_expr_track(ctx, buf)
+        val cap: i64 = str.len_raw(d) + str.len_raw(v) + str.len_raw(n) + 96
+        val buf: ref u8 = @alloc(cap) as ref u8
+        @snprintf(buf, cap, "(memset((void*)(intptr_t)({s}),(int)({s}),(size_t)({s})),0)", {d, v, n}) return cc_expr_track(ctx, buf)
     }
     if str.raw_cmp(bname, "ptradd") == 0 {
         val p: ref u8 = get_arg(ctx, args, 0) val o: ref u8 = get_arg(ctx, args, 1)
-        val buf: ref u8 = @alloc(256) as ref u8
-        @snprintf(buf, 256, "(int64_t)(intptr_t)((char*)(intptr_t)({s})+({s}))", {p, o}) return cc_expr_track(ctx, buf)
+        val cap: i64 = str.len_raw(p) + str.len_raw(o) + 64
+        val buf: ref u8 = @alloc(cap) as ref u8
+        @snprintf(buf, cap, "(int64_t)(intptr_t)((char*)(intptr_t)({s})+({s}))", {p, o}) return cc_expr_track(ctx, buf)
     }
     if str.raw_cmp(bname, "load") == 0 || str.raw_cmp(bname, "load64") == 0 {
         val p: ref u8 = get_arg(ctx, args, 0)
@@ -4272,6 +4279,111 @@ fn gen_list_lit(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
     }
     val res: ref u8 = @alloc(64) as ref u8
     @snprintf(res, 64, "(int64_t)(intptr_t)sx__ll{lld}", {t}) return cc_expr_track(ctx, res)
+}
+
+fn cc_fixed_arr_ty(ctx: ref CCtx, ty: ref parser.Node) ref parser.Node = trust {
+    val concrete: ref parser.Node = cc_concrete_ty(ctx, ty)
+    if concrete == none {
+        return none
+    }
+    if concrete.kind == parser.TY_MUT {
+        return cc_fixed_arr_ty(ctx, concrete.d0 as ref parser.Node)
+    }
+    if concrete.kind == parser.TY_FIXED_ARR {
+        return concrete
+    }
+    return none
+}
+
+fn gen_fixed_arr_fill(
+    ctx: mut ref CCtx,
+    buf_tmp: i64,
+    base_off: i64,
+    ty: ref parser.Node,
+    expr: ref parser.Node
+) void = trust {
+    val concrete: ref parser.Node = cc_concrete_ty(ctx, ty)
+    if concrete == none {
+        return
+    }
+    if concrete.kind == parser.TY_MUT {
+        gen_fixed_arr_fill(ctx, buf_tmp, base_off, concrete.d0 as ref parser.Node, expr)
+        return
+    }
+
+    if concrete.kind == parser.TY_FIXED_ARR {
+        val count: i64 = cc_fixed_arr_size_val(ctx, concrete)
+        val inner: ref parser.Node = parser.fixed_arr_inner(concrete)
+        val elem_sz: i64 = c_size_of(ctx, inner)
+
+        val elems: mut ref void = none
+        val elen: mut i64 = 0
+        if expr != none && expr.kind == parser.NK_LIST_LIT {
+            elems = expr.d0 as ref void
+            if elems != none {
+                elen = @len(elems as list[ref void]) as i64
+            }
+        }
+
+        val i: mut i64 = 0
+        for {
+            if i >= count {
+                break
+            }
+            if i < elen {
+                val e_opt = @get(elems as list[ref void], i as usize)
+                if e_opt is some e {
+                    gen_fixed_arr_fill(ctx, buf_tmp, base_off + i * elem_sz, inner, e as ref parser.Node)
+                }
+            }
+            i++
+        }
+        return
+    }
+
+    if expr == none || cc_expr_is_zero_init_like(expr) {
+        return
+    }
+
+    val old_expected = ctx.expected_ty
+    ctx.expected_ty = concrete
+    val val_str: ref u8 = gen_expr(ctx, expr)
+    ctx.expected_ty = old_expected
+
+    val elem_sz: i64 = c_size_of(ctx, concrete)
+    if cc_type_needs_aggregate_copy(ctx, concrete) {
+        val copy_cap: i64 = str.len_raw(val_str) + 192
+        val copy: ref u8 = @alloc(copy_cap) as ref u8
+        @snprintf(copy, copy_cap, "memcpy((void*)(intptr_t)((char*)(intptr_t)sx__fa{lld}+{lld}),(void*)(intptr_t)({s}),{lld});\n",
+            {buf_tmp, base_off, val_str, elem_sz})
+        emit(ctx, copy)
+        @free(copy)
+    } else {
+        val ctype: ref u8 = cc_c_type_of(ctx, concrete)
+        val asg_cap: i64 = str.len_raw(val_str) + str.len_raw(ctype) + 192
+        val asg: ref u8 = @alloc(asg_cap) as ref u8
+        @snprintf(asg, asg_cap, "*({s}*)(intptr_t)((char*)(intptr_t)sx__fa{lld}+{lld})=({s})({s});\n",
+            {ctype, buf_tmp, base_off, ctype, val_str})
+        emit(ctx, asg)
+        @free(asg)
+    }
+}
+
+fn gen_fixed_arr_lit(ctx: mut ref CCtx, expr: ref parser.Node, ty_node: ref parser.Node) ref u8 = trust {
+    val arr_ty: ref parser.Node = cc_fixed_arr_ty(ctx, ty_node)
+    if arr_ty == none {
+        return "0"
+    }
+    val t: i64 = fresh_tmp(ctx)
+    val sz: i64 = c_size_of(ctx, arr_ty)
+    val buf: ref u8 = @alloc(256) as ref u8
+    @snprintf(buf, 256, "int64_t sx__fa{lld}=(int64_t)(intptr_t)calloc(1,{lld});\n", {t, sz})
+    emit(ctx, buf)
+    @free(buf)
+    gen_fixed_arr_fill(ctx, t, 0, arr_ty, expr)
+    val res: ref u8 = @alloc(64) as ref u8
+    @snprintf(res, 64, "(int64_t)(intptr_t)sx__fa{lld}", {t})
+    return cc_expr_track(ctx, res)
 }
 
 fn gen_field_addr(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
