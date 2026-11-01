@@ -53,8 +53,6 @@ when posix {
 }
 
 when windows {
-    // WinINet is used for HTTP(S) requests; it ships with Windows and needs no
-    // external runtime like libcurl.
     extern (C, header) fn InternetOpenA(
         agent: ref u8,
         access: u32,
@@ -104,7 +102,6 @@ when windows {
     ) i32 = "InternetReadFile"
     extern (C, header) fn InternetCloseHandle(handle: ref void) i32 = "InternetCloseHandle"
 
-    // Winsock is used for the TCP server implementation.
     extern (C, header) fn WSAStartup(version: u16, data: ref void) i32 = "WSAStartup"
     extern (C, header) fn WSACleanup() i32 = "WSACleanup"
     extern (C, header) fn win_socket(domain: i32, type_: i32, protocol: i32) u64 = "socket"
