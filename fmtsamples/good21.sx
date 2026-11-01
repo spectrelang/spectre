@@ -1,0 +1,4 @@
+/// Some comment...
+pub fn some_function() void = {
+    @puts("hello")
+}

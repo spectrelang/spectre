@@ -2459,6 +2459,29 @@ fn format_for_headers(src: ref u8) ref u8 = trust {
     return apply_edits(src, edits)
 }
 
+fn trim_leading_newlines(src: ref u8) ref u8 = trust {
+    val len: i64 = str.len_raw(src)
+    val start: mut i64 = 0
+
+    for {
+        if start >= len - 1 {
+            break
+        }
+        if byte_at(src, start) != 10 {
+            break
+        }
+        start++
+    }
+
+    if start == 0 {
+        return src
+    }
+
+    val out: mut ref Buf = buf_new(len - start + 1)
+    buf_append_bytes(out, src, start, len - start)
+    return buf_build(out)
+}
+
 fn format_source(src: ref u8) ref u8 = trust {
     val rewritten: ref u8 = rewrite_matches(src)
     val for_normalized: ref u8 = format_for_headers(rewritten)
@@ -2474,7 +2497,8 @@ fn format_source(src: ref u8) ref u8 = trust {
     val return_spaced: ref u8 = format_fn_return_spacing(brace_spaced)
     val indented: ref u8 = reindent(return_spaced)
     val imports_aligned: ref u8 = format_import_alignment(indented)
-    return format_top_level_decl_gaps(imports_aligned)
+    val gaps_normalized: ref u8 = format_top_level_decl_gaps(imports_aligned)
+    return trim_leading_newlines(gaps_normalized)
 }
 
 fn has_sx_suffix(file: ref u8) bool = {
