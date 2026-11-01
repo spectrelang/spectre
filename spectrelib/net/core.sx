@@ -882,25 +882,32 @@ pub fn (TcpServer) listen[A: allocators.GeneralAllocator](ac: A, port: i32) ref 
     val so_reuseaddr: mut i32 = 2
 
     when linux {
-        sol_socket = 1      so_reuseaddr = 2
+        sol_socket = 1
+        so_reuseaddr = 2
     }
     when darwin {
-        sol_socket = 65535  so_reuseaddr = 4
+        sol_socket = 65535
+        so_reuseaddr = 4
     }
     when netbsd {
-        sol_socket = 65535  so_reuseaddr = 4
+        sol_socket = 65535
+        so_reuseaddr = 4
     }
     when freebsd {
-        sol_socket = 65535  so_reuseaddr = 4
+        sol_socket = 65535
+        so_reuseaddr = 4
     }
     when openbsd {
-        sol_socket = 65535  so_reuseaddr = 4
+        sol_socket = 65535
+        so_reuseaddr = 4
     }
     when dragonflybsd {
-        sol_socket = 65535  so_reuseaddr = 4
+        sol_socket = 65535
+        so_reuseaddr = 4
     }
     when windows {
-        sol_socket = 65535  so_reuseaddr = 4
+        sol_socket = 65535
+        so_reuseaddr = 4
     }
 
     val one: mut ref I32Slot = @alloc(4) as mut ref I32Slot
