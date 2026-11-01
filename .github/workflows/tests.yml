@@ -27,7 +27,9 @@ jobs:
           sudo apt-get install -y \
             libsdl2-dev libsdl3-dev \
             libcurl4-openssl-dev libnghttp2-dev \
-            libssl-dev zlib1g-dev libbrotli-dev
+            libssl-dev zlib1g-dev libbrotli-dev libzstd-dev \
+            libkrb5-dev libgpg-error-dev libjitterentropy3-dev \
+            libunistring-dev libp11-kit-dev
 
       - name: Install Spectre toolchain
         run: curl -fsSL https://spectrelang.org/get.sh | sh
