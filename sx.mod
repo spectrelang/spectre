@@ -10,6 +10,9 @@ build prod {
 
 build dev {
     output "./spectre-dev"
+    env {
+        GIT_HASH=dev-build-unknown
+    }
 }
 
 build quick {
