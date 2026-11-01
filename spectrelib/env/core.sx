@@ -3,6 +3,7 @@
 /// SPDX-License-Identifier: GPL-3.0-only
 /// (C) Navid Momtahen - 2026
 
+/// The getenv extern.
 extern (C) fn getenv(name: ref u8) ref u8 = "getenv"
 
 /// Get an environment variable.

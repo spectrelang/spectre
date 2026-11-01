@@ -325,14 +325,10 @@ fn update_doc_map_for_line(map: ref DocMap, trimmed: ref u8, line_no: i64, curre
         return ""
     }
 
-    if !str_eq(trimmed, "") {
-        return ""
-    }
-
     guarded post {
         lengths_match: @len(map.lines) == @len(map.docs)
     }
-    return current_doc
+    return ""
 }
 
 fn extract_doc_map(src: ref u8) ref DocMap = trust {
@@ -979,6 +975,7 @@ fn load_module(source_path: ref u8, rel_path: ref u8) ref DocModule = trust {
         stdio.print("error: could not read '{s}'\n", {source_path})
         os.exit(1)
     }
+    val doc_map = extract_doc_map(src)
     val toks_res = lexer.tokenize(src)
     allocators.Arena.free(src_arena)
     val toks: mut list[ref lexer.Token] = []
@@ -1002,7 +999,6 @@ fn load_module(source_path: ref u8, rel_path: ref u8) ref DocModule = trust {
             os.exit(1)
         }
     }
-    val doc_map = extract_doc_map(src)
     val mod: mut ref DocModule = @alloc(@sizeof(DocModule)) as ref DocModule
     mod.source_path = source_path
     mod.rel_path = rel_path
@@ -2387,6 +2383,22 @@ test {
     )
 
     assert str_eq(trust lookup_doc(docs_no_trailing_nl, 2), "tail docs")
+
+    val gapped_docs = trust extract_doc_map(
+        \\/// detached header
+        \\
+        \\/// getenv docs
+        \\extern (C) fn getenv(name: ref u8) ref u8 = "getenv"
+    )
+    assert str_eq(trust lookup_doc(gapped_docs, 4), "getenv docs")
+
+    val header_only_docs = trust extract_doc_map(
+        \\/// detached header
+        \\
+        \\pub fn get(name: ref u8) ref u8 = {}
+    )
+    assert str_eq(trust lookup_doc(header_only_docs, 3), "")
+
     assert str_eq(trust slugify("Hello.World"), "hello-world")
     assert str_eq(trust strip_sx_ext("src/meta/docs.sx"), "src/meta/docs")
 
