@@ -36,6 +36,20 @@ jobs:
         id: build
         run: ./fw/build.sh
 
+      - name: Collect environment diagnostics
+        run: |
+          echo "::group::System"
+          uname -a
+          echo "::endgroup::"
+
+          echo "::group::Network: https://example.com"
+          curl -sS -I --max-time 15 https://example.com || true
+          echo "::endgroup::"
+
+          echo "::group::TCP listeners on port 8080"
+          ss -ltn 2>/dev/null | grep ':8080' || true
+          echo "::endgroup::"
+
       - name: Run fw/test_alt.sh (C backend)
         run: |
           set -o pipefail
@@ -74,3 +88,11 @@ jobs:
               echo '```'
             done
           } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload test logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: spectre-test-logs
+          path: ${{ runner.temp }}/spectre-test-logs
+          if-no-files-found: ignore

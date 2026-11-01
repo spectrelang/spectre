@@ -25,6 +25,9 @@ if [ ! -x "$COMPILER" ]; then
     exit 1
 fi
 
+LOG_DIR="${TEST_LOG_DIR:-${RUNNER_TEMP:-${TMPDIR:-/tmp}}/spectre-test-logs}"
+mkdir -p "$LOG_DIR"
+
 run_samples() {
     for file in "$SAMPLES_DIR"/*.sx; do
         [ -e "$file" ] || continue
@@ -92,10 +95,13 @@ run_samples() {
 run_std_tests() {
     find "$STD_DIR" -type f -name "*.sx" | sort | while IFS= read -r file; do
         filename=$(basename "$file")
+        log_name="${file#./}"
+        log_name="${log_name//\//_}"
+        log_file="$LOG_DIR/std_${log_name}.log"
 
         ((total++))
 
-        "$COMPILER" "$file" --test > /dev/null 2>&1 < /dev/null
+        "$COMPILER" "$file" --test >"$log_file" 2>&1 < /dev/null
         status=$?
 
         if [ $status -eq 0 ]; then
@@ -103,6 +109,13 @@ run_std_tests() {
             ((passed++))
         else
             echo "[FAIL] $file"
+            echo "  command: $COMPILER $file --test"
+            echo "  log: $log_file"
+            sed 's/^/  /' "$log_file" | sed -n '1,240p'
+            log_lines=$(wc -l < "$log_file")
+            if [ "$log_lines" -gt 240 ]; then
+                echo "  ... ($log_lines lines total; see $log_file)"
+            fi
             ((failed++))
         fi
     done
@@ -134,6 +147,7 @@ echo "Total tests : $total"
 echo "Passed      : $passed"
 echo "Failed      : $failed"
 echo "Skipped     : $skipped"
+echo "Test logs   : $LOG_DIR"
 echo
 
 if [ $failed -ne 0 ]; then
