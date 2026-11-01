@@ -13,6 +13,7 @@ build dev {
 }
 
 build qbe {
+    flags "--inc-path=/usr/include/SDL2/"
     output "./samples-dev"
 }
 

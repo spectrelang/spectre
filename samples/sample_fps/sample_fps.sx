@@ -503,7 +503,7 @@ fn render_hud() void = trust {
 }
 
 pub fn main() i32 = {
-    trust SDL_Init(sdl_init.SDL_INIT_VIDEO)
+    trust SDL_Init(sdl_init.INIT_VIDEO)
 
     val window: ref void = trust SDL_CreateWindow(
         "cubedoom",

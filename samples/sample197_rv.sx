@@ -1,0 +1,26 @@
+pub fn main() i32 = trust {
+    val buf: ref u8 = @alloc(8) as ref u8
+
+    @store64(buf, 0x1122334455667788)
+    if @load64(buf) != 0x1122334455667788 {
+        return 1
+    }
+
+    @store32(buf, 0xFFFFFFFF)
+    if @load32(buf) != -1 {
+        return 2
+    }
+
+    @store16(buf, 0xABCD)
+    if @load16(buf) != 0xABCD {
+        return 3
+    }
+
+    @store8(buf, 0xEF)
+    if @load8(buf) != 0xEF {
+        return 4
+    }
+
+    @free(buf)
+    return 0
+}

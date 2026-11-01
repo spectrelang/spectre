@@ -66,6 +66,10 @@ pub type CgCtx = {
     current_module_prefix: mut ref u8
     emitted_labels: mut list[ref u8]
     emitted_shims: mut list[ref u8]
+    c_headers: mut list[ref u8]
+    c_consts: mut list[ref u8]
+    c_const_syms: mut list[ref u8]
+    c_const_index: mut ref void
     release_mode: mut bool
     src_target: mut ref u8
     inv_tnames: mut list[ref u8]
@@ -78,6 +82,12 @@ pub type CgCtx = {
     gsubst_names: mut list[ref u8]
     gsubst_tnodes: mut list[ref void]
     current_filename: mut ref u8
+}
+
+/// Result of a code generation pass: QBE IR plus any generated C shim.
+pub type CgOutput = {
+    qbe: mut ref u8
+    shim: mut ref u8
 }
 
 fn cg_new() ref CgCtx = trust {
@@ -134,6 +144,10 @@ fn cg_new() ref CgCtx = trust {
     ctx.current_module_prefix = ""
     ctx.emitted_labels = []
     ctx.emitted_shims = []
+    ctx.c_headers = []
+    ctx.c_consts = []
+    ctx.c_const_syms = []
+    ctx.c_const_index = collections.RawIndexMap.new(32 as usize)
     ctx.release_mode = false
     ctx.src_target = ""
     ctx.inv_tnames = []
@@ -1431,6 +1445,81 @@ fn cg_const_val(ctx: ref CgCtx, name: ref u8) ref u8 = trust {
     } else {
         return ""
     }
+}
+
+fn cg_register_c_header(ctx: mut ref CgCtx, header: ref u8) void = trust {
+    if header == none || str.raw_cmp(header, "") == 0 {
+        return
+    }
+    for existing in ctx.c_headers {
+        if str.raw_cmp(existing, header) == 0 {
+            return
+        }
+    }
+    @append(ctx.c_headers, header)
+}
+
+/// Register a C header constant and return the symbol used by the C shim.
+fn cg_c_const_symbol(ctx: mut ref CgCtx, raw_name: ref u8) ref u8 = trust {
+    if raw_name == none || str.raw_cmp(raw_name, "") == 0 {
+        return ""
+    }
+    if collections.RawIndexMap.get(ctx.c_const_index, raw_name) is some v {
+        return v as ref u8
+    }
+    val idx: i64 = @len(ctx.c_consts) as i64
+    val sym: ref u8 = @alloc(64) as ref u8
+    @snprintf(sym, 64, "sxqbe_c_{lld}", {idx})
+    @append(ctx.c_consts, raw_name)
+    @append(ctx.c_const_syms, sym)
+    val sym_usize: mut usize = 0
+    @store(@addr(sym_usize) as ref void, sym)
+    collections.RawIndexMap.set(ctx.c_const_index, raw_name, sym_usize)
+    return sym
+}
+
+/// Build the C translation unit that exposes C header constants to QBE.
+fn cg_build_c_shim(ctx: ref CgCtx) ref u8 = trust {
+    val n_consts: i64 = @len(ctx.c_consts) as i64
+    if n_consts == 0 {
+        return ""
+    }
+
+    val sb: ref void = str.StringBuilder.new()
+    for header in ctx.c_headers {
+        val inc: ref u8 = @alloc(str.len_raw(header) + 16) as ref u8
+        @snprintf(inc, str.len_raw(header) + 16, "#include \"{s}\"\n", {header})
+        str.StringBuilder.append_cstr(sb, inc)
+        @free(inc)
+    }
+    if (@len(ctx.c_headers) as i64) > 0 {
+        str.StringBuilder.append_cstr(sb, "\n")
+    }
+
+    val i: mut i64 = 0
+    for {
+        if i >= n_consts {
+            break
+        }
+        val raw_opt = @get(ctx.c_consts, i as usize)
+        val sym_opt = @get(ctx.c_const_syms, i as usize)
+        if raw_opt is some rv {
+            if sym_opt is some sv {
+                val raw: ref u8 = rv as ref u8
+                val sym: ref u8 = sv as ref u8
+                val def: ref u8 = @alloc(str.len_raw(raw) + str.len_raw(sym) + 48) as ref u8
+                @snprintf(def, str.len_raw(raw) + str.len_raw(sym) + 48, "long long {s} = (long long)({s});\n", {sym, raw})
+                str.StringBuilder.append_cstr(sb, def)
+                @free(def)
+            }
+        }
+        i++
+    }
+
+    val built: ref void = str.StringBuilder.build(sb)
+    val out: ref u8 = str.cstr(built)
+    str.StringBuilder.free(sb)
+    return out
 }
 
 fn cg_is_int_const_val(cval: ref u8) bool = trust {
@@ -6246,14 +6335,25 @@ fn gen_field(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
     val field_name: ref u8 = expr.d1 as ref u8
     if cg_is_c_escape_expr(expr) {
         val raw_name: ref u8 = cg_raw_c_name(expr)
-        val tmp_raw: i64 = fresh_tmp(ctx)
-        val raw_buf: ref u8 = @alloc(256) as ref u8
-        @snprintf(raw_buf, 256, "    %%t{lld} =l copy ${s}\n", {tmp_raw, raw_name})
-        emit(ctx, raw_buf)
-        @free(raw_buf)
-        val raw_res: ref u8 = @alloc(16) as ref u8
-        @snprintf(raw_res, 16, "%%t{lld}", {tmp_raw})
-        return raw_res
+        if str.raw_cmp(raw_name, "") != 0 {
+            val sym: ref u8 = cg_c_const_symbol(ctx, raw_name)
+            val tmp_raw: i64 = fresh_tmp(ctx)
+            val raw_buf: ref u8 = @alloc(256) as ref u8
+            @snprintf(raw_buf, 256, "    %%t{lld} =l loadl ${s}\n", {tmp_raw, sym})
+            emit(ctx, raw_buf)
+            @free(raw_buf)
+            val raw_res: ref u8 = @alloc(16) as ref u8
+            @snprintf(raw_res, 16, "%%t{lld}", {tmp_raw})
+            return raw_res
+        }
+        val tmp_raw2: i64 = fresh_tmp(ctx)
+        val raw_buf2: ref u8 = @alloc(256) as ref u8
+        @snprintf(raw_buf2, 256, "    %%t{lld} =l copy 0\n", {tmp_raw2})
+        emit(ctx, raw_buf2)
+        @free(raw_buf2)
+        val raw_res2: ref u8 = @alloc(16) as ref u8
+        @snprintf(raw_res2, 16, "%%t{lld}", {tmp_raw2})
+        return raw_res2
     }
 
     if base_expr != none && base_expr.kind == parser.NK_FIELD {
@@ -7927,11 +8027,11 @@ fn gen_builtin(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
         val len2: ref u8 = get_arg(ctx, args, 2)
         @snprintf(buf, 512, "    call $memset(l {s}, w {s}, l {s})\n    %%t{lld} =l copy 0\n", {dst2, val2, len2, tmp})
         emit(ctx, buf)
-    } elif str.raw_cmp(name, "load") == 0 {
+    } elif str.raw_cmp(name, "load") == 0 || str.raw_cmp(name, "load64") == 0 {
         val ptr3: ref u8 = get_arg(ctx, args, 0)
         @snprintf(buf, 512, "    %%t{lld} =l loadl {s}\n", {tmp, ptr3})
         emit(ctx, buf)
-    } elif str.raw_cmp(name, "store") == 0 {
+    } elif str.raw_cmp(name, "store") == 0 || str.raw_cmp(name, "store64") == 0 {
         val ptr4: ref u8 = get_arg(ctx, args, 0)
         val val3_node_opt = @get(args, 1)
         val val3: ref u8 = get_arg(ctx, args, 1)
@@ -7961,10 +8061,70 @@ fn gen_builtin(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
         @free(wbuf)
         @snprintf(buf, 512, "    %%t{lld} =l extsw %%t{lld}\n", {tmp, w_tmp})
         emit(ctx, buf)
+    } elif str.raw_cmp(name, "load16") == 0 {
+        val ptr16: ref u8 = get_arg(ctx, args, 0)
+        val w_tmp16: i64 = fresh_tmp(ctx)
+        val wbuf16: ref u8 = @alloc(64) as ref u8
+        @snprintf(wbuf16, 64, "    %%t{lld} =w loaduh {s}\n", {w_tmp16, ptr16})
+        emit(ctx, wbuf16)
+        @free(wbuf16)
+        @snprintf(buf, 512, "    %%t{lld} =l extsw %%t{lld}\n", {tmp, w_tmp16})
+        emit(ctx, buf)
+    } elif str.raw_cmp(name, "load32") == 0 {
+        val ptr32: ref u8 = get_arg(ctx, args, 0)
+        val w_tmp32: i64 = fresh_tmp(ctx)
+        val wbuf32: ref u8 = @alloc(64) as ref u8
+        @snprintf(wbuf32, 64, "    %%t{lld} =w loadsw {s}\n", {w_tmp32, ptr32})
+        emit(ctx, wbuf32)
+        @free(wbuf32)
+        @snprintf(buf, 512, "    %%t{lld} =l extsw %%t{lld}\n", {tmp, w_tmp32})
+        emit(ctx, buf)
     } elif str.raw_cmp(name, "store8") == 0 {
         val ptr6: ref u8 = get_arg(ctx, args, 0)
         val val4: ref u8 = get_arg(ctx, args, 1)
         @snprintf(buf, 512, "    storeb {s}, {s}\n    %%t{lld} =l copy 0\n", {val4, ptr6, tmp})
+        emit(ctx, buf)
+    } elif str.raw_cmp(name, "store16") == 0 {
+        val ptr16: ref u8 = get_arg(ctx, args, 0)
+        val val16: ref u8 = get_arg(ctx, args, 1)
+        val val16_node_opt = @get(args, 1)
+        val val16_qtype: mut ref u8 = "l"
+        if val16_node_opt is some vn16 {
+            val16_qtype = expr_qbe_type(ctx, vn16 as ref parser.Node)
+        }
+        val store_val16: mut ref u8 = val16
+        if str.raw_cmp(val16_qtype, "w") != 0 {
+            val trunc16: i64 = fresh_tmp(ctx)
+            val trunc16_buf: ref u8 = @alloc(64) as ref u8
+            @snprintf(trunc16_buf, 64, "    %%t{lld} =w copy {s}\n", {trunc16, val16})
+            emit(ctx, trunc16_buf)
+            @free(trunc16_buf)
+            val trunc16_res: ref u8 = @alloc(16) as ref u8
+            @snprintf(trunc16_res, 16, "%%t{lld}", {trunc16})
+            store_val16 = trunc16_res
+        }
+        @snprintf(buf, 512, "    storeh {s}, {s}\n    %%t{lld} =l copy 0\n", {store_val16, ptr16, tmp})
+        emit(ctx, buf)
+    } elif str.raw_cmp(name, "store32") == 0 {
+        val ptr32: ref u8 = get_arg(ctx, args, 0)
+        val val32: ref u8 = get_arg(ctx, args, 1)
+        val val32_node_opt = @get(args, 1)
+        val val32_qtype: mut ref u8 = "l"
+        if val32_node_opt is some vn32 {
+            val32_qtype = expr_qbe_type(ctx, vn32 as ref parser.Node)
+        }
+        val store_val32: mut ref u8 = val32
+        if str.raw_cmp(val32_qtype, "w") != 0 {
+            val trunc32: i64 = fresh_tmp(ctx)
+            val trunc32_buf: ref u8 = @alloc(64) as ref u8
+            @snprintf(trunc32_buf, 64, "    %%t{lld} =w copy {s}\n", {trunc32, val32})
+            emit(ctx, trunc32_buf)
+            @free(trunc32_buf)
+            val trunc32_res: ref u8 = @alloc(16) as ref u8
+            @snprintf(trunc32_res, 16, "%%t{lld}", {trunc32})
+            store_val32 = trunc32_res
+        }
+        @snprintf(buf, 512, "    storew {s}, {s}\n    %%t{lld} =l copy 0\n", {store_val32, ptr32, tmp})
         emit(ctx, buf)
     } elif str.raw_cmp(name, "ptradd") == 0 {
         val ptr7: ref u8 = get_arg(ctx, args, 0)
@@ -12325,6 +12485,8 @@ fn gen_items_with_prefix(ctx: mut ref CgCtx, items: list[ref parser.Node], mod_p
                 val etname: ref u8 = node.d1 as ref u8
                 val etfields: ref void = node.d2 as ref void
                 cg_register_struct(ctx, etname, etfields, true)
+            } elif k == parser.NK_EXTERN_HEADER {
+                cg_register_c_header(ctx, node.d0 as ref u8)
             } elif k == parser.NK_WHEN_ITEMS {
                 val plat: ref u8 = node.d0 as ref u8
                 if cg_platform_matches(ctx, plat) {
@@ -13071,7 +13233,7 @@ fn cg_finish_qbe(ctx: mut ref CgCtx) ref u8 = trust {
 
 /// Main entry for the resolved module tree.
 /// Flattens children depth-first, emits each layer with its mangled prefix.
-pub fn gen_module_resolved(root: ref module.ResolvedModule, release_mode: bool, src_target: ref u8) ref u8 = trust {
+pub fn gen_module_resolved(root: ref module.ResolvedModule, release_mode: bool, src_target: ref u8) ref CgOutput = trust {
     val ctx: mut ref CgCtx = cg_new()
     ctx.release_mode = release_mode
     ctx.src_target = src_target
@@ -13192,7 +13354,10 @@ pub fn gen_module_resolved(root: ref module.ResolvedModule, release_mode: bool, 
 
     emit_string_data(ctx)
 
-    return cg_finish_qbe(ctx)
+    val cg_out: mut ref CgOutput = @alloc(@sizeof(CgOutput)) as ref CgOutput
+    cg_out.qbe = cg_finish_qbe(ctx)
+    cg_out.shim = cg_build_c_shim(ctx)
+    return cg_out
 }
 
 pub fn get_used_prefixes(root: ref module.ResolvedModule) list[ref u8] = trust {
@@ -13368,7 +13533,7 @@ fn gen_test_main(ctx: mut ref CgCtx, test_ids: list[i64]) void = trust {
 
 /// Entry point for --test mode: emits test blocks from root module only,
 /// suppresses main(), and emits a test runner $main.
-pub fn gen_module_resolved_test(root: ref module.ResolvedModule, release_mode: bool, src_target: ref u8) ref u8 = trust {
+pub fn gen_module_resolved_test(root: ref module.ResolvedModule, release_mode: bool, src_target: ref u8) ref CgOutput = trust {
     val ctx: mut ref CgCtx = cg_new()
     ctx.release_mode = release_mode
     ctx.src_target = src_target
@@ -13543,7 +13708,10 @@ pub fn gen_module_resolved_test(root: ref module.ResolvedModule, release_mode: b
     gen_test_main(ctx, test_ids)
     emit_string_data(ctx)
 
-    return cg_finish_qbe(ctx)
+    val cg_out: mut ref CgOutput = @alloc(@sizeof(CgOutput)) as ref CgOutput
+    cg_out.qbe = cg_finish_qbe(ctx)
+    cg_out.shim = cg_build_c_shim(ctx)
+    return cg_out
 }
 
 /// Like gen_items_with_prefix but skips NK_LINK directives.
@@ -13585,6 +13753,8 @@ fn gen_items_with_prefix_skip_links(ctx: mut ref CgCtx, items: list[ref parser.N
                 val etname: ref u8 = node.d1 as ref u8
                 val etfields: ref void = node.d2 as ref void
                 cg_register_struct(ctx, etname, etfields, true)
+            } elif k == parser.NK_EXTERN_HEADER {
+                cg_register_c_header(ctx, node.d0 as ref u8)
             } elif k == parser.NK_WHEN_ITEMS {
                 val plat: ref u8 = node.d0 as ref u8
                 if cg_platform_matches(ctx, plat) {
