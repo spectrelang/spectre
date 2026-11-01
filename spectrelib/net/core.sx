@@ -3,23 +3,22 @@ link "-lcurl"
 val allocators = use("../allocators")
 
 when darwin {
-    link "-L/opt/homebrew/opt/curl/lib"
+    lib "curl"
     link "-framework CoreFoundation"
     link "-framework Security"
     link "-framework SystemConfiguration"
     link "-framework CFNetwork"
     link "-lz"
     link "-lldap"
-    link "-L/opt/homebrew/Cellar/libnghttp2/1.68.1/lib"
-    link "-lnghttp2"
+    lib "nghttp2"
 }
 
 when linux {
-    link "-lcurl"
+    lib "curl"
     link "-lz"
     link "-lssl"
     link "-lcrypto"
-    link "-lnghttp2"
+    lib "nghttp2"
     link "-lbrotlidec"
     link "-lbrotlicommon"
 }

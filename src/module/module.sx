@@ -8,6 +8,7 @@ val allocators = use("std/allocators")
 val parser     = use("../ast/parser.sx")
 val lexer      = use("../ast/lexer.sx")
 val defines    = use("../meta/defines.sx")
+val libfind    = use("../meta/libfind.sx")
 
 /// A resolved module: its parsed items plus a map of named child imports.
 /// Stored as parallel lists: import_names[i] <-> import_modules[i].
@@ -999,7 +1000,7 @@ fn expr_references_import_shallow(node: ref parser.Node, import_name: ref u8) bo
 /// needed_children: optional list of child import names that must be loaded (for DCE)
 fn items_have_external_links(items: list[ref parser.Node]) bool = trust {
     for item in items {
-        if item.kind == parser.NK_LINK {
+        if item.kind == parser.NK_LINK || item.kind == parser.NK_LIB {
             return true
         } elif item.kind == parser.NK_WHEN_ITEMS {
             val witems: list[ref parser.Node] = item.d1 as list[ref parser.Node]
@@ -1438,9 +1439,27 @@ pub fn flatten_modules_with_files(
     @append(out_filenames as list[ref u8], str.cstr(m.filename))
 }
 
+fn resolve_link_directive(
+    item: ref parser.Node,
+    platform: ref u8,
+    static_link: bool
+) result[list[ref u8], ref u8] = trust {
+    val flags: mut list[ref u8] = []
+    if item.kind == parser.NK_LINK {
+        @append(flags, item.d0 as ref u8)
+    } elif item.kind == parser.NK_LIB {
+        return libfind.resolve(item.d0 as ref u8, platform, static_link)
+    }
+    return ok flags
+}
+
 /// Collect all link statements from a module's items.
 /// Returns a list of link flags (strings like "-lcurl" or full paths).
-pub fn collect_links(items: list[ref parser.Node], exe_dir: ref u8) list[ref u8] = trust {
+pub fn collect_links(
+    items: list[ref parser.Node],
+    exe_dir: ref u8,
+    static_link: bool
+) result[list[ref u8], ref u8] = trust {
     val arena: mut allocators.Arena = allocators.Arena.new(256 as usize)?
     val links: mut list[ref u8] = []
     val p: i64 = reflection.get_current_platform[allocators.Arena](arena) as i64
@@ -1466,9 +1485,11 @@ pub fn collect_links(items: list[ref parser.Node], exe_dir: ref u8) list[ref u8]
     }
 
     for item in items {
-        if item.kind == parser.NK_LINK {
-            val lib: ref u8 = item.d0 as ref u8
-            @append(links, lib)
+        if item.kind == parser.NK_LINK || item.kind == parser.NK_LIB {
+            val resolved = resolve_link_directive(item, platform, static_link)?
+            for flag in resolved {
+                @append(links, flag)
+            }
         } elif item.kind == parser.NK_WHEN_ITEMS {
             val when_platform: ref u8 = item.d0 as ref u8
             val matched: mut bool = false
@@ -1476,8 +1497,9 @@ pub fn collect_links(items: list[ref parser.Node], exe_dir: ref u8) list[ref u8]
                 matched = true
                 val when_items: list[ref parser.Node] = item.d1 as list[ref parser.Node]
                 for wnode in when_items {
-                    if wnode.kind == parser.NK_LINK {
-                        @append(links, wnode.d0 as ref u8)
+                    val resolved = resolve_link_directive(wnode, platform, static_link)?
+                    for flag in resolved {
+                        @append(links, flag)
                     }
                 }
             }
@@ -1491,8 +1513,9 @@ pub fn collect_links(items: list[ref parser.Node], exe_dir: ref u8) list[ref u8]
                                 matched = true
                                 val ob_items: list[ref parser.Node] = ob.d1 as list[ref parser.Node]
                                 for obnode in ob_items {
-                                    if obnode.kind == parser.NK_LINK {
-                                        @append(links, obnode.d0 as ref u8)
+                                    val resolved = resolve_link_directive(obnode, platform, static_link)?
+                                    for flag in resolved {
+                                        @append(links, flag)
                                     }
                                 }
                             }
@@ -1504,8 +1527,9 @@ pub fn collect_links(items: list[ref parser.Node], exe_dir: ref u8) list[ref u8]
                 val otherwise: ref void = item.d3 as ref void
                 if otherwise != none {
                     for ow in otherwise as list[ref parser.Node] {
-                        if ow.kind == parser.NK_LINK {
-                            @append(links, ow.d0 as ref u8)
+                        val resolved = resolve_link_directive(ow, platform, static_link)?
+                        for flag in resolved {
+                            @append(links, flag)
                         }
                     }
                 }
@@ -1529,7 +1553,7 @@ pub fn collect_links(items: list[ref parser.Node], exe_dir: ref u8) list[ref u8]
     }
 
     allocators.Arena.free(arena)
-    return result
+    return ok result
 }
 
 /// Collect links only from modules that match the given used_prefixes list.
@@ -1538,8 +1562,9 @@ pub fn collect_links_filtered(
     prefix: ref u8,
     used_prefixes: list[ref u8],
     exe_dir: ref u8,
-    seen: mut list[String]
-) list[ref u8] = trust {
+    seen: mut list[String],
+    static_link: bool
+) result[list[ref u8], ref u8] = trust {
     val slen: i64 = @len(seen) as i64
     val si: mut i64 = 0
     for {
@@ -1552,7 +1577,7 @@ pub fn collect_links_filtered(
                 continue
             }
             if str.equals(s, m.filename) {
-                return []
+                return ok []
             }
         }
         si++
@@ -1580,7 +1605,7 @@ pub fn collect_links_filtered(
     }
 
     if is_used {
-        val my_links: list[ref u8] = collect_links(m.items, exe_dir)
+        val my_links: list[ref u8] = collect_links(m.items, exe_dir, static_link)?
         for lnk in my_links {
             @append(result, lnk)
         }
@@ -1607,8 +1632,9 @@ pub fn collect_links_filtered(
                     child_prefix,
                     used_prefixes,
                     exe_dir,
-                    seen
-                )
+                    seen,
+                    static_link
+                )?
                 for clink in child_links {
                     @append(result, clink)
                 }
@@ -1617,7 +1643,7 @@ pub fn collect_links_filtered(
         ci++
     }
 
-    return result
+    return ok result
 }
 
 /// Collect links from all modules in the tree.
@@ -1625,8 +1651,9 @@ pub fn collect_links_all(
     m: ref ResolvedModule,
     prefix: ref u8,
     exe_dir: ref u8,
-    seen: mut list[String]
-) list[ref u8] = trust {
+    seen: mut list[String],
+    static_link: bool
+) result[list[ref u8], ref u8] = trust {
     val slen: i64 = @len(seen) as i64
     val si: mut i64 = 0
     for {
@@ -1639,7 +1666,7 @@ pub fn collect_links_all(
                 continue
             }
             if str.equals(s, m.filename) {
-                return []
+                return ok []
             }
         }
         si++
@@ -1649,7 +1676,7 @@ pub fn collect_links_all(
 
     val result: mut list[ref u8] = []
 
-    val my_links: list[ref u8] = collect_links(m.items, exe_dir)
+    val my_links: list[ref u8] = collect_links(m.items, exe_dir, static_link)?
     for lnk in my_links {
         @append(result, lnk)
     }
@@ -1674,8 +1701,9 @@ pub fn collect_links_all(
                     child as ref ResolvedModule,
                     child_prefix,
                     exe_dir,
-                    seen
-                )
+                    seen,
+                    static_link
+                )?
                 for clink in child_links {
                     @append(result, clink)
                 }
@@ -1684,7 +1712,7 @@ pub fn collect_links_all(
         ci++
     }
 
-    return result
+    return ok result
 }
 
 /// Check if a platform name matches the current platform.
@@ -2997,12 +3025,13 @@ pub fn collect_unused_import_names_in_items(items: list[ref parser.Node]) list[r
 /// Mirrors the reference compiler's collect_used_libs logic.
 pub fn collect_used_links(
     m: ref ResolvedModule,
-    exe_dir: ref u8
-) list[ref u8] = trust {
+    exe_dir: ref u8,
+    static_link: bool
+) result[list[ref u8], ref u8] = trust {
     val result: mut list[ref u8] = []
     val seen: mut list[String] = []
 
-    val my_links: list[ref u8] = collect_links(m.items, exe_dir)
+    val my_links: list[ref u8] = collect_links(m.items, exe_dir, static_link)?
     for lnk in my_links {
         @append(result, lnk)
     }
@@ -3025,8 +3054,9 @@ pub fn collect_used_links(
                         val child_links: list[ref u8] = collect_used_links_recursive(
                             child as ref ResolvedModule,
                             exe_dir,
-                            seen
-                        )
+                            seen,
+                            static_link
+                        )?
                         for clink in child_links {
                             @append(result, clink)
                         }
@@ -3060,15 +3090,16 @@ pub fn collect_used_links(
         }
     }
 
-    return deduped
+    return ok deduped
 }
 
 /// Recursively collect links from a module and its used imports.
 fn collect_used_links_recursive(
     m: ref ResolvedModule,
     exe_dir: ref u8,
-    seen: mut list[String]
-) list[ref u8] = trust {
+    seen: mut list[String],
+    static_link: bool
+) result[list[ref u8], ref u8] = trust {
     val slen: i64 = @len(seen) as i64
     val si: mut i64 = 0
     for {
@@ -3081,7 +3112,7 @@ fn collect_used_links_recursive(
                 continue
             }
             if str.equals(s, m.filename) {
-                return []
+                return ok []
             }
         }
         si++
@@ -3091,7 +3122,7 @@ fn collect_used_links_recursive(
 
     val result: mut list[ref u8] = []
 
-    val my_links: list[ref u8] = collect_links(m.items, exe_dir)
+    val my_links: list[ref u8] = collect_links(m.items, exe_dir, static_link)?
     for lnk in my_links {
         @append(result, lnk)
     }
@@ -3114,8 +3145,9 @@ fn collect_used_links_recursive(
                         val child_links: list[ref u8] = collect_used_links_recursive(
                             child as ref ResolvedModule,
                             exe_dir,
-                            seen
-                        )
+                            seen,
+                            static_link
+                        )?
                         for clink in child_links {
                             @append(result, clink)
                         }
@@ -3127,5 +3159,5 @@ fn collect_used_links_recursive(
         }
     }
 
-    return result
+    return ok result
 }

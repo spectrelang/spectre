@@ -16,6 +16,7 @@ pub val NK_WHEN_ITEMS: i64 = 10
 pub val NK_TAGGED_UNIONDEF: i64 = 11
 pub val NK_SPEC: i64 = 12
 pub val NK_EXTERN_HEADER: i64 = 53
+pub val NK_LIB: i64 = 54
 pub val NK_VAL: i64 = 20
 pub val NK_ASSIGN: i64 = 21
 pub val NK_RETURN: i64 = 22
@@ -1092,6 +1093,16 @@ fn kind_is_extern(k: lexer.TokenKind) bool = trust {
 fn kind_is_link(k: lexer.TokenKind) bool = trust {
     match k {
         Link() => {
+            return true
+        } else => {
+            return false
+        }
+    }
+}
+
+fn kind_is_lib(k: lexer.TokenKind) bool = trust {
+    match k {
+        Lib() => {
             return true
         } else => {
             return false
@@ -3489,9 +3500,17 @@ pub fn parse_item(p: mut ref Parser) result[ref Node, ref u8] = trust {
 
     if kind_is_link(k) {
         p_advance(p)
-        val lib = p_expect_string(p)?
+        val link_arg = p_expect_string(p)?
         val nl: mut ref Node = make_node(NK_LINK, line)
-        node_store_slot[ref u8](@addr(nl.d0), lib)
+        node_store_slot[ref u8](@addr(nl.d0), link_arg)
+        return ok nl
+    }
+
+    if kind_is_lib(k) {
+        p_advance(p)
+        val lib_name = p_expect_string(p)?
+        val nl: mut ref Node = make_node(NK_LIB, line)
+        node_store_slot[ref u8](@addr(nl.d0), lib_name)
         return ok nl
     }
 

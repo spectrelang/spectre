@@ -234,6 +234,9 @@ fn sanitize_identifier(name: ref u8) ref u8 = {
     if string.raw_cmp(name, "link") == 0 {
         return "link_value"
     }
+    if string.raw_cmp(name, "lib") == 0 {
+        return "lib_value"
+    }
     if string.raw_cmp(name, "guarded") == 0 {
         return "guarded_value"
     }

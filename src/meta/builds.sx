@@ -148,13 +148,13 @@ pub fn filter_c_diagnostics(raw: ref u8) ref u8 = trust {
 
 pub fn root_has_direct_links(items: list[ref parser.Node]) bool = {
     for item in items {
-        if item.kind == parser.NK_LINK {
+        if item.kind == parser.NK_LINK || item.kind == parser.NK_LIB {
             return true
         }
         if item.kind == parser.NK_WHEN_ITEMS {
             val when_items: list[ref parser.Node] = item.d1 as list[ref parser.Node]
             for w in when_items {
-                if w.kind == parser.NK_LINK {
+                if w.kind == parser.NK_LINK || w.kind == parser.NK_LIB {
                     return true
                 }
             }
@@ -163,7 +163,7 @@ pub fn root_has_direct_links(items: list[ref parser.Node]) bool = {
                 for ob in or_branches as list[ref parser.Node] {
                     val ob_items: list[ref parser.Node] = ob.d1 as list[ref parser.Node]
                     for obn in ob_items {
-                        if obn.kind == parser.NK_LINK {
+                        if obn.kind == parser.NK_LINK || obn.kind == parser.NK_LIB {
                             return true
                         }
                     }
@@ -172,7 +172,7 @@ pub fn root_has_direct_links(items: list[ref parser.Node]) bool = {
             val owise: ref void = item.d3 as ref void
             if owise != none {
                 for ow in owise as list[ref parser.Node] {
-                    if ow.kind == parser.NK_LINK {
+                    if ow.kind == parser.NK_LINK || ow.kind == parser.NK_LIB {
                         return true
                     }
                 }

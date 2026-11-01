@@ -1,14 +1,14 @@
-val lib        = use("./generic_method_linker_lib.sx")
+val lib_mod    = use("./generic_method_linker_lib.sx")
 val allocators = use("std/allocators")
 
 pub type Holder = {
-    demo: lib.Demo
+    demo: lib_mod.Demo
     value: i64
 }
 
 pub fn build_holder[T: allocators.GeneralAllocator](ac: T) Holder = {
-    val d: lib.Demo = lib.Demo.new[T](ac)
-    val value: i64 = lib.Demo.set[T](d, ac)
+    val d: lib_mod.Demo = lib_mod.Demo.new[T](ac)
+    val value: i64 = lib_mod.Demo.set[T](d, ac)
     return {
         demo: d,
         value: value

@@ -1,0 +1,308 @@
+/// Cross-platform library discovery for the `lib "name"` directive.
+///
+/// SPDX-License-Identifier: GPL-3.0-only
+/// (C) Navid Momtahen - 2026
+
+val string = use("std/string")
+val os     = use("std/os")
+val path   = use("std/path")
+
+fn is_trim_char(c: u8) bool = {
+    return c == 32 || c == 9 || c == 10 || c == 13
+}
+
+fn trim_raw(s: ref u8) ref u8 = trust {
+    val len: i64 = string.len_raw(s)
+    val start: mut i64 = 0
+    for {
+        if start >= len {
+            break
+        }
+        val c: u8 = @load8(@ptradd(s, start)) as u8
+        if !is_trim_char(c) {
+            break
+        }
+        start++
+    }
+    val end: mut i64 = len
+    for {
+        if end <= start {
+            break
+        }
+        val c: u8 = @load8(@ptradd(s, end - 1)) as u8
+        if !is_trim_char(c) {
+            break
+        }
+        end--
+    }
+    return string.substr(s, start, end - start)
+}
+
+fn split_flags(s: ref u8) list[ref u8] = trust {
+    val out: mut list[ref u8] = []
+    val len: i64 = string.len_raw(s)
+    val i: mut i64 = 0
+    for {
+        if i >= len {
+            break
+        }
+        val c: u8 = @load8(@ptradd(s, i)) as u8
+        if is_trim_char(c) {
+            i++
+            continue
+        }
+        val start: i64 = i
+        for {
+            if i >= len {
+                break
+            }
+            val c2: u8 = @load8(@ptradd(s, i)) as u8
+            if is_trim_char(c2) {
+                break
+            }
+            i++
+        }
+        @append(out, string.substr(s, start, i - start))
+    }
+    return out
+}
+
+fn split_path_list(raw: ref u8, out: mut list[ref u8]) void = trust {
+    val len: i64 = string.len_raw(raw)
+    val start: mut i64 = 0
+    val i: mut i64 = 0
+    for {
+        val at_end: bool = i == len
+        val c: mut u8 = 0
+        if !at_end {
+            c = @load8(@ptradd(raw, i)) as u8
+        }
+        if at_end || c == 58 || c == 59 {
+            if i > start {
+                @append(out, string.substr(raw, start, i - start))
+            }
+            start = i + 1
+        }
+        if at_end {
+            break
+        }
+        i++
+    }
+}
+
+fn library_basename(name: ref u8) ref u8 = trust {
+    val len0: i64 = string.len_raw(name)
+    val n0: mut ref u8 = name
+    if len0 > 2 && string.raw_starts_with(n0, "-l") {
+        n0 = string.substr(n0, 2, len0 - 2)
+    }
+
+    val len1: i64 = string.len_raw(n0)
+    val n1: mut ref u8 = n0
+    if len1 > 3 && string.raw_starts_with(n1, "lib") {
+        n1 = string.substr(n1, 3, len1 - 3)
+    }
+
+    val len2: i64 = string.len_raw(n1)
+    if len2 > 3 && string.raw_ends_with(n1, ".so") {
+        return string.substr(n1, 0, len2 - 3)
+    }
+    if len2 > 6 && string.raw_ends_with(n1, ".dylib") {
+        return string.substr(n1, 0, len2 - 6)
+    }
+    if len2 > 2 && string.raw_ends_with(n1, ".a") {
+        return string.substr(n1, 0, len2 - 2)
+    }
+    return n1
+}
+
+fn pkg_config_libs(module_name: ref u8, static_link: bool) option[list[ref u8]] = trust {
+    val static_arg: mut ref u8 = ""
+    if static_link {
+        static_arg = " --static"
+    }
+    val cmd: ref u8 = @fmt(
+        "pkg-config --exists {s} && pkg-config --libs{s} {s} 2>/dev/null",
+        {module_name, static_arg, module_name}
+    )
+    val res = os.exec(cmd)
+    match res {
+        ok out => {
+            val text: ref u8 = trim_raw(string.cstr(out))
+            if string.len_raw(text) == 0 {
+                return none
+            }
+            return some split_flags(text)
+        }
+        err _ => {
+            return none
+        }
+    }
+}
+
+fn try_pkg_config(name: ref u8, static_link: bool) option[list[ref u8]] = trust {
+    val direct = pkg_config_libs(name, static_link)
+    if direct is some flags {
+        return some flags
+    }
+
+    val base: ref u8 = library_basename(name)
+    if string.raw_cmp(base, name) != 0 {
+        val base_flags = pkg_config_libs(base, static_link)
+        if base_flags is some bf {
+            return some bf
+        }
+    } else {
+        val prefixed: ref u8 = @fmt("lib{s}", {name})
+        val prefixed_flags = pkg_config_libs(prefixed, static_link)
+        if prefixed_flags is some pf {
+            return some pf
+        }
+    }
+    return none
+}
+
+fn compiler_library_path(base: ref u8, suffix: ref u8) ref u8 = trust {
+    val compilers: list[ref u8] = ["cc", "clang"]
+    val missing: ref u8 = @fmt("lib{s}{s}", {base, suffix})
+    for compiler in compilers {
+        if os.in_path(compiler) {
+            val cmd: ref u8 = @fmt("{s} -print-file-name=lib{s}{s} 2>/dev/null", {compiler, base, suffix})
+            val res = os.exec(cmd)
+            match res {
+                ok out => {
+                    val found: ref u8 = trim_raw(string.cstr(out))
+                    if string.len_raw(found) > 0 && string.raw_cmp(found, missing) != 0 {
+                        return found
+                    }
+                }
+                err _ => {}
+            }
+        }
+    }
+    return ""
+}
+
+fn library_suffixes(platform: ref u8) list[ref u8] = {
+    if string.raw_cmp(platform, "windows") == 0 {
+        val suffixes: list[ref u8] = [".lib", ".dll.a", ".a"]
+        return suffixes
+    }
+    if string.raw_cmp(platform, "darwin") == 0 {
+        val suffixes: list[ref u8] = [".dylib", ".a"]
+        return suffixes
+    }
+    val suffixes: list[ref u8] = [".so", ".a"]
+    return suffixes
+}
+
+fn native_search_dirs(platform: ref u8) list[ref u8] = trust {
+    val dirs: mut list[ref u8] = []
+
+    val library_path: ref u8 = os.getenv("LIBRARY_PATH")
+    if library_path != none {
+        split_path_list(library_path, dirs)
+    }
+
+    @append(dirs, "/usr/local/lib")
+    @append(dirs, "/usr/lib")
+    @append(dirs, "/usr/lib64")
+    @append(dirs, "/lib")
+    @append(dirs, "/lib64")
+
+    if string.raw_cmp(platform, "linux") == 0 {
+        @append(dirs, "/usr/lib/x86_64-linux-gnu")
+        @append(dirs, "/lib/x86_64-linux-gnu")
+        @append(dirs, "/usr/lib/aarch64-linux-gnu")
+        @append(dirs, "/lib/aarch64-linux-gnu")
+        @append(dirs, "/usr/lib/arm-linux-gnueabihf")
+        @append(dirs, "/usr/lib/i386-linux-gnu")
+        @append(dirs, "/usr/lib/riscv64-linux-gnu")
+        @append(dirs, "/usr/lib/powerpc64le-linux-gnu")
+    }
+
+    if string.raw_cmp(platform, "darwin") == 0 {
+        @append(dirs, "/opt/homebrew/lib")
+        @append(dirs, "/opt/local/lib")
+    }
+
+    return dirs
+}
+
+fn find_native(base: ref u8, platform: ref u8) ref u8 = trust {
+    val suffixes: list[ref u8] = library_suffixes(platform)
+    for suffix in suffixes {
+        val compiler_path: ref u8 = compiler_library_path(base, suffix)
+        if string.len_raw(compiler_path) > 0 {
+            return path.dir(compiler_path)
+        }
+    }
+
+    val dirs: list[ref u8] = native_search_dirs(platform)
+    for dir in dirs {
+        for suffix in suffixes {
+            val candidate: ref u8 = @fmt("{s}/lib{s}{s}", {dir, base, suffix})
+            if os.exists(candidate) {
+                return dir
+            }
+        }
+    }
+    return ""
+}
+
+fn requires_pkg_config(platform: ref u8) bool = {
+    if string.raw_cmp(platform, "linux") == 0 {
+        return false
+    }
+    if string.raw_cmp(platform, "freebsd") == 0 {
+        return false
+    }
+    if string.raw_cmp(platform, "openbsd") == 0 {
+        return false
+    }
+    if string.raw_cmp(platform, "netbsd") == 0 {
+        return false
+    }
+    if string.raw_cmp(platform, "dragonflybsd") == 0 {
+        return false
+    }
+    return true
+}
+
+/// Resolve a library name to linker flags for the current platform.
+pub fn resolve(
+    name: ref u8,
+    platform: ref u8,
+    static_link: bool
+) result[list[ref u8], ref u8] = trust {
+    val trimmed: ref u8 = trim_raw(name)
+    if string.len_raw(trimmed) == 0 {
+        return err "library name cannot be empty"
+    }
+
+    val has_pkg_config: bool = os.in_path("pkg-config")
+    if has_pkg_config {
+        val pkg_flags = try_pkg_config(trimmed, static_link)
+        if pkg_flags is some flags {
+            return ok flags
+        }
+    }
+
+    val base: ref u8 = library_basename(trimmed)
+    val dir: ref u8 = find_native(base, platform)
+    if string.len_raw(dir) > 0 {
+        val flags: mut list[ref u8] = []
+        @append(flags, @fmt("-L{s}", {dir}))
+        @append(flags, @fmt("-l{s}", {base}))
+        return ok flags
+    }
+
+    if requires_pkg_config(platform) {
+        if !has_pkg_config {
+            return err "lib syntax for linking is not supported on this platform. install pkg-config to resolve."
+        }
+        return err @fmt("could not resolve library '{s}' with pkg-config", {trimmed})
+    }
+
+    return err @fmt("could not find library '{s}' on this system", {trimmed})
+}

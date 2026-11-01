@@ -12894,7 +12894,7 @@ fn items_have_external_links(items: list[ref parser.Node]) bool = trust {
         val item_opt = @get(items, i as usize)
         if item_opt is some item {
             val node: ref parser.Node = item as ref parser.Node
-            if node.kind == parser.NK_LINK {
+            if node.kind == parser.NK_LINK || node.kind == parser.NK_LIB {
                 return true
             }
             if node.kind == parser.NK_WHEN_ITEMS {
@@ -13988,7 +13988,7 @@ pub fn gen_module_resolved_test(root: ref module.ResolvedModule, release_mode: b
     return cg_out
 }
 
-/// Like gen_items_with_prefix but skips NK_LINK directives.
+/// Like gen_items_with_prefix but skips NK_LINK and NK_LIB directives.
 /// Used to emit module code without pulling in external libraries.
 fn gen_items_with_prefix_skip_links(ctx: mut ref CgCtx, items: list[ref parser.Node], mod_prefix: ref u8) void = trust {
     preregister_items(ctx, items, mod_prefix)
@@ -14002,7 +14002,7 @@ fn gen_items_with_prefix_skip_links(ctx: mut ref CgCtx, items: list[ref parser.N
         if item_opt is some item {
             val node: ref parser.Node = item as ref parser.Node
             val k: i64 = node.kind
-            if k == parser.NK_LINK {
+            if k == parser.NK_LINK || k == parser.NK_LIB {
                 // Skip link directive to avoid pulling in external library
             } elif k == parser.NK_GENERIC_FN {
                 register_generic_fn(ctx, generic_fn_qualified_name(node, mod_prefix), node, mod_prefix)

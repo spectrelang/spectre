@@ -36,6 +36,7 @@ pub union TokenKind = {
     | Enum()
     | Extern()
     | Link()
+    | Lib()
     | Guarded()
     | Not()
     | Test()
@@ -312,6 +313,9 @@ fn keyword_kind(s: ref u8) TokenKind = trust {
     }
     if str_eq(s, "link") {
         return Link()
+    }
+    if str_eq(s, "lib") {
+        return Lib()
     }
     if str_eq(s, "guarded") {
         return Guarded()

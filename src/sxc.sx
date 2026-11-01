@@ -636,7 +636,23 @@ pub fn main() i32 = trust {
             }
         }
 
-        val links_alt: mut list[ref u8] = module.collect_used_links(root_mod, exe_dir)
+        val links_alt_result = module.collect_used_links(
+            root_mod,
+            exe_dir,
+            string.raw_cmp(static_flag_alt, "") != 0
+        )
+        val links_alt: mut list[ref u8] = []
+        match links_alt_result {
+            ok resolved => {
+                links_alt = resolved
+            }
+            err e => {
+                stdio.print("error: {s}\n", {e})
+                os.delete(c_file)
+                allocators.Arena.free(arena)
+                return 1
+            }
+        }
         builds.append_debug_runtime_links(links_alt, exe_dir, quiet, release_mode, arena)
         val link_flags_alt: mut ref u8 = ""
         if string.raw_cmp(static_flag_alt, "") != 0 {
@@ -645,8 +661,8 @@ pub fn main() i32 = trust {
         if string.raw_cmp(strip_flag_alt, "") != 0 {
             link_flags_alt = @fmt("{s} {s}", {link_flags_alt, strip_flag_alt})
         }
-        for lib in links_alt {
-            link_flags_alt = @fmt("{s} {s}", {link_flags_alt, lib})
+        for link_flag in links_alt {
+            link_flags_alt = @fmt("{s} {s}", {link_flags_alt, link_flag})
         }
         val include_flags_alt: mut ref u8 = ""
         for inc_path in inc_paths {
@@ -760,9 +776,6 @@ pub fn main() i32 = trust {
         stdio.puts("[IV ]│ Module used-links collection")
     }
 
-    val links: mut list[ref u8] = module.collect_used_links(root_mod, exe_dir)
-    builds.append_debug_runtime_links(links, exe_dir, quiet, release_mode, arena)
-
     if emit_qbe != 0 {
         stdio.puts(qbe_ir)
         allocators.Arena.free(arena)
@@ -844,12 +857,6 @@ pub fn main() i32 = trust {
         return 0
     }
 
-    val output_specified: bool = string.raw_cmp(output_name, "") != 0
-    val cc_cmd: mut ref u8 = ""
-    val success_msg: mut ref u8 = ""
-    val exit_code: mut i32 = 0
-    val link_flags: mut ref u8 = ""
-    val run_output: mut ref u8 = ""
     val platform: ref u8 = reflection.current_platform_name[allocators.Arena](arena)
     val static_link: mut ref u8 = ""
     val strip_link: mut ref u8 = ""
@@ -857,6 +864,33 @@ pub fn main() i32 = trust {
         static_link = builds.static_link_flag(platform, dynamic_linking)
         strip_link = builds.strip_link_flag(release_mode)
     }
+
+    val links_result = module.collect_used_links(
+        root_mod,
+        exe_dir,
+        string.raw_cmp(static_link, "") != 0
+    )
+    val links: mut list[ref u8] = []
+    match links_result {
+        ok resolved => {
+            links = resolved
+        }
+        err e => {
+            stdio.print("error: {s}\n", {e})
+            os.delete(qbe_file)
+            os.delete(asm_file)
+            allocators.Arena.free(arena)
+            return 1
+        }
+    }
+    builds.append_debug_runtime_links(links, exe_dir, quiet, release_mode, arena)
+
+    val output_specified: bool = string.raw_cmp(output_name, "") != 0
+    val cc_cmd: mut ref u8 = ""
+    val success_msg: mut ref u8 = ""
+    val exit_code: mut i32 = 0
+    val link_flags: mut ref u8 = ""
+    val run_output: mut ref u8 = ""
 
     val shim_c_file: mut ref u8 = ""
     val shim_obj: mut ref u8 = ""
@@ -919,8 +953,8 @@ pub fn main() i32 = trust {
     if string.raw_cmp(strip_link, "") != 0 {
         link_flags = @fmt("{s} {s}", {link_flags, strip_link})
     }
-    for lib in links {
-        link_flags = @fmt("{s} {s}", {link_flags, lib})
+    for link_flag in links {
+        link_flags = @fmt("{s} {s}", {link_flags, link_flag})
     }
 
     if string.len_raw(shim_obj) > 0 && !compile_obj {
