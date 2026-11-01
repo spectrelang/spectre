@@ -60,6 +60,8 @@ jobs:
           echo "::endgroup::"
 
       - name: Run fw/test_alt.sh (C backend)
+        env:
+          SPECTRE_TEST_DYNAMIC: "1"
         run: |
           set -o pipefail
           ./fw/test_alt.sh | tee test_alt.log
@@ -79,6 +81,8 @@ jobs:
       - name: Run fw/test.sh (QBE backend)
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         continue-on-error: true
+        env:
+          SPECTRE_TEST_DYNAMIC: "1"
         run: |
           set -o pipefail
           ./fw/test.sh | tee test_qbe.log

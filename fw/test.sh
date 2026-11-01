@@ -28,6 +28,11 @@ fi
 LOG_DIR="${TEST_LOG_DIR:-${RUNNER_TEMP:-${TMPDIR:-/tmp}}/spectre-test-logs}"
 mkdir -p "$LOG_DIR"
 
+LINK_ARGS=()
+if [ "${SPECTRE_TEST_DYNAMIC:-0}" = "1" ]; then
+    LINK_ARGS+=(--dynamic)
+fi
+
 run_samples() {
     for file in "$SAMPLES_DIR"/*.sx; do
         [ -e "$file" ] || continue
@@ -66,9 +71,9 @@ run_samples() {
         fi
 
         if [ ${#extra_args[@]} -gt 0 ]; then
-            "$COMPILER" "$file" "${extra_args[@]}" > /dev/null 2>&1
+            "$COMPILER" "$file" "${LINK_ARGS[@]}" "${extra_args[@]}" > /dev/null 2>&1
         else
-            "$COMPILER" "$file" > /dev/null 2>&1
+            "$COMPILER" "$file" "${LINK_ARGS[@]}" > /dev/null 2>&1
         fi
         status=$?
 
@@ -101,7 +106,7 @@ run_std_tests() {
 
         ((total++))
 
-        "$COMPILER" "$file" --test >"$log_file" 2>&1 < /dev/null
+        "$COMPILER" "$file" --test "${LINK_ARGS[@]}" >"$log_file" 2>&1 < /dev/null
         status=$?
 
         if [ $status -eq 0 ]; then
@@ -109,7 +114,7 @@ run_std_tests() {
             ((passed++))
         else
             echo "[FAIL] $file"
-            echo "  command: $COMPILER $file --test"
+            echo "  command: $COMPILER $file --test ${LINK_ARGS[*]}"
             echo "  log: $log_file"
             sed 's/^/  /' "$log_file" | sed -n '1,240p'
             log_lines=$(wc -l < "$log_file")
