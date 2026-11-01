@@ -1128,23 +1128,17 @@ fn find_top_level_else(text: ref u8) i64 = {
         }
         if c == 40 {
             paren++
-        }
-        elif c == 41 && paren > 0 {
+        } elif c == 41 && paren > 0 {
             paren--
-        }
-        elif c == 123 {
+        } elif c == 123 {
             brace++
-        }
-        elif c == 125 && brace > 0 {
+        } elif c == 125 && brace > 0 {
             brace--
-        }
-        elif c == 91 {
+        } elif c == 91 {
             bracket++
-        }
-        elif c == 93 && bracket > 0 {
+        } elif c == 93 && bracket > 0 {
             bracket--
-        }
-        elif paren == 0 && brace == 0 && bracket == 0 && i + 4 <= len {
+        } elif paren == 0 && brace == 0 && bracket == 0 && i + 4 <= len {
             val frag: ref u8 = trust string.substr(text, i, 4)
             if string.raw_cmp(frag, "else") == 0 {
                 val prev_ok: bool = i == 0 || !is_ident_part(trust @load8(@ptradd(text, i - 1)) as u8)
@@ -2370,8 +2364,7 @@ fn replace_pointer_indexing(ctx: ref TranslationCtx, text: ref u8) ref u8 = {
                         val bc: u8 = trust @load8(@ptradd(trimmed, close_i)) as u8
                         if bc == 91 {
                             depth++
-                        }
-                        elif bc == 93 {
+                        } elif bc == 93 {
                             depth--
                             if depth == 0 {
                                 break
@@ -3149,23 +3142,17 @@ fn find_top_level_ternary(text: ref u8) i64 = {
         val c: u8 = trust @load8(@ptradd(text, i)) as u8
         if c == 40 {
             paren++
-        }
-        elif c == 41 && paren > 0 {
+        } elif c == 41 && paren > 0 {
             paren--
-        }
-        elif c == 123 {
+        } elif c == 123 {
             brace++
-        }
-        elif c == 125 && brace > 0 {
+        } elif c == 125 && brace > 0 {
             brace--
-        }
-        elif c == 91 {
+        } elif c == 91 {
             bracket++
-        }
-        elif c == 93 && bracket > 0 {
+        } elif c == 93 && bracket > 0 {
             bracket--
-        }
-        elif c == 63 && paren == 0 && brace == 0 && bracket == 0 {
+        } elif c == 63 && paren == 0 && brace == 0 && bracket == 0 {
             return i
         }
         i++
@@ -3187,23 +3174,17 @@ fn find_matching_colon_for_ternary(text: ref u8, q_index: i64) i64 = {
         val c: u8 = trust @load8(@ptradd(text, i)) as u8
         if c == 40 {
             paren++
-        }
-        elif c == 41 && paren > 0 {
+        } elif c == 41 && paren > 0 {
             paren--
-        }
-        elif c == 123 {
+        } elif c == 123 {
             brace++
-        }
-        elif c == 125 && brace > 0 {
+        } elif c == 125 && brace > 0 {
             brace--
-        }
-        elif c == 91 {
+        } elif c == 91 {
             bracket++
-        }
-        elif c == 93 && bracket > 0 {
+        } elif c == 93 && bracket > 0 {
             bracket--
-        }
-        elif c == 63 && paren == 0 && brace == 0 && bracket == 0 {
+        } elif c == 63 && paren == 0 && brace == 0 && bracket == 0 {
             ternary_depth++
         } elif c == 58 && paren == 0 && brace == 0 && bracket == 0 {
             if ternary_depth == 0 {
@@ -3236,8 +3217,7 @@ fn is_wrapped_in_parens(text: ref u8) bool = {
         val c: u8 = trust @load8(@ptradd(trimmed, i)) as u8
         if c == 40 {
             depth++
-        }
-        elif c == 41 {
+        } elif c == 41 {
             depth--
             if depth == 0 && i != len - 1 {
                 return false
@@ -3850,23 +3830,17 @@ fn find_top_level_assign(text: ref u8) i64 = {
         val c: u8 = trust @load8(@ptradd(text, i)) as u8
         if c == 40 {
             paren++
-        }
-        elif c == 41 && paren > 0 {
+        } elif c == 41 && paren > 0 {
             paren--
-        }
-        elif c == 123 {
+        } elif c == 123 {
             brace++
-        }
-        elif c == 125 && brace > 0 {
+        } elif c == 125 && brace > 0 {
             brace--
-        }
-        elif c == 91 {
+        } elif c == 91 {
             bracket++
-        }
-        elif c == 93 && bracket > 0 {
+        } elif c == 93 && bracket > 0 {
             bracket--
-        }
-        elif c == 61 && paren == 0 && brace == 0 && bracket == 0 {
+        } elif c == 61 && paren == 0 && brace == 0 && bracket == 0 {
             val prev: mut u8 = 0
             val next: mut u8 = 0
             if i > 0 {
@@ -3901,23 +3875,17 @@ fn find_top_level_compound_assign(text: ref u8) i64 = {
         val next: u8 = trust @load8(@ptradd(text, i + 1)) as u8
         if c == 40 {
             paren++
-        }
-        elif c == 41 && paren > 0 {
+        } elif c == 41 && paren > 0 {
             paren--
-        }
-        elif c == 123 {
+        } elif c == 123 {
             brace++
-        }
-        elif c == 125 && brace > 0 {
+        } elif c == 125 && brace > 0 {
             brace--
-        }
-        elif c == 91 {
+        } elif c == 91 {
             bracket++
-        }
-        elif c == 93 && bracket > 0 {
+        } elif c == 93 && bracket > 0 {
             bracket--
-        }
-        elif next == 61 && paren == 0 && brace == 0 && bracket == 0
+        } elif next == 61 && paren == 0 && brace == 0 && bracket == 0
         && (c == 43 || c == 45 || c == 42 || c == 47 || c == 37 || c == 38 || c == 124 || c == 94) {
             return i
         }
@@ -4021,8 +3989,7 @@ fn translate_sizeof_expr(ctx: ref TranslationCtx, text: ref u8) ref u8 = {
                         val cc: u8 = trust @load8(@ptradd(trimmed, close_i)) as u8
                         if cc == 40 {
                             depth++
-                        }
-                        elif cc == 41 {
+                        } elif cc == 41 {
                             depth--
                             if depth == 0 {
                                 break
@@ -4126,11 +4093,9 @@ fn translate_c_casts_in_expr(ctx: ref TranslationCtx, text: ref u8) ref u8 = {
             trust string.StringBuilder.append_char(sb, c)
             if escaped {
                 escaped = false
-            }
-            elif c == 92 {
+            } elif c == 92 {
                 escaped = true
-            }
-            elif c == 34 {
+            } elif c == 34 {
                 in_string = false
             }
             i++
@@ -4140,11 +4105,9 @@ fn translate_c_casts_in_expr(ctx: ref TranslationCtx, text: ref u8) ref u8 = {
             trust string.StringBuilder.append_char(sb, c)
             if escaped {
                 escaped = false
-            }
-            elif c == 92 {
+            } elif c == 92 {
                 escaped = true
-            }
-            elif c == 39 {
+            } elif c == 39 {
                 in_char = false
             }
             i++
@@ -4230,23 +4193,17 @@ fn find_top_level_equality(text: ref u8) i64 = {
         val next: u8 = trust @load8(@ptradd(text, i + 1)) as u8
         if c == 40 {
             paren++
-        }
-        elif c == 41 && paren > 0 {
+        } elif c == 41 && paren > 0 {
             paren--
-        }
-        elif c == 123 {
+        } elif c == 123 {
             brace++
-        }
-        elif c == 125 && brace > 0 {
+        } elif c == 125 && brace > 0 {
             brace--
-        }
-        elif c == 91 {
+        } elif c == 91 {
             bracket++
-        }
-        elif c == 93 && bracket > 0 {
+        } elif c == 93 && bracket > 0 {
             bracket--
-        }
-        elif paren == 0 && brace == 0 && bracket == 0
+        } elif paren == 0 && brace == 0 && bracket == 0
         && ((c == 61 && next == 61) || (c == 33 && next == 61)) {
             return i
         }
@@ -5061,17 +5018,13 @@ fn strip_initializer(text: ref u8) ref u8 = {
         val c: u8 = trust @load8(@ptradd(text, i)) as u8
         if c == 40 {
             depth_paren++
-        }
-        elif c == 41 && depth_paren > 0 {
+        } elif c == 41 && depth_paren > 0 {
             depth_paren--
-        }
-        elif c == 91 {
+        } elif c == 91 {
             depth_bracket++
-        }
-        elif c == 93 && depth_bracket > 0 {
+        } elif c == 93 && depth_bracket > 0 {
             depth_bracket--
-        }
-        elif c == 61 && depth_paren == 0 && depth_bracket == 0 {
+        } elif c == 61 && depth_paren == 0 && depth_bracket == 0 {
             return trim_raw(trust string.substr(text, 0, i))
         }
         i++
@@ -5243,20 +5196,15 @@ fn split_top_level(text: ref u8, delim: u8) list[ref u8] = {
                     in_char = true
                 } elif c == 40 {
                     paren++
-                }
-                elif c == 41 && paren > 0 {
+                } elif c == 41 && paren > 0 {
                     paren--
-                }
-                elif c == 123 {
+                } elif c == 123 {
                     brace++
-                }
-                elif c == 125 && brace > 0 {
+                } elif c == 125 && brace > 0 {
                     brace--
-                }
-                elif c == 91 {
+                } elif c == 91 {
                     bracket++
-                }
-                elif c == 93 && bracket > 0 {
+                } elif c == 93 && bracket > 0 {
                     bracket--
                 }
             }
@@ -5560,11 +5508,9 @@ fn collect_function(lines: list[ref u8], start: i64) ref BlockResult = {
                 val c: u8 = trust @load8(@ptradd(line, j)) as u8
                 if c == 40 {
                     paren_depth++
-                }
-                elif c == 41 && paren_depth > 0 {
+                } elif c == 41 && paren_depth > 0 {
                     paren_depth--
-                }
-                elif c == 123 && paren_depth == 0 {
+                } elif c == 123 && paren_depth == 0 {
                     brace_depth++
                     seen_body = true
                 } elif c == 125 && brace_depth > 0 {
@@ -5995,11 +5941,9 @@ fn text_uses_ident(text: ref u8, name: ref u8) bool = {
         if in_string {
             if escaped {
                 escaped = false
-            }
-            elif c == 92 {
+            } elif c == 92 {
                 escaped = true
-            }
-            elif c == 34 {
+            } elif c == 34 {
                 in_string = false
             }
             i++
@@ -6008,11 +5952,9 @@ fn text_uses_ident(text: ref u8, name: ref u8) bool = {
         if in_char {
             if escaped {
                 escaped = false
-            }
-            elif c == 92 {
+            } elif c == 92 {
                 escaped = true
-            }
-            elif c == 39 {
+            } elif c == 39 {
                 in_char = false
             }
             i++

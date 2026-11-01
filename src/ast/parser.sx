@@ -596,19 +596,19 @@ fn p_expect_string(p: mut ref Parser) result[ref u8, ref u8] = trust {
 }
 
 fn p_expect_lbrace(p: mut ref Parser) result[ref u8, ref u8] = trust {
-    return p_expect_kind(p, lexer.kind_is_lbrace,   "'{'" )
+    return p_expect_kind(p, lexer.kind_is_lbrace, "'{'" )
 }
 
 fn p_expect_rbrace(p: mut ref Parser) result[ref u8, ref u8] = trust {
-    return p_expect_kind(p, lexer.kind_is_rbrace,   "'}'" )
+    return p_expect_kind(p, lexer.kind_is_rbrace, "'}'" )
 }
 
 fn p_expect_lparen(p: mut ref Parser) result[ref u8, ref u8] = trust {
-    return p_expect_kind(p, lexer.kind_is_lparen,   "'('" )
+    return p_expect_kind(p, lexer.kind_is_lparen, "'('" )
 }
 
 fn p_expect_rparen(p: mut ref Parser) result[ref u8, ref u8] = trust {
-    return p_expect_kind(p, lexer.kind_is_rparen,   "')'" )
+    return p_expect_kind(p, lexer.kind_is_rparen, "')'" )
 }
 
 fn p_expect_lbracket(p: mut ref Parser) result[ref u8, ref u8] = trust {
@@ -620,15 +620,15 @@ fn p_expect_rbracket(p: mut ref Parser) result[ref u8, ref u8] = trust {
 }
 
 fn p_expect_colon(p: mut ref Parser) result[ref u8, ref u8] = trust {
-    return p_expect_kind(p, lexer.kind_is_colon,    "':'" )
+    return p_expect_kind(p, lexer.kind_is_colon, "':'" )
 }
 
 fn p_expect_comma(p: mut ref Parser) result[ref u8, ref u8] = trust {
-    return p_expect_kind(p, lexer.kind_is_comma,    "','" )
+    return p_expect_kind(p, lexer.kind_is_comma, "','" )
 }
 
 fn p_expect_eq(p: mut ref Parser) result[ref u8, ref u8] = trust {
-    return p_expect_kind(p, kind_is_eq,       "'='" )
+    return p_expect_kind(p, kind_is_eq, "'='" )
 }
 
 fn p_expect_fatarrow(p: mut ref Parser) result[ref u8, ref u8] = trust {
@@ -636,7 +636,7 @@ fn p_expect_fatarrow(p: mut ref Parser) result[ref u8, ref u8] = trust {
 }
 
 fn p_expect_dot(p: mut ref Parser) result[ref u8, ref u8] = trust {
-    return p_expect_kind(p, lexer.kind_is_dot,      "'.'" )
+    return p_expect_kind(p, lexer.kind_is_dot, "'.'" )
 }
 
 fn kind_is_eq(k: lexer.TokenKind) bool = trust {
@@ -1333,7 +1333,7 @@ pub fn parse_type(p: mut ref Parser) result[ref Node, ref u8] = trust {
     if kind_is_ident(p_peek_kind(p)) {
         val name: ref u8 = p_advance_text(p)
         if str_eq(name, "void") {
-            return ok make_node(TY_VOID,    line)
+            return ok make_node(TY_VOID, line)
         }
         if str_eq(name, "untyped") {
             return ok make_node(TY_UNTYPED, line)
@@ -1470,20 +1470,15 @@ fn parse_cmp(p: mut ref Parser) result[ref Node, ref u8] = trust {
         val op: mut i64 = 0
         if lexer.kind_is_eqeq(k) {
             op = OP_EQ
-        }
-        elif lexer.kind_is_bangeq(k) {
+        } elif lexer.kind_is_bangeq(k) {
             op = OP_NE
-        }
-        elif kind_is_lt(k) {
+        } elif kind_is_lt(k) {
             op = OP_LT
-        }
-        elif kind_is_gt(k) {
+        } elif kind_is_gt(k) {
             op = OP_GT
-        }
-        elif lexer.kind_is_lteq(k) {
+        } elif lexer.kind_is_lteq(k) {
             op = OP_LE
-        }
-        elif lexer.kind_is_gteq(k) {
+        } elif lexer.kind_is_gteq(k) {
             op = OP_GE
         }
         if op == 0 {
@@ -1546,8 +1541,7 @@ fn parse_shift(p: mut ref Parser) result[ref Node, ref u8] = trust {
         val op: mut i64 = 0
         if lexer.kind_is_shl(k) {
             op = OP_SHL
-        }
-        elif lexer.kind_is_shr(k) {
+        } elif lexer.kind_is_shr(k) {
             op = OP_SHR
         }
         if op == 0 {
@@ -1568,8 +1562,7 @@ fn parse_add(p: mut ref Parser) result[ref Node, ref u8] = trust {
         val op: mut i64 = 0
         if kind_is_plus(k) {
             op = OP_ADD
-        }
-        elif kind_is_minus(k) {
+        } elif kind_is_minus(k) {
             op = OP_SUB
         }
         if op == 0 {
@@ -1590,11 +1583,9 @@ fn parse_mul(p: mut ref Parser) result[ref Node, ref u8] = trust {
         val op: mut i64 = 0
         if kind_is_star(k) {
             op = OP_MUL
-        }
-        elif kind_is_slash(k) {
+        } elif kind_is_slash(k) {
             op = OP_DIV
-        }
-        elif kind_is_percent(k) {
+        } elif kind_is_percent(k) {
             op = OP_REM
         }
         if op == 0 {

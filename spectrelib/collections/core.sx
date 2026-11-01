@@ -789,7 +789,7 @@ test {
     @puts("sm: set world")
     trust StringMap.set[allocators.HeapAllocator](heap, m, "world", 2 as usize)
     @puts("sm: set foo")
-    trust StringMap.set[allocators.HeapAllocator](heap, m, "foo",   3 as usize)
+    trust StringMap.set[allocators.HeapAllocator](heap, m, "foo", 3 as usize)
 
     @puts("sm: len==3")
     assert StringMap.len(m) == 3

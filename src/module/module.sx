@@ -1147,7 +1147,7 @@ fn resolve_module_impl(
 
             match child_result {
                 ok child => {
-                    @append(m.import_names,   import_name)
+                    @append(m.import_names, import_name)
                     @append(m.import_modules, child as ref void)
                 }
                 err e => {
@@ -1447,29 +1447,21 @@ pub fn collect_links(items: list[ref parser.Node], exe_dir: ref u8) list[ref u8]
     val platform: mut ref u8 = "unknown"
     if p == 0 {
         platform = "windows"
-    }
-    elif p == 1 {
+    } elif p == 1 {
         platform = "linux"
-    }
-    elif p == 2 {
+    } elif p == 2 {
         platform = "darwin"
-    }
-    elif p == 3 {
+    } elif p == 3 {
         platform = "netbsd"
-    }
-    elif p == 4 {
+    } elif p == 4 {
         platform = "dragonflybsd"
-    }
-    elif p == 5 {
+    } elif p == 5 {
         platform = "freebsd"
-    }
-    elif p == 6 {
+    } elif p == 6 {
         platform = "openbsd"
-    }
-    elif p == 7 {
+    } elif p == 7 {
         platform = "android"
-    }
-    elif p == 8 {
+    } elif p == 8 {
         platform = "haiku"
     }
 
@@ -2662,8 +2654,7 @@ fn collect_used_imports_stmt(node: ref parser.Node, import_names: list[ref u8], 
                     val arm_body: mut ref void = none
                     if node.kind == parser.NK_MATCH_TAGGED_UNION {
                         arm_body = arm_node.d2 as ref void
-                    }
-                    else {
+                    } else {
                         arm_body = arm_node.d1 as ref void
                     }
                     if arm_body != none {

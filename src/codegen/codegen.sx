@@ -284,29 +284,21 @@ pub fn platform_matches_with_target(name: ref u8, src_target: ref u8) bool = tru
     } elif str.raw_cmp(name, "posix") == 0 {
         if str.raw_cmp(cur, "linux") == 0 {
             matched = true
-        }
-        elif str.raw_cmp(cur, "darwin") == 0 {
+        } elif str.raw_cmp(cur, "darwin") == 0 {
             matched = true
-        }
-        elif str.raw_cmp(cur, "freebsd") == 0 {
+        } elif str.raw_cmp(cur, "freebsd") == 0 {
             matched = true
-        }
-        elif str.raw_cmp(cur, "openbsd") == 0 {
+        } elif str.raw_cmp(cur, "openbsd") == 0 {
             matched = true
-        }
-        elif str.raw_cmp(cur, "netbsd") == 0 {
+        } elif str.raw_cmp(cur, "netbsd") == 0 {
             matched = true
-        }
-        elif str.raw_cmp(cur, "dragonflybsd") == 0 {
+        } elif str.raw_cmp(cur, "dragonflybsd") == 0 {
             matched = true
-        }
-        elif str.raw_cmp(cur, "haiku") == 0 {
+        } elif str.raw_cmp(cur, "haiku") == 0 {
             matched = true
-        }
-        elif str.raw_cmp(cur, "android") == 0 {
+        } elif str.raw_cmp(cur, "android") == 0 {
             matched = true
-        }
-        elif str.raw_cmp(cur, "redox") == 0 {
+        } elif str.raw_cmp(cur, "redox") == 0 {
             matched = true
         }
     }
@@ -2224,10 +2216,10 @@ fn cg_lookup_ext_ret(ctx: mut ref CgCtx, name: ref u8) ref void = trust {
 
 /// Register a tagged union variant: variant_name -> (union_name, tag_index, field_type_node).
 fn cg_register_tv(ctx: mut ref CgCtx, vname: ref u8, owner: ref u8, tag: i64, field_ty: ref void) void = trust {
-    @append(cg_tv_names(ctx) as list[ref u8],  vname)
-    @append(cg_tv_owners(ctx) as list[ref u8],  owner)
-    @append(cg_tv_tags(ctx) as list[i64],     tag)
-    @append(cg_tv_fields(ctx) as list[ref void],field_ty)
+    @append(cg_tv_names(ctx) as list[ref u8], vname)
+    @append(cg_tv_owners(ctx) as list[ref u8], owner)
+    @append(cg_tv_tags(ctx) as list[i64], tag)
+    @append(cg_tv_fields(ctx) as list[ref void], field_ty)
 }
 
 /// Look up a tagged union variant by name.
@@ -4416,8 +4408,7 @@ fn gen_int_lit_as(ctx: mut ref CgCtx, text: ref u8, qbe_type: ref u8) ref u8 = t
             val digit: mut i64 = hc - 48
             if hc >= 97 {
                 digit = hc - 87
-            }
-            elif hc >= 65 {
+            } elif hc >= 65 {
                 digit = hc - 55
             }
             val_ = val_ * 16 + digit
@@ -4461,8 +4452,7 @@ fn normalize_static_int_text(text: ref u8) ref u8 = trust {
                 val digit: mut i64 = hc - 48
                 if hc >= 97 {
                     digit = hc - 87
-                }
-                elif hc >= 65 {
+                } elif hc >= 65 {
                     digit = hc - 55
                 }
                 val_ = val_ * 16 + digit
@@ -4628,8 +4618,7 @@ fn append_global_fixed_arr_zero_entries(ctx: mut ref CgCtx, ty: ref parser.Node,
     val zero_val: mut ref u8 = "0"
     if str.raw_cmp(qt, "s") == 0 {
         zero_val = "s_0.0"
-    }
-    elif str.raw_cmp(qt, "d") == 0 {
+    } elif str.raw_cmp(qt, "d") == 0 {
         zero_val = "d_0.0"
     }
     val entry: ref u8 = @alloc(64) as ref u8
@@ -4955,8 +4944,7 @@ fn gen_expr(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
                     val digit: mut i64 = hc - 48
                     if hc >= 97 {
                         digit = hc - 87
-                    }
-                    elif hc >= 65 {
+                    } elif hc >= 65 {
                         digit = hc - 55
                     }
                     val_ = val_ * 16 + digit
@@ -5064,8 +5052,7 @@ fn gen_expr(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
                 }
                 if str.raw_cmp(expected_qt2, "s") == 0 {
                     emit_qt = "s"
-                }
-                elif str.raw_cmp(expected_qt2, "d") == 0 {
+                } elif str.raw_cmp(expected_qt2, "d") == 0 {
                     emit_qt = "d"
                 }
                 @snprintf(buf6, 128, "    %%t{lld} ={s} copy {s}_{s}\n", {tmp6, emit_qt, emit_qt, ftext})
@@ -6034,116 +6021,89 @@ fn gen_binop(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
 
     if is_float {
         if op == parser.OP_ADD {
-            @snprintf(buf, 256, "    %%t{lld} =d add {s}, {s}\n",  {tmp, lhs_l, rhs_l})
-        }
-        elif op == parser.OP_SUB {
-            @snprintf(buf, 256, "    %%t{lld} =d sub {s}, {s}\n",  {tmp, lhs_l, rhs_l})
-        }
-        elif op == parser.OP_MUL {
-            @snprintf(buf, 256, "    %%t{lld} =d mul {s}, {s}\n",  {tmp, lhs_l, rhs_l})
-        }
-        elif op == parser.OP_DIV {
-            @snprintf(buf, 256, "    %%t{lld} =d div {s}, {s}\n",  {tmp, lhs_l, rhs_l})
-        }
-        elif op == parser.OP_REM {
-            @snprintf(buf, 256, "    %%t{lld} =d rem {s}, {s}\n",  {tmp, lhs_l, rhs_l})
-        }
-        elif op == parser.OP_EQ {
+            @snprintf(buf, 256, "    %%t{lld} =d add {s}, {s}\n", {tmp, lhs_l, rhs_l})
+        } elif op == parser.OP_SUB {
+            @snprintf(buf, 256, "    %%t{lld} =d sub {s}, {s}\n", {tmp, lhs_l, rhs_l})
+        } elif op == parser.OP_MUL {
+            @snprintf(buf, 256, "    %%t{lld} =d mul {s}, {s}\n", {tmp, lhs_l, rhs_l})
+        } elif op == parser.OP_DIV {
+            @snprintf(buf, 256, "    %%t{lld} =d div {s}, {s}\n", {tmp, lhs_l, rhs_l})
+        } elif op == parser.OP_REM {
+            @snprintf(buf, 256, "    %%t{lld} =d rem {s}, {s}\n", {tmp, lhs_l, rhs_l})
+        } elif op == parser.OP_EQ {
             @snprintf(buf, 256, "    %%t{lld} =w ceqd {s}, {s}\n", {tmp, lhs_l, rhs_l})
-        }
-        elif op == parser.OP_NE {
+        } elif op == parser.OP_NE {
             @snprintf(buf, 256, "    %%t{lld} =w cned {s}, {s}\n", {tmp, lhs_l, rhs_l})
-        }
-        elif op == parser.OP_LT {
+        } elif op == parser.OP_LT {
             @snprintf(buf, 256, "    %%t{lld} =w cltd {s}, {s}\n", {tmp, lhs_l, rhs_l})
-        }
-        elif op == parser.OP_GT {
+        } elif op == parser.OP_GT {
             @snprintf(buf, 256, "    %%t{lld} =w cgtd {s}, {s}\n", {tmp, lhs_l, rhs_l})
-        }
-        elif op == parser.OP_LE {
+        } elif op == parser.OP_LE {
             @snprintf(buf, 256, "    %%t{lld} =w cled {s}, {s}\n", {tmp, lhs_l, rhs_l})
-        }
-        elif op == parser.OP_GE {
+        } elif op == parser.OP_GE {
             @snprintf(buf, 256, "    %%t{lld} =w cged {s}, {s}\n", {tmp, lhs_l, rhs_l})
-        }
-        else {
+        } else {
             @snprintf(buf, 256, "    %%t{lld} =l copy 0\n", {tmp})
         }
     } else {
         if op == parser.OP_ADD {
-            @snprintf(buf, 256, "    %%t{lld} =l add {s}, {s}\n",  {tmp, lhs_l, rhs_l})
-        }
-        elif op == parser.OP_SUB {
-            @snprintf(buf, 256, "    %%t{lld} =l sub {s}, {s}\n",  {tmp, lhs_l, rhs_l})
-        }
-        elif op == parser.OP_MUL {
-            @snprintf(buf, 256, "    %%t{lld} =l mul {s}, {s}\n",  {tmp, lhs_l, rhs_l})
-        }
-        elif op == parser.OP_DIV {
-            @snprintf(buf, 256, "    %%t{lld} =l div {s}, {s}\n",  {tmp, lhs_l, rhs_l})
-        }
-        elif op == parser.OP_REM {
-            @snprintf(buf, 256, "    %%t{lld} =l rem {s}, {s}\n",  {tmp, lhs_l, rhs_l})
-        }
-        elif op == parser.OP_EQ {
+            @snprintf(buf, 256, "    %%t{lld} =l add {s}, {s}\n", {tmp, lhs_l, rhs_l})
+        } elif op == parser.OP_SUB {
+            @snprintf(buf, 256, "    %%t{lld} =l sub {s}, {s}\n", {tmp, lhs_l, rhs_l})
+        } elif op == parser.OP_MUL {
+            @snprintf(buf, 256, "    %%t{lld} =l mul {s}, {s}\n", {tmp, lhs_l, rhs_l})
+        } elif op == parser.OP_DIV {
+            @snprintf(buf, 256, "    %%t{lld} =l div {s}, {s}\n", {tmp, lhs_l, rhs_l})
+        } elif op == parser.OP_REM {
+            @snprintf(buf, 256, "    %%t{lld} =l rem {s}, {s}\n", {tmp, lhs_l, rhs_l})
+        } elif op == parser.OP_EQ {
             if both_word {
                 @snprintf(buf, 256, "    %%t{lld} =w ceqw {s}, {s}\n", {tmp, lhs, rhs})
             } else {
                 @snprintf(buf, 256, "    %%t{lld} =w ceql {s}, {s}\n", {tmp, lhs_l, rhs_l})
             }
-        }
-        elif op == parser.OP_NE {
+        } elif op == parser.OP_NE {
             if both_word {
                 @snprintf(buf, 256, "    %%t{lld} =w cnew {s}, {s}\n", {tmp, lhs, rhs})
             } else {
                 @snprintf(buf, 256, "    %%t{lld} =w cnel {s}, {s}\n", {tmp, lhs_l, rhs_l})
             }
-        }
-        elif op == parser.OP_LT {
+        } elif op == parser.OP_LT {
             if both_word {
                 @snprintf(buf, 256, "    %%t{lld} =w csltw {s}, {s}\n", {tmp, lhs, rhs})
             } else {
                 @snprintf(buf, 256, "    %%t{lld} =w csltl {s}, {s}\n", {tmp, lhs_l, rhs_l})
             }
-        }
-        elif op == parser.OP_GT {
+        } elif op == parser.OP_GT {
             if both_word {
                 @snprintf(buf, 256, "    %%t{lld} =w csgtw {s}, {s}\n", {tmp, lhs, rhs})
             } else {
                 @snprintf(buf, 256, "    %%t{lld} =w csgtl {s}, {s}\n", {tmp, lhs_l, rhs_l})
             }
-        }
-        elif op == parser.OP_LE {
+        } elif op == parser.OP_LE {
             if both_word {
                 @snprintf(buf, 256, "    %%t{lld} =w cslew {s}, {s}\n", {tmp, lhs, rhs})
             } else {
                 @snprintf(buf, 256, "    %%t{lld} =w cslel {s}, {s}\n", {tmp, lhs_l, rhs_l})
             }
-        }
-        elif op == parser.OP_GE {
+        } elif op == parser.OP_GE {
             val lt: i64 = fresh_tmp(ctx)
             if both_word {
                 @snprintf(buf, 256, "    %%t{lld} =w csltw {s}, {s}\n    %%t{lld} =w ceqw %%t{lld}, 0\n", {lt, lhs, rhs, tmp, lt})
             } else {
                 @snprintf(buf, 256, "    %%t{lld} =w csltl {s}, {s}\n    %%t{lld} =w ceqw %%t{lld}, 0\n", {lt, lhs_l, rhs_l, tmp, lt})
             }
-        }
-        elif op == parser.OP_BAND {
+        } elif op == parser.OP_BAND {
             @snprintf(buf, 256, "    %%t{lld} =l and {s}, {s}\n", {tmp, lhs_l, rhs_l})
-        }
-        elif op == parser.OP_BOR {
-            @snprintf(buf, 256, "    %%t{lld} =l or {s}, {s}\n",  {tmp, lhs_l, rhs_l})
-        }
-        elif op == parser.OP_BXOR {
+        } elif op == parser.OP_BOR {
+            @snprintf(buf, 256, "    %%t{lld} =l or {s}, {s}\n", {tmp, lhs_l, rhs_l})
+        } elif op == parser.OP_BXOR {
             @snprintf(buf, 256, "    %%t{lld} =l xor {s}, {s}\n", {tmp, lhs_l, rhs_l})
-        }
-        elif op == parser.OP_SHL {
+        } elif op == parser.OP_SHL {
             @snprintf(buf, 256, "    %%t{lld} =l shl {s}, {s}\n", {tmp, lhs_l, rhs_l})
-        }
-        elif op == parser.OP_SHR {
+        } elif op == parser.OP_SHR {
             @snprintf(buf, 256, "    %%t{lld} =l shr {s}, {s}\n", {tmp, lhs_l, rhs_l})
-        }
-        else {
+        } else {
             @snprintf(buf, 256, "    %%t{lld} =l copy 0\n", {tmp})
         }
     }
@@ -6318,8 +6278,7 @@ fn gen_field(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
                         val expected_qt_field3: ref u8 = qbe_type_of(ctx.expected_ty as ref parser.Node)
                         if str.raw_cmp(expected_qt_field3, "s") == 0 {
                             emit_qt3 = "s"
-                        }
-                        elif str.raw_cmp(expected_qt_field3, "d") == 0 {
+                        } elif str.raw_cmp(expected_qt_field3, "d") == 0 {
                             emit_qt3 = "d"
                         }
                     }
@@ -6367,8 +6326,7 @@ fn gen_field(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
                         val expected_qt_field: ref u8 = qbe_type_of(ctx.expected_ty as ref parser.Node)
                         if str.raw_cmp(expected_qt_field, "s") == 0 {
                             emit_qt = "s"
-                        }
-                        elif str.raw_cmp(expected_qt_field, "d") == 0 {
+                        } elif str.raw_cmp(expected_qt_field, "d") == 0 {
                             emit_qt = "d"
                         }
                     }
@@ -6659,8 +6617,7 @@ fn gen_field(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
         val field_ann: ref u8 = infer_type_annotation(ctx, expr)
         if str.raw_cmp(field_ann, "f64") == 0 {
             field_load_instr = "loadd"
-        }
-        elif str.raw_cmp(field_ann, "f32") == 0 {
+        } elif str.raw_cmp(field_ann, "f32") == 0 {
             field_load_instr = "loads"
         }
     }
@@ -6669,8 +6626,7 @@ fn gen_field(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
     val tmp_qt: mut ref u8 = "l"
     if str.raw_cmp(field_load_instr, "loadd") == 0 {
         tmp_qt = "d"
-    }
-    elif str.raw_cmp(field_load_instr, "loads") == 0 {
+    } elif str.raw_cmp(field_load_instr, "loads") == 0 {
         tmp_qt = "s"
     }
     val buf: ref u8 = @alloc(256) as ref u8
@@ -7259,8 +7215,7 @@ fn gen_call(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
                                         val li2: ref u8 = field_load_instr_for(fts2 as ref parser.Node)
                                         if str.raw_cmp(li2, "loadd") == 0 {
                                             store_op2 = "stored"
-                                        }
-                                        elif str.raw_cmp(li2, "loads") == 0 {
+                                        } elif str.raw_cmp(li2, "loads") == 0 {
                                             store_op2 = "stores"
                                         }
                                     }
@@ -7376,8 +7331,7 @@ fn gen_call(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
                                 val li: ref u8 = field_load_instr_for(fts as ref parser.Node)
                                 if str.raw_cmp(li, "loadd") == 0 {
                                     store_op = "stored"
-                                }
-                                elif str.raw_cmp(li, "loads") == 0 {
+                                } elif str.raw_cmp(li, "loads") == 0 {
                                     store_op = "stores"
                                 }
                             }
@@ -9209,11 +9163,9 @@ fn gen_fixed_arr_lit(ctx: mut ref CgCtx, expr: ref parser.Node, ty: ref parser.N
                     val qt: ref u8 = qbe_type_of(elem_ty)
                     if str.raw_cmp(qt, "d") == 0 {
                         store_op = "stored"
-                    }
-                    elif str.raw_cmp(qt, "s") == 0 {
+                    } elif str.raw_cmp(qt, "s") == 0 {
                         store_op = "stores"
-                    }
-                    elif str.raw_cmp(qt, "w") == 0 {
+                    } elif str.raw_cmp(qt, "w") == 0 {
                         store_op = "storew"
                     }
 
@@ -9789,11 +9741,9 @@ fn gen_stmt(ctx: mut ref CgCtx, stmt: ref parser.Node) void = trust {
                 val ltype2: ref u8 = cg_local_type(ctx, name)
                 if str.raw_cmp(ltype2, "f64") == 0 {
                     store_op = "stored"
-                }
-                elif str.raw_cmp(ltype2, "f32") == 0 {
+                } elif str.raw_cmp(ltype2, "f32") == 0 {
                     store_op = "stores"
-                }
-                elif is_word_type_name(ltype2) {
+                } elif is_word_type_name(ltype2) {
                     store_op = "storew"
                 }
             }
@@ -9856,11 +9806,9 @@ fn gen_stmt(ctx: mut ref CgCtx, stmt: ref parser.Node) void = trust {
                 val ltype3: ref u8 = cg_local_type(ctx, tname)
                 if str.raw_cmp(ltype3, "f64") == 0 {
                     store_op2 = "stored"
-                }
-                elif str.raw_cmp(ltype3, "f32") == 0 {
+                } elif str.raw_cmp(ltype3, "f32") == 0 {
                     store_op2 = "stores"
-                }
-                elif is_word_type_name(ltype3) {
+                } elif is_word_type_name(ltype3) {
                     store_op2 = "storew"
                 }
                 if str.raw_cmp(dst_qtype2, "") != 0 {
@@ -10786,8 +10734,7 @@ fn gen_forin_stmt(ctx: mut ref CgCtx, stmt: ref parser.Node) void = trust {
             @store8(@ptradd(elem_type_copy2, elem_len2 - 1), 0)
             if is_float_type_name(elem_type_copy2) {
                 elem_stype = "d"
-            }
-            elif is_word_type_name(elem_type_copy2) {
+            } elif is_word_type_name(elem_type_copy2) {
                 elem_stype = "w"
             }
         }
@@ -11211,8 +11158,7 @@ fn gen_match_value(ctx: mut ref CgCtx, stmt: ref parser.Node) void = trust {
                 val cmp_op: mut ref u8 = "ceql"
                 if str.raw_cmp(expr_cmp_qt, "w") == 0 {
                     cmp_op = "ceqw"
-                }
-                elif str.raw_cmp(expr_cmp_qt, "d") == 0 {
+                } elif str.raw_cmp(expr_cmp_qt, "d") == 0 {
                     cmp_op = "ceqd"
                 }
                 val buf: ref u8 = @alloc(256) as ref u8
@@ -11551,26 +11497,19 @@ fn gen_match_tagged_union(ctx: mut ref CgCtx, stmt: ref parser.Node) void = trus
                                         field_load_op = field_load_instr_for(fty)
                                         if str.raw_cmp(field_load_op, "loadd") == 0 {
                                             field_qt2 = "d"
-                                        }
-                                        elif str.raw_cmp(field_load_op, "loads") == 0 {
+                                        } elif str.raw_cmp(field_load_op, "loads") == 0 {
                                             field_qt2 = "s"
-                                        }
-                                        elif str.raw_cmp(field_load_op, "loadsw") == 0 {
+                                        } elif str.raw_cmp(field_load_op, "loadsw") == 0 {
                                             field_qt2 = "w"
-                                        }
-                                        elif str.raw_cmp(field_load_op, "loaduw") == 0 {
+                                        } elif str.raw_cmp(field_load_op, "loaduw") == 0 {
                                             field_qt2 = "w"
-                                        }
-                                        elif str.raw_cmp(field_load_op, "loadsh") == 0 {
+                                        } elif str.raw_cmp(field_load_op, "loadsh") == 0 {
                                             field_qt2 = "w"
-                                        }
-                                        elif str.raw_cmp(field_load_op, "loaduh") == 0 {
+                                        } elif str.raw_cmp(field_load_op, "loaduh") == 0 {
                                             field_qt2 = "w"
-                                        }
-                                        elif str.raw_cmp(field_load_op, "loadsb") == 0 {
+                                        } elif str.raw_cmp(field_load_op, "loadsb") == 0 {
                                             field_qt2 = "w"
-                                        }
-                                        elif str.raw_cmp(field_load_op, "loadub") == 0 {
+                                        } elif str.raw_cmp(field_load_op, "loadub") == 0 {
                                             field_qt2 = "w"
                                         }
                                         val concrete_fty: ref parser.Node = cg_concrete_ty(ctx, fty)
@@ -13158,7 +13097,7 @@ pub fn gen_module_resolved(root: ref module.ResolvedModule, release_mode: bool, 
             break
         }
         val pfx_opt = @get(out_prefixes, li as usize)
-        val items_opt = @get(out_items,    li as usize)
+        val items_opt = @get(out_items, li as usize)
         if pfx_opt is some pfx {
             if items_opt is some items_ptr {
                 val items: list[ref parser.Node] = items_ptr as list[ref parser.Node]
@@ -13184,7 +13123,7 @@ pub fn gen_module_resolved(root: ref module.ResolvedModule, release_mode: bool, 
                 break
             }
             val pfx_scan_opt = @get(out_prefixes, li_scan as usize)
-            val items_scan_opt = @get(out_items,    li_scan as usize)
+            val items_scan_opt = @get(out_items, li_scan as usize)
             if pfx_scan_opt is some pfx_scan {
                 if cg_is_prefix_used(ctx, pfx_scan as ref u8) {
                     if items_scan_opt is some items_scan_ptr {
@@ -13232,7 +13171,7 @@ pub fn gen_module_resolved(root: ref module.ResolvedModule, release_mode: bool, 
             break
         }
         val pfx_opt = @get(out_prefixes, li2 as usize)
-        val items_opt = @get(out_items,    li2 as usize)
+        val items_opt = @get(out_items, li2 as usize)
         if pfx_opt is some pfx {
             if items_opt is some items_ptr {
                 val items: list[ref parser.Node] = items_ptr as list[ref parser.Node]
@@ -13279,7 +13218,7 @@ pub fn get_used_prefixes(root: ref module.ResolvedModule) list[ref u8] = trust {
             break
         }
         val pfx_opt = @get(out_prefixes, li as usize)
-        val items_opt = @get(out_items,    li as usize)
+        val items_opt = @get(out_items, li as usize)
         if pfx_opt is some pfx {
             if items_opt is some items_ptr {
                 val items: list[ref parser.Node] = items_ptr as list[ref parser.Node]
@@ -13295,7 +13234,7 @@ pub fn get_used_prefixes(root: ref module.ResolvedModule) list[ref u8] = trust {
             break
         }
         val pfx_opt = @get(out_prefixes, li2 as usize)
-        val items_opt = @get(out_items,    li2 as usize)
+        val items_opt = @get(out_items, li2 as usize)
         if pfx_opt is some pfx {
             if cg_is_prefix_used(ctx, pfx as ref u8) {
                 if items_opt is some items_ptr {
@@ -13469,7 +13408,7 @@ pub fn gen_module_resolved_test(root: ref module.ResolvedModule, release_mode: b
             break
         }
         val pfx_opt = @get(out_prefixes, li as usize)
-        val items_opt = @get(out_items,    li as usize)
+        val items_opt = @get(out_items, li as usize)
         if pfx_opt is some pfx {
             if items_opt is some items_ptr {
                 val items: list[ref parser.Node] = items_ptr as list[ref parser.Node]
@@ -13514,7 +13453,7 @@ pub fn gen_module_resolved_test(root: ref module.ResolvedModule, release_mode: b
                 break
             }
             val pfx_scan_opt = @get(out_prefixes, li_scan as usize)
-            val items_scan_opt = @get(out_items,    li_scan as usize)
+            val items_scan_opt = @get(out_items, li_scan as usize)
             if pfx_scan_opt is some pfx_scan {
                 if cg_is_prefix_used(ctx, pfx_scan as ref u8) {
                     if items_scan_opt is some items_scan_ptr {
@@ -13562,7 +13501,7 @@ pub fn gen_module_resolved_test(root: ref module.ResolvedModule, release_mode: b
             break
         }
         val pfx_opt = @get(out_prefixes, li2 as usize)
-        val items_opt = @get(out_items,    li2 as usize)
+        val items_opt = @get(out_items, li2 as usize)
         if pfx_opt is some pfx {
             val is_root: bool = str.raw_cmp(pfx as ref u8, "") == 0
             val is_used: bool = cg_is_prefix_used(ctx, pfx as ref u8)

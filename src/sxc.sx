@@ -569,8 +569,7 @@ pub fn main() i32 = trust {
         val emit_ld: bool = !bootstrap_mode
         if test_mode {
             c_ir = alt_codegen.gen_module_c_test(root_mod, release_mode, extra_includes, src_target, emit_ld)
-        }
-        else {
+        } else {
             c_ir = alt_codegen.gen_module_c(root_mod, release_mode, extra_includes, src_target, emit_ld)
         }
 

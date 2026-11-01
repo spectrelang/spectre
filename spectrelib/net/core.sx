@@ -133,7 +133,7 @@ fn do_request[A: allocators.GeneralAllocator](ac: A, handle: ref void) ref Respo
     }
 
     curl_easy_setopt(handle, CURLOPT_WRITEFUNCTION, @addr(curl_write_cb))
-    curl_easy_setopt(handle, CURLOPT_WRITEDATA,     buf)
+    curl_easy_setopt(handle, CURLOPT_WRITEDATA, buf)
     curl_easy_perform(handle)
 
     if buf.failed {
@@ -224,9 +224,9 @@ pub fn (Http) post_request[A: allocators.GeneralAllocator](ac: A, url: ref u8, b
     }
     val headers: ref void = curl_slist_append(none, content_type)
 
-    curl_easy_setopt(handle, CURLOPT_URL,        url)
-    curl_easy_setopt(handle, CURLOPT_POSTFIELDS,  body)
-    curl_easy_setopt(handle, CURLOPT_HTTPHEADER,  headers)
+    curl_easy_setopt(handle, CURLOPT_URL, url)
+    curl_easy_setopt(handle, CURLOPT_POSTFIELDS, body)
+    curl_easy_setopt(handle, CURLOPT_HTTPHEADER, headers)
 
     val resp: ref Response = do_request[A](ac, handle)
 
@@ -242,8 +242,8 @@ pub fn (Http) request[A: allocators.GeneralAllocator](ac: A, method: ref u8, url
         return none
     }
 
-    curl_easy_setopt(handle, CURLOPT_URL,           url)
-    curl_easy_setopt(handle, CURLOPT_CUSTOMREQUEST,  method)
+    curl_easy_setopt(handle, CURLOPT_URL, url)
+    curl_easy_setopt(handle, CURLOPT_CUSTOMREQUEST, method)
 
     if (body != none) {
         curl_easy_setopt(handle, CURLOPT_POSTFIELDS, body)

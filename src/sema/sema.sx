@@ -570,8 +570,7 @@ fn check_no_module_to_module_type(ctx: ref SemaCtx, ty_node: ref parser.Node, li
         if c == 46 {
             if first_dot < 0 {
                 first_dot = si
-            }
-            elif second_dot < 0 {
+            } elif second_dot < 0 {
                 second_dot = si break
             }
         }
@@ -3837,8 +3836,7 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
                 if base_callee != none {
                     if base_callee.kind == parser.NK_IDENT {
                         fn_name = base_callee.d0 as ref u8
-                    }
-                    elif base_callee.kind == parser.NK_FIELD {
+                    } elif base_callee.kind == parser.NK_FIELD {
                         fn_name = parser.field_name(base_callee)
                     }
                 }
@@ -3865,8 +3863,7 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
                     if base_callee != none {
                         if base_callee.kind == parser.NK_IDENT {
                             fn_name = base_callee.d0 as ref u8
-                        }
-                        elif base_callee.kind == parser.NK_FIELD {
+                        } elif base_callee.kind == parser.NK_FIELD {
                             fn_name = parser.field_name(base_callee)
                         }
                     }
@@ -3901,19 +3898,15 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
                             val param_is_ref: mut bool = false
                             if pty.kind == parser.TY_REF {
                                 param_is_ref = true
-                            }
-                            elif pty.kind == parser.TY_LIST {
+                            } elif pty.kind == parser.TY_LIST {
                                 param_is_ref = true
-                            }
-                            elif pty.kind == parser.TY_MUT {
+                            } elif pty.kind == parser.TY_MUT {
                                 val pty_inner: ref parser.Node = pty.d0 as ref parser.Node
                                 if pty_inner != none && pty_inner.kind == parser.TY_REF {
                                     param_is_ref = true
-                                }
-                                elif pty_inner != none && pty_inner.kind == parser.TY_LIST {
+                                } elif pty_inner != none && pty_inner.kind == parser.TY_LIST {
                                     param_is_ref = true
-                                }
-                                elif pty_inner != none && pty_inner.kind == parser.TY_NAMED {
+                                } elif pty_inner != none && pty_inner.kind == parser.TY_NAMED {
                                     param_is_ref = true
                                 }
                             }
@@ -3936,8 +3929,7 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
                                         if base_callee != none {
                                             if base_callee.kind == parser.NK_IDENT {
                                                 fn_name_m = base_callee.d0 as ref u8
-                                            }
-                                            elif base_callee.kind == parser.NK_FIELD {
+                                            } elif base_callee.kind == parser.NK_FIELD {
                                                 fn_name_m = parser.field_name(base_callee)
                                             }
                                         }
@@ -3960,8 +3952,7 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
                                 if base_callee != none {
                                     if base_callee.kind == parser.NK_IDENT {
                                         fn_name_w = base_callee.d0 as ref u8
-                                    }
-                                    elif base_callee.kind == parser.NK_FIELD {
+                                    } elif base_callee.kind == parser.NK_FIELD {
                                         fn_name_w = parser.field_name(base_callee)
                                     }
                                 }
@@ -4052,8 +4043,7 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
                                         if base_callee != none {
                                             if base_callee.kind == parser.NK_IDENT {
                                                 fn_name_for_err = base_callee.d0 as ref u8
-                                            }
-                                            elif base_callee.kind == parser.NK_FIELD {
+                                            } elif base_callee.kind == parser.NK_FIELD {
                                                 fn_name_for_err = parser.field_name(base_callee)
                                             }
                                         }
@@ -4099,8 +4089,7 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
             if base_callee != none {
                 if base_callee.kind == parser.NK_IDENT {
                     fn_name_for_targs = base_callee.d0 as ref u8
-                }
-                elif base_callee.kind == parser.NK_FIELD {
+                } elif base_callee.kind == parser.NK_FIELD {
                     fn_name_for_targs = parser.field_name(base_callee)
                 }
             }
@@ -4264,8 +4253,7 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
                 if base_callee != none {
                     if base_callee.kind == parser.NK_IDENT {
                         fn_name = base_callee.d0 as ref u8
-                    }
-                    elif base_callee.kind == parser.NK_FIELD {
+                    } elif base_callee.kind == parser.NK_FIELD {
                         fn_name = parser.field_name(base_callee)
                     }
                 }
@@ -4766,7 +4754,7 @@ fn sema_check_invariant_lit(ctx: ref SemaCtx, typedef_node: ref parser.Node,
                 val anode: ref parser.Node = arg as ref parser.Node
                 val aval: i64 = sema_const_eval(anode, fnames as ref void, fvals as ref void)
                 @append(fnames, fname)
-                @append(fvals,  aval)
+                @append(fvals, aval)
             }
         }
         fi++
