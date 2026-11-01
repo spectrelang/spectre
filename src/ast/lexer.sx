@@ -354,6 +354,8 @@ fn lex_string(l: mut ref Lexer) ref u8 = trust {
                 @store8(@ptradd(buf, i), 10)
             } elif esc == 116 {
                 @store8(@ptradd(buf, i), 9)
+            } elif esc == 114 {
+                @store8(@ptradd(buf, i), 13)
             } elif esc == 34 {
                 @store8(@ptradd(buf, i), 34)
             } elif esc == 92 {
@@ -1294,6 +1296,20 @@ test {
             assert kind_is_str(tok_kind(toks, 0))
             val text: ref u8 = tok_text(toks, 0)
             assert trust @load8(@ptradd(text, 5)) as i64 == 10
+        }
+    }
+
+    val carriage_return_string = "\"a\\rb\""
+    val r5a = trust tokenize(carriage_return_string)
+    match r5a {
+        err _ => {
+            assert false
+        }
+        ok toks => {
+            assert kind_is_str(tok_kind(toks, 0))
+            val text: ref u8 = tok_text(toks, 0)
+            assert string.len_raw(text) == 3
+            assert trust @load8(@ptradd(text, 1)) as i64 == 13
         }
     }
 
