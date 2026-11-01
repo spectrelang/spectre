@@ -1,0 +1,21 @@
+extern type Pair = {
+    a: mut f32
+    b: mut i32
+    c: mut f32
+}
+
+pub fn main() i32 = trust {
+    val p: mut ref Pair = @alloc(@sizeof(Pair)) as ref Pair
+    @deref(p) = {a: 1.5, b: 7, c: 2.5}
+
+    if p.a != 1.5 {
+        return 1
+    }
+    if p.b != 7 {
+        return 2
+    }
+    if p.c != 2.5 {
+        return 3
+    }
+    return 0
+}
