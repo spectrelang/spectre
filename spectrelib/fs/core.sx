@@ -115,7 +115,7 @@ fn copy_cstr[A: allocators.Allocator](ac: A, text: ref u8) ref u8 = trust {
         return none
     }
     if len > 0 {
-        @memcpy(buf as ref void, text as ref void, len as usize)
+        @memcpy(buf, text, len as usize)
     }
     return buf
 }
@@ -132,7 +132,7 @@ fn copy_cstr_len[A: allocators.Allocator](ac: A, text: ref u8, len: i64) ref u8 
         return none
     }
     if len > 0 {
-        @memcpy(buf as ref void, text as ref void, len as usize)
+        @memcpy(buf, text, len as usize)
     }
     return buf
 }
@@ -158,7 +158,7 @@ fn raw_copy_cstr_len(text: ref u8, len: i64) ref u8 = trust {
         return none
     }
     if len > 0 {
-        @memcpy(buf as ref void, text as ref void, len as usize)
+        @memcpy(buf, text, len as usize)
     }
     return buf
 }
@@ -735,7 +735,7 @@ test {
     when darwin {
         val fake_dirent: mut ref Dirent = @alloc(@sizeof(Dirent)) as ref Dirent
         trust {
-            @memset(fake_dirent as ref void, 0, @sizeof(Dirent))
+            @memset(fake_dirent, 0, @sizeof(Dirent))
             fake_dirent.d_namlen = 3 as u16
             @store8(@addr(fake_dirent.d_name) as ref void, 97)
             @store8(@ptradd(@addr(fake_dirent.d_name) as ref void, 1), 98)

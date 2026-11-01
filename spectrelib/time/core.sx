@@ -126,7 +126,7 @@ pub fn sleep_millis(ms: i64) void = trust {
             }
             if remaining_us > 4294967295 {
                 usleep(4294967295 as u32)
-                remaining_us = remaining_us - 4294967295
+                remaining_us -= 4294967295
             } else {
                 usleep(remaining_us as u32)
                 break
@@ -142,7 +142,7 @@ pub fn sleep_millis(ms: i64) void = trust {
             }
             if remaining_ms > 4294967295 {
                 Sleep(4294967295 as u32)
-                remaining_ms = remaining_ms - 4294967295
+                remaining_ms -= 4294967295
             } else {
                 Sleep(remaining_ms as u32)
                 break

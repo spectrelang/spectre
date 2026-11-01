@@ -244,8 +244,8 @@ pub fn copy_dir_recursive(src_dir: ref u8, dst_dir: ref u8) bool = trust {
         val data: mut ref WinFindDataA = @alloc(@sizeof(WinFindDataA)) as ref WinFindDataA
         val handle: ref void = FindFirstFileA(pattern, data)
         if @bitcast(handle, i64) == -1 {
-            @free(data as ref void)
-            @free(pattern as ref void)
+            @free(data)
+            @free(pattern)
             return false
         }
 
@@ -276,8 +276,8 @@ pub fn copy_dir_recursive(src_dir: ref u8, dst_dir: ref u8) bool = trust {
         }
 
         FindClose(handle)
-        @free(data as ref void)
-        @free(pattern as ref void)
+        @free(data)
+        @free(pattern)
         return its_ok
     }
     when posix {

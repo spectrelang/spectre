@@ -76,10 +76,10 @@ pub fn join(dir: ref u8, name: ref u8) ref u8 = trust {
     val dlen: i64 = str.len_raw(dir)
     val nlen: i64 = str.len_raw(name)
     val buf: ref u8 = @alloc(dlen + nlen + 2) as ref u8
-    @memcpy(buf as ref void, dir as ref void, dlen as usize)
-    @store8(@ptradd(buf as ref void, dlen), '/')
-    @memcpy(@ptradd(buf as ref void, dlen + 1), name as ref void, nlen as usize)
-    @store8(@ptradd(buf as ref void, dlen + nlen + 1), 0)
+    @memcpy(buf, dir, dlen as usize)
+    @store8(@ptradd(buf, dlen), '/')
+    @memcpy(@ptradd(buf, dlen + 1), name, nlen as usize)
+    @store8(@ptradd(buf, dlen + nlen + 1), 0)
     return buf
 }
 
@@ -93,7 +93,7 @@ pub fn dir(path: ref u8) ref u8 = trust {
         if i >= len {
             break
         }
-        val c: u8 = @load8(@ptradd(path as ref void, i))
+        val c: u8 = @load8(@ptradd(path, i))
         if c == 47 {
             last_slash = i
         }
@@ -108,8 +108,8 @@ pub fn dir(path: ref u8) ref u8 = trust {
         return "."
     }
     val buf: ref u8 = @alloc(last_slash + 2) as ref u8
-    @memcpy(buf as ref void, path as ref void, (last_slash + 1) as usize)
-    @store8(@ptradd(buf as ref void, last_slash + 1), 0)
+    @memcpy(buf, path, (last_slash + 1) as usize)
+    @store8(@ptradd(buf, last_slash + 1), 0)
     return buf
 }
 
@@ -122,17 +122,17 @@ pub fn canonicalize_path(path: ref u8) ref u8 = trust {
     if len == 0 {
         return path
     }
-    val is_abs: bool = @load8(@ptradd(path as ref void, 0)) == 47
+    val is_abs: bool = @load8(@ptradd(path, 0)) == 47
     val keep_dot_prefix: bool = len >= 2 &&
-    @load8(@ptradd(path as ref void, 0)) == 46 &&
-    @load8(@ptradd(path as ref void, 1)) == 47
+    @load8(@ptradd(path, 0)) == 46 &&
+    @load8(@ptradd(path, 1)) == 47
     val segs: mut list[ref u8] = []
     val i: mut i64 = 0
     for {
         if i >= len {
             break
         }
-        val c: u8 = @load8(@ptradd(path as ref void, i))
+        val c: u8 = @load8(@ptradd(path, i))
         if c == 47 {
             i++
             continue
@@ -142,7 +142,7 @@ pub fn canonicalize_path(path: ref u8) ref u8 = trust {
             if i >= len {
                 break
             }
-            val c2: u8 = @load8(@ptradd(path as ref void, i))
+            val c2: u8 = @load8(@ptradd(path, i))
             if c2 == 47 {
                 break
             }
@@ -150,8 +150,8 @@ pub fn canonicalize_path(path: ref u8) ref u8 = trust {
         }
         val seg_len: i64 = i - start
         val seg: ref u8 = @alloc((seg_len + 1) as usize) as ref u8
-        @memcpy(seg as ref void, @ptradd(path as ref void, start), seg_len as usize)
-        @store8(@ptradd(seg as ref void, seg_len), 0)
+        @memcpy(seg, @ptradd(path, start), seg_len as usize)
+        @store8(@ptradd(seg, seg_len), 0)
         if str.raw_cmp(seg, ".") == 0 {
             continue
         }
@@ -207,7 +207,7 @@ pub fn canonicalize_path(path: ref u8) ref u8 = trust {
         }
         return "."
     }
-    if keep_dot_prefix && @load8(@ptradd(out as ref void, 0)) != 46 {
+    if keep_dot_prefix && @load8(@ptradd(out, 0)) != 46 {
         return @fmt("./{s}", {out})
     }
     return out

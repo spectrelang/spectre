@@ -321,7 +321,7 @@ fn sha256_heap[T](data: T) string.String = trust {
         h5 = add32(h5, f)
         h6 = add32(h6, g)
         h7 = add32(h7, h)
-        offset = offset + 64
+        offset += 64
     }
 
     @free(w)
@@ -390,11 +390,11 @@ pub fn hex_encode[A: allocators.Allocator, T](ac: A, data: T) ref u8 = trust {
             break
         }
         val byte: u8 = @load8(@ptradd(src_ptr, i)) as u8
-        @store8(@ptradd(out as ref void, i * 2 + 0), hex_char((byte >> 4) & 15))
-        @store8(@ptradd(out as ref void, i * 2 + 1), hex_char(byte & 15))
+        @store8(@ptradd(out, i * 2 + 0), hex_char((byte >> 4) & 15))
+        @store8(@ptradd(out, i * 2 + 1), hex_char(byte & 15))
         i++
     }
-    @store8(@ptradd(out as ref void, src_len * 2), 0)
+    @store8(@ptradd(out, src_len * 2), 0)
     return out
 }
 
@@ -419,8 +419,8 @@ pub fn hex_decode[A: allocators.Allocator](ac: A, text: ref u8) result[string.St
         if i >= out_len {
             break
         }
-        val hi: i64 = hex_value(@load8(@ptradd(text as ref void, i * 2 + 0)) as u8)
-        val lo: i64 = hex_value(@load8(@ptradd(text as ref void, i * 2 + 1)) as u8)
+        val hi: i64 = hex_value(@load8(@ptradd(text, i * 2 + 0)) as u8)
+        val lo: i64 = hex_value(@load8(@ptradd(text, i * 2 + 1)) as u8)
         if hi < 0 || lo < 0 {
             return err CryptoError.InvalidHexDigit
         }
@@ -496,24 +496,24 @@ pub fn base64_encode[A: allocators.Allocator, T](ac: A, data: T) ref u8 = trust 
             b2 = @load8(@ptradd(src_ptr, si + 2)) as u8
         }
 
-        @store8(@ptradd(out as ref void, oi + 0), b64_char((b0 >> 2) & 63))
-        @store8(@ptradd(out as ref void, oi + 1), b64_char((((b0 & 3) << 4) | (b1 >> 4)) & 63))
+        @store8(@ptradd(out, oi + 0), b64_char((b0 >> 2) & 63))
+        @store8(@ptradd(out, oi + 1), b64_char((((b0 & 3) << 4) | (b1 >> 4)) & 63))
         if rem > 1 {
-            @store8(@ptradd(out as ref void, oi + 2), b64_char((((b1 & 15) << 2) | (b2 >> 6)) & 63))
+            @store8(@ptradd(out, oi + 2), b64_char((((b1 & 15) << 2) | (b2 >> 6)) & 63))
         } else {
-            @store8(@ptradd(out as ref void, oi + 2), 61)
+            @store8(@ptradd(out, oi + 2), 61)
         }
         if rem > 2 {
-            @store8(@ptradd(out as ref void, oi + 3), b64_char(b2 & 63))
+            @store8(@ptradd(out, oi + 3), b64_char(b2 & 63))
         } else {
-            @store8(@ptradd(out as ref void, oi + 3), 61)
+            @store8(@ptradd(out, oi + 3), 61)
         }
 
-        si = si + 3
-        oi = oi + 4
+        si += 3
+        oi += 4
     }
 
-    @store8(@ptradd(out as ref void, out_len), 0)
+    @store8(@ptradd(out, out_len), 0)
     return out
 }
 
@@ -527,10 +527,10 @@ pub fn base64_decode[A: allocators.Allocator](ac: A, text: ref u8) result[string
     }
 
     val pad: mut i64 = 0
-    if text_len > 0 && (@load8(@ptradd(text as ref void, text_len - 1)) as u8) == 61 {
+    if text_len > 0 && (@load8(@ptradd(text, text_len - 1)) as u8) == 61 {
         pad++
     }
-    if text_len > 1 && (@load8(@ptradd(text as ref void, text_len - 2)) as u8) == 61 {
+    if text_len > 1 && (@load8(@ptradd(text, text_len - 2)) as u8) == 61 {
         pad++
     }
 
@@ -548,10 +548,10 @@ pub fn base64_decode[A: allocators.Allocator](ac: A, text: ref u8) result[string
             break
         }
 
-        val c0: u8 = @load8(@ptradd(text as ref void, i + 0)) as u8
-        val c1: u8 = @load8(@ptradd(text as ref void, i + 1)) as u8
-        val c2: u8 = @load8(@ptradd(text as ref void, i + 2)) as u8
-        val c3: u8 = @load8(@ptradd(text as ref void, i + 3)) as u8
+        val c0: u8 = @load8(@ptradd(text, i + 0)) as u8
+        val c1: u8 = @load8(@ptradd(text, i + 1)) as u8
+        val c2: u8 = @load8(@ptradd(text, i + 2)) as u8
+        val c3: u8 = @load8(@ptradd(text, i + 3)) as u8
 
         val v0: i64 = b64_value(c0)
         val v1: i64 = b64_value(c1)
@@ -566,7 +566,7 @@ pub fn base64_decode[A: allocators.Allocator](ac: A, text: ref u8) result[string
             }
             @store8(@ptradd(out_ptr, oi), (((v0 as u8) << 2) | ((v1 as u8) >> 4)) as u8)
             oi++
-            i = i + 4
+            i += 4
             continue
         }
 
@@ -584,7 +584,7 @@ pub fn base64_decode[A: allocators.Allocator](ac: A, text: ref u8) result[string
             }
             @store8(@ptradd(out_ptr, oi), ((((v1 as u8) & 15) << 4) | ((v2 as u8) >> 2)) as u8)
             oi++
-            i = i + 4
+            i += 4
             continue
         }
 
@@ -595,8 +595,8 @@ pub fn base64_decode[A: allocators.Allocator](ac: A, text: ref u8) result[string
 
         @store8(@ptradd(out_ptr, oi + 0), ((((v1 as u8) & 15) << 4) | ((v2 as u8) >> 2)) as u8)
         @store8(@ptradd(out_ptr, oi + 1), ((((v2 as u8) & 3) << 6) | (v3 as u8)) as u8)
-        oi = oi + 2
-        i = i + 4
+        oi += 2
+        i += 4
     }
 
     return ok out

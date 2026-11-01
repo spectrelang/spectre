@@ -125,7 +125,7 @@ pub fn doc_to_string[T: allocators.Allocator](ac: T, handle: JsonDoc) ref u8 = t
     val raw: ref u8 = yyjson_write_opts(doc, 0 as u32, none, @addr(len_slot), none)
     val out: ref u8 = copy_json_string[T](ac, raw, len_slot)
     if raw != none {
-        @free(raw as ref void)
+        @free(raw)
     }
     return out
 }
@@ -281,7 +281,7 @@ pub fn builder_to_string[T: allocators.Allocator](ac: T, handle: JsonBuilder) re
     val raw: ref u8 = yyjson_mut_write_opts(doc, 0 as u32, none, @addr(len_slot), none)
     val out: ref u8 = copy_json_string[T](ac, raw, len_slot)
     if raw != none {
-        @free(raw as ref void)
+        @free(raw)
     }
     return out
 }
@@ -292,7 +292,7 @@ pub fn builder_to_string_pretty[T: allocators.Allocator](ac: T, handle: JsonBuil
     val raw: ref u8 = yyjson_mut_write_opts(doc, 1 as u32, none, @addr(len_slot), none)
     val out: ref u8 = copy_json_string[T](ac, raw, len_slot)
     if raw != none {
-        @free(raw as ref void)
+        @free(raw)
     }
     return out
 }

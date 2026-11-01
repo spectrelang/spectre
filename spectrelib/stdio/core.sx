@@ -39,7 +39,7 @@ pub fn eputs(msg: ref u8) void = {
             p++
         }
         val written: mut u32 = 0
-        trust WriteFile(handle, msg as ref void, len, @addr(written), 0)
+        trust WriteFile(handle, msg, len, @addr(written), 0)
         val nl: mut u8 = 10
         trust WriteFile(handle, @addr(nl), 1 as u32, @addr(written), 0)
     }

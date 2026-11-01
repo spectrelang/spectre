@@ -36,7 +36,7 @@ pub enum RegexMatchError = {
 }
 
 fn char_ptr(ptr: ref u8, offset: i64) ref u8 = {
-    return trust @ptradd(ptr as ref void, offset) as ref u8
+    return trust @ptradd(ptr, offset) as ref u8
 }
 
 fn char_at(ptr: ref u8, offset: i64) u8 = {
@@ -116,14 +116,14 @@ fn alloc_handle[T: allocators.GeneralAllocator](ac: T) option[ref void] = trust 
 
     val tokens: ref void = alloc_in[T](ac, MAX_REGEXP_OBJECTS * REGEX_TOKEN_SIZE)
     if (tokens == none) {
-        free_in[T](ac, handle as ref void)
+        free_in[T](ac, handle)
         return none
     }
 
     val ccl_raw: ref void = alloc_in[T](ac, MAX_CHAR_CLASS_LEN)
     if (ccl_raw == none) {
         free_in[T](ac, tokens)
-        free_in[T](ac, handle as ref void)
+        free_in[T](ac, handle)
         return none
     }
 
@@ -137,7 +137,7 @@ fn alloc_handle[T: allocators.GeneralAllocator](ac: T) option[ref void] = trust 
         tokens_present: handle.tokens != none
         ccl_present: handle.ccl_buf != none
     }
-    return some (handle as ref void)
+    return some (handle)
 }
 
 pub fn re_free_with[T: allocators.GeneralAllocator](ac: T, pattern: ref void) void = trust {
@@ -687,7 +687,7 @@ fn print_char(c: u8) void = trust {
     @store8(buf, c)
     @store8(@ptradd(buf, 1), 0)
     stdio.print("{s}", {buf})
-    free_in[allocators.HeapAllocator](heap, buf as ref void)
+    free_in[allocators.HeapAllocator](heap, buf)
 }
 
 pub fn re_print(pattern: ref void) void = {

@@ -742,7 +742,7 @@ pub fn (StringMap) delete[A: allocators.GeneralAllocator](ac: A, map: self, key:
         if (state == MAP_BUCKET_LIVE) {
             val existing_key: ref u8 = @load(@ptradd(slot, 8)) as ref u8
             if (str_eq(existing_key, key)) {
-                allocators.free_in[A](ac, existing_key as ref void)
+                allocators.free_in[A](ac, existing_key)
                 @store(slot, MAP_BUCKET_DEAD)
                 @store(@ptradd(header, 8), @load(@ptradd(header, 8)) - 1)
                 return 1
@@ -769,7 +769,7 @@ pub fn (StringMap) free[A: allocators.GeneralAllocator](ac: A, map: self) void =
         val state: usize = @load(slot) as usize
         if (state == MAP_BUCKET_LIVE) {
             val k: ref u8 = @load(@ptradd(slot, 8)) as ref u8
-            allocators.free_in[A](ac, k as ref void)
+            allocators.free_in[A](ac, k)
         }
     }
     allocators.free_in[A](ac, buckets)
@@ -951,7 +951,7 @@ pub fn (IndexMap) delete[A: allocators.GeneralAllocator](ac: A, map: self, key: 
                     if p != 0 {
                         val k: ref u8 = p as ref u8
                         if str_eq(k, key) {
-                            allocators.free_in[A](ac, k as ref void)
+                            allocators.free_in[A](ac, k)
                             PtrList.set(keys, i, 0 as usize)
                             break
                         }

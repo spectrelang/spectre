@@ -133,29 +133,29 @@ fn do_request[A: allocators.GeneralAllocator](ac: A, handle: ref void) ref Respo
     }
 
     curl_easy_setopt(handle, CURLOPT_WRITEFUNCTION, @addr(curl_write_cb))
-    curl_easy_setopt(handle, CURLOPT_WRITEDATA,     buf as ref void)
+    curl_easy_setopt(handle, CURLOPT_WRITEDATA,     buf)
     curl_easy_perform(handle)
 
     if buf.failed {
         @free(buf.data)
-        @free(buf as ref void)
+        @free(buf)
         return none
     }
 
     val sc: mut ref I64Slot = @alloc(8) as mut ref I64Slot
     if sc == none {
         @free(buf.data)
-        @free(buf as ref void)
+        @free(buf)
         return none
     }
     sc.value = 0
-    curl_easy_getinfo(handle, CURLINFO_RESPONSE_CODE, sc as ref void)
+    curl_easy_getinfo(handle, CURLINFO_RESPONSE_CODE, sc)
     val status: i64 = sc.value
-    @free(sc as ref void)
+    @free(sc)
 
     val body_ptr: ref void = buf.data
     val body_len: i64 = buf.len
-    @free(buf as ref void)
+    @free(buf)
 
     val body_copy_opt = allocators.alloc_in[A](ac, (body_len + 1) as usize)
     match body_copy_opt {
@@ -259,8 +259,8 @@ pub fn (Http) request[A: allocators.GeneralAllocator](ac: A, method: ref u8, url
 
 /// Free a Response returned by Http.get / Http.post / Http.request with the same allocator used to create it.
 pub fn (Http) free_response[A: allocators.GeneralAllocator](ac: A, resp: ref Response) void = trust {
-    allocators.free_in[A](ac, resp.body as ref void)
-    allocators.free_in[A](ac, resp as ref void)
+    allocators.free_in[A](ac, resp.body)
+    allocators.free_in[A](ac, resp)
 }
 
 /// Read the HTTP status code from a Response.
@@ -324,8 +324,8 @@ pub fn (TcpServer) listen[A: allocators.GeneralAllocator](ac: A, port: i32) ref 
 
     val one: mut ref I32Slot = @alloc(4) as mut ref I32Slot
     one.value = 1
-    setsockopt(fd, sol_socket, so_reuseaddr, one as ref void, 4 as i32)
-    @free(one as ref void)
+    setsockopt(fd, sol_socket, so_reuseaddr, one, 4 as i32)
+    @free(one)
 
     val address: mut ref void = @alloc(16)
     memset(address, 0 as i32, 16)
@@ -379,7 +379,7 @@ pub fn (TcpServer) close_client(client_fd: i32) void = trust {
 /// Shut down and free the server handle.
 pub fn (TcpServer) close[A: allocators.GeneralAllocator](ac: A, server: ref ServerHandle) void = trust {
     close(server.fd)
-    allocators.free_in[A](ac, server as ref void)
+    allocators.free_in[A](ac, server)
 }
 
 /// Read the listening port from a server handle.

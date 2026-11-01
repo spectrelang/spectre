@@ -81,7 +81,7 @@ pub fn sort[T](input: list[T]) list[T] = {
             }
 
             @set(sorted, (j + 1) as usize, jval)
-            j = j - 1
+            j--
         }
 
         @set(sorted, (j + 1) as usize, key)
@@ -431,7 +431,7 @@ pub fn sort_by_num(files: list[ref u8]) list[ref u8] = {
                 break
             }
             @set(sorted, (j + 1) as usize, jval)
-            j = j - 1
+            j--
         }
         @set(sorted, (j + 1) as usize, key)
         si++
@@ -496,7 +496,7 @@ pub fn sort_f64(input: list[f64]) list[f64] = {
             }
 
             @set(sorted, (j + 1) as usize, jval)
-            j = j - 1
+            j--
         }
 
         @set(sorted, (j + 1) as usize, key)
@@ -600,7 +600,7 @@ pub fn sort_alpha(files: list[ref u8]) list[ref u8] = {
             }
 
             @set(sorted, (j + 1) as usize, jval)
-            j = j - 1
+            j--
         }
 
         @set(sorted, (j + 1) as usize, key)
