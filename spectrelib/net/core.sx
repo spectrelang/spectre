@@ -1,5 +1,6 @@
 val allocators = use("../allocators")
 val string     = use("../string")
+val stdio      = use("../stdio")
 
 when darwin {
     lib "curl"
@@ -1071,8 +1072,6 @@ pub fn (TcpServer) port(server: ref ServerHandle) i64 = {
 pub fn (TcpServer) fd(server: ref ServerHandle) i64 = {
     return server.fd
 }
-
-val stdio = use("../stdio")
 
 test {
     val ac: allocators.HeapAllocator = @zeroed
