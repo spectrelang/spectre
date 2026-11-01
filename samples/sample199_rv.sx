@@ -1,0 +1,26 @@
+type Globals = {
+    a: mut i32
+    b: mut f32
+    c: mut i32
+}
+
+val g: mut Globals = {a: 7, b: 2.5, c: 11}
+
+pub fn main() i32 = {
+    if g.a != 7 {
+        return 1
+    }
+    if g.b != 2.5 {
+        return 2
+    }
+    if g.c != 11 {
+        return 3
+    }
+
+    g.a = 19
+    if g.a != 19 {
+        return 4
+    }
+
+    return 0
+}

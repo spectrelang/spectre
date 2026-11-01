@@ -70,6 +70,7 @@ pub type CgCtx = {
     c_consts: mut list[ref u8]
     c_const_syms: mut list[ref u8]
     c_const_index: mut ref void
+    global_inits: mut list[ref GlobalInit]
     release_mode: mut bool
     src_target: mut ref u8
     inv_tnames: mut list[ref u8]
@@ -88,6 +89,12 @@ pub type CgCtx = {
 pub type CgOutput = {
     qbe: mut ref u8
     shim: mut ref u8
+}
+
+type GlobalInit = {
+    label: mut ref u8
+    ty: mut ref void
+    expr: mut ref void
 }
 
 fn cg_new() ref CgCtx = trust {
@@ -148,6 +155,7 @@ fn cg_new() ref CgCtx = trust {
     ctx.c_consts = []
     ctx.c_const_syms = []
     ctx.c_const_index = collections.RawIndexMap.new(32 as usize)
+    ctx.global_inits = []
     ctx.release_mode = false
     ctx.src_target = ""
     ctx.inv_tnames = []
@@ -4945,7 +4953,92 @@ fn emit_global_val(ctx: mut ref CgCtx, mod_prefix: ref u8, node: ref parser.Node
         emit(ctx, data_buf)
         @free(data_buf)
     }
+
+    if gexpr != none && str.raw_cmp(gqtype, "l") == 0 {
+        if gexpr.kind == parser.NK_STRUCT_LIT || gexpr.kind == parser.NK_ARGS_PACK {
+            val init: mut ref GlobalInit = @alloc(@sizeof(GlobalInit)) as ref GlobalInit
+            init.label = glabel
+            init.ty = gty_node as ref void
+            init.expr = gexpr as ref void
+            @append(ctx.global_inits, init)
+        }
+    }
+
     cg_register_global(ctx, gname, glabel, gqtype, gann)
+}
+
+fn cg_register_globals_as_locals(ctx: mut ref CgCtx) void = trust {
+    val gnames_list: ref void = cg_global_src_names(ctx)
+    val glen: i64 = @len(gnames_list) as i64
+    val gi: mut i64 = 0
+    for {
+        if gi >= glen {
+            break
+        }
+        val gn_opt = @get(gnames_list, gi as usize)
+        if gn_opt is some gn {
+            val glbl_buf: ref u8 = @alloc(256) as ref u8
+            val gqt_buf: ref u8 = @alloc(8) as ref u8
+            val gann_buf: ref u8 = @alloc(256) as ref u8
+            val found: bool = cg_lookup_global(ctx, gn as ref u8, glbl_buf, gqt_buf, gann_buf)
+            if found {
+                val dollar_label: ref u8 = @alloc(260) as ref u8
+                @snprintf(dollar_label, 260, "${s}", {glbl_buf})
+                cg_register_local_var(ctx, gn as ref u8, dollar_label)
+                val is_fixed_arr_global: bool = @load8(gann_buf) as i64 == 91
+                if !is_fixed_arr_global {
+                    cg_mark_as_slot(ctx, gn as ref u8)
+                }
+                if str.raw_cmp(gann_buf, "") != 0 {
+                    val gann_copy: ref u8 = @alloc(str.len_raw(gann_buf) + 1) as ref u8
+                    @memcpy(gann_copy, gann_buf, str.len_raw(gann_buf) + 1)
+                    cg_register_local_type(ctx, gn as ref u8, gann_copy)
+                    if raw_starts_with(gann_copy, "ref ") || raw_starts_with(gann_copy, "mut ref ") || cg_ann_is_indirect_value(ctx, gann_copy) {
+                        cg_register_local_ref_type(ctx, gn as ref u8)
+                    }
+                } elif str.raw_cmp(gqt_buf, "w") == 0 {
+                    cg_register_local_type(ctx, gn as ref u8, "i32")
+                } elif str.raw_cmp(gqt_buf, "s") == 0 {
+                    cg_register_local_type(ctx, gn as ref u8, "f32")
+                } elif str.raw_cmp(gqt_buf, "d") == 0 {
+                    cg_register_local_type(ctx, gn as ref u8, "f64")
+                }
+            }
+            @free(glbl_buf)
+            @free(gqt_buf)
+            @free(gann_buf)
+        }
+        gi++
+    }
+}
+
+/// Emit the function that performs runtime initialization of global values.
+fn cg_emit_global_init(ctx: mut ref CgCtx) void = trust {
+    emitln(ctx, "function w $__sx_global_init() {")
+    emitln(ctx, "@start")
+    cg_dvars_clear(ctx)
+    cg_set_fn_name(ctx, "__sx_global_init")
+    ctx.current_fn_ret_qtype = "w"
+    ctx.current_fn_ret_union = ""
+    ctx.current_fn_ret_ty = none
+    ctx.expected_ty = none
+    ctx.inv_cur_pnames = []
+    ctx.inv_cur_ptypes = []
+    cg_register_globals_as_locals(ctx)
+
+    for init in ctx.global_inits {
+        val ty: ref parser.Node = init.ty as ref parser.Node
+        val expr: ref parser.Node = init.expr as ref parser.Node
+        val v: ref u8 = gen_expr_expected(ctx, expr, ty)
+        val buf: ref u8 = @alloc(256) as ref u8
+        @snprintf(buf, 256, "    storel {s}, ${s}\n", {v, init.label})
+        emit(ctx, buf)
+        @free(buf)
+    }
+
+    emitln(ctx, "    ret 0")
+    emitln(ctx, "}")
+    emitln(ctx, "")
 }
 
 /// Generate an expression, with integer literals using the specified QBE type.
@@ -11871,6 +11964,7 @@ fn gen_fn_prefixed(ctx: mut ref CgCtx, fn_node: ref parser.Node, mod_prefix: ref
         if !ctx.release_mode {
             emitln(ctx, "    call $__sx_panic_init()")
         }
+        emitln(ctx, "    call $__sx_global_init()")
     }
 
     if returns_union {
@@ -13352,6 +13446,7 @@ pub fn gen_module_resolved(root: ref module.ResolvedModule, release_mode: bool, 
         li2++
     }
 
+    cg_emit_global_init(ctx)
     emit_string_data(ctx)
 
     val cg_out: mut ref CgOutput = @alloc(@sizeof(CgOutput)) as ref CgOutput
@@ -13509,6 +13604,7 @@ fn gen_test_main(ctx: mut ref CgCtx, test_ids: list[i64]) void = trust {
     if !ctx.release_mode {
         emitln(ctx, "    call $__sx_panic_init()")
     }
+    emitln(ctx, "    call $__sx_global_init()")
     val tlen: i64 = @len(test_ids) as i64
     val ti: mut i64 = 0
     for {
@@ -13705,6 +13801,7 @@ pub fn gen_module_resolved_test(root: ref module.ResolvedModule, release_mode: b
         ri2++
     }
 
+    cg_emit_global_init(ctx)
     gen_test_main(ctx, test_ids)
     emit_string_data(ctx)
 
@@ -14022,6 +14119,7 @@ pub fn gen_module(items: list[ref parser.Node]) ref u8 = trust {
         i++
     }
 
+    cg_emit_global_init(ctx)
     emit_string_data(ctx)
 
     return cg_finish_qbe(ctx)
