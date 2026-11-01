@@ -3,7 +3,7 @@
 set -u
 
 COMPILER="./spectre-dev"
-FIXTURES="./fmtsamples"
+FIXTURES="./samplesmisc/fmtsamples"
 
 if [ ! -x "$COMPILER" ]; then
 	echo "ERROR: compiler not found or not executable at $COMPILER"
