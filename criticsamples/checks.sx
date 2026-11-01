@@ -1,0 +1,30 @@
+val unused = use("std/stdio")
+
+pub fn BadName(x: i64, ready: bool) void = {
+    val Bad_var: ref void = none
+    x = x
+    if ready && ready {
+        @puts("x")
+    } else {
+    }
+}
+
+type bad_type = {
+    Field: i32
+}
+
+fn empty() void = {}
+
+fn empty_if() void = {
+    if true {
+    }
+}
+
+fn optional(v: option[i64]) void = {
+    match v {
+        some _ => {
+            @puts("x")
+        }
+        none => {}
+    }
+}

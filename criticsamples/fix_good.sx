@@ -1,0 +1,7 @@
+fn f(src: ref u8, ready: bool) void = {
+    val x: ref u8 = src
+    val byte: u8 = trust @load8(src)
+    if ready {
+        @puts("x")
+    }
+}

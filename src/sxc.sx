@@ -21,6 +21,7 @@ val defines     = use("meta/defines.sx")
 val commands    = use("meta/commands.sx")
 val docs        = use("meta/docs.sx")
 val formatter   = use("meta/fmt.sx")
+val critic      = use("meta/critic.sx")
 val c_translate = use("translate/c_translate.sx")
 val builds      = use("meta/builds.sx")
 
@@ -184,6 +185,33 @@ pub fn main() i32 = trust {
             fmt_arg_i++
         }
         val code: i32 = formatter.cmd_fmt(fmt_paths, fmt_stdout)
+        allocators.Arena.free(arena)
+        return code
+    }
+
+    if string.raw_cmp(input, "critic") == 0 {
+        val critic_paths: mut list[ref u8] = []
+        val critic_fix: mut bool = false
+        val critic_arg_i: mut i64 = 2
+        for {
+            val critic_arg_opt = @get(args, critic_arg_i)
+            if critic_arg_opt is some cv {
+                val arg: ref u8 = cv as ref u8
+                if string.raw_cmp(arg, "-h") == 0 || string.raw_cmp(arg, "--help") == 0 {
+                    val code: i32 = meta.print_help("critic")
+                    allocators.Arena.free(arena)
+                    return code
+                } elif string.raw_cmp(arg, "--fix") == 0 {
+                    critic_fix = true
+                } else {
+                    @append(critic_paths, arg)
+                }
+            } else {
+                break
+            }
+            critic_arg_i++
+        }
+        val code: i32 = critic.cmd_critic(critic_paths, critic_fix)
         allocators.Arena.free(arena)
         return code
     }

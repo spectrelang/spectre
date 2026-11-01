@@ -1,4 +1,4 @@
-.PHONY: all cprev clean test_fmt
+.PHONY: all cprev clean test_fmt test_critic
 
 all:
 ifeq ($(OS),Windows_NT)
@@ -21,6 +21,9 @@ test_samples:
 
 test_fmt:
 	@bash ./fw/test_fmt.sh
+
+test_critic:
+	@bash ./fw/test_critic.sh
 
 test_surface:
 	@bash ./fw/test_alt.sh

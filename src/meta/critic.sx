@@ -1,0 +1,2026 @@
+/// Static antipattern checks for Spectre source files.
+///
+/// SPDX-License-Identifier: GPL-3.0-only
+/// (C) Navid Momtahen - 2026
+
+val str    = use("std/string")
+val fs     = use("std/fs")
+val path   = use("std/path")
+val stdio  = use("std/stdio")
+val lexer  = use("../ast/lexer.sx")
+val parser = use("../ast/parser.sx")
+
+type Issue = {
+    line: mut i64
+    message: mut ref u8
+}
+
+type Edit = {
+    start: mut i64
+    end: mut i64
+    text: mut ref u8
+}
+
+type VarType = {
+    name: mut ref u8
+    type_name: mut ref u8
+    line: mut i64
+}
+
+type FnSig = {
+    name: mut ref u8
+    ret_type: mut ref u8
+}
+
+type Buf = {
+    ptr: mut ref u8
+    len: mut i64
+    cap: mut i64
+}
+
+type TokSpan = {
+    start: mut i64
+    end: mut i64
+}
+
+type Ctx = {
+    src: mut ref u8
+    len: mut i64
+    tokens: mut list[ref lexer.Token]
+    starts: mut list[i64]
+    issues: mut list[ref Issue]
+    fixes: mut list[ref Edit]
+    vars: mut list[ref VarType]
+    fns: mut list[ref FnSig]
+    uses: mut list[ref parser.Node]
+    fix_mode: mut bool
+}
+
+fn byte_at(src: ref u8, i: i64) i64 = trust {
+    return @load8(@ptradd(src as ref void, i)) as i64
+}
+
+fn collect_line_starts(src: ref u8, len: i64) list[i64] = trust {
+    val starts: mut list[i64] = []
+    @append(starts, 0)
+    val i: mut i64 = 0
+    for {
+        if i >= len {
+            break
+        }
+        if byte_at(src, i) == 10 {
+            @append(starts, i + 1)
+        }
+        i++
+    }
+    return starts
+}
+
+fn ctx_new(src: ref u8, tokens: list[ref lexer.Token], fix_mode: bool) ref Ctx = trust {
+    val c: mut ref Ctx = @alloc(@sizeof(Ctx)) as ref Ctx
+    c.src = src
+    c.len = str.len_raw(src)
+    c.tokens = tokens
+    c.starts = collect_line_starts(src, c.len)
+    c.issues = []
+    c.fixes = []
+    c.vars = []
+    c.fns = []
+    c.uses = []
+    c.fix_mode = fix_mode
+    return c
+}
+
+fn token_count(ctx: ref Ctx) i64 = {
+    return @len(ctx.tokens) as i64
+}
+
+fn token_line(ctx: ref Ctx, idx: i64) i64 = trust {
+    val opt = @get(ctx.tokens, idx as usize)
+    if opt is some t {
+        return (t as ref lexer.Token).line
+    }
+    return 0
+}
+
+fn token_col(ctx: ref Ctx, idx: i64) i64 = trust {
+    val opt = @get(ctx.tokens, idx as usize)
+    if opt is some t {
+        return (t as ref lexer.Token).col
+    }
+    return 0
+}
+
+fn token_kind(ctx: ref Ctx, idx: i64) lexer.TokenKind = trust {
+    return lexer.tok_kind(ctx.tokens, idx)
+}
+
+fn token_text(ctx: ref Ctx, idx: i64) ref u8 = trust {
+    return lexer.tok_text(ctx.tokens, idx)
+}
+
+fn token_start(ctx: ref Ctx, idx: i64) i64 = trust {
+    val line: i64 = token_line(ctx, idx)
+    if line <= 0 {
+        return -1
+    }
+    val line_idx: i64 = line - 1
+    val start_opt = @get(ctx.starts, line_idx as usize)
+    if start_opt is some line_start {
+        return (line_start as i64) + token_col(ctx, idx) - 1
+    }
+    return -1
+}
+
+fn token_ident_len(ctx: ref Ctx, idx: i64) i64 = trust {
+    val txt: ref u8 = token_text(ctx, idx)
+    if txt == none {
+        return 0
+    }
+    return str.len_raw(txt)
+}
+
+fn kind_is_ref(k: lexer.TokenKind) bool = {
+    match k {
+        Ref() => {
+            return true
+        }
+        else => {
+            return false
+        }
+    }
+}
+
+fn kind_is_mut_tok(k: lexer.TokenKind) bool = {
+    match k {
+        Mut() => {
+            return true
+        }
+        else => {
+            return false
+        }
+    }
+}
+
+fn kind_is_colon(k: lexer.TokenKind) bool = {
+    match k {
+        Colon() => {
+            return true
+        }
+        else => {
+            return false
+        }
+    }
+}
+
+fn kind_is_eq(k: lexer.TokenKind) bool = {
+    match k {
+        Eq() => {
+            return true
+        }
+        else => {
+            return false
+        }
+    }
+}
+
+fn kind_is_as(k: lexer.TokenKind) bool = {
+    match k {
+        As() => {
+            return true
+        }
+        else => {
+            return false
+        }
+    }
+}
+
+fn kind_is_val_tok(k: lexer.TokenKind) bool = {
+    match k {
+        Val() => {
+            return true
+        }
+        else => {
+            return false
+        }
+    }
+}
+
+fn kind_is_and_tok(k: lexer.TokenKind) bool = {
+    match k {
+        And() => {
+            return true
+        }
+        else => {
+            return false
+        }
+    }
+}
+
+fn kind_is_or_tok(k: lexer.TokenKind) bool = {
+    match k {
+        Or() => {
+            return true
+        }
+        else => {
+            return false
+        }
+    }
+}
+
+fn is_void_ident(ctx: ref Ctx, idx: i64) bool = trust {
+    val k: lexer.TokenKind = token_kind(ctx, idx)
+    match k {
+        Ident s => {
+            return str.raw_cmp(s, "void") == 0
+        }
+        else => {
+            return false
+        }
+    }
+}
+
+fn is_ident_text(ctx: ref Ctx, idx: i64, text: ref u8) bool = trust {
+    val k: lexer.TokenKind = token_kind(ctx, idx)
+    match k {
+        Ident s => {
+            return str.raw_cmp(s, text) == 0
+        }
+        else => {
+            return false
+        }
+    }
+}
+
+fn list_len(items: list[ref parser.Node]) i64 = {
+    if items == none {
+        return 0
+    }
+    return @len(items) as i64
+}
+
+fn add_issue(ctx: ref Ctx, line: i64, message: ref u8) void = trust {
+    for existing in ctx.issues {
+        if existing.line == line && str.raw_cmp(existing.message, message) == 0 {
+            return
+        }
+    }
+    val issue: mut ref Issue = @alloc(@sizeof(Issue)) as ref Issue
+    issue.line = line
+    issue.message = message
+    @append(ctx.issues, issue)
+}
+
+fn add_fix(ctx: ref Ctx, start: i64, end: i64, text: ref u8) void = trust {
+    if start < 0 || end < start {
+        return
+    }
+    val edit: mut ref Edit = @alloc(@sizeof(Edit)) as ref Edit
+    edit.start = start
+    edit.end = end
+    edit.text = text
+    @append(ctx.fixes, edit)
+}
+
+fn line_start_at(ctx: ref Ctx, line: i64) i64 = trust {
+    val idx: i64 = line - 1
+    val opt = @get(ctx.starts, idx as usize)
+    if opt is some v {
+        return v as i64
+    }
+    return -1
+}
+
+fn line_end_at(ctx: ref Ctx, line: i64) i64 = trust {
+    val start: i64 = line_start_at(ctx, line)
+    if start < 0 {
+        return -1
+    }
+    val i: mut i64 = start
+    for {
+        if i >= ctx.len {
+            break
+        }
+        if byte_at(ctx.src, i) == 10 {
+            break
+        }
+        i++
+    }
+    return i
+}
+
+fn add_remove_line_fix(ctx: ref Ctx, line: i64) void = trust {
+    val start: i64 = line_start_at(ctx, line)
+    if start < 0 {
+        return
+    }
+    val end: i64 = line_end_at(ctx, line)
+    if end < 0 {
+        return
+    }
+    val stop: mut i64 = end
+    if stop < ctx.len && byte_at(ctx.src, stop) == 10 {
+        stop++
+    }
+    add_fix(ctx, start, stop, "")
+}
+
+fn is_blank_line(ctx: ref Ctx, line: i64) bool = trust {
+    val start: i64 = line_start_at(ctx, line)
+    val end: i64 = line_end_at(ctx, line)
+    if start < 0 || end < 0 {
+        return true
+    }
+    val i: mut i64 = start
+    for {
+        if i >= end {
+            break
+        }
+        val c: i64 = byte_at(ctx.src, i)
+        if c != 32 && c != 9 && c != 13 {
+            return false
+        }
+        i++
+    }
+    return true
+}
+
+fn first_nonblank_line(ctx: ref Ctx) i64 = trust {
+    val n: i64 = @len(ctx.starts) as i64
+    val line: mut i64 = 1
+    for {
+        if line > n {
+            break
+        }
+        if !is_blank_line(ctx, line) {
+            return line
+        }
+        line++
+    }
+    return -1
+}
+
+fn is_lower_byte(c: i64) bool = {
+    return c >= 97 && c <= 122
+}
+
+fn is_upper_byte(c: i64) bool = {
+    return c >= 65 && c <= 90
+}
+
+fn is_digit_byte(c: i64) bool = {
+    return c >= 48 && c <= 57
+}
+
+fn is_snake_case(name: ref u8) bool = trust {
+    if name == none {
+        return false
+    }
+    val len: i64 = str.len_raw(name)
+    if len == 0 {
+        return false
+    }
+    val first: i64 = byte_at(name, 0)
+    if !is_lower_byte(first) && first != 95 {
+        return false
+    }
+    val i: mut i64 = 1
+    for {
+        if i >= len {
+            break
+        }
+        val c: i64 = byte_at(name, i)
+        if !is_lower_byte(c) && !is_digit_byte(c) && c != 95 {
+            return false
+        }
+        i++
+    }
+    return true
+}
+
+fn is_pascal_case(name: ref u8) bool = trust {
+    if name == none {
+        return false
+    }
+    val len: i64 = str.len_raw(name)
+    if len == 0 {
+        return false
+    }
+    val first: i64 = byte_at(name, 0)
+    if !is_upper_byte(first) {
+        return false
+    }
+    val i: mut i64 = 1
+    for {
+        if i >= len {
+            break
+        }
+        val c: i64 = byte_at(name, i)
+        if !is_lower_byte(c) && !is_upper_byte(c) && !is_digit_byte(c) {
+            return false
+        }
+        i++
+    }
+    return true
+}
+
+fn check_snake_name(ctx: ref Ctx, line: i64, name: ref u8, kind: ref u8) void = trust {
+    if name == none || is_snake_case(name) {
+        return
+    }
+    add_issue(ctx, line, @fmt("{s} name '{s}' should be snake_case", {kind, name}))
+}
+
+fn check_pascal_name(ctx: ref Ctx, line: i64, name: ref u8, kind: ref u8) void = trust {
+    if name == none || is_pascal_case(name) {
+        return
+    }
+    add_issue(ctx, line, @fmt("{s} name '{s}' should be PascalCase", {kind, name}))
+}
+
+fn type_to_string(ty: ref parser.Node) ref u8 = trust {
+    if ty == none {
+        return none
+    }
+    val k: i64 = ty.kind
+    if k == parser.TY_NAMED {
+        return ty.d0 as ref u8
+    }
+    if k == parser.TY_REF {
+        val inner: ref u8 = type_to_string(ty.d0 as ref parser.Node)
+        if inner == none {
+            return none
+        }
+        return @fmt("ref {s}", {inner})
+    }
+    if k == parser.TY_MUT {
+        val inner: ref u8 = type_to_string(ty.d0 as ref parser.Node)
+        if inner == none {
+            return none
+        }
+        return @fmt("mut {s}", {inner})
+    }
+    if k == parser.TY_OPTION {
+        val inner: ref u8 = type_to_string(ty.d0 as ref parser.Node)
+        if inner == none {
+            return none
+        }
+        return @fmt("option[{s}]", {inner})
+    }
+    if k == parser.TY_LIST {
+        val inner: ref u8 = type_to_string(ty.d0 as ref parser.Node)
+        if inner == none {
+            return none
+        }
+        return @fmt("list[{s}]", {inner})
+    }
+    if k == parser.TY_RESULT {
+        val ok_ty: ref u8 = type_to_string(ty.d0 as ref parser.Node)
+        val err_ty: ref u8 = type_to_string(ty.d1 as ref parser.Node)
+        if ok_ty == none || err_ty == none {
+            return none
+        }
+        return @fmt("result[{s}, {s}]", {ok_ty, err_ty})
+    }
+    if k == parser.TY_SLICE {
+        val inner: ref u8 = type_to_string(ty.d0 as ref parser.Node)
+        if inner == none {
+            return none
+        }
+        return @fmt("[]{s}", {inner})
+    }
+    if k == parser.TY_FIXED_ARR {
+        val inner: ref u8 = type_to_string(ty.d1 as ref parser.Node)
+        if inner == none {
+            return none
+        }
+        return @fmt("[{d}]{s}", {ty.d0, inner})
+    }
+    if k == parser.TY_VOID {
+        return "void"
+    }
+    if k == parser.TY_UNTYPED {
+        return "untyped"
+    }
+    if k == parser.TY_INFER {
+        return "_"
+    }
+    return none
+}
+
+fn ty_is_ref_void(ty: ref parser.Node) bool = trust {
+    if ty == none {
+        return false
+    }
+    val inner: mut ref parser.Node = ty
+    if inner.kind == parser.TY_MUT {
+        inner = inner.d0 as ref parser.Node
+    }
+    if inner == none || inner.kind != parser.TY_REF {
+        return false
+    }
+    val base: ref parser.Node = inner.d0 as ref parser.Node
+    return base != none && base.kind == parser.TY_VOID
+}
+
+fn lookup_var_type(ctx: ref Ctx, name: ref u8, line: i64) ref u8 = trust {
+    val found: mut ref u8 = none
+    for vt in ctx.vars {
+        if str.raw_cmp(vt.name, name) == 0 && vt.line <= line {
+            found = vt.type_name
+        }
+    }
+    return found
+}
+
+fn lookup_fn_ret(ctx: ref Ctx, name: ref u8) ref u8 = trust {
+    for fn_sig in ctx.fns {
+        if str.raw_cmp(fn_sig.name, name) == 0 {
+            return fn_sig.ret_type
+        }
+    }
+    return none
+}
+
+fn is_ref_type_name(name: ref u8) bool = trust {
+    if name == none {
+        return false
+    }
+    return str.raw_starts_with(name, "ref ") || str.raw_starts_with(name, "mut ref ")
+}
+
+fn expr_type(ctx: ref Ctx, node: ref parser.Node) ref u8 = trust {
+    if node == none {
+        return none
+    }
+    val k: i64 = node.kind
+    if k == parser.NK_IDENT {
+        return lookup_var_type(ctx, node.d0 as ref u8, node.line)
+    }
+    if k == parser.NK_CAST {
+        return type_to_string(node.d1 as ref parser.Node)
+    }
+    if k == parser.NK_TRUST {
+        return expr_type(ctx, node.d0 as ref parser.Node)
+    }
+    if k == parser.NK_CALL {
+        val callee: ref parser.Node = parser.call_callee(node)
+        if callee != none && callee.kind == parser.NK_IDENT {
+            return lookup_fn_ret(ctx, callee.d0 as ref u8)
+        }
+        return none
+    }
+    if k == parser.NK_ADDR {
+        val inner_ty: ref u8 = expr_type(ctx, node.d0 as ref parser.Node)
+        if inner_ty == none || is_ref_type_name(inner_ty) {
+            return none
+        }
+        return @fmt("ref {s}", {inner_ty})
+    }
+    return none
+}
+
+fn infer_concrete_type(ctx: ref Ctx, node: ref parser.Node) ref u8 = trust {
+    if node == none {
+        return none
+    }
+    if node.kind == parser.NK_TRUST {
+        return infer_concrete_type(ctx, node.d0 as ref parser.Node)
+    }
+    if node.kind == parser.NK_CAST && ty_is_ref_void(node.d1 as ref parser.Node) {
+        val inner_type: ref u8 = expr_type(ctx, node.d0 as ref parser.Node)
+        if inner_type == none || str.raw_cmp(inner_type, "void") == 0 || str.raw_cmp(inner_type, "ref void") == 0 {
+            return none
+        }
+        return inner_type
+    }
+    return expr_type(ctx, node)
+}
+
+fn expr_is_ref_void_cast(node: ref parser.Node) bool = trust {
+    if node == none {
+        return false
+    }
+    if node.kind == parser.NK_TRUST {
+        return expr_is_ref_void_cast(node.d0 as ref parser.Node)
+    }
+    if node.kind == parser.NK_CAST {
+        return ty_is_ref_void(node.d1 as ref parser.Node)
+    }
+    return false
+}
+
+fn walk_type(ctx: ref Ctx, ty: ref parser.Node) void = trust {
+    if ty == none {
+        return
+    }
+    val k: i64 = ty.kind
+    if k == parser.TY_REF {
+        val inner: ref parser.Node = ty.d0 as ref parser.Node
+        if inner != none && inner.kind == parser.TY_VOID {
+            add_issue(ctx, ty.line, "avoid 'ref void'; use a concrete type when known")
+        }
+        walk_type(ctx, inner)
+        return
+    }
+    if k == parser.TY_MUT || k == parser.TY_OPTION || k == parser.TY_LIST || k == parser.TY_SLICE {
+        walk_type(ctx, ty.d0 as ref parser.Node)
+        return
+    }
+    if k == parser.TY_RESULT {
+        walk_type(ctx, ty.d0 as ref parser.Node)
+        walk_type(ctx, ty.d1 as ref parser.Node)
+        return
+    }
+    if k == parser.TY_FIXED_ARR {
+        walk_type(ctx, ty.d1 as ref parser.Node)
+        return
+    }
+    if k == parser.TY_FNPTR {
+        val params: list[ref parser.Node] = ty.d0 as list[ref parser.Node]
+        for p in params {
+            walk_type(ctx, p)
+        }
+        walk_type(ctx, ty.d1 as ref parser.Node)
+        return
+    }
+}
+
+fn add_var_type(ctx: ref Ctx, name: ref u8, ty: ref parser.Node, line: i64) void = trust {
+    if name == none || ty == none {
+        return
+    }
+    val type_name: ref u8 = type_to_string(ty)
+    if type_name == none {
+        return
+    }
+    val vt: mut ref VarType = @alloc(@sizeof(VarType)) as ref VarType
+    vt.name = name
+    vt.type_name = type_name
+    vt.line = line
+    @append(ctx.vars, vt)
+}
+
+fn add_var_type_name(ctx: ref Ctx, name: ref u8, type_name: ref u8, line: i64) void = trust {
+    if name == none || type_name == none {
+        return
+    }
+    val vt: mut ref VarType = @alloc(@sizeof(VarType)) as ref VarType
+    vt.name = name
+    vt.type_name = type_name
+    vt.line = line
+    @append(ctx.vars, vt)
+}
+
+fn find_val_ref_void_span(ctx: ref Ctx, name: ref u8, line: i64) ref TokSpan = trust {
+    val span: mut ref TokSpan = @alloc(@sizeof(TokSpan)) as ref TokSpan
+    span.start = -1
+    span.end = -1
+    val n: i64 = token_count(ctx)
+    val i: mut i64 = 0
+    for {
+        if i + 3 >= n {
+            break
+        }
+        if token_line(ctx, i) != line || !kind_is_val_tok(token_kind(ctx, i)) {
+            i++
+            continue
+        }
+        if token_line(ctx, i + 1) != line || !is_ident_text(ctx, i + 1, name) {
+            i++
+            continue
+        }
+        if token_line(ctx, i + 2) != line || !kind_is_colon(token_kind(ctx, i + 2)) {
+            i++
+            continue
+        }
+        val j: mut i64 = i + 3
+        if kind_is_mut_tok(token_kind(ctx, j)) {
+            j++
+        }
+        if kind_is_ref(token_kind(ctx, j)) && is_void_ident(ctx, j + 1) {
+            span.start = j
+            span.end = j + 1
+            return span
+        }
+        i++
+    }
+    return span
+}
+
+fn find_cast_after(ctx: ref Ctx, line: i64, from_idx: i64) i64 = trust {
+    val n: i64 = token_count(ctx)
+    val i: mut i64 = from_idx + 1
+    for {
+        if i + 2 >= n || token_line(ctx, i) != line {
+            break
+        }
+        if kind_is_as(token_kind(ctx, i)) {
+            val j: mut i64 = i + 1
+            if kind_is_mut_tok(token_kind(ctx, j)) {
+                j++
+            }
+            if kind_is_ref(token_kind(ctx, j)) && is_void_ident(ctx, j + 1) {
+                return i
+            }
+        }
+        i++
+    }
+    return -1
+}
+
+fn trim_ws_before(ctx: ref Ctx, pos: i64) i64 = trust {
+    val i: mut i64 = pos
+    for {
+        if i <= 0 {
+            break
+        }
+        val c: i64 = byte_at(ctx.src, i - 1)
+        if c != 32 && c != 9 {
+            break
+        }
+        i--
+    }
+    return i
+}
+
+fn add_cast_removal_fix(ctx: ref Ctx, as_idx: i64) void = trust {
+    val as_start: i64 = token_start(ctx, as_idx)
+    val j: mut i64 = as_idx + 1
+    if kind_is_mut_tok(token_kind(ctx, j)) {
+        j++
+    }
+    j++
+    val void_start: i64 = token_start(ctx, j)
+    if as_start < 0 || void_start < 0 {
+        return
+    }
+    val start: i64 = trim_ws_before(ctx, as_start)
+    add_fix(ctx, start, void_start + 4, "")
+}
+
+fn is_ref_void_decl_initializer(ctx: ref Ctx, as_idx: i64) bool = trust {
+    val line: i64 = token_line(ctx, as_idx)
+    val i: mut i64 = as_idx - 1
+    for {
+        if i < 0 {
+            break
+        }
+        if token_line(ctx, i) != line {
+            break
+        }
+        if kind_is_eq(token_kind(ctx, i)) {
+            val j: mut i64 = i - 1
+            for {
+                if j < 0 || token_line(ctx, j) != line {
+                    break
+                }
+                if kind_is_colon(token_kind(ctx, j)) {
+                    val k: mut i64 = j + 1
+                    if kind_is_mut_tok(token_kind(ctx, k)) {
+                        k++
+                    }
+                    return kind_is_ref(token_kind(ctx, k)) && is_void_ident(ctx, k + 1)
+                }
+                if kind_is_val_tok(token_kind(ctx, j)) {
+                    break
+                }
+                j--
+            }
+            break
+        }
+        if kind_is_val_tok(token_kind(ctx, i)) || kind_is_ref(token_kind(ctx, i)) {
+            i--
+            continue
+        }
+        i--
+    }
+    return false
+}
+
+fn collect_ref_void_decl_fix(ctx: ref Ctx, name: ref u8, line: i64, init: ref parser.Node) void = trust {
+    if !ctx.fix_mode || init == none {
+        return
+    }
+    val inferred: ref u8 = infer_concrete_type(ctx, init)
+    if inferred == none || str.raw_cmp(inferred, "void") == 0 || str.raw_cmp(inferred, "ref void") == 0 {
+        return
+    }
+    val span: ref TokSpan = find_val_ref_void_span(ctx, name, line)
+    if span.start < 0 {
+        return
+    }
+    val start: i64 = token_start(ctx, span.start)
+    val end: i64 = token_start(ctx, span.end) + 4
+    if start < 0 || end < start {
+        return
+    }
+    add_fix(ctx, start, end, inferred)
+    if expr_is_ref_void_cast(init) {
+        val as_idx: i64 = find_cast_after(ctx, line, span.end)
+        if as_idx >= 0 {
+            add_cast_removal_fix(ctx, as_idx)
+        }
+    }
+}
+
+fn collect_cast_removal_fixes(ctx: ref Ctx) void = trust {
+    if !ctx.fix_mode {
+        return
+    }
+    val n: i64 = token_count(ctx)
+    val i: mut i64 = 0
+    for {
+        if i + 2 >= n {
+            break
+        }
+        if !kind_is_as(token_kind(ctx, i)) || is_ref_void_decl_initializer(ctx, i) {
+            i++
+            continue
+        }
+        val j: mut i64 = i + 1
+        if kind_is_mut_tok(token_kind(ctx, j)) {
+            j++
+        }
+        if !kind_is_ref(token_kind(ctx, j)) || !is_void_ident(ctx, j + 1) {
+            i++
+            continue
+        }
+        if i == 0 {
+            i++
+            continue
+        }
+        val operand: i64 = i - 1
+        val operand_type: mut ref u8 = none
+        val k: lexer.TokenKind = token_kind(ctx, operand)
+        match k {
+            Ident s => {
+                operand_type = lookup_var_type(ctx, s, token_line(ctx, operand))
+            }
+            else => {}
+        }
+        if operand_type != none && is_ref_type_name(operand_type) {
+            add_cast_removal_fix(ctx, i)
+        }
+        i++
+    }
+}
+
+fn line_has_only_assignment(ctx: ref Ctx, line: i64, lhs_idx: i64, rhs_idx: i64) bool = trust {
+    val n: i64 = token_count(ctx)
+    val first: mut i64 = -1
+    val last: mut i64 = -1
+    val i: mut i64 = 0
+    for {
+        if i >= n {
+            break
+        }
+        if token_line(ctx, i) == line {
+            if first < 0 {
+                first = i
+            }
+            last = i
+        }
+        i++
+    }
+    return first == lhs_idx && last == rhs_idx
+}
+
+fn collect_self_assignment_fixes(ctx: ref Ctx) void = trust {
+    if !ctx.fix_mode {
+        return
+    }
+    val n: i64 = token_count(ctx) - 1
+    val i: mut i64 = 0
+    for {
+        if i + 2 >= n {
+            break
+        }
+        val k0: lexer.TokenKind = token_kind(ctx, i)
+        match k0 {
+            Ident _ => {
+                if kind_is_eq(token_kind(ctx, i + 1)) {
+                    match token_kind(ctx, i + 2) {
+                        Ident _ => {
+                            val lhs_text: ref u8 = token_text(ctx, i)
+                            val rhs_text: ref u8 = token_text(ctx, i + 2)
+                            if str.raw_cmp(lhs_text, rhs_text) == 0 && line_has_only_assignment(ctx, token_line(ctx, i), i, i + 2) {
+                                add_remove_line_fix(ctx, token_line(ctx, i))
+                            }
+                        }
+                        else => {}
+                    }
+                }
+            }
+            else => {}
+        }
+        i++
+    }
+}
+
+fn collect_duplicate_condition_fixes(ctx: ref Ctx) void = trust {
+    if !ctx.fix_mode {
+        return
+    }
+    val n: i64 = token_count(ctx) - 1
+    val i: mut i64 = 0
+    for {
+        if i + 2 >= n {
+            break
+        }
+        val k0: lexer.TokenKind = token_kind(ctx, i)
+        val k1: lexer.TokenKind = token_kind(ctx, i + 1)
+        val is_bool_op: mut bool = false
+        if kind_is_and_tok(k1) || kind_is_or_tok(k1) {
+            is_bool_op = true
+        }
+        match k0 {
+            Ident _ => {
+                if is_bool_op {
+                    match token_kind(ctx, i + 2) {
+                        Ident _ => {
+                            val lhs_text: ref u8 = token_text(ctx, i)
+                            val rhs_text: ref u8 = token_text(ctx, i + 2)
+                            if str.raw_cmp(lhs_text, rhs_text) == 0 {
+                                val first_start: i64 = token_start(ctx, i)
+                                val first_end: i64 = first_start + token_ident_len(ctx, i)
+                                val second_start: i64 = token_start(ctx, i + 2)
+                                val second_end: i64 = second_start + token_ident_len(ctx, i + 2)
+                                add_fix(ctx, first_end, second_end, "")
+                            }
+                        }
+                        else => {}
+                    }
+                }
+            }
+            else => {}
+        }
+        i++
+    }
+}
+
+fn count_ident_tokens(ctx: ref Ctx, name: ref u8) i64 = trust {
+    val count: mut i64 = 0
+    for tok in ctx.tokens {
+        match tok.kind {
+            Ident s => {
+                if str.raw_cmp(s, name) == 0 {
+                    count++
+                }
+            }
+            else => {}
+        }
+    }
+    return count
+}
+
+fn check_unused_imports(ctx: ref Ctx) void = trust {
+    for use_node in ctx.uses {
+        val alias: ref u8 = use_node.d1 as ref u8
+        if alias == none {
+            continue
+        }
+        val count: i64 = count_ident_tokens(ctx, alias)
+        if count <= 1 {
+            add_issue(ctx, use_node.line, @fmt("unused import '{s}'", {alias}))
+            if ctx.fix_mode {
+                add_remove_line_fix(ctx, use_node.line)
+                if first_nonblank_line(ctx) == use_node.line && is_blank_line(ctx, use_node.line + 1) {
+                    add_remove_line_fix(ctx, use_node.line + 1)
+                }
+            }
+        }
+    }
+}
+
+fn collect_fn_sigs(ctx: ref Ctx, items: list[ref parser.Node]) void = trust {
+    for item in items {
+        if item == none {
+            continue
+        }
+        val k: i64 = item.kind
+        if k == parser.NK_FN || k == parser.NK_GENERIC_FN {
+            val name: ref u8 = item.d2 as ref u8
+            val ret_ty: ref parser.Node = item.d4 as ref parser.Node
+            val ret_name: ref u8 = type_to_string(ret_ty)
+            val sig: mut ref FnSig = @alloc(@sizeof(FnSig)) as ref FnSig
+            sig.name = name
+            sig.ret_type = ret_name
+            @append(ctx.fns, sig)
+        } elif k == parser.NK_WHEN_ITEMS {
+            collect_fn_sigs(ctx, item.d1 as list[ref parser.Node])
+            val or_branches: list[ref parser.Node] = item.d2 as list[ref parser.Node]
+            if or_branches != none {
+                for or_node in or_branches {
+                    val branch: ref parser.Node = or_node as ref parser.Node
+                    collect_fn_sigs(ctx, branch.d1 as list[ref parser.Node])
+                }
+            }
+            collect_fn_sigs(ctx, item.d3 as list[ref parser.Node])
+        }
+    }
+}
+
+fn type_nodes_equal(a: ref parser.Node, b: ref parser.Node) bool = trust {
+    if a == none || b == none {
+        return a == none && b == none
+    }
+    if a.kind != b.kind {
+        return false
+    }
+    if a.kind == parser.TY_NAMED {
+        return str.raw_cmp(a.d0 as ref u8, b.d0 as ref u8) == 0
+    }
+    if a.kind == parser.TY_REF || a.kind == parser.TY_MUT || a.kind == parser.TY_OPTION ||
+    a.kind == parser.TY_LIST || a.kind == parser.TY_SLICE {
+        return type_nodes_equal(a.d0 as ref parser.Node, b.d0 as ref parser.Node)
+    }
+    if a.kind == parser.TY_RESULT {
+        return type_nodes_equal(a.d0 as ref parser.Node, b.d0 as ref parser.Node) &&
+        type_nodes_equal(a.d1 as ref parser.Node, b.d1 as ref parser.Node)
+    }
+    if a.kind == parser.TY_FIXED_ARR {
+        return a.d0 == b.d0 && type_nodes_equal(a.d1 as ref parser.Node, b.d1 as ref parser.Node)
+    }
+    if a.kind == parser.TY_VOID || a.kind == parser.TY_UNTYPED || a.kind == parser.TY_INFER {
+        return true
+    }
+    return false
+}
+
+fn node_lists_equal(a: list[ref parser.Node], b: list[ref parser.Node]) bool = trust {
+    val an: i64 = list_len(a)
+    val bn: i64 = list_len(b)
+    if an != bn {
+        return false
+    }
+    val i: mut i64 = 0
+    for {
+        if i >= an {
+            break
+        }
+        val av = @get(a, i as usize)
+        val bv = @get(b, i as usize)
+        val an_one: mut ref parser.Node = none
+        val bn_one: mut ref parser.Node = none
+        if av is some x {
+            an_one = x as ref parser.Node
+        }
+        if bv is some y {
+            bn_one = y as ref parser.Node
+        }
+        if !nodes_equal(an_one, bn_one) {
+            return false
+        }
+        i++
+    }
+    return true
+}
+
+fn nodes_equal(a: ref parser.Node, b: ref parser.Node) bool = trust {
+    if a == none || b == none {
+        return a == none && b == none
+    }
+    if a.kind != b.kind {
+        return false
+    }
+    val k: i64 = a.kind
+    if k == parser.NK_IDENT {
+        return str.raw_cmp(a.d0 as ref u8, b.d0 as ref u8) == 0
+    }
+    if k == parser.NK_INT_LIT {
+        return str.raw_cmp(parser.int_lit_text(a), parser.int_lit_text(b)) == 0
+    }
+    if k == parser.NK_FLOAT_LIT {
+        return str.raw_cmp(parser.float_lit_text(a), parser.float_lit_text(b)) == 0
+    }
+    if k == parser.NK_STR_LIT {
+        return str.raw_cmp(parser.str_lit_text(a), parser.str_lit_text(b)) == 0
+    }
+    if k == parser.NK_BOOL || k == parser.NK_CHAR_LIT {
+        return a.d0 == b.d0
+    }
+    if k == parser.NK_NONE || k == parser.NK_ZERO_INIT {
+        return true
+    }
+    if k == parser.NK_FIELD {
+        return str.raw_cmp(a.d1 as ref u8, b.d1 as ref u8) == 0 &&
+        nodes_equal(a.d0 as ref parser.Node, b.d0 as ref parser.Node)
+    }
+    if k == parser.NK_CALL {
+        return nodes_equal(parser.call_callee(a), parser.call_callee(b)) &&
+        node_lists_equal(parser.call_args(a), parser.call_args(b))
+    }
+    if k == parser.NK_BINOP {
+        return parser.binop_op(a) == parser.binop_op(b) &&
+        nodes_equal(parser.binop_left(a), parser.binop_left(b)) &&
+        nodes_equal(parser.binop_right(a), parser.binop_right(b))
+    }
+    if k == parser.NK_UNOP {
+        return parser.unop_op(a) == parser.unop_op(b) &&
+        nodes_equal(parser.unop_inner(a), parser.unop_inner(b))
+    }
+    if k == parser.NK_CAST {
+        return nodes_equal(a.d0 as ref parser.Node, b.d0 as ref parser.Node) &&
+        type_nodes_equal(a.d1 as ref parser.Node, b.d1 as ref parser.Node)
+    }
+    if k == parser.NK_ADDR || k == parser.NK_DEREF || k == parser.NK_TRUST || k == parser.NK_TRY ||
+    k == parser.NK_SOME || k == parser.NK_OK_VAL || k == parser.NK_ERR_VAL {
+        return nodes_equal(a.d0 as ref parser.Node, b.d0 as ref parser.Node)
+    }
+    if k == parser.NK_LIST_LIT || k == parser.NK_ARGS_PACK {
+        return node_lists_equal(a.d0 as list[ref parser.Node], b.d0 as list[ref parser.Node])
+    }
+    if k == parser.NK_STRUCT_LIT {
+        return node_lists_equal(a.d0 as list[ref parser.Node], b.d0 as list[ref parser.Node])
+    }
+    if k == parser.NK_BUILTIN {
+        return str.raw_cmp(a.d0 as ref u8, b.d0 as ref u8) == 0 &&
+        node_lists_equal(a.d1 as list[ref parser.Node], b.d1 as list[ref parser.Node])
+    }
+    return false
+}
+
+fn collect_bool_leaves(node: ref parser.Node, op: i64, leaves: mut list[ref parser.Node]) void = trust {
+    if node == none {
+        return
+    }
+    if node.kind == parser.NK_BINOP && parser.binop_op(node) == op {
+        collect_bool_leaves(parser.binop_left(node), op, leaves)
+        collect_bool_leaves(parser.binop_right(node), op, leaves)
+        return
+    }
+    @append(leaves, node)
+}
+
+fn check_duplicate_condition(ctx: ref Ctx, node: ref parser.Node) void = trust {
+    val op: i64 = parser.binop_op(node)
+    if op != parser.OP_AND && op != parser.OP_OR {
+        return
+    }
+    val leaves: mut list[ref parser.Node] = []
+    collect_bool_leaves(node, op, leaves)
+    val n: i64 = @len(leaves) as i64
+    val i: mut i64 = 0
+    val found: mut bool = false
+    for {
+        if i >= n || found {
+            break
+        }
+        val a_opt = @get(leaves, i as usize)
+        val a: mut ref parser.Node = none
+        if a_opt is some a_val {
+            a = a_val as ref parser.Node
+        }
+        val j: mut i64 = i + 1
+        for {
+            if j >= n || found {
+                break
+            }
+            val b_opt = @get(leaves, j as usize)
+            val b: mut ref parser.Node = none
+            if b_opt is some b_val {
+                b = b_val as ref parser.Node
+            }
+            if nodes_equal(a, b) {
+                add_issue(ctx, node.line, "duplicate condition in boolean expression")
+                found = true
+            }
+            j++
+        }
+        i++
+    }
+}
+
+fn walk_expr(ctx: ref Ctx, node: ref parser.Node) void = trust {
+    if node == none {
+        return
+    }
+    val k: i64 = node.kind
+    if k == parser.NK_BINOP {
+        check_duplicate_condition(ctx, node)
+        walk_expr(ctx, parser.binop_left(node))
+        walk_expr(ctx, parser.binop_right(node))
+        return
+    }
+    if k == parser.NK_UNOP {
+        walk_expr(ctx, parser.unop_inner(node))
+        return
+    }
+    if k == parser.NK_FIELD {
+        walk_expr(ctx, node.d0 as ref parser.Node)
+        return
+    }
+    if k == parser.NK_CALL {
+        walk_expr(ctx, parser.call_callee(node))
+        val args: list[ref parser.Node] = parser.call_args(node)
+        for arg in args {
+            walk_expr(ctx, arg)
+        }
+        return
+    }
+    if k == parser.NK_CAST {
+        walk_expr(ctx, node.d0 as ref parser.Node)
+        walk_type(ctx, node.d1 as ref parser.Node)
+        return
+    }
+    if k == parser.NK_ADDR || k == parser.NK_DEREF || k == parser.NK_TRUST || k == parser.NK_TRY ||
+    k == parser.NK_SOME || k == parser.NK_OK_VAL || k == parser.NK_ERR_VAL {
+        walk_expr(ctx, node.d0 as ref parser.Node)
+        return
+    }
+    if k == parser.NK_LIST_LIT || k == parser.NK_ARGS_PACK {
+        val items: list[ref parser.Node] = node.d0 as list[ref parser.Node]
+        for item in items {
+            walk_expr(ctx, item)
+        }
+        return
+    }
+    if k == parser.NK_STRUCT_LIT {
+        val fields: list[ref parser.Node] = node.d0 as list[ref parser.Node]
+        for field in fields {
+            if field != none {
+                walk_expr(ctx, field.d1 as ref parser.Node)
+            }
+        }
+        return
+    }
+    if k == parser.NK_BUILTIN {
+        val args: list[ref parser.Node] = node.d1 as list[ref parser.Node]
+        for arg in args {
+            walk_expr(ctx, arg)
+        }
+        return
+    }
+    if k == parser.NK_TRUST_BLOCK {
+        walk_stmts(ctx, node.d0 as list[ref parser.Node])
+        return
+    }
+}
+
+fn walk_contracts(ctx: ref Ctx, contracts: list[ref parser.Node]) void = trust {
+    if contracts == none {
+        return
+    }
+    for contract in contracts {
+        if contract != none {
+            walk_expr(ctx, contract.d1 as ref parser.Node)
+        }
+    }
+}
+
+fn walk_params(ctx: ref Ctx, params: list[ref parser.Node]) void = trust {
+    if params == none {
+        return
+    }
+    for param in params {
+        if param == none {
+            continue
+        }
+        val name: ref u8 = param.d0 as ref u8
+        val ty: ref parser.Node = param.d1 as ref parser.Node
+        check_snake_name(ctx, param.line, name, "variable")
+        walk_type(ctx, ty)
+        add_var_type(ctx, name, ty, param.line)
+    }
+}
+
+fn check_fn_node(ctx: ref Ctx, fn_node: ref parser.Node, check_body: bool) void = trust {
+    val name: ref u8 = fn_node.d2 as ref u8
+    check_snake_name(ctx, fn_node.line, name, "function")
+    val params: list[ref parser.Node] = fn_node.d3 as list[ref parser.Node]
+    walk_params(ctx, params)
+    walk_type(ctx, fn_node.d4 as ref parser.Node)
+    if fn_node.kind == parser.NK_GENERIC_FN {
+        val tparams: list[ref parser.Node] = fn_node.d6 as list[ref parser.Node]
+        if tparams != none {
+            for tp in tparams {
+                if tp != none {
+                    walk_type(ctx, tp.d1 as ref parser.Node)
+                }
+            }
+        }
+    }
+    if !check_body {
+        return
+    }
+    val body: list[ref parser.Node] = fn_node.d5 as list[ref parser.Node]
+    if list_len(body) == 0 {
+        add_issue(ctx, fn_node.line, @fmt("empty function body for '{s}'", {name}))
+        return
+    }
+    if list_len(body) == 1 {
+        val only_opt = @get(body, 0 as usize)
+        if only_opt is some only_val {
+            val only: ref parser.Node = only_val as ref parser.Node
+            if only != none && only.kind == parser.NK_TRUST_BLOCK && list_len(only.d0 as list[ref parser.Node]) == 0 {
+                add_issue(ctx, fn_node.line, @fmt("empty function body for '{s}'", {name}))
+                return
+            }
+        }
+    }
+    walk_stmts(ctx, body)
+}
+
+fn walk_type_def(ctx: ref Ctx, node: ref parser.Node) void = trust {
+    check_pascal_name(ctx, node.line, node.d1 as ref u8, "type")
+    val fields: list[ref parser.Node] = node.d2 as list[ref parser.Node]
+    if fields != none {
+        for field in fields {
+            if field == none {
+                continue
+            }
+            check_snake_name(ctx, field.line, field.d0 as ref u8, "variable")
+            walk_type(ctx, field.d2 as ref parser.Node)
+        }
+    }
+    val invariants: list[ref parser.Node] = node.d3 as list[ref parser.Node]
+    if invariants != none {
+        for inv in invariants {
+            walk_expr(ctx, inv)
+        }
+    }
+}
+
+fn walk_union_def(ctx: ref Ctx, node: ref parser.Node) void = trust {
+    check_pascal_name(ctx, node.line, node.d1 as ref u8, "type")
+    val variants: list[ref parser.Node] = node.d2 as list[ref parser.Node]
+    if variants == none {
+        return
+    }
+    for variant in variants {
+        if variant == none {
+            continue
+        }
+        if node.kind == parser.NK_TAGGED_UNIONDEF {
+            val tys: list[ref parser.Node] = variant.d1 as list[ref parser.Node]
+            if tys != none {
+                for ty in tys {
+                    walk_type(ctx, ty)
+                }
+            }
+        } else {
+            walk_type(ctx, variant)
+        }
+    }
+}
+
+fn walk_spec(ctx: ref Ctx, node: ref parser.Node) void = trust {
+    check_pascal_name(ctx, node.line, node.d1 as ref u8, "spec")
+    val methods: list[ref parser.Node] = node.d2 as list[ref parser.Node]
+    if methods == none {
+        return
+    }
+    for method in methods {
+        if method != none {
+            check_fn_node(ctx, method, false)
+        }
+    }
+}
+
+fn walk_when_stmts(ctx: ref Ctx, node: ref parser.Node) void = trust {
+    walk_stmts(ctx, node.d1 as list[ref parser.Node])
+    val or_branches: list[ref parser.Node] = node.d2 as list[ref parser.Node]
+    if or_branches != none {
+        for or_node in or_branches {
+            if or_node != none {
+                walk_when_stmts(ctx, or_node as ref parser.Node)
+            }
+        }
+    }
+    walk_stmts(ctx, node.d3 as list[ref parser.Node])
+}
+
+fn walk_match_bodies(ctx: ref Ctx, arms: list[ref parser.Node], body_slot: i64) void = trust {
+    if arms == none {
+        return
+    }
+    for arm in arms {
+        if arm == none {
+            continue
+        }
+        if body_slot == 2 {
+            walk_stmts(ctx, arm.d2 as list[ref parser.Node])
+        } else {
+            walk_stmts(ctx, arm.d1 as list[ref parser.Node])
+        }
+    }
+}
+
+fn walk_stmts(ctx: ref Ctx, stmts: list[ref parser.Node]) void = trust {
+    if stmts == none {
+        return
+    }
+    for stmt in stmts {
+        if stmt == none {
+            continue
+        }
+        val k: i64 = stmt.kind
+        if k == parser.NK_VAL {
+            val name: ref u8 = stmt.d0 as ref u8
+            check_snake_name(ctx, stmt.line, name, "variable")
+            val ty: ref parser.Node = stmt.d2 as ref parser.Node
+            val init: ref parser.Node = stmt.d3 as ref parser.Node
+            walk_type(ctx, ty)
+            walk_expr(ctx, init)
+            if ty_is_ref_void(ty) {
+                collect_ref_void_decl_fix(ctx, name, stmt.line, init)
+            }
+            if ty != none {
+                add_var_type(ctx, name, ty, stmt.line)
+            } else {
+                val inferred: ref u8 = infer_concrete_type(ctx, init)
+                add_var_type_name(ctx, name, inferred, stmt.line)
+            }
+            continue
+        }
+        if k == parser.NK_ASSIGN {
+            val lhs: ref parser.Node = stmt.d0 as ref parser.Node
+            val rhs: ref parser.Node = stmt.d1 as ref parser.Node
+            if nodes_equal(lhs, rhs) {
+                add_issue(ctx, stmt.line, "self-assignment has no effect")
+            }
+            walk_expr(ctx, lhs)
+            walk_expr(ctx, rhs)
+            continue
+        }
+        if k == parser.NK_RETURN {
+            walk_expr(ctx, stmt.d0 as ref parser.Node)
+            continue
+        }
+        if k == parser.NK_IF {
+            if stmt.d1 == 0 && stmt.d2 == 0 && stmt.d3 == 0 {
+                val else_body: list[ref parser.Node] = stmt.d0 as list[ref parser.Node]
+                if list_len(else_body) == 0 {
+                    add_issue(ctx, stmt.line, "empty else body")
+                }
+                walk_stmts(ctx, else_body)
+                continue
+            }
+            if stmt.d2 == 0 && stmt.d3 == 0 {
+                walk_expr(ctx, stmt.d0 as ref parser.Node)
+                val elif_body: list[ref parser.Node] = stmt.d1 as list[ref parser.Node]
+                if list_len(elif_body) == 0 {
+                    add_issue(ctx, stmt.line, "empty elif body")
+                }
+                walk_stmts(ctx, elif_body)
+                continue
+            }
+            walk_expr(ctx, stmt.d0 as ref parser.Node)
+            val then_body: list[ref parser.Node] = stmt.d1 as list[ref parser.Node]
+            if list_len(then_body) == 0 {
+                add_issue(ctx, stmt.line, "empty if body")
+            }
+            walk_stmts(ctx, then_body)
+            val elif_list: list[ref parser.Node] = stmt.d2 as list[ref parser.Node]
+            if elif_list != none {
+                for elif_node in elif_list {
+                    walk_stmts(ctx, [elif_node])
+                }
+            }
+            val else_node: ref parser.Node = stmt.d3 as ref parser.Node
+            if else_node != none {
+                walk_stmts(ctx, [else_node])
+            }
+            continue
+        }
+        if k == parser.NK_FOR {
+            val var_name: ref u8 = stmt.d0 as ref u8
+            if var_name != none {
+                check_snake_name(ctx, stmt.line, var_name, "variable")
+            }
+            walk_expr(ctx, stmt.d1 as ref parser.Node)
+            walk_expr(ctx, stmt.d2 as ref parser.Node)
+            walk_expr(ctx, stmt.d3 as ref parser.Node)
+            walk_stmts(ctx, stmt.d4 as list[ref parser.Node])
+            continue
+        }
+        if k == parser.NK_FORIN {
+            val var_name: ref u8 = stmt.d0 as ref u8
+            check_snake_name(ctx, stmt.line, var_name, "variable")
+            walk_expr(ctx, stmt.d1 as ref parser.Node)
+            walk_stmts(ctx, stmt.d2 as list[ref parser.Node])
+            continue
+        }
+        if k == parser.NK_DEFER {
+            walk_stmts(ctx, stmt.d0 as list[ref parser.Node])
+            continue
+        }
+        if k == parser.NK_ASSERT {
+            walk_expr(ctx, stmt.d0 as ref parser.Node)
+            continue
+        }
+        if k == parser.NK_PRE || k == parser.NK_POST ||
+        k == parser.NK_GUARDED_PRE || k == parser.NK_GUARDED_POST {
+            walk_contracts(ctx, stmt.d0 as list[ref parser.Node])
+            continue
+        }
+        if k == parser.NK_GUARD {
+            walk_expr(ctx, stmt.d0 as ref parser.Node)
+            walk_stmts(ctx, stmt.d1 as list[ref parser.Node])
+            continue
+        }
+        if k == parser.NK_WHEN_STMT {
+            walk_when_stmts(ctx, stmt)
+            continue
+        }
+        if k == parser.NK_EXPR_STMT {
+            walk_expr(ctx, stmt.d0 as ref parser.Node)
+            continue
+        }
+        if k == parser.NK_INCREMENT || k == parser.NK_DECREMENT {
+            walk_expr(ctx, stmt.d0 as ref parser.Node)
+            continue
+        }
+        if k == parser.NK_ADD_ASSIGN || k == parser.NK_SUB_ASSIGN {
+            walk_expr(ctx, stmt.d0 as ref parser.Node)
+            walk_expr(ctx, stmt.d1 as ref parser.Node)
+            continue
+        }
+        if k == parser.NK_MATCH_OPT {
+            walk_expr(ctx, stmt.d0 as ref parser.Node)
+            val some_bind: ref u8 = stmt.d1 as ref u8
+            if some_bind != none {
+                check_snake_name(ctx, stmt.line, some_bind, "variable")
+            }
+            val some_body: ref parser.Node = stmt.d2 as ref parser.Node
+            if some_body != none {
+                walk_stmts(ctx, some_body.d0 as list[ref parser.Node])
+            }
+            val none_body: ref parser.Node = stmt.d3 as ref parser.Node
+            if none_body != none {
+                val none_stmts: list[ref parser.Node] = none_body.d0 as list[ref parser.Node]
+                if list_len(none_stmts) == 0 {
+                    add_issue(ctx, stmt.line, "empty none arm; handle the none case or remove the arm")
+                }
+                walk_stmts(ctx, none_stmts)
+            }
+            continue
+        }
+        if k == parser.NK_MATCH_RES {
+            walk_expr(ctx, stmt.d0 as ref parser.Node)
+            val ok_bind: ref u8 = stmt.d1 as ref u8
+            if ok_bind != none {
+                check_snake_name(ctx, stmt.line, ok_bind, "variable")
+            }
+            val err_bind: ref u8 = stmt.d3 as ref u8
+            if err_bind != none {
+                check_snake_name(ctx, stmt.line, err_bind, "variable")
+            }
+            val ok_body: ref parser.Node = stmt.d2 as ref parser.Node
+            if ok_body != none {
+                walk_stmts(ctx, ok_body.d0 as list[ref parser.Node])
+            }
+            val err_body: ref parser.Node = stmt.d4 as ref parser.Node
+            if err_body != none {
+                walk_stmts(ctx, err_body.d0 as list[ref parser.Node])
+            }
+            continue
+        }
+        if k == parser.NK_MATCH_ENUM {
+            walk_expr(ctx, stmt.d0 as ref parser.Node)
+            walk_match_bodies(ctx, stmt.d1 as list[ref parser.Node], 1)
+            continue
+        }
+        if k == parser.NK_MATCH_VALUE {
+            walk_expr(ctx, stmt.d0 as ref parser.Node)
+            walk_match_bodies(ctx, stmt.d1 as list[ref parser.Node], 1)
+            val else_body: ref parser.Node = stmt.d2 as ref parser.Node
+            if else_body != none {
+                walk_stmts(ctx, else_body.d0 as list[ref parser.Node])
+            }
+            continue
+        }
+        if k == parser.NK_MATCH_STR {
+            walk_expr(ctx, stmt.d0 as ref parser.Node)
+            walk_match_bodies(ctx, stmt.d1 as list[ref parser.Node], 1)
+            val else_body: ref parser.Node = stmt.d2 as ref parser.Node
+            if else_body != none {
+                walk_stmts(ctx, else_body.d0 as list[ref parser.Node])
+            }
+            continue
+        }
+        if k == parser.NK_MATCH_UNION {
+            walk_expr(ctx, stmt.d0 as ref parser.Node)
+            walk_match_bodies(ctx, stmt.d1 as list[ref parser.Node], 1)
+            val else_body: ref parser.Node = stmt.d2 as ref parser.Node
+            if else_body != none {
+                walk_stmts(ctx, else_body.d0 as list[ref parser.Node])
+            }
+            continue
+        }
+        if k == parser.NK_MATCH_TAGGED_UNION {
+            walk_expr(ctx, stmt.d0 as ref parser.Node)
+            val tu_arms: list[ref parser.Node] = stmt.d1 as list[ref parser.Node]
+            if tu_arms != none {
+                for tu_arm in tu_arms {
+                    if tu_arm == none {
+                        continue
+                    }
+                    val arm_binds: list[ref u8] = tu_arm.d1 as list[ref u8]
+                    if arm_binds != none {
+                        for arm_bind in arm_binds {
+                            check_snake_name(ctx, tu_arm.line, arm_bind, "variable")
+                        }
+                    }
+                    walk_stmts(ctx, tu_arm.d2 as list[ref parser.Node])
+                }
+            }
+            val else_body: ref parser.Node = stmt.d2 as ref parser.Node
+            if else_body != none {
+                walk_stmts(ctx, else_body.d0 as list[ref parser.Node])
+            }
+            continue
+        }
+        if k == parser.NK_TRUST_BLOCK {
+            walk_stmts(ctx, stmt.d0 as list[ref parser.Node])
+            continue
+        }
+    }
+}
+
+fn walk_items(ctx: ref Ctx, items: list[ref parser.Node]) void = trust {
+    if items == none {
+        return
+    }
+    for item in items {
+        if item == none {
+            continue
+        }
+        val k: i64 = item.kind
+        if k == parser.NK_FN || k == parser.NK_GENERIC_FN {
+            check_fn_node(ctx, item, true)
+            continue
+        }
+        if k == parser.NK_TYPEDEF {
+            walk_type_def(ctx, item)
+            continue
+        }
+        if k == parser.NK_EXTERN_TYPE || k == parser.NK_EXTERN_FN || k == parser.NK_EXTERN_HEADER {
+            continue
+        }
+        if k == parser.NK_ENUMDEF {
+            check_pascal_name(ctx, item.line, item.d1 as ref u8, "type")
+            continue
+        }
+        if k == parser.NK_UNIONDEF || k == parser.NK_TAGGED_UNIONDEF {
+            walk_union_def(ctx, item)
+            continue
+        }
+        if k == parser.NK_SPEC {
+            walk_spec(ctx, item)
+            continue
+        }
+        if k == parser.NK_CONST {
+            check_snake_name(ctx, item.line, item.d1 as ref u8, "variable")
+            walk_expr(ctx, item.d2 as ref parser.Node)
+            continue
+        }
+        if k == parser.NK_USE {
+            check_snake_name(ctx, item.line, item.d1 as ref u8, "variable")
+            @append(ctx.uses, item)
+            continue
+        }
+        if k == parser.NK_WHEN_ITEMS {
+            walk_items(ctx, item.d1 as list[ref parser.Node])
+            val or_branches: list[ref parser.Node] = item.d2 as list[ref parser.Node]
+            if or_branches != none {
+                for or_node in or_branches {
+                    if or_node != none {
+                        walk_items(ctx, or_node.d1 as list[ref parser.Node])
+                    }
+                }
+            }
+            walk_items(ctx, item.d3 as list[ref parser.Node])
+            continue
+        }
+        if k == parser.NK_TEST {
+            walk_stmts(ctx, item.d0 as list[ref parser.Node])
+            continue
+        }
+    }
+}
+
+fn analyze(ctx: ref Ctx, items: list[ref parser.Node]) void = trust {
+    collect_fn_sigs(ctx, items)
+    walk_items(ctx, items)
+    check_unused_imports(ctx)
+    collect_cast_removal_fixes(ctx)
+    collect_self_assignment_fixes(ctx)
+    collect_duplicate_condition_fixes(ctx)
+}
+
+fn build_edit_order(edits: list[ref Edit]) list[i64] = trust {
+    val order: mut list[i64] = []
+    val n: i64 = @len(edits) as i64
+    val i: mut i64 = 0
+    for {
+        if i >= n {
+            break
+        }
+        @append(order, i)
+        i++
+    }
+    val si: mut i64 = 1
+    for {
+        if si >= n {
+            break
+        }
+        val cur_opt = @get(order, si as usize)
+        val cur: mut i64 = 0
+        if cur_opt is some cur_val {
+            cur = cur_val as i64
+        }
+        val cur_edit_opt = @get(edits, cur as usize)
+        val cur_edit: mut ref Edit = none
+        if cur_edit_opt is some cur_edit_val {
+            cur_edit = cur_edit_val as ref Edit
+        }
+        val j: mut i64 = si - 1
+        for {
+            if j < 0 {
+                break
+            }
+            val prev_idx_opt = @get(order, j as usize)
+            val prev_idx: mut i64 = 0
+            if prev_idx_opt is some prev_idx_val {
+                prev_idx = prev_idx_val as i64
+            }
+            val prev_edit_opt = @get(edits, prev_idx as usize)
+            val prev_edit: mut ref Edit = none
+            if prev_edit_opt is some prev_edit_val {
+                prev_edit = prev_edit_val as ref Edit
+            }
+            if prev_edit.start <= cur_edit.start {
+                break
+            }
+            @set(order, (j + 1) as usize, prev_idx)
+            j--
+        }
+        @set(order, (j + 1) as usize, cur)
+        si++
+    }
+    return order
+}
+
+fn buf_new(cap: i64) ref Buf = trust {
+    val b: mut ref Buf = @alloc(@sizeof(Buf)) as ref Buf
+    b.ptr = @alloc(cap as usize) as ref u8
+    b.len = 0
+    b.cap = cap
+    @store8(b.ptr as ref void, 0)
+    return b
+}
+
+fn buf_reserve(b: mut ref Buf, extra: i64) void = trust {
+    val needed: i64 = b.len + extra + 1
+    if needed <= b.cap {
+        return
+    }
+    val new_cap: mut i64 = b.cap
+    for {
+        if new_cap >= needed {
+            break
+        }
+        new_cap = new_cap * 2
+    }
+    b.ptr = @realloc(b.ptr as ref void, new_cap as usize) as ref u8
+    b.cap = new_cap
+}
+
+fn buf_append_bytes(b: mut ref Buf, src: ref u8, start: i64, count: i64) void = trust {
+    if count <= 0 {
+        return
+    }
+    buf_reserve(b, count)
+    @memcpy(@ptradd(b.ptr as ref void, b.len), @ptradd(src as ref void, start), count as usize)
+    b.len = b.len + count
+    @store8(@ptradd(b.ptr as ref void, b.len), 0)
+}
+
+fn buf_append_cstr(b: mut ref Buf, s: ref u8) void = trust {
+    buf_append_bytes(b, s, 0, str.len_raw(s))
+}
+
+fn apply_edits(src: ref u8, edits: list[ref Edit]) ref u8 = trust {
+    if @len(edits) == 0 {
+        return src
+    }
+    val src_len: i64 = str.len_raw(src)
+    val out: mut ref Buf = buf_new(src_len + 32)
+    val pos: mut i64 = 0
+    val order: list[i64] = build_edit_order(edits)
+    for idx in order {
+        val edit_opt = @get(edits, idx as usize)
+        val e: mut ref Edit = none
+        if edit_opt is some edit_val {
+            e = edit_val as ref Edit
+        }
+        if e.start < pos || e.start > src_len || e.end > src_len {
+            continue
+        }
+        if e.start > pos {
+            buf_append_bytes(out, src, pos, e.start - pos)
+        }
+        buf_append_cstr(out, e.text)
+        pos = e.end
+    }
+    if pos < src_len {
+        buf_append_bytes(out, src, pos, src_len - pos)
+    }
+    @store8(@ptradd(out.ptr as ref void, out.len), 0)
+    return out.ptr
+}
+
+fn analyze_ctx(src: ref u8, filename: ref u8, fix_mode: bool) ref Ctx = trust {
+    val tokens_res = lexer.tokenize(src)
+    val tokens: mut list[ref lexer.Token] = []
+    match tokens_res {
+        err e => {
+            stdio.print("{s}: error: {s}\n", {filename, e})
+            return none
+        }
+        ok toks => {
+            tokens = toks
+        }
+    }
+
+    val items_res = parser.parse_module(tokens, filename)
+    val items: mut list[ref parser.Node] = []
+    match items_res {
+        err e => {
+            stdio.print("{s}\n", {e})
+            return none
+        }
+        ok parsed => {
+            items = parsed
+        }
+    }
+
+    val ctx: mut ref Ctx = ctx_new(src, tokens, fix_mode)
+    analyze(ctx, items)
+    return ctx
+}
+
+fn print_issues(ctx: ref Ctx, filename: ref u8) void = trust {
+    for issue in ctx.issues {
+        stdio.print("{s}:{lld}: warning: {s}\n", {filename, issue.line, issue.message})
+    }
+}
+
+fn has_sx_suffix(file: ref u8) bool = {
+    return str.raw_ends_with(file, ".sx")
+}
+
+fn is_directory(dir: ref u8) bool = trust {
+    val handle: ref void = fs.opendir(dir)
+    if handle == none {
+        return false
+    }
+    fs.closedir(handle)
+    return true
+}
+
+fn collect_files(target: ref u8, out: mut list[ref u8], explicit: bool) i32 = trust {
+    if is_directory(target) {
+        val entries_opt = fs.walk_dir_raw(target)
+        match entries_opt {
+            none => {
+                stdio.print("error: could not read directory '{s}'\n", {target})
+                return 1
+            }
+            some entries => {
+                for entry in entries {
+                    val child: ref u8 = path.join(target, entry)
+                    val code: i32 = collect_files(child, out, false)
+                    if code != 0 {
+                        return code
+                    }
+                }
+            }
+        }
+        return 0
+    }
+
+    if has_sx_suffix(target) {
+        @append(out, target)
+        return 0
+    }
+
+    if !explicit {
+        return 0
+    }
+
+    stdio.print("error: critic only checks .sx files: '{s}'\n", {target})
+    return 1
+}
+
+fn format_file(file: ref u8, fix_mode: bool) i32 = trust {
+    val size_opt = fs.file_size(file)
+    val size: mut i64 = 0
+    if size_opt is some s {
+        size = s as i64
+    } else {
+        stdio.print("error: could not read '{s}'\n", {file})
+        return -1
+    }
+
+    val content_opt = fs.read_all_raw(file)
+    val content: mut ref u8 = none
+    if content_opt is some c {
+        content = c
+    } else {
+        stdio.print("error: could not read '{s}'\n", {file})
+        return -1
+    }
+
+    val i: mut i64 = 0
+    for {
+        if i >= size {
+            break
+        }
+        if byte_at(content, i) == 0 {
+            stdio.print("error: '{s}' is not a plaintext .sx file\n", {file})
+            return -1
+        }
+        i++
+    }
+
+    val ctx: mut ref Ctx = analyze_ctx(content, file, fix_mode)
+    if ctx == none {
+        return -1
+    }
+
+    if fix_mode && @len(ctx.fixes) > 0 {
+        val fixed: ref u8 = apply_edits(content, ctx.fixes)
+        if str.raw_cmp(fixed, content) != 0 {
+            if !fs.write_all(file, fixed) {
+                stdio.print("error: could not write '{s}'\n", {file})
+                return -1
+            }
+            stdio.print("{s}: fixed\n", {file})
+            val after: mut ref Ctx = analyze_ctx(fixed, file, false)
+            if after == none {
+                return -1
+            }
+            print_issues(after, file)
+            return @len(after.issues) as i32
+        }
+    }
+
+    print_issues(ctx, file)
+    return @len(ctx.issues) as i32
+}
+
+pub fn cmd_critic(targets: list[ref u8], fix_mode: bool) i32 = trust {
+    val n_targets: i64 = @len(targets) as i64
+    if n_targets == 0 {
+        stdio.puts("error: critic requires at least one .sx file or directory")
+        return 1
+    }
+
+    val files: mut list[ref u8] = []
+    for target in targets {
+        val code: i32 = collect_files(target, files, true)
+        if code != 0 {
+            return code
+        }
+    }
+
+    if @len(files) == 0 {
+        stdio.puts("error: no .sx files found")
+        return 1
+    }
+
+    val remaining: mut i64 = 0
+    val file_issues: mut i64 = 0
+    val errors: mut i64 = 0
+    for file in files {
+        val code: i32 = format_file(file, fix_mode)
+        if code < 0 {
+            errors++
+        } else {
+            if code > 0 {
+                file_issues++
+                remaining = remaining + code
+            }
+        }
+    }
+
+    if remaining == 0 && errors == 0 {
+        stdio.puts("critic: no issues found")
+        return 0
+    }
+
+    if errors > 0 {
+        stdio.print("critic: could not check {d} file(s)\n", {errors})
+    }
+    if remaining > 0 {
+        if fix_mode {
+            stdio.print("critic: {d} issue(s) remain in {d} file(s)\n", {remaining, file_issues})
+        } else {
+            stdio.print("critic: {d} issue(s) found in {d} file(s)\n", {remaining, file_issues})
+        }
+    }
+    return 1
+}

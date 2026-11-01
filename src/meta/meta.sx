@@ -21,6 +21,7 @@ pub fn print_usage() void = {
     stdio.puts("commands:")
     stdio.puts("  init   <name>        Initialize a new project")
     stdio.puts("  fmt    <path>        Format .sx files or directories in place")
+    stdio.puts("  critic <path>        Point out antipatterns in .sx files")
     stdio.puts("  build  <config>      Build using a config from sx.mod")
     stdio.puts("  run    <input.sx>    Compile and immediately run a program")
     stdio.puts("  doc    <path>        Generate docs for a given .sx into ./docs-out/")
@@ -97,6 +98,21 @@ pub fn print_help(topic: ref u8) i32 = trust {
         stdio.puts("")
         stdio.puts("Directories are searched recursively for .sx files. Other files are")
         stdio.puts("ignored. Without --stdio, files are rewritten in place.")
+        return 0
+    }
+
+    if str.raw_cmp(topic, "critic") == 0 {
+        stdio.puts("critic - Point out antipatterns in Spectre source files")
+        stdio.puts("")
+        stdio.puts("usage:")
+        stdio.puts("  spectre critic [--fix] <file.sx|directory>...")
+        stdio.puts("")
+        stdio.puts("options:")
+        stdio.puts("  --fix        Apply safe fixes to the checked files")
+        stdio.puts("  -h, --help   Show this help message")
+        stdio.puts("")
+        stdio.puts("Directories are searched recursively for .sx files. The exit code is")
+        stdio.puts("non-zero when issues remain.")
         return 0
     }
 
@@ -324,6 +340,11 @@ pub fn print_help(topic: ref u8) i32 = trust {
 
     if str.raw_cmp(topic, "--md") == 0 {
         print_flag_help("--md", "Generate Markdown documentation instead of HTML.", "spectre doc [path] --md")
+        return 0
+    }
+
+    if str.raw_cmp(topic, "--fix") == 0 {
+        print_flag_help("--fix", "Apply safe critic fixes to .sx files or directories.", "spectre critic --fix <file.sx|directory>...")
         return 0
     }
 
