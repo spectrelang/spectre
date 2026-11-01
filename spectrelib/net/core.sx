@@ -50,6 +50,8 @@ when posix {
     extern (C) fn close(fd: i32) i32 = "close"
     extern (C) fn htons(port: i32) i32 = "htons"
     extern (C) fn setsockopt(fd: i32, level: i32, opt: i32, vl: ref void, len: i32) i32 = "setsockopt"
+    extern (C) fn fcntl(fd: i32, cmd: i32, ...) i32 = "fcntl"
+    extern (C) fn poll(fds: ref void, count: usize, timeout: i32) i32 = "poll"
 }
 
 when windows {
@@ -113,6 +115,8 @@ when windows {
     extern (C, header) fn closesocket(fd: u64) i32 = "closesocket"
     extern (C, header) fn win_htons(port: u16) u16 = "htons"
     extern (C, header) fn win_setsockopt(fd: u64, level: i32, opt: i32, vl: ref void, len: i32) i32 = "setsockopt"
+    extern (C, header) fn WSAPoll(fds: ref void, count: u32, timeout: i32) i32 = "WSAPoll"
+    extern (C, header) fn ioctlsocket(fd: u64, cmd: i32, argp: ref u32) i32 = "ioctlsocket"
 }
 
 pub val CURLOPT_URL = 10002
@@ -125,6 +129,28 @@ pub val CURLINFO_RESPONSE_CODE = 2097154
 pub val CURL_GLOBAL_DEFAULT = 3
 pub val AF_INET = 2
 pub val IPPROTO_TCP = 6
+
+pub val POLL_READ: i32 = 1
+pub val POLL_WRITE: i32 = 2
+pub val POLL_ERROR: i32 = 4
+
+when linux {
+    val O_NONBLOCK: i32 = 2048
+}
+otherwise {
+    val O_NONBLOCK: i32 = 4
+}
+
+val F_GETFL: i32 = 3
+val F_SETFL: i32 = 4
+val FIONBIO: u32 = 0x8004667E
+
+when windows {
+    val POLLFD_SIZE: i64 = 16
+}
+otherwise {
+    val POLLFD_SIZE: i64 = 8
+}
 
 type Buffer = {
     data: mut ref void
@@ -842,6 +868,260 @@ pub fn (Http) free_headers(list: ref void) void = trust {
     }
 }
 
+fn poll_events_to_platform(events: i32) i16 = {
+    val out: mut i32 = 0
+    when windows {
+        if (events & POLL_READ) != 0 {
+            out = out | 0x0100
+        }
+        if (events & POLL_WRITE) != 0 {
+            out = out | 0x0010
+        }
+    }
+    when posix {
+        if (events & POLL_READ) != 0 {
+            out = out | 0x001
+        }
+        if (events & POLL_WRITE) != 0 {
+            out = out | 0x004
+        }
+    }
+    return out as i16
+}
+
+fn poll_events_from_platform(events: i32) i32 = {
+    val out: mut i32 = 0
+    when windows {
+        if (events & 0x0100) != 0 || (events & 0x0200) != 0 {
+            out = out | POLL_READ
+        }
+        if (events & 0x0010) != 0 {
+            out = out | POLL_WRITE
+        }
+        if (events & 0x0001) != 0 || (events & 0x0002) != 0 || (events & 0x0004) != 0 {
+            out = out | POLL_ERROR
+        }
+    }
+    when posix {
+        if (events & 0x001) != 0 {
+            out = out | POLL_READ
+        }
+        if (events & 0x004) != 0 {
+            out = out | POLL_WRITE
+        }
+        if (events & 0x008) != 0 || (events & 0x010) != 0 || (events & 0x020) != 0 {
+            out = out | POLL_ERROR
+        }
+    }
+    return out
+}
+
+/// Put a socket into non-blocking mode.
+pub fn (TcpServer) set_non_blocking(fd: i64) bool = trust {
+    when posix {
+        val flags: i32 = fcntl(fd as i32, F_GETFL)
+        if flags < 0 {
+            return false
+        }
+        return fcntl(fd as i32, F_SETFL, flags | O_NONBLOCK) == 0
+    }
+    when windows {
+        val enabled: mut u32 = 1
+        return ioctlsocket(fd as u64, FIONBIO as i32, @addr(enabled)) == 0
+    }
+    return false
+}
+
+/// A poll-based event loop. Register file descriptors with `watch`, call
+/// `wait`, then inspect ready descriptors with `fd_at` and `revents_at`.
+pub type EventLoop = {
+    fds: mut list[i64]
+    events: mut list[i64]
+    revents: mut list[i64]
+}
+
+/// Create a new event loop.
+pub fn (EventLoop) new() EventLoop = trust {
+    val loop: mut ref EventLoop = @alloc(@sizeof(EventLoop)) as mut ref EventLoop
+    loop.fds = []
+    loop.events = []
+    loop.revents = []
+    return loop as EventLoop
+}
+
+/// Add or update a descriptor and the events to watch.
+pub fn (EventLoop) watch(loop: self, fd: i64, events: i32) void = trust {
+    val fds: mut list[i64] = loop.fds
+    val watched: mut list[i64] = loop.events
+    val ready: mut list[i64] = loop.revents
+
+    val count: i64 = @len(fds) as i64
+    val i: mut i64 = 0
+    for {
+        if i >= count {
+            break
+        }
+        val existing_opt = @get(fds, i as usize)
+        if existing_opt is some existing {
+            if (existing as i64) == fd {
+                @set(watched, i as usize, events as i64)
+                @set(ready, i as usize, 0)
+                return
+            }
+        }
+        i++
+    }
+    @append(fds, fd)
+    @append(watched, events as i64)
+    @append(ready, 0)
+}
+
+/// Stop watching a descriptor.
+pub fn (EventLoop) unwatch(loop: self, fd: i64) void = trust {
+    val fds: mut list[i64] = loop.fds
+    val watched: mut list[i64] = loop.events
+    val ready: mut list[i64] = loop.revents
+
+    val count: i64 = @len(fds) as i64
+    val i: mut i64 = 0
+    for {
+        if i >= count {
+            break
+        }
+        val existing_opt = @get(fds, i as usize)
+        if existing_opt is some existing {
+            if (existing as i64) == fd {
+                @remove(fds, i as usize)
+                @remove(watched, i as usize)
+                @remove(ready, i as usize)
+                return
+            }
+        }
+        i++
+    }
+}
+
+/// Return the number of watched descriptors.
+pub fn (EventLoop) count(loop: self) i64 = {
+    return @len(loop.fds) as i64
+}
+
+/// Return the descriptor at `index`.
+pub fn (EventLoop) fd_at(loop: self, index: i64) i64 = trust {
+    val value_opt = @get(loop.fds, index as usize)
+    if value_opt is some value {
+        return value as i64
+    }
+    return -1
+}
+
+/// Return the ready events for `index` after the most recent `wait`.
+pub fn (EventLoop) revents_at(loop: self, index: i64) i32 = trust {
+    val value_opt = @get(loop.revents, index as usize)
+    if value_opt is some value {
+        return value as i32
+    }
+    return 0
+}
+
+/// Wait for events. `timeout_ms` is in milliseconds; use a negative value to
+/// wait indefinitely. Returns the number of ready descriptors, 0 on timeout,
+/// or -1 on failure.
+pub fn (EventLoop) wait(loop: self, timeout_ms: i32) i32 = trust {
+    val fds: list[i64] = loop.fds
+    val watched: list[i64] = loop.events
+    val ready_events: mut list[i64] = loop.revents
+
+    val count: i64 = @len(fds) as i64
+    if count == 0 {
+        when posix {
+            return poll(none, 0 as usize, timeout_ms)
+        }
+        when windows {
+            return WSAPoll(none, 0 as u32, timeout_ms)
+        }
+        return 0
+    }
+
+    val raw: mut ref void = @alloc((count * POLLFD_SIZE) as usize)
+    if raw == none {
+        return -1
+    }
+
+    val i: mut i64 = 0
+    for {
+        if i >= count {
+            break
+        }
+        val fd_opt = @get(fds, i as usize)
+        val event_opt = @get(watched, i as usize)
+        if fd_opt is some fd_raw {
+            if event_opt is some event_raw {
+                val platform_events: i16 = poll_events_to_platform(event_raw as i32)
+                val item_offset: i64 = i * POLLFD_SIZE
+                when windows {
+                    @store(@ptradd(raw, item_offset), (fd_raw as i64) as u64)
+                    @store16(@ptradd(raw, item_offset + 8), platform_events)
+                    @store16(@ptradd(raw, item_offset + 10), 0 as i16)
+                }
+                when posix {
+                    @store32(@ptradd(raw, item_offset), (fd_raw as i64) as i32)
+                    @store16(@ptradd(raw, item_offset + 4), platform_events)
+                    @store16(@ptradd(raw, item_offset + 6), 0 as i16)
+                }
+            }
+        }
+        i++
+    }
+
+    val ready: mut i32 = 0
+    when posix {
+        ready = poll(raw, count as usize, timeout_ms)
+    }
+    when windows {
+        ready = WSAPoll(raw, count as u32, timeout_ms)
+    }
+
+    if ready > 0 {
+        i = 0
+        for {
+            if i >= count {
+                break
+            }
+            val item_offset: i64 = i * POLLFD_SIZE
+            val platform_events: mut i32 = 0
+            when windows {
+                platform_events = @load16(@ptradd(raw, item_offset + 10)) as i32
+            }
+            when posix {
+                platform_events = @load16(@ptradd(raw, item_offset + 6)) as i32
+            }
+            @set(ready_events, i as usize, poll_events_from_platform(platform_events) as i64)
+            i++
+        }
+    }
+
+    @free(raw)
+    return ready
+}
+
+/// Free an event loop and its internal lists.
+pub fn (EventLoop) free(loop: mut self) void = trust {
+    val fds_buffer: mut ref void = @load(@addr(loop.fds))
+    val events_buffer: mut ref void = @load(@addr(loop.events))
+    val revents_buffer: mut ref void = @load(@addr(loop.revents))
+    if fds_buffer != none {
+        @free(fds_buffer)
+    }
+    if events_buffer != none {
+        @free(events_buffer)
+    }
+    if revents_buffer != none {
+        @free(revents_buffer)
+    }
+    @free(loop)
+}
+
 type TcpServer = {}
 
 /// Create a TCP server bound to `port` and start listening.
@@ -1097,6 +1377,22 @@ test {
     assert body_ptr != none
     assert body_len >= 0
     trust Http.free_response[_](ac, resp)
+
+    val loop = trust EventLoop.new()
+    trust EventLoop.watch(loop, 42 as i64, POLL_READ)
+    assert EventLoop.count(loop) == 1
+    assert trust EventLoop.fd_at(loop, 0) == 42
+    assert trust EventLoop.revents_at(loop, 0) == 0
+
+    trust EventLoop.watch(loop, 42 as i64, POLL_WRITE)
+    assert EventLoop.count(loop) == 1
+
+    trust EventLoop.unwatch(loop, 42)
+    assert EventLoop.count(loop) == 0
+
+    val free_loop: mut EventLoop = trust EventLoop.new()
+    trust EventLoop.watch(free_loop, 43 as i64, POLL_READ)
+    trust EventLoop.free(free_loop)
 
     val server: ref ServerHandle = trust TcpServer.listen[_](ac, 8080 as i32)
     assert server != none

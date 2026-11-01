@@ -1,0 +1,226 @@
+val net        = use("std/net")
+val allocators = use("std/allocators")
+val stdio      = use("std/stdio")
+val string     = use("std/string")
+
+val REQUEST_CAP: i64 = 4096
+
+type Client = {
+    fd: mut i64
+    buffer: mut ref u8
+    length: mut i64
+}
+
+fn client_new(fd: i64) ref Client = trust {
+    val client: mut ref Client = @alloc(@sizeof(Client)) as mut ref Client
+    if client == none {
+        return none
+    }
+    val buffer: mut ref u8 = @alloc(REQUEST_CAP) as mut ref u8
+    if buffer == none {
+        @free(client)
+        return none
+    }
+    @store8(buffer, 0)
+    client.fd = fd
+    client.buffer = buffer
+    client.length = 0
+    return client
+}
+
+fn client_free(client: mut ref Client) void = trust {
+    if client == none {
+        return
+    }
+    @free(client.buffer)
+    @free(client)
+}
+
+fn find_client(clients: list[ref Client], fd: i64) option[ref Client] = {
+    for client in clients {
+        if client.fd == fd {
+            return some client
+        }
+    }
+    return none
+}
+
+fn remove_client(loop: net.EventLoop, clients: mut list[ref Client], fd: i64) void = trust {
+    net.EventLoop.unwatch(loop, fd)
+    net.TcpServer.close_client(fd)
+
+    val count: i64 = @len(clients) as i64
+    val i: mut i64 = 0
+    for {
+        if i >= count {
+            break
+        }
+        val client_opt = @get(clients, i as usize)
+        if client_opt is some client_raw {
+            val client: mut ref Client = client_raw as mut ref Client
+            if client.fd == fd {
+                client_free(client)
+                @remove(clients, i as usize)
+                return
+            }
+        }
+        i++
+    }
+}
+
+fn request_complete(request: ref u8, length: i64) bool = trust {
+    if length < 4 {
+        return false
+    }
+    val i: mut i64 = 0
+    for {
+        if i + 3 >= length {
+            break
+        }
+        if @load8(@ptradd(request, i)) == 13 &&
+        @load8(@ptradd(request, i + 1)) == 10 &&
+        @load8(@ptradd(request, i + 2)) == 13 &&
+        @load8(@ptradd(request, i + 3)) == 10 {
+            return true
+        }
+        i++
+    }
+    return false
+}
+
+fn send_all(client: i64, data: ref u8, length: i64) void = trust {
+    val sent: mut i64 = 0
+    for {
+        if sent >= length {
+            break
+        }
+        val written = net.TcpServer.send(client, @ptradd(data, sent), length - sent)
+        if written <= 0 {
+            break
+        }
+        sent += written
+    }
+}
+
+fn respond(client: i64, status: ref u8, content_type: ref u8, body: ref u8) void = trust {
+    val sb = string.StringBuilder.new()
+    string.StringBuilder.append_cstr(sb, "HTTP/1.1 ")
+    string.StringBuilder.append_cstr(sb, status)
+    string.StringBuilder.append_cstr(sb, "\r\nContent-Type: ")
+    string.StringBuilder.append_cstr(sb, content_type)
+    string.StringBuilder.append_cstr(sb, "\r\nContent-Length: ")
+    string.StringBuilder.append_cstr(sb, @fmt("{d}", {string.len_raw(body)}))
+    string.StringBuilder.append_cstr(sb, "\r\nConnection: close\r\n\r\n")
+    string.StringBuilder.append_cstr(sb, body)
+
+    val response: mut string.String = string.StringBuilder.build(sb)
+    send_all(client, string.cstr(response), string.len(response))
+
+    string.string_free(response)
+    string.StringBuilder.free(sb)
+}
+
+fn route_request(client: i64, request: ref u8) void = trust {
+    if string.raw_starts_with(request, "GET / HTTP/1.1") {
+        respond(client, "200 OK", "application/json", "{\"name\":\"Spectre API\",\"version\":\"0.1.0\",\"endpoints\":[\"/health\",\"/hello\"]}")
+    } elif string.raw_starts_with(request, "GET /health HTTP/1.1") {
+        respond(client, "200 OK", "application/json", "{\"status\":\"ok\"}")
+    } elif string.raw_starts_with(request, "GET /hello HTTP/1.1") {
+        respond(client, "200 OK", "application/json", "{\"message\":\"Hello, world!\"}")
+    } else {
+        respond(client, "404 Not Found", "application/json", "{\"error\":\"Not found\"}")
+    }
+}
+
+pub fn main() void = trust {
+    val ac: allocators.HeapAllocator = @zeroed
+
+    val server = net.TcpServer.listen[_](ac, 8080 as i32)
+    if server == none {
+        stdio.print("Failed to start server\n", {})
+        return
+    }
+
+    val listen_fd: i64 = net.TcpServer.fd(server)
+    if !net.TcpServer.set_non_blocking(listen_fd) {
+        stdio.print("Failed to set listener nonblocking\n", {})
+        return
+    }
+
+    val loop = net.EventLoop.new()
+    net.EventLoop.watch(loop, listen_fd, net.POLL_READ)
+
+    val clients: mut list[ref Client] = []
+    stdio.print("Async API listening on port {d}\n", {net.TcpServer.port(server)})
+
+    for {
+        val ready = net.EventLoop.wait(loop, 1000 as i32)
+        if ready < 0 {
+            break
+        }
+        if ready == 0 {
+            continue
+        }
+
+        val count: i64 = net.EventLoop.count(loop)
+        val i: mut i64 = count - 1
+        for {
+            if i < 0 {
+                break
+            }
+
+            val fd: i64 = net.EventLoop.fd_at(loop, i)
+            val revents: i32 = net.EventLoop.revents_at(loop, i)
+
+            if fd == listen_fd {
+                if (revents & net.POLL_READ) != 0 {
+                    for {
+                        val client_fd = net.TcpServer.accept(server)
+                        if client_fd < 0 {
+                            break
+                        }
+                        net.TcpServer.set_non_blocking(client_fd)
+
+                        val client = client_new(client_fd)
+                        if client == none {
+                            net.TcpServer.close_client(client_fd)
+                            break
+                        }
+                        @append(clients, client)
+                        net.EventLoop.watch(loop, client_fd, net.POLL_READ)
+                    }
+                }
+            } else {
+                match find_client(clients, fd) {
+                    none => {
+                        net.EventLoop.unwatch(loop, fd)
+                    }
+                    some client => {
+                        if (revents & net.POLL_ERROR) != 0 {
+                            remove_client(loop, clients, fd)
+                        } elif (revents & net.POLL_READ) != 0 {
+                            val remaining: i64 = REQUEST_CAP - 1 - client.length
+                            val received = net.TcpServer.recv(fd, @ptradd(client.buffer, client.length), remaining)
+                            if received <= 0 {
+                                remove_client(loop, clients, fd)
+                            } else {
+                                client.length += received
+                                @store8(@ptradd(client.buffer, client.length), 0)
+
+                                if request_complete(client.buffer, client.length) {
+                                    route_request(fd, client.buffer)
+                                    remove_client(loop, clients, fd)
+                                } elif client.length >= REQUEST_CAP - 1 {
+                                    respond(fd, "413 Payload Too Large", "application/json", "{\"error\":\"Request too large\"}")
+                                    remove_client(loop, clients, fd)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            i--
+        }
+    }
+}
