@@ -149,7 +149,7 @@ fn cc_heap_copy_cstr(s: ref u8) ref u8 = trust {
     }
     val slen: i64 = str.len_raw(s)
     val out: ref u8 = @alloc(slen + 1) as ref u8
-    @memcpy(out as ref void, s as ref void, (slen + 1) as usize)
+    @memcpy(out, s, (slen + 1) as usize)
     return out
 }
 
@@ -161,13 +161,13 @@ fn cc_sb_build_cstr(sb: ref void) ref u8 = trust {
 }
 
 fn cc_expr_track(ctx: ref CCtx, s: ref u8) ref u8 = trust {
-    @append(ctx.expr_arena, s as ref void)
+    @append(ctx.expr_arena, s)
     @append(ctx.expr_arena_owned, true)
     return s
 }
 
 fn cc_expr_track_borrowed(ctx: ref CCtx, s: ref u8) ref u8 = trust {
-    @append(ctx.expr_arena, s as ref void)
+    @append(ctx.expr_arena, s)
     @append(ctx.expr_arena_owned, false)
     return s
 }
@@ -231,19 +231,19 @@ fn rewrite_fmt(s: ref u8) ref u8 = trust {
         if i >= slen {
             break
         }
-        val c: u8 = @load8(@ptradd(s as ref void, i))
+        val c: u8 = @load8(@ptradd(s, i))
         if c == 92 {
             if i + 1 < slen {
-                val next: u8 = @load8(@ptradd(s as ref void, i + 1))
+                val next: u8 = @load8(@ptradd(s, i + 1))
                 if next == 123 || next == 125 {
-                    @store8(@ptradd(out as ref void, oi), next) oi++ i += 2
+                    @store8(@ptradd(out, oi), next) oi++ i += 2
                 }
                 else {
-                    @store8(@ptradd(out as ref void, oi), c) oi++ i++
+                    @store8(@ptradd(out, oi), c) oi++ i++
                 }
             }
             else {
-                @store8(@ptradd(out as ref void, oi), c) oi++ i++
+                @store8(@ptradd(out, oi), c) oi++ i++
             }
         }
         elif c == 123 {
@@ -252,7 +252,7 @@ fn rewrite_fmt(s: ref u8) ref u8 = trust {
                 if j >= slen {
                     break
                 }
-                val ic: u8 = @load8(@ptradd(s as ref void, j)) if ic == 125 {
+                val ic: u8 = @load8(@ptradd(s, j)) if ic == 125 {
                     found = true break
                 }
                 j++
@@ -260,46 +260,46 @@ fn rewrite_fmt(s: ref u8) ref u8 = trust {
             if found {
                 val tlen: i64 = j - (i + 1)
                 if tlen == 1 {
-                    val sc: u8 = @load8(@ptradd(s as ref void, i + 1))
+                    val sc: u8 = @load8(@ptradd(s, i + 1))
                     if sc == 100 || sc == 105 {
-                        @store8(@ptradd(out as ref void, oi), 37) @store8(@ptradd(out as ref void, oi+1), 108) @store8(@ptradd(out as ref void, oi+2), 108) @store8(@ptradd(out as ref void, oi+3), 100) oi += 4
+                        @store8(@ptradd(out, oi), 37) @store8(@ptradd(out, oi+1), 108) @store8(@ptradd(out, oi+2), 108) @store8(@ptradd(out, oi+3), 100) oi += 4
                     }
                     elif sc == 115 {
-                        @store8(@ptradd(out as ref void, oi), 37) @store8(@ptradd(out as ref void, oi+1), 115) oi += 2
+                        @store8(@ptradd(out, oi), 37) @store8(@ptradd(out, oi+1), 115) oi += 2
                     }
                     elif sc == 120 {
-                        @store8(@ptradd(out as ref void, oi), 37) @store8(@ptradd(out as ref void, oi+1), 108) @store8(@ptradd(out as ref void, oi+2), 108) @store8(@ptradd(out as ref void, oi+3), 120) oi += 4
+                        @store8(@ptradd(out, oi), 37) @store8(@ptradd(out, oi+1), 108) @store8(@ptradd(out, oi+2), 108) @store8(@ptradd(out, oi+3), 120) oi += 4
                     }
                     elif sc == 99 {
-                        @store8(@ptradd(out as ref void, oi), 37) @store8(@ptradd(out as ref void, oi+1), 99) oi += 2
+                        @store8(@ptradd(out, oi), 37) @store8(@ptradd(out, oi+1), 99) oi += 2
                     }
                     elif sc == 112 {
-                        @store8(@ptradd(out as ref void, oi), 37) @store8(@ptradd(out as ref void, oi+1), 112) oi += 2
+                        @store8(@ptradd(out, oi), 37) @store8(@ptradd(out, oi+1), 112) oi += 2
                     }
                     elif sc == 102 {
-                        @store8(@ptradd(out as ref void, oi), 37) @store8(@ptradd(out as ref void, oi+1), 102) oi += 2
+                        @store8(@ptradd(out, oi), 37) @store8(@ptradd(out, oi+1), 102) oi += 2
                     }
                     else {
-                        @store8(@ptradd(out as ref void, oi), 37) @store8(@ptradd(out as ref void, oi+1), sc) oi += 2
+                        @store8(@ptradd(out, oi), 37) @store8(@ptradd(out, oi+1), sc) oi += 2
                     }
                 } else {
-                    @store8(@ptradd(out as ref void, oi), 37) oi++ val k: mut i64 = i + 1
+                    @store8(@ptradd(out, oi), 37) oi++ val k: mut i64 = i + 1
                     for {
                         if k >= j {
                             break
                         }
-                        @store8(@ptradd(out as ref void, oi), @load8(@ptradd(s as ref void, k))) oi++ k++
+                        @store8(@ptradd(out, oi), @load8(@ptradd(s, k))) oi++ k++
                     }
                 }
                 i = j + 1
             } else {
-                @store8(@ptradd(out as ref void, oi), c) oi++ i++
+                @store8(@ptradd(out, oi), c) oi++ i++
             }
         } else {
-            @store8(@ptradd(out as ref void, oi), c) oi++ i++
+            @store8(@ptradd(out, oi), c) oi++ i++
         }
     }
-    @store8(@ptradd(out as ref void, oi), 0) return out
+    @store8(@ptradd(out, oi), 0) return out
 }
 
 fn intern_string(ctx: mut ref CCtx, s: ref u8) i64 = trust {
@@ -960,7 +960,7 @@ fn cc_build_fnptr_cast(ctx: ref CCtx, fn_ty: ref parser.Node, fn_expr: ref u8) r
 
 fn cc_register_generic_fn(ctx: ref CCtx, name: ref u8, node: ref parser.Node, prefix: ref u8) void = trust {
     @append(ctx.gfn_names, name)
-    @append(ctx.gfn_nodes as list[ref void], node as ref void)
+    @append(ctx.gfn_nodes as list[ref void], node)
     @append(ctx.gfn_prefixes, prefix)
 }
 
@@ -1071,7 +1071,7 @@ fn cc_generic_fn_qualified_name(node: ref parser.Node, mod_prefix: ref u8) ref u
 
 fn cc_gsubst_push(ctx: ref CCtx, name: ref u8, ty: ref parser.Node) void = trust {
     @append(ctx.gsubst_names, name)
-    @append(ctx.gsubst_tnodes as list[ref void], ty as ref void)
+    @append(ctx.gsubst_tnodes as list[ref void], ty)
 }
 
 fn cc_gsubst_resolve(ctx: ref CCtx, ty: ref parser.Node) ref parser.Node = trust {
@@ -1214,18 +1214,18 @@ fn cc_sanitize_mangle_atom(name: ref u8) ref u8 = trust {
         if si >= nlen {
             break
         }
-        val ch: u8 = @load8(@ptradd(name as ref void, si))
+        val ch: u8 = @load8(@ptradd(name, si))
         if ch == 46 {
-            @store8(@ptradd(out as ref void, oi), 95)
-            @store8(@ptradd(out as ref void, oi + 1), 95)
+            @store8(@ptradd(out, oi), 95)
+            @store8(@ptradd(out, oi + 1), 95)
             oi += 2
         } else {
-            @store8(@ptradd(out as ref void, oi), ch)
+            @store8(@ptradd(out, oi), ch)
             oi++
         }
         si++
     }
-    @store8(@ptradd(out as ref void, oi), 0)
+    @store8(@ptradd(out, oi), 0)
     return out
 }
 
@@ -1422,14 +1422,14 @@ fn cc_monomorphize_generic_fn(ctx: mut ref CCtx, gfn_node: ref parser.Node, gfn_
             val mangle: ref u8 = cc_type_node_to_mangle(ta as ref parser.Node)
             val seplen: i64 = 2
             val mlen: i64 = str.len_raw(mangle)
-            @memcpy(@ptradd(suffix as ref void, spos), "__" as ref void, seplen as usize)
+            @memcpy(@ptradd(suffix, spos), "__" as ref void, seplen as usize)
             spos = spos + seplen
-            @memcpy(@ptradd(suffix as ref void, spos), mangle as ref void, mlen as usize)
+            @memcpy(@ptradd(suffix, spos), mangle, mlen as usize)
             spos = spos + mlen
         }
         ai++
     }
-    @store8(@ptradd(suffix as ref void, spos), 0)
+    @store8(@ptradd(suffix, spos), 0)
     val mono_base: ref u8 = @alloc(1024) as ref u8
     @snprintf(mono_base, 1024, "{s}__GENMONO{s}", {fn_name, suffix})
     @free(suffix)
@@ -1656,7 +1656,7 @@ fn cc_register_fn(ctx: ref CCtx, node: ref parser.Node, mangled: ref u8, params:
         }
         ni++
     }
-    @append(ctx.fn_nodes as list[ref void], node as ref void)
+    @append(ctx.fn_nodes as list[ref void], node)
     @append(ctx.fn_names, mangled)
     @append(ctx.fn_params as list[ref void], params)
     @append(ctx.fn_rets as list[ref void], ret_ty)
@@ -1902,13 +1902,13 @@ fn cc_lookup_struct(ctx: ref CCtx, tname: ref u8) ref void = trust {
         if ti >= tlen {
             break
         }
-        if @load8(@ptradd(tname as ref void, ti)) == 46 {
+        if @load8(@ptradd(tname, ti)) == 46 {
             dotpos = ti
         }
         ti++
     }
     if dotpos >= 0 {
-        val suffix: ref u8 = @ptradd(tname as ref void, dotpos + 1) as ref u8
+        val suffix: ref u8 = @ptradd(tname, dotpos + 1) as ref u8
         val si: mut i64 = 0
         for {
             if si >= nlen {
@@ -2342,18 +2342,18 @@ fn cc_fixed_arr_size_val(ctx: ref CCtx, ty: ref parser.Node) i64 = trust {
             if si >= slen {
                 break
             }
-            val ch: u8 = @load8(@ptradd(sz_name as ref void, si))
+            val ch: u8 = @load8(@ptradd(sz_name, si))
             if ch == 46 {
-                @store8(@ptradd(mapped as ref void, mi), 95)
-                @store8(@ptradd(mapped as ref void, mi + 1), 95)
+                @store8(@ptradd(mapped, mi), 95)
+                @store8(@ptradd(mapped, mi + 1), 95)
                 mi += 2
             } else {
-                @store8(@ptradd(mapped as ref void, mi), ch)
+                @store8(@ptradd(mapped, mi), ch)
                 mi++
             }
             si++
         }
-        @store8(@ptradd(mapped as ref void, mi), 0)
+        @store8(@ptradd(mapped, mi), 0)
         ctext = cc_const_val(ctx, mapped)
     }
     if str.raw_cmp(ctext, "") == 0 {
@@ -2380,7 +2380,7 @@ fn cc_register_invariant(ctx: ref CCtx, tname: ref u8, inv_list: ref void) void 
 }
 
 fn cc_defer_push(ctx: ref CCtx, body: ref parser.Node) void = trust {
-    @append(ctx.defer_stack, body as ref void)
+    @append(ctx.defer_stack, body)
 }
 
 fn cc_emit_defers(ctx: mut ref CCtx) void = trust {
@@ -2768,7 +2768,7 @@ fn gen_expr(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
     if k == parser.NK_INT_LIT {
         val text: ref u8 = parser.int_lit_text(expr)
         val buf: ref u8 = @alloc(64) as ref u8
-        if @load8(text as ref void) == 48 && @load8(@ptradd(text as ref void, 1)) == 120 {
+        if @load8(text) == 48 && @load8(@ptradd(text, 1)) == 120 {
             @snprintf(buf, 64, "((int64_t){s})", {text})
         } else {
             @snprintf(buf, 64, "INT64_C({s})", {text})
@@ -3239,13 +3239,13 @@ fn gen_field(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
                     if mi >= mtlen {
                         break
                     }
-                    if @load8(@ptradd(mid_type as ref void, mi)) == 46 {
+                    if @load8(@ptradd(mid_type, mi)) == 46 {
                         mdot = mi
                     }
                     mi++
                 }
                 if mdot >= 0 {
-                    val msuf: ref u8 = @ptradd(mid_type as ref void, mdot + 1) as ref u8
+                    val msuf: ref u8 = @ptradd(mid_type, mdot + 1) as ref u8
                     mid_fields = cc_lookup_struct(ctx, msuf)
                 }
             }
@@ -3286,13 +3286,13 @@ fn gen_field(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
             if bi >= btlen {
                 break
             }
-            if @load8(@ptradd(base_type as ref void, bi)) == 46 {
+            if @load8(@ptradd(base_type, bi)) == 46 {
                 dotpos = bi
             }
             bi++
         }
         if dotpos >= 0 {
-            val suffix: ref u8 = @ptradd(base_type as ref void, dotpos + 1) as ref u8
+            val suffix: ref u8 = @ptradd(base_type, dotpos + 1) as ref u8
             fields = cc_lookup_struct(ctx, suffix)
         }
     }
@@ -4353,13 +4353,13 @@ fn gen_field_addr(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
                     if mi3 >= mtlen3 {
                         break
                     }
-                    if @load8(@ptradd(mid_type3 as ref void, mi3)) == 46 {
+                    if @load8(@ptradd(mid_type3, mi3)) == 46 {
                         mdot3 = mi3
                     }
                     mi3++
                 }
                 if mdot3 >= 0 {
-                    val msuf3: ref u8 = @ptradd(mid_type3 as ref void, mdot3 + 1) as ref u8
+                    val msuf3: ref u8 = @ptradd(mid_type3, mdot3 + 1) as ref u8
                     mid_fields3 = cc_lookup_struct(ctx, msuf3)
                 }
             }
@@ -4394,13 +4394,13 @@ fn gen_field_addr(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
             if bi2 >= btlen2 {
                 break
             }
-            if @load8(@ptradd(bt as ref void, bi2)) == 46 {
+            if @load8(@ptradd(bt, bi2)) == 46 {
                 dotpos2 = bi2
             }
             bi2++
         }
         if dotpos2 >= 0 {
-            val suffix2: ref u8 = @ptradd(bt as ref void, dotpos2 + 1) as ref u8
+            val suffix2: ref u8 = @ptradd(bt, dotpos2 + 1) as ref u8
             fields = cc_lookup_struct(ctx, suffix2)
         }
     }
@@ -4510,13 +4510,13 @@ fn cc_field_size_of_expr(ctx: mut ref CCtx, expr: ref parser.Node) i64 = trust {
                     if mi4 >= mtlen4 {
                         break
                     }
-                    if @load8(@ptradd(mid_type4 as ref void, mi4)) == 46 {
+                    if @load8(@ptradd(mid_type4, mi4)) == 46 {
                         mdot4 = mi4
                     }
                     mi4++
                 }
                 if mdot4 >= 0 {
-                    val msuf4: ref u8 = @ptradd(mid_type4 as ref void, mdot4 + 1) as ref u8
+                    val msuf4: ref u8 = @ptradd(mid_type4, mdot4 + 1) as ref u8
                     mid_fields4 = cc_lookup_struct(ctx, msuf4)
                 }
             }
@@ -4557,13 +4557,13 @@ fn cc_field_size_of_expr(ctx: mut ref CCtx, expr: ref parser.Node) i64 = trust {
             if bi2 >= btlen2 {
                 break
             }
-            if @load8(@ptradd(bt as ref void, bi2)) == 46 {
+            if @load8(@ptradd(bt, bi2)) == 46 {
                 dotpos2 = bi2
             }
             bi2++
         }
         if dotpos2 >= 0 {
-            val suffix2: ref u8 = @ptradd(bt as ref void, dotpos2 + 1) as ref u8
+            val suffix2: ref u8 = @ptradd(bt, dotpos2 + 1) as ref u8
             fields = cc_lookup_struct(ctx, suffix2)
         }
     }
@@ -4603,13 +4603,13 @@ fn cc_field_ctype_of_expr(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = tru
                     if mi4 >= mtlen4 {
                         break
                     }
-                    if @load8(@ptradd(mid_type4 as ref void, mi4)) == 46 {
+                    if @load8(@ptradd(mid_type4, mi4)) == 46 {
                         mdot4 = mi4
                     }
                     mi4++
                 }
                 if mdot4 >= 0 {
-                    val msuf4: ref u8 = @ptradd(mid_type4 as ref void, mdot4 + 1) as ref u8
+                    val msuf4: ref u8 = @ptradd(mid_type4, mdot4 + 1) as ref u8
                     mid_fields4 = cc_lookup_struct(ctx, msuf4)
                 }
             }
@@ -4650,13 +4650,13 @@ fn cc_field_ctype_of_expr(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = tru
             if bi2 >= btlen2 {
                 break
             }
-            if @load8(@ptradd(bt as ref void, bi2)) == 46 {
+            if @load8(@ptradd(bt, bi2)) == 46 {
                 dotpos2 = bi2
             }
             bi2++
         }
         if dotpos2 >= 0 {
-            val suffix2: ref u8 = @ptradd(bt as ref void, dotpos2 + 1) as ref u8
+            val suffix2: ref u8 = @ptradd(bt, dotpos2 + 1) as ref u8
             fields = cc_lookup_struct(ctx, suffix2)
         }
     }
@@ -5686,7 +5686,7 @@ fn gen_fn_prefixed(ctx: mut ref CCtx, fn_node: ref parser.Node, mod_prefix: ref 
         ctx.current_prefix = mod_prefix
     }
     if params != none {
-        cc_register_fn(ctx, fn_node, mangled, params, ret_ty as ref void, false, false)
+        cc_register_fn(ctx, fn_node, mangled, params, ret_ty, false, false)
     }
     val ret_ct: ref u8 = c_ret_type_of(ctx, ret_ty)
     val is_main: bool = str.raw_cmp(name, "main") == 0 && str.raw_cmp(mod_prefix, "") == 0
@@ -6280,7 +6280,7 @@ fn emit_string_data(ctx: ref CCtx) void = trust {
                 if ri >= rlen {
                     break
                 }
-                val ch: u8 = @load8(@ptradd(raw as ref void, ri))
+                val ch: u8 = @load8(@ptradd(raw, ri))
                 if ch == 10 {
                     emit_to_fwd(ctx, "\\n")
                 }
@@ -6300,7 +6300,7 @@ fn emit_string_data(ctx: ref CCtx) void = trust {
                     emit_to_fwd(ctx, "\\\\")
                 }
                 else {
-                    val cb: ref u8 = @alloc(2) as ref u8 @store8(cb as ref void, ch) @store8(@ptradd(cb as ref void, 1), 0) emit_to_fwd(ctx, cb) @free(cb)
+                    val cb: ref u8 = @alloc(2) as ref u8 @store8(cb, ch) @store8(@ptradd(cb, 1), 0) emit_to_fwd(ctx, cb) @free(cb)
                 }
                 ri++
             }
@@ -6373,7 +6373,7 @@ fn emit_forward_decls(ctx: ref CCtx) void = trust {
 
             val p_opt = @get(ctx.fn_params as list[ref void], fi as usize)
             if p_opt is some p {
-                val params_list: ref void = p as ref void
+                val params_list: ref u8 = p
                 val plen: i64 = @len(params_list as list[ref void]) as i64
                 if plen == 0 && !is_var {
                     emit_to_fwd(ctx, "void")
@@ -6636,9 +6636,9 @@ pub fn gen_module_c_test(root: ref module.ResolvedModule, release_mode: bool, ex
     val body_len: i64 = str.len_raw(body_str)
     val total: i64 = hdr_len + mono_len + body_len + 1
     val result: ref u8 = @alloc(total) as ref u8
-    @memcpy(result as ref void, hdr_str as ref void, hdr_len as usize)
-    @memcpy(@ptradd(result as ref void, hdr_len), mono_str as ref void, mono_len as usize)
-    @memcpy(@ptradd(result as ref void, hdr_len + mono_len), body_str as ref void, (body_len + 1) as usize)
+    @memcpy(result, hdr_str, hdr_len as usize)
+    @memcpy(@ptradd(result, hdr_len), mono_str, mono_len as usize)
+    @memcpy(@ptradd(result, hdr_len + mono_len), body_str, (body_len + 1) as usize)
     str.StringBuilder.free(ctx.fwd_sb)
     str.StringBuilder.free(ctx.mono_sb)
     str.StringBuilder.free(ctx.sb)
@@ -6712,9 +6712,9 @@ pub fn gen_module_c(root: ref module.ResolvedModule, release_mode: bool, extra_i
     val body_len: i64 = str.len_raw(body_str)
     val total: i64 = hdr_len + mono_len + body_len + 1
     val result: ref u8 = @alloc(total) as ref u8
-    @memcpy(result as ref void, hdr_str as ref void, hdr_len as usize)
-    @memcpy(@ptradd(result as ref void, hdr_len), mono_str as ref void, mono_len as usize)
-    @memcpy(@ptradd(result as ref void, hdr_len + mono_len), body_str as ref void, (body_len + 1) as usize)
+    @memcpy(result, hdr_str, hdr_len as usize)
+    @memcpy(@ptradd(result, hdr_len), mono_str, mono_len as usize)
+    @memcpy(@ptradd(result, hdr_len + mono_len), body_str, (body_len + 1) as usize)
     str.StringBuilder.free(ctx.fwd_sb)
     str.StringBuilder.free(ctx.mono_sb)
     str.StringBuilder.free(ctx.sb)

@@ -106,7 +106,7 @@ pub fn add_spec(definition: ref u8) bool = trust {
         if i >= len {
             break
         }
-        val c: u8 = @load8(@ptradd(definition as ref void, i)) as u8
+        val c: u8 = @load8(@ptradd(definition, i)) as u8
         if c == 61 {
             eq = i
             break

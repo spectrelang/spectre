@@ -319,7 +319,7 @@ fn build_prefix(indent: i64, is_last: bool) ref u8 = trust {
     }
     val buf: mut ref u8 = @alloc((indent * 6 + 15) as usize) as ref u8
 
-    @memset(buf as ref void, 0, ((indent * 6 + 15) as usize))
+    @memset(buf, 0, ((indent * 6 + 15) as usize))
 
     val i: mut i64 = 0
     val spaces: mut i64 = 0
@@ -327,38 +327,38 @@ fn build_prefix(indent: i64, is_last: bool) ref u8 = trust {
         if spaces >= indent - 1 {
             break
         }
-        @store8(@ptradd(buf as ref void, i),     226 as u8)
-        @store8(@ptradd(buf as ref void, i + 1), 148 as u8)
-        @store8(@ptradd(buf as ref void, i + 2), 130 as u8)
-        @store8(@ptradd(buf as ref void, i + 3), 32 as u8)
-        @store8(@ptradd(buf as ref void, i + 4), 32 as u8)
-        @store8(@ptradd(buf as ref void, i + 5), 32 as u8)
+        @store8(@ptradd(buf, i),     226 as u8)
+        @store8(@ptradd(buf, i + 1), 148 as u8)
+        @store8(@ptradd(buf, i + 2), 130 as u8)
+        @store8(@ptradd(buf, i + 3), 32 as u8)
+        @store8(@ptradd(buf, i + 4), 32 as u8)
+        @store8(@ptradd(buf, i + 5), 32 as u8)
         i = i + 6
         spaces++
     }
 
     if is_last {
-        @store8(@ptradd(buf as ref void, i),     226 as u8)
-        @store8(@ptradd(buf as ref void, i + 1), 148 as u8)
-        @store8(@ptradd(buf as ref void, i + 2), 148 as u8)
-        @store8(@ptradd(buf as ref void, i + 3), 226 as u8)
-        @store8(@ptradd(buf as ref void, i + 4), 148 as u8)
-        @store8(@ptradd(buf as ref void, i + 5), 128 as u8)
-        @store8(@ptradd(buf as ref void, i + 6), 226 as u8)
-        @store8(@ptradd(buf as ref void, i + 7), 148 as u8)
-        @store8(@ptradd(buf as ref void, i + 8), 128 as u8)
-        @store8(@ptradd(buf as ref void, i + 9), 32 as u8)
+        @store8(@ptradd(buf, i),     226 as u8)
+        @store8(@ptradd(buf, i + 1), 148 as u8)
+        @store8(@ptradd(buf, i + 2), 148 as u8)
+        @store8(@ptradd(buf, i + 3), 226 as u8)
+        @store8(@ptradd(buf, i + 4), 148 as u8)
+        @store8(@ptradd(buf, i + 5), 128 as u8)
+        @store8(@ptradd(buf, i + 6), 226 as u8)
+        @store8(@ptradd(buf, i + 7), 148 as u8)
+        @store8(@ptradd(buf, i + 8), 128 as u8)
+        @store8(@ptradd(buf, i + 9), 32 as u8)
     } else {
-        @store8(@ptradd(buf as ref void, i),     226 as u8)
-        @store8(@ptradd(buf as ref void, i + 1), 148 as u8)
-        @store8(@ptradd(buf as ref void, i + 2), 156 as u8)
-        @store8(@ptradd(buf as ref void, i + 3), 226 as u8)
-        @store8(@ptradd(buf as ref void, i + 4), 148 as u8)
-        @store8(@ptradd(buf as ref void, i + 5), 128 as u8)
-        @store8(@ptradd(buf as ref void, i + 6), 226 as u8)
-        @store8(@ptradd(buf as ref void, i + 7), 148 as u8)
-        @store8(@ptradd(buf as ref void, i + 8), 128 as u8)
-        @store8(@ptradd(buf as ref void, i + 9), 32 as u8)
+        @store8(@ptradd(buf, i),     226 as u8)
+        @store8(@ptradd(buf, i + 1), 148 as u8)
+        @store8(@ptradd(buf, i + 2), 156 as u8)
+        @store8(@ptradd(buf, i + 3), 226 as u8)
+        @store8(@ptradd(buf, i + 4), 148 as u8)
+        @store8(@ptradd(buf, i + 5), 128 as u8)
+        @store8(@ptradd(buf, i + 6), 226 as u8)
+        @store8(@ptradd(buf, i + 7), 148 as u8)
+        @store8(@ptradd(buf, i + 8), 128 as u8)
+        @store8(@ptradd(buf, i + 9), 32 as u8)
     }
 
     return buf

@@ -43,7 +43,7 @@ type ImportRec = {
 }
 
 fn byte_at(src: ref u8, i: i64) i64 = trust {
-    return @load8(@ptradd(src as ref void, i)) as i64
+    return @load8(@ptradd(src, i)) as i64
 }
 
 fn is_space_byte(c: i64) bool = {
@@ -80,7 +80,7 @@ fn buf_append_bytes(b: mut ref Buf, src: ref u8, start: i64, count: i64) void = 
         return
     }
     buf_reserve(b, count)
-    @memcpy(@ptradd(b.ptr as ref void, b.len), @ptradd(src as ref void, start), count as usize)
+    @memcpy(@ptradd(b.ptr as ref void, b.len), @ptradd(src, start), count as usize)
     b.len = b.len + count
     @store8(@ptradd(b.ptr as ref void, b.len), 0)
 }

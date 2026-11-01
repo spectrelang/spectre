@@ -66,12 +66,12 @@ pub fn filter_c_diagnostics(raw: ref u8) ref u8 = trust {
         val at_end: bool = i == len
         val c: mut u8 = 0
         if !at_end {
-            c = @load8(@ptradd(raw as ref void, i)) as u8
+            c = @load8(@ptradd(raw, i)) as u8
         }
         if at_end || c == 10 {
             val line_len: i64 = i - ls
             if line_len > 0 {
-                val first: u8 = @load8(@ptradd(raw as ref void, ls)) as u8
+                val first: u8 = @load8(@ptradd(raw, ls)) as u8
                 val is_context: bool = first == 32 || first == 9
                 if !is_context {
                     val ji: mut i64 = ls
@@ -79,7 +79,7 @@ pub fn filter_c_diagnostics(raw: ref u8) ref u8 = trust {
                         if ji >= ls + line_len {
                             break
                         }
-                        string.StringBuilder.append_char(sb, @load8(@ptradd(raw as ref void, ji)) as u8)
+                        string.StringBuilder.append_char(sb, @load8(@ptradd(raw, ji)) as u8)
                         ji++
                     }
                     string.StringBuilder.append_char(sb, 10 as u8)

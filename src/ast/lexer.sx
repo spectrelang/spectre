@@ -342,7 +342,7 @@ fn lex_string(l: mut ref Lexer) ref u8 = trust {
         }
         if i >= buf_cap - 2 {
             buf_cap = buf_cap * 2
-            buf = @realloc(buf as ref void, buf_cap) as ref u8
+            buf = @realloc(buf, buf_cap) as ref u8
         }
         if c == 92 {
             val esc: i64 = lx_advance(l)
@@ -485,7 +485,7 @@ fn lex_raw_string(l: mut ref Lexer, line: i64, col: i64) ref Token = trust {
             lx_advance(l)
             if i >= buf_cap - 2 {
                 buf_cap = buf_cap * 2
-                buf = @realloc(buf as ref void, buf_cap) as ref u8
+                buf = @realloc(buf, buf_cap) as ref u8
             }
             @store8(@ptradd(buf, i), ch as u8)
             i++

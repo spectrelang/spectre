@@ -93,9 +93,9 @@ fn copy_cstr(src: ref u8) ref u8 = trust {
     if out == none {
         return none
     }
-    @memset(out as ref void, 0, len + 1)
+    @memset(out, 0, len + 1)
     if len > 0 {
-        @memcpy(out as ref void, src as ref void, len)
+        @memcpy(out, src, len)
     }
     return out
 }
@@ -110,7 +110,7 @@ fn trim_ws(src: ref u8) ref u8 = trust {
         if start >= len {
             break
         }
-        val c: u8 = @load8(@ptradd(src as ref void, start))
+        val c: u8 = @load8(@ptradd(src, start))
         if !is_space(c) {
             break
         }
@@ -121,7 +121,7 @@ fn trim_ws(src: ref u8) ref u8 = trust {
         if finish <= start {
             break
         }
-        val c: u8 = @load8(@ptradd(src as ref void, finish - 1))
+        val c: u8 = @load8(@ptradd(src, finish - 1))
         if !is_space(c) {
             break
         }
@@ -135,7 +135,7 @@ fn trim_trailing_slash(src: ref u8) ref u8 = trust {
     if len <= 1 {
         return src
     }
-    if @load8(@ptradd(src as ref void, len - 1)) != 47 {
+    if @load8(@ptradd(src, len - 1)) != 47 {
         return src
     }
     return substr(src, 0, len - 1)
@@ -157,7 +157,7 @@ fn path_dirname(path: ref u8) ref u8 = trust {
         if i >= len {
             break
         }
-        if @load8(@ptradd(path as ref void, i)) == 47 {
+        if @load8(@ptradd(path, i)) == 47 {
             last_slash = i
         }
         i++
@@ -179,7 +179,7 @@ fn path_basename(path: ref u8) ref u8 = trust {
         if i >= len {
             break
         }
-        if @load8(@ptradd(path as ref void, i)) == 47 {
+        if @load8(@ptradd(path, i)) == 47 {
             last_slash = i
         }
         i++
@@ -217,7 +217,7 @@ fn ensure_dir(path: ref u8) bool = trust {
         if i >= len {
             break
         }
-        val c: u8 = @load8(@ptradd(clean as ref void, i))
+        val c: u8 = @load8(@ptradd(clean, i))
         if c == 47 {
             val part = substr(clean, 0, i)
             if !str_eq(part, "") && !str_eq(part, ".") && !os.exists(part) {
@@ -244,7 +244,7 @@ fn is_hidden_name(name: ref u8) bool = trust {
     if len == 0 {
         return false
     }
-    return @load8(name as ref void) == 46
+    return @load8(name) == 46
 }
 
 fn collect_sx_files(dir: ref u8, rel_dir: ref u8, out: mut list[ref u8]) void = trust {
@@ -297,7 +297,7 @@ fn doc_line_text(trimmed: ref u8) ref u8 = trust {
     if len <= 3 {
         return ""
     }
-    if len > 3 && @load8(@ptradd(trimmed as ref void, 3)) == 32 {
+    if len > 3 && @load8(@ptradd(trimmed, 3)) == 32 {
         return substr(trimmed, 4, len - 4)
     }
     return substr(trimmed, 3, len - 3)
@@ -356,7 +356,7 @@ fn extract_doc_map(src: ref u8) ref DocMap = trust {
             break
         }
 
-        val c: u8 = @load8(@ptradd(src as ref void, i))
+        val c: u8 = @load8(@ptradd(src, i))
         if c == 10 {
             val line = substr(src, line_start, i - line_start)
             val trimmed = trim_ws(line)
@@ -404,7 +404,7 @@ fn slugify(text: ref u8) ref u8 = trust {
         if i >= len {
             break
         }
-        val c: u8 = @load8(@ptradd(text as ref void, i))
+        val c: u8 = @load8(@ptradd(text, i))
         val is_lower: bool = c >= 97 && c <= 122
         val is_upper: bool = c >= 65 && c <= 90
         val is_digit: bool = c >= 48 && c <= 57
@@ -1066,7 +1066,7 @@ fn html_escape(text: ref u8) ref u8 = trust {
         if i >= len {
             break
         }
-        val c: u8 = @load8(@ptradd(text as ref void, i))
+        val c: u8 = @load8(@ptradd(text, i))
         if c == 38 {
             string.StringBuilder.append_cstr(sb, "&amp;")
         } elif c == 60 {
@@ -1113,7 +1113,7 @@ fn append_doc_html(sb: ref void, docs: ref u8) void = trust {
             }
             break
         }
-        val c: u8 = @load8(@ptradd(docs as ref void, i))
+        val c: u8 = @load8(@ptradd(docs, i))
         if c == 10 {
             val line = trim_ws(substr(docs, line_start, i - line_start))
             if str_eq(line, "") {
@@ -1232,7 +1232,7 @@ fn depth_prefix(output_path: ref u8) ref u8 = trust {
         if i >= len {
             break
         }
-        if @load8(@ptradd(output_path as ref void, i)) == 47 {
+        if @load8(@ptradd(output_path, i)) == 47 {
             depth++
         }
         i++
@@ -1264,7 +1264,7 @@ fn nav_key_tail(key: ref u8) ref u8 = trust {
         if i >= len {
             break
         }
-        if @load8(@ptradd(key as ref void, i)) == 10 {
+        if @load8(@ptradd(key, i)) == 10 {
             return substr(key, i + 1, len - i - 1)
         }
         i++
@@ -1388,7 +1388,7 @@ fn markdown_heading_level(line: ref u8) i64 = trust {
         if level >= len || level >= 6 {
             break
         }
-        if @load8(@ptradd(line as ref void, level)) != 35 {
+        if @load8(@ptradd(line, level)) != 35 {
             break
         }
         level++
@@ -1396,7 +1396,7 @@ fn markdown_heading_level(line: ref u8) i64 = trust {
     if level == 0 || level >= len {
         return 0
     }
-    if @load8(@ptradd(line as ref void, level)) != 32 {
+    if @load8(@ptradd(line, level)) != 32 {
         return 0
     }
     return level
@@ -1415,7 +1415,7 @@ fn markdown_title(markdown: ref u8, fallback: ref u8) ref u8 = trust {
             }
             break
         }
-        if @load8(@ptradd(markdown as ref void, i)) == 10 {
+        if @load8(@ptradd(markdown, i)) == 10 {
             val line = trim_ws(substr(markdown, line_start, i - line_start))
             val level = markdown_heading_level(line)
             if level > 0 {
@@ -1435,7 +1435,7 @@ fn find_byte(text: ref u8, start: i64, needle: u8) i64 = trust {
         if i >= len {
             break
         }
-        if @load8(@ptradd(text as ref void, i)) == needle {
+        if @load8(@ptradd(text, i)) == needle {
             return i
         }
         i++
@@ -1464,10 +1464,10 @@ fn append_markdown_inline_html(sb: ref void, text: ref u8) void = trust {
         if i >= len {
             break
         }
-        val c: u8 = @load8(@ptradd(text as ref void, i))
-        if c == 33 && i + 1 < len && @load8(@ptradd(text as ref void, i + 1)) == 91 {
+        val c: u8 = @load8(@ptradd(text, i))
+        if c == 33 && i + 1 < len && @load8(@ptradd(text, i + 1)) == 91 {
             val alt_end = find_byte(text, i + 2, 93 as u8)
-            if alt_end >= 0 && alt_end + 1 < len && @load8(@ptradd(text as ref void, alt_end + 1)) == 40 {
+            if alt_end >= 0 && alt_end + 1 < len && @load8(@ptradd(text, alt_end + 1)) == 40 {
                 val url_end = find_byte(text, alt_end + 2, 41 as u8)
                 if url_end >= 0 {
                     val alt = substr(text, i + 2, alt_end - i - 2)
@@ -1483,7 +1483,7 @@ fn append_markdown_inline_html(sb: ref void, text: ref u8) void = trust {
         }
         if c == 91 {
             val label_end = find_byte(text, i + 1, 93 as u8)
-            if label_end >= 0 && label_end + 1 < len && @load8(@ptradd(text as ref void, label_end + 1)) == 40 {
+            if label_end >= 0 && label_end + 1 < len && @load8(@ptradd(text, label_end + 1)) == 40 {
                 val href_end = find_byte(text, label_end + 2, 41 as u8)
                 if href_end >= 0 {
                     val label = substr(text, i + 1, label_end - i - 1)
@@ -1581,7 +1581,7 @@ fn append_markdown_html(sb: ref void, markdown: ref u8) void = trust {
             }
             break
         }
-        if @load8(@ptradd(markdown as ref void, i)) == 10 {
+        if @load8(@ptradd(markdown, i)) == 10 {
             val line = substr(markdown, line_start, i - line_start)
             val trimmed = trim_ws(line)
             if in_code {

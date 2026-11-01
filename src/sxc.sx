@@ -590,7 +590,7 @@ pub fn main() i32 = trust {
         val c_file = builds.get_tmp_path("spectre_output.c")
         val c_f = os.open(c_file, "w")
         if c_f is some f {
-            os.write(f, c_ir as ref void, string.len_raw(c_ir) as i64)
+            os.write(f, c_ir, string.len_raw(c_ir) as i64)
             os.close(f)
         } else {
             stdio.puts("\nerror: could not write C code")
@@ -744,7 +744,7 @@ pub fn main() i32 = trust {
     val qbe_f = os.open(qbe_file, "w")
 
     if qbe_f is some f {
-        os.write(f, qbe_ir as ref void, string.len_raw(qbe_ir) as i64)
+        os.write(f, qbe_ir, string.len_raw(qbe_ir) as i64)
         os.close(f)
     } else {
         stdio.puts("\nerror: could not write QBE IR")

@@ -138,7 +138,7 @@ pub fn make_node(kind: i64, line: i64) ref Node = trust {
 }
 
 pub fn node_store_slot[T](slot: ref i64, value: T) void = trust {
-    @store(slot as ref void, value)
+    @store(slot, value)
 }
 
 pub fn ptr_to_i64[T](p: T) i64 = trust {

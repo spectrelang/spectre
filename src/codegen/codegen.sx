@@ -328,7 +328,7 @@ fn cg_platform_matches(ctx: mut ref CgCtx, name: ref u8) bool = trust {
 /// Register a generic function node for later monomorphization.
 fn register_generic_fn(ctx: mut ref CgCtx, name: ref u8, node: ref parser.Node, prefix: ref u8) void = trust {
     @append(ctx.gfn_names, name)
-    @append(ctx.gfn_nodes as list[ref void], node as ref void)
+    @append(ctx.gfn_nodes as list[ref void], node)
     @append(ctx.gfn_prefixes, prefix)
 }
 
@@ -494,7 +494,7 @@ fn generic_fn_qualified_name(node: ref parser.Node, mod_prefix: ref u8) ref u8 =
 /// Push a type substitution (type_param_name -> concrete type node).
 fn gsubst_push(ctx: mut ref CgCtx, name: ref u8, ty: ref parser.Node) void = trust {
     @append(ctx.gsubst_names, name)
-    @append(ctx.gsubst_tnodes as list[ref void], ty as ref void)
+    @append(ctx.gsubst_tnodes as list[ref void], ty)
 }
 
 /// Resolve a type node through current generic substitutions.
@@ -785,7 +785,7 @@ fn cg_find_struct_fields_for_literal(ctx: mut ref CgCtx, lit_fields: ref void) r
     if lit_fields == none {
         return none
     }
-    val sfields_list: ref void = cg_sfields(ctx)
+    val sfields_list: list[ref void] = cg_sfields(ctx)
     val slen: i64 = @len(sfields_list as list[ref void]) as i64
     val match_fields: mut ref void = none
     val matches: mut i64 = 0
@@ -874,18 +874,18 @@ fn sanitize_mangle_atom(name: ref u8) ref u8 = trust {
         if si >= nlen {
             break
         }
-        val ch: u8 = @load8(@ptradd(name as ref void, si))
+        val ch: u8 = @load8(@ptradd(name, si))
         if ch == 46 {
-            @store8(@ptradd(out as ref void, oi), 95)
-            @store8(@ptradd(out as ref void, oi + 1), 95)
+            @store8(@ptradd(out, oi), 95)
+            @store8(@ptradd(out, oi + 1), 95)
             oi += 2
         } else {
-            @store8(@ptradd(out as ref void, oi), ch)
+            @store8(@ptradd(out, oi), ch)
             oi++
         }
         si++
     }
-    @store8(@ptradd(out as ref void, oi), 0)
+    @store8(@ptradd(out, oi), 0)
     return out
 }
 
@@ -1086,14 +1086,14 @@ fn monomorphize_generic_fn(ctx: mut ref CgCtx, gfn_node: ref parser.Node, gfn_pr
             val sep: ref u8 = "__"
             val seplen: i64 = 2
             val mlen: i64 = str.len_raw(mangle)
-            @memcpy(@ptradd(suffix as ref void, spos), sep as ref void, seplen as usize)
+            @memcpy(@ptradd(suffix, spos), sep, seplen as usize)
             spos = spos + seplen
-            @memcpy(@ptradd(suffix as ref void, spos), mangle as ref void, mlen as usize)
+            @memcpy(@ptradd(suffix, spos), mangle, mlen as usize)
             spos = spos + mlen
         }
         ai++
     }
-    @store8(@ptradd(suffix as ref void, spos), 0)
+    @store8(@ptradd(suffix, spos), 0)
 
     val mono_base: ref u8 = @alloc(1024) as ref u8
     @snprintf(mono_base, 1024, "{s}__GENMONO{s}", {fn_name, suffix})
@@ -1268,8 +1268,8 @@ pub fn extract_prefix_from_mangled(mangled: ref u8, bare_name: ref u8) ref u8 = 
     }
     val prefix_len: i64 = mlen - blen - 2
     val prefix: ref u8 = @alloc(prefix_len + 1) as ref u8
-    @memcpy(prefix as ref void, mangled as ref void, prefix_len as usize)
-    @store8(@ptradd(prefix as ref void, prefix_len), 0)
+    @memcpy(prefix, mangled, prefix_len as usize)
+    @store8(@ptradd(prefix, prefix_len), 0)
     return prefix
 }
 
@@ -1390,7 +1390,7 @@ fn cg_defer_stack(ctx: ref CgCtx) ref void = trust {
 
 fn cg_defer_push(ctx: mut ref CgCtx, body: ref parser.Node) void = trust {
     val stack: ref void = cg_defer_stack(ctx)
-    @append(stack as list[ref void], body as ref void)
+    @append(stack as list[ref void], body)
 }
 
 fn cg_defer_clear(ctx: mut ref CgCtx) void = trust {
@@ -1483,18 +1483,18 @@ fn cg_fixed_arr_size_val(ctx: mut ref CgCtx, ty: ref parser.Node) i64 = trust {
             if si >= slen {
                 break
             }
-            val ch: u8 = @load8(@ptradd(sz_name as ref void, si))
+            val ch: u8 = @load8(@ptradd(sz_name, si))
             if ch == 46 {
-                @store8(@ptradd(mapped as ref void, mi), 95)
-                @store8(@ptradd(mapped as ref void, mi + 1), 95)
+                @store8(@ptradd(mapped, mi), 95)
+                @store8(@ptradd(mapped, mi + 1), 95)
                 mi += 2
             } else {
-                @store8(@ptradd(mapped as ref void, mi), ch)
+                @store8(@ptradd(mapped, mi), ch)
                 mi++
             }
             si++
         }
-        @store8(@ptradd(mapped as ref void, mi), 0)
+        @store8(@ptradd(mapped, mi), 0)
         ctext = cg_const_val(ctx, mapped)
     }
     if str.raw_cmp(ctext, "") == 0 {
@@ -1534,7 +1534,7 @@ fn ann_fixed_arr_close_index(ann: ref u8) i64 = trust {
         if i >= len {
             break
         }
-        val c: u8 = @load8(@ptradd(ann as ref void, i))
+        val c: u8 = @load8(@ptradd(ann, i))
         if c == 93 {
             return i
         }
@@ -1843,13 +1843,13 @@ fn cg_resolve_fn_name(ctx: mut ref CgCtx, name: ref u8) ref u8 = trust {
             if pi >= plen {
                 break
             }
-            val c1: u8 = @load8(@ptradd(prefix as ref void, pi))
+            val c1: u8 = @load8(@ptradd(prefix, pi))
             if pi + 1 < plen {
-                val c2: u8 = @load8(@ptradd(prefix as ref void, pi + 1))
+                val c2: u8 = @load8(@ptradd(prefix, pi + 1))
                 if c1 == 95 && c2 == 95 {
                     val sub_prefix: ref u8 = @alloc(pi + 1) as ref u8
-                    @memcpy(sub_prefix as ref void, prefix as ref void, pi as usize)
-                    @store8(@ptradd(sub_prefix as ref void, pi), 0)
+                    @memcpy(sub_prefix, prefix, pi as usize)
+                    @store8(@ptradd(sub_prefix, pi), 0)
                     cg_mark_prefix_used(ctx, sub_prefix)
                     pi++
                 }
@@ -1864,7 +1864,7 @@ fn cg_resolve_fn_name(ctx: mut ref CgCtx, name: ref u8) ref u8 = trust {
 
 /// Register a function's mangled name and its param list for call-site type checking.
 fn cg_register_fn(ctx: mut ref CgCtx, node: ref parser.Node, mangled: ref u8, params: ref void, ret_ty: ref void) void = trust {
-    @append(ctx.fn_nodes as list[ref void], node as ref void)
+    @append(ctx.fn_nodes as list[ref void], node)
     @append(ctx.fn_names, mangled)
     @append(ctx.fn_params as list[ref void], params)
     @append(ctx.fn_rets as list[ref void], ret_ty)
@@ -1943,9 +1943,9 @@ fn resolve_fn_mangled(ctx: mut ref CgCtx, bare_name: ref u8) ref u8 = trust {
             if mlen > blen {
                 val suffix_pos: i64 = mlen - blen
                 if suffix_pos > 0 {
-                    val sc: u8 = @load8(@ptradd(mangled as ref void, suffix_pos - 1))
+                    val sc: u8 = @load8(@ptradd(mangled, suffix_pos - 1))
                     if sc == 95 {
-                        val rest: ref u8 = @ptradd(mangled as ref void, suffix_pos) as ref u8
+                        val rest: ref u8 = @ptradd(mangled, suffix_pos) as ref u8
                         if str.raw_cmp(rest, bare_name) == 0 {
                             return mangled
                         }
@@ -2150,9 +2150,9 @@ fn cg_lookup_extern_symbol(ctx: mut ref CgCtx, name: ref u8) ref u8 = trust {
             if namelen > clen {
                 val suffix_pos: i64 = namelen - clen
                 if suffix_pos > 0 {
-                    val sc: u8 = @load8(@ptradd(name as ref void, suffix_pos - 1))
+                    val sc: u8 = @load8(@ptradd(name, suffix_pos - 1))
                     if sc == 95 {
-                        val rest: ref u8 = @ptradd(name as ref void, suffix_pos) as ref u8
+                        val rest: ref u8 = @ptradd(name, suffix_pos) as ref u8
                         if str.raw_cmp(rest, candidate) == 0 {
                             val s_opt = @get(cg_extern_syms(ctx) as list[ref u8], ni2 as usize)
                             if s_opt is some s {
@@ -2204,9 +2204,9 @@ fn cg_lookup_ext_ret(ctx: mut ref CgCtx, name: ref u8) ref void = trust {
             if namelen > clen {
                 val suffix_pos: i64 = namelen - clen
                 if suffix_pos > 0 {
-                    val sc: u8 = @load8(@ptradd(name as ref void, suffix_pos - 1))
+                    val sc: u8 = @load8(@ptradd(name, suffix_pos - 1))
                     if sc == 95 {
-                        val rest: ref u8 = @ptradd(name as ref void, suffix_pos) as ref u8
+                        val rest: ref u8 = @ptradd(name, suffix_pos) as ref u8
                         if str.raw_cmp(rest, candidate) == 0 {
                             val r_opt = @get(cg_ext_rets(ctx) as list[ref void], ni2 as usize)
                             if r_opt is some r {
@@ -2300,7 +2300,7 @@ fn cg_lookup_struct(ctx: mut ref CgCtx, type_name: ref u8) ref void = trust {
         if dot_pos < 0 {
             break
         }
-        val ch: u8 = @load8(@ptradd(type_name as ref void, dot_pos))
+        val ch: u8 = @load8(@ptradd(type_name, dot_pos))
         if ch == 46 {
             break
         }
@@ -2308,7 +2308,7 @@ fn cg_lookup_struct(ctx: mut ref CgCtx, type_name: ref u8) ref void = trust {
     }
 
     if dot_pos >= 0 {
-        val bare: ref u8 = @ptradd(type_name as ref void, dot_pos + 1) as ref u8
+        val bare: ref u8 = @ptradd(type_name, dot_pos + 1) as ref u8
         val ni2: mut i64 = 0
         for {
             if ni2 >= nlen {
@@ -2675,10 +2675,10 @@ fn is_union_type_name(ctx: mut ref CgCtx, type_name: ref u8) bool = trust {
             val clen: i64 = str.len_raw(candidate)
             if clen > suffix_len {
                 val tail: ref u8 = @ptradd(candidate, clen - suffix_len) as ref u8
-                val c1: u8 = @load8(@ptradd(tail as ref void, 0))
-                val c2: u8 = @load8(@ptradd(tail as ref void, 1))
+                val c1: u8 = @load8(@ptradd(tail, 0))
+                val c2: u8 = @load8(@ptradd(tail, 1))
                 if c1 == 95 && c2 == 95 {
-                    val rest: ref u8 = @ptradd(tail as ref void, 2) as ref u8
+                    val rest: ref u8 = @ptradd(tail, 2) as ref u8
                     if str.raw_cmp(rest, type_name) == 0 {
                         return true
                     }
@@ -3149,11 +3149,11 @@ fn cg_qbe_value_ref(qbe_name: ref u8) ref u8 = trust {
     if str.raw_cmp(qbe_name, "") == 0 {
         return ""
     }
-    val first: u8 = @load8(qbe_name as ref void) as u8
+    val first: u8 = @load8(qbe_name) as u8
     val qlen: i64 = str.len_raw(qbe_name)
     val out: ref u8 = @alloc(qlen + 4) as ref u8
     if first == 37 || first == 36 {
-        @memcpy(out as ref void, qbe_name as ref void, qlen + 1)
+        @memcpy(out, qbe_name, qlen + 1)
         return out
     }
     @snprintf(out, qlen + 4, "%%t{s}", {qbe_name})
@@ -3195,7 +3195,7 @@ fn cg_ann_is_indirect_value(ctx: mut ref CgCtx, ann: ref u8) bool = trust {
     if raw_starts_with(ann, "result[") {
         return true
     }
-    if @load8(ann as ref void) as i64 == 91 {
+    if @load8(ann) as i64 == 91 {
         return true
     }
     if cg_lookup_struct(ctx, ann) != none {
@@ -4054,10 +4054,10 @@ fn is_union_type(ctx: mut ref CgCtx, ty: ref parser.Node) ref u8 = trust {
                 val clen: i64 = str.len_raw(candidate)
                 if clen > suffix_len {
                     val tail: ref u8 = @ptradd(candidate, clen - suffix_len) as ref u8
-                    val c1: u8 = @load8(@ptradd(tail as ref void, 0))
-                    val c2: u8 = @load8(@ptradd(tail as ref void, 1))
+                    val c1: u8 = @load8(@ptradd(tail, 0))
+                    val c2: u8 = @load8(@ptradd(tail, 1))
                     if c1 == 95 && c2 == 95 {
-                        val rest: ref u8 = @ptradd(tail as ref void, 2) as ref u8
+                        val rest: ref u8 = @ptradd(tail, 2) as ref u8
                         if str.raw_cmp(rest, name) == 0 {
                             return name
                         }
@@ -4241,22 +4241,22 @@ fn rewrite_fmt(s: ref u8) ref u8 = trust {
         if i >= slen {
             break
         }
-        val c: u8 = @load8(@ptradd(s as ref void, i))
+        val c: u8 = @load8(@ptradd(s, i))
 
         if c == 92 { // '\\'
             if i + 1 < slen {
-                val next: u8 = @load8(@ptradd(s as ref void, i + 1))
+                val next: u8 = @load8(@ptradd(s, i + 1))
                 if next == 123 || next == 125 { // '{' or '}'
-                    @store8(@ptradd(out as ref void, oi), next)
+                    @store8(@ptradd(out, oi), next)
                     oi++
                     i += 2
                 } else {
-                    @store8(@ptradd(out as ref void, oi), c)
+                    @store8(@ptradd(out, oi), c)
                     oi++
                     i++
                 }
             } else {
-                @store8(@ptradd(out as ref void, oi), c)
+                @store8(@ptradd(out, oi), c)
                 oi++
                 i++
             }
@@ -4267,38 +4267,38 @@ fn rewrite_fmt(s: ref u8) ref u8 = trust {
                 if j >= slen {
                     break
                 }
-                val ic: u8 = @load8(@ptradd(s as ref void, j))
+                val ic: u8 = @load8(@ptradd(s, j))
                 if ic == 125 {
                     found = true break
                 } // '}'
                 j++
             }
             if found {
-                @store8(@ptradd(out as ref void, oi), 37) // '%'
+                @store8(@ptradd(out, oi), 37) // '%'
                 oi++
                 val k: mut i64 = i + 1
                 for {
                     if k >= j {
                         break
                     }
-                    val sc: u8 = @load8(@ptradd(s as ref void, k))
-                    @store8(@ptradd(out as ref void, oi), sc)
+                    val sc: u8 = @load8(@ptradd(s, k))
+                    @store8(@ptradd(out, oi), sc)
                     oi++
                     k++
                 }
                 i = j + 1
             } else {
-                @store8(@ptradd(out as ref void, oi), c)
+                @store8(@ptradd(out, oi), c)
                 oi++
                 i++
             }
         } else {
-            @store8(@ptradd(out as ref void, oi), c)
+            @store8(@ptradd(out, oi), c)
             oi++
             i++
         }
     }
-    @store8(@ptradd(out as ref void, oi), 0)
+    @store8(@ptradd(out, oi), 0)
     return out
 }
 
@@ -4321,7 +4321,7 @@ fn intern_string(ctx: mut ref CgCtx, s: ref u8) i64 = trust {
     }
     val slen: i64 = str.len_raw(s)
     val scopy: ref u8 = @alloc(slen + 1) as ref u8
-    @memcpy(scopy as ref void, s as ref void, slen + 1)
+    @memcpy(scopy, s, slen + 1)
     @append(strs, scopy)
     val idx: i64 = cg_str_cnt(ctx)
     cg_set_str_cnt(ctx, idx + 1)
@@ -4404,12 +4404,12 @@ fn gen_int_lit_as(ctx: mut ref CgCtx, text: ref u8, qbe_type: ref u8) ref u8 = t
     val buf: ref u8 = @alloc(64) as ref u8
     val emit_text: mut ref u8 = text
 
-    if @load8(text as ref void) == 48 && @load8(@ptradd(text as ref void, 1)) == 120 {
-        val hex_start: ref u8 = @ptradd(text as ref void, 2) as ref u8
+    if @load8(text) == 48 && @load8(@ptradd(text, 1)) == 120 {
+        val hex_start: ref u8 = @ptradd(text, 2) as ref u8
         val val_: mut i64 = 0
         val hi: mut i64 = 0
         for {
-            val hc: i64 = @load8(@ptradd(hex_start as ref void, hi)) as i64
+            val hc: i64 = @load8(@ptradd(hex_start, hi)) as i64
             if hc == 0 {
                 break
             }
@@ -4921,9 +4921,9 @@ fn gen_expr_with_type(ctx: mut ref CgCtx, expr: ref parser.Node, target_type: re
 
 fn gen_expr_expected(ctx: mut ref CgCtx, expr: ref parser.Node, expected_ty: ref parser.Node) ref u8 = trust {
     val old_expected: ref parser.Node = ctx.expected_ty as ref parser.Node
-    ctx.expected_ty = expected_ty as ref void
+    ctx.expected_ty = expected_ty
     val res: ref u8 = gen_expr(ctx, expr)
-    ctx.expected_ty = old_expected as ref void
+    ctx.expected_ty = old_expected
     return res
 }
 
@@ -5057,7 +5057,7 @@ fn gen_expr(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
                 expected_qt2 = qbe_type_of(ctx.expected_ty as ref parser.Node)
             }
             if raw_starts_with(cval, "d_") || raw_starts_with(cval, "s_") {
-                val ftext: ref u8 = @ptradd(cval as ref void, 2) as ref u8
+                val ftext: ref u8 = @ptradd(cval, 2) as ref u8
                 val emit_qt: mut ref u8 = "d"
                 if raw_starts_with(cval, "s_") {
                     emit_qt = "s"
@@ -6309,7 +6309,7 @@ fn gen_field(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
                 val tmp3: i64 = fresh_tmp(ctx)
                 val buf3: ref u8 = @alloc(256) as ref u8
                 if raw_starts_with(const_val3, "d_") || raw_starts_with(const_val3, "s_") {
-                    val ftext3: ref u8 = @ptradd(const_val3 as ref void, 2) as ref u8
+                    val ftext3: ref u8 = @ptradd(const_val3, 2) as ref u8
                     val emit_qt3: mut ref u8 = "d"
                     if raw_starts_with(const_val3, "s_") {
                         emit_qt3 = "s"
@@ -6358,7 +6358,7 @@ fn gen_field(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
             @free(enum_key)
             if str.raw_cmp(const_val, "") != 0 {
                 if raw_starts_with(const_val, "d_") || raw_starts_with(const_val, "s_") {
-                    val ftext: ref u8 = @ptradd(const_val as ref void, 2) as ref u8
+                    val ftext: ref u8 = @ptradd(const_val, 2) as ref u8
                     val emit_qt: mut ref u8 = "d"
                     if raw_starts_with(const_val, "s_") {
                         emit_qt = "s"
@@ -7081,7 +7081,7 @@ fn gen_call(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
         val ghdr: ref u8 = @alloc(256) as ref u8
         @snprintf(ghdr, 256, "    %%t{lld} ={s} call ${s}(", {gtmp, gret_qt, mono_base})
         val ghdr_len: i64 = str.len_raw(ghdr)
-        @memcpy(@ptradd(gcall_buf as ref void, gcall_pos), ghdr as ref void, ghdr_len as usize)
+        @memcpy(@ptradd(gcall_buf, gcall_pos), ghdr, ghdr_len as usize)
         gcall_pos = gcall_pos + ghdr_len
         @free(ghdr)
         val gtlen: i64 = @len(arg_tmps_g) as i64
@@ -7116,22 +7116,22 @@ fn gen_call(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
                 val gt_arg: ref u8 = cg_coerce_qtype(ctx, gt as ref u8, gsrc_qt, garg_qt)
                 val gtbuf: ref u8 = @alloc(128) as ref u8
                 if gti > 0 {
-                    @memcpy(@ptradd(gcall_buf as ref void, gcall_pos), ", " as ref void, 2)
+                    @memcpy(@ptradd(gcall_buf, gcall_pos), ", " as ref void, 2)
                     gcall_pos = gcall_pos + 2
                 }
                 @snprintf(gtbuf, 128, "{s} {s}", {garg_qt, gt_arg})
                 val gtbuf_len: i64 = str.len_raw(gtbuf)
-                @memcpy(@ptradd(gcall_buf as ref void, gcall_pos), gtbuf as ref void, gtbuf_len as usize)
+                @memcpy(@ptradd(gcall_buf, gcall_pos), gtbuf, gtbuf_len as usize)
                 gcall_pos = gcall_pos + gtbuf_len
                 @free(gtbuf)
             }
             gti++
         }
-        @store8(@ptradd(gcall_buf as ref void, gcall_pos), 41)
+        @store8(@ptradd(gcall_buf, gcall_pos), 41)
         gcall_pos++
-        @store8(@ptradd(gcall_buf as ref void, gcall_pos), 10)
+        @store8(@ptradd(gcall_buf, gcall_pos), 10)
         gcall_pos++
-        @store8(@ptradd(gcall_buf as ref void, gcall_pos), 0)
+        @store8(@ptradd(gcall_buf, gcall_pos), 0)
         emitln(ctx, gcall_buf)
         @free(gcall_buf)
         val gres: ref u8 = @alloc(16) as ref u8
@@ -7156,18 +7156,18 @@ fn gen_call(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
         val sep_pos: mut i64 = -1
         val scan_i: mut i64 = 0
         for {
-            val sc: u8 = @load8(@ptradd(callee_name as ref void, scan_i))
+            val sc: u8 = @load8(@ptradd(callee_name, scan_i))
             if sc == 0 {
                 break
             }
-            val sc2: u8 = @load8(@ptradd(callee_name as ref void, scan_i + 1))
+            val sc2: u8 = @load8(@ptradd(callee_name, scan_i + 1))
             if sc == 95 && sc2 == 95 {
                 sep_pos = scan_i
             } // '__'
             scan_i++
         }
         if sep_pos >= 0 {
-            val bare_name: ref u8 = @ptradd(callee_name as ref void, sep_pos + 2) as ref u8
+            val bare_name: ref u8 = @ptradd(callee_name, sep_pos + 2) as ref u8
             @store(tv_owner_slot, 0)
             @store(tv_field_slot, 0)
             val tv_tag2: i64 = cg_lookup_tv(ctx, bare_name, tv_owner_slot, tv_field_slot)
@@ -7462,7 +7462,7 @@ fn gen_call(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
                         val hdr_p: ref u8 = @alloc(256) as ref u8
                         @snprintf(hdr_p, 256, "    %%t{lld} =l call $printf(l %%t{lld}, ...", {result_tmp, fmt_tmp})
                         val hdr_len_p: i64 = str.len_raw(hdr_p)
-                        @memcpy(@ptradd(call_buf_p as ref void, call_pos_p), hdr_p as ref void, hdr_len_p)
+                        @memcpy(@ptradd(call_buf_p, call_pos_p), hdr_p, hdr_len_p)
                         call_pos_p = call_pos_p + hdr_len_p
                         @free(hdr_p)
 
@@ -7475,18 +7475,18 @@ fn gen_call(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
                             if v_opt is some v {
                                 val vstr: ref u8 = v as ref u8
                                 val vlen2: i64 = str.len_raw(vstr)
-                                @memcpy(@ptradd(call_buf_p as ref void, call_pos_p), ", " as ref void, 2)
+                                @memcpy(@ptradd(call_buf_p, call_pos_p), ", " as ref void, 2)
                                 call_pos_p = call_pos_p + 2
-                                @memcpy(@ptradd(call_buf_p as ref void, call_pos_p), vstr as ref void, vlen2)
+                                @memcpy(@ptradd(call_buf_p, call_pos_p), vstr, vlen2)
                                 call_pos_p = call_pos_p + vlen2
                             }
                             vi++
                         }
-                        @store8(@ptradd(call_buf_p as ref void, call_pos_p), 41) // ')'
+                        @store8(@ptradd(call_buf_p, call_pos_p), 41) // ')'
                         call_pos_p++
-                        @store8(@ptradd(call_buf_p as ref void, call_pos_p), 10) // '\n'
+                        @store8(@ptradd(call_buf_p, call_pos_p), 10) // '\n'
                         call_pos_p++
-                        @store8(@ptradd(call_buf_p as ref void, call_pos_p), 0)
+                        @store8(@ptradd(call_buf_p, call_pos_p), 0)
                     }
                     emit(ctx, call_buf_p)
                     @free(call_buf_p)
@@ -7689,7 +7689,7 @@ fn gen_call(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
         @snprintf(hdr, 256, "    %%t{lld} ={s} call ${s}(", {tmp, ret_qtype, effective_callee})
     }
     val hdr_len: i64 = str.len_raw(hdr)
-    @memcpy(@ptradd(call_buf as ref void, call_pos), hdr as ref void, hdr_len)
+    @memcpy(@ptradd(call_buf, call_pos), hdr, hdr_len)
     call_pos = call_pos + hdr_len
     @free(hdr)
 
@@ -7700,11 +7700,11 @@ fn gen_call(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
         val ret_arg: ref u8 = @alloc(32) as ref u8
         @snprintf(ret_arg, 32, "l %%t{lld}", {ret_buf_tmp})
         val ret_arg_len: i64 = str.len_raw(ret_arg)
-        @memcpy(@ptradd(call_buf as ref void, call_pos), ret_arg as ref void, ret_arg_len)
+        @memcpy(@ptradd(call_buf, call_pos), ret_arg, ret_arg_len)
         call_pos = call_pos + ret_arg_len
         @free(ret_arg)
         if tlen > 0 {
-            @memcpy(@ptradd(call_buf as ref void, call_pos), ", " as ref void, 2)
+            @memcpy(@ptradd(call_buf, call_pos), ", " as ref void, 2)
             call_pos = call_pos + 2
         }
     }
@@ -7722,16 +7722,16 @@ fn gen_call(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
             val is_variadic_arg: bool = is_variadic_extern && ti >= fixed_params_len
             if is_variadic_arg && !variadic_started {
                 if ti > 0 || returns_union {
-                    @memcpy(@ptradd(call_buf as ref void, call_pos), ", ..." as ref void, 5)
+                    @memcpy(@ptradd(call_buf, call_pos), ", ..." as ref void, 5)
                     call_pos = call_pos + 5
                 } else {
-                    @memcpy(@ptradd(call_buf as ref void, call_pos), "..." as ref void, 3)
+                    @memcpy(@ptradd(call_buf, call_pos), "..." as ref void, 3)
                     call_pos = call_pos + 3
                 }
                 variadic_started = true
             }
             if ti > 0 || is_variadic_arg {
-                @memcpy(@ptradd(call_buf as ref void, call_pos), ", " as ref void, 2)
+                @memcpy(@ptradd(call_buf, call_pos), ", " as ref void, 2)
                 call_pos = call_pos + 2
             }
 
@@ -7766,15 +7766,15 @@ fn gen_call(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
             val call_arg: ref u8 = cg_coerce_qtype(ctx, t as ref u8, src_qtype, arg_qtype)
             @snprintf(tbuf, 64, "{s} {s}", {arg_qtype, call_arg})
             val tlen2: i64 = str.len_raw(tbuf)
-            @memcpy(@ptradd(call_buf as ref void, call_pos), tbuf as ref void, tlen2)
+            @memcpy(@ptradd(call_buf, call_pos), tbuf, tlen2)
             call_pos = call_pos + tlen2
             @free(tbuf)
         }
         ti++
     }
-    @store8(@ptradd(call_buf as ref void, call_pos), 41) // ')'
+    @store8(@ptradd(call_buf, call_pos), 41) // ')'
     call_pos = call_pos + 1
-    @store8(@ptradd(call_buf as ref void, call_pos), 0)
+    @store8(@ptradd(call_buf, call_pos), 0)
     emitln(ctx, call_buf)
 
     if using_ext {
@@ -8031,7 +8031,7 @@ fn gen_builtin(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
         val hdr2: ref u8 = @alloc(256) as ref u8
         @snprintf(hdr2, 256, "    %%t{lld} =w call $printf(l {s}, ...", {tmp, fmt})
         val hdr2_len: i64 = str.len_raw(hdr2 as ref u8)
-        @memcpy(@ptradd(call_buf2 as ref void, call_pos2), hdr2 as ref void, hdr2_len)
+        @memcpy(@ptradd(call_buf2, call_pos2), hdr2, hdr2_len)
         call_pos2 = call_pos2 + hdr2_len
         @free(hdr2)
         if args != none {
@@ -8055,7 +8055,7 @@ fn gen_builtin(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
                                 val pbuf2: ref u8 = @alloc(64) as ref u8
                                 @snprintf(pbuf2, 64, ", {s}", {pvarg})
                                 val pbuf2_len: i64 = str.len_raw(pbuf2)
-                                @memcpy(@ptradd(call_buf2 as ref void, call_pos2), pbuf2 as ref void, pbuf2_len)
+                                @memcpy(@ptradd(call_buf2, call_pos2), pbuf2, pbuf2_len)
                                 call_pos2 = call_pos2 + pbuf2_len
                                 @free(pvarg)
                                 @free(pbuf2)
@@ -8066,11 +8066,11 @@ fn gen_builtin(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
                 }
             }
         }
-        @store8(@ptradd(call_buf2 as ref void, call_pos2), 41) // ')'
+        @store8(@ptradd(call_buf2, call_pos2), 41) // ')'
         call_pos2++
-        @store8(@ptradd(call_buf2 as ref void, call_pos2), 10) // '\n'
+        @store8(@ptradd(call_buf2, call_pos2), 10) // '\n'
         call_pos2++
-        @store8(@ptradd(call_buf2 as ref void, call_pos2), 0)
+        @store8(@ptradd(call_buf2, call_pos2), 0)
         emit(ctx, call_buf2)
     } elif str.raw_cmp(name, "snprintf") == 0 {
         val sbuf: ref u8 = get_arg(ctx, args, 0)
@@ -8215,7 +8215,7 @@ fn gen_builtin(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
         if str.raw_cmp(val5_qtype, "w") == 0 {
             val ext_tmp: i64 = fresh_tmp(ctx)
             val ext_buf: ref u8 = @alloc(64) as ref u8
-            val first_ch: i64 = @load8(@ptradd(val5 as ref void, 0)) as i64
+            val first_ch: i64 = @load8(@ptradd(val5, 0)) as i64
             if ((first_ch >= 48 && first_ch <= 57) || first_ch == 45) {
                 @snprintf(ext_buf, 64, "    %%t{lld} =l copy {s}\n", {ext_tmp, val5})
             } else {
@@ -8521,7 +8521,7 @@ fn gen_builtin(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
         if str.raw_cmp(val_s_qtype, "w") == 0 {
             val ext_s: i64 = fresh_tmp(ctx)
             val ext_b: ref u8 = @alloc(64) as ref u8
-            val fc_s: i64 = @load8(@ptradd(val_s as ref void, 0)) as i64
+            val fc_s: i64 = @load8(@ptradd(val_s, 0)) as i64
             if ((fc_s >= 48 && fc_s <= 57) || fc_s == 45) {
                 @snprintf(ext_b, 64, "    %%t{lld} =l copy {s}\n", {ext_s, val_s})
             } else {
@@ -9683,9 +9683,9 @@ fn gen_stmt(ctx: mut ref CgCtx, stmt: ref parser.Node) void = trust {
         if ty_node != none && expr != none {
             val decl_qbe_type: ref u8 = qbe_type_of(ty_node)
             val old_expected_decl: ref parser.Node = ctx.expected_ty as ref parser.Node
-            ctx.expected_ty = ty_node as ref void
+            ctx.expected_ty = ty_node
             val expr_qbe_type_val: ref u8 = expr_qbe_type(ctx, expr)
-            ctx.expected_ty = old_expected_decl as ref void
+            ctx.expected_ty = old_expected_decl
             if !(str.raw_cmp(expr_qbe_type_val, "w") == 0 && str.raw_cmp(decl_qbe_type, "l") == 0 && is_ref_type(ty_node)) {
                 val_tmp = cg_coerce_qtype(ctx, val_tmp, expr_qbe_type_val, decl_qbe_type)
             }
@@ -9715,7 +9715,7 @@ fn gen_stmt(ctx: mut ref CgCtx, stmt: ref parser.Node) void = trust {
                 val ret_ann: ref u8 = type_expr_to_annotation(ctx, ret_expr)
                 if str.raw_cmp(ret_ann, "") != 0 {
                     val type_copy: ref u8 = @alloc(str.len_raw(ret_ann) + 1) as ref u8
-                    @memcpy(type_copy as ref void, ret_ann as ref void, str.len_raw(ret_ann) + 1)
+                    @memcpy(type_copy, ret_ann, str.len_raw(ret_ann) + 1)
                     cg_register_local_type(ctx, name, type_copy)
                     if cg_ann_is_indirect_value(ctx, ret_ann) {
                         cg_register_local_ref_type(ctx, name)
@@ -9726,7 +9726,7 @@ fn gen_stmt(ctx: mut ref CgCtx, stmt: ref parser.Node) void = trust {
             val inferred: ref u8 = infer_type_annotation(ctx, expr)
             if str.raw_cmp(inferred, "") != 0 {
                 val type_copy: ref u8 = @alloc(str.len_raw(inferred) + 1) as ref u8
-                @memcpy(type_copy as ref void, inferred as ref void, str.len_raw(inferred) + 1)
+                @memcpy(type_copy, inferred, str.len_raw(inferred) + 1)
                 cg_register_local_type(ctx, name, type_copy)
                 if cg_ann_is_indirect_value(ctx, inferred) {
                     cg_register_local_ref_type(ctx, name)
@@ -9808,7 +9808,7 @@ fn gen_stmt(ctx: mut ref CgCtx, stmt: ref parser.Node) void = trust {
             val c0: u8 = @load8(val_tmp) as u8
             if c0 == 37 || c0 == 36 {
                 val qbe_val: ref u8 = @alloc(str.len_raw(val_tmp) + 1) as ref u8
-                @memcpy(qbe_val as ref void, val_tmp as ref void, str.len_raw(val_tmp) + 1)
+                @memcpy(qbe_val, val_tmp, str.len_raw(val_tmp) + 1)
                 cg_register_local_var(ctx, name, qbe_val)
             } else {
                 val copy_tmp: i64 = fresh_tmp(ctx)
@@ -10782,8 +10782,8 @@ fn gen_forin_stmt(ctx: mut ref CgCtx, stmt: ref parser.Node) void = trust {
         val elem_len2: i64 = str.len_raw(elem_type2)
         if elem_len2 > 1 {
             val elem_type_copy2: ref u8 = @alloc(elem_len2) as ref u8
-            @memcpy(elem_type_copy2 as ref void, elem_type2 as ref void, (elem_len2 - 1) as usize)
-            @store8(@ptradd(elem_type_copy2 as ref void, elem_len2 - 1), 0)
+            @memcpy(elem_type_copy2, elem_type2, (elem_len2 - 1) as usize)
+            @store8(@ptradd(elem_type_copy2, elem_len2 - 1), 0)
             if is_float_type_name(elem_type_copy2) {
                 elem_stype = "d"
             }
@@ -10830,11 +10830,11 @@ fn gen_forin_stmt(ctx: mut ref CgCtx, stmt: ref parser.Node) void = trust {
     if str.raw_cmp(iter_type, "") != 0 && raw_starts_with(iter_type, "list[") {
         val elem_type: ref u8 = @ptradd(iter_type, 5) as ref u8 // skip "list["
         val elem_len: i64 = str.len_raw(elem_type)
-        val yo = @load8(@ptradd(elem_type as ref void, elem_len - 1)) as i64
+        val yo = @load8(@ptradd(elem_type, elem_len - 1)) as i64
         if elem_len > 1 && yo == 93 { // ']'
             val elem_type_copy: ref u8 = @alloc(elem_len) as ref u8
-            @memcpy(elem_type_copy as ref void, elem_type as ref void, (elem_len - 1) as usize)
-            @store8(@ptradd(elem_type_copy as ref void, elem_len - 1), 0)
+            @memcpy(elem_type_copy, elem_type, (elem_len - 1) as usize)
+            @store8(@ptradd(elem_type_copy, elem_len - 1), 0)
             cg_register_local_type(ctx, binding, elem_type_copy)
             if raw_starts_with(elem_type_copy, "ref ") {
                 cg_register_local_ref_type(ctx, binding)
@@ -11331,10 +11331,10 @@ fn cg_lookup_union_suffix(ctx: mut ref CgCtx, type_name: ref u8) ref void = trus
             val clen: i64 = str.len_raw(candidate)
             if clen > suffix_len {
                 val tail: ref u8 = @ptradd(candidate, clen - suffix_len) as ref u8
-                val c1: u8 = @load8(@ptradd(tail as ref void, 0))
-                val c2: u8 = @load8(@ptradd(tail as ref void, 1))
+                val c1: u8 = @load8(@ptradd(tail, 0))
+                val c2: u8 = @load8(@ptradd(tail, 1))
                 if c1 == 95 && c2 == 95 {
-                    val rest: ref u8 = @ptradd(tail as ref void, 2) as ref u8
+                    val rest: ref u8 = @ptradd(tail, 2) as ref u8
                     if str.raw_cmp(rest, type_name) == 0 {
                         val v_opt = @get(cg_uvariants(ctx) as list[ref void], ni as usize)
                         if v_opt is some v {
@@ -11360,10 +11360,10 @@ fn cg_lookup_union_suffix(ctx: mut ref CgCtx, type_name: ref u8) ref void = trus
                 val clen2: i64 = str.len_raw(candidate2)
                 if clen2 > mangled_suffix_len {
                     val tail2: ref u8 = @ptradd(candidate2, clen2 - mangled_suffix_len) as ref u8
-                    val c1b: u8 = @load8(@ptradd(tail2 as ref void, 0))
-                    val c2b: u8 = @load8(@ptradd(tail2 as ref void, 1))
+                    val c1b: u8 = @load8(@ptradd(tail2, 0))
+                    val c2b: u8 = @load8(@ptradd(tail2, 1))
                     if c1b == 95 && c2b == 95 {
-                        val rest2: ref u8 = @ptradd(tail2 as ref void, 2) as ref u8
+                        val rest2: ref u8 = @ptradd(tail2, 2) as ref u8
                         if str.raw_cmp(rest2, mangled_name) == 0 {
                             val v_opt2 = @get(cg_uvariants(ctx) as list[ref void], mi as usize)
                             if v_opt2 is some v2 {
@@ -11697,7 +11697,7 @@ fn gen_fn_prefixed(ctx: mut ref CgCtx, fn_node: ref parser.Node, mod_prefix: ref
     }
 
     if params != none {
-        cg_register_fn(ctx, fn_node, mangled, params, ret_ty as ref void)
+        cg_register_fn(ctx, fn_node, mangled, params, ret_ty)
     }
 
     val export_kw: mut ref u8 = ""
@@ -11779,7 +11779,7 @@ fn gen_fn_prefixed(ctx: mut ref CgCtx, fn_node: ref parser.Node, mod_prefix: ref
         ctx.current_fn_ret_union = ""
     }
     ctx.current_fn_ret_qtype = ret_qt
-    ctx.current_fn_ret_ty = ret_ty as ref void
+    ctx.current_fn_ret_ty = ret_ty
     ctx.expected_ty = none
 
     cg_dvars_clear(ctx)
@@ -11850,13 +11850,13 @@ fn gen_fn_prefixed(ctx: mut ref CgCtx, fn_node: ref parser.Node, mod_prefix: ref
                 val dollar_label: ref u8 = @alloc(260) as ref u8
                 @snprintf(dollar_label, 260, "${s}", {glbl_buf})
                 cg_register_local_var(ctx, gn as ref u8, dollar_label)
-                val is_fixed_arr_global: bool = @load8(gann_buf as ref void) as i64 == 91
+                val is_fixed_arr_global: bool = @load8(gann_buf) as i64 == 91
                 if !is_fixed_arr_global {
                     cg_mark_as_slot(ctx, gn as ref u8)
                 }
                 if str.raw_cmp(gann_buf, "") != 0 {
                     val gann_copy: ref u8 = @alloc(str.len_raw(gann_buf) + 1) as ref u8
-                    @memcpy(gann_copy as ref void, gann_buf as ref void, str.len_raw(gann_buf) + 1)
+                    @memcpy(gann_copy, gann_buf, str.len_raw(gann_buf) + 1)
                     cg_register_local_type(ctx, gn as ref u8, gann_copy)
                     if raw_starts_with(gann_copy, "ref ") || raw_starts_with(gann_copy, "mut ref ") || cg_ann_is_indirect_value(ctx, gann_copy) {
                         cg_register_local_ref_type(ctx, gn as ref u8)
@@ -12979,7 +12979,7 @@ fn cg_qbe_char_at(qbe: ref u8, index: i64, at_end: bool) i64 = trust {
     if at_end {
         return 10
     }
-    return @load8(@ptradd(qbe as ref void, index)) as i64
+    return @load8(@ptradd(qbe, index)) as i64
 }
 
 fn cg_qbe_is_line_end(c: i64, at_end: bool) bool = trust {
@@ -13362,13 +13362,13 @@ fn gen_test_fn(ctx: mut ref CgCtx, body_stmts: ref parser.Node, test_id: i64) vo
                 val dollar_label: ref u8 = @alloc(260) as ref u8
                 @snprintf(dollar_label, 260, "${s}", {glbl_buf})
                 cg_register_local_var(ctx, gn as ref u8, dollar_label)
-                val is_fixed_arr_global2: bool = @load8(gann_buf as ref void) as i64 == 91
+                val is_fixed_arr_global2: bool = @load8(gann_buf) as i64 == 91
                 if !is_fixed_arr_global2 {
                     cg_mark_as_slot(ctx, gn as ref u8)
                 }
                 if str.raw_cmp(gann_buf, "") != 0 {
                     val gann_copy: ref u8 = @alloc(str.len_raw(gann_buf) + 1) as ref u8
-                    @memcpy(gann_copy as ref void, gann_buf as ref void, str.len_raw(gann_buf) + 1)
+                    @memcpy(gann_copy, gann_buf, str.len_raw(gann_buf) + 1)
                     cg_register_local_type(ctx, gn as ref u8, gann_copy)
                     if raw_starts_with(gann_copy, "ref ") || raw_starts_with(gann_copy, "mut ref ") || cg_ann_is_indirect_value(ctx, gann_copy) {
                         cg_register_local_ref_type(ctx, gn as ref u8)

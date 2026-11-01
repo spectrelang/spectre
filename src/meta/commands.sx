@@ -49,7 +49,7 @@ fn ctx_peek(ctx: ref ParseCtx) i64 = trust {
     if ctx.pos >= ctx.len {
         return -1
     }
-    return @load8(@ptradd(ctx.text as ref void, ctx.pos)) as i64
+    return @load8(@ptradd(ctx.text, ctx.pos)) as i64
 }
 
 fn ctx_advance(ctx: mut ref ParseCtx) void = {
@@ -78,7 +78,7 @@ fn ctx_skip_ws(ctx: mut ref ParseCtx) void = {
         if c == 32 || c == 9 || c == 10 || c == 13 {
             ctx_advance(ctx)
         } elif c == 47 && ctx.pos + 1 < ctx.len {
-            val c2: i64 = trust @load8(@ptradd(ctx.text as ref void, ctx.pos + 1)) as i64
+            val c2: i64 = trust @load8(@ptradd(ctx.text, ctx.pos + 1)) as i64
             if c2 == 47 {
                 ctx_skip_line(ctx)
             } else {
@@ -106,19 +106,19 @@ fn ctx_read_quoted(ctx: mut ref ParseCtx) ref u8 = trust {
         }
         if i >= cap - 1 {
             cap = cap * 2
-            buf = @realloc(buf as ref void, cap) as ref u8
+            buf = @realloc(buf, cap) as ref u8
         }
-        @store8(@ptradd(buf as ref void, i), c as u8)
+        @store8(@ptradd(buf, i), c as u8)
         i++
         ctx_advance(ctx)
     }
     if ctx_peek(ctx) == 34 {
         ctx_advance(ctx)
     }
-    @store8(@ptradd(buf as ref void, i), 0)
+    @store8(@ptradd(buf, i), 0)
     val result: ref u8 = @alloc(i + 1) as ref u8
-    @memcpy(result as ref void, buf as ref void, (i + 1) as usize)
-    @free(buf as ref void)
+    @memcpy(result, buf, (i + 1) as usize)
+    @free(buf)
     return result
 }
 
@@ -137,18 +137,18 @@ fn ctx_read_ident(ctx: mut ref ParseCtx) ref u8 = trust {
         if !alpha && !digit && !special {
             break
         }
-        @store8(@ptradd(buf as ref void, i), c as u8)
+        @store8(@ptradd(buf, i), c as u8)
         i++
         ctx_advance(ctx)
     }
-    @store8(@ptradd(buf as ref void, i), 0)
+    @store8(@ptradd(buf, i), 0)
     if i == 0 {
-        @free(buf as ref void)
+        @free(buf)
         return ""
     }
     val result: ref u8 = @alloc(i + 1) as ref u8
-    @memcpy(result as ref void, buf as ref void, (i + 1) as usize)
-    @free(buf as ref void)
+    @memcpy(result, buf, (i + 1) as usize)
+    @free(buf)
     return result
 }
 
@@ -168,27 +168,27 @@ fn ctx_read_env_value(ctx: mut ref ParseCtx) ref u8 = trust {
         }
         if i >= cap - 1 {
             cap = cap * 2
-            buf = @realloc(buf as ref void, cap) as ref u8
+            buf = @realloc(buf, cap) as ref u8
         }
-        @store8(@ptradd(buf as ref void, i), c as u8)
+        @store8(@ptradd(buf, i), c as u8)
         i++
         ctx_advance(ctx)
     }
-    @store8(@ptradd(buf as ref void, i), 0)
+    @store8(@ptradd(buf, i), 0)
     if i == 0 {
-        @free(buf as ref void)
+        @free(buf)
         return ""
     }
     val result: ref u8 = @alloc(i + 1) as ref u8
-    @memcpy(result as ref void, buf as ref void, (i + 1) as usize)
-    @free(buf as ref void)
+    @memcpy(result, buf, (i + 1) as usize)
+    @free(buf)
     return result
 }
 
 pub fn parse_sxmod(content: ref u8) ref SxMod = trust {
     val ctx: mut ref ParseCtx = new_ctx(content)
     val m: mut ref SxMod = @alloc(@sizeof(SxMod)) as ref SxMod
-    @memset(m as ref void, 0, @sizeof(SxMod) as usize)
+    @memset(m, 0, @sizeof(SxMod) as usize)
     m.entry = ""
     m.version = ""
     m.spectre_version = ""
@@ -213,7 +213,7 @@ pub fn parse_sxmod(content: ref u8) ref SxMod = trust {
             @append(m.deps, ctx_read_quoted(ctx))
         } elif str.raw_cmp(kw, "build") == 0 {
             val cfg: mut ref SxBuildConfig = @alloc(@sizeof(SxBuildConfig)) as ref SxBuildConfig
-            @memset(cfg as ref void, 0, @sizeof(SxBuildConfig) as usize)
+            @memset(cfg, 0, @sizeof(SxBuildConfig) as usize)
             cfg.name = ctx_read_ident(ctx)
             cfg.action = ""
             cfg.flags = ""
@@ -279,7 +279,7 @@ pub fn parse_sxmod(content: ref u8) ref SxMod = trust {
             ctx_skip_line(ctx)
         }
     }
-    @free(ctx as ref void)
+    @free(ctx)
     return m
 }
 
@@ -360,7 +360,7 @@ fn parse_sxlock(content: ref u8) list[ref SxLockDep] = trust {
             val hash: ref u8 = ctx_read_quoted(ctx)
             if str.raw_cmp(url, "") != 0 && str.raw_cmp(hash, "") != 0 {
                 val dep: mut ref SxLockDep = @alloc(@sizeof(SxLockDep)) as ref SxLockDep
-                @memset(dep as ref void, 0, @sizeof(SxLockDep) as usize)
+                @memset(dep, 0, @sizeof(SxLockDep) as usize)
                 dep.url = url
                 dep.hash = hash
                 @append(deps, dep)
@@ -369,7 +369,7 @@ fn parse_sxlock(content: ref u8) list[ref SxLockDep] = trust {
             ctx_skip_line(ctx)
         }
     }
-    @free(ctx as ref void)
+    @free(ctx)
     return deps
 }
 
@@ -500,7 +500,7 @@ fn basename_of(path: ref u8) ref u8 = {
         if i >= len {
             break
         }
-        val c: u8 = trust @load8(@ptradd(path as ref void, i)) as u8
+        val c: u8 = trust @load8(@ptradd(path, i)) as u8
         if c == 47 {
             last_slash = i
         }
@@ -512,8 +512,8 @@ fn basename_of(path: ref u8) ref u8 = {
         return "project"
     }
     val buf: ref u8 = @alloc(name_len + 1) as ref u8
-    trust @memcpy(buf as ref void, @ptradd(path as ref void, start), name_len as usize)
-    trust @store8(@ptradd(buf as ref void, name_len), 0)
+    trust @memcpy(buf, @ptradd(path, start), name_len as usize)
+    trust @store8(@ptradd(buf, name_len), 0)
     return buf
 }
 
@@ -521,14 +521,14 @@ fn repo_name_from_url(url: ref u8) ref u8 = trust {
     val base: ref u8 = basename_of(url)
     val blen: i64 = str.len_raw(base)
     if blen > 4 {
-        val a: u8 = @load8(@ptradd(base as ref void, blen - 4)) as u8
-        val b: u8 = @load8(@ptradd(base as ref void, blen - 3)) as u8
-        val c: u8 = @load8(@ptradd(base as ref void, blen - 2)) as u8
-        val d: u8 = @load8(@ptradd(base as ref void, blen - 1)) as u8
+        val a: u8 = @load8(@ptradd(base, blen - 4)) as u8
+        val b: u8 = @load8(@ptradd(base, blen - 3)) as u8
+        val c: u8 = @load8(@ptradd(base, blen - 2)) as u8
+        val d: u8 = @load8(@ptradd(base, blen - 1)) as u8
         if a == 46 && b == 103 && c == 105 && d == 116 {
             val trimmed: ref u8 = @alloc(blen - 3) as ref u8
-            @memcpy(trimmed as ref void, base as ref void, (blen - 4) as usize)
-            @store8(@ptradd(trimmed as ref void, blen - 4), 0)
+            @memcpy(trimmed, base, (blen - 4) as usize)
+            @store8(@ptradd(trimmed, blen - 4), 0)
             return trimmed
         }
     }
@@ -556,8 +556,8 @@ fn raw_contains(haystack: ref u8, needle: ref u8) bool = {
             if j >= nlen {
                 break
             }
-            val x: u8 = trust @load8(@ptradd(haystack as ref void, i + j)) as u8
-            val y: u8 = trust @load8(@ptradd(needle as ref void, j)) as u8
+            val x: u8 = trust @load8(@ptradd(haystack, i + j)) as u8
+            val y: u8 = trust @load8(@ptradd(needle, j)) as u8
             if x != y {
                 matched = false break
             }
@@ -602,13 +602,13 @@ fn drop_dep_lines(filepath: ref u8, needle: ref u8) void = trust {
                 val at_end: bool = i == tlen
                 val c: mut u8 = 0
                 if !at_end {
-                    c = @load8(@ptradd(text as ref void, i)) as u8
+                    c = @load8(@ptradd(text, i)) as u8
                 }
                 if at_end || c == 10 {
                     val line_len: i64 = i - line_start
                     val line: ref u8 = @alloc(line_len + 1) as ref u8
-                    @memcpy(line as ref void, @ptradd(text as ref void, line_start), line_len as usize)
-                    @store8(@ptradd(line as ref void, line_len), 0)
+                    @memcpy(line, @ptradd(text, line_start), line_len as usize)
+                    @store8(@ptradd(line, line_len), 0)
                     val is_dep: bool = str.raw_starts_with(line, "dep ")
                     val has_needle: bool = raw_contains(line, needle)
                     if !(is_dep && has_needle) {
@@ -617,7 +617,7 @@ fn drop_dep_lines(filepath: ref u8, needle: ref u8) void = trust {
                             str.StringBuilder.append_char(sb, 10 as u8)
                         }
                     }
-                    @free(line as ref void)
+                    @free(line)
                     line_start = i + 1
                 }
                 i++
@@ -1276,7 +1276,7 @@ pub fn cmd_add(url: ref u8) i32 = trust {
                 if trimmed_len <= 0 {
                     break
                 }
-                val c: u8 = @load8(@ptradd(raw as ref void, trimmed_len - 1)) as u8
+                val c: u8 = @load8(@ptradd(raw, trimmed_len - 1)) as u8
                 if c == 10 || c == 13 || c == 32 {
                     trimmed_len--
                 } else {
@@ -1284,8 +1284,8 @@ pub fn cmd_add(url: ref u8) i32 = trust {
                 }
             }
             val h: ref u8 = @alloc(trimmed_len + 1) as ref u8
-            @memcpy(h as ref void, raw as ref void, trimmed_len as usize)
-            @store8(@ptradd(h as ref void, trimmed_len), 0)
+            @memcpy(h, raw, trimmed_len as usize)
+            @store8(@ptradd(h, trimmed_len), 0)
             hash = h
         }
         err _ => {}
@@ -1594,7 +1594,7 @@ fn tool_version(cmd: ref u8) ref u8 = {
                 if end <= 0 {
                     break
                 }
-                val c: u8 = trust @load8(@ptradd(raw as ref void, end - 1)) as u8
+                val c: u8 = trust @load8(@ptradd(raw, end - 1)) as u8
                 if c == 10 || c == 13 {
                     end--
                 } else {
@@ -1605,8 +1605,8 @@ fn tool_version(cmd: ref u8) ref u8 = {
                 return "unknown"
             }
             val buf: ref u8 = @alloc(end + 1) as ref u8
-            trust @memcpy(buf as ref void, raw as ref void, end as usize)
-            trust @store8(@ptradd(buf as ref void, end), 0)
+            trust @memcpy(buf, raw, end as usize)
+            trust @store8(@ptradd(buf, end), 0)
             return buf
         }
         err _ => {

@@ -43,7 +43,7 @@ type SemaCtx = {
 
 fn sema_new() ref SemaCtx = trust {
     val ctx: ref SemaCtx = @alloc(@sizeof(SemaCtx)) as ref SemaCtx
-    @memset(ctx as ref void, 0, @sizeof(SemaCtx) as usize)
+    @memset(ctx, 0, @sizeof(SemaCtx) as usize)
     return ctx
 }
 
@@ -67,7 +67,7 @@ fn canonicalize_path(path: ref u8) ref u8 = trust {
         if i >= len {
             break
         }
-        val c: u8 = @load8(@ptradd(path as ref void, i))
+        val c: u8 = @load8(@ptradd(path, i))
         if c == 47 {
             i++
             continue
@@ -77,7 +77,7 @@ fn canonicalize_path(path: ref u8) ref u8 = trust {
             if i >= len {
                 break
             }
-            val c2: u8 = @load8(@ptradd(path as ref void, i))
+            val c2: u8 = @load8(@ptradd(path, i))
             if c2 == 47 {
                 break
             }
@@ -85,8 +85,8 @@ fn canonicalize_path(path: ref u8) ref u8 = trust {
         }
         val seg_len: i64 = i - start
         val seg: ref u8 = @alloc((seg_len + 1) as usize) as ref u8
-        @memcpy(seg as ref void, @ptradd(path as ref void, start), seg_len as usize)
-        @store8(@ptradd(seg as ref void, seg_len), 0)
+        @memcpy(seg, @ptradd(path, start), seg_len as usize)
+        @store8(@ptradd(seg, seg_len), 0)
         if string.raw_cmp(seg, "..") == 0 {
             if @len(segs) as i64 > 0 {
                 @remove(segs, @len(segs) - 1)
@@ -96,7 +96,7 @@ fn canonicalize_path(path: ref u8) ref u8 = trust {
         }
     }
     val sb: ref void = string.StringBuilder.new()
-    val c0: u8 = @load8(@ptradd(path as ref void, 0))
+    val c0: u8 = @load8(@ptradd(path, 0))
     if c0 == 47 {
         string.StringBuilder.append_char(sb, 47 as u8)
     }
@@ -131,7 +131,7 @@ fn normalize_path(path: ref u8) ref u8 = trust {
         if i >= len {
             break
         }
-        val c: i64 = @load8(@ptradd(path as ref void, i)) as i64
+        val c: i64 = @load8(@ptradd(path, i)) as i64
         if c == 47 {
             if !prev_slash {
                 string.StringBuilder.append_char(sb, 47 as u8)
@@ -337,8 +337,8 @@ fn push_scope(ctx: ref SemaCtx) void = trust {
     }
 
     val frame: ref list[ref ScopeEntry] = @alloc(@sizeof(list[ref ScopeEntry])) as ref list[ref ScopeEntry]
-    @memset(frame as ref void, 0, @sizeof(list[ref ScopeEntry]) as usize)
-    @append(ctx.scopes, frame as ref void)
+    @memset(frame, 0, @sizeof(list[ref ScopeEntry]) as usize)
+    @append(ctx.scopes, frame)
 
     guarded post {
         scope_created: @len(ctx.scopes) > 0
@@ -355,13 +355,13 @@ fn pop_scope(ctx: ref SemaCtx, filename: ref u8, _: i64) void = trust {
     if len > 0 {
         val frame_opt = @get(ctx.scopes, len - 1)
         if frame_opt is some frame {
-            val flen: i64 = @len(frame as ref void) as i64
+            val flen: i64 = @len(frame) as i64
             val i: mut i64 = 0
             for {
                 if i >= flen {
                     break
                 }
-                val e_opt = @get(frame as ref void, i as usize)
+                val e_opt = @get(frame, i as usize)
                 if e_opt is some e {
                     val entry: ref ScopeEntry = e as ref ScopeEntry
                     if entry.name != none {
@@ -411,10 +411,10 @@ fn scope_define(ctx: ref SemaCtx, name: ref u8, mutable: i64, type_name: ref u8,
         entry.used = 0
         entry.mutated = 0
         entry.wrap_kind = 0
-        @append(frame as ref void, entry)
+        @append(frame, entry)
 
         guarded post {
-            entry_added: @len(frame as ref void) > 0
+            entry_added: @len(frame) > 0
         }
     }
 }
@@ -426,13 +426,13 @@ fn scope_set_implicit_mut(ctx: ref SemaCtx, name: ref u8) void = trust {
     }
     val frame_opt = @get(ctx.scopes, len - 1)
     if frame_opt is some frame {
-        val flen: i64 = @len(frame as ref void) as i64
+        val flen: i64 = @len(frame) as i64
         val i: mut i64 = 0
         for {
             if i >= flen {
                 break
             }
-            val e_opt = @get(frame as ref void, i as usize)
+            val e_opt = @get(frame, i as usize)
             if e_opt is some e {
                 val entry: mut ref ScopeEntry = e as ref ScopeEntry
                 if entry.name != none {
@@ -566,7 +566,7 @@ fn check_no_module_to_module_type(ctx: ref SemaCtx, ty_node: ref parser.Node, li
         if si >= nlen {
             break
         }
-        val c: u8 = @load8(@ptradd(name as ref void, si))
+        val c: u8 = @load8(@ptradd(name, si))
         if c == 46 {
             if first_dot < 0 {
                 first_dot = si
@@ -581,12 +581,12 @@ fn check_no_module_to_module_type(ctx: ref SemaCtx, ty_node: ref parser.Node, li
         return
     }
     val first_seg: ref u8 = @alloc(first_dot + 1) as ref u8
-    @memcpy(first_seg as ref void, name as ref void, first_dot as usize)
-    @store8(@ptradd(first_seg as ref void, first_dot), 0)
+    @memcpy(first_seg, name, first_dot as usize)
+    @store8(@ptradd(first_seg, first_dot), 0)
     val second_len: i64 = second_dot - first_dot - 1
     val second_seg: ref u8 = @alloc(second_len + 1) as ref u8
-    @memcpy(second_seg as ref void, @ptradd(name as ref void, first_dot + 1), second_len as usize)
-    @store8(@ptradd(second_seg as ref void, second_len), 0)
+    @memcpy(second_seg, @ptradd(name, first_dot + 1), second_len as usize)
+    @store8(@ptradd(second_seg, second_len), 0)
     val rmod: ref modinfo.ResolvedModule = ctx.root_mod
     val imported: ref modinfo.ResolvedModule = find_imported_module(rmod, first_seg)
     if imported == none {
@@ -680,13 +680,13 @@ fn scope_lookup(ctx: ref SemaCtx, name: ref u8) i64 = trust {
         }
         val frame_opt = @get(ctx.scopes, i as usize)
         if frame_opt is some frame {
-            val flen: i64 = @len(frame as ref void) as i64
+            val flen: i64 = @len(frame) as i64
             val j: mut i64 = flen - 1
             for {
                 if j < 0 {
                     break
                 }
-                val e_opt = @get(frame as ref void, j as usize)
+                val e_opt = @get(frame, j as usize)
                 if e_opt is some e {
                     val entry: ref ScopeEntry = e as ref ScopeEntry
                     if string.raw_cmp(entry.name, name) == 0 {
@@ -716,13 +716,13 @@ fn scope_lookup_type(ctx: ref SemaCtx, name: ref u8) ref u8 = trust {
         }
         val frame_opt = @get(ctx.scopes, i as usize)
         if frame_opt is some frame {
-            val flen: i64 = @len(frame as ref void) as i64
+            val flen: i64 = @len(frame) as i64
             val j: mut i64 = flen - 1
             for {
                 if j < 0 {
                     break
                 }
-                val e_opt = @get(frame as ref void, j as usize)
+                val e_opt = @get(frame, j as usize)
                 if e_opt is some e {
                     val entry: ref ScopeEntry = e as ref ScopeEntry
                     if string.raw_cmp(entry.name, name) == 0 {
@@ -752,13 +752,13 @@ fn scope_lookup_is_ref(ctx: ref SemaCtx, name: ref u8) i64 = trust {
         }
         val frame_opt = @get(ctx.scopes, i as usize)
         if frame_opt is some frame {
-            val flen: i64 = @len(frame as ref void) as i64
+            val flen: i64 = @len(frame) as i64
             val j: mut i64 = flen - 1
             for {
                 if j < 0 {
                     break
                 }
-                val e_opt = @get(frame as ref void, j as usize)
+                val e_opt = @get(frame, j as usize)
                 if e_opt is some e {
                     val entry: ref ScopeEntry = e as ref ScopeEntry
                     if string.raw_cmp(entry.name, name) == 0 {
@@ -790,13 +790,13 @@ fn scope_lookup_wrap_kind(ctx: ref SemaCtx, name: ref u8) i64 = trust {
         }
         val frame_opt = @get(ctx.scopes, i as usize)
         if frame_opt is some frame {
-            val flen: i64 = @len(frame as ref void) as i64
+            val flen: i64 = @len(frame) as i64
             val j: mut i64 = flen - 1
             for {
                 if j < 0 {
                     break
                 }
-                val e_opt = @get(frame as ref void, j as usize)
+                val e_opt = @get(frame, j as usize)
                 if e_opt is some e {
                     val entry: ref ScopeEntry = e as ref ScopeEntry
                     if string.raw_cmp(entry.name, name) == 0 {
@@ -825,13 +825,13 @@ fn scope_set_wrap_kind(ctx: ref SemaCtx, name: ref u8, kind: i64) void = trust {
     }
     val frame_opt = @get(ctx.scopes, len - 1)
     if frame_opt is some frame {
-        val flen: i64 = @len(frame as ref void) as i64
+        val flen: i64 = @len(frame) as i64
         val j: mut i64 = 0
         for {
             if j >= flen {
                 break
             }
-            val e_opt = @get(frame as ref void, j as usize)
+            val e_opt = @get(frame, j as usize)
             if e_opt is some e {
                 val entry: mut ref ScopeEntry = e as ref ScopeEntry
                 if entry.name != none {
@@ -858,13 +858,13 @@ fn mark_name_used(ctx: ref SemaCtx, name: ref u8) void = trust {
         }
         val frame_opt = @get(ctx.scopes, i as usize)
         if frame_opt is some frame {
-            val flen: i64 = @len(frame as ref void) as i64
+            val flen: i64 = @len(frame) as i64
             val j: mut i64 = flen - 1
             for {
                 if j < 0 {
                     break
                 }
-                val e_opt = @get(frame as ref void, j as usize)
+                val e_opt = @get(frame, j as usize)
                 if e_opt is some e {
                     val entry: mut ref ScopeEntry = e as ref ScopeEntry
                     if string.raw_cmp(entry.name, name) == 0 {
@@ -891,13 +891,13 @@ fn mark_name_mutated(ctx: ref SemaCtx, name: ref u8) void = trust {
         }
         val frame_opt = @get(ctx.scopes, i as usize)
         if frame_opt is some frame {
-            val flen: i64 = @len(frame as ref void) as i64
+            val flen: i64 = @len(frame) as i64
             val j: mut i64 = flen - 1
             for {
                 if j < 0 {
                     break
                 }
-                val e_opt = @get(frame as ref void, j as usize)
+                val e_opt = @get(frame, j as usize)
                 if e_opt is some e {
                     val entry: mut ref ScopeEntry = e as ref ScopeEntry
                     if string.raw_cmp(entry.name, name) == 0 {
@@ -1308,7 +1308,7 @@ fn find_typedef_anywhere(ctx: ref SemaCtx, type_name: ref u8) ref parser.Node = 
         if i >= nlen {
             break
         }
-        val c: u8 = @load8(@ptradd(type_name as ref void, i))
+        val c: u8 = @load8(@ptradd(type_name, i))
         if c == 46 {
             dot_idx = i
         }
@@ -1316,8 +1316,8 @@ fn find_typedef_anywhere(ctx: ref SemaCtx, type_name: ref u8) ref parser.Node = 
     }
     if dot_idx > 0 {
         val mod_name_buf: ref u8 = @alloc((dot_idx + 1) as usize) as ref u8
-        @memcpy(mod_name_buf as ref void, type_name as ref void, dot_idx as usize)
-        @store8(@ptradd(mod_name_buf as ref void, dot_idx), 0)
+        @memcpy(mod_name_buf, type_name, dot_idx as usize)
+        @store8(@ptradd(mod_name_buf, dot_idx), 0)
         val unqual: ref u8 = @ptradd(type_name, dot_idx + 1) as ref u8
         val mm: ref modinfo.ResolvedModule = find_imported_mod(ctx, mod_name_buf)
         if mm != none {
@@ -1396,7 +1396,7 @@ fn find_spec_anywhere(ctx: ref SemaCtx, spec_name: ref u8) ref parser.Node = tru
         if i >= nlen {
             break
         }
-        val c: u8 = @load8(@ptradd(spec_name as ref void, i))
+        val c: u8 = @load8(@ptradd(spec_name, i))
         if c == 46 {
             dot_idx = i
             break
@@ -1405,8 +1405,8 @@ fn find_spec_anywhere(ctx: ref SemaCtx, spec_name: ref u8) ref parser.Node = tru
     }
     if dot_idx > 0 {
         val mod_name_buf: ref u8 = @alloc((dot_idx + 1) as usize) as ref u8
-        @memcpy(mod_name_buf as ref void, spec_name as ref void, dot_idx as usize)
-        @store8(@ptradd(mod_name_buf as ref void, dot_idx), 0)
+        @memcpy(mod_name_buf, spec_name, dot_idx as usize)
+        @store8(@ptradd(mod_name_buf, dot_idx), 0)
         val unqual: ref u8 = @ptradd(spec_name, dot_idx + 1) as ref u8
         val mm: ref modinfo.ResolvedModule = find_imported_mod(ctx, mod_name_buf)
         if mm == none {
@@ -1464,13 +1464,13 @@ fn scope_defined_local(ctx: ref SemaCtx, name: ref u8) bool = trust {
     }
     val frame_opt = @get(ctx.scopes, len - 1)
     if frame_opt is some frame {
-        val flen: i64 = @len(frame as ref void) as i64
+        val flen: i64 = @len(frame) as i64
         val j: mut i64 = 0
         for {
             if j >= flen {
                 break
             }
-            val e_opt = @get(frame as ref void, j as usize)
+            val e_opt = @get(frame, j as usize)
             if e_opt is some e {
                 val entry: ref ScopeEntry = e as ref ScopeEntry
                 if string.raw_cmp(entry.name, name) == 0 {
@@ -1675,7 +1675,7 @@ fn validate_derived_specs_in_items(ctx: ref SemaCtx, items: list[ref parser.Node
                 val has_dot: mut bool = false
                 val i: mut i64 = 0
                 for {
-                    val c: u8 = @load8(@ptradd(spec_name as ref void, i))
+                    val c: u8 = @load8(@ptradd(spec_name, i))
                     if c == 0 {
                         break
                     }
@@ -1739,7 +1739,7 @@ fn unqualified_type_name(tname: ref u8) ref u8 = trust {
     val last_dot: mut i64 = -1
     val i: mut i64 = 0
     for {
-        val c: u8 = @load8(@ptradd(tname as ref void, i))
+        val c: u8 = @load8(@ptradd(tname, i))
         if c == 0 {
             break
         }
@@ -1761,7 +1761,7 @@ fn qualified_owner_prefix(name: ref u8) ref u8 = trust {
     val last_dot: mut i64 = -1
     val i: mut i64 = 0
     for {
-        val c: u8 = @load8(@ptradd(name as ref void, i))
+        val c: u8 = @load8(@ptradd(name, i))
         if c == 0 {
             break
         }
@@ -1774,8 +1774,8 @@ fn qualified_owner_prefix(name: ref u8) ref u8 = trust {
         return none
     }
     val out: ref u8 = @alloc((last_dot + 1) as usize) as ref u8
-    @memcpy(out as ref void, name as ref void, last_dot as usize)
-    @store8(@ptradd(out as ref void, last_dot), 0)
+    @memcpy(out, name, last_dot as usize)
+    @store8(@ptradd(out, last_dot), 0)
     return out
 }
 
@@ -1827,7 +1827,7 @@ fn qualify_type_name_for_callee(ctx: ref SemaCtx, callee: ref parser.Node, type_
         if ti >= tlen {
             break
         }
-        val c: u8 = @load8(@ptradd(type_name as ref void, ti))
+        val c: u8 = @load8(@ptradd(type_name, ti))
         if c == 46 {
             return type_name
         }
@@ -1857,15 +1857,15 @@ fn canonical_type_prefix_for_imported_module(imported: ref modinfo.ResolvedModul
 
     val end: mut i64 = len
     if len >= 8 {
-        val tail_core: ref u8 = @ptradd(fname as ref void, len - 8) as ref u8
+        val tail_core: ref u8 = @ptradd(fname, len - 8) as ref u8
         if str_eq(tail_core, "/core.sx") {
             end = len - 8
         }
     }
-    if end == len && len >= 3 {
-        val c0: u8 = @load8(@ptradd(fname as ref void, len - 3))
-        val c1: u8 = @load8(@ptradd(fname as ref void, len - 2))
-        val c2: u8 = @load8(@ptradd(fname as ref void, len - 1))
+    if end == len >= 3 {
+        val c0: u8 = @load8(@ptradd(fname, len - 3))
+        val c1: u8 = @load8(@ptradd(fname, len - 2))
+        val c2: u8 = @load8(@ptradd(fname, len - 1))
         if c0 == 46 && c1 == 115 && c2 == 120 {
             end = len - 3
         }
@@ -1879,7 +1879,7 @@ fn canonical_type_prefix_for_imported_module(imported: ref modinfo.ResolvedModul
         if start < 0 {
             break
         }
-        val c: u8 = @load8(@ptradd(fname as ref void, start))
+        val c: u8 = @load8(@ptradd(fname, start))
         if c == 47 {
             start++
             break
@@ -1894,8 +1894,8 @@ fn canonical_type_prefix_for_imported_module(imported: ref modinfo.ResolvedModul
         return none
     }
     val out: ref u8 = @alloc((out_len + 1) as usize) as ref u8
-    @memcpy(out as ref void, @ptradd(fname as ref void, start), out_len as usize)
-    @store8(@ptradd(out as ref void, out_len), 0)
+    @memcpy(out, @ptradd(fname, start), out_len as usize)
+    @store8(@ptradd(out, out_len), 0)
     return out
 }
 
@@ -1913,15 +1913,15 @@ fn path_contains_segment(path: ref u8, segment: ref u8) bool = trust {
         if i + slen > plen {
             break
         }
-        val candidate: ref u8 = @ptradd(path as ref void, i) as ref u8
+        val candidate: ref u8 = @ptradd(path, i) as ref u8
         val matched: mut bool = true
         val j: mut i64 = 0
         for {
             if j >= slen {
                 break
             }
-            val pc: u8 = @load8(@ptradd(candidate as ref void, j))
-            val sc: u8 = @load8(@ptradd(segment as ref void, j))
+            val pc: u8 = @load8(@ptradd(candidate, j))
+            val sc: u8 = @load8(@ptradd(segment, j))
             if pc != sc {
                 matched = false
                 break
@@ -2649,7 +2649,7 @@ fn expr_uses_name(node: ref parser.Node, name: ref u8) bool = trust {
 fn has_c_style_specifier(s: ref u8) bool = trust {
     val i: mut i64 = 0
     for {
-        val c: u8 = @load8(@ptradd(s as ref void, i))
+        val c: u8 = @load8(@ptradd(s, i))
         if c == 0 {
             break
         }
@@ -2667,12 +2667,12 @@ fn parse_fmt_specifiers(s: ref u8) list[ref u8] = trust {
     val result: mut list[ref u8] = []
     val i: mut i64 = 0
     for {
-        val c: u8 = @load8(@ptradd(s as ref void, i))
+        val c: u8 = @load8(@ptradd(s, i))
         if c == 0 {
             break
         }
         if c == 92 { // '\\'
-            val next: u8 = @load8(@ptradd(s as ref void, i + 1))
+            val next: u8 = @load8(@ptradd(s, i + 1))
             if next != 0 {
                 i += 2
             } else {
@@ -2682,7 +2682,7 @@ fn parse_fmt_specifiers(s: ref u8) list[ref u8] = trust {
             val j: mut i64 = i + 1
             val found: mut bool = false
             for {
-                val jc: u8 = @load8(@ptradd(s as ref void, j))
+                val jc: u8 = @load8(@ptradd(s, j))
                 if jc == 0 {
                     break
                 }
@@ -2700,11 +2700,11 @@ fn parse_fmt_specifiers(s: ref u8) list[ref u8] = trust {
                         if si >= spec_len {
                             break
                         }
-                        val sc: u8 = @load8(@ptradd(s as ref void, i + 1 + si))
-                        @store8(@ptradd(specifier as ref void, si), sc)
+                        val sc: u8 = @load8(@ptradd(s, i + 1 + si))
+                        @store8(@ptradd(specifier, si), sc)
                         si++
                     }
-                    @store8(@ptradd(specifier as ref void, spec_len), 0)
+                    @store8(@ptradd(specifier, spec_len), 0)
                     @append(result, specifier)
                 }
                 i = j + 1
@@ -5901,7 +5901,7 @@ fn register_type_name(ctx: ref SemaCtx, item: ref parser.Node) void = trust {
         @append(ctx.type_names, item.d1 as ref u8)
     }
     if k == parser.NK_TYPEDEF || k == parser.NK_UNIONDEF || k == parser.NK_ENUMDEF || k == parser.NK_TAGGED_UNIONDEF {
-        @append(ctx.type_defs, item as ref void)
+        @append(ctx.type_defs, item)
     }
     if k == parser.NK_TAGGED_UNIONDEF {
         val tvariants: ref void = item.d2 as ref void
@@ -5959,7 +5959,7 @@ fn register_item_name(ctx: ref SemaCtx, item: ref parser.Node) void = trust {
             @append(ctx.global_names, nm)
         }
         register_fn_name(ctx, item.d1 as ref u8, nm)
-        @append(ctx.fn_defs, item as ref void)
+        @append(ctx.fn_defs, item)
         return
     }
     if k == parser.NK_FN || k == parser.NK_EXTERN_FN {
@@ -5985,7 +5985,7 @@ fn register_item_name(ctx: ref SemaCtx, item: ref parser.Node) void = trust {
                 @append(ctx.fn_map_params, eparams)
             }
         }
-        @append(ctx.fn_defs, item as ref void)
+        @append(ctx.fn_defs, item)
     }
     if k == parser.NK_TYPEDEF || k == parser.NK_EXTERN_TYPE ||
     k == parser.NK_ENUMDEF || k == parser.NK_UNIONDEF || k == parser.NK_TAGGED_UNIONDEF {
@@ -6197,14 +6197,14 @@ fn type_name_has_import_prefix(type_name: ref u8, import_name: ref u8) bool = tr
         if i >= nlen {
             break
         }
-        val tc: u8 = @load8(@ptradd(type_name as ref void, i))
-        val ic: u8 = @load8(@ptradd(import_name as ref void, i))
+        val tc: u8 = @load8(@ptradd(type_name, i))
+        val ic: u8 = @load8(@ptradd(import_name, i))
         if tc == 0 || tc != ic {
             return false
         }
         i++
     }
-    return @load8(@ptradd(type_name as ref void, nlen)) == 46
+    return @load8(@ptradd(type_name, nlen)) == 46
 }
 
 fn type_uses_import_alias(ty: ref parser.Node, import_name: ref u8) bool = trust {
@@ -6719,7 +6719,7 @@ pub fn check_module(items: list[ref parser.Node], filename: ref u8, root: ref mo
 
 fn check_module_seen(seen: list[ref void], mod: ref modinfo.ResolvedModule) bool = trust {
     for s in seen {
-        if s == mod as ref void {
+        if s == mod {
             return true
         }
     }
@@ -6733,7 +6733,7 @@ fn check_module_rec(mod: ref modinfo.ResolvedModule, all_errors: mut list[ref u8
     if check_module_seen(seen, mod) {
         return
     }
-    @append(seen, mod as ref void)
+    @append(seen, mod)
 
     val n: i64 = modinfo.import_count(mod)
     val i: mut i64 = 0

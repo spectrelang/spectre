@@ -272,8 +272,8 @@ fn str_contains(haystack: ref u8, needle: ref u8) bool = {
             if j >= nlen {
                 break
             }
-            val a: u8 = trust @load8(@ptradd(haystack as ref void, i + j)) as u8
-            val b: u8 = trust @load8(@ptradd(needle as ref void, j)) as u8
+            val a: u8 = trust @load8(@ptradd(haystack, i + j)) as u8
+            val b: u8 = trust @load8(@ptradd(needle, j)) as u8
             if a != b {
                 matched = false
                 break
@@ -295,7 +295,7 @@ fn find_char(text: ref u8, target: u8) i64 = {
         if i >= len {
             break
         }
-        val c: u8 = trust @load8(@ptradd(text as ref void, i)) as u8
+        val c: u8 = trust @load8(@ptradd(text, i)) as u8
         if c == target {
             return i
         }
@@ -311,7 +311,7 @@ fn find_last_char(text: ref u8, target: u8) i64 = {
         if i < 0 {
             break
         }
-        val c: u8 = trust @load8(@ptradd(text as ref void, i)) as u8
+        val c: u8 = trust @load8(@ptradd(text, i)) as u8
         if c == target {
             return i
         }
@@ -330,7 +330,7 @@ fn trim_raw(text: ref u8) ref u8 = {
         if start >= len {
             break
         }
-        val c: u8 = trust @load8(@ptradd(text as ref void, start)) as u8
+        val c: u8 = trust @load8(@ptradd(text, start)) as u8
         if !is_space(c) {
             break
         }
@@ -341,7 +341,7 @@ fn trim_raw(text: ref u8) ref u8 = {
         if end < start {
             break
         }
-        val c: u8 = trust @load8(@ptradd(text as ref void, end)) as u8
+        val c: u8 = trust @load8(@ptradd(text, end)) as u8
         if !is_space(c) {
             break
         }
@@ -362,7 +362,7 @@ fn flatten_ws(text: ref u8) ref u8 = {
         if i >= len {
             break
         }
-        val c: u8 = trust @load8(@ptradd(text as ref void, i)) as u8
+        val c: u8 = trust @load8(@ptradd(text, i)) as u8
         if is_space(c) {
             if !last_space {
                 trust string.StringBuilder.append_char(sb, 32 as u8)
@@ -394,7 +394,7 @@ fn starts_keyword_paren(text: ref u8, keyword: ref u8) bool = {
         if i >= len {
             break
         }
-        val c: u8 = trust @load8(@ptradd(trimmed as ref void, i)) as u8
+        val c: u8 = trust @load8(@ptradd(trimmed, i)) as u8
         if !is_space(c) {
             break
         }
@@ -403,7 +403,7 @@ fn starts_keyword_paren(text: ref u8, keyword: ref u8) bool = {
     if i >= len {
         return false
     }
-    return (trust @load8(@ptradd(trimmed as ref void, i)) as u8) == 40
+    return (trust @load8(@ptradd(trimmed, i)) as u8) == 40
 }
 
 fn starts_do_statement(text: ref u8) bool = {
@@ -415,7 +415,7 @@ fn starts_do_statement(text: ref u8) bool = {
     if len == 2 {
         return true
     }
-    val next: u8 = trust @load8(@ptradd(trimmed as ref void, 2)) as u8
+    val next: u8 = trust @load8(@ptradd(trimmed, 2)) as u8
     return is_space(next) || next == 123
 }
 
@@ -431,13 +431,13 @@ fn split_lines(text: ref u8) list[ref u8] = {
         val at_end: bool = i == len
         val c: mut u8 = 0
         if !at_end {
-            c = trust @load8(@ptradd(text as ref void, i)) as u8
+            c = trust @load8(@ptradd(text, i)) as u8
         }
         if at_end || c == 10 {
             val line_len: i64 = i - start
             val trimmed_len: mut i64 = line_len
             if trimmed_len > 0 {
-                val last: u8 = trust @load8(@ptradd(text as ref void, start + trimmed_len - 1)) as u8
+                val last: u8 = trust @load8(@ptradd(text, start + trimmed_len - 1)) as u8
                 if last == 13 {
                     trimmed_len--
                 }
@@ -932,8 +932,8 @@ fn is_string_literal_text(text: ref u8) bool = {
     if len < 2 {
         return false
     }
-    val first: u8 = trust @load8(trimmed as ref void) as u8
-    val last: u8 = trust @load8(@ptradd(trimmed as ref void, len - 1)) as u8
+    val first: u8 = trust @load8(trimmed) as u8
+    val last: u8 = trust @load8(@ptradd(trimmed, len - 1)) as u8
     return first == 34 && last == 34
 }
 
@@ -954,16 +954,16 @@ fn string_literal_storage_len(text: ref u8) i64 = {
         if i >= len - 1 {
             break
         }
-        val c: u8 = trust @load8(@ptradd(trimmed as ref void, i)) as u8
+        val c: u8 = trust @load8(@ptradd(trimmed, i)) as u8
         if c == 92 && i + 1 < len - 1 {
-            val esc: u8 = trust @load8(@ptradd(trimmed as ref void, i + 1)) as u8
+            val esc: u8 = trust @load8(@ptradd(trimmed, i + 1)) as u8
             if esc == 120 || esc == 88 {
                 i += 2
                 for {
                     if i >= len - 1 {
                         break
                     }
-                    val hc: u8 = trust @load8(@ptradd(trimmed as ref void, i)) as u8
+                    val hc: u8 = trust @load8(@ptradd(trimmed, i)) as u8
                     val is_hex: bool = (hc >= 48 && hc <= 57) || (hc >= 65 && hc <= 70) || (hc >= 97 && hc <= 102)
                     if !is_hex {
                         break
@@ -977,7 +977,7 @@ fn string_literal_storage_len(text: ref u8) i64 = {
                     if i >= len - 1 || oct_count >= 3 {
                         break
                     }
-                    val oc: u8 = trust @load8(@ptradd(trimmed as ref void, i)) as u8
+                    val oc: u8 = trust @load8(@ptradd(trimmed, i)) as u8
                     if !(oc >= 48 && oc <= 55) {
                         break
                     }
@@ -1002,8 +1002,8 @@ fn is_brace_initializer_text(text: ref u8) bool = {
     if len < 2 {
         return false
     }
-    val first: u8 = trust @load8(trimmed as ref void) as u8
-    val last: u8 = trust @load8(@ptradd(trimmed as ref void, len - 1)) as u8
+    val first: u8 = trust @load8(trimmed) as u8
+    val last: u8 = trust @load8(@ptradd(trimmed, len - 1)) as u8
     return first == 123 && last == 125
 }
 
@@ -1093,7 +1093,7 @@ fn find_top_level_else(text: ref u8) i64 = {
         if i >= len {
             break
         }
-        val c: u8 = trust @load8(@ptradd(text as ref void, i)) as u8
+        val c: u8 = trust @load8(@ptradd(text, i)) as u8
         if in_string {
             if escaped {
                 escaped = false
@@ -1147,8 +1147,8 @@ fn find_top_level_else(text: ref u8) i64 = {
         elif paren == 0 && brace == 0 && bracket == 0 && i + 4 <= len {
             val frag: ref u8 = trust string.substr(text, i, 4)
             if string.raw_cmp(frag, "else") == 0 {
-                val prev_ok: bool = i == 0 || !is_ident_part(trust @load8(@ptradd(text as ref void, i - 1)) as u8)
-                val next_ok: bool = i + 4 >= len || !is_ident_part(trust @load8(@ptradd(text as ref void, i + 4)) as u8)
+                val prev_ok: bool = i == 0 || !is_ident_part(trust @load8(@ptradd(text, i - 1)) as u8)
+                val next_ok: bool = i + 4 >= len || !is_ident_part(trust @load8(@ptradd(text, i + 4)) as u8)
                 if prev_ok && next_ok {
                     return i
                 }
@@ -1216,7 +1216,7 @@ fn analyze_mutations_in_statement(ctx: mut ref TranslationCtx, line: ref u8) voi
         if i >= len {
             break
         }
-        val c: u8 = trust @load8(@ptradd(stripped as ref void, i)) as u8
+        val c: u8 = trust @load8(@ptradd(stripped, i)) as u8
         if in_string {
             if escaped {
                 escaped = false
@@ -1256,7 +1256,7 @@ fn analyze_mutations_in_statement(ctx: mut ref TranslationCtx, line: ref u8) voi
                 if i >= len {
                     break
                 }
-                val cc: u8 = trust @load8(@ptradd(stripped as ref void, i)) as u8
+                val cc: u8 = trust @load8(@ptradd(stripped, i)) as u8
                 if !is_ident_part(cc) {
                     break
                 }
@@ -1268,36 +1268,36 @@ fn analyze_mutations_in_statement(ctx: mut ref TranslationCtx, line: ref u8) voi
                 if j >= len {
                     break
                 }
-                val ws: u8 = trust @load8(@ptradd(stripped as ref void, j)) as u8
+                val ws: u8 = trust @load8(@ptradd(stripped, j)) as u8
                 if !is_space(ws) {
                     break
                 }
                 j++
             }
             if j + 1 < len {
-                val c1: u8 = trust @load8(@ptradd(stripped as ref void, j)) as u8
-                val c2: u8 = trust @load8(@ptradd(stripped as ref void, j + 1)) as u8
+                val c1: u8 = trust @load8(@ptradd(stripped, j)) as u8
+                val c2: u8 = trust @load8(@ptradd(stripped, j + 1)) as u8
                 if ((c1 == 43 && c2 == 43) || (c1 == 45 && c2 == 45)) {
                     mark_mutable_name(ctx, rewrite_identifiers(ident))
                 }
             }
             continue
         }
-        if i + 1 < len && ((c == 43 && (trust @load8(@ptradd(stripped as ref void, i + 1)) as u8) == 43)
-            || (c == 45 && (trust @load8(@ptradd(stripped as ref void, i + 1)) as u8) == 45)) {
+        if i + 1 < len && ((c == 43 && (trust @load8(@ptradd(stripped, i + 1)) as u8) == 43)
+            || (c == 45 && (trust @load8(@ptradd(stripped, i + 1)) as u8) == 45)) {
             val j: mut i64 = i + 2
             for {
                 if j >= len {
                     break
                 }
-                val ws: u8 = trust @load8(@ptradd(stripped as ref void, j)) as u8
+                val ws: u8 = trust @load8(@ptradd(stripped, j)) as u8
                 if !is_space(ws) {
                     break
                 }
                 j++
             }
             if j < len {
-                val first: u8 = trust @load8(@ptradd(stripped as ref void, j)) as u8
+                val first: u8 = trust @load8(@ptradd(stripped, j)) as u8
                 if is_ident_start(first) {
                     val start_i2: i64 = j
                     j++
@@ -1305,7 +1305,7 @@ fn analyze_mutations_in_statement(ctx: mut ref TranslationCtx, line: ref u8) voi
                         if j >= len {
                             break
                         }
-                        val cc2: u8 = trust @load8(@ptradd(stripped as ref void, j)) as u8
+                        val cc2: u8 = trust @load8(@ptradd(stripped, j)) as u8
                         if !is_ident_part(cc2) {
                             break
                         }
@@ -1351,8 +1351,8 @@ fn normalize_simple_incdec_stmt(text: ref u8) ref u8 = {
     if len < 3 {
         return ""
     }
-    val first: u8 = trust @load8(@ptradd(trimmed as ref void, 0)) as u8
-    val second: u8 = trust @load8(@ptradd(trimmed as ref void, 1)) as u8
+    val first: u8 = trust @load8(@ptradd(trimmed, 0)) as u8
+    val second: u8 = trust @load8(@ptradd(trimmed, 1)) as u8
     if ((first == 43 && second == 43) || (first == 45 && second == 45)) {
         val ident: ref u8 = trim_raw(trust string.substr(trimmed, 2, len - 2))
         if is_ident_text(ident) {
@@ -1363,8 +1363,8 @@ fn normalize_simple_incdec_stmt(text: ref u8) ref u8 = {
             return trust @fmt("{s}{s}{s}", {rewrite_identifiers(ident), op, op})
         }
     }
-    val last2: u8 = trust @load8(@ptradd(trimmed as ref void, len - 2)) as u8
-    val last1: u8 = trust @load8(@ptradd(trimmed as ref void, len - 1)) as u8
+    val last2: u8 = trust @load8(@ptradd(trimmed, len - 2)) as u8
+    val last1: u8 = trust @load8(@ptradd(trimmed, len - 1)) as u8
     if ((last2 == 43 && last1 == 43) || (last2 == 45 && last1 == 45)) {
         val ident2: ref u8 = trim_raw(trust string.substr(trimmed, 0, len - 2))
         if is_ident_text(ident2) {
@@ -1391,7 +1391,7 @@ fn lower_incdec_text(_: ref TranslationCtx, text: ref u8, indent: i64, out: ref 
         if i >= len {
             break
         }
-        val c: u8 = trust @load8(@ptradd(trimmed as ref void, i)) as u8
+        val c: u8 = trust @load8(@ptradd(trimmed, i)) as u8
         if in_string {
             trust string.StringBuilder.append_char(sb, c)
             if escaped {
@@ -1429,7 +1429,7 @@ fn lower_incdec_text(_: ref TranslationCtx, text: ref u8, indent: i64, out: ref 
             continue
         }
         if i + 1 < len {
-            val next: u8 = trust @load8(@ptradd(trimmed as ref void, i + 1)) as u8
+            val next: u8 = trust @load8(@ptradd(trimmed, i + 1)) as u8
             if ((c == 43 && next == 43) || (c == 45 && next == 45)) {
                 val op: mut ref u8 = "+"
                 if c == 45 {
@@ -1440,14 +1440,14 @@ fn lower_incdec_text(_: ref TranslationCtx, text: ref u8, indent: i64, out: ref 
                     if j >= len {
                         break
                     }
-                    val ws: u8 = trust @load8(@ptradd(trimmed as ref void, j)) as u8
+                    val ws: u8 = trust @load8(@ptradd(trimmed, j)) as u8
                     if !is_space(ws) {
                         break
                     }
                     j++
                 }
                 if j < len {
-                    val first: u8 = trust @load8(@ptradd(trimmed as ref void, j)) as u8
+                    val first: u8 = trust @load8(@ptradd(trimmed, j)) as u8
                     if is_ident_start(first) {
                         val start_name: i64 = j
                         j++
@@ -1455,7 +1455,7 @@ fn lower_incdec_text(_: ref TranslationCtx, text: ref u8, indent: i64, out: ref 
                             if j >= len {
                                 break
                             }
-                            val cc: u8 = trust @load8(@ptradd(trimmed as ref void, j)) as u8
+                            val cc: u8 = trust @load8(@ptradd(trimmed, j)) as u8
                             if !is_ident_part(cc) {
                                 break
                             }
@@ -1478,7 +1478,7 @@ fn lower_incdec_text(_: ref TranslationCtx, text: ref u8, indent: i64, out: ref 
                 if i >= len {
                     break
                 }
-                val cc2: u8 = trust @load8(@ptradd(trimmed as ref void, i)) as u8
+                val cc2: u8 = trust @load8(@ptradd(trimmed, i)) as u8
                 if !is_ident_part(cc2) {
                     break
                 }
@@ -1490,15 +1490,15 @@ fn lower_incdec_text(_: ref TranslationCtx, text: ref u8, indent: i64, out: ref 
                 if j2 >= len {
                     break
                 }
-                val ws2: u8 = trust @load8(@ptradd(trimmed as ref void, j2)) as u8
+                val ws2: u8 = trust @load8(@ptradd(trimmed, j2)) as u8
                 if !is_space(ws2) {
                     break
                 }
                 j2++
             }
             if j2 + 1 < len {
-                val c1: u8 = trust @load8(@ptradd(trimmed as ref void, j2)) as u8
-                val c2: u8 = trust @load8(@ptradd(trimmed as ref void, j2 + 1)) as u8
+                val c1: u8 = trust @load8(@ptradd(trimmed, j2)) as u8
+                val c2: u8 = trust @load8(@ptradd(trimmed, j2 + 1)) as u8
                 if ((c1 == 43 && c2 == 43) || (c1 == 45 && c2 == 45)) {
                     val op2: mut ref u8 = "+"
                     if c1 == 45 {
@@ -1555,7 +1555,7 @@ fn analyze_address_taken_in_statement(ctx: mut ref TranslationCtx, line: ref u8)
         if i >= len {
             break
         }
-        val c: u8 = trust @load8(@ptradd(stripped as ref void, i)) as u8
+        val c: u8 = trust @load8(@ptradd(stripped, i)) as u8
         if in_string {
             if escaped {
                 escaped = false
@@ -1592,10 +1592,10 @@ fn analyze_address_taken_in_statement(ctx: mut ref TranslationCtx, line: ref u8)
             val prev: mut u8 = 0
             val next: mut u8 = 0
             if i > 0 {
-                prev = trust @load8(@ptradd(stripped as ref void, i - 1)) as u8
+                prev = trust @load8(@ptradd(stripped, i - 1)) as u8
             }
             if i + 1 < len {
-                next = trust @load8(@ptradd(stripped as ref void, i + 1)) as u8
+                next = trust @load8(@ptradd(stripped, i + 1)) as u8
             }
             if prev != 38 && next != 38 {
                 val j: mut i64 = i + 1
@@ -1603,14 +1603,14 @@ fn analyze_address_taken_in_statement(ctx: mut ref TranslationCtx, line: ref u8)
                     if j >= len {
                         break
                     }
-                    val ws: u8 = trust @load8(@ptradd(stripped as ref void, j)) as u8
+                    val ws: u8 = trust @load8(@ptradd(stripped, j)) as u8
                     if !is_space(ws) {
                         break
                     }
                     j++
                 }
                 if j < len {
-                    val first: u8 = trust @load8(@ptradd(stripped as ref void, j)) as u8
+                    val first: u8 = trust @load8(@ptradd(stripped, j)) as u8
                     if is_ident_start(first) {
                         val start_i: i64 = j
                         j++
@@ -1618,7 +1618,7 @@ fn analyze_address_taken_in_statement(ctx: mut ref TranslationCtx, line: ref u8)
                             if j >= len {
                                 break
                             }
-                            val cc: u8 = trust @load8(@ptradd(stripped as ref void, j)) as u8
+                            val cc: u8 = trust @load8(@ptradd(stripped, j)) as u8
                             if !is_ident_part(cc) {
                                 break
                             }
@@ -1677,7 +1677,7 @@ fn strip_trailing_semicolon(text: ref u8) ref u8 = {
     if len <= 0 {
         return trimmed
     }
-    val last: u8 = trust @load8(@ptradd(trimmed as ref void, len - 1)) as u8
+    val last: u8 = trust @load8(@ptradd(trimmed, len - 1)) as u8
     if last == 59 {
         return trim_raw(trust string.substr(trimmed, 0, len - 1))
     }
@@ -1689,7 +1689,7 @@ fn find_matching_delim(text: ref u8, start: i64, open: u8, close: u8) i64 = {
     if start < 0 || start >= len {
         return -1
     }
-    val first: u8 = trust @load8(@ptradd(text as ref void, start)) as u8
+    val first: u8 = trust @load8(@ptradd(text, start)) as u8
     if first != open {
         return -1
     }
@@ -1699,7 +1699,7 @@ fn find_matching_delim(text: ref u8, start: i64, open: u8, close: u8) i64 = {
         if i >= len {
             break
         }
-        val c: u8 = trust @load8(@ptradd(text as ref void, i)) as u8
+        val c: u8 = trust @load8(@ptradd(text, i)) as u8
         if c == open {
             depth++
         } elif c == close {
@@ -1809,7 +1809,7 @@ fn is_integer_literal_text(text: ref u8) bool = {
         return false
     }
     val i: mut i64 = 0
-    val first: u8 = trust @load8(trimmed as ref void) as u8
+    val first: u8 = trust @load8(trimmed) as u8
     if first == 45 || first == 43 {
         i = 1
     }
@@ -1820,7 +1820,7 @@ fn is_integer_literal_text(text: ref u8) bool = {
         if i >= len {
             break
         }
-        val c: u8 = trust @load8(@ptradd(trimmed as ref void, i)) as u8
+        val c: u8 = trust @load8(@ptradd(trimmed, i)) as u8
         if !(c >= 48 && c <= 57) {
             return false
         }
@@ -1954,7 +1954,7 @@ fn qualify_enum_constants(ctx: ref TranslationCtx, text: ref u8) ref u8 = {
         if i >= len {
             break
         }
-        val c: u8 = trust @load8(@ptradd(trimmed as ref void, i)) as u8
+        val c: u8 = trust @load8(@ptradd(trimmed, i)) as u8
         if is_ident_start(c) {
             val start: i64 = i
             i++
@@ -1962,7 +1962,7 @@ fn qualify_enum_constants(ctx: ref TranslationCtx, text: ref u8) ref u8 = {
                 if i >= len {
                     break
                 }
-                val cc: u8 = trust @load8(@ptradd(trimmed as ref void, i)) as u8
+                val cc: u8 = trust @load8(@ptradd(trimmed, i)) as u8
                 if !is_ident_part(cc) {
                     break
                 }
@@ -1975,7 +1975,7 @@ fn qualify_enum_constants(ctx: ref TranslationCtx, text: ref u8) ref u8 = {
                 if j < 0 {
                     break
                 }
-                val pc: u8 = trust @load8(@ptradd(trimmed as ref void, j)) as u8
+                val pc: u8 = trust @load8(@ptradd(trimmed, j)) as u8
                 if !is_space(pc) {
                     prev_non_space = pc
                     break
@@ -2012,7 +2012,7 @@ fn rewrite_identifiers(text: ref u8) ref u8 = {
         if i >= len {
             break
         }
-        val c: u8 = trust @load8(@ptradd(trimmed as ref void, i)) as u8
+        val c: u8 = trust @load8(@ptradd(trimmed, i)) as u8
         if is_ident_start(c) {
             val start: i64 = i
             i++
@@ -2020,7 +2020,7 @@ fn rewrite_identifiers(text: ref u8) ref u8 = {
                 if i >= len {
                     break
                 }
-                val cc: u8 = trust @load8(@ptradd(trimmed as ref void, i)) as u8
+                val cc: u8 = trust @load8(@ptradd(trimmed, i)) as u8
                 if !is_ident_part(cc) {
                     break
                 }
@@ -2028,20 +2028,20 @@ fn rewrite_identifiers(text: ref u8) ref u8 = {
             }
             val ident: ref u8 = trust string.substr(trimmed, start, i - start)
             val preceded_by_at: bool = start > 0
-            && (trust @load8(@ptradd(trimmed as ref void, start - 1)) as u8) == 64
+            && (trust @load8(@ptradd(trimmed, start - 1)) as u8) == 64
             if preceded_by_at && string.raw_cmp(ident, "sizeof") == 0 {
                 val j: mut i64 = i
                 for {
                     if j >= len {
                         break
                     }
-                    val ws: u8 = trust @load8(@ptradd(trimmed as ref void, j)) as u8
+                    val ws: u8 = trust @load8(@ptradd(trimmed, j)) as u8
                     if !is_space(ws) {
                         break
                     }
                     j++
                 }
-                if j < len && (trust @load8(@ptradd(trimmed as ref void, j)) as u8) == 40 {
+                if j < len && (trust @load8(@ptradd(trimmed, j)) as u8) == 40 {
                     val close_j: i64 = find_matching_delim(trimmed, j, 40 as u8, 41 as u8)
                     if close_j > j {
                         trust string.StringBuilder.append_cstr(sb, ident)
@@ -2075,9 +2075,9 @@ fn replace_arrow_access(text: ref u8) ref u8 = {
         if i >= len {
             break
         }
-        val c: u8 = trust @load8(@ptradd(trimmed as ref void, i)) as u8
+        val c: u8 = trust @load8(@ptradd(trimmed, i)) as u8
         if c == 45 && i + 1 < len {
-            val next: u8 = trust @load8(@ptradd(trimmed as ref void, i + 1)) as u8
+            val next: u8 = trust @load8(@ptradd(trimmed, i + 1)) as u8
             if next == 62 {
                 trust string.StringBuilder.append_char(sb, 46 as u8)
                 i += 2
@@ -2098,7 +2098,7 @@ fn is_probable_c_type(text: ref u8) bool = {
     if len == 0 {
         return false
     }
-    val first: u8 = trust @load8(@ptradd(trimmed as ref void, 0)) as u8
+    val first: u8 = trust @load8(@ptradd(trimmed, 0)) as u8
     if !is_ident_start(first) {
         return false
     }
@@ -2108,7 +2108,7 @@ fn is_probable_c_type(text: ref u8) bool = {
         if i >= len {
             break
         }
-        val c: u8 = trust @load8(@ptradd(trimmed as ref void, i)) as u8
+        val c: u8 = trust @load8(@ptradd(trimmed, i)) as u8
         if is_ident_part(c) {
             saw_ident = true
             i++
@@ -2135,7 +2135,7 @@ fn is_known_c_type_name(ctx: ref TranslationCtx, text: ref u8) bool = {
         if i >= len {
             break
         }
-        val c: u8 = trust @load8(@ptradd(trimmed as ref void, i)) as u8
+        val c: u8 = trust @load8(@ptradd(trimmed, i)) as u8
         if c != 42 {
             trust string.StringBuilder.append_char(no_stars_sb, c)
         }
@@ -2246,7 +2246,7 @@ fn is_ident_text(text: ref u8) bool = {
     if len == 0 {
         return false
     }
-    val first: u8 = trust @load8(@ptradd(trimmed as ref void, 0)) as u8
+    val first: u8 = trust @load8(@ptradd(trimmed, 0)) as u8
     if !is_ident_start(first) {
         return false
     }
@@ -2255,7 +2255,7 @@ fn is_ident_text(text: ref u8) bool = {
         if i >= len {
             break
         }
-        val c: u8 = trust @load8(@ptradd(trimmed as ref void, i)) as u8
+        val c: u8 = trust @load8(@ptradd(trimmed, i)) as u8
         if !is_ident_part(c) {
             return false
         }
@@ -2317,7 +2317,7 @@ fn replace_pointer_indexing(ctx: ref TranslationCtx, text: ref u8) ref u8 = {
         if i >= len {
             break
         }
-        val c: u8 = trust @load8(@ptradd(trimmed as ref void, i)) as u8
+        val c: u8 = trust @load8(@ptradd(trimmed, i)) as u8
         if is_ident_start(c) {
             val start: i64 = i
             i++
@@ -2325,7 +2325,7 @@ fn replace_pointer_indexing(ctx: ref TranslationCtx, text: ref u8) ref u8 = {
                 if i >= len {
                     break
                 }
-                val cc: u8 = trust @load8(@ptradd(trimmed as ref void, i)) as u8
+                val cc: u8 = trust @load8(@ptradd(trimmed, i)) as u8
                 if !is_ident_part(cc) {
                     break
                 }
@@ -2336,11 +2336,11 @@ fn replace_pointer_indexing(ctx: ref TranslationCtx, text: ref u8) ref u8 = {
                 if chain_end >= len {
                     break
                 }
-                val dot: u8 = trust @load8(@ptradd(trimmed as ref void, chain_end)) as u8
+                val dot: u8 = trust @load8(@ptradd(trimmed, chain_end)) as u8
                 if dot != 46 || chain_end + 1 >= len {
                     break
                 }
-                val next0: u8 = trust @load8(@ptradd(trimmed as ref void, chain_end + 1)) as u8
+                val next0: u8 = trust @load8(@ptradd(trimmed, chain_end + 1)) as u8
                 if !is_ident_start(next0) {
                     break
                 }
@@ -2349,7 +2349,7 @@ fn replace_pointer_indexing(ctx: ref TranslationCtx, text: ref u8) ref u8 = {
                     if chain_end >= len {
                         break
                     }
-                    val cc_chain: u8 = trust @load8(@ptradd(trimmed as ref void, chain_end)) as u8
+                    val cc_chain: u8 = trust @load8(@ptradd(trimmed, chain_end)) as u8
                     if !is_ident_part(cc_chain) {
                         break
                     }
@@ -2359,7 +2359,7 @@ fn replace_pointer_indexing(ctx: ref TranslationCtx, text: ref u8) ref u8 = {
             val ident: ref u8 = trust string.substr(trimmed, start, chain_end - start)
             i = chain_end
             if i < len {
-                val next: u8 = trust @load8(@ptradd(trimmed as ref void, i)) as u8
+                val next: u8 = trust @load8(@ptradd(trimmed, i)) as u8
                 if next == 91 {
                     val close_i: mut i64 = i + 1
                     val depth: mut i64 = 1
@@ -2367,7 +2367,7 @@ fn replace_pointer_indexing(ctx: ref TranslationCtx, text: ref u8) ref u8 = {
                         if close_i >= len {
                             break
                         }
-                        val bc: u8 = trust @load8(@ptradd(trimmed as ref void, close_i)) as u8
+                        val bc: u8 = trust @load8(@ptradd(trimmed, close_i)) as u8
                         if bc == 91 {
                             depth++
                         }
@@ -2419,9 +2419,9 @@ fn ensure_intrinsic_prefixes(text: ref u8) ref u8 = {
             if string.raw_cmp(frag, name) != 0 {
                 continue
             }
-            val prev_ok: bool = i == 0 || !is_ident_part(trust @load8(@ptradd(trimmed as ref void, i - 1)) as u8)
-            val nextc: u8 = trust @load8(@ptradd(trimmed as ref void, i + nlen)) as u8
-            val already_intrinsic: bool = i > 0 && (trust @load8(@ptradd(trimmed as ref void, i - 1)) as u8) == 64
+            val prev_ok: bool = i == 0 || !is_ident_part(trust @load8(@ptradd(trimmed, i - 1)) as u8)
+            val nextc: u8 = trust @load8(@ptradd(trimmed, i + nlen)) as u8
+            val already_intrinsic: bool = i > 0 && (trust @load8(@ptradd(trimmed, i - 1)) as u8) == 64
             if prev_ok && !already_intrinsic && nextc == 40 {
                 trust string.StringBuilder.append_char(sb, 64 as u8)
                 trust string.StringBuilder.append_cstr(sb, name)
@@ -2433,7 +2433,7 @@ fn ensure_intrinsic_prefixes(text: ref u8) ref u8 = {
         if matched {
             continue
         }
-        trust string.StringBuilder.append_char(sb, @load8(@ptradd(trimmed as ref void, i)) as u8)
+        trust string.StringBuilder.append_char(sb, @load8(@ptradd(trimmed, i)) as u8)
         i++
     }
     val built: ref void = trust string.StringBuilder.build(sb)
@@ -2451,11 +2451,11 @@ fn normalize_intrinsic_prefixes(text: ref u8) ref u8 = {
         if i >= len {
             break
         }
-        val c: u8 = trust @load8(@ptradd(trimmed as ref void, i)) as u8
+        val c: u8 = trust @load8(@ptradd(trimmed, i)) as u8
         if c == 64 {
             val at_start: i64 = i
             for {
-                if i < len && (trust @load8(@ptradd(trimmed as ref void, i)) as u8) == 64 {
+                if i < len && (trust @load8(@ptradd(trimmed, i)) as u8) == 64 {
                     i++
                     continue
                 }
@@ -2471,7 +2471,7 @@ fn normalize_intrinsic_prefixes(text: ref u8) ref u8 = {
                 if string.raw_cmp(frag, name) != 0 {
                     continue
                 }
-                if i + nlen < len && (trust @load8(@ptradd(trimmed as ref void, i + nlen)) as u8) == 40 {
+                if i + nlen < len && (trust @load8(@ptradd(trimmed, i + nlen)) as u8) == 40 {
                     trust string.StringBuilder.append_char(sb, 64 as u8)
                     trust string.StringBuilder.append_cstr(sb, name)
                     i += nlen
@@ -2505,7 +2505,7 @@ fn scan_deref_operand_end(text: ref u8, start: i64) i64 = {
     if start < 0 || start >= len {
         return start
     }
-    val first: u8 = trust @load8(@ptradd(text as ref void, start)) as u8
+    val first: u8 = trust @load8(@ptradd(text, start)) as u8
     val i: mut i64 = start
     if is_ident_start(first) {
         i++
@@ -2513,7 +2513,7 @@ fn scan_deref_operand_end(text: ref u8, start: i64) i64 = {
             if i >= len {
                 break
             }
-            val c: u8 = trust @load8(@ptradd(text as ref void, i)) as u8
+            val c: u8 = trust @load8(@ptradd(text, i)) as u8
             if !is_ident_part(c) {
                 break
             }
@@ -2532,7 +2532,7 @@ fn scan_deref_operand_end(text: ref u8, start: i64) i64 = {
         if i >= len {
             break
         }
-        val c: u8 = trust @load8(@ptradd(text as ref void, i)) as u8
+        val c: u8 = trust @load8(@ptradd(text, i)) as u8
         if c == 91 {
             val close_b: i64 = find_matching_delim(text, i, 91 as u8, 93 as u8)
             if close_b <= i {
@@ -2546,7 +2546,7 @@ fn scan_deref_operand_end(text: ref u8, start: i64) i64 = {
             if j >= len {
                 break
             }
-            val first2: u8 = trust @load8(@ptradd(text as ref void, j)) as u8
+            val first2: u8 = trust @load8(@ptradd(text, j)) as u8
             if !is_ident_start(first2) {
                 break
             }
@@ -2555,7 +2555,7 @@ fn scan_deref_operand_end(text: ref u8, start: i64) i64 = {
                 if j >= len {
                     break
                 }
-                val cc: u8 = trust @load8(@ptradd(text as ref void, j)) as u8
+                val cc: u8 = trust @load8(@ptradd(text, j)) as u8
                 if !is_ident_part(cc) {
                     break
                 }
@@ -2565,13 +2565,13 @@ fn scan_deref_operand_end(text: ref u8, start: i64) i64 = {
             continue
         }
         if i + 1 < len {
-            val c2: u8 = trust @load8(@ptradd(text as ref void, i + 1)) as u8
+            val c2: u8 = trust @load8(@ptradd(text, i + 1)) as u8
             if c == 45 && c2 == 62 {
                 val j2: mut i64 = i + 2
                 if j2 >= len {
                     break
                 }
-                val first3: u8 = trust @load8(@ptradd(text as ref void, j2)) as u8
+                val first3: u8 = trust @load8(@ptradd(text, j2)) as u8
                 if !is_ident_start(first3) {
                     break
                 }
@@ -2580,7 +2580,7 @@ fn scan_deref_operand_end(text: ref u8, start: i64) i64 = {
                     if j2 >= len {
                         break
                     }
-                    val cc2: u8 = trust @load8(@ptradd(text as ref void, j2)) as u8
+                    val cc2: u8 = trust @load8(@ptradd(text, j2)) as u8
                     if !is_ident_part(cc2) {
                         break
                     }
@@ -2605,7 +2605,7 @@ fn is_unary_deref_context(text: ref u8, star_i: i64) bool = {
         if j < 0 {
             return true
         }
-        val c: u8 = trust @load8(@ptradd(text as ref void, j)) as u8
+        val c: u8 = trust @load8(@ptradd(text, j)) as u8
         if !is_space(c) {
             break
         }
@@ -2614,7 +2614,7 @@ fn is_unary_deref_context(text: ref u8, star_i: i64) bool = {
     if j < 0 {
         return true
     }
-    val prev: u8 = trust @load8(@ptradd(text as ref void, j)) as u8
+    val prev: u8 = trust @load8(@ptradd(text, j)) as u8
     if prev == 40 || prev == 44 || prev == 61 || prev == 33 || prev == 126 || prev == 63 || prev == 58 {
         return true
     }
@@ -2630,7 +2630,7 @@ fn is_unary_deref_context(text: ref u8, star_i: i64) bool = {
             if j < 0 {
                 break
             }
-            val c2: u8 = trust @load8(@ptradd(text as ref void, j)) as u8
+            val c2: u8 = trust @load8(@ptradd(text, j)) as u8
             if !is_ident_part(c2) {
                 break
             }
@@ -2674,7 +2674,7 @@ fn translate_addr_deref_expr(ctx: ref TranslationCtx, text: ref u8) ref u8 = {
         if i >= len {
             break
         }
-        val c: u8 = trust @load8(@ptradd(trimmed as ref void, i)) as u8
+        val c: u8 = trust @load8(@ptradd(trimmed, i)) as u8
         if in_string {
             trust string.StringBuilder.append_char(sb, c)
             if escaped {
@@ -2718,19 +2718,19 @@ fn translate_addr_deref_expr(ctx: ref TranslationCtx, text: ref u8) ref u8 = {
                 if j0 >= len {
                     break
                 }
-                val ws0: u8 = trust @load8(@ptradd(trimmed as ref void, j0)) as u8
+                val ws0: u8 = trust @load8(@ptradd(trimmed, j0)) as u8
                 if !is_space(ws0) {
                     break
                 }
                 j0++
             }
-            if j0 < len && (trust @load8(@ptradd(trimmed as ref void, j0)) as u8) == 42 && close_group > j0 {
+            if j0 < len && (trust @load8(@ptradd(trimmed, j0)) as u8) == 42 && close_group > j0 {
                 val inner_start: mut i64 = j0 + 1
                 for {
                     if inner_start >= close_group {
                         break
                     }
-                    val ws1: u8 = trust @load8(@ptradd(trimmed as ref void, inner_start)) as u8
+                    val ws1: u8 = trust @load8(@ptradd(trimmed, inner_start)) as u8
                     if !is_space(ws1) {
                         break
                     }
@@ -2743,15 +2743,15 @@ fn translate_addr_deref_expr(ctx: ref TranslationCtx, text: ref u8) ref u8 = {
                     if after_group >= len {
                         break
                     }
-                    val ws2: u8 = trust @load8(@ptradd(trimmed as ref void, after_group)) as u8
+                    val ws2: u8 = trust @load8(@ptradd(trimmed, after_group)) as u8
                     if !is_space(ws2) {
                         break
                     }
                     after_group++
                 }
                 if after_group + 1 < len {
-                    val p1: u8 = trust @load8(@ptradd(trimmed as ref void, after_group)) as u8
-                    val p2: u8 = trust @load8(@ptradd(trimmed as ref void, after_group + 1)) as u8
+                    val p1: u8 = trust @load8(@ptradd(trimmed, after_group)) as u8
+                    val p2: u8 = trust @load8(@ptradd(trimmed, after_group + 1)) as u8
                     if ((p1 == 43 && p2 == 43) || (p1 == 45 && p2 == 45)) {
                         trust string.StringBuilder.append_cstr(sb, @fmt("@deref({s}){c}{c}", {translated_inner, p1, p2}))
                         i = after_group + 2
@@ -2767,10 +2767,10 @@ fn translate_addr_deref_expr(ctx: ref TranslationCtx, text: ref u8) ref u8 = {
             val prev: mut u8 = 0
             val next: mut u8 = 0
             if i > 0 {
-                prev = trust @load8(@ptradd(trimmed as ref void, i - 1)) as u8
+                prev = trust @load8(@ptradd(trimmed, i - 1)) as u8
             }
             if i + 1 < len {
-                next = trust @load8(@ptradd(trimmed as ref void, i + 1)) as u8
+                next = trust @load8(@ptradd(trimmed, i + 1)) as u8
             }
             if prev != 38 && next != 38 {
                 val j: mut i64 = i + 1
@@ -2778,14 +2778,14 @@ fn translate_addr_deref_expr(ctx: ref TranslationCtx, text: ref u8) ref u8 = {
                     if j >= len {
                         break
                     }
-                    val ws: u8 = trust @load8(@ptradd(trimmed as ref void, j)) as u8
+                    val ws: u8 = trust @load8(@ptradd(trimmed, j)) as u8
                     if !is_space(ws) {
                         break
                     }
                     j++
                 }
                 if j < len {
-                    val first: u8 = trust @load8(@ptradd(trimmed as ref void, j)) as u8
+                    val first: u8 = trust @load8(@ptradd(trimmed, j)) as u8
                     if is_ident_start(first) {
                         val start_i: i64 = j
                         j++
@@ -2793,7 +2793,7 @@ fn translate_addr_deref_expr(ctx: ref TranslationCtx, text: ref u8) ref u8 = {
                             if j >= len {
                                 break
                             }
-                            val cc: u8 = trust @load8(@ptradd(trimmed as ref void, j)) as u8
+                            val cc: u8 = trust @load8(@ptradd(trimmed, j)) as u8
                             if !is_ident_part(cc) {
                                 break
                             }
@@ -2813,7 +2813,7 @@ fn translate_addr_deref_expr(ctx: ref TranslationCtx, text: ref u8) ref u8 = {
                     if j2 >= len {
                         break
                     }
-                    val ws2: u8 = trust @load8(@ptradd(trimmed as ref void, j2)) as u8
+                    val ws2: u8 = trust @load8(@ptradd(trimmed, j2)) as u8
                     if !is_space(ws2) {
                         break
                     }
@@ -2891,8 +2891,8 @@ fn translate_printf_format(text: ref u8) ref u8 = {
     if len < 2 {
         return trimmed
     }
-    val first: u8 = trust @load8(@ptradd(trimmed as ref void, 0)) as u8
-    val last: u8 = trust @load8(@ptradd(trimmed as ref void, len - 1)) as u8
+    val first: u8 = trust @load8(@ptradd(trimmed, 0)) as u8
+    val last: u8 = trust @load8(@ptradd(trimmed, len - 1)) as u8
     if first != 34 || last != 34 {
         return trimmed
     }
@@ -2903,9 +2903,9 @@ fn translate_printf_format(text: ref u8) ref u8 = {
         if i >= len - 1 {
             break
         }
-        val c: u8 = trust @load8(@ptradd(trimmed as ref void, i)) as u8
+        val c: u8 = trust @load8(@ptradd(trimmed, i)) as u8
         if c == 37 && i + 1 < len - 1 {
-            val next: u8 = trust @load8(@ptradd(trimmed as ref void, i + 1)) as u8
+            val next: u8 = trust @load8(@ptradd(trimmed, i + 1)) as u8
             if next == 37 {
                 trust string.StringBuilder.append_char(sb, 37 as u8)
                 i += 2
@@ -2916,7 +2916,7 @@ fn translate_printf_format(text: ref u8) ref u8 = {
                 if spec_i >= len - 1 {
                     break
                 }
-                val flag: u8 = trust @load8(@ptradd(trimmed as ref void, spec_i)) as u8
+                val flag: u8 = trust @load8(@ptradd(trimmed, spec_i)) as u8
                 if flag != 45 && flag != 43 && flag != 32 && flag != 35 && flag != 48 {
                     break
                 }
@@ -2926,19 +2926,19 @@ fn translate_printf_format(text: ref u8) ref u8 = {
                 if spec_i >= len - 1 {
                     break
                 }
-                val width: u8 = trust @load8(@ptradd(trimmed as ref void, spec_i)) as u8
+                val width: u8 = trust @load8(@ptradd(trimmed, spec_i)) as u8
                 if !((width >= 48 && width <= 57) || width == 42) {
                     break
                 }
                 spec_i++
             }
-            if spec_i < len - 1 && (trust @load8(@ptradd(trimmed as ref void, spec_i)) as u8) == 46 {
+            if spec_i < len - 1 && (trust @load8(@ptradd(trimmed, spec_i)) as u8) == 46 {
                 spec_i++
                 for {
                     if spec_i >= len - 1 {
                         break
                     }
-                    val prec: u8 = trust @load8(@ptradd(trimmed as ref void, spec_i)) as u8
+                    val prec: u8 = trust @load8(@ptradd(trimmed, spec_i)) as u8
                     if !((prec >= 48 && prec <= 57) || prec == 42) {
                         break
                     }
@@ -2950,7 +2950,7 @@ fn translate_printf_format(text: ref u8) ref u8 = {
                 if spec_i >= len - 1 {
                     break
                 }
-                val lm: u8 = trust @load8(@ptradd(trimmed as ref void, spec_i)) as u8
+                val lm: u8 = trust @load8(@ptradd(trimmed, spec_i)) as u8
                 if !is_printf_length_char(lm) {
                     break
                 }
@@ -2958,7 +2958,7 @@ fn translate_printf_format(text: ref u8) ref u8 = {
                 spec_i++
             }
             if spec_i < len - 1 {
-                val specifier: u8 = trust @load8(@ptradd(trimmed as ref void, spec_i)) as u8
+                val specifier: u8 = trust @load8(@ptradd(trimmed, spec_i)) as u8
                 val length_built: ref void = trust string.StringBuilder.build(length_sb)
                 trust string.StringBuilder.free(length_sb)
                 val mapped: ref u8 = map_printf_specifier(trust string.cstr(length_built), specifier)
@@ -3146,7 +3146,7 @@ fn find_top_level_ternary(text: ref u8) i64 = {
         if i >= len {
             break
         }
-        val c: u8 = trust @load8(@ptradd(text as ref void, i)) as u8
+        val c: u8 = trust @load8(@ptradd(text, i)) as u8
         if c == 40 {
             paren++
         }
@@ -3184,7 +3184,7 @@ fn find_matching_colon_for_ternary(text: ref u8, q_index: i64) i64 = {
         if i >= len {
             break
         }
-        val c: u8 = trust @load8(@ptradd(text as ref void, i)) as u8
+        val c: u8 = trust @load8(@ptradd(text, i)) as u8
         if c == 40 {
             paren++
         }
@@ -3222,8 +3222,8 @@ fn is_wrapped_in_parens(text: ref u8) bool = {
     if len < 2 {
         return false
     }
-    val first: u8 = trust @load8(@ptradd(trimmed as ref void, 0)) as u8
-    val last: u8 = trust @load8(@ptradd(trimmed as ref void, len - 1)) as u8
+    val first: u8 = trust @load8(@ptradd(trimmed, 0)) as u8
+    val last: u8 = trust @load8(@ptradd(trimmed, len - 1)) as u8
     if first != 40 || last != 41 {
         return false
     }
@@ -3233,7 +3233,7 @@ fn is_wrapped_in_parens(text: ref u8) bool = {
         if i >= len {
             break
         }
-        val c: u8 = trust @load8(@ptradd(trimmed as ref void, i)) as u8
+        val c: u8 = trust @load8(@ptradd(trimmed, i)) as u8
         if c == 40 {
             depth++
         }
@@ -3278,7 +3278,7 @@ fn collect_brace_block(lines: list[ref u8], start: i64) ref BlockResult = {
                 if j >= llen {
                     break
                 }
-                val c: u8 = trust @load8(@ptradd(line as ref void, j)) as u8
+                val c: u8 = trust @load8(@ptradd(line, j)) as u8
                 if c == 123 {
                     brace_depth++
                     seen_open = true
@@ -3797,7 +3797,7 @@ fn parse_function_pointer_param_name(text: ref u8, fallback_name: ref u8) ref u8
         if star_i >= len {
             break
         }
-        val c: u8 = trust @load8(@ptradd(text as ref void, star_i)) as u8
+        val c: u8 = trust @load8(@ptradd(text, star_i)) as u8
         if c == 42 {
             break
         }
@@ -3814,7 +3814,7 @@ fn parse_function_pointer_param_name(text: ref u8, fallback_name: ref u8) ref u8
         if name_start >= len {
             break
         }
-        val c: u8 = trust @load8(@ptradd(text as ref void, name_start)) as u8
+        val c: u8 = trust @load8(@ptradd(text, name_start)) as u8
         if is_ident_start(c) {
             break
         }
@@ -3828,7 +3828,7 @@ fn parse_function_pointer_param_name(text: ref u8, fallback_name: ref u8) ref u8
         if name_end >= len {
             break
         }
-        val c: u8 = trust @load8(@ptradd(text as ref void, name_end)) as u8
+        val c: u8 = trust @load8(@ptradd(text, name_end)) as u8
         if !is_ident_part(c) {
             break
         }
@@ -3847,7 +3847,7 @@ fn find_top_level_assign(text: ref u8) i64 = {
         if i >= len {
             break
         }
-        val c: u8 = trust @load8(@ptradd(text as ref void, i)) as u8
+        val c: u8 = trust @load8(@ptradd(text, i)) as u8
         if c == 40 {
             paren++
         }
@@ -3870,10 +3870,10 @@ fn find_top_level_assign(text: ref u8) i64 = {
             val prev: mut u8 = 0
             val next: mut u8 = 0
             if i > 0 {
-                prev = trust @load8(@ptradd(text as ref void, i - 1)) as u8
+                prev = trust @load8(@ptradd(text, i - 1)) as u8
             }
             if i + 1 < len {
-                next = trust @load8(@ptradd(text as ref void, i + 1)) as u8
+                next = trust @load8(@ptradd(text, i + 1)) as u8
             }
             if prev != 61 && prev != 33 && prev != 60 && prev != 62
             && prev != 43 && prev != 45 && prev != 42 && prev != 47
@@ -3897,8 +3897,8 @@ fn find_top_level_compound_assign(text: ref u8) i64 = {
         if i + 1 >= len {
             break
         }
-        val c: u8 = trust @load8(@ptradd(text as ref void, i)) as u8
-        val next: u8 = trust @load8(@ptradd(text as ref void, i + 1)) as u8
+        val c: u8 = trust @load8(@ptradd(text, i)) as u8
+        val next: u8 = trust @load8(@ptradd(text, i + 1)) as u8
         if c == 40 {
             paren++
         }
@@ -3941,9 +3941,9 @@ fn translate_designated_initializer(text: ref u8) ref u8 = {
         if i >= len {
             break
         }
-        val c: u8 = trust @load8(@ptradd(trimmed as ref void, i)) as u8
+        val c: u8 = trust @load8(@ptradd(trimmed, i)) as u8
         if c == 46 && i + 1 < len {
-            val next: u8 = trust @load8(@ptradd(trimmed as ref void, i + 1)) as u8
+            val next: u8 = trust @load8(@ptradd(trimmed, i + 1)) as u8
             if is_ident_start(next) {
                 i++
                 val start: i64 = i
@@ -3951,7 +3951,7 @@ fn translate_designated_initializer(text: ref u8) ref u8 = {
                     if i >= len {
                         break
                     }
-                    val cc: u8 = trust @load8(@ptradd(trimmed as ref void, i)) as u8
+                    val cc: u8 = trust @load8(@ptradd(trimmed, i)) as u8
                     if !is_ident_part(cc) {
                         break
                     }
@@ -3963,14 +3963,14 @@ fn translate_designated_initializer(text: ref u8) ref u8 = {
                     if i >= len {
                         break
                     }
-                    val ws: u8 = trust @load8(@ptradd(trimmed as ref void, i)) as u8
+                    val ws: u8 = trust @load8(@ptradd(trimmed, i)) as u8
                     if !is_space(ws) {
                         break
                     }
                     i++
                 }
                 if i < len {
-                    val eq: u8 = trust @load8(@ptradd(trimmed as ref void, i)) as u8
+                    val eq: u8 = trust @load8(@ptradd(trimmed, i)) as u8
                     if eq == 61 {
                         trust string.StringBuilder.append_cstr(sb, ": ")
                         i++
@@ -4005,20 +4005,20 @@ fn translate_sizeof_expr(ctx: ref TranslationCtx, text: ref u8) ref u8 = {
                     if after_kw >= len {
                         break
                     }
-                    val ws: u8 = trust @load8(@ptradd(trimmed as ref void, after_kw)) as u8
+                    val ws: u8 = trust @load8(@ptradd(trimmed, after_kw)) as u8
                     if !is_space(ws) {
                         break
                     }
                     after_kw++
                 }
-                if after_kw < len && (trust @load8(@ptradd(trimmed as ref void, after_kw)) as u8) == 40 {
+                if after_kw < len && (trust @load8(@ptradd(trimmed, after_kw)) as u8) == 40 {
                     val close_i: mut i64 = after_kw + 1
                     val depth: mut i64 = 1
                     for {
                         if close_i >= len {
                             break
                         }
-                        val cc: u8 = trust @load8(@ptradd(trimmed as ref void, close_i)) as u8
+                        val cc: u8 = trust @load8(@ptradd(trimmed, close_i)) as u8
                         if cc == 40 {
                             depth++
                         }
@@ -4056,7 +4056,7 @@ fn translate_sizeof_expr(ctx: ref TranslationCtx, text: ref u8) ref u8 = {
                 }
             }
         }
-        val c: u8 = trust @load8(@ptradd(trimmed as ref void, i)) as u8
+        val c: u8 = trust @load8(@ptradd(trimmed, i)) as u8
         trust string.StringBuilder.append_char(sb, c)
         i++
     }
@@ -4070,14 +4070,14 @@ fn scan_cast_operand_end(text: ref u8, start: i64) i64 = {
     if start < 0 || start >= len {
         return start
     }
-    val first: u8 = trust @load8(@ptradd(text as ref void, start)) as u8
+    val first: u8 = trust @load8(@ptradd(text, start)) as u8
     if first >= 48 && first <= 57 {
         val i: mut i64 = start + 1
         for {
             if i >= len {
                 break
             }
-            val c: u8 = trust @load8(@ptradd(text as ref void, i)) as u8
+            val c: u8 = trust @load8(@ptradd(text, i)) as u8
             if !is_ident_part(c) && c != 46 {
                 break
             }
@@ -4094,13 +4094,13 @@ fn scan_cast_operand_end(text: ref u8, start: i64) i64 = {
         if j >= len {
             break
         }
-        val ws: u8 = trust @load8(@ptradd(text as ref void, j)) as u8
+        val ws: u8 = trust @load8(@ptradd(text, j)) as u8
         if !is_space(ws) {
             break
         }
         j++
     }
-    if j < len && (trust @load8(@ptradd(text as ref void, j)) as u8) == 40 {
+    if j < len && (trust @load8(@ptradd(text, j)) as u8) == 40 {
         val call_close: i64 = find_matching_delim(text, j, 40 as u8, 41 as u8)
         if call_close > j {
             return call_close + 1
@@ -4121,7 +4121,7 @@ fn translate_c_casts_in_expr(ctx: ref TranslationCtx, text: ref u8) ref u8 = {
         if i >= len {
             break
         }
-        val c: u8 = trust @load8(@ptradd(trimmed as ref void, i)) as u8
+        val c: u8 = trust @load8(@ptradd(trimmed, i)) as u8
         if in_string {
             trust string.StringBuilder.append_char(sb, c)
             if escaped {
@@ -4169,7 +4169,7 @@ fn translate_c_casts_in_expr(ctx: ref TranslationCtx, text: ref u8) ref u8 = {
                 if j < 0 {
                     break
                 }
-                val pc: u8 = trust @load8(@ptradd(trimmed as ref void, j)) as u8
+                val pc: u8 = trust @load8(@ptradd(trimmed, j)) as u8
                 if !is_space(pc) {
                     prev_is_ident = is_ident_part(pc)
                     break
@@ -4186,7 +4186,7 @@ fn translate_c_casts_in_expr(ctx: ref TranslationCtx, text: ref u8) ref u8 = {
                             if op_start >= len {
                                 break
                             }
-                            val ws: u8 = trust @load8(@ptradd(trimmed as ref void, op_start)) as u8
+                            val ws: u8 = trust @load8(@ptradd(trimmed, op_start)) as u8
                             if !is_space(ws) {
                                 break
                             }
@@ -4226,8 +4226,8 @@ fn find_top_level_equality(text: ref u8) i64 = {
         if i + 1 >= len {
             break
         }
-        val c: u8 = trust @load8(@ptradd(text as ref void, i)) as u8
-        val next: u8 = trust @load8(@ptradd(text as ref void, i + 1)) as u8
+        val c: u8 = trust @load8(@ptradd(text, i)) as u8
+        val next: u8 = trust @load8(@ptradd(text, i + 1)) as u8
         if c == 40 {
             paren++
         }
@@ -4278,7 +4278,7 @@ fn rewrite_null_comparison(ctx: ref TranslationCtx, text: ref u8) option[ref u8]
             zero_expr = trust @fmt("0 as {s}", {type_name as ref u8})
         }
     }
-    val op: u8 = trust @load8(@ptradd(trimmed as ref void, cmp_i)) as u8
+    val op: u8 = trust @load8(@ptradd(trimmed, cmp_i)) as u8
     if op == 61 {
         return some trust @fmt("{s} == {s}", {translated_expr, zero_expr})
     }
@@ -4795,7 +4795,7 @@ fn normalize_type_phrase(text: ref u8) ref u8 = {
             if i >= len {
                 break
             }
-            val c: u8 = trust @load8(@ptradd(flat as ref void, i)) as u8
+            val c: u8 = trust @load8(@ptradd(flat, i)) as u8
             if !is_space(c) {
                 break
             }
@@ -4804,7 +4804,7 @@ fn normalize_type_phrase(text: ref u8) ref u8 = {
         if i >= len {
             break
         }
-        val c0: u8 = trust @load8(@ptradd(flat as ref void, i)) as u8
+        val c0: u8 = trust @load8(@ptradd(flat, i)) as u8
         if c0 == 42 {
             if !first {
                 trust string.StringBuilder.append_char(sb, 32 as u8)
@@ -4819,7 +4819,7 @@ fn normalize_type_phrase(text: ref u8) ref u8 = {
             if i >= len {
                 break
             }
-            val c: u8 = trust @load8(@ptradd(flat as ref void, i)) as u8
+            val c: u8 = trust @load8(@ptradd(flat, i)) as u8
             if is_space(c) || c == 42 {
                 break
             }
@@ -5009,7 +5009,7 @@ fn translate_c_type(type_src: ref u8, array_prefix: ref u8) ref u8 = {
         if i >= len {
             break
         }
-        val c: u8 = trust @load8(@ptradd(normalized as ref void, i)) as u8
+        val c: u8 = trust @load8(@ptradd(normalized, i)) as u8
         if c == 42 {
             star_count++
         } else {
@@ -5058,7 +5058,7 @@ fn strip_initializer(text: ref u8) ref u8 = {
         if i >= len {
             break
         }
-        val c: u8 = trust @load8(@ptradd(text as ref void, i)) as u8
+        val c: u8 = trust @load8(@ptradd(text, i)) as u8
         if c == 40 {
             depth_paren++
         }
@@ -5096,7 +5096,7 @@ fn parse_named_decl(ctx: ref TranslationCtx, text: ref u8, fallback_name: ref u8
         if i < 0 {
             break
         }
-        val c: u8 = trust @load8(@ptradd(trimmed0 as ref void, i)) as u8
+        val c: u8 = trust @load8(@ptradd(trimmed0, i)) as u8
         if is_space(c) {
             i--
             continue
@@ -5110,7 +5110,7 @@ fn parse_named_decl(ctx: ref TranslationCtx, text: ref u8, fallback_name: ref u8
             if open_i < 0 {
                 break
             }
-            val inner: u8 = trust @load8(@ptradd(trimmed0 as ref void, open_i)) as u8
+            val inner: u8 = trust @load8(@ptradd(trimmed0, open_i)) as u8
             if inner == 91 {
                 break
             }
@@ -5131,7 +5131,7 @@ fn parse_named_decl(ctx: ref TranslationCtx, text: ref u8, fallback_name: ref u8
         if i < 0 {
             break
         }
-        val c: u8 = trust @load8(@ptradd(trimmed0 as ref void, i)) as u8
+        val c: u8 = trust @load8(@ptradd(trimmed0, i)) as u8
         if !is_space(c) {
             break
         }
@@ -5142,7 +5142,7 @@ fn parse_named_decl(ctx: ref TranslationCtx, text: ref u8, fallback_name: ref u8
         if i < 0 {
             break
         }
-        val c: u8 = trust @load8(@ptradd(trimmed0 as ref void, i)) as u8
+        val c: u8 = trust @load8(@ptradd(trimmed0, i)) as u8
         if !is_ident_part(c) {
             break
         }
@@ -5219,7 +5219,7 @@ fn split_top_level(text: ref u8, delim: u8) list[ref u8] = {
         val at_end: bool = i == len
         val c: mut u8 = 0
         if !at_end {
-            c = trust @load8(@ptradd(text as ref void, i)) as u8
+            c = trust @load8(@ptradd(text, i)) as u8
             if in_string {
                 if escaped {
                     escaped = false
@@ -5276,7 +5276,7 @@ fn extract_identifier_before(text: ref u8, end_exclusive: i64) ref u8 = {
         if i < 0 {
             break
         }
-        val c: u8 = trust @load8(@ptradd(text as ref void, i)) as u8
+        val c: u8 = trust @load8(@ptradd(text, i)) as u8
         if !is_space(c) && c != 59 {
             break
         }
@@ -5287,7 +5287,7 @@ fn extract_identifier_before(text: ref u8, end_exclusive: i64) ref u8 = {
         if i < 0 {
             break
         }
-        val c: u8 = trust @load8(@ptradd(text as ref void, i)) as u8
+        val c: u8 = trust @load8(@ptradd(text, i)) as u8
         if !is_ident_part(c) {
             break
         }
@@ -5327,7 +5327,7 @@ fn parse_include_name(line: ref u8) ref u8 = {
             if q2 >= len {
                 break
             }
-            val c: u8 = trust @load8(@ptradd(line as ref void, q2)) as u8
+            val c: u8 = trust @load8(@ptradd(line, q2)) as u8
             if c == 34 {
                 break
             }
@@ -5345,7 +5345,7 @@ fn parse_include_name(line: ref u8) ref u8 = {
             if a2 >= len {
                 break
             }
-            val c: u8 = trust @load8(@ptradd(line as ref void, a2)) as u8
+            val c: u8 = trust @load8(@ptradd(line, a2)) as u8
             if c == 62 {
                 break
             }
@@ -5521,7 +5521,7 @@ fn collect_struct(lines: list[ref u8], start: i64) ref BlockResult = {
                 if j >= l {
                     break
                 }
-                val c: u8 = trust @load8(@ptradd(line as ref void, j)) as u8
+                val c: u8 = trust @load8(@ptradd(line, j)) as u8
                 if c == 123 {
                     brace_depth++
                     started = true
@@ -5557,7 +5557,7 @@ fn collect_function(lines: list[ref u8], start: i64) ref BlockResult = {
                 if j >= l {
                     break
                 }
-                val c: u8 = trust @load8(@ptradd(line as ref void, j)) as u8
+                val c: u8 = trust @load8(@ptradd(line, j)) as u8
                 if c == 40 {
                     paren_depth++
                 }
@@ -5971,10 +5971,10 @@ fn text_uses_ident(text: ref u8, name: ref u8) bool = {
         if i >= len {
             break
         }
-        val c: u8 = trust @load8(@ptradd(text as ref void, i)) as u8
+        val c: u8 = trust @load8(@ptradd(text, i)) as u8
         val next: mut u8 = 0
         if i + 1 < len {
-            next = trust @load8(@ptradd(text as ref void, i + 1)) as u8
+            next = trust @load8(@ptradd(text, i + 1)) as u8
         }
         if in_line_comment {
             if c == 10 || c == 13 {
@@ -6041,8 +6041,8 @@ fn text_uses_ident(text: ref u8, name: ref u8) bool = {
         if i + nlen <= len {
             val candidate: ref u8 = trust string.substr(text, i, nlen)
             if string.raw_cmp(candidate, name) == 0 {
-                val prev_ok: bool = i == 0 || !is_ident_part(trust @load8(@ptradd(text as ref void, i - 1)) as u8)
-                val next_ok: bool = i + nlen >= len || !is_ident_part(trust @load8(@ptradd(text as ref void, i + nlen)) as u8)
+                val prev_ok: bool = i == 0 || !is_ident_part(trust @load8(@ptradd(text, i - 1)) as u8)
+                val next_ok: bool = i + nlen >= len || !is_ident_part(trust @load8(@ptradd(text, i + nlen)) as u8)
                 if prev_ok && next_ok {
                     return true
                 }
@@ -6089,21 +6089,21 @@ fn strip_gnu_attributes(text: ref u8) ref u8 = {
         if i + 13 <= len {
             val frag: ref u8 = trust string.substr(text, i, 13)
             if string.raw_cmp(frag, "__attribute__") == 0 {
-                val prev_ok: bool = i == 0 || !is_ident_part(trust @load8(@ptradd(text as ref void, i - 1)) as u8)
-                val next_ok: bool = i + 13 >= len || !is_ident_part(trust @load8(@ptradd(text as ref void, i + 13)) as u8)
+                val prev_ok: bool = i == 0 || !is_ident_part(trust @load8(@ptradd(text, i - 1)) as u8)
+                val next_ok: bool = i + 13 >= len || !is_ident_part(trust @load8(@ptradd(text, i + 13)) as u8)
                 if prev_ok && next_ok {
                     val j: mut i64 = i + 13
                     for {
                         if j >= len {
                             break
                         }
-                        val ws: u8 = trust @load8(@ptradd(text as ref void, j)) as u8
+                        val ws: u8 = trust @load8(@ptradd(text, j)) as u8
                         if !is_space(ws) {
                             break
                         }
                         j++
                     }
-                    if j < len && (trust @load8(@ptradd(text as ref void, j)) as u8) == 40 {
+                    if j < len && (trust @load8(@ptradd(text, j)) as u8) == 40 {
                         val close_j: i64 = find_matching_delim(text, j, 40 as u8, 41 as u8)
                         if close_j > j {
                             i = close_j + 1
@@ -6115,7 +6115,7 @@ fn strip_gnu_attributes(text: ref u8) ref u8 = {
                 }
             }
         }
-        val c: u8 = trust @load8(@ptradd(text as ref void, i)) as u8
+        val c: u8 = trust @load8(@ptradd(text, i)) as u8
         trust string.StringBuilder.append_char(sb, c)
         i++
     }

@@ -21,7 +21,7 @@ pub type ResolvedModule = {
 
 pub fn new_resolved(items: list[ref parser.Node], filename: String, dir: String) ref ResolvedModule = trust {
     val m: mut ref ResolvedModule = @alloc(@sizeof(ResolvedModule)) as ref ResolvedModule
-    @memset(m as ref void, 0, @sizeof(ResolvedModule) as usize)
+    @memset(m, 0, @sizeof(ResolvedModule) as usize)
     m.items = items
     m.filename = filename
     m.dir = dir
@@ -70,14 +70,14 @@ fn find_workspace_root(start_dir: ref u8) ref u8 = trust {
 /// The workspace param must be the pre-computed workspace root (from find_workspace_root).
 pub fn resolve_use_path(use_path: mut ref u8, file_dir: ref u8, exe_dir: ref u8, workspace: ref u8) ref u8 = trust {
     if str.raw_starts_with(use_path, "std/") {
-        use_path = @fmt("spectrelib/{s}", {@ptradd(use_path as ref void, 4) as ref u8})
+        use_path = @fmt("spectrelib/{s}", {@ptradd(use_path, 4) as ref u8})
     }
     val plen: i64 = str.len_raw(use_path)
 
     if plen >= 3 {
-        val c0: u8 = @load8(@ptradd(use_path as ref void, plen - 3))
-        val c1: u8 = @load8(@ptradd(use_path as ref void, plen - 2))
-        val c2: u8 = @load8(@ptradd(use_path as ref void, plen - 1))
+        val c0: u8 = @load8(@ptradd(use_path, plen - 3))
+        val c1: u8 = @load8(@ptradd(use_path, plen - 2))
+        val c2: u8 = @load8(@ptradd(use_path, plen - 1))
         if c0 == 46 && c1 == 115 && c2 == 120 {
             return path.canonicalize_path(path.join(file_dir, use_path))
         }
@@ -89,7 +89,7 @@ pub fn resolve_use_path(use_path: mut ref u8, file_dir: ref u8, exe_dir: ref u8,
         if si >= plen {
             break
         }
-        val c: u8 = @load8(@ptradd(use_path as ref void, si))
+        val c: u8 = @load8(@ptradd(use_path, si))
         if c == 47 {
             has_slash = true break
         }
@@ -225,14 +225,14 @@ fn type_name_references_import(type_name: ref u8, import_name: ref u8) bool = tr
         if i >= import_len {
             break
         }
-        val tc: u8 = @load8(@ptradd(type_name as ref void, i))
-        val ic: u8 = @load8(@ptradd(import_name as ref void, i))
+        val tc: u8 = @load8(@ptradd(type_name, i))
+        val ic: u8 = @load8(@ptradd(import_name, i))
         if tc != ic {
             return false
         }
         i++
     }
-    val next: u8 = @load8(@ptradd(type_name as ref void, import_len))
+    val next: u8 = @load8(@ptradd(type_name, import_len))
     return next == 46
 }
 
@@ -1106,7 +1106,7 @@ fn resolve_module_impl(
 
     val is_std_module: bool = str.raw_cmp(canonical_path, "std/sx") == 0 ||
     (str.len_raw(canonical_path) >= 10 &&
-        str.raw_cmp(@ptradd(canonical_path as ref void, str.len_raw(canonical_path) - 10) as ref u8, "std/sx") == 0)
+        str.raw_cmp(@ptradd(canonical_path, str.len_raw(canonical_path) - 10) as ref u8, "std/sx") == 0)
 
     for item in items {
         val node: ref parser.Node = item
@@ -1160,7 +1160,7 @@ fn resolve_module_impl(
 
     @remove(cur_progress, @len(cur_progress) - 1)
     @append(cache_keys, canonical_path)
-    @append(cache_vals, m as ref void)
+    @append(cache_vals, m)
     return ok m
 }
 
