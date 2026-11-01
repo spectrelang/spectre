@@ -3793,10 +3793,10 @@ fn parse_result_types(ann: ref u8, ok_buf: ref u8, err_buf: ref u8) void = trust
         }
         val c: i64 = @load8(@ptradd(ann, i))
         if c == 91 {
-            depth = depth + 1
+            depth++
         }       // '['
         elif c == 93 {
-            depth = depth - 1
+            depth--
         }     // ']'
         elif c == 44 && depth == 0 {            // ','
             split_pos = i
@@ -7117,7 +7117,7 @@ fn gen_call(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
                 val gtbuf: ref u8 = @alloc(128) as ref u8
                 if gti > 0 {
                     @memcpy(@ptradd(gcall_buf, gcall_pos), ", " as ref void, 2)
-                    gcall_pos = gcall_pos + 2
+                    gcall_pos += 2
                 }
                 @snprintf(gtbuf, 128, "{s} {s}", {garg_qt, gt_arg})
                 val gtbuf_len: i64 = str.len_raw(gtbuf)
@@ -7199,12 +7199,12 @@ fn gen_call(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
                                 }
                             }
                             if fsize2 == 0 {
-                                payload_size2 = payload_size2 + 8
+                                payload_size2 += 8
                             } else {
                                 payload_size2 = payload_size2 + align_to(fsize2, 8)
                             }
                         } else {
-                            payload_size2 = payload_size2 + 8
+                            payload_size2 += 8
                         }
                         fti2++
                     }
@@ -7315,12 +7315,12 @@ fn gen_call(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
                         }
                     }
                     if fsize == 0 {
-                        payload_size = payload_size + 8
+                        payload_size += 8
                     } else {
                         payload_size = payload_size + align_to(fsize, 8)
                     }
                 } else {
-                    payload_size = payload_size + 8
+                    payload_size += 8
                 }
                 fti++
             }
@@ -7476,7 +7476,7 @@ fn gen_call(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
                                 val vstr: ref u8 = v as ref u8
                                 val vlen2: i64 = str.len_raw(vstr)
                                 @memcpy(@ptradd(call_buf_p, call_pos_p), ", " as ref void, 2)
-                                call_pos_p = call_pos_p + 2
+                                call_pos_p += 2
                                 @memcpy(@ptradd(call_buf_p, call_pos_p), vstr, vlen2)
                                 call_pos_p = call_pos_p + vlen2
                             }
@@ -7705,7 +7705,7 @@ fn gen_call(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
         @free(ret_arg)
         if tlen > 0 {
             @memcpy(@ptradd(call_buf, call_pos), ", " as ref void, 2)
-            call_pos = call_pos + 2
+            call_pos += 2
         }
     }
 
@@ -7723,16 +7723,16 @@ fn gen_call(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
             if is_variadic_arg && !variadic_started {
                 if ti > 0 || returns_union {
                     @memcpy(@ptradd(call_buf, call_pos), ", ..." as ref void, 5)
-                    call_pos = call_pos + 5
+                    call_pos += 5
                 } else {
                     @memcpy(@ptradd(call_buf, call_pos), "..." as ref void, 3)
-                    call_pos = call_pos + 3
+                    call_pos += 3
                 }
                 variadic_started = true
             }
             if ti > 0 || is_variadic_arg {
                 @memcpy(@ptradd(call_buf, call_pos), ", " as ref void, 2)
-                call_pos = call_pos + 2
+                call_pos += 2
             }
 
             val arg_qtype: mut ref u8 = "l"
@@ -7773,7 +7773,7 @@ fn gen_call(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
         ti++
     }
     @store8(@ptradd(call_buf, call_pos), 41) // ')'
-    call_pos = call_pos + 1
+    call_pos++
     @store8(@ptradd(call_buf, call_pos), 0)
     emitln(ctx, call_buf)
 

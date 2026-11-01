@@ -102,7 +102,7 @@ pub fn main() i32 = trust {
 
     if string.raw_cmp(input, "run") == 0 {
         run_mode = true
-        input_arg_i = input_arg_i + 1
+        input_arg_i++
         val run_input_opt = @get(args, input_arg_i)
         if run_input_opt is some a {
             input = a as ref u8

@@ -168,12 +168,12 @@ fn lx_advance(l: mut ref Lexer) i64 = trust {
         return -1
     }
     val c: i64 = @load8(@ptradd(l.src, l.pos)) as i64
-    l.pos = l.pos + 1
+    l.pos++
     if c == 10 {
-        l.line = l.line + 1
+        l.line++
         l.col = 1
     } else {
-        l.col = l.col + 1
+        l.col++
     }
     return c
 }

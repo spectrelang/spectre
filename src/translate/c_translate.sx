@@ -1341,7 +1341,7 @@ fn emit_incdec_stmt(raw_name: ref u8, op: ref u8, indent: i64, out: ref void) vo
 
 fn fresh_union_name(ctx: mut ref TranslationCtx) ref u8 = {
     val union_name: ref u8 = trust @fmt("union{d}", {ctx.union_counter})
-    ctx.union_counter = ctx.union_counter + 1
+    ctx.union_counter++
     return union_name
 }
 

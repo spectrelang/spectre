@@ -333,7 +333,7 @@ fn build_prefix(indent: i64, is_last: bool) ref u8 = trust {
         @store8(@ptradd(buf, i + 3), 32 as u8)
         @store8(@ptradd(buf, i + 4), 32 as u8)
         @store8(@ptradd(buf, i + 5), 32 as u8)
-        i = i + 6
+        i += 6
         spaces++
     }
 

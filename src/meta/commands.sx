@@ -53,7 +53,7 @@ fn ctx_peek(ctx: ref ParseCtx) i64 = trust {
 }
 
 fn ctx_advance(ctx: mut ref ParseCtx) void = {
-    ctx.pos = ctx.pos + 1
+    ctx.pos++
 }
 
 fn ctx_skip_line(ctx: mut ref ParseCtx) void = {

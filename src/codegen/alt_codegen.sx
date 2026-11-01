@@ -3416,7 +3416,7 @@ fn gen_call(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
                 gai++
             }
         }
-        ctx.tmp = ctx.tmp + 1
+        ctx.tmp++
         val gtmp: i64 = ctx.tmp
         val gret_node: ref parser.Node = cc_lookup_fn_ret(ctx, c_mangled)
         val gret_ct: mut ref u8 = "int64_t"
@@ -3475,7 +3475,7 @@ fn gen_call(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
     val tv_tag: i64 = cc_lookup_tv(ctx, callee_name, tv_owner_slot, tv_field_slot)
 
     if tv_tag >= 0 {
-        ctx.tmp = ctx.tmp + 1
+        ctx.tmp++
         val t: i64 = ctx.tmp
         val alen_pre: mut i64 = 0
         if args != none {

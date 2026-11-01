@@ -527,7 +527,7 @@ fn p_peek_line(p: ref Parser) i64 = trust {
 fn p_advance(p: mut ref Parser) lexer.TokenKind = trust {
     val k: lexer.TokenKind = p_peek_kind(p)
     if p.pos + 1 < @len(p.tokens) as i64 {
-        p.pos = p.pos + 1
+        p.pos++
     }
     return k
 }
@@ -535,7 +535,7 @@ fn p_advance(p: mut ref Parser) lexer.TokenKind = trust {
 fn p_advance_text(p: mut ref Parser) ref u8 = trust {
     val txt: ref u8 = lexer.tok_text(p.tokens, p.pos)
     if p.pos + 1 < @len(p.tokens) as i64 {
-        p.pos = p.pos + 1
+        p.pos++
     }
     return txt
 }

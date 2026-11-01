@@ -92,7 +92,7 @@ fn buf_append_cstr(b: mut ref Buf, s: ref u8) void = trust {
 fn buf_append_char(b: mut ref Buf, c: u8) void = trust {
     buf_reserve(b, 1)
     @store8(@ptradd(b.ptr as ref void, b.len), c)
-    b.len = b.len + 1
+    b.len++
     @store8(@ptradd(b.ptr as ref void, b.len), 0)
 }
 
@@ -2008,7 +2008,7 @@ fn scan_nesting(src: ref u8, start: i64, end: i64, out: mut ref Nesting) void = 
                 }
                 val sc: i64 = byte_at(src, i)
                 if sc == 92 {
-                    i = i + 2
+                    i += 2
                 } elif sc == 34 {
                     i++
                     break
@@ -2024,7 +2024,7 @@ fn scan_nesting(src: ref u8, start: i64, end: i64, out: mut ref Nesting) void = 
                 }
                 val cc: i64 = byte_at(src, i)
                 if cc == 92 {
-                    i = i + 2
+                    i += 2
                 } elif cc == 39 {
                     i++
                     break
@@ -2160,7 +2160,7 @@ fn reindent(src: ref u8) ref u8 = trust {
             val last: i64 = @load8(@ptradd(out.ptr as ref void, out.len - 1)) as i64
             val prev: i64 = @load8(@ptradd(out.ptr as ref void, out.len - 2)) as i64
             if last == 10 && prev == 10 {
-                out.len = out.len - 1
+                out.len--
             } else {
                 break
             }
