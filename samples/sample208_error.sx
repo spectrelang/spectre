@@ -1,0 +1,29 @@
+val stdio = use("std/stdio")
+
+enum Status = {
+    Ok
+    NotFound
+    PermissionDenied
+}
+
+union Payload = {
+    i32 | i64 | ref u8
+}
+
+fn describe(x: Payload) void = {
+    match x {
+        i32 => {
+            stdio.puts("32-bit integer")
+        }
+        i64 => {
+            stdio.puts("64-bit integer")
+        }
+        else => {
+            stdio.puts("string pointer")
+        }
+    }
+}
+
+pub fn main() void = {
+    describe(12)
+}

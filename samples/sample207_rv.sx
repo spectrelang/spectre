@@ -1,8 +1,8 @@
-val str        = use("std/string")
-val allocators = use("std/allocators")
-val stdio      = use("std/stdio")
+val str   = use("std/string")
+val alloc = use("std/allocators")
+val stdio = use("std/stdio")
 
-fn normalize_path[A: allocators.Allocator](ac: A, raw: ref u8) str.String = {
+fn normalize_path[A: alloc.Allocator](ac: A, raw: ref u8) str.String = {
     val path: str.String = trust str.from[A](ac, raw)
     trust {
         str.trim(path)
@@ -16,7 +16,7 @@ fn normalize_path[A: allocators.Allocator](ac: A, raw: ref u8) str.String = {
 }
 
 pub fn main() void = trust {
-    val arena: allocators.Arena = allocators.Arena.new(1024 as usize)?
-    val route = normalize_path[allocators.Arena](arena, "  /API/Users/42  ")
+    val arena: alloc.Arena = alloc.Arena.new(1024 as usize)?
+    val route = normalize_path[alloc.Arena](arena, "  /API/Users/42  ")
     stdio.print("route: {s}\n", {str.cstr(route)})
 }
