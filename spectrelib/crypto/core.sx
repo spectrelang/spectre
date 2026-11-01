@@ -3,6 +3,7 @@ val random     = use("../crypto/random")
 val allocators = use("../allocators")
 val fs         = use("../fs")
 
+/// Cryptography related failure enumeration.
 pub enum CryptoError = {
     InvalidHexLength
     InvalidHexDigit
