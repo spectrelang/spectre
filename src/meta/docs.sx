@@ -24,6 +24,7 @@ type DocEntry = {
     anchor: mut ref u8
     signature: mut ref u8
     docs: mut ref u8
+    method_docs: mut list[ref u8]
     is_private_fn: mut bool
     availability: mut ref u8
     node: mut ref parser.Node
@@ -289,7 +290,9 @@ fn is_doc_target_line(line: ref u8) bool = trust {
     str.raw_starts_with(line, "enum ") ||
     str.raw_starts_with(line, "pub enum ") ||
     str.raw_starts_with(line, "union ") ||
-    str.raw_starts_with(line, "pub union ")
+    str.raw_starts_with(line, "pub union ") ||
+    str.raw_starts_with(line, "spec ") ||
+    str.raw_starts_with(line, "pub spec ")
 }
 
 fn doc_line_text(trimmed: ref u8) ref u8 = trust {
@@ -853,6 +856,27 @@ fn render_fn_signature(node: ref parser.Node) ref u8 = trust {
         })
 }
 
+fn render_spec_signature(node: ref parser.Node) ref u8 = trust {
+    val public_prefix: mut ref u8 = ""
+    if node_is_public(node) {
+        public_prefix = "pub "
+    }
+    val methods = node.d2 as list[ref parser.Node]
+    val rendered: mut ref u8 = ""
+    for method in methods {
+        val method_signature = render_fn_signature(method)
+        if str_eq(rendered, "") {
+            rendered = method_signature
+        } else {
+            rendered = @fmt("{s}\n    {s}", {rendered, method_signature})
+        }
+    }
+    if str_eq(rendered, "") {
+        return @fmt("{s}spec {s} = \\{\\}", {public_prefix, node.d1 as ref u8})
+    }
+    return @fmt("{s}spec {s} = \\{\n    {s}\n\\}", {public_prefix, node.d1 as ref u8, rendered})
+}
+
 fn render_const_signature(node: ref parser.Node) ref u8 = trust {
     val public_prefix: mut ref u8 = ""
     if node_is_public(node) {
@@ -871,6 +895,9 @@ fn entry_kind_name(kind: i64) ref u8 = {
     }
     if kind == parser.NK_CONST {
         return "constant"
+    }
+    if kind == parser.NK_SPEC {
+        return "spec"
     }
     return "type"
 }
@@ -900,11 +927,17 @@ fn add_entry(entries: mut list[ref DocEntry], node: ref parser.Node, doc_map: re
     item.nav_name = entry_nav_name(node)
     item.anchor = anchor_for(entry_kind_name(node.kind), item.name, node.line)
     item.docs = lookup_doc(doc_map, node.line)
+    item.method_docs = []
     item.is_private_fn = node_is_function(node) && !node_is_public(node)
     item.availability = availability
     item.node = node
     if node.kind == parser.NK_FN || node.kind == parser.NK_GENERIC_FN || node.kind == parser.NK_EXTERN_FN {
         item.signature = render_fn_signature(node)
+    } elif node.kind == parser.NK_SPEC {
+        for method in node.d2 as list[ref parser.Node] {
+            @append(item.method_docs, lookup_doc(doc_map, method.line))
+        }
+        item.signature = render_spec_signature(node)
     } elif node.kind == parser.NK_CONST {
         item.signature = render_const_signature(node)
     } else {
@@ -946,7 +979,8 @@ fn collect_entries(items: list[ref parser.Node], doc_map: ref DocMap, out: mut l
         item.kind == parser.NK_EXTERN_TYPE ||
         item.kind == parser.NK_ENUMDEF ||
         item.kind == parser.NK_UNIONDEF ||
-        item.kind == parser.NK_TAGGED_UNIONDEF {
+        item.kind == parser.NK_TAGGED_UNIONDEF ||
+        item.kind == parser.NK_SPEC {
             add_entry(out, item, doc_map, availability)
         } elif item.kind == parser.NK_CONST && node_is_public(item) {
             add_entry(out, item, doc_map, availability)
@@ -1140,7 +1174,25 @@ fn append_doc_html(sb: ref void, docs: ref u8) void = trust {
 
 fn render_entry_details_html(sb: ref void, entry: ref DocEntry) void = trust {
     val node = entry.node
-    if node.kind == parser.NK_TYPEDEF || node.kind == parser.NK_EXTERN_TYPE {
+    if node.kind == parser.NK_SPEC {
+        val methods = node.d2 as list[ref parser.Node]
+        if @len(methods) as i64 > 0 {
+            string.StringBuilder.append_cstr(sb, "<h4>Methods</h4><ul class=\"details\">")
+            val idx: mut i64 = 0
+            for method in methods {
+                string.StringBuilder.append_cstr(sb, "<li><code>")
+                string.StringBuilder.append_cstr(sb, html_escape(render_fn_signature(method)))
+                string.StringBuilder.append_cstr(sb, "</code>")
+                val method_doc_opt = @get(entry.method_docs, idx as usize)
+                if method_doc_opt is some method_doc {
+                    append_doc_html(sb, method_doc as ref u8)
+                }
+                string.StringBuilder.append_cstr(sb, "</li>")
+                idx++
+            }
+            string.StringBuilder.append_cstr(sb, "</ul>")
+        }
+    } elif node.kind == parser.NK_TYPEDEF || node.kind == parser.NK_EXTERN_TYPE {
         val fields = node.d2 as list[ref parser.Node]
         if @len(fields) as i64 > 0 {
             string.StringBuilder.append_cstr(sb, "<h4>Fields</h4><div class=\"details-table-wrap\"><table class=\"details-table\"><thead><tr><th>Name</th><th>Type</th></tr></thead><tbody>")
@@ -2017,7 +2069,7 @@ fn append_page_shell_end_html(sb: ref void) void = trust {
         \\
         \\/* ── Spectre syntax highlighter ── */
         \\(function(){
-        \\  var KW=/\b(fn|pub|val|mut|type|enum|union|extern|ref|if|elif|else|for|match|return|break|continue|use|in|as|is|true|false|void|untyped|some|none|ok|err|when|otherwise|guarded|pre|post|assert|test|and|or|not)\b/g;
+        \\  var KW=/\b(fn|pub|val|mut|type|enum|union|spec|extern|ref|if|elif|else|for|match|return|break|continue|use|in|as|is|true|false|void|untyped|some|none|ok|err|when|otherwise|guarded|pre|post|assert|test|and|or|not)\b/g;
         \\  var TY=/\b(i8|i16|i32|i64|u8|u16|u32|u64|f32|f64|bool|u8|usize|isize|list|ref|option|result)\b/g;
         \\  var NUM=/\b(0x[0-9a-fA-F]+|\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)\b/g;
         \\  var STR=/(\"(?:[^\"\\]|\\.)*\")/g;
@@ -2033,7 +2085,7 @@ fn append_page_shell_end_html(sb: ref void) void = trust {
         \\    var patterns=[
         \\      {re:/\/\/[^\n]*/g,       cls:'hljs-comment'},
         \\      {re:/"(?:[^"\\]|\\.)*"/g, cls:'hljs-string'},
-        \\      {re:/\b(fn|pub|val|mut|type|enum|union|extern|ref|if|elif|else|for|match|return|break|continue|use|in|as|is|true|false|void|untyped|some|none|ok|err|when|otherwise|guarded|pre|post|assert|test|and|or|not)\b/g, cls:'hljs-keyword'},
+        \\      {re:/\b(fn|pub|val|mut|type|enum|union|spec|extern|ref|if|elif|else|for|match|return|break|continue|use|in|as|is|true|false|void|untyped|some|none|ok|err|when|otherwise|guarded|pre|post|assert|test|and|or|not)\b/g, cls:'hljs-keyword'},
         \\      {re:/\b(i8|i16|i32|i64|u8|u16|u32|u64|f32|f64|bool|usize|isize)\b/g, cls:'hljs-type'},
         \\      {re:/\b(list|option|result)\b/g, cls:'hljs-built_in'},
         \\      {re:/\b0x[0-9a-fA-F]+|\b\d+(?:\.\d+)?(?:[eE][+-]?\d+)?\b/g, cls:'hljs-number'},
@@ -2101,9 +2153,59 @@ fn render_module_page_html(module: ref DocModule, modules: list[ref DocModule]) 
     return string.cstr(built)
 }
 
+fn append_md_indented(sb: ref void, text: ref u8, indent: ref u8) void = trust {
+    if str_eq(text, "") {
+        return
+    }
+    val len: i64 = str.len_raw(text)
+    val line_start: mut i64 = 0
+    val i: mut i64 = 0
+    for {
+        if i >= len {
+            val line = trim_ws(substr(text, line_start, len - line_start))
+            if !str_eq(line, "") {
+                string.StringBuilder.append_cstr(sb, indent)
+                string.StringBuilder.append_cstr(sb, line)
+                string.StringBuilder.append_cstr(sb, "\n")
+            }
+            break
+        }
+        if @load8(@ptradd(text, i)) == 10 {
+            val line = trim_ws(substr(text, line_start, i - line_start))
+            if str_eq(line, "") {
+                string.StringBuilder.append_cstr(sb, "\n")
+            } else {
+                string.StringBuilder.append_cstr(sb, indent)
+                string.StringBuilder.append_cstr(sb, line)
+                string.StringBuilder.append_cstr(sb, "\n")
+            }
+            line_start = i + 1
+        }
+        i++
+    }
+}
+
 fn render_entry_details_md(sb: ref void, entry: ref DocEntry) void = trust {
     val node = entry.node
-    if node.kind == parser.NK_TYPEDEF || node.kind == parser.NK_EXTERN_TYPE {
+    if node.kind == parser.NK_SPEC {
+        val methods = node.d2 as list[ref parser.Node]
+        if @len(methods) as i64 > 0 {
+            string.StringBuilder.append_cstr(sb, "\n**Methods**\n\n")
+            val idx: mut i64 = 0
+            for method in methods {
+                string.StringBuilder.append_cstr(sb, @fmt("- `{s}`\n", {render_fn_signature(method)}))
+                val method_doc_opt = @get(entry.method_docs, idx as usize)
+                if method_doc_opt is some method_doc {
+                    val method_doc_text: ref u8 = method_doc as ref u8
+                    if !str_eq(method_doc_text, "") {
+                        string.StringBuilder.append_cstr(sb, "\n")
+                        append_md_indented(sb, method_doc_text, "  ")
+                    }
+                }
+                idx++
+            }
+        }
+    } elif node.kind == parser.NK_TYPEDEF || node.kind == parser.NK_EXTERN_TYPE {
         val fields = node.d2 as list[ref parser.Node]
         if @len(fields) as i64 > 0 {
             string.StringBuilder.append_cstr(sb, "\n**Fields**\n\n| Name | Type |\n| --- | --- |\n")
@@ -2407,6 +2509,17 @@ test {
         \\pub val some_constant = 100
     )
     assert str_eq(trust lookup_doc(const_src, 2), "constant docs")
+
+    assert trust is_doc_target_line("spec Allocator = {")
+    assert trust is_doc_target_line("pub spec Allocator = {")
+
+    val spec_src = trust extract_doc_map(
+        \\/// allocator interface
+        \\pub spec Allocator = {
+        \\    pub fn new(capacity: usize) result[Allocator, AllocError]
+        \\}
+    )
+    assert str_eq(trust lookup_doc(spec_src, 2), "allocator interface")
 
     val docs_src_arena: mut allocators.Arena = trust allocators.Arena.new(131072 as usize)?
     val docs_src_opt = trust fs.read_all[allocators.Arena](docs_src_arena, "./src/meta/docs.sx")
