@@ -3694,7 +3694,6 @@ fn parse_expr_src(src: ref u8) result[ref Node, ref u8] = {
 }
 
 test {
-    @puts("parser 1")
     val r1 = parse_expr_src("42")
     match r1 {
         err e => {
@@ -3707,7 +3706,6 @@ test {
         }
     }
 
-    @puts("parser 2")
     val r2 = parse_expr_src("3.14")
     match r2 {
         err _ => {
@@ -3718,7 +3716,6 @@ test {
         }
     }
 
-    @puts("parser 3")
     val r3 = parse_expr_src("\"hello\"")
     match r3 {
         err _ => {
@@ -3730,7 +3727,6 @@ test {
         }
     }
 
-    @puts("parser 4")
     val r4t = parse_expr_src("true")
     match r4t {
         err _ => {
@@ -3751,7 +3747,6 @@ test {
         }
     }
 
-    @puts("parser 5")
     val r5 = parse_expr_src("foo")
     match r5 {
         err _ => {
@@ -3763,7 +3758,6 @@ test {
         }
     }
 
-    @puts("parser 6")
     val r6 = parse_expr_src("1 + 2")
     match r6 {
         err _ => {
@@ -3779,7 +3773,6 @@ test {
         }
     }
 
-    @puts("parser 7")
     val r7 = parse_expr_src("a == b")
     match r7 {
         err _ => {
@@ -3791,7 +3784,6 @@ test {
         }
     }
 
-    @puts("parser 8")
     val r8 = parse_expr_src("-x")
     match r8 {
         err _ => {
@@ -3803,7 +3795,6 @@ test {
         }
     }
 
-    @puts("parser 9")
     val r9 = parse_expr_src("!flag")
     match r9 {
         err _ => {
@@ -3815,7 +3806,6 @@ test {
         }
     }
 
-    @puts("parser 10")
     val r10 = parse_expr_src("obj.field")
     match r10 {
         err _ => {
@@ -3829,7 +3819,6 @@ test {
         }
     }
 
-    @puts("parser 11")
     val r11 = parse_expr_src("foo(1, 2)")
     match r11 {
         err _ => {
@@ -3840,7 +3829,6 @@ test {
         }
     }
 
-    @puts("parser 12")
     val r12 = parse_expr_src("x as i64")
     match r12 {
         err _ => {
@@ -3851,7 +3839,6 @@ test {
         }
     }
 
-    @puts("parser 13")
     val r13 = parse_expr_src("[1, 2, 3]")
     match r13 {
         err _ => {
@@ -3862,7 +3849,6 @@ test {
         }
     }
 
-    @puts("parser 14")
     val r14 = parse_expr_src("none")
     match r14 {
         err _ => {
@@ -3873,7 +3859,6 @@ test {
         }
     }
 
-    @puts("parser 15")
     val r15 = parse_src("val x = 10")
     match r15 {
         err _ => {
@@ -3894,7 +3879,6 @@ test {
         }
     }
 
-    @puts("parser 16")
     val r16 = parse_src("fn add(a: i64, b: i64) i64 = trust { return a + b }")
     match r16 {
         err e => {
@@ -3917,7 +3901,6 @@ test {
         }
     }
 
-    @puts("parser 17")
     val r17 = parse_src("pub fn greet() void = trust { }")
     match r17 {
         err _ => {
@@ -3938,7 +3921,6 @@ test {
         }
     }
 
-    @puts("parser 18")
     val r18 = parse_src("type Point = { x: i64, y: i64 }")
     match r18 {
         err _ => {
@@ -3958,7 +3940,6 @@ test {
         }
     }
 
-    @puts("parser 18b")
     val r18b = parse_src("type Token = { kind: mut i64 invariant { kind > 0 } }")
     match r18b {
         err e => {
@@ -3981,7 +3962,6 @@ test {
         }
     }
 
-    @puts("parser 18c")
     val r18c = parse_src("type Token = { kind: mut i64 } invariant { kind > 0 }")
     match r18c {
         ok _ => {
@@ -3992,7 +3972,6 @@ test {
         }
     }
 
-    @puts("parser 18d")
     val r18d = parse_src("pub enum Color = {\n    Red\n    Green\n    Blue\n}")
     match r18d {
         err e => {
@@ -4014,7 +3993,6 @@ test {
         }
     }
 
-    @puts("parser 19")
     val r19 = parse_expr_src("2 + 3 * 4")
     match r19 {
         err _ => {
@@ -4029,7 +4007,6 @@ test {
         }
     }
 
-    @puts("parser 20")
     val r20 = parse_src("fn (")
     match r20 {
         ok _ => {
@@ -4040,7 +4017,6 @@ test {
         }
     }
 
-    @puts("parser 21")
     val r21 = parse_src("fn f() void = { for i = 0, i < 10, i++ { } }")
     match r21 {
         err _ => {
@@ -4051,7 +4027,6 @@ test {
         }
     }
 
-    @puts("parser 22")
     val r22 = parse_src("fn f() void = { for i = 0; i < 10; i++ { } }")
     match r22 {
         ok _ => {
@@ -4062,7 +4037,6 @@ test {
         }
     }
 
-    @puts("parser 23")
     val r23 = parse_src("fn f(x: i64) void = { if (x & 1) == 0 { } else { } }")
     match r23 {
         err e => {
