@@ -56,7 +56,17 @@ run_samples() {
 
         ((total++))
 
-        "$COMPILER" "$file" > /dev/null 2>&1
+        extra_args=()
+
+        if [[ "$filename" == "sample167.sx" ]]; then
+            extra_args+=(--dynamic)
+        fi
+
+        if [ ${#extra_args[@]} -gt 0 ]; then
+            "$COMPILER" "$file" "${extra_args[@]}" > /dev/null 2>&1
+        else
+            "$COMPILER" "$file" > /dev/null 2>&1
+        fi
         status=$?
 
         if [[ "$filename" == *_error.sx ]]; then

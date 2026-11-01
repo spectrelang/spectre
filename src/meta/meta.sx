@@ -48,6 +48,7 @@ pub fn print_usage() void = {
     stdio.puts("  --show-cmd           Show the command used for linking")
     stdio.puts("  --test               Run the unit tests in the current file")
     stdio.puts("  --release            Build in release mode")
+    stdio.puts("  --dynamic            Link dynamically instead of statically")
     stdio.puts("  --dll                Build a shared library")
     when posix {
         stdio.puts("  -a, --alt            Compile with fallback backend")
@@ -285,6 +286,11 @@ pub fn print_help(topic: ref u8) i32 = trust {
 
     if str.raw_cmp(topic, "--release") == 0 {
         print_flag_help("--release", "Build in release mode.", "spectre <input.sx> --release")
+        return 0
+    }
+
+    if str.raw_cmp(topic, "--dynamic") == 0 {
+        print_flag_help("--dynamic", "Link dynamically instead of statically. Static linking is the default on platforms that support it.", "spectre <input.sx> --dynamic")
         return 0
     }
 
