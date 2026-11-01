@@ -67,6 +67,14 @@ if [ $failed -eq 0 ]; then
 	pass "diagnostics"
 fi
 
+# Directory targets with a trailing slash must not produce doubled separators.
+trailing_output=$("$COMPILER" critic "$FIXTURES/" 2>&1)
+if grep -Fq "criticsamples//" <<<"$trailing_output"; then
+	fail "trailing slash (double slash in reported paths)"
+else
+	pass "trailing slash"
+fi
+
 actual="$tmpdir/fix_bad.sx"
 cp "$FIXTURES/fix_bad.sx" "$actual"
 

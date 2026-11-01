@@ -72,14 +72,24 @@ pub fn get_name_without_ext(arena: ref allocators.Arena, path: ref u8) ref u8 = 
 }
 
 /// Join dir + "/" + name, returning a heap-allocated string.
+/// Does not add a second separator when `dir` already ends with one.
 pub fn join(dir: ref u8, name: ref u8) ref u8 = trust {
     val dlen: i64 = str.len_raw(dir)
     val nlen: i64 = str.len_raw(name)
-    val buf: ref u8 = @alloc(dlen + nlen + 2) as ref u8
+    val sep: mut i64 = 1
+    if dlen > 0 {
+        val last: u8 = @load8(@ptradd(dir, dlen - 1))
+        if last == 47 || last == 92 {
+            sep = 0
+        }
+    }
+    val buf: ref u8 = @alloc(dlen + nlen + sep + 1) as ref u8
     @memcpy(buf, dir, dlen as usize)
-    @store8(@ptradd(buf, dlen), '/')
-    @memcpy(@ptradd(buf, dlen + 1), name, nlen as usize)
-    @store8(@ptradd(buf, dlen + nlen + 1), 0)
+    if sep == 1 {
+        @store8(@ptradd(buf, dlen), '/')
+    }
+    @memcpy(@ptradd(buf, dlen + sep), name, nlen as usize)
+    @store8(@ptradd(buf, dlen + sep + nlen), 0)
     return buf
 }
 
