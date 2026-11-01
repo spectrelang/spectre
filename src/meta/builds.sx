@@ -89,6 +89,15 @@ pub fn compiler_supports_static_linking(compiler: ref u8) bool = {
     return true
 }
 
+/// Returns the compiler driver flag used to strip symbols, or an empty string
+/// when symbols should be retained.
+pub fn strip_link_flag(release_mode: bool) ref u8 = {
+    if release_mode {
+        return "-s"
+    }
+    return ""
+}
+
 pub fn parse_alt_compiler_arg(arg: ref u8) ref u8 = {
     if string.raw_starts_with(arg, "--alt=") {
         return trust @ptradd(arg, 6) as ref u8

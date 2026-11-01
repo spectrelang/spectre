@@ -285,7 +285,7 @@ pub fn print_help(topic: ref u8) i32 = trust {
     }
 
     if str.raw_cmp(topic, "--release") == 0 {
-        print_flag_help("--release", "Build in release mode.", "spectre <input.sx> --release")
+        print_flag_help("--release", "Build in release mode with optimizations and stripped symbols.", "spectre <input.sx> --release")
         return 0
     }
 
