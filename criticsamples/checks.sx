@@ -1,5 +1,8 @@
 val unused = use("std/stdio")
 
+val GOOD_CONST: i64 = 1
+val bad_const: i64 = 2
+
 pub fn BadName(x: i64, ready: bool) void = {
     val Bad_var: ref void = none
     x = x

@@ -431,6 +431,32 @@ fn is_snake_case(name: ref u8) bool = trust {
     return true
 }
 
+fn is_screaming_snake_case(name: ref u8) bool = trust {
+    if name == none {
+        return false
+    }
+    val len: i64 = str.len_raw(name)
+    if len == 0 {
+        return false
+    }
+    val first: i64 = byte_at(name, 0)
+    if !is_upper_byte(first) && first != 95 {
+        return false
+    }
+    val i: mut i64 = 1
+    for {
+        if i >= len {
+            break
+        }
+        val c: i64 = byte_at(name, i)
+        if !is_upper_byte(c) && !is_digit_byte(c) && c != 95 {
+            return false
+        }
+        i++
+    }
+    return true
+}
+
 fn is_pascal_case(name: ref u8) bool = trust {
     if name == none {
         return false
@@ -462,6 +488,13 @@ fn check_snake_name(ctx: ref Ctx, line: i64, name: ref u8, kind: ref u8) void = 
         return
     }
     add_issue(ctx, line, @fmt("{s} name '{s}' should be snake_case", {kind, name}))
+}
+
+fn check_screaming_snake_name(ctx: ref Ctx, line: i64, name: ref u8, kind: ref u8) void = trust {
+    if name == none || is_screaming_snake_case(name) {
+        return
+    }
+    add_issue(ctx, line, @fmt("{s} name '{s}' should be SCREAMING_SNAKE_CASE", {kind, name}))
 }
 
 fn check_pascal_name(ctx: ref Ctx, line: i64, name: ref u8, kind: ref u8) void = trust {
@@ -1919,7 +1952,7 @@ fn walk_items(ctx: ref Ctx, items: list[ref parser.Node]) void = trust {
             continue
         }
         if k == parser.NK_CONST {
-            check_snake_name(ctx, item.line, item.d1 as ref u8, "variable")
+            check_screaming_snake_name(ctx, item.line, item.d1 as ref u8, "variable")
             walk_expr(ctx, item.d2 as ref parser.Node)
             continue
         }

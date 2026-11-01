@@ -40,6 +40,7 @@ expected_messages=(
 	"unused import 'unused'"
 	"function name 'BadName' should be snake_case"
 	"variable name 'Bad_var' should be snake_case"
+	"variable name 'bad_const' should be SCREAMING_SNAKE_CASE"
 	"avoid 'ref void'"
 	"self-assignment has no effect"
 	"redundant arithmetic assignment"
@@ -57,6 +58,10 @@ for message in "${expected_messages[@]}"; do
 		fail "missing diagnostic: $message"
 	fi
 done
+
+if grep -Fq "GOOD_CONST" <<<"$output"; then
+	fail "unexpected diagnostic for SCREAMING_SNAKE_CASE constant"
+fi
 
 if [ $failed -eq 0 ]; then
 	pass "diagnostics"
