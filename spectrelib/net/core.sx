@@ -4,21 +4,21 @@ val allocators = use("../allocators")
 
 when darwin {
     lib "curl"
+    lib "nghttp2"
     link "-framework CoreFoundation"
     link "-framework Security"
     link "-framework SystemConfiguration"
     link "-framework CFNetwork"
     link "-lz"
     link "-lldap"
-    lib "nghttp2"
 }
 
 when linux {
     lib "curl"
+    lib "nghttp2"
     link "-lz"
     link "-lssl"
     link "-lcrypto"
-    lib "nghttp2"
     link "-lbrotlidec"
     link "-lbrotlicommon"
 }
