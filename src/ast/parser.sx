@@ -3369,6 +3369,10 @@ fn parse_union_def_item(p: mut ref Parser, public: i64) result[ref Node, ref u8]
 
     val is_tagged: bool = kind_is_ident(p_peek_kind(p)) && lexer.kind_is_lparen(p_peek2_kind(p))
 
+    if !is_tagged {
+        return err p_error(p, "untagged unions are not supported, declare variants as Name(type)")
+    }
+
     if is_tagged {
         val variants: mut list[ref Node] = []
         for {
