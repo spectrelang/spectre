@@ -206,6 +206,39 @@ fn kind_is_val_tok(k: lexer.TokenKind) bool = {
     }
 }
 
+fn kind_is_plus_tok(k: lexer.TokenKind) bool = {
+    match k {
+        Plus() => {
+            return true
+        }
+        else => {
+            return false
+        }
+    }
+}
+
+fn kind_is_minus_tok(k: lexer.TokenKind) bool = {
+    match k {
+        Minus() => {
+            return true
+        }
+        else => {
+            return false
+        }
+    }
+}
+
+fn kind_is_int_tok(k: lexer.TokenKind) bool = {
+    match k {
+        Int _ => {
+            return true
+        }
+        else => {
+            return false
+        }
+    }
+}
+
 fn kind_is_and_tok(k: lexer.TokenKind) bool = {
     match k {
         And() => {
@@ -918,6 +951,156 @@ fn collect_self_assignment_fixes(ctx: ref Ctx) void = trust {
     }
 }
 
+fn first_token_on_line(ctx: ref Ctx, line: i64) i64 = trust {
+    val n: i64 = token_count(ctx)
+    val i: mut i64 = 0
+    for {
+        if i >= n {
+            break
+        }
+        if token_line(ctx, i) == line {
+            return i
+        }
+        i++
+    }
+    return -1
+}
+
+fn last_token_on_line(ctx: ref Ctx, line: i64) i64 = trust {
+    val n: i64 = token_count(ctx)
+    val i: mut i64 = 0
+    val last: mut i64 = -1
+    for {
+        if i >= n {
+            break
+        }
+        if token_line(ctx, i) == line {
+            last = i
+        }
+        i++
+    }
+    return last
+}
+
+fn token_lexeme(ctx: ref Ctx, idx: i64) ref u8 = trust {
+    val txt: ref u8 = token_text(ctx, idx)
+    if txt != none {
+        return txt
+    }
+    val k: lexer.TokenKind = token_kind(ctx, idx)
+    match k {
+        Dot() => {
+            return "."
+        }
+        Star() => {
+            return "*"
+        }
+        LBracket() => {
+            return "["
+        }
+        RBracket() => {
+            return "]"
+        }
+        LParen() => {
+            return "("
+        }
+        RParen() => {
+            return ")"
+        }
+        else => {
+            return none
+        }
+    }
+}
+
+fn token_sequences_equal(ctx: ref Ctx, a: i64, b: i64, count: i64) bool = trust {
+    val i: mut i64 = 0
+    for {
+        if i >= count {
+            break
+        }
+        val at: ref u8 = token_lexeme(ctx, a + i)
+        val bt: ref u8 = token_lexeme(ctx, b + i)
+        if at == none || bt == none || str.raw_cmp(at, bt) != 0 {
+            return false
+        }
+        i++
+    }
+    return true
+}
+
+fn collect_redundant_arithmetic_fixes(ctx: ref Ctx) void = trust {
+    if !ctx.fix_mode {
+        return
+    }
+    val n: i64 = token_count(ctx) - 1
+    val i: mut i64 = 0
+    for {
+        if i >= n {
+            break
+        }
+        if !kind_is_eq(token_kind(ctx, i)) {
+            i++
+            continue
+        }
+        val line: i64 = token_line(ctx, i)
+        val first: i64 = first_token_on_line(ctx, line)
+        val last: i64 = last_token_on_line(ctx, line)
+        if first < 0 || last < 0 || i <= first {
+            i++
+            continue
+        }
+        val lhs_len: i64 = i - first
+        val rhs_start: i64 = i + 1
+        if last != rhs_start + lhs_len + 1 {
+            i++
+            continue
+        }
+        if !token_sequences_equal(ctx, first, rhs_start, lhs_len) {
+            i++
+            continue
+        }
+        val op_idx: i64 = rhs_start + lhs_len
+        val is_add: bool = kind_is_plus_tok(token_kind(ctx, op_idx))
+        val is_sub: bool = kind_is_minus_tok(token_kind(ctx, op_idx))
+        if !is_add && !is_sub {
+            i++
+            continue
+        }
+        val int_idx: i64 = op_idx + 1
+        if !kind_is_int_tok(token_kind(ctx, int_idx)) {
+            i++
+            continue
+        }
+        val lhs_start: i64 = token_start(ctx, first)
+        val eq_start: i64 = token_start(ctx, i)
+        if lhs_start < 0 || eq_start < lhs_start {
+            i++
+            continue
+        }
+        val lhs_end: i64 = trim_ws_before(ctx, eq_start)
+        if lhs_end <= lhs_start {
+            i++
+            continue
+        }
+        val lhs_text: ref u8 = str.substr(ctx.src, lhs_start, lhs_end - lhs_start)
+        val amount: ref u8 = token_text(ctx, int_idx)
+        val int_end: i64 = token_start(ctx, int_idx) + str.len_raw(amount)
+        val replacement: mut ref u8 = none
+        if is_add && str.raw_cmp(amount, "1") == 0 {
+            replacement = @fmt("{s}++", {lhs_text})
+        } elif is_sub && str.raw_cmp(amount, "1") == 0 {
+            replacement = @fmt("{s}--", {lhs_text})
+        } elif is_add {
+            replacement = @fmt("{s} += {s}", {lhs_text, amount})
+        } else {
+            replacement = @fmt("{s} -= {s}", {lhs_text, amount})
+        }
+        add_fix(ctx, lhs_start, int_end, replacement)
+        i++
+    }
+}
+
 fn collect_duplicate_condition_fixes(ctx: ref Ctx) void = trust {
     if !ctx.fix_mode {
         return
@@ -1192,6 +1375,69 @@ fn check_duplicate_condition(ctx: ref Ctx, node: ref parser.Node) void = trust {
     }
 }
 
+fn expr_to_text(node: ref parser.Node) ref u8 = trust {
+    if node == none {
+        return none
+    }
+    if node.kind == parser.NK_IDENT {
+        return node.d0 as ref u8
+    }
+    if node.kind == parser.NK_FIELD {
+        val base: ref u8 = expr_to_text(node.d0 as ref parser.Node)
+        val name: ref u8 = node.d1 as ref u8
+        if base == none || name == none {
+            return none
+        }
+        return @fmt("{s}.{s}", {base, name})
+    }
+    if node.kind == parser.NK_DEREF {
+        val inner: ref u8 = expr_to_text(node.d0 as ref parser.Node)
+        if inner == none {
+            return none
+        }
+        return @fmt("*{s}", {inner})
+    }
+    return none
+}
+
+fn check_redundant_arithmetic_assignment(ctx: ref Ctx, node: ref parser.Node) void = trust {
+    val lhs: ref parser.Node = node.d0 as ref parser.Node
+    val rhs: ref parser.Node = node.d1 as ref parser.Node
+    if rhs == none || rhs.kind != parser.NK_BINOP {
+        return
+    }
+    val op: i64 = parser.binop_op(rhs)
+    if op != parser.OP_ADD && op != parser.OP_SUB {
+        return
+    }
+    if !nodes_equal(lhs, parser.binop_left(rhs)) {
+        return
+    }
+    val amount_node: ref parser.Node = parser.binop_right(rhs)
+    if amount_node == none || amount_node.kind != parser.NK_INT_LIT {
+        return
+    }
+    val amount: ref u8 = parser.int_lit_text(amount_node)
+    val lhs_text: ref u8 = expr_to_text(lhs)
+    val suggestion: mut ref u8 = none
+    if lhs_text != none {
+        if op == parser.OP_ADD && str.raw_cmp(amount, "1") == 0 {
+            suggestion = @fmt("{s}++", {lhs_text})
+        } elif op == parser.OP_SUB && str.raw_cmp(amount, "1") == 0 {
+            suggestion = @fmt("{s}--", {lhs_text})
+        } elif op == parser.OP_ADD {
+            suggestion = @fmt("{s} += {s}", {lhs_text, amount})
+        } else {
+            suggestion = @fmt("{s} -= {s}", {lhs_text, amount})
+        }
+    }
+    if suggestion != none {
+        add_issue(ctx, node.line, @fmt("redundant arithmetic assignment; use '{s}' instead", {suggestion}))
+    } else {
+        add_issue(ctx, node.line, "redundant arithmetic assignment")
+    }
+}
+
 fn walk_expr(ctx: ref Ctx, node: ref parser.Node) void = trust {
     if node == none {
         return
@@ -1440,6 +1686,7 @@ fn walk_stmts(ctx: ref Ctx, stmts: list[ref parser.Node]) void = trust {
             if nodes_equal(lhs, rhs) {
                 add_issue(ctx, stmt.line, "self-assignment has no effect")
             }
+            check_redundant_arithmetic_assignment(ctx, stmt)
             walk_expr(ctx, lhs)
             walk_expr(ctx, rhs)
             continue
@@ -1707,6 +1954,7 @@ fn analyze(ctx: ref Ctx, items: list[ref parser.Node]) void = trust {
     check_unused_imports(ctx)
     collect_cast_removal_fixes(ctx)
     collect_self_assignment_fixes(ctx)
+    collect_redundant_arithmetic_fixes(ctx)
     collect_duplicate_condition_fixes(ctx)
 }
 

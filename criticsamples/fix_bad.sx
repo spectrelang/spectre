@@ -1,9 +1,12 @@
 val unused = use("std/stdio")
 
-fn f(src: ref u8, ready: bool) void = {
-    val x: ref void = src
+fn f(src: ref u8, ready: bool, x: i64) void = {
+    val ptr: ref void = src
     val byte: u8 = trust @load8(src as ref void)
     x = x
+    x = x + 1
+    x = x + 2
+    x = x - 2
     if ready && ready {
         @puts("x")
     }

@@ -42,6 +42,7 @@ expected_messages=(
 	"variable name 'Bad_var' should be snake_case"
 	"avoid 'ref void'"
 	"self-assignment has no effect"
+	"redundant arithmetic assignment"
 	"duplicate condition in boolean expression"
 	"empty else body"
 	"type name 'bad_type' should be PascalCase"

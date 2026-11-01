@@ -3,6 +3,9 @@ val unused = use("std/stdio")
 pub fn BadName(x: i64, ready: bool) void = {
     val Bad_var: ref void = none
     x = x
+    x = x + 1
+    x = x + 2
+    x = x - 2
     if ready && ready {
         @puts("x")
     } else {
