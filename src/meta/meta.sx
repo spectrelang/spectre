@@ -3,7 +3,7 @@ val str   = use("std/string")
 val env   = use("env.sx")
 
 pub fn get_spectre_version() ref u8 = {
-    return "v0.0.13"
+    return env.get("SPECTRE_MOD_VERSION")
 }
 
 pub fn get_commit_hash() ref u8 = {
