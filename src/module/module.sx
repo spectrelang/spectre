@@ -1800,7 +1800,7 @@ pub fn collect_links_all(
 
 /// Check if a platform name matches the current platform.
 /// Handles group aliases like "posix" matching linux/darwin/bsd/etc.
-fn platform_matches(current: ref u8, name: ref u8) bool = trust {
+pub fn platform_matches(current: ref u8, name: ref u8) bool = trust {
     if str.raw_cmp(name, current) == 0 {
         return true
     }

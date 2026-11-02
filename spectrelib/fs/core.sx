@@ -15,7 +15,13 @@ extern (C) fn strlen(s: ref u8) i64 = "strlen"
 extern (C) fn getcwd(buf: ref u8, size: usize) ref u8 = "getcwd"
 
 pub extern (C) fn getenv(name: ref u8) ref u8 = "getenv"
-pub extern (C) fn mkdir(path: ref u8, mode: u32) i32 = "mkdir"
+when windows {
+    // direct.h exposes the one-argument _mkdir on Windows.
+    pub extern (C, header) fn _mkdir(path: ref u8) i32 = "_mkdir"
+}
+when posix {
+    pub extern (C) fn mkdir(path: ref u8, mode: u32) i32 = "mkdir"
+}
 pub extern (C) fn rmdir(path: ref u8) i32 = "rmdir"
 pub extern (C) fn opendir(path: ref u8) ref void = "opendir"
 pub extern (C) fn closedir(dir: ref void) i32 = "closedir"
@@ -363,8 +369,14 @@ pub fn rename_path(old: ref u8, new: ref u8) bool = trust {
 /// Create a directory. Mode is ignored on Windows; use 0755 on POSIX.
 /// Returns true on success.
 pub fn mkdir_path(path: ref u8) bool = trust {
-    val r: i32 = mkdir(path, 493 as u32)   // 0755 octal = 493 decimal
-    return r == 0
+    when windows {
+        return _mkdir(path) == 0
+    }
+    when posix {
+        val r: i32 = mkdir(path, 493 as u32)   // 0755 octal = 493 decimal
+        return r == 0
+    }
+    return false
 }
 
 /// Remove an empty directory.

@@ -37,11 +37,11 @@ when posix {
 }
 
 when windows {
-    extern (C) fn CreateThread(lpThreadAttributes: ref void, dwStackSize: usize, lpStartAddress: usize, lpParameter: ref void, dwCreationFlags: u32, lpThreadId: ref u32) ref void = "CreateThread"
-    extern (C) fn WaitForSingleObject(hHandle: ref void, dwMilliseconds: u32) u32 = "WaitForSingleObject"
-    extern (C) fn CloseHandle(hObject: ref void) i32 = "CloseHandle"
-    extern (C) fn GetCurrentThreadId() u32 = "GetCurrentThreadId"
-    extern (C) fn SwitchToThread() i32 = "SwitchToThread"
+    extern (C, header) fn CreateThread(lpThreadAttributes: ref void, dwStackSize: usize, lpStartAddress: usize, lpParameter: ref void, dwCreationFlags: u32, lpThreadId: ref u32) ref void = "CreateThread"
+    extern (C, header) fn WaitForSingleObject(hHandle: ref void, dwMilliseconds: u32) u32 = "WaitForSingleObject"
+    extern (C, header) fn CloseHandle(hObject: ref void) i32 = "CloseHandle"
+    extern (C, header) fn GetCurrentThreadId() u32 = "GetCurrentThreadId"
+    extern (C, header) fn SwitchToThread() i32 = "SwitchToThread"
 }
 
 /// Create a new thread running `entry` with the given `arg`.
@@ -215,10 +215,10 @@ when posix {
 }
 
 when windows {
-    extern (C) fn InitializeCriticalSection(lpCriticalSection: ref void) void = "InitializeCriticalSection"
-    extern (C) fn DeleteCriticalSection(lpCriticalSection: ref void) void = "DeleteCriticalSection"
-    extern (C) fn EnterCriticalSection(lpCriticalSection: ref void) void = "EnterCriticalSection"
-    extern (C) fn LeaveCriticalSection(lpCriticalSection: ref void) void = "LeaveCriticalSection"
+    extern (C, header) fn InitializeCriticalSection(lpCriticalSection: ref void) void = "InitializeCriticalSection"
+    extern (C, header) fn DeleteCriticalSection(lpCriticalSection: ref void) void = "DeleteCriticalSection"
+    extern (C, header) fn EnterCriticalSection(lpCriticalSection: ref void) void = "EnterCriticalSection"
+    extern (C, header) fn LeaveCriticalSection(lpCriticalSection: ref void) void = "LeaveCriticalSection"
 }
 
 when linux {

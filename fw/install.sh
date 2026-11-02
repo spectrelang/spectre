@@ -109,12 +109,18 @@ install_network_deps() {
 }
 
 SPECTRE_VERSION=""
+MINIMAL=0
 
 while [ "$#" -gt 0 ]; do
 	case "$1" in
 	-fallback)
 		FORCE_FALLBACK=1
 		log "Flag: -fallback set — skipping QBE, building from C source."
+		shift
+		;;
+	-minimal)
+		MINIMAL=1
+		log "Flag: -minimal set — skipping optional networking deps and spectre-ls."
 		shift
 		;;
 	-v)
@@ -133,11 +139,15 @@ log "Detecting package manager..."
 PKG_MGR="$(detect_pkg_manager)"
 log "Package manager: ${PKG_MGR}"
 
-case "$PKG_MGR" in
-apt) sudo apt-get update -y ;;
-dnf) sudo dnf check-update -y || true ;;
-brew) brew update || true ;;
-esac
+if [ "$MINIMAL" -eq 0 ]; then
+	case "$PKG_MGR" in
+	apt) sudo apt-get update -y ;;
+	dnf) sudo dnf check-update -y || true ;;
+	brew) brew update || true ;;
+	esac
+else
+	log "Skipping package manager update (-minimal)."
+fi
 
 log "Checking for clang..."
 if ! command -v clang >/dev/null 2>&1; then
@@ -170,7 +180,11 @@ require_cmd make
 require_cmd cc
 require_cmd cmake
 
-install_network_deps
+if [ "$MINIMAL" -eq 0 ]; then
+	install_network_deps
+else
+	log "Skipping optional networking development dependencies (-minimal)."
+fi
 
 log "Preparing directories..."
 mkdir -p "$BIN_DIR" "$SRC_DIR"
@@ -370,6 +384,9 @@ mkdir -p "${STDLIB_DEST}/csources"
 cp "${PANIC_HANDLER_OBJ}" "${STDLIB_DEST}/csources/"
 cp "${YYJSON_SHIM_OBJ}" "${STDLIB_DEST}/csources/"
 
+if [ "$MINIMAL" -eq 1 ]; then
+	log "Skipping spectre-ls (-minimal)."
+else
 log "Installing spectre-ls (language server)..."
 
 SPECTRE_LS_DIR="${SRC_DIR}/spectre-ls"
@@ -427,6 +444,7 @@ fi
 
 log "Installing spectre-ls to ${BIN_DIR}..."
 /usr/bin/install -m 0755 "${SPECTRE_LS_DIR}/spectre-ls" "${BIN_DIR}/spectre-ls"
+fi
 
 case ":$PATH:" in
 *":${BIN_DIR}:"*)

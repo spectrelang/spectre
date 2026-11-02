@@ -406,6 +406,13 @@ pub fn exec(cmd: ref u8) result[String, ProcessError] = trust {
     return ok out
 }
 
+fn path_separator() u8 = trust {
+    when windows {
+        return 59 // ';'
+    }
+    return 58 // ':'
+}
+
 /// Check if a binary is available in PATH.
 pub fn in_path(binary: ref u8) bool = trust {
     val path_env = env("PATH")
@@ -414,10 +421,7 @@ pub fn in_path(binary: ref u8) bool = trust {
             return false
         }
         some path => {
-            val sep: mut u8 = 58
-            when windows {
-                sep = 59
-            } // ';'
+            val sep: u8 = path_separator()
 
             val i: mut i64 = 0
             val start: mut i64 = 0

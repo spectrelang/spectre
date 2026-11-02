@@ -73,18 +73,10 @@ when posix {
 }
 
 when windows {
-    extern (C) fn GetVersionExA(lpVersionInformation: ref void) i32 = "GetVersionExA"
+    extern (C, header) fn GetVersionExA(lpVersionInformation: ref void) i32 = "GetVersionExA"
 }
 
 pub fn get_current_platform[T: allocators.Allocator](ac: T) Platform = trust {
-    val buf: mut UnameResult = {
-        sysname: 0,
-        nodename: 0,
-        release: 0,
-        version: 0,
-        machine: 0
-    }
-
     when windows {
         val osvi: mut ref void = T.alloc(ac, 128) as ref void
         @store8(osvi, 128)
@@ -95,6 +87,13 @@ pub fn get_current_platform[T: allocators.Allocator](ac: T) Platform = trust {
     }
 
     when posix {
+        val buf: mut UnameResult = {
+            sysname: 0,
+            nodename: 0,
+            release: 0,
+            version: 0,
+            machine: 0
+        }
         val r = uname(@addr(buf))
         if r == 0 {
             val sysname: ref u8 = @addr(buf.sysname) as ref u8
@@ -170,7 +169,7 @@ when darwin {
 }
 
 when windows {
-    extern (C) fn GetModuleFileNameA(module: ref void, buf: ref u8, size: u32) u32 = "GetModuleFileNameA"
+    extern (C, header) fn GetModuleFileNameA(module: ref void, buf: ref u8, size: u32) u32 = "GetModuleFileNameA"
 }
 
 /// Returns the absolute path to the current executable.

@@ -1,0 +1,17 @@
+when linux {
+    val PLATFORM_VALUE: i32 = 1
+} or when windows {
+    val PLATFORM_VALUE: i32 = 2
+} otherwise {
+    val PLATFORM_VALUE: i32 = 3
+}
+
+pub fn main() i32 = {
+    when linux {
+        return PLATFORM_VALUE - 1
+    } or when windows {
+        return PLATFORM_VALUE - 2
+    } otherwise {
+        return PLATFORM_VALUE - 3
+    }
+}

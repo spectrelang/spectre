@@ -2861,8 +2861,10 @@ fn gen_expr(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
         emit(ctx, buf)
         emitln(ctx, "{")
         cc_emit_defers(ctx)
-        if ctx.current_ret_is_void {
+        if str.raw_cmp(ctx.current_ret_ctype, "void") == 0 {
             @snprintf(buf, 8192, "return;\n}\nint64_t sx__val{lld} = sx__try{lld}[1];\n", {t, t})
+        } elif ctx.current_ret_is_void {
+            @snprintf(buf, 8192, "return 0;\n}\nint64_t sx__val{lld} = sx__try{lld}[1];\n", {t, t})
         } else {
             @snprintf(buf, 8192, "return ({s})(intptr_t)sx__try{lld};\n}\nint64_t sx__val{lld} = sx__try{lld}[1];\n", {ctx.current_ret_ctype, t, t, t})
         }
@@ -4193,6 +4195,12 @@ fn gen_builtin(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
         val buf: ref u8 = @alloc(4096) as ref u8
         @snprintf(buf, 4096, "printf((const char*)(intptr_t)({s}))", {fmt_arg}) return cc_expr_track(ctx, buf)
     }
+    if str.raw_cmp(bname, "mkdir") == 0 && cc_platform_matches(ctx, "windows") {
+        val p: ref u8 = get_arg(ctx, args, 0)
+        val buf: ref u8 = @alloc(512) as ref u8
+        @snprintf(buf, 512, "_mkdir((const char*)(intptr_t)({s}))", {p})
+        return cc_expr_track(ctx, buf)
+    }
     if is_libc_fn(bname) {
         val sb: ref void = str.StringBuilder.new()
         val hdr: ref u8 = @alloc(8192) as ref u8 @snprintf(hdr, 8192, "{s}(", {bname})
@@ -4956,7 +4964,7 @@ fn gen_stmt(ctx: mut ref CCtx, stmt: ref parser.Node) void = trust {
         val expr: ref parser.Node = stmt.d0 as ref parser.Node
         cc_emit_defers(ctx)
         if expr == none {
-            if ctx.current_ret_is_void {
+            if str.raw_cmp(ctx.current_ret_ctype, "void") == 0 {
                 emitln(ctx, "return;")
             } else {
                 emitln(ctx, "return 0;")
@@ -5840,7 +5848,7 @@ fn gen_fn_prefixed(ctx: mut ref CCtx, fn_node: ref parser.Node, mod_prefix: ref 
     if needs_ret {
         cc_emit_defers(ctx) if is_main {
             emitln(ctx, "return 0;")
-        } elif ctx.current_ret_is_void {
+        } elif str.raw_cmp(ctx.current_ret_ctype, "void") == 0 {
             emitln(ctx, "return;")
         } else {
             emitln(ctx, "return 0;")
@@ -6308,6 +6316,10 @@ fn emit_c_preamble(ctx: ref CCtx) void = trust {
         emitln_fwd(ctx, "#include <windows.h>")
         emitln_fwd(ctx, "#include <io.h>")
         emitln_fwd(ctx, "#include <direct.h>")
+        emitln_fwd(ctx, "#ifdef __MINGW32__")
+        emitln_fwd(ctx, "#include <dirent.h>")
+        emitln_fwd(ctx, "#include <sys/time.h>")
+        emitln_fwd(ctx, "#endif")
     }
     emitln_fwd(ctx, "static int64_t sx__argc=0;")
     emitln_fwd(ctx, "static int64_t sx__argv=0;")
@@ -6405,15 +6417,18 @@ fn emit_forward_decls(ctx: ref CCtx) void = trust {
         if mangled_opt is some mangled_ref {
             val mangled: ref u8 = mangled_ref as ref u8
             if str.raw_cmp(mangled, "main") == 0 {
-                fi++ continue
+                fi++
+                continue
             }
             if is_libc_fn(mangled) {
-                fi++ continue
+                fi++
+                continue
             }
             val nf_opt = @get(ctx.fn_no_forward as list[bool], fi as usize)
             if nf_opt is some nf {
                 if nf as bool {
-                    fi++ continue
+                    fi++
+                    continue
                 }
             }
 

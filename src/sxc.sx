@@ -26,7 +26,7 @@ val c_translate = use("translate/c_translate.sx")
 val builds      = use("meta/builds.sx")
 
 when windows {
-    extern (C) fn SetConsoleOutputCP(codepage_id: u32) bool = "SetConsoleOutputCP"
+    extern (C, header) fn SetConsoleOutputCP(codepage_id: u32) bool = "SetConsoleOutputCP"
 }
 
 pub fn main() i32 = trust {
@@ -542,7 +542,7 @@ pub fn main() i32 = trust {
     if quiet {
         quiet_flag = true
     }
-    val errors: list[ref u8] = sema.check_module_tree(root_mod, quiet_flag)
+    val errors: list[ref u8] = sema.check_module_tree(root_mod, quiet_flag, src_target)
     val nerrors: i64 = @len(errors) as i64
     if nerrors > 0 {
         for e in errors {
@@ -670,9 +670,9 @@ pub fn main() i32 = trust {
         }
 
         val warn_flag: ref u8 = builds.compiler_warn_flag(selected_compiler)
-        val cc_flags_alt: mut ref u8 = @fmt("-std=c99 {s} -O3", {warn_flag})
+        val cc_flags_alt: mut ref u8 = @fmt("-std=c99 {s} -O3 -Wno-error=int-conversion", {warn_flag})
         if !release_mode {
-            cc_flags_alt = @fmt("-std=c99 {s} -g", {warn_flag})
+            cc_flags_alt = @fmt("-std=c99 {s} -g -Wno-error=int-conversion", {warn_flag})
         }
         val test_output_alt: ref u8 = builds.get_tmp_path("spectre_test_bin_alt")
         val compile_output: mut ref u8 = test_output_alt
@@ -915,7 +915,7 @@ pub fn main() i32 = trust {
         }
 
         shim_obj = builds.get_tmp_path("spectre_c_shim.o")
-        val shim_cmd = @fmt("cc -std=c99 -c -o {s} {s}{s} 2>&1", {shim_obj, shim_c_file, include_flags})
+        val shim_cmd = @fmt("cc -std=c99 -Wno-error=int-conversion -c -o {s} {s}{s} 2>&1", {shim_obj, shim_c_file, include_flags})
         if show_cmd != 0 {
             stdio.print("{s}\n", {shim_cmd})
         }

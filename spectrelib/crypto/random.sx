@@ -4,22 +4,48 @@
 
 val stdio = use("../stdio")
 
-when posix {
+when linux {
+    // glibc >= 2.25 / musl provide getrandom(2) directly.
+    extern (C) fn getrandom(buf: ref void, buflen: usize, flags: u32) isize = "getrandom"
+} or when android {
+    extern (C) fn getrandom_android(buf: ref void, buflen: usize, flags: u32) isize = "getrandom"
+} or when posix {
+    // arc4random is native on macOS and the BSDs.
     extern (C) fn arc4random_buf(buf: ref void, len: usize) void = "arc4random_buf"
-    extern (C) fn arc4random_uniform(upper_bound: u32) u32 = "arc4random_uniform"
-}
-
-when windows {
+} or when windows {
     link "-lbcrypt"
     extern (C) fn BCryptGenRandom(hAlgorithm: ref void, pbBuffer: ref void, cbBuffer: u32, dwFlags: u32) i32 = "BCryptGenRandom"
 }
 
 /// Fill `buf` with `len` cryptographically secure random bytes.
 pub fn random_bytes(buf: ref void, len: usize) void = {
-    when posix {
+    when linux {
+        val total: mut usize = 0
+        for {
+            if total >= len {
+                break
+            }
+            val n: isize = trust getrandom(@ptradd(buf, total as i64), len - total, 0 as u32)
+            if n <= 0 {
+                break
+            }
+            total = total + (n as usize)
+        }
+    } or when android {
+        val total: mut usize = 0
+        for {
+            if total >= len {
+                break
+            }
+            val n: isize = trust getrandom_android(@ptradd(buf, total as i64), len - total, 0 as u32)
+            if n <= 0 {
+                break
+            }
+            total = total + (n as usize)
+        }
+    } or when posix {
         trust arc4random_buf(buf, len)
-    }
-    when windows {
+    } or when windows {
         trust BCryptGenRandom(none, buf, len as u32, 2 as u32)
     }
 }
@@ -27,34 +53,26 @@ pub fn random_bytes(buf: ref void, len: usize) void = {
 /// Return a cryptographically secure random u64.
 pub fn random_u64() u64 = {
     val buf: ref void = @alloc(8)
-    random_bytes(buf, 8 as u32)
+    random_bytes(buf, 8 as usize)
     val result: u64 = trust @load(buf) as u64
     trust @free(buf)
     return result
 }
 
-/// Return a cryptographically secure random u32 in (0, upper_bound) without modulo bias.
+/// Return a cryptographically secure u32 in (0, upper_bound) without modulo bias.
 /// Requires upper_bound > 0.
 pub fn random_u32_below(upper_bound: u32) u32 = {
-    when posix {
-        return trust arc4random_uniform(upper_bound)
+    if upper_bound <= 1 {
+        return 0
     }
-    when windows {
-        if upper_bound == 0 {
-            return 0
-        }
-        if upper_bound == 1 {
-            return 0
-        }
-        val threshold: u32 = (4294967295 as u32 % upper_bound + 1) % upper_bound
-        for {
-            val buf: ref void = @alloc(4)
-            trust BCryptGenRandom(none, buf, 4 as u32, 2 as u32)
-            val r: u32 = trust @load(buf) as u32
-            trust @free(buf)
-            if r >= threshold {
-                return r % upper_bound
-            }
+    val threshold: u32 = (4294967295 as u32 % upper_bound + 1) % upper_bound
+    for {
+        val buf: ref void = @alloc(4)
+        random_bytes(buf, 4 as usize)
+        val r: u32 = trust @load(buf) as u32
+        trust @free(buf)
+        if r >= threshold {
+            return r % upper_bound
         }
     }
     return 0
