@@ -6,6 +6,7 @@ BIN_DIR="${PREFIX}/bin"
 SRC_DIR="${PREFIX}/src"
 
 QBE_OK=1
+QBE_BIN=""
 FORCE_FALLBACK=0
 QBE_MIRROR_REPO="https://github.com/spectrelang/qbe-mirror.git"
 QBE_REPO="https://c9x.me/git/qbe.git"
@@ -193,7 +194,8 @@ if [ "$FORCE_FALLBACK" -eq 1 ]; then
 	log "Skipping QBE (forced fallback mode)."
 	QBE_OK=0
 elif command -v qbe >/dev/null 2>&1; then
-	log "QBE already installed, skipping."
+	QBE_BIN="$(command -v qbe)"
+	log "QBE already installed, skipping: ${QBE_BIN}"
 else
 	log "Installing QBE..."
 
@@ -218,6 +220,7 @@ else
 	if [ "$QBE_OK" -eq 1 ] && [ -x "${QBE_DIR}/qbe" ]; then
 		log "Installing QBE to ${BIN_DIR}..."
 		/usr/bin/install -m 0755 "${QBE_DIR}/qbe" "$BIN_DIR/qbe"
+		QBE_BIN="${BIN_DIR}/qbe"
 	else
 		log "QBE setup failed — will use C bootstrap fallback."
 		QBE_OK=0
@@ -321,11 +324,12 @@ esac
 
 if [ "$QBE_OK" -eq 1 ]; then
 	[ -f "$BOOTSTRAP_SSA" ] || err "Missing bootstrap SSA at ${BOOTSTRAP_SSA}"
+	[ -n "$QBE_BIN" ] || err "QBE was not found in PATH or installed."
 
 	log "Bootstrapping Spectre with QBE..."
 
 	log "QBE Stage..."
-	"${BIN_DIR}/qbe" -o "${BOOTSTRAP_OUT}.s" "$BOOTSTRAP_SSA"
+	"${QBE_BIN}" -o "${BOOTSTRAP_OUT}.s" "$BOOTSTRAP_SSA"
 
 	log "CC Stage II..."
 	cc -O2 \
@@ -467,7 +471,7 @@ echo "  - spectre    -> ${BIN_DIR}/spectre"
 echo "  - spectre-ls -> ${BIN_DIR}/spectre-ls"
 echo "  - stdlib     -> ${BIN_DIR}/spectrelib"
 if [ "$QBE_OK" -eq 1 ]; then
-	echo "  - qbe        -> ${BIN_DIR}/qbe"
+	echo "  - qbe        -> ${QBE_BIN}"
 elif [ "$FORCE_FALLBACK" -eq 1 ]; then
 	echo "  - qbe        -> (skipped, -fallback flag set)"
 else
