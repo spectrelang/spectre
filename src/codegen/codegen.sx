@@ -12630,22 +12630,15 @@ fn preregister_items(ctx: mut ref CgCtx, items: list[ref parser.Node], mod_prefi
                         @snprintf(fval, 128, "d_{s}", {ftext})
                         cval_reg = fval
                     } elif cexpr.kind == parser.NK_UNOP {
-                        val uop: i64 = parser.unop_op(cexpr)
-                        val inner: ref parser.Node = parser.unop_inner(cexpr)
-                        if inner != none {
-                            if uop == parser.UOP_NEG {
-                                if inner.kind == parser.NK_INT_LIT {
-                                    val itext: ref u8 = normalize_static_int_text(parser.int_lit_text(inner))
-                                    val ival: ref u8 = @alloc(128) as ref u8
-                                    @snprintf(ival, 128, "-{s}", {itext})
-                                    cval_reg = ival
-                                } elif inner.kind == parser.NK_FLOAT_LIT {
-                                    val ftext2: ref u8 = parser.float_lit_text(inner)
-                                    val fval2: ref u8 = @alloc(128) as ref u8
-                                    @snprintf(fval2, 128, "d_-{s}", {ftext2})
-                                    cval_reg = fval2
-                                }
-                            }
+                        val uval: ref u8 = const_unop_value(ctx, cexpr)
+                        if str.raw_cmp(uval, "") != 0 {
+                            cval_reg = uval
+                        }
+                    } elif cexpr.kind == parser.NK_CAST {
+                        val target: ref u8 = type_expr_to_annotation(ctx, cexpr.d1 as ref parser.Node)
+                        val cast_val: ref u8 = const_cast_value(ctx, cexpr.d0 as ref parser.Node, target)
+                        if str.raw_cmp(cast_val, "") != 0 {
+                            cval_reg = cast_val
                         }
                     } elif cexpr.kind == parser.NK_BOOL {
                         val bval: i64 = cexpr.d0 as i64
@@ -12701,6 +12694,135 @@ fn preregister_items(ctx: mut ref CgCtx, items: list[ref parser.Node], mod_prefi
         }
         i++
     }
+}
+
+fn const_cast_value(ctx: mut ref CgCtx, inner: ref parser.Node, target: ref u8) ref u8 = trust {
+    if inner == none {
+        return ""
+    }
+    val k: i64 = inner.kind
+    if k == parser.NK_CAST {
+        return const_cast_value(ctx, inner.d0 as ref parser.Node, target)
+    }
+    if k == parser.NK_INT_LIT {
+        val itext: ref u8 = normalize_static_int_text(parser.int_lit_text(inner))
+        if is_float_type_name(target) {
+            val fval: ref u8 = @alloc(128) as ref u8
+            @snprintf(fval, 128, "d_{s}.0", {itext})
+            return fval
+        }
+        return itext
+    }
+    if k == parser.NK_FLOAT_LIT {
+        val ftext: ref u8 = parser.float_lit_text(inner)
+        val fval: ref u8 = @alloc(128) as ref u8
+        if str.raw_cmp(target, "f32") == 0 {
+            @snprintf(fval, 128, "s_{s}", {ftext})
+        } else {
+            @snprintf(fval, 128, "d_{s}", {ftext})
+        }
+        return fval
+    }
+    if k == parser.NK_BOOL {
+        val bv: i64 = inner.d0 as i64
+        if is_float_type_name(target) {
+            if bv != 0 {
+                return "d_1.0"
+            }
+            return "d_0.0"
+        }
+        if bv != 0 {
+            return "1"
+        }
+        return "0"
+    }
+    if k == parser.NK_CHAR_LIT {
+        val cv: i64 = inner.d0 as i64
+        val cv_buf: ref u8 = @alloc(32) as ref u8
+        if is_float_type_name(target) {
+            @snprintf(cv_buf, 32, "d_{lld}.0", {cv})
+        } else {
+            @snprintf(cv_buf, 32, "{lld}", {cv})
+        }
+        return cv_buf
+    }
+    if k == parser.NK_UNOP {
+        val uop: i64 = parser.unop_op(inner)
+        val operand: ref parser.Node = parser.unop_inner(inner)
+        if uop == parser.UOP_NEG && operand != none {
+            val inner_val: ref u8 = const_cast_value(ctx, operand, target)
+            if str.raw_cmp(inner_val, "") != 0 {
+                val neg: ref u8 = @alloc(160) as ref u8
+                if raw_starts_with(inner_val, "d_") {
+                    @snprintf(neg, 160, "d_-{s}", {@ptradd(inner_val, 2) as ref u8})
+                } elif raw_starts_with(inner_val, "s_") {
+                    @snprintf(neg, 160, "s_-{s}", {@ptradd(inner_val, 2) as ref u8})
+                } else {
+                    @snprintf(neg, 160, "-{s}", {inner_val})
+                }
+                return neg
+            }
+        }
+    }
+    return ""
+}
+
+fn const_expr_value(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
+    if expr == none {
+        return ""
+    }
+    val k: i64 = expr.kind
+    if k == parser.NK_INT_LIT {
+        return normalize_static_int_text(parser.int_lit_text(expr))
+    }
+    if k == parser.NK_FLOAT_LIT {
+        val fval: ref u8 = @alloc(128) as ref u8
+        @snprintf(fval, 128, "d_{s}", {parser.float_lit_text(expr)})
+        return fval
+    }
+    if k == parser.NK_BOOL {
+        if (expr.d0 as i64) != 0 {
+            return "1"
+        }
+        return "0"
+    }
+    if k == parser.NK_CHAR_LIT {
+        val cv_buf: ref u8 = @alloc(32) as ref u8
+        @snprintf(cv_buf, 32, "{lld}", {expr.d0 as i64})
+        return cv_buf
+    }
+    if k == parser.NK_CAST {
+        val target: ref u8 = type_expr_to_annotation(ctx, expr.d1 as ref parser.Node)
+        return const_cast_value(ctx, expr.d0 as ref parser.Node, target)
+    }
+    if k == parser.NK_UNOP {
+        return const_unop_value(ctx, expr)
+    }
+    return ""
+}
+
+fn const_unop_value(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
+    if expr == none {
+        return ""
+    }
+    val uop: i64 = parser.unop_op(expr)
+    val operand: ref parser.Node = parser.unop_inner(expr)
+    if uop != parser.UOP_NEG || operand == none {
+        return ""
+    }
+    val inner_val: ref u8 = const_expr_value(ctx, operand)
+    if str.raw_cmp(inner_val, "") == 0 {
+        return ""
+    }
+    val neg: ref u8 = @alloc(160) as ref u8
+    if raw_starts_with(inner_val, "d_") {
+        @snprintf(neg, 160, "d_-{s}", {@ptradd(inner_val, 2) as ref u8})
+    } elif raw_starts_with(inner_val, "s_") {
+        @snprintf(neg, 160, "s_-{s}", {@ptradd(inner_val, 2) as ref u8})
+    } else {
+        @snprintf(neg, 160, "-{s}", {inner_val})
+    }
+    return neg
 }
 
 /// Emit all items from one module layer, using `mod_prefix` for name mangling.
@@ -12820,34 +12942,40 @@ fn gen_items_with_prefix(ctx: mut ref CgCtx, items: list[ref parser.Node], mod_p
                         cg_register_module_const(ctx, cname, fval)
                         @free(const_label)
                     } elif cexpr.kind == parser.NK_UNOP {
-                        val uop: i64 = parser.unop_op(cexpr)
-                        val inner: ref parser.Node = parser.unop_inner(cexpr)
-                        if inner != none {
-                            if uop == parser.UOP_NEG {
-                                if inner.kind == parser.NK_INT_LIT {
-                                    val itext: ref u8 = normalize_static_int_text(parser.int_lit_text(inner))
-                                    val ival: ref u8 = @alloc(128) as ref u8
-                                    @snprintf(ival, 128, "-{s}", {itext})
-                                    cg_register_module_const(ctx, cname, ival)
-                                    if cg_emit_label_if_new(ctx, const_label) {
-                                        val data_buf2: ref u8 = @alloc(256) as ref u8
-                                        @snprintf(data_buf2, 256, "data ${s} = \{ l {s} \}\n", {const_label, ival})
-                                        emit(ctx, data_buf2)
-                                        @free(data_buf2)
-                                    } else {
-                                        @free(const_label)
-                                    }
-                                } elif inner.kind == parser.NK_FLOAT_LIT {
-                                    val ftext2: ref u8 = parser.float_lit_text(inner)
-                                    val fval2: ref u8 = @alloc(128) as ref u8
-                                    @snprintf(fval2, 128, "d_-{s}", {ftext2})
-                                    cg_register_module_const(ctx, cname, fval2)
-                                    @free(const_label)
+                        val cval: ref u8 = const_unop_value(ctx, cexpr)
+                        if str.raw_cmp(cval, "") != 0 {
+                            cg_register_module_const(ctx, cname, cval)
+                            if raw_starts_with(cval, "d_") || raw_starts_with(cval, "s_") {
+                                @free(const_label)
+                            } else {
+                                if cg_emit_label_if_new(ctx, const_label) {
+                                    val data_buf: ref u8 = @alloc(256) as ref u8
+                                    @snprintf(data_buf, 256, "data ${s} = \{ l {s} \}\n", {const_label, cval})
+                                    emit(ctx, data_buf)
+                                    @free(data_buf)
                                 } else {
                                     @free(const_label)
                                 }
-                            } else {
+                            }
+                        } else {
+                            @free(const_label)
+                        }
+                    } elif cexpr.kind == parser.NK_CAST {
+                        val target: ref u8 = type_expr_to_annotation(ctx, cexpr.d1 as ref parser.Node)
+                        val cval: ref u8 = const_cast_value(ctx, cexpr.d0 as ref parser.Node, target)
+                        if str.raw_cmp(cval, "") != 0 {
+                            cg_register_module_const(ctx, cname, cval)
+                            if raw_starts_with(cval, "d_") || raw_starts_with(cval, "s_") {
                                 @free(const_label)
+                            } else {
+                                if cg_emit_label_if_new(ctx, const_label) {
+                                    val data_buf: ref u8 = @alloc(256) as ref u8
+                                    @snprintf(data_buf, 256, "data ${s} = \{ l {s} \}\n", {const_label, cval})
+                                    emit(ctx, data_buf)
+                                    @free(data_buf)
+                                } else {
+                                    @free(const_label)
+                                }
                             }
                         } else {
                             @free(const_label)
@@ -14069,34 +14197,40 @@ fn gen_items_with_prefix_skip_links(ctx: mut ref CgCtx, items: list[ref parser.N
                         cg_register_module_const(ctx, cname, fval)
                         @free(const_label)
                     } elif cexpr.kind == parser.NK_UNOP {
-                        val uop: i64 = parser.unop_op(cexpr)
-                        val inner: ref parser.Node = parser.unop_inner(cexpr)
-                        if inner != none {
-                            if uop == parser.UOP_NEG {
-                                if inner.kind == parser.NK_INT_LIT {
-                                    val itext: ref u8 = normalize_static_int_text(parser.int_lit_text(inner))
-                                    val ival: ref u8 = @alloc(128) as ref u8
-                                    @snprintf(ival, 128, "-{s}", {itext})
-                                    cg_register_module_const(ctx, cname, ival)
-                                    if cg_emit_label_if_new(ctx, const_label) {
-                                        val data_buf2: ref u8 = @alloc(256) as ref u8
-                                        @snprintf(data_buf2, 256, "data ${s} = \{ l {s} \}\n", {const_label, ival})
-                                        emit(ctx, data_buf2)
-                                        @free(data_buf2)
-                                    } else {
-                                        @free(const_label)
-                                    }
-                                } elif inner.kind == parser.NK_FLOAT_LIT {
-                                    val ftext2: ref u8 = parser.float_lit_text(inner)
-                                    val fval2: ref u8 = @alloc(128) as ref u8
-                                    @snprintf(fval2, 128, "d_-{s}", {ftext2})
-                                    cg_register_module_const(ctx, cname, fval2)
-                                    @free(const_label)
+                        val cval: ref u8 = const_unop_value(ctx, cexpr)
+                        if str.raw_cmp(cval, "") != 0 {
+                            cg_register_module_const(ctx, cname, cval)
+                            if raw_starts_with(cval, "d_") || raw_starts_with(cval, "s_") {
+                                @free(const_label)
+                            } else {
+                                if cg_emit_label_if_new(ctx, const_label) {
+                                    val data_buf: ref u8 = @alloc(256) as ref u8
+                                    @snprintf(data_buf, 256, "data ${s} = \{ l {s} \}\n", {const_label, cval})
+                                    emit(ctx, data_buf)
+                                    @free(data_buf)
                                 } else {
                                     @free(const_label)
                                 }
-                            } else {
+                            }
+                        } else {
+                            @free(const_label)
+                        }
+                    } elif cexpr.kind == parser.NK_CAST {
+                        val target: ref u8 = type_expr_to_annotation(ctx, cexpr.d1 as ref parser.Node)
+                        val cval: ref u8 = const_cast_value(ctx, cexpr.d0 as ref parser.Node, target)
+                        if str.raw_cmp(cval, "") != 0 {
+                            cg_register_module_const(ctx, cname, cval)
+                            if raw_starts_with(cval, "d_") || raw_starts_with(cval, "s_") {
                                 @free(const_label)
+                            } else {
+                                if cg_emit_label_if_new(ctx, const_label) {
+                                    val data_buf: ref u8 = @alloc(256) as ref u8
+                                    @snprintf(data_buf, 256, "data ${s} = \{ l {s} \}\n", {const_label, cval})
+                                    emit(ctx, data_buf)
+                                    @free(data_buf)
+                                } else {
+                                    @free(const_label)
+                                }
                             }
                         } else {
                             @free(const_label)
@@ -14214,22 +14348,15 @@ fn gen_items_with_prefix_skip_main(ctx: mut ref CgCtx, items: list[ref parser.No
                         @snprintf(fval3, 128, "d_{s}", {ftext3})
                         cg_register_module_const(ctx, cname, fval3)
                     } elif cexpr.kind == parser.NK_UNOP {
-                        val uop2: i64 = parser.unop_op(cexpr)
-                        val inner2: ref parser.Node = parser.unop_inner(cexpr)
-                        if inner2 != none {
-                            if uop2 == parser.UOP_NEG {
-                                if inner2.kind == parser.NK_INT_LIT {
-                                    val itext2: ref u8 = normalize_static_int_text(parser.int_lit_text(inner2))
-                                    val ival2: ref u8 = @alloc(128) as ref u8
-                                    @snprintf(ival2, 128, "-{s}", {itext2})
-                                    cg_register_module_const(ctx, cname, ival2)
-                                } elif inner2.kind == parser.NK_FLOAT_LIT {
-                                    val ftext4: ref u8 = parser.float_lit_text(inner2)
-                                    val fval4: ref u8 = @alloc(128) as ref u8
-                                    @snprintf(fval4, 128, "d_-{s}", {ftext4})
-                                    cg_register_module_const(ctx, cname, fval4)
-                                }
-                            }
+                        val uval: ref u8 = const_unop_value(ctx, cexpr)
+                        if str.raw_cmp(uval, "") != 0 {
+                            cg_register_module_const(ctx, cname, uval)
+                        }
+                    } elif cexpr.kind == parser.NK_CAST {
+                        val target: ref u8 = type_expr_to_annotation(ctx, cexpr.d1 as ref parser.Node)
+                        val cast_val: ref u8 = const_cast_value(ctx, cexpr.d0 as ref parser.Node, target)
+                        if str.raw_cmp(cast_val, "") != 0 {
+                            cg_register_module_const(ctx, cname, cast_val)
                         }
                     } elif cexpr.kind == parser.NK_BOOL {
                         val bval2: i64 = cexpr.d0 as i64
