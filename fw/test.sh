@@ -13,16 +13,16 @@ failed=0
 skipped=0
 
 for arg in "$@"; do
-    case "$arg" in
-        -bs)
-            BOOTSTRAP_ONLY=1
-            ;;
-    esac
+	case "$arg" in
+	-bs)
+		BOOTSTRAP_ONLY=1
+		;;
+	esac
 done
 
 if [ ! -x "$COMPILER" ]; then
-    echo "ERROR: compiler not found or not executable at $COMPILER"
-    exit 1
+	echo "ERROR: compiler not found or not executable at $COMPILER"
+	exit 1
 fi
 
 LOG_DIR="${TEST_LOG_DIR:-${RUNNER_TEMP:-${TMPDIR:-/tmp}}/spectre-test-logs}"
@@ -30,115 +30,115 @@ mkdir -p "$LOG_DIR"
 
 LINK_ARGS=()
 if [ "${SPECTRE_TEST_DYNAMIC:-0}" = "1" ]; then
-    LINK_ARGS+=(--dynamic)
+	LINK_ARGS+=(--dynamic)
 fi
 
 run_samples() {
-    for file in "$SAMPLES_DIR"/*.sx; do
-        [ -e "$file" ] || continue
+	for file in "$SAMPLES_DIR"/*.sx; do
+		[ -e "$file" ] || continue
 
-        filename=$(basename "$file")
+		filename=$(basename "$file")
 
-        if [[ "$filename" == *_rt_error.sx ]]; then
-            echo "[SKIP] $filename (runtime error test)"
-            ((skipped++))
-            continue
-        fi
+		if [[ "$filename" == *_rt_error.sx ]]; then
+			echo "[SKIP] $filename (runtime error test)"
+			((skipped++))
+			continue
+		fi
 
-        if [[ "$filename" == *_rv.sx ]]; then
-            ((total++))
+		if [[ "$filename" == *_rv.sx ]]; then
+			((total++))
 
-            "$COMPILER" run "$file" > /dev/null 2>&1
-            status=$?
+			"$COMPILER" run "$file" >/dev/null 2>&1
+			status=$?
 
-            if [ $status -eq 0 ]; then
-                echo "[PASS] $filename (runtime check)"
-                ((passed++))
-            else
-                echo "[FAIL] $filename (runtime check)"
-                ((failed++))
-            fi
+			if [ $status -eq 0 ]; then
+				echo "[PASS] $filename (runtime check)"
+				((passed++))
+			else
+				echo "[FAIL] $filename (runtime check)"
+				((failed++))
+			fi
 
-            continue
-        fi
+			continue
+		fi
 
-        ((total++))
+		((total++))
 
-        extra_args=()
+		extra_args=()
 
-        if [[ "$filename" == "sample167.sx" ]]; then
-            extra_args+=(--dynamic)
-        fi
+		if [[ "$filename" == "sample167.sx" ]]; then
+			extra_args+=(--dynamic)
+		fi
 
-        if [ ${#extra_args[@]} -gt 0 ]; then
-            "$COMPILER" "$file" "${LINK_ARGS[@]}" "${extra_args[@]}" > /dev/null 2>&1
-        else
-            "$COMPILER" "$file" "${LINK_ARGS[@]}" > /dev/null 2>&1
-        fi
-        status=$?
+		if [ ${#extra_args[@]} -gt 0 ]; then
+			"$COMPILER" "$file" ${LINK_ARGS[@]+"${LINK_ARGS[@]}"} "${extra_args[@]}" >/dev/null 2>&1
+		else
+			"$COMPILER" "$file" ${LINK_ARGS[@]+"${LINK_ARGS[@]}"} >/dev/null 2>&1
+		fi
+		status=$?
 
-        if [[ "$filename" == *_error.sx ]]; then
-            if [ $status -ne 0 ]; then
-                echo "[PASS] $filename (failed as expected)"
-                ((passed++))
-            else
-                echo "[FAIL] $filename (expected failure, got success)"
-                ((failed++))
-            fi
-        else
-            if [ $status -eq 0 ]; then
-                echo "[PASS] $filename"
-                ((passed++))
-            else
-                echo "[FAIL] $filename"
-                ((failed++))
-            fi
-        fi
-    done
+		if [[ "$filename" == *_error.sx ]]; then
+			if [ $status -ne 0 ]; then
+				echo "[PASS] $filename (failed as expected)"
+				((passed++))
+			else
+				echo "[FAIL] $filename (expected failure, got success)"
+				((failed++))
+			fi
+		else
+			if [ $status -eq 0 ]; then
+				echo "[PASS] $filename"
+				((passed++))
+			else
+				echo "[FAIL] $filename"
+				((failed++))
+			fi
+		fi
+	done
 }
 
 run_std_tests() {
-    find "$STD_DIR" -type f -name "*.sx" | sort | while IFS= read -r file; do
-        filename=$(basename "$file")
-        log_name="${file#./}"
-        log_name="${log_name//\//_}"
-        log_file="$LOG_DIR/std_${log_name}.log"
+	find "$STD_DIR" -type f -name "*.sx" | sort | while IFS= read -r file; do
+		filename=$(basename "$file")
+		log_name="${file#./}"
+		log_name="${log_name//\//_}"
+		log_file="$LOG_DIR/std_${log_name}.log"
 
-        ((total++))
+		((total++))
 
-        "$COMPILER" "$file" --test "${LINK_ARGS[@]}" >"$log_file" 2>&1 < /dev/null
-        status=$?
+		"$COMPILER" "$file" --test ${LINK_ARGS[@]+"${LINK_ARGS[@]}"} >"$log_file" 2>&1 </dev/null
+		status=$?
 
-        if [ $status -eq 0 ]; then
-            echo "[PASS] $file"
-            ((passed++))
-        else
-            echo "[FAIL] $file"
-            echo "  command: $COMPILER $file --test ${LINK_ARGS[*]}"
-            echo "  log: $log_file"
-            sed 's/^/  /' "$log_file" | sed -n '1,240p'
-            log_lines=$(wc -l < "$log_file")
-            if [ "$log_lines" -gt 240 ]; then
-                echo "  ... ($log_lines lines total; see $log_file)"
-            fi
-            ((failed++))
-        fi
-    done
+		if [ $status -eq 0 ]; then
+			echo "[PASS] $file"
+			((passed++))
+		else
+			echo "[FAIL] $file"
+			echo "  command: $COMPILER $file --test ${LINK_ARGS[*]+"${LINK_ARGS[*]}"}"
+			echo "  log: $log_file"
+			sed 's/^/  /' "$log_file" | sed -n '1,240p'
+			log_lines=$(wc -l <"$log_file")
+			if [ "$log_lines" -gt 240 ]; then
+				echo "  ... ($log_lines lines total; see $log_file)"
+			fi
+			((failed++))
+		fi
+	done
 }
 
 if [ $BOOTSTRAP_ONLY -eq 0 ]; then
-    run_samples
+	run_samples
 
-    echo
-    echo "Extra tests:"
-    run_std_tests
+	echo
+	echo "Extra tests:"
+	run_std_tests
 
-    "$COMPILER" ./src/ast/lexer.sx -l --test
-    "$COMPILER" ./src/ast/parser.sx -l --test
-    "$COMPILER" ./src/sema/sema.sx -l --test
-    "$COMPILER" ./src/module/module.sx -l --test
-    "$COMPILER" ./src/codegen/codegen.sx -l --test
-    "$COMPILER" ./src/sxc.sx -l --test
+	"$COMPILER" ./src/ast/lexer.sx -l --test
+	"$COMPILER" ./src/ast/parser.sx -l --test
+	"$COMPILER" ./src/sema/sema.sx -l --test
+	"$COMPILER" ./src/module/module.sx -l --test
+	"$COMPILER" ./src/codegen/codegen.sx -l --test
+	"$COMPILER" ./src/sxc.sx -l --test
 fi
 
 echo "Bootstrap test:"
@@ -156,7 +156,7 @@ echo "Test logs   : $LOG_DIR"
 echo
 
 if [ $failed -ne 0 ]; then
-    exit 1
+	exit 1
 fi
 
 exit 0

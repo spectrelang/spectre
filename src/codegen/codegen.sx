@@ -3216,7 +3216,7 @@ fn gen_struct_lit_inline(ctx: mut ref CgCtx, struct_node: ref parser.Node, paren
                             {fptr, parent_ptr, actual_off, fptr, fval, copy_size})
                     }
                 } else {
-                    val fval: ref u8 = gen_expr_expected(ctx, lf_expr, fty_node)
+                    val fval: ref u8 = cg_gen_expr_for_store(ctx, lf_expr, fty_node, lit_store_op)
                     @snprintf(fbuf, 128, "    %%t{lld} =l add %%t{lld}, {lld}\n    {s} {s}, %%t{lld}\n",
                         {fptr, parent_ptr, actual_off, lit_store_op, fval, fptr})
                 }
@@ -3416,6 +3416,18 @@ fn fresh_tmp(ctx: mut ref CgCtx) i64 = trust {
     val n: i64 = cg_tmp(ctx)
     cg_set_tmp(ctx, n + 1)
     return n
+}
+
+/// Return the QBE-safe temporary name to use for a source-level function parameter.
+/// Parameters named `_` are wildcards and may repeat with different types; QBE
+/// treats every parameter as a temporary assignment, so each needs a distinct name.
+fn cg_param_qbe_name(index: i64, pname: ref u8) ref u8 = trust {
+    if str.raw_cmp(pname, "_") != 0 {
+        return pname
+    }
+    val out: ref u8 = @alloc(32) as ref u8
+    @snprintf(out, 32, "_unused.{lld}", {index})
+    return out
 }
 
 fn fresh_lbl(ctx: mut ref CgCtx) i64 = trust {
@@ -6529,6 +6541,39 @@ fn field_store_instr_for_struct(ctx: mut ref CgCtx, owner_fields: ref void, ty: 
     return "storel"
 }
 
+/// Coerce an expression value to the QBE type expected by a field store.
+fn cg_coerce_store_value(ctx: mut ref CgCtx, value: ref u8, val_qtype: ref u8, store_op: ref u8) ref u8 = trust {
+    val vq: ref u8 = cg_normalize_qtype(val_qtype)
+    if str.raw_cmp(store_op, "stores") == 0 {
+        return cg_coerce_qtype(ctx, value, vq, "s")
+    }
+    if str.raw_cmp(store_op, "stored") == 0 {
+        return cg_coerce_qtype(ctx, value, vq, "d")
+    }
+    if str.raw_cmp(store_op, "storel") == 0 && str.raw_cmp(vq, "w") == 0 {
+        val ext_tmp: i64 = fresh_tmp(ctx)
+        val ext_buf: ref u8 = @alloc(64) as ref u8
+        @snprintf(ext_buf, 64, "    %%t{lld} =l extsw {s}\n", {ext_tmp, value})
+        emit(ctx, ext_buf)
+        @free(ext_buf)
+        val ext_res: ref u8 = @alloc(16) as ref u8
+        @snprintf(ext_res, 16, "%%t{lld}", {ext_tmp})
+        return ext_res
+    }
+    return value
+}
+
+/// Generate an expression for a field initializer and coerce it to the type
+/// required by the field's store instruction.
+fn cg_gen_expr_for_store(ctx: mut ref CgCtx, expr: ref parser.Node, expected_ty: ref parser.Node, store_op: ref u8) ref u8 = trust {
+    val old_expected: ref parser.Node = ctx.expected_ty as ref parser.Node
+    ctx.expected_ty = expected_ty
+    val raw: ref u8 = gen_expr(ctx, expr)
+    val raw_qtype: ref u8 = expr_qbe_type(ctx, expr)
+    ctx.expected_ty = old_expected
+    return cg_coerce_store_value(ctx, raw, raw_qtype, store_op)
+}
+
 fn gen_field(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
     val base_expr: ref parser.Node = expr.d0 as ref parser.Node
     val field_name: ref u8 = expr.d1 as ref u8
@@ -7129,44 +7174,48 @@ fn gen_store_field_value(ctx: mut ref CgCtx, target: ref parser.Node, val_tmp2: 
         val field_size_write: mut i64 = 8
         val field_store_op: mut ref u8 = "storel"
 
+        val lookup3: mut ref u8 = ""
         if ftarget.kind == parser.NK_IDENT {
             val bname2: ref u8 = ftarget.d0 as ref u8
             val tname3: ref u8 = cg_local_type(ctx, bname2)
-            val lookup3: ref u8 = cg_ann_deref(tname3)
-            if str.raw_cmp(lookup3, "") != 0 {
-                val flds3: ref void = cg_lookup_struct(ctx, lookup3)
-                if flds3 != none {
-                    val sf3len: i64 = @len(flds3 as list[ref void]) as i64
-                    val sf3i: mut i64 = 0
-                    for {
-                        if sf3i >= sf3len {
-                            break
-                        }
-                        val sf3_opt = @get(flds3 as list[ref void], sf3i as usize)
-                        if sf3_opt is some sf3 {
-                            val sf3n: ref parser.Node = sf3 as ref parser.Node
-                            val sf3name: ref u8 = sf3n.d0 as ref u8
-                            if str.raw_cmp(sf3name, fname) == 0 {
-                                val sf3ty: ref parser.Node = sf3n.d2 as ref parser.Node
-                                if sf3ty != none {
-                                    if sf3ty.kind == parser.TY_LIST {
-                                        field_is_list = true
-                                    } else {
-                                        if sf3ty.kind == parser.TY_NAMED {
-                                            val ftnm: ref u8 = sf3ty.d0 as ref u8
-                                            val sflds: ref void = cg_lookup_struct(ctx, ftnm)
-                                            if sflds != none {
-                                                field_size_write = struct_size(ctx, sflds)
-                                            }
-                                        }
-                                        field_store_op = field_store_instr_for_struct(ctx, flds3, sf3ty)
-                                    }
-                                }
-                                sf3i = sf3len
-                            }
-                        }
-                        sf3i++
+            lookup3 = cg_ann_deref(tname3)
+        } else {
+            val tname3: ref u8 = infer_type_annotation(ctx, ftarget)
+            lookup3 = cg_ann_deref(tname3)
+        }
+        if str.raw_cmp(lookup3, "") != 0 {
+            val flds3: ref void = cg_lookup_struct(ctx, lookup3)
+            if flds3 != none {
+                val sf3len: i64 = @len(flds3 as list[ref void]) as i64
+                val sf3i: mut i64 = 0
+                for {
+                    if sf3i >= sf3len {
+                        break
                     }
+                    val sf3_opt = @get(flds3 as list[ref void], sf3i as usize)
+                    if sf3_opt is some sf3 {
+                        val sf3n: ref parser.Node = sf3 as ref parser.Node
+                        val sf3name: ref u8 = sf3n.d0 as ref u8
+                        if str.raw_cmp(sf3name, fname) == 0 {
+                            val sf3ty: ref parser.Node = sf3n.d2 as ref parser.Node
+                            if sf3ty != none {
+                                if sf3ty.kind == parser.TY_LIST {
+                                    field_is_list = true
+                                } else {
+                                    if sf3ty.kind == parser.TY_NAMED {
+                                        val ftnm: ref u8 = sf3ty.d0 as ref u8
+                                        val sflds: ref void = cg_lookup_struct(ctx, ftnm)
+                                        if sflds != none {
+                                            field_size_write = struct_size(ctx, sflds)
+                                        }
+                                    }
+                                    field_store_op = field_store_instr_for_struct(ctx, flds3, sf3ty)
+                                }
+                            }
+                            sf3i = sf3len
+                        }
+                    }
+                    sf3i++
                 }
             }
         }
@@ -9793,11 +9842,10 @@ fn gen_struct_lit(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
                     @free(fbuf3)
                 }
             } else {
-                val fval: ref u8 = gen_expr_expected(ctx, fexpr_node, fty_node)
+                val store_op: ref u8 = field_store_instr_for_struct(ctx, struct_fields, fty_node)
+                val fval: ref u8 = cg_gen_expr_for_store(ctx, fexpr_node, fty_node, store_op)
                 val fbuf: ref u8 = @alloc(128) as ref u8
                 val off_tmp: i64 = fresh_tmp(ctx)
-
-                val store_op: ref u8 = field_store_instr_for_struct(ctx, struct_fields, fty_node)
 
                 if off == 0 {
                     @snprintf(fbuf, 128, "    {s} {s}, %%t{lld}\n", {store_op, fval, tmp})
@@ -11255,7 +11303,7 @@ fn gen_match_opt(ctx: mut ref CgCtx, stmt: ref parser.Node) void = trust {
     emit(ctx, buf)
     @free(buf)
 
-    if some_bind != none {
+    if some_bind != none && str.raw_cmp(some_bind, "_") != 0 {
         val val_tmp: i64 = fresh_tmp(ctx)
         val vbuf: ref u8 = @alloc(128) as ref u8
         @snprintf(vbuf, 128, "    %%t{lld} =l sub {s}, 1\n", {val_tmp, expr})
@@ -11371,7 +11419,7 @@ fn gen_match_res(ctx: mut ref CgCtx, stmt: ref parser.Node) void = trust {
     @free(buf)
 
     if is_real_result {
-        if ok_bind != none {
+        if ok_bind != none && str.raw_cmp(ok_bind, "_") != 0 {
             val off_ok: i64 = fresh_tmp(ctx)
             val val_ok: i64 = fresh_tmp(ctx)
             val vbuf: ref u8 = @alloc(256) as ref u8
@@ -11392,7 +11440,7 @@ fn gen_match_res(ctx: mut ref CgCtx, stmt: ref parser.Node) void = trust {
             }
         }
     } else {
-        if ok_bind != none {
+        if ok_bind != none && str.raw_cmp(ok_bind, "_") != 0 {
             val ok_copy: i64 = fresh_tmp(ctx)
             val ok_cbuf: ref u8 = @alloc(64) as ref u8
             val expr_qt: ref u8 = expr_qbe_type(ctx, expr_node)
@@ -11432,7 +11480,7 @@ fn gen_match_res(ctx: mut ref CgCtx, stmt: ref parser.Node) void = trust {
     @free(jbuf)
 
     if is_real_result {
-        if err_bind != none {
+        if err_bind != none && str.raw_cmp(err_bind, "_") != 0 {
             val off_err: i64 = fresh_tmp(ctx)
             val val_err: i64 = fresh_tmp(ctx)
             val vbuf2: ref u8 = @alloc(256) as ref u8
@@ -11446,7 +11494,7 @@ fn gen_match_res(ctx: mut ref CgCtx, stmt: ref parser.Node) void = trust {
             cg_register_local_var(ctx, err_bind, tmp_str_err)
         }
     } else {
-        if err_bind != none {
+        if err_bind != none && str.raw_cmp(err_bind, "_") != 0 {
             val err_tmp: i64 = fresh_tmp(ctx)
             val err_zbuf: ref u8 = @alloc(64) as ref u8
             @snprintf(err_zbuf, 64, "    %%t{lld} =l copy 0\n", {err_tmp})
@@ -12119,11 +12167,12 @@ fn gen_fn_prefixed(ctx: mut ref CgCtx, fn_node: ref parser.Node, mod_prefix: ref
                 val pname: ref u8 = (param as ref parser.Node).d0 as ref u8
                 val pty: ref parser.Node = (param as ref parser.Node).d1 as ref parser.Node
                 val pqt: ref u8 = qbe_type_of(pty)
+                val pqname: ref u8 = cg_param_qbe_name(pi, pname)
                 val pbuf: ref u8 = @alloc(64) as ref u8
                 if pi > 0 || returns_union {
                     emit(ctx, ", ")
                 }
-                @snprintf(pbuf, 64, "{s} %%{s}", {pqt, pname})
+                @snprintf(pbuf, 64, "{s} %%{s}", {pqt, pqname})
                 emit(ctx, pbuf)
                 @free(pbuf)
             }
@@ -12192,7 +12241,7 @@ fn gen_fn_prefixed(ctx: mut ref CgCtx, fn_node: ref parser.Node, mod_prefix: ref
                         store_op = "stored"
                     }
 
-                    @snprintf(slot_buf, 256, "    %%t{lld} =l alloc8 8\n    {s} %%{s}, %%t{lld}\n", {slot_tmp, store_op, pname2, slot_tmp})
+                    @snprintf(slot_buf, 256, "    %%t{lld} =l alloc8 8\n    {s} %%{s}, %%t{lld}\n", {slot_tmp, store_op, cg_param_qbe_name(pi2, pname2), slot_tmp})
                     emit(ctx, slot_buf)
                     @free(slot_buf)
 
@@ -12269,7 +12318,7 @@ fn gen_fn_prefixed(ctx: mut ref CgCtx, fn_node: ref parser.Node, mod_prefix: ref
                         if !ctx.release_mode {
                             val has_inv: ref void = cg_lookup_invariant(ctx, tname2)
                             if has_inv != none {
-                                @append(ctx.inv_cur_pnames as list[ref u8], pname2)
+                                @append(ctx.inv_cur_pnames as list[ref u8], cg_param_qbe_name(pi2, pname2))
                                 @append(ctx.inv_cur_ptypes as list[ref u8], tname2)
                             }
                         }
