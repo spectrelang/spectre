@@ -325,7 +325,7 @@ if [ "$QBE_OK" -eq 1 ]; then
 	log "Bootstrapping Spectre with QBE..."
 
 	log "QBE Stage..."
-	qbe -o "${BOOTSTRAP_OUT}.s" "$BOOTSTRAP_SSA"
+	"${BIN_DIR}/qbe" -o "${BOOTSTRAP_OUT}.s" "$BOOTSTRAP_SSA"
 
 	log "CC Stage II..."
 	cc -O2 \

@@ -12,8 +12,45 @@ for arg in "$@"; do
 	esac
 done
 
+YYJSON_INC="${YYJSON_INC:-}"
+YYJSON_FOUND=0
+
+if [ -n "$YYJSON_INC" ]; then
+	YYJSON_FOUND=1
+elif [ -n "${YYJSON_DIR:-}" ] && [ -f "$YYJSON_DIR/src/yyjson.h" ]; then
+	YYJSON_INC="-I$YYJSON_DIR/src"
+	YYJSON_FOUND=1
+elif [ -f "$HOME/.local/src/yyjson/src/yyjson.h" ]; then
+	YYJSON_INC="-I$HOME/.local/src/yyjson/src"
+	YYJSON_FOUND=1
+fi
+
+if [ "$YYJSON_FOUND" -eq 0 ] && command -v pkg-config >/dev/null 2>&1; then
+	if pkg-config --exists yyjson 2>/dev/null; then
+		YYJSON_INC="$(pkg-config --cflags yyjson 2>/dev/null || true)"
+		YYJSON_FOUND=1
+	fi
+fi
+
+if [ "$YYJSON_FOUND" -eq 0 ]; then
+	for prefix in /opt/homebrew /usr/local; do
+		if [ -f "$prefix/include/yyjson.h" ]; then
+			YYJSON_INC="-I$prefix/include"
+			YYJSON_FOUND=1
+			break
+		fi
+	done
+fi
+
+if [ "$YYJSON_FOUND" -eq 0 ]; then
+	echo "error: could not find yyjson.h" >&2
+	echo "       expected $HOME/.local/src/yyjson/src/yyjson.h" >&2
+	echo "       run ./fw/install.sh first, or set YYJSON_DIR / YYJSON_INC" >&2
+	exit 1
+fi
+
 cc -c spectrelib/csources/panic_handler.c -o spectrelib/csources/panic_handler.o || exit 1
-cc -c spectrelib/csources/yyjson_shim.c -o spectrelib/csources/yyjson_shim.o || exit 1
+cc $YYJSON_INC -c spectrelib/csources/yyjson_shim.c -o spectrelib/csources/yyjson_shim.o || exit 1
 
 GIT_HASH="unknown"
 if command -v git >/dev/null 2>&1; then
