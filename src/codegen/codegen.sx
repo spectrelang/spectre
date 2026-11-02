@@ -6470,15 +6470,31 @@ fn field_store_instr_for_struct(ctx: mut ref CgCtx, owner_fields: ref void, ty: 
         }
         return "storel"
     }
-    val qt: ref u8 = qbe_type_of(ty)
-    if str.raw_cmp(qt, "d") == 0 {
-        return "stored"
+    // Non-C-ABI structs use packed field offsets, so the store width must
+    // match the field's in-memory size rather than the QBE value type. Using
+    // `storew` for a u8/u16 field would clobber adjacent fields.
+    val resolved_nc: ref parser.Node = cg_concrete_ty(ctx, ty)
+    if resolved_nc != none && resolved_nc.kind == parser.TY_MUT {
+        return field_store_instr_for_struct(ctx, owner_fields, resolved_nc.d0 as ref parser.Node)
     }
-    if str.raw_cmp(qt, "s") == 0 {
-        return "stores"
-    }
-    if str.raw_cmp(qt, "w") == 0 {
-        return "storew"
+    if resolved_nc != none && resolved_nc.kind == parser.TY_NAMED {
+        val name_nc: ref u8 = resolved_nc.d0 as ref u8
+        if str.raw_cmp(name_nc, "f64") == 0 {
+            return "stored"
+        }
+        if str.raw_cmp(name_nc, "f32") == 0 {
+            return "stores"
+        }
+        val sz_nc: i64 = type_size(resolved_nc)
+        if sz_nc <= 1 {
+            return "storeb"
+        }
+        if sz_nc == 2 {
+            return "storeh"
+        }
+        if sz_nc == 4 {
+            return "storew"
+        }
     }
     return "storel"
 }
