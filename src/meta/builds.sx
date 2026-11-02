@@ -256,3 +256,55 @@ pub fn append_debug_runtime_links(
         @append(links, "-lDbgHelp")
     }
 }
+
+/// Returns true when the given platform selector matches the current platform.
+/// Handles group aliases such as "posix".
+pub fn platform_matches_with_target(name: ref u8, src_target: ref u8) bool = trust {
+    val arena: mut allocators.Arena = allocators.Arena.new(256 as usize)?
+    val cur: mut ref u8 = reflection.current_platform_name[allocators.Arena](arena)
+    if string.raw_cmp(src_target, "") != 0 {
+        cur = src_target
+    }
+    val matched: mut bool = false
+    if string.raw_cmp(name, cur) == 0 {
+        matched = true
+    } elif string.raw_cmp(name, "posix") == 0 {
+        if string.raw_cmp(cur, "linux") == 0 {
+            matched = true
+        } elif string.raw_cmp(cur, "darwin") == 0 {
+            matched = true
+        } elif string.raw_cmp(cur, "freebsd") == 0 {
+            matched = true
+        } elif string.raw_cmp(cur, "openbsd") == 0 {
+            matched = true
+        } elif string.raw_cmp(cur, "netbsd") == 0 {
+            matched = true
+        } elif string.raw_cmp(cur, "dragonflybsd") == 0 {
+            matched = true
+        } elif string.raw_cmp(cur, "haiku") == 0 {
+            matched = true
+        } elif string.raw_cmp(cur, "android") == 0 {
+            matched = true
+        } elif string.raw_cmp(cur, "redox") == 0 {
+            matched = true
+        }
+    }
+    allocators.Arena.free(arena)
+    return matched
+}
+
+/// Returns true when the given architecture name matches the current process.
+pub fn arch_matches(name: ref u8) bool = trust {
+    val arena: mut allocators.Arena = allocators.Arena.new(256 as usize)?
+    val current: ref u8 = reflection.current_arch_name[allocators.Arena](arena)
+    val wanted: mut ref u8 = name
+    if string.raw_cmp(wanted, "amd64") == 0 {
+        wanted = "x86_64"
+    }
+    if string.raw_cmp(wanted, "arm64") == 0 {
+        wanted = "aarch64"
+    }
+    val matched: bool = string.raw_cmp(wanted, current) == 0
+    allocators.Arena.free(arena)
+    return matched
+}

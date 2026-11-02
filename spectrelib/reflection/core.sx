@@ -67,6 +67,7 @@ when netbsd {
 val stdio      = use("../stdio")
 val string     = use("../string")
 val allocators = use("../allocators")
+val env        = use("../env")
 
 when posix {
     extern (C) fn uname(buf: ref UnameResult) i32 = "uname"
@@ -147,6 +148,52 @@ pub fn current_platform_name[T: allocators.Allocator](ac: T) ref u8 = trust {
             return "plan9"
         }
     }
+    return "unknown"
+}
+
+/// Returns the current process architecture as a lowercase string
+/// (e.g. "x86_64", "aarch64", "riscv64", "x86").
+pub fn current_arch_name[T: allocators.Allocator](ac: T) ref u8 = trust {
+    when windows {
+        val raw: ref u8 = env.get("PROCESSOR_ARCHITECTURE")
+        if string.raw_cmp(raw, "AMD64") == 0 || string.raw_cmp(raw, "amd64") == 0 {
+            return "x86_64"
+        }
+        if string.raw_cmp(raw, "ARM64") == 0 || string.raw_cmp(raw, "arm64") == 0 {
+            return "aarch64"
+        }
+        if string.raw_cmp(raw, "x86") == 0 || string.raw_cmp(raw, "X86") == 0 {
+            return "x86"
+        }
+        return raw
+    }
+
+    when posix {
+        val buf: mut UnameResult = {
+            sysname: 0,
+            nodename: 0,
+            release: 0,
+            version: 0,
+            machine: 0
+        }
+        val r = uname(@addr(buf))
+        if r == 0 {
+            val machine: ref u8 = @addr(buf.machine) as ref u8
+            if string.raw_cmp(machine, "x86_64") == 0 || string.raw_cmp(machine, "amd64") == 0 {
+                return "x86_64"
+            }
+            if string.raw_cmp(machine, "aarch64") == 0 || string.raw_cmp(machine, "arm64") == 0 {
+                return "aarch64"
+            }
+            if string.raw_cmp(machine, "riscv64") == 0 {
+                return "riscv64"
+            }
+            if string.raw_cmp(machine, "i386") == 0 || string.raw_cmp(machine, "i686") == 0 || string.raw_cmp(machine, "x86") == 0 {
+                return "x86"
+            }
+        }
+    }
+
     return "unknown"
 }
 

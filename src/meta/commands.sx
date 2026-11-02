@@ -9,13 +9,20 @@ val builds     = use("builds.sx")
 val stdio      = use("std/stdio")
 val os         = use("std/os")
 
-pub type SxBuildConfig = {
-    name: mut ref u8
+pub type SxBuildRule = {
+    platform: mut ref u8
+    arch: mut ref u8
     action: mut ref u8
     flags: mut ref u8
     output: mut ref u8
     entry: mut ref u8
     envs: mut list[ref u8]
+}
+
+pub type SxBuildConfig = {
+    name: mut ref u8
+    base: mut ref SxBuildRule
+    rules: mut list[ref SxBuildRule]
 }
 
 pub type SxMod = {
@@ -186,6 +193,140 @@ fn ctx_read_env_value(ctx: mut ref ParseCtx) ref u8 = trust {
     return result
 }
 
+fn new_build_rule(platform: ref u8, arch: ref u8) ref SxBuildRule = trust {
+    val rule: mut ref SxBuildRule = @alloc(@sizeof(SxBuildRule)) as mut ref SxBuildRule
+    @memset(rule as ref void, 0, @sizeof(SxBuildRule))
+    rule.platform = platform
+    rule.arch = arch
+    rule.action = ""
+    rule.flags = ""
+    rule.output = ""
+    rule.entry = ""
+    rule.envs = []
+    return rule
+}
+
+fn parse_env_entries(ctx: mut ref ParseCtx, out: mut list[ref u8]) void = trust {
+    ctx_skip_ws(ctx)
+    if ctx_peek(ctx) == 123 {
+        ctx_advance(ctx)
+    }
+    for {
+        ctx_skip_ws(ctx)
+        val c: i64 = ctx_peek(ctx)
+        if c == -1 || c == 125 {
+            break
+        }
+        val env_name: ref u8 = ctx_read_ident(ctx)
+        if str.raw_cmp(env_name, "") == 0 {
+            break
+        }
+        ctx_skip_ws(ctx)
+        if ctx_peek(ctx) == 61 {
+            ctx_advance(ctx)
+        }
+        val env_value: ref u8 = ctx_read_env_value(ctx)
+        @append(out, @fmt("{s}={s}", {env_name, env_value}))
+    }
+    if ctx_peek(ctx) == 125 {
+        ctx_advance(ctx)
+    }
+}
+
+/// Parse one of the fields accepted inside a build config or rule block.
+/// Returns false when `name` is not a field (for example a platform selector).
+fn parse_override_field(ctx: mut ref ParseCtx, target: mut ref SxBuildRule, name: ref u8) bool = trust {
+    if str.raw_cmp(name, "action") == 0 {
+        target.action = ctx_read_quoted(ctx)
+        return true
+    }
+    if str.raw_cmp(name, "flags") == 0 {
+        target.flags = ctx_read_quoted(ctx)
+        return true
+    }
+    if str.raw_cmp(name, "output") == 0 {
+        target.output = ctx_read_quoted(ctx)
+        return true
+    }
+    if str.raw_cmp(name, "entry") == 0 {
+        target.entry = ctx_read_quoted(ctx)
+        return true
+    }
+    if str.raw_cmp(name, "env") == 0 {
+        parse_env_entries(ctx, target.envs)
+        return true
+    }
+    return false
+}
+
+fn parse_rule_fields(ctx: mut ref ParseCtx, rule: mut ref SxBuildRule) void = trust {
+    for {
+        ctx_skip_ws(ctx)
+        val c: i64 = ctx_peek(ctx)
+        if c == -1 || c == 125 {
+            break
+        }
+        val name: ref u8 = ctx_read_ident(ctx)
+        if str.raw_cmp(name, "") == 0 {
+            break
+        }
+        if !parse_override_field(ctx, rule, name) {
+            ctx_skip_line(ctx)
+        }
+    }
+    if ctx_peek(ctx) == 125 {
+        ctx_advance(ctx)
+    }
+}
+
+fn parse_build_body(ctx: mut ref ParseCtx, cfg: mut ref SxBuildConfig) void = trust {
+    val base: mut ref SxBuildRule = new_build_rule("", "")
+    cfg.base = base
+    for {
+        ctx_skip_ws(ctx)
+        val c: i64 = ctx_peek(ctx)
+        if c == -1 || c == 125 {
+            break
+        }
+        val name: ref u8 = ctx_read_ident(ctx)
+        if str.raw_cmp(name, "") == 0 {
+            break
+        }
+        if parse_override_field(ctx, base, name) {
+            continue
+        }
+
+        val name_len: i64 = str.len_raw(name)
+        val dot: mut i64 = -1
+        val di: mut i64 = 0
+        for di < name_len {
+            if @load8(@ptradd(name, di)) == (46 as u8) {
+                dot = di
+                break
+            }
+            di = di + (1 as i64)
+        }
+        val platform: mut ref u8 = name
+        val arch: mut ref u8 = ""
+        if dot >= 0 {
+            platform = str.substr(name, 0, dot)
+            arch = str.substr(name, dot + 1, name_len - dot - 1)
+        }
+        ctx_skip_ws(ctx)
+        if ctx_peek(ctx) != 123 {
+            ctx_skip_line(ctx)
+            continue
+        }
+        ctx_advance(ctx)
+        val rule: mut ref SxBuildRule = new_build_rule(platform, arch)
+        parse_rule_fields(ctx, rule)
+        @append(cfg.rules, rule)
+    }
+    if ctx_peek(ctx) == 125 {
+        ctx_advance(ctx)
+    }
+}
+
 pub fn parse_sxmod(content: ref u8) ref SxMod = trust {
     val ctx: mut ref ParseCtx = new_ctx(content)
     val m: mut ref SxMod = @alloc(@sizeof(SxMod)) as ref SxMod
@@ -216,68 +357,16 @@ pub fn parse_sxmod(content: ref u8) ref SxMod = trust {
         } elif str.raw_cmp(kw, "dep") == 0 {
             @append(m.deps, ctx_read_quoted(ctx))
         } elif str.raw_cmp(kw, "build") == 0 {
-            val cfg: mut ref SxBuildConfig = @alloc(@sizeof(SxBuildConfig)) as ref SxBuildConfig
-            @memset(cfg, 0, @sizeof(SxBuildConfig) as usize)
+            val cfg: mut ref SxBuildConfig = @alloc(@sizeof(SxBuildConfig)) as mut ref SxBuildConfig
+            @memset(cfg as ref void, 0, @sizeof(SxBuildConfig))
             cfg.name = ctx_read_ident(ctx)
-            cfg.action = ""
-            cfg.flags = ""
-            cfg.output = ""
-            cfg.entry = ""
-            cfg.envs = []
+            cfg.base = none
+            cfg.rules = []
             ctx_skip_ws(ctx)
             if ctx_peek(ctx) == 123 {
                 ctx_advance(ctx)
             }
-            for {
-                ctx_skip_ws(ctx)
-                val c2: i64 = ctx_peek(ctx)
-                if c2 == -1 || c2 == 125 {
-                    break
-                }
-                val inner: ref u8 = ctx_read_ident(ctx)
-                if str.raw_cmp(inner, "") == 0 {
-                    break
-                }
-                if str.raw_cmp(inner, "action") == 0 {
-                    cfg.action = ctx_read_quoted(ctx)
-                } elif str.raw_cmp(inner, "flags") == 0 {
-                    cfg.flags = ctx_read_quoted(ctx)
-                } elif str.raw_cmp(inner, "output") == 0 {
-                    cfg.output = ctx_read_quoted(ctx)
-                } elif str.raw_cmp(inner, "entry") == 0 {
-                    cfg.entry = ctx_read_quoted(ctx)
-                } elif str.raw_cmp(inner, "env") == 0 {
-                    ctx_skip_ws(ctx)
-                    if ctx_peek(ctx) == 123 {
-                        ctx_advance(ctx)
-                    }
-                    for {
-                        ctx_skip_ws(ctx)
-                        val ec: i64 = ctx_peek(ctx)
-                        if ec == -1 || ec == 125 {
-                            break
-                        }
-                        val env_name: ref u8 = ctx_read_ident(ctx)
-                        if str.raw_cmp(env_name, "") == 0 {
-                            break
-                        }
-                        ctx_skip_ws(ctx)
-                        if ctx_peek(ctx) == 61 {
-                            ctx_advance(ctx)
-                        }
-                        val env_value: ref u8 = ctx_read_env_value(ctx)
-                        @append(cfg.envs, @fmt("{s}={s}", {env_name, env_value}))
-                    }
-                    if ctx_peek(ctx) == 125 {
-                        ctx_advance(ctx)
-                    }
-                } else {
-                    ctx_skip_line(ctx)
-                }
-            }
-            if ctx_peek(ctx) == 125 {
-                ctx_advance(ctx)
-            }
+            parse_build_body(ctx, cfg)
             @append(m.builds, cfg)
         } else {
             ctx_skip_line(ctx)
@@ -292,9 +381,15 @@ fn validate_sxmod(m: ref SxMod) bool = {
         return true
     }
     for cfg in m.builds {
-        if str.raw_cmp(cfg.entry, "") != 0 {
+        if str.raw_cmp(cfg.base.entry, "") != 0 {
             stdio.puts("error: sx.mod cannot mix a top-level 'entry' with per-build 'entry' fields")
             return false
+        }
+        for rule in cfg.rules {
+            if str.raw_cmp(rule.entry, "") != 0 {
+                stdio.puts("error: sx.mod cannot mix a top-level 'entry' with per-build 'entry' fields")
+                return false
+            }
         }
     }
     return true
@@ -448,6 +543,77 @@ pub fn is_project_sxmod_at(dir: ref u8) bool = trust {
     }
 }
 
+fn parent_dir(dir: ref u8) ref u8 = trust {
+    val len: i64 = str.len_raw(dir)
+    val end: mut i64 = len
+    for {
+        if end <= 1 {
+            break
+        }
+        val c: u8 = @load8(@ptradd(dir, end - 1)) as u8
+        if c == 47 || c == 92 {
+            end--
+        } else {
+            break
+        }
+    }
+    val i: mut i64 = end - 1
+    for {
+        if i < 0 {
+            break
+        }
+        val c: u8 = @load8(@ptradd(dir, i)) as u8
+        if c == 47 || c == 92 {
+            if i == 0 {
+                return "/"
+            }
+            return str.substr(dir, 0, i)
+        }
+        i--
+    }
+    return "."
+}
+
+/// Read the application version from the nearest sx.mod for a source file.
+/// The same-directory manifest is checked first, then parent directories.
+pub fn load_version_for(input: ref u8) ref u8 = trust {
+    val raw_dir: ref u8 = path.dir(input)
+    val start_dir: mut ref u8 = raw_dir
+    if str.raw_cmp(raw_dir, ".") == 0 {
+        val cwd_opt = fs.cwd_raw()
+        if cwd_opt is some cwd {
+            start_dir = cwd
+        }
+    }
+    val same_opt = load_sxmod_at(start_dir)
+    if same_opt is some same_mod {
+        if str.raw_cmp(same_mod.version, "") != 0 {
+            return same_mod.version
+        }
+    }
+
+    val cur: mut ref u8 = start_dir
+    val depth: mut i32 = 0 as i32
+    for depth < (16 as i32) {
+        val parent: ref u8 = parent_dir(cur)
+        if str.raw_cmp(parent, cur) == 0 {
+            break
+        }
+        cur = parent
+        val mod_opt = load_sxmod_at(cur)
+        if mod_opt is some found_mod {
+            if str.raw_cmp(found_mod.version, "") != 0 {
+                return found_mod.version
+            }
+        }
+        if str.raw_cmp(cur, ".") == 0 || str.raw_cmp(cur, "/") == 0 {
+            break
+        }
+        depth = depth + (1 as i32)
+    }
+    return ""
+}
+
 /// Read single_flags from an sx.mod next to the given source file.
 /// Parent directories are deliberately not searched.
 pub fn load_single_flags_for(input: ref u8) result[ref u8, ref u8] = trust {
@@ -533,7 +699,55 @@ fn lock_hash_for_url(lock_deps: list[ref SxLockDep], url: ref u8) ref u8 = {
     return ""
 }
 
-fn build_config_cmd(cfg: ref SxBuildConfig, exe_path: ref u8, entry: ref u8) ref u8 = trust {
+fn build_rule_matches(rule: ref SxBuildRule) bool = trust {
+    if str.raw_cmp(rule.platform, "") != 0 {
+        if !builds.platform_matches_with_target(rule.platform, "") {
+            return false
+        }
+    }
+    if str.raw_cmp(rule.arch, "") != 0 {
+        if !builds.arch_matches(rule.arch) {
+            return false
+        }
+    }
+    return true
+}
+
+fn apply_build_rule(target: mut ref SxBuildRule, source: ref SxBuildRule) void = {
+    if str.raw_cmp(source.action, "") != 0 {
+        target.action = source.action
+    }
+    if str.raw_cmp(source.flags, "") != 0 {
+        target.flags = source.flags
+    }
+    if str.raw_cmp(source.output, "") != 0 {
+        target.output = source.output
+    }
+    if str.raw_cmp(source.entry, "") != 0 {
+        target.entry = source.entry
+    }
+    for env_entry in source.envs {
+        @append(target.envs, env_entry)
+    }
+}
+
+fn resolve_build_rule(cfg: ref SxBuildConfig, target: mut ref SxBuildRule) void = trust {
+    target.platform = ""
+    target.arch = ""
+    target.action = ""
+    target.flags = ""
+    target.output = ""
+    target.entry = ""
+    target.envs = []
+    apply_build_rule(target, cfg.base)
+    for rule in cfg.rules {
+        if build_rule_matches(rule) {
+            apply_build_rule(target, rule)
+        }
+    }
+}
+
+fn build_config_cmd(cfg: ref SxBuildRule, exe_path: ref u8, entry: ref u8) ref u8 = trust {
     val cmd: mut ref u8 = ""
     if str.raw_cmp(cfg.action, "") != 0 {
         cmd = cfg.action
@@ -1206,11 +1420,17 @@ pub fn cmd_ref() i32 = {
                 \\     env {
                 \\         GIT_HASH=abcdef
                 \\     }
+                \\     posix {
+                \\         action "./scripts/notice.sh"
+                \\     }
+                \\     windows.x86_64 {
+                \\         action "./scripts/notice.cmd"
+                \\     }
                 \\ }
                 \\ ```
                 \\
                 \\ - `entry`   — source file passed to the compiler
-                \\ - `version` — project version string
+                \\ - `version` — project version string (available as `env.get("SPECTRE_MOD_VERSION")`)
                 \\ - `spectre_version` — required Spectre compiler version
                 \\ - `single_flags` — default flags for standalone compile/run of files in this directory
                 \\ - `dep`     — git dependency URL (cloned to `lib/`)
@@ -1219,6 +1439,11 @@ pub fn cmd_ref() i32 = {
                 \\   - `flags`   — extra flags appended to the build command
                 \\   - `output`  — `-o` output path appended to the build command
                 \\   - `env`     — compile-time environment variables for this build
+                \\   - `posix { ... }`, `windows { ... }` — per-platform overrides
+                \\   - `posix.aarch64 { ... }`, `windows.x86_64 { ... }` — per-platform/arch overrides
+                \\
+                \\ Platform/arch blocks override individual fields from the outer build
+                \\ config. Matching blocks are applied in declaration order.
                 \\
             )
             trust fs.close(f)
@@ -1304,11 +1529,14 @@ pub fn cmd_build(config_name: ref u8, exe_path: ref u8) i32 = {
                 return 1
             }
 
+            val resolved: mut ref SxBuildRule = trust new_build_rule("", "")
+            trust resolve_build_rule(found_cfg, resolved)
+
             val entry: mut ref u8 = m.entry
-            if str.raw_cmp(found_cfg.entry, "") != 0 {
-                entry = found_cfg.entry
+            if str.raw_cmp(resolved.entry, "") != 0 {
+                entry = resolved.entry
             }
-            val cmd: ref u8 = trust build_config_cmd(found_cfg, exe_path, entry)
+            val cmd: ref u8 = trust build_config_cmd(resolved, exe_path, entry)
             val exit_code: i32 = trust os.run(cmd)
             return exit_code
         }

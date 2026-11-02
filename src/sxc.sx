@@ -363,6 +363,13 @@ pub fn main() i32 = trust {
         scan_i++
     }
 
+    if !flag_first_translate_c {
+        val mod_version: ref u8 = commands.load_version_for(input)
+        if string.len_raw(mod_version) > 0 {
+            defines.set("SPECTRE_MOD_VERSION", mod_version)
+        }
+    }
+
     val parse_args: mut list[ref u8] = args
     val parse_argc: mut i64 = argc
     if !flag_first_translate_c && !no_single_flags {
