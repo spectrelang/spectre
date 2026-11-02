@@ -2310,6 +2310,46 @@ fn cc_const_val(ctx: ref CCtx, name: ref u8) ref u8 = trust {
     return ""
 }
 
+fn cc_const_literal_text(expr: ref parser.Node) ref u8 = trust {
+    if expr == none {
+        return ""
+    }
+    val k: i64 = expr.kind
+    if k == parser.NK_CAST {
+        return cc_const_literal_text(expr.d0 as ref parser.Node)
+    }
+    if k == parser.NK_INT_LIT {
+        return parser.int_lit_text(expr)
+    }
+    if k == parser.NK_FLOAT_LIT {
+        return parser.float_lit_text(expr)
+    }
+    if k == parser.NK_BOOL {
+        if expr.d0 as i64 != 0 {
+            return "1"
+        }
+        return "0"
+    }
+    if k == parser.NK_CHAR_LIT {
+        val cb: ref u8 = @alloc(32) as ref u8
+        @snprintf(cb, 32, "{lld}", {expr.d0 as i64})
+        return cb
+    }
+    if k == parser.NK_UNOP {
+        val uop: i64 = parser.unop_op(expr)
+        val inner: ref parser.Node = parser.unop_inner(expr)
+        if uop == parser.UOP_NEG && inner != none {
+            val inner_text: ref u8 = cc_const_literal_text(inner)
+            if str.raw_cmp(inner_text, "") != 0 {
+                val nb: ref u8 = @alloc(128) as ref u8
+                @snprintf(nb, 128, "-{s}", {inner_text})
+                return nb
+            }
+        }
+    }
+    return ""
+}
+
 fn cc_fixed_arr_size_val(ctx: ref CCtx, ty: ref parser.Node) i64 = trust {
     if ty == none || ty.kind != parser.TY_FIXED_ARR {
         return 0
@@ -6034,6 +6074,15 @@ fn preregister_items(ctx: mut ref CCtx, items: list[ref parser.Node], mod_prefix
                         val sb: ref u8 = @alloc(128) as ref u8
                         @snprintf(sb, 128, "((int64_t)(intptr_t)sx__str{lld})", {sidx})
                         cv = sb
+                    } elif ce.kind == parser.NK_CAST {
+                        val inner_text: ref u8 = cc_const_literal_text(ce.d0 as ref parser.Node)
+                        if str.raw_cmp(inner_text, "") != 0 {
+                            val target_ty: ref parser.Node = ce.d1 as ref parser.Node
+                            val ct: ref u8 = c_type_of(cc_concrete_ty(ctx, target_ty))
+                            val cb: ref u8 = @alloc(256) as ref u8
+                            @snprintf(cb, 256, "(({s})({s}))", {ct, inner_text})
+                            cv = cb
+                        }
                     }
                 }
                 if ce != none && ce.kind == parser.NK_LIST_LIT {
@@ -6056,6 +6105,10 @@ fn preregister_items(ctx: mut ref CCtx, items: list[ref parser.Node], mod_prefix
                         cc_register_module_const(ctx, sk, cv)
                     }
                 }
+            } elif k == parser.NK_VAL {
+                val vn: ref u8 = node.d0 as ref u8
+                val vty_node: ref parser.Node = node.d2 as ref parser.Node
+                cc_register_module_global(ctx, vn, mod_prefix, vty_node)
             } elif k == parser.NK_WHEN_ITEMS {
                 val plat: ref u8 = node.d0 as ref u8
                 if cc_platform_matches(ctx, plat) {
