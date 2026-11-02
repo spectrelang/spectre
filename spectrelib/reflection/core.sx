@@ -74,6 +74,22 @@ when posix {
 }
 
 pub fn get_current_platform[T: allocators.Allocator](ac: T) Platform = trust {
+    when android {
+        return Platform.Android
+    }
+
+    when haiku {
+        return Platform.Haiku
+    }
+
+    when redox {
+        return Platform.Redox
+    }
+
+    when plan9 {
+        return Platform.Plan9
+    }
+
     when windows {
         return Platform.Windows
     }
@@ -103,6 +119,18 @@ pub fn get_current_platform[T: allocators.Allocator](ac: T) Platform = trust {
             }
             if string.raw_cmp(sysname, "NetBSD") == 0 {
                 return Platform.NetBSD
+            }
+            if string.raw_cmp(sysname, "DragonFly") == 0 {
+                return Platform.DragonflyBSD
+            }
+            if string.raw_cmp(sysname, "Haiku") == 0 {
+                return Platform.Haiku
+            }
+            if string.raw_cmp(sysname, "Redox") == 0 {
+                return Platform.Redox
+            }
+            if string.raw_cmp(sysname, "Plan9") == 0 || string.raw_cmp(sysname, "Plan 9") == 0 {
+                return Platform.Plan9
             }
         }
     }

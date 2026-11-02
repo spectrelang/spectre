@@ -257,8 +257,92 @@ pub fn append_debug_runtime_links(
     }
 }
 
+pub fn is_posix_platform(name: ref u8) bool = {
+    if string.raw_cmp(name, "linux") == 0 {
+        return true
+    }
+    if string.raw_cmp(name, "darwin") == 0 {
+        return true
+    }
+    if string.raw_cmp(name, "freebsd") == 0 {
+        return true
+    }
+    if string.raw_cmp(name, "openbsd") == 0 {
+        return true
+    }
+    if string.raw_cmp(name, "netbsd") == 0 {
+        return true
+    }
+    if string.raw_cmp(name, "dragonflybsd") == 0 {
+        return true
+    }
+    if string.raw_cmp(name, "android") == 0 {
+        return true
+    }
+    if string.raw_cmp(name, "haiku") == 0 {
+        return true
+    }
+    if string.raw_cmp(name, "redox") == 0 {
+        return true
+    }
+    return false
+}
+
+pub fn is_bsd_platform(name: ref u8) bool = {
+    if string.raw_cmp(name, "freebsd") == 0 {
+        return true
+    }
+    if string.raw_cmp(name, "openbsd") == 0 {
+        return true
+    }
+    if string.raw_cmp(name, "netbsd") == 0 {
+        return true
+    }
+    if string.raw_cmp(name, "dragonflybsd") == 0 {
+        return true
+    }
+    return false
+}
+
+pub fn is_known_platform(name: ref u8) bool = {
+    if string.raw_cmp(name, "windows") == 0 {
+        return true
+    }
+    if string.raw_cmp(name, "linux") == 0 {
+        return true
+    }
+    if string.raw_cmp(name, "darwin") == 0 {
+        return true
+    }
+    if string.raw_cmp(name, "freebsd") == 0 {
+        return true
+    }
+    if string.raw_cmp(name, "openbsd") == 0 {
+        return true
+    }
+    if string.raw_cmp(name, "netbsd") == 0 {
+        return true
+    }
+    if string.raw_cmp(name, "dragonflybsd") == 0 {
+        return true
+    }
+    if string.raw_cmp(name, "android") == 0 {
+        return true
+    }
+    if string.raw_cmp(name, "haiku") == 0 {
+        return true
+    }
+    if string.raw_cmp(name, "redox") == 0 {
+        return true
+    }
+    if string.raw_cmp(name, "plan9") == 0 {
+        return true
+    }
+    return false
+}
+
 /// Returns true when the given platform selector matches the current platform.
-/// Handles group aliases such as "posix".
+/// Accepts every concrete platform name plus the groups "posix"/"unix" and "bsd".
 pub fn platform_matches_with_target(name: ref u8, src_target: ref u8) bool = trust {
     val arena: mut allocators.Arena = allocators.Arena.new(256 as usize)?
     val cur: mut ref u8 = reflection.current_platform_name[allocators.Arena](arena)
@@ -266,28 +350,14 @@ pub fn platform_matches_with_target(name: ref u8, src_target: ref u8) bool = tru
         cur = src_target
     }
     val matched: mut bool = false
-    if string.raw_cmp(name, cur) == 0 {
-        matched = true
-    } elif string.raw_cmp(name, "posix") == 0 {
-        if string.raw_cmp(cur, "linux") == 0 {
-            matched = true
-        } elif string.raw_cmp(cur, "darwin") == 0 {
-            matched = true
-        } elif string.raw_cmp(cur, "freebsd") == 0 {
-            matched = true
-        } elif string.raw_cmp(cur, "openbsd") == 0 {
-            matched = true
-        } elif string.raw_cmp(cur, "netbsd") == 0 {
-            matched = true
-        } elif string.raw_cmp(cur, "dragonflybsd") == 0 {
-            matched = true
-        } elif string.raw_cmp(cur, "haiku") == 0 {
-            matched = true
-        } elif string.raw_cmp(cur, "android") == 0 {
-            matched = true
-        } elif string.raw_cmp(cur, "redox") == 0 {
+    if is_known_platform(name) {
+        if string.raw_cmp(name, cur) == 0 {
             matched = true
         }
+    } elif string.raw_cmp(name, "posix") == 0 || string.raw_cmp(name, "unix") == 0 {
+        matched = is_posix_platform(cur)
+    } elif string.raw_cmp(name, "bsd") == 0 {
+        matched = is_bsd_platform(cur)
     }
     allocators.Arena.free(arena)
     return matched

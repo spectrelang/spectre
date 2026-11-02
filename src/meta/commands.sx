@@ -1442,6 +1442,11 @@ pub fn cmd_ref() i32 = {
                 \\   - `posix { ... }`, `windows { ... }` — per-platform overrides
                 \\   - `posix.aarch64 { ... }`, `windows.x86_64 { ... }` — per-platform/arch overrides
                 \\
+                \\ Platform selectors: windows, linux, darwin, freebsd, openbsd, netbsd,
+                \\ dragonflybsd, android, haiku, redox, plan9.
+                \\ Group selectors: posix/unix (linux, darwin, the BSDs, android, haiku, redox)
+                \\ and bsd (freebsd, openbsd, netbsd, dragonflybsd).
+                \\
                 \\ Platform/arch blocks override individual fields from the outer build
                 \\ config. Matching blocks are applied in declaration order.
                 \\
