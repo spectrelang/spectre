@@ -9,6 +9,7 @@ val parser     = use("../ast/parser.sx")
 val lexer      = use("../ast/lexer.sx")
 val defines    = use("../meta/defines.sx")
 val libfind    = use("../meta/libfind.sx")
+val commands   = use("../meta/commands.sx")
 
 /// A resolved module: its parsed items plus a map of named child imports.
 /// Stored as parallel lists: import_names[i] <-> import_modules[i].
@@ -52,7 +53,7 @@ fn find_workspace_root(start_dir: ref u8) ref u8 = trust {
         }
         limit--
         val spectre_mod = path.join(cur, "sx.mod")
-        if file_exists(spectre_mod) {
+        if file_exists(spectre_mod) && commands.is_project_sxmod_at(cur) {
             return cur
         }
         val parent = path.dir(cur)

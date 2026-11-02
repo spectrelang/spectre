@@ -343,22 +343,90 @@ pub fn main() i32 = trust {
         arg_i = input_arg_i + 2
     }
 
+    // Note on this:
+    //
+    // spectre build passes --no-single-flags so project builds are not
+    // affected by an sx.mod sitting next to the entry file.
+    val no_single_flags: mut bool = false
+    val scan_i: mut i64 = input_arg_i + 1
+    for {
+        if scan_i >= argc {
+            break
+        }
+        val scan_opt = @get(args, scan_i)
+        if scan_opt is some scan_arg {
+            if string.raw_cmp(scan_arg as ref u8, "--no-single-flags") == 0 {
+                no_single_flags = true
+                break
+            }
+        }
+        scan_i++
+    }
+
+    val parse_args: mut list[ref u8] = args
+    val parse_argc: mut i64 = argc
+    if !flag_first_translate_c && !no_single_flags {
+        val single_flags_result = commands.load_single_flags_for(input)
+        match single_flags_result {
+            ok single_flags => {
+                if string.len_raw(single_flags) > 0 {
+                    val extra_flags: list[ref u8] = commands.split_single_flags(single_flags)
+                    val merged: mut list[ref u8] = []
+                    val mi: mut i64 = 0
+                    for {
+                        if mi > input_arg_i {
+                            break
+                        }
+                        val item = @get(args, mi)
+                        if item is some v {
+                            @append(merged, v as ref u8)
+                        }
+                        mi++
+                    }
+                    for extra in extra_flags {
+                        @append(merged, extra)
+                    }
+                    mi = input_arg_i + 1
+                    for {
+                        if mi >= argc {
+                            break
+                        }
+                        val item = @get(args, mi)
+                        if item is some v {
+                            @append(merged, v as ref u8)
+                        }
+                        mi++
+                    }
+                    parse_args = merged
+                    parse_argc = @len(merged) as i64
+                }
+            }
+            err e => {
+                if string.len_raw(e) > 0 {
+                    stdio.print("error: {s}\n", {e})
+                }
+                allocators.Arena.free(arena)
+                return 1
+            }
+        }
+    }
+
     when windows {
         use_alt = true
     }
 
     for {
-        if (arg_i >= argc) {
+        if (arg_i >= parse_argc) {
             break
         }
-        val arg_opt = @get(args, arg_i)
+        val arg_opt = @get(parse_args, arg_i)
         if arg_opt is some arg_val {
             val arg: ref u8 = arg_val as ref u8
 
             if string.raw_cmp(arg, "-o") == 0 || string.raw_cmp(arg, "--output") == 0 {
                 val next_i: i64 = arg_i + 1
-                if (next_i < argc) {
-                    val next_opt = @get(args, next_i)
+                if (next_i < parse_argc) {
+                    val next_opt = @get(parse_args, next_i)
                     if next_opt is some v {
                         output_name = v as ref u8
                     } else {
@@ -374,8 +442,8 @@ pub fn main() i32 = trust {
                 }
             } elif string.raw_cmp(arg, "-d") == 0 {
                 val next_i: i64 = arg_i + 1
-                if next_i < argc {
-                    val next_opt = @get(args, next_i)
+                if next_i < parse_argc {
+                    val next_opt = @get(parse_args, next_i)
                     if next_opt is some dv {
                         val def_spec: ref u8 = dv as ref u8
                         if !defines.add_spec(def_spec) {
@@ -431,6 +499,8 @@ pub fn main() i32 = trust {
                 arg_i++
             } elif string.raw_cmp(arg, "--dynamic") == 0 {
                 dynamic_linking = true
+                arg_i++
+            } elif string.raw_cmp(arg, "--no-single-flags") == 0 {
                 arg_i++
             } elif string.raw_cmp(arg, "--dll") == 0 {
                 build_dll = true

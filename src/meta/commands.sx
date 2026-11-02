@@ -22,6 +22,7 @@ pub type SxMod = {
     entry: mut ref u8
     version: mut ref u8
     spectre_version: mut ref u8
+    single_flags: mut ref u8
     deps: mut list[ref u8]
     builds: mut list[ref SxBuildConfig]
 }
@@ -192,6 +193,7 @@ pub fn parse_sxmod(content: ref u8) ref SxMod = trust {
     m.entry = ""
     m.version = ""
     m.spectre_version = ""
+    m.single_flags = ""
     m.deps = []
     m.builds = []
     for {
@@ -209,6 +211,8 @@ pub fn parse_sxmod(content: ref u8) ref SxMod = trust {
             m.version = ctx_read_quoted(ctx)
         } elif str.raw_cmp(kw, "spectre_version") == 0 {
             m.spectre_version = ctx_read_quoted(ctx)
+        } elif str.raw_cmp(kw, "single_flags") == 0 {
+            m.single_flags = ctx_read_quoted(ctx)
         } elif str.raw_cmp(kw, "dep") == 0 {
             @append(m.deps, ctx_read_quoted(ctx))
         } elif str.raw_cmp(kw, "build") == 0 {
@@ -399,7 +403,7 @@ fn load_sxlock() option[list[ref SxLockDep]] = {
 }
 
 fn load_sxmod_at(dir: ref u8) option[ref SxMod] = trust {
-    val mod_path: ref u8 = @fmt("{s}/sx.mod", {dir})
+    val mod_path: ref u8 = path.join(dir, "sx.mod")
     val size_opt = fs.file_size(mod_path)
     val arena_cap: mut i64 = 4096
     if size_opt is some sz {
@@ -422,6 +426,76 @@ fn load_sxmod_at(dir: ref u8) option[ref SxMod] = trust {
             return some m
         }
     }
+}
+
+/// True when an sx.mod in `dir` describes a project (entry/build configs).
+/// An sx.mod containing only `single_flags` is not a project root.
+pub fn is_project_sxmod_at(dir: ref u8) bool = trust {
+    val mod_opt = load_sxmod_at(dir)
+    match mod_opt {
+        none => {
+            return false
+        }
+        some m => {
+            if str.raw_cmp(m.entry, "") != 0 {
+                return true
+            }
+            if @len(m.builds) > 0 {
+                return true
+            }
+            return false
+        }
+    }
+}
+
+/// Read single_flags from an sx.mod next to the given source file.
+/// Parent directories are deliberately not searched.
+pub fn load_single_flags_for(input: ref u8) result[ref u8, ref u8] = trust {
+    val dir: ref u8 = path.dir(input)
+    val mod_opt = load_sxmod_at(dir)
+    match mod_opt {
+        none => {
+            return ok ""
+        }
+        some m => {
+            if str.raw_cmp(m.spectre_version, "") != 0 {
+                if !validate_spectre_version(m) {
+                    return err ""
+                }
+            }
+            return ok m.single_flags
+        }
+    }
+}
+
+/// Split a single_flags value into command-line tokens.
+pub fn split_single_flags(s: ref u8) list[ref u8] = trust {
+    val out: mut list[ref u8] = []
+    val len: i64 = str.len_raw(s)
+    val i: mut i64 = 0
+    for {
+        if i >= len {
+            break
+        }
+        val c: u8 = @load8(@ptradd(s, i)) as u8
+        if c == 32 || c == 9 || c == 10 || c == 13 {
+            i++
+            continue
+        }
+        val start: i64 = i
+        for {
+            if i >= len {
+                break
+            }
+            val c2: u8 = @load8(@ptradd(s, i)) as u8
+            if c2 == 32 || c2 == 9 || c2 == 10 || c2 == 13 {
+                break
+            }
+            i++
+        }
+        @append(out, str.substr(s, start, i - start))
+    }
+    return out
 }
 
 fn load_sxlock_at(dir: ref u8) option[list[ref SxLockDep]] = trust {
@@ -464,7 +538,7 @@ fn build_config_cmd(cfg: ref SxBuildConfig, exe_path: ref u8, entry: ref u8) ref
     if str.raw_cmp(cfg.action, "") != 0 {
         cmd = cfg.action
     } else {
-        cmd = @fmt("{s} {s}", {exe_path, entry})
+        cmd = @fmt("{s} {s} --no-single-flags", {exe_path, entry})
     }
     if str.raw_cmp(cfg.flags, "") != 0 {
         cmd = @fmt("{s} {s}", {cmd, cfg.flags})
@@ -1117,6 +1191,9 @@ pub fn cmd_ref() i32 = {
                 \\ version "v0.0.1"
                 \\ spectre_version "v0.0.12"
                 \\
+                \\ // Applied when this file is compiled/run directly.
+                \\ single_flags "--dynamic --show-cmd"
+                \\
                 \\ dep "https://github.com/user/some-lib"
                 \\
                 \\ build release {
@@ -1135,6 +1212,7 @@ pub fn cmd_ref() i32 = {
                 \\ - `entry`   — source file passed to the compiler
                 \\ - `version` — project version string
                 \\ - `spectre_version` — required Spectre compiler version
+                \\ - `single_flags` — default flags for standalone compile/run of files in this directory
                 \\ - `dep`     — git dependency URL (cloned to `lib/`)
                 \\ - `build`   — named build configuration
                 \\   - `action`  — base shell command for this build config
