@@ -3729,6 +3729,15 @@ fn infer_type_annotation(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = tru
                 }
             }
         }
+        if str.raw_cmp(bname, "ptradd") == 0 {
+            val ptr_args: ref void = expr.d1 as ref void
+            if ptr_args != none && @len(ptr_args as list[ref parser.Node]) as i64 > 0 {
+                val base_opt = @get(ptr_args as list[ref parser.Node], 0 as usize)
+                if base_opt is some base_ptr {
+                    return infer_type_annotation(ctx, base_ptr as ref parser.Node)
+                }
+            }
+        }
     }
 
     if k == parser.NK_TRUST {
@@ -5703,8 +5712,21 @@ fn gen_expr(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
     if k == parser.NK_DEREF {
         val inner5: ref u8 = gen_expr(ctx, expr.d0 as ref parser.Node)
         val tmp8: i64 = fresh_tmp(ctx)
+        val pointee: ref u8 = cg_ann_deref(infer_type_annotation(ctx, expr.d0 as ref parser.Node))
+        val load_op: mut ref u8 = "loadl"
+        val load_qtype: mut ref u8 = "l"
+        if str.raw_cmp(pointee, "f32") == 0 {
+            load_op = "loads"
+            load_qtype = "s"
+        } elif str.raw_cmp(pointee, "f64") == 0 {
+            load_op = "loadd"
+            load_qtype = "d"
+        } elif is_word_type_name(pointee) {
+            load_op = "loadw"
+            load_qtype = "w"
+        }
         val buf13: ref u8 = @alloc(128) as ref u8
-        @snprintf(buf13, 128, "    %%t{lld} =l loadl {s}\n", {tmp8, inner5})
+        @snprintf(buf13, 128, "    %%t{lld} ={s} {s} {s}\n", {tmp8, load_qtype, load_op, inner5})
         emit(ctx, buf13)
         @free(buf13)
         val res11: ref u8 = @alloc(16) as ref u8
@@ -5894,6 +5916,12 @@ fn expr_qbe_type(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
 
     if k == parser.NK_TRUST {
         return expr_qbe_type(ctx, expr.d0 as ref parser.Node)
+    }
+
+    if k == parser.NK_DEREF {
+        val deref_inner: ref parser.Node = expr.d0 as ref parser.Node
+        val pointee_ann: ref u8 = cg_ann_deref(infer_type_annotation(ctx, deref_inner))
+        return cg_ann_qtype(pointee_ann)
     }
 
     if k == parser.NK_CALL {
@@ -10207,9 +10235,22 @@ fn gen_stmt(ctx: mut ref CgCtx, stmt: ref parser.Node) void = trust {
                     @free(buf4)
                 }
             } else {
-                val val_tmp2_raw: ref u8 = gen_expr(ctx, value)
+                val pointee4: ref u8 = cg_ann_deref(infer_type_annotation(ctx, inner_target4))
+                val store_op4: mut ref u8 = "storel"
+                val value_qtype4: mut ref u8 = "l"
+                if str.raw_cmp(pointee4, "f32") == 0 {
+                    store_op4 = "stores"
+                    value_qtype4 = "s"
+                } elif str.raw_cmp(pointee4, "f64") == 0 {
+                    store_op4 = "stored"
+                    value_qtype4 = "d"
+                } elif is_word_type_name(pointee4) {
+                    store_op4 = "storew"
+                    value_qtype4 = "w"
+                }
+                val val_tmp2_raw: ref u8 = gen_expr_with_type(ctx, value, value_qtype4)
                 val buf4: ref u8 = @alloc(128) as ref u8
-                @snprintf(buf4, 128, "    storel {s}, {s}\n", {val_tmp2_raw, ptr})
+                @snprintf(buf4, 128, "    {s} {s}, {s}\n", {store_op4, val_tmp2_raw, ptr})
                 emit(ctx, buf4)
                 @free(buf4)
             }

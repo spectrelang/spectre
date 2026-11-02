@@ -1,0 +1,21 @@
+pub fn main() i32 = {
+    val f: mut f32 = 1.25 as f32
+    val p: mut ref f32 = @addr(f)
+    assert @deref(p) == (1.25 as f32)
+    @deref(p) = 2.5 as f32
+    assert f == (2.5 as f32)
+
+    val d: mut f64 = 3.5
+    val dp: mut ref f64 = @addr(d)
+    assert @deref(dp) == 3.5
+    @deref(dp) = 7.25
+    assert d == 7.25
+
+    val i: mut i32 = 11
+    val ip: mut ref i32 = @addr(i)
+    assert @deref(ip) == 11
+    @deref(ip) = 19
+    assert i == 19
+
+    return 0 as i32
+}
