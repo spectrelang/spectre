@@ -3874,7 +3874,7 @@ static char sx__str3836[]="static void sx__init(void);";
 static char sx__str3837[]="";
 static char sx__str3838[]="";
 static char sx__str3839[]="v0.0.13";
-static char sx__str3840[]="e4629a9";
+static char sx__str3840[]="2e37aad";
 static char sx__str3841[]="";
 static char sx__str3842[]="unknown";
 static char sx__str3843[]="usage:";
@@ -8666,12 +8666,6 @@ return 0;
 }
 
 int64_t sx__std__reflection__get_current_platform__GENMONO__allocators__Arena(int64_t t_ac){
-int64_t t_osvi=(int64_t)((int64_t)(std__allocators__Arena__alloc(t_ac,INT64_C(128))));
-(void)((*(uint8_t*)(intptr_t)(t_osvi)=(uint8_t)(INT64_C(128))));
-if(((GetVersionExA(t_osvi))==(INT64_C(0))))
-{
-return(int64_t)((11));
-}
 return(int64_t)((0));
 return(int64_t)((11));
 }

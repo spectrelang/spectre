@@ -72,17 +72,8 @@ when posix {
     extern (C) fn uname(buf: ref UnameResult) i32 = "uname"
 }
 
-when windows {
-    extern (C, header) fn GetVersionExA(lpVersionInformation: ref void) i32 = "GetVersionExA"
-}
-
 pub fn get_current_platform[T: allocators.Allocator](ac: T) Platform = trust {
     when windows {
-        val osvi: mut ref void = T.alloc(ac, 128) as ref void
-        @store8(osvi, 128)
-        if GetVersionExA(osvi) == 0 {
-            return Platform.Unknown
-        }
         return Platform.Windows
     }
 
