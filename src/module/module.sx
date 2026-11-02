@@ -1439,6 +1439,88 @@ pub fn flatten_modules_with_files(
     @append(out_filenames as list[ref u8], str.cstr(m.filename))
 }
 
+fn link_path_is_absolute(flag: ref u8) bool = trust {
+    if flag == none {
+        return false
+    }
+    val n: i64 = str.len_raw(flag)
+    if n <= 0 {
+        return false
+    }
+    val c0: u8 = @load8(flag)
+    if c0 == 47 || c0 == 92 {
+        return true
+    }
+    when windows {
+        if n >= 2 && @load8(@ptradd(flag, 1)) == 58 {
+            return true
+        }
+    }
+    return false
+}
+
+fn link_workspace_root() ref u8 = trust {
+    val cwd_opt = fs.cwd_raw()
+    match cwd_opt {
+        some cwd => {
+            return find_workspace_root(cwd)
+        }
+        none => {
+            return "."
+        }
+    }
+}
+
+fn link_path_has_separator(flag: ref u8) bool = trust {
+    val n: i64 = str.len_raw(flag)
+    val i: mut i64 = 0
+    for {
+        if i >= n {
+            break
+        }
+        val c: u8 = @load8(@ptradd(flag, i))
+        if c == 47 || c == 92 {
+            return true
+        }
+        i++
+    }
+    return false
+}
+
+fn resolve_link_path(flag: ref u8, workspace: ref u8) ref u8 = trust {
+    if flag == none {
+        return flag
+    }
+    val n: i64 = str.len_raw(flag)
+    if n <= 0 {
+        return flag
+    }
+    if @load8(flag) == 45 {
+        return flag
+    }
+    if link_path_is_absolute(flag) {
+        return flag
+    }
+    if file_exists(flag) {
+        return flag
+    }
+    if !link_path_has_separator(flag) {
+        return flag
+    }
+    if workspace == none || str.raw_cmp(workspace, "") == 0 || str.raw_cmp(workspace, ".") == 0 {
+        return flag
+    }
+    val name: mut ref u8 = flag
+    if n >= 2 && @load8(flag) == 46 && @load8(@ptradd(flag, 1)) == 47 {
+        name = @ptradd(flag, 2) as ref u8
+    }
+    val candidate: ref u8 = path.join(workspace, name)
+    if file_exists(candidate) {
+        return candidate
+    }
+    return flag
+}
+
 fn resolve_link_directive(
     item: ref parser.Node,
     platform: ref u8,
@@ -1538,6 +1620,7 @@ pub fn collect_links(
     }
 
     val result: mut list[ref u8] = []
+    val workspace: ref u8 = link_workspace_root()
     for the_link in links {
         if str.raw_cmp(the_link, "__sx__internal__json__") == 0 {
             val shim_path: ref u8 = path.join(exe_dir, "spectrelib/csources/yyjson_shim.o")
@@ -1548,7 +1631,7 @@ pub fn collect_links(
                 @append(result, the_link)
             }
         } else {
-            @append(result, the_link)
+            @append(result, resolve_link_path(the_link, workspace))
         }
     }
 
