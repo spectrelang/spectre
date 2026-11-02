@@ -1,5 +1,5 @@
 entry "./src/sxc.sx"
-version "v0.0.12"
+version "v0.0.13"
 spectre_version "v0.0.12"
 
 build prod {
