@@ -2967,6 +2967,21 @@ fn gen_expr(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
                 val buf: ref u8 = @alloc(256) as ref u8
                 @snprintf(buf, 256, "(int64_t)(intptr_t)&{s}", {resolved}) return cc_expr_track(ctx, buf)
             }
+            val ty_node: ref parser.Node = cc_lookup_local_ty_node(ctx, iname)
+            if ty_node != none {
+                val tied: ref parser.Node = ty_node
+                val is_ref_local: mut bool = tied.kind == parser.TY_REF
+                if tied.kind == parser.TY_MUT {
+                    val inner_ref: ref parser.Node = tied.d0 as ref parser.Node
+                    if inner_ref != none && inner_ref.kind == parser.TY_REF {
+                        is_ref_local = true
+                    }
+                }
+                if is_ref_local {
+                    val buf: ref u8 = @alloc(128) as ref u8
+                    @snprintf(buf, 128, "(int64_t)(intptr_t)&t_{s}", {iname}) return cc_expr_track(ctx, buf)
+                }
+            }
             val lt: ref u8 = cc_lookup_local_type(ctx, iname)
             if str.raw_cmp(lt, "") != 0 {
                 if str.raw_cmp(lt, "i64") != 0 && str.raw_cmp(lt, "u64") != 0 &&

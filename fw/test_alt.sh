@@ -84,9 +84,9 @@ run_samples() {
         fi
 
         if [ ${#extra_args[@]} -gt 0 ]; then
-            run_compiler "$file" --alt "${LINK_ARGS[@]}" "${extra_args[@]}"
+            run_compiler "$file" --alt ${LINK_ARGS[@]+"${LINK_ARGS[@]}"} "${extra_args[@]}"
         else
-            run_compiler "$file" --alt "${LINK_ARGS[@]}"
+            run_compiler "$file" --alt ${LINK_ARGS[@]+"${LINK_ARGS[@]}"}
         fi
 
         status=$?
@@ -120,7 +120,7 @@ run_std_tests() {
 
         ((total++))
 
-        "$COMPILER" "$file" --test --alt "${LINK_ARGS[@]}" >"$log_file" 2>&1 < /dev/null
+        "$COMPILER" "$file" --test --alt ${LINK_ARGS[@]+"${LINK_ARGS[@]}"} >"$log_file" 2>&1 < /dev/null
         status=$?
 
         if [ $status -eq 0 ]; then
@@ -128,7 +128,7 @@ run_std_tests() {
             ((passed++))
         else
             echo "[FAIL] $file"
-            echo "  command: $COMPILER $file --test --alt ${LINK_ARGS[*]}"
+            echo "  command: $COMPILER $file --test --alt ${LINK_ARGS[*]+"${LINK_ARGS[*]}"}"
             echo "  log: $log_file"
             sed 's/^/  /' "$log_file" | sed -n '1,240p'
             log_lines=$(wc -l < "$log_file")
