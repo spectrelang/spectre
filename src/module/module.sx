@@ -1472,6 +1472,38 @@ fn link_workspace_root() ref u8 = trust {
     }
 }
 
+/// Workspace root that owns the module declaring a link directive.
+///
+/// Link paths such as "./src/stb_image_shim.c" are package-relative, not
+/// consumer-relative. Resolving them against this root lets a project import a
+/// dependency whose manifest lives in lib/<name>/ while still finding C sources
+/// that belong to that dependency.
+///
+/// `path.dir()` preserves a trailing separator, so normalize before walking
+/// upward; otherwise the first parent lookup compares equal to the current
+/// directory and the walk stops immediately.
+fn module_link_root(m: ref ResolvedModule) ref u8 = trust {
+    val start_dir: ref u8 = str.cstr(m.dir)
+    val cur: mut ref u8 = path.canonicalize_path(start_dir)
+    val limit: mut i64 = 32
+    for {
+        if limit <= 0 {
+            break
+        }
+        limit--
+        val spectre_mod: ref u8 = path.join(cur, "sx.mod")
+        if file_exists(spectre_mod) && commands.is_project_sxmod_at(cur) {
+            return cur
+        }
+        val parent: ref u8 = path.canonicalize_path(path.dir(cur))
+        if str.raw_cmp(parent, cur) == 0 {
+            break
+        }
+        cur = parent
+    }
+    return start_dir
+}
+
 fn link_path_has_separator(flag: ref u8) bool = trust {
     val n: i64 = str.len_raw(flag)
     val i: mut i64 = 0
@@ -1536,10 +1568,12 @@ fn resolve_link_directive(
     return ok flags
 }
 
-/// Collect all link statements from a module's items.
+/// Collect all link statements from a module's items, resolving package-local
+/// paths against `link_root`.
 /// Returns a list of link flags (strings like "-lcurl" or full paths).
-pub fn collect_links(
+fn collect_links_with_root(
     items: list[ref parser.Node],
+    link_root: ref u8,
     exe_dir: ref u8,
     static_link: bool
 ) result[list[ref u8], ref u8] = trust {
@@ -1621,7 +1655,7 @@ pub fn collect_links(
     }
 
     val result: mut list[ref u8] = []
-    val workspace: ref u8 = link_workspace_root()
+    val workspace: ref u8 = link_root
     for the_link in links {
         if str.raw_cmp(the_link, "__sx__internal__json__") == 0 {
             val shim_path: ref u8 = path.join(exe_dir, "spectrelib/csources/yyjson_shim.o")
@@ -1638,6 +1672,16 @@ pub fn collect_links(
 
     allocators.Arena.free(arena)
     return ok result
+}
+
+/// Collect all link statements from a module's items using the current project
+/// workspace as the link root.
+pub fn collect_links(
+    items: list[ref parser.Node],
+    exe_dir: ref u8,
+    static_link: bool
+) result[list[ref u8], ref u8] = trust {
+    return collect_links_with_root(items, link_workspace_root(), exe_dir, static_link)
 }
 
 /// Collect links only from modules that match the given used_prefixes list.
@@ -1689,7 +1733,7 @@ pub fn collect_links_filtered(
     }
 
     if is_used {
-        val my_links: list[ref u8] = collect_links(m.items, exe_dir, static_link)?
+        val my_links: list[ref u8] = collect_links_with_root(m.items, module_link_root(m), exe_dir, static_link)?
         for lnk in my_links {
             @append(result, lnk)
         }
@@ -1760,7 +1804,7 @@ pub fn collect_links_all(
 
     val result: mut list[ref u8] = []
 
-    val my_links: list[ref u8] = collect_links(m.items, exe_dir, static_link)?
+    val my_links: list[ref u8] = collect_links_with_root(m.items, module_link_root(m), exe_dir, static_link)?
     for lnk in my_links {
         @append(result, lnk)
     }
@@ -3115,7 +3159,7 @@ pub fn collect_used_links(
     val result: mut list[ref u8] = []
     val seen: mut list[String] = []
 
-    val my_links: list[ref u8] = collect_links(m.items, exe_dir, static_link)?
+    val my_links: list[ref u8] = collect_links_with_root(m.items, module_link_root(m), exe_dir, static_link)?
     for lnk in my_links {
         @append(result, lnk)
     }
@@ -3206,7 +3250,7 @@ fn collect_used_links_recursive(
 
     val result: mut list[ref u8] = []
 
-    val my_links: list[ref u8] = collect_links(m.items, exe_dir, static_link)?
+    val my_links: list[ref u8] = collect_links_with_root(m.items, module_link_root(m), exe_dir, static_link)?
     for lnk in my_links {
         @append(result, lnk)
     }

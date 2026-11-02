@@ -6,6 +6,7 @@ val str     = use("std/string")
 val fmt     = use("std/fmt")
 val stdio   = use("std/stdio")
 val os      = use("std/os")
+val fs      = use("std/fs")
 val parser  = use("../ast/parser.sx")
 val module  = use("../module/module.sx")
 val codegen = use("codegen.sx")
@@ -72,6 +73,9 @@ pub type CCtx = {
     mono_sb: mut ref void
     src_target: mut ref u8
     current_src_file: mut ref u8
+    embed_paths: mut list[ref u8]
+    embed_labels: mut list[ref u8]
+    embed_count: mut i64
 }
 
 fn cc_new() ref CCtx = trust {
@@ -136,6 +140,9 @@ fn cc_new() ref CCtx = trust {
     ctx.mono_sb = str.StringBuilder.new()
     ctx.src_target = ""
     ctx.current_src_file = ""
+    ctx.embed_paths = []
+    ctx.embed_labels = []
+    ctx.embed_count = 0
     return ctx
 }
 
@@ -456,6 +463,18 @@ fn cc_infer_expr_ty(ctx: mut ref CCtx, expr: ref parser.Node) ref parser.Node = 
     }
     if k == parser.NK_BUILTIN {
         val bname: ref u8 = expr.d0 as ref u8
+        if str.raw_cmp(bname, "embed") == 0 {
+            val inner: mut ref parser.Node = parser.make_node(parser.TY_NAMED, expr.line)
+            parser.node_store_slot[ref u8](@addr(inner.d0), "u8")
+            val out: mut ref parser.Node = parser.make_node(parser.TY_REF, expr.line)
+            parser.node_store_slot[ref parser.Node](@addr(out.d0), inner)
+            return out
+        }
+        if str.raw_cmp(bname, "embedlen") == 0 {
+            val out: mut ref parser.Node = parser.make_node(parser.TY_NAMED, expr.line)
+            parser.node_store_slot[ref u8](@addr(out.d0), "i64")
+            return out
+        }
         if str.raw_cmp(bname, "call") == 0 {
             val bargs: ref void = expr.d1 as ref void
             if bargs != none {
@@ -3702,6 +3721,66 @@ fn gen_call(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
     return cc_expr_track(ctx, buf)
 }
 
+fn cc_embed_data(ctx: mut ref CCtx, path: ref u8, size: i64) ref u8 = trust {
+    val n: i64 = @len(ctx.embed_paths) as i64
+    val i: mut i64 = 0
+    for {
+        if i >= n {
+            break
+        }
+        val p_opt = @get(ctx.embed_paths, i as usize)
+        if p_opt is some p {
+            if str.raw_cmp(p as ref u8, path) == 0 {
+                val l_opt = @get(ctx.embed_labels, i as usize)
+                if l_opt is some l {
+                    return l as ref u8
+                }
+            }
+        }
+        i = i + (1 as i64)
+    }
+
+    val label: ref u8 = @fmt("sx__embed_{lld}", {ctx.embed_count})
+    ctx.embed_count = ctx.embed_count + (1 as i64)
+    @append(ctx.embed_paths, path)
+    @append(ctx.embed_labels, label)
+
+    val sb: ref void = str.StringBuilder.new()
+    str.StringBuilder.append_cstr(sb, "static const unsigned char ")
+    str.StringBuilder.append_cstr(sb, label)
+    str.StringBuilder.append_cstr(sb, "[] = { ")
+    val nbuf: ref u8 = @alloc(32) as ref u8
+    if size <= (0 as i64) {
+        str.StringBuilder.append_cstr(sb, "0")
+    } else {
+        val data_opt = fs.read_all_raw(path)
+        if data_opt is some data {
+            val bi: mut i64 = 0
+            for {
+                if bi >= size {
+                    break
+                }
+                val b: i64 = @load8(@ptradd(data, bi)) as i64
+                if bi > (0 as i64) {
+                    str.StringBuilder.append_cstr(sb, ", ")
+                }
+                @snprintf(nbuf, 32, "{lld}", {b})
+                str.StringBuilder.append_cstr(sb, nbuf)
+                bi = bi + (1 as i64)
+            }
+            @free(data as ref void)
+        } else {
+            str.StringBuilder.append_cstr(sb, "0")
+        }
+    }
+    str.StringBuilder.append_cstr(sb, " };\n")
+    @free(nbuf)
+    val built: ref void = str.StringBuilder.build(sb)
+    str.StringBuilder.append_cstr(ctx.fwd_sb, str.cstr(built))
+    str.StringBuilder.free(sb)
+    return label
+}
+
 fn gen_builtin(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
     val bname: ref u8 = expr.d0 as ref u8
     val args: ref void = expr.d1 as ref void
@@ -3727,6 +3806,22 @@ fn gen_builtin(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
         os.exit(1)
     }
 
+    if str.raw_cmp(bname, "embed") == 0 {
+        val epath: ref u8 = expr.d2 as ref u8
+        if epath == none {
+            stdio.eprint("error: @embed path was not resolved\n", {})
+            os.exit(1)
+        }
+        val label: ref u8 = cc_embed_data(ctx, epath, expr.d3)
+        val buf: ref u8 = @alloc(256) as ref u8
+        @snprintf(buf, 256, "(int64_t)(intptr_t){s}", {label})
+        return cc_expr_track(ctx, buf)
+    }
+    if str.raw_cmp(bname, "embedlen") == 0 {
+        val buf: ref u8 = @alloc(64) as ref u8
+        @snprintf(buf, 64, "INT64_C({lld})", {expr.d3})
+        return cc_expr_track(ctx, buf)
+    }
     if str.raw_cmp(bname, "alloc") == 0 {
         val sz: ref u8 = get_arg(ctx, args, 0)
         val buf: ref u8 = @alloc(128) as ref u8
@@ -6091,6 +6186,19 @@ fn preregister_items(ctx: mut ref CCtx, items: list[ref parser.Node], mod_prefix
                             @snprintf(cb, 256, "(({s})({s}))", {ct, inner_text})
                             cv = cb
                         }
+                    } elif ce.kind == parser.NK_BUILTIN {
+                        val bname: ref u8 = ce.d0 as ref u8
+                        if str.raw_cmp(bname, "embed") == 0 {
+                            val epath: ref u8 = ce.d2 as ref u8
+                            if epath == none {
+                                stdio.eprint("error: @embed path was not resolved\n", {})
+                                os.exit(1)
+                            }
+                            val label: ref u8 = cc_embed_data(ctx, epath, ce.d3)
+                            cv = @fmt("(int64_t)(intptr_t){s}", {label})
+                        } elif str.raw_cmp(bname, "embedlen") == 0 {
+                            cv = @fmt("{lld}", {ce.d3})
+                        }
                     }
                 }
                 if ce != none && ce.kind == parser.NK_LIST_LIT {
@@ -6155,6 +6263,31 @@ fn gen_module_val(ctx: mut ref CCtx, node: ref parser.Node, mod_prefix: ref u8) 
         ct = cc_c_type_of(ctx, ty_node)
     }
     val mangled: ref u8 = cc_register_module_global(ctx, name, mod_prefix, ty_node)
+
+    if init_expr != none && init_expr.kind == parser.NK_BUILTIN {
+        val bname: ref u8 = init_expr.d0 as ref u8
+        if str.raw_cmp(bname, "embed") == 0 {
+            val epath: ref u8 = init_expr.d2 as ref u8
+            if epath == none {
+                stdio.eprint("error: @embed path was not resolved\n", {})
+                os.exit(1)
+            }
+            val label: ref u8 = cc_embed_data(ctx, epath, init_expr.d3)
+            val ebuf: ref u8 = @alloc(1024) as ref u8
+            @snprintf(ebuf, 1024, "static int64_t {s} = (int64_t)(intptr_t){s};\n", {mangled, label})
+            emit_to_fwd(ctx, ebuf)
+            @free(ebuf)
+            return
+        }
+        if str.raw_cmp(bname, "embedlen") == 0 {
+            val ebuf: ref u8 = @alloc(1024) as ref u8
+            @snprintf(ebuf, 1024, "static int64_t {s} = INT64_C({lld});\n", {mangled, init_expr.d3})
+            emit_to_fwd(ctx, ebuf)
+            @free(ebuf)
+            return
+        }
+    }
+
     val buf: ref u8 = @alloc(1024) as ref u8
     @snprintf(buf, 1024, "static {s} {s};\n", {ct, mangled})
     emit_to_fwd(ctx, buf) @free(buf)

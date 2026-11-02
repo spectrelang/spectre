@@ -4,6 +4,8 @@ val stdio      = use("std/stdio")
 val math       = use("std/math")
 val allocators = use("std/allocators")
 val reflection = use("std/reflection")
+val fs         = use("std/fs")
+val path       = use("std/path")
 val parser     = use("../ast/parser.sx")
 val modinfo    = use("../module/module.sx")
 
@@ -206,6 +208,12 @@ fn builtin_min_arity(name: ref u8) i64 = trust {
     if str_eq(name, "capacity") {
         return 1
     }
+    if str_eq(name, "embed") {
+        return 1
+    }
+    if str_eq(name, "embedlen") {
+        return 1
+    }
     if str_eq(name, "alloc") {
         return 1
     }
@@ -302,6 +310,69 @@ fn builtin_min_arity(name: ref u8) i64 = trust {
     return 0
 }
 
+/// Validate @embed/@embedlen and attach the resolved file path and size to
+/// the builtin node. Paths are relative to the file containing the builtin.
+fn resolve_embed_builtin(
+    ctx: mut ref SemaCtx,
+    expr: ref parser.Node,
+    bargs: ref void,
+    filename: ref u8,
+    bname: ref u8
+) void = trust {
+    val argc: mut i64 = 0
+    if bargs != none {
+        argc = @len(bargs as list[ref parser.Node]) as i64
+    }
+    if argc != 1 {
+        val ebuf: ref u8 = @alloc(512) as ref u8
+        @snprintf(ebuf, 512, "{s}:{lld}: builtin '@{s}' expects exactly 1 argument, got {lld}",
+            {filename, expr.line, bname, argc})
+        add_error(ctx, ebuf)
+        return
+    }
+
+    val arg_opt = @get(bargs as list[ref parser.Node], 0 as usize)
+    if arg_opt is some arg_raw {
+        val arg: ref parser.Node = arg_raw as ref parser.Node
+        if arg.kind != parser.NK_STR_LIT {
+            val ebuf: ref u8 = @alloc(512) as ref u8
+            @snprintf(ebuf, 512, "{s}:{lld}: builtin '@{s}' expects a string literal path",
+                {filename, expr.line, bname})
+            add_error(ctx, ebuf)
+            return
+        }
+        val rel: ref u8 = arg.d0 as ref u8
+        if rel == none || string.len_raw(rel) == 0 {
+            val ebuf: ref u8 = @alloc(512) as ref u8
+            @snprintf(ebuf, 512, "{s}:{lld}: builtin '@{s}' requires a non-empty path",
+                {filename, expr.line, bname})
+            add_error(ctx, ebuf)
+            return
+        }
+        val base_dir: ref u8 = path.dir(filename)
+        val joined: ref u8 = path.join(base_dir, rel)
+        val canonical: ref u8 = canonicalize_path(joined)
+        val size_opt = fs.file_size(canonical)
+        match size_opt {
+            some size => {
+                parser.node_store_slot[ref u8](@addr(expr.d2), canonical)
+                parser.node_store_slot[i64](@addr(expr.d3), size)
+            }
+            none => {
+                val ebuf: ref u8 = @alloc(1024) as ref u8
+                @snprintf(ebuf, 1024, "{s}:{lld}: cannot embed '{s}': file not found or unreadable",
+                    {filename, expr.line, canonical})
+                add_error(ctx, ebuf)
+            }
+        }
+    } else {
+        val ebuf: ref u8 = @alloc(512) as ref u8
+        @snprintf(ebuf, 512, "{s}:{lld}: builtin '@{s}' expects exactly 1 argument",
+            {filename, expr.line, bname})
+        add_error(ctx, ebuf)
+    }
+}
+
 fn is_known_builtin(name: ref u8) bool = trust {
     val builtins: list[ref u8] = [
         "alloc",
@@ -353,7 +424,9 @@ fn is_known_builtin(name: ref u8) bool = trust {
         "itoa",
         "staticerror",
         "flush",
-        "bitcast"
+        "bitcast",
+        "embed",
+        "embedlen"
     ]
 
     for builtin in builtins {
@@ -4319,6 +4392,10 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
             }
         }
 
+        if str_eq(bname, "embed") || str_eq(bname, "embedlen") {
+            resolve_embed_builtin(ctx, expr, bargs, filename, bname)
+        }
+
         val is_unsafe_builtin: bool = str_eq(bname, "store8") || str_eq(bname, "store") || str_eq(bname, "load8") || str_eq(bname, "load") || str_eq(bname, "ptradd") || str_eq(bname, "dprintf") || str_eq(bname, "print") || str_eq(bname, "fmt") || str_eq(bname, "memset") || str_eq(bname, "memcpy") || str_eq(bname, "memmove") || str_eq(bname, "free") || str_eq(bname, "realloc") || str_eq(bname, "addr") || str_eq(bname, "deref") || str_eq(bname, "bitcast")
         if is_unsafe_builtin {
             if ctx.in_unsafe_fn == 0 && ctx.in_trust == 0 {
@@ -6075,6 +6152,13 @@ fn check_top_item(ctx: mut ref SemaCtx, item: ref parser.Node, filename: ref u8)
     }
     if k == parser.NK_VAL {
         val init_node: ref parser.Node = item.d3 as ref parser.Node
+        if init_node != none {
+            check_expr(ctx, init_node, filename)
+        }
+        return
+    }
+    if k == parser.NK_CONST {
+        val init_node: ref parser.Node = item.d2 as ref parser.Node
         if init_node != none {
             check_expr(ctx, init_node, filename)
         }

@@ -1,6 +1,7 @@
 val str         = use("std/string")
 val fmt         = use("std/fmt")
 val os          = use("std/os")
+val fs          = use("std/fs")
 val stdio       = use("std/stdio")
 val allocators  = use("std/allocators")
 val reflection  = use("std/reflection")
@@ -83,6 +84,10 @@ pub type CgCtx = {
     gsubst_names: mut list[ref u8]
     gsubst_tnodes: mut list[ref void]
     current_filename: mut ref u8
+    embed_sb: mut ref void
+    embed_paths: mut list[ref u8]
+    embed_labels: mut list[ref u8]
+    embed_count: mut i64
 }
 
 /// Result of a code generation pass: QBE IR plus any generated C shim.
@@ -168,6 +173,10 @@ fn cg_new() ref CgCtx = trust {
     ctx.gsubst_names = []
     ctx.gsubst_tnodes = []
     ctx.current_filename = ""
+    ctx.embed_sb = str.StringBuilder.new()
+    ctx.embed_paths = []
+    ctx.embed_labels = []
+    ctx.embed_count = 0
     return ctx
 }
 
@@ -3607,6 +3616,16 @@ fn infer_type_annotation(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = tru
         return "ref u8"
     }
 
+    if k == parser.NK_BUILTIN {
+        val bname: ref u8 = expr.d0 as ref u8
+        if str.raw_cmp(bname, "embed") == 0 {
+            return "ref u8"
+        }
+        if str.raw_cmp(bname, "embedlen") == 0 {
+            return "i64"
+        }
+    }
+
     if k == parser.NK_IDENT {
         val name: ref u8 = expr.d0 as ref u8
         val lt: ref u8 = cg_local_type(ctx, name)
@@ -4960,9 +4979,13 @@ fn emit_global_val(ctx: mut ref CgCtx, mod_prefix: ref u8, node: ref parser.Node
 
     val ginit: mut ref u8 = "0"
     if gexpr != none {
-        val static_init: ref u8 = static_global_init_value(ctx, gexpr)
-        if str.raw_cmp(static_init, "") != 0 {
-            ginit = static_init
+        if gexpr.kind == parser.NK_BUILTIN && str.raw_cmp(gexpr.d0 as ref u8, "embedlen") == 0 {
+            ginit = @fmt("{lld}", {gexpr.d3})
+        } else {
+            val static_init: ref u8 = static_global_init_value(ctx, gexpr)
+            if str.raw_cmp(static_init, "") != 0 {
+                ginit = static_init
+            }
         }
     }
 
@@ -4971,6 +4994,25 @@ fn emit_global_val(ctx: mut ref CgCtx, mod_prefix: ref u8, node: ref parser.Node
         @snprintf(glabel, 512, "{s}", {gname})
     } else {
         @snprintf(glabel, 512, "{s}__{s}", {mod_prefix, gname})
+    }
+
+    if gexpr != none && gexpr.kind == parser.NK_BUILTIN && str.raw_cmp(gexpr.d0 as ref u8, "embed") == 0 {
+        val epath: ref u8 = gexpr.d2 as ref u8
+        if epath == none {
+            stdio.eprint("error: @embed path was not resolved\n", {})
+            os.exit(1)
+        }
+        val before: i64 = @len(ctx.embed_labels) as i64
+        val embed_label: ref u8 = cg_embed_label(ctx, epath)
+        if (@len(ctx.embed_labels) as i64) > before {
+            cg_emit_embed_data(ctx, epath, embed_label, gexpr.d3)
+        }
+        val data_buf: ref u8 = @alloc(256) as ref u8
+        @snprintf(data_buf, 256, "data ${s} = \{ l ${s} \}\n", {glabel, embed_label})
+        emit(ctx, data_buf)
+        @free(data_buf)
+        cg_register_global(ctx, gname, glabel, "l", gann)
+        return
     }
 
     if !emit_global_fixed_arr_literal(ctx, glabel, gty_node, gexpr) && !emit_global_list_literal(ctx, glabel, gexpr) {
@@ -8173,6 +8215,154 @@ fn expr_qtype(ctx: mut ref CgCtx, node: ref parser.Node) ref u8 = trust {
     return "l"
 }
 
+fn cg_emit_embed_const(ctx: mut ref CgCtx, cname: ref u8, const_label: ref u8, cexpr: ref parser.Node) bool = trust {
+    if cexpr == none || cexpr.kind != parser.NK_BUILTIN {
+        return false
+    }
+    val bname: ref u8 = cexpr.d0 as ref u8
+    if str.raw_cmp(bname, "embed") == 0 {
+        val epath: ref u8 = cexpr.d2 as ref u8
+        if epath == none {
+            stdio.eprint("error: @embed path was not resolved\n", {})
+            os.exit(1)
+        }
+        val before: i64 = @len(ctx.embed_labels) as i64
+        val label: ref u8 = cg_embed_label(ctx, epath)
+        if (@len(ctx.embed_labels) as i64) > before {
+            cg_emit_embed_data(ctx, epath, label, cexpr.d3)
+        }
+        cg_register_module_const(ctx, cname, @fmt("${s}", {label}))
+        @free(const_label)
+        return true
+    }
+    if str.raw_cmp(bname, "embedlen") == 0 {
+        val sval: ref u8 = @fmt("{lld}", {cexpr.d3})
+        cg_register_module_const(ctx, cname, sval)
+        if cg_emit_label_if_new(ctx, const_label) {
+            val data_buf: ref u8 = @alloc(256) as ref u8
+            @snprintf(data_buf, 256, "data ${s} = \{ l {s} \}\n", {const_label, sval})
+            emit(ctx, data_buf)
+            @free(data_buf)
+        } else {
+            @free(const_label)
+        }
+        return true
+    }
+    return false
+}
+
+fn cg_embed_label(ctx: mut ref CgCtx, path: ref u8) ref u8 = trust {
+    val n: i64 = @len(ctx.embed_paths) as i64
+    val i: mut i64 = 0
+    for {
+        if i >= n {
+            break
+        }
+        val p_opt = @get(ctx.embed_paths, i as usize)
+        if p_opt is some p {
+            if str.raw_cmp(p as ref u8, path) == 0 {
+                val l_opt = @get(ctx.embed_labels, i as usize)
+                if l_opt is some l {
+                    return l as ref u8
+                }
+            }
+        }
+        i++
+    }
+
+    val label: ref u8 = @fmt("sx__embed_{lld}", {ctx.embed_count})
+    ctx.embed_count = ctx.embed_count + (1 as i64)
+    @append(ctx.embed_paths, path)
+    @append(ctx.embed_labels, label)
+    return label
+}
+
+fn cg_emit_embed_data(ctx: ref CgCtx, path: ref u8, label: ref u8, size: i64) void = trust {
+    val sb: ref void = str.StringBuilder.new()
+    str.StringBuilder.append_cstr(sb, "data $")
+    str.StringBuilder.append_cstr(sb, label)
+    str.StringBuilder.append_cstr(sb, " = { ")
+
+    val data_opt = fs.read_all_raw(path)
+    val nbuf: ref u8 = @alloc(32) as ref u8
+    val first: mut bool = true
+    if data_opt is some data {
+        val i: mut i64 = 0
+        val zeros: mut i64 = 0
+        for {
+            if i >= size {
+                break
+            }
+            val b: i64 = @load8(@ptradd(data, i)) as i64
+            if b == 0 {
+                zeros = zeros + (1 as i64)
+            } else {
+                if zeros > 0 {
+                    if zeros >= (4 as i64) {
+                        if !first {
+                            str.StringBuilder.append_cstr(sb, ", ")
+                        }
+                        @snprintf(nbuf, 32, "z {lld}", {zeros})
+                        str.StringBuilder.append_cstr(sb, nbuf)
+                        first = false
+                    } else {
+                        val zi: mut i64 = 0
+                        for zi < zeros {
+                            if !first {
+                                str.StringBuilder.append_cstr(sb, ", ")
+                            }
+                            str.StringBuilder.append_cstr(sb, "b 0")
+                            first = false
+                            zi = zi + (1 as i64)
+                        }
+                    }
+                    zeros = 0
+                }
+                if !first {
+                    str.StringBuilder.append_cstr(sb, ", ")
+                }
+                @snprintf(nbuf, 32, "b {lld}", {b})
+                str.StringBuilder.append_cstr(sb, nbuf)
+                first = false
+            }
+            i = i + (1 as i64)
+        }
+        if zeros > 0 {
+            if zeros >= (4 as i64) {
+                if !first {
+                    str.StringBuilder.append_cstr(sb, ", ")
+                }
+                @snprintf(nbuf, 32, "z {lld}", {zeros})
+                str.StringBuilder.append_cstr(sb, nbuf)
+                first = false
+            } else {
+                val zi2: mut i64 = 0
+                for zi2 < zeros {
+                    if !first {
+                        str.StringBuilder.append_cstr(sb, ", ")
+                    }
+                    str.StringBuilder.append_cstr(sb, "b 0")
+                    first = false
+                    zi2 = zi2 + (1 as i64)
+                }
+            }
+        }
+        @free(data as ref void)
+    } else {
+        str.StringBuilder.append_cstr(sb, "z 1")
+        first = false
+    }
+    if first {
+        str.StringBuilder.append_cstr(sb, "z 1")
+    }
+    str.StringBuilder.append_cstr(sb, " }\n")
+    @free(nbuf)
+
+    val built: ref void = str.StringBuilder.build(sb)
+    str.StringBuilder.append_cstr(ctx.embed_sb, str.cstr(built))
+    str.StringBuilder.free(sb)
+}
+
 fn gen_builtin(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
     val name: ref u8 = expr.d0 as ref u8
     val args: ref void = expr.d1 as ref void
@@ -8201,7 +8391,23 @@ fn gen_builtin(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
     val tmp: mut i64 = fresh_tmp(ctx)
     val buf: ref u8 = @alloc(512) as ref u8
 
-    if str.raw_cmp(name, "alloc") == 0 {
+    if str.raw_cmp(name, "embed") == 0 {
+        val epath: ref u8 = expr.d2 as ref u8
+        if epath == none {
+            stdio.eprint("error: @embed path was not resolved\n", {})
+            os.exit(1)
+        }
+        val before: i64 = @len(ctx.embed_labels) as i64
+        val label: ref u8 = cg_embed_label(ctx, epath)
+        if (@len(ctx.embed_labels) as i64) > before {
+            cg_emit_embed_data(ctx, epath, label, expr.d3)
+        }
+        @snprintf(buf, 512, "    %%t{lld} =l copy ${s}\n", {tmp, label})
+        emit(ctx, buf)
+    } elif str.raw_cmp(name, "embedlen") == 0 {
+        @snprintf(buf, 512, "    %%t{lld} =l copy {lld}\n", {tmp, expr.d3})
+        emit(ctx, buf)
+    } elif str.raw_cmp(name, "alloc") == 0 {
         val sz: ref u8 = get_arg(ctx, args, 0)
         @snprintf(buf, 512, "    %%t{lld} =l call $malloc(l {s})\n", {tmp, sz})
         emit(ctx, buf)
@@ -13020,6 +13226,10 @@ fn gen_items_with_prefix(ctx: mut ref CgCtx, items: list[ref parser.Node], mod_p
                         } else {
                             @free(const_label)
                         }
+                    } elif cexpr.kind == parser.NK_BUILTIN {
+                        if !cg_emit_embed_const(ctx, cname, const_label, cexpr) {
+                            @free(const_label)
+                        }
                     } else {
                         @free(const_label)
                     }
@@ -13642,6 +13852,10 @@ fn cg_finish_qbe(ctx: mut ref CgCtx) ref u8 = trust {
     val mono_str: ref u8 = str.cstr(mono_built)
     str.StringBuilder.append_cstr(cg_sb(ctx), mono_str)
     str.StringBuilder.free(ctx.mono_sb)
+
+    val embed_built: ref void = str.StringBuilder.build(ctx.embed_sb)
+    str.StringBuilder.append_cstr(cg_sb(ctx), str.cstr(embed_built))
+    str.StringBuilder.free(ctx.embed_sb)
 
     val built: ref void = str.StringBuilder.build(cg_sb(ctx))
     val result: ref u8 = str.cstr(built)
@@ -14273,6 +14487,10 @@ fn gen_items_with_prefix_skip_links(ctx: mut ref CgCtx, items: list[ref parser.N
                             emit_global_list_literal(ctx, const_label, cexpr)
                             cg_register_global(ctx, cname, const_label, "l", "")
                         } else {
+                            @free(const_label)
+                        }
+                    } elif cexpr.kind == parser.NK_BUILTIN {
+                        if !cg_emit_embed_const(ctx, cname, const_label, cexpr) {
                             @free(const_label)
                         }
                     } else {
