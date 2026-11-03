@@ -280,7 +280,7 @@ fn builtin_min_arity(name: ref u8) i64 = trust {
     if str_eq(name, "snprintf") {
         return 3
     }
-    if str_eq(name, "fmt") {
+    if str_eq(name, "fmt") || str_eq(name, "fmtalloc") {
         return 1
     }
     if str_eq(name, "puts") {
@@ -407,6 +407,7 @@ fn is_known_builtin(name: ref u8) bool = trust {
         "reserve",
         "capacity",
         "fmt",
+        "fmtalloc",
         "snprintf",
         "print",
         "dprintf",
@@ -4814,6 +4815,9 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
             "fmt"
         ) || str_eq(
             bname,
+            "fmtalloc"
+        ) || str_eq(
+            bname,
             "memset"
         ) || str_eq(
             bname,
@@ -5759,6 +5763,17 @@ fn check_stmts(ctx: mut ref SemaCtx, stmts: ref void, filename: ref u8) void = t
     }
 }
 
+fn val_decl_type_name(ty_node: ref parser.Node, init_expr: ref parser.Node) ref u8 = trust {
+    val explicit: ref u8 = extract_type_name(ty_node)
+    if explicit != none {
+        return explicit
+    }
+    if init_expr != none && init_expr.kind == parser.NK_STRUCT_LIT {
+        return parser.struct_lit_type_name(init_expr)
+    }
+    return none
+}
+
 fn check_stmt(ctx: mut ref SemaCtx, stmt: ref parser.Node, filename: ref u8) void = trust {
     guarded pre {
         ctx_not_null: ctx != none
@@ -5785,7 +5800,7 @@ fn check_stmt(ctx: mut ref SemaCtx, stmt: ref parser.Node, filename: ref u8) voi
             add_error(ctx, buf)
         } else {
             val ty_node: ref parser.Node = stmt.d2 as ref parser.Node
-            val tname: ref u8 = extract_type_name(ty_node)
+            val tname: ref u8 = val_decl_type_name(ty_node, stmt.d3 as ref parser.Node)
             val is_ref_flag: mut i64 = 0
             if ty_node != none {
                 if ty_node.kind == parser.TY_REF {

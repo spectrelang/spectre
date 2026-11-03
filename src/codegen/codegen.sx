@@ -3805,6 +3805,13 @@ fn infer_type_annotation(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = tru
         return ""
     }
 
+    if k == parser.NK_STRUCT_LIT {
+        val lit_ty: ref u8 = parser.struct_lit_type_name(expr)
+        if lit_ty != none {
+            return lit_ty
+        }
+    }
+
     if k == parser.NK_CAST {
         val cast_ty: ref parser.Node = expr.d1 as ref parser.Node
         return type_expr_to_annotation(ctx, cast_ty)
@@ -5167,7 +5174,7 @@ fn emit_global_val(ctx: mut ref CgCtx, mod_prefix: ref u8, node: ref parser.Node
     val ginit: mut ref u8 = "0"
     if gexpr != none {
         if gexpr.kind == parser.NK_BUILTIN && str.raw_cmp(gexpr.d0 as ref u8, "embedlen") == 0 {
-            ginit = @fmt("{lld}", {gexpr.d3})
+            ginit = @fmtalloc("{lld}", {gexpr.d3})
         } else {
             val static_init: ref u8 = static_global_init_value(ctx, gexpr)
             if str.raw_cmp(static_init, "") != 0 {
@@ -7855,6 +7862,22 @@ fn gen_call(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
             }
             gti++
         }
+        if gfn_params_list != none {
+            val pad_need: i64 = @len(gfn_params_list as list[ref parser.Node]) as i64
+            val pad_i: mut i64 = @len(arg_tmps_g) as i64
+            for {
+                if pad_i >= pad_need {
+                    break
+                }
+                if pad_i > 0 {
+                    @memcpy(@ptradd(gcall_buf, gcall_pos), ", " as ref void, 2)
+                    gcall_pos += 2
+                }
+                @memcpy(@ptradd(gcall_buf, gcall_pos), "l 0" as ref void, 3)
+                gcall_pos += 3
+                pad_i++
+            }
+        }
         @store8(@ptradd(gcall_buf, gcall_pos), 41)
         gcall_pos++
         @store8(@ptradd(gcall_buf, gcall_pos), 10)
@@ -8686,12 +8709,12 @@ fn cg_emit_embed_const(
         if (@len(ctx.embed_labels) as i64) > before {
             cg_emit_embed_data(ctx, epath, label, cexpr.d3)
         }
-        cg_register_module_const(ctx, cname, @fmt("${s}", {label}))
+        cg_register_module_const(ctx, cname, @fmtalloc("${s}", {label}))
         @free(const_label)
         return true
     }
     if str.raw_cmp(bname, "embedlen") == 0 {
-        val sval: ref u8 = @fmt("{lld}", {cexpr.d3})
+        val sval: ref u8 = @fmtalloc("{lld}", {cexpr.d3})
         cg_register_module_const(ctx, cname, sval)
         if cg_emit_label_if_new(ctx, const_label) {
             val data_buf: ref u8 = @alloc(256) as ref u8
@@ -8725,7 +8748,7 @@ fn cg_embed_label(ctx: mut ref CgCtx, path: ref u8) ref u8 = trust {
         i++
     }
 
-    val label: ref u8 = @fmt("sx__embed_{lld}", {ctx.embed_count})
+    val label: ref u8 = @fmtalloc("sx__embed_{lld}", {ctx.embed_count})
     ctx.embed_count = ctx.embed_count + (1 as i64)
     @append(ctx.embed_paths, path)
     @append(ctx.embed_labels, label)
@@ -10096,7 +10119,7 @@ fn gen_builtin(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
         )
         emit(ctx, buf)
         tmp = cap_val
-    } elif str.raw_cmp(name, "fmt") == 0 {
+    } elif str.raw_cmp(name, "fmt") == 0 || str.raw_cmp(name, "fmtalloc") == 0 {
         val fmt2: ref u8 = get_format_arg(ctx, args, 0)
         val fmt_buf: i64 = fresh_tmp(ctx)
         val fmt_written_w: i64 = fresh_tmp(ctx)
@@ -10716,8 +10739,12 @@ fn gen_struct_lit(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
     }
 
     val struct_fields: mut ref void = none
+    val named_ty: ref u8 = parser.struct_lit_type_name(expr)
     val expected_ty: ref parser.Node = ctx.expected_ty as ref parser.Node
-    if expected_ty != none {
+    if named_ty != none {
+        struct_fields = cg_lookup_struct(ctx, named_ty)
+    }
+    if struct_fields == none && expected_ty != none {
         struct_fields = cg_struct_fields_for_type(ctx, expected_ty)
     }
     if struct_fields == none {
@@ -10727,7 +10754,9 @@ fn gen_struct_lit(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
     // Compute the total allocation size using struct_size which correctly
     // accounts for tagged unions (16 bytes) and other named types.
     val size: mut i64 = flen * 8
-    if expected_ty != none {
+    if named_ty != none && struct_fields != none {
+        size = struct_size(ctx, struct_fields)
+    } elif expected_ty != none {
         val expected_size: i64 = cg_alloc_size_for_type(ctx, expected_ty)
         if expected_size > 0 {
             size = expected_size
@@ -15167,8 +15196,8 @@ pub fn get_used_prefixes(root: ref module.ResolvedModule) list[ref u8] = trust {
 /// Emit a single test block as a numbered function. Returns the function name.
 fn gen_test_fn(ctx: mut ref CgCtx, body_stmts: ref parser.Node, test_id: i64) void = trust {
     cg_dvars_clear(ctx)
-    val fname: ref u8 = @fmt("__sx_test_{lld}", {test_id})
-    val hdr: ref u8 = @fmt("export function w ${s}() {\n@start\n", {fname})
+    val fname: ref u8 = @fmtalloc("__sx_test_{lld}", {test_id})
+    val hdr: ref u8 = @fmtalloc("export function w ${s}() {\n@start\n", {fname})
     emit(ctx, hdr)
     val gnames_list: ref void = cg_global_src_names(ctx)
     val glen: i64 = @len(gnames_list) as i64
@@ -15226,7 +15255,11 @@ fn gen_test_fn(ctx: mut ref CgCtx, body_stmts: ref parser.Node, test_id: i64) vo
 }
 
 /// Emit a $main that calls all collected test functions and prints a summary.
-fn gen_test_main(ctx: mut ref CgCtx, test_ids: list[i64]) void = trust {
+fn gen_test_main(
+    ctx: mut ref CgCtx,
+    test_ids: list[i64],
+    test_names: list[ref u8]
+) void = trust {
     emitln(ctx, "export function w $main(w %argc, l %argv) {")
     emitln(ctx, "@start")
     emitln(ctx, "    %sx_argc_val =l extsw %argc")
@@ -15244,8 +15277,28 @@ fn gen_test_main(ctx: mut ref CgCtx, test_ids: list[i64]) void = trust {
         }
         val id_opt = @get(test_ids, ti as usize)
         if id_opt is some id {
-            val call: ref u8 = @fmt("    call $__sx_test_{lld}()\n", {id as i64})
+            val call: ref u8 = @fmtalloc("    call $__sx_test_{lld}()\n", {id as i64})
             emit(ctx, call)
+            val name_opt = @get(test_names, ti as usize)
+            if name_opt is some name_val {
+                val tname: ref u8 = name_val as ref u8
+                if tname != none && str.len_raw(tname) > 0 {
+                    val fmt_idx: i64 = intern_string(ctx, "[pass] %s\n")
+                    val name_idx: i64 = intern_string(ctx, tname)
+                    val fmt_tmp: i64 = fresh_tmp(ctx)
+                    val name_tmp: i64 = fresh_tmp(ctx)
+                    val call_tmp: i64 = fresh_tmp(ctx)
+                    val pbuf: ref u8 = @alloc(256) as ref u8
+                    @snprintf(
+                        pbuf,
+                        256,
+                        "    %%t{lld} =l copy $__str{lld}\n    %%t{lld} =l copy $__str{lld}\n    %%t{lld} =w call $printf(l %%t{lld}, l %%t{lld})\n",
+                        {fmt_tmp, fmt_idx, name_tmp, name_idx, call_tmp, fmt_tmp, name_tmp}
+                    )
+                    emit(ctx, pbuf)
+                    @free(pbuf)
+                }
+            }
         }
         ti++
     }
@@ -15316,6 +15369,7 @@ pub fn gen_module_resolved_test(
     }
 
     val test_ids: mut list[i64] = []
+    val test_names: mut list[ref u8] = []
     val test_counter: mut i64 = 0
     val root_items: list[ref parser.Node] = root.items
     val rlen: i64 = @len(root_items) as i64
@@ -15430,6 +15484,7 @@ pub fn gen_module_resolved_test(
             if node.kind == parser.NK_TEST {
                 test_counter++
                 @append(test_ids, test_counter)
+                @append(test_names, parser.test_name(node))
                 gen_test_fn(ctx, node.d0 as ref parser.Node, test_counter)
             }
         }
@@ -15437,7 +15492,7 @@ pub fn gen_module_resolved_test(
     }
 
     cg_emit_global_init(ctx)
-    gen_test_main(ctx, test_ids)
+    gen_test_main(ctx, test_ids, test_names)
     emit_string_data(ctx)
 
     val cg_out: mut ref CgOutput = @alloc(@sizeof(CgOutput)) as ref CgOutput

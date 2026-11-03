@@ -12,15 +12,15 @@ pub fn get_tmp_path(name: ref u8) ref u8 = trust {
     when windows {
         val tmp_dir: ref u8 = os.getenv("TEMP")
         if tmp_dir != none {
-            return @fmt("{s}/{s}", {tmp_dir, name})
+            return @fmtalloc("{s}/{s}", {tmp_dir, name})
         }
         val tmp2: ref u8 = os.getenv("TMP")
         if tmp2 != none {
-            return @fmt("{s}/{s}", {tmp2, name})
+            return @fmtalloc("{s}/{s}", {tmp2, name})
         }
-        return @fmt("C:/Windows/Temp/{s}", {name})
+        return @fmtalloc("C:/Windows/Temp/{s}", {name})
     }
-    return @fmt("/tmp/{s}", {name})
+    return @fmtalloc("/tmp/{s}", {name})
 }
 
 pub fn is_compiler_available(compiler: ref u8) bool = {

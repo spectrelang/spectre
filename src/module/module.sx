@@ -81,7 +81,7 @@ pub fn resolve_use_path(
     workspace: ref u8
 ) ref u8 = trust {
     if str.raw_starts_with(use_path, "std/") {
-        use_path = @fmt("spectrelib/{s}", {@ptradd(use_path, 4) as ref u8})
+        use_path = @fmtalloc("spectrelib/{s}", {@ptradd(use_path, 4) as ref u8})
     }
     val plen: i64 = str.len_raw(use_path)
 
@@ -108,40 +108,40 @@ pub fn resolve_use_path(
     }
 
     if has_slash {
-        val core_exe = path.join(exe_dir, @fmt("{s}/core.sx", {use_path}))
+        val core_exe = path.join(exe_dir, @fmtalloc("{s}/core.sx", {use_path}))
         if file_exists(core_exe) {
             return path.canonicalize_path(core_exe)
         }
-        val core_ws = path.join(workspace, @fmt("{s}/core.sx", {use_path}))
+        val core_ws = path.join(workspace, @fmtalloc("{s}/core.sx", {use_path}))
         if file_exists(core_ws) {
             return path.canonicalize_path(core_ws)
         }
 
-        val candidate_exe = path.join(exe_dir, @fmt("{s}.sx", {use_path}))
+        val candidate_exe = path.join(exe_dir, @fmtalloc("{s}.sx", {use_path}))
         if file_exists(candidate_exe) {
             return path.canonicalize_path(candidate_exe)
         }
-        val candidate_ws = path.join(workspace, @fmt("{s}.sx", {use_path}))
+        val candidate_ws = path.join(workspace, @fmtalloc("{s}.sx", {use_path}))
         if file_exists(candidate_ws) {
             return path.canonicalize_path(candidate_ws)
         }
         return path.canonicalize_path(candidate_ws)
     }
 
-    val core1_exe = path.join(exe_dir, @fmt("{s}/core.sx", {use_path}))
+    val core1_exe = path.join(exe_dir, @fmtalloc("{s}/core.sx", {use_path}))
     if file_exists(core1_exe) {
         return path.canonicalize_path(core1_exe)
     }
-    val core1_ws = path.join(workspace, @fmt("{s}/core.sx", {use_path}))
+    val core1_ws = path.join(workspace, @fmtalloc("{s}/core.sx", {use_path}))
     if file_exists(core1_ws) {
         return path.canonicalize_path(core1_ws)
     }
 
-    val candidate2_exe = path.join(exe_dir, @fmt("{s}/{s}.sx", {use_path, use_path}))
+    val candidate2_exe = path.join(exe_dir, @fmtalloc("{s}/{s}.sx", {use_path, use_path}))
     if file_exists(candidate2_exe) {
         return path.canonicalize_path(candidate2_exe)
     }
-    val candidate2_ws = path.join(workspace, @fmt("{s}/{s}.sx", {use_path, use_path}))
+    val candidate2_ws = path.join(workspace, @fmtalloc("{s}/{s}.sx", {use_path, use_path}))
     if file_exists(candidate2_ws) {
         return path.canonicalize_path(candidate2_ws)
     }
@@ -1068,7 +1068,7 @@ fn resolve_module_impl(
 ) result[ref ResolvedModule, ref u8] = trust {
     val canonical_path: ref u8 = path.canonicalize_path(path)
     if in_progress_contains(in_progress, canonical_path) {
-        return err @fmt("cyclic import: {s}", {canonical_path})
+        return err @fmtalloc("cyclic import: {s}", {canonical_path})
     }
 
     val cn: i64 = @len(cache_keys) as i64
@@ -1096,7 +1096,7 @@ fn resolve_module_impl(
             src_arena_cap = sz as i64
         }
     } else {
-        return err @fmt("cannot read module: {s}", {canonical_path})
+        return err @fmtalloc("cannot read module: {s}", {canonical_path})
     }
     val src_arena: mut allocators.Arena = allocators.Arena.new((src_arena_cap + 8) as usize)?
     val src_opt = fs.read_all[allocators.Arena](src_arena, canonical_path)
@@ -1105,7 +1105,7 @@ fn resolve_module_impl(
         src = s as ref u8
     } else {
         allocators.Arena.free(src_arena)
-        return err @fmt("cannot read module: {s}", {canonical_path})
+        return err @fmtalloc("cannot read module: {s}", {canonical_path})
     }
 
     val lex_result = lexer.tokenize(src)
@@ -1116,7 +1116,7 @@ fn resolve_module_impl(
             tokens = t
         }
         err e => {
-            return err @fmt("{s}: lex error: {s}", {canonical_path, e})
+            return err @fmtalloc("{s}: lex error: {s}", {canonical_path, e})
         }
     }
 
@@ -1127,7 +1127,7 @@ fn resolve_module_impl(
             items = i
         }
         err e => {
-            return err @fmt("{s}: parse error: {s}", {canonical_path, e})
+            return err @fmtalloc("{s}: parse error: {s}", {canonical_path, e})
         }
     }
 
@@ -1823,7 +1823,7 @@ pub fn collect_links_filtered(
                 if str.raw_cmp(prefix, "") == 0 {
                     child_prefix = name as ref u8
                 } else {
-                    child_prefix = @fmt("{s}__{s}", {prefix, name as ref u8})
+                    child_prefix = @fmtalloc("{s}__{s}", {prefix, name as ref u8})
                 }
                 val child_links: list[ref u8] = collect_links_filtered(
                     child as ref ResolvedModule,
@@ -1898,7 +1898,7 @@ pub fn collect_links_all(
                 if str.raw_cmp(prefix, "") == 0 {
                     child_prefix = name as ref u8
                 } else {
-                    child_prefix = @fmt("{s}__{s}", {prefix, name as ref u8})
+                    child_prefix = @fmtalloc("{s}__{s}", {prefix, name as ref u8})
                 }
                 val child_links: list[ref u8] = collect_links_all(
                     child as ref ResolvedModule,

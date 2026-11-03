@@ -133,6 +133,23 @@ if [ $BOOTSTRAP_ONLY -eq 0 ]; then
 	echo "Extra tests:"
 	run_std_tests
 
+	named_test_src="$LOG_DIR/named_test_output.sx"
+	cat >"$named_test_src" <<'EOF'
+test "addition works" {
+    assert 1 + 1 == 2
+}
+EOF
+	((total++))
+	named_test_out=$("$COMPILER" "$named_test_src" --test 2>&1)
+	if printf '%s' "$named_test_out" | grep -q '\[pass\] addition works'; then
+		echo "[PASS] named test output"
+		((passed++))
+	else
+		echo "[FAIL] named test output"
+		echo "$named_test_out" | sed 's/^/  /'
+		((failed++))
+	fi
+
 	"$COMPILER" ./src/ast/lexer.sx -l --test
 	"$COMPILER" ./src/ast/parser.sx -l --test
 	"$COMPILER" ./src/sema/sema.sx -l --test

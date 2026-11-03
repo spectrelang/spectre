@@ -1,0 +1,4 @@
+val (
+some_value:i32=1
+some_other_value:i32=2
+)

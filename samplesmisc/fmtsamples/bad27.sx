@@ -1,0 +1,14 @@
+type Point = {
+x:i32
+y:i32
+z:i32
+}
+
+test "addition works" {
+assert 1+1==2
+}
+
+pub fn main() void = trust {
+val p=Point{x:10,y:20,z:30}
+@puts(@fmtalloc("{d}", {p.x}))
+}

@@ -391,6 +391,14 @@ fn cc_infer_expr_ty(ctx: mut ref CCtx, expr: ref parser.Node) ref parser.Node = 
         parser.node_store_slot[ref u8](@addr(out.d0), "u8")
         return out
     }
+    if k == parser.NK_STRUCT_LIT {
+        val lit_name: ref u8 = parser.struct_lit_type_name(expr)
+        if lit_name != none {
+            val out: mut ref parser.Node = parser.make_node(parser.TY_NAMED, expr.line)
+            parser.node_store_slot[ref u8](@addr(out.d0), lit_name)
+            return out
+        }
+    }
     if k == parser.NK_CAST {
         return expr.d1 as ref parser.Node
     }
@@ -3235,6 +3243,7 @@ fn gen_expr(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
             val bname: ref u8 = inner_node.d0 as ref u8
             if str.raw_cmp(bname, "alloc") == 0 || str.raw_cmp(bname, "realloc") == 0 ||
             str.raw_cmp(bname, "ptradd") == 0 || str.raw_cmp(bname, "fmt") == 0 ||
+            str.raw_cmp(bname, "fmtalloc") == 0 ||
             str.raw_cmp(bname, "args") == 0 {
                 return gen_expr(ctx, inner_node)
             }
@@ -3673,6 +3682,16 @@ fn gen_call(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
         }
         str.StringBuilder.append_cstr(gcall_sb, gcall_hdr)
         @free(gcall_hdr)
+        val gparams: ref void = cc_lookup_fn_params(ctx, c_mangled)
+        if gparams != none {
+            val need: i64 = @len(gparams as list[ref parser.Node]) as i64
+            for {
+                if (@len(arg_parts) as i64) >= need {
+                    break
+                }
+                @append(arg_parts, "0")
+            }
+        }
         val aplen: i64 = @len(arg_parts) as i64
         val api: mut i64 = 0
         for {
@@ -3970,7 +3989,7 @@ fn cc_embed_data(ctx: mut ref CCtx, path: ref u8, size: i64) ref u8 = trust {
         i = i + (1 as i64)
     }
 
-    val label: ref u8 = @fmt("sx__embed_{lld}", {ctx.embed_count})
+    val label: ref u8 = @fmtalloc("sx__embed_{lld}", {ctx.embed_count})
     ctx.embed_count = ctx.embed_count + (1 as i64)
     @append(ctx.embed_paths, path)
     @append(ctx.embed_labels, label)
@@ -4507,7 +4526,7 @@ fn gen_builtin(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
             {l}
         ) return cc_expr_track(ctx, buf)
     }
-    if str.raw_cmp(bname, "fmt") == 0 {
+    if str.raw_cmp(bname, "fmt") == 0 || str.raw_cmp(bname, "fmtalloc") == 0 {
         val f: ref u8 = get_format_arg(ctx, args, 0) val p: mut ref u8 = "0"
         if args != none {
             val alen: i64 = @len(args as list[ref parser.Node]) as i64
@@ -4789,8 +4808,15 @@ fn gen_struct_lit(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
 
     val alloc_size: mut i64 = (fcount * 8) as i64
     val struct_fields: mut ref void = none
+    val named_ty: ref u8 = parser.struct_lit_type_name(expr)
+    if named_ty != none {
+        struct_fields = cc_lookup_struct(ctx, named_ty)
+        if struct_fields != none {
+            alloc_size = struct_size_bytes(ctx, struct_fields)
+        }
+    }
     val expected_ty: ref parser.Node = cc_expected_struct_ty(ctx, ctx.expected_ty)
-    if expected_ty != none {
+    if struct_fields == none && expected_ty != none {
         alloc_size = c_size_of(ctx, expected_ty)
         struct_fields = cc_lookup_struct(ctx, expected_ty.d0 as ref u8)
     }
@@ -6930,9 +6956,9 @@ fn preregister_items(
                                 os.exit(1)
                             }
                             val label: ref u8 = cc_embed_data(ctx, epath, ce.d3)
-                            cv = @fmt("(int64_t)(intptr_t){s}", {label})
+                            cv = @fmtalloc("(int64_t)(intptr_t){s}", {label})
                         } elif str.raw_cmp(bname, "embedlen") == 0 {
-                            cv = @fmt("{lld}", {ce.d3})
+                            cv = @fmtalloc("{lld}", {ce.d3})
                         }
                     }
                 }
@@ -7537,7 +7563,11 @@ fn gen_test_fn_c(ctx: mut ref CCtx, body_stmts: ref parser.Node, test_id: i64) v
     emitln(ctx, "")
 }
 
-fn gen_test_main_c(ctx: mut ref CCtx, test_ids: list[i64]) void = trust {
+fn gen_test_main_c(
+    ctx: mut ref CCtx,
+    test_ids: list[i64],
+    test_names: list[ref u8]
+) void = trust {
     emitln(ctx, "int main(int argc,char**argv) {")
     emitln(ctx, "sx__argc=(int64_t)argc;sx__argv=(int64_t)(intptr_t)argv;")
     emitln(ctx, "sx__init();")
@@ -7555,6 +7585,23 @@ fn gen_test_main_c(ctx: mut ref CCtx, test_ids: list[i64]) void = trust {
             @snprintf(call, 48, "sx__test_{lld}();", {id as i64})
             emitln(ctx, call)
             @free(call)
+            val name_opt = @get(test_names, ti as usize)
+            if name_opt is some name_val {
+                val tname: ref u8 = name_val as ref u8
+                if tname != none && str.len_raw(tname) > 0 {
+                    val fmt_idx: i64 = intern_format_string(ctx, "[pass] %s\n")
+                    val name_idx: i64 = intern_string(ctx, tname)
+                    val pbuf: ref u8 = @alloc(128) as ref u8
+                    @snprintf(
+                        pbuf,
+                        128,
+                        "printf(sx__str{lld},sx__str{lld});",
+                        {fmt_idx, name_idx}
+                    )
+                    emitln(ctx, pbuf)
+                    @free(pbuf)
+                }
+            }
         }
         ti++
     }
@@ -7632,6 +7679,7 @@ pub fn gen_module_c_test(
     }
     gen_init_fn(ctx)
     val test_ids: mut list[i64] = []
+    val test_names: mut list[ref u8] = []
     val test_counter: mut i64 = 0
     if emit_line_directives {
         ctx.current_src_file = module.module_filename(root)
@@ -7649,12 +7697,13 @@ pub fn gen_module_c_test(
             if node.kind == parser.NK_TEST {
                 test_counter++
                 @append(test_ids, test_counter)
+                @append(test_names, parser.test_name(node))
                 gen_test_fn_c(ctx, node.d0 as ref parser.Node, test_counter)
             }
         }
         ri++
     }
-    gen_test_main_c(ctx, test_ids)
+    gen_test_main_c(ctx, test_ids, test_names)
     emit_string_data(ctx)
     emit_forward_decls(ctx)
     val hdr_built: ref void = str.StringBuilder.build(ctx.fwd_sb)

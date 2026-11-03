@@ -487,21 +487,21 @@ fn check_snake_name(ctx: ref Ctx, line: i64, name: ref u8, kind: ref u8) void = 
     if name == none || is_snake_case(name) {
         return
     }
-    add_issue(ctx, line, @fmt("{s} name '{s}' should be snake_case", {kind, name}))
+    add_issue(ctx, line, @fmtalloc("{s} name '{s}' should be snake_case", {kind, name}))
 }
 
 fn check_screaming_snake_name(ctx: ref Ctx, line: i64, name: ref u8, kind: ref u8) void = trust {
     if name == none || is_screaming_snake_case(name) {
         return
     }
-    add_issue(ctx, line, @fmt("{s} name '{s}' should be SCREAMING_SNAKE_CASE", {kind, name}))
+    add_issue(ctx, line, @fmtalloc("{s} name '{s}' should be SCREAMING_SNAKE_CASE", {kind, name}))
 }
 
 fn check_pascal_name(ctx: ref Ctx, line: i64, name: ref u8, kind: ref u8) void = trust {
     if name == none || is_pascal_case(name) {
         return
     }
-    add_issue(ctx, line, @fmt("{s} name '{s}' should be PascalCase", {kind, name}))
+    add_issue(ctx, line, @fmtalloc("{s} name '{s}' should be PascalCase", {kind, name}))
 }
 
 fn type_to_string(ty: ref parser.Node) ref u8 = trust {
@@ -517,28 +517,28 @@ fn type_to_string(ty: ref parser.Node) ref u8 = trust {
         if inner == none {
             return none
         }
-        return @fmt("ref {s}", {inner})
+        return @fmtalloc("ref {s}", {inner})
     }
     if k == parser.TY_MUT {
         val inner: ref u8 = type_to_string(ty.d0 as ref parser.Node)
         if inner == none {
             return none
         }
-        return @fmt("mut {s}", {inner})
+        return @fmtalloc("mut {s}", {inner})
     }
     if k == parser.TY_OPTION {
         val inner: ref u8 = type_to_string(ty.d0 as ref parser.Node)
         if inner == none {
             return none
         }
-        return @fmt("option[{s}]", {inner})
+        return @fmtalloc("option[{s}]", {inner})
     }
     if k == parser.TY_LIST {
         val inner: ref u8 = type_to_string(ty.d0 as ref parser.Node)
         if inner == none {
             return none
         }
-        return @fmt("list[{s}]", {inner})
+        return @fmtalloc("list[{s}]", {inner})
     }
     if k == parser.TY_RESULT {
         val ok_ty: ref u8 = type_to_string(ty.d0 as ref parser.Node)
@@ -546,21 +546,21 @@ fn type_to_string(ty: ref parser.Node) ref u8 = trust {
         if ok_ty == none || err_ty == none {
             return none
         }
-        return @fmt("result[{s}, {s}]", {ok_ty, err_ty})
+        return @fmtalloc("result[{s}, {s}]", {ok_ty, err_ty})
     }
     if k == parser.TY_SLICE {
         val inner: ref u8 = type_to_string(ty.d0 as ref parser.Node)
         if inner == none {
             return none
         }
-        return @fmt("[]{s}", {inner})
+        return @fmtalloc("[]{s}", {inner})
     }
     if k == parser.TY_FIXED_ARR {
         val inner: ref u8 = type_to_string(ty.d1 as ref parser.Node)
         if inner == none {
             return none
         }
-        return @fmt("[{d}]{s}", {ty.d0, inner})
+        return @fmtalloc("[{d}]{s}", {ty.d0, inner})
     }
     if k == parser.TY_VOID {
         return "void"
@@ -641,7 +641,7 @@ fn expr_type(ctx: ref Ctx, node: ref parser.Node) ref u8 = trust {
         if inner_ty == none || is_ref_type_name(inner_ty) {
             return none
         }
-        return @fmt("ref {s}", {inner_ty})
+        return @fmtalloc("ref {s}", {inner_ty})
     }
     return none
 }
@@ -1135,13 +1135,13 @@ fn collect_redundant_arithmetic_fixes(ctx: ref Ctx) void = trust {
         val int_end: i64 = token_start(ctx, int_idx) + str.len_raw(amount)
         val replacement: mut ref u8 = none
         if is_add && str.raw_cmp(amount, "1") == 0 {
-            replacement = @fmt("{s}++", {lhs_text})
+            replacement = @fmtalloc("{s}++", {lhs_text})
         } elif is_sub && str.raw_cmp(amount, "1") == 0 {
-            replacement = @fmt("{s}--", {lhs_text})
+            replacement = @fmtalloc("{s}--", {lhs_text})
         } elif is_add {
-            replacement = @fmt("{s} += {s}", {lhs_text, amount})
+            replacement = @fmtalloc("{s} += {s}", {lhs_text, amount})
         } else {
-            replacement = @fmt("{s} -= {s}", {lhs_text, amount})
+            replacement = @fmtalloc("{s} -= {s}", {lhs_text, amount})
         }
         add_fix(ctx, lhs_start, int_end, replacement)
         i++
@@ -1212,7 +1212,7 @@ fn check_unused_imports(ctx: ref Ctx) void = trust {
         }
         val count: i64 = count_ident_tokens(ctx, alias)
         if count <= 1 {
-            add_issue(ctx, use_node.line, @fmt("unused import '{s}'", {alias}))
+            add_issue(ctx, use_node.line, @fmtalloc("unused import '{s}'", {alias}))
             if ctx.fix_mode {
                 add_remove_line_fix(ctx, use_node.line)
                 if first_nonblank_line(ctx) == use_node.line && is_blank_line(
@@ -1442,14 +1442,14 @@ fn expr_to_text(node: ref parser.Node) ref u8 = trust {
         if base == none || name == none {
             return none
         }
-        return @fmt("{s}.{s}", {base, name})
+        return @fmtalloc("{s}.{s}", {base, name})
     }
     if node.kind == parser.NK_DEREF {
         val inner: ref u8 = expr_to_text(node.d0 as ref parser.Node)
         if inner == none {
             return none
         }
-        return @fmt("*{s}", {inner})
+        return @fmtalloc("*{s}", {inner})
     }
     return none
 }
@@ -1476,20 +1476,20 @@ fn check_redundant_arithmetic_assignment(ctx: ref Ctx, node: ref parser.Node) vo
     val suggestion: mut ref u8 = none
     if lhs_text != none {
         if op == parser.OP_ADD && str.raw_cmp(amount, "1") == 0 {
-            suggestion = @fmt("{s}++", {lhs_text})
+            suggestion = @fmtalloc("{s}++", {lhs_text})
         } elif op == parser.OP_SUB && str.raw_cmp(amount, "1") == 0 {
-            suggestion = @fmt("{s}--", {lhs_text})
+            suggestion = @fmtalloc("{s}--", {lhs_text})
         } elif op == parser.OP_ADD {
-            suggestion = @fmt("{s} += {s}", {lhs_text, amount})
+            suggestion = @fmtalloc("{s} += {s}", {lhs_text, amount})
         } else {
-            suggestion = @fmt("{s} -= {s}", {lhs_text, amount})
+            suggestion = @fmtalloc("{s} -= {s}", {lhs_text, amount})
         }
     }
     if suggestion != none {
         add_issue(
             ctx,
             node.line,
-            @fmt("redundant arithmetic assignment; use '{s}' instead", {suggestion})
+            @fmtalloc("redundant arithmetic assignment; use '{s}' instead", {suggestion})
         )
     } else {
         add_issue(ctx, node.line, "redundant arithmetic assignment")
@@ -1610,7 +1610,7 @@ fn check_fn_node(ctx: ref Ctx, fn_node: ref parser.Node, check_body: bool) void 
     }
     val body: list[ref parser.Node] = fn_node.d5 as list[ref parser.Node]
     if list_len(body) == 0 {
-        add_issue(ctx, fn_node.line, @fmt("empty function body for '{s}'", {name}))
+        add_issue(ctx, fn_node.line, @fmtalloc("empty function body for '{s}'", {name}))
         return
     }
     if list_len(body) == 1 {
@@ -1618,7 +1618,7 @@ fn check_fn_node(ctx: ref Ctx, fn_node: ref parser.Node, check_body: bool) void 
         if only_opt is some only_val {
             val only: ref parser.Node = only_val as ref parser.Node
             if only != none && only.kind == parser.NK_TRUST_BLOCK && list_len(only.d0 as list[ref parser.Node]) == 0 {
-                add_issue(ctx, fn_node.line, @fmt("empty function body for '{s}'", {name}))
+                add_issue(ctx, fn_node.line, @fmtalloc("empty function body for '{s}'", {name}))
                 return
             }
         }

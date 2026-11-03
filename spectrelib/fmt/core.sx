@@ -18,6 +18,9 @@ pub enum ParseFloatError = {
 fn rewrite_fmt(fmt: ref u8) ref void = trust {
     val fmtlen: i64 = strlen(fmt)
     val buf: ref void = @alloc(fmtlen * 2 + 1)
+    if buf == none {
+        return none
+    }
     val out_i: mut i64 = 0
     val i: mut i64 = 0
     for {
@@ -25,7 +28,24 @@ fn rewrite_fmt(fmt: ref u8) ref void = trust {
             break
         }
         val c: u8 = @load8(@ptradd(fmt, i)) as u8
-        if (c == 123) { // '{'
+        if (c == 92 && i + 1 < fmtlen) { // '\\' escape
+            val next: u8 = @load8(@ptradd(fmt, i + 1)) as u8
+            if (next == 123 || next == 125) {
+                @store8(@ptradd(buf, out_i), next)
+                out_i++
+                i = i + 2
+            } else {
+                @store8(@ptradd(buf, out_i), c)
+                out_i++
+                i++
+            }
+        } elif (c == 37) { // '%' is literal in Spectre format strings
+            @store8(@ptradd(buf, out_i), 37)
+            out_i++
+            @store8(@ptradd(buf, out_i), 37)
+            out_i++
+            i++
+        } elif (c == 123) { // '{'
             val j: mut i64 = i + 1
             val found: mut i64 = 0
             for {
@@ -188,12 +208,53 @@ fn i64_to_string_heap(x: i64) ref u8 = trust {
 /// Example: format[allocators.Arena](arena, "{s} {d}", {name, age})
 pub fn format[A: allocators.Allocator](ac: A, fmt: ref u8, args: untyped) String = trust {
     val rfmt: ref void = rewrite_fmt(fmt)
-    val buf: ref void = @alloc(4096)
-    val written: i64 = @snprintf(buf, 4096, rfmt, args) as i64
-    @free(rfmt)
+    if rfmt == none {
+        return none
+    }
+
+    // Start with a reasonably sized scratch buffer, then grow only when the
+    // formatted output does not fit. snprintf returns the number of bytes
+    // that would have been written, so this handles arbitrarily long output
+    // without overflowing the scratch buffer.
+    val initial_cap: i64 = 4096
+    val buf: mut ref void = @alloc(initial_cap)
+    if buf == none {
+        @free(rfmt)
+        return none
+    }
+    val cap: mut i64 = initial_cap
+    val written: mut i64 = @snprintf(buf, cap, rfmt, args) as i64
+    if written < 0 {
+        @free(buf)
+        @free(rfmt)
+        return none
+    }
+    for {
+        if written < cap {
+            break
+        }
+        val needed: i64 = written + 1
+        val bigger: ref void = @alloc(needed)
+        if bigger == none {
+            @free(buf)
+            @free(rfmt)
+            return none
+        }
+        @free(buf)
+        buf = bigger
+        cap = needed
+        written = @snprintf(buf, cap, rfmt, args) as i64
+        if written < 0 {
+            @free(buf)
+            @free(rfmt)
+            return none
+        }
+    }
 
     val out: String = alloc_string[A](ac, written)
     if out == none {
+        @free(buf)
+        @free(rfmt)
         return none
     }
 
@@ -202,6 +263,7 @@ pub fn format[A: allocators.Allocator](ac: A, fmt: ref u8, args: untyped) String
         @memcpy(copy, buf, written)
     }
     @free(buf)
+    @free(rfmt)
     return out
 }
 
@@ -497,6 +559,41 @@ test {
     trust test_f64_roundtrip(-2.75)
     trust test_f64_roundtrip(123.000001)
 
+    val fmt_arena: mut allocators.Arena = trust allocators.Arena.new(16384 as usize)?
+    val basic = trust format[allocators.Arena](fmt_arena, "hello {d}", {1})
+    assert string.raw_cmp(trust string.cstr(basic), "hello 1") == 0
+
+    val empty = trust format[allocators.Arena](fmt_arena, "", {})
+    assert string.len(empty) == 0
+
+    val plain = trust format[allocators.Arena](fmt_arena, "no specifiers", {})
+    assert string.raw_cmp(trust string.cstr(plain), "no specifiers") == 0
+
+    val percent = trust format[allocators.Arena](fmt_arena, "100% done", {})
+    assert string.raw_cmp(trust string.cstr(percent), "100% done") == 0
+
+    val percent_spec = trust format[allocators.Arena](fmt_arena, "100% {d}", {7})
+    assert string.raw_cmp(trust string.cstr(percent_spec), "100% 7") == 0
+
+    val escaped = trust format[allocators.Arena](fmt_arena, "\\{literal\\}", {})
+    assert string.raw_cmp(trust string.cstr(escaped), "{literal}") == 0
+
+    val escaped_spec = trust format[allocators.Arena](fmt_arena, "\\{x\\} {d}", {7})
+    assert string.raw_cmp(trust string.cstr(escaped_spec), "{x} 7") == 0
+
+    val unmatched = trust format[allocators.Arena](fmt_arena, "a { b", {})
+    assert string.raw_cmp(trust string.cstr(unmatched), "a { b") == 0
+
+    val long = trust format[allocators.Arena](fmt_arena, "{5000d}", {7})
+    assert string.len(long) == 5000
+    assert trust @load8(@ptradd(string.cstr(long), 4999)) == 55
+
+    val tiny: mut allocators.Arena = trust allocators.Arena.new(1 as usize)?
+    val failed = trust format[allocators.Arena](tiny, "{d}", {1})
+    assert failed == none
+    trust allocators.Arena.free(tiny)
+
     trust stdio.print("{s}", {string.cstr(format[allocators.Arena](arena, "hello {d}", {1}))})
+    trust allocators.Arena.free(fmt_arena)
     trust allocators.Arena.free(arena)
 }

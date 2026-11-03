@@ -11,7 +11,7 @@ fn respond(client: i64, status: ref u8, content_type: ref u8, body: ref u8) void
     string.StringBuilder.append_cstr(sb, "\r\nContent-Type: ")
     string.StringBuilder.append_cstr(sb, content_type)
     string.StringBuilder.append_cstr(sb, "\r\nContent-Length: ")
-    string.StringBuilder.append_cstr(sb, @fmt("{d}", {string.len_raw(body)}))
+    string.StringBuilder.append_cstr(sb, @fmtalloc("{d}", {string.len_raw(body)}))
     string.StringBuilder.append_cstr(sb, "\r\nConnection: close\r\n\r\n")
     string.StringBuilder.append_cstr(sb, body)
 

@@ -1,0 +1,24 @@
+type Point = {
+    x: i32
+    y: i32
+    z: i32
+}
+
+val (
+    some_value: i32 = 1
+    some_other_value: i32 = 2
+)
+
+test "addition works" {
+    assert 1 + 1 == 2
+}
+
+pub fn main() void = trust {
+    val p = Point{x: 10, y: 20, z: 30}
+    assert p.x == 10
+    assert p.y == 20
+    assert p.z == 30
+    assert some_value == 1
+    assert some_other_value == 2
+    @puts("ok\n")
+}

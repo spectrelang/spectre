@@ -121,7 +121,7 @@ fn pkg_config_libs(module_name: ref u8, static_link: bool) option[list[ref u8]] 
     if static_link {
         static_arg = " --static"
     }
-    val cmd: ref u8 = @fmt(
+    val cmd: ref u8 = @fmtalloc(
         "pkg-config --exists {s} && pkg-config --libs{s} {s} 2>/dev/null",
         {module_name, static_arg, module_name}
     )
@@ -153,7 +153,7 @@ fn try_pkg_config(name: ref u8, static_link: bool) option[list[ref u8]] = trust 
             return some bf
         }
     } else {
-        val prefixed: ref u8 = @fmt("lib{s}", {name})
+        val prefixed: ref u8 = @fmtalloc("lib{s}", {name})
         val prefixed_flags = pkg_config_libs(prefixed, static_link)
         if prefixed_flags is some pf {
             return some pf
@@ -164,10 +164,10 @@ fn try_pkg_config(name: ref u8, static_link: bool) option[list[ref u8]] = trust 
 
 fn compiler_library_path(base: ref u8, suffix: ref u8) ref u8 = trust {
     val compilers: list[ref u8] = ["cc", "clang"]
-    val missing: ref u8 = @fmt("lib{s}{s}", {base, suffix})
+    val missing: ref u8 = @fmtalloc("lib{s}{s}", {base, suffix})
     for compiler in compilers {
         if os.in_path(compiler) {
-            val cmd: ref u8 = @fmt(
+            val cmd: ref u8 = @fmtalloc(
                 "{s} -print-file-name=lib{s}{s} 2>/dev/null",
                 {compiler, base, suffix}
             )
@@ -244,7 +244,7 @@ fn find_native(base: ref u8, platform: ref u8) ref u8 = trust {
     val dirs: list[ref u8] = native_search_dirs(platform)
     for dir in dirs {
         for suffix in suffixes {
-            val candidate: ref u8 = @fmt("{s}/lib{s}{s}", {dir, base, suffix})
+            val candidate: ref u8 = @fmtalloc("{s}/lib{s}{s}", {dir, base, suffix})
             if os.exists(candidate) {
                 return dir
             }
@@ -295,8 +295,8 @@ pub fn resolve(
     val dir: ref u8 = find_native(base, platform)
     if string.len_raw(dir) > 0 {
         val flags: mut list[ref u8] = []
-        @append(flags, @fmt("-L{s}", {dir}))
-        @append(flags, @fmt("-l{s}", {base}))
+        @append(flags, @fmtalloc("-L{s}", {dir}))
+        @append(flags, @fmtalloc("-l{s}", {base}))
         return ok flags
     }
 
@@ -304,8 +304,8 @@ pub fn resolve(
         if !has_pkg_config {
             return err "lib syntax for linking is not supported on this platform. install pkg-config to resolve."
         }
-        return err @fmt("could not resolve library '{s}' with pkg-config", {trimmed})
+        return err @fmtalloc("could not resolve library '{s}' with pkg-config", {trimmed})
     }
 
-    return err @fmt("could not find library '{s}' on this system", {trimmed})
+    return err @fmtalloc("could not find library '{s}' on this system", {trimmed})
 }

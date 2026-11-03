@@ -343,6 +343,28 @@ fn kind_is_in(k: lexer.TokenKind) bool = {
     }
 }
 
+fn kind_is_match(k: lexer.TokenKind) bool = {
+    match k {
+        Match() => {
+            return true
+        }
+        else => {
+            return false
+        }
+    }
+}
+
+fn kind_is_when(k: lexer.TokenKind) bool = {
+    match k {
+        When() => {
+            return true
+        }
+        else => {
+            return false
+        }
+    }
+}
+
 fn kind_is_decl_keyword(k: lexer.TokenKind) bool = {
     match k {
         Fn() => {
@@ -494,6 +516,26 @@ fn brace_is_block(tokens: list[ref lexer.Token], i: i64) bool = trust {
 
     if kind_starts_literal(pk) {
         return false
+    }
+
+    // `Point{x: 1}` / `Point{}` are struct literals, not control-flow blocks.
+    if lexer.kind_is_ident(pk) || lexer.kind_is_rbracket(pk) {
+        val next: lexer.TokenKind = lexer.tok_kind(tokens, i + 1)
+        if lexer.kind_is_rbrace(next) {
+            if i >= 2 {
+                val before: lexer.TokenKind = lexer.tok_kind(tokens, i - 2)
+                if lexer.kind_is_if(before) || kind_is_elif(before) ||
+                lexer.kind_is_for(before) || kind_is_in(before) ||
+                kind_is_match(before) || kind_is_when(before) {
+                    return true
+                }
+            }
+            return false
+        }
+        if lexer.kind_is_ident(next) &&
+        lexer.kind_is_colon(lexer.tok_kind(tokens, i + 2)) {
+            return false
+        }
     }
     return true
 }
@@ -807,7 +849,7 @@ fn rewrite_match_at(
     }
 
     @append(edits, edit_new(ws_start, m_open, ""))
-    @append(edits, edit_new(m_open, m_open, @fmt(" is some {s} ", {bind})))
+    @append(edits, edit_new(m_open, m_open, @fmtalloc(" is some {s} ", {bind})))
 
     val some_removal_start: mut i64 = m_open + 1
     val nl_scan: mut i64 = m_open + 1
@@ -2020,6 +2062,138 @@ fn format_import_alignment(src: ref u8) ref u8 = trust {
     return buf_build(out)
 }
 
+fn spaces_text(n: i64) ref u8 = trust {
+    val b: mut ref Buf = buf_new(n + 1)
+    val i: mut i64 = 0
+    for {
+        if i >= n {
+            break
+        }
+        buf_append_char(b, 32 as u8)
+        i++
+    }
+    return buf_build(b)
+}
+
+/// Align `=` inside top-level `val (...)` declarations.
+fn format_bulk_val_alignment(src: ref u8) ref u8 = trust {
+    val tok_res = lexer.tokenize(src)
+    val tokens: mut list[ref lexer.Token] = []
+    match tok_res {
+        ok toks => {
+            tokens = toks
+        }
+        err _ => {
+            return src
+        }
+    }
+
+    val len: i64 = str.len_raw(src)
+    val starts: list[i64] = collect_line_starts(src, len)
+    val ntokens: i64 = @len(tokens) as i64
+    val edits: mut list[ref Edit] = []
+    val i: mut i64 = 0
+
+    for {
+        if i >= ntokens {
+            break
+        }
+        val k: lexer.TokenKind = lexer.tok_kind(tokens, i)
+        if lexer.kind_is_val(k) && i + 1 < ntokens &&
+        lexer.kind_is_lparen(lexer.tok_kind(tokens, i + 1)) {
+            val close: i64 = find_matching_paren(tokens, i + 1)
+            if close > i {
+                val eqs: mut list[i64] = []
+                val parens: mut i64 = 0
+                val brackets: mut i64 = 0
+                val braces: mut i64 = 0
+                val j: mut i64 = i + 2
+                for {
+                    if j >= close {
+                        break
+                    }
+                    val jk: lexer.TokenKind = lexer.tok_kind(tokens, j)
+                    if lexer.kind_is_lparen(jk) {
+                        parens++
+                    } elif lexer.kind_is_rparen(jk) {
+                        if parens > 0 {
+                            parens--
+                        }
+                    } elif lexer.kind_is_lbracket(jk) {
+                        brackets++
+                    } elif lexer.kind_is_rbracket(jk) {
+                        if brackets > 0 {
+                            brackets--
+                        }
+                    } elif lexer.kind_is_lbrace(jk) {
+                        braces++
+                    } elif lexer.kind_is_rbrace(jk) {
+                        if braces > 0 {
+                            braces--
+                        }
+                    } elif kind_is_eq(jk) && parens == 0 && brackets == 0 && braces == 0 {
+                        @append(eqs, j)
+                    }
+                    j++
+                }
+
+                val max_left: mut i64 = 0
+                for ej in eqs {
+                    val eq_pos: i64 = token_start(tokens, starts, ej)
+                    val line_idx: i64 = token_line(tokens, ej) - 1
+                    val line_start_opt = @get(starts, line_idx as usize)
+                    if line_start_opt is some line_start_val {
+                        val line_start: i64 = line_start_val as i64
+                        val left_end: mut i64 = eq_pos
+                        for {
+                            if left_end <= line_start {
+                                break
+                            }
+                            val c: i64 = byte_at(src, left_end - 1)
+                            if c != 32 && c != 9 {
+                                break
+                            }
+                            left_end--
+                        }
+                        val left_len: i64 = left_end - line_start
+                        if left_len > max_left {
+                            max_left = left_len
+                        }
+                    }
+                }
+
+                for ej in eqs {
+                    val eq_pos: i64 = token_start(tokens, starts, ej)
+                    val line_idx: i64 = token_line(tokens, ej) - 1
+                    val line_start_opt = @get(starts, line_idx as usize)
+                    if line_start_opt is some line_start_val {
+                        val line_start: i64 = line_start_val as i64
+                        val left_end: mut i64 = eq_pos
+                        for {
+                            if left_end <= line_start {
+                                break
+                            }
+                            val c: i64 = byte_at(src, left_end - 1)
+                            if c != 32 && c != 9 {
+                                break
+                            }
+                            left_end--
+                        }
+                        val left_len: i64 = left_end - line_start
+                        val pad: i64 = max_left - left_len + 1
+                        val text: ref u8 = spaces_text(pad)
+                        @append(edits, edit_new(left_end, eq_pos, text))
+                    }
+                }
+                i = close
+            }
+        }
+        i++
+    }
+
+    return apply_edits(src, edits)
+}
+
 fn format_top_level_decl_gaps(src: ref u8) ref u8 = trust {
     val len: i64 = str.len_raw(src)
     val out: mut ref Buf = buf_new(len + 64)
@@ -2893,7 +3067,8 @@ fn format_source(src: ref u8) ref u8 = trust {
     val brace_spaced: ref u8 = format_block_brace_spacing(op_spaced)
     val return_spaced: ref u8 = format_fn_return_spacing(brace_spaced)
     val indented: ref u8 = reindent(return_spaced)
-    val narrowed: ref u8 = format_long_lines(indented)
+    val bulk_aligned: ref u8 = format_bulk_val_alignment(indented)
+    val narrowed: ref u8 = format_long_lines(bulk_aligned)
     val imports_aligned: ref u8 = format_import_alignment(narrowed)
     val gaps_normalized: ref u8 = format_top_level_decl_gaps(imports_aligned)
     return trim_leading_newlines(gaps_normalized)

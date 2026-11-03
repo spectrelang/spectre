@@ -436,16 +436,16 @@ fn send_response(client: ref Client) void = trust {
     val res = client.response
     val sb = string.StringBuilder.new()
     string.StringBuilder.append_cstr(sb, "HTTP/1.1 ")
-    string.StringBuilder.append_cstr(sb, @fmt("{d}", {res.status_code}))
+    string.StringBuilder.append_cstr(sb, @fmtalloc("{d}", {res.status_code}))
     string.StringBuilder.append_cstr(sb, " ")
     string.StringBuilder.append_cstr(sb, status_text(res.status_code))
     string.StringBuilder.append_cstr(sb, "\r\nContent-Type: ")
     string.StringBuilder.append_cstr(sb, res.content_type)
     string.StringBuilder.append_cstr(sb, "\r\nContent-Length: ")
-    string.StringBuilder.append_cstr(sb, @fmt("{d}", {res.body_len}))
+    string.StringBuilder.append_cstr(sb, @fmtalloc("{d}", {res.body_len}))
     string.StringBuilder.append_cstr(sb, "\r\nConnection: close\r\n\r\n")
     if res.body_len > 0 {
-        string.StringBuilder.append_cstr(sb, @fmt("{s}", {res.body}))
+        string.StringBuilder.append_cstr(sb, @fmtalloc("{s}", {res.body}))
     }
 
     val response: mut string.String = string.StringBuilder.build(sb)

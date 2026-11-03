@@ -218,7 +218,7 @@ pub fn canonicalize_path(path: ref u8) ref u8 = trust {
         return "."
     }
     if keep_dot_prefix && @load8(@ptradd(out, 0)) != 46 {
-        return @fmt("./{s}", {out})
+        return @fmtalloc("./{s}", {out})
     }
     return out
 }

@@ -590,7 +590,7 @@ pub fn main() i32 = trust {
 
     if translate_c_flag {
         if string.raw_cmp(output_name, "") == 0 {
-            output_name = @fmt("./src-out/{s}.sx", {path.get_name_without_ext(arena, input)})
+            output_name = @fmtalloc("./src-out/{s}.sx", {path.get_name_without_ext(arena, input)})
         }
         val code: i32 = c_translate.translate_c(input, output_name)
         allocators.Arena.free(arena)
@@ -713,7 +713,7 @@ pub fn main() i32 = trust {
             final_output_alt = binary_name_alt
         } else {
             os.exec("mkdir -p ./s-out")
-            final_output_alt = @fmt("./s-out/{s}", {binary_name_alt})
+            final_output_alt = @fmtalloc("./s-out/{s}", {binary_name_alt})
         }
 
         val platform_alt: ref u8 = reflection.current_platform_name[allocators.Arena](arena)
@@ -771,26 +771,26 @@ pub fn main() i32 = trust {
         builds.append_debug_runtime_links(links_alt, exe_dir, quiet, release_mode, arena)
         val link_flags_alt: mut ref u8 = ""
         if string.raw_cmp(static_flag_alt, "") != 0 {
-            link_flags_alt = @fmt(" {s}", {static_flag_alt})
+            link_flags_alt = @fmtalloc(" {s}", {static_flag_alt})
         }
         if string.raw_cmp(strip_flag_alt, "") != 0 {
-            link_flags_alt = @fmt("{s} {s}", {link_flags_alt, strip_flag_alt})
+            link_flags_alt = @fmtalloc("{s} {s}", {link_flags_alt, strip_flag_alt})
         }
         for link_flag in links_alt {
-            link_flags_alt = @fmt("{s} {s}", {link_flags_alt, link_flag})
+            link_flags_alt = @fmtalloc("{s} {s}", {link_flags_alt, link_flag})
         }
         val include_flags_alt: mut ref u8 = ""
         for inc_path in inc_paths {
-            include_flags_alt = @fmt("{s} -I{s}", {include_flags_alt, inc_path})
+            include_flags_alt = @fmtalloc("{s} -I{s}", {include_flags_alt, inc_path})
         }
 
         val warn_flag: ref u8 = builds.compiler_warn_flag(selected_compiler)
-        val cc_flags_alt: mut ref u8 = @fmt(
+        val cc_flags_alt: mut ref u8 = @fmtalloc(
             "-std=c99 {s} -O3 -Wno-error=int-conversion",
             {warn_flag}
         )
         if !release_mode {
-            cc_flags_alt = @fmt("-std=c99 {s} -g -Wno-error=int-conversion", {warn_flag})
+            cc_flags_alt = @fmtalloc("-std=c99 {s} -g -Wno-error=int-conversion", {warn_flag})
         }
         val test_output_alt: ref u8 = builds.get_tmp_path("spectre_test_bin_alt")
         val compile_output: mut ref u8 = test_output_alt
@@ -801,24 +801,24 @@ pub fn main() i32 = trust {
         val alt_cmd: mut ref u8 = ""
         if string.raw_cmp(selected_compiler, "tcc") == 0 {
             if test_mode {
-                alt_cmd = @fmt(
+                alt_cmd = @fmtalloc(
                     "tcc {s} -o {s} -w -std=c99{s} {s} 2>&1",
                     {c_file, test_output_alt, include_flags_alt, link_flags_alt}
                 )
             } else {
-                alt_cmd = @fmt(
+                alt_cmd = @fmtalloc(
                     "tcc {s} -o {s} -w -std=c99{s} {s} 2>&1",
                     {c_file, final_output_alt, include_flags_alt, link_flags_alt}
                 )
             }
         } else {
             if string.raw_cmp(cc_flags_alt, "") == 0 {
-                alt_cmd = @fmt(
+                alt_cmd = @fmtalloc(
                     "{s}{s} -o {s} {s}{s} 2>&1",
                     {selected_compiler, include_flags_alt, compile_output, c_file, link_flags_alt}
                 )
             } else {
-                alt_cmd = @fmt(
+                alt_cmd = @fmtalloc(
                     "{s} {s}{s} -o {s} {s}{s} 2>&1",
                     {
                         selected_compiler,
@@ -940,7 +940,7 @@ pub fn main() i32 = trust {
         return 1
     }
 
-    val qbe_cmd = @fmt("qbe -o {s} {s} 2>&1", {asm_file, qbe_file})
+    val qbe_cmd = @fmtalloc("qbe -o {s} {s} 2>&1", {asm_file, qbe_file})
     val qbe_res = os.exec(qbe_cmd)
     if show_cmd != 0 {
         stdio.print("{s}\n", {qbe_cmd})
@@ -1048,11 +1048,11 @@ pub fn main() i32 = trust {
 
         val include_flags: mut ref u8 = " -I."
         for inc_path in inc_paths {
-            include_flags = @fmt("{s} -I{s}", {include_flags, inc_path})
+            include_flags = @fmtalloc("{s} -I{s}", {include_flags, inc_path})
         }
 
         shim_obj = builds.get_tmp_path("spectre_c_shim.o")
-        val shim_cmd = @fmt(
+        val shim_cmd = @fmtalloc(
             "cc -std=c99 -Wno-error=int-conversion -c -o {s} {s}{s} 2>&1",
             {shim_obj, shim_c_file, include_flags}
         )
@@ -1088,17 +1088,17 @@ pub fn main() i32 = trust {
     }
 
     if string.raw_cmp(static_link, "") != 0 {
-        link_flags = @fmt(" {s}", {static_link})
+        link_flags = @fmtalloc(" {s}", {static_link})
     }
     if string.raw_cmp(strip_link, "") != 0 {
-        link_flags = @fmt("{s} {s}", {link_flags, strip_link})
+        link_flags = @fmtalloc("{s} {s}", {link_flags, strip_link})
     }
     for link_flag in links {
-        link_flags = @fmt("{s} {s}", {link_flags, link_flag})
+        link_flags = @fmtalloc("{s} {s}", {link_flags, link_flag})
     }
 
     if string.len_raw(shim_obj) > 0 && !compile_obj {
-        link_flags = @fmt("{s} {s}", {link_flags, shim_obj})
+        link_flags = @fmtalloc("{s} {s}", {link_flags, shim_obj})
     }
 
     val cc_flags: mut ref u8 = ""
@@ -1108,7 +1108,7 @@ pub fn main() i32 = trust {
     val output_ext: mut ref u8 = ""
 
     if compile_obj {
-        cc_flags = @fmt("{s} -c", {cc_flags})
+        cc_flags = @fmtalloc("{s} -c", {cc_flags})
         if string.raw_cmp(platform, "windows") == 0 {
             output_ext = ".obj"
         } else {
@@ -1116,13 +1116,13 @@ pub fn main() i32 = trust {
         }
     } elif build_dll {
         if string.raw_cmp(platform, "macos") == 0 {
-            cc_flags = @fmt("{s} -dynamiclib", {cc_flags})
+            cc_flags = @fmtalloc("{s} -dynamiclib", {cc_flags})
             output_ext = ".dylib"
         } elif string.raw_cmp(platform, "windows") == 0 {
-            cc_flags = @fmt("{s} -shared", {cc_flags})
+            cc_flags = @fmtalloc("{s} -shared", {cc_flags})
             output_ext = ".dll"
         } else {
-            cc_flags = @fmt("{s} -shared", {cc_flags})
+            cc_flags = @fmtalloc("{s} -shared", {cc_flags})
             output_ext = ".so"
         }
     } else {
@@ -1131,7 +1131,7 @@ pub fn main() i32 = trust {
 
     if test_mode {
         val test_bin: ref u8 = builds.get_tmp_path("spectre_test_bin")
-        cc_cmd = @fmt("cc -o {s} {s}{s}", {test_bin, asm_file, link_flags})
+        cc_cmd = @fmtalloc("cc -o {s} {s}{s}", {test_bin, asm_file, link_flags})
         val cc_res2 = os.exec(cc_cmd)
         match cc_res2 {
             ok _ => {
@@ -1166,35 +1166,35 @@ pub fn main() i32 = trust {
     if output_specified != 0 {
         val final_output: mut ref u8 = binary_name
         if string.raw_cmp(output_ext, "") != 0 {
-            final_output = @fmt("{s}{s}", {binary_name, output_ext})
+            final_output = @fmtalloc("{s}{s}", {binary_name, output_ext})
         }
         run_output = final_output
         if string.raw_cmp(cc_flags, "") == 0 {
-            cc_cmd = @fmt("cc -o {s} {s}{s}", {final_output, asm_file, link_flags})
+            cc_cmd = @fmtalloc("cc -o {s} {s}{s}", {final_output, asm_file, link_flags})
         } else {
-            cc_cmd = @fmt("cc {s} -o {s} {s}{s}", {cc_flags, final_output, asm_file, link_flags})
+            cc_cmd = @fmtalloc("cc {s} -o {s} {s}{s}", {cc_flags, final_output, asm_file, link_flags})
         }
-        success_msg = @fmt("Compiled: {s}\n", {final_output})
+        success_msg = @fmtalloc("Compiled: {s}\n", {final_output})
     } else {
         os.exec("mkdir -p ./s-out")
-        val final_output: mut ref u8 = @fmt("./s-out/{s}", {binary_name})
+        val final_output: mut ref u8 = @fmtalloc("./s-out/{s}", {binary_name})
         if string.raw_cmp(output_ext, "") != 0 {
-            final_output = @fmt("./s-out/{s}{s}", {binary_name, output_ext})
+            final_output = @fmtalloc("./s-out/{s}{s}", {binary_name, output_ext})
         }
         run_output = final_output
         if string.raw_cmp(cc_flags, "") == 0 {
-            cc_cmd = @fmt("cc -o {s} {s}{s}", {final_output, asm_file, link_flags})
+            cc_cmd = @fmtalloc("cc -o {s} {s}{s}", {final_output, asm_file, link_flags})
         } else {
-            cc_cmd = @fmt("cc {s} -o {s} {s}{s}", {cc_flags, final_output, asm_file, link_flags})
+            cc_cmd = @fmtalloc("cc {s} -o {s} {s}{s}", {cc_flags, final_output, asm_file, link_flags})
         }
-        success_msg = @fmt("Compiled: {s}\n", {final_output})
+        success_msg = @fmtalloc("Compiled: {s}\n", {final_output})
     }
 
     if show_cmd != 0 {
         stdio.print("{s}\n", {cc_cmd})
     }
 
-    val cc_res = os.exec(@fmt("{s} {s}", {cc_cmd, " 2>&1"}))
+    val cc_res = os.exec(@fmtalloc("{s} {s}", {cc_cmd, " 2>&1"}))
     match cc_res {
         ok v => {
             val error_text = string.from[allocators.Arena](arena, "error")
