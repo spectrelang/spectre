@@ -117,7 +117,10 @@ pub fn (WebServer) new_with_capacity[A: allocators.GeneralAllocator](
     server.running = false
 
     val routes_raw: ref void = alloc_or_none[A](ac, (max_routes * (@sizeof(Route) as i64)) as usize)
-    val clients_raw: ref void = alloc_or_none[A](ac, (max_clients * (@sizeof(Client) as i64)) as usize)
+    val clients_raw: ref void = alloc_or_none[A](
+        ac,
+        (max_clients * (@sizeof(Client) as i64)) as usize
+    )
     if routes_raw == none || clients_raw == none {
         WebServer.free[A](ac, server)
         return none
@@ -192,27 +195,47 @@ fn (WebServer) add_route(
 }
 
 /// Register a GET route.
-pub fn (WebServer) get(server: mut self, path: ref u8, handler: fn(ref Request, mut ref Response) void) bool = trust {
+pub fn (WebServer) get(
+    server: mut self,
+    path: ref u8,
+    handler: fn(ref Request, mut ref Response) void
+) bool = trust {
     return WebServer.add_route(server, "GET", path, handler)
 }
 
 /// Register a POST route.
-pub fn (WebServer) post_route(server: mut self, path: ref u8, handler: fn(ref Request, mut ref Response) void) bool = trust {
+pub fn (WebServer) post_route(
+    server: mut self,
+    path: ref u8,
+    handler: fn(ref Request, mut ref Response) void
+) bool = trust {
     return WebServer.add_route(server, "POST", path, handler)
 }
 
 /// Register a PUT route.
-pub fn (WebServer) put(server: mut self, path: ref u8, handler: fn(ref Request, mut ref Response) void) bool = trust {
+pub fn (WebServer) put(
+    server: mut self,
+    path: ref u8,
+    handler: fn(ref Request, mut ref Response) void
+) bool = trust {
     return WebServer.add_route(server, "PUT", path, handler)
 }
 
 /// Register a PATCH route.
-pub fn (WebServer) patch(server: mut self, path: ref u8, handler: fn(ref Request, mut ref Response) void) bool = trust {
+pub fn (WebServer) patch(
+    server: mut self,
+    path: ref u8,
+    handler: fn(ref Request, mut ref Response) void
+) bool = trust {
     return WebServer.add_route(server, "PATCH", path, handler)
 }
 
 /// Register a DELETE route.
-pub fn (WebServer) delete(server: mut self, path: ref u8, handler: fn(ref Request, mut ref Response) void) bool = trust {
+pub fn (WebServer) delete(
+    server: mut self,
+    path: ref u8,
+    handler: fn(ref Request, mut ref Response) void
+) bool = trust {
     return WebServer.add_route(server, "DELETE", path, handler)
 }
 
@@ -439,7 +462,10 @@ fn dispatch(server: ref WebServer, req: ref Request, res: mut ref Response) void
             break
         }
         val route = route_at(server, i)
-        if string.raw_cmp(req.method, route.method) == 0 && string.raw_cmp(req.path, route.path) == 0 {
+        if string.raw_cmp(
+            req.method,
+            route.method
+        ) == 0 && string.raw_cmp(req.path, route.path) == 0 {
             @call(route.handler, req, res)
             return
         }
@@ -627,7 +653,10 @@ pub fn (WebServer) port(server: ref WebServer) i32 = {
 }
 
 /// Free a server and all buffers allocated with the same allocator.
-pub fn (WebServer) free[A: allocators.GeneralAllocator](ac: A, server: mut ref WebServer) void = trust {
+pub fn (WebServer) free[A: allocators.GeneralAllocator](
+    ac: A,
+    server: mut ref WebServer
+) void = trust {
     if server == none {
         return
     }

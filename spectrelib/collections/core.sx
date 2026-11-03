@@ -46,7 +46,10 @@ type PtrList = {
 }
 
 /// Allocate a new PtrList with the given initial capacity.
-pub fn (PtrList) new[A: allocators.GeneralAllocator](ac: A, initial_cap: usize) result[ref void, ListAllocError] = trust {
+pub fn (PtrList) new[A: allocators.GeneralAllocator](
+    ac: A,
+    initial_cap: usize
+) result[ref void, ListAllocError] = trust {
     val header_opt = allocators.alloc_in[A](ac, 24 as usize)
     match header_opt {
         none => {
@@ -94,7 +97,11 @@ pub fn (PtrList) cap(list: self) usize = {
 
 /// Grow the backing buffer to at least new_cap elements.
 /// Requires new_cap > 0 to avoid a zero-size allocation.
-fn (PtrList) grow[A: allocators.GeneralAllocator](ac: A, list: mut self, new_cap: usize) result[void, ListAllocError] = {
+fn (PtrList) grow[A: allocators.GeneralAllocator](
+    ac: A,
+    list: mut self,
+    new_cap: usize
+) result[void, ListAllocError] = {
     pre {
         new_cap_positive: new_cap > 0
     }
@@ -125,7 +132,11 @@ fn (PtrList) grow[A: allocators.GeneralAllocator](ac: A, list: mut self, new_cap
 
 /// Append a value to the end of the list.
 /// Requires the list pointer to be non-null (non-zero).
-pub fn (PtrList) push[A: allocators.GeneralAllocator](ac: A, list: mut self, value: usize) result[void, ListAllocError] = trust {
+pub fn (PtrList) push[A: allocators.GeneralAllocator](
+    ac: A,
+    list: mut self,
+    value: usize
+) result[void, ListAllocError] = trust {
     val len: usize = @load(@ptradd(list, 8)) as usize
     val cap: usize = @load(@ptradd(list, 16)) as usize
     if (len >= cap) {
@@ -236,7 +247,11 @@ pub fn hash_identity(key: usize) usize = {
 
 /// Allocate a new Map with the given initial capacity and hash function.
 /// initial_cap must be > 0.
-pub fn (Map) new[A: allocators.GeneralAllocator](ac: A, initial_cap: usize, hash_fn: ref void) self = trust {
+pub fn (Map) new[A: allocators.GeneralAllocator](
+    ac: A,
+    initial_cap: usize,
+    hash_fn: ref void
+) self = trust {
     pre {
         cap_positive: initial_cap > 0
     }
@@ -317,7 +332,12 @@ fn (Map) grow[A: allocators.GeneralAllocator](ac: A, map: mut self, new_cap: usi
 
 /// Insert or update a key-value pair.
 /// Grows the map (2x + 1) when load factor exceeds 70%.
-pub fn (Map) set[A: allocators.GeneralAllocator](ac: A, map: mut self, key: usize, value: usize) void = trust {
+pub fn (Map) set[A: allocators.GeneralAllocator](
+    ac: A,
+    map: mut self,
+    key: usize,
+    value: usize
+) void = trust {
     val header: ref void = map.header
     val len: usize = @load(@ptradd(header, 8)) as usize
     val cap: usize = @load(@ptradd(header, 16)) as usize
@@ -520,7 +540,11 @@ test {
     assert Map.len(m) == 0
     assert !Map.contains(m, 1 as usize)
 
-    val big: mut Map = trust Map.new[allocators.HeapAllocator](heap, 4 as usize, @addr(hash_identity))
+    val big: mut Map = trust Map.new[allocators.HeapAllocator](
+        heap,
+        4 as usize,
+        @addr(hash_identity)
+    )
 
     for i = 0, i < 20, i++ {
         trust Map.set[allocators.HeapAllocator](heap, big, i, i * 10)
@@ -645,7 +669,12 @@ pub fn (StringMap) new[A: allocators.GeneralAllocator](ac: A, initial_cap: usize
 /// Insert or update a string key with a usize value.
 ///
 /// The key is copied onto the heap; the copy is owned by the map.
-pub fn (StringMap) set[A: allocators.GeneralAllocator](ac: A, map: self, key: ref u8, value: usize) void = trust {
+pub fn (StringMap) set[A: allocators.GeneralAllocator](
+    ac: A,
+    map: self,
+    key: ref u8,
+    value: usize
+) void = trust {
     val header: ref void = map.header
     val cap: usize = @load(@ptradd(header, 16)) as usize
     val buckets: ref void = @load(header)
@@ -722,7 +751,11 @@ pub fn (StringMap) contains(map: self, key: ref u8) bool = {
 }
 
 /// Remove a string key. Returns 1 if found and removed, 0 otherwise.
-pub fn (StringMap) delete[A: allocators.GeneralAllocator](ac: A, map: self, key: ref u8) usize = trust {
+pub fn (StringMap) delete[A: allocators.GeneralAllocator](
+    ac: A,
+    map: self,
+    key: ref u8
+) usize = trust {
     val header: ref void = map.header
     val cap: usize = @load(@ptradd(header, 16)) as usize
     val buckets: ref void = @load(header)
@@ -902,7 +935,12 @@ pub fn (IndexMap) new[A: allocators.GeneralAllocator](ac: A, initial_cap: usize)
 }
 
 /// Insert or update a key-value pair, preserving insertion order for new keys.
-pub fn (IndexMap) set[A: allocators.GeneralAllocator](ac: A, map: self, key: ref u8, value: usize) void = trust {
+pub fn (IndexMap) set[A: allocators.GeneralAllocator](
+    ac: A,
+    map: self,
+    key: ref u8,
+    value: usize
+) void = trust {
     val inner: StringMap = { header: map.inner_header }
     val keys: mut ref void = map.keys
     val already = StringMap.contains(inner, key)
@@ -938,7 +976,11 @@ pub fn (IndexMap) contains(map: self, key: ref u8) bool = {
 
 /// Remove a key. Returns 1 if found, 0 otherwise.
 /// Note: removal marks the key as a tombstone in the ordered list (sets to 0).
-pub fn (IndexMap) delete[A: allocators.GeneralAllocator](ac: A, map: self, key: ref u8) usize = trust {
+pub fn (IndexMap) delete[A: allocators.GeneralAllocator](
+    ac: A,
+    map: self,
+    key: ref u8
+) usize = trust {
     val inner: StringMap = { header: map.inner_header }
     val keys: ref void = map.keys
     val removed = StringMap.delete[A](ac, inner, key)

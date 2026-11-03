@@ -224,7 +224,13 @@ pub fn canonicalize_path(path: ref u8) ref u8 = trust {
 }
 
 test {
-    assert str.raw_cmp(trust canonicalize_path("./samples/bigproj/hi/../mod1.sx"), "./samples/bigproj/mod1.sx") == 0
-    assert str.raw_cmp(trust canonicalize_path("samples/bigproj/hi//../mod1.sx"), "samples/bigproj/mod1.sx") == 0
+    assert str.raw_cmp(
+        trust canonicalize_path("./samples/bigproj/hi/../mod1.sx"),
+        "./samples/bigproj/mod1.sx"
+    ) == 0
+    assert str.raw_cmp(
+        trust canonicalize_path("samples/bigproj/hi//../mod1.sx"),
+        "samples/bigproj/mod1.sx"
+    ) == 0
     assert str.raw_cmp(trust canonicalize_path("../samples/../mod1.sx"), "../mod1.sx") == 0
 }

@@ -14,7 +14,13 @@ when posix {
     extern (C) fn recv(fd: i32, buf: ref void, len: i64, flags: i32) i64 = "recv"
     extern (C) fn close(fd: i32) i32 = "close"
     extern (C) fn htons(port: i32) i32 = "htons"
-    extern (C) fn setsockopt(fd: i32, level: i32, opt: i32, vl: ref void, len: i32) i32 = "setsockopt"
+    extern (C) fn setsockopt(
+        fd: i32,
+        level: i32,
+        opt: i32,
+        vl: ref void,
+        len: i32
+    ) i32 = "setsockopt"
     extern (C) fn fcntl(fd: i32, cmd: i32, ...) i32 = "fcntl"
     extern (C) fn poll(fds: ref void, count: usize, timeout: i32) i32 = "poll"
 }
@@ -30,7 +36,13 @@ when windows {
     extern (C, header) fn win_recv(fd: u64, buf: ref void, len: i32, flags: i32) i32 = "recv"
     extern (C, header) fn closesocket(fd: u64) i32 = "closesocket"
     extern (C, header) fn win_htons(port: u16) u16 = "htons"
-    extern (C, header) fn win_setsockopt(fd: u64, level: i32, opt: i32, vl: ref void, len: i32) i32 = "setsockopt"
+    extern (C, header) fn win_setsockopt(
+        fd: u64,
+        level: i32,
+        opt: i32,
+        vl: ref void,
+        len: i32
+    ) i32 = "setsockopt"
     extern (C, header) fn WSAPoll(fds: ref void, count: u32, timeout: i32) i32 = "WSAPoll"
     extern (C, header) fn ioctlsocket(fd: u64, cmd: i32, argp: ref u32) i32 = "ioctlsocket"
 }
@@ -323,7 +335,10 @@ type TcpServer = {}
 
 /// Create a TCP server bound to `port` and start listening.
 /// Returns a server handle allocated with the provided allocator; caller must call TcpServer.close().
-pub fn (TcpServer) listen[A: allocators.GeneralAllocator](ac: A, port: i32) ref ServerHandle = trust {
+pub fn (TcpServer) listen[A: allocators.GeneralAllocator](
+    ac: A,
+    port: i32
+) ref ServerHandle = trust {
     when windows {
         val wsa: ref void = @alloc(512)
         if wsa == none {
@@ -533,7 +548,10 @@ pub fn (TcpServer) close_client(client_fd: i64) void = trust {
 }
 
 /// Shut down and free the server handle.
-pub fn (TcpServer) close[A: allocators.GeneralAllocator](ac: A, server: ref ServerHandle) void = trust {
+pub fn (TcpServer) close[A: allocators.GeneralAllocator](
+    ac: A,
+    server: ref ServerHandle
+) void = trust {
     when posix {
         close(server.fd as i32)
     }

@@ -301,7 +301,13 @@ fn sha256_heap[T](data: T) string.String = trust {
             if k_opt is some v {
                 k = v as u64
             }
-            val temp1: u64 = add32_5(h, sha256_big_sigma1(e), sha256_ch(e, f, g), k, load_u32_slot(w, round))
+            val temp1: u64 = add32_5(
+                h,
+                sha256_big_sigma1(e),
+                sha256_ch(e, f, g),
+                k,
+                load_u32_slot(w, round)
+            )
             val temp2: u64 = add32(sha256_big_sigma0(a), sha256_maj(a, b, c))
             h = g
             g = f
@@ -402,7 +408,10 @@ pub fn hex_encode[A: allocators.Allocator, T](ac: A, data: T) ref u8 = trust {
 /// Decode a hexadecimal C string.
 ///
 /// Returns an owned byte String from the provided allocator on success.
-pub fn hex_decode[A: allocators.Allocator](ac: A, text: ref u8) result[string.String, CryptoError] = trust {
+pub fn hex_decode[A: allocators.Allocator](
+    ac: A,
+    text: ref u8
+) result[string.String, CryptoError] = trust {
     val text_len: i64 = string.len_raw(text)
     if ((text_len % 2) != 0) {
         return err CryptoError.InvalidHexLength
@@ -521,7 +530,10 @@ pub fn base64_encode[A: allocators.Allocator, T](ac: A, data: T) ref u8 = trust 
 /// Decode a standard base64 C string with `=` padding.
 ///
 /// Returns an owned byte String from the provided allocator on success.
-pub fn base64_decode[A: allocators.Allocator](ac: A, text: ref u8) result[string.String, CryptoError] = trust {
+pub fn base64_decode[A: allocators.Allocator](
+    ac: A,
+    text: ref u8
+) result[string.String, CryptoError] = trust {
     val text_len: i64 = string.len_raw(text)
     if ((text_len % 4) != 0) {
         return err CryptoError.InvalidBase64Length
@@ -724,7 +736,10 @@ pub fn unique_nonce[A: allocators.Allocator](ac: A) ref u8 = trust {
 /// Compute the SHA-256 digest of an entire file.
 ///
 /// Returns the 32-byte digest as a String allocated with the provided allocator.
-pub fn hash_file_sha256[A: allocators.Allocator](ac: A, path: ref u8) result[string.String, CryptoError] = trust {
+pub fn hash_file_sha256[A: allocators.Allocator](
+    ac: A,
+    path: ref u8
+) result[string.String, CryptoError] = trust {
     val file: ref void = fopen(path, "rb")
     if file == none {
         return err CryptoError.FileOpenFailed
@@ -786,7 +801,10 @@ test {
         "The quick brown fox jumps over the lazy dog"
     )
     val hmac_hex: ref u8 = trust hex_encode[allocators.Arena, string.String](arena, hmac_out)
-    assert string.raw_cmp(hmac_hex, "f7bc83f430538424b13298e6aa6fb143ef4d59a14946175997479dbc2d1a3cd8") == 0
+    assert string.raw_cmp(
+        hmac_hex,
+        "f7bc83f430538424b13298e6aa6fb143ef4d59a14946175997479dbc2d1a3cd8"
+    ) == 0
 
     val encoded_hex: ref u8 = trust hex_encode[allocators.Arena, ref u8](arena, "hi")
     assert string.raw_cmp(encoded_hex, "6869") == 0
@@ -794,7 +812,10 @@ test {
     val decoded_hex_res = trust hex_decode[allocators.Arena](arena, "6869")
     match decoded_hex_res {
         ok decoded_hex => {
-            val decoded_hex_roundtrip: ref u8 = trust hex_encode[allocators.Arena, string.String](arena, decoded_hex)
+            val decoded_hex_roundtrip: ref u8 = trust hex_encode[allocators.Arena, string.String](
+                arena,
+                decoded_hex
+            )
             assert string.raw_cmp(decoded_hex_roundtrip, "6869") == 0
         }
         err _ => {
@@ -818,7 +839,10 @@ test {
     val decoded_b64_res = trust base64_decode[allocators.Arena](arena, "aGVsbG8=")
     match decoded_b64_res {
         ok decoded_b64 => {
-            val decoded_b64_roundtrip: ref u8 = trust hex_encode[allocators.Arena, string.String](arena, decoded_b64)
+            val decoded_b64_roundtrip: ref u8 = trust hex_encode[allocators.Arena, string.String](
+                arena,
+                decoded_b64
+            )
             assert string.raw_cmp(decoded_b64_roundtrip, "68656c6c6f") == 0
         }
         err _ => {
@@ -846,10 +870,16 @@ test {
     assert string.len_raw(nonce2) == 48
 
     assert trust fs.write_all("crypto_hash_file_sha256_test.txt", "abc")
-    val file_hash_res = trust hash_file_sha256[allocators.Arena](arena, "crypto_hash_file_sha256_test.txt")
+    val file_hash_res = trust hash_file_sha256[allocators.Arena](
+        arena,
+        "crypto_hash_file_sha256_test.txt"
+    )
     match file_hash_res {
         ok file_hash => {
-            val file_hash_hex: ref u8 = trust hex_encode[allocators.Arena, string.String](arena, file_hash)
+            val file_hash_hex: ref u8 = trust hex_encode[allocators.Arena, string.String](
+                arena,
+                file_hash
+            )
             assert string.raw_cmp(file_hash_hex, sha_hex_expected) == 0
         }
         err _ => {
@@ -858,7 +888,10 @@ test {
     }
     assert trust fs.delete("crypto_hash_file_sha256_test.txt")
 
-    val missing_file_hash_res = trust hash_file_sha256[allocators.Arena](arena, "crypto_hash_file_sha256_missing.txt")
+    val missing_file_hash_res = trust hash_file_sha256[allocators.Arena](
+        arena,
+        "crypto_hash_file_sha256_missing.txt"
+    )
     match missing_file_hash_res {
         ok _ => {
             assert false

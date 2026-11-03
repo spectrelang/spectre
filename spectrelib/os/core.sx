@@ -34,11 +34,24 @@ when windows {
         cAlternateFileName: [14]u8
     }
 
-    extern (C, header) fn CreateDirectoryA(path: ref u8, security: ref void) i32 = "CreateDirectoryA"
-    extern (C, header) fn FindFirstFileA(pattern: ref u8, data: ref WinFindDataA) ref void = "FindFirstFileA"
-    extern (C, header) fn FindNextFileA(handle: ref void, data: ref WinFindDataA) i32 = "FindNextFileA"
+    extern (C, header) fn CreateDirectoryA(
+        path: ref u8,
+        security: ref void
+    ) i32 = "CreateDirectoryA"
+    extern (C, header) fn FindFirstFileA(
+        pattern: ref u8,
+        data: ref WinFindDataA
+    ) ref void = "FindFirstFileA"
+    extern (C, header) fn FindNextFileA(
+        handle: ref void,
+        data: ref WinFindDataA
+    ) i32 = "FindNextFileA"
     extern (C, header) fn FindClose(handle: ref void) i32 = "FindClose"
-    extern (C, header) fn CopyFileA(existing: ref u8, new_file: ref u8, fail_if_exists: i32) i32 = "CopyFileA"
+    extern (C, header) fn CopyFileA(
+        existing: ref u8,
+        new_file: ref u8,
+        fail_if_exists: i32
+    ) i32 = "CopyFileA"
     extern (C, header) fn GetFileAttributesA(path: ref u8) u32 = "GetFileAttributesA"
 }
 

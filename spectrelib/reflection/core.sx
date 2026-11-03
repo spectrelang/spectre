@@ -216,7 +216,10 @@ pub fn current_arch_name[T: allocators.Allocator](ac: T) ref u8 = trust {
             if string.raw_cmp(machine, "riscv64") == 0 {
                 return "riscv64"
             }
-            if string.raw_cmp(machine, "i386") == 0 || string.raw_cmp(machine, "i686") == 0 || string.raw_cmp(machine, "x86") == 0 {
+            if string.raw_cmp(
+                machine,
+                "i386"
+            ) == 0 || string.raw_cmp(machine, "i686") == 0 || string.raw_cmp(machine, "x86") == 0 {
                 return "x86"
             }
         }
@@ -235,7 +238,11 @@ when darwin {
 }
 
 when windows {
-    extern (C, header) fn GetModuleFileNameA(module: ref void, buf: ref u8, size: u32) u32 = "GetModuleFileNameA"
+    extern (C, header) fn GetModuleFileNameA(
+        module: ref void,
+        buf: ref u8,
+        size: u32
+    ) u32 = "GetModuleFileNameA"
 }
 
 /// Returns the absolute path to the current executable.

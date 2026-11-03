@@ -47,7 +47,12 @@ fn alloc_string_in[T: allocators.Allocator](ac: T, len: i64) String = trust {
     return s as String
 }
 
-fn alloc_substr_in[T: allocators.Allocator](ac: T, src: ref u8, start: i64, len: i64) ref u8 = trust {
+fn alloc_substr_in[T: allocators.Allocator](
+    ac: T,
+    src: ref u8,
+    start: i64,
+    len: i64
+) ref u8 = trust {
     val buf: ref void = alloc_in[T](ac, len + 1)
     if buf == none {
         return none
@@ -472,7 +477,12 @@ pub fn slice(s: String, start: i64, end: i64) String = trust {
     return out as String
 }
 
-fn slice_general[T: allocators.GeneralAllocator](ac: T, s: String, start: i64, end: i64) String = trust {
+fn slice_general[T: allocators.GeneralAllocator](
+    ac: T,
+    s: String,
+    start: i64,
+    end: i64
+) String = trust {
     val l: i64 = @load(@ptradd(s as ref void, 8)) as i64
 
     val real_start: mut i64 = start
@@ -820,7 +830,11 @@ pub fn trim_suffix_raw[T: allocators.Allocator](ac: T, s: ref u8, suffix: ref u8
 }
 
 /// Split s by delim, returns an opaque list of Strings allocated with the provided general allocator.
-pub fn split[T: allocators.GeneralAllocator](ac: T, s: String, delim: String) result[ref void, ListAllocError] = trust {
+pub fn split[T: allocators.GeneralAllocator](
+    ac: T,
+    s: String,
+    delim: String
+) result[ref void, ListAllocError] = trust {
     val result: mut ref void = collections.PtrList.new[T](ac, 8 as usize)?
     val sl: i64 = @load(@ptradd(s as ref void, 8)) as i64
     val dl: i64 = @load(@ptradd(delim as ref void, 8)) as i64
@@ -1266,19 +1280,31 @@ test {
     val rep = trust from[allocators.Arena](arena, "foo bar foo")
     stdio.puts("hi3.1.4" )
 
-    val rep2 = trust replace(rep, from[allocators.Arena](arena, "foo"), from[allocators.Arena](arena, "baz"))
+    val rep2 = trust replace(
+        rep,
+        from[allocators.Arena](arena, "foo"),
+        from[allocators.Arena](arena, "baz")
+    )
     stdio.puts("hi3.1.5")
     assert equals(rep2, trust from[allocators.Arena](arena, "baz bar baz"))
     stdio.puts("hi3.2")
 
-    val rep3 = trust replace(rep, from[allocators.Arena](arena, "xxx"), from[allocators.Arena](arena, "yyy"))
+    val rep3 = trust replace(
+        rep,
+        from[allocators.Arena](arena, "xxx"),
+        from[allocators.Arena](arena, "yyy")
+    )
     stdio.puts("hi3.2.1")
     assert equals(rep3, trust from[allocators.Arena](arena, "foo bar foo"))
     stdio.puts("hi3.2.2")
     val sp = trust from[allocators.Arena](arena, "a,b,c")
     stdio.puts("hi3.2.3")
     val split_heap: allocators.HeapAllocator = @zeroed
-    val parts = trust split[allocators.HeapAllocator](split_heap, sp, from[allocators.Arena](arena, ","))?
+    val parts = trust split[allocators.HeapAllocator](
+        split_heap,
+        sp,
+        from[allocators.Arena](arena, ",")
+    )?
     stdio.puts("hi3.3")
 
     assert collections.PtrList.len(parts) == 3
@@ -1308,7 +1334,11 @@ test {
     }
 
     val sp2 = trust from[allocators.Arena](arena, "a,b,")
-    val parts2 = trust split[allocators.HeapAllocator](split_heap, sp2, from[allocators.Arena](arena, ","))?
+    val parts2 = trust split[allocators.HeapAllocator](
+        split_heap,
+        sp2,
+        from[allocators.Arena](arena, ",")
+    )?
     assert collections.PtrList.len(parts2) == 3
     match collections.PtrList.get(parts2, 2 as usize) {
         some v => {
@@ -1358,6 +1388,12 @@ test {
     stdio.puts("string tests passed")
 
 
-    trust stdio.print("comparison: {d}\n", {compare[String, String](from[allocators.Arena](arena, "abc"), from[allocators.Arena](arena, "abc"))})
+    trust stdio.print(
+        "comparison: {d}\n",
+        {compare[String, String](
+                from[allocators.Arena](arena, "abc"),
+                from[allocators.Arena](arena, "abc")
+            )}
+    )
     trust allocators.Arena.free(arena)
 }

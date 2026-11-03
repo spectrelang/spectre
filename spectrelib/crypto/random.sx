@@ -7,14 +7,22 @@ val stdio = use("../stdio")
 when linux {
     // glibc >= 2.25 / musl provide getrandom(2) directly.
     extern (C) fn getrandom(buf: ref void, buflen: usize, flags: u32) isize = "getrandom"
-} or when android {
+}
+or when android {
     extern (C) fn getrandom_android(buf: ref void, buflen: usize, flags: u32) isize = "getrandom"
-} or when posix {
+}
+or when posix {
     // arc4random is native on macOS and the BSDs.
     extern (C) fn arc4random_buf(buf: ref void, len: usize) void = "arc4random_buf"
-} or when windows {
+}
+or when windows {
     link "-lbcrypt"
-    extern (C) fn BCryptGenRandom(hAlgorithm: ref void, pbBuffer: ref void, cbBuffer: u32, dwFlags: u32) i32 = "BCryptGenRandom"
+    extern (C) fn BCryptGenRandom(
+        hAlgorithm: ref void,
+        pbBuffer: ref void,
+        cbBuffer: u32,
+        dwFlags: u32
+    ) i32 = "BCryptGenRandom"
 }
 
 /// Fill `buf` with `len` cryptographically secure random bytes.
@@ -31,21 +39,28 @@ pub fn random_bytes(buf: ref void, len: usize) void = {
             }
             total = total + (n as usize)
         }
-    } or when android {
+    }
+    or when android {
         val total: mut usize = 0
         for {
             if total >= len {
                 break
             }
-            val n: isize = trust getrandom_android(@ptradd(buf, total as i64), len - total, 0 as u32)
+            val n: isize = trust getrandom_android(
+                @ptradd(buf, total as i64),
+                len - total,
+                0 as u32
+            )
             if n <= 0 {
                 break
             }
             total = total + (n as usize)
         }
-    } or when posix {
+    }
+    or when posix {
         trust arc4random_buf(buf, len)
-    } or when windows {
+    }
+    or when windows {
         trust BCryptGenRandom(none, buf, len as u32, 2 as u32)
     }
 }

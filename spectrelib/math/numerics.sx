@@ -597,14 +597,22 @@ test {
 
     val v3 = Vec3.new(3.0, 4.0, 0.0)
     assert core.approx_eq(Vec3.length(v3), 5.0, 0.0001)
-    assert core.approx_eq(Vec3.distance(Vec3.new(1.0, 2.0, 3.0), Vec3.new(4.0, 6.0, 3.0)), 5.0, 0.0001)
+    assert core.approx_eq(
+        Vec3.distance(Vec3.new(1.0, 2.0, 3.0), Vec3.new(4.0, 6.0, 3.0)),
+        5.0,
+        0.0001
+    )
 
     val v4 = Vec3.lerp(Vec3.new(0.0, 0.0, 0.0), Vec3.new(10.0, -10.0, 20.0), 0.25)
     assert core.approx_eq(v4.x, 2.5, 0.0001)
     assert core.approx_eq(v4.y, -2.5, 0.0001)
     assert core.approx_eq(v4.z, 5.0, 0.0001)
 
-    val e0 = EulerAngles.normalize(EulerAngles.new(static.TAU + 0.25, -static.TAU - 0.5, 3.0 * static.PI))
+    val e0 = EulerAngles.normalize(EulerAngles.new(
+            static.TAU + 0.25,
+            -static.TAU - 0.5,
+            3.0 * static.PI
+        ))
     assert core.approx_eq(e0.roll, 0.25, 0.0001)
     assert core.approx_eq(e0.pitch, -0.5, 0.0001)
     assert core.approx_eq(e0.yaw, static.PI, 0.0001)

@@ -295,7 +295,13 @@ fn win_parse_url(url: ref u8) ref WinUrl = trust {
         return none
     }
 
-    val secure: bool = scheme_end == 5 && win_char(url, 0) == 104 && win_char(url, 1) == 116 && win_char(url, 2) == 116 && win_char(url, 3) == 112 && win_char(url, 4) == 115
+    val secure: bool = scheme_end == 5 && win_char(
+        url,
+        0
+    ) == 104 && win_char(
+        url,
+        1
+    ) == 116 && win_char(url, 2) == 116 && win_char(url, 3) == 112 && win_char(url, 4) == 115
 
     val host_start: i64 = scheme_end + 3
     if host_start >= len {
@@ -559,7 +565,16 @@ when windows {
             flags = 8388608 as u32
         }
 
-        val req: ref void = HttpOpenRequestA(conn, method, parsed.path, none, none, none, flags, 0 as usize)
+        val req: ref void = HttpOpenRequestA(
+            conn,
+            method,
+            parsed.path,
+            none,
+            none,
+            none,
+            flags,
+            0 as usize
+        )
         if req == none {
             InternetCloseHandle(conn)
             InternetCloseHandle(session)
@@ -759,7 +774,10 @@ pub fn (Http) request[A: allocators.GeneralAllocator](
 }
 
 /// Free a Response returned by Http.get / Http.post / Http.request with the same allocator used to create it.
-pub fn (Http) free_response[A: allocators.GeneralAllocator](ac: A, resp: ref Response) void = trust {
+pub fn (Http) free_response[A: allocators.GeneralAllocator](
+    ac: A,
+    resp: ref Response
+) void = trust {
     allocators.free_in[A](ac, resp.body)
     allocators.free_in[A](ac, resp)
 }

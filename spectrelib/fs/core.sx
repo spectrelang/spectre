@@ -587,7 +587,10 @@ test {
             @puts("2.5")
             trust @print("content: {s}\n", {content})
 
-            trust stdio.print("{s} {d}\n", {content, str.compare[ref u8, ref u8](content, "Hello, Spectre!")})
+            trust stdio.print(
+                "{s} {d}\n",
+                {content, str.compare[ref u8, ref u8](content, "Hello, Spectre!")}
+            )
             @puts("2.6")
             assert trust str.compare[ref u8, ref u8](content, "Hello, Spectre!") == 0
         }
