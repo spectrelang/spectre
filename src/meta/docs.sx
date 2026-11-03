@@ -909,7 +909,10 @@ fn render_spec_signature(node: ref parser.Node) ref u8 = trust {
     if str_eq(rendered, "") {
         return @fmtalloc("{s}spec {s} = \\{\\}", {public_prefix, node.d1 as ref u8})
     }
-    return @fmtalloc("{s}spec {s} = \\{\n    {s}\n\\}", {public_prefix, node.d1 as ref u8, rendered})
+    return @fmtalloc(
+        "{s}spec {s} = \\{\n    {s}\n\\}",
+        {public_prefix, node.d1 as ref u8, rendered}
+    )
 }
 
 fn render_const_signature(node: ref parser.Node) ref u8 = trust {
@@ -1004,7 +1007,10 @@ fn collect_entries(
 ) void = trust {
     for item in items {
         if item.kind == parser.NK_WHEN_ITEMS {
-            val branch = combine_availability(availability, @fmtalloc("when {s}", {item.d0 as ref u8}))
+            val branch = combine_availability(
+                availability,
+                @fmtalloc("when {s}", {item.d0 as ref u8})
+            )
             collect_entries(item.d1 as list[ref parser.Node], doc_map, out, branch)
             val or_branches = item.d2 as list[ref parser.Node]
             for branch_item in or_branches {
@@ -1262,7 +1268,10 @@ fn render_entry_details_html(sb: ref void, entry: ref DocEntry) void = trust {
                 string.StringBuilder.append_cstr(sb, "</code></td><td><code>")
                 string.StringBuilder.append_cstr(
                     sb,
-                    html_escape(@fmtalloc("{s}{s}", {prefix, render_type(field.d2 as ref parser.Node)}))
+                    html_escape(@fmtalloc(
+                            "{s}{s}",
+                            {prefix, render_type(field.d2 as ref parser.Node)}
+                        ))
                 )
                 string.StringBuilder.append_cstr(sb, "</code></td></tr>")
             }
@@ -2391,7 +2400,10 @@ fn render_entry_details_md(sb: ref void, entry: ref DocEntry) void = trust {
 fn render_module_page_md(module: ref DocModule, modules: list[ref DocModule]) ref u8 = trust {
     val sb: ref void = string.StringBuilder.new()
     string.StringBuilder.append_cstr(sb, @fmtalloc("# {s}\n\n", {safe_cstr(module.module_name)}))
-    string.StringBuilder.append_cstr(sb, @fmtalloc("Source: `{s}`\n\n", {safe_cstr(module.rel_path)}))
+    string.StringBuilder.append_cstr(
+        sb,
+        @fmtalloc("Source: `{s}`\n\n", {safe_cstr(module.rel_path)})
+    )
     if @len(modules) as i64 > 1 {
         string.StringBuilder.append_cstr(sb, "## Modules\n\n")
         for mod in modules {
@@ -2501,7 +2513,10 @@ fn render_overview_page(
         for mod in modules {
             string.StringBuilder.append_cstr(
                 sb,
-                @fmtalloc("- [{s}]({s})\n", {mod.module_name, href_from(output_path, mod.output_path)})
+                @fmtalloc(
+                    "- [{s}]({s})\n",
+                    {mod.module_name, href_from(output_path, mod.output_path)}
+                )
             )
         }
         val built = string.StringBuilder.build(sb)

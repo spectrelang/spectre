@@ -1070,7 +1070,11 @@ fn emit_array_initializer_stores(
                 out
             )
             val item_expr: ref u8 = lowered_item.expr
-            val item_ptr: ref u8 = render_index_ptr_expr(ctx, name, trust @fmtalloc("{d}", {init_i}))
+            val item_ptr: ref u8 = render_index_ptr_expr(
+                ctx,
+                name,
+                trust @fmtalloc("{d}", {init_i})
+            )
             track_called_expr(ctx, item_expr)
             append_line(out, indent, trust @fmtalloc("@store({s}, {s})", {item_ptr, item_expr}))
         }
@@ -2457,7 +2461,10 @@ fn replace_pointer_indexing(ctx: ref TranslationCtx, text: ref u8) ref u8 = {
                                 close_i - i - 1
                             ))
                         val index_ptr: ref u8 = render_index_ptr_expr(ctx, ident, inner)
-                        trust string.StringBuilder.append_cstr(sb, @fmtalloc("@load({s})", {index_ptr}))
+                        trust string.StringBuilder.append_cstr(
+                            sb,
+                            @fmtalloc("@load({s})", {index_ptr})
+                        )
                         i = close_i + 1
                         continue
                     }
@@ -2846,7 +2853,10 @@ fn translate_addr_deref_expr(ctx: ref TranslationCtx, text: ref u8) ref u8 = {
                         continue
                     }
                 }
-                trust string.StringBuilder.append_cstr(sb, @fmtalloc("@deref({s})", {translated_inner}))
+                trust string.StringBuilder.append_cstr(
+                    sb,
+                    @fmtalloc("@deref({s})", {translated_inner})
+                )
                 i = close_group + 1
                 continue
             }
@@ -4360,7 +4370,10 @@ fn translate_sizeof_expr(ctx: ref TranslationCtx, text: ref u8) ref u8 = {
                             }
                         }
                         val mapped: ref u8 = translate_c_type_ctx(ctx, inner, "")
-                        trust string.StringBuilder.append_cstr(sb, @fmtalloc("@sizeof({s})", {mapped}))
+                        trust string.StringBuilder.append_cstr(
+                            sb,
+                            @fmtalloc("@sizeof({s})", {mapped})
+                        )
                         i = close_i + 1
                         continue
                     }
@@ -4842,7 +4855,10 @@ fn translate_body_statement(
                         append_line(
                             out,
                             indent,
-                            trust @fmtalloc("@memset({s} as ref void, 0, {s})", {decl.name, alloc_expr})
+                            trust @fmtalloc(
+                                "@memset({s} as ref void, 0, {s})",
+                                {decl.name, alloc_expr}
+                            )
                         )
                         append_line(
                             out,
@@ -6542,7 +6558,10 @@ fn translate_params(ctx: mut ref TranslationCtx, params_text: ref u8) ref u8 = {
         if !first {
             trust string.StringBuilder.append_cstr(sb, ", ")
         }
-        trust string.StringBuilder.append_cstr(sb, @fmtalloc("{s}: {s}", {decl.name, rendered_type}))
+        trust string.StringBuilder.append_cstr(
+            sb,
+            @fmtalloc("{s}: {s}", {decl.name, rendered_type})
+        )
         first = false
         arg_index++
     }
@@ -6868,7 +6887,11 @@ fn translate_function_decl(
         return true
     }
     if is_static {
-        append_comment_line(out, indent, trust @fmtalloc("static prototype omitted: {s};", {signature}))
+        append_comment_line(
+            out,
+            indent,
+            trust @fmtalloc("static prototype omitted: {s};", {signature})
+        )
         return true
     }
     if list_contains(ctx.extern_names, name) {

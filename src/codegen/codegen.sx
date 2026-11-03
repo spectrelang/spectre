@@ -4093,6 +4093,147 @@ fn gen_variadic_arg(ctx: mut ref CgCtx, node: ref parser.Node) ref u8 = trust {
     return arg_buf
 }
 
+fn cg_param_is_untyped(params: ref void, idx: i64) bool = trust {
+    if params == none {
+        return false
+    }
+    val plen: i64 = @len(params as list[ref parser.Node]) as i64
+    if idx < 0 || idx >= plen {
+        return false
+    }
+    val p_opt = @get(params as list[ref parser.Node], idx as usize)
+    if p_opt is some p {
+        val pty: ref parser.Node = (p as ref parser.Node).d1 as ref parser.Node
+        return pty != none && pty.kind == parser.TY_UNTYPED
+    }
+    return false
+}
+
+fn cg_current_fn_param_is_untyped(ctx: mut ref CgCtx, name: ref u8) bool = trust {
+    if name == none {
+        return false
+    }
+    val params: ref void = cg_lookup_fn_params(ctx, ctx.fn_name)
+    if params == none {
+        return false
+    }
+    val plen: i64 = @len(params as list[ref parser.Node]) as i64
+    val pi: mut i64 = 0
+    for {
+        if pi >= plen {
+            break
+        }
+        val p_opt = @get(params as list[ref parser.Node], pi as usize)
+        if p_opt is some p {
+            val pnode: ref parser.Node = p as ref parser.Node
+            if str.raw_cmp(pnode.d0 as ref u8, name) == 0 {
+                val pty: ref parser.Node = pnode.d1 as ref parser.Node
+                return pty != none && pty.kind == parser.TY_UNTYPED
+            }
+        }
+        pi++
+    }
+    return false
+}
+
+fn cg_pack_value_to_l(ctx: mut ref CgCtx, node: ref parser.Node) ref u8 = trust {
+    val qt: ref u8 = expr_qbe_type(ctx, node)
+    val value: ref u8 = gen_expr(ctx, node)
+    if str.raw_cmp(qt, "w") == 0 {
+        val t: i64 = fresh_tmp(ctx)
+        val b: ref u8 = @alloc(128) as ref u8
+        @snprintf(b, 128, "    %%t{lld} =l extsw {s}\n", {t, value})
+        emit(ctx, b)
+        @free(b)
+        val r: ref u8 = @alloc(16) as ref u8
+        @snprintf(r, 16, "%%t{lld}", {t})
+        return r
+    }
+    if str.raw_cmp(qt, "s") == 0 || str.raw_cmp(qt, "d") == 0 {
+        val t: i64 = fresh_tmp(ctx)
+        val b: ref u8 = @alloc(128) as ref u8
+        @snprintf(b, 128, "    %%t{lld} =l cast {s}\n", {t, value})
+        emit(ctx, b)
+        @free(b)
+        val r: ref u8 = @alloc(16) as ref u8
+        @snprintf(r, 16, "%%t{lld}", {t})
+        return r
+    }
+    return value
+}
+
+fn cg_gen_untyped_pack(
+    ctx: mut ref CgCtx,
+    elems: list[ref parser.Node]
+) ref u8 = trust {
+    val arr: i64 = fresh_tmp(ctx)
+    val abuf: ref u8 = @alloc(128) as ref u8
+    @snprintf(abuf, 128, "    %%t{lld} =l alloc8 128\n", {arr})
+    emit(ctx, abuf)
+    @free(abuf)
+    val n: i64 = @len(elems) as i64
+    val i: mut i64 = 0
+    for {
+        if i >= 16 {
+            break
+        }
+        val value: mut ref u8 = "0"
+        if i < n {
+            val e_opt = @get(elems, i as usize)
+            if e_opt is some e {
+                value = cg_pack_value_to_l(ctx, e as ref parser.Node)
+            }
+        }
+        val ptr: i64 = fresh_tmp(ctx)
+        val b: ref u8 = @alloc(160) as ref u8
+        @snprintf(
+            b,
+            160,
+            "    %%t{lld} =l add %%t{lld}, {lld}\n    storel {s}, %%t{lld}\n",
+            {ptr, arr, i * 8, value, ptr}
+        )
+        emit(ctx, b)
+        @free(b)
+        i++
+    }
+    val r: ref u8 = @alloc(32) as ref u8
+    @snprintf(r, 32, "%%t{lld}", {arr})
+    return r
+}
+
+fn cg_expand_untyped_pack_args(
+    ctx: mut ref CgCtx,
+    pack_val: ref u8
+) ref u8 = trust {
+    val sb: ref void = str.StringBuilder.new()
+    val i: mut i64 = 0
+    for {
+        if i >= 16 {
+            break
+        }
+        val ptr: i64 = fresh_tmp(ctx)
+        val val_tmp: i64 = fresh_tmp(ctx)
+        val b: ref u8 = @alloc(160) as ref u8
+        @snprintf(
+            b,
+            160,
+            "    %%t{lld} =l add {s}, {lld}\n    %%t{lld} =l loadl %%t{lld}\n",
+            {ptr, pack_val, i * 8, val_tmp, ptr}
+        )
+        emit(ctx, b)
+        @free(b)
+        val ab: ref u8 = @alloc(64) as ref u8
+        @snprintf(ab, 64, ", l %%t{lld}", {val_tmp})
+        str.StringBuilder.append_cstr(sb, ab)
+        @free(ab)
+        i++
+    }
+    val built: ref void = str.StringBuilder.build(sb)
+    val out: ref u8 = str.cstr(built)
+    str.StringBuilder.free(sb)
+    return out
+}
+
 /// Check if a raw u8 pointer starts with a raw prefix.
 fn raw_starts_with(src: ref u8, prefix: ref u8) bool = trust {
     val slen: i64 = str.len_raw(src)
@@ -7743,6 +7884,21 @@ fn gen_call(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
         val gi_targs: list[ref parser.Node] = parser.generic_inst_type_args(callee_node)
         val base_name: ref u8 = generic_callee_base_name(ctx, gi_base)
         val resolved_fn_node: ref parser.Node = parser.call_resolved_fn(expr)
+        val gfn_node: mut ref parser.Node = none
+        val gfn_prefix: mut ref u8 = ""
+        if resolved_fn_node != none && resolved_fn_node.kind == parser.NK_GENERIC_FN {
+            gfn_node = resolved_fn_node
+            gfn_prefix = lookup_generic_fn_prefix_by_node(ctx, gfn_node)
+        } else {
+            gfn_node = lookup_generic_fn(ctx, base_name)
+            if gfn_node != none {
+                gfn_prefix = lookup_generic_fn_prefix(ctx, base_name)
+            }
+        }
+        val gsrc_params: mut ref void = none
+        if gfn_node != none {
+            gsrc_params = gfn_node.d3 as ref void
+        }
         val arg_tmps_g: mut list[ref u8] = []
         val arg_qts_g: mut list[ref u8] = []
         if args_list != none {
@@ -7754,9 +7910,32 @@ fn gen_call(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
                 }
                 val ga_opt = @get(args_list as list[ref parser.Node], gai as usize)
                 if ga_opt is some ga {
-                    val gak: i64 = (ga as ref parser.Node).kind
-                    if gak == parser.NK_ARGS_PACK {
-                        val pack: ref void = (ga as ref parser.Node).d0 as ref void
+                    val ga_node: ref parser.Node = ga as ref parser.Node
+                    val gak: i64 = ga_node.kind
+                    if cg_param_is_untyped(gsrc_params, gai) {
+                        val elems: mut list[ref parser.Node] = []
+                        if gak == parser.NK_ARGS_PACK {
+                            val pack: ref void = ga_node.d0 as ref void
+                            val plen: i64 = @len(pack) as i64
+                            val gpi: mut i64 = 0
+                            for {
+                                if gpi >= plen {
+                                    break
+                                }
+                                val gpe_opt = @get(pack, gpi as usize)
+                                if gpe_opt is some gpe {
+                                    @append(elems, gpe as ref parser.Node)
+                                }
+                                gpi++
+                            }
+                        } else {
+                            @append(elems, ga_node)
+                        }
+                        val pack_ptr: ref u8 = cg_gen_untyped_pack(ctx, elems)
+                        @append(arg_tmps_g, pack_ptr)
+                        @append(arg_qts_g, "l")
+                    } elif gak == parser.NK_ARGS_PACK {
+                        val pack: ref void = ga_node.d0 as ref void
                         val plen: i64 = @len(pack) as i64
                         val gpi: mut i64 = 0
                         for {
@@ -7773,7 +7952,6 @@ fn gen_call(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
                             gpi++
                         }
                     } else {
-                        val ga_node: ref parser.Node = ga as ref parser.Node
                         val gat: ref u8 = gen_expr(ctx, ga_node)
                         @append(arg_tmps_g, gat)
                         @append(arg_qts_g, expr_qbe_type(ctx, ga_node))
@@ -7782,18 +7960,7 @@ fn gen_call(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
                 gai++
             }
         }
-        val gfn_node: mut ref parser.Node = none
         val mono_base: mut ref u8 = none
-        val gfn_prefix: mut ref u8 = ""
-        if resolved_fn_node != none && resolved_fn_node.kind == parser.NK_GENERIC_FN {
-            gfn_node = resolved_fn_node
-            gfn_prefix = lookup_generic_fn_prefix_by_node(ctx, gfn_node)
-        } else {
-            gfn_node = lookup_generic_fn(ctx, base_name)
-            if gfn_node != none {
-                gfn_prefix = lookup_generic_fn_prefix(ctx, base_name)
-            }
-        }
         if gfn_node != none {
             val resolved_targs: mut list[ref parser.Node] = []
             for ta in gi_targs {
@@ -9084,6 +9251,13 @@ fn gen_builtin(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
                             }
                             pi2++
                         }
+                    } elif pn.kind == parser.NK_IDENT &&
+                    cg_current_fn_param_is_untyped(ctx, pn.d0 as ref u8) {
+                        val pack_val: ref u8 = gen_expr(ctx, pn)
+                        val expanded: ref u8 = cg_expand_untyped_pack_args(ctx, pack_val)
+                        val exp_len: i64 = str.len_raw(expanded)
+                        @memcpy(@ptradd(call_buf2, call_pos2), expanded, exp_len)
+                        call_pos2 = call_pos2 + exp_len
                     }
                 }
             }
@@ -9134,6 +9308,11 @@ fn gen_builtin(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
                             }
                             spi++
                         }
+                    } elif spn.kind == parser.NK_IDENT &&
+                    cg_current_fn_param_is_untyped(ctx, spn.d0 as ref u8) {
+                        val pack_val: ref u8 = gen_expr(ctx, spn)
+                        val expanded: ref u8 = cg_expand_untyped_pack_args(ctx, pack_val)
+                        str.StringBuilder.append_cstr(scall_sb, expanded)
                     } else {
                         // Single non-pack argument (e.g. untyped parameter passthrough)
                         val svarg2: ref u8 = gen_variadic_arg(ctx, spn)

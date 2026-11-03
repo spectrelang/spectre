@@ -1172,7 +1172,10 @@ pub fn main() i32 = trust {
         if string.raw_cmp(cc_flags, "") == 0 {
             cc_cmd = @fmtalloc("cc -o {s} {s}{s}", {final_output, asm_file, link_flags})
         } else {
-            cc_cmd = @fmtalloc("cc {s} -o {s} {s}{s}", {cc_flags, final_output, asm_file, link_flags})
+            cc_cmd = @fmtalloc(
+                "cc {s} -o {s} {s}{s}",
+                {cc_flags, final_output, asm_file, link_flags}
+            )
         }
         success_msg = @fmtalloc("Compiled: {s}\n", {final_output})
     } else {
@@ -1185,7 +1188,10 @@ pub fn main() i32 = trust {
         if string.raw_cmp(cc_flags, "") == 0 {
             cc_cmd = @fmtalloc("cc -o {s} {s}{s}", {final_output, asm_file, link_flags})
         } else {
-            cc_cmd = @fmtalloc("cc {s} -o {s} {s}{s}", {cc_flags, final_output, asm_file, link_flags})
+            cc_cmd = @fmtalloc(
+                "cc {s} -o {s} {s}{s}",
+                {cc_flags, final_output, asm_file, link_flags}
+            )
         }
         success_msg = @fmtalloc("Compiled: {s}\n", {final_output})
     }

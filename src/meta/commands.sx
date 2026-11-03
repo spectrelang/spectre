@@ -1030,13 +1030,19 @@ fn upgrade_dir(
                 return 1
             }
 
-            val reset_cmd: ref u8 = @fmtalloc("git -C {s} reset --hard --quiet FETCH_HEAD", {lib_path})
+            val reset_cmd: ref u8 = @fmtalloc(
+                "git -C {s} reset --hard --quiet FETCH_HEAD",
+                {lib_path}
+            )
             if os.run(reset_cmd) != 0 {
                 stdio.print("error: failed to check out HEAD for {s}\n", {dep_url})
                 return 1
             }
 
-            val new_hash: ref u8 = output_trimmed(@fmtalloc("git -C {s} rev-parse HEAD", {lib_path}))
+            val new_hash: ref u8 = output_trimmed(@fmtalloc(
+                    "git -C {s} rev-parse HEAD",
+                    {lib_path}
+                ))
             if str.raw_cmp(new_hash, "") == 0 {
                 stdio.print("error: could not determine HEAD for {s}\n", {dep_url})
                 return 1
@@ -1939,7 +1945,10 @@ pub fn cmd_restore() i32 = trust {
         }
 
         if str.raw_cmp(hash, "unknown") != 0 {
-            val checkout_cmd: ref u8 = @fmtalloc("git -C {s} checkout --quiet {s}", {lib_path, hash})
+            val checkout_cmd: ref u8 = @fmtalloc(
+                "git -C {s} checkout --quiet {s}",
+                {lib_path, hash}
+            )
             if os.run(checkout_cmd) != 0 {
                 stdio.print("error: failed to checkout {s} for {s}\n", {hash, dep_url})
                 return 1

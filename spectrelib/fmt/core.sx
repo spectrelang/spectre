@@ -584,6 +584,13 @@ test {
     val unmatched = trust format[allocators.Arena](fmt_arena, "a { b", {})
     assert string.raw_cmp(trust string.cstr(unmatched), "a { b") == 0
 
+    val multi = trust format[allocators.Arena](
+        fmt_arena,
+        "{s}:{d}:{x}",
+        {"ok", 42, 255}
+    )
+    assert string.raw_cmp(trust string.cstr(multi), "ok:42:ff") == 0
+
     val long = trust format[allocators.Arena](fmt_arena, "{5000d}", {7})
     assert string.len(long) == 5000
     assert trust @load8(@ptradd(string.cstr(long), 4999)) == 55

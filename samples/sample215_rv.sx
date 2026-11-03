@@ -1,0 +1,18 @@
+val stdio      = use("std/stdio")
+val string     = use("std/string")
+val fmt        = use("std/fmt")
+val allocators = use("std/allocators")
+
+pub fn main() void = trust {
+    val arena: mut allocators.Arena = allocators.Arena.new(4096 as usize)?
+
+    val formatted = fmt.format[allocators.Arena](
+        arena,
+        "{s} {d} {d} {d}",
+        {"many", 11, 22, 33}
+    )
+    assert string.raw_cmp(string.cstr(formatted), "many 11 22 33") == 0
+
+    allocators.Arena.free(arena)
+    stdio.puts("generic untyped pack values ok")
+}

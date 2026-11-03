@@ -1720,7 +1720,7 @@ fn parse_postfix(p: mut ref Parser) result[ref Node, ref u8] = trust {
         if lexer.kind_is_lbrace(k) && (res.kind == NK_IDENT || res.kind == NK_FIELD) {
             val after_open: lexer.TokenKind = p_peek2_kind(p)
             val has_fields: bool =
-                kind_is_ident(after_open) && lexer.kind_is_colon(p_peek3_kind(p))
+            kind_is_ident(after_open) && lexer.kind_is_colon(p_peek3_kind(p))
             if has_fields {
                 val type_name: ref u8 = expr_to_type_name(res)
                 if type_name != none {
