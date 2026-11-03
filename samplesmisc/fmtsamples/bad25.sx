@@ -1,0 +1,6 @@
+pub fn configure_pipeline() void = {
+    val pipeline = {
+        front_stencil_state: { fail_op: 0 as i32, pass_op: 0 as i32, depth_fail_op: 0 as i32, compare_op: 0 as i32 },
+        back_stencil_state: { fail_op: 0 as i32, pass_op: 0 as i32, depth_fail_op: 0 as i32, compare_op: 0 as i32 },
+    }
+}

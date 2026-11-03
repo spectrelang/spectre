@@ -64,7 +64,10 @@ pub fn print_usage() void = {
 }
 
 pub fn print_version() void = {
-    trust stdio.print("Spectre {s} ({s})\n(C) Navid Momtahen - GPL-3.0 - 2026\n", {get_spectre_version(), get_commit_hash()})
+    trust stdio.print(
+        "Spectre {s} ({s})\n(C) Navid Momtahen - GPL-3.0 - 2026\n",
+        {get_spectre_version(), get_commit_hash()}
+    )
 }
 
 fn print_flag_help(name: ref u8, summary: ref u8, usage: ref u8) void = trust {
@@ -101,8 +104,9 @@ pub fn print_help(topic: ref u8) i32 = trust {
         stdio.puts("Directories are searched recursively for .sx files. Other files are")
         stdio.puts("ignored. Without --stdio, files are rewritten in place.")
         stdio.puts("")
-        stdio.puts("Calls and signatures longer than 100 characters are split across")
-        stdio.puts("multiple lines when their argument list can be split safely.")
+        stdio.puts("Calls, signatures and struct/type literals longer than 100")
+        stdio.puts("characters are split across multiple lines when they can be split")
+        stdio.puts("safely.")
         return 0
     }
 
@@ -183,7 +187,7 @@ pub fn print_help(topic: ref u8) i32 = trust {
         stdio.puts("upgrade - Upgrade dependencies to their latest HEAD")
         stdio.puts("")
         stdio.puts("usage:")
-        stdio.puts("  spectre upgrade [dep-name]")
+        stdio.puts("  spectre upgrade <dep-name>")
         stdio.puts("")
         stdio.puts("Without a name, every dependency in ./lib/ is upgraded. With a")
         stdio.puts("dependency name, only that dependency (and its subtree) is")
@@ -251,27 +255,47 @@ pub fn print_help(topic: ref u8) i32 = trust {
     }
 
     if str.raw_cmp(topic, "--ast") == 0 {
-        print_flag_help("--ast", "Print the AST in a unicode tree and exit.", "spectre <input.sx> --ast")
+        print_flag_help(
+            "--ast",
+            "Print the AST in a unicode tree and exit.",
+            "spectre <input.sx> --ast"
+        )
         return 0
     }
 
     if str.raw_cmp(topic, "--syntax-check") == 0 {
-        print_flag_help("--syntax-check", "Check the validity of the syntax without compiling.", "spectre <input.sx> --syntax-check")
+        print_flag_help(
+            "--syntax-check",
+            "Check the validity of the syntax without compiling.",
+            "spectre <input.sx> --syntax-check"
+        )
         return 0
     }
 
     if str.raw_cmp(topic, "--emit-ssa") == 0 {
-        print_flag_help("--emit-ssa", "Print QBE IR to stdout and exit (POSIX only).", "spectre <input.sx> --emit-ssa")
+        print_flag_help(
+            "--emit-ssa",
+            "Print QBE IR to stdout and exit (POSIX only).",
+            "spectre <input.sx> --emit-ssa"
+        )
         return 0
     }
 
     if str.raw_cmp(topic, "--emit-alt") == 0 {
-        print_flag_help("--emit-alt", "Print alternative IR to stdout and exit.", "spectre <input.sx> --emit-alt")
+        print_flag_help(
+            "--emit-alt",
+            "Print alternative IR to stdout and exit.",
+            "spectre <input.sx> --emit-alt"
+        )
         return 0
     }
 
     if str.raw_cmp(topic, "--emit-asm") == 0 {
-        print_flag_help("--emit-asm", "Print assembly to stdout and exit.", "spectre <input.sx> --emit-asm")
+        print_flag_help(
+            "--emit-asm",
+            "Print assembly to stdout and exit.",
+            "spectre <input.sx> --emit-asm"
+        )
         return 0
     }
 
@@ -281,32 +305,56 @@ pub fn print_help(topic: ref u8) i32 = trust {
     }
 
     if str.raw_cmp(topic, "--translate-c") == 0 {
-        print_flag_help("--translate-c", "Translate C input into a single .sx file.", "spectre --translate-c <input.c|input.h>")
+        print_flag_help(
+            "--translate-c",
+            "Translate C input into a single .sx file.",
+            "spectre --translate-c <input.c|input.h>"
+        )
         return 0
     }
 
     if str.raw_cmp(topic, "--inc-path") == 0 || str.raw_cmp(topic, "--inc-path=<dir>") == 0 {
-        print_flag_help("--inc-path=<dir>", "Add an include search path for the alternative backend.", "spectre <input.sx> --alt --inc-path=<dir>")
+        print_flag_help(
+            "--inc-path=<dir>",
+            "Add an include search path for the alternative backend.",
+            "spectre <input.sx> --alt --inc-path=<dir>"
+        )
         return 0
     }
 
     if str.raw_cmp(topic, "--show-cmd") == 0 {
-        print_flag_help("--show-cmd", "Show the command used for linking.", "spectre <input.sx> --show-cmd")
+        print_flag_help(
+            "--show-cmd",
+            "Show the command used for linking.",
+            "spectre <input.sx> --show-cmd"
+        )
         return 0
     }
 
     if str.raw_cmp(topic, "--test") == 0 {
-        print_flag_help("--test", "Run the unit tests in the current file.", "spectre <input.sx> --test")
+        print_flag_help(
+            "--test",
+            "Run the unit tests in the current file.",
+            "spectre <input.sx> --test"
+        )
         return 0
     }
 
     if str.raw_cmp(topic, "--release") == 0 {
-        print_flag_help("--release", "Build in release mode with optimizations and stripped symbols.", "spectre <input.sx> --release")
+        print_flag_help(
+            "--release",
+            "Build in release mode with optimizations and stripped symbols.",
+            "spectre <input.sx> --release"
+        )
         return 0
     }
 
     if str.raw_cmp(topic, "--dynamic") == 0 {
-        print_flag_help("--dynamic", "Link dynamically instead of statically. Static linking is the default on platforms that support it.", "spectre <input.sx> --dynamic")
+        print_flag_help(
+            "--dynamic",
+            "Link dynamically instead of statically. Static linking is the default on platforms that support it.",
+            "spectre <input.sx> --dynamic"
+        )
         return 0
     }
 
@@ -316,57 +364,104 @@ pub fn print_help(topic: ref u8) i32 = trust {
     }
 
     if str.raw_cmp(topic, "-a") == 0 || str.raw_cmp(topic, "--alt") == 0 {
-        print_flag_help("-a, --alt", "Compile with the fallback backend.", "spectre <input.sx> --alt")
+        print_flag_help(
+            "-a, --alt",
+            "Compile with the fallback backend.",
+            "spectre <input.sx> --alt"
+        )
         return 0
     }
 
     if str.raw_cmp(topic, "-b") == 0 || str.raw_cmp(topic, "--bootstrap") == 0 {
-        print_flag_help("-b, --bootstrap", "Display backend output on error.", "spectre <input.sx> --bootstrap")
+        print_flag_help(
+            "-b, --bootstrap",
+            "Display backend output on error.",
+            "spectre <input.sx> --bootstrap"
+        )
         return 0
     }
 
     if str.raw_cmp(topic, "-c") == 0 || str.raw_cmp(topic, "--compile") == 0 {
-        print_flag_help("-c, --compile", "Compile only to produce an object file, without linking.", "spectre <input.sx> --compile")
+        print_flag_help(
+            "-c, --compile",
+            "Compile only to produce an object file, without linking.",
+            "spectre <input.sx> --compile"
+        )
         return 0
     }
 
     if str.raw_cmp(topic, "-d") == 0 || str.raw_starts_with(topic, "-d") {
-        print_flag_help("-d<NAME>=<value>", "Define a compile-time environment variable. Reads through env.get(\"NAME\") are replaced with the supplied value at compile time.", "spectre -dGIT_HASH=abcdef <input.sx>")
+        print_flag_help(
+            "-d<NAME>=<value>",
+            "Define a compile-time environment variable. Reads through env.get(\"NAME\") are replaced with the supplied value at compile time.",
+            "spectre -dGIT_HASH=abcdef <input.sx>"
+        )
         return 0
     }
 
-    if str.raw_cmp(topic, "-o") == 0 || str.raw_cmp(topic, "--output") == 0 || str.raw_cmp(topic, "--output=<file>") == 0 {
-        print_flag_help("-o, --output <file>", "Set the output path for a binary or build artifact.", "spectre <input.sx> -o <file>")
+    if str.raw_cmp(
+        topic,
+        "-o"
+    ) == 0 || str.raw_cmp(topic, "--output") == 0 || str.raw_cmp(topic, "--output=<file>") == 0 {
+        print_flag_help(
+            "-o, --output <file>",
+            "Set the output path for a binary or build artifact.",
+            "spectre <input.sx> -o <file>"
+        )
         return 0
     }
 
     if str.raw_cmp(topic, "-l") == 0 || str.raw_cmp(topic, "--loud") == 0 {
-        print_flag_help("-l, --loud", "Show compilation stages with verbose output.", "spectre <input.sx> --loud")
+        print_flag_help(
+            "-l, --loud",
+            "Show compilation stages with verbose output.",
+            "spectre <input.sx> --loud"
+        )
         return 0
     }
 
     if str.raw_cmp(topic, "-v") == 0 || str.raw_cmp(topic, "--version") == 0 {
-        print_flag_help("-v, --version", "Show the version of the installed Spectre compiler.", "spectre -v")
+        print_flag_help(
+            "-v, --version",
+            "Show the version of the installed Spectre compiler.",
+            "spectre -v"
+        )
         return 0
     }
 
     if str.raw_cmp(topic, "-h") == 0 || str.raw_cmp(topic, "--help") == 0 {
-        print_flag_help("-h, --help", "Print the general help message.", "spectre -h\n  spectre help <command|flag>")
+        print_flag_help(
+            "-h, --help",
+            "Print the general help message.",
+            "spectre -h\n  spectre help <command|flag>"
+        )
         return 0
     }
 
     if str.raw_cmp(topic, "--stdio") == 0 {
-        print_flag_help("--stdio", "Write formatted output to stdout instead of editing files in place.", "spectre fmt --stdio <file.sx|directory>...")
+        print_flag_help(
+            "--stdio",
+            "Write formatted output to stdout instead of editing files in place.",
+            "spectre fmt --stdio <file.sx|directory>..."
+        )
         return 0
     }
 
     if str.raw_cmp(topic, "--md") == 0 {
-        print_flag_help("--md", "Generate Markdown documentation instead of HTML.", "spectre doc [path] --md")
+        print_flag_help(
+            "--md",
+            "Generate Markdown documentation instead of HTML.",
+            "spectre doc [path] --md"
+        )
         return 0
     }
 
     if str.raw_cmp(topic, "--fix") == 0 {
-        print_flag_help("--fix", "Apply safe critic fixes to .sx files or directories.", "spectre critic --fix <file.sx|directory>...")
+        print_flag_help(
+            "--fix",
+            "Apply safe critic fixes to .sx files or directories.",
+            "spectre critic --fix <file.sx|directory>..."
+        )
         return 0
     }
 

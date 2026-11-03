@@ -2664,7 +2664,7 @@ fn has_top_level_comma(tokens: list[ref lexer.Token], open_idx: i64, close_idx: 
     return false
 }
 
-fn wrap_paren_at(
+fn wrap_delimited_at(
     src: ref u8,
     tokens: list[ref lexer.Token],
     starts: list[i64],
@@ -2719,10 +2719,10 @@ fn wrap_paren_at(
     return apply_edits(src, edits)
 }
 
-/// Wrap the first over-long function call found in the source. Only calls
-/// whose parentheses open and close on the same line, and which have at
-/// least two arguments, are touched. This keeps the rewrite purely
-/// whitespace-level and lets the caller reindent afterwards.
+/// Wrap the first over-long call or struct/type literal found in the source.
+/// Only delimiters that open and close on the same line, and which have at
+/// least two comma-separated items, are touched. This keeps the rewrite
+/// purely whitespace-level and lets the caller reindent afterwards.
 fn wrap_one_long_line(src: ref u8) ref u8 = trust {
     val tok_res = lexer.tokenize(src)
     val tokens: mut list[ref lexer.Token] = []
@@ -2753,7 +2753,18 @@ fn wrap_one_long_line(src: ref u8) ref u8 = trust {
                 if close > i && token_line(tokens, close) == open_line {
                     if paren_starts_call(tokens, i) &&
                     has_top_level_comma(tokens, i, close) {
-                        return wrap_paren_at(src, tokens, starts, i, close)
+                        return wrap_delimited_at(src, tokens, starts, i, close)
+                    }
+                }
+            }
+        } elif lexer.kind_is_lbrace(k) {
+            val open_line: i64 = token_line(tokens, i)
+            if !brace_is_block(tokens, i) &&
+            line_length_at(src, len, starts, open_line - 1) > 100 {
+                val close: i64 = find_matching_brace(tokens, i)
+                if close > i && token_line(tokens, close) == open_line {
+                    if has_top_level_comma(tokens, i, close) {
+                        return wrap_delimited_at(src, tokens, starts, i, close)
                     }
                 }
             }
