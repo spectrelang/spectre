@@ -2583,6 +2583,205 @@ fn format_for_headers(src: ref u8) ref u8 = trust {
     return apply_edits(src, edits)
 }
 
+fn line_length_at(src: ref u8, len: i64, starts: list[i64], line_idx: i64) i64 = trust {
+    if line_idx < 0 {
+        return 0
+    }
+    val start_opt = @get(starts, line_idx as usize)
+    if start_opt is some sv {
+        val start: i64 = sv as i64
+        val end: mut i64 = start
+        for {
+            if end >= len {
+                break
+            }
+            if byte_at(src, end) == 10 {
+                break
+            }
+            end++
+        }
+        return end - start
+    }
+    return 0
+}
+
+fn paren_starts_call(tokens: list[ref lexer.Token], open_idx: i64) bool = trust {
+    if open_idx <= 0 {
+        return false
+    }
+    val pk: lexer.TokenKind = lexer.tok_kind(tokens, open_idx - 1)
+    if lexer.kind_is_ident(pk) {
+        return true
+    }
+    if lexer.kind_is_rparen(pk) {
+        return true
+    }
+    if lexer.kind_is_rbracket(pk) {
+        return true
+    }
+    return false
+}
+
+fn has_top_level_comma(tokens: list[ref lexer.Token], open_idx: i64, close_idx: i64) bool = trust {
+    val parens: mut i64 = 0
+    val brackets: mut i64 = 0
+    val braces: mut i64 = 0
+    val i: mut i64 = open_idx + 1
+
+    for {
+        if i >= close_idx {
+            break
+        }
+        val k: lexer.TokenKind = lexer.tok_kind(tokens, i)
+        if lexer.kind_is_lparen(k) {
+            parens++
+        } elif lexer.kind_is_rparen(k) {
+            if parens > 0 {
+                parens--
+            }
+        } elif lexer.kind_is_lbracket(k) {
+            brackets++
+        } elif lexer.kind_is_rbracket(k) {
+            if brackets > 0 {
+                brackets--
+            }
+        } elif lexer.kind_is_lbrace(k) {
+            braces++
+        } elif lexer.kind_is_rbrace(k) {
+            if braces > 0 {
+                braces--
+            }
+        } elif lexer.kind_is_comma(k) {
+            if parens == 0 && brackets == 0 && braces == 0 {
+                if i + 1 < close_idx {
+                    return true
+                }
+            }
+        }
+        i++
+    }
+
+    return false
+}
+
+fn wrap_paren_at(
+    src: ref u8,
+    tokens: list[ref lexer.Token],
+    starts: list[i64],
+    open_idx: i64,
+    close_idx: i64
+) ref u8 = trust {
+    val edits: mut list[ref Edit] = []
+    val open_pos: i64 = token_start(tokens, starts, open_idx)
+    @append(edits, edit_new(open_pos + 1, open_pos + 1, "\n"))
+
+    val parens: mut i64 = 0
+    val brackets: mut i64 = 0
+    val braces: mut i64 = 0
+    val i: mut i64 = open_idx + 1
+
+    for {
+        if i >= close_idx {
+            break
+        }
+        val k: lexer.TokenKind = lexer.tok_kind(tokens, i)
+        if lexer.kind_is_lparen(k) {
+            parens++
+        } elif lexer.kind_is_rparen(k) {
+            if parens > 0 {
+                parens--
+            }
+        } elif lexer.kind_is_lbracket(k) {
+            brackets++
+        } elif lexer.kind_is_rbracket(k) {
+            if brackets > 0 {
+                brackets--
+            }
+        } elif lexer.kind_is_lbrace(k) {
+            braces++
+        } elif lexer.kind_is_rbrace(k) {
+            if braces > 0 {
+                braces--
+            }
+        } elif lexer.kind_is_comma(k) {
+            if parens == 0 && brackets == 0 && braces == 0 {
+                if i + 1 < close_idx {
+                    val comma_pos: i64 = token_start(tokens, starts, i)
+                    @append(edits, edit_new(comma_pos + 1, comma_pos + 1, "\n"))
+                }
+            }
+        }
+        i++
+    }
+
+    val close_pos: i64 = token_start(tokens, starts, close_idx)
+    @append(edits, edit_new(close_pos, close_pos, "\n"))
+    return apply_edits(src, edits)
+}
+
+/// Wrap the first over-long function call found in the source. Only calls
+/// whose parentheses open and close on the same line, and which have at
+/// least two arguments, are touched. This keeps the rewrite purely
+/// whitespace-level and lets the caller reindent afterwards.
+fn wrap_one_long_line(src: ref u8) ref u8 = trust {
+    val tok_res = lexer.tokenize(src)
+    val tokens: mut list[ref lexer.Token] = []
+    match tok_res {
+        ok toks => {
+            tokens = toks
+        }
+        err _ => {
+            return src
+        }
+    }
+
+    val len: i64 = str.len_raw(src)
+    val starts: list[i64] = collect_line_starts(src, len)
+    val ntokens: i64 = @len(tokens) as i64
+    val i: mut i64 = 0
+
+    for {
+        if i >= ntokens {
+            break
+        }
+        val k: lexer.TokenKind = lexer.tok_kind(tokens, i)
+
+        if lexer.kind_is_lparen(k) {
+            val open_line: i64 = token_line(tokens, i)
+            if line_length_at(src, len, starts, open_line - 1) > 100 {
+                val close: i64 = find_matching_paren(tokens, i)
+                if close > i && token_line(tokens, close) == open_line {
+                    if paren_starts_call(tokens, i) &&
+                    has_top_level_comma(tokens, i, close) {
+                        return wrap_paren_at(src, tokens, starts, i, close)
+                    }
+                }
+            }
+        }
+
+        i++
+    }
+
+    return src
+}
+
+fn format_long_lines(src: ref u8) ref u8 = trust {
+    val current: mut ref u8 = src
+    val rounds: mut i64 = 0
+    for {
+        if rounds >= 10000 {
+            break
+        }
+        val next: ref u8 = wrap_one_long_line(current)
+        if str.raw_cmp(next, current) == 0 {
+            break
+        }
+        current = reindent(next)
+        rounds++
+    }
+    return current
+}
+
 fn trim_leading_newlines(src: ref u8) ref u8 = trust {
     val len: i64 = str.len_raw(src)
     val start: mut i64 = 0
@@ -2622,7 +2821,8 @@ fn format_source(src: ref u8) ref u8 = trust {
     val brace_spaced: ref u8 = format_block_brace_spacing(op_spaced)
     val return_spaced: ref u8 = format_fn_return_spacing(brace_spaced)
     val indented: ref u8 = reindent(return_spaced)
-    val imports_aligned: ref u8 = format_import_alignment(indented)
+    val narrowed: ref u8 = format_long_lines(indented)
+    val imports_aligned: ref u8 = format_import_alignment(narrowed)
     val gaps_normalized: ref u8 = format_top_level_decl_gaps(imports_aligned)
     return trim_leading_newlines(gaps_normalized)
 }

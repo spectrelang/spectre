@@ -918,6 +918,167 @@ fn drop_dep_lines(filepath: ref u8, needle: ref u8) void = trust {
     }
 }
 
+fn output_trimmed(cmd: ref u8) ref u8 = trust {
+    val res = os.exec(cmd)
+    match res {
+        ok v => {
+            val raw: ref u8 = str.cstr(v)
+            val raw_len: i64 = str.len_raw(raw)
+            val end: mut i64 = raw_len
+            for {
+                if end <= 0 {
+                    break
+                }
+                val c: u8 = @load8(@ptradd(raw, end - 1)) as u8
+                if c == 10 || c == 13 || c == 32 {
+                    end--
+                } else {
+                    break
+                }
+            }
+            if end <= 0 {
+                return ""
+            }
+            val trimmed: ref u8 = @alloc(end + 1) as ref u8
+            @memcpy(trimmed, raw, end as usize)
+            @store8(@ptradd(trimmed, end), 0)
+            return trimmed
+        }
+        err _ => {
+            return ""
+        }
+    }
+}
+
+fn dep_name_matches(dep_url: ref u8, dep_name: ref u8) bool = trust {
+    if str.raw_cmp(dep_name, "") == 0 {
+        return true
+    }
+    val url_name: ref u8 = repo_name_from_url(dep_url)
+    return str.raw_cmp(url_name, dep_name) == 0
+}
+
+fn set_lock_hash(filepath: ref u8, url: ref u8, hash: ref u8) void = trust {
+    drop_dep_lines(filepath, url)
+    fs.append_all(filepath, @fmt("dep \"{s}\" \"{s}\"\n", {url, hash}))
+}
+
+fn upgrade_dir(
+    base_dir: ref u8,
+    dep_name: ref u8,
+    matched: mut list[ref u8],
+    visited: mut list[ref u8]
+) i32 = trust {
+    for v in visited {
+        if str.raw_cmp(v, base_dir) == 0 {
+            return 0
+        }
+    }
+    @append(visited, base_dir)
+
+    val mod_opt = load_sxmod_at(base_dir)
+    val sxmod: mut ref SxMod = none
+    match mod_opt {
+        none => {
+            return 0
+        }
+        some m => {
+            sxmod = m
+        }
+    }
+
+    val ndeps: i64 = @len(sxmod.deps) as i64
+    if ndeps == 0 {
+        return 0
+    }
+
+    val lock_opt = load_sxlock_at(base_dir)
+    val lock_deps: mut list[ref SxLockDep] = []
+    match lock_opt {
+        none => {}
+        some deps => {
+            lock_deps = deps
+        }
+    }
+
+    val lib_dir: ref u8 = @fmt("{s}/lib", {base_dir})
+    for dep_url in sxmod.deps {
+        val name: ref u8 = repo_name_from_url(dep_url)
+        val lib_path: ref u8 = @fmt("{s}/{s}", {lib_dir, name})
+
+        if dep_name_matches(dep_url, dep_name) {
+            if !is_directory(lib_path) {
+                stdio.print("error: dependency '{s}' is not present at {s}\n", {dep_url, lib_path})
+                stdio.puts("run 'spectre restore' first")
+                return 1
+            }
+
+            @append(matched, dep_url)
+            val old_hash: ref u8 = lock_hash_for_url(lock_deps, dep_url)
+            stdio.print("Upgrading {s}...\n", {dep_url})
+
+            val fetch_cmd: ref u8 = @fmt("git -C {s} fetch --quiet origin HEAD", {lib_path})
+            if os.run(fetch_cmd) != 0 {
+                stdio.print("error: git fetch failed for {s}\n", {dep_url})
+                return 1
+            }
+
+            val reset_cmd: ref u8 = @fmt("git -C {s} reset --hard --quiet FETCH_HEAD", {lib_path})
+            if os.run(reset_cmd) != 0 {
+                stdio.print("error: failed to check out HEAD for {s}\n", {dep_url})
+                return 1
+            }
+
+            val new_hash: ref u8 = output_trimmed(@fmt("git -C {s} rev-parse HEAD", {lib_path}))
+            if str.raw_cmp(new_hash, "") == 0 {
+                stdio.print("error: could not determine HEAD for {s}\n", {dep_url})
+                return 1
+            }
+
+            set_lock_hash(@fmt("{s}/sx.lock", {base_dir}), dep_url, new_hash)
+            if str.raw_cmp(old_hash, "") == 0 {
+                stdio.print("Upgraded '{s}' to {s}\n", {name, new_hash})
+            } elif str.raw_cmp(old_hash, new_hash) == 0 {
+                stdio.print("'{s}' is already up to date ({s})\n", {name, new_hash})
+            } else {
+                stdio.print("Upgraded '{s}' {s} -> {s}\n", {name, old_hash, new_hash})
+            }
+        }
+
+        val sub_code: i32 = upgrade_dir(lib_path, dep_name, matched, visited)
+        if sub_code != 0 {
+            return sub_code
+        }
+    }
+
+    return 0
+}
+
+pub fn cmd_upgrade(dep_name: ref u8) i32 = trust {
+    if !os.exists("sx.mod") {
+        stdio.puts("error: sx.mod not found, run 'spectre init' first")
+        return 1
+    }
+
+    val matched: mut list[ref u8] = []
+    val visited: mut list[ref u8] = []
+    val code: i32 = upgrade_dir(".", dep_name, matched, visited)
+    if code != 0 {
+        return code
+    }
+
+    if (@len(matched) as i64) == 0 {
+        if str.raw_cmp(dep_name, "") == 0 {
+            stdio.puts("No dependencies to upgrade.")
+            return 0
+        }
+        stdio.print("error: dependency '{s}' not found\n", {dep_name})
+        return 1
+    }
+
+    return 0
+}
+
 fn add_stdlib_candidate(candidates: mut list[ref u8], dir: ref u8) void = trust {
     if str.raw_cmp(dir, "") == 0 {
         return

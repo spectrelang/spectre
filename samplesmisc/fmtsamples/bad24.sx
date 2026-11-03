@@ -1,0 +1,7 @@
+pub fn render(app: ref App, ecs: ref Ecs) void = {
+    ecs.ui_rect(app.scene.ui, 16.0 as f32, 16.0 as f32, 580.0 as f32, 44.0 as f32, ecs.make_vec3(0.01 as f32, 0.02 as f32, 0.08 as f32), 0.72 as f32)
+}
+
+pub fn keep_line() void = {
+    some_extremely_long_function_name_without_any_extra_arguments("this is a very long string literal that keeps this line over one hundred characters")
+}

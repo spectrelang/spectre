@@ -19,15 +19,16 @@ pub fn print_usage() void = {
     stdio.puts("  spectre <command> [args] | <input.sx> [options]")
     stdio.puts("")
     stdio.puts("commands:")
-    stdio.puts("  init   <name>        Initialize a new project")
-    stdio.puts("  fmt    <path>        Format .sx files or directories in place")
-    stdio.puts("  critic <path>        Point out antipatterns in .sx files")
-    stdio.puts("  build  <config>      Build using a config from sx.mod")
-    stdio.puts("  run    <input.sx>    Compile and immediately run a program")
-    stdio.puts("  doc    <path>        Generate docs for a given .sx into ./docs-out/")
-    stdio.puts("  add    <git-url>     Clone a git dependency into ./lib/ and record it")
-    stdio.puts("  remove <dep-name>    Remove a dependency by repository name")
-    stdio.puts("  help   <topic>       Show detailed help for a command or flag")
+    stdio.puts("  init    <name>       Initialize a new project")
+    stdio.puts("  fmt     <path>       Format .sx files or directories in place")
+    stdio.puts("  critic  <path>       Point out antipatterns in .sx files")
+    stdio.puts("  build   <config>     Build using a config from sx.mod")
+    stdio.puts("  run     <input.sx>   Compile and immediately run a program")
+    stdio.puts("  doc     <path>       Generate docs for a given .sx into ./docs-out/")
+    stdio.puts("  add     <git-url>    Clone a git dependency into ./lib/ and record it")
+    stdio.puts("  remove  <dep-name>   Remove a dependency by repository name")
+    stdio.puts("  upgrade <dep-name>   Upgrade dependencies in ./lib/ to their latest HEAD")
+    stdio.puts("  help    <topic>      Show detailed help for a command or flag")
     stdio.puts("  restore              Restore all dependencies from sx.mod and sx.lock into ./lib/")
     stdio.puts("  graph                Visualize the project dependency tree")
     stdio.puts("  ref                  Generate the language reference in the current directory")
@@ -99,6 +100,9 @@ pub fn print_help(topic: ref u8) i32 = trust {
         stdio.puts("")
         stdio.puts("Directories are searched recursively for .sx files. Other files are")
         stdio.puts("ignored. Without --stdio, files are rewritten in place.")
+        stdio.puts("")
+        stdio.puts("Calls and signatures longer than 100 characters are split across")
+        stdio.puts("multiple lines when their argument list can be split safely.")
         return 0
     }
 
@@ -172,6 +176,18 @@ pub fn print_help(topic: ref u8) i32 = trust {
         stdio.puts("  spectre remove <dep-name>")
         stdio.puts("")
         stdio.puts("Removes the dependency from ./lib/, sx.mod and sx.lock.")
+        return 0
+    }
+
+    if str.raw_cmp(topic, "upgrade") == 0 {
+        stdio.puts("upgrade - Upgrade dependencies to their latest HEAD")
+        stdio.puts("")
+        stdio.puts("usage:")
+        stdio.puts("  spectre upgrade [dep-name]")
+        stdio.puts("")
+        stdio.puts("Without a name, every dependency in ./lib/ is upgraded. With a")
+        stdio.puts("dependency name, only that dependency (and its subtree) is")
+        stdio.puts("upgraded. sx.lock is updated to the new HEAD commit hashes.")
         return 0
     }
 

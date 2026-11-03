@@ -280,6 +280,17 @@ pub fn main() i32 = trust {
         }
     }
 
+    if string.raw_cmp(input, "upgrade") == 0 {
+        val dep_name: mut ref u8 = ""
+        val upgrade_opt = @get(args, 2)
+        if upgrade_opt is some v {
+            dep_name = v as ref u8
+        }
+        val code: i32 = commands.cmd_upgrade(dep_name)
+        allocators.Arena.free(arena)
+        return code
+    }
+
     if string.raw_cmp(input, "restore") == 0 {
         val code: i32 = commands.cmd_restore()
         allocators.Arena.free(arena)
