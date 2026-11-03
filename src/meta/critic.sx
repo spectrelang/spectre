@@ -655,7 +655,10 @@ fn infer_concrete_type(ctx: ref Ctx, node: ref parser.Node) ref u8 = trust {
     }
     if node.kind == parser.NK_CAST && ty_is_ref_void(node.d1 as ref parser.Node) {
         val inner_type: ref u8 = expr_type(ctx, node.d0 as ref parser.Node)
-        if inner_type == none || str.raw_cmp(inner_type, "void") == 0 || str.raw_cmp(inner_type, "ref void") == 0 {
+        if inner_type == none || str.raw_cmp(
+            inner_type,
+            "void"
+        ) == 0 || str.raw_cmp(inner_type, "ref void") == 0 {
             return none
         }
         return inner_type
@@ -864,12 +867,20 @@ fn is_ref_void_decl_initializer(ctx: ref Ctx, as_idx: i64) bool = trust {
     return false
 }
 
-fn collect_ref_void_decl_fix(ctx: ref Ctx, name: ref u8, line: i64, init: ref parser.Node) void = trust {
+fn collect_ref_void_decl_fix(
+    ctx: ref Ctx,
+    name: ref u8,
+    line: i64,
+    init: ref parser.Node
+) void = trust {
     if !ctx.fix_mode || init == none {
         return
     }
     val inferred: ref u8 = infer_concrete_type(ctx, init)
-    if inferred == none || str.raw_cmp(inferred, "void") == 0 || str.raw_cmp(inferred, "ref void") == 0 {
+    if inferred == none || str.raw_cmp(
+        inferred,
+        "void"
+    ) == 0 || str.raw_cmp(inferred, "ref void") == 0 {
         return
     }
     val span: ref TokSpan = find_val_ref_void_span(ctx, name, line)
@@ -970,7 +981,10 @@ fn collect_self_assignment_fixes(ctx: ref Ctx) void = trust {
                         Ident _ => {
                             val lhs_text: ref u8 = token_text(ctx, i)
                             val rhs_text: ref u8 = token_text(ctx, i + 2)
-                            if str.raw_cmp(lhs_text, rhs_text) == 0 && line_has_only_assignment(ctx, token_line(ctx, i), i, i + 2) {
+                            if str.raw_cmp(
+                                lhs_text,
+                                rhs_text
+                            ) == 0 && line_has_only_assignment(ctx, token_line(ctx, i), i, i + 2) {
                                 add_remove_line_fix(ctx, token_line(ctx, i))
                             }
                         }
@@ -1201,7 +1215,10 @@ fn check_unused_imports(ctx: ref Ctx) void = trust {
             add_issue(ctx, use_node.line, @fmt("unused import '{s}'", {alias}))
             if ctx.fix_mode {
                 add_remove_line_fix(ctx, use_node.line)
-                if first_nonblank_line(ctx) == use_node.line && is_blank_line(ctx, use_node.line + 1) {
+                if first_nonblank_line(ctx) == use_node.line && is_blank_line(
+                    ctx,
+                    use_node.line + 1
+                ) {
                     add_remove_line_fix(ctx, use_node.line + 1)
                 }
             }
@@ -1357,7 +1374,11 @@ fn nodes_equal(a: ref parser.Node, b: ref parser.Node) bool = trust {
     return false
 }
 
-fn collect_bool_leaves(node: ref parser.Node, op: i64, leaves: mut list[ref parser.Node]) void = trust {
+fn collect_bool_leaves(
+    node: ref parser.Node,
+    op: i64,
+    leaves: mut list[ref parser.Node]
+) void = trust {
     if node == none {
         return
     }
@@ -1465,7 +1486,11 @@ fn check_redundant_arithmetic_assignment(ctx: ref Ctx, node: ref parser.Node) vo
         }
     }
     if suggestion != none {
-        add_issue(ctx, node.line, @fmt("redundant arithmetic assignment; use '{s}' instead", {suggestion}))
+        add_issue(
+            ctx,
+            node.line,
+            @fmt("redundant arithmetic assignment; use '{s}' instead", {suggestion})
+        )
     } else {
         add_issue(ctx, node.line, "redundant arithmetic assignment")
     }
@@ -1831,7 +1856,11 @@ fn walk_stmts(ctx: ref Ctx, stmts: list[ref parser.Node]) void = trust {
             if none_body != none {
                 val none_stmts: list[ref parser.Node] = none_body.d0 as list[ref parser.Node]
                 if list_len(none_stmts) == 0 {
-                    add_issue(ctx, stmt.line, "empty none arm; handle the none case or remove the arm")
+                    add_issue(
+                        ctx,
+                        stmt.line,
+                        "empty none arm; handle the none case or remove the arm"
+                    )
                 }
                 walk_stmts(ctx, none_stmts)
             }

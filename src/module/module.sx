@@ -21,7 +21,11 @@ pub type ResolvedModule = {
     dir: mut String
 }
 
-pub fn new_resolved(items: list[ref parser.Node], filename: String, dir: String) ref ResolvedModule = trust {
+pub fn new_resolved(
+    items: list[ref parser.Node],
+    filename: String,
+    dir: String
+) ref ResolvedModule = trust {
     val m: mut ref ResolvedModule = @alloc(@sizeof(ResolvedModule)) as ref ResolvedModule
     @memset(m, 0, @sizeof(ResolvedModule) as usize)
     m.items = items
@@ -70,7 +74,12 @@ fn find_workspace_root(start_dir: ref u8) ref u8 = trust {
 
 /// Resolve a use-path string relative to the current file's directory.
 /// The workspace param must be the pre-computed workspace root (from find_workspace_root).
-pub fn resolve_use_path(use_path: mut ref u8, file_dir: ref u8, exe_dir: ref u8, workspace: ref u8) ref u8 = trust {
+pub fn resolve_use_path(
+    use_path: mut ref u8,
+    file_dir: ref u8,
+    exe_dir: ref u8,
+    workspace: ref u8
+) ref u8 = trust {
     if str.raw_starts_with(use_path, "std/") {
         use_path = @fmt("spectrelib/{s}", {@ptradd(use_path, 4) as ref u8})
     }
@@ -164,7 +173,10 @@ fn import_is_referenced(items: list[ref parser.Node], import_name: ref u8) bool 
                 val params: ref void = item.d3 as ref void
                 if params != none {
                     for param in params as list[ref parser.Node] {
-                        if type_references_import_shallow((param as ref parser.Node).d1 as ref parser.Node, import_name) {
+                        if type_references_import_shallow(
+                            (param as ref parser.Node).d1 as ref parser.Node,
+                            import_name
+                        ) {
                             return true
                         }
                     }
@@ -352,7 +364,10 @@ fn stmt_references_import_shallow(node: ref parser.Node, import_name: ref u8) bo
                             }
                             val or_stmt_opt = @get(or_body, ori as usize)
                             if or_stmt_opt is some or_stmt {
-                                if stmt_references_import_shallow(or_stmt as ref parser.Node, import_name) {
+                                if stmt_references_import_shallow(
+                                    or_stmt as ref parser.Node,
+                                    import_name
+                                ) {
                                     return true
                                 }
                             }
@@ -624,7 +639,10 @@ fn stmt_references_import_shallow(node: ref parser.Node, import_name: ref u8) bo
                             }
                             val stmt_opt = @get(body, bi as usize)
                             if stmt_opt is some stmt {
-                                if stmt_references_import_shallow(stmt as ref parser.Node, import_name) {
+                                if stmt_references_import_shallow(
+                                    stmt as ref parser.Node,
+                                    import_name
+                                ) {
                                     return true
                                 }
                             }
@@ -650,7 +668,10 @@ fn stmt_references_import_shallow(node: ref parser.Node, import_name: ref u8) bo
                 val arm_opt = @get(arms, ai as usize)
                 if arm_opt is some arm {
                     val arm_node: ref parser.Node = arm as ref parser.Node
-                    if expr_references_import_shallow(parser.match_value_arm_pattern(arm_node), import_name) {
+                    if expr_references_import_shallow(
+                        parser.match_value_arm_pattern(arm_node),
+                        import_name
+                    ) {
                         return true
                     }
                     val body: ref void = parser.match_value_arm_body(arm_node) as ref void
@@ -663,7 +684,10 @@ fn stmt_references_import_shallow(node: ref parser.Node, import_name: ref u8) bo
                             }
                             val stmt_opt = @get(body, bi as usize)
                             if stmt_opt is some stmt {
-                                if stmt_references_import_shallow(stmt as ref parser.Node, import_name) {
+                                if stmt_references_import_shallow(
+                                    stmt as ref parser.Node,
+                                    import_name
+                                ) {
                                     return true
                                 }
                             }
@@ -719,7 +743,10 @@ fn stmt_references_import_shallow(node: ref parser.Node, import_name: ref u8) bo
                             }
                             val stmt_opt = @get(body, bi as usize)
                             if stmt_opt is some stmt {
-                                if stmt_references_import_shallow(stmt as ref parser.Node, import_name) {
+                                if stmt_references_import_shallow(
+                                    stmt as ref parser.Node,
+                                    import_name
+                                ) {
                                     return true
                                 }
                             }
@@ -775,7 +802,10 @@ fn stmt_references_import_shallow(node: ref parser.Node, import_name: ref u8) bo
                             }
                             val stmt_opt = @get(body, bi as usize)
                             if stmt_opt is some stmt {
-                                if stmt_references_import_shallow(stmt as ref parser.Node, import_name) {
+                                if stmt_references_import_shallow(
+                                    stmt as ref parser.Node,
+                                    import_name
+                                ) {
                                     return true
                                 }
                             }
@@ -956,7 +986,10 @@ fn expr_references_import_shallow(node: ref parser.Node, import_name: ref u8) bo
             return true
         }
     } elif node.kind == parser.NK_CAST || node.kind == parser.NK_ADDR || node.kind == parser.NK_DEREF || node.kind == parser.NK_TRY || node.kind == parser.NK_TRUST {
-        if node.kind == parser.NK_CAST && type_references_import_shallow(node.d1 as ref parser.Node, import_name) {
+        if node.kind == parser.NK_CAST && type_references_import_shallow(
+            node.d1 as ref parser.Node,
+            import_name
+        ) {
             return true
         }
         if expr_references_import_shallow(node.d0 as ref parser.Node, import_name) {
@@ -977,7 +1010,10 @@ fn expr_references_import_shallow(node: ref parser.Node, import_name: ref u8) bo
                 }
                 val f_opt = @get(fields, fi as usize)
                 if f_opt is some f {
-                    if expr_references_import_shallow((f as ref parser.Node).d1 as ref parser.Node, import_name) {
+                    if expr_references_import_shallow(
+                        (f as ref parser.Node).d1 as ref parser.Node,
+                        import_name
+                    ) {
                         return true
                     }
                 }
@@ -1108,7 +1144,10 @@ fn resolve_module_impl(
 
     val is_std_module: bool = str.raw_cmp(canonical_path, "std/sx") == 0 ||
     (str.len_raw(canonical_path) >= 10 &&
-        str.raw_cmp(@ptradd(canonical_path, str.len_raw(canonical_path) - 10) as ref u8, "std/sx") == 0)
+        str.raw_cmp(
+            @ptradd(canonical_path, str.len_raw(canonical_path) - 10) as ref u8,
+            "std/sx"
+        ) == 0)
 
     for item in items {
         val node: ref parser.Node = item
@@ -1118,8 +1157,18 @@ fn resolve_module_impl(
             val is_json_or_net: bool = str.raw_cmp(import_name, "json") == 0 ||
             str.raw_cmp(import_name, "net") == 0
             val skip_std_dce: bool = is_std_module && !is_json_or_net
-            val needed_subs: list[ref u8] = collect_needed_subnames_transitive(items, import_name, use_path, file_dir_c, exe_dir, cur_progress)
-            val is_directly_referenced: bool = @len(needed_subs) > 0 || import_is_referenced(items, import_name)
+            val needed_subs: list[ref u8] = collect_needed_subnames_transitive(
+                items,
+                import_name,
+                use_path,
+                file_dir_c,
+                exe_dir,
+                cur_progress
+            )
+            val is_directly_referenced: bool = @len(needed_subs) > 0 || import_is_referenced(
+                items,
+                import_name
+            )
             val is_needed_by_parent: mut bool = false
 
             if needed_children != none {
@@ -1137,7 +1186,12 @@ fn resolve_module_impl(
                 }
             }
 
-            val resolved_path: mut ref u8 = resolve_use_path(use_path, file_dir_c, exe_dir, workspace)
+            val resolved_path: mut ref u8 = resolve_use_path(
+                use_path,
+                file_dir_c,
+                exe_dir,
+                workspace
+            )
             if defines.is_env_module_path(resolved_path) {
                 defines.register_env_alias(import_name)
             }
@@ -1145,7 +1199,14 @@ fn resolve_module_impl(
             if @len(needed_subs) > 0 {
                 needed_grandchildren = needed_subs as ref void
             }
-            val child_result = resolve_module_impl(resolved_path, cur_progress, exe_dir, needed_grandchildren, cache_keys, cache_vals)
+            val child_result = resolve_module_impl(
+                resolved_path,
+                cur_progress,
+                exe_dir,
+                needed_grandchildren,
+                cache_keys,
+                cache_vals
+            )
 
             match child_result {
                 ok child => {
@@ -1630,7 +1691,11 @@ fn collect_links_with_root(
                                 matched = true
                                 val ob_items: list[ref parser.Node] = ob.d1 as list[ref parser.Node]
                                 for obnode in ob_items {
-                                    val resolved = resolve_link_directive(obnode, platform, static_link)?
+                                    val resolved = resolve_link_directive(
+                                        obnode,
+                                        platform,
+                                        static_link
+                                    )?
                                     for flag in resolved {
                                         @append(links, flag)
                                     }
@@ -1733,7 +1798,12 @@ pub fn collect_links_filtered(
     }
 
     if is_used {
-        val my_links: list[ref u8] = collect_links_with_root(m.items, module_link_root(m), exe_dir, static_link)?
+        val my_links: list[ref u8] = collect_links_with_root(
+            m.items,
+            module_link_root(m),
+            exe_dir,
+            static_link
+        )?
         for lnk in my_links {
             @append(result, lnk)
         }
@@ -1804,7 +1874,12 @@ pub fn collect_links_all(
 
     val result: mut list[ref u8] = []
 
-    val my_links: list[ref u8] = collect_links_with_root(m.items, module_link_root(m), exe_dir, static_link)?
+    val my_links: list[ref u8] = collect_links_with_root(
+        m.items,
+        module_link_root(m),
+        exe_dir,
+        static_link
+    )?
     for lnk in my_links {
         @append(result, lnk)
     }
@@ -1937,7 +2012,11 @@ fn collect_needed_subnames(items: list[ref parser.Node], import_name: ref u8) li
     return needed
 }
 
-fn collect_needed_subnames_in_stmts(stmts_ptr: ref void, import_name: ref u8, needed: mut list[ref u8]) void = trust {
+fn collect_needed_subnames_in_stmts(
+    stmts_ptr: ref void,
+    import_name: ref u8,
+    needed: mut list[ref u8]
+) void = trust {
     if stmts_ptr == none {
         return
     }
@@ -1959,7 +2038,11 @@ fn collect_needed_subnames_in_stmts(stmts_ptr: ref void, import_name: ref u8, ne
     }
 }
 
-fn collect_needed_subnames_in_stmt(stmt: ref parser.Node, import_name: ref u8, needed: mut list[ref u8]) void = trust {
+fn collect_needed_subnames_in_stmt(
+    stmt: ref parser.Node,
+    import_name: ref u8,
+    needed: mut list[ref u8]
+) void = trust {
     if stmt == none {
         return
     }
@@ -1996,7 +2079,11 @@ fn collect_needed_subnames_in_stmt(stmt: ref parser.Node, import_name: ref u8, n
                 val elif_opt = @get(elif_list, ei as usize)
                 if elif_opt is some elif_node {
                     val elif_stmt_node: ref parser.Node = elif_node as ref parser.Node
-                    collect_needed_subnames_in_expr(elif_stmt_node.d0 as ref parser.Node, import_name, needed)
+                    collect_needed_subnames_in_expr(
+                        elif_stmt_node.d0 as ref parser.Node,
+                        import_name,
+                        needed
+                    )
                     val elif_body: ref void = elif_stmt_node.d1 as ref void
                     if elif_body != none {
                         collect_needed_subnames_in_stmts(elif_body, import_name, needed)
@@ -2167,7 +2254,11 @@ fn collect_needed_subnames_in_stmt(stmt: ref parser.Node, import_name: ref u8, n
                 val arm_opt = @get(arms, ai as usize)
                 if arm_opt is some arm {
                     val arm_node: ref parser.Node = arm as ref parser.Node
-                    collect_needed_subnames_in_expr(parser.match_value_arm_pattern(arm_node), import_name, needed)
+                    collect_needed_subnames_in_expr(
+                        parser.match_value_arm_pattern(arm_node),
+                        import_name,
+                        needed
+                    )
                     val body: ref void = parser.match_value_arm_body(arm_node) as ref void
                     if body != none {
                         collect_needed_subnames_in_stmts(body, import_name, needed)
@@ -2210,7 +2301,11 @@ fn collect_needed_subnames_in_stmt(stmt: ref parser.Node, import_name: ref u8, n
                 val c_opt = @get(contracts, ci as usize)
                 if c_opt is some c {
                     val cnode: ref parser.Node = c as ref parser.Node
-                    collect_needed_subnames_in_expr(cnode.d1 as ref parser.Node, import_name, needed)
+                    collect_needed_subnames_in_expr(
+                        cnode.d1 as ref parser.Node,
+                        import_name,
+                        needed
+                    )
                 }
                 ci++
             }
@@ -2228,7 +2323,11 @@ fn collect_needed_subnames_in_stmt(stmt: ref parser.Node, import_name: ref u8, n
     }
 }
 
-fn collect_needed_subnames_in_expr(expr: ref parser.Node, import_name: ref u8, needed: mut list[ref u8]) void = trust {
+fn collect_needed_subnames_in_expr(
+    expr: ref parser.Node,
+    import_name: ref u8,
+    needed: mut list[ref u8]
+) void = trust {
     if expr == none {
         return
     }
@@ -2316,7 +2415,11 @@ fn collect_needed_subnames_in_expr(expr: ref parser.Node, import_name: ref u8, n
                 val f_opt = @get(fields, fi as usize)
                 if f_opt is some f {
                     val fnode: ref parser.Node = f as ref parser.Node
-                    collect_needed_subnames_in_expr(fnode.d1 as ref parser.Node, import_name, needed)
+                    collect_needed_subnames_in_expr(
+                        fnode.d1 as ref parser.Node,
+                        import_name,
+                        needed
+                    )
                 }
                 fi++
             }
@@ -2364,7 +2467,11 @@ fn mark_import_used(import_names: list[ref u8], used: mut list[ref u8], name: re
     }
 }
 
-fn collect_used_imports_type(ty: ref parser.Node, import_names: list[ref u8], used: mut list[ref u8]) void = trust {
+fn collect_used_imports_type(
+    ty: ref parser.Node,
+    import_names: list[ref u8],
+    used: mut list[ref u8]
+) void = trust {
     if ty == none {
         return
     }
@@ -2394,7 +2501,11 @@ fn collect_used_imports_type(ty: ref parser.Node, import_names: list[ref u8], us
     }
 }
 
-fn collect_used_imports_expr(node: ref parser.Node, import_names: list[ref u8], used: mut list[ref u8]) void = trust {
+fn collect_used_imports_expr(
+    node: ref parser.Node,
+    import_names: list[ref u8],
+    used: mut list[ref u8]
+) void = trust {
     if node == none {
         return
     }
@@ -2510,7 +2621,11 @@ fn collect_used_imports_expr(node: ref parser.Node, import_names: list[ref u8], 
 }
 
 /// Collect used import names from a statement.
-fn collect_used_imports_stmt(node: ref parser.Node, import_names: list[ref u8], used: mut list[ref u8]) void = trust {
+fn collect_used_imports_stmt(
+    node: ref parser.Node,
+    import_names: list[ref u8],
+    used: mut list[ref u8]
+) void = trust {
     if node == none {
         return
     }
@@ -2566,7 +2681,11 @@ fn collect_used_imports_stmt(node: ref parser.Node, import_names: list[ref u8], 
                             }
                             val or_stmt_opt = @get(or_body, ori as usize)
                             if or_stmt_opt is some or_stmt {
-                                collect_used_imports_stmt(or_stmt as ref parser.Node, import_names, used)
+                                collect_used_imports_stmt(
+                                    or_stmt as ref parser.Node,
+                                    import_names,
+                                    used
+                                )
                             }
                             ori++
                         }
@@ -2822,7 +2941,11 @@ fn collect_used_imports_stmt(node: ref parser.Node, import_names: list[ref u8], 
                             }
                             val stmt_opt = @get(arm_body, bi as usize)
                             if stmt_opt is some stmt {
-                                collect_used_imports_stmt(stmt as ref parser.Node, import_names, used)
+                                collect_used_imports_stmt(
+                                    stmt as ref parser.Node,
+                                    import_names,
+                                    used
+                                )
                             }
                             bi++
                         }
@@ -2862,7 +2985,11 @@ fn collect_used_imports_stmt(node: ref parser.Node, import_names: list[ref u8], 
                 val arm_opt = @get(arms, ai as usize)
                 if arm_opt is some arm {
                     val arm_node: ref parser.Node = arm as ref parser.Node
-                    collect_used_imports_expr(parser.match_value_arm_pattern(arm_node), import_names, used)
+                    collect_used_imports_expr(
+                        parser.match_value_arm_pattern(arm_node),
+                        import_names,
+                        used
+                    )
                     val arm_body: ref void = parser.match_value_arm_body(arm_node) as ref void
                     if arm_body != none {
                         val blen: i64 = @len(arm_body) as i64
@@ -2873,7 +3000,11 @@ fn collect_used_imports_stmt(node: ref parser.Node, import_names: list[ref u8], 
                             }
                             val stmt_opt = @get(arm_body, bi as usize)
                             if stmt_opt is some stmt {
-                                collect_used_imports_stmt(stmt as ref parser.Node, import_names, used)
+                                collect_used_imports_stmt(
+                                    stmt as ref parser.Node,
+                                    import_names,
+                                    used
+                                )
                             }
                             bi++
                         }
@@ -2911,7 +3042,11 @@ fn collect_used_imports_stmt(node: ref parser.Node, import_names: list[ref u8], 
                 }
                 val c_opt = @get(clist, ci as usize)
                 if c_opt is some c {
-                    collect_used_imports_expr((c as ref parser.Node).d1 as ref parser.Node, import_names, used)
+                    collect_used_imports_expr(
+                        (c as ref parser.Node).d1 as ref parser.Node,
+                        import_names,
+                        used
+                    )
                 }
                 ci++
             }
@@ -2937,7 +3072,11 @@ fn collect_used_imports_stmt(node: ref parser.Node, import_names: list[ref u8], 
     }
 }
 
-fn collect_used_imports_item(item: ref parser.Node, import_names: list[ref u8], used: mut list[ref u8]) void = trust {
+fn collect_used_imports_item(
+    item: ref parser.Node,
+    import_names: list[ref u8],
+    used: mut list[ref u8]
+) void = trust {
     if item == none {
         return
     }
@@ -2946,7 +3085,11 @@ fn collect_used_imports_item(item: ref parser.Node, import_names: list[ref u8], 
         val params: ref void = item.d3 as ref void
         if params != none {
             for param in params as list[ref parser.Node] {
-                collect_used_imports_type((param as ref parser.Node).d1 as ref parser.Node, import_names, used)
+                collect_used_imports_type(
+                    (param as ref parser.Node).d1 as ref parser.Node,
+                    import_names,
+                    used
+                )
             }
         }
         collect_used_imports_type(item.d4 as ref parser.Node, import_names, used)
@@ -2954,7 +3097,11 @@ fn collect_used_imports_item(item: ref parser.Node, import_names: list[ref u8], 
             val tparams: ref void = item.d6 as ref void
             if tparams != none {
                 for tparam in tparams as list[ref parser.Node] {
-                    collect_used_imports_type(parser.tparam_constraint(tparam as ref parser.Node), import_names, used)
+                    collect_used_imports_type(
+                        parser.tparam_constraint(tparam as ref parser.Node),
+                        import_names,
+                        used
+                    )
                 }
             }
         }
@@ -2980,7 +3127,11 @@ fn collect_used_imports_item(item: ref parser.Node, import_names: list[ref u8], 
         val params: ref void = item.d4 as ref void
         if params != none {
             for param in params as list[ref parser.Node] {
-                collect_used_imports_type((param as ref parser.Node).d1 as ref parser.Node, import_names, used)
+                collect_used_imports_type(
+                    (param as ref parser.Node).d1 as ref parser.Node,
+                    import_names,
+                    used
+                )
             }
         }
         collect_used_imports_type(item.d5 as ref parser.Node, import_names, used)
@@ -3021,7 +3172,11 @@ fn collect_used_imports_item(item: ref parser.Node, import_names: list[ref u8], 
         val fields: ref void = item.d2 as ref void
         if fields != none {
             for field in fields as list[ref parser.Node] {
-                collect_used_imports_type((field as ref parser.Node).d2 as ref parser.Node, import_names, used)
+                collect_used_imports_type(
+                    (field as ref parser.Node).d2 as ref parser.Node,
+                    import_names,
+                    used
+                )
             }
         }
         val invariants: ref void = item.d3 as ref void
@@ -3066,7 +3221,11 @@ fn collect_used_imports_item(item: ref parser.Node, import_names: list[ref u8], 
             for or_node in or_branches as list[ref parser.Node] {
                 val or_items: ref void = (or_node as ref parser.Node).d1 as ref void
                 if or_items != none {
-                    collect_used_imports_items(or_items as list[ref parser.Node], import_names, used)
+                    collect_used_imports_items(
+                        or_items as list[ref parser.Node],
+                        import_names,
+                        used
+                    )
                 }
             }
         }
@@ -3078,7 +3237,11 @@ fn collect_used_imports_item(item: ref parser.Node, import_names: list[ref u8], 
 }
 
 /// Collect used import names from a list of items.
-fn collect_used_imports_items(items: list[ref parser.Node], import_names: list[ref u8], used: mut list[ref u8]) void = trust {
+fn collect_used_imports_items(
+    items: list[ref parser.Node],
+    import_names: list[ref u8],
+    used: mut list[ref u8]
+) void = trust {
     val items_len: i64 = @len(items) as i64
 
     if items_len < 0 || items_len > 100000 {
@@ -3159,7 +3322,12 @@ pub fn collect_used_links(
     val result: mut list[ref u8] = []
     val seen: mut list[String] = []
 
-    val my_links: list[ref u8] = collect_links_with_root(m.items, module_link_root(m), exe_dir, static_link)?
+    val my_links: list[ref u8] = collect_links_with_root(
+        m.items,
+        module_link_root(m),
+        exe_dir,
+        static_link
+    )?
     for lnk in my_links {
         @append(result, lnk)
     }
@@ -3250,7 +3418,12 @@ fn collect_used_links_recursive(
 
     val result: mut list[ref u8] = []
 
-    val my_links: list[ref u8] = collect_links_with_root(m.items, module_link_root(m), exe_dir, static_link)?
+    val my_links: list[ref u8] = collect_links_with_root(
+        m.items,
+        module_link_root(m),
+        exe_dir,
+        static_link
+    )?
     for lnk in my_links {
         @append(result, lnk)
     }

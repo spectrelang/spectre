@@ -154,7 +154,12 @@ pub fn ptr_to_usize[T](p: T) usize = trust {
     return u
 }
 
-fn make_binop(op: i64, line: i64, left: ref Node, right: ref Node) result[ref Node, ref u8] = trust {
+fn make_binop(
+    op: i64,
+    line: i64,
+    left: ref Node,
+    right: ref Node
+) result[ref Node, ref u8] = trust {
     val n: mut ref Node = make_node(NK_BINOP, line)
     n.d0 = op
     node_store_slot[ref Node](@addr(n.d1), left)
@@ -559,7 +564,11 @@ fn p_eat_fn(p: mut ref Parser, is_kind: fn(lexer.TokenKind) bool) bool = trust {
     return false
 }
 
-fn p_expect_kind(p: mut ref Parser, is_kind: fn(lexer.TokenKind) bool, name: ref u8) result[ref u8, ref u8] = trust {
+fn p_expect_kind(
+    p: mut ref Parser,
+    is_kind: fn(lexer.TokenKind) bool,
+    name: ref u8
+) result[ref u8, ref u8] = trust {
     if is_kind(p_peek_kind(p)) {
         val txt: ref u8 = lexer.tok_text(p.tokens, p.pos)
         p_advance(p)
@@ -3226,7 +3235,11 @@ fn parse_fn_item(p: mut ref Parser, public: i64) result[ref Node, ref u8] = trus
     return ok nfn
 }
 
-fn parse_type_def_item(p: mut ref Parser, public: i64, is_extern: i64) result[ref Node, ref u8] = trust {
+fn parse_type_def_item(
+    p: mut ref Parser,
+    public: i64,
+    is_extern: i64
+) result[ref Node, ref u8] = trust {
     val line: i64 = p_line(p)
     p_expect_kind(p, kind_is_type, "type")?
     val spec_name: mut ref u8 = none
@@ -3446,7 +3459,10 @@ fn parse_extern_fn_item(p: mut ref Parser, public: i64) result[ref Node, ref u8]
         if str_eq(modifier, "header") {
             use_header_decl = 1
         } else {
-            return err @fmt("{s}:{lld}: unknown extern modifier '{s}'", {p.filename, p_line(p), modifier})
+            return err @fmt(
+                "{s}:{lld}: unknown extern modifier '{s}'",
+                {p.filename, p_line(p), modifier}
+            )
         }
     }
     p_expect_rparen(p)?
@@ -3678,7 +3694,10 @@ pub fn parse_item(p: mut ref Parser) result[ref Node, ref u8] = trust {
     return err p_error(p, "unexpected token at top level")
 }
 
-pub fn parse_module(tokens: list[ref lexer.Token], filename: ref u8) result[list[ref Node], ref u8] = trust {
+pub fn parse_module(
+    tokens: list[ref lexer.Token],
+    filename: ref u8
+) result[list[ref Node], ref u8] = trust {
     val p: mut ref Parser = parser_new(tokens, filename)
     val items: mut list[ref Node] = []
     for {

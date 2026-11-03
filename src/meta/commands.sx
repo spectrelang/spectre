@@ -235,7 +235,11 @@ fn parse_env_entries(ctx: mut ref ParseCtx, out: mut list[ref u8]) void = trust 
 
 /// Parse one of the fields accepted inside a build config or rule block.
 /// Returns false when `name` is not a field (for example a platform selector).
-fn parse_override_field(ctx: mut ref ParseCtx, target: mut ref SxBuildRule, name: ref u8) bool = trust {
+fn parse_override_field(
+    ctx: mut ref ParseCtx,
+    target: mut ref SxBuildRule,
+    name: ref u8
+) bool = trust {
     if str.raw_cmp(name, "action") == 0 {
         target.action = ctx_read_quoted(ctx)
         return true
@@ -407,7 +411,10 @@ fn validate_spectre_version(m: ref SxMod) bool = trust {
         stdio.puts("error: Spectre version mismatch")
         stdio.print("  installed compiler:      {s}\n", {installed})
         stdio.print("  project spectre_version: {s}\n", {m.spectre_version})
-        stdio.print("  install the required compiler with: ./fw/install.sh -v {s}\n", {m.spectre_version})
+        stdio.print(
+            "  install the required compiler with: ./fw/install.sh -v {s}\n",
+            {m.spectre_version}
+        )
         stdio.puts("  or update 'spectre_version' in sx.mod to match the installed compiler")
         return false
     }
@@ -1149,7 +1156,10 @@ fn copy_current_stdlib(snapshot_dir: ref u8) bool = trust {
     } else {
         val marker = path.join(snapshot_dir, "stdio/core.sx")
         if !os.exists(marker) {
-            stdio.print("error: standard library copy at {s} looks incomplete (missing {s})\n", {snapshot_dir, marker})
+            stdio.print(
+                "error: standard library copy at {s} looks incomplete (missing {s})\n",
+                {snapshot_dir, marker}
+            )
             its_ok = false
         }
     }
@@ -1646,7 +1656,10 @@ pub fn cmd_init(name_arg: ref u8) i32 = {
     }
 
     val sb: ref void = str.StringBuilder.new()
-    val init_header: ref u8 = trust @fmt("entry \"./src/main.sx\"\nversion \"v0.0.1\"\nspectre_version \"{s}\"\n\nbuild release {\n    flags \"--release\"\n    output \"./", {meta.get_spectre_version()})
+    val init_header: ref u8 = trust @fmt(
+        "entry \"./src/main.sx\"\nversion \"v0.0.1\"\nspectre_version \"{s}\"\n\nbuild release {\n    flags \"--release\"\n    output \"./",
+        {meta.get_spectre_version()}
+    )
     trust str.StringBuilder.append_cstr(sb, init_header)
     trust str.StringBuilder.append_cstr(sb, proj_name)
     trust str.StringBuilder.append_cstr(sb, "\"\n}\n\nbuild dev {\n    output \"./")
@@ -1656,7 +1669,10 @@ pub fn cmd_init(name_arg: ref u8) i32 = {
     trust fs.write_all("sx.mod", str.cstr(sxmod_built))
     trust str.StringBuilder.free(sb)
     trust fs.write_all("sx.lock", "version \"1\"\n")
-    trust fs.write_all(".gitignore", "SPECTRE_LANGUAGE_REFERENCE.md\nlib/\nstd__*\ns-out/\ndocs-out/\n")
+    trust fs.write_all(
+        ".gitignore",
+        "SPECTRE_LANGUAGE_REFERENCE.md\nlib/\nstd__*\ns-out/\ndocs-out/\n"
+    )
 
     trust fs.mkdir_path("src")
 

@@ -167,7 +167,10 @@ fn compiler_library_path(base: ref u8, suffix: ref u8) ref u8 = trust {
     val missing: ref u8 = @fmt("lib{s}{s}", {base, suffix})
     for compiler in compilers {
         if os.in_path(compiler) {
-            val cmd: ref u8 = @fmt("{s} -print-file-name=lib{s}{s} 2>/dev/null", {compiler, base, suffix})
+            val cmd: ref u8 = @fmt(
+                "{s} -print-file-name=lib{s}{s} 2>/dev/null",
+                {compiler, base, suffix}
+            )
             val res = os.exec(cmd)
             match res {
                 ok out => {

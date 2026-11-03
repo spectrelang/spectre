@@ -597,7 +597,11 @@ fn find_matching_brace(tokens: list[ref lexer.Token], open_idx: i64) i64 = trust
     return -1
 }
 
-fn collect_arms(tokens: list[ref lexer.Token], body_open: i64, body_close: i64) list[ref Arm] = trust {
+fn collect_arms(
+    tokens: list[ref lexer.Token],
+    body_open: i64,
+    body_close: i64
+) list[ref Arm] = trust {
     val arms: mut list[ref Arm] = []
     val i: mut i64 = body_open + 1
 
@@ -1638,7 +1642,13 @@ fn format_assert_spacing(src: ref u8) ref u8 = trust {
                                 content_end--
                             }
                             @append(edits, edit_new(content_end, close_pos + 1, ""))
-                        } elif token_line(tokens, i + 1) == token_line(tokens, i) && range_is_whitespace(src, keyword_end, open_pos) {
+                        } elif token_line(
+                            tokens,
+                            i + 1
+                        ) == token_line(
+                            tokens,
+                            i
+                        ) && range_is_whitespace(src, keyword_end, open_pos) {
                             @append(edits, edit_new(keyword_end, open_pos, " "))
                         }
                     }
@@ -2335,10 +2345,20 @@ fn find_for_body_open(tokens: list[ref lexer.Token], start: i64) i64 = trust {
     return -1
 }
 
-fn append_remove_paren_open(src: ref u8, tokens: list[ref lexer.Token], starts: list[i64], open_idx: i64, next_idx: i64, edits: mut list[ref Edit]) void = trust {
+fn append_remove_paren_open(
+    src: ref u8,
+    tokens: list[ref lexer.Token],
+    starts: list[i64],
+    open_idx: i64,
+    next_idx: i64,
+    edits: mut list[ref Edit]
+) void = trust {
     val open_pos: i64 = token_start(tokens, starts, open_idx)
     val n: i64 = @len(tokens) as i64
-    if next_idx >= 0 && next_idx < n && token_line(tokens, next_idx) == token_line(tokens, open_idx) {
+    if next_idx >= 0 && next_idx < n && token_line(
+        tokens,
+        next_idx
+    ) == token_line(tokens, open_idx) {
         val next_pos: i64 = token_start(tokens, starts, next_idx)
         if range_is_whitespace(src, open_pos + 1, next_pos) {
             @append(edits, edit_new(open_pos, next_pos, ""))
@@ -2348,7 +2368,14 @@ fn append_remove_paren_open(src: ref u8, tokens: list[ref lexer.Token], starts: 
     @append(edits, edit_new(open_pos, open_pos + 1, ""))
 }
 
-fn append_remove_paren_close(src: ref u8, tokens: list[ref lexer.Token], starts: list[i64], close_idx: i64, prev_idx: i64, edits: mut list[ref Edit]) void = trust {
+fn append_remove_paren_close(
+    src: ref u8,
+    tokens: list[ref lexer.Token],
+    starts: list[i64],
+    close_idx: i64,
+    prev_idx: i64,
+    edits: mut list[ref Edit]
+) void = trust {
     val close_pos: i64 = token_start(tokens, starts, close_idx)
     if prev_idx >= 0 && token_line(tokens, prev_idx) == token_line(tokens, close_idx) {
         val prev_pos: i64 = token_start(tokens, starts, prev_idx)
@@ -2371,7 +2398,13 @@ fn append_remove_paren_close(src: ref u8, tokens: list[ref lexer.Token], starts:
     @append(edits, edit_new(close_pos, close_pos + 1, ""))
 }
 
-fn append_for_separator(src: ref u8, tokens: list[ref lexer.Token], starts: list[i64], idx: i64, edits: mut list[ref Edit]) void = trust {
+fn append_for_separator(
+    src: ref u8,
+    tokens: list[ref lexer.Token],
+    starts: list[i64],
+    idx: i64,
+    edits: mut list[ref Edit]
+) void = trust {
     val comma_pos: i64 = token_start(tokens, starts, idx)
     val ws_start: mut i64 = comma_pos
     for {
@@ -2468,7 +2501,14 @@ fn format_for_headers(src: ref u8) ref u8 = trust {
                                 if inner_start <= inner_end {
                                     next_inner = inner_start
                                 }
-                                append_remove_paren_open(src, tokens, starts, header_start, next_inner, edits)
+                                append_remove_paren_open(
+                                    src,
+                                    tokens,
+                                    starts,
+                                    header_start,
+                                    next_inner,
+                                    edits
+                                )
                             }
 
                             if inner_start <= inner_end {
@@ -2541,14 +2581,28 @@ fn format_for_headers(src: ref u8) ref u8 = trust {
                                         if jj + 1 <= inner_end {
                                             next_inner = jj + 1
                                         }
-                                        append_remove_paren_open(src, tokens, starts, jj, next_inner, edits)
+                                        append_remove_paren_open(
+                                            src,
+                                            tokens,
+                                            starts,
+                                            jj,
+                                            next_inner,
+                                            edits
+                                        )
                                     }
                                     if jj == cond_close {
                                         val prev_inner: mut i64 = -1
                                         if jj - 1 >= inner_start {
                                             prev_inner = jj - 1
                                         }
-                                        append_remove_paren_close(src, tokens, starts, jj, prev_inner, edits)
+                                        append_remove_paren_close(
+                                            src,
+                                            tokens,
+                                            starts,
+                                            jj,
+                                            prev_inner,
+                                            edits
+                                        )
                                     }
                                     if sep_idx < nseps {
                                         val sep_opt = @get(seps, sep_idx as usize)
@@ -2569,7 +2623,14 @@ fn format_for_headers(src: ref u8) ref u8 = trust {
                                 if inner_end >= inner_start {
                                     prev_inner = inner_end
                                 }
-                                append_remove_paren_close(src, tokens, starts, header_end, prev_inner, edits)
+                                append_remove_paren_close(
+                                    src,
+                                    tokens,
+                                    starts,
+                                    header_end,
+                                    prev_inner,
+                                    edits
+                                )
                             }
                         }
                     }
