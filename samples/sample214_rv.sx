@@ -14,7 +14,9 @@ test "addition works" {
 }
 
 pub fn main() void = trust {
-    val p = Point{x: 10, y: 20, z: 30}
+    val p = Point {
+        x: 10, y: 20, z: 30
+    }
     assert p.x == 10
     assert p.y == 20
     assert p.z == 30
