@@ -96,7 +96,7 @@ pub fn random_u32_below(upper_bound: u32) u32 = {
 /// Allocate and return a null-terminated UUID v4 string (37 bytes: 36 chars + null).
 /// The caller is responsible for freeing the returned pointer.
 ///
-/// Format: xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx  (RFC 4122)
+/// Format: xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx (RFC 4122)
 pub fn random_uuid() ref u8 = trust {
     val rnd: ref void = @alloc(16)
     random_bytes(rnd, 16 as usize)
