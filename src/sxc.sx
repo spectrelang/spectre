@@ -31,6 +31,10 @@ when windows {
 
 pub fn main() i32 = trust {
     val arena: mut allocators.Arena = allocators.Arena.new(65536 as usize)?
+    defer {
+        codegen.arena_deinit()
+        alt_codegen.arena_deinit()
+    }
     val args = os.get_args()
     val argc: i64 = @len(args) as i64
     val exe_path: mut ref u8 = "./spectre"
