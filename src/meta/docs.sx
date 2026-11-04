@@ -743,6 +743,18 @@ fn render_const_expr(expr: ref parser.Node) ref u8 = trust {
         return @fmtalloc("err {s}", {render_const_expr(expr.d0 as ref parser.Node)})
     }
     if kind == parser.NK_BUILTIN {
+        val btargs: list[ref parser.Node] = parser.builtin_type_args(expr)
+        val rendered_btargs: ref u8 = render_type_list(btargs, ", ")
+        if !str_eq(rendered_btargs, "") {
+            return @fmtalloc(
+                "@{s}[{s}]({s})",
+                {
+                    expr.d0 as ref u8,
+                    rendered_btargs,
+                    render_expr_list(expr.d1 as list[ref parser.Node], ", ")
+                }
+            )
+        }
         return @fmtalloc(
             "@{s}({s})",
             {expr.d0 as ref u8, render_expr_list(expr.d1 as list[ref parser.Node], ", ")}

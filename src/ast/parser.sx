@@ -212,6 +212,25 @@ pub fn generic_inst_type_args(n: ref Node) list[ref Node] = {
     return n.d1 as list[ref Node]
 }
 
+pub fn builtin_name(n: ref Node) ref u8 = {
+    return n.d0 as ref u8
+}
+
+pub fn builtin_args(n: ref Node) ref void = {
+    return n.d1 as ref void
+}
+
+/// Explicit type arguments attached to an intrinsic, e.g. @fmtalloc[A](...).
+/// Intrinsic arguments live in d1; embed metadata uses d2/d3, so d4 is used
+/// for intrinsic type arguments.
+pub fn builtin_type_args(n: ref Node) list[ref Node] = {
+    return n.d4 as list[ref Node]
+}
+
+pub fn builtin_set_type_args(n: ref Node, targs: list[ref Node]) void = trust {
+    node_store_slot[list[ref Node]](@addr(n.d4), targs)
+}
+
 pub fn gwhen_cond_tparam(n: ref Node) ref u8 = {
     return n.d0 as ref u8
 }
@@ -1914,6 +1933,27 @@ fn parse_primary(p: mut ref Parser) result[ref Node, ref u8] = trust {
     if lexer.kind_is_at(k) {
         p_advance(p)
         val bname = p_expect_ident(p)?
+        val btype_args: mut list[ref Node] = []
+        if lexer.kind_is_lbracket(p_peek_kind(p)) {
+            p_advance(p)
+            for {
+                if lexer.kind_is_rbracket(p_peek_kind(p)) {
+                    break
+                }
+                val bta: mut ref Node = none
+                if kind_is_ident(p_peek_kind(p)) && str_eq(lexer.tok_text(p.tokens, p.pos), "_") {
+                    p_advance(p)
+                    bta = make_node(TY_INFER, line)
+                } else {
+                    bta = parse_type(p)?
+                }
+                @append(btype_args, bta)
+                if !p_eat_fn(p, lexer.kind_is_comma) {
+                    break
+                }
+            }
+            p_expect_rbracket(p)?
+        }
         if str_eq(bname, "zeroed") {
             if !lexer.kind_is_lparen(p_peek_kind(p)) {
                 val nz0: mut ref Node = make_node(NK_ZERO_INIT, line)
@@ -1950,6 +1990,7 @@ fn parse_primary(p: mut ref Parser) result[ref Node, ref u8] = trust {
             val targs: mut list[ref Node] = []
             @append(targs, ty)
             node_store_slot[list[ref Node]](@addr(nb.d1), targs)
+            node_store_slot[list[ref Node]](@addr(nb.d4), btype_args)
             return ok nb
         }
         if str_eq(bname, "bitcast") {
@@ -1963,6 +2004,7 @@ fn parse_primary(p: mut ref Parser) result[ref Node, ref u8] = trust {
             @append(bargs, target_ty)
             @append(bargs, source_expr)
             node_store_slot[list[ref Node]](@addr(nb.d1), bargs)
+            node_store_slot[list[ref Node]](@addr(nb.d4), btype_args)
             return ok nb
         }
         val bargs: mut list[ref Node] = []
@@ -1981,6 +2023,7 @@ fn parse_primary(p: mut ref Parser) result[ref Node, ref u8] = trust {
         node_store_slot[ref u8](@addr(nb.d0), bname)
         val blist: list[ref Node] = bargs
         node_store_slot[list[ref Node]](@addr(nb.d1), blist)
+        node_store_slot[list[ref Node]](@addr(nb.d4), btype_args)
         return ok nb
     }
 

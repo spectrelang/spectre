@@ -280,7 +280,16 @@ fn builtin_min_arity(name: ref u8) i64 = trust {
     if str_eq(name, "snprintf") {
         return 3
     }
-    if str_eq(name, "fmt") || str_eq(name, "fmtalloc") {
+    if str_eq(name, "fmtalloc") {
+        return 1
+    }
+    if str_eq(name, "argsalloc") {
+        return 1
+    }
+    if str_eq(name, "listalloc") {
+        return 1
+    }
+    if str_eq(name, "listfree") {
         return 1
     }
     if str_eq(name, "puts") {
@@ -296,9 +305,6 @@ fn builtin_min_arity(name: ref u8) i64 = trust {
         return 2
     }
     if str_eq(name, "atoi") {
-        return 1
-    }
-    if str_eq(name, "itoa") {
         return 1
     }
     if str_eq(name, "staticerror") {
@@ -406,8 +412,10 @@ fn is_known_builtin(name: ref u8) bool = trust {
         "len",
         "reserve",
         "capacity",
-        "fmt",
         "fmtalloc",
+        "argsalloc",
+        "listalloc",
+        "listfree",
         "snprintf",
         "print",
         "dprintf",
@@ -422,7 +430,6 @@ fn is_known_builtin(name: ref u8) bool = trust {
         "strlen",
         "strcmp",
         "atoi",
-        "itoa",
         "staticerror",
         "flush",
         "bitcast",
@@ -1573,6 +1580,18 @@ fn expr_wrap_kind(ctx: ref SemaCtx, expr: ref parser.Node) i64 = trust {
         if str_eq(bname, "get") {
             return 2
         }
+        if str_eq(bname, "argsalloc") || str_eq(bname, "listalloc") {
+            return 1
+        }
+        if str_eq(bname, "fmtalloc") {
+            val targs: list[ref parser.Node] = parser.builtin_type_args(expr)
+            if (@len(targs) as i64) > 0 {
+                return 1
+            }
+            return 0
+        }
+        // Transitional: the raw @args form remains until all call sites are
+        // migrated to @argsalloc.
         if str_eq(bname, "args") {
             return 3
         }
@@ -2836,6 +2855,13 @@ fn expr_uses_name(node: ref parser.Node, name: ref u8) bool = trust {
         if bargs != none {
             for barg in bargs as list[ref parser.Node] {
                 if expr_uses_name(barg, name) {
+                    return true
+                }
+            }
+        }
+        for bta in parser.builtin_type_args(node) {
+            if bta != none && bta.kind == parser.TY_NAMED {
+                if str_eq(bta.d0 as ref u8, name) {
                     return true
                 }
             }
@@ -4766,12 +4792,92 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
             return
         }
 
+        val btype_args: list[ref parser.Node] = parser.builtin_type_args(expr)
+        val type_argc: i64 = @len(btype_args) as i64
+        val actual_argc: mut i64 = 0
+        if bargs != none {
+            actual_argc = @len(bargs as list[ref parser.Node]) as i64
+        }
+
+        if type_argc > 0 && !str_eq(bname, "fmtalloc") && !str_eq(bname, "argsalloc") &&
+        !str_eq(bname, "listalloc") {
+            val ebuf: ref u8 = @alloc(512) as ref u8
+            @snprintf(ebuf, 512, "{s}:{lld}: builtin '@{s}' does not take type arguments",
+                {filename, line, bname})
+            add_error(ctx, ebuf)
+            return
+        }
+
+        if str_eq(bname, "argsalloc") {
+            if type_argc != 1 {
+                val ebuf: ref u8 = @alloc(512) as ref u8
+                @snprintf(ebuf, 512, "{s}:{lld}: builtin '@argsalloc' requires exactly one allocator type argument",
+                    {filename, line})
+                add_error(ctx, ebuf)
+                return
+            }
+            if actual_argc != 1 {
+                val ebuf: ref u8 = @alloc(512) as ref u8
+                @snprintf(ebuf, 512, "{s}:{lld}: builtin '@argsalloc' requires exactly 1 argument, got {lld}",
+                    {filename, line, actual_argc})
+                add_error(ctx, ebuf)
+                return
+            }
+        }
+
+        if str_eq(bname, "listalloc") {
+            if type_argc < 1 || type_argc > 2 {
+                val ebuf: ref u8 = @alloc(512) as ref u8
+                @snprintf(ebuf, 512, "{s}:{lld}: builtin '@listalloc' requires an allocator type argument and an optional element type argument",
+                    {filename, line})
+                add_error(ctx, ebuf)
+                return
+            }
+            if actual_argc != 1 {
+                val ebuf: ref u8 = @alloc(512) as ref u8
+                @snprintf(ebuf, 512, "{s}:{lld}: builtin '@listalloc' requires exactly 1 argument, got {lld}",
+                    {filename, line, actual_argc})
+                add_error(ctx, ebuf)
+                return
+            }
+        }
+
+        if str_eq(bname, "listfree") {
+            if type_argc != 0 {
+                val ebuf: ref u8 = @alloc(512) as ref u8
+                @snprintf(ebuf, 512, "{s}:{lld}: builtin '@listfree' does not take type arguments",
+                    {filename, line})
+                add_error(ctx, ebuf)
+                return
+            }
+            if actual_argc != 1 {
+                val ebuf: ref u8 = @alloc(512) as ref u8
+                @snprintf(ebuf, 512, "{s}:{lld}: builtin '@listfree' requires exactly 1 argument, got {lld}",
+                    {filename, line, actual_argc})
+                add_error(ctx, ebuf)
+                return
+            }
+        }
+
+        if str_eq(bname, "fmtalloc") && type_argc > 0 {
+            if type_argc != 1 {
+                val ebuf: ref u8 = @alloc(512) as ref u8
+                @snprintf(ebuf, 512, "{s}:{lld}: builtin '@fmtalloc' requires exactly one allocator type argument",
+                    {filename, line})
+                add_error(ctx, ebuf)
+                return
+            }
+            if actual_argc < 2 {
+                val ebuf: ref u8 = @alloc(512) as ref u8
+                @snprintf(ebuf, 512, "{s}:{lld}: allocatorized '@fmtalloc' requires an allocator and a format string, got {lld} argument(s)",
+                    {filename, line, actual_argc})
+                add_error(ctx, ebuf)
+                return
+            }
+        }
+
         val min_arity: i64 = builtin_min_arity(bname)
         if min_arity > 0 {
-            val actual_argc: mut i64 = 0
-            if bargs != none {
-                actual_argc = @len(bargs as list[ref parser.Node]) as i64
-            }
             if actual_argc < min_arity {
                 val plural: mut ref u8 = "s"
                 if min_arity == 1 {
@@ -4810,9 +4916,6 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
         ) || str_eq(
             bname,
             "print"
-        ) || str_eq(
-            bname,
-            "fmt"
         ) || str_eq(
             bname,
             "fmtalloc"
@@ -6984,6 +7087,11 @@ fn expr_uses_import_alias(node: ref parser.Node, import_name: ref u8) bool = tru
                 if expr_uses_import_alias(barg, import_name) {
                     return true
                 }
+            }
+        }
+        for bta in parser.builtin_type_args(node) {
+            if bta != none && type_uses_import_alias(bta, import_name) {
+                return true
             }
         }
         return false
