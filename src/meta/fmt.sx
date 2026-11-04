@@ -96,9 +96,19 @@ fn buf_append_char(b: mut ref Buf, c: u8) void = trust {
     @store8(@ptradd(b.ptr as ref void, b.len), 0)
 }
 
-fn buf_build(b: ref Buf) ref u8 = trust {
+fn buf_build(b: mut ref Buf) ref u8 = trust {
     @store8(@ptradd(b.ptr as ref void, b.len), 0)
-    return b.ptr
+    val ptr: ref u8 = b.ptr
+    @free(b as ref void)
+    return ptr
+}
+
+/// Free a formatting intermediate once it has been replaced by a new buffer.
+/// The original source is never owned by the formatter, so it is never freed.
+fn release_if_owned(old: mut ref u8, new: ref u8, original: ref u8) void = trust {
+    if old != new && old != original {
+        @free(old as ref void)
+    }
 }
 
 fn edit_new(start: i64, end: i64, text: ref u8) ref Edit = trust {
@@ -109,7 +119,78 @@ fn edit_new(start: i64, end: i64, text: ref u8) ref Edit = trust {
     return e
 }
 
-fn apply_edits(src: ref u8, edits: list[ref Edit]) ref u8 = trust {
+fn free_i64_list(items: mut list[i64]) void = trust {
+    if items != none {
+        val buf: ref void = @load(items as ref void)
+        @free(buf)
+        @free(items as ref void)
+    }
+}
+
+fn free_edit_list(items: mut list[ref Edit]) void = trust {
+    val n: i64 = @len(items) as i64
+    val i: mut i64 = 0
+    for {
+        if i >= n {
+            break
+        }
+        val opt = @get(items, i as usize)
+        if opt is some item_val {
+            val e: ref Edit = item_val as ref Edit
+            @free(e as ref void)
+        }
+        i++
+    }
+    if items != none {
+        val buf: ref void = @load(items as ref void)
+        @free(buf)
+        @free(items as ref void)
+    }
+}
+
+fn free_arm_list(items: mut list[ref Arm]) void = trust {
+    val n: i64 = @len(items) as i64
+    val i: mut i64 = 0
+    for {
+        if i >= n {
+            break
+        }
+        val opt = @get(items, i as usize)
+        if opt is some item_val {
+            val a: ref Arm = item_val as ref Arm
+            @free(a as ref void)
+        }
+        i++
+    }
+    if items != none {
+        val buf: ref void = @load(items as ref void)
+        @free(buf)
+        @free(items as ref void)
+    }
+}
+
+fn free_import_group(items: mut list[ref ImportRec]) void = trust {
+    val n: i64 = @len(items) as i64
+    val i: mut i64 = 0
+    for {
+        if i >= n {
+            break
+        }
+        val opt = @get(items, i as usize)
+        if opt is some item_val {
+            val rec: ref ImportRec = item_val as ref ImportRec
+            @free(rec as ref void)
+        }
+        i++
+    }
+    if items != none {
+        val buf: ref void = @load(items as ref void)
+        @free(buf)
+        @free(items as ref void)
+    }
+}
+
+fn apply_edits(src: ref u8, edits: mut list[ref Edit]) ref u8 = trust {
     val src_len: i64 = str.len_raw(src)
     val out: mut ref Buf = buf_new(src_len + 32)
     val pos: mut i64 = 0
@@ -126,7 +207,9 @@ fn apply_edits(src: ref u8, edits: list[ref Edit]) ref u8 = trust {
         buf_append_bytes(out, src, pos, src_len - pos)
     }
 
-    return buf_build(out)
+    val result: ref u8 = buf_build(out)
+    free_edit_list(edits)
+    return result
 }
 
 fn range_is_whitespace(src: ref u8, start: i64, end: i64) bool = {
@@ -592,7 +675,9 @@ fn insert_newlines(src: ref u8, pos: mut list[i64]) ref u8 = trust {
         buf_append_bytes(out, src, last, len - last)
     }
 
-    return buf_build(out)
+    val result: ref u8 = buf_build(out)
+    free_i64_list(pos)
+    return result
 }
 
 fn find_matching_paren(tokens: list[ref lexer.Token], open_idx: i64) i64 = trust {
@@ -751,7 +836,10 @@ fn rewrite_match_at(
         return none
     }
 
-    val arms: list[ref Arm] = collect_arms(tokens, body_open, body_close)
+    val arms: mut list[ref Arm] = collect_arms(tokens, body_open, body_close)
+    defer {
+        free_arm_list(arms)
+    }
     val n_arms: i64 = @len(arms) as i64
     if n_arms != 2 {
         return none
@@ -912,7 +1000,10 @@ fn rewrite_one_match(src: ref u8) option[ref u8] = trust {
     }
 
     val len: i64 = str.len_raw(src)
-    val starts: list[i64] = collect_line_starts(src, len)
+    val starts: mut list[i64] = collect_line_starts(src, len)
+    defer {
+        free_i64_list(starts)
+    }
     val ntokens: i64 = @len(tokens) as i64
     val i: mut i64 = 0
 
@@ -938,6 +1029,7 @@ fn rewrite_one_match(src: ref u8) option[ref u8] = trust {
 
 fn rewrite_matches(src: ref u8) ref u8 = trust {
     val current: mut ref u8 = src
+    val owned: mut bool = false
     val rounds: mut i64 = 0
     for {
         if rounds >= 100000 {
@@ -945,7 +1037,11 @@ fn rewrite_matches(src: ref u8) ref u8 = trust {
         }
         val next = rewrite_one_match(current)
         if next is some out {
+            if owned && out != current {
+                @free(current as ref void)
+            }
             current = out
+            owned = true
         } else {
             break
         }
@@ -970,7 +1066,10 @@ fn format_block_braces(src: ref u8) ref u8 = trust {
     }
 
     val len: i64 = str.len_raw(src)
-    val starts: list[i64] = collect_line_starts(src, len)
+    val starts: mut list[i64] = collect_line_starts(src, len)
+    defer {
+        free_i64_list(starts)
+    }
     val ntokens: i64 = @len(tokens) as i64
     val newlines: mut list[i64] = []
     val i: mut i64 = 0
@@ -1043,7 +1142,10 @@ fn format_else_join(src: ref u8) ref u8 = trust {
     }
 
     val len: i64 = str.len_raw(src)
-    val starts: list[i64] = collect_line_starts(src, len)
+    val starts: mut list[i64] = collect_line_starts(src, len)
+    defer {
+        free_i64_list(starts)
+    }
     val ntokens: i64 = @len(tokens) as i64
     val joins: mut list[i64] = []
     val i: mut i64 = 0
@@ -1084,6 +1186,7 @@ fn format_else_join(src: ref u8) ref u8 = trust {
         }
     }
 
+    free_i64_list(joins)
     return apply_edits(src, edits)
 }
 
@@ -1103,7 +1206,10 @@ fn format_match_arm_spacing(src: ref u8) ref u8 = trust {
     }
 
     val len: i64 = str.len_raw(src)
-    val starts: list[i64] = collect_line_starts(src, len)
+    val starts: mut list[i64] = collect_line_starts(src, len)
+    defer {
+        free_i64_list(starts)
+    }
     val ntokens: i64 = @len(tokens) as i64
     val edits: mut list[ref Edit] = []
     val i: mut i64 = 0
@@ -1221,7 +1327,10 @@ fn format_decl_separators(src: ref u8) ref u8 = trust {
     }
 
     val len: i64 = str.len_raw(src)
-    val starts: list[i64] = collect_line_starts(src, len)
+    val starts: mut list[i64] = collect_line_starts(src, len)
+    defer {
+        free_i64_list(starts)
+    }
     val ntokens: i64 = @len(tokens) as i64
     val edits: mut list[ref Edit] = []
     val i: mut i64 = 0
@@ -1309,7 +1418,10 @@ fn format_paren_separators(src: ref u8) ref u8 = trust {
     }
 
     val len: i64 = str.len_raw(src)
-    val starts: list[i64] = collect_line_starts(src, len)
+    val starts: mut list[i64] = collect_line_starts(src, len)
+    defer {
+        free_i64_list(starts)
+    }
     val ntokens: i64 = @len(tokens) as i64
     val edits: mut list[ref Edit] = []
     val paren_depth: mut i64 = 0
@@ -1379,7 +1491,10 @@ fn format_colon_spacing(src: ref u8) ref u8 = trust {
     }
 
     val len: i64 = str.len_raw(src)
-    val starts: list[i64] = collect_line_starts(src, len)
+    val starts: mut list[i64] = collect_line_starts(src, len)
+    defer {
+        free_i64_list(starts)
+    }
     val ntokens: i64 = @len(tokens) as i64
     val edits: mut list[ref Edit] = []
     val i: mut i64 = 0
@@ -1440,7 +1555,10 @@ fn format_eq_spacing(src: ref u8) ref u8 = trust {
     }
 
     val len: i64 = str.len_raw(src)
-    val starts: list[i64] = collect_line_starts(src, len)
+    val starts: mut list[i64] = collect_line_starts(src, len)
+    defer {
+        free_i64_list(starts)
+    }
     val ntokens: i64 = @len(tokens) as i64
     val edits: mut list[ref Edit] = []
     val i: mut i64 = 0
@@ -1512,7 +1630,10 @@ fn format_as_spacing(src: ref u8) ref u8 = trust {
     }
 
     val len: i64 = str.len_raw(src)
-    val starts: list[i64] = collect_line_starts(src, len)
+    val starts: mut list[i64] = collect_line_starts(src, len)
+    defer {
+        free_i64_list(starts)
+    }
     val ntokens: i64 = @len(tokens) as i64
     val edits: mut list[ref Edit] = []
     val i: mut i64 = 0
@@ -1584,7 +1705,10 @@ fn format_operator_spacing(src: ref u8) ref u8 = trust {
     }
 
     val len: i64 = str.len_raw(src)
-    val starts: list[i64] = collect_line_starts(src, len)
+    val starts: mut list[i64] = collect_line_starts(src, len)
+    defer {
+        free_i64_list(starts)
+    }
     val ntokens: i64 = @len(tokens) as i64
     val edits: mut list[ref Edit] = []
     val i: mut i64 = 0
@@ -1657,7 +1781,10 @@ fn format_assert_spacing(src: ref u8) ref u8 = trust {
     }
 
     val len: i64 = str.len_raw(src)
-    val starts: list[i64] = collect_line_starts(src, len)
+    val starts: mut list[i64] = collect_line_starts(src, len)
+    defer {
+        free_i64_list(starts)
+    }
     val ntokens: i64 = @len(tokens) as i64
     val edits: mut list[ref Edit] = []
     val i: mut i64 = 0
@@ -1762,7 +1889,10 @@ fn format_block_brace_spacing(src: ref u8) ref u8 = trust {
     }
 
     val len: i64 = str.len_raw(src)
-    val starts: list[i64] = collect_line_starts(src, len)
+    val starts: mut list[i64] = collect_line_starts(src, len)
+    defer {
+        free_i64_list(starts)
+    }
     val ntokens: i64 = @len(tokens) as i64
     val edits: mut list[ref Edit] = []
     val i: mut i64 = 0
@@ -1854,7 +1984,10 @@ fn format_fn_return_spacing(src: ref u8) ref u8 = trust {
     }
 
     val len: i64 = str.len_raw(src)
-    val starts: list[i64] = collect_line_starts(src, len)
+    val starts: mut list[i64] = collect_line_starts(src, len)
+    defer {
+        free_i64_list(starts)
+    }
     val ntokens: i64 = @len(tokens) as i64
     val edits: mut list[ref Edit] = []
     val i: mut i64 = 0
@@ -1999,9 +2132,10 @@ fn import_eq_pos(src: ref u8, start: i64, end: i64) i64 = trust {
     return -1
 }
 
-fn flush_import_group(src: ref u8, out: mut ref Buf, group: list[ref ImportRec]) void = trust {
+fn flush_import_group(src: ref u8, out: mut ref Buf, group: mut list[ref ImportRec]) void = trust {
     val n: i64 = @len(group) as i64
     if n == 0 {
+        free_import_group(group)
         return
     }
 
@@ -2034,6 +2168,8 @@ fn flush_import_group(src: ref u8, out: mut ref Buf, group: list[ref ImportRec])
             buf_append_char(out, 10 as u8)
         }
     }
+
+    free_import_group(group)
 }
 
 fn format_import_alignment(src: ref u8) ref u8 = trust {
@@ -2131,7 +2267,10 @@ fn format_bulk_val_alignment(src: ref u8) ref u8 = trust {
     }
 
     val len: i64 = str.len_raw(src)
-    val starts: list[i64] = collect_line_starts(src, len)
+    val starts: mut list[i64] = collect_line_starts(src, len)
+    defer {
+        free_i64_list(starts)
+    }
     val ntokens: i64 = @len(tokens) as i64
     val edits: mut list[ref Edit] = []
     val i: mut i64 = 0
@@ -2227,6 +2366,7 @@ fn format_bulk_val_alignment(src: ref u8) ref u8 = trust {
                         @append(edits, edit_new(left_end, eq_pos, text))
                     }
                 }
+                free_i64_list(eqs)
                 i = close
             }
         }
@@ -2329,6 +2469,7 @@ fn format_top_level_decl_gaps(src: ref u8) ref u8 = trust {
         line_start = line_end + 1
     }
 
+    @free(nesting as ref void)
     return buf_build(out)
 }
 
@@ -2522,6 +2663,7 @@ fn reindent(src: ref u8) ref u8 = trust {
         @store8(@ptradd(out.ptr as ref void, out.len), 0)
     }
 
+    @free(nesting as ref void)
     return buf_build(out)
 }
 
@@ -2662,7 +2804,10 @@ fn format_for_headers(src: ref u8) ref u8 = trust {
     }
 
     val len: i64 = str.len_raw(src)
-    val starts: list[i64] = collect_line_starts(src, len)
+    val starts: mut list[i64] = collect_line_starts(src, len)
+    defer {
+        free_i64_list(starts)
+    }
     val ntokens: i64 = @len(tokens) as i64
     val edits: mut list[ref Edit] = []
     val i: mut i64 = 0
@@ -2835,6 +2980,7 @@ fn format_for_headers(src: ref u8) ref u8 = trust {
                                     }
                                     jj++
                                 }
+                                free_i64_list(seps)
                             }
 
                             if outer {
@@ -3019,7 +3165,10 @@ fn wrap_one_long_line(src: ref u8) ref u8 = trust {
     }
 
     val len: i64 = str.len_raw(src)
-    val starts: list[i64] = collect_line_starts(src, len)
+    val starts: mut list[i64] = collect_line_starts(src, len)
+    defer {
+        free_i64_list(starts)
+    }
     val ntokens: i64 = @len(tokens) as i64
     val i: mut i64 = 0
 
@@ -3063,6 +3212,7 @@ fn wrap_one_long_line(src: ref u8) ref u8 = trust {
 
 fn format_long_lines(src: ref u8) ref u8 = trust {
     val current: mut ref u8 = src
+    val owned: mut bool = false
     val rounds: mut i64 = 0
     for {
         if rounds >= 10000 {
@@ -3070,9 +3220,20 @@ fn format_long_lines(src: ref u8) ref u8 = trust {
         }
         val next: ref u8 = wrap_one_long_line(current)
         if str.raw_cmp(next, current) == 0 {
+            if next != current {
+                @free(next as ref void)
+            }
             break
         }
-        current = reindent(next)
+        val reindented: ref u8 = reindent(next)
+        if next != current {
+            @free(next as ref void)
+        }
+        if owned && current != reindented {
+            @free(current as ref void)
+        }
+        current = reindented
+        owned = true
         rounds++
     }
     return current
@@ -3102,26 +3263,82 @@ fn trim_leading_newlines(src: ref u8) ref u8 = trust {
 }
 
 fn format_source(src: ref u8) ref u8 = trust {
-    val rewritten: ref u8 = rewrite_matches(src)
-    val for_normalized: ref u8 = format_for_headers(rewritten)
-    val assert_spaced: ref u8 = format_assert_spacing(for_normalized)
-    val braced: ref u8 = format_block_braces(assert_spaced)
-    val else_joined: ref u8 = format_else_join(braced)
-    val decl_separated: ref u8 = format_decl_separators(else_joined)
-    val paren_separated: ref u8 = format_paren_separators(decl_separated)
-    val arm_spaced: ref u8 = format_match_arm_spacing(paren_separated)
-    val colon_spaced: ref u8 = format_colon_spacing(arm_spaced)
-    val eq_spaced: ref u8 = format_eq_spacing(colon_spaced)
-    val as_spaced: ref u8 = format_as_spacing(eq_spaced)
-    val op_spaced: ref u8 = format_operator_spacing(as_spaced)
-    val brace_spaced: ref u8 = format_block_brace_spacing(op_spaced)
-    val return_spaced: ref u8 = format_fn_return_spacing(brace_spaced)
-    val indented: ref u8 = reindent(return_spaced)
-    val bulk_aligned: ref u8 = format_bulk_val_alignment(indented)
-    val narrowed: ref u8 = format_long_lines(bulk_aligned)
-    val imports_aligned: ref u8 = format_import_alignment(narrowed)
-    val gaps_normalized: ref u8 = format_top_level_decl_gaps(imports_aligned)
-    return trim_leading_newlines(gaps_normalized)
+    val current: mut ref u8 = rewrite_matches(src)
+    val pass: mut ref u8 = format_for_headers(current)
+    release_if_owned(current, pass, src)
+    current = pass
+
+    pass = format_assert_spacing(current)
+    release_if_owned(current, pass, src)
+    current = pass
+
+    pass = format_block_braces(current)
+    release_if_owned(current, pass, src)
+    current = pass
+
+    pass = format_else_join(current)
+    release_if_owned(current, pass, src)
+    current = pass
+
+    pass = format_decl_separators(current)
+    release_if_owned(current, pass, src)
+    current = pass
+
+    pass = format_paren_separators(current)
+    release_if_owned(current, pass, src)
+    current = pass
+
+    pass = format_match_arm_spacing(current)
+    release_if_owned(current, pass, src)
+    current = pass
+
+    pass = format_colon_spacing(current)
+    release_if_owned(current, pass, src)
+    current = pass
+
+    pass = format_eq_spacing(current)
+    release_if_owned(current, pass, src)
+    current = pass
+
+    pass = format_as_spacing(current)
+    release_if_owned(current, pass, src)
+    current = pass
+
+    pass = format_operator_spacing(current)
+    release_if_owned(current, pass, src)
+    current = pass
+
+    pass = format_block_brace_spacing(current)
+    release_if_owned(current, pass, src)
+    current = pass
+
+    pass = format_fn_return_spacing(current)
+    release_if_owned(current, pass, src)
+    current = pass
+
+    pass = reindent(current)
+    release_if_owned(current, pass, src)
+    current = pass
+
+    pass = format_bulk_val_alignment(current)
+    release_if_owned(current, pass, src)
+    current = pass
+
+    pass = format_long_lines(current)
+    release_if_owned(current, pass, src)
+    current = pass
+
+    pass = format_import_alignment(current)
+    release_if_owned(current, pass, src)
+    current = pass
+
+    pass = format_top_level_decl_gaps(current)
+    release_if_owned(current, pass, src)
+    current = pass
+
+    val result: ref u8 = trim_leading_newlines(current)
+    release_if_owned(current, result, src)
+    return result
 }
 
 fn has_sx_suffix(file: ref u8) bool = {
@@ -3163,21 +3380,30 @@ fn format_file(file: ref u8, to_stdout: bool) i32 = trust {
         }
         if byte_at(content, i) == 0 {
             stdio.print("error: '{s}' is not a plaintext .sx file\n", {file})
+            @free(content as ref void)
             return 1
         }
         i++
     }
 
-    val formatted: ref u8 = format_source(content)
+    val formatted: mut ref u8 = format_source(content)
     if to_stdout {
         stdio.print("{s}", {formatted})
     } elif str.raw_cmp(formatted, content) != 0 {
         if !fs.write_all(file, formatted) {
             stdio.print("error: could not write '{s}'\n", {file})
+            if formatted != content {
+                @free(formatted as ref void)
+            }
+            @free(content as ref void)
             return 1
         }
     }
 
+    if formatted != content {
+        @free(formatted as ref void)
+    }
+    @free(content as ref void)
     return 0
 }
 
