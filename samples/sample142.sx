@@ -66,6 +66,12 @@ pub fn main() void = trust {
     val heap: allocators.HeapAllocator = @zeroed
     stdio.print("baseline_raw={d}\n", {baseline_raw("sx.mod")})
     stdio.print("generic_raw={d}\n", {generic_raw[allocators.HeapAllocator](heap, "sx.mod")})
-    stdio.print("generic_raw_with_alloc={d}\n", {generic_raw_with_alloc[allocators.HeapAllocator](heap, "sx.mod")})
-    stdio.print("generic_fs_like={d}\n", {generic_fs_like[allocators.HeapAllocator](heap, "sx.mod")})
+    stdio.print(
+        "generic_raw_with_alloc={d}\n",
+        {generic_raw_with_alloc[allocators.HeapAllocator](heap, "sx.mod")}
+    )
+    stdio.print(
+        "generic_fs_like={d}\n",
+        {generic_fs_like[allocators.HeapAllocator](heap, "sx.mod")}
+    )
 }

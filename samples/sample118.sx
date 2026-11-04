@@ -165,7 +165,11 @@ when posix {
 }
 
 when windows {
-    extern (C) fn GetModuleFileNameA(module: ref void, buf: ref u8, size: u32) u32 = "GetModuleFileNameA"
+    extern (C) fn GetModuleFileNameA(
+        module: ref void,
+        buf: ref u8,
+        size: u32
+    ) u32 = "GetModuleFileNameA"
 }
 
 /// Returns the absolute path to the current executable.

@@ -70,8 +70,26 @@ fn build_demo() Demo = {
                 ),
                 0.05 as f32, 0.56 as f32, 1.20 as f32, 1.4 as f32, 0.52 as f32, 0.3 as f32
             ),
-            make_particle(make_vec3(1.55 as f32, 0.58 as f32, -2.30 as f32), make_vec3(0.34 as f32, 0.90 as f32, 1.00 as f32), 0.09 as f32, 0.48 as f32, -1.55 as f32, 0.5 as f32, 0.32 as f32, 0.48 as f32),
-            make_particle(make_vec3(1.55 as f32, 0.72 as f32, -2.30 as f32), make_vec3(0.78 as f32,0.96 as f32, 1.00 as f32), 0.05 as f32, 0.64 as f32, -1.10 as f32, 2.1 as f32, 0.66 as f32, 0.30 as f32)
+            make_particle(
+                make_vec3(1.55 as f32, 0.58 as f32, -2.30 as f32),
+                make_vec3(0.34 as f32, 0.90 as f32, 1.00 as f32),
+                0.09 as f32,
+                0.48 as f32,
+                -1.55 as f32,
+                0.5 as f32,
+                0.32 as f32,
+                0.48 as f32
+            ),
+            make_particle(
+                make_vec3(1.55 as f32, 0.72 as f32, -2.30 as f32),
+                make_vec3(0.78 as f32, 0.96 as f32, 1.00 as f32),
+                0.05 as f32,
+                0.64 as f32,
+                -1.10 as f32,
+                2.1 as f32,
+                0.66 as f32,
+                0.30 as f32
+            )
         ]
     }
 }

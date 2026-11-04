@@ -61,23 +61,60 @@ extern type Bullet = {
 }
 
 extern (C, header) fn SDL_Init(flags: u32) i32 = "SDL_Init"
-extern (C, header) fn SDL_CreateWindow(title: ref u8, x: i32, y: i32, w: i32, h: i32, flags: u32) ref void = "SDL_CreateWindow"
-extern (C, header) fn SDL_CreateRenderer(win: ref void, index: i32, flags: u32) ref void = "SDL_CreateRenderer"
+extern (C, header) fn SDL_CreateWindow(
+    title: ref u8,
+    x: i32,
+    y: i32,
+    w: i32,
+    h: i32,
+    flags: u32
+) ref void = "SDL_CreateWindow"
+extern (C, header) fn SDL_CreateRenderer(
+    win: ref void,
+    index: i32,
+    flags: u32
+) ref void = "SDL_CreateRenderer"
 extern (C, header) fn SDL_PollEvent(event: ref SDL_Event) i32 = "SDL_PollEvent"
 extern (C, header) fn SDL_GetTicks() u32 = "SDL_GetTicks"
 extern (C, header) fn SDL_GetKeyboardState(numkeys: ref i32) ref u8 = "SDL_GetKeyboardState"
-extern (C, header) fn SDL_SetRenderDrawColor(renderer: ref void, r: u8, g: u8, b: u8, a: u8) i32 = "SDL_SetRenderDrawColor"
+extern (C, header) fn SDL_SetRenderDrawColor(
+    renderer: ref void,
+    r: u8,
+    g: u8,
+    b: u8,
+    a: u8
+) i32 = "SDL_SetRenderDrawColor"
 extern (C, header) fn SDL_RenderClear(renderer: ref void) i32 = "SDL_RenderClear"
-extern (C, header) fn SDL_RenderFillRect(renderer: ref void, rect: ref SDL_Rect) i32 = "SDL_RenderFillRect"
+extern (C, header) fn SDL_RenderFillRect(
+    renderer: ref void,
+    rect: ref SDL_Rect
+) i32 = "SDL_RenderFillRect"
 extern (C, header) fn SDL_RenderPresent(renderer: ref void) void = "SDL_RenderPresent"
 extern (C, header) fn SDL_DestroyRenderer(renderer: ref void) void = "SDL_DestroyRenderer"
 extern (C, header) fn SDL_DestroyWindow(window: ref void) void = "SDL_DestroyWindow"
 extern (C, header) fn SDL_Quit() void = "SDL_Quit"
-extern (C, header) fn SDL_CreateTextureFromSurface(renderer: ref void, surface: ref void) ref void = "SDL_CreateTextureFromSurface"
+extern (C, header) fn SDL_CreateTextureFromSurface(
+    renderer: ref void,
+    surface: ref void
+) ref void = "SDL_CreateTextureFromSurface"
 extern (C, header) fn SDL_FreeSurface(surface: ref void) void = "SDL_FreeSurface"
-extern (C, header) fn SDL_RenderCopy(renderer: ref void, texture: ref void, srcrect: ref void, dstrect: ref void) i32 = "SDL_RenderCopy"
-extern (C, header) fn SDL_SetTextureBlendMode(texture: ref void, blendMode: i32) i32 = "SDL_SetTextureBlendMode"
-extern (C, header) fn SDL_QueryTexture(texture: ref void, fmt: ref void, access: ref void, w: ref void, h: ref void) i32 = "SDL_QueryTexture"
+extern (C, header) fn SDL_RenderCopy(
+    renderer: ref void,
+    texture: ref void,
+    srcrect: ref void,
+    dstrect: ref void
+) i32 = "SDL_RenderCopy"
+extern (C, header) fn SDL_SetTextureBlendMode(
+    texture: ref void,
+    blendMode: i32
+) i32 = "SDL_SetTextureBlendMode"
+extern (C, header) fn SDL_QueryTexture(
+    texture: ref void,
+    fmt: ref void,
+    access: ref void,
+    w: ref void,
+    h: ref void
+) i32 = "SDL_QueryTexture"
 extern (C) fn IMG_Load(file: ref u8) ref void = "IMG_Load"
 extern (C) fn cosf(x: f32) f32 = "cosf"
 extern (C) fn sinf(x: f32) f32 = "sinf"
@@ -364,7 +401,10 @@ fn render_sprites() void = trust {
                         val xi: mut i32 = drawStartX
                         for {
                             if xi < drawEndX {
-                                val zbufVal: usize = @load(@ptradd(zbuf, (xi as usize) * 8)) as usize
+                                val zbufVal: usize = @load(@ptradd(
+                                        zbuf,
+                                        (xi as usize) * 8
+                                    )) as usize
                                 if scaledDist < zbufVal {
                                     val texX: i32 = ((xi - spriteLeft) * enemyTexW) / spriteW
                                     g_src_rect.x = texX
@@ -375,7 +415,12 @@ fn render_sprites() void = trust {
                                     g_dst_rect.y = drawStartY
                                     g_dst_rect.w = 1
                                     g_dst_rect.h = drawEndY - drawStartY
-                                    SDL_RenderCopy(g_renderer, g_enemyTex, g_src_rect as ref void, g_dst_rect as ref void)
+                                    SDL_RenderCopy(
+                                        g_renderer,
+                                        g_enemyTex,
+                                        g_src_rect as ref void,
+                                        g_dst_rect as ref void
+                                    )
                                 }
                                 xi++
                             } else {
@@ -433,7 +478,13 @@ fn render_sprites() void = trust {
                         val bZdist: usize = @load(@ptradd(zbuf, (bsx as usize) * 8)) as usize
                         val bZscaled: usize = (depth * 100000.0) as usize
                         if bZscaled < bZdist {
-                            SDL_SetRenderDrawColor(g_renderer, 255 as u8, 100 as u8, 0 as u8, 255 as u8)
+                            SDL_SetRenderDrawColor(
+                                g_renderer,
+                                255 as u8,
+                                100 as u8,
+                                0 as u8,
+                                255 as u8
+                            )
                             g_aux_rect.x = bsX
                             g_aux_rect.y = bsY
                             g_aux_rect.w = beX - bsX
@@ -612,7 +663,10 @@ pub fn main() i32 = {
             val keyD: u8 = trust @load(@ptradd(keys, (sdl_input.SDL_SCANCODE_D) * @sizeof(u8)))
             val keyW: u8 = trust @load(@ptradd(keys, (sdl_input.SDL_SCANCODE_W) * @sizeof(u8)))
             val keyS: u8 = trust @load(@ptradd(keys, (sdl_input.SDL_SCANCODE_S) * @sizeof(u8)))
-            val keySpace: u8 = trust @load(@ptradd(keys, (sdl_input.SDL_SCANCODE_SPACE) * @sizeof(u8)))
+            val keySpace: u8 = trust @load(@ptradd(
+                    keys,
+                    (sdl_input.SDL_SCANCODE_SPACE) * @sizeof(u8)
+                ))
 
             if shootCooldown > 0.0 {
                 shootCooldown -= deltaTime
@@ -812,7 +866,13 @@ pub fn main() i32 = {
                         if x < MAP_SIZE {
                             if @get(map, y, x) is some v {
                                 if v > 0 {
-                                    trust SDL_SetRenderDrawColor(renderer, 120 as u8, 120 as u8, 120 as u8, 255 as u8)
+                                    trust SDL_SetRenderDrawColor(
+                                        renderer,
+                                        120 as u8,
+                                        120 as u8,
+                                        120 as u8,
+                                        255 as u8
+                                    )
                                     val w: mut ref SDL_Rect = @alloc(@sizeof(SDL_Rect))
                                     @deref(w) = {
                                         x: (mar + (x as f32) * mt) as i32,
@@ -849,9 +909,21 @@ pub fn main() i32 = {
                 if mei < MAX_ENEMIES {
                     val me: ref Enemy = trust get_enemy(mei)
                     if me.alive != 0 {
-                        trust SDL_SetRenderDrawColor(renderer, 255 as u8, 0 as u8, 0 as u8, 255 as u8)
+                        trust SDL_SetRenderDrawColor(
+                            renderer,
+                            255 as u8,
+                            0 as u8,
+                            0 as u8,
+                            255 as u8
+                        )
                     } else {
-                        trust SDL_SetRenderDrawColor(renderer, 60 as u8, 60 as u8, 60 as u8, 255 as u8)
+                        trust SDL_SetRenderDrawColor(
+                            renderer,
+                            60 as u8,
+                            60 as u8,
+                            60 as u8,
+                            255 as u8
+                        )
                     }
                     val meRect: mut ref SDL_Rect = @alloc(@sizeof(SDL_Rect))
                     @deref(meRect) = {

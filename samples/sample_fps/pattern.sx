@@ -35,7 +35,13 @@ extern (C, header) fn SDL_CreateRenderer(
 ) ref void = "SDL_CreateRenderer"
 
 extern (C, header) fn SDL_PollEvent(e: ref SDL_Event) i32 = "SDL_PollEvent"
-extern (C, header) fn SDL_SetRenderDrawColor(r: ref void, rr: u8, g: u8, b: u8, a: u8) i32 = "SDL_SetRenderDrawColor"
+extern (C, header) fn SDL_SetRenderDrawColor(
+    r: ref void,
+    rr: u8,
+    g: u8,
+    b: u8,
+    a: u8
+) i32 = "SDL_SetRenderDrawColor"
 extern (C, header) fn SDL_RenderClear(r: ref void) i32 = "SDL_RenderClear"
 extern (C, header) fn SDL_RenderFillRect(r: ref void, rect: ref SDL_Rect) i32 = "SDL_RenderFillRect"
 extern (C, header) fn SDL_RenderPresent(r: ref void) void = "SDL_RenderPresent"

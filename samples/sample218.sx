@@ -1,0 +1,27 @@
+val stdio = use("std/stdio")
+
+type FailingAllocator = {}
+
+fn (FailingAllocator) alloc(_: self, _: usize) option[ref void] = {
+    return none
+}
+
+fn (FailingAllocator) free(_: self, _: ref void) void = {}
+
+fn (FailingAllocator) realloc(_: self, _: ref void, _: usize) option[ref void] = {
+    return none
+}
+
+pub fn main() void = trust {
+    val ac: FailingAllocator = @zeroed
+    val result = @listalloc[FailingAllocator, i64](ac)
+    match result {
+        ok xs => {
+            @listfree(xs)
+            stdio.puts("unexpected allocation success\n")
+        }
+        err _ => {
+            stdio.puts("allocation failure propagated through AllocError\n")
+        }
+    }
+}

@@ -8,7 +8,10 @@ pub type (Animal) Cat = {
     name: ref u8
 }
 
-pub fn (Cat) speak(it: self, times: usize) void = { // Must exist to satisfy the spec, must be public
+pub fn (Cat) speak(
+    it: self,
+    times: usize
+) void = { // Must exist to satisfy the spec, must be public
     val i: mut usize = 0
     for i < times {
         trust @print("meow my name is {s}\n", {it.name})

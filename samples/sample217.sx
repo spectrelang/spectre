@@ -1,0 +1,19 @@
+val allocators = use("std/allocators")
+val stdio      = use("std/stdio")
+
+pub fn main() void = trust {
+    val ac: allocators.HeapAllocator = @zeroed
+
+    val xs: mut list[i64] = @listalloc[allocators.HeapAllocator, i64](ac)?
+    @append(xs, 1)
+    @append(xs, 3)
+    @insert(xs, 1, 2)
+    @reserve(xs, 16)
+
+    stdio.print("allocator-aware list: len={d} cap={d}\n", {@len(xs), @capacity(xs)})
+    @listfree(xs)
+
+    val raw: list[i64] = [4, 5, 6]
+    stdio.print("raw literal list: len={d}\n", {@len(raw)})
+    @listfree(raw)
+}

@@ -122,7 +122,12 @@ fn respond(client: i64, status: ref u8, content_type: ref u8, body: ref u8) void
 
 fn route_request(client: i64, request: ref u8) void = trust {
     if string.raw_starts_with(request, "GET / HTTP/1.1") {
-        respond(client, "200 OK", "application/json", "{\"name\":\"Spectre API\",\"version\":\"0.1.0\",\"endpoints\":[\"/health\",\"/hello\"]}")
+        respond(
+            client,
+            "200 OK",
+            "application/json",
+            "{\"name\":\"Spectre API\",\"version\":\"0.1.0\",\"endpoints\":[\"/health\",\"/hello\"]}"
+        )
     } elif string.raw_starts_with(request, "GET /health HTTP/1.1") {
         respond(client, "200 OK", "application/json", "{\"status\":\"ok\"}")
     } elif string.raw_starts_with(request, "GET /hello HTTP/1.1") {
@@ -200,7 +205,11 @@ pub fn main() void = trust {
                             remove_client(loop, clients, fd)
                         } elif (revents & net.POLL_READ) != 0 {
                             val remaining: i64 = REQUEST_CAP - 1 - client.length
-                            val received = net.TcpServer.recv(fd, @ptradd(client.buffer, client.length), remaining)
+                            val received = net.TcpServer.recv(
+                                fd,
+                                @ptradd(client.buffer, client.length),
+                                remaining
+                            )
                             if received <= 0 {
                                 remove_client(loop, clients, fd)
                             } else {
@@ -211,7 +220,12 @@ pub fn main() void = trust {
                                     route_request(fd, client.buffer)
                                     remove_client(loop, clients, fd)
                                 } elif client.length >= REQUEST_CAP - 1 {
-                                    respond(fd, "413 Payload Too Large", "application/json", "{\"error\":\"Request too large\"}")
+                                    respond(
+                                        fd,
+                                        "413 Payload Too Large",
+                                        "application/json",
+                                        "{\"error\":\"Request too large\"}"
+                                    )
                                     remove_client(loop, clients, fd)
                                 }
                             }

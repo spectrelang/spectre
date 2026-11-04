@@ -3,7 +3,10 @@ val allocators = use("std/allocators")
 val stdio      = use("std/stdio")
 
 fn index(_: ref netx.Request, res: mut ref netx.Response) void = trust {
-    netx.Response.json(res, "{\"name\":\"Spectre API\",\"version\":\"0.1.0\",\"endpoints\":[\"/health\",\"/hello\"]}")
+    netx.Response.json(
+        res,
+        "{\"name\":\"Spectre API\",\"version\":\"0.1.0\",\"endpoints\":[\"/health\",\"/hello\"]}"
+    )
 }
 
 fn health(_: ref netx.Request, res: mut ref netx.Response) void = trust {

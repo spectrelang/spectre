@@ -1,0 +1,19 @@
+val allocators = use("std/allocators")
+val stdio      = use("std/stdio")
+
+pub fn main() void = trust {
+    val ac: allocators.HeapAllocator = @zeroed
+
+    val msg: ref u8 = @fmtalloc[allocators.HeapAllocator](
+        ac,
+        "allocatorized stage {d}: {s}",
+        {3, "fmtalloc"}
+    )?
+    stdio.puts(msg)
+    stdio.puts("\n")
+    allocators.HeapAllocator.free(ac, msg as ref void)
+
+    val argv: list[ref u8] = @argsalloc[allocators.HeapAllocator](ac)?
+    stdio.print("args from @argsalloc: {d}\n", {@len(argv)})
+    @listfree(argv)
+}

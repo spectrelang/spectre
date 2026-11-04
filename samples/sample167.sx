@@ -1,7 +1,13 @@
 link "-lSDL3"
 
 extern (C) fn SDL_AcquireGPUCommandBuffer(device: ref void) ref void = "SDL_AcquireGPUCommandBuffer"
-extern (C) fn SDL_WaitAndAcquireGPUSwapchainTexture(command_buffer: ref void, window: ref void, swapchain_texture: ref ref void, swapchain_texture_width: ref u32, swapchain_texture_height: ref u32) bool = "SDL_WaitAndAcquireGPUSwapchainTexture"
+extern (C) fn SDL_WaitAndAcquireGPUSwapchainTexture(
+    command_buffer: ref void,
+    window: ref void,
+    swapchain_texture: ref ref void,
+    swapchain_texture_width: ref u32,
+    swapchain_texture_height: ref u32
+) bool = "SDL_WaitAndAcquireGPUSwapchainTexture"
 extern (C) fn SDL_CancelGPUCommandBuffer(command_buffer: ref void) bool = "SDL_CancelGPUCommandBuffer"
 
 type ExoSDL3Runtime = {
@@ -37,7 +43,13 @@ fn begin_frame(runtime_raw: ref void) bool = trust {
     }
     val swap_width: mut u32 = 0 as u32
     val swap_height: mut u32 = 0 as u32
-    if !(SDL_WaitAndAcquireGPUSwapchainTexture(runtime.command_buffer, runtime.window, @addr(runtime.swapchain_texture), @addr(swap_width), @addr(swap_height))) {
+    if !(SDL_WaitAndAcquireGPUSwapchainTexture(
+            runtime.command_buffer,
+            runtime.window,
+            @addr(runtime.swapchain_texture),
+            @addr(swap_width),
+            @addr(swap_height)
+        )) {
         SDL_CancelGPUCommandBuffer(runtime.command_buffer)
         runtime.command_buffer = none
         return false

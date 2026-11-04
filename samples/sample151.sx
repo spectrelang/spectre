@@ -5,7 +5,7 @@ pub fn combine[T, U](left: T, right: U) T = {
         return trust str.concat_raw(left, right)
     }
     when T in (i32, i64) {
-        when U in (i32 , i64) {
+        when U in (i32, i64) {
             return left + right
         }
     }
