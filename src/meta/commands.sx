@@ -1473,21 +1473,6 @@ pub fn cmd_ref() i32 = {
                 \\     }
                 \\ }
                 \\
-                \\ ```
-                \\ // ! in return type means the function is untrusted as per the contract system
-                \\ // this means that you would need to call this function read_file with the `trust`
-                \\ // prefix, like:
-                \\ //
-                \\ // trust read_file("some_file.txt")
-                \\ //
-                \\ // Note that trust statements inside verified functions are redundant
-                \\ // and will result in a compile-time error.
-                \\ fn read_file(path: ref u8) result[ref u8, SomeError] = trust {
-                \\     val f = some_fallible_call()?   // ? propagates err upward
-                \\     return f
-                \\ }
-                \\ ```
-                \\
             )
             trust fs.write(f, \\ ---
                 \\
@@ -1518,6 +1503,50 @@ pub fn cmd_ref() i32 = {
                 \\ | `@snprintf(buf, n, fmt, {})` | printf into a buffer                     |
                 \\ | `@print(fmt, {args})`        | print to stdout                          |
                 \\ | `@args()`                     | command-line arguments as `list[ref u8]` |
+                \\
+            )
+            trust fs.write(f, \\ ---
+                \\
+                \\ ## Writing Idiomatic, Allocator-Aware Code
+                \\
+                \\ Prefer passing an allocator into functions that create heap values
+                \\ instead of calling `@alloc` or `@fmtalloc` directly. The function
+                \\ should allocate from the allocator it is given and let the caller
+                \\ decide how long the memory lives. `spectrelib/fmt/core.sx` is a
+                \\ complete reference: its public formatting helpers are generic over
+                \\ `allocators.Allocator` and never free memory they do not own.
+                \\
+                \\ ```
+                \\ val allocators = use("std/allocators")
+                \\ val fmt        = use("std/fmt")
+                \\ val string     = use("std/string")
+                \\
+                \\ pub fn greeting[A: allocators.Allocator](ac: A, name: ref u8) string.String = {
+                \\     return fmt.format[A](ac, "hello {s}", {name})
+                \\ }
+                \\
+                \\ pub fn main() void = trust {
+                \\     val arena: mut allocators.Arena = allocators.Arena.new(4096 as usize)?
+                \\     val msg = greeting[allocators.Arena](arena, "world")
+                \\     @puts(string.cstr(msg))
+                \\     allocators.Arena.free(arena)
+                \\ }
+                \\ ```
+                \\
+                \\ Rules of thumb:
+                \\
+                \\ - Do not use `@fmtalloc` in a loop or in a short-lived helper unless
+                \\   you also call `@free` on the result.
+                \\ - Use `allocators.Arena` for phase-scoped work: allocate freely, then
+                \\   free the whole arena once. Use `allocators.Stack` when you need
+                \\   nested checkpoints, and `allocators.HeapAllocator` when individual
+                \\   allocations must be freed separately.
+                \\ - A function that returns owned memory should either take an allocator
+                \\   or clearly document that the caller owns and frees the result.
+                \\ - Lists created with `@append` are not arena-backed; free their
+                \\   backing storage separately when they are no longer needed.
+                \\ - Keep pointers valid for as long as they are used. Freeing an arena
+                \\   invalidates every pointer allocated from it.
                 \\
             )
             trust fs.write(f, \\ ---

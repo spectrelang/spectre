@@ -3,12 +3,13 @@
 /// SPDX-License-Identifier: GPL-3.0-only
 /// (C) Navid Momtahen - 2026
 
-val str    = use("std/string")
-val fs     = use("std/fs")
-val path   = use("std/path")
-val stdio  = use("std/stdio")
-val lexer  = use("../ast/lexer.sx")
-val parser = use("../ast/parser.sx")
+val str        = use("std/string")
+val fs         = use("std/fs")
+val stdio      = use("std/stdio")
+val fmt        = use("std/fmt")
+val allocators = use("std/allocators")
+val lexer      = use("../ast/lexer.sx")
+val parser     = use("../ast/parser.sx")
 
 type Issue = {
     line: mut i64
@@ -44,6 +45,7 @@ type TokSpan = {
 }
 
 type Ctx = {
+    arena: mut allocators.Arena
     src: mut ref u8
     len: mut i64
     tokens: mut list[ref lexer.Token]
@@ -54,6 +56,40 @@ type Ctx = {
     fns: mut list[ref FnSig]
     uses: mut list[ref parser.Node]
     fix_mode: mut bool
+}
+
+/// Allocate `size` bytes from the arena, returning none when it is exhausted.
+fn arena_alloc(arena: allocators.Arena, size: i64) ref void = trust {
+    pre {
+        size_positive: size > 0
+    }
+    val out = allocators.Arena.alloc(arena, size as usize)
+    match out {
+        some p => {
+            return p
+        }
+        none => {
+            return none
+        }
+    }
+}
+
+/// Free a heap-allocated language-level list (header and backing storage).
+fn free_list[T](items: mut list[T]) void = trust {
+    if items != none {
+        val buf: ref void = @load(items as ref void)
+        @free(buf)
+        @free(items as ref void)
+    }
+}
+
+/// Free only the backing storage of a list embedded in another structure.
+/// The list header itself lives inside that structure and must not be freed.
+fn free_list_buffer[T](items: list[T]) void = trust {
+    if items != none {
+        val buf: ref void = @load(items as ref void)
+        @free(buf)
+    }
 }
 
 fn byte_at(src: ref u8, i: i64) i64 = trust {
@@ -76,8 +112,17 @@ fn collect_line_starts(src: ref u8, len: i64) list[i64] = trust {
     return starts
 }
 
-fn ctx_new(src: ref u8, tokens: list[ref lexer.Token], fix_mode: bool) ref Ctx = trust {
-    val c: mut ref Ctx = @alloc(@sizeof(Ctx)) as ref Ctx
+fn ctx_new(
+    arena: allocators.Arena,
+    src: ref u8,
+    tokens: list[ref lexer.Token],
+    fix_mode: bool
+) ref Ctx = trust {
+    val c: mut ref Ctx = arena_alloc(arena, @sizeof(Ctx) as i64) as ref Ctx
+    if c == none {
+        return none
+    }
+    c.arena = arena
     c.src = src
     c.len = str.len_raw(src)
     c.tokens = tokens
@@ -298,7 +343,10 @@ fn add_issue(ctx: ref Ctx, line: i64, message: ref u8) void = trust {
             return
         }
     }
-    val issue: mut ref Issue = @alloc(@sizeof(Issue)) as ref Issue
+    val issue: mut ref Issue = arena_alloc(ctx.arena, @sizeof(Issue) as i64) as ref Issue
+    if issue == none {
+        return
+    }
     issue.line = line
     issue.message = message
     @append(ctx.issues, issue)
@@ -308,7 +356,10 @@ fn add_fix(ctx: ref Ctx, start: i64, end: i64, text: ref u8) void = trust {
     if start < 0 || end < start {
         return
     }
-    val edit: mut ref Edit = @alloc(@sizeof(Edit)) as ref Edit
+    val edit: mut ref Edit = arena_alloc(ctx.arena, @sizeof(Edit) as i64) as ref Edit
+    if edit == none {
+        return
+    }
     edit.start = start
     edit.end = end
     edit.text = text
@@ -487,24 +538,48 @@ fn check_snake_name(ctx: ref Ctx, line: i64, name: ref u8, kind: ref u8) void = 
     if name == none || is_snake_case(name) {
         return
     }
-    add_issue(ctx, line, @fmtalloc("{s} name '{s}' should be snake_case", {kind, name}))
+    add_issue(
+        ctx,
+        line,
+        str.cstr(fmt.format[allocators.Arena](
+                ctx.arena,
+                "{s} name '{s}' should be snake_case",
+                {kind, name}
+            ))
+    )
 }
 
 fn check_screaming_snake_name(ctx: ref Ctx, line: i64, name: ref u8, kind: ref u8) void = trust {
     if name == none || is_screaming_snake_case(name) {
         return
     }
-    add_issue(ctx, line, @fmtalloc("{s} name '{s}' should be SCREAMING_SNAKE_CASE", {kind, name}))
+    add_issue(
+        ctx,
+        line,
+        str.cstr(fmt.format[allocators.Arena](
+                ctx.arena,
+                "{s} name '{s}' should be SCREAMING_SNAKE_CASE",
+                {kind, name}
+            ))
+    )
 }
 
 fn check_pascal_name(ctx: ref Ctx, line: i64, name: ref u8, kind: ref u8) void = trust {
     if name == none || is_pascal_case(name) {
         return
     }
-    add_issue(ctx, line, @fmtalloc("{s} name '{s}' should be PascalCase", {kind, name}))
+    add_issue(
+        ctx,
+        line,
+        str.cstr(fmt.format[allocators.Arena](
+                ctx.arena,
+                "{s} name '{s}' should be PascalCase",
+                {kind, name}
+            ))
+    )
 }
 
-fn type_to_string(ty: ref parser.Node) ref u8 = trust {
+fn type_to_string(arena: allocators.Arena, ty: ref parser.Node) ref u8 = trust {
     if ty == none {
         return none
     }
@@ -513,54 +588,54 @@ fn type_to_string(ty: ref parser.Node) ref u8 = trust {
         return ty.d0 as ref u8
     }
     if k == parser.TY_REF {
-        val inner: ref u8 = type_to_string(ty.d0 as ref parser.Node)
+        val inner: ref u8 = type_to_string(arena, ty.d0 as ref parser.Node)
         if inner == none {
             return none
         }
-        return @fmtalloc("ref {s}", {inner})
+        return str.cstr(fmt.format[allocators.Arena](arena, "ref {s}", {inner}))
     }
     if k == parser.TY_MUT {
-        val inner: ref u8 = type_to_string(ty.d0 as ref parser.Node)
+        val inner: ref u8 = type_to_string(arena, ty.d0 as ref parser.Node)
         if inner == none {
             return none
         }
-        return @fmtalloc("mut {s}", {inner})
+        return str.cstr(fmt.format[allocators.Arena](arena, "mut {s}", {inner}))
     }
     if k == parser.TY_OPTION {
-        val inner: ref u8 = type_to_string(ty.d0 as ref parser.Node)
+        val inner: ref u8 = type_to_string(arena, ty.d0 as ref parser.Node)
         if inner == none {
             return none
         }
-        return @fmtalloc("option[{s}]", {inner})
+        return str.cstr(fmt.format[allocators.Arena](arena, "option[{s}]", {inner}))
     }
     if k == parser.TY_LIST {
-        val inner: ref u8 = type_to_string(ty.d0 as ref parser.Node)
+        val inner: ref u8 = type_to_string(arena, ty.d0 as ref parser.Node)
         if inner == none {
             return none
         }
-        return @fmtalloc("list[{s}]", {inner})
+        return str.cstr(fmt.format[allocators.Arena](arena, "list[{s}]", {inner}))
     }
     if k == parser.TY_RESULT {
-        val ok_ty: ref u8 = type_to_string(ty.d0 as ref parser.Node)
-        val err_ty: ref u8 = type_to_string(ty.d1 as ref parser.Node)
+        val ok_ty: ref u8 = type_to_string(arena, ty.d0 as ref parser.Node)
+        val err_ty: ref u8 = type_to_string(arena, ty.d1 as ref parser.Node)
         if ok_ty == none || err_ty == none {
             return none
         }
-        return @fmtalloc("result[{s}, {s}]", {ok_ty, err_ty})
+        return str.cstr(fmt.format[allocators.Arena](arena, "result[{s}, {s}]", {ok_ty, err_ty}))
     }
     if k == parser.TY_SLICE {
-        val inner: ref u8 = type_to_string(ty.d0 as ref parser.Node)
+        val inner: ref u8 = type_to_string(arena, ty.d0 as ref parser.Node)
         if inner == none {
             return none
         }
-        return @fmtalloc("[]{s}", {inner})
+        return str.cstr(fmt.format[allocators.Arena](arena, "[]{s}", {inner}))
     }
     if k == parser.TY_FIXED_ARR {
-        val inner: ref u8 = type_to_string(ty.d1 as ref parser.Node)
+        val inner: ref u8 = type_to_string(arena, ty.d1 as ref parser.Node)
         if inner == none {
             return none
         }
-        return @fmtalloc("[{d}]{s}", {ty.d0, inner})
+        return str.cstr(fmt.format[allocators.Arena](arena, "[{d}]{s}", {ty.d0, inner}))
     }
     if k == parser.TY_VOID {
         return "void"
@@ -624,7 +699,7 @@ fn expr_type(ctx: ref Ctx, node: ref parser.Node) ref u8 = trust {
         return lookup_var_type(ctx, node.d0 as ref u8, node.line)
     }
     if k == parser.NK_CAST {
-        return type_to_string(node.d1 as ref parser.Node)
+        return type_to_string(ctx.arena, node.d1 as ref parser.Node)
     }
     if k == parser.NK_TRUST {
         return expr_type(ctx, node.d0 as ref parser.Node)
@@ -641,7 +716,7 @@ fn expr_type(ctx: ref Ctx, node: ref parser.Node) ref u8 = trust {
         if inner_ty == none || is_ref_type_name(inner_ty) {
             return none
         }
-        return @fmtalloc("ref {s}", {inner_ty})
+        return str.cstr(fmt.format[allocators.Arena](ctx.arena, "ref {s}", {inner_ty}))
     }
     return none
 }
@@ -719,11 +794,14 @@ fn add_var_type(ctx: ref Ctx, name: ref u8, ty: ref parser.Node, line: i64) void
     if name == none || ty == none {
         return
     }
-    val type_name: ref u8 = type_to_string(ty)
+    val type_name: ref u8 = type_to_string(ctx.arena, ty)
     if type_name == none {
         return
     }
-    val vt: mut ref VarType = @alloc(@sizeof(VarType)) as ref VarType
+    val vt: mut ref VarType = arena_alloc(ctx.arena, @sizeof(VarType) as i64) as ref VarType
+    if vt == none {
+        return
+    }
     vt.name = name
     vt.type_name = type_name
     vt.line = line
@@ -734,7 +812,10 @@ fn add_var_type_name(ctx: ref Ctx, name: ref u8, type_name: ref u8, line: i64) v
     if name == none || type_name == none {
         return
     }
-    val vt: mut ref VarType = @alloc(@sizeof(VarType)) as ref VarType
+    val vt: mut ref VarType = arena_alloc(ctx.arena, @sizeof(VarType) as i64) as ref VarType
+    if vt == none {
+        return
+    }
     vt.name = name
     vt.type_name = type_name
     vt.line = line
@@ -742,7 +823,10 @@ fn add_var_type_name(ctx: ref Ctx, name: ref u8, type_name: ref u8, line: i64) v
 }
 
 fn find_val_ref_void_span(ctx: ref Ctx, name: ref u8, line: i64) ref TokSpan = trust {
-    val span: mut ref TokSpan = @alloc(@sizeof(TokSpan)) as ref TokSpan
+    val span: mut ref TokSpan = arena_alloc(ctx.arena, @sizeof(TokSpan) as i64) as ref TokSpan
+    if span == none {
+        return none
+    }
     span.start = -1
     span.end = -1
     val n: i64 = token_count(ctx)
@@ -1135,13 +1219,21 @@ fn collect_redundant_arithmetic_fixes(ctx: ref Ctx) void = trust {
         val int_end: i64 = token_start(ctx, int_idx) + str.len_raw(amount)
         val replacement: mut ref u8 = none
         if is_add && str.raw_cmp(amount, "1") == 0 {
-            replacement = @fmtalloc("{s}++", {lhs_text})
+            replacement = str.cstr(fmt.format[allocators.Arena](ctx.arena, "{s}++", {lhs_text}))
         } elif is_sub && str.raw_cmp(amount, "1") == 0 {
-            replacement = @fmtalloc("{s}--", {lhs_text})
+            replacement = str.cstr(fmt.format[allocators.Arena](ctx.arena, "{s}--", {lhs_text}))
         } elif is_add {
-            replacement = @fmtalloc("{s} += {s}", {lhs_text, amount})
+            replacement = str.cstr(fmt.format[allocators.Arena](
+                    ctx.arena,
+                    "{s} += {s}",
+                    {lhs_text, amount}
+                ))
         } else {
-            replacement = @fmtalloc("{s} -= {s}", {lhs_text, amount})
+            replacement = str.cstr(fmt.format[allocators.Arena](
+                    ctx.arena,
+                    "{s} -= {s}",
+                    {lhs_text, amount}
+                ))
         }
         add_fix(ctx, lhs_start, int_end, replacement)
         i++
@@ -1212,7 +1304,11 @@ fn check_unused_imports(ctx: ref Ctx) void = trust {
         }
         val count: i64 = count_ident_tokens(ctx, alias)
         if count <= 1 {
-            add_issue(ctx, use_node.line, @fmtalloc("unused import '{s}'", {alias}))
+            add_issue(
+                ctx,
+                use_node.line,
+                str.cstr(fmt.format[allocators.Arena](ctx.arena, "unused import '{s}'", {alias}))
+            )
             if ctx.fix_mode {
                 add_remove_line_fix(ctx, use_node.line)
                 if first_nonblank_line(ctx) == use_node.line && is_blank_line(
@@ -1235,8 +1331,11 @@ fn collect_fn_sigs(ctx: ref Ctx, items: list[ref parser.Node]) void = trust {
         if k == parser.NK_FN || k == parser.NK_GENERIC_FN {
             val name: ref u8 = item.d2 as ref u8
             val ret_ty: ref parser.Node = item.d4 as ref parser.Node
-            val ret_name: ref u8 = type_to_string(ret_ty)
-            val sig: mut ref FnSig = @alloc(@sizeof(FnSig)) as ref FnSig
+            val ret_name: ref u8 = type_to_string(ctx.arena, ret_ty)
+            val sig: mut ref FnSig = arena_alloc(ctx.arena, @sizeof(FnSig) as i64) as ref FnSig
+            if sig == none {
+                continue
+            }
             sig.name = name
             sig.ret_type = ret_name
             @append(ctx.fns, sig)
@@ -1427,9 +1526,10 @@ fn check_duplicate_condition(ctx: ref Ctx, node: ref parser.Node) void = trust {
         }
         i++
     }
+    free_list[ref parser.Node](leaves)
 }
 
-fn expr_to_text(node: ref parser.Node) ref u8 = trust {
+fn expr_to_text(arena: allocators.Arena, node: ref parser.Node) ref u8 = trust {
     if node == none {
         return none
     }
@@ -1437,19 +1537,19 @@ fn expr_to_text(node: ref parser.Node) ref u8 = trust {
         return node.d0 as ref u8
     }
     if node.kind == parser.NK_FIELD {
-        val base: ref u8 = expr_to_text(node.d0 as ref parser.Node)
+        val base: ref u8 = expr_to_text(arena, node.d0 as ref parser.Node)
         val name: ref u8 = node.d1 as ref u8
         if base == none || name == none {
             return none
         }
-        return @fmtalloc("{s}.{s}", {base, name})
+        return str.cstr(fmt.format[allocators.Arena](arena, "{s}.{s}", {base, name}))
     }
     if node.kind == parser.NK_DEREF {
-        val inner: ref u8 = expr_to_text(node.d0 as ref parser.Node)
+        val inner: ref u8 = expr_to_text(arena, node.d0 as ref parser.Node)
         if inner == none {
             return none
         }
-        return @fmtalloc("*{s}", {inner})
+        return str.cstr(fmt.format[allocators.Arena](arena, "*{s}", {inner}))
     }
     return none
 }
@@ -1472,24 +1572,36 @@ fn check_redundant_arithmetic_assignment(ctx: ref Ctx, node: ref parser.Node) vo
         return
     }
     val amount: ref u8 = parser.int_lit_text(amount_node)
-    val lhs_text: ref u8 = expr_to_text(lhs)
+    val lhs_text: ref u8 = expr_to_text(ctx.arena, lhs)
     val suggestion: mut ref u8 = none
     if lhs_text != none {
         if op == parser.OP_ADD && str.raw_cmp(amount, "1") == 0 {
-            suggestion = @fmtalloc("{s}++", {lhs_text})
+            suggestion = str.cstr(fmt.format[allocators.Arena](ctx.arena, "{s}++", {lhs_text}))
         } elif op == parser.OP_SUB && str.raw_cmp(amount, "1") == 0 {
-            suggestion = @fmtalloc("{s}--", {lhs_text})
+            suggestion = str.cstr(fmt.format[allocators.Arena](ctx.arena, "{s}--", {lhs_text}))
         } elif op == parser.OP_ADD {
-            suggestion = @fmtalloc("{s} += {s}", {lhs_text, amount})
+            suggestion = str.cstr(fmt.format[allocators.Arena](
+                    ctx.arena,
+                    "{s} += {s}",
+                    {lhs_text, amount}
+                ))
         } else {
-            suggestion = @fmtalloc("{s} -= {s}", {lhs_text, amount})
+            suggestion = str.cstr(fmt.format[allocators.Arena](
+                    ctx.arena,
+                    "{s} -= {s}",
+                    {lhs_text, amount}
+                ))
         }
     }
     if suggestion != none {
         add_issue(
             ctx,
             node.line,
-            @fmtalloc("redundant arithmetic assignment; use '{s}' instead", {suggestion})
+            str.cstr(fmt.format[allocators.Arena](
+                    ctx.arena,
+                    "redundant arithmetic assignment; use '{s}' instead",
+                    {suggestion}
+                ))
         )
     } else {
         add_issue(ctx, node.line, "redundant arithmetic assignment")
@@ -1610,7 +1722,15 @@ fn check_fn_node(ctx: ref Ctx, fn_node: ref parser.Node, check_body: bool) void 
     }
     val body: list[ref parser.Node] = fn_node.d5 as list[ref parser.Node]
     if list_len(body) == 0 {
-        add_issue(ctx, fn_node.line, @fmtalloc("empty function body for '{s}'", {name}))
+        add_issue(
+            ctx,
+            fn_node.line,
+            str.cstr(fmt.format[allocators.Arena](
+                    ctx.arena,
+                    "empty function body for '{s}'",
+                    {name}
+                ))
+        )
         return
     }
     if list_len(body) == 1 {
@@ -1618,7 +1738,15 @@ fn check_fn_node(ctx: ref Ctx, fn_node: ref parser.Node, check_body: bool) void 
         if only_opt is some only_val {
             val only: ref parser.Node = only_val as ref parser.Node
             if only != none && only.kind == parser.NK_TRUST_BLOCK && list_len(only.d0 as list[ref parser.Node]) == 0 {
-                add_issue(ctx, fn_node.line, @fmtalloc("empty function body for '{s}'", {name}))
+                add_issue(
+                    ctx,
+                    fn_node.line,
+                    str.cstr(fmt.format[allocators.Arena](
+                            ctx.arena,
+                            "empty function body for '{s}'",
+                            {name}
+                        ))
+                )
                 return
             }
         }
@@ -2073,16 +2201,26 @@ fn build_edit_order(edits: list[ref Edit]) list[i64] = trust {
     return order
 }
 
-fn buf_new(cap: i64) ref Buf = trust {
-    val b: mut ref Buf = @alloc(@sizeof(Buf)) as ref Buf
-    b.ptr = @alloc(cap as usize) as ref u8
+fn buf_new(arena: allocators.Arena, cap: i64) ref Buf = trust {
+    val actual_cap: mut i64 = cap
+    if actual_cap < 1 {
+        actual_cap = 1
+    }
+    val b: mut ref Buf = arena_alloc(arena, @sizeof(Buf) as i64) as ref Buf
+    if b == none {
+        return none
+    }
+    b.ptr = arena_alloc(arena, actual_cap) as ref u8
+    if b.ptr == none {
+        return none
+    }
     b.len = 0
-    b.cap = cap
+    b.cap = actual_cap
     @store8(b.ptr as ref void, 0)
     return b
 }
 
-fn buf_reserve(b: mut ref Buf, extra: i64) void = trust {
+fn buf_reserve(arena: allocators.Arena, b: mut ref Buf, extra: i64) void = trust {
     val needed: i64 = b.len + extra + 1
     if needed <= b.cap {
         return
@@ -2094,32 +2232,55 @@ fn buf_reserve(b: mut ref Buf, extra: i64) void = trust {
         }
         new_cap = new_cap * 2
     }
-    b.ptr = @realloc(b.ptr as ref void, new_cap as usize) as ref u8
+    val new_ptr: ref u8 = arena_alloc(arena, new_cap) as ref u8
+    if new_ptr == none {
+        return
+    }
+    if b.len > 0 {
+        @memcpy(new_ptr as ref void, b.ptr as ref void, b.len as usize)
+    }
+    b.ptr = new_ptr
     b.cap = new_cap
 }
 
-fn buf_append_bytes(b: mut ref Buf, src: ref u8, start: i64, count: i64) void = trust {
+fn buf_append_bytes(
+    arena: allocators.Arena,
+    b: mut ref Buf,
+    src: ref u8,
+    start: i64,
+    count: i64
+) void = trust {
     if count <= 0 {
         return
     }
-    buf_reserve(b, count)
+    buf_reserve(arena, b, count)
+    if b.len + count >= b.cap {
+        return
+    }
     @memcpy(@ptradd(b.ptr as ref void, b.len), @ptradd(src, start), count as usize)
     b.len = b.len + count
     @store8(@ptradd(b.ptr as ref void, b.len), 0)
 }
 
-fn buf_append_cstr(b: mut ref Buf, s: ref u8) void = trust {
-    buf_append_bytes(b, s, 0, str.len_raw(s))
+fn buf_append_cstr(arena: allocators.Arena, b: mut ref Buf, s: ref u8) void = trust {
+    buf_append_bytes(arena, b, s, 0, str.len_raw(s))
 }
 
-fn apply_edits(src: ref u8, edits: list[ref Edit]) ref u8 = trust {
+fn apply_edits(
+    arena: allocators.Arena,
+    src: ref u8,
+    edits: list[ref Edit]
+) ref u8 = trust {
     if @len(edits) == 0 {
         return src
     }
     val src_len: i64 = str.len_raw(src)
-    val out: mut ref Buf = buf_new(src_len + 32)
+    val out: mut ref Buf = buf_new(arena, src_len + 32)
+    if out == none {
+        return src
+    }
     val pos: mut i64 = 0
-    val order: list[i64] = build_edit_order(edits)
+    val order: mut list[i64] = build_edit_order(edits)
     for idx in order {
         val edit_opt = @get(edits, idx as usize)
         val e: mut ref Edit = none
@@ -2130,24 +2291,31 @@ fn apply_edits(src: ref u8, edits: list[ref Edit]) ref u8 = trust {
             continue
         }
         if e.start > pos {
-            buf_append_bytes(out, src, pos, e.start - pos)
+            buf_append_bytes(arena, out, src, pos, e.start - pos)
         }
-        buf_append_cstr(out, e.text)
+        buf_append_cstr(arena, out, e.text)
         pos = e.end
     }
     if pos < src_len {
-        buf_append_bytes(out, src, pos, src_len - pos)
+        buf_append_bytes(arena, out, src, pos, src_len - pos)
     }
     @store8(@ptradd(out.ptr as ref void, out.len), 0)
+    free_list[i64](order)
     return out.ptr
 }
 
-fn analyze_ctx(src: ref u8, filename: ref u8, fix_mode: bool) ref Ctx = trust {
+fn analyze_ctx(
+    arena: allocators.Arena,
+    src: ref u8,
+    filename: ref u8,
+    fix_mode: bool
+) ref Ctx = trust {
     val tokens_res = lexer.tokenize(src)
     val tokens: mut list[ref lexer.Token] = []
     match tokens_res {
         err e => {
             stdio.print("{s}: error: {s}\n", {filename, e})
+            @free(e as ref void)
             return none
         }
         ok toks => {
@@ -2160,6 +2328,8 @@ fn analyze_ctx(src: ref u8, filename: ref u8, fix_mode: bool) ref Ctx = trust {
     match items_res {
         err e => {
             stdio.print("{s}\n", {e})
+            @free(e as ref void)
+            lexer.free_tokens(tokens)
             return none
         }
         ok parsed => {
@@ -2167,9 +2337,29 @@ fn analyze_ctx(src: ref u8, filename: ref u8, fix_mode: bool) ref Ctx = trust {
         }
     }
 
-    val ctx: mut ref Ctx = ctx_new(src, tokens, fix_mode)
+    val ctx: mut ref Ctx = ctx_new(arena, src, tokens, fix_mode)
+    if ctx == none {
+        lexer.free_tokens(tokens)
+        free_list[ref parser.Node](items)
+        return none
+    }
     analyze(ctx, items)
+    // Token text is only needed while the tree is being walked. Diagnostics and
+    // fixes copy everything they retain into the arena.
+    lexer.free_tokens(tokens)
+    free_list[ref parser.Node](items)
     return ctx
+}
+
+/// Release the list buffers owned by a context. The elements and the context
+/// itself live in the per-file arena and are freed separately.
+fn ctx_free(ctx: mut ref Ctx) void = trust {
+    free_list_buffer[i64](ctx.starts)
+    free_list_buffer[ref Issue](ctx.issues)
+    free_list_buffer[ref Edit](ctx.fixes)
+    free_list_buffer[ref VarType](ctx.vars)
+    free_list_buffer[ref FnSig](ctx.fns)
+    free_list_buffer[ref parser.Node](ctx.uses)
 }
 
 fn print_issues(ctx: ref Ctx, filename: ref u8) void = trust {
@@ -2191,22 +2381,58 @@ fn is_directory(dir: ref u8) bool = trust {
     return true
 }
 
-fn collect_files(target: ref u8, out: mut list[ref u8], explicit: bool) i32 = trust {
+fn join_path(arena: allocators.Arena, dir: ref u8, name: ref u8) ref u8 = trust {
+    val dlen: i64 = str.len_raw(dir)
+    val nlen: i64 = str.len_raw(name)
+    val sep: mut i64 = 1
+    if dlen > 0 {
+        val last: u8 = @load8(@ptradd(dir, dlen - 1))
+        if last == 47 || last == 92 {
+            sep = 0
+        }
+    }
+    val buf: ref u8 = arena_alloc(arena, dlen + nlen + sep + 1) as ref u8
+    if buf == none {
+        return none
+    }
+    @memcpy(buf, dir, dlen as usize)
+    if sep == 1 {
+        @store8(@ptradd(buf, dlen), 47)
+    }
+    @memcpy(@ptradd(buf, dlen + sep), name, nlen as usize)
+    @store8(@ptradd(buf, dlen + sep + nlen), 0)
+    return buf
+}
+
+fn collect_files(
+    arena: allocators.Arena,
+    target: ref u8,
+    out: mut list[ref u8],
+    explicit: bool
+) i32 = trust {
     if is_directory(target) {
-        val entries_opt = fs.walk_dir_raw(target)
+        val entries_opt = fs.walk_dir[allocators.Arena](arena, target)
         match entries_opt {
             none => {
                 stdio.print("error: could not read directory '{s}'\n", {target})
                 return 1
             }
-            some entries => {
+            some list_val => {
+                val entries: mut list[ref u8] = list_val
                 for entry in entries {
-                    val child: ref u8 = path.join(target, entry)
-                    val code: i32 = collect_files(child, out, false)
+                    val child: ref u8 = join_path(arena, target, entry)
+                    if child == none {
+                        stdio.print("error: out of memory while walking '{s}'\n", {target})
+                        free_list[ref u8](entries)
+                        return 1
+                    }
+                    val code: i32 = collect_files(arena, child, out, false)
                     if code != 0 {
+                        free_list[ref u8](entries)
                         return code
                     }
                 }
+                free_list[ref u8](entries)
             }
         }
         return 0
@@ -2235,7 +2461,15 @@ fn format_file(file: ref u8, fix_mode: bool) i32 = trust {
         return -1
     }
 
-    val content_opt = fs.read_all_raw(file)
+    // All per-file allocations (source, context, diagnostics and edits) come
+    // from this arena, so they are released in one operation on every exit.
+    val arena_cap: usize = (size * 4 + 65536) as usize
+    val arena: mut allocators.Arena = allocators.Arena.new(arena_cap)?
+    defer {
+        allocators.Arena.free(arena)
+    }
+
+    val content_opt = fs.read_all[allocators.Arena](arena, file)
     val content: mut ref u8 = none
     if content_opt is some c {
         content = c
@@ -2256,30 +2490,40 @@ fn format_file(file: ref u8, fix_mode: bool) i32 = trust {
         i++
     }
 
-    val ctx: mut ref Ctx = analyze_ctx(content, file, fix_mode)
+    val ctx: mut ref Ctx = analyze_ctx(arena, content, file, fix_mode)
     if ctx == none {
         return -1
     }
 
     if fix_mode && @len(ctx.fixes) > 0 {
-        val fixed: ref u8 = apply_edits(content, ctx.fixes)
+        val fixed: ref u8 = apply_edits(ctx.arena, content, ctx.fixes)
         if str.raw_cmp(fixed, content) != 0 {
             if !fs.write_all(file, fixed) {
                 stdio.print("error: could not write '{s}'\n", {file})
+                ctx_free(ctx)
                 return -1
             }
             stdio.print("{s}: fixed\n", {file})
-            val after: mut ref Ctx = analyze_ctx(fixed, file, false)
+            val after_arena: mut allocators.Arena = allocators.Arena.new(arena_cap)?
+            val after: mut ref Ctx = analyze_ctx(after_arena, fixed, file, false)
             if after == none {
+                allocators.Arena.free(after_arena)
+                ctx_free(ctx)
                 return -1
             }
             print_issues(after, file)
-            return @len(after.issues) as i32
+            val remaining: i32 = @len(after.issues) as i32
+            ctx_free(after)
+            allocators.Arena.free(after_arena)
+            ctx_free(ctx)
+            return remaining
         }
     }
 
     print_issues(ctx, file)
-    return @len(ctx.issues) as i32
+    val issue_count: i32 = @len(ctx.issues) as i32
+    ctx_free(ctx)
+    return issue_count
 }
 
 pub fn cmd_critic(targets: list[ref u8], fix_mode: bool) i32 = trust {
@@ -2289,9 +2533,18 @@ pub fn cmd_critic(targets: list[ref u8], fix_mode: bool) i32 = trust {
         return 1
     }
 
+    val paths_cap: usize = (n_targets * 4096 + 65536) as usize
+    val paths_arena: mut allocators.Arena = allocators.Arena.new(paths_cap)?
+    defer {
+        allocators.Arena.free(paths_arena)
+    }
+
     val files: mut list[ref u8] = []
+    defer {
+        free_list[ref u8](files)
+    }
     for target in targets {
-        val code: i32 = collect_files(target, files, true)
+        val code: i32 = collect_files(paths_arena, target, files, true)
         if code != 0 {
             return code
         }
