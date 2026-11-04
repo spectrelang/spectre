@@ -57,20 +57,8 @@ if command -v git >/dev/null 2>&1; then
 	GIT_HASH="$(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
 fi
 
-STAGE0="./spectre-stage0"
-if ! command -v spectre >/dev/null 2>&1; then
-	echo "error: could not find a spectre bootstrap compiler in PATH" >&2
-	exit 1
-fi
-cp "$(command -v spectre)" "$STAGE0" || exit 1
-chmod +x "$STAGE0"
-
 echo "Building spectre stage 1..."
-"$STAGE0" ./src/sxc.sx -o ./spectre-stage1 || {
-	rm -f "$STAGE0"
-	exit 1
-}
-rm -f "$STAGE0"
+spectre ./src/sxc.sx -o ./spectre-stage1 || exit 1
 
 echo "Building spectre-dev..."
 ./spectre-stage1 -dGIT_HASH="$GIT_HASH" ./src/sxc.sx -o spectre-dev || exit 1

@@ -32,7 +32,6 @@ SPECTRE_LANGUAGE_REFERENCE.md
 /src-out
 out.ll
 out.c
-spectre-stage0
 spectre-stage1
 spectre-stage2
 generated*
