@@ -2245,7 +2245,7 @@ fn buf_reserve(arena: allocators.Arena, b: mut ref Buf, extra: i64) void = trust
         return
     }
     if b.len > 0 {
-        @memcpy(new_ptr as ref void, b.ptr as ref void, b.len as usize)
+        @memcpy(new_ptr, b.ptr as ref void, b.len as usize)
     }
     b.ptr = new_ptr
     b.cap = new_cap
@@ -2323,7 +2323,7 @@ fn analyze_ctx(
     match tokens_res {
         err e => {
             stdio.print("{s}: error: {s}\n", {filename, e})
-            @free(e as ref void)
+            @free(e)
             return none
         }
         ok toks => {
@@ -2336,7 +2336,7 @@ fn analyze_ctx(
     match items_res {
         err e => {
             stdio.print("{s}\n", {e})
-            @free(e as ref void)
+            @free(e)
             lexer.free_tokens(tokens)
             return none
         }

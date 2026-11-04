@@ -1,3 +1,4 @@
+val mem      = use("../meta/mem.sx")
 val arenafmt = use("../meta/arenafmt.sx")
 val string   = use("std/string")
 val fmt      = use("std/fmt")
@@ -127,7 +128,7 @@ pub type Node = {
 }
 
 pub fn make_node(kind: i64, line: i64) ref Node = trust {
-    val n: mut ref Node = @alloc(@sizeof(Node)) as ref Node
+    val n: mut ref Node = mem.alloc(@sizeof(Node)) as ref Node
     n.kind = kind
     n.line = line
     n.d0 = 0
@@ -537,7 +538,7 @@ type Parser = {
 }
 
 pub fn parser_new(tokens: list[ref lexer.Token], filename: ref u8) ref Parser = trust {
-    val p: mut ref Parser = @alloc(@sizeof(Parser)) as ref Parser
+    val p: mut ref Parser = mem.alloc(@sizeof(Parser)) as ref Parser
     p.tokens = tokens
     p.pos = 0
     p.filename = filename
@@ -587,7 +588,7 @@ fn p_line(p: ref Parser) i64 = trust {
 
 fn p_error(p: ref Parser, msg: ref u8) ref u8 = trust {
     val line: i64 = p_peek_line(p)
-    val buf: ref u8 = @alloc(512) as ref u8
+    val buf: ref u8 = mem.alloc(512) as ref u8
     @snprintf(buf, 512, "{s}:{lld}: {s}", {p.filename, line, msg})
     return buf
 }
@@ -609,7 +610,7 @@ fn p_expect_kind(
         p_advance(p)
         return ok txt
     }
-    val msg: ref u8 = @alloc(128) as ref u8
+    val msg: ref u8 = mem.alloc(128) as ref u8
     @snprintf(msg, 128, "expected {s}", {name})
     return err p_error(p, msg)
 }

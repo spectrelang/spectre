@@ -99,7 +99,7 @@ fn buf_append_char(b: mut ref Buf, c: u8) void = trust {
 fn buf_build(b: mut ref Buf) ref u8 = trust {
     @store8(@ptradd(b.ptr as ref void, b.len), 0)
     val ptr: ref u8 = b.ptr
-    @free(b as ref void)
+    @free(b)
     return ptr
 }
 
@@ -107,7 +107,7 @@ fn buf_build(b: mut ref Buf) ref u8 = trust {
 /// The original source is never owned by the formatter, so it is never freed.
 fn release_if_owned(old: mut ref u8, new: ref u8, original: ref u8) void = trust {
     if old != new && old != original {
-        @free(old as ref void)
+        @free(old)
     }
 }
 
@@ -137,7 +137,7 @@ fn free_edit_list(items: mut list[ref Edit]) void = trust {
         val opt = @get(items, i as usize)
         if opt is some item_val {
             val e: ref Edit = item_val as ref Edit
-            @free(e as ref void)
+            @free(e)
         }
         i++
     }
@@ -158,7 +158,7 @@ fn free_arm_list(items: mut list[ref Arm]) void = trust {
         val opt = @get(items, i as usize)
         if opt is some item_val {
             val a: ref Arm = item_val as ref Arm
-            @free(a as ref void)
+            @free(a)
         }
         i++
     }
@@ -179,7 +179,7 @@ fn free_import_group(items: mut list[ref ImportRec]) void = trust {
         val opt = @get(items, i as usize)
         if opt is some item_val {
             val rec: ref ImportRec = item_val as ref ImportRec
-            @free(rec as ref void)
+            @free(rec)
         }
         i++
     }
@@ -1038,7 +1038,7 @@ fn rewrite_matches(src: ref u8) ref u8 = trust {
         val next = rewrite_one_match(current)
         if next is some out {
             if owned && out != current {
-                @free(current as ref void)
+                @free(current)
             }
             current = out
             owned = true
@@ -2469,7 +2469,7 @@ fn format_top_level_decl_gaps(src: ref u8) ref u8 = trust {
         line_start = line_end + 1
     }
 
-    @free(nesting as ref void)
+    @free(nesting)
     return buf_build(out)
 }
 
@@ -2648,22 +2648,22 @@ fn reindent(src: ref u8) ref u8 = trust {
             if out.len <= 1 {
                 break
             }
-            val last: i64 = @load8(@ptradd(out.ptr as ref void, out.len - 1)) as i64
-            val prev: i64 = @load8(@ptradd(out.ptr as ref void, out.len - 2)) as i64
+            val last: i64 = @load8(@ptradd(out.ptr, out.len - 1)) as i64
+            val prev: i64 = @load8(@ptradd(out.ptr, out.len - 2)) as i64
             if last == 10 && prev == 10 {
                 out.len--
             } else {
                 break
             }
         }
-        val last2: i64 = @load8(@ptradd(out.ptr as ref void, out.len - 1)) as i64
+        val last2: i64 = @load8(@ptradd(out.ptr, out.len - 1)) as i64
         if last2 != 10 {
             buf_append_char(out, 10 as u8)
         }
-        @store8(@ptradd(out.ptr as ref void, out.len), 0)
+        @store8(@ptradd(out.ptr, out.len), 0)
     }
 
-    @free(nesting as ref void)
+    @free(nesting)
     return buf_build(out)
 }
 
@@ -3221,16 +3221,16 @@ fn format_long_lines(src: ref u8) ref u8 = trust {
         val next: ref u8 = wrap_one_long_line(current)
         if str.raw_cmp(next, current) == 0 {
             if next != current {
-                @free(next as ref void)
+                @free(next)
             }
             break
         }
         val reindented: ref u8 = reindent(next)
         if next != current {
-            @free(next as ref void)
+            @free(next)
         }
         if owned && current != reindented {
-            @free(current as ref void)
+            @free(current)
         }
         current = reindented
         owned = true
@@ -3380,7 +3380,7 @@ fn format_file(file: ref u8, to_stdout: bool) i32 = trust {
         }
         if byte_at(content, i) == 0 {
             stdio.print("error: '{s}' is not a plaintext .sx file\n", {file})
-            @free(content as ref void)
+            @free(content)
             return 1
         }
         i++
@@ -3393,17 +3393,17 @@ fn format_file(file: ref u8, to_stdout: bool) i32 = trust {
         if !fs.write_all(file, formatted) {
             stdio.print("error: could not write '{s}'\n", {file})
             if formatted != content {
-                @free(formatted as ref void)
+                @free(formatted)
             }
-            @free(content as ref void)
+            @free(content)
             return 1
         }
     }
 
     if formatted != content {
-        @free(formatted as ref void)
+        @free(formatted)
     }
-    @free(content as ref void)
+    @free(content)
     return 0
 }
 

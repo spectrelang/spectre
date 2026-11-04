@@ -1,0 +1,114 @@
+/// Process-lifetime arena for compiler front-end data (tokens, AST, modules).
+///
+/// The arena is released once at the end of the compiler process, so parsed
+/// syntax trees can refer to token text for their entire lifetime without
+/// per-node manual frees.
+
+val allocators = use("std/allocators")
+
+extern (C) fn exit(code: i64) void = "exit"
+
+type MemBlock = {
+    hdr: mut ref void
+    next: mut ref void
+}
+
+val mem_head: mut ref MemBlock = none
+val mem_cur: mut ref MemBlock = none
+
+fn ptr_val(p: ref void) i64 = trust {
+    val out: mut i64 = 0
+    @store(@addr(out) as ref void, p)
+    return out
+}
+
+fn block_new(cap: usize) ref MemBlock = trust {
+    val node: mut ref MemBlock = @alloc(@sizeof(MemBlock)) as ref MemBlock
+    val header: ref void = @alloc(24)
+    val buf: ref void = @alloc(cap)
+    if node == none || header == none || buf == none {
+        @dprintf(2, "compiler: arena allocation failed\n")
+        exit(1)
+    }
+    @store(header, buf)
+    @store(@ptradd(header, 8), 0)
+    @store(@ptradd(header, 16), cap)
+    node.hdr = header
+    node.next = mem_head as ref void
+    mem_head = node
+    mem_cur = node
+    return node
+}
+
+fn ensure() ref MemBlock = trust {
+    if mem_head == none {
+        return block_new(67108864 as usize)
+    }
+    if mem_cur == none {
+        mem_cur = mem_head
+    }
+    return mem_cur
+}
+
+/// Allocate compiler front-end memory from the process arena.
+pub fn alloc(size: i64) ref void = trust {
+    val n: mut i64 = size
+    if n <= 0 {
+        n = 1
+    }
+    ensure()
+    val node: mut ref MemBlock = mem_cur
+    for {
+        if node == none {
+            break
+        }
+        val ac: allocators.Arena = node.hdr as allocators.Arena
+        val p = allocators.Arena.alloc_or_none(ac, n as usize)
+        if p != none {
+            mem_cur = node
+            return p
+        }
+        node = node.next as ref MemBlock
+    }
+    val nn: ref MemBlock = block_new(67108864 as usize)
+    val nac: allocators.Arena = nn.hdr as allocators.Arena
+    return allocators.Arena.alloc_or_none(nac, n as usize)
+}
+
+/// Free only pointers that are not owned by the process arena.
+pub fn free(ptr: ref void) void = trust {
+    if ptr == none {
+        return
+    }
+    val p: i64 = ptr_val(ptr)
+    val node: mut ref MemBlock = mem_head
+    for {
+        if node == none {
+            break
+        }
+        val base: i64 = @load(node.hdr)
+        val cap: i64 = @load(@ptradd(node.hdr, 16))
+        if p >= base && p < base + cap {
+            return
+        }
+        node = node.next as ref MemBlock
+    }
+    @free(ptr)
+}
+
+/// Release every front-end arena block.
+pub fn deinit() void = trust {
+    val node: mut ref MemBlock = mem_head
+    for {
+        if node == none {
+            break
+        }
+        val next_node: ref MemBlock = node.next as ref MemBlock
+        val ac: mut allocators.Arena = node.hdr as allocators.Arena
+        allocators.Arena.free(ac)
+        @free(node)
+        node = next_node
+    }
+    mem_head = none
+    mem_cur = none
+}

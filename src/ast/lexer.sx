@@ -1,3 +1,4 @@
+val mem        = use("../meta/mem.sx")
 val allocators = use("std/allocators")
 val string     = use("std/string")
 
@@ -99,7 +100,7 @@ pub type Token = {
 
 fn make_tok(l: ref Lexer, kind: TokenKind, line: i64, col: i64) ref Token = trust {
     if l.arena == none {
-        val t: mut ref Token = @alloc(@sizeof(Token)) as ref Token
+        val t: mut ref Token = mem.alloc(@sizeof(Token)) as ref Token
         t.kind = kind
         t.line = line
         t.col = col
@@ -109,7 +110,7 @@ fn make_tok(l: ref Lexer, kind: TokenKind, line: i64, col: i64) ref Token = trus
     val slot = allocators.Arena.alloc(l.arena, @sizeof(Token) as usize)
     match slot {
         none => {
-            val t: mut ref Token = @alloc(@sizeof(Token)) as ref Token
+            val t: mut ref Token = mem.alloc(@sizeof(Token)) as ref Token
             t.kind = kind
             t.line = line
             t.col = col
@@ -138,25 +139,13 @@ type Lexer = {
 
 pub fn lexer_new(src: ref u8) ref Lexer = trust {
     val slen: i64 = string.len_raw(src)
-    val arena_cap: usize = (slen * 64 + 8192) as usize
-    val arena_res = allocators.Arena.new(arena_cap)
-    val arena: mut ref void = none
-
-    match arena_res {
-        ok a => {
-            arena = a
-        }
-        err _ => {
-            arena = none
-        }
-    }
-    val l: mut ref Lexer = @alloc(@sizeof(Lexer)) as ref Lexer
+    val l: mut ref Lexer = mem.alloc(@sizeof(Lexer)) as ref Lexer
     l.src = src
     l.len = slen
     l.pos = 0
     l.line = 1
     l.col = 1
-    l.arena = arena
+    l.arena = none
     return l
 }
 
@@ -212,7 +201,7 @@ fn is_space(c: i64) bool = trust {
 
 fn substr(src: ref u8, start: i64, end: i64) ref u8 = trust {
     val n: i64 = end - start
-    val buf: ref u8 = @alloc(n + 1) as ref u8
+    val buf: ref u8 = mem.alloc(n + 1) as ref u8
     @memcpy(buf, @ptradd(src, start), n)
     @store8(@ptradd(buf, n), 0)
     return buf
@@ -402,7 +391,7 @@ fn lex_string(l: mut ref Lexer) ref u8 = trust {
         i++
     }
     @store8(@ptradd(buf, i), 0)
-    val result: ref u8 = @alloc(i + 1) as ref u8
+    val result: ref u8 = mem.alloc(i + 1) as ref u8
     @memcpy(result, buf, i + 1)
     @free(buf)
     return result
@@ -520,7 +509,7 @@ fn lex_raw_string(l: mut ref Lexer, line: i64, col: i64) ref Token = trust {
         }
     }
     @store8(@ptradd(buf, i), 0)
-    val result: ref u8 = @alloc(i + 1) as ref u8
+    val result: ref u8 = mem.alloc(i + 1) as ref u8
     @memcpy(result, buf, i + 1)
     @free(buf)
     return make_tok(l, Str(result), line, col)
@@ -564,7 +553,7 @@ fn lex_identifier(l: mut ref Lexer, line: i64, col: i64) ref Token = trust {
     match kind {
         Ident _ => {}
         else => {
-            @free(text as ref void)
+            mem.free(text)
         }
     }
     return make_tok(l, kind, line, col)
@@ -737,53 +726,8 @@ fn lex_operator(l: mut ref Lexer, c: i64, line: i64, col: i64) result[ref Token,
 
 /// Release a token list produced by `tokenize`, including its backing arena.
 pub fn free_tokens(tokens: mut list[ref Token]) void = trust {
-    val n: i64 = @len(tokens) as i64
-    val tok_arena: mut ref void = none
-
-    if n > 0 {
-        val first_opt = @get(tokens, 0 as usize)
-        if first_opt is some first_val {
-            tok_arena = (first_val as ref Token).arena
-        }
-    }
-
-    val i: mut i64 = 0
-    for {
-        if i >= n {
-            break
-        }
-        val tok_opt = @get(tokens, i as usize)
-        if tok_opt is some tok_val {
-            val tok: ref Token = tok_val as ref Token
-            match tok.kind {
-                Ident s => {
-                    @free(s as ref void)
-                }
-                Str s => {
-                    @free(s as ref void)
-                }
-                Int s => {
-                    @free(s as ref void)
-                }
-                Float s => {
-                    @free(s as ref void)
-                }
-                else => {}
-            }
-
-            if tok.arena == none {
-                @free(tok as ref void)
-            }
-        }
-        i++
-    }
-
-    if tok_arena != none {
-        val arena_buf: ref void = @load(tok_arena)
-        @free(arena_buf)
-        @free(tok_arena)
-    }
-
+    // Token structs and text live in the process arena; only free the list
+    // header and backing buffer here.
     val list_buf: ref void = @load(tokens as ref void)
     @free(list_buf)
     @free(tokens as ref void)
@@ -841,14 +785,12 @@ pub fn tokenize(src: ref u8) result[list[ref Token], ref u8] = trust {
             }
             err _ => {}
         }
-        val errbuf: ref u8 = @alloc(64) as ref u8
+        val errbuf: ref u8 = mem.alloc(64) as ref u8
         @snprintf(errbuf, 64, "unexpected character at {lld}:{lld}", {line, col})
         free_tokens(tokens)
-        @free(l as ref void)
         return err errbuf
     }
 
-    @free(l as ref void)
     return ok tokens
 }
 

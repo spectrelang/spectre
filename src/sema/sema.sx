@@ -6,6 +6,7 @@ val allocators = use("std/allocators")
 val reflection = use("std/reflection")
 val fs         = use("std/fs")
 val path       = use("std/path")
+val mem        = use("../meta/mem.sx")
 val parser     = use("../ast/parser.sx")
 val modinfo    = use("../module/module.sx")
 
@@ -48,7 +49,7 @@ type SemaCtx = {
 }
 
 fn sema_new() ref SemaCtx = trust {
-    val ctx: ref SemaCtx = @alloc(@sizeof(SemaCtx)) as ref SemaCtx
+    val ctx: ref SemaCtx = mem.alloc(@sizeof(SemaCtx)) as ref SemaCtx
     @memset(ctx, 0, @sizeof(SemaCtx) as usize)
     return ctx
 }
@@ -120,7 +121,7 @@ fn canonicalize_path(path: ref u8) ref u8 = trust {
             i++
         }
         val seg_len: i64 = i - start
-        val seg: ref u8 = @alloc((seg_len + 1) as usize) as ref u8
+        val seg: ref u8 = mem.alloc((seg_len + 1) as usize) as ref u8
         @memcpy(seg, @ptradd(path, start), seg_len as usize)
         @store8(@ptradd(seg, seg_len), 0)
         if string.raw_cmp(seg, "..") == 0 {
@@ -151,8 +152,16 @@ fn canonicalize_path(path: ref u8) ref u8 = trust {
         si++
     }
     val built: ref void = string.StringBuilder.build(sb)
+    val src_cstr: ref u8 = string.cstr(built)
+    val n: i64 = string.len_raw(src_cstr) + 1
+    val out: ref u8 = mem.alloc(n) as ref u8
+    @memcpy(out, src_cstr, n as usize)
+    mem.free(@load(built))
+    mem.free(built)
     string.StringBuilder.free(sb)
-    return string.cstr(built)
+    mem.free(@load(segs as ref void))
+    mem.free(segs as ref void)
+    return out
 }
 
 fn normalize_path(path: ref u8) ref u8 = trust {
@@ -334,7 +343,7 @@ fn resolve_embed_builtin(
         argc = @len(bargs as list[ref parser.Node]) as i64
     }
     if argc != 1 {
-        val ebuf: ref u8 = @alloc(512) as ref u8
+        val ebuf: ref u8 = mem.alloc(512) as ref u8
         @snprintf(ebuf, 512, "{s}:{lld}: builtin '@{s}' expects exactly 1 argument, got {lld}",
             {filename, expr.line, bname, argc})
         add_error(ctx, ebuf)
@@ -345,7 +354,7 @@ fn resolve_embed_builtin(
     if arg_opt is some arg_raw {
         val arg: ref parser.Node = arg_raw as ref parser.Node
         if arg.kind != parser.NK_STR_LIT {
-            val ebuf: ref u8 = @alloc(512) as ref u8
+            val ebuf: ref u8 = mem.alloc(512) as ref u8
             @snprintf(ebuf, 512, "{s}:{lld}: builtin '@{s}' expects a string literal path",
                 {filename, expr.line, bname})
             add_error(ctx, ebuf)
@@ -353,7 +362,7 @@ fn resolve_embed_builtin(
         }
         val rel: ref u8 = arg.d0 as ref u8
         if rel == none || string.len_raw(rel) == 0 {
-            val ebuf: ref u8 = @alloc(512) as ref u8
+            val ebuf: ref u8 = mem.alloc(512) as ref u8
             @snprintf(ebuf, 512, "{s}:{lld}: builtin '@{s}' requires a non-empty path",
                 {filename, expr.line, bname})
             add_error(ctx, ebuf)
@@ -369,14 +378,14 @@ fn resolve_embed_builtin(
                 parser.node_store_slot[i64](@addr(expr.d3), size)
             }
             none => {
-                val ebuf: ref u8 = @alloc(1024) as ref u8
+                val ebuf: ref u8 = mem.alloc(1024) as ref u8
                 @snprintf(ebuf, 1024, "{s}:{lld}: cannot embed '{s}': file not found or unreadable",
                     {filename, expr.line, canonical})
                 add_error(ctx, ebuf)
             }
         }
     } else {
-        val ebuf: ref u8 = @alloc(512) as ref u8
+        val ebuf: ref u8 = mem.alloc(512) as ref u8
         @snprintf(ebuf, 512, "{s}:{lld}: builtin '@{s}' expects exactly 1 argument",
             {filename, expr.line, bname})
         add_error(ctx, ebuf)
@@ -486,7 +495,7 @@ fn pop_scope(ctx: ref SemaCtx, filename: ref u8, _: i64) void = trust {
                     if entry.name != none {
                         if string.raw_cmp(entry.name, "_") != 0 {
                             if entry.used == 0 {
-                                val buf: ref u8 = @alloc(512) as ref u8
+                                val buf: ref u8 = mem.alloc(512) as ref u8
                                 @snprintf(
                                     buf,
                                     512,
@@ -495,7 +504,7 @@ fn pop_scope(ctx: ref SemaCtx, filename: ref u8, _: i64) void = trust {
                                 )
                                 add_error(ctx, buf)
                             } elif entry.mutable == 1 && entry.mutated == 0 && entry.implicit_mut == 0 {
-                                val buf2: ref u8 = @alloc(512) as ref u8
+                                val buf2: ref u8 = mem.alloc(512) as ref u8
                                 @snprintf(
                                     buf2,
                                     512,
@@ -538,7 +547,7 @@ fn scope_define(
     }
     val frame_opt = @get(ctx.scopes, len - 1)
     if frame_opt is some frame {
-        val entry: mut ref ScopeEntry = @alloc(@sizeof(ScopeEntry)) as ref ScopeEntry
+        val entry: mut ref ScopeEntry = mem.alloc(@sizeof(ScopeEntry)) as ref ScopeEntry
         entry.name = name
         entry.mutable = mutable
         entry.type_name = type_name
@@ -723,11 +732,11 @@ fn check_no_module_to_module_type(
     if first_dot < 0 || second_dot < 0 {
         return
     }
-    val first_seg: ref u8 = @alloc(first_dot + 1) as ref u8
+    val first_seg: ref u8 = mem.alloc(first_dot + 1) as ref u8
     @memcpy(first_seg, name, first_dot as usize)
     @store8(@ptradd(first_seg, first_dot), 0)
     val second_len: i64 = second_dot - first_dot - 1
-    val second_seg: ref u8 = @alloc(second_len + 1) as ref u8
+    val second_seg: ref u8 = mem.alloc(second_len + 1) as ref u8
     @memcpy(second_seg, @ptradd(name, first_dot + 1), second_len as usize)
     @store8(@ptradd(second_seg, second_len), 0)
     val rmod: ref modinfo.ResolvedModule = ctx.root_mod
@@ -736,7 +745,7 @@ fn check_no_module_to_module_type(
         return
     }
     if module_has_use_alias(imported, second_seg) {
-        val ebuf: ref u8 = @alloc(512) as ref u8
+        val ebuf: ref u8 = mem.alloc(512) as ref u8
         @snprintf(
             ebuf,
             512,
@@ -780,7 +789,7 @@ fn check_no_module_to_module_field(
         return
     }
     if module_has_use_alias(imported, field) {
-        val ebuf: ref u8 = @alloc(512) as ref u8
+        val ebuf: ref u8 = mem.alloc(512) as ref u8
         @snprintf(
             ebuf,
             512,
@@ -1470,7 +1479,7 @@ fn find_typedef_anywhere(ctx: ref SemaCtx, type_name: ref u8) ref parser.Node = 
         i++
     }
     if dot_idx > 0 {
-        val mod_name_buf: ref u8 = @alloc((dot_idx + 1) as usize) as ref u8
+        val mod_name_buf: ref u8 = mem.alloc((dot_idx + 1) as usize) as ref u8
         @memcpy(mod_name_buf, type_name, dot_idx as usize)
         @store8(@ptradd(mod_name_buf, dot_idx), 0)
         val unqual: ref u8 = @ptradd(type_name, dot_idx + 1) as ref u8
@@ -1548,7 +1557,7 @@ fn find_spec_anywhere(ctx: ref SemaCtx, spec_name: ref u8) ref parser.Node = tru
         i++
     }
     if dot_idx > 0 {
-        val mod_name_buf: ref u8 = @alloc((dot_idx + 1) as usize) as ref u8
+        val mod_name_buf: ref u8 = mem.alloc((dot_idx + 1) as usize) as ref u8
         @memcpy(mod_name_buf, spec_name, dot_idx as usize)
         @store8(@ptradd(mod_name_buf, dot_idx), 0)
         val unqual: ref u8 = @ptradd(spec_name, dot_idx + 1) as ref u8
@@ -1831,7 +1840,7 @@ fn validate_spec_impls(
         }
         if @len(impls) as i64 == 0 {
             if item.d0 == 0 {
-                val ebuf: ref u8 = @alloc(256) as ref u8
+                val ebuf: ref u8 = mem.alloc(256) as ref u8
                 @snprintf(
                     ebuf,
                     256,
@@ -1850,12 +1859,12 @@ fn validate_spec_impls(
                 val meth_name: ref u8 = meth.d2 as ref u8
                 val impl_fn: ref parser.Node = find_top_level_fn(items, impl_name, meth_name)
                 if impl_fn == none {
-                    val ebuf2: ref u8 = @alloc(512) as ref u8
+                    val ebuf2: ref u8 = mem.alloc(512) as ref u8
                     @snprintf(ebuf2, 512, "{s}: spec '{s}' is unimplemented for '{s}': missing function '{s}'",
                         {filename, spec_name, impl_name, meth_name})
                     add_error(ctx, ebuf2)
                 } elif !function_matches_spec_method(meth, impl_fn, impl_name) {
-                    val ebuf3: ref u8 = @alloc(512) as ref u8
+                    val ebuf3: ref u8 = mem.alloc(512) as ref u8
                     @snprintf(ebuf3, 512, "{s}: spec '{s}' is only partially implemented for '{s}': function '{s}' has a mismatched signature",
                         {filename, spec_name, impl_name, meth_name})
                     add_error(ctx, ebuf3)
@@ -1895,7 +1904,7 @@ fn validate_derived_specs_in_items(
                     val spec_def: ref parser.Node = find_spec_anywhere(ctx, spec_name)
                     if spec_def == none {
                         val type_name: ref u8 = item.d1 as ref u8
-                        val ebuf: ref u8 = @alloc(512) as ref u8
+                        val ebuf: ref u8 = mem.alloc(512) as ref u8
                         @snprintf(ebuf, 512, "{s}:{lld}: type '{s}' derives unknown spec '{s}'",
                             {filename, item.line, type_name, spec_name})
                         add_error(ctx, ebuf)
@@ -1967,7 +1976,7 @@ fn qualified_owner_prefix(name: ref u8) ref u8 = trust {
     if last_dot < 0 {
         return none
     }
-    val out: ref u8 = @alloc((last_dot + 1) as usize) as ref u8
+    val out: ref u8 = mem.alloc((last_dot + 1) as usize) as ref u8
     @memcpy(out, name, last_dot as usize)
     @store8(@ptradd(out, last_dot), 0)
     return out
@@ -2035,7 +2044,7 @@ fn qualify_type_name_for_callee(
     if owner_prefix == none {
         return type_name
     }
-    val buf: ref u8 = @alloc(512) as ref u8
+    val buf: ref u8 = mem.alloc(512) as ref u8
     @snprintf(buf, 512, "{s}.{s}", {owner_prefix, type_name})
     return buf
 }
@@ -2091,7 +2100,7 @@ fn canonical_type_prefix_for_imported_module(imported: ref modinfo.ResolvedModul
     if out_len <= 0 {
         return none
     }
-    val out: ref u8 = @alloc((out_len + 1) as usize) as ref u8
+    val out: ref u8 = mem.alloc((out_len + 1) as usize) as ref u8
     @memcpy(out, @ptradd(fname, start), out_len as usize)
     @store8(@ptradd(out, out_len), 0)
     return out
@@ -2194,7 +2203,7 @@ fn canonicalize_import_alias_type_name(ctx: ref SemaCtx, type_name: ref u8) ref 
         return type_name
     }
     val inner_name: ref u8 = unqualified_type_name(type_name)
-    val buf: ref u8 = @alloc(512) as ref u8
+    val buf: ref u8 = mem.alloc(512) as ref u8
     @snprintf(buf, 512, "{s}.{s}", {canonical_prefix, inner_name})
     return buf
 }
@@ -2354,7 +2363,7 @@ fn format_type_for_error(type_name: ref u8, is_ref: i64) ref u8 = trust {
     if is_ref == 0 {
         return type_name
     }
-    val buf: ref u8 = @alloc(128) as ref u8
+    val buf: ref u8 = mem.alloc(128) as ref u8
     @snprintf(buf, 128, "ref {s}", {type_name})
     return buf
 }
@@ -2638,7 +2647,7 @@ fn check_cast_type_boundary(
     )
 
     if expr_is_definitely_numeric_for_cast(ctx, inner) && target_is_non_numeric {
-        val buf: ref u8 = @alloc(256) as ref u8
+        val buf: ref u8 = mem.alloc(256) as ref u8
         @snprintf(
             buf,
             256,
@@ -2650,7 +2659,7 @@ fn check_cast_type_boundary(
     }
 
     if expr_is_definitely_ptr_for_cast(ctx, inner) && target_is_numeric {
-        val buf: ref u8 = @alloc(256) as ref u8
+        val buf: ref u8 = mem.alloc(256) as ref u8
         @snprintf(
             buf,
             256,
@@ -2985,7 +2994,7 @@ fn parse_fmt_specifiers(s: ref u8) list[ref u8] = trust {
             if found {
                 val spec_len: i64 = j - i - 1
                 if spec_len > 0 {
-                    val specifier: ref u8 = @alloc(spec_len + 1) as ref u8
+                    val specifier: ref u8 = mem.alloc(spec_len + 1) as ref u8
                     val si: mut i64 = 0
                     for {
                         if si >= spec_len {
@@ -3256,7 +3265,7 @@ fn check_printf_fmt(ctx: ref SemaCtx, fmt_str: ref u8, all_args: ref void,
     args_start_idx: i64, filename: ref u8, line: i64) void = trust {
     if has_c_style_specifier(fmt_str) {
         if !string.raw_ends_with(filename, "codegen.sx") {
-            val buf: ref u8 = @alloc(256) as ref u8
+            val buf: ref u8 = mem.alloc(256) as ref u8
             @snprintf(buf, 256, "{s}:{lld}: C-style format specifiers are not allowed; use \{d\}, \{s\} etc.",
                 {filename, line})
             add_error(ctx, buf)
@@ -3310,7 +3319,7 @@ fn check_printf_fmt(ctx: ref SemaCtx, fmt_str: ref u8, all_args: ref void,
     }
 
     if spec_count != total_args {
-        val buf: ref u8 = @alloc(256) as ref u8
+        val buf: ref u8 = mem.alloc(256) as ref u8
         @snprintf(buf, 256, "{s}:{lld}: format string has {lld} specifier(s) but {lld} argument(s) provided",
             {filename, line, spec_count, total_args})
         add_error(ctx, buf)
@@ -3347,7 +3356,7 @@ fn check_printf_fmt(ctx: ref SemaCtx, fmt_str: ref u8, all_args: ref void,
                         if arg_wrap == 1 {
                             wrap_name = "result"
                         }
-                        val buf_wrap: ref u8 = @alloc(512) as ref u8
+                        val buf_wrap: ref u8 = mem.alloc(512) as ref u8
                         @snprintf(buf_wrap, 512,
                             "{s}:{lld}: format specifier \\{{s}\\} does not accept a {s} value; unwrap it first",
                             {filename, line, specifier, wrap_name})
@@ -3365,7 +3374,7 @@ fn check_printf_fmt(ctx: ref SemaCtx, fmt_str: ref u8, all_args: ref void,
                             its_ok = true
                         }
                         if !its_ok {
-                            val buf2: ref u8 = @alloc(512) as ref u8
+                            val buf2: ref u8 = mem.alloc(512) as ref u8
                             @snprintf(buf2, 512,
                                 "{s}:{lld}: format specifier \{{s}\} expects {s} argument but got {s}",
                                 {filename, line, specifier, exp_cat, act_cat})
@@ -3521,7 +3530,7 @@ fn check_generic_call_constraints(ctx: ref SemaCtx, fn_found: ref parser.Node, c
                         }
                         if !its_ok {
                             val tp_name: ref u8 = parser.tparam_name(tp_node)
-                            val ebuf: ref u8 = @alloc(512) as ref u8
+                            val ebuf: ref u8 = mem.alloc(512) as ref u8
                             @snprintf(ebuf, 512, "{s}:{lld}: type '{s}' does not satisfy constraint '{s}: {s}'",
                                 {filename, line, arg_type_name, tp_name, constraint_name})
                             add_error(ctx, ebuf)
@@ -3666,7 +3675,7 @@ fn check_generic_call_arg_types(ctx: ref SemaCtx, fn_found: ref parser.Node, cal
                                         arg_tname,
                                         arg_node
                                     ) {
-                                        val ebuf: ref u8 = @alloc(512) as ref u8
+                                        val ebuf: ref u8 = mem.alloc(512) as ref u8
                                         @snprintf(ebuf, 512, "{s}:{lld}: type mismatch in generic call: argument has type '{s}' but type parameter '{s}' is '{s}'",
                                             {
                                                 filename,
@@ -3743,7 +3752,7 @@ fn dotted_chain_name(node: ref parser.Node) ref u8 = trust {
         if base_str == none {
             return none
         }
-        val out: ref u8 = @alloc(512) as ref u8
+        val out: ref u8 = mem.alloc(512) as ref u8
         @snprintf(out, 512, "{s}.{s}", {base_str, fname})
         return out
     }
@@ -3819,7 +3828,7 @@ fn resolve_generic_inst_inference(ctx: mut ref SemaCtx, callee: mut ref parser.N
         return
     }
     if fn_found == none || fn_found.kind != parser.NK_GENERIC_FN {
-        val ebuf: ref u8 = @alloc(512) as ref u8
+        val ebuf: ref u8 = mem.alloc(512) as ref u8
         @snprintf(ebuf, 512, "{s}:{lld}: cannot infer generic type argument(s): function definition not found",
             {filename, line})
         add_error(ctx, ebuf)
@@ -3832,7 +3841,7 @@ fn resolve_generic_inst_inference(ctx: mut ref SemaCtx, callee: mut ref parser.N
         nparams = @len(tparams as list[ref parser.Node]) as i64
     }
     if nparams == 0 {
-        val ebuf2: ref u8 = @alloc(512) as ref u8
+        val ebuf2: ref u8 = mem.alloc(512) as ref u8
         @snprintf(ebuf2, 512, "{s}:{lld}: cannot infer generic type argument(s): function has no type parameters",
             {filename, line})
         add_error(ctx, ebuf2)
@@ -3892,7 +3901,7 @@ fn resolve_generic_inst_inference(ctx: mut ref SemaCtx, callee: mut ref parser.N
                     if tp_opt is some tp2 {
                         tname_for_err = parser.tparam_name(tp2 as ref parser.Node)
                     }
-                    val ebuf3: ref u8 = @alloc(512) as ref u8
+                    val ebuf3: ref u8 = mem.alloc(512) as ref u8
                     @snprintf(ebuf3, 512, "{s}:{lld}: cannot infer generic type argument for type parameter '{s}'; specify it explicitly",
                         {filename, line, tname_for_err})
                     add_error(ctx, ebuf3)
@@ -4068,7 +4077,7 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
                     }
                 }
                 if !is_known {
-                    val buf: ref u8 = @alloc(256) as ref u8
+                    val buf: ref u8 = mem.alloc(256) as ref u8
                     @snprintf(
                         buf,
                         256,
@@ -4094,7 +4103,7 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
             if !comparison_operands_compatible(ctx, lhs, rhs, op) {
                 val lhs_type: ref u8 = comparison_type_name(ctx, lhs)
                 val rhs_type: ref u8 = comparison_type_name(ctx, rhs)
-                val buf: ref u8 = @alloc(512) as ref u8
+                val buf: ref u8 = mem.alloc(512) as ref u8
                 if string.raw_cmp(lhs_type, "unknown") == 0 {
                     return
                 } elif string.raw_cmp(rhs_type, "unknown") == 0 {
@@ -4117,7 +4126,7 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
     }
     if k == parser.NK_TRUST {
         if ctx.in_unsafe_fn != 0 || ctx.in_trust != 0 {
-            val buf: ref u8 = @alloc(512) as ref u8
+            val buf: ref u8 = mem.alloc(512) as ref u8
             if ctx.in_unsafe_fn != 0 {
                 @snprintf(
                     buf,
@@ -4142,7 +4151,7 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
         check_expr(ctx, expr.d0 as ref parser.Node, filename)
         ctx.in_trust = prev_trust
         if ctx.trust_used == 0 && ctx.in_unsafe_fn == 0 && ctx.in_trust == 0 {
-            val buf: ref u8 = @alloc(512) as ref u8
+            val buf: ref u8 = mem.alloc(512) as ref u8
             @snprintf(
                 buf,
                 512,
@@ -4163,7 +4172,7 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
         val inner: ref parser.Node = expr.d0 as ref parser.Node
         check_expr(ctx, inner, filename)
         if expr_wrap_kind(ctx, inner) != 1 && sema_try_operand_proves_not_result(ctx, inner) {
-            val buf: ref u8 = @alloc(512) as ref u8
+            val buf: ref u8 = mem.alloc(512) as ref u8
             val tname: ref u8 = sema_try_operand_type_name(ctx, inner)
             if tname != none && !str_eq(tname, "") {
                 @snprintf(
@@ -4218,7 +4227,7 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
                         if fbase.kind == parser.NK_IDENT {
                             val base_name: ref u8 = fbase.d0 as ref u8
                             if base_name != none {
-                                val qbuf: ref u8 = @alloc(256) as ref u8
+                                val qbuf: ref u8 = mem.alloc(256) as ref u8
                                 @snprintf(qbuf, 256, "{s}.{s}", {base_name, fname})
                                 @append(ctx.used_fns, qbuf)
                             }
@@ -4240,7 +4249,7 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
                         fn_name = parser.field_name(base_callee)
                     }
                 }
-                val gbuf: ref u8 = @alloc(512) as ref u8
+                val gbuf: ref u8 = mem.alloc(512) as ref u8
                 if fn_name != none {
                     @snprintf(
                         gbuf,
@@ -4277,7 +4286,7 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
                             fn_name = parser.field_name(base_callee)
                         }
                     }
-                    val arity_buf: ref u8 = @alloc(512) as ref u8
+                    val arity_buf: ref u8 = mem.alloc(512) as ref u8
                     if fn_name != none {
                         @snprintf(
                             arity_buf,
@@ -4343,7 +4352,7 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
                                     val aname: ref u8 = root_arg.d0 as ref u8
                                     val arg_mutability: i64 = scope_lookup(ctx, aname)
                                     if arg_mutability == 0 {
-                                        val mut_err_buf: ref u8 = @alloc(512) as ref u8
+                                        val mut_err_buf: ref u8 = mem.alloc(512) as ref u8
                                         val pname_m: ref u8 = param_node.d0 as ref u8
                                         val fn_name_m: mut ref u8 = none
                                         if base_callee != none {
@@ -4381,7 +4390,7 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
                                     arg_wrap_str = "result"
                                 }
                                 val pname_w: ref u8 = param_node.d0 as ref u8
-                                val wbuf: ref u8 = @alloc(512) as ref u8
+                                val wbuf: ref u8 = mem.alloc(512) as ref u8
                                 if fn_name_w != none {
                                     @snprintf(wbuf, 512, "{s}:{lld}: type mismatch in call to '{s}': parameter '{s}' does not accept a {s} value; unwrap it first",
                                         {filename, line, fn_name_w, pname_w, arg_wrap_str})
@@ -4504,17 +4513,17 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
                                                 fn_name_for_err = parser.field_name(base_callee)
                                             }
                                         }
-                                        val type_err_buf: ref u8 = @alloc(512) as ref u8
+                                        val type_err_buf: ref u8 = mem.alloc(512) as ref u8
                                         val param_name: ref u8 = param_node.d0 as ref u8
                                         val param_type_str: mut ref u8 = param_type_name
                                         if param_expects_ref {
-                                            val ref_buf: ref u8 = @alloc(128) as ref u8
+                                            val ref_buf: ref u8 = mem.alloc(128) as ref u8
                                             @snprintf(ref_buf, 128, "ref {s}", {param_type_name})
                                             param_type_str = ref_buf
                                         }
                                         val arg_type_str: mut ref u8 = arg_type_name
                                         if arg_is_ref == 1 && arg_type_name != none {
-                                            val arg_ref_buf: ref u8 = @alloc(128) as ref u8
+                                            val arg_ref_buf: ref u8 = mem.alloc(128) as ref u8
                                             @snprintf(arg_ref_buf, 128, "ref {s}", {arg_type_name})
                                             arg_type_str = arg_ref_buf
                                         }
@@ -4563,7 +4572,7 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
                     fn_name_for_targs = parser.field_name(base_callee)
                 }
             }
-            val targs_buf: ref u8 = @alloc(512) as ref u8
+            val targs_buf: ref u8 = mem.alloc(512) as ref u8
             if fn_name_for_targs != none {
                 @snprintf(
                     targs_buf,
@@ -4607,7 +4616,7 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
                     val arg_count: i64 = @len(cargs) as i64
 
                     if arg_count != expected_count {
-                        val arity_buf: ref u8 = @alloc(512) as ref u8
+                        val arity_buf: ref u8 = mem.alloc(512) as ref u8
                         @snprintf(arity_buf, 512, "{s}:{lld}: variant constructor '{s}' expects {lld} argument(s) but got {lld}",
                             {filename, line, callee_name, expected_count, arg_count})
                         add_error(ctx, arity_buf)
@@ -4643,7 +4652,7 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
                                             expected_type_name,
                                             arg_type_name
                                         ) {
-                                            val type_err_buf: ref u8 = @alloc(512) as ref u8
+                                            val type_err_buf: ref u8 = mem.alloc(512) as ref u8
                                             @snprintf(type_err_buf, 512, "{s}:{lld}: type mismatch in variant constructor '{s}': argument {lld} expects type '{s}' but got '{s}'",
                                                 {
                                                     filename,
@@ -4722,7 +4731,7 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
                                 )
                                 if import_mod != none {
                                     if !modinfo.fn_is_public_in_module(import_mod, vis_fn_name) {
-                                        val buf: ref u8 = @alloc(256) as ref u8
+                                        val buf: ref u8 = mem.alloc(256) as ref u8
                                         @snprintf(buf, 256, "{s}:{lld}: '{s}' is not public in module '{s}'",
                                             {filename, line, vis_fn_name, vis_mod_name})
                                         add_error(ctx, buf)
@@ -4731,7 +4740,7 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
                                         import_mod,
                                         vis_fn_name
                                     ) && ctx.in_unsafe_fn == 0 && ctx.in_trust == 0 {
-                                        val ubuf: ref u8 = @alloc(256) as ref u8
+                                        val ubuf: ref u8 = mem.alloc(256) as ref u8
                                         @snprintf(ubuf, 256, "{s}:{lld}: cannot call unsafe function '{s}' from module '{s}' in safe context, use a 'trust' block",
                                             {filename, line, vis_fn_name, vis_mod_name})
                                         add_error(ctx, ubuf)
@@ -4746,7 +4755,7 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
         if fn_found != none && fn_found.kind == parser.NK_EXTERN_FN {
             val extern_name: ref u8 = dotted_chain_name(base_callee)
             if ctx.in_unsafe_fn == 0 && ctx.in_trust == 0 {
-                val ebuf: ref u8 = @alloc(512) as ref u8
+                val ebuf: ref u8 = mem.alloc(512) as ref u8
                 if extern_name != none {
                     @snprintf(
                         ebuf,
@@ -4777,7 +4786,7 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
                         fn_name = parser.field_name(base_callee)
                     }
                 }
-                val ebuf: ref u8 = @alloc(512) as ref u8
+                val ebuf: ref u8 = mem.alloc(512) as ref u8
                 if fn_name != none {
                     @snprintf(
                         ebuf,
@@ -4810,7 +4819,7 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
         }
 
         if !is_known_builtin(bname) {
-            val ebuf: ref u8 = @alloc(512) as ref u8
+            val ebuf: ref u8 = mem.alloc(512) as ref u8
             @snprintf(ebuf, 512, "{s}:{lld}: unknown intrinsic '@{s}'", {filename, line, bname})
             add_error(ctx, ebuf)
             return
@@ -4825,7 +4834,7 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
 
         if type_argc > 0 && !str_eq(bname, "fmtalloc") && !str_eq(bname, "argsalloc") &&
         !str_eq(bname, "listalloc") {
-            val ebuf: ref u8 = @alloc(512) as ref u8
+            val ebuf: ref u8 = mem.alloc(512) as ref u8
             @snprintf(ebuf, 512, "{s}:{lld}: builtin '@{s}' does not take type arguments",
                 {filename, line, bname})
             add_error(ctx, ebuf)
@@ -4834,14 +4843,14 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
 
         if str_eq(bname, "argsalloc") {
             if type_argc != 1 {
-                val ebuf: ref u8 = @alloc(512) as ref u8
+                val ebuf: ref u8 = mem.alloc(512) as ref u8
                 @snprintf(ebuf, 512, "{s}:{lld}: builtin '@argsalloc' requires exactly one allocator type argument",
                     {filename, line})
                 add_error(ctx, ebuf)
                 return
             }
             if actual_argc != 1 {
-                val ebuf: ref u8 = @alloc(512) as ref u8
+                val ebuf: ref u8 = mem.alloc(512) as ref u8
                 @snprintf(ebuf, 512, "{s}:{lld}: builtin '@argsalloc' requires exactly 1 argument, got {lld}",
                     {filename, line, actual_argc})
                 add_error(ctx, ebuf)
@@ -4851,14 +4860,14 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
 
         if str_eq(bname, "listalloc") {
             if type_argc < 1 || type_argc > 2 {
-                val ebuf: ref u8 = @alloc(512) as ref u8
+                val ebuf: ref u8 = mem.alloc(512) as ref u8
                 @snprintf(ebuf, 512, "{s}:{lld}: builtin '@listalloc' requires an allocator type argument and an optional element type argument",
                     {filename, line})
                 add_error(ctx, ebuf)
                 return
             }
             if actual_argc != 1 {
-                val ebuf: ref u8 = @alloc(512) as ref u8
+                val ebuf: ref u8 = mem.alloc(512) as ref u8
                 @snprintf(ebuf, 512, "{s}:{lld}: builtin '@listalloc' requires exactly 1 argument, got {lld}",
                     {filename, line, actual_argc})
                 add_error(ctx, ebuf)
@@ -4868,14 +4877,14 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
 
         if str_eq(bname, "listfree") {
             if type_argc != 0 {
-                val ebuf: ref u8 = @alloc(512) as ref u8
+                val ebuf: ref u8 = mem.alloc(512) as ref u8
                 @snprintf(ebuf, 512, "{s}:{lld}: builtin '@listfree' does not take type arguments",
                     {filename, line})
                 add_error(ctx, ebuf)
                 return
             }
             if actual_argc != 1 {
-                val ebuf: ref u8 = @alloc(512) as ref u8
+                val ebuf: ref u8 = mem.alloc(512) as ref u8
                 @snprintf(ebuf, 512, "{s}:{lld}: builtin '@listfree' requires exactly 1 argument, got {lld}",
                     {filename, line, actual_argc})
                 add_error(ctx, ebuf)
@@ -4885,14 +4894,14 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
 
         if str_eq(bname, "fmtalloc") && type_argc > 0 {
             if type_argc != 1 {
-                val ebuf: ref u8 = @alloc(512) as ref u8
+                val ebuf: ref u8 = mem.alloc(512) as ref u8
                 @snprintf(ebuf, 512, "{s}:{lld}: builtin '@fmtalloc' requires exactly one allocator type argument",
                     {filename, line})
                 add_error(ctx, ebuf)
                 return
             }
             if actual_argc < 2 {
-                val ebuf: ref u8 = @alloc(512) as ref u8
+                val ebuf: ref u8 = mem.alloc(512) as ref u8
                 @snprintf(ebuf, 512, "{s}:{lld}: allocatorized '@fmtalloc' requires an allocator and a format string, got {lld} argument(s)",
                     {filename, line, actual_argc})
                 add_error(ctx, ebuf)
@@ -4907,7 +4916,7 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
                 if min_arity == 1 {
                     plural = ""
                 }
-                val ebuf: ref u8 = @alloc(512) as ref u8
+                val ebuf: ref u8 = mem.alloc(512) as ref u8
                 @snprintf(ebuf, 512, "{s}:{lld}: builtin '@{s}' requires at least {lld} argument{s}, got {lld}",
                     {filename, line, bname, min_arity, plural, actual_argc})
                 add_error(ctx, ebuf)
@@ -4961,7 +4970,7 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
         ) || str_eq(bname, "addr") || str_eq(bname, "deref") || str_eq(bname, "bitcast")
         if is_unsafe_builtin {
             if ctx.in_unsafe_fn == 0 && ctx.in_trust == 0 {
-                val ebuf: ref u8 = @alloc(512) as ref u8
+                val ebuf: ref u8 = mem.alloc(512) as ref u8
                 @snprintf(
                     ebuf,
                     512,
@@ -5040,7 +5049,7 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
                         val is_mut: i64 = scope_lookup(ctx, vname)
                         val is_ref: i64 = scope_lookup_is_ref(ctx, vname)
                         if is_mut != -1 && is_mut == 0 && is_ref == 0 {
-                            val ebuf: ref u8 = @alloc(512) as ref u8
+                            val ebuf: ref u8 = mem.alloc(512) as ref u8
                             @snprintf(
                                 ebuf,
                                 512,
@@ -5097,7 +5106,7 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
                 val is_mut: i64 = scope_lookup(ctx, vname)
                 val is_ref: i64 = scope_lookup_is_ref(ctx, vname)
                 if is_mut != -1 && is_mut == 0 && is_ref == 0 {
-                    val ebuf: ref u8 = @alloc(512) as ref u8
+                    val ebuf: ref u8 = mem.alloc(512) as ref u8
                     @snprintf(
                         ebuf,
                         512,
@@ -5478,7 +5487,7 @@ fn sema_check_invariant_lit(ctx: ref SemaCtx, typedef_node: ref parser.Node,
             val result: i64 = sema_const_eval(inode, fnames as ref void, fvals as ref void)
             if result != SEMA_UNKNOWN && result == 0 {
                 val type_name: ref u8 = typedef_node.d1 as ref u8
-                val buf: ref u8 = @alloc(256) as ref u8
+                val buf: ref u8 = mem.alloc(256) as ref u8
                 @snprintf(
                     buf,
                     256,
@@ -5917,7 +5926,7 @@ fn check_stmt(ctx: mut ref SemaCtx, stmt: ref parser.Node, filename: ref u8) voi
         check_no_module_to_module_type(ctx, stmt.d2 as ref parser.Node, line, filename)
         check_expr(ctx, stmt.d3 as ref parser.Node, filename)
         if scope_defined_local(ctx, name) {
-            val buf: ref u8 = @alloc(256) as ref u8
+            val buf: ref u8 = mem.alloc(256) as ref u8
             @snprintf(
                 buf,
                 256,
@@ -5943,7 +5952,7 @@ fn check_stmt(ctx: mut ref SemaCtx, stmt: ref parser.Node, filename: ref u8) voi
             if is_ref_flag == 1 && init_expr != none {
                 if !ref_assignment_rhs_ok(ctx, tname, is_ref_flag, init_expr) {
                     val target_ty: ref u8 = format_type_for_error(tname, is_ref_flag)
-                    val buf: ref u8 = @alloc(256) as ref u8
+                    val buf: ref u8 = mem.alloc(256) as ref u8
                     @snprintf(
                         buf,
                         256,
@@ -5973,7 +5982,7 @@ fn check_stmt(ctx: mut ref SemaCtx, stmt: ref parser.Node, filename: ref u8) voi
                 val tdef: ref parser.Node = sema_lookup_typedef(ctx, tname)
                 if init_k == parser.NK_ARGS_PACK && tdef != none {
                     if !sema_rewrite_empty_struct_init(init_expr, tdef) {
-                        val buf: ref u8 = @alloc(256) as ref u8
+                        val buf: ref u8 = mem.alloc(256) as ref u8
                         @snprintf(
                             buf,
                             256,
@@ -6019,7 +6028,7 @@ fn check_stmt(ctx: mut ref SemaCtx, stmt: ref parser.Node, filename: ref u8) voi
                                 }
                                 if found == none {
                                     missing_field = true
-                                    val buf: ref u8 = @alloc(256) as ref u8
+                                    val buf: ref u8 = mem.alloc(256) as ref u8
                                     @snprintf(buf, 256, "{s}:{lld}: missing initializer for field '{s}' of type '{s}'",
                                         {filename, line, tfname, tname})
                                     add_error(ctx, buf)
@@ -6053,7 +6062,7 @@ fn check_stmt(ctx: mut ref SemaCtx, stmt: ref parser.Node, filename: ref u8) voi
             val tname: ref u8 = target.d0 as ref u8
             mark_name_mutated(ctx, tname)
             if scope_lookup(ctx, tname) == 0 {
-                val buf: ref u8 = @alloc(256) as ref u8
+                val buf: ref u8 = mem.alloc(256) as ref u8
                 @snprintf(
                     buf,
                     256,
@@ -6070,7 +6079,7 @@ fn check_stmt(ctx: mut ref SemaCtx, stmt: ref parser.Node, filename: ref u8) voi
                             target_type_name,
                             target_is_ref
                         )
-                        val buf: ref u8 = @alloc(256) as ref u8
+                        val buf: ref u8 = mem.alloc(256) as ref u8
                         @snprintf(
                             buf,
                             256,
@@ -6088,7 +6097,7 @@ fn check_stmt(ctx: mut ref SemaCtx, stmt: ref parser.Node, filename: ref u8) voi
                 mark_name_mutated(ctx, tname)
                 val lkup: i64 = scope_lookup(ctx, tname)
                 if lkup == 0 {
-                    val buf: ref u8 = @alloc(256) as ref u8
+                    val buf: ref u8 = mem.alloc(256) as ref u8
                     @snprintf(
                         buf,
                         256,
@@ -6102,7 +6111,7 @@ fn check_stmt(ctx: mut ref SemaCtx, stmt: ref parser.Node, filename: ref u8) voi
                     if var_type != none && field_name != none {
                         val fmut: i64 = find_field_mutable(ctx, var_type, field_name)
                         if fmut == 0 {
-                            val buf2: ref u8 = @alloc(256) as ref u8
+                            val buf2: ref u8 = mem.alloc(256) as ref u8
                             @snprintf(
                                 buf2,
                                 256,
@@ -6120,7 +6129,7 @@ fn check_stmt(ctx: mut ref SemaCtx, stmt: ref parser.Node, filename: ref u8) voi
                                 val fty_name: ref u8 = extract_type_name(fty)
                                 if !ref_assignment_rhs_ok(ctx, fty_name, 1, rhs) {
                                     val target_ty: ref u8 = format_type_for_error(fty_name, 1)
-                                    val buf3: ref u8 = @alloc(256) as ref u8
+                                    val buf3: ref u8 = mem.alloc(256) as ref u8
                                     @snprintf(
                                         buf3,
                                         256,
@@ -6142,7 +6151,7 @@ fn check_stmt(ctx: mut ref SemaCtx, stmt: ref parser.Node, filename: ref u8) voi
                 val dname: ref u8 = inner_deref.d0 as ref u8
                 val dmut: i64 = scope_lookup(ctx, dname)
                 if dmut != -1 && dmut == 0 {
-                    val ebuf: ref u8 = @alloc(512) as ref u8
+                    val ebuf: ref u8 = mem.alloc(512) as ref u8
                     @snprintf(
                         ebuf,
                         512,
@@ -6194,7 +6203,7 @@ fn check_stmt(ctx: mut ref SemaCtx, stmt: ref parser.Node, filename: ref u8) voi
             }
         }
         if !ends_with_return {
-            val buf: ref u8 = @alloc(256) as ref u8
+            val buf: ref u8 = mem.alloc(256) as ref u8
             @snprintf(
                 buf,
                 256,
@@ -6235,7 +6244,7 @@ fn check_stmt(ctx: mut ref SemaCtx, stmt: ref parser.Node, filename: ref u8) voi
         if init_name != none {
             check_expr(ctx, stmt.d1 as ref parser.Node, filename)
             if scope_lookup(ctx, init_name) != -1 {
-                val buf: ref u8 = @alloc(256) as ref u8
+                val buf: ref u8 = mem.alloc(256) as ref u8
                 @snprintf(buf, 256, "{s}:{lld}: for loop variable '{s}' shadows an existing variable; declare it only in the for loop",
                     {filename, line, init_name})
                 add_error(ctx, buf)
@@ -6298,7 +6307,7 @@ fn check_stmt(ctx: mut ref SemaCtx, stmt: ref parser.Node, filename: ref u8) voi
                     compatible = str_eq(pat_cat, "int") && !str_eq(pat_ty, "u8")
                 }
                 if !compatible {
-                    val buf: ref u8 = @alloc(256) as ref u8
+                    val buf: ref u8 = mem.alloc(256) as ref u8
                     @snprintf(
                         buf,
                         256,
@@ -6326,13 +6335,13 @@ fn check_stmt(ctx: mut ref SemaCtx, stmt: ref parser.Node, filename: ref u8) voi
         check_expr(ctx, match_expr, filename)
         val opt_wrap_kind: i64 = expr_wrap_kind(ctx, match_expr)
         if opt_wrap_kind == 3 {
-            val buf: ref u8 = @alloc(512) as ref u8
+            val buf: ref u8 = mem.alloc(512) as ref u8
             @snprintf(buf, 512, "{s}:{lld}: cannot match on a non-option value", {filename, line})
             add_error(ctx, buf)
         } elif parser.match_opt_is_sugar(stmt) {
             val sugar_kind: i64 = parser.match_opt_sugar_kind(stmt)
             if opt_wrap_kind == 1 && sugar_kind == 1 {
-                val buf: ref u8 = @alloc(512) as ref u8
+                val buf: ref u8 = mem.alloc(512) as ref u8
                 @snprintf(
                     buf,
                     512,
@@ -6341,7 +6350,7 @@ fn check_stmt(ctx: mut ref SemaCtx, stmt: ref parser.Node, filename: ref u8) voi
                 )
                 add_error(ctx, buf)
             } elif opt_wrap_kind == 1 && sugar_kind == 2 {
-                val buf: ref u8 = @alloc(512) as ref u8
+                val buf: ref u8 = mem.alloc(512) as ref u8
                 @snprintf(
                     buf,
                     512,
@@ -6378,7 +6387,7 @@ fn check_stmt(ctx: mut ref SemaCtx, stmt: ref parser.Node, filename: ref u8) voi
             val wrap_kind: i64 = expr_wrap_kind(ctx, match_expr)
             val sugar_kind: i64 = parser.match_res_sugar_kind(stmt)
             if wrap_kind == 2 && sugar_kind == 1 {
-                val buf: ref u8 = @alloc(512) as ref u8
+                val buf: ref u8 = mem.alloc(512) as ref u8
                 @snprintf(
                     buf,
                     512,
@@ -6387,7 +6396,7 @@ fn check_stmt(ctx: mut ref SemaCtx, stmt: ref parser.Node, filename: ref u8) voi
                 )
                 add_error(ctx, buf)
             } elif wrap_kind == 2 && sugar_kind == 2 {
-                val buf: ref u8 = @alloc(512) as ref u8
+                val buf: ref u8 = mem.alloc(512) as ref u8
                 @snprintf(
                     buf,
                     512,
@@ -6462,7 +6471,7 @@ fn check_stmt(ctx: mut ref SemaCtx, stmt: ref parser.Node, filename: ref u8) voi
                     for bname2 in bindings as list[ref u8] {
                         if string.raw_cmp(bname2, "_") != 0 {
                             if !stmts_use_name(arm_body, bname2) {
-                                val buf: ref u8 = @alloc(256) as ref u8
+                                val buf: ref u8 = mem.alloc(256) as ref u8
                                 @snprintf(buf, 256, "{s}:{lld}: match binding '{s}' is captured but never used (use '_' to discard)",
                                     {filename, tu_arm.line, bname2})
                                 add_error(ctx, buf)
@@ -6504,7 +6513,7 @@ fn check_stmt(ctx: mut ref SemaCtx, stmt: ref parser.Node, filename: ref u8) voi
             val tname2: ref u8 = target2.d0 as ref u8
             mark_name_mutated(ctx, tname2)
             if scope_lookup(ctx, tname2) == 0 {
-                val buf2: ref u8 = @alloc(256) as ref u8
+                val buf2: ref u8 = mem.alloc(256) as ref u8
                 @snprintf(
                     buf2,
                     256,
@@ -6520,7 +6529,7 @@ fn check_stmt(ctx: mut ref SemaCtx, stmt: ref parser.Node, filename: ref u8) voi
                 mark_name_mutated(ctx, tname2)
                 val lkup2: i64 = scope_lookup(ctx, tname2)
                 if lkup2 == 0 {
-                    val buf2: ref u8 = @alloc(256) as ref u8
+                    val buf2: ref u8 = mem.alloc(256) as ref u8
                     @snprintf(
                         buf2,
                         256,
@@ -6534,7 +6543,7 @@ fn check_stmt(ctx: mut ref SemaCtx, stmt: ref parser.Node, filename: ref u8) voi
                     if var_type2 != none && field_name2 != none {
                         val fmut2: i64 = find_field_mutable(ctx, var_type2, field_name2)
                         if fmut2 == 0 {
-                            val buf2b: ref u8 = @alloc(256) as ref u8
+                            val buf2b: ref u8 = mem.alloc(256) as ref u8
                             @snprintf(
                                 buf2b,
                                 256,
@@ -6557,7 +6566,7 @@ fn check_stmt(ctx: mut ref SemaCtx, stmt: ref parser.Node, filename: ref u8) voi
             val tname3: ref u8 = target3.d0 as ref u8
             mark_name_mutated(ctx, tname3)
             if scope_lookup(ctx, tname3) == 0 {
-                val buf3: ref u8 = @alloc(256) as ref u8
+                val buf3: ref u8 = mem.alloc(256) as ref u8
                 @snprintf(
                     buf3,
                     256,
@@ -6572,7 +6581,7 @@ fn check_stmt(ctx: mut ref SemaCtx, stmt: ref parser.Node, filename: ref u8) voi
                 val tname3: ref u8 = root3.d0 as ref u8
                 mark_name_mutated(ctx, tname3)
                 if scope_lookup(ctx, tname3) == 0 {
-                    val buf3: ref u8 = @alloc(256) as ref u8
+                    val buf3: ref u8 = mem.alloc(256) as ref u8
                     @snprintf(
                         buf3,
                         256,
@@ -6588,7 +6597,7 @@ fn check_stmt(ctx: mut ref SemaCtx, stmt: ref parser.Node, filename: ref u8) voi
 
     if k == parser.NK_TRUST_BLOCK {
         if ctx.in_unsafe_fn != 0 || ctx.in_trust != 0 {
-            val buf: ref u8 = @alloc(512) as ref u8
+            val buf: ref u8 = mem.alloc(512) as ref u8
             if ctx.in_unsafe_fn != 0 {
                 @snprintf(
                     buf,
@@ -6615,7 +6624,7 @@ fn check_stmt(ctx: mut ref SemaCtx, stmt: ref parser.Node, filename: ref u8) voi
         pop_scope(ctx, filename, line)
         ctx.in_trust = prev_trust
         if ctx.trust_used == 0 && ctx.in_unsafe_fn == 0 && ctx.in_trust == 0 {
-            val buf: ref u8 = @alloc(512) as ref u8
+            val buf: ref u8 = mem.alloc(512) as ref u8
             @snprintf(
                 buf,
                 512,
@@ -6643,13 +6652,13 @@ fn check_fn(ctx: mut ref SemaCtx, fn_node: ref parser.Node, filename: ref u8) vo
     val params: ref void = fn_node.d3 as ref void
     if fn_name != none && fn_ns == none && str_eq(fn_name, "main") {
         if fn_node.d0 != 1 {
-            val buf: ref u8 = @alloc(256) as ref u8
+            val buf: ref u8 = mem.alloc(256) as ref u8
             @snprintf(buf, 256, "{s}:{lld}: main must be public.", {filename, fn_node.line})
             add_error(ctx, buf)
         }
 
         if params != none && @len(params) > 0 {
-            val buf2: ref u8 = @alloc(256) as ref u8
+            val buf2: ref u8 = mem.alloc(256) as ref u8
             @snprintf(
                 buf2,
                 256,
@@ -6697,7 +6706,7 @@ fn check_fn(ctx: mut ref SemaCtx, fn_node: ref parser.Node, filename: ref u8) vo
     check_stmts(ctx, body, filename)
     ctx.untyped_params = prev_untyped
     if ret_ty != none && ret_ty.kind != parser.TY_VOID && !stmts_guarantee_return(ctx, body) {
-        val buf: ref u8 = @alloc(512) as ref u8
+        val buf: ref u8 = mem.alloc(512) as ref u8
         @snprintf(
             buf,
             512,
@@ -6714,7 +6723,7 @@ fn check_fn(ctx: mut ref SemaCtx, fn_node: ref parser.Node, filename: ref u8) vo
 /// Register a function name.
 fn fn_full_name(ns: ref u8, nm: ref u8) ref u8 = trust {
     if ns != none && nm != none {
-        val buf: ref u8 = @alloc(256) as ref u8
+        val buf: ref u8 = mem.alloc(256) as ref u8
         @snprintf(buf, 256, "{s}.{s}", {ns, nm})
         return buf
     } elif nm != none {
@@ -6899,7 +6908,7 @@ fn check_generic_fn(ctx: mut ref SemaCtx, fn_node: ref parser.Node, filename: re
     ctx.untyped_params = prev_untyped
     val fn_name: ref u8 = fn_node.d2 as ref u8
     if ret_ty != none && ret_ty.kind != parser.TY_VOID && !stmts_guarantee_return(ctx, body) {
-        val buf: ref u8 = @alloc(512) as ref u8
+        val buf: ref u8 = mem.alloc(512) as ref u8
         @snprintf(
             buf,
             512,
@@ -6919,7 +6928,7 @@ fn check_top_item(ctx: mut ref SemaCtx, item: ref parser.Node, filename: ref u8)
     val k: i64 = item.kind
     if k == parser.NK_USE {
         if item.d0 != 0 {
-            val buf: ref u8 = @alloc(256) as ref u8
+            val buf: ref u8 = mem.alloc(256) as ref u8
             @snprintf(
                 buf,
                 256,
@@ -6930,7 +6939,7 @@ fn check_top_item(ctx: mut ref SemaCtx, item: ref parser.Node, filename: ref u8)
         }
         val annotated_use_ty: ref parser.Node = item.d3 as ref parser.Node
         if annotated_use_ty != none {
-            val buf2: ref u8 = @alloc(256) as ref u8
+            val buf2: ref u8 = mem.alloc(256) as ref u8
             @snprintf(
                 buf2,
                 256,
@@ -7502,7 +7511,7 @@ fn check_unused_imports(
             continue
         }
         val use_line: i64 = find_use_line_in_items(items, import_name)
-        val buf: ref u8 = @alloc(256) as ref u8
+        val buf: ref u8 = mem.alloc(256) as ref u8
         @snprintf(
             buf,
             256,
@@ -7531,7 +7540,7 @@ fn check_duplicates(ctx: ref SemaCtx, filename: ref u8) void = trust {
                 val fn2_opt = @get(ctx.fn_names, fj as usize)
                 if fn2_opt is some fn2_name {
                     if str_eq(fn_name as ref u8, fn2_name as ref u8) {
-                        val buf: ref u8 = @alloc(256) as ref u8
+                        val buf: ref u8 = mem.alloc(256) as ref u8
                         @snprintf(
                             buf,
                             256,
@@ -7624,7 +7633,7 @@ pub fn check_module(
                 }
                 val is_public: bool = is_function_public(items, namec)
                 if !str_eq(namec, "main") && !is_variant && !is_public {
-                    val wbuf: ref u8 = @alloc(256) as ref u8
+                    val wbuf: ref u8 = mem.alloc(256) as ref u8
                     @snprintf(wbuf, 256, "{s}: unused function '{s}'", {filename, namec})
                     @append(ctx.warnings, wbuf)
                 }

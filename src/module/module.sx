@@ -1,3 +1,4 @@
+val mem        = use("../meta/mem.sx")
 val str        = use("std/string")
 val stdio      = use("std/stdio")
 val path       = use("std/path")
@@ -26,7 +27,7 @@ pub fn new_resolved(
     filename: String,
     dir: String
 ) ref ResolvedModule = trust {
-    val m: mut ref ResolvedModule = @alloc(@sizeof(ResolvedModule)) as ref ResolvedModule
+    val m: mut ref ResolvedModule = mem.alloc(@sizeof(ResolvedModule)) as ref ResolvedModule
     @memset(m, 0, @sizeof(ResolvedModule) as usize)
     m.items = items
     m.filename = filename
@@ -1121,6 +1122,7 @@ fn resolve_module_impl(
     }
 
     val parse_result = parser.parse_module(tokens, canonical_path)
+    lexer.free_tokens(tokens)
     val items: mut list[ref parser.Node] = []
     match parse_result {
         ok i => {
@@ -1440,7 +1442,7 @@ pub fn flatten_modules(
     }
 
     @append(seen as list[String], m.filename)
-    val items_copy: ref void = @alloc(32)
+    val items_copy: ref void = mem.alloc(32)
     @memcpy(items_copy, @addr(m.items) as ref void, 32 as usize)
     @append(out_prefixes as list[ref u8], prefix)
     @append(out_items as list[ref void], items_copy)
@@ -1494,7 +1496,7 @@ pub fn flatten_modules_with_files(
         ci++
     }
     @append(seen as list[String], m.filename)
-    val items_copy: ref void = @alloc(32)
+    val items_copy: ref void = mem.alloc(32)
     @memcpy(items_copy, @addr(m.items) as ref void, 32 as usize)
     @append(out_prefixes as list[ref u8], prefix)
     @append(out_items as list[ref void], items_copy)

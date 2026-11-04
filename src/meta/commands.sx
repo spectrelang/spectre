@@ -195,7 +195,7 @@ fn ctx_read_env_value(ctx: mut ref ParseCtx) ref u8 = trust {
 
 fn new_build_rule(platform: ref u8, arch: ref u8) ref SxBuildRule = trust {
     val rule: mut ref SxBuildRule = @alloc(@sizeof(SxBuildRule)) as mut ref SxBuildRule
-    @memset(rule as ref void, 0, @sizeof(SxBuildRule))
+    @memset(rule, 0, @sizeof(SxBuildRule))
     rule.platform = platform
     rule.arch = arch
     rule.action = ""
@@ -362,7 +362,7 @@ pub fn parse_sxmod(content: ref u8) ref SxMod = trust {
             @append(m.deps, ctx_read_quoted(ctx))
         } elif str.raw_cmp(kw, "build") == 0 {
             val cfg: mut ref SxBuildConfig = @alloc(@sizeof(SxBuildConfig)) as mut ref SxBuildConfig
-            @memset(cfg as ref void, 0, @sizeof(SxBuildConfig))
+            @memset(cfg, 0, @sizeof(SxBuildConfig))
             cfg.name = ctx_read_ident(ctx)
             cfg.base = none
             cfg.rules = []

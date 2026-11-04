@@ -10,6 +10,7 @@ val os          = use("std/os")
 val allocators  = use("std/allocators")
 val path        = use("std/path")
 val reflection  = use("std/reflection")
+val mem         = use("meta/mem.sx")
 val parser      = use("ast/parser.sx")
 val ast_printer = use("ast/ast_printer.sx")
 val sema        = use("sema/sema.sx")
@@ -32,6 +33,7 @@ when windows {
 pub fn main() i32 = trust {
     val arena: mut allocators.Arena = allocators.Arena.new(65536 as usize)?
     defer {
+        mem.deinit()
         codegen.arena_deinit()
         alt_codegen.arena_deinit()
     }
@@ -689,6 +691,7 @@ pub fn main() i32 = trust {
 
         if emit_alt != false {
             stdio.puts(c_ir)
+            @free(c_ir)
             allocators.Arena.free(arena)
             return 0
         }
@@ -705,6 +708,7 @@ pub fn main() i32 = trust {
         if c_f is some f {
             os.write(f, c_ir, string.len_raw(c_ir) as i64)
             os.close(f)
+            @free(c_ir)
         } else {
             stdio.puts("\nerror: could not write C code")
             allocators.Arena.free(arena)
@@ -919,6 +923,7 @@ pub fn main() i32 = trust {
 
     if emit_qbe != 0 {
         stdio.puts(qbe_ir)
+        @free(qbe_ir)
         allocators.Arena.free(arena)
         return 0
     }
@@ -938,6 +943,7 @@ pub fn main() i32 = trust {
     if qbe_f is some f {
         os.write(f, qbe_ir, string.len_raw(qbe_ir) as i64)
         os.close(f)
+        @free(qbe_ir)
     } else {
         stdio.puts("\nerror: could not write QBE IR")
         allocators.Arena.free(arena)
