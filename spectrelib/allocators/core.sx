@@ -356,3 +356,156 @@ test {
 
     @puts("done with heap allocator")
 }
+
+/// Opaque handle type for `ScopedArena`.
+pub spec ScopedArenaAllocator = {}
+
+/// A growable, resettable arena made of linked blocks.
+///
+/// `reset` reclaims all individual allocations at once while keeping the
+/// backing blocks for reuse. `free` releases the blocks and the arena handle.
+pub type (ScopedArenaAllocator) ScopedArena = {
+    head: mut ref void
+    cur: mut ref void
+    block_size: mut usize
+}
+
+type ScopedArenaBlock = {
+    buf: mut ref void
+    offset: mut usize
+    cap: mut usize
+    next: mut ref ScopedArenaBlock
+}
+
+fn scoped_block_new(block_size: usize) result[ref ScopedArenaBlock, AllocError] = trust {
+    val node: mut ref ScopedArenaBlock = @alloc(@sizeof(ScopedArenaBlock)) as ref ScopedArenaBlock
+    val buf: ref void = @alloc(block_size)
+    if node == none || buf == none {
+        if node != none {
+            @free(node as ref void)
+        }
+        return err AllocError.OutOfMemory
+    }
+    node.buf = buf
+    node.offset = 0
+    node.cap = block_size
+    node.next = none
+    return ok node
+}
+
+/// Create a new scoped arena. `block_size` is the size of each backing block.
+pub fn (ScopedArena) new(block_size: usize) result[ScopedArenaAllocator, AllocError] = trust {
+    pre {
+        block_size_positive: block_size > 0
+    }
+    val a: mut ref ScopedArena = @alloc(@sizeof(ScopedArena)) as ref ScopedArena
+    if a == none {
+        return err AllocError.OutOfMemory
+    }
+    a.head = none
+    a.cur = none
+    a.block_size = block_size
+    return ok (a as ScopedArenaAllocator)
+}
+
+/// Allocate `size` bytes from the arena, growing with fresh blocks as needed.
+pub fn (ScopedArena) alloc(a: ScopedArenaAllocator, size: usize) option[ref void] = trust {
+    pre {
+        size_positive: size > 0
+    }
+    val au: mut ref ScopedArena = a as ref ScopedArena
+    val aligned: usize = (size + 7) & ~(7 as usize)
+    val node: mut ref ScopedArenaBlock = au.cur as ref ScopedArenaBlock
+    for {
+        if node == none {
+            break
+        }
+        if node.offset + aligned <= node.cap {
+            val ptr: ref void = @ptradd(node.buf, node.offset)
+            node.offset = node.offset + aligned
+            au.cur = node as ref void
+            return some ptr
+        }
+        node = node.next
+    }
+    val cap: mut usize = au.block_size
+    if aligned > cap {
+        cap = aligned
+    }
+    match scoped_block_new(cap) {
+        ok nb => {
+            nb.next = au.head as ref ScopedArenaBlock
+            au.head = nb as ref void
+            au.cur = nb as ref void
+            val ptr: ref void = @ptradd(nb.buf, nb.offset)
+            nb.offset = nb.offset + aligned
+            return some ptr
+        }
+        err _ => {
+            return none
+        }
+    }
+    return none
+}
+
+/// Allocate `size` bytes, returning none on exhaustion.
+pub fn (ScopedArena) alloc_or_none(a: ScopedArenaAllocator, size: usize) ref void = {
+    match trust ScopedArena.alloc(a, size) {
+        some p => {
+            return p
+        }
+        none => {
+            return none
+        }
+    }
+}
+
+/// Reclaim all arena allocations while retaining the backing blocks.
+pub fn (ScopedArena) reset(a: ScopedArenaAllocator) void = trust {
+    val au: mut ref ScopedArena = a as ref ScopedArena
+    val node: mut ref ScopedArenaBlock = au.head as ref ScopedArenaBlock
+    for {
+        if node == none {
+            break
+        }
+        node.offset = 0
+        node = node.next
+    }
+    au.cur = au.head
+}
+
+/// Release all backing blocks and the arena handle.
+pub fn (ScopedArena) free(a: ScopedArenaAllocator) void = trust {
+    val au: mut ref ScopedArena = a as ref ScopedArena
+    val node: mut ref ScopedArenaBlock = au.head as ref ScopedArenaBlock
+    for {
+        if node == none {
+            break
+        }
+        val next_node: ref ScopedArenaBlock = node.next
+        @free(node.buf as ref void)
+        @free(node as ref void)
+        node = next_node
+    }
+    @free(au as ref void)
+}
+
+test {
+    val sa: ScopedArenaAllocator = trust ScopedArena.new(64 as usize)?
+    val p1: mut ref void = ScopedArena.alloc_or_none(sa, 16 as usize)
+    val p2: mut ref void = ScopedArena.alloc_or_none(sa, 200 as usize)
+
+    assert p1 != none
+    assert p2 != none
+
+    trust @store8(p1 as ref u8, 65)
+    trust @store8(p2 as ref u8, 66)
+    assert trust @load8(p1 as ref u8) == 65
+    assert trust @load8(p2 as ref u8) == 66
+
+    trust ScopedArena.reset(sa)
+    val p3: ref void = ScopedArena.alloc_or_none(sa, 16 as usize)
+    assert p3 != none
+
+    trust ScopedArena.free(sa)
+}

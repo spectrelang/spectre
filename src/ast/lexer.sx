@@ -1,4 +1,3 @@
-val mem        = use("../meta/mem.sx")
 val allocators = use("std/allocators")
 val string     = use("std/string")
 
@@ -95,37 +94,24 @@ pub type Token = {
     kind: mut TokenKind
     line: mut i64
     col: mut i64
-    arena: mut ref void
+    /// Non-none when this token list owns its backing arena.
+    arena: mut allocators.ScopedArenaAllocator
 }
 
 fn make_tok(l: ref Lexer, kind: TokenKind, line: i64, col: i64) ref Token = trust {
-    if l.arena == none {
-        val t: mut ref Token = mem.alloc(@sizeof(Token)) as ref Token
-        t.kind = kind
-        t.line = line
-        t.col = col
+    val t: mut ref Token = allocators.ScopedArena.alloc_or_none(
+        l.arena,
+        @sizeof(Token) as usize
+    ) as ref Token
+    t.kind = kind
+    t.line = line
+    t.col = col
+    if l.owns_arena {
+        t.arena = l.arena
+    } else {
         t.arena = none
-        return t
     }
-    val slot = allocators.Arena.alloc(l.arena, @sizeof(Token) as usize)
-    match slot {
-        none => {
-            val t: mut ref Token = mem.alloc(@sizeof(Token)) as ref Token
-            t.kind = kind
-            t.line = line
-            t.col = col
-            t.arena = none
-            return t
-        }
-        some ptr => {
-            val t: mut ref Token = ptr as ref Token
-            t.kind = kind
-            t.line = line
-            t.col = col
-            t.arena = l.arena
-            return t
-        }
-    }
+    return t
 }
 
 type Lexer = {
@@ -134,18 +120,20 @@ type Lexer = {
     pos: mut i64
     line: mut i64
     col: mut i64
-    arena: mut ref void
+    arena: mut allocators.ScopedArenaAllocator
+    owns_arena: mut bool
 }
 
-pub fn lexer_new(src: ref u8) ref Lexer = trust {
+fn lexer_new(arena: allocators.ScopedArenaAllocator, owns_arena: bool, src: ref u8) ref Lexer = trust {
     val slen: i64 = string.len_raw(src)
-    val l: mut ref Lexer = mem.alloc(@sizeof(Lexer)) as ref Lexer
+    val l: mut ref Lexer = @alloc(@sizeof(Lexer)) as ref Lexer
     l.src = src
     l.len = slen
     l.pos = 0
     l.line = 1
     l.col = 1
-    l.arena = none
+    l.arena = arena
+    l.owns_arena = owns_arena
     return l
 }
 
@@ -199,9 +187,9 @@ fn is_space(c: i64) bool = trust {
     return c == 32 || c == 9 || c == 10 || c == 13
 }
 
-fn substr(src: ref u8, start: i64, end: i64) ref u8 = trust {
+fn substr(arena: allocators.ScopedArenaAllocator, src: ref u8, start: i64, end: i64) ref u8 = trust {
     val n: i64 = end - start
-    val buf: ref u8 = mem.alloc(n + 1) as ref u8
+    val buf: ref u8 = allocators.ScopedArena.alloc_or_none(arena, (n + 1) as usize) as ref u8
     @memcpy(buf, @ptradd(src, start), n)
     @store8(@ptradd(buf, n), 0)
     return buf
@@ -391,7 +379,7 @@ fn lex_string(l: mut ref Lexer) ref u8 = trust {
         i++
     }
     @store8(@ptradd(buf, i), 0)
-    val result: ref u8 = mem.alloc(i + 1) as ref u8
+    val result: ref u8 = allocators.ScopedArena.alloc_or_none(l.arena, (i + 1) as usize) as ref u8
     @memcpy(result, buf, i + 1)
     @free(buf)
     return result
@@ -410,7 +398,7 @@ fn lex_number(l: mut ref Lexer, line: i64, col: i64) ref Token = trust {
             }
             lx_advance(l)
         }
-        return make_tok(l, Int(substr(l.src, start, l.pos)), line, col)
+        return make_tok(l, Int(substr(l.arena, l.src, start, l.pos)), line, col)
     }
     for {
         if !is_digit(lx_peek(l)) {
@@ -442,7 +430,7 @@ fn lex_number(l: mut ref Lexer, line: i64, col: i64) ref Token = trust {
             }
         }
     }
-    val text: ref u8 = substr(l.src, start, l.pos)
+    val text: ref u8 = substr(l.arena, l.src, start, l.pos)
     if is_float {
         return make_tok(l, Float(text), line, col)
     }
@@ -509,7 +497,7 @@ fn lex_raw_string(l: mut ref Lexer, line: i64, col: i64) ref Token = trust {
         }
     }
     @store8(@ptradd(buf, i), 0)
-    val result: ref u8 = mem.alloc(i + 1) as ref u8
+    val result: ref u8 = allocators.ScopedArena.alloc_or_none(l.arena, (i + 1) as usize) as ref u8
     @memcpy(result, buf, i + 1)
     @free(buf)
     return make_tok(l, Str(result), line, col)
@@ -548,13 +536,11 @@ fn lex_identifier(l: mut ref Lexer, line: i64, col: i64) ref Token = trust {
         }
         lx_advance(l)
     }
-    val text: ref u8 = substr(l.src, start, l.pos)
+    val text: ref u8 = substr(l.arena, l.src, start, l.pos)
     val kind: TokenKind = keyword_kind(text)
     match kind {
         Ident _ => {}
-        else => {
-            mem.free(text)
-        }
+        else => {}
     }
     return make_tok(l, kind, line, col)
 }
@@ -724,17 +710,30 @@ fn lex_operator(l: mut ref Lexer, c: i64, line: i64, col: i64) result[ref Token,
     return err false
 }
 
-/// Release a token list produced by `tokenize`, including its backing arena.
+/// Release a token list produced by `tokenize`, including its backing arena
+/// when the list owns it (the `tokenize` convenience form does).
 pub fn free_tokens(tokens: mut list[ref Token]) void = trust {
-    // Token structs and text live in the process arena; only free the list
-    // header and backing buffer here.
+    val n: i64 = @len(tokens) as i64
+    if n > 0 {
+        val first_opt = @get(tokens, 0 as usize)
+        if first_opt is some first_raw {
+            val first: ref Token = first_raw as ref Token
+            if first.arena != none {
+                allocators.ScopedArena.free(first.arena)
+            }
+        }
+    }
     val list_buf: ref void = @load(tokens as ref void)
     @free(list_buf)
     @free(tokens as ref void)
 }
 
-pub fn tokenize(src: ref u8) result[list[ref Token], ref u8] = trust {
-    val l: mut ref Lexer = lexer_new(src)
+fn tokenize_in(
+    arena: allocators.ScopedArenaAllocator,
+    owns_arena: bool,
+    src: ref u8
+) result[list[ref Token], ref u8] = trust {
+    val l: mut ref Lexer = lexer_new(arena, owns_arena, src)
     val tokens: mut list[ref Token] = []
     for {
         skip_whitespace(l)
@@ -785,13 +784,38 @@ pub fn tokenize(src: ref u8) result[list[ref Token], ref u8] = trust {
             }
             err _ => {}
         }
-        val errbuf: ref u8 = mem.alloc(64) as ref u8
+        val errbuf: ref u8 = @alloc(64) as ref u8
         @snprintf(errbuf, 64, "unexpected character at {lld}:{lld}", {line, col})
+        @free(l as ref void)
         free_tokens(tokens)
         return err errbuf
     }
 
+    @free(l as ref void)
     return ok tokens
+}
+
+/// Convenience form that owns a private arena for the returned token list.
+pub fn tokenize(src: ref u8) result[list[ref Token], ref u8] = trust {
+    val arena: allocators.ScopedArenaAllocator = allocators.ScopedArena.new(1048576 as usize)?
+    val res = tokenize_in(arena, true, src)
+    match res {
+        ok toks => {
+            return ok toks
+        }
+        err e => {
+            allocators.ScopedArena.free(arena)
+            return err e
+        }
+    }
+}
+
+/// Tokenize using a caller-owned arena. The arena must outlive the tokens.
+pub fn tokenize_with(
+    arena: allocators.ScopedArenaAllocator,
+    src: ref u8
+) result[list[ref Token], ref u8] = trust {
+    return tokenize_in(arena, false, src)
 }
 
 pub fn tok_kind(tokens: list[ref Token], i: i64) TokenKind = {

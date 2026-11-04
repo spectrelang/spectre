@@ -6,7 +6,6 @@ val allocators = use("std/allocators")
 val reflection = use("std/reflection")
 val fs         = use("std/fs")
 val path       = use("std/path")
-val mem        = use("../meta/mem.sx")
 val parser     = use("../ast/parser.sx")
 val modinfo    = use("../module/module.sx")
 
@@ -46,11 +45,16 @@ type SemaCtx = {
     untyped_params: mut list[ref u8]
     var_origin_names: mut list[ref u8]
     var_origin_types: mut list[ref u8]
+    arena: mut allocators.ScopedArenaAllocator
 }
 
-fn sema_new() ref SemaCtx = trust {
-    val ctx: ref SemaCtx = mem.alloc(@sizeof(SemaCtx)) as ref SemaCtx
+fn sema_new(arena: allocators.ScopedArenaAllocator) ref SemaCtx = trust {
+    val ctx: mut ref SemaCtx = allocators.ScopedArena.alloc_or_none(
+        arena,
+        @sizeof(SemaCtx) as usize
+    ) as ref SemaCtx
     @memset(ctx, 0, @sizeof(SemaCtx) as usize)
+    ctx.arena = arena
     return ctx
 }
 
@@ -93,7 +97,7 @@ fn add_error(ctx: ref SemaCtx, msg: ref u8) void = trust {
     @append(ctx.errors, msg)
 }
 
-fn canonicalize_path(path: ref u8) ref u8 = trust {
+fn canonicalize_path(ctx: ref SemaCtx, path: ref u8) ref u8 = trust {
     if path == none {
         return path
     }
@@ -121,7 +125,7 @@ fn canonicalize_path(path: ref u8) ref u8 = trust {
             i++
         }
         val seg_len: i64 = i - start
-        val seg: ref u8 = mem.alloc((seg_len + 1) as usize) as ref u8
+        val seg: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, ((seg_len + 1) as usize) as usize) as ref u8
         @memcpy(seg, @ptradd(path, start), seg_len as usize)
         @store8(@ptradd(seg, seg_len), 0)
         if string.raw_cmp(seg, "..") == 0 {
@@ -154,13 +158,9 @@ fn canonicalize_path(path: ref u8) ref u8 = trust {
     val built: ref void = string.StringBuilder.build(sb)
     val src_cstr: ref u8 = string.cstr(built)
     val n: i64 = string.len_raw(src_cstr) + 1
-    val out: ref u8 = mem.alloc(n) as ref u8
+    val out: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, (n) as usize) as ref u8
     @memcpy(out, src_cstr, n as usize)
-    mem.free(@load(built))
-    mem.free(built)
     string.StringBuilder.free(sb)
-    mem.free(@load(segs as ref void))
-    mem.free(segs as ref void)
     return out
 }
 
@@ -343,7 +343,7 @@ fn resolve_embed_builtin(
         argc = @len(bargs as list[ref parser.Node]) as i64
     }
     if argc != 1 {
-        val ebuf: ref u8 = mem.alloc(512) as ref u8
+        val ebuf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, (512) as usize) as ref u8
         @snprintf(ebuf, 512, "{s}:{lld}: builtin '@{s}' expects exactly 1 argument, got {lld}",
             {filename, expr.line, bname, argc})
         add_error(ctx, ebuf)
@@ -354,7 +354,7 @@ fn resolve_embed_builtin(
     if arg_opt is some arg_raw {
         val arg: ref parser.Node = arg_raw as ref parser.Node
         if arg.kind != parser.NK_STR_LIT {
-            val ebuf: ref u8 = mem.alloc(512) as ref u8
+            val ebuf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, (512) as usize) as ref u8
             @snprintf(ebuf, 512, "{s}:{lld}: builtin '@{s}' expects a string literal path",
                 {filename, expr.line, bname})
             add_error(ctx, ebuf)
@@ -362,7 +362,7 @@ fn resolve_embed_builtin(
         }
         val rel: ref u8 = arg.d0 as ref u8
         if rel == none || string.len_raw(rel) == 0 {
-            val ebuf: ref u8 = mem.alloc(512) as ref u8
+            val ebuf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, (512) as usize) as ref u8
             @snprintf(ebuf, 512, "{s}:{lld}: builtin '@{s}' requires a non-empty path",
                 {filename, expr.line, bname})
             add_error(ctx, ebuf)
@@ -370,7 +370,7 @@ fn resolve_embed_builtin(
         }
         val base_dir: ref u8 = path.dir(filename)
         val joined: ref u8 = path.join(base_dir, rel)
-        val canonical: ref u8 = canonicalize_path(joined)
+        val canonical: ref u8 = canonicalize_path(ctx, joined)
         val size_opt = fs.file_size(canonical)
         match size_opt {
             some size => {
@@ -378,14 +378,14 @@ fn resolve_embed_builtin(
                 parser.node_store_slot[i64](@addr(expr.d3), size)
             }
             none => {
-                val ebuf: ref u8 = mem.alloc(1024) as ref u8
+                val ebuf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, (1024) as usize) as ref u8
                 @snprintf(ebuf, 1024, "{s}:{lld}: cannot embed '{s}': file not found or unreadable",
                     {filename, expr.line, canonical})
                 add_error(ctx, ebuf)
             }
         }
     } else {
-        val ebuf: ref u8 = mem.alloc(512) as ref u8
+        val ebuf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, (512) as usize) as ref u8
         @snprintf(ebuf, 512, "{s}:{lld}: builtin '@{s}' expects exactly 1 argument",
             {filename, expr.line, bname})
         add_error(ctx, ebuf)
@@ -495,7 +495,7 @@ fn pop_scope(ctx: ref SemaCtx, filename: ref u8, _: i64) void = trust {
                     if entry.name != none {
                         if string.raw_cmp(entry.name, "_") != 0 {
                             if entry.used == 0 {
-                                val buf: ref u8 = mem.alloc(512) as ref u8
+                                val buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, (512) as usize) as ref u8
                                 @snprintf(
                                     buf,
                                     512,
@@ -504,7 +504,7 @@ fn pop_scope(ctx: ref SemaCtx, filename: ref u8, _: i64) void = trust {
                                 )
                                 add_error(ctx, buf)
                             } elif entry.mutable == 1 && entry.mutated == 0 && entry.implicit_mut == 0 {
-                                val buf2: ref u8 = mem.alloc(512) as ref u8
+                                val buf2: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, (512) as usize) as ref u8
                                 @snprintf(
                                     buf2,
                                     512,
@@ -547,7 +547,7 @@ fn scope_define(
     }
     val frame_opt = @get(ctx.scopes, len - 1)
     if frame_opt is some frame {
-        val entry: mut ref ScopeEntry = mem.alloc(@sizeof(ScopeEntry)) as ref ScopeEntry
+        val entry: mut ref ScopeEntry = allocators.ScopedArena.alloc_or_none(ctx.arena, (@sizeof(ScopeEntry)) as usize) as ref ScopeEntry
         entry.name = name
         entry.mutable = mutable
         entry.type_name = type_name
@@ -732,11 +732,11 @@ fn check_no_module_to_module_type(
     if first_dot < 0 || second_dot < 0 {
         return
     }
-    val first_seg: ref u8 = mem.alloc(first_dot + 1) as ref u8
+    val first_seg: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, (first_dot + 1) as usize) as ref u8
     @memcpy(first_seg, name, first_dot as usize)
     @store8(@ptradd(first_seg, first_dot), 0)
     val second_len: i64 = second_dot - first_dot - 1
-    val second_seg: ref u8 = mem.alloc(second_len + 1) as ref u8
+    val second_seg: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, (second_len + 1) as usize) as ref u8
     @memcpy(second_seg, @ptradd(name, first_dot + 1), second_len as usize)
     @store8(@ptradd(second_seg, second_len), 0)
     val rmod: ref modinfo.ResolvedModule = ctx.root_mod
@@ -745,7 +745,7 @@ fn check_no_module_to_module_type(
         return
     }
     if module_has_use_alias(imported, second_seg) {
-        val ebuf: ref u8 = mem.alloc(512) as ref u8
+        val ebuf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, (512) as usize) as ref u8
         @snprintf(
             ebuf,
             512,
@@ -789,7 +789,7 @@ fn check_no_module_to_module_field(
         return
     }
     if module_has_use_alias(imported, field) {
-        val ebuf: ref u8 = mem.alloc(512) as ref u8
+        val ebuf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, (512) as usize) as ref u8
         @snprintf(
             ebuf,
             512,
@@ -1349,7 +1349,7 @@ fn find_imported_mod(ctx: ref SemaCtx, alias: ref u8) ref modinfo.ResolvedModule
         }
         val imported: ref modinfo.ResolvedModule = modinfo.import_module_at(rmod, j as usize)
         if imported != none {
-            val canonical_prefix: ref u8 = canonical_type_prefix_for_imported_module(imported)
+            val canonical_prefix: ref u8 = canonical_type_prefix_for_imported_module(ctx, imported)
             val emitted_prefix: ref u8 = emitted_type_prefix_for_imported_module(ctx, imported)
             if ((canonical_prefix != none && str_eq(canonical_prefix, alias)) ||
                 (emitted_prefix != none && str_eq(emitted_prefix, alias))) {
@@ -1479,7 +1479,7 @@ fn find_typedef_anywhere(ctx: ref SemaCtx, type_name: ref u8) ref parser.Node = 
         i++
     }
     if dot_idx > 0 {
-        val mod_name_buf: ref u8 = mem.alloc((dot_idx + 1) as usize) as ref u8
+        val mod_name_buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, ((dot_idx + 1) as usize) as usize) as ref u8
         @memcpy(mod_name_buf, type_name, dot_idx as usize)
         @store8(@ptradd(mod_name_buf, dot_idx), 0)
         val unqual: ref u8 = @ptradd(type_name, dot_idx + 1) as ref u8
@@ -1557,7 +1557,7 @@ fn find_spec_anywhere(ctx: ref SemaCtx, spec_name: ref u8) ref parser.Node = tru
         i++
     }
     if dot_idx > 0 {
-        val mod_name_buf: ref u8 = mem.alloc((dot_idx + 1) as usize) as ref u8
+        val mod_name_buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, ((dot_idx + 1) as usize) as usize) as ref u8
         @memcpy(mod_name_buf, spec_name, dot_idx as usize)
         @store8(@ptradd(mod_name_buf, dot_idx), 0)
         val unqual: ref u8 = @ptradd(spec_name, dot_idx + 1) as ref u8
@@ -1840,7 +1840,7 @@ fn validate_spec_impls(
         }
         if @len(impls) as i64 == 0 {
             if item.d0 == 0 {
-                val ebuf: ref u8 = mem.alloc(256) as ref u8
+                val ebuf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, (256) as usize) as ref u8
                 @snprintf(
                     ebuf,
                     256,
@@ -1859,12 +1859,12 @@ fn validate_spec_impls(
                 val meth_name: ref u8 = meth.d2 as ref u8
                 val impl_fn: ref parser.Node = find_top_level_fn(items, impl_name, meth_name)
                 if impl_fn == none {
-                    val ebuf2: ref u8 = mem.alloc(512) as ref u8
+                    val ebuf2: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, (512) as usize) as ref u8
                     @snprintf(ebuf2, 512, "{s}: spec '{s}' is unimplemented for '{s}': missing function '{s}'",
                         {filename, spec_name, impl_name, meth_name})
                     add_error(ctx, ebuf2)
                 } elif !function_matches_spec_method(meth, impl_fn, impl_name) {
-                    val ebuf3: ref u8 = mem.alloc(512) as ref u8
+                    val ebuf3: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, (512) as usize) as ref u8
                     @snprintf(ebuf3, 512, "{s}: spec '{s}' is only partially implemented for '{s}': function '{s}' has a mismatched signature",
                         {filename, spec_name, impl_name, meth_name})
                     add_error(ctx, ebuf3)
@@ -1904,7 +1904,7 @@ fn validate_derived_specs_in_items(
                     val spec_def: ref parser.Node = find_spec_anywhere(ctx, spec_name)
                     if spec_def == none {
                         val type_name: ref u8 = item.d1 as ref u8
-                        val ebuf: ref u8 = mem.alloc(512) as ref u8
+                        val ebuf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, (512) as usize) as ref u8
                         @snprintf(ebuf, 512, "{s}:{lld}: type '{s}' derives unknown spec '{s}'",
                             {filename, item.line, type_name, spec_name})
                         add_error(ctx, ebuf)
@@ -1957,7 +1957,7 @@ fn unqualified_type_name(tname: ref u8) ref u8 = trust {
     return tname
 }
 
-fn qualified_owner_prefix(name: ref u8) ref u8 = trust {
+fn qualified_owner_prefix(ctx: ref SemaCtx, name: ref u8) ref u8 = trust {
     if name == none {
         return none
     }
@@ -1976,7 +1976,7 @@ fn qualified_owner_prefix(name: ref u8) ref u8 = trust {
     if last_dot < 0 {
         return none
     }
-    val out: ref u8 = mem.alloc((last_dot + 1) as usize) as ref u8
+    val out: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, ((last_dot + 1) as usize) as usize) as ref u8
     @memcpy(out, name, last_dot as usize)
     @store8(@ptradd(out, last_dot), 0)
     return out
@@ -2044,16 +2044,16 @@ fn qualify_type_name_for_callee(
     if owner_prefix == none {
         return type_name
     }
-    val buf: ref u8 = mem.alloc(512) as ref u8
+    val buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, (512) as usize) as ref u8
     @snprintf(buf, 512, "{s}.{s}", {owner_prefix, type_name})
     return buf
 }
 
-fn canonical_type_prefix_for_imported_module(imported: ref modinfo.ResolvedModule) ref u8 = trust {
+fn canonical_type_prefix_for_imported_module(ctx: ref SemaCtx, imported: ref modinfo.ResolvedModule) ref u8 = trust {
     if imported == none {
         return none
     }
-    val fname: ref u8 = canonicalize_path(modinfo.module_filename(imported))
+    val fname: ref u8 = canonicalize_path(ctx, modinfo.module_filename(imported))
     if fname == none {
         return none
     }
@@ -2100,7 +2100,7 @@ fn canonical_type_prefix_for_imported_module(imported: ref modinfo.ResolvedModul
     if out_len <= 0 {
         return none
     }
-    val out: ref u8 = mem.alloc((out_len + 1) as usize) as ref u8
+    val out: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, ((out_len + 1) as usize) as usize) as ref u8
     @memcpy(out, @ptradd(fname, start), out_len as usize)
     @store8(@ptradd(out, out_len), 0)
     return out
@@ -2150,12 +2150,12 @@ fn emitted_type_prefix_for_imported_module(
     if imported == none {
         return none
     }
-    val fname: ref u8 = canonicalize_path(modinfo.module_filename(imported))
+    val fname: ref u8 = canonicalize_path(ctx, modinfo.module_filename(imported))
     if fname == none {
         return none
     }
     if path_contains_segment(fname, "/spectrelib/") {
-        return canonical_type_prefix_for_imported_module(imported)
+        return canonical_type_prefix_for_imported_module(ctx, imported)
     }
     if ctx != none && ctx.root_mod != none {
         val n: i64 = modinfo.import_count(ctx.root_mod)
@@ -2169,7 +2169,7 @@ fn emitted_type_prefix_for_imported_module(
                 i as usize
             )
             if imported_mod != none {
-                val imported_fname: ref u8 = canonicalize_path(modinfo.module_filename(imported_mod))
+                val imported_fname: ref u8 = canonicalize_path(ctx, modinfo.module_filename(imported_mod))
                 if imported_fname != none && str_eq(imported_fname, fname) {
                     val alias_name: ref u8 = modinfo.import_name_at(ctx.root_mod, i as usize)
                     if alias_name != none {
@@ -2180,7 +2180,7 @@ fn emitted_type_prefix_for_imported_module(
             i++
         }
     }
-    return canonical_type_prefix_for_imported_module(imported)
+    return canonical_type_prefix_for_imported_module(ctx, imported)
 }
 
 fn canonicalize_import_alias_type_name(ctx: ref SemaCtx, type_name: ref u8) ref u8 = trust {
@@ -2190,7 +2190,7 @@ fn canonicalize_import_alias_type_name(ctx: ref SemaCtx, type_name: ref u8) ref 
     if str_eq(type_name, "") {
         return type_name
     }
-    val owner: ref u8 = qualified_owner_prefix(type_name)
+    val owner: ref u8 = qualified_owner_prefix(ctx, type_name)
     if owner == none {
         return type_name
     }
@@ -2203,7 +2203,7 @@ fn canonicalize_import_alias_type_name(ctx: ref SemaCtx, type_name: ref u8) ref 
         return type_name
     }
     val inner_name: ref u8 = unqualified_type_name(type_name)
-    val buf: ref u8 = mem.alloc(512) as ref u8
+    val buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, (512) as usize) as ref u8
     @snprintf(buf, 512, "{s}.{s}", {canonical_prefix, inner_name})
     return buf
 }
@@ -2353,7 +2353,7 @@ fn is_comparison_op(op: i64) bool = trust {
     op == parser.OP_GT || op == parser.OP_GE
 }
 
-fn format_type_for_error(type_name: ref u8, is_ref: i64) ref u8 = trust {
+fn format_type_for_error(ctx: ref SemaCtx, type_name: ref u8, is_ref: i64) ref u8 = trust {
     if is_ref == 1 && (type_name == none || str_eq(type_name, "")) {
         return "ref void"
     }
@@ -2363,7 +2363,7 @@ fn format_type_for_error(type_name: ref u8, is_ref: i64) ref u8 = trust {
     if is_ref == 0 {
         return type_name
     }
-    val buf: ref u8 = mem.alloc(128) as ref u8
+    val buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, (128) as usize) as ref u8
     @snprintf(buf, 128, "ref {s}", {type_name})
     return buf
 }
@@ -2512,7 +2512,7 @@ fn comparison_type_name(ctx: ref SemaCtx, expr: ref parser.Node) ref u8 = trust 
     if wrap_kind == 2 {
         return "option"
     }
-    return format_type_for_error(
+    return format_type_for_error(ctx,
         infer_expr_scope_type_name(ctx, expr),
         infer_expr_scope_is_ref(ctx, expr)
     )
@@ -2641,13 +2641,13 @@ fn check_cast_type_boundary(
     val target_ty: ref parser.Node = expr.d1 as ref parser.Node
     val target_is_numeric: bool = sema_ty_is_numeric(target_ty)
     val target_is_non_numeric: bool = sema_ty_is_definitely_non_numeric(ctx, target_ty)
-    val target_name: ref u8 = format_type_for_error(
+    val target_name: ref u8 = format_type_for_error(ctx,
         extract_type_name(target_ty),
         sema_ty_is_ref(target_ty)
     )
 
     if expr_is_definitely_numeric_for_cast(ctx, inner) && target_is_non_numeric {
-        val buf: ref u8 = mem.alloc(256) as ref u8
+        val buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, (256) as usize) as ref u8
         @snprintf(
             buf,
             256,
@@ -2659,7 +2659,7 @@ fn check_cast_type_boundary(
     }
 
     if expr_is_definitely_ptr_for_cast(ctx, inner) && target_is_numeric {
-        val buf: ref u8 = mem.alloc(256) as ref u8
+        val buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, (256) as usize) as ref u8
         @snprintf(
             buf,
             256,
@@ -2963,7 +2963,7 @@ fn has_c_style_specifier(s: ref u8) bool = trust {
 
 /// Extracts the list of specifier strings from a Spectre format string.
 /// E.g. "hello {d} {s}" -> ["d", "s"]
-fn parse_fmt_specifiers(s: ref u8) list[ref u8] = trust {
+fn parse_fmt_specifiers(ctx: ref SemaCtx, s: ref u8) list[ref u8] = trust {
     val result: mut list[ref u8] = []
     val i: mut i64 = 0
     for {
@@ -2994,7 +2994,7 @@ fn parse_fmt_specifiers(s: ref u8) list[ref u8] = trust {
             if found {
                 val spec_len: i64 = j - i - 1
                 if spec_len > 0 {
-                    val specifier: ref u8 = mem.alloc(spec_len + 1) as ref u8
+                    val specifier: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, (spec_len + 1) as usize) as ref u8
                     val si: mut i64 = 0
                     for {
                         if si >= spec_len {
@@ -3265,7 +3265,7 @@ fn check_printf_fmt(ctx: ref SemaCtx, fmt_str: ref u8, all_args: ref void,
     args_start_idx: i64, filename: ref u8, line: i64) void = trust {
     if has_c_style_specifier(fmt_str) {
         if !string.raw_ends_with(filename, "codegen.sx") {
-            val buf: ref u8 = mem.alloc(256) as ref u8
+            val buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, (256) as usize) as ref u8
             @snprintf(buf, 256, "{s}:{lld}: C-style format specifiers are not allowed; use \{d\}, \{s\} etc.",
                 {filename, line})
             add_error(ctx, buf)
@@ -3273,7 +3273,7 @@ fn check_printf_fmt(ctx: ref SemaCtx, fmt_str: ref u8, all_args: ref void,
         }
     }
 
-    val specs: list[ref u8] = parse_fmt_specifiers(fmt_str)
+    val specs: list[ref u8] = parse_fmt_specifiers(ctx, fmt_str)
     val spec_count: i64 = @len(specs) as i64
 
     // Determine arg count and whether we have pack-style or individual-style args.
@@ -3319,7 +3319,7 @@ fn check_printf_fmt(ctx: ref SemaCtx, fmt_str: ref u8, all_args: ref void,
     }
 
     if spec_count != total_args {
-        val buf: ref u8 = mem.alloc(256) as ref u8
+        val buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, (256) as usize) as ref u8
         @snprintf(buf, 256, "{s}:{lld}: format string has {lld} specifier(s) but {lld} argument(s) provided",
             {filename, line, spec_count, total_args})
         add_error(ctx, buf)
@@ -3356,7 +3356,7 @@ fn check_printf_fmt(ctx: ref SemaCtx, fmt_str: ref u8, all_args: ref void,
                         if arg_wrap == 1 {
                             wrap_name = "result"
                         }
-                        val buf_wrap: ref u8 = mem.alloc(512) as ref u8
+                        val buf_wrap: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, (512) as usize) as ref u8
                         @snprintf(buf_wrap, 512,
                             "{s}:{lld}: format specifier \\{{s}\\} does not accept a {s} value; unwrap it first",
                             {filename, line, specifier, wrap_name})
@@ -3374,7 +3374,7 @@ fn check_printf_fmt(ctx: ref SemaCtx, fmt_str: ref u8, all_args: ref void,
                             its_ok = true
                         }
                         if !its_ok {
-                            val buf2: ref u8 = mem.alloc(512) as ref u8
+                            val buf2: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, (512) as usize) as ref u8
                             @snprintf(buf2, 512,
                                 "{s}:{lld}: format specifier \{{s}\} expects {s} argument but got {s}",
                                 {filename, line, specifier, exp_cat, act_cat})
@@ -3480,8 +3480,8 @@ fn check_generic_call_constraints(ctx: ref SemaCtx, fn_found: ref parser.Node, c
                             its_ok = true
                         }
                         if !its_ok && impl_spec != none {
-                            val arg_owner: ref u8 = qualified_owner_prefix(arg_type_name)
-                            val expected_owner: ref u8 = qualified_owner_prefix(expected_spec)
+                            val arg_owner: ref u8 = qualified_owner_prefix(ctx, arg_type_name)
+                            val expected_owner: ref u8 = qualified_owner_prefix(ctx, expected_spec)
                             if arg_owner != none && expected_owner != none &&
                             str_eq(impl_spec, unqualified_type_name(expected_spec)) {
                                 if str_eq(arg_owner, expected_owner) {
@@ -3511,8 +3511,8 @@ fn check_generic_call_constraints(ctx: ref SemaCtx, fn_found: ref parser.Node, c
                                                 dbg_exp_null = "null"
                                             }
                                             if arg_mod != none && expected_mod != none {
-                                                val arg_fname: ref u8 = canonicalize_path(modinfo.module_filename(arg_mod))
-                                                val exp_fname: ref u8 = canonicalize_path(modinfo.module_filename(expected_mod))
+                                                val arg_fname: ref u8 = canonicalize_path(ctx, modinfo.module_filename(arg_mod))
+                                                val exp_fname: ref u8 = canonicalize_path(ctx, modinfo.module_filename(expected_mod))
                                                 if arg_fname != none && exp_fname != none && str_eq(
                                                     arg_fname,
                                                     exp_fname
@@ -3530,7 +3530,7 @@ fn check_generic_call_constraints(ctx: ref SemaCtx, fn_found: ref parser.Node, c
                         }
                         if !its_ok {
                             val tp_name: ref u8 = parser.tparam_name(tp_node)
-                            val ebuf: ref u8 = mem.alloc(512) as ref u8
+                            val ebuf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, (512) as usize) as ref u8
                             @snprintf(ebuf, 512, "{s}:{lld}: type '{s}' does not satisfy constraint '{s}: {s}'",
                                 {filename, line, arg_type_name, tp_name, constraint_name})
                             add_error(ctx, ebuf)
@@ -3675,7 +3675,7 @@ fn check_generic_call_arg_types(ctx: ref SemaCtx, fn_found: ref parser.Node, cal
                                         arg_tname,
                                         arg_node
                                     ) {
-                                        val ebuf: ref u8 = mem.alloc(512) as ref u8
+                                        val ebuf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, (512) as usize) as ref u8
                                         @snprintf(ebuf, 512, "{s}:{lld}: type mismatch in generic call: argument has type '{s}' but type parameter '{s}' is '{s}'",
                                             {
                                                 filename,
@@ -3738,7 +3738,7 @@ fn lookup_var_origin(ctx: ref SemaCtx, name: ref u8) ref u8 = trust {
 
 /// Build a dotted name string from a NK_FIELD/NK_IDENT chain (e.g., "allocators.Arena").
 /// Returns 0 if the chain isn't purely identifiers and field accesses.
-fn dotted_chain_name(node: ref parser.Node) ref u8 = trust {
+fn dotted_chain_name(ctx: ref SemaCtx, node: ref parser.Node) ref u8 = trust {
     if node == none {
         return none
     }
@@ -3748,11 +3748,11 @@ fn dotted_chain_name(node: ref parser.Node) ref u8 = trust {
     if node.kind == parser.NK_FIELD {
         val base: ref parser.Node = parser.field_base(node)
         val fname: ref u8 = parser.field_name(node)
-        val base_str: ref u8 = dotted_chain_name(base)
+        val base_str: ref u8 = dotted_chain_name(ctx, base)
         if base_str == none {
             return none
         }
-        val out: ref u8 = mem.alloc(512) as ref u8
+        val out: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, (512) as usize) as ref u8
         @snprintf(out, 512, "{s}.{s}", {base_str, fname})
         return out
     }
@@ -3761,7 +3761,7 @@ fn dotted_chain_name(node: ref parser.Node) ref u8 = trust {
 
 /// If init_expr is of the form `(trust)? X.Method(...)(?)`, return the dotted
 /// name of X (e.g., "allocators.Arena"); otherwise return 0.
-fn extract_constructor_namespace(expr: ref parser.Node) ref u8 = trust {
+fn extract_constructor_namespace(ctx: ref SemaCtx, expr: ref parser.Node) ref u8 = trust {
     val cur: mut ref parser.Node = expr
     for {
         if cur == none {
@@ -3788,7 +3788,7 @@ fn extract_constructor_namespace(expr: ref parser.Node) ref u8 = trust {
         return none
     }
     val base: ref parser.Node = parser.field_base(callee)
-    return dotted_chain_name(base)
+    return dotted_chain_name(ctx, base)
 }
 
 /// Returns true if the type-arg list of a NK_GENERIC_INST callee contains TY_INFER markers.
@@ -3828,7 +3828,7 @@ fn resolve_generic_inst_inference(ctx: mut ref SemaCtx, callee: mut ref parser.N
         return
     }
     if fn_found == none || fn_found.kind != parser.NK_GENERIC_FN {
-        val ebuf: ref u8 = mem.alloc(512) as ref u8
+        val ebuf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, (512) as usize) as ref u8
         @snprintf(ebuf, 512, "{s}:{lld}: cannot infer generic type argument(s): function definition not found",
             {filename, line})
         add_error(ctx, ebuf)
@@ -3841,7 +3841,7 @@ fn resolve_generic_inst_inference(ctx: mut ref SemaCtx, callee: mut ref parser.N
         nparams = @len(tparams as list[ref parser.Node]) as i64
     }
     if nparams == 0 {
-        val ebuf2: ref u8 = mem.alloc(512) as ref u8
+        val ebuf2: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, (512) as usize) as ref u8
         @snprintf(ebuf2, 512, "{s}:{lld}: cannot infer generic type argument(s): function has no type parameters",
             {filename, line})
         add_error(ctx, ebuf2)
@@ -3901,7 +3901,7 @@ fn resolve_generic_inst_inference(ctx: mut ref SemaCtx, callee: mut ref parser.N
                     if tp_opt is some tp2 {
                         tname_for_err = parser.tparam_name(tp2 as ref parser.Node)
                     }
-                    val ebuf3: ref u8 = mem.alloc(512) as ref u8
+                    val ebuf3: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, (512) as usize) as ref u8
                     @snprintf(ebuf3, 512, "{s}:{lld}: cannot infer generic type argument for type parameter '{s}'; specify it explicitly",
                         {filename, line, tname_for_err})
                     add_error(ctx, ebuf3)
@@ -3952,7 +3952,7 @@ fn infer_targ_for_tparam(ctx: ref SemaCtx, tparam_name: ref u8,
                             resolved_tn,
                             ""
                         ) && !str_eq(resolved_tn, "unknown") {
-                            val out: mut ref parser.Node = parser.make_node(parser.TY_NAMED, 0)
+                            val out: mut ref parser.Node = parser.make_node(ctx.arena, parser.TY_NAMED, 0)
                             parser.node_store_slot[ref u8](@addr(out.d0), resolved_tn)
                             return out
                         }
@@ -3991,7 +3991,7 @@ fn resolve_arg_originating_type(ctx: ref SemaCtx, arg: ref parser.Node) ref u8 =
             return origin
         }
     }
-    val from_expr: ref u8 = extract_constructor_namespace(arg)
+    val from_expr: ref u8 = extract_constructor_namespace(ctx, arg)
     if from_expr != none {
         return from_expr
     }
@@ -4077,7 +4077,7 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
                     }
                 }
                 if !is_known {
-                    val buf: ref u8 = mem.alloc(256) as ref u8
+                    val buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, (256) as usize) as ref u8
                     @snprintf(
                         buf,
                         256,
@@ -4103,7 +4103,7 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
             if !comparison_operands_compatible(ctx, lhs, rhs, op) {
                 val lhs_type: ref u8 = comparison_type_name(ctx, lhs)
                 val rhs_type: ref u8 = comparison_type_name(ctx, rhs)
-                val buf: ref u8 = mem.alloc(512) as ref u8
+                val buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, (512) as usize) as ref u8
                 if string.raw_cmp(lhs_type, "unknown") == 0 {
                     return
                 } elif string.raw_cmp(rhs_type, "unknown") == 0 {
@@ -4126,7 +4126,7 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
     }
     if k == parser.NK_TRUST {
         if ctx.in_unsafe_fn != 0 || ctx.in_trust != 0 {
-            val buf: ref u8 = mem.alloc(512) as ref u8
+            val buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, (512) as usize) as ref u8
             if ctx.in_unsafe_fn != 0 {
                 @snprintf(
                     buf,
@@ -4151,7 +4151,7 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
         check_expr(ctx, expr.d0 as ref parser.Node, filename)
         ctx.in_trust = prev_trust
         if ctx.trust_used == 0 && ctx.in_unsafe_fn == 0 && ctx.in_trust == 0 {
-            val buf: ref u8 = mem.alloc(512) as ref u8
+            val buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, (512) as usize) as ref u8
             @snprintf(
                 buf,
                 512,
@@ -4172,7 +4172,7 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
         val inner: ref parser.Node = expr.d0 as ref parser.Node
         check_expr(ctx, inner, filename)
         if expr_wrap_kind(ctx, inner) != 1 && sema_try_operand_proves_not_result(ctx, inner) {
-            val buf: ref u8 = mem.alloc(512) as ref u8
+            val buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, (512) as usize) as ref u8
             val tname: ref u8 = sema_try_operand_type_name(ctx, inner)
             if tname != none && !str_eq(tname, "") {
                 @snprintf(
@@ -4227,7 +4227,7 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
                         if fbase.kind == parser.NK_IDENT {
                             val base_name: ref u8 = fbase.d0 as ref u8
                             if base_name != none {
-                                val qbuf: ref u8 = mem.alloc(256) as ref u8
+                                val qbuf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, (256) as usize) as ref u8
                                 @snprintf(qbuf, 256, "{s}.{s}", {base_name, fname})
                                 @append(ctx.used_fns, qbuf)
                             }
@@ -4249,7 +4249,7 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
                         fn_name = parser.field_name(base_callee)
                     }
                 }
-                val gbuf: ref u8 = mem.alloc(512) as ref u8
+                val gbuf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, (512) as usize) as ref u8
                 if fn_name != none {
                     @snprintf(
                         gbuf,
@@ -4286,7 +4286,7 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
                             fn_name = parser.field_name(base_callee)
                         }
                     }
-                    val arity_buf: ref u8 = mem.alloc(512) as ref u8
+                    val arity_buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, (512) as usize) as ref u8
                     if fn_name != none {
                         @snprintf(
                             arity_buf,
@@ -4352,7 +4352,7 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
                                     val aname: ref u8 = root_arg.d0 as ref u8
                                     val arg_mutability: i64 = scope_lookup(ctx, aname)
                                     if arg_mutability == 0 {
-                                        val mut_err_buf: ref u8 = mem.alloc(512) as ref u8
+                                        val mut_err_buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, (512) as usize) as ref u8
                                         val pname_m: ref u8 = param_node.d0 as ref u8
                                         val fn_name_m: mut ref u8 = none
                                         if base_callee != none {
@@ -4390,7 +4390,7 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
                                     arg_wrap_str = "result"
                                 }
                                 val pname_w: ref u8 = param_node.d0 as ref u8
-                                val wbuf: ref u8 = mem.alloc(512) as ref u8
+                                val wbuf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, (512) as usize) as ref u8
                                 if fn_name_w != none {
                                     @snprintf(wbuf, 512, "{s}:{lld}: type mismatch in call to '{s}': parameter '{s}' does not accept a {s} value; unwrap it first",
                                         {filename, line, fn_name_w, pname_w, arg_wrap_str})
@@ -4513,17 +4513,17 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
                                                 fn_name_for_err = parser.field_name(base_callee)
                                             }
                                         }
-                                        val type_err_buf: ref u8 = mem.alloc(512) as ref u8
+                                        val type_err_buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, (512) as usize) as ref u8
                                         val param_name: ref u8 = param_node.d0 as ref u8
                                         val param_type_str: mut ref u8 = param_type_name
                                         if param_expects_ref {
-                                            val ref_buf: ref u8 = mem.alloc(128) as ref u8
+                                            val ref_buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, (128) as usize) as ref u8
                                             @snprintf(ref_buf, 128, "ref {s}", {param_type_name})
                                             param_type_str = ref_buf
                                         }
                                         val arg_type_str: mut ref u8 = arg_type_name
                                         if arg_is_ref == 1 && arg_type_name != none {
-                                            val arg_ref_buf: ref u8 = mem.alloc(128) as ref u8
+                                            val arg_ref_buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, (128) as usize) as ref u8
                                             @snprintf(arg_ref_buf, 128, "ref {s}", {arg_type_name})
                                             arg_type_str = arg_ref_buf
                                         }
@@ -4572,7 +4572,7 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
                     fn_name_for_targs = parser.field_name(base_callee)
                 }
             }
-            val targs_buf: ref u8 = mem.alloc(512) as ref u8
+            val targs_buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, (512) as usize) as ref u8
             if fn_name_for_targs != none {
                 @snprintf(
                     targs_buf,
@@ -4616,7 +4616,7 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
                     val arg_count: i64 = @len(cargs) as i64
 
                     if arg_count != expected_count {
-                        val arity_buf: ref u8 = mem.alloc(512) as ref u8
+                        val arity_buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, (512) as usize) as ref u8
                         @snprintf(arity_buf, 512, "{s}:{lld}: variant constructor '{s}' expects {lld} argument(s) but got {lld}",
                             {filename, line, callee_name, expected_count, arg_count})
                         add_error(ctx, arity_buf)
@@ -4652,7 +4652,7 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
                                             expected_type_name,
                                             arg_type_name
                                         ) {
-                                            val type_err_buf: ref u8 = mem.alloc(512) as ref u8
+                                            val type_err_buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, (512) as usize) as ref u8
                                             @snprintf(type_err_buf, 512, "{s}:{lld}: type mismatch in variant constructor '{s}': argument {lld} expects type '{s}' but got '{s}'",
                                                 {
                                                     filename,
@@ -4731,7 +4731,7 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
                                 )
                                 if import_mod != none {
                                     if !modinfo.fn_is_public_in_module(import_mod, vis_fn_name) {
-                                        val buf: ref u8 = mem.alloc(256) as ref u8
+                                        val buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, (256) as usize) as ref u8
                                         @snprintf(buf, 256, "{s}:{lld}: '{s}' is not public in module '{s}'",
                                             {filename, line, vis_fn_name, vis_mod_name})
                                         add_error(ctx, buf)
@@ -4740,7 +4740,7 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
                                         import_mod,
                                         vis_fn_name
                                     ) && ctx.in_unsafe_fn == 0 && ctx.in_trust == 0 {
-                                        val ubuf: ref u8 = mem.alloc(256) as ref u8
+                                        val ubuf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, (256) as usize) as ref u8
                                         @snprintf(ubuf, 256, "{s}:{lld}: cannot call unsafe function '{s}' from module '{s}' in safe context, use a 'trust' block",
                                             {filename, line, vis_fn_name, vis_mod_name})
                                         add_error(ctx, ubuf)
@@ -4753,9 +4753,9 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
             }
         }
         if fn_found != none && fn_found.kind == parser.NK_EXTERN_FN {
-            val extern_name: ref u8 = dotted_chain_name(base_callee)
+            val extern_name: ref u8 = dotted_chain_name(ctx, base_callee)
             if ctx.in_unsafe_fn == 0 && ctx.in_trust == 0 {
-                val ebuf: ref u8 = mem.alloc(512) as ref u8
+                val ebuf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, (512) as usize) as ref u8
                 if extern_name != none {
                     @snprintf(
                         ebuf,
@@ -4786,7 +4786,7 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
                         fn_name = parser.field_name(base_callee)
                     }
                 }
-                val ebuf: ref u8 = mem.alloc(512) as ref u8
+                val ebuf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, (512) as usize) as ref u8
                 if fn_name != none {
                     @snprintf(
                         ebuf,
@@ -4819,7 +4819,7 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
         }
 
         if !is_known_builtin(bname) {
-            val ebuf: ref u8 = mem.alloc(512) as ref u8
+            val ebuf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, (512) as usize) as ref u8
             @snprintf(ebuf, 512, "{s}:{lld}: unknown intrinsic '@{s}'", {filename, line, bname})
             add_error(ctx, ebuf)
             return
@@ -4834,7 +4834,7 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
 
         if type_argc > 0 && !str_eq(bname, "fmtalloc") && !str_eq(bname, "argsalloc") &&
         !str_eq(bname, "listalloc") {
-            val ebuf: ref u8 = mem.alloc(512) as ref u8
+            val ebuf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, (512) as usize) as ref u8
             @snprintf(ebuf, 512, "{s}:{lld}: builtin '@{s}' does not take type arguments",
                 {filename, line, bname})
             add_error(ctx, ebuf)
@@ -4843,14 +4843,14 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
 
         if str_eq(bname, "argsalloc") {
             if type_argc != 1 {
-                val ebuf: ref u8 = mem.alloc(512) as ref u8
+                val ebuf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, (512) as usize) as ref u8
                 @snprintf(ebuf, 512, "{s}:{lld}: builtin '@argsalloc' requires exactly one allocator type argument",
                     {filename, line})
                 add_error(ctx, ebuf)
                 return
             }
             if actual_argc != 1 {
-                val ebuf: ref u8 = mem.alloc(512) as ref u8
+                val ebuf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, (512) as usize) as ref u8
                 @snprintf(ebuf, 512, "{s}:{lld}: builtin '@argsalloc' requires exactly 1 argument, got {lld}",
                     {filename, line, actual_argc})
                 add_error(ctx, ebuf)
@@ -4860,14 +4860,14 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
 
         if str_eq(bname, "listalloc") {
             if type_argc < 1 || type_argc > 2 {
-                val ebuf: ref u8 = mem.alloc(512) as ref u8
+                val ebuf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, (512) as usize) as ref u8
                 @snprintf(ebuf, 512, "{s}:{lld}: builtin '@listalloc' requires an allocator type argument and an optional element type argument",
                     {filename, line})
                 add_error(ctx, ebuf)
                 return
             }
             if actual_argc != 1 {
-                val ebuf: ref u8 = mem.alloc(512) as ref u8
+                val ebuf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, (512) as usize) as ref u8
                 @snprintf(ebuf, 512, "{s}:{lld}: builtin '@listalloc' requires exactly 1 argument, got {lld}",
                     {filename, line, actual_argc})
                 add_error(ctx, ebuf)
@@ -4877,14 +4877,14 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
 
         if str_eq(bname, "listfree") {
             if type_argc != 0 {
-                val ebuf: ref u8 = mem.alloc(512) as ref u8
+                val ebuf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, (512) as usize) as ref u8
                 @snprintf(ebuf, 512, "{s}:{lld}: builtin '@listfree' does not take type arguments",
                     {filename, line})
                 add_error(ctx, ebuf)
                 return
             }
             if actual_argc != 1 {
-                val ebuf: ref u8 = mem.alloc(512) as ref u8
+                val ebuf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, (512) as usize) as ref u8
                 @snprintf(ebuf, 512, "{s}:{lld}: builtin '@listfree' requires exactly 1 argument, got {lld}",
                     {filename, line, actual_argc})
                 add_error(ctx, ebuf)
@@ -4894,14 +4894,14 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
 
         if str_eq(bname, "fmtalloc") && type_argc > 0 {
             if type_argc != 1 {
-                val ebuf: ref u8 = mem.alloc(512) as ref u8
+                val ebuf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, (512) as usize) as ref u8
                 @snprintf(ebuf, 512, "{s}:{lld}: builtin '@fmtalloc' requires exactly one allocator type argument",
                     {filename, line})
                 add_error(ctx, ebuf)
                 return
             }
             if actual_argc < 2 {
-                val ebuf: ref u8 = mem.alloc(512) as ref u8
+                val ebuf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, (512) as usize) as ref u8
                 @snprintf(ebuf, 512, "{s}:{lld}: allocatorized '@fmtalloc' requires an allocator and a format string, got {lld} argument(s)",
                     {filename, line, actual_argc})
                 add_error(ctx, ebuf)
@@ -4916,7 +4916,7 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
                 if min_arity == 1 {
                     plural = ""
                 }
-                val ebuf: ref u8 = mem.alloc(512) as ref u8
+                val ebuf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, (512) as usize) as ref u8
                 @snprintf(ebuf, 512, "{s}:{lld}: builtin '@{s}' requires at least {lld} argument{s}, got {lld}",
                     {filename, line, bname, min_arity, plural, actual_argc})
                 add_error(ctx, ebuf)
@@ -4970,7 +4970,7 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
         ) || str_eq(bname, "addr") || str_eq(bname, "deref") || str_eq(bname, "bitcast")
         if is_unsafe_builtin {
             if ctx.in_unsafe_fn == 0 && ctx.in_trust == 0 {
-                val ebuf: ref u8 = mem.alloc(512) as ref u8
+                val ebuf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, (512) as usize) as ref u8
                 @snprintf(
                     ebuf,
                     512,
@@ -5049,7 +5049,7 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
                         val is_mut: i64 = scope_lookup(ctx, vname)
                         val is_ref: i64 = scope_lookup_is_ref(ctx, vname)
                         if is_mut != -1 && is_mut == 0 && is_ref == 0 {
-                            val ebuf: ref u8 = mem.alloc(512) as ref u8
+                            val ebuf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, (512) as usize) as ref u8
                             @snprintf(
                                 ebuf,
                                 512,
@@ -5106,7 +5106,7 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
                 val is_mut: i64 = scope_lookup(ctx, vname)
                 val is_ref: i64 = scope_lookup_is_ref(ctx, vname)
                 if is_mut != -1 && is_mut == 0 && is_ref == 0 {
-                    val ebuf: ref u8 = mem.alloc(512) as ref u8
+                    val ebuf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, (512) as usize) as ref u8
                     @snprintf(
                         ebuf,
                         512,
@@ -5487,7 +5487,7 @@ fn sema_check_invariant_lit(ctx: ref SemaCtx, typedef_node: ref parser.Node,
             val result: i64 = sema_const_eval(inode, fnames as ref void, fvals as ref void)
             if result != SEMA_UNKNOWN && result == 0 {
                 val type_name: ref u8 = typedef_node.d1 as ref u8
-                val buf: ref u8 = mem.alloc(256) as ref u8
+                val buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, (256) as usize) as ref u8
                 @snprintf(
                     buf,
                     256,
@@ -5926,7 +5926,7 @@ fn check_stmt(ctx: mut ref SemaCtx, stmt: ref parser.Node, filename: ref u8) voi
         check_no_module_to_module_type(ctx, stmt.d2 as ref parser.Node, line, filename)
         check_expr(ctx, stmt.d3 as ref parser.Node, filename)
         if scope_defined_local(ctx, name) {
-            val buf: ref u8 = mem.alloc(256) as ref u8
+            val buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, (256) as usize) as ref u8
             @snprintf(
                 buf,
                 256,
@@ -5951,8 +5951,8 @@ fn check_stmt(ctx: mut ref SemaCtx, stmt: ref parser.Node, filename: ref u8) voi
             val init_expr: ref parser.Node = stmt.d3 as ref parser.Node
             if is_ref_flag == 1 && init_expr != none {
                 if !ref_assignment_rhs_ok(ctx, tname, is_ref_flag, init_expr) {
-                    val target_ty: ref u8 = format_type_for_error(tname, is_ref_flag)
-                    val buf: ref u8 = mem.alloc(256) as ref u8
+                    val target_ty: ref u8 = format_type_for_error(ctx, tname, is_ref_flag)
+                    val buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, (256) as usize) as ref u8
                     @snprintf(
                         buf,
                         256,
@@ -5964,7 +5964,7 @@ fn check_stmt(ctx: mut ref SemaCtx, stmt: ref parser.Node, filename: ref u8) voi
             }
             scope_define(ctx, name, mutable, tname, is_ref_flag, line)
             if tname == none && init_expr != none {
-                val origin_ns: ref u8 = extract_constructor_namespace(init_expr)
+                val origin_ns: ref u8 = extract_constructor_namespace(ctx, init_expr)
                 if origin_ns != none {
                     record_var_origin(ctx, name, origin_ns)
                 }
@@ -5982,7 +5982,7 @@ fn check_stmt(ctx: mut ref SemaCtx, stmt: ref parser.Node, filename: ref u8) voi
                 val tdef: ref parser.Node = sema_lookup_typedef(ctx, tname)
                 if init_k == parser.NK_ARGS_PACK && tdef != none {
                     if !sema_rewrite_empty_struct_init(init_expr, tdef) {
-                        val buf: ref u8 = mem.alloc(256) as ref u8
+                        val buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, (256) as usize) as ref u8
                         @snprintf(
                             buf,
                             256,
@@ -6028,7 +6028,7 @@ fn check_stmt(ctx: mut ref SemaCtx, stmt: ref parser.Node, filename: ref u8) voi
                                 }
                                 if found == none {
                                     missing_field = true
-                                    val buf: ref u8 = mem.alloc(256) as ref u8
+                                    val buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, (256) as usize) as ref u8
                                     @snprintf(buf, 256, "{s}:{lld}: missing initializer for field '{s}' of type '{s}'",
                                         {filename, line, tfname, tname})
                                     add_error(ctx, buf)
@@ -6062,7 +6062,7 @@ fn check_stmt(ctx: mut ref SemaCtx, stmt: ref parser.Node, filename: ref u8) voi
             val tname: ref u8 = target.d0 as ref u8
             mark_name_mutated(ctx, tname)
             if scope_lookup(ctx, tname) == 0 {
-                val buf: ref u8 = mem.alloc(256) as ref u8
+                val buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, (256) as usize) as ref u8
                 @snprintf(
                     buf,
                     256,
@@ -6075,11 +6075,11 @@ fn check_stmt(ctx: mut ref SemaCtx, stmt: ref parser.Node, filename: ref u8) voi
                 val target_type_name: ref u8 = scope_lookup_type(ctx, tname)
                 if target_is_ref == 1 && target_type_name != none {
                     if !ref_assignment_rhs_ok(ctx, target_type_name, target_is_ref, rhs) {
-                        val target_ty: ref u8 = format_type_for_error(
+                        val target_ty: ref u8 = format_type_for_error(ctx,
                             target_type_name,
                             target_is_ref
                         )
-                        val buf: ref u8 = mem.alloc(256) as ref u8
+                        val buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, (256) as usize) as ref u8
                         @snprintf(
                             buf,
                             256,
@@ -6097,7 +6097,7 @@ fn check_stmt(ctx: mut ref SemaCtx, stmt: ref parser.Node, filename: ref u8) voi
                 mark_name_mutated(ctx, tname)
                 val lkup: i64 = scope_lookup(ctx, tname)
                 if lkup == 0 {
-                    val buf: ref u8 = mem.alloc(256) as ref u8
+                    val buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, (256) as usize) as ref u8
                     @snprintf(
                         buf,
                         256,
@@ -6111,7 +6111,7 @@ fn check_stmt(ctx: mut ref SemaCtx, stmt: ref parser.Node, filename: ref u8) voi
                     if var_type != none && field_name != none {
                         val fmut: i64 = find_field_mutable(ctx, var_type, field_name)
                         if fmut == 0 {
-                            val buf2: ref u8 = mem.alloc(256) as ref u8
+                            val buf2: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, (256) as usize) as ref u8
                             @snprintf(
                                 buf2,
                                 256,
@@ -6128,8 +6128,8 @@ fn check_stmt(ctx: mut ref SemaCtx, stmt: ref parser.Node, filename: ref u8) voi
                             if fty != none && sema_ty_is_ref(fty) == 1 {
                                 val fty_name: ref u8 = extract_type_name(fty)
                                 if !ref_assignment_rhs_ok(ctx, fty_name, 1, rhs) {
-                                    val target_ty: ref u8 = format_type_for_error(fty_name, 1)
-                                    val buf3: ref u8 = mem.alloc(256) as ref u8
+                                    val target_ty: ref u8 = format_type_for_error(ctx, fty_name, 1)
+                                    val buf3: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, (256) as usize) as ref u8
                                     @snprintf(
                                         buf3,
                                         256,
@@ -6151,7 +6151,7 @@ fn check_stmt(ctx: mut ref SemaCtx, stmt: ref parser.Node, filename: ref u8) voi
                 val dname: ref u8 = inner_deref.d0 as ref u8
                 val dmut: i64 = scope_lookup(ctx, dname)
                 if dmut != -1 && dmut == 0 {
-                    val ebuf: ref u8 = mem.alloc(512) as ref u8
+                    val ebuf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, (512) as usize) as ref u8
                     @snprintf(
                         ebuf,
                         512,
@@ -6203,7 +6203,7 @@ fn check_stmt(ctx: mut ref SemaCtx, stmt: ref parser.Node, filename: ref u8) voi
             }
         }
         if !ends_with_return {
-            val buf: ref u8 = mem.alloc(256) as ref u8
+            val buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, (256) as usize) as ref u8
             @snprintf(
                 buf,
                 256,
@@ -6244,7 +6244,7 @@ fn check_stmt(ctx: mut ref SemaCtx, stmt: ref parser.Node, filename: ref u8) voi
         if init_name != none {
             check_expr(ctx, stmt.d1 as ref parser.Node, filename)
             if scope_lookup(ctx, init_name) != -1 {
-                val buf: ref u8 = mem.alloc(256) as ref u8
+                val buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, (256) as usize) as ref u8
                 @snprintf(buf, 256, "{s}:{lld}: for loop variable '{s}' shadows an existing variable; declare it only in the for loop",
                     {filename, line, init_name})
                 add_error(ctx, buf)
@@ -6307,7 +6307,7 @@ fn check_stmt(ctx: mut ref SemaCtx, stmt: ref parser.Node, filename: ref u8) voi
                     compatible = str_eq(pat_cat, "int") && !str_eq(pat_ty, "u8")
                 }
                 if !compatible {
-                    val buf: ref u8 = mem.alloc(256) as ref u8
+                    val buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, (256) as usize) as ref u8
                     @snprintf(
                         buf,
                         256,
@@ -6335,13 +6335,13 @@ fn check_stmt(ctx: mut ref SemaCtx, stmt: ref parser.Node, filename: ref u8) voi
         check_expr(ctx, match_expr, filename)
         val opt_wrap_kind: i64 = expr_wrap_kind(ctx, match_expr)
         if opt_wrap_kind == 3 {
-            val buf: ref u8 = mem.alloc(512) as ref u8
+            val buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, (512) as usize) as ref u8
             @snprintf(buf, 512, "{s}:{lld}: cannot match on a non-option value", {filename, line})
             add_error(ctx, buf)
         } elif parser.match_opt_is_sugar(stmt) {
             val sugar_kind: i64 = parser.match_opt_sugar_kind(stmt)
             if opt_wrap_kind == 1 && sugar_kind == 1 {
-                val buf: ref u8 = mem.alloc(512) as ref u8
+                val buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, (512) as usize) as ref u8
                 @snprintf(
                     buf,
                     512,
@@ -6350,7 +6350,7 @@ fn check_stmt(ctx: mut ref SemaCtx, stmt: ref parser.Node, filename: ref u8) voi
                 )
                 add_error(ctx, buf)
             } elif opt_wrap_kind == 1 && sugar_kind == 2 {
-                val buf: ref u8 = mem.alloc(512) as ref u8
+                val buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, (512) as usize) as ref u8
                 @snprintf(
                     buf,
                     512,
@@ -6387,7 +6387,7 @@ fn check_stmt(ctx: mut ref SemaCtx, stmt: ref parser.Node, filename: ref u8) voi
             val wrap_kind: i64 = expr_wrap_kind(ctx, match_expr)
             val sugar_kind: i64 = parser.match_res_sugar_kind(stmt)
             if wrap_kind == 2 && sugar_kind == 1 {
-                val buf: ref u8 = mem.alloc(512) as ref u8
+                val buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, (512) as usize) as ref u8
                 @snprintf(
                     buf,
                     512,
@@ -6396,7 +6396,7 @@ fn check_stmt(ctx: mut ref SemaCtx, stmt: ref parser.Node, filename: ref u8) voi
                 )
                 add_error(ctx, buf)
             } elif wrap_kind == 2 && sugar_kind == 2 {
-                val buf: ref u8 = mem.alloc(512) as ref u8
+                val buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, (512) as usize) as ref u8
                 @snprintf(
                     buf,
                     512,
@@ -6471,7 +6471,7 @@ fn check_stmt(ctx: mut ref SemaCtx, stmt: ref parser.Node, filename: ref u8) voi
                     for bname2 in bindings as list[ref u8] {
                         if string.raw_cmp(bname2, "_") != 0 {
                             if !stmts_use_name(arm_body, bname2) {
-                                val buf: ref u8 = mem.alloc(256) as ref u8
+                                val buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, (256) as usize) as ref u8
                                 @snprintf(buf, 256, "{s}:{lld}: match binding '{s}' is captured but never used (use '_' to discard)",
                                     {filename, tu_arm.line, bname2})
                                 add_error(ctx, buf)
@@ -6513,7 +6513,7 @@ fn check_stmt(ctx: mut ref SemaCtx, stmt: ref parser.Node, filename: ref u8) voi
             val tname2: ref u8 = target2.d0 as ref u8
             mark_name_mutated(ctx, tname2)
             if scope_lookup(ctx, tname2) == 0 {
-                val buf2: ref u8 = mem.alloc(256) as ref u8
+                val buf2: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, (256) as usize) as ref u8
                 @snprintf(
                     buf2,
                     256,
@@ -6529,7 +6529,7 @@ fn check_stmt(ctx: mut ref SemaCtx, stmt: ref parser.Node, filename: ref u8) voi
                 mark_name_mutated(ctx, tname2)
                 val lkup2: i64 = scope_lookup(ctx, tname2)
                 if lkup2 == 0 {
-                    val buf2: ref u8 = mem.alloc(256) as ref u8
+                    val buf2: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, (256) as usize) as ref u8
                     @snprintf(
                         buf2,
                         256,
@@ -6543,7 +6543,7 @@ fn check_stmt(ctx: mut ref SemaCtx, stmt: ref parser.Node, filename: ref u8) voi
                     if var_type2 != none && field_name2 != none {
                         val fmut2: i64 = find_field_mutable(ctx, var_type2, field_name2)
                         if fmut2 == 0 {
-                            val buf2b: ref u8 = mem.alloc(256) as ref u8
+                            val buf2b: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, (256) as usize) as ref u8
                             @snprintf(
                                 buf2b,
                                 256,
@@ -6566,7 +6566,7 @@ fn check_stmt(ctx: mut ref SemaCtx, stmt: ref parser.Node, filename: ref u8) voi
             val tname3: ref u8 = target3.d0 as ref u8
             mark_name_mutated(ctx, tname3)
             if scope_lookup(ctx, tname3) == 0 {
-                val buf3: ref u8 = mem.alloc(256) as ref u8
+                val buf3: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, (256) as usize) as ref u8
                 @snprintf(
                     buf3,
                     256,
@@ -6581,7 +6581,7 @@ fn check_stmt(ctx: mut ref SemaCtx, stmt: ref parser.Node, filename: ref u8) voi
                 val tname3: ref u8 = root3.d0 as ref u8
                 mark_name_mutated(ctx, tname3)
                 if scope_lookup(ctx, tname3) == 0 {
-                    val buf3: ref u8 = mem.alloc(256) as ref u8
+                    val buf3: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, (256) as usize) as ref u8
                     @snprintf(
                         buf3,
                         256,
@@ -6597,7 +6597,7 @@ fn check_stmt(ctx: mut ref SemaCtx, stmt: ref parser.Node, filename: ref u8) voi
 
     if k == parser.NK_TRUST_BLOCK {
         if ctx.in_unsafe_fn != 0 || ctx.in_trust != 0 {
-            val buf: ref u8 = mem.alloc(512) as ref u8
+            val buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, (512) as usize) as ref u8
             if ctx.in_unsafe_fn != 0 {
                 @snprintf(
                     buf,
@@ -6624,7 +6624,7 @@ fn check_stmt(ctx: mut ref SemaCtx, stmt: ref parser.Node, filename: ref u8) voi
         pop_scope(ctx, filename, line)
         ctx.in_trust = prev_trust
         if ctx.trust_used == 0 && ctx.in_unsafe_fn == 0 && ctx.in_trust == 0 {
-            val buf: ref u8 = mem.alloc(512) as ref u8
+            val buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, (512) as usize) as ref u8
             @snprintf(
                 buf,
                 512,
@@ -6652,13 +6652,13 @@ fn check_fn(ctx: mut ref SemaCtx, fn_node: ref parser.Node, filename: ref u8) vo
     val params: ref void = fn_node.d3 as ref void
     if fn_name != none && fn_ns == none && str_eq(fn_name, "main") {
         if fn_node.d0 != 1 {
-            val buf: ref u8 = mem.alloc(256) as ref u8
+            val buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, (256) as usize) as ref u8
             @snprintf(buf, 256, "{s}:{lld}: main must be public.", {filename, fn_node.line})
             add_error(ctx, buf)
         }
 
         if params != none && @len(params) > 0 {
-            val buf2: ref u8 = mem.alloc(256) as ref u8
+            val buf2: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, (256) as usize) as ref u8
             @snprintf(
                 buf2,
                 256,
@@ -6706,7 +6706,7 @@ fn check_fn(ctx: mut ref SemaCtx, fn_node: ref parser.Node, filename: ref u8) vo
     check_stmts(ctx, body, filename)
     ctx.untyped_params = prev_untyped
     if ret_ty != none && ret_ty.kind != parser.TY_VOID && !stmts_guarantee_return(ctx, body) {
-        val buf: ref u8 = mem.alloc(512) as ref u8
+        val buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, (512) as usize) as ref u8
         @snprintf(
             buf,
             512,
@@ -6721,9 +6721,9 @@ fn check_fn(ctx: mut ref SemaCtx, fn_node: ref parser.Node, filename: ref u8) vo
 }
 
 /// Register a function name.
-fn fn_full_name(ns: ref u8, nm: ref u8) ref u8 = trust {
+fn fn_full_name(ctx: ref SemaCtx, ns: ref u8, nm: ref u8) ref u8 = trust {
     if ns != none && nm != none {
-        val buf: ref u8 = mem.alloc(256) as ref u8
+        val buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, (256) as usize) as ref u8
         @snprintf(buf, 256, "{s}.{s}", {ns, nm})
         return buf
     } elif nm != none {
@@ -6733,7 +6733,7 @@ fn fn_full_name(ns: ref u8, nm: ref u8) ref u8 = trust {
 }
 
 fn register_fn_name(ctx: ref SemaCtx, ns: ref u8, nm: ref u8) void = trust {
-    val full_name: ref u8 = fn_full_name(ns, nm)
+    val full_name: ref u8 = fn_full_name(ctx, ns, nm)
     if full_name != none {
         @append(ctx.fn_names, full_name)
     }
@@ -6908,7 +6908,7 @@ fn check_generic_fn(ctx: mut ref SemaCtx, fn_node: ref parser.Node, filename: re
     ctx.untyped_params = prev_untyped
     val fn_name: ref u8 = fn_node.d2 as ref u8
     if ret_ty != none && ret_ty.kind != parser.TY_VOID && !stmts_guarantee_return(ctx, body) {
-        val buf: ref u8 = mem.alloc(512) as ref u8
+        val buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, (512) as usize) as ref u8
         @snprintf(
             buf,
             512,
@@ -6928,7 +6928,7 @@ fn check_top_item(ctx: mut ref SemaCtx, item: ref parser.Node, filename: ref u8)
     val k: i64 = item.kind
     if k == parser.NK_USE {
         if item.d0 != 0 {
-            val buf: ref u8 = mem.alloc(256) as ref u8
+            val buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, (256) as usize) as ref u8
             @snprintf(
                 buf,
                 256,
@@ -6939,7 +6939,7 @@ fn check_top_item(ctx: mut ref SemaCtx, item: ref parser.Node, filename: ref u8)
         }
         val annotated_use_ty: ref parser.Node = item.d3 as ref parser.Node
         if annotated_use_ty != none {
-            val buf2: ref u8 = mem.alloc(256) as ref u8
+            val buf2: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, (256) as usize) as ref u8
             @snprintf(
                 buf2,
                 256,
@@ -7511,7 +7511,7 @@ fn check_unused_imports(
             continue
         }
         val use_line: i64 = find_use_line_in_items(items, import_name)
-        val buf: ref u8 = mem.alloc(256) as ref u8
+        val buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, (256) as usize) as ref u8
         @snprintf(
             buf,
             256,
@@ -7540,7 +7540,7 @@ fn check_duplicates(ctx: ref SemaCtx, filename: ref u8) void = trust {
                 val fn2_opt = @get(ctx.fn_names, fj as usize)
                 if fn2_opt is some fn2_name {
                     if str_eq(fn_name as ref u8, fn2_name as ref u8) {
-                        val buf: ref u8 = mem.alloc(256) as ref u8
+                        val buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, (256) as usize) as ref u8
                         @snprintf(
                             buf,
                             256,
@@ -7557,7 +7557,7 @@ fn check_duplicates(ctx: ref SemaCtx, filename: ref u8) void = trust {
     }
 }
 
-fn is_function_public(items: list[ref parser.Node], fn_name: ref u8) bool = trust {
+fn is_function_public(ctx: ref SemaCtx, items: list[ref parser.Node], fn_name: ref u8) bool = trust {
     for item in items {
         if item == none {
             continue
@@ -7566,7 +7566,7 @@ fn is_function_public(items: list[ref parser.Node], fn_name: ref u8) bool = trus
         if k == parser.NK_FN || k == parser.NK_GENERIC_FN {
             if item.d0 % 2 == 1 {
                 val name: ref u8 = item.d2 as ref u8
-                val full_name: ref u8 = fn_full_name(item.d1 as ref u8, name)
+                val full_name: ref u8 = fn_full_name(ctx, item.d1 as ref u8, name)
                 if full_name != none && str_eq(full_name, fn_name) {
                     return true
                 }
@@ -7574,7 +7574,7 @@ fn is_function_public(items: list[ref parser.Node], fn_name: ref u8) bool = trus
         } elif k == parser.NK_EXTERN_FN {
             if item.d0 % 2 == 1 {
                 val name: ref u8 = item.d1 as ref u8
-                val full_name: ref u8 = fn_full_name(none, name)
+                val full_name: ref u8 = fn_full_name(ctx, none, name)
                 if full_name != none && str_eq(full_name, fn_name) {
                     return true
                 }
@@ -7586,13 +7586,14 @@ fn is_function_public(items: list[ref parser.Node], fn_name: ref u8) bool = trus
 
 
 pub fn check_module(
+    arena: allocators.ScopedArenaAllocator,
     items: list[ref parser.Node],
     filename: ref u8,
     root: ref modinfo.ResolvedModule,
     quiet: i64,
     src_target: ref u8
 ) list[ref u8] = trust {
-    val ctx: mut ref SemaCtx = sema_new()
+    val ctx: mut ref SemaCtx = sema_new(arena)
     ctx.root_mod = root
     ctx.src_target = src_target
 
@@ -7631,9 +7632,9 @@ pub fn check_module(
                         is_variant = true break
                     }
                 }
-                val is_public: bool = is_function_public(items, namec)
+                val is_public: bool = is_function_public(ctx, items, namec)
                 if !str_eq(namec, "main") && !is_variant && !is_public {
-                    val wbuf: ref u8 = mem.alloc(256) as ref u8
+                    val wbuf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, (256) as usize) as ref u8
                     @snprintf(wbuf, 256, "{s}: unused function '{s}'", {filename, namec})
                     @append(ctx.warnings, wbuf)
                 }
@@ -7661,6 +7662,7 @@ fn check_module_seen(seen: list[ref void], mod: ref modinfo.ResolvedModule) bool
 }
 
 fn check_module_rec(
+    arena: allocators.ScopedArenaAllocator,
     mod: ref modinfo.ResolvedModule,
     all_errors: mut list[ref u8],
     seen: mut list[ref void],
@@ -7682,25 +7684,26 @@ fn check_module_rec(
             break
         }
         val child: ref modinfo.ResolvedModule = modinfo.import_module_at(mod, i as usize)
-        check_module_rec(child, all_errors, seen, quiet, src_target)
+        check_module_rec(arena, child, all_errors, seen, quiet, src_target)
         i++
     }
 
     val fname: ref u8 = normalize_path(modinfo.module_filename(mod))
     val items: list[ref parser.Node] = modinfo.module_items(mod)
-    val errors: list[ref u8] = check_module(items, fname, mod, quiet, src_target)
+    val errors: list[ref u8] = check_module(arena, items, fname, mod, quiet, src_target)
     for e in errors {
         @append(all_errors, e)
     }
 }
 
 pub fn check_module_tree(
+    arena: allocators.ScopedArenaAllocator,
     root: ref modinfo.ResolvedModule,
     quiet: i64,
     src_target: ref u8
 ) list[ref u8] = trust {
     val all_errors: mut list[ref u8] = []
     val seen: mut list[ref void] = []
-    check_module_rec(root, all_errors, seen, quiet, src_target)
+    check_module_rec(arena, root, all_errors, seen, quiet, src_target)
     return all_errors
 }

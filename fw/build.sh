@@ -57,8 +57,17 @@ if command -v git >/dev/null 2>&1; then
 	GIT_HASH="$(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
 fi
 
+STAGE0="${SPECTRE_STAGE0:-}"
+if [ -z "$STAGE0" ]; then
+	if [ -x ./spectre-dev ]; then
+		STAGE0=./spectre-dev
+	else
+		STAGE0=spectre
+	fi
+fi
+
 echo "Building spectre stage 1..."
-spectre ./src/sxc.sx -o ./spectre-stage1 || exit 1
+"$STAGE0" ./src/sxc.sx -o ./spectre-stage1 || exit 1
 
 echo "Building spectre-dev..."
 ./spectre-stage1 -dGIT_HASH="$GIT_HASH" ./src/sxc.sx -o spectre-dev || exit 1

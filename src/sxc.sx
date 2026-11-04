@@ -10,7 +10,6 @@ val os          = use("std/os")
 val allocators  = use("std/allocators")
 val path        = use("std/path")
 val reflection  = use("std/reflection")
-val mem         = use("meta/mem.sx")
 val parser      = use("ast/parser.sx")
 val ast_printer = use("ast/ast_printer.sx")
 val sema        = use("sema/sema.sx")
@@ -32,10 +31,11 @@ when windows {
 
 pub fn main() i32 = trust {
     val arena: mut allocators.Arena = allocators.Arena.new(65536 as usize)?
+    val frontend_arena: allocators.ScopedArenaAllocator = allocators.ScopedArena.new(
+        67108864 as usize
+    )?
     defer {
-        mem.deinit()
-        codegen.arena_deinit()
-        alt_codegen.arena_deinit()
+        allocators.ScopedArena.free(frontend_arena)
     }
     val args = os.get_args()
     val argc: i64 = @len(args) as i64
@@ -613,7 +613,7 @@ pub fn main() i32 = trust {
         stdio.puts("[I  ]│ Resolving module")
     }
 
-    val resolve_result = module.resolve_module(input, [], exe_dir, none)
+    val resolve_result = module.resolve_module(frontend_arena, input, [], exe_dir, none)
     val root_mod: mut ref module.ResolvedModule = none
 
     match resolve_result {
@@ -642,7 +642,7 @@ pub fn main() i32 = trust {
     if quiet {
         quiet_flag = true
     }
-    val errors: list[ref u8] = sema.check_module_tree(root_mod, quiet_flag, src_target)
+    val errors: list[ref u8] = sema.check_module_tree(frontend_arena, root_mod, quiet_flag, src_target)
     val nerrors: i64 = @len(errors) as i64
     if nerrors > 0 {
         for e in errors {

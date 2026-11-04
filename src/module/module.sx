@@ -1,4 +1,3 @@
-val mem        = use("../meta/mem.sx")
 val str        = use("std/string")
 val stdio      = use("std/stdio")
 val path       = use("std/path")
@@ -23,11 +22,15 @@ pub type ResolvedModule = {
 }
 
 pub fn new_resolved(
+    arena: allocators.ScopedArenaAllocator,
     items: list[ref parser.Node],
     filename: String,
     dir: String
 ) ref ResolvedModule = trust {
-    val m: mut ref ResolvedModule = mem.alloc(@sizeof(ResolvedModule)) as ref ResolvedModule
+    val m: mut ref ResolvedModule = allocators.ScopedArena.alloc_or_none(
+        arena,
+        @sizeof(ResolvedModule) as usize
+    ) as ref ResolvedModule
     @memset(m, 0, @sizeof(ResolvedModule) as usize)
     m.items = items
     m.filename = filename
@@ -1060,6 +1063,7 @@ fn items_have_external_links(items: list[ref parser.Node]) bool = trust {
 }
 
 fn resolve_module_impl(
+    arena: allocators.ScopedArenaAllocator,
     path: ref u8,
     in_progress: list[ref u8],
     exe_dir: ref u8,
@@ -1109,7 +1113,7 @@ fn resolve_module_impl(
         return err @fmtalloc("cannot read module: {s}", {canonical_path})
     }
 
-    val lex_result = lexer.tokenize(src)
+    val lex_result = lexer.tokenize_with(arena, src)
     allocators.Arena.free(src_arena)
     val tokens: mut list[ref lexer.Token] = []
     match lex_result {
@@ -1121,7 +1125,7 @@ fn resolve_module_impl(
         }
     }
 
-    val parse_result = parser.parse_module(tokens, canonical_path)
+    val parse_result = parser.parse_module_with(arena, tokens, canonical_path)
     lexer.free_tokens(tokens)
     val items: mut list[ref parser.Node] = []
     match parse_result {
@@ -1139,7 +1143,7 @@ fn resolve_module_impl(
     val workspace = find_workspace_root(file_dir_c)
     val module_path = str.new()
     str.push_cstr(module_path, canonical_path)
-    val m: ref ResolvedModule = new_resolved(items, module_path, file_dir)
+    val m: ref ResolvedModule = new_resolved(arena, items, module_path, file_dir)
 
     val cur_progress: mut list[ref u8] = in_progress
     @append(cur_progress, canonical_path)
@@ -1202,6 +1206,7 @@ fn resolve_module_impl(
                 needed_grandchildren = needed_subs as ref void
             }
             val child_result = resolve_module_impl(
+                arena,
                 resolved_path,
                 cur_progress,
                 exe_dir,
@@ -1230,6 +1235,7 @@ fn resolve_module_impl(
 }
 
 pub fn resolve_module(
+    arena: allocators.ScopedArenaAllocator,
     path: ref u8,
     in_progress: list[ref u8],
     exe_dir: ref u8,
@@ -1237,7 +1243,7 @@ pub fn resolve_module(
 ) result[ref ResolvedModule, ref u8] = trust {
     val cache_keys: mut list[ref u8] = []
     val cache_vals: mut list[ref void] = []
-    return resolve_module_impl(path, in_progress, exe_dir, needed_children, cache_keys, cache_vals)
+    return resolve_module_impl(arena, path, in_progress, exe_dir, needed_children, cache_keys, cache_vals)
 }
 
 /// Look up a direct import of `m` by its alias name.
@@ -1394,6 +1400,7 @@ fn collect_seen(m: ref ResolvedModule, seen: ref void) void = trust {
 /// children before parents, no duplicates.
 /// `prefix` is the mangled module prefix (e.g. "std__stdio"), empty for root.
 pub fn flatten_modules(
+    arena: allocators.ScopedArenaAllocator,
     m: ref ResolvedModule,
     prefix: ref u8,
     out_prefixes: mut list[ref u8],
@@ -1430,6 +1437,7 @@ pub fn flatten_modules(
             if mod_opt is some child {
                 val child_prefix: ref u8 = name as ref u8
                 flatten_modules(
+                    arena,
                     child as ref ResolvedModule,
                     child_prefix,
                     out_prefixes,
@@ -1442,13 +1450,14 @@ pub fn flatten_modules(
     }
 
     @append(seen as list[String], m.filename)
-    val items_copy: ref void = mem.alloc(32)
+    val items_copy: ref void = allocators.ScopedArena.alloc_or_none(arena, 32 as usize)
     @memcpy(items_copy, @addr(m.items) as ref void, 32 as usize)
     @append(out_prefixes as list[ref u8], prefix)
     @append(out_items as list[ref void], items_copy)
 }
 
 pub fn flatten_modules_with_files(
+    arena: allocators.ScopedArenaAllocator,
     m: ref ResolvedModule,
     prefix: ref u8,
     out_prefixes: mut list[ref u8],
@@ -1484,6 +1493,7 @@ pub fn flatten_modules_with_files(
         if name_opt is some name {
             if mod_opt is some child {
                 flatten_modules_with_files(
+                    arena,
                     child as ref ResolvedModule,
                     name as ref u8,
                     out_prefixes,
@@ -1496,7 +1506,7 @@ pub fn flatten_modules_with_files(
         ci++
     }
     @append(seen as list[String], m.filename)
-    val items_copy: ref void = mem.alloc(32)
+    val items_copy: ref void = allocators.ScopedArena.alloc_or_none(arena, 32 as usize)
     @memcpy(items_copy, @addr(m.items) as ref void, 32 as usize)
     @append(out_prefixes as list[ref u8], prefix)
     @append(out_items as list[ref void], items_copy)

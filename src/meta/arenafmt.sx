@@ -2,12 +2,11 @@
 
 val allocators = use("std/allocators")
 
-extern (C) fn exit(code: i64) void = "exit"
 extern (C) fn strlen(s: ref u8) i64 = "strlen"
 
-fn rewrite_fmt(fmt: ref u8) ref void = trust {
+fn rewrite_fmt(arena: allocators.ScopedArenaAllocator, fmt: ref u8) ref void = trust {
     val fmtlen: i64 = strlen(fmt)
-    val buf: ref void = @alloc(fmtlen * 2 + 1)
+    val buf: ref void = allocators.ScopedArena.alloc_or_none(arena, (fmtlen * 2 + 1) as usize)
     if buf == none {
         return none
     }
@@ -78,53 +77,23 @@ fn rewrite_fmt(fmt: ref u8) ref void = trust {
     return buf
 }
 
-val arena_state: mut allocators.Arena = none
-
-fn ensure_arena() allocators.Arena = trust {
-    if arena_state == none {
-        val cap: usize = 1048576 as usize
-        val header: ref void = @alloc(24)
-        val buf: ref void = @alloc(cap)
-        if header == none || buf == none {
-            @dprintf(2, "arenafmt: out of memory\n")
-            exit(1)
-        }
-        @store(header, buf)
-        @store(@ptradd(header, 8), 0)
-        @store(@ptradd(header, 16), cap)
-        arena_state = header as allocators.Arena
-    }
-    return arena_state
-}
-
-pub fn format(fmt_string: ref u8, args: untyped) ref u8 = trust {
-    val ac = ensure_arena()
-    val rfmt: ref void = rewrite_fmt(fmt_string)
+pub fn format(
+    arena: allocators.ScopedArenaAllocator,
+    fmt_string: ref u8,
+    args: untyped
+) ref u8 = trust {
+    val rfmt: ref void = rewrite_fmt(arena, fmt_string)
     if rfmt == none {
         return none
     }
     val cap: i64 = 4096
-    val out: mut ref void = none
-    match allocators.Arena.alloc(ac, cap as usize) {
-        some p => {
-            out = p
-        }
-        none => {
-            @free(rfmt)
-            return none
-        }
+    val out: ref void = allocators.ScopedArena.alloc_or_none(arena, cap as usize)
+    if out == none {
+        return none
     }
     val written: i64 = @snprintf(out, cap, rfmt, args) as i64
     if written < 0 || written >= cap {
-        @free(rfmt)
         return none
     }
-    @free(rfmt)
     return out as ref u8
-}
-
-pub fn reset() void = trust {
-    if arena_state != none {
-        allocators.Arena.reset(arena_state)
-    }
 }
