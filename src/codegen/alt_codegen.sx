@@ -2,16 +2,16 @@
 ///
 /// GPL-3.0-only (C) Navid Momtahen - 2026
 
-val fmt = use("std/fmt")
-val str     = use("std/string")
-val fmt     = use("std/fmt")
-val stdio   = use("std/stdio")
-val os      = use("std/os")
-val fs      = use("std/fs")
-val parser  = use("../ast/parser.sx")
-val module  = use("../module/module.sx")
-val codegen = use("codegen.sx")
-val defines = use("../meta/defines.sx")
+val arenafmt = use("../meta/arenafmt.sx")
+val fmt      = use("std/fmt")
+val str      = use("std/string")
+val stdio    = use("std/stdio")
+val os       = use("std/os")
+val fs       = use("std/fs")
+val parser   = use("../ast/parser.sx")
+val module   = use("../module/module.sx")
+val codegen  = use("codegen.sx")
+val defines  = use("../meta/defines.sx")
 
 pub type CCtx = {
     sb: mut ref void
@@ -4075,7 +4075,7 @@ fn cc_embed_data(ctx: mut ref CCtx, path: ref u8, size: i64) ref u8 = trust {
         i = i + (1 as i64)
     }
 
-    val label: ref u8 = @fmtalloc("sx__embed_{lld}", {ctx.embed_count})
+    val label: ref u8 = arenafmt.format("sx__embed_{lld}", {ctx.embed_count})
     ctx.embed_count = ctx.embed_count + (1 as i64)
     @append(ctx.embed_paths, path)
     @append(ctx.embed_labels, label)
@@ -4158,7 +4158,7 @@ fn cc_sanitize_ident(name: ref u8) ref u8 = trust {
         }
         val c: u8 = @load8(@ptradd(name, i))
         val keep: bool = (c >= 48 && c <= 57) || (c >= 65 && c <= 90) ||
-            (c >= 97 && c <= 122) || c == 95
+        (c >= 97 && c <= 122) || c == 95
         if keep {
             @store8(@ptradd(out, i), c)
         } else {
@@ -7335,9 +7335,9 @@ fn preregister_items(
                                 os.exit(1)
                             }
                             val label: ref u8 = cc_embed_data(ctx, epath, ce.d3)
-                            cv = @fmtalloc("(int64_t)(intptr_t){s}", {label})
+                            cv = arenafmt.format("(int64_t)(intptr_t){s}", {label})
                         } elif str.raw_cmp(bname, "embedlen") == 0 {
-                            cv = @fmtalloc("{lld}", {ce.d3})
+                            cv = arenafmt.format("{lld}", {ce.d3})
                         }
                     }
                 }

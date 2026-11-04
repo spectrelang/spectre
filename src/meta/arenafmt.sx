@@ -1,0 +1,130 @@
+/// Compiler-local phase-scoped formatting for codegen and parser internals.
+
+val allocators = use("std/allocators")
+
+extern (C) fn exit(code: i64) void = "exit"
+extern (C) fn strlen(s: ref u8) i64 = "strlen"
+
+fn rewrite_fmt(fmt: ref u8) ref void = trust {
+    val fmtlen: i64 = strlen(fmt)
+    val buf: ref void = @alloc(fmtlen * 2 + 1)
+    if buf == none {
+        return none
+    }
+    val out_i: mut i64 = 0
+    val i: mut i64 = 0
+    for {
+        if i >= fmtlen {
+            break
+        }
+        val c: u8 = @load8(@ptradd(fmt, i)) as u8
+        if c == 92 && i + 1 < fmtlen {
+            val next: u8 = @load8(@ptradd(fmt, i + 1)) as u8
+            if next == 123 || next == 125 {
+                @store8(@ptradd(buf, out_i), next)
+                out_i++
+                i = i + 2
+            } else {
+                @store8(@ptradd(buf, out_i), c)
+                out_i++
+                i++
+            }
+        } elif c == 37 {
+            @store8(@ptradd(buf, out_i), 37)
+            out_i++
+            @store8(@ptradd(buf, out_i), 37)
+            out_i++
+            i++
+        } elif c == 123 {
+            val j: mut i64 = i + 1
+            val found: mut i64 = 0
+            for {
+                if j >= fmtlen {
+                    break
+                }
+                val inner: u8 = @load8(@ptradd(fmt, j)) as u8
+                if inner == 125 {
+                    found = 1
+                    break
+                }
+                j++
+            }
+            if found != 0 {
+                @store8(@ptradd(buf, out_i), 37)
+                out_i++
+                val k: mut i64 = i + 1
+                for {
+                    if k >= j {
+                        break
+                    }
+                    val sc: u8 = @load8(@ptradd(fmt, k)) as u8
+                    @store8(@ptradd(buf, out_i), sc)
+                    out_i++
+                    k++
+                }
+                i = j + 1
+            } else {
+                @store8(@ptradd(buf, out_i), c)
+                out_i++
+                i++
+            }
+        } else {
+            @store8(@ptradd(buf, out_i), c)
+            out_i++
+            i++
+        }
+    }
+    @store8(@ptradd(buf, out_i), 0)
+    return buf
+}
+
+val arena_state: mut allocators.Arena = none
+
+fn ensure_arena() allocators.Arena = trust {
+    if arena_state == none {
+        val cap: usize = 1048576 as usize
+        val header: ref void = @alloc(24)
+        val buf: ref void = @alloc(cap)
+        if header == none || buf == none {
+            @dprintf(2, "arenafmt: out of memory\n")
+            exit(1)
+        }
+        @store(header, buf)
+        @store(@ptradd(header, 8), 0)
+        @store(@ptradd(header, 16), cap)
+        arena_state = header as allocators.Arena
+    }
+    return arena_state
+}
+
+pub fn format(fmt_string: ref u8, args: untyped) ref u8 = trust {
+    val ac = ensure_arena()
+    val rfmt: ref void = rewrite_fmt(fmt_string)
+    if rfmt == none {
+        return none
+    }
+    val cap: i64 = 4096
+    val out: mut ref void = none
+    match allocators.Arena.alloc(ac, cap as usize) {
+        some p => {
+            out = p
+        }
+        none => {
+            @free(rfmt)
+            return none
+        }
+    }
+    val written: i64 = @snprintf(out, cap, rfmt, args) as i64
+    if written < 0 || written >= cap {
+        @free(rfmt)
+        return none
+    }
+    @free(rfmt)
+    return out as ref u8
+}
+
+pub fn reset() void = trust {
+    if arena_state != none {
+        allocators.Arena.reset(arena_state)
+    }
+}

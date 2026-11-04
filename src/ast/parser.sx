@@ -1,7 +1,8 @@
-val string = use("std/string")
-val fmt    = use("std/fmt")
-val stdio  = use("std/stdio")
-val lexer  = use("lexer.sx")
+val arenafmt = use("../meta/arenafmt.sx")
+val string   = use("std/string")
+val fmt      = use("std/fmt")
+val stdio    = use("std/stdio")
+val lexer    = use("lexer.sx")
 
 pub val NK_FN: i64 = 1
 pub val NK_USE: i64 = 2
@@ -3569,7 +3570,7 @@ fn parse_extern_fn_item(p: mut ref Parser, public: i64) result[ref Node, ref u8]
         if str_eq(modifier, "header") {
             use_header_decl = 1
         } else {
-            return err @fmtalloc(
+            return err arenafmt.format(
                 "{s}:{lld}: unknown extern modifier '{s}'",
                 {p.filename, p_line(p), modifier}
             )

@@ -1,5 +1,6 @@
-val allocators = use("std/allocators")
-val fmt = use("std/fmt")
+val arenafmt    = use("../meta/arenafmt.sx")
+val allocators  = use("std/allocators")
+val fmt         = use("std/fmt")
 val str         = use("std/string")
 val fmt         = use("std/fmt")
 val os          = use("std/os")
@@ -1559,27 +1560,27 @@ fn cg_c_const_symbol(ctx: mut ref CgCtx, raw_name: ref u8) ref u8 = trust {
 
 fn cg_alloc_runtime_c_source() ref u8 = trust {
     return \\
-        \\#include <stdint.h>
-        \\#include <stdlib.h>
-        \\#include <stdio.h>
-        \\#include <string.h>
-        \\typedef long long (*sxqbe_alloc_fn)(long long,unsigned long long);
-        \\typedef int (*sxqbe_free_fn)(long long,long long);
-        \\typedef long long (*sxqbe_realloc_fn)(long long,long long,unsigned long long);
-        \\typedef struct {sxqbe_alloc_fn alloc;sxqbe_free_fn free;sxqbe_realloc_fn realloc;long long ctx;} sxqbe_alloc_desc;
-        \\static long long* sxqbe_ok(long long v){long long*r=(long long*)calloc(1,16);if(!r)return 0;r[0]=0;r[1]=v;return r;}
-        \\static long long* sxqbe_err(long long e){long long*r=(long long*)calloc(1,16);if(!r)return 0;r[0]=1;r[1]=e;return r;}
-        \\static void* sxqbe_alloc_call(sxqbe_alloc_fn f,long long ctx,long long size){long long r=f(ctx,(unsigned long long)size);return r?(void*)(intptr_t)(r-1):0;}
-        \\static long long sxqbe_realloc_call(sxqbe_realloc_fn f,long long ctx,void*p,long long size){long long r=f(ctx,(long long)(intptr_t)p,(unsigned long long)size);return r?(long long)(intptr_t)(r-1):0;}
-        \\int sxqbe_list_grow(long long* hdr,long long need){if(!hdr)return 0;long long cap=hdr[2];long long* buf=(long long*)(intptr_t)hdr[0];if(need<=cap)return 1;long long ncap=cap<4?8:cap*2;if(ncap<need)ncap=need;sxqbe_alloc_desc* d=(sxqbe_alloc_desc*)(intptr_t)hdr[3];if(d){long long nb=buf?sxqbe_realloc_call(d->realloc,d->ctx,buf,ncap*8):(long long)(intptr_t)sxqbe_alloc_call(d->alloc,d->ctx,ncap*8);if(!nb)return 0;hdr[0]=nb;hdr[2]=ncap;}else{long long* nb=(long long*)realloc(buf,(size_t)(ncap*8));if(!nb)return 0;hdr[0]=(long long)(intptr_t)nb;hdr[2]=ncap;}return 1;}
-        \\long long* sxqbe_list_alloc(void* aft,void* fft,void* rft,long long ctx){sxqbe_alloc_fn af=(sxqbe_alloc_fn)aft;sxqbe_free_fn ff=(sxqbe_free_fn)fft;sxqbe_realloc_fn rf=(sxqbe_realloc_fn)rft;long long* hdr=(long long*)calloc(1,32);sxqbe_alloc_desc* d=(sxqbe_alloc_desc*)calloc(1,sizeof(sxqbe_alloc_desc));if(!hdr||!d){if(hdr)free(hdr);if(d)free(d);return sxqbe_err(0);}long long cap=8;long long buf=(long long)(intptr_t)sxqbe_alloc_call(af,ctx,cap*8);if(!buf){free(hdr);free(d);return sxqbe_err(0);}d->alloc=af;d->free=ff;d->realloc=rf;d->ctx=ctx;hdr[0]=buf;hdr[1]=0;hdr[2]=cap;hdr[3]=(long long)(intptr_t)d;return sxqbe_ok((long long)(intptr_t)hdr);}
-        \\void sxqbe_list_free(long long*);
-        \\long long* sxqbe_list_from(void* aft,void* fft,void* rft,long long ctx,long long* elems,long long count){long long* r=sxqbe_list_alloc(aft,fft,rft,ctx);if(!r||r[0]!=0)return r;long long* hdr=(long long*)r[1];if(count>0){if(!sxqbe_list_grow(hdr,count)){sxqbe_list_free(hdr);return sxqbe_err(0);}long long* buf=(long long*)hdr[0];long long i;for(i=0;i<count;i++)buf[i]=elems[i];hdr[1]=count;}return r;}
-        \\long long* sxqbe_args_alloc(void* aft,void* fft,void* rft,long long ctx,long long argc,long long argv){sxqbe_alloc_fn af=(sxqbe_alloc_fn)aft;sxqbe_free_fn ff=(sxqbe_free_fn)fft;sxqbe_realloc_fn rf=(sxqbe_realloc_fn)rft;long long* hdr=(long long*)calloc(1,32);sxqbe_alloc_desc* d=(sxqbe_alloc_desc*)calloc(1,sizeof(sxqbe_alloc_desc));if(!hdr||!d){if(hdr)free(hdr);if(d)free(d);return sxqbe_err(0);}long long bytes=argc>0?argc*8:8;long long buf=(long long)(intptr_t)sxqbe_alloc_call(af,ctx,bytes);if(!buf){free(hdr);free(d);return sxqbe_err(0);}d->alloc=af;d->free=ff;d->realloc=rf;d->ctx=ctx;hdr[0]=buf;hdr[1]=argc;hdr[2]=argc>0?argc:1;hdr[3]=(long long)(intptr_t)d;char** av=(char**)(intptr_t)argv;long long i;for(i=0;i<argc;i++)((long long*)(intptr_t)buf)[i]=(long long)(intptr_t)av[i];return sxqbe_ok((long long)(intptr_t)hdr);}
-        \\long long* sxqbe_fmt_alloc(void* aft,void* fft,void* rft,long long ctx,const char* f,long long* p){sxqbe_alloc_fn af=(sxqbe_alloc_fn)aft;sxqbe_free_fn ff=(sxqbe_free_fn)fft;sxqbe_realloc_fn rf=(sxqbe_realloc_fn)rft;long long cap=4096;char* b=(char*)sxqbe_alloc_call(af,ctx,cap);if(!b)return sxqbe_err(0);int n=p?snprintf(b,(size_t)cap,f,p[0],p[1],p[2],p[3],p[4],p[5],p[6],p[7],p[8],p[9],p[10],p[11],p[12],p[13],p[14],p[15]):snprintf(b,(size_t)cap,"%s",f);if(n<0){ff(ctx,(long long)(intptr_t)b);return sxqbe_err(0);}if((long long)n>=cap){long long ncap=(long long)n+1;long long nb=sxqbe_realloc_call(rf,ctx,b,ncap);if(!nb){ff(ctx,(long long)(intptr_t)b);return sxqbe_err(0);}b=(char*)(intptr_t)nb;cap=ncap;n=p?snprintf(b,(size_t)cap,f,p[0],p[1],p[2],p[3],p[4],p[5],p[6],p[7],p[8],p[9],p[10],p[11],p[12],p[13],p[14],p[15]):snprintf(b,(size_t)cap,"%s",f);if(n<0){ff(ctx,(long long)(intptr_t)b);return sxqbe_err(0);}}return sxqbe_ok((long long)(intptr_t)b);}
-        \\void sxqbe_list_free(long long* h){if(!h)return;long long buf=h[0];sxqbe_alloc_desc* d=(sxqbe_alloc_desc*)(intptr_t)h[3];if(d){if(buf)d->free(d->ctx,buf);free(d);}else{if(buf)free((void*)(intptr_t)buf);}free(h);}
-        \\void sxqbe_list_reserve(long long* h,long long cap){if(!h)return;if(cap>h[2])sxqbe_list_grow(h,cap);}
-        \\
+    \\#include <stdint.h>
+    \\#include <stdlib.h>
+    \\#include <stdio.h>
+    \\#include <string.h>
+    \\typedef long long (*sxqbe_alloc_fn)(long long,unsigned long long);
+    \\typedef int (*sxqbe_free_fn)(long long,long long);
+    \\typedef long long (*sxqbe_realloc_fn)(long long,long long,unsigned long long);
+    \\typedef struct {sxqbe_alloc_fn alloc;sxqbe_free_fn free;sxqbe_realloc_fn realloc;long long ctx;} sxqbe_alloc_desc;
+    \\static long long* sxqbe_ok(long long v){long long*r=(long long*)calloc(1,16);if(!r)return 0;r[0]=0;r[1]=v;return r;}
+    \\static long long* sxqbe_err(long long e){long long*r=(long long*)calloc(1,16);if(!r)return 0;r[0]=1;r[1]=e;return r;}
+    \\static void* sxqbe_alloc_call(sxqbe_alloc_fn f,long long ctx,long long size){long long r=f(ctx,(unsigned long long)size);return r?(void*)(intptr_t)(r-1):0;}
+    \\static long long sxqbe_realloc_call(sxqbe_realloc_fn f,long long ctx,void*p,long long size){long long r=f(ctx,(long long)(intptr_t)p,(unsigned long long)size);return r?(long long)(intptr_t)(r-1):0;}
+    \\int sxqbe_list_grow(long long* hdr,long long need){if(!hdr)return 0;long long cap=hdr[2];long long* buf=(long long*)(intptr_t)hdr[0];if(need<=cap)return 1;long long ncap=cap<4?8:cap*2;if(ncap<need)ncap=need;sxqbe_alloc_desc* d=(sxqbe_alloc_desc*)(intptr_t)hdr[3];if(d){long long nb=buf?sxqbe_realloc_call(d->realloc,d->ctx,buf,ncap*8):(long long)(intptr_t)sxqbe_alloc_call(d->alloc,d->ctx,ncap*8);if(!nb)return 0;hdr[0]=nb;hdr[2]=ncap;}else{long long* nb=(long long*)realloc(buf,(size_t)(ncap*8));if(!nb)return 0;hdr[0]=(long long)(intptr_t)nb;hdr[2]=ncap;}return 1;}
+    \\long long* sxqbe_list_alloc(void* aft,void* fft,void* rft,long long ctx){sxqbe_alloc_fn af=(sxqbe_alloc_fn)aft;sxqbe_free_fn ff=(sxqbe_free_fn)fft;sxqbe_realloc_fn rf=(sxqbe_realloc_fn)rft;long long* hdr=(long long*)calloc(1,32);sxqbe_alloc_desc* d=(sxqbe_alloc_desc*)calloc(1,sizeof(sxqbe_alloc_desc));if(!hdr||!d){if(hdr)free(hdr);if(d)free(d);return sxqbe_err(0);}long long cap=8;long long buf=(long long)(intptr_t)sxqbe_alloc_call(af,ctx,cap*8);if(!buf){free(hdr);free(d);return sxqbe_err(0);}d->alloc=af;d->free=ff;d->realloc=rf;d->ctx=ctx;hdr[0]=buf;hdr[1]=0;hdr[2]=cap;hdr[3]=(long long)(intptr_t)d;return sxqbe_ok((long long)(intptr_t)hdr);}
+    \\void sxqbe_list_free(long long*);
+    \\long long* sxqbe_list_from(void* aft,void* fft,void* rft,long long ctx,long long* elems,long long count){long long* r=sxqbe_list_alloc(aft,fft,rft,ctx);if(!r||r[0]!=0)return r;long long* hdr=(long long*)r[1];if(count>0){if(!sxqbe_list_grow(hdr,count)){sxqbe_list_free(hdr);return sxqbe_err(0);}long long* buf=(long long*)hdr[0];long long i;for(i=0;i<count;i++)buf[i]=elems[i];hdr[1]=count;}return r;}
+    \\long long* sxqbe_args_alloc(void* aft,void* fft,void* rft,long long ctx,long long argc,long long argv){sxqbe_alloc_fn af=(sxqbe_alloc_fn)aft;sxqbe_free_fn ff=(sxqbe_free_fn)fft;sxqbe_realloc_fn rf=(sxqbe_realloc_fn)rft;long long* hdr=(long long*)calloc(1,32);sxqbe_alloc_desc* d=(sxqbe_alloc_desc*)calloc(1,sizeof(sxqbe_alloc_desc));if(!hdr||!d){if(hdr)free(hdr);if(d)free(d);return sxqbe_err(0);}long long bytes=argc>0?argc*8:8;long long buf=(long long)(intptr_t)sxqbe_alloc_call(af,ctx,bytes);if(!buf){free(hdr);free(d);return sxqbe_err(0);}d->alloc=af;d->free=ff;d->realloc=rf;d->ctx=ctx;hdr[0]=buf;hdr[1]=argc;hdr[2]=argc>0?argc:1;hdr[3]=(long long)(intptr_t)d;char** av=(char**)(intptr_t)argv;long long i;for(i=0;i<argc;i++)((long long*)(intptr_t)buf)[i]=(long long)(intptr_t)av[i];return sxqbe_ok((long long)(intptr_t)hdr);}
+    \\long long* sxqbe_fmt_alloc(void* aft,void* fft,void* rft,long long ctx,const char* f,long long* p){sxqbe_alloc_fn af=(sxqbe_alloc_fn)aft;sxqbe_free_fn ff=(sxqbe_free_fn)fft;sxqbe_realloc_fn rf=(sxqbe_realloc_fn)rft;long long cap=4096;char* b=(char*)sxqbe_alloc_call(af,ctx,cap);if(!b)return sxqbe_err(0);int n=p?snprintf(b,(size_t)cap,f,p[0],p[1],p[2],p[3],p[4],p[5],p[6],p[7],p[8],p[9],p[10],p[11],p[12],p[13],p[14],p[15]):snprintf(b,(size_t)cap,"%s",f);if(n<0){ff(ctx,(long long)(intptr_t)b);return sxqbe_err(0);}if((long long)n>=cap){long long ncap=(long long)n+1;long long nb=sxqbe_realloc_call(rf,ctx,b,ncap);if(!nb){ff(ctx,(long long)(intptr_t)b);return sxqbe_err(0);}b=(char*)(intptr_t)nb;cap=ncap;n=p?snprintf(b,(size_t)cap,f,p[0],p[1],p[2],p[3],p[4],p[5],p[6],p[7],p[8],p[9],p[10],p[11],p[12],p[13],p[14],p[15]):snprintf(b,(size_t)cap,"%s",f);if(n<0){ff(ctx,(long long)(intptr_t)b);return sxqbe_err(0);}}return sxqbe_ok((long long)(intptr_t)b);}
+    \\void sxqbe_list_free(long long* h){if(!h)return;long long buf=h[0];sxqbe_alloc_desc* d=(sxqbe_alloc_desc*)(intptr_t)h[3];if(d){if(buf)d->free(d->ctx,buf);free(d);}else{if(buf)free((void*)(intptr_t)buf);}free(h);}
+    \\void sxqbe_list_reserve(long long* h,long long cap){if(!h)return;if(cap>h[2])sxqbe_list_grow(h,cap);}
+    \\
 }
 
 /// Build the C translation unit that exposes C header constants to QBE.
@@ -5347,7 +5348,7 @@ fn emit_global_val(ctx: mut ref CgCtx, mod_prefix: ref u8, node: ref parser.Node
     val ginit: mut ref u8 = "0"
     if gexpr != none {
         if gexpr.kind == parser.NK_BUILTIN && str.raw_cmp(gexpr.d0 as ref u8, "embedlen") == 0 {
-            ginit = @fmtalloc("{lld}", {gexpr.d3})
+            ginit = arenafmt.format("{lld}", {gexpr.d3})
         } else {
             val static_init: ref u8 = static_global_init_value(ctx, gexpr)
             if str.raw_cmp(static_init, "") != 0 {
@@ -7880,6 +7881,46 @@ fn gen_store_field_value(
     }
 }
 
+fn cg_callsite_param_is_untyped(ctx: mut ref CgCtx, expr: ref parser.Node, idx: i64) bool = trust {
+    val callee: ref parser.Node = parser.call_callee(expr)
+    if callee == none {
+        return false
+    }
+    val callee_name: ref u8 = resolve_callee_name(ctx, callee)
+    val resolved_fn: ref parser.Node = parser.call_resolved_fn(expr)
+    val exact: ref u8 = cg_lookup_fn_name_by_node(ctx, resolved_fn)
+    val resolved: mut ref u8 = exact
+    if resolved == none {
+        resolved = cg_resolve_fn_name(ctx, callee_name)
+    }
+    val effective: mut ref u8 = resolved
+    if effective == none {
+        val ext: ref u8 = cg_lookup_extern_symbol(ctx, callee_name)
+        if ext != none {
+            effective = ext
+        } else {
+            effective = callee_name
+        }
+    }
+    val params: ref void = cg_lookup_fn_params(ctx, effective)
+    if params == none {
+        return false
+    }
+    val plen: i64 = @len(params as list[ref void]) as i64
+    if idx < 0 || idx >= plen {
+        return false
+    }
+    val p_opt = @get(params as list[ref void], idx as usize)
+    if p_opt is some p {
+        val pnode: ref parser.Node = p as ref parser.Node
+        if pnode != none {
+            val pty: ref parser.Node = pnode.d1 as ref parser.Node
+            return pty != none && pty.kind == parser.TY_UNTYPED
+        }
+    }
+    return false
+}
+
 fn gen_call(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
     val callee_node: ref parser.Node = expr.d0 as ref parser.Node
     val args_list: ref void = expr.d1 as ref void
@@ -8486,7 +8527,38 @@ fn gen_call(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
             if arg_opt is some arg {
                 val arg_node: ref parser.Node = arg as ref parser.Node
                 val ak: i64 = arg_node.kind
-                if ak == parser.NK_ARGS_PACK {
+                if cg_callsite_param_is_untyped(ctx, expr, ai) {
+                    if ak == parser.NK_ARGS_PACK {
+                        val elems: mut list[ref parser.Node] = []
+                        val pack: ref void = arg_node.d0 as ref void
+                        val plen: i64 = @len(pack) as i64
+                        val pi: mut i64 = 0
+                        for {
+                            if pi >= plen {
+                                break
+                            }
+                            val pe_opt = @get(pack, pi as usize)
+                            if pe_opt is some pe {
+                                @append(elems, pe as ref parser.Node)
+                            }
+                            pi++
+                        }
+                        val pack_ptr: ref u8 = cg_gen_untyped_pack(ctx, elems)
+                        @append(arg_tmps, pack_ptr)
+                        @append(arg_qts, "l")
+                    } elif arg_node.kind == parser.NK_IDENT &&
+                    cg_current_fn_param_is_untyped(ctx, arg_node.d0 as ref u8) {
+                        val at: ref u8 = gen_expr(ctx, arg_node)
+                        @append(arg_tmps, at)
+                        @append(arg_qts, "l")
+                    } else {
+                        val elems: mut list[ref parser.Node] = []
+                        @append(elems, arg_node)
+                        val pack_ptr: ref u8 = cg_gen_untyped_pack(ctx, elems)
+                        @append(arg_tmps, pack_ptr)
+                        @append(arg_qts, "l")
+                    }
+                } elif ak == parser.NK_ARGS_PACK {
                     val pack: ref void = arg_node.d0 as ref void
                     val plen: i64 = @len(pack) as i64
                     val pi: mut i64 = 0
@@ -8908,12 +8980,12 @@ fn cg_emit_embed_const(
         if (@len(ctx.embed_labels) as i64) > before {
             cg_emit_embed_data(ctx, epath, label, cexpr.d3)
         }
-        cg_register_module_const(ctx, cname, @fmtalloc("${s}", {label}))
+        cg_register_module_const(ctx, cname, arenafmt.format("${s}", {label}))
         @free(const_label)
         return true
     }
     if str.raw_cmp(bname, "embedlen") == 0 {
-        val sval: ref u8 = @fmtalloc("{lld}", {cexpr.d3})
+        val sval: ref u8 = arenafmt.format("{lld}", {cexpr.d3})
         cg_register_module_const(ctx, cname, sval)
         if cg_emit_label_if_new(ctx, const_label) {
             val data_buf: ref u8 = @alloc(256) as ref u8
@@ -8947,7 +9019,7 @@ fn cg_embed_label(ctx: mut ref CgCtx, path: ref u8) ref u8 = trust {
         i++
     }
 
-    val label: ref u8 = @fmtalloc("sx__embed_{lld}", {ctx.embed_count})
+    val label: ref u8 = arenafmt.format("sx__embed_{lld}", {ctx.embed_count})
     ctx.embed_count = ctx.embed_count + (1 as i64)
     @append(ctx.embed_paths, path)
     @append(ctx.embed_labels, label)
@@ -9108,7 +9180,10 @@ fn cg_resolve_alloc_fn(ctx: mut ref CgCtx, ty: ref parser.Node, method: ref u8) 
 fn cg_alloc_fn_ptr(ctx: mut ref CgCtx, ty: ref parser.Node, method: ref u8) ref u8 = trust {
     val sym: ref u8 = cg_resolve_alloc_fn(ctx, ty, method)
     if str.len_raw(sym) == 0 {
-        stdio.eprint("error: allocator '{s}' does not implement GeneralAllocator\n", {ty.d0 as ref u8})
+        stdio.eprint(
+            "error: allocator '{s}' does not implement GeneralAllocator\n",
+            {ty.d0 as ref u8}
+        )
         os.exit(1)
     }
     val tmp: i64 = fresh_tmp(ctx)
@@ -11071,7 +11146,12 @@ fn gen_list_lit(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
 
     val desc_slot: i64 = fresh_tmp(ctx)
     val buf7b: ref u8 = @alloc(128) as ref u8
-    @snprintf(buf7b, 128, "    %%t{lld} =l add %%t{lld}, 24\n    storel 0, %%t{lld}\n", {desc_slot, hdr_ptr, desc_slot})
+    @snprintf(
+        buf7b,
+        128,
+        "    %%t{lld} =l add %%t{lld}, 24\n    storel 0, %%t{lld}\n",
+        {desc_slot, hdr_ptr, desc_slot}
+    )
     emit(ctx, buf7b)
     @free(buf7b)
 
@@ -12990,22 +13070,11 @@ fn gen_match_res(ctx: mut ref CgCtx, stmt: ref parser.Node) void = trust {
     ) == 0 || raw_starts_with(result_ann, "result[")
 
     if is_real_result {
-        val is_direct_param: mut bool = false
-        if @load8(expr) as i64 == 37 {  // '%'
-            val second_char: i64 = @load8(@ptradd(expr, 1)) as i64
-            if second_char != 116 {  // not 't'
-                is_direct_param = true
-            }
-        }
-        if is_direct_param {
-            @snprintf(buf, 256,
-                "    %%t{lld} =l copy {s}\n    %%t{lld} =w ceql %%t{lld}, 0\n    jnz %%t{lld}, @lbl{lld}, @lbl{lld}\n@lbl{lld}\n",
-                {tag, expr, is_ok, tag, is_ok, ok_lbl, err_lbl, ok_lbl})
-        } else {
-            @snprintf(buf, 256,
-                "    %%t{lld} =l loadl {s}\n    %%t{lld} =w ceql %%t{lld}, 0\n    jnz %%t{lld}, @lbl{lld}, @lbl{lld}\n@lbl{lld}\n",
-                {tag, expr, is_ok, tag, is_ok, ok_lbl, err_lbl, ok_lbl})
-        }
+        // A result value is always a pointer to a {tag, payload} object,
+        // including when it arrives as a function parameter.
+        @snprintf(buf, 256,
+            "    %%t{lld} =l loadl {s}\n    %%t{lld} =w ceql %%t{lld}, 0\n    jnz %%t{lld}, @lbl{lld}, @lbl{lld}\n@lbl{lld}\n",
+            {tag, expr, is_ok, tag, is_ok, ok_lbl, err_lbl, ok_lbl})
     } else {
         @snprintf(buf, 256,
             "    %%t{lld} =w copy 1\n    jnz {s}, @lbl{lld}, @lbl{lld}\n@lbl{lld}\n",
@@ -15619,8 +15688,8 @@ pub fn get_used_prefixes(root: ref module.ResolvedModule) list[ref u8] = trust {
 /// Emit a single test block as a numbered function. Returns the function name.
 fn gen_test_fn(ctx: mut ref CgCtx, body_stmts: ref parser.Node, test_id: i64) void = trust {
     cg_dvars_clear(ctx)
-    val fname: ref u8 = @fmtalloc("__sx_test_{lld}", {test_id})
-    val hdr: ref u8 = @fmtalloc("export function w ${s}() {\n@start\n", {fname})
+    val fname: ref u8 = arenafmt.format("__sx_test_{lld}", {test_id})
+    val hdr: ref u8 = arenafmt.format("export function w ${s}() {\n@start\n", {fname})
     emit(ctx, hdr)
     val gnames_list: ref void = cg_global_src_names(ctx)
     val glen: i64 = @len(gnames_list) as i64
@@ -15700,7 +15769,7 @@ fn gen_test_main(
         }
         val id_opt = @get(test_ids, ti as usize)
         if id_opt is some id {
-            val call: ref u8 = @fmtalloc("    call $__sx_test_{lld}()\n", {id as i64})
+            val call: ref u8 = arenafmt.format("    call $__sx_test_{lld}()\n", {id as i64})
             emit(ctx, call)
             val name_opt = @get(test_names, ti as usize)
             if name_opt is some name_val {
