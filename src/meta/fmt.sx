@@ -907,6 +907,9 @@ fn rewrite_one_match(src: ref u8) option[ref u8] = trust {
             return none
         }
     }
+    defer {
+        lexer.free_tokens(tokens)
+    }
 
     val len: i64 = str.len_raw(src)
     val starts: list[i64] = collect_line_starts(src, len)
@@ -961,6 +964,9 @@ fn format_block_braces(src: ref u8) ref u8 = trust {
         err _ => {
             return src
         }
+    }
+    defer {
+        lexer.free_tokens(tokens)
     }
 
     val len: i64 = str.len_raw(src)
@@ -1032,6 +1038,9 @@ fn format_else_join(src: ref u8) ref u8 = trust {
             return src
         }
     }
+    defer {
+        lexer.free_tokens(tokens)
+    }
 
     val len: i64 = str.len_raw(src)
     val starts: list[i64] = collect_line_starts(src, len)
@@ -1088,6 +1097,9 @@ fn format_match_arm_spacing(src: ref u8) ref u8 = trust {
         err _ => {
             return src
         }
+    }
+    defer {
+        lexer.free_tokens(tokens)
     }
 
     val len: i64 = str.len_raw(src)
@@ -1204,6 +1216,9 @@ fn format_decl_separators(src: ref u8) ref u8 = trust {
             return src
         }
     }
+    defer {
+        lexer.free_tokens(tokens)
+    }
 
     val len: i64 = str.len_raw(src)
     val starts: list[i64] = collect_line_starts(src, len)
@@ -1289,6 +1304,9 @@ fn format_paren_separators(src: ref u8) ref u8 = trust {
             return src
         }
     }
+    defer {
+        lexer.free_tokens(tokens)
+    }
 
     val len: i64 = str.len_raw(src)
     val starts: list[i64] = collect_line_starts(src, len)
@@ -1356,6 +1374,9 @@ fn format_colon_spacing(src: ref u8) ref u8 = trust {
             return src
         }
     }
+    defer {
+        lexer.free_tokens(tokens)
+    }
 
     val len: i64 = str.len_raw(src)
     val starts: list[i64] = collect_line_starts(src, len)
@@ -1413,6 +1434,9 @@ fn format_eq_spacing(src: ref u8) ref u8 = trust {
         err _ => {
             return src
         }
+    }
+    defer {
+        lexer.free_tokens(tokens)
     }
 
     val len: i64 = str.len_raw(src)
@@ -1483,6 +1507,9 @@ fn format_as_spacing(src: ref u8) ref u8 = trust {
             return src
         }
     }
+    defer {
+        lexer.free_tokens(tokens)
+    }
 
     val len: i64 = str.len_raw(src)
     val starts: list[i64] = collect_line_starts(src, len)
@@ -1551,6 +1578,9 @@ fn format_operator_spacing(src: ref u8) ref u8 = trust {
         err _ => {
             return src
         }
+    }
+    defer {
+        lexer.free_tokens(tokens)
     }
 
     val len: i64 = str.len_raw(src)
@@ -1621,6 +1651,9 @@ fn format_assert_spacing(src: ref u8) ref u8 = trust {
         err _ => {
             return src
         }
+    }
+    defer {
+        lexer.free_tokens(tokens)
     }
 
     val len: i64 = str.len_raw(src)
@@ -1724,6 +1757,9 @@ fn format_block_brace_spacing(src: ref u8) ref u8 = trust {
             return src
         }
     }
+    defer {
+        lexer.free_tokens(tokens)
+    }
 
     val len: i64 = str.len_raw(src)
     val starts: list[i64] = collect_line_starts(src, len)
@@ -1812,6 +1848,9 @@ fn format_fn_return_spacing(src: ref u8) ref u8 = trust {
         err _ => {
             return src
         }
+    }
+    defer {
+        lexer.free_tokens(tokens)
     }
 
     val len: i64 = str.len_raw(src)
@@ -2086,6 +2125,9 @@ fn format_bulk_val_alignment(src: ref u8) ref u8 = trust {
         err _ => {
             return src
         }
+    }
+    defer {
+        lexer.free_tokens(tokens)
     }
 
     val len: i64 = str.len_raw(src)
@@ -2615,6 +2657,9 @@ fn format_for_headers(src: ref u8) ref u8 = trust {
             return src
         }
     }
+    defer {
+        lexer.free_tokens(tokens)
+    }
 
     val len: i64 = str.len_raw(src)
     val starts: list[i64] = collect_line_starts(src, len)
@@ -2969,6 +3014,9 @@ fn wrap_one_long_line(src: ref u8) ref u8 = trust {
             return src
         }
     }
+    defer {
+        lexer.free_tokens(tokens)
+    }
 
     val len: i64 = str.len_raw(src)
     val starts: list[i64] = collect_line_starts(src, len)
@@ -2988,7 +3036,8 @@ fn wrap_one_long_line(src: ref u8) ref u8 = trust {
                 if close > i && token_line(tokens, close) == open_line {
                     if paren_starts_call(tokens, i) &&
                     has_top_level_comma(tokens, i, close) {
-                        return wrap_delimited_at(src, tokens, starts, i, close)
+                        val wrapped1: ref u8 = wrap_delimited_at(src, tokens, starts, i, close)
+                        return wrapped1
                     }
                 }
             }
@@ -2999,7 +3048,8 @@ fn wrap_one_long_line(src: ref u8) ref u8 = trust {
                 val close: i64 = find_matching_brace(tokens, i)
                 if close > i && token_line(tokens, close) == open_line {
                     if has_top_level_comma(tokens, i, close) {
-                        return wrap_delimited_at(src, tokens, starts, i, close)
+                        val wrapped2: ref u8 = wrap_delimited_at(src, tokens, starts, i, close)
+                        return wrapped2
                     }
                 }
             }
