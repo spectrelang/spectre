@@ -289,6 +289,9 @@ fn builtin_min_arity(name: ref u8) i64 = trust {
     if str_eq(name, "listalloc") {
         return 1
     }
+    if str_eq(name, "list") {
+        return 1
+    }
     if str_eq(name, "listfree") {
         return 1
     }
@@ -415,6 +418,7 @@ fn is_known_builtin(name: ref u8) bool = trust {
         "fmtalloc",
         "argsalloc",
         "listalloc",
+        "list",
         "listfree",
         "snprintf",
         "print",
@@ -1580,7 +1584,8 @@ fn expr_wrap_kind(ctx: ref SemaCtx, expr: ref parser.Node) i64 = trust {
         if str_eq(bname, "get") {
             return 2
         }
-        if str_eq(bname, "argsalloc") || str_eq(bname, "listalloc") {
+        if str_eq(bname, "argsalloc") || str_eq(bname, "listalloc") ||
+        str_eq(bname, "list") {
             return 1
         }
         if str_eq(bname, "fmtalloc") {

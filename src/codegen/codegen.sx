@@ -1,3 +1,5 @@
+val allocators = use("std/allocators")
+val fmt = use("std/fmt")
 val str         = use("std/string")
 val fmt         = use("std/fmt")
 val os          = use("std/os")
@@ -1571,6 +1573,8 @@ fn cg_alloc_runtime_c_source() ref u8 = trust {
         \\static long long sxqbe_realloc_call(sxqbe_realloc_fn f,long long ctx,void*p,long long size){long long r=f(ctx,(long long)(intptr_t)p,(unsigned long long)size);return r?(long long)(intptr_t)(r-1):0;}
         \\int sxqbe_list_grow(long long* hdr,long long need){if(!hdr)return 0;long long cap=hdr[2];long long* buf=(long long*)(intptr_t)hdr[0];if(need<=cap)return 1;long long ncap=cap<4?8:cap*2;if(ncap<need)ncap=need;sxqbe_alloc_desc* d=(sxqbe_alloc_desc*)(intptr_t)hdr[3];if(d){long long nb=buf?sxqbe_realloc_call(d->realloc,d->ctx,buf,ncap*8):(long long)(intptr_t)sxqbe_alloc_call(d->alloc,d->ctx,ncap*8);if(!nb)return 0;hdr[0]=nb;hdr[2]=ncap;}else{long long* nb=(long long*)realloc(buf,(size_t)(ncap*8));if(!nb)return 0;hdr[0]=(long long)(intptr_t)nb;hdr[2]=ncap;}return 1;}
         \\long long* sxqbe_list_alloc(void* aft,void* fft,void* rft,long long ctx){sxqbe_alloc_fn af=(sxqbe_alloc_fn)aft;sxqbe_free_fn ff=(sxqbe_free_fn)fft;sxqbe_realloc_fn rf=(sxqbe_realloc_fn)rft;long long* hdr=(long long*)calloc(1,32);sxqbe_alloc_desc* d=(sxqbe_alloc_desc*)calloc(1,sizeof(sxqbe_alloc_desc));if(!hdr||!d){if(hdr)free(hdr);if(d)free(d);return sxqbe_err(0);}long long cap=8;long long buf=(long long)(intptr_t)sxqbe_alloc_call(af,ctx,cap*8);if(!buf){free(hdr);free(d);return sxqbe_err(0);}d->alloc=af;d->free=ff;d->realloc=rf;d->ctx=ctx;hdr[0]=buf;hdr[1]=0;hdr[2]=cap;hdr[3]=(long long)(intptr_t)d;return sxqbe_ok((long long)(intptr_t)hdr);}
+        \\void sxqbe_list_free(long long*);
+        \\long long* sxqbe_list_from(void* aft,void* fft,void* rft,long long ctx,long long* elems,long long count){long long* r=sxqbe_list_alloc(aft,fft,rft,ctx);if(!r||r[0]!=0)return r;long long* hdr=(long long*)r[1];if(count>0){if(!sxqbe_list_grow(hdr,count)){sxqbe_list_free(hdr);return sxqbe_err(0);}long long* buf=(long long*)hdr[0];long long i;for(i=0;i<count;i++)buf[i]=elems[i];hdr[1]=count;}return r;}
         \\long long* sxqbe_args_alloc(void* aft,void* fft,void* rft,long long ctx,long long argc,long long argv){sxqbe_alloc_fn af=(sxqbe_alloc_fn)aft;sxqbe_free_fn ff=(sxqbe_free_fn)fft;sxqbe_realloc_fn rf=(sxqbe_realloc_fn)rft;long long* hdr=(long long*)calloc(1,32);sxqbe_alloc_desc* d=(sxqbe_alloc_desc*)calloc(1,sizeof(sxqbe_alloc_desc));if(!hdr||!d){if(hdr)free(hdr);if(d)free(d);return sxqbe_err(0);}long long bytes=argc>0?argc*8:8;long long buf=(long long)(intptr_t)sxqbe_alloc_call(af,ctx,bytes);if(!buf){free(hdr);free(d);return sxqbe_err(0);}d->alloc=af;d->free=ff;d->realloc=rf;d->ctx=ctx;hdr[0]=buf;hdr[1]=argc;hdr[2]=argc>0?argc:1;hdr[3]=(long long)(intptr_t)d;char** av=(char**)(intptr_t)argv;long long i;for(i=0;i<argc;i++)((long long*)(intptr_t)buf)[i]=(long long)(intptr_t)av[i];return sxqbe_ok((long long)(intptr_t)hdr);}
         \\long long* sxqbe_fmt_alloc(void* aft,void* fft,void* rft,long long ctx,const char* f,long long* p){sxqbe_alloc_fn af=(sxqbe_alloc_fn)aft;sxqbe_free_fn ff=(sxqbe_free_fn)fft;sxqbe_realloc_fn rf=(sxqbe_realloc_fn)rft;long long cap=4096;char* b=(char*)sxqbe_alloc_call(af,ctx,cap);if(!b)return sxqbe_err(0);int n=p?snprintf(b,(size_t)cap,f,p[0],p[1],p[2],p[3],p[4],p[5],p[6],p[7],p[8],p[9],p[10],p[11],p[12],p[13],p[14],p[15]):snprintf(b,(size_t)cap,"%s",f);if(n<0){ff(ctx,(long long)(intptr_t)b);return sxqbe_err(0);}if((long long)n>=cap){long long ncap=(long long)n+1;long long nb=sxqbe_realloc_call(rf,ctx,b,ncap);if(!nb){ff(ctx,(long long)(intptr_t)b);return sxqbe_err(0);}b=(char*)(intptr_t)nb;cap=ncap;n=p?snprintf(b,(size_t)cap,f,p[0],p[1],p[2],p[3],p[4],p[5],p[6],p[7],p[8],p[9],p[10],p[11],p[12],p[13],p[14],p[15]):snprintf(b,(size_t)cap,"%s",f);if(n<0){ff(ctx,(long long)(intptr_t)b);return sxqbe_err(0);}}return sxqbe_ok((long long)(intptr_t)b);}
         \\void sxqbe_list_free(long long* h){if(!h)return;long long buf=h[0];sxqbe_alloc_desc* d=(sxqbe_alloc_desc*)(intptr_t)h[3];if(d){if(buf)d->free(d->ctx,buf);free(d);}else{if(buf)free((void*)(intptr_t)buf);}free(h);}
@@ -9117,6 +9121,15 @@ fn cg_alloc_fn_ptr(ctx: mut ref CgCtx, ty: ref parser.Node, method: ref u8) ref 
     return res
 }
 
+fn cg_named_ty_from_ann(ann: ref u8) ref parser.Node = trust {
+    if ann == none || str.raw_cmp(ann, "") == 0 {
+        return none
+    }
+    val node: mut ref parser.Node = parser.make_node(parser.TY_NAMED, 0)
+    parser.node_store_slot[ref u8](@addr(node.d0), ann)
+    return node
+}
+
 fn gen_builtin(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
     val name: ref u8 = expr.d0 as ref u8
     val args: ref void = expr.d1 as ref void
@@ -10280,6 +10293,87 @@ fn gen_builtin(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
         )
         emit(ctx, buf)
         tmp = cap_val
+    } elif str.raw_cmp(name, "list") == 0 {
+        val ac_node_opt = @get(args, 0)
+        val ac_node: mut ref parser.Node = none
+        if ac_node_opt is some a {
+            ac_node = a as ref parser.Node
+        }
+        val ac_ann: ref u8 = infer_type_annotation(ctx, ac_node)
+        val ac_ty: ref parser.Node = cg_named_ty_from_ann(ac_ann)
+        if ac_ty == none {
+            stdio.eprint("error: cannot infer allocator type for @list\n", {})
+            os.exit(1)
+        }
+        val ac: ref u8 = get_arg(ctx, args, 0)
+        val af: ref u8 = cg_alloc_fn_ptr(ctx, ac_ty, "alloc")
+        val ff: ref u8 = cg_alloc_fn_ptr(ctx, ac_ty, "free")
+        val rf: ref u8 = cg_alloc_fn_ptr(ctx, ac_ty, "realloc")
+        val alen: i64 = @len(args as list[ref parser.Node]) as i64
+        val count: i64 = alen - 1
+        val arr_tmp: i64 = fresh_tmp(ctx)
+        val alloc_bytes: mut i64 = 8
+        if count > 0 {
+            alloc_bytes = count * 8
+        }
+        val init_buf: ref u8 = @alloc(256) as ref u8
+        @snprintf(
+            init_buf,
+            256,
+            "    %%t{lld} =l alloc8 {lld}\n    call $memset(l %%t{lld}, w 0, l {lld})\n",
+            {arr_tmp, alloc_bytes, arr_tmp, alloc_bytes}
+        )
+        emit(ctx, init_buf)
+        @free(init_buf)
+        val ei: mut i64 = 1
+        for {
+            if ei >= alen {
+                break
+            }
+            val e_opt = @get(args, ei as usize)
+            if e_opt is some e {
+                val e_node: ref parser.Node = e as ref parser.Node
+                val ev: ref u8 = gen_expr(ctx, e_node)
+                val eqt: ref u8 = expr_qtype(ctx, e_node)
+                val eval: mut ref u8 = ev
+                if str.raw_cmp(eqt, "w") == 0 {
+                    val conv: i64 = fresh_tmp(ctx)
+                    val cb: ref u8 = @alloc(128) as ref u8
+                    @snprintf(cb, 128, "    %%t{lld} =l extsw {s}\n", {conv, ev})
+                    emit(ctx, cb) @free(cb)
+                    val cr: ref u8 = @alloc(16) as ref u8
+                    @snprintf(cr, 16, "%%t{lld}", {conv})
+                    eval = cr
+                } elif str.raw_cmp(eqt, "d") == 0 || str.raw_cmp(eqt, "s") == 0 {
+                    val conv: i64 = fresh_tmp(ctx)
+                    val cb: ref u8 = @alloc(128) as ref u8
+                    @snprintf(cb, 128, "    %%t{lld} =l cast {s}\n", {conv, ev})
+                    emit(ctx, cb) @free(cb)
+                    val cr: ref u8 = @alloc(16) as ref u8
+                    @snprintf(cr, 16, "%%t{lld}", {conv})
+                    eval = cr
+                }
+                val off: i64 = (ei - 1) * 8
+                val off_tmp: i64 = fresh_tmp(ctx)
+                val sbuf: ref u8 = @alloc(128) as ref u8
+                @snprintf(
+                    sbuf,
+                    128,
+                    "    %%t{lld} =l add %%t{lld}, {lld}\n    storel {s}, %%t{lld}\n",
+                    {off_tmp, arr_tmp, off, eval, off_tmp}
+                )
+                emit(ctx, sbuf) @free(sbuf)
+            }
+            ei++
+        }
+        ctx.alloc_runtime = true
+        @snprintf(
+            buf,
+            1024,
+            "    %%t{lld} =l call $sxqbe_list_from(l {s}, l {s}, l {s}, l {s}, l %%t{lld}, l {lld})\n",
+            {tmp, af, ff, rf, ac, arr_tmp, count}
+        )
+        emit(ctx, buf)
     } elif str.raw_cmp(name, "listalloc") == 0 {
         val btargs: list[ref parser.Node] = parser.builtin_type_args(expr)
         val ty: ref parser.Node = cg_first_type_arg(btargs)

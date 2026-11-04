@@ -2,6 +2,7 @@
 ///
 /// GPL-3.0-only (C) Navid Momtahen - 2026
 
+val fmt = use("std/fmt")
 val str     = use("std/string")
 val fmt     = use("std/fmt")
 val stdio   = use("std/stdio")
@@ -4774,6 +4775,66 @@ fn gen_builtin(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
             {l}
         ) return cc_expr_track(ctx, buf)
     }
+    if str.raw_cmp(bname, "list") == 0 {
+        val ac_node_opt = @get(args as list[ref parser.Node], 0 as usize)
+        val ac_node: mut ref parser.Node = none
+        if ac_node_opt is some a {
+            ac_node = a as ref parser.Node
+        }
+        val ac_ty: ref parser.Node = cc_infer_expr_ty(ctx, ac_node)
+        if ac_ty == none {
+            stdio.eprint("error: cannot infer allocator type for @list\n", {})
+            os.exit(1)
+        }
+        val ac: ref u8 = get_arg(ctx, args, 0)
+        val prefix: ref u8 = cc_alloc_adapter_prefix(ctx, ac_ty)
+        val alen: i64 = @len(args as list[ref parser.Node]) as i64
+        val count: i64 = alen - 1
+        val elems_ref: mut ref u8 = "0"
+        if count > 0 {
+            val arr_tmp: i64 = fresh_tmp(ctx)
+            val sb: ref void = str.StringBuilder.new()
+            val name_buf: ref u8 = @alloc(128) as ref u8
+            @snprintf(name_buf, 128, "int64_t sx__le{lld}[{lld}]=", {arr_tmp, count})
+            str.StringBuilder.append_cstr(sb, name_buf)
+            @free(name_buf)
+            str.StringBuilder.append_char(sb, 123 as u8)
+            val ei: mut i64 = 1
+            for {
+                if ei >= alen {
+                    break
+                }
+                val e_opt = @get(args as list[ref parser.Node], ei as usize)
+                if e_opt is some e {
+                    val ev: ref u8 = gen_expr(ctx, e as ref parser.Node)
+                    val eb: ref u8 = @alloc(256) as ref u8
+                    if ei > 1 {
+                        @snprintf(eb, 256, ",(int64_t)({s})", {ev})
+                    } else {
+                        @snprintf(eb, 256, "(int64_t)({s})", {ev})
+                    }
+                    str.StringBuilder.append_cstr(sb, eb)
+                    @free(eb)
+                }
+                ei++
+            }
+            str.StringBuilder.append_cstr(sb, "};\n")
+            val built: ref void = str.StringBuilder.build(sb)
+            emit(ctx, str.cstr(built))
+            str.StringBuilder.free(sb)
+            val er: ref u8 = @alloc(128) as ref u8
+            @snprintf(er, 128, "sx__le{lld}", {arr_tmp})
+            elems_ref = er
+        }
+        val buf: ref u8 = @alloc(512) as ref u8
+        @snprintf(
+            buf,
+            512,
+            "sx__rt_list_from({s}_alloc,{s}_free,{s}_realloc,(int64_t)({s}),{s},{lld})",
+            {prefix, prefix, prefix, ac, elems_ref, count}
+        )
+        return cc_expr_track(ctx, buf)
+    }
     if str.raw_cmp(bname, "listalloc") == 0 {
         val btargs: list[ref parser.Node] = parser.builtin_type_args(expr)
         val ac: ref u8 = get_arg(ctx, args, 0)
@@ -7599,6 +7660,10 @@ fn emit_c_preamble(ctx: ref CCtx) void = trust {
     emitln_fwd(
         ctx,
         "static int64_t* sx__rt_get_args_alloc(sx__alloc_fn af,sx__free_fn ff,sx__realloc_fn rf,int64_t ctx){int64_t c=sx__argc;int64_t* hdr=(int64_t*)calloc(1,32);sx__alloc_desc* d=(sx__alloc_desc*)calloc(1,sizeof(sx__alloc_desc));if(!hdr||!d){if(hdr)free(hdr);if(d)free(d);return sx__err_result(0);}int64_t bytes=c>0?c*8:8;int64_t buf=(int64_t)(intptr_t)sx__alloc_call(af,ctx,bytes);if(!buf){free(hdr);free(d);return sx__err_result(0);}d->alloc=af;d->free=ff;d->realloc=rf;d->ctx=ctx;hdr[0]=buf;hdr[1]=c;hdr[2]=c>0?c:1;hdr[3]=(int64_t)(intptr_t)d;char** av=(char**)(intptr_t)sx__argv;int64_t i;for(i=0;i<c;i++)((int64_t*)(intptr_t)buf)[i]=(int64_t)(intptr_t)av[i];return sx__ok_result((int64_t)(intptr_t)hdr);}"
+    )
+    emitln_fwd(
+        ctx,
+        "static int64_t* sx__rt_list_from(sx__alloc_fn af,sx__free_fn ff,sx__realloc_fn rf,int64_t ctx,int64_t* elems,int64_t count){int64_t* r=sx__rt_list_alloc(af,ff,rf,ctx);if(!r||r[0]!=0)return r;int64_t* hdr=(int64_t*)r[1];if(count>0){if(!sx__list_grow(hdr,count)){sx__rt_list_free(hdr);return sx__err_result(0);}int64_t* buf=(int64_t*)hdr[0];int64_t i;for(i=0;i<count;i++)buf[i]=elems[i];hdr[1]=count;}return r;}"
     )
     emitln_fwd(
         ctx,
