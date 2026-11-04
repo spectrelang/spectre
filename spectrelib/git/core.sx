@@ -1,0 +1,1462 @@
+/// A small, dependency-free git client.
+///
+/// Only the smart HTTP transport is implemented.  Cloning a repository means
+/// asking the remote upload-pack service for a commit and unpacking the
+/// returned packfile into a working tree; no git executable is required.
+///
+/// SPDX-License-Identifier: GPL-3.0-only
+/// (C) Navid Momtahen - 2026
+
+val allocators = use("../allocators")
+val string     = use("../string")
+val fs         = use("../fs")
+val path       = use("../path")
+val crypto     = use("../crypto")
+val deflate    = use("../encoding/deflate")
+val http       = use("../net/http")
+
+pub enum GitError = {
+    UnsupportedUrl
+    RequestFailed
+    InvalidResponse
+    InvalidPack
+    ObjectNotFound
+    CheckoutFailed
+    OutOfMemory
+}
+
+type GitObject = {
+    offset: mut i64
+    pack_type: mut i64
+    obj_type: mut i64
+    base_offset: mut i64
+    base_oid: mut ref u8
+    data: mut ref u8
+    len: mut i64
+    oid: mut ref u8
+    resolved: mut bool
+}
+
+type OidMap = {
+    slots: mut list[i64]
+    keys: mut list[i64]
+    oids: mut list[ref u8]
+    cap: mut i64
+}
+
+type ByteBuf = {
+    data: mut ref u8
+    len: mut i64
+}
+
+type DeltaCursor = {
+    data: mut ref u8
+    len: mut i64
+    pos: mut i64
+}
+
+fn load8(data: ref u8, index: i64) i64 = trust {
+    return @load8(@ptradd(data, index)) as i64
+}
+
+fn read_be32(data: ref u8, index: i64) i64 = trust {
+    val b0: i64 = load8(data, index + 0)
+    val b1: i64 = load8(data, index + 1)
+    val b2: i64 = load8(data, index + 2)
+    val b3: i64 = load8(data, index + 3)
+    return (b0 << 24) | (b1 << 16) | (b2 << 8) | b3
+}
+
+fn is_hex_char(c: i64) bool = {
+    return (c >= 48 && c <= 57) || (c >= 65 && c <= 70) || (c >= 97 && c <= 102)
+}
+
+fn is_hex_string(data: ref u8, start: i64, count: i64) bool = trust {
+    if start < 0 {
+        return false
+    }
+    val i: mut i64 = 0
+    for {
+        if i >= count {
+            break
+        }
+        if !is_hex_char(load8(data, start + i)) {
+            return false
+        }
+        i++
+    }
+    return true
+}
+
+fn find_bytes(data: ref u8, len: i64, needle: ref u8) i64 = trust {
+    val nlen: i64 = string.len_raw(needle)
+    if nlen == 0 {
+        return 0
+    }
+    val limit: i64 = len - nlen
+    val i: mut i64 = 0
+    for {
+        if i > limit {
+            break
+        }
+        val j: mut i64 = 0
+        val matched: mut bool = true
+        for {
+            if j >= nlen {
+                break
+            }
+            if load8(data, i + j) != load8(needle, j) {
+                matched = false
+                break
+            }
+            j++
+        }
+        if matched {
+            return i
+        }
+        i++
+    }
+    return -1
+}
+
+fn copy_range[A: allocators.GeneralAllocator](
+    ac: A,
+    data: ref u8,
+    start: i64,
+    len: i64
+) option[ref u8] = trust {
+    val out_opt = allocators.alloc_in[A](ac, (len + 1) as usize)
+    match out_opt {
+        none => {
+            return none
+        }
+        some raw => {
+            val out: ref u8 = raw as ref u8
+            if len > 0 {
+                @memcpy(out, @ptradd(data, start), len as usize)
+            }
+            @store8(@ptradd(out, len), 0)
+            return some out
+        }
+    }
+}
+
+/// Strip a trailing slash from an http(s) repository URL.
+fn normalize_url(url: ref u8) ref u8 = trust {
+    val len: i64 = string.len_raw(url)
+    val http_len: i64 = 7
+    val https_len: i64 = 8
+    val is_http: bool = len >= http_len && string.raw_starts_with(url, "http://")
+    val is_https: bool = len >= https_len && string.raw_starts_with(url, "https://")
+    if !is_http && !is_https {
+        return ""
+    }
+    val end: mut i64 = len
+    for {
+        if end <= 0 {
+            break
+        }
+        val c: i64 = load8(url, end - 1)
+        if c != 47 && c != 92 {
+            break
+        }
+        end--
+    }
+    if is_http {
+        if end <= http_len {
+            return ""
+        }
+    } else {
+        if end <= https_len {
+            return ""
+        }
+    }
+    return string.substr(url, 0, end)
+}
+
+fn pkt_append(sb: ref void, text: ref u8) void = trust {
+    val text_len: i64 = string.len_raw(text)
+    if text_len == 0 {
+        string.StringBuilder.append_cstr(sb, "0000")
+        return
+    }
+    val len: i64 = text_len + 4
+    val prefix: ref u8 = @alloc(5) as ref u8
+    @store8(prefix, 48 + ((len >> 12) & 15) as u8)
+    @store8(@ptradd(prefix, 1), 48 + ((len >> 8) & 15) as u8)
+    @store8(@ptradd(prefix, 2), 48 + ((len >> 4) & 15) as u8)
+    @store8(@ptradd(prefix, 3), 48 + (len & 15) as u8)
+    @store8(@ptradd(prefix, 4), 0)
+    string.StringBuilder.append_cstr(sb, prefix)
+    string.StringBuilder.append_cstr(sb, text)
+    @free(prefix)
+}
+
+fn build_fetch_body[A: allocators.GeneralAllocator](
+    ac: A,
+    hash: ref u8
+) option[ref u8] = trust {
+    val sb: ref void = string.StringBuilder.new()
+    val want_line: ref u8 = @fmtalloc(
+        "want {s} multi_ack_detailed no-done ofs-delta agent=spectre/1\n",
+        {hash}
+    )
+    pkt_append(sb, want_line)
+    @free(want_line)
+    pkt_append(sb, "")
+    pkt_append(sb, "done\n")
+    val built: mut string.String = string.StringBuilder.build(sb)
+    val body_opt = copy_range[A](ac, string.cstr(built), 0, string.len(built))
+    string.string_free(built)
+    string.StringBuilder.free(sb)
+    return body_opt
+}
+
+fn head_hash_from_refs[A: allocators.GeneralAllocator](
+    ac: A,
+    data: ref u8,
+    len: i64
+) option[ref u8] = trust {
+    // The first ref line is "<hash> HEAD\0<capabilities>".
+    val i: mut i64 = 0
+    for {
+        if i + 5 > len {
+            break
+        }
+        if load8(data, i) == 32 && load8(data, i + 1) == 72 && load8(data, i + 2) == 69 && load8(
+            data,
+            i + 3
+        ) == 65 && load8(data, i + 4) == 68 {
+            if i >= 40 && is_hex_string(data, i - 40, 40) {
+                return copy_range[A](ac, data, i - 40, 40)
+            }
+        }
+        i++
+    }
+
+    // Some servers omit HEAD.  Fall back to the first advertised ref.
+    i = 0
+    for {
+        if i + 41 > len {
+            break
+        }
+        if is_hex_string(data, i, 40) && load8(data, i + 40) == 32 {
+            return copy_range[A](ac, data, i, 40)
+        }
+        i++
+    }
+    return none
+}
+
+fn fetch_head[A: allocators.GeneralAllocator](
+    ac: A,
+    base: ref u8
+) result[ref u8, GitError] = trust {
+    val url: ref u8 = @fmtalloc("{s}/info/refs?service=git-upload-pack", {base})
+    val resp = http.Http.get[A](ac, url)
+    if resp == none {
+        return err GitError.RequestFailed
+    }
+    val status: i64 = http.Http.status(resp)
+    if status < 200 || status >= 300 {
+        http.Http.free_response[A](ac, resp)
+        return err GitError.RequestFailed
+    }
+    val body: ref u8 = http.Http.body(resp)
+    val body_len: i64 = http.Http.body_len(resp)
+    val head_opt = head_hash_from_refs[A](ac, body, body_len)
+    http.Http.free_response[A](ac, resp)
+    match head_opt {
+        none => {
+            return err GitError.InvalidResponse
+        }
+        some head => {
+            return ok head
+        }
+    }
+}
+
+fn fetch_pack[A: allocators.GeneralAllocator](
+    ac: A,
+    base: ref u8,
+    hash: ref u8
+) result[ref ByteBuf, GitError] = trust {
+    val body_opt = build_fetch_body[A](ac, hash)
+    val body: mut ref u8 = none
+    match body_opt {
+        none => {
+            return err GitError.OutOfMemory
+        }
+        some value => {
+            body = value
+        }
+    }
+
+    val headers: ref void = http.Http.make_headers(
+        "Content-Type: application/x-git-upload-pack-request"
+    )
+    val headers2: ref void = http.Http.append_header(
+        headers,
+        "Accept: application/x-git-upload-pack-result"
+    )
+    val url: ref u8 = @fmtalloc("{s}/git-upload-pack", {base})
+    val resp = http.Http.request[A](ac, "POST", url, body, headers2)
+    http.Http.free_headers(headers2)
+    allocators.free_in[A](ac, body as ref void)
+
+    if resp == none {
+        return err GitError.RequestFailed
+    }
+    val status: i64 = http.Http.status(resp)
+    if status < 200 || status >= 300 {
+        http.Http.free_response[A](ac, resp)
+        return err GitError.RequestFailed
+    }
+
+    val data: ref u8 = http.Http.body(resp)
+    val len: i64 = http.Http.body_len(resp)
+    val pack_start: i64 = find_bytes(data, len, "PACK")
+    if pack_start < 0 || pack_start + 12 > len {
+        http.Http.free_response[A](ac, resp)
+        return err GitError.InvalidResponse
+    }
+
+    val pack_len: i64 = len - pack_start
+    val out_opt = allocators.alloc_in[A](ac, @sizeof(ByteBuf) as usize)
+    val out: mut ref ByteBuf = none
+    match out_opt {
+        some raw => {
+            out = raw as ref ByteBuf
+        }
+        none => {
+            http.Http.free_response[A](ac, resp)
+            return err GitError.OutOfMemory
+        }
+    }
+    val copy_opt = copy_range[A](ac, @ptradd(data, pack_start), 0, pack_len)
+    http.Http.free_response[A](ac, resp)
+    match copy_opt {
+        none => {
+            allocators.free_in[A](ac, out as ref void)
+            return err GitError.OutOfMemory
+        }
+        some copy => {
+            out.data = copy
+            out.len = pack_len
+            return ok out
+        }
+    }
+}
+
+fn oid_key(oid: ref u8) i64 = trust {
+    val value: mut i64 = 0
+    val i: mut i64 = 0
+    for {
+        if i >= 8 {
+            break
+        }
+        value = (value << 8) | load8(oid, i)
+        i++
+    }
+    return value
+}
+
+fn oid_equal(a: ref u8, b: ref u8) bool = trust {
+    val i: mut i64 = 0
+    for {
+        if i >= 20 {
+            break
+        }
+        if load8(a, i) != load8(b, i) {
+            return false
+        }
+        i++
+    }
+    return true
+}
+
+fn oid_map_new[A: allocators.GeneralAllocator](ac: A, expected: i64) ref OidMap = trust {
+    val map_opt = allocators.alloc_in[A](ac, @sizeof(OidMap) as usize)
+    val map: mut ref OidMap = none
+    match map_opt {
+        none => {
+            return none
+        }
+        some raw => {
+            map = raw as ref OidMap
+        }
+    }
+    val cap: mut i64 = 16
+    val needed: i64 = expected * 2 + 1
+    for {
+        if cap >= needed {
+            break
+        }
+        cap = cap * 2
+    }
+    map.slots = []
+    map.keys = []
+    map.oids = []
+    @reserve(map.slots, cap)
+    @reserve(map.keys, cap)
+    @reserve(map.oids, cap)
+    map.cap = cap
+    val i: mut i64 = 0
+    for {
+        if i >= cap {
+            break
+        }
+        @append(map.slots, -1)
+        @append(map.keys, 0)
+        @append(map.oids, none)
+        i++
+    }
+    return map
+}
+
+fn oid_map_lookup(map: ref OidMap, oid: ref u8) i64 = trust {
+    if map == none || map.cap <= 0 {
+        return -1
+    }
+    val key: i64 = oid_key(oid)
+    val start: i64 = key & (map.cap - 1)
+    val i: mut i64 = 0
+    for {
+        if i >= map.cap {
+            break
+        }
+        val slot: i64 = (start + i) & (map.cap - 1)
+        val value_opt = @get(map.slots, slot as usize)
+        val value: mut i64 = -1
+        if value_opt is some raw {
+            value = raw as i64
+        }
+        if value < 0 {
+            return -1
+        }
+        val key_opt = @get(map.keys, slot as usize)
+        val stored_key: mut i64 = 0
+        if key_opt is some raw {
+            stored_key = raw as i64
+        }
+        if stored_key == key {
+            val stored_oid_opt = @get(map.oids, slot as usize)
+            if stored_oid_opt is some stored_oid {
+                if oid_equal(stored_oid as ref u8, oid) {
+                    return value
+                }
+            }
+        }
+        i++
+    }
+    return -1
+}
+
+fn oid_map_put(map: ref OidMap, oid: ref u8, value: i64) void = trust {
+    if map == none || map.cap <= 0 {
+        return
+    }
+    val key: i64 = oid_key(oid)
+    val start: i64 = key & (map.cap - 1)
+    val i: mut i64 = 0
+    for {
+        if i >= map.cap {
+            return
+        }
+        val slot: i64 = (start + i) & (map.cap - 1)
+        val value_opt = @get(map.slots, slot as usize)
+        val existing: mut i64 = -1
+        if value_opt is some raw {
+            existing = raw as i64
+        }
+        if existing < 0 {
+            @set(map.slots, slot as usize, value)
+            @set(map.keys, slot as usize, key)
+            @set(map.oids, slot as usize, oid)
+            return
+        }
+        val key_opt = @get(map.keys, slot as usize)
+        val stored_key: mut i64 = 0
+        if key_opt is some raw {
+            stored_key = raw as i64
+        }
+        if stored_key == key {
+            val stored_oid_opt = @get(map.oids, slot as usize)
+            if stored_oid_opt is some stored_oid {
+                if oid_equal(stored_oid as ref u8, oid) {
+                    @set(map.slots, slot as usize, value)
+                    return
+                }
+            }
+        }
+        i++
+    }
+}
+
+fn object_type_name(obj_type: i64) ref u8 = {
+    if obj_type == 1 {
+        return "commit"
+    }
+    if obj_type == 2 {
+        return "tree"
+    }
+    if obj_type == 3 {
+        return "blob"
+    }
+    if obj_type == 4 {
+        return "tag"
+    }
+    return ""
+}
+
+fn object_oid[A: allocators.GeneralAllocator](
+    ac: A,
+    obj_type: i64,
+    data: ref u8,
+    len: i64
+) option[ref u8] = trust {
+    val name: ref u8 = object_type_name(obj_type)
+    val name_len: i64 = string.len_raw(name)
+    if name_len == 0 {
+        return none
+    }
+
+    val digit_count: mut i64 = 1
+    val number: mut i64 = len
+    for {
+        if number < 10 {
+            break
+        }
+        number = number / 10
+        digit_count++
+    }
+
+    val header_len: i64 = name_len + 1 + digit_count + 1
+    val total: i64 = header_len + len
+    val buf_opt = allocators.alloc_in[A](ac, total as usize)
+    val buf: mut ref u8 = none
+    match buf_opt {
+        none => {
+            return none
+        }
+        some raw => {
+            buf = raw as ref u8
+        }
+    }
+
+    @memcpy(buf, name, name_len as usize)
+    @store8(@ptradd(buf, name_len), 32)
+
+    val digit_end: i64 = name_len + 1 + digit_count
+    val out_pos: mut i64 = digit_end - 1
+    val remaining: mut i64 = len
+    if remaining == 0 {
+        @store8(@ptradd(buf, out_pos), 48)
+    } else {
+        for {
+            if remaining <= 0 {
+                break
+            }
+            @store8(@ptradd(buf, out_pos), (48 + (remaining % 10)) as u8)
+            out_pos--
+            remaining = remaining / 10
+        }
+    }
+    @store8(@ptradd(buf, digit_end), 0)
+    if len > 0 {
+        @memcpy(@ptradd(buf, header_len), data, len as usize)
+    }
+
+    val digest_opt = crypto.sha1_raw[A](ac, buf, total)
+    allocators.free_in[A](ac, buf as ref void)
+    return digest_opt
+}
+
+fn offset_lookup(offsets: list[i64], target: i64) i64 = trust {
+    val count: i64 = @len(offsets) as i64
+    val lo: mut i64 = 0
+    val hi: mut i64 = count - 1
+    for {
+        if lo > hi {
+            break
+        }
+        val mid: i64 = (lo + hi) / 2
+        val value_opt = @get(offsets, mid as usize)
+        val value: mut i64 = 0
+        if value_opt is some raw {
+            value = raw as i64
+        }
+        if value == target {
+            return mid
+        }
+        if value < target {
+            lo = mid + 1
+        } else {
+            hi = mid - 1
+        }
+    }
+    return -1
+}
+
+fn delta_varint(cursor: mut ref DeltaCursor) i64 = trust {
+    val result: mut i64 = 0
+    val shift: mut i64 = 0
+    for {
+        if cursor.pos >= cursor.len {
+            return -1
+        }
+        val c: i64 = load8(cursor.data, cursor.pos)
+        cursor.pos++
+        result = result | ((c & 0x7f) << shift)
+        if (c & 0x80) == 0 {
+            return result
+        }
+        shift = shift + 7
+        if shift > 63 {
+            return -1
+        }
+    }
+    return -1
+}
+
+fn apply_delta[A: allocators.GeneralAllocator](
+    ac: A,
+    base: ref u8,
+    base_len: i64,
+    delta: ref u8,
+    delta_len: i64
+) result[ref ByteBuf, GitError] = trust {
+    val cursor_opt = allocators.alloc_in[A](ac, @sizeof(DeltaCursor) as usize)
+    val cursor: mut ref DeltaCursor = none
+    match cursor_opt {
+        none => {
+            return err GitError.OutOfMemory
+        }
+        some raw => {
+            cursor = raw as ref DeltaCursor
+        }
+    }
+    cursor.data = delta
+    cursor.len = delta_len
+    cursor.pos = 0
+
+    val src_size: i64 = delta_varint(cursor)
+    val result_size: i64 = delta_varint(cursor)
+    if src_size != base_len || result_size < 0 || cursor.pos < 0 {
+        allocators.free_in[A](ac, cursor as ref void)
+        return err GitError.InvalidPack
+    }
+
+    val out_opt = allocators.alloc_in[A](ac, (result_size + 1) as usize)
+    val out: mut ref u8 = none
+    match out_opt {
+        none => {
+            allocators.free_in[A](ac, cursor as ref void)
+            return err GitError.OutOfMemory
+        }
+        some raw => {
+            out = raw as ref u8
+        }
+    }
+    @memset(out, 0, (result_size + 1) as usize)
+
+    val out_pos: mut i64 = 0
+    for {
+        if cursor.pos >= cursor.len {
+            break
+        }
+        val op: i64 = load8(cursor.data, cursor.pos)
+        cursor.pos++
+        if (op & 0x80) != 0 {
+            val offset: mut i64 = 0
+            val size: mut i64 = 0
+            if (op & 0x01) != 0 {
+                if cursor.pos >= cursor.len {
+                    break
+                }
+                offset = offset | load8(cursor.data, cursor.pos)
+                cursor.pos++
+            }
+            if (op & 0x02) != 0 {
+                if cursor.pos >= cursor.len {
+                    break
+                }
+                offset = offset | (load8(cursor.data, cursor.pos) << 8)
+                cursor.pos++
+            }
+            if (op & 0x04) != 0 {
+                if cursor.pos >= cursor.len {
+                    break
+                }
+                offset = offset | (load8(cursor.data, cursor.pos) << 16)
+                cursor.pos++
+            }
+            if (op & 0x08) != 0 {
+                if cursor.pos >= cursor.len {
+                    break
+                }
+                offset = offset | (load8(cursor.data, cursor.pos) << 24)
+                cursor.pos++
+            }
+            if (op & 0x10) != 0 {
+                if cursor.pos >= cursor.len {
+                    break
+                }
+                size = size | load8(cursor.data, cursor.pos)
+                cursor.pos++
+            }
+            if (op & 0x20) != 0 {
+                if cursor.pos >= cursor.len {
+                    break
+                }
+                size = size | (load8(cursor.data, cursor.pos) << 8)
+                cursor.pos++
+            }
+            if (op & 0x40) != 0 {
+                if cursor.pos >= cursor.len {
+                    break
+                }
+                size = size | (load8(cursor.data, cursor.pos) << 16)
+                cursor.pos++
+            }
+            if size == 0 {
+                size = 0x10000
+            }
+            if offset < 0 || size < 0 || offset + size > base_len {
+                break
+            }
+            if out_pos + size > result_size {
+                break
+            }
+            @memcpy(@ptradd(out, out_pos), @ptradd(base, offset), size as usize)
+            out_pos = out_pos + size
+        } elif op != 0 {
+            if cursor.pos + op > cursor.len || out_pos + op > result_size {
+                break
+            }
+            @memcpy(@ptradd(out, out_pos), @ptradd(cursor.data, cursor.pos), op as usize)
+            cursor.pos = cursor.pos + op
+            out_pos = out_pos + op
+        } else {
+            break
+        }
+    }
+
+    allocators.free_in[A](ac, cursor as ref void)
+    if out_pos != result_size || cursor.pos != cursor.len {
+        allocators.free_in[A](ac, out as ref void)
+        return err GitError.InvalidPack
+    }
+
+    val buf_opt = allocators.alloc_in[A](ac, @sizeof(ByteBuf) as usize)
+    val result: mut ref ByteBuf = none
+    match buf_opt {
+        none => {
+            allocators.free_in[A](ac, out as ref void)
+            return err GitError.OutOfMemory
+        }
+        some raw => {
+            result = raw as ref ByteBuf
+        }
+    }
+    result.data = out
+    result.len = result_size
+    return ok result
+}
+
+fn hextoi(c: i64) i64 = {
+    if c >= 48 && c <= 57 {
+        return c - 48
+    }
+    if c >= 65 && c <= 70 {
+        return c - 55
+    }
+    if c >= 97 && c <= 102 {
+        return c - 87
+    }
+    return -1
+}
+
+fn hex_to_oid[A: allocators.GeneralAllocator](
+    ac: A,
+    text: ref u8,
+    len: i64
+) option[ref u8] = trust {
+    if len != 40 {
+        return none
+    }
+    val out_opt = allocators.alloc_in[A](ac, 20 as usize)
+    match out_opt {
+        none => {
+            return none
+        }
+        some raw => {
+            val out: ref u8 = raw as ref u8
+            val i: mut i64 = 0
+            for {
+                if i >= 20 {
+                    break
+                }
+                val hi: i64 = hextoi(load8(text, i * 2))
+                val lo: i64 = hextoi(load8(text, i * 2 + 1))
+                if hi < 0 || lo < 0 {
+                    allocators.free_in[A](ac, out as ref void)
+                    return none
+                }
+                @store8(@ptradd(out, i), ((hi << 4) | lo) as u8)
+                i++
+            }
+            return some out
+        }
+    }
+    return none
+}
+
+fn find_hash_after(data: ref u8, len: i64, key: ref u8) i64 = trust {
+    val key_len: i64 = string.len_raw(key)
+    val start: i64 = find_bytes(data, len, key)
+    if start < 0 {
+        return -1
+    }
+    val hash_start: i64 = start + key_len
+    if hash_start + 40 > len {
+        return -1
+    }
+    if !is_hex_string(data, hash_start, 40) {
+        return -1
+    }
+    return hash_start
+}
+
+fn tree_entry_name(data: ref u8, start: i64, len: i64) ref u8 = trust {
+    return string.substr(data, start, len)
+}
+
+fn valid_tree_name(name: ref u8) bool = trust {
+    val len: i64 = string.len_raw(name)
+    if len == 0 {
+        return false
+    }
+    if string.raw_cmp(name, ".") == 0 || string.raw_cmp(name, "..") == 0 {
+        return false
+    }
+    val i: mut i64 = 0
+    for {
+        if i >= len {
+            break
+        }
+        if load8(name, i) == 47 || load8(name, i) == 92 {
+            return false
+        }
+        i++
+    }
+    return true
+}
+
+fn parse_octal(data: ref u8, start: i64, len: i64) i64 = trust {
+    val value: mut i64 = 0
+    val i: mut i64 = 0
+    for {
+        if i >= len {
+            break
+        }
+        val c: i64 = load8(data, start + i)
+        if c < 48 || c > 55 {
+            return -1
+        }
+        value = value * 8 + (c - 48)
+        i++
+    }
+    return value
+}
+
+fn checkout_tree[A: allocators.GeneralAllocator](
+    ac: A,
+    objects: list[ref GitObject],
+    map: ref OidMap,
+    oid: ref u8,
+    dir: ref u8
+) bool = trust {
+    val tree_index: i64 = oid_map_lookup(map, oid)
+    if tree_index < 0 {
+        return false
+    }
+    val tree_obj_opt = @get(objects, tree_index as usize)
+    val tree_obj: mut ref GitObject = none
+    match tree_obj_opt {
+        none => {
+            return false
+        }
+        some raw => {
+            tree_obj = raw as ref GitObject
+        }
+    }
+    if tree_obj.obj_type != 2 {
+        return false
+    }
+
+    if !fs.mkdir_path(dir) {
+        // It is fine if the directory already exists.
+        val check: ref void = fs.opendir(dir)
+        if check == none {
+            return false
+        }
+        fs.closedir(check)
+    }
+
+    val data: ref u8 = tree_obj.data
+    val len: i64 = tree_obj.len
+    val i: mut i64 = 0
+    for {
+        if i >= len {
+            break
+        }
+        val mode_start: i64 = i
+        for {
+            if i >= len {
+                return false
+            }
+            if load8(data, i) == 32 {
+                break
+            }
+            i++
+        }
+        val mode: i64 = parse_octal(data, mode_start, i - mode_start)
+        i++
+        val name_start: i64 = i
+        for {
+            if i >= len {
+                return false
+            }
+            if load8(data, i) == 0 {
+                break
+            }
+            i++
+        }
+        val name_len: i64 = i - name_start
+        i++
+        if i + 20 > len {
+            return false
+        }
+        val child_oid_opt = allocators.alloc_in[A](ac, 20 as usize)
+        val child_oid: mut ref u8 = none
+        match child_oid_opt {
+            none => {
+                return false
+            }
+            some raw => {
+                child_oid = raw as ref u8
+            }
+        }
+        @memcpy(child_oid, @ptradd(data, i), 20)
+        i = i + 20
+
+        val name: ref u8 = tree_entry_name(data, name_start, name_len)
+        if !valid_tree_name(name) {
+            @free(name as ref void)
+            allocators.free_in[A](ac, child_oid as ref void)
+            return false
+        }
+        val child_path: ref u8 = path.join(dir, name)
+        @free(name as ref void)
+
+        if mode == 40000 {
+            if !checkout_tree[A](ac, objects, map, child_oid, child_path) {
+                @free(child_path as ref void)
+                allocators.free_in[A](ac, child_oid as ref void)
+                return false
+            }
+        } elif mode != 160000 {
+            val blob_index: i64 = oid_map_lookup(map, child_oid)
+            if blob_index < 0 {
+                @free(child_path as ref void)
+                allocators.free_in[A](ac, child_oid as ref void)
+                return false
+            }
+            val blob_opt = @get(objects, blob_index as usize)
+            val blob: mut ref GitObject = none
+            match blob_opt {
+                none => {
+                    @free(child_path as ref void)
+                    allocators.free_in[A](ac, child_oid as ref void)
+                    return false
+                }
+                some raw => {
+                    blob = raw as ref GitObject
+                }
+            }
+            if blob.obj_type != 3 {
+                @free(child_path as ref void)
+                allocators.free_in[A](ac, child_oid as ref void)
+                return false
+            }
+            if !fs.write_all_bytes(child_path, blob.data as ref void, blob.len) {
+                @free(child_path as ref void)
+                allocators.free_in[A](ac, child_oid as ref void)
+                return false
+            }
+        }
+        @free(child_path as ref void)
+        allocators.free_in[A](ac, child_oid as ref void)
+    }
+    return true
+}
+
+fn peek_commit_tree[A: allocators.GeneralAllocator](
+    ac: A,
+    objects: list[ref GitObject],
+    map: ref OidMap,
+    start_index: i64
+) result[ref u8, GitError] = trust {
+    val index: mut i64 = start_index
+    val depth: mut i64 = 0
+    for {
+        if depth > 8 {
+            return err GitError.ObjectNotFound
+        }
+        val obj_opt = @get(objects, index as usize)
+        val obj: mut ref GitObject = none
+        match obj_opt {
+            none => {
+                return err GitError.ObjectNotFound
+            }
+            some raw => {
+                obj = raw as ref GitObject
+            }
+        }
+
+        if obj.obj_type == 1 {
+            val tree_pos: i64 = find_hash_after(obj.data, obj.len, "tree ")
+            if tree_pos < 0 {
+                return err GitError.InvalidPack
+            }
+            val tree_oid_opt = hex_to_oid[A](ac, @ptradd(obj.data, tree_pos), 40)
+            match tree_oid_opt {
+                none => {
+                    return err GitError.InvalidPack
+                }
+                some tree_oid => {
+                    return ok tree_oid
+                }
+            }
+        }
+
+        if obj.obj_type == 4 {
+            val object_pos: i64 = find_hash_after(obj.data, obj.len, "object ")
+            if object_pos < 0 {
+                return err GitError.InvalidPack
+            }
+            val peeled_opt = hex_to_oid[A](ac, @ptradd(obj.data, object_pos), 40)
+            match peeled_opt {
+                none => {
+                    return err GitError.InvalidPack
+                }
+                some peeled => {
+                    val next_index: i64 = oid_map_lookup(map, peeled)
+                    allocators.free_in[A](ac, peeled as ref void)
+                    if next_index < 0 {
+                        return err GitError.ObjectNotFound
+                    }
+                    index = next_index
+                    depth++
+                }
+            }
+        } else {
+            return err GitError.InvalidPack
+        }
+    }
+    return err GitError.ObjectNotFound
+}
+
+fn parse_pack[A: allocators.GeneralAllocator](
+    ac: A,
+    pack: ref ByteBuf,
+    objects: mut list[ref GitObject]
+) result[ref OidMap, GitError] = trust {
+    val data: ref u8 = pack.data
+    val len: i64 = pack.len
+    if len < 32 || load8(data, 0) != 80 || load8(data, 1) != 65 || load8(data, 2) != 67 || load8(
+        data,
+        3
+    ) != 75 {
+        return err GitError.InvalidPack
+    }
+    val version: i64 = read_be32(data, 4)
+    if version != 2 && version != 3 {
+        return err GitError.InvalidPack
+    }
+    val count: i64 = read_be32(data, 8)
+    if count < 0 {
+        return err GitError.InvalidPack
+    }
+
+    val offsets: mut list[i64] = []
+    @reserve(offsets, count)
+    @reserve(objects, count)
+    val pos: mut i64 = 12
+    val index: mut i64 = 0
+    for {
+        if index >= count {
+            break
+        }
+        if pos >= len - 20 {
+            return err GitError.InvalidPack
+        }
+        val object_start: i64 = pos
+        val c0: i64 = load8(data, pos)
+        pos++
+        val pack_type: i64 = (c0 >> 4) & 7
+        val size_low: i64 = c0 & 15
+        val size: mut i64 = size_low
+        val shift: mut i64 = 4
+        val next: mut i64 = c0
+        for {
+            if (next & 0x80) == 0 {
+                break
+            }
+            if pos >= len {
+                return err GitError.InvalidPack
+            }
+            next = load8(data, pos)
+            pos++
+            size = size | ((next & 0x7f) << shift)
+            shift = shift + 7
+            if shift > 63 {
+                return err GitError.InvalidPack
+            }
+        }
+        if pack_type < 1 || pack_type > 7 {
+            return err GitError.InvalidPack
+        }
+
+        val obj_opt = allocators.alloc_in[A](ac, @sizeof(GitObject) as usize)
+        val obj: mut ref GitObject = none
+        match obj_opt {
+            none => {
+                return err GitError.OutOfMemory
+            }
+            some raw => {
+                obj = raw as ref GitObject
+            }
+        }
+        obj.offset = object_start
+        obj.pack_type = pack_type
+        obj.obj_type = 0
+        obj.base_offset = -1
+        obj.base_oid = none
+        obj.data = none
+        obj.len = 0
+        obj.oid = none
+        obj.resolved = false
+
+        if pack_type == 6 {
+            if pos >= len {
+                return err GitError.InvalidPack
+            }
+            val oc: i64 = load8(data, pos)
+            pos++
+            val offset_delta: mut i64 = oc & 0x7f
+            val cont: mut i64 = oc
+            for {
+                if (cont & 0x80) == 0 {
+                    break
+                }
+                if pos >= len {
+                    return err GitError.InvalidPack
+                }
+                cont = load8(data, pos)
+                pos++
+                offset_delta = ((offset_delta + 1) << 7) | (cont & 0x7f)
+            }
+            obj.base_offset = object_start - offset_delta
+            if obj.base_offset < 0 || obj.base_offset >= object_start {
+                return err GitError.InvalidPack
+            }
+        } elif pack_type == 7 {
+            if pos + 20 > len {
+                return err GitError.InvalidPack
+            }
+            val base_opt = allocators.alloc_in[A](ac, 20 as usize)
+            match base_opt {
+                none => {
+                    return err GitError.OutOfMemory
+                }
+                some raw_base => {
+                    obj.base_oid = raw_base as ref u8
+                    @memcpy(obj.base_oid, @ptradd(data, pos), 20)
+                }
+            }
+            pos = pos + 20
+        }
+
+        val consumed: mut i64 = 0
+        val inflate_res = deflate.inflate_zlib[A](
+            ac,
+            @ptradd(data, pos),
+            len - pos,
+            size,
+            @addr(consumed)
+        )
+        match inflate_res {
+            ok inflated => {
+                obj.data = inflated
+                obj.len = size
+                pos = pos + consumed
+            }
+            err _ => {
+                return err GitError.InvalidPack
+            }
+        }
+
+        @append(objects, obj)
+        @append(offsets, object_start)
+        index++
+    }
+
+    // Resolve non-delta objects first, then repeatedly resolve deltas whose
+    // base has become available.
+    val map: ref OidMap = oid_map_new[A](ac, count)
+    if map == none {
+        return err GitError.OutOfMemory
+    }
+
+    val i: mut i64 = 0
+    val resolved_count: mut i64 = 0
+    for {
+        if i >= count {
+            break
+        }
+        val obj_opt = @get(objects, i as usize)
+        if obj_opt is some raw_obj {
+            val obj: mut ref GitObject = raw_obj as ref GitObject
+            if obj.pack_type >= 1 && obj.pack_type <= 4 {
+                obj.obj_type = obj.pack_type
+                obj.resolved = true
+                val oid_opt = object_oid[A](ac, obj.obj_type, obj.data, obj.len)
+                match oid_opt {
+                    none => {
+                        return err GitError.OutOfMemory
+                    }
+                    some oid => {
+                        obj.oid = oid
+                        oid_map_put(map, oid, i)
+                        resolved_count++
+                    }
+                }
+            }
+        }
+        i++
+    }
+
+    val progress: mut bool = true
+    for {
+        if !progress {
+            break
+        }
+        progress = false
+        i = 0
+        for {
+            if i >= count {
+                break
+            }
+            val obj_opt = @get(objects, i as usize)
+            if obj_opt is some raw_obj {
+                val obj: mut ref GitObject = raw_obj as ref GitObject
+                if !obj.resolved {
+                    val base_index: mut i64 = -1
+                    if obj.pack_type == 6 {
+                        base_index = offset_lookup(offsets, obj.base_offset)
+                    } elif obj.pack_type == 7 {
+                        base_index = oid_map_lookup(map, obj.base_oid)
+                    }
+                    if base_index >= 0 {
+                        val base_opt = @get(objects, base_index as usize)
+                        if base_opt is some raw_base {
+                            val base: mut ref GitObject = raw_base as ref GitObject
+                            if base.resolved {
+                                val delta_res = apply_delta[A](
+                                    ac,
+                                    base.data,
+                                    base.len,
+                                    obj.data,
+                                    obj.len
+                                )
+                                match delta_res {
+                                    ok delta_buf => {
+                                        val resolved: ref ByteBuf = delta_buf as ref ByteBuf
+                                        allocators.free_in[A](ac, obj.data as ref void)
+                                        obj.data = resolved.data
+                                        obj.len = resolved.len
+                                        obj.obj_type = base.obj_type
+                                        allocators.free_in[A](ac, resolved as ref void)
+                                        val oid_opt = object_oid[A](
+                                            ac,
+                                            obj.obj_type,
+                                            obj.data,
+                                            obj.len
+                                        )
+                                        match oid_opt {
+                                            none => {
+                                                return err GitError.OutOfMemory
+                                            }
+                                            some oid => {
+                                                obj.oid = oid
+                                                obj.resolved = true
+                                                oid_map_put(map, oid, i)
+                                                resolved_count++
+                                                progress = true
+                                            }
+                                        }
+                                    }
+                                    err _ => {
+                                        return err GitError.InvalidPack
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            i++
+        }
+    }
+
+    if resolved_count != count {
+        return err GitError.InvalidPack
+    }
+    return ok map
+}
+
+/// Resolve the current HEAD commit of a remote repository.
+pub fn remote_head[A: allocators.GeneralAllocator](
+    ac: A,
+    url: ref u8
+) result[ref u8, GitError] = trust {
+    val base: ref u8 = normalize_url(url)
+    if string.len_raw(base) == 0 {
+        return err GitError.UnsupportedUrl
+    }
+    http.Http.init()
+    return fetch_head[A](ac, base)
+}
+
+/// Clone a repository into `dest`.
+///
+/// When `hash` is empty the remote HEAD is used.  When `hash` is a full
+/// 40-character commit id that commit is checked out instead.  The resolved
+/// commit id is returned on success.
+///
+/// The destination must not contain files that need to be preserved; it is
+/// replaced with the contents of the selected commit.
+pub fn clone[A: allocators.GeneralAllocator](
+    ac: A,
+    url: ref u8,
+    dest: ref u8,
+    hash: ref u8
+) result[ref u8, GitError] = trust {
+    val base: ref u8 = normalize_url(url)
+    if string.len_raw(base) == 0 {
+        return err GitError.UnsupportedUrl
+    }
+    http.Http.init()
+
+    val target: mut ref u8 = hash
+    if string.len_raw(target) == 0 {
+        val head_res = fetch_head[A](ac, base)
+        match head_res {
+            ok head => {
+                target = head
+            }
+            err e => {
+                return err e
+            }
+        }
+    }
+    if string.len_raw(target) != 40 {
+        return err GitError.InvalidResponse
+    }
+
+    val pack_res = fetch_pack[A](ac, base, target)
+    val pack: mut ref ByteBuf = none
+    match pack_res {
+        ok value => {
+            pack = value
+        }
+        err e => {
+            return err e
+        }
+    }
+
+    val objects: mut list[ref GitObject] = []
+    val pack_result_res = parse_pack[A](ac, pack, objects)
+    allocators.free_in[A](ac, pack.data as ref void)
+    allocators.free_in[A](ac, pack as ref void)
+    val map: mut ref OidMap = none
+    match pack_result_res {
+        ok value => {
+            map = value
+        }
+        err e => {
+            return err e
+        }
+    }
+
+    val target_oid_opt = hex_to_oid[A](ac, target, 40)
+    val target_oid: mut ref u8 = none
+    match target_oid_opt {
+        none => {
+            return err GitError.ObjectNotFound
+        }
+        some value => {
+            target_oid = value
+        }
+    }
+    val target_index: i64 = oid_map_lookup(map, target_oid)
+    if target_index < 0 {
+        return err GitError.ObjectNotFound
+    }
+
+    val tree_res = peek_commit_tree[A](ac, objects, map, target_index)
+    val tree_oid: mut ref u8 = none
+    match tree_res {
+        ok value => {
+            tree_oid = value
+        }
+        err e => {
+            return err e
+        }
+    }
+
+    fs.remove_dir_all(dest)
+    if !checkout_tree[A](ac, objects, map, tree_oid, dest) {
+        return err GitError.CheckoutFailed
+    }
+    return ok target
+}
+
+test {
+    // Locally verify the delta decoder using a small hand-built delta.
+    val ac: allocators.HeapAllocator = @zeroed
+    val base: ref u8 = "hello world"
+    val delta: mut [7]u8 = [
+        11, 11, 0x90, 6, 0x91, 6, 5
+    ]
+    val res = trust apply_delta[allocators.HeapAllocator](
+        ac,
+        base,
+        11,
+        @addr(delta) as ref u8,
+        7
+    )
+    match res {
+        ok buf => {
+            assert buf.len == 11
+            assert string.raw_cmp(buf.data, "hello world") == 0
+            trust allocators.free_in[allocators.HeapAllocator](ac, buf.data as ref void)
+            trust allocators.free_in[allocators.HeapAllocator](ac, buf as ref void)
+        }
+        err _ => {
+            assert false
+        }
+    }
+}

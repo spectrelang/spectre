@@ -96,7 +96,10 @@ pub val CURLOPT_WRITEFUNCTION = 20011
 pub val CURLOPT_WRITEDATA = 10001
 pub val CURLOPT_HTTPHEADER = 10023
 pub val CURLOPT_POSTFIELDS = 10015
+pub val CURLOPT_POSTFIELDSIZE = 60
 pub val CURLOPT_CUSTOMREQUEST = 10036
+pub val CURLOPT_FOLLOWLOCATION = 52
+pub val CURLOPT_MAXREDIRS = 68
 pub val CURLINFO_RESPONSE_CODE = 2097154
 pub val CURL_GLOBAL_DEFAULT = 3
 
@@ -228,6 +231,8 @@ when posix {
             return none
         }
 
+        curl_easy_setopt(handle, CURLOPT_FOLLOWLOCATION, 1 as i64)
+        curl_easy_setopt(handle, CURLOPT_MAXREDIRS, 10 as i64)
         curl_easy_setopt(handle, CURLOPT_WRITEFUNCTION, @addr(curl_write_cb))
         curl_easy_setopt(handle, CURLOPT_WRITEDATA, buf)
         curl_easy_perform(handle)
@@ -583,11 +588,11 @@ when windows {
         }
 
         val headers: ref u8 = win_headers_build(header_list)
-        val headers_len: u32 = 0 as u32
+        val headers_len: mut u32 = 0 as u32
         if headers != none {
             headers_len = string.len_raw(headers) as u32
         }
-        val body_len: u32 = 0 as u32
+        val body_len: mut u32 = 0 as u32
         if body != none {
             body_len = string.len_raw(body) as u32
         }
@@ -606,7 +611,7 @@ when windows {
 
         val status: i64 = win_query_status(req)
 
-        val buf: ref Buffer = buf_new()
+        val buf: mut ref Buffer = buf_new()
         if buf == none {
             InternetCloseHandle(req)
             InternetCloseHandle(conn)
@@ -728,6 +733,7 @@ pub fn (Http) post_request[A: allocators.GeneralAllocator](
 
         curl_easy_setopt(handle, CURLOPT_URL, url)
         curl_easy_setopt(handle, CURLOPT_POSTFIELDS, body)
+        curl_easy_setopt(handle, CURLOPT_POSTFIELDSIZE, string.len_raw(body))
         curl_easy_setopt(handle, CURLOPT_HTTPHEADER, headers)
 
         val resp: ref Response = do_request[A](ac, handle)
@@ -761,6 +767,7 @@ pub fn (Http) request[A: allocators.GeneralAllocator](
 
         if (body != none) {
             curl_easy_setopt(handle, CURLOPT_POSTFIELDS, body)
+            curl_easy_setopt(handle, CURLOPT_POSTFIELDSIZE, string.len_raw(body))
         }
         if (headers != none) {
             curl_easy_setopt(handle, CURLOPT_HTTPHEADER, headers)

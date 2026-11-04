@@ -361,6 +361,192 @@ pub fn sha256[A: allocators.Allocator, T](ac: A, data: T) string.String = trust 
     return out
 }
 
+fn rotl32(x: u64, n: i64) u64 = {
+    val word: u64 = mask_u32(x)
+    return mask_u32((word << n) | (word >> (32 - n)))
+}
+
+/// Write the SHA-1 digest of a byte buffer into `out_buf` (20 bytes).
+fn sha1_compute(src_ptr: ref u8, src_len: i64, out_buf: ref u8) bool = trust {
+    if src_len < 0 {
+        return false
+    }
+
+    val bit_len: u64 = (src_len as u64) * 8
+    val total_len: i64 = ((src_len + 9 + 63) / 64) * 64
+    val padded: ref void = @alloc(total_len)
+    if padded == none {
+        return false
+    }
+    @memset(padded, 0, total_len)
+    if src_len > 0 {
+        @memcpy(padded, src_ptr, src_len)
+    }
+    @store8(@ptradd(padded, src_len), 128)
+
+    val tail: i64 = total_len - 8
+    @store8(@ptradd(padded, tail + 0), ((bit_len >> 56) & 255) as u8)
+    @store8(@ptradd(padded, tail + 1), ((bit_len >> 48) & 255) as u8)
+    @store8(@ptradd(padded, tail + 2), ((bit_len >> 40) & 255) as u8)
+    @store8(@ptradd(padded, tail + 3), ((bit_len >> 32) & 255) as u8)
+    @store8(@ptradd(padded, tail + 4), ((bit_len >> 24) & 255) as u8)
+    @store8(@ptradd(padded, tail + 5), ((bit_len >> 16) & 255) as u8)
+    @store8(@ptradd(padded, tail + 6), ((bit_len >> 8) & 255) as u8)
+    @store8(@ptradd(padded, tail + 7), (bit_len & 255) as u8)
+
+    val w: ref void = @alloc(80 * 8)
+    if w == none {
+        @free(padded)
+        return false
+    }
+
+    val h0: mut u64 = 0x67452301
+    val h1: mut u64 = 0xefcdab89
+    val h2: mut u64 = 0x98badcfe
+    val h3: mut u64 = 0x10325476
+    val h4: mut u64 = 0xc3d2e1f0
+
+    val offset: mut i64 = 0
+    for {
+        if offset >= total_len {
+            break
+        }
+
+        val t0: mut i64 = 0
+        for {
+            if t0 >= 16 {
+                break
+            }
+            store_u32_slot(w, t0, read_be_u32(padded, offset + t0 * 4))
+            t0++
+        }
+
+        val t1: mut i64 = 16
+        for {
+            if t1 >= 80 {
+                break
+            }
+            val mixed: u64 = load_u32_slot(w, t1 - 3) ^ load_u32_slot(w, t1 - 8) ^ load_u32_slot(
+                w,
+                t1 - 14
+            ) ^ load_u32_slot(w, t1 - 16)
+            store_u32_slot(w, t1, rotl32(mixed, 1))
+            t1++
+        }
+
+        val a: mut u64 = h0
+        val b: mut u64 = h1
+        val c: mut u64 = h2
+        val d: mut u64 = h3
+        val e: mut u64 = h4
+
+        val round: mut i64 = 0
+        for {
+            if round >= 80 {
+                break
+            }
+            val f: mut u64 = 0
+            val k: mut u64 = 0
+            if round < 20 {
+                f = (b & c) | ((mask_u32(~b)) & d)
+                k = 0x5a827999
+            } elif round < 40 {
+                f = b ^ c ^ d
+                k = 0x6ed9eba1
+            } elif round < 60 {
+                f = (b & c) | (b & d) | (c & d)
+                k = 0x8f1bbcdc
+            } else {
+                f = b ^ c ^ d
+                k = 0xca62c1d6
+            }
+            val temp: u64 = add32_5(
+                rotl32(a, 5),
+                f,
+                e,
+                k,
+                load_u32_slot(w, round)
+            )
+            e = d
+            d = c
+            c = rotl32(b, 30)
+            b = a
+            a = temp
+            round++
+        }
+
+        h0 = add32(h0, a)
+        h1 = add32(h1, b)
+        h2 = add32(h2, c)
+        h3 = add32(h3, d)
+        h4 = add32(h4, e)
+        offset += 64
+    }
+
+    @free(w)
+    @free(padded)
+
+    write_be_u32(out_buf, 0, h0)
+    write_be_u32(out_buf, 4, h1)
+    write_be_u32(out_buf, 8, h2)
+    write_be_u32(out_buf, 12, h3)
+    write_be_u32(out_buf, 16, h4)
+    return true
+}
+
+/// Compute the SHA-1 digest of a byte buffer with an explicit length.
+///
+/// This is the length-aware variant of `sha1`, useful for binary data such as
+/// git objects that may contain NUL bytes.
+pub fn sha1_len[A: allocators.Allocator](
+    ac: A,
+    src_ptr: ref u8,
+    src_len: i64
+) string.String = trust {
+    val out: string.String = alloc_string[A](ac, 20)
+    if out == none {
+        return none
+    }
+    val out_ptr: ref void = @load(out) as ref void
+    if !sha1_compute(src_ptr, src_len, out_ptr as ref u8) {
+        return none
+    }
+    return out
+}
+
+/// Compute the raw 20-byte SHA-1 digest of a buffer with an explicit length.
+///
+/// The returned buffer is allocated with the provided allocator and is not
+/// NUL-terminated.
+pub fn sha1_raw[A: allocators.GeneralAllocator](
+    ac: A,
+    src_ptr: ref u8,
+    src_len: i64
+) option[ref u8] = trust {
+    val out_opt = allocators.alloc_in[A](ac, 20 as usize)
+    val out: mut ref u8 = none
+    match out_opt {
+        none => {
+            return none
+        }
+        some raw => {
+            out = raw as ref u8
+        }
+    }
+    if !sha1_compute(src_ptr, src_len, out) {
+        allocators.free_in[A](ac, out as ref void)
+        return none
+    }
+    return some out
+}
+
+/// Compute the SHA-1 digest of a string or byte string.
+///
+/// Returns a 20-byte String allocated with the provided allocator.
+pub fn sha1[A: allocators.Allocator, T](ac: A, data: T) string.String = trust {
+    return sha1_len[A](ac, bytes_ptr[T](data) as ref u8, bytes_len[T](data))
+}
+
 fn hex_char(nibble: u8) u8 = {
     if nibble < 10 {
         return 48 + nibble
@@ -794,6 +980,10 @@ test {
     val sha_hex: ref u8 = trust hex_encode[allocators.Arena, string.String](arena, sha)
 
     assert string.raw_cmp(sha_hex, sha_hex_expected) == 0
+
+    val sha1_digest: string.String = trust sha1[allocators.Arena, ref u8](arena, "abc")
+    val sha1_hex: ref u8 = trust hex_encode[allocators.Arena, string.String](arena, sha1_digest)
+    assert string.raw_cmp(sha1_hex, "a9993e364706816aba3e25717850c26c9cd0d89d") == 0
 
     val hmac_out: string.String = trust hmac_sha256[allocators.Arena, ref u8](
         arena,

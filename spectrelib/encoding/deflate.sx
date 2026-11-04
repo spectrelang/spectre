@@ -1,0 +1,1098 @@
+/// DEFLATE / zlib decompression.
+///
+/// This module implements the RFC 1950 (zlib) and RFC 1951 (DEFLATE)
+/// formats without relying on a platform-specific compression library.  It
+/// is used by the dependency fetcher to unpack git objects, but it is a
+/// general-purpose utility and can be used anywhere a zlib stream needs to
+/// be decoded.
+///
+/// SPDX-License-Identifier: GPL-3.0-only
+/// (C) Navid Momtahen - 2026
+
+val allocators = use("../allocators")
+
+pub enum DeflateError = {
+    OutOfMemory
+    InvalidHeader
+    InvalidData
+    UnexpectedSize
+}
+
+type Huffman = {
+    table: mut ref void
+    max_bits: mut i64
+}
+
+type BitReader = {
+    data: mut ref u8
+    len: mut i64
+    bit_pos: mut i64
+    failed: mut bool
+}
+
+fn length_base(index: i64) i64 = {
+    if index < 0 || index >= 29 {
+        return 0
+    }
+    if index == 0 {
+        return 3
+    } elif index == 1 {
+        return 4
+    } elif index == 2 {
+        return 5
+    } elif index == 3 {
+        return 6
+    } elif index == 4 {
+        return 7
+    } elif index == 5 {
+        return 8
+    } elif index == 6 {
+        return 9
+    } elif index == 7 {
+        return 10
+    } elif index == 8 {
+        return 11
+    } elif index == 9 {
+        return 13
+    } elif index == 10 {
+        return 15
+    } elif index == 11 {
+        return 17
+    } elif index == 12 {
+        return 19
+    } elif index == 13 {
+        return 23
+    } elif index == 14 {
+        return 27
+    } elif index == 15 {
+        return 31
+    } elif index == 16 {
+        return 35
+    } elif index == 17 {
+        return 43
+    } elif index == 18 {
+        return 51
+    } elif index == 19 {
+        return 59
+    } elif index == 20 {
+        return 67
+    } elif index == 21 {
+        return 83
+    } elif index == 22 {
+        return 99
+    } elif index == 23 {
+        return 115
+    } elif index == 24 {
+        return 131
+    } elif index == 25 {
+        return 163
+    } elif index == 26 {
+        return 195
+    } elif index == 27 {
+        return 227
+    } elif index == 28 {
+        return 258
+    }
+    return 0
+}
+
+fn length_extra(index: i64) i64 = {
+    if index < 0 || index >= 29 {
+        return 0
+    }
+    if index == 0 {
+        return 0
+    } elif index == 1 {
+        return 0
+    } elif index == 2 {
+        return 0
+    } elif index == 3 {
+        return 0
+    } elif index == 4 {
+        return 0
+    } elif index == 5 {
+        return 0
+    } elif index == 6 {
+        return 0
+    } elif index == 7 {
+        return 0
+    } elif index == 8 {
+        return 1
+    } elif index == 9 {
+        return 1
+    } elif index == 10 {
+        return 1
+    } elif index == 11 {
+        return 1
+    } elif index == 12 {
+        return 2
+    } elif index == 13 {
+        return 2
+    } elif index == 14 {
+        return 2
+    } elif index == 15 {
+        return 2
+    } elif index == 16 {
+        return 3
+    } elif index == 17 {
+        return 3
+    } elif index == 18 {
+        return 3
+    } elif index == 19 {
+        return 3
+    } elif index == 20 {
+        return 4
+    } elif index == 21 {
+        return 4
+    } elif index == 22 {
+        return 4
+    } elif index == 23 {
+        return 4
+    } elif index == 24 {
+        return 5
+    } elif index == 25 {
+        return 5
+    } elif index == 26 {
+        return 5
+    } elif index == 27 {
+        return 5
+    } elif index == 28 {
+        return 0
+    }
+    return 0
+}
+
+fn dist_base(index: i64) i64 = {
+    if index < 0 || index >= 30 {
+        return 0
+    }
+    if index == 0 {
+        return 1
+    } elif index == 1 {
+        return 2
+    } elif index == 2 {
+        return 3
+    } elif index == 3 {
+        return 4
+    } elif index == 4 {
+        return 5
+    } elif index == 5 {
+        return 7
+    } elif index == 6 {
+        return 9
+    } elif index == 7 {
+        return 13
+    } elif index == 8 {
+        return 17
+    } elif index == 9 {
+        return 25
+    } elif index == 10 {
+        return 33
+    } elif index == 11 {
+        return 49
+    } elif index == 12 {
+        return 65
+    } elif index == 13 {
+        return 97
+    } elif index == 14 {
+        return 129
+    } elif index == 15 {
+        return 193
+    } elif index == 16 {
+        return 257
+    } elif index == 17 {
+        return 385
+    } elif index == 18 {
+        return 513
+    } elif index == 19 {
+        return 769
+    } elif index == 20 {
+        return 1025
+    } elif index == 21 {
+        return 1537
+    } elif index == 22 {
+        return 2049
+    } elif index == 23 {
+        return 3073
+    } elif index == 24 {
+        return 4097
+    } elif index == 25 {
+        return 6145
+    } elif index == 26 {
+        return 8193
+    } elif index == 27 {
+        return 12289
+    } elif index == 28 {
+        return 16385
+    } elif index == 29 {
+        return 24577
+    }
+    return 0
+}
+
+fn dist_extra(index: i64) i64 = {
+    if index < 0 || index >= 30 {
+        return 0
+    }
+    if index == 0 {
+        return 0
+    } elif index == 1 {
+        return 0
+    } elif index == 2 {
+        return 0
+    } elif index == 3 {
+        return 0
+    } elif index == 4 {
+        return 1
+    } elif index == 5 {
+        return 1
+    } elif index == 6 {
+        return 2
+    } elif index == 7 {
+        return 2
+    } elif index == 8 {
+        return 3
+    } elif index == 9 {
+        return 3
+    } elif index == 10 {
+        return 4
+    } elif index == 11 {
+        return 4
+    } elif index == 12 {
+        return 5
+    } elif index == 13 {
+        return 5
+    } elif index == 14 {
+        return 6
+    } elif index == 15 {
+        return 6
+    } elif index == 16 {
+        return 7
+    } elif index == 17 {
+        return 7
+    } elif index == 18 {
+        return 8
+    } elif index == 19 {
+        return 8
+    } elif index == 20 {
+        return 9
+    } elif index == 21 {
+        return 9
+    } elif index == 22 {
+        return 10
+    } elif index == 23 {
+        return 10
+    } elif index == 24 {
+        return 11
+    } elif index == 25 {
+        return 11
+    } elif index == 26 {
+        return 12
+    } elif index == 27 {
+        return 12
+    } elif index == 28 {
+        return 13
+    } elif index == 29 {
+        return 13
+    }
+    return 0
+}
+
+fn code_length_order(index: i64) i64 = {
+    if index < 0 || index >= 19 {
+        return 0
+    }
+    if index == 0 {
+        return 16
+    } elif index == 1 {
+        return 17
+    } elif index == 2 {
+        return 18
+    } elif index == 3 {
+        return 0
+    } elif index == 4 {
+        return 8
+    } elif index == 5 {
+        return 7
+    } elif index == 6 {
+        return 9
+    } elif index == 7 {
+        return 6
+    } elif index == 8 {
+        return 10
+    } elif index == 9 {
+        return 5
+    } elif index == 10 {
+        return 11
+    } elif index == 11 {
+        return 4
+    } elif index == 12 {
+        return 12
+    } elif index == 13 {
+        return 3
+    } elif index == 14 {
+        return 13
+    } elif index == 15 {
+        return 2
+    } elif index == 16 {
+        return 14
+    } elif index == 17 {
+        return 1
+    } elif index == 18 {
+        return 15
+    }
+    return 0
+}
+
+fn byte_at(data: ref u8, len: i64, index: i64) i64 = trust {
+    if index < 0 || index >= len {
+        return -1
+    }
+    return @load8(@ptradd(data, index)) as i64
+}
+
+fn br_read_bits(br: mut ref BitReader, count: i64) i64 = trust {
+    if count <= 0 {
+        return 0
+    }
+    val start: i64 = br.bit_pos
+    val end: i64 = start + count
+    if end > br.len * 8 {
+        br.failed = true
+        return 0
+    }
+    val value: mut i64 = 0
+    val i: mut i64 = 0
+    for {
+        if i >= count {
+            break
+        }
+        val absolute: i64 = start + i
+        val byte_index: i64 = absolute >> 3
+        val bit_index: i64 = absolute & 7
+        val byte: i64 = @load8(@ptradd(br.data, byte_index)) as i64
+        val bit: i64 = (byte >> bit_index) & 1
+        value = value | (bit << i)
+        i++
+    }
+    br.bit_pos = end
+    return value
+}
+
+fn br_read_bit(br: mut ref BitReader) i64 = trust {
+    return br_read_bits(br, 1)
+}
+
+fn br_align_byte(br: mut ref BitReader) void = {
+    val rem: i64 = br.bit_pos & 7
+    if rem != 0 {
+        br.bit_pos = br.bit_pos + (8 - rem)
+    }
+}
+
+fn br_peek_bits(br: ref BitReader, count: i64) i64 = trust {
+    if count <= 0 {
+        return 0
+    }
+    if br.bit_pos + count > br.len * 8 {
+        return -1
+    }
+    val value: mut i64 = 0
+    val i: mut i64 = 0
+    for {
+        if i >= count {
+            break
+        }
+        val absolute: i64 = br.bit_pos + i
+        val byte_index: i64 = absolute >> 3
+        val bit_index: i64 = absolute & 7
+        val byte: i64 = @load8(@ptradd(br.data, byte_index)) as i64
+        val bit: i64 = (byte >> bit_index) & 1
+        value = value | (bit << i)
+        i++
+    }
+    return value
+}
+
+fn reverse_bits(value: i64, count: i64) i64 = {
+    val out: mut i64 = 0
+    val i: mut i64 = 0
+    for {
+        if i >= count {
+            break
+        }
+        out = (out << 1) | ((value >> i) & 1)
+        i++
+    }
+    return out
+}
+
+fn huffman_build[A: allocators.GeneralAllocator](
+    ac: A,
+    lengths: list[i64],
+    count: i64
+) result[ref Huffman, DeflateError] = trust {
+    val max_bits: mut i64 = 0
+    val i: mut i64 = 0
+    for {
+        if i >= count {
+            break
+        }
+        val len_opt = @get(lengths, i as usize)
+        if len_opt is some raw_len {
+            val len: i64 = raw_len as i64
+            if len > max_bits {
+                max_bits = len
+            }
+        }
+        i++
+    }
+
+    val tree_opt = allocators.alloc_in[A](ac, @sizeof(Huffman) as usize)
+    val tree: mut ref Huffman = none
+    match tree_opt {
+        some raw => {
+            tree = raw as ref Huffman
+        }
+        none => {
+            return err DeflateError.OutOfMemory
+        }
+    }
+
+    if max_bits <= 0 {
+        tree.table = none
+        tree.max_bits = 0
+        return ok tree
+    }
+
+    val table_size: i64 = 1 << max_bits
+    val table_opt = allocators.alloc_in[A](ac, (table_size * 8) as usize)
+    match table_opt {
+        some raw_table => {
+            tree.table = raw_table
+        }
+        none => {
+            allocators.free_in[A](ac, tree as ref void)
+            return err DeflateError.OutOfMemory
+        }
+    }
+    tree.max_bits = max_bits
+    @memset(tree.table, 0, (table_size * 8) as usize)
+
+    val counts: mut list[i64] = []
+    @reserve(counts, 16)
+    val c: mut i64 = 0
+    for {
+        if c > 15 {
+            break
+        }
+        @append(counts, 0)
+        c++
+    }
+
+    i = 0
+    for {
+        if i >= count {
+            break
+        }
+        val len_opt = @get(lengths, i as usize)
+        if len_opt is some raw_len {
+            val len: i64 = raw_len as i64
+            if len > 0 && len <= 15 {
+                val old_opt = @get(counts, len as usize)
+                val old: mut i64 = 0
+                if old_opt is some value {
+                    old = value as i64
+                }
+                @set(counts, len as usize, old + 1)
+            }
+        }
+        i++
+    }
+
+    val next_code: mut list[i64] = []
+    @reserve(next_code, 16)
+    c = 0
+    for {
+        if c > 15 {
+            break
+        }
+        @append(next_code, 0)
+        c++
+    }
+    val code: mut i64 = 0
+    val bits: mut i64 = 1
+    for {
+        if bits > 15 {
+            break
+        }
+        val prev_opt = @get(counts, (bits - 1) as usize)
+        val prev: mut i64 = 0
+        if prev_opt is some value {
+            prev = value as i64
+        }
+        code = (code + prev) << 1
+        @set(next_code, bits as usize, code)
+        bits++
+    }
+
+    i = 0
+    for {
+        if i >= count {
+            break
+        }
+        val len_opt = @get(lengths, i as usize)
+        if len_opt is some raw_len {
+            val len: i64 = raw_len as i64
+            if len > 0 {
+                val code_opt = @get(next_code, len as usize)
+                val symbol_code: mut i64 = 0
+                if code_opt is some value {
+                    symbol_code = value as i64
+                }
+                @set(next_code, len as usize, symbol_code + 1)
+                val reversed: i64 = reverse_bits(symbol_code, len)
+                val fill_count: i64 = 1 << (max_bits - len)
+                val entry: i64 = (len << 16) | i
+                val f: mut i64 = 0
+                for {
+                    if f >= fill_count {
+                        break
+                    }
+                    val index: i64 = reversed | (f << len)
+                    @store(@ptradd(tree.table, index * 8), entry)
+                    f++
+                }
+            }
+        }
+        i++
+    }
+
+    return ok tree
+}
+
+fn huffman_decode(br: mut ref BitReader, tree: ref Huffman) i64 = trust {
+    if tree.max_bits <= 0 {
+        br.failed = true
+        return -1
+    }
+    val bits: i64 = br_peek_bits(br, tree.max_bits)
+    if bits < 0 {
+        br.failed = true
+        return -1
+    }
+    val entry: i64 = @load(@ptradd(tree.table, bits * 8)) as i64
+    if entry == 0 {
+        br.failed = true
+        return -1
+    }
+    val len: i64 = entry >> 16
+    val symbol: i64 = entry & 0xffff
+    br.bit_pos = br.bit_pos + len
+    return symbol
+}
+
+fn huffman_free[A: allocators.GeneralAllocator](ac: A, tree: ref Huffman) void = trust {
+    if tree == none {
+        return
+    }
+    if tree.table != none {
+        allocators.free_in[A](ac, tree.table)
+    }
+    allocators.free_in[A](ac, tree as ref void)
+}
+
+fn fixed_litlen_lengths() list[i64] = {
+    val lengths: mut list[i64] = []
+    @reserve(lengths, 288)
+    val i: mut i64 = 0
+    for {
+        if i >= 288 {
+            break
+        }
+        val len: mut i64 = 8
+        if i >= 144 && i <= 255 {
+            len = 9
+        } elif i >= 256 && i <= 279 {
+            len = 7
+        }
+        @append(lengths, len)
+        i++
+    }
+    return lengths
+}
+
+fn fixed_dist_lengths() list[i64] = {
+    val lengths: mut list[i64] = []
+    @reserve(lengths, 32)
+    val i: mut i64 = 0
+    for {
+        if i >= 32 {
+            break
+        }
+        @append(lengths, 5)
+        i++
+    }
+    return lengths
+}
+
+fn inflate_block(
+    br: mut ref BitReader,
+    out: ref u8,
+    out_cap: i64,
+    out_len: mut ref i64,
+    litlen: ref Huffman,
+    dist: ref Huffman
+) bool = trust {
+    for {
+        if br.failed {
+            return false
+        }
+        val symbol: i64 = huffman_decode(br, litlen)
+        if br.failed {
+            return false
+        }
+        if symbol < 256 {
+            if out_len.value >= out_cap {
+                br.failed = true
+                return false
+            }
+            @store8(@ptradd(out, out_len.value), symbol as u8)
+            out_len.value = out_len.value + 1
+        } elif symbol == 256 {
+            return true
+        } else {
+            val length_index: i64 = symbol - 257
+            if length_index < 0 || length_index >= 29 {
+                br.failed = true
+                return false
+            }
+            val base: i64 = length_base(length_index)
+            val extra: i64 = length_extra(length_index)
+            val length: i64 = base + br_read_bits(br, extra)
+            if br.failed {
+                return false
+            }
+
+            val dist_symbol: i64 = huffman_decode(br, dist)
+            if br.failed || dist_symbol < 0 || dist_symbol >= 30 {
+                br.failed = true
+                return false
+            }
+            val dbase: i64 = dist_base(dist_symbol)
+            val dextra: i64 = dist_extra(dist_symbol)
+            val distance: i64 = dbase + br_read_bits(br, dextra)
+            if br.failed || distance <= 0 || distance > out_len.value {
+                br.failed = true
+                return false
+            }
+            if out_len.value + length > out_cap {
+                br.failed = true
+                return false
+            }
+            val src: ref u8 = @ptradd(out, out_len.value - distance)
+            val dst: ref u8 = @ptradd(out, out_len.value)
+            // LZ77 back-references may overlap the output being produced, so
+            // this must copy one byte at a time (memmove would not replicate
+            // the repeated pattern).
+            val copy_i: mut i64 = 0
+            for {
+                if copy_i >= length {
+                    break
+                }
+                @store8(@ptradd(dst, copy_i), @load8(@ptradd(src, copy_i)))
+                copy_i++
+            }
+            out_len.value = out_len.value + length
+        }
+    }
+    return true
+}
+
+/// Inflate a zlib stream (RFC 1950).
+///
+/// `expected_size` is the exact number of uncompressed bytes expected.  Git
+/// object headers always provide this value.  On success the returned pointer
+/// is the output buffer and `consumed` receives the number of zlib bytes read.
+pub fn inflate_zlib[A: allocators.GeneralAllocator](
+    ac: A,
+    input: ref u8,
+    input_len: i64,
+    expected_size: i64,
+    consumed: mut ref i64
+) result[ref u8, DeflateError] = trust {
+    consumed.value = 0
+    if input_len < 6 || expected_size < 0 {
+        return err DeflateError.InvalidHeader
+    }
+    val cmf: i64 = byte_at(input, input_len, 0)
+    val flg: i64 = byte_at(input, input_len, 1)
+    if (cmf & 15) != 8 {
+        return err DeflateError.InvalidHeader
+    }
+    if ((cmf << 8) + flg) % 31 != 0 {
+        return err DeflateError.InvalidHeader
+    }
+    if (flg & 32) != 0 {
+        return err DeflateError.InvalidHeader
+    }
+
+    val out_size: i64 = expected_size + 1
+    val out_opt = allocators.alloc_in[A](ac, out_size as usize)
+    val out: mut ref u8 = none
+    match out_opt {
+        some raw => {
+            out = raw as ref u8
+        }
+        none => {
+            return err DeflateError.OutOfMemory
+        }
+    }
+    @memset(out, 0, out_size as usize)
+
+    val br_opt = allocators.alloc_in[A](ac, @sizeof(BitReader) as usize)
+    val br: mut ref BitReader = none
+    match br_opt {
+        some raw => {
+            br = raw as ref BitReader
+        }
+        none => {
+            allocators.free_in[A](ac, out as ref void)
+            return err DeflateError.OutOfMemory
+        }
+    }
+    br.data = @ptradd(input, 2)
+    br.len = input_len - 2
+    br.bit_pos = 0
+    br.failed = false
+
+    val out_len_opt = allocators.alloc_in[A](ac, 8 as usize)
+    val out_len: mut ref i64 = none
+    match out_len_opt {
+        some raw => {
+            out_len = raw as ref i64
+        }
+        none => {
+            allocators.free_in[A](ac, br as ref void)
+            allocators.free_in[A](ac, out as ref void)
+            return err DeflateError.OutOfMemory
+        }
+    }
+    out_len.value = 0
+
+    val final: mut bool = false
+    for {
+        if final {
+            break
+        }
+        if br.failed {
+            break
+        }
+        final = br_read_bit(br) != 0
+        val block_type: i64 = br_read_bits(br, 2)
+        if br.failed {
+            break
+        }
+
+        if block_type == 0 {
+            br_align_byte(br)
+            val len: i64 = br_read_bits(br, 16)
+            val nlen: i64 = br_read_bits(br, 16)
+            if br.failed || (len ^ 0xffff) != nlen {
+                br.failed = true
+                break
+            }
+            if out_len.value + len > expected_size {
+                br.failed = true
+                break
+            }
+            val i: mut i64 = 0
+            for {
+                if i >= len {
+                    break
+                }
+                val b: i64 = br_read_bits(br, 8)
+                if br.failed {
+                    break
+                }
+                @store8(@ptradd(out, out_len.value), b as u8)
+                out_len.value = out_len.value + 1
+                i++
+            }
+        } elif block_type == 1 {
+            val lit_lengths: list[i64] = fixed_litlen_lengths()
+            val dist_lengths: list[i64] = fixed_dist_lengths()
+            val litres = huffman_build[A](ac, lit_lengths, 288)
+            val litres_ok: mut bool = true
+            val lit: mut ref Huffman = none
+            match litres {
+                ok tree => {
+                    lit = tree
+                }
+                err _ => {
+                    litres_ok = false
+                }
+            }
+            val distres = huffman_build[A](ac, dist_lengths, 32)
+            val dist_ok: mut bool = true
+            val dtree: mut ref Huffman = none
+            match distres {
+                ok tree => {
+                    dtree = tree
+                }
+                err _ => {
+                    dist_ok = false
+                }
+            }
+            if !litres_ok || !dist_ok {
+                if lit != none {
+                    huffman_free[A](ac, lit)
+                }
+                if dtree != none {
+                    huffman_free[A](ac, dtree)
+                }
+                br.failed = true
+                break
+            }
+            if !inflate_block(br, out, expected_size, out_len, lit, dtree) {
+                br.failed = true
+            }
+            huffman_free[A](ac, lit)
+            huffman_free[A](ac, dtree)
+        } elif block_type == 2 {
+            val hlit: i64 = br_read_bits(br, 5) + 257
+            val hdist: i64 = br_read_bits(br, 5) + 1
+            val hclen: i64 = br_read_bits(br, 4) + 4
+            if br.failed {
+                break
+            }
+
+            val cl_lengths: mut list[i64] = []
+            @reserve(cl_lengths, 19)
+            val ci: mut i64 = 0
+            for {
+                if ci >= 19 {
+                    break
+                }
+                @append(cl_lengths, 0)
+                ci++
+            }
+            ci = 0
+            for {
+                if ci >= hclen {
+                    break
+                }
+                val order: i64 = code_length_order(ci)
+                val value: i64 = br_read_bits(br, 3)
+                @set(cl_lengths, order as usize, value)
+                ci++
+            }
+            if br.failed {
+                break
+            }
+
+            val clres = huffman_build[A](ac, cl_lengths, 19)
+            val cl_ok: mut bool = true
+            val cltree: mut ref Huffman = none
+            match clres {
+                ok tree => {
+                    cltree = tree
+                }
+                err _ => {
+                    cl_ok = false
+                }
+            }
+            if !cl_ok {
+                br.failed = true
+                break
+            }
+
+            val total: i64 = hlit + hdist
+            val lengths: mut list[i64] = []
+            @reserve(lengths, total)
+            val li: mut i64 = 0
+            for {
+                if li >= total {
+                    break
+                }
+                @append(lengths, 0)
+                li++
+            }
+
+            li = 0
+            val prev: mut i64 = 0
+            for {
+                if li >= total {
+                    break
+                }
+                val sym: i64 = huffman_decode(br, cltree)
+                if br.failed {
+                    break
+                }
+                if sym < 16 {
+                    @set(lengths, li as usize, sym)
+                    prev = sym
+                    li++
+                } elif sym == 16 {
+                    val repeat: i64 = br_read_bits(br, 2) + 3
+                    val r: mut i64 = 0
+                    for {
+                        if r >= repeat || li >= total {
+                            break
+                        }
+                        @set(lengths, li as usize, prev)
+                        li++
+                        r++
+                    }
+                } elif sym == 17 {
+                    val repeat: i64 = br_read_bits(br, 3) + 3
+                    val r: mut i64 = 0
+                    for {
+                        if r >= repeat || li >= total {
+                            break
+                        }
+                        @set(lengths, li as usize, 0)
+                        li++
+                        r++
+                    }
+                    prev = 0
+                } elif sym == 18 {
+                    val repeat: i64 = br_read_bits(br, 7) + 11
+                    val r: mut i64 = 0
+                    for {
+                        if r >= repeat || li >= total {
+                            break
+                        }
+                        @set(lengths, li as usize, 0)
+                        li++
+                        r++
+                    }
+                    prev = 0
+                } else {
+                    br.failed = true
+                    break
+                }
+                if br.failed {
+                    break
+                }
+            }
+            huffman_free[A](ac, cltree)
+            if br.failed {
+                break
+            }
+
+            val lit_lengths: mut list[i64] = []
+            val dist_lengths: mut list[i64] = []
+            @reserve(lit_lengths, hlit)
+            @reserve(dist_lengths, hdist)
+            li = 0
+            for {
+                if li >= hlit {
+                    break
+                }
+                val v_opt = @get(lengths, li as usize)
+                val v: mut i64 = 0
+                if v_opt is some value {
+                    v = value as i64
+                }
+                @append(lit_lengths, v)
+                li++
+            }
+            li = 0
+            for {
+                if li >= hdist {
+                    break
+                }
+                val v_opt = @get(lengths, (hlit + li) as usize)
+                val v: mut i64 = 0
+                if v_opt is some value {
+                    v = value as i64
+                }
+                @append(dist_lengths, v)
+                li++
+            }
+
+            val litres = huffman_build[A](ac, lit_lengths, hlit)
+            val lit_ok: mut bool = true
+            val lit: mut ref Huffman = none
+            match litres {
+                ok tree => {
+                    lit = tree
+                }
+                err _ => {
+                    lit_ok = false
+                }
+            }
+            val distres = huffman_build[A](ac, dist_lengths, hdist)
+            val dist_ok: mut bool = true
+            val dtree: mut ref Huffman = none
+            match distres {
+                ok tree => {
+                    dtree = tree
+                }
+                err _ => {
+                    dist_ok = false
+                }
+            }
+            if !lit_ok || !dist_ok {
+                if lit != none {
+                    huffman_free[A](ac, lit)
+                }
+                if dtree != none {
+                    huffman_free[A](ac, dtree)
+                }
+                br.failed = true
+                break
+            }
+            if !inflate_block(br, out, expected_size, out_len, lit, dtree) {
+                br.failed = true
+            }
+            huffman_free[A](ac, lit)
+            huffman_free[A](ac, dtree)
+        } else {
+            br.failed = true
+            break
+        }
+    }
+
+    val deflate_bytes: i64 = (br.bit_pos + 7) / 8
+    val consumed_len: i64 = 2 + deflate_bytes + 4
+    val failed: bool = br.failed || out_len.value != expected_size || consumed_len > input_len
+    allocators.free_in[A](ac, out_len as ref void)
+    allocators.free_in[A](ac, br as ref void)
+    if failed {
+        allocators.free_in[A](ac, out as ref void)
+        return err DeflateError.InvalidData
+    }
+
+    consumed.value = consumed_len
+    return ok out
+}
+
+test {
+    val ac: allocators.HeapAllocator = @zeroed
+    // zlib-compressed "hello"
+    val compressed: mut [13]u8 = [
+        0x78, 0x9c, 0xcb, 0x48, 0xcd, 0xc9, 0xc9, 0x07,
+        0x00, 0x06, 0x2c, 0x02, 0x15
+    ]
+    val consumed: mut i64 = 0
+    val res = trust inflate_zlib[allocators.HeapAllocator](
+        ac,
+        @addr(compressed) as ref u8,
+        13,
+        5,
+        @addr(consumed)
+    )
+    match res {
+        ok data => {
+            assert consumed == 13
+            assert trust @load8(data) == 104
+            assert trust @load8(@ptradd(data, 4)) == 111
+            trust allocators.free_in[allocators.HeapAllocator](ac, data as ref void)
+        }
+        err _ => {
+            assert false
+        }
+    }
+}

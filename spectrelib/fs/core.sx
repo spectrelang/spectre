@@ -1,5 +1,6 @@
 val stdio      = use("../stdio")
 val str        = use("../string")
+val pathutil   = use("../path")
 val allocators = use("../allocators")
 
 extern (C) fn fopen(path: ref u8, mode: ref u8) ref void = "fopen"
@@ -314,6 +315,16 @@ pub fn write(f: ref void, data: ref u8) void = trust {
     fwrite(data, 1 as usize, l as usize, ptr)
 }
 
+/// Write exactly `len` bytes to an open file.  Unlike `write`, this does not
+/// stop at a NUL byte, so it can be used for binary data.
+pub fn write_bytes(f: ref void, data: ref void, len: i64) void = trust {
+    if len <= 0 {
+        return
+    }
+    val ptr: ref void = @load(f)
+    fwrite(data, 1 as usize, len as usize, ptr)
+}
+
 /// Write a string followed by a newline.
 pub fn write_line(f: ref void, data: ref u8) void = trust {
     write(f, data)
@@ -331,6 +342,37 @@ pub fn write_all(path: ref u8, data: ref u8) bool = trust {
         }
         some f => {
             write(f, data)
+            close(f)
+            return true
+        }
+    }
+}
+
+/// Write exactly `len` bytes to path, overwriting any existing file.
+/// The data may contain NUL bytes.
+pub fn write_all_bytes(path: ref u8, data: ref void, len: i64) bool = trust {
+    val handle = open(path, "wb")
+    match handle {
+        none => {
+            return false
+        }
+        some f => {
+            write_bytes(f, data, len)
+            close(f)
+            return true
+        }
+    }
+}
+
+/// Append exactly `len` bytes to path, creating it if it does not exist.
+pub fn append_all_bytes(path: ref u8, data: ref void, len: i64) bool = trust {
+    val handle = open(path, "ab")
+    match handle {
+        none => {
+            return false
+        }
+        some f => {
+            write_bytes(f, data, len)
             close(f)
             return true
         }
@@ -384,6 +426,31 @@ pub fn mkdir_path(path: ref u8) bool = trust {
 pub fn rmdir_path(path: ref u8) bool = trust {
     val r: i32 = rmdir(path)
     return r == 0
+}
+
+/// Remove a file or directory tree recursively.
+/// Returns true when the path no longer exists.
+pub fn remove_dir_all(path: ref u8) bool = trust {
+    val entries_opt = walk_dir_raw(path)
+    match entries_opt {
+        none => {
+            // Not a directory: fall back to unlinking it as a file.
+            return delete(path)
+        }
+        some entries => {
+            for entry in entries {
+                val child: ref u8 = pathutil.join(path, entry)
+                val dir: ref void = opendir(child)
+                if dir != none {
+                    closedir(dir)
+                    remove_dir_all(child)
+                } else {
+                    delete(child)
+                }
+            }
+            return rmdir_path(path)
+        }
+    }
 }
 
 /// Return the current working directory as an allocator-backed string.

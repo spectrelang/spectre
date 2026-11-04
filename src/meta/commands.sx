@@ -8,6 +8,7 @@ val meta       = use("meta.sx")
 val builds     = use("builds.sx")
 val stdio      = use("std/stdio")
 val os         = use("std/os")
+val git        = use("std/git")
 
 pub type SxBuildRule = {
     platform: mut ref u8
@@ -813,7 +814,20 @@ fn basename_of(path: ref u8) ref u8 = {
 }
 
 fn repo_name_from_url(url: ref u8) ref u8 = trust {
-    val base: ref u8 = basename_of(url)
+    val url_len: i64 = str.len_raw(url)
+    val url_end: mut i64 = url_len
+    for {
+        if url_end <= 0 {
+            break
+        }
+        val last: u8 = @load8(@ptradd(url, url_end - 1)) as u8
+        if last != 47 && last != 92 {
+            break
+        }
+        url_end--
+    }
+    val clean_url: ref u8 = str.substr(url, 0, url_end)
+    val base: ref u8 = basename_of(clean_url)
     val blen: i64 = str.len_raw(base)
     if blen > 4 {
         val a: u8 = @load8(@ptradd(base, blen - 4)) as u8
@@ -925,38 +939,6 @@ fn drop_dep_lines(filepath: ref u8, needle: ref u8) void = trust {
     }
 }
 
-fn output_trimmed(cmd: ref u8) ref u8 = trust {
-    val res = os.exec(cmd)
-    match res {
-        ok v => {
-            val raw: ref u8 = str.cstr(v)
-            val raw_len: i64 = str.len_raw(raw)
-            val end: mut i64 = raw_len
-            for {
-                if end <= 0 {
-                    break
-                }
-                val c: u8 = @load8(@ptradd(raw, end - 1)) as u8
-                if c == 10 || c == 13 || c == 32 {
-                    end--
-                } else {
-                    break
-                }
-            }
-            if end <= 0 {
-                return ""
-            }
-            val trimmed: ref u8 = @alloc(end + 1) as ref u8
-            @memcpy(trimmed, raw, end as usize)
-            @store8(@ptradd(trimmed, end), 0)
-            return trimmed
-        }
-        err _ => {
-            return ""
-        }
-    }
-}
-
 fn dep_name_matches(dep_url: ref u8, dep_name: ref u8) bool = trust {
     if str.raw_cmp(dep_name, "") == 0 {
         return true
@@ -983,6 +965,7 @@ fn upgrade_dir(
     }
     @append(visited, base_dir)
 
+    val ac: allocators.HeapAllocator = @zeroed
     val mod_opt = load_sxmod_at(base_dir)
     val sxmod: mut ref SxMod = none
     match mod_opt {
@@ -1024,28 +1007,21 @@ fn upgrade_dir(
             val old_hash: ref u8 = lock_hash_for_url(lock_deps, dep_url)
             stdio.print("Upgrading {s}...\n", {dep_url})
 
-            val fetch_cmd: ref u8 = @fmtalloc("git -C {s} fetch --quiet origin HEAD", {lib_path})
-            if os.run(fetch_cmd) != 0 {
-                stdio.print("error: git fetch failed for {s}\n", {dep_url})
-                return 1
-            }
-
-            val reset_cmd: ref u8 = @fmtalloc(
-                "git -C {s} reset --hard --quiet FETCH_HEAD",
-                {lib_path}
+            val clone_res = git.clone[allocators.HeapAllocator](
+                ac,
+                dep_url,
+                lib_path,
+                ""
             )
-            if os.run(reset_cmd) != 0 {
-                stdio.print("error: failed to check out HEAD for {s}\n", {dep_url})
-                return 1
-            }
-
-            val new_hash: ref u8 = output_trimmed(@fmtalloc(
-                    "git -C {s} rev-parse HEAD",
-                    {lib_path}
-                ))
-            if str.raw_cmp(new_hash, "") == 0 {
-                stdio.print("error: could not determine HEAD for {s}\n", {dep_url})
-                return 1
+            val new_hash: mut ref u8 = ""
+            match clone_res {
+                ok hash => {
+                    new_hash = hash
+                }
+                err _ => {
+                    stdio.print("error: failed to check out HEAD for {s}\n", {dep_url})
+                    return 1
+                }
             }
 
             set_lock_hash(@fmtalloc("{s}/sx.lock", {base_dir}), dep_url, new_hash)
@@ -1747,43 +1723,22 @@ pub fn cmd_add(url: ref u8) i32 = trust {
 
     fs.mkdir_path("lib")
 
-    val clone_cmd: ref u8 = @fmtalloc("git clone {s} {s}", {url, lib_path})
     stdio.print("Cloning {s}...\n", {url})
-    val exit_code: i32 = os.run(clone_cmd)
-    if exit_code != 0 {
-        stdio.print("error: git clone failed for {s}\n", {url})
-        return 1
+    val ac: allocators.HeapAllocator = @zeroed
+    val clone_res = git.clone[allocators.HeapAllocator](ac, url, lib_path, "")
+    val hash: mut ref u8 = ""
+    match clone_res {
+        ok resolved_hash => {
+            hash = resolved_hash
+        }
+        err _ => {
+            stdio.print("error: failed to clone {s}\n", {url})
+            return 1
+        }
     }
 
     val dep_line: ref u8 = @fmtalloc("dep \"{s}\"\n", {url})
     fs.append_all("sx.mod", dep_line)
-
-    val hash_cmd: ref u8 = @fmtalloc("git -C {s} rev-parse HEAD", {lib_path})
-    val hash_res = os.exec(hash_cmd)
-    val hash: mut ref u8 = "unknown"
-    match hash_res {
-        ok v => {
-            val raw: ref u8 = str.cstr(v)
-            val raw_len: i64 = str.len_raw(raw)
-            val trimmed_len: mut i64 = raw_len
-            for {
-                if trimmed_len <= 0 {
-                    break
-                }
-                val c: u8 = @load8(@ptradd(raw, trimmed_len - 1)) as u8
-                if c == 10 || c == 13 || c == 32 {
-                    trimmed_len--
-                } else {
-                    break
-                }
-            }
-            val h: ref u8 = @alloc(trimmed_len + 1) as ref u8
-            @memcpy(h, raw, trimmed_len as usize)
-            @store8(@ptradd(h, trimmed_len), 0)
-            hash = h
-        }
-        err _ => {}
-    }
 
     val lock_line: ref u8 = @fmtalloc("dep \"{s}\" \"{s}\"\n", {url, hash})
     fs.append_all("sx.lock", lock_line)
@@ -1800,8 +1755,12 @@ pub fn cmd_remove(dep_name: ref u8) i32 = {
 
     val lib_path: ref u8 = trust @fmtalloc("lib/{s}", {dep_name})
     if os.exists(lib_path) {
-        val rm_cmd: ref u8 = trust @fmtalloc("rm -rf {s}", {lib_path})
-        trust os.run(rm_cmd)
+        when windows {
+            trust os.run(@fmtalloc("rmdir /s /q {s}", {lib_path}))
+        }
+        when posix {
+            trust os.run(@fmtalloc("rm -rf {s}", {lib_path}))
+        }
         trust stdio.print("Removed {s}\n", {lib_path})
     } else {
         trust stdio.print("warning: {s} not found, updating manifests only\n", {lib_path})
@@ -1848,14 +1807,10 @@ fn restore_in_dir(base_dir: ref u8, visited: mut list[ref u8]) i32 = trust {
         }
     }
 
+    val ac: allocators.HeapAllocator = @zeroed
     val lib_dir: ref u8 = @fmtalloc("{s}/lib", {base_dir})
     if os.exists(lib_dir) {
-        when windows {
-            os.run(@fmtalloc("rmdir /s /q {s}", {lib_dir}))
-        }
-        when posix {
-            os.run(@fmtalloc("rm -rf {s}", {lib_dir}))
-        }
+        fs.remove_dir_all(lib_dir)
     }
     fs.mkdir_path(lib_dir)
 
@@ -1869,14 +1824,20 @@ fn restore_in_dir(base_dir: ref u8, visited: mut list[ref u8]) i32 = trust {
         val name: ref u8 = repo_name_from_url(dep_url)
         val lib_path: ref u8 = @fmtalloc("{s}/{s}", {lib_dir, name})
         stdio.print("Restoring {s}...\n", {dep_url})
-        if os.run(@fmtalloc("git clone {s} {s}", {dep_url, lib_path})) != 0 {
-            stdio.print("error: git clone failed for {s}\n", {dep_url})
-            return 1
+        val checkout_hash: mut ref u8 = hash
+        if str.raw_cmp(hash, "unknown") == 0 {
+            checkout_hash = ""
         }
-
-        if str.raw_cmp(hash, "unknown") != 0 {
-            if os.run(@fmtalloc("git -C {s} checkout --quiet {s}", {lib_path, hash})) != 0 {
-                stdio.print("error: failed to checkout {s} for {s}\n", {hash, dep_url})
+        val clone_res = git.clone[allocators.HeapAllocator](
+            ac,
+            dep_url,
+            lib_path,
+            checkout_hash
+        )
+        match clone_res {
+            ok _ => {}
+            err _ => {
+                stdio.print("error: failed to restore {s}\n", {dep_url})
                 return 1
             }
         }
@@ -1916,15 +1877,11 @@ pub fn cmd_restore() i32 = trust {
     }
 
     if os.exists("lib") {
-        when windows {
-            os.run("rmdir /s /q lib")
-        }
-        when posix {
-            os.run("rm -rf lib")
-        }
+        fs.remove_dir_all("lib")
     }
     fs.mkdir_path("lib")
 
+    val ac: allocators.HeapAllocator = @zeroed
     val visited: mut list[ref u8] = []
     @append(visited, ".")
 
@@ -1937,20 +1894,21 @@ pub fn cmd_restore() i32 = trust {
 
         val name: ref u8 = repo_name_from_url(dep_url)
         val lib_path: ref u8 = @fmtalloc("lib/{s}", {name})
-        val clone_cmd: ref u8 = @fmtalloc("git clone {s} {s}", {dep_url, lib_path})
         stdio.print("Restoring {s}...\n", {dep_url})
-        if os.run(clone_cmd) != 0 {
-            stdio.print("error: git clone failed for {s}\n", {dep_url})
-            return 1
+        val checkout_hash: mut ref u8 = hash
+        if str.raw_cmp(hash, "unknown") == 0 {
+            checkout_hash = ""
         }
-
-        if str.raw_cmp(hash, "unknown") != 0 {
-            val checkout_cmd: ref u8 = @fmtalloc(
-                "git -C {s} checkout --quiet {s}",
-                {lib_path, hash}
-            )
-            if os.run(checkout_cmd) != 0 {
-                stdio.print("error: failed to checkout {s} for {s}\n", {hash, dep_url})
+        val clone_res = git.clone[allocators.HeapAllocator](
+            ac,
+            dep_url,
+            lib_path,
+            checkout_hash
+        )
+        match clone_res {
+            ok _ => {}
+            err _ => {
+                stdio.print("error: failed to restore {s}\n", {dep_url})
                 return 1
             }
         }

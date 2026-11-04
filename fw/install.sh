@@ -187,6 +187,14 @@ else
 	log "Skipping optional networking development dependencies (-minimal)."
 fi
 
+NET_LINK=""
+if command -v pkg-config >/dev/null 2>&1; then
+	NET_LINK="$(pkg-config --libs libcurl 2>/dev/null || true)"
+fi
+if [ -z "$NET_LINK" ]; then
+	NET_LINK="-lcurl"
+fi
+
 log "Preparing directories..."
 mkdir -p "$BIN_DIR" "$SRC_DIR"
 
@@ -338,6 +346,7 @@ if [ "$QBE_OK" -eq 1 ]; then
 		"${YYJSON_SHIM_OBJ}" \
 		-L"${OTHER_PREFIX}/lib" \
 		-lyyjson \
+		${NET_LINK} \
 		-o "${BOOTSTRAP_OUT}"
 
 	log "Installing Spectre binary..."
@@ -358,6 +367,7 @@ else
 		-L"${OTHER_PREFIX}/lib" \
 		-Wno-everything \
 		-lyyjson \
+		${NET_LINK} \
 		-o "${POSIX_BOOTSTRAP_OUT}")
 
 	log "Installing Spectre binary (C bootstrap)..."
