@@ -58,22 +58,6 @@ type Ctx = {
     fix_mode: mut bool
 }
 
-/// Allocate `size` bytes from the arena, returning none when it is exhausted.
-fn arena_alloc(arena: allocators.Arena, size: i64) ref void = trust {
-    pre {
-        size_positive: size > 0
-    }
-    val out = allocators.Arena.alloc(arena, size as usize)
-    match out {
-        some p => {
-            return p
-        }
-        none => {
-            return none
-        }
-    }
-}
-
 /// Free a heap-allocated language-level list (header and backing storage).
 fn free_list[T](items: mut list[T]) void = trust {
     if items != none {
@@ -118,7 +102,7 @@ fn ctx_new(
     tokens: list[ref lexer.Token],
     fix_mode: bool
 ) ref Ctx = trust {
-    val c: mut ref Ctx = arena_alloc(arena, @sizeof(Ctx) as i64) as ref Ctx
+    val c: mut ref Ctx = allocators.Arena.alloc_or_none(arena, @sizeof(Ctx) as usize) as ref Ctx
     if c == none {
         return none
     }
@@ -343,7 +327,10 @@ fn add_issue(ctx: ref Ctx, line: i64, message: ref u8) void = trust {
             return
         }
     }
-    val issue: mut ref Issue = arena_alloc(ctx.arena, @sizeof(Issue) as i64) as ref Issue
+    val issue: mut ref Issue = allocators.Arena.alloc_or_none(
+        ctx.arena,
+        @sizeof(Issue) as usize
+    ) as ref Issue
     if issue == none {
         return
     }
@@ -356,7 +343,10 @@ fn add_fix(ctx: ref Ctx, start: i64, end: i64, text: ref u8) void = trust {
     if start < 0 || end < start {
         return
     }
-    val edit: mut ref Edit = arena_alloc(ctx.arena, @sizeof(Edit) as i64) as ref Edit
+    val edit: mut ref Edit = allocators.Arena.alloc_or_none(
+        ctx.arena,
+        @sizeof(Edit) as usize
+    ) as ref Edit
     if edit == none {
         return
     }
@@ -798,7 +788,10 @@ fn add_var_type(ctx: ref Ctx, name: ref u8, ty: ref parser.Node, line: i64) void
     if type_name == none {
         return
     }
-    val vt: mut ref VarType = arena_alloc(ctx.arena, @sizeof(VarType) as i64) as ref VarType
+    val vt: mut ref VarType = allocators.Arena.alloc_or_none(
+        ctx.arena,
+        @sizeof(VarType) as usize
+    ) as ref VarType
     if vt == none {
         return
     }
@@ -812,7 +805,10 @@ fn add_var_type_name(ctx: ref Ctx, name: ref u8, type_name: ref u8, line: i64) v
     if name == none || type_name == none {
         return
     }
-    val vt: mut ref VarType = arena_alloc(ctx.arena, @sizeof(VarType) as i64) as ref VarType
+    val vt: mut ref VarType = allocators.Arena.alloc_or_none(
+        ctx.arena,
+        @sizeof(VarType) as usize
+    ) as ref VarType
     if vt == none {
         return
     }
@@ -823,7 +819,10 @@ fn add_var_type_name(ctx: ref Ctx, name: ref u8, type_name: ref u8, line: i64) v
 }
 
 fn find_val_ref_void_span(ctx: ref Ctx, name: ref u8, line: i64) ref TokSpan = trust {
-    val span: mut ref TokSpan = arena_alloc(ctx.arena, @sizeof(TokSpan) as i64) as ref TokSpan
+    val span: mut ref TokSpan = allocators.Arena.alloc_or_none(
+        ctx.arena,
+        @sizeof(TokSpan) as usize
+    ) as ref TokSpan
     if span == none {
         return none
     }
@@ -1332,7 +1331,10 @@ fn collect_fn_sigs(ctx: ref Ctx, items: list[ref parser.Node]) void = trust {
             val name: ref u8 = item.d2 as ref u8
             val ret_ty: ref parser.Node = item.d4 as ref parser.Node
             val ret_name: ref u8 = type_to_string(ctx.arena, ret_ty)
-            val sig: mut ref FnSig = arena_alloc(ctx.arena, @sizeof(FnSig) as i64) as ref FnSig
+            val sig: mut ref FnSig = allocators.Arena.alloc_or_none(
+                ctx.arena,
+                @sizeof(FnSig) as usize
+            ) as ref FnSig
             if sig == none {
                 continue
             }
@@ -2206,11 +2208,14 @@ fn buf_new(arena: allocators.Arena, cap: i64) ref Buf = trust {
     if actual_cap < 1 {
         actual_cap = 1
     }
-    val b: mut ref Buf = arena_alloc(arena, @sizeof(Buf) as i64) as ref Buf
+    val b: mut ref Buf = allocators.Arena.alloc_or_none(
+        arena,
+        @sizeof(Buf) as usize
+    ) as ref Buf
     if b == none {
         return none
     }
-    b.ptr = arena_alloc(arena, actual_cap) as ref u8
+    b.ptr = allocators.Arena.alloc_or_none(arena, actual_cap as usize) as ref u8
     if b.ptr == none {
         return none
     }
@@ -2232,7 +2237,10 @@ fn buf_reserve(arena: allocators.Arena, b: mut ref Buf, extra: i64) void = trust
         }
         new_cap = new_cap * 2
     }
-    val new_ptr: ref u8 = arena_alloc(arena, new_cap) as ref u8
+    val new_ptr: ref u8 = allocators.Arena.alloc_or_none(
+        arena,
+        new_cap as usize
+    ) as ref u8
     if new_ptr == none {
         return
     }
@@ -2391,7 +2399,10 @@ fn join_path(arena: allocators.Arena, dir: ref u8, name: ref u8) ref u8 = trust 
             sep = 0
         }
     }
-    val buf: ref u8 = arena_alloc(arena, dlen + nlen + sep + 1) as ref u8
+    val buf: ref u8 = allocators.Arena.alloc_or_none(
+        arena,
+        (dlen + nlen + sep + 1) as usize
+    ) as ref u8
     if buf == none {
         return none
     }

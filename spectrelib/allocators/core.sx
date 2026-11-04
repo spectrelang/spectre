@@ -79,6 +79,25 @@ pub fn (Arena) alloc(arena: self, size: usize) option[ref void] = {
     return some ptr
 }
 
+/// Allocate `size` bytes from the arena, returning none when it is exhausted.
+///
+/// This is a convenience wrapper around `alloc` for call sites that prefer a
+/// nullable pointer over an `option` result.
+pub fn (Arena) alloc_or_none(arena: self, size: usize) ref void = {
+    pre {
+        size_positive: size > 0
+    }
+    val out = Arena.alloc(arena, size)
+    match out {
+        some p => {
+            return p
+        }
+        none => {
+            return none
+        }
+    }
+}
+
 /// Return the number of bytes currently used.
 pub fn (Arena) used(arena: self) usize = {
     return trust @load(@ptradd(arena, 8)) as usize
