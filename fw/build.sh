@@ -51,6 +51,7 @@ fi
 
 cc -c spectrelib/csources/panic_handler.c -o spectrelib/csources/panic_handler.o || exit 1
 cc $YYJSON_INC -c spectrelib/csources/yyjson_shim.c -o spectrelib/csources/yyjson_shim.o || exit 1
+cc -c spectrelib/csources/qbe_runtime.c -o spectrelib/csources/qbe_runtime.o || exit 1
 
 GIT_HASH="unknown"
 if command -v git >/dev/null 2>&1; then

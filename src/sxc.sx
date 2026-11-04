@@ -356,6 +356,7 @@ pub fn main() i32 = trust {
     val extra_includes: mut list[ref u8] = []
     val inc_paths: mut list[ref u8] = []
     val src_target: mut ref u8 = ""
+    val shim_output: mut ref u8 = ""
     val bootstrap_mode: mut bool = false
     val arg_i: mut i64 = input_arg_i + 1
 
@@ -561,6 +562,12 @@ pub fn main() i32 = trust {
                 val tgt_len: i64 = string.len_raw(arg) as i64 - 13
                 if tgt_len > 0 {
                     src_target = string.substr(arg, 13, tgt_len)
+                }
+                arg_i++
+            } elif string.raw_starts_with(arg, "--emit-shim=") {
+                val shim_len: i64 = string.len_raw(arg) as i64 - 12
+                if shim_len > 0 {
+                    shim_output = string.substr(arg, 12, shim_len)
                 }
                 arg_i++
             } elif string.raw_starts_with(arg, "--inc-path=") {
@@ -922,6 +929,18 @@ pub fn main() i32 = trust {
     }
 
     if emit_qbe != 0 {
+        if string.len_raw(shim_output) > 0 {
+            val shim_f = os.open(shim_output, "w")
+            if shim_f is some f {
+                os.write(f, c_shim_source, string.len_raw(c_shim_source) as i64)
+                os.close(f)
+            } else {
+                stdio.print("error: could not write C shim to '{s}'\n", {shim_output})
+                @free(qbe_ir)
+                allocators.Arena.free(arena)
+                return 1
+            }
+        }
         stdio.puts(qbe_ir)
         @free(qbe_ir)
         allocators.Arena.free(arena)

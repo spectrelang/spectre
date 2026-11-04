@@ -40,6 +40,7 @@ pub fn print_usage() void = {
     stdio.puts("  --syntax-check       Check validity of syntax given some program")
     when posix {
         stdio.puts("  --emit-ssa           Print QBE IR to stdout and exit")
+        stdio.puts("  --emit-shim=<file>   Write the QBE shim alongside --emit-ssa")
     }
     stdio.puts("  --emit-alt           Print alternative IR to stdout and exit")
     stdio.puts("  --emit-asm           Print assembly to stdout and exit")

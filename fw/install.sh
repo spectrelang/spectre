@@ -257,6 +257,8 @@ PANIC_HANDLER_SRC="${CSOURCES_DIR}/panic_handler.c"
 PANIC_HANDLER_OBJ="${CSOURCES_DIR}/panic_handler.o"
 YYJSON_SHIM_SRC="${CSOURCES_DIR}/yyjson_shim.c"
 YYJSON_SHIM_OBJ="${CSOURCES_DIR}/yyjson_shim.o"
+QBE_RUNTIME_SRC="${CSOURCES_DIR}/qbe_runtime.c"
+QBE_RUNTIME_OBJ="${CSOURCES_DIR}/qbe_runtime.o"
 YYJSON_DIR="${SRC_DIR}/yyjson"
 OS="$(uname -s)"
 OTHER_PREFIX="/usr/local"
@@ -306,6 +308,9 @@ log "yyjson installed successfully."
 log "CC Stage I (C sources)..."
 cc -O2 -c "${PANIC_HANDLER_SRC}" -o "${PANIC_HANDLER_OBJ}"
 cc -O2 -I"${OTHER_PREFIX}/include" -c "${YYJSON_SHIM_SRC}" -o "${YYJSON_SHIM_OBJ}"
+if [ -f "${QBE_RUNTIME_SRC}" ]; then
+	cc -O2 -c "${QBE_RUNTIME_SRC}" -o "${QBE_RUNTIME_OBJ}"
+fi
 
 case "$OS" in
 Darwin)
@@ -334,6 +339,7 @@ if [ "$QBE_OK" -eq 1 ]; then
 	log "CC Stage II..."
 	cc -O2 \
 		"${BOOTSTRAP_OUT}.s" \
+		"${QBE_RUNTIME_OBJ}" \
 		"${PANIC_HANDLER_OBJ}" \
 		"${YYJSON_SHIM_OBJ}" \
 		-L"${OTHER_PREFIX}/lib" \
@@ -387,6 +393,9 @@ log "Installing C runtime objects..."
 mkdir -p "${STDLIB_DEST}/csources"
 cp "${PANIC_HANDLER_OBJ}" "${STDLIB_DEST}/csources/"
 cp "${YYJSON_SHIM_OBJ}" "${STDLIB_DEST}/csources/"
+if [ -f "${QBE_RUNTIME_OBJ}" ]; then
+	cp "${QBE_RUNTIME_OBJ}" "${STDLIB_DEST}/csources/"
+fi
 
 if [ "$MINIMAL" -eq 1 ]; then
 	log "Skipping spectre-ls (-minimal)."
