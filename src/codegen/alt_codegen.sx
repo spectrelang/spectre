@@ -2,15 +2,15 @@
 ///
 /// GPL-3.0-only (C) Navid Momtahen - 2026
 
-val arenafmt = use("../meta/arenafmt.sx")
 val fmt      = use("std/fmt")
 val str      = use("std/string")
 val stdio    = use("std/stdio")
 val os       = use("std/os")
 val fs       = use("std/fs")
+val codegen  = use("codegen.sx")
+val arenafmt = use("../meta/arenafmt.sx")
 val parser   = use("../ast/parser.sx")
 val module   = use("../module/module.sx")
-val codegen  = use("codegen.sx")
 val defines  = use("../meta/defines.sx")
 
 pub type CCtx = {
