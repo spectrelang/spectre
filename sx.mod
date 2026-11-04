@@ -1,6 +1,6 @@
 entry "./src/sxc.sx"
 version "v0.0.14"
-spectre_version "v0.0.13"
+spectre_version "v0.0.14"
 
 build prod {
     action "./fw/build.sh"
