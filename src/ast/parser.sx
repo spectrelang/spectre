@@ -1,9 +1,9 @@
 val allocators = use("std/allocators")
-val arenafmt = use("../meta/arenafmt.sx")
-val string   = use("std/string")
-val fmt      = use("std/fmt")
-val stdio    = use("std/stdio")
-val lexer    = use("lexer.sx")
+val arenafmt   = use("../meta/arenafmt.sx")
+val string     = use("std/string")
+val fmt        = use("std/fmt")
+val stdio      = use("std/stdio")
+val lexer      = use("lexer.sx")
 
 pub val NK_FN: i64 = 1
 pub val NK_USE: i64 = 2

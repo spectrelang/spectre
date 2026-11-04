@@ -1,11 +1,15 @@
 val allocators = use("std/allocators")
-val stdio = use("std/stdio")
+val stdio      = use("std/stdio")
 
 // Result values can be passed to ordinary helper parameters.
 fn unwrap(r: result[ref u8, allocators.AllocError]) ref u8 = trust {
     match r {
-        ok p => { return p }
-        err _ => { return none }
+        ok p => {
+            return p
+        }
+        err _ => {
+            return none
+        }
     }
     return none
 }

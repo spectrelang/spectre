@@ -124,7 +124,11 @@ type Lexer = {
     owns_arena: mut bool
 }
 
-fn lexer_new(arena: allocators.ScopedArenaAllocator, owns_arena: bool, src: ref u8) ref Lexer = trust {
+fn lexer_new(
+    arena: allocators.ScopedArenaAllocator,
+    owns_arena: bool,
+    src: ref u8
+) ref Lexer = trust {
     val slen: i64 = string.len_raw(src)
     val l: mut ref Lexer = @alloc(@sizeof(Lexer)) as ref Lexer
     l.src = src
@@ -187,7 +191,12 @@ fn is_space(c: i64) bool = trust {
     return c == 32 || c == 9 || c == 10 || c == 13
 }
 
-fn substr(arena: allocators.ScopedArenaAllocator, src: ref u8, start: i64, end: i64) ref u8 = trust {
+fn substr(
+    arena: allocators.ScopedArenaAllocator,
+    src: ref u8,
+    start: i64,
+    end: i64
+) ref u8 = trust {
     val n: i64 = end - start
     val buf: ref u8 = allocators.ScopedArena.alloc_or_none(arena, (n + 1) as usize) as ref u8
     @memcpy(buf, @ptradd(src, start), n)

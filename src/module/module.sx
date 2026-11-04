@@ -1243,7 +1243,15 @@ pub fn resolve_module(
 ) result[ref ResolvedModule, ref u8] = trust {
     val cache_keys: mut list[ref u8] = []
     val cache_vals: mut list[ref void] = []
-    return resolve_module_impl(arena, path, in_progress, exe_dir, needed_children, cache_keys, cache_vals)
+    return resolve_module_impl(
+        arena,
+        path,
+        in_progress,
+        exe_dir,
+        needed_children,
+        cache_keys,
+        cache_vals
+    )
 }
 
 /// Look up a direct import of `m` by its alias name.
