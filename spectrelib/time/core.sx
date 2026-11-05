@@ -308,9 +308,12 @@ test {
     assert DateTime.before(dt2, dt) == true
     assert DateTime.after(dt, dt2) == true
     assert DateTime.equals(dt, dt) == true
-    assert unix_now_millis() >= unix_now() * 1000
-    assert unix_now_micros() >= unix_now_millis() * 1000
-    assert now_ns() >= unix_now_micros() * 1000
+    val secs: i64 = unix_now()
+    assert unix_now_millis() >= secs * 1000
+    val millis: i64 = unix_now_millis()
+    assert unix_now_micros() >= millis * 1000
+    val micros: i64 = unix_now_micros()
+    assert now_ns() >= micros * 1000
 
     trust stdio.print("year: {d}\n", {DateTime.now().year})
 }
