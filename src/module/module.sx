@@ -1938,44 +1938,163 @@ pub fn collect_links_all(
     return ok result
 }
 
-/// Check if a platform name matches the current platform.
-/// Handles group aliases like "posix" matching linux/darwin/bsd/etc.
-pub fn platform_matches(current: ref u8, name: ref u8) bool = trust {
-    if str.raw_cmp(name, current) == 0 {
+/// Compare a length-delimited selector segment with a NUL-terminated literal.
+fn selector_segment_eq(seg: ref u8, seg_len: i64, lit: ref u8) bool = trust {
+    if str.len_raw(lit) != seg_len {
+        return false
+    }
+    val i: mut i64 = 0
+    for {
+        if i >= seg_len {
+            break
+        }
+        if @load8(@ptradd(seg, i)) != @load8(@ptradd(lit, i)) {
+            return false
+        }
+        i++
+    }
+    return true
+}
+
+fn platform_is_posix(current: ref u8) bool = trust {
+    if str.raw_cmp(current, "linux") == 0 {
         return true
     }
-
-    if str.raw_cmp(name, "posix") == 0 {
-        if str.raw_cmp(current, "linux") == 0 {
-            return true
-        }
-        if str.raw_cmp(current, "darwin") == 0 {
-            return true
-        }
-        if str.raw_cmp(current, "freebsd") == 0 {
-            return true
-        }
-        if str.raw_cmp(current, "openbsd") == 0 {
-            return true
-        }
-        if str.raw_cmp(current, "netbsd") == 0 {
-            return true
-        }
-        if str.raw_cmp(current, "dragonflybsd") == 0 {
-            return true
-        }
-        if str.raw_cmp(current, "haiku") == 0 {
-            return true
-        }
-        if str.raw_cmp(current, "android") == 0 {
-            return true
-        }
-        if str.raw_cmp(current, "redox") == 0 {
-            return true
-        }
+    if str.raw_cmp(current, "darwin") == 0 {
+        return true
     }
-
+    if str.raw_cmp(current, "freebsd") == 0 {
+        return true
+    }
+    if str.raw_cmp(current, "openbsd") == 0 {
+        return true
+    }
+    if str.raw_cmp(current, "netbsd") == 0 {
+        return true
+    }
+    if str.raw_cmp(current, "dragonflybsd") == 0 {
+        return true
+    }
+    if str.raw_cmp(current, "haiku") == 0 {
+        return true
+    }
+    if str.raw_cmp(current, "android") == 0 {
+        return true
+    }
+    if str.raw_cmp(current, "redox") == 0 {
+        return true
+    }
     return false
+}
+
+fn platform_is_bsd(current: ref u8) bool = trust {
+    return str.raw_cmp(current, "freebsd") == 0 ||
+    str.raw_cmp(current, "openbsd") == 0 ||
+    str.raw_cmp(current, "netbsd") == 0 ||
+    str.raw_cmp(current, "dragonflybsd") == 0
+}
+
+/// Match a platform segment that may be a concrete OS or a group alias.
+fn platform_segment_matches(current: ref u8, seg: ref u8, seg_len: i64) bool = trust {
+    if selector_segment_eq(seg, seg_len, current) {
+        return true
+    }
+    if selector_segment_eq(seg, seg_len, "posix") ||
+    selector_segment_eq(seg, seg_len, "unix") {
+        return platform_is_posix(current)
+    }
+    if selector_segment_eq(seg, seg_len, "bsd") {
+        return platform_is_bsd(current)
+    }
+    return false
+}
+
+fn is_arch_selector(name: ref u8) bool = trust {
+    return str.raw_cmp(name, "x86_64") == 0 ||
+    str.raw_cmp(name, "amd64") == 0 ||
+    str.raw_cmp(name, "aarch64") == 0 ||
+    str.raw_cmp(name, "arm64") == 0 ||
+    str.raw_cmp(name, "riscv64") == 0 ||
+    str.raw_cmp(name, "riscv32") == 0 ||
+    str.raw_cmp(name, "riscv") == 0 ||
+    str.raw_cmp(name, "x86") == 0 ||
+    str.raw_cmp(name, "i386") == 0 ||
+    str.raw_cmp(name, "i686") == 0 ||
+    str.raw_cmp(name, "arm") == 0 ||
+    str.raw_cmp(name, "armv7") == 0 ||
+    str.raw_cmp(name, "mips") == 0 ||
+    str.raw_cmp(name, "mips64") == 0 ||
+    str.raw_cmp(name, "ppc64") == 0 ||
+    str.raw_cmp(name, "powerpc64") == 0 ||
+    str.raw_cmp(name, "s390x") == 0 ||
+    str.raw_cmp(name, "wasm32") == 0 ||
+    str.raw_cmp(name, "wasm64") == 0
+}
+
+fn normalize_arch_name(name: ref u8) ref u8 = trust {
+    if str.raw_cmp(name, "amd64") == 0 {
+        return "x86_64"
+    }
+    if str.raw_cmp(name, "arm64") == 0 {
+        return "aarch64"
+    }
+    if str.raw_cmp(name, "i386") == 0 || str.raw_cmp(name, "i686") == 0 {
+        return "x86"
+    }
+    if str.raw_cmp(name, "powerpc64") == 0 {
+        return "ppc64"
+    }
+    return name
+}
+
+/// Check whether an architecture selector matches the host architecture.
+pub fn arch_matches(name: ref u8) bool = trust {
+    val arena: mut allocators.Arena = allocators.Arena.new(256 as usize)?
+    val current: ref u8 = reflection.current_arch_name[allocators.Arena](arena)
+    val matched: bool = str.raw_cmp(normalize_arch_name(name), normalize_arch_name(current)) == 0
+    allocators.Arena.free(arena)
+    return matched
+}
+
+/// Check whether a when selector matches the current platform (and host
+/// architecture when the selector names or includes one).
+///
+/// Accepted forms:
+///   - platform or platform group: `linux`, `windows`, `posix`, `bsd`
+///   - architecture: `x86_64`, `aarch64`, `riscv64`
+///   - platform.architecture: `linux.x86_64`, `posix.aarch64`
+pub fn when_selector_matches(current: ref u8, name: ref u8) bool = trust {
+    val nlen: i64 = str.len_raw(name)
+    val dot: mut i64 = -1
+    val i: mut i64 = 0
+    for {
+        if i >= nlen {
+            break
+        }
+        if @load8(@ptradd(name, i)) == 46 {
+            dot = i break
+        }
+        i++
+    }
+    if dot >= 0 {
+        if dot == 0 || dot + 1 >= nlen {
+            return false
+        }
+        if !platform_segment_matches(current, name, dot) {
+            return false
+        }
+        return arch_matches(@ptradd(name, dot + 1))
+    }
+    if is_arch_selector(name) {
+        return arch_matches(name)
+    }
+    return platform_segment_matches(current, name, nlen)
+}
+
+/// Check if a platform/architecture selector matches the current platform.
+/// Handles group aliases like "posix" matching linux/darwin/bsd/etc.
+pub fn platform_matches(current: ref u8, name: ref u8) bool = trust {
+    return when_selector_matches(current, name)
 }
 
 /// Check if an import name is in the list.

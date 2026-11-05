@@ -1440,6 +1440,9 @@ pub fn parse_type(p: mut ref Parser) result[ref Node, ref u8] = trust {
         if str_eq(name, "void") {
             return ok make_node(p.arena, TY_VOID, line)
         }
+        if str_eq(name, "argspack") {
+            return ok make_node(p.arena, TY_UNTYPED, line)
+        }
         if str_eq(name, "untyped") {
             return ok make_node(p.arena, TY_UNTYPED, line)
         }
@@ -2094,6 +2097,29 @@ fn parse_primary(p: mut ref Parser) result[ref Node, ref u8] = trust {
     return err p_error(p, "expected expression")
 }
 
+/// Parse a when-clause selector: either a platform/architecture name or a
+/// dotted platform.architecture pair (for example `linux.x86_64`).
+fn parse_when_selector(p: mut ref Parser) result[ref u8, ref u8] = trust {
+    val first = p_expect_ident(p)?
+    if !lexer.kind_is_dot(p_peek_kind(p)) {
+        return ok first
+    }
+    val sb: ref void = string.StringBuilder.new()
+    string.StringBuilder.append_cstr(sb, first)
+    for {
+        if !lexer.kind_is_dot(p_peek_kind(p)) {
+            break
+        }
+        p_advance(p)
+        val seg = p_expect_ident(p)?
+        string.StringBuilder.append_char(sb, 46 as u8)
+        string.StringBuilder.append_cstr(sb, seg)
+    }
+    val built: ref void = string.StringBuilder.build(sb)
+    string.StringBuilder.free(sb)
+    return ok string.cstr(built)
+}
+
 fn parse_contracts(p: mut ref Parser) result[list[ref Node], ref u8] = trust {
     val contracts: mut list[ref Node] = []
     for {
@@ -2737,7 +2763,7 @@ pub fn parse_stmt(p: mut ref Parser) result[ref Node, ref u8] = trust {
 
     if kind_is_when(k) {
         p_advance(p)
-        val ident_text = p_expect_ident(p)?
+        val ident_text = parse_when_selector(p)?
         val next_k: lexer.TokenKind = p_peek_kind(p)
 
         if lexer.kind_is_bang(next_k) {
@@ -2892,7 +2918,7 @@ pub fn parse_stmt(p: mut ref Parser) result[ref Node, ref u8] = trust {
             }
             p_advance(p)
             p_advance(p)
-            val ow_plat = p_expect_ident(p)?
+            val ow_plat = parse_when_selector(p)?
             p_expect_lbrace(p)?
             val ow_body = parse_stmts(p)?
             p_expect_rbrace(p)?
@@ -3774,7 +3800,7 @@ pub fn parse_item(p: mut ref Parser) result[ref Node, ref u8] = trust {
 
     if kind_is_when(k) {
         p_advance(p)
-        val plat = p_expect_ident(p)?
+        val plat = parse_when_selector(p)?
         p_expect_lbrace(p)?
         val witems: mut list[ref Node] = []
         for {
@@ -3801,7 +3827,7 @@ pub fn parse_item(p: mut ref Parser) result[ref Node, ref u8] = trust {
             }
             p_advance(p)
             p_advance(p)
-            val ow_plat = p_expect_ident(p)?
+            val ow_plat = parse_when_selector(p)?
             p_expect_lbrace(p)?
             val ow_items: mut list[ref Node] = []
             for {

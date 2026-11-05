@@ -1,0 +1,20 @@
+pub fn main() void = {
+    when x86_64 {
+        @puts("hi x86_64")
+    }
+    when linux.x86_64 {
+        @puts("hi sysv x86_64")
+    }
+    when windows.aarch64 {
+        @puts("nice surface laptop you got")
+    }
+    when posix.aarch64 {
+        @puts("im guessing its a macbook, but darwin.aarch64 would be more accurate")
+    }
+    when darwin.riscv64 {
+        @puts("what?")
+    }
+    when riscv64 {
+        @puts("ok")
+    }
+}

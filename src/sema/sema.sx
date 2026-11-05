@@ -1533,6 +1533,256 @@ fn find_typedef_anywhere(ctx: ref SemaCtx, type_name: ref u8) ref parser.Node = 
     return none
 }
 
+/// Returns true for item kinds that declare a named type.
+fn sema_is_type_def_kind(k: i64) bool = trust {
+    return k == parser.NK_TYPEDEF || k == parser.NK_EXTERN_TYPE ||
+    k == parser.NK_ENUMDEF || k == parser.NK_UNIONDEF ||
+    k == parser.NK_TAGGED_UNIONDEF || k == parser.NK_SPEC
+}
+
+fn find_type_def_in_items(
+    ctx: ref SemaCtx,
+    items: list[ref parser.Node],
+    type_name: ref u8
+) ref parser.Node = trust {
+    for item in items {
+        if item == none {
+            continue
+        }
+        if sema_is_type_def_kind(item.kind) {
+            val nm: ref u8 = item.d1 as ref u8
+            if nm != none && str_eq(nm, type_name) {
+                return item
+            }
+        }
+        if item.kind == parser.NK_WHEN_ITEMS {
+            val selected: ref void = sema_select_when_branch(ctx, item)
+            if selected != none {
+                val found: ref parser.Node = find_type_def_in_items(
+                    ctx,
+                    selected as list[ref parser.Node],
+                    type_name
+                )
+                if found != none {
+                    return found
+                }
+            }
+        }
+    }
+    return none
+}
+
+fn find_type_def_in_module_tree(
+    ctx: ref SemaCtx,
+    mod: ref modinfo.ResolvedModule,
+    type_name: ref u8
+) ref parser.Node = trust {
+    if mod == none {
+        return none
+    }
+    val found: ref parser.Node = find_type_def_in_items(
+        ctx,
+        modinfo.module_items(mod),
+        type_name
+    )
+    if found != none {
+        return found
+    }
+    val n: i64 = modinfo.import_count(mod)
+    val i: mut i64 = 0
+    for {
+        if i >= n {
+            break
+        }
+        val child: ref modinfo.ResolvedModule = modinfo.import_module_at(mod, i as usize)
+        val child_found: ref parser.Node = find_type_def_in_module_tree(ctx, child, type_name)
+        if child_found != none {
+            return child_found
+        }
+        i++
+    }
+    return none
+}
+
+/// Resolve whether a named type exists, including types declared in imported
+/// modules (both qualified and unqualified through `use`).
+fn sema_type_name_known(ctx: ref SemaCtx, type_name: ref u8) bool = trust {
+    if type_name == none || str_eq(type_name, "") {
+        return true
+    }
+    if is_builtin_type_name(type_name) || is_type_parameter(ctx, type_name) ||
+    str_eq(type_name, "self") {
+        return true
+    }
+    for registered in ctx.type_names {
+        if registered != none && str_eq(registered as ref u8, type_name) {
+            return true
+        }
+    }
+    if sema_lookup_typedef(ctx, type_name) != none ||
+    sema_lookup_uniondef(ctx, type_name) != none ||
+    sema_lookup_enumdef(ctx, type_name) != none ||
+    sema_lookup_tagged_uniondef(ctx, type_name) != none {
+        return true
+    }
+
+    val nlen: i64 = string.len_raw(type_name)
+    val dot_idx: mut i64 = -1
+    val i: mut i64 = 0
+    for {
+        if i >= nlen {
+            break
+        }
+        if @load8(@ptradd(type_name, i)) == 46 {
+            dot_idx = i
+            break
+        }
+        i++
+    }
+    if dot_idx > 0 {
+        val mod_name_buf: ref u8 = allocators.ScopedArena.alloc_or_none(
+            ctx.arena,
+            ((dot_idx + 1) as usize) as usize
+        ) as ref u8
+        @memcpy(mod_name_buf, type_name, dot_idx as usize)
+        @store8(@ptradd(mod_name_buf, dot_idx), 0)
+        val unqual: ref u8 = @ptradd(type_name, dot_idx + 1) as ref u8
+        val mm: ref modinfo.ResolvedModule = find_imported_mod(ctx, mod_name_buf)
+        if mm == none {
+            return false
+        }
+        return find_type_def_in_items(
+            ctx,
+            modinfo.module_items(mm),
+            unqual
+        ) != none
+    }
+
+    val root: ref modinfo.ResolvedModule = ctx.root_mod
+    if root == none {
+        return false
+    }
+    return find_type_def_in_module_tree(ctx, root, type_name) != none
+}
+
+fn sema_validate_type_node(
+    ctx: ref SemaCtx,
+    ty: ref parser.Node,
+    filename: ref u8,
+    line: i64,
+    what: ref u8,
+    fn_name: ref u8
+) void = trust {
+    if ty == none {
+        return
+    }
+    val k: i64 = ty.kind
+    if k == parser.TY_NAMED {
+        val name: ref u8 = ty.d0 as ref u8
+        if !sema_type_name_known(ctx, name) {
+            val buf: ref u8 = allocators.ScopedArena.alloc_or_none(
+                ctx.arena,
+                (512) as usize
+            ) as ref u8
+            @snprintf(
+                buf,
+                512,
+                "{s}:{lld}: unknown type '{s}' in {s} of function '{s}'",
+                {filename, line, name, what, fn_name}
+            )
+            add_error(ctx, buf)
+        }
+        return
+    }
+    if k == parser.TY_REF || k == parser.TY_MUT || k == parser.TY_OPTION ||
+    k == parser.TY_LIST || k == parser.TY_SLICE {
+        sema_validate_type_node(
+            ctx,
+            ty.d0 as ref parser.Node,
+            filename,
+            line,
+            what,
+            fn_name
+        )
+        return
+    }
+    if k == parser.TY_RESULT {
+        sema_validate_type_node(
+            ctx,
+            ty.d0 as ref parser.Node,
+            filename,
+            line,
+            what,
+            fn_name
+        )
+        sema_validate_type_node(
+            ctx,
+            ty.d1 as ref parser.Node,
+            filename,
+            line,
+            what,
+            fn_name
+        )
+        return
+    }
+    if k == parser.TY_FIXED_ARR {
+        sema_validate_type_node(
+            ctx,
+            ty.d1 as ref parser.Node,
+            filename,
+            line,
+            what,
+            fn_name
+        )
+        return
+    }
+    if k == parser.TY_FNPTR {
+        val params: ref void = ty.d0 as ref void
+        if params != none {
+            for p in params as list[ref parser.Node] {
+                sema_validate_type_node(ctx, p, filename, line, what, fn_name)
+            }
+        }
+        sema_validate_type_node(
+            ctx,
+            ty.d1 as ref parser.Node,
+            filename,
+            line,
+            what,
+            fn_name
+        )
+    }
+}
+
+/// Validate parameter and return types of a function declaration.
+fn sema_validate_fn_types(ctx: ref SemaCtx, fn_node: ref parser.Node, filename: ref u8) void = trust {
+    val fn_name: ref u8 = fn_node.d2 as ref u8
+    val params: ref void = fn_node.d3 as ref void
+    if params != none {
+        for p in params as list[ref parser.Node] {
+            if p == none {
+                continue
+            }
+            val pname: ref u8 = p.d0 as ref u8
+            val pty: ref parser.Node = p.d1 as ref parser.Node
+            val what: ref u8 = allocators.ScopedArena.alloc_or_none(
+                ctx.arena,
+                (128) as usize
+            ) as ref u8
+            @snprintf(what, 128, "parameter '{s}'", {pname})
+            sema_validate_type_node(ctx, pty, filename, p.line, what, fn_name)
+        }
+    }
+    sema_validate_type_node(
+        ctx,
+        fn_node.d4 as ref parser.Node,
+        filename,
+        fn_node.line,
+        "return type",
+        fn_name
+    )
+}
+
 fn find_spec_in_items(
     ctx: ref SemaCtx,
     items: list[ref parser.Node],
@@ -4688,6 +4938,8 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
             }
         }
 
+        sema_check_call_preconditions(ctx, fn_found, cargs, filename, line)
+
         if generic_inst_has_infer(callee) {
             resolve_generic_inst_inference(ctx, callee, fn_found, cargs, filename, line)
         }
@@ -5513,6 +5765,12 @@ fn sema_const_eval(expr: ref parser.Node, field_names: ref void, field_vals: ref
     if k == parser.NK_BOOL {
         return expr.d0 as i64
     }
+    if k == parser.NK_CHAR_LIT {
+        return expr.d0 as i64
+    }
+    if k == parser.NK_CAST || k == parser.NK_TRUST {
+        return sema_const_eval(expr.d0 as ref parser.Node, field_names, field_vals)
+    }
     if k == parser.NK_IDENT {
         val iname: ref u8 = expr.d0 as ref u8
         val flen: i64 = @len(field_names as list[ref u8]) as i64
@@ -5524,12 +5782,8 @@ fn sema_const_eval(expr: ref parser.Node, field_names: ref void, field_vals: ref
             val fn_opt = @get(field_names as list[ref u8], fi as usize)
             if fn_opt is some func {
                 if string.raw_cmp(func as ref u8, iname) == 0 {
-                    val fv_opt = @get(field_vals as list[i64], fi as usize)
-                    if fv_opt is some fv {
-                        return fv as i64
-                    } else {
-                        return SEMA_UNKNOWN
-                    }
+                    val buf: ref void = @load(field_vals) as ref void
+                    return @load(@ptradd(buf, fi * 8)) as i64
                 }
             }
             fi++
@@ -5701,6 +5955,128 @@ fn sema_const_eval_no_fields(expr: ref parser.Node) i64 = trust {
     val field_names: list[ref u8] = []
     val field_vals: list[i64] = []
     return sema_const_eval(expr, field_names as ref void, field_vals as ref void)
+}
+
+/// Collect unconditional preconditions from a function body. Preconditions
+/// inside an active compile-time `when` branch are unconditional as well.
+fn sema_collect_preconditions(ctx: ref SemaCtx, stmts: ref void, out: mut list[ref parser.Node]) void = trust {
+    if stmts == none {
+        return
+    }
+    for stmt in stmts as list[ref parser.Node] {
+        if stmt == none {
+            continue
+        }
+        val k: i64 = stmt.kind
+        if k == parser.NK_PRE || k == parser.NK_GUARDED_PRE {
+            @append(out, stmt)
+        } elif k == parser.NK_WHEN_STMT {
+            val selected: ref void = sema_select_when_branch(ctx, stmt)
+            if selected != none {
+                sema_collect_preconditions(ctx, selected, out)
+            }
+        }
+    }
+}
+
+/// Try to evaluate a callee's preconditions at a call site where the arguments
+/// are compile-time constants. A statically false precondition is reported as
+/// an error instead of being deferred to a runtime assertion.
+fn sema_check_call_preconditions(
+    ctx: ref SemaCtx,
+    fn_found: ref parser.Node,
+    cargs: ref void,
+    filename: ref u8,
+    line: i64
+) void = trust {
+    if fn_found == none {
+        return
+    }
+    if fn_found.kind != parser.NK_FN && fn_found.kind != parser.NK_GENERIC_FN {
+        return
+    }
+    val params: ref void = fn_found.d3 as ref void
+    val body: ref void = fn_found.d5 as ref void
+    if params == none || body == none {
+        return
+    }
+    val pres: mut list[ref parser.Node] = []
+    sema_collect_preconditions(ctx, body, pres)
+    if @len(pres) as i64 == 0 {
+        return
+    }
+
+    val pnames: mut list[ref u8] = []
+    val pvals: mut list[i64] = []
+    val plen: i64 = @len(params as list[ref parser.Node]) as i64
+    val alen: mut i64 = 0
+    if cargs != none {
+        alen = @len(cargs as list[ref parser.Node]) as i64
+    }
+    val pi: mut i64 = 0
+    for {
+        if pi >= plen {
+            break
+        }
+        val p_opt = @get(params as list[ref parser.Node], pi as usize)
+        if p_opt is some p {
+            val pnode: ref parser.Node = p as ref parser.Node
+            val pname: ref u8 = pnode.d0 as ref u8
+            val pval: mut i64 = SEMA_UNKNOWN
+            if pi < alen {
+                val a_opt = @get(cargs as list[ref parser.Node], pi as usize)
+                if a_opt is some a {
+                    pval = sema_const_eval_no_fields(a as ref parser.Node)
+                }
+            }
+            @append(pnames, pname)
+            @append(pvals, pval)
+        }
+        pi++
+    }
+
+    val fn_name: ref u8 = fn_found.d2 as ref u8
+    for pre_node in pres {
+        val clist: ref void = pre_node.d0 as ref void
+        if clist == none {
+            continue
+        }
+        for c in clist as list[ref parser.Node] {
+            if c == none {
+                continue
+            }
+            val label: ref u8 = c.d0 as ref u8
+            val cexpr: ref parser.Node = c.d1 as ref parser.Node
+            val result: i64 = sema_const_eval(
+                cexpr,
+                pnames as ref void,
+                pvals as ref void
+            )
+            if result == SEMA_UNKNOWN || result != 0 {
+                continue
+            }
+            val buf: ref u8 = allocators.ScopedArena.alloc_or_none(
+                ctx.arena,
+                (512) as usize
+            ) as ref u8
+            if label != none {
+                @snprintf(
+                    buf,
+                    512,
+                    "{s}:{lld}: precondition '{s}' of function '{s}' is violated by constant arguments",
+                    {filename, line, label, fn_name}
+                )
+            } else {
+                @snprintf(
+                    buf,
+                    512,
+                    "{s}:{lld}: precondition of function '{s}' is violated by constant arguments",
+                    {filename, line, fn_name}
+                )
+            }
+            add_error(ctx, buf)
+        }
+    }
 }
 
 fn sema_lookup_enumdef(ctx: ref SemaCtx, type_name: ref u8) ref parser.Node = trust {
@@ -6958,6 +7334,8 @@ fn check_fn(ctx: mut ref SemaCtx, fn_node: ref parser.Node, filename: ref u8) vo
     val prev_untyped: list[ref u8] = ctx.untyped_params
     ctx.untyped_params = []
 
+    sema_validate_fn_types(ctx, fn_node, filename)
+
     push_scope(ctx)
     if params != none {
         for param in params as list[ref parser.Node] {
@@ -7156,6 +7534,8 @@ fn check_generic_fn(ctx: mut ref SemaCtx, fn_node: ref parser.Node, filename: re
             @append(ctx.type_params, parser.tparam_name(tparam as ref parser.Node))
         }
     }
+
+    sema_validate_fn_types(ctx, fn_node, filename)
 
     push_scope(ctx)
     val params: ref void = fn_node.d3 as ref void

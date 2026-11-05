@@ -1,0 +1,10 @@
+pub fn some_function(x: i64) void = {
+    pre {
+        x_over_zero: x > 0
+    }
+    @puts("hi")
+}
+
+pub fn main() void = {
+    some_function(-1)
+}
