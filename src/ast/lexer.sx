@@ -463,7 +463,8 @@ fn skip_whitespace(l: mut ref Lexer) void = trust {
 fn skip_comment(l: mut ref Lexer) bool = trust {
     if lx_peek(l) == 47 && lx_peek2(l) == 47 {
         for {
-            val c: i64 = lx_peek(l) if c == -1 || c == 10 {
+            val c: i64 = lx_peek(l)
+            if c == -1 || c == 10 {
                 break
             }
             lx_advance(l)
@@ -610,7 +611,8 @@ fn lex_single_char(l: ref Lexer, c: i64, line: i64, col: i64) result[ref Token, 
 
 fn lex_dot(l: mut ref Lexer, line: i64, col: i64) ref Token = trust {
     if lx_peek(l) == 46 && lx_peek2(l) == 46 {
-        lx_advance(l) lx_advance(l)
+        lx_advance(l)
+        lx_advance(l)
         return make_tok(l, DotDotDot(), line, col)
     }
     return make_tok(l, Dot(), line, col)
@@ -618,74 +620,88 @@ fn lex_dot(l: mut ref Lexer, line: i64, col: i64) ref Token = trust {
 
 fn lex_plus(l: mut ref Lexer, line: i64, col: i64) ref Token = trust {
     if lx_peek(l) == 43 {
-        lx_advance(l) return make_tok(l, PlusPlus(), line, col)
+        lx_advance(l)
+        return make_tok(l, PlusPlus(), line, col)
     }
     if lx_peek(l) == 61 {
-        lx_advance(l) return make_tok(l, PlusEq(), line, col)
+        lx_advance(l)
+        return make_tok(l, PlusEq(), line, col)
     }
     return make_tok(l, Plus(), line, col)
 }
 
 fn lex_minus(l: mut ref Lexer, line: i64, col: i64) ref Token = trust {
     if lx_peek(l) == 62 {
-        lx_advance(l) return make_tok(l, Arrow(), line, col)
+        lx_advance(l)
+        return make_tok(l, Arrow(), line, col)
     }
     if lx_peek(l) == 45 {
-        lx_advance(l) return make_tok(l, MinusMinus(), line, col)
+        lx_advance(l)
+        return make_tok(l, MinusMinus(), line, col)
     }
     if lx_peek(l) == 61 {
-        lx_advance(l) return make_tok(l, MinusEq(), line, col)
+        lx_advance(l)
+        return make_tok(l, MinusEq(), line, col)
     }
     return make_tok(l, Minus(), line, col)
 }
 
 fn lex_eq(l: mut ref Lexer, line: i64, col: i64) ref Token = trust {
     if lx_peek(l) == 61 {
-        lx_advance(l) return make_tok(l, EqEq(), line, col)
+        lx_advance(l)
+        return make_tok(l, EqEq(), line, col)
     }
     if lx_peek(l) == 62 {
-        lx_advance(l) return make_tok(l, FatArrow(), line, col)
+        lx_advance(l)
+        return make_tok(l, FatArrow(), line, col)
     }
     return make_tok(l, Eq(), line, col)
 }
 
 fn lex_bang(l: mut ref Lexer, line: i64, col: i64) ref Token = trust {
     if lx_peek(l) == 61 {
-        lx_advance(l) return make_tok(l, BangEq(), line, col)
+        lx_advance(l)
+        return make_tok(l, BangEq(), line, col)
     }
     return make_tok(l, Bang(), line, col)
 }
 
 fn lex_lt(l: mut ref Lexer, line: i64, col: i64) ref Token = trust {
     if lx_peek(l) == 61 {
-        lx_advance(l) return make_tok(l, LtEq(), line, col)
+        lx_advance(l)
+        return make_tok(l, LtEq(), line, col)
     }
     if lx_peek(l) == 60 {
-        lx_advance(l) return make_tok(l, Shl(), line, col)
+        lx_advance(l)
+        return make_tok(l, Shl(), line, col)
     }
     return make_tok(l, Lt(), line, col)
 }
 
 fn lex_gt(l: mut ref Lexer, line: i64, col: i64) ref Token = trust {
     if lx_peek(l) == 61 {
-        lx_advance(l) return make_tok(l, GtEq(), line, col)
+        lx_advance(l)
+        return make_tok(l, GtEq(), line, col)
     }
     if lx_peek(l) == 62 {
-        lx_advance(l) return make_tok(l, Shr(), line, col)
+        lx_advance(l)
+        return make_tok(l, Shr(), line, col)
     }
     return make_tok(l, Gt(), line, col)
 }
 
 fn lex_amp(l: mut ref Lexer, line: i64, col: i64) ref Token = trust {
     if lx_peek(l) == 38 {
-        lx_advance(l) return make_tok(l, And(), line, col)
+        lx_advance(l)
+        return make_tok(l, And(), line, col)
     }
     return make_tok(l, BitAnd(), line, col)
 }
 
 fn lex_pipe(l: mut ref Lexer, line: i64, col: i64) ref Token = trust {
     if lx_peek(l) == 124 {
-        lx_advance(l) return make_tok(l, Or(), line, col)
+        lx_advance(l)
+        return make_tok(l, Or(), line, col)
     }
     return make_tok(l, BitOr(), line, col)
 }
@@ -786,13 +802,15 @@ fn tokenize_in(
         }
         match lex_single_char(l, c, line, col) {
             ok t => {
-                @append(tokens, t) continue
+                @append(tokens, t)
+                continue
             }
             err _ => {}
         }
         match lex_operator(l, c, line, col) {
             ok t => {
-                @append(tokens, t) continue
+                @append(tokens, t)
+                continue
             }
             err _ => {}
         }

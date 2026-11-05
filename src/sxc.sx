@@ -4,7 +4,7 @@
 /// (C) Navid Momtahen - 2026
 
 val fs          = use("std/fs")
-val mem        = use("meta/mem.sx")
+val mem         = use("meta/mem.sx")
 val string      = use("std/string")
 val stdio       = use("std/stdio")
 val os          = use("std/os")
@@ -633,7 +633,13 @@ pub fn main() i32 = trust {
         stdio.puts("[I  ]│ Resolving module")
     }
 
-    val resolve_result = module.resolve_module(frontend_arena, input, mem.new[ref u8](), exe_dir, none)
+    val resolve_result = module.resolve_module(
+        frontend_arena,
+        input,
+        mem.new[ref u8](),
+        exe_dir,
+        none
+    )
     val root_mod: mut ref module.ResolvedModule = none
 
     match resolve_result {

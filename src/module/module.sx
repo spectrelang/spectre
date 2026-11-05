@@ -45,7 +45,8 @@ pub fn new_resolved(
 fn file_exists(path: ref u8) bool = trust {
     val f = fs.open(path, "r")
     if f is some h {
-        fs.close(h) return true
+        fs.close(h)
+        return true
     } else {
         return false
     }
@@ -107,7 +108,8 @@ pub fn resolve_use_path(
         }
         val c: u8 = @load8(@ptradd(use_path, si))
         if c == 47 {
-            has_slash = true break
+            has_slash = true
+            break
         }
         si++
     }
@@ -2073,7 +2075,8 @@ pub fn when_selector_matches(current: ref u8, name: ref u8) bool = trust {
             break
         }
         if @load8(@ptradd(name, i)) == 46 {
-            dot = i break
+            dot = i
+            break
         }
         i++
     }
@@ -3516,7 +3519,8 @@ pub fn collect_used_links(
             val d_opt = @get(deduped, di as usize)
             if d_opt is some d {
                 if str.raw_cmp(d as ref u8, lnk) == 0 {
-                    already = true break
+                    already = true
+                    break
                 }
             }
             di++

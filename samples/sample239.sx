@@ -1,0 +1,8 @@
+pub fn main() void = {
+    some_func()
+}
+
+fn some_func() void = {
+    @puts("hello")
+
+}

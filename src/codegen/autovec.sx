@@ -8,7 +8,7 @@
 /// (C) Navid Momtahen - 2026
 
 val parser = use("../ast/parser.sx")
-val mem        = use("../meta/mem.sx")
+val mem    = use("../meta/mem.sx")
 val str    = use("std/string")
 
 /// A vectorizable counted loop.

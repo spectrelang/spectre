@@ -855,7 +855,8 @@ fn raw_contains(haystack: ref u8, needle: ref u8) bool = {
             val x: u8 = trust @load8(@ptradd(haystack, i + j)) as u8
             val y: u8 = trust @load8(@ptradd(needle, j)) as u8
             if x != y {
-                matched = false break
+                matched = false
+                break
             }
             j++
         }

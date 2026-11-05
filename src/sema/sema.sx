@@ -755,7 +755,8 @@ fn check_no_module_to_module_type(
             if first_dot < 0 {
                 first_dot = si
             } elif second_dot < 0 {
-                second_dot = si break
+                second_dot = si
+                break
             }
         }
         si++
@@ -1252,7 +1253,8 @@ fn ty_wrap_kind(ty: ref parser.Node) i64 = trust {
             return 2
         }
         if k == parser.TY_MUT {
-            cur = cur.d0 as ref parser.Node continue
+            cur = cur.d0 as ref parser.Node
+            continue
         }
         return 0
     }
@@ -3451,7 +3453,8 @@ fn parse_fmt_specifiers(ctx: ref SemaCtx, s: ref u8) list[ref u8] = trust {
                     break
                 }
                 if jc == 125 {
-                    found = true break
+                    found = true
+                    break
                 } // '}'
                 j++
             }
@@ -4699,7 +4702,8 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
                 break
             }
             if c == 46 {
-                has_dot = true break
+                has_dot = true
+                break
             }
             i++
         }
@@ -4709,27 +4713,32 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
                 val is_known: mut bool = false
                 for fn_name in ctx.fn_names {
                     if str_eq(fn_name, name) {
-                        is_known = true @append(ctx.used_fns, name) break
+                        is_known = true
+                        @append(ctx.used_fns, name)
+                        break
                     }
                 }
                 if !is_known {
                     for ty_name in ctx.type_names {
                         if str_eq(ty_name, name) {
-                            is_known = true break
+                            is_known = true
+                            break
                         }
                     }
                 }
                 if !is_known {
                     for tp_name in ctx.type_params {
                         if str_eq(tp_name, name) {
-                            is_known = true break
+                            is_known = true
+                            break
                         }
                     }
                 }
                 if !is_known {
                     for gname in ctx.global_names {
                         if str_eq(gname, name) {
-                            is_known = true break
+                            is_known = true
+                            break
                         }
                     }
                 }
@@ -5796,13 +5805,16 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
             val fmt_idx: mut i64 = 0
             val args_start: mut i64 = 1
             if is_dprintf {
-                fmt_idx = 1 args_start = 2
+                fmt_idx = 1
+                args_start = 2
             }
             if is_snprintf {
-                fmt_idx = 2 args_start = 3
+                fmt_idx = 2
+                args_start = 3
             }
             if is_fmtalloc && type_argc > 0 {
-                fmt_idx = 1 args_start = 2
+                fmt_idx = 1
+                args_start = 2
             }
             if bargs != none {
                 val blen: i64 = @len(bargs) as i64
@@ -9099,7 +9111,8 @@ pub fn check_module(
             val used_found: mut bool = false
             for uf in ctx.used_fns {
                 if str_eq(uf as ref u8, fn_name as ref u8) {
-                    used_found = true break
+                    used_found = true
+                    break
                 }
             }
             if !used_found {
@@ -9107,7 +9120,8 @@ pub fn check_module(
                 val is_variant: mut bool = false
                 for vn in ctx.variant_names {
                     if str_eq(vn as ref u8, namec) {
-                        is_variant = true break
+                        is_variant = true
+                        break
                     }
                 }
                 val is_public: bool = is_function_public(ctx, items, namec)

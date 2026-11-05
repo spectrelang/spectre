@@ -2485,7 +2485,14 @@ fn replace_pointer_indexing(ctx: ref TranslationCtx, text: ref u8) ref u8 = {
 fn ensure_intrinsic_prefixes(text: ref u8) ref u8 = {
     val trimmed: ref u8 = trim_raw(text)
     val len: i64 = string.len_raw(trimmed)
-    val names: list[ref u8] = mem.from6[ref u8]("load", "store", "ptradd", "sizeof", "alloc", "free")
+    val names: list[ref u8] = mem.from6[ref u8](
+        "load",
+        "store",
+        "ptradd",
+        "sizeof",
+        "alloc",
+        "free"
+    )
     val sb: ref void = string.StringBuilder.new()
     val i: mut i64 = 0
     for {
@@ -2533,7 +2540,14 @@ fn ensure_intrinsic_prefixes(text: ref u8) ref u8 = {
 fn normalize_intrinsic_prefixes(text: ref u8) ref u8 = {
     val trimmed: ref u8 = trim_raw(text)
     val len: i64 = string.len_raw(trimmed)
-    val names: list[ref u8] = mem.from6[ref u8]("load", "store", "ptradd", "sizeof", "alloc", "free")
+    val names: list[ref u8] = mem.from6[ref u8](
+        "load",
+        "store",
+        "ptradd",
+        "sizeof",
+        "alloc",
+        "free"
+    )
     val sb: ref void = string.StringBuilder.new()
     val i: mut i64 = 0
     for {

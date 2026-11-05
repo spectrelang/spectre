@@ -667,7 +667,8 @@ fn p_error(p: ref Parser, msg: ref u8) ref u8 = trust {
 
 fn p_eat_fn(p: mut ref Parser, is_kind: fn(lexer.TokenKind) bool) bool = trust {
     if is_kind(p_peek_kind(p)) {
-        p_advance(p) return true
+        p_advance(p)
+        return true
     }
     return false
 }
@@ -1622,7 +1623,8 @@ fn parse_cmp(p: mut ref Parser) result[ref Node, ref u8] = trust {
         if op == 0 {
             break
         }
-        val line: i64 = p_line(p) p_advance(p)
+        val line: i64 = p_line(p)
+        p_advance(p)
         val rhs = parse_bitor(p)?
         res = make_binop(p.arena, op, line, res, rhs)?
     }
@@ -1636,7 +1638,8 @@ fn parse_bitor(p: mut ref Parser) result[ref Node, ref u8] = trust {
         if !kind_is_bitor(p_peek_kind(p)) {
             break
         }
-        val line: i64 = p_line(p) p_advance(p)
+        val line: i64 = p_line(p)
+        p_advance(p)
         val rhs = parse_bitxor(p)?
         res = make_binop(p.arena, OP_BOR, line, res, rhs)?
     }
@@ -1650,7 +1653,8 @@ fn parse_bitxor(p: mut ref Parser) result[ref Node, ref u8] = trust {
         if !kind_is_bitxor(p_peek_kind(p)) {
             break
         }
-        val line: i64 = p_line(p) p_advance(p)
+        val line: i64 = p_line(p)
+        p_advance(p)
         val rhs = parse_bitand(p)?
         res = make_binop(p.arena, OP_BXOR, line, res, rhs)?
     }
@@ -1664,7 +1668,8 @@ fn parse_bitand(p: mut ref Parser) result[ref Node, ref u8] = trust {
         if !kind_is_bitand(p_peek_kind(p)) {
             break
         }
-        val line: i64 = p_line(p) p_advance(p)
+        val line: i64 = p_line(p)
+        p_advance(p)
         val rhs = parse_shift(p)?
         res = make_binop(p.arena, OP_BAND, line, res, rhs)?
     }
@@ -1685,7 +1690,8 @@ fn parse_shift(p: mut ref Parser) result[ref Node, ref u8] = trust {
         if op == 0 {
             break
         }
-        val line: i64 = p_line(p) p_advance(p)
+        val line: i64 = p_line(p)
+        p_advance(p)
         val rhs = parse_add(p)?
         res = make_binop(p.arena, op, line, res, rhs)?
     }
@@ -1706,7 +1712,8 @@ fn parse_add(p: mut ref Parser) result[ref Node, ref u8] = trust {
         if op == 0 {
             break
         }
-        val line: i64 = p_line(p) p_advance(p)
+        val line: i64 = p_line(p)
+        p_advance(p)
         val rhs = parse_mul(p)?
         res = make_binop(p.arena, op, line, res, rhs)?
     }
@@ -1729,7 +1736,8 @@ fn parse_mul(p: mut ref Parser) result[ref Node, ref u8] = trust {
         if op == 0 {
             break
         }
-        val line: i64 = p_line(p) p_advance(p)
+        val line: i64 = p_line(p)
+        p_advance(p)
         val rhs = parse_unary(p)?
         res = make_binop(p.arena, op, line, res, rhs)?
     }
@@ -1979,13 +1987,20 @@ fn parse_primary(p: mut ref Parser) result[ref Node, ref u8] = trust {
     }
 
     if kind_is_true(k) {
-        p_advance(p) val n4: mut ref Node = make_node(p.arena, NK_BOOL, line) n4.d0 = 1 return ok n4
+        p_advance(p)
+        val n4: mut ref Node = make_node(p.arena, NK_BOOL, line)
+        n4.d0 = 1
+        return ok n4
     }
     if kind_is_false(k) {
-        p_advance(p) val n5: mut ref Node = make_node(p.arena, NK_BOOL, line) n5.d0 = 0 return ok n5
+        p_advance(p)
+        val n5: mut ref Node = make_node(p.arena, NK_BOOL, line)
+        n5.d0 = 0
+        return ok n5
     }
     if kind_is_none(k) {
-        p_advance(p) return ok make_node(p.arena, NK_NONE, line)
+        p_advance(p)
+        return ok make_node(p.arena, NK_NONE, line)
     }
     if kind_is_char(k) {
         val char_val: i64 = kind_char_val(k)
@@ -2145,7 +2160,8 @@ fn parse_primary(p: mut ref Parser) result[ref Node, ref u8] = trust {
     if kind_is_ident(k) {
         val name: ref u8 = p_advance_text(p)
         if lexer.kind_is_lbrace(p_peek_kind(p)) && lexer.kind_is_rbrace(p_peek2_kind(p)) {
-            p_advance(p) p_advance(p)
+            p_advance(p)
+            p_advance(p)
             val nz: mut ref Node = make_node(p.arena, NK_ZERO_INIT, line)
             node_store_slot[ref u8](@addr(nz.d0), name)
             return ok nz
@@ -2344,7 +2360,8 @@ pub fn parse_stmt(p: mut ref Parser) result[ref Node, ref u8] = trust {
                 if !kind_is_elif(p_peek_kind(p)) {
                     break
                 }
-                val iel: i64 = p_line(p) p_advance(p)
+                val iel: i64 = p_line(p)
+                p_advance(p)
                 val iecond = parse_expr(p)?
                 p_expect_lbrace(p)?
                 val iebody = parse_stmts(p)?
@@ -2426,7 +2443,8 @@ pub fn parse_stmt(p: mut ref Parser) result[ref Node, ref u8] = trust {
                 if !kind_is_elif(p_peek_kind(p)) {
                     break
                 }
-                val iel: i64 = p_line(p) p_advance(p)
+                val iel: i64 = p_line(p)
+                p_advance(p)
                 val iecond = parse_expr(p)?
                 p_expect_lbrace(p)?
                 val iebody = parse_stmts(p)?
@@ -2509,7 +2527,8 @@ pub fn parse_stmt(p: mut ref Parser) result[ref Node, ref u8] = trust {
                 if !kind_is_elif(p_peek_kind(p)) {
                     break
                 }
-                val iel: i64 = p_line(p) p_advance(p)
+                val iel: i64 = p_line(p)
+                p_advance(p)
                 val iecond = parse_expr(p)?
                 p_expect_lbrace(p)?
                 val iebody = parse_stmts(p)?
@@ -2593,7 +2612,8 @@ pub fn parse_stmt(p: mut ref Parser) result[ref Node, ref u8] = trust {
                 if !kind_is_elif(p_peek_kind(p)) {
                     break
                 }
-                val iel: i64 = p_line(p) p_advance(p)
+                val iel: i64 = p_line(p)
+                p_advance(p)
                 val iecond = parse_expr(p)?
                 p_expect_lbrace(p)?
                 val iebody = parse_stmts(p)?
@@ -2668,7 +2688,8 @@ pub fn parse_stmt(p: mut ref Parser) result[ref Node, ref u8] = trust {
             if !kind_is_elif(p_peek_kind(p)) {
                 break
             }
-            val el: i64 = p_line(p) p_advance(p)
+            val el: i64 = p_line(p)
+            p_advance(p)
             val econd = parse_expr(p)?
             p_expect_lbrace(p)?
             val ebody = parse_stmts(p)?
@@ -2808,10 +2829,12 @@ pub fn parse_stmt(p: mut ref Parser) result[ref Node, ref u8] = trust {
     }
 
     if kind_is_break(k) {
-        p_advance(p) return ok make_node(p.arena, NK_BREAK, line)
+        p_advance(p)
+        return ok make_node(p.arena, NK_BREAK, line)
     }
     if kind_is_continue(k) {
-        p_advance(p) return ok make_node(p.arena, NK_CONTINUE, line)
+        p_advance(p)
+        return ok make_node(p.arena, NK_CONTINUE, line)
     }
 
     if kind_is_assert(k) {
@@ -3733,7 +3756,9 @@ fn parse_extern_fn_item(p: mut ref Parser, public: i64) result[ref Node, ref u8]
             break
         }
         if kind_is_dotdotdot(p_peek_kind(p)) {
-            p_advance(p) is_variadic = 1 break
+            p_advance(p)
+            is_variadic = 1
+            break
         }
         val pname = p_expect_ident(p)?
         p_expect_colon(p)?
@@ -4125,7 +4150,8 @@ test {
             assert false
         }
         ok n => {
-            assert n.kind == NK_BOOL assert n.d0 == 0
+            assert n.kind == NK_BOOL
+            assert n.d0 == 0
         }
     }
 

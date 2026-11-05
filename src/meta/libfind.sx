@@ -4,7 +4,7 @@
 /// (C) Navid Momtahen - 2026
 
 val string = use("std/string")
-val mem        = use("mem.sx")
+val mem    = use("mem.sx")
 val os     = use("std/os")
 val path   = use("std/path")
 
