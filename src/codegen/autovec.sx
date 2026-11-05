@@ -8,6 +8,7 @@
 /// (C) Navid Momtahen - 2026
 
 val parser = use("../ast/parser.sx")
+val mem        = use("../meta/mem.sx")
 val str    = use("std/string")
 
 /// A vectorizable counted loop.
@@ -446,7 +447,7 @@ pub fn detect(stmt: ref parser.Node, out: mut ref Plan) bool = trust {
     val raw_list: list[ref parser.Node] = raw_body as list[ref parser.Node]
     val raw_len: i64 = @len(raw_list) as i64
     val index: mut ref u8 = none
-    val vec_list: mut list[ref parser.Node] = []
+    val vec_list: mut list[ref parser.Node] = mem.new[ref parser.Node]()
     val trailing_increment: mut bool = false
     val post_node: ref parser.Node = stmt.d3 as ref parser.Node
     if post_node != none {
@@ -512,7 +513,7 @@ pub fn detect(stmt: ref parser.Node, out: mut ref Plan) bool = trust {
         return false
     }
 
-    val bindings: mut list[ref u8] = []
+    val bindings: mut list[ref u8] = mem.new[ref u8]()
     val has_work: mut bool = false
     for s_opt in vec_list {
         if s_opt == none {

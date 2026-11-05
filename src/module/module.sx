@@ -1,4 +1,5 @@
 val str        = use("std/string")
+val mem        = use("../meta/mem.sx")
 val stdio      = use("std/stdio")
 val path       = use("std/path")
 val os         = use("std/os")
@@ -35,8 +36,8 @@ pub fn new_resolved(
     m.items = items
     m.filename = filename
     m.dir = dir
-    m.import_names = []
-    m.import_modules = []
+    m.import_names = mem.new[ref u8]()
+    m.import_modules = mem.new[ref ResolvedModule]()
     return m
 }
 
@@ -1115,7 +1116,7 @@ fn resolve_module_impl(
 
     val lex_result = lexer.tokenize_with(arena, src)
     allocators.Arena.free(src_arena)
-    val tokens: mut list[ref lexer.Token] = []
+    val tokens: mut list[ref lexer.Token] = mem.new[ref lexer.Token]()
     match lex_result {
         ok t => {
             tokens = t
@@ -1127,7 +1128,7 @@ fn resolve_module_impl(
 
     val parse_result = parser.parse_module_with(arena, tokens, canonical_path)
     lexer.free_tokens(tokens)
-    val items: mut list[ref parser.Node] = []
+    val items: mut list[ref parser.Node] = mem.new[ref parser.Node]()
     match parse_result {
         ok i => {
             items = i
@@ -1241,8 +1242,8 @@ pub fn resolve_module(
     exe_dir: ref u8,
     needed_children: ref void
 ) result[ref ResolvedModule, ref u8] = trust {
-    val cache_keys: mut list[ref u8] = []
-    val cache_vals: mut list[ref void] = []
+    val cache_keys: mut list[ref u8] = mem.new[ref u8]()
+    val cache_vals: mut list[ref void] = mem.new[ref void]()
     return resolve_module_impl(
         arena,
         path,
@@ -1640,7 +1641,7 @@ fn resolve_link_directive(
     platform: ref u8,
     static_link: bool
 ) result[list[ref u8], ref u8] = trust {
-    val flags: mut list[ref u8] = []
+    val flags: mut list[ref u8] = mem.new[ref u8]()
     if item.kind == parser.NK_LINK {
         @append(flags, item.d0 as ref u8)
     } elif item.kind == parser.NK_LIB {
@@ -1659,7 +1660,7 @@ fn collect_links_with_root(
     static_link: bool
 ) result[list[ref u8], ref u8] = trust {
     val arena: mut allocators.Arena = allocators.Arena.new(256 as usize)?
-    val links: mut list[ref u8] = []
+    val links: mut list[ref u8] = mem.new[ref u8]()
     val p: i64 = reflection.get_current_platform[allocators.Arena](arena) as i64
     val platform: mut ref u8 = "unknown"
     if p == 0 {
@@ -1739,7 +1740,7 @@ fn collect_links_with_root(
         }
     }
 
-    val result: mut list[ref u8] = []
+    val result: mut list[ref u8] = mem.new[ref u8]()
     val workspace: ref u8 = link_root
     for the_link in links {
         if str.raw_cmp(the_link, "__sx__internal__json__") == 0 {
@@ -1798,7 +1799,7 @@ pub fn collect_links_filtered(
 
     @append(seen, m.filename)
 
-    val result: mut list[ref u8] = []
+    val result: mut list[ref u8] = mem.new[ref u8]()
 
     val is_used: mut bool = false
     val ulen: i64 = @len(used_prefixes) as i64
@@ -1892,7 +1893,7 @@ pub fn collect_links_all(
 
     @append(seen, m.filename)
 
-    val result: mut list[ref u8] = []
+    val result: mut list[ref u8] = mem.new[ref u8]()
 
     val my_links: list[ref u8] = collect_links_with_root(
         m.items,
@@ -2119,7 +2120,7 @@ fn import_in_list(import_names: list[ref u8], name: ref u8) bool = trust {
 /// Collect sub-module names accessed via <import_name>.<sub> in items.
 /// e.g. for import_name="std", finds "stdio" and returns ["stdio"]
 fn collect_needed_subnames(items: list[ref parser.Node], import_name: ref u8) list[ref u8] = trust {
-    val needed: mut list[ref u8] = []
+    val needed: mut list[ref u8] = mem.new[ref u8]()
     val items_len: i64 = @len(items) as i64
     val ii: mut i64 = 0
     for {
@@ -3433,16 +3434,16 @@ fn append_import_aliases(items: list[ref parser.Node], aliases: mut list[ref u8]
 }
 
 pub fn collect_unused_import_names_in_items(items: list[ref parser.Node]) list[ref u8] = trust {
-    val import_names: mut list[ref u8] = []
+    val import_names: mut list[ref u8] = mem.new[ref u8]()
     append_import_aliases(items, import_names)
     if @len(import_names) == 0 {
-        return []
+        return mem.new[ref u8]()
     }
 
-    val used_imports: mut list[ref u8] = []
+    val used_imports: mut list[ref u8] = mem.new[ref u8]()
     collect_used_imports_items(items, import_names, used_imports)
 
-    val unused_imports: mut list[ref u8] = []
+    val unused_imports: mut list[ref u8] = mem.new[ref u8]()
     for import_name in import_names {
         if !import_in_list(used_imports, import_name) {
             @append(unused_imports, import_name)
@@ -3458,8 +3459,8 @@ pub fn collect_used_links(
     exe_dir: ref u8,
     static_link: bool
 ) result[list[ref u8], ref u8] = trust {
-    val result: mut list[ref u8] = []
-    val seen: mut list[String] = []
+    val result: mut list[ref u8] = mem.new[ref u8]()
+    val seen: mut list[String] = mem.new[String]()
 
     val my_links: list[ref u8] = collect_links_with_root(
         m.items,
@@ -3471,7 +3472,7 @@ pub fn collect_used_links(
         @append(result, lnk)
     }
 
-    val used_imports: mut list[ref u8] = []
+    val used_imports: mut list[ref u8] = mem.new[ref u8]()
     collect_used_imports_items(m.items, m.import_names, used_imports)
 
     for used_name in used_imports {
@@ -3503,7 +3504,7 @@ pub fn collect_used_links(
         }
     }
 
-    val deduped: mut list[ref u8] = []
+    val deduped: mut list[ref u8] = mem.new[ref u8]()
     for lnk in result {
         val dlen: i64 = @len(deduped) as i64
         val di: mut i64 = 0
@@ -3555,7 +3556,7 @@ fn collect_used_links_recursive(
 
     @append(seen, m.filename)
 
-    val result: mut list[ref u8] = []
+    val result: mut list[ref u8] = mem.new[ref u8]()
 
     val my_links: list[ref u8] = collect_links_with_root(
         m.items,
@@ -3567,7 +3568,7 @@ fn collect_used_links_recursive(
         @append(result, lnk)
     }
 
-    val used_imports: mut list[ref u8] = []
+    val used_imports: mut list[ref u8] = mem.new[ref u8]()
     collect_used_imports_items(m.items, m.import_names, used_imports)
 
     for used_name in used_imports {

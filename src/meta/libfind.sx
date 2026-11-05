@@ -4,6 +4,7 @@
 /// (C) Navid Momtahen - 2026
 
 val string = use("std/string")
+val mem        = use("mem.sx")
 val os     = use("std/os")
 val path   = use("std/path")
 
@@ -39,7 +40,7 @@ fn trim_raw(s: ref u8) ref u8 = trust {
 }
 
 fn split_flags(s: ref u8) list[ref u8] = trust {
-    val out: mut list[ref u8] = []
+    val out: mut list[ref u8] = mem.new[ref u8]()
     val len: i64 = string.len_raw(s)
     val i: mut i64 = 0
     for {
@@ -163,7 +164,7 @@ fn try_pkg_config(name: ref u8, static_link: bool) option[list[ref u8]] = trust 
 }
 
 fn compiler_library_path(base: ref u8, suffix: ref u8) ref u8 = trust {
-    val compilers: list[ref u8] = ["cc", "clang"]
+    val compilers: list[ref u8] = mem.from2[ref u8]("cc", "clang")
     val missing: ref u8 = @fmtalloc("lib{s}{s}", {base, suffix})
     for compiler in compilers {
         if os.in_path(compiler) {
@@ -188,19 +189,19 @@ fn compiler_library_path(base: ref u8, suffix: ref u8) ref u8 = trust {
 
 fn library_suffixes(platform: ref u8) list[ref u8] = {
     if string.raw_cmp(platform, "windows") == 0 {
-        val suffixes: list[ref u8] = [".lib", ".dll.a", ".a"]
+        val suffixes: list[ref u8] = mem.from3[ref u8](".lib", ".dll.a", ".a")
         return suffixes
     }
     if string.raw_cmp(platform, "darwin") == 0 {
-        val suffixes: list[ref u8] = [".dylib", ".a"]
+        val suffixes: list[ref u8] = mem.from2[ref u8](".dylib", ".a")
         return suffixes
     }
-    val suffixes: list[ref u8] = [".so", ".a"]
+    val suffixes: list[ref u8] = mem.from2[ref u8](".so", ".a")
     return suffixes
 }
 
 fn native_search_dirs(platform: ref u8) list[ref u8] = trust {
-    val dirs: mut list[ref u8] = []
+    val dirs: mut list[ref u8] = mem.new[ref u8]()
 
     val library_path: ref u8 = os.getenv("LIBRARY_PATH")
     if library_path != none {
@@ -294,7 +295,7 @@ pub fn resolve(
     val base: ref u8 = library_basename(trimmed)
     val dir: ref u8 = find_native(base, platform)
     if string.len_raw(dir) > 0 {
-        val flags: mut list[ref u8] = []
+        val flags: mut list[ref u8] = mem.new[ref u8]()
         @append(flags, @fmtalloc("-L{s}", {dir}))
         @append(flags, @fmtalloc("-l{s}", {base}))
         return ok flags

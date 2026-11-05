@@ -3,6 +3,6 @@ version "v0.0.1"
 spectre_version "v0.0.12"
 
 build dev {
-    flags "--alt=clang --show-cmd"
+    flags "-alt:clang -show-cmd"
     output "./repro-out"
 }

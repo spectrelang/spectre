@@ -30,7 +30,7 @@ mkdir -p "$LOG_DIR"
 
 LINK_ARGS=()
 if [ "${SPECTRE_TEST_DYNAMIC:-0}" = "1" ]; then
-	LINK_ARGS+=(--dynamic)
+	LINK_ARGS+=(-dynamic)
 fi
 
 run_samples() {
@@ -67,7 +67,7 @@ run_samples() {
 		extra_args=()
 
 		if [[ "$filename" == "sample167.sx" ]]; then
-			extra_args+=(--dynamic)
+			extra_args+=(-dynamic)
 		fi
 
 		if [ ${#extra_args[@]} -gt 0 ]; then
@@ -106,7 +106,7 @@ run_std_tests() {
 
 		((total++))
 
-		"$COMPILER" "$file" --test ${LINK_ARGS[@]+"${LINK_ARGS[@]}"} >"$log_file" 2>&1 </dev/null
+		"$COMPILER" "$file" -test ${LINK_ARGS[@]+"${LINK_ARGS[@]}"} >"$log_file" 2>&1 </dev/null
 		status=$?
 
 		if [ $status -eq 0 ]; then
@@ -114,7 +114,7 @@ run_std_tests() {
 			((passed++))
 		else
 			echo "[FAIL] $file"
-			echo "  command: $COMPILER $file --test ${LINK_ARGS[*]+"${LINK_ARGS[*]}"}"
+			echo "  command: $COMPILER $file -test ${LINK_ARGS[*]+"${LINK_ARGS[*]}"}"
 			echo "  log: $log_file"
 			sed 's/^/  /' "$log_file" | sed -n '1,240p'
 			log_lines=$(wc -l <"$log_file")
@@ -135,7 +135,7 @@ if [ $BOOTSTRAP_ONLY -eq 0 ]; then
 
 	named_test_src="./samples/sample226.sx"
 	((total++))
-	named_test_out=$("$COMPILER" "$named_test_src" --test 2>&1)
+	named_test_out=$("$COMPILER" "$named_test_src" -test 2>&1)
 	if printf '%s' "$named_test_out" | grep -q '\[pass\] hello'; then
 		echo "[PASS] named test output"
 		((passed++))
@@ -145,12 +145,12 @@ if [ $BOOTSTRAP_ONLY -eq 0 ]; then
 		((failed++))
 	fi
 
-	"$COMPILER" ./src/ast/lexer.sx -l --test
-	"$COMPILER" ./src/ast/parser.sx -l --test
-	"$COMPILER" ./src/sema/sema.sx -l --test
-	"$COMPILER" ./src/module/module.sx -l --test
-	"$COMPILER" ./src/codegen/codegen.sx -l --test
-	"$COMPILER" ./src/sxc.sx -l --test
+	"$COMPILER" ./src/ast/lexer.sx -l -test
+	"$COMPILER" ./src/ast/parser.sx -l -test
+	"$COMPILER" ./src/sema/sema.sx -l -test
+	"$COMPILER" ./src/module/module.sx -l -test
+	"$COMPILER" ./src/codegen/codegen.sx -l -test
+	"$COMPILER" ./src/sxc.sx -l -test
 fi
 
 echo "Bootstrap test:"

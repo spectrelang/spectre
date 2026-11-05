@@ -20,7 +20,7 @@ fn make_config() ref Config = trust {
     @memset(cfg as ref void, 0, @sizeof(Config) as usize)
     cfg.name = "release"
     cfg.action = ""
-    cfg.flags = "--release"
+    cfg.flags = "-release"
     cfg.output = "./myapp"
     cfg.entry = "./src/main.sx"
     return cfg
@@ -33,7 +33,7 @@ fn check_config(cfg: ref Config) bool = trust {
     if str.raw_cmp(cfg.action, "") != 0 {
         return false
     }
-    if str.raw_cmp(cfg.flags, "--release") != 0 {
+    if str.raw_cmp(cfg.flags, "-release") != 0 {
         return false
     }
     if str.raw_cmp(cfg.output, "./myapp") != 0 {

@@ -1,4 +1,5 @@
 val str        = use("std/string")
+val mem        = use("mem.sx")
 val fs         = use("std/fs")
 val path       = use("std/path")
 val time       = use("std/time")
@@ -202,7 +203,7 @@ fn new_build_rule(platform: ref u8, arch: ref u8) ref SxBuildRule = trust {
     rule.flags = ""
     rule.output = ""
     rule.entry = ""
-    rule.envs = []
+    rule.envs = mem.new[ref u8]()
     return rule
 }
 
@@ -339,8 +340,8 @@ pub fn parse_sxmod(content: ref u8) ref SxMod = trust {
     m.version = ""
     m.spectre_version = ""
     m.single_flags = ""
-    m.deps = []
-    m.builds = []
+    m.deps = mem.new[ref u8]()
+    m.builds = mem.new[ref SxBuildConfig]()
     for {
         ctx_skip_ws(ctx)
         if ctx_peek(ctx) == -1 {
@@ -365,7 +366,7 @@ pub fn parse_sxmod(content: ref u8) ref SxMod = trust {
             @memset(cfg, 0, @sizeof(SxBuildConfig))
             cfg.name = ctx_read_ident(ctx)
             cfg.base = none
-            cfg.rules = []
+            cfg.rules = mem.new[ref SxBuildRule]()
             ctx_skip_ws(ctx)
             if ctx_peek(ctx) == 123 {
                 ctx_advance(ctx)
@@ -451,7 +452,7 @@ pub fn load_sxmod() option[ref SxMod] = {
 
 fn parse_sxlock(content: ref u8) list[ref SxLockDep] = trust {
     val ctx: mut ref ParseCtx = new_ctx(content)
-    val deps: mut list[ref SxLockDep] = []
+    val deps: mut list[ref SxLockDep] = mem.new[ref SxLockDep]()
     for {
         ctx_skip_ws(ctx)
         if ctx_peek(ctx) == -1 {
@@ -643,7 +644,7 @@ pub fn load_single_flags_for(input: ref u8) result[ref u8, ref u8] = trust {
 
 /// Split a single_flags value into command-line tokens.
 pub fn split_single_flags(s: ref u8) list[ref u8] = trust {
-    val out: mut list[ref u8] = []
+    val out: mut list[ref u8] = mem.new[ref u8]()
     val len: i64 = str.len_raw(s)
     val i: mut i64 = 0
     for {
@@ -745,7 +746,7 @@ fn resolve_build_rule(cfg: ref SxBuildConfig, target: mut ref SxBuildRule) void 
     target.flags = ""
     target.output = ""
     target.entry = ""
-    target.envs = []
+    target.envs = mem.new[ref u8]()
     apply_build_rule(target, cfg.base)
     for rule in cfg.rules {
         if build_rule_matches(rule) {
@@ -759,7 +760,7 @@ fn build_config_cmd(cfg: ref SxBuildRule, exe_path: ref u8, entry: ref u8) ref u
     if str.raw_cmp(cfg.action, "") != 0 {
         cmd = cfg.action
     } else {
-        cmd = @fmtalloc("{s} {s} --no-single-flags", {exe_path, entry})
+        cmd = @fmtalloc("{s} {s} -no-single-flags", {exe_path, entry})
     }
     if str.raw_cmp(cfg.flags, "") != 0 {
         cmd = @fmtalloc("{s} {s}", {cmd, cfg.flags})
@@ -771,7 +772,7 @@ fn build_config_cmd(cfg: ref SxBuildRule, exe_path: ref u8, entry: ref u8) ref u
     if nenv > 0 {
         if str.raw_cmp(cfg.action, "") == 0 {
             for e in cfg.envs {
-                cmd = @fmtalloc("{s} -d{s}", {cmd, e})
+                cmd = @fmtalloc("{s} -d:{s}", {cmd, e})
             }
         } else {
             val prefix: mut ref u8 = ""
@@ -1000,7 +1001,7 @@ fn upgrade_dir(
     }
 
     val lock_opt = load_sxlock_at(base_dir)
-    val lock_deps: mut list[ref SxLockDep] = []
+    val lock_deps: mut list[ref SxLockDep] = mem.new[ref SxLockDep]()
     match lock_opt {
         none => {}
         some deps => {
@@ -1073,8 +1074,8 @@ pub fn cmd_upgrade(dep_name: ref u8) i32 = trust {
         return 1
     }
 
-    val matched: mut list[ref u8] = []
-    val visited: mut list[ref u8] = []
+    val matched: mut list[ref u8] = mem.new[ref u8]()
+    val visited: mut list[ref u8] = mem.new[ref u8]()
     val code: i32 = upgrade_dir(".", dep_name, matched, visited)
     if code != 0 {
         return code
@@ -1112,7 +1113,7 @@ fn copy_current_stdlib(snapshot_dir: ref u8) bool = trust {
     val arena: mut allocators.Arena = allocators.Arena.new(4096 as usize)?
     val exe_path = reflection.get_exe_path[allocators.Arena](arena)
     val exe_dir = path.dir(exe_path)
-    val candidates: mut list[ref u8] = []
+    val candidates: mut list[ref u8] = mem.new[ref u8]()
     val stdlib_env = os.env("SPECTRE_STDLIB")
 
     if stdlib_env is some v {
@@ -1457,7 +1458,7 @@ pub fn cmd_ref() i32 = {
                 \\     return a / b
                 \\ }
                 \\
-                \\ // guarded: contract violation checks persist in --release builds
+                \\ // guarded: contract violation checks persist in -release builds
                 \\ fn safe_div(a: i64, b: i64) i64 = {
                 \\     guarded pre { nonzero: b != 0 }
                 \\     return a / b
@@ -1599,7 +1600,7 @@ pub fn cmd_ref() i32 = {
                 \\ }
                 \\ ```
                 \\
-                \\ Run with: `spectre <file.sx> --test`
+                \\ Run with: `spectre <file.sx> -test`
                 \\
             )
             trust fs.write(f, \\ ---
@@ -1612,12 +1613,12 @@ pub fn cmd_ref() i32 = {
                 \\ spectre_version "v0.0.12"
                 \\
                 \\ // Applied when this file is compiled/run directly.
-                \\ single_flags "--dynamic --show-cmd"
+                \\ single_flags "-dynamic -show-cmd"
                 \\
                 \\ dep "https://github.com/user/some-lib"
                 \\
                 \\ build release {
-                \\     flags  "--release"
+                \\     flags  "-release"
                 \\     output "./myapp"
                 \\ }
                 \\
@@ -1692,7 +1693,7 @@ pub fn cmd_init(name_arg: ref u8) i32 = {
 
     val sb: ref void = str.StringBuilder.new()
     val init_header: ref u8 = trust @fmtalloc(
-        "entry \"./src/main.sx\"\nversion \"v0.0.1\"\nspectre_version \"{s}\"\n\nbuild release {\n    flags \"--release\"\n    output \"./",
+        "entry \"./src/main.sx\"\nversion \"v0.0.1\"\nspectre_version \"{s}\"\n\nbuild release {\n    flags \"-release\"\n    output \"./",
         {meta.get_spectre_version()}
     )
     trust str.StringBuilder.append_cstr(sb, init_header)
@@ -1866,7 +1867,7 @@ fn restore_in_dir(base_dir: ref u8, visited: mut list[ref u8]) i32 = trust {
     }
 
     val lock_opt = load_sxlock_at(base_dir)
-    val lock_deps: mut list[ref SxLockDep] = []
+    val lock_deps: mut list[ref SxLockDep] = mem.new[ref SxLockDep]()
     match lock_opt {
         none => {
             stdio.print("warning: no sx.lock in {s}, skipping transitive deps\n", {base_dir})
@@ -1933,7 +1934,7 @@ pub fn cmd_restore() i32 = trust {
     }
 
     val lock_opt = load_sxlock()
-    val lock_deps: mut list[ref SxLockDep] = []
+    val lock_deps: mut list[ref SxLockDep] = mem.new[ref SxLockDep]()
     match lock_opt {
         none => {
             stdio.puts("error: sx.lock not found, add dependencies or generate a lockfile first")
@@ -1954,7 +1955,7 @@ pub fn cmd_restore() i32 = trust {
     }
     fs.mkdir_path("lib")
 
-    val visited: mut list[ref u8] = []
+    val visited: mut list[ref u8] = mem.new[ref u8]()
     @append(visited, ".")
 
     for dep_url in sxmod.deps {
@@ -2078,7 +2079,7 @@ pub fn cmd_graph() i32 = trust {
         return 0
     }
 
-    val visited: mut list[ref u8] = []
+    val visited: mut list[ref u8] = mem.new[ref u8]()
     @append(visited, ".")
 
     val i: mut i64 = 0
@@ -2165,10 +2166,10 @@ pub fn cmd_doctor() i32 = {
     trust allocators.Arena.free(arena)
     trust stdio.print("qbe:     {s}\n", {qbe_installed_str})
 
-    val cc_ver: ref u8 = tool_version("cc --version 2>&1 | head -1")
+    val cc_ver: ref u8 = tool_version("cc -version 2>&1 | head -1")
     trust stdio.print("cc:      {s}\n", {cc_ver})
 
-    val git_ver: ref u8 = tool_version("git --version 2>&1")
+    val git_ver: ref u8 = tool_version("git -version 2>&1")
     trust stdio.print("git:     {s}\n", {git_ver})
 
     val cwd_arena: mut allocators.Arena = trust allocators.Arena.new(4096 as usize)?

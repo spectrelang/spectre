@@ -1,4 +1,5 @@
 val stdio      = use("std/stdio")
+val mem        = use("../meta/mem.sx")
 val string     = use("std/string")
 val path       = use("std/path")
 val os         = use("std/os")
@@ -77,31 +78,31 @@ fn make_block_result(next_index: i64, stop_kind: i64, stop_line: ref u8) ref Blo
 
 fn new_translation_ctx() ref TranslationCtx = {
     val ctx: mut ref TranslationCtx = @alloc(@sizeof(TranslationCtx)) as ref TranslationCtx
-    ctx.defined_names = []
-    ctx.called_names = []
-    ctx.called_sig_names = []
-    ctx.called_sig_params = []
-    ctx.extern_names = []
-    ctx.fnptr_names = []
-    ctx.translated_type_names = []
-    ctx.enum_constant_names = []
-    ctx.enum_constant_types = []
-    ctx.local_names = []
-    ctx.local_types = []
-    ctx.local_array_names = []
-    ctx.local_array_types = []
-    ctx.global_names = []
-    ctx.global_types = []
-    ctx.global_array_names = []
-    ctx.global_array_types = []
-    ctx.mutable_names = []
-    ctx.address_taken_names = []
-    ctx.flex_struct_names = []
-    ctx.flex_field_names = []
-    ctx.flex_field_types = []
-    ctx.typedef_alias_names = []
-    ctx.typedef_alias_types = []
-    ctx.main_prelude_lines = []
+    ctx.defined_names = mem.new[ref u8]()
+    ctx.called_names = mem.new[ref u8]()
+    ctx.called_sig_names = mem.new[ref u8]()
+    ctx.called_sig_params = mem.new[ref u8]()
+    ctx.extern_names = mem.new[ref u8]()
+    ctx.fnptr_names = mem.new[ref u8]()
+    ctx.translated_type_names = mem.new[ref u8]()
+    ctx.enum_constant_names = mem.new[ref u8]()
+    ctx.enum_constant_types = mem.new[ref u8]()
+    ctx.local_names = mem.new[ref u8]()
+    ctx.local_types = mem.new[ref u8]()
+    ctx.local_array_names = mem.new[ref u8]()
+    ctx.local_array_types = mem.new[ref u8]()
+    ctx.global_names = mem.new[ref u8]()
+    ctx.global_types = mem.new[ref u8]()
+    ctx.global_array_names = mem.new[ref u8]()
+    ctx.global_array_types = mem.new[ref u8]()
+    ctx.mutable_names = mem.new[ref u8]()
+    ctx.address_taken_names = mem.new[ref u8]()
+    ctx.flex_struct_names = mem.new[ref u8]()
+    ctx.flex_field_names = mem.new[ref u8]()
+    ctx.flex_field_types = mem.new[ref u8]()
+    ctx.typedef_alias_names = mem.new[ref u8]()
+    ctx.typedef_alias_types = mem.new[ref u8]()
+    ctx.main_prelude_lines = mem.new[ref u8]()
     ctx.temp_counter = 0
     ctx.union_counter = 0
     return ctx
@@ -116,8 +117,8 @@ fn make_lowered_expr(expr: ref u8, changed: bool) ref LoweredExpr = {
 
 fn make_switch_case() ref SwitchCase = {
     val item: mut ref SwitchCase = @alloc(@sizeof(SwitchCase)) as ref SwitchCase
-    item.labels = []
-    item.body_lines = []
+    item.labels = mem.new[ref u8]()
+    item.body_lines = mem.new[ref u8]()
     item.is_default = false
     return item
 }
@@ -423,7 +424,7 @@ fn starts_do_statement(text: ref u8) bool = {
 }
 
 fn split_lines(text: ref u8) list[ref u8] = {
-    val lines: mut list[ref u8] = []
+    val lines: mut list[ref u8] = mem.new[ref u8]()
     val len: i64 = string.len_raw(text)
     val start: mut i64 = 0
     val i: mut i64 = 0
@@ -524,12 +525,12 @@ fn push_unique(items: mut list[ref u8], value: ref u8) void = {
 }
 
 fn clear_local_types(ctx: mut ref TranslationCtx) void = {
-    ctx.local_names = []
-    ctx.local_types = []
-    ctx.local_array_names = []
-    ctx.local_array_types = []
-    ctx.mutable_names = []
-    ctx.address_taken_names = []
+    ctx.local_names = mem.new[ref u8]()
+    ctx.local_types = mem.new[ref u8]()
+    ctx.local_array_names = mem.new[ref u8]()
+    ctx.local_array_types = mem.new[ref u8]()
+    ctx.mutable_names = mem.new[ref u8]()
+    ctx.address_taken_names = mem.new[ref u8]()
     ctx.temp_counter = 0
 }
 
@@ -1030,14 +1031,14 @@ fn is_brace_initializer_text(text: ref u8) bool = {
 fn parse_brace_initializer_items(text: ref u8) list[ref u8] = {
     val trimmed: ref u8 = trim_raw(text)
     if !is_brace_initializer_text(trimmed) {
-        return []
+        return mem.new[ref u8]()
     }
     val inner: ref u8 = trim_raw(trust string.substr(trimmed, 1, string.len_raw(trimmed) - 2))
     if string.raw_cmp(inner, "") == 0 {
-        return []
+        return mem.new[ref u8]()
     }
     val raw_items = split_top_level(inner, 44 as u8)
-    val items: mut list[ref u8] = []
+    val items: mut list[ref u8] = mem.new[ref u8]()
     for raw_item in raw_items {
         val item: ref u8 = trim_raw(raw_item)
         if string.raw_cmp(item, "") == 0 {
@@ -1859,11 +1860,11 @@ fn extract_call_args_text(text: ref u8) list[ref u8] = trust {
     val open_i: i64 = find_char(text, 40 as u8)
     val close_i: i64 = find_matching_delim(text, open_i, 40 as u8, 41 as u8)
     if open_i <= 0 || close_i <= open_i {
-        return []
+        return mem.new[ref u8]()
     }
     val args_raw: ref u8 = trim_raw(string.substr(text, open_i + 1, close_i - open_i - 1))
     if string.raw_cmp(args_raw, "") == 0 {
-        return []
+        return mem.new[ref u8]()
     }
     return split_top_level(args_raw, 44 as u8)
 }
@@ -2484,7 +2485,7 @@ fn replace_pointer_indexing(ctx: ref TranslationCtx, text: ref u8) ref u8 = {
 fn ensure_intrinsic_prefixes(text: ref u8) ref u8 = {
     val trimmed: ref u8 = trim_raw(text)
     val len: i64 = string.len_raw(trimmed)
-    val names: list[ref u8] = ["load", "store", "ptradd", "sizeof", "alloc", "free"]
+    val names: list[ref u8] = mem.from6[ref u8]("load", "store", "ptradd", "sizeof", "alloc", "free")
     val sb: ref void = string.StringBuilder.new()
     val i: mut i64 = 0
     for {
@@ -2532,7 +2533,7 @@ fn ensure_intrinsic_prefixes(text: ref u8) ref u8 = {
 fn normalize_intrinsic_prefixes(text: ref u8) ref u8 = {
     val trimmed: ref u8 = trim_raw(text)
     val len: i64 = string.len_raw(trimmed)
-    val names: list[ref u8] = ["load", "store", "ptradd", "sizeof", "alloc", "free"]
+    val names: list[ref u8] = mem.from6[ref u8]("load", "store", "ptradd", "sizeof", "alloc", "free")
     val sb: ref void = string.StringBuilder.new()
     val i: mut i64 = 0
     for {
@@ -3886,7 +3887,7 @@ fn translate_switch_statement(
                 close_b - brace_i - 1
             )
             val body_lines = split_lines(body_text)
-            val cases: mut list[ref SwitchCase] = []
+            val cases: mut list[ref SwitchCase] = mem.new[ref SwitchCase]()
             val current: mut ref SwitchCase = none
             for raw_line in body_lines {
                 val trimmed: ref u8 = trim_raw(raw_line)
@@ -5685,11 +5686,11 @@ fn parse_named_decl(ctx: ref TranslationCtx, text: ref u8, fallback_name: ref u8
 fn split_multi_decl(ctx: ref TranslationCtx, text: ref u8) list[ref u8] = {
     val trimmed: ref u8 = strip_trailing_semicolon(trim_raw(text))
     if str_contains(trimmed, "(") {
-        return []
+        return mem.new[ref u8]()
     }
     val parts = split_top_level(trimmed, 44 as u8)
     if ((@len(parts) as i64) <= 1) {
-        return []
+        return mem.new[ref u8]()
     }
     val first_opt = @get(parts, 0)
     if first_opt is some first_part {
@@ -5697,9 +5698,9 @@ fn split_multi_decl(ctx: ref TranslationCtx, text: ref u8) list[ref u8] = {
         val first_decl: ref DeclInfo = parse_named_decl(ctx, first_trimmed, "")
         val first_type_src: ref u8 = trim_raw(first_decl.type_src)
         if !first_decl.its_ok || string.raw_cmp(first_type_src, "") == 0 {
-            return []
+            return mem.new[ref u8]()
         }
-        val items: mut list[ref u8] = []
+        val items: mut list[ref u8] = mem.new[ref u8]()
         @append(items, first_trimmed)
         val len: i64 = @len(parts) as i64
         val i: mut i64 = 1
@@ -5718,12 +5719,12 @@ fn split_multi_decl(ctx: ref TranslationCtx, text: ref u8) list[ref u8] = {
         }
         return items
     } else {
-        return []
+        return mem.new[ref u8]()
     }
 }
 
 fn split_top_level(text: ref u8, delim: u8) list[ref u8] = {
-    val items: mut list[ref u8] = []
+    val items: mut list[ref u8] = mem.new[ref u8]()
     val len: i64 = string.len_raw(text)
     val start: mut i64 = 0
     val paren: mut i64 = 0
@@ -6215,7 +6216,7 @@ fn translate_struct_decl(
             continue
         }
         val field_items = split_multi_decl(ctx, trimmed)
-        val decl_items: mut list[ref u8] = []
+        val decl_items: mut list[ref u8] = mem.new[ref u8]()
         if ((@len(field_items) as i64) > 1) {
             decl_items = field_items
         } else {
@@ -6326,7 +6327,7 @@ fn translate_enum_decl(
         return true
     }
     push_unique(ctx.translated_type_names, alias)
-    val members: mut list[ref u8] = []
+    val members: mut list[ref u8] = mem.new[ref u8]()
     for item in items {
         val trimmed: ref u8 = trim_raw(item)
         if string.raw_cmp(trimmed, "") == 0 {
@@ -6378,7 +6379,7 @@ fn emit_union_type(
             continue
         }
         val field_items = split_multi_decl(ctx, trimmed)
-        val decl_items: mut list[ref u8] = []
+        val decl_items: mut list[ref u8] = mem.new[ref u8]()
         if ((@len(field_items) as i64) > 1) {
             decl_items = field_items
         } else {
@@ -7376,7 +7377,7 @@ pub fn translate_top_level(
 
 pub fn translate_c(input_path: ref u8, output_path: ref u8) i32 = {
     val body: ref void = string.StringBuilder.new()
-    val seen: mut list[ref u8] = []
+    val seen: mut list[ref u8] = mem.new[ref u8]()
     val ctx: mut ref TranslationCtx = new_translation_ctx()
     val its_ok: bool = translate_file(input_path, body, seen, ctx)
     if !its_ok {
@@ -7387,7 +7388,7 @@ pub fn translate_c(input_path: ref u8, output_path: ref u8) i32 = {
     append_comment_line(
         out,
         0,
-        trust @fmtalloc("Generated by spectre --translate-c from {s}", {input_path})
+        trust @fmtalloc("Generated by spectre -translate-c from {s}", {input_path})
     )
     append_blank_line(out)
     append_synthesized_externs(ctx, out)

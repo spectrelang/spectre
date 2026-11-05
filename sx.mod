@@ -14,6 +14,6 @@ build dev {
 }
 
 build quick {
-    flags "--alt"
+    flags "-alt"
     output "./spectre-dev"
 }

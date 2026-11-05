@@ -1,0 +1,123 @@
+/// Compiler-wide arena for allocator-backed lists.
+///
+/// The compiler creates large numbers of short-lived lists while parsing,
+/// checking, and generating code.  They all share one scoped arena which is
+/// released once the compiler is finished.
+///
+/// SPDX-License-Identifier: GPL-3.0-only
+/// (C) Navid Momtahen - 2026
+
+val allocators = use("std/allocators")
+val stdio      = use("std/stdio")
+val os         = use("std/os")
+
+pub type (allocators.GeneralAllocator) ListArena = {
+    arena: mut allocators.ScopedArenaAllocator
+}
+
+val state: mut ListArena = {arena: none}
+
+/// Allocate a block from the compiler list arena.
+pub fn (ListArena) alloc(a: self, size: usize) option[ref void] = trust {
+    val raw: ref void = allocators.ScopedArena.alloc_or_none(a.arena, size + 8)
+    if raw == none {
+        return none
+    }
+    @store(raw, size)
+    return some (@ptradd(raw, 8))
+}
+
+/// Individual frees are no-ops; the whole arena is released by `close`.
+pub fn (ListArena) free(_: self, _: ref void) void = {}
+
+/// Copy into a fresh arena block. The old block remains arena-owned.
+pub fn (ListArena) realloc(a: self, ptr: ref void, new_size: usize) option[ref void] = trust {
+    if ptr == none {
+        return ListArena.alloc(a, new_size)
+    }
+    val old_size: usize = @load(@ptradd(ptr, -8)) as usize
+    val next = ListArena.alloc(a, new_size)
+    if next is some p {
+        val copy_len: mut usize = old_size
+        if new_size < copy_len {
+            copy_len = new_size
+        }
+        @memcpy(p, ptr, copy_len)
+        return some p
+    }
+    return none
+}
+
+pub fn init() void = {
+    if state.arena == none {
+        match trust allocators.ScopedArena.new(67108864 as usize) {
+            ok a => {
+                state.arena = a
+            }
+            err _ => {
+                stdio.puts("error: could not allocate compiler list arena\n")
+                trust os.exit(1)
+            }
+        }
+    }
+}
+
+pub fn allocator() ListArena = {
+    init()
+    return state
+}
+
+/// Return a new allocator-backed list.
+pub fn new[T]() list[T] = {
+    val ac: ListArena = allocator()
+    return @listalloc[ListArena, T](ac)?
+}
+
+
+pub fn from1[T](a: T) list[T] = {
+    val xs: mut list[T] = new[T]()
+    @append(xs, a)
+    return xs
+}
+
+pub fn from2[T](a: T, b: T) list[T] = {
+    val xs: mut list[T] = new[T]()
+    @append(xs, a)
+    @append(xs, b)
+    return xs
+}
+
+pub fn from3[T](a: T, b: T, c: T) list[T] = {
+    val xs: mut list[T] = new[T]()
+    @append(xs, a)
+    @append(xs, b)
+    @append(xs, c)
+    return xs
+}
+
+pub fn from6[T](a: T, b: T, c: T, d: T, e: T, f: T) list[T] = {
+    val xs: mut list[T] = new[T]()
+    @append(xs, a)
+    @append(xs, b)
+    @append(xs, c)
+    @append(xs, d)
+    @append(xs, e)
+    @append(xs, f)
+    return xs
+}
+
+pub fn close() void = {
+    if state.arena != none {
+        trust allocators.ScopedArena.free(state.arena)
+        state.arena = none
+    }
+}
+
+test {
+    init()
+    val xs: mut list[i64] = new[i64]()
+    @append(xs, 1)
+    @append(xs, 2)
+    assert @len(xs) == 2
+    close()
+}

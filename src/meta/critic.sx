@@ -4,6 +4,7 @@
 /// (C) Navid Momtahen - 2026
 
 val str        = use("std/string")
+val mem        = use("mem.sx")
 val fs         = use("std/fs")
 val stdio      = use("std/stdio")
 val fmt        = use("std/fmt")
@@ -59,21 +60,14 @@ type Ctx = {
 }
 
 /// Free a heap-allocated language-level list (header and backing storage).
-fn free_list[T](items: mut list[T]) void = trust {
-    if items != none {
-        val buf: ref void = @load(items as ref void)
-        @free(buf)
-        @free(items as ref void)
-    }
+fn free_list[T](items: list[T]) void = trust {
+    @listfree(items)
 }
 
 /// Free only the backing storage of a list embedded in another structure.
 /// The list header itself lives inside that structure and must not be freed.
 fn free_list_buffer[T](items: list[T]) void = trust {
-    if items != none {
-        val buf: ref void = @load(items as ref void)
-        @free(buf)
-    }
+    @listfree(items)
 }
 
 fn byte_at(src: ref u8, i: i64) i64 = trust {
@@ -81,7 +75,7 @@ fn byte_at(src: ref u8, i: i64) i64 = trust {
 }
 
 fn collect_line_starts(src: ref u8, len: i64) list[i64] = trust {
-    val starts: mut list[i64] = []
+    val starts: mut list[i64] = mem.new[i64]()
     @append(starts, 0)
     val i: mut i64 = 0
     for {
@@ -111,11 +105,11 @@ fn ctx_new(
     c.len = str.len_raw(src)
     c.tokens = tokens
     c.starts = collect_line_starts(src, c.len)
-    c.issues = []
-    c.fixes = []
-    c.vars = []
-    c.fns = []
-    c.uses = []
+    c.issues = mem.new[ref Issue]()
+    c.fixes = mem.new[ref Edit]()
+    c.vars = mem.new[ref VarType]()
+    c.fns = mem.new[ref FnSig]()
+    c.uses = mem.new[ref parser.Node]()
     c.fix_mode = fix_mode
     return c
 }
@@ -1496,7 +1490,7 @@ fn check_duplicate_condition(ctx: ref Ctx, node: ref parser.Node) void = trust {
     if op != parser.OP_AND && op != parser.OP_OR {
         return
     }
-    val leaves: mut list[ref parser.Node] = []
+    val leaves: mut list[ref parser.Node] = mem.new[ref parser.Node]()
     collect_bool_leaves(node, op, leaves)
     val n: i64 = @len(leaves) as i64
     val i: mut i64 = 0
@@ -1910,12 +1904,12 @@ fn walk_stmts(ctx: ref Ctx, stmts: list[ref parser.Node]) void = trust {
             val elif_list: list[ref parser.Node] = stmt.d2 as list[ref parser.Node]
             if elif_list != none {
                 for elif_node in elif_list {
-                    walk_stmts(ctx, [elif_node])
+                    walk_stmts(ctx, mem.from1[ref parser.Node](elif_node))
                 }
             }
             val else_node: ref parser.Node = stmt.d3 as ref parser.Node
             if else_node != none {
-                walk_stmts(ctx, [else_node])
+                walk_stmts(ctx, mem.from1[ref parser.Node](else_node))
             }
             continue
         }
@@ -2151,7 +2145,7 @@ fn analyze(ctx: ref Ctx, items: list[ref parser.Node]) void = trust {
 }
 
 fn build_edit_order(edits: list[ref Edit]) list[i64] = trust {
-    val order: mut list[i64] = []
+    val order: mut list[i64] = mem.new[i64]()
     val n: i64 = @len(edits) as i64
     val i: mut i64 = 0
     for {
@@ -2318,8 +2312,14 @@ fn analyze_ctx(
     filename: ref u8,
     fix_mode: bool
 ) ref Ctx = trust {
-    val tokens_res = lexer.tokenize(src)
-    val tokens: mut list[ref lexer.Token] = []
+    val parse_arena: allocators.ScopedArenaAllocator = allocators.ScopedArena.new(
+        8388608 as usize
+    )?
+    defer {
+        allocators.ScopedArena.free(parse_arena)
+    }
+    val tokens_res = lexer.tokenize_with(parse_arena, src)
+    val tokens: mut list[ref lexer.Token] = mem.new[ref lexer.Token]()
     match tokens_res {
         err e => {
             stdio.print("{s}: error: {s}\n", {filename, e})
@@ -2331,8 +2331,8 @@ fn analyze_ctx(
         }
     }
 
-    val items_res = parser.parse_module(tokens, filename)
-    val items: mut list[ref parser.Node] = []
+    val items_res = parser.parse_module_with(parse_arena, tokens, filename)
+    val items: mut list[ref parser.Node] = mem.new[ref parser.Node]()
     match items_res {
         err e => {
             stdio.print("{s}\n", {e})
@@ -2550,7 +2550,7 @@ pub fn cmd_critic(targets: list[ref u8], fix_mode: bool) i32 = trust {
         allocators.Arena.free(paths_arena)
     }
 
-    val files: mut list[ref u8] = []
+    val files: mut list[ref u8] = mem.new[ref u8]()
     defer {
         free_list[ref u8](files)
     }

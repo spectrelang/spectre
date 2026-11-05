@@ -1,4 +1,5 @@
 val stdio      = use("std/stdio")
+val mem        = use("mem.sx")
 val str        = use("std/string")
 val regex      = use("std/regex")
 val fs         = use("std/fs")
@@ -345,8 +346,8 @@ fn extract_doc_map(src: ref u8) ref DocMap = trust {
     }
 
     val map: mut ref DocMap = @alloc(@sizeof(DocMap)) as ref DocMap
-    map.lines = []
-    map.docs = []
+    map.lines = mem.new[i64]()
+    map.docs = mem.new[ref u8]()
     val len: i64 = str.len_raw(src)
     val line_no: mut i64 = 1
     val line_start: mut i64 = 0
@@ -867,7 +868,7 @@ fn render_fn_signature(node: ref parser.Node) ref u8 = trust {
     val type_params: mut ref u8 = ""
     if node.kind == parser.NK_GENERIC_FN {
         val tp_nodes: list[ref parser.Node] = parser.generic_fn_type_params(node)
-        val tp_strs: mut list[ref u8] = []
+        val tp_strs: mut list[ref u8] = mem.new[ref u8]()
         for tp in tp_nodes {
             val tp_constraint: ref parser.Node = parser.tparam_constraint(tp as ref parser.Node)
             if tp_constraint != none {
@@ -982,7 +983,7 @@ fn add_entry(
     item.nav_name = entry_nav_name(node)
     item.anchor = anchor_for(entry_kind_name(node.kind), item.name, node.line)
     item.docs = lookup_doc(doc_map, node.line)
-    item.method_docs = []
+    item.method_docs = mem.new[ref u8]()
     item.is_private_fn = node_is_function(node) && !node_is_public(node)
     item.availability = availability
     item.node = node
@@ -1059,7 +1060,11 @@ fn collect_entries(
     }
 }
 
-fn load_module(source_path: ref u8, rel_path: ref u8) ref DocModule = trust {
+fn load_module(
+    parse_arena: allocators.ScopedArenaAllocator,
+    source_path: ref u8,
+    rel_path: ref u8
+) ref DocModule = trust {
     val src_size_opt = fs.file_size(source_path)
     val src_arena_cap: mut i64 = 4096
     if src_size_opt is some sz {
@@ -1081,9 +1086,9 @@ fn load_module(source_path: ref u8, rel_path: ref u8) ref DocModule = trust {
         os.exit(1)
     }
     val doc_map = extract_doc_map(src)
-    val toks_res = lexer.tokenize(src)
+    val toks_res = lexer.tokenize_with(parse_arena, src)
     allocators.Arena.free(src_arena)
-    val toks: mut list[ref lexer.Token] = []
+    val toks: mut list[ref lexer.Token] = mem.new[ref lexer.Token]()
     match toks_res {
         ok t => {
             toks = t
@@ -1093,8 +1098,8 @@ fn load_module(source_path: ref u8, rel_path: ref u8) ref DocModule = trust {
             os.exit(1)
         }
     }
-    val parse_res = parser.parse_module(toks, source_path)
-    val items: mut list[ref parser.Node] = []
+    val parse_res = parser.parse_module_with(parse_arena, toks, source_path)
+    val items: mut list[ref parser.Node] = mem.new[ref parser.Node]()
     match parse_res {
         ok p => {
             items = p
@@ -1110,7 +1115,7 @@ fn load_module(source_path: ref u8, rel_path: ref u8) ref DocModule = trust {
     mod.module_name = strip_sx_ext(rel_path)
     mod.output_path = ""
     mod.is_root = false
-    mod.entries = []
+    mod.entries = mem.new[ref DocEntry]()
     collect_entries(items, doc_map, mod.entries, "")
     return mod
 }
@@ -1411,7 +1416,7 @@ fn append_sorted_module_nav_html(
     modules: list[ref DocModule],
     current: ref DocModule
 ) void = trust {
-    val keys: mut list[ref u8] = []
+    val keys: mut list[ref u8] = mem.new[ref u8]()
     for mod in modules {
         @append(keys, nav_key(mod.module_name, mod.output_path))
     }
@@ -1438,7 +1443,7 @@ fn append_sorted_module_nav_html(
 }
 
 fn append_sorted_entry_nav_html(sb: ref void, entries: list[ref DocEntry]) void = trust {
-    val keys: mut list[ref u8] = []
+    val keys: mut list[ref u8] = mem.new[ref u8]()
     for entry in entries {
         @append(keys, nav_key(entry.nav_name, entry.anchor))
     }
@@ -2479,7 +2484,7 @@ fn make_overview_module(output_path: ref u8) ref DocModule = trust {
     module.module_name = "Docs"
     module.output_path = output_path
     module.is_root = false
-    module.entries = []
+    module.entries = mem.new[ref DocEntry]()
     return module
 }
 
@@ -2582,6 +2587,12 @@ fn maybe_root_rel_for_dir() ref u8 = trust {
 }
 
 pub fn cmd_doc(target: ref u8, markdown: bool) i32 = trust {
+    val parse_arena: allocators.ScopedArenaAllocator = allocators.ScopedArena.new(
+        67108864 as usize
+    )?
+    defer {
+        allocators.ScopedArena.free(parse_arena)
+    }
     if str_eq(target, "") {
         stdio.puts("error: doc requires a file or directory target")
         return 1
@@ -2593,13 +2604,13 @@ pub fn cmd_doc(target: ref u8, markdown: bool) i32 = trust {
     }
     if dir_exists(target) {
         val clean_target = trim_trailing_slash(target)
-        val files: mut list[ref u8] = []
+        val files: mut list[ref u8] = mem.new[ref u8]()
         collect_sx_files(clean_target, "", files)
         if @len(files) as i64 == 0 {
             stdio.print("error: no .sx files found in '{s}'\n", {target})
             return 1
         }
-        val modules: mut list[ref DocModule] = []
+        val modules: mut list[ref DocModule] = mem.new[ref DocModule]()
         for rel in files {
             val source_path: mut ref u8 = rel
             if !str_eq(clean_target, ".") && !str_eq(clean_target, "") {
@@ -2607,7 +2618,7 @@ pub fn cmd_doc(target: ref u8, markdown: bool) i32 = trust {
             } else {
                 source_path = @fmtalloc("./{s}", {rel})
             }
-            @append(modules, load_module(source_path, rel))
+            @append(modules, load_module(parse_arena, source_path, rel))
         }
 
         val root_rel = maybe_root_rel_for_dir()
@@ -2653,14 +2664,14 @@ pub fn cmd_doc(target: ref u8, markdown: bool) i32 = trust {
         return 1
     }
     val rel_path = normalize_rel_path(path_basename(target))
-    val module: mut ref DocModule = load_module(target, rel_path)
+    val module: mut ref DocModule = load_module(parse_arena, target, rel_path)
     module.is_root = true
     if markdown {
         module.output_path = "index.md"
     } else {
         module.output_path = "index.html"
     }
-    val modules: mut list[ref DocModule] = []
+    val modules: mut list[ref DocModule] = mem.new[ref DocModule]()
     @append(modules, module)
     val content: mut ref u8 = ""
     if markdown {

@@ -30,7 +30,7 @@ mkdir -p "$LOG_DIR"
 
 LINK_ARGS=()
 if [ "${SPECTRE_TEST_DYNAMIC:-0}" = "1" ]; then
-    LINK_ARGS+=(--dynamic)
+    LINK_ARGS+=(-dynamic)
 fi
 
 run_compiler() {
@@ -72,21 +72,21 @@ run_samples() {
         extra_args=()
 
         if [[ "$filename" == "sample_fps.sx" ]]; then
-            extra_args+=(--inc-path=/usr/include/SDL2/)
+            extra_args+=(-inc-path:/usr/include/SDL2/)
         fi
 
         if [[ "$filename" == "sample100.sx" ]]; then
-            extra_args+=(--inc-path=/usr/include/SDL2/)
+            extra_args+=(-inc-path:/usr/include/SDL2/)
         fi
 
         if [[ "$filename" == "sample167.sx" ]]; then
-            extra_args+=(--dynamic)
+            extra_args+=(-dynamic)
         fi
 
         if [ ${#extra_args[@]} -gt 0 ]; then
-            run_compiler "$file" --alt ${LINK_ARGS[@]+"${LINK_ARGS[@]}"} "${extra_args[@]}"
+            run_compiler "$file" -alt ${LINK_ARGS[@]+"${LINK_ARGS[@]}"} "${extra_args[@]}"
         else
-            run_compiler "$file" --alt ${LINK_ARGS[@]+"${LINK_ARGS[@]}"}
+            run_compiler "$file" -alt ${LINK_ARGS[@]+"${LINK_ARGS[@]}"}
         fi
 
         status=$?
@@ -120,7 +120,7 @@ run_std_tests() {
 
         ((total++))
 
-        "$COMPILER" "$file" --test --alt ${LINK_ARGS[@]+"${LINK_ARGS[@]}"} >"$log_file" 2>&1 < /dev/null
+        "$COMPILER" "$file" -test -alt ${LINK_ARGS[@]+"${LINK_ARGS[@]}"} >"$log_file" 2>&1 < /dev/null
         status=$?
 
         if [ $status -eq 0 ]; then
@@ -128,7 +128,7 @@ run_std_tests() {
             ((passed++))
         else
             echo "[FAIL] $file"
-            echo "  command: $COMPILER $file --test --alt ${LINK_ARGS[*]+"${LINK_ARGS[*]}"}"
+            echo "  command: $COMPILER $file -test -alt ${LINK_ARGS[*]+"${LINK_ARGS[*]}"}"
             echo "  log: $log_file"
             sed 's/^/  /' "$log_file" | sed -n '1,240p'
             log_lines=$(wc -l < "$log_file")
@@ -140,7 +140,7 @@ run_std_tests() {
     done
 }
 
-echo "Running C backend tests (--alt)..."
+echo "Running C backend tests (-alt)..."
 
 if [ $BOOTSTRAP_ONLY -eq 0 ]; then
     echo
@@ -158,7 +158,7 @@ test "addition works" {
 }
 EOF
     ((total++))
-    named_test_out=$("$COMPILER" "$named_test_src" --test --alt 2>&1)
+    named_test_out=$("$COMPILER" "$named_test_src" -test -alt 2>&1)
     if printf '%s' "$named_test_out" | grep -q '\[pass\] addition works'; then
         echo "[PASS] named test output"
         ((passed++))
@@ -173,13 +173,13 @@ echo
 echo "Bootstrap test:"
 
 ((total++))
-"$COMPILER" ./src/sxc.sx -o sxc2 --alt -b -l || { echo "[FAIL] stage1"; ((failed++)); exit 1; }
+"$COMPILER" ./src/sxc.sx -o sxc2 -alt -b -l || { echo "[FAIL] stage1"; ((failed++)); exit 1; }
 
 ((total++))
-./sxc2 ./src/sxc.sx -o sxc3 --alt -l || { echo "[FAIL] stage2"; ((failed++)); exit 1; }
+./sxc2 ./src/sxc.sx -o sxc3 -alt -l || { echo "[FAIL] stage2"; ((failed++)); exit 1; }
 
 ((total++))
-./sxc3 ./src/sxc.sx -o sxc4 --alt -l || { echo "[FAIL] stage3"; ((failed++)); exit 1; }
+./sxc3 ./src/sxc.sx -o sxc4 -alt -l || { echo "[FAIL] stage3"; ((failed++)); exit 1; }
 
 echo "[PASS] bootstrap"
 

@@ -71,12 +71,12 @@ echo "Building spectre stage 1..."
 "$STAGE0" ./src/sxc.sx -o ./spectre-stage1 || exit 1
 
 echo "Building spectre-dev..."
-./spectre-stage1 -dGIT_HASH="$GIT_HASH" ./src/sxc.sx -o spectre-dev || exit 1
+./spectre-stage1 -d:GIT_HASH="$GIT_HASH" ./src/sxc.sx -o spectre-dev || exit 1
 rm -f ./spectre-stage1
 
 if [ $DO_BOOTSTRAP -eq 1 ]; then
 	echo "Emitting bootstrap SSA..."
-	./spectre-dev -dGIT_HASH="$GIT_HASH" ./src/sxc.sx --emit-ssa >./bootstrap/sxc.ssa || exit 1
+	./spectre-dev -d:GIT_HASH="$GIT_HASH" ./src/sxc.sx -emit-ssa >./bootstrap/sxc.ssa || exit 1
 	echo "Bootstrap SSA written to ./bootstrap/sxc.ssa"
 fi
 

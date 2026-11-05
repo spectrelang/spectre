@@ -3,6 +3,7 @@
 /// GPL-3.0-only (C) Navid Momtahen - 2026
 
 val allocators = use("std/allocators")
+val mem        = use("../meta/mem.sx")
 val fmt        = use("std/fmt")
 val str        = use("std/string")
 val stdio      = use("std/stdio")
@@ -100,66 +101,66 @@ fn cc_new() ref CCtx = trust {
     ctx.tmp = 0
     ctx.lbl = 0
     ctx.fn_name = none
-    ctx.strs = []
+    ctx.strs = mem.new[ref u8]()
     ctx.str_cnt = 0
-    ctx.snames = []
-    ctx.sfields = []
-    ctx.sis_extern = []
-    ctx.unames = []
-    ctx.uvariants = []
-    ctx.fn_nodes = []
-    ctx.fn_names = []
-    ctx.fn_params = []
-    ctx.fn_rets = []
-    ctx.fn_variadics = []
-    ctx.fn_no_forward = []
-    ctx.ext_names = []
-    ctx.ext_syms = []
-    ctx.ext_rets = []
-    ctx.tv_names = []
-    ctx.tv_owners = []
-    ctx.tv_tags = []
-    ctx.tv_fields = []
-    ctx.mc_names = []
-    ctx.mc_vals = []
-    ctx.gnames = []
-    ctx.gsyms = []
-    ctx.gty_nodes = []
+    ctx.snames = mem.new[ref u8]()
+    ctx.sfields = mem.new[ref void]()
+    ctx.sis_extern = mem.new[bool]()
+    ctx.unames = mem.new[ref u8]()
+    ctx.uvariants = mem.new[ref void]()
+    ctx.fn_nodes = mem.new[ref void]()
+    ctx.fn_names = mem.new[ref u8]()
+    ctx.fn_params = mem.new[ref void]()
+    ctx.fn_rets = mem.new[ref void]()
+    ctx.fn_variadics = mem.new[bool]()
+    ctx.fn_no_forward = mem.new[bool]()
+    ctx.ext_names = mem.new[ref u8]()
+    ctx.ext_syms = mem.new[ref u8]()
+    ctx.ext_rets = mem.new[ref void]()
+    ctx.tv_names = mem.new[ref u8]()
+    ctx.tv_owners = mem.new[ref u8]()
+    ctx.tv_tags = mem.new[i64]()
+    ctx.tv_fields = mem.new[ref void]()
+    ctx.mc_names = mem.new[ref u8]()
+    ctx.mc_vals = mem.new[ref u8]()
+    ctx.gnames = mem.new[ref u8]()
+    ctx.gsyms = mem.new[ref u8]()
+    ctx.gty_nodes = mem.new[ref parser.Node]()
     ctx.break_lbl = -1
     ctx.cont_lbl = -1
-    ctx.defer_stack = []
-    ctx.local_names = []
-    ctx.local_ctypes = []
-    ctx.local_ty_nodes = []
-    ctx.local_is_slot = []
-    ctx.used_prefixes = []
-    ctx.emitted_labels = []
-    ctx.expr_arena = []
-    ctx.expr_arena_owned = []
+    ctx.defer_stack = mem.new[ref void]()
+    ctx.local_names = mem.new[ref u8]()
+    ctx.local_ctypes = mem.new[ref u8]()
+    ctx.local_ty_nodes = mem.new[ref parser.Node]()
+    ctx.local_is_slot = mem.new[i64]()
+    ctx.used_prefixes = mem.new[ref u8]()
+    ctx.emitted_labels = mem.new[ref u8]()
+    ctx.expr_arena = mem.new[ref void]()
+    ctx.expr_arena_owned = mem.new[bool]()
     ctx.release_mode = false
     ctx.current_ret_ctype = "int64_t"
     ctx.current_ret_is_void = false
     ctx.current_ret_unboxed = false
     ctx.current_ret_ty = none
     ctx.current_prefix = ""
-    ctx.inv_tnames = []
-    ctx.inv_tlists = []
-    ctx.inv_cur_pnames = []
-    ctx.inv_cur_ptypes = []
+    ctx.inv_tnames = mem.new[ref u8]()
+    ctx.inv_tlists = mem.new[ref void]()
+    ctx.inv_cur_pnames = mem.new[ref u8]()
+    ctx.inv_cur_ptypes = mem.new[ref u8]()
     ctx.expected_ty = none
     ctx.init_sb = str.StringBuilder.new()
-    ctx.gfn_names = []
-    ctx.gfn_nodes = []
-    ctx.gfn_prefixes = []
-    ctx.gsubst_names = []
-    ctx.gsubst_tnodes = []
+    ctx.gfn_names = mem.new[ref u8]()
+    ctx.gfn_nodes = mem.new[ref void]()
+    ctx.gfn_prefixes = mem.new[ref u8]()
+    ctx.gsubst_names = mem.new[ref u8]()
+    ctx.gsubst_tnodes = mem.new[ref void]()
     ctx.mono_sb = str.StringBuilder.new()
     ctx.src_target = ""
     ctx.current_src_file = ""
-    ctx.embed_paths = []
-    ctx.embed_labels = []
+    ctx.embed_paths = mem.new[ref u8]()
+    ctx.embed_labels = mem.new[ref u8]()
     ctx.embed_count = 0
-    ctx.alloc_adapters = []
+    ctx.alloc_adapters = mem.new[ref u8]()
     ctx.autovec_plan = none
     return ctx
 }
@@ -198,8 +199,8 @@ fn cc_expr_track_borrowed(ctx: ref CCtx, s: ref u8) ref u8 = trust {
 }
 
 fn cc_expr_drain(ctx: mut ref CCtx) void = trust {
-    ctx.expr_arena = []
-    ctx.expr_arena_owned = []
+    ctx.expr_arena = mem.new[ref void]()
+    ctx.expr_arena_owned = mem.new[bool]()
 }
 
 fn fresh_tmp(ctx: mut ref CCtx) i64 = trust {
@@ -350,14 +351,14 @@ fn cc_emit_label_if_new(ctx: ref CCtx, label: ref u8) bool = trust {
 }
 
 fn cc_clear_locals(ctx: mut ref CCtx) void = trust {
-    ctx.local_names = []
-    ctx.local_ctypes = []
-    ctx.local_ty_nodes = []
-    ctx.local_is_slot = []
-    ctx.defer_stack = []
+    ctx.local_names = mem.new[ref u8]()
+    ctx.local_ctypes = mem.new[ref u8]()
+    ctx.local_ty_nodes = mem.new[ref parser.Node]()
+    ctx.local_is_slot = mem.new[i64]()
+    ctx.defer_stack = mem.new[ref void]()
     ctx.tmp = 0
-    ctx.inv_cur_pnames = []
-    ctx.inv_cur_ptypes = []
+    ctx.inv_cur_pnames = mem.new[ref u8]()
+    ctx.inv_cur_ptypes = mem.new[ref u8]()
 }
 
 /// Infer the type node of an expression. Returns 0 if unknown.
@@ -1529,16 +1530,16 @@ fn cc_monomorphize_generic_fn(ctx: mut ref CCtx, gfn_node: ref parser.Node, gfn_
         1024,
         "{s}__GENMONO{s}",
         {fn_name, suffix}
-    ) val old_gsubst_names: mut list[ref u8] = []
+    ) val old_gsubst_names: mut list[ref u8] = mem.new[ref u8]()
     for n in ctx.gsubst_names {
         @append(old_gsubst_names, n)
     }
-    val old_gsubst_tnodes: mut list[ref void] = []
+    val old_gsubst_tnodes: mut list[ref void] = mem.new[ref void]()
     for t in ctx.gsubst_tnodes {
         @append(old_gsubst_tnodes, t)
     }
-    ctx.gsubst_names = []
-    ctx.gsubst_tnodes = []
+    ctx.gsubst_names = mem.new[ref u8]()
+    ctx.gsubst_tnodes = mem.new[ref void]()
     if tparams != none {
         val nparms: i64 = @len(tparams as list[ref parser.Node]) as i64
         val pi: mut i64 = 0
@@ -1561,7 +1562,7 @@ fn cc_monomorphize_generic_fn(ctx: mut ref CCtx, gfn_node: ref parser.Node, gfn_
         }
     }
     val orig_params: ref void = gfn_node.d3 as ref void
-    val new_params: mut list[ref parser.Node] = []
+    val new_params: mut list[ref parser.Node] = mem.new[ref parser.Node]()
     if orig_params != none {
         for param in orig_params as list[ref parser.Node] {
             @append(new_params, cc_make_concrete_param(ctx, param))
@@ -2855,20 +2856,20 @@ fn cc_infer_call_ret_ty(ctx: mut ref CCtx, expr: ref parser.Node) ref parser.Nod
         if gfn_node == none {
             return none
         }
-        val resolved_targs: mut list[ref parser.Node] = []
+        val resolved_targs: mut list[ref parser.Node] = mem.new[ref parser.Node]()
         for ta in gi_targs {
             @append(resolved_targs, cc_concrete_ty(ctx, ta as ref parser.Node))
         }
-        val old_gsubst_names: mut list[ref u8] = []
+        val old_gsubst_names: mut list[ref u8] = mem.new[ref u8]()
         for n in ctx.gsubst_names {
             @append(old_gsubst_names, n)
         }
-        val old_gsubst_tnodes: mut list[ref void] = []
+        val old_gsubst_tnodes: mut list[ref void] = mem.new[ref void]()
         for t in ctx.gsubst_tnodes {
             @append(old_gsubst_tnodes, t)
         }
-        ctx.gsubst_names = []
-        ctx.gsubst_tnodes = []
+        ctx.gsubst_names = mem.new[ref u8]()
+        ctx.gsubst_tnodes = mem.new[ref void]()
         val tparams: ref void = gfn_node.d6 as ref void
         if tparams != none {
             val nparms: i64 = @len(tparams as list[ref parser.Node]) as i64
@@ -4172,7 +4173,7 @@ fn gen_call(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
         }
         val mono_base: mut ref u8 = none
         if gfn_node != none {
-            val resolved_targs: mut list[ref parser.Node] = []
+            val resolved_targs: mut list[ref parser.Node] = mem.new[ref parser.Node]()
             val targ_idx: mut i64 = 0
             for ta in gi_targs {
                 val resolved_ta: ref parser.Node = cc_concrete_ty(ctx, ta as ref parser.Node)
@@ -4189,7 +4190,7 @@ fn gen_call(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
             1024 as usize
         ) as ref u8
         @snprintf(c_mangled, 1024, "sx__{s}", {mono_base})
-        val arg_parts: mut list[ref u8] = []
+        val arg_parts: mut list[ref u8] = mem.new[ref u8]()
         val gsrc_params: mut ref void = none
         if gfn_node != none {
             gsrc_params = gfn_node.d3 as ref void
@@ -7394,7 +7395,7 @@ fn cc_gen_autovec_vector(
     if plan.trailing_increment {
         stop = raw_len - 1
     }
-    val vec_body: mut list[ref parser.Node] = []
+    val vec_body: mut list[ref parser.Node] = mem.new[ref parser.Node]()
     val bi: mut i64 = 0
     for {
         if bi >= stop {
@@ -8341,7 +8342,7 @@ fn gen_union_def_prefixed(ctx: ref CCtx, item: ref parser.Node, mod_prefix: ref 
     if variants == none {
         return
     }
-    val vlen: i64 = @len(variants) as i64 val vnames: mut list[ref u8] = [] val vi: mut i64 = 0
+    val vlen: i64 = @len(variants) as i64 val vnames: mut list[ref u8] = mem.new[ref u8]() val vi: mut i64 = 0
     for {
         if vi >= vlen {
             break
@@ -8908,7 +8909,7 @@ fn emit_c_preamble(ctx: ref CCtx) void = trust {
     )
     emitln_fwd(
         ctx,
-        "static int64_t* sx__ok_result(int64_t v){int64_t*r=(int64_t*)calloc(1,16);if(!r)return 0;r[0]=0;r[1]=v;return r;}\nstatic int64_t* sx__err_result(int64_t e){int64_t*r=(int64_t*)calloc(1,16);if(!r)return 0;r[0]=1;r[1]=e;return r;}\ntypedef int64_t (*sx__raw_alloc_fn)(int64_t,uint64_t);\nstatic void* sx__raw_alloc_call(sx__raw_alloc_fn af,int64_t ctx,int64_t size){return (void*)(intptr_t)af(ctx,(uint64_t)size);}\nstatic int64_t* sx__wrap_alloc(sx__raw_alloc_fn af,int64_t ctx,int64_t bytes){return (int64_t*)sx__raw_alloc_call(af,ctx,bytes);}\nstatic int64_t sx__some_alloc(sx__raw_alloc_fn af,int64_t ctx,int64_t value){void*p=sx__raw_alloc_call(af,ctx,8);if(!p)return 0;*(int64_t*)p=value;return (int64_t)(intptr_t)p+1;}\nstatic int64_t sx__ok_alloc(sx__raw_alloc_fn af,int64_t ctx,int64_t value){int64_t*p=(int64_t*)sx__raw_alloc_call(af,ctx,16);if(!p)return 0;p[0]=0;p[1]=value;return (int64_t)(intptr_t)p;}\nstatic int64_t sx__err_alloc(sx__raw_alloc_fn af,int64_t ctx,int64_t value){int64_t*p=(int64_t*)sx__raw_alloc_call(af,ctx,16);if(!p)return 0;p[0]=1;p[1]=value;return (int64_t)(intptr_t)p;}\nstatic void* sx__alloc_call(sx__alloc_fn af,int64_t ctx,int64_t size){int64_t r=af(ctx,(uint64_t)size);return r?(void*)(intptr_t)(r-1):0;}\nstatic int64_t sx__realloc_call(sx__realloc_fn rf,int64_t ctx,void*p,int64_t size){int64_t r=rf(ctx,(int64_t)(intptr_t)p,(uint64_t)size);return r?(int64_t)(intptr_t)(r-1):0;}"
+        "static int64_t* sx__ok_result(int64_t v){int64_t*r=(int64_t*)calloc(1,16);if(!r)return 0;r[0]=0;r[1]=v;return r;}\nstatic int64_t* sx__err_result(int64_t e){int64_t*r=(int64_t*)calloc(1,16);if(!r)return 0;r[0]=1;r[1]=e;return r;}\ntypedef int64_t (*sx__raw_alloc_fn)(int64_t,uint64_t);\nstatic void* sx__raw_alloc_call(sx__raw_alloc_fn af,int64_t ctx,int64_t size){return (void*)(intptr_t)af(ctx,(uint64_t)size);}\nstatic int64_t* sx__wrap_alloc(sx__raw_alloc_fn af,int64_t ctx,int64_t bytes){return (int64_t*)sx__raw_alloc_call(af,ctx,bytes);}\nstatic int64_t sx__some_alloc(sx__raw_alloc_fn af,int64_t ctx,int64_t value){void*p=sx__raw_alloc_call(af,ctx,8);if(!p)return 0;*(int64_t*)p=value;return (int64_t)(intptr_t)p+1;}\nstatic int64_t sx__ok_alloc(sx__raw_alloc_fn af,int64_t ctx,int64_t value){int64_t*p=(int64_t*)sx__raw_alloc_call(af,ctx,16);if(!p)return 0;p[0]=0;p[1]=value;return (int64_t)(intptr_t)p;}\nstatic int64_t sx__err_alloc(sx__raw_alloc_fn af,int64_t ctx,int64_t value){int64_t*p=(int64_t*)sx__raw_alloc_call(af,ctx,16);if(!p)return 0;p[0]=1;p[1]=value;return (int64_t)(intptr_t)p;}\nstatic void* sx__alloc_call(sx__alloc_fn af,int64_t ctx,int64_t size){int64_t r=af(ctx,(uint64_t)size);return r?(void*)(intptr_t)(r-1):0;}\nstatic int64_t sx__realloc_call(sx__realloc_fn rf,int64_t ctx,void*p,int64_t size){int64_t r=rf(ctx,(int64_t)(intptr_t)p,(uint64_t)size);return r?(int64_t)(intptr_t)(r-1):0;}\nstatic int64_t* sx__ok_af(sx__alloc_fn af,int64_t ctx,int64_t v){if(!af)return sx__ok_result(v);int64_t* r=(int64_t*)sx__alloc_call(af,ctx,16);if(!r)return 0;r[0]=0;r[1]=v;return r;}\nstatic int64_t* sx__err_af(sx__alloc_fn af,int64_t ctx,int64_t e){if(!af)return sx__err_result(e);int64_t* r=(int64_t*)sx__alloc_call(af,ctx,16);if(!r)return 0;r[0]=1;r[1]=e;return r;}"
     )
     emitln_fwd(
         ctx,
@@ -8920,11 +8921,11 @@ fn emit_c_preamble(ctx: ref CCtx) void = trust {
     )
     emitln_fwd(
         ctx,
-        "static void sx__rt_list_free(int64_t* h){if(!h)return;int64_t buf=h[0];sx__alloc_desc* d=(sx__alloc_desc*)(intptr_t)h[3];if(d){if(buf)d->free(d->ctx,buf);free(d);}else{if(buf)free((void*)(intptr_t)buf);}free(h);}"
+        "static void sx__rt_list_free(int64_t* h){if(!h)return;int64_t buf=h[0];sx__alloc_desc* d=(sx__alloc_desc*)(intptr_t)h[3];if(d){if(buf)d->free(d->ctx,buf);d->free(d->ctx,(int64_t)(intptr_t)d);d->free(d->ctx,(int64_t)(intptr_t)h);}else{if(buf)free((void*)(intptr_t)buf);free(h);}}"
     )
     emitln_fwd(
         ctx,
-        "static int64_t* sx__rt_list_alloc(sx__alloc_fn af,sx__free_fn ff,sx__realloc_fn rf,int64_t ctx){int64_t* hdr=(int64_t*)calloc(1,32);sx__alloc_desc* d=(sx__alloc_desc*)calloc(1,sizeof(sx__alloc_desc));if(!hdr||!d){if(hdr)free(hdr);if(d)free(d);return sx__err_result(0);}int64_t cap=8;int64_t buf=(int64_t)(intptr_t)sx__alloc_call(af,ctx,cap*8);if(!buf){free(hdr);free(d);return sx__err_result(0);}d->alloc=af;d->free=ff;d->realloc=rf;d->ctx=ctx;hdr[0]=buf;hdr[1]=0;hdr[2]=cap;hdr[3]=(int64_t)(intptr_t)d;return sx__ok_result((int64_t)(intptr_t)hdr);}"
+        "static int64_t* sx__rt_list_alloc(sx__alloc_fn af,sx__free_fn ff,sx__realloc_fn rf,int64_t ctx){int64_t* hdr;sx__alloc_desc* d;if(af){hdr=(int64_t*)sx__alloc_call(af,ctx,32);d=(sx__alloc_desc*)sx__alloc_call(af,ctx,sizeof(sx__alloc_desc));}else{hdr=(int64_t*)calloc(1,32);d=(sx__alloc_desc*)calloc(1,sizeof(sx__alloc_desc));}if(!hdr||!d){if(af){if(hdr)ff(ctx,(int64_t)(intptr_t)hdr);if(d)ff(ctx,(int64_t)(intptr_t)d);}else{if(hdr)free(hdr);if(d)free(d);}return sx__err_af(af,ctx,0);}memset(hdr,0,32);memset(d,0,sizeof(sx__alloc_desc));int64_t cap=8;int64_t buf=(int64_t)(intptr_t)sx__alloc_call(af,ctx,cap*8);if(!buf){if(af){ff(ctx,(int64_t)(intptr_t)hdr);ff(ctx,(int64_t)(intptr_t)d);}else{free(hdr);free(d);}return sx__err_af(af,ctx,0);}d->alloc=af;d->free=ff;d->realloc=rf;d->ctx=ctx;hdr[0]=buf;hdr[1]=0;hdr[2]=cap;hdr[3]=(int64_t)(intptr_t)d;return sx__ok_af(af,ctx,(int64_t)(intptr_t)hdr);}"
     )
     emitln_fwd(
         ctx,
@@ -8932,7 +8933,7 @@ fn emit_c_preamble(ctx: ref CCtx) void = trust {
     )
     emitln_fwd(
         ctx,
-        "static int64_t* sx__rt_list_from(sx__alloc_fn af,sx__free_fn ff,sx__realloc_fn rf,int64_t ctx,int64_t* elems,int64_t count){int64_t* r=sx__rt_list_alloc(af,ff,rf,ctx);if(!r||r[0]!=0)return r;int64_t* hdr=(int64_t*)r[1];if(count>0){if(!sx__list_grow(hdr,count)){sx__rt_list_free(hdr);return sx__err_result(0);}int64_t* buf=(int64_t*)hdr[0];int64_t i;for(i=0;i<count;i++)buf[i]=elems[i];hdr[1]=count;}return r;}"
+        "static int64_t* sx__rt_list_from(sx__alloc_fn af,sx__free_fn ff,sx__realloc_fn rf,int64_t ctx,int64_t* elems,int64_t count){int64_t* r=sx__rt_list_alloc(af,ff,rf,ctx);if(!r||r[0]!=0)return r;int64_t* hdr=(int64_t*)r[1];if(count>0){if(!sx__list_grow(hdr,count)){sx__rt_list_free(hdr);return sx__err_af(af,ctx,0);}int64_t* buf=(int64_t*)hdr[0];int64_t i;for(i=0;i<count;i++)buf[i]=elems[i];hdr[1]=count;}return r;}"
     )
     emitln_fwd(
         ctx,
@@ -9337,10 +9338,10 @@ pub fn gen_module_c_test(
     }
     ctx.release_mode = release_mode
     ctx.src_target = src_target
-    val out_prefixes: mut list[ref u8] = []
-    val out_items: mut list[ref void] = []
-    val out_filenames: mut list[ref u8] = []
-    val seen: mut list[String] = []
+    val out_prefixes: mut list[ref u8] = mem.new[ref u8]()
+    val out_items: mut list[ref void] = mem.new[ref void]()
+    val out_filenames: mut list[ref u8] = mem.new[ref u8]()
+    val seen: mut list[String] = mem.new[String]()
     module.flatten_modules_with_files(
         ctx.arena,
         root,
@@ -9399,8 +9400,8 @@ pub fn gen_module_c_test(
         li2++
     }
     gen_init_fn(ctx)
-    val test_ids: mut list[i64] = []
-    val test_names: mut list[ref u8] = []
+    val test_ids: mut list[i64] = mem.new[i64]()
+    val test_names: mut list[ref u8] = mem.new[ref u8]()
     val test_counter: mut i64 = 0
     if emit_line_directives {
         ctx.current_src_file = module.module_filename(root)
@@ -9466,10 +9467,10 @@ pub fn gen_module_c(
     }
     ctx.release_mode = release_mode
     ctx.src_target = src_target
-    val out_prefixes: mut list[ref u8] = []
-    val out_items: mut list[ref void] = []
-    val out_filenames: mut list[ref u8] = []
-    val seen: mut list[String] = []
+    val out_prefixes: mut list[ref u8] = mem.new[ref u8]()
+    val out_items: mut list[ref void] = mem.new[ref void]()
+    val out_filenames: mut list[ref u8] = mem.new[ref u8]()
+    val seen: mut list[String] = mem.new[String]()
     module.flatten_modules_with_files(
         ctx.arena,
         root,

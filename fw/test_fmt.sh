@@ -116,7 +116,7 @@ total=$((total + 1))
 stdout_file="$tmpdir/stdout_bad1.sx"
 cp "$FIXTURES/bad1.sx" "$stdout_file"
 
-if ! "$COMPILER" fmt --stdio "$stdout_file" >"$tmpdir/stdout1.out" 2>/dev/null; then
+if ! "$COMPILER" fmt -stdio "$stdout_file" >"$tmpdir/stdout1.out" 2>/dev/null; then
 	fail "stdio mode (formatter exited non-zero)"
 elif ! cmp -s "$tmpdir/stdout1.out" "$FIXTURES/good1.sx"; then
 	echo "[FAIL] stdio mode (stdout differs from good1)"

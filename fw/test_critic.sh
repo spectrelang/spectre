@@ -78,7 +78,7 @@ fi
 actual="$tmpdir/fix_bad.sx"
 cp "$FIXTURES/fix_bad.sx" "$actual"
 
-if ! "$COMPILER" critic --fix "$actual" >/dev/null 2>&1; then
+if ! "$COMPILER" critic -fix "$actual" >/dev/null 2>&1; then
 	fail "fix mode (expected zero exit code after fixes)"
 elif ! cmp -s "$actual" "$FIXTURES/fix_good.sx"; then
 	echo "[FAIL] fix mode (output differs from fix_good.sx)"
@@ -92,7 +92,7 @@ tree="$tmpdir/tree"
 mkdir -p "$tree/sub"
 cp "$FIXTURES/fix_bad.sx" "$tree/sub/fix_bad.sx"
 
-if ! "$COMPILER" critic --fix "$tree" >/dev/null 2>&1; then
+if ! "$COMPILER" critic -fix "$tree" >/dev/null 2>&1; then
 	fail "directory fix mode (expected zero exit code after fixes)"
 elif ! cmp -s "$tree/sub/fix_bad.sx" "$FIXTURES/fix_good.sx"; then
 	echo "[FAIL] directory fix mode (output differs from fix_good.sx)"

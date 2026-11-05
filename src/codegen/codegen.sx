@@ -1,4 +1,5 @@
 val arenafmt    = use("../meta/arenafmt.sx")
+val mem        = use("../meta/mem.sx")
 val allocators  = use("std/allocators")
 val fmt         = use("std/fmt")
 val str         = use("std/string")
@@ -72,6 +73,8 @@ pub type CgCtx = {
     current_module_prefix: mut ref u8
     emitted_labels: mut list[ref u8]
     emitted_shims: mut list[ref u8]
+    alloc_adapter_prefixes: mut list[ref u8]
+    alloc_adapter_lines: mut list[ref u8]
     c_headers: mut list[ref u8]
     c_consts: mut list[ref u8]
     c_const_syms: mut list[ref u8]
@@ -150,69 +153,71 @@ fn cg_new() ref CgCtx = trust {
     ctx.current_fn_ret_union = ""
     ctx.current_fn_ret_ty = none
     ctx.expected_ty = none
-    ctx.strs = []
+    ctx.strs = mem.new[ref u8]()
     ctx.str_cnt = 0
-    ctx.tdefs = []
-    ctx.edefs = []
-    ctx.dvars = []
-    ctx.dqtypes = []
-    ctx.snames = []
-    ctx.sfields = []
-    ctx.sis_extern = []
-    ctx.lnames = []
-    ctx.ltypes = []
-    ctx.unames = []
-    ctx.uvariants = []
-    ctx.fn_nodes = []
-    ctx.fn_names = []
-    ctx.fn_params = []
-    ctx.fn_rets = []
-    ctx.ext_names = []
-    ctx.ext_syms = []
-    ctx.ext_rets = []
-    ctx.tv_names = []
-    ctx.tv_owners = []
-    ctx.tv_tags = []
-    ctx.tv_fields = []
+    ctx.tdefs = mem.new[ref void]()
+    ctx.edefs = mem.new[ref void]()
+    ctx.dvars = mem.new[ref u8]()
+    ctx.dqtypes = mem.new[ref u8]()
+    ctx.snames = mem.new[ref u8]()
+    ctx.sfields = mem.new[ref void]()
+    ctx.sis_extern = mem.new[bool]()
+    ctx.lnames = mem.new[ref u8]()
+    ctx.ltypes = mem.new[ref u8]()
+    ctx.unames = mem.new[ref u8]()
+    ctx.uvariants = mem.new[ref void]()
+    ctx.fn_nodes = mem.new[ref void]()
+    ctx.fn_names = mem.new[ref u8]()
+    ctx.fn_params = mem.new[ref void]()
+    ctx.fn_rets = mem.new[ref void]()
+    ctx.ext_names = mem.new[ref u8]()
+    ctx.ext_syms = mem.new[ref u8]()
+    ctx.ext_rets = mem.new[ref void]()
+    ctx.tv_names = mem.new[ref u8]()
+    ctx.tv_owners = mem.new[ref u8]()
+    ctx.tv_tags = mem.new[i64]()
+    ctx.tv_fields = mem.new[ref void]()
     ctx.break_lbl = -1
     ctx.cont_lbl = -1
-    ctx.mc_names = []
-    ctx.mc_vals = []
+    ctx.mc_names = mem.new[ref u8]()
+    ctx.mc_vals = mem.new[ref u8]()
     ctx.mc_index = collections.RawIndexMap.new(64 as usize)
     ctx.fn_name_index = collections.RawIndexMap.new(256 as usize)
-    ctx.defer_stack = []
-    ctx.local_src_names = []
-    ctx.local_qbe_names = []
-    ctx.local_slot_names = []
-    ctx.local_ref_types = []
-    ctx.global_src_names = []
-    ctx.global_labels = []
-    ctx.global_qtypes = []
-    ctx.global_anns = []
-    ctx.used_prefixes = []
+    ctx.defer_stack = mem.new[ref void]()
+    ctx.local_src_names = mem.new[ref u8]()
+    ctx.local_qbe_names = mem.new[ref u8]()
+    ctx.local_slot_names = mem.new[ref u8]()
+    ctx.local_ref_types = mem.new[ref u8]()
+    ctx.global_src_names = mem.new[ref u8]()
+    ctx.global_labels = mem.new[ref u8]()
+    ctx.global_qtypes = mem.new[ref u8]()
+    ctx.global_anns = mem.new[ref u8]()
+    ctx.used_prefixes = mem.new[ref u8]()
     ctx.current_module_prefix = ""
-    ctx.emitted_labels = []
-    ctx.emitted_shims = []
-    ctx.c_headers = []
-    ctx.c_consts = []
-    ctx.c_const_syms = []
+    ctx.emitted_labels = mem.new[ref u8]()
+    ctx.emitted_shims = mem.new[ref u8]()
+    ctx.alloc_adapter_prefixes = mem.new[ref u8]()
+    ctx.alloc_adapter_lines = mem.new[ref u8]()
+    ctx.c_headers = mem.new[ref u8]()
+    ctx.c_consts = mem.new[ref u8]()
+    ctx.c_const_syms = mem.new[ref u8]()
     ctx.c_const_index = collections.RawIndexMap.new(32 as usize)
-    ctx.global_inits = []
+    ctx.global_inits = mem.new[ref GlobalInit]()
     ctx.release_mode = false
     ctx.src_target = ""
-    ctx.inv_tnames = []
-    ctx.inv_tlists = []
-    ctx.inv_cur_pnames = []
-    ctx.inv_cur_ptypes = []
-    ctx.gfn_names = []
-    ctx.gfn_nodes = []
-    ctx.gfn_prefixes = []
-    ctx.gsubst_names = []
-    ctx.gsubst_tnodes = []
+    ctx.inv_tnames = mem.new[ref u8]()
+    ctx.inv_tlists = mem.new[ref void]()
+    ctx.inv_cur_pnames = mem.new[ref u8]()
+    ctx.inv_cur_ptypes = mem.new[ref u8]()
+    ctx.gfn_names = mem.new[ref u8]()
+    ctx.gfn_nodes = mem.new[ref void]()
+    ctx.gfn_prefixes = mem.new[ref u8]()
+    ctx.gsubst_names = mem.new[ref u8]()
+    ctx.gsubst_tnodes = mem.new[ref void]()
     ctx.current_filename = ""
     ctx.embed_sb = str.StringBuilder.new()
-    ctx.embed_paths = []
-    ctx.embed_labels = []
+    ctx.embed_paths = mem.new[ref u8]()
+    ctx.embed_labels = mem.new[ref u8]()
     ctx.embed_count = 0
     ctx.alloc_runtime = false
     ctx.current_fn_ret_unboxed = false
@@ -603,7 +608,7 @@ fn cg_clone_node(ctx: ref CgCtx, node: ref parser.Node) ref parser.Node = trust 
 }
 
 fn cg_clone_char_list(xs: list[ref u8]) list[ref u8] = trust {
-    val out: mut list[ref u8] = []
+    val out: mut list[ref u8] = mem.new[ref u8]()
     val len: i64 = @len(xs) as i64
     val i: mut i64 = 0
     for {
@@ -620,7 +625,7 @@ fn cg_clone_char_list(xs: list[ref u8]) list[ref u8] = trust {
 }
 
 fn cg_clone_void_list(xs: list[ref void]) list[ref void] = trust {
-    val out: mut list[ref void] = []
+    val out: mut list[ref void] = mem.new[ref void]()
     val len: i64 = @len(xs) as i64
     val i: mut i64 = 0
     for {
@@ -669,7 +674,7 @@ fn cg_concrete_ty(ctx: mut ref CgCtx, ty: ref parser.Node) ref parser.Node = tru
         val params: ref void = ty.d0 as ref void
         val ret: ref parser.Node = ty.d1 as ref parser.Node
         val resolved_ret: ref parser.Node = cg_concrete_ty(ctx, ret)
-        val resolved_params: mut list[ref parser.Node] = []
+        val resolved_params: mut list[ref parser.Node] = mem.new[ref parser.Node]()
         val changed: mut bool = resolved_ret != ret
         if params != none {
             for p in params as list[ref parser.Node] {
@@ -1463,16 +1468,16 @@ fn monomorphize_generic_fn(ctx: mut ref CgCtx, gfn_node: ref parser.Node, gfn_pr
         1024,
         "{s}__GENMONO{s}",
         {fn_name, suffix}
-    ) val old_gsubst_names: mut list[ref u8] = []
+    ) val old_gsubst_names: mut list[ref u8] = mem.new[ref u8]()
     for n in ctx.gsubst_names {
         @append(old_gsubst_names, n)
     }
-    val old_gsubst_tnodes: mut list[ref void] = []
+    val old_gsubst_tnodes: mut list[ref void] = mem.new[ref void]()
     for t in ctx.gsubst_tnodes {
         @append(old_gsubst_tnodes, t)
     }
-    ctx.gsubst_names = []
-    ctx.gsubst_tnodes = []
+    ctx.gsubst_names = mem.new[ref u8]()
+    ctx.gsubst_tnodes = mem.new[ref void]()
 
     if tparams != none {
         val nparms: i64 = @len(tparams as list[ref parser.Node]) as i64
@@ -1497,7 +1502,7 @@ fn monomorphize_generic_fn(ctx: mut ref CgCtx, gfn_node: ref parser.Node, gfn_pr
     }
 
     val orig_params: ref void = gfn_node.d3 as ref void
-    val new_params: mut list[ref parser.Node] = []
+    val new_params: mut list[ref parser.Node] = mem.new[ref parser.Node]()
     if orig_params != none {
         for param in orig_params as list[ref parser.Node] {
             @append(new_params, make_concrete_param(ctx, param))
@@ -1791,7 +1796,7 @@ fn cg_defer_push(ctx: mut ref CgCtx, body: ref parser.Node) void = trust {
 }
 
 fn cg_defer_clear(ctx: mut ref CgCtx) void = trust {
-    ctx.defer_stack = []
+    ctx.defer_stack = mem.new[ref void]()
 }
 
 /// Emit all deferred statements in LIFO order.
@@ -1883,13 +1888,15 @@ fn cg_alloc_runtime_c_source() ref u8 = trust {
     \\static long long* sxqbe_err(long long e){long long*r=(long long*)calloc(1,16);if(!r)return 0;r[0]=1;r[1]=e;return r;}
     \\static void* sxqbe_alloc_call(sxqbe_alloc_fn f,long long ctx,long long size){long long r=f(ctx,(unsigned long long)size);return r?(void*)(intptr_t)(r-1):0;}
     \\static long long sxqbe_realloc_call(sxqbe_realloc_fn f,long long ctx,void*p,long long size){long long r=f(ctx,(long long)(intptr_t)p,(unsigned long long)size);return r?(long long)(intptr_t)(r-1):0;}
+    \\static long long* sxqbe_ok_af(sxqbe_alloc_fn af,long long ctx,long long v){if(!af)return sxqbe_ok(v);long long* r=(long long*)sxqbe_alloc_call(af,ctx,16);if(!r)return 0;r[0]=0;r[1]=v;return r;}
+    \\static long long* sxqbe_err_af(sxqbe_alloc_fn af,long long ctx,long long e){if(!af)return sxqbe_err(e);long long* r=(long long*)sxqbe_alloc_call(af,ctx,16);if(!r)return 0;r[0]=1;r[1]=e;return r;}
     \\int sxqbe_list_grow(long long* hdr,long long need){if(!hdr)return 0;long long cap=hdr[2];long long* buf=(long long*)(intptr_t)hdr[0];if(need<=cap)return 1;long long ncap=cap<4?8:cap*2;if(ncap<need)ncap=need;sxqbe_alloc_desc* d=(sxqbe_alloc_desc*)(intptr_t)hdr[3];if(d){long long nb=buf?sxqbe_realloc_call(d->realloc,d->ctx,buf,ncap*8):(long long)(intptr_t)sxqbe_alloc_call(d->alloc,d->ctx,ncap*8);if(!nb)return 0;hdr[0]=nb;hdr[2]=ncap;}else{long long* nb=(long long*)realloc(buf,(size_t)(ncap*8));if(!nb)return 0;hdr[0]=(long long)(intptr_t)nb;hdr[2]=ncap;}return 1;}
-    \\long long* sxqbe_list_alloc(void* aft,void* fft,void* rft,long long ctx){sxqbe_alloc_fn af=(sxqbe_alloc_fn)aft;sxqbe_free_fn ff=(sxqbe_free_fn)fft;sxqbe_realloc_fn rf=(sxqbe_realloc_fn)rft;long long* hdr=(long long*)calloc(1,32);sxqbe_alloc_desc* d=(sxqbe_alloc_desc*)calloc(1,sizeof(sxqbe_alloc_desc));if(!hdr||!d){if(hdr)free(hdr);if(d)free(d);return sxqbe_err(0);}long long cap=8;long long buf=(long long)(intptr_t)sxqbe_alloc_call(af,ctx,cap*8);if(!buf){free(hdr);free(d);return sxqbe_err(0);}d->alloc=af;d->free=ff;d->realloc=rf;d->ctx=ctx;hdr[0]=buf;hdr[1]=0;hdr[2]=cap;hdr[3]=(long long)(intptr_t)d;return sxqbe_ok((long long)(intptr_t)hdr);}
+    \\long long* sxqbe_list_alloc(void* aft,void* fft,void* rft,long long ctx){sxqbe_alloc_fn af=(sxqbe_alloc_fn)aft;sxqbe_free_fn ff=(sxqbe_free_fn)fft;sxqbe_realloc_fn rf=(sxqbe_realloc_fn)rft;long long* hdr;sxqbe_alloc_desc* d;if(af){hdr=(long long*)sxqbe_alloc_call(af,ctx,32);d=(sxqbe_alloc_desc*)sxqbe_alloc_call(af,ctx,sizeof(sxqbe_alloc_desc));}else{hdr=(long long*)calloc(1,32);d=(sxqbe_alloc_desc*)calloc(1,sizeof(sxqbe_alloc_desc));}if(!hdr||!d){if(af){if(hdr)ff(ctx,(long long)(intptr_t)hdr);if(d)ff(ctx,(long long)(intptr_t)d);}else{if(hdr)free(hdr);if(d)free(d);}return sxqbe_err_af(af,ctx,0);}memset(hdr,0,32);memset(d,0,sizeof(sxqbe_alloc_desc));long long cap=8;long long buf=(long long)(intptr_t)sxqbe_alloc_call(af,ctx,cap*8);if(!buf){if(af){ff(ctx,(long long)(intptr_t)hdr);ff(ctx,(long long)(intptr_t)d);}else{free(hdr);free(d);}return sxqbe_err_af(af,ctx,0);}d->alloc=af;d->free=ff;d->realloc=rf;d->ctx=ctx;hdr[0]=buf;hdr[1]=0;hdr[2]=cap;hdr[3]=(long long)(intptr_t)d;return sxqbe_ok_af(af,ctx,(long long)(intptr_t)hdr);}
     \\void sxqbe_list_free(long long*);
-    \\long long* sxqbe_list_from(void* aft,void* fft,void* rft,long long ctx,long long* elems,long long count){long long* r=sxqbe_list_alloc(aft,fft,rft,ctx);if(!r||r[0]!=0)return r;long long* hdr=(long long*)r[1];if(count>0){if(!sxqbe_list_grow(hdr,count)){sxqbe_list_free(hdr);return sxqbe_err(0);}long long* buf=(long long*)hdr[0];long long i;for(i=0;i<count;i++)buf[i]=elems[i];hdr[1]=count;}return r;}
+    \\long long* sxqbe_list_from(void* aft,void* fft,void* rft,long long ctx,long long* elems,long long count){long long* r=sxqbe_list_alloc(aft,fft,rft,ctx);if(!r||r[0]!=0)return r;long long* hdr=(long long*)r[1];if(count>0){if(!sxqbe_list_grow(hdr,count)){sxqbe_list_free(hdr);return sxqbe_err_af((sxqbe_alloc_fn)aft,ctx,0);}long long* buf=(long long*)hdr[0];long long i;for(i=0;i<count;i++)buf[i]=elems[i];hdr[1]=count;}return r;}
     \\long long* sxqbe_args_alloc(void* aft,void* fft,void* rft,long long ctx,long long argc,long long argv){sxqbe_alloc_fn af=(sxqbe_alloc_fn)aft;sxqbe_free_fn ff=(sxqbe_free_fn)fft;sxqbe_realloc_fn rf=(sxqbe_realloc_fn)rft;long long* hdr=(long long*)calloc(1,32);sxqbe_alloc_desc* d=(sxqbe_alloc_desc*)calloc(1,sizeof(sxqbe_alloc_desc));if(!hdr||!d){if(hdr)free(hdr);if(d)free(d);return sxqbe_err(0);}long long bytes=argc>0?argc*8:8;long long buf=(long long)(intptr_t)sxqbe_alloc_call(af,ctx,bytes);if(!buf){free(hdr);free(d);return sxqbe_err(0);}d->alloc=af;d->free=ff;d->realloc=rf;d->ctx=ctx;hdr[0]=buf;hdr[1]=argc;hdr[2]=argc>0?argc:1;hdr[3]=(long long)(intptr_t)d;char** av=(char**)(intptr_t)argv;long long i;for(i=0;i<argc;i++)((long long*)(intptr_t)buf)[i]=(long long)(intptr_t)av[i];return sxqbe_ok((long long)(intptr_t)hdr);}
     \\long long* sxqbe_fmt_alloc(void* aft,void* fft,void* rft,long long ctx,const char* f,long long* p){sxqbe_alloc_fn af=(sxqbe_alloc_fn)aft;sxqbe_free_fn ff=(sxqbe_free_fn)fft;sxqbe_realloc_fn rf=(sxqbe_realloc_fn)rft;long long cap=4096;char* b=(char*)sxqbe_alloc_call(af,ctx,cap);if(!b)return sxqbe_err(0);int n=p?snprintf(b,(size_t)cap,f,p[0],p[1],p[2],p[3],p[4],p[5],p[6],p[7],p[8],p[9],p[10],p[11],p[12],p[13],p[14],p[15]):snprintf(b,(size_t)cap,"%s",f);if(n<0){ff(ctx,(long long)(intptr_t)b);return sxqbe_err(0);}if((long long)n>=cap){long long ncap=(long long)n+1;long long nb=sxqbe_realloc_call(rf,ctx,b,ncap);if(!nb){ff(ctx,(long long)(intptr_t)b);return sxqbe_err(0);}b=(char*)(intptr_t)nb;cap=ncap;n=p?snprintf(b,(size_t)cap,f,p[0],p[1],p[2],p[3],p[4],p[5],p[6],p[7],p[8],p[9],p[10],p[11],p[12],p[13],p[14],p[15]):snprintf(b,(size_t)cap,"%s",f);if(n<0){ff(ctx,(long long)(intptr_t)b);return sxqbe_err(0);}}return sxqbe_ok((long long)(intptr_t)b);}
-    \\void sxqbe_list_free(long long* h){if(!h)return;long long buf=h[0];sxqbe_alloc_desc* d=(sxqbe_alloc_desc*)(intptr_t)h[3];if(d){if(buf)d->free(d->ctx,buf);free(d);}else{if(buf)free((void*)(intptr_t)buf);}free(h);}
+    \\void sxqbe_list_free(long long* h){if(!h)return;long long buf=h[0];sxqbe_alloc_desc* d=(sxqbe_alloc_desc*)(intptr_t)h[3];if(d){if(buf)d->free(d->ctx,buf);d->free(d->ctx,(long long)(intptr_t)d);d->free(d->ctx,(long long)(intptr_t)h);}else{if(buf)free((void*)(intptr_t)buf);free(h);}}
     \\void sxqbe_list_reserve(long long* h,long long cap){if(!h)return;if(cap>h[2])sxqbe_list_grow(h,cap);}
     \\typedef void* (*sxqbe_raw_alloc_fn)(long long,unsigned long long);
     \\static void* sxqbe_raw_alloc_call(sxqbe_raw_alloc_fn f,long long ctx,long long size){return f(ctx,(unsigned long long)size);}
@@ -1903,13 +1910,25 @@ fn cg_alloc_runtime_c_source() ref u8 = trust {
 /// Build the C translation unit that exposes C header constants to QBE.
 fn cg_build_c_shim(ctx: ref CgCtx) ref u8 = trust {
     val n_consts: i64 = @len(ctx.c_consts) as i64
-    if n_consts == 0 && !ctx.alloc_runtime {
+    val n_adapters: i64 = @len(ctx.alloc_adapter_lines as list[ref u8]) as i64
+    if n_consts == 0 && !ctx.alloc_runtime && n_adapters == 0 {
         return ""
     }
 
     val sb: ref void = str.StringBuilder.new()
     if ctx.alloc_runtime {
         str.StringBuilder.append_cstr(sb, cg_alloc_runtime_c_source())
+    }
+    val ai: mut i64 = 0
+    for {
+        if ai >= n_adapters {
+            break
+        }
+        val a_opt = @get(ctx.alloc_adapter_lines as list[ref u8], ai as usize)
+        if a_opt is some a {
+            str.StringBuilder.append_cstr(sb, a as ref u8)
+        }
+        ai++
     }
     for header in ctx.c_headers {
         val inc: ref u8 = allocators.ScopedArena.alloc_or_none(
@@ -2682,21 +2701,21 @@ fn cg_infer_call_ret_ty(ctx: mut ref CgCtx, expr: ref parser.Node) ref parser.No
         return none
     }
 
-    val resolved_targs: mut list[ref parser.Node] = []
+    val resolved_targs: mut list[ref parser.Node] = mem.new[ref parser.Node]()
     for ta in gi_targs {
         @append(resolved_targs, cg_concrete_ty(ctx, ta as ref parser.Node))
     }
 
-    val old_gsubst_names: mut list[ref u8] = []
+    val old_gsubst_names: mut list[ref u8] = mem.new[ref u8]()
     for n in ctx.gsubst_names {
         @append(old_gsubst_names, n)
     }
-    val old_gsubst_tnodes: mut list[ref void] = []
+    val old_gsubst_tnodes: mut list[ref void] = mem.new[ref void]()
     for t in ctx.gsubst_tnodes {
         @append(old_gsubst_tnodes, t)
     }
-    ctx.gsubst_names = []
-    ctx.gsubst_tnodes = []
+    ctx.gsubst_names = mem.new[ref u8]()
+    ctx.gsubst_tnodes = mem.new[ref void]()
 
     val tparams: ref void = gfn_node.d6 as ref void
     if tparams != none {
@@ -3612,14 +3631,14 @@ fn nested_field_offset(ctx: mut ref CgCtx, node: ref parser.Node, field_name: re
 }
 
 fn cg_dvars_clear(ctx: mut ref CgCtx) void = trust {
-    ctx.dvars = []
-    ctx.dqtypes = []
-    ctx.local_ref_types = []
-    ctx.lnames = []
-    ctx.ltypes = []
-    ctx.local_src_names = []
-    ctx.local_qbe_names = []
-    ctx.local_slot_names = []
+    ctx.dvars = mem.new[ref u8]()
+    ctx.dqtypes = mem.new[ref u8]()
+    ctx.local_ref_types = mem.new[ref u8]()
+    ctx.lnames = mem.new[ref u8]()
+    ctx.ltypes = mem.new[ref u8]()
+    ctx.local_src_names = mem.new[ref u8]()
+    ctx.local_qbe_names = mem.new[ref u8]()
+    ctx.local_slot_names = mem.new[ref u8]()
     cg_defer_clear(ctx)
     cg_set_tmp(ctx, 0)
 }
@@ -4858,7 +4877,7 @@ fn cg_parse_type_annotation(ctx: ref CgCtx, ann: ref u8) ref parser.Node = {
     if ann == none || str.raw_cmp(ann, "") == 0 {
         return none
     }
-    val toks_res = trust lexer.tokenize(ann)
+    val toks_res = trust lexer.tokenize_with(ctx.arena, ann)
     match toks_res {
         err _ => {
             return none
@@ -4921,7 +4940,7 @@ fn cg_lookup_fnptr_sig(ctx: mut ref CgCtx, expr: ref parser.Node) ref parser.Nod
         val params: ref void = cg_lookup_fn_params(ctx, lookup_name)
         val ret_ty: ref parser.Node = cg_lookup_fn_ret_type_expr(ctx, lookup_name)
         if params != none && ret_ty != none {
-            val param_tys: mut list[ref parser.Node] = []
+            val param_tys: mut list[ref parser.Node] = mem.new[ref parser.Node]()
             val plen: i64 = @len(params as list[ref void]) as i64
             val pi: mut i64 = 0
             for {
@@ -5626,7 +5645,7 @@ fn emit_global_fixed_arr_literal(
     if rk != parser.TY_FIXED_ARR && rk != parser.TY_MUT {
         return false
     }
-    val entries: mut list[ref u8] = []
+    val entries: mut list[ref u8] = mem.new[ref u8]()
     if !collect_global_fixed_arr_entries(ctx, real_ty, gexpr, entries as ref void) {
         return false
     }
@@ -5686,7 +5705,7 @@ fn emit_global_list_literal(
         elen = @len(elems as list[ref parser.Node]) as i64
     }
 
-    val init_vals: mut list[ref u8] = []
+    val init_vals: mut list[ref u8] = mem.new[ref u8]()
     val ei: mut i64 = 0
     for {
         if ei >= elen {
@@ -5918,8 +5937,8 @@ fn cg_emit_global_init(ctx: mut ref CgCtx) void = trust {
     ctx.current_fn_ret_union = ""
     ctx.current_fn_ret_ty = none
     ctx.expected_ty = none
-    ctx.inv_cur_pnames = []
-    ctx.inv_cur_ptypes = []
+    ctx.inv_cur_pnames = mem.new[ref u8]()
+    ctx.inv_cur_ptypes = mem.new[ref u8]()
     cg_register_globals_as_locals(ctx)
 
     for init in ctx.global_inits {
@@ -9205,8 +9224,8 @@ fn gen_call(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
         if gfn_node != none {
             gsrc_params = gfn_node.d3 as ref void
         }
-        val arg_tmps_g: mut list[ref u8] = []
-        val arg_qts_g: mut list[ref u8] = []
+        val arg_tmps_g: mut list[ref u8] = mem.new[ref u8]()
+        val arg_qts_g: mut list[ref u8] = mem.new[ref u8]()
         if args_list != none {
             val glen: i64 = @len(args_list as list[ref parser.Node]) as i64
             val gai: mut i64 = 0
@@ -9219,7 +9238,7 @@ fn gen_call(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
                     val ga_node: ref parser.Node = ga as ref parser.Node
                     val gak: i64 = ga_node.kind
                     if cg_param_is_argspack(gsrc_params, gai) {
-                        val elems: mut list[ref parser.Node] = []
+                        val elems: mut list[ref parser.Node] = mem.new[ref parser.Node]()
                         if gak == parser.NK_ARGS_PACK {
                             val pack: ref void = ga_node.d0 as ref void
                             val plen: i64 = @len(pack) as i64
@@ -9268,7 +9287,7 @@ fn gen_call(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
         }
         val mono_base: mut ref u8 = none
         if gfn_node != none {
-            val resolved_targs: mut list[ref parser.Node] = []
+            val resolved_targs: mut list[ref parser.Node] = mem.new[ref parser.Node]()
             for ta in gi_targs {
                 @append(resolved_targs, cg_concrete_ty(ctx, ta as ref parser.Node))
             }
@@ -9693,7 +9712,7 @@ fn gen_call(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
                         64 as usize
                     ) as ref u8
                     @snprintf(fmt_buf, 64, "    %%t{lld} =l copy $__str{lld}\n", {fmt_tmp, fmt_idx})
-                    emit(ctx, fmt_buf) val variadic_args: mut list[ref u8] = []
+                    emit(ctx, fmt_buf) val variadic_args: mut list[ref u8] = mem.new[ref u8]()
                     val ai_p: mut i64 = 1
                     for {
                         if ai_p >= alen_p {
@@ -9789,8 +9808,8 @@ fn gen_call(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
         }
     }
 
-    val arg_tmps: mut list[ref u8] = []
-    val arg_qts: mut list[ref u8] = []
+    val arg_tmps: mut list[ref u8] = mem.new[ref u8]()
+    val arg_qts: mut list[ref u8] = mem.new[ref u8]()
 
     if args_list != none {
         val alen: i64 = @len(args_list) as i64
@@ -9805,7 +9824,7 @@ fn gen_call(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
                 val ak: i64 = arg_node.kind
                 if cg_callsite_param_is_argspack(ctx, expr, ai) {
                     if ak == parser.NK_ARGS_PACK {
-                        val elems: mut list[ref parser.Node] = []
+                        val elems: mut list[ref parser.Node] = mem.new[ref parser.Node]()
                         val pack: ref void = arg_node.d0 as ref void
                         val plen: i64 = @len(pack) as i64
                         val pi: mut i64 = 0
@@ -9828,7 +9847,7 @@ fn gen_call(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
                         @append(arg_tmps, at)
                         @append(arg_qts, "l")
                     } else {
-                        val elems: mut list[ref parser.Node] = []
+                        val elems: mut list[ref parser.Node] = mem.new[ref parser.Node]()
                         @append(elems, arg_node)
                         val pack_ptr: ref u8 = cg_gen_argspack_pack(ctx, elems)
                         @append(arg_tmps, pack_ptr)
@@ -9939,7 +9958,7 @@ fn gen_call(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
                                     16 as usize
                                 ) as ref u8
                                 @snprintf(wrapped, 16, "%%t{lld}", {box_ptr})
-                                val new_tmps: mut list[ref u8] = []
+                                val new_tmps: mut list[ref u8] = mem.new[ref u8]()
                                 val tlen_r: i64 = @len(arg_tmps) as i64
                                 val ri: mut i64 = 0
                                 for {
@@ -10500,8 +10519,68 @@ fn cg_resolve_alloc_fn(ctx: mut ref CgCtx, ty: ref parser.Node, method: ref u8) 
     return ""
 }
 
+fn cg_alloc_adapter_prefix(ctx: mut ref CgCtx, ty: ref parser.Node) ref u8 = trust {
+    val concrete: ref parser.Node = cg_concrete_ty(ctx, ty)
+    if concrete == none || concrete.kind != parser.TY_NAMED {
+        stdio.eprint("error: intrinsic allocator type argument must be a concrete named type\n", {})
+        os.exit(1)
+    }
+    val full_name: ref u8 = concrete.d0 as ref u8
+    val sanitized: ref u8 = sanitize_mangle_atom(ctx, full_name)
+    val prefix: ref u8 = str.concat_raw("sx__allocadapt_", sanitized)
+    val nlen: i64 = @len(ctx.alloc_adapter_prefixes as list[ref u8]) as i64
+    val ni: mut i64 = 0
+    for {
+        if ni >= nlen {
+            break
+        }
+        val n_opt = @get(ctx.alloc_adapter_prefixes as list[ref u8], ni as usize)
+        if n_opt is some n {
+            if str.raw_cmp(n as ref u8, prefix) == 0 {
+                return prefix
+            }
+        }
+        ni++
+    }
+    val alloc_fn: ref u8 = cg_resolve_alloc_fn(ctx, ty, "alloc")
+    val free_fn: ref u8 = cg_resolve_alloc_fn(ctx, ty, "free")
+    val realloc_fn: ref u8 = cg_resolve_alloc_fn(ctx, ty, "realloc")
+    if str.len_raw(alloc_fn) == 0 || str.len_raw(free_fn) == 0 || str.len_raw(realloc_fn) == 0 {
+        stdio.eprint("error: allocator '{s}' does not implement GeneralAllocator\n", {full_name})
+        os.exit(1)
+    }
+    @append(ctx.alloc_adapter_prefixes, prefix)
+    val cap: i64 = str.len_raw(prefix) + str.len_raw(alloc_fn) + str.len_raw(free_fn)
+    + str.len_raw(realloc_fn) + 2048
+    val line: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, cap as usize) as ref u8
+    @snprintf(
+        line,
+        cap,
+        "extern void {s}(long long*,long long,unsigned long long);\nextern int {s}(long long,long long);\nextern void {s}(long long*,long long,long long,unsigned long long);\nlong long {s}_alloc(long long ctx,unsigned long long size)\{long long r[3]=\{0,0,0\};{s}(r,ctx,size);return (r[0]!=0&&r[1]!=0)?r[1]+1:0;\}\nint {s}_free(long long ctx,long long ptr)\{{s}(ctx,ptr);return 0;\}\nlong long {s}_realloc(long long ctx,long long ptr,unsigned long long size)\{long long r[3]=\{0,0,0\};{s}(r,ctx,ptr,size);return (r[0]!=0&&r[1]!=0)?r[1]+1:0;\}\n",
+        {
+            alloc_fn,
+            free_fn,
+            realloc_fn,
+            prefix,
+            alloc_fn,
+            prefix,
+            free_fn,
+            prefix,
+            realloc_fn
+        }
+    )
+    @append(ctx.alloc_adapter_lines, line)
+    return prefix
+}
+
 fn cg_alloc_fn_ptr(ctx: mut ref CgCtx, ty: ref parser.Node, method: ref u8) ref u8 = trust {
-    val sym: ref u8 = cg_resolve_alloc_fn(ctx, ty, method)
+    val sym: mut ref u8 = ""
+    if str.raw_cmp(method, "alloc_raw") != 0 {
+        val prefix: ref u8 = cg_alloc_adapter_prefix(ctx, ty)
+        sym = str.concat_raw(prefix, str.concat_raw("_", method))
+    } else {
+        sym = cg_resolve_alloc_fn(ctx, ty, method)
+    }
     if str.len_raw(sym) == 0 {
         stdio.eprint(
             "error: allocator '{s}' does not implement GeneralAllocator\n",
@@ -12506,8 +12585,8 @@ fn gen_builtin(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
                     emit(ctx, alloc_buf)
                 }
 
-                val arg_tmps2: mut list[ref u8] = []
-                val arg_qts2: mut list[ref u8] = []
+                val arg_tmps2: mut list[ref u8] = mem.new[ref u8]()
+                val arg_qts2: mut list[ref u8] = mem.new[ref u8]()
                 val alen3: i64 = @len(args as list[ref parser.Node]) as i64
                 val ai3: mut i64 = 1
                 for {
@@ -12593,7 +12672,7 @@ fn gen_builtin(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
                                                 16 as usize
                                             ) as ref u8
                                             @snprintf(wrapped, 16, "%%t{lld}", {box_ptr})
-                                            val new_tmps: mut list[ref u8] = []
+                                            val new_tmps: mut list[ref u8] = mem.new[ref u8]()
                                             val tlen_r: i64 = @len(arg_tmps2) as i64
                                             val ri: mut i64 = 0
                                             for {
@@ -12687,8 +12766,8 @@ fn gen_builtin(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
         str.StringBuilder.append_cstr(call_sb, hdr2_buf) if args != none {
             val alen: i64 = @len(args) as i64
             val ai: mut i64 = 0
-            val arg_nodes: mut list[ref parser.Node] = []
-            val arg_tmps2: mut list[ref u8] = []
+            val arg_nodes: mut list[ref parser.Node] = mem.new[ref parser.Node]()
+            val arg_tmps2: mut list[ref u8] = mem.new[ref u8]()
             for {
                 if ai >= alen {
                     break
@@ -14535,8 +14614,8 @@ fn gen_if_stmt(ctx: mut ref CgCtx, stmt: ref parser.Node) void = trust {
     // So, the strategy here is: allocate one "next" label per elif plus one for else/end.
     //   next_lbls[i] = label to jump to when elif[i-1] condition is false
     //   next_lbls[0] = first elif cond label (or else_lbl or end_lbl)
-    val next_lbls: mut list[i64] = []
-    val body_lbls: mut list[i64] = []
+    val next_lbls: mut list[i64] = mem.new[i64]()
+    val body_lbls: mut list[i64] = mem.new[i64]()
 
     if has_elif {
         val elen: i64 = @len(elif_list) as i64
@@ -15845,7 +15924,9 @@ fn gen_fn_prefixed(ctx: mut ref CgCtx, fn_node: ref parser.Node, mod_prefix: ref
     }
 
     val export_kw: mut ref u8 = ""
-    if public == 1 {
+    if public == 1 || str.raw_ends_with(mangled, "__alloc")
+    || str.raw_ends_with(mangled, "__free")
+    || str.raw_ends_with(mangled, "__realloc") {
         export_kw = "export "
     }
     val ret_qt: mut ref u8 = qbe_type_of(ret_ty)
@@ -15943,8 +16024,8 @@ fn gen_fn_prefixed(ctx: mut ref CgCtx, fn_node: ref parser.Node, mod_prefix: ref
     ctx.expected_ty = none
 
     cg_dvars_clear(ctx)
-    ctx.inv_cur_pnames = []
-    ctx.inv_cur_ptypes = []
+    ctx.inv_cur_pnames = mem.new[ref u8]()
+    ctx.inv_cur_ptypes = mem.new[ref u8]()
 
     if params != none {
         val plen2: i64 = @len(params) as i64
@@ -16223,7 +16304,7 @@ fn gen_union_def_prefixed(
         return
     }
     val vlen: i64 = @len(variants) as i64
-    val vnames: mut list[ref u8] = []
+    val vnames: mut list[ref u8] = mem.new[ref u8]()
     val vi: mut i64 = 0
     for {
         if vi >= vlen {
@@ -17457,8 +17538,8 @@ fn cg_flush_qbe_fn(
 /// per call. Allocation sizes in this backend are always compile-time constants.
 fn cg_hoist_qbe_allocs(qbe: ref u8) ref u8 = trust {
     val out: ref void = str.StringBuilder.new()
-    val lines: mut list[ref u8] = []
-    val allocs: mut list[ref u8] = []
+    val lines: mut list[ref u8] = mem.new[ref u8]()
+    val allocs: mut list[ref u8] = mem.new[ref u8]()
     val in_fn: mut bool = false
     val insert_at: mut i64 = 1
     val n: i64 = str.len_raw(qbe)
@@ -17480,8 +17561,8 @@ fn cg_hoist_qbe_allocs(qbe: ref u8) ref u8 = trust {
             if !in_fn {
                 if cg_qbe_is_fn_header(line) {
                     in_fn = true
-                    lines = []
-                    allocs = []
+                    lines = mem.new[ref u8]()
+                    allocs = mem.new[ref u8]()
                     insert_at = 1
                     @append(lines, line)
                 } else {
@@ -17549,9 +17630,9 @@ pub fn gen_module_resolved(
     ctx.src_target = src_target
     emit_runtime_helpers(ctx)
 
-    val out_prefixes: mut list[ref u8] = []
-    val out_items: mut list[ref void] = []
-    val seen: mut list[String] = []
+    val out_prefixes: mut list[ref u8] = mem.new[ref u8]()
+    val out_items: mut list[ref void] = mem.new[ref void]()
+    val seen: mut list[String] = mem.new[String]()
 
     module.flatten_modules(ctx.arena,
         root, "",
@@ -17665,9 +17746,9 @@ pub fn get_used_prefixes(root: ref module.ResolvedModule) list[ref u8] = trust {
         allocators.ScopedArena.free(ctx.arena)
     }
 
-    val out_prefixes: mut list[ref u8] = []
-    val out_items: mut list[ref void] = []
-    val seen: mut list[String] = []
+    val out_prefixes: mut list[ref u8] = mem.new[ref u8]()
+    val out_items: mut list[ref void] = mem.new[ref void]()
+    val seen: mut list[String] = mem.new[String]()
 
     module.flatten_modules(ctx.arena,
         root, "",
@@ -17869,7 +17950,7 @@ fn gen_test_main(
     emit(ctx, ok_buf)
 }
 
-/// Entry point for --test mode: emits test blocks from root module only,
+/// Entry point for -test mode: emits test blocks from root module only,
 /// suppresses main(), and emits a test runner $main.
 pub fn gen_module_resolved_test(
     root: ref module.ResolvedModule,
@@ -17884,9 +17965,9 @@ pub fn gen_module_resolved_test(
     ctx.src_target = src_target
     emit_runtime_helpers(ctx)
 
-    val out_prefixes: mut list[ref u8] = []
-    val out_items: mut list[ref void] = []
-    val seen: mut list[String] = []
+    val out_prefixes: mut list[ref u8] = mem.new[ref u8]()
+    val out_items: mut list[ref void] = mem.new[ref void]()
+    val seen: mut list[String] = mem.new[String]()
 
     module.flatten_modules(ctx.arena,
         root, "",
@@ -17929,8 +18010,8 @@ pub fn gen_module_resolved_test(
         li++
     }
 
-    val test_ids: mut list[i64] = []
-    val test_names: mut list[ref u8] = []
+    val test_ids: mut list[i64] = mem.new[i64]()
+    val test_names: mut list[ref u8] = mem.new[ref u8]()
     val test_counter: mut i64 = 0
     val root_items: list[ref parser.Node] = root.items
     val rlen: i64 = @len(root_items) as i64

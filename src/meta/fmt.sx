@@ -4,6 +4,7 @@
 /// (C) Navid Momtahen - 2026
 
 val str   = use("std/string")
+val mem        = use("mem.sx")
 val fs    = use("std/fs")
 val path  = use("std/path")
 val stdio = use("std/stdio")
@@ -119,15 +120,11 @@ fn edit_new(start: i64, end: i64, text: ref u8) ref Edit = trust {
     return e
 }
 
-fn free_i64_list(items: mut list[i64]) void = trust {
-    if items != none {
-        val buf: ref void = @load(items as ref void)
-        @free(buf)
-        @free(items as ref void)
-    }
+fn free_i64_list(items: list[i64]) void = trust {
+    @listfree(items)
 }
 
-fn free_edit_list(items: mut list[ref Edit]) void = trust {
+fn free_edit_list(items: list[ref Edit]) void = trust {
     val n: i64 = @len(items) as i64
     val i: mut i64 = 0
     for {
@@ -141,14 +138,10 @@ fn free_edit_list(items: mut list[ref Edit]) void = trust {
         }
         i++
     }
-    if items != none {
-        val buf: ref void = @load(items as ref void)
-        @free(buf)
-        @free(items as ref void)
-    }
+    @listfree(items)
 }
 
-fn free_arm_list(items: mut list[ref Arm]) void = trust {
+fn free_arm_list(items: list[ref Arm]) void = trust {
     val n: i64 = @len(items) as i64
     val i: mut i64 = 0
     for {
@@ -162,14 +155,10 @@ fn free_arm_list(items: mut list[ref Arm]) void = trust {
         }
         i++
     }
-    if items != none {
-        val buf: ref void = @load(items as ref void)
-        @free(buf)
-        @free(items as ref void)
-    }
+    @listfree(items)
 }
 
-fn free_import_group(items: mut list[ref ImportRec]) void = trust {
+fn free_import_group(items: list[ref ImportRec]) void = trust {
     val n: i64 = @len(items) as i64
     val i: mut i64 = 0
     for {
@@ -183,11 +172,7 @@ fn free_import_group(items: mut list[ref ImportRec]) void = trust {
         }
         i++
     }
-    if items != none {
-        val buf: ref void = @load(items as ref void)
-        @free(buf)
-        @free(items as ref void)
-    }
+    @listfree(items)
 }
 
 fn apply_edits(src: ref u8, edits: mut list[ref Edit]) ref u8 = trust {
@@ -227,7 +212,7 @@ fn range_is_whitespace(src: ref u8, start: i64, end: i64) bool = {
 }
 
 fn collect_line_starts(src: ref u8, len: i64) list[i64] = trust {
-    val starts: mut list[i64] = []
+    val starts: mut list[i64] = mem.new[i64]()
     @append(starts, 0)
     val i: mut i64 = 0
     for {
@@ -729,7 +714,7 @@ fn collect_arms(
     body_open: i64,
     body_close: i64
 ) list[ref Arm] = trust {
-    val arms: mut list[ref Arm] = []
+    val arms: mut list[ref Arm] = mem.new[ref Arm]()
     val i: mut i64 = body_open + 1
 
     for {
@@ -917,7 +902,7 @@ fn rewrite_match_at(
         return none
     }
 
-    val edits: mut list[ref Edit] = []
+    val edits: mut list[ref Edit] = mem.new[ref Edit]()
 
     // match -> if
     @append(edits, edit_new(m_start, m_start + 5, "if"))
@@ -986,7 +971,7 @@ fn rewrite_match_at(
 
 fn rewrite_one_match(src: ref u8) option[ref u8] = trust {
     val tok_res = lexer.tokenize(src)
-    val tokens: mut list[ref lexer.Token] = []
+    val tokens: mut list[ref lexer.Token] = mem.new[ref lexer.Token]()
     match tok_res {
         ok toks => {
             tokens = toks
@@ -1052,7 +1037,7 @@ fn rewrite_matches(src: ref u8) ref u8 = trust {
 
 fn format_block_braces(src: ref u8) ref u8 = trust {
     val tok_res = lexer.tokenize(src)
-    val tokens: mut list[ref lexer.Token] = []
+    val tokens: mut list[ref lexer.Token] = mem.new[ref lexer.Token]()
     match tok_res {
         ok toks => {
             tokens = toks
@@ -1071,7 +1056,7 @@ fn format_block_braces(src: ref u8) ref u8 = trust {
         free_i64_list(starts)
     }
     val ntokens: i64 = @len(tokens) as i64
-    val newlines: mut list[i64] = []
+    val newlines: mut list[i64] = mem.new[i64]()
     val i: mut i64 = 0
 
     for {
@@ -1128,7 +1113,7 @@ fn format_block_braces(src: ref u8) ref u8 = trust {
 
 fn format_else_join(src: ref u8) ref u8 = trust {
     val tok_res = lexer.tokenize(src)
-    val tokens: mut list[ref lexer.Token] = []
+    val tokens: mut list[ref lexer.Token] = mem.new[ref lexer.Token]()
     match tok_res {
         ok toks => {
             tokens = toks
@@ -1147,7 +1132,7 @@ fn format_else_join(src: ref u8) ref u8 = trust {
         free_i64_list(starts)
     }
     val ntokens: i64 = @len(tokens) as i64
-    val joins: mut list[i64] = []
+    val joins: mut list[i64] = mem.new[i64]()
     val i: mut i64 = 0
 
     for {
@@ -1173,7 +1158,7 @@ fn format_else_join(src: ref u8) ref u8 = trust {
     }
 
     sort_positions(joins)
-    val edits: mut list[ref Edit] = []
+    val edits: mut list[ref Edit] = mem.new[ref Edit]()
     for after_idx in joins {
         val close_pos: i64 = token_start(tokens, starts, after_idx - 1)
         val after_pos: i64 = token_start(tokens, starts, after_idx)
@@ -1192,7 +1177,7 @@ fn format_else_join(src: ref u8) ref u8 = trust {
 
 fn format_match_arm_spacing(src: ref u8) ref u8 = trust {
     val tok_res = lexer.tokenize(src)
-    val tokens: mut list[ref lexer.Token] = []
+    val tokens: mut list[ref lexer.Token] = mem.new[ref lexer.Token]()
     match tok_res {
         ok toks => {
             tokens = toks
@@ -1211,7 +1196,7 @@ fn format_match_arm_spacing(src: ref u8) ref u8 = trust {
         free_i64_list(starts)
     }
     val ntokens: i64 = @len(tokens) as i64
-    val edits: mut list[ref Edit] = []
+    val edits: mut list[ref Edit] = mem.new[ref Edit]()
     val i: mut i64 = 0
 
     for {
@@ -1313,7 +1298,7 @@ fn format_match_arm_spacing(src: ref u8) ref u8 = trust {
 
 fn format_decl_separators(src: ref u8) ref u8 = trust {
     val tok_res = lexer.tokenize(src)
-    val tokens: mut list[ref lexer.Token] = []
+    val tokens: mut list[ref lexer.Token] = mem.new[ref lexer.Token]()
     match tok_res {
         ok toks => {
             tokens = toks
@@ -1332,7 +1317,7 @@ fn format_decl_separators(src: ref u8) ref u8 = trust {
         free_i64_list(starts)
     }
     val ntokens: i64 = @len(tokens) as i64
-    val edits: mut list[ref Edit] = []
+    val edits: mut list[ref Edit] = mem.new[ref Edit]()
     val i: mut i64 = 0
 
     for {
@@ -1404,7 +1389,7 @@ fn format_decl_separators(src: ref u8) ref u8 = trust {
 
 fn format_paren_separators(src: ref u8) ref u8 = trust {
     val tok_res = lexer.tokenize(src)
-    val tokens: mut list[ref lexer.Token] = []
+    val tokens: mut list[ref lexer.Token] = mem.new[ref lexer.Token]()
     match tok_res {
         ok toks => {
             tokens = toks
@@ -1423,7 +1408,7 @@ fn format_paren_separators(src: ref u8) ref u8 = trust {
         free_i64_list(starts)
     }
     val ntokens: i64 = @len(tokens) as i64
-    val edits: mut list[ref Edit] = []
+    val edits: mut list[ref Edit] = mem.new[ref Edit]()
     val paren_depth: mut i64 = 0
     val i: mut i64 = 0
 
@@ -1477,7 +1462,7 @@ fn format_paren_separators(src: ref u8) ref u8 = trust {
 
 fn format_colon_spacing(src: ref u8) ref u8 = trust {
     val tok_res = lexer.tokenize(src)
-    val tokens: mut list[ref lexer.Token] = []
+    val tokens: mut list[ref lexer.Token] = mem.new[ref lexer.Token]()
     match tok_res {
         ok toks => {
             tokens = toks
@@ -1496,7 +1481,7 @@ fn format_colon_spacing(src: ref u8) ref u8 = trust {
         free_i64_list(starts)
     }
     val ntokens: i64 = @len(tokens) as i64
-    val edits: mut list[ref Edit] = []
+    val edits: mut list[ref Edit] = mem.new[ref Edit]()
     val i: mut i64 = 0
 
     for {
@@ -1541,7 +1526,7 @@ fn format_colon_spacing(src: ref u8) ref u8 = trust {
 
 fn format_eq_spacing(src: ref u8) ref u8 = trust {
     val tok_res = lexer.tokenize(src)
-    val tokens: mut list[ref lexer.Token] = []
+    val tokens: mut list[ref lexer.Token] = mem.new[ref lexer.Token]()
     match tok_res {
         ok toks => {
             tokens = toks
@@ -1560,7 +1545,7 @@ fn format_eq_spacing(src: ref u8) ref u8 = trust {
         free_i64_list(starts)
     }
     val ntokens: i64 = @len(tokens) as i64
-    val edits: mut list[ref Edit] = []
+    val edits: mut list[ref Edit] = mem.new[ref Edit]()
     val i: mut i64 = 0
 
     for {
@@ -1616,7 +1601,7 @@ fn format_eq_spacing(src: ref u8) ref u8 = trust {
 
 fn format_as_spacing(src: ref u8) ref u8 = trust {
     val tok_res = lexer.tokenize(src)
-    val tokens: mut list[ref lexer.Token] = []
+    val tokens: mut list[ref lexer.Token] = mem.new[ref lexer.Token]()
     match tok_res {
         ok toks => {
             tokens = toks
@@ -1635,7 +1620,7 @@ fn format_as_spacing(src: ref u8) ref u8 = trust {
         free_i64_list(starts)
     }
     val ntokens: i64 = @len(tokens) as i64
-    val edits: mut list[ref Edit] = []
+    val edits: mut list[ref Edit] = mem.new[ref Edit]()
     val i: mut i64 = 0
 
     for {
@@ -1691,7 +1676,7 @@ fn format_as_spacing(src: ref u8) ref u8 = trust {
 
 fn format_operator_spacing(src: ref u8) ref u8 = trust {
     val tok_res = lexer.tokenize(src)
-    val tokens: mut list[ref lexer.Token] = []
+    val tokens: mut list[ref lexer.Token] = mem.new[ref lexer.Token]()
     match tok_res {
         ok toks => {
             tokens = toks
@@ -1710,7 +1695,7 @@ fn format_operator_spacing(src: ref u8) ref u8 = trust {
         free_i64_list(starts)
     }
     val ntokens: i64 = @len(tokens) as i64
-    val edits: mut list[ref Edit] = []
+    val edits: mut list[ref Edit] = mem.new[ref Edit]()
     val i: mut i64 = 0
 
     for {
@@ -1767,7 +1752,7 @@ fn format_operator_spacing(src: ref u8) ref u8 = trust {
 
 fn format_assert_spacing(src: ref u8) ref u8 = trust {
     val tok_res = lexer.tokenize(src)
-    val tokens: mut list[ref lexer.Token] = []
+    val tokens: mut list[ref lexer.Token] = mem.new[ref lexer.Token]()
     match tok_res {
         ok toks => {
             tokens = toks
@@ -1786,7 +1771,7 @@ fn format_assert_spacing(src: ref u8) ref u8 = trust {
         free_i64_list(starts)
     }
     val ntokens: i64 = @len(tokens) as i64
-    val edits: mut list[ref Edit] = []
+    val edits: mut list[ref Edit] = mem.new[ref Edit]()
     val i: mut i64 = 0
 
     for {
@@ -1875,7 +1860,7 @@ fn format_assert_spacing(src: ref u8) ref u8 = trust {
 
 fn format_block_brace_spacing(src: ref u8) ref u8 = trust {
     val tok_res = lexer.tokenize(src)
-    val tokens: mut list[ref lexer.Token] = []
+    val tokens: mut list[ref lexer.Token] = mem.new[ref lexer.Token]()
     match tok_res {
         ok toks => {
             tokens = toks
@@ -1894,7 +1879,7 @@ fn format_block_brace_spacing(src: ref u8) ref u8 = trust {
         free_i64_list(starts)
     }
     val ntokens: i64 = @len(tokens) as i64
-    val edits: mut list[ref Edit] = []
+    val edits: mut list[ref Edit] = mem.new[ref Edit]()
     val i: mut i64 = 0
 
     for {
@@ -1970,7 +1955,7 @@ fn find_fn_params_open(tokens: list[ref lexer.Token], fn_idx: i64) i64 = trust {
 
 fn format_fn_return_spacing(src: ref u8) ref u8 = trust {
     val tok_res = lexer.tokenize(src)
-    val tokens: mut list[ref lexer.Token] = []
+    val tokens: mut list[ref lexer.Token] = mem.new[ref lexer.Token]()
     match tok_res {
         ok toks => {
             tokens = toks
@@ -1989,7 +1974,7 @@ fn format_fn_return_spacing(src: ref u8) ref u8 = trust {
         free_i64_list(starts)
     }
     val ntokens: i64 = @len(tokens) as i64
-    val edits: mut list[ref Edit] = []
+    val edits: mut list[ref Edit] = mem.new[ref Edit]()
     val i: mut i64 = 0
 
     for {
@@ -2175,7 +2160,7 @@ fn flush_import_group(src: ref u8, out: mut ref Buf, group: mut list[ref ImportR
 fn format_import_alignment(src: ref u8) ref u8 = trust {
     val len: i64 = str.len_raw(src)
     val out: mut ref Buf = buf_new(len + 64)
-    val group: mut list[ref ImportRec] = []
+    val group: mut list[ref ImportRec] = mem.new[ref ImportRec]()
     val line_start: mut i64 = 0
 
     for {
@@ -2217,7 +2202,7 @@ fn format_import_alignment(src: ref u8) ref u8 = trust {
             @append(group, rec)
         } else {
             flush_import_group(src, out, group)
-            group = []
+            group = mem.new[ref ImportRec]()
 
             if line_end > line_start {
                 buf_append_bytes(out, src, line_start, line_end - line_start)
@@ -2253,7 +2238,7 @@ fn spaces_text(n: i64) ref u8 = trust {
 /// Align `=` inside top-level `val (...)` declarations.
 fn format_bulk_val_alignment(src: ref u8) ref u8 = trust {
     val tok_res = lexer.tokenize(src)
-    val tokens: mut list[ref lexer.Token] = []
+    val tokens: mut list[ref lexer.Token] = mem.new[ref lexer.Token]()
     match tok_res {
         ok toks => {
             tokens = toks
@@ -2272,7 +2257,7 @@ fn format_bulk_val_alignment(src: ref u8) ref u8 = trust {
         free_i64_list(starts)
     }
     val ntokens: i64 = @len(tokens) as i64
-    val edits: mut list[ref Edit] = []
+    val edits: mut list[ref Edit] = mem.new[ref Edit]()
     val i: mut i64 = 0
 
     for {
@@ -2284,7 +2269,7 @@ fn format_bulk_val_alignment(src: ref u8) ref u8 = trust {
         lexer.kind_is_lparen(lexer.tok_kind(tokens, i + 1)) {
             val close: i64 = find_matching_paren(tokens, i + 1)
             if close > i {
-                val eqs: mut list[i64] = []
+                val eqs: mut list[i64] = mem.new[i64]()
                 val parens: mut i64 = 0
                 val brackets: mut i64 = 0
                 val braces: mut i64 = 0
@@ -2790,7 +2775,7 @@ fn append_for_separator(
 
 fn format_for_headers(src: ref u8) ref u8 = trust {
     val tok_res = lexer.tokenize(src)
-    val tokens: mut list[ref lexer.Token] = []
+    val tokens: mut list[ref lexer.Token] = mem.new[ref lexer.Token]()
     match tok_res {
         ok toks => {
             tokens = toks
@@ -2809,7 +2794,7 @@ fn format_for_headers(src: ref u8) ref u8 = trust {
         free_i64_list(starts)
     }
     val ntokens: i64 = @len(tokens) as i64
-    val edits: mut list[ref Edit] = []
+    val edits: mut list[ref Edit] = mem.new[ref Edit]()
     val i: mut i64 = 0
 
     for {
@@ -2876,7 +2861,7 @@ fn format_for_headers(src: ref u8) ref u8 = trust {
                             }
 
                             if inner_start <= inner_end {
-                                val seps: mut list[i64] = []
+                                val seps: mut list[i64] = mem.new[i64]()
                                 val parens: mut i64 = 0
                                 val brackets: mut i64 = 0
                                 val j: mut i64 = inner_start
@@ -3097,7 +3082,7 @@ fn wrap_delimited_at(
     open_idx: i64,
     close_idx: i64
 ) ref u8 = trust {
-    val edits: mut list[ref Edit] = []
+    val edits: mut list[ref Edit] = mem.new[ref Edit]()
     val open_pos: i64 = token_start(tokens, starts, open_idx)
     @append(edits, edit_new(open_pos + 1, open_pos + 1, "\n"))
 
@@ -3151,7 +3136,7 @@ fn wrap_delimited_at(
 /// purely whitespace-level and lets the caller reindent afterwards.
 fn wrap_one_long_line(src: ref u8) ref u8 = trust {
     val tok_res = lexer.tokenize(src)
-    val tokens: mut list[ref lexer.Token] = []
+    val tokens: mut list[ref lexer.Token] = mem.new[ref lexer.Token]()
     match tok_res {
         ok toks => {
             tokens = toks
@@ -3448,7 +3433,7 @@ pub fn cmd_fmt(targets: list[ref u8], to_stdout: bool) i32 = trust {
         return 1
     }
 
-    val files: mut list[ref u8] = []
+    val files: mut list[ref u8] = mem.new[ref u8]()
     for target in targets {
         val code: i32 = collect_files(target, files, true)
         if code != 0 {

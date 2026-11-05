@@ -1,4 +1,5 @@
 val allocators = use("std/allocators")
+val mem        = use("../meta/mem.sx")
 val string     = use("std/string")
 
 pub union TokenKind = {
@@ -725,7 +726,7 @@ fn lex_operator(l: mut ref Lexer, c: i64, line: i64, col: i64) result[ref Token,
 
 /// Release a token list produced by `tokenize`, including its backing arena
 /// when the list owns it (the `tokenize` convenience form does).
-pub fn free_tokens(tokens: mut list[ref Token]) void = trust {
+pub fn free_tokens(tokens: list[ref Token]) void = trust {
     val n: i64 = @len(tokens) as i64
     if n > 0 {
         val first_opt = @get(tokens, 0 as usize)
@@ -736,9 +737,7 @@ pub fn free_tokens(tokens: mut list[ref Token]) void = trust {
             }
         }
     }
-    val list_buf: ref void = @load(tokens as ref void)
-    @free(list_buf)
-    @free(tokens as ref void)
+    @listfree(tokens)
 }
 
 fn tokenize_in(
@@ -747,7 +746,7 @@ fn tokenize_in(
     src: ref u8
 ) result[list[ref Token], ref u8] = trust {
     val l: mut ref Lexer = lexer_new(arena, owns_arena, src)
-    val tokens: mut list[ref Token] = []
+    val tokens: mut list[ref Token] = mem.new[ref Token]()
     for {
         skip_whitespace(l)
         if skip_comment(l) {

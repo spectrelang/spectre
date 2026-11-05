@@ -1,4 +1,5 @@
 val string     = use("std/string")
+val mem        = use("../meta/mem.sx")
 val fmt        = use("std/fmt")
 val stdio      = use("std/stdio")
 val math       = use("std/math")
@@ -109,7 +110,7 @@ fn canonicalize_path(ctx: ref SemaCtx, path: ref u8) ref u8 = trust {
         return path
     }
     val len: i64 = string.len_raw(path)
-    val segs: mut list[ref u8] = []
+    val segs: mut list[ref u8] = mem.new[ref u8]()
     val i: mut i64 = 0
     for {
         if i >= len {
@@ -1871,7 +1872,7 @@ fn sema_check_recursive_types(
             if fty == none {
                 continue
             }
-            val seen: mut list[ref u8] = []
+            val seen: mut list[ref u8] = mem.new[ref u8]()
             if sema_type_contains_recursive(ctx, fty, tname, seen, 0) {
                 val buf: ref u8 = allocators.ScopedArena.alloc_or_none(
                     ctx.arena,
@@ -2269,7 +2270,7 @@ fn validate_spec_impls(
         if methods == none {
             continue
         }
-        val impls: mut list[ref u8] = []
+        val impls: mut list[ref u8] = mem.new[ref u8]()
         for impl_item in items {
             if impl_item != none && impl_item.kind == parser.NK_TYPEDEF {
                 if str_eq(impl_item.d4 as ref u8, spec_name) {
@@ -3427,7 +3428,7 @@ fn has_c_style_specifier(s: ref u8) bool = trust {
 /// Extracts the list of specifier strings from a Spectre format string.
 /// E.g. "hello {d} {s}" -> ["d", "s"]
 fn parse_fmt_specifiers(ctx: ref SemaCtx, s: ref u8) list[ref u8] = trust {
-    val result: mut list[ref u8] = []
+    val result: mut list[ref u8] = mem.new[ref u8]()
     val i: mut i64 = 0
     for {
         val c: u8 = @load8(@ptradd(s, i))
@@ -4341,7 +4342,7 @@ fn resolve_generic_inst_inference(ctx: mut ref SemaCtx, callee: mut ref parser.N
     val nraw: i64 = @len(raw_targs) as i64
 
     // Expand a single bare [_] to one TY_INFER per type parameter.
-    val effective: mut list[ref parser.Node] = []
+    val effective: mut list[ref parser.Node] = mem.new[ref parser.Node]()
     val expand: mut bool = false
     if nraw == 1 && nparams > 1 {
         val first_opt = @get(raw_targs, 0 as usize)
@@ -4369,7 +4370,7 @@ fn resolve_generic_inst_inference(ctx: mut ref SemaCtx, callee: mut ref parser.N
         }
     }
 
-    val resolved: mut list[ref parser.Node] = []
+    val resolved: mut list[ref parser.Node] = mem.new[ref parser.Node]()
     val neff: i64 = @len(effective) as i64
     val ri: mut i64 = 0
     for {
@@ -6088,8 +6089,8 @@ fn sema_check_invariant_lit(ctx: ref SemaCtx, typedef_node: ref parser.Node,
         return
     }
 
-    val fnames: mut list[ref u8] = []
-    val fvals: mut list[i64] = []
+    val fnames: mut list[ref u8] = mem.new[ref u8]()
+    val fvals: mut list[i64] = mem.new[i64]()
     val flen: i64 = @len(fields as list[ref parser.Node]) as i64
     val alen: i64 = @len(args as list[ref parser.Node]) as i64
     val fi: mut i64 = 0
@@ -6151,8 +6152,8 @@ fn sema_check_invariant_lit(ctx: ref SemaCtx, typedef_node: ref parser.Node,
 }
 
 fn sema_const_eval_no_fields(expr: ref parser.Node) SemaConstVal = trust {
-    val field_names: list[ref u8] = []
-    val field_vals: list[i64] = []
+    val field_names: list[ref u8] = mem.new[ref u8]()
+    val field_vals: list[i64] = mem.new[i64]()
     return sema_const_eval(expr, field_names as ref void, field_vals as ref void)
 }
 
@@ -6203,14 +6204,14 @@ fn sema_check_call_preconditions(
     if params == none || body == none {
         return
     }
-    val pres: mut list[ref parser.Node] = []
+    val pres: mut list[ref parser.Node] = mem.new[ref parser.Node]()
     sema_collect_preconditions(ctx, body, pres)
     if @len(pres) as i64 == 0 {
         return
     }
 
-    val pnames: mut list[ref u8] = []
-    val pvals: mut list[i64] = []
+    val pnames: mut list[ref u8] = mem.new[ref u8]()
+    val pvals: mut list[i64] = mem.new[i64]()
     val plen: i64 = @len(params as list[ref parser.Node]) as i64
     val alen: mut i64 = 0
     if cargs != none {
@@ -6789,7 +6790,7 @@ fn check_stmt(ctx: mut ref SemaCtx, stmt: ref parser.Node, filename: ref u8) voi
                     val typedef_fields: ref void = tdef.d2 as ref void
                     val lit_fields: ref void = init_expr.d0 as ref void
                     if typedef_fields != none && lit_fields != none {
-                        val ordered_args: mut list[ref parser.Node] = []
+                        val ordered_args: mut list[ref parser.Node] = mem.new[ref parser.Node]()
                         val missing_field: mut bool = false
                         val tflen: i64 = @len(typedef_fields as list[ref parser.Node]) as i64
                         val tfi: mut i64 = 0
@@ -7545,7 +7546,7 @@ fn check_fn(ctx: mut ref SemaCtx, fn_node: ref parser.Node, filename: ref u8) vo
     val prev_unsafe: i64 = ctx.in_unsafe_fn
     ctx.in_unsafe_fn = is_unsafe
     val prev_argspack: list[ref u8] = ctx.argspack_params
-    ctx.argspack_params = []
+    ctx.argspack_params = mem.new[ref u8]()
 
     sema_validate_fn_types(ctx, fn_node, filename)
 
@@ -7738,7 +7739,7 @@ fn check_generic_fn(ctx: mut ref SemaCtx, fn_node: ref parser.Node, filename: re
     val prev_unsafe: i64 = ctx.in_unsafe_fn
     ctx.in_unsafe_fn = is_unsafe
     val prev_argspack: list[ref u8] = ctx.argspack_params
-    ctx.argspack_params = []
+    ctx.argspack_params = mem.new[ref u8]()
 
     val type_params: ref void = fn_node.d6 as ref void
     val prev_type_params: list[ref u8] = ctx.type_params
@@ -8606,8 +8607,8 @@ pub fn check_module_tree(
     quiet: i64,
     src_target: ref u8
 ) list[ref u8] = trust {
-    val all_errors: mut list[ref u8] = []
-    val seen: mut list[ref void] = []
+    val all_errors: mut list[ref u8] = mem.new[ref u8]()
+    val seen: mut list[ref void] = mem.new[ref void]()
     check_module_rec(arena, root, all_errors, seen, quiet, src_target)
     return all_errors
 }

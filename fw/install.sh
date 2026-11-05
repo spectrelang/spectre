@@ -439,7 +439,7 @@ if [ "$QBE_OK" -eq 0 ]; then
 		cp "$SPECTRE_LS_SXMOD" "${SPECTRE_LS_SXMOD}.install.bak"
 		SPECTRE_LS_SXMOD_PATCHED=1
 	fi
-	sed 's|^\([[:space:]]*flags[[:space:]]*\)"\(.*\)"|\1"\2 --alt"|' \
+	sed 's|^\([[:space:]]*flags[[:space:]]*\)"\(.*\)"|\1"\2 -alt"|' \
 		"$SPECTRE_LS_SXMOD" >"${SPECTRE_LS_SXMOD}.install.tmp"
 	mv "${SPECTRE_LS_SXMOD}.install.tmp" "$SPECTRE_LS_SXMOD"
 fi
