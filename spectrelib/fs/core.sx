@@ -83,6 +83,15 @@ when netbsd {
     }
 }
 
+when windows {
+    extern type Dirent = {
+        d_ino: i32
+        d_reclen: u16
+        d_namlen: u16
+        d_name: [260]u8
+    }
+}
+
 /// Opaque file handle — wraps a C FILE*.
 pub type File = {
     ptr: ref void

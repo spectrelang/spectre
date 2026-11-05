@@ -5740,7 +5740,9 @@ fn type_matches_union_variant(
 }
 
 /// Sentinel value for unknown / cannot evaluate at compile time.
-val SEMA_UNKNOWN: i64 = -9223372036854775807
+/// Kept in a range QBE lowers cleanly so bootstrap builds do not emit
+/// assembler truncation warnings for this constant.
+val SEMA_UNKNOWN: i64 = -4294967295
 
 /// Constant-fold a simple comparison/boolean expression.
 /// field_names and field_vals are parallel lists of (ref u8, i64).
