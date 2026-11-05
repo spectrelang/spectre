@@ -21,6 +21,13 @@ type ScopeEntry = {
     wrap_kind: mut i64
 }
 
+/// Result of a compile-time constant evaluation. Unlike option[i64], this can
+/// represent every i64 value, including -1.
+type SemaConstVal = {
+    known: bool
+    value: i64
+}
+
 type SemaCtx = {
     errors: mut list[ref u8]
     warnings: mut list[ref u8]
@@ -5739,36 +5746,48 @@ fn type_matches_union_variant(
     return false
 }
 
-/// Sentinel value for unknown / cannot evaluate at compile time.
-/// Kept in a range QBE lowers cleanly so bootstrap builds do not emit
-/// assembler truncation warnings for this constant.
-val SEMA_UNKNOWN: i64 = -4294967295
+fn sema_const_known(v: i64) SemaConstVal = trust {
+    val r: SemaConstVal = {
+        known: true
+        value: v
+    }
+    return r
+}
+
+fn sema_const_unknown() SemaConstVal = trust {
+    val r: SemaConstVal = {
+        known: false
+        value: 0
+    }
+    return r
+}
 
 /// Constant-fold a simple comparison/boolean expression.
-/// field_names and field_vals are parallel lists of (ref u8, i64).
-/// Returns SEMA_UNKNOWN if the expression can't be fully evaluated.
-fn sema_const_eval(expr: ref parser.Node, field_names: ref void, field_vals: ref void) i64 = trust {
+/// field_names and field_vals are parallel lists of (ref u8, i64) containing
+/// only values known at compile time. The result records whether the expression
+/// could be fully evaluated.
+fn sema_const_eval(expr: ref parser.Node, field_names: ref void, field_vals: ref void) SemaConstVal = trust {
     if expr == none {
-        return SEMA_UNKNOWN
+        return sema_const_unknown()
     }
     val k: i64 = expr.kind
     if k == parser.NK_INT_LIT {
         val s: ref u8 = expr.d0 as ref u8
         val parse_res = fmt.string_to_i64(s)
-        val v: mut i64 = SEMA_UNKNOWN
         match parse_res {
             ok parsed => {
-                v = parsed
+                return sema_const_known(parsed)
             }
-            err _ => {}
+            err _ => {
+                return sema_const_unknown()
+            }
         }
-        return v
     }
     if k == parser.NK_BOOL {
-        return expr.d0 as i64
+        return sema_const_known(expr.d0 as i64)
     }
     if k == parser.NK_CHAR_LIT {
-        return expr.d0 as i64
+        return sema_const_known(expr.d0 as i64)
     }
     if k == parser.NK_CAST || k == parser.NK_TRUST {
         return sema_const_eval(expr.d0 as ref parser.Node, field_names, field_vals)
@@ -5785,107 +5804,117 @@ fn sema_const_eval(expr: ref parser.Node, field_names: ref void, field_vals: ref
             if fn_opt is some func {
                 if string.raw_cmp(func as ref u8, iname) == 0 {
                     val buf: ref void = @load(field_vals) as ref void
-                    return @load(@ptradd(buf, fi * 8)) as i64
+                    return sema_const_known(@load(@ptradd(buf, fi * 8)) as i64)
                 }
             }
             fi++
         }
-        return SEMA_UNKNOWN
+        return sema_const_unknown()
     }
     if k == parser.NK_UNOP {
         val uop: i64 = expr.d0 as i64
         val inner: ref parser.Node = expr.d1 as ref parser.Node
-        val iv: i64 = sema_const_eval(inner, field_names, field_vals)
-        if iv == SEMA_UNKNOWN {
-            return SEMA_UNKNOWN
+        val iv: SemaConstVal = sema_const_eval(inner, field_names, field_vals)
+        if !iv.known {
+            return sema_const_unknown()
         }
         if uop == parser.UOP_NEG {
-            return -iv
+            return sema_const_known(-iv.value)
         }
         if uop == parser.UOP_NOT {
-            if iv == 0 {
-                return 1
+            if iv.value == 0 {
+                return sema_const_known(1)
             } else {
-                return 0
+                return sema_const_known(0)
             }
         }
-        return SEMA_UNKNOWN
+        return sema_const_unknown()
     }
     if k == parser.NK_BINOP {
         val op: i64 = expr.d0 as i64
-        val lv: i64 = sema_const_eval(expr.d1 as ref parser.Node, field_names, field_vals)
-        val rv: i64 = sema_const_eval(expr.d2 as ref parser.Node, field_names, field_vals)
-        if lv == SEMA_UNKNOWN || rv == SEMA_UNKNOWN {
-            return SEMA_UNKNOWN
+        val lv: SemaConstVal = sema_const_eval(
+            expr.d1 as ref parser.Node,
+            field_names,
+            field_vals
+        )
+        val rv: SemaConstVal = sema_const_eval(
+            expr.d2 as ref parser.Node,
+            field_names,
+            field_vals
+        )
+        if !lv.known || !rv.known {
+            return sema_const_unknown()
         }
+        val a: i64 = lv.value
+        val b: i64 = rv.value
         if op == parser.OP_GT {
-            if lv > rv {
-                return 1
+            if a > b {
+                return sema_const_known(1)
             } else {
-                return 0
+                return sema_const_known(0)
             }
         }
         if op == parser.OP_GE {
-            if lv >= rv {
-                return 1
+            if a >= b {
+                return sema_const_known(1)
             } else {
-                return 0
+                return sema_const_known(0)
             }
         }
         if op == parser.OP_LT {
-            if lv < rv {
-                return 1
+            if a < b {
+                return sema_const_known(1)
             } else {
-                return 0
+                return sema_const_known(0)
             }
         }
         if op == parser.OP_LE {
-            if lv <= rv {
-                return 1
+            if a <= b {
+                return sema_const_known(1)
             } else {
-                return 0
+                return sema_const_known(0)
             }
         }
         if op == parser.OP_EQ {
-            if lv == rv {
-                return 1
+            if a == b {
+                return sema_const_known(1)
             } else {
-                return 0
+                return sema_const_known(0)
             }
         }
         if op == parser.OP_NE {
-            if lv != rv {
-                return 1
+            if a != b {
+                return sema_const_known(1)
             } else {
-                return 0
+                return sema_const_known(0)
             }
         }
         if op == parser.OP_AND {
-            if lv != 0 && rv != 0 {
-                return 1
+            if a != 0 && b != 0 {
+                return sema_const_known(1)
             } else {
-                return 0
+                return sema_const_known(0)
             }
         }
         if op == parser.OP_OR {
-            if lv != 0 || rv != 0 {
-                return 1
+            if a != 0 || b != 0 {
+                return sema_const_known(1)
             } else {
-                return 0
+                return sema_const_known(0)
             }
         }
         if op == parser.OP_ADD {
-            return lv + rv
+            return sema_const_known(a + b)
         }
         if op == parser.OP_SUB {
-            return lv - rv
+            return sema_const_known(a - b)
         }
         if op == parser.OP_MUL {
-            return lv * rv
+            return sema_const_known(a * b)
         }
-        return SEMA_UNKNOWN
+        return sema_const_unknown()
     }
-    return SEMA_UNKNOWN
+    return sema_const_unknown()
 }
 
 /// Check an invariant list against compile-time-known field values.
@@ -5916,9 +5945,15 @@ fn sema_check_invariant_lit(ctx: ref SemaCtx, typedef_node: ref parser.Node,
             if arg_opt is some arg {
                 val fname: ref u8 = (fld as ref parser.Node).d0 as ref u8
                 val anode: ref parser.Node = arg as ref parser.Node
-                val aval: i64 = sema_const_eval(anode, fnames as ref void, fvals as ref void)
-                @append(fnames, fname)
-                @append(fvals, aval)
+                val aval: SemaConstVal = sema_const_eval(
+                    anode,
+                    fnames as ref void,
+                    fvals as ref void
+                )
+                if aval.known {
+                    @append(fnames, fname)
+                    @append(fvals, aval.value)
+                }
             }
         }
         fi++
@@ -5933,8 +5968,12 @@ fn sema_check_invariant_lit(ctx: ref SemaCtx, typedef_node: ref parser.Node,
         val inv_opt = @get(inv_list as list[ref parser.Node], ii as usize)
         if inv_opt is some inv {
             val inode: ref parser.Node = inv as ref parser.Node
-            val result: i64 = sema_const_eval(inode, fnames as ref void, fvals as ref void)
-            if result != SEMA_UNKNOWN && result == 0 {
+            val result: SemaConstVal = sema_const_eval(
+                inode,
+                fnames as ref void,
+                fvals as ref void
+            )
+            if result.known && result.value == 0 {
                 val type_name: ref u8 = typedef_node.d1 as ref u8
                 val buf: ref u8 = allocators.ScopedArena.alloc_or_none(
                     ctx.arena,
@@ -5953,7 +5992,7 @@ fn sema_check_invariant_lit(ctx: ref SemaCtx, typedef_node: ref parser.Node,
     }
 }
 
-fn sema_const_eval_no_fields(expr: ref parser.Node) i64 = trust {
+fn sema_const_eval_no_fields(expr: ref parser.Node) SemaConstVal = trust {
     val field_names: list[ref u8] = []
     val field_vals: list[i64] = []
     return sema_const_eval(expr, field_names as ref void, field_vals as ref void)
@@ -6024,15 +6063,17 @@ fn sema_check_call_preconditions(
         if p_opt is some p {
             val pnode: ref parser.Node = p as ref parser.Node
             val pname: ref u8 = pnode.d0 as ref u8
-            val pval: mut i64 = SEMA_UNKNOWN
+            val pval: mut SemaConstVal = sema_const_unknown()
             if pi < alen {
                 val a_opt = @get(cargs as list[ref parser.Node], pi as usize)
                 if a_opt is some a {
                     pval = sema_const_eval_no_fields(a as ref parser.Node)
                 }
             }
-            @append(pnames, pname)
-            @append(pvals, pval)
+            if pval.known {
+                @append(pnames, pname)
+                @append(pvals, pval.value)
+            }
         }
         pi++
     }
@@ -6049,12 +6090,12 @@ fn sema_check_call_preconditions(
             }
             val label: ref u8 = c.d0 as ref u8
             val cexpr: ref parser.Node = c.d1 as ref parser.Node
-            val result: i64 = sema_const_eval(
+            val result: SemaConstVal = sema_const_eval(
                 cexpr,
                 pnames as ref void,
                 pvals as ref void
             )
-            if result == SEMA_UNKNOWN || result != 0 {
+            if !result.known || result.value != 0 {
                 continue
             }
             val buf: ref u8 = allocators.ScopedArena.alloc_or_none(
@@ -6143,11 +6184,13 @@ fn sema_match_value_is_exhaustive(ctx: ref SemaCtx, stmt: ref parser.Node) bool 
     val has_true: mut bool = false
     val has_false: mut bool = false
     for arm in arms as list[ref parser.Node] {
-        val pat_v: i64 = sema_const_eval_no_fields(arm.d0 as ref parser.Node)
-        if pat_v == 0 {
-            has_false = true
-        } elif pat_v == 1 {
-            has_true = true
+        val pat: SemaConstVal = sema_const_eval_no_fields(arm.d0 as ref parser.Node)
+        if pat.known {
+            if pat.value == 0 {
+                has_false = true
+            } elif pat.value == 1 {
+                has_true = true
+            }
         }
     }
     return has_true && has_false
@@ -6209,23 +6252,29 @@ fn sema_match_tagged_union_is_exhaustive(ctx: ref SemaCtx, stmt: ref parser.Node
 }
 
 fn sema_if_stmt_guarantees_return(ctx: ref SemaCtx, stmt: ref parser.Node) bool = trust {
-    val cond_v: i64 = sema_const_eval_no_fields(stmt.d0 as ref parser.Node)
-    if cond_v == 1 {
-        return stmts_guarantee_return(ctx, stmt.d1 as ref void)
-    }
-    if cond_v == SEMA_UNKNOWN && !stmts_guarantee_return(ctx, stmt.d1 as ref void) {
-        return false
+    val cond: SemaConstVal = sema_const_eval_no_fields(stmt.d0 as ref parser.Node)
+    if cond.known {
+        if cond.value == 1 {
+            return stmts_guarantee_return(ctx, stmt.d1 as ref void)
+        }
+    } else {
+        if !stmts_guarantee_return(ctx, stmt.d1 as ref void) {
+            return false
+        }
     }
 
     val elif_list: ref void = stmt.d2 as ref void
     if elif_list != none {
         for ep in elif_list as list[ref parser.Node] {
-            val elif_v: i64 = sema_const_eval_no_fields(ep.d0 as ref parser.Node)
-            if elif_v == 1 {
-                return stmts_guarantee_return(ctx, ep.d1 as ref void)
-            }
-            if elif_v == SEMA_UNKNOWN && !stmts_guarantee_return(ctx, ep.d1 as ref void) {
-                return false
+            val elif_v: SemaConstVal = sema_const_eval_no_fields(ep.d0 as ref parser.Node)
+            if elif_v.known {
+                if elif_v.value == 1 {
+                    return stmts_guarantee_return(ctx, ep.d1 as ref void)
+                }
+            } else {
+                if !stmts_guarantee_return(ctx, ep.d1 as ref void) {
+                    return false
+                }
             }
         }
     }
