@@ -50,6 +50,8 @@ pub fn print_usage() void = {
     stdio.puts("  --show-cmd           Show the command used for linking")
     stdio.puts("  --test               Run the unit tests in the current file")
     stdio.puts("  --release            Build in release mode")
+    stdio.puts("  --native             Optimize the alt backend for the host CPU")
+    stdio.puts("  --unroll             Enable aggressive loop unrolling in the alt backend")
     stdio.puts("  --dynamic            Link dynamically instead of statically")
     stdio.puts("  --dll                Build a shared library")
     when posix {
@@ -346,6 +348,24 @@ pub fn print_help(topic: ref u8) i32 = trust {
             "--release",
             "Build in release mode with optimizations and stripped symbols.",
             "spectre <input.sx> --release"
+        )
+        return 0
+    }
+
+    if str.raw_cmp(topic, "--native") == 0 {
+        print_flag_help(
+            "--native",
+            "Optimize the alternative backend for the host CPU at the cost of portability across architectures.",
+            "spectre <input.sx> --release --alt --native"
+        )
+        return 0
+    }
+
+    if str.raw_cmp(topic, "--unroll") == 0 {
+        print_flag_help(
+            "--unroll",
+            "Enable aggressive loop unrolling in the alternative backend with -funroll-loops.",
+            "spectre <input.sx> --release --alt --unroll"
         )
         return 0
     }

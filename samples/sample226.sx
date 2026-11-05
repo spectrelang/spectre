@@ -1,0 +1,7 @@
+test "hello" {
+    assert true
+}
+
+pub fn main() void = trust {
+    @puts("ok\n")
+}

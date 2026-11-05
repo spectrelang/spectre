@@ -8303,6 +8303,13 @@ fn is_function_public(
                     return true
                 }
             }
+        } elif k == parser.NK_WHEN_ITEMS {
+            val witems: ref void = sema_select_when_branch(ctx, item)
+            if witems != none {
+                if is_function_public(ctx, witems as list[ref parser.Node], fn_name) {
+                    return true
+                }
+            }
         }
     }
     return false

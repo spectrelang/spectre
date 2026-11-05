@@ -344,6 +344,8 @@ pub fn main() i32 = trust {
     val show_cmd: mut bool = false
     val test_mode: mut bool = false
     val release_mode: mut bool = false
+    val native_mode: mut bool = false
+    val unroll_mode: mut bool = false
     val output_name: mut ref u8 = ""
     val build_dll: mut bool = false
     val compile_obj: mut bool = false
@@ -527,6 +529,12 @@ pub fn main() i32 = trust {
                 arg_i++
             } elif string.raw_cmp(arg, "--release") == 0 {
                 release_mode = true
+                arg_i++
+            } elif string.raw_cmp(arg, "--native") == 0 {
+                native_mode = true
+                arg_i++
+            } elif string.raw_cmp(arg, "--unroll") == 0 {
+                unroll_mode = true
                 arg_i++
             } elif string.raw_cmp(arg, "--dynamic") == 0 {
                 dynamic_linking = true
@@ -805,12 +813,24 @@ pub fn main() i32 = trust {
         }
 
         val warn_flag: ref u8 = builds.compiler_warn_flag(selected_compiler)
+        val perf_flags: mut ref u8 = ""
+        if string.raw_cmp(selected_compiler, "tcc") != 0 {
+            if native_mode {
+                perf_flags = @fmtalloc("{s} -march=native", {perf_flags})
+            }
+            if unroll_mode {
+                perf_flags = @fmtalloc("{s} -funroll-loops", {perf_flags})
+            }
+        }
         val cc_flags_alt: mut ref u8 = @fmtalloc(
-            "-std=c99 {s} -O3 -Wno-error=int-conversion",
-            {warn_flag}
+            "-std=c99 {s} -O3 -Wno-error=int-conversion{s}",
+            {warn_flag, perf_flags}
         )
         if !release_mode {
-            cc_flags_alt = @fmtalloc("-std=c99 {s} -g -Wno-error=int-conversion", {warn_flag})
+            cc_flags_alt = @fmtalloc(
+                "-std=c99 {s} -g -Wno-error=int-conversion{s}",
+                {warn_flag, perf_flags}
+            )
         }
         val test_output_alt: ref u8 = builds.get_tmp_path("spectre_test_bin_alt")
         val compile_output: mut ref u8 = test_output_alt

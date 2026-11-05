@@ -1225,6 +1225,12 @@ fn monomorphize_generic_fn(ctx: mut ref CgCtx, gfn_node: ref parser.Node, gfn_pr
         parser.node_store_slot[ref parser.Node](@addr(syn.d4), new_ret)
         parser.node_store_slot[ref parser.Node](@addr(syn.d5), final_body)
         syn.d6 = 0
+        if parser.fn_is_unsafe(gfn_node) {
+            syn.d6 = syn.d6 | parser.FN_FLAG_UNSAFE
+        }
+        if parser.fn_is_inline(gfn_node) {
+            syn.d6 = syn.d6 | parser.FN_FLAG_INLINE
+        }
 
         val saved_sb = ctx.sb
         val saved_tmp = ctx.tmp
@@ -8436,6 +8442,95 @@ fn cg_callsite_param_is_argspack(ctx: mut ref CgCtx, expr: ref parser.Node, idx:
     return false
 }
 
+fn cg_trunc_chars(xs: mut list[ref u8], n: i64) void = trust {
+    for {
+        if (@len(xs) as i64) <= n {
+            break
+        }
+        @remove(xs, (@len(xs) - 1) as usize)
+    }
+}
+
+/// Inline a call to an `inline` function whose body is a single return
+/// expression. Returns the QBE operand for the inlined result, or none when
+/// the call cannot be expanded (in which case the normal call path is used).
+fn cg_try_inline_call(
+    ctx: mut ref CgCtx,
+    fn_node: ref parser.Node,
+    arg_tmps: list[ref u8]
+) ref u8 = trust {
+    if fn_node == none || !parser.fn_is_inline(fn_node) {
+        return none
+    }
+    if fn_node.kind == parser.NK_EXTERN_FN {
+        return none
+    }
+    val body: ref void = fn_node.d5 as ref void
+    if body == none || (@len(body as list[ref parser.Node]) as i64) != 1 {
+        return none
+    }
+    val stmt_opt = @get(body as list[ref parser.Node], 0 as usize)
+    if stmt_opt is some stmt {
+        if stmt.kind != parser.NK_RETURN {
+            return none
+        }
+        val ret_expr: ref parser.Node = stmt.d0 as ref parser.Node
+        if ret_expr == none {
+            return none
+        }
+
+        val saved_src_len: i64 = @len(ctx.local_src_names as list[ref u8]) as i64
+        val saved_qbe_len: i64 = @len(ctx.local_qbe_names as list[ref u8]) as i64
+        val saved_lnames_len: i64 = @len(ctx.lnames as list[ref u8]) as i64
+        val saved_ltypes_len: i64 = @len(ctx.ltypes as list[ref u8]) as i64
+        val saved_ref_len: i64 = @len(ctx.local_ref_types as list[ref u8]) as i64
+
+        val params: ref void = fn_node.d3 as ref void
+        if params != none {
+            val plen: i64 = @len(params as list[ref parser.Node]) as i64
+            val alen: i64 = @len(arg_tmps) as i64
+            val pi: mut i64 = 0
+            for {
+                if pi >= plen || pi >= alen {
+                    break
+                }
+                val p_opt = @get(params as list[ref parser.Node], pi as usize)
+                val a_opt = @get(arg_tmps, pi as usize)
+                if p_opt is some p {
+                    if a_opt is some a {
+                        val param: ref parser.Node = p
+                        val pname: ref u8 = param.d0 as ref u8
+                        val pty: ref parser.Node = param.d1 as ref parser.Node
+                        cg_register_local_var(ctx, pname, a as ref u8)
+                        if pty != none {
+                            if pty.kind == parser.TY_REF {
+                                cg_register_local_ref_type(ctx, pname)
+                                val inner: ref parser.Node = pty.d0 as ref parser.Node
+                                if inner != none && inner.kind == parser.TY_NAMED {
+                                    cg_register_local_type(ctx, pname, inner.d0 as ref u8)
+                                }
+                            } elif pty.kind == parser.TY_NAMED {
+                                cg_register_local_type(ctx, pname, pty.d0 as ref u8)
+                            }
+                        }
+                    }
+                }
+                pi++
+            }
+        }
+
+        val result: ref u8 = gen_expr(ctx, ret_expr)
+
+        cg_trunc_chars(ctx.local_src_names, saved_src_len)
+        cg_trunc_chars(ctx.local_qbe_names, saved_qbe_len)
+        cg_trunc_chars(ctx.lnames, saved_lnames_len)
+        cg_trunc_chars(ctx.ltypes, saved_ltypes_len)
+        cg_trunc_chars(ctx.local_ref_types, saved_ref_len)
+        return result
+    }
+    return none
+}
+
 fn gen_call(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
     val callee_node: ref parser.Node = expr.d0 as ref parser.Node
     val args_list: ref void = expr.d1 as ref void
@@ -9117,6 +9212,10 @@ fn gen_call(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
 
     val tmp: mut i64 = fresh_tmp(ctx)
     val resolved_fn_node: ref parser.Node = parser.call_resolved_fn(expr)
+    val inlined: ref u8 = cg_try_inline_call(ctx, resolved_fn_node, arg_tmps)
+    if inlined != none {
+        return inlined
+    }
     val exact_callee: ref u8 = cg_lookup_fn_name_by_node(ctx, resolved_fn_node)
     val resolved_callee: mut ref u8 = exact_callee
     if resolved_callee == none {
@@ -16756,7 +16855,7 @@ fn gen_test_main(
                     @snprintf(
                         pbuf,
                         256,
-                        "    %%t{lld} =l copy $__str{lld}\n    %%t{lld} =l copy $__str{lld}\n    %%t{lld} =w call $printf(l %%t{lld}, l %%t{lld})\n",
+                        "    %%t{lld} =l copy $__str{lld}\n    %%t{lld} =l copy $__str{lld}\n    %%t{lld} =w call $printf(l %%t{lld}, ..., l %%t{lld})\n",
                         {fmt_tmp, fmt_idx, name_tmp, name_idx, call_tmp, fmt_tmp, name_tmp}
                     )
                     emit(ctx, pbuf)

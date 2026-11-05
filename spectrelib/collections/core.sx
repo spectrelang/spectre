@@ -240,6 +240,9 @@ pub type StringMap = {
     header: ref void
 }
 
+/// A compact open-addressing map with `i64` keys and `i64` values.
+pub type LongMap = {}
+
 /// Default identity hash for integer keys.
 pub fn hash_identity(key: usize) usize = {
     return key
@@ -1279,4 +1282,266 @@ test {
         }
     }
     trust RawIndexMap.free(m)
+}
+
+/// A compact open-addressing map with `i64` keys and `i64` values.
+///
+/// This is a low-overhead alternative to `Map` for integer workloads. It uses
+/// power-of-two capacities and linear probing, and keeps hashing and element
+/// access inline. The key `-1` is reserved and cannot be stored.
+
+/// Allocate a new integer map. `initial_cap` must be a power of two and > 0.
+pub fn (LongMap) new[A: allocators.GeneralAllocator](
+    ac: A,
+    initial_cap: usize
+) ref void = trust {
+    pre {
+        cap_positive: initial_cap > 0
+        cap_pow2: (initial_cap & (initial_cap - 1)) == 0
+    }
+    val cap: i64 = initial_cap as i64
+    val header_opt = allocators.alloc_in[A](ac, 32 as usize)
+    match header_opt {
+        none => {
+            return none
+        }
+        some header => {
+            val keys_opt = allocators.alloc_in[A](ac, (cap as usize) * 8)
+            if keys_opt is none {
+                allocators.free_in[A](ac, header)
+                return none
+            }
+            val vals_opt = allocators.alloc_in[A](ac, (cap as usize) * 8)
+            if vals_opt is none {
+                if keys_opt is some keys {
+                    allocators.free_in[A](ac, keys)
+                }
+                allocators.free_in[A](ac, header)
+                return none
+            }
+            if keys_opt is some keys {
+                if vals_opt is some vals {
+                    val ki: mut i64 = 0
+                    for {
+                        if ki >= cap {
+                            break
+                        }
+                        @store(@ptradd(keys, ki * 8), -1)
+                        ki++
+                    }
+                    @store(header, keys)
+                    @store(@ptradd(header, 8), vals)
+                    @store(@ptradd(header, 16), cap)
+                    @store(@ptradd(header, 24), 0)
+                    return header
+                }
+            }
+            return none
+        }
+    }
+}
+
+/// Return the number of entries in the map.
+pub fn (LongMap) len(map: ref void) usize = trust {
+    return @load(@ptradd(map, 24)) as usize
+}
+
+/// Return the current capacity.
+pub fn (LongMap) cap(map: ref void) usize = trust {
+    return @load(@ptradd(map, 16)) as usize
+}
+
+/// Find the slot for `key`, or -1 when the key is absent.
+fn (LongMap) lookup(map: ref void, key: i64) i64 = trust {
+    val keys: ref void = @load(map)
+    val cap: i64 = @load(@ptradd(map, 16)) as i64
+    val mask: i64 = cap - 1
+    val h: u64 = (key as u64) * 11400714819323198485
+    val start: i64 = (h as i64) & mask
+    for i = 0, i < cap, i++ {
+        val idx: i64 = (start + i) & mask
+        val k: i64 = @load(@ptradd(keys, idx * 8)) as i64
+        if k == key {
+            return idx
+        }
+        if k == -1 {
+            return 0 - 1
+        }
+    }
+    return 0 - 1
+}
+
+/// Double the bucket array and rehash all live entries.
+fn (LongMap) grow[A: allocators.GeneralAllocator](ac: A, map: ref void) void = trust {
+    val old_keys: ref void = @load(map)
+    val old_vals: ref void = @load(@ptradd(map, 8))
+    val old_cap: i64 = @load(@ptradd(map, 16)) as i64
+    val new_cap: i64 = old_cap * 2
+    val new_keys_opt = allocators.alloc_in[A](ac, (new_cap as usize) * 8)
+    if new_keys_opt is none {
+        return
+    }
+    val new_vals_opt = allocators.alloc_in[A](ac, (new_cap as usize) * 8)
+    if new_vals_opt is none {
+        if new_keys_opt is some new_keys {
+            allocators.free_in[A](ac, new_keys)
+        }
+        return
+    }
+    if new_keys_opt is some new_keys {
+        if new_vals_opt is some new_vals {
+            for i = 0, i < new_cap, i++ {
+                @store(@ptradd(new_keys, i * 8), -1)
+            }
+            val mask: i64 = new_cap - 1
+            for i = 0, i < old_cap, i++ {
+                val k: i64 = @load(@ptradd(old_keys, i * 8)) as i64
+                if k != -1 {
+                    val v: i64 = @load(@ptradd(old_vals, i * 8)) as i64
+                    val h: u64 = (k as u64) * 11400714819323198485
+                    val start: i64 = (h as i64) & mask
+                    for j = 0, j < new_cap, j++ {
+                        val idx: i64 = (start + j) & mask
+                        val nk: i64 = @load(@ptradd(new_keys, idx * 8)) as i64
+                        if nk == -1 {
+                            @store(@ptradd(new_keys, idx * 8), k)
+                            @store(@ptradd(new_vals, idx * 8), v)
+                            break
+                        }
+                    }
+                }
+            }
+            @store(map, new_keys)
+            @store(@ptradd(map, 8), new_vals)
+            @store(@ptradd(map, 16), new_cap)
+            allocators.free_in[A](ac, old_keys)
+            allocators.free_in[A](ac, old_vals)
+        }
+    }
+}
+
+/// Insert or update a key/value pair.
+pub fn (LongMap) set[A: allocators.GeneralAllocator](
+    ac: A,
+    map: ref void,
+    key: i64,
+    value: i64
+) void = trust {
+    pre {
+        key_not_reserved: key != -1
+    }
+    val cur_len: i64 = @load(@ptradd(map, 24)) as i64
+    val cur_cap: i64 = @load(@ptradd(map, 16)) as i64
+    if (cur_len * 10) >= (cur_cap * 7) {
+        LongMap.grow[A](ac, map)
+    }
+    val keys: ref void = @load(map)
+    val vals: ref void = @load(@ptradd(map, 8))
+    val cap: i64 = @load(@ptradd(map, 16)) as i64
+    val mask: i64 = cap - 1
+    val h: u64 = (key as u64) * 11400714819323198485
+    val start: i64 = (h as i64) & mask
+    for i = 0, i < cap, i++ {
+        val idx: i64 = (start + i) & mask
+        val k: i64 = @load(@ptradd(keys, idx * 8)) as i64
+        if k == -1 {
+            @store(@ptradd(keys, idx * 8), key)
+            @store(@ptradd(vals, idx * 8), value)
+            @store(@ptradd(map, 24), cur_len + 1)
+            return
+        }
+        if k == key {
+            @store(@ptradd(vals, idx * 8), value)
+            return
+        }
+    }
+}
+
+/// Look up a key and return its value, or `fallback` when absent.
+pub fn (LongMap) get_or(map: ref void, key: i64, fallback: i64) i64 = trust {
+    val idx: i64 = LongMap.lookup(map, key)
+    if idx < 0 {
+        return fallback
+    }
+    val vals: ref void = @load(@ptradd(map, 8))
+    return @load(@ptradd(vals, idx * 8)) as i64
+}
+
+/// Look up a key. Returns `some(value)` or `none`.
+pub fn (LongMap) get(map: ref void, key: i64) option[i64] = trust {
+    val idx: i64 = LongMap.lookup(map, key)
+    if idx < 0 {
+        return none
+    }
+    val vals: ref void = @load(@ptradd(map, 8))
+    return some (@load(@ptradd(vals, idx * 8)) as i64)
+}
+
+/// Add `delta` to the value stored at `key` (starting from zero) and return the
+/// new value. The key is hashed only once.
+pub fn (LongMap) add[A: allocators.GeneralAllocator](
+    ac: A,
+    map: ref void,
+    key: i64,
+    delta: i64
+) i64 = trust {
+    pre {
+        key_not_reserved: key != -1
+    }
+    val cur_len: i64 = @load(@ptradd(map, 24)) as i64
+    val cur_cap: i64 = @load(@ptradd(map, 16)) as i64
+    if (cur_len * 10) >= (cur_cap * 7) {
+        LongMap.grow[A](ac, map)
+    }
+    val keys: ref void = @load(map)
+    val vals: ref void = @load(@ptradd(map, 8))
+    val cap: i64 = @load(@ptradd(map, 16)) as i64
+    val mask: i64 = cap - 1
+    val h: u64 = (key as u64) * 11400714819323198485
+    val start: i64 = (h as i64) & mask
+    for i = 0, i < cap, i++ {
+        val idx: i64 = (start + i) & mask
+        val k: i64 = @load(@ptradd(keys, idx * 8)) as i64
+        if k == key {
+            val v: i64 = @load(@ptradd(vals, idx * 8)) as i64
+            val nv: i64 = v + delta
+            @store(@ptradd(vals, idx * 8), nv)
+            return nv
+        }
+        if k == -1 {
+            @store(@ptradd(keys, idx * 8), key)
+            @store(@ptradd(vals, idx * 8), delta)
+            @store(@ptradd(map, 24), cur_len + 1)
+            return delta
+        }
+    }
+    return delta
+}
+
+/// Free the map and its backing storage.
+pub fn (LongMap) free[A: allocators.GeneralAllocator](ac: A, map: ref void) void = trust {
+    if map == none {
+        return
+    }
+    val keys: ref void = @load(map)
+    val vals: ref void = @load(@ptradd(map, 8))
+    allocators.free_in[A](ac, keys)
+    allocators.free_in[A](ac, vals)
+    allocators.free_in[A](ac, map)
+}
+
+test {
+    val heap: allocators.HeapAllocator = @zeroed
+    trust {
+        val map: ref void = LongMap.new[allocators.HeapAllocator](heap, 8 as usize)
+        assert map != none
+        assert LongMap.len(map) == 0
+        assert LongMap.cap(map) == 8
+        LongMap.set[allocators.HeapAllocator](heap, map, 10 as i64, 42 as i64)
+        assert LongMap.get_or(map, 10 as i64, 0 as i64) == 42
+        assert LongMap.add[allocators.HeapAllocator](heap, map, 10 as i64, 8 as i64) == 50
+        assert LongMap.add[allocators.HeapAllocator](heap, map, 11 as i64, 7 as i64) == 7
+        assert LongMap.len(map) == 2
+        LongMap.free[allocators.HeapAllocator](heap, map)
+    }
 }

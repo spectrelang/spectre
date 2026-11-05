@@ -133,15 +133,10 @@ if [ $BOOTSTRAP_ONLY -eq 0 ]; then
 	echo "Extra tests:"
 	run_std_tests
 
-	named_test_src="$LOG_DIR/named_test_output.sx"
-	cat >"$named_test_src" <<'EOF'
-test "addition works" {
-    assert 1 + 1 == 2
-}
-EOF
+	named_test_src="./samples/sample226.sx"
 	((total++))
 	named_test_out=$("$COMPILER" "$named_test_src" --test 2>&1)
-	if printf '%s' "$named_test_out" | grep -q '\[pass\] addition works'; then
+	if printf '%s' "$named_test_out" | grep -q '\[pass\] hello'; then
 		echo "[PASS] named test output"
 		((passed++))
 	else

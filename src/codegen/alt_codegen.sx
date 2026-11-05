@@ -1561,6 +1561,12 @@ fn cc_monomorphize_generic_fn(ctx: mut ref CCtx, gfn_node: ref parser.Node, gfn_
         parser.node_store_slot[ref parser.Node](@addr(syn.d4), new_ret)
         parser.node_store_slot[ref parser.Node](@addr(syn.d5), final_body)
         syn.d6 = 0
+        if parser.fn_is_unsafe(gfn_node) {
+            syn.d6 = syn.d6 | parser.FN_FLAG_UNSAFE
+        }
+        if parser.fn_is_inline(gfn_node) {
+            syn.d6 = syn.d6 | parser.FN_FLAG_INLINE
+        }
         val saved_sb: ref void = ctx.sb
         val saved_tmp: i64 = ctx.tmp
         val saved_lbl: i64 = ctx.lbl
@@ -3084,14 +3090,6 @@ fn gen_expr(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
     }
     if k == parser.NK_IDENT {
         val name: ref u8 = expr.d0 as ref u8
-        val cval: ref u8 = cc_const_val(ctx, name)
-        if str.raw_cmp(cval, "") != 0 {
-            val buf: ref u8 = allocators.ScopedArena.alloc_or_none(
-                ctx.arena,
-                128 as usize
-            ) as ref u8
-            @snprintf(buf, 128, "({s})", {cval}) return cc_expr_track(ctx, buf)
-        }
         val lt: ref u8 = cc_lookup_local_type(ctx, name)
         if str.raw_cmp(lt, "") != 0 {
             val buf: ref u8 = allocators.ScopedArena.alloc_or_none(
@@ -3099,6 +3097,14 @@ fn gen_expr(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
                 128 as usize
             ) as ref u8
             @snprintf(buf, 128, "t_{s}", {name}) return cc_expr_track(ctx, buf)
+        }
+        val cval: ref u8 = cc_const_val(ctx, name)
+        if str.raw_cmp(cval, "") != 0 {
+            val buf: ref u8 = allocators.ScopedArena.alloc_or_none(
+                ctx.arena,
+                128 as usize
+            ) as ref u8
+            @snprintf(buf, 128, "({s})", {cval}) return cc_expr_track(ctx, buf)
         }
         val gn: ref u8 = cc_resolve_global_name(ctx, name)
         if str.raw_cmp(gn, "") != 0 {
@@ -7293,11 +7299,16 @@ fn gen_fn_prefixed(ctx: mut ref CCtx, fn_node: ref parser.Node, mod_prefix: ref 
         val sig: ref u8 = allocators.ScopedArena.alloc_or_none(
             ctx.arena,
             1024 as usize
-        ) as ref u8 @snprintf(
+        ) as ref u8
+        val linkage: mut ref u8 = "static "
+        if parser.fn_is_inline(fn_node) {
+            linkage = "static inline "
+        }
+        @snprintf(
             sig,
             1024,
-            "{s} {s}(",
-            {ret_ct, mangled}
+            "{s}{s} {s}(",
+            {linkage, ret_ct, mangled}
         ) emit(ctx, sig) if params != none {
             val plen: i64 = @len(params) as i64
             if plen == 0 {
@@ -8209,7 +8220,24 @@ fn emit_forward_decls(ctx: ref CCtx) void = trust {
                 ctx.arena,
                 1024 as usize
             ) as ref u8
-            @snprintf(sig, 1024, "{s} {s}(", {ret_ct, mangled})
+            val is_extern: mut bool = false
+            val is_inline: mut bool = false
+            val nd_opt = @get(ctx.fn_nodes as list[ref void], fi as usize)
+            if nd_opt is some nd_ref {
+                val nd: ref parser.Node = nd_ref as ref parser.Node
+                if nd.kind == parser.NK_EXTERN_FN {
+                    is_extern = true
+                } elif parser.fn_is_inline(nd) {
+                    is_inline = true
+                }
+            }
+            if is_extern {
+                @snprintf(sig, 1024, "{s} {s}(", {ret_ct, mangled})
+            } elif is_inline {
+                @snprintf(sig, 1024, "static inline {s} {s}(", {ret_ct, mangled})
+            } else {
+                @snprintf(sig, 1024, "static {s} {s}(", {ret_ct, mangled})
+            }
             emit_to_fwd(ctx, sig) val is_var: mut bool = false
             val v_opt = @get(ctx.fn_variadics as list[bool], fi as usize)
             if v_opt is some v {

@@ -112,6 +112,7 @@ pub val UOP_NOT: i64 = 1
 pub val UOP_NEG: i64 = 2
 pub val UOP_BNOT: i64 = 3
 pub val FN_FLAG_UNSAFE: i64 = 1
+pub val FN_FLAG_INLINE: i64 = 2
 pub val EXTERN_FLAG_VARIADIC: i64 = 2
 pub val EXTERN_FLAG_HEADER: i64 = 4
 
@@ -293,6 +294,16 @@ pub fn fn_is_unsafe(n: ref Node) bool = {
         return ((n.d0 >> 1) & 1) != 0
     }
     return (n.d6 & FN_FLAG_UNSAFE) != 0
+}
+
+pub fn fn_is_inline(n: ref Node) bool = {
+    if n == none || n.kind == NK_EXTERN_FN {
+        return false
+    }
+    if n.kind == NK_GENERIC_FN {
+        return ((n.d0 >> 2) & 1) != 0
+    }
+    return (n.d6 & FN_FLAG_INLINE) != 0
 }
 
 pub fn extern_fn_is_variadic(n: ref Node) bool = {
@@ -897,6 +908,16 @@ fn kind_is_as(k: lexer.TokenKind) bool = trust {
 fn kind_is_trust(k: lexer.TokenKind) bool = trust {
     match k {
         Trust() => {
+            return true
+        } else => {
+            return false
+        }
+    }
+}
+
+fn kind_is_inline(k: lexer.TokenKind) bool = trust {
+    match k {
+        Inline() => {
             return true
         } else => {
             return false
@@ -3383,10 +3404,19 @@ fn parse_fn_item(p: mut ref Parser, public: i64) result[ref Node, ref u8] = trus
         ret_ty = substitute_self_type(ret_ty, ns)
     }
     val is_unsafe: mut i64 = 0
+    val is_inline: mut i64 = 0
     val body: mut list[ref Node] = []
     if p_eat_fn(p, kind_is_eq) {
-        if p_eat_fn(p, kind_is_trust) {
-            is_unsafe = 1
+        for {
+            if p_eat_fn(p, kind_is_inline) {
+                is_inline = 1
+                continue
+            }
+            if p_eat_fn(p, kind_is_trust) {
+                is_unsafe = 1
+                continue
+            }
+            break
         }
         p_expect_lbrace(p)?
         body = parse_stmts(p)?
@@ -3394,7 +3424,7 @@ fn parse_fn_item(p: mut ref Parser, public: i64) result[ref Node, ref u8] = trus
     }
     if @len(type_params) as i64 > 0 {
         val nfn: mut ref Node = make_node(p.arena, NK_GENERIC_FN, line)
-        nfn.d0 = public | (is_unsafe << 1)
+        nfn.d0 = public | (is_unsafe << 1) | (is_inline << 2)
         node_store_slot[ref u8](@addr(nfn.d1), ns)
         node_store_slot[ref u8](@addr(nfn.d2), name)
         val pl: list[ref Node] = params
@@ -3415,7 +3445,7 @@ fn parse_fn_item(p: mut ref Parser, public: i64) result[ref Node, ref u8] = trus
     node_store_slot[ref Node](@addr(nfn.d4), ret_ty)
     val bl: list[ref Node] = body
     node_store_slot[list[ref Node]](@addr(nfn.d5), bl)
-    nfn.d6 = is_unsafe * FN_FLAG_UNSAFE
+    nfn.d6 = (is_unsafe * FN_FLAG_UNSAFE) | (is_inline * FN_FLAG_INLINE)
     return ok nfn
 }
 

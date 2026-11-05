@@ -6,6 +6,14 @@ extern (C) fn isdigit(c: i32) i32 = "isdigit"
 pub fn sort[T](input: list[T]) list[T] = {
     val n: usize = @len(input)
 
+    when T is i64 {
+        return trust sort_radix_i64(input)
+    }
+
+    when T is u64 {
+        return trust sort_radix_u64(input)
+    }
+
     when T in (i8, i16, i32, i64, isize, u8, u16, u32, u64, usize) {
         return sort_numeric_radix[T](input)
     }
@@ -93,6 +101,14 @@ pub fn sort[T](input: list[T]) list[T] = {
 
 /// General numeric sort (radix)
 pub fn sort_numeric_radix[T](input: list[T]) list[T] = {
+    when T is i64 {
+        return trust sort_radix_i64(input)
+    }
+
+    when T is u64 {
+        return trust sort_radix_u64(input)
+    }
+
     when T in (i8, i16, i32, i64, isize) {
         val raw: mut list[i64] = []
         val ri: mut usize = 0
@@ -106,7 +122,7 @@ pub fn sort_numeric_radix[T](input: list[T]) list[T] = {
             }
             ri++
         }
-        val sorted64: list[i64] = sort_radix_i64(raw)
+        val sorted64: list[i64] = trust sort_radix_i64(raw)
         val sorted: mut list[T] = []
         for v in sorted64 {
             @append(sorted, v as T)
@@ -127,7 +143,7 @@ pub fn sort_numeric_radix[T](input: list[T]) list[T] = {
             }
             ui++
         }
-        val sortedu: list[u64] = sort_radix_u64(rawu)
+        val sortedu: list[u64] = trust sort_radix_u64(rawu)
         val sortedu_out: mut list[T] = []
         for v in sortedu {
             @append(sortedu_out, v as T)
@@ -139,215 +155,135 @@ pub fn sort_numeric_radix[T](input: list[T]) list[T] = {
 }
 
 /// Fast radix sort for signed i64 values (ascending).
-pub fn sort_radix_i64(input: list[i64]) list[i64] = {
-    val n: usize = @len(input)
-    if n <= 1 {
-        return input
-    }
+/// Sort a raw 64-bit integer buffer using a stable 16-bit LSD radix sort.
+///
+/// `signed` selects whether the sign bit is folded so that the result is in
+/// signed ascending order. The returned buffer is freshly allocated with
+/// `@alloc` and must be released by the caller. When all keys are
+/// non-negative only the significant 16-bit digits are processed.
+fn radix_sort_i64_raw(src: ref void, n: usize, signed: bool) ref void = trust {
+    val a: ref void = @alloc(n * 8)
+    val b: ref void = @alloc(n * 8)
+    val counts: ref void = @alloc(65536 as usize * 8)
+    @memcpy(a, src, (n as i64) * 8)
 
-    val values: mut list[i64] = []
-    val vi: mut usize = 0
-    for {
-        if vi >= n {
-            break
-        }
-        val v = @get(input, vi)
-        if v is some x {
-            @append(values, x)
-        }
-        vi++
-    }
-
-    val passes: i64 = 8
     val sign_mask: u64 = 1 as u64 << 63
+    val any_negative: mut bool = false
+    val key_or: mut u64 = 0
+    if signed {
+        for i = 0, i < n, i++ {
+            val v: i64 = @load(@ptradd(a, i * 8)) as i64
+            if v < 0 {
+                any_negative = true
+            }
+            key_or = key_or | ((v as u64) ^ sign_mask)
+        }
+    } else {
+        for i = 0, i < n, i++ {
+            key_or = key_or | (@load(@ptradd(a, i * 8)) as u64)
+        }
+    }
+
+    val use_signed: bool = signed && any_negative
+    val mask: mut u64 = 0
+    if use_signed {
+        mask = sign_mask
+    }
+    val passes: mut i64 = 1
+    if (key_or >> 16) != 0 {
+        passes = 2
+    }
+    if (key_or >> 32) != 0 {
+        passes = 3
+    }
+    if (key_or >> 48) != 0 {
+        passes = 4
+    }
+
+    val cur_a: mut ref void = a
+    val cur_b: mut ref void = b
     val pass: mut i64 = 0
     for {
         if pass >= passes {
             break
         }
-
-        val counts: mut list[i64] = []
-        val ci: mut i64 = 0
-        for {
-            if ci >= 256 {
-                break
-            }
-            @append(counts, 0)
-            ci++
+        @memset(counts, 0, 65536 as usize * 8)
+        val shift: u64 = (pass * 16) as u64
+        for i = 0, i < n, i++ {
+            val v: i64 = @load(@ptradd(cur_a, i * 8)) as i64
+            val key: u64 = (v as u64) ^ mask
+            val bucket: usize = ((key >> shift) & 65535) as usize
+            val c: i64 = @load(@ptradd(counts, bucket * 8)) as i64
+            @store(@ptradd(counts, bucket * 8), c + 1)
         }
-
-        val shift: u64 = (pass * 8) as u64
-        val byte_mask: u64 = 255
-        val scan_i: mut usize = 0
-        for {
-            if scan_i >= n {
-                break
-            }
-            val item_opt = @get(values, scan_i)
-            if item_opt is some item {
-                val key: u64 = (item as u64) ^ sign_mask
-                val bucket: usize = (((key >> shift) & byte_mask) as usize)
-                val count_opt = @get(counts, bucket)
-                if count_opt is some count {
-                    @set(counts, bucket, count + 1)
-                }
-            }
-            scan_i++
-        }
-
         val total: mut i64 = 0
-        val bi: mut usize = 0
-        for {
-            if bi >= 256 {
-                break
-            }
-            val count_opt = @get(counts, bi)
-            if count_opt is some count {
-                @set(counts, bi, total)
-                total = total + count
-            }
-            bi++
+        for k = 0, k < 65536, k++ {
+            val c: i64 = @load(@ptradd(counts, k * 8)) as i64
+            @store(@ptradd(counts, k * 8), total)
+            total = total + c
         }
-
-        val out: mut list[i64] = []
-        val oi: mut usize = 0
-        for {
-            if oi >= n {
-                break
-            }
-            @append(out, 0)
-            oi++
+        for i = 0, i < n, i++ {
+            val v: i64 = @load(@ptradd(cur_a, i * 8)) as i64
+            val key: u64 = (v as u64) ^ mask
+            val bucket: usize = ((key >> shift) & 65535) as usize
+            val pos: i64 = @load(@ptradd(counts, bucket * 8)) as i64
+            @store(@ptradd(cur_b, pos * 8), v)
+            @store(@ptradd(counts, bucket * 8), pos + 1)
         }
-
-        scan_i = 0
-        for {
-            if scan_i >= n {
-                break
-            }
-            val item_opt = @get(values, scan_i)
-            if item_opt is some item {
-                val key: u64 = (item as u64) ^ sign_mask
-                val bucket: usize = (((key >> shift) & byte_mask) as usize)
-                val pos_opt = @get(counts, bucket)
-                if pos_opt is some pos {
-                    @set(out, pos as usize, item)
-                    @set(counts, bucket, pos + 1)
-                }
-            }
-            scan_i++
-        }
-
-        values = out
+        val tmp: ref void = cur_a
+        cur_a = cur_b
+        cur_b = tmp
         pass++
     }
 
-    return values
+    @free(cur_b)
+    @free(counts)
+    return cur_a
+}
+
+/// Fast radix sort for signed i64 values (ascending).
+///
+/// This implementation works directly on the list backing buffer, avoiding the
+/// per-element boxing overhead of `@get`/`@set` in the generic path.
+pub fn sort_radix_i64(input: list[i64]) list[i64] = trust {
+    val n: usize = @load(@ptradd(input, 8)) as usize
+    if n <= 1 {
+        return input
+    }
+
+    val src: ref void = @load(input)
+    val sorted: ref void = radix_sort_i64_raw(src, n, true)
+
+    val out: mut list[i64] = []
+    @append(out, @load(sorted) as i64)
+    @reserve(out, n)
+    val out_buf: ref void = @load(out)
+    @memcpy(out_buf, sorted, (n as i64) * 8)
+    @store(@ptradd(out, 8), n)
+    @free(sorted)
+    return out
 }
 
 /// Fast radix sort for unsigned u64 values (ascending).
-pub fn sort_radix_u64(input: list[u64]) list[u64] = {
-    val n: usize = @len(input)
+pub fn sort_radix_u64(input: list[u64]) list[u64] = trust {
+    val n: usize = @load(@ptradd(input, 8)) as usize
     if n <= 1 {
         return input
     }
 
-    val values: mut list[u64] = []
-    val vi: mut usize = 0
-    for {
-        if vi >= n {
-            break
-        }
-        val v = @get(input, vi)
-        if v is some x {
-            @append(values, x)
-        }
-        vi++
-    }
+    val src: ref void = @load(input)
+    val sorted: ref void = radix_sort_i64_raw(src, n, false)
 
-    val passes: i64 = 8
-    val pass: mut i64 = 0
-    for {
-        if pass >= passes {
-            break
-        }
-
-        val counts: mut list[i64] = []
-        val ci: mut i64 = 0
-        for {
-            if ci >= 256 {
-                break
-            }
-            @append(counts, 0)
-            ci++
-        }
-
-        val shift: u64 = (pass * 8) as u64
-        val byte_mask: u64 = 255
-        val scan_i: mut usize = 0
-        for {
-            if scan_i >= n {
-                break
-            }
-            val item_opt = @get(values, scan_i)
-            if item_opt is some item {
-                val bucket: usize = (((item >> shift) & byte_mask) as usize)
-                val count_opt = @get(counts, bucket)
-                if count_opt is some count {
-                    @set(counts, bucket, count + 1)
-                }
-            }
-            scan_i++
-        }
-
-        val total: mut i64 = 0
-        val bi: mut usize = 0
-        for {
-            if bi >= 256 {
-                break
-            }
-            val count_opt = @get(counts, bi)
-            if count_opt is some count {
-                @set(counts, bi, total)
-                total = total + count
-            }
-            bi++
-        }
-
-        val out: mut list[u64] = []
-        val oi: mut usize = 0
-        for {
-            if oi >= n {
-                break
-            }
-            @append(out, 0)
-            oi++
-        }
-
-        scan_i = 0
-        for {
-            if scan_i >= n {
-                break
-            }
-            val item_opt = @get(values, scan_i)
-            if item_opt is some item {
-                val bucket: usize = (((item >> shift) & byte_mask) as usize)
-                val pos_opt = @get(counts, bucket)
-                if pos_opt is some pos {
-                    @set(out, pos as usize, item)
-                    @set(counts, bucket, pos + 1)
-                }
-            }
-            scan_i++
-        }
-
-        values = out
-        pass++
-    }
-
-    return values
+    val out: mut list[u64] = []
+    @append(out, @load(sorted) as u64)
+    @reserve(out, n)
+    val out_buf: ref void = @load(out)
+    @memcpy(out_buf, sorted, (n as i64) * 8)
+    @store(@ptradd(out, 8), n)
+    @free(sorted)
+    return out
 }
 
-/// Extract leading integer from a ref u8. Returns -1 if none.
 fn parse_leading_num(name: ref u8) i64 = {
     val len: i64 = string.len_raw(name)
     if len == 0 {

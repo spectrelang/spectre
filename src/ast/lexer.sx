@@ -15,6 +15,7 @@ pub union TokenKind = {
     | Else()
     | Elif()
     | Trust()
+    | Inline()
     | Use()
     | Ref()
     | For()
@@ -247,6 +248,9 @@ fn keyword_kind(s: ref u8) TokenKind = trust {
     }
     if str_eq(s, "trust") {
         return Trust()
+    }
+    if str_eq(s, "inline") {
+        return Inline()
     }
     if str_eq(s, "use") {
         return Use()
