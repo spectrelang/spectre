@@ -13660,6 +13660,27 @@ fn gen_stmt(ctx: mut ref CgCtx, stmt: ref parser.Node) void = trust {
                 expr2,
                 ctx.current_fn_ret_ty as ref parser.Node
             )
+            if str.raw_cmp(ctx.fn_name, "main") == 0 && ctx.current_fn_ret_ty != none
+            && (ctx.current_fn_ret_ty as ref parser.Node).kind == parser.TY_RESULT {
+                val tag_m: i64 = fresh_tmp(ctx)
+                val err_m: i64 = fresh_tmp(ctx)
+                val mb: ref u8 = allocators.ScopedArena.alloc_or_none(
+                    ctx.arena,
+                    128 as usize
+                ) as ref u8
+                @snprintf(mb, 128, "    %%t{lld} =l loadl {s}\n    %%t{lld} =w cnel %%t{lld}, 0\n",
+                    {tag_m, rv0, err_m, tag_m})
+                emit(ctx, mb)
+                cg_emit_invariant_checks(ctx)
+                cg_emit_defers(ctx)
+                val rb: ref u8 = allocators.ScopedArena.alloc_or_none(
+                    ctx.arena,
+                    64 as usize
+                ) as ref u8
+                @snprintf(rb, 64, "    ret %%t{lld}\n", {err_m})
+                emit(ctx, rb)
+                return
+            }
             val rv_qt: ref u8 = expr_qbe_type(ctx, expr2)
             val rv: mut ref u8 = rv0
             if str.raw_cmp(rv_qt, ctx.current_fn_ret_qtype) != 0 {
@@ -15702,7 +15723,7 @@ fn gen_fn_prefixed(ctx: mut ref CgCtx, fn_node: ref parser.Node, mod_prefix: ref
     if public == 1 {
         export_kw = "export "
     }
-    val ret_qt: ref u8 = qbe_type_of(ret_ty)
+    val ret_qt: mut ref u8 = qbe_type_of(ret_ty)
     val sig_buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 512 as usize) as ref u8
 
     val ret_union_name: mut ref u8 = is_union_type(ctx, ret_ty)
@@ -15723,14 +15744,17 @@ fn gen_fn_prefixed(ctx: mut ref CgCtx, fn_node: ref parser.Node, mod_prefix: ref
     val returns_union: bool = str.raw_cmp(ret_union_name, "") != 0
     val returns_unboxed: bool = ctx.unboxed_option_result && ret_ty != none
     && (ret_ty.kind == parser.TY_OPTION || ret_ty.kind == parser.TY_RESULT)
-    val has_sret: bool = returns_union || returns_unboxed
+    val is_main: bool = str.raw_cmp(name, "main") == 0 && str.raw_cmp(mod_prefix, "") == 0
+    if is_main {
+        ret_qt = "w"
+    }
+    val has_sret: bool = (returns_union || returns_unboxed) && !is_main
 
     @snprintf(sig_buf, 512, "{s}function {s} ${s}(", {export_kw, ret_qt, mangled})
     emit(ctx, sig_buf) if has_sret {
         emit(ctx, "l %__ret")
     }
 
-    val is_main: bool = str.raw_cmp(name, "main") == 0 && str.raw_cmp(mod_prefix, "") == 0
     if is_main {
         if has_sret {
             emit(ctx, ", ")
@@ -15783,8 +15807,8 @@ fn gen_fn_prefixed(ctx: mut ref CgCtx, fn_node: ref parser.Node, mod_prefix: ref
     } else {
         ctx.current_fn_ret_union = ""
     }
-    ctx.current_fn_ret_unboxed = returns_unboxed
-    if returns_unboxed {
+    ctx.current_fn_ret_unboxed = returns_unboxed && !is_main
+    if returns_unboxed && !is_main {
         ctx.current_fn_ret_layout_size = cg_wrap_layout_size(ctx, ret_ty)
     } else {
         ctx.current_fn_ret_layout_size = 0
