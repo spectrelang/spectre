@@ -5974,13 +5974,15 @@ fn gen_expr(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
 
     if k == parser.NK_INT_LIT {
         val text: ref u8 = parser.int_lit_text(expr)
+        val fch: i64 = @load8(@ptradd(text, 0)) as i64
+        val sch: mut i64 = 0
+        if fch == 48 {
+            sch = @load8(@ptradd(text, 1)) as i64
+        }
         val tmp: i64 = fresh_tmp(ctx)
         val buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 64 as usize) as ref u8
         val emit_text: mut ref u8 = text
-
-        val fch: i64 = @load8(@ptradd(text, 0)) as i64
         if fch == 48 {
-            val sch: i64 = @load8(@ptradd(text, 1)) as i64
             if sch == 120 || sch == 88 {
                 val hex_start: ref u8 = @ptradd(text, 2) as ref u8
                 val val_: mut i64 = 0
@@ -6250,7 +6252,7 @@ fn gen_expr(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
                         @snprintf(
                             buf6b,
                             128,
-                            "    %%t{lld} =l copy extern ${s}\n",
+                            "    %%t{lld} =l copy ${s}\n",
                             {tmp6b, ext_addr}
                         )
                     } else {
@@ -6264,7 +6266,7 @@ fn gen_expr(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
                             @snprintf(
                                 buf6b,
                                 128,
-                                "    %%t{lld} =l copy extern ${s}\n",
+                                "    %%t{lld} =l copy ${s}\n",
                                 {tmp6b, ext_addr2}
                             )
                         } else {
@@ -6929,7 +6931,7 @@ fn gen_expr(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
                     256 as usize
                 ) as ref u8
                 if ext_fn != none {
-                    @snprintf(res_fn, 256, "extern ${s}", {ext_fn})
+                    @snprintf(res_fn, 256, "${s}", {ext_fn})
                 } else {
                     @snprintf(res_fn, 256, "${s}", {resolved_fn})
                 }
