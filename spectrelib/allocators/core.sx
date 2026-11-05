@@ -515,6 +515,46 @@ pub fn (ScopedArena) free(a: ScopedArenaAllocator) void = trust {
     @free(au as ref void)
 }
 
+/// A general allocator backed by a scoped arena.
+///
+/// This is useful for large groups of short-lived lists that all share one
+/// arena and are released together. Individual frees are no-ops, the backing
+/// arena is released separately.
+pub type (GeneralAllocator) ListArena = {
+    arena: mut ScopedArenaAllocator
+}
+
+/// Allocate a block from the list arena.
+pub fn (ListArena) alloc(a: self, size: usize) option[ref void] = trust {
+    val raw: ref void = ScopedArena.alloc_or_none(a.arena, size + 8)
+    if raw == none {
+        return none
+    }
+    @store(raw, size)
+    return some (@ptradd(raw, 8))
+}
+
+/// Individual frees are no-ops, the whole arena is released at once.
+pub fn (ListArena) free(_: self, _: ref void) void = {}
+
+/// Copy into a fresh arena block. The old block remains arena-owned.
+pub fn (ListArena) realloc(a: self, ptr: ref void, new_size: usize) option[ref void] = trust {
+    if ptr == none {
+        return ListArena.alloc(a, new_size)
+    }
+    val old_size: usize = @load(@ptradd(ptr, -8)) as usize
+    val next = ListArena.alloc(a, new_size)
+    if next is some p {
+        val copy_len: mut usize = old_size
+        if new_size < copy_len {
+            copy_len = new_size
+        }
+        @memcpy(p, ptr, copy_len)
+        return some p
+    }
+    return none
+}
+
 test {
     val sa: ScopedArenaAllocator = trust ScopedArena.new(64 as usize)?
     val p1: mut ref void = ScopedArena.alloc_or_none(sa, 16 as usize)
@@ -532,5 +572,15 @@ test {
     val p3: ref void = ScopedArena.alloc_or_none(sa, 16 as usize)
     assert p3 != none
 
+    trust ScopedArena.free(sa)
+}
+
+test {
+    val sa: ScopedArenaAllocator = trust ScopedArena.new(128 as usize)?
+    val la: ListArena = {arena: sa}
+    val xs: mut list[i64] = @listalloc[ListArena, i64](la)?
+    @append(xs, 1)
+    @append(xs, 2)
+    assert @len(xs) == 2
     trust ScopedArena.free(sa)
 }

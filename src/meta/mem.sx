@@ -1,8 +1,10 @@
 /// Compiler-wide arena for allocator-backed lists.
 ///
 /// The compiler creates large numbers of short-lived lists while parsing,
-/// checking, and generating code.  They all share one scoped arena which is
-/// released once the compiler is finished.
+/// checking, and generating code. They all share one scoped arena which is
+/// released once the compiler is finished. The reusable `ListArena` allocator
+/// itself lives in `std/allocators`; this module owns the compiler-wide
+/// singleton and the list constructors that use it.
 ///
 /// SPDX-License-Identifier: GPL-3.0-only
 /// (C) Navid Momtahen - 2026
@@ -11,48 +13,17 @@ val allocators = use("std/allocators")
 val stdio      = use("std/stdio")
 val os         = use("std/os")
 
-pub type (allocators.GeneralAllocator) ListArena = {
-    arena: mut allocators.ScopedArenaAllocator
-}
-
-val state: mut ListArena = {arena: none}
-
-/// Allocate a block from the compiler list arena.
-pub fn (ListArena) alloc(a: self, size: usize) option[ref void] = trust {
-    val raw: ref void = allocators.ScopedArena.alloc_or_none(a.arena, size + 8)
-    if raw == none {
-        return none
-    }
-    @store(raw, size)
-    return some (@ptradd(raw, 8))
-}
-
-/// Individual frees are no-ops; the whole arena is released by `close`.
-pub fn (ListArena) free(_: self, _: ref void) void = {}
-
-/// Copy into a fresh arena block. The old block remains arena-owned.
-pub fn (ListArena) realloc(a: self, ptr: ref void, new_size: usize) option[ref void] = trust {
-    if ptr == none {
-        return ListArena.alloc(a, new_size)
-    }
-    val old_size: usize = @load(@ptradd(ptr, -8)) as usize
-    val next = ListArena.alloc(a, new_size)
-    if next is some p {
-        val copy_len: mut usize = old_size
-        if new_size < copy_len {
-            copy_len = new_size
-        }
-        @memcpy(p, ptr, copy_len)
-        return some p
-    }
-    return none
-}
+val state: mut ref allocators.ListArena = none
 
 pub fn init() void = {
-    if state.arena == none {
+    if state == none {
         match trust allocators.ScopedArena.new(67108864 as usize) {
             ok a => {
-                state.arena = a
+                val next: mut ref allocators.ListArena = @alloc(
+                    @sizeof(allocators.ListArena)
+                ) as ref allocators.ListArena
+                next.arena = a
+                state = next
             }
             err _ => {
                 stdio.puts("error: could not allocate compiler list arena\n")
@@ -62,15 +33,15 @@ pub fn init() void = {
     }
 }
 
-pub fn allocator() ListArena = {
+pub fn allocator() ref allocators.ListArena = {
     init()
     return state
 }
 
 /// Return a new allocator-backed list.
 pub fn new[T]() list[T] = {
-    val ac: ListArena = allocator()
-    return @listalloc[ListArena, T](ac)?
+    val ac: ref allocators.ListArena = allocator()
+    return @listalloc[allocators.ListArena, T](ac)?
 }
 
 
@@ -107,9 +78,11 @@ pub fn from6[T](a: T, b: T, c: T, d: T, e: T, f: T) list[T] = {
 }
 
 pub fn close() void = {
-    if state.arena != none {
-        trust allocators.ScopedArena.free(state.arena)
-        state.arena = none
+    if state != none {
+        val old: ref allocators.ListArena = state
+        trust allocators.ScopedArena.free(old.arena)
+        trust @free(old as ref void)
+        state = none
     }
 }
 
