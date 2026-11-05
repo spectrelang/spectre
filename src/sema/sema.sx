@@ -6203,6 +6203,239 @@ fn sema_const_eval_no_fields(expr: ref parser.Node) SemaConstVal = trust {
     return sema_const_eval(expr, field_names as ref void, field_vals as ref void)
 }
 
+fn sema_is_int_type_name(name: ref u8) bool = trust {
+    return str_eq(name, "i8") || str_eq(name, "i16") || str_eq(name, "i32")
+    || str_eq(name, "i64") || str_eq(name, "isize")
+    || str_eq(name, "u8") || str_eq(name, "u16") || str_eq(name, "u32")
+    || str_eq(name, "u64") || str_eq(name, "usize")
+}
+
+fn sema_int_type_lo(name: ref u8) i64 = trust {
+    if str_eq(name, "i8") {
+        return -128
+    }
+    if str_eq(name, "i16") {
+        return -32768
+    }
+    if str_eq(name, "i32") {
+        return -2147483648
+    }
+    return 0
+}
+
+fn sema_int_type_hi(name: ref u8) i64 = trust {
+    if str_eq(name, "i8") {
+        return 127
+    }
+    if str_eq(name, "i16") {
+        return 32767
+    }
+    if str_eq(name, "i32") {
+        return 2147483647
+    }
+    if str_eq(name, "u8") {
+        return 255
+    }
+    if str_eq(name, "u16") {
+        return 65535
+    }
+    if str_eq(name, "u32") {
+        return 4294967295
+    }
+    return 9223372036854775807
+}
+
+fn sema_expr_casts_to(expr: ref parser.Node, target: ref u8) bool = trust {
+    val cur: mut ref parser.Node = expr
+    for {
+        if cur == none {
+            return false
+        }
+        if cur.kind == parser.NK_TRUST {
+            cur = cur.d0 as ref parser.Node
+            continue
+        }
+        if cur.kind == parser.NK_CAST {
+            val cast_ty: ref u8 = extract_type_name(cur.d1 as ref parser.Node)
+            return str_eq(cast_ty, target)
+        }
+        return false
+    }
+    return false
+}
+
+fn sema_unwrap_trust_expr(expr: ref parser.Node) ref parser.Node = trust {
+    val cur: mut ref parser.Node = expr
+    for {
+        if cur == none || cur.kind != parser.NK_TRUST {
+            return cur
+        }
+        cur = cur.d0 as ref parser.Node
+    }
+    return cur
+}
+
+fn sema_direct_int_lit_text(expr: ref parser.Node) ref u8 = trust {
+    val cur: ref parser.Node = sema_unwrap_trust_expr(expr)
+    if cur == none || cur.kind != parser.NK_INT_LIT {
+        return ""
+    }
+    return parser.int_lit_text(cur)
+}
+
+fn sema_decimal_gt(text: ref u8, max_text: ref u8) bool = trust {
+    val len: i64 = string.len_raw(text)
+    val start: mut i64 = 0
+    for {
+        if start >= len {
+            break
+        }
+        if @load8(@ptradd(text, start)) != 48 {
+            break
+        }
+        start++
+    }
+    if start >= len {
+        return false
+    }
+    val digits: i64 = len - start
+    val max_len: i64 = string.len_raw(max_text)
+    if digits != max_len {
+        return digits > max_len
+    }
+    val i: mut i64 = 0
+    for {
+        if i >= digits {
+            break
+        }
+        val a: i64 = @load8(@ptradd(text, start + i)) as i64
+        val b: i64 = @load8(@ptradd(max_text, i)) as i64
+        if a < b {
+            return false
+        }
+        if a > b {
+            return true
+        }
+        i++
+    }
+    return false
+}
+
+fn sema_emit_int_overflow_error(
+    ctx: ref SemaCtx,
+    filename: ref u8,
+    line: i64,
+    value_text: ref u8,
+    type_name: ref u8,
+    lo_text: ref u8,
+    hi_text: ref u8
+) void = trust {
+    val buf: ref u8 = allocators.ScopedArena.alloc_or_none(
+        ctx.arena,
+        512 as usize
+    ) as ref u8
+    @snprintf(
+        buf,
+        512,
+        "{s}:{lld}: constant {s} does not fit in {s} (valid range {s}..{s})",
+        {filename, line, value_text, type_name, lo_text, hi_text}
+    )
+    add_error(ctx, buf)
+}
+
+fn sema_check_int_literal_range(
+    ctx: ref SemaCtx,
+    type_name: ref u8,
+    expr: ref parser.Node,
+    filename: ref u8,
+    line: i64
+) void = trust {
+    if type_name == none || expr == none {
+        return
+    }
+    if !sema_is_int_type_name(type_name) {
+        return
+    }
+    if sema_expr_casts_to(expr, type_name) {
+        return
+    }
+    if str_eq(type_name, "i64") || str_eq(type_name, "isize") {
+        val cur: ref parser.Node = sema_unwrap_trust_expr(expr)
+        if cur != none && cur.kind == parser.NK_UNOP && cur.d0 == parser.UOP_NEG {
+            val inner: ref parser.Node = cur.d1 as ref parser.Node
+            val lit: ref u8 = sema_direct_int_lit_text(inner)
+            if string.raw_cmp(lit, "") != 0 && sema_decimal_gt(lit, "9223372036854775808") {
+                val msg: ref u8 = allocators.ScopedArena.alloc_or_none(
+                    ctx.arena,
+                    128 as usize
+                ) as ref u8
+                @snprintf(msg, 128, "-{s}", {lit})
+                sema_emit_int_overflow_error(
+                    ctx,
+                    filename,
+                    line,
+                    msg,
+                    type_name,
+                    "-9223372036854775808",
+                    "9223372036854775807"
+                )
+            }
+        } else {
+            val lit: ref u8 = sema_direct_int_lit_text(cur)
+            if string.raw_cmp(lit, "") != 0 && sema_decimal_gt(lit, "9223372036854775807") {
+                sema_emit_int_overflow_error(
+                    ctx,
+                    filename,
+                    line,
+                    lit,
+                    type_name,
+                    "-9223372036854775808",
+                    "9223372036854775807"
+                )
+            }
+        }
+        return
+    }
+    val value: SemaConstVal = sema_const_eval_no_fields(expr)
+    if !value.known {
+        if str_eq(type_name, "u64") || str_eq(type_name, "usize") {
+            val lit: ref u8 = sema_direct_int_lit_text(expr)
+            if string.raw_cmp(lit, "") != 0 && sema_decimal_gt(lit, "18446744073709551615") {
+                sema_emit_int_overflow_error(
+                    ctx,
+                    filename,
+                    line,
+                    lit,
+                    type_name,
+                    "0",
+                    "18446744073709551615"
+                )
+            }
+        }
+        return
+    }
+    val lo: i64 = sema_int_type_lo(type_name)
+    val hi: i64 = sema_int_type_hi(type_name)
+    if value.value < lo || value.value > hi {
+        val vbuf: ref u8 = allocators.ScopedArena.alloc_or_none(
+            ctx.arena,
+            64 as usize
+        ) as ref u8
+        val lobuf: ref u8 = allocators.ScopedArena.alloc_or_none(
+            ctx.arena,
+            64 as usize
+        ) as ref u8
+        val hibuf: ref u8 = allocators.ScopedArena.alloc_or_none(
+            ctx.arena,
+            64 as usize
+        ) as ref u8
+        @snprintf(vbuf, 64, "{lld}", {value.value})
+        @snprintf(lobuf, 64, "{lld}", {lo})
+        @snprintf(hibuf, 64, "{lld}", {hi})
+        sema_emit_int_overflow_error(ctx, filename, line, vbuf, type_name, lobuf, hibuf)
+    }
+}
+
 /// Collect unconditional preconditions from a function body. Preconditions
 /// inside an active compile-time `when` branch are unconditional as well.
 fn sema_collect_preconditions(
@@ -6819,6 +7052,13 @@ fn check_stmt(ctx: mut ref SemaCtx, stmt: ref parser.Node, filename: ref u8) voi
         val mutable: i64 = stmt.d1
         check_no_module_to_module_type(ctx, stmt.d2 as ref parser.Node, line, filename)
         check_expr(ctx, stmt.d3 as ref parser.Node, filename)
+        sema_check_int_literal_range(
+            ctx,
+            extract_type_name(stmt.d2 as ref parser.Node),
+            stmt.d3 as ref parser.Node,
+            filename,
+            line
+        )
         if scope_defined_local(ctx, name) {
             val buf: ref u8 = allocators.ScopedArena.alloc_or_none(
                 ctx.arena,
@@ -6982,6 +7222,7 @@ fn check_stmt(ctx: mut ref SemaCtx, stmt: ref parser.Node, filename: ref u8) voi
             } else {
                 val target_is_ref: i64 = scope_lookup_is_ref(ctx, tname)
                 val target_type_name: ref u8 = scope_lookup_type(ctx, tname)
+                sema_check_int_literal_range(ctx, target_type_name, rhs, filename, line)
                 if target_is_ref == 1 && target_type_name != none {
                     if !ref_assignment_rhs_ok(ctx, target_type_name, target_is_ref, rhs) {
                         val target_ty: ref u8 = format_type_for_error(ctx,
@@ -7043,6 +7284,15 @@ fn check_stmt(ctx: mut ref SemaCtx, stmt: ref parser.Node, filename: ref u8) voi
                                 var_type,
                                 field_name
                             )
+                            if fty != none {
+                                sema_check_int_literal_range(
+                                    ctx,
+                                    extract_type_name(fty),
+                                    rhs,
+                                    filename,
+                                    line
+                                )
+                            }
                             if fty != none && sema_ty_is_ref(fty) == 1 {
                                 val fty_name: ref u8 = extract_type_name(fty)
                                 if !ref_assignment_rhs_ok(ctx, fty_name, 1, rhs) {
@@ -7955,6 +8205,13 @@ fn check_top_item(ctx: mut ref SemaCtx, item: ref parser.Node, filename: ref u8)
         if init_node != none {
             check_expr(ctx, init_node, filename)
         }
+        sema_check_int_literal_range(
+            ctx,
+            extract_type_name(item.d2 as ref parser.Node),
+            init_node,
+            filename,
+            item.line
+        )
         return
     }
     if k == parser.NK_CONST {
@@ -7962,6 +8219,13 @@ fn check_top_item(ctx: mut ref SemaCtx, item: ref parser.Node, filename: ref u8)
         if init_node != none {
             check_expr(ctx, init_node, filename)
         }
+        sema_check_int_literal_range(
+            ctx,
+            extract_type_name(item.d3 as ref parser.Node),
+            init_node,
+            filename,
+            item.line
+        )
         return
     }
     if k == parser.NK_WHEN_ITEMS {

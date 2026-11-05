@@ -3799,6 +3799,7 @@ fn parse_bulk_val_entry(p: mut ref Parser) result[ref Node, ref u8] = trust {
     nc.d0 = 0
     node_store_slot[ref u8](@addr(nc.d1), name)
     node_store_slot[ref Node](@addr(nc.d2), expr)
+    node_store_slot[ref Node](@addr(nc.d3), ty)
     return ok nc
 }
 
@@ -4014,6 +4015,7 @@ pub fn parse_item(p: mut ref Parser) result[ref Node, ref u8] = trust {
         nc.d0 = public
         node_store_slot[ref u8](@addr(nc.d1), vname)
         node_store_slot[ref Node](@addr(nc.d2), vexpr)
+        node_store_slot[ref Node](@addr(nc.d3), vty)
         return ok nc
     }
 

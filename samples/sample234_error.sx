@@ -1,0 +1,6 @@
+val a: u64 = -1
+val b: usize = -1
+
+pub fn main() void = {
+    trust @print("{d} {d}\n", {a, b})
+}

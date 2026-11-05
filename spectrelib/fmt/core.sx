@@ -314,9 +314,8 @@ pub fn string_to_i64(s: ref u8) result[i64, ParseIntError] = {
 
         val digit: i64 = (c - 48) as i64
 
-        pre {
-            no_overflow:
-            acc <= (9223372036854775807 - digit) / 10
+        if acc > (9223372036854775807 - digit) / 10 {
+            return err ParseIntError.Overflow
         }
 
         acc = acc * 10 + digit

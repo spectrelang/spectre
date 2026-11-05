@@ -1,0 +1,5 @@
+val x: u8 = 258
+
+pub fn main() void = {
+    trust @print("{d}\n", {x})
+}

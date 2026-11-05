@@ -1,0 +1,6 @@
+val a: i16 = -32769
+val b: u32 = 4294967296
+
+pub fn main() void = {
+    trust @print("{d} {d}\n", {a, b})
+}
