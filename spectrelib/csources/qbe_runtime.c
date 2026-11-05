@@ -21,6 +21,7 @@ void sxqbe_list_free(long long* h){if(!h)return;long long buf=h[0];sxqbe_alloc_d
 void sxqbe_list_reserve(long long* h,long long cap){if(!h)return;if(cap>h[2])sxqbe_list_grow(h,cap);}
 typedef void* (*sxqbe_raw_alloc_fn)(long long,unsigned long long);
 static void* sxqbe_raw_alloc_call(sxqbe_raw_alloc_fn f,long long ctx,long long size){return f(ctx,(unsigned long long)size);}
+static void* sxqbe_wrap_alloc(void* af,long long ctx,long long size){return sxqbe_raw_alloc_call((sxqbe_raw_alloc_fn)af,ctx,size);}
 long long sxqbe_some_alloc(void* af,long long ctx,long long value){void* p=sxqbe_raw_alloc_call((sxqbe_raw_alloc_fn)af,ctx,8);if(!p)return 0;*(long long*)p=value;return (long long)(intptr_t)p+1;}
 long long sxqbe_ok_alloc(void* af,long long ctx,long long value){long long* p=(long long*)sxqbe_raw_alloc_call((sxqbe_raw_alloc_fn)af,ctx,16);if(!p)return 0;p[0]=0;p[1]=value;return (long long)(intptr_t)p;}
 long long sxqbe_err_alloc(void* af,long long ctx,long long value){long long* p=(long long*)sxqbe_raw_alloc_call((sxqbe_raw_alloc_fn)af,ctx,16);if(!p)return 0;p[0]=1;p[1]=value;return (long long)(intptr_t)p;}
