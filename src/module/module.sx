@@ -3129,15 +3129,15 @@ fn collect_used_imports_stmt(
                         import_names,
                         used
                     )
-                    val arm_body: ref void = parser.match_value_arm_body(arm_node) as ref void
-                    if arm_body != none {
-                        val blen: i64 = @len(arm_body) as i64
+                    val value_body: ref void = parser.match_value_arm_body(arm_node) as ref void
+                    if value_body != none {
+                        val blen: i64 = @len(value_body) as i64
                         val bi: mut i64 = 0
                         for {
                             if bi >= blen {
                                 break
                             }
-                            val stmt_opt = @get(arm_body, bi as usize)
+                            val stmt_opt = @get(value_body, bi as usize)
                             if stmt_opt is some stmt {
                                 collect_used_imports_stmt(
                                     stmt as ref parser.Node,
