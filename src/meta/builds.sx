@@ -5,6 +5,7 @@ val stdio      = use("std/stdio")
 val path       = use("std/path")
 val reflection = use("std/reflection")
 val allocators = use("std/allocators")
+val random     = use("std/crypto/random")
 val parser     = use("../ast/parser.sx")
 
 /// Returns a platform-appropriate path for a temp file.
@@ -21,6 +22,60 @@ pub fn get_tmp_path(name: ref u8) ref u8 = trust {
         return @fmtalloc("C:/Windows/Temp/{s}", {name})
     }
     return @fmtalloc("/tmp/{s}", {name})
+}
+
+/// Returns a unique platform-appropriate temp path for a build artifact.
+///
+/// A UUID is inserted immediately before the file extension (or appended when
+/// there is no extension), so concurrent compiler invocations never share the
+/// intermediate `.c`, `.s`, `.ssa`, object, or test binary paths.
+pub fn get_unique_tmp_path(name: ref u8) ref u8 = trust {
+    val path_name: ref u8 = get_tmp_path(name)
+    val guid: ref u8 = random.random_uuid()
+    val n: i64 = string.len_raw(path_name)
+    val sep: mut i64 = -1
+    val si: mut i64 = n - 1
+    for {
+        if si < 0 {
+            break
+        }
+        val sc: u8 = @load8(@ptradd(path_name, si)) as u8
+        if sc == 47 || sc == 92 {
+            sep = si
+            break
+        }
+        si--
+    }
+    val dot: mut i64 = -1
+    val i: mut i64 = n - 1
+    for {
+        if i <= sep {
+            break
+        }
+        if @load8(@ptradd(path_name, i)) == 46 {
+            dot = i
+            break
+        }
+        i--
+    }
+    val cap: i64 = n + 80
+    val out: ref u8 = @alloc(cap as usize) as ref u8
+    if dot < 0 {
+        @snprintf(out, cap, "{s}_{s}", {path_name, guid})
+    } else {
+        if dot > 0 {
+            @memcpy(out, path_name, dot as usize)
+        }
+        @snprintf(
+            @ptradd(out, dot),
+            cap - dot,
+            "_{s}{s}",
+            {guid, @ptradd(path_name, dot)}
+        )
+    }
+    @free(guid)
+    @free(path_name)
+    return out
 }
 
 pub fn is_compiler_available(compiler: ref u8) bool = {

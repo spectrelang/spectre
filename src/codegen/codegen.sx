@@ -13,7 +13,6 @@ val lexer       = use("../ast/lexer.sx")
 val parser      = use("../ast/parser.sx")
 val module      = use("../module/module.sx")
 val defines     = use("../meta/defines.sx")
-val features    = use("../meta/features.sx")
 
 extern (C) fn strstr(haystack: ref u8, needle: ref u8) ref u8 = "strstr"
 
@@ -95,7 +94,6 @@ pub type CgCtx = {
     embed_labels: mut list[ref u8]
     embed_count: mut i64
     alloc_runtime: mut bool
-    unboxed_option_result: mut bool
     current_fn_ret_unboxed: mut bool
     current_fn_ret_layout_size: mut i64
 }
@@ -217,7 +215,6 @@ fn cg_new() ref CgCtx = trust {
     ctx.embed_labels = []
     ctx.embed_count = 0
     ctx.alloc_runtime = false
-    ctx.unboxed_option_result = features.unboxed_option_result()
     ctx.current_fn_ret_unboxed = false
     ctx.current_fn_ret_layout_size = 0
     return ctx
@@ -3808,6 +3805,26 @@ fn cg_mark_as_slot(ctx: mut ref CgCtx, src_name: ref u8) void = trust {
     @append(ctx.local_slot_names as list[ref u8], src_name)
 }
 
+/// Remove a stale slot marker when a later declaration shadows the name.
+/// Codegen walks mutually exclusive branches sequentially, so a mutable local
+/// from an earlier branch must not make a later immutable `val` look mutable.
+fn cg_unmark_slot(ctx: mut ref CgCtx, src_name: ref u8) void = trust {
+    val nlen: i64 = @len(ctx.local_slot_names as list[ref u8]) as i64
+    val i: mut i64 = nlen - 1
+    for {
+        if i < 0 {
+            break
+        }
+        val n_opt = @get(ctx.local_slot_names as list[ref u8], i as usize)
+        if n_opt is some n {
+            if str.raw_cmp(n as ref u8, src_name) == 0 {
+                @remove(ctx.local_slot_names, i as usize)
+            }
+        }
+        i--
+    }
+}
+
 /// Check if a variable is a slot (mutable)
 fn cg_is_slot(ctx: ref CgCtx, src_name: ref u8) bool = trust {
     val nlen: i64 = @len(ctx.local_slot_names as list[ref u8]) as i64
@@ -6109,7 +6126,7 @@ fn gen_expr(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
     }
 
     if k == parser.NK_NONE {
-        if ctx.unboxed_option_result && ctx.expected_ty != none
+        if ctx.expected_ty != none
         && (ctx.expected_ty as ref parser.Node).kind == parser.TY_OPTION {
             val opt_ty: ref parser.Node = ctx.expected_ty as ref parser.Node
             val sz: i64 = cg_option_layout_size(ctx, opt_ty, 0)
@@ -6344,7 +6361,7 @@ fn gen_expr(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
         val inner: ref u8 = gen_expr(ctx, inner_node)
         val inner_qt: ref u8 = expr_qbe_type(ctx, inner_node)
         val alloc_node: ref parser.Node = parser.wrap_allocator(expr)
-        if ctx.unboxed_option_result {
+        if true {
             val opt_ty: mut ref parser.Node = none
             if ctx.expected_ty != none && (ctx.expected_ty as ref parser.Node).kind == parser.TY_OPTION {
                 opt_ty = ctx.expected_ty as ref parser.Node
@@ -6455,7 +6472,7 @@ fn gen_expr(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
 
     if k == parser.NK_OK_VAL {
         val alloc_node: ref parser.Node = parser.wrap_allocator(expr)
-        if ctx.unboxed_option_result {
+        if true {
             val res_ty: mut ref parser.Node = none
             if ctx.expected_ty != none && (ctx.expected_ty as ref parser.Node).kind == parser.TY_RESULT {
                 res_ty = ctx.expected_ty as ref parser.Node
@@ -6591,7 +6608,7 @@ fn gen_expr(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
 
     if k == parser.NK_ERR_VAL {
         val alloc_node: ref parser.Node = parser.wrap_allocator(expr)
-        if ctx.unboxed_option_result {
+        if true {
             val res_ty: mut ref parser.Node = none
             if ctx.expected_ty != none && (ctx.expected_ty as ref parser.Node).kind == parser.TY_RESULT {
                 res_ty = ctx.expected_ty as ref parser.Node
@@ -7632,7 +7649,7 @@ fn gen_binop(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
         ) as ref u8
         if str.raw_cmp(inner_ann, "f64") == 0 {
             @snprintf(pay_buf, 768,
-                "    %%t{lld} =l sub {s}, 1\n    %%t{lld} =l sub {s}, 1\n    %%t{lld} =d loadd %%t{lld}\n    %%t{lld} =d loadd %%t{lld}\n    %%t{lld} =w ceqd %%t{lld}, %%t{lld}\n    storew %%t{lld}, %%t{lld}\n    jmp @lbl{lld}\n",
+                "    %%t{lld} =l add {s}, 8\n    %%t{lld} =l add {s}, 8\n    %%t{lld} =d loadd %%t{lld}\n    %%t{lld} =d loadd %%t{lld}\n    %%t{lld} =w ceqd %%t{lld}, %%t{lld}\n    storew %%t{lld}, %%t{lld}\n    jmp @lbl{lld}\n",
                 {
                     l_ptr,
                     lhs,
@@ -7651,7 +7668,7 @@ fn gen_binop(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
                 })
         } elif str.raw_cmp(inner_ann, "f32") == 0 {
             @snprintf(pay_buf, 768,
-                "    %%t{lld} =l sub {s}, 1\n    %%t{lld} =l sub {s}, 1\n    %%t{lld} =s loads %%t{lld}\n    %%t{lld} =s loads %%t{lld}\n    %%t{lld} =w ceqs %%t{lld}, %%t{lld}\n    storew %%t{lld}, %%t{lld}\n    jmp @lbl{lld}\n",
+                "    %%t{lld} =l add {s}, 8\n    %%t{lld} =l add {s}, 8\n    %%t{lld} =s loads %%t{lld}\n    %%t{lld} =s loads %%t{lld}\n    %%t{lld} =w ceqs %%t{lld}, %%t{lld}\n    storew %%t{lld}, %%t{lld}\n    jmp @lbl{lld}\n",
                 {
                     l_ptr,
                     lhs,
@@ -7670,7 +7687,7 @@ fn gen_binop(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
                 })
         } else {
             @snprintf(pay_buf, 768,
-                "    %%t{lld} =l sub {s}, 1\n    %%t{lld} =l sub {s}, 1\n    %%t{lld} =l loadl %%t{lld}\n    %%t{lld} =l loadl %%t{lld}\n    %%t{lld} =w ceql %%t{lld}, %%t{lld}\n    storew %%t{lld}, %%t{lld}\n    jmp @lbl{lld}\n",
+                "    %%t{lld} =l add {s}, 8\n    %%t{lld} =l add {s}, 8\n    %%t{lld} =l loadl %%t{lld}\n    %%t{lld} =l loadl %%t{lld}\n    %%t{lld} =w ceql %%t{lld}, %%t{lld}\n    storew %%t{lld}, %%t{lld}\n    jmp @lbl{lld}\n",
                 {
                     l_ptr,
                     lhs,
@@ -9269,7 +9286,7 @@ fn gen_call(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
         }
         val gret_union_name: ref u8 = is_union_type(ctx, gret_node as ref parser.Node)
         val greturns_union: bool = str.raw_cmp(gret_union_name, "") != 0
-        val greturns_unboxed: bool = ctx.unboxed_option_result && gret_node != none
+        val greturns_unboxed: bool = gret_node != none
         && ((gret_node as ref parser.Node).kind == parser.TY_OPTION
             || (gret_node as ref parser.Node).kind == parser.TY_RESULT)
         val ghas_sret: bool = greturns_union || greturns_unboxed
@@ -9987,7 +10004,7 @@ fn gen_call(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
     }
 
     val returns_union: bool = str.raw_cmp(ret_union_name, "") != 0
-    val returns_unboxed: bool = ctx.unboxed_option_result && ret_ty_node != none
+    val returns_unboxed: bool = ret_ty_node != none
     && (ret_ty_node.kind == parser.TY_OPTION || ret_ty_node.kind == parser.TY_RESULT)
     val has_sret: bool = returns_union || returns_unboxed
     val ret_buf_tmp: mut i64 = -1
@@ -11332,7 +11349,7 @@ fn gen_builtin(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
         tmp = len_val
     } elif str.raw_cmp(name, "get") == 0 || str.raw_cmp(name, "getref") == 0
     || str.raw_cmp(name, "getmut") == 0 {
-        if ctx.unboxed_option_result {
+        if true {
             val get_mode: mut i64 = 0
             if str.raw_cmp(name, "getref") == 0 {
                 get_mode = 1
@@ -12466,7 +12483,7 @@ fn gen_builtin(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
                     ret_union_name = is_union_type(ctx, ret_ty)
                 }
                 val returns_union: bool = str.raw_cmp(ret_union_name, "") != 0
-                val returns_unboxed: bool = ctx.unboxed_option_result && ret_ty != none
+                val returns_unboxed: bool = ret_ty != none
                 && (ret_ty.kind == parser.TY_OPTION || ret_ty.kind == parser.TY_RESULT)
                 val has_sret: bool = returns_union || returns_unboxed
                 val ret_buf_tmp: mut i64 = -1
@@ -13247,7 +13264,7 @@ fn gen_try(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
         emit(ctx, rbuf)
     }
     // ok branch: load the payload
-    if ctx.unboxed_option_result {
+    if true {
         val res_ann: ref u8 = infer_type_annotation(ctx, inner_node)
         val ok_buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 256 as usize) as ref u8
         val err_buf: ref u8 = allocators.ScopedArena.alloc_or_none(
@@ -13605,6 +13622,7 @@ fn gen_stmt(ctx: mut ref CgCtx, stmt: ref parser.Node) void = trust {
             emit(ctx, buf) cg_register_local_var(ctx, name, qbe_name)
             cg_mark_as_slot(ctx, name)
         } else {
+            cg_unmark_slot(ctx, name)
             val c0: u8 = @load8(val_tmp) as u8
             if c0 == 37 || c0 == 36 {
                 val qbe_val: ref u8 = allocators.ScopedArena.alloc_or_none(
@@ -14911,7 +14929,7 @@ fn gen_match_opt(ctx: mut ref CgCtx, stmt: ref parser.Node) void = trust {
     val end_lbl: i64 = fresh_lbl(ctx)
     val tag: i64 = fresh_tmp(ctx)
     val buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 256 as usize) as ref u8
-    if ctx.unboxed_option_result {
+    if true {
         val is_some: i64 = fresh_tmp(ctx)
         @snprintf(buf, 256,
             "    %%t{lld} =l loadl {s}\n    %%t{lld} =w cnel %%t{lld}, 0\n    jnz %%t{lld}, @lbl{lld}, @lbl{lld}\n@lbl{lld}\n",
@@ -14926,7 +14944,7 @@ fn gen_match_opt(ctx: mut ref CgCtx, stmt: ref parser.Node) void = trust {
     if some_bind != none && str.raw_cmp(some_bind, "_") != 0 {
         val opt_ann: ref u8 = infer_type_annotation(ctx, expr_node)
         val inner_type: ref u8 = parse_option_inner(opt_ann)
-        if ctx.unboxed_option_result {
+        if true {
             val inner_ty: ref parser.Node = cg_named_ty_from_ann(ctx, inner_type)
             cg_emit_bind_typed(ctx, expr, 8, some_bind, inner_ty)
         } else {
@@ -15038,7 +15056,7 @@ fn gen_match_res(ctx: mut ref CgCtx, stmt: ref parser.Node) void = trust {
 
     emit(ctx, buf) if is_real_result {
         if ok_bind != none && str.raw_cmp(ok_bind, "_") != 0 {
-            if ctx.unboxed_option_result {
+            if true {
                 val ok_ty: ref parser.Node = cg_named_ty_from_ann(ctx, ok_type_buf)
                 cg_emit_bind_typed(ctx, expr, 8, ok_bind, ok_ty)
             } else {
@@ -15120,7 +15138,7 @@ fn gen_match_res(ctx: mut ref CgCtx, stmt: ref parser.Node) void = trust {
     }
     if is_real_result {
         if err_bind != none && str.raw_cmp(err_bind, "_") != 0 {
-            if ctx.unboxed_option_result {
+            if true {
                 val err_ty: ref parser.Node = cg_named_ty_from_ann(ctx, err_type_buf)
                 cg_emit_bind_typed(ctx, expr, 8, err_bind, err_ty)
             } else {
@@ -15849,7 +15867,7 @@ fn gen_fn_prefixed(ctx: mut ref CgCtx, fn_node: ref parser.Node, mod_prefix: ref
         }
     }
     val returns_union: bool = str.raw_cmp(ret_union_name, "") != 0
-    val returns_unboxed: bool = ctx.unboxed_option_result && ret_ty != none
+    val returns_unboxed: bool = ret_ty != none
     && (ret_ty.kind == parser.TY_OPTION || ret_ty.kind == parser.TY_RESULT)
     val is_main: bool = str.raw_cmp(name, "main") == 0 && str.raw_cmp(mod_prefix, "") == 0
     if is_main {

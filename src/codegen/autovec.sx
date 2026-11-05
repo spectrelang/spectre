@@ -1,0 +1,636 @@
+/// Loop-level autovectorization planning for the C backend.
+///
+/// The planner deliberately recognises a small, provably independent set of
+/// counted loops.  It is intentionally conservative: anything it cannot prove
+/// element-wise is rejected and the ordinary scalar loop is emitted instead.
+///
+/// SPDX-License-Identifier: GPL-3.0-only
+/// (C) Navid Momtahen - 2026
+
+val parser = use("../ast/parser.sx")
+val str    = use("std/string")
+
+/// A vectorizable counted loop.
+///
+/// `index` is the induction variable, `end_expr` is the right-hand side of the
+/// `<` condition, and `trailing_increment` records whether the loop uses the
+/// condition-only form with `i++` as its last body statement.
+pub type Plan = {
+    index: mut ref u8
+    end_expr: mut ref parser.Node
+    trailing_increment: mut bool
+    elem_size: mut i64
+    vec_type: mut ref u8
+    elem_ctype: mut ref u8
+    lanes: mut i64
+}
+
+fn unwrap(node: ref parser.Node) ref parser.Node = {
+    val n: mut ref parser.Node = node
+    for {
+        if n == none {
+            break
+        }
+        if n.kind == parser.NK_TRUST || n.kind == parser.NK_CAST {
+            n = n.d0 as ref parser.Node
+        } else {
+            break
+        }
+    }
+    return n
+}
+
+fn ident_is(node: ref parser.Node, name: ref u8) bool = {
+    val n: ref parser.Node = unwrap(node)
+    if n == none || n.kind != parser.NK_IDENT {
+        return false
+    }
+    return str.raw_cmp(n.d0 as ref u8, name) == 0
+}
+
+fn int_is(node: ref parser.Node, text: ref u8) bool = {
+    val n: ref parser.Node = unwrap(node)
+    if n == none || n.kind != parser.NK_INT_LIT {
+        return false
+    }
+    return str.raw_cmp(parser.int_lit_text(n), text) == 0
+}
+
+fn builtin_is(node: ref parser.Node, name: ref u8) bool = {
+    val n: ref parser.Node = unwrap(node)
+    if n == none || n.kind != parser.NK_BUILTIN {
+        return false
+    }
+    return str.raw_cmp(parser.builtin_name(n), name) == 0
+}
+
+/// Return the lane width encoded by a load/store intrinsic, or 0.
+fn node_width(node: ref parser.Node) i64 = {
+    if builtin_is(node, "load32") || builtin_is(node, "store32") {
+        return 4
+    }
+    if builtin_is(node, "load") || builtin_is(node, "load64")
+    || builtin_is(node, "store") || builtin_is(node, "store64") {
+        return 8
+    }
+    return 0
+}
+
+fn has_binding(bindings: list[ref u8], name: ref u8) bool = {
+    for b in bindings {
+        if str.raw_cmp(b, name) == 0 {
+            return true
+        }
+    }
+    return false
+}
+
+fn size_text(size: i64) ref u8 = {
+    if size == 4 {
+        return "4"
+    }
+    if size == 8 {
+        return "8"
+    }
+    if size == 2 {
+        return "2"
+    }
+    return "1"
+}
+
+fn shift_text(size: i64) ref u8 = {
+    if size == 4 {
+        return "2"
+    }
+    if size == 8 {
+        return "3"
+    }
+    if size == 2 {
+        return "1"
+    }
+    return "0"
+}
+
+fn offset_is_lane(off: ref parser.Node, index: ref u8, elem_size: i64) bool = {
+    val n: ref parser.Node = unwrap(off)
+    if n == none || n.kind != parser.NK_BINOP {
+        return false
+    }
+    val op: i64 = n.d0
+    val lhs: ref parser.Node = n.d1 as ref parser.Node
+    val rhs: ref parser.Node = n.d2 as ref parser.Node
+    if op == parser.OP_MUL {
+        if ident_is(lhs, index) && int_is(rhs, size_text(elem_size)) {
+            return true
+        }
+        if int_is(lhs, size_text(elem_size)) && ident_is(rhs, index) {
+            return true
+        }
+    }
+    if op == parser.OP_SHL {
+        if ident_is(lhs, index) && int_is(rhs, shift_text(elem_size)) {
+            return true
+        }
+    }
+    return false
+}
+
+/// Extract the base pointer of `@ptradd(base, index * size)` when it is a
+/// simple identifier.  Simple identifiers keep aliasing predictable.
+fn ptr_base(node: ref parser.Node, index: ref u8, elem_size: i64) ref parser.Node = {
+    if !builtin_is(node, "ptradd") {
+        return none
+    }
+    val n: ref parser.Node = unwrap(node)
+    val args: ref void = parser.builtin_args(n)
+    if args == none || @len(args as list[ref parser.Node]) < 2 {
+        return none
+    }
+    val base_opt = @get(args as list[ref parser.Node], 0 as usize)
+    val off_opt = @get(args as list[ref parser.Node], 1 as usize)
+    if base_opt is some base_o {
+        if off_opt is some off {
+            val base: ref parser.Node = base_o as ref parser.Node
+            if base.kind != parser.NK_IDENT {
+                return none
+            }
+            if offset_is_lane(off as ref parser.Node, index, elem_size) {
+                return base
+            }
+        }
+    }
+    return none
+}
+
+fn is_load_node(node: ref parser.Node, index: ref u8, elem_size: i64) bool = {
+    if node_width(node) != elem_size {
+        return false
+    }
+    if !builtin_is(node, "load") && !builtin_is(node, "load64")
+    && !builtin_is(node, "load32") {
+        return false
+    }
+    val n: ref parser.Node = unwrap(node)
+    val args: ref void = parser.builtin_args(n)
+    if args == none || @len(args as list[ref parser.Node]) < 1 {
+        return false
+    }
+    val ptr_opt = @get(args as list[ref parser.Node], 0 as usize)
+    if ptr_opt is some ptr {
+        return ptr_base(ptr as ref parser.Node, index, elem_size) != none
+    }
+    return false
+}
+
+fn is_store_node(node: ref parser.Node, index: ref u8, elem_size: i64) bool = {
+    if node_width(node) != elem_size {
+        return false
+    }
+    if !builtin_is(node, "store") && !builtin_is(node, "store64")
+    && !builtin_is(node, "store32") {
+        return false
+    }
+    val n: ref parser.Node = unwrap(node)
+    val args: ref void = parser.builtin_args(n)
+    if args == none || @len(args as list[ref parser.Node]) < 2 {
+        return false
+    }
+    val ptr_opt = @get(args as list[ref parser.Node], 0 as usize)
+    if ptr_opt is some ptr {
+        return ptr_base(ptr as ref parser.Node, index, elem_size) != none
+    }
+    return false
+}
+
+fn vec_expr(node: ref parser.Node, bindings: list[ref u8], index: ref u8) bool = {
+    if node == none {
+        return false
+    }
+    val n: ref parser.Node = node
+    if n.kind == parser.NK_TRUST {
+        return vec_expr(n.d0 as ref parser.Node, bindings, index)
+    }
+    if n.kind == parser.NK_IDENT {
+        val name: ref u8 = n.d0 as ref u8
+        if str.raw_cmp(name, index) == 0 {
+            return false
+        }
+        return has_binding(bindings, name)
+    }
+    if n.kind == parser.NK_INT_LIT {
+        return true
+    }
+    if n.kind == parser.NK_BINOP {
+        val op: i64 = n.d0
+        if op != parser.OP_ADD && op != parser.OP_SUB && op != parser.OP_MUL
+        && op != parser.OP_BAND && op != parser.OP_BOR && op != parser.OP_BXOR
+        && op != parser.OP_SHL {
+            return false
+        }
+        return vec_expr(n.d1 as ref parser.Node, bindings, index)
+        && vec_expr(n.d2 as ref parser.Node, bindings, index)
+    }
+    if n.kind == parser.NK_UNOP {
+        val op: i64 = n.d0
+        if op != parser.UOP_NEG && op != parser.UOP_BNOT {
+            return false
+        }
+        return vec_expr(n.d1 as ref parser.Node, bindings, index)
+    }
+    return false
+}
+
+fn stmt_expr(stmt: ref parser.Node) ref parser.Node = {
+    if stmt == none || stmt.kind != parser.NK_EXPR_STMT {
+        return none
+    }
+    return stmt.d0 as ref parser.Node
+}
+
+fn store_value_of(node: ref parser.Node) ref parser.Node = {
+    val n: ref parser.Node = unwrap(node)
+    if n == none || n.kind != parser.NK_BUILTIN {
+        return none
+    }
+    val args: ref void = parser.builtin_args(n)
+    if args == none || @len(args as list[ref parser.Node]) < 2 {
+        return none
+    }
+    val v_opt = @get(args as list[ref parser.Node], 1 as usize)
+    if v_opt is some v {
+        return v as ref parser.Node
+    }
+    return none
+}
+
+fn list_single_store(
+    list_ptr: ref void,
+    index: ref u8,
+    elem_size: i64
+) ref parser.Node = {
+    if list_ptr == none {
+        return none
+    }
+    if @len(list_ptr as list[ref parser.Node]) != 1 {
+        return none
+    }
+    val first_opt = @get(list_ptr as list[ref parser.Node], 0 as usize)
+    if first_opt is some first {
+        val ev: ref parser.Node = stmt_expr(first as ref parser.Node)
+        if is_store_node(ev, index, elem_size) {
+            return ev
+        }
+    }
+    return none
+}
+
+fn base_name(node: ref parser.Node, index: ref u8, elem_size: i64) ref u8 = {
+    val base: ref parser.Node = ptr_base(node, index, elem_size)
+    if base == none {
+        return none
+    }
+    return base.d0 as ref u8
+}
+
+fn is_select_node(
+    stmt: ref parser.Node,
+    index: ref u8,
+    bindings: list[ref u8],
+    elem_size: i64
+) bool = {
+    if stmt == none || stmt.kind != parser.NK_IF {
+        return false
+    }
+    val cond: ref parser.Node = stmt.d0 as ref parser.Node
+    if cond == none || cond.kind != parser.NK_BINOP {
+        return false
+    }
+    val op: i64 = cond.d0
+    if op != parser.OP_EQ && op != parser.OP_NE && op != parser.OP_LT
+    && op != parser.OP_GT && op != parser.OP_LE && op != parser.OP_GE {
+        return false
+    }
+    if !vec_expr(cond.d1 as ref parser.Node, bindings, index)
+    || !vec_expr(cond.d2 as ref parser.Node, bindings, index) {
+        return false
+    }
+    val then_store: ref parser.Node = list_single_store(stmt.d1 as ref void, index, elem_size)
+    val else_wrap: ref parser.Node = stmt.d3 as ref parser.Node
+    if then_store == none || else_wrap == none {
+        return false
+    }
+    val else_store: ref parser.Node = list_single_store(
+        else_wrap.d0 as ref void,
+        index,
+        elem_size
+    )
+    if else_store == none {
+        return false
+    }
+
+    val then_args: ref void = parser.builtin_args(unwrap(then_store))
+    val else_args: ref void = parser.builtin_args(unwrap(else_store))
+    if then_args == none || else_args == none {
+        return false
+    }
+    val then_ptr_opt = @get(then_args as list[ref parser.Node], 0 as usize)
+    val else_ptr_opt = @get(else_args as list[ref parser.Node], 0 as usize)
+    val then_val_opt = @get(then_args as list[ref parser.Node], 1 as usize)
+    val else_val_opt = @get(else_args as list[ref parser.Node], 1 as usize)
+    if then_ptr_opt is some tp {
+        if else_ptr_opt is some ep {
+            if then_val_opt is some tv {
+                if else_val_opt is some ev {
+                    val then_base: ref u8 = base_name(tp as ref parser.Node, index, elem_size)
+                    val else_base: ref u8 = base_name(ep as ref parser.Node, index, elem_size)
+                    if then_base == none || else_base == none {
+                        return false
+                    }
+                    if str.raw_cmp(then_base, else_base) != 0 {
+                        return false
+                    }
+                    return vec_expr(tv as ref parser.Node, bindings, index)
+                    && vec_expr(ev as ref parser.Node, bindings, index)
+                }
+            }
+        }
+    }
+    return false
+}
+
+fn infer_elem_size(body: list[ref parser.Node]) i64 = {
+    val size: mut i64 = 0
+    for s_opt in body {
+        if s_opt == none {
+            continue
+        }
+        val s: ref parser.Node = s_opt
+        if s.kind == parser.NK_VAL {
+            val init: ref parser.Node = s.d3 as ref parser.Node
+            val w: i64 = node_width(init)
+            if w != 0 {
+                if size != 0 && size != w {
+                    return 0
+                }
+                size = w
+            }
+        } elif s.kind == parser.NK_EXPR_STMT {
+            val w: i64 = node_width(stmt_expr(s))
+            if w != 0 {
+                if size != 0 && size != w {
+                    return 0
+                }
+                size = w
+            }
+        } elif s.kind == parser.NK_IF {
+            val then_opt = @get(s.d1 as list[ref parser.Node], 0 as usize)
+            if then_opt is some then_node {
+                val w: i64 = node_width(stmt_expr(then_node as ref parser.Node))
+                if w != 0 {
+                    if size != 0 && size != w {
+                        return 0
+                    }
+                    size = w
+                }
+            }
+            val else_wrap: ref parser.Node = s.d3 as ref parser.Node
+            if else_wrap != none {
+                val else_opt = @get(else_wrap.d0 as list[ref parser.Node], 0 as usize)
+                if else_opt is some else_node {
+                    val w: i64 = node_width(stmt_expr(else_node as ref parser.Node))
+                    if w != 0 {
+                        if size != 0 && size != w {
+                            return 0
+                        }
+                        size = w
+                    }
+                }
+            }
+        }
+    }
+    return size
+}
+
+fn vec_type_for(size: i64) ref u8 = {
+    if size == 4 {
+        return "sx__vi32"
+    }
+    return "sx__vi64"
+}
+
+fn elem_ctype_for(size: i64) ref u8 = {
+    if size == 4 {
+        return "int32_t"
+    }
+    return "int64_t"
+}
+
+fn lanes_for(size: i64) i64 = {
+    if size == 4 {
+        return 4
+    }
+    return 2
+}
+
+/// Analyse one `NK_FOR` node.  Returns true and fills `out` when the loop is a
+/// counted `<` loop over contiguous 4- or 8-byte elements with element-wise
+/// stores (including a branch that lowers to a vector select).
+pub fn detect(stmt: ref parser.Node, out: mut ref Plan) bool = trust {
+    if stmt == none || stmt.kind != parser.NK_FOR {
+        return false
+    }
+    val raw_body: ref parser.Node = stmt.d4 as ref parser.Node
+    if raw_body == none {
+        return false
+    }
+    val raw_list: list[ref parser.Node] = raw_body as list[ref parser.Node]
+    val raw_len: i64 = @len(raw_list) as i64
+    val index: mut ref u8 = none
+    val vec_list: mut list[ref parser.Node] = []
+    val trailing_increment: mut bool = false
+    val post_node: ref parser.Node = stmt.d3 as ref parser.Node
+    if post_node != none {
+        if post_node.kind != parser.NK_INCREMENT {
+            return false
+        }
+        val post_target: ref parser.Node = post_node.d0 as ref parser.Node
+        if post_target == none || post_target.kind != parser.NK_IDENT {
+            return false
+        }
+        index = post_target.d0 as ref u8
+        vec_list = raw_list
+    } else {
+        trailing_increment = true
+        if raw_len == 0 {
+            return false
+        }
+        val last_opt = @get(raw_list, (raw_len - 1) as usize)
+        if last_opt is some last_raw {
+            val last: ref parser.Node = last_raw as ref parser.Node
+            if last.kind != parser.NK_INCREMENT {
+                return false
+            }
+            val last_target: ref parser.Node = last.d0 as ref parser.Node
+            if last_target == none || last_target.kind != parser.NK_IDENT {
+                return false
+            }
+            index = last_target.d0 as ref u8
+            val bi: mut i64 = 0
+            for {
+                if bi >= raw_len - 1 {
+                    break
+                }
+                val it_opt = @get(raw_list, bi as usize)
+                if it_opt is some it {
+                    @append(vec_list, it as ref parser.Node)
+                }
+                bi++
+            }
+        } else {
+            return false
+        }
+    }
+    if index == none {
+        return false
+    }
+    if stmt.d0 != 0 {
+        val init_name: ref u8 = stmt.d0 as ref u8
+        if str.raw_cmp(init_name, index) != 0 {
+            return false
+        }
+    }
+    val cond: ref parser.Node = stmt.d2 as ref parser.Node
+    if cond == none || cond.kind != parser.NK_BINOP || cond.d0 != parser.OP_LT {
+        return false
+    }
+    if !ident_is(cond.d1 as ref parser.Node, index) {
+        return false
+    }
+    val end_expr: ref parser.Node = cond.d2 as ref parser.Node
+    val elem_size: i64 = infer_elem_size(vec_list)
+    if elem_size != 4 && elem_size != 8 {
+        return false
+    }
+
+    val bindings: mut list[ref u8] = []
+    val has_work: mut bool = false
+    for s_opt in vec_list {
+        if s_opt == none {
+            continue
+        }
+        val s: ref parser.Node = s_opt
+        if s.kind == parser.NK_VAL {
+            val name: ref u8 = s.d0 as ref u8
+            val init: ref parser.Node = s.d3 as ref parser.Node
+            if name == none || init == none {
+                return false
+            }
+            if !is_load_node(init, index, elem_size)
+            && !vec_expr(init, bindings, index) {
+                return false
+            }
+            @append(bindings, name)
+        } elif s.kind == parser.NK_EXPR_STMT {
+            val ev: ref parser.Node = stmt_expr(s)
+            if !is_store_node(ev, index, elem_size) {
+                return false
+            }
+            if !vec_expr(store_value_of(ev), bindings, index) {
+                return false
+            }
+            has_work = true
+        } elif s.kind == parser.NK_IF {
+            if !is_select_node(s, index, bindings, elem_size) {
+                return false
+            }
+            has_work = true
+        } else {
+            return false
+        }
+    }
+    if !has_work {
+        return false
+    }
+    out.index = index
+    out.end_expr = end_expr
+    out.trailing_increment = trailing_increment
+    out.elem_size = elem_size
+    out.vec_type = vec_type_for(elem_size)
+    out.elem_ctype = elem_ctype_for(elem_size)
+    out.lanes = lanes_for(elem_size)
+    return true
+}
+
+/// Return true when `node` is a lane load belonging to this plan.
+pub fn (Plan) is_load(p: self, node: ref parser.Node) bool = {
+    return is_load_node(node, p.index, p.elem_size)
+}
+
+/// Return true when `node` is a lane store belonging to this plan.
+pub fn (Plan) is_store(p: self, node: ref parser.Node) bool = {
+    return is_store_node(node, p.index, p.elem_size)
+}
+
+/// Return the base identifier node of a lane load or store pointer.
+pub fn (Plan) ptr_base(p: self, node: ref parser.Node) ref parser.Node = {
+    return ptr_base(node, p.index, p.elem_size)
+}
+
+/// Return the value expression of a lane store node.
+pub fn (Plan) store_value(_: self, node: ref parser.Node) ref parser.Node = {
+    return store_value_of(node)
+}
+
+/// Return the pointer expression (the first argument) of a lane load node.
+pub fn (Plan) load_ptr(_: self, node: ref parser.Node) ref parser.Node = {
+    val n: ref parser.Node = unwrap(node)
+    if n == none || n.kind != parser.NK_BUILTIN {
+        return none
+    }
+    val args: ref void = parser.builtin_args(n)
+    if args == none || @len(args as list[ref parser.Node]) < 1 {
+        return none
+    }
+    val p_opt = @get(args as list[ref parser.Node], 0 as usize)
+    if p_opt is some p {
+        return p as ref parser.Node
+    }
+    return none
+}
+
+/// Return the pointer expression (the first argument) of a lane store node.
+pub fn (Plan) store_ptr(_: self, node: ref parser.Node) ref parser.Node = {
+    val n: ref parser.Node = unwrap(node)
+    if n == none || n.kind != parser.NK_BUILTIN {
+        return none
+    }
+    val args: ref void = parser.builtin_args(n)
+    if args == none || @len(args as list[ref parser.Node]) < 1 {
+        return none
+    }
+    val p_opt = @get(args as list[ref parser.Node], 0 as usize)
+    if p_opt is some p {
+        return p as ref parser.Node
+    }
+    return none
+}
+
+/// Return the store expression from the `then` arm of a vector select.
+pub fn (Plan) select_then_store(p: self, node: ref parser.Node) ref parser.Node = {
+    if node == none || node.kind != parser.NK_IF {
+        return none
+    }
+    return list_single_store(node.d1 as ref void, p.index, p.elem_size)
+}
+
+/// Return the store expression from the `else` arm of a vector select.
+pub fn (Plan) select_else_store(p: self, node: ref parser.Node) ref parser.Node = {
+    if node == none || node.kind != parser.NK_IF {
+        return none
+    }
+    val else_wrap: ref parser.Node = node.d3 as ref parser.Node
+    if else_wrap == none {
+        return none
+    }
+    return list_single_store(else_wrap.d0 as ref void, p.index, p.elem_size)
+}

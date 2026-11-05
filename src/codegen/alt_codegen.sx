@@ -13,7 +13,7 @@ val arenafmt   = use("../meta/arenafmt.sx")
 val parser     = use("../ast/parser.sx")
 val module     = use("../module/module.sx")
 val defines    = use("../meta/defines.sx")
-val features   = use("../meta/features.sx")
+val autovec    = use("autovec.sx")
 
 pub type CCtx = {
     sb: mut ref void
@@ -81,8 +81,8 @@ pub type CCtx = {
     embed_labels: mut list[ref u8]
     embed_count: mut i64
     alloc_adapters: mut list[ref u8]
-    unboxed_option_result: mut bool
     current_ret_unboxed: mut bool
+    autovec_plan: mut ref autovec.Plan
 }
 
 fn cc_new() ref CCtx = trust {
@@ -139,7 +139,6 @@ fn cc_new() ref CCtx = trust {
     ctx.release_mode = false
     ctx.current_ret_ctype = "int64_t"
     ctx.current_ret_is_void = false
-    ctx.unboxed_option_result = features.unboxed_option_result()
     ctx.current_ret_unboxed = false
     ctx.current_ret_ty = none
     ctx.current_prefix = ""
@@ -161,6 +160,7 @@ fn cc_new() ref CCtx = trust {
     ctx.embed_labels = []
     ctx.embed_count = 0
     ctx.alloc_adapters = []
+    ctx.autovec_plan = none
     return ctx
 }
 
@@ -2365,7 +2365,7 @@ fn cc_type_needs_aggregate_copy(ctx: ref CCtx, ty: ref parser.Node) bool = trust
         return false
     }
     val k: i64 = resolved_ty.kind
-    if ctx.unboxed_option_result && (k == parser.TY_OPTION || k == parser.TY_RESULT) {
+    if (k == parser.TY_OPTION || k == parser.TY_RESULT) {
         return false
     }
     if k == parser.TY_MUT {
@@ -3074,7 +3074,7 @@ fn gen_vararg_pack(ctx: mut ref CCtx, pack: ref void) ref u8 = trust {
 
 
 fn cc_is_unboxed_wrap(ctx: ref CCtx, ty: ref parser.Node) bool = trust {
-    if !ctx.unboxed_option_result || ty == none {
+    if ty == none {
         return false
     }
     val rt: ref parser.Node = cc_concrete_ty(ctx, ty)
@@ -3173,10 +3173,46 @@ fn gen_expr(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
         return "0"
     }
     val k: i64 = expr.kind
+    if ctx.autovec_plan != none {
+        val plan: ref autovec.Plan = ctx.autovec_plan as ref autovec.Plan
+        if autovec.Plan.is_load(plan, expr) {
+            return cc_autovec_load_expr(ctx, plan, expr)
+        }
+        if autovec.Plan.is_store(plan, expr) {
+            return cc_autovec_store_expr(ctx, plan, expr)
+        }
+    }
     if k == parser.NK_INT_LIT {
         val text: ref u8 = parser.int_lit_text(expr)
-        val buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 64 as usize) as ref u8
-        if @load8(text) == 48 && @load8(@ptradd(text, 1)) == 120 {
+        val buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 128 as usize) as ref u8
+        if ctx.autovec_plan != none {
+            val plan: ref autovec.Plan = ctx.autovec_plan as ref autovec.Plan
+            if plan.lanes == 4 {
+                @snprintf(
+                    buf,
+                    256,
+                    "(({s})\{(({s}){s}),(({s}){s}),(({s}){s}),(({s}){s})\})",
+                    {
+                        plan.vec_type,
+                        plan.elem_ctype,
+                        text,
+                        plan.elem_ctype,
+                        text,
+                        plan.elem_ctype,
+                        text,
+                        plan.elem_ctype,
+                        text
+                    }
+                )
+            } else {
+                @snprintf(
+                    buf,
+                    128,
+                    "(({s})\{(({s}){s}),(({s}){s})\})",
+                    {plan.vec_type, plan.elem_ctype, text, plan.elem_ctype, text}
+                )
+            }
+        } elif @load8(text) == 48 && @load8(@ptradd(text, 1)) == 120 {
             @snprintf(buf, 64, "((int64_t){s})", {text})
         } else {
             @snprintf(buf, 64, "INT64_C({s})", {text})
@@ -3206,7 +3242,7 @@ fn gen_expr(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
         return cc_expr_track(ctx, buf)
     }
     if k == parser.NK_NONE {
-        if ctx.unboxed_option_result && cc_is_unboxed_wrap(ctx, ctx.expected_ty) {
+        if cc_is_unboxed_wrap(ctx, ctx.expected_ty) {
             return cc_emit_wrap_local(ctx, 0, "", none)
         }
         return "0"
@@ -3298,7 +3334,7 @@ fn gen_expr(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
     }
     if k == parser.NK_SOME {
         val alloc_node: ref parser.Node = parser.wrap_allocator(expr)
-        if ctx.unboxed_option_result {
+        if true {
             val inner_node: ref parser.Node = expr.d0 as ref parser.Node
             val payload_ty: mut ref parser.Node = none
             if ctx.expected_ty != none && (ctx.expected_ty as ref parser.Node).kind == parser.TY_OPTION {
@@ -3370,7 +3406,7 @@ fn gen_expr(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
     }
     if k == parser.NK_OK_VAL {
         val alloc_node: ref parser.Node = parser.wrap_allocator(expr)
-        if ctx.unboxed_option_result {
+        if true {
             val inner_expr: mut ref u8 = ""
             val inner_ty: mut ref parser.Node = none
             if ctx.expected_ty != none && (ctx.expected_ty as ref parser.Node).kind == parser.TY_RESULT {
@@ -3448,7 +3484,7 @@ fn gen_expr(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
     }
     if k == parser.NK_ERR_VAL {
         val alloc_node: ref parser.Node = parser.wrap_allocator(expr)
-        if ctx.unboxed_option_result {
+        if true {
             val inner_expr: mut ref u8 = ""
             val inner_ty: mut ref parser.Node = none
             if ctx.expected_ty != none && (ctx.expected_ty as ref parser.Node).kind == parser.TY_RESULT {
@@ -3821,7 +3857,7 @@ fn gen_binop(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
             ctx.arena,
             4096 as usize
         ) as ref u8
-        if ctx.unboxed_option_result {
+        if true {
             val et: i64 = fresh_tmp(ctx)
             @snprintf(
                 eq_buf,
@@ -5397,7 +5433,7 @@ fn gen_builtin(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
     }
     if str.raw_cmp(bname, "get") == 0 || str.raw_cmp(bname, "getref") == 0
     || str.raw_cmp(bname, "getmut") == 0 {
-        if ctx.unboxed_option_result {
+        if true {
             val mode: mut i64 = 0
             if str.raw_cmp(bname, "getref") == 0 {
                 mode = 1
@@ -6680,6 +6716,24 @@ fn gen_stmt(ctx: mut ref CCtx, stmt: ref parser.Node) void = trust {
         val mutable: i64 = stmt.d1
         val ty_node: mut ref parser.Node = stmt.d2 as ref parser.Node
         val init_expr: ref parser.Node = stmt.d3 as ref parser.Node
+        if ctx.autovec_plan != none {
+            val plan: ref autovec.Plan = ctx.autovec_plan as ref autovec.Plan
+            val vec_val: ref u8 = gen_expr(ctx, init_expr)
+            val vbuf: ref u8 = allocators.ScopedArena.alloc_or_none(
+                ctx.arena,
+                (str.len_raw(vec_val) + 160) as usize
+            ) as ref u8
+            @snprintf(
+                vbuf,
+                str.len_raw(vec_val) + 160,
+                "{s} t_{s}=({s})({s});\n",
+                {plan.vec_type, name, plan.vec_type, vec_val}
+            )
+            emit(ctx, vbuf)
+            cc_expr_drain(ctx)
+            cc_register_local(ctx, name, plan.vec_type, none, 1)
+            return
+        }
         if ty_node == none && init_expr != none {
             val ie: mut ref parser.Node = init_expr
             if init_expr.kind == parser.NK_TRY || init_expr.kind == parser.NK_TRUST {
@@ -7192,6 +7246,11 @@ fn gen_stmt(ctx: mut ref CCtx, stmt: ref parser.Node) void = trust {
 }
 
 fn gen_if_stmt(ctx: mut ref CCtx, stmt: ref parser.Node) void = trust {
+    if ctx.autovec_plan != none {
+        val plan: ref autovec.Plan = ctx.autovec_plan as ref autovec.Plan
+        cc_autovec_select(ctx, plan, stmt)
+        return
+    }
     val cond: ref u8 = gen_expr(ctx, stmt.d0 as ref parser.Node)
     val buf: ref u8 = allocators.ScopedArena.alloc_or_none(
         ctx.arena,
@@ -7232,6 +7291,128 @@ fn gen_if_stmt(ctx: mut ref CCtx, stmt: ref parser.Node) void = trust {
     emitln(ctx, "}")
 }
 
+fn cc_autovec_offset(ctx: ref CCtx, plan: ref autovec.Plan) ref u8 = trust {
+    val idx: ref u8 = plan.index
+    val buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 128 as usize) as ref u8
+    @snprintf(buf, 128, "(t_{s}*(INT64_C({lld})))", {idx, plan.elem_size})
+    return buf
+}
+
+fn cc_autovec_load_expr(
+    ctx: mut ref CCtx,
+    plan: ref autovec.Plan,
+    node: ref parser.Node
+) ref u8 = trust {
+    val ptr: ref parser.Node = autovec.Plan.load_ptr(plan, node)
+    val base_node: ref parser.Node = autovec.Plan.ptr_base(plan, ptr)
+    val base: ref u8 = gen_expr(ctx, base_node)
+    val off: ref u8 = cc_autovec_offset(ctx, plan)
+    val cap: i64 = str.len_raw(base) + str.len_raw(off) + 192
+    val buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, cap as usize) as ref u8
+    @snprintf(
+        buf,
+        cap,
+        "(*({s}*)(intptr_t)((char*)(intptr_t)({s})+({s})))",
+        {plan.vec_type, base, off}
+    )
+    return cc_expr_track(ctx, buf)
+}
+
+fn cc_autovec_store_expr(
+    ctx: mut ref CCtx,
+    plan: ref autovec.Plan,
+    node: ref parser.Node
+) ref u8 = trust {
+    val ptr: ref parser.Node = autovec.Plan.store_ptr(plan, node)
+    val base_node: ref parser.Node = autovec.Plan.ptr_base(plan, ptr)
+    val value_node: ref parser.Node = autovec.Plan.store_value(plan, node)
+    val base: ref u8 = gen_expr(ctx, base_node)
+    val value: ref u8 = gen_expr(ctx, value_node)
+    val off: ref u8 = cc_autovec_offset(ctx, plan)
+    val cap: i64 = str.len_raw(base) + str.len_raw(value) + str.len_raw(off) + 224
+    val buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, cap as usize) as ref u8
+    @snprintf(
+        buf,
+        cap,
+        "(*({s}*)(intptr_t)((char*)(intptr_t)({s})+({s}))=({s})({s}))",
+        {plan.vec_type, base, off, plan.vec_type, value}
+    )
+    return cc_expr_track(ctx, buf)
+}
+
+fn cc_autovec_select(
+    ctx: mut ref CCtx,
+    plan: ref autovec.Plan,
+    stmt: ref parser.Node
+) void = trust {
+    val cond: ref u8 = gen_expr(ctx, stmt.d0 as ref parser.Node)
+    val then_store: ref parser.Node = autovec.Plan.select_then_store(plan, stmt)
+    val else_store: ref parser.Node = autovec.Plan.select_else_store(plan, stmt)
+    val then_value: ref u8 = gen_expr(ctx, autovec.Plan.store_value(plan, then_store))
+    val else_value: ref u8 = gen_expr(ctx, autovec.Plan.store_value(plan, else_store))
+    val ptr: ref parser.Node = autovec.Plan.store_ptr(plan, then_store)
+    val base_node: ref parser.Node = autovec.Plan.ptr_base(plan, ptr)
+    val base: ref u8 = gen_expr(ctx, base_node)
+    val off: ref u8 = cc_autovec_offset(ctx, plan)
+    val t: i64 = fresh_tmp(ctx)
+    val cap: i64 = str.len_raw(cond) + str.len_raw(then_value)
+    + str.len_raw(else_value) + str.len_raw(base) + str.len_raw(off) + 384
+    val buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, cap as usize) as ref u8
+    @snprintf(
+        buf,
+        cap,
+        "{s} sx__vm{lld}=({s})({s});\n(*({s}*)(intptr_t)((char*)(intptr_t)({s})+({s}))=((({s})({s}))&sx__vm{lld})|((({s})({s}))&(~sx__vm{lld})));\n",
+        {plan.vec_type, t, plan.vec_type, cond, plan.vec_type, base, off, plan.vec_type, then_value, t, plan.vec_type, else_value, t}
+    )
+    emit(ctx, buf)
+    cc_expr_drain(ctx)
+}
+
+fn cc_gen_autovec_vector(
+    ctx: mut ref CCtx,
+    plan: ref autovec.Plan,
+    stmt: ref parser.Node
+) void = trust {
+    val end_src: ref u8 = gen_expr(ctx, plan.end_expr)
+    val end_tmp: i64 = fresh_tmp(ctx)
+    val head_cap: i64 = str.len_raw(end_src) + 256
+    val head: ref u8 = allocators.ScopedArena.alloc_or_none(
+        ctx.arena,
+        head_cap as usize
+    ) as ref u8
+    @snprintf(
+        head,
+        head_cap,
+        "#if SX__HAVE_VECTOR_I64\n\{int64_t sx__ve{lld}=({s});for(;((t_{s})+{lld})<=(sx__ve{lld});t_{s}+={lld})\n\{\n",
+        {end_tmp, end_src, plan.index, plan.lanes, end_tmp, plan.index, plan.lanes}
+    )
+    emit(ctx, head)
+    cc_expr_drain(ctx)
+    val raw_list: list[ref parser.Node] = stmt.d4 as list[ref parser.Node]
+    val raw_len: i64 = @len(raw_list) as i64
+    val stop: mut i64 = raw_len
+    if plan.trailing_increment {
+        stop = raw_len - 1
+    }
+    val vec_body: mut list[ref parser.Node] = []
+    val bi: mut i64 = 0
+    for {
+        if bi >= stop {
+            break
+        }
+        val it_opt = @get(raw_list, bi as usize)
+        if it_opt is some it {
+            @append(vec_body, it as ref parser.Node)
+        }
+        bi++
+    }
+    ctx.autovec_plan = plan
+    gen_stmts(ctx, vec_body as ref parser.Node)
+    ctx.autovec_plan = none
+    emitln(ctx, "}}")
+    emitln(ctx, "#endif")
+}
+
 fn gen_for_stmt(ctx: mut ref CCtx, stmt: ref parser.Node) void = trust {
     val init_name: ref u8 = stmt.d0 as ref u8
     val cond_node: ref void = stmt.d2 as ref void
@@ -7246,6 +7427,15 @@ fn gen_for_stmt(ctx: mut ref CCtx, stmt: ref parser.Node) void = trust {
         @snprintf(ib, 256, "int64_t t_{s}=({s});\n", {init_name, init_val})
         emit(ctx, ib) cc_expr_drain(ctx)
         cc_register_local(ctx, init_name, "int64_t", none, 1)
+    }
+
+    val plan: mut autovec.Plan = {
+        index: ""
+        end_expr: none
+        trailing_increment: false
+    }
+    if autovec.detect(stmt, @addr(plan)) {
+        cc_gen_autovec_vector(ctx, @addr(plan), stmt)
     }
 
     if cond_node != none {
@@ -7437,7 +7627,7 @@ fn gen_match_opt(ctx: mut ref CCtx, stmt: ref parser.Node) void = trust {
     val nbody: ref parser.Node = parser.match_opt_none_body(stmt) val t: i64 = fresh_tmp(ctx)
     val stmt_cap: i64 = str.len_raw(expr) + 128
     val buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, (stmt_cap) as usize) as ref u8
-    if ctx.unboxed_option_result {
+    if true {
         @snprintf(
             buf,
             stmt_cap,
@@ -7461,14 +7651,14 @@ fn gen_match_opt(ctx: mut ref CCtx, stmt: ref parser.Node) void = trust {
             bind_ty = opt_inner
         }
         val vb: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 256 as usize) as ref u8
-        if ctx.unboxed_option_result && cc_is_unboxed_wrap(ctx, opt_inner) {
+        if cc_is_unboxed_wrap(ctx, opt_inner) {
             @snprintf(
                 vb,
                 256,
                 "int64_t t_{s}=(int64_t)(intptr_t)(&sx__mp{lld}[1]);\n",
                 {sb, t}
             )
-        } elif ctx.unboxed_option_result {
+        } elif true {
             @snprintf(
                 vb,
                 256,
@@ -8710,6 +8900,10 @@ fn emit_c_preamble(ctx: ref CCtx) void = trust {
     }
     emitln_fwd(
         ctx,
+        "/* Autovectorization lane types: 2 x int64_t or 4 x int32_t in a 16-byte\n   vector, mapping to SSE2 on x86-64 and NEON on AArch64 without -march. */\n#if defined(__GNUC__) && !defined(__TINYC__)\ntypedef int64_t sx__vi64 __attribute__((vector_size(16)));\ntypedef int32_t sx__vi32 __attribute__((vector_size(16)));\n#define SX__HAVE_VECTOR_I64 1\n#else\n#define SX__HAVE_VECTOR_I64 0\n#endif"
+    )
+    emitln_fwd(
+        ctx,
         "static int64_t sx__argc=0;\nstatic int64_t sx__argv=0;\ntypedef int64_t (*sx__alloc_fn)(int64_t,uint64_t);\ntypedef int32_t (*sx__free_fn)(int64_t,int64_t);\ntypedef int64_t (*sx__realloc_fn)(int64_t,int64_t,uint64_t);\ntypedef struct {sx__alloc_fn alloc;sx__free_fn free;sx__realloc_fn realloc;int64_t ctx;} sx__alloc_desc;"
     )
     emitln_fwd(
@@ -8896,7 +9090,7 @@ fn emit_forward_decls(ctx: ref CCtx) void = trust {
             val ret_unboxed_fwd: mut bool = false
             if r_opt is some r {
                 ret_ct = c_ret_type_of(ctx, r as ref parser.Node)
-                if ctx.unboxed_option_result && cc_is_unboxed_wrap(ctx, r as ref parser.Node) {
+                if cc_is_unboxed_wrap(ctx, r as ref parser.Node) {
                     ret_unboxed_fwd = true
                 }
             }

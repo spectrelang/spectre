@@ -8,7 +8,6 @@ val fs         = use("std/fs")
 val path       = use("std/path")
 val parser     = use("../ast/parser.sx")
 val modinfo    = use("../module/module.sx")
-val features   = use("../meta/features.sx")
 
 type ScopeEntry = {
     name: mut ref u8
@@ -1855,9 +1854,6 @@ fn sema_check_recursive_types(
     items: list[ref parser.Node],
     filename: ref u8
 ) void = trust {
-    if !features.unboxed_option_result() {
-        return
-    }
     for item in items {
         if item == none || item.kind != parser.NK_TYPEDEF {
             continue
@@ -1925,7 +1921,7 @@ fn sema_validate_fn_types(
         "return type",
         fn_name
     )
-    if features.unboxed_option_result() && fn_node.kind == parser.NK_EXTERN_FN {
+    if fn_node.kind == parser.NK_EXTERN_FN {
         val ret_k: i64 = ty_wrap_kind(fn_node.d4 as ref parser.Node)
         if ret_k == 1 || ret_k == 2 {
             val buf: ref u8 = allocators.ScopedArena.alloc_or_none(

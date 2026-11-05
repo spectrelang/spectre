@@ -723,7 +723,7 @@ pub fn main() i32 = trust {
             binary_name_alt = output_name
         }
 
-        val c_file = builds.get_tmp_path("spectre_output.c")
+        val c_file = builds.get_unique_tmp_path("spectre_output.c")
         val c_f = os.open(c_file, "w")
         if c_f is some f {
             os.write(f, c_ir, string.len_raw(c_ir) as i64)
@@ -832,7 +832,7 @@ pub fn main() i32 = trust {
                 {warn_flag, perf_flags}
             )
         }
-        val test_output_alt: ref u8 = builds.get_tmp_path("spectre_test_bin_alt")
+        val test_output_alt: ref u8 = builds.get_unique_tmp_path("spectre_test_bin_alt")
         val compile_output: mut ref u8 = test_output_alt
         if !test_mode {
             compile_output = final_output_alt
@@ -980,8 +980,8 @@ pub fn main() i32 = trust {
         binary_name = output_name
     }
 
-    val qbe_file = builds.get_tmp_path("spectre_output.ssa")
-    val asm_file = builds.get_tmp_path("spectre_output.s")
+    val qbe_file = builds.get_unique_tmp_path("spectre_output.ssa")
+    val asm_file = builds.get_unique_tmp_path("spectre_output.s")
     val qbe_f = os.open(qbe_file, "w")
 
     if qbe_f is some f {
@@ -1087,7 +1087,7 @@ pub fn main() i32 = trust {
     val shim_obj: mut ref u8 = ""
 
     if string.len_raw(c_shim_source) > 0 {
-        shim_c_file = builds.get_tmp_path("spectre_c_shim.c")
+        shim_c_file = builds.get_unique_tmp_path("spectre_c_shim.c")
         val shim_f = os.open(shim_c_file, "w")
         if shim_f is some f {
             os.write(f, c_shim_source, string.len_raw(c_shim_source) as i64)
@@ -1105,7 +1105,7 @@ pub fn main() i32 = trust {
             include_flags = @fmtalloc("{s} -I{s}", {include_flags, inc_path})
         }
 
-        shim_obj = builds.get_tmp_path("spectre_c_shim.o")
+        shim_obj = builds.get_unique_tmp_path("spectre_c_shim.o")
         val shim_cmd = @fmtalloc(
             "cc -std=c99 -Wno-error=int-conversion -c -o {s} {s}{s} 2>&1",
             {shim_obj, shim_c_file, include_flags}
@@ -1184,7 +1184,7 @@ pub fn main() i32 = trust {
     }
 
     if test_mode {
-        val test_bin: ref u8 = builds.get_tmp_path("spectre_test_bin")
+        val test_bin: ref u8 = builds.get_unique_tmp_path("spectre_test_bin")
         cc_cmd = @fmtalloc("cc -o {s} {s}{s}", {test_bin, asm_file, link_flags})
         val cc_res2 = os.exec(cc_cmd)
         match cc_res2 {
