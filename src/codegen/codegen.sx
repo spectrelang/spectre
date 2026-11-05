@@ -8813,9 +8813,8 @@ fn gen_store_field_value(
         }
     }
 
-    val base: ref u8 = gen_expr(ctx, ftarget)
-
     if field_is_union {
+        val base: ref u8 = gen_expr(ctx, ftarget)
         val fptr: i64 = fresh_tmp(ctx)
         if foffset == 0 {
             val buf3u: ref u8 = allocators.ScopedArena.alloc_or_none(
@@ -8919,6 +8918,7 @@ fn gen_store_field_value(
             val_to_store = cg_coerce_qtype(ctx, val_tmp2, val_qtype_n, dst_qtype)
         }
 
+        val base: ref u8 = gen_expr(ctx, ftarget)
         val buf3: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 128 as usize) as ref u8
         if field_is_list {
             if foffset == 0 {
