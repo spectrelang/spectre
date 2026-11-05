@@ -4647,6 +4647,54 @@ fn cc_sanitize_ident(ctx: ref CCtx, name: ref u8) ref u8 = trust {
     return out
 }
 
+fn cc_fn_prototype(ctx: mut ref CCtx, mangled: ref u8) ref u8 = trust {
+    val ret: ref parser.Node = cc_lookup_fn_ret(ctx, mangled)
+    val ret_ct: ref u8 = c_ret_type_of(ctx, ret)
+    val ret_unboxed: bool = cc_is_unboxed_wrap(ctx, ret)
+    val params: ref void = cc_lookup_fn_params(ctx, mangled)
+    val sb: ref void = str.StringBuilder.new()
+    str.StringBuilder.append_cstr(sb, "static ")
+    str.StringBuilder.append_cstr(sb, ret_ct)
+    str.StringBuilder.append_cstr(sb, " ")
+    str.StringBuilder.append_cstr(sb, mangled)
+    str.StringBuilder.append_cstr(sb, "(")
+    if ret_unboxed {
+        str.StringBuilder.append_cstr(sb, "int64_t*")
+    }
+    val plen: mut i64 = 0
+    if params != none {
+        plen = @len(params as list[ref parser.Node]) as i64
+    }
+    if plen > 0 {
+        if ret_unboxed {
+            str.StringBuilder.append_cstr(sb, ",")
+        }
+        val pi: mut i64 = 0
+        for {
+            if pi >= plen {
+                break
+            }
+            val p_opt = @get(params as list[ref parser.Node], pi as usize)
+            if p_opt is some p {
+                if pi > 0 {
+                    str.StringBuilder.append_cstr(sb, ",")
+                }
+                str.StringBuilder.append_cstr(
+                    sb,
+                    cc_c_type_of(ctx, (p as ref parser.Node).d1 as ref parser.Node)
+                )
+            }
+            pi++
+        }
+    } elif !ret_unboxed {
+        str.StringBuilder.append_cstr(sb, "void")
+    }
+    str.StringBuilder.append_cstr(sb, ");\n")
+    val built: ref u8 = cc_sb_build_cstr(ctx, sb)
+    str.StringBuilder.free(sb)
+    return built
+}
+
 /// Emit the uniform allocator adapters for a concrete GeneralAllocator type and
 /// return the adapter name prefix. The adapters normalize the concrete
 /// allocator method ABI for the list descriptor and formatting runtime.
@@ -4688,34 +4736,50 @@ fn cc_alloc_adapter_prefix(ctx: mut ref CCtx, ty: ref parser.Node) ref u8 = trus
         os.exit(1)
     }
 
-    val decl: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 768 as usize) as ref u8
-    @snprintf(
-        decl,
-        768,
-        "int64_t {s}(int64_t,uint64_t);int32_t {s}(int64_t,int64_t);int64_t {s}(int64_t,int64_t,uint64_t);",
-        {alloc_fn, free_fn, realloc_fn}
-    ) emitln_fwd(
-        ctx,
-        decl
-    ) val line: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 1024 as usize) as ref u8
+    emitln_fwd(ctx, cc_fn_prototype(ctx, alloc_fn))
+    emitln_fwd(ctx, cc_fn_prototype(ctx, free_fn))
+    emitln_fwd(ctx, cc_fn_prototype(ctx, realloc_fn))
+    val alloc_unboxed: bool = cc_is_unboxed_wrap(ctx, cc_lookup_fn_ret(ctx, alloc_fn))
+    val realloc_unboxed: bool = cc_is_unboxed_wrap(ctx, cc_lookup_fn_ret(ctx, realloc_fn))
+    val line: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 2048 as usize) as ref u8
+    if alloc_unboxed {
+        @snprintf(
+            line,
+            2048,
+            "static int64_t {s}_alloc(int64_t ctx,uint64_t size)\{int64_t sx__aw[3];{s}(sx__aw,ctx,size);return (sx__aw[0]!=0&&sx__aw[1]!=0)?sx__aw[1]+1:0;\}",
+            {prefix, alloc_fn}
+        )
+    } else {
+        @snprintf(
+            line,
+            2048,
+            "static int64_t {s}_alloc(int64_t ctx,uint64_t size)\{return (int64_t){s}(ctx,size);\}",
+            {prefix, alloc_fn}
+        )
+    }
+    emitln_fwd(ctx, line)
     @snprintf(
         line,
-        1024,
-        "static int64_t {s}_alloc(int64_t ctx,uint64_t size)\{return (int64_t){s}(ctx,size);\}",
-        {prefix, alloc_fn}
-    ) emitln_fwd(ctx, line)
-    @snprintf(
-        line,
-        1024,
+        2048,
         "static int32_t {s}_free(int64_t ctx,int64_t ptr)\{return (int32_t){s}(ctx,ptr);\}",
         {prefix, free_fn}
     ) emitln_fwd(ctx, line)
-    @snprintf(
-        line,
-        1024,
-        "static int64_t {s}_realloc(int64_t ctx,int64_t ptr,uint64_t size)\{return (int64_t){s}(ctx,ptr,size);\}",
-        {prefix, realloc_fn}
-    ) emitln_fwd(ctx, line) return prefix
+    if realloc_unboxed {
+        @snprintf(
+            line,
+            2048,
+            "static int64_t {s}_realloc(int64_t ctx,int64_t ptr,uint64_t size)\{int64_t sx__aw[3];{s}(sx__aw,ctx,ptr,size);return (sx__aw[0]!=0&&sx__aw[1]!=0)?sx__aw[1]+1:0;\}",
+            {prefix, realloc_fn}
+        )
+    } else {
+        @snprintf(
+            line,
+            2048,
+            "static int64_t {s}_realloc(int64_t ctx,int64_t ptr,uint64_t size)\{return (int64_t){s}(ctx,ptr,size);\}",
+            {prefix, realloc_fn}
+        )
+    }
+    emitln_fwd(ctx, line) return prefix
 }
 
 fn cc_copy_str(ctx: ref CCtx, s: ref u8) ref u8 = trust {
@@ -7856,7 +7920,7 @@ fn gen_fn_prefixed(ctx: mut ref CCtx, fn_node: ref parser.Node, mod_prefix: ref 
     val is_main: bool = str.raw_cmp(name, "main") == 0 && str.raw_cmp(mod_prefix, "") == 0
     ctx.current_ret_ctype = ret_ct
     ctx.current_ret_is_void = is_void_ret(ret_ty)
-    ctx.current_ret_unboxed = ret_unboxed
+    ctx.current_ret_unboxed = ret_unboxed && !is_main
     ctx.current_ret_ty = ret_ty
     cc_clear_locals(ctx)
     emit_line_directive(ctx, fn_node.line)
