@@ -75000,7 +75000,7 @@ function w $sema__type_matches_union_variant(l %ctx, l %union_def, l %arg_type) 
     ret %t33
 }
 
-data $sema__SEMA_UNKNOWN = { l -9223372036854775807 }
+data $sema__SEMA_UNKNOWN = { l -4294967295 }
 function l $sema__sema_const_eval(l %expr, l %field_names, l %field_vals) {
 @start
     %t11 =l alloc8 8
@@ -75014,7 +75014,7 @@ function l $sema__sema_const_eval(l %expr, l %field_names, l %field_vals) {
     %t1 =w ceql %expr, %t0
     jnz %t1, @lbl14490, @lbl14491
 @lbl14490
-    %t2 =l copy -9223372036854775807
+    %t2 =l copy -4294967295
     ret %t2
 @lbl14491
     %t3 =l loadl %expr
@@ -75026,7 +75026,7 @@ function l $sema__sema_const_eval(l %expr, l %field_names, l %field_vals) {
     %t6 =l loadl %t7
     %t8 =l copy %t6
     %t9 =l call $std__fmt__string_to_i64(l %t8)
-    %t10 =l copy -9223372036854775807
+    %t10 =l copy -4294967295
     storel %t10, %t11
     %t12 =l loadl %t9
     %t13 =w ceql %t12, 0
@@ -75154,7 +75154,7 @@ function l $sema__sema_const_eval(l %expr, l %field_names, l %field_vals) {
 @lbl14515
     jmp @lbl14513
 @lbl14516
-    %t81 =l copy -9223372036854775807
+    %t81 =l copy -4294967295
     ret %t81
 @lbl14511
     %t82 =l copy 75
@@ -75168,11 +75168,11 @@ function l $sema__sema_const_eval(l %expr, l %field_names, l %field_vals) {
     %t87 =l loadl %t88
     %t89 =l copy %t87
     %t90 =l call $sema__sema_const_eval(l %t89, l %field_names, l %field_vals)
-    %t91 =l copy -9223372036854775807
+    %t91 =l copy -4294967295
     %t92 =w ceql %t90, %t91
     jnz %t92, @lbl14532, @lbl14533
 @lbl14532
-    %t93 =l copy -9223372036854775807
+    %t93 =l copy -4294967295
     ret %t93
 @lbl14533
     %t94 =l copy 2
@@ -75198,7 +75198,7 @@ function l $sema__sema_const_eval(l %expr, l %field_names, l %field_vals) {
 @lbl14542
     jmp @lbl14539
 @lbl14539
-    %t103 =l copy -9223372036854775807
+    %t103 =l copy -4294967295
     ret %t103
 @lbl14530
     %t104 =l copy 74
@@ -75216,12 +75216,12 @@ function l $sema__sema_const_eval(l %expr, l %field_names, l %field_vals) {
     %t113 =l loadl %t114
     %t115 =l copy %t113
     %t116 =l call $sema__sema_const_eval(l %t115, l %field_names, l %field_vals)
-    %t117 =l copy -9223372036854775807
+    %t117 =l copy -4294967295
     %t118 =w ceql %t112, %t117
     storew %t118, %t119
     jnz %t118, @lbl14551, @lbl14550
 @lbl14550
-    %t120 =l copy -9223372036854775807
+    %t120 =l copy -4294967295
     %t121 =w ceql %t116, %t120
     storew %t121, %t119
     jmp @lbl14551
@@ -75229,7 +75229,7 @@ function l $sema__sema_const_eval(l %expr, l %field_names, l %field_vals) {
     %t122 =w loadw %t119
     jnz %t122, @lbl14547, @lbl14548
 @lbl14547
-    %t123 =l copy -9223372036854775807
+    %t123 =l copy -4294967295
     ret %t123
 @lbl14548
     %t124 =l copy 9
@@ -75394,10 +75394,10 @@ function l $sema__sema_const_eval(l %expr, l %field_names, l %field_vals) {
     %t183 =l mul %t112, %t116
     ret %t183
 @lbl14611
-    %t184 =l copy -9223372036854775807
+    %t184 =l copy -4294967295
     ret %t184
 @lbl14545
-    %t185 =l copy -9223372036854775807
+    %t185 =l copy -4294967295
     ret %t185
 }
 
@@ -75629,7 +75629,7 @@ function w $sema__sema_check_invariant_lit(l %ctx, l %typedef_node, l %args, l %
     %t136 =l loadl %t21
     %t137 =l copy %t136
     %t138 =l call $sema__sema_const_eval(l %t133, l %t135, l %t137)
-    %t139 =l copy -9223372036854775807
+    %t139 =l copy -4294967295
     %t140 =w cnel %t138, %t139
     storew %t140, %t141
     jnz %t140, @lbl14656, @lbl14657
@@ -75941,7 +75941,7 @@ function w $sema__sema_check_call_preconditions(l %ctx, l %fn_found, l %cargs, l
     %t85 =l add %t83, 16
     %t84 =l loadl %t85
     %t86 =l copy %t84
-    %t87 =l copy -9223372036854775807
+    %t87 =l copy -4294967295
     storel %t87, %t88
     %t89 =l loadl %t64
     %t90 =l loadl %t55
@@ -76076,7 +76076,7 @@ function w $sema__sema_check_call_preconditions(l %ctx, l %fn_found, l %cargs, l
     %t174 =l loadl %t48
     %t175 =l copy %t174
     %t176 =l call $sema__sema_const_eval(l %t171, l %t173, l %t175)
-    %t177 =l copy -9223372036854775807
+    %t177 =l copy -4294967295
     %t178 =w ceql %t176, %t177
     storew %t178, %t179
     jnz %t178, @lbl14737, @lbl14736
@@ -76659,7 +76659,7 @@ function w $sema__sema_if_stmt_guarantees_return(l %ctx, l %stmt) {
     %t9 =w call $sema__stmts_guarantee_return(l %ctx, l %t8)
     ret %t9
 @lbl14855
-    %t10 =l copy -9223372036854775807
+    %t10 =l copy -4294967295
     %t11 =w ceql %t3, %t10
     storew %t11, %t12
     jnz %t11, @lbl14860, @lbl14861
@@ -76712,7 +76712,7 @@ function w $sema__sema_if_stmt_guarantees_return(l %ctx, l %stmt) {
     %t44 =w call $sema__stmts_guarantee_return(l %ctx, l %t43)
     ret %t44
 @lbl14870
-    %t45 =l copy -9223372036854775807
+    %t45 =l copy -4294967295
     %t46 =w ceql %t38, %t45
     storew %t46, %t47
     jnz %t46, @lbl14875, @lbl14876
@@ -232046,7 +232046,7 @@ data $__str363 = { b "spectre: precondition 'valid_second' violated in function 
 data $__str364 = { b "spectre: precondition 'valid_millis' violated in function 'std__time__DateTime__new'\n", b 0 }
 data $__str365 = { b "spectre: precondition 'non_negative' violated in function 'std__time__sleep_millis'\n", b 0 }
 data $__str366 = { b "v0.0.14", b 0 }
-data $__str367 = { b "f5ffe62", b 0 }
+data $__str367 = { b "9ea2a71", b 0 }
 data $__str368 = { b "unknown", b 0 }
 data $__str369 = { b "usage:", b 0 }
 data $__str370 = { b "  spectre <command> [args] | <input.sx> [options]", b 0 }
