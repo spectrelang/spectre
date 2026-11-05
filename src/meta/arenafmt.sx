@@ -80,7 +80,7 @@ fn rewrite_fmt(arena: allocators.ScopedArenaAllocator, fmt: ref u8) ref void = t
 pub fn format(
     arena: allocators.ScopedArenaAllocator,
     fmt_string: ref u8,
-    args: untyped
+    args: argspack
 ) ref u8 = trust {
     val rfmt: ref void = rewrite_fmt(arena, fmt_string)
     if rfmt == none {

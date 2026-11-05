@@ -4,7 +4,7 @@ pub fn puts(arg: ref u8) void = {
 }
 
 /// Print a formatted string to stdout.
-pub fn print(fmt: ref u8, args: untyped) void = trust {
+pub fn print(fmt: ref u8, args: argspack) void = trust {
     @print(fmt, args)
 }
 
@@ -46,7 +46,7 @@ pub fn eputs(msg: ref u8) void = {
 }
 
 /// Print a string to stderr followed by a newline (fd 2).
-pub fn eprint(fmt: ref u8, args: untyped) void = trust {
+pub fn eprint(fmt: ref u8, args: argspack) void = trust {
     @dprintf(2, fmt, args)
 }
 

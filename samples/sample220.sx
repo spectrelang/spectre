@@ -15,13 +15,13 @@ fn unwrap(r: result[ref u8, allocators.AllocError]) ref u8 = trust {
 }
 
 // Argument packs can be forwarded through ordinary helper functions.
-fn vfmt(args: untyped) ref u8 = trust {
+fn vfmt(args: argspack) ref u8 = trust {
     val b: ref u8 = @alloc(256) as ref u8
     @snprintf(b, 256, "{s} {s}", args)
     return b
 }
 
-fn forward(args: untyped) ref u8 = trust {
+fn forward(args: argspack) ref u8 = trust {
     return vfmt(args)
 }
 

@@ -206,7 +206,7 @@ fn i64_to_string_heap(x: i64) ref u8 = trust {
 /// Format a string using printf-style specifiers, returning a new allocator-backed String.
 ///
 /// Example: format[allocators.Arena](arena, "{s} {d}", {name, age})
-pub fn format[A: allocators.Allocator](ac: A, fmt: ref u8, args: untyped) String = trust {
+pub fn format[A: allocators.Allocator](ac: A, fmt: ref u8, args: argspack) String = trust {
     val rfmt: ref void = rewrite_fmt(fmt)
     if rfmt == none {
         return none
