@@ -536,13 +536,25 @@ fn cc_infer_expr_ty(ctx: mut ref CCtx, expr: ref parser.Node) ref parser.Node = 
                     if elem != none {
                         val payload: mut ref parser.Node = elem
                         if str.raw_cmp(bname, "getref") == 0 {
-                            val rnode: mut ref parser.Node = parser.make_node(ctx.arena, parser.TY_REF, 0)
+                            val rnode: mut ref parser.Node = parser.make_node(
+                                ctx.arena,
+                                parser.TY_REF,
+                                0
+                            )
                             parser.node_store_slot[ref parser.Node](@addr(rnode.d0), elem)
                             payload = rnode
                         } elif str.raw_cmp(bname, "getmut") == 0 {
-                            val mnode: mut ref parser.Node = parser.make_node(ctx.arena, parser.TY_MUT, 0)
+                            val mnode: mut ref parser.Node = parser.make_node(
+                                ctx.arena,
+                                parser.TY_MUT,
+                                0
+                            )
                             parser.node_store_slot[ref parser.Node](@addr(mnode.d0), elem)
-                            val rnode2: mut ref parser.Node = parser.make_node(ctx.arena, parser.TY_REF, 0)
+                            val rnode2: mut ref parser.Node = parser.make_node(
+                                ctx.arena,
+                                parser.TY_REF,
+                                0
+                            )
                             parser.node_store_slot[ref parser.Node](@addr(rnode2.d0), mnode)
                             payload = rnode2
                         }
@@ -3259,7 +3271,12 @@ fn gen_expr(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
         emitln(ctx, "{")
         cc_emit_defers(ctx)
         if ctx.current_ret_unboxed {
-            @snprintf(buf, 8192, "memcpy(sx__ret,(void*)(intptr_t)sx__try{lld},24);return 0;\n}\nint64_t sx__val{lld} = sx__try{lld}[1];\n", {t, t, t})
+            @snprintf(
+                buf,
+                8192,
+                "memcpy(sx__ret,(void*)(intptr_t)sx__try{lld},24);return 0;\n}\nint64_t sx__val{lld} = sx__try{lld}[1];\n",
+                {t, t, t}
+            )
         } elif str.raw_cmp(ctx.current_ret_ctype, "void") == 0 {
             @snprintf(buf, 8192, "return;\n}\nint64_t sx__val{lld} = sx__try{lld}[1];\n", {t, t})
         } elif ctx.current_ret_is_void {
@@ -4214,7 +4231,12 @@ fn gen_call(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
         if gret_is_void {
             @snprintf(gcall_hdr, 4096, "{s}(", {c_mangled})
         } elif gret_unboxed {
-            @snprintf(gcall_hdr, 4096, "{s} sx__gv{lld}={s}((int64_t)(intptr_t)sx__grb{lld}", {gret_ct, gtmp, c_mangled, gret_tmp})
+            @snprintf(
+                gcall_hdr,
+                4096,
+                "{s} sx__gv{lld}={s}((int64_t)(intptr_t)sx__grb{lld}",
+                {gret_ct, gtmp, c_mangled, gret_tmp}
+            )
         } else {
             @snprintf(gcall_hdr, 4096, "{s} sx__gv{lld}={s}(", {gret_ct, gtmp, c_mangled})
         }
@@ -4487,7 +4509,10 @@ fn gen_call(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
     val call_ret_tmp: mut i64 = -1
     if call_unboxed {
         call_ret_tmp = fresh_tmp(ctx)
-        val decl_ret: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 128 as usize) as ref u8
+        val decl_ret: ref u8 = allocators.ScopedArena.alloc_or_none(
+            ctx.arena,
+            128 as usize
+        ) as ref u8
         @snprintf(decl_ret, 128, "int64_t sx__rb{lld}[3];\n", {call_ret_tmp})
         emit(ctx, decl_ret)
     }
@@ -4526,7 +4551,10 @@ fn gen_call(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
     val buf: ref u8 = cc_sb_build_cstr(ctx, sb)
     str.StringBuilder.free(sb)
     if call_unboxed {
-        val call_stmt: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 8192 as usize) as ref u8
+        val call_stmt: ref u8 = allocators.ScopedArena.alloc_or_none(
+            ctx.arena,
+            8192 as usize
+        ) as ref u8
         @snprintf(call_stmt, 8192, "(void)({s});\n", {buf})
         emit(ctx, call_stmt)
         val res: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 128 as usize) as ref u8
@@ -4852,10 +4880,20 @@ fn cc_elem_is_scalar(ctx: ref CCtx, ty: ref parser.Node) bool = trust {
     return false
 }
 
-fn cc_gen_get_unboxed(ctx: mut ref CCtx, expr: ref parser.Node, args: ref void, mode: i64) ref u8 = trust {
+fn cc_gen_get_unboxed(
+    ctx: mut ref CCtx,
+    expr: ref parser.Node,
+    args: ref void,
+    mode: i64
+) ref u8 = trust {
     val t: i64 = fresh_tmp(ctx)
     val db: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 256 as usize) as ref u8
-    @snprintf(db, 256, "int64_t sx__w{lld}[3];sx__w{lld}[0]=0;sx__w{lld}[1]=0;sx__w{lld}[2]=0;\n", {t, t, t, t})
+    @snprintf(
+        db,
+        256,
+        "int64_t sx__w{lld}[3];sx__w{lld}[0]=0;sx__w{lld}[1]=0;sx__w{lld}[2]=0;\n",
+        {t, t, t, t}
+    )
     emit(ctx, db)
     val arg0_opt = @get(args as list[ref parser.Node], 0 as usize)
     val arg0_node: mut ref parser.Node = none
@@ -4896,7 +4934,10 @@ fn cc_gen_get_unboxed(ctx: mut ref CCtx, expr: ref parser.Node, args: ref void, 
                 break
             }
             if cur_ty == none || cur_ty.kind != parser.TY_FIXED_ARR {
-                val jb: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 64 as usize) as ref u8
+                val jb: ref u8 = allocators.ScopedArena.alloc_or_none(
+                    ctx.arena,
+                    64 as usize
+                ) as ref u8
                 @snprintf(jb, 64, "goto sx__gwn{lld};\n", {none_lbl})
                 emit(ctx, jb)
                 break
@@ -4923,7 +4964,12 @@ fn cc_gen_get_unboxed(ctx: mut ref CCtx, expr: ref parser.Node, args: ref void, 
         } elif mode != 0 {
             @snprintf(sb, 512, "sx__w{lld}[0]=1;sx__w{lld}[1]=sx__cp{lld};\n", {t, t, cp})
         } else {
-            @snprintf(sb, 512, "sx__w{lld}[0]=1;sx__w{lld}[1]=(*(int64_t*)(intptr_t)sx__cp{lld});\n", {t, t, cp})
+            @snprintf(
+                sb,
+                512,
+                "sx__w{lld}[0]=1;sx__w{lld}[1]=(*(int64_t*)(intptr_t)sx__cp{lld});\n",
+                {t, t, cp}
+            )
         }
         emit(ctx, sb)
         val nl: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 64 as usize) as ref u8
@@ -4942,11 +4988,26 @@ fn cc_gen_get_unboxed(ctx: mut ref CCtx, expr: ref parser.Node, args: ref void, 
         emit(ctx, hb)
         val vb: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 512 as usize) as ref u8
         if mode != 0 && !cc_elem_is_scalar(ctx, actual_elem_ty) {
-            @snprintf(vb, 512, "sx__w{lld}[0]=1;sx__w{lld}[1]=sx__ld{lld}[sx__li{lld}];}\n", {t, t, lp, lp})
+            @snprintf(
+                vb,
+                512,
+                "sx__w{lld}[0]=1;sx__w{lld}[1]=sx__ld{lld}[sx__li{lld}];}\n",
+                {t, t, lp, lp}
+            )
         } elif mode != 0 {
-            @snprintf(vb, 512, "sx__w{lld}[0]=1;sx__w{lld}[1]=(int64_t)(intptr_t)&sx__ld{lld}[sx__li{lld}];}\n", {t, t, lp, lp})
+            @snprintf(
+                vb,
+                512,
+                "sx__w{lld}[0]=1;sx__w{lld}[1]=(int64_t)(intptr_t)&sx__ld{lld}[sx__li{lld}];}\n",
+                {t, t, lp, lp}
+            )
         } else {
-            @snprintf(vb, 512, "sx__w{lld}[0]=1;sx__w{lld}[1]=sx__ld{lld}[sx__li{lld}];}\n", {t, t, lp, lp})
+            @snprintf(
+                vb,
+                512,
+                "sx__w{lld}[0]=1;sx__w{lld}[1]=sx__ld{lld}[sx__li{lld}];}\n",
+                {t, t, lp, lp}
+            )
         }
         emit(ctx, vb)
     }

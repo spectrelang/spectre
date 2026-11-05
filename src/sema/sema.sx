@@ -1790,10 +1790,22 @@ fn sema_type_contains_recursive(
     }
     if k == parser.TY_MUT || k == parser.TY_OPTION || k == parser.TY_RESULT {
         if k == parser.TY_RESULT {
-            if sema_type_contains_recursive(ctx, ty.d0 as ref parser.Node, target, seen, depth + 1) {
+            if sema_type_contains_recursive(
+                ctx,
+                ty.d0 as ref parser.Node,
+                target,
+                seen,
+                depth + 1
+            ) {
                 return true
             }
-            return sema_type_contains_recursive(ctx, ty.d1 as ref parser.Node, target, seen, depth + 1)
+            return sema_type_contains_recursive(
+                ctx,
+                ty.d1 as ref parser.Node,
+                target,
+                seen,
+                depth + 1
+            )
         }
         return sema_type_contains_recursive(ctx, ty.d0 as ref parser.Node, target, seen, depth + 1)
     }
